@@ -64,6 +64,7 @@
 - 服务包折叠区：`audience / includes / outcome / cta` 完整。
 - 预约表单：校验、重复提交保护、mock/真实 API 模式标识。
 - MP-WEIXIN 真机 POC：优先使用 `tongye_quiet_intelligence_shader_repack.zip` 做 `canvas 背景 + 上层 scroll/text/form`。
+- Pretext-inspired 关键标题动效：v1 使用 `pretextMode="inspired"`，真实 `@chenglou/pretext` runtime 预留 H5 和 Post-v1 POC 路径。
 
 ### 1.5 施工契约索引
 
@@ -73,6 +74,7 @@
 | 顶部胶囊安全区 | `3.3` | Phase 1 |
 | Backdrop/shader POC | `4.3` | Phase 0 |
 | Typographic Intelligence Layer | `4.4` | Phase 5 |
+| Shader 9 状态到 11 屏映射 | `4.5` | Phase 0/5 |
 | Scene Registry | `5` | Phase 2 |
 | CTA 路由表 | `6` | Phase 3 |
 | 服务包字段契约 | `7.1` | Phase 2 |
@@ -238,9 +240,9 @@ page {
 
 ```txt
 SceneBackdrop
-  ├─ StaticFieldBackdrop   # MP-WEIXIN 默认
+  ├─ StaticFieldBackdrop   # fallback / 转化区低风险背景
   ├─ VideoBackdrop         # CDN poster/video 可用后启用
-  └─ ShaderCanvasBackdrop  # POC 通过后可启用
+  └─ ShaderCanvasBackdrop  # MP-WEIXIN 默认增强背景
 ```
 
 组件 props：
@@ -301,7 +303,7 @@ export type SceneBackdropProps = {
 
 失败处理：
 
-- MP-WEIXIN v1 禁用 `ShaderCanvasBackdrop`。
+- MP-WEIXIN v1 可通过 `VITE_BACKDROP_VARIANT=static` 禁用 `ShaderCanvasBackdrop`。
 - H5 可继续保留 shader 对比。
 - 小程序使用 `StaticFieldBackdrop` 或 `VideoBackdrop`。
 - Variable Typographic ASCII 可降级为静态字符纹理叠层；Illustrated Manuscript 可降级为普通文字展开动效。
@@ -331,19 +333,44 @@ Pretext / Emotional Text 的定位是文字层参考，不是第二套实时渲�
 - Post-v1 POC 才评估小程序 Pretext adapter，必须验证 Canvas 2D measurement、`Intl.Segmenter` 或 polyfill、包体积、真机性能。
 - 不做偏旁拆解、glyph morph 等 Pretext 本体不提供的能力；小程序只做字符级位移、透明度、字距、注释线等可控效果。
 
+模式开关：
+
+```ts
+export type PretextMode = "inspired" | "h5-runtime" | "mp-runtime-poc"
+```
+
+| 模式 | 使用平台 | 规则 |
+|---|---|---|
+| `inspired` | MP-WEIXIN v1 默认 | 不安装 `@chenglou/pretext`，只用原生 `view/text` 和 CSS transition |
+| `h5-runtime` | H5 预览/官网增强 | 可以安装并运行 `@chenglou/pretext`，用于真实 layout 实验 |
+| `mp-runtime-poc` | Post-v1 小程序专项 POC | 不进入发布路径，只验证真机兼容性和性能 |
+
+`pretextMode` 默认为 `inspired`。发布版 MP-WEIXIN 不允许配置为 `mp-runtime-poc`。
+
 组件 props：
 
 ```ts
 export type EmotionalTextMode = "none" | "emerge" | "scatter" | "align" | "settle"
+export type LineBreakPolicy = "manual" | "native" | "precomputed"
 
 export type EmotionalTitleLayerProps = {
   text: string
+  lines?: string[]
+  maxLines: number
+  lineBreakPolicy: LineBreakPolicy
   sceneId: string
   active: boolean
   progress: number
   mode: EmotionalTextMode
 }
 ```
+
+换行规则：
+
+- v1 优先使用 `lines` 手动断行，避免字符拆分后破坏原生 `<text>` 换行。
+- `maxLines` 必须由 scene 明确给出；标题超过限制时优先改文案或缩短断行，不让组件临时猜测。
+- 中英混排标题必须显式配置 `lines`，例如“企业级无限画布平台”“个人 vibe coding 培训”等。
+- `lineBreakPolicy: "precomputed"` 只用于 H5 runtime 或 Post-v1 POC；MP-WEIXIN v1 不在滚动中做复杂排版计算。
 
 允许使用范围：
 
@@ -361,8 +388,46 @@ export type EmotionalTitleLayerProps = {
 - `pages/index/index.vue` 统一把 `sceneProgressMap` 派发给文字层；组件不自行查询滚动。
 - 不在滚动中逐帧更新每个字符；按 `dispersed / gathering / settled` 等少数状态切换，用 CSS transition 完成过渡。
 - 字符层默认 `pointer-events: none`，不得抢 scroll、CTA、input、textarea、form。
+- `TypographicFieldOverlay` 单屏 glyph 数量不超过 `36`，整体透明度不超过 `0.12`。
+- `TypographicFieldOverlay` 只允许在 `hero / about / method / projects` 开启；`service-packages / lead` 默认关闭。
 - 375 / 390 / 430 宽度下标题不得溢出或覆盖后续内容。
 - 低端机、低电量或 `typographicFxEnabled=false` 时退回普通标题。
+
+Post-v1 `mp-runtime-poc` 验收清单：
+
+| 检查项 | 通过标准 |
+|---|---|
+| `Intl.Segmenter` | 真机存在，或 polyfill 后包体积可接受 |
+| Canvas 2D `measureText()` | iOS / Android / 开发者工具误差在标题断行可接受范围内 |
+| `prepare()` | 中文、英文、中英混排标题初始化不阻塞首屏 |
+| `layout()` | 滚动过程中不触发明显卡顿，不反复测量整段文本 |
+| 包体积 | 引入 runtime 后主包体积仍满足微信限制，且不挤占业务素材 |
+| 低端机滚动 | 连续滚动 30 秒无明显掉帧、发热、闪烁 |
+| 输入框聚焦 | LeadForm 聚焦、输入法弹起、提交流程不受影响 |
+| 发布隔离 | POC 代码有独立开关，不能进入 MP-WEIXIN 发布路径 |
+
+### 4.5 Shader 9 状态到 11 屏映射
+
+`tongye_quiet_intelligence_shader_repack.zip` 当前是 9 个 shader 状态；首页施工范围是 `S01-S11` 11 屏。v1 不强制把 shader 扩成 11 个独立状态。
+
+v1 决策：
+
+- `entry / hero` 共享 `shader 0` 的暗场和暖金光流。
+- `about` 到 `method` 使用 `shader 1-7`。
+- `projects / service-packages / lead` 共享 `shader 8`，作为低动态转化背景。
+- `shader 8` 在转化区按 `calm conversion mode` 处理：降低粒子、轨道、噪声和亮度变化，优先保护项目卡、服务包和表单可读性。
+
+Post-v1 才评估扩展 zip shader：
+
+```txt
+SECTION_COUNT
+sceneA(float idx)
+sceneB(float idx)
+sceneTint(float idx)
+demo section count
+```
+
+如果扩展到 11 状态，必须重新完成 Phase 0 的 canvas + scroll/text/form POC。
 
 ---
 
@@ -378,6 +443,8 @@ export type SceneRegistryItem = {
   order: number
   component: string
   title: string
+  titleLines?: string[]
+  titleMaxLines?: number
   subtitle?: string
   body?: string[]
   cards?: number
@@ -390,12 +457,13 @@ export type SceneRegistryItem = {
   textFx?: {
     mode: "none" | "emerge" | "scatter" | "align" | "settle"
     target: "title" | "keywords" | "steps"
+    lineBreakPolicy?: "manual" | "native" | "precomputed"
   }
   screenshotCheck: string
 }
 ```
 
-`textFx` 只允许声明关键标题或关键词动效，不用于正文、服务卡和表单。未声明时等同 `mode: "none"`。
+`textFx` 只允许声明关键标题或关键词动效，不用于正文、服务卡和表单。未声明时等同 `mode: "none"`。启用 `textFx` 的标题必须同时配置 `titleLines` 和 `titleMaxLines`；中英混排标题不得让组件自行推断断行。
 
 | ID | 组件 | 标题 | 内容/卡片 | CTA | 交互 | 背景/Shader | 原型参考 | 截图验收点 |
 |---|---|---|---|---|---|---|---|---|
@@ -601,6 +669,7 @@ type HomeState = {
   sceneProgressMap: Record<string, number>
   backdropVariant: "static" | "video" | "shader"
   typographicFxEnabled: boolean
+  pretextMode: "inspired" | "h5-runtime" | "mp-runtime-poc"
   leadIntent?: LeadDirection
 }
 ```
@@ -614,6 +683,7 @@ type HomeState = {
 - 滚动节流目标：约 32ms 一次。
 - `sceneProgressMap` 只保留当前场景、前一场景、后一场景的 progress，避免整页高频响应式更新。
 - `EmotionalTitleLayer` / `TypographicFieldOverlay` 只消费首页派发的 `progress / active / sceneId`，不得自行监听或查询滚动。
+- MP-WEIXIN 发布路径强制 `pretextMode="inspired"`；`mp-runtime-poc` 只允许专项测试包使用。
 
 ---
 
@@ -632,7 +702,7 @@ type HomeState = {
 - 确定 `LEAD_API_MODE`。
 - 解包 `tongye_quiet_intelligence_shader_repack.zip`。
 - 基于 `uni-app-example/TongyeShaderBackdrop.vue` 完成 MP-WEIXIN canvas 背景 POC。
-- 明确记录 POC 结果：`shader-enabled` 或 `shader-fallback-only`。
+- 明确记录 POC 结果：`tongye-quiet-intelligence-mp-poc` / `shader-enabled` 或 `shader-fallback-only`。
 
 验收：
 
@@ -649,7 +719,7 @@ type HomeState = {
 
 - `BrandHeader` 安全区适配。
 - `SceneShell`、`GlassCard`、`CtaButton`、`IconBadge`、`StepRail`。
-- `StaticFieldBackdrop` 默认背景。
+- `ShaderCanvasBackdrop` 默认背景；`StaticFieldBackdrop` 作为 fallback / 转化区低风险背景。
 - `ScrollIndicator` 和底部探索提示。
 - 全局 token、混入、基础动效。
 
@@ -732,6 +802,7 @@ type HomeState = {
 - 将 Variable Typographic ASCII 转译为静态字符纹理或轻量叠层。
 - 将 Illustrated Manuscript 转译为文本展开/解释层互动。
 - 将 Pretext Emotional Text 转译为 `Pretext-inspired Typographic Intelligence Layer`：MP-WEIXIN v1 使用 `EmotionalTitleLayer` 的 `view/text + CSS transition`；H5 可接真 Pretext 做增强实验。
+- 配置 `pretextMode`，MP-WEIXIN v1 发布路径固定为 `inspired`，H5 可用 `h5-runtime`，小程序真 runtime 只走 `mp-runtime-poc` 专项测试包。
 - `backdropVariant` 支持配置切换。
 
 验收：
@@ -741,6 +812,8 @@ type HomeState = {
 - 真机滚动、输入、切后台稳定。
 - 字符纹理和文本互动不影响 CTA 与表单可用性。
 - 文字动效可一键关闭，不新增第二个实时 canvas，不逐帧更新每个字符。
+- 启用文字动效的标题都有 `titleLines / titleMaxLines`，中英混排标题不依赖运行时猜测断行。
+- `TypographicFieldOverlay` 单屏 glyph 数量不超过 `36`，透明度不超过 `0.12`，且不在服务包和表单区开启。
 
 ### Phase 6：微信验证与交付
 
@@ -783,11 +856,15 @@ type HomeState = {
 | Shader | `tongye_quiet_intelligence_shader_repack.zip` 已解包评估 | 文件/POC 检查 | 是 |
 | Shader | zip shader canvas POC 不遮挡表单 | 真机 POC | 是 |
 | Shader | POC 失败时 fallback 生效 | 配置切换 | 是 |
+| Shader | 9 个 shader 状态到 11 屏映射已按 `calm conversion mode` 记录 | 文档/代码检查 | 是 |
 | 参考资产 | 两个 TSX shader 仅作 H5/视觉参考 | 文档/代码检查 | 是 |
 | 参考资产 | Variable Typographic ASCII 不进入 shader 候选 | 文档/代码检查 | 是 |
 | 参考资产 | Illustrated Manuscript 不进入 shader 候选 | 文档/代码检查 | 是 |
 | 文字动效 | Pretext Emotional Text 不作为 MP-WEIXIN v1 runtime 或第二实时 canvas | 文档/代码检查 | 是 |
 | 文字动效 | 关键标题字符层不影响 CTA、滚动和表单输入 | 真机手测 | 是 |
+| 文字动效 | `pretextMode` 在 MP-WEIXIN 发布路径为 `inspired` | 构建配置检查 | 是 |
+| 文字动效 | 启用 `textFx` 的标题声明 `titleLines / titleMaxLines` | 静态检查 | 是 |
+| 文字动效 | `mp-runtime-poc` 完成 Segmenter、measureText、包体积、30 秒滚动和输入框聚焦检查 | 专项 POC 记录 | 否 |
 | 性能 | 滚动无明显卡顿 | 真机手测 | 是 |
 | 安全 | 前端无 webhook/token/secret | `rg` 检查 | 是 |
 
@@ -810,6 +887,9 @@ rg -n "webhook|token|secret|corpsecret|Authorization" src
 | TSX shader 不兼容微信 | 接入返工 | 明确为 H5/视觉参考 |
 | 字符/文本参考被误当 shader | 资产使用跑偏 | 明确 Variable Typographic ASCII / Illustrated Manuscript 只做纹理和文本互动参考 |
 | Pretext runtime 直接进入小程序 | Canvas 2D measurement、`Intl.Segmenter`、包体积和性能不确定 | MP-WEIXIN v1 用轻量 `view/text` 动效；真 Pretext 只放 H5 或 Post-v1 adapter POC |
+| 字符标题破坏原生换行 | 高保真标题溢出或中英混排异常 | 启用 `textFx` 的场景必须配置 `titleLines / titleMaxLines / lineBreakPolicy` |
+| TypographicFieldOverlay 过密 | 视觉变噪、滚动性能下降 | 单屏 glyph `<=36`、opacity `<=0.12`，转化区默认关闭 |
+| 11 屏误要求 11 个 shader 状态 | shader POC 被扩大、延期 | v1 明确复用 `shader 8` 做 `projects/service-packages/lead` 的低动态转化背景 |
 | 9 张原型缺 3 个设计文档场景 | 范围漏项 | 按设计文档补 `method/projects/service-packages` |
 | 服务转化信息不足 | 用户不知道如何合作 | 服务包使用完整 `ServicePackage` |
 | CTA 无页面可跳 | 点击无闭环 | 同页 scroll/modal/expand 解决 |
@@ -830,7 +910,7 @@ rg -n "webhook|token|secret|corpsecret|Authorization" src
 8. 接 CTA 路由表与滚动状态。
 9. 接 Lead API adapter。
 10. 根据 Phase 0 POC 结果启用 `ShaderCanvasBackdrop` 或 fallback。
-11. 补 `Pretext-inspired Typographic Intelligence Layer`，只启用关键标题轻量动效。
+11. 补 `Pretext-inspired Typographic Intelligence Layer`，只启用关键标题轻量动效，并为启用场景配置 `titleLines / titleMaxLines`。
 12. 微信开发者工具和真机验收。
 
 ---
@@ -848,7 +928,9 @@ rg -n "webhook|token|secret|corpsecret|Authorization" src
 - `SceneLead` 具备校验、提交态、成功态、错误态、重复提交保护。
 - `LEAD_API_MODE` 明确，发布版不允许误用无标识 mock。
 - `tongye_quiet_intelligence_shader_repack.zip` 已作为主 shader 候选完成 Phase 0 POC 并记录结果；不过关时 shader 小程序禁用。
+- 9 个 shader 状态到 11 屏的映射已落地；`projects / service-packages / lead` 使用低动态转化背景，不误扩 Phase 0 范围。
 - 两个 TSX shader 仅用于 H5/视觉参考；Variable Typographic ASCII 和 Illustrated Manuscript 仅用于字符纹理与文本互动参考。
-- Pretext Emotional Text 已纳入 `Pretext-inspired Typographic Intelligence Layer`：MP-WEIXIN v1 只做轻量标题动效，真 Pretext runtime 不阻塞首版。
+- Pretext Emotional Text 已纳入 `Pretext-inspired Typographic Intelligence Layer`：MP-WEIXIN v1 发布路径 `pretextMode="inspired"`，真 Pretext runtime 只进入 H5 或专项 POC。
+- 启用 `textFx` 的标题已声明 `titleLines / titleMaxLines`，`TypographicFieldOverlay` 满足 glyph 数量、透明度和禁用场景限制。
 - 视觉没有明显文字溢出、遮挡、低端感或蓝紫 AI 模板感。
 - 输出剩余素材、后端、字体、视频待确认清单。
