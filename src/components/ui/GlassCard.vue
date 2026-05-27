@@ -17,12 +17,17 @@ withDefaults(
 
 <style scoped lang="scss">
 .glass-card {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   border: 1rpx solid rgba(233, 226, 210, .17);
-  border-radius: 28rpx;
+  border-radius: var(--r-card);
   background:
     linear-gradient(126deg, rgba(233, 226, 210, .1), rgba(18, 20, 18, .5) 38%, rgba(199, 177, 122, .07)),
     rgba(18, 20, 18, .62);
-  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .08), 0 26rpx 72rpx rgba(0, 0, 0, .24);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .08), 0 18rpx 58rpx rgba(0, 0, 0, .20);
   backdrop-filter: blur(20rpx);
 }
 

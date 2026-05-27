@@ -8,12 +8,13 @@
     :subtitle="scene.subtitle"
     :active="active"
     :progress="progress"
-    title-fx="settle"
+    :title-fx="scene.textFx?.mode || 'none'"
+    :line-break-policy="scene.textFx?.lineBreakPolicy || 'manual'"
   >
     <view class="entry-panel">
-      <text class="entry-panel__line">Sound Off</text>
+      <text class="entry-panel__line">进入现场</text>
       <text class="entry-panel__dot" />
-      <text class="entry-panel__line entry-panel__line--muted">Sound On later</text>
+      <text class="entry-panel__line entry-panel__line--muted">保持静默</text>
     </view>
     <CtaButton :label="scene.ctaLabel || '进入'" @tap="$emit('cta', scene)" />
   </SceneShell>

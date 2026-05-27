@@ -15,7 +15,7 @@ export const sceneRegistry: SceneRegistryItem[] = [
     ctaTarget: 'hero',
     backdropMood: '安静黑曜石、暖金细线',
     shaderScene: 0,
-    textFx: { mode: 'settle', target: 'title', lineBreakPolicy: 'manual' },
+    textFx: { mode: 'none', target: 'title', lineBreakPolicy: 'manual' },
     screenshotCheck: '进入态不遮挡微信胶囊'
   },
   {
@@ -23,11 +23,14 @@ export const sceneRegistry: SceneRegistryItem[] = [
     order: 1,
     component: 'SceneHero',
     eyebrow: 'About',
-    title: '让 AI 进入真实的现场',
-    titleLines: ['让 AI', '进入真实的现场'],
-    titleMaxLines: 2,
+    title: '让 AI 进入真实的工作、学习与创造现场',
+    titleLines: ['让 AI 进入', '真实的工作、学习', '与创造现场'],
+    titleMaxLines: 3,
     subtitle: '面向组织与个人能力建设的 AI 转型咨询公司',
-    body: ['帮助企业完成 AI 咨询、培训、场景共创与落地陪跑。'],
+    body: [
+      '为企业提供 AI 转型咨询、企业培训、场景共创和落地陪跑。',
+      '也为国际教育方向的学生提供 AI 时代的学习、研究与申请准备咨询。'
+    ],
     ctaLabel: '开始了解',
     ctaAction: 'scroll',
     ctaTarget: 'about',
@@ -72,7 +75,7 @@ export const sceneRegistry: SceneRegistryItem[] = [
     prototypeRef: 'prototype 3',
     backdropMood: '无限画布四区',
     shaderScene: 2,
-    textFx: { mode: 'scatter', target: 'title', lineBreakPolicy: 'manual' },
+    textFx: { mode: 'none', target: 'title', lineBreakPolicy: 'manual' },
     screenshotCheck: '4 张服务卡不溢出'
   },
   {
@@ -91,6 +94,7 @@ export const sceneRegistry: SceneRegistryItem[] = [
     prototypeRef: 'prototype 4',
     backdropMood: '会议与流程线',
     shaderScene: 3,
+    textFx: { mode: 'none', target: 'title', lineBreakPolicy: 'manual' },
     screenshotCheck: '四宫格卡片可点击态清楚'
   },
   {
@@ -109,6 +113,7 @@ export const sceneRegistry: SceneRegistryItem[] = [
     prototypeRef: 'prototype 5',
     backdropMood: '节点画布',
     shaderScene: 4,
+    textFx: { mode: 'none', target: 'title', lineBreakPolicy: 'manual' },
     screenshotCheck: '节点线条不压标题'
   },
   {
@@ -127,6 +132,7 @@ export const sceneRegistry: SceneRegistryItem[] = [
     prototypeRef: 'prototype 6',
     backdropMood: '胶片与管线',
     shaderScene: 5,
+    textFx: { mode: 'none', target: 'title', lineBreakPolicy: 'manual' },
     screenshotCheck: 'StepRail 在窄屏不挤压'
   },
   {
@@ -145,6 +151,7 @@ export const sceneRegistry: SceneRegistryItem[] = [
     prototypeRef: 'prototype 7/8',
     backdropMood: '温暖学习与表达空间',
     shaderScene: 6,
+    textFx: { mode: 'none', target: 'title', lineBreakPolicy: 'manual' },
     screenshotCheck: '英文词与中文标题不换行异常'
   },
   {
@@ -180,6 +187,7 @@ export const sceneRegistry: SceneRegistryItem[] = [
     ctaTarget: 'project-detail',
     backdropMood: '数字展廊',
     shaderScene: 8,
+    textFx: { mode: 'settle', target: 'title', lineBreakPolicy: 'manual' },
     screenshotCheck: '当前聚焦卡片信息完整'
   },
   {
@@ -215,7 +223,7 @@ export const sceneRegistry: SceneRegistryItem[] = [
     prototypeRef: 'prototype 9',
     backdropMood: '安静路径线',
     shaderScene: 8,
-    textFx: { mode: 'settle', target: 'title', lineBreakPolicy: 'manual' },
+    textFx: { mode: 'none', target: 'title', lineBreakPolicy: 'manual' },
     screenshotCheck: '输入法弹起后仍可提交'
   }
 ]

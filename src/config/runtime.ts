@@ -8,7 +8,7 @@ export const DEFAULT_BACKDROP_VARIANT = normalizeBackdropVariant(
 
 export const PRETEXT_MODE: PretextMode = normalizePretextMode(import.meta.env.VITE_PRETEXT_MODE)
 
-export const SHADER_POC_RESULT = 'tongye-quiet-intelligence-mp-poc' as const
+export const SHADER_POC_RESULT = 'mp-runtime-shader-snapshot' as const
 
 export const SHADER_SCENE_MAP: Record<string, number> = {
   entry: 0,
@@ -31,8 +31,10 @@ function normalizeLeadMode(value: unknown): 'mock' | 'unicloud' | 'http' {
 }
 
 function normalizeBackdropVariant(value: unknown): BackdropVariant {
+  if (value === 'shader') return 'shader'
   if (value === 'static') return 'static'
   if (value === 'video') return 'video'
+
   return 'shader'
 }
 

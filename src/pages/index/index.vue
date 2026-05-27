@@ -5,15 +5,10 @@
       :scene-index="activeSceneIndex"
       :active="true"
       :progress="activeSceneProgress"
-      :variant="backdropVariant"
-    />
-    <TypographicFieldOverlay
-      :scene-id="activeSceneId"
-      :enabled="typographicFxEnabled && typographicScenes.includes(activeSceneId)"
-      :progress="pageProgress"
+      :variant="effectiveBackdropVariant"
     />
     <BrandHeader />
-    <ScrollIndicator v-if="activeSceneId !== 'lead'" :progress="pageProgress" />
+    <ScrollIndicator v-if="!['service-packages', 'lead'].includes(activeSceneId)" :progress="pageProgress" />
     <SceneEntry
       :scene="sceneMap.entry"
       :active="activeSceneId === 'entry'"
@@ -94,6 +89,11 @@
       :success-lead-id="lead.successLeadId.value"
       @submit="submitLeadForm"
     />
+    <TypographicFieldOverlay
+      :scene-id="activeSceneId"
+      :enabled="typographicFxEnabled && typographicScenes.includes(activeSceneId)"
+      :progress="pageProgress"
+    />
 
     <view v-if="activeModal" class="modal-mask" @click="closeModal">
       <view class="modal-sheet" @click.stop>
@@ -142,7 +142,7 @@ const sceneMap = Object.fromEntries(sceneRegistry.map((scene) => [scene.id, scen
 const backdropVariant = DEFAULT_BACKDROP_VARIANT
 const pretextMode = PRETEXT_MODE
 const typographicFxEnabled = pretextMode === 'inspired'
-const typographicScenes = ['entry', 'hero', 'about', 'field-map', 'organization', 'canvas-agent', 'video-pipeline', 'personal', 'method', 'projects']
+const typographicScenes = ['method', 'projects']
 
 const metrics = useSceneMetrics()
 const scroll = usePageScroll(sceneRegistry)
@@ -155,6 +155,12 @@ const activeSceneId = computed(() => scroll.activeSceneId.value)
 const pageProgress = computed(() => scroll.pageProgress.value)
 const activeSceneIndex = computed(() => Math.max(0, sceneRegistry.findIndex((scene) => scene.id === activeSceneId.value)))
 const activeSceneProgress = computed(() => progressFor(activeSceneId.value))
+const effectiveBackdropVariant = computed(() => {
+  // #ifdef MP-WEIXIN
+  if (activeModal.value) return 'static'
+  // #endif
+  return backdropVariant
+})
 
 onMounted(refreshMetrics)
 onReady(refreshMetrics)
@@ -273,7 +279,10 @@ async function submitLeadForm() {
 
 .modal-mask {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 60;
   display: flex;
   align-items: flex-end;
@@ -314,7 +323,8 @@ async function submitLeadForm() {
 }
 
 .modal-sheet__points {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12rpx;
   margin-top: 24rpx;
 }

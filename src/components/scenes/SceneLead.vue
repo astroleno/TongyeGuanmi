@@ -8,7 +8,8 @@
     :subtitle="scene.subtitle"
     :active="active"
     :progress="progress"
-    title-fx="settle"
+    :title-fx="scene.textFx?.mode || 'none'"
+    :line-break-policy="scene.textFx?.lineBreakPolicy || 'manual'"
   >
     <template #body>
       <text class="lead-helper">预约一次场景共创，我们会一起判断最值得落地的切入点。</text>
@@ -49,7 +50,7 @@ defineEmits<{
   display: block;
   max-width: 600rpx;
   color: rgba(233, 226, 210, .6);
-  font-size: 25rpx;
-  line-height: 1.58;
+  font-size: 23rpx;
+  line-height: 1.68;
 }
 </style>

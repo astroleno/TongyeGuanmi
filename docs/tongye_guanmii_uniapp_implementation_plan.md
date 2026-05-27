@@ -225,7 +225,7 @@ page {
 | 项 | 规则 | 验收 |
 |---|---|---|
 | 胶囊数据 | `BrandHeader` 使用 `uni.getMenuButtonBoundingClientRect()` | 开发者工具和真机都能取到位置 |
-| 系统信息 | 使用 `uni.getSystemInfoSync()` 计算 status bar 和 safe area | iOS/Android 顶部留白正常 |
+| 系统信息 | 优先使用 `uni.getWindowInfo()` 计算 status bar 和 safe area，必要时才做兼容 fallback | iOS/Android 顶部留白正常 |
 | 绘制边界 | 不绘制假的时间、信号、电量、胶囊 | 页面里没有伪系统 UI |
 | 品牌位置 | 品牌名在左上安全区内，右侧避开胶囊 | 真机截图不重叠 |
 | 验收基准 | 原型顶部只作参考，最终以微信宿主截图为准 | 截图验收不因原型状态栏差异返工 |
@@ -240,9 +240,10 @@ page {
 
 ```txt
 SceneBackdrop
-  ├─ StaticFieldBackdrop   # fallback / 转化区低风险背景
+  ├─ ShaderRuntimeBackdrop # MP-WEIXIN 默认；组件内运行 shader 并输出 image frame
+  ├─ StaticFieldBackdrop   # 显式降级 / 低风险背景
   ├─ VideoBackdrop         # CDN poster/video 可用后启用
-  └─ ShaderCanvasBackdrop  # MP-WEIXIN 默认增强背景
+  └─ ShaderCanvasBackdrop  # H5 默认 WebGL canvas
 ```
 
 组件 props：
@@ -301,11 +302,12 @@ export type SceneBackdropProps = {
 - 切后台/返回后背景可恢复。
 - 低端机没有明显掉帧或发热。
 
-失败处理：
+MP-WEIXIN 处理：
 
-- MP-WEIXIN v1 可通过 `VITE_BACKDROP_VARIANT=static` 禁用 `ShaderCanvasBackdrop`。
-- H5 可继续保留 shader 对比。
-- 小程序使用 `StaticFieldBackdrop` 或 `VideoBackdrop`。
+- 不把原生 `canvas type="webgl"` 直接作为整页背景。
+- 默认使用 `ShaderRuntimeBackdrop`：组件内运行 WebGL shader，运行时导出 image frame；屏内低频更新，跨屏切换 9 个 shader state。
+- H5 继续保留 `ShaderCanvasBackdrop` 作为实时 WebGL 对比。
+- 必要时仍可通过 `VITE_BACKDROP_VARIANT=static` 禁用 shader image。
 - Variable Typographic ASCII 可降级为静态字符纹理叠层；Illustrated Manuscript 可降级为普通文字展开动效。
 
 ### 4.4 Typographic Intelligence Layer 契约
@@ -467,8 +469,8 @@ export type SceneRegistryItem = {
 
 | ID | 组件 | 标题 | 内容/卡片 | CTA | 交互 | 背景/Shader | 原型参考 | 截图验收点 |
 |---|---|---|---|---|---|---|---|---|
-| `entry` | `SceneEntry` | 同野观幂 / AI 现场 | 品牌进入、Sound Off 默认 | 进入 | scroll 到 `hero` | 安静黑曜石、暖金细线 / shader 0 | 设计文档 S00 | 进入态不遮挡微信胶囊 |
-| `hero` | `SceneHero` | 让 AI 进入真实的现场 | 面向组织与个人能力建设的 AI 转型咨询公司 | 开始了解 | scroll 到 `about` | 暖金光流 / shader 0 | prototype 1 | 大标题不超过 3 行 |
+| `entry` | `SceneEntry` | 同野观幂 / AI 现场 | 品牌进入、保持静默 | 进入 | scroll 到 `hero` | 安静黑曜石、暖金细线 / shader 0 | 设计文档 S00 | 进入态不遮挡微信胶囊 |
+| `hero` | `SceneHero` | 让 AI 进入真实的工作、学习与创造现场 | 面向组织与个人能力建设的 AI 转型咨询公司 | 开始了解 | scroll 到 `about` | 暖金光流 / shader 0 | prototype 1 | 大标题不超过 3 行 |
 | `about` | `SceneBrandMeaning` | 从黑箱，到现场 | 同野、观幂两张解释卡 | 继续了解 | scroll 到 `field-map` | 田野/系统结构 / shader 1 | prototype 2 | 两张玻璃卡片完整可读 |
 | `field-map` | `SceneFieldMap` | 四类能力，一个现场 | 组织、产品、内容、个人 4 卡 | 查看详细服务 | scroll 到 `organization` | 无限画布四区 / shader 2 | prototype 3 | 4 张服务卡不溢出 |
 | `organization` | `SceneOrganization` | 组织 AI 转型 | 管理层共识、业务流程梳理、工具实施、陪跑机制 | 预约咨询 | scroll 到 `lead` | 会议/流程线 / shader 3 | prototype 4 | 四宫格卡片可点击态清楚 |
@@ -701,15 +703,15 @@ type HomeState = {
 - 建立 `SceneBackdrop`、`Lead API`、`sceneRegistry` 的空实现。
 - 确定 `LEAD_API_MODE`。
 - 解包 `tongye_quiet_intelligence_shader_repack.zip`。
-- 基于 `uni-app-example/TongyeShaderBackdrop.vue` 完成 MP-WEIXIN canvas 背景 POC。
-- 明确记录 POC 结果：`tongye-quiet-intelligence-mp-poc` / `shader-enabled` 或 `shader-fallback-only`。
+- 基于 `uni-app-example/TongyeShaderBackdrop.vue` 完成 MP-WEIXIN runtime shader snapshot 背景 POC。
+- 明确记录 POC 结果：`mp-runtime-shader-snapshot` / `shader-enabled` / `shader-fallback-only`。
 
 验收：
 
 - `dev:mp-weixin` 可运行。
 - 微信开发者工具显示正确 AppID。
-- POC 中 zip shader/canvas 不遮挡 scroll/text/button/input/form。
-- 如果 POC 失败，文档和代码配置均将小程序背景锁定为 `static` 或 `video`。
+- POC 中 shader image frame 不遮挡 scroll/text/button/input/form。
+- 组件实际运行 shader，不回到 SVG/CSS 背景或预渲染 poster 序列。
 
 ### Phase 1：视觉框架与基础组件
 
@@ -719,7 +721,7 @@ type HomeState = {
 
 - `BrandHeader` 安全区适配。
 - `SceneShell`、`GlassCard`、`CtaButton`、`IconBadge`、`StepRail`。
-- `ShaderCanvasBackdrop` 默认背景；`StaticFieldBackdrop` 作为 fallback / 转化区低风险背景。
+- `ShaderRuntimeBackdrop` 作为 MP-WEIXIN 默认背景；`ShaderCanvasBackdrop` 作为 H5 默认；`StaticFieldBackdrop` 只作为显式降级。
 - `ScrollIndicator` 和底部探索提示。
 - 全局 token、混入、基础动效。
 
@@ -796,8 +798,8 @@ type HomeState = {
 
 任务：
 
-- 若 Phase 0 为 `shader-enabled`，将 zip 方案封装进 `ShaderCanvasBackdrop` 并做性能收敛。
-- 若 Phase 0 为 `shader-fallback-only`，保持 MP-WEIXIN 使用 `StaticFieldBackdrop`/`VideoBackdrop`。
+- 若 Phase 0 为 `shader-enabled`，H5 使用 `ShaderCanvasBackdrop`，MP 使用 `ShaderRuntimeBackdrop` 并做性能收敛。
+- 若 Phase 0 为 `shader-fallback-only`，MP-WEIXIN 需重新评估视频或静态图方案，但不能伪装成 runtime shader。
 - H5 可继续对比两个 TSX shader 作为视觉参考。
 - 将 Variable Typographic ASCII 转译为静态字符纹理或轻量叠层。
 - 将 Illustrated Manuscript 转译为文本展开/解释层互动。
@@ -927,7 +929,7 @@ rg -n "webhook|token|secret|corpsecret|Authorization" src
 - `SceneServicePackages` 包含完整服务包字段。
 - `SceneLead` 具备校验、提交态、成功态、错误态、重复提交保护。
 - `LEAD_API_MODE` 明确，发布版不允许误用无标识 mock。
-- `tongye_quiet_intelligence_shader_repack.zip` 已作为主 shader 候选完成 Phase 0 POC 并记录结果；不过关时 shader 小程序禁用。
+- `tongye_quiet_intelligence_shader_repack.zip` 作为主 shader 候选保留；MP-WEIXIN 发布默认 `static`，通过真机 POC 后才显式启用 shader。
 - 9 个 shader 状态到 11 屏的映射已落地；`projects / service-packages / lead` 使用低动态转化背景，不误扩 Phase 0 范围。
 - 两个 TSX shader 仅用于 H5/视觉参考；Variable Typographic ASCII 和 Illustrated Manuscript 仅用于字符纹理与文本互动参考。
 - Pretext Emotional Text 已纳入 `Pretext-inspired Typographic Intelligence Layer`：MP-WEIXIN v1 发布路径 `pretextMode="inspired"`，真 Pretext runtime 只进入 H5 或专项 POC。

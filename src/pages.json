@@ -7,6 +7,14 @@
         "disableScroll": false,
         "backgroundColor": "#080807"
       }
+    },
+    {
+      "path": "pages/morph-demo/index",
+      "style": {
+        "navigationStyle": "custom",
+        "disableScroll": true,
+        "backgroundColor": "#080807"
+      }
     }
   ],
   "globalStyle": {

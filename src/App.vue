@@ -22,10 +22,16 @@ page {
   --ease-sharp: cubic-bezier(.7, 0, .2, 1);
 
   --safe-top: 88rpx;
-  --content-x: 48rpx;
+  --content-x: 52rpx;
   --header-height: 112rpx;
   --glass-border: rgba(233, 226, 210, .18);
   --glass-fill: rgba(18, 20, 18, .52);
+  --r-card: 28rpx;
+  --r-panel: 28rpx;
+  --r-control: 16rpx;
+  --r-pill: 999rpx;
+  --text-body: 22rpx;
+  --text-note: 19rpx;
 }
 
 page,
@@ -50,6 +56,14 @@ input,
 textarea {
   box-sizing: border-box;
   font-family: var(--font-sans);
+  font-weight: 300;
+  letter-spacing: 0;
+}
+
+text {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 button {

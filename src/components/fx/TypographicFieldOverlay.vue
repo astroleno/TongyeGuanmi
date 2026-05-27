@@ -1,5 +1,5 @@
 <template>
-  <view class="typo-field" v-if="enabled">
+  <view class="typo-field" v-if="enabled" aria-hidden="true">
     <text
       v-for="(glyph, index) in glyphs"
       :key="`${sceneId}-${index}-${glyph}`"
@@ -19,9 +19,8 @@ const props = defineProps<{
 }>()
 
 const glyphs = [
-  '同', '野', '观', '幂', 'AI', '01', '现场', 'agent', 'flow', 'field', 'method', 'canvas',
-  '共创', '系统', '能力', 'brief', 'prompt', 'train', 'memory', 'node', '幂', 'field',
-  '现场', 'tools', 'learn', 'video', 'agent', '∞', 'S09', 'S11', '结构', '表达'
+  '同', '野', '观', '幂', 'AI', '现场', 'field', 'method',
+  '共创', '系统', '能力', 'brief', 'node', 'learn', '∞', '表达'
 ]
 
 function glyphStyle(index: number) {
@@ -33,7 +32,7 @@ function glyphStyle(index: number) {
     left: `${x}%`,
     top: `${y}%`,
     transform: `translate3d(${drift}rpx, ${-drift}rpx, 0) scale(${scale})`,
-    opacity: `${0.075 + (index % 5) * 0.018}`
+    opacity: `${Math.min(0.045, 0.018 + (index % 5) * 0.006)}`
   }
 }
 </script>
@@ -41,7 +40,10 @@ function glyphStyle(index: number) {
 <style scoped lang="scss">
 .typo-field {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 1;
   pointer-events: none;
   overflow: hidden;
@@ -50,9 +52,9 @@ function glyphStyle(index: number) {
 .typo-field__glyph {
   position: absolute;
   color: var(--c-ivory);
-  font-size: 23rpx;
+  font-size: 21rpx;
   line-height: 1;
-  text-shadow: 0 0 16rpx rgba(233, 226, 210, .18);
+  text-shadow: 0 0 12rpx rgba(233, 226, 210, .10);
   transition: transform .45s var(--ease-soft);
   white-space: nowrap;
 }

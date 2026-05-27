@@ -10,7 +10,7 @@
 - 服务包包含 `audience / includes / outcome / cta`。
 - LeadForm 包含校验、loading、success、error、8 秒重复提交保护。
 - `LEAD_API_MODE` 默认 `mock`，页面清楚标记演示提交。
-- 小程序沉浸屏默认使用真实 WebGL shader backdrop；`StaticFieldBackdrop` 仅作为强制 fallback / 转化区低风险背景，不阻断表单和滚动。
+- 小程序沉浸屏默认使用 `ShaderRuntimeBackdrop`：组件内部运行 WebGL shader，用离屏 canvas 导出临时帧，再以普通 image 显示，不把原生 canvas 直接铺在 UI 下方。
 - Pretext-inspired 文字动效使用 `view/text + CSS transition`，不新增第二实时 canvas。
 
 ## Constraints

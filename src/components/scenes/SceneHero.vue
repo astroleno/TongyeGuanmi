@@ -8,7 +8,8 @@
     :subtitle="scene.subtitle"
     :active="active"
     :progress="progress"
-    title-fx="emerge"
+    :title-fx="scene.textFx?.mode || 'none'"
+    :line-break-policy="scene.textFx?.lineBreakPolicy || 'manual'"
   >
     <template #body>
       <view class="hero-rule" />
@@ -38,14 +39,14 @@ defineEmits<{
 .hero-rule {
   width: 128rpx;
   height: 3rpx;
-  margin-top: 14rpx;
-  background: linear-gradient(90deg, var(--c-acid-dot), rgba(199, 177, 122, .64), transparent);
+  margin-top: 6rpx;
+  background: linear-gradient(90deg, rgba(199, 177, 122, .78), rgba(233, 226, 210, .36), transparent);
 }
 
 .hero-body {
-  max-width: 540rpx;
-  color: rgba(233, 226, 210, .58);
-  font-size: 26rpx;
-  line-height: 1.62;
+  max-width: 560rpx;
+  color: rgba(233, 226, 210, .55);
+  font-size: var(--text-body);
+  line-height: 1.82;
 }
 </style>

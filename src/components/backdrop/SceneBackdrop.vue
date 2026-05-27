@@ -1,20 +1,12 @@
 <template>
   <view class="scene-backdrop" aria-hidden="true">
-    <ShaderCanvasBackdrop
-      v-if="variant === 'shader'"
-      :scene-id="sceneId"
-      :scene-index="sceneIndex"
-      :active="active"
-      :progress="progress"
-      :variant="variant"
-    />
     <VideoBackdrop
-      v-else-if="variant === 'video'"
+      v-if="variant === 'video'"
       :scene-id="sceneId"
       :active="active"
     />
     <StaticFieldBackdrop
-      v-else
+      v-if="variant !== 'video'"
       :scene-id="sceneId"
       :scene-index="sceneIndex"
       :active="active"
@@ -25,7 +17,6 @@
 </template>
 
 <script setup lang="ts">
-import ShaderCanvasBackdrop from '@/components/backdrop/ShaderCanvasBackdrop.vue'
 import StaticFieldBackdrop from '@/components/backdrop/StaticFieldBackdrop.vue'
 import VideoBackdrop from '@/components/backdrop/VideoBackdrop.vue'
 import type { SceneBackdropProps } from '@/types/scene'
@@ -36,7 +27,10 @@ defineProps<SceneBackdropProps>()
 <style scoped>
 .scene-backdrop {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 0;
   pointer-events: none;
 }

@@ -1,41 +1,18 @@
 <template>
   <view class="shader-backdrop" :style="viewportStyle">
-    <StaticFieldBackdrop
-      v-if="!mpCanvasEnabled"
-      :scene-id="sceneId"
-      :scene-index="sceneIndex"
-      :active="active"
-      :progress="progress"
-      variant="static"
-      class="shader-backdrop__fallback"
-      :class="{ 'shader-backdrop__fallback--mp-live': !mpCanvasEnabled }"
-    />
     <!-- #ifdef H5 -->
     <canvas id="tongyeShader" type="webgl" class="shader-backdrop__canvas" :style="viewportStyle" />
-    <!-- #endif -->
-    <!-- #ifdef MP-WEIXIN -->
-    <canvas
-      v-if="mpCanvasEnabled"
-      id="tongyeShader"
-      canvas-id="tongyeShader"
-      type="webgl"
-      class="shader-backdrop__canvas shader-backdrop__canvas--mp"
-      :disable-scroll="false"
-      :style="viewportStyle"
-    />
     <!-- #endif -->
     <text v-if="shaderStatus" class="shader-backdrop__status">{{ shaderStatus }}</text>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, getCurrentInstance, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import StaticFieldBackdrop from '@/components/backdrop/StaticFieldBackdrop.vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { SHADER_SCENE_MAP } from '@/config/runtime'
 import type { SceneBackdropProps } from '@/types/scene'
 
 const props = defineProps<SceneBackdropProps>()
-const instance = getCurrentInstance()
 
 let shader: null | {
   setScroll: (progress: number) => void
@@ -52,9 +29,7 @@ const viewportStyle = computed(() => ({
 }))
 
 let teardownResize: null | (() => void) = null
-const mpCanvasEnabled = computed(() => !['service-packages', 'lead'].includes(props.sceneId))
 const SHADER_DEBUG = false
-const MP_SHADER_PIXEL_RATIO = 0.86
 
 const shaderProgress = computed(() => {
   const scene = SHADER_SCENE_MAP[props.sceneId] ?? 0
@@ -66,9 +41,6 @@ onMounted(() => {
   teardownResize = listenForResize(refreshViewport)
   // #ifdef H5
   void setupH5TongyeShader()
-  // #endif
-  // #ifdef MP-WEIXIN
-  void setupMpIfEnabled()
   // #endif
 })
 
@@ -84,28 +56,12 @@ watch(
   }
 )
 
-// #ifdef MP-WEIXIN
-watch(
-  () => mpCanvasEnabled.value,
-  (enabled) => {
-    if (enabled) {
-      void setupMpIfEnabled()
-      return
-    }
-
-    disposeShader()
-    shaderReady.value = true
-    shaderStatus.value = ''
-  }
-)
-// #endif
-
 async function setupH5TongyeShader() {
   try {
     const mod = await import('@/shaders/TongyeQuietIntelligenceShader')
     const canvas = resolveH5Canvas()
     if (!canvas) return
-    shader = mod.createTongyeQuietIntelligenceShader(canvas, { intensity: 1.04 })
+    shader = mod.createTongyeQuietIntelligenceShader(canvas, { intensity: 0.96 })
     const info = refreshViewport()
     shader.resize(info.windowWidth, info.windowHeight, Math.min(info.pixelRatio || 1, 2))
     shader.setScroll(shaderProgress.value)
@@ -124,57 +80,6 @@ function resolveH5Canvas() {
   return host.querySelector('canvas') as HTMLCanvasElement | null
 }
 
-async function setupMpIfEnabled() {
-  if (!mpCanvasEnabled.value) {
-    shaderReady.value = true
-    return
-  }
-  if (shader) return
-
-  await nextTick()
-  setupMpTongyeShader()
-}
-
-function setupMpTongyeShader() {
-  markShader('mp-mount')
-  const query = uni.createSelectorQuery().in(instance?.proxy)
-  query
-    .select('#tongyeShader')
-    .node(async (res: any) => {
-      try {
-        const canvas = res?.node
-        if (!canvas) {
-          failShader('mp-node-missing')
-          return
-        }
-
-        markShader('mp-node-found')
-        const mod = await import('@/shaders/TongyeQuietIntelligenceShader')
-        shader = mod.createTongyeQuietIntelligenceShader(canvas, {
-          autoRender: true,
-          intensity: 0.88,
-          maxFps: 24,
-          scrollLerp: 0.09,
-          timeScale: 1.25
-        })
-        const info = refreshViewport()
-        shader.resize(info.windowWidth, info.windowHeight, 0.86)
-        shader.setScroll(shaderProgress.value)
-        shaderReady.value = true
-        shaderStatus.value = ''
-        markShader('mp-context-ready')
-      } catch (error) {
-        shader = null
-        failShader('mp-init-failed', error)
-      }
-    })
-    .exec((res) => {
-      if (!res || !res[0]) {
-        failShader('mp-query-empty', res)
-      }
-    })
-}
-
 function refreshViewport() {
   const info = getWindowMetrics()
   viewportMetrics.value = info
@@ -183,15 +88,7 @@ function refreshViewport() {
 }
 
 function shaderPixelRatio(info: ReturnType<typeof getWindowMetrics>) {
-  // #ifdef MP-WEIXIN
-  return mpCanvasEnabled.value ? MP_SHADER_PIXEL_RATIO : 1
-  // #endif
   return Math.min(info.pixelRatio || 1, 2)
-}
-
-function disposeShader() {
-  shader?.dispose?.()
-  shader = null
 }
 
 function failShader(status: string, error?: unknown) {
@@ -260,7 +157,10 @@ function getWindowMetrics() {
 .shader-backdrop,
 .shader-backdrop__canvas {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -268,14 +168,6 @@ function getWindowMetrics() {
 
 .shader-backdrop {
   background: #080807;
-}
-
-.shader-backdrop__fallback {
-  opacity: .34;
-}
-
-.shader-backdrop__fallback--mp-live {
-  opacity: 1;
 }
 
 .shader-backdrop__canvas {

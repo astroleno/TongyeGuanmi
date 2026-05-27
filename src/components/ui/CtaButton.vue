@@ -25,10 +25,11 @@ defineEmits<{
 
 <style scoped lang="scss">
 .cta-button {
-  width: min(520rpx, 100%);
+  width: 100%;
+  max-width: 520rpx;
   min-height: 88rpx;
   padding: 0 48rpx;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -36,7 +37,7 @@ defineEmits<{
   background:
     linear-gradient(100deg, #f2eddc, #d8cda9 58%, #f4efdd),
     var(--c-ivory);
-  box-shadow: 0 0 36rpx rgba(199, 177, 122, .28), inset 0 1rpx 0 rgba(255, 255, 255, .64);
+  box-shadow: 0 14rpx 48rpx rgba(199, 177, 122, .18), inset 0 1rpx 0 rgba(255, 255, 255, .64);
   transition: transform .35s var(--ease-soft), opacity .35s var(--ease-soft);
 }
 
@@ -52,9 +53,15 @@ defineEmits<{
 }
 
 .cta-button__label {
-  font-size: 28rpx;
+  min-width: 0;
+  max-width: 390rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 26rpx;
   font-weight: 500;
   letter-spacing: 0;
+  line-height: 1.28;
 }
 
 .cta-button__arrow {

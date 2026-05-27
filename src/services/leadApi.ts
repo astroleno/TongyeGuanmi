@@ -3,6 +3,12 @@ import type { LeadPayload, LeadResult } from '@/types/lead'
 
 const HTTP_ENDPOINT = import.meta.env.VITE_LEAD_API_ENDPOINT || ''
 
+type UniCloudRuntime = {
+  callFunction(options: { name: string; data: LeadPayload }): Promise<{
+    result?: { ok?: boolean; leadId?: string; code?: string; message?: string }
+  }>
+}
+
 export async function submitLead(payload: LeadPayload): Promise<LeadResult> {
   if (LEAD_API_MODE === 'mock') {
     await wait(520)
@@ -14,13 +20,23 @@ export async function submitLead(payload: LeadPayload): Promise<LeadResult> {
   }
 
   if (LEAD_API_MODE === 'unicloud') {
+    const cloud = getUniCloudRuntime()
+    if (!cloud) {
+      return {
+        ok: false,
+        code: 'SERVER_ERROR',
+        message: '云函数运行时尚未就绪，请检查 uniCloud 配置',
+        mode: 'unicloud'
+      }
+    }
+
     try {
-      const res = await uniCloud.callFunction({
+      const res = await cloud.callFunction({
         name: 'submitLead',
         data: payload
       })
 
-      const result = res.result as { ok?: boolean; leadId?: string; code?: string; message?: string }
+      const result = res.result
       if (result?.ok) {
         return {
           ok: true,
@@ -89,7 +105,13 @@ export async function submitLead(payload: LeadPayload): Promise<LeadResult> {
   }
 }
 
-function normalizeErrorCode(value: unknown): LeadResult extends infer R ? 'VALIDATION_ERROR' | 'RATE_LIMITED' | 'NETWORK_ERROR' | 'SERVER_ERROR' : never {
+function getUniCloudRuntime(): UniCloudRuntime | null {
+  const runtime = (globalThis as { uniCloud?: UniCloudRuntime }).uniCloud
+  if (typeof runtime?.callFunction === 'function') return runtime
+  return null
+}
+
+function normalizeErrorCode(value: unknown): 'VALIDATION_ERROR' | 'RATE_LIMITED' | 'NETWORK_ERROR' | 'SERVER_ERROR' {
   if (value === 'VALIDATION_ERROR') return 'VALIDATION_ERROR'
   if (value === 'RATE_LIMITED') return 'RATE_LIMITED'
   if (value === 'NETWORK_ERROR') return 'NETWORK_ERROR'

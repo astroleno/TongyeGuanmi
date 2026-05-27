@@ -8,6 +8,8 @@
     :subtitle="scene.subtitle"
     :active="active"
     :progress="progress"
+    :title-fx="scene.textFx?.mode || 'none'"
+    :line-break-policy="scene.textFx?.lineBreakPolicy || 'manual'"
   >
     <StepRail :steps="videoPipelineSteps" :active-index="activeStep" />
     <CtaButton :label="scene.ctaLabel || '浏览案例'" @tap="$emit('cta', scene)" />

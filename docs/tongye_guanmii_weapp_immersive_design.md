@@ -335,13 +335,13 @@ AI 现场
 进入
 ```
 
-可选：
+状态提示：
 
 ```txt
-Sound Off / Sound On
+进入现场 / 保持静默
 ```
 
-默认 Sound Off。
+首版不展示未实现的声音开关，保持“静默进入”的仪式感。
 
 ### 视觉 Prompt
 
@@ -358,7 +358,7 @@ Vertical 9:16 cinematic loop, a dark obsidian space with subtle floating dust pa
 ### 前端实现 Prompt
 
 ```txt
-用 uni-app Vue 3 + TypeScript 实现一个全屏进入页组件 SceneEntry.vue。背景使用 VideoBackdrop 组件，支持 poster、muted、loop、autoplay。中央品牌文案使用 view/text，不把文字做进视频。进入按钮点击后滚动到主页面第一屏。默认静音，Sound On 只改变后续视频或音频状态。注意微信小程序端视频控件隐藏、object-fit 使用 cover。
+用 uni-app Vue 3 + TypeScript 实现一个全屏进入页组件 SceneEntry.vue。背景使用 ShaderRuntimeBackdrop：小程序端由组件内部运行 WebGL shader，导出临时帧后用普通 image 显示，不使用 SVG/CSS 背景，也不把原生 canvas 直接铺在 UI 下方。中央品牌文案使用 view/text，不把文字做进背景图。进入按钮点击后滚动到主页面第一屏。首版不展示声音开关，状态提示使用“进入现场 / 保持静默”。
 ```
 
 ---

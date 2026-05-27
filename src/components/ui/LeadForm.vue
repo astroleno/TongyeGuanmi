@@ -1,49 +1,51 @@
 <template>
-  <GlassCard class="lead-form" tone="warm">
-    <view class="lead-form__mode" v-if="isMockMode">
-      <text class="lead-form__mode-dot" />
-      <text>演示提交 / mock mode</text>
-    </view>
-
-    <view class="lead-form__field">
-      <text class="lead-form__label">公司 / 身份</text>
-      <input v-model="form.organization" class="lead-form__control" placeholder="企业、机构或个人身份" placeholder-class="lead-form__placeholder" />
-    </view>
-
-    <view class="lead-form__field">
-      <text class="lead-form__label">联系人</text>
-      <input v-model="form.name" class="lead-form__control" placeholder="姓名 / 称呼" placeholder-class="lead-form__placeholder" />
-    </view>
-
-    <view class="lead-form__field">
-      <text class="lead-form__label">联系方式</text>
-      <input v-model="form.contact" class="lead-form__control" placeholder="微信 / 手机 / 邮箱" placeholder-class="lead-form__placeholder" />
-    </view>
-
-    <view class="lead-form__field">
-      <text class="lead-form__label">你关心的方向</text>
-      <view class="lead-form__segments">
-        <button
-          v-for="option in directionOptions"
-          :key="option.value"
-          class="lead-form__segment"
-          :class="{ 'lead-form__segment--active': form.direction === option.value }"
-          @click="form.direction = option.value"
-        >
-          {{ option.label }}
-        </button>
+  <GlassCard tone="warm">
+    <view class="lead-form">
+      <view class="lead-form__mode" v-if="isMockMode">
+        <text class="lead-form__mode-dot" />
+        <text>演示提交 / mock mode</text>
       </view>
+
+      <view class="lead-form__field">
+        <text class="lead-form__label">公司 / 身份</text>
+        <input v-model="form.organization" class="lead-form__control" placeholder="企业、机构或个人身份" placeholder-class="lead-form__placeholder" />
+      </view>
+
+      <view class="lead-form__field">
+        <text class="lead-form__label">联系人</text>
+        <input v-model="form.name" class="lead-form__control" placeholder="姓名 / 称呼" placeholder-class="lead-form__placeholder" />
+      </view>
+
+      <view class="lead-form__field">
+        <text class="lead-form__label">联系方式</text>
+        <input v-model="form.contact" class="lead-form__control" placeholder="微信 / 手机 / 邮箱" placeholder-class="lead-form__placeholder" />
+      </view>
+
+      <view class="lead-form__field">
+        <text class="lead-form__label">你关心的方向</text>
+        <view class="lead-form__segments">
+          <button
+            v-for="option in directionOptions"
+            :key="option.value"
+            class="lead-form__segment"
+            :class="{ 'lead-form__segment--active': form.direction === option.value }"
+            @click="form.direction = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </view>
+      </view>
+
+      <view class="lead-form__field">
+        <text class="lead-form__label">你想解决的问题</text>
+        <textarea v-model="form.need" class="lead-form__textarea" maxlength="300" placeholder="用一句话描述你的团队、业务或个人项目正在面对什么问题" placeholder-class="lead-form__placeholder" />
+      </view>
+
+      <view v-if="error" class="lead-form__error">{{ error }}</view>
+      <view v-if="successLeadId" class="lead-form__success">已收到，我们会尽快联系你。</view>
+
+      <CtaButton class="lead-form__submit" :label="submitting ? '提交中' : successLeadId ? '已提交' : '预约一次场景共创'" :disabled="submitting || !!successLeadId" @tap="$emit('submit')" />
     </view>
-
-    <view class="lead-form__field">
-      <text class="lead-form__label">你想解决的问题</text>
-      <textarea v-model="form.need" class="lead-form__textarea" maxlength="300" placeholder="用一句话描述你的团队、业务或个人项目正在面对什么问题" placeholder-class="lead-form__placeholder" />
-    </view>
-
-    <view v-if="error" class="lead-form__error">{{ error }}</view>
-    <view v-if="successLeadId" class="lead-form__success">已收到，我们会尽快联系你。</view>
-
-    <CtaButton class="lead-form__submit" :label="submitting ? '提交中' : successLeadId ? '已提交' : '预约一次场景共创'" :disabled="submitting || !!successLeadId" @tap="$emit('submit')" />
   </GlassCard>
 </template>
 
@@ -86,8 +88,8 @@ const directionOptions: Array<{ value: LeadDirection; label: string }> = [
   align-items: center;
   gap: 10rpx;
   margin-bottom: 20rpx;
-  color: rgba(233, 226, 210, .58);
-  font-size: 20rpx;
+  color: rgba(233, 226, 210, .52);
+  font-size: 19rpx;
 }
 
 .lead-form__mode-dot {
@@ -99,31 +101,34 @@ const directionOptions: Array<{ value: LeadDirection; label: string }> = [
 }
 
 .lead-form__field {
-  display: grid;
-  gap: 16rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
   padding: 22rpx 0;
   border-bottom: 1rpx solid rgba(233, 226, 210, .12);
 }
 
 .lead-form__label {
-  color: rgba(233, 226, 210, .6);
-  font-size: 21rpx;
+  color: rgba(233, 226, 210, .52);
+  font-size: 19rpx;
 }
 
 .lead-form__control,
 .lead-form__textarea {
   width: 100%;
   color: var(--c-ivory);
-  font-size: 27rpx;
-  line-height: 1.45;
+  font-size: 23rpx;
+  line-height: 1.58;
 }
 
 .lead-form__control {
-  height: 58rpx;
+  height: 64rpx;
+  padding: 0 4rpx;
 }
 
 .lead-form__textarea {
   min-height: 152rpx;
+  padding: 4rpx;
 }
 
 .lead-form__placeholder {
@@ -137,13 +142,17 @@ const directionOptions: Array<{ value: LeadDirection; label: string }> = [
 }
 
 .lead-form__segment {
-  min-height: 58rpx;
-  padding: 0 22rpx;
+  min-height: 56rpx;
+  padding: 0 18rpx;
   border: 1rpx solid rgba(233, 226, 210, .13);
-  border-radius: 999rpx;
+  border-radius: var(--r-control);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: rgba(233, 226, 210, .58);
   background: rgba(233, 226, 210, .05);
-  font-size: 21rpx;
+  font-size: 19rpx;
+  line-height: 1.28;
 }
 
 .lead-form__segment--active {
@@ -154,7 +163,7 @@ const directionOptions: Array<{ value: LeadDirection; label: string }> = [
 .lead-form__error,
 .lead-form__success {
   margin: 22rpx 0;
-  font-size: 23rpx;
+  font-size: 21rpx;
   line-height: 1.5;
 }
 

@@ -8,13 +8,15 @@
     :subtitle="scene.subtitle"
     :active="active"
     :progress="progress"
+    :title-fx="scene.textFx?.mode || 'none'"
+    :line-break-policy="scene.textFx?.lineBreakPolicy || 'manual'"
   >
     <view class="canvas-map">
       <view class="canvas-map__line canvas-map__line--a" />
       <view class="canvas-map__line canvas-map__line--b" />
-      <GlassCard v-for="(node, index) in nodes" :key="node" class="canvas-node" :class="`canvas-node--${index}`">
+      <view v-for="(node, index) in nodes" :key="node" class="canvas-node" :class="`canvas-node--${index}`">
         <text>{{ node }}</text>
-      </GlassCard>
+      </view>
       <view class="canvas-map__agent" />
     </view>
     <CtaButton :label="scene.ctaLabel || '查看方案'" @tap="$emit('cta', scene)" />
@@ -23,7 +25,6 @@
 
 <script setup lang="ts">
 import CtaButton from '@/components/ui/CtaButton.vue'
-import GlassCard from '@/components/ui/GlassCard.vue'
 import SceneShell from '@/components/scenes/SceneShell.vue'
 import type { SceneRegistryItem } from '@/types/scene'
 
@@ -43,9 +44,9 @@ const nodes = ['知识结构', '业务流程', '任务协作', 'Agent 编排', '
 <style scoped lang="scss">
 .canvas-map {
   position: relative;
-  height: 500rpx;
+  height: 470rpx;
   border: 1rpx solid rgba(233, 226, 210, .12);
-  border-radius: 32rpx;
+  border-radius: var(--r-panel);
   overflow: hidden;
   background:
     linear-gradient(90deg, rgba(233, 226, 210, .04) 1rpx, transparent 1rpx),
@@ -74,11 +75,18 @@ const nodes = ['知识结构', '业务流程', '任务协作', 'Agent 编排', '
 
 .canvas-node {
   position: absolute;
-  min-width: 160rpx;
-  padding: 22rpx 24rpx;
+  min-width: 148rpx;
+  max-width: 220rpx;
+  padding: 20rpx 22rpx;
+  border: 1rpx solid rgba(233, 226, 210, .16);
+  border-radius: var(--r-control);
   color: var(--c-ivory);
-  font-size: 22rpx;
-  line-height: 1.35;
+  background:
+    linear-gradient(130deg, rgba(233, 226, 210, .10), rgba(18, 20, 18, .52)),
+    rgba(18, 20, 18, .58);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .08);
+  font-size: 20rpx;
+  line-height: 1.48;
   text-align: center;
 }
 
