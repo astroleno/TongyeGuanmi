@@ -35,7 +35,7 @@ function normalizeBackdropVariant(value: unknown): BackdropVariant {
   if (value === 'static') return 'static'
   if (value === 'video') return 'video'
 
-  return 'shader'
+  return 'video'
 }
 
 function normalizePretextMode(value: unknown): PretextMode {

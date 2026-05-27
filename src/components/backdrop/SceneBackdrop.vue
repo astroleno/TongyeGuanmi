@@ -4,6 +4,7 @@
       v-if="variant === 'video'"
       :scene-id="sceneId"
       :active="active"
+      :progress="progress"
     />
     <StaticFieldBackdrop
       v-if="variant !== 'video'"
