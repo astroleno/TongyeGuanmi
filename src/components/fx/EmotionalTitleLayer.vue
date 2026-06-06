@@ -1,7 +1,11 @@
 <template>
   <view
     class="emotional-title"
-    :class="[`emotional-title--${mode}`, { 'emotional-title--active': active, 'emotional-title--pulsing': pulseActive }]"
+    :class="[
+      `emotional-title--${mode}`,
+      `emotional-title--${intensity}`,
+      { 'emotional-title--active': active, 'emotional-title--pulsing': pulseActive }
+    ]"
     :aria-label="readableTitle"
   >
     <view class="emotional-title__ruler emotional-title__ruler--top" :style="rulerStyle(0)" />
@@ -47,9 +51,13 @@ const props = withDefaults(
     progress: number
     mode: EmotionalTextMode
     pulse?: EmotionalPulse | null
+    interactive?: boolean
+    intensity?: 'expressive' | 'quiet'
   }>(),
   {
-    lineBreakPolicy: 'manual'
+    lineBreakPolicy: 'manual',
+    interactive: true,
+    intensity: 'expressive'
   }
 )
 
@@ -59,8 +67,8 @@ const displayLines = computed(() => {
 })
 const readableTitle = computed(() => displayLines.value.join(' '))
 const motionReady = ref(false)
-const pulseActive = computed(() => Boolean(props.pulse?.active))
-const fxVisible = computed(() => props.active && props.mode !== 'none' && pulseActive.value)
+const pulseActive = computed(() => props.interactive && Boolean(props.pulse?.active))
+const fxVisible = computed(() => props.active && props.interactive && props.mode !== 'none' && pulseActive.value)
 
 onMounted(() => {
   setTimeout(() => {
@@ -92,18 +100,21 @@ function charStyle(lineIndex: number, charIndex: number) {
   const seed = (charIndex * 37 + lineIndex * 19 + props.sceneId.length * 11) % 29
   const direction = seed % 2 === 0 ? 1 : -1
   const pulseImpact = localPulseImpact(lineIndex, charIndex)
-  const pulseDx = direction * (12 + (seed % 4) * 3) * pulseImpact
-  const pulseDy = (((seed + charIndex) % 5) - 2) * 5.5 * pulseImpact
-  const pulseRotate = direction * (1.2 + (seed % 3) * 1.2) * pulseImpact
-  const opacity = pulseImpact > 0 ? .16 + pulseImpact * .58 : 0
+  const modeScale = props.mode === 'scatter' ? 1.16 : props.mode === 'align' ? 0.86 : props.mode === 'settle' ? 0.68 : 1
+  const intensityScale = props.intensity === 'quiet' ? 0.46 : 1
+  const scale = modeScale * intensityScale
+  const pulseDx = direction * (12 + (seed % 4) * 3) * pulseImpact * scale
+  const pulseDy = (((seed + charIndex) % 5) - 2) * 5.5 * pulseImpact * scale
+  const pulseRotate = direction * (1.2 + (seed % 3) * 1.2) * pulseImpact * scale
+  const opacity = pulseImpact > 0 ? .12 + pulseImpact * (props.intensity === 'quiet' ? .34 : .58) : 0
 
   return {
     opacity,
     textShadow: pulseImpact > 0
-      ? `0 0 ${10 + pulseImpact * 16}rpx rgba(199, 177, 122, ${0.18 + pulseImpact * 0.20}), 0 0 ${20 + pulseImpact * 10}rpx rgba(233, 226, 210, .12)`
+      ? `0 0 ${8 + pulseImpact * 14 * intensityScale}rpx rgba(199, 177, 122, ${0.14 + pulseImpact * 0.18 * intensityScale}), 0 0 ${16 + pulseImpact * 8 * intensityScale}rpx rgba(233, 226, 210, .10)`
       : 'none',
     transform: pulseImpact > 0
-      ? `translate3d(${pulseDx}rpx, ${pulseDy}rpx, 0) rotate(${pulseRotate}deg) scale(${1 + pulseImpact * .026})`
+      ? `translate3d(${pulseDx}rpx, ${pulseDy}rpx, 0) rotate(${pulseRotate}deg) scale(${1 + pulseImpact * .026 * intensityScale})`
       : 'translate3d(0, 0, 0) rotate(0deg)',
     transitionDelay: pulseImpact > 0 ? `${Math.min(28, charIndex * 2)}ms` : '0ms'
   }
@@ -123,8 +134,9 @@ function localPulseImpact(lineIndex: number, charIndex: number) {
 }
 
 function rulerStyle(index: number) {
-  const width = props.active ? 46 + props.progress * 18 : 16
-  const opacity = pulseActive.value && props.mode !== 'none' ? .34 : fxVisible.value ? .08 : 0
+  const intensityScale = props.intensity === 'quiet' ? 0.56 : 1
+  const width = props.active ? 46 + props.progress * 18 * intensityScale : 16
+  const opacity = pulseActive.value && props.mode !== 'none' ? .34 * intensityScale : fxVisible.value ? .08 : 0
   return {
     width: `${width}%`,
     opacity,

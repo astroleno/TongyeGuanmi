@@ -15,6 +15,15 @@
         "disableScroll": true,
         "backgroundColor": "#080807"
       }
+    },
+    {
+      "path": "pages/dice/index",
+      "style": {
+        "navigationBarTitleText": "DICE",
+        "navigationStyle": "custom",
+        "disableScroll": false,
+        "backgroundColor": "#050706"
+      }
     }
   ],
   "globalStyle": {

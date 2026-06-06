@@ -20,6 +20,8 @@
       :error="error"
       :success-lead-id="successLeadId"
       @submit="$emit('submit')"
+      @field-focus="$emit('fieldFocus')"
+      @field-blur="$emit('fieldBlur')"
     />
   </SceneShell>
 </template>
@@ -42,6 +44,8 @@ defineProps<{
 
 defineEmits<{
   submit: []
+  fieldFocus: []
+  fieldBlur: []
 }>()
 </script>
 

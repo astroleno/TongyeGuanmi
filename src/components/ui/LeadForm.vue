@@ -8,17 +8,38 @@
 
       <view class="lead-form__field">
         <text class="lead-form__label">公司 / 身份</text>
-        <input v-model="form.organization" class="lead-form__control" placeholder="企业、机构或个人身份" placeholder-class="lead-form__placeholder" />
+        <input
+          v-model="form.organization"
+          class="lead-form__control"
+          placeholder="企业、机构或个人身份"
+          placeholder-class="lead-form__placeholder"
+          @focus="emit('fieldFocus')"
+          @blur="emit('fieldBlur')"
+        />
       </view>
 
       <view class="lead-form__field">
         <text class="lead-form__label">联系人</text>
-        <input v-model="form.name" class="lead-form__control" placeholder="姓名 / 称呼" placeholder-class="lead-form__placeholder" />
+        <input
+          v-model="form.name"
+          class="lead-form__control"
+          placeholder="姓名 / 称呼"
+          placeholder-class="lead-form__placeholder"
+          @focus="emit('fieldFocus')"
+          @blur="emit('fieldBlur')"
+        />
       </view>
 
       <view class="lead-form__field">
         <text class="lead-form__label">联系方式</text>
-        <input v-model="form.contact" class="lead-form__control" placeholder="微信 / 手机 / 邮箱" placeholder-class="lead-form__placeholder" />
+        <input
+          v-model="form.contact"
+          class="lead-form__control"
+          placeholder="微信 / 手机 / 邮箱"
+          placeholder-class="lead-form__placeholder"
+          @focus="emit('fieldFocus')"
+          @blur="emit('fieldBlur')"
+        />
       </view>
 
       <view class="lead-form__field">
@@ -38,7 +59,15 @@
 
       <view class="lead-form__field">
         <text class="lead-form__label">你想解决的问题</text>
-        <textarea v-model="form.need" class="lead-form__textarea" maxlength="300" placeholder="用一句话描述你的团队、业务或个人项目正在面对什么问题" placeholder-class="lead-form__placeholder" />
+        <textarea
+          v-model="form.need"
+          class="lead-form__textarea"
+          maxlength="300"
+          placeholder="用一句话描述你的团队、业务或个人项目正在面对什么问题"
+          placeholder-class="lead-form__placeholder"
+          @focus="emit('fieldFocus')"
+          @blur="emit('fieldBlur')"
+        />
       </view>
 
       <view v-if="error" class="lead-form__error">{{ error }}</view>
@@ -62,8 +91,10 @@ defineProps<{
   successLeadId: string
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   submit: []
+  fieldFocus: []
+  fieldBlur: []
 }>()
 
 const isMockMode = LEAD_API_MODE === 'mock'

@@ -23,6 +23,8 @@
             :progress="progress"
             :mode="effectiveTitleFx"
             :pulse="pulse"
+            :interactive="titleInteractive"
+            :intensity="titleIntensity"
           />
           <view v-else class="scene-shell__title">
             <text
@@ -51,6 +53,7 @@
 <script setup lang="ts">
 import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue'
 import EmotionalTitleLayer from '@/components/fx/EmotionalTitleLayer.vue'
+import { useSceneInteractionContext } from '@/composables/useSceneInteractionContext'
 import { PRETEXT_MODE } from '@/config/runtime'
 import type { EmotionalPulse, EmotionalTextMode, LineBreakPolicy } from '@/types/scene'
 
@@ -74,10 +77,17 @@ const props = withDefaults(
 )
 
 const componentProxy = getCurrentInstance()?.proxy
-const effectiveTitleFx = computed(() => (PRETEXT_MODE === 'none' ? 'none' : props.titleFx))
+const { pretextInteractive } = useSceneInteractionContext()
+const effectiveTitleFx = computed(() => {
+  if (PRETEXT_MODE === 'none') return 'none'
+  return props.titleFx === 'none' ? 'settle' : props.titleFx
+})
 const fallbackTitleLines = computed(() => (props.titleLines?.length ? props.titleLines : [props.title]))
 const titleAnchorId = computed(() => `${props.id}-title`)
-const autoPulseScenes = new Set(['hero', 'about', 'method', 'projects'])
+const conversionSceneIds = new Set(['service-packages', 'lead'])
+const autoPulseAllowed = computed(() => !conversionSceneIds.has(props.id))
+const titleInteractive = computed(() => props.active && pretextInteractive.value)
+const titleIntensity = computed(() => (conversionSceneIds.has(props.id) ? 'quiet' : 'expressive'))
 const pulse = ref<EmotionalPulse | null>(null)
 let pulseTimer: ReturnType<typeof setTimeout> | null = null
 let autoPulseTimer: ReturnType<typeof setTimeout> | null = null
@@ -88,12 +98,12 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => props.active,
-  (active) => {
-    if (!active || effectiveTitleFx.value === 'none' || !autoPulseScenes.has(props.id)) return
+  () => [props.active, titleInteractive.value, effectiveTitleFx.value] as const,
+  ([active, interactive, mode]) => {
     if (autoPulseTimer) clearTimeout(autoPulseTimer)
+    if (!active || !interactive || mode === 'none' || !autoPulseAllowed.value) return
     autoPulseTimer = setTimeout(() => {
-      if (props.active && effectiveTitleFx.value !== 'none') {
+      if (props.active && titleInteractive.value && effectiveTitleFx.value !== 'none') {
         setPulse(0.52, 0.50, 780)
       }
     }, 180)
@@ -102,7 +112,7 @@ watch(
 )
 
 async function triggerTitlePulse(event: any) {
-  if (!props.active || effectiveTitleFx.value === 'none') return
+  if (!titleInteractive.value || effectiveTitleFx.value === 'none') return
   const touch = event.touches?.[0] || event.changedTouches?.[0]
   const eventDetail = event.detail || {}
 

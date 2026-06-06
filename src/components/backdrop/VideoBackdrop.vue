@@ -1,7 +1,16 @@
 <template>
   <view
     class="video-backdrop"
-    :class="[`video-backdrop--${sceneConfig.tone}`, { 'video-backdrop--ready': videoReady }]"
+    :class="[
+      `video-backdrop--${sceneConfig.tone}`,
+      {
+        'video-backdrop--enabled': backdropMotionEnabled,
+        'video-backdrop--fallback-motion': fallbackMotionEnabled,
+        'video-backdrop--native': nativeVideoEnabled,
+        'video-backdrop--ready': videoReady,
+        'video-backdrop--turning': turning
+      }
+    ]"
     :style="backdropStyle"
   >
     <StaticFieldBackdrop
@@ -18,7 +27,7 @@
       mode="aspectFill"
     />
     <video
-      v-if="videoEnabled"
+      v-if="nativeVideoEnabled"
       :key="sceneConfig.clip.id"
       class="video-backdrop__video"
       :src="sceneConfig.clip.src"
@@ -32,9 +41,13 @@
       :enable-progress-gesture="false"
       object-fit="cover"
       @error="handleVideoError"
+      @play="handleVideoReady"
+      @canplay="handleVideoReady"
       @loadedmetadata="handleVideoReady"
       @loadeddata="handleVideoReady"
     />
+    <view class="video-backdrop__motion video-backdrop__motion--a" />
+    <view class="video-backdrop__motion video-backdrop__motion--b" />
     <view class="video-backdrop__haze" />
     <view class="video-backdrop__veil" />
     <view class="video-backdrop__tone" />
@@ -50,19 +63,29 @@ const props = defineProps<{
   sceneId: string
   active: boolean
   progress: number
+  turning?: boolean
 }>()
 
 const failedClipId = ref('')
 const videoReady = ref(false)
 
 const sceneConfig = computed(() => getSceneBackdropVideo(props.sceneId))
-const videoEnabled = computed(() => {
-  return props.active && sceneConfig.value.playVideo && failedClipId.value !== sceneConfig.value.clip.id
+const backdropMotionEnabled = computed(() => props.active && sceneConfig.value.playVideo)
+const nativeVideoEnabled = computed(() => {
+  return (
+    backdropMotionEnabled.value &&
+    failedClipId.value !== sceneConfig.value.clip.id &&
+    isNativeVideoSource(sceneConfig.value.clip.src)
+  )
+})
+const fallbackMotionEnabled = computed(() => {
+  return backdropMotionEnabled.value && !nativeVideoEnabled.value
 })
 const backdropStyle = computed<Record<string, string>>(() => {
   const progressLift = Math.max(0, props.progress - 0.34)
-  const veilOpacity = clamp(sceneConfig.value.veilOpacity + progressLift * 0.08, 0.42, 0.82)
-  const hazeOpacity = clamp(sceneConfig.value.hazeOpacity + progressLift * 0.12, 0.18, 0.64)
+  const turnLift = props.turning ? 0.08 : 0
+  const veilOpacity = clamp(sceneConfig.value.veilOpacity + progressLift * 0.08 + turnLift, 0.42, 0.86)
+  const hazeOpacity = clamp(sceneConfig.value.hazeOpacity + progressLift * 0.12 + turnLift * 0.78, 0.18, 0.70)
 
   return {
     '--video-veil-opacity': veilOpacity.toFixed(3),
@@ -74,6 +97,7 @@ watch(
   () => sceneConfig.value.clip.id,
   () => {
     videoReady.value = false
+    failedClipId.value = ''
   }
 )
 
@@ -82,13 +106,30 @@ function handleVideoReady() {
 }
 
 function handleVideoError(error: unknown) {
-  failedClipId.value = sceneConfig.value.clip.id
   videoReady.value = false
-  console.warn('[Tongye video backdrop] video fallback', sceneConfig.value.clip.id, error || '')
+  failedClipId.value = sceneConfig.value.clip.id
+  console.warn('[Tongye video backdrop] video fallback', {
+    id: sceneConfig.value.clip.id,
+    src: sceneConfig.value.clip.src,
+    errMsg: getVideoErrorMessage(error)
+  }, error || '')
 }
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
+}
+
+function isNativeVideoSource(src: string) {
+  return /^(https?:\/\/|wxfile:\/\/|cloud:\/\/)/.test(src)
+}
+
+function getVideoErrorMessage(error: unknown) {
+  if (!error || typeof error !== 'object') return ''
+  const event = error as {
+    detail?: { errMsg?: string }
+    target?: { errMsg?: string }
+  }
+  return event.detail?.errMsg || event.target?.errMsg || ''
 }
 </script>
 
@@ -107,6 +148,7 @@ function clamp(value: number, min: number, max: number) {
 .video-backdrop__static,
 .video-backdrop__poster,
 .video-backdrop__video,
+.video-backdrop__motion,
 .video-backdrop__haze,
 .video-backdrop__veil,
 .video-backdrop__tone {
@@ -128,7 +170,9 @@ function clamp(value: number, min: number, max: number) {
 .video-backdrop__poster {
   z-index: 1;
   opacity: .62;
+  transform: scale(1.01);
   transition: opacity .72s var(--ease-soft);
+  will-change: transform, opacity;
 }
 
 .video-backdrop__video {
@@ -138,8 +182,65 @@ function clamp(value: number, min: number, max: number) {
   transition: opacity .82s var(--ease-soft);
 }
 
+.video-backdrop__motion {
+  z-index: 2;
+  opacity: 0;
+  mix-blend-mode: screen;
+  transition: opacity .64s var(--ease-soft);
+  will-change: transform, opacity;
+}
+
+.video-backdrop__motion--a {
+  top: 18%;
+  bottom: auto;
+  left: -28%;
+  right: -28%;
+  height: 44%;
+  background:
+    repeating-linear-gradient(112deg, transparent 0 34rpx, rgba(233, 226, 210, .075) 35rpx, transparent 47rpx),
+    linear-gradient(106deg, transparent, rgba(199, 177, 122, .26) 42%, rgba(233, 226, 210, .12) 51%, transparent);
+  filter: blur(1.4rpx);
+  transform: rotate(-10deg) translate3d(-4%, 0, 0);
+}
+
+.video-backdrop__motion--b {
+  top: auto;
+  bottom: 4%;
+  left: -34%;
+  right: -34%;
+  height: 36%;
+  background:
+    repeating-linear-gradient(64deg, transparent 0 42rpx, rgba(199, 177, 122, .07) 43rpx, transparent 54rpx),
+    linear-gradient(74deg, transparent, rgba(83, 112, 87, .22) 40%, rgba(199, 177, 122, .16), transparent);
+  filter: blur(1.8rpx);
+  transform: rotate(13deg) translate3d(5%, 0, 0);
+}
+
+.video-backdrop--enabled .video-backdrop__video {
+  opacity: .54;
+}
+
 .video-backdrop--ready .video-backdrop__video {
   opacity: .74;
+}
+
+.video-backdrop--enabled .video-backdrop__poster {
+  opacity: .38;
+}
+
+.video-backdrop--fallback-motion .video-backdrop__poster {
+  opacity: .50;
+  animation: video-poster-drift 8.8s ease-in-out infinite alternate;
+}
+
+.video-backdrop--fallback-motion .video-backdrop__motion--a {
+  opacity: .34;
+  animation: video-motion-a 6.8s var(--ease-soft) infinite alternate;
+}
+
+.video-backdrop--fallback-motion .video-backdrop__motion--b {
+  opacity: .24;
+  animation: video-motion-b 8.6s var(--ease-soft) infinite alternate-reverse;
 }
 
 .video-backdrop--ready .video-backdrop__poster {
@@ -154,6 +255,10 @@ function clamp(value: number, min: number, max: number) {
     radial-gradient(ellipse at 60% 82%, rgba(8, 8, 7, .74) 0%, rgba(8, 8, 7, .34) 42%, transparent 70%),
     linear-gradient(115deg, rgba(8, 8, 7, .18), rgba(233, 226, 210, .045) 48%, rgba(8, 8, 7, .22));
   transition: opacity .54s var(--ease-soft);
+}
+
+.video-backdrop--enabled .video-backdrop__haze {
+  animation: video-haze-breathe 7.4s ease-in-out infinite alternate;
 }
 
 .video-backdrop__veil {
@@ -205,5 +310,45 @@ function clamp(value: number, min: number, max: number) {
   background:
     linear-gradient(180deg, rgba(8, 8, 7, .30), rgba(8, 8, 7, .64)),
     radial-gradient(circle at 50% 80%, rgba(199, 177, 122, .08), transparent 42%);
+}
+
+@keyframes video-poster-drift {
+  0% {
+    transform: scale(1.06) translate3d(-1.5%, -1%, 0);
+  }
+
+  100% {
+    transform: scale(1.11) translate3d(1.6%, 1.2%, 0);
+  }
+}
+
+@keyframes video-motion-a {
+  0% {
+    transform: rotate(-13deg) translate3d(-8%, -4%, 0) scaleX(1);
+  }
+
+  100% {
+    transform: rotate(-7deg) translate3d(8%, 4%, 0) scaleX(1.08);
+  }
+}
+
+@keyframes video-motion-b {
+  0% {
+    transform: rotate(16deg) translate3d(8%, 4%, 0) scaleX(.96);
+  }
+
+  100% {
+    transform: rotate(10deg) translate3d(-7%, -3%, 0) scaleX(1.08);
+  }
+}
+
+@keyframes video-haze-breathe {
+  0% {
+    transform: scale(1);
+  }
+
+  100% {
+    transform: scale(1.05);
+  }
 }
 </style>

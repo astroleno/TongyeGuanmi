@@ -5,6 +5,7 @@
       :scene-id="sceneId"
       :active="active"
       :progress="progress"
+      :turning="turning"
     />
     <StaticFieldBackdrop
       v-if="variant !== 'video'"

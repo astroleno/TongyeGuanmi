@@ -53,4 +53,5 @@ export type SceneBackdropProps = {
   active: boolean
   progress: number
   variant: BackdropVariant
+  turning?: boolean
 }
