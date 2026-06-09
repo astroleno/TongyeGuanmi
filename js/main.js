@@ -9,6 +9,10 @@
     scrollTrigger: 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js'
   };
   const HERO_VIDEO_SRC = '../video/figure1.webm';
+  const HERO_NEXT_SCENE_SRC = 'image/back2.png';
+  const HERO_BACK_DEPTH_SRC = 'image/back_depth.png';
+  const HERO_MIDDLE_DEPTH_SRC = 'image/middle_depth.png';
+  const HERO_SCROLL_RANGE_VH = 25;
   const HERO_VIDEO_SEGMENT_SECONDS = 2;
 
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -232,8 +236,6 @@
       });
     });
 
-    gsap.from('.site-nav', { y: -26, opacity: 0, duration: 0.9, ease: 'power3.out', delay: 0.25 });
-
     const sections = ['method', 'services', 'education', 'contact'];
     sections.forEach((id) => {
       const section = document.getElementById(id);
@@ -270,6 +272,9 @@
     const figure = document.querySelector('.fallback-figure');
     const content = document.querySelector('.hero-content');
     const nav = document.querySelector('.site-nav');
+    const introRipple = document.querySelector('[data-hero-intro-ripple]');
+    const inkCanvas = document.querySelector('[data-hero-ink-canvas]');
+    const inkTransition = createInkTransition(inkCanvas);
 
     if (!hero || !scene || !back || !middle || !figure || !content) return;
 
@@ -350,37 +355,68 @@
 
     const titleChars = gsap.utils.toArray(content.querySelectorAll('.hero-title-char'));
     const subtitle = content.querySelector('.hero-subtitle');
-    const textItems = [...titleChars, subtitle].filter(Boolean);
-    gsap.set(textItems, {
+    gsap.set(titleChars, {
       autoAlpha: 0,
-      y: 30,
-      filter: 'blur(10px)',
+      y: 12,
+      scaleX: 0.96,
+      filter: 'blur(7px)',
+      transformOrigin: '50% 50%',
       force3D: true
     });
+    if (subtitle) {
+      gsap.set(subtitle, {
+        autoAlpha: 0,
+        y: 14,
+        filter: 'blur(6px)',
+        force3D: true
+      });
+    }
     const textTimeline = gsap.timeline({
       paused: true,
-      defaults: { duration: 1.2, ease: 'expo.out' }
+      defaults: { ease: 'power2.out' }
     }).to(titleChars, {
       autoAlpha: 1,
       y: 0,
+      scaleX: 1,
       filter: 'blur(0px)',
-      stagger: 0.08
-    }, 0).to(subtitle, {
-      autoAlpha: 1,
-      y: 0,
-      filter: 'blur(0px)'
-    }, 0.22);
+      duration: 1.45,
+      stagger: {
+        each: 0.14,
+        from: 'start'
+      }
+    }, 0);
+    if (subtitle) {
+      textTimeline.to(subtitle, {
+        autoAlpha: 1,
+        y: 0,
+        filter: 'blur(0px)',
+        duration: 1.15
+      }, 0.48);
+    }
 
-    if (nav) gsap.set(nav, { autoAlpha: 0.76 });
+    if (nav) gsap.set(nav, { autoAlpha: 0, y: -14, pointerEvents: 'none' });
+    if (introRipple) {
+      gsap.set(introRipple, {
+        autoAlpha: 0,
+        xPercent: -50,
+        yPercent: -50,
+        scale: 0.18,
+        filter: 'blur(18px)',
+        force3D: true
+      });
+    }
+    if (inkCanvas) gsap.set(inkCanvas, { autoAlpha: 0 });
 
     const setBackY = gsap.quickSetter(back, 'y', 'px');
     const setBackX = gsap.quickSetter(back, 'x', 'px');
     const setBackScaleX = gsap.quickSetter(back, 'scaleX');
     const setBackScaleY = gsap.quickSetter(back, 'scaleY');
+    const setBackOpacity = gsap.quickSetter(back, 'opacity');
     const setMiddleY = gsap.quickSetter(middle, 'y', 'px');
     const setMiddleX = gsap.quickSetter(middle, 'x', 'px');
     const setMiddleScaleX = gsap.quickSetter(middle, 'scaleX');
     const setMiddleScaleY = gsap.quickSetter(middle, 'scaleY');
+    const setMiddleOpacity = gsap.quickSetter(middle, 'opacity');
     const setMiddleNearBlurY = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'y', 'px') : null;
     const setMiddleNearBlurX = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'x', 'px') : null;
     const setMiddleNearBlurScaleX = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'scaleX') : null;
@@ -389,20 +425,337 @@
     const setFigureX = gsap.quickSetter(figure, 'x', 'px');
     const setFigureScaleX = gsap.quickSetter(figure, 'scaleX');
     const setFigureScaleY = gsap.quickSetter(figure, 'scaleY');
+    const setFigureOpacity = gsap.quickSetter(figure, 'opacity');
     const setContentY = gsap.quickSetter(content, 'y', 'px');
     const setContentX = gsap.quickSetter(content, 'x', 'px');
     const setMiddleNearBlurOpacity = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'opacity') : null;
     const setNavOpacity = nav ? gsap.quickSetter(nav, 'opacity') : null;
+    const setNavY = nav ? gsap.quickSetter(nav, 'y', 'px') : null;
+    const setIntroRippleOpacity = introRipple ? gsap.quickSetter(introRipple, 'opacity') : null;
+    const setIntroRippleScale = introRipple ? gsap.quickSetter(introRipple, 'scale') : null;
 
     let renderedProgress = 0;
     let lastApplied = -1;
     let lastMouseAppliedX = 99;
     let lastMouseAppliedY = 99;
-    let textVisible = false;
+    let lastNavReveal = -1;
+    let lastInkProgress = -1;
     let touchStartY = 0;
 
     const smoothStep = (value) => value * value * (3 - 2 * value);
     const range01 = (value, start, end) => clamp((value - start) / (end - start), 0, 1);
+    const getHeroRanges = () => {
+      const desiredRange = window.innerHeight * (HERO_SCROLL_RANGE_VH / 100);
+      const totalRange = Math.max(1, Math.min(hero.offsetHeight - window.innerHeight, desiredRange));
+      const holdRange = Math.min(totalRange * 0.20, window.innerHeight * 0.05);
+      const animationRange = Math.max(1, totalRange - holdRange);
+      return { totalRange, animationRange, holdRange };
+    };
+    function createInkTransition(canvas) {
+      if (!canvas) return null;
+
+      const gl = canvas.getContext('webgl', {
+        alpha: true,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        premultipliedAlpha: true,
+        powerPreference: 'high-performance'
+      });
+      if (!gl) return null;
+
+      const vertexSource = `
+        attribute vec2 aPosition;
+        varying vec2 vUv;
+
+        void main() {
+          vUv = aPosition * 0.5 + 0.5;
+          gl_Position = vec4(aPosition, 0.0, 1.0);
+        }
+      `;
+      const fragmentSource = `
+        precision highp float;
+
+        varying vec2 vUv;
+        uniform vec2 uResolution;
+        uniform vec2 uMouse;
+        uniform float uProgress;
+        uniform float uTime;
+        uniform sampler2D uNextScene;
+        uniform vec2 uNextSize;
+        uniform float uNextReady;
+        uniform sampler2D uBackDepth;
+        uniform sampler2D uMiddleDepth;
+        uniform vec2 uDepthSize;
+        uniform float uDepthReady;
+
+        float hash(vec2 p) {
+          p = fract(p * vec2(127.1, 311.7));
+          p += dot(p, p + 34.37);
+          return fract(p.x * p.y);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(
+            mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+            mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+            u.y
+          );
+        }
+
+        float fbm(vec2 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          mat2 rotate = mat2(0.80, 0.60, -0.60, 0.80);
+          for (int i = 0; i < 5; i++) {
+            value += noise(p) * amplitude;
+            p = rotate * p * 2.02 + 7.13;
+            amplitude *= 0.5;
+          }
+          return value;
+        }
+
+        vec2 coverUv(vec2 uv, vec2 textureSize, vec2 resolution) {
+          float screenAspect = resolution.x / max(resolution.y, 1.0);
+          float textureAspect = textureSize.x / max(textureSize.y, 1.0);
+          vec2 covered = uv;
+          if (screenAspect > textureAspect) {
+            covered.y = (uv.y - 0.5) * (screenAspect / textureAspect) + 0.5;
+          } else {
+            covered.x = (uv.x - 0.5) * (textureAspect / screenAspect) + 0.5;
+          }
+          return covered;
+        }
+
+        void main() {
+          float p = smoothstep(0.0, 1.16, uProgress);
+          float energy = sin(p * 3.14159265);
+          float aspect = uResolution.x / max(uResolution.y, 1.0);
+          vec2 uv = vUv;
+          vec2 center = vec2(0.50, 0.54) + uMouse * vec2(0.026, -0.020);
+          center += vec2(sin(uTime * 0.18), cos(uTime * 0.16)) * 0.005;
+
+          vec2 aspectUv = vec2(uv.x * aspect, uv.y);
+          vec2 depthUv = coverUv(uv, uDepthSize, uResolution);
+          float farDepth = smoothstep(0.06, 0.90, texture2D(uBackDepth, depthUv).r) * uDepthReady;
+          float nearDepth = smoothstep(0.10, 0.84, texture2D(uMiddleDepth, depthUv).r) * uDepthReady;
+          float zDepth = clamp(max(farDepth * 0.52, nearDepth), 0.0, 1.0);
+          vec2 centered = (uv - center) * vec2(aspect, 1.0);
+          float dist = length(centered) * 0.74;
+          float centerPull = smoothstep(0.76, -0.18, abs(uv.x - center.x));
+          float mountainSweep = mix(dist, uv.y * 0.48 + dist * 0.58, centerPull * 0.38);
+
+          vec2 warpUv = aspectUv * 2.35 + vec2(0.0, -uTime * 0.030);
+          vec2 warp = vec2(
+            fbm(warpUv + vec2(1.7, 4.1)),
+            fbm(warpUv + vec2(8.3, 2.2))
+          ) - 0.5;
+          float mud = fbm(aspectUv * 4.5 + warp * 1.65 - uTime * 0.040) * 0.30;
+          mud += fbm(aspectUv * 13.5 - warp * 2.6 + uTime * 0.075) * 0.105;
+          mud += fbm(aspectUv * 31.0 + warp * 3.2 - uTime * 0.12) * 0.035;
+          mud += sin((uv.x + uv.y) * 34.0 + uTime * 0.9) * 0.018;
+
+          float threshold = mountainSweep + mud - 0.105;
+          float depthTear = nearDepth * (0.13 + fbm(aspectUv * 19.0 + uTime * 0.11) * 0.065);
+          float farTear = farDepth * (0.035 + fbm(aspectUv * 7.0 - uTime * 0.05) * 0.025);
+          threshold = mix(threshold, 0.0, smoothstep(0.91, 1.0, p));
+          float farEdge = p - (threshold - farTear);
+          float nearEdge = p - (threshold - depthTear);
+          float farDissolve = smoothstep(-0.030, 0.052, farEdge);
+          float nearDissolve = smoothstep(-0.052, 0.078, nearEdge);
+          float dissolve = max(farDissolve, nearDissolve * nearDepth);
+          float farSoftBand = 1.0 - smoothstep(0.0, 0.115, abs(farEdge));
+          float nearSoftBand = nearDepth * (1.0 - smoothstep(0.0, 0.155, abs(nearEdge)));
+          float farHotBand = 1.0 - smoothstep(0.0, 0.045, abs(farEdge));
+          float nearHotBand = nearDepth * (1.0 - smoothstep(0.0, 0.062, abs(nearEdge)));
+          float softBand = max(farSoftBand, nearSoftBand * 1.24);
+          float hotBand = max(farHotBand, nearHotBand * 1.38);
+          float emberMask = smoothstep(0.67, 0.985, hash(floor((aspectUv + warp * 0.58) * uResolution.y * 0.060 + uTime * 4.0)));
+          float ember = softBand * emberMask * (0.18 + energy * 0.46);
+          float late = smoothstep(0.72, 1.0, p);
+
+          vec3 ink = vec3(0.018, 0.038, 0.030);
+          vec3 jade = vec3(0.30, 0.78, 0.66);
+          vec3 gold = vec3(0.98, 0.82, 0.45);
+          vec3 light = mix(jade, gold, smoothstep(0.30, 0.92, hash(floor(aspectUv * 42.0))));
+          float glow = softBand * (0.32 + energy * 0.30) + hotBand * (0.34 + energy * 0.28) + ember * 0.58;
+
+          vec2 dispVec = vec2(
+            fbm(aspectUv * 1.55 + vec2(2.0, 7.0) + uTime * 0.025),
+            fbm(aspectUv * 1.55 + vec2(9.0, 3.0) - uTime * 0.020)
+          );
+          vec2 changeVec = normalize(vec2(warp.x * 0.75 + center.x - uv.x, -0.92 + warp.y * 0.42));
+          float dispClamp = clamp(dispVec.x, dispVec.y, uv.y);
+          float distMap = distance(uv, dispVec) + dispClamp * sin(uTime * 7.0 + zDepth * 2.6);
+          vec2 depthDistortion = changeVec * distMap * (0.008 + farDepth * 0.024 + nearDepth * 0.070) * (0.28 + energy * 0.92);
+          vec2 nextUv = coverUv((uv + depthDistortion - center) * (1.0 - p * 0.035 - nearDepth * energy * 0.018) + center, uNextSize, uResolution);
+          vec3 nextScene = texture2D(uNextScene, nextUv).rgb;
+          nextScene = mix(vec3(0.020, 0.034, 0.030), nextScene, uNextReady);
+          float innerLift = smoothstep(0.06, 0.74, p);
+          vec3 innerColor = mix(nextScene * 0.42, nextScene * 1.14 + vec3(0.055, 0.043, 0.018), innerLift);
+          innerColor = mix(innerColor, nextScene * 1.02, late * 0.65);
+          innerColor = mix(innerColor, innerColor * 1.08 + vec3(0.015, 0.035, 0.026), nearSoftBand * 0.34);
+
+          float outsideAlpha = (1.0 - dissolve) * (0.05 + p * 0.34 + late * 0.22);
+          float insideMask = smoothstep(0.08, 0.42, dissolve);
+          vec3 edgeColor = mix(jade, gold, smoothstep(0.24, 0.90, fbm(aspectUv * (4.5 + zDepth * 4.0) + uTime * 0.04)));
+          vec3 outsideColor = vec3(0.012, 0.022, 0.018);
+          vec3 color = mix(outsideColor, innerColor, insideMask);
+          color = mix(color, edgeColor, clamp(glow, 0.0, 0.80));
+
+          float alpha = mix(outsideAlpha, 1.0, insideMask);
+          alpha += softBand * 0.10 + hotBand * 0.18 + nearSoftBand * 0.12 + ember * 0.24;
+          alpha += smoothstep(0.90, 1.0, p) * 0.08;
+          alpha = clamp(alpha, 0.0, 1.0);
+
+          gl_FragColor = vec4(color, alpha);
+        }
+      `;
+
+      const compileShader = (type, source) => {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.warn('Ink shader compile failed:', gl.getShaderInfoLog(shader));
+          gl.deleteShader(shader);
+          return null;
+        }
+        return shader;
+      };
+
+      const vertexShader = compileShader(gl.VERTEX_SHADER, vertexSource);
+      const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fragmentSource);
+      if (!vertexShader || !fragmentShader) return null;
+
+      const program = gl.createProgram();
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.warn('Ink shader link failed:', gl.getProgramInfoLog(program));
+        return null;
+      }
+
+      const buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+
+      const positionLocation = gl.getAttribLocation(program, 'aPosition');
+      const uniforms = {
+        resolution: gl.getUniformLocation(program, 'uResolution'),
+        mouse: gl.getUniformLocation(program, 'uMouse'),
+        progress: gl.getUniformLocation(program, 'uProgress'),
+        time: gl.getUniformLocation(program, 'uTime'),
+        nextScene: gl.getUniformLocation(program, 'uNextScene'),
+        nextSize: gl.getUniformLocation(program, 'uNextSize'),
+        nextReady: gl.getUniformLocation(program, 'uNextReady'),
+        backDepth: gl.getUniformLocation(program, 'uBackDepth'),
+        middleDepth: gl.getUniformLocation(program, 'uMiddleDepth'),
+        depthSize: gl.getUniformLocation(program, 'uDepthSize'),
+        depthReady: gl.getUniformLocation(program, 'uDepthReady')
+      };
+
+      const createTextureLayer = (src, fallback) => {
+        const texture = gl.createTexture();
+        const layer = { texture, width: 1, height: 1, ready: 0 };
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(fallback));
+
+        const image = new Image();
+        image.decoding = 'async';
+        image.onload = () => {
+          layer.width = image.naturalWidth || 1;
+          layer.height = image.naturalHeight || 1;
+          layer.ready = 1;
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        };
+        image.src = src;
+        return layer;
+      };
+
+      const bindLayer = (unit, layer) => {
+        gl.activeTexture(gl.TEXTURE0 + unit);
+        gl.bindTexture(gl.TEXTURE_2D, layer.texture);
+      };
+
+      const nextLayer = createTextureLayer(HERO_NEXT_SCENE_SRC, [5, 8, 7, 255]);
+      const backDepthLayer = createTextureLayer(HERO_BACK_DEPTH_SRC, [0, 0, 0, 255]);
+      const middleDepthLayer = createTextureLayer(HERO_MIDDLE_DEPTH_SRC, [0, 0, 0, 255]);
+
+      let width = 0;
+      let height = 0;
+      const resize = () => {
+        const rect = canvas.getBoundingClientRect();
+        const ratio = Math.min(window.devicePixelRatio || 1, 1.35);
+        const nextWidth = Math.max(1, Math.round(rect.width * ratio));
+        const nextHeight = Math.max(1, Math.round(rect.height * ratio));
+        if (nextWidth !== width || nextHeight !== height) {
+          width = nextWidth;
+          height = nextHeight;
+          canvas.width = width;
+          canvas.height = height;
+          gl.viewport(0, 0, width, height);
+        }
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      gl.useProgram(program);
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.clearColor(0, 0, 0, 0);
+      bindLayer(0, nextLayer);
+      gl.uniform1i(uniforms.nextScene, 0);
+      bindLayer(1, backDepthLayer);
+      gl.uniform1i(uniforms.backDepth, 1);
+      bindLayer(2, middleDepthLayer);
+      gl.uniform1i(uniforms.middleDepth, 2);
+
+      return {
+        render(progress, pointerX, pointerY) {
+          const active = progress > 0.002;
+          canvas.style.visibility = active ? 'visible' : 'hidden';
+          canvas.style.opacity = active ? '1' : '0';
+          if (!resize()) return;
+
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          if (!active) return;
+
+          gl.useProgram(program);
+          gl.uniform2f(uniforms.resolution, width, height);
+          gl.uniform2f(
+            uniforms.mouse,
+            clamp(pointerX / Math.max(1, window.innerWidth), -0.5, 0.5),
+            clamp(pointerY / Math.max(1, window.innerHeight), -0.5, 0.5)
+          );
+          gl.uniform1f(uniforms.progress, progress);
+          gl.uniform1f(uniforms.time, performance.now() * 0.001);
+          bindLayer(0, nextLayer);
+          bindLayer(1, backDepthLayer);
+          bindLayer(2, middleDepthLayer);
+          gl.uniform2f(uniforms.nextSize, nextLayer.width, nextLayer.height);
+          gl.uniform1f(uniforms.nextReady, nextLayer.ready);
+          gl.uniform2f(uniforms.depthSize, middleDepthLayer.width || backDepthLayer.width, middleDepthLayer.height || backDepthLayer.height);
+          gl.uniform1f(uniforms.depthReady, Math.min(backDepthLayer.ready, middleDepthLayer.ready));
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+        }
+      };
+    }
+
+    const updateInkTransition = (progress) => {
+      inkTransition?.render(progress, mouseX, mouseY);
+    };
     const normalizeWheelDelta = (event) => {
       if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16;
       if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * window.innerHeight;
@@ -416,7 +769,9 @@
     };
     const handleTopWheel = (event) => {
       const delta = normalizeWheelDelta(event);
-      if (delta >= 0 || !clampTopScroll()) return;
+      const top = hero.offsetTop;
+      if (delta >= 0 || window.scrollY > top + Math.abs(delta) + 1) return;
+      window.scrollTo(0, top);
       event.preventDefault();
       lastHeroScrollAt = performance.now();
     };
@@ -473,34 +828,27 @@
     };
 
     const updateDepthFilters = (progress) => {
-      const farClarity = smoothStep(range01(progress, 0.03, 0.66));
-      const rockClarity = smoothStep(range01(progress, 0.10, 0.62));
-      const farBlur = 2.4 * (1 - farClarity);
-      const rockBlur = 0.15 * (1 - rockClarity);
+      const farClarity = smoothStep(range01(progress, 0.02, 0.46));
+      const rockClarity = smoothStep(range01(progress, 0.12, 0.72));
+      const figureClarity = smoothStep(range01(progress, 0.24, 0.92));
+      const farBlur = 2.4 + 24 * (1 - farClarity);
+      const rockBlur = 0.15 + 26 * (1 - rockClarity);
+      const figureBlur = 2 + 30 * (1 - figureClarity);
       const nearBlurStrength = 1 - rockClarity;
 
-      back.style.filter = `blur(${farBlur.toFixed(2)}px) saturate(${(0.92 + farClarity * 0.08).toFixed(3)}) contrast(${(0.96 + farClarity * 0.04).toFixed(3)}) brightness(${(0.58 + farClarity * 0.22).toFixed(3)})`;
-      middle.style.filter = `blur(${rockBlur.toFixed(2)}px) saturate(${(1.06 + rockClarity * 0.05).toFixed(3)}) contrast(${(1.02 + rockClarity * 0.05).toFixed(3)}) brightness(${(1.04 + rockClarity * 0.06).toFixed(3)})`;
+      back.style.filter = `blur(${farBlur.toFixed(2)}px) saturate(${(0.86 + farClarity * 0.14).toFixed(3)}) contrast(${(0.92 + farClarity * 0.08).toFixed(3)}) brightness(${(0.46 + farClarity * 0.34).toFixed(3)})`;
+      middle.style.filter = `blur(${rockBlur.toFixed(2)}px) saturate(${(0.92 + rockClarity * 0.19).toFixed(3)}) contrast(${(0.94 + rockClarity * 0.13).toFixed(3)}) brightness(${(0.70 + rockClarity * 0.40).toFixed(3)})`;
+      figure.style.filter = `url('#figure-alpha-clean') blur(${figureBlur.toFixed(2)}px) brightness(${(0.86 + figureClarity * 0.22).toFixed(3)}) saturate(${(0.92 + figureClarity * 0.14).toFixed(3)}) contrast(${(0.92 + figureClarity * 0.10).toFixed(3)})`;
 
       if (middleNearBlur) {
         setMiddleNearBlurOpacity(0.24 * nearBlurStrength);
       }
     };
 
-    const setTextVisible = (visible) => {
-      if (visible === textVisible) return;
-      textVisible = visible;
-      content.style.pointerEvents = visible ? 'auto' : 'none';
-      if (visible) {
-        textTimeline.play();
-      } else {
-        textTimeline.reverse();
-      }
-    };
-
     function updateHeroLayers() {
-      const range = Math.max(1, hero.offsetHeight - window.innerHeight);
-      const targetProgress = clamp((window.scrollY - hero.offsetTop) / range, 0, 1);
+      const { totalRange, animationRange, holdRange } = getHeroRanges();
+      const rawHeroScroll = window.scrollY - hero.offsetTop;
+      const targetProgress = clamp((window.scrollY - hero.offsetTop) / animationRange, 0, 1);
       const scrollDelta = previousTargetProgress === null ? 0 : Math.abs(targetProgress - previousTargetProgress);
       previousTargetProgress = targetProgress;
       renderedProgress += (targetProgress - renderedProgress) * 0.22;
@@ -508,52 +856,80 @@
       mouseY += (targetMouseY - mouseY) * 0.08;
       updateVideoPlayback(renderedProgress, scrollDelta);
 
+      const navReveal = setNavOpacity && setNavY
+        ? smoothStep(clamp((window.scrollY - (hero.offsetTop + totalRange + 16)) / 180, 0, 1))
+        : 0;
+      const inkProgress = smoothStep(clamp((rawHeroScroll - animationRange) / Math.max(1, holdRange), 0, 1));
       const mouseChanged = Math.abs(lastMouseAppliedX - mouseX) > 0.001 || Math.abs(lastMouseAppliedY - mouseY) > 0.001;
-      if (Math.abs(lastApplied - renderedProgress) < 0.0012 && !mouseChanged) return;
+      const navChanged = Math.abs(lastNavReveal - navReveal) > 0.001;
+      const inkChanged = Math.abs(lastInkProgress - inkProgress) > 0.001;
+      const inkAnimating = inkProgress > 0.002 && inkProgress < 0.995;
+      if (Math.abs(lastApplied - renderedProgress) < 0.0012 && !mouseChanged && !navChanged && !inkChanged && !inkAnimating) return;
       lastApplied = renderedProgress;
       lastMouseAppliedX = mouseX;
       lastMouseAppliedY = mouseY;
+      lastNavReveal = navReveal;
+      lastInkProgress = inkProgress;
 
       const p = renderedProgress;
-      const textDrift = smoothStep(range01(p, 0.78, 0.96));
       const viewportH = window.innerHeight;
+      const farReveal = smoothStep(range01(p, 0.00, 0.48));
+      const middleReveal = smoothStep(range01(p, 0.12, 0.74));
+      const figureReveal = smoothStep(range01(p, 0.24, 0.94));
+      const rippleOpen = smoothStep(range01(p, 0.00, 0.44));
+      const rippleFade = 1 - smoothStep(range01(p, 0.42, 0.86));
       const backParallaxX = mouseX * 0.02;
       const backParallaxY = mouseY * 0.02;
       const middleParallaxX = mouseX * 0.04;
       const middleParallaxY = mouseY * 0.04;
       const figureParallaxX = mouseX * 0.06;
       const figureParallaxY = mouseY * 0.06;
-      const contentParallaxX = mouseX * 0.03;
-      const contentParallaxY = mouseY * 0.03;
-      const backScrollY = (-5 * p) * viewportH / 100;
-      const middleScrollY = (1 + p * (window.innerWidth < 600 ? 14 : 18)) * viewportH / 100;
-      const figureScrollY = (12 - p * 15) * viewportH / 100;
+      const backScrollY = (6 - farReveal * 11) * viewportH / 100;
+      const middleScrollY = (13 - middleReveal * (window.innerWidth < 600 ? 10 : 12)) * viewportH / 100;
+      const figureScrollY = (20 - figureReveal * 20) * viewportH / 100;
+
+      if (setIntroRippleOpacity && setIntroRippleScale && introRipple) {
+        setIntroRippleOpacity(0.86 * rippleFade);
+        setIntroRippleScale(0.24 + rippleOpen * 2.3);
+        introRipple.style.visibility = rippleFade > 0.01 ? 'visible' : 'hidden';
+        introRipple.style.filter = `blur(${(18 - rippleOpen * 15).toFixed(2)}px)`;
+      }
 
       setBackY(backScrollY + backParallaxY);
       setBackX(backParallaxX);
-      const backScale = 1.10 + p * 0.10;
+      setBackOpacity(0.32 + farReveal * 0.68);
+      const backScale = 1.24 - farReveal * 0.14;
       setBackScaleX(backScale);
       setBackScaleY(backScale);
       setMiddleY(middleScrollY + middleParallaxY);
       setMiddleX(middleParallaxX);
+      setMiddleOpacity(0.06 + middleReveal * 0.94);
       if (setMiddleNearBlurY) setMiddleNearBlurY(middleScrollY + middleParallaxY);
       if (setMiddleNearBlurX) setMiddleNearBlurX(middleParallaxX);
-      const middleScale = 0.98 + p * 0.32;
+      const middleScale = 1.18 - middleReveal * 0.20;
       setMiddleScaleX(middleScale);
       setMiddleScaleY(middleScale);
       if (setMiddleNearBlurScaleX) setMiddleNearBlurScaleX(middleScale);
       if (setMiddleNearBlurScaleY) setMiddleNearBlurScaleY(middleScale);
       setFigureY(figureScrollY + figureParallaxY);
       setFigureX(figureParallaxX);
-      const figureScale = 1 + p * 0.13;
+      setFigureOpacity(0.03 + figureReveal * 0.97);
+      const figureScale = 1.32 - figureReveal * 0.32;
       setFigureScaleX(figureScale);
       setFigureScaleY(figureScale);
       updateDepthFilters(p);
 
-      setContentX(contentParallaxX);
-      setContentY(-28 * textDrift + contentParallaxY);
-      setTextVisible(textVisible ? p > 0.58 : p > 0.70);
-      if (setNavOpacity) setNavOpacity(0.76 + Math.min(1, p / 0.16) * 0.24);
+      setContentX(0);
+      setContentY(0);
+      const textReveal = smoothStep(range01(p, 0.48, 0.92));
+      textTimeline.progress(textReveal);
+      updateInkTransition(inkProgress);
+      if (setNavOpacity && setNavY) {
+        setNavOpacity(navReveal);
+        setNavY((1 - navReveal) * -14);
+        nav.style.visibility = navReveal > 0.01 ? 'visible' : 'hidden';
+        nav.style.pointerEvents = navReveal > 0.98 ? 'auto' : 'none';
+      }
 
       root.style.setProperty('--hero-progress', p.toFixed(4));
     }

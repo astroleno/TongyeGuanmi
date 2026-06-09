@@ -25,6 +25,7 @@
 html {
   scroll-behavior: auto;
   background: var(--bg);
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -37,6 +38,7 @@ body {
     radial-gradient(circle at 82% 22%, rgba(183, 91, 52, 0.07), transparent 34vw),
     linear-gradient(180deg, #07110e 0%, #08130f 50%, #050807 100%);
   overflow-x: hidden;
+  overscroll-behavior-y: none;
   text-rendering: geometricPrecision;
 }
 
@@ -170,6 +172,11 @@ a {
   background: transparent;
   backdrop-filter: none;
   box-shadow: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, -14px, 0);
+  pointer-events: none;
+  will-change: transform, opacity;
 }
 
 .brand {
@@ -242,8 +249,8 @@ a {
 
 .hero-wrap {
   position: relative;
-  height: 330vh;
-  min-height: 2100px;
+  height: 125vh;
+  min-height: 100dvh;
 }
 
 .hero-sticky {
@@ -351,6 +358,59 @@ a {
     linear-gradient(90deg, rgba(5,8,7,.54) 0%, rgba(5,8,7,.08) 36%, rgba(5,8,7,.12) 66%, rgba(5,8,7,.42) 100%);
 }
 
+.hero-intro-ripple {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  z-index: 6;
+  width: min(84vw, 760px);
+  aspect-ratio: 1;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  border-radius: 50%;
+  transform: translate3d(-50%, -50%, 0) scale(.18);
+  transform-origin: 50% 50%;
+  filter: blur(18px);
+  background:
+    radial-gradient(circle, rgba(247, 237, 215, .18) 0 1px, transparent 2px 28%),
+    radial-gradient(circle, transparent 0 36%, rgba(247, 237, 215, .14) 37%, transparent 41%),
+    radial-gradient(circle, rgba(199,177,122,.12), transparent 66%);
+  mix-blend-mode: screen;
+  will-change: transform, opacity, filter;
+}
+
+.hero-intro-ripple span {
+  position: absolute;
+  inset: 18%;
+  border: 1px solid rgba(247, 237, 215, .22);
+  border-radius: 50%;
+  box-shadow: 0 0 44px rgba(199,177,122,.16);
+}
+
+.hero-intro-ripple span:nth-child(2) {
+  inset: 30%;
+  border-color: rgba(199,177,122,.26);
+}
+
+.hero-intro-ripple span:nth-child(3) {
+  inset: 42%;
+  border-color: rgba(247, 237, 215, .18);
+}
+
+.hero-ink-transition {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
 .hero-content {
   position: absolute;
   inset: 0;
@@ -416,6 +476,7 @@ a {
 
 .hero-title-char {
   display: block;
+  transform-origin: 50% 50%;
   will-change: transform, filter, opacity;
 }
 
@@ -526,8 +587,9 @@ a {
   position: relative;
   margin-top: -1px;
   background:
-    linear-gradient(180deg, rgba(5,8,7,.92), rgba(8,18,15,.78)),
-    radial-gradient(circle at 80% 0%, rgba(183,91,52,.12), transparent 38vw);
+    linear-gradient(180deg, rgba(5,8,7,.36) 0%, rgba(5,8,7,.78) 42%, rgba(5,8,7,.94) 100%),
+    radial-gradient(circle at 80% 0%, rgba(183,91,52,.12), transparent 38vw),
+    url('../image/back2.png') center top / cover no-repeat;
 }
 
 .manifesto-grid {
@@ -1097,8 +1159,8 @@ a {
   }
 
   .hero-wrap {
-    min-height: 1280px;
-    height: 230vh;
+    height: 125vh;
+    min-height: 100dvh;
   }
 
   .hero-content {
@@ -1191,6 +1253,10 @@ a {
 
   .fallback-figure {
     height: min(76vh, 720px);
+  }
+
+  .hero-intro-ripple {
+    width: 116vw;
   }
 
   .hero-content {
