@@ -15,6 +15,7 @@ function assertNotContains(source, needle, message) {
 }
 
 const main = await read('js/main.js');
+const index = await read('index.html');
 const reveal = await read('js/ui/reveal.js');
 const styles = await read('css/styles.css');
 const smoothScroll = await read('js/ui/smooth-scroll.js').catch(() => '');
@@ -32,6 +33,8 @@ assertContains(smoothScroll, 'lenis.scrollTo(target, {', 'anchor clicks use Leni
 assertContains(smoothScroll, 'offset: -getSnapOffset()', 'anchor clicks use snapped visual offset');
 assertContains(smoothScroll, 'destroy()', 'smooth-scroll.js exposes cleanup');
 
+assertContains(index, 'class="post-hero-stage"', 'index.html provides the post-hero snap stage');
+assertContains(reveal, "ScrollTrigger.create({\n    id: 'post-hero-section-snap'", 'reveal.js creates the post-hero snap trigger');
 assertNotContains(reveal, 'export function initSmoothScroll', 'reveal.js no longer owns smooth scroll');
 assertContains(styles, 'body.is-lenis-active', 'styles expose Lenis active state');
 
