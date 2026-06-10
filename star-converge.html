@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>星空显影｜同野观幂</title>
+  <meta name="theme-color" content="#020403" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="assets/back2.png" as="image" />
+  <link rel="stylesheet" href="css/star-converge.css" />
+</head>
+<body>
+  <main class="preview-route" aria-label="高亮夜空星座显影到原图">
+    <div class="stage">
+      <canvas class="preview-canvas" data-star-canvas></canvas>
+    </div>
+    <div class="edge-vignette" aria-hidden="true"></div>
+  </main>
+
+  <div class="toolbar" aria-label="预览控制">
+    <button class="tool-button" type="button" aria-label="重新播放" title="重新播放" data-star-replay>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 12a8 8 0 1 1-2.35-5.66" />
+        <path d="M20 4v6h-6" />
+      </svg>
+    </button>
+    <button class="tool-button" type="button" aria-label="查看遮罩" title="查看遮罩" aria-pressed="false" data-star-mask>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 12s3.4-6 9-6 9 6 9 6-3.4 6-9 6-9-6-9-6Z" />
+        <circle cx="12" cy="12" r="2.6" />
+      </svg>
+    </button>
+    <button class="tool-button" type="button" aria-label="查看噪声场" title="查看噪声场" aria-pressed="false" data-star-noise>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 8c3.2-3.1 6.8 3.1 10 0s6.8 3.1 10 0" />
+        <path d="M4 16c3.2-3.1 6.8 3.1 10 0s6.8 3.1 10 0" />
+      </svg>
+    </button>
+  </div>
+
+  <script type="module">
+    import { initStarFieldReveal } from './js/effects/star-field-reveal.js';
+
+    initStarFieldReveal({
+      canvas: document.querySelector('[data-star-canvas]'),
+      replayButton: document.querySelector('[data-star-replay]'),
+      maskButton: document.querySelector('[data-star-mask]'),
+      noiseButton: document.querySelector('[data-star-noise]'),
+      sourceUrl: 'assets/back2.png'
+    });
+  </script>
+</body>
+</html>
