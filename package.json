@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/serve-static-site.mjs",
-    "dev:web": "node scripts/serve-static-site.mjs"
+    "dev:web": "node scripts/serve-static-site.mjs",
+    "verify:ink-modules": "node scripts/check-ink-modules.mjs"
   }
 }

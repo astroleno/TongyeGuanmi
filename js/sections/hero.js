@@ -1,0 +1,662 @@
+import { createInkSceneTransition } from '../effects/ink-scene-transition.js';
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothStep = (value) => value * value * (3 - 2 * value);
+
+const DEFAULT_HERO_CONFIG = {
+  heroVideoSrc: 'assets/figure1.webm',
+  heroBackSceneSrc: 'assets/back1.png',
+  heroNextSceneSrc: 'assets/back2.png',
+  heroBackDepthSrc: 'assets/back1_depth.png',
+  heroMiddleDepthSrc: 'assets/middle1_depth.png',
+  heroIntroDurationSeconds: 2.7,
+  heroTitleStartProgress: 0.78,
+  heroSubtitleStartOffsetSeconds: 0.42,
+  heroLoaderReadyDelayMs: 0,
+  heroPreTransitionRangeVh: 50,
+  heroSceneTransitionRangeVh: 100,
+  heroVideoSegmentSeconds: 2,
+  heroBackBaseScale: 1.10,
+  heroBackScrollScaleDelta: 0.10,
+  heroBackImageBoxScale: 1.12,
+  heroMiddleBaseYVh: 1,
+  heroMiddleBaseScale: 0.98,
+  heroMiddleScrollScaleDelta: 0.32,
+  heroFigureBaseYVh: 12,
+  heroFigureBaseScale: 1
+};
+
+function updatePageProgress(root) {
+  const doc = document.documentElement;
+  const total = Math.max(1, doc.scrollHeight - window.innerHeight);
+  const progress = clamp(window.scrollY / total, 0, 1);
+  root.style.setProperty('--page-progress', progress.toFixed(4));
+}
+
+export function initFallbackParallax(options = {}) {
+  const root = options.root || document.documentElement;
+  const reduceMotion = Boolean(options.reduceMotion);
+  const runtime = options.runtime || { markLoaded() {} };
+  root.classList.add('webgl-fallback');
+  const hero = document.querySelector('.hero-wrap');
+  const back = document.querySelector('.fallback-back');
+  const middle = document.querySelector('.fallback-middle');
+  const figure = document.querySelector('.fallback-figure');
+  const content = document.querySelector('.hero-content');
+  const manifesto = document.querySelector('.manifesto');
+  if (!hero || !back || !middle || !figure) return;
+
+  let mx = 0;
+  let my = 0;
+  let tx = 0;
+  let ty = 0;
+  let scroll = 0;
+  let fallbackVideoDuration = 0;
+
+  figure.loop = false;
+  figure.pause();
+  figure.addEventListener('loadedmetadata', () => {
+    fallbackVideoDuration = Number.isFinite(figure.duration) && figure.duration > 0 ? figure.duration : 0;
+    syncFallbackVideo();
+  }, { once: true });
+
+  window.addEventListener('pointermove', (event) => {
+    tx = (event.clientX / window.innerWidth - 0.5) * 2;
+    ty = (event.clientY / window.innerHeight - 0.5) * 2;
+  }, { passive: true });
+
+  function computeScroll() {
+    const rect = hero.getBoundingClientRect();
+    const range = Math.max(1, rect.height - window.innerHeight);
+    scroll = clamp(-rect.top / range, 0, 1);
+    updatePageProgress(root);
+    syncFallbackVideo();
+    updateFallbackManifesto();
+  }
+
+  function syncFallbackVideo() {
+    const duration = fallbackVideoDuration || (Number.isFinite(figure.duration) ? figure.duration : 0);
+    if (!duration || figure.readyState < 1) return;
+    const targetTime = Math.min(duration - 0.04, Math.max(0, scroll * duration));
+    if (Math.abs(figure.currentTime - targetTime) > 0.055) {
+      try {
+        figure.currentTime = targetTime;
+      } catch {
+        // Seeking can briefly fail before metadata settles in older WebKit builds.
+      }
+    }
+  }
+
+  window.addEventListener('scroll', computeScroll, { passive: true });
+  window.addEventListener('resize', computeScroll, { passive: true });
+  computeScroll();
+
+  function updateFallbackManifesto() {
+    if (!manifesto) return;
+    const progress = clamp((scroll - 0.78) / 0.14, 0, 1);
+    const eased = progress * progress * (3 - 2 * progress);
+    root.style.setProperty('--hero-manifesto-opacity', eased.toFixed(4));
+    root.style.setProperty('--hero-manifesto-y', `${((1 - eased) * 28).toFixed(2)}px`);
+    manifesto.style.visibility = eased > 0.01 ? 'visible' : 'hidden';
+    manifesto.style.pointerEvents = eased > 0.98 ? 'auto' : 'none';
+    manifesto.classList.toggle('is-active', eased > 0.01);
+    manifesto.classList.toggle('is-interactive', eased > 0.98);
+  }
+
+  function tick() {
+    mx = lerp(mx, tx, 0.08);
+    my = lerp(my, ty, 0.08);
+    back.style.transform = `translate3d(calc(-50% + ${mx * -10}px), calc(-52% + ${my * -6 - scroll * 28}px), 0) scale(${1.08 + scroll * 0.06})`;
+    middle.style.transform = `translate3d(calc(-50% + ${mx * -24}px), calc(2% + ${my * -12 - scroll * 120}px), 0) scale(${1.02 + scroll * 0.58})`;
+    figure.style.transform = `translate3d(calc(-50% + ${mx * 10}px), calc(-50% + ${my * 8 - scroll * 18}px), 0) scale(${1 + scroll * 0.08})`;
+    if (content) content.style.transform = `translate3d(${mx * 8}px, ${my * 5 - scroll * 180}px, 0)`;
+    updateFallbackManifesto();
+    requestAnimationFrame(tick);
+  }
+  if (!reduceMotion) tick();
+  runtime.markLoaded(600);
+}
+
+export function initLayeredHero(options = {}) {
+  const root = options.root || document.documentElement;
+  const body = options.body || document.body;
+  const runtime = options.runtime || { markLoaded() {} };
+  const config = { ...DEFAULT_HERO_CONFIG, ...(options.config || {}) };
+  const {
+    heroVideoSrc: HERO_VIDEO_SRC,
+    heroBackSceneSrc: HERO_BACK_SCENE_SRC,
+    heroNextSceneSrc: HERO_NEXT_SCENE_SRC,
+    heroBackDepthSrc: HERO_BACK_DEPTH_SRC,
+    heroMiddleDepthSrc: HERO_MIDDLE_DEPTH_SRC,
+    heroIntroDurationSeconds: HERO_INTRO_DURATION_SECONDS,
+    heroTitleStartProgress: HERO_TITLE_START_PROGRESS,
+    heroSubtitleStartOffsetSeconds: HERO_SUBTITLE_START_OFFSET_SECONDS,
+    heroLoaderReadyDelayMs: HERO_LOADER_READY_DELAY_MS,
+    heroPreTransitionRangeVh: HERO_PRE_TRANSITION_RANGE_VH,
+    heroSceneTransitionRangeVh: HERO_SCENE_TRANSITION_RANGE_VH,
+    heroVideoSegmentSeconds: HERO_VIDEO_SEGMENT_SECONDS,
+    heroBackBaseScale: HERO_BACK_BASE_SCALE,
+    heroBackScrollScaleDelta: HERO_BACK_SCROLL_SCALE_DELTA,
+    heroBackImageBoxScale: HERO_BACK_IMAGE_BOX_SCALE,
+    heroMiddleBaseYVh: HERO_MIDDLE_BASE_Y_VH,
+    heroMiddleBaseScale: HERO_MIDDLE_BASE_SCALE,
+    heroMiddleScrollScaleDelta: HERO_MIDDLE_SCROLL_SCALE_DELTA,
+    heroFigureBaseYVh: HERO_FIGURE_BASE_Y_VH,
+    heroFigureBaseScale: HERO_FIGURE_BASE_SCALE
+  } = config;
+  const { gsap, ScrollTrigger } = window;
+  const hero = document.querySelector('.hero-wrap');
+  const scene = document.querySelector('.fallback-scene');
+  const back = document.querySelector('.fallback-back');
+  const middle = document.querySelector('.fallback-middle');
+  const middleNearBlur = document.querySelector('.fallback-middle-near-blur');
+  const figure = document.querySelector('.fallback-figure');
+  const content = document.querySelector('.hero-content');
+  const manifesto = document.querySelector('.manifesto');
+  const nav = document.querySelector('.site-nav');
+  const introInkCanvas = document.querySelector('[data-hero-intro-ink-canvas]');
+  const inkCanvas = document.querySelector('[data-hero-ink-canvas]');
+  const introInkTransition = createInkSceneTransition(introInkCanvas, {
+    assets: {
+      nextSceneSrc: HERO_NEXT_SCENE_SRC,
+      backDepthSrc: HERO_BACK_DEPTH_SRC,
+      middleDepthSrc: HERO_MIDDLE_DEPTH_SRC
+    },
+    targetSrc: HERO_BACK_SCENE_SRC,
+    farOnly: true,
+    hideAtEnd: true,
+    imageScale: HERO_BACK_IMAGE_BOX_SCALE * HERO_BACK_BASE_SCALE,
+    imageCenterX: 0.5,
+    imageCenterY: 0.5,
+    inkCenterX: 0.5,
+    inkCenterY: 0.5,
+    progressSpan: 1,
+    colorLift: 0.72,
+    sourceElement: back
+  });
+  const inkTransition = createInkSceneTransition(inkCanvas, {
+    assets: {
+      nextSceneSrc: HERO_NEXT_SCENE_SRC,
+      backDepthSrc: HERO_BACK_DEPTH_SRC,
+      middleDepthSrc: HERO_MIDDLE_DEPTH_SRC
+    },
+    targetSrc: HERO_NEXT_SCENE_SRC,
+    figureMaskElement: figure
+  });
+
+  if (!hero || !scene || !back || !middle || !figure || !content) return;
+
+  root.classList.add('layered-hero-ready');
+  figure.src = HERO_VIDEO_SRC;
+  figure.muted = true;
+  figure.loop = false;
+  figure.autoplay = false;
+  figure.playsInline = true;
+  figure.preload = 'auto';
+  figure.setAttribute('muted', '');
+  figure.setAttribute('playsinline', '');
+  figure.setAttribute('webkit-playsinline', '');
+
+  let segmentStart = 0.34;
+  let segmentEnd = 2.45;
+  let videoEnergy = 0;
+  let lastVideoEnergyAt = performance.now();
+  let lastHeroScrollAt = 0;
+  let previousTargetProgress = null;
+  let mouseX = 0;
+  let mouseY = 0;
+  const parallaxMouse = { x: 0, y: 0 };
+  const parallaxToX = gsap.quickTo(parallaxMouse, 'x', { duration: 0.9, ease: 'power3.out' });
+  const parallaxToY = gsap.quickTo(parallaxMouse, 'y', { duration: 0.9, ease: 'power3.out' });
+  const heroIntroState = { progress: 0 };
+  let heroIntroStarted = false;
+  let heroIntroComplete = false;
+  let titleIntroPlayed = false;
+
+  const syncSegmentBounds = () => {
+    const duration = Number.isFinite(figure.duration) && figure.duration > 0 ? figure.duration : 5.04;
+    segmentStart = Math.min(0.42, Math.max(0, duration * 0.08));
+    segmentEnd = Math.min(duration - 0.08, segmentStart + Math.min(HERO_VIDEO_SEGMENT_SECONDS, duration * 0.55));
+    if (figure.readyState >= 1 && (!figure.currentTime || figure.currentTime < segmentStart || figure.currentTime > segmentEnd)) {
+      try {
+        figure.currentTime = segmentStart;
+      } catch {
+        // Metadata can settle a beat later on WebKit.
+      }
+    }
+  };
+
+  figure.addEventListener('loadedmetadata', syncSegmentBounds, { once: true });
+  figure.addEventListener('canplay', syncSegmentBounds, { once: true });
+  window.setTimeout(syncSegmentBounds, 900);
+
+  [back, middle, middleNearBlur, figure].filter(Boolean).forEach((layer) => {
+    layer.style.transform = 'none';
+  });
+
+  gsap.set(back, {
+    xPercent: -50,
+    yPercent: -50,
+    scale: HERO_BACK_BASE_SCALE,
+    transformOrigin: '50% 50%',
+    force3D: true
+  });
+  gsap.set([middle, middleNearBlur].filter(Boolean), {
+    xPercent: -50,
+    yPercent: -50,
+    y: `${HERO_MIDDLE_BASE_Y_VH}vh`,
+    scale: HERO_MIDDLE_BASE_SCALE,
+    transformOrigin: '50% 62%',
+    force3D: true
+  });
+  gsap.set(figure, {
+    xPercent: -50,
+    yPercent: -50,
+    y: `${HERO_FIGURE_BASE_Y_VH}vh`,
+    scale: HERO_FIGURE_BASE_SCALE,
+    transformOrigin: '50% 60%',
+    force3D: true
+  });
+  gsap.set(content, {
+    opacity: 1,
+    visibility: 'visible',
+    y: 0,
+    filter: 'none',
+    force3D: true
+  });
+  content.style.pointerEvents = 'none';
+  if (manifesto) {
+    gsap.set(manifesto, { opacity: 0, y: 28, visibility: 'hidden', force3D: true });
+    manifesto.classList.remove('is-active', 'is-interactive');
+  }
+
+  const titleChars = gsap.utils.toArray(content.querySelectorAll('.hero-title-char'));
+  const subtitle = content.querySelector('.hero-subtitle');
+  gsap.set(titleChars, {
+    autoAlpha: 0,
+    y: 18,
+    scaleX: 0.94,
+    filter: 'blur(9px)',
+    transformOrigin: '50% 50%',
+    force3D: true
+  });
+  if (subtitle) {
+    gsap.set(subtitle, {
+      autoAlpha: 0,
+      y: 14,
+      filter: 'blur(6px)',
+      force3D: true
+    });
+  }
+  const titleTimeline = gsap.timeline({
+    paused: true,
+    defaults: { ease: 'power3.out' }
+  }).to(titleChars, {
+    autoAlpha: 1,
+    y: 0,
+    scaleX: 1,
+    filter: 'blur(0px)',
+    duration: 1.35,
+    stagger: {
+      each: 0.16,
+      from: 'start'
+    }
+  }, 0);
+  if (subtitle) {
+    titleTimeline.to(subtitle, {
+      autoAlpha: 1,
+      y: 0,
+      filter: 'blur(0px)',
+      duration: 2.85,
+      ease: 'sine.inOut'
+    }, HERO_SUBTITLE_START_OFFSET_SECONDS);
+  }
+
+  if (nav) gsap.set(nav, { autoAlpha: 0, y: -14, pointerEvents: 'none' });
+  if (introInkCanvas) gsap.set(introInkCanvas, { autoAlpha: 0 });
+  if (inkCanvas) gsap.set(inkCanvas, { autoAlpha: 0 });
+
+  const setBackY = gsap.quickSetter(back, 'y', 'px');
+  const setBackX = gsap.quickSetter(back, 'x', 'px');
+  const setBackScaleX = gsap.quickSetter(back, 'scaleX');
+  const setBackScaleY = gsap.quickSetter(back, 'scaleY');
+  const setBackOpacity = gsap.quickSetter(back, 'opacity');
+  const setMiddleY = gsap.quickSetter(middle, 'y', 'px');
+  const setMiddleX = gsap.quickSetter(middle, 'x', 'px');
+  const setMiddleScaleX = gsap.quickSetter(middle, 'scaleX');
+  const setMiddleScaleY = gsap.quickSetter(middle, 'scaleY');
+  const setMiddleNearBlurY = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'y', 'px') : null;
+  const setMiddleNearBlurX = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'x', 'px') : null;
+  const setMiddleNearBlurScaleX = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'scaleX') : null;
+  const setMiddleNearBlurScaleY = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'scaleY') : null;
+  const setFigureY = gsap.quickSetter(figure, 'y', 'px');
+  const setFigureX = gsap.quickSetter(figure, 'x', 'px');
+  const setFigureScaleX = gsap.quickSetter(figure, 'scaleX');
+  const setFigureScaleY = gsap.quickSetter(figure, 'scaleY');
+  const setContentY = gsap.quickSetter(content, 'y', 'px');
+  const setContentX = gsap.quickSetter(content, 'x', 'px');
+  const setManifestoOpacity = manifesto ? gsap.quickSetter(manifesto, 'opacity') : null;
+  const setManifestoY = manifesto ? gsap.quickSetter(manifesto, 'y', 'px') : null;
+  const setMiddleNearBlurOpacity = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'opacity') : null;
+  const setNavOpacity = nav ? gsap.quickSetter(nav, 'opacity') : null;
+  const setNavY = nav ? gsap.quickSetter(nav, 'y', 'px') : null;
+
+  let renderedProgress = 0;
+  let lastApplied = -1;
+  let lastIntroProgress = -1;
+  let lastMouseAppliedX = 99;
+  let lastMouseAppliedY = 99;
+  let lastNavReveal = -1;
+  let lastInkProgress = -1;
+  let lastManifestoProgress = -1;
+  let touchStartY = 0;
+
+  const smoothStep = (value) => value * value * (3 - 2 * value);
+  const farInkEase = gsap.parseEase?.('sine.inOut') || smoothStep;
+  const layerEntranceEase = gsap.parseEase?.('sine.inOut') || smoothStep;
+  const stagedLayerEase = (value) => layerEntranceEase(clamp(value, 0, 1));
+  const range01 = (value, start, end) => clamp((value - start) / (end - start), 0, 1);
+  const getHeroRanges = () => {
+    const totalRange = Math.max(1, hero.offsetHeight - window.innerHeight);
+    const viewportH = Math.max(1, window.innerHeight);
+    const transitionStartRange = Math.min(totalRange, viewportH * (HERO_PRE_TRANSITION_RANGE_VH / 100));
+    const availableTransitionRange = Math.max(1, totalRange - transitionStartRange);
+    const transitionRange = Math.min(availableTransitionRange, viewportH * (HERO_SCENE_TRANSITION_RANGE_VH / 100));
+    const sceneRange = Math.max(1, transitionStartRange + transitionRange);
+    return { totalRange, sceneRange, transitionStartRange, transitionRange };
+  };
+  const updateIntroInkTransition = (visibilityProgress, renderProgress = visibilityProgress) => {
+    if (introInkCanvas) {
+      const clarity = smoothStep(renderProgress);
+      const blur = 4.5 + (1 - clarity) * 6.2;
+      const saturate = 0.86 + clarity * 0.10;
+      const contrast = 0.92 + clarity * 0.06;
+      const brightness = 0.12 + clarity * 0.40;
+      introInkCanvas.style.filter = `blur(${blur.toFixed(2)}px) saturate(${saturate.toFixed(3)}) contrast(${contrast.toFixed(3)}) brightness(${brightness.toFixed(3)})`;
+    }
+    introInkTransition?.render(renderProgress, mouseX, mouseY, visibilityProgress);
+  };
+  const updateInkTransition = (progress) => {
+    inkTransition?.render(progress, mouseX, mouseY);
+  };
+  const playHeroTextIntro = () => {
+    if (titleIntroPlayed) return;
+    titleIntroPlayed = true;
+    titleTimeline.restart(true);
+  };
+  const playHeroIntro = () => {
+    if (heroIntroStarted) return;
+    heroIntroStarted = true;
+    gsap.timeline({
+      defaults: { ease: 'none' },
+      onComplete: () => {
+        heroIntroState.progress = 1;
+        heroIntroComplete = true;
+        lastApplied = -1;
+        lastIntroProgress = -1;
+        updateHeroLayers();
+        playHeroTextIntro();
+      }
+    }).to(heroIntroState, {
+      progress: 1,
+      duration: HERO_INTRO_DURATION_SECONDS,
+      ease: 'none',
+      onUpdate: updateHeroLayers
+    }, 0);
+  };
+  const normalizeWheelDelta = (event) => {
+    if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16;
+    if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * window.innerHeight;
+    return event.deltaY;
+  };
+  const clampTopScroll = () => {
+    const top = hero.offsetTop;
+    if (window.scrollY > top + 1) return false;
+    window.scrollTo(0, top);
+    return true;
+  };
+  const handleTopWheel = (event) => {
+    const delta = normalizeWheelDelta(event);
+    const top = hero.offsetTop;
+    if (delta >= 0 || window.scrollY > top + Math.abs(delta) + 1) return;
+    window.scrollTo(0, top);
+    event.preventDefault();
+    lastHeroScrollAt = performance.now();
+  };
+  const handleTopTouchStart = (event) => {
+    touchStartY = event.touches?.[0]?.clientY || 0;
+  };
+  const handleTopTouchMove = (event) => {
+    const currentY = event.touches?.[0]?.clientY || 0;
+    const pullingDown = currentY > touchStartY;
+    if (!pullingDown || !clampTopScroll()) return;
+    event.preventDefault();
+    lastHeroScrollAt = performance.now();
+  };
+
+  const updateVideoPlayback = (progress, scrollDelta) => {
+    const now = performance.now();
+    const elapsedFrames = clamp((now - lastVideoEnergyAt) / 16.67, 0.5, 4);
+    lastVideoEnergyAt = now;
+    const inVideoRange = progress > 0.045 && progress < 0.92;
+    const recentlyScrolled = now - lastHeroScrollAt < 120;
+    const scrollMoving = inVideoRange && (recentlyScrolled || scrollDelta > 0.001);
+    if (scrollMoving) {
+      videoEnergy = 1;
+    } else {
+      videoEnergy *= Math.pow(0.955, elapsedFrames);
+    }
+
+    if (!inVideoRange || videoEnergy < 0.14) {
+      videoEnergy = inVideoRange ? videoEnergy : 0;
+      if (!figure.paused) figure.pause();
+      return;
+    }
+
+    syncSegmentBounds();
+    if (figure.currentTime >= segmentEnd - 0.035) {
+      if (!scrollMoving) {
+        videoEnergy = 0;
+        figure.pause();
+        return;
+      }
+      try {
+        figure.currentTime = segmentStart;
+      } catch {
+        // Ignore transient seek failures; the next frame will retry.
+      }
+    }
+
+    try {
+      figure.playbackRate = clamp(0.56 + videoEnergy * 0.44, 0.56, 1);
+    } catch {
+      // Older engines can reject playbackRate changes during metadata setup.
+    }
+    if (figure.paused) figure.play().catch(() => undefined);
+  };
+
+  const updateDepthFilters = (progress, introProgress, middleIntro, figureIntro) => {
+    const introClarity = smoothStep(introProgress);
+    const farClarity = smoothStep(range01(progress, 0.03, 0.66));
+    const rockClarity = smoothStep(range01(progress, 0.10, 0.62));
+    const farBlur = 1.15 + 3.35 * (1 - farClarity) + (1 - introClarity) * 6.2;
+    const rockBlur = 0.15 * (1 - rockClarity) + (1 - middleIntro) * 18;
+    const figureBlur = (1 - figureIntro) * 20;
+    const nearBlurStrength = 1 - rockClarity;
+
+    back.style.filter = `blur(${farBlur.toFixed(2)}px) saturate(${(0.88 + introClarity * 0.11 + farClarity * 0.08).toFixed(3)}) contrast(${(0.93 + introClarity * 0.06 + farClarity * 0.06).toFixed(3)}) brightness(${(0.20 + introClarity * 0.44 + farClarity * 0.24).toFixed(3)})`;
+    middle.style.filter = `blur(${rockBlur.toFixed(2)}px) saturate(${(0.94 + rockClarity * 0.12).toFixed(3)}) contrast(${(0.97 + rockClarity * 0.07).toFixed(3)}) brightness(${(0.90 + rockClarity * 0.32).toFixed(3)})`;
+    figure.style.filter = `url('#figure-alpha-clean') blur(${figureBlur.toFixed(2)}px) brightness(1.18) saturate(1.08) contrast(1.03)`;
+
+    if (middleNearBlur) {
+      setMiddleNearBlurOpacity(0.24 * nearBlurStrength);
+    }
+  };
+
+  function updateHeroLayers() {
+    const { totalRange, sceneRange, transitionStartRange, transitionRange } = getHeroRanges();
+    const rawHeroScroll = window.scrollY - hero.offsetTop;
+    const viewportH = window.innerHeight;
+    const introProgress = clamp(heroIntroState.progress, 0, 1);
+    if (introProgress >= HERO_TITLE_START_PROGRESS) {
+      playHeroTextIntro();
+    }
+    const targetProgress = clamp(rawHeroScroll / sceneRange, 0, 1);
+    const introSettled = heroIntroComplete || introProgress >= 0.999;
+    let scrollDelta = 0;
+    if (introSettled) {
+      scrollDelta = previousTargetProgress === null ? 0 : Math.abs(targetProgress - previousTargetProgress);
+      previousTargetProgress = targetProgress;
+      renderedProgress += (targetProgress - renderedProgress) * 0.22;
+    } else {
+      previousTargetProgress = null;
+      renderedProgress = 0;
+    }
+    if (introSettled) {
+      mouseX = parallaxMouse.x;
+      mouseY = parallaxMouse.y;
+    } else {
+      parallaxMouse.x = 0;
+      parallaxMouse.y = 0;
+      mouseX = 0;
+      mouseY = 0;
+    }
+    updateVideoPlayback(renderedProgress, scrollDelta);
+
+    const navReveal = setNavOpacity && setNavY
+      ? (introSettled ? smoothStep(clamp((window.scrollY - (hero.offsetTop + totalRange + 16)) / 180, 0, 1)) : 0)
+      : 0;
+    const inkProgress = introSettled ? clamp((rawHeroScroll - transitionStartRange) / transitionRange, 0, 1) : 0;
+    const manifestoProgress = introSettled
+      ? smoothStep(range01(rawHeroScroll, sceneRange - viewportH * 0.16, sceneRange + viewportH * 0.04))
+      : 0;
+    const mouseChanged = Math.abs(lastMouseAppliedX - mouseX) > 0.001 || Math.abs(lastMouseAppliedY - mouseY) > 0.001;
+    const introChanged = Math.abs(lastIntroProgress - introProgress) > 0.001;
+    const navChanged = Math.abs(lastNavReveal - navReveal) > 0.001;
+    const inkChanged = Math.abs(lastInkProgress - inkProgress) > 0.001;
+    const manifestoChanged = Math.abs(lastManifestoProgress - manifestoProgress) > 0.001;
+    const introInkAnimating = !heroIntroComplete && introProgress > 0.002 && introProgress < 0.999;
+    const inkAnimating = inkProgress > 0.002 && inkProgress < 0.995;
+    if (Math.abs(lastApplied - renderedProgress) < 0.0012 && !introChanged && !introInkAnimating && !mouseChanged && !navChanged && !inkChanged && !manifestoChanged && !inkAnimating) return;
+    lastApplied = renderedProgress;
+    lastIntroProgress = introProgress;
+    lastMouseAppliedX = mouseX;
+    lastMouseAppliedY = mouseY;
+    lastNavReveal = navReveal;
+    lastInkProgress = inkProgress;
+    lastManifestoProgress = manifestoProgress;
+
+    const p = renderedProgress;
+    const layerProgress = introSettled ? p : 0;
+    const viewportW = window.innerWidth;
+    const farIntro = farInkEase(range01(introProgress, 0, 1));
+    const middleIntro = stagedLayerEase(range01(introProgress, 0, 0.92));
+    const figureIntro = stagedLayerEase(range01(introProgress, 0.02, 0.96));
+    const backParallaxX = mouseX * 0.02;
+    const backParallaxY = mouseY * 0.02;
+    const middleParallaxX = mouseX * 0.04;
+    const middleParallaxY = mouseY * 0.04;
+    const figureParallaxX = mouseX * 0.06;
+    const figureParallaxY = mouseY * 0.06;
+    const backScrollY = (-5 * layerProgress) * viewportH / 100;
+    const middleScrollY = (HERO_MIDDLE_BASE_Y_VH + layerProgress * (window.innerWidth < 600 ? 14 : 18)) * viewportH / 100;
+    const figureScrollY = (HERO_FIGURE_BASE_Y_VH - layerProgress * 15) * viewportH / 100;
+    const middleEnterY = (1 - middleIntro) * viewportH * 0.54;
+    const middleEnterX = (1 - middleIntro) * viewportW * -0.018;
+    const figureEnterY = (1 - figureIntro) * viewportH * 0.64;
+    const figureEnterX = (1 - figureIntro) * viewportW * 0.028;
+
+    setBackY(backScrollY + backParallaxY);
+    setBackX(backParallaxX);
+    setBackOpacity(introInkTransition ? smoothStep(range01(introProgress, 0.90, 0.97)) : (0.04 + farIntro * 0.96));
+    const backScale = HERO_BACK_BASE_SCALE + layerProgress * HERO_BACK_SCROLL_SCALE_DELTA;
+    setBackScaleX(backScale);
+    setBackScaleY(backScale);
+    setMiddleY(middleScrollY + middleParallaxY + middleEnterY);
+    setMiddleX(middleParallaxX + middleEnterX);
+    if (setMiddleNearBlurY) setMiddleNearBlurY(middleScrollY + middleParallaxY + middleEnterY);
+    if (setMiddleNearBlurX) setMiddleNearBlurX(middleParallaxX + middleEnterX);
+    const middleScale = HERO_MIDDLE_BASE_SCALE + layerProgress * HERO_MIDDLE_SCROLL_SCALE_DELTA + (1 - middleIntro) * 0.135;
+    setMiddleScaleX(middleScale);
+    setMiddleScaleY(middleScale);
+    if (setMiddleNearBlurScaleX) setMiddleNearBlurScaleX(middleScale);
+    if (setMiddleNearBlurScaleY) setMiddleNearBlurScaleY(middleScale);
+    setFigureY(figureScrollY + figureParallaxY + figureEnterY);
+    setFigureX(figureParallaxX + figureEnterX);
+    const figureScale = HERO_FIGURE_BASE_SCALE + smoothStep(range01(layerProgress, 0.16, 0.92)) * 0.065 + (1 - figureIntro) * 0.12;
+    setFigureScaleX(figureScale);
+    setFigureScaleY(figureScale);
+    updateDepthFilters(layerProgress, farIntro, middleIntro, figureIntro);
+
+    setContentX(0);
+    setContentY(0);
+    updateIntroInkTransition(introProgress, farIntro);
+    updateInkTransition(inkProgress);
+    if (manifesto) {
+      root.style.setProperty('--hero-manifesto-opacity', manifestoProgress.toFixed(4));
+      root.style.setProperty('--hero-manifesto-y', `${((1 - manifestoProgress) * 28).toFixed(2)}px`);
+      setManifestoOpacity(manifestoProgress);
+      setManifestoY((1 - manifestoProgress) * 28);
+      manifesto.style.visibility = manifestoProgress > 0.01 ? 'visible' : 'hidden';
+      manifesto.style.pointerEvents = manifestoProgress > 0.98 ? 'auto' : 'none';
+      manifesto.classList.toggle('is-active', manifestoProgress > 0.01);
+      manifesto.classList.toggle('is-interactive', manifestoProgress > 0.98);
+    }
+    if (setNavOpacity && setNavY) {
+      setNavOpacity(navReveal);
+      setNavY((1 - navReveal) * -14);
+      nav.style.visibility = navReveal > 0.01 ? 'visible' : 'hidden';
+      nav.style.pointerEvents = navReveal > 0.98 ? 'auto' : 'none';
+    }
+
+    root.style.setProperty('--hero-progress', p.toFixed(4));
+    root.style.setProperty('--hero-intro-progress', introProgress.toFixed(4));
+    root.style.setProperty('--hero-transition-progress', inkProgress.toFixed(4));
+    root.style.setProperty('--hero-manifesto-progress', manifestoProgress.toFixed(4));
+  }
+
+  window.addEventListener('scroll', () => {
+    lastHeroScrollAt = performance.now();
+  }, { passive: true });
+
+  window.addEventListener('wheel', handleTopWheel, { passive: false });
+  window.addEventListener('touchstart', handleTopTouchStart, { passive: true });
+  window.addEventListener('touchmove', handleTopTouchMove, { passive: false });
+
+  window.addEventListener('pointermove', (event) => {
+    if (event.pointerType === 'touch') return;
+    const rect = hero.getBoundingClientRect();
+    if (rect.top > window.innerHeight || rect.bottom < 0) return;
+    if (!heroIntroComplete) {
+      parallaxMouse.x = 0;
+      parallaxMouse.y = 0;
+      return;
+    }
+    parallaxToX(event.clientX - window.innerWidth / 2);
+    parallaxToY(event.clientY - window.innerHeight / 2);
+  }, { passive: true });
+
+  window.addEventListener('pointerleave', () => {
+    parallaxToX(0);
+    parallaxToY(0);
+  }, { passive: true });
+
+  gsap.ticker.add(updateHeroLayers);
+  window.addEventListener('resize', () => {
+    renderedProgress = -1;
+    updateHeroLayers();
+    ScrollTrigger.refresh();
+  }, { passive: true });
+
+  updateHeroLayers();
+  ScrollTrigger.refresh();
+  introInkTransition?.prewarm();
+  inkTransition?.prewarm();
+  if (body.classList.contains('is-loader-hidden')) {
+    playHeroIntro();
+  } else {
+    window.addEventListener('site:loader-hidden', playHeroIntro, { once: true });
+  }
+  runtime.markLoaded(HERO_LOADER_READY_DELAY_MS);
+}

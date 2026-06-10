@@ -7,6 +7,7 @@
   <meta name="description" content="同野观幂是一家面向组织与个人能力建设的 AI 转型咨询公司，帮助企业把 AI 变成团队真正会用、业务真正用得上的能力。" />
   <meta name="theme-color" content="#07110e" />
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -22,11 +23,15 @@
   </svg>
   <div class="grain" aria-hidden="true"></div>
   <div class="cursor-glow" aria-hidden="true"></div>
-  <div class="loading-screen" id="loader" aria-live="polite">
-    <div class="loader-seal">同</div>
-    <div class="loader-copy">
-      <span>正在进入真实现场</span>
-      <strong>同野观幂</strong>
+  <div class="loading-screen" id="loader" aria-live="polite" aria-label="正在进入同人于野，观象知幂">
+    <div class="loader-word loader-marquee" aria-label="同人于野">
+      <div class="loader-marquee-blur" aria-hidden="true">
+        <p class="loader-marquee-text">同人于野</p>
+      </div>
+      <div class="loader-marquee-clear" aria-hidden="true">
+        <p class="loader-marquee-text">同人于野</p>
+      </div>
+      <canvas class="loader-ink-reveal" data-loader-ink-canvas aria-hidden="true"></canvas>
     </div>
   </div>
 
@@ -49,7 +54,8 @@
       <div class="hero-sticky">
         <canvas id="hero-webgl" aria-hidden="true"></canvas>
         <div class="fallback-scene">
-          <img class="fallback-layer fallback-back" src="image/back.png" alt="" />
+          <img class="fallback-layer fallback-back" src="assets/back1.png" alt="" />
+          <canvas class="hero-back-ink-transition" data-hero-intro-ink-canvas aria-hidden="true"></canvas>
           <div class="hero-content" data-depth="0.04">
             <h1 class="hero-title-split" aria-label="同野观幂">
               <span class="hero-title-group" aria-hidden="true"><span class="hero-title-char">同</span><span class="hero-title-char">野</span></span>
@@ -57,30 +63,25 @@
             </h1>
             <p class="hero-subtitle">让 AI 进入真实的工作、学习与创造现场</p>
           </div>
-          <img class="fallback-layer fallback-middle" src="assets/middle.png" alt="" />
-          <img class="fallback-layer fallback-depth-blur fallback-middle-near-blur" src="assets/middle.png" alt="" />
-          <video class="fallback-layer fallback-figure" src="video/figure1.webm" poster="assets/figure-poster.jpg" muted preload="auto" playsinline></video>
+          <img class="fallback-layer fallback-middle" src="assets/middle1.png" alt="" />
+          <img class="fallback-layer fallback-depth-blur fallback-middle-near-blur" src="assets/middle1.png" alt="" />
+          <video class="fallback-layer fallback-figure" src="assets/figure1.webm" poster="assets/figure-poster.jpg" muted preload="auto" playsinline></video>
         </div>
 
         <div class="hero-vignette" aria-hidden="true"></div>
-        <div class="hero-intro-ripple" data-hero-intro-ripple aria-hidden="true">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
         <canvas class="hero-ink-transition" data-hero-ink-canvas aria-hidden="true"></canvas>
-      </div>
-    </section>
 
-    <section class="manifesto section-pad" id="manifesto">
-      <div class="section-index">同野观幂 / 00</div>
-      <div class="manifesto-grid">
-        <p class="large-copy reveal">AI 不应只是少数专家的工具，而应成为更多人可以理解、使用和共创的能力。</p>
-        <div class="manifesto-card glass reveal" data-tilt>
-          <span class="card-label">最简一句话</span>
-          <h3>让 AI 从概念进入现场。</h3>
-          <p>我们帮助企业把 AI 变成团队真正会用、业务真正用得上的能力。</p>
-        </div>
+        <section class="manifesto section-pad" id="manifesto" aria-label="同野观幂理念">
+          <div class="section-index">同野观幂 / 00</div>
+          <div class="manifesto-grid">
+            <p class="large-copy"><span data-ink-reveal="webgl">AI</span> 不应只是少数专家的工具，而应成为更多人可以理解、使用和共创的能力。</p>
+            <div class="manifesto-card glass" data-tilt>
+              <span class="card-label">最简一句话</span>
+              <h3>让 AI 从概念进入现场。</h3>
+              <p>我们帮助企业把 AI 变成团队真正会用、业务真正用得上的能力。</p>
+            </div>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -103,12 +104,12 @@
         </article>
         <article class="method-card reveal" data-tilt>
           <span>03</span>
-          <h3>共创</h3>
+          <h3><span data-ink-reveal>共创</span></h3>
           <p>与管理层、业务团队和一线成员共同设计真实场景中的工作流。</p>
         </article>
         <article class="method-card reveal" data-tilt>
           <span>04</span>
-          <h3>成器</h3>
+          <h3><span data-ink-reveal>成器</span></h3>
           <p>把方法沉淀为模板、智能体、知识库、自动化流程和团队手册。</p>
         </article>
         <article class="method-card reveal" data-tilt>
@@ -164,7 +165,7 @@
     <section class="lab section-pad" id="lab">
       <div class="lab-top reveal">
         <span class="section-index">Scenario / 03</span>
-        <h2>我们把 AI 放回真实的业务语境。</h2>
+        <h2>我们把 <span data-ink-reveal>AI</span> 放回真实的业务语境。</h2>
       </div>
       <div class="scenario-strip" aria-label="AI 落地场景">
         <article class="scenario-card reveal"><span>管理决策</span><strong>从信息汇总到判断框架</strong></article>
@@ -225,6 +226,6 @@
     <span>AI Transformation & Capability Building</span>
   </footer>
 
-  <script src="js/main.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
