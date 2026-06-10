@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blob Glass Preview</title>
+  <link rel="stylesheet" href="css/components/blob-glass.css" />
+  <link rel="stylesheet" href="css/components/lost-wax-glass-nav.css" />
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      font-family: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: #f7edd7;
+      background:
+        radial-gradient(circle at 14% 20%, rgba(250, 245, 214, 0.78), transparent 13vw),
+        radial-gradient(circle at 78% 18%, rgba(222, 178, 102, 0.74), transparent 17vw),
+        radial-gradient(circle at 30% 76%, rgba(147, 211, 190, 0.72), transparent 20vw),
+        radial-gradient(circle at 64% 62%, rgba(202, 146, 175, 0.46), transparent 18vw),
+        linear-gradient(135deg, #08130f 0%, #596055 43%, #ece7dd 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+        radial-gradient(circle at 20% 30%, rgba(0, 0, 0, 0.22), transparent 18vw),
+        radial-gradient(circle at 80% 78%, rgba(0, 0, 0, 0.24), transparent 20vw);
+      background-size: 72px 72px, 72px 72px, auto, auto;
+      opacity: 0.58;
+      pointer-events: none;
+    }
+
+    .preview {
+      position: relative;
+      width: min(900px, calc(100vw - 36px));
+      display: grid;
+      gap: 52px;
+      justify-items: center;
+    }
+
+    .preview-nav {
+      position: static;
+      width: min(620px, 100%);
+      height: auto;
+      display: flex;
+      justify-content: center;
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+      pointer-events: auto;
+    }
+
+    .preview-nav .nav-links {
+      --blob-glass-spill-x: 70px;
+      --blob-glass-spill-y: 34px;
+      --blob-glass-softness: 12px;
+      --blob-glass-blur: 28px;
+      --blob-glass-opacity: 0.98;
+      gap: 22px;
+      padding: 10px 26px;
+    }
+
+    .preview-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 36px;
+      align-items: center;
+      width: min(760px, 100%);
+    }
+
+    .preview-card {
+      --blob-glass-radius: 34px;
+      --blob-glass-spill-x: 56px;
+      --blob-glass-spill-y: 46px;
+      --blob-glass-softness: 16px;
+      --blob-glass-blur: 30px;
+      min-height: 220px;
+      padding: 36px;
+      display: grid;
+      align-content: end;
+    }
+
+    .preview-card h1 {
+      margin: 0 0 14px;
+      font-size: clamp(34px, 6vw, 58px);
+      line-height: .96;
+      letter-spacing: 0;
+    }
+
+    .preview-card p {
+      width: min(420px, 100%);
+      margin: 0;
+      color: rgba(247, 237, 215, 0.78);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .preview-pill {
+      --blob-glass-spill-x: 32px;
+      --blob-glass-spill-y: 24px;
+      --blob-glass-softness: 10px;
+      --blob-glass-blur: 24px;
+      min-width: 128px;
+      min-height: 52px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0 24px;
+      border-radius: 999px;
+      color: #07110e;
+      font-weight: 800;
+    }
+
+    @media (max-width: 640px) {
+      .preview-row {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-nav .nav-links {
+        gap: 8px;
+        padding-inline: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="preview" aria-label="Blob glass component preview">
+    <nav class="preview-nav" aria-label="预览导航">
+      <div class="nav-links">
+        <a href="#">方法</a>
+        <a href="#">场景</a>
+        <a href="#">留学</a>
+        <a href="#">联系</a>
+      </div>
+    </nav>
+
+    <section class="preview-row">
+      <article class="blob-glass preview-card">
+        <h1>同野观幂</h1>
+        <p>一套可复用的软质 blob glass 材质，用在导航、卡片和按钮上时都保持同一种体积感。</p>
+      </article>
+      <a class="blob-glass preview-pill" href="#">预约诊断</a>
+    </section>
+  </main>
+</body>
+</html>

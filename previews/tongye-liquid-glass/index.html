@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>同野观幂｜Liquid Glass 组件预览</title>
+  <link rel="stylesheet" href="./tongye-liquid-glass.css">
+  <link rel="stylesheet" href="./demo.css">
+  <script src="./tongye-liquid-glass.js" defer></script>
+</head>
+<body>
+  <svg class="filter-defs" aria-hidden="true" focusable="false">
+    <filter id="tongye-glass-soft-warp" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.006 0.011" numOctaves="2" seed="17" result="noise"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.8" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+    </filter>
+  </svg>
+
+  <main class="page-shell">
+    <header class="site-header">
+      <nav class="tongye-glass tongye-glass--nav" aria-label="主导航">
+        <a href="#method">方法</a>
+        <a href="#scene">场景</a>
+        <a href="#abroad">留学</a>
+        <a href="#contact">联系</a>
+      </nav>
+    </header>
+
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Tongye Liquid Glass</p>
+        <h1 id="hero-title">温润可读的琉璃界面</h1>
+        <p>
+          这一版不再追求 blob 轮廓，而是把 iOS 27 式 tinted glass 做成同野可复用组件：矩形边界稳定，内部有玉青雾色、乳白厚边和磨砂器物感。
+        </p>
+        <div class="actions">
+          <a class="tongye-glass tongye-glass--button" href="#method"><span>查看组件</span></a>
+          <button class="tongye-glass tongye-glass--button tongye-glass--button-primary" type="button"><span>预约咨询</span></button>
+        </div>
+      </div>
+
+      <article class="tongye-glass tongye-glass--card hero-card" id="method">
+        <p class="card-kicker">COMPONENT MATERIAL</p>
+        <h2>边界是明确矩形，光感在材质内部流动</h2>
+        <p>
+          适合导航、卡片、按钮和弹层。形状不漂移，动态只移动柔光中心，材质像半透明司茶器一样温润克制。
+        </p>
+      </article>
+    </section>
+
+    <section class="sample-grid" id="scene" aria-label="组件样例">
+      <div class="sample-copy">
+        <h2>导航与卡片保持同一套材质</h2>
+        <p>同一组 CSS 变量控制雾化底色、边缘厚度、中心柔色和 hover 动态，后续可以直接迁移到主站组件。</p>
+      </div>
+
+      <div class="sample-stack">
+        <nav class="tongye-glass tongye-glass--nav tongye-glass--nav-wide" aria-label="导航栏示例">
+          <a href="#method">方法</a>
+          <a href="#scene">场景</a>
+          <a href="#abroad">留学</a>
+          <a href="#contact">联系</a>
+        </nav>
+
+        <div class="card-row" id="abroad">
+          <article class="tongye-glass tongye-glass--card tongye-glass--card-compact">
+            <p class="card-kicker">PLANNING</p>
+            <h3>留学路径</h3>
+            <p>从目标院校、专业定位到时间线拆解，用稳定的信息面承载复杂决策。</p>
+          </article>
+          <article class="tongye-glass tongye-glass--card tongye-glass--card-compact">
+            <p class="card-kicker">PORTFOLIO</p>
+            <h3>作品集</h3>
+            <p>材料本身有辨识度，但不抢正文、图像和行动按钮的优先级。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="control-row" id="contact" aria-label="按钮样例">
+      <div>
+        <h2>按钮也用同一套玻璃语法</h2>
+        <p>小尺寸只保留内光和边缘厚度，避免过度纹理化导致文字发糊。</p>
+      </div>
+      <div class="button-set">
+        <button class="tongye-glass tongye-glass--button" type="button"><span>开始咨询</span></button>
+        <button class="tongye-glass tongye-glass--button tongye-glass--button-primary" type="button"><span>下载手册</span></button>
+        <a class="tongye-glass tongye-glass--button" href="mailto:hello@example.com"><span>联系顾问</span></a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -13,8 +13,8 @@ const DEFAULT_CONFIG = {
     warpScale: 2.1,
     warpAmount: .42,
     phaseSpeed: .46,
-    driftX: .42,
-    driftY: -.26,
+    driftX: .06,
+    driftY: .34,
     warpSpeedX: .09,
     warpSpeedY: .08,
     thresholdLow: .45,
@@ -37,6 +37,7 @@ class StarFieldReveal {
     this.noiseButton = options.noiseButton;
     this.sourceUrl = options.sourceUrl;
     this.config = mergeConfig(DEFAULT_CONFIG, options.config || {});
+    this.autoplay = options.autoplay ?? true;
 
     this.image = null;
     this.sourceCanvas = null;
@@ -45,6 +46,7 @@ class StarFieldReveal {
     this.dynamicHighlightCanvas = null;
     this.noiseMaskCanvas = null;
     this.rafId = 0;
+    this.ready = false;
     this.showMask = false;
     this.showNoise = false;
   }
@@ -72,7 +74,8 @@ class StarFieldReveal {
     image.addEventListener('load', () => {
       this.image = image;
       this.prepareSource();
-      this.play();
+      this.ready = true;
+      if (this.autoplay) this.play();
     }, { once: true });
     image.src = this.sourceUrl;
   }
@@ -198,10 +201,20 @@ class StarFieldReveal {
   }
 
   renderLoop(timeSeconds, loopBlend) {
+    const noiseFloor = lerp(.08, 0, smoothstep(.45, 1, loopBlend));
+    this.renderBackground({ timeSeconds, strength: loopBlend, noiseFloor });
+  }
+
+  renderBackground(options = {}) {
+    if (!this.ready) return;
+
+    const timeSeconds = options.timeSeconds ?? performance.now() / 1000;
+    const strength = options.strength ?? 1;
+    const noiseFloor = options.noiseFloor ?? 0;
+
     this.clear();
     this.ctx.drawImage(this.sourceCanvas, 0, 0);
-    const noiseFloor = lerp(.08, 0, smoothstep(.45, 1, loopBlend));
-    this.renderNoiseOverlay(timeSeconds, loopBlend, { noiseFloor });
+    this.renderNoiseOverlay(timeSeconds, strength, { noiseFloor });
   }
 
   renderNoiseOverlay(timeSeconds, strength, options = {}) {

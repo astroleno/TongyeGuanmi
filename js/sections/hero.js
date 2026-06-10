@@ -1,8 +1,10 @@
-import { createInkSceneTransition } from '../effects/ink-scene-transition.js';
+import { createInkCurtainTransition, createInkSceneTransition } from '../effects/ink-scene-transition.js';
+import { initStarFieldReveal } from '../effects/star-field-reveal.js';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const lerp = (a, b, t) => a + (b - a) * t;
 const smoothStep = (value) => value * value * (3 - 2 * value);
+const range01 = (value, start, end) => clamp((value - start) / (end - start), 0, 1);
 
 const DEFAULT_HERO_CONFIG = {
   heroVideoSrc: 'assets/figure1.webm',
@@ -95,13 +97,17 @@ export function initFallbackParallax(options = {}) {
   function updateFallbackManifesto() {
     if (!manifesto) return;
     const progress = clamp((scroll - 0.78) / 0.14, 0, 1);
-    const eased = progress * progress * (3 - 2 * progress);
-    root.style.setProperty('--hero-manifesto-opacity', eased.toFixed(4));
-    root.style.setProperty('--hero-manifesto-y', `${((1 - eased) * 28).toFixed(2)}px`);
-    manifesto.style.visibility = eased > 0.01 ? 'visible' : 'hidden';
-    manifesto.style.pointerEvents = eased > 0.98 ? 'auto' : 'none';
-    manifesto.classList.toggle('is-active', eased > 0.01);
-    manifesto.classList.toggle('is-interactive', eased > 0.98);
+    const eased = smoothStep(progress);
+    const exitProgress = smoothStep(range01(scroll, 0.90, 1));
+    const visibleProgress = eased * (1 - exitProgress);
+    const y = (1 - eased) * 28 - exitProgress * 42;
+    root.style.setProperty('--hero-manifesto-opacity', visibleProgress.toFixed(4));
+    root.style.setProperty('--hero-manifesto-y', `${y.toFixed(2)}px`);
+    root.style.setProperty('--hero-manifesto-exit-progress', exitProgress.toFixed(4));
+    manifesto.style.visibility = visibleProgress > 0.01 ? 'visible' : 'hidden';
+    manifesto.style.pointerEvents = visibleProgress > 0.98 && exitProgress < 0.02 ? 'auto' : 'none';
+    manifesto.classList.toggle('is-active', visibleProgress > 0.01);
+    manifesto.classList.toggle('is-interactive', visibleProgress > 0.98 && exitProgress < 0.02);
   }
 
   function tick() {
@@ -154,9 +160,12 @@ export function initLayeredHero(options = {}) {
   const figure = document.querySelector('.fallback-figure');
   const content = document.querySelector('.hero-content');
   const manifesto = document.querySelector('.manifesto');
+  const methodPreview = document.querySelector('[data-hero-method-preview]');
   const nav = document.querySelector('.site-nav');
   const introInkCanvas = document.querySelector('[data-hero-intro-ink-canvas]');
   const inkCanvas = document.querySelector('[data-hero-ink-canvas]');
+  const exitInkCanvas = document.querySelector('[data-hero-exit-ink-canvas]');
+  const starFieldCanvas = document.querySelector('[data-hero-star-field]');
   const introInkTransition = createInkSceneTransition(introInkCanvas, {
     assets: {
       nextSceneSrc: HERO_NEXT_SCENE_SRC,
@@ -182,10 +191,24 @@ export function initLayeredHero(options = {}) {
       middleDepthSrc: HERO_MIDDLE_DEPTH_SRC
     },
     targetSrc: HERO_NEXT_SCENE_SRC,
-    figureMaskElement: figure
+    figureMaskElement: figure,
+    hideAtEnd: true
+  });
+  const exitInkTransition = createInkCurtainTransition(exitInkCanvas, {
+    direction: 'bottom-up',
+    colorLift: 0.56,
+    progressSpan: 1
   });
 
   if (!hero || !scene || !back || !middle || !figure || !content) return;
+
+  const starFieldReveal = starFieldCanvas
+    ? initStarFieldReveal({
+        canvas: starFieldCanvas,
+        sourceUrl: HERO_NEXT_SCENE_SRC,
+        autoplay: false
+      })
+    : null;
 
   root.classList.add('layered-hero-ready');
   figure.src = HERO_VIDEO_SRC;
@@ -270,6 +293,9 @@ export function initLayeredHero(options = {}) {
     gsap.set(manifesto, { opacity: 0, y: 28, visibility: 'hidden', force3D: true });
     manifesto.classList.remove('is-active', 'is-interactive');
   }
+  if (methodPreview) {
+    gsap.set(methodPreview, { opacity: 0, y: 0, visibility: 'hidden', force3D: true });
+  }
 
   const titleChars = gsap.utils.toArray(content.querySelectorAll('.hero-title-char'));
   const subtitle = content.querySelector('.hero-subtitle');
@@ -316,6 +342,8 @@ export function initLayeredHero(options = {}) {
   if (nav) gsap.set(nav, { autoAlpha: 0, y: -14, pointerEvents: 'none' });
   if (introInkCanvas) gsap.set(introInkCanvas, { autoAlpha: 0 });
   if (inkCanvas) gsap.set(inkCanvas, { autoAlpha: 0 });
+  if (exitInkCanvas) gsap.set(exitInkCanvas, { autoAlpha: 0 });
+  if (starFieldCanvas) gsap.set(starFieldCanvas, { autoAlpha: 0 });
 
   const setBackY = gsap.quickSetter(back, 'y', 'px');
   const setBackX = gsap.quickSetter(back, 'x', 'px');
@@ -338,9 +366,11 @@ export function initLayeredHero(options = {}) {
   const setContentX = gsap.quickSetter(content, 'x', 'px');
   const setManifestoOpacity = manifesto ? gsap.quickSetter(manifesto, 'opacity') : null;
   const setManifestoY = manifesto ? gsap.quickSetter(manifesto, 'y', 'px') : null;
+  const setMethodPreviewOpacity = methodPreview ? gsap.quickSetter(methodPreview, 'opacity') : null;
   const setMiddleNearBlurOpacity = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'opacity') : null;
   const setNavOpacity = nav ? gsap.quickSetter(nav, 'opacity') : null;
   const setNavY = nav ? gsap.quickSetter(nav, 'y', 'px') : null;
+  const setStarFieldOpacity = starFieldCanvas ? gsap.quickSetter(starFieldCanvas, 'opacity') : null;
 
   let renderedProgress = 0;
   let lastApplied = -1;
@@ -350,6 +380,7 @@ export function initLayeredHero(options = {}) {
   let lastNavReveal = -1;
   let lastInkProgress = -1;
   let lastManifestoProgress = -1;
+  let lastManifestoExitProgress = -1;
   let touchStartY = 0;
 
   const smoothStep = (value) => value * value * (3 - 2 * value);
@@ -379,6 +410,9 @@ export function initLayeredHero(options = {}) {
   };
   const updateInkTransition = (progress) => {
     inkTransition?.render(progress, mouseX, mouseY);
+  };
+  const updateExitInkTransition = (progress) => {
+    exitInkTransition?.render(progress, mouseX, mouseY);
   };
   const playHeroTextIntro = () => {
     if (titleIntroPlayed) return;
@@ -528,24 +562,38 @@ export function initLayeredHero(options = {}) {
       ? (introSettled ? smoothStep(clamp((window.scrollY - (hero.offsetTop + totalRange + 16)) / 180, 0, 1)) : 0)
       : 0;
     const inkProgress = introSettled ? clamp((rawHeroScroll - transitionStartRange) / transitionRange, 0, 1) : 0;
-    const manifestoProgress = introSettled
+    const heroInView = rawHeroScroll > -viewportH && rawHeroScroll < totalRange + viewportH;
+    const starFieldOpacity = introSettled && heroInView
+      ? smoothStep(range01(inkProgress, 0.54, 0.96))
+      : 0;
+    const manifestoEnterProgress = introSettled
       ? smoothStep(range01(rawHeroScroll, sceneRange - viewportH * 0.16, sceneRange + viewportH * 0.04))
       : 0;
+    const manifestoExitStart = totalRange - viewportH * 0.62;
+    const manifestoExitEnd = totalRange - viewportH * 0.06;
+    const manifestoExitProgress = introSettled
+      ? smoothStep(range01(rawHeroScroll, manifestoExitStart, manifestoExitEnd))
+      : 0;
+    const manifestoVisibleProgress = manifestoEnterProgress * (1 - manifestoExitProgress);
     const mouseChanged = Math.abs(lastMouseAppliedX - mouseX) > 0.001 || Math.abs(lastMouseAppliedY - mouseY) > 0.001;
     const introChanged = Math.abs(lastIntroProgress - introProgress) > 0.001;
     const navChanged = Math.abs(lastNavReveal - navReveal) > 0.001;
     const inkChanged = Math.abs(lastInkProgress - inkProgress) > 0.001;
-    const manifestoChanged = Math.abs(lastManifestoProgress - manifestoProgress) > 0.001;
+    const manifestoChanged = Math.abs(lastManifestoProgress - manifestoVisibleProgress) > 0.001;
+    const manifestoExitChanged = Math.abs(lastManifestoExitProgress - manifestoExitProgress) > 0.001;
     const introInkAnimating = !heroIntroComplete && introProgress > 0.002 && introProgress < 0.999;
     const inkAnimating = inkProgress > 0.002 && inkProgress < 0.995;
-    if (Math.abs(lastApplied - renderedProgress) < 0.0012 && !introChanged && !introInkAnimating && !mouseChanged && !navChanged && !inkChanged && !manifestoChanged && !inkAnimating) return;
+    const exitInkAnimating = manifestoExitProgress > 0.002 && manifestoExitProgress < 0.995;
+    const starFieldAnimating = Boolean(starFieldReveal && starFieldCanvas && starFieldOpacity > 0.002);
+    if (Math.abs(lastApplied - renderedProgress) < 0.0012 && !introChanged && !introInkAnimating && !mouseChanged && !navChanged && !inkChanged && !manifestoChanged && !manifestoExitChanged && !inkAnimating && !exitInkAnimating && !starFieldAnimating) return;
     lastApplied = renderedProgress;
     lastIntroProgress = introProgress;
     lastMouseAppliedX = mouseX;
     lastMouseAppliedY = mouseY;
     lastNavReveal = navReveal;
     lastInkProgress = inkProgress;
-    lastManifestoProgress = manifestoProgress;
+    lastManifestoProgress = manifestoVisibleProgress;
+    lastManifestoExitProgress = manifestoExitProgress;
 
     const p = renderedProgress;
     const layerProgress = introSettled ? p : 0;
@@ -593,15 +641,41 @@ export function initLayeredHero(options = {}) {
     setContentY(0);
     updateIntroInkTransition(introProgress, farIntro);
     updateInkTransition(inkProgress);
+    if (starFieldCanvas && setStarFieldOpacity) {
+      setStarFieldOpacity(starFieldOpacity);
+      starFieldCanvas.style.visibility = starFieldOpacity > 0.002 ? 'visible' : 'hidden';
+      if (starFieldOpacity > 0.002) {
+        const starFieldStrength = lerp(0.45, 1, smoothStep(range01(inkProgress, 0.72, 1)));
+        const starFieldNoiseFloor = lerp(0.12, 0, smoothStep(range01(inkProgress, 0.72, 1)));
+        starFieldReveal?.renderBackground({
+          timeSeconds: performance.now() / 1000,
+          strength: starFieldStrength,
+          noiseFloor: starFieldNoiseFloor
+        });
+      }
+    }
+    updateExitInkTransition(manifestoExitProgress);
     if (manifesto) {
-      root.style.setProperty('--hero-manifesto-opacity', manifestoProgress.toFixed(4));
-      root.style.setProperty('--hero-manifesto-y', `${((1 - manifestoProgress) * 28).toFixed(2)}px`);
-      setManifestoOpacity(manifestoProgress);
-      setManifestoY((1 - manifestoProgress) * 28);
-      manifesto.style.visibility = manifestoProgress > 0.01 ? 'visible' : 'hidden';
-      manifesto.style.pointerEvents = manifestoProgress > 0.98 ? 'auto' : 'none';
-      manifesto.classList.toggle('is-active', manifestoProgress > 0.01);
-      manifesto.classList.toggle('is-interactive', manifestoProgress > 0.98);
+      const manifestoY = (1 - manifestoEnterProgress) * 28 - manifestoExitProgress * 42;
+      const manifestoInteractive = manifestoVisibleProgress > 0.98 && manifestoExitProgress < 0.02;
+      root.style.setProperty('--hero-manifesto-opacity', manifestoVisibleProgress.toFixed(4));
+      root.style.setProperty('--hero-manifesto-y', `${manifestoY.toFixed(2)}px`);
+      root.style.setProperty('--hero-manifesto-exit-progress', manifestoExitProgress.toFixed(4));
+      setManifestoOpacity(manifestoVisibleProgress);
+      setManifestoY(manifestoY);
+      manifesto.style.visibility = manifestoVisibleProgress > 0.01 ? 'visible' : 'hidden';
+      manifesto.style.pointerEvents = manifestoInteractive ? 'auto' : 'none';
+      manifesto.classList.toggle('is-active', manifestoVisibleProgress > 0.01);
+      manifesto.classList.toggle('is-interactive', manifestoInteractive);
+    }
+    if (methodPreview) {
+      const methodPreviewProgress = manifestoExitProgress;
+      const methodPreviewOpacity = smoothStep(range01(methodPreviewProgress, 0.08, 0.48));
+      const methodPreviewY = (1 - methodPreviewProgress) * viewportH * 0.22;
+      root.style.setProperty('--hero-method-preview-opacity', methodPreviewOpacity.toFixed(4));
+      root.style.setProperty('--hero-method-preview-y', `${methodPreviewY.toFixed(2)}px`);
+      setMethodPreviewOpacity(methodPreviewOpacity);
+      methodPreview.style.visibility = methodPreviewProgress > 0.01 ? 'visible' : 'hidden';
     }
     if (setNavOpacity && setNavY) {
       setNavOpacity(navReveal);
@@ -613,7 +687,8 @@ export function initLayeredHero(options = {}) {
     root.style.setProperty('--hero-progress', p.toFixed(4));
     root.style.setProperty('--hero-intro-progress', introProgress.toFixed(4));
     root.style.setProperty('--hero-transition-progress', inkProgress.toFixed(4));
-    root.style.setProperty('--hero-manifesto-progress', manifestoProgress.toFixed(4));
+    root.style.setProperty('--hero-manifesto-progress', manifestoVisibleProgress.toFixed(4));
+    root.style.setProperty('--hero-manifesto-exit-progress', manifestoExitProgress.toFixed(4));
   }
 
   window.addEventListener('scroll', () => {
@@ -653,6 +728,7 @@ export function initLayeredHero(options = {}) {
   ScrollTrigger.refresh();
   introInkTransition?.prewarm();
   inkTransition?.prewarm();
+  exitInkTransition?.prewarm();
   if (body.classList.contains('is-loader-hidden')) {
     playHeroIntro();
   } else {

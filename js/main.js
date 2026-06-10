@@ -5,14 +5,16 @@ import { initLayeredHero, initFallbackParallax } from './sections/hero.js';
 import { initCursorGlow } from './ui/cursor-glow.js';
 import { initMagneticAndTilt } from './ui/magnetic-tilt.js';
 import { initPageProgress } from './ui/page-progress.js';
-import { initGsapTextAndUI, initSmoothScroll, initVanillaReveal } from './ui/reveal.js';
+import { initGsapTextAndUI, initVanillaReveal } from './ui/reveal.js';
+import { initSmoothScroll } from './ui/smooth-scroll.js';
 
 const root = document.documentElement;
 const body = document.body;
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const CDN = {
   gsap: 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js',
-  scrollTrigger: 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js'
+  scrollTrigger: 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js',
+  lenis: 'https://cdn.jsdelivr.net/npm/lenis@1.3.23/dist/lenis.min.js'
 };
 
 const LOADER_PHRASES = ['同人于野', '观象知幂'];
@@ -51,6 +53,11 @@ function loadScript(src, timeout = 10000) {
 async function loadRequiredLibraries() {
   if (!window.gsap) await loadScript(CDN.gsap);
   if (!window.ScrollTrigger) await loadScript(CDN.scrollTrigger);
+  try {
+    if (!window.Lenis) await loadScript(CDN.lenis);
+  } catch (error) {
+    console.warn('Lenis unavailable, keeping native scroll.', error);
+  }
   if (!window.gsap || !window.ScrollTrigger) {
     throw new Error('Required animation libraries are unavailable.');
   }
@@ -86,9 +93,9 @@ if (reduceMotion) {
 } else {
   loadRequiredLibraries()
     .then(() => {
-      initSmoothScroll();
+      const scrollRuntime = initSmoothScroll({ root, body, reduceMotion });
       initMagneticAndTilt({ reduceMotion });
-      initGsapTextAndUI({ root });
+      initGsapTextAndUI({ root, scrollRuntime });
       initLayeredHero({ root, body, runtime });
     })
     .catch((error) => {

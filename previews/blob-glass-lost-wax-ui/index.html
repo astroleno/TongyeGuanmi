@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>soft blob glass / 古法失蜡琉璃 UI 组件 Demo</title>
+  <meta name="description" content="用 HTML/CSS 实现的 soft blob glass / 古法失蜡琉璃材质组件，适用于中文品牌官网导航栏、卡片、按钮。" />
+  <link rel="stylesheet" href="./blob-glass.css" />
+  <link rel="stylesheet" href="./demo.css" />
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="site-header" id="top">
+      <a class="brand-mark" href="#top" aria-label="璞璃首页">
+        <strong>璞璃</strong>
+        <small>Lost-wax Glass</small>
+      </a>
+
+      <nav class="blob-glass blob-glass--nav" aria-label="主导航">
+        <a href="#method">方法</a>
+        <a href="#scene">场景</a>
+        <a href="#abroad">留学</a>
+        <a href="#contact">联系</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">soft translucent blob · shader-like volume</p>
+          <h1 id="hero-title">像琉璃在页面里慢慢成形</h1>
+          <p class="lede">
+            这套组件把 Shader Park 参考里的体积 blob 翻译成纯 HTML/CSS：低频乳白、淡粉、鼠尾草绿与浅琥珀色在内部混合，边缘用透明密度场自然变薄，而不是白色描边或标准玻璃胶囊。
+          </p>
+          <div class="actions" id="contact">
+            <a class="blob-glass blob-glass--button" href="#method">了解方法</a>
+            <button class="blob-glass blob-glass--button" type="button">预约沟通</button>
+          </div>
+        </div>
+
+        <article class="blob-glass blob-glass--card" id="method">
+          <p class="eyebrow">古法失蜡琉璃 / UI Material</p>
+          <h2 class="card-title">不是玻璃边框，是一团半透明体积</h2>
+          <p class="card-text">
+            材质层由 <code>::before</code> 与 <code>::after</code> 生成，文字内容保持在清晰层。外形通过多层径向 alpha mask 叠加，模拟球体/环形体积融合后的软边缘。
+          </p>
+          <div class="card-meta" aria-label="材质特征">
+            <div class="meta-item">
+              <strong>0px</strong>
+              <span>无描边</span>
+            </div>
+            <div class="meta-item">
+              <strong>低频</strong>
+              <span>内部渐变</span>
+            </div>
+            <div class="meta-item">
+              <strong>CSS</strong>
+              <span>无需 WebGL</span>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="component-board" id="scene" aria-label="组件使用场景">
+        <article class="sample-panel">
+          <h2>导航栏</h2>
+          <nav class="blob-glass blob-glass--nav" aria-label="示例导航">
+            <a href="#method">方法</a>
+            <a href="#scene">场景</a>
+            <a href="#abroad">留学</a>
+            <a href="#contact">联系</a>
+          </nav>
+        </article>
+
+        <article class="sample-panel">
+          <h2>按钮</h2>
+          <div class="button-stack">
+            <a class="blob-glass blob-glass--button" href="#abroad">申请评估</a>
+            <button class="blob-glass blob-glass--button" type="button">下载手册</button>
+          </div>
+        </article>
+
+        <article class="sample-panel">
+          <h2>小卡片 / 可复用容器</h2>
+          <div class="blob-glass blob-glass--button" role="note" style="--blob-density:.72; --blob-blur:20px; min-block-size:4.9rem; padding-inline:1.6rem; line-height:1.45;">
+            通过变量可快速调整为标签、提示、筛选项。
+          </div>
+        </article>
+      </section>
+
+      <section class="complex-strip theme-dark" id="abroad" aria-labelledby="dark-title">
+        <div class="complex-strip-grid">
+          <div class="complex-copy">
+            <p class="eyebrow">dark / complex background test</p>
+            <h2 id="dark-title">深色与复杂背景上仍保持乳白体积</h2>
+            <p>
+              组件没有依赖清晰边线来“抠出来”，而是通过较高材质密度、背景模糊、内部阴影和柔软 alpha mask 保持可读性。
+            </p>
+          </div>
+
+          <div class="actions">
+            <a class="blob-glass blob-glass--button" href="#contact">联系顾问</a>
+            <nav class="blob-glass blob-glass--nav" aria-label="深色背景导航">
+              <a href="#method">方法</a>
+              <a href="#scene">场景</a>
+              <a href="#abroad">留学</a>
+              <a href="#contact">联系</a>
+            </nav>
+          </div>
+        </div>
+      </section>
+
+      <section class="usage" aria-labelledby="usage-title">
+        <h2 id="usage-title">最小使用方式</h2>
+        <p>
+          引入 <code>blob-glass.css</code>，再给元素添加 <code>.blob-glass</code> 与尺寸修饰类：<code>.blob-glass--nav</code>、<code>.blob-glass--card</code> 或 <code>.blob-glass--button</code>。材质的颜色、密度、边缘厚薄、背景模糊与气泡杂质都可以通过 CSS 自定义属性覆盖。
+        </p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

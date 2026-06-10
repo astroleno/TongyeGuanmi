@@ -1,0 +1,326 @@
+/*
+  Tongye Liquid Glass
+  ------------------------------------------------------------
+  Reusable tinted-glass component styles for navigation, cards,
+  and buttons. The outer shape stays a regular rounded rectangle;
+  warmth, soft frost, and thick edge light live inside pseudo-elements.
+*/
+
+:root {
+  --tongye-glass-font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+.tongye-glass,
+.tongye-glass *,
+.tongye-glass *::before,
+.tongye-glass *::after {
+  box-sizing: border-box;
+}
+
+.tongye-glass {
+  --glass-radius: 32px;
+  --glass-surface: 18 38 32;
+  --glass-surface-alpha: .56;
+  --glass-edge: 231 225 207;
+  --glass-jade: 126 188 178;
+  --glass-ice: 176 205 216;
+  --glass-milk: 244 241 230;
+  --glass-ink: 8 18 15;
+  --glass-text: 250 247 235;
+  --glass-muted: 250 247 235;
+  --glass-blur: 24px;
+  --glass-saturate: 1.10;
+  --glass-edge-alpha: .36;
+  --glass-highlight-alpha: .30;
+  --glass-frost-alpha: .13;
+  --glass-haze-alpha: .24;
+  --glass-shadow-alpha: .28;
+  --glass-x: 50%;
+  --glass-y: 18%;
+  --glass-nx: 0;
+  --glass-ny: 0;
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--glass-radius);
+  color: rgb(var(--glass-text));
+  font-family: var(--tongye-glass-font);
+  background:
+    linear-gradient(180deg, rgb(var(--glass-milk) / .08), transparent 42%, rgb(var(--glass-milk) / .05)),
+    rgb(var(--glass-surface) / var(--glass-surface-alpha));
+  box-shadow:
+    0 28px 70px rgb(0 0 0 / var(--glass-shadow-alpha)),
+    inset 0 1px 0 rgb(var(--glass-milk) / .34),
+    inset 0 -1px 0 rgb(var(--glass-milk) / .18);
+  transform: translate3d(0, 0, 0);
+  transition:
+    transform 360ms cubic-bezier(.2, .8, .2, 1),
+    box-shadow 360ms cubic-bezier(.2, .8, .2, 1),
+    background-color 360ms ease;
+}
+
+.tongye-glass::before,
+.tongye-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.tongye-glass::before {
+  background:
+    radial-gradient(145% 78% at 50% -24%, rgb(var(--glass-milk) / .24), transparent 50%),
+    radial-gradient(135% 80% at 50% 120%, rgb(var(--glass-milk) / .18), transparent 48%),
+    radial-gradient(72% 62% at calc(var(--glass-x) + 4%) calc(var(--glass-y) + 34%), rgb(var(--glass-ice) / var(--glass-haze-alpha)), transparent 76%),
+    radial-gradient(58% 52% at 52% 58%, rgb(var(--glass-jade) / .12), transparent 78%),
+    linear-gradient(90deg, rgb(var(--glass-milk) / .10), transparent 22% 78%, rgb(var(--glass-milk) / .11)),
+    rgb(var(--glass-surface) / .08);
+  border: 1px solid rgb(var(--glass-edge) / var(--glass-edge-alpha));
+  box-shadow:
+    inset 0 1px 2px rgb(var(--glass-milk) / .50),
+    inset 0 0 0 1px rgb(var(--glass-milk) / .12),
+    inset 0 18px 36px rgb(var(--glass-milk) / .08),
+    inset 0 -26px 46px rgb(var(--glass-milk) / .13),
+    inset 20px 0 38px rgb(var(--glass-milk) / .08),
+    inset -18px 0 38px rgb(var(--glass-ink) / .15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) contrast(1.04);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) contrast(1.04);
+  filter: url("#tongye-glass-soft-warp") saturate(1.02);
+  opacity: .98;
+}
+
+.tongye-glass::after {
+  background:
+    radial-gradient(120% 82% at 50% 0%, rgb(var(--glass-milk) / .16), transparent 48%),
+    radial-gradient(110% 74% at 50% 100%, rgb(var(--glass-milk) / .13), transparent 46%),
+    radial-gradient(circle at 22% 36%, rgb(var(--glass-milk) / var(--glass-frost-alpha)) 0 .7px, transparent 1.2px),
+    radial-gradient(circle at 62% 28%, rgb(var(--glass-milk) / calc(var(--glass-frost-alpha) * .55)) 0 .65px, transparent 1.15px),
+    radial-gradient(circle at 78% 70%, rgb(var(--glass-ice) / calc(var(--glass-frost-alpha) * .50)) 0 .7px, transparent 1.15px);
+  mix-blend-mode: screen;
+  opacity: .42;
+  filter: blur(.15px);
+  transform:
+    translate3d(calc(var(--glass-nx) * 4px), calc(var(--glass-ny) * 3px), 0)
+    scale(1.012);
+  transition: transform 420ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.tongye-glass > * {
+  position: relative;
+  z-index: 1;
+}
+
+.tongye-glass :where(a, button) {
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tongye-glass :where(a, button):focus-visible,
+.tongye-glass:focus-visible {
+  outline: 2px solid rgb(var(--glass-milk) / .82);
+  outline-offset: 6px;
+}
+
+.tongye-glass[data-glass-active="true"] {
+  transform: translate3d(0, -1px, 0);
+  box-shadow:
+    0 34px 86px rgb(0 0 0 / calc(var(--glass-shadow-alpha) + .05)),
+    inset 0 1px 0 rgb(var(--glass-milk) / .48),
+    inset 0 -1px 0 rgb(var(--glass-jade) / .18);
+}
+
+.tongye-glass--nav {
+  --glass-radius: 999px;
+  --glass-surface-alpha: .50;
+  --glass-blur: 22px;
+  --glass-highlight-alpha: .22;
+  --glass-frost-alpha: .06;
+  --glass-haze-alpha: .18;
+  --glass-edge-alpha: .34;
+  --glass-shadow-alpha: .22;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 3vw, 34px);
+  min-height: 58px;
+  padding: 10px clamp(22px, 3vw, 36px);
+  line-height: 1;
+}
+
+.tongye-glass--nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.4em;
+  min-height: 38px;
+  padding: 0 .08em;
+  color: rgb(var(--glass-text) / .92);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: .05em;
+  text-shadow: 0 1px 14px rgb(0 0 0 / .30);
+  transition:
+    color 240ms ease,
+    opacity 240ms ease,
+    transform 240ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.tongye-glass--nav a:hover {
+  color: rgb(var(--glass-text));
+  transform: translateY(-1px);
+}
+
+.tongye-glass--nav-wide {
+  min-width: min(100%, 520px);
+}
+
+.tongye-glass--card {
+  --glass-radius: 34px;
+  --glass-surface-alpha: .58;
+  --glass-blur: 28px;
+  --glass-highlight-alpha: .26;
+  --glass-frost-alpha: .10;
+  --glass-haze-alpha: .22;
+  --glass-edge-alpha: .38;
+  --glass-shadow-alpha: .30;
+
+  display: grid;
+  align-content: end;
+  min-height: 340px;
+  padding: clamp(28px, 4vw, 48px);
+}
+
+.tongye-glass--card h2,
+.tongye-glass--card h3 {
+  max-width: 13em;
+  margin: 0;
+  color: rgb(var(--glass-text));
+  font-weight: 560;
+  line-height: 1.18;
+  letter-spacing: 0;
+  text-wrap: balance;
+  text-shadow: 0 2px 20px rgb(0 0 0 / .22);
+}
+
+.tongye-glass--card h2 {
+  font-size: clamp(28px, 3.5vw, 52px);
+}
+
+.tongye-glass--card h3 {
+  font-size: clamp(24px, 2.4vw, 34px);
+}
+
+.tongye-glass--card p {
+  max-width: 38em;
+  margin: 16px 0 0;
+  color: rgb(var(--glass-muted) / .74);
+  font-size: 15px;
+  line-height: 1.85;
+  text-shadow: 0 1px 14px rgb(0 0 0 / .18);
+}
+
+.tongye-glass--card .card-kicker {
+  margin: 0 0 14px;
+  color: rgb(var(--glass-edge) / .78);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+.tongye-glass--card-compact {
+  --glass-radius: 28px;
+  --glass-blur: 22px;
+  --glass-frost-alpha: .08;
+
+  min-height: 260px;
+  padding: 28px;
+}
+
+.tongye-glass--button {
+  --glass-radius: 999px;
+  --glass-surface-alpha: .52;
+  --glass-blur: 18px;
+  --glass-highlight-alpha: .20;
+  --glass-frost-alpha: .035;
+  --glass-haze-alpha: .14;
+  --glass-edge-alpha: .36;
+  --glass-shadow-alpha: .18;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 22px;
+  color: rgb(var(--glass-text));
+  cursor: pointer;
+  appearance: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 760;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-decoration: none;
+  text-shadow: 0 1px 12px rgb(0 0 0 / .34), 0 1px 1px rgb(0 0 0 / .20);
+}
+
+.tongye-glass--button > span {
+  position: relative;
+  z-index: 1;
+}
+
+.tongye-glass--button-primary {
+  --glass-surface-alpha: .70;
+  --glass-highlight-alpha: .24;
+  --glass-edge-alpha: .50;
+  --glass-shadow-alpha: .24;
+}
+
+.tongye-glass--button:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+.tongye-glass--button:active {
+  transform: translate3d(0, 0, 0) scale(.985);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tongye-glass::before {
+    background:
+      radial-gradient(180px 100px at var(--glass-x) var(--glass-y), rgb(var(--glass-milk) / .20), transparent 70%),
+      rgb(var(--glass-surface) / .84);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tongye-glass,
+  .tongye-glass::after,
+  .tongye-glass--nav a,
+  .tongye-glass--button {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .tongye-glass--nav {
+    gap: 18px;
+    min-height: 54px;
+    padding-inline: 18px;
+  }
+
+  .tongye-glass--nav a {
+    min-width: 2.2em;
+    font-size: 14px;
+  }
+
+  .tongye-glass--card {
+    --glass-radius: 28px;
+    min-height: 320px;
+  }
+}

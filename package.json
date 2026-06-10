@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node scripts/serve-static-site.mjs",
     "dev:web": "node scripts/serve-static-site.mjs",
-    "verify:ink-modules": "node scripts/check-ink-modules.mjs"
+    "verify:ink-modules": "node scripts/check-ink-modules.mjs",
+    "verify:scroll-modules": "node scripts/check-scroll-modules.mjs"
   }
 }

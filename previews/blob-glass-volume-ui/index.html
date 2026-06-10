@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>同野观幂｜Blob Glass 材质路由</title>
+  <link rel="stylesheet" href="./blob-glass.css">
+  <link rel="stylesheet" href="./demo.css">
+  <script src="./blob-volume.js" defer></script>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="site-header">
+      <nav class="blob-glass blob-glass--nav" aria-label="主导航" data-blob-seed="0.284">
+        <a href="#method">方法</a>
+        <a href="#scene">场景</a>
+        <a href="#abroad">留学</a>
+        <a href="#contact">联系</a>
+      </nav>
+    </header>
+
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Tongye Blob Glass Study</p>
+        <h1 id="hero-title">同野观幂的玉质光场</h1>
+        <p>
+          这个路由只用来调组件：导航、卡片、按钮共用同一套体积贴图。文字层保持清楚，材质层用低密度体积、玉青折光和蜜金暗边来接近 sketch blob 的光感。
+        </p>
+        <div class="actions">
+          <a class="blob-glass blob-glass--button" href="#method" data-blob-seed="0.513">查看方法</a>
+          <button class="blob-glass blob-glass--button" type="button" data-blob-seed="0.721">预约咨询</button>
+        </div>
+      </div>
+
+      <div class="demo-card-stack">
+        <article class="blob-glass blob-glass--card blob-glass--regular" data-blob-shape="rect" data-blob-seed="0.392" id="method">
+          <p class="card-kicker">规则卡片 / RECT VOLUME</p>
+          <h2>规则圆角矩形，也保留体积光</h2>
+          <p>
+            内容区是稳定的圆角矩形，外缘仍由密度衰减自然消失，不靠 1px 描边或普通 glassmorphism 高光。
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="metrics" aria-label="材质关键词">
+      <div class="metric">
+        <strong>Light</strong>
+        <span>低频体积高光负责“从里面亮出来”的感觉。</span>
+      </div>
+      <div class="metric">
+        <strong>Jade</strong>
+        <span>乳白、玉青、暗金和一点赭红在材质内部混合。</span>
+      </div>
+      <div class="metric">
+        <strong>Cache</strong>
+        <span>Canvas2D 只生成小贴图并缓存，不做实时 WebGL。</span>
+      </div>
+    </section>
+
+    <section class="component-lab" id="scene">
+      <div class="lab-row">
+        <div>
+          <h2>导航栏</h2>
+          <p>四个链接在同一条低密度体积里发光，避免变成四颗独立珠子，也不压成硬胶囊。</p>
+        </div>
+        <div class="lab-items">
+          <nav class="blob-glass blob-glass--nav" aria-label="导航栏示例" data-blob-seed="0.618">
+            <a href="#method">方法</a>
+            <a href="#scene">场景</a>
+            <a href="#abroad">留学</a>
+            <a href="#contact">联系</a>
+          </nav>
+        </div>
+      </div>
+
+      <div class="lab-row" id="abroad">
+        <div>
+          <h2>卡片</h2>
+          <p>同一套材质可以用于规则圆角矩形，也可以用于更有机的宽卡片。</p>
+        </div>
+        <div class="lab-items">
+          <article class="blob-glass blob-glass--card blob-glass--regular wide-card" data-blob-shape="rect" data-blob-seed="0.856">
+            <h3>留学规划、作品集、申请路径</h3>
+            <p>适合深色、照片、渐变和复杂背景；文字层保持清晰，材质只存在于 ::before / ::after。</p>
+          </article>
+        </div>
+      </div>
+
+      <div class="lab-row" id="contact">
+        <div>
+          <h2>按钮</h2>
+          <p>小尺寸弱化杂质和气泡，只保留一点体积边缘与内部光感。</p>
+        </div>
+        <div class="lab-items">
+          <button class="blob-glass blob-glass--button" type="button" data-blob-seed="0.114">开始咨询</button>
+          <button class="blob-glass blob-glass--button" type="button" data-blob-seed="0.731">下载手册</button>
+          <a class="blob-glass blob-glass--button" href="mailto:hello@example.com" data-blob-seed="0.904">联系顾问</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

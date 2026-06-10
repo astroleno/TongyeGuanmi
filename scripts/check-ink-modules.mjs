@@ -40,6 +40,7 @@ if (exists('js/effects/ink-text-reveal.js')) {
 if (exists('js/effects/ink-scene-transition.js')) {
   const sceneInk = read('js/effects/ink-scene-transition.js');
   assert.match(sceneInk, /export function createInkSceneTransition/, 'scene ink module must export createInkSceneTransition');
+  assert.match(sceneInk, /export function createInkCurtainTransition/, 'scene ink module must export createInkCurtainTransition');
 }
 
 if (exists('js/components/ink-keyword.js')) {
@@ -57,6 +58,7 @@ if (exists('css/components/ink-keyword.css')) {
 if (exists('index.html')) {
   const webglKeywordMatches = indexHtml.match(/data-ink-reveal="webgl"/g) || [];
   assert.ok(webglKeywordMatches.length <= 2, 'index.html should not declare more than two WebGL ink keywords');
+  assert.match(indexHtml, /data-hero-exit-ink-canvas/, 'index.html must include the hero exit ink canvas');
 }
 
 if (exists('docs/ink-effects-usage.md')) {

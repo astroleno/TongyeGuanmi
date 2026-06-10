@@ -1,0 +1,292 @@
+/*
+  soft blob glass / 古法失蜡琉璃 UI material
+  ------------------------------------------------
+  Component-only CSS. No WebGL, no canvas, no 1px glass border.
+  Use .blob-glass with one of the size/shape modifiers below.
+*/
+
+.blob-glass {
+  /* Palette: use space-separated RGB channels so alpha can be tuned below. */
+  --blob-milk: 255 250 241;
+  --blob-rose: 236 157 179;
+  --blob-sage: 151 181 139;
+  --blob-amber: 227 177 93;
+  --blob-lilac: 220 207 234;
+
+  /* Primary material controls. Override per component or per theme. */
+  --blob-density: .78;
+  --blob-blur: 22px;
+  --blob-saturate: 1.22;
+  --blob-brightness: 1.04;
+  --blob-contrast: .97;
+  --blob-edge-thin: .52;
+  --blob-grain: .15;
+  --blob-bubble: .38;
+  --blob-shadow: 0 18px 56px rgb(30 20 16 / .14);
+  --blob-inner-light: inset 22px 26px 54px rgb(255 255 255 / .30);
+  --blob-inner-warm: inset -28px -34px 76px rgb(111 72 46 / .10);
+  --blob-ink: rgb(35 30 26 / .84);
+  --blob-bleed-x: 16px;
+  --blob-bleed-y: 12px;
+  --blob-radius: 44% 56% 48% 52% / 58% 48% 52% 42%;
+  --blob-motion: 18s;
+
+  /* Shape is an alpha-density field, not a border. */
+  --blob-mask:
+    radial-gradient(78% 82% at 50% 50%, #000 0 50%, rgb(0 0 0 / .96) 60%, rgb(0 0 0 / var(--blob-edge-thin)) 76%, transparent 100%),
+    radial-gradient(36% 54% at 10% 58%, #000 0 48%, rgb(0 0 0 / .50) 70%, transparent 100%),
+    radial-gradient(38% 50% at 91% 34%, #000 0 46%, rgb(0 0 0 / .48) 70%, transparent 100%),
+    radial-gradient(40% 36% at 58% 100%, #000 0 42%, rgb(0 0 0 / .42) 68%, transparent 100%);
+
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  border: 0;
+  border-radius: var(--blob-radius);
+  color: var(--blob-ink);
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateZ(0);
+}
+
+.blob-glass::before,
+.blob-glass::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--blob-bleed-y) * -1) calc(var(--blob-bleed-x) * -1);
+  z-index: -1;
+  pointer-events: none;
+  border-radius: var(--blob-radius);
+  -webkit-mask-image: var(--blob-mask);
+  mask-image: var(--blob-mask);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  transform: translateZ(0);
+}
+
+/* Main volume. Low-frequency color fields are intentionally soft and uneven. */
+.blob-glass::before {
+  background:
+    radial-gradient(58% 88% at 19% 66%, rgb(var(--blob-sage) / calc(var(--blob-density) * .38)) 0 22%, transparent 68%),
+    radial-gradient(66% 72% at 57% 24%, rgb(var(--blob-rose) / calc(var(--blob-density) * .42)) 0 20%, transparent 70%),
+    radial-gradient(54% 62% at 84% 40%, rgb(var(--blob-milk) / calc(var(--blob-density) * .72)) 0 32%, transparent 76%),
+    radial-gradient(68% 78% at 54% 78%, rgb(var(--blob-amber) / calc(var(--blob-density) * .28)) 0 18%, transparent 72%),
+    radial-gradient(46% 58% at 79% 88%, rgb(var(--blob-lilac) / calc(var(--blob-density) * .24)) 0 18%, transparent 76%),
+    linear-gradient(132deg,
+      rgb(var(--blob-milk) / calc(var(--blob-density) * .56)) 0%,
+      rgb(var(--blob-milk) / calc(var(--blob-density) * .32)) 44%,
+      rgb(var(--blob-sage) / calc(var(--blob-density) * .18)) 100%);
+  background-size: 145% 150%, 150% 135%, 128% 128%, 150% 150%, 132% 132%, 100% 100%;
+  background-position: 6% 54%, 62% 6%, 96% 34%, 46% 96%, 100% 100%, 50% 50%;
+  box-shadow: var(--blob-shadow), var(--blob-inner-light), var(--blob-inner-warm);
+  opacity: .98;
+  -webkit-backdrop-filter:
+    blur(var(--blob-blur))
+    saturate(var(--blob-saturate))
+    brightness(var(--blob-brightness))
+    contrast(var(--blob-contrast));
+  backdrop-filter:
+    blur(var(--blob-blur))
+    saturate(var(--blob-saturate))
+    brightness(var(--blob-brightness))
+    contrast(var(--blob-contrast));
+  animation: blob-glass-drift var(--blob-motion) ease-in-out infinite alternate;
+}
+
+/* Highlights, impurities and tiny bubbles. They sit inside the same density mask. */
+.blob-glass::after {
+  --blob-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='2' stitchTiles='stitch' seed='9'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.42'/%3E%3C/svg%3E");
+  background:
+    radial-gradient(44% 28% at 62% 9%, rgb(255 255 255 / .32) 0 8%, rgb(255 255 255 / .13) 26%, transparent 74%),
+    radial-gradient(22% 20% at 22% 22%, rgb(255 255 255 / .22) 0 12%, transparent 68%),
+    radial-gradient(10px 8px at 18% 72%, rgb(255 255 255 / calc(var(--blob-bubble) * .22)) 0 12%, rgb(255 255 255 / calc(var(--blob-bubble) * .10)) 23%, transparent 70%),
+    radial-gradient(7px 6px at 71% 63%, rgb(82 60 45 / calc(var(--blob-bubble) * .12)) 0 10%, transparent 72%),
+    radial-gradient(5px 4px at 84% 31%, rgb(255 255 255 / calc(var(--blob-bubble) * .18)) 0 10%, transparent 74%),
+    radial-gradient(4px 3px at 43% 82%, rgb(97 76 56 / calc(var(--blob-bubble) * .09)) 0 9%, transparent 74%),
+    var(--blob-noise);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 182px 182px;
+  background-position: center;
+  opacity: calc(.35 + var(--blob-grain));
+  mix-blend-mode: soft-light;
+  filter: blur(.35px) saturate(1.04);
+}
+
+.blob-glass > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Modifier: navigation bar ------------------------------------------------ */
+.blob-glass--nav {
+  --blob-density: .72;
+  --blob-blur: 24px;
+  --blob-edge-thin: .46;
+  --blob-bleed-x: 18px;
+  --blob-bleed-y: 11px;
+  --blob-radius: 48% 52% 45% 55% / 62% 48% 52% 38%;
+  --blob-shadow: 0 16px 44px rgb(30 19 14 / .15);
+  --blob-inner-light: inset 18px 20px 46px rgb(255 255 255 / .30);
+  --blob-inner-warm: inset -24px -26px 58px rgb(91 63 45 / .08);
+  --blob-mask:
+    radial-gradient(76% 88% at 50% 51%, #000 0 56%, rgb(0 0 0 / .92) 66%, rgb(0 0 0 / var(--blob-edge-thin)) 80%, transparent 100%),
+    radial-gradient(34% 90% at 5% 55%, #000 0 43%, rgb(0 0 0 / .45) 67%, transparent 100%),
+    radial-gradient(34% 78% at 96% 38%, #000 0 43%, rgb(0 0 0 / .43) 68%, transparent 100%),
+    radial-gradient(50% 42% at 53% 100%, #000 0 38%, rgb(0 0 0 / .36) 68%, transparent 100%);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(.2rem, .8vw, .5rem);
+  padding: .82rem clamp(.92rem, 2.2vw, 1.45rem);
+  min-block-size: 3.25rem;
+  font-size: clamp(.92rem, 1vw, 1rem);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.blob-glass--nav a {
+  color: inherit;
+  text-decoration: none;
+  letter-spacing: .08em;
+  padding: .42rem .58rem;
+  border-radius: 55% 45% 52% 48% / 62% 44% 56% 38%;
+  opacity: .88;
+  transition: opacity .22s ease, text-shadow .22s ease, transform .22s ease;
+}
+
+.blob-glass--nav a:hover {
+  opacity: 1;
+  text-shadow: 0 0 18px rgb(255 255 255 / .38);
+  transform: translateY(-1px);
+}
+
+.blob-glass--nav a:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  text-underline-offset: .34em;
+  text-decoration-thickness: .08em;
+}
+
+/* Modifier: large content card ------------------------------------------- */
+.blob-glass--card {
+  --blob-density: .80;
+  --blob-blur: 28px;
+  --blob-edge-thin: .50;
+  --blob-grain: .12;
+  --blob-bubble: .32;
+  --blob-bleed-x: 24px;
+  --blob-bleed-y: 22px;
+  --blob-radius: 31% 42% 36% 46% / 22% 28% 24% 32%;
+  --blob-shadow: 0 26px 90px rgb(30 20 16 / .18);
+  --blob-inner-light: inset 28px 34px 82px rgb(255 255 255 / .34);
+  --blob-inner-warm: inset -42px -44px 98px rgb(111 72 46 / .11);
+  --blob-mask:
+    radial-gradient(82% 94% at 50% 52%, #000 0 58%, rgb(0 0 0 / .96) 66%, rgb(0 0 0 / var(--blob-edge-thin)) 82%, transparent 100%),
+    radial-gradient(50% 72% at 4% 47%, #000 0 38%, rgb(0 0 0 / .46) 68%, transparent 100%),
+    radial-gradient(46% 76% at 99% 31%, #000 0 37%, rgb(0 0 0 / .43) 68%, transparent 100%),
+    radial-gradient(54% 48% at 31% 104%, #000 0 38%, rgb(0 0 0 / .38) 68%, transparent 100%),
+    radial-gradient(38% 38% at 82% 105%, #000 0 34%, rgb(0 0 0 / .30) 68%, transparent 100%);
+
+  width: min(100%, 760px);
+  padding: clamp(2rem, 4vw, 4.8rem) clamp(1.35rem, 4vw, 4.4rem);
+  min-block-size: clamp(360px, 52vw, 520px);
+}
+
+/* Modifier: small button -------------------------------------------------- */
+.blob-glass--button {
+  --blob-density: .78;
+  --blob-blur: 18px;
+  --blob-edge-thin: .50;
+  --blob-grain: .10;
+  --blob-bubble: .24;
+  --blob-bleed-x: 12px;
+  --blob-bleed-y: 8px;
+  --blob-radius: 54% 46% 58% 42% / 62% 45% 55% 38%;
+  --blob-shadow: 0 12px 28px rgb(30 20 16 / .14);
+  --blob-inner-light: inset 12px 14px 32px rgb(255 255 255 / .30);
+  --blob-inner-warm: inset -16px -14px 34px rgb(91 63 45 / .08);
+  --blob-mask:
+    radial-gradient(72% 84% at 49% 51%, #000 0 54%, rgb(0 0 0 / .92) 65%, rgb(0 0 0 / var(--blob-edge-thin)) 80%, transparent 100%),
+    radial-gradient(42% 86% at 7% 54%, #000 0 39%, rgb(0 0 0 / .45) 67%, transparent 100%),
+    radial-gradient(38% 78% at 95% 39%, #000 0 38%, rgb(0 0 0 / .42) 68%, transparent 100%),
+    radial-gradient(36% 34% at 55% 101%, #000 0 34%, rgb(0 0 0 / .32) 68%, transparent 100%);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.9rem;
+  padding: .84rem 1.18rem .86rem;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition: transform .2s ease, filter .2s ease;
+}
+
+button.blob-glass--button {
+  appearance: none;
+}
+
+.blob-glass--button:hover {
+  transform: translateY(-1px) scale(1.01);
+}
+
+.blob-glass--button:active {
+  transform: translateY(1px) scale(.99);
+}
+
+.blob-glass--button:focus-visible,
+.blob-glass:focus-visible {
+  outline: none;
+  filter: drop-shadow(0 0 18px rgb(255 255 255 / .38));
+}
+
+/* Optional theme hook for very dark sections. Keep material milky, not smoky. */
+.theme-dark .blob-glass,
+[data-theme="dark"] .blob-glass {
+  --blob-density: .84;
+  --blob-shadow: 0 22px 72px rgb(0 0 0 / .30);
+  --blob-ink: rgb(35 30 26 / .88);
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .blob-glass::before {
+    background:
+      radial-gradient(60% 84% at 18% 66%, rgb(var(--blob-sage) / .32) 0 22%, transparent 68%),
+      radial-gradient(66% 72% at 58% 24%, rgb(var(--blob-rose) / .38) 0 20%, transparent 70%),
+      radial-gradient(54% 62% at 84% 40%, rgb(var(--blob-milk) / .82) 0 32%, transparent 76%),
+      linear-gradient(132deg, rgb(var(--blob-milk) / .74), rgb(var(--blob-milk) / .46));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blob-glass::before {
+    animation: none;
+  }
+
+  .blob-glass--button,
+  .blob-glass--nav a {
+    transition: none;
+  }
+}
+
+@keyframes blob-glass-drift {
+  0% {
+    background-position: 6% 54%, 62% 6%, 96% 34%, 46% 96%, 100% 100%, 50% 50%;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  55% {
+    background-position: 12% 60%, 55% 11%, 92% 42%, 52% 88%, 92% 92%, 50% 50%;
+  }
+
+  100% {
+    background-position: 3% 48%, 68% 2%, 101% 38%, 43% 101%, 104% 94%, 50% 50%;
+    transform: translate3d(.15%, -.1%, 0) scale(1.006);
+  }
+}

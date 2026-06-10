@@ -1,0 +1,112 @@
+.shader-blob {
+  --shader-blob-radius: 999px;
+  --shader-blob-bleed-x: 28px;
+  --shader-blob-bleed-y: 22px;
+  --shader-blob-blur: 18px;
+  --shader-blob-shadow: 0 20px 58px rgba(0, 0, 0, 0.08);
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: var(--shader-blob-radius);
+  background: transparent;
+  color: rgba(247, 237, 215, 0.92);
+  transform: translateZ(0);
+}
+
+.shader-blob::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--shader-blob-bleed-y) * -1) calc(var(--shader-blob-bleed-x) * -1);
+  z-index: -2;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse 82% 118% at 50% 50%, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018) 54%, transparent 76%);
+  box-shadow: var(--shader-blob-shadow);
+  -webkit-backdrop-filter: blur(var(--shader-blob-blur)) saturate(1.18) brightness(1.04);
+  backdrop-filter: blur(var(--shader-blob-blur)) saturate(1.18) brightness(1.04);
+  -webkit-mask-image:
+    radial-gradient(ellipse 82% 136% at 50% 50%, #000 0 44%, rgba(0, 0, 0, 0.72) 61%, rgba(0, 0, 0, 0.22) 78%, transparent 100%),
+    radial-gradient(circle at 14% 52%, #000 0 20%, rgba(0, 0, 0, 0.46) 44%, transparent 70%),
+    radial-gradient(circle at 86% 48%, #000 0 20%, rgba(0, 0, 0, 0.42) 44%, transparent 70%);
+  mask-image:
+    radial-gradient(ellipse 82% 136% at 50% 50%, #000 0 44%, rgba(0, 0, 0, 0.72) 61%, rgba(0, 0, 0, 0.22) 78%, transparent 100%),
+    radial-gradient(circle at 14% 52%, #000 0 20%, rgba(0, 0, 0, 0.46) 44%, transparent 70%),
+    radial-gradient(circle at 86% 48%, #000 0 20%, rgba(0, 0, 0, 0.42) 44%, transparent 70%);
+  -webkit-mask-composite: source-over, source-over;
+  mask-composite: add;
+}
+
+.shader-blob-canvas {
+  position: absolute;
+  inset: calc(var(--shader-blob-bleed-y) * -1) calc(var(--shader-blob-bleed-x) * -1);
+  z-index: -1;
+  width: calc(100% + var(--shader-blob-bleed-x) * 2);
+  height: calc(100% + var(--shader-blob-bleed-y) * 2);
+  border-radius: inherit;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: var(--shader-blob-opacity, 0.96);
+}
+
+.shader-blob > :not(.shader-blob-canvas) {
+  position: relative;
+  z-index: 1;
+}
+
+.shader-blob--nav {
+  --shader-blob-bleed-x: 44px;
+  --shader-blob-bleed-y: 28px;
+  --shader-blob-blur: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2.5vw, 34px);
+  min-height: 54px;
+  padding: 0 34px;
+  font-size: 18px;
+  font-weight: 760;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.shader-blob--nav a {
+  color: currentColor;
+  text-decoration: none;
+  text-shadow:
+    0 1px 12px rgba(0, 0, 0, 0.36),
+    0 0 22px rgba(255, 246, 209, 0.22);
+}
+
+.shader-blob--card {
+  --shader-blob-radius: 34px;
+  --shader-blob-bleed-x: 58px;
+  --shader-blob-bleed-y: 46px;
+  --shader-blob-blur: 26px;
+  width: min(520px, 100%);
+  min-height: 360px;
+  padding: clamp(34px, 5vw, 64px);
+  display: grid;
+  align-content: end;
+}
+
+.shader-blob--button {
+  --shader-blob-bleed-x: 28px;
+  --shader-blob-bleed-y: 18px;
+  --shader-blob-blur: 18px;
+  display: inline-grid;
+  place-items: center;
+  min-height: 54px;
+  min-width: 132px;
+  padding: 0 26px;
+  color: rgba(7, 17, 14, 0.88);
+  font-size: 15px;
+  font-weight: 820;
+  text-decoration: none;
+  text-shadow: 0 1px 12px rgba(255, 255, 255, 0.26);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shader-blob-canvas {
+    opacity: 0.9;
+  }
+}
