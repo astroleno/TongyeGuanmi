@@ -8,9 +8,12 @@ html {
   min-height: 100%;
   overflow-x: clip;
   scroll-behavior: smooth;
+  --material-shift: 0px;
+  --material-counter-shift: 0px;
 }
 
 body {
+  position: relative;
   min-height: 100vh;
   margin: 0;
   color: rgb(250 247 235);
@@ -21,6 +24,77 @@ body {
     radial-gradient(720px 620px at 14% 86%, rgb(118 56 41 / .20), transparent 66%),
     linear-gradient(135deg, #07100d 0%, #0d1914 48%, #111713 100%);
   overflow-x: hidden;
+}
+
+.material-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  min-height: 2350px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.material-field__sheet,
+.material-field__thread {
+  position: absolute;
+  display: block;
+  transform: translate3d(0, var(--material-shift), 0);
+  will-change: transform;
+}
+
+.material-field__sheet {
+  width: min(82vw, 1080px);
+  height: 260px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent 0%, rgb(232 226 205 / .16) 18%, rgb(106 184 164 / .24) 50%, rgb(232 226 205 / .12) 82%, transparent 100%),
+    linear-gradient(180deg, transparent, rgb(0 0 0 / .16));
+  filter: blur(18px);
+  opacity: .72;
+}
+
+.material-field__sheet--top {
+  top: 360px;
+  left: 48%;
+  transform: translate3d(-50%, var(--material-shift), 0) rotate(-2deg);
+}
+
+.material-field__sheet--middle {
+  top: 1080px;
+  left: 16%;
+  width: min(72vw, 920px);
+  height: 220px;
+  opacity: .62;
+  transform: translate3d(0, var(--material-counter-shift), 0) rotate(1.8deg);
+}
+
+.material-field__sheet--lower {
+  top: 1540px;
+  right: -8%;
+  width: min(76vw, 980px);
+  height: 300px;
+  background:
+    linear-gradient(90deg, transparent 0%, rgb(176 205 216 / .12) 20%, rgb(49 128 112 / .28) 54%, rgb(230 198 130 / .12) 86%, transparent 100%),
+    linear-gradient(180deg, rgb(255 255 255 / .04), transparent 55%, rgb(0 0 0 / .22));
+  transform: translate3d(0, var(--material-shift), 0) rotate(-4deg);
+}
+
+.material-field__thread {
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(238 232 196 / .30), transparent);
+  opacity: .46;
+}
+
+.material-field__thread--one {
+  top: 760px;
+}
+
+.material-field__thread--two {
+  top: 1420px;
+  transform: translate3d(0, var(--material-counter-shift), 0);
 }
 
 body::before,
@@ -57,6 +131,8 @@ body::after {
 }
 
 .page-shell {
+  position: relative;
+  z-index: 1;
   width: min(1180px, calc(100vw - 36px));
   margin: 0 auto;
   padding: 30px 0 96px;

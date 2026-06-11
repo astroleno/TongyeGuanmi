@@ -1,0 +1,290 @@
+/*
+  Route 4 Liquid Glass
+  ------------------------------------------------------------
+  Based on reference/liquid_glass.tsx:
+  - empty lens layer with backdrop-filter
+  - SVG displacement filter injected from the reference WebP map
+  - text/content composited above the glass
+*/
+
+:root {
+  --hybrid-glass-font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+.hybrid-glass,
+.hybrid-glass *,
+.hybrid-glass *::before,
+.hybrid-glass *::after {
+  box-sizing: border-box;
+}
+
+.hybrid-glass {
+  --glass-radius: 32px;
+  --glass-bg: 248 245 232;
+  --glass-ink: 9 21 17;
+  --glass-cyan: 166 224 228;
+  --glass-jade: 103 184 163;
+  --glass-amber: 230 211 153;
+  --glass-text: 250 247 235;
+  --glass-muted: 250 247 235;
+  --glass-tint: .050;
+  --glass-blur: 8px;
+  --glass-saturate: 150%;
+  --glass-noise: .18;
+  --glass-refract-opacity: .44;
+  --glass-refract-scale: 1.035;
+  --glass-reflex-light: 1;
+  --glass-reflex-dark: 1;
+  --glass-edge: 1;
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--glass-radius);
+  background: transparent;
+  color: rgb(var(--glass-text));
+  font-family: var(--hybrid-glass-font);
+  transform: translate3d(0, 0, 0);
+}
+
+.hybrid-glass::before,
+.hybrid-glass::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.hybrid-glass::before {
+  z-index: 1;
+  inset: 0;
+  background-color: rgb(var(--glass-bg) / var(--glass-tint));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, white calc(var(--glass-reflex-light) * 10%), transparent),
+    inset 1.8px 3px 0 -2px color-mix(in srgb, white calc(var(--glass-reflex-light) * 90%), transparent),
+    inset -2px -2px 0 -2px color-mix(in srgb, white calc(var(--glass-reflex-light) * 80%), transparent),
+    inset -3px -8px 1px -6px color-mix(in srgb, white calc(var(--glass-reflex-light) * 60%), transparent),
+    inset -0.3px -1px 4px 0 color-mix(in srgb, black calc(var(--glass-reflex-dark) * 12%), transparent),
+    inset -1.5px 2.5px 0 -2px color-mix(in srgb, black calc(var(--glass-reflex-dark) * 20%), transparent),
+    inset 0 3px 4px -2px color-mix(in srgb, black calc(var(--glass-reflex-dark) * 20%), transparent),
+    inset 2px -6.5px 1px -4px color-mix(in srgb, black calc(var(--glass-reflex-dark) * 10%), transparent),
+    inset 1px 0 0 0 rgb(var(--glass-cyan) / calc(var(--glass-edge) * .12)),
+    inset -1px 0 0 0 rgb(var(--glass-amber) / calc(var(--glass-edge) * .10)),
+    0 1px 5px 0 color-mix(in srgb, black calc(var(--glass-reflex-dark) * 10%), transparent),
+    0 18px 46px 0 color-mix(in srgb, black calc(var(--glass-reflex-dark) * 18%), transparent);
+}
+
+.has-liquid-glass-filter .hybrid-glass::before {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) url(#route4-liquid-glass-filter) saturate(var(--glass-saturate));
+}
+
+.hybrid-glass::after {
+  z-index: 2;
+  inset: 1px;
+  background-image:
+    radial-gradient(circle, rgb(var(--glass-bg) / .060) 0 .26px, transparent .72px),
+    radial-gradient(circle, rgb(var(--glass-cyan) / .040) 0 .22px, transparent .66px),
+    radial-gradient(circle, rgb(0 0 0 / .090) 0 .30px, transparent .84px);
+  background-position: 2px 3px, 9px 7px, 17px 13px;
+  background-size: 7px 9px, 13px 17px, 23px 29px;
+  background-blend-mode: screen, screen, multiply;
+  mix-blend-mode: soft-light;
+  opacity: var(--glass-noise);
+}
+
+.hybrid-glass__refract {
+  position: absolute;
+  z-index: 0;
+  inset: -14px;
+  display: none;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--glass-refract-background, var(--route4-refract-background, transparent));
+  background-attachment: fixed;
+  background-position: center;
+  background-size: cover;
+  opacity: var(--glass-refract-opacity);
+  transform: scale(var(--glass-refract-scale));
+  filter: url(#route4-liquid-glass-filter) blur(.8px) saturate(1.16) contrast(1.06);
+  mix-blend-mode: normal;
+}
+
+.has-liquid-glass-filter .hybrid-glass__refract {
+  display: block;
+}
+
+.hybrid-glass > :not(.hybrid-glass__refract) {
+  position: relative;
+  z-index: 3;
+}
+
+.hybrid-glass :where(a, button) {
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hybrid-glass :where(a, button):focus-visible,
+.hybrid-glass:focus-visible {
+  outline: 2px solid rgb(var(--glass-bg) / .78);
+  outline-offset: 6px;
+}
+
+.hybrid-glass--nav {
+  --glass-radius: 999px;
+  --glass-tint: .048;
+  --glass-blur: 8px;
+  --glass-noise: .12;
+  --glass-refract-opacity: .38;
+  --glass-refract-scale: 1.025;
+  --glass-edge: .66;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 3vw, 34px);
+  min-height: 58px;
+  padding: 10px clamp(22px, 3vw, 36px);
+  line-height: 1;
+}
+
+.hybrid-glass--nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.4em;
+  min-height: 38px;
+  padding: 0 .08em;
+  color: rgb(var(--glass-text) / .92);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: .05em;
+  text-shadow: 0 1px 14px rgb(0 0 0 / .34);
+  transition: color 180ms ease;
+}
+
+.hybrid-glass--nav a:hover {
+  color: rgb(var(--glass-text));
+}
+
+.hybrid-glass--nav-wide {
+  min-width: min(100%, 520px);
+}
+
+.hybrid-glass--card {
+  --glass-radius: 34px;
+  --glass-tint: .054;
+  --glass-blur: 10px;
+  --glass-noise: .22;
+  --glass-refract-opacity: .48;
+  --glass-refract-scale: 1.045;
+  --glass-edge: .74;
+
+  display: grid;
+  align-content: end;
+  min-height: 340px;
+  padding: clamp(28px, 4vw, 48px);
+}
+
+.hybrid-glass--card h2,
+.hybrid-glass--card h3 {
+  max-width: 13em;
+  margin: 0;
+  color: rgb(var(--glass-text));
+  font-weight: 560;
+  line-height: 1.18;
+  letter-spacing: 0;
+  text-wrap: balance;
+  text-shadow: 0 2px 18px rgb(0 0 0 / .22);
+}
+
+.hybrid-glass--card h2 {
+  font-size: clamp(28px, 3.5vw, 52px);
+}
+
+.hybrid-glass--card h3 {
+  font-size: clamp(24px, 2.4vw, 34px);
+}
+
+.hybrid-glass--card p {
+  max-width: 38em;
+  margin: 16px 0 0;
+  color: rgb(var(--glass-muted) / .74);
+  font-size: 15px;
+  line-height: 1.85;
+  text-shadow: 0 1px 12px rgb(0 0 0 / .18);
+}
+
+.hybrid-glass--card .card-kicker {
+  margin: 0 0 14px;
+  color: rgb(var(--glass-amber) / .78);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+.hybrid-glass--card-compact {
+  --glass-radius: 28px;
+  --glass-blur: 9px;
+  --glass-noise: .18;
+  --glass-refract-opacity: .44;
+  --glass-edge: .68;
+
+  min-height: 260px;
+  padding: 28px;
+}
+
+.hybrid-glass--button {
+  --glass-radius: 999px;
+  --glass-tint: .052;
+  --glass-blur: 8px;
+  --glass-noise: .10;
+  --glass-refract-opacity: .36;
+  --glass-refract-scale: 1.025;
+  --glass-edge: .70;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 22px;
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 720;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-decoration: none;
+  text-shadow: 0 1px 12px rgb(0 0 0 / .28);
+}
+
+.hybrid-glass--button-primary {
+  --glass-tint: .060;
+  --glass-edge: .78;
+}
+
+.hybrid-glass--button:active {
+  transform: translate3d(0, 0, 0);
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .hybrid-glass::before {
+    background-color: rgb(248 245 232 / .16);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hybrid-glass,
+  .hybrid-glass::before,
+  .hybrid-glass::after,
+  .hybrid-glass--nav a {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

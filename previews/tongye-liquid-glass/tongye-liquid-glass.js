@@ -59,6 +59,26 @@
 
   function init() {
     document.querySelectorAll(SELECTOR).forEach(attachGlassMotion);
+    attachScrollBackdrop();
+  }
+
+  function attachScrollBackdrop() {
+    let raf = 0;
+
+    const write = () => {
+      raf = 0;
+      const y = window.scrollY || 0;
+      document.documentElement.style.setProperty('--material-shift', `${(-y * 0.075).toFixed(1)}px`);
+      document.documentElement.style.setProperty('--material-counter-shift', `${(y * 0.045).toFixed(1)}px`);
+    };
+
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(write);
+    };
+
+    write();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule, { passive: true });
   }
 
   if (document.readyState === 'loading') {

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>同野观幂｜Route 4 Hybrid Glass</title>
+  <link rel="stylesheet" href="./route4-glass.css">
+  <link rel="stylesheet" href="./route4-demo.css">
+  <script src="./route4-glass.js" defer></script>
+</head>
+<body>
+  <div class="material-field" aria-hidden="true">
+    <span class="material-field__sheet material-field__sheet--top"></span>
+    <span class="material-field__sheet material-field__sheet--middle"></span>
+    <span class="material-field__sheet material-field__sheet--lower"></span>
+    <span class="material-field__thread material-field__thread--one"></span>
+    <span class="material-field__thread material-field__thread--two"></span>
+  </div>
+
+  <main class="page-shell">
+    <header class="site-header">
+      <nav class="hybrid-glass hybrid-glass--nav" aria-label="主导航">
+        <a href="#method">方法</a>
+        <a href="#scene">场景</a>
+        <a href="#abroad">留学</a>
+        <a href="#contact">联系</a>
+      </nav>
+    </header>
+
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Route 4 / Hybrid Glass</p>
+        <h1 id="hero-title">温润液态玻璃，边缘有色散</h1>
+        <p>
+          主面是带细噪点的模糊玻璃，边缘只保留一条金属式高光和轻微色散，不做厚框。
+        </p>
+        <div class="actions">
+          <a class="hybrid-glass hybrid-glass--button" href="#method"><span>查看组件</span></a>
+          <button class="hybrid-glass hybrid-glass--button hybrid-glass--button-primary" type="button"><span>预约咨询</span></button>
+        </div>
+      </div>
+
+      <article class="hybrid-glass hybrid-glass--card hero-card" id="method">
+        <p class="card-kicker">RECOMMENDED MATERIAL</p>
+        <h2>主体保持温润，边缘是一条薄色散线</h2>
+        <p>
+          这版更适合真正迁回主站：无 WebGL、无 canvas，组件只靠 CSS 变量和伪元素完成材质层。
+        </p>
+      </article>
+    </section>
+
+    <section class="sample-grid" id="scene" aria-label="组件样例">
+      <div class="sample-copy">
+        <h2>一套材质覆盖导航、卡片和按钮</h2>
+        <p>主材质不抢内容，边缘色散保持稳定。小组件自动降低噪点强度，避免文字和操作按钮发糊。</p>
+      </div>
+
+      <div class="sample-stack">
+        <nav class="hybrid-glass hybrid-glass--nav hybrid-glass--nav-wide" aria-label="导航栏示例">
+          <a href="#method">方法</a>
+          <a href="#scene">场景</a>
+          <a href="#abroad">留学</a>
+          <a href="#contact">联系</a>
+        </nav>
+
+        <div class="card-row" id="abroad">
+          <article class="hybrid-glass hybrid-glass--card hybrid-glass--card-compact">
+            <p class="card-kicker">PLANNING</p>
+            <h3>留学路径</h3>
+            <p>信息面保持稳定，边缘高光克制清晰，适合高频阅读和长页面滚动。</p>
+          </article>
+          <article class="hybrid-glass hybrid-glass--card hybrid-glass--card-compact">
+            <p class="card-kicker">PORTFOLIO</p>
+            <h3>作品集</h3>
+            <p>从第三套借动态气质，但把负载和视觉噪声控制在组件边界内。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="control-row" id="contact" aria-label="按钮样例">
+      <div>
+        <h2>按钮只保留薄边和磨砂</h2>
+        <p>按钮不做厚金属框，只保留一条色散边和轻磨砂，保证 CTA 清晰可点。</p>
+      </div>
+      <div class="button-set">
+        <button class="hybrid-glass hybrid-glass--button" type="button"><span>开始咨询</span></button>
+        <button class="hybrid-glass hybrid-glass--button hybrid-glass--button-primary" type="button"><span>下载手册</span></button>
+        <a class="hybrid-glass hybrid-glass--button" href="mailto:hello@example.com"><span>联系顾问</span></a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
