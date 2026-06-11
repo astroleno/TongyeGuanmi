@@ -574,12 +574,16 @@ export function initLayeredHero(options = {}) {
     const manifestoExitProgress = introSettled
       ? smoothStep(range01(rawHeroScroll, manifestoExitStart, manifestoExitEnd))
       : 0;
-    const manifestoVisibleProgress = manifestoEnterProgress * (1 - manifestoExitProgress);
+    const manifestoSceneProgress = manifestoEnterProgress * (1 - smoothStep(range01(manifestoExitProgress, 0.985, 1)));
+    const manifestoContentExitProgress = smoothStep(range01(manifestoExitProgress, 0, 0.34));
+    const manifestoContentProgress = manifestoEnterProgress * (1 - manifestoContentExitProgress);
+    const exitSweepProgress = smoothStep(range01(manifestoExitProgress, 0.015, 0.985));
+    const exitEdgePercent = 100 - exitSweepProgress * 112;
     const mouseChanged = Math.abs(lastMouseAppliedX - mouseX) > 0.001 || Math.abs(lastMouseAppliedY - mouseY) > 0.001;
     const introChanged = Math.abs(lastIntroProgress - introProgress) > 0.001;
     const navChanged = Math.abs(lastNavReveal - navReveal) > 0.001;
     const inkChanged = Math.abs(lastInkProgress - inkProgress) > 0.001;
-    const manifestoChanged = Math.abs(lastManifestoProgress - manifestoVisibleProgress) > 0.001;
+    const manifestoChanged = Math.abs(lastManifestoProgress - manifestoSceneProgress) > 0.001;
     const manifestoExitChanged = Math.abs(lastManifestoExitProgress - manifestoExitProgress) > 0.001;
     const introInkAnimating = !heroIntroComplete && introProgress > 0.002 && introProgress < 0.999;
     const inkAnimating = inkProgress > 0.002 && inkProgress < 0.995;
@@ -592,7 +596,7 @@ export function initLayeredHero(options = {}) {
     lastMouseAppliedY = mouseY;
     lastNavReveal = navReveal;
     lastInkProgress = inkProgress;
-    lastManifestoProgress = manifestoVisibleProgress;
+    lastManifestoProgress = manifestoSceneProgress;
     lastManifestoExitProgress = manifestoExitProgress;
 
     const p = renderedProgress;
@@ -656,22 +660,27 @@ export function initLayeredHero(options = {}) {
     }
     updateExitInkTransition(manifestoExitProgress);
     if (manifesto) {
-      const manifestoY = (1 - manifestoEnterProgress) * 28 - manifestoExitProgress * 42;
-      const manifestoInteractive = manifestoVisibleProgress > 0.98 && manifestoExitProgress < 0.02;
-      root.style.setProperty('--hero-manifesto-opacity', manifestoVisibleProgress.toFixed(4));
+      const manifestoY = (1 - manifestoEnterProgress) * 28;
+      const manifestoContentY = -28 * manifestoContentExitProgress;
+      const manifestoInteractive = manifestoSceneProgress > 0.98 && manifestoExitProgress < 0.02;
+      const manifestoActive = manifestoSceneProgress > 0.01 && manifestoExitProgress < 0.998;
+      root.style.setProperty('--hero-manifesto-opacity', manifestoSceneProgress.toFixed(4));
       root.style.setProperty('--hero-manifesto-y', `${manifestoY.toFixed(2)}px`);
+      root.style.setProperty('--hero-manifesto-content-opacity', manifestoContentProgress.toFixed(4));
+      root.style.setProperty('--hero-manifesto-content-y', `${manifestoContentY.toFixed(2)}px`);
+      root.style.setProperty('--hero-exit-edge', `${exitEdgePercent.toFixed(2)}%`);
       root.style.setProperty('--hero-manifesto-exit-progress', manifestoExitProgress.toFixed(4));
-      setManifestoOpacity(manifestoVisibleProgress);
+      setManifestoOpacity(manifestoSceneProgress);
       setManifestoY(manifestoY);
-      manifesto.style.visibility = manifestoVisibleProgress > 0.01 ? 'visible' : 'hidden';
+      manifesto.style.visibility = manifestoActive ? 'visible' : 'hidden';
       manifesto.style.pointerEvents = manifestoInteractive ? 'auto' : 'none';
-      manifesto.classList.toggle('is-active', manifestoVisibleProgress > 0.01);
+      manifesto.classList.toggle('is-active', manifestoActive);
       manifesto.classList.toggle('is-interactive', manifestoInteractive);
     }
     if (methodPreview) {
       const methodPreviewProgress = manifestoExitProgress;
-      const methodPreviewOpacity = smoothStep(range01(methodPreviewProgress, 0.08, 0.48));
-      const methodPreviewY = (1 - methodPreviewProgress) * viewportH * 0.22;
+      const methodPreviewOpacity = smoothStep(range01(methodPreviewProgress, 0.01, 0.08));
+      const methodPreviewY = (1 - methodPreviewProgress) * viewportH * 0.12;
       root.style.setProperty('--hero-method-preview-opacity', methodPreviewOpacity.toFixed(4));
       root.style.setProperty('--hero-method-preview-y', `${methodPreviewY.toFixed(2)}px`);
       setMethodPreviewOpacity(methodPreviewOpacity);
@@ -687,7 +696,7 @@ export function initLayeredHero(options = {}) {
     root.style.setProperty('--hero-progress', p.toFixed(4));
     root.style.setProperty('--hero-intro-progress', introProgress.toFixed(4));
     root.style.setProperty('--hero-transition-progress', inkProgress.toFixed(4));
-    root.style.setProperty('--hero-manifesto-progress', manifestoVisibleProgress.toFixed(4));
+    root.style.setProperty('--hero-manifesto-progress', manifestoSceneProgress.toFixed(4));
     root.style.setProperty('--hero-manifesto-exit-progress', manifestoExitProgress.toFixed(4));
   }
 

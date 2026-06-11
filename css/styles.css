@@ -21,6 +21,11 @@
   --hero-manifesto-opacity: 0;
   --hero-manifesto-y: 28px;
   --hero-manifesto-exit-progress: 0;
+  --hero-manifesto-content-opacity: 1;
+  --hero-manifesto-content-y: 0px;
+  --hero-exit-edge: 100%;
+  --hero-exit-feather: 10vh;
+  --hero-exit-feather-soft: 3vh;
   --hero-method-preview-opacity: 0;
   --hero-method-preview-y: 36px;
   color-scheme: dark;
@@ -378,6 +383,24 @@ body.is-loader-text-ready .loader-marquee-clear {
   visibility: hidden;
   transform: translateZ(0);
   will-change: opacity;
+  -webkit-mask-image:
+    linear-gradient(
+      180deg,
+      #000 0%,
+      #000 calc(var(--hero-exit-edge, 100%) - var(--hero-exit-feather, 10vh)),
+      rgba(0, 0, 0, .72) calc(var(--hero-exit-edge, 100%) - var(--hero-exit-feather-soft, 3vh)),
+      transparent calc(var(--hero-exit-edge, 100%) + var(--hero-exit-feather, 10vh)),
+      transparent 100%
+    );
+  mask-image:
+    linear-gradient(
+      180deg,
+      #000 0%,
+      #000 calc(var(--hero-exit-edge, 100%) - var(--hero-exit-feather, 10vh)),
+      rgba(0, 0, 0, .72) calc(var(--hero-exit-edge, 100%) - var(--hero-exit-feather-soft, 3vh)),
+      transparent calc(var(--hero-exit-edge, 100%) + var(--hero-exit-feather, 10vh)),
+      transparent 100%
+    );
 }
 
 .hero-ink-transition {
@@ -595,11 +618,36 @@ body.is-loader-text-ready .loader-marquee-clear {
   visibility: hidden;
   pointer-events: none;
   transform: translate3d(0, var(--hero-manifesto-y), 0);
-  will-change: opacity, transform;
+  will-change: opacity, transform, mask-image;
+  -webkit-mask-image:
+    linear-gradient(
+      180deg,
+      #000 0%,
+      #000 calc(var(--hero-exit-edge, 100%) - var(--hero-exit-feather, 10vh)),
+      rgba(0, 0, 0, .72) calc(var(--hero-exit-edge, 100%) - var(--hero-exit-feather-soft, 3vh)),
+      transparent calc(var(--hero-exit-edge, 100%) + var(--hero-exit-feather, 10vh)),
+      transparent 100%
+    );
+  mask-image:
+    linear-gradient(
+      180deg,
+      #000 0%,
+      #000 calc(var(--hero-exit-edge, 100%) - var(--hero-exit-feather, 10vh)),
+      rgba(0, 0, 0, .72) calc(var(--hero-exit-edge, 100%) - var(--hero-exit-feather-soft, 3vh)),
+      transparent calc(var(--hero-exit-edge, 100%) + var(--hero-exit-feather, 10vh)),
+      transparent 100%
+    );
   background:
     linear-gradient(180deg, rgba(5,8,7,.02) 0%, rgba(5,8,7,.24) 46%, rgba(5,8,7,.54) 100%),
     linear-gradient(90deg, rgba(5,8,7,.66), rgba(5,8,7,.08) 54%, rgba(5,8,7,.44)),
     radial-gradient(circle at 84% 16%, rgba(183,91,52,.10), transparent 34vw);
+}
+
+.manifesto > .section-index,
+.manifesto-copy {
+  opacity: var(--hero-manifesto-content-opacity, 1);
+  transform: translate3d(0, var(--hero-manifesto-content-y, 0px), 0);
+  will-change: opacity, transform;
 }
 
 .manifesto.is-active {
@@ -654,7 +702,25 @@ body.is-loader-text-ready .loader-marquee-clear {
   visibility: hidden;
   pointer-events: none;
   transform: translateZ(0);
-  will-change: opacity;
+  will-change: opacity, mask-image;
+  -webkit-mask-image:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      transparent calc(var(--hero-exit-edge, 100%) - var(--hero-exit-feather, 10vh)),
+      rgba(0, 0, 0, .72) calc(var(--hero-exit-edge, 100%) + var(--hero-exit-feather-soft, 3vh)),
+      #000 calc(var(--hero-exit-edge, 100%) + var(--hero-exit-feather, 10vh)),
+      #000 100%
+    );
+  mask-image:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      transparent calc(var(--hero-exit-edge, 100%) - var(--hero-exit-feather, 10vh)),
+      rgba(0, 0, 0, .72) calc(var(--hero-exit-edge, 100%) + var(--hero-exit-feather-soft, 3vh)),
+      #000 calc(var(--hero-exit-edge, 100%) + var(--hero-exit-feather, 10vh)),
+      #000 100%
+    );
   background:
     radial-gradient(circle at 12% 16%, rgba(56,166,154,.12), transparent 30vw),
     radial-gradient(circle at 86% 22%, rgba(183,91,52,.11), transparent 28vw),

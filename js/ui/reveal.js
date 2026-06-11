@@ -67,7 +67,7 @@ function initPostHeroSnap({ gsap, ScrollTrigger }) {
   const sections = gsap.utils.toArray('.post-hero-stage > section');
   if (!stage || sections.length < 2) return;
 
-  const SNAP_RADIUS_VH = 0.16;
+  const SNAP_RADIUS_VH = 0.15;
   const FAST_SNAP_RADIUS_VH = 0.1;
   const FAST_SCROLL_VELOCITY = 1800;
   let snapTrigger = null;
