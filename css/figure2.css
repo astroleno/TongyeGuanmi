@@ -13,10 +13,10 @@
   --figure2-far-arcade-white-opacity: 0.40;
   --figure2-far-arcade-color-opacity: 1;
   --figure2-far-arcade-relief-opacity: 0;
-  --figure2-warmth-opacity: 0.70;
-  --figure2-air-opacity: 0.20;
+  --figure2-warmth-opacity: 0.38;
+  --figure2-air-opacity: 0.16;
   --figure2-texture-opacity: 0;
-  --figure2-contact-shadow-opacity: 0;
+  --figure2-contact-shadow-opacity: 0.82;
   --figure2-figure-opacity: 1;
   min-height: 100%;
   background:
@@ -63,6 +63,7 @@
 
 .figure2-field {
   overflow: hidden;
+  isolation: isolate;
   background:
     radial-gradient(ellipse at 50% 48%, rgba(255, 252, 242, 0.34), transparent 32rem),
     linear-gradient(180deg, #f1ecdf 0%, #e5d9c5 100%);
@@ -83,12 +84,33 @@
   position: absolute;
   inset: 0;
   z-index: 6;
-  opacity: 0.48;
+  opacity: 0.38;
   pointer-events: none;
   background:
     linear-gradient(90deg, rgba(5, 8, 7, 0.08) 0%, transparent 18%, transparent 82%, rgba(5, 8, 7, 0.08) 100%),
     radial-gradient(ellipse at 50% 50%, transparent 0 58%, rgba(5, 8, 7, 0.04) 84%, rgba(5, 8, 7, 0.12) 100%),
     linear-gradient(180deg, rgba(5, 8, 7, 0.035) 0%, transparent 20%, transparent 78%, rgba(5, 8, 7, 0.07) 100%);
+}
+
+.figure2-field::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse at 50% 46%,
+      rgba(255, 244, 210, 0.14) 0%,
+      rgba(255, 244, 210, 0.06) 22%,
+      transparent 48%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(255, 250, 232, 0.08) 0%,
+      transparent 38%,
+      rgba(40, 32, 24, 0.08) 100%
+    );
 }
 
 .figure2-arch-stack {
@@ -124,21 +146,24 @@
 
 .figure2-arch-layer--cloud {
   z-index: 1;
-  filter: blur(0.2px) saturate(0.72) contrast(0.88) brightness(1.08) sepia(0.04);
+  opacity: 0.92;
+  filter: brightness(1.08) contrast(0.76) saturate(0.72) blur(0.4px) sepia(0.04);
 }
 
 .figure2-arch-layer--far-arcade-window {
   z-index: 2;
-  filter: sepia(0.36) saturate(1.12) contrast(1.04) brightness(0.84);
+  opacity: 0.86;
+  filter: brightness(1.03) contrast(0.84) saturate(0.78) sepia(0.10);
 }
 
 .figure2-arch-layer--middle-composite {
   z-index: 3;
-  filter: sepia(0.30) saturate(1.08) contrast(1.03) brightness(0.87);
+  opacity: 0.96;
+  filter: brightness(0.96) contrast(0.94) saturate(0.86) sepia(0.08);
 }
 
 .figure2-arch-layer--near-arch {
-  z-index: 7;
+  z-index: 10;
   left: 50%;
   top: 50%;
   right: auto;
@@ -148,9 +173,9 @@
   object-fit: cover;
   object-position: 50% 50%;
   transform: translate3d(-50%, -50%, 0) scale(1.025);
-  opacity: 1;
+  opacity: 0.98;
   will-change: transform, filter;
-  filter: blur(var(--figure2-near-arch-blur, 0px)) saturate(0.68) contrast(0.82) brightness(0.56) sepia(0.04);
+  filter: blur(var(--figure2-near-arch-blur, 0px)) brightness(0.82) contrast(1.08) saturate(0.84) sepia(0.04);
 }
 
 .figure2-scene-ink-transition {
@@ -168,7 +193,7 @@
 }
 
 .figure2-center-wash {
-  z-index: 6;
+  z-index: 4;
   opacity: var(--figure2-air-opacity);
   pointer-events: none;
   mix-blend-mode: screen;
@@ -180,7 +205,7 @@
 }
 
 .figure2-fresco-warmth {
-  z-index: 6;
+  z-index: 4;
   opacity: var(--figure2-warmth-opacity);
   pointer-events: none;
   mix-blend-mode: color;
@@ -190,7 +215,7 @@
 }
 
 .figure2-fresco-texture {
-  z-index: 6;
+  z-index: 4;
   opacity: var(--figure2-texture-opacity);
   pointer-events: none;
   mix-blend-mode: soft-light;
@@ -254,8 +279,31 @@
   backface-visibility: hidden;
 }
 
+.figure2-people-contact-shadow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: var(--figure2-contact-shadow-opacity);
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse at 43% 92%,
+      rgba(38, 28, 18, 0.22) 0%,
+      rgba(38, 28, 18, 0.10) 5%,
+      transparent 12%
+    ),
+    radial-gradient(
+      ellipse at 57% 92%,
+      rgba(38, 28, 18, 0.20) 0%,
+      rgba(38, 28, 18, 0.09) 5%,
+      transparent 12%
+    );
+  filter: blur(4px);
+}
+
 .figure2-figure {
   position: absolute;
+  z-index: 1;
   bottom: 0;
   width: clamp(154px, 14.2vw, 260px);
   min-width: 0;
@@ -303,15 +351,15 @@
   width: 100%;
   height: auto;
   object-fit: contain;
-  filter: saturate(0.94) contrast(0.90) brightness(1.06) blur(0.18px);
+  filter: brightness(1.03) contrast(1.16) saturate(1.10) drop-shadow(0 10px 8px rgba(40, 30, 20, 0.22));
   transform: translateZ(0);
   backface-visibility: hidden;
 }
 
 .figure2-multiply-video .figure2-figure-video {
-  opacity: 0.92;
+  opacity: 0.96;
   mix-blend-mode: multiply;
-  filter: saturate(0.98) contrast(0.92) brightness(1.12) blur(0.08px);
+  filter: brightness(1.06) contrast(1.12) saturate(1.08) drop-shadow(0 10px 8px rgba(40, 30, 20, 0.20));
 }
 
 .figure2-progress {
