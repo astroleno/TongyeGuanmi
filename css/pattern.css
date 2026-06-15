@@ -1,0 +1,294 @@
+@font-face {
+  font-family: "Tongye Title";
+  src: url("../assets/fonts/qiji-title-subset.ttf") format("truetype");
+  font-display: swap;
+}
+
+:root {
+  --pattern-bg: #d9c08f;
+  --pattern-ink: #221815;
+  --pattern-muted: rgba(34, 24, 21, 0.62);
+  --pattern-line: rgba(34, 24, 21, 0.14);
+  --pattern-jade: #38a69a;
+  --pattern-cinnabar: #b75b34;
+  --pattern-gold: #9f7a29;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: var(--pattern-bg);
+}
+
+body {
+  min-height: 100%;
+  overflow: hidden;
+  font-family: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: var(--pattern-ink);
+  text-rendering: geometricPrecision;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pattern-page {
+  position: relative;
+  min-height: 100svh;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    center / cover no-repeat url("../assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png"),
+    var(--pattern-bg);
+}
+
+.pattern-stage {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 0;
+  width: min(200vmin, 2508px);
+  height: min(200vmin, 2508px);
+  overflow: visible;
+  pointer-events: none;
+  transform: translate3d(-50%, -50%, 0);
+}
+
+.pattern-layer-frame {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  animation-duration: 48s;
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+  will-change: transform;
+}
+
+.pattern-layer-frame--even {
+  animation-name: patternSpinClockwise;
+}
+
+.pattern-layer-frame--odd {
+  animation-name: patternSpinCounter;
+}
+
+.pattern-layer-frame img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  width: var(--layer-width);
+  max-width: none;
+  height: auto;
+  transform:
+    translate3d(
+      calc(-50% + var(--layer-x, 0px)),
+      calc(-50% + var(--layer-y, 0px)),
+      0
+    )
+    rotate(var(--layer-angle, 0deg))
+    scale(var(--layer-scale, 1));
+  transform-origin: center;
+  user-select: none;
+}
+
+.pattern-layer-02 {
+  --layer-width: 90vmin;
+}
+
+.pattern-layer-03 {
+  --layer-width: 115vmin;
+  --layer-x: 0.12vmin;
+  --layer-y: -0.94vmin;
+  animation-duration: 56s;
+}
+
+.pattern-layer-04 {
+  --layer-width: 90vmin;
+  --layer-angle: 22.5deg;
+  animation-duration: 52s;
+}
+
+.pattern-layer-05 {
+  --layer-width: 128vmin;
+  --layer-scale: 1.15;
+  animation-duration: 64s;
+}
+
+.pattern-layer-06 {
+  --layer-width: 205vmin;
+  --layer-angle: -5deg;
+  --layer-scale: 1.10;
+  animation-duration: 60s;
+}
+
+@keyframes patternSpinClockwise {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes patternSpinCounter {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.pattern-nav {
+  position: fixed;
+  top: 24px;
+  left: 28px;
+  right: 28px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.pattern-brand,
+.pattern-back {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  color: rgba(34, 24, 21, 0.88);
+  border: 1px solid rgba(34, 24, 21, 0.14);
+  background: rgba(245, 229, 184, 0.58);
+  box-shadow: 0 18px 50px rgba(34, 24, 21, 0.10);
+  backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.pattern-brand {
+  gap: 10px;
+  padding: 6px 14px 6px 7px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.pattern-brand-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: linear-gradient(145deg, rgba(232, 213, 154, 0.38), rgba(56, 166, 154, 0.18));
+  color: var(--pattern-gold);
+  font-family: "Tongye Title", serif;
+  font-size: 1.03rem;
+  line-height: 1;
+}
+
+.pattern-back {
+  justify-content: center;
+  padding: 0 15px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.pattern-brand:hover,
+.pattern-back:hover {
+  border-color: rgba(183, 91, 52, 0.34);
+  color: var(--pattern-cinnabar);
+}
+
+.pattern-control-panel {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 5;
+  display: grid;
+  width: min(360px, calc(100vw - 32px));
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(34, 24, 21, 0.14);
+  border-radius: 8px;
+  background: rgba(245, 229, 184, 0.66);
+  box-shadow: 0 18px 50px rgba(34, 24, 21, 0.12);
+  backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.pattern-control {
+  display: grid;
+  grid-template-columns: 70px minmax(120px, 1fr) 58px;
+  align-items: center;
+  gap: 10px;
+  color: rgba(34, 24, 21, 0.82);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.pattern-control input {
+  width: 100%;
+  accent-color: var(--pattern-cinnabar);
+}
+
+.pattern-control output {
+  color: rgba(34, 24, 21, 0.66);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+@media (max-width: 760px) {
+  .pattern-nav {
+    top: 16px;
+    left: 16px;
+    right: 16px;
+  }
+
+  .pattern-brand,
+  .pattern-back {
+    min-height: 38px;
+  }
+
+  .pattern-brand {
+    padding-right: 11px;
+    font-size: 0.86rem;
+  }
+
+  .pattern-brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+
+  .pattern-back {
+    padding: 0 12px;
+    font-size: 0.84rem;
+  }
+
+  .pattern-control-panel {
+    right: 16px;
+    bottom: 16px;
+    width: calc(100vw - 32px);
+  }
+
+  .pattern-control {
+    grid-template-columns: 62px minmax(96px, 1fr) 54px;
+  }
+}

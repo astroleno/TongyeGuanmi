@@ -1,0 +1,164 @@
+@font-face {
+  font-family: "Tongye Title";
+  src: url("../assets/fonts/qiji-title-subset.ttf") format("truetype");
+  font-display: swap;
+}
+
+:root {
+  --bloom-bg: #d9c08f;
+  --bloom-ink: #221815;
+  --bloom-line: rgba(34, 24, 21, 0.14);
+  --bloom-cinnabar: #b75b34;
+  --bloom-gold: #9f7a29;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: var(--bloom-bg);
+}
+
+body {
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: none;
+  font-family: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: var(--bloom-ink);
+  text-rendering: geometricPrecision;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bloom-page {
+  position: relative;
+  min-height: 130svh;
+  isolation: isolate;
+  overflow: clip;
+  background:
+    center / cover no-repeat url("../assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png"),
+    var(--bloom-bg);
+}
+
+.bloom-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100vw;
+  height: 100svh;
+}
+
+.bloom-nav {
+  position: fixed;
+  top: 24px;
+  left: 28px;
+  right: 28px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.bloom-brand,
+.bloom-links a {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  color: rgba(34, 24, 21, 0.88);
+  border: 1px solid var(--bloom-line);
+  background: rgba(245, 229, 184, 0.58);
+  box-shadow: 0 18px 50px rgba(34, 24, 21, 0.10);
+  backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.bloom-brand {
+  gap: 10px;
+  padding: 6px 14px 6px 7px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.bloom-brand-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: linear-gradient(145deg, rgba(232, 213, 154, 0.38), rgba(56, 166, 154, 0.18));
+  color: var(--bloom-gold);
+  font-family: "Tongye Title", serif;
+  font-size: 1.03rem;
+  line-height: 1;
+}
+
+.bloom-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bloom-links a {
+  justify-content: center;
+  padding: 0 15px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.bloom-brand:hover,
+.bloom-links a:hover {
+  border-color: rgba(183, 91, 52, 0.34);
+  color: var(--bloom-cinnabar);
+}
+
+@media (max-width: 760px) {
+  .bloom-nav {
+    top: 16px;
+    left: 16px;
+    right: 16px;
+  }
+
+  .bloom-brand,
+  .bloom-links a {
+    min-height: 38px;
+  }
+
+  .bloom-brand {
+    padding-right: 11px;
+    font-size: 0.86rem;
+  }
+
+  .bloom-brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+
+  .bloom-links {
+    gap: 8px;
+  }
+
+  .bloom-links a {
+    padding: 0 12px;
+    font-size: 0.84rem;
+  }
+}

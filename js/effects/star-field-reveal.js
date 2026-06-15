@@ -220,29 +220,34 @@ class StarFieldReveal {
   renderNoiseOverlay(timeSeconds, strength, options = {}) {
     this.buildDynamicHighlight(timeSeconds, options);
 
-    this.ctx.globalCompositeOperation = 'lighter';
-    this.drawCanvasLayer(this.dynamicHighlightCanvas, {
-      blur: 72,
-      scale: 1.012,
-      alpha: 1.08 * strength
-    });
-    this.drawCanvasLayer(this.dynamicHighlightCanvas, {
-      blur: 26,
-      scale: 1.004,
-      alpha: .92 * strength
-    });
-    this.drawCanvasLayer(this.dynamicHighlightCanvas, {
-      blur: 4,
-      scale: 1,
-      alpha: .62 * strength
-    });
+    const passes = Math.max(1, Math.ceil(strength));
+    const passStrength = strength / passes;
 
-    this.ctx.globalCompositeOperation = 'screen';
-    this.drawCanvasLayer(this.dynamicHighlightCanvas, {
-      blur: 0,
-      scale: 1,
-      alpha: .52 * strength
-    });
+    for (let i = 0; i < passes; i += 1) {
+      this.ctx.globalCompositeOperation = 'lighter';
+      this.drawCanvasLayer(this.dynamicHighlightCanvas, {
+        blur: 72,
+        scale: 1.012,
+        alpha: 1.08 * passStrength
+      });
+      this.drawCanvasLayer(this.dynamicHighlightCanvas, {
+        blur: 26,
+        scale: 1.004,
+        alpha: .92 * passStrength
+      });
+      this.drawCanvasLayer(this.dynamicHighlightCanvas, {
+        blur: 4,
+        scale: 1,
+        alpha: .62 * passStrength
+      });
+
+      this.ctx.globalCompositeOperation = 'screen';
+      this.drawCanvasLayer(this.dynamicHighlightCanvas, {
+        blur: 0,
+        scale: 1,
+        alpha: .52 * passStrength
+      });
+    }
     this.resetContext();
   }
 
@@ -346,7 +351,7 @@ class StarFieldReveal {
     const dx = (w - dw) / 2;
     const dy = (h - dh) / 2;
 
-    this.ctx.globalAlpha = Math.max(0, alpha);
+    this.ctx.globalAlpha = Math.min(1, Math.max(0, alpha));
     this.ctx.filter = `blur(${Math.max(0, blur)}px) brightness(1.18)`;
     this.ctx.drawImage(layerCanvas, dx, dy, dw, dh);
   }

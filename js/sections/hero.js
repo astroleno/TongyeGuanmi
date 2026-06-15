@@ -191,8 +191,13 @@ export function initLayeredHero(options = {}) {
       middleDepthSrc: HERO_MIDDLE_DEPTH_SRC
     },
     targetSrc: HERO_NEXT_SCENE_SRC,
+    nextSceneElement: starFieldCanvas,
     figureMaskElement: figure,
-    hideAtEnd: true
+    hideAtEnd: false,
+    perlinOverlay: true,
+    perlinStrength: 0,
+    progressSpan: 1,
+    sceneBrightness: 1
   });
   const exitInkTransition = createInkCurtainTransition(exitInkCanvas, {
     direction: 'bottom-up',
@@ -354,6 +359,7 @@ export function initLayeredHero(options = {}) {
   const setMiddleX = gsap.quickSetter(middle, 'x', 'px');
   const setMiddleScaleX = gsap.quickSetter(middle, 'scaleX');
   const setMiddleScaleY = gsap.quickSetter(middle, 'scaleY');
+  const setMiddleOpacity = gsap.quickSetter(middle, 'opacity');
   const setMiddleNearBlurY = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'y', 'px') : null;
   const setMiddleNearBlurX = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'x', 'px') : null;
   const setMiddleNearBlurScaleX = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'scaleX') : null;
@@ -362,6 +368,7 @@ export function initLayeredHero(options = {}) {
   const setFigureX = gsap.quickSetter(figure, 'x', 'px');
   const setFigureScaleX = gsap.quickSetter(figure, 'scaleX');
   const setFigureScaleY = gsap.quickSetter(figure, 'scaleY');
+  const setFigureOpacity = gsap.quickSetter(figure, 'opacity');
   const setContentY = gsap.quickSetter(content, 'y', 'px');
   const setContentX = gsap.quickSetter(content, 'x', 'px');
   const setManifestoOpacity = manifesto ? gsap.quickSetter(manifesto, 'opacity') : null;
@@ -370,7 +377,6 @@ export function initLayeredHero(options = {}) {
   const setMiddleNearBlurOpacity = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'opacity') : null;
   const setNavOpacity = nav ? gsap.quickSetter(nav, 'opacity') : null;
   const setNavY = nav ? gsap.quickSetter(nav, 'y', 'px') : null;
-  const setStarFieldOpacity = starFieldCanvas ? gsap.quickSetter(starFieldCanvas, 'opacity') : null;
 
   let renderedProgress = 0;
   let lastApplied = -1;
@@ -381,6 +387,7 @@ export function initLayeredHero(options = {}) {
   let lastInkProgress = -1;
   let lastManifestoProgress = -1;
   let lastManifestoExitProgress = -1;
+  let lastSecondSceneRenderAt = 0;
   let touchStartY = 0;
 
   const smoothStep = (value) => value * value * (3 - 2 * value);
@@ -408,8 +415,8 @@ export function initLayeredHero(options = {}) {
     }
     introInkTransition?.render(renderProgress, mouseX, mouseY, visibilityProgress);
   };
-  const updateInkTransition = (progress) => {
-    inkTransition?.render(progress, mouseX, mouseY);
+  const updateInkTransition = (progress, renderOptions = {}) => {
+    inkTransition?.render(progress, mouseX, mouseY, progress, renderOptions);
   };
   const updateExitInkTransition = (progress) => {
     exitInkTransition?.render(progress, mouseX, mouseY);
@@ -473,7 +480,7 @@ export function initLayeredHero(options = {}) {
     const now = performance.now();
     const elapsedFrames = clamp((now - lastVideoEnergyAt) / 16.67, 0.5, 4);
     lastVideoEnergyAt = now;
-    const inVideoRange = progress > 0.045 && progress < 0.92;
+    const inVideoRange = progress > 0.045 && progress < 0.74;
     const recentlyScrolled = now - lastHeroScrollAt < 120;
     const scrollMoving = inVideoRange && (recentlyScrolled || scrollDelta > 0.001);
     if (scrollMoving) {
@@ -510,7 +517,7 @@ export function initLayeredHero(options = {}) {
     if (figure.paused) figure.play().catch(() => undefined);
   };
 
-  const updateDepthFilters = (progress, introProgress, middleIntro, figureIntro) => {
+  const updateDepthFilters = (progress, introProgress, middleIntro, figureIntro, firstSceneForegroundOpacity = 1) => {
     const introClarity = smoothStep(introProgress);
     const farClarity = smoothStep(range01(progress, 0.03, 0.66));
     const rockClarity = smoothStep(range01(progress, 0.10, 0.62));
@@ -524,7 +531,7 @@ export function initLayeredHero(options = {}) {
     figure.style.filter = `url('#figure-alpha-clean') blur(${figureBlur.toFixed(2)}px) brightness(1.18) saturate(1.08) contrast(1.03)`;
 
     if (middleNearBlur) {
-      setMiddleNearBlurOpacity(0.24 * nearBlurStrength);
+      setMiddleNearBlurOpacity(0.24 * nearBlurStrength * firstSceneForegroundOpacity);
     }
   };
 
@@ -563,9 +570,6 @@ export function initLayeredHero(options = {}) {
       : 0;
     const inkProgress = introSettled ? clamp((rawHeroScroll - transitionStartRange) / transitionRange, 0, 1) : 0;
     const heroInView = rawHeroScroll > -viewportH && rawHeroScroll < totalRange + viewportH;
-    const starFieldOpacity = introSettled && heroInView
-      ? smoothStep(range01(inkProgress, 0.54, 0.96))
-      : 0;
     const manifestoEnterProgress = introSettled
       ? smoothStep(range01(rawHeroScroll, sceneRange - viewportH * 0.16, sceneRange + viewportH * 0.04))
       : 0;
@@ -578,7 +582,8 @@ export function initLayeredHero(options = {}) {
     const manifestoContentExitProgress = smoothStep(range01(manifestoExitProgress, 0, 0.34));
     const manifestoContentProgress = manifestoEnterProgress * (1 - manifestoContentExitProgress);
     const exitSweepProgress = smoothStep(range01(manifestoExitProgress, 0.015, 0.985));
-    const exitEdgePercent = 100 - exitSweepProgress * 112;
+    const exitOvershootProgress = smoothStep(range01(exitSweepProgress, 0.82, 1));
+    const exitEdgePercent = 100 - exitSweepProgress * 100 - exitOvershootProgress * 24;
     const mouseChanged = Math.abs(lastMouseAppliedX - mouseX) > 0.001 || Math.abs(lastMouseAppliedY - mouseY) > 0.001;
     const introChanged = Math.abs(lastIntroProgress - introProgress) > 0.001;
     const navChanged = Math.abs(lastNavReveal - navReveal) > 0.001;
@@ -588,8 +593,9 @@ export function initLayeredHero(options = {}) {
     const introInkAnimating = !heroIntroComplete && introProgress > 0.002 && introProgress < 0.999;
     const inkAnimating = inkProgress > 0.002 && inkProgress < 0.995;
     const exitInkAnimating = manifestoExitProgress > 0.002 && manifestoExitProgress < 0.995;
-    const starFieldAnimating = Boolean(starFieldReveal && starFieldCanvas && starFieldOpacity > 0.002);
-    if (Math.abs(lastApplied - renderedProgress) < 0.0012 && !introChanged && !introInkAnimating && !mouseChanged && !navChanged && !inkChanged && !manifestoChanged && !manifestoExitChanged && !inkAnimating && !exitInkAnimating && !starFieldAnimating) return;
+    const now = performance.now();
+    const secondSceneFrameDue = Boolean(starFieldReveal?.ready && inkProgress > 0.002 && heroInView && now - lastSecondSceneRenderAt > 72);
+    if (Math.abs(lastApplied - renderedProgress) < 0.0012 && !introChanged && !introInkAnimating && !mouseChanged && !navChanged && !inkChanged && !manifestoChanged && !manifestoExitChanged && !inkAnimating && !exitInkAnimating && !secondSceneFrameDue) return;
     lastApplied = renderedProgress;
     lastIntroProgress = introProgress;
     lastMouseAppliedX = mouseX;
@@ -601,6 +607,8 @@ export function initLayeredHero(options = {}) {
 
     const p = renderedProgress;
     const layerProgress = introSettled ? p : 0;
+    const firstSceneForegroundOpacity = 1 - smoothStep(range01(inkProgress, 0.08, 0.62));
+    const firstSceneForegroundVisible = firstSceneForegroundOpacity > 0.002;
     const viewportW = window.innerWidth;
     const farIntro = farInkEase(range01(introProgress, 0, 1));
     const middleIntro = stagedLayerEase(range01(introProgress, 0, 0.92));
@@ -627,6 +635,8 @@ export function initLayeredHero(options = {}) {
     setBackScaleY(backScale);
     setMiddleY(middleScrollY + middleParallaxY + middleEnterY);
     setMiddleX(middleParallaxX + middleEnterX);
+    setMiddleOpacity(firstSceneForegroundOpacity);
+    middle.style.visibility = firstSceneForegroundVisible ? 'visible' : 'hidden';
     if (setMiddleNearBlurY) setMiddleNearBlurY(middleScrollY + middleParallaxY + middleEnterY);
     if (setMiddleNearBlurX) setMiddleNearBlurX(middleParallaxX + middleEnterX);
     const middleScale = HERO_MIDDLE_BASE_SCALE + layerProgress * HERO_MIDDLE_SCROLL_SCALE_DELTA + (1 - middleIntro) * 0.135;
@@ -634,29 +644,43 @@ export function initLayeredHero(options = {}) {
     setMiddleScaleY(middleScale);
     if (setMiddleNearBlurScaleX) setMiddleNearBlurScaleX(middleScale);
     if (setMiddleNearBlurScaleY) setMiddleNearBlurScaleY(middleScale);
+    if (middleNearBlur) middleNearBlur.style.visibility = firstSceneForegroundVisible ? 'visible' : 'hidden';
     setFigureY(figureScrollY + figureParallaxY + figureEnterY);
     setFigureX(figureParallaxX + figureEnterX);
     const figureScale = HERO_FIGURE_BASE_SCALE + smoothStep(range01(layerProgress, 0.16, 0.92)) * 0.065 + (1 - figureIntro) * 0.12;
     setFigureScaleX(figureScale);
     setFigureScaleY(figureScale);
-    updateDepthFilters(layerProgress, farIntro, middleIntro, figureIntro);
+    setFigureOpacity(firstSceneForegroundOpacity);
+    figure.style.visibility = firstSceneForegroundVisible ? 'visible' : 'hidden';
+    if (!firstSceneForegroundVisible && !figure.paused) figure.pause();
+    updateDepthFilters(layerProgress, farIntro, middleIntro, figureIntro, firstSceneForegroundOpacity);
 
     setContentX(0);
     setContentY(0);
     updateIntroInkTransition(introProgress, farIntro);
-    updateInkTransition(inkProgress);
-    if (starFieldCanvas && setStarFieldOpacity) {
-      setStarFieldOpacity(starFieldOpacity);
-      starFieldCanvas.style.visibility = starFieldOpacity > 0.002 ? 'visible' : 'hidden';
-      if (starFieldOpacity > 0.002) {
-        const starFieldStrength = lerp(0.45, 1, smoothStep(range01(inkProgress, 0.72, 1)));
-        const starFieldNoiseFloor = lerp(0.12, 0, smoothStep(range01(inkProgress, 0.72, 1)));
-        starFieldReveal?.renderBackground({
-          timeSeconds: performance.now() / 1000,
-          strength: starFieldStrength,
-          noiseFloor: starFieldNoiseFloor
-        });
-      }
+    const secondSceneSettle = smoothStep(range01(inkProgress, 0.78, 1));
+    const secondScenePerlinStrength = 0;
+    const secondSceneBrightness = lerp(0.98, 0.92, secondSceneSettle);
+    if (starFieldReveal?.ready && (inkChanged || inkAnimating || secondSceneFrameDue)) {
+      const highlightResolve = smoothStep(range01(inkProgress, 0.58, 1));
+      starFieldReveal.renderBackground({
+        timeSeconds: now / 1000,
+        strength: lerp(1.35, 2.65, highlightResolve),
+        noiseFloor: lerp(0.18, 0.03, highlightResolve)
+      });
+      starFieldCanvas.dataset.inkTextureReady = 'true';
+      lastSecondSceneRenderAt = now;
+    }
+    updateInkTransition(inkProgress, {
+      perlinStrength: secondScenePerlinStrength,
+      sceneBrightness: secondSceneBrightness
+    });
+    if (inkProgress <= 0.002 || !starFieldReveal?.ready) {
+      lastSecondSceneRenderAt = 0;
+    }
+    if (starFieldCanvas) {
+      starFieldCanvas.style.visibility = 'hidden';
+      starFieldCanvas.style.opacity = '0';
     }
     updateExitInkTransition(manifestoExitProgress);
     if (manifesto) {

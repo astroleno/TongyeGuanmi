@@ -292,6 +292,10 @@ export function createInkSceneTransition(canvas, options = {}) {
       uniform vec4 uFigureRect;
       uniform float uFigureReady;
       uniform float uUseFigureMask;
+      uniform float uPerlinOverlay;
+      uniform float uPerlinStrength;
+      uniform float uSceneBrightness;
+      uniform float uDepthThresholdMode;
 
       float hash(vec2 p) {
         p = fract(p * vec2(127.1, 311.7));
@@ -332,6 +336,13 @@ export function createInkSceneTransition(canvas, options = {}) {
           covered.x = (uv.x - 0.5) * (screenAspect / textureAspect) + 0.5;
         }
         return covered;
+      }
+
+      float highlightFromColor(vec3 color) {
+        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        float value = max(max(color.r, color.g), color.b);
+        float score = luma * 0.58 + value * 0.42;
+        return pow(clamp((score - 0.24) / 0.22, 0.0, 1.0), 1.55);
       }
 
       void main() {
@@ -386,6 +397,66 @@ export function createInkSceneTransition(canvas, options = {}) {
         mud += fbm(aspectUv * 31.0 + warp * 3.2 - uTime * 0.12) * 0.035;
         mud += sin((uv.x + uv.y) * 34.0 + uTime * 0.9) * 0.018;
 
+        float thresholdDepthRank = smoothstep(0.055, 0.94, texture2D(uMiddleDepth, depthUv).r) * uDepthReady;
+        thresholdDepthRank = mix(0.50, thresholdDepthRank, uDepthReady);
+        float thresholdRadialRank = smoothstep(0.02, 0.92, dist);
+        float thresholdBroad = fbm(aspectUv * 3.1 + warp * 0.95 + vec2(0.0, -uTime * 0.032));
+        float thresholdWet = fbm(aspectUv * 8.2 + warp * 1.70 + vec2(thresholdBroad * 1.25, uTime * 0.048));
+        float thresholdPore = fbm(aspectUv * 25.0 - warp * 2.45 + vec2(-uTime * 0.070, thresholdBroad * 1.32));
+        float thresholdRipple = sin((uv.x - center.x) * 31.0 + thresholdWet * 3.6 - uTime * 0.58) * 0.014;
+        float thresholdNoise = (thresholdBroad - 0.5) * 0.090 + (thresholdWet - 0.5) * 0.065 + (thresholdPore - 0.5) * 0.022 + thresholdRipple;
+        float thresholdCenterColumn = 1.0 - smoothstep(0.035, 0.34, abs(uv.x - center.x));
+        float thresholdArchTunnel = smoothstep(0.34, 0.88, 1.0 - thresholdDepthRank) * (1.0 - smoothstep(0.10, 0.58, dist));
+        float thresholdCorridorPull = thresholdCenterColumn * smoothstep(0.24, 0.82, 1.0 - thresholdDepthRank) * (1.0 - smoothstep(0.60, 0.98, uv.y));
+        float thresholdFarPull = smoothstep(0.26, 0.88, 1.0 - thresholdDepthRank) * (thresholdArchTunnel + thresholdCorridorPull * 0.65);
+        float thresholdOrder = thresholdDepthRank * 0.76 + thresholdRadialRank * 0.18 - thresholdFarPull * 0.28 + thresholdNoise;
+        float thresholdNearMask = smoothstep(0.56, 0.88, thresholdDepthRank);
+        float thresholdNearOrder = 0.66 + smoothstep(0.56, 1.0, thresholdDepthRank) * 0.11 + thresholdNoise * 0.28;
+        thresholdOrder = mix(thresholdOrder, thresholdNearOrder, thresholdNearMask);
+        thresholdOrder = clamp(thresholdOrder, -0.08, 1.04);
+        float thresholdLiveBand = 1.0 - smoothstep(0.0, 0.26, abs(p - thresholdOrder));
+        float thresholdTendril = smoothstep(0.58, 0.93, thresholdWet + thresholdPore * 0.34)
+          * thresholdLiveBand
+          * (0.022 + energy * 0.036);
+        float thresholdEdgeJitter = (
+          (thresholdWet - 0.5) * 0.050
+          + (thresholdPore - 0.5) * 0.026
+          + sin((uv.x + uv.y * 0.72) * 46.0 + thresholdBroad * 4.2 - uTime * 1.15) * 0.014
+        ) * (0.55 + energy * 0.45) * thresholdLiveBand;
+        float thresholdEdge = p - (thresholdOrder + thresholdEdgeJitter - thresholdTendril);
+        float thresholdDissolve = smoothstep(-0.028, 0.052, thresholdEdge);
+        float thresholdSoftBand = 1.0 - smoothstep(0.0, 0.154, abs(thresholdEdge));
+        float thresholdHotBand = 1.0 - smoothstep(0.0, 0.052, abs(thresholdEdge));
+        float thresholdFeather = 1.0 - smoothstep(0.0, 0.188, abs(thresholdEdge));
+        float thresholdVeins = smoothstep(0.62, 0.965, thresholdWet + thresholdPore * 0.34) * thresholdFeather;
+        vec2 thresholdParticleUv = aspectUv * vec2(42.0, 48.0) + warp * 1.35 + vec2(0.0, -uTime * 0.12);
+        vec2 thresholdParticleCell = floor(thresholdParticleUv);
+        vec2 thresholdParticleLocal = fract(thresholdParticleUv) - 0.5;
+        float thresholdParticleSeed = hash(thresholdParticleCell);
+        vec2 thresholdParticleJitter = vec2(
+          hash(thresholdParticleCell + vec2(17.3, 5.1)),
+          hash(thresholdParticleCell + vec2(43.7, 9.8))
+        ) - 0.5;
+        float thresholdParticleRadius = mix(0.075, 0.190, hash(thresholdParticleCell + vec2(2.6, 11.9)));
+        float thresholdParticleDot = 1.0 - smoothstep(
+          thresholdParticleRadius * 0.28,
+          thresholdParticleRadius,
+          length(thresholdParticleLocal - thresholdParticleJitter * 0.38)
+        );
+        float thresholdParticleWindow = (1.0 - smoothstep(0.022, 0.360, abs(thresholdEdge))) * smoothstep(0.035, 0.96, p);
+        float thresholdSprayWindow = smoothstep(-0.245, -0.024, thresholdEdge)
+          * (1.0 - smoothstep(-0.024, 0.132, thresholdEdge))
+          * smoothstep(0.04, 0.88, p);
+        thresholdParticleWindow = max(thresholdParticleWindow * 0.76, thresholdSprayWindow);
+        float thresholdParticles = thresholdParticleDot
+          * smoothstep(0.805, 0.965, thresholdParticleSeed)
+          * thresholdParticleWindow
+          * (0.50 + energy * 0.78);
+        float thresholdParticleCore = thresholdParticles * smoothstep(0.55, 0.98, thresholdParticleDot);
+        float thresholdEmberMask = smoothstep(0.68, 0.982, hash(floor((aspectUv + warp * 0.62) * uResolution.y * 0.058 + uTime * 4.35)));
+        float thresholdEmber = (thresholdSoftBand * thresholdEmberMask + thresholdParticles * 0.38) * (0.16 + energy * 0.48);
+        thresholdDissolve = max(thresholdDissolve, thresholdParticleCore * 0.18 + thresholdParticles * 0.10);
+
         float threshold = mountainSweep + mud - 0.105;
         float depthTear = nearDepth * (0.13 + fbm(aspectUv * 19.0 + uTime * 0.11) * 0.065);
         float farTear = farDepth * (0.035 + fbm(aspectUv * 7.0 - uTime * 0.05) * 0.025);
@@ -432,19 +503,43 @@ export function createInkSceneTransition(canvas, options = {}) {
         nearHotBand = nearDepth * (1.0 - smoothstep(0.0, 0.062, abs(nearEdge)));
         softBand = max(farSoftBand, nearSoftBand * 1.24);
         hotBand = max(farHotBand, nearHotBand * 1.38);
+        dissolve = mix(dissolve, thresholdDissolve, uDepthThresholdMode);
+        farEdge = mix(farEdge, thresholdEdge, uDepthThresholdMode);
+        nearEdge = mix(nearEdge, thresholdEdge, uDepthThresholdMode);
+        farSoftBand = mix(farSoftBand, thresholdSoftBand * (1.0 - thresholdNearMask * 0.24), uDepthThresholdMode);
+        nearSoftBand = mix(nearSoftBand, thresholdSoftBand * (0.46 + thresholdNearMask * 0.92), uDepthThresholdMode);
+        farHotBand = mix(farHotBand, thresholdHotBand * (1.0 - thresholdNearMask * 0.18), uDepthThresholdMode);
+        nearHotBand = mix(nearHotBand, thresholdHotBand * (0.42 + thresholdNearMask * 0.96), uDepthThresholdMode);
+        softBand = mix(softBand, max(farSoftBand, nearSoftBand), uDepthThresholdMode);
+        hotBand = mix(hotBand, max(farHotBand, nearHotBand), uDepthThresholdMode);
         float flashWindow = smoothstep(0.0, 0.045, p) * (1.0 - smoothstep(0.56, 0.82, p));
         float ringSuppress = 1.0 - smoothstep(0.42, 0.72, p);
         float openingBreakup = smoothstep(0.30, 0.72, fbm(aspectUv * 8.4 + warp * 2.6 - uTime * 0.08));
         openingBreakup *= smoothstep(0.22, 0.62, fbm(aspectUv * 23.0 - warp * 3.4 + uTime * 0.13));
         float edgeParticleBand = clamp(max(softBand * 1.08, hotBand * 1.22), 0.0, 1.0);
         float openingSpatter = smoothstep(0.70, 0.975, hash(floor((aspectUv + warp * 0.68) * uResolution.y * 0.052 + uTime * 4.4))) * edgeParticleBand;
-        float openingInkMask = clamp(max(openingBreakup * 0.95 + openingSpatter * 0.50, figureInk * figureMask * 0.86), 0.0, 1.0);
-        float continuousGlow = softBand * (0.32 + energy * 0.30) + hotBand * (0.34 + energy * 0.28) + ember * 0.58;
-        glow = mix(continuousGlow, continuousGlow * openingInkMask * 0.18 + figureSeed * 0.13 + figureIgnite * 0.20, ringSuppress);
+        openingSpatter = mix(openingSpatter, max(openingSpatter, thresholdParticles), uDepthThresholdMode);
+        float thresholdInkDetail = thresholdVeins * 0.24 + thresholdEmber * 0.50 + thresholdParticles * 1.08 + thresholdParticleCore * 0.72;
+        float openingInkMask = clamp(
+          max(
+            openingBreakup * 0.95 + openingSpatter * 0.50 + thresholdInkDetail * 0.42 * uDepthThresholdMode,
+            figureInk * figureMask * 0.86
+          ),
+          0.0,
+          1.0
+        );
+        float continuousGlow = softBand * (0.32 + energy * 0.30)
+          + hotBand * (0.34 + energy * 0.28)
+          + ember * 0.58
+          + thresholdInkDetail * uDepthThresholdMode;
+        float suppressedGlow = continuousGlow * openingInkMask * mix(0.18, 0.72, uDepthThresholdMode)
+          + figureSeed * 0.13
+          + figureIgnite * 0.20;
+        glow = mix(continuousGlow, suppressedGlow, ringSuppress);
         float interiorGlow = smoothstep(0.18, 0.54, dissolve) * (1.0 - figureMask * ringSuppress * 0.68);
         float figureFlash = figureSeed * (0.38 + figureCore * 0.18) + figureIgnite * (0.56 + figureCore * 0.16);
         float farFlashFactor = mix(0.58, 0.76, clamp(uColorLift, 0.0, 1.0));
-        float openingFlash = (figureFlash * 0.92 + interiorGlow * 0.78 + ember * 0.24)
+        float openingFlash = (figureFlash * 0.92 + interiorGlow * 0.78 + ember * 0.24 + thresholdInkDetail * 0.36 * uDepthThresholdMode)
           * openingInkMask
           * flashWindow
           * mix(1.0, farFlashFactor, uFarOnly);
@@ -457,12 +552,47 @@ export function createInkSceneTransition(canvas, options = {}) {
         }
         vec2 nextUv = coverUv(imageUv, uNextSize, imageResolution);
         vec3 nextScene = texture2D(uNextScene, nextUv).rgb;
-        nextScene = mix(vec3(0.020, 0.034, 0.030), nextScene, uNextReady);
+        vec3 nextFallback = mix(vec3(0.020, 0.034, 0.030), vec3(1.0), uDepthThresholdMode);
+        nextScene = mix(nextFallback, nextScene, uNextReady);
+        float nextLuma = dot(nextScene, vec3(0.2126, 0.7152, 0.0722));
+        vec2 perlinWarp = vec2(
+          fbm(nextUv * 2.1 + vec2(uTime * 0.09, -uTime * 0.08)),
+          fbm(nextUv * 2.1 + vec2(8.3 - uTime * 0.08, 14.9 + uTime * 0.09))
+        ) - 0.5;
+        float perlinField = fbm(nextUv * 3.8 + perlinWarp * 0.42 + vec2(uTime * 0.08, uTime * 0.24));
+        float perlinCloud = fbm(nextUv * 1.42 + perlinWarp * 0.72 + vec2(-uTime * 0.065, uTime * 0.140));
+        float perlinDetail = fbm(nextUv * 7.4 - perlinWarp * 0.38 + vec2(uTime * 0.115, -uTime * 0.065));
+        float perlinValue = clamp(perlinCloud * 0.64 + perlinField * 0.28 + perlinDetail * 0.08, 0.0, 1.0);
+        float perlinLight = smoothstep(0.34, 0.70, perlinValue);
+        float perlinDark = 1.0 - smoothstep(0.28, 0.58, perlinValue);
+        float sceneMask = smoothstep(0.035, 0.24, nextLuma) * uNextReady;
+        float highlightCore = highlightFromColor(nextScene) * sceneMask;
+        vec2 texel = 1.0 / max(uNextSize, vec2(1.0));
+        float highlightBlur = highlightCore * 0.30;
+        highlightBlur += highlightFromColor(texture2D(uNextScene, nextUv + texel * vec2(18.0, 0.0)).rgb) * 0.12;
+        highlightBlur += highlightFromColor(texture2D(uNextScene, nextUv + texel * vec2(-18.0, 0.0)).rgb) * 0.12;
+        highlightBlur += highlightFromColor(texture2D(uNextScene, nextUv + texel * vec2(0.0, 18.0)).rgb) * 0.12;
+        highlightBlur += highlightFromColor(texture2D(uNextScene, nextUv + texel * vec2(0.0, -18.0)).rgb) * 0.12;
+        highlightBlur += highlightFromColor(texture2D(uNextScene, nextUv + texel * vec2(42.0, 24.0)).rgb) * 0.10;
+        highlightBlur += highlightFromColor(texture2D(uNextScene, nextUv + texel * vec2(-42.0, -24.0)).rgb) * 0.10;
+        highlightBlur += highlightFromColor(texture2D(uNextScene, nextUv + texel * vec2(-34.0, 38.0)).rgb) * 0.09;
+        highlightBlur += highlightFromColor(texture2D(uNextScene, nextUv + texel * vec2(34.0, -38.0)).rgb) * 0.09;
+        highlightBlur = clamp(highlightBlur, 0.0, 1.0) * sceneMask;
+        float perlinMask = clamp(smoothstep(0.30, 0.62, perlinValue) * (0.42 + perlinDetail * 0.58), 0.0, 1.0);
+        float transitionPulse = 0.62 + sin(clamp(p, 0.0, 1.0) * 3.14159265) * 0.22;
+        float perlinResolve = smoothstep(0.015, 0.42, p) * (1.0 - smoothstep(0.92, 1.0, p) * 0.14) * uNextReady * uPerlinOverlay;
+        vec3 perlinTint = mix(vec3(0.36, 0.74, 0.60), vec3(0.95, 0.72, 0.34), smoothstep(0.25, 0.94, fbm(nextUv * 5.0 + uTime * 0.035)));
+        float highlightPerlin = clamp((perlinMask + perlinCloud * 0.46) * perlinResolve * uPerlinStrength, 0.0, 1.85);
+        nextScene *= 1.0 - highlightBlur * (1.0 - perlinMask) * perlinResolve * uPerlinStrength * 0.18;
+        nextScene += perlinTint * highlightBlur * highlightPerlin * transitionPulse * 1.85;
+        nextScene += perlinTint * highlightCore * highlightPerlin * 0.82;
+        nextScene *= uSceneBrightness;
         float innerLift = smoothstep(0.06, 0.74, p);
         vec3 innerColor = mix(nextScene * 0.42, nextScene * 1.14 + vec3(0.055, 0.043, 0.018), innerLift);
         innerColor = mix(innerColor, nextScene * 1.02, late * 0.65);
         innerColor = mix(innerColor, innerColor * 1.08 + vec3(0.015, 0.035, 0.026), nearSoftBand * 0.34);
         innerColor = mix(innerColor, nextScene, uFarOnly);
+        innerColor = mix(innerColor, nextScene, uDepthThresholdMode);
 
         float outsideAlpha = (1.0 - dissolve) * (0.05 + p * 0.34 + late * 0.22);
         float insideMask = smoothstep(0.08, 0.42, dissolve);
@@ -470,14 +600,23 @@ export function createInkSceneTransition(canvas, options = {}) {
         vec3 outsideColor = vec3(0.012, 0.022, 0.018);
         vec3 color = mix(outsideColor, innerColor, insideMask);
         float farGlowFactor = mix(0.14, 0.46, clamp(uColorLift, 0.0, 1.0));
-        color = mix(color, edgeColor, clamp(glow * mix(1.0, farGlowFactor, uFarOnly), 0.0, 0.80));
+        float glowMix = glow * mix(1.0, farGlowFactor, uFarOnly) * mix(1.0, 0.84, uDepthThresholdMode);
+        color = mix(color, edgeColor, clamp(glowMix, 0.0, 0.80));
+        color += mix(jade, gold, thresholdParticleSeed)
+          * (thresholdParticles * 0.52 + thresholdParticleCore * 0.64)
+          * uDepthThresholdMode;
         vec3 flashColor = mix(vec3(1.0, 0.92, 0.62), edgeColor, smoothstep(0.18, 0.46, p));
-        color += flashColor * figureAura * 1.90;
-        color += flashColor * clamp(openingFlash, 0.0, 0.78) * 0.98;
+        color += flashColor * figureAura * mix(1.90, 0.34, uDepthThresholdMode);
+        color += flashColor * clamp(openingFlash, 0.0, 0.78) * mix(0.98, 0.22, uDepthThresholdMode);
 
         float alpha = mix(outsideAlpha, 1.0, insideMask);
-        float edgeAlpha = softBand * 0.10 + hotBand * 0.18 + nearSoftBand * 0.12 + ember * 0.24;
-        alpha += mix(edgeAlpha, edgeAlpha * openingInkMask * 0.28, ringSuppress);
+        float edgeAlpha = softBand * 0.10
+          + hotBand * 0.18
+          + nearSoftBand * 0.12
+          + ember * 0.24
+          + thresholdInkDetail * 0.48 * uDepthThresholdMode
+          + thresholdParticleCore * 0.34 * uDepthThresholdMode;
+        alpha += mix(edgeAlpha, edgeAlpha * openingInkMask * mix(0.28, 0.70, uDepthThresholdMode), ringSuppress);
         alpha += figureAura * 0.24;
         alpha += openingFlash * 0.16;
         alpha += smoothstep(0.90, 1.0, p) * 0.08;
@@ -531,16 +670,20 @@ export function createInkSceneTransition(canvas, options = {}) {
       depthReady: gl.getUniformLocation(program, 'uDepthReady'),
       farOnly: gl.getUniformLocation(program, 'uFarOnly'),
       imageScale: gl.getUniformLocation(program, 'uImageScale'),
-        imageCenter: gl.getUniformLocation(program, 'uImageCenter'),
-        inkCenter: gl.getUniformLocation(program, 'uInkCenter'),
-        progressSpan: gl.getUniformLocation(program, 'uProgressSpan'),
-        colorLift: gl.getUniformLocation(program, 'uColorLift'),
-        imageRect: gl.getUniformLocation(program, 'uImageRect'),
+      imageCenter: gl.getUniformLocation(program, 'uImageCenter'),
+      inkCenter: gl.getUniformLocation(program, 'uInkCenter'),
+      progressSpan: gl.getUniformLocation(program, 'uProgressSpan'),
+      colorLift: gl.getUniformLocation(program, 'uColorLift'),
+      imageRect: gl.getUniformLocation(program, 'uImageRect'),
       useImageRect: gl.getUniformLocation(program, 'uUseImageRect'),
       figureMask: gl.getUniformLocation(program, 'uFigureMask'),
       figureRect: gl.getUniformLocation(program, 'uFigureRect'),
       figureReady: gl.getUniformLocation(program, 'uFigureReady'),
-      useFigureMask: gl.getUniformLocation(program, 'uUseFigureMask')
+      useFigureMask: gl.getUniformLocation(program, 'uUseFigureMask'),
+      perlinOverlay: gl.getUniformLocation(program, 'uPerlinOverlay'),
+      perlinStrength: gl.getUniformLocation(program, 'uPerlinStrength'),
+      sceneBrightness: gl.getUniformLocation(program, 'uSceneBrightness'),
+      depthThresholdMode: gl.getUniformLocation(program, 'uDepthThresholdMode')
     };
 
     const createTextureLayer = (src, fallback) => {
@@ -573,6 +716,7 @@ export function createInkSceneTransition(canvas, options = {}) {
     };
 
     const nextLayer = createTextureLayer(targetSrc, [5, 8, 7, 255]);
+    nextLayer.element = options.nextSceneElement || null;
     const backDepthLayer = createTextureLayer(assets.backDepthSrc || '', [0, 0, 0, 255]);
     const middleDepthLayer = createTextureLayer(assets.middleDepthSrc || '', [0, 0, 0, 255]);
     const figureLayer = {
@@ -590,20 +734,43 @@ export function createInkSceneTransition(canvas, options = {}) {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
 
     const updateFigureLayer = () => {
-      const video = figureLayer.element;
-      if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) {
+      const source = figureLayer.element;
+      const isMediaSource = typeof HTMLMediaElement !== 'undefined' && source instanceof HTMLMediaElement;
+      const sourceWidth = isMediaSource ? source?.videoWidth : (source?.width || source?.naturalWidth || 0);
+      const sourceHeight = isMediaSource ? source?.videoHeight : (source?.height || source?.naturalHeight || 0);
+      const sourceReady = isMediaSource
+        ? source.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+        : source?.dataset?.inkTextureReady === 'true';
+
+      if (!source || !sourceReady || !sourceWidth || !sourceHeight) {
         figureLayer.ready = 0;
         return;
       }
       try {
-        figureLayer.width = video.videoWidth;
-        figureLayer.height = video.videoHeight;
+        figureLayer.width = sourceWidth;
+        figureLayer.height = sourceHeight;
         figureLayer.ready = 1;
         gl.bindTexture(gl.TEXTURE_2D, figureLayer.texture);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
       } catch {
         figureLayer.ready = 0;
+      }
+    };
+
+    const updateElementLayer = (layer) => {
+      const element = layer.element;
+      if (!element || !element.width || !element.height) return;
+      if (element.dataset?.inkTextureReady !== 'true') return;
+      try {
+        layer.width = element.width;
+        layer.height = element.height;
+        layer.ready = 1;
+        gl.bindTexture(gl.TEXTURE_2D, layer.texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, element);
+      } catch {
+        // Keep the last uploaded texture if the dynamic source is briefly unavailable.
       }
     };
 
@@ -641,7 +808,7 @@ export function createInkSceneTransition(canvas, options = {}) {
     gl.uniform1i(uniforms.figureMask, 3);
 
     return {
-      render(progress, pointerX, pointerY, visibilityProgress = progress) {
+      render(progress, pointerX, pointerY, visibilityProgress = progress, renderOptions = {}) {
         const active = visibilityProgress > 0.002 && !(hideAtEnd && visibilityProgress > 0.999);
         const exitFade = hideAtEnd
           ? 1 - smoothStep(clamp((visibilityProgress - 0.94) / 0.055, 0, 1))
@@ -662,6 +829,7 @@ export function createInkSceneTransition(canvas, options = {}) {
         );
         gl.uniform1f(uniforms.progress, progress);
         gl.uniform1f(uniforms.time, performance.now() * 0.001);
+        updateElementLayer(nextLayer);
         updateFigureLayer();
         bindLayer(0, nextLayer);
         bindLayer(1, backDepthLayer);
@@ -674,10 +842,14 @@ export function createInkSceneTransition(canvas, options = {}) {
         gl.uniform1f(uniforms.depthReady, Math.min(backDepthLayer.ready, middleDepthLayer.ready));
         gl.uniform1f(uniforms.farOnly, farOnly);
         gl.uniform1f(uniforms.imageScale, options.imageScale || 1);
-          gl.uniform2f(uniforms.imageCenter, options.imageCenterX || 0.5, options.imageCenterY || 0.5);
-          gl.uniform2f(uniforms.inkCenter, options.inkCenterX || 0.50, options.inkCenterY || 0.54);
-          gl.uniform1f(uniforms.progressSpan, options.progressSpan || 1.16);
-          gl.uniform1f(uniforms.colorLift, colorLift);
+        gl.uniform2f(uniforms.imageCenter, options.imageCenterX || 0.5, options.imageCenterY || 0.5);
+        gl.uniform2f(uniforms.inkCenter, options.inkCenterX || 0.50, options.inkCenterY || 0.54);
+        gl.uniform1f(uniforms.progressSpan, options.progressSpan || 1.16);
+        gl.uniform1f(uniforms.colorLift, colorLift);
+        gl.uniform1f(uniforms.perlinOverlay, options.perlinOverlay ? 1 : 0);
+        gl.uniform1f(uniforms.perlinStrength, renderOptions.perlinStrength ?? options.perlinStrength ?? 0.34);
+        gl.uniform1f(uniforms.sceneBrightness, renderOptions.sceneBrightness ?? options.sceneBrightness ?? 1);
+        gl.uniform1f(uniforms.depthThresholdMode, options.depthThresholdMode ? 1 : 0);
         const canvasRect = canvas.getBoundingClientRect();
         const sourceRect = options.sourceElement?.getBoundingClientRect?.();
         const useImageRect = sourceRect && sourceRect.width > 0 && sourceRect.height > 0 && canvasRect.width > 0 && canvasRect.height > 0;

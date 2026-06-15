@@ -1,0 +1,202 @@
+@font-face {
+  font-family: "Tongye Title";
+  src: url("../assets/fonts/qiji-title-subset.ttf") format("truetype");
+  font-display: swap;
+}
+
+:root {
+  --mirror-stage-bg: #d9c08f;
+  --mirror-stage-ink: #221815;
+  --mirror-stage-line: rgba(34, 24, 21, 0.14);
+  --mirror-stage-cinnabar: #b75b34;
+  --mirror-stage-gold: #9f7a29;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  background: var(--mirror-stage-bg);
+}
+
+body {
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+  font-family: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: var(--mirror-stage-ink);
+  text-rendering: geometricPrecision;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mirror-stage-page {
+  position: relative;
+  min-height: 165svh;
+  isolation: isolate;
+  background:
+    center / cover no-repeat url("../assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png"),
+    var(--mirror-stage-bg);
+}
+
+.mirror-stage-scroll {
+  position: relative;
+  height: 165svh;
+}
+
+.mirror-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: clip;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 72% 52%, rgba(183, 91, 52, 0.12), transparent 31vw),
+    center / cover no-repeat url("../assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png"),
+    var(--mirror-stage-bg);
+}
+
+.mirror-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 74% 54%, transparent 0 28%, rgba(34, 24, 21, 0.08) 58%, rgba(34, 24, 21, 0.22) 100%),
+    linear-gradient(90deg, rgba(217, 192, 143, 0.18), transparent 42%, rgba(34, 24, 21, 0.08));
+}
+
+.mirror-stage-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100vw;
+  height: 100svh;
+}
+
+.mirror-stage-nav {
+  position: fixed;
+  top: 24px;
+  left: 28px;
+  right: 28px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.mirror-stage-brand,
+.mirror-stage-links a {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  color: rgba(34, 24, 21, 0.88);
+  border: 1px solid var(--mirror-stage-line);
+  background: rgba(245, 229, 184, 0.58);
+  box-shadow: 0 18px 50px rgba(34, 24, 21, 0.10);
+  backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.mirror-stage-brand {
+  gap: 10px;
+  padding: 6px 14px 6px 7px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.mirror-stage-brand-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: linear-gradient(145deg, rgba(232, 213, 154, 0.38), rgba(56, 166, 154, 0.18));
+  color: var(--mirror-stage-gold);
+  font-family: "Tongye Title", serif;
+  font-size: 1.03rem;
+  line-height: 1;
+}
+
+.mirror-stage-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mirror-stage-links a {
+  justify-content: center;
+  padding: 0 15px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.mirror-stage-brand:hover,
+.mirror-stage-links a:hover {
+  border-color: rgba(183, 91, 52, 0.34);
+  color: var(--mirror-stage-cinnabar);
+}
+
+@media (max-width: 760px) {
+  .mirror-stage-page,
+  .mirror-stage-scroll {
+    min-height: 155svh;
+    height: 155svh;
+  }
+
+  .mirror-stage {
+    background:
+      radial-gradient(circle at 50% 58%, rgba(183, 91, 52, 0.11), transparent 54vw),
+      center / cover no-repeat url("../assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png"),
+      var(--mirror-stage-bg);
+  }
+
+  .mirror-stage-nav {
+    top: 16px;
+    left: 16px;
+    right: 16px;
+  }
+
+  .mirror-stage-brand,
+  .mirror-stage-links a {
+    min-height: 38px;
+  }
+
+  .mirror-stage-brand {
+    padding-right: 11px;
+    font-size: 0.86rem;
+  }
+
+  .mirror-stage-brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+
+  .mirror-stage-links {
+    gap: 8px;
+  }
+
+  .mirror-stage-links a {
+    padding: 0 12px;
+    font-size: 0.84rem;
+  }
+}

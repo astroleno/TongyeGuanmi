@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Figure 2｜同野观幂</title>
+  <meta name="description" content="同野观幂 Figure 2 滚动动画实验页，两位人物在一屏内相对而立。" />
+  <meta name="theme-color" content="#07110e" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
+  <link rel="preload" href="js/vendor/gsap.min.js" as="script" />
+  <link rel="preload" href="js/vendor/ScrollTrigger.min.js" as="script" />
+  <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
+  <link rel="preload" href="assets/figure2-cloud-window-alpha.png" as="image" />
+  <link rel="preload" href="assets/figure2-far-arcade-window-alpha.png" as="image" />
+  <link rel="preload" href="assets/figure2-middle-fresco-opaque-alpha.png" as="image" />
+  <link rel="preload" href="assets/arch2d-alpha.png" as="image" />
+  <link rel="preload" href="assets/figure2-middle-depth.png" as="image" />
+  <link rel="preload" href="assets/figure2-next-white.png" as="image" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/components/liquid-glass-home.css" />
+  <link rel="stylesheet" href="css/figure2.css" />
+  <style>
+    .liquid-glass::before {
+      backdrop-filter: blur(8px) url(#liquid-glass-refraction) saturate(1.5);
+    }
+  </style>
+</head>
+<body class="figure2-page">
+  <svg class="svg-filters" aria-hidden="true" focusable="false">
+    <filter id="figure-alpha-clean" color-interpolation-filters="sRGB">
+      <feComponentTransfer in="SourceAlpha" result="thresholdAlpha">
+        <feFuncA type="table" tableValues="0 0 0.18 0.82 1 1" />
+      </feComponentTransfer>
+      <feMorphology in="thresholdAlpha" operator="erode" radius="0.38" result="trimmedAlpha" />
+      <feGaussianBlur in="trimmedAlpha" stdDeviation="0.28" result="featherAlpha" />
+      <feComposite in="SourceGraphic" in2="featherAlpha" operator="in" />
+    </filter>
+    <filter id="liquid-glass-refraction" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB">
+      <feImage
+        href="assets/liquid-glass-displacement.webp"
+        x="0"
+        y="0"
+        width="100%"
+        height="100%"
+        preserveAspectRatio="none"
+        result="map"
+      />
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.01" result="blur" />
+      <feDisplacementMap in="blur" in2="map" scale="0.5" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+  </svg>
+
+  <div class="grain" aria-hidden="true"></div>
+  <main class="figure2-route">
+    <section class="figure2-scroll" data-figure2-stage aria-label="Figure 2 visual test">
+      <div class="figure2-sticky">
+        <div class="figure2-field">
+          <div class="figure2-backdrop" aria-hidden="true"></div>
+          <div class="figure2-arch-stack" aria-hidden="true">
+            <img class="figure2-arch-layer figure2-arch-layer--cloud" src="assets/figure2-cloud-window-alpha.png" alt="" />
+            <img class="figure2-arch-layer figure2-arch-layer--far-arcade-window" src="assets/figure2-far-arcade-window-alpha.png" alt="" />
+            <img class="figure2-arch-layer figure2-arch-layer--middle-composite" src="assets/figure2-middle-fresco-opaque-alpha.png" alt="" />
+          </div>
+          <div class="figure2-fresco-warmth" aria-hidden="true"></div>
+          <div class="figure2-center-wash" aria-hidden="true"></div>
+          <div class="figure2-fresco-texture" aria-hidden="true"></div>
+
+          <img class="figure2-arch-layer figure2-arch-layer--near-arch" src="assets/arch2d-alpha.png" alt="" aria-hidden="true" />
+
+          <div class="figure2-figures" aria-label="子问老子人物动画">
+            <figure class="figure2-figure figure2-figure--left">
+              <video
+                class="figure2-figure-video"
+                data-alpha-src="assets/figure2a-alpha-reverse-lite.webm"
+                data-fallback-src="assets/figure2a-reverse.mp4"
+                poster="assets/figure2a-alpha-reverse-lite-poster.png"
+                muted
+                preload="auto"
+                playsinline
+                webkit-playsinline
+                data-figure2-video
+              ></video>
+              <figcaption>问道者</figcaption>
+            </figure>
+            <figure class="figure2-figure figure2-figure--right">
+              <video
+                class="figure2-figure-video"
+                data-alpha-src="assets/figure2b-alpha-reverse-lite.webm"
+                data-fallback-src="assets/figure2b-reverse.mp4"
+                poster="assets/figure2b-alpha-reverse-lite-poster.png"
+                muted
+                preload="auto"
+                playsinline
+                webkit-playsinline
+                data-figure2-video
+              ></video>
+              <figcaption>老子</figcaption>
+            </figure>
+          </div>
+
+          <canvas class="figure2-scene-ink-transition" data-figure2-ink-canvas aria-hidden="true"></canvas>
+
+          <div class="figure2-progress" aria-hidden="true">
+            <span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/figure2-scroll.js"></script>
+</body>
+</html>
