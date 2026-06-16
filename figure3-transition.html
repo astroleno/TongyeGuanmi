@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Figure 3 Fabric Scroll Test｜同野观幂</title>
+  <meta name="theme-color" content="#dcdcd0" />
+  <link rel="preload" href="assets/figure3-alpha-poster.png" as="image" />
+  <link rel="preload" href="assets/figure3-alpha-scrub.webm" as="video" type="video/webm" />
+  <link rel="preload" href="assets/figure3-fabric-poster.jpg" as="image" />
+  <link rel="stylesheet" href="css/figure3-transition.css" />
+</head>
+<body>
+  <main class="fabric-route" data-fabric-root>
+    <section class="fabric-scroll" data-fabric-scroll aria-label="Figure 3 fabric transition route">
+      <div class="fabric-sticky">
+        <div class="fabric-backdrop" aria-hidden="true"></div>
+
+        <div class="fabric-transition" aria-hidden="true">
+          <video
+            class="fabric-alpha-video"
+            data-fabric-alpha-video
+            src="assets/figure3-alpha-scrub.webm"
+            poster="assets/figure3-alpha-poster.png"
+            muted
+            preload="auto"
+            playsinline
+            webkit-playsinline
+          ></video>
+          <div class="fabric-fill" data-fabric-fill aria-hidden="true"></div>
+        </div>
+
+        <div class="fabric-progress" aria-hidden="true"><span></span></div>
+        <button class="fabric-replay" type="button" data-fabric-replay aria-label="回到起点">重播</button>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/figure3-transition.js"></script>
+</body>
+</html>
