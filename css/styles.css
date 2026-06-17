@@ -591,15 +591,15 @@ body.is-loader-text-ready .loader-marquee-clear {
 }
 
 .section-pad {
-  padding: clamp(48px, 7vh, 74px) clamp(22px, 5vw, 72px);
+  padding: clamp(90px, 9vw, 140px) clamp(22px, 6vw, 96px);
 }
 
 .section-heading {
   display: grid;
-  grid-template-columns: minmax(104px, 0.36fr) minmax(0, 1.08fr) minmax(240px, .7fr);
-  gap: clamp(18px, 3vw, 44px);
+  grid-template-columns: minmax(120px, 0.5fr) minmax(0, 1.2fr) minmax(260px, .75fr);
+  gap: clamp(22px, 4vw, 64px);
   align-items: start;
-  margin-bottom: clamp(24px, 4vh, 38px);
+  margin-bottom: clamp(36px, 5vw, 64px);
 }
 
 .section-heading h2,
@@ -607,9 +607,11 @@ body.is-loader-text-ready .loader-marquee-clear {
 .contact-card h2,
 .edition-copy h2 {
   margin: 0;
-  font-size: clamp(38px, 5.2vw, 74px);
-  line-height: .98;
-  letter-spacing: -.04em;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(32px, 4vw, 56px);
+  font-weight: 600;
+  line-height: 1.22;
+  letter-spacing: .01em;
   text-wrap: balance;
 }
 
@@ -618,8 +620,8 @@ body.is-loader-text-ready .loader-marquee-clear {
 .contact-card p {
   margin: 0;
   color: var(--muted);
-  font-size: clamp(15px, 1.35vw, 19px);
-  line-height: 1.62;
+  font-size: clamp(16px, 1.25vw, 18px);
+  line-height: 1.78;
   text-wrap: pretty;
 }
 
@@ -662,7 +664,7 @@ body.is-loader-text-ready .loader-marquee-clear {
 }
 
 .manifesto > .section-index,
-.manifesto-copy {
+.manifesto-grid {
   opacity: var(--hero-manifesto-content-opacity, 1);
   transform: translate3d(0, var(--hero-manifesto-content-y, 0px), 0);
   will-change: opacity, transform;
@@ -676,21 +678,55 @@ body.is-loader-text-ready .loader-marquee-clear {
   pointer-events: auto;
 }
 
-.manifesto-copy {
+.manifesto-grid {
   display: grid;
-  gap: clamp(18px, 2.6vh, 28px);
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, .58fr);
+  gap: clamp(24px, 5vw, 72px);
+  align-items: end;
   width: min(1260px, 88vw);
   align-self: center;
 }
 
 .large-copy {
   margin: 0;
-  max-width: 11.8em;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(30px, 3.6vw, 52px);
+  font-weight: 600;
+  line-height: 1.32;
+  letter-spacing: .01em;
+  max-width: 16em;
   color: rgba(247,237,215,.88);
-  font-size: clamp(56px, 6.7vw, 112px);
-  line-height: 1.04;
-  letter-spacing: -.045em;
   text-shadow: 0 22px 76px rgba(0,0,0,.42);
+}
+
+.glass {
+  border: 1px solid rgba(247,237,215,.14);
+  background: linear-gradient(145deg, rgba(247,237,215,.08), rgba(247,237,215,.025));
+  backdrop-filter: blur(22px) saturate(128%);
+  box-shadow: 0 30px 80px rgba(0,0,0,.24);
+}
+
+.manifesto-card {
+  padding: 28px;
+  min-height: 330px;
+  border-radius: var(--radius-xl);
+  transform-style: preserve-3d;
+}
+
+.manifesto-card h3 {
+  margin: 32px 0 14px;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(22px, 1.9vw, 28px);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: .01em;
+}
+
+.manifesto-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.74;
+  font-size: 16px;
 }
 
 .large-copy-line {
@@ -821,8 +857,8 @@ body.is-loader-text-ready .loader-marquee-clear {
 }
 
 .method-card {
-  min-height: clamp(250px, 33vh, 310px);
-  padding: clamp(18px, 2vw, 26px);
+  min-height: 340px;
+  padding: clamp(22px, 2.4vw, 34px);
   border-right: 1px solid rgba(247,237,215,.12);
   background:
     radial-gradient(circle at 50% 10%, rgba(56,166,154,.12), transparent 28%),
@@ -841,8 +877,8 @@ body.is-loader-text-ready .loader-marquee-clear {
     linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.015));
 }
 
-.method-card span,
-.edu-stack span {
+.method-card > span,
+.edu-stack article > span {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -853,22 +889,63 @@ body.is-loader-text-ready .loader-marquee-clear {
   color: var(--gold);
   font-size: 12px;
   letter-spacing: .1em;
-  margin-bottom: clamp(32px, 5vh, 46px);
+  margin-bottom: 36px;
 }
 
 .method-card h3 {
-  margin: 0 0 12px;
-  font-size: clamp(28px, 3vw, 44px);
-  line-height: 1;
-  letter-spacing: -.05em;
+  margin: 0 0 14px;
+  font-size: clamp(24px, 2vw, 30px);
+  line-height: 1.2;
+  letter-spacing: .04em;
   font-family: ui-serif, "Songti SC", "STSong", serif;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .method-card p {
   margin: 0;
   color: var(--muted);
-  line-height: 1.54;
+  line-height: 1.72;
+}
+
+.trust-note {
+  margin-top: clamp(36px, 4vw, 56px);
+}
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.trust-grid article {
+  padding: 22px 24px;
+  border: 1px solid rgba(247, 237, 215, 0.13);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, rgba(247, 237, 215, 0.05), rgba(247, 237, 215, 0.015));
+}
+
+.trust-grid strong {
+  display: block;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: 19px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.trust-grid p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.trust-closing {
+  margin: 24px 0 0;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(18px, 1.6vw, 22px);
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .edition-band {
@@ -877,7 +954,7 @@ body.is-loader-text-ready .loader-marquee-clear {
   display: grid;
   place-items: center;
   overflow: hidden;
-  padding: clamp(48px, 8vh, 76px) clamp(22px, 5vw, 72px);
+  padding: clamp(80px, 9vw, 140px) clamp(22px, 6vw, 96px);
   background:
     linear-gradient(90deg, rgba(7,17,14,.88), rgba(7,17,14,.3), rgba(7,17,14,.88)),
     url('../assets/back1.png') center / cover fixed;
@@ -886,7 +963,7 @@ body.is-loader-text-ready .loader-marquee-clear {
 .edition-band::before {
   content: "";
   position: absolute;
-  inset: clamp(28px, 5vw, 72px);
+  inset: 7vw;
   border: 1px solid rgba(232,213,154,.18);
   border-radius: 48px;
   box-shadow: inset 0 0 120px rgba(0,0,0,.3);
@@ -942,8 +1019,8 @@ body.is-loader-text-ready .loader-marquee-clear {
 
 .service-card {
   position: relative;
-  min-height: clamp(340px, 43vh, 390px);
-  padding: 22px;
+  min-height: 400px;
+  padding: 28px;
   border: 1px solid rgba(247,237,215,.13);
   border-radius: var(--radius-xl);
   background:
@@ -967,41 +1044,43 @@ body.is-loader-text-ready .loader-marquee-clear {
 }
 
 .service-icon {
-  width: 56px;
-  height: 56px;
+  width: 66px;
+  height: 66px;
   display: grid;
   place-items: center;
   border-radius: 22px;
   border: 1px solid rgba(232,213,154,.22);
   background: rgba(247,237,215,.05);
   color: var(--gold);
-  font-size: 24px;
-  margin-bottom: clamp(34px, 5vh, 48px);
+  font-size: 28px;
+  margin-bottom: 36px;
 }
 
 .service-card h3 {
-  margin: 0 0 12px;
-  font-size: clamp(24px, 2.4vw, 34px);
-  letter-spacing: -.05em;
-  line-height: 1.02;
+  margin: 0 0 14px;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(22px, 1.8vw, 26px);
+  font-weight: 600;
+  letter-spacing: .01em;
+  line-height: 1.3;
 }
 
 .service-card p {
-  margin: 0 0 18px;
+  margin: 0 0 30px;
   color: var(--muted);
-  line-height: 1.52;
+  line-height: 1.72;
 }
 
 .service-card ul {
   position: absolute;
-  left: 22px;
-  right: 22px;
-  bottom: 22px;
+  left: 28px;
+  right: 28px;
+  bottom: 28px;
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .service-card li {
@@ -1032,20 +1111,27 @@ body.is-loader-text-ready .loader-marquee-clear {
 .lab-top {
   display: grid;
   grid-template-columns: minmax(130px, .45fr) 1fr;
-  gap: clamp(18px, 4vw, 56px);
+  gap: clamp(22px, 5vw, 80px);
   align-items: end;
-  margin-bottom: clamp(24px, 4vh, 38px);
+  margin-bottom: 64px;
 }
 
 .scenario-strip {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(300px, 26vw);
+  grid-auto-columns: minmax(280px, 22vw);
   gap: 16px;
   overflow-x: auto;
   padding: 6px 0 24px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 92%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 92%, transparent 100%);
+}
+
+.scenario-strip::after {
+  content: "";
+  width: 60px;
 }
 
 .scenario-strip::-webkit-scrollbar {
@@ -1054,8 +1140,8 @@ body.is-loader-text-ready .loader-marquee-clear {
 
 .scenario-card {
   position: relative;
-  min-height: clamp(270px, 35vh, 320px);
-  padding: 22px;
+  min-height: 340px;
+  padding: 26px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1088,16 +1174,18 @@ body.is-loader-text-ready .loader-marquee-clear {
 .scenario-card strong {
   position: relative;
   z-index: 1;
-  font-size: clamp(22px, 2vw, 30px);
-  line-height: 1.12;
-  letter-spacing: -.035em;
-  max-width: 9em;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(20px, 1.6vw, 24px);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .01em;
+  max-width: 11em;
 }
 
 .education-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, .7fr);
-  gap: clamp(22px, 4vw, 58px);
+  gap: clamp(24px, 6vw, 90px);
   align-items: start;
 }
 
@@ -1105,11 +1193,11 @@ body.is-loader-text-ready .loader-marquee-clear {
   display: block;
   margin: 0;
   position: sticky;
-  top: 104px;
+  top: 120px;
 }
 
 .education .section-heading h2 {
-  margin: 20px 0 18px;
+  margin: 26px 0 24px;
 }
 
 .edu-stack {
@@ -1118,30 +1206,32 @@ body.is-loader-text-ready .loader-marquee-clear {
 }
 
 .edu-stack article {
-  padding: 16px 18px;
-  min-height: 116px;
+  padding: 24px;
+  min-height: 170px;
   border: 1px solid rgba(247,237,215,.13);
   border-radius: var(--radius-lg);
   background: linear-gradient(145deg, rgba(247,237,215,.07), rgba(247,237,215,.025));
 }
 
-.edu-stack span {
-  width: 32px;
-  height: 32px;
-  margin: 0 0 18px;
+.edu-stack article > span {
+  width: 36px;
+  height: 36px;
+  margin: 0 0 22px;
 }
 
 .edu-stack strong {
   display: block;
-  font-size: 21px;
-  letter-spacing: -.04em;
-  margin-bottom: 12px;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  margin-bottom: 10px;
 }
 
 .edu-stack p {
   margin: 0;
   color: var(--muted);
-  line-height: 1.48;
+  line-height: 1.68;
 }
 
 .philosophy-grid {
@@ -1151,8 +1241,8 @@ body.is-loader-text-ready .loader-marquee-clear {
 }
 
 .philosophy-card {
-  min-height: clamp(410px, 52vh, 470px);
-  padding: clamp(22px, 3vw, 36px);
+  min-height: 460px;
+  padding: clamp(26px, 4vw, 48px);
   border: 1px solid rgba(247,237,215,.14);
   border-radius: var(--radius-xl);
   background:
@@ -1167,7 +1257,7 @@ body.is-loader-text-ready .loader-marquee-clear {
 
 .philosophy-card span {
   font-family: ui-serif, "Songti SC", "STSong", serif;
-  font-size: clamp(58px, 8vw, 118px);
+  font-size: clamp(70px, 11vw, 180px);
   line-height: .8;
   color: rgba(232,213,154,.18);
   letter-spacing: -.14em;
@@ -1175,31 +1265,33 @@ body.is-loader-text-ready .loader-marquee-clear {
 
 .philosophy-card h2 {
   width: min(680px, 100%);
-  margin: auto 0 16px;
-  font-size: clamp(32px, 4vw, 56px);
-  line-height: 1.02;
-  letter-spacing: -.045em;
+  margin: auto 0 18px;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(26px, 2.6vw, 38px);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: .01em;
 }
 
 .philosophy-card p {
   width: min(520px, 100%);
   margin: 0;
   color: var(--muted);
-  line-height: 1.58;
-  font-size: 16px;
+  line-height: 1.76;
+  font-size: 17px;
 }
 
 .contact {
-  padding-top: clamp(48px, 7vh, 74px);
+  padding-top: 90px;
 }
 
 .contact-card {
   position: relative;
-  min-height: 56vh;
+  min-height: 60vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: clamp(28px, 4vw, 48px);
+  padding: clamp(30px, 6vw, 72px);
   border: 1px solid rgba(247,237,215,.16);
   border-radius: calc(var(--radius-xl) + 20px);
   background:
@@ -1228,8 +1320,8 @@ body.is-loader-text-ready .loader-marquee-clear {
 }
 
 .contact-card h2 {
-  width: min(760px, 100%);
-  margin: 18px 0;
+  width: min(920px, 100%);
+  margin: 24px 0;
 }
 
 .contact-card p {
@@ -1331,7 +1423,7 @@ body.is-loader-text-ready .loader-marquee-clear {
     font-size: 18px;
   }
 
-  .manifesto-copy,
+  .manifesto-grid,
   .education-grid,
   .philosophy-grid,
   .lab-top {
@@ -1532,6 +1624,131 @@ body.is-loader-text-ready .loader-marquee-clear {
 
   .scenario-strip {
     grid-auto-columns: minmax(270px, 80vw);
+  }
+
+  .section-pad {
+    padding: clamp(90px, 9vw, 140px) clamp(22px, 6vw, 96px);
+  }
+
+  .section-heading {
+    margin-bottom: clamp(36px, 5vw, 64px);
+    gap: clamp(22px, 4vw, 64px);
+  }
+
+  .section-heading h2,
+  .lab-top h2,
+  .contact-card h2,
+  .edition-copy h2 {
+    font-size: clamp(32px, 4vw, 56px);
+    line-height: 1.22;
+    letter-spacing: .01em;
+  }
+
+  .section-heading p,
+  .edition-copy p,
+  .contact-card p {
+    font-size: clamp(16px, 1.25vw, 18px);
+    line-height: 1.78;
+  }
+
+  .large-copy {
+    font-size: clamp(28px, 7vw, 44px);
+    line-height: 1.32;
+    letter-spacing: .01em;
+  }
+
+  .method-card {
+    min-height: 280px;
+    display: block;
+    padding: clamp(22px, 2.4vw, 34px);
+  }
+
+  .method-card > span {
+    width: 42px;
+    height: 42px;
+    margin-bottom: 36px;
+  }
+
+  .method-card h3 {
+    margin: 0 0 14px;
+    font-size: clamp(24px, 2vw, 30px);
+    line-height: 1.2;
+    letter-spacing: .04em;
+  }
+
+  .method-card p {
+    font-size: inherit;
+    line-height: 1.72;
+  }
+
+  .trust-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .service-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .service-card,
+  .philosophy-card {
+    min-height: 420px;
+  }
+
+  .service-card {
+    display: block;
+    padding: 28px;
+  }
+
+  .service-icon {
+    display: grid;
+  }
+
+  .service-card h3 {
+    margin: 0 0 14px;
+    font-size: clamp(22px, 1.8vw, 26px);
+    line-height: 1.3;
+  }
+
+  .service-card p {
+    margin: 0 0 30px;
+    font-size: inherit;
+    line-height: 1.72;
+  }
+
+  .service-card ul {
+    display: grid;
+  }
+
+  .edu-stack article {
+    min-height: 170px;
+    display: block;
+    padding: 24px;
+  }
+
+  .edu-stack article > span {
+    grid-row: auto;
+    margin: 0 0 22px;
+  }
+
+  .edu-stack strong {
+    margin-bottom: 10px;
+    font-size: 20px;
+  }
+
+  .edu-stack p {
+    font-size: inherit;
+    line-height: 1.68;
+  }
+
+  .philosophy-card h2 {
+    font-size: clamp(26px, 2.6vw, 38px);
+    line-height: 1.3;
+    letter-spacing: .01em;
+  }
+
+  .contact-card {
+    min-height: 60vh;
   }
 
   .footer {

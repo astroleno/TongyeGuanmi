@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crane｜同野观幂</title>
+  <meta name="description" content="同野观幂 Crane 分层滚动场景。" />
+  <meta name="theme-color" content="#f1ead9" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="js/vendor/gsap.min.js" as="script" />
+  <link rel="preload" href="js/vendor/ScrollTrigger.min.js" as="script" />
+  <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
+  <link rel="preload" href="assets/crane1_cloud2-alpha.png" as="image" />
+  <link rel="preload" href="assets/crane1_arch-alpha.png" as="image" />
+  <link rel="preload" href="assets/crane1_cloud-front2-alpha.png" as="image" />
+  <link rel="preload" href="assets/crane1_cloud1-alpha.png" as="image" />
+  <link rel="preload" href="assets/crane-figure1-transition.webm" as="video" type="video/webm" />
+  <link rel="preload" href="assets/crane-figure1-transition.mp4" as="video" type="video/mp4" />
+  <link rel="preload" href="assets/crane-figure2-first-frame.png" as="image" />
+  <link rel="preload" href="assets/crane-figure2-transition.webm" as="video" type="video/webm" />
+  <link rel="preload" href="assets/crane-figure2-transition.mp4" as="video" type="video/mp4" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/crane.css" />
+</head>
+<body class="crane-page">
+  <div class="grain" aria-hidden="true"></div>
+  <main class="crane-route">
+    <h1 class="crane-sr-only">Crane</h1>
+    <section class="crane-scroll" data-crane-stage aria-label="Crane visual scene">
+      <div class="crane-sticky">
+        <div class="crane-field">
+          <div class="crane-paper" aria-hidden="true"></div>
+          <div class="crane-layer-stack" aria-hidden="true">
+            <img class="crane-layer crane-layer--cloud-back" src="assets/crane1_cloud2-alpha.png" alt="" />
+            <div class="crane-video-transition">
+              <video
+                class="crane-figure-video"
+                data-crane-figure-video
+                muted
+                preload="auto"
+                playsinline
+                webkit-playsinline
+              >
+                <source src="assets/crane-figure1-transition.webm" type="video/webm" />
+                <source src="assets/crane-figure1-transition.mp4" type="video/mp4" />
+              </video>
+            </div>
+            <img class="crane-layer crane-layer--arch" src="assets/crane1_arch-alpha.png" alt="" />
+            <img class="crane-layer crane-layer--cloud-front" src="assets/crane1_cloud1-alpha.png" alt="" />
+            <img class="crane-layer crane-layer--cloud-front-second" src="assets/crane1_cloud-front2-alpha.png" alt="" />
+            <div class="crane-video-transition crane-video-transition--front">
+              <video
+                class="crane-figure-video crane-figure-video--front"
+                data-crane-figure-front-video
+                muted
+                preload="auto"
+                poster="assets/crane-figure2-first-frame.png"
+                playsinline
+                webkit-playsinline
+              >
+                <source src="assets/crane-figure2-transition.webm" type="video/webm" />
+                <source src="assets/crane-figure2-transition.mp4" type="video/mp4" />
+              </video>
+            </div>
+          </div>
+          <div class="crane-warmth" aria-hidden="true"></div>
+          <div class="crane-center-wash" aria-hidden="true"></div>
+          <div class="crane-texture" aria-hidden="true"></div>
+          <div class="crane-progress" aria-hidden="true">
+            <span></span>
+          </div>
+          <div class="crane-tune-panel" data-crane-tune-panel>
+            <div class="crane-tune-panel__title">鹤群位置</div>
+            <label class="crane-tune-control">
+              <span>X <output data-crane-flock-x-value>12px</output></span>
+              <input data-crane-flock-x-slider type="range" min="-220" max="220" step="1" value="12" />
+            </label>
+            <label class="crane-tune-control">
+              <span>Y <output data-crane-flock-y-value>-108px</output></span>
+              <input data-crane-flock-y-slider type="range" min="-600" max="80" step="1" value="-108" />
+            </label>
+            <label class="crane-tune-control">
+              <span>Scale <output data-crane-flock-scale-value>1.00x</output></span>
+              <input data-crane-flock-scale-slider type="range" min="0.70" max="1.40" step="0.01" value="1" />
+            </label>
+            <button class="crane-tune-reset" data-crane-flock-reset type="button">重置</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/crane-scroll.js"></script>
+</body>
+</html>

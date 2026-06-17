@@ -1,0 +1,198 @@
+.ttg-page {
+  --ttg-progress: 0;
+  --ttg-scroll-vh: 330;
+  --ttg-scene-width: max(100vw, 178dvh, 1180px);
+  min-height: 100%;
+  color: #f0dfbf;
+  color-scheme: dark;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(176, 118, 46, 0.18), transparent 34rem),
+    radial-gradient(ellipse at 18% 70%, rgba(48, 83, 82, 0.16), transparent 28rem),
+    linear-gradient(180deg, #111817 0%, #080d10 58%, #040506 100%);
+}
+
+.ttg-route {
+  position: relative;
+  min-height: 100dvh;
+}
+
+.ttg-scroll {
+  position: relative;
+  height: calc(var(--ttg-scroll-vh) * 1dvh);
+  min-height: 0;
+}
+
+.ttg-sticky {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  min-height: 620px;
+  overflow: hidden;
+  isolation: isolate;
+  background: #080d10;
+}
+
+.ttg-field,
+.ttg-paper,
+.ttg-layer-stack,
+.ttg-moon-wash,
+.ttg-vignette {
+  position: absolute;
+  inset: 0;
+}
+
+.ttg-field {
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse at 53% 38%, rgba(207, 165, 86, 0.16), transparent 35%),
+    radial-gradient(ellipse at 50% 50%, rgba(29, 82, 92, 0.16), transparent 54%),
+    linear-gradient(180deg, #101919 0%, #090e11 58%, #040506 100%);
+}
+
+.ttg-paper {
+  z-index: 0;
+  opacity: 0.42;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 228, 162, 0.13) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 76% 66%, rgba(0, 0, 0, 0.34) 0 0.9px, transparent 1.5px),
+    repeating-linear-gradient(96deg, rgba(255, 214, 138, 0.032) 0 1px, transparent 1px 9px),
+    linear-gradient(180deg, rgba(255, 226, 152, 0.08), rgba(0, 0, 0, 0.24));
+  background-size: 21px 21px, 27px 27px, 100% 100%, 100% 100%;
+}
+
+.ttg-layer-stack {
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ttg-layer {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  width: var(--ttg-scene-width);
+  height: auto;
+  max-width: none;
+  user-select: none;
+  pointer-events: none;
+  transform: translate3d(-50%, -50%, 0);
+  transform-origin: 50% 50%;
+  will-change: transform;
+  backface-visibility: hidden;
+  contain: paint;
+}
+
+.ttg-layer--bg {
+  z-index: 1;
+  opacity: 1;
+  filter: saturate(0.95) contrast(1.02);
+}
+
+.ttg-layer--middle {
+  z-index: 2;
+  opacity: 1;
+  filter:
+    drop-shadow(0 24px 22px rgba(0, 0, 0, 0.26))
+    saturate(0.96);
+}
+
+.ttg-layer--front {
+  z-index: 3;
+  opacity: 1;
+  filter:
+    drop-shadow(0 26px 26px rgba(0, 0, 0, 0.30))
+    saturate(0.94)
+    contrast(1.02);
+}
+
+.ttg-layer--figure {
+  z-index: 4;
+  top: 50%;
+  opacity: 1;
+  filter:
+    drop-shadow(0 34px 30px rgba(0, 0, 0, 0.34))
+    saturate(0.92)
+    contrast(1.01);
+}
+
+.ttg-moon-wash {
+  z-index: 5;
+  opacity: 0.18;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background:
+    radial-gradient(ellipse at 51% 36%, rgba(239, 202, 126, 0.30), transparent 25%),
+    radial-gradient(ellipse at 50% 58%, rgba(47, 121, 127, 0.16), transparent 45%);
+  filter: blur(16px);
+}
+
+.ttg-vignette {
+  z-index: 6;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.42) 0%, transparent 17%, transparent 83%, rgba(0, 0, 0, 0.42) 100%),
+    radial-gradient(ellipse at 50% 50%, transparent 0 58%, rgba(0, 0, 0, 0.26) 84%, rgba(0, 0, 0, 0.52) 100%),
+    linear-gradient(180deg, rgba(255, 220, 143, 0.04) 0%, transparent 42%, rgba(0, 0, 0, 0.45) 100%);
+}
+
+.ttg-progress {
+  display: none;
+  position: absolute;
+  z-index: 30;
+  left: max(22px, 5vw);
+  right: max(22px, 5vw);
+  bottom: 30px;
+  height: 1px;
+  overflow: hidden;
+  background: rgba(244, 213, 142, 0.16);
+}
+
+.ttg-progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #305c65, #d0a04c, #9c5637);
+  transform: scaleX(var(--ttg-progress));
+  transform-origin: 0 50%;
+}
+
+.ttg-noscript {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  width: var(--ttg-scene-width);
+  max-width: none;
+  transform: translate3d(-50%, -50%, 0);
+}
+
+.ttg-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 860px) {
+  .ttg-page {
+    --ttg-scene-width: max(142vw, 178dvh, 1180px);
+  }
+
+  .ttg-sticky {
+    min-height: 620px;
+  }
+}
+
+@media (max-width: 560px) {
+  .ttg-page {
+    --ttg-scroll-vh: 290;
+    --ttg-scene-width: max(236vw, 1040px);
+  }
+}

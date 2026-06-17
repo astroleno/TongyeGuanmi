@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Talk to the God｜同野观幂</title>
+  <meta name="description" content="同野观幂 Talk to the God 分层滚动场景。" />
+  <meta name="theme-color" content="#080d10" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="js/vendor/gsap.min.js" as="script" />
+  <link rel="preload" href="js/vendor/ScrollTrigger.min.js" as="script" />
+  <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
+  <link rel="preload" href="assets/ttg_bg.png" as="image" />
+  <link rel="preload" href="assets/ttg_middle-alpha.png" as="image" />
+  <link rel="preload" href="assets/ttg_front-alpha.png" as="image" />
+  <link rel="preload" href="assets/ttg_figure-alpha.png" as="image" />
+  <link rel="preload" href="assets/ttg-complete.png" as="image" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/ttg.css" />
+</head>
+<body class="ttg-page">
+  <div class="grain" aria-hidden="true"></div>
+  <main class="ttg-route">
+    <h1 class="ttg-sr-only">Talk to the God</h1>
+    <section class="ttg-scroll" data-ttg-stage aria-label="Talk to the God visual scene">
+      <div class="ttg-sticky">
+        <div class="ttg-field">
+          <div class="ttg-paper" aria-hidden="true"></div>
+          <div class="ttg-layer-stack" aria-hidden="true">
+            <img class="ttg-layer ttg-layer--bg" src="assets/ttg_bg.png" alt="" />
+            <img class="ttg-layer ttg-layer--middle" src="assets/ttg_middle-alpha.png" alt="" />
+            <img class="ttg-layer ttg-layer--front" src="assets/ttg_front-alpha.png" alt="" />
+            <img class="ttg-layer ttg-layer--figure" src="assets/ttg_figure-alpha.png" alt="" />
+          </div>
+          <div class="ttg-moon-wash" aria-hidden="true"></div>
+          <div class="ttg-vignette" aria-hidden="true"></div>
+          <div class="ttg-progress" aria-hidden="true">
+            <span></span>
+          </div>
+          <noscript>
+            <img class="ttg-noscript" src="assets/ttg-complete.png" alt="" />
+          </noscript>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/ttg-scroll.js"></script>
+</body>
+</html>
