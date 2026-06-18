@@ -140,7 +140,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 68px;
+  min-width: 92px;
   min-height: 32px;
   padding: 0 15px;
   border-radius: 999px;
@@ -199,7 +199,7 @@
   }
 
   .nav-cta {
-    min-width: 60px;
+    min-width: 84px;
     min-height: 31px;
     padding-inline: 12px;
     letter-spacing: .04em;

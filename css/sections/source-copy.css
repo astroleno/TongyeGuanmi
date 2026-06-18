@@ -1,0 +1,567 @@
+.lab-top h2,
+.contact-card h2,
+.edition-copy h2 {
+  margin: 0;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(32px, 4vw, 56px);
+  font-weight: 600;
+  line-height: 1.22;
+  letter-spacing: .01em;
+  text-wrap: balance;
+}
+
+.edition-copy p,
+.contact-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(16px, 1.25vw, 18px);
+  line-height: 1.78;
+  text-wrap: pretty;
+}
+
+.method {
+  background: linear-gradient(180deg, rgba(8,18,15,.92) 0%, rgba(7,17,14,.96) 100%);
+}
+
+.method-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(180px, 1fr));
+  border: 1px solid rgba(247,237,215,.14);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: rgba(247,237,215,.035);
+}
+
+.method-card {
+  min-height: 340px;
+  padding: clamp(22px, 2.4vw, 34px);
+  border-right: 1px solid rgba(247,237,215,.12);
+  background:
+    radial-gradient(circle at 50% 10%, rgba(56,166,154,.12), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,.045), transparent);
+  transform-style: preserve-3d;
+  transition: background .3s ease;
+}
+
+.method-card:last-child {
+  border-right: 0;
+}
+
+.method-card:hover {
+  background:
+    radial-gradient(circle at 50% 10%, rgba(232,213,154,.16), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.015));
+}
+
+.method-card > span,
+.edu-stack article > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(232,213,154,.28);
+  color: var(--gold);
+  font-size: 12px;
+  letter-spacing: .1em;
+  margin-bottom: 36px;
+}
+
+.method-card h3 {
+  margin: 0 0 14px;
+  font-size: clamp(24px, 2vw, 30px);
+  line-height: 1.2;
+  letter-spacing: .04em;
+  font-family: ui-serif, "Songti SC", "STSong", serif;
+  font-weight: 600;
+}
+
+.method-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.72;
+}
+
+.trust-note {
+  margin-top: clamp(36px, 4vw, 56px);
+}
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.trust-grid article {
+  padding: 22px 24px;
+  border: 1px solid rgba(247, 237, 215, 0.13);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, rgba(247, 237, 215, 0.05), rgba(247, 237, 215, 0.015));
+}
+
+.trust-grid strong {
+  display: block;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: 19px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.trust-grid p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.trust-closing {
+  margin: 24px 0 0;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(18px, 1.6vw, 22px);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.edition-band {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: clamp(80px, 9vw, 140px) clamp(22px, 6vw, 96px);
+  background:
+    linear-gradient(90deg, rgba(7,17,14,.88), rgba(7,17,14,.3), rgba(7,17,14,.88)),
+    url('../../assets/back1.png') center / cover fixed;
+}
+
+.edition-band::before {
+  content: "";
+  position: absolute;
+  inset: 7vw;
+  border: 1px solid rgba(232,213,154,.18);
+  border-radius: 48px;
+  box-shadow: inset 0 0 120px rgba(0,0,0,.3);
+}
+
+.edition-band::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, transparent 35%, rgba(4,8,7,.72));
+}
+
+.edition-copy {
+  position: relative;
+  z-index: 2;
+  width: min(980px, 94vw);
+  text-align: center;
+}
+
+.edition-copy .eyebrow {
+  margin-bottom: 28px;
+}
+
+.edition-copy .eyebrow::before {
+  display: none;
+}
+
+.edition-copy h2 {
+  margin-bottom: 28px;
+}
+
+.edition-copy p {
+  margin-inline: auto;
+  width: min(760px, 100%);
+}
+
+.services,
+.education,
+.philosophy,
+.contact {
+  position: relative;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(56,166,154,.12), transparent 30vw),
+    radial-gradient(circle at 86% 22%, rgba(183,91,52,.11), transparent 28vw),
+    #07110e;
+}
+
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.service-card {
+  position: relative;
+  min-height: 400px;
+  padding: 28px;
+  border: 1px solid rgba(247,237,215,.13);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(180deg, rgba(247,237,215,.075), rgba(247,237,215,.02)),
+    radial-gradient(circle at 50% 0%, rgba(56,166,154,.12), transparent 30%);
+  overflow: hidden;
+  transform-style: preserve-3d;
+}
+
+.service-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(232,213,154,.09), transparent);
+  transform: translateX(-120%);
+  transition: transform .6s ease;
+}
+
+.service-card:hover::before {
+  transform: translateX(120%);
+}
+
+.service-icon {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  border: 1px solid rgba(232,213,154,.22);
+  background: rgba(247,237,215,.05);
+  color: var(--gold);
+  font-size: 28px;
+  margin-bottom: 36px;
+}
+
+.service-card h3 {
+  margin: 0 0 14px;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(22px, 1.8vw, 26px);
+  font-weight: 600;
+  letter-spacing: .01em;
+  line-height: 1.3;
+}
+
+.service-card p {
+  margin: 0 0 30px;
+  color: var(--muted);
+  line-height: 1.72;
+}
+
+.service-card ul {
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  bottom: 28px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.service-card li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: rgba(247,237,215,.68);
+  font-size: 14px;
+}
+
+.service-card li::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--jade);
+  box-shadow: 0 0 18px rgba(56,166,154,.8);
+}
+
+.lab {
+  background:
+    linear-gradient(180deg, rgba(7,17,14,.6), rgba(7,17,14,.96)),
+    radial-gradient(circle at 50% 50%, rgba(232,213,154,.08), transparent 40vw),
+    #050807;
+  overflow: hidden;
+}
+
+.lab-top {
+  display: grid;
+  grid-template-columns: minmax(130px, .45fr) 1fr;
+  gap: clamp(22px, 5vw, 80px);
+  align-items: end;
+  margin-bottom: 64px;
+}
+
+.scenario-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(280px, 22vw);
+  gap: 16px;
+  overflow-x: auto;
+  padding: 6px 0 24px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 92%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 92%, transparent 100%);
+}
+
+.scenario-strip::after {
+  content: "";
+  width: 60px;
+}
+
+.scenario-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.scenario-card {
+  position: relative;
+  min-height: 340px;
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid rgba(247,237,215,.13);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(180deg, rgba(247,237,215,.08), rgba(247,237,215,.02)),
+    radial-gradient(circle at 50% 0%, rgba(183,91,52,.12), transparent 34%);
+  scroll-snap-align: start;
+  overflow: hidden;
+}
+
+.scenario-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -22% -10%;
+  height: 42%;
+  background: url('../../assets/middle1.png') center bottom / 120% auto no-repeat;
+  opacity: .28;
+  filter: saturate(1.1) brightness(.82);
+}
+
+.scenario-card span {
+  color: var(--gold);
+  font-size: 13px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.scenario-card strong {
+  position: relative;
+  z-index: 1;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(20px, 1.6vw, 24px);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .01em;
+  max-width: 11em;
+}
+
+.education-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, .7fr);
+  gap: clamp(24px, 6vw, 90px);
+  align-items: start;
+}
+
+.education .section-heading {
+  display: block;
+  margin: 0;
+  position: sticky;
+  top: 120px;
+}
+
+.education .section-heading h2 {
+  margin: 26px 0 24px;
+}
+
+.edu-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.edu-stack article {
+  padding: 24px;
+  min-height: 170px;
+  border: 1px solid rgba(247,237,215,.13);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, rgba(247,237,215,.07), rgba(247,237,215,.025));
+}
+
+.edu-stack article > span {
+  width: 36px;
+  height: 36px;
+  margin: 0 0 22px;
+}
+
+.edu-stack strong {
+  display: block;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  margin-bottom: 10px;
+}
+
+.edu-stack p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.68;
+}
+
+.philosophy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.philosophy-card {
+  min-height: 460px;
+  padding: clamp(26px, 4vw, 48px);
+  border: 1px solid rgba(247,237,215,.14);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(180deg, rgba(247,237,215,.065), rgba(247,237,215,.018)),
+    radial-gradient(circle at 80% 12%, rgba(56,166,154,.14), transparent 32%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  transform-style: preserve-3d;
+}
+
+.philosophy-card span {
+  font-family: ui-serif, "Songti SC", "STSong", serif;
+  font-size: clamp(70px, 11vw, 180px);
+  line-height: .8;
+  color: rgba(232,213,154,.18);
+  letter-spacing: -.14em;
+}
+
+.philosophy-card h2 {
+  width: min(680px, 100%);
+  margin: auto 0 18px;
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(26px, 2.6vw, 38px);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: .01em;
+}
+
+.philosophy-card p {
+  width: min(520px, 100%);
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.76;
+  font-size: 17px;
+}
+
+.contact {
+  padding-top: 90px;
+}
+
+.contact-card {
+  position: relative;
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(30px, 6vw, 72px);
+  border: 1px solid rgba(247,237,215,.16);
+  border-radius: calc(var(--radius-xl) + 20px);
+  background:
+    linear-gradient(90deg, rgba(7,17,14,.88), rgba(7,17,14,.44)),
+    url('../../assets/back1.png') center / cover;
+  overflow: hidden;
+  box-shadow: 0 36px 120px rgba(0,0,0,.28);
+}
+
+.contact-card::after {
+  content: "";
+  position: absolute;
+  right: -5%;
+  bottom: -8%;
+  width: min(72vw, 900px);
+  height: 52%;
+  background: url('../../assets/middle1.png') right bottom / contain no-repeat;
+  opacity: .46;
+  filter: saturate(1.2) brightness(.82);
+  pointer-events: none;
+}
+
+.contact-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.contact-card h2 {
+  width: min(920px, 100%);
+  margin: 24px 0;
+}
+
+.contact-card p {
+  width: min(700px, 100%);
+}
+
+[data-tilt] {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.magnetic {
+  will-change: transform;
+}
+
+@media (max-width: 1180px) {
+  .method-grid,
+  .service-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .method-card:nth-child(2n),
+  .method-card:last-child {
+    border-right: 0;
+  }
+
+  .method-card {
+    min-height: 340px;
+    border-bottom: 1px solid rgba(247,237,215,.12);
+  }
+}
+
+@media (max-width: 860px) {
+  .trust-grid,
+  .education-grid,
+  .philosophy-grid,
+  .lab-top,
+  .method-grid,
+  .service-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .education .section-heading {
+    position: relative;
+    top: auto;
+  }
+
+  .method-card {
+    min-height: 280px;
+    border-right: 0;
+  }
+
+  .service-card,
+  .philosophy-card {
+    min-height: 420px;
+  }
+
+  .scenario-strip {
+    grid-auto-columns: minmax(270px, 80vw);
+  }
+}
+
+@media (max-width: 520px) {
+  .contact-card {
+    border-radius: var(--radius-xl);
+  }
+}

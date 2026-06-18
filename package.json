@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:page": "node scripts/build-index.mjs",
+    "verify:copy": "node scripts/check-copy-alignment.mjs",
     "dev": "node scripts/serve-static-site.mjs",
     "dev:web": "node scripts/serve-static-site.mjs",
     "verify:ink-modules": "node scripts/check-ink-modules.mjs",

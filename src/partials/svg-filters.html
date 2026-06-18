@@ -1,0 +1,10 @@
+<svg class="svg-filters" aria-hidden="true" focusable="false">
+  <filter id="figure-alpha-clean" color-interpolation-filters="sRGB">
+    <feComponentTransfer in="SourceAlpha" result="thresholdAlpha">
+      <feFuncA type="table" tableValues="0 0 0.18 0.82 1 1" />
+    </feComponentTransfer>
+    <feMorphology in="thresholdAlpha" operator="erode" radius="0.38" result="trimmedAlpha" />
+    <feGaussianBlur in="trimmedAlpha" stdDeviation="0.28" result="featherAlpha" />
+    <feComposite in="SourceGraphic" in2="featherAlpha" operator="in" />
+  </filter>
+</svg>

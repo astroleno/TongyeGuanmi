@@ -18,6 +18,7 @@ const main = await read('js/main.js');
 const index = await read('index.html');
 const reveal = await read('js/ui/reveal.js');
 const styles = await read('css/styles.css');
+const template = await read('src/index.template.html');
 const smoothScroll = await read('js/ui/smooth-scroll.js').catch(() => '');
 
 assertContains(main, "lenis: 'https://cdn.jsdelivr.net/npm/lenis@1.3.23/dist/lenis.min.js'", 'main.js pins Lenis CDN version');
@@ -34,10 +35,13 @@ assertContains(smoothScroll, 'offset: -getSnapOffset()', 'anchor clicks use snap
 assertContains(smoothScroll, 'destroy()', 'smooth-scroll.js exposes cleanup');
 
 assertContains(index, 'class="long-canvas"', 'index.html provides the long-canvas stage');
-assertContains(index, 'class="canvas-track"', 'index.html provides invisible canvas alignment tracks');
-assertContains(index, 'href="#lab"', 'top navigation includes the scenario chapter');
-assertContains(reveal, "const sections = ['method', 'services', 'lab', 'education', 'contact'];", 'reveal.js tracks all long-canvas nav sections');
-assertContains(styles, '.canvas-track', 'styles define the shared long-canvas track');
+assertContains(template, '{{> sections/hero.html}}', 'index template includes the hero section partial');
+assertContains(template, '{{> sections/method.html}}', 'index template includes the method section partial');
+assertContains(template, '{{> sections/services.html}}', 'index template includes the services section partial');
+assertContains(template, '{{> sections/lab.html}}', 'index template includes the lab section partial');
+assertContains(index, 'href="#services">场景</a>', 'top navigation restores the source scenario label');
+assertContains(reveal, "const sections = ['method', 'services', 'education', 'contact'];", 'reveal.js tracks the source navigation sections');
+assertContains(styles, './sections/source-copy.css', 'styles import source-copy section styles');
 assertContains(styles, '.chapter-transition', 'styles define chapter transition hooks');
 assertNotContains(index, 'class="post-hero-stage"', 'index.html no longer provides the old snap stage');
 assertNotContains(reveal, "id: 'post-hero-section-snap'", 'reveal.js no longer creates the post-hero snap trigger');

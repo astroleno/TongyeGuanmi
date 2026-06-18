@@ -38,7 +38,7 @@ export function initGsapTextAndUI({ root = document.documentElement } = {}) {
     });
   });
 
-  const sections = ['method', 'services', 'lab', 'education', 'contact'];
+  const sections = ['method', 'services', 'education', 'contact'];
   sections.forEach((id) => {
     const section = document.getElementById(id);
     const nav = document.querySelector(`.nav-links a[href="#${id}"]`);

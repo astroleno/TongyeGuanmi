@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>同野观幂｜AI 转型与能力建设</title>
+  <meta name="description" content="同野观幂是一家面向组织与个人能力建设的 AI 转型咨询公司，帮助企业把 AI 变成团队真正会用、业务真正用得上的能力。" />
+  <meta name="theme-color" content="#07110e" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  {{> partials/svg-filters.html}}
+  <div class="grain" aria-hidden="true"></div>
+  <div class="cursor-glow" aria-hidden="true"></div>
+  {{> partials/loader.html}}
+  {{> partials/nav.html}}
+
+  <main id="top">
+    {{> sections/hero.html}}
+
+    <div class="long-canvas" aria-label="页面主体章节">
+      {{> sections/method.html}}
+      <div class="chapter-transition" data-transition="method-brand" aria-hidden="true"></div>
+      {{> sections/brand.html}}
+      <div class="chapter-transition" data-transition="brand-services" aria-hidden="true"></div>
+      {{> sections/services.html}}
+      <div class="chapter-transition" data-transition="services-lab" aria-hidden="true"></div>
+      {{> sections/lab.html}}
+      <div class="chapter-transition" data-transition="lab-education" aria-hidden="true"></div>
+      {{> sections/education.html}}
+      <div class="chapter-transition" data-transition="education-philosophy" aria-hidden="true"></div>
+      {{> sections/philosophy.html}}
+      <div class="chapter-transition" data-transition="philosophy-contact" aria-hidden="true"></div>
+      {{> sections/contact.html}}
+    </div>
+  </main>
+
+  {{> partials/footer.html}}
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
