@@ -1,7 +1,8 @@
 .ttg-page {
   --ttg-progress: 0;
-  --ttg-scroll-vh: 330;
+  --ttg-scroll-vh: 140;
   --ttg-scene-width: max(100vw, 178dvh, 1180px);
+  --ttg-bg-width: max(100vw, 184dvh, 1180px);
   min-height: 100%;
   color: #f0dfbf;
   color-scheme: dark;
@@ -86,7 +87,11 @@
 
 .ttg-layer--bg {
   z-index: 1;
+  top: 0;
+  width: var(--ttg-bg-width);
   opacity: 1;
+  transform: translate3d(-50%, 0, 0);
+  transform-origin: 50% 0;
   filter: saturate(0.95) contrast(1.02);
 }
 
@@ -95,7 +100,14 @@
   opacity: 1;
   filter:
     drop-shadow(0 24px 22px rgba(0, 0, 0, 0.26))
+    brightness(0.78)
     saturate(0.96);
+}
+
+.ttg-layer--middle-overlay {
+  z-index: 2;
+  opacity: 0.2;
+  filter: brightness(0.78) saturate(0.96) contrast(1.02);
 }
 
 .ttg-layer--front {
@@ -107,12 +119,22 @@
     contrast(1.02);
 }
 
+.ttg-layer--front-overlay {
+  z-index: 3;
+  opacity: 0.2;
+  filter: saturate(0.94) contrast(1.02);
+}
+
 .ttg-layer--figure {
   z-index: 4;
   top: 50%;
+  width: auto;
+  height: min(144dvh, 1460px);
   opacity: 1;
+  object-fit: contain;
   filter:
     drop-shadow(0 34px 30px rgba(0, 0, 0, 0.34))
+    brightness(0.82)
     saturate(0.92)
     contrast(1.01);
 }
@@ -192,7 +214,7 @@
 
 @media (max-width: 560px) {
   .ttg-page {
-    --ttg-scroll-vh: 290;
+    --ttg-scroll-vh: 132;
     --ttg-scene-width: max(236vw, 1040px);
   }
 }

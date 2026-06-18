@@ -10,6 +10,7 @@
   <link rel="preload" href="js/vendor/gsap.min.js" as="script" />
   <link rel="preload" href="js/vendor/ScrollTrigger.min.js" as="script" />
   <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
+  <link rel="preload" href="assets/aod-paper-bg.png" as="image" />
   <link rel="preload" href="assets/crane1_cloud2-alpha.png" as="image" />
   <link rel="preload" href="assets/crane1_arch-alpha.png" as="image" />
   <link rel="preload" href="assets/crane1_cloud-front2-alpha.png" as="image" />
@@ -70,20 +71,20 @@
             <span></span>
           </div>
           <div class="crane-tune-panel" data-crane-tune-panel>
-            <div class="crane-tune-panel__title">鹤群位置</div>
+            <div class="crane-tune-panel__title">扑翼机首帧</div>
             <label class="crane-tune-control">
-              <span>X <output data-crane-flock-x-value>12px</output></span>
-              <input data-crane-flock-x-slider type="range" min="-220" max="220" step="1" value="12" />
+              <span>X <output data-crane-figure-x-value>0px</output></span>
+              <input data-crane-figure-x-slider type="range" min="-600" max="600" step="1" value="0" />
             </label>
             <label class="crane-tune-control">
-              <span>Y <output data-crane-flock-y-value>-108px</output></span>
-              <input data-crane-flock-y-slider type="range" min="-600" max="80" step="1" value="-108" />
+              <span>Y <output data-crane-figure-y-value>198px</output></span>
+              <input data-crane-figure-y-slider type="range" min="-600" max="600" step="1" value="198" />
             </label>
             <label class="crane-tune-control">
-              <span>Scale <output data-crane-flock-scale-value>1.00x</output></span>
-              <input data-crane-flock-scale-slider type="range" min="0.70" max="1.40" step="0.01" value="1" />
+              <span>Scale <output data-crane-figure-scale-value>0.80x</output></span>
+              <input data-crane-figure-scale-slider type="range" min="0.35" max="1.80" step="0.01" value="0.80" />
             </label>
-            <button class="crane-tune-reset" data-crane-flock-reset type="button">重置</button>
+            <button class="crane-tune-reset" data-crane-figure-reset type="button">重置</button>
           </div>
         </div>
       </div>

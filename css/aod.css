@@ -1,20 +1,24 @@
 .aod-page {
   --aod-progress: 0;
-  --aod-scroll-vh: 330;
-  --aod-scene-width: 100vw;
-  --aod-figure-width: max(100vw, calc(100dvh * 1672 / 941));
+  --aod-scroll-vh: 180;
+  --aod-paper: #e2d6c3;
+  --aod-ink: #292919;
+  --aod-scene-width: 84vw;
+  --aod-figure-width: 82vw;
   min-height: 100%;
-  color: #f6ead0;
-  color-scheme: dark;
-  background:
-    radial-gradient(ellipse at 50% 40%, rgba(185, 113, 36, 0.34), transparent 38rem),
-    radial-gradient(ellipse at 20% 15%, rgba(73, 120, 102, 0.18), transparent 30rem),
-    linear-gradient(180deg, #18221d 0%, #09100d 56%, #040607 100%);
+  color: var(--aod-ink);
+  color-scheme: light;
+  background: var(--aod-paper) url("../assets/aod-paper-bg.png") center / cover no-repeat fixed;
 }
 
 .aod-route {
   position: relative;
   min-height: 100dvh;
+}
+
+.aod-page .grain {
+  opacity: 0.055;
+  mix-blend-mode: multiply;
 }
 
 .aod-scroll {
@@ -30,7 +34,7 @@
   min-height: 620px;
   overflow: hidden;
   isolation: isolate;
-  background: #09100d;
+  background: var(--aod-paper) url("../assets/aod-paper-bg.png") center / cover no-repeat;
 }
 
 .aod-field,
@@ -45,21 +49,11 @@
 .aod-field {
   overflow: hidden;
   isolation: isolate;
-  background:
-    radial-gradient(ellipse at 50% 43%, rgba(201, 134, 40, 0.52), transparent 34%),
-    radial-gradient(ellipse at 50% 44%, rgba(241, 196, 83, 0.22), transparent 48%),
-    linear-gradient(180deg, #17221c 0%, #111813 48%, #050809 100%);
+  background: var(--aod-paper) url("../assets/aod-paper-bg.png") center / cover no-repeat;
 }
 
 .aod-paper {
-  z-index: 0;
-  opacity: 0.54;
-  background:
-    radial-gradient(circle at 22% 18%, rgba(255, 240, 182, 0.16) 0 1px, transparent 1.4px),
-    radial-gradient(circle at 76% 66%, rgba(0, 0, 0, 0.34) 0 0.9px, transparent 1.5px),
-    repeating-linear-gradient(94deg, rgba(255, 223, 149, 0.035) 0 1px, transparent 1px 8px),
-    linear-gradient(180deg, rgba(255, 230, 158, 0.10), rgba(0, 0, 0, 0.22));
-  background-size: 21px 21px, 27px 27px, 100% 100%, 100% 100%;
+  display: none;
 }
 
 .aod-layer-stack {
@@ -87,40 +81,55 @@
 
 .aod-layer--sun {
   z-index: 2;
-  top: 46%;
-  width: 92vw;
+  top: 39%;
+  width: 74vw;
   opacity: 0.96;
-  filter:
-    drop-shadow(0 0 34px rgba(229, 154, 44, 0.20))
-    saturate(1.05);
+  filter: saturate(1.05);
 }
 
 .aod-layer--cloud {
   z-index: 1;
-  top: 46%;
-  width: 96vw;
+  top: 40%;
+  width: 82vw;
   opacity: 0.98;
-  filter:
-    drop-shadow(0 22px 24px rgba(0, 0, 0, 0.20))
-    saturate(0.96);
+  filter: saturate(0.96);
 }
 
-.aod-layer--figure {
+.aod-layer--figure-alpha {
   z-index: 3;
   left: 50%;
-  top: 58%;
+  top: 63%;
   width: var(--aod-figure-width);
+  height: auto;
   opacity: 1;
   object-fit: contain;
-  filter:
-    drop-shadow(0 28px 28px rgba(0, 0, 0, 0.28))
-    saturate(0.95)
-    contrast(1.02);
+  object-position: center center;
+  filter: saturate(0.95) contrast(1.02);
+}
+
+.aod-figure-fill-video {
+  position: absolute;
+  inset: -1px;
+  z-index: 4;
+  display: block;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  max-width: none;
+  opacity: 0;
+  object-fit: cover;
+  object-position: center center;
+  user-select: none;
+  pointer-events: none;
+  filter: saturate(0.95) contrast(1.02);
+  transform: translate3d(0, 0, 0);
+  transform-origin: 50% 50%;
+  will-change: opacity, transform;
+  backface-visibility: hidden;
 }
 
 .aod-gold-wash {
-  z-index: 4;
-  opacity: 0.16;
+  z-index: 5;
+  opacity: 0.10;
   pointer-events: none;
   mix-blend-mode: screen;
   background:
@@ -133,9 +142,8 @@
   z-index: 6;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.34) 0%, transparent 17%, transparent 83%, rgba(0, 0, 0, 0.34) 100%),
-    radial-gradient(ellipse at 50% 50%, transparent 0 58%, rgba(0, 0, 0, 0.26) 86%, rgba(0, 0, 0, 0.46) 100%),
-    linear-gradient(180deg, rgba(255, 223, 150, 0.04) 0%, transparent 42%, rgba(0, 0, 0, 0.42) 100%);
+    linear-gradient(90deg, rgba(226, 214, 195, .40), transparent 18%, transparent 82%, rgba(226, 214, 195, .46)),
+    linear-gradient(180deg, rgba(255, 255, 255, .10), transparent 32%, rgba(41, 41, 25, .055));
 }
 
 .aod-progress {
@@ -173,8 +181,8 @@
 
 @media (max-width: 860px) {
   .aod-page {
-    --aod-scene-width: 122vw;
-    --aod-figure-width: max(122vw, calc(100dvh * 1672 / 941));
+    --aod-scene-width: 106vw;
+    --aod-figure-width: 104vw;
   }
 
   .aod-sticky {
@@ -184,20 +192,16 @@
 
 @media (max-width: 560px) {
   .aod-page {
-    --aod-scroll-vh: 290;
-    --aod-scene-width: 178vw;
-    --aod-figure-width: 178vw;
+    --aod-scroll-vh: 170;
+    --aod-scene-width: 148vw;
+    --aod-figure-width: 146vw;
   }
 
   .aod-layer--sun {
-    width: 164vw;
+    width: 132vw;
   }
 
   .aod-layer--cloud {
-    width: 172vw;
-  }
-
-  .aod-layer--figure {
-    top: 60%;
+    width: 144vw;
   }
 }

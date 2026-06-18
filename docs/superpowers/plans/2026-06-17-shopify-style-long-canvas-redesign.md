@@ -139,11 +139,11 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 - Modify: `css/components/lost-wax-glass-nav.css`
 - Modify or stop importing: `css/components/liquid-glass-home.css`
 
-- [ ] Remove `liquid-glass`, `liquid-glass--compact`, `liquid-glass--button`, and `liquid-glass--nav` classes from visible page structures.
-- [ ] Remove the inline SVG liquid-glass refraction filter from `index.html` if no longer used by any visible component.
-- [ ] Stop importing `css/components/liquid-glass-home.css` from the homepage.
-- [ ] Keep old liquid glass component files only if other preview pages still use them; do not delete shared preview assets casually.
-- [ ] Replace material hierarchy with:
+- [x] Remove `liquid-glass`, `liquid-glass--compact`, `liquid-glass--button`, and `liquid-glass--nav` classes from visible page structures.
+- [x] Remove the inline SVG liquid-glass refraction filter from `index.html` if no longer used by any visible component.
+- [x] Stop importing `css/components/liquid-glass-home.css` from the homepage.
+- [x] Keep old liquid glass component files only if other preview pages still use them; do not delete shared preview assets casually.
+- [x] Replace material hierarchy with:
   - typography scale
   - whitespace
   - thin rules
@@ -163,24 +163,24 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 - Modify: `js/ui/reveal.js`
 - Optional modify: `js/sections/hero.js`
 
-- [ ] Keep only top navigation; do not add side rail.
-- [ ] Use final labels:
+- [x] Keep only top navigation; do not add side rail.
+- [x] Use final labels:
   - `方法` -> `#method`
   - `企业` -> `#services`
   - `场景` -> `#lab`
   - `教育` -> `#education`
   - `联系` -> `#contact`
-- [ ] Rename mobile CTA to `预约` if space is tight.
-- [ ] Add a fixed top gradient layer:
+- [x] Rename mobile CTA to `预约` if space is tight.
+- [x] Add a fixed top gradient layer:
   - dark sections: deep ink to transparent
   - light sections, if any: warm paper to transparent
-- [ ] Make nav visually quiet:
+- [x] Make nav visually quiet:
   - no glass pill container
   - no heavy button shadow
   - small text, crisp hover/focus state
   - CTA as restrained solid or outline button
-- [ ] Update nav active-state logic to include `lab`.
-- [ ] Ensure nav can switch text color if later chapter backgrounds become light.
+- [x] Update nav active-state logic to include `lab`.
+- [x] Ensure nav can switch text color if later chapter backgrounds become light.
 
 **Acceptance Criteria:**
 - Top nav remains readable over hero and post-hero content.
@@ -194,7 +194,7 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 - Modify: `index.html`
 - Modify: `css/styles.css`
 
-- [ ] Rename or repurpose `.post-hero-stage` into a long-canvas shell, for example:
+- [x] Rename or repurpose `.post-hero-stage` into a long-canvas shell, for example:
 
 ```html
 <div class="long-canvas" aria-label="页面主体章节">
@@ -203,7 +203,7 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 </div>
 ```
 
-- [ ] Add a shared inner track for content alignment:
+- [x] Add a shared inner track for content alignment:
 
 ```html
 <div class="canvas-track">
@@ -211,17 +211,17 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 </div>
 ```
 
-- [ ] Desktop layout:
+- [x] Desktop layout:
   - page track: `width: min(1280px, 84vw)`
   - centered with `margin-inline: auto`
   - preserve visual gutters on both sides
   - use 12-column grid inside track
-- [ ] Mobile layout:
+- [x] Mobile layout:
   - `width: min(100% - 36px, 1280px)`
   - single-column flow
   - no horizontal overflow
-- [ ] Remove visible outer section boxes, section borders, and large rounded containers.
-- [ ] Allow selected media/transition moments to break out full-bleed intentionally.
+- [x] Remove visible outer section boxes, section borders, and large rounded containers.
+- [x] Allow selected media/transition moments to break out full-bleed intentionally.
 
 **Acceptance Criteria:**
 - The user perceives one continuous page, not stacked containers.
@@ -235,14 +235,14 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 - Modify: `js/ui/reveal.js`
 - Modify: `css/styles.css`
 
-- [ ] Disable or remove `initPostHeroSnap()` for the homepage long canvas.
-- [ ] Avoid forcing every post-hero section to `min-height: 100dvh`.
-- [ ] Give sections variable rhythm:
+- [x] Disable or remove `initPostHeroSnap()` for the homepage long canvas.
+- [x] Avoid forcing every post-hero section to `min-height: 100dvh`.
+- [x] Give sections variable rhythm:
   - large chapter intro: `min-height: 90-120svh`
   - content-heavy chapter: natural height
   - transition bridge: `40-80svh`
-- [ ] Keep scroll animation transform/opacity-only.
-- [ ] Leave clear data hooks for later transitions:
+- [x] Keep scroll animation transform/opacity-only.
+- [x] Leave clear data hooks for later transitions:
 
 ```html
 <div class="chapter-transition" data-transition="method-to-enterprise"></div>
@@ -259,10 +259,10 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 - Modify: `index.html`
 - Modify: `css/styles.css`
 
-- [ ] Replace five equal `.method-card` cards with a process list or timeline.
-- [ ] Use short chapter heading: `方法`。
-- [ ] Keep one short explanatory paragraph only.
-- [ ] Suggested structure:
+- [x] Replace five equal `.method-card` cards with a process list or timeline.
+- [x] Use short chapter heading: `方法`。
+- [x] Keep one short explanatory paragraph only.
+- [x] Suggested structure:
 
 ```txt
 01 识场    找出高频任务、协作断点、成本黑洞
@@ -272,8 +272,8 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 05 陪跑    用复盘把 AI 长进日常
 ```
 
-- [ ] Use thin dividers and spacing instead of cards.
-- [ ] Optionally make one row sticky-highlight during scroll; keep others quiet.
+- [x] Use thin dividers and spacing instead of cards.
+- [x] Optionally make one row sticky-highlight during scroll; keep others quiet.
 
 **Acceptance Criteria:**
 - Method can be scanned in 3 seconds.
@@ -286,9 +286,9 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 - Modify: `index.html`
 - Modify: `css/styles.css`
 
-- [ ] Enterprise chapter uses one primary statement and a light capability list.
-- [ ] Remove four equal service cards.
-- [ ] Suggested Enterprise content shape:
+- [x] Enterprise chapter uses one primary statement and a light capability list.
+- [x] Remove four equal service cards.
+- [x] Suggested Enterprise content shape:
 
 ```txt
 企业 AI 能力建设
@@ -300,8 +300,8 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 陪跑    智能体 / 知识库 / 复盘机制
 ```
 
-- [ ] Scenario chapter becomes fast-scanning rows or an offset grid, not horizontal glass cards.
-- [ ] Suggested Scenario rows:
+- [x] Scenario chapter becomes fast-scanning rows or an offset grid, not horizontal glass cards.
+- [x] Suggested Scenario rows:
 
 ```txt
 管理决策    信息汇总 -> 判断框架
@@ -312,7 +312,7 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 教育表达    研究 / 写作 / 申请结构
 ```
 
-- [ ] Use one visual preview area if useful, but do not make it a framed card.
+- [x] Use one visual preview area if useful, but do not make it a framed card.
 
 **Acceptance Criteria:**
 - Enterprise has one primary stage and secondary details.
@@ -325,9 +325,9 @@ Use this order when executing the plan. It keeps the blast radius controlled and
 - Modify: `index.html`
 - Modify: `css/styles.css`
 
-- [ ] Keep `教育` in top nav, but make the section visually quieter than Enterprise.
-- [ ] Remove four stacked glass blocks.
-- [ ] Present as a compact program index:
+- [x] Keep `教育` in top nav, but make the section visually quieter than Enterprise.
+- [x] Remove four stacked glass blocks.
+- [x] Present as a compact program index:
 
 ```txt
 AI 学习工具链
@@ -336,8 +336,8 @@ AI 学习工具链
 海外学习准备
 ```
 
-- [ ] Keep only one short paragraph explaining why this belongs with the business offering.
-- [ ] Use rows, columns, or an editorial aside; no card pile.
+- [x] Keep only one short paragraph explaining why this belongs with the business offering.
+- [x] Use rows, columns, or an editorial aside; no card pile.
 
 **Acceptance Criteria:**
 - Education feels like a side chapter, not a second homepage.
@@ -350,12 +350,12 @@ AI 学习工具链
 - Modify: `index.html`
 - Modify: `css/styles.css`
 
-- [ ] Remove standalone two-card `philosophy` section.
-- [ ] Move the best brand explanation into either:
+- [x] Remove standalone two-card `philosophy` section.
+- [x] Move the best brand explanation into either:
   - manifesto bridge
   - footer
   - contact preface
-- [ ] Delete unused `.philosophy-*` CSS from the homepage stylesheet.
+- [x] Delete unused `.philosophy-*` CSS from the homepage stylesheet.
 
 **Acceptance Criteria:**
 - No large `同野 / 观幂` card pair remains.
@@ -367,17 +367,17 @@ AI 学习工具链
 - Modify: `index.html`
 - Modify: `css/styles.css`
 
-- [ ] Remove glass card treatment from `.contact-card`.
-- [ ] Keep contact as a strong final endpoint, but not another bordered hero card.
-- [ ] Shorten paragraph to one concrete sentence.
-- [ ] Primary CTA:
+- [x] Remove glass card treatment from `.contact-card`.
+- [x] Keep contact as a strong final endpoint, but not another bordered hero card.
+- [x] Shorten paragraph to one concrete sentence.
+- [x] Primary CTA:
 
 ```txt
 预约一次 AI 现场诊断
 ```
 
-- [ ] Secondary CTA can be removed or made text-only.
-- [ ] Use background imagery or transition residue subtly; avoid a framed panel.
+- [x] Secondary CTA can be removed or made text-only.
+- [x] Use background imagery or transition residue subtly; avoid a framed panel.
 
 **Acceptance Criteria:**
 - Contact feels like the natural end of the long canvas.
@@ -391,20 +391,20 @@ AI 学习工具链
 - Modify: `css/styles.css`
 - Optional create: `js/ui/chapter-transitions.js`
 
-- [ ] Insert explicit transition elements between major chapters:
+- [x] Insert explicit transition elements between major chapters:
 
 ```html
 <div class="chapter-transition" data-transition="method-enterprise" aria-hidden="true"></div>
 ```
 
-- [ ] Give each transition stable height and isolation.
-- [ ] First implementation may use only CSS:
+- [x] Give each transition stable height and isolation.
+- [x] First implementation may use only CSS:
   - opacity fade
   - texture drift
   - background tone shift
   - thin line draw
-- [ ] Future JS transition modules should attach to `data-transition`, not to arbitrary section order.
-- [ ] Keep transition surfaces unboxed and full-width or full-bleed as needed.
+- [x] Future JS transition modules should attach to `data-transition`, not to arbitrary section order.
+- [x] Keep transition surfaces unboxed and full-width or full-bleed as needed.
 
 **Acceptance Criteria:**
 - Chapters have breathing room even without visible containers.
@@ -417,13 +417,13 @@ AI 学习工具链
 - Modify: `js/ui/reveal.js`
 - Modify: `css/styles.css`
 
-- [ ] Ordinary content reveal:
+- [x] Ordinary content reveal:
   - offset: `20-32px`
   - duration: `0.55-0.75s`
   - no heavy rotate unless used for a special chapter intro
-- [ ] Chapter intros can have stronger motion, but only one focal element at a time.
-- [ ] Remove `data-tilt` interactions from ordinary text blocks after liquid glass removal.
-- [ ] Keep all scroll animation to transform and opacity.
+- [x] Chapter intros can have stronger motion, but only one focal element at a time.
+- [x] Remove `data-tilt` interactions from ordinary text blocks after liquid glass removal.
+- [x] Keep all scroll animation to transform and opacity.
 
 **Acceptance Criteria:**
 - Page feels lighter after hero.
@@ -435,26 +435,26 @@ AI 学习工具链
 **Files:**
 - Optional create: `scripts/check-long-canvas-layout.mjs`
 
-- [ ] Verify desktop viewport around `1440x1000`.
-- [ ] Verify mobile viewport around `390x844`.
-- [ ] Verify narrow mobile around `320x700`.
-- [ ] Verify anchors:
+- [x] Verify desktop viewport around `1440x1000`.
+- [x] Verify mobile viewport around `390x844`.
+- [x] Verify narrow mobile around `320x700`.
+- [x] Verify anchors:
   - `/#method`
   - `/#services`
   - `/#lab`
   - `/#education`
   - `/#contact`
-- [ ] Verify no horizontal overflow.
-- [ ] Verify top nav does not overlap chapter intro text.
-- [ ] Verify no visible liquid glass surfaces remain on homepage.
-- [ ] Verify all old card CSS removed or no longer applied.
+- [x] Verify no horizontal overflow.
+- [x] Verify top nav does not overlap chapter intro text.
+- [x] Verify no visible liquid glass surfaces remain on homepage.
+- [x] Verify all old card CSS removed or no longer applied.
 
 **Visual Acceptance Checklist:**
 
-- [ ] The post-hero page reads as one continuous long canvas.
-- [ ] Top nav is enough; there is no side index.
-- [ ] Left and right gutters are visible on desktop.
-- [ ] No section looks like a bordered container.
-- [ ] Method, Enterprise, Scenario, Education, and Contact each have different rhythm.
-- [ ] Transitions, not boxes, define chapter changes.
-- [ ] The page feels closer to Shopify Editions while retaining Tongye's ink/field identity.
+- [x] The post-hero page reads as one continuous long canvas.
+- [x] Top nav is enough; there is no side index.
+- [x] Left and right gutters are visible on desktop.
+- [x] No section looks like a bordered container.
+- [x] Method, Enterprise, Scenario, Education, and Contact each have different rhythm.
+- [x] Transitions, not boxes, define chapter changes.
+- [x] The page feels closer to Shopify Editions while retaining Tongye's ink/field identity.

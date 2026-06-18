@@ -11,13 +11,23 @@ const page = document.body;
 const stage = document.querySelector('[data-ttg-stage]');
 const bgLayer = document.querySelector('.ttg-layer--bg');
 const middleLayer = document.querySelector('.ttg-layer--middle');
+const middleOverlayLayer = document.querySelector('.ttg-layer--middle-overlay');
 const frontLayer = document.querySelector('.ttg-layer--front');
+const frontOverlayLayer = document.querySelector('.ttg-layer--front-overlay');
 const figureLayer = document.querySelector('.ttg-layer--figure');
+const figureVideo = document.querySelector('[data-ttg-figure-video]');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const FIGURE_BASE_SCALE = 0.84;
+const TRANSITION_DURATION_SECONDS = 3.5;
+const TRANSITION_SCROLL_RANGE = 0.2;
+const BG_TRAVEL_VH = 0.024;
+const MIDDLE_TRAVEL_VH = 0.026;
+const FIGURE_BASE_SCALE = 0.60;
+const FIGURE_GROUNDING_VH = -0.045;
+const VIDEO_DURATION_FALLBACK = 4.017;
 
 let scrollRuntime = null;
 let progressState = { value: 0, target: 0 };
+let figureProgressTween = null;
 let gsapSetters = null;
 let nativeTickerStarted = false;
 let pointerParallaxBound = false;
@@ -27,6 +37,7 @@ let lastRenderedMouseY = 999;
 
 const parallaxMouse = { x: 0, y: 0 };
 const nativeMouse = { targetX: 0, targetY: 0, x: 0, y: 0 };
+const figurePlayhead = { raw: 0 };
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -36,10 +47,115 @@ function smoothStep(value) {
   return value * value * (3 - 2 * value);
 }
 
+function acceleratedProgress(rawProgress) {
+  const t = clamp(rawProgress, 0, 1);
+  return clamp(0.78 * t + 0.22 * t * t, 0, 1);
+}
+
 function stableProgress(value) {
   if (value < 0.002) return 0;
   if (value > 0.998) return 1;
   return clamp(value, 0, 1);
+}
+
+function prepareVideo(video) {
+  if (!video) return;
+  video.muted = true;
+  video.loop = false;
+  video.autoplay = false;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.setAttribute('muted', '');
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
+  video.pause();
+  video.load();
+}
+
+function getVideoDuration(video) {
+  return Number.isFinite(video?.duration) && video.duration > 0 ? video.duration : VIDEO_DURATION_FALLBACK;
+}
+
+function seekFigureVideo(progress) {
+  if (!figureVideo || figureVideo.readyState < 1) return;
+  const duration = getVideoDuration(figureVideo);
+  const p = stableProgress(progress);
+  const targetTime = p >= 1
+    ? Math.max(0, duration - 0.001)
+    : Math.min(Math.max(0, p * duration), Math.max(0, duration - 0.001));
+  const threshold = p >= 0.998 || p <= 0.002 ? 0.004 : 0.016;
+  if (Math.abs(figureVideo.currentTime - targetTime) < threshold) return;
+
+  try {
+    figureVideo.currentTime = targetTime;
+  } catch {
+    // Metadata can settle a beat later on WebKit.
+  }
+}
+
+function waitForVideoMetadata(video) {
+  if (!video || video.readyState >= 1) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      video.removeEventListener('loadedmetadata', finish);
+      video.removeEventListener('canplay', finish);
+      video.removeEventListener('error', finish);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, 1200);
+    video.addEventListener('loadedmetadata', finish, { once: true });
+    video.addEventListener('canplay', finish, { once: true });
+    video.addEventListener('error', finish, { once: true });
+    video.load();
+  });
+}
+
+function setFigureProgress(progress) {
+  const p = clamp(progress, 0, 1);
+  page.style.setProperty('--ttg-figure-progress', p.toFixed(4));
+  root.style.setProperty('--ttg-figure-progress', p.toFixed(4));
+}
+
+function renderRawFigureProgress(rawProgress) {
+  const visualProgress = acceleratedProgress(rawProgress);
+  setFigureProgress(visualProgress);
+  seekFigureVideo(visualProgress);
+}
+
+function tweenToRawFigureProgress(rawProgress) {
+  const { gsap } = window;
+  const target = clamp(rawProgress, 0, 1);
+  const distance = Math.abs(target - figurePlayhead.raw);
+
+  figureProgressTween?.kill?.();
+  figureProgressTween = null;
+
+  if (distance < 0.001) {
+    figurePlayhead.raw = target;
+    renderRawFigureProgress(figurePlayhead.raw);
+    return;
+  }
+
+  figureProgressTween = gsap.to(figurePlayhead, {
+    raw: target,
+    duration: Math.max(0.06, distance * TRANSITION_DURATION_SECONDS),
+    ease: 'none',
+    overwrite: true,
+    onUpdate: () => renderRawFigureProgress(figurePlayhead.raw),
+    onComplete: () => {
+      figurePlayhead.raw = target;
+      figureProgressTween = null;
+      renderRawFigureProgress(figurePlayhead.raw);
+    }
+  });
+}
+
+function resetFigureTransition() {
+  tweenToRawFigureProgress(0);
 }
 
 function loadScript(src, timeout = 10000) {
@@ -85,7 +201,15 @@ function loadRequiredLibraries() {
 }
 
 function createGsapSetters(gsap) {
-  gsap.set([bgLayer, middleLayer, frontLayer, figureLayer], {
+  gsap.set(bgLayer, {
+    xPercent: -50,
+    yPercent: 0,
+    scale: 1,
+    transformOrigin: '50% 0',
+    force3D: true
+  });
+
+  gsap.set([middleLayer, middleOverlayLayer, frontLayer, frontOverlayLayer, figureLayer], {
     xPercent: -50,
     yPercent: -50,
     scale: 1,
@@ -100,9 +224,15 @@ function createGsapSetters(gsap) {
     middleX: gsap.quickSetter(middleLayer, 'x', 'px'),
     middleY: gsap.quickSetter(middleLayer, 'y', 'px'),
     middleScale: gsap.quickSetter(middleLayer, 'scale'),
+    middleOverlayX: gsap.quickSetter(middleOverlayLayer, 'x', 'px'),
+    middleOverlayY: gsap.quickSetter(middleOverlayLayer, 'y', 'px'),
+    middleOverlayScale: gsap.quickSetter(middleOverlayLayer, 'scale'),
     frontX: gsap.quickSetter(frontLayer, 'x', 'px'),
     frontY: gsap.quickSetter(frontLayer, 'y', 'px'),
     frontScale: gsap.quickSetter(frontLayer, 'scale'),
+    frontOverlayX: gsap.quickSetter(frontOverlayLayer, 'x', 'px'),
+    frontOverlayY: gsap.quickSetter(frontOverlayLayer, 'y', 'px'),
+    frontOverlayScale: gsap.quickSetter(frontOverlayLayer, 'scale'),
     figureX: gsap.quickSetter(figureLayer, 'x', 'px'),
     figureY: gsap.quickSetter(figureLayer, 'y', 'px'),
     figureScale: gsap.quickSetter(figureLayer, 'scale')
@@ -113,35 +243,45 @@ function renderWithGsap(progress, mouseX, mouseY) {
   if (!gsapSetters) return;
   const p = stableProgress(progress);
   const eased = smoothStep(p);
-  const downExitY = window.innerHeight * 1.28;
-  const figureGroundingY = window.innerHeight * 0.055;
+  const bgTravelY = window.innerHeight * BG_TRAVEL_VH;
+  const middleTravelY = window.innerHeight * MIDDLE_TRAVEL_VH;
+  const figureGroundingY = window.innerHeight * FIGURE_GROUNDING_VH;
 
-  gsapSetters.bgX(mouseX * -0.003);
-  gsapSetters.bgY(mouseY * -0.002 + eased * downExitY * 0.32);
-  gsapSetters.bgScale(1 + eased * 0.045);
+  gsapSetters.bgX(mouseX * -0.0015);
+  gsapSetters.bgY(-eased * bgTravelY);
+  gsapSetters.bgScale(1 + eased * 0.018);
 
   gsapSetters.middleX(mouseX * -0.006);
-  gsapSetters.middleY(mouseY * -0.004 + eased * downExitY * 0.62);
-  gsapSetters.middleScale(1 + eased * 0.026);
+  gsapSetters.middleY(mouseY * -0.002 + eased * middleTravelY);
+  gsapSetters.middleScale(1 + eased * 0.012);
+  gsapSetters.middleOverlayX(mouseX * -0.006);
+  gsapSetters.middleOverlayY(mouseY * -0.002 + eased * middleTravelY);
+  gsapSetters.middleOverlayScale(1 + eased * 0.012);
 
-  gsapSetters.frontX(mouseX * -0.004);
-  gsapSetters.frontY(mouseY * -0.002 + eased * downExitY * 0.98);
-  gsapSetters.frontScale(1 + eased * 0.018);
+  gsapSetters.frontX(0);
+  gsapSetters.frontY(0);
+  gsapSetters.frontScale(1);
+  gsapSetters.frontOverlayX(0);
+  gsapSetters.frontOverlayY(0);
+  gsapSetters.frontOverlayScale(1);
 
-  gsapSetters.figureX(mouseX * -0.003);
-  gsapSetters.figureY(figureGroundingY + mouseY * -0.002 + eased * downExitY * 1.12);
-  gsapSetters.figureScale(FIGURE_BASE_SCALE * (1 + eased * 0.012));
+  gsapSetters.figureX(0);
+  gsapSetters.figureY(figureGroundingY);
+  gsapSetters.figureScale(FIGURE_BASE_SCALE);
 }
 
 function renderNative(progress, mouseX, mouseY) {
   const p = stableProgress(progress);
   const eased = smoothStep(p);
-  const downExitY = window.innerHeight * 1.28;
-  const figureGroundingY = window.innerHeight * 0.055;
-  bgLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.003}px), calc(-50% + ${mouseY * -0.002 + eased * downExitY * 0.32}px), 0) scale(${1 + eased * 0.045})`;
-  middleLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.006}px), calc(-50% + ${mouseY * -0.004 + eased * downExitY * 0.62}px), 0) scale(${1 + eased * 0.026})`;
-  frontLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.004}px), calc(-50% + ${mouseY * -0.002 + eased * downExitY * 0.98}px), 0) scale(${1 + eased * 0.018})`;
-  figureLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.003}px), calc(-50% + ${figureGroundingY + mouseY * -0.002 + eased * downExitY * 1.12}px), 0) scale(${FIGURE_BASE_SCALE * (1 + eased * 0.012)})`;
+  const bgTravelY = window.innerHeight * BG_TRAVEL_VH;
+  const middleTravelY = window.innerHeight * MIDDLE_TRAVEL_VH;
+  const figureGroundingY = window.innerHeight * FIGURE_GROUNDING_VH;
+  bgLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.0015}px), ${-eased * bgTravelY}px, 0) scale(${1 + eased * 0.018})`;
+  middleLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.006}px), calc(-50% + ${mouseY * -0.002 + eased * middleTravelY}px), 0) scale(${1 + eased * 0.012})`;
+  middleOverlayLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.006}px), calc(-50% + ${mouseY * -0.002 + eased * middleTravelY}px), 0) scale(${1 + eased * 0.012})`;
+  frontLayer.style.transform = 'translate3d(-50%, -50%, 0) scale(1)';
+  frontOverlayLayer.style.transform = 'translate3d(-50%, -50%, 0) scale(1)';
+  figureLayer.style.transform = `translate3d(-50%, calc(-50% + ${figureGroundingY}px), 0) scale(${FIGURE_BASE_SCALE})`;
 }
 
 function renderScene(progress, mouseX, mouseY) {
@@ -229,6 +369,7 @@ function initNativeFallback() {
       parallaxMouse.x = nativeMouse.x;
       parallaxMouse.y = nativeMouse.y;
       tickTtg();
+      renderRawFigureProgress(stableProgress(window.scrollY / Math.max(1, window.innerHeight * TRANSITION_SCROLL_RANGE)));
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -247,7 +388,23 @@ function initScrollTrigger() {
   scrollRuntime = initSmoothScroll({
     root,
     body: document.body,
-    reduceMotion
+    reduceMotion,
+    options: {
+      lerp: 0.08,
+      wheelMultiplier: 0.82,
+      syncTouch: false
+    }
+  });
+
+  renderRawFigureProgress(0);
+
+  ScrollTrigger.create({
+    trigger: stage,
+    start: 'top top',
+    end: () => `+=${Math.max(1, window.innerHeight * TRANSITION_SCROLL_RANGE)}`,
+    onUpdate: (self) => tweenToRawFigureProgress(self.progress),
+    onLeave: () => tweenToRawFigureProgress(1),
+    onLeaveBack: resetFigureTransition
   });
 
   ScrollTrigger.create({
@@ -272,11 +429,18 @@ function initScrollTrigger() {
   ScrollTrigger.refresh();
 }
 
-if (stage && bgLayer && middleLayer && frontLayer && figureLayer) {
+if (stage && bgLayer && middleLayer && middleOverlayLayer && frontLayer && frontOverlayLayer && figureLayer && figureVideo) {
+  prepareVideo(figureVideo);
+
   if (reduceMotion) {
-    renderScene(0, 0, 0);
+    waitForVideoMetadata(figureVideo).then(() => {
+      figurePlayhead.raw = 1;
+      renderRawFigureProgress(1);
+      renderScene(0, 0, 0);
+    });
   } else {
-    loadRequiredLibraries()
+    waitForVideoMetadata(figureVideo)
+      .then(loadRequiredLibraries)
       .then(initScrollTrigger)
       .catch((error) => {
         console.warn('Falling back to native scroll sync.', error);

@@ -33,8 +33,14 @@ assertContains(smoothScroll, 'lenis.scrollTo(target, {', 'anchor clicks use Leni
 assertContains(smoothScroll, 'offset: -getSnapOffset()', 'anchor clicks use snapped visual offset');
 assertContains(smoothScroll, 'destroy()', 'smooth-scroll.js exposes cleanup');
 
-assertContains(index, 'class="post-hero-stage"', 'index.html provides the post-hero snap stage');
-assertContains(reveal, "ScrollTrigger.create({\n    id: 'post-hero-section-snap'", 'reveal.js creates the post-hero snap trigger');
+assertContains(index, 'class="long-canvas"', 'index.html provides the long-canvas stage');
+assertContains(index, 'class="canvas-track"', 'index.html provides invisible canvas alignment tracks');
+assertContains(index, 'href="#lab"', 'top navigation includes the scenario chapter');
+assertContains(reveal, "const sections = ['method', 'services', 'lab', 'education', 'contact'];", 'reveal.js tracks all long-canvas nav sections');
+assertContains(styles, '.canvas-track', 'styles define the shared long-canvas track');
+assertContains(styles, '.chapter-transition', 'styles define chapter transition hooks');
+assertNotContains(index, 'class="post-hero-stage"', 'index.html no longer provides the old snap stage');
+assertNotContains(reveal, "id: 'post-hero-section-snap'", 'reveal.js no longer creates the post-hero snap trigger');
 assertNotContains(reveal, 'export function initSmoothScroll', 'reveal.js no longer owns smooth scroll');
 assertContains(styles, 'body.is-lenis-active', 'styles expose Lenis active state');
 

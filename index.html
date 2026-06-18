@@ -9,12 +9,6 @@
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="preload" href="assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
   <link rel="stylesheet" href="css/styles.css" />
-  <link rel="stylesheet" href="css/components/liquid-glass-home.css" />
-  <style>
-    .liquid-glass::before {
-      backdrop-filter: blur(8px) url(#liquid-glass-refraction) saturate(1.5);
-    }
-  </style>
 </head>
 <body>
   <svg class="svg-filters" aria-hidden="true" focusable="false">
@@ -25,19 +19,6 @@
       <feMorphology in="thresholdAlpha" operator="erode" radius="0.38" result="trimmedAlpha" />
       <feGaussianBlur in="trimmedAlpha" stdDeviation="0.28" result="featherAlpha" />
       <feComposite in="SourceGraphic" in2="featherAlpha" operator="in" />
-    </filter>
-    <filter id="liquid-glass-refraction" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB">
-      <feImage
-        href="assets/liquid-glass-displacement.webp"
-        x="0"
-        y="0"
-        width="100%"
-        height="100%"
-        preserveAspectRatio="none"
-        result="map"
-      />
-      <feGaussianBlur in="SourceGraphic" stdDeviation="0.01" result="blur" />
-      <feDisplacementMap in="blur" in2="map" scale="0.5" xChannelSelector="R" yChannelSelector="G" />
     </filter>
   </svg>
   <div class="grain" aria-hidden="true"></div>
@@ -55,17 +36,20 @@
   </div>
 
   <nav class="site-nav" aria-label="主导航">
-    <a class="brand" href="#top" aria-label="同野观幂首页">
-      <span class="brand-mark liquid-glass liquid-glass--button">同</span>
-      <span class="brand-text">同野观幂</span>
-    </a>
-    <div class="nav-links liquid-glass liquid-glass--nav" aria-label="页面章节">
-      <a href="#method">方法</a>
-      <a href="#services">场景</a>
-      <a href="#education">留学</a>
-      <a href="#contact">联系</a>
+    <div class="site-nav-track">
+      <a class="brand" href="#top" aria-label="同野观幂首页">
+        <span class="brand-mark">同</span>
+        <span class="brand-text">同野观幂</span>
+      </a>
+      <div class="nav-links" aria-label="页面章节">
+        <a href="#method">方法</a>
+        <a href="#services">企业</a>
+        <a href="#lab">场景</a>
+        <a href="#education">教育</a>
+        <a href="#contact">联系</a>
+      </div>
+      <a class="nav-cta" href="#contact">预约</a>
     </div>
-    <a class="nav-cta magnetic liquid-glass liquid-glass--button liquid-glass--strong" href="#contact">预约诊断</a>
   </nav>
 
   <main id="top">
@@ -92,10 +76,8 @@
         <canvas class="hero-ink-transition" data-hero-ink-canvas aria-hidden="true"></canvas>
 
         <section class="manifesto section-pad" id="manifesto" aria-label="同野观幂理念">
-          <div class="section-index">同野观幂 / 00</div>
-          <div class="manifesto-grid">
-            <p class="large-copy"><span data-ink-reveal="webgl">AI</span> 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。它决定了未来三年你是领跑还是追赶。</p>
-            <div class="manifesto-card glass liquid-glass" data-tilt>
+          <div class="manifesto-grid manifesto-grid--solo">
+            <div class="manifesto-note">
               <span class="card-label">一句话讲清我们干什么</span>
               <h3>让 AI 从一场培训，变成账上的数字。</h3>
               <p>我们不卖课、不卖软件，而是进到你的业务现场，把 AI 做成团队天天在用、月底对得上账的东西。</p>
@@ -103,176 +85,105 @@
           </div>
         </section>
 
-        <section class="hero-method-preview section-pad" data-hero-method-preview aria-hidden="true">
-          <div class="section-heading hero-method-preview-heading">
-            <span class="section-index">Method / 01</span>
-            <h2>从“看得懂”到“用得上”的五步打法</h2>
-            <p>你的生意怎么跑，你比谁都懂，我们不来重画流程。我们只做一件事：看现场，找出钱耗在哪、人卡在哪、订单为什么慢，把 AI 接进去。</p>
-          </div>
-          <div class="hero-method-preview-grid">
-            <article class="hero-method-preview-card liquid-glass liquid-glass--compact">
-              <span>01</span>
-              <h3>识场</h3>
-              <p>先摸清最耗人、最容易断的环节：老师傅一走就带走的本事，先理出来；哪笔钱花得冤，先算清楚。不瞎铺摊子。</p>
-            </article>
-            <article class="hero-method-preview-card liquid-glass liquid-glass--compact">
-              <span>02</span>
-              <h3>立法</h3>
-              <p>给团队定一套能看懂、敢用的规矩。怎么问 AI、什么能信、哪些数据碰不得，先讲清楚，团队才敢用，也不乱用。</p>
-            </article>
-            <article class="hero-method-preview-card liquid-glass liquid-glass--compact">
-              <span>03</span>
-              <h3>共创</h3>
-              <p>拉上你、你的中层和一线老员工一起设计。流程得让一线认账，不然做得再漂亮也推不动。</p>
-            </article>
-          </div>
+        <section class="hero-belief section-pad" data-hero-belief aria-hidden="true">
+          <p class="large-copy large-copy--standalone">AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。它决定了未来三年你是领跑还是追赶。</p>
         </section>
+
         <canvas class="hero-exit-ink-transition" data-hero-exit-ink-canvas aria-hidden="true"></canvas>
       </div>
     </section>
 
-    <div class="post-hero-stage" aria-label="页面主体章节">
-      <section class="method section-pad" id="method">
-        <div class="section-heading reveal">
-          <span class="section-index">Method / 01</span>
-          <h2>从“看得懂”到“用得上”的五步打法</h2>
-          <p>你的生意怎么跑，你比谁都懂，我们不来重画流程。我们只做一件事：看现场，找出钱耗在哪、人卡在哪、订单为什么慢，把 AI 接进去。</p>
-        </div>
-        <div class="method-grid">
-          <article class="method-card reveal liquid-glass liquid-glass--compact" data-tilt>
-            <span>01</span>
-            <h3>识场</h3>
-            <p>先摸清最耗人、最容易断的环节：老师傅一走就带走的本事，先理出来；哪笔钱花得冤，先算清楚。不瞎铺摊子。</p>
-          </article>
-          <article class="method-card reveal liquid-glass liquid-glass--compact" data-tilt>
-            <span>02</span>
-            <h3>立法</h3>
-            <p>给团队定一套能看懂、敢用的规矩。怎么问 AI、什么能信、哪些数据碰不得，先讲清楚，团队才敢用，也不乱用。</p>
-          </article>
-          <article class="method-card reveal liquid-glass liquid-glass--compact" data-tilt>
-            <span>03</span>
-            <h3><span data-ink-reveal>共创</span></h3>
-            <p>拉上你、你的中层和一线老员工一起设计。流程得让一线认账，不然做得再漂亮也推不动。</p>
-          </article>
-          <article class="method-card reveal liquid-glass liquid-glass--compact" data-tilt>
-            <span>04</span>
-            <h3><span data-ink-reveal>成器</span></h3>
-            <p>把摸索出来的东西沉淀成模板、专属 AI 助手、知识库和自动流程。人走了，本事留在公司里。</p>
-          </article>
-          <article class="method-card reveal liquid-glass liquid-glass--compact" data-tilt>
-            <span>05</span>
-            <h3>陪跑</h3>
-            <p>交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。</p>
-          </article>
-        </div>
-        <div class="trust-note reveal">
-          <span class="card-label">我们见过太多“用不上”</span>
-          <div class="trust-grid">
-            <article class="liquid-glass liquid-glass--compact"><strong>只培训</strong><p>听完很激动，回去照旧。</p></article>
-            <article class="liquid-glass liquid-glass--compact"><strong>只上软件</strong><p>账号开了，一线没人碰。</p></article>
-            <article class="liquid-glass liquid-glass--compact"><strong>只交方案</strong><p>装订精美，锁进抽屉。</p></article>
+    <div class="long-canvas" aria-label="页面主体章节">
+      <section class="canvas-section canvas-section--method" id="method">
+        <div class="canvas-track">
+          <div class="chapter-intro reveal">
+            <span class="section-index">Method / 01</span>
+            <h2>从“看得懂”到“用得上”的五步打法</h2>
+            <p>你的生意怎么跑，你比谁都懂，我们不来重画流程。我们只做一件事：看现场，找出钱耗在哪、人卡在哪、订单为什么慢，把 AI 接进去。</p>
           </div>
-          <p class="trust-closing">同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。</p>
-        </div>
-      </section>
-
-      <section class="edition-band" aria-label="品牌方法论">
-        <div class="edition-copy reveal">
-          <span class="eyebrow">THE FIELD EDITION</span>
-          <h2>同人于野，观复杂之幂。</h2>
-          <p>“同野”取自《易经》“同人于野”，意为在开放真实的场域中并肩协作；“观幂”意为看见复杂系统背后的结构与门道。我们做的事很朴素：把 AI 从少数人的黑箱里带出来，放回你的直播间、你的门店、你的谈判桌。能省钱、能接单、能少返工，才算真有用。</p>
-        </div>
-      </section>
-
-      <section class="services section-pad" id="services">
-        <div class="section-heading reveal">
-          <span class="section-index">Enterprise / 02</span>
-          <h2>真正的 AI 转型，发生在你的业务现场，不在供应商的方案书里。</h2>
-          <p>不必一上来就大动干戈。先挑一个环节，几天内做出能跑的东西给你看，值不值、扩不扩，你看着实物决定。做完以后，留下的是会用 AI 干活的人，不是几个闲置账号。</p>
-        </div>
-        <div class="service-grid">
-          <article class="service-card reveal liquid-glass" data-tilt>
-            <div class="service-icon">✦</div>
-            <h3>AI 转型咨询</h3>
-            <p>帮你理清楚哪儿该上 AI、能省多少、先动哪一步。给你一张看得懂、能落地的路线图，不是一本锁进抽屉的方案书。</p>
-            <ul><li>管理层关门对齐会</li><li>先动哪个环节，排清顺序</li><li>风险与数据安全把关</li></ul>
-          </article>
-          <article class="service-card reveal liquid-glass" data-tilt>
-            <div class="service-icon">⌁</div>
-            <h3>企业培训</h3>
-            <p>培训不按热闹算，按会不会用算。老板、中层、一线都要把 AI 用顺手，开会不再是你一个人懂、底下没人接得住。</p>
-            <ul><li>怎么把活儿交代给 AI</li><li>哪些活交给 AI、哪些人把关</li><li>按岗位定制课程</li></ul>
-          </article>
-          <article class="service-card reveal liquid-glass" data-tilt>
-            <div class="service-icon">◈</div>
-            <h3>场景共创</h3>
-            <p>把你嘴里那句“我也说不清想要啥”的模糊需求，拆成做得出、用得上、能复用的具体 AI 应用。</p>
-            <ul><li>销售获客与跟单</li><li>电商素材与投放复盘</li><li>核心经验与文档整理</li></ul>
-          </article>
-          <article class="service-card reveal liquid-glass" data-tilt>
-            <div class="service-icon">⌬</div>
-            <h3>工具实施与陪跑</h3>
-            <p>帮你搭模板、建知识库、做专属 AI 助手和自动流程，然后陪着用起来，让“装了”真的变成“在用”。</p>
-            <ul><li>专属 AI 助手搭建</li><li>知识库落地</li><li>定期复盘优化</li></ul>
-          </article>
-        </div>
-      </section>
-
-      <section class="lab section-pad" id="lab">
-        <div class="lab-top reveal">
-          <span class="section-index">Scenario / 03</span>
-          <h2>同样一件事，有人报三万有人报三千万。我们帮你看真生意里的 <span data-ink-reveal>AI</span>——投流怎么花、店怎么卖、车间怎么排。</h2>
-        </div>
-        <div class="scenario-strip" aria-label="AI 落地场景">
-          <article class="scenario-card reveal liquid-glass liquid-glass--compact"><span>选型与决策</span><strong>报价、方案、招人，分不清谁靠谱？我们陪你把账算清，你只管拍板。</strong></article>
-          <article class="scenario-card reveal liquid-glass liquid-glass--compact"><span>知识管理</span><strong>老师傅一走，本事就带走了？把团队经验存成 AI 随时能调的活资产。</strong></article>
-          <article class="scenario-card reveal liquid-glass liquid-glass--compact"><span>电商投放</span><strong>素材、投放、客资连成一条线，钱花出去几个小时就知道值不值，不用等一个月。</strong></article>
-          <article class="scenario-card reveal liquid-glass liquid-glass--compact"><span>销售增长</span><strong>摸透客户、磨好话术、给没成交的线索自动备好材料，让销售把时间花在成单上。</strong></article>
-          <article class="scenario-card reveal liquid-glass liquid-glass--compact"><span>运营提效</span><strong>天天重复的对账单、走流程、回消息，交给 AI 自动跑，省下的人去干更值钱的活。</strong></article>
-          <article class="scenario-card reveal liquid-glass liquid-glass--compact"><span>供应链与采购</span><strong>比价、合同跟踪、库存预警这些琐碎盯梢，交给 AI 看着，账目更清爽。</strong></article>
-        </div>
-      </section>
-
-      <section class="education section-pad" id="education">
-        <div class="education-grid">
-          <div class="section-heading reveal">
-            <span class="section-index">给企业家的延伸服务 / 04</span>
-            <h2>你为生意请的这套 AI 打法，也能用在孩子身上。</h2>
-            <p>很多老板做着做着会问一句，孩子出国，是不是也该会用这些工具？答案是会。查资料、做研究、写申请、适应海外课堂，用当下的工具，准备当下的竞争。</p>
-          </div>
-          <div class="edu-stack reveal">
-            <article class="liquid-glass liquid-glass--compact"><span>01</span><strong>AI 工具使用</strong><p>让孩子掌握一套属于自己的高效 AI 学习方法：查资料、读东西、做展示这些事先用顺手，比同龄人快一截。</p></article>
-            <article class="liquid-glass liquid-glass--compact"><span>02</span><strong>研究项目</strong><p>把孩子的一个兴趣，做成一个拿得出手的研究项目，申请材料里就有了别人没有的东西。</p></article>
-            <article class="liquid-glass liquid-glass--compact"><span>03</span><strong>申请表达</strong><p>把零散的经历和想法理出一条清楚的主线，让孩子的个人故事真正打动招生官。</p></article>
-            <article class="liquid-glass liquid-glass--compact"><span>04</span><strong>海外学习准备</strong><p>提前练好大学要用的查资料、小组协作、课堂表达，出去不慌，也不掉队。</p></article>
+          <ol class="process-list" aria-label="AI 落地五步法">
+            <li class="process-row reveal"><span>01</span><strong>识场</strong><p>先摸清最耗人、最容易断的环节：老师傅一走就带走的本事，先理出来；哪笔钱花得冤，先算清楚。不瞎铺摊子。</p></li>
+            <li class="process-row reveal"><span>02</span><strong>立法</strong><p>给团队定一套能看懂、敢用的规矩。怎么问 AI、什么能信、哪些数据碰不得，先讲清楚，团队才敢用，也不乱用。</p></li>
+            <li class="process-row reveal"><span>03</span><strong>共创</strong><p>拉上你、你的中层和一线老员工一起设计。流程得让一线认账，不然做得再漂亮也推不动。</p></li>
+            <li class="process-row reveal"><span>04</span><strong>成器</strong><p>把摸索出来的东西沉淀成模板、专属 AI 助手、知识库和自动流程。人走了，本事留在公司里。</p></li>
+            <li class="process-row reveal"><span>05</span><strong>陪跑</strong><p>交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。</p></li>
+          </ol>
+          <div class="quiet-proof reveal">
+            <span>我们见过太多“用不上”</span>
+            <p>只培训，听完很激动，回去照旧；只上软件，账号开了，一线没人碰；只交方案，装订精美，锁进抽屉。同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。</p>
           </div>
         </div>
       </section>
 
-      <section class="philosophy section-pad" id="philosophy">
-        <div class="philosophy-grid">
-          <article class="philosophy-card reveal liquid-glass" data-tilt>
-            <span>同野</span>
-            <h2>在开放真实的场域中并肩协作。</h2>
-            <p>AI 转型，难的从来不是买工具。方向怎么定、中层怎么带、一线怎么用，得理出一条线。最难的一步是把技术翻成老板能直接用的决策判断——这一头，我们陪你做。</p>
-          </article>
-          <article class="philosophy-card reveal liquid-glass" data-tilt>
-            <span>观幂</span>
-            <h2>看见复杂系统背后的结构与门道。</h2>
-            <p>我们不爱炫技术。我们在意的是 AI 在你的生意里能不能让人看得懂、用得顺、长久用下去，而不是热闹三个月就没人提了。</p>
-          </article>
+      <div class="chapter-transition" data-transition="method-enterprise" aria-hidden="true"></div>
+
+      <section class="canvas-section canvas-section--enterprise" id="services">
+        <div class="canvas-track enterprise-layout">
+          <div class="chapter-intro reveal">
+            <span class="section-index">Enterprise / 02</span>
+            <h2>企业 AI 能力建设</h2>
+            <p>从管理层共识、场景共创，到工具实施和陪跑，先挑一个环节做出能跑的东西，再决定要不要扩大。</p>
+          </div>
+          <p class="enterprise-statement reveal">真正的 AI 转型，发生在你的业务现场，不在供应商的方案书里。</p>
+          <div class="capability-list reveal" aria-label="企业服务能力">
+            <div><span>咨询</span><p>路线图 / 治理 / 优先级</p></div>
+            <div><span>培训</span><p>管理层 / 业务团队 / 一线岗位</p></div>
+            <div><span>共创</span><p>销售 / 运营 / 知识管理</p></div>
+            <div><span>陪跑</span><p>智能体 / 知识库 / 复盘机制</p></div>
+          </div>
         </div>
       </section>
 
-      <section class="contact section-pad" id="contact">
-        <div class="contact-card reveal liquid-glass">
+      <div class="chapter-transition" data-transition="enterprise-scenario" aria-hidden="true"></div>
+
+      <section class="canvas-section canvas-section--scenario" id="lab">
+        <div class="canvas-track scenario-layout">
+          <div class="chapter-intro reveal">
+            <span class="section-index">Scenario / 03</span>
+            <h2>场景</h2>
+            <p>同样一件事，有人报三万有人报三千万。我们帮你看真生意里的 <span data-ink-reveal>AI</span>。</p>
+          </div>
+          <div class="scenario-list" aria-label="AI 落地场景">
+            <article class="scenario-row reveal"><span>管理决策</span><strong>信息汇总 -> 判断框架</strong></article>
+            <article class="scenario-row reveal"><span>知识管理</span><strong>经验 -> 可调用资产</strong></article>
+            <article class="scenario-row reveal"><span>销售增长</span><strong>洞察 -> 内容与跟进</strong></article>
+            <article class="scenario-row reveal"><span>运营提效</span><strong>重复动作 -> 自动化流程</strong></article>
+            <article class="scenario-row reveal"><span>供应链</span><strong>比价 / 合同 / 库存预警</strong></article>
+            <article class="scenario-row reveal"><span>教育表达</span><strong>研究 / 写作 / 申请结构</strong></article>
+          </div>
+        </div>
+      </section>
+
+      <div class="chapter-transition" data-transition="scenario-education" aria-hidden="true"></div>
+
+      <section class="canvas-section canvas-section--education" id="education">
+        <div class="canvas-track education-layout">
+          <div class="chapter-intro reveal">
+            <span class="section-index">Education / 04</span>
+            <h2>教育</h2>
+            <p>你为生意请的这套 AI 打法，也能用在孩子的研究、表达和海外学习准备上。</p>
+          </div>
+          <div class="program-index reveal" aria-label="教育服务目录">
+            <span>AI 学习工具链</span>
+            <span>研究项目路径</span>
+            <span>申请表达结构</span>
+            <span>海外学习准备</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="chapter-transition" data-transition="education-contact" aria-hidden="true"></div>
+
+      <section class="canvas-section canvas-section--contact" id="contact">
+        <div class="canvas-track contact-endpoint reveal">
           <span class="eyebrow">START FROM THE FIELD</span>
           <h2>把你拿不准的那个决定，先拿出来聊。</h2>
-          <p>带上一个正在耗人耗钱的环节、一场谈不拢的管理层会，或者孩子的留学规划。我们先帮你拆成看得懂、落得了地的下一步。一次现场诊断你会拿到三样东西：哪个环节值得上 AI、先后顺序、大概要投入多少。真要做，也是先挑一个环节小做，几天内见到能跑的东西，再谈要不要扩大。聊完再决定要不要合作，不推销、不卖课。</p>
+          <p>带上一个正在耗人耗钱的环节，我们先拆成看得懂、落得了地的下一步。</p>
+          <p class="brand-footnote">同野，取“同人于野”；观幂，是看见复杂系统背后的结构。</p>
           <div class="contact-actions">
             <!-- 上线前请将 contact@example.com 替换为公司正式邮箱，或改成表单/企微入口。 -->
-            <a class="btn btn-primary magnetic liquid-glass liquid-glass--button liquid-glass--strong" href="mailto:contact@example.com?subject=%E5%90%8C%E9%87%8E%E8%A7%82%E5%B9%82%20AI%20%E8%AF%8A%E6%96%AD%E5%92%A8%E8%AF%A2">约一次 AI 现场诊断</a>
-            <a class="btn btn-ghost magnetic liquid-glass liquid-glass--button" href="#top">回到首屏</a>
+            <a class="btn btn-primary" href="mailto:contact@example.com?subject=%E5%90%8C%E9%87%8E%E8%A7%82%E5%B9%82%20AI%20%E8%AF%8A%E6%96%AD%E5%92%A8%E8%AF%A2">预约一次 AI 现场诊断</a>
+            <a class="text-link" href="#top">回到首屏</a>
           </div>
         </div>
       </section>

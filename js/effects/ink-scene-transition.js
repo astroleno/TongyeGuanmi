@@ -6,6 +6,9 @@ export function createInkCurtainTransition(canvas, options = {}) {
     const colorLift = clamp(options.colorLift ?? 0.32, 0, 1);
     const progressSpan = Math.max(0.01, options.progressSpan || 1);
     const direction = options.direction === 'top-down' ? 1 : 0;
+    const coverAlpha = clamp(options.coverAlpha ?? 0.72, 0, 1);
+    const fadeOutStart = clamp(options.fadeOutStart ?? 0.76, 0, 0.98);
+    const fadeOutEnd = Math.max(fadeOutStart + 0.01, clamp(options.fadeOutEnd ?? 0.98, 0.01, 1));
 
     const gl = canvas.getContext('webgl', {
       alpha: true,
@@ -37,6 +40,7 @@ export function createInkCurtainTransition(canvas, options = {}) {
       uniform float uColorLift;
       uniform float uDirection;
       uniform float uProgressSpan;
+      uniform float uCoverAlpha;
 
       float hash(vec2 p) {
         p = fract(p * vec2(127.1, 311.7));
@@ -132,7 +136,7 @@ export function createInkCurtainTransition(canvas, options = {}) {
         color += vec3(0.025, 0.075, 0.060) * openingBreakup * feather * mix(0.08, 0.34, uColorLift);
         color = mix(color, vec3(0.004, 0.008, 0.007), late * 0.35);
 
-        float coreWash = body * (0.14 + late * 0.08);
+        float coreWash = body * (0.14 + uCoverAlpha * 0.72 + late * 0.10);
         float alpha = coreWash;
         alpha += feather * 0.18 + hot * 0.13 + veins * 0.05 + ember * 0.28 + particles * 0.76 + particleCore * 0.36;
         alpha = clamp(alpha, 0.0, 1.0);
@@ -178,7 +182,8 @@ export function createInkCurtainTransition(canvas, options = {}) {
       time: gl.getUniformLocation(program, 'uTime'),
       colorLift: gl.getUniformLocation(program, 'uColorLift'),
       direction: gl.getUniformLocation(program, 'uDirection'),
-      progressSpan: gl.getUniformLocation(program, 'uProgressSpan')
+      progressSpan: gl.getUniformLocation(program, 'uProgressSpan'),
+      coverAlpha: gl.getUniformLocation(program, 'uCoverAlpha')
     };
 
     let width = 0;
@@ -208,9 +213,12 @@ export function createInkCurtainTransition(canvas, options = {}) {
     return {
       render(progress, pointerX = 0, pointerY = 0) {
         const visibleProgress = clamp(progress, 0, 1);
-        const active = visibleProgress > 0.002;
+        const fadeIn = smoothStep(clamp(visibleProgress / 0.08, 0, 1));
+        const fadeOut = 1 - smoothStep(clamp((visibleProgress - fadeOutStart) / (fadeOutEnd - fadeOutStart), 0, 1));
+        const canvasOpacity = fadeIn * fadeOut;
+        const active = canvasOpacity > 0.002;
         canvas.style.visibility = active ? 'visible' : 'hidden';
-        canvas.style.opacity = active ? smoothStep(clamp(visibleProgress / 0.08, 0, 1)).toFixed(4) : '0';
+        canvas.style.opacity = active ? canvasOpacity.toFixed(4) : '0';
         if (!resize()) return;
 
         gl.clear(gl.COLOR_BUFFER_BIT);
@@ -228,6 +236,7 @@ export function createInkCurtainTransition(canvas, options = {}) {
         gl.uniform1f(uniforms.colorLift, colorLift);
         gl.uniform1f(uniforms.direction, direction);
         gl.uniform1f(uniforms.progressSpan, progressSpan);
+        gl.uniform1f(uniforms.coverAlpha, coverAlpha);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       },
       prewarm() {

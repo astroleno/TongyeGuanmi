@@ -6,11 +6,16 @@ const CDN = {
   lenis: 'js/vendor/lenis.min.js'
 };
 
-const TRANSITION_DURATION_SECONDS = 2.5;
-const TRANSITION_SCROLL_RANGE = 0.22;
-const VIDEO_DURATION_FALLBACK = 2.47;
-const FLOCK_POSITION_STORAGE_KEY = 'crane:flock-position';
-const FLOCK_POSITION_DEFAULTS = { x: 12, y: -108, scale: 1 };
+const TRANSITION_DURATION_SECONDS = 3.5;
+const TRANSITION_SCROLL_RANGE = 0.2;
+const VIDEO_DURATION_FALLBACK = 2.5;
+const TIMELINE_DURATION_SECONDS = 3.5;
+const FLOCK_START_SECONDS = 0;
+const FLOCK_END_SECONDS = 2.5;
+const FIGURE_START_SECONDS = 0.5;
+const FIGURE_END_SECONDS = FIGURE_START_SECONDS + VIDEO_DURATION_FALLBACK;
+const FIGURE_POSITION_STORAGE_KEY = 'crane:figure-position:v3';
+const FIGURE_POSITION_DEFAULTS = { x: 0, y: 198, scale: 0.8 };
 
 const root = document.documentElement;
 const page = document.body;
@@ -31,6 +36,8 @@ let pointerParallaxBound = false;
 let lastRenderedProgress = -1;
 let lastRenderedMouseX = 999;
 let lastRenderedMouseY = 999;
+let figureTunePreview = false;
+let currentFigurePosition = { ...FIGURE_POSITION_DEFAULTS };
 
 const playhead = { raw: 0 };
 const parallaxMouse = { x: 0, y: 0 };
@@ -59,69 +66,67 @@ function acceleratedProgress(rawProgress) {
   return clamp(0.78 * t + 0.22 * t * t, 0, 1);
 }
 
-function getStoredFlockPosition() {
+function getStoredFigurePosition() {
   try {
-    const stored = JSON.parse(window.localStorage.getItem(FLOCK_POSITION_STORAGE_KEY));
+    const stored = JSON.parse(window.localStorage.getItem(FIGURE_POSITION_STORAGE_KEY));
     if (!stored || !Number.isFinite(stored.x) || !Number.isFinite(stored.y)) return null;
     return {
-      x: clamp(stored.x, -220, 220),
-      y: clamp(stored.y, -600, 80),
-      scale: Number.isFinite(stored.scale) ? clamp(stored.scale, 0.70, 1.40) : FLOCK_POSITION_DEFAULTS.scale
+      x: clamp(stored.x, -600, 600),
+      y: clamp(stored.y, -600, 600),
+      scale: Number.isFinite(stored.scale) ? clamp(stored.scale, 0.35, 1.80) : FIGURE_POSITION_DEFAULTS.scale
     };
   } catch {
     return null;
   }
 }
 
-function storeFlockPosition(x, y, scale) {
+function storeFigurePosition(x, y, scale) {
   try {
-    window.localStorage.setItem(FLOCK_POSITION_STORAGE_KEY, JSON.stringify({ x, y, scale }));
+    window.localStorage.setItem(FIGURE_POSITION_STORAGE_KEY, JSON.stringify({ x, y, scale }));
   } catch {
     // Position tuning is optional.
   }
 }
 
-function applyFlockPosition(x, y, scale) {
-  root.style.setProperty('--crane-flock-x', `${x}px`);
-  root.style.setProperty('--crane-flock-base-y', `${y}px`);
-  root.style.setProperty('--crane-flock-scale', scale.toFixed(2));
-  page.style.setProperty('--crane-flock-x', `${x}px`);
-  page.style.setProperty('--crane-flock-base-y', `${y}px`);
-  page.style.setProperty('--crane-flock-scale', scale.toFixed(2));
+function applyFigurePosition(x, y, scale) {
+  currentFigurePosition = { x, y, scale };
 }
 
-function initFlockPositionControls() {
+function initFigurePositionControls() {
   const panel = document.querySelector('[data-crane-tune-panel]');
   if (!panel) return;
 
-  const xSlider = panel.querySelector('[data-crane-flock-x-slider]');
-  const ySlider = panel.querySelector('[data-crane-flock-y-slider]');
-  const scaleSlider = panel.querySelector('[data-crane-flock-scale-slider]');
-  const xValue = panel.querySelector('[data-crane-flock-x-value]');
-  const yValue = panel.querySelector('[data-crane-flock-y-value]');
-  const scaleValue = panel.querySelector('[data-crane-flock-scale-value]');
-  const reset = panel.querySelector('[data-crane-flock-reset]');
+  const xSlider = panel.querySelector('[data-crane-figure-x-slider]');
+  const ySlider = panel.querySelector('[data-crane-figure-y-slider]');
+  const scaleSlider = panel.querySelector('[data-crane-figure-scale-slider]');
+  const xValue = panel.querySelector('[data-crane-figure-x-value]');
+  const yValue = panel.querySelector('[data-crane-figure-y-value]');
+  const scaleValue = panel.querySelector('[data-crane-figure-scale-value]');
+  const reset = panel.querySelector('[data-crane-figure-reset]');
   if (!xSlider || !ySlider || !scaleSlider || !xValue || !yValue || !scaleValue) return;
 
+  figureTunePreview = true;
+
   const sync = (x, y, scale, persist = true) => {
-    const nextX = Math.round(clamp(Number(x), -220, 220));
-    const nextY = Math.round(clamp(Number(y), -600, 80));
-    const nextScale = clamp(Number(scale), 0.70, 1.40);
+    const nextX = Math.round(clamp(Number(x), -600, 600));
+    const nextY = Math.round(clamp(Number(y), -600, 600));
+    const nextScale = clamp(Number(scale), 0.35, 1.80);
     xSlider.value = String(nextX);
     ySlider.value = String(nextY);
     scaleSlider.value = String(nextScale);
     xValue.textContent = `${nextX}px`;
     yValue.textContent = `${nextY}px`;
     scaleValue.textContent = `${nextScale.toFixed(2)}x`;
-    applyFlockPosition(nextX, nextY, nextScale);
-    if (persist) storeFlockPosition(nextX, nextY, nextScale);
+    applyFigurePosition(nextX, nextY, nextScale);
+    renderRawProgress(playhead.raw);
+    if (persist) storeFigurePosition(nextX, nextY, nextScale);
   };
 
-  const stored = getStoredFlockPosition();
+  const stored = getStoredFigurePosition();
   sync(
-    stored?.x ?? FLOCK_POSITION_DEFAULTS.x,
-    stored?.y ?? FLOCK_POSITION_DEFAULTS.y,
-    stored?.scale ?? FLOCK_POSITION_DEFAULTS.scale,
+    stored?.x ?? FIGURE_POSITION_DEFAULTS.x,
+    stored?.y ?? FIGURE_POSITION_DEFAULTS.y,
+    stored?.scale ?? FIGURE_POSITION_DEFAULTS.scale,
     Boolean(stored)
   );
 
@@ -130,11 +135,11 @@ function initFlockPositionControls() {
   scaleSlider.addEventListener('input', () => sync(xSlider.value, ySlider.value, scaleSlider.value), { passive: true });
   reset?.addEventListener('click', () => {
     try {
-      window.localStorage.removeItem(FLOCK_POSITION_STORAGE_KEY);
+      window.localStorage.removeItem(FIGURE_POSITION_STORAGE_KEY);
     } catch {
       // Position tuning is optional.
     }
-    sync(FLOCK_POSITION_DEFAULTS.x, FLOCK_POSITION_DEFAULTS.y, FLOCK_POSITION_DEFAULTS.scale, false);
+    sync(FIGURE_POSITION_DEFAULTS.x, FIGURE_POSITION_DEFAULTS.y, FIGURE_POSITION_DEFAULTS.scale, false);
   });
 }
 
@@ -182,13 +187,17 @@ function getVideoDuration(video) {
 function seekVideo(video, progress) {
   if (!video || video.readyState < 1) return;
   const duration = getVideoDuration(video);
-  const targetTime = Math.min(duration - 0.025, Math.max(0, stableProgress(progress) * duration));
-  if (Math.abs(video.currentTime - targetTime) < 0.016) return;
+  const p = stableProgress(progress);
+  const targetTime = p >= 1
+    ? Math.max(0, duration - 0.001)
+    : Math.min(Math.max(0, p * duration), Math.max(0, duration - 0.001));
+  const threshold = p >= 0.998 || p <= 0.002 ? 0.004 : 0.016;
+  if (Math.abs(video.currentTime - targetTime) < threshold) return;
 
   try {
     video.currentTime = targetTime;
   } catch {
-    // Video metadata can settle a frame later on WebKit.
+    // Video metadata can settle a beat later on WebKit.
   }
 }
 
@@ -286,15 +295,29 @@ function renderNative(progress, mouseX, mouseY) {
 
 function renderVideoTransition(progress) {
   const p = stableProgress(progress);
-  const grow = smoothStep(range01(p, 0.28, 0.66));
-  const reveal = smoothStep(range01(p, 0.24, 0.40));
-  const flockOpacity = 1 - smoothStep(range01(p, 0.82, 0.98));
-  const scale = 0.5 + grow * 0.5;
+  const time = p * TIMELINE_DURATION_SECONDS;
+  const previewFirstFrame = figureTunePreview && p <= 0.002;
+  const grow = previewFirstFrame ? 0 : smoothStep(range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS));
+  const reveal = previewFirstFrame ? 1 : smoothStep(range01(time, FIGURE_START_SECONDS + 0.05, FIGURE_START_SECONDS + 0.70));
+  const unmask = previewFirstFrame ? 1 : smoothStep(range01(time, FIGURE_START_SECONDS + 0.12, FIGURE_START_SECONDS + 1.05));
+  const flockOpacity = 1 - smoothStep(range01(time, FLOCK_END_SECONDS - 0.24, FLOCK_END_SECONDS));
+  const figureX = currentFigurePosition.x * (1 - grow);
+  const figureY = currentFigurePosition.y * (1 - grow);
+  const scale = currentFigurePosition.scale + (1 - currentFigurePosition.scale) * grow;
+  const clipBottom = (1 - unmask) * 42;
 
   root.style.setProperty('--crane-video-scale', scale.toFixed(4));
   page.style.setProperty('--crane-video-scale', scale.toFixed(4));
+  root.style.setProperty('--crane-figure-x', `${figureX.toFixed(1)}px`);
+  page.style.setProperty('--crane-figure-x', `${figureX.toFixed(1)}px`);
+  root.style.setProperty('--crane-figure-base-y', `${figureY.toFixed(1)}px`);
+  page.style.setProperty('--crane-figure-base-y', `${figureY.toFixed(1)}px`);
+  root.style.setProperty('--crane-video-y', '0px');
+  page.style.setProperty('--crane-video-y', '0px');
   root.style.setProperty('--crane-video-opacity', reveal.toFixed(4));
   page.style.setProperty('--crane-video-opacity', reveal.toFixed(4));
+  root.style.setProperty('--crane-video-clip-bottom', `${clipBottom.toFixed(2)}%`);
+  page.style.setProperty('--crane-video-clip-bottom', `${clipBottom.toFixed(2)}%`);
   root.style.setProperty('--crane-flock-opacity', flockOpacity.toFixed(4));
   page.style.setProperty('--crane-flock-opacity', flockOpacity.toFixed(4));
   root.style.setProperty('--crane-flock-y', '0px');
@@ -303,8 +326,9 @@ function renderVideoTransition(progress) {
 
 function seekVideos(progress) {
   const p = stableProgress(progress);
-  seekVideo(flockVideo, p);
-  seekVideo(figureVideo, smoothStep(range01(p, 0.20, 1)));
+  const time = p * TIMELINE_DURATION_SECONDS;
+  seekVideo(flockVideo, range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS));
+  seekVideo(figureVideo, range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS));
 }
 
 function renderScene(progress, mouseX, mouseY) {
@@ -360,6 +384,10 @@ function tweenToRawProgress(rawProgress) {
       renderRawProgress(playhead.raw);
     }
   });
+}
+
+function resetTransition() {
+  tweenToRawProgress(0);
 }
 
 function updateNativeProgress() {
@@ -430,37 +458,39 @@ function initNativeFallback() {
 function initScrollTrigger() {
   const { gsap, ScrollTrigger } = window;
   gsap.registerPlugin(ScrollTrigger);
-  gsap.ticker.lagSmoothing(0);
-  ScrollTrigger.config({ ignoreMobileResize: true });
 
-  startPointerParallax(gsap);
   gsapSetters = createGsapSetters(gsap);
   scrollRuntime = initSmoothScroll({
     root,
     body: document.body,
-    reduceMotion
+    reduceMotion,
+    options: {
+      lerp: 0.08,
+      wheelMultiplier: 0.82,
+      syncTouch: false
+    }
   });
+
+  renderRawProgress(0);
 
   ScrollTrigger.create({
     trigger: stage,
     start: 'top top',
     end: () => `+=${Math.max(1, window.innerHeight * TRANSITION_SCROLL_RANGE)}`,
-    invalidateOnRefresh: true,
     onUpdate: (self) => tweenToRawProgress(self.progress),
     onLeave: () => tweenToRawProgress(1),
-    onLeaveBack: () => tweenToRawProgress(0)
+    onLeaveBack: resetTransition
   });
 
   window.addEventListener('resize', () => {
     lastRenderedProgress = -1;
     ScrollTrigger.refresh();
   }, { passive: true });
-  gsap.ticker.add(() => renderScene(acceleratedProgress(playhead.raw), parallaxMouse.x, parallaxMouse.y));
-  renderRawProgress(0);
+
   ScrollTrigger.refresh();
 }
 
-initFlockPositionControls();
+initFigurePositionControls();
 
 if (stage && cloudBack && cloudFrontSecond && cloudFront && archLayer && figureVideo && flockVideo) {
   prepareVideo(figureVideo);

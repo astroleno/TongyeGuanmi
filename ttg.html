@@ -12,8 +12,11 @@
   <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
   <link rel="preload" href="assets/ttg_bg.png" as="image" />
   <link rel="preload" href="assets/ttg_middle-alpha.png" as="image" />
+  <link rel="preload" href="assets/ttg_middle-original-overlay-alpha.png" as="image" />
   <link rel="preload" href="assets/ttg_front-alpha.png" as="image" />
-  <link rel="preload" href="assets/ttg_figure-alpha.png" as="image" />
+  <link rel="preload" href="assets/ttg_front-original-overlay-alpha.png" as="image" />
+  <link rel="preload" href="assets/ttg_figure-alpha-scrub.webm" as="video" type="video/webm" />
+  <link rel="preload" href="assets/ttg_figure-alpha-scrub-poster.png" as="image" />
   <link rel="preload" href="assets/ttg-complete.png" as="image" />
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/ttg.css" />
@@ -29,8 +32,19 @@
           <div class="ttg-layer-stack" aria-hidden="true">
             <img class="ttg-layer ttg-layer--bg" src="assets/ttg_bg.png" alt="" />
             <img class="ttg-layer ttg-layer--middle" src="assets/ttg_middle-alpha.png" alt="" />
+            <img class="ttg-layer ttg-layer--middle-overlay" src="assets/ttg_middle-original-overlay-alpha.png" alt="" />
             <img class="ttg-layer ttg-layer--front" src="assets/ttg_front-alpha.png" alt="" />
-            <img class="ttg-layer ttg-layer--figure" src="assets/ttg_figure-alpha.png" alt="" />
+            <img class="ttg-layer ttg-layer--front-overlay" src="assets/ttg_front-original-overlay-alpha.png" alt="" />
+            <video
+              class="ttg-layer ttg-layer--figure"
+              data-ttg-figure-video
+              src="assets/ttg_figure-alpha-scrub.webm"
+              poster="assets/ttg_figure-alpha-scrub-poster.png"
+              muted
+              preload="auto"
+              playsinline
+              webkit-playsinline
+            ></video>
           </div>
           <div class="ttg-moon-wash" aria-hidden="true"></div>
           <div class="ttg-vignette" aria-hidden="true"></div>

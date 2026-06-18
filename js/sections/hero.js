@@ -160,7 +160,7 @@ export function initLayeredHero(options = {}) {
   const figure = document.querySelector('.fallback-figure');
   const content = document.querySelector('.hero-content');
   const manifesto = document.querySelector('.manifesto');
-  const methodPreview = document.querySelector('[data-hero-method-preview]');
+  const belief = document.querySelector('[data-hero-belief]');
   const nav = document.querySelector('.site-nav');
   const introInkCanvas = document.querySelector('[data-hero-intro-ink-canvas]');
   const inkCanvas = document.querySelector('[data-hero-ink-canvas]');
@@ -202,6 +202,9 @@ export function initLayeredHero(options = {}) {
   const exitInkTransition = createInkCurtainTransition(exitInkCanvas, {
     direction: 'bottom-up',
     colorLift: 0.56,
+    coverAlpha: 0.82,
+    fadeOutStart: 0.74,
+    fadeOutEnd: 0.98,
     progressSpan: 1
   });
 
@@ -298,10 +301,9 @@ export function initLayeredHero(options = {}) {
     gsap.set(manifesto, { opacity: 0, y: 28, visibility: 'hidden', force3D: true });
     manifesto.classList.remove('is-active', 'is-interactive');
   }
-  if (methodPreview) {
-    gsap.set(methodPreview, { opacity: 0, y: 0, visibility: 'hidden', force3D: true });
+  if (belief) {
+    gsap.set(belief, { opacity: 0, y: 0, visibility: 'hidden', force3D: true });
   }
-
   const titleChars = gsap.utils.toArray(content.querySelectorAll('.hero-title-char'));
   const subtitle = content.querySelector('.hero-subtitle');
   gsap.set(titleChars, {
@@ -371,9 +373,11 @@ export function initLayeredHero(options = {}) {
   const setFigureOpacity = gsap.quickSetter(figure, 'opacity');
   const setContentY = gsap.quickSetter(content, 'y', 'px');
   const setContentX = gsap.quickSetter(content, 'x', 'px');
+  const setContentOpacity = gsap.quickSetter(content, 'opacity');
   const setManifestoOpacity = manifesto ? gsap.quickSetter(manifesto, 'opacity') : null;
   const setManifestoY = manifesto ? gsap.quickSetter(manifesto, 'y', 'px') : null;
-  const setMethodPreviewOpacity = methodPreview ? gsap.quickSetter(methodPreview, 'opacity') : null;
+  const setBeliefOpacity = belief ? gsap.quickSetter(belief, 'opacity') : null;
+  const setBeliefY = belief ? gsap.quickSetter(belief, 'y', 'px') : null;
   const setMiddleNearBlurOpacity = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'opacity') : null;
   const setNavOpacity = nav ? gsap.quickSetter(nav, 'opacity') : null;
   const setNavY = nav ? gsap.quickSetter(nav, 'y', 'px') : null;
@@ -387,6 +391,8 @@ export function initLayeredHero(options = {}) {
   let lastInkProgress = -1;
   let lastManifestoProgress = -1;
   let lastManifestoExitProgress = -1;
+  let lastBeliefProgress = -1;
+  let lastBeliefExitProgress = -1;
   let lastSecondSceneRenderAt = 0;
   let touchStartY = 0;
 
@@ -573,14 +579,21 @@ export function initLayeredHero(options = {}) {
     const manifestoEnterProgress = introSettled
       ? smoothStep(range01(rawHeroScroll, sceneRange - viewportH * 0.16, sceneRange + viewportH * 0.04))
       : 0;
-    const manifestoExitStart = totalRange - viewportH * 0.62;
-    const manifestoExitEnd = totalRange - viewportH * 0.06;
+    const manifestoExitStart = Math.max(sceneRange + viewportH * 0.20, totalRange - viewportH * 1.90);
+    const manifestoExitEnd = Math.max(manifestoExitStart + viewportH * 0.52, totalRange - viewportH * 1.28);
     const manifestoExitProgress = introSettled
       ? smoothStep(range01(rawHeroScroll, manifestoExitStart, manifestoExitEnd))
       : 0;
     const manifestoSceneProgress = manifestoEnterProgress * (1 - smoothStep(range01(manifestoExitProgress, 0.985, 1)));
-    const manifestoContentExitProgress = smoothStep(range01(manifestoExitProgress, 0, 0.34));
+    const manifestoContentExitProgress = smoothStep(range01(manifestoExitProgress, 0.16, 0.50));
     const manifestoContentProgress = manifestoEnterProgress * (1 - manifestoContentExitProgress);
+    const beliefExitStart = Math.max(manifestoExitEnd + viewportH * 0.34, totalRange - viewportH * 0.94);
+    const beliefExitEnd = Math.max(beliefExitStart + viewportH * 0.48, totalRange - viewportH * 0.34);
+    const beliefExitProgress = introSettled
+      ? smoothStep(range01(rawHeroScroll, beliefExitStart, beliefExitEnd))
+      : 0;
+    const beliefEnterProgress = smoothStep(range01(manifestoExitProgress, 0.26, 0.52));
+    const beliefSceneProgress = beliefEnterProgress * (1 - smoothStep(range01(beliefExitProgress, 0.58, 0.92)));
     const exitSweepProgress = smoothStep(range01(manifestoExitProgress, 0.015, 0.985));
     const exitOvershootProgress = smoothStep(range01(exitSweepProgress, 0.82, 1));
     const exitEdgePercent = 100 - exitSweepProgress * 100 - exitOvershootProgress * 24;
@@ -590,12 +603,14 @@ export function initLayeredHero(options = {}) {
     const inkChanged = Math.abs(lastInkProgress - inkProgress) > 0.001;
     const manifestoChanged = Math.abs(lastManifestoProgress - manifestoSceneProgress) > 0.001;
     const manifestoExitChanged = Math.abs(lastManifestoExitProgress - manifestoExitProgress) > 0.001;
+    const beliefChanged = Math.abs(lastBeliefProgress - beliefSceneProgress) > 0.001;
+    const beliefExitChanged = Math.abs(lastBeliefExitProgress - beliefExitProgress) > 0.001;
     const introInkAnimating = !heroIntroComplete && introProgress > 0.002 && introProgress < 0.999;
     const inkAnimating = inkProgress > 0.002 && inkProgress < 0.995;
     const exitInkAnimating = manifestoExitProgress > 0.002 && manifestoExitProgress < 0.995;
     const now = performance.now();
     const secondSceneFrameDue = Boolean(starFieldReveal?.ready && inkProgress > 0.002 && heroInView && now - lastSecondSceneRenderAt > 72);
-    if (Math.abs(lastApplied - renderedProgress) < 0.0012 && !introChanged && !introInkAnimating && !mouseChanged && !navChanged && !inkChanged && !manifestoChanged && !manifestoExitChanged && !inkAnimating && !exitInkAnimating && !secondSceneFrameDue) return;
+    if (Math.abs(lastApplied - renderedProgress) < 0.0012 && !introChanged && !introInkAnimating && !mouseChanged && !navChanged && !inkChanged && !manifestoChanged && !manifestoExitChanged && !beliefChanged && !beliefExitChanged && !inkAnimating && !exitInkAnimating && !secondSceneFrameDue) return;
     lastApplied = renderedProgress;
     lastIntroProgress = introProgress;
     lastMouseAppliedX = mouseX;
@@ -604,10 +619,13 @@ export function initLayeredHero(options = {}) {
     lastInkProgress = inkProgress;
     lastManifestoProgress = manifestoSceneProgress;
     lastManifestoExitProgress = manifestoExitProgress;
+    lastBeliefProgress = beliefSceneProgress;
+    lastBeliefExitProgress = beliefExitProgress;
 
     const p = renderedProgress;
     const layerProgress = introSettled ? p : 0;
     const firstSceneForegroundOpacity = 1 - smoothStep(range01(inkProgress, 0.08, 0.62));
+    const firstSceneBackdropOpacity = 1 - smoothStep(range01(inkProgress, 0.72, 0.98));
     const firstSceneForegroundVisible = firstSceneForegroundOpacity > 0.002;
     const viewportW = window.innerWidth;
     const farIntro = farInkEase(range01(introProgress, 0, 1));
@@ -629,7 +647,9 @@ export function initLayeredHero(options = {}) {
 
     setBackY(backScrollY + backParallaxY);
     setBackX(backParallaxX);
-    setBackOpacity(introInkTransition ? smoothStep(range01(introProgress, 0.90, 0.97)) : (0.04 + farIntro * 0.96));
+    const backOpacity = (introInkTransition ? smoothStep(range01(introProgress, 0.90, 0.97)) : (0.04 + farIntro * 0.96)) * firstSceneBackdropOpacity;
+    setBackOpacity(backOpacity);
+    back.style.visibility = backOpacity > 0.002 ? 'visible' : 'hidden';
     const backScale = HERO_BACK_BASE_SCALE + layerProgress * HERO_BACK_SCROLL_SCALE_DELTA;
     setBackScaleX(backScale);
     setBackScaleY(backScale);
@@ -657,6 +677,9 @@ export function initLayeredHero(options = {}) {
 
     setContentX(0);
     setContentY(0);
+    const heroContentOpacity = introSettled ? 1 - smoothStep(range01(inkProgress, 0.06, 0.38)) : 1;
+    setContentOpacity(heroContentOpacity);
+    content.style.visibility = heroContentOpacity > 0.002 ? 'visible' : 'hidden';
     updateIntroInkTransition(introProgress, farIntro);
     const secondSceneSettle = smoothStep(range01(inkProgress, 0.78, 1));
     const secondScenePerlinStrength = 0;
@@ -701,14 +724,14 @@ export function initLayeredHero(options = {}) {
       manifesto.classList.toggle('is-active', manifestoActive);
       manifesto.classList.toggle('is-interactive', manifestoInteractive);
     }
-    if (methodPreview) {
-      const methodPreviewProgress = manifestoExitProgress;
-      const methodPreviewOpacity = smoothStep(range01(methodPreviewProgress, 0.01, 0.08));
-      const methodPreviewY = (1 - methodPreviewProgress) * viewportH * 0.12;
-      root.style.setProperty('--hero-method-preview-opacity', methodPreviewOpacity.toFixed(4));
-      root.style.setProperty('--hero-method-preview-y', `${methodPreviewY.toFixed(2)}px`);
-      setMethodPreviewOpacity(methodPreviewOpacity);
-      methodPreview.style.visibility = methodPreviewProgress > 0.01 ? 'visible' : 'hidden';
+    if (belief) {
+      const beliefY = (1 - beliefEnterProgress) * viewportH * 0.035 - beliefExitProgress * viewportH * 0.06;
+      const beliefActive = beliefSceneProgress > 0.01 && beliefExitProgress < 0.998;
+      root.style.setProperty('--hero-belief-opacity', beliefSceneProgress.toFixed(4));
+      root.style.setProperty('--hero-belief-y', `${beliefY.toFixed(2)}px`);
+      setBeliefOpacity(beliefSceneProgress);
+      setBeliefY(beliefY);
+      belief.style.visibility = beliefActive ? 'visible' : 'hidden';
     }
     if (setNavOpacity && setNavY) {
       setNavOpacity(navReveal);
