@@ -3,6 +3,7 @@
   --ttg-scroll-vh: 140;
   --ttg-scene-width: max(100vw, 178dvh, 1180px);
   --ttg-bg-width: max(100vw, 184dvh, 1180px);
+  --ttg-front-height: max(100dvh, calc(100vw * 1.7777778));
   min-height: 100%;
   color: #f0dfbf;
   color-scheme: dark;
@@ -110,6 +111,15 @@
   filter: brightness(0.78) saturate(0.96) contrast(1.02);
 }
 
+.ttg-layer--front,
+.ttg-layer--front-overlay {
+  top: 100%;
+  width: calc(var(--ttg-front-height) * 0.5625);
+  height: var(--ttg-front-height);
+  transform: translate3d(-50%, -100%, 0);
+  transform-origin: 50% 100%;
+}
+
 .ttg-layer--front {
   z-index: 3;
   opacity: 1;
@@ -126,12 +136,16 @@
 }
 
 .ttg-layer--figure {
+  --ttg-figure-layer-height: min(144dvh, 1460px);
   z-index: 4;
   top: 50%;
-  width: auto;
-  height: min(144dvh, 1460px);
+  display: block;
+  width: calc(var(--ttg-figure-layer-height) * 0.5625);
+  height: var(--ttg-figure-layer-height);
+  max-width: none;
   opacity: 1;
   object-fit: contain;
+  object-position: center center;
   filter:
     drop-shadow(0 34px 30px rgba(0, 0, 0, 0.34))
     brightness(0.82)
@@ -178,6 +192,71 @@
   background: linear-gradient(90deg, #305c65, #d0a04c, #9c5637);
   transform: scaleX(var(--ttg-progress));
   transform-origin: 0 50%;
+}
+
+.ttg-tune-panel {
+  position: fixed;
+  z-index: 40;
+  right: 18px;
+  top: 18px;
+  width: min(250px, calc(100vw - 36px));
+  max-height: calc(100dvh - 36px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(82, 62, 37, 0.28);
+  border-radius: 8px;
+  background: rgba(247, 240, 222, 0.88);
+  box-shadow: 0 16px 38px rgba(10, 9, 7, 0.22);
+  color: #302416;
+  font: 12px/1.35 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  pointer-events: auto;
+  backdrop-filter: blur(14px);
+}
+
+.ttg-tune-panel__title {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ttg-tune-control {
+  display: grid;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.ttg-tune-control span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: rgba(48, 36, 22, 0.84);
+}
+
+.ttg-tune-control output {
+  min-width: 54px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ttg-tune-control input {
+  width: 100%;
+  accent-color: #8c5c32;
+}
+
+.ttg-tune-reset {
+  width: 100%;
+  margin-top: 10px;
+  padding: 7px 8px;
+  border: 1px solid rgba(82, 62, 37, 0.20);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.42);
+  color: #302416;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ttg-tune-reset:hover {
+  background: rgba(255, 255, 255, 0.68);
 }
 
 .ttg-noscript {

@@ -13,9 +13,8 @@
   <link rel="preload" href="assets/aod-paper-bg.png" as="image" />
   <link rel="preload" href="assets/aod_cloud-alpha.png" as="image" />
   <link rel="preload" href="assets/aod_sun-alpha.png" as="image" />
-  <link rel="preload" href="assets/aod_figure-alpha.png" as="image" />
-  <link rel="preload" href="assets/aod_figure-fill-scrub.mp4" as="video" type="video/mp4" />
   <link rel="preload" href="assets/aod_figure-alpha-scrub.webm" as="video" type="video/webm" />
+  <link rel="preload" href="assets/aod_figure-fill-scrub.mp4" as="video" type="video/mp4" />
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/aod.css" />
 </head>
@@ -32,18 +31,8 @@
             <img class="aod-layer aod-layer--sun" src="assets/aod_sun-alpha.png" alt="" />
             <video
               class="aod-layer aod-layer--figure aod-layer--figure-alpha"
-              data-aod-figure-alpha-video
+              data-aod-figure-layer
               src="assets/aod_figure-alpha-scrub.webm"
-              poster="assets/aod_figure-alpha.png"
-              muted
-              preload="auto"
-              playsinline
-              webkit-playsinline
-            ></video>
-            <video
-              class="aod-figure-fill-video"
-              data-aod-figure-fill-video
-              src="assets/aod_figure-fill-scrub.mp4"
               muted
               preload="auto"
               playsinline
@@ -59,6 +48,16 @@
       </div>
     </section>
   </main>
+  <video
+    class="aod-figure-fill-video"
+    data-aod-figure-fill-video
+    src="assets/aod_figure-fill-scrub.mp4"
+    muted
+    preload="auto"
+    playsinline
+    webkit-playsinline
+    aria-hidden="true"
+  ></video>
 
   <script type="module" src="js/aod-scroll.js"></script>
 </body>

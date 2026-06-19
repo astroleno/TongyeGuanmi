@@ -14,14 +14,14 @@ const DEFAULT_SETTINGS = {
   wheelMultiplier: 0.82
 };
 
+const FIGURE_INTRO_SECONDS = 1.15;
+const FIGURE_VIDEO_TRANSITION_SECONDS = 2.4;
+const PRE_TRANSITION_RANGE_VH = 50;
+const SCENE_TRANSITION_RANGE_VH = 100;
+const INTRO_TRIGGER_PX = 2;
 const VIDEO_SEGMENT_SECONDS = 5;
-const VIDEO_PROGRESS_START = 0.045;
-const VIDEO_PROGRESS_END = 0.74;
 const VIDEO_SEEK_EPSILON = 1 / 48;
 const VIDEO_END_EPSILON = 0.045;
-const VIDEO_ENERGY_STOP = 0.14;
-const INK_TRANSITION_START = 0.72;
-const INK_TRANSITION_END = 1;
 
 const root = document.documentElement;
 const page = document.body;
@@ -44,20 +44,24 @@ let settings = readSettings();
 let scrollRuntime = null;
 let progressState = { value: 0, target: 0 };
 let currentProgress = 0;
-let videoEnergy = 0;
-let lastVideoEnergyAt = performance.now();
-let lastScrollInputAt = 0;
-let previousTargetProgress = null;
+let figureIntroTween = null;
+let figureVideoTween = null;
 let gsapSetters = null;
 let nativeTickerStarted = false;
 let pointerParallaxBound = false;
-let scrollInputBound = false;
+let introScrollGateBound = false;
 let lastRenderedProgress = -1;
+let lastRenderedIntroProgress = -1;
 let lastRenderedMouseX = 999;
 let lastRenderedMouseY = 999;
+let transitionScrollAnchor = null;
+let lastClampedScroll = 0;
+let introTouchStartY = 0;
 
 const parallaxMouse = { x: 0, y: 0 };
 const nativeMouse = { targetX: 0, targetY: 0, x: 0, y: 0 };
+const figure2IntroState = { progress: 0, active: false };
+const figureVideoPlayhead = { raw: 0 };
 const videoStates = figureVideos.map((videoElement) => ({
   video: videoElement,
   segmentStart: 0.001,
@@ -104,6 +108,19 @@ function stableProgress(value) {
   return clamp(value, 0, 1);
 }
 
+function acceleratedProgress(rawProgress) {
+  const t = stableProgress(rawProgress);
+  return clamp(0.78 * t + 0.22 * t * t, 0, 1);
+}
+
+function isIntroComplete() {
+  return figure2IntroState.progress >= 0.995 && figureVideoPlayhead.raw >= 0.995;
+}
+
+function resetTransitionAnchor() {
+  transitionScrollAnchor = null;
+}
+
 function createFigureMaskCanvas() {
   if (!figureGroup) return null;
   const canvas = document.createElement('canvas');
@@ -123,7 +140,7 @@ function shouldUseAlphaVideo() {
 }
 
 function getInkProgress(progress) {
-  return smoothStep(range01(progress, INK_TRANSITION_START, INK_TRANSITION_END));
+  return smoothStep(stableProgress(progress));
 }
 
 function getForegroundOpacity(progress) {
@@ -337,6 +354,19 @@ function seekVideo(state, time, force = false) {
   }
 }
 
+function seekVideoProgress(state, progress) {
+  syncSegmentBounds(state);
+  const p = stableProgress(progress);
+  const targetTime = p >= 1
+    ? state.segmentEnd
+    : state.segmentStart + (state.segmentEnd - state.segmentStart) * p;
+  const threshold = p >= 0.998 || p <= 0.002 ? 0.004 : VIDEO_SEEK_EPSILON;
+  const force = p >= 0.998 || p <= 0.002;
+
+  if (!force && Math.abs(state.video.currentTime - targetTime) < threshold) return;
+  seekVideo(state, targetTime, force);
+}
+
 function pauseVideo(state) {
   const { video } = state;
   if (video && !video.paused) video.pause();
@@ -346,55 +376,91 @@ function pauseVideos() {
   videoStates.forEach(pauseVideo);
 }
 
-function updateVideoPlayback(progress, scrollDelta = 0) {
-  if (!videoStates.length || videoStates.some((state) => state.video.readyState < 1)) return;
-
-  const p = stableProgress(progress);
-  const now = performance.now();
-  const elapsedFrames = clamp((now - lastVideoEnergyAt) / 16.67, 0.5, 4);
-  lastVideoEnergyAt = now;
-
-  const inVideoRange = p > VIDEO_PROGRESS_START && p < VIDEO_PROGRESS_END;
-  const recentlyScrolled = now - lastScrollInputAt < 130;
-  const scrollMoving = inVideoRange && (recentlyScrolled || scrollDelta > 0.0008);
-
-  if (scrollMoving) {
-    videoEnergy = 1;
-  } else {
-    videoEnergy *= Math.pow(0.955, elapsedFrames);
+function renderRawFigureVideoProgress(rawProgress) {
+  const visualProgress = acceleratedProgress(rawProgress);
+  for (const state of videoStates) {
+    seekVideoProgress(state, visualProgress);
   }
 
-  if (!inVideoRange || videoEnergy < VIDEO_ENERGY_STOP) {
-    videoEnergy = inVideoRange ? videoEnergy : 0;
-    pauseVideos();
-    window.__figure2VideoEnergy = videoEnergy;
-    window.__figure2VideoMode = 'hero-energy-copy';
+  window.__figure2VideoProgress = visualProgress;
+  window.__figure2VideoTime = videoStates[0] ? videoStates[0].video.currentTime : 0;
+  window.__figure2VideoMode = 'figure2-intro-autoplay-playhead';
+}
+
+function tweenToFigureVideoProgress(rawProgress) {
+  const target = stableProgress(rawProgress);
+  const distance = Math.abs(target - figureVideoPlayhead.raw);
+
+  figureVideoTween?.kill?.();
+  figureVideoTween = null;
+
+  if (!window.gsap || distance < 0.001) {
+    figureVideoPlayhead.raw = target;
+    renderRawFigureVideoProgress(figureVideoPlayhead.raw);
     return;
   }
 
-  for (const state of videoStates) {
-    syncSegmentBounds(state);
-    if (state.video.currentTime >= state.segmentEnd - 0.035) {
-      if (!scrollMoving) {
-        videoEnergy = 0;
-        pauseVideo(state);
-        continue;
-      }
-      seekVideo(state, state.segmentStart, true);
+  figureVideoTween = window.gsap.to(figureVideoPlayhead, {
+    raw: target,
+    duration: Math.max(0.06, distance * FIGURE_VIDEO_TRANSITION_SECONDS),
+    ease: 'none',
+    overwrite: true,
+    onUpdate: () => renderRawFigureVideoProgress(figureVideoPlayhead.raw),
+    onComplete: () => {
+      figureVideoPlayhead.raw = target;
+      figureVideoTween = null;
+      renderRawFigureVideoProgress(figureVideoPlayhead.raw);
     }
+  });
+}
 
-    try {
-      state.video.playbackRate = clamp(0.58 + videoEnergy * 0.42, 0.58, 1);
-    } catch {
-      // Older engines can reject playbackRate changes during metadata setup.
-    }
-    if (state.video.paused) state.video.play().catch(() => undefined);
+function resetFigureVideoTransition() {
+  tweenToFigureVideoProgress(0);
+}
+
+function tweenToIntroProgress(progress, duration = FIGURE_INTRO_SECONDS) {
+  const target = stableProgress(progress);
+  const distance = Math.abs(target - figure2IntroState.progress);
+
+  figureIntroTween?.kill?.();
+  figureIntroTween = null;
+
+  if (!window.gsap || distance < 0.001) {
+    figure2IntroState.progress = target;
+    lastRenderedIntroProgress = -1;
+    return;
   }
 
-  window.__figure2VideoProgress = p;
-  window.__figure2VideoTime = videoStates[0] ? videoStates[0].video.currentTime : 0;
-  window.__figure2VideoEnergy = videoEnergy;
-  window.__figure2VideoMode = 'hero-energy-copy';
+  figureIntroTween = window.gsap.to(figure2IntroState, {
+    progress: target,
+    duration: Math.max(0.08, duration * distance),
+    ease: 'sine.inOut',
+    overwrite: true,
+    onUpdate: () => {
+      lastRenderedIntroProgress = -1;
+    },
+    onComplete: () => {
+      figure2IntroState.progress = target;
+      figureIntroTween = null;
+      lastRenderedIntroProgress = -1;
+    }
+  });
+}
+
+function startIntroPlayback() {
+  if (figure2IntroState.active) return;
+  figure2IntroState.active = true;
+  resetTransitionAnchor();
+  tweenToIntroProgress(1, FIGURE_INTRO_SECONDS);
+  tweenToFigureVideoProgress(1);
+}
+
+function resetIntroPlayback() {
+  if (!figure2IntroState.active && figure2IntroState.progress <= 0.001 && figureVideoPlayhead.raw <= 0.001) return;
+  figure2IntroState.active = false;
+  resetTransitionAnchor();
+  tweenToIntroProgress(0, FIGURE_INTRO_SECONDS * 0.7);
+  resetFigureVideoTransition();
 }
 
 function createGsapSetters(gsap) {
@@ -462,37 +528,36 @@ function createGsapSetters(gsap) {
 function renderWithGsap(progress, mouseX, mouseY) {
   if (!gsapSetters) return;
   const p = stableProgress(progress);
-  const eased = smoothStep(p);
+  const cameraProgress = smoothStep(figure2IntroState.progress);
 
-  gsapSetters.cloudX(mouseX * -0.018);
-  gsapSetters.cloudY(mouseY * -0.010 - eased * 46);
-  const cloudScale = 1.012 + eased * 0.185;
+  gsapSetters.cloudX(mouseX * -0.010);
+  gsapSetters.cloudY(mouseY * -0.006 - cameraProgress * 30);
+  const cloudScale = 1.012 + cameraProgress * 0.13;
   gsapSetters.cloudScaleX(cloudScale);
   gsapSetters.cloudScaleY(cloudScale);
 
-  gsapSetters.farArcadeX(mouseX * -0.018);
-  gsapSetters.farArcadeY(mouseY * -0.010 - eased * 46);
-  const farArcadeScale = 1.012 + eased * 0.185;
+  gsapSetters.farArcadeX(mouseX * -0.012);
+  gsapSetters.farArcadeY(mouseY * -0.007 - cameraProgress * 32);
+  const farArcadeScale = 1.012 + cameraProgress * 0.13;
   gsapSetters.farArcadeScaleX(farArcadeScale);
   gsapSetters.farArcadeScaleY(farArcadeScale);
 
-  gsapSetters.middleX(mouseX * -0.018);
-  gsapSetters.middleY(mouseY * -0.010 - eased * 46);
-  const middleScale = 1.012 + eased * 0.185;
+  gsapSetters.middleX(mouseX * -0.014);
+  gsapSetters.middleY(mouseY * -0.008 - cameraProgress * 34);
+  const middleScale = 1.012 + cameraProgress * 0.13;
   gsapSetters.middleScaleX(middleScale);
   gsapSetters.middleScaleY(middleScale);
 
-  gsapSetters.nearArchX(mouseX * -0.004);
-  gsapSetters.nearArchY(eased * -12);
-  const nearArchScale = 1.025 + eased * 0.13;
+  gsapSetters.nearArchX(mouseX * -0.002);
+  gsapSetters.nearArchY(0);
+  const nearArchScale = 1.025 + cameraProgress * 0.10;
   gsapSetters.nearArchScaleX(nearArchScale);
   gsapSetters.nearArchScaleY(nearArchScale);
-  const frontBlurProgress = smoothStep(range01(p, 0.08, 0.92));
-  nearArchLayer.style.setProperty('--figure2-near-arch-blur', `${(frontBlurProgress * 4.2).toFixed(2)}px`);
+  nearArchLayer.style.setProperty('--figure2-near-arch-blur', `${(cameraProgress * 3.6).toFixed(2)}px`);
 
-  gsapSetters.figureX(mouseX * 0.006);
-  gsapSetters.figureY(-eased * 10);
-  const figureScale = 1 + eased * 0.028;
+  gsapSetters.figureX(mouseX * 0.003);
+  gsapSetters.figureY(-cameraProgress * 12);
+  const figureScale = 1 + cameraProgress * 0.035;
   gsapSetters.figureScaleX(figureScale);
   gsapSetters.figureScaleY(figureScale);
   gsapSetters.figureOpacity(getForegroundOpacity(p));
@@ -500,35 +565,40 @@ function renderWithGsap(progress, mouseX, mouseY) {
 
 function renderNative(progress, mouseX, mouseY) {
   const p = stableProgress(progress);
-  const eased = smoothStep(p);
-  cloudLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.018}px), calc(-50% + ${mouseY * -0.010 - eased * 46}px), 0) scale(${1.012 + eased * 0.185})`;
+  const cameraProgress = smoothStep(figure2IntroState.progress);
+  cloudLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.010}px), calc(-50% + ${mouseY * -0.006 - cameraProgress * 30}px), 0) scale(${1.012 + cameraProgress * 0.13})`;
   for (const farArcadeLayer of farArcadeLayers) {
-    farArcadeLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.018}px), calc(-50% + ${mouseY * -0.010 - eased * 46}px), 0) scale(${1.012 + eased * 0.185})`;
+    farArcadeLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.012}px), calc(-50% + ${mouseY * -0.007 - cameraProgress * 32}px), 0) scale(${1.012 + cameraProgress * 0.13})`;
   }
   for (const middleLayer of middleLayers) {
-    middleLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.018}px), calc(-50% + ${mouseY * -0.010 - eased * 46}px), 0) scale(${1.012 + eased * 0.185})`;
+    middleLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.014}px), calc(-50% + ${mouseY * -0.008 - cameraProgress * 34}px), 0) scale(${1.012 + cameraProgress * 0.13})`;
   }
-  nearArchLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.004}px), calc(-50% - ${eased * 12}px), 0) scale(${1.025 + eased * 0.13})`;
-  const frontBlurProgress = smoothStep(range01(p, 0.08, 0.92));
-  nearArchLayer.style.setProperty('--figure2-near-arch-blur', `${(frontBlurProgress * 4.2).toFixed(2)}px`);
-  figureGroup.style.transform = `translate3d(calc(-50% + ${mouseX * 0.006}px), ${-eased * 10}px, 0) scale(${1 + eased * 0.028})`;
+  nearArchLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.002}px), -50%, 0) scale(${1.025 + cameraProgress * 0.10})`;
+  nearArchLayer.style.setProperty('--figure2-near-arch-blur', `${(cameraProgress * 3.6).toFixed(2)}px`);
+  figureGroup.style.transform = `translate3d(calc(-50% + ${mouseX * 0.003}px), ${-cameraProgress * 12}px, 0) scale(${1 + cameraProgress * 0.035})`;
   figureGroup.style.opacity = getForegroundOpacity(p).toFixed(4);
 }
 
 function renderScene(progress, mouseX, mouseY) {
   const p = stableProgress(progress);
+  const introProgress = stableProgress(figure2IntroState.progress);
   const inkActive = getInkProgress(p) > 0.002;
   window.__figure2Progress = p;
+  window.__figure2IntroProgress = introProgress;
   root.style.setProperty('--figure2-progress', p.toFixed(4));
+  root.style.setProperty('--figure2-scene-progress', introProgress.toFixed(4));
   page.style.setProperty('--figure2-progress', p.toFixed(4));
+  page.style.setProperty('--figure2-scene-progress', introProgress.toFixed(4));
 
   const changed = Math.abs(lastRenderedProgress - p) > 0.0005
+    || Math.abs(lastRenderedIntroProgress - introProgress) > 0.0005
     || Math.abs(lastRenderedMouseX - mouseX) > 0.10
     || Math.abs(lastRenderedMouseY - mouseY) > 0.10
     || inkActive;
   if (!changed) return;
 
   lastRenderedProgress = p;
+  lastRenderedIntroProgress = introProgress;
   lastRenderedMouseX = mouseX;
   lastRenderedMouseY = mouseY;
 
@@ -541,39 +611,103 @@ function renderScene(progress, mouseX, mouseY) {
 }
 
 function tickFigure2() {
+  if (figure2IntroState.active && transitionScrollAnchor === null) {
+    applyScrollPosition(lastClampedScroll);
+  }
+
   const targetProgress = stableProgress(progressState.target);
-  const scrollDelta = previousTargetProgress === null
-    ? 0
-    : Math.abs(targetProgress - previousTargetProgress);
-  previousTargetProgress = targetProgress;
   const diff = targetProgress - progressState.value;
   progressState.value += diff * 0.22;
 
   currentProgress = stableProgress(progressState.value);
   renderScene(currentProgress, parallaxMouse.x, parallaxMouse.y);
-  updateVideoPlayback(currentProgress, scrollDelta);
 }
 
-function bindScrollInput() {
-  if (scrollInputBound) return;
-  scrollInputBound = true;
-  const markScrollInput = () => {
-    lastScrollInputAt = performance.now();
-  };
-  window.addEventListener('scroll', markScrollInput, { passive: true });
-  window.addEventListener('wheel', markScrollInput, { passive: true });
-  window.addEventListener('touchmove', markScrollInput, { passive: true });
+function getStageScrollMetrics() {
+  if (!stage) {
+    return {
+      totalRange: 1,
+      transitionRange: 1
+    };
+  }
+
+  const viewportHeight = Math.max(1, window.innerHeight);
+  const totalRange = Math.max(1, stage.offsetHeight - viewportHeight);
+  const transitionRange = Math.min(
+    Math.max(1, totalRange),
+    viewportHeight * (SCENE_TRANSITION_RANGE_VH / 100)
+  );
+
+  return { totalRange, transitionRange };
+}
+
+function applyScrollPosition(rawScroll) {
+  const { totalRange, transitionRange } = getStageScrollMetrics();
+  const clampedScroll = clamp(rawScroll, 0, totalRange);
+  lastClampedScroll = clampedScroll;
+  if (clampedScroll > INTRO_TRIGGER_PX) {
+    startIntroPlayback();
+  } else {
+    resetIntroPlayback();
+  }
+
+  let transitionProgress = 0;
+  if (clampedScroll > INTRO_TRIGGER_PX && isIntroComplete()) {
+    if (transitionScrollAnchor === null) {
+      transitionScrollAnchor = clampedScroll;
+    }
+    transitionProgress = stableProgress((clampedScroll - transitionScrollAnchor) / transitionRange);
+  }
+
+  progressState.target = transitionProgress;
+  if (transitionProgress >= 1 || transitionProgress <= 0) {
+    progressState.value = transitionProgress;
+    currentProgress = transitionProgress;
+    lastRenderedProgress = -1;
+  }
+  window.__figure2ScrollPx = clampedScroll;
+  window.__figure2TransitionStartPx = transitionScrollAnchor ?? clampedScroll;
+  window.__figure2TransitionRangePx = transitionRange;
+  window.__figure2TransitionArmed = transitionScrollAnchor !== null;
 }
 
 function updateNativeProgress() {
   if (!stage) return;
   const rect = stage.getBoundingClientRect();
-  const range = Math.max(1, rect.height - window.innerHeight);
-  const nextProgress = stableProgress(-rect.top / range);
-  if (Math.abs(nextProgress - progressState.target) > 0.0002) {
-    lastScrollInputAt = performance.now();
-  }
-  progressState.target = nextProgress;
+  applyScrollPosition(-rect.top);
+}
+
+function shouldGateIntroScroll() {
+  if (reduceMotion || !stage || !figure2IntroState.active || isIntroComplete()) return false;
+  const rect = stage.getBoundingClientRect();
+  return rect.top <= 1 && rect.bottom >= window.innerHeight * 0.25;
+}
+
+function normalizeWheelDelta(event) {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16;
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * window.innerHeight;
+  return event.deltaY;
+}
+
+function bindIntroScrollGate() {
+  if (introScrollGateBound) return;
+  introScrollGateBound = true;
+
+  window.addEventListener('wheel', (event) => {
+    if (!shouldGateIntroScroll() || normalizeWheelDelta(event) <= 0) return;
+    event.preventDefault();
+  }, { passive: false, capture: true });
+
+  window.addEventListener('touchstart', (event) => {
+    introTouchStartY = event.touches?.[0]?.clientY || 0;
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (event) => {
+    const currentY = event.touches?.[0]?.clientY || 0;
+    const scrollingDown = currentY < introTouchStartY;
+    if (!shouldGateIntroScroll() || !scrollingDown) return;
+    event.preventDefault();
+  }, { passive: false, capture: true });
 }
 
 function startPointerParallax(gsap) {
@@ -614,12 +748,13 @@ function startPointerParallax(gsap) {
 }
 
 function initNativeFallback() {
-  bindScrollInput();
   startPointerParallax(null);
   window.addEventListener('scroll', () => {
     updateNativeProgress();
   }, { passive: true });
-  window.addEventListener('resize', updateNativeProgress, { passive: true });
+  window.addEventListener('resize', () => {
+    updateNativeProgress();
+  }, { passive: true });
 
   if (!nativeTickerStarted) {
     nativeTickerStarted = true;
@@ -646,7 +781,6 @@ function initScrollTrigger() {
   ScrollTrigger.config({ ignoreMobileResize: true });
 
   startPointerParallax(gsap);
-  bindScrollInput();
   gsapSetters = createGsapSetters(gsap);
 
   scrollRuntime = initSmoothScroll({
@@ -661,19 +795,21 @@ function initScrollTrigger() {
     end: 'bottom bottom',
     invalidateOnRefresh: true,
     onUpdate: (self) => {
-      const nextProgress = stableProgress(self.progress);
-      if (Math.abs(nextProgress - progressState.target) > 0.0002) {
-        lastScrollInputAt = performance.now();
-      }
-      progressState.target = nextProgress;
+      const rawScroll = (self.end - self.start) * self.progress;
+      applyScrollPosition(rawScroll);
     },
     onRefresh: (self) => {
-      progressState.target = stableProgress(self.progress);
+      const rawScroll = (self.end - self.start) * self.progress;
+      applyScrollPosition(rawScroll);
     }
   });
 
+  renderRawFigureVideoProgress(0);
+  applyScrollPosition(0);
+
   window.addEventListener('resize', () => {
     lastRenderedProgress = -1;
+    lastRenderedIntroProgress = -1;
     ScrollTrigger.refresh();
   }, { passive: true });
   gsap.ticker.add(tickFigure2);
@@ -691,6 +827,10 @@ if (stage && figureVideos.length && cloudLayer && farArcadeLayers.length && midd
       progressState.value = 0.5;
       progressState.target = 0.5;
       currentProgress = 0.5;
+      figure2IntroState.progress = 1;
+      figure2IntroState.active = true;
+      figureVideoPlayhead.raw = 1;
+      renderRawFigureVideoProgress(1);
       renderScene(0.5, 0, 0);
       pauseVideos();
     }

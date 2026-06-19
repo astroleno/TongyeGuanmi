@@ -7,18 +7,18 @@ const CDN = {
 };
 
 const VIDEO_DURATION_FALLBACK = 5.03;
+const TRANSITION_DURATION_SECONDS = 3.35;
 
 const root = document.documentElement;
 const page = document.body;
 const stage = document.querySelector('[data-aod-stage]');
 const sunLayer = document.querySelector('.aod-layer--sun');
 const cloudLayer = document.querySelector('.aod-layer--cloud');
-const figureAlphaVideo = document.querySelector('[data-aod-figure-alpha-video]');
+const figureLayer = document.querySelector('[data-aod-figure-layer]');
 const figureFillVideo = document.querySelector('[data-aod-figure-fill-video]');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let scrollRuntime = null;
-let progressState = { value: 0, target: 0 };
 let gsapSetters = null;
 let nativeTickerStarted = false;
 let pointerParallaxBound = false;
@@ -26,9 +26,12 @@ let lastRenderedProgress = -1;
 let lastRenderedMouseX = 999;
 let lastRenderedMouseY = 999;
 let scrollTriggerInstance = null;
-let transitionAutoStarted = false;
-let transitionAutoActive = false;
 let touchStartY = 0;
+let nativeTweenFrame = 0;
+let progressTween = null;
+let playbackFrame = 0;
+let reverseLastTime = 0;
+const playhead = { raw: 0 };
 const videoSeekProgress = new WeakMap();
 
 const parallaxMouse = { x: 0, y: 0 };
@@ -58,7 +61,7 @@ function videoProgressCurve(progress) {
 }
 
 function fullscreenProgress(progress) {
-  return smoothStep(range01(progress, 0.70, 1));
+  return smoothStep(range01(progress, 0.18, 1));
 }
 
 function prepareFigureVideo(video) {
@@ -102,6 +105,18 @@ function seekVideo(video, progress) {
   }
 }
 
+function setVideoProgress(video, progress) {
+  if (!video || video.readyState < 1) return;
+  const duration = getVideoDuration(video);
+  const targetTime = Math.min(duration - 0.02, Math.max(0, stableProgress(progress) * duration));
+  try {
+    video.currentTime = targetTime;
+    videoSeekProgress.set(video, progress);
+  } catch {
+    // Metadata can settle a beat later on WebKit.
+  }
+}
+
 function waitForVideoMetadata(video) {
   if (!video || video.readyState >= 1) return Promise.resolve();
   return new Promise((resolve) => {
@@ -121,6 +136,14 @@ function waitForVideoMetadata(video) {
     video.addEventListener('error', finish, { once: true });
     video.load();
   });
+}
+
+function stopDirectPlayback() {
+  window.cancelAnimationFrame(playbackFrame);
+  playbackFrame = 0;
+  reverseLastTime = 0;
+  figureLayer?.pause?.();
+  figureFillVideo?.pause?.();
 }
 
 function loadScript(src, timeout = 10000) {
@@ -166,7 +189,7 @@ function loadRequiredLibraries() {
 }
 
 function createGsapSetters(gsap) {
-  gsap.set([sunLayer, cloudLayer, figureAlphaVideo], {
+  gsap.set([sunLayer, cloudLayer, figureLayer], {
     xPercent: -50,
     yPercent: -50,
     scale: 1,
@@ -192,10 +215,10 @@ function createGsapSetters(gsap) {
     cloudY: gsap.quickSetter(cloudLayer, 'y', 'px'),
     cloudOpacity: gsap.quickSetter(cloudLayer, 'opacity'),
     cloudScale: gsap.quickSetter(cloudLayer, 'scale'),
-    figureAlphaX: gsap.quickSetter(figureAlphaVideo, 'x', 'px'),
-    figureAlphaY: gsap.quickSetter(figureAlphaVideo, 'y', 'px'),
-    figureAlphaOpacity: gsap.quickSetter(figureAlphaVideo, 'opacity'),
-    figureAlphaScale: gsap.quickSetter(figureAlphaVideo, 'scale'),
+    figureX: gsap.quickSetter(figureLayer, 'x', 'px'),
+    figureY: gsap.quickSetter(figureLayer, 'y', 'px'),
+    figureOpacity: gsap.quickSetter(figureLayer, 'opacity'),
+    figureScale: gsap.quickSetter(figureLayer, 'scale'),
     figureFillOpacity: gsap.quickSetter(figureFillVideo, 'opacity'),
     figureFillScale: gsap.quickSetter(figureFillVideo, 'scale')
   };
@@ -207,9 +230,10 @@ function renderWithGsap(progress, mouseX, mouseY) {
   const eased = smoothStep(p);
   const full = fullscreenProgress(p);
   const upExitY = window.innerHeight * -1.08;
-  const backgroundFade = 1 - smoothStep(range01(p, 0.42, 0.68));
-  const fillReveal = smoothStep(range01(p, 0.74, 0.90));
-  const alphaFade = 1 - smoothStep(range01(p, 0.78, 0.94));
+  const backgroundFade = 1 - smoothStep(range01(p, 0.18, 0.52));
+  const fillReveal = smoothStep(range01(p, 0.94, 0.995));
+  const alphaFade = 1 - smoothStep(range01(p, 0.94, 1));
+  const fillZoom = smoothStep(range01(p, 0.86, 1));
 
   gsapSetters.sunX(mouseX * -0.004);
   gsapSetters.sunY(mouseY * -0.003 + eased * upExitY * 1.02);
@@ -222,15 +246,15 @@ function renderWithGsap(progress, mouseX, mouseY) {
   gsapSetters.cloudScale(1 + eased * 0.025);
 
   const figureX = mouseX * -0.003;
-  const figureY = mouseY * -0.0015 + eased * upExitY * 0.045;
-  const figureScale = 1 + eased * 0.006 + full * 0.04;
+  const figureY = mouseY * -0.0015 + eased * upExitY * 0.018 - full * window.innerHeight * 0.045;
+  const figureScale = 1 + full * 0.54;
 
-  gsapSetters.figureAlphaX(figureX);
-  gsapSetters.figureAlphaY(figureY);
-  gsapSetters.figureAlphaOpacity(alphaFade);
-  gsapSetters.figureAlphaScale(figureScale);
+  gsapSetters.figureX(figureX);
+  gsapSetters.figureY(figureY);
+  gsapSetters.figureOpacity(alphaFade);
+  gsapSetters.figureScale(figureScale);
   gsapSetters.figureFillOpacity(fillReveal);
-  gsapSetters.figureFillScale(1 + full * 0.035);
+  gsapSetters.figureFillScale(1 + fillZoom * 0.045);
 }
 
 function renderNative(progress, mouseX, mouseY) {
@@ -238,18 +262,19 @@ function renderNative(progress, mouseX, mouseY) {
   const eased = smoothStep(p);
   const full = fullscreenProgress(p);
   const upExitY = window.innerHeight * -1.08;
-  const backgroundFade = 1 - smoothStep(range01(p, 0.42, 0.68));
-  const fillReveal = smoothStep(range01(p, 0.74, 0.90));
-  const alphaFade = 1 - smoothStep(range01(p, 0.78, 0.94));
+  const backgroundFade = 1 - smoothStep(range01(p, 0.18, 0.52));
+  const fillReveal = smoothStep(range01(p, 0.94, 0.995));
+  const alphaFade = 1 - smoothStep(range01(p, 0.94, 1));
+  const fillZoom = smoothStep(range01(p, 0.86, 1));
   sunLayer.style.opacity = `${0.96 * backgroundFade}`;
   sunLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.004}px), calc(-50% + ${mouseY * -0.003 + eased * upExitY * 1.02}px), 0) scale(${1 + eased * 0.025})`;
   cloudLayer.style.opacity = `${0.98 * backgroundFade}`;
   cloudLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.006}px), calc(-50% + ${mouseY * -0.004 + eased * upExitY * 1.16}px), 0) scale(${1 + eased * 0.025})`;
-  const figureTransform = `translate3d(calc(-50% + ${mouseX * -0.003}px), calc(-50% + ${mouseY * -0.0015 + eased * upExitY * 0.045}px), 0) scale(${1 + eased * 0.006 + full * 0.04})`;
-  figureAlphaVideo.style.opacity = `${alphaFade}`;
-  figureAlphaVideo.style.transform = figureTransform;
+  const figureTransform = `translate3d(calc(-50% + ${mouseX * -0.003}px), calc(-50% + ${mouseY * -0.0015 + eased * upExitY * 0.018 - full * window.innerHeight * 0.045}px), 0) scale(${1 + full * 0.54})`;
+  figureLayer.style.opacity = `${alphaFade}`;
+  figureLayer.style.transform = figureTransform;
   figureFillVideo.style.opacity = `${fillReveal}`;
-  figureFillVideo.style.transform = `translate3d(0, 0, 0) scale(${1 + full * 0.035})`;
+  figureFillVideo.style.transform = `translate3d(0, 0, 0) scale(${1 + fillZoom * 0.045})`;
 }
 
 function renderScene(progress, mouseX, mouseY) {
@@ -271,36 +296,140 @@ function renderScene(progress, mouseX, mouseY) {
   } else {
     renderNative(p, mouseX, mouseY);
   }
-  const videoProgress = videoProgressCurve(p);
-  seekVideo(figureAlphaVideo, videoProgress);
-  seekVideo(figureFillVideo, videoProgress);
+}
+
+function renderRawProgress(rawProgress) {
+  playhead.raw = stableProgress(rawProgress);
+  renderScene(playhead.raw, parallaxMouse.x, parallaxMouse.y);
 }
 
 function tickAod() {
-  const diff = stableProgress(progressState.target) - progressState.value;
-  progressState.value += diff * 0.36;
-  renderScene(progressState.value, parallaxMouse.x, parallaxMouse.y);
+  renderScene(playhead.raw, parallaxMouse.x, parallaxMouse.y);
 }
 
-function updateNativeProgress() {
+function tweenNativeToRawProgress(target) {
+  const start = playhead.raw;
+  const distance = Math.abs(target - start);
+  const duration = Math.max(0.10, distance * TRANSITION_DURATION_SECONDS) * 1000;
+  const startedAt = performance.now();
+
+  window.cancelAnimationFrame(nativeTweenFrame);
+
+  const tick = (now) => {
+    const t = clamp((now - startedAt) / duration, 0, 1);
+    renderRawProgress(start + (target - start) * t);
+    if (t < 1) {
+      nativeTweenFrame = window.requestAnimationFrame(tick);
+    } else {
+      nativeTweenFrame = 0;
+    }
+  };
+
+  nativeTweenFrame = window.requestAnimationFrame(tick);
+}
+
+function renderFromVideoTime(video) {
+  const duration = getVideoDuration(video);
+  renderRawProgress(clamp(video.currentTime / duration, 0, 1));
+}
+
+function playForwardTo(target) {
+  const start = playhead.raw;
+  setVideoProgress(figureLayer, start);
+  setVideoProgress(figureFillVideo, start);
+
+  figureLayer.playbackRate = 1;
+  figureFillVideo.playbackRate = 1;
+
+  const figurePlay = figureLayer.play?.();
+  const fillPlay = figureFillVideo.play?.();
+  if (figurePlay?.catch) figurePlay.catch(() => {});
+  if (fillPlay?.catch) fillPlay.catch(() => {});
+
+  const tick = () => {
+    const duration = getVideoDuration(figureLayer);
+    const progress = clamp(figureLayer.currentTime / duration, 0, 1);
+    renderRawProgress(progress);
+    setVideoProgress(figureFillVideo, progress);
+
+    if (progress >= target - 0.001 || figureLayer.ended) {
+      setVideoProgress(figureLayer, target);
+      setVideoProgress(figureFillVideo, target);
+      renderRawProgress(target);
+      stopDirectPlayback();
+      return;
+    }
+
+    playbackFrame = window.requestAnimationFrame(tick);
+  };
+
+  playbackFrame = window.requestAnimationFrame(tick);
+}
+
+function playReverseTo(target) {
+  reverseLastTime = 0;
+  figureLayer.pause?.();
+  figureFillVideo.pause?.();
+
+  const tick = (now) => {
+    if (!reverseLastTime) reverseLastTime = now;
+    const deltaSeconds = clamp((now - reverseLastTime) / 1000, 0, 0.05);
+    reverseLastTime = now;
+
+    const duration = getVideoDuration(figureLayer);
+    const nextTime = Math.max(target * duration, figureLayer.currentTime - deltaSeconds);
+    try {
+      figureLayer.currentTime = nextTime;
+      figureFillVideo.currentTime = Math.min(getVideoDuration(figureFillVideo) - 0.02, nextTime);
+    } catch {
+      // Ignore transient seek errors while the browser settles metadata.
+    }
+
+    renderFromVideoTime(figureLayer);
+
+    if (nextTime <= target * duration + 0.001) {
+      setVideoProgress(figureLayer, target);
+      setVideoProgress(figureFillVideo, target);
+      renderRawProgress(target);
+      stopDirectPlayback();
+      return;
+    }
+
+    playbackFrame = window.requestAnimationFrame(tick);
+  };
+
+  playbackFrame = window.requestAnimationFrame(tick);
+}
+
+function tweenToRawProgress(rawProgress) {
+  const target = stableProgress(rawProgress);
+  const distance = Math.abs(target - playhead.raw);
+
+  progressTween?.kill?.();
+  progressTween = null;
+  window.cancelAnimationFrame(nativeTweenFrame);
+  nativeTweenFrame = 0;
+  stopDirectPlayback();
+
+  if (distance < 0.001) {
+    renderRawProgress(target);
+    return;
+  }
+
+  if (target > playhead.raw) {
+    playForwardTo(target);
+    return;
+  }
+
+  playReverseTo(target);
+}
+
+function scrollStageToProgress(target) {
   if (!stage) return;
-  const rect = stage.getBoundingClientRect();
-  const range = Math.max(1, window.innerHeight * 0.2);
-  progressState.target = stableProgress(-rect.top / range);
-}
-
-function autoCompleteTransition() {
-  if (transitionAutoStarted || reduceMotion || !stage) return;
-  transitionAutoStarted = true;
-  transitionAutoActive = true;
-  progressState.target = 1;
-  window.setTimeout(() => {
-    transitionAutoActive = false;
-  }, 1100);
-  const targetY = stage.offsetTop + window.innerHeight * 0.22;
+  const targetY = stage.offsetTop + (target > 0.5 ? window.innerHeight * 0.22 : 0);
   if (scrollRuntime?.lenis?.scrollTo) {
     scrollRuntime.lenis.scrollTo(targetY, {
-      duration: 0.92,
+      duration: Math.min(1.1, Math.max(0.45, Math.abs(target - playhead.raw) * 0.8)),
       easing: (t) => 1 - Math.pow(1 - t, 3)
     });
     return;
@@ -308,52 +437,52 @@ function autoCompleteTransition() {
   window.scrollTo({ top: targetY, behavior: 'smooth' });
 }
 
-function bindAutoStart() {
-  const cleanup = () => {
-    window.removeEventListener('wheel', onFirstWheel);
-    window.removeEventListener('touchstart', onFirstTouchStart);
-    window.removeEventListener('touchmove', onFirstTouchMove);
-    window.removeEventListener('scroll', onFirstNativeScroll);
-  };
-
+function bindTransitionIntent() {
   const isStageReady = () => {
     const rect = stage?.getBoundingClientRect();
     return Boolean(rect && rect.top <= 8 && rect.bottom >= window.innerHeight * 0.25);
   };
 
-  const onFirstWheel = (event) => {
-    const delta = event.deltaY ?? 0;
-    if (delta <= 0) return;
-    if (!isStageReady()) return;
-    if (event.cancelable) event.preventDefault();
-    autoCompleteTransition();
-    cleanup();
+  const playDirection = (direction) => {
+    if (!isStageReady()) return false;
+    const target = direction > 0 ? 1 : 0;
+    tweenToRawProgress(target);
+    scrollStageToProgress(target);
+    return true;
   };
 
-  const onFirstTouchStart = (event) => {
+  const onWheel = (event) => {
+    const delta = event.deltaY ?? 0;
+    if (Math.abs(delta) < 1) return;
+    if (!playDirection(delta > 0 ? 1 : -1)) return;
+    if (event.cancelable) event.preventDefault();
+  };
+
+  const onTouchStart = (event) => {
     touchStartY = event.touches?.[0]?.clientY ?? 0;
   };
 
-  const onFirstTouchMove = (event) => {
+  const onTouchMove = (event) => {
     const currentY = event.touches?.[0]?.clientY ?? touchStartY;
-    if (touchStartY - currentY <= 2) return;
-    if (!isStageReady()) return;
+    const delta = touchStartY - currentY;
+    if (Math.abs(delta) <= 2) return;
+    if (!playDirection(delta > 0 ? 1 : -1)) return;
     if (event.cancelable) event.preventDefault();
-    autoCompleteTransition();
-    cleanup();
   };
 
-  const onFirstNativeScroll = () => {
-    if (window.scrollY <= stage.offsetTop + 2) return;
-    if (!isStageReady()) return;
-    autoCompleteTransition();
-    cleanup();
+  const onKeyDown = (event) => {
+    const forwardKeys = ['ArrowDown', 'PageDown', 'Space'];
+    const backwardKeys = ['ArrowUp', 'PageUp'];
+    if (![...forwardKeys, ...backwardKeys].includes(event.code)) return;
+    const direction = forwardKeys.includes(event.code) ? 1 : -1;
+    if (!playDirection(direction)) return;
+    if (event.cancelable) event.preventDefault();
   };
 
-  window.addEventListener('wheel', onFirstWheel, { passive: false, capture: true });
-  window.addEventListener('touchstart', onFirstTouchStart, { passive: true, capture: true });
-  window.addEventListener('touchmove', onFirstTouchMove, { passive: false, capture: true });
-  window.addEventListener('scroll', onFirstNativeScroll, { passive: true });
+  window.addEventListener('wheel', onWheel, { passive: false, capture: true });
+  window.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
+  window.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
+  window.addEventListener('keydown', onKeyDown, { passive: false, capture: true });
 }
 
 function startPointerParallax(gsap) {
@@ -395,13 +524,12 @@ function startPointerParallax(gsap) {
 
 function initNativeFallback() {
   startPointerParallax(null);
-  window.addEventListener('scroll', updateNativeProgress, { passive: true });
-  window.addEventListener('resize', updateNativeProgress, { passive: true });
+  bindTransitionIntent();
+  renderRawProgress(0);
 
   if (!nativeTickerStarted) {
     nativeTickerStarted = true;
     const tick = () => {
-      updateNativeProgress();
       nativeMouse.x += (nativeMouse.targetX - nativeMouse.x) * 0.10;
       nativeMouse.y += (nativeMouse.targetY - nativeMouse.y) * 0.10;
       parallaxMouse.x = nativeMouse.x;
@@ -411,7 +539,6 @@ function initNativeFallback() {
     };
     requestAnimationFrame(tick);
   }
-  updateNativeProgress();
 }
 
 function initScrollTrigger() {
@@ -432,38 +559,34 @@ function initScrollTrigger() {
     trigger: stage,
     start: 'top top',
     end: () => `+=${Math.max(1, window.innerHeight * 0.2)}`,
-    invalidateOnRefresh: true,
-    onUpdate: (self) => {
-      progressState.target = transitionAutoActive ? 1 : stableProgress(self.progress);
-    },
-    onRefresh: (self) => {
-      progressState.target = transitionAutoActive ? 1 : stableProgress(self.progress);
-    }
+    invalidateOnRefresh: true
   });
 
-  bindAutoStart();
+  bindTransitionIntent();
 
   window.addEventListener('resize', () => {
     lastRenderedProgress = -1;
     ScrollTrigger.refresh();
   }, { passive: true });
   gsap.ticker.add(tickAod);
-  tickAod();
+  renderRawProgress(0);
   ScrollTrigger.refresh();
 }
 
-prepareFigureVideo(figureAlphaVideo);
+prepareFigureVideo(figureLayer);
 prepareFigureVideo(figureFillVideo);
 Promise.all([
-  waitForVideoMetadata(figureAlphaVideo),
+  waitForVideoMetadata(figureLayer),
   waitForVideoMetadata(figureFillVideo)
 ]).then(() => {
-  const videoProgress = videoProgressCurve(progressState.value);
-  seekVideo(figureAlphaVideo, videoProgress);
+  const videoProgress = videoProgressCurve(playhead.raw);
+  seekVideo(figureLayer, videoProgress);
   seekVideo(figureFillVideo, videoProgress);
+  lastRenderedProgress = -1;
+  renderScene(playhead.raw, parallaxMouse.x, parallaxMouse.y);
 });
 
-if (stage && sunLayer && cloudLayer && figureAlphaVideo && figureFillVideo) {
+if (stage && sunLayer && cloudLayer && figureLayer && figureFillVideo) {
   if (reduceMotion) {
     renderScene(0, 0, 0);
   } else {

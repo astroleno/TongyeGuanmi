@@ -6,39 +6,21 @@ const CDN = {
   lenis: 'js/vendor/lenis.min.js'
 };
 
+const TRANSITION_DURATION_SECONDS = 2;
+const VIDEO_DURATION_FALLBACK = 4.04;
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const smoothStep = (value) => value * value * (3 - 2 * value);
+
 const root = document.documentElement;
-const page = document.body;
+const body = document.body;
 const stage = document.querySelector('[data-ph-stage]');
-const backLayer = document.querySelector('.ph-layer--back');
-const frontLayer = document.querySelector('.ph-layer--front');
-const figureLayer = document.querySelector('.ph-layer--figure');
+const alphaVideo = document.querySelector('[data-ph-alpha-video]');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-let scrollRuntime = null;
-let progressState = { value: 0, target: 0 };
-let gsapSetters = null;
-let nativeTickerStarted = false;
-let pointerParallaxBound = false;
-let lastRenderedProgress = -1;
-let lastRenderedMouseX = 999;
-let lastRenderedMouseY = 999;
-
-const parallaxMouse = { x: 0, y: 0 };
-const nativeMouse = { targetX: 0, targetY: 0, x: 0, y: 0 };
-
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function smoothStep(value) {
-  return value * value * (3 - 2 * value);
-}
-
-function stableProgress(value) {
-  if (value < 0.002) return 0;
-  if (value > 0.998) return 1;
-  return clamp(value, 0, 1);
-}
+let scrollRuntime = { lenis: null };
+let progressTween = null;
+const playhead = { raw: 0 };
 
 function loadScript(src, timeout = 10000) {
   return new Promise((resolve, reject) => {
@@ -55,6 +37,7 @@ function loadScript(src, timeout = 10000) {
       if (settled) return;
       settled = true;
       window.clearTimeout(timer);
+      if (!ok) script.remove();
       script.onload = null;
       script.onerror = null;
       ok ? resolve(value) : reject(value);
@@ -68,206 +51,157 @@ function loadScript(src, timeout = 10000) {
   });
 }
 
-function loadRequiredLibraries() {
-  return Promise.resolve()
-    .then(() => (window.gsap ? undefined : loadScript(CDN.gsap)))
-    .then(() => (window.ScrollTrigger ? undefined : loadScript(CDN.scrollTrigger)))
-    .then(() => (window.Lenis ? undefined : loadScript(CDN.lenis).catch((error) => {
-      console.warn('Lenis unavailable, keeping native scroll.', error);
-    })))
-    .then(() => {
-      if (!window.gsap || !window.ScrollTrigger) {
-        throw new Error('GSAP ScrollTrigger unavailable.');
-      }
-    });
-}
-
-function createGsapSetters(gsap) {
-  gsap.set([backLayer, frontLayer, figureLayer], {
-    xPercent: -50,
-    yPercent: 0,
-    scale: 1,
-    transformOrigin: '50% 86%',
-    force3D: true
-  });
-
-  return {
-    backX: gsap.quickSetter(backLayer, 'x', 'px'),
-    backY: gsap.quickSetter(backLayer, 'y', 'px'),
-    frontX: gsap.quickSetter(frontLayer, 'x', 'px'),
-    frontY: gsap.quickSetter(frontLayer, 'y', 'px'),
-    figureX: gsap.quickSetter(figureLayer, 'x', 'px'),
-    figureY: gsap.quickSetter(figureLayer, 'y', 'px')
-  };
-}
-
-function renderWithGsap(progress, mouseX, mouseY) {
-  if (!gsapSetters) return;
-  const p = stableProgress(progress);
-  const eased = smoothStep(p);
-  const downExitY = window.innerHeight * 1.26;
-
-  gsapSetters.backX(mouseX * -0.002);
-  gsapSetters.backY(mouseY * -0.001 + eased * downExitY * 0.30);
-
-  gsapSetters.frontX(mouseX * -0.003);
-  gsapSetters.frontY(mouseY * -0.001 + eased * downExitY * 1.00);
-
-  gsapSetters.figureX(mouseX * -0.004);
-  gsapSetters.figureY(mouseY * -0.002 + eased * downExitY * 0.86);
-}
-
-function renderNative(progress, mouseX, mouseY) {
-  const p = stableProgress(progress);
-  const eased = smoothStep(p);
-  const downExitY = window.innerHeight * 1.26;
-
-  backLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.002}px), ${mouseY * -0.001 + eased * downExitY * 0.30}px, 0)`;
-  frontLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.003}px), ${mouseY * -0.001 + eased * downExitY * 1.00}px, 0)`;
-  figureLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.004}px), ${mouseY * -0.002 + eased * downExitY * 0.86}px, 0)`;
-}
-
-function renderScene(progress, mouseX, mouseY) {
-  const p = stableProgress(progress);
-  page.style.setProperty('--ph-progress', p.toFixed(4));
-  root.style.setProperty('--ph-progress', p.toFixed(4));
-
-  const changed = Math.abs(lastRenderedProgress - p) > 0.0005
-    || Math.abs(lastRenderedMouseX - mouseX) > 0.10
-    || Math.abs(lastRenderedMouseY - mouseY) > 0.10;
-  if (!changed) return;
-
-  lastRenderedProgress = p;
-  lastRenderedMouseX = mouseX;
-  lastRenderedMouseY = mouseY;
-
-  if (gsapSetters) {
-    renderWithGsap(p, mouseX, mouseY);
-  } else {
-    renderNative(p, mouseX, mouseY);
+async function loadRequiredLibraries() {
+  if (!window.gsap) await loadScript(CDN.gsap);
+  if (!window.ScrollTrigger) await loadScript(CDN.scrollTrigger);
+  try {
+    if (!window.Lenis) await loadScript(CDN.lenis);
+  } catch (error) {
+    console.warn('Lenis unavailable, keeping native scroll.', error);
+  }
+  if (!window.gsap || !window.ScrollTrigger) {
+    throw new Error('GSAP ScrollTrigger unavailable.');
   }
 }
 
-function tickPh() {
-  const diff = stableProgress(progressState.target) - progressState.value;
-  progressState.value += diff * 0.20;
-  renderScene(progressState.value, parallaxMouse.x, parallaxMouse.y);
+function prepareVideo(video) {
+  if (!video) return;
+  video.muted = true;
+  video.loop = false;
+  video.autoplay = false;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.setAttribute('muted', '');
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
+  video.pause();
+  video.load();
 }
 
-function updateNativeProgress() {
-  if (!stage) return;
-  const rect = stage.getBoundingClientRect();
-  const range = Math.max(1, rect.height - window.innerHeight);
-  progressState.target = stableProgress(-rect.top / range);
+function waitForVideoMetadata(video) {
+  if (!video || video.readyState >= 1) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      video.removeEventListener('loadedmetadata', finish);
+      video.removeEventListener('canplay', finish);
+      video.removeEventListener('error', finish);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, 1200);
+    video.addEventListener('loadedmetadata', finish, { once: true });
+    video.addEventListener('canplay', finish, { once: true });
+    video.addEventListener('error', finish, { once: true });
+    video.load();
+  });
 }
 
-function startPointerParallax(gsap) {
-  if (pointerParallaxBound) return;
-  pointerParallaxBound = true;
+function getVideoDuration(video) {
+  return Number.isFinite(video?.duration) && video.duration > 0 ? video.duration : VIDEO_DURATION_FALLBACK;
+}
 
-  if (gsap) {
-    const parallaxToX = gsap.quickTo(parallaxMouse, 'x', { duration: 0.85, ease: 'power3.out' });
-    const parallaxToY = gsap.quickTo(parallaxMouse, 'y', { duration: 0.85, ease: 'power3.out' });
+function seekVideo(progress) {
+  if (!alphaVideo || alphaVideo.readyState < 1) return;
+  const duration = getVideoDuration(alphaVideo);
+  const targetTime = Math.min(duration - 0.02, Math.max(0, progress * duration));
+  if (Math.abs(alphaVideo.currentTime - targetTime) < 0.016) return;
 
-    window.addEventListener('pointermove', (event) => {
-      if (reduceMotion || event.pointerType === 'touch' || !stage) return;
-      const rect = stage.getBoundingClientRect();
-      if (rect.top > window.innerHeight || rect.bottom < 0) return;
-      parallaxToX(event.clientX - window.innerWidth / 2);
-      parallaxToY(event.clientY - window.innerHeight / 2);
-    }, { passive: true });
+  try {
+    alphaVideo.currentTime = targetTime;
+  } catch {
+    // Metadata can settle a beat later on WebKit.
+  }
+}
 
-    window.addEventListener('pointerleave', () => {
-      parallaxToX(0);
-      parallaxToY(0);
-    }, { passive: true });
+function setProgress(progress) {
+  const p = clamp(progress, 0, 1);
+  root.style.setProperty('--ph-progress', p.toFixed(4));
+  root.style.setProperty('--ph-video-opacity', (1 - smoothStep(clamp((p - 0.98) / 0.02, 0, 1))).toFixed(4));
+  seekVideo(p);
+}
+
+function tweenToRawProgress(rawProgress) {
+  const { gsap } = window;
+  const target = clamp(rawProgress, 0, 1);
+  const distance = Math.abs(target - playhead.raw);
+
+  progressTween?.kill?.();
+  progressTween = null;
+
+  if (distance < 0.001) {
+    playhead.raw = target;
+    setProgress(playhead.raw);
     return;
   }
 
-  window.addEventListener('pointermove', (event) => {
-    if (reduceMotion || event.pointerType === 'touch' || !stage) return;
-    const rect = stage.getBoundingClientRect();
-    if (rect.top > window.innerHeight || rect.bottom < 0) return;
-    nativeMouse.targetX = event.clientX - window.innerWidth / 2;
-    nativeMouse.targetY = event.clientY - window.innerHeight / 2;
-  }, { passive: true });
-
-  window.addEventListener('pointerleave', () => {
-    nativeMouse.targetX = 0;
-    nativeMouse.targetY = 0;
-  }, { passive: true });
+  progressTween = gsap.to(playhead, {
+    raw: target,
+    duration: Math.max(0.06, distance * TRANSITION_DURATION_SECONDS),
+    ease: 'none',
+    overwrite: true,
+    onUpdate: () => setProgress(playhead.raw),
+    onComplete: () => {
+      playhead.raw = target;
+      progressTween = null;
+      setProgress(playhead.raw);
+    }
+  });
 }
 
-function initNativeFallback() {
-  startPointerParallax(null);
-  window.addEventListener('scroll', updateNativeProgress, { passive: true });
-  window.addEventListener('resize', updateNativeProgress, { passive: true });
+function resetTransition() {
+  tweenToRawProgress(0);
+}
 
-  if (!nativeTickerStarted) {
-    nativeTickerStarted = true;
-    const tick = () => {
-      updateNativeProgress();
-      nativeMouse.x += (nativeMouse.targetX - nativeMouse.x) * 0.10;
-      nativeMouse.y += (nativeMouse.targetY - nativeMouse.y) * 0.10;
-      parallaxMouse.x = nativeMouse.x;
-      parallaxMouse.y = nativeMouse.y;
-      tickPh();
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
+async function init() {
+  if (!stage || !alphaVideo) return;
+  prepareVideo(alphaVideo);
+  await waitForVideoMetadata(alphaVideo);
+
+  if (reduceMotion) {
+    playhead.raw = 1;
+    setProgress(1);
+    return;
   }
-  updateNativeProgress();
-}
 
-function initScrollTrigger() {
+  await loadRequiredLibraries();
   const { gsap, ScrollTrigger } = window;
   gsap.registerPlugin(ScrollTrigger);
-  gsap.ticker.lagSmoothing(0);
-  ScrollTrigger.config({ ignoreMobileResize: true });
 
-  startPointerParallax(gsap);
-  gsapSetters = createGsapSetters(gsap);
   scrollRuntime = initSmoothScroll({
     root,
-    body: document.body,
-    reduceMotion
+    body,
+    reduceMotion,
+    options: {
+      lerp: 0.08,
+      wheelMultiplier: 0.82,
+      syncTouch: false
+    }
   });
+
+  setProgress(0);
 
   ScrollTrigger.create({
     trigger: stage,
     start: 'top top',
     end: 'bottom bottom',
     invalidateOnRefresh: true,
-    onUpdate: (self) => {
-      progressState.target = stableProgress(self.progress);
-    },
-    onRefresh: (self) => {
-      progressState.target = stableProgress(self.progress);
-    }
+    onUpdate: (self) => tweenToRawProgress(self.progress),
+    onLeave: () => tweenToRawProgress(1),
+    onLeaveBack: resetTransition
   });
 
-  window.addEventListener('resize', () => {
-    lastRenderedProgress = -1;
-    ScrollTrigger.refresh();
-  }, { passive: true });
-  gsap.ticker.add(tickPh);
-  tickPh();
   ScrollTrigger.refresh();
 }
 
-if (stage && backLayer && frontLayer && figureLayer) {
-  if (reduceMotion) {
-    renderScene(0, 0, 0);
-  } else {
-    loadRequiredLibraries()
-      .then(initScrollTrigger)
-      .catch((error) => {
-        console.warn('Falling back to native scroll sync.', error);
-        initNativeFallback();
-      });
-  }
-}
+init().catch((error) => {
+  console.warn('PH transition failed to initialize.', error);
+  setProgress(0);
+});
 
 window.addEventListener('pagehide', () => {
+  progressTween?.kill?.();
   scrollRuntime?.destroy?.();
 });

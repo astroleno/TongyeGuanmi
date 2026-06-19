@@ -1,567 +1,370 @@
-.lab-top h2,
-.contact-card h2,
-.edition-copy h2 {
-  margin: 0;
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
-  font-size: clamp(32px, 4vw, 56px);
-  font-weight: 600;
-  line-height: 1.22;
-  letter-spacing: .01em;
+.canvas-section--brand {
+  padding-block: clamp(118px, 15vw, 230px);
+  background:
+    linear-gradient(180deg, rgba(5, 8, 7, .18), rgba(5, 8, 7, .44)),
+    radial-gradient(circle at 74% 40%, rgba(232, 213, 154, .08), transparent 36vw);
+}
+
+.canvas-section--education {
+  padding-block: clamp(112px, 13vw, 196px);
+}
+
+.canvas-track.enterprise-layout .chapter-intro,
+.canvas-track.education-layout .chapter-intro {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(76px, .65fr) minmax(0, 6.8fr) minmax(280px, 2.5fr);
+  column-gap: clamp(30px, 4.8vw, 76px);
+  row-gap: clamp(28px, 4vw, 54px);
+}
+
+.canvas-track.scenario-layout .chapter-intro {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(76px, .65fr) minmax(0, 8.6fr);
+  column-gap: clamp(30px, 4.8vw, 76px);
+}
+
+.canvas-track.enterprise-layout .chapter-intro h2,
+.canvas-track.education-layout .chapter-intro h2,
+.canvas-track.scenario-layout .chapter-intro h2 {
+  max-width: 100%;
+  font-size: clamp(54px, 5vw, 78px);
+  line-height: 1.1;
   text-wrap: balance;
 }
 
-.edition-copy p,
-.contact-card p {
-  margin: 0;
-  color: var(--muted);
-  font-size: clamp(16px, 1.25vw, 18px);
-  line-height: 1.78;
-  text-wrap: pretty;
+.canvas-track.enterprise-layout .chapter-intro p,
+.canvas-track.education-layout .chapter-intro p {
+  grid-column: 3;
+  max-width: 30em;
+  font-size: clamp(15px, 1.16vw, 17px);
+  line-height: 1.86;
 }
 
-.method {
-  background: linear-gradient(180deg, rgba(8,18,15,.92) 0%, rgba(7,17,14,.96) 100%);
+.canvas-track.brand-layout .chapter-intro {
+  grid-column: 2 / 12;
 }
 
-.method-grid {
+.canvas-track.brand-layout .chapter-intro h2 {
+  max-width: 7em;
+}
+
+.canvas-track.brand-layout .chapter-intro p {
+  grid-column: 3;
+  max-width: 44em;
+}
+
+.quiet-proof.quiet-proof--source {
+  grid-column: 3 / -1;
   display: grid;
-  grid-template-columns: repeat(5, minmax(180px, 1fr));
-  border: 1px solid rgba(247,237,215,.14);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  background: rgba(247,237,215,.035);
+  grid-template-columns: minmax(150px, 1fr) minmax(0, 3fr);
+  gap: clamp(20px, 3.4vw, 58px);
+  align-items: start;
+  margin-top: clamp(48px, 6.5vw, 86px);
+  padding-top: clamp(22px, 3vw, 36px);
+  border-top: 1px solid rgba(247, 237, 215, .16);
 }
 
-.method-card {
-  min-height: 340px;
-  padding: clamp(22px, 2.4vw, 34px);
-  border-right: 1px solid rgba(247,237,215,.12);
-  background:
-    radial-gradient(circle at 50% 10%, rgba(56,166,154,.12), transparent 28%),
-    linear-gradient(180deg, rgba(255,255,255,.045), transparent);
-  transform-style: preserve-3d;
-  transition: background .3s ease;
-}
-
-.method-card:last-child {
-  border-right: 0;
-}
-
-.method-card:hover {
-  background:
-    radial-gradient(circle at 50% 10%, rgba(232,213,154,.16), transparent 30%),
-    linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.015));
-}
-
-.method-card > span,
-.edu-stack article > span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 1px solid rgba(232,213,154,.28);
-  color: var(--gold);
+.quiet-proof.quiet-proof--source > span {
+  margin: 0;
+  color: rgba(232, 213, 154, .80);
   font-size: 12px;
-  letter-spacing: .1em;
-  margin-bottom: 36px;
-}
-
-.method-card h3 {
-  margin: 0 0 14px;
-  font-size: clamp(24px, 2vw, 30px);
-  line-height: 1.2;
-  letter-spacing: .04em;
-  font-family: ui-serif, "Songti SC", "STSong", serif;
-  font-weight: 600;
-}
-
-.method-card p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.72;
-}
-
-.trust-note {
-  margin-top: clamp(36px, 4vw, 56px);
-}
-
-.trust-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 22px;
-}
-
-.trust-grid article {
-  padding: 22px 24px;
-  border: 1px solid rgba(247, 237, 215, 0.13);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(145deg, rgba(247, 237, 215, 0.05), rgba(247, 237, 215, 0.015));
-}
-
-.trust-grid strong {
-  display: block;
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
-  font-size: 19px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.trust-grid p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.7;
-}
-
-.trust-closing {
-  margin: 24px 0 0;
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
-  font-size: clamp(18px, 1.6vw, 22px);
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.edition-band {
-  position: relative;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  padding: clamp(80px, 9vw, 140px) clamp(22px, 6vw, 96px);
-  background:
-    linear-gradient(90deg, rgba(7,17,14,.88), rgba(7,17,14,.3), rgba(7,17,14,.88)),
-    url('../../assets/back1.png') center / cover fixed;
-}
-
-.edition-band::before {
-  content: "";
-  position: absolute;
-  inset: 7vw;
-  border: 1px solid rgba(232,213,154,.18);
-  border-radius: 48px;
-  box-shadow: inset 0 0 120px rgba(0,0,0,.3);
-}
-
-.edition-band::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle, transparent 35%, rgba(4,8,7,.72));
-}
-
-.edition-copy {
-  position: relative;
-  z-index: 2;
-  width: min(980px, 94vw);
-  text-align: center;
-}
-
-.edition-copy .eyebrow {
-  margin-bottom: 28px;
-}
-
-.edition-copy .eyebrow::before {
-  display: none;
-}
-
-.edition-copy h2 {
-  margin-bottom: 28px;
-}
-
-.edition-copy p {
-  margin-inline: auto;
-  width: min(760px, 100%);
-}
-
-.services,
-.education,
-.philosophy,
-.contact {
-  position: relative;
-  background:
-    radial-gradient(circle at 12% 16%, rgba(56,166,154,.12), transparent 30vw),
-    radial-gradient(circle at 86% 22%, rgba(183,91,52,.11), transparent 28vw),
-    #07110e;
-}
-
-.service-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(220px, 1fr));
-  gap: 16px;
-}
-
-.service-card {
-  position: relative;
-  min-height: 400px;
-  padding: 28px;
-  border: 1px solid rgba(247,237,215,.13);
-  border-radius: var(--radius-xl);
-  background:
-    linear-gradient(180deg, rgba(247,237,215,.075), rgba(247,237,215,.02)),
-    radial-gradient(circle at 50% 0%, rgba(56,166,154,.12), transparent 30%);
-  overflow: hidden;
-  transform-style: preserve-3d;
-}
-
-.service-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(120deg, transparent, rgba(232,213,154,.09), transparent);
-  transform: translateX(-120%);
-  transition: transform .6s ease;
-}
-
-.service-card:hover::before {
-  transform: translateX(120%);
-}
-
-.service-icon {
-  width: 66px;
-  height: 66px;
-  display: grid;
-  place-items: center;
-  border-radius: 22px;
-  border: 1px solid rgba(232,213,154,.22);
-  background: rgba(247,237,215,.05);
-  color: var(--gold);
-  font-size: 28px;
-  margin-bottom: 36px;
-}
-
-.service-card h3 {
-  margin: 0 0 14px;
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
-  font-size: clamp(22px, 1.8vw, 26px);
-  font-weight: 600;
-  letter-spacing: .01em;
-  line-height: 1.3;
-}
-
-.service-card p {
-  margin: 0 0 30px;
-  color: var(--muted);
-  line-height: 1.72;
-}
-
-.service-card ul {
-  position: absolute;
-  left: 28px;
-  right: 28px;
-  bottom: 28px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 10px;
-}
-
-.service-card li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: rgba(247,237,215,.68);
-  font-size: 14px;
-}
-
-.service-card li::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--jade);
-  box-shadow: 0 0 18px rgba(56,166,154,.8);
-}
-
-.lab {
-  background:
-    linear-gradient(180deg, rgba(7,17,14,.6), rgba(7,17,14,.96)),
-    radial-gradient(circle at 50% 50%, rgba(232,213,154,.08), transparent 40vw),
-    #050807;
-  overflow: hidden;
-}
-
-.lab-top {
-  display: grid;
-  grid-template-columns: minmax(130px, .45fr) 1fr;
-  gap: clamp(22px, 5vw, 80px);
-  align-items: end;
-  margin-bottom: 64px;
-}
-
-.scenario-strip {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(280px, 22vw);
-  gap: 16px;
-  overflow-x: auto;
-  padding: 6px 0 24px;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 92%, transparent 100%);
-  mask-image: linear-gradient(90deg, #000 0%, #000 92%, transparent 100%);
-}
-
-.scenario-strip::after {
-  content: "";
-  width: 60px;
-}
-
-.scenario-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.scenario-card {
-  position: relative;
-  min-height: 340px;
-  padding: 26px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  border: 1px solid rgba(247,237,215,.13);
-  border-radius: var(--radius-xl);
-  background:
-    linear-gradient(180deg, rgba(247,237,215,.08), rgba(247,237,215,.02)),
-    radial-gradient(circle at 50% 0%, rgba(183,91,52,.12), transparent 34%);
-  scroll-snap-align: start;
-  overflow: hidden;
-}
-
-.scenario-card::after {
-  content: "";
-  position: absolute;
-  inset: auto -10% -22% -10%;
-  height: 42%;
-  background: url('../../assets/middle1.png') center bottom / 120% auto no-repeat;
-  opacity: .28;
-  filter: saturate(1.1) brightness(.82);
-}
-
-.scenario-card span {
-  color: var(--gold);
-  font-size: 13px;
+  font-weight: 760;
   letter-spacing: .18em;
+  line-height: 1.7;
   text-transform: uppercase;
 }
 
-.scenario-card strong {
-  position: relative;
-  z-index: 1;
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
-  font-size: clamp(20px, 1.6vw, 24px);
-  font-weight: 600;
-  line-height: 1.4;
-  letter-spacing: .01em;
-  max-width: 11em;
+.flat-proof-list {
+  display: grid;
+  gap: 0;
+  margin-block: 0;
+  border-top: 1px solid rgba(247, 237, 215, .10);
 }
 
-.education-grid {
+.flat-proof-list p {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, .7fr);
-  gap: clamp(24px, 6vw, 90px);
+  grid-template-columns: minmax(102px, .42fr) minmax(0, 1fr);
+  gap: clamp(14px, 2vw, 30px);
+  align-items: baseline;
+  margin: 0;
+  padding-block: 11px;
+  border-bottom: 1px solid rgba(247, 237, 215, .08);
+}
+
+.flat-proof-list strong,
+.program-index--detailed strong {
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-weight: 600;
+  color: rgba(247, 237, 215, .90);
+}
+
+.flat-proof-list em,
+.program-index--detailed em {
+  color: var(--muted);
+  font-style: normal;
+  line-height: 1.7;
+}
+
+.quiet-proof.quiet-proof--source .trust-closing {
+  grid-column: 2;
+  max-width: 46em;
+  margin-top: 8px !important;
+  color: rgba(247, 237, 215, .80) !important;
+  font-size: clamp(15px, 1.14vw, 17px);
+}
+
+.canvas-track.enterprise-layout .capability-list--detailed {
+  grid-column: 2 / -1;
+  margin-top: clamp(40px, 6vw, 86px);
+  border-top: 1px solid rgba(247, 237, 215, .18);
+}
+
+.canvas-track.enterprise-layout .capability-list--detailed div {
+  grid-template-columns: minmax(174px, 1.15fr) minmax(0, 4.65fr);
+  gap: clamp(22px, 3.6vw, 58px);
   align-items: start;
+  padding-block: clamp(28px, 3.2vw, 44px);
+  border-bottom: 1px solid rgba(247, 237, 215, .11);
 }
 
-.education .section-heading {
-  display: block;
-  margin: 0;
-  position: sticky;
-  top: 120px;
+.canvas-track.enterprise-layout .capability-list--detailed span {
+  color: rgba(232, 213, 154, .78);
 }
 
-.education .section-heading h2 {
-  margin: 26px 0 24px;
-}
-
-.edu-stack {
-  display: grid;
-  gap: 14px;
-}
-
-.edu-stack article {
-  padding: 24px;
-  min-height: 170px;
-  border: 1px solid rgba(247,237,215,.13);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(145deg, rgba(247,237,215,.07), rgba(247,237,215,.025));
-}
-
-.edu-stack article > span {
-  width: 36px;
-  height: 36px;
-  margin: 0 0 22px;
-}
-
-.edu-stack strong {
-  display: block;
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: .01em;
-  margin-bottom: 10px;
-}
-
-.edu-stack p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.68;
-}
-
-.philosophy-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.philosophy-card {
-  min-height: 460px;
-  padding: clamp(26px, 4vw, 48px);
-  border: 1px solid rgba(247,237,215,.14);
-  border-radius: var(--radius-xl);
-  background:
-    linear-gradient(180deg, rgba(247,237,215,.065), rgba(247,237,215,.018)),
-    radial-gradient(circle at 80% 12%, rgba(56,166,154,.14), transparent 32%);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
-  transform-style: preserve-3d;
-}
-
-.philosophy-card span {
-  font-family: ui-serif, "Songti SC", "STSong", serif;
-  font-size: clamp(70px, 11vw, 180px);
-  line-height: .8;
-  color: rgba(232,213,154,.18);
-  letter-spacing: -.14em;
-}
-
-.philosophy-card h2 {
-  width: min(680px, 100%);
-  margin: auto 0 18px;
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
-  font-size: clamp(26px, 2.6vw, 38px);
-  font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: .01em;
-}
-
-.philosophy-card p {
-  width: min(520px, 100%);
-  margin: 0;
-  color: var(--muted);
+.canvas-track.enterprise-layout .capability-list--detailed p {
+  max-width: 48em;
+  color: rgba(247, 237, 215, .76);
+  font-size: clamp(16px, 1.28vw, 19px);
   line-height: 1.76;
-  font-size: 17px;
 }
 
-.contact {
-  padding-top: 90px;
+.canvas-track.enterprise-layout .capability-list--detailed small {
+  display: block;
+  max-width: 44em;
+  margin-top: 14px;
+  color: rgba(232, 213, 154, .58);
+  font-size: clamp(13px, 1vw, 15px);
+  line-height: 1.72;
+  letter-spacing: .02em;
 }
 
-.contact-card {
-  position: relative;
-  min-height: 60vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: clamp(30px, 6vw, 72px);
-  border: 1px solid rgba(247,237,215,.16);
-  border-radius: calc(var(--radius-xl) + 20px);
-  background:
-    linear-gradient(90deg, rgba(7,17,14,.88), rgba(7,17,14,.44)),
-    url('../../assets/back1.png') center / cover;
-  overflow: hidden;
-  box-shadow: 0 36px 120px rgba(0,0,0,.28);
+.capability-mark {
+  display: block;
+  margin-bottom: 10px;
+  color: rgba(232, 213, 154, .72);
+  font-family: ui-serif, "Songti SC", "STSong", serif;
+  font-size: 18px;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: 0;
 }
 
-.contact-card::after {
-  content: "";
-  position: absolute;
-  right: -5%;
-  bottom: -8%;
-  width: min(72vw, 900px);
-  height: 52%;
-  background: url('../../assets/middle1.png') right bottom / contain no-repeat;
-  opacity: .46;
-  filter: saturate(1.2) brightness(.82);
-  pointer-events: none;
+.canvas-track.scenario-layout .scenario-list--source {
+  grid-column: 2 / -1;
+  margin-top: clamp(32px, 5vw, 72px);
+  column-gap: clamp(48px, 6.5vw, 108px);
+  border-top: 1px solid rgba(247, 237, 215, .16);
 }
 
-.contact-card > * {
-  position: relative;
-  z-index: 1;
+.scenario-list--source .scenario-row {
+  min-height: 0;
+  padding-block: clamp(26px, 3.1vw, 40px);
 }
 
-.contact-card h2 {
-  width: min(920px, 100%);
-  margin: 24px 0;
+.scenario-list--source .scenario-row:nth-child(even) {
+  transform: none;
 }
 
-.contact-card p {
-  width: min(700px, 100%);
+.scenario-list--source .scenario-row strong {
+  max-width: 21em;
+  font-size: clamp(22px, 1.72vw, 28px);
+  line-height: 1.48;
 }
 
-[data-tilt] {
-  transform-style: preserve-3d;
-  will-change: transform;
+.canvas-track.education-layout .program-index--detailed {
+  grid-column: 3 / -1;
+  margin-top: clamp(46px, 6vw, 84px);
+  border-top: 1px solid rgba(247, 237, 215, .16);
 }
 
-.magnetic {
-  will-change: transform;
+.canvas-track.education-layout .program-index--detailed p {
+  display: grid;
+  grid-template-columns: 54px minmax(112px, .62fr) minmax(0, 1fr);
+  gap: clamp(14px, 2.2vw, 28px);
+  align-items: baseline;
+  margin: 0;
+  padding: clamp(20px, 2.7vw, 30px) 0;
+  border-bottom: 1px solid rgba(247, 237, 215, .10);
+}
+
+.canvas-track.education-layout .program-index--detailed span {
+  padding: 0;
+  border: 0;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: .18em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.canvas-track.education-layout .program-index--detailed strong {
+  font-size: clamp(19px, 1.7vw, 24px);
+  line-height: 1.35;
+}
+
+.canvas-track.education-layout .program-index--detailed em {
+  font-size: clamp(15px, 1.12vw, 17px);
+}
+
+.canvas-section--philosophy {
+  padding-block: clamp(104px, 13vw, 188px);
+}
+
+.canvas-track.philosophy-layout .philosophy-list {
+  grid-column: 2 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: clamp(48px, 7vw, 116px);
+  border-top: 1px solid rgba(247, 237, 215, .16);
+}
+
+.philosophy-list .scenario-row {
+  align-content: start;
+  min-height: 0;
+}
+
+.philosophy-list .scenario-row:nth-child(even) {
+  transform: translateY(clamp(18px, 3.2vw, 40px));
+}
+
+.philosophy-list .scenario-row p {
+  margin: 0;
+  max-width: 34em;
+  color: var(--muted);
+  font-size: clamp(15px, 1.15vw, 17px);
+  line-height: 1.78;
+}
+
+.canvas-section--contact .contact-endpoint::before {
+  opacity: .12;
+  filter: saturate(.95) brightness(.66);
+}
+
+.canvas-section--contact .contact-endpoint h2 {
+  max-width: 11em;
+  font-size: clamp(54px, 5vw, 78px);
+  line-height: 1.1;
+}
+
+.canvas-section--contact .contact-endpoint p {
+  width: min(720px, 100%);
+  margin-top: clamp(24px, 3vw, 36px);
+  font-size: clamp(16px, 1.25vw, 18px);
+  line-height: 1.82;
+}
+
+.contact-endpoint .contact-actions {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 1180px) {
-  .method-grid,
-  .service-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .canvas-track.enterprise-layout .chapter-intro,
+  .canvas-track.education-layout .chapter-intro {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(78px, .55fr) minmax(0, 5.6fr) minmax(240px, 2.1fr);
   }
 
-  .method-card:nth-child(2n),
-  .method-card:last-child {
-    border-right: 0;
+  .canvas-track.scenario-layout .chapter-intro {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(78px, .55fr) minmax(0, 7.2fr);
   }
 
-  .method-card {
-    min-height: 340px;
-    border-bottom: 1px solid rgba(247,237,215,.12);
+  .canvas-track.enterprise-layout .chapter-intro h2,
+  .canvas-track.education-layout .chapter-intro h2,
+  .canvas-track.scenario-layout .chapter-intro h2,
+  .canvas-section--contact .contact-endpoint h2 {
+    font-size: clamp(44px, 5.6vw, 66px);
+  }
+
+  .canvas-track.brand-layout .chapter-intro,
+  .canvas-track.brand-layout .chapter-intro p,
+  .quiet-proof.quiet-proof--source,
+  .canvas-track.enterprise-layout .capability-list--detailed,
+  .canvas-track.scenario-layout .scenario-list--source,
+  .canvas-track.education-layout .program-index--detailed,
+  .canvas-track.philosophy-layout .philosophy-list {
+    grid-column: 2 / -1;
+  }
+
+  .canvas-track.enterprise-layout .capability-list--detailed div {
+    grid-template-columns: minmax(150px, 1.05fr) minmax(0, 4fr);
+  }
+
+  .canvas-track.education-layout .program-index--detailed p {
+    grid-template-columns: 48px minmax(112px, .62fr) minmax(0, 1fr);
   }
 }
 
 @media (max-width: 860px) {
-  .trust-grid,
-  .education-grid,
-  .philosophy-grid,
-  .lab-top,
-  .method-grid,
-  .service-grid {
+  .canvas-track.enterprise-layout .chapter-intro,
+  .canvas-track.education-layout .chapter-intro,
+  .canvas-track.scenario-layout .chapter-intro {
     grid-template-columns: 1fr;
   }
 
-  .education .section-heading {
-    position: relative;
-    top: auto;
+  .canvas-track.enterprise-layout .chapter-intro h2,
+  .canvas-track.education-layout .chapter-intro h2,
+  .canvas-track.scenario-layout .chapter-intro h2,
+  .canvas-section--contact .contact-endpoint h2 {
+    max-width: 100%;
+    font-size: clamp(34px, 10vw, 52px);
+    line-height: 1.14;
   }
 
-  .method-card {
-    min-height: 280px;
-    border-right: 0;
+  .canvas-section--contact .contact-endpoint::before {
+    opacity: .10;
   }
 
-  .service-card,
-  .philosophy-card {
-    min-height: 420px;
+  .canvas-track.enterprise-layout .chapter-intro p,
+  .canvas-track.education-layout .chapter-intro p {
+    grid-column: auto;
+    max-width: 34em;
   }
 
-  .scenario-strip {
-    grid-auto-columns: minmax(270px, 80vw);
+  .canvas-track.brand-layout .chapter-intro,
+  .canvas-track.brand-layout .chapter-intro p,
+  .quiet-proof.quiet-proof--source,
+  .canvas-track.enterprise-layout .capability-list--detailed,
+  .canvas-track.scenario-layout .scenario-list--source,
+  .canvas-track.education-layout .program-index--detailed,
+  .canvas-track.philosophy-layout .philosophy-list {
+    grid-column: auto;
   }
-}
 
-@media (max-width: 520px) {
-  .contact-card {
-    border-radius: var(--radius-xl);
+  .quiet-proof.quiet-proof--source,
+  .flat-proof-list p,
+  .canvas-track.enterprise-layout .capability-list--detailed div,
+  .canvas-track.education-layout .program-index--detailed p,
+  .canvas-track.philosophy-layout .philosophy-list {
+    grid-template-columns: 1fr;
+  }
+
+  .quiet-proof.quiet-proof--source .trust-closing {
+    grid-column: auto;
+  }
+
+  .canvas-track.scenario-layout .scenario-list--source,
+  .canvas-track.education-layout .program-index--detailed,
+  .canvas-track.enterprise-layout .capability-list--detailed {
+    margin-top: clamp(40px, 9vw, 66px);
+  }
+
+  .scenario-list--source .scenario-row strong {
+    max-width: 100%;
+    font-size: clamp(22px, 6.2vw, 30px);
+  }
+
+  .canvas-track.philosophy-layout .philosophy-list .scenario-row:nth-child(even) {
+    transform: none;
   }
 }

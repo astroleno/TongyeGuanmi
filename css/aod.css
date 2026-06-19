@@ -102,18 +102,20 @@
   width: var(--aod-figure-width);
   height: auto;
   opacity: 1;
+  background: transparent;
   object-fit: contain;
   object-position: center center;
+  mix-blend-mode: multiply;
   filter: saturate(0.95) contrast(1.02);
 }
 
 .aod-figure-fill-video {
-  position: absolute;
-  inset: -1px;
-  z-index: 4;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
   display: block;
-  width: calc(100% + 2px);
-  height: calc(100% + 2px);
+  width: 100vw;
+  height: 100dvh;
   max-width: none;
   opacity: 0;
   object-fit: cover;
@@ -129,13 +131,10 @@
 
 .aod-gold-wash {
   z-index: 5;
-  opacity: 0.10;
+  opacity: 0;
   pointer-events: none;
-  mix-blend-mode: screen;
-  background:
-    radial-gradient(ellipse at 50% 43%, rgba(255, 214, 108, 0.58), transparent 31%),
-    radial-gradient(ellipse at 50% 54%, rgba(130, 70, 22, 0.22), transparent 48%);
-  filter: blur(18px);
+  background: none;
+  filter: none;
 }
 
 .aod-vignette {

@@ -12,7 +12,8 @@
   <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
   <link rel="preload" href="assets/ph_back.png" as="image" />
   <link rel="preload" href="assets/ph_front-alpha.png" as="image" />
-  <link rel="preload" href="assets/ph_figure-alpha.png" as="image" />
+  <link rel="preload" href="assets/ph_figure-alpha-poster.png" as="image" />
+  <link rel="preload" href="assets/ph_figure-alpha-scrub.webm" as="video" type="video/webm" />
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/ph.css" />
 </head>
@@ -28,7 +29,16 @@
           <div class="ph-layer-stack" aria-hidden="true">
             <img class="ph-layer ph-layer--back" src="assets/ph_back.png" alt="" />
             <img class="ph-layer ph-layer--front" src="assets/ph_front-alpha.png" alt="" />
-            <img class="ph-layer ph-layer--figure" src="assets/ph_figure-alpha.png" alt="" />
+            <video
+              class="ph-layer ph-layer--figure"
+              data-ph-alpha-video
+              src="assets/ph_figure-alpha-scrub.webm"
+              poster="assets/ph_figure-alpha-poster.png"
+              muted
+              preload="auto"
+              playsinline
+              webkit-playsinline
+            ></video>
           </div>
           <div class="ph-edge-light" aria-hidden="true"></div>
           <div class="ph-texture" aria-hidden="true"></div>
