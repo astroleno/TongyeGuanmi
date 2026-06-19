@@ -13,13 +13,13 @@
   <link rel="preload" href="assets/ttg_bg.png" as="image" />
   <link rel="preload" href="assets/ttg_middle-alpha.png" as="image" />
   <link rel="preload" href="assets/ttg_middle-original-overlay-alpha.png" as="image" />
-  <link rel="preload" href="assets/ttg_front-alpha.png?v=ttg-front-painting-2" as="image" />
-  <link rel="preload" href="assets/ttg_front-original-overlay-alpha.png?v=ttg-front-painting-2" as="image" />
+  <link rel="preload" href="assets/ttg_front-original-overlay-alpha.png?v=ttg-front-project-main7-tone6-1" as="image" />
+  <link rel="preload" href="assets/ttg_front-alpha.png?v=ttg-front-project-main7-tone6-1" as="image" />
   <link rel="preload" href="assets/ttg_figure-alpha-scrub.webm" as="video" type="video/webm" />
   <link rel="preload" href="assets/ttg_figure-alpha-scrub-poster.png" as="image" />
   <link rel="preload" href="assets/ttg-complete.png" as="image" />
   <link rel="stylesheet" href="css/styles.css" />
-  <link rel="stylesheet" href="css/ttg.css" />
+  <link rel="stylesheet" href="css/ttg.css?v=ttg-front-bottom-3" />
 </head>
 <body class="ttg-page">
   <div class="grain" aria-hidden="true"></div>
@@ -33,8 +33,8 @@
             <img class="ttg-layer ttg-layer--bg" src="assets/ttg_bg.png" alt="" />
             <img class="ttg-layer ttg-layer--middle" src="assets/ttg_middle-alpha.png" alt="" />
             <img class="ttg-layer ttg-layer--middle-overlay" src="assets/ttg_middle-original-overlay-alpha.png" alt="" />
-            <img class="ttg-layer ttg-layer--front" src="assets/ttg_front-alpha.png?v=ttg-front-painting-2" alt="" />
-            <img class="ttg-layer ttg-layer--front-overlay" src="assets/ttg_front-original-overlay-alpha.png?v=ttg-front-painting-2" alt="" />
+            <img class="ttg-layer ttg-layer--front" src="assets/ttg_front-original-overlay-alpha.png?v=ttg-front-project-main7-tone6-1" alt="" />
+            <img class="ttg-layer ttg-layer--front-overlay" src="assets/ttg_front-alpha.png?v=ttg-front-project-main7-tone6-1" alt="" />
             <video
               class="ttg-layer ttg-layer--figure"
               data-ttg-figure-video
@@ -64,6 +64,10 @@
               <input data-ttg-tune-key="frontTravelVh" type="range" min="-16" max="18" step="0.1" value="4.6" />
             </label>
             <label class="ttg-tune-control">
+              <span>近景叠加 <output data-ttg-tune-output="frontOverlayOpacity">20%</output></span>
+              <input data-ttg-tune-key="frontOverlayOpacity" type="range" min="0" max="0.6" step="0.01" value="0.2" />
+            </label>
+            <label class="ttg-tune-control">
               <span>建筑位移 <output data-ttg-tune-output="middleTravelVh">10.5vh</output></span>
               <input data-ttg-tune-key="middleTravelVh" type="range" min="-20" max="28" step="0.1" value="10.5" />
             </label>
@@ -84,6 +88,10 @@
               <input data-ttg-tune-key="figureYVh" type="range" min="-16" max="16" step="0.1" value="2" />
             </label>
             <label class="ttg-tune-control">
+              <span>人物位移 <output data-ttg-tune-output="figureTravelVh">8.0vh</output></span>
+              <input data-ttg-tune-key="figureTravelVh" type="range" min="-20" max="32" step="0.1" value="8" />
+            </label>
+            <label class="ttg-tune-control">
               <span>滚动高度 <output data-ttg-tune-output="scrollVh">140vh</output></span>
               <input data-ttg-tune-key="scrollVh" type="range" min="110" max="260" step="1" value="140" />
             </label>
@@ -97,6 +105,6 @@
     </section>
   </main>
 
-  <script type="module" src="js/ttg-scroll.js?v=ttg-panel-4"></script>
+  <script type="module" src="js/ttg-scroll.js?v=ttg-panel-9"></script>
 </body>
 </html>

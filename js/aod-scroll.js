@@ -8,6 +8,12 @@ const CDN = {
 
 const VIDEO_DURATION_FALLBACK = 5.03;
 const TRANSITION_DURATION_SECONDS = 3.35;
+const FULLSCREEN_SCALE_START_SECONDS = 0.5;
+const FULLSCREEN_SCALE_END_SECONDS = 1;
+const FILL_REVEAL_START_SECONDS = 0.4;
+const FILL_REVEAL_END_SECONDS = 0.5;
+const ALPHA_FADE_START_SECONDS = 0.5;
+const ALPHA_FADE_END_SECONDS = 0.8;
 
 const root = document.documentElement;
 const page = document.body;
@@ -60,8 +66,13 @@ function videoProgressCurve(progress) {
   return clamp(0.78 * p + 0.22 * p * p, 0, 1);
 }
 
+function secondsRange(progress, startSeconds, endSeconds) {
+  const duration = getVideoDuration(figureLayer);
+  return range01(progress, startSeconds / duration, endSeconds / duration);
+}
+
 function fullscreenProgress(progress) {
-  return smoothStep(range01(progress, 0.18, 1));
+  return smoothStep(secondsRange(progress, FULLSCREEN_SCALE_START_SECONDS, FULLSCREEN_SCALE_END_SECONDS));
 }
 
 function prepareFigureVideo(video) {
@@ -230,10 +241,9 @@ function renderWithGsap(progress, mouseX, mouseY) {
   const eased = smoothStep(p);
   const full = fullscreenProgress(p);
   const upExitY = window.innerHeight * -1.08;
-  const backgroundFade = 1 - smoothStep(range01(p, 0.18, 0.52));
-  const fillReveal = smoothStep(range01(p, 0.94, 0.995));
-  const alphaFade = 1 - smoothStep(range01(p, 0.94, 1));
-  const fillZoom = smoothStep(range01(p, 0.86, 1));
+  const backgroundFade = 1 - full;
+  const fillReveal = smoothStep(secondsRange(p, FILL_REVEAL_START_SECONDS, FILL_REVEAL_END_SECONDS));
+  const alphaFade = 1 - smoothStep(secondsRange(p, ALPHA_FADE_START_SECONDS, ALPHA_FADE_END_SECONDS));
 
   gsapSetters.sunX(mouseX * -0.004);
   gsapSetters.sunY(mouseY * -0.003 + eased * upExitY * 1.02);
@@ -254,7 +264,7 @@ function renderWithGsap(progress, mouseX, mouseY) {
   gsapSetters.figureOpacity(alphaFade);
   gsapSetters.figureScale(figureScale);
   gsapSetters.figureFillOpacity(fillReveal);
-  gsapSetters.figureFillScale(1 + fillZoom * 0.045);
+  gsapSetters.figureFillScale(1);
 }
 
 function renderNative(progress, mouseX, mouseY) {
@@ -262,10 +272,9 @@ function renderNative(progress, mouseX, mouseY) {
   const eased = smoothStep(p);
   const full = fullscreenProgress(p);
   const upExitY = window.innerHeight * -1.08;
-  const backgroundFade = 1 - smoothStep(range01(p, 0.18, 0.52));
-  const fillReveal = smoothStep(range01(p, 0.94, 0.995));
-  const alphaFade = 1 - smoothStep(range01(p, 0.94, 1));
-  const fillZoom = smoothStep(range01(p, 0.86, 1));
+  const backgroundFade = 1 - full;
+  const fillReveal = smoothStep(secondsRange(p, FILL_REVEAL_START_SECONDS, FILL_REVEAL_END_SECONDS));
+  const alphaFade = 1 - smoothStep(secondsRange(p, ALPHA_FADE_START_SECONDS, ALPHA_FADE_END_SECONDS));
   sunLayer.style.opacity = `${0.96 * backgroundFade}`;
   sunLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.004}px), calc(-50% + ${mouseY * -0.003 + eased * upExitY * 1.02}px), 0) scale(${1 + eased * 0.025})`;
   cloudLayer.style.opacity = `${0.98 * backgroundFade}`;
@@ -274,7 +283,7 @@ function renderNative(progress, mouseX, mouseY) {
   figureLayer.style.opacity = `${alphaFade}`;
   figureLayer.style.transform = figureTransform;
   figureFillVideo.style.opacity = `${fillReveal}`;
-  figureFillVideo.style.transform = `translate3d(0, 0, 0) scale(${1 + fillZoom * 0.045})`;
+  figureFillVideo.style.transform = 'translate3d(0, 0, 0) scale(1)';
 }
 
 function renderScene(progress, mouseX, mouseY) {
@@ -350,7 +359,6 @@ function playForwardTo(target) {
     const duration = getVideoDuration(figureLayer);
     const progress = clamp(figureLayer.currentTime / duration, 0, 1);
     renderRawProgress(progress);
-    setVideoProgress(figureFillVideo, progress);
 
     if (progress >= target - 0.001 || figureLayer.ended) {
       setVideoProgress(figureLayer, target);

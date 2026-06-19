@@ -3,7 +3,8 @@
   --ttg-scroll-vh: 140;
   --ttg-scene-width: max(100vw, 178dvh, 1180px);
   --ttg-bg-width: max(100vw, 184dvh, 1180px);
-  --ttg-front-height: max(100dvh, calc(100vw * 1.7777778));
+  --ttg-front-width: 100vw;
+  --ttg-front-overlay-opacity: 0.2;
   min-height: 100%;
   color: #f0dfbf;
   color-scheme: dark;
@@ -114,8 +115,8 @@
 .ttg-layer--front,
 .ttg-layer--front-overlay {
   top: 100%;
-  width: calc(var(--ttg-front-height) * 0.5625);
-  height: var(--ttg-front-height);
+  width: var(--ttg-front-width);
+  height: auto;
   transform: translate3d(-50%, -100%, 0);
   transform-origin: 50% 100%;
 }
@@ -125,14 +126,14 @@
   opacity: 1;
   filter:
     drop-shadow(0 26px 26px rgba(0, 0, 0, 0.30))
-    saturate(0.94)
-    contrast(1.02);
+    brightness(0.78)
+    saturate(0.96);
 }
 
 .ttg-layer--front-overlay {
   z-index: 3;
-  opacity: 0.2;
-  filter: saturate(0.94) contrast(1.02);
+  opacity: var(--ttg-front-overlay-opacity);
+  filter: brightness(0.78) saturate(0.96) contrast(1.02);
 }
 
 .ttg-layer--figure {

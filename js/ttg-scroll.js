@@ -21,15 +21,17 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').match
 const TRANSITION_DURATION_SECONDS = 3.5;
 const TRANSITION_SCROLL_RANGE = 0.2;
 const VIDEO_DURATION_FALLBACK = 4.017;
-const TUNING_STORAGE_KEY = 'ttg:scene-tuning:v4';
+const TUNING_STORAGE_KEY = 'ttg:scene-tuning:v6';
 const TUNING_DEFAULTS = {
   previewProgress: -1,
   bgTravelVh: 4.2,
   middleTravelVh: 10.5,
   middleResponse: 0.34,
   frontTravelVh: 4.6,
+  frontOverlayOpacity: 0.2,
   figureScale: 0.52,
   figureYVh: 2,
+  figureTravelVh: 8,
   scrollVh: 140
 };
 const TUNING_LIMITS = {
@@ -38,8 +40,10 @@ const TUNING_LIMITS = {
   middleTravelVh: [-20, 28],
   middleResponse: [0.04, 0.80],
   frontTravelVh: [-16, 18],
+  frontOverlayOpacity: [0, 0.6],
   figureScale: [0.35, 0.90],
   figureYVh: [-16, 16],
+  figureTravelVh: [-20, 32],
   scrollVh: [110, 260]
 };
 
@@ -119,7 +123,9 @@ function requestScrollRefresh() {
 
 function applyTuning({ persist = true, refresh = false } = {}) {
   page.style.setProperty('--ttg-scroll-vh', currentTuning.scrollVh.toFixed(1));
+  page.style.setProperty('--ttg-front-overlay-opacity', currentTuning.frontOverlayOpacity.toFixed(3));
   root.style.setProperty('--ttg-scroll-vh', currentTuning.scrollVh.toFixed(1));
+  root.style.setProperty('--ttg-front-overlay-opacity', currentTuning.frontOverlayOpacity.toFixed(3));
   tuningVersion += 1;
   resetRenderCache();
   if (persist) persistTuning();
@@ -172,6 +178,7 @@ function renderPreviewFigureProgress() {
 function formatTuneValue(key, value) {
   if (key === 'previewProgress') return value < 0 ? 'scroll' : value.toFixed(2);
   if (key === 'figureScale') return `${value.toFixed(2)}x`;
+  if (key === 'frontOverlayOpacity') return `${Math.round(value * 100)}%`;
   if (key === 'middleResponse') return value.toFixed(2);
   if (key === 'scrollVh') return `${Math.round(value)}vh`;
   return `${value.toFixed(1)}vh`;
@@ -368,11 +375,19 @@ function createGsapSetters(gsap) {
     force3D: true
   });
 
-  gsap.set([middleLayer, middleOverlayLayer, frontLayer, frontOverlayLayer], {
+  gsap.set([middleLayer, middleOverlayLayer], {
     xPercent: -50,
     yPercent: -50,
     scale: 1,
     transformOrigin: '50% 50%',
+    force3D: true
+  });
+
+  gsap.set([frontLayer, frontOverlayLayer], {
+    xPercent: -50,
+    yPercent: -100,
+    scale: 1,
+    transformOrigin: '50% 100%',
     force3D: true
   });
 
@@ -416,6 +431,7 @@ function renderWithGsap(progressParts, mouseX, mouseY) {
   const middleTravelY = window.innerHeight * (currentTuning.middleTravelVh / 100);
   const frontTravelY = window.innerHeight * (currentTuning.frontTravelVh / 100);
   const figureGroundingY = window.innerHeight * (currentTuning.figureYVh / 100);
+  const figureTravelY = window.innerHeight * (currentTuning.figureTravelVh / 100);
 
   gsapSetters.bgX(mouseX * -0.0015);
   gsapSetters.bgY(-bgEased * bgTravelY);
@@ -436,7 +452,7 @@ function renderWithGsap(progressParts, mouseX, mouseY) {
   gsapSetters.frontOverlayScale(1);
 
   gsapSetters.figureX(0);
-  gsapSetters.figureY(figureGroundingY);
+  gsapSetters.figureY(figureGroundingY + frontEased * figureTravelY);
   gsapSetters.figureScale(currentTuning.figureScale);
 }
 
@@ -448,12 +464,13 @@ function renderNative(progressParts, mouseX, mouseY) {
   const middleTravelY = window.innerHeight * (currentTuning.middleTravelVh / 100);
   const frontTravelY = window.innerHeight * (currentTuning.frontTravelVh / 100);
   const figureGroundingY = window.innerHeight * (currentTuning.figureYVh / 100);
+  const figureTravelY = window.innerHeight * (currentTuning.figureTravelVh / 100);
   bgLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.0015}px), ${-bgEased * bgTravelY}px, 0) scale(${1 + bgEased * 0.018})`;
   middleLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.006}px), calc(-50% + ${mouseY * -0.002 + middleEased * middleTravelY}px), 0) scale(${1 + middleEased * 0.012})`;
   middleOverlayLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.006}px), calc(-50% + ${mouseY * -0.002 + middleEased * middleTravelY}px), 0) scale(${1 + middleEased * 0.012})`;
-  frontLayer.style.transform = `translate3d(-50%, calc(-50% + ${frontEased * frontTravelY}px), 0) scale(1)`;
-  frontOverlayLayer.style.transform = `translate3d(-50%, calc(-50% + ${frontEased * frontTravelY}px), 0) scale(1)`;
-  figureLayer.style.transform = `translate3d(-50%, calc(-50% + ${figureGroundingY}px), 0) scale(${currentTuning.figureScale})`;
+  frontLayer.style.transform = `translate3d(-50%, calc(-100% + ${frontEased * frontTravelY}px), 0) scale(1)`;
+  frontOverlayLayer.style.transform = `translate3d(-50%, calc(-100% + ${frontEased * frontTravelY}px), 0) scale(1)`;
+  figureLayer.style.transform = `translate3d(-50%, calc(-50% + ${figureGroundingY + frontEased * figureTravelY}px), 0) scale(${currentTuning.figureScale})`;
 }
 
 function renderScene(progress, mouseX, mouseY) {

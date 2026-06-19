@@ -105,7 +105,6 @@
   background: transparent;
   object-fit: contain;
   object-position: center center;
-  mix-blend-mode: multiply;
   filter: saturate(0.95) contrast(1.02);
 }
 

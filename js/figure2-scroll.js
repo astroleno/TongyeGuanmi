@@ -16,9 +16,9 @@ const DEFAULT_SETTINGS = {
 
 const FIGURE_INTRO_SECONDS = 1.15;
 const FIGURE_VIDEO_TRANSITION_SECONDS = 2.4;
-const PRE_TRANSITION_RANGE_VH = 50;
 const SCENE_TRANSITION_RANGE_VH = 100;
 const INTRO_TRIGGER_PX = 2;
+const INTRO_HOLD_SCROLL_PX = INTRO_TRIGGER_PX + 1;
 const VIDEO_SEGMENT_SECONDS = 5;
 const VIDEO_SEEK_EPSILON = 1 / 48;
 const VIDEO_END_EPSILON = 0.045;
@@ -50,6 +50,7 @@ let gsapSetters = null;
 let nativeTickerStarted = false;
 let pointerParallaxBound = false;
 let introScrollGateBound = false;
+let introScrollLocked = false;
 let lastRenderedProgress = -1;
 let lastRenderedIntroProgress = -1;
 let lastRenderedMouseX = 999;
@@ -57,6 +58,7 @@ let lastRenderedMouseY = 999;
 let transitionScrollAnchor = null;
 let lastClampedScroll = 0;
 let introTouchStartY = 0;
+let transitionArmedAfterIntro = false;
 
 const parallaxMouse = { x: 0, y: 0 };
 const nativeMouse = { targetX: 0, targetY: 0, x: 0, y: 0 };
@@ -119,6 +121,54 @@ function isIntroComplete() {
 
 function resetTransitionAnchor() {
   transitionScrollAnchor = null;
+  transitionArmedAfterIntro = false;
+}
+
+function lockIntroScroll() {
+  if (introScrollLocked) return;
+  introScrollLocked = true;
+  scrollRuntime?.lenis?.stop?.();
+}
+
+function releaseIntroScroll() {
+  if (!introScrollLocked) return;
+  introScrollLocked = false;
+  scrollRuntime?.lenis?.start?.();
+}
+
+function getStageDocumentTop() {
+  if (!stage) return window.scrollY;
+  return window.scrollY + stage.getBoundingClientRect().top;
+}
+
+function setStageScrollOffset(offset) {
+  if (!stage) return;
+  const { totalRange } = getStageScrollMetrics();
+  const nextOffset = clamp(offset, 0, totalRange);
+  const nextScrollY = getStageDocumentTop() + nextOffset;
+  scrollRuntime?.lenis?.scrollTo?.(nextScrollY, {
+    immediate: true,
+    force: true
+  });
+  window.scrollTo({
+    top: nextScrollY,
+    left: window.scrollX,
+    behavior: 'auto'
+  });
+  lastClampedScroll = nextOffset;
+}
+
+function holdIntroScrollPosition() {
+  if (!figure2IntroState.active || isIntroComplete()) return;
+  if (Math.abs(lastClampedScroll - INTRO_HOLD_SCROLL_PX) < 0.75) return;
+  setStageScrollOffset(INTRO_HOLD_SCROLL_PX);
+}
+
+function forceTransitionIdle() {
+  progressState.target = 0;
+  progressState.value = 0;
+  currentProgress = 0;
+  lastRenderedProgress = -1;
 }
 
 function createFigureMaskCanvas() {
@@ -451,6 +501,8 @@ function startIntroPlayback() {
   if (figure2IntroState.active) return;
   figure2IntroState.active = true;
   resetTransitionAnchor();
+  lockIntroScroll();
+  setStageScrollOffset(INTRO_HOLD_SCROLL_PX);
   tweenToIntroProgress(1, FIGURE_INTRO_SECONDS);
   tweenToFigureVideoProgress(1);
 }
@@ -459,6 +511,7 @@ function resetIntroPlayback() {
   if (!figure2IntroState.active && figure2IntroState.progress <= 0.001 && figureVideoPlayhead.raw <= 0.001) return;
   figure2IntroState.active = false;
   resetTransitionAnchor();
+  releaseIntroScroll();
   tweenToIntroProgress(0, FIGURE_INTRO_SECONDS * 0.7);
   resetFigureVideoTransition();
 }
@@ -611,8 +664,18 @@ function renderScene(progress, mouseX, mouseY) {
 }
 
 function tickFigure2() {
-  if (figure2IntroState.active && transitionScrollAnchor === null) {
-    applyScrollPosition(lastClampedScroll);
+  if (figure2IntroState.active) {
+    if (!isIntroComplete()) {
+      holdIntroScrollPosition();
+      forceTransitionIdle();
+    } else {
+      releaseIntroScroll();
+      if (!transitionArmedAfterIntro) {
+        transitionScrollAnchor = lastClampedScroll;
+        transitionArmedAfterIntro = true;
+        forceTransitionIdle();
+      }
+    }
   }
 
   const targetProgress = stableProgress(progressState.target);
@@ -652,10 +715,27 @@ function applyScrollPosition(rawScroll) {
   }
 
   let transitionProgress = 0;
-  if (clampedScroll > INTRO_TRIGGER_PX && isIntroComplete()) {
-    if (transitionScrollAnchor === null) {
-      transitionScrollAnchor = clampedScroll;
+  if (clampedScroll > INTRO_TRIGGER_PX) {
+    if (!isIntroComplete()) {
+      forceTransitionIdle();
+      window.__figure2ScrollPx = clampedScroll;
+      window.__figure2TransitionStartPx = transitionScrollAnchor ?? clampedScroll;
+      window.__figure2TransitionRangePx = transitionRange;
+      window.__figure2TransitionArmed = false;
+      return;
     }
+
+    if (transitionScrollAnchor === null || !transitionArmedAfterIntro) {
+      transitionScrollAnchor = clampedScroll;
+      transitionArmedAfterIntro = true;
+      forceTransitionIdle();
+      window.__figure2ScrollPx = clampedScroll;
+      window.__figure2TransitionStartPx = transitionScrollAnchor;
+      window.__figure2TransitionRangePx = transitionRange;
+      window.__figure2TransitionArmed = true;
+      return;
+    }
+
     transitionProgress = stableProgress((clampedScroll - transitionScrollAnchor) / transitionRange);
   }
 
@@ -748,6 +828,7 @@ function startPointerParallax(gsap) {
 }
 
 function initNativeFallback() {
+  bindIntroScrollGate();
   startPointerParallax(null);
   window.addEventListener('scroll', () => {
     updateNativeProgress();
@@ -780,6 +861,7 @@ function initScrollTrigger() {
   gsap.ticker.lagSmoothing(0);
   ScrollTrigger.config({ ignoreMobileResize: true });
 
+  bindIntroScrollGate();
   startPointerParallax(gsap);
   gsapSetters = createGsapSetters(gsap);
 
