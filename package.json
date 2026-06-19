@@ -10,6 +10,7 @@
     "dev:web": "node scripts/serve-static-site.mjs",
     "verify:ink-modules": "node scripts/check-ink-modules.mjs",
     "verify:scroll-modules": "node scripts/check-scroll-modules.mjs",
-    "verify:section-transitions": "node scripts/check-section-transition-contract.mjs"
+    "verify:section-transitions": "node scripts/check-section-transition-contract.mjs",
+    "verify:transition-runtime": "node scripts/check-transition-runtime.mjs"
   }
 }
