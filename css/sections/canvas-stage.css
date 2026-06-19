@@ -352,11 +352,3 @@
     radial-gradient(circle at 70% 52%, rgba(183,91,52,.08), transparent 26vw);
   transform: translate3d(0, -12px, 0);
 }
-
-.chapter-transition[data-transition="enterprise-scenario"] {
-  background: linear-gradient(180deg, rgba(8,16,13,0), rgba(5,8,7,.34), rgba(5,8,7,0));
-}
-
-.chapter-transition[data-transition="education-contact"] {
-  height: clamp(34svh, 40vw, 62svh);
-}
