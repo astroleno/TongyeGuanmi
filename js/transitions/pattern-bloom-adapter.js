@@ -55,17 +55,11 @@ export function mountPatternBloomTransition({
     fadeOutEnd: 1,
     progressSpan: 1
   });
-  const isHomeBeliefTransition = host.dataset.transitionId === 'home-belief'
-    || host.dataset.transition === 'home-belief';
   const getRawProgress = () => (typeof progressSource === 'function' ? clamp(progressSource()) : 0);
-  const getPatternProgress = () => {
-    const progress = getRawProgress();
-    return isHomeBeliefTransition ? Math.max(0.98, progress) : progress;
-  };
 
   const scene = createPatternBloomScene({
     canvas,
-    progressSource: getPatternProgress,
+    progressSource: getRawProgress,
     reducedMotion: reduceMotion,
     reducedMotionProgress: 1,
     continuousMotion: true,
