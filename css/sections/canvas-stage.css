@@ -40,11 +40,13 @@
 
 .canvas-section--belief {
   min-height: 100svh;
+  margin-bottom: -2px;
   display: grid;
   align-items: center;
   padding: 0;
   overflow: hidden;
   isolation: isolate;
+  border-bottom: 2px solid #07110e;
   background:
     radial-gradient(circle at 16% 22%, rgba(56,166,154,.12), transparent 32vw),
     radial-gradient(circle at 84% 74%, rgba(183,91,52,.10), transparent 34vw),
@@ -460,7 +462,8 @@
 
 .chapter-transition[data-transition-module="pattern-bloom"],
 .scene-transition[data-transition-module="pattern-bloom"] {
-  height: clamp(118svh, 138vw, 166svh);
+  height: 100svh;
+  min-height: 100svh;
   background: #07110e;
 }
 
@@ -484,9 +487,10 @@
 }
 
 .pattern-bloom-transition__stage {
-  position: sticky;
+  position: relative;
   top: 0;
   height: 100svh;
+  min-height: 100svh;
   width: 100%;
   overflow: hidden;
   background: #07110e;

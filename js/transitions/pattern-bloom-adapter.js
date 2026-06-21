@@ -85,11 +85,12 @@ export function mountPatternBloomTransition({
     if (destroyed) return;
     const progress = getRawProgress();
     const exitProgress = range01(progress, 0.62, 1);
-    const lotusOpacity = 1 - smoothStep(range01(progress, 0.56, 0.86));
+    const lotusOpacity = 1 - smoothStep(range01(progress, 0.68, 0.94));
 
     canvas.style.opacity = lotusOpacity.toFixed(4);
     canvas.style.visibility = lotusOpacity > 0.002 ? 'visible' : 'hidden';
-    copy.style.opacity = (1 - smoothStep(range01(progress, 0.58, 0.82))).toFixed(4);
+    copy.style.opacity = lotusOpacity.toFixed(4);
+    copy.style.visibility = lotusOpacity > 0.002 ? 'visible' : 'hidden';
     exitInkTransition?.render(exitProgress);
     overlayRaf = requestAnimationFrame(renderOverlays);
   };
