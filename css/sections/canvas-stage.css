@@ -80,6 +80,18 @@
     linear-gradient(180deg, rgba(5,8,7,.18) 0%, rgba(5,8,7,.06) 46%, rgba(5,8,7,.74) 100%);
 }
 
+.canvas-section--belief::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 6px;
+  pointer-events: none;
+  background: #07110e;
+}
+
 .belief-copy-wrap {
   position: relative;
   z-index: 2;
@@ -449,7 +461,7 @@
 .chapter-transition[data-transition-module="pattern-bloom"],
 .scene-transition[data-transition-module="pattern-bloom"] {
   height: clamp(118svh, 138vw, 166svh);
-  background: #d9c08f;
+  background: #07110e;
 }
 
 .chapter-transition[data-transition-module="aod"]::before,
@@ -477,7 +489,7 @@
   height: 100svh;
   width: 100%;
   overflow: hidden;
-  background: #d9c08f;
+  background: #07110e;
   contain: paint;
 }
 
@@ -487,17 +499,6 @@
   height: 100%;
 }
 
-.pattern-bloom-transition__star-field {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  filter: saturate(.98) contrast(1.04) brightness(.72);
-  transform: scale(1.03);
-  pointer-events: none;
-}
 
 .pattern-bloom-transition__exit-ink {
   position: absolute;

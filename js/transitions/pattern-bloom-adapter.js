@@ -1,12 +1,9 @@
 import { createPatternBloomScene } from '../pattern-mirror-stage.js';
 import { createInkCurtainTransition } from '../effects/ink-scene-transition.js';
-import { initStarFieldReveal } from '../effects/star-field-reveal.js';
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
-const lerp = (a, b, t) => a + (b - a) * t;
 const range01 = (value, start, end) => clamp((value - start) / Math.max(0.001, end - start));
 const smoothStep = (value) => value * value * (3 - 2 * value);
-const BELIEF_SCENE_SRC = 'assets/back2.png';
 
 export function mountPatternBloomTransition({
   host,
@@ -35,10 +32,6 @@ export function mountPatternBloomTransition({
   canvas.className = 'pattern-bloom-transition__canvas';
   canvas.setAttribute('aria-hidden', 'true');
 
-  const starFieldCanvas = doc.createElement('canvas');
-  starFieldCanvas.className = 'pattern-bloom-transition__star-field';
-  starFieldCanvas.setAttribute('aria-hidden', 'true');
-
   const exitInkCanvas = doc.createElement('canvas');
   exitInkCanvas.className = 'pattern-bloom-transition__exit-ink';
   exitInkCanvas.setAttribute('aria-hidden', 'true');
@@ -52,23 +45,14 @@ export function mountPatternBloomTransition({
     <p>我们不卖课、不卖软件，而是进到你的业务现场，把 AI 做成团队天天在用、月底对得上账的东西。</p>
   `;
 
-  stage.append(canvas, starFieldCanvas, copy, exitInkCanvas);
+  stage.append(canvas, copy, exitInkCanvas);
   host.append(stage);
-  const starFieldReveal = initStarFieldReveal({
-    canvas: starFieldCanvas,
-    sourceUrl: BELIEF_SCENE_SRC,
-    autoplay: false,
-    config: {
-      revealDurationMs: 2800,
-      loopTransitionMs: 1200
-    }
-  });
   const exitInkTransition = createInkCurtainTransition(exitInkCanvas, {
     direction: 'bottom-up',
     colorLift: 0.56,
-    coverAlpha: 0.82,
-    fadeOutStart: 0.74,
-    fadeOutEnd: 0.98,
+    coverAlpha: 1,
+    fadeOutStart: 0.98,
+    fadeOutEnd: 1,
     progressSpan: 1
   });
   const isHomeBeliefTransition = host.dataset.transitionId === 'home-belief'
@@ -100,18 +84,11 @@ export function mountPatternBloomTransition({
   const renderOverlays = () => {
     if (destroyed) return;
     const progress = getRawProgress();
-    const starProgress = smoothStep(range01(progress, 0.66, 0.92));
     const exitProgress = range01(progress, 0.62, 1);
+    const lotusOpacity = 1 - smoothStep(range01(progress, 0.56, 0.86));
 
-    if (starFieldReveal.ready) {
-      starFieldReveal.renderBackground({
-        timeSeconds: performance.now() / 1000,
-        strength: lerp(1.15, 2.75, starProgress),
-        noiseFloor: lerp(0.18, 0.025, starProgress)
-      });
-      starFieldCanvas.classList.add('is-ready');
-    }
-    starFieldCanvas.style.opacity = starFieldReveal.ready ? (starProgress * 0.86).toFixed(4) : '0';
+    canvas.style.opacity = lotusOpacity.toFixed(4);
+    canvas.style.visibility = lotusOpacity > 0.002 ? 'visible' : 'hidden';
     copy.style.opacity = (1 - smoothStep(range01(progress, 0.58, 0.82))).toFixed(4);
     exitInkTransition?.render(exitProgress);
     overlayRaf = requestAnimationFrame(renderOverlays);
@@ -122,7 +99,6 @@ export function mountPatternBloomTransition({
     if (destroyed) return;
     destroyed = true;
     cancelAnimationFrame(overlayRaf);
-    starFieldReveal.dispose();
     scene.destroy();
     stage.remove();
     host.classList.remove('homepage-transition', 'homepage-transition--pattern-bloom', 'chapter-transition--pattern-bloom');
