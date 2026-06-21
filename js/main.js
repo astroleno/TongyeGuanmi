@@ -104,6 +104,7 @@ if (reduceMotion) {
       initLayeredHero({ root, body, runtime });
       initHomepageTransitions({
         root: document,
+        scrollRuntime,
         reduceMotion,
         gsap: window.gsap,
         ScrollTrigger: window.ScrollTrigger

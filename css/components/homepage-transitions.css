@@ -10,6 +10,38 @@
   background: #07110e;
 }
 
+html.homepage-transition-snap-active {
+  overscroll-behavior-y: none;
+}
+
+.homepage-transition--snapped {
+  z-index: 3;
+}
+
+.homepage-transition--playing {
+  pointer-events: none;
+}
+
+body .chapter-transition[data-transition-module="aod"],
+body .chapter-transition[data-transition-module="ttg"],
+body .chapter-transition[data-transition-module="figure3-transition"],
+body .chapter-transition[data-transition-module="ph"],
+body .chapter-transition[data-transition-module="crane"],
+body .chapter-transition[data-transition-module="pattern-bloom"],
+body .scene-transition[data-transition-module="pattern-bloom"],
+body .scene-transition[data-transition-module="figure2"] {
+  height: 100svh;
+  min-height: 100svh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+body .scene-transition[data-transition-module="figure2"],
+body .scene-transition[data-transition-module="pattern-bloom"] {
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+}
+
 .homepage-transition > section {
   height: 100%;
   min-height: 100%;
