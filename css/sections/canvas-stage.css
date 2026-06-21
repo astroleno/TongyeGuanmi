@@ -51,6 +51,15 @@
   grid-column: 1 / -1;
 }
 
+.homepage-scene {
+  display: contents;
+}
+
+.homepage-scene--method-cocreation,
+.homepage-scene--method-tooling {
+  margin-block-start: clamp(28px, 4vw, 56px);
+}
+
 .large-copy--standalone {
   grid-column: 2 / 11;
   max-width: 15em;
@@ -324,31 +333,96 @@
   line-height: 1.7 !important;
 }
 
-.chapter-transition {
+.chapter-transition,
+.scene-transition {
   position: relative;
   height: clamp(42svh, 54vw, 78svh);
   isolation: isolate;
   overflow: hidden;
 }
 
+.scene-transition {
+  grid-column: 1 / -1;
+  margin-block: clamp(36px, 7vw, 104px);
+}
+
 .chapter-transition::before,
-.chapter-transition::after {
+.chapter-transition::after,
+.scene-transition::before,
+.scene-transition::after {
   content: "";
   position: absolute;
   pointer-events: none;
 }
 
-.chapter-transition::before {
+.chapter-transition::before,
+.scene-transition::before {
   inset: 50% 8vw auto;
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(232,213,154,.30), transparent);
 }
 
-.chapter-transition::after {
+.chapter-transition::after,
+.scene-transition::after {
   inset: 0;
   opacity: .38;
   background:
     radial-gradient(circle at 24% 48%, rgba(56,166,154,.10), transparent 22vw),
     radial-gradient(circle at 70% 52%, rgba(183,91,52,.08), transparent 26vw);
   transform: translate3d(0, -12px, 0);
+}
+
+.chapter-transition[data-transition-module="aod"],
+.chapter-transition[data-transition-module="ttg"],
+.chapter-transition[data-transition-module="figure3-transition"],
+.chapter-transition[data-transition-module="ph"],
+.chapter-transition[data-transition-module="crane"],
+.scene-transition[data-transition-module="figure2"] {
+  height: clamp(118svh, 132vw, 168svh);
+}
+
+.chapter-transition[data-transition-module="soft-drilldown"],
+.chapter-transition[data-transition-module="soft-breath"] {
+  height: clamp(36svh, 44vw, 62svh);
+}
+
+.chapter-transition[data-transition-module="pattern-bloom"],
+.scene-transition[data-transition-module="pattern-bloom"] {
+  height: clamp(118svh, 138vw, 166svh);
+  background: #d9c08f;
+}
+
+.chapter-transition[data-transition-module="aod"]::before,
+.chapter-transition[data-transition-module="aod"]::after,
+.chapter-transition[data-transition-module="ttg"]::before,
+.chapter-transition[data-transition-module="ttg"]::after,
+.chapter-transition[data-transition-module="figure3-transition"]::before,
+.chapter-transition[data-transition-module="figure3-transition"]::after,
+.chapter-transition[data-transition-module="ph"]::before,
+.chapter-transition[data-transition-module="ph"]::after,
+.chapter-transition[data-transition-module="crane"]::before,
+.chapter-transition[data-transition-module="crane"]::after,
+.scene-transition[data-transition-module="figure2"]::before,
+.scene-transition[data-transition-module="figure2"]::after,
+.chapter-transition[data-transition-module="pattern-bloom"]::before,
+.chapter-transition[data-transition-module="pattern-bloom"]::after,
+.scene-transition[data-transition-module="pattern-bloom"]::before,
+.scene-transition[data-transition-module="pattern-bloom"]::after {
+  display: none;
+}
+
+.pattern-bloom-transition__stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  width: 100%;
+  overflow: hidden;
+  background: #d9c08f;
+  contain: paint;
+}
+
+.pattern-bloom-transition__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }

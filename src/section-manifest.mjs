@@ -66,47 +66,65 @@ export const contentSections = [
 
 export const chapterTransitions = [
   {
+    id: 'hero-method',
+    from: 'home',
+    to: 'method-field-law',
+    module: 'aod',
+    variant: 'measure-order'
+  },
+  {
     id: 'method-brand',
-    from: 'method',
+    from: 'method-tooling',
     to: 'brand',
-    module: 'soft-divider',
-    variant: 'fine-rule'
+    module: 'ttg',
+    variant: 'structure-field'
   },
   {
     id: 'brand-services',
     from: 'brand',
     to: 'services',
-    module: 'soft-divider',
-    variant: 'breath'
+    module: 'figure3-transition',
+    variant: 'fabric-menu'
   },
   {
     id: 'services-lab',
     from: 'services',
     to: 'lab',
-    module: 'soft-divider',
-    variant: 'breath'
+    module: 'soft-drilldown',
+    variant: 'cards-to-scenarios'
   },
   {
     id: 'lab-education',
     from: 'lab',
     to: 'education',
-    module: 'soft-divider',
-    variant: 'fine-rule'
+    module: 'ph',
+    variant: 'learning-sun'
   },
   {
     id: 'education-philosophy',
     from: 'education',
     to: 'philosophy',
-    module: 'soft-divider',
-    variant: 'breath'
+    module: 'soft-breath',
+    variant: 'quiet-values'
   },
   {
     id: 'philosophy-contact',
     from: 'philosophy',
     to: 'contact',
-    module: 'soft-divider',
-    variant: 'fine-rule'
+    module: 'crane',
+    variant: 'forward-motion'
   }
 ];
 
-export const executableTransitionModules = ['soft-divider'];
+export const executableTransitionModules = [
+  'soft-divider',
+  'soft-drilldown',
+  'soft-breath',
+  'aod',
+  'figure2',
+  'pattern-bloom',
+  'ttg',
+  'figure3-transition',
+  'ph',
+  'crane'
+];

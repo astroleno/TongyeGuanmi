@@ -1,0 +1,102 @@
+@import url("./aod-transition.css");
+@import url("./figure3-transition.css");
+@import url("../figure2.css");
+@import url("../crane.css");
+@import url("../ph.css");
+@import url("../ttg.css");
+
+.homepage-transition {
+  contain: layout paint;
+  background: #07110e;
+}
+
+.homepage-transition > section {
+  height: 100%;
+  min-height: 100%;
+}
+
+.homepage-transition .aod-transition,
+.homepage-transition .figure3-transition,
+.homepage-transition .figure2-scroll,
+.homepage-transition .crane-scroll,
+.homepage-transition .ph-scroll,
+.homepage-transition .ttg-scroll {
+  height: 100%;
+  min-height: 100%;
+}
+
+.homepage-transition .aod-transition__sticky,
+.homepage-transition .figure3-transition__sticky,
+.homepage-transition .figure2-sticky,
+.homepage-transition .crane-sticky,
+.homepage-transition .ph-sticky,
+.homepage-transition .ttg-sticky {
+  top: 0;
+  height: 100svh;
+  min-height: min(100svh, 640px);
+}
+
+.homepage-transition .aod-transition__figure-video {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.homepage-transition--aod {
+  background: #fff;
+}
+
+.homepage-transition--figure2 {
+  --figure2-progress: 0;
+  --figure2-scene-progress: 1;
+  --figure2-ink-progress: 0;
+  --figure2-next-opacity: 0;
+  --figure2-scroll-vh: 140;
+  background: #07110e;
+}
+
+.homepage-transition--figure3 {
+  background: #dcdcd0;
+}
+
+.homepage-transition--ph {
+  --ph-progress: 0;
+  --ph-scroll-vh: 140;
+  --ph-video-opacity: 1;
+  --ph-bg-parallax-y: 0px;
+  --ph-front-base-y: clamp(20px, 4dvh, 72px);
+  --ph-front-parallax-y: 0px;
+  --ph-figure-base-y: clamp(0px, 2dvh, 48px);
+  --ph-figure-parallax-y: 0px;
+  background: #f6f2ed;
+}
+
+.homepage-transition--crane {
+  background: #ede4d2;
+}
+
+.homepage-transition--ttg {
+  --ttg-progress: 0;
+  --ttg-scroll-vh: 140;
+  --ttg-scene-width: max(100vw, 178dvh, 1180px);
+  --ttg-bg-width: max(100vw, 184dvh, 1180px);
+  --ttg-front-width: 100vw;
+  --ttg-front-overlay-opacity: 0.2;
+  background: #080d10;
+}
+
+.homepage-transition--pattern-bloom {
+  background: #d9c08f;
+}
+
+.chapter-transition--fallback,
+.scene-transition--fallback {
+  background:
+    radial-gradient(circle at 32% 48%, rgba(232, 213, 154, .10), transparent 24vw),
+    linear-gradient(180deg, rgba(7, 17, 14, .96), rgba(5, 8, 7, .98));
+}
+
+.chapter-transition--fallback::before,
+.scene-transition--fallback::before {
+  display: block;
+}

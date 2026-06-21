@@ -2,6 +2,7 @@ import { initInkKeywords } from './components/ink-keyword.js';
 import { initLoaderInkReveal } from './effects/ink-text-reveal.js';
 import { createSiteRuntime } from './site/runtime.js';
 import { initLayeredHero, initFallbackParallax } from './sections/hero.js';
+import { initHomepageTransitions } from './transitions/homepage-transition-runtime.js';
 import { initCursorGlow } from './ui/cursor-glow.js';
 import { initMagneticAndTilt } from './ui/magnetic-tilt.js';
 import { initPageProgress } from './ui/page-progress.js';
@@ -90,6 +91,10 @@ if (reduceMotion) {
   initMagneticAndTilt({ reduceMotion });
   initFallbackParallax({ root, reduceMotion, runtime });
   initVanillaReveal();
+  initHomepageTransitions({
+    root: document,
+    reduceMotion: true
+  });
 } else {
   loadRequiredLibraries()
     .then(() => {
@@ -97,11 +102,21 @@ if (reduceMotion) {
       initMagneticAndTilt({ reduceMotion });
       initGsapTextAndUI({ root, scrollRuntime });
       initLayeredHero({ root, body, runtime });
+      initHomepageTransitions({
+        root: document,
+        reduceMotion,
+        gsap: window.gsap,
+        ScrollTrigger: window.ScrollTrigger
+      });
     })
     .catch((error) => {
       console.warn('CDN libraries unavailable, switching to fallback.', error);
       initMagneticAndTilt({ reduceMotion });
       initFallbackParallax({ root, reduceMotion, runtime });
       initVanillaReveal();
+      initHomepageTransitions({
+        root: document,
+        reduceMotion: true
+      });
     });
 }
