@@ -1,3 +1,4 @@
+import { createPatternBloomScene } from '../pattern-mirror-stage.js';
 import { createInkCurtainTransition, createInkSceneTransition } from '../effects/ink-scene-transition.js';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -163,6 +164,7 @@ export function initLayeredHero(options = {}) {
   const belief = document.querySelector('[data-hero-belief]');
   const nav = document.querySelector('.site-nav');
   const introInkCanvas = document.querySelector('[data-hero-intro-ink-canvas]');
+  const patternCanvas = document.querySelector('[data-hero-pattern-field]');
   const inkCanvas = document.querySelector('[data-hero-ink-canvas]');
   const exitInkCanvas = document.querySelector('[data-hero-exit-ink-canvas]');
   const starFieldCanvas = null;
@@ -186,6 +188,7 @@ export function initLayeredHero(options = {}) {
   });
   const inkTransition = createInkSceneTransition(inkCanvas, {
     targetSrc: 'assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png',
+    nextSceneElement: patternCanvas,
     figureMaskElement: figure,
     hideAtEnd: false,
     perlinOverlay: false,
@@ -204,6 +207,35 @@ export function initLayeredHero(options = {}) {
   });
 
   if (!hero || !scene || !back || !middle || !figure || !content) return;
+
+  const heroPatternScene = patternCanvas
+    ? createPatternBloomScene({
+      canvas: patternCanvas,
+      progressSource: () => 1,
+      reducedMotion: reduceMotion,
+      reducedMotionProgress: 1,
+      continuousMotion: false,
+      scrollDrivenMotion: false,
+      dprLimit: 1,
+      center: {
+        x: 0.24,
+        y: 0.55,
+        mobileX: 0.50,
+        mobileY: 0.58
+      }
+    })
+    : null;
+  heroPatternScene?.start()
+    .then(() => {
+      patternCanvas.dataset.inkTextureReady = 'true';
+    })
+    .catch((error) => {
+      console.warn('Hero lotus target failed; ink transition will keep the paper fallback.', error);
+      heroPatternScene.destroy();
+    });
+  if (heroPatternScene) {
+    window.addEventListener('pagehide', heroPatternScene.destroy, { once: true });
+  }
 
   const starFieldReveal = null;
 
