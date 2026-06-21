@@ -1,6 +1,7 @@
 import { initInkKeywords } from './components/ink-keyword.js';
 import { initLoaderInkReveal } from './effects/ink-text-reveal.js';
 import { createSiteRuntime } from './site/runtime.js';
+import { initBeliefStarField } from './sections/belief.js';
 import { initLayeredHero, initFallbackParallax } from './sections/hero.js';
 import { initHomepageTransitions } from './transitions/homepage-transition-runtime.js';
 import { initCursorGlow } from './ui/cursor-glow.js';
@@ -86,22 +87,20 @@ initLoaderInkReveal({
   onReadyAtChange: runtime.setLoaderReadyAt
 });
 initInkKeywords({ reduceMotion, maxWebglKeywords: 2 });
+initBeliefStarField({ root: document, reduceMotion });
 
 if (reduceMotion) {
   initMagneticAndTilt({ reduceMotion });
   initFallbackParallax({ root, reduceMotion, runtime });
   initVanillaReveal();
-  initHomepageTransitions({
-    root: document,
-    reduceMotion: true
-  });
+  initHomepageTransitions({ root: document, reduceMotion: true });
 } else {
   loadRequiredLibraries()
     .then(() => {
       const scrollRuntime = initSmoothScroll({ root, body, reduceMotion });
       initMagneticAndTilt({ reduceMotion });
       initGsapTextAndUI({ root, scrollRuntime });
-      initLayeredHero({ root, body, runtime });
+      initLayeredHero({ root, body, runtime, reduceMotion });
       initHomepageTransitions({
         root: document,
         scrollRuntime,
@@ -115,9 +114,6 @@ if (reduceMotion) {
       initMagneticAndTilt({ reduceMotion });
       initFallbackParallax({ root, reduceMotion, runtime });
       initVanillaReveal();
-      initHomepageTransitions({
-        root: document,
-        reduceMotion: true
-      });
+      initHomepageTransitions({ root: document, reduceMotion: true });
     });
 }

@@ -57,6 +57,16 @@ const transitionById = new Map(
 );
 
 assert.equal(
+  transitionById.get('home-belief')?.attrs.get('data-transition-module'),
+  'pattern-bloom',
+  'home-belief must use the lotus pattern bloom transition'
+);
+assert.equal(
+  transitionById.get('belief-method')?.attrs.get('data-transition-module'),
+  'aod',
+  'belief-method must keep the AOD transition into the method scene'
+);
+assert.equal(
   transitionById.get('services-lab')?.attrs.get('data-transition-module'),
   'soft-drilldown',
   'services-lab must stay an ordinary soft-drilldown continuity join'

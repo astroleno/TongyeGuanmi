@@ -1,5 +1,14 @@
 export const contentSections = [
   {
+    id: 'belief',
+    match: 'canvas-section--belief',
+    navLabel: '',
+    includeInNav: false,
+    theme: 'dark',
+    navBg: 'solid',
+    layout: 'editorial-flat'
+  },
+  {
     id: 'method',
     match: 'id="method"',
     navLabel: '方法',
@@ -66,8 +75,15 @@ export const contentSections = [
 
 export const chapterTransitions = [
   {
-    id: 'hero-method',
+    id: 'home-belief',
     from: 'home',
+    to: 'belief',
+    module: 'pattern-bloom',
+    variant: 'lotus-manifesto'
+  },
+  {
+    id: 'belief-method',
+    from: 'belief',
     to: 'method-field-law',
     module: 'aod',
     variant: 'measure-order'

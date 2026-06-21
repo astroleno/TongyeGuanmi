@@ -1,5 +1,5 @@
+import { createPatternBloomScene } from '../pattern-mirror-stage.js';
 import { createInkCurtainTransition, createInkSceneTransition } from '../effects/ink-scene-transition.js';
-import { initStarFieldReveal } from '../effects/star-field-reveal.js';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -128,6 +128,7 @@ export function initLayeredHero(options = {}) {
   const root = options.root || document.documentElement;
   const body = options.body || document.body;
   const runtime = options.runtime || { markLoaded() {} };
+  const reduceMotion = Boolean(options.reduceMotion);
   const config = { ...DEFAULT_HERO_CONFIG, ...(options.config || {}) };
   const {
     heroVideoSrc: HERO_VIDEO_SRC,
@@ -163,9 +164,10 @@ export function initLayeredHero(options = {}) {
   const belief = document.querySelector('[data-hero-belief]');
   const nav = document.querySelector('.site-nav');
   const introInkCanvas = document.querySelector('[data-hero-intro-ink-canvas]');
+  const patternCanvas = document.querySelector('[data-hero-pattern-field]');
   const inkCanvas = document.querySelector('[data-hero-ink-canvas]');
   const exitInkCanvas = document.querySelector('[data-hero-exit-ink-canvas]');
-  const starFieldCanvas = document.querySelector('[data-hero-star-field]');
+  const starFieldCanvas = null;
   const introInkTransition = createInkSceneTransition(introInkCanvas, {
     assets: {
       nextSceneSrc: HERO_NEXT_SCENE_SRC,
@@ -185,18 +187,14 @@ export function initLayeredHero(options = {}) {
     sourceElement: back
   });
   const inkTransition = createInkSceneTransition(inkCanvas, {
-    assets: {
-      nextSceneSrc: HERO_NEXT_SCENE_SRC,
-      backDepthSrc: HERO_BACK_DEPTH_SRC,
-      middleDepthSrc: HERO_MIDDLE_DEPTH_SRC
-    },
-    targetSrc: HERO_NEXT_SCENE_SRC,
-    nextSceneElement: starFieldCanvas,
+    targetSrc: 'assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png',
+    nextSceneElement: patternCanvas,
     figureMaskElement: figure,
     hideAtEnd: false,
-    perlinOverlay: true,
+    perlinOverlay: false,
     perlinStrength: 0,
     progressSpan: 1,
+    colorLift: 0.58,
     sceneBrightness: 1
   });
   const exitInkTransition = createInkCurtainTransition(exitInkCanvas, {
@@ -210,13 +208,36 @@ export function initLayeredHero(options = {}) {
 
   if (!hero || !scene || !back || !middle || !figure || !content) return;
 
-  const starFieldReveal = starFieldCanvas
-    ? initStarFieldReveal({
-        canvas: starFieldCanvas,
-        sourceUrl: HERO_NEXT_SCENE_SRC,
-        autoplay: false
-      })
+  const heroPatternScene = patternCanvas
+    ? createPatternBloomScene({
+      canvas: patternCanvas,
+      progressSource: () => 1,
+      reducedMotion: reduceMotion,
+      reducedMotionProgress: 1,
+      continuousMotion: true,
+      scrollDrivenMotion: false,
+      dprLimit: 1,
+      center: {
+        x: 0.24,
+        y: 0.55,
+        mobileX: 0.50,
+        mobileY: 0.58
+      }
+    })
     : null;
+  heroPatternScene?.start()
+    .then(() => {
+      patternCanvas.dataset.inkTextureReady = 'true';
+    })
+    .catch((error) => {
+      console.warn('Hero lotus target failed; ink transition will keep the paper fallback.', error);
+      heroPatternScene.destroy();
+    });
+  if (heroPatternScene) {
+    window.addEventListener('pagehide', heroPatternScene.destroy, { once: true });
+  }
+
+  const starFieldReveal = null;
 
   root.classList.add('layered-hero-ready');
   figure.src = HERO_VIDEO_SRC;

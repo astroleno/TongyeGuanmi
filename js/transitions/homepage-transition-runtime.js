@@ -27,6 +27,10 @@ const easeInOutCubic = (value) => {
   const p = clamp(value);
   return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
 };
+const parseFiniteNumber = (value, fallback) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
 
 function createCleanupStack() {
   const cleanups = [];
@@ -226,7 +230,7 @@ function createHomepageSnapCoordinator({
     const viewportHeight = Math.max(1, window.innerHeight || 1);
     const hostTop = getDocumentTop(controller.host);
     const hostHeight = Math.max(viewportHeight, controller.host.offsetHeight || viewportHeight);
-    const forwardEntry = hostTop - viewportHeight * 0.26;
+    const forwardEntry = hostTop - viewportHeight * controller.snapEntryVh;
     const forwardExit = hostTop + hostHeight + viewportHeight * 0.18;
     const backwardEntry = hostTop + hostHeight + viewportHeight * 0.18;
     const backwardExit = hostTop - viewportHeight * 0.58;
@@ -279,6 +283,7 @@ function createHomepageSnapCoordinator({
         host,
         playhead: reduceMotion ? 1 : 0,
         playMs: Number(host.dataset.transitionPlayMs) || MODULE_PLAY_MS[moduleName] || DEFAULT_PLAY_MS,
+        snapEntryVh: parseFiniteNumber(host.dataset.transitionSnapEntryVh, 1),
         raf: 0,
         playedForward: false,
         playedBackward: false,

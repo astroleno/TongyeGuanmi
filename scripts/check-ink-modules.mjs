@@ -58,7 +58,13 @@ if (exists('css/components/ink-keyword.css')) {
 if (exists('index.html')) {
   const webglKeywordMatches = indexHtml.match(/data-ink-reveal="webgl"/g) || [];
   assert.ok(webglKeywordMatches.length <= 2, 'index.html should not declare more than two WebGL ink keywords');
-  assert.match(indexHtml, /data-hero-exit-ink-canvas/, 'index.html must include the hero exit ink canvas');
+  const patternBloomAdapter = exists('js/transitions/pattern-bloom-adapter.js')
+    ? read('js/transitions/pattern-bloom-adapter.js')
+    : '';
+  assert.ok(
+    /data-hero-exit-ink-canvas/.test(indexHtml) || /pattern-bloom-transition__exit-ink/.test(patternBloomAdapter),
+    'homepage must include a bottom-up exit ink canvas'
+  );
 }
 
 if (exists('docs/ink-effects-usage.md')) {

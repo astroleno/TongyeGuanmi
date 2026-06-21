@@ -615,8 +615,8 @@ body.is-loader-text-ready .loader-marquee-clear {
 
 @media (max-width: 860px) {
   .hero-wrap {
-    min-height: 2580px;
-    height: 460vh;
+    min-height: 1580px;
+    height: 250vh;
   }
 
   .hero-content {

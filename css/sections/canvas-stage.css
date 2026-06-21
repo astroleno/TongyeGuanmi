@@ -38,6 +38,66 @@
   padding-block: clamp(120px, 14vw, 220px);
 }
 
+.canvas-section--belief {
+  min-height: 100svh;
+  display: grid;
+  align-items: center;
+  padding: 0;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 16% 22%, rgba(56,166,154,.12), transparent 32vw),
+    radial-gradient(circle at 84% 74%, rgba(183,91,52,.10), transparent 34vw),
+    linear-gradient(180deg, rgba(7,17,14,.96), rgba(7,17,14,1)),
+    #07110e;
+}
+
+.belief-star-field,
+.belief-star-wash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.belief-star-field {
+  z-index: 0;
+  opacity: 0;
+  filter: saturate(.98) contrast(1.04) brightness(.74);
+  transform: scale(1.03);
+  transition: opacity .8s ease;
+}
+
+.belief-star-field.is-ready {
+  opacity: .72;
+}
+
+.belief-star-wash {
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(5,8,7,.62) 0%, rgba(5,8,7,.20) 42%, rgba(5,8,7,.58) 100%),
+    linear-gradient(180deg, rgba(5,8,7,.18) 0%, rgba(5,8,7,.06) 46%, rgba(5,8,7,.74) 100%);
+}
+
+.belief-copy-wrap {
+  position: relative;
+  z-index: 2;
+  width: min(1280px, 100%);
+  margin-inline: auto;
+  padding: clamp(96px, 10vw, 156px) clamp(26px, 7vw, 132px);
+}
+
+.canvas-section--belief .large-copy--standalone {
+  width: min(1040px, 72vw);
+  margin: 0;
+  max-width: 16.8em;
+  font-size: clamp(30px, 3.25vw, 52px);
+  line-height: 1.42;
+  letter-spacing: .012em;
+  color: rgba(247,237,215,.90);
+}
+
 .canvas-track {
   width: min(1280px, 84vw);
   margin-inline: auto;
@@ -425,4 +485,124 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.pattern-bloom-transition__star-field {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  filter: saturate(.98) contrast(1.04) brightness(.72);
+  transform: scale(1.03);
+  pointer-events: none;
+}
+
+.pattern-bloom-transition__exit-ink {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.pattern-bloom-transition__copy {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: clamp(34px, 8vw, 132px);
+  width: min(540px, 36vw);
+  color: rgba(41,32,20,.78);
+  transform: translate3d(0, -50%, 0);
+  pointer-events: none;
+}
+
+.pattern-bloom-transition__copy .section-index {
+  color: rgba(41,32,20,.58);
+}
+
+.pattern-bloom-transition__copy .card-label {
+  color: rgba(41,32,20,.70);
+  font-size: 11px;
+  letter-spacing: .24em;
+}
+
+.pattern-bloom-transition__copy .card-label::before {
+  width: clamp(72px, 9vw, 156px);
+  background: rgba(41,32,20,.34);
+}
+
+.pattern-bloom-transition__copy h3 {
+  margin: clamp(28px, 4vh, 46px) 0 clamp(18px, 2.6vh, 28px);
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(38px, 4.1vw, 72px);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: .01em;
+  max-width: 10.7em;
+  color: rgba(34,27,17,.90);
+  text-wrap: balance;
+}
+
+.pattern-bloom-transition__copy p {
+  margin: 0;
+  max-width: 35em;
+  color: rgba(41,32,20,.68);
+  font-size: clamp(15px, 1.16vw, 19px);
+  line-height: 1.86;
+  text-wrap: pretty;
+}
+
+@media (max-width: 980px) {
+  .pattern-bloom-transition__copy {
+    top: auto;
+    right: 50%;
+    bottom: clamp(40px, 8svh, 82px);
+    width: min(640px, calc(100vw - 44px));
+    transform: translate3d(50%, 0, 0);
+  }
+
+  .pattern-bloom-transition__copy h3 {
+    max-width: 11.5em;
+    font-size: clamp(34px, 8.6vw, 58px);
+  }
+
+  .pattern-bloom-transition__copy p {
+    max-width: 32em;
+  }
+
+  .canvas-section--belief .large-copy--standalone {
+    width: min(100% - 36px, 1280px);
+    max-width: 13.4em;
+    font-size: clamp(27px, 8vw, 44px);
+    line-height: 1.38;
+  }
+}
+
+@media (max-width: 560px) {
+  .belief-copy-wrap {
+    padding: clamp(70px, 12vw, 96px) 18px;
+  }
+
+  .pattern-bloom-transition__copy {
+    bottom: clamp(28px, 6svh, 56px);
+  }
+
+  .pattern-bloom-transition__copy .card-label::before {
+    width: 64px;
+  }
+
+  .pattern-bloom-transition__copy h3 {
+    margin-top: 22px;
+    font-size: clamp(32px, 9.4vw, 46px);
+  }
+
+  .pattern-bloom-transition__copy p {
+    font-size: 15px;
+    line-height: 1.72;
+  }
 }
