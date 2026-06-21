@@ -1,0 +1,116 @@
+.figure3-transition {
+  --figure3-progress: 0;
+  --figure3-paper: #dcdcd0;
+  --figure3-ink: #292919;
+  --figure3-backdrop-opacity: 1;
+  --figure3-backdrop-scale: 1.06;
+  --figure3-video-opacity: 1;
+  --figure3-video-scale: 1.004;
+  --figure3-fill-opacity: 0;
+  --figure3-section-height: 180dvh;
+  --figure3-section-min-height: 1080px;
+  position: relative;
+  height: var(--figure3-section-height);
+  min-height: var(--figure3-section-min-height);
+  color: var(--figure3-ink);
+  background: var(--figure3-paper);
+  color-scheme: light;
+}
+
+.figure3-transition,
+.figure3-transition * {
+  box-sizing: border-box;
+}
+
+.figure3-transition__sticky {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--figure3-paper);
+}
+
+.figure3-transition__backdrop,
+.figure3-transition__stage,
+.figure3-transition__video,
+.figure3-transition__fill,
+.figure3-transition__fill::before,
+.figure3-transition__fill::after {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.figure3-transition__backdrop {
+  z-index: 0;
+  opacity: var(--figure3-backdrop-opacity);
+  transform: translateZ(0) scale(var(--figure3-backdrop-scale));
+  will-change: opacity, transform;
+  background: var(--figure3-paper);
+}
+
+.figure3-transition__sticky::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .10), transparent 32%, rgba(41, 41, 25, .055)),
+    linear-gradient(90deg, rgba(220, 220, 208, .48), transparent 18%, transparent 82%, rgba(220, 220, 208, .54));
+}
+
+.figure3-transition__stage {
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.figure3-transition__video {
+  z-index: 1;
+  display: block;
+  max-width: none;
+  object-fit: cover;
+  object-position: 24% center;
+  opacity: var(--figure3-video-opacity);
+  filter: saturate(.94) contrast(1.02) brightness(.98);
+  transform: translateZ(0) scale(var(--figure3-video-scale));
+  will-change: opacity, transform;
+}
+
+.figure3-transition__fill {
+  z-index: 2;
+  opacity: var(--figure3-fill-opacity);
+  background: url("../../assets/figure3-fabric-poster.jpg") center / cover no-repeat;
+  will-change: opacity;
+}
+
+.figure3-transition__fill::before {
+  content: "";
+  z-index: 1;
+  opacity: .82;
+  mix-blend-mode: multiply;
+  background:
+    repeating-linear-gradient(90deg, rgba(91, 72, 42, .085) 0 1px, transparent 1px 9px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, .22) 0 1px, transparent 1px 7px),
+    radial-gradient(circle at 22% 18%, rgba(140, 108, 62, .10), transparent 28vw),
+    radial-gradient(circle at 76% 66%, rgba(86, 64, 35, .08), transparent 34vw);
+}
+
+.figure3-transition__fill::after {
+  content: "";
+  z-index: 2;
+  opacity: .62;
+  background:
+    linear-gradient(90deg, rgba(238, 229, 208, .14), transparent 18%, transparent 82%, rgba(218, 202, 166, .16)),
+    radial-gradient(circle at 50% 42%, transparent 0 48%, rgba(169, 137, 84, .13) 100%);
+}
+
+@media (max-width: 520px) {
+  .figure3-transition {
+    --figure3-section-min-height: 920px;
+  }
+}

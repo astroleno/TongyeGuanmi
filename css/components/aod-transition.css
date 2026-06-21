@@ -1,0 +1,178 @@
+.aod-transition {
+  --aod-transition-progress: 0;
+  --aod-transition-paper: #fff;
+  --aod-transition-ink: #292919;
+  --aod-transition-scene-width: 72vw;
+  --aod-transition-sun-width: 62vw;
+  --aod-transition-cloud-width: 72vw;
+  --aod-transition-section-height: 180dvh;
+  --aod-transition-section-min-height: 100dvh;
+  --aod-transition-sun-x: 0px;
+  --aod-transition-sun-y: 0px;
+  --aod-transition-sun-scale: 1;
+  --aod-transition-sun-opacity: .96;
+  --aod-transition-cloud-x: 0px;
+  --aod-transition-cloud-y: 0px;
+  --aod-transition-cloud-scale: 1;
+  --aod-transition-cloud-opacity: .98;
+  --aod-transition-figure-y: 10.5dvh;
+  --aod-transition-figure-scale: 1;
+  position: relative;
+  height: var(--aod-transition-section-height);
+  min-height: var(--aod-transition-section-min-height);
+  color: var(--aod-transition-ink);
+  background: var(--aod-transition-paper);
+  color-scheme: light;
+}
+
+.aod-transition,
+.aod-transition * {
+  box-sizing: border-box;
+}
+
+.aod-transition__sticky {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--aod-transition-paper);
+}
+
+.aod-transition__field,
+.aod-transition__layer-stack {
+  position: absolute;
+  inset: 0;
+}
+
+.aod-transition__field {
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--aod-transition-paper);
+}
+
+.aod-transition__layer-stack {
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.aod-transition__layer {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  width: var(--aod-transition-scene-width);
+  height: auto;
+  max-width: none;
+  user-select: none;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  contain: paint;
+}
+
+.aod-transition__layer--sun {
+  z-index: 2;
+  top: 34%;
+  width: var(--aod-transition-sun-width);
+  opacity: var(--aod-transition-sun-opacity);
+  filter: saturate(1.05);
+  transform:
+    translate3d(
+      calc(-50% + var(--aod-transition-sun-x)),
+      calc(-50% + var(--aod-transition-sun-y)),
+      0
+    )
+    scale(var(--aod-transition-sun-scale));
+}
+
+.aod-transition__layer--cloud {
+  z-index: 1;
+  top: 35%;
+  width: var(--aod-transition-cloud-width);
+  opacity: var(--aod-transition-cloud-opacity);
+  filter: saturate(.96);
+  transform:
+    translate3d(
+      calc(-50% + var(--aod-transition-cloud-x)),
+      calc(-50% + var(--aod-transition-cloud-y)),
+      0
+    )
+    scale(var(--aod-transition-cloud-scale));
+}
+
+.aod-transition__figure-video {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  display: block;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  opacity: 1;
+  object-fit: cover;
+  object-position: center center;
+  user-select: none;
+  pointer-events: none;
+  filter: saturate(.95) contrast(1.02);
+  transform:
+    translate3d(0, var(--aod-transition-figure-y), 0)
+    scale(var(--aod-transition-figure-scale));
+  transform-origin: 50% 50%;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.aod-transition__progress {
+  display: none;
+  position: absolute;
+  left: max(22px, 5vw);
+  right: max(22px, 5vw);
+  bottom: 30px;
+  z-index: 30;
+  height: 1px;
+  overflow: hidden;
+  background: rgba(244, 213, 142, .16);
+}
+
+.aod-transition__progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #416b63, #dfaa45, #9e5132);
+  transform: scaleX(var(--aod-transition-progress));
+  transform-origin: 0 50%;
+}
+
+.aod-transition__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 860px) {
+  .aod-transition {
+    --aod-transition-scene-width: 96vw;
+    --aod-transition-sun-width: 88vw;
+    --aod-transition-cloud-width: 96vw;
+  }
+}
+
+@media (max-width: 560px) {
+  .aod-transition {
+    --aod-transition-scene-width: 130vw;
+    --aod-transition-sun-width: 116vw;
+    --aod-transition-cloud-width: 128vw;
+    --aod-transition-figure-y: 12dvh;
+    --aod-transition-figure-scale: 1;
+  }
+}

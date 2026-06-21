@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Figure 3 Route Entry Component｜同野观幂</title>
+  <meta name="theme-color" content="#dcdcd0" />
+  <link rel="preload" href="assets/figure3-alpha-poster.png" as="image" />
+  <link rel="preload" href="assets/figure3-alpha-scrub.webm?v=1280-q40" as="video" type="video/webm" />
+  <link rel="preload" href="assets/figure3-fabric-poster.jpg" as="image" />
+  <link rel="stylesheet" href="css/figure3-transition.css" />
+</head>
+<body>
+  <main class="figure3-transition-page">
+    <section
+      class="figure3-transition"
+      data-figure3-transition
+      data-figure3-route-stage
+      data-figure3-duration="2"
+      data-figure3-scroll-vh="20"
+      aria-label="Figure 3 fabric transition route-entry component"
+    >
+      <div class="figure3-transition__sticky">
+        <div class="figure3-transition__backdrop" aria-hidden="true"></div>
+
+        <div class="figure3-transition__stage" aria-hidden="true">
+          <video
+            class="figure3-transition__video"
+            data-figure3-alpha-video
+            src="assets/figure3-alpha-scrub.webm?v=1280-q40"
+            poster="assets/figure3-alpha-poster.png"
+            muted
+            preload="auto"
+            playsinline
+            webkit-playsinline
+          ></video>
+          <div class="figure3-transition__fill" data-figure3-fill aria-hidden="true"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/figure3-transition-route.js"></script>
+</body>
+</html>

@@ -43,6 +43,7 @@ export function createScrollProgressTrigger({
   invalidateOnRefresh = true,
   onUpdate = () => {},
   onLeave = () => {},
+  onEnterBack = () => {},
   onLeaveBack = () => {}
 } = {}) {
   if (!ScrollTrigger || !trigger) {
@@ -59,6 +60,7 @@ export function createScrollProgressTrigger({
     invalidateOnRefresh,
     onUpdate,
     onLeave,
+    onEnterBack,
     onLeaveBack
   });
 

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PH Route Entry｜同野观幂</title>
+  <meta name="description" content="同野观幂 PH route-entry 分层滚动场景。" />
+  <meta name="theme-color" content="#f6f2ed" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="js/vendor/gsap.min.js" as="script" />
+  <link rel="preload" href="js/vendor/ScrollTrigger.min.js" as="script" />
+  <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
+  <link rel="preload" href="assets/ph_background.png" as="image" />
+  <link rel="preload" href="assets/ph_front-alpha.png" as="image" />
+  <link rel="preload" href="assets/ph_figure-alpha-scrub.webm?v=allkey-1672-simple-key-20260621" as="video" type="video/webm" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/ph.css" />
+</head>
+<body class="ph-page">
+  <div class="grain" aria-hidden="true"></div>
+  <main class="ph-route">
+    <h1 class="ph-sr-only">Pythagoreans' Hymn to the Rising Sun</h1>
+    <section
+      class="ph-scroll"
+      data-ph-stage
+      aria-label="PH route-entry visual scene"
+    >
+      <div class="ph-sticky">
+        <div class="ph-field">
+          <img class="ph-bg" src="assets/ph_background.png" alt="" aria-hidden="true" />
+          <div class="ph-paper" aria-hidden="true"></div>
+          <div class="ph-sun-wash" aria-hidden="true"></div>
+          <div class="ph-layer-stack" aria-hidden="true">
+            <img class="ph-layer ph-layer--front" src="assets/ph_front-alpha.png" alt="" />
+            <video
+              class="ph-layer ph-layer--figure"
+              data-ph-alpha-video
+              src="assets/ph_figure-alpha-scrub.webm?v=allkey-1672-simple-key-20260621"
+              muted
+              preload="auto"
+              playsinline
+              webkit-playsinline
+            ></video>
+          </div>
+          <div class="ph-edge-light" aria-hidden="true"></div>
+          <div class="ph-texture" aria-hidden="true"></div>
+          <div class="ph-progress" aria-hidden="true">
+            <span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/ph-route-entry.js"></script>
+</body>
+</html>

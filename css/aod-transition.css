@@ -1,0 +1,18 @@
+@import url("./components/aod-transition.css");
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: #fff;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.aod-transition-page {
+  position: relative;
+  min-height: 100dvh;
+  background: #fff;
+}

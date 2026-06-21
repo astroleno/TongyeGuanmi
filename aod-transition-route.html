@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Ancient of Days Route Entry Component｜同野观幂</title>
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="preload" href="assets/aod_cloud-alpha.png" as="image" />
+  <link rel="preload" href="assets/aod_sun-alpha.png" as="image" />
+  <link rel="preload" href="assets/aod_figure-alpha-front-scrub.webm" as="video" type="video/webm" />
+  <link rel="stylesheet" href="css/aod-transition.css" />
+</head>
+<body>
+  <main class="aod-transition-page">
+    <h1 class="aod-transition__sr-only">The Ancient of Days</h1>
+    <section
+      class="aod-transition"
+      data-aod-transition
+      data-aod-route-stage
+      data-aod-duration="2"
+      data-aod-scroll-vh="20"
+      data-aod-video-duration="5.03"
+      data-aod-fullscreen-start="0"
+      data-aod-fullscreen-end="0.3"
+      data-aod-backdrop-exit-start="0"
+      data-aod-backdrop-exit-end="0.5"
+      data-aod-figure-start-scale="1"
+      data-aod-figure-start-y-vh="10.5"
+      aria-label="The Ancient of Days route-entry component"
+    >
+      <div class="aod-transition__sticky">
+        <div class="aod-transition__field">
+          <div class="aod-transition__layer-stack" aria-hidden="true">
+            <img
+              class="aod-transition__layer aod-transition__layer--cloud"
+              data-aod-cloud-layer
+              src="assets/aod_cloud-alpha.png"
+              alt=""
+            />
+            <img
+              class="aod-transition__layer aod-transition__layer--sun"
+              data-aod-sun-layer
+              src="assets/aod_sun-alpha.png"
+              alt=""
+            />
+          </div>
+
+          <video
+            class="aod-transition__figure-video"
+            data-aod-figure-video
+            src="assets/aod_figure-alpha-front-scrub.webm"
+            muted
+            preload="auto"
+            playsinline
+            webkit-playsinline
+          ></video>
+
+          <div class="aod-transition__progress" aria-hidden="true"><span></span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/aod-transition-route.js"></script>
+</body>
+</html>

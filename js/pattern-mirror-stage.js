@@ -1,14 +1,3 @@
-const canvas = document.querySelector('[data-mirror-stage-canvas], [data-bloom-canvas]');
-const scrollStage = document.querySelector('[data-mirror-stage-scroll]') ?? document.querySelector('.bloom-page') ?? document.body;
-const context = canvas?.getContext('2d', { alpha: false });
-
-const sourceCanvas = document.createElement('canvas');
-const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true });
-const petalCanvas = document.createElement('canvas');
-const petalContext = petalCanvas.getContext('2d');
-const flowerCanvas = document.createElement('canvas');
-const flowerContext = flowerCanvas.getContext('2d', { willReadFrequently: true });
-
 const DPR_LIMIT = 1.25;
 const SOURCE_SIZE = 1152;
 const STRONG_SCROLL_VIEWPORTS = 0.42;
@@ -16,6 +5,7 @@ const TAU = Math.PI * 2;
 const FINAL_ROTATION = 120 * Math.PI / 180;
 const SOURCE_FLOWER_SCALE = 0.702;
 const OUTER_KALEIDOSCOPE_SEGMENTS = 16;
+const MAX_RING_CACHE_SIZE = 1800;
 
 const backgroundSrc = 'assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png';
 
@@ -78,21 +68,6 @@ const layerConfigs = [
   }
 ];
 
-const state = {
-  width: 0,
-  height: 0,
-  dpr: 1,
-  textureSize: 0,
-  rafId: 0,
-  startedAt: 0,
-  background: null,
-  layers: []
-};
-const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
-const interpolate = (from, to, progress) => from + (to - from) * progress;
-
 const bloomRings = [
   {
     scale: 4.86,
@@ -137,6 +112,9 @@ const bloomRings = [
     filter: 'blur(0.35px) brightness(0.98) saturate(1.02) contrast(1.04)'
   }
 ];
+
+const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+const interpolate = (from, to, progress) => from + (to - from) * progress;
 
 const smoothstep = (edge0, edge1, value) => {
   const progress = clamp((value - edge0) / (edge1 - edge0));
@@ -194,235 +172,360 @@ const drawCenteredLayer = (ctx, layer, vmin, centerX, centerY, scale = 1, rotati
   ctx.restore();
 };
 
-const buildSourceTexture = () => {
-  sourceCanvas.width = SOURCE_SIZE;
-  sourceCanvas.height = SOURCE_SIZE;
-  petalCanvas.width = SOURCE_SIZE;
-  petalCanvas.height = SOURCE_SIZE;
-  sourceContext.clearRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
-  petalContext.clearRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
-
-  for (const layer of state.layers) {
-    if (layer.role === 'decor') continue;
-    drawCenteredLayer(sourceContext, layer, SOURCE_SIZE, SOURCE_SIZE / 2, SOURCE_SIZE / 2, 0.9);
-    if (layer.id !== '02') {
-      drawCenteredLayer(petalContext, layer, SOURCE_SIZE, SOURCE_SIZE / 2, SOURCE_SIZE / 2, 0.9);
-    }
-  }
-};
-
-const getObjectMetrics = () => {
-  const isMobile = state.width < 760 * state.dpr;
-  const vmin = Math.min(state.width, state.height);
-  const displaySize = isMobile
-    ? Math.min(vmin * 1.34, state.width * 1.12)
-    : Math.min(vmin * 1.34, state.width * 0.96);
-
-  return {
-    size: displaySize,
-    centerX: isMobile ? state.width * 0.42 : state.width * 0.28,
-    centerY: isMobile ? state.height * 0.58 : state.height * 0.55
+export function createPatternBloomScene({
+  canvas,
+  scrollStage = null,
+  progressSource = null,
+  reducedMotion = false,
+  reducedMotionProgress = 1,
+  center = {},
+  scale = 1,
+  continuousMotion = true,
+  scrollDrivenMotion = false,
+  dprLimit = DPR_LIMIT
+} = {}) {
+  const context = canvas?.getContext('2d', { alpha: false });
+  const sourceCanvas = document.createElement('canvas');
+  const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true });
+  const petalCanvas = document.createElement('canvas');
+  const petalContext = petalCanvas.getContext('2d');
+  const flowerCanvas = document.createElement('canvas');
+  const flowerContext = flowerCanvas.getContext('2d', { willReadFrequently: true });
+  const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const state = {
+    width: 0,
+    height: 0,
+    dpr: 1,
+    textureSize: 0,
+    rafId: 0,
+    startedAt: 0,
+    background: null,
+    layers: [],
+    ringCacheKey: '',
+    ringCache: [],
+    destroyed: false
   };
-};
 
-const resize = () => {
-  const dpr = Math.min(window.devicePixelRatio || 1, DPR_LIMIT);
-  const width = Math.max(1, Math.round(window.innerWidth * dpr));
-  const height = Math.max(1, Math.round(window.innerHeight * dpr));
-  const sizeChanged = width !== state.width || height !== state.height || dpr !== state.dpr;
+  const isReducedMotion = () => reducedMotion || mediaQuery.matches;
 
-  if (sizeChanged) {
-    state.width = width;
-    state.height = height;
-    state.dpr = dpr;
-    canvas.width = width;
-    canvas.height = height;
-  }
-
-  const metrics = getObjectMetrics();
-  const textureSize = Math.max(640, Math.min(1180, Math.round(metrics.size)));
-  if (textureSize !== state.textureSize) {
-    state.textureSize = textureSize;
-    flowerCanvas.width = textureSize;
-    flowerCanvas.height = textureSize;
-  }
-
-  return sizeChanged;
-};
-
-const getScrollProgress = () => {
-  if (!scrollStage) return 0;
-  const viewportHeight = Math.max(1, window.innerHeight || state.height / state.dpr || 1);
-  const rect = scrollStage.getBoundingClientRect();
-  const scrollable = Math.max(1, scrollStage.offsetHeight - viewportHeight);
-  const span = Math.max(1, Math.min(viewportHeight * STRONG_SCROLL_VIEWPORTS, scrollable));
-  const raw = -rect.top / span;
-  return clamp(raw);
-};
-
-const renderSourceFlowerTexture = (elapsed) => {
-  const size = state.textureSize;
-
-  flowerContext.clearRect(0, 0, size, size);
-
-  for (const layer of state.layers) {
-    if (layer.role === 'decor') continue;
-    const rotationOffset = (layer.direction ?? 0) * (elapsed / (layer.duration ?? 60)) * TAU;
-    drawCenteredLayer(
-      flowerContext,
-      layer,
-      size,
-      size / 2,
-      size / 2,
-      SOURCE_FLOWER_SCALE * (layer.sourceScale ?? 1),
-      rotationOffset
-    );
-  }
-};
-
-const drawDecorLayer = (layer, elapsed, metrics) => {
-  const image = layer.image;
-  const vmin = Math.min(state.width, state.height);
-  const width = layer.sizeRatio
-    ? metrics.size * layer.sizeRatio
-    : vmin * layer.widthVmin * layer.scale;
-  const height = width * (image.naturalHeight / image.naturalWidth);
-  const imageScale = width / image.naturalWidth;
-  const anchorX = (layer.anchorX ?? image.naturalWidth / 2) * imageScale;
-  const anchorY = (layer.anchorY ?? image.naturalHeight / 2) * imageScale;
-  const rotation = (layer.baseAngle * Math.PI / 180) + layer.direction * (elapsed / layer.duration) * TAU;
-
-  context.save();
-  context.translate(
-    metrics.centerX + metrics.size * (layer.offsetX ?? 0),
-    metrics.centerY + metrics.size * (layer.offsetY ?? 0)
-  );
-  context.rotate(rotation);
-  context.drawImage(image, -anchorX, -anchorY, width, height);
-  context.restore();
-};
-
-const drawDecorLayers = (elapsed, metrics) => {
-  for (const layer of state.layers) {
-    if (layer.role !== 'decor') continue;
-    drawDecorLayer(layer, elapsed, metrics);
-  }
-};
-
-const drawOuterPetalKaleidoscope = (drawSize, rotation, filter, elapsed, spin) => {
-  const wedge = TAU / OUTER_KALEIDOSCOPE_SEGMENTS;
-  const radius = drawSize * 0.74;
-  const sampleRotation = elapsed * 0.018 * spin;
-  const sampleX = Math.cos(elapsed * 0.13 + spin) * drawSize * 0.012;
-  const sampleY = Math.sin(elapsed * 0.11 - spin) * drawSize * 0.012;
-
-  context.save();
-  context.rotate(rotation);
-  context.filter = filter;
-
-  for (let index = 0; index < OUTER_KALEIDOSCOPE_SEGMENTS; index += 1) {
-    context.save();
-    context.rotate(index * wedge);
-    context.beginPath();
-    context.moveTo(0, 0);
-    context.arc(0, 0, radius, -wedge / 2 - 0.003, wedge / 2 + 0.003);
-    context.closePath();
-    context.clip();
-
-    if (index % 2 === 1) {
-      context.scale(1, -1);
+  const getScrollProgress = () => {
+    if (typeof progressSource === 'function') {
+      return clamp(progressSource());
     }
 
-    context.rotate(sampleRotation);
-    context.drawImage(petalCanvas, -drawSize / 2 + sampleX, -drawSize / 2 + sampleY, drawSize, drawSize);
-    context.restore();
-  }
+    if (!scrollStage) return 0;
+    const viewportHeight = Math.max(1, window.innerHeight || state.height / state.dpr || 1);
+    const rect = scrollStage.getBoundingClientRect();
+    const scrollable = Math.max(1, scrollStage.offsetHeight - viewportHeight);
+    const span = Math.max(1, Math.min(viewportHeight * STRONG_SCROLL_VIEWPORTS, scrollable));
+    const raw = -rect.top / span;
+    return clamp(raw);
+  };
 
-  context.restore();
-};
+  const getObjectMetrics = () => {
+    const isMobile = state.width < 760 * state.dpr;
+    const vmin = Math.min(state.width, state.height);
+    const displaySize = isMobile
+      ? Math.min(vmin * 1.34, state.width * 1.12)
+      : Math.min(vmin * 1.34, state.width * 0.96);
 
-const drawPetalField = (progress, metrics, elapsed) => {
-  const eased = easeInOutCubic(progress);
-  const collapse = smoothstep(0.02, 1, progress);
-  const fieldRotation = interpolate(FINAL_ROTATION, 0, eased);
+    return {
+      size: displaySize * scale,
+      centerX: state.width * (isMobile ? (center.mobileX ?? 0.42) : (center.x ?? 0.28)),
+      centerY: state.height * (isMobile ? (center.mobileY ?? 0.58) : (center.y ?? 0.55))
+    };
+  };
 
-  for (const ring of bloomRings) {
-    const drawSize = metrics.size * interpolate(ring.scale, ring.endScale, collapse);
-    const rotation = ring.rotation * Math.PI / 180 + fieldRotation * ring.spin + elapsed * 0.028 * ring.spin;
+  const resize = () => {
+    if (!canvas) return false;
+    const dpr = Math.min(window.devicePixelRatio || 1, dprLimit);
+    const rect = canvas.getBoundingClientRect();
+    const cssWidth = Math.max(1, rect.width || window.innerWidth || 1);
+    const cssHeight = Math.max(1, rect.height || window.innerHeight || 1);
+    const width = Math.max(1, Math.round(cssWidth * dpr));
+    const height = Math.max(1, Math.round(cssHeight * dpr));
+    const sizeChanged = width !== state.width || height !== state.height || dpr !== state.dpr;
 
-    if (drawSize < 2) continue;
+    if (sizeChanged) {
+      state.width = width;
+      state.height = height;
+      state.dpr = dpr;
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    const metrics = getObjectMetrics();
+    const textureSize = Math.max(640, Math.min(1180, Math.round(metrics.size)));
+    if (textureSize !== state.textureSize) {
+      state.textureSize = textureSize;
+      flowerCanvas.width = textureSize;
+      flowerCanvas.height = textureSize;
+    }
+
+    return sizeChanged;
+  };
+
+  const buildSourceTexture = () => {
+    sourceCanvas.width = SOURCE_SIZE;
+    sourceCanvas.height = SOURCE_SIZE;
+    petalCanvas.width = SOURCE_SIZE;
+    petalCanvas.height = SOURCE_SIZE;
+    sourceContext.clearRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
+    petalContext.clearRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
+
+    for (const layer of state.layers) {
+      if (layer.role === 'decor') continue;
+      drawCenteredLayer(sourceContext, layer, SOURCE_SIZE, SOURCE_SIZE / 2, SOURCE_SIZE / 2, 0.9);
+      if (layer.id !== '02') {
+        drawCenteredLayer(petalContext, layer, SOURCE_SIZE, SOURCE_SIZE / 2, SOURCE_SIZE / 2, 0.9);
+      }
+    }
+    state.ringCacheKey = '';
+    state.ringCache = [];
+  };
+
+  const renderSourceFlowerTexture = (elapsed) => {
+    const size = state.textureSize;
+    flowerContext.clearRect(0, 0, size, size);
+
+    for (const layer of state.layers) {
+      if (layer.role === 'decor') continue;
+      const rotationOffset = (layer.direction ?? 0) * (elapsed / (layer.duration ?? 60)) * TAU;
+      drawCenteredLayer(
+        flowerContext,
+        layer,
+        size,
+        size / 2,
+        size / 2,
+        SOURCE_FLOWER_SCALE * (layer.sourceScale ?? 1),
+        rotationOffset
+      );
+    }
+  };
+
+  const drawDecorLayer = (layer, elapsed, metrics) => {
+    const image = layer.image;
+    const vmin = Math.min(state.width, state.height);
+    const width = layer.sizeRatio
+      ? metrics.size * layer.sizeRatio
+      : vmin * layer.widthVmin * layer.scale;
+    const height = width * (image.naturalHeight / image.naturalWidth);
+    const imageScale = width / image.naturalWidth;
+    const anchorX = (layer.anchorX ?? image.naturalWidth / 2) * imageScale;
+    const anchorY = (layer.anchorY ?? image.naturalHeight / 2) * imageScale;
+    const rotation = (layer.baseAngle * Math.PI / 180) + layer.direction * (elapsed / layer.duration) * TAU;
 
     context.save();
-    context.translate(metrics.centerX, metrics.centerY);
-    drawOuterPetalKaleidoscope(drawSize, rotation, ring.filter, elapsed, ring.spin);
+    context.translate(
+      metrics.centerX + metrics.size * (layer.offsetX ?? 0),
+      metrics.centerY + metrics.size * (layer.offsetY ?? 0)
+    );
+    context.rotate(rotation);
+    context.drawImage(image, -anchorX, -anchorY, width, height);
     context.restore();
-  }
-};
+  };
 
-const drawFrame = (now) => {
-  const progress = getScrollProgress();
-  const metrics = getObjectMetrics();
-  const elapsed = Math.max(0, (now - state.startedAt) / 1000);
+  const drawDecorLayers = (elapsed, metrics) => {
+    for (const layer of state.layers) {
+      if (layer.role !== 'decor') continue;
+      drawDecorLayer(layer, elapsed, metrics);
+    }
+  };
 
-  drawCoverImage(context, state.background, 0, 0, state.width, state.height);
-  drawDecorLayers(elapsed, metrics);
-  drawPetalField(progress, metrics, elapsed);
-  renderSourceFlowerTexture(elapsed);
+  const drawOuterPetalKaleidoscope = (ctx, drawSize, rotation, filter, elapsed, spin) => {
+    const wedge = TAU / OUTER_KALEIDOSCOPE_SEGMENTS;
+    const radius = drawSize * 0.74;
+    const sampleRotation = elapsed * 0.018 * spin;
+    const sampleX = Math.cos(elapsed * 0.13 + spin) * drawSize * 0.012;
+    const sampleY = Math.sin(elapsed * 0.11 - spin) * drawSize * 0.012;
 
-  context.save();
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = 'high';
-  context.shadowColor = 'rgba(34, 24, 21, 0.24)';
-  context.shadowBlur = Math.min(state.width, state.height) * 0.055;
-  context.shadowOffsetY = Math.min(state.width, state.height) * 0.018;
-  context.drawImage(
-    flowerCanvas,
-    metrics.centerX - metrics.size / 2,
-    metrics.centerY - metrics.size / 2,
-    metrics.size,
-    metrics.size
-  );
-  context.restore();
-};
+    ctx.save();
+    ctx.rotate(rotation);
+    ctx.filter = filter;
 
-const render = (now) => {
-  state.rafId = 0;
-  resize();
-  drawFrame(now);
+    for (let index = 0; index < OUTER_KALEIDOSCOPE_SEGMENTS; index += 1) {
+      ctx.save();
+      ctx.rotate(index * wedge);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, radius, -wedge / 2 - 0.003, wedge / 2 + 0.003);
+      ctx.closePath();
+      ctx.clip();
 
-  if (!mediaQuery.matches) {
+      if (index % 2 === 1) {
+        ctx.scale(1, -1);
+      }
+
+      ctx.rotate(sampleRotation);
+      ctx.drawImage(petalCanvas, -drawSize / 2 + sampleX, -drawSize / 2 + sampleY, drawSize, drawSize);
+      ctx.restore();
+    }
+
+    ctx.restore();
+  };
+
+  const buildRingCache = (progress, metrics) => {
+    const cacheKey = [
+      Math.round(progress * 160),
+      Math.round(metrics.size),
+      state.textureSize
+    ].join(':');
+
+    if (cacheKey === state.ringCacheKey) return state.ringCache;
+
+    const eased = easeInOutCubic(progress);
+    const collapse = smoothstep(0.02, 1, progress);
+    const fieldRotation = interpolate(FINAL_ROTATION, 0, eased);
+
+    state.ringCacheKey = cacheKey;
+    state.ringCache = bloomRings
+      .map((ring) => {
+        const drawSize = metrics.size * interpolate(ring.scale, ring.endScale, collapse);
+        if (drawSize < 2) return null;
+
+        const cacheSize = Math.max(320, Math.min(MAX_RING_CACHE_SIZE, Math.round(drawSize)));
+        const ringCanvas = document.createElement('canvas');
+        const ringContext = ringCanvas.getContext('2d');
+        ringCanvas.width = cacheSize;
+        ringCanvas.height = cacheSize;
+
+        ringContext.save();
+        ringContext.translate(cacheSize / 2, cacheSize / 2);
+        drawOuterPetalKaleidoscope(ringContext, cacheSize, 0, ring.filter, progress * 4.2, ring.spin);
+        ringContext.restore();
+
+        return {
+          canvas: ringCanvas,
+          drawSize,
+          rotationBase: ring.rotation * Math.PI / 180 + fieldRotation * ring.spin,
+          spin: ring.spin
+        };
+      })
+      .filter(Boolean);
+
+    return state.ringCache;
+  };
+
+  const drawPetalField = (progress, metrics, elapsed) => {
+    for (const ring of buildRingCache(progress, metrics)) {
+      const rotation = ring.rotationBase + elapsed * 0.028 * ring.spin;
+
+      context.save();
+      context.translate(metrics.centerX, metrics.centerY);
+      context.rotate(rotation);
+      context.drawImage(ring.canvas, -ring.drawSize / 2, -ring.drawSize / 2, ring.drawSize, ring.drawSize);
+      context.restore();
+    }
+  };
+
+  const drawFrame = (now) => {
+    if (!state.background || state.layers.length === 0) return;
+    const progress = isReducedMotion() ? reducedMotionProgress : getScrollProgress();
+    const metrics = getObjectMetrics();
+    const elapsed = Math.max(0, (now - state.startedAt) / 1000);
+
+    drawCoverImage(context, state.background, 0, 0, state.width, state.height);
+    drawDecorLayers(elapsed, metrics);
+    drawPetalField(progress, metrics, elapsed);
+    renderSourceFlowerTexture(elapsed);
+
+    context.save();
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.shadowColor = 'rgba(34, 24, 21, 0.24)';
+    context.shadowBlur = Math.min(state.width, state.height) * 0.055;
+    context.shadowOffsetY = Math.min(state.width, state.height) * 0.018;
+    context.drawImage(
+      flowerCanvas,
+      metrics.centerX - metrics.size / 2,
+      metrics.centerY - metrics.size / 2,
+      metrics.size,
+      metrics.size
+    );
+    context.restore();
+  };
+
+  const render = (now) => {
+    state.rafId = 0;
+    if (state.destroyed) return;
+    resize();
+    drawFrame(now);
+
+    if (!isReducedMotion() && continuousMotion) {
+      state.rafId = window.requestAnimationFrame(render);
+    }
+  };
+
+  const requestRender = () => {
+    if (state.destroyed || state.rafId) return;
     state.rafId = window.requestAnimationFrame(render);
-  }
+  };
+
+  const start = async () => {
+    if (!canvas || !context || !sourceContext || !petalContext || !flowerContext) return null;
+
+    const [background, ...layers] = await Promise.all([
+      loadImage(backgroundSrc),
+      ...layerConfigs.map((layer) => loadImage(layer.src))
+    ]);
+
+    if (state.destroyed) return null;
+
+    state.background = background;
+    state.layers = layerConfigs.map((layer, index) => ({
+      ...layer,
+      image: layers[index]
+    }));
+    state.startedAt = performance.now();
+
+    buildSourceTexture();
+    resize();
+    render(state.startedAt);
+    return api;
+  };
+
+  const destroy = () => {
+    state.destroyed = true;
+    if (state.rafId) {
+      window.cancelAnimationFrame(state.rafId);
+      state.rafId = 0;
+    }
+    window.removeEventListener('resize', requestRender);
+    window.removeEventListener('scroll', requestRender);
+    mediaQuery.removeEventListener?.('change', requestRender);
+  };
+
+  const api = {
+    start,
+    destroy,
+    resize,
+    requestRender
+  };
+
+  window.addEventListener('resize', requestRender, { passive: true });
+  window.addEventListener('scroll', requestRender, { passive: true });
+  mediaQuery.addEventListener?.('change', requestRender);
+
+  return api;
+}
+
+const initStandalonePatternBloom = () => {
+  const canvas = document.querySelector('[data-mirror-stage-canvas], [data-bloom-canvas]');
+  if (!canvas || canvas.dataset.patternBloomMounted === 'true') return;
+
+  canvas.dataset.patternBloomMounted = 'true';
+  const scrollStage = document.querySelector('[data-mirror-stage-scroll]')
+    ?? document.querySelector('.bloom-page')
+    ?? document.body;
+  const scene = createPatternBloomScene({ canvas, scrollStage, reducedMotionProgress: 1 });
+
+  window.addEventListener('pagehide', scene.destroy, { once: true });
+  scene.start().catch((error) => {
+    console.error('Failed to start mirror stage', error);
+    scene.destroy();
+  });
 };
 
-const requestRender = () => {
-  if (state.rafId) return;
-  state.rafId = window.requestAnimationFrame(render);
-};
-
-const start = async () => {
-  if (!canvas || !context || !sourceContext || !flowerContext) return;
-
-  const [background, ...layers] = await Promise.all([
-    loadImage(backgroundSrc),
-    ...layerConfigs.map((layer) => loadImage(layer.src))
-  ]);
-
-  state.background = background;
-  state.layers = layerConfigs.map((layer, index) => ({
-    ...layer,
-    image: layers[index]
-  }));
-  state.startedAt = performance.now();
-
-  buildSourceTexture();
-  resize();
-  render(state.startedAt);
-};
-
-window.addEventListener('resize', requestRender, { passive: true });
-window.addEventListener('scroll', requestRender, { passive: true });
-mediaQuery.addEventListener?.('change', requestRender);
-start().catch((error) => {
-  console.error('Failed to start mirror stage', error);
-});
+if (typeof document !== 'undefined') {
+  initStandalonePatternBloom();
+}

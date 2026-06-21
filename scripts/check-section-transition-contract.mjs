@@ -61,6 +61,19 @@ const sectionPositions = new Map(
   generatedSectionTags.map((node) => [node.attrs.get('data-section-id'), node.index])
 );
 
+const homeSection = sectionTags.find((node) => node.attrs.get('id') === 'home');
+if (homeSection) {
+  sectionPositions.set('home', homeSection.index);
+}
+
+const sceneTags = [...indexHtml.matchAll(/<div\b[^>]*>/g)]
+  .map((match) => ({ tag: match[0], index: match.index ?? -1, attrs: parseAttributes(match[0]) }))
+  .filter((node) => node.attrs.has('data-scene-id'));
+
+for (const scene of sceneTags) {
+  sectionPositions.set(scene.attrs.get('data-scene-id'), scene.index);
+}
+
 for (const [index, section] of contentSections.entries()) {
   const node = generatedSectionTags.find((candidate) => candidate.attrs.get('data-section-id') === section.id);
   assert.ok(node, `Missing section node for ${section.id}`);
@@ -71,7 +84,11 @@ for (const [index, section] of contentSections.entries()) {
   assert.equal(node.attrs.get('data-section-layout'), section.layout, `Section ${section.id} has incorrect data-section-layout`);
 }
 
-const sectionIds = new Set(contentSections.map((section) => section.id));
+const sectionIds = new Set([
+  'home',
+  ...contentSections.map((section) => section.id),
+  ...sceneTags.map((node) => node.attrs.get('data-scene-id'))
+]);
 const manifestTransitionIds = chapterTransitions.map((transition) => transition.id);
 const generatedTransitionIds = transitionTags.map((node) => node.attrs.get('data-transition-id'));
 
@@ -83,7 +100,7 @@ assert.deepEqual(generatedTransitionIds, manifestTransitionIds, 'Generated trans
 for (const [index, transition] of chapterTransitions.entries()) {
   assert.ok(sectionIds.has(transition.from), `Transition ${transition.id} has unknown from section ${transition.from}`);
   assert.ok(sectionIds.has(transition.to), `Transition ${transition.id} has unknown to section ${transition.to}`);
-  assert.ok(executableTransitionModules.includes(transition.module), `Transition ${transition.id} uses non-Phase-1 module ${transition.module}`);
+  assert.ok(executableTransitionModules.includes(transition.module), `Transition ${transition.id} uses unknown module ${transition.module}`);
   const node = transitionTags[index];
   assert.ok(node, `Missing transition node for ${transition.id}`);
   assert.equal(node.attrs.get('data-transition-id'), transition.id, `Transition ${transition.id} has incorrect data-transition-id`);

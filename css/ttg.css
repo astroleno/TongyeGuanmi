@@ -70,6 +70,29 @@
   pointer-events: none;
 }
 
+.ttg-backdrop-wash {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 1;
+  background:
+    linear-gradient(
+      0deg,
+      rgba(255, 236, 190, 0.02) 0%,
+      rgba(255, 236, 190, 0.08) 32%,
+      rgba(255, 242, 207, 0.22) 62%,
+      rgba(255, 252, 235, 0.48) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 245, 0.18) 0%,
+      transparent 30%,
+      transparent 100%
+    ),
+    radial-gradient(ellipse at 48% 34%, rgba(255, 236, 182, 0.22), transparent 50%);
+}
+
 .ttg-layer {
   position: absolute;
   left: 50%;
@@ -94,22 +117,16 @@
   opacity: 1;
   transform: translate3d(-50%, 0, 0);
   transform-origin: 50% 0;
-  filter: saturate(0.95) contrast(1.02);
 }
 
 .ttg-layer--middle {
   z-index: 2;
   opacity: 1;
-  filter:
-    drop-shadow(0 24px 22px rgba(0, 0, 0, 0.26))
-    brightness(0.78)
-    saturate(0.96);
 }
 
 .ttg-layer--middle-overlay {
   z-index: 2;
   opacity: 0.2;
-  filter: brightness(0.78) saturate(0.96) contrast(1.02);
 }
 
 .ttg-layer--front,
@@ -124,16 +141,11 @@
 .ttg-layer--front {
   z-index: 3;
   opacity: 1;
-  filter:
-    drop-shadow(0 26px 26px rgba(0, 0, 0, 0.30))
-    brightness(0.78)
-    saturate(0.96);
 }
 
 .ttg-layer--front-overlay {
   z-index: 3;
   opacity: var(--ttg-front-overlay-opacity);
-  filter: brightness(0.78) saturate(0.96) contrast(1.02);
 }
 
 .ttg-layer--figure {
@@ -144,14 +156,14 @@
   width: calc(var(--ttg-figure-layer-height) * 0.5625);
   height: var(--ttg-figure-layer-height);
   max-width: none;
-  opacity: 1;
+  opacity: 0;
   object-fit: contain;
   object-position: center center;
-  filter:
-    drop-shadow(0 34px 30px rgba(0, 0, 0, 0.34))
-    brightness(0.82)
-    saturate(0.92)
-    contrast(1.01);
+  clip-path: inset(1px);
+}
+
+.ttg-layer--figure.is-active {
+  opacity: 1;
 }
 
 .ttg-moon-wash {

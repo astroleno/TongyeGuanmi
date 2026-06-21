@@ -1,12 +1,6 @@
+@import url("./components/figure3-transition.css");
+
 :root {
-  --fabric-progress: 0;
-  --fabric-paper: #dcdcd0;
-  --fabric-ink: #292919;
-  --fabric-backdrop-opacity: 1;
-  --fabric-backdrop-scale: 1.06;
-  --fabric-video-opacity: 1;
-  --fabric-video-scale: 1.004;
-  --fabric-fill-opacity: 0;
   color-scheme: light;
 }
 
@@ -17,12 +11,12 @@
 html,
 body {
   min-height: 100%;
-  background: var(--fabric-paper);
+  background: #dcdcd0;
 }
 
 body {
   margin: 0;
-  color: var(--fabric-ink);
+  color: #292919;
   font-family: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
   overflow-x: hidden;
   scrollbar-width: none;
@@ -39,160 +33,9 @@ body.is-lenis-active {
   overscroll-behavior-y: none;
 }
 
-img,
-video {
-  display: block;
-  max-width: 100%;
-}
-
-button {
-  font: inherit;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.fabric-route {
+.figure3-transition-page {
   min-height: 100dvh;
-  background: var(--fabric-paper);
-}
-
-.fabric-scroll {
-  position: relative;
-  height: 180dvh;
-  min-height: 1080px;
-}
-
-.fabric-sticky {
-  position: sticky;
-  top: 0;
-  height: 100dvh;
-  min-height: 100dvh;
-  overflow: hidden;
-  isolation: isolate;
-  background: var(--fabric-paper);
-}
-
-.fabric-backdrop,
-.fabric-transition,
-.fabric-alpha-video,
-.fabric-fill,
-.fabric-fill::before,
-.fabric-fill::after {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.fabric-backdrop {
-  z-index: 0;
-  max-width: none;
-  opacity: var(--fabric-backdrop-opacity);
-  transform: translateZ(0) scale(var(--fabric-backdrop-scale));
-  will-change: opacity, transform;
-  background: var(--fabric-paper);
-}
-
-.fabric-sticky::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, .10), transparent 32%, rgba(41, 41, 25, .055)),
-    linear-gradient(90deg, rgba(220, 220, 208, .48), transparent 18%, transparent 82%, rgba(220, 220, 208, .54));
-}
-
-.fabric-transition {
-  z-index: 2;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.fabric-alpha-video {
-  z-index: 1;
-  max-width: none;
-  object-fit: cover;
-  object-position: 24% center;
-  opacity: var(--fabric-video-opacity);
-  filter: saturate(.94) contrast(1.02) brightness(.98);
-  transform: translateZ(0) scale(var(--fabric-video-scale));
-  will-change: opacity, transform;
-}
-
-.fabric-fill {
-  z-index: 2;
-  opacity: var(--fabric-fill-opacity);
-  background: url("../assets/figure3-fabric-poster.jpg") center / cover no-repeat;
-  will-change: opacity;
-}
-
-.fabric-fill::before {
-  content: "";
-  z-index: 1;
-  opacity: .82;
-  mix-blend-mode: multiply;
-  background:
-    repeating-linear-gradient(90deg, rgba(91, 72, 42, .085) 0 1px, transparent 1px 9px),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, .22) 0 1px, transparent 1px 7px),
-    radial-gradient(circle at 22% 18%, rgba(140, 108, 62, .10), transparent 28vw),
-    radial-gradient(circle at 76% 66%, rgba(86, 64, 35, .08), transparent 34vw);
-}
-
-.fabric-fill::after {
-  content: "";
-  z-index: 2;
-  opacity: .62;
-  background:
-    linear-gradient(90deg, rgba(238, 229, 208, .14), transparent 18%, transparent 82%, rgba(218, 202, 166, .16)),
-    radial-gradient(circle at 50% 42%, transparent 0 48%, rgba(169, 137, 84, .13) 100%);
-}
-
-.fabric-progress {
-  position: fixed;
-  left: 24px;
-  right: 116px;
-  bottom: 31px;
-  z-index: 8;
-  height: 1px;
-  overflow: hidden;
-  background: rgba(41, 41, 25, .16);
-}
-
-.fabric-progress span {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: rgba(41, 41, 25, .74);
-  transform: scaleX(var(--fabric-progress));
-  transform-origin: 0 50%;
-}
-
-.fabric-replay {
-  position: fixed;
-  right: 22px;
-  bottom: 12px;
-  z-index: 8;
-  min-width: 76px;
-  height: 42px;
-  border: 1px solid rgba(41, 41, 25, .22);
-  border-radius: 999px;
-  color: rgba(41, 41, 25, .82);
-  background: rgba(220, 220, 208, .54);
-  backdrop-filter: blur(16px);
-  font-size: 14px;
-  cursor: pointer;
-}
-
-@media (max-width: 520px) {
-  .fabric-scroll {
-    min-height: 920px;
-  }
-
-  .fabric-progress {
-    left: 18px;
-    right: 104px;
-  }
+  background: #dcdcd0;
 }
 
 @media (prefers-reduced-motion: reduce) {

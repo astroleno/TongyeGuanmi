@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Talk to the God Route Entry Component｜同野观幂</title>
+  <meta name="description" content="同野观幂 Talk to the God route-entry 组件接入版分层滚动场景。" />
+  <meta name="theme-color" content="#080d10" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="js/vendor/gsap.min.js" as="script" />
+  <link rel="preload" href="js/vendor/ScrollTrigger.min.js" as="script" />
+  <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
+  <link rel="preload" href="assets/ttg_bg.png" as="image" />
+  <link rel="preload" href="assets/ttg_middle-alpha.png" as="image" />
+  <link rel="preload" href="assets/ttg_middle-original-overlay-alpha.png" as="image" />
+  <link rel="preload" href="assets/ttg_front-original-overlay-alpha.png?v=ttg-front-image15-blend80-v1" as="image" />
+  <link rel="preload" href="assets/ttg_front-alpha.png?v=ttg-front-image15-blend80-v1" as="image" />
+  <link rel="preload" href="assets/ttg_figure-alpha-scrub.webm?v=ttg-figure-blue-v2" as="video" type="video/webm" />
+  <link rel="preload" href="assets/ttg_figure-alpha-scrub-reverse.webm?v=ttg-figure-blue-v2" as="video" type="video/webm" />
+  <link rel="preload" href="assets/ttg_figure-alpha-scrub-poster.png?v=ttg-figure-blue-v2" as="image" />
+  <link rel="preload" href="assets/ttg-complete.png" as="image" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/ttg.css?v=ttg-transition-route-1" />
+</head>
+<body class="ttg-page">
+  <main class="ttg-route">
+    <h1 class="ttg-sr-only">Talk to the God Route Entry Component</h1>
+    <section
+      class="ttg-scroll"
+      data-ttg-transition
+      data-ttg-stage
+      data-ttg-route-stage
+      data-ttg-duration="2.5"
+      data-ttg-scroll-vh="153"
+      data-ttg-video-duration="2.459"
+      data-ttg-bg-travel-vh="14.3"
+      data-ttg-middle-travel-vh="23.5"
+      data-ttg-front-y-vh="29.2"
+      data-ttg-front-travel-vh="13.1"
+      data-ttg-front-overlay-opacity="0.2"
+      data-ttg-figure-scale="0.80"
+      data-ttg-figure-y-vh="-8.5"
+      data-ttg-figure-travel-vh="16.5"
+      style="--ttg-scroll-vh: 153; --ttg-front-overlay-opacity: 0.2;"
+      aria-label="Talk to the God route-entry component visual scene"
+    >
+      <div class="ttg-sticky">
+        <div class="ttg-field">
+          <div class="ttg-layer-stack" aria-hidden="true">
+            <img class="ttg-layer ttg-layer--bg" src="assets/ttg_bg.png" alt="" />
+            <img class="ttg-layer ttg-layer--middle" src="assets/ttg_middle-alpha.png" alt="" />
+            <img class="ttg-layer ttg-layer--middle-overlay" src="assets/ttg_middle-original-overlay-alpha.png" alt="" />
+            <img class="ttg-layer ttg-layer--front" src="assets/ttg_front-original-overlay-alpha.png?v=ttg-front-image15-blend80-v1" alt="" />
+            <img class="ttg-layer ttg-layer--front-overlay" src="assets/ttg_front-alpha.png?v=ttg-front-image15-blend80-v1" alt="" />
+            <video
+              class="ttg-layer ttg-layer--figure is-active"
+              data-ttg-figure-video
+              src="assets/ttg_figure-alpha-scrub.webm?v=ttg-figure-blue-v2"
+              poster="assets/ttg_figure-alpha-scrub-poster.png?v=ttg-figure-blue-v2"
+              width="720"
+              height="1280"
+              muted
+              preload="auto"
+              playsinline
+              webkit-playsinline
+            ></video>
+            <video
+              class="ttg-layer ttg-layer--figure"
+              data-ttg-figure-video-reverse
+              src="assets/ttg_figure-alpha-scrub-reverse.webm?v=ttg-figure-blue-v2"
+              width="720"
+              height="1280"
+              muted
+              preload="auto"
+              playsinline
+              webkit-playsinline
+            ></video>
+          </div>
+          <div class="ttg-progress" aria-hidden="true">
+            <span></span>
+          </div>
+          <noscript>
+            <img class="ttg-noscript" src="assets/ttg-complete.png" alt="" />
+          </noscript>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/ttg-transition-route.js"></script>
+</body>
+</html>
