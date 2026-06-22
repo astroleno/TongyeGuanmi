@@ -147,9 +147,9 @@
 }
 
 .canvas-section--belief.is-pattern-bloom-pinned .belief-copy-wrap {
-  opacity: 0 !important;
-  filter: none !important;
-  transform: none !important;
+  opacity: var(--belief-copy-opacity, 0) !important;
+  filter: blur(var(--belief-copy-blur, 0px)) !important;
+  transform: translate3d(0, var(--belief-copy-y, 0px), 0) !important;
 }
 
 body .chapter-transition.homepage-transition--reduced-motion,

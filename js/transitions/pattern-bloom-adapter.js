@@ -8,10 +8,6 @@ const smoothStep = (value) => value * value * (3 - 2 * value);
 const REVEAL_END = 0.46;
 const BLOOM_START = 0.42;
 const BLOOM_END = 0.70;
-const COPY_IN_START = 0.64;
-const COPY_IN_END = 0.74;
-const COPY_HOLD_END = 0.84;
-const COPY_OUT_END = 0.90;
 const SECOND_REVEAL_START = 0.84;
 const SECOND_REVEAL_END = 0.985;
 const BELIEF_PIN_CLASS = 'is-pattern-bloom-pinned';
@@ -33,11 +29,12 @@ export function mountPatternBloomTransition({
   const previousAriaLabel = host.getAttribute('aria-label');
   host.removeAttribute('aria-hidden');
   host.setAttribute('role', 'region');
-  host.setAttribute('aria-label', '同野观幂一句话讲清我们干什么');
+  host.setAttribute('aria-label', '同野观幂莲花转场');
 
   const doc = host.ownerDocument || document;
   const beliefSection = doc.querySelector('.canvas-section--belief');
   const beliefStarCanvas = beliefSection?.querySelector('[data-belief-star-field]') || null;
+  const presentationTarget = beliefSection;
   const stage = doc.createElement('div');
   stage.className = 'pattern-bloom-transition__stage';
 
@@ -57,16 +54,8 @@ export function mountPatternBloomTransition({
   exitInkCanvas.className = 'pattern-bloom-transition__exit-ink';
   exitInkCanvas.setAttribute('aria-hidden', 'true');
 
-  const copy = doc.createElement('div');
-  copy.className = 'pattern-bloom-transition__copy';
-  copy.innerHTML = `
-    <div class="section-index">同野观幂 / 00</div>
-    <span class="card-label">一句话讲清我们干什么</span>
-    <h3>让 AI 从一场培训，变成账上的数字。</h3>
-    <p>我们不卖课、不卖软件，而是进到你的业务现场，把 AI 做成团队天天在用、月底对得上账的东西。</p>
-  `;
-
-  stage.append(paper, canvas, exitInkCanvas, copy, revealInkCanvas);
+  stage.append(paper, canvas, exitInkCanvas, revealInkCanvas);
+  stage.dataset.transitionGhost = 'pattern-bloom-lotus';
   (doc.body || host).append(stage);
   const revealInkTransition = createInkSceneTransition(revealInkCanvas, {
     targetSrc: '',
@@ -142,25 +131,25 @@ export function mountPatternBloomTransition({
     beliefSection.style.removeProperty('--belief-copy-blur');
     beliefPinY = 0;
   };
-  const setBeliefTransitionState = ({ pinned, sceneOpacity = 1, textProgress }) => {
-    if (!beliefSection) return;
+  const setBeliefTransitionState = ({ pinned, sceneOpacity = 1, textProgress, presentationTarget: target = beliefSection }) => {
+    if (!target) return;
     if (!pinned) {
       clearBeliefTransitionState();
       return;
     }
 
-    const transformedTop = beliefSection.getBoundingClientRect().top;
+    const transformedTop = target.getBoundingClientRect().top;
     const baseTop = transformedTop - beliefPinY;
     beliefPinY = -baseTop;
 
     const copyY = (1 - textProgress) * 28;
     const copyBlur = (1 - textProgress) * 10;
-    beliefSection.classList.add(BELIEF_PIN_CLASS);
-    beliefSection.style.setProperty('--belief-transition-y', `${beliefPinY.toFixed(2)}px`);
-    beliefSection.style.setProperty('--belief-transition-opacity', sceneOpacity.toFixed(4));
-    beliefSection.style.setProperty('--belief-copy-opacity', textProgress.toFixed(4));
-    beliefSection.style.setProperty('--belief-copy-y', `${copyY.toFixed(2)}px`);
-    beliefSection.style.setProperty('--belief-copy-blur', `${copyBlur.toFixed(2)}px`);
+    target.classList.add(BELIEF_PIN_CLASS);
+    target.style.setProperty('--belief-transition-y', `${beliefPinY.toFixed(2)}px`);
+    target.style.setProperty('--belief-transition-opacity', sceneOpacity.toFixed(4));
+    target.style.setProperty('--belief-copy-opacity', textProgress.toFixed(4));
+    target.style.setProperty('--belief-copy-y', `${copyY.toFixed(2)}px`);
+    target.style.setProperty('--belief-copy-blur', `${copyBlur.toFixed(2)}px`);
   };
 
   const renderOverlays = () => {
@@ -173,11 +162,6 @@ export function mountPatternBloomTransition({
       ? 1
       : (progress > 0.0001 ? Math.max(revealProgress, 0.003) : 0);
     const canvasRevealed = sceneReady && revealProgress >= 0.998;
-    const copyIn = smoothStep(range01(progress, COPY_IN_START, COPY_IN_END));
-    const copyOut = 1 - smoothStep(range01(progress, COPY_HOLD_END, COPY_OUT_END));
-    const copyOpacity = copyIn * copyOut;
-    const copyY = (1 - copyIn) * 28 - smoothStep(range01(progress, COPY_HOLD_END, COPY_OUT_END)) * 18;
-    const copyBlur = (1 - copyIn) * 10;
     const secondRevealProgress = smoothStep(range01(progress, SECOND_REVEAL_START, SECOND_REVEAL_END));
     const topSceneExit = smoothStep(range01(secondRevealProgress, 0.68, 0.98));
     const topSceneOpacity = canvasRevealed && secondRevealProgress < 0.998 ? 1 - topSceneExit : 0;
@@ -188,7 +172,8 @@ export function mountPatternBloomTransition({
     setBeliefTransitionState({
       pinned: beliefPinned,
       sceneOpacity: beliefSceneOpacity,
-      textProgress: 0
+      textProgress: beliefSceneOpacity,
+      presentationTarget: beliefSection
     });
 
     stage.style.opacity = overlayActive ? '1' : '0';
@@ -197,10 +182,6 @@ export function mountPatternBloomTransition({
     paper.style.visibility = 'hidden';
     canvas.style.opacity = lotusVisible ? topSceneOpacity.toFixed(4) : '0';
     canvas.style.visibility = lotusVisible ? 'visible' : 'hidden';
-    copy.style.opacity = copyOpacity.toFixed(4);
-    copy.style.visibility = copyOpacity > 0.002 ? 'visible' : 'hidden';
-    copy.style.transform = `translate3d(0, calc(-50% + ${copyY.toFixed(2)}px), 0)`;
-    copy.style.filter = copyBlur > 0.02 ? `blur(${copyBlur.toFixed(2)}px)` : 'none';
     revealInkTransition?.render(revealProgress, 0, 0, sceneReady ? revealVisibility : 0);
     exitInkTransition?.render(secondRevealProgress, 0, 0, secondRevealProgress, {
       perlinStrength: 0.40,

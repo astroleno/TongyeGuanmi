@@ -13,6 +13,7 @@ const revealSource = read('js/ui/reveal.js');
 const presentationControllerSource = read('js/transitions/homepage/section-presentation-controller.js');
 const handoffPreviewSource = read('js/transitions/homepage/handoff-preview.js');
 const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js');
+const patternBloomAdapterSource = read('js/transitions/pattern-bloom-adapter.js');
 const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
 const craneHomepageAdapterSource = read('js/transitions/homepage/crane-homepage-adapter.js');
@@ -106,6 +107,16 @@ assert.equal(
   transitionById.get('home-belief')?.attrs.get('data-transition-drive'),
   'scroll',
   'home-belief must be scroll-driven so it cannot expose an empty snap host'
+);
+assert.doesNotMatch(
+  patternBloomAdapterSource,
+  /pattern-bloom-transition__copy|一句话讲清我们干什么|让 AI 从一场培训/,
+  'Pattern Bloom must not render a second Belief presentation copy'
+);
+assert.ok(
+  patternBloomAdapterSource.includes('textProgress: beliefSceneOpacity')
+    && patternBloomAdapterSource.includes('presentationTarget: beliefSection'),
+  'Pattern Bloom must hand off to the real Belief section'
 );
 assert.equal(
   aodHandoffTransition?.attrs.get('data-transition-stage-stops'),
