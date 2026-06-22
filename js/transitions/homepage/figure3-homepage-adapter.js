@@ -4,15 +4,6 @@ import {
   waitForFigure3TransitionMetadata
 } from '../../components/figure3-transition.js';
 
-const SERVICE_TITLE = '真正的 AI 转型，发生在你的业务现场，不在供应商的方案书里。';
-
-function renderTitleCharacters(text) {
-  return Array.from(text).map((char, index) => {
-    const content = char === ' ' ? '&nbsp;' : char;
-    return `<span class="figure3-transition__title-char" style="--char-index: ${index};">${content}</span>`;
-  }).join('');
-}
-
 export function mountHomepageTransition({ host, reduceMotion = false, progressSource, addCleanup }) {
   host.classList.add('homepage-transition', 'homepage-transition--figure3');
   host.innerHTML = `
@@ -28,18 +19,7 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
         <div class="figure3-transition__stage" aria-hidden="true">
           <video class="figure3-transition__video" data-figure3-alpha-video src="assets/figure3-alpha-scrub.webm?v=1280-q40" poster="assets/figure3-alpha-poster.png" muted preload="auto" playsinline webkit-playsinline></video>
           <div class="figure3-transition__fill" data-figure3-fill aria-hidden="true"></div>
-          <div class="figure3-transition__service-copy" aria-hidden="true">
-            <div class="figure3-transition__service-lead">
-              <span class="section-index">Enterprise / 02</span>
-              <h2>${renderTitleCharacters(SERVICE_TITLE)}</h2>
-            </div>
-            <div class="figure3-transition__service-signals">
-              <span>先看现场</span>
-              <b>钱 · 人 · 流程</b>
-              <span>先跑一环</span>
-              <b>几天见实物</b>
-            </div>
-          </div>
+          <div class="figure3-transition__visual-bridge" data-transition-ghost="figure3-fabric" aria-hidden="true"></div>
         </div>
       </div>
     </section>

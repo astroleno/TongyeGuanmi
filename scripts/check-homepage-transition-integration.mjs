@@ -16,6 +16,7 @@ const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js'
 const patternBloomAdapterSource = read('js/transitions/pattern-bloom-adapter.js');
 const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
+const figure3HomepageAdapterSource = read('js/transitions/homepage/figure3-homepage-adapter.js');
 const craneHomepageAdapterSource = read('js/transitions/homepage/crane-homepage-adapter.js');
 const ttgHomepageAdapterSource = read('js/transitions/homepage/ttg-homepage-adapter.js');
 const ttgComponentSource = read('js/components/ttg-transition.js');
@@ -85,6 +86,11 @@ assert.equal(
   transitionById.get('services-lab')?.attrs.get('data-transition-module'),
   'ttg',
   'services-lab must use the TTG transition before the scenario scene'
+);
+assert.doesNotMatch(
+  figure3HomepageAdapterSource,
+  /SERVICE_TITLE|figure3-transition__service-copy|真正的 AI 转型/,
+  'Figure3 homepage transition must stay visual-only instead of owning Services presentation copy'
 );
 assert.equal(
   transitionById.get('education-philosophy')?.attrs.get('data-transition-module'),
