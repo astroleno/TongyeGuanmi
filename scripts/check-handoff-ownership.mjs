@@ -11,6 +11,7 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 
 const packageJson = JSON.parse(read('package.json'));
 const handoffPreviewSource = read('js/transitions/homepage/handoff-preview.js');
+const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js');
 const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
 const craneHomepageAdapterSource = read('js/transitions/homepage/crane-homepage-adapter.js');
@@ -73,7 +74,7 @@ for (const handoff of handoffs) {
 }
 
 assert.doesNotMatch(
-  `${handoffPreviewSource}\n${aodHomepageAdapterSource}\n${figure2HomepageAdapterSource}\n${craneHomepageAdapterSource}`,
+  `${handoffPreviewSource}\n${handoffReceiverSource}\n${aodHomepageAdapterSource}\n${figure2HomepageAdapterSource}\n${craneHomepageAdapterSource}`,
   /cloneNode\s*\(\s*true\s*\)/,
   'Homepage handoff code must not clone real target content'
 );

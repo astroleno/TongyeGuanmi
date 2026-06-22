@@ -1,5 +1,5 @@
 import { createCraneTransitionScene } from '../../components/crane-transition.js';
-import { createHandoffPreview } from './handoff-preview.js';
+import { createHandoffReceiver } from './handoff-receiver.js';
 
 export function mountHomepageTransition({
   host,
@@ -15,7 +15,7 @@ export function mountHomepageTransition({
       <div class="crane-sticky">
         <div class="crane-field">
           <div class="crane-paper" aria-hidden="true"></div>
-          <div class="crane-layer-stack" aria-hidden="true">
+          <div class="crane-layer-stack" data-transition-ghost="crane-motion" aria-hidden="true">
             <img class="crane-layer crane-layer--cloud-back" src="assets/crane1_cloud2-alpha.png" alt="" />
             <div class="crane-video-transition crane-video-transition--figure">
               <video class="crane-figure-video" data-crane-figure-video muted preload="auto" playsinline webkit-playsinline>
@@ -42,11 +42,11 @@ export function mountHomepageTransition({
 
   const stage = host.querySelector('[data-crane-stage]');
   const field = host.querySelector('.crane-field');
-  const contactPreview = createHandoffPreview({
+  const contactReceiver = createHandoffReceiver({
     container: field,
     target: handoffTarget,
     sourceSelector: '.contact-endpoint',
-    className: 'homepage-handoff-preview--contact'
+    className: 'homepage-handoff-receiver--contact'
   });
   const scene = createCraneTransitionScene(stage);
   if (!scene) throw new Error('Crane homepage transition could not initialize.');
@@ -59,14 +59,14 @@ export function mountHomepageTransition({
     const progress = reduceMotion ? 1 : progressSource();
     const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? progress;
     scene.renderRawProgress(progress);
-    contactPreview?.update(Math.max(progress, handoffProgress), { start: 0.58, end: 0.94, liftPx: 20 });
+    contactReceiver?.update(Math.max(progress, handoffProgress), { start: 0.58, end: 0.94, liftPx: 20 });
     raf = requestAnimationFrame(render);
   };
 
   scene.prepare();
   if (reduceMotion) {
     scene.mountReducedMotion();
-    contactPreview?.update(1);
+    contactReceiver?.update(1);
   } else {
     scene.waitForVideos().finally(render);
   }
@@ -76,7 +76,7 @@ export function mountHomepageTransition({
     destroyed = true;
     cancelAnimationFrame(raf);
     scene.destroy();
-    contactPreview?.destroy();
+    contactReceiver?.destroy();
     host.replaceChildren();
     host.classList.remove('homepage-transition', 'homepage-transition--crane', 'crane-page');
   };

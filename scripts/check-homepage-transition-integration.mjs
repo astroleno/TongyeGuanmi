@@ -12,6 +12,7 @@ const runtimeSource = read('js/transitions/homepage-transition-runtime.js');
 const revealSource = read('js/ui/reveal.js');
 const presentationControllerSource = read('js/transitions/homepage/section-presentation-controller.js');
 const handoffPreviewSource = read('js/transitions/homepage/handoff-preview.js');
+const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js');
 const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
 const craneHomepageAdapterSource = read('js/transitions/homepage/crane-homepage-adapter.js');
@@ -139,11 +140,11 @@ assert.ok(
   'AOD handoff must not render a duplicate Method block inside the transition'
 );
 assert.ok(
-  aodHomepageAdapterSource.includes('createHandoffPreview')
+  aodHomepageAdapterSource.includes('createHandoffReceiver')
     && aodHomepageAdapterSource.includes("sourceSelector: '.method-edition-layout--after-handoff'")
-    && aodHomepageAdapterSource.includes("className: 'homepage-handoff-preview--method'")
+    && aodHomepageAdapterSource.includes("className: 'homepage-handoff-receiver--method'")
     && aodHomepageAdapterSource.includes('handoffProgressSource'),
-  'AOD handoff must use the shared preview layer for the native Method first screen'
+  'AOD handoff must adopt the native Method first screen'
 );
 assert.ok(
   indexHtml.includes('method-handoff-anchor')
@@ -276,12 +277,17 @@ assert.ok(
   'Homepage Figure2 staged visuals must stay fixed to the viewport while snapped'
 );
 assert.ok(
-  handoffPreviewSource.includes('createHandoffPreview')
-    && handoffPreviewSource.includes('removeAttribute(\'id\')')
-    && handoffPreviewSource.includes("removeProperty('opacity')")
-    && handoffPreviewSource.includes('--handoff-preview-opacity')
-    && handoffPreviewSource.includes('tabindex'),
-  'Shared handoff preview helper must clone target content without duplicate IDs, reveal inline state, or focusable controls'
+  handoffReceiverSource.includes('createHandoffReceiver')
+    && handoffPreviewSource.includes('createHandoffPreview')
+    && handoffReceiverSource.includes('data-handoff-receiver')
+    && handoffReceiverSource.includes('setRevealPresentedWithin')
+    && handoffReceiverSource.includes('restore()'),
+  'Shared handoff helper must adopt the real target DOM and restore it after release'
+);
+assert.doesNotMatch(
+  `${handoffPreviewSource}\n${handoffReceiverSource}`,
+  /cloneNode\s*\(\s*true\s*\)/,
+  'Shared handoff helper must not clone target content'
 );
 assert.equal(
   [...stylesSource.matchAll(/@import url\("([^"]+)"\);/g)].map((match) => match[1]).at(-1),
@@ -289,16 +295,21 @@ assert.equal(
   'Homepage continuity CSS must be the last top-level stylesheet import'
 );
 assert.ok(
-  homepageContinuityCss.includes('.homepage-handoff-preview')
-    && homepageContinuityCss.includes('homepage-handoff-preview--method')
-    && homepageContinuityCss.includes('homepage-handoff-preview--brand')
-    && homepageContinuityCss.includes('homepage-handoff-preview--contact')
+  homepageContinuityCss.includes('.homepage-handoff-receiver')
+    && homepageContinuityCss.includes('homepage-handoff-receiver--method')
+    && homepageContinuityCss.includes('homepage-handoff-receiver--brand')
+    && homepageContinuityCss.includes('homepage-handoff-receiver--contact')
     && homepageContinuityCss.includes('homepage-transition--reduced-motion')
     && homepageContinuityCss.includes('--paper-ink: #252719')
     && homepageContinuityCss.includes('z-index: 22')
     && homepageContinuityCss.includes('height: 0 !important')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned .belief-copy-wrap'),
-  'Homepage continuity CSS must define preview layers, reduced-motion collapse, paper tokens, method-brand collapse, and hidden pinned belief copy'
+  'Homepage continuity CSS must define receiver layers, reduced-motion collapse, paper tokens, method-brand collapse, and pinned belief copy'
+);
+assert.doesNotMatch(
+  homepageContinuityCss,
+  /homepage-handoff-preview/,
+  'Homepage continuity CSS must not keep clone preview selectors'
 );
 assert.doesNotMatch(
   homepageContinuityCss,
@@ -342,11 +353,11 @@ assert.ok(
   'Figure2 proof copy must be owned by one DOM overlay that reveals during the second stage and keeps scrolling after it'
 );
 assert.ok(
-  figure2HomepageAdapterSource.includes('createHandoffPreview')
+  figure2HomepageAdapterSource.includes('createHandoffReceiver')
     && figure2HomepageAdapterSource.includes("sourceSelector: '.brand-definition-grid'")
-    && figure2HomepageAdapterSource.includes("className: 'homepage-handoff-preview--brand'")
+    && figure2HomepageAdapterSource.includes("className: 'homepage-handoff-receiver--brand'")
     && figure2HomepageAdapterSource.includes('handoffProgressSource'),
-  'Figure2 homepage transition must fade the native Brand preview into the post-scroll handoff'
+  'Figure2 homepage transition must adopt the native Brand grid during handoff'
 );
 assert.doesNotMatch(
   figure2HomepageAdapterSource,
@@ -387,11 +398,11 @@ assert.ok(
   'Method-to-brand divider must collapse to zero in the homepage continuity path'
 );
 assert.ok(
-  craneHomepageAdapterSource.includes('createHandoffPreview')
+  craneHomepageAdapterSource.includes('createHandoffReceiver')
     && craneHomepageAdapterSource.includes("sourceSelector: '.contact-endpoint'")
-    && craneHomepageAdapterSource.includes("className: 'homepage-handoff-preview--contact'")
+    && craneHomepageAdapterSource.includes("className: 'homepage-handoff-receiver--contact'")
     && craneHomepageAdapterSource.includes('handoffProgressSource'),
-  'Crane homepage transition must fade the native Contact preview into its handoff'
+  'Crane homepage transition must adopt the native Contact endpoint during handoff'
 );
 assert.doesNotMatch(
   `${figure2HomepageAdapterSource}\n${homepageTransitionCss}\n${figure2Css}`,
