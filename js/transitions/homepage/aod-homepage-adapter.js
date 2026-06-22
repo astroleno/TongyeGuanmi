@@ -4,11 +4,19 @@ import {
   waitForAodTransitionMetadata
 } from '../../components/aod-transition.js';
 import { createInkCurtainTransition } from '../../effects/ink-scene-transition.js';
+import { createHandoffPreview } from './handoff-preview.js';
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const smoothStep = (value) => value * value * (3 - 2 * value);
 
-export function mountHomepageTransition({ host, reduceMotion = false, progressSource, addCleanup }) {
+export function mountHomepageTransition({
+  host,
+  reduceMotion = false,
+  progressSource,
+  handoffTarget,
+  handoffProgressSource,
+  addCleanup
+}) {
   host.classList.add('homepage-transition', 'homepage-transition--aod');
   host.innerHTML = `
     <section
@@ -41,7 +49,14 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
   `;
 
   const section = host.querySelector('[data-aod-transition]');
+  const field = host.querySelector('.aod-transition__field');
   const { figureVideo } = prepareAodTransition(section, { progress: reduceMotion ? 1 : 0 });
+  const methodPreview = createHandoffPreview({
+    container: field,
+    target: handoffTarget,
+    sourceSelector: '.method-edition-layout--after-handoff',
+    className: 'homepage-handoff-preview--method'
+  });
   const inkCanvas = host.querySelector('[data-aod-ink-canvas]');
   const inkTransition = reduceMotion ? null : createInkCurtainTransition(inkCanvas, {
     direction: 'bottom-up',
@@ -79,9 +94,11 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
   const render = () => {
     if (destroyed) return;
     const progress = reduceMotion ? 1 : progressSource();
+    const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? progress;
     const inkProgress = smoothStep(clamp(progress));
     syncNavTone(progress);
     renderAodTransitionProgress(section, progress);
+    methodPreview?.update(Math.max(progress, handoffProgress), { start: 0.58, end: 0.94, liftPx: 18 });
     inkTransition?.render(inkProgress);
     raf = requestAnimationFrame(render);
   };
@@ -91,6 +108,7 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
       if (!destroyed) {
         syncNavTone(1);
         renderAodTransitionProgress(section, 1);
+        methodPreview?.update(1);
         inkTransition?.render(1);
       }
     });
@@ -103,6 +121,7 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
     destroyed = true;
     cancelAnimationFrame(raf);
     figureVideo?.pause?.();
+    methodPreview?.destroy();
     host.replaceChildren();
     host.classList.remove('homepage-transition', 'homepage-transition--aod');
   };

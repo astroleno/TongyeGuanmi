@@ -14,8 +14,6 @@ const COPY_HOLD_END = 0.84;
 const COPY_OUT_END = 0.90;
 const SECOND_REVEAL_START = 0.84;
 const SECOND_REVEAL_END = 0.985;
-const BELIEF_TEXT_START = 0.955;
-const BELIEF_TEXT_END = 0.995;
 const BELIEF_PIN_CLASS = 'is-pattern-bloom-pinned';
 
 export function mountPatternBloomTransition({
@@ -184,14 +182,13 @@ export function mountPatternBloomTransition({
     const topSceneExit = smoothStep(range01(secondRevealProgress, 0.68, 0.98));
     const topSceneOpacity = canvasRevealed && secondRevealProgress < 0.998 ? 1 - topSceneExit : 0;
     const beliefSceneOpacity = smoothStep(range01(secondRevealProgress, 0.88, 0.998));
-    const beliefTextProgress = smoothStep(range01(progress, BELIEF_TEXT_START, BELIEF_TEXT_END));
     const beliefPinned = overlayActive && secondRevealProgress > 0.002;
     const lotusVisible = topSceneOpacity > 0.002;
 
     setBeliefTransitionState({
       pinned: beliefPinned,
       sceneOpacity: beliefSceneOpacity,
-      textProgress: beliefTextProgress
+      textProgress: 0
     });
 
     stage.style.opacity = overlayActive ? '1' : '0';

@@ -86,6 +86,9 @@ function injectTransitionAttributes(html, transition) {
     attrs = setAttribute(attrs, 'data-transition-to', transition.to);
     attrs = setAttribute(attrs, 'data-transition-module', transition.module);
     attrs = setAttribute(attrs, 'data-transition-variant', transition.variant);
+    if (transition.drive) attrs = setAttribute(attrs, 'data-transition-drive', transition.drive);
+    if (transition.handoffTarget) attrs = setAttribute(attrs, 'data-transition-handoff-target', transition.handoffTarget);
+    if (transition.handoffPhase) attrs = setAttribute(attrs, 'data-transition-handoff-phase', transition.handoffPhase);
 
     didInject = true;
     return `<div${attrs}>`;

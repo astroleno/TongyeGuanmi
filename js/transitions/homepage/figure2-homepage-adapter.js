@@ -1,4 +1,5 @@
 import { createFigure2TransitionController } from '../../components/figure2-transition.js';
+import { createHandoffPreview } from './handoff-preview.js';
 
 const FIGURE2_PAPER_GROUND = '#ece8dc';
 const FIGURE2_PAPER_GROUND_SOFT = '#f6f2e8';
@@ -93,11 +94,12 @@ function createProofScrollOverlay(host) {
   const maxScroll = () => Math.max(160, Math.min(520, (window.innerHeight || 1) * 0.42));
 
   return {
-    update({ transitionProgress = 0, postProgress = 0 } = {}) {
+    update({ transitionProgress = 0, postProgress = 0, handoffProgress = 0 } = {}) {
       if (disposed) return 0;
       const transitionRevealProgress = smoothStep(range01(transitionProgress, 0.10, 0.94));
       const revealProgress = clamp(Math.max(transitionRevealProgress, postProgress > 0 ? 1 : 0));
-      const opacity = smoothStep(range01(revealProgress, 0.015, 0.16));
+      const handoffFade = 1 - smoothStep(range01(handoffProgress, 0.58, 0.90));
+      const opacity = smoothStep(range01(revealProgress, 0.015, 0.16)) * handoffFade;
       const scrollY = -maxScroll() * clamp(postProgress);
       overlay.style.setProperty('--figure2-proof-reveal-stop', `${(-12 + revealProgress * 122).toFixed(2)}%`);
       overlay.style.setProperty('--figure2-proof-reveal-edge', `${(2 + revealProgress * 132).toFixed(2)}%`);
@@ -117,6 +119,8 @@ export function mountHomepageTransition({
   reduceMotion = false,
   progressSource,
   postProgressSource,
+  handoffTarget,
+  handoffProgressSource,
   addCleanup
 }) {
   host.classList.add('homepage-transition', 'homepage-transition--figure2', 'figure2-alpha-video');
@@ -171,8 +175,15 @@ export function mountHomepageTransition({
   `;
 
   const section = host.querySelector('[data-figure2-transition]');
+  const field = host.querySelector('.figure2-field');
   const proofSceneTexture = createProofSceneTexture(host);
   const proofScrollOverlay = createProofScrollOverlay(host);
+  const brandPreview = createHandoffPreview({
+    container: field,
+    target: handoffTarget,
+    sourceSelector: '.brand-definition-grid',
+    className: 'homepage-handoff-preview--brand'
+  });
   const controller = createFigure2TransitionController(section, {
     root: host,
     body: host,
@@ -195,7 +206,9 @@ export function mountHomepageTransition({
       : transitionProgress >= 0.998
         ? postProgressSource?.() ?? 0
         : 0;
-    proofScrollOverlay?.update({ transitionProgress, postProgress });
+    const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? postProgress;
+    proofScrollOverlay?.update({ transitionProgress, postProgress, handoffProgress });
+    brandPreview?.update(Math.max(postProgress, handoffProgress), { start: 0.58, end: 0.96, liftPx: 22 });
     proofSceneTexture?.update();
 
     if (reduceMotion) {
@@ -234,6 +247,7 @@ export function mountHomepageTransition({
     controller.destroy();
     proofSceneTexture?.destroy();
     proofScrollOverlay?.destroy();
+    brandPreview?.destroy();
     host.replaceChildren();
     host.classList.remove('homepage-transition', 'homepage-transition--figure2', 'figure2-alpha-video', 'figure2-multiply-video');
   };

@@ -7,10 +7,9 @@ const NAMED_TRANSITION_SELECTOR = [
 
 const SOFT_MODULES = new Set(['soft-divider', 'soft-drilldown', 'soft-breath']);
 const SCROLL_DRIVEN_MODULES = new Set([]);
-const SNAP_SELECTOR = [
-  '.chapter-transition[data-transition-module]',
-  '.scene-transition[data-transition-module]'
-].join(',');
+const HANDOFF_AFTER_PLAYBACK = 'after-playback';
+const HANDOFF_POST_SCROLL = 'post-scroll';
+const REDUCED_MOTION_CLASS = 'homepage-transition--reduced-motion';
 
 const DEFAULT_PLAY_MS = 1900;
 const SNAP_VIEWPORT_HEIGHT_VAR = '--homepage-transition-snap-height';
@@ -42,6 +41,23 @@ const parseNumberList = (value, { min = -Infinity, max = Infinity } = {}) => Str
   .split(',')
   .map((item) => Number(item.trim()))
   .filter((number) => Number.isFinite(number) && number > min && number < max);
+
+function resolveHandoffTarget(root, host) {
+  const selector = host?.dataset?.transitionHandoffTarget;
+  const queryRoot = typeof root?.querySelector === 'function' ? root : document;
+  if (selector) {
+    try {
+      const target = queryRoot.querySelector(selector);
+      if (target) return target;
+    } catch (error) {
+      console.warn(`Invalid transition handoff selector: ${selector}`, error);
+    }
+  }
+
+  const transitionTo = host?.dataset?.transitionTo;
+  if (!transitionTo) return null;
+  return queryRoot.getElementById?.(transitionTo) || null;
+}
 
 function createCleanupStack() {
   const cleanups = [];
@@ -200,6 +216,10 @@ function createHomepageSnapCoordinator({
 
   const getPostScrollPx = (controller, viewportHeight = Math.max(1, window.innerHeight || 1)) => (
     Math.max(0, viewportHeight * ((controller?.postScrollVh || 0) / 100))
+  );
+
+  const getHandoffTargetY = (controller) => (
+    controller?.handoffTarget ? Math.max(0, Math.round(getDocumentTop(controller.handoffTarget))) : null
   );
 
   const syncFixedStageState = (controller, scrollY = getScrollY()) => {
@@ -385,23 +405,31 @@ function createHomepageSnapCoordinator({
     const viewportHeight = Math.max(1, window.innerHeight || 1);
     const shouldEnterPostScroll = !hold && direction > 0 && controller.postScrollVh > 0 && controller.playhead >= 0.998;
     const shouldInstantExit = !hold && direction > 0 && controller.instantExit && controller.playhead >= 0.998;
+    const shouldHandoffAfterPlayback = !hold
+      && direction > 0
+      && controller.handoffPhase === HANDOFF_AFTER_PLAYBACK
+      && controller.handoffTarget
+      && controller.playhead >= 0.998;
     const exitY = direction > 0
       ? hostTop + controller.host.offsetHeight + 1
       : hostTop - viewportHeight + 1;
     const targetY = hold
       ? hostTop
-      : shouldEnterPostScroll
-        ? getScrollY()
-        : exitY;
+      : shouldHandoffAfterPlayback
+        ? getHandoffTargetY(controller)
+        : shouldEnterPostScroll
+          ? getScrollY()
+          : exitY;
 
     scrollToY(targetY, {
-      immediate: hold || shouldEnterPostScroll || shouldInstantExit,
-      duration: hold || shouldEnterPostScroll || shouldInstantExit ? 0 : 0.58,
+      immediate: hold || shouldEnterPostScroll || shouldInstantExit || shouldHandoffAfterPlayback,
+      duration: hold || shouldEnterPostScroll || shouldInstantExit || shouldHandoffAfterPlayback ? 0 : 0.58,
       onComplete: () => {
         if (hold && direction > 0) {
           controller.playedForward = false;
           controller.playedBackward = false;
         }
+        if (shouldHandoffAfterPlayback) controller.handoffComplete = true;
         finishPlayback(controller);
       }
     });
@@ -461,6 +489,7 @@ function createHomepageSnapCoordinator({
     if (scrollY < backwardExit) {
       controller.playedForward = false;
       controller.playhead = 0;
+      controller.handoffComplete = false;
       controller.host.classList.remove(FIXED_STAGE_CLASS);
     }
 
@@ -486,6 +515,22 @@ function createHomepageSnapCoordinator({
     if (reduceMotion) return;
     const scrollY = getScrollY();
     controllers.forEach((controller) => syncFixedStageState(controller, scrollY));
+    controllers.forEach((controller) => {
+      if (
+        controller.destroyed
+        || controller.handoffComplete
+        || controller.handoffPhase !== HANDOFF_POST_SCROLL
+        || !controller.handoffTarget
+        || controller.playhead < 0.998
+        || controller.postScrollVh <= 0
+      ) return;
+
+      const direction = scrollY >= lastScrollY ? 1 : -1;
+      if (direction <= 0 || controller.postProgressSource() < 0.995) return;
+
+      controller.handoffComplete = true;
+      scrollToY(getHandoffTargetY(controller), { immediate: true, duration: 0 });
+    });
     if (shouldSuppressControllerUpdates()) {
       lastScrollY = scrollY;
       return;
@@ -523,6 +568,9 @@ function createHomepageSnapCoordinator({
         snapEntryVh: parseFiniteNumber(host.dataset.transitionSnapEntryVh, DEFAULT_SNAP_ENTRY_VH),
         preserveEntry: host.dataset.transitionPreserveEntry === 'true',
         instantExit: host.dataset.transitionInstantExit === 'true',
+        handoffTarget: resolveHandoffTarget(root, host),
+        handoffPhase: host.dataset.transitionHandoffPhase || '',
+        handoffComplete: false,
         raf: 0,
         playedForward: false,
         playedBackward: false,
@@ -596,6 +644,12 @@ export async function initHomepageTransitions({
     const moduleName = host.dataset.transitionModule;
     if (!moduleName || SOFT_MODULES.has(moduleName)) return;
 
+    if (reduceMotion) {
+      host.classList.add(REDUCED_MOTION_CLASS);
+      cleanup.add(() => host.classList.remove(REDUCED_MOTION_CLASS));
+      return;
+    }
+
     const loadAdapter = homepageTransitionRegistry[moduleName];
     if (!loadAdapter) {
       fallbackHost(host, new Error(`Unknown homepage transition module: ${moduleName}`));
@@ -603,13 +657,17 @@ export async function initHomepageTransitions({
     }
 
     try {
-      const isScrollDriven = SCROLL_DRIVEN_MODULES.has(moduleName);
+      const isScrollDriven = host.dataset.transitionDrive === 'scroll' || SCROLL_DRIVEN_MODULES.has(moduleName);
       const snapController = isScrollDriven ? null : snapCoordinator.createController(host);
       const progressSource = isScrollDriven
         ? (host.dataset.transitionId === 'home-belief'
           ? createHeroLinkedScrollProgressSource(host)
           : createElementScrollProgressSource(host))
         : () => snapController.progressSource();
+      const handoffTarget = resolveHandoffTarget(root, host);
+      const handoffProgressSource = snapController?.handoffPhase === HANDOFF_POST_SCROLL
+        ? snapController.postProgressSource.bind(snapController)
+        : progressSource;
       const adapterModule = await loadAdapter();
       const mount = adapterModule.mountHomepageTransition || adapterModule.mountPatternBloomTransition;
       if (typeof mount !== 'function') {
@@ -621,6 +679,8 @@ export async function initHomepageTransitions({
         reduceMotion,
         progressSource,
         postProgressSource: snapController?.postProgressSource?.bind(snapController),
+        handoffTarget,
+        handoffProgressSource,
         addCleanup: cleanup.add,
         gsap,
         ScrollTrigger

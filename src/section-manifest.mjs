@@ -79,14 +79,17 @@ export const chapterTransitions = [
     from: 'home',
     to: 'belief',
     module: 'pattern-bloom',
-    variant: 'lotus-manifesto'
+    variant: 'lotus-manifesto',
+    drive: 'scroll'
   },
   {
     id: 'belief-method',
     from: 'belief',
     to: 'method-field-law',
     module: 'aod',
-    variant: 'measure-order'
+    variant: 'measure-order',
+    handoffTarget: '#method',
+    handoffPhase: 'after-playback'
   },
   {
     id: 'method-brand',
@@ -128,7 +131,9 @@ export const chapterTransitions = [
     from: 'philosophy',
     to: 'contact',
     module: 'crane',
-    variant: 'forward-motion'
+    variant: 'forward-motion',
+    handoffTarget: '#contact',
+    handoffPhase: 'after-playback'
   }
 ];
 

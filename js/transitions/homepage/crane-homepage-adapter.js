@@ -1,6 +1,14 @@
 import { createCraneTransitionScene } from '../../components/crane-transition.js';
+import { createHandoffPreview } from './handoff-preview.js';
 
-export function mountHomepageTransition({ host, reduceMotion = false, progressSource, addCleanup }) {
+export function mountHomepageTransition({
+  host,
+  reduceMotion = false,
+  progressSource,
+  handoffTarget,
+  handoffProgressSource,
+  addCleanup
+}) {
   host.classList.add('homepage-transition', 'homepage-transition--crane', 'crane-page');
   host.innerHTML = `
     <section class="crane-scroll" data-crane-stage aria-hidden="true">
@@ -33,6 +41,13 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
   `;
 
   const stage = host.querySelector('[data-crane-stage]');
+  const field = host.querySelector('.crane-field');
+  const contactPreview = createHandoffPreview({
+    container: field,
+    target: handoffTarget,
+    sourceSelector: '.contact-endpoint',
+    className: 'homepage-handoff-preview--contact'
+  });
   const scene = createCraneTransitionScene(stage);
   if (!scene) throw new Error('Crane homepage transition could not initialize.');
 
@@ -41,13 +56,17 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
 
   const render = () => {
     if (destroyed) return;
-    scene.renderRawProgress(reduceMotion ? 1 : progressSource());
+    const progress = reduceMotion ? 1 : progressSource();
+    const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? progress;
+    scene.renderRawProgress(progress);
+    contactPreview?.update(Math.max(progress, handoffProgress), { start: 0.58, end: 0.94, liftPx: 20 });
     raf = requestAnimationFrame(render);
   };
 
   scene.prepare();
   if (reduceMotion) {
     scene.mountReducedMotion();
+    contactPreview?.update(1);
   } else {
     scene.waitForVideos().finally(render);
   }
@@ -57,6 +76,7 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
     destroyed = true;
     cancelAnimationFrame(raf);
     scene.destroy();
+    contactPreview?.destroy();
     host.replaceChildren();
     host.classList.remove('homepage-transition', 'homepage-transition--crane', 'crane-page');
   };
