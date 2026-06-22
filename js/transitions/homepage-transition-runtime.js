@@ -6,17 +6,24 @@ const NAMED_TRANSITION_SELECTOR = [
 ].join(',');
 
 const SOFT_MODULES = new Set(['soft-divider', 'soft-drilldown', 'soft-breath']);
+const SCROLL_DRIVEN_MODULES = new Set([]);
 const SNAP_SELECTOR = [
   '.chapter-transition[data-transition-module]',
   '.scene-transition[data-transition-module]'
 ].join(',');
 
 const DEFAULT_PLAY_MS = 1900;
+const SNAP_VIEWPORT_HEIGHT_VAR = '--homepage-transition-snap-height';
+const SNAP_EXTRA_HEIGHT_VAR = '--homepage-transition-extra-snap-height';
+const FIXED_STAGE_CLASS = 'homepage-transition--fixed-stage';
+const DEFAULT_SNAP_ENTRY_VH = 1.02;
+const POST_SNAP_INPUT_LOCK_MS = 420;
+const BLOCKED_SCROLL_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' ']);
 const MODULE_PLAY_MS = {
   aod: 1800,
   figure2: 2200,
   'pattern-bloom': 2200,
-  ttg: 2300,
+  ttg: 2500,
   'figure3-transition': 1800,
   ph: 1900,
   crane: 2200
@@ -31,6 +38,10 @@ const parseFiniteNumber = (value, fallback) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 };
+const parseNumberList = (value, { min = -Infinity, max = Infinity } = {}) => String(value || '')
+  .split(',')
+  .map((item) => Number(item.trim()))
+  .filter((number) => Number.isFinite(number) && number > min && number < max);
 
 function createCleanupStack() {
   const cleanups = [];
@@ -60,6 +71,38 @@ function getScrollY() {
 
 function getDocumentTop(element) {
   return getScrollY() + element.getBoundingClientRect().top;
+}
+
+function createElementScrollProgressSource(element) {
+  return () => {
+    if (!element) return 0;
+    const viewportHeight = Math.max(1, window.innerHeight || 1);
+    const rect = element.getBoundingClientRect();
+    const scrollSpan = Math.max(1, element.offsetHeight || rect.height || viewportHeight);
+    return clamp((viewportHeight - rect.top) / scrollSpan);
+  };
+}
+
+function createHeroLinkedScrollProgressSource(element) {
+  return () => {
+    const hero = document.querySelector('.hero-wrap');
+    if (!hero || !element) return createElementScrollProgressSource(element)();
+
+    const viewportHeight = Math.max(1, window.innerHeight || 1);
+    const heroTop = getDocumentTop(hero);
+    const hostTop = getDocumentTop(element);
+    const heroRange = Math.max(1, hero.offsetHeight - viewportHeight);
+    const heroRevealStart = heroTop + heroRange * 0.26;
+    const heroRevealEnd = heroTop + heroRange * 0.92;
+    const transitionEnd = hostTop + Math.max(viewportHeight, element.offsetHeight || viewportHeight);
+    const scrollY = getScrollY();
+
+    if (scrollY <= heroRevealEnd) {
+      return clamp((scrollY - heroRevealStart) / Math.max(1, heroRevealEnd - heroRevealStart) * 0.50);
+    }
+
+    return clamp(0.50 + ((scrollY - heroRevealEnd) / Math.max(1, transitionEnd - heroRevealEnd)) * 0.50);
+  };
 }
 
 function getScrollRuntimeLenis(scrollRuntime) {
@@ -118,21 +161,117 @@ function createHomepageSnapCoordinator({
 } = {}) {
   const lenis = getScrollRuntimeLenis(scrollRuntime);
   const nativeTween = createNativeScrollTween();
+  const originalLenisScrollTo = lenis?.scrollTo || null;
   const controllers = [];
   let activeController = null;
   let lastScrollY = getScrollY();
   let scrollLockDepth = 0;
+  let inputLockUntil = 0;
+  let releaseTimer = 0;
+  let isProgrammaticScroll = false;
+  let programmaticScrollToken = 0;
+  const rootElement = root.documentElement || document.documentElement;
+  const previousSnapViewportHeight = rootElement?.style?.getPropertyValue(SNAP_VIEWPORT_HEIGHT_VAR) || '';
+
+  const isInputCooldownActive = () => performance.now() < inputLockUntil;
+  const shouldBlockScrollInput = () => activeController || isInputCooldownActive();
+  const shouldSuppressControllerUpdates = () => (
+    activeController || isProgrammaticScroll || isInputCooldownActive()
+  );
+
+  const syncLastScrollY = () => {
+    lastScrollY = getScrollY();
+  };
+
+  const syncControllerSnapHold = (controller, viewportHeight = Math.max(1, window.innerHeight || rootElement?.clientHeight || 1)) => {
+    const extraHeight = Math.max(0, viewportHeight * (((controller?.stageHoldVh || 0) + (controller?.postScrollVh || 0)) / 100));
+    controller?.host?.style?.setProperty(SNAP_EXTRA_HEIGHT_VAR, `${Math.round(extraHeight)}px`);
+  };
+
+  const syncSnapViewportHeight = () => {
+    const viewportHeight = Math.ceil(Math.max(1, window.innerHeight || rootElement?.clientHeight || 1));
+    rootElement?.style?.setProperty(SNAP_VIEWPORT_HEIGHT_VAR, `${viewportHeight}px`);
+    controllers.forEach((controller) => syncControllerSnapHold(controller, viewportHeight));
+  };
+
+  const getStageHoldPx = (controller, viewportHeight = Math.max(1, window.innerHeight || 1)) => (
+    Math.max(0, viewportHeight * ((controller?.stageHoldVh || 0) / 100))
+  );
+
+  const getPostScrollPx = (controller, viewportHeight = Math.max(1, window.innerHeight || 1)) => (
+    Math.max(0, viewportHeight * ((controller?.postScrollVh || 0) / 100))
+  );
+
+  const syncFixedStageState = (controller, scrollY = getScrollY()) => {
+    if (!controller?.host || controller.destroyed) return;
+    const viewportHeight = Math.max(1, window.innerHeight || 1);
+    const hostTop = getDocumentTop(controller.host);
+    const stageHoldPx = getStageHoldPx(controller, viewportHeight);
+    const postScrollPx = getPostScrollPx(controller, viewportHeight);
+    const fixedStart = hostTop;
+    const postStart = hostTop + stageHoldPx;
+    const postEnd = postStart + postScrollPx;
+    const inStageHold = stageHoldPx > 0
+      && controller.playhead > 0.001
+      && controller.playhead < 0.998
+      && scrollY >= fixedStart - 2
+      && scrollY <= postStart + 2;
+    const inPostScroll = postScrollPx > 0
+      && controller.playhead >= 0.998
+      && scrollY >= fixedStart - 2
+      && scrollY <= postEnd + 2;
+    controller.host.classList.toggle(FIXED_STAGE_CLASS, inStageHold || inPostScroll);
+  };
+
+  const getSnapDocumentTop = (element) => Math.round(getDocumentTop(element));
+
+  const beginProgrammaticScroll = () => {
+    programmaticScrollToken += 1;
+    isProgrammaticScroll = true;
+    syncLastScrollY();
+    return programmaticScrollToken;
+  };
+
+  const finishProgrammaticScroll = (token) => {
+    if (!token || token !== programmaticScrollToken) return false;
+    isProgrammaticScroll = false;
+    syncLastScrollY();
+    return true;
+  };
+
+  const cancelProgrammaticScrollTracking = () => {
+    if (!isProgrammaticScroll || activeController) return;
+    programmaticScrollToken += 1;
+    isProgrammaticScroll = false;
+    syncLastScrollY();
+  };
+
+  const blockEvent = (event) => {
+    if (event.cancelable) event.preventDefault();
+    event.stopImmediatePropagation?.();
+  };
+
+  const clearReleaseTimer = () => {
+    if (!releaseTimer) return;
+    window.clearTimeout(releaseTimer);
+    releaseTimer = 0;
+  };
 
   const preventScrollInput = (event) => {
-    if (!activeController) return;
-    event.preventDefault();
+    if (shouldBlockScrollInput()) {
+      blockEvent(event);
+      return;
+    }
+    cancelProgrammaticScrollTracking();
   };
 
   const preventScrollKeys = (event) => {
-    if (!activeController) return;
-    const blockedKeys = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' ']);
-    if (!blockedKeys.has(event.key)) return;
-    event.preventDefault();
+    if (!BLOCKED_SCROLL_KEYS.has(event.key)) return;
+    if (shouldBlockScrollInput()) {
+      blockEvent(event);
+      return;
+    }
+    cancelProgrammaticScrollTracking();
   };
 
   const lockScroll = () => {
@@ -148,6 +287,22 @@ function createHomepageSnapCoordinator({
     lenis?.start?.();
   };
 
+  if (lenis && originalLenisScrollTo) {
+    lenis.scrollTo = (target, options = {}) => {
+      const programmatic = options.programmatic !== false;
+      const token = programmatic ? beginProgrammaticScroll() : 0;
+      const onComplete = options.onComplete;
+
+      return originalLenisScrollTo.call(lenis, target, {
+        ...options,
+        onComplete: (...args) => {
+          if (programmatic) finishProgrammaticScroll(token);
+          onComplete?.(...args);
+        }
+      });
+    };
+  }
+
   const scrollToY = (targetY, options = {}) => {
     if (lenis?.scrollTo) {
       lenis.scrollTo(Math.max(0, targetY), {
@@ -156,18 +311,38 @@ function createHomepageSnapCoordinator({
         force: true,
         immediate: Boolean(options.immediate),
         lock: !options.immediate,
+        programmatic: options.programmatic !== false,
         onComplete: options.onComplete
       });
       return;
     }
 
-    nativeTween.scrollTo(targetY, options);
+    const programmatic = options.programmatic !== false;
+    const token = programmatic ? beginProgrammaticScroll() : 0;
+    nativeTween.scrollTo(targetY, {
+      ...options,
+      onComplete: () => {
+        if (programmatic) finishProgrammaticScroll(token);
+        options.onComplete?.();
+      }
+    });
   };
 
-  const animateProgress = (controller, direction, onComplete) => {
+  const getForwardStageTarget = (controller) => (
+    controller.stageStops.find((stop) => stop > controller.playhead + 0.001) ?? 1
+  );
+
+  const getStagePlayMs = (controller, direction, target) => {
+    if (direction < 0) return controller.playMs;
+    const stageIndex = target >= 0.998
+      ? controller.stageStops.length
+      : controller.stageStops.findIndex((stop) => Math.abs(stop - target) < 0.001);
+    return controller.stagePlayMs[stageIndex] || controller.playMs;
+  };
+
+  const animateProgress = (controller, direction, target, durationMs, onComplete) => {
     const from = controller.playhead;
-    const to = direction > 0 ? 1 : 0;
-    const durationMs = controller.playMs;
+    const to = target;
     const startTime = performance.now();
 
     const tick = (now) => {
@@ -189,20 +364,45 @@ function createHomepageSnapCoordinator({
     controller.raf = requestAnimationFrame(tick);
   };
 
-  const completePlayback = (controller, direction) => {
-    const hostTop = getDocumentTop(controller.host);
+  const finishPlayback = (controller) => {
+    controller.host.classList.remove('homepage-transition--snapped', 'homepage-transition--playing');
+    syncFixedStageState(controller);
+    inputLockUntil = performance.now() + POST_SNAP_INPUT_LOCK_MS;
+    syncLastScrollY();
+    clearReleaseTimer();
+    releaseTimer = window.setTimeout(() => {
+      releaseTimer = 0;
+      if (activeController !== controller) return;
+      activeController = null;
+      unlockScroll();
+      syncLastScrollY();
+    }, POST_SNAP_INPUT_LOCK_MS);
+  };
+
+  const completePlayback = (controller, direction, { hold = false } = {}) => {
+    syncSnapViewportHeight();
+    const hostTop = getSnapDocumentTop(controller.host);
     const viewportHeight = Math.max(1, window.innerHeight || 1);
+    const shouldEnterPostScroll = !hold && direction > 0 && controller.postScrollVh > 0 && controller.playhead >= 0.998;
+    const shouldInstantExit = !hold && direction > 0 && controller.instantExit && controller.playhead >= 0.998;
     const exitY = direction > 0
       ? hostTop + controller.host.offsetHeight + 1
       : hostTop - viewportHeight + 1;
+    const targetY = hold
+      ? hostTop
+      : shouldEnterPostScroll
+        ? getScrollY()
+        : exitY;
 
-    scrollToY(exitY, {
-      duration: 0.58,
+    scrollToY(targetY, {
+      immediate: hold || shouldEnterPostScroll || shouldInstantExit,
+      duration: hold || shouldEnterPostScroll || shouldInstantExit ? 0 : 0.58,
       onComplete: () => {
-        controller.host.classList.remove('homepage-transition--snapped', 'homepage-transition--playing');
-        activeController = null;
-        unlockScroll();
-        lastScrollY = getScrollY();
+        if (hold && direction > 0) {
+          controller.playedForward = false;
+          controller.playedBackward = false;
+        }
+        finishPlayback(controller);
       }
     });
   };
@@ -210,16 +410,33 @@ function createHomepageSnapCoordinator({
   const playController = (controller, direction) => {
     if (reduceMotion || activeController || controller.destroyed) return;
 
+    syncSnapViewportHeight();
+    clearReleaseTimer();
+    inputLockUntil = 0;
     activeController = controller;
     controller.host.classList.add('homepage-transition--snapped', 'homepage-transition--playing');
     controller.host.dataset.snapState = direction > 0 ? 'forward' : 'backward';
-    controller.playhead = direction > 0 ? 0 : 1;
+    const target = direction > 0 ? getForwardStageTarget(controller) : 0;
+    const hold = direction > 0 && target < 0.998;
+    const playMs = getStagePlayMs(controller, direction, target);
+    const shouldContinueStagedForward = direction > 0 && controller.playhead > 0.001 && target >= 0.998;
+    const snapY = direction > 0 && controller.preserveEntry && controller.playhead <= 0.001
+      ? getScrollY()
+      : shouldContinueStagedForward
+        ? getScrollY()
+        : getSnapDocumentTop(controller.host);
+    if (direction < 0) controller.host.classList.remove(FIXED_STAGE_CLASS);
+    controller.playhead = direction > 0
+      ? controller.playhead
+      : controller.playhead > 0.001 && controller.playhead < 0.998
+        ? controller.playhead
+        : 1;
     lockScroll();
 
-    scrollToY(getDocumentTop(controller.host), {
+    scrollToY(snapY, {
       immediate: true,
       onComplete: () => {
-        animateProgress(controller, direction, () => completePlayback(controller, direction));
+        animateProgress(controller, direction, target, playMs, () => completePlayback(controller, direction, { hold }));
       }
     });
   };
@@ -230,20 +447,28 @@ function createHomepageSnapCoordinator({
     const viewportHeight = Math.max(1, window.innerHeight || 1);
     const hostTop = getDocumentTop(controller.host);
     const hostHeight = Math.max(viewportHeight, controller.host.offsetHeight || viewportHeight);
+    const stageHoldOffset = getStageHoldPx(controller, viewportHeight);
     const forwardEntry = hostTop - viewportHeight * controller.snapEntryVh;
+    const stagedForwardEntry = controller.playhead > 0.001 && controller.playhead < 0.998
+      ? hostTop + stageHoldOffset
+      : forwardEntry;
     const forwardExit = hostTop + hostHeight + viewportHeight * 0.18;
-    const backwardEntry = hostTop + hostHeight + viewportHeight * 0.18;
+    const backwardEntry = controller.playhead >= 0.998 && controller.postScrollVh > 0
+      ? hostTop
+      : hostTop + hostHeight + viewportHeight * 0.18;
     const backwardExit = hostTop - viewportHeight * 0.58;
 
     if (scrollY < backwardExit) {
       controller.playedForward = false;
+      controller.playhead = 0;
+      controller.host.classList.remove(FIXED_STAGE_CLASS);
     }
 
     if (scrollY > hostTop + hostHeight + viewportHeight * 0.58) {
       controller.playedBackward = false;
     }
 
-    if (direction > 0 && !controller.playedForward && scrollY >= forwardEntry && scrollY < forwardExit) {
+    if (direction > 0 && !controller.playedForward && scrollY >= stagedForwardEntry && scrollY < forwardExit) {
       controller.playedForward = true;
       controller.playedBackward = false;
       playController(controller, 1);
@@ -258,8 +483,13 @@ function createHomepageSnapCoordinator({
   };
 
   const onScroll = () => {
-    if (reduceMotion || activeController) return;
+    if (reduceMotion) return;
     const scrollY = getScrollY();
+    controllers.forEach((controller) => syncFixedStageState(controller, scrollY));
+    if (shouldSuppressControllerUpdates()) {
+      lastScrollY = scrollY;
+      return;
+    }
     const direction = scrollY >= lastScrollY ? 1 : -1;
     if (Math.abs(scrollY - lastScrollY) < 1) return;
     lastScrollY = scrollY;
@@ -267,14 +497,17 @@ function createHomepageSnapCoordinator({
   };
 
   const onResize = () => {
+    syncSnapViewportHeight();
     lastScrollY = getScrollY();
   };
 
+  syncSnapViewportHeight();
+
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onResize, { passive: true });
-  window.addEventListener('wheel', preventScrollInput, { passive: false });
-  window.addEventListener('touchmove', preventScrollInput, { passive: false });
-  window.addEventListener('keydown', preventScrollKeys);
+  window.addEventListener('wheel', preventScrollInput, { passive: false, capture: true });
+  window.addEventListener('touchmove', preventScrollInput, { passive: false, capture: true });
+  window.addEventListener('keydown', preventScrollKeys, { capture: true });
 
   return {
     createController(host) {
@@ -283,7 +516,13 @@ function createHomepageSnapCoordinator({
         host,
         playhead: reduceMotion ? 1 : 0,
         playMs: Number(host.dataset.transitionPlayMs) || MODULE_PLAY_MS[moduleName] || DEFAULT_PLAY_MS,
-        snapEntryVh: parseFiniteNumber(host.dataset.transitionSnapEntryVh, 1),
+        stageStops: parseNumberList(host.dataset.transitionStageStops, { min: 0, max: 1 }).sort((a, b) => a - b),
+        stagePlayMs: parseNumberList(host.dataset.transitionStagePlayMs, { min: 0 }),
+        stageHoldVh: Math.max(0, parseFiniteNumber(host.dataset.transitionStageHoldVh, 0)),
+        postScrollVh: Math.max(0, parseFiniteNumber(host.dataset.transitionPostScrollVh, 0)),
+        snapEntryVh: parseFiniteNumber(host.dataset.transitionSnapEntryVh, DEFAULT_SNAP_ENTRY_VH),
+        preserveEntry: host.dataset.transitionPreserveEntry === 'true',
+        instantExit: host.dataset.transitionInstantExit === 'true',
         raf: 0,
         playedForward: false,
         playedBackward: false,
@@ -291,26 +530,46 @@ function createHomepageSnapCoordinator({
         progressSource() {
           return this.playhead;
         },
+        postProgressSource() {
+          const viewportHeight = Math.max(1, window.innerHeight || 1);
+          const postScrollPx = Math.max(0, viewportHeight * ((this.postScrollVh || 0) / 100));
+          if (postScrollPx <= 0) return this.playhead >= 0.998 ? 1 : 0;
+          const stageHoldPx = Math.max(0, viewportHeight * ((this.stageHoldVh || 0) / 100));
+          const postStart = getDocumentTop(this.host) + stageHoldPx;
+          return clamp((getScrollY() - postStart) / postScrollPx);
+        },
         destroy() {
           this.destroyed = true;
+          this.host.classList.remove(FIXED_STAGE_CLASS);
           cancelAnimationFrame(this.raf);
         }
       };
+      syncControllerSnapHold(controller);
       controllers.push(controller);
       return controller;
     },
     destroy() {
       controllers.forEach((controller) => controller.destroy());
       controllers.length = 0;
+      clearReleaseTimer();
+      programmaticScrollToken += 1;
+      isProgrammaticScroll = false;
+      inputLockUntil = 0;
       activeController = null;
       scrollLockDepth = 1;
       unlockScroll();
+      if (previousSnapViewportHeight) {
+        rootElement?.style?.setProperty(SNAP_VIEWPORT_HEIGHT_VAR, previousSnapViewportHeight);
+      } else {
+        rootElement?.style?.removeProperty(SNAP_VIEWPORT_HEIGHT_VAR);
+      }
+      if (lenis && originalLenisScrollTo) lenis.scrollTo = originalLenisScrollTo;
       nativeTween.destroy();
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onResize);
-      window.removeEventListener('wheel', preventScrollInput);
-      window.removeEventListener('touchmove', preventScrollInput);
-      window.removeEventListener('keydown', preventScrollKeys);
+      window.removeEventListener('wheel', preventScrollInput, true);
+      window.removeEventListener('touchmove', preventScrollInput, true);
+      window.removeEventListener('keydown', preventScrollKeys, true);
     }
   };
 }
@@ -344,7 +603,13 @@ export async function initHomepageTransitions({
     }
 
     try {
-      const snapController = snapCoordinator.createController(host);
+      const isScrollDriven = SCROLL_DRIVEN_MODULES.has(moduleName);
+      const snapController = isScrollDriven ? null : snapCoordinator.createController(host);
+      const progressSource = isScrollDriven
+        ? (host.dataset.transitionId === 'home-belief'
+          ? createHeroLinkedScrollProgressSource(host)
+          : createElementScrollProgressSource(host))
+        : () => snapController.progressSource();
       const adapterModule = await loadAdapter();
       const mount = adapterModule.mountHomepageTransition || adapterModule.mountPatternBloomTransition;
       if (typeof mount !== 'function') {
@@ -354,7 +619,8 @@ export async function initHomepageTransitions({
       cleanup.add(mount({
         host,
         reduceMotion,
-        progressSource: () => snapController.progressSource(),
+        progressSource,
+        postProgressSource: snapController?.postProgressSource?.bind(snapController),
         addCleanup: cleanup.add,
         gsap,
         ScrollTrigger

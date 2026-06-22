@@ -117,6 +117,7 @@ export function createTtgTransitionScene(stage, options = {}) {
   let reduceMotionActive = false;
   let activeFigureVideo = figureVideo;
   let figurePlaybackDirection = 0;
+  let figurePlaybackDrivesScene = true;
   let figurePlaybackRaf = 0;
   let nativeTickerRaf = 0;
   let figureSwitchToken = 0;
@@ -401,6 +402,13 @@ export function createTtgTransitionScene(stage, options = {}) {
     renderScene(progressState, parallaxMouse.x, parallaxMouse.y);
   }
 
+  function enableGsapRendering(gsap) {
+    if (!gsap || gsapSetters) return;
+    gsapSetters = createGsapSetters(gsap);
+    resetRenderCache();
+    renderCurrentScene();
+  }
+
   function tweenToRawProgress(rawProgress, { syncVideo = true } = {}) {
     const gsap = win.gsap;
     const target = stableProgress(rawProgress);
@@ -436,7 +444,11 @@ export function createTtgTransitionScene(stage, options = {}) {
     cancelFigurePlaybackTicker();
     figurePlaybackDirection = 0;
     progressState.target = target;
-    renderRawProgress(target);
+    if (figurePlaybackDrivesScene) {
+      renderRawProgress(target);
+    } else {
+      setFigureProgress(acceleratedProgress(target));
+    }
   }
 
   function tickFigurePlayback(target) {
@@ -449,7 +461,11 @@ export function createTtgTransitionScene(stage, options = {}) {
       ? clamp(video.currentTime / duration)
       : clamp(1 - video.currentTime / duration);
 
-    renderRawProgress(raw, { syncVideo: false });
+    if (figurePlaybackDrivesScene) {
+      renderRawProgress(raw, { syncVideo: false });
+    } else {
+      setFigureProgress(acceleratedProgress(raw));
+    }
 
     const reached = direction > 0
       ? raw >= target - 0.003 || video.ended
@@ -463,7 +479,7 @@ export function createTtgTransitionScene(stage, options = {}) {
     figurePlaybackRaf = win.requestAnimationFrame(() => tickFigurePlayback(target));
   }
 
-  function playFigureTransition(direction) {
+  function playFigureTransition(direction, { driveScene = true } = {}) {
     const normalizedDirection = direction >= 0 ? 1 : -1;
     const target = normalizedDirection > 0 ? 1 : 0;
     const rawProgress = stableProgress(playhead.raw);
@@ -472,7 +488,11 @@ export function createTtgTransitionScene(stage, options = {}) {
 
     const nextVideo = normalizedDirection > 0 ? figureVideo : figureReverseVideo;
     if (!nextVideo || reduceMotionActive) {
-      tweenToRawProgress(target, { syncVideo: true });
+      if (driveScene) {
+        tweenToRawProgress(target, { syncVideo: true });
+      } else {
+        seekFigureVideosToProgress(target);
+      }
       return;
     }
 
@@ -483,6 +503,7 @@ export function createTtgTransitionScene(stage, options = {}) {
     progressTween = null;
     cancelFigurePlaybackTicker();
     figurePlaybackDirection = 0;
+    figurePlaybackDrivesScene = driveScene;
 
     const switchToken = figureSwitchToken + 1;
     figureSwitchToken = switchToken;
@@ -499,7 +520,11 @@ export function createTtgTransitionScene(stage, options = {}) {
       nextVideo.playbackRate = clamp(duration / config.durationSeconds, 0.25, 2);
     } catch {
       if (figureSwitchToken === switchToken) pendingFigureDirection = 0;
-      tweenToRawProgress(target, { syncVideo: true });
+      if (driveScene) {
+        tweenToRawProgress(target, { syncVideo: true });
+      } else {
+        seekFigureVideosToProgress(target);
+      }
       return;
     }
 
@@ -517,10 +542,40 @@ export function createTtgTransitionScene(stage, options = {}) {
       if (playPromise?.catch) {
         playPromise.catch(() => {
           if (figurePlaybackDirection !== normalizedDirection || figureSwitchToken !== switchToken) return;
-          tweenToRawProgress(target, { syncVideo: true });
+          if (figurePlaybackDrivesScene) {
+            tweenToRawProgress(target, { syncVideo: true });
+          } else {
+            seekFigureVideosToProgress(target);
+          }
         });
       }
     });
+  }
+
+  function startFigureVideoPlayback(direction = 1, options = {}) {
+    playFigureTransition(direction, options);
+  }
+
+  function finishFigureVideoPlayback() {
+    cancelPendingFigureSwitch();
+    cancelFigurePlaybackTicker();
+    figurePlaybackDirection = 0;
+    progressTween?.kill?.();
+    progressTween = null;
+    pauseFigureVideos();
+    showFigureVideo(figureVideo);
+    renderRawProgress(1, { syncVideo: true });
+  }
+
+  function resetFigureVideoPlayback() {
+    cancelPendingFigureSwitch();
+    cancelFigurePlaybackTicker();
+    figurePlaybackDirection = 0;
+    progressTween?.kill?.();
+    progressTween = null;
+    pauseFigureVideos();
+    showFigureVideo(figureVideo);
+    renderRawProgress(0, { syncVideo: true });
   }
 
   function updateNativeProgress() {
@@ -704,7 +759,11 @@ export function createTtgTransitionScene(stage, options = {}) {
     waitForMedia,
     mountGsap,
     mountNativeFallback,
+    enableGsapRendering,
     renderRawProgress,
+    startFigureVideoPlayback,
+    finishFigureVideoPlayback,
+    resetFigureVideoPlayback,
     destroy
   };
 }

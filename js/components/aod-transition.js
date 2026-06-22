@@ -79,6 +79,10 @@ function setLayerProgress(section, progress, config) {
   ));
   const upExitY = window.innerHeight * -1.08;
   const backgroundFade = 1 - backdropExit;
+  const paperWash = smoothStep(range01(p, 0.42, 0.86));
+  const bottomMist = smoothStep(range01(p, 0.56, 1));
+  const paperSolid = smoothStep(range01(p, 0.70, 1));
+  const methodEnter = smoothStep(range01(p, 0.44, 0.86));
   const figureScale = config.figureStartScale + fullscreen * (1 - config.figureStartScale);
   const figureY = (1 - fullscreen) * window.innerHeight * (config.figureStartYVh / 100);
 
@@ -93,6 +97,19 @@ function setLayerProgress(section, progress, config) {
   section.style.setProperty('--aod-transition-cloud-scale', (1 + backdropExit * 0.025).toFixed(4));
   section.style.setProperty('--aod-transition-figure-y', formatPx(figureY));
   section.style.setProperty('--aod-transition-figure-scale', figureScale.toFixed(4));
+  section.style.setProperty('--aod-transition-paper-wash-opacity', (paperWash * 0.92).toFixed(4));
+  section.style.setProperty('--aod-transition-bottom-mist-opacity', (bottomMist * 0.96).toFixed(4));
+  section.style.setProperty('--aod-transition-bottom-mist-y', formatPx((1 - bottomMist) * 18));
+  section.style.setProperty('--aod-transition-paper-solid-opacity', paperSolid.toFixed(4));
+  section.style.setProperty('--aod-transition-method-progress', methodEnter.toFixed(4));
+  section.style.setProperty('--aod-transition-method-y', formatPx((1 - methodEnter) * 26));
+  section.style.setProperty('--aod-transition-method-blur', `${((1 - methodEnter) * 9).toFixed(2)}px`);
+
+  for (let index = 0; index < 9; index += 1) {
+    const itemProgress = smoothStep(range01(p, 0.40 + index * 0.03, 0.58 + index * 0.03));
+    section.style.setProperty(`--aod-method-item-${index}`, itemProgress.toFixed(4));
+    section.style.setProperty(`--aod-method-y-${index}`, formatPx((1 - itemProgress) * 18));
+  }
 }
 
 export function renderAodTransitionProgress(section, rawProgress, options = {}) {

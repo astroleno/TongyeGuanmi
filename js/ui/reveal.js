@@ -51,6 +51,33 @@ export function initGsapTextAndUI({ root = document.documentElement } = {}) {
     });
   });
 
+  const navElement = document.querySelector('.site-nav');
+  const themedSections = gsap.utils.toArray('[data-section-theme]');
+  if (navElement && themedSections.length) {
+    const setNavTone = (section) => {
+      const tone = section?.dataset.sectionTheme === 'light' ? 'light' : 'dark';
+      navElement.dataset.tone = tone;
+      navElement.classList.toggle('is-on-light', tone === 'light');
+    };
+
+    themedSections.forEach((section) => {
+      ScrollTrigger.create({
+        trigger: section,
+        start: 'top 14%',
+        end: 'bottom 14%',
+        onEnter: () => setNavTone(section),
+        onEnterBack: () => setNavTone(section)
+      });
+    });
+
+    const toneProbe = window.innerHeight * 0.14;
+    const currentSection = themedSections.find((section) => {
+      const rect = section.getBoundingClientRect();
+      return rect.top <= toneProbe && rect.bottom > toneProbe;
+    });
+    if (currentSection) setNavTone(currentSection);
+  }
+
   ScrollTrigger.create({
     trigger: document.body,
     start: 0,

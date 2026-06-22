@@ -168,6 +168,7 @@ export function createFigure2TransitionController(section, options = {}) {
       middleDepthSrc: DEPTH_INK_SRC
     },
     targetSrc: WHITE_SCENE_SRC,
+    nextSceneElement: options.nextSceneElement || null,
     figureMaskElement: figureMaskCanvas,
     hideAtEnd: false,
     progressSpan: 1,
@@ -360,6 +361,28 @@ export function createFigure2TransitionController(section, options = {}) {
     }
   }
 
+  function forceFinishFigurePlayback() {
+    figureVideoNativeMode = false;
+    figureVideoFallbackStarted = false;
+    figureVideoPlayhead.raw = 1;
+    for (const state of videoStates) {
+      syncSegmentBounds(state);
+      pauseVideo(state);
+      seekVideo(state, state.segmentEnd, true);
+    }
+  }
+
+  function resetFigurePlayback() {
+    figureVideoNativeMode = false;
+    figureVideoFallbackStarted = false;
+    figureVideoPlayhead.raw = 0;
+    for (const state of videoStates) {
+      syncSegmentBounds(state);
+      pauseVideo(state);
+      seekVideo(state, state.segmentStart, true);
+    }
+  }
+
   function fallbackToSeekFigurePlayback() {
     if (figureVideoFallbackStarted || !figureVideoNativeMode) return;
     figureVideoFallbackStarted = true;
@@ -389,6 +412,34 @@ export function createFigure2TransitionController(section, options = {}) {
         });
       }
     }
+  }
+
+  let externalVideoPlaybackToken = 0;
+
+  function startFigureVideoPlayback() {
+    const token = ++externalVideoPlaybackToken;
+    figure2IntroState.active = true;
+    figureVideoPlayhead.raw = 0;
+    prepareVideos().then(() => {
+      if (destroyed || token !== externalVideoPlaybackToken) return;
+      playFigureVideosForward();
+    });
+  }
+
+  function finishFigureVideoPlayback() {
+    ++externalVideoPlaybackToken;
+    prepareVideos().then(() => {
+      if (destroyed) return;
+      forceFinishFigurePlayback();
+    });
+  }
+
+  function resetFigureVideoPlayback() {
+    ++externalVideoPlaybackToken;
+    prepareVideos().then(() => {
+      if (destroyed) return;
+      resetFigurePlayback();
+    });
   }
 
   function tweenToFigureVideoProgress(rawProgress, {
@@ -1167,6 +1218,9 @@ export function createFigure2TransitionController(section, options = {}) {
     mountNativeFallback,
     renderStaticState,
     renderRawFigureVideoProgress,
+    startFigureVideoPlayback,
+    finishFigureVideoPlayback,
+    resetFigureVideoPlayback,
     destroy
   };
 

@@ -1,6 +1,6 @@
 import { createTtgTransitionScene } from '../../components/ttg-transition.js';
 
-export function mountHomepageTransition({ host, reduceMotion = false, progressSource, addCleanup }) {
+export function mountHomepageTransition({ host, reduceMotion = false, progressSource, addCleanup, gsap = window.gsap }) {
   host.classList.add('homepage-transition', 'homepage-transition--ttg', 'ttg-page');
   host.innerHTML = `
     <section
@@ -41,13 +41,46 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
   const stage = host.querySelector('[data-ttg-stage]');
   const scene = createTtgTransitionScene(stage);
   if (!scene) throw new Error('TTG homepage transition could not initialize.');
+  scene.enableGsapRendering(gsap);
 
   let raf = 0;
   let destroyed = false;
+  let videoPlaybackStage = reduceMotion ? 'complete' : 'idle';
+  let lastProgress = reduceMotion ? 1 : 0;
 
   const render = () => {
     if (destroyed) return;
-    scene.renderRawProgress(reduceMotion ? 1 : progressSource());
+    const progress = reduceMotion ? 1 : progressSource();
+    const direction = progress >= lastProgress ? 1 : -1;
+
+    scene.renderRawProgress(progress, { syncVideo: false });
+
+    if (reduceMotion) {
+      if (videoPlaybackStage !== 'complete') {
+        scene.finishFigureVideoPlayback();
+        videoPlaybackStage = 'complete';
+      }
+    } else if (progress <= 0) {
+      if (videoPlaybackStage !== 'idle') {
+        scene.resetFigureVideoPlayback();
+        videoPlaybackStage = 'idle';
+      }
+    } else if (progress >= 1) {
+      if (videoPlaybackStage !== 'complete') {
+        scene.finishFigureVideoPlayback();
+        videoPlaybackStage = 'complete';
+      }
+    } else {
+      if (direction > 0 && videoPlaybackStage !== 'playing') {
+        scene.startFigureVideoPlayback(1, { driveScene: false });
+        videoPlaybackStage = 'playing';
+      } else if (direction < 0 && videoPlaybackStage !== 'reversing') {
+        scene.startFigureVideoPlayback(-1, { driveScene: false });
+        videoPlaybackStage = 'reversing';
+      }
+    }
+
+    lastProgress = progress;
     raf = requestAnimationFrame(render);
   };
 
@@ -55,8 +88,9 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
   if (reduceMotion) {
     scene.mountReducedMotion();
   } else {
-    scene.waitForMedia().finally(render);
+    scene.waitForMedia();
   }
+  render();
 
   const destroy = () => {
     if (destroyed) return;

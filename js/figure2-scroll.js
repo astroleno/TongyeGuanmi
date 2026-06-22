@@ -7,26 +7,54 @@ const CDN = {
   lenis: 'js/vendor/lenis.min.js'
 };
 
-const STORAGE_KEY = 'tongye.figure2.tune.v12';
 const DEFAULT_SETTINGS = {
   scrollVh: 350,
   lenisLerp: 0.08,
   wheelMultiplier: 0.82
 };
 
-const FIGURE_INTRO_SECONDS = 1.15;
 const FIGURE_VIDEO_TRANSITION_SECONDS = 2.4;
+const FIGURE_INTRO_SECONDS = FIGURE_VIDEO_TRANSITION_SECONDS;
+const SCENE_TRANSITION_SECONDS = 1.28;
 const SCENE_TRANSITION_RANGE_VH = 100;
 const INTRO_TRIGGER_PX = 2;
 const INTRO_HOLD_SCROLL_PX = INTRO_TRIGGER_PX + 1;
 const VIDEO_SEGMENT_SECONDS = 5;
 const VIDEO_SEEK_EPSILON = 1 / 48;
 const VIDEO_END_EPSILON = 0.045;
+const ARCH_LAYER_CAMERA = {
+  cloud: {
+    baseScale: 1,
+    scaleTravel: 0.10,
+    baseY: 0,
+    yTravel: -3,
+    mouseX: -0.010,
+    mouseY: -0.006
+  },
+  farArcade: {
+    baseScale: 1,
+    scaleTravel: 0.22,
+    baseY: 10,
+    yTravel: -8,
+    mouseX: -0.012,
+    mouseY: -0.007
+  },
+  middle: {
+    baseScale: 1.012,
+    scaleTravel: 0.13,
+    baseY: 0,
+    yTravel: 34,
+    mouseX: -0.014,
+    mouseY: -0.008
+  }
+};
 
 const root = document.documentElement;
 const page = document.body;
 const stage = document.querySelector('[data-figure2-stage]');
 const figureVideos = Array.from(document.querySelectorAll('[data-figure2-video]'));
+const middleCamera = document.querySelector('.figure2-middle-camera');
+const middleWindowMask = document.querySelector('.figure2-middle-window-mask');
 const cloudLayer = document.querySelector('.figure2-arch-layer--cloud');
 const farArcadeLayers = Array.from(document.querySelectorAll('.figure2-arch-layer--far-arcade-window'));
 const middleLayers = Array.from(document.querySelectorAll('.figure2-arch-layer--middle-composite'));
@@ -46,6 +74,9 @@ let progressState = { value: 0, target: 0 };
 let currentProgress = 0;
 let figureIntroTween = null;
 let figureVideoTween = null;
+let transitionPlaybackTween = null;
+let figureVideoNativeMode = false;
+let figureVideoFallbackStarted = false;
 let gsapSetters = null;
 let nativeTickerStarted = false;
 let pointerParallaxBound = false;
@@ -57,8 +88,13 @@ let lastRenderedMouseX = 999;
 let lastRenderedMouseY = 999;
 let transitionScrollAnchor = null;
 let lastClampedScroll = 0;
+let lastScrollDirection = 0;
 let introTouchStartY = 0;
 let transitionArmedAfterIntro = false;
+let transitionPlaybackActive = false;
+let transitionPlaybackComplete = false;
+let transitionPlaybackDirection = 0;
+let introReverseActive = false;
 
 const parallaxMouse = { x: 0, y: 0 };
 const nativeMouse = { targetX: 0, targetY: 0, x: 0, y: 0 };
@@ -122,6 +158,8 @@ function isIntroComplete() {
 function resetTransitionAnchor() {
   transitionScrollAnchor = null;
   transitionArmedAfterIntro = false;
+  transitionPlaybackComplete = false;
+  transitionPlaybackDirection = 0;
 }
 
 function lockIntroScroll() {
@@ -141,21 +179,36 @@ function getStageDocumentTop() {
   return window.scrollY + stage.getBoundingClientRect().top;
 }
 
-function setStageScrollOffset(offset) {
+function scrollStageToOffset(offset, {
+  immediate = true,
+  duration = SCENE_TRANSITION_SECONDS
+} = {}) {
   if (!stage) return;
   const { totalRange } = getStageScrollMetrics();
   const nextOffset = clamp(offset, 0, totalRange);
   const nextScrollY = getStageDocumentTop() + nextOffset;
-  scrollRuntime?.lenis?.scrollTo?.(nextScrollY, {
-    immediate: true,
-    force: true
-  });
-  window.scrollTo({
-    top: nextScrollY,
-    left: window.scrollX,
-    behavior: 'auto'
-  });
-  lastClampedScroll = nextOffset;
+  if (scrollRuntime?.lenis?.scrollTo) {
+    scrollRuntime.lenis.scrollTo(nextScrollY, {
+      immediate,
+      duration,
+      force: true,
+      lock: !immediate,
+      easing: (t) => 1 - Math.pow(1 - t, 3)
+    });
+  } else {
+    window.scrollTo({
+      top: nextScrollY,
+      left: window.scrollX,
+      behavior: immediate ? 'auto' : 'smooth'
+    });
+  }
+  if (immediate) {
+    lastClampedScroll = nextOffset;
+  }
+}
+
+function setStageScrollOffset(offset) {
+  scrollStageToOffset(offset, { immediate: true });
 }
 
 function holdIntroScrollPosition() {
@@ -165,10 +218,89 @@ function holdIntroScrollPosition() {
 }
 
 function forceTransitionIdle() {
+  transitionPlaybackTween?.kill?.();
+  transitionPlaybackTween = null;
+  transitionPlaybackActive = false;
+  transitionPlaybackDirection = 0;
+  transitionPlaybackComplete = false;
   progressState.target = 0;
   progressState.value = 0;
   currentProgress = 0;
   lastRenderedProgress = -1;
+}
+
+function setTransitionDebugState(clampedScroll, transitionRange, armed = transitionArmedAfterIntro) {
+  window.__figure2ScrollPx = clampedScroll;
+  window.__figure2TransitionStartPx = transitionScrollAnchor ?? clampedScroll;
+  window.__figure2TransitionRangePx = transitionRange;
+  window.__figure2TransitionArmed = armed;
+  window.__figure2TransitionAutoPlaying = transitionPlaybackActive;
+  window.__figure2TransitionDirection = transitionPlaybackDirection;
+}
+
+function tweenToTransitionProgress(progress, direction, { onComplete } = {}) {
+  const target = stableProgress(progress);
+  const distance = Math.abs(target - progressState.value);
+
+  transitionPlaybackTween?.kill?.();
+  transitionPlaybackTween = null;
+  progressState.target = target;
+  transitionPlaybackDirection = direction;
+
+  if (!window.gsap || distance < 0.001) {
+    progressState.value = target;
+    currentProgress = target;
+    transitionPlaybackActive = false;
+    transitionPlaybackDirection = 0;
+    transitionPlaybackComplete = target >= 0.998;
+    lastRenderedProgress = -1;
+    onComplete?.();
+    return;
+  }
+
+  transitionPlaybackTween = window.gsap.to(progressState, {
+    value: target,
+    duration: Math.max(0.12, distance * SCENE_TRANSITION_SECONDS),
+    ease: 'sine.inOut',
+    overwrite: true,
+    onUpdate: () => {
+      currentProgress = stableProgress(progressState.value);
+    },
+    onComplete: () => {
+      progressState.value = target;
+      currentProgress = target;
+      transitionPlaybackTween = null;
+      transitionPlaybackActive = false;
+      transitionPlaybackDirection = 0;
+      transitionPlaybackComplete = target >= 0.998;
+      lastRenderedProgress = -1;
+      onComplete?.();
+    }
+  });
+}
+
+function startTransitionPlayback(direction = 1) {
+  if (!isIntroComplete()) return;
+  const targetProgress = direction > 0 ? 1 : 0;
+  if (transitionPlaybackActive && transitionPlaybackDirection === direction) return;
+  if (direction > 0 && transitionPlaybackComplete) return;
+  if (direction < 0 && !transitionPlaybackComplete && progressState.value <= 0.002) return;
+
+  transitionPlaybackActive = true;
+  transitionPlaybackDirection = direction;
+  transitionPlaybackComplete = false;
+  transitionArmedAfterIntro = true;
+  releaseIntroScroll();
+  tweenToTransitionProgress(targetProgress, direction, {
+    onComplete: direction < 0 ? () => startIntroReversePlayback({ scrollToTop: true }) : undefined
+  });
+
+  const { totalRange } = getStageScrollMetrics();
+  const targetOffset = direction > 0 ? totalRange : (transitionScrollAnchor ?? INTRO_HOLD_SCROLL_PX);
+  scrollStageToOffset(targetOffset, {
+    immediate: false,
+    duration: SCENE_TRANSITION_SECONDS
+  });
 }
 
 function createFigureMaskCanvas() {
@@ -294,12 +426,7 @@ function loadRequiredLibraries() {
 }
 
 function readSettings() {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
-    return normalizeSettings({ ...DEFAULT_SETTINGS, ...saved });
-  } catch {
-    return { ...DEFAULT_SETTINGS };
-  }
+  return { ...DEFAULT_SETTINGS };
 }
 
 function normalizeSettings(nextSettings) {
@@ -426,49 +553,128 @@ function pauseVideos() {
   videoStates.forEach(pauseVideo);
 }
 
-function renderRawFigureVideoProgress(rawProgress) {
+function updateFigureVideoDebug(rawProgress, mode) {
   const visualProgress = acceleratedProgress(rawProgress);
+  window.__figure2VideoProgress = visualProgress;
+  window.__figure2VideoTime = videoStates[0] ? videoStates[0].video.currentTime : 0;
+  window.__figure2VideoMode = mode;
+  return visualProgress;
+}
+
+function renderRawFigureVideoProgress(rawProgress, mode = 'figure2-intro-autoplay-playhead') {
+  const visualProgress = updateFigureVideoDebug(rawProgress, mode);
   for (const state of videoStates) {
     seekVideoProgress(state, visualProgress);
   }
-
-  window.__figure2VideoProgress = visualProgress;
-  window.__figure2VideoTime = videoStates[0] ? videoStates[0].video.currentTime : 0;
-  window.__figure2VideoMode = 'figure2-intro-autoplay-playhead';
 }
 
-function tweenToFigureVideoProgress(rawProgress) {
+function getFigureVideoPlaybackRate(state) {
+  syncSegmentBounds(state);
+  const segmentDuration = state.segmentEnd - state.segmentStart;
+  if (segmentDuration <= FIGURE_VIDEO_TRANSITION_SECONDS + 0.12) return 1;
+  return clamp(segmentDuration / FIGURE_VIDEO_TRANSITION_SECONDS, 0.5, 3.5);
+}
+
+function finishNativeFigurePlayback() {
+  if (!figureVideoNativeMode) return;
+  figureVideoNativeMode = false;
+  for (const state of videoStates) {
+    pauseVideo(state);
+    seekVideo(state, state.segmentEnd, true);
+  }
+  updateFigureVideoDebug(1, 'figure2-native-forward-complete');
+}
+
+function fallbackToSeekFigurePlayback() {
+  if (figureVideoFallbackStarted || !figureVideoNativeMode) return;
+  figureVideoFallbackStarted = true;
+  figureVideoNativeMode = false;
+  pauseVideos();
+  tweenToFigureVideoProgress(1, { seek: true });
+}
+
+function playFigureVideosForward() {
+  figureVideoNativeMode = true;
+  figureVideoFallbackStarted = false;
+
+  for (const state of videoStates) {
+    const { video } = state;
+    if (!video) continue;
+    syncSegmentBounds(state);
+    pauseVideo(state);
+    video.loop = false;
+    video.playbackRate = getFigureVideoPlaybackRate(state);
+    seekVideo(state, state.segmentStart, true);
+    const playPromise = video.play?.();
+    if (playPromise?.catch) {
+      playPromise.catch(() => {
+        if (figure2IntroState.active && !isIntroComplete()) {
+          fallbackToSeekFigurePlayback();
+        }
+      });
+    }
+  }
+
+  updateFigureVideoDebug(0, 'figure2-native-forward');
+}
+
+function tweenToFigureVideoProgress(rawProgress, {
+  seek = true,
+  duration = FIGURE_VIDEO_TRANSITION_SECONDS,
+  mode,
+  onComplete
+} = {}) {
   const target = stableProgress(rawProgress);
   const distance = Math.abs(target - figureVideoPlayhead.raw);
+  const debugMode = mode ?? (seek ? 'figure2-intro-autoplay-playhead' : 'figure2-native-forward');
 
   figureVideoTween?.kill?.();
   figureVideoTween = null;
 
   if (!window.gsap || distance < 0.001) {
     figureVideoPlayhead.raw = target;
-    renderRawFigureVideoProgress(figureVideoPlayhead.raw);
+    if (seek) {
+      renderRawFigureVideoProgress(figureVideoPlayhead.raw, debugMode);
+    } else {
+      updateFigureVideoDebug(figureVideoPlayhead.raw, debugMode);
+    }
+    onComplete?.();
     return;
   }
 
   figureVideoTween = window.gsap.to(figureVideoPlayhead, {
     raw: target,
-    duration: Math.max(0.06, distance * FIGURE_VIDEO_TRANSITION_SECONDS),
+    duration: Math.max(0.06, distance * duration),
     ease: 'none',
     overwrite: true,
-    onUpdate: () => renderRawFigureVideoProgress(figureVideoPlayhead.raw),
+    onUpdate: () => {
+      if (seek) {
+        renderRawFigureVideoProgress(figureVideoPlayhead.raw, debugMode);
+      } else {
+        updateFigureVideoDebug(figureVideoPlayhead.raw, debugMode);
+      }
+    },
     onComplete: () => {
       figureVideoPlayhead.raw = target;
       figureVideoTween = null;
-      renderRawFigureVideoProgress(figureVideoPlayhead.raw);
+      if (seek) {
+        renderRawFigureVideoProgress(figureVideoPlayhead.raw, debugMode);
+      } else {
+        updateFigureVideoDebug(figureVideoPlayhead.raw, debugMode);
+      }
+      onComplete?.();
     }
   });
 }
 
 function resetFigureVideoTransition() {
+  figureVideoNativeMode = false;
+  figureVideoFallbackStarted = false;
+  pauseVideos();
   tweenToFigureVideoProgress(0);
 }
 
-function tweenToIntroProgress(progress, duration = FIGURE_INTRO_SECONDS) {
+function tweenToIntroProgress(progress, duration = FIGURE_INTRO_SECONDS, { onComplete } = {}) {
   const target = stableProgress(progress);
   const distance = Math.abs(target - figure2IntroState.progress);
 
@@ -478,13 +684,14 @@ function tweenToIntroProgress(progress, duration = FIGURE_INTRO_SECONDS) {
   if (!window.gsap || distance < 0.001) {
     figure2IntroState.progress = target;
     lastRenderedIntroProgress = -1;
+    onComplete?.();
     return;
   }
 
   figureIntroTween = window.gsap.to(figure2IntroState, {
     progress: target,
     duration: Math.max(0.08, duration * distance),
-    ease: 'sine.inOut',
+    ease: 'none',
     overwrite: true,
     onUpdate: () => {
       lastRenderedIntroProgress = -1;
@@ -493,48 +700,118 @@ function tweenToIntroProgress(progress, duration = FIGURE_INTRO_SECONDS) {
       figure2IntroState.progress = target;
       figureIntroTween = null;
       lastRenderedIntroProgress = -1;
+      onComplete?.();
     }
   });
 }
 
 function startIntroPlayback() {
-  if (figure2IntroState.active) return;
+  if (figure2IntroState.active || introReverseActive) return;
   figure2IntroState.active = true;
   resetTransitionAnchor();
   lockIntroScroll();
   setStageScrollOffset(INTRO_HOLD_SCROLL_PX);
+  playFigureVideosForward();
   tweenToIntroProgress(1, FIGURE_INTRO_SECONDS);
-  tweenToFigureVideoProgress(1);
+  tweenToFigureVideoProgress(1, {
+    seek: false,
+    onComplete: finishNativeFigurePlayback
+  });
+}
+
+function finishIntroReversePlayback() {
+  introReverseActive = false;
+  figure2IntroState.active = false;
+  figure2IntroState.progress = 0;
+  figureVideoPlayhead.raw = 0;
+  resetTransitionAnchor();
+  releaseIntroScroll();
+  forceTransitionIdle();
+  setStageScrollOffset(0);
+  lastRenderedProgress = -1;
+  lastRenderedIntroProgress = -1;
+  window.__figure2IntroReverseActive = false;
+}
+
+function startIntroReversePlayback({ scrollToTop = false } = {}) {
+  if (introReverseActive) return;
+  if (figure2IntroState.progress <= 0.001 && figureVideoPlayhead.raw <= 0.001) {
+    finishIntroReversePlayback();
+    if (scrollToTop) {
+      scrollStageToOffset(0, { immediate: false, duration: 0.24 });
+    }
+    return;
+  }
+
+  introReverseActive = true;
+  window.__figure2IntroReverseActive = true;
+  figure2IntroState.active = false;
+  figureVideoNativeMode = false;
+  figureVideoFallbackStarted = false;
+  pauseVideos();
+  releaseIntroScroll();
+  forceTransitionIdle();
+
+  let pendingTweens = 2;
+  const finishWhenReady = () => {
+    pendingTweens -= 1;
+    if (pendingTweens <= 0) {
+      finishIntroReversePlayback();
+    }
+  };
+
+  tweenToIntroProgress(0, FIGURE_INTRO_SECONDS, { onComplete: finishWhenReady });
+  tweenToFigureVideoProgress(0, {
+    seek: true,
+    duration: FIGURE_INTRO_SECONDS,
+    mode: 'figure2-intro-reverse',
+    onComplete: finishWhenReady
+  });
+
+  if (scrollToTop) {
+    scrollStageToOffset(0, {
+      immediate: false,
+      duration: FIGURE_INTRO_SECONDS
+    });
+  }
 }
 
 function resetIntroPlayback() {
   if (!figure2IntroState.active && figure2IntroState.progress <= 0.001 && figureVideoPlayhead.raw <= 0.001) return;
-  figure2IntroState.active = false;
-  resetTransitionAnchor();
-  releaseIntroScroll();
-  tweenToIntroProgress(0, FIGURE_INTRO_SECONDS * 0.7);
-  resetFigureVideoTransition();
+  if (introReverseActive) return;
+  startIntroReversePlayback({ scrollToTop: false });
 }
 
 function createGsapSetters(gsap) {
+  gsap.set(middleCamera, {
+    xPercent: -50,
+    yPercent: -50,
+    y: ARCH_LAYER_CAMERA.middle.baseY,
+    scale: ARCH_LAYER_CAMERA.middle.baseScale,
+    transformOrigin: '50% 56%',
+    force3D: true
+  });
   gsap.set(cloudLayer, {
     xPercent: -50,
     yPercent: -50,
-    scale: 1.012,
+    y: ARCH_LAYER_CAMERA.cloud.baseY,
+    scale: ARCH_LAYER_CAMERA.cloud.baseScale,
     transformOrigin: '50% 56%',
     force3D: true
   });
   gsap.set(farArcadeLayers, {
     xPercent: -50,
     yPercent: -50,
-    scale: 1.012,
+    y: ARCH_LAYER_CAMERA.farArcade.baseY,
+    scale: ARCH_LAYER_CAMERA.farArcade.baseScale,
     transformOrigin: '50% 56%',
     force3D: true
   });
   gsap.set(middleLayers, {
     xPercent: -50,
     yPercent: -50,
-    scale: 1.012,
+    y: 0,
+    scale: 1,
     transformOrigin: '50% 56%',
     force3D: true
   });
@@ -554,6 +831,10 @@ function createGsapSetters(gsap) {
   });
 
   return {
+    middleCameraX: gsap.quickSetter(middleCamera, 'x', 'px'),
+    middleCameraY: gsap.quickSetter(middleCamera, 'y', 'px'),
+    middleCameraScaleX: gsap.quickSetter(middleCamera, 'scaleX'),
+    middleCameraScaleY: gsap.quickSetter(middleCamera, 'scaleY'),
     cloudX: gsap.quickSetter(cloudLayer, 'x', 'px'),
     cloudY: gsap.quickSetter(cloudLayer, 'y', 'px'),
     cloudScaleX: gsap.quickSetter(cloudLayer, 'scaleX'),
@@ -562,10 +843,6 @@ function createGsapSetters(gsap) {
     farArcadeY: gsap.quickSetter(farArcadeLayers, 'y', 'px'),
     farArcadeScaleX: gsap.quickSetter(farArcadeLayers, 'scaleX'),
     farArcadeScaleY: gsap.quickSetter(farArcadeLayers, 'scaleY'),
-    middleX: gsap.quickSetter(middleLayers, 'x', 'px'),
-    middleY: gsap.quickSetter(middleLayers, 'y', 'px'),
-    middleScaleX: gsap.quickSetter(middleLayers, 'scaleX'),
-    middleScaleY: gsap.quickSetter(middleLayers, 'scaleY'),
     nearArchX: gsap.quickSetter(nearArchLayer, 'x', 'px'),
     nearArchY: gsap.quickSetter(nearArchLayer, 'y', 'px'),
     nearArchScaleX: gsap.quickSetter(nearArchLayer, 'scaleX'),
@@ -582,24 +859,25 @@ function renderWithGsap(progress, mouseX, mouseY) {
   if (!gsapSetters) return;
   const p = stableProgress(progress);
   const cameraProgress = smoothStep(figure2IntroState.progress);
+  const { cloud, farArcade, middle } = ARCH_LAYER_CAMERA;
 
-  gsapSetters.cloudX(mouseX * -0.010);
-  gsapSetters.cloudY(mouseY * -0.006 - cameraProgress * 30);
-  const cloudScale = 1.012 + cameraProgress * 0.13;
+  gsapSetters.cloudX(mouseX * cloud.mouseX);
+  gsapSetters.cloudY(cloud.baseY + mouseY * cloud.mouseY - cameraProgress * cloud.yTravel);
+  const cloudScale = cloud.baseScale + cameraProgress * cloud.scaleTravel;
   gsapSetters.cloudScaleX(cloudScale);
   gsapSetters.cloudScaleY(cloudScale);
 
-  gsapSetters.farArcadeX(mouseX * -0.012);
-  gsapSetters.farArcadeY(mouseY * -0.007 - cameraProgress * 32);
-  const farArcadeScale = 1.012 + cameraProgress * 0.13;
+  gsapSetters.farArcadeX(mouseX * farArcade.mouseX);
+  gsapSetters.farArcadeY(farArcade.baseY + mouseY * farArcade.mouseY - cameraProgress * farArcade.yTravel);
+  const farArcadeScale = farArcade.baseScale + cameraProgress * farArcade.scaleTravel;
   gsapSetters.farArcadeScaleX(farArcadeScale);
   gsapSetters.farArcadeScaleY(farArcadeScale);
 
-  gsapSetters.middleX(mouseX * -0.014);
-  gsapSetters.middleY(mouseY * -0.008 - cameraProgress * 34);
-  const middleScale = 1.012 + cameraProgress * 0.13;
-  gsapSetters.middleScaleX(middleScale);
-  gsapSetters.middleScaleY(middleScale);
+  const middleScale = middle.baseScale + cameraProgress * middle.scaleTravel;
+  gsapSetters.middleCameraX(mouseX * middle.mouseX);
+  gsapSetters.middleCameraY(middle.baseY + mouseY * middle.mouseY - cameraProgress * middle.yTravel);
+  gsapSetters.middleCameraScaleX(middleScale);
+  gsapSetters.middleCameraScaleY(middleScale);
 
   gsapSetters.nearArchX(mouseX * -0.002);
   gsapSetters.nearArchY(0);
@@ -619,12 +897,11 @@ function renderWithGsap(progress, mouseX, mouseY) {
 function renderNative(progress, mouseX, mouseY) {
   const p = stableProgress(progress);
   const cameraProgress = smoothStep(figure2IntroState.progress);
-  cloudLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.010}px), calc(-50% + ${mouseY * -0.006 - cameraProgress * 30}px), 0) scale(${1.012 + cameraProgress * 0.13})`;
+  const { cloud, farArcade, middle } = ARCH_LAYER_CAMERA;
+  middleCamera.style.transform = `translate3d(calc(-50% + ${mouseX * middle.mouseX}px), calc(-50% + ${middle.baseY + mouseY * middle.mouseY - cameraProgress * middle.yTravel}px), 0) scale(${middle.baseScale + cameraProgress * middle.scaleTravel})`;
+  cloudLayer.style.transform = `translate3d(calc(-50% + ${mouseX * cloud.mouseX}px), calc(-50% + ${cloud.baseY + mouseY * cloud.mouseY - cameraProgress * cloud.yTravel}px), 0) scale(${cloud.baseScale + cameraProgress * cloud.scaleTravel})`;
   for (const farArcadeLayer of farArcadeLayers) {
-    farArcadeLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.012}px), calc(-50% + ${mouseY * -0.007 - cameraProgress * 32}px), 0) scale(${1.012 + cameraProgress * 0.13})`;
-  }
-  for (const middleLayer of middleLayers) {
-    middleLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.014}px), calc(-50% + ${mouseY * -0.008 - cameraProgress * 34}px), 0) scale(${1.012 + cameraProgress * 0.13})`;
+    farArcadeLayer.style.transform = `translate3d(calc(-50% + ${mouseX * farArcade.mouseX}px), calc(-50% + ${farArcade.baseY + mouseY * farArcade.mouseY - cameraProgress * farArcade.yTravel}px), 0) scale(${farArcade.baseScale + cameraProgress * farArcade.scaleTravel})`;
   }
   nearArchLayer.style.transform = `translate3d(calc(-50% + ${mouseX * -0.002}px), -50%, 0) scale(${1.025 + cameraProgress * 0.10})`;
   nearArchLayer.style.setProperty('--figure2-near-arch-blur', `${(cameraProgress * 3.6).toFixed(2)}px`);
@@ -664,7 +941,7 @@ function renderScene(progress, mouseX, mouseY) {
 }
 
 function tickFigure2() {
-  if (figure2IntroState.active) {
+  if (figure2IntroState.active && !introReverseActive) {
     if (!isIntroComplete()) {
       holdIntroScrollPosition();
       forceTransitionIdle();
@@ -678,9 +955,11 @@ function tickFigure2() {
     }
   }
 
-  const targetProgress = stableProgress(progressState.target);
-  const diff = targetProgress - progressState.value;
-  progressState.value += diff * 0.22;
+  if (!transitionPlaybackTween) {
+    const targetProgress = stableProgress(progressState.target);
+    const diff = targetProgress - progressState.value;
+    progressState.value += diff * 0.22;
+  }
 
   currentProgress = stableProgress(progressState.value);
   renderScene(currentProgress, parallaxMouse.x, parallaxMouse.y);
@@ -707,21 +986,30 @@ function getStageScrollMetrics() {
 function applyScrollPosition(rawScroll) {
   const { totalRange, transitionRange } = getStageScrollMetrics();
   const clampedScroll = clamp(rawScroll, 0, totalRange);
+  const previousClampedScroll = lastClampedScroll;
+  const scrollDirection = clampedScroll > previousClampedScroll + 0.5
+    ? 1
+    : clampedScroll < previousClampedScroll - 0.5
+      ? -1
+      : 0;
+  if (scrollDirection !== 0) {
+    lastScrollDirection = scrollDirection;
+  }
   lastClampedScroll = clampedScroll;
+  if (introReverseActive) {
+    setTransitionDebugState(clampedScroll, transitionRange, false);
+    return;
+  }
   if (clampedScroll > INTRO_TRIGGER_PX) {
     startIntroPlayback();
   } else {
     resetIntroPlayback();
   }
 
-  let transitionProgress = 0;
   if (clampedScroll > INTRO_TRIGGER_PX) {
     if (!isIntroComplete()) {
       forceTransitionIdle();
-      window.__figure2ScrollPx = clampedScroll;
-      window.__figure2TransitionStartPx = transitionScrollAnchor ?? clampedScroll;
-      window.__figure2TransitionRangePx = transitionRange;
-      window.__figure2TransitionArmed = false;
+      setTransitionDebugState(clampedScroll, transitionRange, false);
       return;
     }
 
@@ -729,26 +1017,26 @@ function applyScrollPosition(rawScroll) {
       transitionScrollAnchor = clampedScroll;
       transitionArmedAfterIntro = true;
       forceTransitionIdle();
-      window.__figure2ScrollPx = clampedScroll;
-      window.__figure2TransitionStartPx = transitionScrollAnchor;
-      window.__figure2TransitionRangePx = transitionRange;
-      window.__figure2TransitionArmed = true;
+      setTransitionDebugState(clampedScroll, transitionRange, true);
       return;
     }
 
-    transitionProgress = stableProgress((clampedScroll - transitionScrollAnchor) / transitionRange);
+    if (scrollDirection > 0 && clampedScroll > transitionScrollAnchor + 0.75) {
+      startTransitionPlayback(1);
+    } else if (
+      scrollDirection < 0
+      && clampedScroll < totalRange - 0.75
+      && (transitionPlaybackComplete || transitionPlaybackActive || progressState.value > 0.002)
+    ) {
+      startTransitionPlayback(-1);
+    }
+
+    setTransitionDebugState(clampedScroll, transitionRange, true);
+    return;
   }
 
-  progressState.target = transitionProgress;
-  if (transitionProgress >= 1 || transitionProgress <= 0) {
-    progressState.value = transitionProgress;
-    currentProgress = transitionProgress;
-    lastRenderedProgress = -1;
-  }
-  window.__figure2ScrollPx = clampedScroll;
-  window.__figure2TransitionStartPx = transitionScrollAnchor ?? clampedScroll;
-  window.__figure2TransitionRangePx = transitionRange;
-  window.__figure2TransitionArmed = transitionScrollAnchor !== null;
+  forceTransitionIdle();
+  setTransitionDebugState(clampedScroll, transitionRange, false);
 }
 
 function updateNativeProgress() {
@@ -899,7 +1187,7 @@ function initScrollTrigger() {
   ScrollTrigger.refresh();
 }
 
-if (stage && figureVideos.length && cloudLayer && farArcadeLayers.length && middleLayers.length && nearArchLayer && figureGroup) {
+if (stage && figureVideos.length && middleCamera && middleWindowMask && cloudLayer && farArcadeLayers.length && middleLayers.length && nearArchLayer && figureGroup) {
   sceneInkTransition?.prewarm();
   const videoReady = prepareVideos();
   const librariesReady = reduceMotion ? Promise.resolve() : loadRequiredLibraries();

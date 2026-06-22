@@ -7,6 +7,8 @@
   --figure2-ink: rgba(247, 237, 215, 0.92);
   --figure2-paper: rgba(242, 228, 194, 0.78);
   --figure2-paper-soft: rgba(232, 213, 154, 0.18);
+  --figure2-paper-ground: #ece8dc;
+  --figure2-paper-ground-soft: #f6f2e8;
   --figure2-middle-base-opacity: 0.15;
   --figure2-middle-color-opacity: 1;
   --figure2-middle-relief-opacity: 0.50;
@@ -66,7 +68,7 @@
   isolation: isolate;
   background:
     radial-gradient(ellipse at 50% 48%, rgba(255, 252, 242, 0.34), transparent 32rem),
-    linear-gradient(180deg, #f1ecdf 0%, #e5d9c5 100%);
+    linear-gradient(180deg, var(--figure2-paper-ground-soft) 0%, var(--figure2-paper-ground) 56%, #e2dac9 100%);
 }
 
 .figure2-backdrop {
@@ -168,6 +170,30 @@
   mask-position: 50% 50%;
   mask-repeat: no-repeat;
   mask-mode: alpha;
+}
+
+.figure2-middle-window-mask::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 52% 12%, rgba(255, 252, 244, 0.86), transparent 36rem),
+    linear-gradient(180deg, var(--figure2-paper-ground-soft) 0%, var(--figure2-paper-ground) 58%, #e4ddcf 100%);
+}
+
+.figure2-middle-window-mask::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0.42;
+  background:
+    radial-gradient(ellipse at 52% 16%, rgba(255, 252, 244, 0.54), transparent 34rem),
+    linear-gradient(180deg, rgba(246, 242, 232, 0.54), rgba(236, 232, 220, 0.22));
+  mix-blend-mode: screen;
 }
 
 .figure2-arch-layer--middle-composite {
@@ -275,6 +301,140 @@
   mix-blend-mode: normal;
   will-change: opacity;
   contain: strict;
+}
+
+.figure2-proof-scroll {
+  --figure2-proof-overlay-opacity: 0;
+  --figure2-proof-reveal-stop: -12%;
+  --figure2-proof-reveal-edge: 2%;
+  --figure2-proof-scroll-y: 0px;
+  position: absolute;
+  inset: 0;
+  z-index: 13;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--figure2-proof-overlay-opacity);
+  background:
+    radial-gradient(ellipse at 50% 18%, rgba(255, 252, 244, 0.48), transparent 34rem),
+    linear-gradient(180deg, var(--figure2-paper-ground-soft) 0%, var(--figure2-paper-ground) 58%, #e4ddcf 100%);
+  -webkit-mask-image: radial-gradient(
+    ellipse at 50% 54%,
+    #000 0%,
+    #000 var(--figure2-proof-reveal-stop),
+    transparent var(--figure2-proof-reveal-edge)
+  );
+  mask-image: radial-gradient(
+    ellipse at 50% 54%,
+    #000 0%,
+    #000 var(--figure2-proof-reveal-stop),
+    transparent var(--figure2-proof-reveal-edge)
+  );
+  will-change: opacity;
+}
+
+.figure2-proof-scroll__content {
+  position: absolute;
+  left: max(96px, 8vw);
+  right: max(96px, 8vw);
+  top: clamp(430px, 45dvh, 540px);
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 3fr);
+  column-gap: clamp(56px, 6vw, 112px);
+  row-gap: clamp(30px, 4vw, 56px);
+  align-items: start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: rgba(36, 38, 28, 0.92);
+  transform: translate3d(0, var(--figure2-proof-scroll-y), 0);
+  will-change: transform;
+}
+
+.figure2-proof-scroll__content .method-proof__lead {
+  position: sticky;
+  top: clamp(88px, 10dvh, 132px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(20px, 2.6vw, 34px);
+  align-self: start;
+  max-width: min(100%, 360px);
+}
+
+.figure2-proof-scroll__content .method-proof__lead > span {
+  margin: 0;
+  color: rgba(120, 99, 41, 0.82);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: 0.18em;
+  line-height: 1.7;
+  text-transform: uppercase;
+}
+
+.figure2-proof-scroll__content .method-proof__closing {
+  max-width: 7.4em;
+  margin: 0;
+  color: rgba(36, 38, 28, 0.82);
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(28px, 2.3vw, 42px);
+  font-weight: 600;
+  line-height: 1.16;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.figure2-proof-scroll__content .method-proof__closing span {
+  display: block;
+}
+
+.figure2-proof-scroll__content .method-proof__lead p {
+  max-width: 24em;
+  margin: 0;
+  color: rgba(36, 38, 28, 0.56);
+  font-size: clamp(16px, 1.15vw, 18px);
+  line-height: 1.78;
+  text-wrap: pretty;
+}
+
+.figure2-proof-scroll__content .method-proof__list {
+  align-self: start;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(37, 39, 25, 0.16);
+  list-style: none;
+}
+
+.figure2-proof-scroll__content .method-proof__row {
+  display: grid;
+  grid-template-columns: 56px minmax(200px, 0.9fr) minmax(0, 2.6fr);
+  gap: clamp(24px, 3vw, 52px);
+  align-items: baseline;
+  padding: clamp(30px, 3.4vw, 48px) 0;
+  border-bottom: 1px solid rgba(37, 39, 25, 0.14);
+}
+
+.figure2-proof-scroll__content .method-proof__row span {
+  color: rgba(120, 99, 41, 0.92);
+  font-size: clamp(14px, 0.9vw, 18px);
+  font-weight: 760;
+  line-height: 1;
+}
+
+.figure2-proof-scroll__content .method-proof__row strong {
+  color: rgba(36, 38, 28, 0.92);
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(42px, 2.7vw, 58px);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.figure2-proof-scroll__content .method-proof__row p {
+  max-width: 30em;
+  margin: 0;
+  color: rgba(36, 38, 28, 0.56);
+  font-size: clamp(18px, 1.2vw, 24px);
+  line-height: 1.72;
 }
 
 .figure2-center-wash {
@@ -507,6 +667,38 @@
     min-height: 620px;
   }
 
+  .figure2-proof-scroll__content {
+    left: max(24px, 7vw);
+    right: max(24px, 7vw);
+    top: clamp(128px, 18dvh, 180px);
+    grid-template-columns: 1fr;
+    row-gap: clamp(36px, 8vw, 56px);
+  }
+
+  .figure2-proof-scroll__content .method-proof__lead {
+    position: relative;
+    top: auto;
+    gap: clamp(24px, 7vw, 36px);
+  }
+
+  .figure2-proof-scroll__content .method-proof__closing {
+    max-width: 8em;
+    font-size: clamp(38px, 12vw, 56px);
+    line-height: 1.05;
+  }
+
+  .figure2-proof-scroll__content .method-proof__row {
+    grid-template-columns: 54px minmax(0, 1fr);
+    gap: 12px clamp(18px, 5vw, 32px);
+    padding: clamp(28px, 8vw, 44px) 0;
+  }
+
+  .figure2-proof-scroll__content .method-proof__row p {
+    grid-column: 2;
+    max-width: 100%;
+    font-size: clamp(15px, 4.2vw, 18px);
+  }
+
   .figure2-title-block {
     top: 12vh;
     gap: 14px;
@@ -542,4 +734,11 @@
     display: none;
   }
 
+  .figure2-proof-scroll__content {
+    top: clamp(112px, 16dvh, 150px);
+  }
+
+  .figure2-proof-scroll__content .method-proof__row strong {
+    font-size: clamp(30px, 9vw, 42px);
+  }
 }

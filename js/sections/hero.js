@@ -1,4 +1,3 @@
-import { createPatternBloomScene } from '../pattern-mirror-stage.js';
 import { createInkCurtainTransition, createInkSceneTransition } from '../effects/ink-scene-transition.js';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -164,7 +163,6 @@ export function initLayeredHero(options = {}) {
   const belief = document.querySelector('[data-hero-belief]');
   const nav = document.querySelector('.site-nav');
   const introInkCanvas = document.querySelector('[data-hero-intro-ink-canvas]');
-  const patternCanvas = document.querySelector('[data-hero-pattern-field]');
   const inkCanvas = document.querySelector('[data-hero-ink-canvas]');
   const exitInkCanvas = document.querySelector('[data-hero-exit-ink-canvas]');
   const starFieldCanvas = null;
@@ -186,17 +184,7 @@ export function initLayeredHero(options = {}) {
     colorLift: 0.72,
     sourceElement: back
   });
-  const inkTransition = createInkSceneTransition(inkCanvas, {
-    targetSrc: 'assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png',
-    nextSceneElement: patternCanvas,
-    figureMaskElement: figure,
-    hideAtEnd: false,
-    perlinOverlay: false,
-    perlinStrength: 0,
-    progressSpan: 1,
-    colorLift: 0.58,
-    sceneBrightness: 1
-  });
+  const inkTransition = null;
   const exitInkTransition = createInkCurtainTransition(exitInkCanvas, {
     direction: 'bottom-up',
     colorLift: 0.56,
@@ -207,35 +195,6 @@ export function initLayeredHero(options = {}) {
   });
 
   if (!hero || !scene || !back || !middle || !figure || !content) return;
-
-  const heroPatternScene = patternCanvas
-    ? createPatternBloomScene({
-      canvas: patternCanvas,
-      progressSource: () => 1,
-      reducedMotion: reduceMotion,
-      reducedMotionProgress: 1,
-      continuousMotion: false,
-      scrollDrivenMotion: false,
-      dprLimit: 1,
-      center: {
-        x: 0.24,
-        y: 0.55,
-        mobileX: 0.50,
-        mobileY: 0.58
-      }
-    })
-    : null;
-  heroPatternScene?.start()
-    .then(() => {
-      patternCanvas.dataset.inkTextureReady = 'true';
-    })
-    .catch((error) => {
-      console.warn('Hero lotus target failed; ink transition will keep the paper fallback.', error);
-      heroPatternScene.destroy();
-    });
-  if (heroPatternScene) {
-    window.addEventListener('pagehide', heroPatternScene.destroy, { once: true });
-  }
 
   const starFieldReveal = null;
 
@@ -563,7 +522,7 @@ export function initLayeredHero(options = {}) {
   };
 
   function updateHeroLayers() {
-    const { totalRange, sceneRange, transitionStartRange, transitionRange } = getHeroRanges();
+    const { totalRange, sceneRange } = getHeroRanges();
     const rawHeroScroll = window.scrollY - hero.offsetTop;
     const viewportH = window.innerHeight;
     const introProgress = clamp(heroIntroState.progress, 0, 1);
@@ -595,7 +554,7 @@ export function initLayeredHero(options = {}) {
     const navReveal = setNavOpacity && setNavY
       ? (introSettled ? smoothStep(clamp((window.scrollY - (hero.offsetTop + totalRange + 16)) / 180, 0, 1)) : 0)
       : 0;
-    const inkProgress = introSettled ? clamp((rawHeroScroll - transitionStartRange) / transitionRange, 0, 1) : 0;
+    const inkVisualProgress = 0;
     const heroInView = rawHeroScroll > -viewportH && rawHeroScroll < totalRange + viewportH;
     const manifestoEnterProgress = introSettled
       ? smoothStep(range01(rawHeroScroll, sceneRange - viewportH * 0.16, sceneRange + viewportH * 0.04))
@@ -621,23 +580,23 @@ export function initLayeredHero(options = {}) {
     const mouseChanged = Math.abs(lastMouseAppliedX - mouseX) > 0.001 || Math.abs(lastMouseAppliedY - mouseY) > 0.001;
     const introChanged = Math.abs(lastIntroProgress - introProgress) > 0.001;
     const navChanged = Math.abs(lastNavReveal - navReveal) > 0.001;
-    const inkChanged = Math.abs(lastInkProgress - inkProgress) > 0.001;
+    const inkChanged = Math.abs(lastInkProgress - inkVisualProgress) > 0.001;
     const manifestoChanged = Math.abs(lastManifestoProgress - manifestoSceneProgress) > 0.001;
     const manifestoExitChanged = Math.abs(lastManifestoExitProgress - manifestoExitProgress) > 0.001;
     const beliefChanged = Math.abs(lastBeliefProgress - beliefSceneProgress) > 0.001;
     const beliefExitChanged = Math.abs(lastBeliefExitProgress - beliefExitProgress) > 0.001;
     const introInkAnimating = !heroIntroComplete && introProgress > 0.002 && introProgress < 0.999;
-    const inkAnimating = inkProgress > 0.002 && inkProgress < 0.995;
+    const inkAnimating = inkVisualProgress > 0.002 && inkVisualProgress < 0.995;
     const exitInkAnimating = manifestoExitProgress > 0.002 && manifestoExitProgress < 0.995;
     const now = performance.now();
-    const secondSceneFrameDue = Boolean(starFieldReveal?.ready && inkProgress > 0.002 && heroInView && now - lastSecondSceneRenderAt > 72);
+    const secondSceneFrameDue = Boolean(starFieldReveal?.ready && inkVisualProgress > 0.002 && heroInView && now - lastSecondSceneRenderAt > 72);
     if (Math.abs(lastApplied - renderedProgress) < 0.0012 && !introChanged && !introInkAnimating && !mouseChanged && !navChanged && !inkChanged && !manifestoChanged && !manifestoExitChanged && !beliefChanged && !beliefExitChanged && !inkAnimating && !exitInkAnimating && !secondSceneFrameDue) return;
     lastApplied = renderedProgress;
     lastIntroProgress = introProgress;
     lastMouseAppliedX = mouseX;
     lastMouseAppliedY = mouseY;
     lastNavReveal = navReveal;
-    lastInkProgress = inkProgress;
+    lastInkProgress = inkVisualProgress;
     lastManifestoProgress = manifestoSceneProgress;
     lastManifestoExitProgress = manifestoExitProgress;
     lastBeliefProgress = beliefSceneProgress;
@@ -645,8 +604,8 @@ export function initLayeredHero(options = {}) {
 
     const p = renderedProgress;
     const layerProgress = introSettled ? p : 0;
-    const firstSceneForegroundOpacity = 1 - smoothStep(range01(inkProgress, 0.08, 0.62));
-    const firstSceneBackdropOpacity = 1 - smoothStep(range01(inkProgress, 0.72, 0.98));
+    const firstSceneForegroundOpacity = 1 - smoothStep(range01(inkVisualProgress, 0.08, 0.62));
+    const firstSceneBackdropOpacity = 1 - smoothStep(range01(inkVisualProgress, 0.72, 0.98));
     const firstSceneForegroundVisible = firstSceneForegroundOpacity > 0.002;
     const viewportW = window.innerWidth;
     const farIntro = farInkEase(range01(introProgress, 0, 1));
@@ -698,15 +657,15 @@ export function initLayeredHero(options = {}) {
 
     setContentX(0);
     setContentY(0);
-    const heroContentOpacity = introSettled ? 1 - smoothStep(range01(inkProgress, 0.06, 0.38)) : 1;
+    const heroContentOpacity = introSettled ? 1 - smoothStep(range01(inkVisualProgress, 0.06, 0.38)) : 1;
     setContentOpacity(heroContentOpacity);
     content.style.visibility = heroContentOpacity > 0.002 ? 'visible' : 'hidden';
     updateIntroInkTransition(introProgress, farIntro);
-    const secondSceneSettle = smoothStep(range01(inkProgress, 0.78, 1));
+    const secondSceneSettle = smoothStep(range01(inkVisualProgress, 0.78, 1));
     const secondScenePerlinStrength = 0;
     const secondSceneBrightness = lerp(0.98, 0.92, secondSceneSettle);
     if (starFieldReveal?.ready && (inkChanged || inkAnimating || secondSceneFrameDue)) {
-      const highlightResolve = smoothStep(range01(inkProgress, 0.58, 1));
+      const highlightResolve = smoothStep(range01(inkVisualProgress, 0.58, 1));
       starFieldReveal.renderBackground({
         timeSeconds: now / 1000,
         strength: lerp(1.35, 2.65, highlightResolve),
@@ -715,11 +674,11 @@ export function initLayeredHero(options = {}) {
       starFieldCanvas.dataset.inkTextureReady = 'true';
       lastSecondSceneRenderAt = now;
     }
-    updateInkTransition(inkProgress, {
+    updateInkTransition(inkVisualProgress, {
       perlinStrength: secondScenePerlinStrength,
       sceneBrightness: secondSceneBrightness
     });
-    if (inkProgress <= 0.002 || !starFieldReveal?.ready) {
+    if (inkVisualProgress <= 0.002 || !starFieldReveal?.ready) {
       lastSecondSceneRenderAt = 0;
     }
     if (starFieldCanvas) {
@@ -763,7 +722,7 @@ export function initLayeredHero(options = {}) {
 
     root.style.setProperty('--hero-progress', p.toFixed(4));
     root.style.setProperty('--hero-intro-progress', introProgress.toFixed(4));
-    root.style.setProperty('--hero-transition-progress', inkProgress.toFixed(4));
+    root.style.setProperty('--hero-transition-progress', inkVisualProgress.toFixed(4));
     root.style.setProperty('--hero-manifesto-progress', manifestoSceneProgress.toFixed(4));
     root.style.setProperty('--hero-manifesto-exit-progress', manifestoExitProgress.toFixed(4));
   }

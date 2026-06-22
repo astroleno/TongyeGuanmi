@@ -1,37 +1,53 @@
-import { loadTransitionLibraries } from './transitions/load-libraries.js';
-import {
-  createReduceMotionState,
-  createScrollProgressTrigger,
-  initTransitionScrollRuntime
-} from './transitions/scroll-scene.js';
+import { createTransitionRoute } from './transitions/route-entry.js';
+import { createScrollProgressTrigger } from './transitions/scroll-scene.js';
 import {
   prepareScrubVideo,
   seekVideoToProgress,
   waitForVideoMetadata
 } from './transitions/video-scrub.js';
 
-const TRANSITION_DURATION_SECONDS = 2;
-const VIDEO_DURATION_FALLBACK = 4.04;
-
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-const smoothStep = (value) => value * value * (3 - 2 * value);
-
-const root = document.documentElement;
-const body = document.body;
 const stage = document.querySelector('[data-ph-stage]');
 const alphaVideo = document.querySelector('[data-ph-alpha-video]');
-const reduceMotion = createReduceMotionState();
 
-let scrollScene = { destroy() {} };
-let scrollTrigger = { destroy() {} };
+const VIDEO_DURATION_FALLBACK = 4.04;
+const TRANSITION_DURATION_SECONDS = 2.5;
+const SCROLL_TRIGGER_VH = 20;
+const BG_PARALLAX_Y = -18;
+const FRONT_PARALLAX_Y = 230;
+const FIGURE_PARALLAX_Y = 135;
+
 let progressTween = null;
 const playhead = { raw: 0 };
 
-function setProgress(progress) {
-  const p = clamp(progress, 0, 1);
-  root.style.setProperty('--ph-progress', p.toFixed(4));
-  root.style.setProperty('--ph-video-opacity', (1 - smoothStep(clamp((p - 0.98) / 0.02, 0, 1))).toFixed(4));
-  seekVideoToProgress(alphaVideo, p, {
+function clamp(value, min = 0, max = 1) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function smoothStep(value) {
+  const p = clamp(value);
+  return p * p * (3 - 2 * p);
+}
+
+function acceleratedProgress(rawProgress) {
+  const p = clamp(rawProgress);
+  return clamp(0.78 * p + 0.22 * p * p);
+}
+
+function setSceneProgress(progress) {
+  if (!stage) return;
+
+  const p = clamp(progress);
+  const eased = smoothStep(p);
+  stage.style.setProperty('--ph-progress', p.toFixed(4));
+  stage.style.setProperty('--ph-bg-parallax-y', `${(eased * BG_PARALLAX_Y).toFixed(2)}px`);
+  stage.style.setProperty('--ph-front-parallax-y', `${(eased * FRONT_PARALLAX_Y).toFixed(2)}px`);
+  stage.style.setProperty('--ph-figure-parallax-y', `${(eased * FIGURE_PARALLAX_Y).toFixed(2)}px`);
+}
+
+function renderRawProgress(rawProgress) {
+  const visualProgress = acceleratedProgress(rawProgress);
+  setSceneProgress(visualProgress);
+  seekVideoToProgress(alphaVideo, visualProgress, {
     fallbackSeconds: VIDEO_DURATION_FALLBACK,
     endPaddingSeconds: 0.02,
     minDeltaSeconds: 0.016
@@ -40,7 +56,7 @@ function setProgress(progress) {
 
 function tweenToRawProgress(rawProgress) {
   const { gsap } = window;
-  const target = clamp(rawProgress, 0, 1);
+  const target = clamp(rawProgress);
   const distance = Math.abs(target - playhead.raw);
 
   progressTween?.kill?.();
@@ -48,7 +64,7 @@ function tweenToRawProgress(rawProgress) {
 
   if (distance < 0.001 || !gsap) {
     playhead.raw = target;
-    setProgress(playhead.raw);
+    renderRawProgress(playhead.raw);
     return;
   }
 
@@ -57,11 +73,11 @@ function tweenToRawProgress(rawProgress) {
     duration: Math.max(0.06, distance * TRANSITION_DURATION_SECONDS),
     ease: 'none',
     overwrite: true,
-    onUpdate: () => setProgress(playhead.raw),
+    onUpdate: () => renderRawProgress(playhead.raw),
     onComplete: () => {
       playhead.raw = target;
       progressTween = null;
-      setProgress(playhead.raw);
+      renderRawProgress(playhead.raw);
     }
   });
 }
@@ -70,57 +86,55 @@ function resetTransition() {
   tweenToRawProgress(0);
 }
 
-async function init() {
-  if (!stage || !alphaVideo) return;
-
-  prepareScrubVideo(alphaVideo);
-
-  if (reduceMotion) {
-    playhead.raw = 1;
-    setProgress(1);
-    waitForVideoMetadata(alphaVideo).then(() => setProgress(1));
-    return;
-  }
-
-  await waitForVideoMetadata(alphaVideo);
-
-  const { gsap, ScrollTrigger } = await loadTransitionLibraries();
-  scrollScene = initTransitionScrollRuntime({
-    root,
-    body,
-    reduceMotion,
-    gsap,
-    ScrollTrigger,
+if (stage && alphaVideo) {
+  createTransitionRoute({
+    name: 'PH transition',
+    stage,
     smoothOptions: {
       lerp: 0.08,
       wheelMultiplier: 0.82,
       syncTouch: false
+    },
+    prepare: () => {
+      prepareScrubVideo(alphaVideo);
+      setSceneProgress(0);
+    },
+    onReducedMotion: () => {
+      let active = true;
+      playhead.raw = 1;
+      renderRawProgress(1);
+      waitForVideoMetadata(alphaVideo).then(() => {
+        if (active) renderRawProgress(1);
+      });
+
+      return () => {
+        active = false;
+      };
+    },
+    beforeMount: () => waitForVideoMetadata(alphaVideo),
+    mount: ({ ScrollTrigger }) => {
+      renderRawProgress(0);
+
+      const scrollTrigger = createScrollProgressTrigger({
+        ScrollTrigger,
+        trigger: stage,
+        start: 'top top',
+        end: () => `+=${Math.max(1, window.innerHeight * (SCROLL_TRIGGER_VH / 100))}`,
+        invalidateOnRefresh: true,
+        onUpdate: (self) => tweenToRawProgress(self.progress),
+        onLeave: () => tweenToRawProgress(1),
+        onLeaveBack: resetTransition
+      });
+
+      return () => {
+        progressTween?.kill?.();
+        scrollTrigger.destroy();
+        alphaVideo.pause();
+      };
+    },
+    onError: (error) => {
+      console.warn('PH transition failed to initialize.', error);
+      renderRawProgress(0);
     }
   });
-
-  setProgress(0);
-
-  scrollTrigger = createScrollProgressTrigger({
-    ScrollTrigger,
-    trigger: stage,
-    start: 'top top',
-    end: 'bottom bottom',
-    invalidateOnRefresh: true,
-    onUpdate: (self) => tweenToRawProgress(self.progress),
-    onLeave: () => tweenToRawProgress(1),
-    onLeaveBack: resetTransition
-  });
-
-  ScrollTrigger.refresh();
 }
-
-init().catch((error) => {
-  console.warn('PH transition failed to initialize.', error);
-  setProgress(0);
-});
-
-window.addEventListener('pagehide', () => {
-  progressTween?.kill?.();
-  scrollTrigger?.destroy?.();
-  scrollScene?.destroy?.();
-});

@@ -11,17 +11,20 @@
   <link rel="preload" href="js/vendor/gsap.min.js" as="script" />
   <link rel="preload" href="js/vendor/ScrollTrigger.min.js" as="script" />
   <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
-  <link rel="preload" href="assets/figure2-cloud-window-alpha.png" as="image" />
-  <link rel="preload" href="assets/figure2-far-arcade-window-alpha.png" as="image" />
-  <link rel="preload" href="assets/figure2-middle-fresco-opaque-alpha.png" as="image" />
+  <link rel="preload" href="assets/figure2-cloud-source.png?v=cloudsource3" as="image" />
+  <link rel="preload" href="assets/figure2-front-white-source.png" as="image" />
+  <link rel="preload" href="assets/figure2-front-color-source.png" as="image" />
+  <link rel="preload" href="assets/arch2b-alpha.png" as="image" />
+  <link rel="preload" href="assets/figure2-middle-window-mask.png?v=middlemaskhard1" as="image" />
+  <link rel="preload" href="assets/figure2-middle-fresco-opaque-alpha.png?v=middlemaskhard1" as="image" />
   <link rel="preload" href="assets/arch2d-alpha.png" as="image" />
   <link rel="preload" href="assets/figure2-middle-depth.png" as="image" />
   <link rel="preload" href="assets/figure2-next-white.png" as="image" />
-  <link rel="preload" href="assets/figure2a-alpha-scrub.webm?v=alpha2" as="video" type="video/webm" />
-  <link rel="preload" href="assets/figure2b-alpha-scrub.webm?v=alpha2" as="video" type="video/webm" />
+  <link rel="preload" href="assets/figure2a-alpha-auto.webm?v=auto2" as="video" type="video/webm" />
+  <link rel="preload" href="assets/figure2b-alpha-auto.webm?v=auto2" as="video" type="video/webm" />
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/components/liquid-glass-home.css" />
-  <link rel="stylesheet" href="css/figure2.css" />
+  <link rel="stylesheet" href="css/figure2.css?v=layerfix8" />
   <style>
     .liquid-glass::before {
       backdrop-filter: blur(8px) url(#liquid-glass-refraction) saturate(1.5);
@@ -60,9 +63,17 @@
         <div class="figure2-field">
           <div class="figure2-backdrop" aria-hidden="true"></div>
           <div class="figure2-arch-stack" aria-hidden="true">
-            <img class="figure2-arch-layer figure2-arch-layer--cloud" src="assets/figure2-cloud-window-alpha.png" alt="" />
-            <img class="figure2-arch-layer figure2-arch-layer--far-arcade-window" src="assets/figure2-far-arcade-window-alpha.png" alt="" />
-            <img class="figure2-arch-layer figure2-arch-layer--middle-composite" src="assets/figure2-middle-fresco-opaque-alpha.png" alt="" />
+            <div class="figure2-middle-camera">
+              <div class="figure2-middle-window-mask">
+                <img class="figure2-arch-layer figure2-arch-layer--cloud" src="assets/figure2-cloud-source.png?v=cloudsource3" alt="" />
+                <div class="figure2-arch-layer figure2-arch-layer--far-arcade-window">
+                  <img class="figure2-far-arcade-layer figure2-far-arcade-layer--white" src="assets/figure2-front-white-source.png" alt="" />
+                  <img class="figure2-far-arcade-layer figure2-far-arcade-layer--color" src="assets/figure2-front-color-source.png" alt="" />
+                  <img class="figure2-far-arcade-layer figure2-far-arcade-layer--relief" src="assets/figure2-front-white-source.png" alt="" />
+                </div>
+              </div>
+              <img class="figure2-arch-layer figure2-arch-layer--middle-composite" src="assets/figure2-middle-fresco-opaque-alpha.png?v=middlemaskhard1" alt="" />
+            </div>
           </div>
           <div class="figure2-fresco-warmth" aria-hidden="true"></div>
           <div class="figure2-center-wash" aria-hidden="true"></div>
@@ -75,7 +86,7 @@
             <figure class="figure2-figure figure2-figure--left">
               <video
                 class="figure2-figure-video"
-                data-alpha-src="assets/figure2a-alpha-scrub.webm?v=alpha2"
+                data-alpha-src="assets/figure2a-alpha-auto.webm?v=auto2"
                 data-fallback-src="assets/figure2a-reverse.mp4"
                 poster="assets/figure2a-alpha-reverse-lite-poster.png"
                 muted
@@ -89,7 +100,7 @@
             <figure class="figure2-figure figure2-figure--right">
               <video
                 class="figure2-figure-video"
-                data-alpha-src="assets/figure2b-alpha-scrub.webm?v=alpha2"
+                data-alpha-src="assets/figure2b-alpha-auto.webm?v=auto2"
                 data-fallback-src="assets/figure2b-reverse.mp4"
                 poster="assets/figure2b-alpha-reverse-lite-poster.png"
                 muted
@@ -107,11 +118,12 @@
           <div class="figure2-progress" aria-hidden="true">
             <span></span>
           </div>
+
         </div>
       </div>
     </section>
   </main>
 
-  <script type="module" src="js/figure2-scroll.js"></script>
+  <script type="module" src="js/figure2-scroll.js?v=layerfix8"></script>
 </body>
 </html>

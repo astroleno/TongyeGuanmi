@@ -141,6 +141,10 @@ assertIncludes(ttgTransitionComponent, 'createScrollProgressTrigger({', 'ttg com
 assertIncludes(ttgTransitionComponent, 'prepareScrubVideo(video)', 'ttg component prepares route videos');
 assertIncludes(ttgTransitionComponent, 'waitForVideoMetadata(video, { timeoutMs: 1300 })', 'ttg component waits for route media metadata');
 assertIncludes(ttgTransitionComponent, 'renderRawProgress', 'ttg component exposes raw progress rendering for future adapters');
+assertIncludes(ttgTransitionComponent, 'enableGsapRendering', 'ttg component exposes quickSetter rendering for homepage adapters');
+assertIncludes(ttgTransitionComponent, 'startFigureVideoPlayback', 'ttg component exposes homepage forward/reverse video playback');
+assertIncludes(ttgTransitionComponent, 'finishFigureVideoPlayback', 'ttg component exposes homepage video completion');
+assertIncludes(ttgTransitionComponent, 'resetFigureVideoPlayback', 'ttg component exposes homepage video reset');
 assertIncludes(ttgTransitionComponent, "stage?.querySelector('.ttg-layer--bg')", 'ttg component queries inside the passed stage');
 assertIncludes(ttgTransitionComponent, "stage?.querySelector('[data-ttg-figure-video]')", 'ttg component queries figure video inside the passed stage');
 assert.doesNotMatch(ttgTransitionComponent, /document\.querySelector|localStorage|data-ttg-tune-panel|ttg-tune/, 'ttg component must not keep route-global queries or tuning panel state');

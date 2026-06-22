@@ -10,10 +10,10 @@
   <link rel="preload" href="js/vendor/gsap.min.js" as="script" />
   <link rel="preload" href="js/vendor/ScrollTrigger.min.js" as="script" />
   <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
-  <link rel="preload" href="assets/ph_back.png" as="image" />
+  <link rel="preload" href="assets/ph_background.png" as="image" />
   <link rel="preload" href="assets/ph_front-alpha.png" as="image" />
   <link rel="preload" href="assets/ph_figure-alpha-poster.png" as="image" />
-  <link rel="preload" href="assets/ph_figure-alpha-scrub.webm" as="video" type="video/webm" />
+  <link rel="preload" href="assets/ph_figure-alpha-scrub.webm?v=allkey-1672-simple-key-20260621" as="video" type="video/webm" />
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/ph.css" />
 </head>
@@ -21,18 +21,22 @@
   <div class="grain" aria-hidden="true"></div>
   <main class="ph-route">
     <h1 class="ph-sr-only">Pythagoreans' Hymn to the Rising Sun</h1>
-    <section class="ph-scroll" data-ph-stage aria-label="PH visual scene">
+    <section
+      class="ph-scroll"
+      data-ph-stage
+      aria-label="PH visual scene"
+    >
       <div class="ph-sticky">
         <div class="ph-field">
+          <img class="ph-bg" src="assets/ph_background.png" alt="" aria-hidden="true" />
           <div class="ph-paper" aria-hidden="true"></div>
           <div class="ph-sun-wash" aria-hidden="true"></div>
           <div class="ph-layer-stack" aria-hidden="true">
-            <img class="ph-layer ph-layer--back" src="assets/ph_back.png" alt="" />
             <img class="ph-layer ph-layer--front" src="assets/ph_front-alpha.png" alt="" />
             <video
               class="ph-layer ph-layer--figure"
               data-ph-alpha-video
-              src="assets/ph_figure-alpha-scrub.webm"
+              src="assets/ph_figure-alpha-scrub.webm?v=allkey-1672-simple-key-20260621"
               poster="assets/ph_figure-alpha-poster.png"
               muted
               preload="auto"

@@ -305,6 +305,7 @@ export function createInkSceneTransition(canvas, options = {}) {
       uniform float uPerlinStrength;
       uniform float uSceneBrightness;
       uniform float uDepthThresholdMode;
+      uniform float uTransparentOutside;
 
       float hash(vec2 p) {
         p = fract(p * vec2(127.1, 311.7));
@@ -603,7 +604,7 @@ export function createInkSceneTransition(canvas, options = {}) {
         innerColor = mix(innerColor, nextScene, uFarOnly);
         innerColor = mix(innerColor, nextScene, uDepthThresholdMode);
 
-        float outsideAlpha = (1.0 - dissolve) * (0.05 + p * 0.34 + late * 0.22);
+        float outsideAlpha = (1.0 - dissolve) * (0.05 + p * 0.34 + late * 0.22) * (1.0 - uTransparentOutside);
         float insideMask = smoothstep(0.08, 0.42, dissolve);
         vec3 edgeColor = mix(jade, gold, smoothstep(0.24, 0.90, fbm(aspectUv * (4.5 + zDepth * 4.0) + uTime * 0.04)));
         vec3 outsideColor = vec3(0.012, 0.022, 0.018);
@@ -692,7 +693,8 @@ export function createInkSceneTransition(canvas, options = {}) {
       perlinOverlay: gl.getUniformLocation(program, 'uPerlinOverlay'),
       perlinStrength: gl.getUniformLocation(program, 'uPerlinStrength'),
       sceneBrightness: gl.getUniformLocation(program, 'uSceneBrightness'),
-      depthThresholdMode: gl.getUniformLocation(program, 'uDepthThresholdMode')
+      depthThresholdMode: gl.getUniformLocation(program, 'uDepthThresholdMode'),
+      transparentOutside: gl.getUniformLocation(program, 'uTransparentOutside')
     };
 
     const createTextureLayer = (src, fallback) => {
@@ -859,6 +861,7 @@ export function createInkSceneTransition(canvas, options = {}) {
         gl.uniform1f(uniforms.perlinStrength, renderOptions.perlinStrength ?? options.perlinStrength ?? 0.34);
         gl.uniform1f(uniforms.sceneBrightness, renderOptions.sceneBrightness ?? options.sceneBrightness ?? 1);
         gl.uniform1f(uniforms.depthThresholdMode, options.depthThresholdMode ? 1 : 0);
+        gl.uniform1f(uniforms.transparentOutside, options.transparentOutside ? 1 : 0);
         const canvasRect = canvas.getBoundingClientRect();
         const sourceRect = options.sourceElement?.getBoundingClientRect?.();
         const useImageRect = sourceRect && sourceRect.width > 0 && sourceRect.height > 0 && canvasRect.width > 0 && canvasRect.height > 0;

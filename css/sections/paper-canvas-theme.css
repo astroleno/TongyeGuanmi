@@ -1,0 +1,131 @@
+.long-canvas {
+  --paper-ink: #252719;
+  --paper-muted: rgba(37, 39, 25, .66);
+  --paper-soft: rgba(37, 39, 25, .48);
+  --paper-faint: rgba(37, 39, 25, .30);
+  --paper-rule: rgba(37, 39, 25, .16);
+  --paper-accent: #786329;
+  --ink: var(--paper-ink);
+  --muted: var(--paper-muted);
+  --muted-2: var(--paper-soft);
+  --line: var(--paper-rule);
+  --gold: var(--paper-accent);
+}
+
+.long-canvas .canvas-section--brand,
+.long-canvas .canvas-section--scenario {
+  background:
+    radial-gradient(circle at 78% 18%, rgba(183, 91, 52, .08), transparent 34vw),
+    radial-gradient(circle at 16% 72%, rgba(120, 99, 41, .08), transparent 30vw);
+}
+
+.long-canvas .canvas-section--scenario {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(120, 99, 41, .10), transparent 42vw);
+}
+
+.long-canvas .chapter-intro h2,
+.long-canvas .scenario-wide-stage__copy h2,
+.long-canvas .contact-endpoint h2,
+.long-canvas .enterprise-statement,
+.long-canvas .manifesto-note h3,
+.long-canvas .process-row strong,
+.long-canvas .scenario-row strong,
+.long-canvas .flat-proof-list strong,
+.long-canvas .program-index--detailed strong,
+.long-canvas .method-proof__closing {
+  color: rgba(37, 39, 25, .94) !important;
+}
+
+.long-canvas .chapter-intro p,
+.long-canvas .contact-endpoint p,
+.long-canvas .manifesto-note p,
+.long-canvas .process-row p,
+.long-canvas .method-proof__lead p,
+.long-canvas .scenario-portrait-screen .scenario-row p,
+.long-canvas .capability-list p,
+.long-canvas .canvas-track.enterprise-layout .capability-list--detailed p,
+.long-canvas .scenario-row p,
+.long-canvas .philosophy-list .scenario-row p,
+.long-canvas .flat-proof-list em,
+.long-canvas .program-index--detailed em,
+.long-canvas .method-proof .method-proof__list em,
+.long-canvas .brand-footnote {
+  color: var(--paper-muted) !important;
+}
+
+.long-canvas .method-brief span,
+.long-canvas .quiet-proof.quiet-proof--source .trust-closing,
+.long-canvas .canvas-track.enterprise-layout .capability-list--detailed small,
+.long-canvas .program-index span {
+  color: var(--paper-soft) !important;
+}
+
+.long-canvas .section-index,
+.long-canvas .method-brief b,
+.long-canvas .process-row span,
+.long-canvas .scenario-row span,
+.long-canvas .scenario-wide-stage__signals span,
+.long-canvas .scenario-portrait-screen__head span,
+.long-canvas .capability-list span,
+.long-canvas .quiet-proof span,
+.long-canvas .quiet-proof.quiet-proof--source > span,
+.long-canvas .method-proof__lead > span,
+.long-canvas .capability-mark,
+.long-canvas .canvas-track.enterprise-layout .capability-list--detailed span,
+.long-canvas .canvas-track.education-layout .program-index--detailed span {
+  color: var(--paper-accent) !important;
+}
+
+.long-canvas .method-brief,
+.long-canvas .process-list,
+.long-canvas .process-row,
+.long-canvas .quiet-proof,
+.long-canvas .scenario-wide-stage,
+.long-canvas .scenario-wide-stage::before,
+.long-canvas .scenario-wide-stage__signals,
+.long-canvas .scenario-portrait-screen,
+.long-canvas .scenario-portrait-screen__head,
+.long-canvas .homepage-scene--method-proof .method-proof.quiet-proof.quiet-proof--source,
+.long-canvas .method-proof .method-proof__list,
+.long-canvas .method-proof .method-proof__list p,
+.long-canvas .method-proof .method-proof__row,
+.long-canvas .flat-proof-list,
+.long-canvas .flat-proof-list p,
+.long-canvas .capability-list,
+.long-canvas .capability-list div,
+.long-canvas .canvas-track.enterprise-layout .capability-list--detailed,
+.long-canvas .canvas-track.enterprise-layout .capability-list--detailed div,
+.long-canvas .scenario-list,
+.long-canvas .canvas-track.scenario-layout .scenario-list--source,
+.long-canvas .scenario-row,
+.long-canvas .program-index,
+.long-canvas .canvas-track.education-layout .program-index--detailed,
+.long-canvas .canvas-track.education-layout .program-index--detailed p,
+.long-canvas .canvas-track.philosophy-layout .philosophy-list {
+  border-color: var(--paper-rule) !important;
+}
+
+.long-canvas .homepage-scene--method-proof::before,
+.long-canvas .chapter-transition::before,
+.long-canvas .scene-transition::before {
+  background: linear-gradient(90deg, transparent, rgba(37, 39, 25, .20), transparent);
+}
+
+.long-canvas .chapter-transition,
+.long-canvas .scene-transition {
+  --transition-seam-color: #ede4d2;
+}
+
+.long-canvas .chapter-transition::after,
+.long-canvas .scene-transition::after {
+  opacity: .22;
+  background:
+    radial-gradient(circle at 24% 48%, rgba(120, 99, 41, .10), transparent 22vw),
+    radial-gradient(circle at 70% 52%, rgba(183, 91, 52, .08), transparent 26vw);
+}
+
+.long-canvas .canvas-section--contact .contact-endpoint::before {
+  opacity: .10;
+  filter: saturate(.9) brightness(.82);
+}

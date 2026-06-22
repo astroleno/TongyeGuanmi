@@ -12,7 +12,7 @@ export function initBeliefStarField({
   const reveal = initStarFieldReveal({
     canvas,
     sourceUrl: BELIEF_SCENE_SRC,
-    autoplay: !reduceMotion,
+    autoplay: false,
     config: {
       revealDurationMs: 2800,
       loopTransitionMs: 1200
@@ -21,6 +21,20 @@ export function initBeliefStarField({
 
   let raf = 0;
   let destroyed = false;
+  const renderLiveBackground = (now = performance.now()) => {
+    if (destroyed || !reveal.ready) return;
+    const timeSeconds = now / 1000;
+    const pulse = reduceMotion ? 0 : (Math.sin(timeSeconds * 0.34) * 0.08 + Math.sin(timeSeconds * 0.17) * 0.05);
+    reveal.renderBackground({
+      timeSeconds,
+      strength: reduceMotion ? 0.72 : 1.05 + pulse,
+      noiseFloor: reduceMotion ? 0.02 : 0.028
+    });
+    canvas.dataset.inkTextureReady = 'true';
+    if (!reduceMotion) {
+      raf = window.requestAnimationFrame(renderLiveBackground);
+    }
+  };
 
   const markReady = () => {
     if (destroyed) return;
@@ -30,12 +44,8 @@ export function initBeliefStarField({
     }
 
     canvas.classList.add('is-ready');
-    if (reduceMotion) {
-      reveal.renderBackground({
-        strength: 0.72,
-        noiseFloor: 0.02
-      });
-    }
+    canvas.dataset.inkTextureReady = 'true';
+    renderLiveBackground();
   };
 
   markReady();
@@ -46,6 +56,7 @@ export function initBeliefStarField({
       window.cancelAnimationFrame(raf);
       reveal.dispose();
       canvas.classList.remove('is-ready');
+      delete canvas.dataset.inkTextureReady;
     }
   };
 }

@@ -5,42 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>The Ancient of Days｜同野观幂</title>
   <meta name="description" content="同野观幂 The Ancient of Days 分层滚动场景。" />
-  <meta name="theme-color" content="#e2d6c3" />
+  <meta name="theme-color" content="#ffffff" />
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="preload" href="js/vendor/gsap.min.js" as="script" />
   <link rel="preload" href="js/vendor/ScrollTrigger.min.js" as="script" />
   <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
-  <link rel="preload" href="assets/aod-paper-bg.png" as="image" />
   <link rel="preload" href="assets/aod_cloud-alpha.png" as="image" />
   <link rel="preload" href="assets/aod_sun-alpha.png" as="image" />
-  <link rel="preload" href="assets/aod_figure-alpha-clean.webm" as="video" type="video/webm" />
-  <link rel="preload" href="assets/aod_figure-fill-scrub.mp4" as="video" type="video/mp4" />
+  <link rel="preload" href="assets/aod_figure-alpha-front-scrub.webm" as="video" type="video/webm" />
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/aod.css" />
 </head>
 <body class="aod-page">
-  <div class="grain" aria-hidden="true"></div>
   <main class="aod-route">
     <h1 class="aod-sr-only">The Ancient of Days</h1>
     <section class="aod-scroll" data-aod-stage aria-label="The Ancient of Days visual scene">
       <div class="aod-sticky">
         <div class="aod-field">
-          <div class="aod-paper" aria-hidden="true"></div>
           <div class="aod-layer-stack" aria-hidden="true">
             <img class="aod-layer aod-layer--cloud" src="assets/aod_cloud-alpha.png" alt="" />
             <img class="aod-layer aod-layer--sun" src="assets/aod_sun-alpha.png" alt="" />
-            <video
-              class="aod-layer aod-layer--figure aod-layer--figure-alpha"
-              data-aod-figure-layer
-              src="assets/aod_figure-alpha-clean.webm"
-              muted
-              preload="auto"
-              playsinline
-              webkit-playsinline
-            ></video>
           </div>
-          <div class="aod-gold-wash" aria-hidden="true"></div>
-          <div class="aod-vignette" aria-hidden="true"></div>
+          <video
+            class="aod-figure-video"
+            data-aod-figure-layer
+            src="assets/aod_figure-alpha-front-scrub.webm"
+            muted
+            preload="auto"
+            playsinline
+            webkit-playsinline
+            aria-hidden="true"
+          ></video>
           <div class="aod-progress" aria-hidden="true">
             <span></span>
           </div>
@@ -48,17 +43,6 @@
       </div>
     </section>
   </main>
-  <video
-    class="aod-figure-fill-video"
-    data-aod-figure-fill-video
-    src="assets/aod_figure-fill-scrub.mp4"
-    muted
-    preload="auto"
-    playsinline
-    webkit-playsinline
-    aria-hidden="true"
-  ></video>
-
   <script type="module" src="js/aod-scroll.js"></script>
 </body>
 </html>

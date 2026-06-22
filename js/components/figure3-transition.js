@@ -40,6 +40,7 @@ function setComponentProgress(section, progress) {
   const fill = smoothStep(range01(p, 0.86, 0.995));
   const videoOpacity = 1 - smoothStep(range01(p, 0.93, 1));
   const backdropSettle = smoothStep(range01(p, 0.06, 0.84));
+  const serviceCopy = smoothStep(range01(p, 0.84, 0.97));
 
   section.style.setProperty('--figure3-progress', p.toFixed(4));
   section.style.setProperty('--figure3-fill-opacity', fill.toFixed(4));
@@ -47,6 +48,9 @@ function setComponentProgress(section, progress) {
   section.style.setProperty('--figure3-backdrop-opacity', (1 - backdropSettle * 0.46).toFixed(4));
   section.style.setProperty('--figure3-backdrop-scale', (1.06 + backdropSettle * 0.08).toFixed(4));
   section.style.setProperty('--figure3-video-scale', (1.004 + p * 0.052).toFixed(4));
+  section.style.setProperty('--figure3-service-opacity', serviceCopy.toFixed(4));
+  section.style.setProperty('--figure3-service-y', `${((1 - serviceCopy) * 22).toFixed(2)}px`);
+  section.classList.toggle('figure3-transition--service-visible', serviceCopy > 0.035);
 }
 
 export function renderFigure3TransitionProgress(section, rawProgress, options = {}) {

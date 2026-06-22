@@ -1,12 +1,22 @@
 import { createPatternBloomScene } from '../pattern-mirror-stage.js';
-import { createInkCurtainTransition } from '../effects/ink-scene-transition.js';
-import { initStarFieldReveal } from '../effects/star-field-reveal.js';
+import { createInkSceneTransition } from '../effects/ink-scene-transition.js';
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const range01 = (value, start, end) => clamp((value - start) / Math.max(0.001, end - start));
 const smoothStep = (value) => value * value * (3 - 2 * value);
-const lerp = (from, to, progress) => from + (to - from) * progress;
-const BELIEF_SCENE_SRC = 'assets/back2.png';
+
+const REVEAL_END = 0.46;
+const BLOOM_START = 0.42;
+const BLOOM_END = 0.70;
+const COPY_IN_START = 0.64;
+const COPY_IN_END = 0.74;
+const COPY_HOLD_END = 0.84;
+const COPY_OUT_END = 0.90;
+const SECOND_REVEAL_START = 0.84;
+const SECOND_REVEAL_END = 0.985;
+const BELIEF_TEXT_START = 0.955;
+const BELIEF_TEXT_END = 0.995;
+const BELIEF_PIN_CLASS = 'is-pattern-bloom-pinned';
 
 export function mountPatternBloomTransition({
   host,
@@ -28,16 +38,22 @@ export function mountPatternBloomTransition({
   host.setAttribute('aria-label', '同野观幂一句话讲清我们干什么');
 
   const doc = host.ownerDocument || document;
+  const beliefSection = doc.querySelector('.canvas-section--belief');
+  const beliefStarCanvas = beliefSection?.querySelector('[data-belief-star-field]') || null;
   const stage = doc.createElement('div');
   stage.className = 'pattern-bloom-transition__stage';
+
+  const paper = doc.createElement('div');
+  paper.className = 'pattern-bloom-transition__paper';
+  paper.setAttribute('aria-hidden', 'true');
 
   const canvas = doc.createElement('canvas');
   canvas.className = 'pattern-bloom-transition__canvas';
   canvas.setAttribute('aria-hidden', 'true');
 
-  const starFieldCanvas = doc.createElement('canvas');
-  starFieldCanvas.className = 'pattern-bloom-transition__star-field';
-  starFieldCanvas.setAttribute('aria-hidden', 'true');
+  const revealInkCanvas = doc.createElement('canvas');
+  revealInkCanvas.className = 'pattern-bloom-transition__reveal-ink';
+  revealInkCanvas.setAttribute('aria-hidden', 'true');
 
   const exitInkCanvas = doc.createElement('canvas');
   exitInkCanvas.className = 'pattern-bloom-transition__exit-ink';
@@ -52,30 +68,55 @@ export function mountPatternBloomTransition({
     <p>我们不卖课、不卖软件，而是进到你的业务现场，把 AI 做成团队天天在用、月底对得上账的东西。</p>
   `;
 
-  stage.append(canvas, starFieldCanvas, copy, exitInkCanvas);
-  host.append(stage);
-  const starFieldReveal = initStarFieldReveal({
-    canvas: starFieldCanvas,
-    sourceUrl: BELIEF_SCENE_SRC,
-    autoplay: false,
-    config: {
-      revealDurationMs: 2800,
-      loopTransitionMs: 1200
-    }
+  stage.append(paper, canvas, exitInkCanvas, copy, revealInkCanvas);
+  (doc.body || host).append(stage);
+  const revealInkTransition = createInkSceneTransition(revealInkCanvas, {
+    targetSrc: '',
+    nextSceneElement: canvas,
+    hideAtEnd: true,
+    perlinOverlay: false,
+    perlinStrength: 0,
+    progressSpan: 1,
+    colorLift: 0.58,
+    sceneBrightness: 1,
+    inkCenterX: 0.5,
+    inkCenterY: 0.5,
+    transparentOutside: true
   });
-  const exitInkTransition = createInkCurtainTransition(exitInkCanvas, {
-    direction: 'bottom-up',
-    colorLift: 0.56,
-    coverAlpha: 0.42,
-    fadeOutStart: 0.86,
-    fadeOutEnd: 1,
-    progressSpan: 1
+  const exitInkTransition = createInkSceneTransition(exitInkCanvas, {
+    targetSrc: 'assets/back2.png',
+    nextSceneElement: beliefStarCanvas,
+    hideAtEnd: true,
+    perlinOverlay: true,
+    perlinStrength: 0.40,
+    progressSpan: 0.94,
+    colorLift: 0.62,
+    sceneBrightness: 0.92,
+    inkCenterX: 0.50,
+    inkCenterY: 1.04,
+    transparentOutside: true
   });
-  const getRawProgress = () => (typeof progressSource === 'function' ? clamp(progressSource()) : 0);
+  const getViewportState = () => {
+    const viewportHeight = Math.max(1, window.innerHeight || 1);
+    const rect = host.getBoundingClientRect();
+    const scrollSpan = Math.max(1, rect.height || host.offsetHeight || viewportHeight);
+    const raw = (viewportHeight - rect.top) / scrollSpan;
+    return {
+      raw,
+      progress: clamp(raw),
+      active: raw > 0 && raw < 1
+    };
+  };
+  const getRawProgress = () => {
+    const viewportState = getViewportState();
+    if (typeof progressSource !== 'function') return viewportState.progress;
+    return clamp(progressSource());
+  };
+  const getBloomProgress = () => range01(getRawProgress(), BLOOM_START, BLOOM_END);
 
   const scene = createPatternBloomScene({
     canvas,
-    progressSource: getRawProgress,
+    progressSource: getBloomProgress,
     reducedMotion: reduceMotion,
     reducedMotionProgress: 1,
     continuousMotion: true,
@@ -90,33 +131,84 @@ export function mountPatternBloomTransition({
   });
 
   let destroyed = false;
+  let sceneReady = false;
   let overlayRaf = 0;
-  const renderOverlays = () => {
-    if (destroyed) return;
-    const progress = getRawProgress();
-    const starProgress = smoothStep(range01(progress, 0.58, 0.94));
-    const starTopInset = (1 - starProgress) * 100;
-    const exitProgress = range01(progress, 0.58, 1);
-    const lotusOpacity = 1 - smoothStep(range01(progress, 0.88, 0.995));
-    const copyOpacity = 1 - smoothStep(range01(progress, 0.56, 0.78));
-
-    if (starFieldReveal.ready) {
-      starFieldReveal.renderBackground({
-        timeSeconds: performance.now() / 1000,
-        strength: lerp(1.15, 2.75, starProgress),
-        noiseFloor: lerp(0.18, 0.025, starProgress)
-      });
+  let beliefPinY = 0;
+  const clearBeliefTransitionState = () => {
+    if (!beliefSection) return;
+    beliefSection.classList.remove(BELIEF_PIN_CLASS);
+    beliefSection.style.removeProperty('--belief-transition-opacity');
+    beliefSection.style.removeProperty('--belief-transition-y');
+    beliefSection.style.removeProperty('--belief-copy-opacity');
+    beliefSection.style.removeProperty('--belief-copy-y');
+    beliefSection.style.removeProperty('--belief-copy-blur');
+    beliefPinY = 0;
+  };
+  const setBeliefTransitionState = ({ pinned, sceneOpacity = 1, textProgress }) => {
+    if (!beliefSection) return;
+    if (!pinned) {
+      clearBeliefTransitionState();
+      return;
     }
 
-    canvas.style.opacity = lotusOpacity.toFixed(4);
-    canvas.style.visibility = lotusOpacity > 0.002 ? 'visible' : 'hidden';
-    starFieldCanvas.style.opacity = starFieldReveal.ready && starProgress > 0.002 ? '0.88' : '0';
-    starFieldCanvas.style.visibility = starFieldReveal.ready && starProgress > 0.002 ? 'visible' : 'hidden';
-    starFieldCanvas.style.clipPath = `inset(${starTopInset.toFixed(3)}% 0 0 0)`;
-    starFieldCanvas.style.webkitClipPath = `inset(${starTopInset.toFixed(3)}% 0 0 0)`;
+    const transformedTop = beliefSection.getBoundingClientRect().top;
+    const baseTop = transformedTop - beliefPinY;
+    beliefPinY = -baseTop;
+
+    const copyY = (1 - textProgress) * 28;
+    const copyBlur = (1 - textProgress) * 10;
+    beliefSection.classList.add(BELIEF_PIN_CLASS);
+    beliefSection.style.setProperty('--belief-transition-y', `${beliefPinY.toFixed(2)}px`);
+    beliefSection.style.setProperty('--belief-transition-opacity', sceneOpacity.toFixed(4));
+    beliefSection.style.setProperty('--belief-copy-opacity', textProgress.toFixed(4));
+    beliefSection.style.setProperty('--belief-copy-y', `${copyY.toFixed(2)}px`);
+    beliefSection.style.setProperty('--belief-copy-blur', `${copyBlur.toFixed(2)}px`);
+  };
+
+  const renderOverlays = () => {
+    if (destroyed) return;
+    const viewportState = getViewportState();
+    const progress = getRawProgress();
+    const overlayActive = progress > 0.002 && (progress < 0.999 || viewportState.raw < 1.05);
+    const revealProgress = smoothStep(range01(progress, 0, REVEAL_END));
+    const revealVisibility = revealProgress >= 0.998
+      ? 1
+      : (progress > 0.0001 ? Math.max(revealProgress, 0.003) : 0);
+    const canvasRevealed = sceneReady && revealProgress >= 0.998;
+    const copyIn = smoothStep(range01(progress, COPY_IN_START, COPY_IN_END));
+    const copyOut = 1 - smoothStep(range01(progress, COPY_HOLD_END, COPY_OUT_END));
+    const copyOpacity = copyIn * copyOut;
+    const copyY = (1 - copyIn) * 28 - smoothStep(range01(progress, COPY_HOLD_END, COPY_OUT_END)) * 18;
+    const copyBlur = (1 - copyIn) * 10;
+    const secondRevealProgress = smoothStep(range01(progress, SECOND_REVEAL_START, SECOND_REVEAL_END));
+    const topSceneExit = smoothStep(range01(secondRevealProgress, 0.68, 0.98));
+    const topSceneOpacity = canvasRevealed && secondRevealProgress < 0.998 ? 1 - topSceneExit : 0;
+    const beliefSceneOpacity = smoothStep(range01(secondRevealProgress, 0.88, 0.998));
+    const beliefTextProgress = smoothStep(range01(progress, BELIEF_TEXT_START, BELIEF_TEXT_END));
+    const beliefPinned = overlayActive && secondRevealProgress > 0.002;
+    const lotusVisible = topSceneOpacity > 0.002;
+
+    setBeliefTransitionState({
+      pinned: beliefPinned,
+      sceneOpacity: beliefSceneOpacity,
+      textProgress: beliefTextProgress
+    });
+
+    stage.style.opacity = overlayActive ? '1' : '0';
+    stage.style.visibility = overlayActive ? 'visible' : 'hidden';
+    paper.style.opacity = '0';
+    paper.style.visibility = 'hidden';
+    canvas.style.opacity = lotusVisible ? topSceneOpacity.toFixed(4) : '0';
+    canvas.style.visibility = lotusVisible ? 'visible' : 'hidden';
     copy.style.opacity = copyOpacity.toFixed(4);
     copy.style.visibility = copyOpacity > 0.002 ? 'visible' : 'hidden';
-    exitInkTransition?.render(exitProgress);
+    copy.style.transform = `translate3d(0, calc(-50% + ${copyY.toFixed(2)}px), 0)`;
+    copy.style.filter = copyBlur > 0.02 ? `blur(${copyBlur.toFixed(2)}px)` : 'none';
+    revealInkTransition?.render(revealProgress, 0, 0, sceneReady ? revealVisibility : 0);
+    exitInkTransition?.render(secondRevealProgress, 0, 0, secondRevealProgress, {
+      perlinStrength: 0.40,
+      sceneBrightness: 0.92
+    });
     overlayRaf = requestAnimationFrame(renderOverlays);
   };
   renderOverlays();
@@ -125,7 +217,7 @@ export function mountPatternBloomTransition({
     if (destroyed) return;
     destroyed = true;
     cancelAnimationFrame(overlayRaf);
-    starFieldReveal.dispose();
+    clearBeliefTransitionState();
     scene.destroy();
     stage.remove();
     host.classList.remove('homepage-transition', 'homepage-transition--pattern-bloom', 'chapter-transition--pattern-bloom');
@@ -147,7 +239,10 @@ export function mountPatternBloomTransition({
     delete host.dataset.patternBloomMounted;
   };
 
-  scene.start().catch((error) => {
+  scene.start().then(() => {
+    sceneReady = true;
+    canvas.dataset.inkTextureReady = 'true';
+  }).catch((error) => {
     console.warn('Pattern bloom transition failed; falling back to soft divider.', error);
     host.dataset.transitionModule = 'soft-divider';
     host.classList.add('chapter-transition--fallback', 'scene-transition--fallback');

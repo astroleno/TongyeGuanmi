@@ -13,33 +13,43 @@
   <link rel="preload" href="assets/ttg_bg.png" as="image" />
   <link rel="preload" href="assets/ttg_middle-alpha.png" as="image" />
   <link rel="preload" href="assets/ttg_middle-original-overlay-alpha.png" as="image" />
-  <link rel="preload" href="assets/ttg_front-original-overlay-alpha.png?v=ttg-front-project-main7-tone6-1" as="image" />
-  <link rel="preload" href="assets/ttg_front-alpha.png?v=ttg-front-project-main7-tone6-1" as="image" />
-  <link rel="preload" href="assets/ttg_figure-alpha-scrub.webm" as="video" type="video/webm" />
-  <link rel="preload" href="assets/ttg_figure-alpha-scrub-poster.png" as="image" />
+  <link rel="preload" href="assets/ttg_front-original-overlay-alpha.png?v=ttg-front-image15-blend80-v1" as="image" />
+  <link rel="preload" href="assets/ttg_front-alpha.png?v=ttg-front-image15-blend80-v1" as="image" />
+  <link rel="preload" href="assets/ttg_figure-alpha-scrub.webm?v=ttg-figure-blue-v2" as="video" type="video/webm" />
+  <link rel="preload" href="assets/ttg_figure-alpha-scrub-reverse.webm?v=ttg-figure-blue-v2" as="video" type="video/webm" />
+  <link rel="preload" href="assets/ttg_figure-alpha-scrub-poster.png?v=ttg-figure-blue-v2" as="image" />
   <link rel="preload" href="assets/ttg-complete.png" as="image" />
   <link rel="stylesheet" href="css/styles.css" />
-  <link rel="stylesheet" href="css/ttg.css?v=ttg-front-bottom-3" />
+  <link rel="stylesheet" href="css/ttg.css?v=ttg-bg-original-1" />
 </head>
 <body class="ttg-page">
-  <div class="grain" aria-hidden="true"></div>
   <main class="ttg-route">
     <h1 class="ttg-sr-only">Talk to the God</h1>
     <section class="ttg-scroll" data-ttg-stage aria-label="Talk to the God visual scene">
       <div class="ttg-sticky">
         <div class="ttg-field">
-          <div class="ttg-paper" aria-hidden="true"></div>
           <div class="ttg-layer-stack" aria-hidden="true">
             <img class="ttg-layer ttg-layer--bg" src="assets/ttg_bg.png" alt="" />
             <img class="ttg-layer ttg-layer--middle" src="assets/ttg_middle-alpha.png" alt="" />
             <img class="ttg-layer ttg-layer--middle-overlay" src="assets/ttg_middle-original-overlay-alpha.png" alt="" />
-            <img class="ttg-layer ttg-layer--front" src="assets/ttg_front-original-overlay-alpha.png?v=ttg-front-project-main7-tone6-1" alt="" />
-            <img class="ttg-layer ttg-layer--front-overlay" src="assets/ttg_front-alpha.png?v=ttg-front-project-main7-tone6-1" alt="" />
+            <img class="ttg-layer ttg-layer--front" src="assets/ttg_front-original-overlay-alpha.png?v=ttg-front-image15-blend80-v1" alt="" />
+            <img class="ttg-layer ttg-layer--front-overlay" src="assets/ttg_front-alpha.png?v=ttg-front-image15-blend80-v1" alt="" />
+            <video
+              class="ttg-layer ttg-layer--figure is-active"
+              data-ttg-figure-video
+              src="assets/ttg_figure-alpha-scrub.webm?v=ttg-figure-blue-v2"
+              poster="assets/ttg_figure-alpha-scrub-poster.png?v=ttg-figure-blue-v2"
+              width="720"
+              height="1280"
+              muted
+              preload="auto"
+              playsinline
+              webkit-playsinline
+            ></video>
             <video
               class="ttg-layer ttg-layer--figure"
-              data-ttg-figure-video
-              src="assets/ttg_figure-alpha-scrub.webm"
-              poster="assets/ttg_figure-alpha-scrub-poster.png"
+              data-ttg-figure-video-reverse
+              src="assets/ttg_figure-alpha-scrub-reverse.webm?v=ttg-figure-blue-v2"
               width="720"
               height="1280"
               muted
@@ -48,8 +58,6 @@
               webkit-playsinline
             ></video>
           </div>
-          <div class="ttg-moon-wash" aria-hidden="true"></div>
-          <div class="ttg-vignette" aria-hidden="true"></div>
           <div class="ttg-progress" aria-hidden="true">
             <span></span>
           </div>
@@ -60,40 +68,40 @@
               <input data-ttg-tune-key="previewProgress" type="range" min="-0.01" max="1" step="0.01" value="-0.01" />
             </label>
             <label class="ttg-tune-control">
-              <span>近景位移 <output data-ttg-tune-output="frontTravelVh">4.6vh</output></span>
-              <input data-ttg-tune-key="frontTravelVh" type="range" min="-16" max="18" step="0.1" value="4.6" />
+              <span>近景Y <output data-ttg-tune-output="frontYVh">29.2vh</output></span>
+              <input data-ttg-tune-key="frontYVh" type="range" min="-100" max="100" step="0.1" value="29.2" />
+            </label>
+            <label class="ttg-tune-control">
+              <span>近景位移 <output data-ttg-tune-output="frontTravelVh">13.1vh</output></span>
+              <input data-ttg-tune-key="frontTravelVh" type="range" min="-100" max="100" step="0.1" value="13.1" />
             </label>
             <label class="ttg-tune-control">
               <span>近景叠加 <output data-ttg-tune-output="frontOverlayOpacity">20%</output></span>
               <input data-ttg-tune-key="frontOverlayOpacity" type="range" min="0" max="0.6" step="0.01" value="0.2" />
             </label>
             <label class="ttg-tune-control">
-              <span>建筑位移 <output data-ttg-tune-output="middleTravelVh">10.5vh</output></span>
-              <input data-ttg-tune-key="middleTravelVh" type="range" min="-20" max="28" step="0.1" value="10.5" />
+              <span>建筑位移 <output data-ttg-tune-output="middleTravelVh">23.5vh</output></span>
+              <input data-ttg-tune-key="middleTravelVh" type="range" min="-20" max="28" step="0.1" value="23.5" />
             </label>
             <label class="ttg-tune-control">
-              <span>建筑响应 <output data-ttg-tune-output="middleResponse">0.34</output></span>
-              <input data-ttg-tune-key="middleResponse" type="range" min="0.04" max="0.80" step="0.01" value="0.34" />
+              <span>背景位移 <output data-ttg-tune-output="bgTravelVh">14.3vh</output></span>
+              <input data-ttg-tune-key="bgTravelVh" type="range" min="0" max="18" step="0.1" value="14.3" />
             </label>
             <label class="ttg-tune-control">
-              <span>背景位移 <output data-ttg-tune-output="bgTravelVh">4.2vh</output></span>
-              <input data-ttg-tune-key="bgTravelVh" type="range" min="0" max="18" step="0.1" value="4.2" />
+              <span>人物比例 <output data-ttg-tune-output="figureScale">0.80x</output></span>
+              <input data-ttg-tune-key="figureScale" type="range" min="0.35" max="0.90" step="0.01" value="0.80" />
             </label>
             <label class="ttg-tune-control">
-              <span>人物比例 <output data-ttg-tune-output="figureScale">0.52x</output></span>
-              <input data-ttg-tune-key="figureScale" type="range" min="0.35" max="0.90" step="0.01" value="0.52" />
+              <span>人物Y <output data-ttg-tune-output="figureYVh">-8.5vh</output></span>
+              <input data-ttg-tune-key="figureYVh" type="range" min="-16" max="16" step="0.1" value="-8.5" />
             </label>
             <label class="ttg-tune-control">
-              <span>人物Y <output data-ttg-tune-output="figureYVh">2.0vh</output></span>
-              <input data-ttg-tune-key="figureYVh" type="range" min="-16" max="16" step="0.1" value="2" />
+              <span>人物位移 <output data-ttg-tune-output="figureTravelVh">16.5vh</output></span>
+              <input data-ttg-tune-key="figureTravelVh" type="range" min="-20" max="32" step="0.1" value="16.5" />
             </label>
             <label class="ttg-tune-control">
-              <span>人物位移 <output data-ttg-tune-output="figureTravelVh">8.0vh</output></span>
-              <input data-ttg-tune-key="figureTravelVh" type="range" min="-20" max="32" step="0.1" value="8" />
-            </label>
-            <label class="ttg-tune-control">
-              <span>滚动高度 <output data-ttg-tune-output="scrollVh">140vh</output></span>
-              <input data-ttg-tune-key="scrollVh" type="range" min="110" max="260" step="1" value="140" />
+              <span>滚动高度 <output data-ttg-tune-output="scrollVh">153vh</output></span>
+              <input data-ttg-tune-key="scrollVh" type="range" min="110" max="260" step="1" value="153" />
             </label>
             <button class="ttg-tune-reset" data-ttg-tune-reset type="button">重置</button>
           </div>
@@ -105,6 +113,6 @@
     </section>
   </main>
 
-  <script type="module" src="js/ttg-scroll.js?v=ttg-panel-9"></script>
+  <script type="module" src="js/ttg-scroll.js?v=ttg-panel-20"></script>
 </body>
 </html>

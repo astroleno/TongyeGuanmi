@@ -11,7 +11,7 @@
 html,
 body {
   min-height: 100%;
-  background: #dcdcd0;
+  background: #ede4d2;
 }
 
 body {
@@ -35,7 +35,7 @@ body.is-lenis-active {
 
 .figure3-transition-page {
   min-height: 100dvh;
-  background: #dcdcd0;
+  background: #ede4d2;
 }
 
 @media (prefers-reduced-motion: reduce) {

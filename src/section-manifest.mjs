@@ -13,7 +13,7 @@ export const contentSections = [
     match: 'id="method"',
     navLabel: '方法',
     includeInNav: true,
-    theme: 'dark',
+    theme: 'light',
     navBg: 'solid',
     layout: 'editorial-flat'
   },
@@ -22,7 +22,7 @@ export const contentSections = [
     match: 'canvas-section--brand',
     navLabel: '',
     includeInNav: false,
-    theme: 'dark',
+    theme: 'light',
     navBg: 'solid',
     layout: 'editorial-flat'
   },
@@ -31,7 +31,7 @@ export const contentSections = [
     match: 'id="services"',
     navLabel: '场景',
     includeInNav: true,
-    theme: 'dark',
+    theme: 'light',
     navBg: 'solid',
     layout: 'editorial-flat'
   },
@@ -40,7 +40,7 @@ export const contentSections = [
     match: 'id="lab"',
     navLabel: '',
     includeInNav: false,
-    theme: 'dark',
+    theme: 'light',
     navBg: 'solid',
     layout: 'editorial-flat'
   },
@@ -49,7 +49,7 @@ export const contentSections = [
     match: 'id="education"',
     navLabel: '留学',
     includeInNav: true,
-    theme: 'dark',
+    theme: 'light',
     navBg: 'solid',
     layout: 'editorial-flat'
   },
@@ -58,7 +58,7 @@ export const contentSections = [
     match: 'id="philosophy"',
     navLabel: '',
     includeInNav: false,
-    theme: 'dark',
+    theme: 'light',
     navBg: 'solid',
     layout: 'editorial-flat'
   },
@@ -67,7 +67,7 @@ export const contentSections = [
     match: 'id="contact"',
     navLabel: '联系',
     includeInNav: true,
-    theme: 'dark',
+    theme: 'light',
     navBg: 'solid',
     layout: 'editorial-flat'
   }
@@ -90,10 +90,10 @@ export const chapterTransitions = [
   },
   {
     id: 'method-brand',
-    from: 'method-tooling',
+    from: 'method-proof',
     to: 'brand',
-    module: 'ttg',
-    variant: 'structure-field'
+    module: 'soft-divider',
+    variant: 'method-to-brand'
   },
   {
     id: 'brand-services',
@@ -106,8 +106,8 @@ export const chapterTransitions = [
     id: 'services-lab',
     from: 'services',
     to: 'lab',
-    module: 'soft-drilldown',
-    variant: 'cards-to-scenarios'
+    module: 'ttg',
+    variant: 'structure-field'
   },
   {
     id: 'lab-education',

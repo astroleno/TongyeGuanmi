@@ -1,6 +1,124 @@
 import { createFigure2TransitionController } from '../../components/figure2-transition.js';
 
-export function mountHomepageTransition({ host, reduceMotion = false, progressSource, addCleanup }) {
+const FIGURE2_PAPER_GROUND = '#ece8dc';
+const FIGURE2_PAPER_GROUND_SOFT = '#f6f2e8';
+const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+const range01 = (value, start, end) => clamp((value - start) / Math.max(0.0001, end - start));
+const smoothStep = (value) => value * value * (3 - 2 * value);
+
+function findTransitionTargetScene(host) {
+  const targetSceneId = host?.dataset?.transitionTo;
+  if (!targetSceneId) return null;
+  const scenes = host.ownerDocument?.querySelectorAll('[data-scene-id]') || [];
+  return [...scenes].find((scene) => scene.dataset.sceneId === targetSceneId) || null;
+}
+
+function createProofSceneTexture(host) {
+  const canvas = host.ownerDocument.createElement('canvas');
+  const context = canvas.getContext('2d', { alpha: true });
+  if (!context) return null;
+
+  let width = 0;
+  let height = 0;
+  let dirty = true;
+  let disposed = false;
+
+  const invalidate = () => {
+    if (disposed) return;
+    dirty = true;
+  };
+
+  const update = () => {
+    if (disposed) return;
+    const viewportWidth = Math.max(1, window.innerWidth || 1);
+    const viewportHeight = Math.max(1, window.innerHeight || 1);
+    const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+    const nextWidth = Math.round(viewportWidth * ratio);
+    const nextHeight = Math.round(viewportHeight * ratio);
+    if (!dirty && nextWidth === width && nextHeight === height) return;
+
+    width = nextWidth;
+    height = nextHeight;
+    dirty = false;
+    canvas.width = width;
+    canvas.height = height;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, viewportWidth, viewportHeight);
+
+    const paperGradient = context.createLinearGradient(0, 0, 0, viewportHeight);
+    paperGradient.addColorStop(0, FIGURE2_PAPER_GROUND_SOFT);
+    paperGradient.addColorStop(0.58, FIGURE2_PAPER_GROUND);
+    paperGradient.addColorStop(1, '#e4ddcf');
+    context.fillStyle = paperGradient;
+    context.fillRect(0, 0, viewportWidth, viewportHeight);
+    canvas.dataset.inkTextureReady = 'true';
+  };
+
+  update();
+  host.ownerDocument.fonts?.ready?.then(() => {
+    invalidate();
+    update();
+  });
+  window.addEventListener('resize', invalidate, { passive: true });
+
+  return {
+    canvas,
+    update,
+    destroy() {
+      disposed = true;
+      window.removeEventListener('resize', invalidate);
+      canvas.dataset.inkTextureReady = 'false';
+    }
+  };
+}
+
+function createProofScrollOverlay(host) {
+  const targetScene = findTransitionTargetScene(host);
+  const sourceProof = targetScene?.querySelector('.method-proof');
+  const field = host.querySelector('.figure2-field');
+  if (!sourceProof || !field) return null;
+
+  const overlay = host.ownerDocument.createElement('div');
+  overlay.className = 'figure2-proof-scroll';
+  overlay.setAttribute('aria-hidden', 'true');
+
+  const content = sourceProof.cloneNode(true);
+  content.classList.add('figure2-proof-scroll__content');
+  content.classList.remove('quiet-proof', 'quiet-proof--source');
+  content.removeAttribute('aria-label');
+  overlay.append(content);
+  field.append(overlay);
+
+  let disposed = false;
+  const maxScroll = () => Math.max(160, Math.min(520, (window.innerHeight || 1) * 0.42));
+
+  return {
+    update({ transitionProgress = 0, postProgress = 0 } = {}) {
+      if (disposed) return 0;
+      const transitionRevealProgress = smoothStep(range01(transitionProgress, 0.10, 0.94));
+      const revealProgress = clamp(Math.max(transitionRevealProgress, postProgress > 0 ? 1 : 0));
+      const opacity = smoothStep(range01(revealProgress, 0.015, 0.16));
+      const scrollY = -maxScroll() * clamp(postProgress);
+      overlay.style.setProperty('--figure2-proof-reveal-stop', `${(-12 + revealProgress * 122).toFixed(2)}%`);
+      overlay.style.setProperty('--figure2-proof-reveal-edge', `${(2 + revealProgress * 132).toFixed(2)}%`);
+      overlay.style.setProperty('--figure2-proof-overlay-opacity', opacity.toFixed(3));
+      overlay.style.setProperty('--figure2-proof-scroll-y', `${scrollY.toFixed(1)}px`);
+      return revealProgress;
+    },
+    destroy() {
+      disposed = true;
+      overlay.remove();
+    }
+  };
+}
+
+export function mountHomepageTransition({
+  host,
+  reduceMotion = false,
+  progressSource,
+  postProgressSource,
+  addCleanup
+}) {
   host.classList.add('homepage-transition', 'homepage-transition--figure2', 'figure2-alpha-video');
   host.innerHTML = `
     <section
@@ -53,35 +171,69 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
   `;
 
   const section = host.querySelector('[data-figure2-transition]');
+  const proofSceneTexture = createProofSceneTexture(host);
+  const proofScrollOverlay = createProofScrollOverlay(host);
   const controller = createFigure2TransitionController(section, {
     root: host,
     body: host,
-    reduceMotion
+    reduceMotion,
+    nextSceneElement: proofSceneTexture?.canvas
   });
   if (!controller) throw new Error('Figure2 homepage transition could not initialize.');
 
   let raf = 0;
   let destroyed = false;
+  let videoPlaybackStage = 'idle';
 
   const render = () => {
     if (destroyed) return;
     const progress = reduceMotion ? 1 : progressSource();
-    controller.renderRawFigureVideoProgress(1);
+    const introProgress = reduceMotion ? 1 : range01(progress, 0, 0.72);
+    const transitionProgress = reduceMotion ? 1 : range01(progress, 0.72, 1);
+    const postProgress = reduceMotion
+      ? 1
+      : transitionProgress >= 0.998
+        ? postProgressSource?.() ?? 0
+        : 0;
+    proofScrollOverlay?.update({ transitionProgress, postProgress });
+    proofSceneTexture?.update();
+
+    if (reduceMotion) {
+      controller.renderRawFigureVideoProgress(1);
+    } else if (introProgress <= 0.001) {
+      if (videoPlaybackStage !== 'idle') {
+        controller.resetFigureVideoPlayback();
+        videoPlaybackStage = 'idle';
+      }
+    } else if (introProgress >= 0.998) {
+      if (videoPlaybackStage !== 'complete') {
+        controller.finishFigureVideoPlayback();
+        videoPlaybackStage = 'complete';
+      }
+    } else if (videoPlaybackStage === 'idle') {
+      controller.startFigureVideoPlayback();
+      videoPlaybackStage = 'playing';
+    }
+
     controller.renderStaticState({
-      introProgress: 1,
-      transitionProgress: progress
+      introProgress,
+      transitionProgress
     });
+
     raf = requestAnimationFrame(render);
   };
 
   controller.prepare();
-  controller.waitForVideos().finally(render);
+  controller.waitForVideos();
+  render();
 
   const destroy = () => {
     if (destroyed) return;
     destroyed = true;
     cancelAnimationFrame(raf);
     controller.destroy();
+    proofSceneTexture?.destroy();
+    proofScrollOverlay?.destroy();
     host.replaceChildren();
     host.classList.remove('homepage-transition', 'homepage-transition--figure2', 'figure2-alpha-video', 'figure2-multiply-video');
   };
