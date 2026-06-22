@@ -9,6 +9,7 @@ const read = (relativePath) => readFileSync(path.join(rootDir, relativePath), 'u
 const indexHtml = read('index.html');
 const registrySource = read('js/transitions/homepage-transition-registry.js');
 const runtimeSource = read('js/transitions/homepage-transition-runtime.js');
+const revealSource = read('js/ui/reveal.js');
 const handoffPreviewSource = read('js/transitions/homepage/handoff-preview.js');
 const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
@@ -218,6 +219,13 @@ assert.ok(
     && runtimeSource.includes('FIXED_STAGE_CLASS')
     && runtimeSource.includes('SNAP_EXTRA_HEIGHT_VAR'),
   'Homepage runtime must support staged transition autoplay and snapped hold height'
+);
+assert.ok(
+  revealSource.includes('export function setRevealPresentedWithin')
+    && revealSource.includes('export function suppressRevealOnceWithin')
+    && revealSource.includes('data-entry-state')
+    && revealSource.includes('data-entry-count'),
+  'Reveal runtime must expose target presentation controls and entry counters'
 );
 assert.ok(
   runtimeSource.includes('shouldContinueStagedForward')
