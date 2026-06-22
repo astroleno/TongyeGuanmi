@@ -60,6 +60,16 @@ function resolveHandoffTarget(root, host) {
   return queryRoot.getElementById?.(transitionTo) || null;
 }
 
+function getDirectHashTargetId() {
+  const hash = window.location.hash || '';
+  if (!hash.startsWith('#')) return '';
+  try {
+    return decodeURIComponent(hash.slice(1));
+  } catch {
+    return hash.slice(1);
+  }
+}
+
 function createCleanupStack() {
   const cleanups = [];
 
@@ -481,7 +491,7 @@ function createHomepageSnapCoordinator({
     clearReleaseTimer();
     inputLockUntil = 0;
     activeController = controller;
-    if (direction > 0 && controller.handoffTarget) {
+    if (direction > 0 && controller.handoffId && controller.handoffTarget) {
       presentationController.beginHandoff({
         id: controller.handoffId || controller.host?.dataset?.transitionId || '',
         to: controller.handoffTarget?.dataset?.sectionId || controller.handoffTarget?.id || '',
@@ -602,6 +612,14 @@ function createHomepageSnapCoordinator({
   return {
     createController(host) {
       const moduleName = host.dataset.transitionModule;
+      const handoffTarget = resolveHandoffTarget(root, host);
+      const directHashTargetId = getDirectHashTargetId();
+      const isDirectHandoffTarget = Boolean(
+        directHashTargetId
+        && host.dataset.handoffId
+        && handoffTarget
+        && (handoffTarget.id === directHashTargetId || handoffTarget.dataset?.sectionId === directHashTargetId)
+      );
       const controller = {
         host,
         playhead: reduceMotion ? 1 : 0,
@@ -613,15 +631,15 @@ function createHomepageSnapCoordinator({
         snapEntryVh: parseFiniteNumber(host.dataset.transitionSnapEntryVh, DEFAULT_SNAP_ENTRY_VH),
         preserveEntry: host.dataset.transitionPreserveEntry === 'true',
         instantExit: host.dataset.transitionInstantExit === 'true',
-        handoffTarget: resolveHandoffTarget(root, host),
+        handoffTarget,
         handoffId: host.dataset.handoffId || '',
         handoffOwner: host.dataset.handoffOwner || '',
         handoffScrollTo: host.dataset.handoffScrollTo || '',
         handoffTargetSelector: host.dataset.handoffTargetSelector || '',
         handoffPhase: host.dataset.transitionHandoffPhase || '',
-        handoffComplete: false,
+        handoffComplete: isDirectHandoffTarget,
         raf: 0,
-        playedForward: false,
+        playedForward: isDirectHandoffTarget,
         playedBackward: false,
         destroyed: false,
         progressSource() {

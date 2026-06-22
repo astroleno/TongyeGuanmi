@@ -31,31 +31,45 @@ export function createHandoffReceiver({
   if (!container || !target || !source || !source.parentNode) return null;
 
   const doc = container.ownerDocument || document;
-  const receiver = doc.createElement('div');
-  receiver.className = ['homepage-handoff-receiver', className].filter(Boolean).join(' ');
-  receiver.dataset.handoffReceiver = 'true';
-  receiver.setAttribute('data-handoff-receiver', 'true');
-  receiver.setAttribute('aria-hidden', 'true');
-  receiver.setAttribute('inert', '');
-
-  const marker = doc.createComment(`handoff marker:${sourceSelector || target.id || 'target'}`);
-  const placeholder = createPlaceholder(doc, source);
-  const originalParent = source.parentNode;
-  const originalNextSibling = source.nextSibling;
-  const originalStyle = source.getAttribute('style');
-  const originalClass = source.getAttribute('class');
+  let receiver = null;
+  let marker = null;
+  let placeholder = null;
+  let originalParent = null;
+  let originalNextSibling = null;
+  let originalStyle = null;
+  let originalClass = null;
+  let adopted = false;
   let restored = false;
 
-  originalParent.insertBefore(marker, source);
-  originalParent.insertBefore(placeholder, source);
-  source.classList.add('homepage-handoff-receiver__content');
-  source.dataset.handoffAdopted = 'true';
-  setRevealPresentedWithin(source);
-  receiver.append(source);
-  container.append(receiver);
+  const adopt = () => {
+    if (adopted || restored || !source.parentNode) return;
+
+    receiver = doc.createElement('div');
+    receiver.className = ['homepage-handoff-receiver', className].filter(Boolean).join(' ');
+    receiver.dataset.handoffReceiver = 'true';
+    receiver.setAttribute('data-handoff-receiver', 'true');
+    receiver.setAttribute('aria-hidden', 'true');
+    receiver.setAttribute('inert', '');
+
+    marker = doc.createComment(`handoff marker:${sourceSelector || target.id || 'target'}`);
+    placeholder = createPlaceholder(doc, source);
+    originalParent = source.parentNode;
+    originalNextSibling = source.nextSibling;
+    originalStyle = source.getAttribute('style');
+    originalClass = source.getAttribute('class');
+
+    originalParent.insertBefore(marker, source);
+    originalParent.insertBefore(placeholder, source);
+    source.classList.add('homepage-handoff-receiver__content');
+    source.dataset.handoffAdopted = 'true';
+    setRevealPresentedWithin(source);
+    receiver.append(source);
+    container.append(receiver);
+    adopted = true;
+  };
 
   const restore = () => {
-    if (restored) return;
+    if (restored || !adopted) return;
     restored = true;
 
     if (marker.parentNode) {
@@ -83,13 +97,19 @@ export function createHandoffReceiver({
 
     source.removeAttribute('data-handoff-adopted');
     receiver.remove();
+    adopted = false;
   };
 
   return {
-    element: receiver,
+    get element() {
+      return receiver;
+    },
     content: source,
     update(progress, { start = 0.72, end = 1, liftPx = 24 } = {}) {
       const p = smoothStep(range01(progress, start, end));
+      if (!adopted && progress < start) return p;
+      adopt();
+      if (!receiver) return p;
       receiver.style.setProperty('--handoff-receiver-opacity', p.toFixed(4));
       receiver.style.setProperty('--handoff-receiver-y', `${((1 - p) * liftPx).toFixed(2)}px`);
       receiver.style.setProperty('--handoff-receiver-blur', `${((1 - p) * 8).toFixed(2)}px`);

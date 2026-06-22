@@ -32,6 +32,7 @@ assertContains(smoothScroll, "lenis.on('scroll', ScrollTrigger.update)", 'Lenis 
 assertContains(smoothScroll, 'gsap.ticker.add(tick)', 'Lenis RAF is driven by GSAP ticker');
 assertContains(smoothScroll, 'lenis.scrollTo(target, {', 'anchor clicks use Lenis scrollTo');
 assertContains(smoothScroll, 'offset: -getSnapOffset()', 'anchor clicks use snapped visual offset');
+assertContains(smoothScroll, 'scheduleInitialHashAlignment(lenis)', 'initial hash visits align through Lenis after layout setup');
 assertContains(smoothScroll, 'destroy()', 'smooth-scroll.js exposes cleanup');
 
 assertContains(index, 'class="long-canvas"', 'index.html provides the long-canvas stage');

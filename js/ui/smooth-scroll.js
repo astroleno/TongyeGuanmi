@@ -23,6 +23,31 @@ function getAnchorTarget(hash) {
   }
 }
 
+function alignInitialHash(lenis, hash = window.location.hash) {
+  const target = getAnchorTarget(hash);
+  if (!target) return;
+
+  lenis.scrollTo(target, {
+    offset: -getSnapOffset(),
+    immediate: true,
+    force: true
+  });
+}
+
+function scheduleInitialHashAlignment(lenis) {
+  const hash = window.location.hash;
+  if (!getAnchorTarget(hash)) return () => {};
+
+  const timers = [];
+  const align = () => alignInitialHash(lenis, hash);
+  requestAnimationFrame(() => requestAnimationFrame(align));
+  [240, 900, 1800, 3200, 5200].forEach((delay) => {
+    timers.push(window.setTimeout(align, delay));
+  });
+
+  return () => timers.forEach((timer) => window.clearTimeout(timer));
+}
+
 export function initSmoothScroll({
   root = document.documentElement,
   body = document.body,
@@ -72,10 +97,12 @@ export function initSmoothScroll({
   lenis.on('scroll', ScrollTrigger.update);
   gsap.ticker.add(tick);
   document.addEventListener('click', onAnchorClick);
+  const cancelInitialHashAlignment = scheduleInitialHashAlignment(lenis);
 
   return {
     lenis,
     destroy() {
+      cancelInitialHashAlignment();
       document.removeEventListener('click', onAnchorClick);
       gsap.ticker.remove(tick);
       lenis.off('scroll', ScrollTrigger.update);

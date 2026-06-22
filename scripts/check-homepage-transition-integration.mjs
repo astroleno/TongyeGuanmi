@@ -260,6 +260,17 @@ assert.ok(
   'Homepage runtime must notify the presentation controller during handoff lifecycle'
 );
 assert.ok(
+  runtimeSource.includes('controller.handoffId && controller.handoffTarget'),
+  'Homepage runtime must notify presentation state only for declared handoffs'
+);
+assert.ok(
+  runtimeSource.includes('getDirectHashTargetId')
+    && runtimeSource.includes('isDirectHandoffTarget')
+    && runtimeSource.includes('handoffComplete: isDirectHandoffTarget')
+    && runtimeSource.includes('playedForward: isDirectHandoffTarget'),
+  'Homepage runtime must skip preceding handoff playback for direct target anchors'
+);
+assert.ok(
   runtimeSource.includes('shouldContinueStagedForward')
     && runtimeSource.includes('? getScrollY()')
     && runtimeSource.includes('inStageHold')
