@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chapterTransitions, contentSections } from '../src/section-manifest.mjs';
+import { chapterTransitions, contentSections, handoffs, sectionEntryPolicies } from '../src/section-manifest.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir = path.join(rootDir, 'src');
@@ -44,6 +44,10 @@ function setAttribute(attrs, name, value) {
   return `${attrs} ${name}="${escapedValue}"`;
 }
 
+function getHandoffForTransition(transitionId) {
+  return handoffs.find((handoff) => handoff.transitionId === transitionId) || null;
+}
+
 function injectSectionAttributes(html, section, index) {
   const sectionOpenPattern = /<section\b[^>]*>/g;
   let didInject = false;
@@ -58,6 +62,11 @@ function injectSectionAttributes(html, section, index) {
     attrs = setAttribute(attrs, 'data-section-theme', section.theme);
     attrs = setAttribute(attrs, 'data-section-nav-bg', section.navBg);
     attrs = setAttribute(attrs, 'data-section-layout', section.layout);
+    const entryPolicy = sectionEntryPolicies[section.id];
+    if (entryPolicy) {
+      attrs = setAttribute(attrs, 'data-entry-direct', entryPolicy.directVisit);
+      attrs = setAttribute(attrs, 'data-entry-after-handoff', entryPolicy.afterHandoff);
+    }
     didInject = true;
     return `<section${attrs}>`;
   });
@@ -89,6 +98,21 @@ function injectTransitionAttributes(html, transition) {
     if (transition.drive) attrs = setAttribute(attrs, 'data-transition-drive', transition.drive);
     if (transition.handoffTarget) attrs = setAttribute(attrs, 'data-transition-handoff-target', transition.handoffTarget);
     if (transition.handoffPhase) attrs = setAttribute(attrs, 'data-transition-handoff-phase', transition.handoffPhase);
+    const handoff = getHandoffForTransition(transition.id);
+    if (handoff) {
+      attrs = setAttribute(attrs, 'data-handoff-id', handoff.id);
+      attrs = setAttribute(attrs, 'data-handoff-owner', handoff.owner);
+      attrs = setAttribute(attrs, 'data-target-entry-policy', handoff.targetEntry.policy);
+      attrs = setAttribute(attrs, 'data-target-entry-suppress-once', String(handoff.targetEntry.suppressOnceAfterHandoff));
+      attrs = setAttribute(attrs, 'data-handoff-scroll-to', handoff.afterComplete.scrollTo);
+      attrs = setAttribute(attrs, 'data-handoff-reduced-motion', handoff.reducedMotion.policy);
+      if (handoff.transition?.targetSelector) {
+        attrs = setAttribute(attrs, 'data-handoff-target-selector', handoff.transition.targetSelector);
+      }
+      if (handoff.transition?.ghostScenes?.length) {
+        attrs = setAttribute(attrs, 'data-transition-ghost-scenes', handoff.transition.ghostScenes.join(','));
+      }
+    }
 
     didInject = true;
     return `<div${attrs}>`;

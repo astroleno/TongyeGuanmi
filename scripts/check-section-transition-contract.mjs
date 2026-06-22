@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { chapterTransitions, contentSections, executableTransitionModules } from '../src/section-manifest.mjs';
+import {
+  chapterTransitions,
+  contentSections,
+  executableTransitionModules,
+  handoffs,
+  sectionEntryPolicies
+} from '../src/section-manifest.mjs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -70,6 +76,10 @@ const sceneTags = [...indexHtml.matchAll(/<div\b[^>]*>/g)]
   .map((match) => ({ tag: match[0], index: match.index ?? -1, attrs: parseAttributes(match[0]) }))
   .filter((node) => node.attrs.has('data-scene-id'));
 
+const sceneTransitionTags = [...indexHtml.matchAll(/<div\b[^>]*>/g)]
+  .map((match) => ({ tag: match[0], index: match.index ?? -1, attrs: parseAttributes(match[0]) }))
+  .filter((node) => (node.attrs.get('class') || '').split(/\s+/).includes('scene-transition'));
+
 for (const scene of sceneTags) {
   sectionPositions.set(scene.attrs.get('data-scene-id'), scene.index);
 }
@@ -117,6 +127,41 @@ for (const [index, transition] of chapterTransitions.entries()) {
     `Transition ${transition.id} must sit between ${transition.from} and ${transition.to} in DOM order`
   );
 }
+
+const handoffsByTransitionId = new Map(
+  handoffs
+    .filter((handoff) => handoff.transitionId)
+    .map((handoff) => [handoff.transitionId, handoff])
+);
+
+for (const [sectionId, entryPolicy] of Object.entries(sectionEntryPolicies)) {
+  const sectionNode = generatedSectionTags.find((node) => node.attrs.get('data-section-id') === sectionId);
+  assert.ok(sectionNode, `Section ${sectionId} must exist for entry policy checks`);
+  assert.equal(sectionNode.attrs.get('data-entry-direct'), entryPolicy.directVisit, `Section ${sectionId} has incorrect direct entry policy`);
+  assert.equal(sectionNode.attrs.get('data-entry-after-handoff'), entryPolicy.afterHandoff, `Section ${sectionId} has incorrect after-handoff entry policy`);
+}
+
+for (const node of transitionTags) {
+  const transitionId = node.attrs.get('data-transition-id');
+  const handoff = handoffsByTransitionId.get(transitionId);
+  if (!handoff) continue;
+
+  assert.equal(node.attrs.get('data-handoff-id'), handoff.id, `Transition ${transitionId} has incorrect handoff id`);
+  assert.equal(node.attrs.get('data-handoff-owner'), handoff.owner, `Transition ${transitionId} has incorrect handoff owner`);
+  assert.equal(node.attrs.get('data-target-entry-policy'), handoff.targetEntry.policy, `Transition ${transitionId} has incorrect target entry policy`);
+  assert.equal(node.attrs.get('data-target-entry-suppress-once'), 'true', `Transition ${transitionId} must suppress target entry once`);
+  assert.equal(node.attrs.get('data-handoff-scroll-to'), handoff.afterComplete.scrollTo, `Transition ${transitionId} has incorrect handoff scroll target`);
+  assert.equal(node.attrs.get('data-handoff-reduced-motion'), handoff.reducedMotion.policy, `Transition ${transitionId} has incorrect reduced-motion policy`);
+  if (handoff.transition.targetSelector) {
+    assert.equal(node.attrs.get('data-handoff-target-selector'), handoff.transition.targetSelector, `Transition ${transitionId} has incorrect target selector`);
+  }
+}
+
+const methodProofTransition = sceneTransitionTags.find((node) => node.attrs.get('data-transition-id') === 'method-tooling__method-proof');
+assert.ok(methodProofTransition, 'Method proof scene transition must exist');
+assert.equal(methodProofTransition.attrs.get('data-handoff-id'), 'method-proof-brand', 'Method proof scene transition must declare method-proof-brand handoff');
+assert.equal(methodProofTransition.attrs.get('data-handoff-owner'), 'target-section', 'Method proof scene transition must use target-section owner');
+assert.equal(methodProofTransition.attrs.get('data-handoff-target-selector'), '.brand-definition-grid', 'Method proof scene transition must adopt the Brand grid');
 
 assertIncludes(templateHtml, '{{> sections/method.html}}', 'Phase 1 must keep template section includes for scroll verifier compatibility');
 assertIncludes(navHtml, 'href="#services">场景</a>', 'Phase 1 must keep current nav HTML for scroll verifier compatibility');
