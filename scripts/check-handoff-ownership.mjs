@@ -91,4 +91,18 @@ assert.doesNotMatch(
   'Pattern Bloom transition must not own Belief presentation copy'
 );
 
+assert.ok(
+  figure2HomepageAdapterSource.includes("dataset.transitionGhost = 'method-proof-bridge'")
+    || figure2HomepageAdapterSource.includes('data-transition-ghost="method-proof-bridge"'),
+  'Figure2 proof overlay must be explicitly marked as transition ghost'
+);
+assert.ok(
+  aodHomepageAdapterSource.includes('data-transition-ghost="aod-field"'),
+  'AOD visual bridge must be explicitly marked as transition ghost'
+);
+assert.ok(
+  craneHomepageAdapterSource.includes('data-transition-ghost="crane-motion"'),
+  'Crane visual bridge must be explicitly marked as transition ghost'
+);
+
 console.log('Homepage handoff ownership contract looks good.');
