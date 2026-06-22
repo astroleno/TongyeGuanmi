@@ -1,4 +1,5 @@
 import { homepageTransitionRegistry } from './homepage-transition-registry.js';
+import { createSectionPresentationController } from './homepage/section-presentation-controller.js';
 
 const NAMED_TRANSITION_SELECTOR = [
   '.chapter-transition[data-transition-module]',
@@ -177,6 +178,7 @@ function createHomepageSnapCoordinator({
 } = {}) {
   const lenis = getScrollRuntimeLenis(scrollRuntime);
   const nativeTween = createNativeScrollTween();
+  const presentationController = createSectionPresentationController({ root });
   const originalLenisScrollTo = lenis?.scrollTo || null;
   const controllers = [];
   let activeController = null;
@@ -399,6 +401,16 @@ function createHomepageSnapCoordinator({
     }, POST_SNAP_INPUT_LOCK_MS);
   };
 
+  const notifyHandoffComplete = (controller) => {
+    if (!controller?.handoffTarget) return;
+    presentationController.completeHandoff({
+      id: controller.handoffId || controller.host?.dataset?.transitionId || '',
+      to: controller.handoffTarget?.dataset?.sectionId || controller.handoffTarget?.id || '',
+      target: controller.handoffTarget,
+      suppressEntryOnce: controller.host?.dataset?.targetEntrySuppressOnce !== 'false'
+    });
+  };
+
   const completePlayback = (controller, direction, { hold = false } = {}) => {
     syncSnapViewportHeight();
     const hostTop = getSnapDocumentTop(controller.host);
@@ -429,7 +441,10 @@ function createHomepageSnapCoordinator({
           controller.playedForward = false;
           controller.playedBackward = false;
         }
-        if (shouldHandoffAfterPlayback) controller.handoffComplete = true;
+        if (shouldHandoffAfterPlayback) {
+          controller.handoffComplete = true;
+          notifyHandoffComplete(controller);
+        }
         finishPlayback(controller);
       }
     });
@@ -440,6 +455,7 @@ function createHomepageSnapCoordinator({
     if (!Number.isFinite(targetY)) return;
 
     controller.handoffComplete = true;
+    notifyHandoffComplete(controller);
     clearReleaseTimer();
     inputLockUntil = performance.now() + POST_SNAP_INPUT_LOCK_MS;
     lockScroll();
@@ -465,6 +481,13 @@ function createHomepageSnapCoordinator({
     clearReleaseTimer();
     inputLockUntil = 0;
     activeController = controller;
+    if (direction > 0 && controller.handoffTarget) {
+      presentationController.beginHandoff({
+        id: controller.handoffId || controller.host?.dataset?.transitionId || '',
+        to: controller.handoffTarget?.dataset?.sectionId || controller.handoffTarget?.id || '',
+        target: controller.handoffTarget
+      });
+    }
     controller.host.classList.add('homepage-transition--snapped', 'homepage-transition--playing');
     controller.host.dataset.snapState = direction > 0 ? 'forward' : 'backward';
     const target = direction > 0 ? getForwardStageTarget(controller) : 0;
@@ -591,6 +614,10 @@ function createHomepageSnapCoordinator({
         preserveEntry: host.dataset.transitionPreserveEntry === 'true',
         instantExit: host.dataset.transitionInstantExit === 'true',
         handoffTarget: resolveHandoffTarget(root, host),
+        handoffId: host.dataset.handoffId || '',
+        handoffOwner: host.dataset.handoffOwner || '',
+        handoffScrollTo: host.dataset.handoffScrollTo || '',
+        handoffTargetSelector: host.dataset.handoffTargetSelector || '',
         handoffPhase: host.dataset.transitionHandoffPhase || '',
         handoffComplete: false,
         raf: 0,
@@ -634,6 +661,7 @@ function createHomepageSnapCoordinator({
         rootElement?.style?.removeProperty(SNAP_VIEWPORT_HEIGHT_VAR);
       }
       if (lenis && originalLenisScrollTo) lenis.scrollTo = originalLenisScrollTo;
+      presentationController.clear();
       nativeTween.destroy();
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onResize);

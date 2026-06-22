@@ -10,6 +10,7 @@ const indexHtml = read('index.html');
 const registrySource = read('js/transitions/homepage-transition-registry.js');
 const runtimeSource = read('js/transitions/homepage-transition-runtime.js');
 const revealSource = read('js/ui/reveal.js');
+const presentationControllerSource = read('js/transitions/homepage/section-presentation-controller.js');
 const handoffPreviewSource = read('js/transitions/homepage/handoff-preview.js');
 const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
@@ -226,6 +227,19 @@ assert.ok(
     && revealSource.includes('data-entry-state')
     && revealSource.includes('data-entry-count'),
   'Reveal runtime must expose target presentation controls and entry counters'
+);
+assert.ok(
+  presentationControllerSource.includes('createSectionPresentationController')
+    && presentationControllerSource.includes('markPresented')
+    && presentationControllerSource.includes('suppressEntryOnce')
+    && presentationControllerSource.includes('completeHandoff'),
+  'Homepage must have a section presentation controller'
+);
+assert.ok(
+  runtimeSource.includes("from './homepage/section-presentation-controller.js'")
+    && runtimeSource.includes('presentationController.completeHandoff')
+    && runtimeSource.includes('presentationController.beginHandoff'),
+  'Homepage runtime must notify the presentation controller during handoff lifecycle'
 );
 assert.ok(
   runtimeSource.includes('shouldContinueStagedForward')
