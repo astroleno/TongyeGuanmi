@@ -4,3 +4,9 @@ dist/
 output/
 .review-*.png
 .worktrees/
+tmp/
+assets/*.backup-*
+assets/*.pre-*
+assets/*.bad-*
+assets/*.tmp.*
+assets/*.original.*
