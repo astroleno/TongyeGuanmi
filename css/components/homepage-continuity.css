@@ -16,6 +16,8 @@
 
 .homepage-handoff-preview__content {
   pointer-events: none;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 .homepage-handoff-preview .reveal,
@@ -108,7 +110,7 @@
   --muted-2: var(--paper-soft);
   --line: var(--paper-rule);
   --gold: var(--paper-accent);
-  z-index: 12;
+  z-index: 26;
   display: grid;
   align-items: center;
   color: var(--paper-ink);
@@ -119,6 +121,8 @@
 }
 
 .homepage-handoff-preview--contact .homepage-handoff-preview__content {
+  position: relative;
+  z-index: 2;
   width: min(1280px, 84vw);
   margin-inline: auto;
   transform: translate3d(0, 0, 0);

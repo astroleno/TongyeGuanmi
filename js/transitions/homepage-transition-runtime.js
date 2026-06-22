@@ -435,6 +435,29 @@ function createHomepageSnapCoordinator({
     });
   };
 
+  const completePostScrollHandoff = (controller) => {
+    const targetY = getHandoffTargetY(controller);
+    if (!Number.isFinite(targetY)) return;
+
+    controller.handoffComplete = true;
+    clearReleaseTimer();
+    inputLockUntil = performance.now() + POST_SNAP_INPUT_LOCK_MS;
+    lockScroll();
+    scrollToY(targetY, {
+      immediate: true,
+      duration: 0,
+      onComplete: () => {
+        controller.host.classList.remove(FIXED_STAGE_CLASS);
+        syncLastScrollY();
+        releaseTimer = window.setTimeout(() => {
+          releaseTimer = 0;
+          unlockScroll();
+          syncLastScrollY();
+        }, POST_SNAP_INPUT_LOCK_MS);
+      }
+    });
+  };
+
   const playController = (controller, direction) => {
     if (reduceMotion || activeController || controller.destroyed) return;
 
@@ -528,8 +551,7 @@ function createHomepageSnapCoordinator({
       const direction = scrollY >= lastScrollY ? 1 : -1;
       if (direction <= 0 || controller.postProgressSource() < 0.995) return;
 
-      controller.handoffComplete = true;
-      scrollToY(getHandoffTargetY(controller), { immediate: true, duration: 0 });
+      completePostScrollHandoff(controller);
     });
     if (shouldSuppressControllerUpdates()) {
       lastScrollY = scrollY;

@@ -8,6 +8,10 @@ function stripRuntimeState(root) {
   nodes.forEach((node) => {
     node.removeAttribute('id');
     node.classList?.remove('reveal', 'is-visible', 'magnetic');
+    node.style?.removeProperty('opacity');
+    node.style?.removeProperty('visibility');
+    node.style?.removeProperty('transform');
+    node.style?.removeProperty('filter');
     if (node.matches?.('a, button, input, textarea, select')) {
       node.setAttribute('tabindex', '-1');
     }

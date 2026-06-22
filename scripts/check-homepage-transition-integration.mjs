@@ -256,9 +256,10 @@ assert.ok(
 assert.ok(
   handoffPreviewSource.includes('createHandoffPreview')
     && handoffPreviewSource.includes('removeAttribute(\'id\')')
+    && handoffPreviewSource.includes("removeProperty('opacity')")
     && handoffPreviewSource.includes('--handoff-preview-opacity')
     && handoffPreviewSource.includes('tabindex'),
-  'Shared handoff preview helper must clone target content without duplicate IDs or focusable controls'
+  'Shared handoff preview helper must clone target content without duplicate IDs, reveal inline state, or focusable controls'
 );
 assert.equal(
   [...stylesSource.matchAll(/@import url\("([^"]+)"\);/g)].map((match) => match[1]).at(-1),
