@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crane Component｜同野观幂</title>
+  <meta name="description" content="同野观幂 Crane 组件接入版分层滚动场景。" />
+  <meta name="theme-color" content="#f1ead9" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="js/vendor/gsap.min.js" as="script" />
+  <link rel="preload" href="js/vendor/ScrollTrigger.min.js" as="script" />
+  <link rel="preload" href="js/vendor/lenis.min.js" as="script" />
+  <link rel="preload" href="assets/aod-paper-bg.png" as="image" />
+  <link rel="preload" href="assets/crane1_cloud2-alpha.png" as="image" />
+  <link rel="preload" href="assets/crane1_arch-alpha.png" as="image" />
+  <link rel="preload" href="assets/crane1_cloud-front2-alpha.png" as="image" />
+  <link rel="preload" href="assets/crane1_cloud1-alpha.png" as="image" />
+  <link rel="preload" href="assets/crane-figure1-transition.webm" as="video" type="video/webm" />
+  <link rel="preload" href="assets/crane-figure2-transition.webm" as="video" type="video/webm" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/crane.css" />
+</head>
+<body class="crane-page">
+  <div class="grain" aria-hidden="true"></div>
+  <main class="crane-route">
+    <h1 class="crane-sr-only">Crane Component</h1>
+    <section class="crane-scroll" data-crane-stage aria-label="Crane component visual scene">
+      <div class="crane-sticky">
+        <div class="crane-field">
+          <div class="crane-paper" aria-hidden="true"></div>
+          <div class="crane-layer-stack" aria-hidden="true">
+            <img class="crane-layer crane-layer--cloud-back" src="assets/crane1_cloud2-alpha.png" alt="" />
+            <div class="crane-video-transition crane-video-transition--figure">
+              <video
+                class="crane-figure-video"
+                data-crane-figure-video
+                muted
+                preload="auto"
+                playsinline
+                webkit-playsinline
+              >
+                <source src="assets/crane-figure1-transition.webm" type="video/webm" />
+              </video>
+            </div>
+            <img class="crane-layer crane-layer--arch" src="assets/crane1_arch-alpha.png" alt="" />
+            <img class="crane-layer crane-layer--cloud-front" src="assets/crane1_cloud1-alpha.png" alt="" />
+            <img class="crane-layer crane-layer--cloud-front-second" src="assets/crane1_cloud-front2-alpha.png" alt="" />
+            <div class="crane-video-transition crane-video-transition--front">
+              <video
+                class="crane-figure-video crane-figure-video--front"
+                data-crane-figure-front-video
+                muted
+                preload="auto"
+                playsinline
+                webkit-playsinline
+              >
+                <source src="assets/crane-figure2-transition.webm" type="video/webm" />
+              </video>
+            </div>
+          </div>
+          <div class="crane-warmth" aria-hidden="true"></div>
+          <div class="crane-center-wash" aria-hidden="true"></div>
+          <div class="crane-texture" aria-hidden="true"></div>
+          <div class="crane-progress" aria-hidden="true">
+            <span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/crane-scroll-route-entry.js"></script>
+</body>
+</html>

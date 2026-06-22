@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>同野观幂｜镜花组件预览</title>
+  <meta name="description" content="同野观幂镜花 transition 组件独立预览。" />
+  <meta name="theme-color" content="#d9c08f" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
+  <link rel="preload" href="assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png" as="image" />
+  <link rel="preload" href="assets/patterns/alpha-layers/pattern-layer-alpha-06.png" as="image" />
+  <link rel="preload" href="assets/patterns/alpha-layers/pattern-layer-alpha-05.png" as="image" />
+  <link rel="preload" href="assets/patterns/alpha-layers/pattern-layer-alpha-04.png" as="image" />
+  <link rel="preload" href="assets/patterns/alpha-layers/pattern-layer-alpha-03.png" as="image" />
+  <link rel="preload" href="assets/patterns/alpha-layers/pattern-layer-alpha-02.png" as="image" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/pattern-bloom.css" />
+  <link rel="stylesheet" href="css/pattern-bloom-component.css" />
+</head>
+<body class="pattern-bloom-component-preview">
+  <nav class="bloom-nav" aria-label="页面导航">
+    <a class="bloom-brand" href="/" aria-label="返回同野观幂首页">
+      <span class="bloom-brand-mark">同</span>
+      <span>同野观幂</span>
+    </a>
+    <div class="bloom-links">
+      <a href="/pattern-bloom">原页</a>
+      <a href="/">首页</a>
+    </div>
+  </nav>
+
+  <main class="component-preview-shell" aria-label="镜花组件预览">
+    <div class="component-preview-spacer"></div>
+    <div
+      class="chapter-transition"
+      data-pattern-bloom-component-preview
+      data-transition-module="pattern-bloom"
+      aria-hidden="true"
+    ></div>
+    <div class="component-preview-spacer component-preview-spacer--tail"></div>
+  </main>
+
+  <p class="component-preview-label">独立组件预览。上下滚动查看 transition progress，首页未接入。</p>
+  <script type="module" src="js/pattern-bloom-component-preview.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background: #d9c08f;
+}
+
+body.pattern-bloom-component-preview {
+  min-height: 100%;
+  color: #221815;
+  background:
+    center / cover no-repeat url("../assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png"),
+    #d9c08f;
+}
+
+.pattern-bloom-component-preview .grain,
+.pattern-bloom-component-preview .cursor-glow,
+.pattern-bloom-component-preview .loading-screen {
+  display: none;
+}
+
+.component-preview-shell {
+  min-height: 220svh;
+  background: transparent;
+}
+
+.component-preview-spacer {
+  min-height: 56svh;
+}
+
+.component-preview-spacer--tail {
+  min-height: 70svh;
+}
+
+.component-preview-label {
+  position: fixed;
+  left: 28px;
+  bottom: 24px;
+  z-index: 10;
+  max-width: 320px;
+  margin: 0;
+  color: rgba(34, 24, 21, 0.58);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.pattern-bloom-component-preview .chapter-transition[data-transition-module="pattern-bloom"] {
+  height: 140svh;
+}
