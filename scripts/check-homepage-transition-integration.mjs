@@ -252,9 +252,15 @@ assert.ok(
     && revealSource.includes('export function suppressRevealOnceWithin')
     && revealSource.includes('export function holdRevealWithin')
     && revealSource.includes('export function releaseRevealWithin')
+    && revealSource.includes('wasPresented')
     && revealSource.includes('data-entry-state')
     && revealSource.includes('data-entry-count'),
   'Reveal runtime must expose target presentation controls and entry counters'
+);
+assert.doesNotMatch(
+  revealSource,
+  /dataset\.entryState\s*===\s*['"]presented['"]\)\s*return/,
+  'Reveal hold gate must also cover already-presented target reveals during active visual bridges'
 );
 assert.ok(
   presentationControllerSource.includes('createSectionPresentationController')

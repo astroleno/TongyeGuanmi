@@ -87,9 +87,10 @@ export function suppressRevealOnceWithin(root = document) {
 
 export function holdRevealWithin(root = document) {
   getRevealItems(root).forEach((item) => {
-    if (item.dataset.entryState === 'presented') return;
-
-    const state = heldReveals.get(item) || { count: 0 };
+    const state = heldReveals.get(item) || {
+      count: 0,
+      wasPresented: item.dataset.entryState === 'presented'
+    };
     state.count += 1;
     heldReveals.set(item, state);
 
@@ -115,6 +116,21 @@ export function releaseRevealWithin(root = document, { revealVisible = true } = 
 
     const control = revealControls.get(item);
     control?.scrollTrigger?.enable?.();
+
+    if (state.wasPresented && revealVisible) {
+      item.classList.add('is-visible');
+      item.setAttribute(ENTRY_STATE_ATTR, 'presented');
+      item.dataset.entryState = 'presented';
+      if (window.gsap) {
+        window.gsap.set(item, { autoAlpha: 1, y: 0, clearProps: 'visibility' });
+      } else {
+        item.style.opacity = '1';
+        item.style.visibility = 'visible';
+        item.style.transform = 'none';
+      }
+      return;
+    }
+
     item.setAttribute(ENTRY_STATE_ATTR, 'idle');
     item.dataset.entryState = 'idle';
 
