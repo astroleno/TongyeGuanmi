@@ -323,6 +323,11 @@ assert.ok(
     && handoffReceiverSource.includes('restore()'),
   'Shared handoff helper must adopt the real target DOM and restore it after release'
 );
+assert.match(
+  handoffReceiverSource,
+  /receiver\.remove\(\);\s*setRevealPresentedWithin\(source\);/,
+  'Shared handoff helper must re-present restored source after receiver removal'
+);
 assert.doesNotMatch(
   `${handoffPreviewSource}\n${handoffReceiverSource}`,
   /cloneNode\s*\(\s*true\s*\)/,

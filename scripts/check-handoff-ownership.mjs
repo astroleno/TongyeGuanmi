@@ -81,6 +81,11 @@ assert.doesNotMatch(
   /cloneNode\s*\(\s*true\s*\)/,
   'Homepage handoff code must not clone real target content'
 );
+assert.match(
+  handoffReceiverSource,
+  /receiver\.remove\(\);\s*setRevealPresentedWithin\(source\);/,
+  'Homepage handoff restore must re-present the returned real target content'
+);
 
 assert.doesNotMatch(
   `${figure3HomepageAdapterSource}\n${figure3ComponentSource}\n${figure3Css}`,

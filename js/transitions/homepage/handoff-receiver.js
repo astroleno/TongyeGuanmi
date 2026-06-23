@@ -97,6 +97,7 @@ export function createHandoffReceiver({
 
     source.removeAttribute('data-handoff-adopted');
     receiver.remove();
+    setRevealPresentedWithin(source);
     adopted = false;
   };
 
