@@ -275,9 +275,11 @@ assert.ok(
   runtimeSource.includes('getDirectHashTargetId')
     && runtimeSource.includes('isDirectHandoffTarget')
     && runtimeSource.includes('skipForDirectHash')
+    && runtimeSource.includes('completeDirectHashHandoff(controller)')
+    && runtimeSource.includes('directHashHandoffComplete')
     && runtimeSource.includes('handoffComplete: isDirectHandoffTarget')
     && runtimeSource.includes('playedForward: isDirectHandoffTarget'),
-  'Homepage runtime must skip preceding handoff playback for direct target anchors'
+  'Homepage runtime must skip preceding handoff playback and complete target presentation for direct target anchors'
 );
 assert.ok(
   runtimeSource.includes('shouldContinueStagedForward')

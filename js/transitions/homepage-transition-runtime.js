@@ -18,6 +18,7 @@ const SNAP_EXTRA_HEIGHT_VAR = '--homepage-transition-extra-snap-height';
 const FIXED_STAGE_CLASS = 'homepage-transition--fixed-stage';
 const DEFAULT_SNAP_ENTRY_VH = 1.02;
 const POST_SNAP_INPUT_LOCK_MS = 420;
+const DIRECT_HASH_ALIGNMENT_DELAYS = [0, 120, 420, 1100, 2400, 5200, 9200];
 const BLOCKED_SCROLL_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' ']);
 const MODULE_PLAY_MS = {
   aod: 1800,
@@ -246,6 +247,19 @@ function createHomepageSnapCoordinator({
     controller?.handoffTarget ? Math.max(0, Math.round(getDocumentTop(controller.handoffTarget))) : null
   );
 
+  const getDirectHashTargetY = (controller) => (
+    controller?.handoffTarget
+      ? Math.max(0, Math.round(getDocumentTop(controller.handoffTarget) - window.innerHeight * 0.2))
+      : null
+  );
+
+  const isDirectHashTargetVisible = (controller) => {
+    if (!controller?.handoffTarget) return true;
+    const rect = controller.handoffTarget.getBoundingClientRect();
+    const viewportHeight = Math.max(1, window.innerHeight || 1);
+    return rect.bottom > viewportHeight * 0.18 && rect.top < viewportHeight * 0.88;
+  };
+
   const syncFixedStageState = (controller, scrollY = getScrollY()) => {
     if (!controller?.host || controller.destroyed) return;
     if (controller.skipForDirectHash && isDirectHashTargetForController(controller)) {
@@ -437,6 +451,44 @@ function createHomepageSnapCoordinator({
     });
   };
 
+  const clearDirectHashAlignmentTimers = (controller) => {
+    controller?.directHashAlignmentTimers?.forEach((timer) => window.clearTimeout(timer));
+    if (controller) controller.directHashAlignmentTimers = [];
+  };
+
+  const alignDirectHashTarget = (controller) => {
+    if (
+      !controller?.skipForDirectHash
+      || controller.destroyed
+      || !isDirectHashTargetForController(controller)
+      || isDirectHashTargetVisible(controller)
+    ) return;
+
+    const targetY = getDirectHashTargetY(controller);
+    if (!Number.isFinite(targetY)) return;
+    scrollToY(targetY, {
+      immediate: true,
+      duration: 0
+    });
+  };
+
+  const completeDirectHashHandoff = (controller) => {
+    if (!controller?.handoffTarget || !isDirectHashTargetForController(controller)) return;
+
+    controller.handoffComplete = true;
+    controller.playedForward = true;
+    controller.host.classList.remove(FIXED_STAGE_CLASS);
+    if (!controller.directHashHandoffComplete) {
+      notifyHandoffComplete(controller);
+      controller.directHashHandoffComplete = true;
+    }
+
+    clearDirectHashAlignmentTimers(controller);
+    controller.directHashAlignmentTimers = DIRECT_HASH_ALIGNMENT_DELAYS.map((delay) => (
+      window.setTimeout(() => alignDirectHashTarget(controller), delay)
+    ));
+  };
+
   const completePlayback = (controller, direction, { hold = false } = {}) => {
     syncSnapViewportHeight();
     const hostTop = getSnapDocumentTop(controller.host);
@@ -559,9 +611,7 @@ function createHomepageSnapCoordinator({
     const backwardExit = hostTop - viewportHeight * 0.58;
 
     if (controller.skipForDirectHash && isDirectHashTargetForController(controller)) {
-      controller.playedForward = true;
-      controller.handoffComplete = true;
-      controller.host.classList.remove(FIXED_STAGE_CLASS);
+      completeDirectHashHandoff(controller);
       return;
     }
 
@@ -662,6 +712,8 @@ function createHomepageSnapCoordinator({
         handoffPhase: host.dataset.transitionHandoffPhase || '',
         handoffComplete: isDirectHandoffTarget,
         skipForDirectHash: isDirectHandoffTarget,
+        directHashHandoffComplete: false,
+        directHashAlignmentTimers: [],
         raf: 0,
         playedForward: isDirectHandoffTarget,
         playedBackward: false,
@@ -679,12 +731,14 @@ function createHomepageSnapCoordinator({
         },
         destroy() {
           this.destroyed = true;
+          clearDirectHashAlignmentTimers(this);
           this.host.classList.remove(FIXED_STAGE_CLASS);
           cancelAnimationFrame(this.raf);
         }
       };
       syncControllerSnapHold(controller);
       controllers.push(controller);
+      if (isDirectHandoffTarget) completeDirectHashHandoff(controller);
       return controller;
     },
     destroy() {
