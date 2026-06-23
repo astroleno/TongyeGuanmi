@@ -9,6 +9,7 @@ const phHtml = read('ph.html');
 const loadLibrariesSource = read('js/transitions/load-libraries.js');
 const videoScrubSource = read('js/transitions/video-scrub.js');
 const scrollSceneSource = read('js/transitions/scroll-scene.js');
+const routeEntrySource = read('js/transitions/route-entry.js');
 
 function assertIncludes(source, needle, message) {
   assert.ok(source.includes(needle), message);
@@ -23,15 +24,27 @@ assertIncludes(videoScrubSource, 'export function seekVideoToProgress', 'video-s
 assertIncludes(scrollSceneSource, 'export function createReduceMotionState', 'scroll-scene exports createReduceMotionState');
 assertIncludes(scrollSceneSource, 'export function initTransitionScrollRuntime', 'scroll-scene exports initTransitionScrollRuntime');
 assertIncludes(scrollSceneSource, 'export function createScrollProgressTrigger', 'scroll-scene exports createScrollProgressTrigger');
+assertIncludes(routeEntrySource, 'export function createTransitionRoute', 'route-entry exports createTransitionRoute');
+assertIncludes(routeEntrySource, "from './load-libraries.js'", 'route-entry owns shared library loading');
+assertIncludes(routeEntrySource, "from './scroll-scene.js'", 'route-entry owns scroll runtime initialization');
+assertIncludes(routeEntrySource, "window.addEventListener('pagehide'", 'route-entry owns pagehide cleanup');
+assertIncludes(routeEntrySource, 'onReducedMotion', 'route-entry supports reduced-motion hook');
+assertIncludes(routeEntrySource, 'beforeMount', 'route-entry supports route prerequisite hook');
+assertIncludes(routeEntrySource, 'refreshOnMount', 'route-entry owns optional ScrollTrigger refresh');
 
-assertIncludes(phScroll, "from './transitions/load-libraries.js'", 'ph-scroll imports shared library loader');
-assertIncludes(phScroll, "from './transitions/scroll-scene.js'", 'ph-scroll imports shared scroll scene helpers');
+assertIncludes(phScroll, "from './transitions/route-entry.js'", 'ph-scroll imports shared route entry');
+assertIncludes(phScroll, "from './transitions/scroll-scene.js'", 'ph-scroll imports shared scroll trigger helper');
 assertIncludes(phScroll, "from './transitions/video-scrub.js'", 'ph-scroll imports shared video scrub helpers');
+assertIncludes(phScroll, 'createTransitionRoute({', 'ph-scroll enters through createTransitionRoute');
+assertIncludes(phScroll, "name: 'PH transition'", 'ph-scroll names the transition route');
+assertIncludes(phScroll, 'smoothOptions:', 'ph-scroll passes route smooth scroll options through the contract');
+assertIncludes(phScroll, 'beforeMount: () => waitForVideoMetadata(alphaVideo)', 'ph-scroll waits for metadata before normal mount');
 assert.doesNotMatch(phScroll, /function loadScript|async function loadRequiredLibraries/, 'ph-scroll must not keep local script loader');
+assert.doesNotMatch(phScroll, /loadTransitionLibraries|initTransitionScrollRuntime|window\.addEventListener\('pagehide'/, 'ph-scroll must not own shared route lifecycle');
 assert.doesNotMatch(phScroll, /function prepareVideo|function waitForVideoMetadata|function getVideoDuration|function seekVideo\(/, 'ph-scroll must not keep local video helpers');
 assert.match(
   phScroll,
-  /if \(reduceMotion\) \{\s+playhead\.raw = 1;\s+setProgress\(1\);\s+waitForVideoMetadata\(alphaVideo\)\.then\(\(\) => setProgress\(1\)\);\s+return;\s+\}\s+await waitForVideoMetadata\(alphaVideo\);/s,
+  /onReducedMotion: \(\) => \{\s+playhead\.raw = 1;\s+setProgress\(1\);\s+waitForVideoMetadata\(alphaVideo\)\.then\(\(\) => setProgress\(1\)\);\s+\}/s,
   'ph-scroll must not block reduced-motion final state on metadata wait'
 );
 assertIncludes(phScroll, 'TRANSITION_DURATION_SECONDS = 2', 'ph-scroll keeps current transition duration');

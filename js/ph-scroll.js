@@ -1,9 +1,5 @@
-import { loadTransitionLibraries } from './transitions/load-libraries.js';
-import {
-  createReduceMotionState,
-  createScrollProgressTrigger,
-  initTransitionScrollRuntime
-} from './transitions/scroll-scene.js';
+import { createTransitionRoute } from './transitions/route-entry.js';
+import { createScrollProgressTrigger } from './transitions/scroll-scene.js';
 import {
   prepareScrubVideo,
   seekVideoToProgress,
@@ -17,13 +13,9 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const smoothStep = (value) => value * value * (3 - 2 * value);
 
 const root = document.documentElement;
-const body = document.body;
 const stage = document.querySelector('[data-ph-stage]');
 const alphaVideo = document.querySelector('[data-ph-alpha-video]');
-const reduceMotion = createReduceMotionState();
 
-let scrollScene = { destroy() {} };
-let scrollTrigger = { destroy() {} };
 let progressTween = null;
 const playhead = { raw: 0 };
 
@@ -66,61 +58,46 @@ function tweenToRawProgress(rawProgress) {
   });
 }
 
-function resetTransition() {
-  tweenToRawProgress(0);
-}
-
-async function init() {
-  if (!stage || !alphaVideo) return;
-
-  prepareScrubVideo(alphaVideo);
-
-  if (reduceMotion) {
-    playhead.raw = 1;
-    setProgress(1);
-    waitForVideoMetadata(alphaVideo).then(() => setProgress(1));
-    return;
-  }
-
-  await waitForVideoMetadata(alphaVideo);
-
-  const { gsap, ScrollTrigger } = await loadTransitionLibraries();
-  scrollScene = initTransitionScrollRuntime({
-    root,
-    body,
-    reduceMotion,
-    gsap,
-    ScrollTrigger,
+if (stage && alphaVideo) {
+  createTransitionRoute({
+    name: 'PH transition',
+    stage,
     smoothOptions: {
       lerp: 0.08,
       wheelMultiplier: 0.82,
       syncTouch: false
+    },
+    prepare: () => {
+      prepareScrubVideo(alphaVideo);
+    },
+    onReducedMotion: () => {
+      playhead.raw = 1;
+      setProgress(1);
+      waitForVideoMetadata(alphaVideo).then(() => setProgress(1));
+    },
+    beforeMount: () => waitForVideoMetadata(alphaVideo),
+    mount: ({ ScrollTrigger }) => {
+      setProgress(0);
+
+      const scrollTrigger = createScrollProgressTrigger({
+        ScrollTrigger,
+        trigger: stage,
+        start: 'top top',
+        end: 'bottom bottom',
+        invalidateOnRefresh: true,
+        onUpdate: (self) => tweenToRawProgress(self.progress),
+        onLeave: () => tweenToRawProgress(1),
+        onLeaveBack: () => tweenToRawProgress(0)
+      });
+
+      return () => {
+        progressTween?.kill?.();
+        scrollTrigger.destroy();
+      };
+    },
+    onError: (error) => {
+      console.warn('PH transition failed to initialize.', error);
+      setProgress(0);
     }
   });
-
-  setProgress(0);
-
-  scrollTrigger = createScrollProgressTrigger({
-    ScrollTrigger,
-    trigger: stage,
-    start: 'top top',
-    end: 'bottom bottom',
-    invalidateOnRefresh: true,
-    onUpdate: (self) => tweenToRawProgress(self.progress),
-    onLeave: () => tweenToRawProgress(1),
-    onLeaveBack: resetTransition
-  });
-
-  ScrollTrigger.refresh();
 }
-
-init().catch((error) => {
-  console.warn('PH transition failed to initialize.', error);
-  setProgress(0);
-});
-
-window.addEventListener('pagehide', () => {
-  progressTween?.kill?.();
-  scrollTrigger?.destroy?.();
-  scrollScene?.destroy?.();
-});
