@@ -250,6 +250,8 @@ assert.ok(
 assert.ok(
   revealSource.includes('export function setRevealPresentedWithin')
     && revealSource.includes('export function suppressRevealOnceWithin')
+    && revealSource.includes('export function holdRevealWithin')
+    && revealSource.includes('export function releaseRevealWithin')
     && revealSource.includes('data-entry-state')
     && revealSource.includes('data-entry-count'),
   'Reveal runtime must expose target presentation controls and entry counters'
@@ -266,6 +268,14 @@ assert.ok(
     && runtimeSource.includes('presentationController.completeHandoff')
     && runtimeSource.includes('presentationController.beginHandoff'),
   'Homepage runtime must notify the presentation controller during handoff lifecycle'
+);
+assert.ok(
+  runtimeSource.includes("from '../ui/reveal.js'")
+    && runtimeSource.includes('beginTargetRevealGate')
+    && runtimeSource.includes('releaseTargetRevealGate')
+    && runtimeSource.includes('targetRevealHeld')
+    && runtimeSource.includes('releaseTargetGate: !hold && direction > 0'),
+  'Homepage runtime must gate non-handoff target reveals until visual bridge playback has fully exited'
 );
 assert.ok(
   runtimeSource.includes('controller.handoffId && controller.handoffTarget'),

@@ -1,5 +1,6 @@
 import { homepageTransitionRegistry } from './homepage-transition-registry.js';
 import { createSectionPresentationController } from './homepage/section-presentation-controller.js';
+import { holdRevealWithin, releaseRevealWithin } from '../ui/reveal.js';
 
 const NAMED_TRANSITION_SELECTOR = [
   '.chapter-transition[data-transition-module]',
@@ -80,6 +81,14 @@ function isDirectHashTargetForController(controller) {
       controller.handoffTarget.id === directHashTargetId
       || controller.handoffTarget.dataset?.sectionId === directHashTargetId
     )
+  );
+}
+
+function shouldGateTargetReveal(controller) {
+  return Boolean(
+    controller?.handoffTarget
+    && !controller.handoffId
+    && !controller.handoffPhase
   );
 }
 
@@ -426,9 +435,24 @@ function createHomepageSnapCoordinator({
     controller.raf = requestAnimationFrame(tick);
   };
 
-  const finishPlayback = (controller) => {
+  const beginTargetRevealGate = (controller) => {
+    if (!shouldGateTargetReveal(controller) || controller.targetRevealHeld) return;
+    holdRevealWithin(controller.handoffTarget);
+    controller.handoffTarget.setAttribute('data-section-transition-state', 'gated-in');
+    controller.targetRevealHeld = true;
+  };
+
+  const releaseTargetRevealGate = (controller, options = {}) => {
+    if (!controller?.targetRevealHeld) return;
+    controller.targetRevealHeld = false;
+    controller.handoffTarget?.removeAttribute('data-section-transition-state');
+    releaseRevealWithin(controller.handoffTarget, options);
+  };
+
+  const finishPlayback = (controller, { releaseTargetGate = true } = {}) => {
     controller.host.classList.remove('homepage-transition--snapped', 'homepage-transition--playing');
     syncFixedStageState(controller);
+    if (releaseTargetGate) releaseTargetRevealGate(controller);
     inputLockUntil = performance.now() + POST_SNAP_INPUT_LOCK_MS;
     syncLastScrollY();
     clearReleaseTimer();
@@ -523,7 +547,7 @@ function createHomepageSnapCoordinator({
           controller.handoffComplete = true;
           notifyHandoffComplete(controller);
         }
-        finishPlayback(controller);
+        finishPlayback(controller, { releaseTargetGate: !hold && direction > 0 });
       }
     });
   };
@@ -565,6 +589,11 @@ function createHomepageSnapCoordinator({
         to: controller.handoffTarget?.dataset?.sectionId || controller.handoffTarget?.id || '',
         target: controller.handoffTarget
       });
+    }
+    if (direction > 0) {
+      beginTargetRevealGate(controller);
+    } else {
+      releaseTargetRevealGate(controller, { revealVisible: false });
     }
     controller.host.classList.add('homepage-transition--snapped', 'homepage-transition--playing');
     controller.host.dataset.snapState = direction > 0 ? 'forward' : 'backward';
@@ -620,6 +649,7 @@ function createHomepageSnapCoordinator({
       controller.playhead = 0;
       controller.handoffComplete = false;
       controller.host.classList.remove(FIXED_STAGE_CLASS);
+      releaseTargetRevealGate(controller, { revealVisible: false });
     }
 
     if (scrollY > hostTop + hostHeight + viewportHeight * 0.58) {
@@ -714,6 +744,7 @@ function createHomepageSnapCoordinator({
         skipForDirectHash: isDirectHandoffTarget,
         directHashHandoffComplete: false,
         directHashAlignmentTimers: [],
+        targetRevealHeld: false,
         raf: 0,
         playedForward: isDirectHandoffTarget,
         playedBackward: false,
@@ -732,6 +763,7 @@ function createHomepageSnapCoordinator({
         destroy() {
           this.destroyed = true;
           clearDirectHashAlignmentTimers(this);
+          releaseTargetRevealGate(this, { revealVisible: false });
           this.host.classList.remove(FIXED_STAGE_CLASS);
           cancelAnimationFrame(this.raf);
         }

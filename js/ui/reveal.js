@@ -1,7 +1,33 @@
 const revealControls = new WeakMap();
 const suppressedOnce = new WeakSet();
+const heldReveals = new WeakMap();
 const ENTRY_STATE_ATTR = 'data-entry-state';
 const ENTRY_COUNT_ATTR = 'data-entry-count';
+
+function getRevealItems(root = document) {
+  return root.matches?.('.reveal')
+    ? [root, ...root.querySelectorAll?.('.reveal') || []]
+    : [...root.querySelectorAll?.('.reveal') || []];
+}
+
+function setRevealHidden(el) {
+  el.classList.remove('is-visible');
+
+  if (window.gsap) {
+    window.gsap.set(el, { autoAlpha: 0, y: 24, clearProps: 'visibility' });
+    return;
+  }
+
+  el.style.opacity = '0';
+  el.style.visibility = 'hidden';
+  el.style.transform = 'translate3d(0, 24px, 0)';
+}
+
+function isWithinEntryRange(el) {
+  const rect = el.getBoundingClientRect?.();
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 1;
+  return Boolean(rect && rect.top <= viewportHeight * 0.84 && rect.bottom >= viewportHeight * 0.2);
+}
 
 function incrementEntryCount(el) {
   const nextCount = Number(el.dataset.entryCount || 0) + 1;
@@ -29,6 +55,13 @@ function markPresented(el, { countEntry = false } = {}) {
 }
 
 function revealNow(el) {
+  if (heldReveals.has(el)) {
+    el.setAttribute(ENTRY_STATE_ATTR, 'held');
+    el.dataset.entryState = 'held';
+    setRevealHidden(el);
+    return;
+  }
+
   if (suppressedOnce.has(el)) {
     suppressedOnce.delete(el);
     markPresented(el, { countEntry: true });
@@ -41,23 +74,65 @@ function revealNow(el) {
 }
 
 export function setRevealPresentedWithin(root = document) {
-  const items = root.matches?.('.reveal')
-    ? [root, ...root.querySelectorAll?.('.reveal') || []]
-    : [...root.querySelectorAll?.('.reveal') || []];
-
-  items.forEach((item) => markPresented(item));
+  getRevealItems(root).forEach((item) => markPresented(item));
 }
 
 export function suppressRevealOnceWithin(root = document) {
-  const items = root.matches?.('.reveal')
-    ? [root, ...root.querySelectorAll?.('.reveal') || []]
-    : [...root.querySelectorAll?.('.reveal') || []];
-
-  items.forEach((item) => {
+  getRevealItems(root).forEach((item) => {
     suppressedOnce.add(item);
     item.setAttribute(ENTRY_STATE_ATTR, 'suppressed-once');
     item.dataset.entryState = 'suppressed-once';
   });
+}
+
+export function holdRevealWithin(root = document) {
+  getRevealItems(root).forEach((item) => {
+    if (item.dataset.entryState === 'presented') return;
+
+    const state = heldReveals.get(item) || { count: 0 };
+    state.count += 1;
+    heldReveals.set(item, state);
+
+    if (state.count > 1) return;
+
+    const control = revealControls.get(item);
+    control?.scrollTrigger?.disable?.(false);
+    control?.tween?.pause?.(0);
+    item.setAttribute(ENTRY_STATE_ATTR, 'held');
+    item.dataset.entryState = 'held';
+    setRevealHidden(item);
+  });
+}
+
+export function releaseRevealWithin(root = document, { revealVisible = true } = {}) {
+  getRevealItems(root).forEach((item) => {
+    const state = heldReveals.get(item);
+    if (!state) return;
+
+    state.count -= 1;
+    if (state.count > 0) return;
+    heldReveals.delete(item);
+
+    const control = revealControls.get(item);
+    control?.scrollTrigger?.enable?.();
+    item.setAttribute(ENTRY_STATE_ATTR, 'idle');
+    item.dataset.entryState = 'idle';
+
+    if (revealVisible && isWithinEntryRange(item)) {
+      if (control?.tween?.play) {
+        control.tween.play(0);
+      } else {
+        revealNow(item);
+        item.classList.add('is-visible');
+      }
+      return;
+    }
+
+    control?.tween?.pause?.(0);
+    setRevealHidden(item);
+  });
+
+  window.requestAnimationFrame?.(() => window.ScrollTrigger?.refresh?.());
 }
 
 export function initVanillaReveal() {
