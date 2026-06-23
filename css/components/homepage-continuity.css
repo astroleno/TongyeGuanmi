@@ -145,6 +145,10 @@
   overflow: visible;
 }
 
+.canvas-section--belief.is-pattern-bloom-pinned {
+  z-index: 95;
+}
+
 body.is-pattern-bloom-covering .hero-sticky,
 body.is-pattern-bloom-covering .hero-content,
 body.is-pattern-bloom-covering .fallback-middle,

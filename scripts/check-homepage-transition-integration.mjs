@@ -124,8 +124,9 @@ assert.doesNotMatch(
 );
 assert.ok(
   patternBloomAdapterSource.includes('textProgress: beliefCopyProgress')
-    && patternBloomAdapterSource.includes('presentationTarget: beliefSection'),
-  'Pattern Bloom must hand off to the real Belief section'
+    && patternBloomAdapterSource.includes('presentationTarget: beliefSection')
+    && patternBloomAdapterSource.includes('const SECOND_REVEAL_START = 0.58'),
+  'Pattern Bloom must hand off to the real Belief section before the visual cover fully exits'
 );
 assert.ok(
   patternBloomAdapterSource.includes('isDirectVisitToBelief')
@@ -275,9 +276,12 @@ assert.ok(
   runtimeSource.includes('beginTargetRevealGate')
     && runtimeSource.includes('releaseTargetRevealGate')
     && runtimeSource.includes('targetRevealHeld')
+    && runtimeSource.includes('DEFAULT_TARGET_GATE_RELEASE_PROGRESS')
+    && runtimeSource.includes('transitionTargetReleaseProgress')
+    && runtimeSource.includes('controller.playhead >= controller.targetRevealReleaseProgress')
     && runtimeSource.includes('homepage-transition-target-gated')
     && runtimeSource.includes('releaseTargetGate: !hold && direction > 0'),
-  'Homepage runtime must gate non-handoff target sections until visual bridge playback has fully exited'
+  'Homepage runtime must gate non-handoff target sections only until the visual bridge tail can reveal native copy'
 );
 assert.doesNotMatch(
   runtimeSource,
@@ -366,6 +370,8 @@ assert.ok(
     && homepageContinuityCss.includes('height: 0 !important')
     && homepageContinuityCss.includes('.canvas-section.homepage-transition-target-gated')
     && homepageContinuityCss.includes('body.is-pattern-bloom-covering .hero-content')
+    && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned')
+    && homepageContinuityCss.includes('z-index: 95')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned .belief-copy-wrap'),
   'Homepage continuity CSS must define receiver layers, reduced-motion collapse, paper tokens, method-brand collapse, target gates, and pinned belief copy'
 );
