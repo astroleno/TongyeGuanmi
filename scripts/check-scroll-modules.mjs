@@ -30,9 +30,10 @@ assertContains(smoothScroll, 'export function initSmoothScroll', 'smooth-scroll.
 assertContains(smoothScroll, 'new window.Lenis', 'smooth-scroll.js creates Lenis from CDN global');
 assertContains(smoothScroll, "lenis.on('scroll', ScrollTrigger.update)", 'Lenis updates ScrollTrigger');
 assertContains(smoothScroll, 'gsap.ticker.add(tick)', 'Lenis RAF is driven by GSAP ticker');
-assertContains(smoothScroll, 'lenis.scrollTo(target, {', 'anchor clicks use Lenis scrollTo');
-assertContains(smoothScroll, 'offset: -getSnapOffset()', 'anchor clicks use snapped visual offset');
+assertContains(smoothScroll, 'getAnchorTargetY(target)', 'anchor clicks use deterministic numeric target positions');
+assertContains(smoothScroll, '- getSnapOffset()', 'anchor clicks use snapped visual offset');
 assertContains(smoothScroll, 'scheduleInitialHashAlignment(lenis)', 'initial hash visits align through Lenis after layout setup');
+assertContains(smoothScroll, 'alignIfOffscreen', 'initial hash visits get a final visible-target correction');
 assertContains(smoothScroll, 'destroy()', 'smooth-scroll.js exposes cleanup');
 
 assertContains(index, 'class="long-canvas"', 'index.html provides the long-canvas stage');

@@ -70,6 +70,18 @@ function getDirectHashTargetId() {
   }
 }
 
+function isDirectHashTargetForController(controller) {
+  const directHashTargetId = getDirectHashTargetId();
+  return Boolean(
+    directHashTargetId
+    && controller?.handoffTarget
+    && (
+      controller.handoffTarget.id === directHashTargetId
+      || controller.handoffTarget.dataset?.sectionId === directHashTargetId
+    )
+  );
+}
+
 function createCleanupStack() {
   const cleanups = [];
 
@@ -236,6 +248,10 @@ function createHomepageSnapCoordinator({
 
   const syncFixedStageState = (controller, scrollY = getScrollY()) => {
     if (!controller?.host || controller.destroyed) return;
+    if (controller.skipForDirectHash && isDirectHashTargetForController(controller)) {
+      controller.host.classList.remove(FIXED_STAGE_CLASS);
+      return;
+    }
     const viewportHeight = Math.max(1, window.innerHeight || 1);
     const hostTop = getDocumentTop(controller.host);
     const stageHoldPx = getStageHoldPx(controller, viewportHeight);
@@ -542,6 +558,13 @@ function createHomepageSnapCoordinator({
       : hostTop + hostHeight + viewportHeight * 0.18;
     const backwardExit = hostTop - viewportHeight * 0.58;
 
+    if (controller.skipForDirectHash && isDirectHashTargetForController(controller)) {
+      controller.playedForward = true;
+      controller.handoffComplete = true;
+      controller.host.classList.remove(FIXED_STAGE_CLASS);
+      return;
+    }
+
     if (scrollY < backwardExit) {
       controller.playedForward = false;
       controller.playhead = 0;
@@ -638,6 +661,7 @@ function createHomepageSnapCoordinator({
         handoffTargetSelector: host.dataset.handoffTargetSelector || '',
         handoffPhase: host.dataset.transitionHandoffPhase || '',
         handoffComplete: isDirectHandoffTarget,
+        skipForDirectHash: isDirectHandoffTarget,
         raf: 0,
         playedForward: isDirectHandoffTarget,
         playedBackward: false,

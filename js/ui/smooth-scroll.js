@@ -10,6 +10,10 @@ function getSnapOffset() {
   return Math.round(window.innerHeight * 0.2);
 }
 
+function getAnchorTargetY(target) {
+  return Math.max(0, Math.round(window.scrollY + target.getBoundingClientRect().top - getSnapOffset()));
+}
+
 function shouldHandleAnchor(link) {
   if (!link || link.origin !== window.location.origin || link.pathname !== window.location.pathname) return false;
   return link.hash && link.hash.length > 1;
@@ -27,8 +31,7 @@ function alignInitialHash(lenis, hash = window.location.hash) {
   const target = getAnchorTarget(hash);
   if (!target) return;
 
-  lenis.scrollTo(target, {
-    offset: -getSnapOffset(),
+  lenis.scrollTo(getAnchorTargetY(target), {
     immediate: true,
     force: true
   });
@@ -36,13 +39,23 @@ function alignInitialHash(lenis, hash = window.location.hash) {
 
 function scheduleInitialHashAlignment(lenis) {
   const hash = window.location.hash;
-  if (!getAnchorTarget(hash)) return () => {};
+  const target = getAnchorTarget(hash);
+  if (!target) return () => {};
 
   const timers = [];
   const align = () => alignInitialHash(lenis, hash);
+  const alignIfOffscreen = () => {
+    const rect = target.getBoundingClientRect();
+    const viewportHeight = Math.max(1, window.innerHeight || 1);
+    const isVisible = rect.bottom > viewportHeight * 0.25 && rect.top < viewportHeight * 0.75;
+    if (!isVisible) align();
+  };
   requestAnimationFrame(() => requestAnimationFrame(align));
   [240, 900, 1800, 3200, 5200].forEach((delay) => {
     timers.push(window.setTimeout(align, delay));
+  });
+  [6800, 8600].forEach((delay) => {
+    timers.push(window.setTimeout(alignIfOffscreen, delay));
   });
 
   return () => timers.forEach((timer) => window.clearTimeout(timer));
@@ -85,8 +98,7 @@ export function initSmoothScroll({
     event.preventDefault();
     history.pushState(null, '', link.hash);
 
-    lenis.scrollTo(target, {
-      offset: -getSnapOffset(),
+    lenis.scrollTo(getAnchorTargetY(target), {
       duration: 1.05,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t))
     });

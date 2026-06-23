@@ -12,6 +12,25 @@ const SECOND_REVEAL_START = 0.84;
 const SECOND_REVEAL_END = 0.985;
 const BELIEF_PIN_CLASS = 'is-pattern-bloom-pinned';
 
+function getCurrentHashId() {
+  const hash = window.location.hash || '';
+  if (!hash.startsWith('#')) return '';
+  try {
+    return decodeURIComponent(hash.slice(1));
+  } catch {
+    return hash.slice(1);
+  }
+}
+
+function isDirectVisitToBelief(beliefSection) {
+  const hashId = getCurrentHashId();
+  return Boolean(
+    hashId
+    && beliefSection
+    && (beliefSection.id === hashId || beliefSection.dataset?.sectionId === hashId)
+  );
+}
+
 export function mountPatternBloomTransition({
   host,
   reduceMotion = false,
@@ -23,6 +42,13 @@ export function mountPatternBloomTransition({
   }
 
   host.dataset.patternBloomMounted = 'true';
+  const doc = host.ownerDocument || document;
+  const beliefSection = doc.querySelector('.canvas-section--belief');
+  if (isDirectVisitToBelief(beliefSection)) {
+    delete host.dataset.patternBloomMounted;
+    return { destroy() {} };
+  }
+
   host.classList.add('homepage-transition', 'homepage-transition--pattern-bloom', 'chapter-transition--pattern-bloom');
   const previousAriaHidden = host.getAttribute('aria-hidden');
   const previousRole = host.getAttribute('role');
@@ -31,8 +57,6 @@ export function mountPatternBloomTransition({
   host.setAttribute('role', 'region');
   host.setAttribute('aria-label', '同野观幂莲花转场');
 
-  const doc = host.ownerDocument || document;
-  const beliefSection = doc.querySelector('.canvas-section--belief');
   const beliefStarCanvas = beliefSection?.querySelector('[data-belief-star-field]') || null;
   const presentationTarget = beliefSection;
   const stage = doc.createElement('div');

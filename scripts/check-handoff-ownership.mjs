@@ -16,7 +16,10 @@ const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adap
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
 const craneHomepageAdapterSource = read('js/transitions/homepage/crane-homepage-adapter.js');
 const figure3HomepageAdapterSource = read('js/transitions/homepage/figure3-homepage-adapter.js');
+const figure3ComponentSource = read('js/components/figure3-transition.js');
+const figure3Css = read('css/components/figure3-transition.css');
 const patternBloomAdapterSource = read('js/transitions/pattern-bloom-adapter.js');
+const canvasStageCss = read('css/sections/canvas-stage.css');
 
 const sectionIds = new Set(['home', ...contentSections.map((section) => section.id)]);
 const transitionIds = new Set(chapterTransitions.map((transition) => transition.id));
@@ -80,15 +83,20 @@ assert.doesNotMatch(
 );
 
 assert.doesNotMatch(
-  figure3HomepageAdapterSource,
-  /SERVICE_TITLE|figure3-transition__service-copy|真正的 AI 转型/,
-  'Figure3 homepage transition must not own Services presentation copy'
+  `${figure3HomepageAdapterSource}\n${figure3ComponentSource}\n${figure3Css}`,
+  /SERVICE_TITLE|figure3-transition__service-copy|figure3-transition__service-|figure3-transition--service-visible|真正的 AI 转型/,
+  'Figure3 transition code and CSS must not own deprecated Services presentation copy'
 );
 
 assert.doesNotMatch(
-  patternBloomAdapterSource,
+  `${patternBloomAdapterSource}\n${canvasStageCss}`,
   /pattern-bloom-transition__copy|一句话讲清我们干什么|让 AI 从一场培训/,
-  'Pattern Bloom transition must not own Belief presentation copy'
+  'Pattern Bloom transition code and CSS must not own deprecated Belief presentation copy'
+);
+assert.ok(
+  patternBloomAdapterSource.includes('isDirectVisitToBelief')
+    && patternBloomAdapterSource.includes('delete host.dataset.patternBloomMounted'),
+  'Pattern Bloom must leave the real Belief section unpinned on direct target hash visits'
 );
 
 assert.ok(

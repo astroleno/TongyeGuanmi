@@ -21,9 +21,12 @@ const craneHomepageAdapterSource = read('js/transitions/homepage/crane-homepage-
 const ttgHomepageAdapterSource = read('js/transitions/homepage/ttg-homepage-adapter.js');
 const ttgComponentSource = read('js/components/ttg-transition.js');
 const figure2ComponentSource = read('js/components/figure2-transition.js');
+const figure3ComponentSource = read('js/components/figure3-transition.js');
 const stylesSource = read('css/styles.css');
 const homepageTransitionCss = read('css/components/homepage-transitions.css');
 const homepageContinuityCss = read('css/components/homepage-continuity.css');
+const canvasStageCss = read('css/sections/canvas-stage.css');
+const figure3Css = read('css/components/figure3-transition.css');
 const figure2Css = read('css/figure2.css');
 
 const namedModules = [
@@ -88,9 +91,9 @@ assert.equal(
   'services-lab must use the TTG transition before the scenario scene'
 );
 assert.doesNotMatch(
-  figure3HomepageAdapterSource,
-  /SERVICE_TITLE|figure3-transition__service-copy|真正的 AI 转型/,
-  'Figure3 homepage transition must stay visual-only instead of owning Services presentation copy'
+  `${figure3HomepageAdapterSource}\n${figure3ComponentSource}\n${figure3Css}`,
+  /SERVICE_TITLE|figure3-transition__service-copy|figure3-transition__service-|figure3-transition--service-visible|真正的 AI 转型/,
+  'Figure3 transition code and CSS must stay visual-only instead of keeping deprecated Services presentation copy surfaces'
 );
 assert.equal(
   transitionById.get('education-philosophy')?.attrs.get('data-transition-module'),
@@ -115,14 +118,19 @@ assert.equal(
   'home-belief must be scroll-driven so it cannot expose an empty snap host'
 );
 assert.doesNotMatch(
-  patternBloomAdapterSource,
+  `${patternBloomAdapterSource}\n${canvasStageCss}`,
   /pattern-bloom-transition__copy|一句话讲清我们干什么|让 AI 从一场培训/,
-  'Pattern Bloom must not render a second Belief presentation copy'
+  'Pattern Bloom code and CSS must not keep deprecated Belief presentation copy surfaces'
 );
 assert.ok(
   patternBloomAdapterSource.includes('textProgress: beliefSceneOpacity')
     && patternBloomAdapterSource.includes('presentationTarget: beliefSection'),
   'Pattern Bloom must hand off to the real Belief section'
+);
+assert.ok(
+  patternBloomAdapterSource.includes('isDirectVisitToBelief')
+    && patternBloomAdapterSource.includes('delete host.dataset.patternBloomMounted'),
+  'Pattern Bloom must not pin Belief copy on direct target hash visits'
 );
 assert.equal(
   aodHandoffTransition?.attrs.get('data-transition-stage-stops'),
@@ -266,6 +274,7 @@ assert.ok(
 assert.ok(
   runtimeSource.includes('getDirectHashTargetId')
     && runtimeSource.includes('isDirectHandoffTarget')
+    && runtimeSource.includes('skipForDirectHash')
     && runtimeSource.includes('handoffComplete: isDirectHandoffTarget')
     && runtimeSource.includes('playedForward: isDirectHandoffTarget'),
   'Homepage runtime must skip preceding handoff playback for direct target anchors'
