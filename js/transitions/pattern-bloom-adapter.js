@@ -189,10 +189,17 @@ export function mountPatternBloomTransition({
     const canvasRevealed = sceneReady && revealProgress >= 0.998;
     const secondRevealProgress = smoothStep(range01(progress, SECOND_REVEAL_START, SECOND_REVEAL_END));
     const topSceneExit = smoothStep(range01(secondRevealProgress, 0.68, 0.98));
-    const topSceneOpacity = canvasRevealed && secondRevealProgress < 0.998 ? 1 - topSceneExit : 0;
-    const beliefSceneOpacity = smoothStep(range01(secondRevealProgress, 0.06, 0.74));
-    const beliefCopyProgress = smoothStep(range01(secondRevealProgress, 0.10, 0.50));
-    const beliefPinned = overlayActive && secondRevealProgress > 0.02;
+    const beliefPinned = overlayActive && secondRevealProgress > 0.002;
+    const lotusOpacity = 1 - topSceneExit;
+    const topSceneOpacity = canvasRevealed && secondRevealProgress < 0.998
+      ? Math.min(lotusOpacity, beliefPinned ? 0.18 : 1)
+      : 0;
+    const beliefSceneOpacity = beliefPinned
+      ? Math.max(0.86, smoothStep(range01(secondRevealProgress, 0.002, 0.18)))
+      : 0;
+    const beliefCopyProgress = beliefPinned
+      ? Math.max(0.92, smoothStep(range01(secondRevealProgress, 0.002, 0.16)))
+      : 0;
     const lotusVisible = topSceneOpacity > 0.002;
 
     doc.body?.classList.toggle(COVER_PRIOR_SCENE_CLASS, overlayActive && revealProgress > 0.92);

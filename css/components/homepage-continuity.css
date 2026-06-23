@@ -147,6 +147,17 @@
 
 .canvas-section--belief.is-pattern-bloom-pinned {
   z-index: 95;
+  opacity: 1 !important;
+  background: transparent !important;
+}
+
+.canvas-section--belief.is-pattern-bloom-pinned .belief-star-field.is-ready {
+  opacity: calc(var(--belief-transition-opacity, 0) * .88) !important;
+}
+
+.canvas-section--belief.is-pattern-bloom-pinned .belief-star-wash,
+.canvas-section--belief.is-pattern-bloom-pinned::after {
+  opacity: var(--belief-transition-opacity, 0) !important;
 }
 
 body.is-pattern-bloom-covering .hero-sticky,

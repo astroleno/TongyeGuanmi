@@ -125,7 +125,9 @@ assert.doesNotMatch(
 assert.ok(
   patternBloomAdapterSource.includes('textProgress: beliefCopyProgress')
     && patternBloomAdapterSource.includes('presentationTarget: beliefSection')
-    && patternBloomAdapterSource.includes('const SECOND_REVEAL_START = 0.58'),
+    && patternBloomAdapterSource.includes('const SECOND_REVEAL_START = 0.58')
+    && patternBloomAdapterSource.includes('Math.max(0.92')
+    && patternBloomAdapterSource.includes('beliefPinned ? 0.18 : 1'),
   'Pattern Bloom must hand off to the real Belief section before the visual cover fully exits'
 );
 assert.ok(
@@ -372,6 +374,9 @@ assert.ok(
     && homepageContinuityCss.includes('body.is-pattern-bloom-covering .hero-content')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned')
     && homepageContinuityCss.includes('z-index: 95')
+    && homepageContinuityCss.includes('opacity: 1 !important')
+    && homepageContinuityCss.includes('background: transparent !important')
+    && homepageContinuityCss.includes('.belief-star-field.is-ready')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned .belief-copy-wrap'),
   'Homepage continuity CSS must define receiver layers, reduced-motion collapse, paper tokens, method-brand collapse, target gates, and pinned belief copy'
 );
