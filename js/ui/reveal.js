@@ -39,6 +39,9 @@ function markPresented(el, { countEntry = false } = {}) {
   const control = revealControls.get(el);
   control?.scrollTrigger?.kill?.();
   control?.tween?.kill?.();
+  revealControls.delete(el);
+  heldReveals.delete(el);
+  suppressedOnce.delete(el);
   el.classList.add('is-visible');
   el.setAttribute(ENTRY_STATE_ATTR, 'presented');
   el.dataset.entryState = 'presented';
@@ -79,6 +82,8 @@ export function setRevealPresentedWithin(root = document) {
 
 export function suppressRevealOnceWithin(root = document) {
   getRevealItems(root).forEach((item) => {
+    if (item.dataset.entryState === 'presented' || item.classList.contains('is-visible')) return;
+
     suppressedOnce.add(item);
     item.setAttribute(ENTRY_STATE_ATTR, 'suppressed-once');
     item.dataset.entryState = 'suppressed-once';

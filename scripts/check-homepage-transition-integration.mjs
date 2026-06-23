@@ -123,7 +123,7 @@ assert.doesNotMatch(
   'Pattern Bloom code and CSS must not keep deprecated Belief presentation copy surfaces'
 );
 assert.ok(
-  patternBloomAdapterSource.includes('textProgress: beliefSceneOpacity')
+  patternBloomAdapterSource.includes('textProgress: beliefCopyProgress')
     && patternBloomAdapterSource.includes('presentationTarget: beliefSection'),
   'Pattern Bloom must hand off to the real Belief section'
 );
@@ -253,14 +253,10 @@ assert.ok(
     && revealSource.includes('export function holdRevealWithin')
     && revealSource.includes('export function releaseRevealWithin')
     && revealSource.includes('wasPresented')
+    && revealSource.includes('revealControls.delete')
     && revealSource.includes('data-entry-state')
     && revealSource.includes('data-entry-count'),
   'Reveal runtime must expose target presentation controls and entry counters'
-);
-assert.doesNotMatch(
-  revealSource,
-  /dataset\.entryState\s*===\s*['"]presented['"]\)\s*return/,
-  'Reveal hold gate must also cover already-presented target reveals during active visual bridges'
 );
 assert.ok(
   presentationControllerSource.includes('createSectionPresentationController')
@@ -276,12 +272,17 @@ assert.ok(
   'Homepage runtime must notify the presentation controller during handoff lifecycle'
 );
 assert.ok(
-  runtimeSource.includes("from '../ui/reveal.js'")
-    && runtimeSource.includes('beginTargetRevealGate')
+  runtimeSource.includes('beginTargetRevealGate')
     && runtimeSource.includes('releaseTargetRevealGate')
     && runtimeSource.includes('targetRevealHeld')
+    && runtimeSource.includes('homepage-transition-target-gated')
     && runtimeSource.includes('releaseTargetGate: !hold && direction > 0'),
-  'Homepage runtime must gate non-handoff target reveals until visual bridge playback has fully exited'
+  'Homepage runtime must gate non-handoff target sections until visual bridge playback has fully exited'
+);
+assert.doesNotMatch(
+  runtimeSource,
+  /holdRevealWithin|releaseRevealWithin/,
+  'Homepage runtime must not pause or hide child reveal tweens while gating visual bridge targets'
 );
 assert.ok(
   runtimeSource.includes('controller.handoffId && controller.handoffTarget'),
@@ -363,8 +364,10 @@ assert.ok(
     && homepageContinuityCss.includes('--paper-ink: #252719')
     && homepageContinuityCss.includes('z-index: 22')
     && homepageContinuityCss.includes('height: 0 !important')
+    && homepageContinuityCss.includes('.canvas-section.homepage-transition-target-gated')
+    && homepageContinuityCss.includes('body.is-pattern-bloom-covering .hero-content')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned .belief-copy-wrap'),
-  'Homepage continuity CSS must define receiver layers, reduced-motion collapse, paper tokens, method-brand collapse, and pinned belief copy'
+  'Homepage continuity CSS must define receiver layers, reduced-motion collapse, paper tokens, method-brand collapse, target gates, and pinned belief copy'
 );
 assert.doesNotMatch(
   homepageContinuityCss,

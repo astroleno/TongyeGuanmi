@@ -8,9 +8,10 @@ const smoothStep = (value) => value * value * (3 - 2 * value);
 const REVEAL_END = 0.46;
 const BLOOM_START = 0.42;
 const BLOOM_END = 0.70;
-const SECOND_REVEAL_START = 0.84;
+const SECOND_REVEAL_START = 0.72;
 const SECOND_REVEAL_END = 0.985;
 const BELIEF_PIN_CLASS = 'is-pattern-bloom-pinned';
+const COVER_PRIOR_SCENE_CLASS = 'is-pattern-bloom-covering';
 
 function getCurrentHashId() {
   const hash = window.location.hash || '';
@@ -189,14 +190,16 @@ export function mountPatternBloomTransition({
     const secondRevealProgress = smoothStep(range01(progress, SECOND_REVEAL_START, SECOND_REVEAL_END));
     const topSceneExit = smoothStep(range01(secondRevealProgress, 0.68, 0.98));
     const topSceneOpacity = canvasRevealed && secondRevealProgress < 0.998 ? 1 - topSceneExit : 0;
-    const beliefSceneOpacity = smoothStep(range01(secondRevealProgress, 0.88, 0.998));
-    const beliefPinned = overlayActive && secondRevealProgress > 0.002;
+    const beliefSceneOpacity = smoothStep(range01(secondRevealProgress, 0.24, 0.92));
+    const beliefCopyProgress = smoothStep(range01(secondRevealProgress, 0.34, 0.78));
+    const beliefPinned = overlayActive && secondRevealProgress > 0.04;
     const lotusVisible = topSceneOpacity > 0.002;
 
+    doc.body?.classList.toggle(COVER_PRIOR_SCENE_CLASS, overlayActive && revealProgress > 0.92);
     setBeliefTransitionState({
       pinned: beliefPinned,
       sceneOpacity: beliefSceneOpacity,
-      textProgress: beliefSceneOpacity,
+      textProgress: beliefCopyProgress,
       presentationTarget: beliefSection
     });
 
@@ -220,6 +223,7 @@ export function mountPatternBloomTransition({
     destroyed = true;
     cancelAnimationFrame(overlayRaf);
     clearBeliefTransitionState();
+    doc.body?.classList.remove(COVER_PRIOR_SCENE_CLASS);
     scene.destroy();
     stage.remove();
     host.classList.remove('homepage-transition', 'homepage-transition--pattern-bloom', 'chapter-transition--pattern-bloom');

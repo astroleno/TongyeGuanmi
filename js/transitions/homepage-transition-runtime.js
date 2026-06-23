@@ -1,6 +1,5 @@
 import { homepageTransitionRegistry } from './homepage-transition-registry.js';
 import { createSectionPresentationController } from './homepage/section-presentation-controller.js';
-import { holdRevealWithin, releaseRevealWithin } from '../ui/reveal.js';
 
 const NAMED_TRANSITION_SELECTOR = [
   '.chapter-transition[data-transition-module]',
@@ -437,16 +436,17 @@ function createHomepageSnapCoordinator({
 
   const beginTargetRevealGate = (controller) => {
     if (!shouldGateTargetReveal(controller) || controller.targetRevealHeld) return;
-    holdRevealWithin(controller.handoffTarget);
     controller.handoffTarget.setAttribute('data-section-transition-state', 'gated-in');
+    controller.handoffTarget.classList.add('homepage-transition-target-gated');
     controller.targetRevealHeld = true;
   };
 
-  const releaseTargetRevealGate = (controller, options = {}) => {
+  const releaseTargetRevealGate = (controller) => {
     if (!controller?.targetRevealHeld) return;
     controller.targetRevealHeld = false;
     controller.handoffTarget?.removeAttribute('data-section-transition-state');
-    releaseRevealWithin(controller.handoffTarget, options);
+    controller.handoffTarget?.classList.remove('homepage-transition-target-gated');
+    window.requestAnimationFrame?.(() => window.ScrollTrigger?.refresh?.());
   };
 
   const finishPlayback = (controller, { releaseTargetGate = true } = {}) => {
@@ -593,7 +593,7 @@ function createHomepageSnapCoordinator({
     if (direction > 0) {
       beginTargetRevealGate(controller);
     } else {
-      releaseTargetRevealGate(controller, { revealVisible: false });
+      releaseTargetRevealGate(controller);
     }
     controller.host.classList.add('homepage-transition--snapped', 'homepage-transition--playing');
     controller.host.dataset.snapState = direction > 0 ? 'forward' : 'backward';
@@ -649,7 +649,7 @@ function createHomepageSnapCoordinator({
       controller.playhead = 0;
       controller.handoffComplete = false;
       controller.host.classList.remove(FIXED_STAGE_CLASS);
-      releaseTargetRevealGate(controller, { revealVisible: false });
+      releaseTargetRevealGate(controller);
     }
 
     if (scrollY > hostTop + hostHeight + viewportHeight * 0.58) {
@@ -763,7 +763,7 @@ function createHomepageSnapCoordinator({
         destroy() {
           this.destroyed = true;
           clearDirectHashAlignmentTimers(this);
-          releaseTargetRevealGate(this, { revealVisible: false });
+          releaseTargetRevealGate(this);
           this.host.classList.remove(FIXED_STAGE_CLASS);
           cancelAnimationFrame(this.raf);
         }

@@ -132,10 +132,26 @@
   pointer-events: none;
 }
 
+.canvas-section.homepage-transition-target-gated,
+.canvas-section[data-section-transition-state="gated-in"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .canvas-section--belief {
   height: 124svh;
   min-height: 124svh;
   overflow: visible;
+}
+
+body.is-pattern-bloom-covering .hero-sticky,
+body.is-pattern-bloom-covering .hero-content,
+body.is-pattern-bloom-covering .fallback-middle,
+body.is-pattern-bloom-covering .fallback-middle-near-blur,
+body.is-pattern-bloom-covering .fallback-figure {
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 .canvas-section--belief .belief-copy-wrap {
