@@ -1,4 +1,5 @@
 import { timelineJoins, timelineScenes } from './scene-timeline-manifest.js';
+import { setRevealPresentedWithin } from '../../ui/reveal.js';
 
 const clamp01 = (value) => {
   if (!Number.isFinite(value)) return 0;
@@ -92,8 +93,7 @@ export function deriveTimelineState(join, progress, milestones = {}) {
 export function createSceneTimelineController({
   root = document,
   joins = timelineJoins,
-  scenes = timelineScenes,
-  presentationController = null
+  scenes = timelineScenes
 } = {}) {
   const sceneById = new Map(scenes.map((scene) => [scene.id, scene]));
   const stateByJoinId = new Map();
@@ -118,11 +118,12 @@ export function createSceneTimelineController({
     const section = getSceneSection(root, scene);
     const copies = getSceneCopyTargets(root, scene);
     section?.setAttribute('data-scene-state', 'presented');
+    section?.setAttribute('data-section-handoff-state', 'presented');
     copies.forEach((copy) => {
       copy.setAttribute('data-entry-state', 'presented');
       copy.dataset.entryState = 'presented';
+      setRevealPresentedWithin(copy);
     });
-    presentationController?.markPresented?.(scene.sectionId || section);
     presentedJoinIds.add(join.id);
   }
 

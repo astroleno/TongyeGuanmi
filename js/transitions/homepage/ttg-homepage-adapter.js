@@ -1,6 +1,6 @@
 import { createTtgTransitionScene } from '../../components/ttg-transition.js';
 
-export function mountHomepageTransition({ host, reduceMotion = false, progressSource, addCleanup, gsap = window.gsap }) {
+export function mountHomepageTransition({ host, reduceMotion = false, progressSource, timeline, addCleanup, gsap = window.gsap }) {
   host.classList.add('homepage-transition', 'homepage-transition--ttg', 'ttg-page');
   host.innerHTML = `
     <section
@@ -54,6 +54,13 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
     const direction = progress >= lastProgress ? 1 : -1;
 
     scene.renderRawProgress(progress, { syncVideo: false });
+    timeline?.update(progress, {
+      reason: 'ttg-render',
+      milestones: {
+        targetReady: true,
+        playbackComplete: progress >= 1
+      }
+    });
 
     if (reduceMotion) {
       if (videoPlaybackStage !== 'complete') {

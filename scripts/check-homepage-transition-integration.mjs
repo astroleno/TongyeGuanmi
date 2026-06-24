@@ -18,6 +18,7 @@ const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adap
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
 const figure3HomepageAdapterSource = read('js/transitions/homepage/figure3-homepage-adapter.js');
 const craneHomepageAdapterSource = read('js/transitions/homepage/crane-homepage-adapter.js');
+const phHomepageAdapterSource = read('js/transitions/homepage/ph-homepage-adapter.js');
 const ttgHomepageAdapterSource = read('js/transitions/homepage/ttg-homepage-adapter.js');
 const ttgComponentSource = read('js/components/ttg-transition.js');
 const figure2ComponentSource = read('js/components/figure2-transition.js');
@@ -94,6 +95,11 @@ assert.doesNotMatch(
   `${figure3HomepageAdapterSource}\n${figure3ComponentSource}\n${figure3Css}`,
   /SERVICE_TITLE|figure3-transition__service-copy|figure3-transition__service-|figure3-transition--service-visible|真正的 AI 转型/,
   'Figure3 transition code and CSS must stay visual-only instead of keeping deprecated Services presentation copy surfaces'
+);
+assert.ok(
+  figure3HomepageAdapterSource.includes('timeline?.update(progress')
+    && figure3HomepageAdapterSource.includes('playbackComplete'),
+  'Figure3 visual bridge must present Services through the homepage timeline'
 );
 assert.equal(
   transitionById.get('education-philosophy')?.attrs.get('data-transition-module'),
@@ -487,8 +493,14 @@ assert.ok(
 assert.ok(
   ttgHomepageAdapterSource.includes('scene.renderRawProgress(progress, { syncVideo: false })')
     && ttgHomepageAdapterSource.includes('scene.enableGsapRendering(gsap)')
+    && ttgHomepageAdapterSource.includes('timeline?.update(progress')
     && ttgComponentSource.includes('figurePlaybackDrivesScene'),
   'TTG homepage transition must drive scenery from snap progress instead of video frame time'
+);
+assert.ok(
+  phHomepageAdapterSource.includes('timeline?.update(progress')
+    && phHomepageAdapterSource.includes('playbackComplete'),
+  'PH visual bridge must present Education through the homepage timeline'
 );
 assert.doesNotMatch(
   ttgHomepageAdapterSource,
