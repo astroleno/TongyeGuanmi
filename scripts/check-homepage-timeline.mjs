@@ -85,6 +85,10 @@ function assertRange(name, value) {
   assert.ok(value[0] < value[1], `${name} must have start < end`);
 }
 
+function assertCloseEnough(actual, expected, message, epsilon = 0.0001) {
+  assert.ok(actual <= expected + epsilon, message);
+}
+
 function getSectionEnd(sectionNode) {
   const closeIndex = indexHtml.indexOf('</section>', sectionNode.index);
   assert.ok(closeIndex > sectionNode.index, `Section ${sectionNode.attrs.get('id')} must have a closing tag`);
@@ -199,6 +203,15 @@ for (const join of timelineJoins) {
   assert.ok(Number.isFinite(join.cleanupAt), `Timeline join ${join.id} must declare cleanupAt`);
   assert.ok(join.presentAt >= join.commitAt, `Timeline join ${join.id} must satisfy presentAt >= commitAt`);
   assert.ok(join.cleanupAt >= join.presentAt, `Timeline join ${join.id} must satisfy cleanupAt >= presentAt`);
+  assertCloseEnough(join.cleanupAt, 0.96, `Timeline join ${join.id} must clean up before the transition tail can feel blank`);
+  if (join.progressPolicy !== 'scroll') {
+    assertCloseEnough(join.targetIn[1], 0.82, `Timeline join ${join.id} target copy must finish entering before playback release`);
+    assertCloseEnough(
+      join.presentAt - join.targetIn[1],
+      0.08,
+      `Timeline join ${join.id} must not leave target copy waiting after targetIn completes`
+    );
+  }
   if (join.handoffId) {
     assert.ok(handoffIds.has(join.handoffId), `Timeline join ${join.id} has unknown handoffId ${join.handoffId}`);
   }
@@ -206,6 +219,8 @@ for (const join of timelineJoins) {
 
 const homeBelief = timelineJoins.find((join) => join.id === 'home-belief');
 assert.equal(homeBelief?.progressPolicy, 'scroll', 'home-belief must be scroll-driven');
+assertCloseEnough(homeBelief?.targetIn?.[0], 0.34, 'home-belief copy must begin entering while the lotus scene is still active');
+assertCloseEnough(homeBelief?.targetIn?.[1], 0.64, 'home-belief copy must be visually ready before the late transition tail');
 assert.ok(homeBelief.commitCondition?.includes('lotusContracted'), 'home-belief must require lotusContracted');
 assert.ok(homeBelief.commitCondition?.includes('targetReady'), 'home-belief must require targetReady');
 assert.ok(homeBelief.presentCondition?.includes('beliefCopyComplete'), 'home-belief must require beliefCopyComplete');
