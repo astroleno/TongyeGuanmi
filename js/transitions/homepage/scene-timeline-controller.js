@@ -20,6 +20,9 @@ const range01 = (value, range) => {
   return clamp01((value - start) / (end - start));
 };
 
+const FIXED_COPY_CLASS = 'homepage-timeline-copy-active';
+const ROOT_FIXED_COPY_CLASS = 'homepage-timeline-target-active';
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -55,6 +58,25 @@ function resolveTiming(join) {
     presentAt,
     cleanupAt
   };
+}
+
+function shouldFixTargetCopy(join) {
+  return join?.progressPolicy !== 'scroll';
+}
+
+function isSectionInReleaseRange(section) {
+  if (!section) return false;
+  const viewportHeight = Math.max(1, window.innerHeight || 1);
+  const rect = section.getBoundingClientRect();
+  return rect.top < viewportHeight * 0.18 && rect.bottom > viewportHeight * 0.42;
+}
+
+function syncTimelineCopyStyle(copy, state) {
+  const opacity = state.targetOpacity;
+  copy.style?.setProperty('--timeline-target-opacity', opacity.toFixed(4));
+  copy.style?.setProperty('--timeline-target-y', `${((1 - opacity) * 30).toFixed(2)}px`);
+  copy.style?.setProperty('--timeline-target-blur', `${((1 - opacity) * 10).toFixed(2)}px`);
+  copy.setAttribute('data-timeline-phase', state.phase);
 }
 
 export function deriveTimelineState(join, progress, milestones = {}) {
@@ -95,9 +117,11 @@ export function createSceneTimelineController({
   joins = timelineJoins,
   scenes = timelineScenes
 } = {}) {
+  const rootElement = root.documentElement || document.documentElement;
   const sceneById = new Map(scenes.map((scene) => [scene.id, scene]));
   const stateByJoinId = new Map();
   const presentedJoinIds = new Set();
+  const fixedCopyElements = new Set();
 
   function getJoinForHost(host) {
     if (!host) return null;
@@ -127,6 +151,28 @@ export function createSceneTimelineController({
     presentedJoinIds.add(join.id);
   }
 
+  function setFixedCopy(copy, active) {
+    if (!copy) return;
+    if (active) {
+      fixedCopyElements.add(copy);
+      copy.classList.add(FIXED_COPY_CLASS);
+      copy.setAttribute('data-timeline-fixed', 'true');
+      rootElement?.classList?.add(ROOT_FIXED_COPY_CLASS);
+      return;
+    }
+
+    fixedCopyElements.delete(copy);
+    copy.classList.remove(FIXED_COPY_CLASS);
+    copy.removeAttribute('data-timeline-fixed');
+    copy.style.removeProperty('--timeline-target-y');
+    copy.style.removeProperty('--timeline-target-blur');
+    if (!fixedCopyElements.size) rootElement?.classList?.remove(ROOT_FIXED_COPY_CLASS);
+  }
+
+  function clearFixedCopies(copies) {
+    copies.forEach((copy) => setFixedCopy(copy, false));
+  }
+
   function update(join, progress, { milestones = {}, reason = 'update' } = {}) {
     if (!join) return null;
     const state = deriveTimelineState(join, progress, milestones);
@@ -136,11 +182,23 @@ export function createSceneTimelineController({
     const section = getSceneSection(root, scene);
     const copies = getSceneCopyTargets(root, scene);
     section?.style?.setProperty('--timeline-target-opacity', state.targetOpacity.toFixed(4));
+    section?.setAttribute('data-timeline-active-join', join.id);
     copies.forEach((copy) => {
-      copy.style?.setProperty('--timeline-target-opacity', state.targetOpacity.toFixed(4));
-      copy.setAttribute('data-timeline-phase', state.phase);
+      syncTimelineCopyStyle(copy, state);
       copy.setAttribute('data-timeline-reason', reason);
     });
+
+    const fixTargetCopy = shouldFixTargetCopy(join)
+      && state.progress > 0.001
+      && !(state.cleanupReady && isSectionInReleaseRange(section));
+    if (fixTargetCopy) {
+      copies.forEach((copy) => setFixedCopy(copy, true));
+    } else {
+      clearFixedCopies(copies);
+      if (state.cleanupReady || state.progress <= 0.001) {
+        section?.removeAttribute('data-timeline-active-join');
+      }
+    }
 
     if (state.targetPresented) presentTarget(join, state);
     return state;

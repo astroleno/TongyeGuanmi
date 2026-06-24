@@ -13,6 +13,7 @@ const indexHtml = read('index.html');
 const generatedManifestSource = read('js/transitions/homepage/scene-timeline-manifest.js');
 const runtimeSource = read('js/transitions/homepage-transition-runtime.js');
 const controllerSource = read('js/transitions/homepage/scene-timeline-controller.js');
+const continuityCss = read('css/components/homepage-continuity.css');
 const patternBloomSource = read('js/transitions/pattern-bloom-adapter.js');
 const aodSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2Source = read('js/transitions/homepage/figure2-homepage-adapter.js');
@@ -98,6 +99,9 @@ assert.match(controllerSource, /export function createSceneTimelineController/, 
 assert.match(controllerSource, /export function deriveTimelineState/, 'Scene timeline controller must export deriveTimelineState');
 assert.match(runtimeSource, /createSceneTimelineController/, 'Homepage runtime must create the scene timeline controller');
 assert.match(runtimeSource, /\btimeline,/, 'Homepage runtime must pass timeline context to adapters');
+assert.match(runtimeSource, /&& !controller\.timelineJoin/, 'Homepage runtime must not whole-section gate timeline-owned targets');
+assert.match(controllerSource, /data-timeline-fixed/, 'Scene timeline controller must expose fixed target-copy state');
+assert.match(continuityCss, /\[data-entry-owner="timeline"\]\[data-timeline-fixed="true"\]/, 'Timeline CSS must render fixed target copy during active boundaries');
 assert.match(patternBloomSource, /timeline\?\.update\(progress/, 'Pattern Bloom must update the timeline from render progress');
 assert.match(patternBloomSource, /lotusContracted/, 'Pattern Bloom must report the lotusContracted milestone');
 assert.match(patternBloomSource, /beliefCopyComplete/, 'Pattern Bloom must report the beliefCopyComplete milestone');

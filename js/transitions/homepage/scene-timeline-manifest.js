@@ -161,11 +161,11 @@ export const timelineJoins = [
       0.98
     ],
     "targetIn": [
-      0.5,
-      0.76
+      0.46,
+      0.72
     ],
     "commitAt": 0.74,
-    "presentAt": 0.8,
+    "presentAt": 0.86,
     "cleanupAt": 0.98,
     "commitCondition": [
       "progress:commitAt",
@@ -191,11 +191,11 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.64,
-      0.92
+      0.46,
+      0.82
     ],
-    "commitAt": 0.86,
-    "presentAt": 0.92,
+    "commitAt": 0.78,
+    "presentAt": 0.86,
     "cleanupAt": 0.98,
     "adapterVariant": "measure-order"
   },
@@ -212,11 +212,11 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.62,
-      0.9
+      0.56,
+      0.82
     ],
-    "commitAt": 0.9,
-    "presentAt": 0.9,
+    "commitAt": 0.82,
+    "presentAt": 0.86,
     "cleanupAt": 0.98,
     "sourceOnlyGhosts": [
       ".method-proof"
@@ -255,12 +255,12 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.68,
-      0.94
+      0.58,
+      0.82
     ],
-    "commitAt": 0.9,
-    "presentAt": 0.94,
-    "cleanupAt": 0.98,
+    "commitAt": 0.82,
+    "presentAt": 0.86,
+    "cleanupAt": 0.94,
     "adapterVariant": "structure-field"
   },
   {
@@ -275,12 +275,12 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.68,
-      0.94
+      0.58,
+      0.82
     ],
-    "commitAt": 0.9,
-    "presentAt": 0.94,
-    "cleanupAt": 0.98,
+    "commitAt": 0.82,
+    "presentAt": 0.86,
+    "cleanupAt": 0.94,
     "adapterVariant": "learning-sun"
   },
   {
@@ -316,11 +316,11 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.72,
-      0.9
+      0.52,
+      0.84
     ],
-    "commitAt": 0.88,
-    "presentAt": 0.9,
+    "commitAt": 0.82,
+    "presentAt": 0.88,
     "cleanupAt": 0.98,
     "adapterVariant": "forward-motion"
   }

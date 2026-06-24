@@ -88,6 +88,7 @@ function isDirectHashTargetForController(controller) {
 function shouldGateTargetReveal(controller) {
   return Boolean(
     controller?.handoffTarget
+    && !controller.timelineJoin
     && !controller.handoffId
     && !controller.handoffPhase
   );
@@ -208,7 +209,8 @@ function createHomepageSnapCoordinator({
   reduceMotion = false,
   scrollRuntime = null,
   root = document,
-  presentationController = createSectionPresentationController({ root })
+  presentationController = createSectionPresentationController({ root }),
+  sceneTimeline = null
 } = {}) {
   const lenis = getScrollRuntimeLenis(scrollRuntime);
   const nativeTween = createNativeScrollTween();
@@ -734,6 +736,7 @@ function createHomepageSnapCoordinator({
       );
       const controller = {
         host,
+        timelineJoin: sceneTimeline?.getJoinForHost(host) || null,
         playhead: reduceMotion ? 1 : 0,
         playMs: Number(host.dataset.transitionPlayMs) || MODULE_PLAY_MS[moduleName] || DEFAULT_PLAY_MS,
         stageStops: parseNumberList(host.dataset.transitionStageStops, { min: 0, max: 1 }).sort((a, b) => a - b),
@@ -835,7 +838,8 @@ export async function initHomepageTransitions({
     root,
     reduceMotion,
     scrollRuntime,
-    presentationController
+    presentationController,
+    sceneTimeline
   });
   cleanup.add(snapCoordinator);
 

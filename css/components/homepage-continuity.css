@@ -139,6 +139,78 @@
   pointer-events: none !important;
 }
 
+html.homepage-timeline-target-active .long-canvas {
+  overflow: visible;
+}
+
+[data-entry-owner="timeline"][data-timeline-fixed="true"] {
+  position: fixed !important;
+  left: 50% !important;
+  top: calc(0px - var(--transition-seam-bleed, 0px)) !important;
+  z-index: 82 !important;
+  width: min(1280px, 84vw) !important;
+  height: calc(var(--homepage-transition-snap-height, 100dvh) + var(--transition-seam-bleed, 0px) + var(--transition-seam-bleed, 0px)) !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  opacity: var(--timeline-target-opacity, 0) !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+  filter: blur(var(--timeline-target-blur, 0px)) !important;
+  transform: translate3d(-50%, var(--timeline-target-y, 0px), 0) !important;
+  transition: none !important;
+  will-change: opacity, transform, filter;
+}
+
+[data-entry-owner="timeline"][data-timeline-fixed="true"],
+[data-entry-owner="timeline"][data-timeline-fixed="true"] * {
+  animation: none !important;
+}
+
+[data-entry-owner="timeline"][data-timeline-fixed="true"] .reveal,
+[data-entry-owner="timeline"][data-timeline-fixed="true"] .is-visible {
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+[data-entry-owner="timeline"][data-entry-state="presented"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+.method-edition-layout--after-handoff[data-timeline-fixed="true"],
+.enterprise-vertical-layout[data-timeline-fixed="true"] {
+  align-content: center;
+  padding-block: clamp(72px, 9svh, 118px) clamp(48px, 7vw, 112px);
+}
+
+.method-edition-layout--after-handoff[data-timeline-fixed="true"] .chapter-intro--method,
+.enterprise-vertical-layout[data-timeline-fixed="true"] .enterprise-vertical-lead {
+  position: relative;
+  top: auto;
+}
+
+.brand-definition-grid[data-timeline-fixed="true"],
+.scenario-wide-stage[data-timeline-fixed="true"],
+.education-wide-stage[data-timeline-fixed="true"],
+.philosophy-list[data-timeline-fixed="true"],
+.contact-endpoint[data-timeline-fixed="true"] {
+  display: grid;
+  align-content: center;
+}
+
+.brand-definition-grid[data-timeline-fixed="true"] {
+  width: min(1120px, 74vw) !important;
+}
+
+.contact-endpoint[data-timeline-fixed="true"] {
+  width: min(1280px, 84vw) !important;
+}
+
 .canvas-section--belief {
   height: 124svh;
   min-height: 124svh;

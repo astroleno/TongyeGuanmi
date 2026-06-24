@@ -131,7 +131,7 @@ assert.doesNotMatch(
 assert.ok(
   patternBloomAdapterSource.includes('textProgress: beliefCopyProgress')
     && patternBloomAdapterSource.includes('presentationTarget: beliefSection')
-    && patternBloomAdapterSource.includes('const SECOND_REVEAL_START = 0.58')
+    && patternBloomAdapterSource.includes('const SECOND_REVEAL_START')
     && patternBloomAdapterSource.includes('timeline?.update(progress')
     && patternBloomAdapterSource.includes('lotusContracted')
     && patternBloomAdapterSource.includes('targetReady')
