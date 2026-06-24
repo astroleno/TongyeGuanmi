@@ -76,8 +76,12 @@ function revealNow(el) {
   incrementEntryCount(el);
 }
 
+export function presentRevealWithin(root = document, options = {}) {
+  getRevealItems(root).forEach((item) => markPresented(item, options));
+}
+
 export function setRevealPresentedWithin(root = document) {
-  getRevealItems(root).forEach((item) => markPresented(item));
+  presentRevealWithin(root);
 }
 
 export function suppressRevealOnceWithin(root = document) {

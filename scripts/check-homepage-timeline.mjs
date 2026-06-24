@@ -13,6 +13,7 @@ const indexHtml = read('index.html');
 const generatedManifestSource = read('js/transitions/homepage/scene-timeline-manifest.js');
 const runtimeSource = read('js/transitions/homepage-transition-runtime.js');
 const controllerSource = read('js/transitions/homepage/scene-timeline-controller.js');
+const revealSource = read('js/ui/reveal.js');
 const continuityCss = read('css/components/homepage-continuity.css');
 const patternBloomSource = read('js/transitions/pattern-bloom-adapter.js');
 const aodSource = read('js/transitions/homepage/aod-homepage-adapter.js');
@@ -104,7 +105,10 @@ assert.match(controllerSource, /data-timeline-fixed/, 'Scene timeline controller
 assert.match(controllerSource, /let activeFixedJoinId/, 'Scene timeline controller must track the single active fixed target join');
 assert.match(controllerSource, /activeFixedJoinId && activeFixedJoinId !== join\.id/, 'Scene timeline controller must clear previous fixed target copy when a new join starts');
 assert.match(controllerSource, /state\.progress < 0\.998/, 'Scene timeline controller must not re-fix target copy after a join reaches completion');
+assert.match(revealSource, /export function presentRevealWithin/, 'Reveal runtime must expose the shared timeline presentation helper');
+assert.match(controllerSource, /presentRevealWithin/, 'Scene timeline controller must commit target copy through the shared reveal helper');
 assert.match(continuityCss, /\[data-entry-owner="timeline"\]\[data-timeline-fixed="true"\]/, 'Timeline CSS must render fixed target copy during active boundaries');
+assert.doesNotMatch(continuityCss, /homepage-handoff-receiver/, 'Timeline CSS must not keep retired handoff receiver selectors');
 assert.match(patternBloomSource, /timeline\?\.update\(progress/, 'Pattern Bloom must update the timeline from render progress');
 assert.match(patternBloomSource, /lotusContracted/, 'Pattern Bloom must report the lotusContracted milestone');
 assert.match(patternBloomSource, /beliefCopyComplete/, 'Pattern Bloom must report the beliefCopyComplete milestone');

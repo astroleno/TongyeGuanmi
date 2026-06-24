@@ -1,5 +1,5 @@
 import {
-  setRevealPresentedWithin,
+  presentRevealWithin,
   suppressRevealOnceWithin
 } from '../../ui/reveal.js';
 
@@ -37,7 +37,7 @@ export function createSectionPresentationController({ root = document } = {}) {
       if (!target || !sectionId) return;
       presentedSections.add(sectionId);
       target.setAttribute('data-section-handoff-state', 'presented');
-      setRevealPresentedWithin(target);
+      presentRevealWithin(target);
     },
 
     isPresented(sectionId) {

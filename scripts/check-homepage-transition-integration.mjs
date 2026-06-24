@@ -260,7 +260,8 @@ assert.ok(
   'Homepage runtime must support staged transition autoplay and snapped hold height'
 );
 assert.ok(
-  revealSource.includes('export function setRevealPresentedWithin')
+  revealSource.includes('export function presentRevealWithin')
+    && revealSource.includes('export function setRevealPresentedWithin')
     && revealSource.includes('export function suppressRevealOnceWithin')
     && revealSource.includes('export function holdRevealWithin')
     && revealSource.includes('export function releaseRevealWithin')
@@ -366,8 +367,7 @@ assert.equal(
 );
 assert.ok(
   homepageContinuityCss.includes('homepage-transition--reduced-motion')
-    && homepageContinuityCss.includes('--paper-ink: #252719')
-    && homepageContinuityCss.includes('z-index: 22')
+    && homepageContinuityCss.includes('[data-entry-owner="timeline"][data-timeline-fixed="true"]')
     && homepageContinuityCss.includes('height: 0 !important')
     && homepageContinuityCss.includes('.canvas-section.homepage-transition-target-gated')
     && homepageContinuityCss.includes('body.is-pattern-bloom-covering .hero-content')
@@ -377,12 +377,17 @@ assert.ok(
     && homepageContinuityCss.includes('background: transparent !important')
     && homepageContinuityCss.includes('.belief-star-field.is-ready')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned .belief-copy-wrap'),
-  'Homepage continuity CSS must define reduced-motion collapse, paper tokens, method-brand collapse, target gates, and pinned belief copy'
+  'Homepage continuity CSS must define reduced-motion collapse, timeline target copy, method-brand collapse, target gates, and pinned belief copy'
 );
 assert.doesNotMatch(
   homepageContinuityCss,
   /homepage-handoff-preview/,
   'Homepage continuity CSS must not keep clone preview selectors'
+);
+assert.doesNotMatch(
+  homepageContinuityCss,
+  /homepage-handoff-receiver/,
+  'Homepage continuity CSS must not keep retired handoff receiver selectors'
 );
 assert.doesNotMatch(
   homepageContinuityCss,

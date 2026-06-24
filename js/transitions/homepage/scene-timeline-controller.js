@@ -1,5 +1,5 @@
 import { timelineJoins, timelineScenes } from './scene-timeline-manifest.js';
-import { setRevealPresentedWithin } from '../../ui/reveal.js';
+import { presentRevealWithin } from '../../ui/reveal.js';
 
 const clamp01 = (value) => {
   if (!Number.isFinite(value)) return 0;
@@ -147,7 +147,7 @@ export function createSceneTimelineController({
     copies.forEach((copy) => {
       copy.setAttribute('data-entry-state', 'presented');
       copy.dataset.entryState = 'presented';
-      setRevealPresentedWithin(copy);
+      presentRevealWithin(copy);
     });
     presentedJoinIds.add(join.id);
   }
