@@ -57,7 +57,7 @@
     <div class="fallback-scene">
       <img class="fallback-layer fallback-back" src="assets/back1.png" alt="" />
       <canvas class="hero-back-ink-transition" data-hero-intro-ink-canvas aria-hidden="true"></canvas>
-      <div class="hero-content" data-depth="0.04">
+      <div class="hero-content" data-depth="0.04" data-scene-copy="home">
         <h1 class="hero-title-split" aria-label="同野观幂">
           <span class="hero-title-group" aria-hidden="true"><span class="hero-title-char">同</span><span class="hero-title-char">野</span></span>
           <span class="hero-title-group" aria-hidden="true"><span class="hero-title-char">观</span><span class="hero-title-char">幂</span></span>
@@ -75,19 +75,19 @@
   </div>
 </section>
     <div class="chapter-transition" data-transition="home-belief" aria-hidden="true" data-transition-id="home-belief" data-transition-from="home" data-transition-to="belief" data-transition-module="pattern-bloom" data-transition-variant="lotus-manifesto" data-transition-drive="scroll" data-handoff-id="home-belief" data-handoff-owner="target-section" data-target-entry-policy="continue" data-target-entry-suppress-once="true" data-handoff-scroll-to="#belief" data-handoff-reduced-motion="jump-to-presented" data-handoff-target-selector=".belief-copy-wrap" data-transition-ghost-scenes="pattern-bloom-lotus"></div>
-    <section class="canvas-section canvas-section--belief" id="belief" aria-label="同野观幂观点" data-section-id="belief" data-section-index="0" data-section-theme="dark" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="continue">
+    <section class="canvas-section canvas-section--belief" id="belief" aria-label="同野观幂观点" data-section-id="belief" data-section-index="0" data-section-theme="dark" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="continue" data-scene-target="belief">
   <canvas class="belief-star-field" data-belief-star-field aria-hidden="true"></canvas>
   <div class="belief-star-wash" aria-hidden="true"></div>
-  <div class="belief-copy-wrap">
+  <div class="belief-copy-wrap" data-scene-copy="belief" data-scene-target="belief" data-entry-owner="timeline" data-entry-state="pending">
     <p class="large-copy large-copy--standalone">AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。它决定了未来三年你是领跑还是追赶。</p>
   </div>
 </section>
     <div class="chapter-transition" data-transition="belief-method" data-transition-play-ms="2600" aria-hidden="true" data-transition-id="belief-method" data-transition-from="belief" data-transition-to="method-field-law" data-transition-module="aod" data-transition-variant="measure-order" data-transition-handoff-target="#method" data-transition-handoff-phase="after-playback" data-handoff-id="belief-method" data-handoff-owner="target-section" data-target-entry-policy="skip" data-target-entry-suppress-once="true" data-handoff-scroll-to="#method" data-handoff-reduced-motion="jump-to-presented" data-handoff-target-selector=".method-edition-layout--after-handoff" data-transition-ghost-scenes="aod-field"></div>
 
     <div class="long-canvas" aria-label="页面主体章节">
-      <section class="canvas-section canvas-section--method canvas-section--method-after-handoff" id="method" data-section-id="method" data-section-index="1" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="skip">
+      <section class="canvas-section canvas-section--method canvas-section--method-after-handoff" id="method" data-section-id="method" data-section-index="1" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="skip" data-scene-target="method">
   <div class="canvas-track">
-    <div class="method-edition-layout method-edition-layout--after-handoff method-continuation-layout edition-vertical-layout">
+    <div class="method-edition-layout method-edition-layout--after-handoff method-continuation-layout edition-vertical-layout" data-scene-copy="method" data-scene-target="method" data-entry-owner="timeline" data-entry-state="pending">
       <div class="homepage-scene homepage-scene--method-field-law method-handoff-anchor" data-scene-id="method-field-law" aria-hidden="true"></div>
 
       <div class="chapter-intro chapter-intro--method edition-vertical-lead reveal">
@@ -117,7 +117,7 @@
     <div class="scene-transition" data-transition-id="method-tooling__method-proof" data-transition-from="method-tooling" data-transition-to="method-proof" data-transition-module="figure2" data-transition-variant="questioning" data-transition-stage-stops="0.72" data-transition-stage-play-ms="2600,1500" data-transition-stage-hold-vh="30" data-transition-post-scroll-vh="56" data-transition-handoff-target="#brand" data-transition-handoff-phase="post-scroll" data-handoff-id="method-proof-brand" data-handoff-owner="target-section" data-target-entry-policy="skip" data-target-entry-suppress-once="true" data-handoff-scroll-to="#brand" data-handoff-reduced-motion="jump-to-presented" data-handoff-target-selector=".brand-definition-grid" data-transition-ghost-scenes="method-proof-bridge" aria-hidden="true"></div>
 
     <div class="homepage-scene homepage-scene--method-proof" data-scene-id="method-proof" data-transition-source-only="true">
-      <div class="quiet-proof quiet-proof--source method-proof" aria-label="同野观幂不同于传统 AI 落地方式">
+      <div class="quiet-proof quiet-proof--source method-proof" aria-label="同野观幂不同于传统 AI 落地方式" data-scene-copy="method-proof">
         <div class="method-proof__lead">
           <span class="section-index">用不上，不算落地</span>
           <h2 class="method-proof__closing"><span>我们见过太多</span><span>“用不上”。</span></h2>
@@ -133,9 +133,9 @@
   </div>
 </section>
       <div class="chapter-transition" data-transition="method-brand" aria-hidden="true" data-transition-id="method-brand" data-transition-from="method-proof" data-transition-to="brand" data-transition-module="soft-divider" data-transition-variant="method-to-brand"></div>
-      <section class="canvas-section canvas-section--brand" aria-label="品牌方法论" id="brand" data-section-id="brand" data-section-index="2" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="skip">
+      <section class="canvas-section canvas-section--brand" aria-label="品牌方法论" id="brand" data-section-id="brand" data-section-index="2" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="skip" data-scene-target="brand">
   <div class="canvas-track brand-layout brand-definition-layout">
-    <div class="brand-definition-grid reveal">
+    <div class="brand-definition-grid reveal" data-scene-copy="brand" data-scene-target="brand" data-entry-owner="timeline" data-entry-state="pending">
       <article class="brand-definition">
         <span class="section-index">同野</span>
         <h2>在开放真实的场域中并肩协作。</h2>
@@ -151,9 +151,9 @@
   </div>
 </section>
       <div class="chapter-transition" data-transition="brand-services" data-transition-stage-stops="0.997" data-transition-stage-play-ms="2800,620" aria-hidden="true" data-transition-id="brand-services" data-transition-from="brand" data-transition-to="services" data-transition-module="figure3-transition" data-transition-variant="fabric-menu"></div>
-      <section class="canvas-section canvas-section--enterprise" id="services" data-section-id="services" data-section-index="3" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="replay">
+      <section class="canvas-section canvas-section--enterprise" id="services" data-section-id="services" data-section-index="3" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="replay" data-scene-target="services">
   <div class="canvas-track enterprise-layout enterprise-edition-layout edition-track">
-    <div class="enterprise-vertical-layout edition-vertical-layout">
+    <div class="enterprise-vertical-layout edition-vertical-layout" data-scene-copy="services" data-scene-target="services" data-entry-owner="timeline" data-entry-state="pending">
       <div class="enterprise-vertical-lead edition-vertical-lead reveal">
         <span class="section-index">先小做，再扩</span>
         <h2><span>先跑通，</span><span>再铺开。</span></h2>
@@ -170,9 +170,9 @@
   </div>
 </section>
       <div class="chapter-transition" data-transition="services-lab" aria-hidden="true" data-transition-id="services-lab" data-transition-from="services" data-transition-to="lab" data-transition-module="ttg" data-transition-variant="structure-field"></div>
-      <section class="canvas-section canvas-section--scenario" id="lab" data-section-id="lab" data-section-index="4" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="replay">
+      <section class="canvas-section canvas-section--scenario" id="lab" data-section-id="lab" data-section-index="4" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="replay" data-scene-target="lab">
   <div class="canvas-track scenario-layout scenario-edition-layout edition-track">
-    <div class="scenario-wide-stage edition-wide-stage reveal" aria-label="AI 场景判断横屏">
+    <div class="scenario-wide-stage edition-wide-stage reveal" aria-label="AI 场景判断横屏" data-scene-copy="lab" data-scene-target="lab" data-entry-owner="timeline" data-entry-state="pending">
       <div class="scenario-wide-stage__copy edition-wide-stage__copy">
         <span class="section-index">Scenario / 03</span>
         <h2>同样一件事，有人报三万有人报三千万。我们帮你看真生意里的 <span data-ink-reveal>AI</span>——投流怎么花、店怎么卖、车间怎么排。</h2>
@@ -210,9 +210,9 @@
   </div>
 </section>
       <div class="chapter-transition" data-transition="lab-education" aria-hidden="true" data-transition-id="lab-education" data-transition-from="lab" data-transition-to="education" data-transition-module="ph" data-transition-variant="learning-sun"></div>
-      <section class="canvas-section canvas-section--education" id="education" data-section-id="education" data-section-index="5" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="replay">
+      <section class="canvas-section canvas-section--education" id="education" data-section-id="education" data-section-index="5" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="replay" data-scene-target="education">
   <div class="canvas-track education-layout education-edition-layout edition-track">
-    <div class="education-wide-stage edition-wide-stage reveal" aria-label="留学 AI 能力横屏">
+    <div class="education-wide-stage edition-wide-stage reveal" aria-label="留学 AI 能力横屏" data-scene-copy="education" data-scene-target="education" data-entry-owner="timeline" data-entry-state="pending">
       <div class="education-wide-stage__copy edition-wide-stage__copy">
         <span class="section-index">Education / 04</span>
         <h2>你为生意请的这套 AI 打法，也能用在孩子身上。</h2>
@@ -242,17 +242,17 @@
   </div>
 </section>
       <div class="chapter-transition" data-transition="education-philosophy" aria-hidden="true" data-transition-id="education-philosophy" data-transition-from="education" data-transition-to="philosophy" data-transition-module="soft-breath" data-transition-variant="quiet-values"></div>
-      <section class="canvas-section canvas-section--philosophy" id="philosophy" data-section-id="philosophy" data-section-index="6" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="replay">
+      <section class="canvas-section canvas-section--philosophy" id="philosophy" data-section-id="philosophy" data-section-index="6" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="replay" data-scene-target="philosophy">
   <div class="canvas-track philosophy-layout">
-    <div class="scenario-list philosophy-list reveal">
+    <div class="scenario-list philosophy-list reveal" data-scene-copy="philosophy" data-scene-target="philosophy" data-entry-owner="timeline" data-entry-state="pending">
       <article class="scenario-row"><span>同野</span><strong>在开放真实的场域中并肩协作。</strong><p>AI 转型，难的从来不是买工具。方向怎么定、中层怎么带、一线怎么用，得理出一条线。最难的一步是把技术翻成老板能直接用的决策判断——这一头，我们陪你做。</p></article>
       <article class="scenario-row"><span>观幂</span><strong>看见复杂系统背后的结构与门道。</strong><p>我们不爱炫技术。我们在意的是 AI 在你的生意里能不能让人看得懂、用得顺、长久用下去，而不是热闹三个月就没人提了。</p></article>
     </div>
   </div>
 </section>
       <div class="chapter-transition" data-transition="philosophy-contact" aria-hidden="true" data-transition-id="philosophy-contact" data-transition-from="philosophy" data-transition-to="contact" data-transition-module="crane" data-transition-variant="forward-motion" data-transition-handoff-target="#contact" data-transition-handoff-phase="after-playback" data-handoff-id="philosophy-contact" data-handoff-owner="target-section" data-target-entry-policy="skip" data-target-entry-suppress-once="true" data-handoff-scroll-to="#contact" data-handoff-reduced-motion="jump-to-presented" data-handoff-target-selector=".contact-endpoint" data-transition-ghost-scenes="crane-motion"></div>
-      <section class="canvas-section canvas-section--contact" id="contact" data-section-id="contact" data-section-index="7" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="skip">
-  <div class="canvas-track contact-endpoint reveal">
+      <section class="canvas-section canvas-section--contact" id="contact" data-section-id="contact" data-section-index="7" data-section-theme="light" data-section-nav-bg="solid" data-section-layout="editorial-flat" data-entry-direct="replay" data-entry-after-handoff="skip" data-scene-target="contact">
+  <div class="canvas-track contact-endpoint reveal" data-scene-copy="contact" data-scene-target="contact" data-entry-owner="timeline" data-entry-state="pending">
     <span class="eyebrow">START FROM THE FIELD</span>
     <h2>把你拿不准的那个决定，先拿出来聊。</h2>
     <p>带上一个正在耗人耗钱的环节、一场谈不拢的管理层会，或者孩子的留学规划。我们先帮你拆成看得懂、落得了地的下一步。一次现场诊断你会拿到三样东西：哪个环节值得上 AI、先后顺序、大概要投入多少。真要做，也是先挑一个环节小做，几天内见到能跑的东西，再谈要不要扩大。聊完再决定要不要合作，不推销、不卖课。</p>

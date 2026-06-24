@@ -13,6 +13,7 @@
     "verify:section-transitions": "node scripts/check-section-transition-contract.mjs",
     "verify:transition-runtime": "node scripts/check-transition-runtime.mjs",
     "verify:homepage-transitions": "node scripts/check-homepage-transition-integration.mjs",
+    "verify:homepage-timeline": "node scripts/check-homepage-timeline.mjs",
     "verify:handoff-ownership": "node scripts/check-handoff-ownership.mjs",
     "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership"
   }
