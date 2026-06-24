@@ -81,10 +81,15 @@ assert.doesNotMatch(
   /cloneNode\s*\(\s*true\s*\)/,
   'Homepage handoff code must not clone real target content'
 );
+assert.doesNotMatch(
+  `${aodHomepageAdapterSource}\n${figure2HomepageAdapterSource}\n${craneHomepageAdapterSource}`,
+  /createHandoffReceiver/,
+  'Active homepage adapters must not use the retired target DOM receiver'
+);
 assert.match(
   handoffReceiverSource,
-  /receiver\.remove\(\);\s*setRevealPresentedWithin\(source\);/,
-  'Homepage handoff restore must re-present the returned real target content'
+  /throw new Error\([\s\S]*createHandoffReceiver has been retired/,
+  'Retired handoff receiver must fail loudly if called'
 );
 
 assert.doesNotMatch(

@@ -4,7 +4,6 @@ import {
   waitForAodTransitionMetadata
 } from '../../components/aod-transition.js';
 import { createInkCurtainTransition } from '../../effects/ink-scene-transition.js';
-import { createHandoffReceiver } from './handoff-receiver.js';
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const smoothStep = (value) => value * value * (3 - 2 * value);
@@ -15,6 +14,7 @@ export function mountHomepageTransition({
   progressSource,
   handoffTarget,
   handoffProgressSource,
+  timeline,
   addCleanup
 }) {
   host.classList.add('homepage-transition', 'homepage-transition--aod');
@@ -49,14 +49,7 @@ export function mountHomepageTransition({
   `;
 
   const section = host.querySelector('[data-aod-transition]');
-  const field = host.querySelector('.aod-transition__field');
   const { figureVideo } = prepareAodTransition(section, { progress: reduceMotion ? 1 : 0 });
-  const methodReceiver = createHandoffReceiver({
-    container: field,
-    target: handoffTarget,
-    sourceSelector: '.method-edition-layout--after-handoff',
-    className: 'homepage-handoff-receiver--method'
-  });
   const inkCanvas = host.querySelector('[data-aod-ink-canvas]');
   const inkTransition = reduceMotion ? null : createInkCurtainTransition(inkCanvas, {
     direction: 'bottom-up',
@@ -98,7 +91,13 @@ export function mountHomepageTransition({
     const inkProgress = smoothStep(clamp(progress));
     syncNavTone(progress);
     renderAodTransitionProgress(section, progress);
-    methodReceiver?.update(Math.max(progress, handoffProgress), { start: 0.58, end: 0.94, liftPx: 18 });
+    timeline?.update(Math.max(progress, handoffProgress), {
+      reason: 'aod-render',
+      milestones: {
+        targetReady: Boolean(handoffTarget),
+        playbackComplete: progress >= 0.998
+      }
+    });
     inkTransition?.render(inkProgress);
     raf = requestAnimationFrame(render);
   };
@@ -108,7 +107,7 @@ export function mountHomepageTransition({
       if (!destroyed) {
         syncNavTone(1);
         renderAodTransitionProgress(section, 1);
-        methodReceiver?.update(1);
+        timeline?.complete('aod-reduced-motion');
         inkTransition?.render(1);
       }
     });
@@ -121,7 +120,6 @@ export function mountHomepageTransition({
     destroyed = true;
     cancelAnimationFrame(raf);
     figureVideo?.pause?.();
-    methodReceiver?.destroy();
     host.replaceChildren();
     host.classList.remove('homepage-transition', 'homepage-transition--aod');
   };

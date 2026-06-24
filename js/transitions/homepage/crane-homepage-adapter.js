@@ -1,5 +1,4 @@
 import { createCraneTransitionScene } from '../../components/crane-transition.js';
-import { createHandoffReceiver } from './handoff-receiver.js';
 
 export function mountHomepageTransition({
   host,
@@ -7,6 +6,7 @@ export function mountHomepageTransition({
   progressSource,
   handoffTarget,
   handoffProgressSource,
+  timeline,
   addCleanup
 }) {
   host.classList.add('homepage-transition', 'homepage-transition--crane', 'crane-page');
@@ -41,13 +41,6 @@ export function mountHomepageTransition({
   `;
 
   const stage = host.querySelector('[data-crane-stage]');
-  const field = host.querySelector('.crane-field');
-  const contactReceiver = createHandoffReceiver({
-    container: field,
-    target: handoffTarget,
-    sourceSelector: '.contact-endpoint',
-    className: 'homepage-handoff-receiver--contact'
-  });
   const scene = createCraneTransitionScene(stage);
   if (!scene) throw new Error('Crane homepage transition could not initialize.');
 
@@ -59,14 +52,20 @@ export function mountHomepageTransition({
     const progress = reduceMotion ? 1 : progressSource();
     const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? progress;
     scene.renderRawProgress(progress);
-    contactReceiver?.update(Math.max(progress, handoffProgress), { start: 0.58, end: 0.94, liftPx: 20 });
+    timeline?.update(Math.max(progress, handoffProgress), {
+      reason: 'crane-render',
+      milestones: {
+        targetReady: Boolean(handoffTarget),
+        playbackComplete: progress >= 0.998
+      }
+    });
     raf = requestAnimationFrame(render);
   };
 
   scene.prepare();
   if (reduceMotion) {
     scene.mountReducedMotion();
-    contactReceiver?.update(1);
+    timeline?.complete('crane-reduced-motion');
   } else {
     scene.waitForVideos().finally(render);
   }
@@ -76,7 +75,6 @@ export function mountHomepageTransition({
     destroyed = true;
     cancelAnimationFrame(raf);
     scene.destroy();
-    contactReceiver?.destroy();
     host.replaceChildren();
     host.classList.remove('homepage-transition', 'homepage-transition--crane', 'crane-page');
   };

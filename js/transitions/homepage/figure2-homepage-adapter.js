@@ -1,5 +1,4 @@
 import { createFigure2TransitionController } from '../../components/figure2-transition.js';
-import { createHandoffReceiver } from './handoff-receiver.js';
 
 const FIGURE2_PAPER_GROUND = '#ece8dc';
 const FIGURE2_PAPER_GROUND_SOFT = '#f6f2e8';
@@ -147,6 +146,7 @@ export function mountHomepageTransition({
   postProgressSource,
   handoffTarget,
   handoffProgressSource,
+  timeline,
   addCleanup
 }) {
   host.classList.add('homepage-transition', 'homepage-transition--figure2', 'figure2-alpha-video');
@@ -201,15 +201,8 @@ export function mountHomepageTransition({
   `;
 
   const section = host.querySelector('[data-figure2-transition]');
-  const field = host.querySelector('.figure2-field');
   const proofSceneTexture = createProofSceneTexture(host);
   const proofScrollOverlay = createProofScrollOverlay(host);
-  const brandReceiver = createHandoffReceiver({
-    container: field,
-    target: handoffTarget,
-    sourceSelector: '.brand-definition-grid',
-    className: 'homepage-handoff-receiver--brand'
-  });
   const controller = createFigure2TransitionController(section, {
     root: host,
     body: host,
@@ -234,7 +227,14 @@ export function mountHomepageTransition({
         : 0;
     const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? postProgress;
     proofScrollOverlay?.update({ transitionProgress, postProgress, handoffProgress });
-    brandReceiver?.update(Math.max(postProgress, handoffProgress), { start: 0.58, end: 0.96, liftPx: 22 });
+    timeline?.update(Math.max(transitionProgress, postProgress, handoffProgress), {
+      reason: 'figure2-render',
+      milestones: {
+        phaseTwoComplete: transitionProgress >= 0.998,
+        sourceGhostReady: Boolean(proofScrollOverlay),
+        targetReady: Boolean(handoffTarget)
+      }
+    });
     proofSceneTexture?.update();
 
     if (reduceMotion) {
@@ -273,7 +273,6 @@ export function mountHomepageTransition({
     controller.destroy();
     proofSceneTexture?.destroy();
     proofScrollOverlay?.destroy();
-    brandReceiver?.destroy();
     host.replaceChildren();
     host.classList.remove('homepage-transition', 'homepage-transition--figure2', 'figure2-alpha-video', 'figure2-multiply-video');
   };

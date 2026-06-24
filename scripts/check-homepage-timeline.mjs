@@ -14,6 +14,10 @@ const generatedManifestSource = read('js/transitions/homepage/scene-timeline-man
 const runtimeSource = read('js/transitions/homepage-transition-runtime.js');
 const controllerSource = read('js/transitions/homepage/scene-timeline-controller.js');
 const patternBloomSource = read('js/transitions/pattern-bloom-adapter.js');
+const aodSource = read('js/transitions/homepage/aod-homepage-adapter.js');
+const figure2Source = read('js/transitions/homepage/figure2-homepage-adapter.js');
+const craneSource = read('js/transitions/homepage/crane-homepage-adapter.js');
+const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js');
 const generatedManifest = await import(`${pathToFileURL(generatedManifestPath.pathname).href}?v=${Date.now()}`);
 
 function read(relativePath) {
@@ -95,6 +99,8 @@ assert.match(patternBloomSource, /timeline\?\.update\(progress/, 'Pattern Bloom 
 assert.match(patternBloomSource, /lotusContracted/, 'Pattern Bloom must report the lotusContracted milestone');
 assert.match(patternBloomSource, /beliefCopyComplete/, 'Pattern Bloom must report the beliefCopyComplete milestone');
 assert.doesNotMatch(patternBloomSource, /beliefPinned \? 0\.18 : 1/, 'Pattern Bloom must not use the old local opacity clamp');
+assert.doesNotMatch(`${aodSource}\n${figure2Source}\n${craneSource}`, /createHandoffReceiver/, 'Timeline-owned adapters must not use createHandoffReceiver');
+assert.match(handoffReceiverSource, /has been retired/, 'createHandoffReceiver must fail loudly as retired code');
 assert.deepEqual(generatedManifest.timelineScenes, timelineScenes, 'Generated timelineScenes must match source manifest');
 assert.deepEqual(generatedManifest.timelineJoins, timelineJoins, 'Generated timelineJoins must match source manifest');
 

@@ -171,11 +171,11 @@ assert.ok(
   'AOD handoff must not render a duplicate Method block inside the transition'
 );
 assert.ok(
-  aodHomepageAdapterSource.includes('createHandoffReceiver')
-    && aodHomepageAdapterSource.includes("sourceSelector: '.method-edition-layout--after-handoff'")
-    && aodHomepageAdapterSource.includes("className: 'homepage-handoff-receiver--method'")
+  !aodHomepageAdapterSource.includes('createHandoffReceiver')
+    && aodHomepageAdapterSource.includes('timeline?.update')
+    && aodHomepageAdapterSource.includes('playbackComplete')
     && aodHomepageAdapterSource.includes('handoffProgressSource'),
-  'AOD handoff must adopt the native Method first screen'
+  'AOD handoff must report timeline progress without adopting the native Method DOM'
 );
 assert.ok(
   indexHtml.includes('method-handoff-anchor')
@@ -344,15 +344,9 @@ assert.ok(
 assert.ok(
   handoffReceiverSource.includes('createHandoffReceiver')
     && handoffPreviewSource.includes('createHandoffPreview')
-    && handoffReceiverSource.includes('data-handoff-receiver')
-    && handoffReceiverSource.includes('setRevealPresentedWithin')
-    && handoffReceiverSource.includes('restore()'),
-  'Shared handoff helper must adopt the real target DOM and restore it after release'
-);
-assert.match(
-  handoffReceiverSource,
-  /receiver\.remove\(\);\s*setRevealPresentedWithin\(source\);/,
-  'Shared handoff helper must re-present restored source after receiver removal'
+    && handoffReceiverSource.includes('has been retired')
+    && handoffReceiverSource.includes('throw new Error'),
+  'Shared handoff helper must be retired loudly instead of adopting real target DOM'
 );
 assert.doesNotMatch(
   `${handoffPreviewSource}\n${handoffReceiverSource}`,
@@ -365,11 +359,7 @@ assert.equal(
   'Homepage continuity CSS must be the last top-level stylesheet import'
 );
 assert.ok(
-  homepageContinuityCss.includes('.homepage-handoff-receiver')
-    && homepageContinuityCss.includes('homepage-handoff-receiver--method')
-    && homepageContinuityCss.includes('homepage-handoff-receiver--brand')
-    && homepageContinuityCss.includes('homepage-handoff-receiver--contact')
-    && homepageContinuityCss.includes('homepage-transition--reduced-motion')
+  homepageContinuityCss.includes('homepage-transition--reduced-motion')
     && homepageContinuityCss.includes('--paper-ink: #252719')
     && homepageContinuityCss.includes('z-index: 22')
     && homepageContinuityCss.includes('height: 0 !important')
@@ -381,7 +371,7 @@ assert.ok(
     && homepageContinuityCss.includes('background: transparent !important')
     && homepageContinuityCss.includes('.belief-star-field.is-ready')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned .belief-copy-wrap'),
-  'Homepage continuity CSS must define receiver layers, reduced-motion collapse, paper tokens, method-brand collapse, target gates, and pinned belief copy'
+  'Homepage continuity CSS must define reduced-motion collapse, paper tokens, method-brand collapse, target gates, and pinned belief copy'
 );
 assert.doesNotMatch(
   homepageContinuityCss,
@@ -430,11 +420,11 @@ assert.ok(
   'Figure2 proof copy must be owned by one DOM overlay that reveals during the second stage and keeps scrolling after it'
 );
 assert.ok(
-  figure2HomepageAdapterSource.includes('createHandoffReceiver')
-    && figure2HomepageAdapterSource.includes("sourceSelector: '.brand-definition-grid'")
-    && figure2HomepageAdapterSource.includes("className: 'homepage-handoff-receiver--brand'")
+  !figure2HomepageAdapterSource.includes('createHandoffReceiver')
+    && figure2HomepageAdapterSource.includes('timeline?.update')
+    && figure2HomepageAdapterSource.includes('phaseTwoComplete')
     && figure2HomepageAdapterSource.includes('handoffProgressSource'),
-  'Figure2 homepage transition must adopt the native Brand grid during handoff'
+  'Figure2 homepage transition must report timeline progress without adopting the native Brand grid'
 );
 assert.doesNotMatch(
   figure2HomepageAdapterSource,
@@ -475,11 +465,11 @@ assert.ok(
   'Method-to-brand divider must collapse to zero in the homepage continuity path'
 );
 assert.ok(
-  craneHomepageAdapterSource.includes('createHandoffReceiver')
-    && craneHomepageAdapterSource.includes("sourceSelector: '.contact-endpoint'")
-    && craneHomepageAdapterSource.includes("className: 'homepage-handoff-receiver--contact'")
+  !craneHomepageAdapterSource.includes('createHandoffReceiver')
+    && craneHomepageAdapterSource.includes('timeline?.update')
+    && craneHomepageAdapterSource.includes('playbackComplete')
     && craneHomepageAdapterSource.includes('handoffProgressSource'),
-  'Crane homepage transition must adopt the native Contact endpoint during handoff'
+  'Crane homepage transition must report timeline progress without adopting the native Contact endpoint'
 );
 assert.doesNotMatch(
   `${figure2HomepageAdapterSource}\n${homepageTransitionCss}\n${figure2Css}`,
