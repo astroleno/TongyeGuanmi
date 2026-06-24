@@ -1,5 +1,6 @@
 import { homepageTransitionRegistry } from './homepage-transition-registry.js';
 import { createSectionPresentationController } from './homepage/section-presentation-controller.js';
+import { createSceneTimelineController } from './homepage/scene-timeline-controller.js';
 
 const NAMED_TRANSITION_SELECTOR = [
   '.chapter-transition[data-transition-module]',
@@ -206,11 +207,11 @@ function createNativeScrollTween() {
 function createHomepageSnapCoordinator({
   reduceMotion = false,
   scrollRuntime = null,
-  root = document
+  root = document,
+  presentationController = createSectionPresentationController({ root })
 } = {}) {
   const lenis = getScrollRuntimeLenis(scrollRuntime);
   const nativeTween = createNativeScrollTween();
-  const presentationController = createSectionPresentationController({ root });
   const originalLenisScrollTo = lenis?.scrollTo || null;
   const controllers = [];
   let activeController = null;
@@ -828,7 +829,14 @@ export async function initHomepageTransitions({
 } = {}) {
   const cleanup = createCleanupStack();
   const hosts = [...root.querySelectorAll(NAMED_TRANSITION_SELECTOR)];
-  const snapCoordinator = createHomepageSnapCoordinator({ root, reduceMotion, scrollRuntime });
+  const presentationController = createSectionPresentationController({ root });
+  const sceneTimeline = createSceneTimelineController({ root, presentationController });
+  const snapCoordinator = createHomepageSnapCoordinator({
+    root,
+    reduceMotion,
+    scrollRuntime,
+    presentationController
+  });
   cleanup.add(snapCoordinator);
 
   await Promise.all(hosts.map(async (host) => {
@@ -859,6 +867,7 @@ export async function initHomepageTransitions({
       const handoffProgressSource = snapController?.handoffPhase === HANDOFF_POST_SCROLL
         ? snapController.postProgressSource.bind(snapController)
         : progressSource;
+      const timeline = sceneTimeline.createAdapterContext(host);
       const adapterModule = await loadAdapter();
       const mount = adapterModule.mountHomepageTransition || adapterModule.mountPatternBloomTransition;
       if (typeof mount !== 'function') {
@@ -872,6 +881,7 @@ export async function initHomepageTransitions({
         postProgressSource: snapController?.postProgressSource?.bind(snapController),
         handoffTarget,
         handoffProgressSource,
+        timeline,
         addCleanup: cleanup.add,
         gsap,
         ScrollTrigger

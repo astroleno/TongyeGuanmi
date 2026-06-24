@@ -126,9 +126,12 @@ assert.ok(
   patternBloomAdapterSource.includes('textProgress: beliefCopyProgress')
     && patternBloomAdapterSource.includes('presentationTarget: beliefSection')
     && patternBloomAdapterSource.includes('const SECOND_REVEAL_START = 0.58')
-    && patternBloomAdapterSource.includes('Math.max(0.92')
-    && patternBloomAdapterSource.includes('beliefPinned ? 0.18 : 1'),
-  'Pattern Bloom must hand off to the real Belief section before the visual cover fully exits'
+    && patternBloomAdapterSource.includes('timeline?.update(progress')
+    && patternBloomAdapterSource.includes('lotusContracted')
+    && patternBloomAdapterSource.includes('targetReady')
+    && patternBloomAdapterSource.includes('beliefCopyComplete')
+    && !patternBloomAdapterSource.includes('beliefPinned ? 0.18 : 1'),
+  'Pattern Bloom must hand off through homepage timeline milestones instead of the old local opacity clamp'
 );
 assert.ok(
   patternBloomAdapterSource.includes('isDirectVisitToBelief')
