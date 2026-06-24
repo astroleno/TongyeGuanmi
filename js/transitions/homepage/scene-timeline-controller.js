@@ -122,6 +122,7 @@ export function createSceneTimelineController({
   const stateByJoinId = new Map();
   const presentedJoinIds = new Set();
   const fixedCopyElements = new Set();
+  let activeFixedJoinId = '';
 
   function getJoinForHost(host) {
     if (!host) return null;
@@ -173,6 +174,11 @@ export function createSceneTimelineController({
     copies.forEach((copy) => setFixedCopy(copy, false));
   }
 
+  function clearAllFixedCopies() {
+    [...fixedCopyElements].forEach((copy) => setFixedCopy(copy, false));
+    activeFixedJoinId = '';
+  }
+
   function update(join, progress, { milestones = {}, reason = 'update' } = {}) {
     if (!join) return null;
     const state = deriveTimelineState(join, progress, milestones);
@@ -190,11 +196,15 @@ export function createSceneTimelineController({
 
     const fixTargetCopy = shouldFixTargetCopy(join)
       && state.progress > 0.001
+      && state.progress < 0.998
       && !(state.cleanupReady && isSectionInReleaseRange(section));
     if (fixTargetCopy) {
+      if (activeFixedJoinId && activeFixedJoinId !== join.id) clearAllFixedCopies();
+      activeFixedJoinId = join.id;
       copies.forEach((copy) => setFixedCopy(copy, true));
     } else {
       clearFixedCopies(copies);
+      if (activeFixedJoinId === join.id) activeFixedJoinId = '';
       if (state.cleanupReady || state.progress <= 0.001) {
         section?.removeAttribute('data-timeline-active-join');
       }

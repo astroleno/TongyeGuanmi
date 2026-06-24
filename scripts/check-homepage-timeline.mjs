@@ -101,6 +101,9 @@ assert.match(runtimeSource, /createSceneTimelineController/, 'Homepage runtime m
 assert.match(runtimeSource, /\btimeline,/, 'Homepage runtime must pass timeline context to adapters');
 assert.match(runtimeSource, /&& !controller\.timelineJoin/, 'Homepage runtime must not whole-section gate timeline-owned targets');
 assert.match(controllerSource, /data-timeline-fixed/, 'Scene timeline controller must expose fixed target-copy state');
+assert.match(controllerSource, /let activeFixedJoinId/, 'Scene timeline controller must track the single active fixed target join');
+assert.match(controllerSource, /activeFixedJoinId && activeFixedJoinId !== join\.id/, 'Scene timeline controller must clear previous fixed target copy when a new join starts');
+assert.match(controllerSource, /state\.progress < 0\.998/, 'Scene timeline controller must not re-fix target copy after a join reaches completion');
 assert.match(continuityCss, /\[data-entry-owner="timeline"\]\[data-timeline-fixed="true"\]/, 'Timeline CSS must render fixed target copy during active boundaries');
 assert.match(patternBloomSource, /timeline\?\.update\(progress/, 'Pattern Bloom must update the timeline from render progress');
 assert.match(patternBloomSource, /lotusContracted/, 'Pattern Bloom must report the lotusContracted milestone');
