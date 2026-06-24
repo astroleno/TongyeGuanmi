@@ -213,7 +213,8 @@ export function mountPatternBloomTransition({
       : 0;
     const lotusVisible = topSceneOpacity > 0.002;
 
-    doc.body?.classList.toggle(COVER_PRIOR_SCENE_CLASS, overlayActive && revealProgress > 0.92);
+    const coverPriorScene = overlayActive && sceneReady && (canvasRevealed || beliefPinned);
+    doc.body?.classList.toggle(COVER_PRIOR_SCENE_CLASS, coverPriorScene);
     setBeliefTransitionState({
       pinned: beliefPinned,
       sceneOpacity: beliefSceneOpacity,

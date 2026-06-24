@@ -161,11 +161,11 @@ export const timelineJoins = [
       0.98
     ],
     "targetIn": [
-      0.58,
-      0.92
+      0.5,
+      0.76
     ],
-    "commitAt": 0.86,
-    "presentAt": 0.92,
+    "commitAt": 0.74,
+    "presentAt": 0.8,
     "cleanupAt": 0.98,
     "commitCondition": [
       "progress:commitAt",
@@ -235,12 +235,12 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.68,
-      0.94
+      0.58,
+      0.82
     ],
-    "commitAt": 0.9,
-    "presentAt": 0.94,
-    "cleanupAt": 0.98,
+    "commitAt": 0.82,
+    "presentAt": 0.86,
+    "cleanupAt": 0.94,
     "adapterVariant": "fabric-menu"
   },
   {
