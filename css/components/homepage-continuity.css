@@ -41,7 +41,7 @@ html.homepage-timeline-target-active .long-canvas {
   transform: none !important;
 }
 
-[data-entry-owner="timeline"][data-entry-state="presented"] {
+[data-entry-owner="timeline"][data-entry-state="presented"]:not([data-timeline-fixed="true"]) {
   opacity: 1 !important;
   visibility: visible !important;
   filter: none !important;

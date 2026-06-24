@@ -460,8 +460,13 @@ function createHomepageSnapCoordinator({
     window.requestAnimationFrame?.(() => window.ScrollTrigger?.refresh?.());
   };
 
+  const clearSnapVisualState = (controller) => {
+    controller?.host?.removeAttribute('data-snap-state');
+  };
+
   const finishPlayback = (controller, { releaseTargetGate = true } = {}) => {
     controller.host.classList.remove('homepage-transition--snapped', 'homepage-transition--playing');
+    clearSnapVisualState(controller);
     syncFixedStageState(controller);
     if (releaseTargetGate) releaseTargetRevealGate(controller);
     inputLockUntil = performance.now() + POST_SNAP_INPUT_LOCK_MS;
@@ -513,6 +518,7 @@ function createHomepageSnapCoordinator({
     controller.handoffComplete = true;
     controller.playedForward = true;
     controller.host.classList.remove(FIXED_STAGE_CLASS);
+    clearSnapVisualState(controller);
     if (!controller.directHashHandoffComplete) {
       notifyHandoffComplete(controller);
       controller.directHashHandoffComplete = true;
@@ -660,6 +666,7 @@ function createHomepageSnapCoordinator({
       controller.playhead = 0;
       controller.handoffComplete = false;
       controller.host.classList.remove(FIXED_STAGE_CLASS);
+      clearSnapVisualState(controller);
       releaseTargetRevealGate(controller);
     }
 
@@ -782,6 +789,7 @@ function createHomepageSnapCoordinator({
           clearDirectHashAlignmentTimers(this);
           releaseTargetRevealGate(this);
           this.host.classList.remove(FIXED_STAGE_CLASS);
+          clearSnapVisualState(this);
           cancelAnimationFrame(this.raf);
         }
       };

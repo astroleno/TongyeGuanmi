@@ -112,6 +112,11 @@ assert.match(controllerSource, /state\.progress < 0\.998/, 'Scene timeline contr
 assert.match(revealSource, /export function presentRevealWithin/, 'Reveal runtime must expose the shared timeline presentation helper');
 assert.match(controllerSource, /presentRevealWithin/, 'Scene timeline controller must commit target copy through the shared reveal helper');
 assert.match(continuityCss, /\[data-entry-owner="timeline"\]\[data-timeline-fixed="true"\]/, 'Timeline CSS must render fixed target copy during active boundaries');
+assert.match(
+  continuityCss,
+  /\[data-entry-owner="timeline"\]\[data-entry-state="presented"\]:not\(\[data-timeline-fixed="true"\]\)/,
+  'Timeline presented-state CSS must not override fixed target-copy transform'
+);
 assert.doesNotMatch(continuityCss, /homepage-handoff-receiver/, 'Timeline CSS must not keep retired handoff receiver selectors');
 assert.match(patternBloomSource, /timeline\?\.update\(progress/, 'Pattern Bloom must update the timeline from render progress');
 assert.match(patternBloomSource, /lotusContracted/, 'Pattern Bloom must report the lotusContracted milestone');
