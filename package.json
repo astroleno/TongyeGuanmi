@@ -16,5 +16,8 @@
     "verify:homepage-main-render-path": "node scripts/check-homepage-main-render-path.mjs",
     "verify:handoff-ownership": "node scripts/check-handoff-ownership.mjs",
     "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:homepage-main-render-path && npm run verify:handoff-ownership"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
   }
 }
