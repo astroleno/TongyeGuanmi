@@ -1,9 +1,9 @@
 import { initInkKeywords } from './components/ink-keyword.js';
 import { initLoaderInkReveal } from './effects/ink-text-reveal.js';
+import { initHomepageTransitionsWithObserver } from './observers/homepage-master-observer-loader.js';
 import { createSiteRuntime } from './site/runtime.js';
 import { initBeliefStarField } from './sections/belief.js';
 import { initLayeredHero, initFallbackParallax } from './sections/hero.js';
-import { initHomepageTransitions } from './transitions/homepage-transition-runtime.js';
 import { initCursorGlow } from './ui/cursor-glow.js';
 import { initMagneticAndTilt } from './ui/magnetic-tilt.js';
 import { initPageProgress } from './ui/page-progress.js';
@@ -20,10 +20,7 @@ const CDN = {
 };
 
 const LOADER_PHRASES = ['同人于野', '观象知幂'];
-const LOADER_START_DELAY_MS = 180;
-const LOADER_REVEAL_MS = 1150;
-const LOADER_HOLD_MS = 220;
-const LOADER_GAP_MS = 160;
+const LOADER_START_DELAY_MS = 180, LOADER_REVEAL_MS = 1150, LOADER_HOLD_MS = 220, LOADER_GAP_MS = 160;
 const LOADER_PHRASE_MS = LOADER_REVEAL_MS + LOADER_HOLD_MS + LOADER_REVEAL_MS;
 const LOADER_SEQUENCE_TOTAL_MS = LOADER_START_DELAY_MS + LOADER_PHRASE_MS * LOADER_PHRASES.length + LOADER_GAP_MS;
 const HERO_LOADER_EXIT_MS = 420;
@@ -93,7 +90,7 @@ if (reduceMotion) {
   initMagneticAndTilt({ reduceMotion });
   initFallbackParallax({ root, reduceMotion, runtime });
   initVanillaReveal();
-  initHomepageTransitions({ root: document, reduceMotion: true });
+  initHomepageTransitionsWithObserver({ root, body, reduceMotion: true });
 } else {
   loadRequiredLibraries()
     .then(() => {
@@ -101,8 +98,9 @@ if (reduceMotion) {
       initMagneticAndTilt({ reduceMotion });
       initGsapTextAndUI({ root, scrollRuntime });
       initLayeredHero({ root, body, runtime, reduceMotion });
-      initHomepageTransitions({
-        root: document,
+      initHomepageTransitionsWithObserver({
+        root,
+        body,
         scrollRuntime,
         reduceMotion,
         gsap: window.gsap,
@@ -114,6 +112,6 @@ if (reduceMotion) {
       initMagneticAndTilt({ reduceMotion });
       initFallbackParallax({ root, reduceMotion, runtime });
       initVanillaReveal();
-      initHomepageTransitions({ root: document, reduceMotion: true });
+      initHomepageTransitionsWithObserver({ root, body, reduceMotion: true });
     });
 }
