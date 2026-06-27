@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Runtime Scroll Edge Blur Nav Test｜同野观幂</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="./scroll-edge-blur-runtime.css" />
+</head>
+<body>
+  <div class="demo-backdrop" aria-hidden="true"></div>
+
+  <nav class="site-nav has-scroll-edge-blur demo-nav-visible" aria-label="主导航">
+    <div class="site-nav-track">
+      <a class="brand" href="#top" aria-label="同野观幂首页">
+        <span class="brand-mark">同</span>
+        <span class="brand-text">同野观幂</span>
+      </a>
+      <div class="nav-links" aria-label="页面章节">
+        <a href="#method">方法</a>
+        <a href="#services">场景</a>
+        <a href="#education">留学</a>
+        <a href="#contact">联系</a>
+      </div>
+      <a class="nav-cta" href="#contact">预约诊断</a>
+    </div>
+  </nav>
+  <div class="scroll-edge-blur" aria-hidden="true">
+    <span class="scroll-edge-blur__layer"></span>
+    <span class="scroll-edge-blur__layer"></span>
+    <span class="scroll-edge-blur__layer"></span>
+    <span class="scroll-edge-blur__layer"></span>
+    <span class="scroll-edge-blur__layer"></span>
+    <span class="scroll-edge-blur__layer"></span>
+    <span class="scroll-edge-blur__layer"></span>
+    <span class="scroll-edge-blur__tint"></span>
+  </div>
+
+  <main id="top" class="demo-stage">
+    <section class="demo-band" data-tone="dark">
+      <div class="demo-floating-text" aria-hidden="true">
+        <span>EDGE</span><span>BLUR</span><span>羽化</span>
+      </div>
+      <div class="demo-copy">
+        <h1>Runtime Edge</h1>
+        <p>隔离测试 runtime 分支的顶栏 progressive blur。背景条纹和大字会穿过顶栏，便于判断羽化是否真的来自 backdrop-filter。</p>
+      </div>
+    </section>
+
+    <section class="demo-band is-light" id="method" data-tone="light">
+      <div class="demo-floating-text" aria-hidden="true">
+        <span>LIGHT</span><span>TONE</span><span>浅色</span>
+      </div>
+      <div class="demo-copy">
+        <h2>Light Tone</h2>
+        <p>浅色段会切换 nav 的 tone，验证 tint 和文字颜色能沿用项目现有的 data-tone / is-on-light 机制。</p>
+      </div>
+    </section>
+
+    <section class="demo-band" id="services" data-tone="dark">
+      <div class="demo-floating-text" aria-hidden="true">
+        <span>DARK</span><span>INK</span><span>深色</span>
+      </div>
+      <div class="demo-copy">
+        <h2>Dark Tone</h2>
+        <p>测试页只放在 test/，正式页面暂不接入，避免影响 master observer runtime 的真实分支行为。</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="demo-controls" aria-label="顶栏测试控制">
+    <button type="button" id="hideBtn">隐藏</button>
+    <button type="button" id="showBtn" class="is-active">显示</button>
+  </div>
+
+  <script src="./scroll-edge-blur-runtime.js"></script>
+</body>
+</html>
