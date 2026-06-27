@@ -1,0 +1,123 @@
+/*
+ * Progressive blur scroll edge for the fixed site navigation.
+ * The blur overlay is a sibling of .site-nav, not a child, so backdrop-filter
+ * samples the page content instead of fighting the nav stacking context.
+ */
+
+.site-nav.has-scroll-edge-blur::before {
+  display: none;
+}
+
+.scroll-edge-blur {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  width: 100vw;
+  height: calc(var(--nav-h) + var(--nav-h) + env(safe-area-inset-top, 0px));
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: rotate(180deg);
+  transform-origin: center;
+}
+
+.scroll-edge-blur__layer,
+.scroll-edge-blur__tint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.scroll-edge-blur__layer {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.scroll-edge-blur__layer:nth-child(1) {
+  z-index: 70;
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+  mask-image: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,1) 10%, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 40%);
+  -webkit-mask-image: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,1) 10%, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 40%);
+}
+
+.scroll-edge-blur__layer:nth-child(2) {
+  z-index: 60;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  mask-image: linear-gradient(rgba(0,0,0,0) 10%, rgba(0,0,0,1) 20%, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 50%);
+  -webkit-mask-image: linear-gradient(rgba(0,0,0,0) 10%, rgba(0,0,0,1) 20%, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 50%);
+}
+
+.scroll-edge-blur__layer:nth-child(3) {
+  z-index: 50;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  mask-image: linear-gradient(rgba(0,0,0,0) 15%, rgba(0,0,0,1) 30%, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 60%);
+  -webkit-mask-image: linear-gradient(rgba(0,0,0,0) 15%, rgba(0,0,0,1) 30%, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 60%);
+}
+
+.scroll-edge-blur__layer:nth-child(4) {
+  z-index: 40;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  mask-image: linear-gradient(rgba(0,0,0,0) 20%, rgba(0,0,0,1) 40%, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 70%);
+  -webkit-mask-image: linear-gradient(rgba(0,0,0,0) 20%, rgba(0,0,0,1) 40%, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 70%);
+}
+
+.scroll-edge-blur__layer:nth-child(5) {
+  z-index: 30;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  mask-image: linear-gradient(rgba(0,0,0,0) 40%, rgba(0,0,0,1) 60%, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 90%);
+  -webkit-mask-image: linear-gradient(rgba(0,0,0,0) 40%, rgba(0,0,0,1) 60%, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 90%);
+}
+
+.scroll-edge-blur__layer:nth-child(6) {
+  z-index: 20;
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  mask-image: linear-gradient(rgba(0,0,0,0) 60%, rgba(0,0,0,1) 80%);
+  -webkit-mask-image: linear-gradient(rgba(0,0,0,0) 60%, rgba(0,0,0,1) 80%);
+}
+
+.scroll-edge-blur__layer:nth-child(7) {
+  z-index: 10;
+  backdrop-filter: blur(64px);
+  -webkit-backdrop-filter: blur(64px);
+  mask-image: linear-gradient(rgba(0,0,0,0) 70%, rgba(0,0,0,1) 100%);
+  -webkit-mask-image: linear-gradient(rgba(0,0,0,0) 70%, rgba(0,0,0,1) 100%);
+}
+
+.scroll-edge-blur__tint {
+  z-index: 80;
+  background: linear-gradient(transparent, rgba(5, 8, 7, 0.14));
+}
+
+.site-nav[data-tone="light"] + .scroll-edge-blur .scroll-edge-blur__tint,
+.site-nav.is-on-light + .scroll-edge-blur .scroll-edge-blur__tint {
+  background: linear-gradient(transparent, rgba(247, 237, 215, 0.14));
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .site-nav.has-scroll-edge-blur::before {
+    display: block;
+  }
+
+  .scroll-edge-blur {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .scroll-edge-blur {
+    height: calc(var(--nav-h) + var(--nav-h) + env(safe-area-inset-top, 0px));
+  }
+
+  .scroll-edge-blur__layer:nth-child(6),
+  .scroll-edge-blur__layer:nth-child(7) {
+    display: none;
+  }
+}
