@@ -286,8 +286,8 @@
 }
 
 .canvas-section--belief {
-  height: 160svh;
-  min-height: 160svh;
+  height: 100svh;
+  min-height: 100svh;
   overflow: visible;
 }
 
