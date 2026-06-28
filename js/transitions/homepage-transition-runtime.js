@@ -929,7 +929,9 @@ export async function initHomepageTransitions({
     try {
       const runtimeMode = host.dataset.transitionRuntimeMode || 'legacy-snap';
       const isProgressWindow = runtimeMode === RUNTIME_PROGRESS_WINDOW;
-      const isScrollDriven = isProgressWindow || host.dataset.transitionDrive === 'scroll' || SCROLL_DRIVEN_MODULES.has(moduleName);
+      // 修改：progress-window 也应该创建 snapController（snap + autoplay）
+      // 只有明确 drive='scroll' 或在 SCROLL_DRIVEN_MODULES 里的才是 scroll-driven
+      const isScrollDriven = host.dataset.transitionDrive === 'scroll' || SCROLL_DRIVEN_MODULES.has(moduleName);
       const snapController = isScrollDriven ? null : snapCoordinator.createController(host);
       const semanticWindows = parseWindowSpec(host.dataset.transitionWindowSpec);
       const baseProgressSource = isProgressWindow
