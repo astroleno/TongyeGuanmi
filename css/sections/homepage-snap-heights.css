@@ -1,0 +1,159 @@
+/**
+ * Homepage Snap Heights Contract
+ *
+ * Implements the height strategy from PLAN-homepage-snapped-scene-runtime.md lines 22-34:
+ * - Animation scenes: fixed 100dvh
+ * - Reading sections ≤1 screen: min-height 100dvh
+ * - Reading sections >1 screen: min-height 100dvh + natural content extension
+ *
+ * Critical finding: Current implementation has NO section at 100vh.
+ * - Transition hosts use calc(100dvh + --extra-snap-height)
+ * - Canvas sections have no height rules, only padding-block
+ *
+ * Phase 3 pilot paths:
+ * - Path 1: hero, pattern-bloom, belief-star
+ * - Path 2: aod-animation, method-upper, method-lower
+ */
+
+/* ============================================================================
+   Animation Scenes: Fixed 100dvh
+   ============================================================================ */
+
+[data-scene-id="hero"],
+[data-scene-id="aod-animation"],
+[data-scene-id="figure2-animation"],
+[data-scene-id="figure3-animation"],
+[data-scene-id="ttg-animation"],
+[data-scene-id="ph-animation"],
+[data-scene-id="crane-animation"] {
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+}
+
+/* Fallback for browsers without dvh support */
+@supports not (height: 100dvh) {
+  [data-scene-id="hero"],
+  [data-scene-id="aod-animation"],
+  [data-scene-id="figure2-animation"],
+  [data-scene-id="figure3-animation"],
+  [data-scene-id="ttg-animation"],
+  [data-scene-id="ph-animation"],
+  [data-scene-id="crane-animation"] {
+    height: 100vh;
+    min-height: 100vh;
+    max-height: 100vh;
+  }
+}
+
+/* ============================================================================
+   Reading Sections: Min-height 100dvh, Natural Overflow
+   ============================================================================ */
+
+/* Short reading sections (≤1 screen) */
+[data-scene-id="method-upper"],
+[data-scene-id="brand"],
+[data-scene-id="philosophy"] {
+  min-height: 100dvh;
+}
+
+@supports not (min-height: 100dvh) {
+  [data-scene-id="method-upper"],
+  [data-scene-id="brand"],
+  [data-scene-id="philosophy"] {
+    min-height: 100vh;
+  }
+}
+
+/* Extended reading sections (>1 screen): natural content extension */
+[data-scene-id="method-lower"],
+[data-scene-id="services"] {
+  min-height: 100dvh;
+  /* Content naturally extends beyond viewport */
+}
+
+@supports not (min-height: 100dvh) {
+  [data-scene-id="method-lower"],
+  [data-scene-id="services"] {
+    min-height: 100vh;
+  }
+}
+
+/* Pattern bloom transition scene */
+[data-scene-id="pattern-bloom"] {
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+}
+
+@supports not (height: 100dvh) {
+  [data-scene-id="pattern-bloom"] {
+    height: 100vh;
+    min-height: 100vh;
+    max-height: 100vh;
+  }
+}
+
+/* Belief star reading section */
+[data-scene-id="belief-star"] {
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+}
+
+@supports not (height: 100dvh) {
+  [data-scene-id="belief-star"] {
+    height: 100vh;
+    min-height: 100vh;
+    max-height: 100vh;
+  }
+}
+
+/* ============================================================================
+   Transition Host Height Cleanup (Plan line 502)
+   ============================================================================
+
+   Current: calc(100dvh + var(--extra-snap-height))
+   Target: 100dvh (unless verification shows --extra-snap-height is required)
+
+   Pilot path: Remove --extra-snap-height first, verify in Phase 3.
+   If verification fails, this cleanup will be reverted.
+   ============================================================================ */
+
+/* Remove extra snap height from transition hosts for pilot scenes */
+.chapter-transition[data-transition-module="pattern-bloom"],
+.scene-transition[data-transition-module="pattern-bloom"] {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+@supports not (height: 100dvh) {
+  .chapter-transition[data-transition-module="pattern-bloom"],
+  .scene-transition[data-transition-module="pattern-bloom"] {
+    height: 100vh;
+    min-height: 100vh;
+  }
+}
+
+.chapter-transition[data-transition-module="aod"] {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+@supports not (height: 100dvh) {
+  .chapter-transition[data-transition-module="aod"] {
+    height: 100vh;
+    min-height: 100vh;
+  }
+}
+
+/* ============================================================================
+   Notes for Phase 3 Verification
+   ============================================================================
+
+   1. Verify hero, pattern-bloom, belief-star snap correctly (pilot path 1)
+   2. Verify aod-animation, method-upper, method-lower snap correctly (pilot path 2)
+   3. If --extra-snap-height removal causes issues, revert transition host cleanup
+   4. Test scroll-out-of-extended-section arming for method-lower and services
+   5. Confirm mobile viewport with dvh vs vh fallback on iOS Safari
+   ============================================================================ */

@@ -11,6 +11,12 @@
  * - ReleaseCooldown: brief cooldown before re-arming
  * - ReadingScroll: bypass state during rapid scroll
  * - RecoverPresentTarget: recovery from failed state
+ *
+ * Implements ADR-homepage-js-snap.md:
+ * - JS-controlled snap with Lenis scrollTo() as primary
+ * - window.scrollTo() as fallback when Lenis unavailable
+ * - prefers-reduced-motion: instant scrollTo, no easing
+ * - Viewport change listeners for mobile address bar handling
  */
 
 // ============================================================================
@@ -296,8 +302,8 @@ export function createHomepageSnapRuntime({
      */
     getSceneBounds(sceneIndex) {
       const vh = window.innerHeight;
-      const start = sceneIndex * CONFIG.SCENE_HEIGHT_VH * vh / 100;
-      const end = (sceneIndex + 1) * CONFIG.SCENE_HEIGHT_VH * vh / 100;
+      const start = sceneIndex * vh;
+      const end = (sceneIndex + 1) * vh;
       return { start, end, height: end - start };
     },
 
@@ -308,10 +314,124 @@ export function createHomepageSnapRuntime({
      */
     getCurrentSceneIndex(scrollY) {
       const vh = window.innerHeight;
-      const sceneHeight = CONFIG.SCENE_HEIGHT_VH * vh / 100;
-      return Math.floor(scrollY / sceneHeight);
+      return Math.max(0, Math.floor(scrollY / vh));
     }
   };
+
+  // Scene bounds cache (recalculated on viewport changes)
+  let sceneBounds = [];
+
+  /**
+   * Recalculate all scene bounds (called on resize/orientation change)
+   */
+  function recalculateAllSceneBounds() {
+    const vh = window.innerHeight;
+    sceneBounds = [];
+    for (let i = 0; i < context.sceneCount; i++) {
+      sceneBounds.push({
+        id: timeline.scenes?.[i]?.id || `scene-${i}`,
+        top: i * vh,
+        bottom: (i + 1) * vh,
+        height: vh
+      });
+    }
+    return sceneBounds;
+  }
+
+  /**
+   * Calculate scene top position
+   * @param {Object} scene
+   * @returns {number}
+   */
+  function calculateSceneTop(scene) {
+    if (!timeline.scenes) return 0;
+    const sceneIndex = timeline.scenes.findIndex(s => s.id === scene.id);
+    if (sceneIndex === -1) return 0;
+    return sceneIndex * window.innerHeight;
+  }
+
+  /**
+   * Snap to specific scene by ID (public API method)
+   * @param {string} sceneId
+   * @param {Object} scrollController
+   */
+  function snapToScene(sceneId, scrollController) {
+    if (!timeline.scenes) {
+      console.error('[Snap Runtime] No scenes available in timeline');
+      return;
+    }
+
+    const scene = timeline.scenes.find(s => s.id === sceneId);
+    if (!scene) {
+      console.error('[Snap Runtime] Scene not found:', sceneId);
+      return;
+    }
+
+    const targetY = calculateSceneTop(scene);
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (scrollController?.scrollTo) {
+      // Primary: Lenis smooth scroll
+      scrollController.scrollTo(targetY, {
+        duration: prefersReducedMotion ? 0 : 0.8,
+        easing: prefersReducedMotion
+          ? (t) => t
+          : (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+        immediate: prefersReducedMotion,
+        onComplete: () => {
+          dispatch({ type: 'SNAP_COMPLETE' });
+        }
+      });
+    } else {
+      // Fallback: native scrollTo
+      window.scrollTo({
+        top: targetY,
+        behavior: prefersReducedMotion ? 'auto' : 'smooth'
+      });
+
+      // Poll for scroll completion
+      if (!prefersReducedMotion) {
+        watchScrollComplete(targetY, () => {
+          dispatch({ type: 'SNAP_COMPLETE' });
+        });
+      } else {
+        dispatch({ type: 'SNAP_COMPLETE' });
+      }
+    }
+  }
+
+  /**
+   * Watch for scroll completion (fallback when no Lenis)
+   * @param {number} targetY
+   * @param {Function} onComplete
+   */
+  function watchScrollComplete(targetY, onComplete) {
+    let lastY = window.scrollY;
+    let stableCount = 0;
+    const threshold = 2; // px tolerance
+    const requiredStableFrames = 3;
+
+    function check() {
+      const currentY = window.scrollY;
+      const diff = Math.abs(currentY - targetY);
+      const moved = Math.abs(currentY - lastY);
+
+      if (diff < threshold && moved < 1) {
+        stableCount++;
+        if (stableCount >= requiredStableFrames) {
+          onComplete?.();
+          return;
+        }
+      } else {
+        stableCount = 0;
+      }
+
+      lastY = currentY;
+      requestAnimationFrame(check);
+    }
+
+    requestAnimationFrame(check);
+  }
 
   // Derive scene count from timeline labels
   const labels = timeline.labels || {};
@@ -380,37 +500,55 @@ export function createHomepageSnapRuntime({
     const bounds = context.getSceneBounds(sceneIndex);
     const targetScroll = bounds.start;
 
+    // Check for reduced motion preference
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     if (scrollController && scrollController.scrollTo) {
-      // Use Lenis smooth scroll
+      // Primary: Use Lenis smooth scroll
       scrollController.scrollTo(targetScroll, {
-        duration: 0.6,
-        easing: (t) => 1 - Math.pow(1 - t, 3), // easeOutCubic
+        duration: prefersReducedMotion ? 0 : 0.8,
+        easing: prefersReducedMotion
+          ? (t) => t
+          : (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t, // easeInOutQuad
+        immediate: prefersReducedMotion,
         onComplete: () => {
           dispatch({ type: 'SNAP_COMPLETE' });
         }
       });
     } else {
-      // Fallback: animate manually
-      const startScroll = window.scrollY;
-      const distance = targetScroll - startScroll;
-      const startTime = Date.now();
-      const duration = 600;
+      // Fallback: native window.scrollTo with smooth behavior
+      if (prefersReducedMotion) {
+        // Instant snap for reduced motion
+        window.scrollTo({
+          top: targetScroll,
+          behavior: 'auto'
+        });
+        dispatch({ type: 'SNAP_COMPLETE' });
+      } else {
+        // Animate manually with requestAnimationFrame
+        const startScroll = window.scrollY;
+        const distance = targetScroll - startScroll;
+        const startTime = Date.now();
+        const duration = 800;
 
-      function animateSnap() {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
+        function animateSnap() {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const t = progress;
+          const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 
-        window.scrollTo(0, startScroll + distance * eased);
+          window.scrollTo(0, startScroll + distance * eased);
 
-        if (progress < 1) {
-          snapAnimationId = requestAnimationFrame(animateSnap);
-        } else {
-          dispatch({ type: 'SNAP_COMPLETE' });
+          if (progress < 1) {
+            snapAnimationId = requestAnimationFrame(animateSnap);
+          } else {
+            snapAnimationId = null;
+            dispatch({ type: 'SNAP_COMPLETE' });
+          }
         }
-      }
 
-      snapAnimationId = requestAnimationFrame(animateSnap);
+        snapAnimationId = requestAnimationFrame(animateSnap);
+      }
     }
   }
 
@@ -595,11 +733,15 @@ export function createHomepageSnapRuntime({
     handleKeyboard,
     getCurrentState,
     getCurrentScene,
+    snapToScene: (sceneId) => snapToScene(sceneId, context.scrollController),
+    recalculateSceneBounds: recalculateAllSceneBounds,
+    calculateSceneTop,
     reset,
     destroy,
 
     // Expose for testing/debugging
     State,
-    CONFIG
+    CONFIG,
+    sceneBounds: () => sceneBounds
   });
 }

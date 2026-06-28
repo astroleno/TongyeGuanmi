@@ -8,6 +8,8 @@
  * - Connects charge indicator
  * - Connects recovery handler
  * - Exposes runtime lifecycle
+ * - Handles viewport changes (resize, orientation, visualViewport)
+ * - Implements ADR-homepage-js-snap.md fallback matrix
  */
 
 import { homepageTimeline } from '../../src/section-manifest.mjs';
@@ -22,6 +24,7 @@ const CONFIG = {
   CHARGE_INDICATOR_THRESHOLD_VH: 10,
   CHARGE_UPDATE_THROTTLE_MS: 16,
   PREFERS_REDUCED_MOTION_SKIP_CHARGE: true,
+  VIEWPORT_CHANGE_THRESHOLD_PX: 100, // Mobile address bar detection threshold
   DOM_ATTRIBUTES: {
     runtimeState: 'data-homepage-runtime-state',
     currentScene: 'data-homepage-current-scene',
@@ -395,10 +398,134 @@ export function createHomepageRuntimeIntegration({
     runtime.handleKeyboard(event);
   }
 
+  // ============================================================================
+  // Viewport Change Handlers (ADR fallback matrix)
+  // ============================================================================
+
+  let lastViewportHeight = window.innerHeight;
+  let lastVisualViewportHeight = window.visualViewport?.height || window.innerHeight;
+  let resizeDebounceTimer = null;
+
+  /**
+   * Handle window resize: recalculate bounds, adjust if Playing
+   */
+  function onResize() {
+    if (isDestroyed) return;
+
+    // Debounce resize events
+    if (resizeDebounceTimer) {
+      clearTimeout(resizeDebounceTimer);
+    }
+
+    resizeDebounceTimer = setTimeout(() => {
+      const currentHeight = window.innerHeight;
+      const heightDelta = Math.abs(currentHeight - lastViewportHeight);
+
+      console.debug('[Runtime Integration] Resize detected, height delta:', heightDelta);
+
+      // Recalculate scene bounds
+      runtime.recalculateSceneBounds();
+      lastViewportHeight = currentHeight;
+
+      // If Playing, maintain current scene but adjust for new bounds
+      const state = runtime.getCurrentState();
+      if (state.current === 'Playing') {
+        console.debug('[Runtime Integration] Continuing playback after resize');
+        // Let playback continue with new bounds
+      }
+
+      resizeDebounceTimer = null;
+    }, 150);
+  }
+
+  /**
+   * Handle orientation change: recalculate bounds
+   */
+  function onOrientationChange() {
+    if (isDestroyed) return;
+
+    console.debug('[Runtime Integration] Orientation change detected');
+
+    // Wait for orientation change to complete
+    setTimeout(() => {
+      runtime.recalculateSceneBounds();
+      lastViewportHeight = window.innerHeight;
+
+      // Snap to current scene's new position
+      const state = runtime.getCurrentState();
+      if (state.current === 'SnappedArmed') {
+        const scene = homepageTimeline.scenes[state.currentSceneIndex];
+        if (scene) {
+          runtime.snapToScene(scene.id);
+        }
+      }
+    }, 100);
+  }
+
+  /**
+   * Handle visual viewport resize: detect mobile address bar
+   */
+  function onVisualViewportResize() {
+    if (isDestroyed) return;
+    if (!window.visualViewport) return;
+
+    const currentHeight = window.visualViewport.height;
+    const delta = Math.abs(currentHeight - lastVisualViewportHeight);
+
+    // Only recalc if change is significant (mobile address bar show/hide)
+    if (delta > CONFIG.VIEWPORT_CHANGE_THRESHOLD_PX) {
+      console.debug('[Runtime Integration] Visual viewport change:', delta, 'px');
+
+      runtime.recalculateSceneBounds();
+      lastVisualViewportHeight = currentHeight;
+    }
+  }
+
+  /**
+   * Handle hash navigation to deep link target scene
+   */
+  function onHashChange() {
+    if (isDestroyed) return;
+
+    const hash = window.location.hash;
+    if (!hash || hash.length <= 1) return;
+
+    try {
+      const targetId = decodeURIComponent(hash.slice(1));
+      const scene = homepageTimeline.scenes.find(s => s.id === targetId);
+
+      if (scene) {
+        console.debug('[Runtime Integration] Hash navigation to scene:', targetId);
+
+        // Snap to target scene's presented state (skip charge/playback per ADR)
+        const sceneElement = document.querySelector(`[data-scene-id="${scene.id}"]`);
+        if (sceneElement) {
+          sceneElement.setAttribute('data-scene-state', 'presented');
+        }
+
+        // Use snapToScene for precise positioning
+        runtime.snapToScene(targetId);
+      }
+    } catch (error) {
+      console.warn('[Runtime Integration] Hash navigation failed:', error);
+    }
+  }
+
   // Attach event listeners
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('wheel', onWheel, { passive: true });
   window.addEventListener('keydown', onKeyboard);
+  window.addEventListener('resize', onResize, { passive: true });
+  window.addEventListener('orientationchange', onOrientationChange);
+  window.addEventListener('hashchange', onHashChange);
+
+  // Visual viewport listener for mobile address bar
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', onVisualViewportResize, { passive: true });
+  }
+
+  // Initialize scene bounds
+  runtime.recalculateSceneBounds();
 
   // Initialize state
   syncStateToDom(runtime.getCurrentState(), rootElement);
@@ -424,6 +551,20 @@ export function createHomepageRuntimeIntegration({
      */
     getChargeProgress() {
       return chargeAccumulator.getProgress();
+    },
+
+    /**
+     * Snap to specific scene by ID
+     */
+    snapToScene(sceneId) {
+      runtime.snapToScene(sceneId);
+    },
+
+    /**
+     * Recalculate scene bounds (called on viewport changes)
+     */
+    recalculateSceneBounds() {
+      return runtime.recalculateSceneBounds();
     },
 
     /**
@@ -458,12 +599,24 @@ export function createHomepageRuntimeIntegration({
       if (isDestroyed) return;
       isDestroyed = true;
 
+      // Remove event listeners
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKeyboard);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onOrientationChange);
+      window.removeEventListener('hashchange', onHashChange);
 
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', onVisualViewportResize);
+      }
+
+      // Clear timers
       if (scrollRAF) {
         cancelAnimationFrame(scrollRAF);
+      }
+      if (resizeDebounceTimer) {
+        clearTimeout(resizeDebounceTimer);
       }
 
       runtime.destroy();
