@@ -1,0 +1,107 @@
+/**
+ * Snap Charge Indicator
+ * Visual feedback for snap-triggered transitions
+ */
+
+.snap-charge-indicator {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  pointer-events: none;
+  z-index: 10000;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.snap-charge-indicator.is-visible {
+  opacity: 1;
+}
+
+.snap-charge-indicator.is-fading-out {
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+
+/* Progress bar */
+.snap-charge-indicator__bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--scroll-edge-tint-soft, rgba(0, 0, 0, 0.1)),
+    var(--scroll-edge-layer-wash, rgba(0, 0, 0, 0.05))
+  );
+  width: 0%;
+  transform-origin: left center;
+  transition: width 0.1s linear;
+}
+
+.snap-charge-indicator__bar.is-reverse {
+  left: auto;
+  right: 0;
+  transform-origin: right center;
+}
+
+/* Ink halo */
+.snap-charge-indicator__halo {
+  position: absolute;
+  bottom: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--scroll-edge-layer-wash, rgba(0, 0, 0, 0.1)) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 50%);
+  transition: opacity 0.2s ease-out;
+}
+
+.snap-charge-indicator__halo.is-active {
+  opacity: 1;
+  animation: snap-charge-halo-pulse 1s ease-in-out infinite;
+}
+
+@keyframes snap-charge-halo-pulse {
+  0%, 100% {
+    transform: translate(-50%, 50%) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate(-50%, 50%) scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .snap-charge-indicator__halo {
+    animation: none !important;
+    transition: none;
+  }
+
+  .snap-charge-indicator,
+  .snap-charge-indicator__bar {
+    transition: none;
+  }
+}
+
+/* Accessibility */
+.snap-charge-indicator__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
