@@ -58,7 +58,7 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
     const metrics = renderFigure3TransitionProgress(section, progress) || {};
     const inkProgress = smoothStep(range01(progress, 0.58, 0.92));
     const receiverOpacity = servicesReceiver?.update(progress, {
-      start: 0.54,
+      start: 0.22,
       end: 0.82,
       restoreAt: 0.96,
       liftPx: 10

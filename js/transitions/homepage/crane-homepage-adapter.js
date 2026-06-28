@@ -7,7 +7,7 @@ const range01 = (value, start, end) => clamp((value - start) / Math.max(0.0001, 
 const smoothStep = (value) => value * value * (3 - 2 * value);
 const TRANSITION_ID = 'philosophy-contact';
 const RECEIVER_TIMING = Object.freeze({
-  start: 0.32,
+  start: 0.22,
   end: 0.50,
   restoreAt: 1.1,
   liftPx: 10
