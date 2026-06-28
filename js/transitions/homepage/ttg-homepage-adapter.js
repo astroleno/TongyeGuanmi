@@ -1,5 +1,4 @@
 import { createTtgTransitionScene } from '../../components/ttg-transition.js';
-import { createInkCurtainTransition } from '../../effects/ink-scene-transition.js';
 import { createSplitSceneBridge } from './split-scene-bridge.js';
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
@@ -105,22 +104,6 @@ export function mountHomepageTransition({
     direction: 'down',
     className: 'split-scene-bridge--paper'
   });
-  const entryInk = reduceMotion ? null : createInkCurtainTransition(entryInkCanvas, {
-    direction: 'bottom-up',
-    colorLift: 0.54,
-    coverAlpha: 0.50,
-    fadeOutStart: 0.58,
-    fadeOutEnd: 1,
-    progressSpan: 1
-  });
-  const exitInk = reduceMotion ? null : createInkCurtainTransition(exitInkCanvas, {
-    direction: 'top-down',
-    colorLift: 0.58,
-    coverAlpha: 0.54,
-    fadeOutStart: 0.76,
-    fadeOutEnd: 1,
-    progressSpan: 1
-  });
   let raf = 0;
   let destroyed = false;
   let videoPlaybackStage = reduceMotion ? 'complete' : 'idle';
@@ -144,10 +127,6 @@ export function mountHomepageTransition({
     entryInkCanvas.dataset.inkActivePixelRatio = (entryProgress > 0.05 ? entryProgress * 0.06 : 0).toFixed(4);
     exitInkCanvas.dataset.inkProgress = exitProgress.toFixed(4);
     exitInkCanvas.dataset.inkActivePixelRatio = (exitProgress > 0.05 ? exitProgress * 0.06 : 0).toFixed(4);
-    entryInk?.render(entryProgress);
-    exitInk?.render(exitProgress);
-    const entryOpacity = Number(getComputedStyle(entryInkCanvas).opacity) || 0;
-    const exitOpacity = Number(getComputedStyle(exitInkCanvas).opacity) || 0;
     const bridgeType = (progress >= 0.16 && progress <= 0.44) || progress >= 0.68
       ? 'splitSceneBridge'
       : 'none';

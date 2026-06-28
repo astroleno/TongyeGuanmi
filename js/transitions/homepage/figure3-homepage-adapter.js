@@ -3,7 +3,6 @@ import {
   renderFigure3TransitionProgress,
   waitForFigure3TransitionMetadata
 } from '../../components/figure3-transition.js';
-import { createInkCurtainTransition } from '../../effects/ink-scene-transition.js';
 import { createHandoffReceiver } from './handoff-receiver.js';
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
@@ -43,14 +42,6 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
   const stage = host.querySelector('.figure3-transition__stage');
   const inkCanvas = host.querySelector('.figure3-transition__ink');
   const { alphaVideo } = prepareFigure3Transition(section, { progress: reduceMotion ? 1 : 0 });
-  const exitInk = reduceMotion ? null : createInkCurtainTransition(inkCanvas, {
-    direction: 'top-down',
-    colorLift: 0.58,
-    coverAlpha: 0.52,
-    fadeOutStart: 0.76,
-    fadeOutEnd: 1,
-    progressSpan: 1
-  });
   const servicesReceiver = createHandoffReceiver({
     container: stage,
     target: handoffTarget || host.ownerDocument.querySelector('#services'),
@@ -74,7 +65,6 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
     }) ?? 0;
     inkCanvas.dataset.inkProgress = inkProgress.toFixed(4);
     inkCanvas.dataset.inkActivePixelRatio = (inkProgress > 0.05 ? inkProgress * 0.06 : 0).toFixed(4);
-    exitInk?.render(inkProgress);
     host.dataset.transitionContractId = 'brand-services';
     host.dataset.transitionBridgeType = receiverOpacity >= 0.05 ? 'earlyReceiver' : 'none';
     host.dataset.transitionPhase = resolveFigure3Phase(progress, receiverOpacity);

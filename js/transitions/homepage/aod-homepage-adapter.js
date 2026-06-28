@@ -3,7 +3,6 @@ import {
   renderAodTransitionProgress,
   waitForAodTransitionMetadata
 } from '../../components/aod-transition.js';
-import { createInkCurtainTransition } from '../../effects/ink-scene-transition.js';
 import { createHandoffReceiver } from './handoff-receiver.js';
 import { createSplitSceneBridge } from './split-scene-bridge.js';
 
@@ -176,14 +175,6 @@ export function mountHomepageTransition({
   inkCanvas.dataset.transitionInkSurface = 'true';
   inkCanvas.dataset.transitionId = AOD_METHOD_PILOT_CONTRACT.id;
   inkCanvas.dataset.inkKind = 'decorativeInk';
-  const inkTransition = reduceMotion ? null : createInkCurtainTransition(inkCanvas, {
-    direction: 'bottom-up',
-    colorLift: 0.64,
-    coverAlpha: 0.64,
-    fadeOutStart: 0.82,
-    fadeOutEnd: 1,
-    progressSpan: 1
-  });
   const nav = document.querySelector('.site-nav');
   let raf = 0;
   let destroyed = false;
@@ -226,7 +217,6 @@ export function mountHomepageTransition({
     inkCanvas.dataset.inkProgress = inkProgress.toFixed(4);
     inkCanvas.dataset.inkActivePixelRatio = (inkProgress > 0.05 ? inkProgress * 0.06 : 0).toFixed(4);
     syncPilotState(host, section, progress, receiverOpacity, metrics.sceneOpacity ?? 1, inkProgress);
-    inkTransition?.render(inkProgress);
     raf = requestAnimationFrame(render);
   };
 
@@ -239,7 +229,6 @@ export function mountHomepageTransition({
         inkCanvas.dataset.inkProgress = '1.0000';
         inkCanvas.dataset.inkActivePixelRatio = '0.0600';
         syncPilotState(host, section, 1, receiverOpacity, metrics.sceneOpacity ?? 1, 1);
-        inkTransition?.render(1);
       }
     });
   } else {
