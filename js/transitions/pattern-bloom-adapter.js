@@ -245,7 +245,7 @@ export function mountPatternBloomTransition({
           : 'exitInk';
     const bridgeType = phase === 'entryInk' ? 'entryInk' : phase === 'exitInk' ? 'exitInk' : 'none';
 
-    doc.body?.classList.toggle(COVER_PRIOR_SCENE_CLASS, overlayActive && revealProgress > 0.92);
+    doc.body?.classList.toggle(COVER_PRIOR_SCENE_CLASS, overlayActive && revealProgress > 0.18);
     setBeliefTransitionState({
       pinned: beliefPinned,
       sceneOpacity: beliefSceneOpacity,
