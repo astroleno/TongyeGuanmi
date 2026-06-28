@@ -17,7 +17,7 @@ const DEFAULT_PLAY_MS = 1900;
 const SNAP_VIEWPORT_HEIGHT_VAR = '--homepage-transition-snap-height';
 const SNAP_EXTRA_HEIGHT_VAR = '--homepage-transition-extra-snap-height';
 const FIXED_STAGE_CLASS = 'homepage-transition--fixed-stage';
-const DEFAULT_SNAP_ENTRY_VH = 1.02;
+const DEFAULT_SNAP_ENTRY_VH = 0.1;
 const DEFAULT_TARGET_GATE_RELEASE_PROGRESS = 0.86;
 const POST_SNAP_INPUT_LOCK_MS = 420;
 const DIRECT_HASH_ALIGNMENT_DELAYS = [0, 120, 420, 1100, 2400, 5200, 9200];
@@ -934,13 +934,17 @@ export async function initHomepageTransitions({
       const isScrollDriven = host.dataset.transitionDrive === 'scroll' || SCROLL_DRIVEN_MODULES.has(moduleName);
       const snapController = isScrollDriven ? null : snapCoordinator.createController(host);
       const semanticWindows = parseWindowSpec(host.dataset.transitionWindowSpec);
-      const baseProgressSource = isProgressWindow
-        ? createProgressWindowSource(host, root)
-        : isScrollDriven
-          ? (host.dataset.transitionId === 'home-belief'
-            ? createHeroLinkedScrollProgressSource(host)
-            : createElementScrollProgressSource(host))
-          : () => snapController.progressSource();
+      // 修改：如果有 snapController，优先使用它的 progressSource（时间驱动）
+      // 即使是 progress-window 模式，也应该用 snap autoplay
+      const baseProgressSource = snapController
+        ? () => snapController.progressSource()
+        : isProgressWindow
+          ? createProgressWindowSource(host, root)
+          : isScrollDriven
+            ? (host.dataset.transitionId === 'home-belief'
+              ? createHeroLinkedScrollProgressSource(host)
+              : createElementScrollProgressSource(host))
+            : null;
       const progressSource = () => {
         const progress = baseProgressSource();
         if (isProgressWindow) syncProgressWindowMetadata(host, progress, semanticWindows);
