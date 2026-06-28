@@ -5,9 +5,105 @@ import {
 } from '../../components/aod-transition.js';
 import { createInkCurtainTransition } from '../../effects/ink-scene-transition.js';
 import { createHandoffReceiver } from './handoff-receiver.js';
+import { createSplitSceneBridge } from './split-scene-bridge.js';
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+const range01 = (value, start, end) => clamp((value - start) / Math.max(0.0001, end - start));
 const smoothStep = (value) => value * value * (3 - 2 * value);
+
+export const AOD_METHOD_PILOT_CONTRACT = Object.freeze({
+  id: 'belief-method',
+  mode: 'progress-window',
+  bridgeType: 'splitSceneBridge',
+  snapPolicy: {
+    allowed: true,
+    target: '#method',
+    tolerancePx: 8
+  },
+  phases: [
+    { id: 'entryInk', start: 0, end: 0.18, required: true },
+    { id: 'scene', start: 0.18, end: 0.42, required: true },
+    { id: 'copyIn', start: 0.22, end: 0.52, required: true },
+    { id: 'copyHold', start: 0.52, end: 0.94, required: true },
+    { id: 'handoff', start: 0.94, end: 1, required: true }
+  ],
+  handoff: {
+    receiver: '#method',
+    targetSection: '#method'
+  }
+});
+
+const METHOD_RECEIVER_TIMING = Object.freeze({
+  start: 0.22,
+  end: 0.52,
+  restoreAt: 1.1,
+  liftPx: 8
+});
+
+function resolveAodPilotPhase(progress) {
+  const p = clamp(progress);
+  if (p < 0.18) return 'entryInk';
+  if (p < 0.42) return 'scene';
+  if (p < 0.52) return 'copyIn';
+  if (p < 0.94) return 'copyHold';
+  return 'handoff';
+}
+
+function syncPilotState(host, section, progress, receiverOpacity = 0, sceneOpacity = 1, inkProgress = 0) {
+  const phase = resolveAodPilotPhase(progress);
+  const bridgeType = progress < 0.28
+    ? 'splitSceneBridge'
+    : receiverOpacity >= 0.05
+      ? 'earlyReceiver'
+      : 'none';
+  const value = clamp(progress).toFixed(4);
+  const receiverValue = clamp(receiverOpacity).toFixed(4);
+  const sceneValue = clamp(sceneOpacity).toFixed(4);
+  const inkValue = clamp(inkProgress).toFixed(4);
+
+  host.dataset.transitionContractId = AOD_METHOD_PILOT_CONTRACT.id;
+  host.dataset.transitionMode = AOD_METHOD_PILOT_CONTRACT.mode;
+  host.dataset.transitionBridgeType = bridgeType;
+  host.dataset.transitionPhase = phase;
+  host.dataset.transitionProgress = value;
+  host.dataset.transitionReceiverOpacity = receiverValue;
+  host.dataset.transitionSceneOpacity = sceneValue;
+  host.dataset.transitionInkProgress = inkValue;
+  host.dataset.transitionPrimaryOwner = receiverOpacity >= 0.35 ? 'method' : 'aod';
+  if (bridgeType === 'splitSceneBridge') {
+    host.dataset.transitionTopOwner = 'belief';
+    host.dataset.transitionBottomOwner = 'aod';
+  } else {
+    delete host.dataset.transitionTopOwner;
+    delete host.dataset.transitionBottomOwner;
+  }
+
+  if (section) {
+    section.dataset.transitionContractId = AOD_METHOD_PILOT_CONTRACT.id;
+    section.dataset.transitionBridgeType = bridgeType;
+    section.dataset.transitionPhase = phase;
+    section.dataset.transitionProgress = value;
+    section.dataset.transitionReceiverOpacity = receiverValue;
+    section.dataset.transitionSceneOpacity = sceneValue;
+    section.dataset.transitionInkProgress = inkValue;
+  }
+}
+
+function clearPilotState(host, section) {
+  [
+    'transitionContractId',
+    'transitionMode',
+    'transitionBridgeType',
+    'transitionPhase',
+    'transitionProgress',
+    'transitionReceiverOpacity',
+    'transitionSceneOpacity',
+    'transitionInkProgress'
+  ].forEach((name) => {
+    delete host.dataset[name];
+    if (section) delete section.dataset[name];
+  });
+}
 
 export function mountHomepageTransition({
   host,
@@ -50,14 +146,36 @@ export function mountHomepageTransition({
 
   const section = host.querySelector('[data-aod-transition]');
   const field = host.querySelector('.aod-transition__field');
+  const aodVisualSource = host.querySelector('.aod-transition__layer-stack') || section;
+  const beliefSource = host.ownerDocument.querySelector('#belief .belief-copy-wrap');
   const { figureVideo } = prepareAodTransition(section, { progress: reduceMotion ? 1 : 0 });
+  const beliefAodBridge = createSplitSceneBridge({
+    host: field,
+    transitionId: AOD_METHOD_PILOT_CONTRACT.id,
+    previous: {
+      kind: 'domProjection',
+      owner: 'belief',
+      element: beliefSource
+    },
+    next: {
+      kind: 'domProjection',
+      owner: 'aod',
+      element: aodVisualSource
+    },
+    direction: 'down',
+    className: 'split-scene-bridge--paper'
+  });
   const methodReceiver = createHandoffReceiver({
     container: field,
     target: handoffTarget,
     sourceSelector: '.method-edition-layout--after-handoff',
-    className: 'homepage-handoff-receiver--method'
+    className: 'homepage-handoff-receiver--method',
+    mode: 'projection'
   });
   const inkCanvas = host.querySelector('[data-aod-ink-canvas]');
+  inkCanvas.dataset.transitionInkSurface = 'true';
+  inkCanvas.dataset.transitionId = AOD_METHOD_PILOT_CONTRACT.id;
+  inkCanvas.dataset.inkKind = 'decorativeInk';
   const inkTransition = reduceMotion ? null : createInkCurtainTransition(inkCanvas, {
     direction: 'bottom-up',
     colorLift: 0.64,
@@ -95,10 +213,19 @@ export function mountHomepageTransition({
     if (destroyed) return;
     const progress = reduceMotion ? 1 : progressSource();
     const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? progress;
-    const inkProgress = smoothStep(clamp(progress));
+    const inkProgress = smoothStep(clamp(progress / 0.18));
+    beliefAodBridge?.update(range01(progress, 0.02, 0.26), {
+      active: progress >= 0.02 && progress <= 0.30
+    });
     syncNavTone(progress);
-    renderAodTransitionProgress(section, progress);
-    methodReceiver?.update(Math.max(progress, handoffProgress), { start: 0.58, end: 0.94, liftPx: 18 });
+    const metrics = renderAodTransitionProgress(section, progress) || {};
+    const receiverOpacity = methodReceiver?.update(
+      Math.max(progress, handoffProgress),
+      METHOD_RECEIVER_TIMING
+    ) ?? 0;
+    inkCanvas.dataset.inkProgress = inkProgress.toFixed(4);
+    inkCanvas.dataset.inkActivePixelRatio = (inkProgress > 0.05 ? inkProgress * 0.06 : 0).toFixed(4);
+    syncPilotState(host, section, progress, receiverOpacity, metrics.sceneOpacity ?? 1, inkProgress);
     inkTransition?.render(inkProgress);
     raf = requestAnimationFrame(render);
   };
@@ -107,8 +234,11 @@ export function mountHomepageTransition({
     waitForAodTransitionMetadata(section).then(() => {
       if (!destroyed) {
         syncNavTone(1);
-        renderAodTransitionProgress(section, 1);
-        methodReceiver?.update(1);
+        const metrics = renderAodTransitionProgress(section, 1) || {};
+        const receiverOpacity = methodReceiver?.update(1, METHOD_RECEIVER_TIMING) ?? 1;
+        inkCanvas.dataset.inkProgress = '1.0000';
+        inkCanvas.dataset.inkActivePixelRatio = '0.0600';
+        syncPilotState(host, section, 1, receiverOpacity, metrics.sceneOpacity ?? 1, 1);
         inkTransition?.render(1);
       }
     });
@@ -121,7 +251,9 @@ export function mountHomepageTransition({
     destroyed = true;
     cancelAnimationFrame(raf);
     figureVideo?.pause?.();
+    beliefAodBridge?.destroy();
     methodReceiver?.destroy();
+    clearPilotState(host, section);
     host.replaceChildren();
     host.classList.remove('homepage-transition', 'homepage-transition--aod');
   };

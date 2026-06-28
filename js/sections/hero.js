@@ -162,6 +162,7 @@ export function initLayeredHero(options = {}) {
   const manifesto = document.querySelector('.manifesto');
   const belief = document.querySelector('[data-hero-belief]');
   const nav = document.querySelector('.site-nav');
+  const navEdgeBlur = document.querySelector('.scroll-edge-blur');
   const introInkCanvas = document.querySelector('[data-hero-intro-ink-canvas]');
   const inkCanvas = document.querySelector('[data-hero-ink-canvas]');
   const exitInkCanvas = document.querySelector('[data-hero-exit-ink-canvas]');
@@ -327,6 +328,7 @@ export function initLayeredHero(options = {}) {
   }
 
   if (nav) gsap.set(nav, { autoAlpha: 0, y: -14, pointerEvents: 'none' });
+  if (navEdgeBlur) gsap.set(navEdgeBlur, { autoAlpha: 0 });
   if (introInkCanvas) gsap.set(introInkCanvas, { autoAlpha: 0 });
   if (inkCanvas) gsap.set(inkCanvas, { autoAlpha: 0 });
   if (exitInkCanvas) gsap.set(exitInkCanvas, { autoAlpha: 0 });
@@ -361,6 +363,7 @@ export function initLayeredHero(options = {}) {
   const setMiddleNearBlurOpacity = middleNearBlur ? gsap.quickSetter(middleNearBlur, 'opacity') : null;
   const setNavOpacity = nav ? gsap.quickSetter(nav, 'opacity') : null;
   const setNavY = nav ? gsap.quickSetter(nav, 'y', 'px') : null;
+  const setNavEdgeBlurOpacity = navEdgeBlur ? gsap.quickSetter(navEdgeBlur, 'opacity') : null;
 
   let renderedProgress = 0;
   let lastApplied = -1;
@@ -718,6 +721,10 @@ export function initLayeredHero(options = {}) {
       setNavY((1 - navReveal) * -14);
       nav.style.visibility = navReveal > 0.01 ? 'visible' : 'hidden';
       nav.style.pointerEvents = navReveal > 0.98 ? 'auto' : 'none';
+    }
+    if (setNavEdgeBlurOpacity) {
+      setNavEdgeBlurOpacity(navReveal);
+      navEdgeBlur.style.visibility = navReveal > 0.01 ? 'visible' : 'hidden';
     }
 
     root.style.setProperty('--hero-progress', p.toFixed(4));

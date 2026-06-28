@@ -1,5 +1,6 @@
 import { createPatternBloomScene } from '../pattern-mirror-stage.js';
 import { createInkSceneTransition } from '../effects/ink-scene-transition.js';
+import { createSplitSceneBridge } from './homepage/split-scene-bridge.js';
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const range01 = (value, start, end) => clamp((value - start) / Math.max(0.001, end - start));
@@ -12,6 +13,16 @@ const SECOND_REVEAL_START = 0.58;
 const SECOND_REVEAL_END = 0.985;
 const BELIEF_PIN_CLASS = 'is-pattern-bloom-pinned';
 const COVER_PRIOR_SCENE_CLASS = 'is-pattern-bloom-covering';
+const HOME_BELIEF_CONTRACT = Object.freeze({
+  id: 'home-belief',
+  bridgeTypes: ['entryInk', 'exitInk'],
+  phases: [
+    { id: 'entryInk', start: 0, end: 0.30 },
+    { id: 'lotusBloom', start: 0.30, end: 0.58 },
+    { id: 'beliefCopy', start: 0.58, end: 0.76 },
+    { id: 'exitInk', start: 0.76, end: 1 }
+  ]
+});
 
 function getCurrentHashId() {
   const hash = window.location.hash || '';
@@ -59,6 +70,7 @@ export function mountPatternBloomTransition({
   host.setAttribute('aria-label', '同野观幂莲花转场');
 
   const beliefStarCanvas = beliefSection?.querySelector('[data-belief-star-field]') || null;
+  const beliefCopy = beliefSection?.querySelector('.belief-copy-wrap') || null;
   const presentationTarget = beliefSection;
   const stage = doc.createElement('div');
   stage.className = 'pattern-bloom-transition__stage';
@@ -74,14 +86,36 @@ export function mountPatternBloomTransition({
   const revealInkCanvas = doc.createElement('canvas');
   revealInkCanvas.className = 'pattern-bloom-transition__reveal-ink';
   revealInkCanvas.setAttribute('aria-hidden', 'true');
+  revealInkCanvas.dataset.transitionInkSurface = 'true';
+  revealInkCanvas.dataset.transitionId = HOME_BELIEF_CONTRACT.id;
+  revealInkCanvas.dataset.inkKind = 'entryInk';
 
   const exitInkCanvas = doc.createElement('canvas');
   exitInkCanvas.className = 'pattern-bloom-transition__exit-ink';
   exitInkCanvas.setAttribute('aria-hidden', 'true');
+  exitInkCanvas.dataset.transitionInkSurface = 'true';
+  exitInkCanvas.dataset.transitionId = HOME_BELIEF_CONTRACT.id;
+  exitInkCanvas.dataset.inkKind = 'exitInk';
 
   stage.append(paper, canvas, exitInkCanvas, revealInkCanvas);
   stage.dataset.transitionGhost = 'pattern-bloom-lotus';
   (doc.body || host).append(stage);
+  const beliefStarBridge = createSplitSceneBridge({
+    host: stage,
+    transitionId: HOME_BELIEF_CONTRACT.id,
+    previous: {
+      kind: 'domProjection',
+      owner: 'belief',
+      element: beliefCopy
+    },
+    next: {
+      kind: 'canvasTexture',
+      owner: 'belief-star',
+      element: beliefStarCanvas
+    },
+    direction: 'down',
+    className: 'split-scene-bridge--belief-star'
+  });
   const revealInkTransition = createInkSceneTransition(revealInkCanvas, {
     targetSrc: '',
     nextSceneElement: canvas,
@@ -182,14 +216,15 @@ export function mountPatternBloomTransition({
     const viewportState = getViewportState();
     const progress = getRawProgress();
     const overlayActive = progress > 0.002 && (progress < 0.999 || viewportState.raw < 1.05);
-    const revealProgress = smoothStep(range01(progress, 0, REVEAL_END));
-    const revealVisibility = revealProgress >= 0.998
-      ? 1
-      : (progress > 0.0001 ? Math.max(revealProgress, 0.003) : 0);
+    const revealProgress = smoothStep(range01(progress, 0, 0.34));
+    const revealVisibility = progress > 0.0001 ? Math.max(revealProgress, 0.18) : 0;
     const canvasRevealed = sceneReady && revealProgress >= 0.998;
     const secondRevealProgress = smoothStep(range01(progress, SECOND_REVEAL_START, SECOND_REVEAL_END));
+    beliefStarBridge?.update(range01(progress, 0.58, 0.86), {
+      active: progress >= 0.58 && progress <= 0.88
+    });
     const topSceneExit = smoothStep(range01(secondRevealProgress, 0.68, 0.98));
-    const beliefPinned = overlayActive && secondRevealProgress > 0.002;
+    const beliefPinned = overlayActive && secondRevealProgress > 0.001;
     const lotusOpacity = 1 - topSceneExit;
     const topSceneOpacity = canvasRevealed && secondRevealProgress < 0.998
       ? Math.min(lotusOpacity, beliefPinned ? 0.18 : 1)
@@ -198,9 +233,17 @@ export function mountPatternBloomTransition({
       ? Math.max(0.86, smoothStep(range01(secondRevealProgress, 0.002, 0.18)))
       : 0;
     const beliefCopyProgress = beliefPinned
-      ? Math.max(0.92, smoothStep(range01(secondRevealProgress, 0.002, 0.16)))
+      ? Math.max(0.35, smoothStep(range01(secondRevealProgress, 0.001, 0.12)))
       : 0;
     const lotusVisible = topSceneOpacity > 0.002;
+    const phase = progress < 0.30
+      ? 'entryInk'
+      : progress < 0.58
+        ? 'lotusBloom'
+        : progress < 0.76
+          ? 'beliefCopy'
+          : 'exitInk';
+    const bridgeType = phase === 'entryInk' ? 'entryInk' : phase === 'exitInk' ? 'exitInk' : 'none';
 
     doc.body?.classList.toggle(COVER_PRIOR_SCENE_CLASS, overlayActive && revealProgress > 0.92);
     setBeliefTransitionState({
@@ -216,6 +259,16 @@ export function mountPatternBloomTransition({
     paper.style.visibility = 'hidden';
     canvas.style.opacity = lotusVisible ? topSceneOpacity.toFixed(4) : '0';
     canvas.style.visibility = lotusVisible ? 'visible' : 'hidden';
+    host.dataset.transitionContractId = HOME_BELIEF_CONTRACT.id;
+    host.dataset.transitionBridgeType = bridgeType;
+    host.dataset.transitionPhase = phase;
+    host.dataset.transitionProgress = progress.toFixed(4);
+    host.dataset.transitionSceneOpacity = Math.max(topSceneOpacity, beliefSceneOpacity).toFixed(4);
+    host.dataset.transitionInkProgress = Math.max(revealProgress, secondRevealProgress).toFixed(4);
+    revealInkCanvas.dataset.inkProgress = revealProgress.toFixed(4);
+    revealInkCanvas.dataset.inkActivePixelRatio = (revealVisibility > 0.18 ? Math.min(revealProgress, 1) * 0.06 : 0).toFixed(4);
+    exitInkCanvas.dataset.inkProgress = secondRevealProgress.toFixed(4);
+    exitInkCanvas.dataset.inkActivePixelRatio = (secondRevealProgress > 0.05 ? Math.min(secondRevealProgress, 1) * 0.06 : 0).toFixed(4);
     revealInkTransition?.render(revealProgress, 0, 0, sceneReady ? revealVisibility : 0);
     exitInkTransition?.render(secondRevealProgress, 0, 0, secondRevealProgress, {
       perlinStrength: 0.40,
@@ -232,6 +285,7 @@ export function mountPatternBloomTransition({
     clearBeliefTransitionState();
     doc.body?.classList.remove(COVER_PRIOR_SCENE_CLASS);
     scene.destroy();
+    beliefStarBridge?.destroy();
     stage.remove();
     host.classList.remove('homepage-transition', 'homepage-transition--pattern-bloom', 'chapter-transition--pattern-bloom');
     if (previousAriaHidden === null) {

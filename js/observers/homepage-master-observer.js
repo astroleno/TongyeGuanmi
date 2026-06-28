@@ -152,6 +152,8 @@ export function startHomepageMasterObserver({ root = document, mode = 'calibrate
     const maxScrollY = Math.max(1, doc.documentElement.scrollHeight - win.innerHeight);
     const section = pickVisibleElement(collectSections(doc), win);
     const transition = pickVisibleElement(collectTransitions(doc), win);
+    const activePhase = transition?.dataset?.transitionPhase || 'none';
+    const bridgeType = transition?.dataset?.transitionBridgeType || 'none';
     const transitionLabel = transition
       ? `${transition.dataset.transitionId || 'transition'}:${transition.dataset.transitionModule || 'unknown'}`
       : 'none';
@@ -161,6 +163,8 @@ export function startHomepageMasterObserver({ root = document, mode = 'calibrate
 
     setField(fields, 'section', summarizeElement(section, 'none'));
     setField(fields, 'transition', transitionLabel);
+    setField(fields, 'phase', activePhase);
+    setField(fields, 'bridge', bridgeType);
     setField(fields, 'scroll', `${Math.round(scrollY)}px / ${(clamp(scrollY / maxScrollY) * 100).toFixed(1)}%`);
     setField(fields, 'direction', direction);
     setField(fields, 'component', component);

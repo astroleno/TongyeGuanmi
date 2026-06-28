@@ -188,8 +188,13 @@ export function createCraneTransitionScene(stage) {
 
   function renderRawProgress(rawProgress) {
     const visualProgress = acceleratedProgress(rawProgress);
+    const sceneOpacity = 1 - smoothStep(range01(visualProgress, 0.70, 0.94));
     renderScene(visualProgress, parallaxMouse.x, parallaxMouse.y);
     seekVideos(visualProgress);
+    return {
+      visualProgress: Number(visualProgress.toFixed(4)),
+      sceneOpacity: Number(sceneOpacity.toFixed(4))
+    };
   }
 
   function tweenToRawProgress(rawProgress) {

@@ -22,6 +22,8 @@ const DEFAULT_CONFIG = {
 };
 
 const clamp = (value, min = 0, max = 1) => Math.min(Math.max(value, min), max);
+const smoothStep = (value) => value * value * (3 - 2 * value);
+const range01 = (value, start, end) => clamp((value - start) / Math.max(0.0001, end - start));
 
 function readNumberAttribute(element, name, fallback) {
   const value = Number(element?.dataset?.[name]);
@@ -387,6 +389,7 @@ export function createTtgTransitionScene(stage, options = {}) {
   function renderRawProgress(rawProgress, { syncVideo = true } = {}) {
     const raw = stableProgress(rawProgress);
     const visualProgress = acceleratedProgress(raw);
+    const sceneOpacity = 1 - smoothStep(range01(visualProgress, 0.70, 0.94));
 
     playhead.raw = raw;
     setFigureProgress(visualProgress);
@@ -396,6 +399,10 @@ export function createTtgTransitionScene(stage, options = {}) {
     renderScene(progressState);
 
     if (syncVideo) seekFigureVideosToProgress(raw);
+    return {
+      visualProgress: Number(visualProgress.toFixed(4)),
+      sceneOpacity: Number(sceneOpacity.toFixed(4))
+    };
   }
 
   function renderCurrentScene() {

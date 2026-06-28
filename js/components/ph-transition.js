@@ -16,6 +16,10 @@ function smoothStep(value) {
   return p * p * (3 - 2 * p);
 }
 
+function range01(value, start, end) {
+  return clamp((value - start) / Math.max(0.0001, end - start));
+}
+
 function acceleratedProgress(rawProgress) {
   const p = clamp(rawProgress);
   return clamp(0.78 * p + 0.22 * p * p);
@@ -35,11 +39,12 @@ export function preparePhTransition(stage, { progress = 0 } = {}) {
 }
 
 export function renderPhTransitionProgress(stage, rawProgress, options = {}) {
-  if (!stage) return;
+  if (!stage) return null;
 
   const { alphaVideo } = getPhTransitionElements(stage);
   const p = acceleratedProgress(rawProgress);
   const eased = smoothStep(p);
+  const sceneOpacity = 1 - smoothStep(range01(p, 0.70, 0.94));
 
   stage.style.setProperty('--ph-progress', p.toFixed(4));
   stage.style.setProperty('--ph-bg-parallax-y', `${(eased * BG_PARALLAX_Y).toFixed(2)}px`);
@@ -51,6 +56,10 @@ export function renderPhTransitionProgress(stage, rawProgress, options = {}) {
     endPaddingSeconds: options.endPaddingSeconds ?? 0.02,
     minDeltaSeconds: options.minDeltaSeconds ?? 0.016
   });
+  return {
+    visualProgress: Number(p.toFixed(4)),
+    sceneOpacity: Number(sceneOpacity.toFixed(4))
+  };
 }
 
 export function waitForPhTransitionMetadata(stage, options = {}) {

@@ -1,11 +1,20 @@
 import { createFigure2TransitionController } from '../../components/figure2-transition.js';
 import { createHandoffReceiver } from './handoff-receiver.js';
+import { createSplitSceneBridge } from './split-scene-bridge.js';
 
 const FIGURE2_PAPER_GROUND = '#ece8dc';
 const FIGURE2_PAPER_GROUND_SOFT = '#f6f2e8';
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const range01 = (value, start, end) => clamp((value - start) / Math.max(0.0001, end - start));
 const smoothStep = (value) => value * value * (3 - 2 * value);
+
+function resolveFigure2Phase(transitionProgress, postProgress, receiverOpacity) {
+  if (receiverOpacity >= 0.35) return 'brandReceiver';
+  if (postProgress > 0.001) return 'proofCopy';
+  if (transitionProgress < 0.05) return 'entry';
+  if (transitionProgress < 0.72) return 'exitInk';
+  return 'handoff';
+}
 
 function findTransitionTargetScene(host) {
   const targetSceneId = host?.dataset?.transitionTo;
@@ -84,17 +93,14 @@ function createProofScrollOverlay(host) {
   overlay.dataset.transitionGhost = 'method-proof-bridge';
   overlay.setAttribute('aria-hidden', 'true');
 
-  const marker = host.ownerDocument.createComment('method proof overlay marker');
-  const originalParent = sourceProof.parentNode;
-  const originalNextSibling = sourceProof.nextSibling;
-  const originalClass = sourceProof.getAttribute('class');
-  const originalAriaLabel = sourceProof.getAttribute('aria-label');
-
-  originalParent.insertBefore(marker, sourceProof);
-  sourceProof.classList.add('figure2-proof-scroll__content');
-  sourceProof.classList.remove('quiet-proof', 'quiet-proof--source');
-  sourceProof.removeAttribute('aria-label');
-  overlay.append(sourceProof);
+  const proofProjection = sourceProof.cloneNode(false);
+  proofProjection.innerHTML = sourceProof.innerHTML;
+  proofProjection.classList.add('figure2-proof-scroll__content');
+  proofProjection.classList.remove('quiet-proof', 'quiet-proof--source');
+  proofProjection.dataset.figure2ProofProjectionClone = 'true';
+  proofProjection.removeAttribute('id');
+  proofProjection.removeAttribute('aria-label');
+  overlay.append(proofProjection);
   field.append(overlay);
 
   let disposed = false;
@@ -117,24 +123,6 @@ function createProofScrollOverlay(host) {
     destroy() {
       if (disposed) return;
       disposed = true;
-      if (marker.parentNode) {
-        marker.parentNode.insertBefore(sourceProof, marker);
-        marker.remove();
-      } else if (originalNextSibling?.parentNode === originalParent) {
-        originalParent.insertBefore(sourceProof, originalNextSibling);
-      } else {
-        originalParent.append(sourceProof);
-      }
-      if (originalClass === null) {
-        sourceProof.removeAttribute('class');
-      } else {
-        sourceProof.setAttribute('class', originalClass);
-      }
-      if (originalAriaLabel === null) {
-        sourceProof.removeAttribute('aria-label');
-      } else {
-        sourceProof.setAttribute('aria-label', originalAriaLabel);
-      }
       overlay.remove();
     }
   };
@@ -202,13 +190,53 @@ export function mountHomepageTransition({
 
   const section = host.querySelector('[data-figure2-transition]');
   const field = host.querySelector('.figure2-field');
+  const figure2VisualSource = host.querySelector('.figure2-arch-stack') || section;
+  const methodSource = host.ownerDocument.querySelector('#method .chapter-intro--method') || host.ownerDocument.querySelector('#method');
+  const brandSource = handoffTarget?.querySelector?.('.brand-definition-grid') || host.ownerDocument.querySelector('#brand .brand-definition-grid');
+  const inkCanvas = host.querySelector('[data-figure2-ink-canvas]');
+  inkCanvas.dataset.transitionInkSurface = 'true';
+  inkCanvas.dataset.transitionId = 'method-tooling__method-proof';
+  inkCanvas.dataset.inkKind = 'decorativeInk';
   const proofSceneTexture = createProofSceneTexture(host);
   const proofScrollOverlay = createProofScrollOverlay(host);
+  const methodFigure2Bridge = createSplitSceneBridge({
+    host: field,
+    transitionId: 'method-tooling__method-proof',
+    previous: {
+      kind: 'domProjection',
+      owner: 'method',
+      element: methodSource
+    },
+    next: {
+      kind: 'domProjection',
+      owner: 'figure2',
+      element: figure2VisualSource
+    },
+    direction: 'down',
+    className: 'split-scene-bridge--paper'
+  });
+  const figure2BrandBridge = createSplitSceneBridge({
+    host: field,
+    transitionId: 'method-tooling__method-proof',
+    previous: {
+      kind: 'domProjection',
+      owner: 'figure2',
+      element: figure2VisualSource
+    },
+    next: {
+      kind: 'domProjection',
+      owner: 'brand',
+      element: brandSource
+    },
+    direction: 'down',
+    className: 'split-scene-bridge--paper'
+  });
   const brandReceiver = createHandoffReceiver({
     container: field,
     target: handoffTarget,
     sourceSelector: '.brand-definition-grid',
-    className: 'homepage-handoff-receiver--brand'
+    className: 'homepage-handoff-receiver--brand',
+    mode: 'projection'
   });
   const controller = createFigure2TransitionController(section, {
     root: host,
@@ -233,8 +261,19 @@ export function mountHomepageTransition({
         ? postProgressSource?.() ?? 0
         : 0;
     const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? postProgress;
+    methodFigure2Bridge?.update(range01(progress, 0.58, 0.74), {
+      active: progress >= 0.58 && progress <= 0.76
+    });
+    figure2BrandBridge?.update(range01(progress, 0.84, 0.99), {
+      active: progress >= 0.82 && progress <= 0.995
+    });
     proofScrollOverlay?.update({ transitionProgress, postProgress, handoffProgress });
-    brandReceiver?.update(Math.max(postProgress, handoffProgress), { start: 0.58, end: 0.96, liftPx: 22 });
+    const brandReceiverOpacity = brandReceiver?.update(Math.max(postProgress, handoffProgress), {
+      start: 0.58,
+      end: 0.96,
+      restoreAt: 0.98,
+      liftPx: 22
+    }) ?? 0;
     proofSceneTexture?.update();
 
     if (reduceMotion) {
@@ -254,10 +293,34 @@ export function mountHomepageTransition({
       videoPlaybackStage = 'playing';
     }
 
-    controller.renderStaticState({
+    const figureMetrics = controller.renderStaticState({
       introProgress,
       transitionProgress
-    });
+    }) || {};
+
+    inkCanvas.dataset.inkProgress = String(figureMetrics.inkProgress ?? 0);
+    inkCanvas.dataset.inkActivePixelRatio = (Number(figureMetrics.inkProgress ?? 0) > 0.05
+      ? Math.min(Number(figureMetrics.inkProgress ?? 0), 1) * 0.06
+      : 0).toFixed(4);
+    host.dataset.transitionContractId = 'method-tooling__method-proof';
+    host.dataset.transitionBridgeType = (progress >= 0.58 && progress <= 0.76) || progress > 0.82 ? 'splitSceneBridge' : 'none';
+    host.dataset.transitionPhase = resolveFigure2Phase(transitionProgress, postProgress, brandReceiverOpacity);
+    host.dataset.transitionProgress = transitionProgress.toFixed(4);
+    host.dataset.transitionReceiverOpacity = brandReceiverOpacity.toFixed(4);
+    host.dataset.transitionSceneOpacity = String(figureMetrics.sceneOpacity ?? 1);
+    host.dataset.transitionInkProgress = String(figureMetrics.inkProgress ?? 0);
+    host.dataset.transitionForegroundOpacity = String(figureMetrics.foregroundOpacity ?? 1);
+    host.dataset.transitionPrimaryOwner = progress > 0.70 ? 'brand' : 'figure2';
+    if (progress >= 0.58 && progress <= 0.76) {
+      host.dataset.transitionTopOwner = 'method';
+      host.dataset.transitionBottomOwner = 'figure2';
+    } else if (progress > 0.82) {
+      host.dataset.transitionTopOwner = 'figure2';
+      host.dataset.transitionBottomOwner = 'brand';
+    } else {
+      delete host.dataset.transitionTopOwner;
+      delete host.dataset.transitionBottomOwner;
+    }
 
     raf = requestAnimationFrame(render);
   };
@@ -273,6 +336,8 @@ export function mountHomepageTransition({
     controller.destroy();
     proofSceneTexture?.destroy();
     proofScrollOverlay?.destroy();
+    methodFigure2Bridge?.destroy();
+    figure2BrandBridge?.destroy();
     brandReceiver?.destroy();
     host.replaceChildren();
     host.classList.remove('homepage-transition', 'homepage-transition--figure2', 'figure2-alpha-video', 'figure2-multiply-video');

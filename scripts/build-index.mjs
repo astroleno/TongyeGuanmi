@@ -1,7 +1,14 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chapterTransitions, contentSections, handoffs, sectionEntryPolicies } from '../src/section-manifest.mjs';
+import {
+  chapterTransitions,
+  contentSections,
+  handoffs,
+  homepageEndpointSpec,
+  sceneTransitionContracts,
+  sectionEntryPolicies
+} from '../src/section-manifest.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir = path.join(rootDir, 'src');
@@ -42,6 +49,23 @@ function setAttribute(attrs, name, value) {
     return attrs.replace(pattern, ` ${name}="${escapedValue}"`);
   }
   return `${attrs} ${name}="${escapedValue}"`;
+}
+
+function formatPhaseSpec(phases = []) {
+  return phases
+    .map((phase) => `${phase.id}:${phase.start}-${phase.end}${phase.required ? ':required' : ''}`)
+    .join('|');
+}
+
+function formatWindowSpec(windows = []) {
+  return windows
+    .map((windowSpec) => {
+      const owner = windowSpec.bridge
+        ? `${windowSpec.bridge}:${windowSpec.topOwner || windowSpec.primaryOwner || ''}>${windowSpec.bottomOwner || windowSpec.receiverOwner || ''}:${windowSpec.commitOwner || ''}`
+        : `owner:${windowSpec.owner || ''}`;
+      return `${windowSpec.name}:${windowSpec.from}-${windowSpec.to}:${owner}:p${windowSpec.priority || 0}`;
+    })
+    .join('|');
 }
 
 function getHandoffForTransition(transitionId) {
@@ -96,8 +120,30 @@ function injectTransitionAttributes(html, transition) {
     attrs = setAttribute(attrs, 'data-transition-module', transition.module);
     attrs = setAttribute(attrs, 'data-transition-variant', transition.variant);
     if (transition.drive) attrs = setAttribute(attrs, 'data-transition-drive', transition.drive);
+    attrs = setAttribute(attrs, 'data-transition-runtime-mode', transition.runtimeMode || 'legacy-snap');
+    if (transition.progressStartAnchor) attrs = setAttribute(attrs, 'data-transition-progress-start-anchor', transition.progressStartAnchor);
+    if (transition.progressEndAnchor) attrs = setAttribute(attrs, 'data-transition-progress-end-anchor', transition.progressEndAnchor);
+    if (Number.isFinite(transition.startOffsetVh)) attrs = setAttribute(attrs, 'data-transition-start-offset-vh', transition.startOffsetVh);
+    if (Number.isFinite(transition.endOffsetVh)) attrs = setAttribute(attrs, 'data-transition-end-offset-vh', transition.endOffsetVh);
+    if (transition.windows?.length) attrs = setAttribute(attrs, 'data-transition-window-spec', formatWindowSpec(transition.windows));
     if (transition.handoffTarget) attrs = setAttribute(attrs, 'data-transition-handoff-target', transition.handoffTarget);
     if (transition.handoffPhase) attrs = setAttribute(attrs, 'data-transition-handoff-phase', transition.handoffPhase);
+    if (transition.preserveEntry) attrs = setAttribute(attrs, 'data-transition-preserve-entry', 'true');
+    if (transition.contract) {
+      attrs = setAttribute(attrs, 'data-transition-contract-id', transition.contract.id);
+      attrs = setAttribute(attrs, 'data-transition-mode', transition.contract.mode);
+      attrs = setAttribute(attrs, 'data-transition-bridge-type', transition.contract.bridgeType);
+      attrs = setAttribute(attrs, 'data-transition-phase-spec', formatPhaseSpec(transition.contract.phases));
+      if (transition.contract.snapPolicy?.target) {
+        attrs = setAttribute(attrs, 'data-transition-snap-target', transition.contract.snapPolicy.target);
+      }
+      if (Number.isFinite(transition.contract.snapPolicy?.tolerancePx)) {
+        attrs = setAttribute(attrs, 'data-transition-snap-tolerance-px', transition.contract.snapPolicy.tolerancePx);
+      }
+      if (transition.contract.handoff?.receiver) {
+        attrs = setAttribute(attrs, 'data-transition-receiver', transition.contract.handoff.receiver);
+      }
+    }
     const handoff = getHandoffForTransition(transition.id);
     if (handoff) {
       attrs = setAttribute(attrs, 'data-handoff-id', handoff.id);
@@ -125,6 +171,59 @@ function injectTransitionAttributes(html, transition) {
   return nextHtml;
 }
 
+function injectSceneTransitionContractAttributes(html, contract) {
+  const divOpenPattern = /<div\b[^>]*>/g;
+  let didInject = false;
+
+  const nextHtml = html.replace(divOpenPattern, (tag) => {
+    if (didInject) return tag;
+
+    let attrs = tag.slice('<div'.length, -1);
+    if (!hasClass(attrs, 'scene-transition')) return tag;
+    if (getAttribute(attrs, 'data-transition-id') !== contract.id) return tag;
+
+    attrs = setAttribute(attrs, 'data-transition-contract-id', contract.id);
+    attrs = setAttribute(attrs, 'data-transition-mode', contract.mode);
+    attrs = setAttribute(attrs, 'data-transition-runtime-mode', contract.runtimeMode || contract.mode || 'stage-playback');
+    attrs = setAttribute(attrs, 'data-transition-bridge-type', contract.bridgeType);
+    attrs = setAttribute(attrs, 'data-transition-phase-spec', formatPhaseSpec(contract.phases));
+    if (contract.progressStartAnchor) attrs = setAttribute(attrs, 'data-transition-progress-start-anchor', contract.progressStartAnchor);
+    if (contract.progressEndAnchor) attrs = setAttribute(attrs, 'data-transition-progress-end-anchor', contract.progressEndAnchor);
+    if (Number.isFinite(contract.startOffsetVh)) attrs = setAttribute(attrs, 'data-transition-start-offset-vh', contract.startOffsetVh);
+    if (Number.isFinite(contract.endOffsetVh)) attrs = setAttribute(attrs, 'data-transition-end-offset-vh', contract.endOffsetVh);
+    if (contract.windows?.length) attrs = setAttribute(attrs, 'data-transition-window-spec', formatWindowSpec(contract.windows));
+    if (contract.handoff?.receiver) {
+      attrs = setAttribute(attrs, 'data-transition-receiver', contract.handoff.receiver);
+    }
+    didInject = true;
+    return `<div${attrs}>`;
+  });
+
+  if (!didInject) {
+    throw new Error(`Unable to find scene transition contract target ${contract.id}`);
+  }
+
+  return nextHtml;
+}
+
+function injectEndpointSpecAttributes(html) {
+  const htmlOpenPattern = /<html\b[^>]*>/;
+  if (!htmlOpenPattern.test(html)) {
+    throw new Error('Unable to inject homepage endpoint spec: missing <html> tag');
+  }
+
+  return html.replace(htmlOpenPattern, (tag) => {
+    let attrs = tag.slice('<html'.length, -1);
+    attrs = setAttribute(attrs, 'data-homepage-endpoint-mode', homepageEndpointSpec.mode);
+    attrs = setAttribute(attrs, 'data-homepage-endpoint-snap-target', homepageEndpointSpec.snapTarget);
+    attrs = setAttribute(attrs, 'data-homepage-endpoint-footer-min', homepageEndpointSpec.footerVisibleRatioMin ?? '');
+    attrs = setAttribute(attrs, 'data-homepage-endpoint-footer-max', homepageEndpointSpec.footerVisibleRatioMax ?? '');
+    attrs = setAttribute(attrs, 'data-homepage-endpoint-tolerance-px', homepageEndpointSpec.tolerancePx ?? '');
+    attrs = setAttribute(attrs, 'data-homepage-endpoint-approval-source', homepageEndpointSpec.approvalSource);
+    return `<html${attrs}>`;
+  });
+}
+
 function injectContractAttributes(html) {
   let nextHtml = html;
 
@@ -135,6 +234,12 @@ function injectContractAttributes(html) {
   chapterTransitions.forEach((transition) => {
     nextHtml = injectTransitionAttributes(nextHtml, transition);
   });
+
+  sceneTransitionContracts.forEach((contract) => {
+    nextHtml = injectSceneTransitionContractAttributes(nextHtml, contract);
+  });
+
+  nextHtml = injectEndpointSpecAttributes(nextHtml);
 
   return nextHtml;
 }

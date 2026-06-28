@@ -110,22 +110,30 @@ function setLayerProgress(section, progress, config) {
     section.style.setProperty(`--aod-method-item-${index}`, itemProgress.toFixed(4));
     section.style.setProperty(`--aod-method-y-${index}`, formatPx((1 - itemProgress) * 18));
   }
+
+  return {
+    visualProgress: Number(p.toFixed(4)),
+    sceneOpacity: Number(backgroundFade.toFixed(4)),
+    paperSolidOpacity: Number(paperSolid.toFixed(4)),
+    methodEnter: Number(methodEnter.toFixed(4))
+  };
 }
 
 export function renderAodTransitionProgress(section, rawProgress, options = {}) {
-  if (!section) return;
+  if (!section) return null;
 
   const { figureVideo } = getAodTransitionElements(section);
   const config = readAodTransitionConfig(section, options);
   const video = options.figureVideo ?? figureVideo;
   const visualProgress = acceleratedProgress(rawProgress);
 
-  setLayerProgress(section, visualProgress, config);
+  const metrics = setLayerProgress(section, visualProgress, config);
   seekVideoToProgress(video, visualProgress, {
     fallbackSeconds: config.videoDurationFallback,
     endPaddingSeconds: options.endPaddingSeconds ?? 0.02,
     minDeltaSeconds: options.minDeltaSeconds ?? 0.016
   });
+  return metrics;
 }
 
 export function prepareAodTransition(section, options = {}) {

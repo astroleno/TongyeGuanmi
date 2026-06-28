@@ -47,22 +47,27 @@ function setComponentProgress(section, progress) {
   section.style.setProperty('--figure3-backdrop-opacity', (1 - backdropSettle * 0.46).toFixed(4));
   section.style.setProperty('--figure3-backdrop-scale', (1.06 + backdropSettle * 0.08).toFixed(4));
   section.style.setProperty('--figure3-video-scale', (1.004 + p * 0.052).toFixed(4));
+  return {
+    visualProgress: Number(p.toFixed(4)),
+    sceneOpacity: Number(videoOpacity.toFixed(4))
+  };
 }
 
 export function renderFigure3TransitionProgress(section, rawProgress, options = {}) {
-  if (!section) return;
+  if (!section) return null;
 
   const { alphaVideo } = getFigure3TransitionElements(section);
   const config = readFigure3TransitionConfig(section, options);
   const video = options.alphaVideo ?? alphaVideo;
   const visualProgress = acceleratedProgress(rawProgress);
 
-  setComponentProgress(section, visualProgress);
+  const metrics = setComponentProgress(section, visualProgress);
   seekVideoToProgress(video, visualProgress, {
     fallbackSeconds: config.videoDurationFallback,
     endPaddingSeconds: options.endPaddingSeconds ?? 0.02,
     minDeltaSeconds: options.minDeltaSeconds ?? 0.016
   });
+  return metrics;
 }
 
 export function prepareFigure3Transition(section, options = {}) {

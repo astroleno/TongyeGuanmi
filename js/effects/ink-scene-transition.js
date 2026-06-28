@@ -3,6 +3,7 @@ const smoothStep = (value) => value * value * (3 - 2 * value);
 
 export function createInkCurtainTransition(canvas, options = {}) {
     if (!canvas) return null;
+    canvas.dataset.inkRole = options.role || 'decorative';
     const colorLift = clamp(options.colorLift ?? 0.32, 0, 1);
     const progressSpan = Math.max(0.01, options.progressSpan || 1);
     const direction = options.direction === 'top-down' ? 1 : 0;
@@ -16,6 +17,7 @@ export function createInkCurtainTransition(canvas, options = {}) {
       depth: false,
       stencil: false,
       premultipliedAlpha: true,
+      preserveDrawingBuffer: true,
       powerPreference: 'high-performance'
     });
     if (!gl) return null;
@@ -261,6 +263,7 @@ export function createInkSceneTransition(canvas, options = {}) {
       depth: false,
       stencil: false,
       premultipliedAlpha: true,
+      preserveDrawingBuffer: true,
       powerPreference: 'high-performance'
     });
     if (!gl) return null;

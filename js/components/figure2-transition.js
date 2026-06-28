@@ -1186,6 +1186,12 @@ export function createFigure2TransitionController(section, options = {}) {
     progressState.value = stableProgress(transitionProgress);
     progressState.target = stableProgress(transitionProgress);
     renderScene(progressState.value, 0, 0);
+    return {
+      inkProgress: getInkProgress(progressState.value),
+      foregroundOpacity: getForegroundOpacity(progressState.value),
+      sceneOpacity: 1,
+      figureProgress: progressState.value
+    };
   }
 
   function destroy() {

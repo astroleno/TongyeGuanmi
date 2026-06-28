@@ -11,6 +11,7 @@ const SCROLL_DRIVEN_MODULES = new Set([]);
 const HANDOFF_AFTER_PLAYBACK = 'after-playback';
 const HANDOFF_POST_SCROLL = 'post-scroll';
 const REDUCED_MOTION_CLASS = 'homepage-transition--reduced-motion';
+const RUNTIME_PROGRESS_WINDOW = 'progress-window';
 
 const DEFAULT_PLAY_MS = 1900;
 const SNAP_VIEWPORT_HEIGHT_VAR = '--homepage-transition-snap-height';
@@ -152,6 +153,84 @@ function createHeroLinkedScrollProgressSource(element) {
 
     return clamp(0.50 + ((scrollY - heroRevealEnd) / Math.max(1, transitionEnd - heroRevealEnd)) * 0.50);
   };
+}
+
+function resolveAnchor(root, selector, fallback) {
+  if (!selector) return fallback;
+  try {
+    return root.querySelector?.(selector) || document.querySelector(selector) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function createProgressWindowSource(host, root = document) {
+  const startAnchor = resolveAnchor(root, host.dataset.transitionProgressStartAnchor, host);
+  const endAnchor = resolveAnchor(root, host.dataset.transitionProgressEndAnchor, host);
+  const startOffsetVh = parseFiniteNumber(host.dataset.transitionStartOffsetVh, 0);
+  const endOffsetVh = parseFiniteNumber(host.dataset.transitionEndOffsetVh, 0);
+
+  return () => {
+    const viewportHeight = Math.max(1, window.innerHeight || 1);
+    const startY = getDocumentTop(startAnchor) + startOffsetVh * viewportHeight;
+    const endY = getDocumentTop(endAnchor) + endOffsetVh * viewportHeight;
+    return clamp((getScrollY() - startY) / Math.max(1, endY - startY));
+  };
+}
+
+function parseWindowSpec(value = '') {
+  return String(value || '')
+    .split('|')
+    .filter(Boolean)
+    .map((entry) => {
+      const parts = entry.split(':');
+      const [from, to] = String(parts[1] || '0-0').split('-').map(Number);
+      const kind = parts[2] || '';
+      const priorityPart = parts.find((part) => /^p\d+/.test(part));
+      const base = {
+        name: parts[0] || '',
+        from: Number.isFinite(from) ? from : 0,
+        to: Number.isFinite(to) ? to : 0,
+        priority: priorityPart ? Number(priorityPart.slice(1)) || 0 : 0
+      };
+      if (kind === 'owner') {
+        return { ...base, owner: parts[3] || '' };
+      }
+      const [topOwner, bottomOwner] = String(parts[3] || '').split('>');
+      return {
+        ...base,
+        bridge: kind,
+        topOwner: topOwner || '',
+        bottomOwner: bottomOwner || '',
+        commitOwner: parts[4] || ''
+      };
+    });
+}
+
+function syncProgressWindowMetadata(host, progress, windows) {
+  if (!host || !windows?.length) return;
+  const active = windows
+    .filter((windowSpec) => progress >= windowSpec.from && progress <= windowSpec.to)
+    .sort((a, b) => b.priority - a.priority || (b.to - b.from) - (a.to - a.from))[0] || null;
+
+  host.dataset.transitionCurrentWindow = active?.name || 'none';
+  if (!active) {
+    delete host.dataset.transitionPrimaryOwner;
+    delete host.dataset.transitionTopOwner;
+    delete host.dataset.transitionBottomOwner;
+    return;
+  }
+
+  if (active.bridge) {
+    host.dataset.transitionBridgeType = active.bridge;
+    host.dataset.transitionTopOwner = active.topOwner || '';
+    host.dataset.transitionBottomOwner = active.bottomOwner || '';
+    host.dataset.transitionPrimaryOwner = active.commitOwner || active.bottomOwner || active.topOwner || '';
+  } else {
+    host.dataset.transitionPrimaryOwner = active.owner || '';
+    delete host.dataset.transitionTopOwner;
+    delete host.dataset.transitionBottomOwner;
+  }
 }
 
 function getScrollRuntimeLenis(scrollRuntime) {
@@ -848,13 +927,23 @@ export async function initHomepageTransitions({
     }
 
     try {
-      const isScrollDriven = host.dataset.transitionDrive === 'scroll' || SCROLL_DRIVEN_MODULES.has(moduleName);
+      const runtimeMode = host.dataset.transitionRuntimeMode || 'legacy-snap';
+      const isProgressWindow = runtimeMode === RUNTIME_PROGRESS_WINDOW;
+      const isScrollDriven = isProgressWindow || host.dataset.transitionDrive === 'scroll' || SCROLL_DRIVEN_MODULES.has(moduleName);
       const snapController = isScrollDriven ? null : snapCoordinator.createController(host);
-      const progressSource = isScrollDriven
-        ? (host.dataset.transitionId === 'home-belief'
-          ? createHeroLinkedScrollProgressSource(host)
-          : createElementScrollProgressSource(host))
-        : () => snapController.progressSource();
+      const semanticWindows = parseWindowSpec(host.dataset.transitionWindowSpec);
+      const baseProgressSource = isProgressWindow
+        ? createProgressWindowSource(host, root)
+        : isScrollDriven
+          ? (host.dataset.transitionId === 'home-belief'
+            ? createHeroLinkedScrollProgressSource(host)
+            : createElementScrollProgressSource(host))
+          : () => snapController.progressSource();
+      const progressSource = () => {
+        const progress = baseProgressSource();
+        if (isProgressWindow) syncProgressWindowMetadata(host, progress, semanticWindows);
+        return progress;
+      };
       const handoffTarget = resolveHandoffTarget(root, host);
       const handoffProgressSource = snapController?.handoffPhase === HANDOFF_POST_SCROLL
         ? snapController.postProgressSource.bind(snapController)

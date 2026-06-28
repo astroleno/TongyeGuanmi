@@ -14,6 +14,123 @@
   will-change: opacity, transform, filter;
 }
 
+.homepage-transition-ink {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.homepage-handoff-receiver {
+  z-index: 26;
+}
+
+.split-scene-bridge {
+  --split-progress: 0;
+  --split-edge-y: 50%;
+  --split-feather: 9%;
+  position: absolute;
+  inset: -1px 0;
+  z-index: 24;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  isolation: isolate;
+  contain: layout paint;
+}
+
+.split-scene-bridge[data-split-active="true"],
+.split-scene-bridge[data-split-viewport-mount="true"] {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100svh;
+  min-height: 100svh;
+}
+
+.homepage-transition--snapped .split-scene-bridge,
+.homepage-transition--playing .split-scene-bridge {
+  position: fixed;
+  inset: 0;
+  min-height: 100svh;
+}
+
+.split-scene-bridge__layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: stretch;
+  background: var(--transition-seam-color, #ede4d2);
+  will-change: clip-path;
+}
+
+.split-scene-bridge__layer--previous {
+  z-index: 1;
+  clip-path: inset(0 0 calc(100% - var(--split-edge-y) + var(--split-feather) * .35) 0);
+}
+
+.split-scene-bridge__layer--next {
+  z-index: 2;
+  clip-path: inset(calc(var(--split-edge-y) - var(--split-feather) * .35) 0 0 0);
+}
+
+.split-scene-bridge__projection-content,
+.split-scene-bridge__media,
+.split-scene-bridge__empty-projection {
+  width: 100%;
+  min-height: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  filter: none !important;
+  pointer-events: none;
+}
+
+.split-scene-bridge__projection-content {
+  display: grid;
+  align-items: center;
+}
+
+.split-scene-bridge__projection-content .reveal,
+.split-scene-bridge__projection-content .is-visible {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+.split-scene-bridge__ink {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  mix-blend-mode: multiply;
+  opacity: .86;
+  pointer-events: none;
+}
+
+.split-scene-bridge--paper .split-scene-bridge__layer--next,
+.split-scene-bridge--paper-to-paper .split-scene-bridge__layer {
+  --paper-ink: #252719;
+  --paper-muted: rgba(37, 39, 25, .66);
+  --paper-soft: rgba(37, 39, 25, .48);
+  --paper-rule: rgba(37, 39, 25, .16);
+  --paper-accent: #786329;
+  color: var(--paper-ink);
+  background:
+    linear-gradient(180deg, rgba(237, 228, 210, .10), rgba(237, 228, 210, .88) 42%, rgba(237, 228, 210, .98)),
+    url("../../assets/aod-paper-bg.png") center top / 1672px auto repeat-y,
+    #ede4d2;
+}
+
 .homepage-handoff-receiver__content {
   pointer-events: none;
   opacity: 1 !important;
@@ -44,6 +161,13 @@
     linear-gradient(180deg, rgba(237, 228, 210, .12), rgba(237, 228, 210, .82) 34%, rgba(237, 228, 210, .98) 100%),
     url("../../assets/aod-paper-bg.png") center top / 1672px auto repeat-y,
     #ede4d2;
+}
+
+.homepage-transition--aod.homepage-transition--snapped .homepage-handoff-receiver--method,
+.homepage-transition--aod.homepage-transition--playing .homepage-handoff-receiver--method {
+  position: fixed;
+  inset: 0;
+  min-height: 100svh;
 }
 
 .homepage-handoff-receiver--method .homepage-handoff-receiver__content {
@@ -96,6 +220,28 @@
 .homepage-handoff-receiver--brand .homepage-handoff-receiver__content {
   width: min(1120px, 70vw);
   padding-block: clamp(30px, 4.5vw, 68px);
+  transform: translate3d(0, 0, 0);
+}
+
+.homepage-transition--figure3 .homepage-handoff-receiver--services {
+  --paper-ink: #252719;
+  --paper-muted: rgba(37, 39, 25, .66);
+  --paper-soft: rgba(37, 39, 25, .48);
+  --paper-rule: rgba(37, 39, 25, .16);
+  --paper-accent: #786329;
+  z-index: 24;
+  display: grid;
+  align-items: center;
+  color: var(--paper-ink);
+  background:
+    linear-gradient(180deg, rgba(237, 228, 210, .12), rgba(237, 228, 210, .92)),
+    url("../../assets/aod-paper-bg.png") center top / 1672px auto repeat-y,
+    #ede4d2;
+}
+
+.homepage-handoff-receiver--services .homepage-handoff-receiver__content {
+  width: min(1280px, 84vw);
+  margin-inline: auto;
   transform: translate3d(0, 0, 0);
 }
 
