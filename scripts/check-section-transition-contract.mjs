@@ -119,6 +119,29 @@ for (const [index, transition] of chapterTransitions.entries()) {
   assert.equal(node.attrs.get('data-transition-to'), transition.to, `Transition ${transition.id} has incorrect to`);
   assert.equal(node.attrs.get('data-transition-module'), transition.module, `Transition ${transition.id} has incorrect module`);
   assert.equal(node.attrs.get('data-transition-variant'), transition.variant, `Transition ${transition.id} has incorrect variant`);
+  if (transition.preserveEntry) {
+    assert.equal(node.attrs.get('data-transition-preserve-entry'), 'true', `Transition ${transition.id} must preserve entry scroll`);
+  }
+  if (transition.contract) {
+    assert.equal(node.attrs.get('data-transition-contract-id'), transition.contract.id, `Transition ${transition.id} has incorrect contract id`);
+    assert.equal(node.attrs.get('data-transition-mode'), transition.contract.mode, `Transition ${transition.id} has incorrect contract mode`);
+    assert.equal(node.attrs.get('data-transition-bridge-type'), transition.contract.bridgeType, `Transition ${transition.id} has incorrect bridge type`);
+    const phaseSpec = node.attrs.get('data-transition-phase-spec') || '';
+    for (const phase of transition.contract.phases || []) {
+      if (!phase.required) continue;
+      assert.ok(
+        phaseSpec.includes(`${phase.id}:${phase.start}-${phase.end}:required`),
+        `Transition ${transition.id} must expose required phase ${phase.id}`
+      );
+    }
+    if (transition.contract.snapPolicy) {
+      assert.equal(node.attrs.get('data-transition-snap-target'), transition.contract.snapPolicy.target, `Transition ${transition.id} has incorrect snap target`);
+      assert.equal(node.attrs.get('data-transition-snap-tolerance-px'), String(transition.contract.snapPolicy.tolerancePx), `Transition ${transition.id} has incorrect snap tolerance`);
+    }
+    if (transition.contract.handoff?.receiver) {
+      assert.equal(node.attrs.get('data-transition-receiver'), transition.contract.handoff.receiver, `Transition ${transition.id} has incorrect receiver selector`);
+    }
+  }
 
   const fromPosition = sectionPositions.get(transition.from);
   const toPosition = sectionPositions.get(transition.to);

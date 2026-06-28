@@ -12,10 +12,13 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 const packageJson = JSON.parse(read('package.json'));
 const handoffPreviewSource = read('js/transitions/homepage/handoff-preview.js');
 const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js');
+const splitSceneBridgeSource = read('js/transitions/homepage/split-scene-bridge.js');
 const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
 const craneHomepageAdapterSource = read('js/transitions/homepage/crane-homepage-adapter.js');
 const figure3HomepageAdapterSource = read('js/transitions/homepage/figure3-homepage-adapter.js');
+const ttgHomepageAdapterSource = read('js/transitions/homepage/ttg-homepage-adapter.js');
+const phHomepageAdapterSource = read('js/transitions/homepage/ph-homepage-adapter.js');
 const figure3ComponentSource = read('js/components/figure3-transition.js');
 const figure3Css = read('css/components/figure3-transition.css');
 const patternBloomAdapterSource = read('js/transitions/pattern-bloom-adapter.js');
@@ -77,14 +80,39 @@ for (const handoff of handoffs) {
 }
 
 assert.doesNotMatch(
-  `${handoffPreviewSource}\n${handoffReceiverSource}\n${aodHomepageAdapterSource}\n${figure2HomepageAdapterSource}\n${craneHomepageAdapterSource}`,
+  `${handoffPreviewSource}\n${aodHomepageAdapterSource}\n${figure2HomepageAdapterSource}\n${craneHomepageAdapterSource}\n${figure3HomepageAdapterSource}\n${ttgHomepageAdapterSource}\n${phHomepageAdapterSource}`,
   /cloneNode\s*\(\s*true\s*\)/,
-  'Homepage handoff code must not clone real target content'
+  'Homepage adapters must not clone real target content directly; use shared projection helpers'
 );
 assert.match(
   handoffReceiverSource,
-  /receiver\.remove\(\);\s*setRevealPresentedWithin\(source\);/,
-  'Homepage handoff restore must re-present the returned real target content'
+  /mode\s*=\s*'adopt'/,
+  'Shared handoff receiver must preserve legacy adopt mode behind an explicit mode'
+);
+assert.match(
+  handoffReceiverSource,
+  /mode\s*===\s*'projection'/,
+  'Shared handoff receiver must support projection mode'
+);
+assert.match(
+  handoffReceiverSource,
+  /projectionClone\s*=\s*sourceElement\.cloneNode\s*\(\s*true\s*\)/,
+  'Projection mode must clone inside the shared receiver helper'
+);
+assert.doesNotMatch(
+  handoffReceiverSource.match(/const project = \(\) => \{[\s\S]*?\n  \};/)?.[0] || '',
+  /handoffAdopted|createPlaceholder|handoffPlaceholder/,
+  'Projection mode must not insert placeholders or set data-handoff-adopted'
+);
+assert.match(
+  splitSceneBridgeSource,
+  /source\.element\.cloneNode\s*\(\s*true\s*\)|element\.cloneNode\s*\(\s*true\s*\)/,
+  'Split scene bridge must own controlled projection cloning'
+);
+assert.match(
+  handoffReceiverSource,
+  /receiver\?\.remove\(\);\s*projectionClone\s*=\s*null;\s*setRevealPresentedWithin\(sourceElement\);/,
+  'Projection restore must remove only the receiver clone and leave the source in its original section'
 );
 
 assert.doesNotMatch(

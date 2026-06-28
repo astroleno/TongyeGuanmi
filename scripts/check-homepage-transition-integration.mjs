@@ -13,6 +13,9 @@ const revealSource = read('js/ui/reveal.js');
 const presentationControllerSource = read('js/transitions/homepage/section-presentation-controller.js');
 const handoffPreviewSource = read('js/transitions/homepage/handoff-preview.js');
 const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js');
+const splitSceneBridgeSource = read('js/transitions/homepage/split-scene-bridge.js');
+const masterObserverSource = read('js/observers/homepage-master-observer.js');
+const masterObserverHud = read('src/partials/master-observer-hud.html');
 const patternBloomAdapterSource = read('js/transitions/pattern-bloom-adapter.js');
 const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
@@ -126,7 +129,7 @@ assert.ok(
   patternBloomAdapterSource.includes('textProgress: beliefCopyProgress')
     && patternBloomAdapterSource.includes('presentationTarget: beliefSection')
     && patternBloomAdapterSource.includes('const SECOND_REVEAL_START = 0.58')
-    && patternBloomAdapterSource.includes('Math.max(0.92')
+    && patternBloomAdapterSource.includes('Math.max(0.35')
     && patternBloomAdapterSource.includes('beliefPinned ? 0.18 : 1'),
   'Pattern Bloom must hand off to the real Belief section before the visual cover fully exits'
 );
@@ -146,6 +149,11 @@ assert.equal(
   'AOD handoff must use one continuous playback duration'
 );
 assert.equal(
+  aodHandoffTransition?.attrs.get('data-transition-preserve-entry'),
+  'true',
+  'AOD pilot must preserve entry scroll so entry ink is observable instead of a hidden relocation'
+);
+assert.equal(
   aodHandoffTransition?.attrs.get('data-transition-post-scroll-vh'),
   undefined,
   'AOD handoff must not add a detached paper-only hold after normal playback'
@@ -160,6 +168,22 @@ assert.equal(
   'after-playback',
   'AOD handoff must release immediately after playback'
 );
+assert.equal(
+  aodHandoffTransition?.attrs.get('data-transition-contract-id'),
+  'belief-method',
+  'AOD handoff must expose the pilot contract id'
+);
+assert.equal(
+  aodHandoffTransition?.attrs.get('data-transition-bridge-type'),
+  'splitSceneBridge',
+  'AOD pilot bridge style must be declared as a split scene bridge'
+);
+assert.ok(
+  aodHandoffTransition?.attrs.get('data-transition-phase-spec')?.includes('entryInk:0-0.18:required')
+    && aodHandoffTransition?.attrs.get('data-transition-phase-spec')?.includes('copyIn:0.22-0.52:required')
+    && aodHandoffTransition?.attrs.get('data-transition-snap-tolerance-px') === '8',
+  'AOD pilot must expose phase keyframes and snap tolerance'
+);
 assert.ok(
   !aodHomepageAdapterSource.includes('aod-transition__method-copy')
     && !aodHomepageAdapterSource.includes('先看懂，')
@@ -169,10 +193,18 @@ assert.ok(
 );
 assert.ok(
   aodHomepageAdapterSource.includes('createHandoffReceiver')
+    && aodHomepageAdapterSource.includes('createSplitSceneBridge')
     && aodHomepageAdapterSource.includes("sourceSelector: '.method-edition-layout--after-handoff'")
     && aodHomepageAdapterSource.includes("className: 'homepage-handoff-receiver--method'")
-    && aodHomepageAdapterSource.includes('handoffProgressSource'),
-  'AOD handoff must adopt the native Method first screen'
+    && aodHomepageAdapterSource.includes("mode: 'projection'")
+    && aodHomepageAdapterSource.includes('handoffProgressSource')
+    && aodHomepageAdapterSource.includes('AOD_METHOD_PILOT_CONTRACT')
+    && aodHomepageAdapterSource.includes('METHOD_RECEIVER_TIMING')
+    && aodHomepageAdapterSource.includes('start: 0.22')
+    && aodHomepageAdapterSource.includes('restoreAt: 1.1')
+    && aodHomepageAdapterSource.includes('transitionPhase')
+    && aodHomepageAdapterSource.includes('transitionReceiverOpacity'),
+  'AOD handoff must split Belief to AOD, project the native Method first screen, and report the pilot phase contract'
 );
 assert.ok(
   indexHtml.includes('method-handoff-anchor')
@@ -342,19 +374,35 @@ assert.ok(
   handoffReceiverSource.includes('createHandoffReceiver')
     && handoffPreviewSource.includes('createHandoffPreview')
     && handoffReceiverSource.includes('data-handoff-receiver')
+    && handoffReceiverSource.includes("mode = 'adopt'")
+    && handoffReceiverSource.includes("mode === 'projection'")
     && handoffReceiverSource.includes('setRevealPresentedWithin')
+    && handoffReceiverSource.includes('restoreAt = end')
+    && handoffReceiverSource.includes('handoffProgress')
     && handoffReceiverSource.includes('restore()'),
-  'Shared handoff helper must adopt the real target DOM and restore it after release'
+  'Shared handoff helper must support legacy adopt and projection receiver modes'
+);
+assert.ok(
+  masterObserverHud.includes('data-master-observer-field="phase"')
+    && masterObserverHud.includes('data-master-observer-field="bridge"')
+    && masterObserverSource.includes("setField(fields, 'phase', activePhase)")
+    && masterObserverSource.includes("setField(fields, 'bridge', bridgeType)"),
+  'Master observer HUD must report active transition phase and bridge type'
 );
 assert.match(
   handoffReceiverSource,
-  /receiver\.remove\(\);\s*setRevealPresentedWithin\(source\);/,
-  'Shared handoff helper must re-present restored source after receiver removal'
+  /receiver\?\.remove\(\);\s*projectionClone\s*=\s*null;\s*setRevealPresentedWithin\(sourceElement\);/,
+  'Shared projection helper must remove only the clone receiver and leave source content in place'
 );
 assert.doesNotMatch(
-  `${handoffPreviewSource}\n${handoffReceiverSource}`,
+  `${handoffPreviewSource}\n${aodHomepageAdapterSource}\n${figure2HomepageAdapterSource}\n${figure3HomepageAdapterSource}\n${craneHomepageAdapterSource}\n${ttgHomepageAdapterSource}`,
   /cloneNode\s*\(\s*true\s*\)/,
-  'Shared handoff helper must not clone target content'
+  'Homepage adapters must not clone target content directly'
+);
+assert.match(
+  splitSceneBridgeSource,
+  /cloneNode\s*\(\s*true\s*\)/,
+  'Controlled projection clones must live inside split-scene-bridge.js'
 );
 assert.equal(
   [...stylesSource.matchAll(/@import url\("([^"]+)"\);/g)].map((match) => match[1]).at(-1),
@@ -502,10 +550,11 @@ assert.doesNotMatch(
   /waitForMedia\(\)\.finally\(render\)/,
   'TTG homepage transition must start rendering immediately instead of waiting for metadata'
 );
-assert.doesNotMatch(
-  ttgHomepageAdapterSource,
-  /progress\s*[<>]=\s*0\.(?:00)?1|progress\s*[<>]=\s*0\.998/,
-  'TTG homepage transition must not force endpoint video seeks before snap progress reaches 0 or 1'
+assert.ok(
+  ttgHomepageAdapterSource.includes('progress <= 0')
+    && ttgHomepageAdapterSource.includes('progress >= 1')
+    && !/progress\s*[<>]=\s*0\.998/.test(ttgHomepageAdapterSource),
+  'TTG homepage transition may only force endpoint video playback at progress 0 or 1'
 );
 assert.ok(
   ttgComponentSource.includes('startFigureVideoPlayback')
