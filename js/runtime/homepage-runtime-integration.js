@@ -18,6 +18,7 @@ import { homepageTimeline } from '../../src/section-manifest.mjs';
 import { createHomepageSnapRuntime } from './homepage-snap-runtime.js';
 import { createChargeIndicator } from './charge-indicator.js';
 import { createRecoveryHandler } from './recovery-handler.js';
+import { createPatternBloomSceneAdapter } from './scenes/pattern-bloom-scene-adapter.js';
 
 const CONFIG = {
   VIEWPORT_CHANGE_THRESHOLD_PX: 100, // mobile address-bar detection
@@ -116,8 +117,20 @@ export function createHomepageRuntimeIntegration({
     el.setAttribute('data-scene-state', 'presented');
   }
 
-  // Optional per-scene adapters registered by later phases.
+  // Per-scene playback adapters, keyed by scene id. Registered below when their
+  // DOM host exists; scenePresenter calls adapter.play({direction}) during
+  // Playing. Scenes without an adapter fall back to terminal-state presentation.
   const sceneAdapters = new Map();
+
+  // First real time-driven adapter: pattern-bloom (hero -> pattern-bloom leg).
+  // Only register when its host is actually scaffolded.
+  const patternBloomEl = resolveSceneElement('pattern-bloom');
+  if (patternBloomEl) {
+    sceneAdapters.set('pattern-bloom', createPatternBloomSceneAdapter({
+      host: patternBloomEl,
+      reduceMotion
+    }));
+  }
 
   // ---- runtime --------------------------------------------------------------
   const runtime = createHomepageSnapRuntime({
@@ -332,6 +345,8 @@ export function createHomepageRuntimeIntegration({
       if (resizeTimer) clearTimeout(resizeTimer);
       if (recoveryHandler) recoveryHandler.clearAllTimeouts();
       if (chargeIndicator) chargeIndicator.hide();
+      sceneAdapters.forEach((a) => a?.destroy?.());
+      sceneAdapters.clear();
       runtime.destroy();
       Object.values(CONFIG.DOM_ATTRIBUTES).forEach((attr) => rootElement.removeAttribute(attr));
     },

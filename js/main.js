@@ -53,8 +53,9 @@ initBeliefStarField({ root: document, reduceMotion });
 // existing transition runtime as the sole owner of wheel/scroll/Lenis. With the
 // flag on we boot the snap runtime INSTEAD of the old one — never both, so the
 // two never fight over input/lock (see ADR-homepage-js-snap / plan safety fix).
+// Strict opt-in: only ?snapRuntime=1 (not bare ?snapRuntime or =0) or the dev global.
 const snapRuntimeEnabled =
-  new URLSearchParams(window.location.search).has('snapRuntime') ||
+  new URLSearchParams(window.location.search).get('snapRuntime') === '1' ||
   window.__SNAP_RUNTIME__ === true;
 
 function bootHomepageRuntime(scrollController) {
