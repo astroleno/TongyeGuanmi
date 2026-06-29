@@ -20,6 +20,7 @@ import { createChargeIndicator } from './charge-indicator.js';
 import { createRecoveryHandler } from './recovery-handler.js';
 import { createPatternBloomSceneAdapter } from './scenes/pattern-bloom-scene-adapter.js';
 import { createAodSceneAdapter } from './scenes/aod-scene-adapter.js';
+import { createFigure2SceneAdapter } from './scenes/figure2-scene-adapter.js';
 
 const CONFIG = {
   VIEWPORT_CHANGE_THRESHOLD_PX: 100, // mobile address-bar detection
@@ -167,6 +168,17 @@ export function createHomepageRuntimeIntegration({
       host: aodEl,
       reduceMotion,
       getRecoveryHandler: () => recoveryHandler
+    }));
+  }
+
+  // Third real adapter: figure2 (camera-expand). Reuses the figure2 controller's
+  // renderStaticState seam, driven by a time ramp instead of scroll. Proof
+  // cards/closing + ink-sweep are separate scenes/blocks handled later.
+  const figure2El = resolveSceneElement('figure2-animation');
+  if (figure2El) {
+    sceneAdapters.set('figure2-animation', createFigure2SceneAdapter({
+      host: figure2El,
+      reduceMotion
     }));
   }
 
