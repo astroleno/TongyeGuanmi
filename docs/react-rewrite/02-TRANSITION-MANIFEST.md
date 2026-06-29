@@ -1,390 +1,319 @@
-# 转场清单：完整的 19 个场景
+# 转场 Manifest
 
-## 场景流程图
+本 manifest 是首页叙事路线的唯一来源。实现时应先把本文件转换为 TypeScript `scenes[]` 和 `segments[]`，再让 `SceneRuntime` 消费。
 
-```
-1. hero (reading)
-   ↓ 墨滴中心扩散
-2. pattern-top (transition)
-   ↓ 左侧旋转扩散
-3. pattern-bottom (transition)
-   ↓ 下到上水平墨滴
-4. aod-animation (animation)
-   ↓ 动画 80% method 文案提前入场
-5. method-top (reading)
-   ↓ 普通阅读/滚动
-6. method-bottom (reading)
-   ↓ 下到上水平墨滴
-7. figure2-animation (animation)
-   ├─ 内部：远景扩散
-   ├─ 保留前景模糊横拱 + "我们见过太多用不上"三卡
-   ├─ 保留横拱 + "同野观幂做第四种..."整屏
-   └─ 横拱和文案一起下到上水平墨滴
-   ↓
-8. brand (reading)
-   ↓ 下到上水平墨滴
-9. figure3-animation (animation)
-   ↓ 动画 80% services 文案提前入场
-10. services (reading)
-    ↓ 下到上水平墨滴
-11. ttg-animation (animation)
-    ↓ 上到下水平墨滴
-12. lab (reading)
-    ↓ PH 太阳点放射墨滴
-13. ph-animation (animation)
-    ↓ 上到下水平墨滴
-14. education (reading)
-    ↓ 下到上水平墨滴
-15. crane-animation (animation)
-    ↓ 动画 80% contact 文案提前入场
-16. contact (reading)
-```
+## Canonical Scenes
 
-## 场景详细规格
+| 顺序 | Scene ID | 角色 | 最低高度 |
+| --- | --- | --- | --- |
+| 1 | `hero` | 首屏品牌 scene | 100vh |
+| 2 | `pattern-top` | pattern 上半舞台 | 100vh |
+| 3 | `pattern-bottom` | pattern 下半舞台 | 100vh |
+| 4 | `aod-animation` | AOD 动画舞台 | 100vh |
+| 5 | `method-top` | method 上半文案 | 120-150vh |
+| 6 | `method-bottom` | method 下半文案 | 100vh |
+| 7 | `figure2-animation` | figure2 复合动画舞台 | 100vh |
+| 8 | `brand` | brand 文案 scene | 100-120vh |
+| 9 | `figure3-animation` | figure3 动画舞台 | 100vh |
+| 10 | `services` | services 文案 scene | 100vh |
+| 11 | `ttg-animation` | TTG 动画舞台 | 100vh |
+| 12 | `lab` | lab 文案 scene | 100vh |
+| 13 | `ph-animation` | PH 动画舞台 | 100vh |
+| 14 | `education` | education 文案 scene | 100vh |
+| 15 | `crane-animation` | crane 动画舞台 | 100vh |
+| 16 | `contact` | contact 结束 scene | 100vh |
 
-### 1. hero (reading)
-- **类型**：Reading scene
-- **内容**：品牌标语 + CTA
-- **高度**：100vh
-- **状态流**：IDLE (自由滚动) → 滚动到底部 → ARMED
-- **退出转场**：墨滴中心扩散
+不得在组件内临时新增 scene。如果 `belief-star` 要恢复为独立 scene，必须先加入本表并重排 segments。
 
----
+## Canonical Segments
 
-### 2. pattern-top (transition)
-- **类型**：Transition scene（pattern-bloom 的上半段）
-- **视觉**：墨滴从中心扩散，显露 lotus 图案上半部分
-- **转场类型**：中心扩散墨滴
-- **时长**：1000ms
-- **Canvas**：`ink-scene-transition.js` radial mode + `pattern-bloom-visual.js` lotus layer 1-3
-- **状态流**：SNAP_LOCKING (100ms) → PLAYING (1000ms) → PRESENTING (lotus 上半可见)
+| 顺序 | Segment ID | 类型 | From | To | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `hero-to-pattern-top` | `ink-transition` | `hero` | `pattern-top` | 中心扩散墨滴 |
+| 2 | `pattern-top-to-pattern-bottom` | `ink-transition` | `pattern-top` | `pattern-bottom` | 左侧旋转扩散 |
+| 3 | `pattern-bottom-to-aod` | `ink-transition` | `pattern-bottom` | `aod-animation` | 下到上水平墨滴 |
+| 4 | `aod-play-to-method-top` | `media-animation` | `aod-animation` | `method-top` | AOD 播放到 80% 时提前 reveal method copy |
+| 5 | `method-top-read` | `text-read` | `method-top` | `method-bottom` | 普通阅读/滚动 |
+| 6 | `method-bottom-to-figure2` | `ink-transition` | `method-bottom` | `figure2-animation` | 下到上水平墨滴 |
+| 7 | `figure2-compound-to-brand` | `compound-sequence` | `figure2-animation` | `brand` | figure2 内部远景扩散、三卡、整屏文案、出场墨滴 |
+| 8 | `brand-to-figure3` | `ink-transition` | `brand` | `figure3-animation` | 下到上水平墨滴 |
+| 9 | `figure3-play-to-services` | `media-animation` | `figure3-animation` | `services` | figure3 播放到 80% 时提前 reveal services copy |
+| 10 | `services-to-ttg` | `ink-transition` | `services` | `ttg-animation` | 下到上水平墨滴 |
+| 11 | `ttg-compound-to-lab` | `compound-sequence` | `ttg-animation` | `lab` | TTG 播放后，上到下水平墨滴出场 |
+| 12 | `lab-to-ph` | `ink-transition` | `lab` | `ph-animation` | PH 太阳点放射墨滴 |
+| 13 | `ph-compound-to-education` | `compound-sequence` | `ph-animation` | `education` | PH 播放后，上到下水平墨滴出场 |
+| 14 | `education-to-crane` | `ink-transition` | `education` | `crane-animation` | 下到上水平墨滴 |
+| 15 | `crane-play-to-contact` | `media-animation` | `crane-animation` | `contact` | crane 播放到 80% 时提前 reveal contact copy |
 
----
+## Segment Specs
 
-### 3. pattern-bottom (transition)
-- **类型**：Transition scene（pattern-bloom 的下半段）
-- **视觉**：lotus 图案从左侧旋转扩散，完整显现
-- **转场类型**：左侧旋转扩散
-- **时长**：1200ms
-- **Canvas**：`pattern-bloom-visual.js` 完整 lotus 旋转 + 扩散动画
-- **状态流**：PLAYING (1200ms) → PRESENTING (lotus 完整可见) → RELEASING (解锁滚动)
+### 1. `hero-to-pattern-top`
 
----
-
-### 4. aod-animation (animation)
-- **类型**：Animation scene
-- **视觉**：AOD "度量世界" 视频播放
-- **媒体**：`aod_figure-alpha-scrub.webm` (47MB alpha video)
-- **时长**：~5s
-- **转场入口**：下到上水平墨滴（从 pattern-bottom）
-- **转场出口**：动画播放到 80% 时，method 文案开始淡入
-- **状态流**：
-  - SNAP_LOCKING (100ms, 对齐到 aod top)
-  - PLAYING (800ms, 墨滴转场)
-  - PRESENTING (webm poster 可见)
-  - 用户滚动 10vh → RELEASING (video.play())
-  - video 播放到 80% → method 文案淡入（`opacity: 0 → 1`, 1s）
-  - video.ended → IDLE (at aod)
-
----
-
-### 5. method-top (reading)
-- **类型**：Reading scene
-- **内容**：method 章节上半部分文案（场域法则、工具框架等）
-- **高度**：~150vh
-- **入场**：aod-animation 播放到 80% 时文案已淡入，用户滚动即可进入
-- **状态流**：IDLE (自由滚动) → 滚动到底部接近 method-bottom
-
----
-
-### 6. method-bottom (reading)
-- **类型**：Reading scene
-- **内容**：method 章节下半部分文案
-- **高度**：~100vh
-- **状态流**：IDLE (自由滚动) → 滚动到底部 → ARMED
-- **退出转场**：下到上水平墨滴
-
----
-
-### 7. figure2-animation (animation)
-- **类型**：Animation scene（最复杂，内部四个子阶段）
-- **媒体**：
-  - `figure2a-alpha-auto.webm` (左侧人物，问道者)
-  - `figure2b-alpha-auto.webm` (右侧人物，老子)
-  - WebGL 渲染：arch layers, cloud, far arcade
-- **转场入口**：下到上水平墨滴（从 method-bottom）
-- **内部四个子阶段**：
-
-#### 子阶段 1: 远景扩散（camera-expand）
-- **时长**：~2.5s
-- **视觉**：camera push，cloud/arcade 层远景扩散，middle camera scale
-- **Controller**：`figure2-transition.js` `introProgress: 0 → 1`
-- **WebGL**：parallax layers (cloud, far arcade, middle camera)
-- **Video**：两个 figure video 同步播放（`video.play()`）
-
-#### 子阶段 2: 保留前景模糊横拱 + "我们见过太多用不上"三卡
-- **时长**：~1.5s (静态展示)
-- **视觉**：
-  - 横拱前景（near arch layer）保持，带轻微模糊
-  - "我们见过太多用不上" heading + 三卡列表（只培训/只上软件/只交方案）显示
-- **实现**：
-  - arch layer `filter: blur(2px)`
-  - `.method-proof__list` (三卡) 淡入
-  - `introProgress` 保持在 1.0
-
-#### 子阶段 3: 保留横拱 + "同野观幂做第四种..."整屏
-- **时长**：~1s (静态展示)
-- **视觉**：
-  - 横拱前景保持（模糊减轻或消失）
-  - "同野观幂做第四种..." 整屏文案（`.method-proof__lead`）显示
-- **实现**：
-  - arch `filter: blur(0px)`
-  - `.method-proof__lead` 淡入，三卡淡出
-
-#### 子阶段 4: 横拱和文案一起下到上水平墨滴 → brand
-- **时长**：800ms
-- **视觉**：墨滴从底部覆盖 arch + 文案，显露 brand 场景
-- **Controller**：`transitionProgress: 0 → 1`
-- **实现**：复用 `ink-scene-transition.js` horizontal mode
-
-**状态流（完整）**：
-- SNAP_LOCKING (100ms, 对齐到 figure2 top)
-- PLAYING (800ms, 墨滴转场入场)
-- PRESENTING (webm poster + arch 首帧可见)
-- 用户滚动 10vh → RELEASING
-  - 子阶段 1: camera-expand (2.5s, `introProgress` 驱动)
-  - 子阶段 2: 三卡展示 (1.5s, 静态)
-  - 子阶段 3: 整屏文案 (1s, 静态)
-  - 子阶段 4: 墨滴转场出场 (800ms, `transitionProgress` 驱动)
-- → IDLE (at brand)
-
-**复杂度说明**：
-- figure2 是唯一有"内部子阶段"的场景
-- 子阶段 1 是 animation（WebGL + video.play()）
-- 子阶段 2-3 是 content presentation（静态展示文案）
-- 子阶段 4 是 transition（墨滴转场出场）
-- React 实现需要一个 `useFigure2Sequence` hook 编排这四个阶段
-
----
-
-### 8. brand (reading)
-- **类型**：Reading scene
-- **内容**：品牌方法论（同野/观幂 两篇文章 or fixture copy）
-- **高度**：~120vh
-- **状态流**：IDLE (自由滚动) → ARMED
-- **退出转场**：下到上水平墨滴
-
----
-
-### 9. figure3-animation (animation)
-- **类型**：Animation scene
-- **视觉**：figure3 结构动画（questioning 变体）
-- **媒体**：`figure3-alpha.webm` + WebGL arch/structure layers
-- **时长**：~4s
-- **转场入口**：下到上水平墨滴（从 brand）
-- **转场出口**：动画播放到 80% 时，services 文案开始淡入
-- **状态流**：
-  - SNAP_LOCKING → PLAYING (墨滴入场) → PRESENTING
-  - 用户滚动 10vh → RELEASING (video.play())
-  - 播放到 80% → services 文案淡入
-  - video.ended → IDLE (at figure3)
-
----
-
-### 10. services (reading)
-- **类型**：Reading scene
-- **内容**：服务说明（先小做，再扩）
-- **高度**：~100vh
-- **入场**：figure3 播放到 80% 时已淡入
-- **状态流**：IDLE (自由滚动) → ARMED
-- **退出转场**：下到上水平墨滴
-
----
-
-### 11. ttg-animation (animation)
-- **类型**：Animation scene
-- **视觉**：TTG 场域动画
-- **媒体**：`ttg_figure-alpha-scrub.webm` + WebGL field overlay
-- **时长**：~5s
-- **转场入口**：下到上水平墨滴（从 services）
-- **转场出口**：上到下水平墨滴（注意方向改变）
-- **状态流**：
-  - SNAP_LOCKING → PLAYING (墨滴入场) → PRESENTING
-  - 用户滚动 10vh → RELEASING (video.play())
-  - video.ended → SNAP_LOCKING (出场) → PLAYING (墨滴出场，上到下) → IDLE (at lab)
-
----
-
-### 12. lab (reading)
-- **类型**：Reading scene
-- **内容**：实验室章节
-- **高度**：~100vh
-- **转场入口**：上到下水平墨滴（从 ttg）
-- **状态流**：IDLE (自由滚动) → ARMED
-- **退出转场**：PH 太阳点放射墨滴
-
----
-
-### 13. ph-animation (animation)
-- **类型**：Animation scene
-- **视觉**：PH 光影动画（太阳点特效）
-- **媒体**：`ph-alpha.webm` + 太阳点 radial ink
-- **时长**：~4s
-- **转场入口**：PH 太阳点放射墨滴（从 lab，特殊 origin）
-- **转场出口**：上到下水平墨滴
-- **状态流**：
-  - SNAP_LOCKING → PLAYING (太阳点放射墨滴入场) → PRESENTING
-  - 用户滚动 10vh → RELEASING (video.play())
-  - video.ended → SNAP_LOCKING → PLAYING (墨滴出场，上到下) → IDLE (at education)
-
----
-
-### 14. education (reading)
-- **类型**：Reading scene
-- **内容**：教育章节
-- **高度**：~100vh
-- **转场入口**：上到下水平墨滴（从 ph）
-- **状态流**：IDLE (自由滚动) → ARMED
-- **退出转场**：下到上水平墨滴
-
----
-
-### 15. crane-animation (animation)
-- **类型**：Animation scene
-- **视觉**：crane 运动动画
-- **媒体**：`crane-figure1.mp4` + motion overlay
-- **时长**：~5s
-- **转场入口**：下到上水平墨滴（从 education）
-- **转场出口**：动画播放到 80% 时，contact 文案开始淡入
-- **状态流**：
-  - SNAP_LOCKING → PLAYING (墨滴入场) → PRESENTING
-  - 用户滚动 10vh → RELEASING (video.play())
-  - 播放到 80% → contact 文案淡入
-  - video.ended → IDLE (at crane)
-
----
-
-### 16. contact (reading)
-- **类型**：Reading scene
-- **内容**：联系方式 + footer
-- **高度**：~100vh
-- **入场**：crane 播放到 80% 时已淡入
-- **状态流**：IDLE (自由滚动) → 到达页面底部，无下一转场
-
----
-
-## 转场类型统计
-
-| 转场类型 | 使用次数 | 场景 |
-|---------|---------|------|
-| 下到上水平墨滴 | 7 | pattern→aod, method→figure2, brand→figure3, services→ttg, education→crane, figure2-sub4 |
-| 上到下水平墨滴 | 3 | ttg→lab, ph→education |
-| 中心扩散墨滴 | 1 | hero→pattern |
-| 左侧旋转扩散 | 1 | pattern-top→pattern-bottom |
-| 太阳点放射墨滴 | 1 | lab→ph |
-| 内部远景扩散 | 1 | figure2-sub1 (camera-expand) |
-
-## Animation Scenes 统计
-
-| Scene | 视频时长 | 入场转场 | 出场行为 | 文案提前入场 |
-|-------|---------|---------|---------|-------------|
-| aod-animation | ~5s | 下→上墨滴 | 80% method 淡入 | ✓ |
-| figure2-animation | ~6s (四子阶段) | 下→上墨滴 | 内置墨滴转场到 brand | - |
-| figure3-animation | ~4s | 下→上墨滴 | 80% services 淡入 | ✓ |
-| ttg-animation | ~5s | 下→上墨滴 | 上→下墨滴到 lab | - |
-| ph-animation | ~4s | 太阳点放射 | 上→下墨滴到 education | - |
-| crane-animation | ~5s | 下→上墨滴 | 80% contact 淡入 | ✓ |
-
-## Reading Scenes 统计
-
-| Scene | 高度 | 内容 | 特殊性 |
-|-------|------|------|--------|
-| hero | 100vh | 品牌标语 + CTA | 首屏 |
-| method-top | ~150vh | method 上半 | 文案提前入场 |
-| method-bottom | ~100vh | method 下半 | - |
-| brand | ~120vh | 品牌方法论 | - |
-| services | ~100vh | 服务说明 | 文案提前入场 |
-| lab | ~100vh | 实验室 | - |
-| education | ~100vh | 教育 | - |
-| contact | ~100vh | 联系 + footer | 终点 |
-
-## Phase 1 实验范围（hero → method）
-
-**包含场景**：
-1. hero (reading)
-2. pattern-top (transition)
-3. pattern-bottom (transition)
-4. aod-animation (animation)
-5. method-top (reading, 80% 文案提前)
-6. method-bottom (reading)
-
-**包含转场**：
-- 墨滴中心扩散（hero→pattern）
-- 左侧旋转扩散（pattern-top→pattern-bottom）
-- 下到上水平墨滴（pattern→aod）
-- 文案提前入场（aod 80%→method）
-
-**不包含**：
-- figure2 及之后的所有场景
-- figure2 的复杂四子阶段
-- 太阳点放射、上到下墨滴转场
-
-## Phase 2 全量范围（method → contact）
-
-**新增场景**：
-7-16 所有剩余场景
-
-**新增转场**：
-- 上到下水平墨滴（3次）
-- 太阳点放射墨滴（1次）
-- figure2 内部四子阶段
-
-## 实现优先级
-
-### P0（Phase 1 必须）
-1. 墨滴中心扩散（hero→pattern）
-2. 左侧旋转扩散（pattern lotus）
-3. 下到上水平墨滴（pattern→aod, method→figure2）
-4. 文案提前入场（aod 80%）
-5. Video 播放不 scrub
-
-### P1（Phase 2 补充）
-6. 上到下水平墨滴
-7. 太阳点放射墨滴
-8. figure2 四子阶段编排
-
-### P2（优化）
-9. 转场性能优化（Canvas offscreen rendering）
-10. Reverse 播放（当前可以 terminal fallback）
-11. 转场中断恢复（用户快速滚动）
-
-## Canvas 复用策略
-
-**可复用的 Canvas 模块**：
-1. `ink-scene-transition.js` — 水平/径向墨滴基础渲染
-2. `pattern-bloom-visual.js` — lotus 图案 + 旋转扩散
-3. `figure2-transition.js` — WebGL arch layers + parallax
-
-**React 包装方式**：
-```typescript
-// hooks/useInkTransition.ts
-export function useInkTransition(
-  canvasRef: RefObject<HTMLCanvasElement>,
-  type: 'horizontal' | 'radial',
-  direction: 'bottom-up' | 'top-down',
-  progress: number // 0-1, 时间驱动
-) {
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    // 复用当前项目的 ink-scene-transition.js 渲染逻辑
-    const ctx = canvas.getContext('2d');
-    renderInkFrame(ctx, progress, { type, direction });
-  }, [progress, type, direction]);
+```ts
+{
+  type: 'ink-transition',
+  from: 'hero',
+  to: 'pattern-top',
+  durationMs: 1000,
+  ink: { kind: 'radial', origin: 'center' },
+  commitAt: 'end'
 }
 ```
 
-## 下一步
+Layer ownership：
 
-阅读 `03-ARCHITECTURE.md` 了解 React 技术架构如何实现这 19 个场景的状态管理和转场编排。
+- `visualOwner`: segment
+- `canvasOwner`: segment
+- `copyOwner`: `hero` until commit, then `pattern-top`
+
+### 2. `pattern-top-to-pattern-bottom`
+
+```ts
+{
+  type: 'ink-transition',
+  from: 'pattern-top',
+  to: 'pattern-bottom',
+  durationMs: 1200,
+  ink: { kind: 'pattern-rotate', origin: 'left' },
+  commitAt: 'end'
+}
+```
+
+`pattern-top` 和 `pattern-bottom` 是 scene，不是 transition scene。旋转扩散是 segment。
+
+### 3. `pattern-bottom-to-aod`
+
+```ts
+{
+  type: 'ink-transition',
+  from: 'pattern-bottom',
+  to: 'aod-animation',
+  durationMs: 800,
+  ink: { kind: 'horizontal', direction: 'bottom-up' },
+  commitAt: 'end'
+}
+```
+
+commit 后只显示 AOD poster/首帧，不自动播放。用户再滚动 10vh 才触发 `aod-play-to-method-top`。
+
+### 4. `aod-play-to-method-top`
+
+```ts
+{
+  type: 'media-animation',
+  from: 'aod-animation',
+  to: 'method-top',
+  durationPolicy: 'media-ended',
+  reveal: {
+    atProgress: 0.8,
+    targetScene: 'method-top',
+    targetLayer: 'copy'
+  },
+  fallback: {
+    onPlayRejected: 'show-poster-and-complete',
+    onMetadataTimeout: 'show-poster-and-complete',
+    onEndedTimeout: 'force-complete-and-commit',
+    onMissingMedia: 'recover-to-committed-scene',
+    reducedMotion: 'poster-and-skip'
+  }
+}
+```
+
+注意：AOD 组件不能 `setMethodTextVisible`。它只能向 runtime 报告 progress，runtime 决定 method copy owner。
+
+### 5. `method-top-read`
+
+```ts
+{
+  type: 'text-read',
+  from: 'method-top',
+  to: 'method-bottom',
+  readHeightVh: 120,
+  armAfterVh: 10
+}
+```
+
+这是普通阅读，不需要墨滴、锁滚动或媒体播放。
+
+### 6. `method-bottom-to-figure2`
+
+```ts
+{
+  type: 'ink-transition',
+  from: 'method-bottom',
+  to: 'figure2-animation',
+  durationMs: 800,
+  ink: { kind: 'horizontal', direction: 'bottom-up' },
+  commitAt: 'end'
+}
+```
+
+### 7. `figure2-compound-to-brand`
+
+```ts
+{
+  type: 'compound-sequence',
+  from: 'figure2-animation',
+  to: 'brand',
+  steps: [
+    'figure2-camera-expand',
+    'figure2-proof-cards',
+    'figure2-fourth-kind-copy',
+    'figure2-arch-copy-to-brand'
+  ],
+  commitAt: 'last-step-end'
+}
+```
+
+Step 说明：
+
+| Step | 类型 | 视觉 | 完成条件 |
+| --- | --- | --- | --- |
+| `figure2-camera-expand` | `media-animation` | 内部远景扩散，figure2 视频/画面推进 | adapter complete |
+| `figure2-proof-cards` | `text-read` | 保留前景模糊横拱 + “我们见过太多用不上”三卡 | fixed duration 或用户 intent |
+| `figure2-fourth-kind-copy` | `text-read` | 保留横拱 + “同野观幂做第四种...”整屏 | fixed duration 或用户 intent |
+| `figure2-arch-copy-to-brand` | `ink-transition` | 横拱和文案一起下到上水平墨滴 | progress=1 |
+
+figure2 内部可以有 reducer，但只能管理 compound step；不能直接修改全局 phase 或 committed scene。
+
+### 8. `brand-to-figure3`
+
+```ts
+{
+  type: 'ink-transition',
+  from: 'brand',
+  to: 'figure3-animation',
+  durationMs: 800,
+  ink: { kind: 'horizontal', direction: 'bottom-up' },
+  commitAt: 'end'
+}
+```
+
+### 9. `figure3-play-to-services`
+
+```ts
+{
+  type: 'media-animation',
+  from: 'figure3-animation',
+  to: 'services',
+  durationPolicy: 'media-ended',
+  reveal: { atProgress: 0.8, targetScene: 'services', targetLayer: 'copy' },
+  fallback: {
+    onPlayRejected: 'show-poster-and-complete',
+    onMetadataTimeout: 'show-poster-and-complete',
+    onEndedTimeout: 'force-complete-and-commit',
+    onMissingMedia: 'recover-to-committed-scene',
+    reducedMotion: 'poster-and-skip'
+  }
+}
+```
+
+### 10. `services-to-ttg`
+
+```ts
+{
+  type: 'ink-transition',
+  from: 'services',
+  to: 'ttg-animation',
+  durationMs: 800,
+  ink: { kind: 'horizontal', direction: 'bottom-up' },
+  commitAt: 'end'
+}
+```
+
+### 11. `ttg-compound-to-lab`
+
+```ts
+{
+  type: 'compound-sequence',
+  from: 'ttg-animation',
+  to: 'lab',
+  steps: ['ttg-play', 'ttg-to-lab-top-down-ink'],
+  commitAt: 'last-step-end'
+}
+```
+
+`ttg-play` 完成后不要直接 `video.ended -> SNAP_LOCKING -> PLAYING -> IDLE`。它必须作为 compound step 进入上到下墨滴，再 commit 到 `lab`。
+
+### 12. `lab-to-ph`
+
+```ts
+{
+  type: 'ink-transition',
+  from: 'lab',
+  to: 'ph-animation',
+  durationMs: 1000,
+  ink: { kind: 'radial', origin: 'ph-sun' },
+  commitAt: 'end'
+}
+```
+
+### 13. `ph-compound-to-education`
+
+```ts
+{
+  type: 'compound-sequence',
+  from: 'ph-animation',
+  to: 'education',
+  steps: ['ph-play', 'ph-to-education-top-down-ink'],
+  commitAt: 'last-step-end'
+}
+```
+
+### 14. `education-to-crane`
+
+```ts
+{
+  type: 'ink-transition',
+  from: 'education',
+  to: 'crane-animation',
+  durationMs: 800,
+  ink: { kind: 'horizontal', direction: 'bottom-up' },
+  commitAt: 'end'
+}
+```
+
+### 15. `crane-play-to-contact`
+
+```ts
+{
+  type: 'media-animation',
+  from: 'crane-animation',
+  to: 'contact',
+  durationPolicy: 'media-ended',
+  reveal: { atProgress: 0.8, targetScene: 'contact', targetLayer: 'copy' },
+  fallback: {
+    onPlayRejected: 'show-poster-and-complete',
+    onMetadataTimeout: 'show-poster-and-complete',
+    onEndedTimeout: 'force-complete-and-commit',
+    onMissingMedia: 'recover-to-committed-scene',
+    reducedMotion: 'poster-and-skip'
+  }
+}
+```
+
+## Layer Ownership Rules
+
+| 规则 | 说明 |
+| --- | --- |
+| target copy 不搬 DOM | 不再 adopt/restore native copy |
+| preview copy 必须 runtime-owned | 如果转场中需要预览目标文案，用 runtime preview layer |
+| `.reveal` 跳过 timeline-owned copy | 防止转场 commit 后被全局 reveal 再隐藏 |
+| segment complete 原子提交 | `committedScene`、copy owner、visual owner 同帧更新 |
+| media 只报告，不调度 | video/webgl adapter 不能直接跳 scene |
+
+## Debug Naming
+
+每条 segment 都必须出现在 debug overlay：
+
+```txt
+activeSegment: figure2-compound-to-brand
+step: figure2-proof-cards
+from: figure2-animation
+to: brand
+progress: 0.42
+copyOwner: figure2-compound-to-brand
+visualOwner: figure2-animation
+```
+
+这能直接暴露“画面以为到 brand，copy 还被 figure2 持有”的问题。
