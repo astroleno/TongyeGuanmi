@@ -975,6 +975,13 @@ export const homepageSceneDomMap = [
   //    同野/观幂 two-card grid, not the fixture (brand-135-136). Content
   //    migration remains a tracked pending gap — host coverage != content done.
   { sceneId: 'figure2-animation', selector: '[data-transition-id="method-tooling__method-proof"]', mode: 'host' },
+  // Proof content split into two reading scenes. The source template
+  // (src/sections/method.html) was reordered so cards (.method-proof__list)
+  // physically precede closing (.method-proof__lead), matching manifest scene
+  // order figure2-proof-cards -> figure2-proof-closing so the runtime's
+  // position-sorted bounds stay monotonic.
+  { sceneId: 'figure2-proof-cards', selector: '.method-proof__list', mode: 'anchor' },
+  { sceneId: 'figure2-proof-closing', selector: '.method-proof__lead', mode: 'anchor' },
   { sceneId: 'brand', selector: '.canvas-section--brand', mode: 'section' },
   { sceneId: 'services', selector: '#services', mode: 'section' }
 ];
