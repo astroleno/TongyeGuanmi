@@ -2,7 +2,7 @@
  * @fileoverview Homepage Runtime Integration
  *
  * Wires the charge-driven snap runtime to the page:
- * - Reads scene list from homepageTimeline (src/section-manifest.mjs)
+ * - Reads scene list from the generated browser manifest
  * - Connects Lenis (or window.scrollTo fallback) for JS-snap
  * - Feeds wheel/touch/keyboard into the runtime's charge accumulator using
  *   NON-PASSIVE listeners so the page can be frozen while SnappedArmed
@@ -14,7 +14,7 @@
  * those live in the dedicated, unit-tested runtime modules.
  */
 
-import { homepageTimeline } from '../../src/section-manifest.mjs';
+import { homepageTimeline } from '../transitions/homepage/scene-timeline-manifest.js';
 import { createHomepageSnapRuntime } from './homepage-snap-runtime.js';
 import { createChargeIndicator } from './charge-indicator.js';
 import { createRecoveryHandler } from './recovery-handler.js';

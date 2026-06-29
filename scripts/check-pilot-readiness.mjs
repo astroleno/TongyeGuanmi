@@ -97,6 +97,17 @@ function checkRuntimeChargeDriven() {
   if (!/createInputNormalizer/.test(rt)) errors.push('Runtime does not use createInputNormalizer');
 }
 
+function checkBrowserRuntimeImportsGeneratedManifest() {
+  console.log('🔍 browser runtime imports generated manifest...');
+  const integration = read('js/runtime/homepage-runtime-integration.js');
+  if (/src\/section-manifest\.mjs/.test(integration)) {
+    errors.push('Browser runtime must not import src/section-manifest.mjs (served with non-JS MIME in dev/static hosting)');
+  }
+  if (!/transitions\/homepage\/scene-timeline-manifest\.js/.test(integration)) {
+    errors.push('Browser runtime must import generated scene-timeline-manifest.js');
+  }
+}
+
 function checkAodNoAutoplay() {
   console.log('🔍 AOD does not autoplay on viewport enter...');
   const aod = homepageTimeline.scenes.find((s) => s.id === 'aod-animation');
@@ -127,6 +138,7 @@ try {
   checkSceneHeights();
   checkChargeIndicator();
   checkRuntimeChargeDriven();
+  checkBrowserRuntimeImportsGeneratedManifest();
   checkAodNoAutoplay();
   checkBuiltDomCoverage();
 
