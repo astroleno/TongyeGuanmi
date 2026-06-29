@@ -964,5 +964,17 @@ export const homepageSceneDomMap = [
   { sceneId: 'belief-star', selector: '#belief', mode: 'section' },
   { sceneId: 'aod-animation', selector: '[data-transition-id="belief-method"]', mode: 'host' },
   { sceneId: 'method-upper', selector: '.chapter-intro--method', mode: 'anchor' },
-  { sceneId: 'method-lower', selector: '.method-flow', mode: 'anchor' }
+  { sceneId: 'method-lower', selector: '.method-flow', mode: 'anchor' },
+
+  // Batch 2 — only the structurally clean hosts (1 scene : 1 node, physical
+  // order matches manifest order). Deliberately NOT scaffolded here:
+  //  - figure2-proof-cards / figure2-proof-closing: live in one .method-proof
+  //    block in REVERSED order (closing above cards); splitting + reordering is
+  //    designed together with the figure2 multi-stage adapter.
+  //  - brand maps to its section as a HOST only; its copy is still main's
+  //    同野/观幂 two-card grid, not the fixture (brand-135-136). Content
+  //    migration remains a tracked pending gap — host coverage != content done.
+  { sceneId: 'figure2-animation', selector: '[data-transition-id="method-tooling__method-proof"]', mode: 'host' },
+  { sceneId: 'brand', selector: '.canvas-section--brand', mode: 'section' },
+  { sceneId: 'services', selector: '#services', mode: 'section' }
 ];
