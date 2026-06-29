@@ -67,8 +67,19 @@ export function createHomepageRuntimeIntegration({
     throw new Error('Invalid homepageTimeline: missing scenes');
   }
 
-  const scenes = homepageTimeline.scenes;
+  // Operate only over scenes that actually have a DOM host. A partially
+  // scaffolded page (e.g. 6/19 pilot scenes) yields a 6-entry active list; the
+  // runtime is inert when this is empty. Indices below are into activeScenes.
+  const scenes = homepageTimeline.scenes.filter((s) => resolveSceneElement(s.id));
   let isDestroyed = false;
+
+  // Real document top of a scene's DOM host (for DOM-driven snap bounds).
+  function resolveSceneTop(sceneId) {
+    const el = resolveSceneElement(sceneId);
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    return rect.top + (window.scrollY || window.pageYOffset || 0);
+  }
 
   // Charge indicator (visual feedback). Skipped entirely under reduced motion.
   const chargeIndicator = reduceMotion
@@ -113,6 +124,7 @@ export function createHomepageRuntimeIntegration({
     timeline: { scenes },
     scrollController,
     scenePresenter,
+    resolveSceneTop,
     onStateChange: handleStateChange,
     onError: handleError,
     onChargeProgress: handleChargeProgress

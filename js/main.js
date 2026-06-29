@@ -49,6 +49,14 @@ initLoaderInkReveal({
 initInkKeywords({ reduceMotion, maxWebglKeywords: 2 });
 initBeliefStarField({ root: document, reduceMotion });
 
+// One scroll owner: the new snap runtime is opt-in. Default (flag off) keeps the
+// existing transition runtime as the sole owner of wheel/scroll/Lenis. With the
+// flag on we boot the snap runtime INSTEAD of the old one — never both, so the
+// two never fight over input/lock (see ADR-homepage-js-snap / plan safety fix).
+const snapRuntimeEnabled =
+  new URLSearchParams(window.location.search).has('snapRuntime') ||
+  window.__SNAP_RUNTIME__ === true;
+
 function bootHomepageRuntime(scrollController) {
   window.__homepageRuntime = createHomepageRuntimeIntegration({
     scrollController: scrollController || null,
@@ -57,12 +65,21 @@ function bootHomepageRuntime(scrollController) {
   });
 }
 
+// Boot the homepage scroll system: snap runtime when enabled, else the legacy
+// transition runtime. Exactly one attaches scroll/wheel/Lenis handlers.
+function bootHomepageScroll(opts, scrollController) {
+  if (snapRuntimeEnabled) {
+    bootHomepageRuntime(scrollController);
+  } else {
+    initHomepageTransitions(opts);
+  }
+}
+
 if (reduceMotion) {
   initMagneticAndTilt({ reduceMotion });
   initFallbackParallax({ root, reduceMotion, runtime });
   initVanillaReveal();
-  initHomepageTransitions({ root: document, reduceMotion: true });
-  bootHomepageRuntime(null);
+  bootHomepageScroll({ root: document, reduceMotion: true }, null);
 } else {
   loadRequiredLibraries()
     .then(() => {
@@ -70,21 +87,19 @@ if (reduceMotion) {
       initMagneticAndTilt({ reduceMotion });
       initGsapTextAndUI({ root, scrollRuntime });
       initLayeredHero({ root, body, runtime, reduceMotion });
-      initHomepageTransitions({
+      bootHomepageScroll({
         root: document,
         scrollRuntime,
         reduceMotion,
         gsap: window.gsap,
         ScrollTrigger: window.ScrollTrigger
-      });
-      bootHomepageRuntime(scrollRuntime.lenis);
+      }, scrollRuntime.lenis);
     })
     .catch((error) => {
       console.warn('CDN libraries unavailable, switching to fallback.', error);
       initMagneticAndTilt({ reduceMotion });
       initFallbackParallax({ root, reduceMotion, runtime });
       initVanillaReveal();
-      initHomepageTransitions({ root: document, reduceMotion: true });
-      bootHomepageRuntime(null);
+      bootHomepageScroll({ root: document, reduceMotion: true }, null);
     });
 }

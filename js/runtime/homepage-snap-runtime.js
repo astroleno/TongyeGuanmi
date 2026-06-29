@@ -306,6 +306,10 @@ import { createChargeAccumulator } from './charge-accumulator.js';
  * @param {Function} options.onStateChange - Callback for state changes
  * @param {Function} options.onError - Error handler
  * @param {Function} [options.onChargeProgress] - (progress 0-1, direction) while armed
+ * @param {Function} [options.resolveSceneTop] - (sceneId) => number|null. Returns
+ *   the real document Y of a scene's DOM host. When supplied, scene bounds use
+ *   actual element positions instead of the index*vh fallback. Scenes whose
+ *   resolver returns null are skipped (no DOM host yet).
  */
 export function createHomepageSnapRuntime({
   timeline = {},
@@ -313,7 +317,8 @@ export function createHomepageSnapRuntime({
   scenePresenter,
   onStateChange = () => {},
   onError = () => {},
-  onChargeProgress = () => {}
+  onChargeProgress = () => {},
+  resolveSceneTop = null
 }) {
   if (typeof scenePresenter !== 'function') {
     throw new Error('scenePresenter is required (async fn that performs playback)');
@@ -326,51 +331,83 @@ export function createHomepageSnapRuntime({
     scrollController,
 
     /**
-     * Get scene bounds in px
+     * Get scene bounds in px. Uses real DOM tops (sceneTops) when a
+     * resolveSceneTop was supplied; otherwise falls back to index*vh.
      * @param {number} sceneIndex
      * @returns {{start: number, end: number, height: number}}
      */
     getSceneBounds(sceneIndex) {
       const vh = window.innerHeight;
+      if (sceneTops.length) {
+        const start = sceneTops[sceneIndex] ?? sceneIndex * vh;
+        const next = sceneTops[sceneIndex + 1];
+        const end = next ?? (start + vh);
+        return { start, end, height: end - start };
+      }
       const start = sceneIndex * vh;
       const end = (sceneIndex + 1) * vh;
       return { start, end, height: end - start };
     },
 
     /**
-     * Get current scene index from scroll position
+     * Get current scene index from scroll position. With real tops, returns the
+     * last scene whose top is at or above scrollY; else the index*vh bucket.
      * @param {number} scrollY
      * @returns {number}
      */
     getCurrentSceneIndex(scrollY) {
       const vh = window.innerHeight;
+      if (sceneTops.length) {
+        let idx = 0;
+        for (let i = 0; i < sceneTops.length; i++) {
+          if (scrollY >= sceneTops[i] - vh / 2) idx = i;
+        }
+        return idx;
+      }
       return Math.max(0, Math.floor(scrollY / vh));
     }
   };
 
   // Scene bounds cache (recalculated on viewport changes)
   let sceneBounds = [];
+  // Real per-scene document tops, parallel to context.sceneCount, when a
+  // resolveSceneTop is available. Empty => index*vh fallback everywhere.
+  let sceneTops = [];
 
   /**
-   * Recalculate all scene bounds (called on resize/orientation change)
+   * Recalculate all scene bounds (called on resize/orientation change).
+   * Refreshes real DOM tops first so bounds reflect actual layout.
    */
   function recalculateAllSceneBounds() {
     const vh = window.innerHeight;
     normalizer.updateViewportHeight(vh || 1);
+
+    // Refresh real tops when a resolver is available.
+    sceneTops = [];
+    if (typeof resolveSceneTop === 'function' && Array.isArray(timeline.scenes)) {
+      sceneTops = timeline.scenes.map((s) => {
+        const top = resolveSceneTop(s.id);
+        return Number.isFinite(top) ? top : null;
+      });
+    }
+
     sceneBounds = [];
     for (let i = 0; i < context.sceneCount; i++) {
+      const top = sceneTops[i] ?? i * vh;
+      const bottom = sceneTops[i + 1] ?? (top + vh);
       sceneBounds.push({
         id: timeline.scenes?.[i]?.id || `scene-${i}`,
-        top: i * vh,
-        bottom: (i + 1) * vh,
-        height: vh
+        top,
+        bottom,
+        height: bottom - top
       });
     }
     return sceneBounds;
   }
 
   /**
-   * Calculate scene top position
+   * Calculate scene top position. Prefers the real DOM top via resolveSceneTop,
+   * falling back to index*vh.
    * @param {Object} scene
    * @returns {number}
    */
@@ -378,6 +415,10 @@ export function createHomepageSnapRuntime({
     if (!timeline.scenes) return 0;
     const sceneIndex = timeline.scenes.findIndex(s => s.id === scene.id);
     if (sceneIndex === -1) return 0;
+    if (typeof resolveSceneTop === 'function') {
+      const top = resolveSceneTop(scene.id);
+      if (Number.isFinite(top)) return top;
+    }
     return sceneIndex * window.innerHeight;
   }
 

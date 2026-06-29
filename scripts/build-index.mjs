@@ -5,6 +5,7 @@ import {
   chapterTransitions,
   contentSections,
   handoffs,
+  homepageSceneDomMap,
   homepageTimeline,
   sectionEntryPolicies,
   timelineJoins,
@@ -221,6 +222,53 @@ function injectContractAttributes(html) {
   });
 
   nextHtml = injectTimelineAttributes(nextHtml);
+
+  // Stamp data-scene-id onto existing nodes per the explicit homepageSceneDomMap.
+  // Runs LAST so selectors targeting data-transition-id (added above by
+  // injectTransitionAttributes) resolve correctly.
+  nextHtml = injectHomepageSceneIds(nextHtml);
+
+  return nextHtml;
+}
+
+/**
+ * Count how many open tags match a simple selector across the HTML.
+ * Used to assert each homepageSceneDomMap selector is unambiguous.
+ */
+function countSelectorMatches(html, selector) {
+  const openPattern = /<([A-Za-z][A-Za-z0-9:-]*)\b[^>]*>/g;
+  let count = 0;
+  let match;
+  while ((match = openPattern.exec(html)) !== null) {
+    const [tag, tagName] = match;
+    const attrs = tag.slice(`<${tagName}`.length, -1);
+    if (matchesSimpleSelector(tagName, attrs, selector)) count += 1;
+  }
+  return count;
+}
+
+/**
+ * Inject data-scene-id onto the existing node named by each homepageSceneDomMap
+ * entry. Each selector must resolve to exactly one node (fail-fast otherwise) so
+ * the mapping can never silently drift from the DOM.
+ */
+function injectHomepageSceneIds(html) {
+  let nextHtml = html;
+
+  for (const entry of homepageSceneDomMap) {
+    const matches = countSelectorMatches(nextHtml, entry.selector);
+    if (matches !== 1) {
+      throw new Error(
+        `homepageSceneDomMap['${entry.sceneId}'] selector "${entry.selector}" matched ${matches} nodes (expected exactly 1)`
+      );
+    }
+    nextHtml = injectFirstTagBySelector(
+      nextHtml,
+      entry.selector,
+      (attrs) => setAttribute(attrs, 'data-scene-id', entry.sceneId),
+      `scene ${entry.sceneId}`
+    );
+  }
 
   return nextHtml;
 }

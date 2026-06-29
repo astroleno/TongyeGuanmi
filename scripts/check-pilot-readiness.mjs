@@ -105,6 +105,22 @@ function checkAodNoAutoplay() {
   }
 }
 
+function checkBuiltDomCoverage() {
+  console.log('🔍 built index.html has data-scene-id for all pilot scenes...');
+  let html;
+  try {
+    html = read('index.html');
+  } catch {
+    errors.push('index.html not found — run build:page before this check');
+    return;
+  }
+  for (const id of PILOT_SCENES) {
+    if (!html.includes(`data-scene-id="${id}"`)) {
+      errors.push(`Pilot scene '${id}' has no data-scene-id host in index.html (run build:page; check homepageSceneDomMap)`);
+    }
+  }
+}
+
 try {
   checkScenesExist();
   checkBlocksExist();
@@ -112,6 +128,7 @@ try {
   checkChargeIndicator();
   checkRuntimeChargeDriven();
   checkAodNoAutoplay();
+  checkBuiltDomCoverage();
 
   console.log('\n' + '='.repeat(60));
   if (errors.length === 0) {

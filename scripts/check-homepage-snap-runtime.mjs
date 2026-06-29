@@ -124,5 +124,33 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(errored && /404/.test(errored.message), 'error surfaced for observability');
 }
 
+// ---- DOM-driven bounds (real positions, not index*vh) -----------------------
+{
+  // Three scenes at non-uniform document tops (e.g. tall reading sections).
+  const tops = { a: 0, b: 1300, c: 3000 };
+  window.scrollTo({ top: 0 });
+  const calls = [];
+  const rt = createHomepageSnapRuntime({
+    timeline: { scenes: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] },
+    resolveSceneTop: (id) => tops[id],
+    scenePresenter: async (info) => { calls.push(info); }
+  });
+  rt.recalculateSceneBounds();
+
+  const bounds = rt.sceneBounds();
+  assert(bounds[1] && bounds[1].top === 1300, `scene b uses real top 1300 (got ${bounds[1]?.top})`);
+  assert(bounds[1].height === 1700, `scene b height spans to next real top (got ${bounds[1].height})`);
+  assert(rt.calculateSceneTop({ id: 'c' }) === 3000, 'calculateSceneTop returns real DOM top');
+
+  // Arm at scene a, charge forward: presenter targets scene b (index 1), and
+  // snap target should be its real top, not 1*vh.
+  rt.handleScroll();
+  await tick(30);
+  assert(rt.getCurrentState().current === 'SnappedArmed', 'arms with DOM bounds');
+  rt.handleWheel({ deltaY: 80, deltaMode: 0 });
+  await tick(40);
+  assert(calls.length === 1 && calls[0].toIndex === 1, 'forward targets next active scene by real position');
+}
+
 console.log(`snap-runtime contract: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -940,3 +940,29 @@ export const homepageTimeline = {
     }
   ]
 };
+
+/**
+ * Explicit map from homepageTimeline scene id -> existing DOM node to annotate
+ * with `data-scene-id` at build time. This is the single source of truth for
+ * scene-to-DOM mapping; the build does NOT guess. Each `selector` must resolve
+ * to exactly one node in the built HTML (build asserts this).
+ *
+ * mode is advisory metadata describing why the node was chosen:
+ *  - 'section' : a full <section> reading scene maps onto the existing section
+ *  - 'host'    : an animation scene maps onto its existing chapter/scene
+ *                transition host (where the visual adapter already mounts)
+ *  - 'anchor'  : a sub-region split out of a shared section (e.g. method
+ *                upper/lower) onto an existing structural anchor
+ *
+ * Only the 6 pilot scenes are mapped today; non-pilot scenes are added as later
+ * phases scaffold them. Scenes absent here simply have no DOM host yet and the
+ * runtime treats them as inactive.
+ */
+export const homepageSceneDomMap = [
+  { sceneId: 'hero', selector: '#home', mode: 'section' },
+  { sceneId: 'pattern-bloom', selector: '[data-transition-id="home-belief"]', mode: 'host' },
+  { sceneId: 'belief-star', selector: '#belief', mode: 'section' },
+  { sceneId: 'aod-animation', selector: '[data-transition-id="belief-method"]', mode: 'host' },
+  { sceneId: 'method-upper', selector: '.chapter-intro--method', mode: 'anchor' },
+  { sceneId: 'method-lower', selector: '.method-flow', mode: 'anchor' }
+];
