@@ -6,6 +6,8 @@
 @import url("./sections/canvas-stage.css");
 @import url("./sections/source-copy.css");
 @import url("./sections/paper-canvas-theme.css");
+@import url("./sections/homepage-snap-heights.css");
+@import url("./components/snap-charge-indicator.css");
 @import url("./components/homepage-continuity.css");
 :root {
   --bg: #07110e;

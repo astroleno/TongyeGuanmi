@@ -5,6 +5,7 @@ import {
   chapterTransitions,
   contentSections,
   handoffs,
+  homepageTimeline,
   sectionEntryPolicies,
   timelineJoins,
   timelineScenes
@@ -231,8 +232,33 @@ function buildGeneratedTimelineManifest() {
     `export const timelineScenes = ${JSON.stringify(timelineScenes, null, 2)};`,
     '',
     `export const timelineJoins = ${JSON.stringify(timelineJoins, null, 2)};`,
+    '',
+    `export const homepageTimeline = ${JSON.stringify(homepageTimeline, null, 2)};`,
     ''
   ].join('\n');
+}
+
+/**
+ * Report which homepageTimeline scenes already have a DOM host in the built
+ * page (data-scene-id=...) versus which are still pending scaffolding. This is
+ * intentionally non-fatal: it documents coverage honestly instead of silently
+ * implying every scene exists.
+ * @param {string} html
+ */
+function reportSceneDomCoverage(html) {
+  const present = [];
+  const missing = [];
+  for (const scene of homepageTimeline.scenes) {
+    if (html.includes(`data-scene-id="${scene.id}"`)) {
+      present.push(scene.id);
+    } else {
+      missing.push(scene.id);
+    }
+  }
+  console.log(`homepageTimeline DOM coverage: ${present.length}/${homepageTimeline.scenes.length} scenes have a host.`);
+  if (missing.length) {
+    console.log(`  pending scaffold (${missing.length}): ${missing.join(', ')}`);
+  }
 }
 
 async function renderFile(relativePath, stack = []) {
@@ -259,3 +285,4 @@ await writeFile(
   buildGeneratedTimelineManifest()
 );
 console.log('Built index.html and homepage scene timeline manifest from src/index.template.html');
+reportSceneDomCoverage(html);

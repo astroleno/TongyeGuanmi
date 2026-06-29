@@ -325,3 +325,694 @@ export const timelineJoins = [
     "adapterVariant": "forward-motion"
   }
 ];
+
+export const homepageTimeline = {
+  "version": 1,
+  "defaults": {
+    "snap": {
+      "mode": "full-screen",
+      "triggerAfterSnapVh": 10,
+      "releaseCooldownMs": 420
+    },
+    "media": {
+      "playback": "autoplay",
+      "seekPolicy": "reset-only",
+      "muted": true,
+      "playsInline": true
+    },
+    "timeouts": {
+      "mediaReadyMs": 1800,
+      "mediaPlayMs": 1600,
+      "mediaEndGraceMs": 1200,
+      "textureReadyMs": 1200
+    }
+  },
+  "scenes": [
+    {
+      "id": "hero",
+      "kind": "reading",
+      "publicSectionId": "home",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": false
+      }
+    },
+    {
+      "id": "pattern-bloom",
+      "kind": "animation",
+      "visual": "pattern-bloom",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      }
+    },
+    {
+      "id": "belief-star",
+      "kind": "reading",
+      "publicSectionId": "belief",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": true
+      }
+    },
+    {
+      "id": "aod-animation",
+      "kind": "animation",
+      "visual": "aod",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "copy": {
+        "targetScene": "method-upper",
+        "enterAtRemaining": 0.2
+      }
+    },
+    {
+      "id": "method-upper",
+      "kind": "reading",
+      "publicSectionId": "method",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": true
+      }
+    },
+    {
+      "id": "method-lower",
+      "kind": "reading",
+      "publicSectionId": "method",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": true,
+        "overflow": "extend",
+        "armNextAt": "scrolled-past-bottom"
+      }
+    },
+    {
+      "id": "figure2-animation",
+      "kind": "animation",
+      "visual": "figure2",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "stages": [
+        "camera-expand",
+        "arch-with-cards",
+        "arch-with-closing",
+        "ink-sweep"
+      ]
+    },
+    {
+      "id": "figure2-proof-cards",
+      "kind": "reading",
+      "publicSectionId": "method-proof",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": true
+      },
+      "content": {
+        "source": "fixture",
+        "ref": "proof-cards-122-126"
+      }
+    },
+    {
+      "id": "figure2-proof-closing",
+      "kind": "reading",
+      "publicSectionId": "method-proof",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": false
+      },
+      "content": {
+        "source": "fixture",
+        "ref": "proof-closing-128"
+      }
+    },
+    {
+      "id": "brand",
+      "kind": "reading",
+      "publicSectionId": "brand",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": true
+      },
+      "content": {
+        "source": "fixture",
+        "ref": "brand-135-136"
+      }
+    },
+    {
+      "id": "figure3-animation",
+      "kind": "animation",
+      "visual": "figure3",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "copy": {
+        "targetScene": "services",
+        "enterAtRemaining": 0.2
+      }
+    },
+    {
+      "id": "services",
+      "kind": "reading",
+      "publicSectionId": "services",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": true,
+        "overflow": "extend",
+        "armNextAt": "scrolled-past-bottom"
+      }
+    },
+    {
+      "id": "ttg-animation",
+      "kind": "animation",
+      "visual": "ttg",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      }
+    },
+    {
+      "id": "lab",
+      "kind": "reading",
+      "publicSectionId": "lab",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": true
+      }
+    },
+    {
+      "id": "ph-animation",
+      "kind": "animation",
+      "visual": "ph",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      }
+    },
+    {
+      "id": "education",
+      "kind": "reading",
+      "publicSectionId": "education",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": true
+      }
+    },
+    {
+      "id": "philosophy",
+      "kind": "reading",
+      "publicSectionId": "philosophy",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": true
+      }
+    },
+    {
+      "id": "crane-animation",
+      "kind": "animation",
+      "visual": "crane",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "copy": {
+        "targetScene": "contact",
+        "enterAtRemaining": 0.2
+      }
+    },
+    {
+      "id": "contact",
+      "kind": "reading",
+      "publicSectionId": "contact",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": true
+      }
+    }
+  ],
+  "blocks": [
+    {
+      "id": "hero-to-pattern",
+      "type": "ink-transition",
+      "fromScene": "hero",
+      "toScene": "pattern-bloom",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "radial-center",
+        "direction": "expand"
+      },
+      "textureSource": {
+        "type": "canvasProjection",
+        "targetScene": "pattern-bloom"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "pattern-to-belief",
+      "type": "ink-transition",
+      "fromScene": "pattern-bloom",
+      "toScene": "belief-star",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "radial-rotating-left",
+        "direction": "expand"
+      },
+      "textureSource": {
+        "type": "asset",
+        "path": "assets/back2.png"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "belief-to-aod",
+      "type": "ink-transition",
+      "fromScene": "belief-star",
+      "toScene": "aod-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "horizontal-irregular",
+        "direction": "bottom-up"
+      },
+      "textureSource": {
+        "type": "canvasProjection",
+        "targetScene": "aod-animation"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "aod-play",
+      "type": "media-animation",
+      "scene": "aod-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "media": [
+        "aod-measure-order"
+      ],
+      "copy": {
+        "targetScene": "method-upper",
+        "enterAtRemaining": 0.2
+      },
+      "reverse": {
+        "strategy": "terminal-state-fallback",
+        "targetScene": "belief-star"
+      }
+    },
+    {
+      "id": "method-lower-to-figure2",
+      "type": "ink-transition",
+      "fromScene": "method-lower",
+      "toScene": "figure2-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "horizontal-irregular",
+        "direction": "bottom-up"
+      },
+      "textureSource": {
+        "type": "canvasProjection",
+        "targetScene": "figure2-animation"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "figure2-play",
+      "type": "media-animation",
+      "scene": "figure2-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "media": [
+        "figure2-arch-camera"
+      ],
+      "reverse": {
+        "strategy": "reverse-media",
+        "media": [
+          "figure2-arch-camera-reverse"
+        ]
+      }
+    },
+    {
+      "id": "figure2-proof-to-brand",
+      "type": "ink-transition",
+      "fromScene": "figure2-proof-closing",
+      "toScene": "brand",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "horizontal-irregular",
+        "direction": "bottom-up"
+      },
+      "textureSource": {
+        "type": "canvasProjection",
+        "targetScene": "brand"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "brand-to-figure3",
+      "type": "ink-transition",
+      "fromScene": "brand",
+      "toScene": "figure3-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "horizontal-irregular",
+        "direction": "bottom-up"
+      },
+      "textureSource": {
+        "type": "canvasProjection",
+        "targetScene": "figure3-animation"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "figure3-play",
+      "type": "media-animation",
+      "scene": "figure3-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "media": [
+        "figure3-fabric"
+      ],
+      "copy": {
+        "targetScene": "services",
+        "enterAtRemaining": 0.2
+      },
+      "reverse": {
+        "strategy": "terminal-state-fallback",
+        "targetScene": "brand"
+      }
+    },
+    {
+      "id": "services-to-ttg",
+      "type": "ink-transition",
+      "fromScene": "services",
+      "toScene": "ttg-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "horizontal-irregular",
+        "direction": "bottom-up"
+      },
+      "textureSource": {
+        "type": "canvasProjection",
+        "targetScene": "ttg-animation"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "ttg-play",
+      "type": "media-animation",
+      "scene": "ttg-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "media": [
+        "ttg-figure-alpha-scrub"
+      ],
+      "reverse": {
+        "strategy": "reverse-media",
+        "media": [
+          "ttg-figure-alpha-scrub-reverse"
+        ]
+      }
+    },
+    {
+      "id": "ttg-to-lab",
+      "type": "ink-transition",
+      "fromScene": "ttg-animation",
+      "toScene": "lab",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "horizontal-irregular",
+        "direction": "top-down"
+      },
+      "textureSource": {
+        "type": "canvasProjection",
+        "targetScene": "lab"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "lab-to-ph",
+      "type": "ink-transition",
+      "fromScene": "lab",
+      "toScene": "ph-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "sunburst-radial",
+        "direction": "expand",
+        "sourceUV": {
+          "x": 0.0977,
+          "y": 0.6476
+        }
+      },
+      "textureSource": {
+        "type": "asset",
+        "path": "assets/ph_background.png"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "ph-play",
+      "type": "media-animation",
+      "scene": "ph-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "media": [
+        "ph-learning-sun"
+      ],
+      "reverse": {
+        "strategy": "terminal-state-fallback",
+        "targetScene": "lab"
+      }
+    },
+    {
+      "id": "ph-to-education",
+      "type": "ink-transition",
+      "fromScene": "ph-animation",
+      "toScene": "education",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "horizontal-irregular",
+        "direction": "top-down"
+      },
+      "textureSource": {
+        "type": "canvasProjection",
+        "targetScene": "education"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "education-to-philosophy",
+      "type": "ink-transition",
+      "fromScene": "education",
+      "toScene": "philosophy",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "horizontal-irregular",
+        "direction": "bottom-up"
+      },
+      "textureSource": {
+        "type": "canvasProjection",
+        "targetScene": "philosophy"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "philosophy-to-crane",
+      "type": "ink-transition",
+      "fromScene": "philosophy",
+      "toScene": "crane-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "lock": {
+        "during": [
+          "playback"
+        ],
+        "release": "complete"
+      },
+      "ink": {
+        "type": "horizontal-irregular",
+        "direction": "bottom-up"
+      },
+      "textureSource": {
+        "type": "canvasProjection",
+        "targetScene": "crane-animation"
+      },
+      "reverse": {
+        "strategy": "reverse-ink-to-previous-terminal"
+      }
+    },
+    {
+      "id": "crane-play",
+      "type": "media-animation",
+      "scene": "crane-animation",
+      "snap": {
+        "triggerAfterSnapVh": 10
+      },
+      "media": [
+        "crane-figure1",
+        "crane-figure2"
+      ],
+      "copy": {
+        "targetScene": "contact",
+        "enterAtRemaining": 0.2
+      },
+      "reverse": {
+        "strategy": "terminal-state-fallback",
+        "targetScene": "philosophy"
+      }
+    }
+  ]
+};

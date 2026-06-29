@@ -41,13 +41,14 @@ const State = {
 // ============================================================================
 
 const CONFIG = {
-  SNAP_THRESHOLD: 50, // px from scene boundary to trigger snap
+  SNAP_THRESHOLD: 50, // px from scene boundary to begin JS-snap alignment
   SNAP_VELOCITY_THRESHOLD: 0.5, // Lenis velocity threshold for snap
-  TRIGGER_THRESHOLD: 100, // px scroll delta to trigger playback
-  COOLDOWN_DURATION: 300, // ms before re-arming after release
+  COOLDOWN_DURATION: 420, // ms before re-arming after release (plan releaseCooldownMs)
   RECOVERY_TIMEOUT: 2000, // ms before forcing recovery
-  RAPID_SCROLL_VELOCITY: 2.0, // velocity threshold for bypass
-  SCENE_HEIGHT_VH: 100 // each scene is 100dvh
+  RAPID_SCROLL_VELOCITY: 2.0, // velocity threshold for ReadingScroll bypass
+  SCENE_HEIGHT_VH: 100, // each animation scene is 100dvh
+  CHARGE_THRESHOLD_VH: 10, // plan: scroll 10vh after snap to trigger
+  CHARGE_DECAY_PER_MS: 0.001 // charge bleed when input stops
 };
 
 // ============================================================================
@@ -86,6 +87,7 @@ function createInitialState(initialScroll = 0) {
     current: State.FreeScroll,
     currentSceneIndex: 0,
     targetSceneIndex: 0,
+    playbackDirection: 1,
     scrollY: initialScroll,
     velocity: 0,
     stateEntryTime: Date.now(),
@@ -147,15 +149,9 @@ function reduceState(state, action, context) {
         }
 
         case State.SnappedArmed: {
-          const scrollDelta = Math.abs(scrollY - sceneBounds.start);
-
-          if (scrollDelta > CONFIG.TRIGGER_THRESHOLD) {
-            return transitionTo(
-              { ...nextState, targetSceneIndex: sceneIndex },
-              State.TriggeredPlayback,
-              now
-            );
-          }
+          // Page is frozen while armed: scroll position must NOT drive the
+          // trigger. Charge is accumulated from normalized input deltas and
+          // surfaces via the CHARGE_TRIGGER action instead. Stay put.
           return Object.freeze(nextState);
         }
 
@@ -176,6 +172,22 @@ function reduceState(state, action, context) {
         return transitionTo(
           { ...state, currentSceneIndex: state.targetSceneIndex },
           State.SnappedArmed,
+          now
+        );
+      }
+      return state;
+    }
+
+    case 'CHARGE_TRIGGER': {
+      // Charge reached 1.0 while armed. Direction decides forward vs reverse.
+      if (state.current === State.SnappedArmed) {
+        const dir = action.payload?.direction === -1 ? -1 : 1;
+        const targetSceneIndex = dir === -1
+          ? Math.max(0, state.currentSceneIndex - 1)
+          : state.currentSceneIndex + 1;
+        return transitionTo(
+          { ...state, targetSceneIndex, playbackDirection: dir },
+          State.TriggeredPlayback,
           now
         );
       }
@@ -252,12 +264,19 @@ function transitionTo(state, nextState, now) {
 
   // Entry actions
   switch (nextState) {
+    case State.SnapAligning:
+    case State.SnappedArmed:
+    case State.TriggeredPlayback:
     case State.Playing:
     case State.Completing:
+      // Page is frozen from the moment we begin aligning through completion.
+      // SnappedArmed is explicitly locked: the user "scrolls" but the page
+      // does not move; input is converted to charge instead (plan lines 247-249).
       newState.isScrollLocked = true;
       break;
 
     case State.FreeScroll:
+    case State.ReadingScroll:
     case State.ReleaseCooldown:
       newState.isScrollLocked = false;
       break;
@@ -270,23 +289,34 @@ function transitionTo(state, nextState, now) {
 // Runtime API
 // ============================================================================
 
+import { createInputNormalizer } from './input-normalizer.js';
+import { createChargeAccumulator } from './charge-accumulator.js';
+
 /**
  * Create homepage snap runtime instance
  * @param {Object} options
- * @param {Object} options.timeline - GSAP timeline from section-manifest
+ * @param {Object} [options.timeline] - Optional manifest-derived timeline metadata
+ *   ({ scenes, labels }). Scene count is derived from scenes.length (preferred)
+ *   or labels. Playback itself is delegated to scenePresenter, NOT to a GSAP
+ *   master timeline — the homepage uses webm autoplay per the plan.
  * @param {Object|null} options.scrollController - Lenis instance or null
+ * @param {Function} options.scenePresenter - REQUIRED. Async ({fromIndex, toIndex,
+ *   direction, scene}) => Promise. Owns the actual transition/playback and must
+ *   resolve when the target scene is presented, or reject to trigger recovery.
  * @param {Function} options.onStateChange - Callback for state changes
  * @param {Function} options.onError - Error handler
- * @returns {Object} Runtime API
+ * @param {Function} [options.onChargeProgress] - (progress 0-1, direction) while armed
  */
 export function createHomepageSnapRuntime({
-  timeline,
+  timeline = {},
   scrollController = null,
+  scenePresenter,
   onStateChange = () => {},
-  onError = () => {}
+  onError = () => {},
+  onChargeProgress = () => {}
 }) {
-  if (!timeline) {
-    throw new Error('Timeline is required');
+  if (typeof scenePresenter !== 'function') {
+    throw new Error('scenePresenter is required (async fn that performs playback)');
   }
 
   // Runtime context
@@ -326,6 +356,7 @@ export function createHomepageSnapRuntime({
    */
   function recalculateAllSceneBounds() {
     const vh = window.innerHeight;
+    normalizer.updateViewportHeight(vh || 1);
     sceneBounds = [];
     for (let i = 0; i < context.sceneCount; i++) {
       sceneBounds.push({
@@ -433,9 +464,21 @@ export function createHomepageSnapRuntime({
     requestAnimationFrame(check);
   }
 
-  // Derive scene count from timeline labels
+  // Derive scene count: prefer explicit scenes[], fall back to labels{}.
   const labels = timeline.labels || {};
-  context.sceneCount = Object.keys(labels).length;
+  context.sceneCount = Array.isArray(timeline.scenes) && timeline.scenes.length
+    ? timeline.scenes.length
+    : Object.keys(labels).length;
+
+  // Charge subsystem: normalize wheel/touch/keyboard to viewport fractions,
+  // accumulate toward the 10vh threshold. This — not scroll position — is what
+  // arms playback (plan lines 276-288).
+  const normalizer = createInputNormalizer({ viewportHeight: window.innerHeight || 1 });
+  const charge = createChargeAccumulator({
+    thresholdVh: CONFIG.CHARGE_THRESHOLD_VH,
+    decayRatePerMs: CONFIG.CHARGE_DECAY_PER_MS
+  });
+  let lastChargeInputTs = 0;
 
   // Runtime state
   let state = createInitialState(window.scrollY || 0);
@@ -478,6 +521,16 @@ export function createHomepageSnapRuntime({
         executeSnap(current.targetSceneIndex);
         break;
 
+      case State.TriggeredPlayback:
+        // Transient: charge has fired. Advance to Playing on the next tick so
+        // onStateChange observers see TriggeredPlayback before Playing.
+        Promise.resolve().then(() => {
+          if (state.current === State.TriggeredPlayback) {
+            dispatch({ type: 'TRIGGER_PLAYBACK' });
+          }
+        });
+        break;
+
       case State.Playing:
         executePlayback(current.targetSceneIndex);
         break;
@@ -499,6 +552,12 @@ export function createHomepageSnapRuntime({
   function executeSnap(sceneIndex) {
     const bounds = context.getSceneBounds(sceneIndex);
     const targetScroll = bounds.start;
+
+    // Already aligned (within 1px): no animation needed, arm immediately.
+    if (Math.abs((window.scrollY || 0) - targetScroll) <= 1) {
+      dispatch({ type: 'SNAP_COMPLETE' });
+      return;
+    }
 
     // Check for reduced motion preference
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -553,61 +612,78 @@ export function createHomepageSnapRuntime({
   }
 
   /**
-   * Execute timeline playback
-   * @param {number} sceneIndex
+   * Execute scene playback via the injected presenter.
+   * The presenter owns the real transition (webm autoplay, ink shader, copy
+   * entry) and resolves when the target scene is presented. On reject/throw we
+   * route to RecoverPresentTarget — playback failure never wedges the page.
+   * @param {number} targetSceneIndex
    */
-  function executePlayback(sceneIndex) {
-    // Lock scroll
+  function executePlayback(targetSceneIndex) {
+    // Lock scroll (defence in depth; state is already isScrollLocked)
     if (scrollController && scrollController.stop) {
       scrollController.stop();
     }
     document.body.style.overflow = 'hidden';
 
-    // Get scene label
-    const labels = timeline.labels || {};
-    const sceneLabel = `scene-${sceneIndex}`;
+    const fromIndex = state.currentSceneIndex;
+    const direction = state.playbackDirection === -1 ? -1 : 1;
+    const scene = Array.isArray(timeline.scenes)
+      ? timeline.scenes[targetSceneIndex]
+      : null;
 
-    if (!labels[sceneLabel]) {
-      dispatch({
-        type: 'ERROR',
-        payload: new Error(`Scene label "${sceneLabel}" not found`)
+    let settled = false;
+    Promise.resolve()
+      .then(() => scenePresenter({ fromIndex, toIndex: targetSceneIndex, direction, scene }))
+      .then(() => {
+        if (settled) return;
+        settled = true;
+        dispatch({ type: 'PLAYBACK_COMPLETE' });
+      })
+      .catch((err) => {
+        if (settled) return;
+        settled = true;
+        dispatch({ type: 'ERROR', payload: err instanceof Error ? err : new Error(String(err)) });
       });
-      return;
-    }
-
-    // Play from label
-    timeline.play(sceneLabel);
-
-    // Listen for complete
-    timeline.eventCallback('onComplete', () => {
-      dispatch({ type: 'PLAYBACK_COMPLETE' });
-    });
   }
 
   /**
    * Execute completion and unlock
    */
   function executeComplete() {
+    // Commit the target scene as the new current scene.
+    state = Object.freeze({ ...state, currentSceneIndex: state.targetSceneIndex });
+
     // Unlock scroll
     document.body.style.overflow = '';
     if (scrollController && scrollController.start) {
       scrollController.start();
     }
 
-    // Clear timeline callback
-    timeline.eventCallback('onComplete', null);
-
     // Transition to cooldown
     dispatch({ type: 'RELEASE' });
   }
 
   /**
-   * Schedule recovery after timeout
+   * Schedule recovery after timeout.
+   * Recovery must ALWAYS release the page — a failed presenter (404, play()
+   * reject, ended never firing) must never leave scroll locked (plan line 274).
    */
   function scheduleRecovery() {
     setTimeout(() => {
       if (state.current === State.RecoverPresentTarget) {
+        // onError owns presenting the target terminal state / hiding overlays.
         onError(state.error);
+
+        // Guarantee unlock regardless of what onError does.
+        document.body.style.overflow = '';
+        if (scrollController && scrollController.start) {
+          scrollController.start();
+        }
+        charge.reset();
+        onChargeProgress(0, 0);
+
+        // Commit to the target scene's terminal state and resume free scroll.
+        state = Object.freeze({ ...state, currentSceneIndex: state.targetSceneIndex });
         dispatch({ type: 'RECOVER' });
       }
     }, CONFIG.RECOVERY_TIMEOUT);
@@ -620,6 +696,48 @@ export function createHomepageSnapRuntime({
   function update(deltaTime) {
     // State machine is event-driven via scroll updates
     // This method is kept for potential future frame-based logic
+  }
+
+  /**
+   * Feed a normalized input delta into the charge accumulator while armed.
+   * Positive charge -> forward trigger, negative -> reverse. Emits progress for
+   * the indicator and dispatches CHARGE_TRIGGER once the 10vh tank fills.
+   * @param {number} normalizedDelta - viewport fraction (0.1 === 10vh)
+   * @returns {boolean} true if the input was consumed (armed); caller should preventDefault
+   */
+  function feedCharge(normalizedDelta) {
+    if (state.current !== State.SnappedArmed) return false;
+    if (normalizedDelta === 0) return true; // armed: still consume to keep page frozen
+
+    lastChargeInputTs = Date.now();
+    const progress = charge.accumulate(normalizedDelta);
+    onChargeProgress(progress, charge.getDirection());
+
+    if (charge.isTriggered()) {
+      const direction = charge.getDirection();
+      charge.reset();
+      // Reverse at the very first scene has nowhere to go: ignore.
+      if (direction === -1 && state.currentSceneIndex === 0) {
+        onChargeProgress(0, 0);
+        return true;
+      }
+      dispatch({ type: 'CHARGE_TRIGGER', payload: { direction } });
+    }
+    return true;
+  }
+
+  /**
+   * Apply charge decay when the user pauses mid-charge (called each frame while armed).
+   */
+  function tickChargeDecay() {
+    if (state.current !== State.SnappedArmed) return;
+    const now = Date.now();
+    const idle = now - lastChargeInputTs;
+    if (idle > 80 && charge.getProgress() > 0) {
+      const progress = charge.decay(idle);
+      onChargeProgress(progress, charge.getDirection());
+      lastChargeInputTs = now;
+    }
   }
 
   /**
@@ -639,39 +757,36 @@ export function createHomepageSnapRuntime({
   }
 
   /**
-   * Handle wheel event (for manual trigger detection)
+   * Handle wheel event. While armed, converts wheel delta to charge and
+   * signals the caller to preventDefault (page stays frozen).
    * @param {WheelEvent} event
+   * @returns {boolean} true if consumed
    */
   function handleWheel(event) {
-    if (state.current === State.SnappedArmed) {
-      const delta = Math.abs(event.deltaY);
-      if (delta > CONFIG.TRIGGER_THRESHOLD) {
-        dispatch({ type: 'TRIGGER_PLAYBACK' });
-      }
-    }
+    if (state.current !== State.SnappedArmed) return false;
+    return feedCharge(normalizer.normalizeWheel(event));
   }
 
   /**
-   * Handle touch event
-   * @param {TouchEvent} event
+   * Handle a touch move delta (px) while armed.
+   * @param {number} pixelDelta - signed vertical finger movement in px
+   * @returns {boolean} true if consumed
    */
-  function handleTouch(event) {
-    // Touch handling for mobile trigger
-    // Implementation depends on touch tracking requirements
+  function handleTouch(pixelDelta) {
+    if (state.current !== State.SnappedArmed) return false;
+    return feedCharge(normalizer.normalizeTouchMove({ pixelDelta }));
   }
 
   /**
-   * Handle keyboard event
+   * Handle keyboard event. PageDown/Space/Arrows feed discrete charge steps.
    * @param {KeyboardEvent} event
+   * @returns {boolean} true if consumed
    */
   function handleKeyboard(event) {
-    if (state.current === State.SnappedArmed) {
-      // Space or Enter to trigger playback
-      if (event.key === ' ' || event.key === 'Enter') {
-        event.preventDefault();
-        dispatch({ type: 'TRIGGER_PLAYBACK' });
-      }
-    }
+    if (state.current !== State.SnappedArmed) return false;
+    const delta = normalizer.normalizeKeyboard(event);
+    if (delta === 0) return false;
+    return feedCharge(delta);
   }
 
   /**
@@ -700,9 +815,9 @@ export function createHomepageSnapRuntime({
       snapAnimationId = null;
     }
 
-    // Reset timeline
-    timeline.pause(0);
-    timeline.eventCallback('onComplete', null);
+    // Reset charge tank
+    charge.reset();
+    onChargeProgress(0, 0);
 
     // Unlock scroll
     document.body.style.overflow = '';
@@ -731,6 +846,10 @@ export function createHomepageSnapRuntime({
     handleWheel,
     handleTouch,
     handleKeyboard,
+    feedCharge,
+    tickChargeDecay,
+    getChargeProgress: () => charge.getProgress(),
+    getChargeDirection: () => charge.getDirection(),
     getCurrentState,
     getCurrentScene,
     snapToScene: (sceneId) => snapToScene(sceneId, context.scrollController),

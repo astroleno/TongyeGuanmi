@@ -15,6 +15,13 @@
     "verify:homepage-transitions": "node scripts/check-homepage-transition-integration.mjs",
     "verify:homepage-timeline": "node scripts/check-homepage-timeline.mjs",
     "verify:handoff-ownership": "node scripts/check-handoff-ownership.mjs",
-    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership"
+    "verify:homepage-schema": "node scripts/check-homepage-timeline-schema.mjs",
+    "verify:homepage-snap": "node scripts/check-homepage-snap-contract.mjs",
+    "verify:homepage-media": "node scripts/check-homepage-media-policy.mjs",
+    "verify:homepage-boundaries": "node scripts/check-homepage-content-boundaries.mjs",
+    "verify:pilot-readiness": "node scripts/check-pilot-readiness.mjs",
+    "verify:pilot-height": "node scripts/check-pilot-height-contract.mjs",
+    "verify:snap-runtime": "node scripts/check-homepage-snap-runtime.mjs",
+    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership && npm run verify:homepage-schema && npm run verify:homepage-snap && npm run verify:homepage-media && npm run verify:homepage-boundaries && npm run verify:pilot-readiness && npm run verify:pilot-height && npm run verify:snap-runtime"
   }
 }

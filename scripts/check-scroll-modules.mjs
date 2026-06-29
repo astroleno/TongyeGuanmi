@@ -15,15 +15,20 @@ function assertNotContains(source, needle, message) {
 }
 
 const main = await read('js/main.js');
+const loadLibraries = await read('js/site/load-libraries.js').catch(() => '');
 const index = await read('index.html');
 const reveal = await read('js/ui/reveal.js');
 const styles = await read('css/styles.css');
 const template = await read('src/index.template.html');
 const smoothScroll = await read('js/ui/smooth-scroll.js').catch(() => '');
 
-assertContains(main, "lenis: 'https://cdn.jsdelivr.net/npm/lenis@1.3.23/dist/lenis.min.js'", 'main.js pins Lenis CDN version');
+// CDN pinning + load order now live in the dedicated load-libraries module
+// (main.js stays a thin bootstrap; see verify:ink-modules line budget).
+assertContains(loadLibraries, "lenis: 'https://cdn.jsdelivr.net/npm/lenis@1.3.23/dist/lenis.min.js'", 'load-libraries.js pins Lenis CDN version');
+assertContains(loadLibraries, 'await loadScript(CDN.lenis);', 'load-libraries.js loads Lenis before initialization');
+assertContains(main, "import { loadRequiredLibraries } from './site/load-libraries.js';", 'main.js imports the library loader');
+assertContains(main, 'loadRequiredLibraries()', 'main.js invokes the library loader before scroll init');
 assertContains(main, "import { initSmoothScroll } from './ui/smooth-scroll.js';", 'main.js imports smooth-scroll module');
-assertContains(main, 'await loadScript(CDN.lenis);', 'main.js loads Lenis before initialization');
 assertContains(main, 'const scrollRuntime = initSmoothScroll({', 'main.js stores smooth scroll runtime');
 
 assertContains(smoothScroll, 'export function initSmoothScroll', 'smooth-scroll.js exports initSmoothScroll');

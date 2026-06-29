@@ -3,16 +3,22 @@
  *
  * Implements plan lines 280-288: charge 可视反馈固定 contract
  *
+ * Units: this accumulator works in *normalized viewport fractions*, matching
+ * the output of input-normalizer.js (where 1.0 === one full viewport height,
+ * so 10vh === 0.1). The threshold is therefore `thresholdVh / 100` fractions.
+ * It deliberately does NOT read window.innerHeight, so it is testable under
+ * node and immune to resize staleness — viewport conversion is the
+ * normalizer's job, not the accumulator's.
+ *
  * Threshold logic:
- * - 10vh = 0.1 viewport height
- * - Delta accumulates as fraction of threshold
- * - Progress = accumulated / threshold, clamped 0-1
+ * - thresholdVh = 10  ->  thresholdFraction = 0.1
+ * - Delta accumulates as |normalized fraction|
+ * - Progress = accumulated / thresholdFraction, clamped 0-1
  * - Triggered when progress >= 1.0
  *
  * Decay:
  * - If user stops scrolling, charge gradually falls back
  * - Prevents "stuck half-charged" state
- * - Decay rate: ~0.1% per ms (reaches 0 in ~1s)
  *
  * Direction tracking:
  * - Positive deltas: forward (1)
@@ -25,7 +31,7 @@
  *
  * @param {Object} options
  * @param {number} options.thresholdVh - Threshold in viewport height units (default: 10)
- * @param {number} options.decayRatePerMs - Decay rate per millisecond (default: 0.001)
+ * @param {number} options.decayRatePerMs - Fraction of full charge to bleed per ms (default: 0.001 -> ~1s to drain)
  * @returns {Object} Accumulator instance
  */
 export function createChargeAccumulator({
@@ -35,14 +41,14 @@ export function createChargeAccumulator({
   let accumulated = 0;
   let direction = 0;
 
-  // Convert vh to pixels once at creation
-  const thresholdPx = (thresholdVh / 100) * window.innerHeight;
+  // Threshold expressed in the same normalized-fraction unit the normalizer emits.
+  const thresholdFraction = thresholdVh / 100;
 
   return {
     /**
-     * Add scroll delta and update charge progress
+     * Add a normalized scroll delta (viewport fraction) and update charge.
      *
-     * @param {number} normalizedDelta - Scroll delta in pixels
+     * @param {number} normalizedDelta - Delta in viewport fractions (0.1 === 10vh)
      * @returns {number} Current progress (0-1)
      */
     accumulate(normalizedDelta) {
@@ -53,13 +59,11 @@ export function createChargeAccumulator({
         direction = -1;
       }
 
-      // Accumulate delta as fraction of threshold
+      // Accumulate magnitude, clamp at threshold (progress max = 1.0)
       accumulated += Math.abs(normalizedDelta);
+      accumulated = Math.min(accumulated, thresholdFraction);
 
-      // Clamp to threshold (progress max = 1.0)
-      accumulated = Math.min(accumulated, thresholdPx);
-
-      return accumulated / thresholdPx;
+      return accumulated / thresholdFraction;
     },
 
     /**
@@ -68,7 +72,7 @@ export function createChargeAccumulator({
      * @returns {number} Progress value (0-1)
      */
     getProgress() {
-      return Math.max(0, Math.min(1, accumulated / thresholdPx));
+      return Math.max(0, Math.min(1, accumulated / thresholdFraction));
     },
 
     /**
@@ -86,7 +90,7 @@ export function createChargeAccumulator({
      * @returns {boolean} True when progress >= 1.0
      */
     isTriggered() {
-      return accumulated >= thresholdPx;
+      return accumulated >= thresholdFraction;
     },
 
     /**
@@ -97,7 +101,7 @@ export function createChargeAccumulator({
      */
     decay(deltaTimeMs) {
       if (accumulated > 0) {
-        const decayAmount = decayRatePerMs * deltaTimeMs * thresholdPx;
+        const decayAmount = decayRatePerMs * deltaTimeMs * thresholdFraction;
         accumulated = Math.max(0, accumulated - decayAmount);
 
         // Reset direction when fully decayed
@@ -106,7 +110,7 @@ export function createChargeAccumulator({
         }
       }
 
-      return accumulated / thresholdPx;
+      return accumulated / thresholdFraction;
     },
 
     /**

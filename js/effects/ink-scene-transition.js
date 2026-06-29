@@ -254,6 +254,8 @@ export function createInkSceneTransition(canvas, options = {}) {
     const farOnly = options.farOnly ? 1 : 0;
     const hideAtEnd = Boolean(options.hideAtEnd);
     const colorLift = clamp(options.colorLift ?? 0, 0, 1);
+    const sweepMode = clamp(options.sweepMode ?? 0, 0, 1); // 0=radial (default), 1=horizontal
+    const direction = options.direction ?? 0; // 0=bottom-up, 1=top-down (for horizontal mode)
 
     const gl = canvas.getContext('webgl', {
       alpha: true,
@@ -306,6 +308,8 @@ export function createInkSceneTransition(canvas, options = {}) {
       uniform float uSceneBrightness;
       uniform float uDepthThresholdMode;
       uniform float uTransparentOutside;
+      uniform float uSweepMode;
+      uniform float uDirection;
 
       float hash(vec2 p) {
         p = fract(p * vec2(127.1, 311.7));
@@ -371,7 +375,15 @@ export function createInkSceneTransition(canvas, options = {}) {
         vec2 centered = (uv - center) * vec2(aspect, 1.0);
         float dist = length(centered) * 0.74;
         float centerPull = smoothstep(0.76, -0.18, abs(uv.x - center.x));
+
+        // Mountain sweep for radial mode (original)
         float mountainSweep = mix(dist, uv.y * 0.48 + dist * 0.58, centerPull * 0.38);
+
+        // Horizontal sweep for horizontal mode (migrated from curtain)
+        float sweepY = mix(uv.y, 1.0 - uv.y, uDirection);
+
+        // Blend between radial and horizontal sweep based on uSweepMode
+        float blendedSweep = mix(mountainSweep, sweepY, uSweepMode);
 
         vec2 warpUv = aspectUv * 2.35 + vec2(0.0, -uTime * 0.030);
         vec2 warp = vec2(
@@ -467,7 +479,7 @@ export function createInkSceneTransition(canvas, options = {}) {
         float thresholdEmber = (thresholdSoftBand * thresholdEmberMask + thresholdParticles * 0.38) * (0.16 + energy * 0.48);
         thresholdDissolve = max(thresholdDissolve, thresholdParticleCore * 0.18 + thresholdParticles * 0.10);
 
-        float threshold = mountainSweep + mud - 0.105;
+        float threshold = blendedSweep + mud - 0.105;
         float depthTear = nearDepth * (0.13 + fbm(aspectUv * 19.0 + uTime * 0.11) * 0.065);
         float farTear = farDepth * (0.035 + fbm(aspectUv * 7.0 - uTime * 0.05) * 0.025);
         threshold = mix(threshold, 0.0, smoothstep(0.91, 1.0, p));
@@ -694,7 +706,9 @@ export function createInkSceneTransition(canvas, options = {}) {
       perlinStrength: gl.getUniformLocation(program, 'uPerlinStrength'),
       sceneBrightness: gl.getUniformLocation(program, 'uSceneBrightness'),
       depthThresholdMode: gl.getUniformLocation(program, 'uDepthThresholdMode'),
-      transparentOutside: gl.getUniformLocation(program, 'uTransparentOutside')
+      transparentOutside: gl.getUniformLocation(program, 'uTransparentOutside'),
+      sweepMode: gl.getUniformLocation(program, 'uSweepMode'),
+      direction: gl.getUniformLocation(program, 'uDirection')
     };
 
     const createTextureLayer = (src, fallback) => {
@@ -862,6 +876,8 @@ export function createInkSceneTransition(canvas, options = {}) {
         gl.uniform1f(uniforms.sceneBrightness, renderOptions.sceneBrightness ?? options.sceneBrightness ?? 1);
         gl.uniform1f(uniforms.depthThresholdMode, options.depthThresholdMode ? 1 : 0);
         gl.uniform1f(uniforms.transparentOutside, options.transparentOutside ? 1 : 0);
+        gl.uniform1f(uniforms.sweepMode, sweepMode);
+        gl.uniform1f(uniforms.direction, direction);
         const canvasRect = canvas.getBoundingClientRect();
         const sourceRect = options.sourceElement?.getBoundingClientRect?.();
         const useImageRect = sourceRect && sourceRect.width > 0 && sourceRect.height > 0 && canvasRect.width > 0 && canvasRect.height > 0;
