@@ -1,0 +1,219 @@
+/**
+ * iOS 26 Progressive Blur Navigation Overlay
+ * 顶部渐进式模糊组件 — 纯 CSS 实现，零依赖
+ *
+ * 使用方式：
+ *   1. 引入此 CSS 文件
+ *   2. 在 .site-nav 内添加 <div class="ios26-progressive-blur"></div>
+ *   3. 给 .site-nav 添加 .ios26-blur-enabled 类
+ *   4. 可选：引入 ios26-progressive-blur.js 做滚动状态联动
+ *
+ * 不修改任何现有代码，纯叠加层设计。
+ */
+
+/* -----------------------------------------------
+   核心组件：多层渐进模糊
+   ----------------------------------------------- */
+
+.ios26-progressive-blur {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.ios26-progressive-blur__layer {
+  position: absolute;
+  inset: 0;
+}
+
+/*
+ * 7 层叠加，模拟 iOS 26 Liquid Glass 的渐进羽化效果。
+ * 原理：每层只在特定纵向区间可见（mask），且越靠近顶部 blur 越强。
+ * 层与层之间的 mask 区间有重叠，形成平滑过渡。
+ */
+
+.ios26-progressive-blur__layer:nth-child(1) {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,1) 0%,
+    rgba(0,0,0,1) 12%,
+    rgba(0,0,0,0) 28%);
+  -webkit-mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,1) 0%,
+    rgba(0,0,0,1) 12%,
+    rgba(0,0,0,0) 28%);
+}
+
+.ios26-progressive-blur__layer:nth-child(2) {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 8%,
+    rgba(0,0,0,1) 16%,
+    rgba(0,0,0,1) 32%,
+    rgba(0,0,0,0) 48%);
+  -webkit-mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 8%,
+    rgba(0,0,0,1) 16%,
+    rgba(0,0,0,1) 32%,
+    rgba(0,0,0,0) 48%);
+}
+
+.ios26-progressive-blur__layer:nth-child(3) {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 16%,
+    rgba(0,0,0,1) 28%,
+    rgba(0,0,0,1) 48%,
+    rgba(0,0,0,0) 64%);
+  -webkit-mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 16%,
+    rgba(0,0,0,1) 28%,
+    rgba(0,0,0,1) 48%,
+    rgba(0,0,0,0) 64%);
+}
+
+.ios26-progressive-blur__layer:nth-child(4) {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 28%,
+    rgba(0,0,0,1) 44%,
+    rgba(0,0,0,1) 64%,
+    rgba(0,0,0,0) 80%);
+  -webkit-mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 28%,
+    rgba(0,0,0,1) 44%,
+    rgba(0,0,0,1) 64%,
+    rgba(0,0,0,0) 80%);
+}
+
+.ios26-progressive-blur__layer:nth-child(5) {
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 44%,
+    rgba(0,0,0,1) 60%,
+    rgba(0,0,0,1) 78%,
+    rgba(0,0,0,0) 92%);
+  -webkit-mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 44%,
+    rgba(0,0,0,1) 60%,
+    rgba(0,0,0,1) 78%,
+    rgba(0,0,0,0) 92%);
+}
+
+.ios26-progressive-blur__layer:nth-child(6) {
+  backdrop-filter: blur(48px);
+  -webkit-backdrop-filter: blur(48px);
+  mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 60%,
+    rgba(0,0,0,1) 78%,
+    rgba(0,0,0,1) 92%,
+    rgba(0,0,0,0) 100%);
+  -webkit-mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 60%,
+    rgba(0,0,0,1) 78%,
+    rgba(0,0,0,1) 92%,
+    rgba(0,0,0,0) 100%);
+}
+
+.ios26-progressive-blur__layer:nth-child(7) {
+  backdrop-filter: blur(80px);
+  -webkit-backdrop-filter: blur(80px);
+  mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 78%,
+    rgba(0,0,0,1) 92%,
+    rgba(0,0,0,1) 100%);
+  -webkit-mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,0) 78%,
+    rgba(0,0,0,1) 92%,
+    rgba(0,0,0,1) 100%);
+}
+
+/* -----------------------------------------------
+   可选：液态玻璃增强层（Tint + Noise）
+   为深色主题提供 iOS 26 风格的偏色与颗粒感
+   ----------------------------------------------- */
+
+.ios26-progressive-blur__tint {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(5, 8, 7, 0.55) 0%,
+    rgba(5, 8, 7, 0.22) 45%,
+    rgba(5, 8, 7, 0) 100%);
+  mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,1) 0%,
+    rgba(0,0,0,0) 100%);
+  -webkit-mask-image: linear-gradient(to bottom,
+    rgba(0,0,0,1) 0%,
+    rgba(0,0,0,0) 100%);
+  pointer-events: none;
+}
+
+/* 亮色主题覆盖 */
+.ios26-progressive-blur.is-light .ios26-progressive-blur__tint {
+  background: linear-gradient(180deg,
+    rgba(247, 237, 215, 0.45) 0%,
+    rgba(247, 237, 215, 0.16) 45%,
+    rgba(247, 237, 215, 0) 100%);
+}
+
+/* -----------------------------------------------
+   浏览器兼容：不支持的浏览器自动降级
+   ----------------------------------------------- */
+
+@supports not (backdrop-filter: blur(1px)) {
+  .ios26-progressive-blur {
+    display: none;
+  }
+}
+
+@supports not (-webkit-backdrop-filter: blur(1px)) {
+  .ios26-progressive-blur {
+    display: none;
+  }
+}
+
+/* -----------------------------------------------
+   与现有 .site-nav 的集成适配
+   只需给 .site-nav 添加 .ios26-blur-enabled
+   ----------------------------------------------- */
+
+.site-nav.ios26-blur-enabled {
+  /* 确保模糊层能 backdrop-filter 到下方内容 */
+  background: transparent !important;
+}
+
+.site-nav.ios26-blur-enabled::before {
+  /* 关闭原有的渐变遮罩，用渐进模糊替代 */
+  display: none;
+}
+
+/* 当启用了渐进模糊时，导航栏文字需要更高对比度 */
+.site-nav.ios26-blur-enabled .nav-links a {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.site-nav.ios26-blur-enabled .brand-text {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* 降低动画性能开销 */
+.ios26-progressive-blur,
+.ios26-progressive-blur__layer {
+  will-change: auto;
+}
+
+/* 响应式：移动端降低模糊层数以节省性能 */
+@media (max-width: 860px) {
+  .ios26-progressive-blur__layer:nth-child(6),
+  .ios26-progressive-blur__layer:nth-child(7) {
+    display: none;
+  }
+}

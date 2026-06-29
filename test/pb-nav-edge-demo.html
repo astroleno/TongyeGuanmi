@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progressive Blur 效果验证</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; }
+
+    .page {
+      min-height: 300vh;
+      background: #07110e;
+    }
+
+    /* 导航栏 */
+    .site-nav {
+      position: fixed;
+      top: 0; left: 0;
+      z-index: 100;
+      width: 100vw;
+      color: rgba(247, 237, 215, 0.82);
+      background: transparent;
+      pointer-events: auto;
+    }
+
+    .site-nav-track {
+      position: relative;
+      z-index: 1;
+      width: min(1680px, 100vw);
+      height: 60px;
+      margin-inline: auto;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 40px;
+    }
+
+    .brand { color: #f7edd7; font-weight: 700; text-decoration: none; }
+    .nav-links { display: flex; gap: 30px; flex: 1; }
+    .nav-links a { color: rgba(247,237,215,0.56); text-decoration: none; font-size: 12px; }
+    .nav-cta { background: rgba(247,237,215,0.92); color: #06100d; padding: 8px 16px; border-radius: 999px; font-size: 11px; font-weight: 700; text-decoration: none; }
+
+    /* 高对比度内容区，让模糊效果绝对可见 */
+    .content {
+      padding: 0;
+      max-width: 100%;
+    }
+
+    .hero-band {
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #38a69a 0%, #e8d59a 50%, #b75b34 100%);
+    }
+    .hero-band h1 {
+      font-size: 72px;
+      color: #fff;
+      font-weight: 400;
+      text-align: center;
+    }
+
+    .text-block {
+      padding: 40px;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .text-block h2 { color: #e8d59a; font-size: 32px; margin-bottom: 20px; }
+    .text-block p { color: rgba(247,237,215,0.72); line-height: 1.8; margin-bottom: 20px; font-size: 16px; }
+
+    .color-band {
+      height: 200px;
+      background: linear-gradient(90deg, #e8d59a, #38a69a, #b75b34);
+      margin: 40px 0;
+    }
+
+    .toggle { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; gap: 8px; }
+    .toggle button { padding: 10px 18px; border-radius: 999px; border: none; font-size: 12px; cursor: pointer; font-weight: 600; }
+    .toggle .on { background: #e8d59a; color: #050807; }
+    .toggle .off { background: rgba(255,255,255,0.15); color: #fff; }
+
+    .hint { position: fixed; bottom: 24px; left: 24px; z-index: 200; font-size: 12px; color: rgba(255,255,255,0.4); max-width: 280px; line-height: 1.5; }
+  </style>
+  <link rel="stylesheet" href="pb-nav-edge.css" />
+</head>
+<body>
+  <div class="page">
+    <nav class="site-nav" id="nav">
+      <div class="site-nav-track">
+        <a class="brand" href="#">同野观幂</a>
+        <div class="nav-links">
+          <a href="#">方法</a>
+          <a href="#">场景</a>
+          <a href="#">留学</a>
+          <a href="#">联系</a>
+        </div>
+        <a class="nav-cta" href="#">预约诊断</a>
+      </div>
+    </nav>
+
+    <div class="content">
+      <div class="hero-band">
+        <h1>向下滚动</h1>
+      </div>
+
+      <div class="text-block">
+        <h2>Progressive Blur 效果</h2>
+        <p>当这个彩色渐变条从导航栏下方滚上来时，你会看到内容先被模糊，然后逐渐变清晰。</p>
+        <p>这就是 iOS 26 的 scroll-edge effect。不是毛玻璃——而是内容经过导航栏下方时的模糊过渡。</p>
+      </div>
+
+      <div class="color-band"></div>
+
+      <div class="text-block">
+        <p>AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。</p>
+      </div>
+
+      <div class="color-band"></div>
+
+      <div class="text-block">
+        <p>你的同行不是更聪明，只是更早把 AI 用进了生意里。同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。</p>
+      </div>
+
+      <div class="color-band"></div>
+
+      <div class="text-block">
+        <p>先挑一个环节，几天内做出能跑的东西给你看，值不值、扩不扩，你看着实物决定。聊完再决定要不要合作，不推销、不卖课。</p>
+      </div>
+
+      <div class="color-band"></div>
+    </div>
+  </div>
+
+  <div class="toggle">
+    <button class="on" id="btnOn">Progressive Blur ON</button>
+    <button class="off" id="btnOff">OFF</button>
+  </div>
+
+  <div class="hint">
+    提示：向下滚动，观察彩色条从导航栏下方经过时的模糊效果。右下角可以开关。
+  </div>
+
+  <script src="pb-nav-edge.js"></script>
+  <script>
+    var edge = document.querySelector('.pb-nav-edge');
+    document.getElementById('btnOn').onclick = function() {
+      if (edge) edge.style.display = '';
+      document.getElementById('btnOn').className = 'on';
+      document.getElementById('btnOff').className = 'off';
+    };
+    document.getElementById('btnOff').onclick = function() {
+      if (edge) edge.style.display = 'none';
+      document.getElementById('btnOn').className = 'off';
+      document.getElementById('btnOff').className = 'on';
+    };
+  </script>
+</body>
+</html>

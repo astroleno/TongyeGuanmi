@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>iOS 26 渐进式模糊组件演示 — 同野观幂</title>
+  <style>
+    /* 演示页面基础样式，模拟同野观幂风格 */
+    :root {
+      --bg: #050807;
+      --ink: #f7edd7;
+      --gold: #e8d59a;
+      --nav-h: 64px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* 模拟原有导航栏（来自 lost-wax-glass-nav.css） */
+    .site-nav {
+      --nav-fg: rgba(247, 237, 215, 0.82);
+      --nav-fg-strong: rgba(247, 237, 215, 0.96);
+      --nav-fg-muted: rgba(247, 237, 215, 0.56);
+      --nav-cta-bg: rgba(247, 237, 215, 0.92);
+      --nav-cta-fg: #06100d;
+
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 100;
+      width: 100vw;
+      color: var(--nav-fg);
+      background: transparent;
+      opacity: 1;
+      visibility: visible;
+      transform: translate3d(0, 0, 0);
+      pointer-events: auto;
+      will-change: transform, opacity;
+    }
+
+    .site-nav::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      width: 100vw;
+      height: 96px;
+      background: linear-gradient(180deg, rgba(5, 8, 7, 0.72), rgba(5, 8, 7, 0.30) 48%, rgba(5, 8, 7, 0));
+      opacity: .86;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .site-nav.ios26-blur-enabled::before {
+      display: none;
+    }
+
+    .site-nav-track {
+      position: relative;
+      z-index: 1;
+      width: min(1680px, 100vw);
+      height: var(--nav-h);
+      margin-inline: auto;
+      padding: 10px clamp(12px, 1vw, 20px);
+      display: flex;
+      align-items: center;
+      gap: clamp(22px, 2.4vw, 40px);
+    }
+
+    .brand {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--nav-fg-strong);
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      width: 24px; height: 24px;
+      display: grid; place-items: center;
+      border-radius: 4px;
+      border: 1px solid rgba(232, 213, 154, 0.18);
+      color: var(--gold);
+      font-family: ui-serif, "Songti SC", serif;
+      font-size: 16px;
+    }
+
+    .brand-text {
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .nav-links {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      gap: clamp(22px, 2.4vw, 34px);
+    }
+
+    .nav-links a {
+      color: var(--nav-fg-muted);
+      font-size: 11px;
+      font-weight: 720;
+      letter-spacing: .08em;
+      padding: 10px 0;
+      text-decoration: none;
+      transition: color .22s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--nav-fg-strong);
+    }
+
+    .nav-cta {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 92px;
+      min-height: 32px;
+      padding: 0 15px;
+      border-radius: 999px;
+      background: var(--nav-cta-bg);
+      color: var(--nav-cta-fg);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-decoration: none;
+    }
+
+    /* 演示区：首屏内容 */
+    .hero {
+      position: relative;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 24px;
+    }
+
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 72px);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 24px;
+    }
+
+    .hero p {
+      font-size: 16px;
+      color: rgba(247, 237, 215, 0.64);
+      max-width: 520px;
+      line-height: 1.7;
+    }
+
+    /* 制造背景内容以便看到模糊效果 */
+    .hero-bg-visual {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      overflow: hidden;
+    }
+
+    .hero-bg-visual::before {
+      content: "";
+      position: absolute;
+      top: 20%; left: 50%;
+      transform: translateX(-50%);
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(232, 213, 154, 0.08) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+
+    /* 滚动内容区 */
+    .content-sections {
+      padding: 80px 24px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .content-sections h2 {
+      font-size: 28px;
+      font-weight: 400;
+      margin-bottom: 20px;
+      color: var(--gold);
+    }
+
+    .content-sections p {
+      font-size: 15px;
+      line-height: 1.8;
+      color: rgba(247, 237, 215, 0.72);
+      margin-bottom: 60px;
+    }
+
+    .demo-card {
+      background: rgba(247, 237, 215, 0.04);
+      border: 1px solid rgba(247, 237, 215, 0.08);
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 40px;
+    }
+
+    .demo-card h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--ink);
+    }
+
+    .demo-card p {
+      font-size: 14px;
+      color: rgba(247, 237, 215, 0.56);
+      margin-bottom: 0;
+    }
+
+    /* 控制面板 */
+    .control-panel {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 200;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .control-btn {
+      background: rgba(247, 237, 215, 0.1);
+      border: 1px solid rgba(247, 237, 215, 0.18);
+      color: var(--ink);
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .control-btn:hover {
+      background: rgba(247, 237, 215, 0.18);
+    }
+
+    .control-btn.active {
+      background: var(--gold);
+      color: var(--bg);
+      border-color: var(--gold);
+    }
+
+    .control-label {
+      font-size: 11px;
+      color: rgba(247, 237, 215, 0.48);
+      margin-right: 4px;
+    }
+
+    /* 说明浮层 */
+    .hint {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      z-index: 200;
+      font-size: 12px;
+      color: rgba(247, 237, 215, 0.4);
+      max-width: 280px;
+      line-height: 1.5;
+    }
+  </style>
+
+  <!-- 引入组件样式 -->
+  <link rel="stylesheet" href="ios26-progressive-blur.css" />
+</head>
+<body>
+
+  <!-- 导航栏（复刻同野观幂结构） -->
+  <nav class="site-nav" id="demoNav" aria-label="演示导航">
+    <div class="site-nav-track">
+      <a class="brand" href="#">
+        <span class="brand-mark">同</span>
+        <span class="brand-text">同野观幂</span>
+      </a>
+      <div class="nav-links">
+        <a href="#">方法</a>
+        <a href="#">场景</a>
+        <a href="#">留学</a>
+        <a href="#">联系</a>
+      </div>
+      <a class="nav-cta" href="#">预约诊断</a>
+    </div>
+  </nav>
+
+  <!-- 首屏 -->
+  <section class="hero">
+    <div class="hero-bg-visual"></div>
+    <h1>渐进式模糊<br>演示</h1>
+    <p>向下滚动，观察导航栏如何从顶部产生 iOS 26 风格的 Liquid Glass 羽化模糊效果。</p>
+  </section>
+
+  <!-- 内容区 -->
+  <div class="content-sections">
+    <div class="demo-card">
+      <h3>组件原理</h3>
+      <p>使用 7 层 backdrop-filter 叠加，每层通过 CSS mask-image 控制纵向可见区间。越靠近顶部，blur 值越大，形成从强到弱的自然羽化过渡。</p>
+    </div>
+
+    <div class="demo-card">
+      <h3>零依赖</h3>
+      <p>纯 CSS 实现，不需要 React、Vue 或任何框架。通过给 .site-nav 添加 .ios26-blur-enabled 类即可启用。不修改任何现有代码。</p>
+    </div>
+
+    <div class="demo-card">
+      <h3>自动降级</h3>
+      <p>在不支持 backdrop-filter 的浏览器中，组件通过 @supports 查询自动隐藏，回退到你原有的渐变遮罩效果。</p>
+    </div>
+
+    <div class="demo-card">
+      <h3>性能优化</h3>
+      <p>移动端自动减少模糊层数（隐藏第 6、7 层），降低 GPU 开销。同时支持 prefers-reduced-motion 媒体查询。</p>
+    </div>
+
+    <h2>继续向下滚动…</h2>
+    <p>导航栏会始终保持渐进模糊效果。你可以随时用右下角按钮切换对比原有渐变遮罩和新的渐进模糊。</p>
+
+    <div class="demo-card">
+      <h3>与现有系统的兼容性</h3>
+      <p>你的 lost-wax-glass-nav.css 中已有的 ::before 渐变遮罩在启用 ios26-blur-enabled 后会自动隐藏（display: none），两者不会冲突。</p>
+    </div>
+
+    <div class="demo-card">
+      <h3>深色 / 亮色主题</h3>
+      <p>组件包含 .ios26-progressive-blur__tint 层，会根据 .is-light 类自动切换 tint 颜色，适配你的 data-tone="light" 逻辑。</p>
+    </div>
+
+    <h2>更多内容</h2>
+    <p>以下是占位文本，确保页面有足够滚动距离来观察导航栏模糊效果。</p>
+
+    <p>AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。它决定了未来三年你是领跑还是追赶。</p>
+
+    <p>你的同行不是更聪明，只是更早把 AI 用进了生意里。同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。</p>
+
+    <p>我们见过太多"只培训"——听完很激动，回去照旧。"只上软件"——账号开了，一线没人碰。"只交方案"——装订精美，锁进抽屉。</p>
+
+    <div class="demo-card">
+      <h3>Scroll Edge Effect</h3>
+      <p>这个效果模拟了 iOS 26 中 UIScrollView 的 topEdgeEffect — 当内容滚动到顶部时，导航栏与内容交界处产生自然的模糊过渡。</p>
+    </div>
+
+    <p>先挑一个环节，几天内做出能跑的东西给你看，值不值、扩不扩，你看着实物决定。</p>
+  </div>
+
+  <!-- 控制面板 -->
+  <div class="control-panel">
+    <span class="control-label">导航栏效果：</span>
+    <button class="control-btn active" id="btnLegacy" onclick="setMode('legacy')">原有渐变</button>
+    <button class="control-btn" id="btnProgressive" onclick="setMode('progressive')">渐进模糊</button>
+  </div>
+
+  <div class="hint">
+    提示：「渐进模糊」模式下，导航栏使用 7 层 backdrop-filter + mask 实现 iOS 26 风格 Liquid Glass 效果。向下滚动即可观察。
+  </div>
+
+  <!-- 引入组件脚本（可选） -->
+  <script src="ios26-progressive-blur.js"></script>
+
+  <script>
+    // 演示控制逻辑
+    const nav = document.getElementById('demoNav');
+    const btnLegacy = document.getElementById('btnLegacy');
+    const btnProgressive = document.getElementById('btnProgressive');
+
+    function setMode(mode) {
+      if (mode === 'progressive') {
+        nav.classList.add('ios26-blur-enabled');
+        btnLegacy.classList.remove('active');
+        btnProgressive.classList.add('active');
+        // 触发 JS 组件的 enable
+        if (window.iOS26ProgressiveBlur) window.iOS26ProgressiveBlur.enable();
+      } else {
+        nav.classList.remove('ios26-blur-enabled');
+        btnProgressive.classList.remove('active');
+        btnLegacy.classList.add('active');
+        if (window.iOS26ProgressiveBlur) window.iOS26ProgressiveBlur.disable();
+      }
+    }
+
+    // 默认启用渐进模糊，方便用户直接看到效果
+    setMode('progressive');
+  </script>
+</body>
+</html>

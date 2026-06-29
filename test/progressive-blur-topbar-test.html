@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progressive Blur 顶栏测试｜同野观幂</title>
+  <style>
+    :root {
+      --bg: #07110e;
+      --bg-deep: #050807;
+      --ink: #f7edd7;
+      --muted: rgba(247, 237, 215, 0.66);
+      --gold: #e8d59a;
+      --jade: #38a69a;
+      --cinnabar: #b75b34;
+      --nav-h: 60px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--bg);
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 14% 10%, rgba(56, 166, 154, 0.18), transparent 28vw),
+        radial-gradient(circle at 80% 18%, rgba(183, 91, 52, 0.14), transparent 32vw),
+        linear-gradient(180deg, #07110e 0%, #08130f 50%, #050807 100%);
+      overflow-x: hidden;
+      text-rendering: geometricPrecision;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .site-nav {
+      --nav-fg: rgba(247, 237, 215, 0.82);
+      --nav-fg-strong: rgba(247, 237, 215, 0.96);
+      --nav-fg-muted: rgba(247, 237, 215, 0.56);
+      --nav-cta-bg: rgba(247, 237, 215, 0.92);
+      --nav-cta-fg: #06100d;
+
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 100;
+      width: 100vw;
+      color: var(--nav-fg);
+      background: transparent;
+      pointer-events: auto;
+      isolation: isolate;
+    }
+
+    .site-nav::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      z-index: 0;
+      width: 100vw;
+      height: 96px;
+      background: linear-gradient(180deg, rgba(5, 8, 7, 0.72), rgba(5, 8, 7, 0.30) 48%, rgba(5, 8, 7, 0));
+      opacity: .86;
+      pointer-events: none;
+    }
+
+    .site-nav.is-on-light {
+      --nav-fg: rgba(6, 16, 13, 0.72);
+      --nav-fg-strong: rgba(6, 16, 13, 0.94);
+      --nav-fg-muted: rgba(6, 16, 13, 0.56);
+      --nav-cta-bg: #06100d;
+      --nav-cta-fg: #f7edd7;
+    }
+
+    .site-nav.is-on-light::before {
+      background: linear-gradient(180deg, rgba(247, 237, 215, 0.66), rgba(247, 237, 215, 0.28) 48%, rgba(247, 237, 215, 0));
+    }
+
+    .site-nav.is-progressive::before {
+      opacity: 0;
+    }
+
+    .site-nav-track {
+      position: relative;
+      z-index: 2;
+      width: min(1680px, 100vw);
+      height: var(--nav-h);
+      margin-inline: auto;
+      padding: 10px clamp(12px, 1vw, 20px);
+      display: flex;
+      align-items: center;
+      gap: clamp(22px, 2.4vw, 40px);
+    }
+
+    .brand {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: max-content;
+      color: var(--nav-fg-strong);
+    }
+
+    .brand-mark {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 4px;
+      border: 1px solid rgba(232, 213, 154, 0.18);
+      color: var(--gold);
+      font-family: ui-serif, "Songti SC", "STSong", serif;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .brand-text {
+      font-size: 12px;
+      font-weight: 760;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .nav-links {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      gap: clamp(22px, 2.4vw, 34px);
+      min-width: 0;
+    }
+
+    .nav-links a {
+      position: relative;
+      color: var(--nav-fg-muted);
+      font-size: 11px;
+      font-weight: 720;
+      line-height: 1;
+      letter-spacing: .08em;
+      padding: 10px 0;
+      transition: color .22s ease;
+    }
+
+    .nav-links a::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 3px;
+      height: 1px;
+      background: currentColor;
+      transform: scaleX(0);
+      transform-origin: left;
+      opacity: .72;
+      transition: transform .22s ease;
+    }
+
+    .nav-links a:hover,
+    .nav-links a:focus-visible,
+    .nav-links a.is-active {
+      color: var(--nav-fg-strong);
+    }
+
+    .nav-links a:hover::after,
+    .nav-links a:focus-visible::after,
+    .nav-links a.is-active::after {
+      transform: scaleX(1);
+    }
+
+    .nav-cta {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 92px;
+      min-height: 32px;
+      padding: 0 15px;
+      border-radius: 999px;
+      background: var(--nav-cta-bg);
+      color: var(--nav-cta-fg);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      transition: transform .22s ease, background .22s ease, color .22s ease;
+    }
+
+    .nav-cta:hover,
+    .nav-cta:focus-visible {
+      transform: translateY(-1px);
+    }
+
+    /* Adapted from progressive-blur.zip:
+       CodePen: https://codepen.io/guillermoglezt/pen/QwWmbwQ */
+    .progressive-topbar-blur {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1;
+      height: 132px;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .22s ease;
+    }
+
+    .site-nav.is-progressive .progressive-topbar-blur {
+      opacity: 1;
+    }
+
+    .progressive-topbar-blur__layer,
+    .progressive-topbar-blur__tint {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .progressive-topbar-blur__layer:nth-child(1) {
+      backdrop-filter: blur(1px);
+      -webkit-backdrop-filter: blur(1px);
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 86%, rgba(0,0,0,0) 100%);
+      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 86%, rgba(0,0,0,0) 100%);
+    }
+
+    .progressive-topbar-blur__layer:nth-child(2) {
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 92%);
+      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 92%);
+    }
+
+    .progressive-topbar-blur__layer:nth-child(3) {
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 54%, rgba(0,0,0,0) 78%);
+      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 54%, rgba(0,0,0,0) 78%);
+    }
+
+    .progressive-topbar-blur__layer:nth-child(4) {
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 64%);
+      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 64%);
+    }
+
+    .progressive-topbar-blur__layer:nth-child(5) {
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 28%, rgba(0,0,0,0) 48%);
+      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 28%, rgba(0,0,0,0) 48%);
+    }
+
+    .progressive-topbar-blur__layer:nth-child(6) {
+      backdrop-filter: blur(32px);
+      -webkit-backdrop-filter: blur(32px);
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 18%, rgba(0,0,0,0) 34%);
+      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 18%, rgba(0,0,0,0) 34%);
+    }
+
+    .progressive-topbar-blur__layer:nth-child(7) {
+      backdrop-filter: blur(64px);
+      -webkit-backdrop-filter: blur(64px);
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 10%, rgba(0,0,0,0) 24%);
+      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 10%, rgba(0,0,0,0) 24%);
+    }
+
+    .progressive-topbar-blur__tint {
+      background: linear-gradient(180deg, rgba(5, 8, 7, 0.58), rgba(5, 8, 7, 0.26) 44%, rgba(5, 8, 7, 0));
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
+      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
+    }
+
+    .site-nav.is-on-light .progressive-topbar-blur__tint {
+      background: linear-gradient(180deg, rgba(247, 237, 215, 0.58), rgba(247, 237, 215, 0.24) 44%, rgba(247, 237, 215, 0));
+    }
+
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .progressive-topbar-blur {
+        display: none;
+      }
+
+      .site-nav.is-progressive::before {
+        opacity: .86;
+      }
+    }
+
+    main {
+      min-height: 260vh;
+    }
+
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 120px 24px 80px;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      background:
+        linear-gradient(135deg, rgba(56, 166, 154, 0.42), rgba(232, 213, 154, 0.22) 48%, rgba(183, 91, 52, 0.46)),
+        radial-gradient(circle at 50% 34%, rgba(247, 237, 215, 0.20), transparent 34vw);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 12vh 6vw auto;
+      z-index: -1;
+      height: 56vh;
+      border: 1px solid rgba(247, 237, 215, 0.18);
+      background:
+        repeating-linear-gradient(90deg, rgba(247,237,215,.16) 0 1px, transparent 1px 44px),
+        repeating-linear-gradient(0deg, rgba(247,237,215,.12) 0 1px, transparent 1px 44px);
+      opacity: .62;
+      transform: rotate(-2deg);
+    }
+
+    .hero-copy {
+      width: min(860px, 100%);
+      text-align: center;
+    }
+
+    .hero-copy h1 {
+      margin: 0;
+      font-size: clamp(42px, 9vw, 112px);
+      font-weight: 420;
+      line-height: .92;
+      letter-spacing: 0;
+      color: rgba(247, 237, 215, 0.96);
+    }
+
+    .hero-copy p {
+      width: min(620px, 100%);
+      margin: 28px auto 0;
+      color: rgba(247, 237, 215, 0.72);
+      font-size: clamp(15px, 1.6vw, 18px);
+      line-height: 1.8;
+    }
+
+    .band {
+      min-height: 80vh;
+      padding: 120px clamp(22px, 6vw, 96px);
+      display: grid;
+      align-items: center;
+    }
+
+    .band-inner {
+      width: min(960px, 100%);
+      margin-inline: auto;
+    }
+
+    .band h2 {
+      margin: 0 0 22px;
+      color: var(--gold);
+      font-size: clamp(30px, 4.6vw, 64px);
+      font-weight: 420;
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .band p {
+      max-width: 660px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.85;
+    }
+
+    .band.is-light {
+      color: #06100d;
+      background:
+        linear-gradient(135deg, rgba(247, 237, 215, 0.96), rgba(232, 213, 154, 0.76)),
+        radial-gradient(circle at 70% 20%, rgba(56, 166, 154, 0.22), transparent 36vw);
+    }
+
+    .band.is-light h2 {
+      color: #06100d;
+    }
+
+    .band.is-light p {
+      color: rgba(6, 16, 13, .68);
+    }
+
+    .stripe-field {
+      min-height: 92vh;
+      background:
+        repeating-linear-gradient(90deg,
+          rgba(232, 213, 154, 0.92) 0 8vw,
+          rgba(56, 166, 154, 0.88) 8vw 16vw,
+          rgba(183, 91, 52, 0.92) 16vw 24vw,
+          rgba(247, 237, 215, 0.82) 24vw 32vw);
+    }
+
+    .controls {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid rgba(247, 237, 215, 0.16);
+      border-radius: 999px;
+      background: rgba(5, 8, 7, 0.58);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 18px 70px rgba(0,0,0,.28);
+    }
+
+    .controls button {
+      min-height: 34px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 999px;
+      color: rgba(247, 237, 215, .78);
+      background: transparent;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 720;
+      cursor: pointer;
+    }
+
+    .controls button.is-active {
+      color: #06100d;
+      background: var(--gold);
+    }
+
+    .source-note {
+      position: fixed;
+      left: 18px;
+      bottom: 20px;
+      z-index: 200;
+      max-width: min(380px, calc(100vw - 36px));
+      color: rgba(247, 237, 215, .46);
+      font-size: 12px;
+      line-height: 1.55;
+      pointer-events: none;
+    }
+
+    @media (max-width: 860px) {
+      :root {
+        --nav-h: 58px;
+      }
+
+      .site-nav::before {
+        height: 86px;
+      }
+
+      .site-nav-track {
+        padding: 9px 14px;
+        gap: 12px;
+      }
+
+      .brand-mark {
+        width: 28px;
+        height: 28px;
+        border-radius: 5px;
+      }
+
+      .brand-text {
+        display: none;
+      }
+
+      .nav-links {
+        gap: clamp(12px, 3.2vw, 18px);
+      }
+
+      .nav-links a {
+        font-size: 11px;
+        letter-spacing: .04em;
+      }
+
+      .nav-cta {
+        min-width: 84px;
+        min-height: 31px;
+        padding-inline: 12px;
+        letter-spacing: .04em;
+      }
+
+      .progressive-topbar-blur {
+        height: 108px;
+      }
+
+      .progressive-topbar-blur__layer:nth-child(6),
+      .progressive-topbar-blur__layer:nth-child(7) {
+        display: none;
+      }
+
+      .controls {
+        left: 12px;
+        right: 12px;
+        justify-content: center;
+      }
+
+      .source-note {
+        display: none;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .site-nav-track {
+        gap: 8px;
+      }
+
+      .nav-links {
+        gap: 10px;
+      }
+
+      .nav-links a[href="#education"] {
+        display: none;
+      }
+
+      .controls button {
+        flex: 1;
+        padding-inline: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="site-nav is-progressive" id="siteNav" aria-label="主导航">
+    <div class="progressive-topbar-blur" aria-hidden="true">
+      <div class="progressive-topbar-blur__layer"></div>
+      <div class="progressive-topbar-blur__layer"></div>
+      <div class="progressive-topbar-blur__layer"></div>
+      <div class="progressive-topbar-blur__layer"></div>
+      <div class="progressive-topbar-blur__layer"></div>
+      <div class="progressive-topbar-blur__layer"></div>
+      <div class="progressive-topbar-blur__layer"></div>
+      <div class="progressive-topbar-blur__tint"></div>
+    </div>
+    <div class="site-nav-track">
+      <a class="brand" href="#top" aria-label="同野观幂首页">
+        <span class="brand-mark">同</span>
+        <span class="brand-text">同野观幂</span>
+      </a>
+      <div class="nav-links" aria-label="页面章节">
+        <a href="#method">方法</a>
+        <a href="#services">场景</a>
+        <a href="#education">留学</a>
+        <a href="#contact">联系</a>
+      </div>
+      <a class="nav-cta" href="#contact">预约诊断</a>
+    </div>
+  </nav>
+
+  <main id="top">
+    <section class="hero" data-tone="dark">
+      <div class="hero-copy">
+        <h1>顶栏渐进模糊</h1>
+        <p>这个测试页把 progressive-blur.zip 的 7 层 backdrop-filter 思路改成同野观幂顶栏局部遮罩。向下滚动，观察高对比背景穿过导航区域时的羽化效果。</p>
+      </div>
+    </section>
+
+    <section class="stripe-field" data-tone="dark" aria-label="高对比滚动背景"></section>
+
+    <section class="band is-light" id="method" data-tone="light">
+      <div class="band-inner">
+        <h2>亮色内容下的顶栏</h2>
+        <p>滚到这里时，脚本会给导航加上 is-on-light，渐进模糊的 tint 也会切换成浅色版本，用来测试正式站点里的 light tone 场景。</p>
+      </div>
+    </section>
+
+    <section class="band" id="services" data-tone="dark">
+      <div class="band-inner">
+        <h2>深色内容下的顶栏</h2>
+        <p>深色背景使用更接近现有 lost-wax 顶栏的墨绿色遮罩，但遮罩本身不再是单一渐变，而是由不同强度的 blur 层向下递减。</p>
+      </div>
+    </section>
+
+    <section class="stripe-field" id="education" data-tone="dark" aria-label="第二段高对比滚动背景"></section>
+
+    <section class="band is-light" id="contact" data-tone="light">
+      <div class="band-inner">
+        <h2>对比开关</h2>
+        <p>右下角可以切换「原渐变」和「渐进模糊」。如果浏览器不支持 backdrop-filter，页面会自动回退到原渐变遮罩。</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="controls" aria-label="顶栏效果切换">
+    <button type="button" id="legacyBtn">原渐变</button>
+    <button type="button" class="is-active" id="progressiveBtn">渐进模糊</button>
+  </div>
+
+  <p class="source-note">来源：progressive-blur.zip / CodePen QwWmbwQ。这里已修正 pointer-events、补充 -webkit-mask，并限制为项目顶栏局部效果。</p>
+
+  <script>
+    (function () {
+      var nav = document.getElementById('siteNav');
+      var legacyBtn = document.getElementById('legacyBtn');
+      var progressiveBtn = document.getElementById('progressiveBtn');
+      var toneSections = Array.prototype.slice.call(document.querySelectorAll('[data-tone]'));
+
+      function setMode(mode) {
+        var progressive = mode === 'progressive';
+        nav.classList.toggle('is-progressive', progressive);
+        legacyBtn.classList.toggle('is-active', !progressive);
+        progressiveBtn.classList.toggle('is-active', progressive);
+      }
+
+      function syncTone() {
+        var probeY = Math.min(window.innerHeight * 0.18, 120);
+        var activeTone = 'dark';
+
+        for (var i = 0; i < toneSections.length; i += 1) {
+          var rect = toneSections[i].getBoundingClientRect();
+          if (rect.top <= probeY && rect.bottom >= probeY) {
+            activeTone = toneSections[i].getAttribute('data-tone') || 'dark';
+            break;
+          }
+        }
+
+        nav.classList.toggle('is-on-light', activeTone === 'light');
+      }
+
+      legacyBtn.addEventListener('click', function () { setMode('legacy'); });
+      progressiveBtn.addEventListener('click', function () { setMode('progressive'); });
+      window.addEventListener('scroll', syncTone, { passive: true });
+      window.addEventListener('resize', syncTone);
+      syncTone();
+    })();
+  </script>
+</body>
+</html>

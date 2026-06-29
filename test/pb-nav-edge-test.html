@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progressive Blur 效果验证</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+
+    .page { min-height: 300vh; background: #07110e; }
+
+    /* 导航栏 */
+    .site-nav {
+      position: fixed; top: 0; left: 0;
+      z-index: 100; width: 100vw;
+      color: rgba(247, 237, 215, 0.82);
+      background: transparent; pointer-events: auto;
+    }
+    .site-nav-track {
+      position: relative; z-index: 1;
+      width: min(1680px, 100vw); height: 60px;
+      margin-inline: auto; padding: 10px 20px;
+      display: flex; align-items: center; gap: 40px;
+    }
+    .brand { color: #f7edd7; font-weight: 700; text-decoration: none; }
+    .nav-links { display: flex; gap: 30px; flex: 1; }
+    .nav-links a { color: rgba(247,237,215,0.56); text-decoration: none; font-size: 12px; }
+    .nav-cta { background: rgba(247,237,215,0.92); color: #06100d; padding: 8px 16px; border-radius: 999px; font-size: 11px; font-weight: 700; text-decoration: none; }
+
+    /* ===== 关键：progressive blur 层（从 Kenneth Nym 实现） ===== */
+    .pb-nav-edge {
+      position: fixed; left: 0; top: 0; right: 0;
+      width: 100%; height: 200px;
+      pointer-events: none; z-index: 99;
+      transform: rotate(180deg);
+    }
+    .pb-nav-edge .pb-layer { position: absolute; inset: 0; }
+    .pb-nav-edge .pb-layer:nth-child(1) { z-index: 70; backdrop-filter: blur(1px); -webkit-backdrop-filter: blur(1px); mask: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,1) 10%, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 40%); -webkit-mask: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,1) 10%, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 40%); }
+    .pb-nav-edge .pb-layer:nth-child(2) { z-index: 60; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); mask: linear-gradient(rgba(0,0,0,0) 10%, rgba(0,0,0,1) 20%, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 50%); -webkit-mask: linear-gradient(rgba(0,0,0,0) 10%, rgba(0,0,0,1) 20%, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 50%); }
+    .pb-nav-edge .pb-layer:nth-child(3) { z-index: 50; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); mask: linear-gradient(rgba(0,0,0,0) 15%, rgba(0,0,0,1) 30%, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 60%); -webkit-mask: linear-gradient(rgba(0,0,0,0) 15%, rgba(0,0,0,1) 30%, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 60%); }
+    .pb-nav-edge .pb-layer:nth-child(4) { z-index: 40; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); mask: linear-gradient(rgba(0,0,0,0) 20%, rgba(0,0,0,1) 40%, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 70%); -webkit-mask: linear-gradient(rgba(0,0,0,0) 20%, rgba(0,0,0,1) 40%, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 70%); }
+    .pb-nav-edge .pb-layer:nth-child(5) { z-index: 30; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); mask: linear-gradient(rgba(0,0,0,0) 40%, rgba(0,0,0,1) 60%, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 90%); -webkit-mask: linear-gradient(rgba(0,0,0,0) 40%, rgba(0,0,0,1) 60%, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 90%); }
+    .pb-nav-edge .pb-layer:nth-child(6) { z-index: 20; backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); mask: linear-gradient(rgba(0,0,0,0) 60%, rgba(0,0,0,1) 80%); -webkit-mask: linear-gradient(rgba(0,0,0,0) 60%, rgba(0,0,0,1) 80%); }
+    .pb-nav-edge .pb-layer:nth-child(7) { z-index: 10; backdrop-filter: blur(64px); -webkit-backdrop-filter: blur(64px); mask: linear-gradient(rgba(0,0,0,0) 70%, rgba(0,0,0,1) 100%); -webkit-mask: linear-gradient(rgba(0,0,0,0) 70%, rgba(0,0,0,1) 100%); }
+    .pb-nav-edge.off { display: none; }
+    @supports not (backdrop-filter: blur(1px)) { .pb-nav-edge { display: none; } }
+    @media (prefers-reduced-motion: reduce) { .pb-nav-edge { display: none; } }
+    /* ============================================================= */
+
+    .hero { height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #38a69a 0%, #e8d59a 50%, #b75b34 100%); }
+    .hero h1 { font-size: 64px; color: #fff; font-weight: 400; }
+
+    .text { padding: 40px; max-width: 700px; margin: 0 auto; }
+    .text h2 { color: #e8d59a; font-size: 28px; margin-bottom: 16px; }
+    .text p { color: rgba(247,237,215,0.7); line-height: 1.8; margin-bottom: 20px; font-size: 16px; }
+
+    .band { height: 120px; background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1, #f9ca24); margin: 40px 0; }
+
+    .toggle { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; gap: 8px; }
+    .toggle button { padding: 10px 18px; border-radius: 999px; border: none; font-size: 12px; cursor: pointer; font-weight: 600; }
+    .toggle .on { background: #e8d59a; color: #050807; }
+    .toggle .off { background: rgba(255,255,255,0.15); color: #fff; }
+
+    .hint { position: fixed; bottom: 24px; left: 24px; z-index: 200; font-size: 12px; color: rgba(255,255,255,0.4); max-width: 280px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="site-nav" id="nav">
+      <div class="site-nav-track">
+        <a class="brand" href="#">同野观幂</a>
+        <div class="nav-links">
+          <a href="#">方法</a><a href="#">场景</a><a href="#">留学</a><a href="#">联系</a>
+        </div>
+        <a class="nav-cta" href="#">预约诊断</a>
+      </div>
+    </nav>
+
+    <div class="pb-nav-edge" id="pbNavEdge">
+      <div class="pb-layer"></div><div class="pb-layer"></div><div class="pb-layer"></div>
+      <div class="pb-layer"></div><div class="pb-layer"></div><div class="pb-layer"></div>
+      <div class="pb-layer"></div>
+    </div>
+
+    <div class="hero"><h1>向下滚动</h1></div>
+
+    <div class="text">
+      <h2>效果验证</h2>
+      <p>向下滚动，观察彩色条从导航栏下方经过时是否被模糊。</p>
+      <p>这是 Kenneth Nym 的 progressive blur 实现，使用 7 层 backdrop-filter + mask。</p>
+    </div>
+
+    <div class="band"></div>
+    <div class="text"><p>AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来。</p></div>
+    <div class="band"></div>
+    <div class="text"><p>你的同行不是更聪明，只是更早把 AI 用进了生意里。</p></div>
+    <div class="band"></div>
+    <div class="text"><p>先挑一个环节，几天内做出能跑的东西给你看，值不值、扩不扩，你看着实物决定。</p></div>
+    <div class="band"></div>
+  </div>
+
+  <div class="toggle">
+    <button class="on" id="btnOn">Blur ON</button>
+    <button class="off" id="btnOff">OFF</button>
+  </div>
+  <div class="hint">提示：向下滚动，看彩色条从导航栏下方经过时是否被模糊。</div>
+
+  <script>
+    var edge = document.getElementById('pbNavEdge');
+    document.getElementById('btnOn').onclick = function() {
+      edge.classList.remove('off');
+      document.getElementById('btnOn').className = 'on';
+      document.getElementById('btnOff').className = 'off';
+    };
+    document.getElementById('btnOff').onclick = function() {
+      edge.classList.add('off');
+      document.getElementById('btnOn').className = 'off';
+      document.getElementById('btnOff').className = 'on';
+    };
+  </script>
+</body>
+</html>

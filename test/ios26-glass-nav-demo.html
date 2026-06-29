@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>iOS 26 整行毛玻璃导航演示 — 同野观幂</title>
+  <style>
+    :root {
+      --bg: #050807;
+      --ink: #f7edd7;
+      --gold: #e8d59a;
+      --nav-h: 64px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      color: var(--ink);
+    }
+
+    /* ==========================================
+       关键：用一张鲜艳图片做背景，让毛玻璃清晰可见
+       ========================================== */
+    .page-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background:
+        radial-gradient(ellipse at 20% 30%, rgba(232, 213, 154, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 70%, rgba(100, 160, 130, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(180, 140, 80, 0.08) 0%, transparent 60%),
+        var(--bg);
+    }
+
+    /* 装饰元素：让背景有层次，模糊才能被看到 */
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(40px);
+      z-index: -1;
+      pointer-events: none;
+    }
+    .bg-orb--1 {
+      width: 400px; height: 400px;
+      background: rgba(232, 213, 154, 0.12);
+      top: 10%; left: 15%;
+    }
+    .bg-orb--2 {
+      width: 300px; height: 300px;
+      background: rgba(100, 160, 130, 0.1);
+      top: 40%; right: 10%;
+    }
+    .bg-orb--3 {
+      width: 500px; height: 500px;
+      background: rgba(180, 140, 80, 0.08);
+      top: 60%; left: 40%;
+    }
+
+    /* ==========================================
+       导航栏（复刻同野观幂结构）
+       ========================================== */
+    .site-nav {
+      --nav-fg: rgba(247, 237, 215, 0.82);
+      --nav-fg-strong: rgba(247, 237, 215, 0.96);
+      --nav-fg-muted: rgba(247, 237, 215, 0.56);
+      --nav-cta-bg: rgba(247, 237, 215, 0.92);
+      --nav-cta-fg: #06100d;
+
+      position: fixed;
+      top: 0; left: 0;
+      z-index: 100;
+      width: 100vw;
+      color: var(--nav-fg);
+      background: transparent;
+      opacity: 1;
+      visibility: visible;
+      transform: translate3d(0, 0, 0);
+      pointer-events: auto;
+      will-change: transform, opacity;
+    }
+
+    /* 原有的渐变遮罩（未启用毛玻璃时显示） */
+    .site-nav::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      width: 100vw; height: 96px;
+      background: linear-gradient(180deg, rgba(5, 8, 7, 0.72), rgba(5, 8, 7, 0.30) 48%, rgba(5, 8, 7, 0));
+      opacity: .86;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .site-nav-track {
+      position: relative;
+      z-index: 1;
+      width: min(1680px, 100vw);
+      height: var(--nav-h);
+      margin-inline: auto;
+      padding: 10px clamp(12px, 1vw, 20px);
+      display: flex;
+      align-items: center;
+      gap: clamp(22px, 2.4vw, 40px);
+    }
+
+    .brand {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--nav-fg-strong);
+      text-decoration: none;
+    }
+    .brand-mark {
+      width: 24px; height: 24px;
+      display: grid; place-items: center;
+      border-radius: 4px;
+      border: 1px solid rgba(232, 213, 154, 0.18);
+      color: var(--gold);
+      font-family: ui-serif, "Songti SC", serif;
+      font-size: 16px;
+    }
+    .brand-text { font-size: 12px; font-weight: 760; }
+
+    .nav-links {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      gap: clamp(22px, 2.4vw, 34px);
+    }
+    .nav-links a {
+      color: var(--nav-fg-muted);
+      font-size: 11px; font-weight: 720;
+      letter-spacing: .08em;
+      padding: 10px 0;
+      text-decoration: none;
+      transition: color .22s ease;
+    }
+    .nav-links a:hover { color: var(--nav-fg-strong); }
+
+    .nav-cta {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center; justify-content: center;
+      min-width: 92px; min-height: 32px;
+      padding: 0 15px;
+      border-radius: 999px;
+      background: var(--nav-cta-bg);
+      color: var(--nav-cta-fg);
+      font-size: 11px; font-weight: 800;
+      letter-spacing: .08em;
+      text-decoration: none;
+    }
+
+    /* ==========================================
+       演示内容
+       ========================================== */
+    .hero {
+      position: relative;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 24px;
+    }
+    .hero h1 {
+      font-size: clamp(40px, 7vw, 80px);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 24px;
+    }
+    .hero p {
+      font-size: 16px;
+      color: rgba(247, 237, 215, 0.64);
+      max-width: 520px;
+      line-height: 1.7;
+    }
+
+    .content {
+      padding: 80px 24px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .content h2 {
+      font-size: 28px; font-weight: 400;
+      margin-bottom: 20px;
+      color: var(--gold);
+    }
+    .content p {
+      font-size: 15px; line-height: 1.8;
+      color: rgba(247, 237, 215, 0.72);
+      margin-bottom: 40px;
+    }
+
+    .demo-card {
+      background: rgba(247, 237, 215, 0.04);
+      border: 1px solid rgba(247, 237, 215, 0.08);
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 32px;
+    }
+    .demo-card h3 {
+      font-size: 18px; font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--ink);
+    }
+    .demo-card p {
+      font-size: 14px;
+      color: rgba(247, 237, 215, 0.56);
+      margin-bottom: 0;
+    }
+
+    /* ==========================================
+       控制面板
+       ========================================== */
+    .control-panel {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 200;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      background: rgba(5, 8, 7, 0.8);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 12px 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(247, 237, 215, 0.1);
+    }
+    .control-label {
+      font-size: 11px;
+      color: rgba(247, 237, 215, 0.5);
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+    .control-btn {
+      background: rgba(247, 237, 215, 0.08);
+      border: 1px solid rgba(247, 237, 215, 0.15);
+      color: var(--ink);
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .control-btn:hover {
+      background: rgba(247, 237, 215, 0.15);
+    }
+    .control-btn.active {
+      background: var(--gold);
+      color: var(--bg);
+      border-color: var(--gold);
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      z-index: 200;
+      font-size: 12px;
+      color: rgba(247, 237, 215, 0.35);
+      max-width: 260px;
+      line-height: 1.5;
+    }
+
+    /* ==========================================
+       高对比度文字区（让模糊更明显）
+       ========================================== */
+    .high-contrast-zone {
+      position: relative;
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 40px 0;
+      border-radius: 12px;
+      overflow: hidden;
+      background: linear-gradient(135deg, #e8d59a 0%, #64a082 50%, #b48850 100%);
+    }
+    .high-contrast-zone span {
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--bg);
+      mix-blend-mode: overlay;
+    }
+  </style>
+
+  <!-- 引入毛玻璃组件 -->
+  <link rel="stylesheet" href="ios26-glass-nav.css" />
+</head>
+<body>
+
+  <!-- 背景 -->
+  <div class="page-bg"></div>
+  <div class="bg-orb bg-orb--1"></div>
+  <div class="bg-orb bg-orb--2"></div>
+  <div class="bg-orb bg-orb--3"></div>
+
+  <!-- 导航栏 -->
+  <nav class="site-nav" id="demoNav" aria-label="演示导航">
+    <div class="site-nav-track">
+      <a class="brand" href="#">
+        <span class="brand-mark">同</span>
+        <span class="brand-text">同野观幂</span>
+      </a>
+      <div class="nav-links">
+        <a href="#">方法</a>
+        <a href="#">场景</a>
+        <a href="#">留学</a>
+        <a href="#">联系</a>
+      </div>
+      <a class="nav-cta" href="#">预约诊断</a>
+    </div>
+  </nav>
+
+  <!-- 首屏 -->
+  <section class="hero">
+    <h1>整行毛玻璃<br>导航栏</h1>
+    <p>导航栏顶部一整行都是真实的 backdrop-filter 毛玻璃效果。<br>向下滚动，观察背景内容透过模糊后的样子。</p>
+  </section>
+
+  <!-- 内容区 -->
+  <div class="content">
+    <div class="high-contrast-zone">
+      <span>高对比度背景</span>
+    </div>
+
+    <div class="demo-card">
+      <h3>效果说明</h3>
+      <p>导航栏本身（64px 高）覆盖一整行 backdrop-filter: blur(20px) 毛玻璃。下方还有 48px 的过渡带，模糊逐渐消散。背景内容透过毛玻璃时会被实时模糊。</p>
+    </div>
+
+    <div class="demo-card">
+      <h3>整行 = 100vw</h3>
+      <p>毛玻璃条宽度 100vw，覆盖整个导航栏宽度。不是局部渐变遮罩，是真正的整行毛玻璃。</p>
+    </div>
+
+    <div class="high-contrast-zone">
+      <span>继续滚动</span>
+    </div>
+
+    <h2>与现有代码共存</h2>
+    <p>启用 .ios26-glass-enabled 后，原有的 ::before 渐变遮罩会自动隐藏（display: none）。不启用时，网站完全保持原样。</p>
+
+    <div class="demo-card">
+      <h3>自动降级</h3>
+      <p>不支持 backdrop-filter 的浏览器会自动回退到原有渐变遮罩。支持 prefers-reduced-motion 媒体查询。</p>
+    </div>
+
+    <div class="high-contrast-zone">
+      <span>观察模糊</span>
+    </div>
+
+    <p>AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。</p>
+
+    <p>你的同行不是更聪明，只是更早把 AI 用进了生意里。同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。</p>
+
+    <div class="high-contrast-zone">
+      <span>效果清晰</span>
+    </div>
+
+    <p>先挑一个环节，几天内做出能跑的东西给你看，值不值、扩不扩，你看着实物决定。聊完再决定要不要合作，不推销、不卖课。</p>
+  </div>
+
+  <!-- 控制面板 -->
+  <div class="control-panel">
+    <span class="control-label">导航栏：</span>
+    <button class="control-btn" id="btnLegacy" onclick="setMode('legacy')">原有渐变</button>
+    <button class="control-btn active" id="btnGlass" onclick="setMode('glass')">整行毛玻璃</button>
+  </div>
+
+  <div class="hint">
+    提示：点击右下角按钮切换对比。当前为「整行毛玻璃」模式。
+  </div>
+
+  <!-- 引入脚本 -->
+  <script src="ios26-glass-nav.js"></script>
+
+  <script>
+    const nav = document.getElementById('demoNav');
+    const btnLegacy = document.getElementById('btnLegacy');
+    const btnGlass = document.getElementById('btnGlass');
+
+    function setMode(mode) {
+      if (mode === 'glass') {
+        nav.classList.add('ios26-glass-enabled');
+        btnLegacy.classList.remove('active');
+        btnGlass.classList.add('active');
+        if (window.iOS26GlassNav) window.iOS26GlassNav.enable();
+      } else {
+        nav.classList.remove('ios26-glass-enabled');
+        btnGlass.classList.remove('active');
+        btnLegacy.classList.add('active');
+        if (window.iOS26GlassNav) window.iOS26GlassNav.disable();
+      }
+    }
+
+    // 默认启用毛玻璃
+    setMode('glass');
+  </script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+/**
+ * iOS 26 顶部整行毛玻璃导航栏
+ * 纯 CSS，零依赖，不修改任何现有代码
+ *
+ * 使用：给 .site-nav 添加 .ios26-glass-enabled 类
+ * JS 会自动注入 DOM 或手动在 HTML 中插入
+ */
+
+/* ============================================
+   核心：全行毛玻璃条（导航栏本身）
+   ============================================ */
+
+.ios26-glass-bar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  background: rgba(5, 8, 7, 0.42);
+  border-bottom: 1px solid rgba(247, 237, 215, 0.06);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* 亮色主题适配 */
+.ios26-glass-bar.is-light {
+  background: rgba(247, 237, 215, 0.35);
+  border-bottom-color: rgba(6, 16, 13, 0.06);
+}
+
+/* ============================================
+   下方过渡带：模糊从导航栏底部逐渐消散
+   ============================================ */
+
+.ios26-glass-transition {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 48px;
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.65) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.65) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+.ios26-glass-transition.is-light {
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+/* ============================================
+   与现有 .site-nav 的集成
+   ============================================ */
+
+.site-nav.ios26-glass-enabled {
+  background: transparent !important;
+}
+
+/* 关闭原有的渐变遮罩 */
+.site-nav.ios26-glass-enabled::before {
+  display: none !important;
+}
+
+/* 文字微阴影，确保在毛玻璃背景上可读 */
+.site-nav.ios26-glass-enabled .brand-text,
+.site-nav.ios26-glass-enabled .nav-links a {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.site-nav.ios26-glass-enabled[data-tone="light"] .brand-text,
+.site-nav.ios26-glass-enabled[data-tone="light"] .nav-links a,
+.site-nav.ios26-glass-enabled.is-on-light .brand-text,
+.site-nav.ios26-glass-enabled.is-on-light .nav-links a {
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.25);
+}
+
+/* ============================================
+   浏览器兼容降级
+   ============================================ */
+
+@supports not (backdrop-filter: blur(1px)) {
+  .ios26-glass-bar,
+  .ios26-glass-transition {
+    display: none;
+  }
+  .site-nav.ios26-glass-enabled::before {
+    display: block !important;
+  }
+}
+
+@supports not (-webkit-backdrop-filter: blur(1px)) {
+  .ios26-glass-bar,
+  .ios26-glass-transition {
+    display: none;
+  }
+  .site-nav.ios26-glass-enabled::before {
+    display: block !important;
+  }
+}
+
+/* ============================================
+   性能与可访问性
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .ios26-glass-bar,
+  .ios26-glass-transition {
+    display: none;
+  }
+  .site-nav.ios26-glass-enabled::before {
+    display: block !important;
+  }
+}
+
+/* 移动端降低模糊强度以节省性能 */
+@media (max-width: 860px) {
+  .ios26-glass-bar {
+    backdrop-filter: blur(14px) saturate(115%);
+    -webkit-backdrop-filter: blur(14px) saturate(115%);
+    background: rgba(5, 8, 7, 0.48);
+  }
+  .ios26-glass-transition {
+    backdrop-filter: blur(8px) saturate(115%);
+    -webkit-backdrop-filter: blur(8px) saturate(115%);
+    height: 36px;
+  }
+}
