@@ -129,8 +129,11 @@ function reduceState(state, action, context) {
       // Update base state
       let nextState = { ...state, scrollY, velocity };
 
-      // Check for rapid scroll bypass
-      if (Math.abs(velocity) > CONFIG.RAPID_SCROLL_VELOCITY) {
+      // Check for rapid scroll bypass only during natural reading/free scroll.
+      // Programmatic JS-snap can emit high Lenis velocity while SnapAligning;
+      // that must not cancel the snap before its onComplete fires.
+      const canEnterReadingBypass = state.current === State.FreeScroll || state.current === State.ReadingScroll;
+      if (canEnterReadingBypass && Math.abs(velocity) > CONFIG.RAPID_SCROLL_VELOCITY) {
         if (state.current !== State.ReadingScroll) {
           return transitionTo(nextState, State.ReadingScroll, now);
         }
@@ -537,6 +540,33 @@ export function createHomepageSnapRuntime({
     requestAnimationFrame(check);
   }
 
+  /**
+   * Force-align the real document scroll position to the committed scene.
+   * Lenis can still be stopped while Completing, so immediate alignment must
+   * opt into force and keep a native fallback for non-Lenis controllers.
+   * @param {number} targetY
+   */
+  function alignDocumentTo(targetY) {
+    const target = Math.max(0, targetY);
+
+    if (scrollController && scrollController.scrollTo) {
+      scrollController.scrollTo(target, {
+        immediate: true,
+        duration: 0,
+        force: true,
+        lock: false
+      });
+    }
+
+    if (Math.abs((window.scrollY || 0) - target) > 1) {
+      window.scrollTo({
+        top: target,
+        left: window.scrollX || 0,
+        behavior: 'auto'
+      });
+    }
+  }
+
   // Derive scene count: prefer explicit scenes[], fall back to labels{}.
   const labels = timeline.labels || {};
   context.sceneCount = Array.isArray(timeline.scenes) && timeline.scenes.length
@@ -754,11 +784,7 @@ export function createHomepageSnapRuntime({
     // OLD scene from a stale scrollY (root cause of the reverse/re-arm failure).
     const targetY = committedScene ? calculateSceneTop(committedScene) : null;
     if (Number.isFinite(targetY)) {
-      if (scrollController && scrollController.scrollTo) {
-        scrollController.scrollTo(targetY, { immediate: true });
-      } else {
-        window.scrollTo(0, targetY);
-      }
+      alignDocumentTo(targetY);
     }
 
     // Unlock scroll

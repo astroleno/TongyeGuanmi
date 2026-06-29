@@ -53,6 +53,23 @@ function syncStateToDom(state, rootElement) {
 }
 
 /**
+ * Select the scene whose adapter should drive playback across a boundary.
+ * Forward playback enters the target animation scene; reverse playback exits
+ * the current animation scene, so the source scene owns the reverse adapter.
+ * @param {Object} options
+ * @param {Array<Object>} options.scenes
+ * @param {number} options.fromIndex
+ * @param {number} options.toIndex
+ * @param {1|-1|number} options.direction
+ * @returns {Object|null}
+ */
+export function selectPlaybackAdapterScene({ scenes, fromIndex, toIndex, direction } = {}) {
+  if (!Array.isArray(scenes)) return null;
+  const index = direction === -1 ? fromIndex : toIndex;
+  return scenes[index] || null;
+}
+
+/**
  * Create integrated homepage runtime.
  * @param {Object} options
  * @param {Object|null} options.scrollController - Lenis instance or null
@@ -96,7 +113,7 @@ export function createHomepageRuntimeIntegration({
   // recovery rather than silently "completing" a scene that isn't there.
   let recoveryHandler = null;
 
-  async function scenePresenter({ toIndex, direction, scene }) {
+  async function scenePresenter({ fromIndex, toIndex, direction, scene }) {
     const target = scene || scenes[toIndex];
     if (!target) throw new Error(`No scene at index ${toIndex}`);
 
@@ -110,11 +127,20 @@ export function createHomepageRuntimeIntegration({
     // per-scene adapter when available; absent that, present terminal state.
     el.setAttribute('data-scene-state', 'playing');
 
-    const adapter = sceneAdapters.get(target.id);
+    const adapterScene = selectPlaybackAdapterScene({ scenes, fromIndex, toIndex, direction });
+    const adapterEl = adapterScene ? resolveSceneElement(adapterScene.id) : null;
+    if (adapterEl && adapterEl !== el) {
+      adapterEl.setAttribute('data-scene-state', 'playing');
+    }
+
+    const adapter = adapterScene ? sceneAdapters.get(adapterScene.id) : null;
     if (adapter && typeof adapter.play === 'function') {
       await adapter.play({ direction, recoveryHandler });
     }
 
+    if (adapterEl && adapterEl !== el) {
+      adapterEl.setAttribute('data-scene-state', direction === -1 ? 'reversed' : 'presented');
+    }
     el.setAttribute('data-scene-state', 'presented');
   }
 

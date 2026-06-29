@@ -157,6 +157,42 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(calls.length === 1 && calls[0].toIndex === 1, 'forward targets next active scene by real position');
 }
 
+// ---- programmatic snap is not cancelled by Lenis velocity -------------------
+{
+  const tops = { a: 0, b: 1000 };
+  window.scrollTo({ top: 960 }); // within 50px snap threshold for b
+  let completeSnap = null;
+  const lenisLike = {
+    velocity: 0,
+    scrollTo(_target, options = {}) {
+      completeSnap = options.onComplete;
+      window.scrollTo({ top: _target });
+    }
+  };
+  const rt = createHomepageSnapRuntime({
+    timeline: { scenes: [{ id: 'a' }, { id: 'b' }] },
+    scrollController: lenisLike,
+    resolveSceneTop: (id) => tops[id],
+    scenePresenter: async () => {}
+  });
+  rt.recalculateSceneBounds();
+  rt.handleScroll();
+  await tick(30);
+  assert(rt.getCurrentState().current === 'SnapAligning', `enters SnapAligning near b (got ${rt.getCurrentState().current})`);
+
+  // Lenis reports high velocity during the programmatic snap; this must not
+  // kick the FSM into ReadingScroll and lose the pending SNAP_COMPLETE.
+  lenisLike.velocity = 3;
+  rt.handleScroll();
+  await tick(30);
+  assert(rt.getCurrentState().current === 'SnapAligning', `programmatic snap velocity does not cancel SnapAligning (got ${rt.getCurrentState().current})`);
+
+  completeSnap?.();
+  await tick(30);
+  assert(rt.getCurrentState().current === 'SnappedArmed' && rt.getCurrentScene() === 1,
+    'SnapAligning completes into SnappedArmed at target scene');
+}
+
 // ---- kind-based re-arm: animation re-arms + aligns + reverses ---------------
 {
   // hero(reading) -> pattern-bloom(animation) -> belief-star(reading).
@@ -164,12 +200,26 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
   const tops = { hero: 0, 'pattern-bloom': 1000, 'belief-star': 2000 };
   window.scrollTo({ top: 0 });
   const calls = [];
+  const scrollToCalls = [];
+  const lenisLike = {
+    stopped: false,
+    stop() { this.stopped = true; },
+    start() { this.stopped = false; },
+    scrollTo(target, options = {}) {
+      scrollToCalls.push({ target, options, stopped: this.stopped });
+      // Real Lenis requires force to scroll while stopped.
+      if (!this.stopped || options.force === true) {
+        window.scrollTo({ top: target });
+      }
+    }
+  };
   const rt = createHomepageSnapRuntime({
     timeline: { scenes: [
       { id: 'hero', kind: 'reading' },
       { id: 'pattern-bloom', kind: 'animation' },
       { id: 'belief-star', kind: 'reading' }
     ] },
+    scrollController: lenisLike,
     resolveSceneTop: (id) => tops[id],
     scenePresenter: async (info) => { calls.push(info); }
   });
@@ -186,6 +236,8 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
   // After completion: page aligned to pattern-bloom top, then re-armed there.
   await tick(60); // allow align + cooldown(420) ... pump more below
   assert(Math.abs((window.scrollY || 0) - 1000) < 1e-9, `aligned to pattern-bloom top 1000 (got ${window.scrollY})`);
+  assert(scrollToCalls.some(call => call.target === 1000 && call.options?.immediate === true && call.options?.force === true),
+    'completion alignment forces stopped Lenis to committed scene top');
   await tick(500); // cooldown expiry (COOLDOWN_DURATION 420ms)
   assert(rt.getCurrentState().current === 'SnappedArmed', `animation scene re-arms after cooldown (got ${rt.getCurrentState().current})`);
   assert(rt.getCurrentScene() === 1, 're-armed AT pattern-bloom (index 1)');
