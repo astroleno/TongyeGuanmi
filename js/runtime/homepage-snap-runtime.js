@@ -110,6 +110,41 @@ function shouldRearmAfterComplete(scene) {
   return scene?.kind === 'animation';
 }
 
+function sceneAt(context, index) {
+  return context.timeline?.scenes?.[index] || null;
+}
+
+function isReadingToAnimationBoundary(context, sourceIndex, targetIndex) {
+  if (targetIndex <= sourceIndex) return false;
+  const source = sceneAt(context, sourceIndex);
+  const target = sceneAt(context, targetIndex);
+  return source?.kind === 'reading' && target?.kind === 'animation';
+}
+
+function getSnapSourceSceneIndex(context, targetIndex) {
+  const previousIndex = targetIndex - 1;
+  if (previousIndex >= 0 && isReadingToAnimationBoundary(context, previousIndex, targetIndex)) {
+    return previousIndex;
+  }
+  return targetIndex;
+}
+
+function getChargeTargetSceneIndex(state, direction, context) {
+  const hasPendingForwardBoundary = isReadingToAnimationBoundary(
+    context,
+    state.currentSceneIndex,
+    state.targetSceneIndex
+  );
+
+  if (direction === 1 && hasPendingForwardBoundary) {
+    return state.targetSceneIndex;
+  }
+
+  return direction === -1
+    ? Math.max(0, state.currentSceneIndex - 1)
+    : state.currentSceneIndex + 1;
+}
+
 /**
  * State transition reducer (immutable)
  * @param {RuntimeState} state
@@ -147,8 +182,9 @@ function reduceState(state, action, context) {
 
           if (distanceToSnapPoint < CONFIG.SNAP_THRESHOLD &&
               Math.abs(velocity) < CONFIG.SNAP_VELOCITY_THRESHOLD) {
+            const sourceSceneIndex = getSnapSourceSceneIndex(context, sceneIndex);
             return transitionTo(
-              { ...nextState, targetSceneIndex: sceneIndex },
+              { ...nextState, currentSceneIndex: sourceSceneIndex, targetSceneIndex: sceneIndex },
               State.SnapAligning,
               now
             );
@@ -192,8 +228,15 @@ function reduceState(state, action, context) {
 
     case 'SNAP_COMPLETE': {
       if (state.current === State.SnapAligning) {
+        const currentSceneIndex = isReadingToAnimationBoundary(
+          context,
+          state.currentSceneIndex,
+          state.targetSceneIndex
+        )
+          ? state.currentSceneIndex
+          : state.targetSceneIndex;
         return transitionTo(
-          { ...state, currentSceneIndex: state.targetSceneIndex },
+          { ...state, currentSceneIndex },
           State.SnappedArmed,
           now
         );
@@ -205,9 +248,7 @@ function reduceState(state, action, context) {
       // Charge reached 1.0 while armed. Direction decides forward vs reverse.
       if (state.current === State.SnappedArmed) {
         const dir = action.payload?.direction === -1 ? -1 : 1;
-        const targetSceneIndex = dir === -1
-          ? Math.max(0, state.currentSceneIndex - 1)
-          : state.currentSceneIndex + 1;
+        const targetSceneIndex = getChargeTargetSceneIndex(state, dir, context);
         return transitionTo(
           { ...state, targetSceneIndex, playbackDirection: dir },
           State.TriggeredPlayback,

@@ -193,6 +193,47 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
     'SnapAligning completes into SnappedArmed at target scene');
 }
 
+// ---- reading -> animation boundary arms previous->animation, not animation->next
+{
+  const tops = { hero: 0, reader: 1000, 'aod-animation': 2000, method: 3000 };
+  window.scrollTo({ top: 1960 }); // reading scrolled near next animation top
+  const calls = [];
+  let completeSnap = null;
+  const lenisLike = {
+    velocity: 0,
+    scrollTo(target, options = {}) {
+      completeSnap = options.onComplete;
+      window.scrollTo({ top: target });
+    }
+  };
+  const rt = createHomepageSnapRuntime({
+    timeline: { scenes: [
+      { id: 'hero', kind: 'animation' },
+      { id: 'reader', kind: 'reading' },
+      { id: 'aod-animation', kind: 'animation' },
+      { id: 'method', kind: 'reading' }
+    ] },
+    scrollController: lenisLike,
+    resolveSceneTop: (id) => tops[id],
+    scenePresenter: async (info) => { calls.push(info); }
+  });
+  rt.recalculateSceneBounds();
+  rt.handleScroll();
+  await tick(30);
+  assert(rt.getCurrentState().current === 'SnapAligning', 'reading exit enters snap aligning to next animation');
+  completeSnap?.();
+  await tick(30);
+  const armed = rt.getCurrentState();
+  assert(armed.current === 'SnappedArmed', `reading exit arms at animation boundary (got ${armed.current})`);
+  assert(armed.currentSceneIndex === 1 && armed.targetSceneIndex === 2,
+    `armed boundary keeps reader as source and animation as target (got current=${armed.currentSceneIndex}, target=${armed.targetSceneIndex})`);
+
+  rt.handleWheel({ deltaY: 80, deltaMode: 0 });
+  await tick(40);
+  assert(calls.length === 1 && calls[0].fromIndex === 1 && calls[0].toIndex === 2,
+    `forward charge from reading boundary plays animation target, not next scene (got ${JSON.stringify(calls[0])})`);
+}
+
 // ---- kind-based re-arm: animation re-arms + aligns + reverses ---------------
 {
   // hero(reading) -> pattern-bloom(animation) -> belief-star(reading).
