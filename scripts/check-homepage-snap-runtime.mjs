@@ -28,7 +28,12 @@ globalThis.window = {
   requestAnimationFrame: (fn) => setTimeout(() => fn(Date.now()), 0),
   cancelAnimationFrame: (id) => clearTimeout(id),
   addEventListener() {}, removeEventListener() {},
-  scrollTo({ top }) { this.scrollY = top; this.pageYOffset = top; },
+  scrollTo(arg, maybeY) {
+    // Browsers accept both scrollTo({top}) and scrollTo(x, y).
+    const top = typeof arg === 'object' && arg ? arg.top : maybeY;
+    this.scrollY = top || 0;
+    this.pageYOffset = this.scrollY;
+  },
   dispatchEvent() {}, visualViewport: null, location: { hash: '' }
 };
 globalThis.requestAnimationFrame = window.requestAnimationFrame;
@@ -150,6 +155,69 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
   rt.handleWheel({ deltaY: 80, deltaMode: 0 });
   await tick(40);
   assert(calls.length === 1 && calls[0].toIndex === 1, 'forward targets next active scene by real position');
+}
+
+// ---- kind-based re-arm: animation re-arms + aligns + reverses ---------------
+{
+  // hero(reading) -> pattern-bloom(animation) -> belief-star(reading).
+  // Real tops so we can assert the page aligns to the committed scene.
+  const tops = { hero: 0, 'pattern-bloom': 1000, 'belief-star': 2000 };
+  window.scrollTo({ top: 0 });
+  const calls = [];
+  const rt = createHomepageSnapRuntime({
+    timeline: { scenes: [
+      { id: 'hero', kind: 'reading' },
+      { id: 'pattern-bloom', kind: 'animation' },
+      { id: 'belief-star', kind: 'reading' }
+    ] },
+    resolveSceneTop: (id) => tops[id],
+    scenePresenter: async (info) => { calls.push(info); }
+  });
+  rt.recalculateSceneBounds();
+  rt.handleScroll();
+  await tick(30);
+  assert(rt.getCurrentState().current === 'SnappedArmed', 'arms at hero');
+
+  // Forward charge -> play into pattern-bloom (animation).
+  rt.handleWheel({ deltaY: 80, deltaMode: 0 });
+  await tick(40);
+  assert(calls.length === 1 && calls[0].toIndex === 1, 'forward into pattern-bloom');
+
+  // After completion: page aligned to pattern-bloom top, then re-armed there.
+  await tick(60); // allow align + cooldown(420) ... pump more below
+  assert(Math.abs((window.scrollY || 0) - 1000) < 1e-9, `aligned to pattern-bloom top 1000 (got ${window.scrollY})`);
+  await tick(500); // cooldown expiry (COOLDOWN_DURATION 420ms)
+  assert(rt.getCurrentState().current === 'SnappedArmed', `animation scene re-arms after cooldown (got ${rt.getCurrentState().current})`);
+  assert(rt.getCurrentScene() === 1, 're-armed AT pattern-bloom (index 1)');
+
+  // Reverse charge from pattern-bloom -> play back toward hero.
+  rt.handleWheel({ deltaY: -80, deltaMode: 0 });
+  await tick(40);
+  assert(calls.length === 2 && calls[1].direction === -1 && calls[1].toIndex === 0,
+    `reverse from pattern-bloom targets hero (got ${JSON.stringify(calls[1])})`);
+}
+
+// ---- kind-based re-arm: reading scene releases (no auto-arm) -----------------
+{
+  const tops = { a: 0, reader: 1000, c: 2000 };
+  window.scrollTo({ top: 0 });
+  const rt = createHomepageSnapRuntime({
+    timeline: { scenes: [
+      { id: 'a', kind: 'animation' },
+      { id: 'reader', kind: 'reading' },
+      { id: 'c', kind: 'animation' }
+    ] },
+    resolveSceneTop: (id) => tops[id],
+    scenePresenter: async () => {}
+  });
+  rt.recalculateSceneBounds();
+  rt.handleScroll();
+  await tick(30);
+  rt.handleWheel({ deltaY: 80, deltaMode: 0 }); // play into 'reader' (reading)
+  await tick(40);
+  await tick(500); // align + cooldown expiry
+  const st = rt.getCurrentState().current;
+  assert(st === 'FreeScroll', `reading scene releases to FreeScroll, does NOT auto-arm (got ${st})`);
 }
 
 console.log(`snap-runtime contract: ${pass} passed, ${fail} failed`);

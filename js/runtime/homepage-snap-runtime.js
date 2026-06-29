@@ -93,8 +93,21 @@ function createInitialState(initialScroll = 0) {
     stateEntryTime: Date.now(),
     cooldownEndTime: 0,
     isScrollLocked: false,
+    releaseMode: 'free',
     error: null
   });
+}
+
+/**
+ * Decide whether the runtime should re-arm (allow immediate forward/reverse
+ * charge) after a transition into the given scene, or release to natural scroll.
+ * Animation scenes re-arm; reading scenes release so the reader is not trapped.
+ * Reuses the existing scene.kind field — no new classification.
+ * @param {{kind?: string}|null|undefined} scene
+ * @returns {boolean}
+ */
+function shouldRearmAfterComplete(scene) {
+  return scene?.kind === 'animation';
 }
 
 /**
@@ -157,7 +170,14 @@ function reduceState(state, action, context) {
 
         case State.ReleaseCooldown: {
           if (now >= state.cooldownEndTime) {
-            return transitionTo(nextState, State.FreeScroll, now);
+            // After cooldown, re-arm or release based on the committed scene's
+            // kind (recorded at RELEASE). Animation scenes re-arm so the user can
+            // continue forward or reverse; reading scenes release to natural
+            // scroll so the reader is never trapped (plan ReadingScroll bypass).
+            const next = state.releaseMode === 'rearm'
+              ? State.SnappedArmed
+              : State.FreeScroll;
+            return transitionTo(nextState, next, now);
           }
           return Object.freeze(nextState);
         }
@@ -211,8 +231,12 @@ function reduceState(state, action, context) {
 
     case 'RELEASE': {
       if (state.current === State.Completing) {
+        // releaseMode decides post-cooldown behavior: 'rearm' (animation scenes,
+        // reversible) vs 'free' (reading scenes, natural scroll). Computed by the
+        // caller from the committed scene's kind and passed in.
+        const releaseMode = action.payload?.releaseMode === 'rearm' ? 'rearm' : 'free';
         return transitionTo(
-          { ...state, cooldownEndTime: now + CONFIG.COOLDOWN_DURATION },
+          { ...state, cooldownEndTime: now + CONFIG.COOLDOWN_DURATION, releaseMode },
           State.ReleaseCooldown,
           now
         );
@@ -235,6 +259,14 @@ function reduceState(state, action, context) {
           State.FreeScroll,
           now
         );
+      }
+      return state;
+    }
+
+    case 'COOLDOWN_EXPIRE': {
+      if (state.current === State.ReleaseCooldown) {
+        const next = state.releaseMode === 'rearm' ? State.SnappedArmed : State.FreeScroll;
+        return transitionTo(state, next, now);
       }
       return state;
     }
@@ -580,10 +612,28 @@ export function createHomepageSnapRuntime({
         executeComplete();
         break;
 
+      case State.ReleaseCooldown:
+        // Deterministically leave cooldown after COOLDOWN_DURATION, independent
+        // of whether a scroll event arrives (after alignment none may). The
+        // COOLDOWN_EXPIRE action re-arms or frees per releaseMode.
+        scheduleCooldownExpiry();
+        break;
+
       case State.RecoverPresentTarget:
         scheduleRecovery();
         break;
     }
+  }
+
+  /**
+   * Leave ReleaseCooldown deterministically once the cooldown elapses.
+   */
+  function scheduleCooldownExpiry() {
+    setTimeout(() => {
+      if (state.current === State.ReleaseCooldown) {
+        dispatch({ type: 'COOLDOWN_EXPIRE' });
+      }
+    }, CONFIG.COOLDOWN_DURATION);
   }
 
   /**
@@ -688,11 +738,28 @@ export function createHomepageSnapRuntime({
   }
 
   /**
-   * Execute completion and unlock
+   * Execute completion: commit target scene, align the page to it, then release.
    */
   function executeComplete() {
     // Commit the target scene as the new current scene.
-    state = Object.freeze({ ...state, currentSceneIndex: state.targetSceneIndex });
+    const committedIndex = state.targetSceneIndex;
+    state = Object.freeze({ ...state, currentSceneIndex: committedIndex });
+
+    const committedScene = Array.isArray(timeline.scenes)
+      ? timeline.scenes[committedIndex]
+      : null;
+
+    // Align the document to the committed scene's real top so scrollY and
+    // currentSceneIndex agree. Without this, the next re-arm/scroll re-infers the
+    // OLD scene from a stale scrollY (root cause of the reverse/re-arm failure).
+    const targetY = committedScene ? calculateSceneTop(committedScene) : null;
+    if (Number.isFinite(targetY)) {
+      if (scrollController && scrollController.scrollTo) {
+        scrollController.scrollTo(targetY, { immediate: true });
+      } else {
+        window.scrollTo(0, targetY);
+      }
+    }
 
     // Unlock scroll
     document.body.style.overflow = '';
@@ -700,8 +767,13 @@ export function createHomepageSnapRuntime({
       scrollController.start();
     }
 
-    // Transition to cooldown
-    dispatch({ type: 'RELEASE' });
+    // Reset charge so a fresh arm starts from zero.
+    charge.reset();
+    onChargeProgress(0, 0);
+
+    // Release: animation scenes re-arm (reversible), reading scenes free-scroll.
+    const releaseMode = shouldRearmAfterComplete(committedScene) ? 'rearm' : 'free';
+    dispatch({ type: 'RELEASE', payload: { releaseMode } });
   }
 
   /**
