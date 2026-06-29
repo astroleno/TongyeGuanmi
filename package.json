@@ -24,6 +24,7 @@
     "verify:snap-runtime": "node scripts/check-homepage-snap-runtime.mjs",
     "verify:progress-driver": "node scripts/check-timed-progress-driver.mjs",
     "verify:pattern-bloom-adapter": "node scripts/check-pattern-bloom-scene-adapter.mjs",
-    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership && npm run verify:homepage-schema && npm run verify:homepage-snap && npm run verify:homepage-media && npm run verify:homepage-boundaries && npm run verify:pilot-readiness && npm run verify:pilot-height && npm run verify:snap-runtime && npm run verify:progress-driver && npm run verify:pattern-bloom-adapter"
+    "verify:aod-adapter": "node scripts/check-aod-scene-adapter.mjs",
+    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership && npm run verify:homepage-schema && npm run verify:homepage-snap && npm run verify:homepage-media && npm run verify:homepage-boundaries && npm run verify:pilot-readiness && npm run verify:pilot-height && npm run verify:snap-runtime && npm run verify:progress-driver && npm run verify:pattern-bloom-adapter && npm run verify:aod-adapter"
   }
 }

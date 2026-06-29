@@ -19,6 +19,7 @@ import { createHomepageSnapRuntime } from './homepage-snap-runtime.js';
 import { createChargeIndicator } from './charge-indicator.js';
 import { createRecoveryHandler } from './recovery-handler.js';
 import { createPatternBloomSceneAdapter } from './scenes/pattern-bloom-scene-adapter.js';
+import { createAodSceneAdapter } from './scenes/aod-scene-adapter.js';
 
 const CONFIG = {
   VIEWPORT_CHANGE_THRESHOLD_PX: 100, // mobile address-bar detection
@@ -129,6 +130,17 @@ export function createHomepageRuntimeIntegration({
     sceneAdapters.set('pattern-bloom', createPatternBloomSceneAdapter({
       host: patternBloomEl,
       reduceMotion
+    }));
+  }
+
+  // Second real adapter: aod (media/autoplay). Uses video.play()/ended, never
+  // scrubs. getRecoveryHandler is lazy because recoveryHandler is created below.
+  const aodEl = resolveSceneElement('aod-animation');
+  if (aodEl) {
+    sceneAdapters.set('aod-animation', createAodSceneAdapter({
+      host: aodEl,
+      reduceMotion,
+      getRecoveryHandler: () => recoveryHandler
     }));
   }
 
