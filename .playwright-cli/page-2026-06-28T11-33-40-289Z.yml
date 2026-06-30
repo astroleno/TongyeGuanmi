@@ -1,0 +1,53 @@
+- generic [active] [ref=e1]:
+  - generic "正在进入同人于野，观象知幂" [ref=e2]:
+    - generic "观象知幂" [ref=e3]:
+      - generic:
+        - paragraph: 观象知幂
+      - generic:
+        - paragraph: 观象知幂
+  - main [ref=e4]:
+    - region "同野观幂首屏" [ref=e5]:
+      - generic [ref=e7]:
+        - generic:
+          - heading "同野观幂" [level=1]
+    - region "同野观幂莲花转场" [ref=e9]
+    - region "同野观幂观点" [ref=e10]:
+      - paragraph [ref=e13]: AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。它决定了未来三年你是领跑还是追赶。
+    - generic "页面主体章节" [ref=e18]:
+      - generic [ref=e20]:
+        - generic "同野观幂 AI 落地五步" [ref=e22]:
+          - list "AI 落地五步" [ref=e23]
+        - generic [ref=e27]:
+          - img
+          - generic:
+            - figure:
+              - generic: 问道者
+            - figure:
+              - generic: 老子
+          - generic:
+            - generic:
+              - generic:
+                - generic: 用不上，不算落地
+                - heading [level=2]:
+                  - generic: 我们见过太多
+                  - generic: “用不上”。
+                - paragraph: 同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。
+              - list:
+                - listitem:
+                  - generic: "01"
+                  - strong: 只培训
+                  - paragraph: 听完很激动，回去照旧。
+                - listitem:
+                  - generic: "02"
+                  - strong: 只上软件
+                  - paragraph: 账号开了，一线没人碰。
+                - listitem:
+                  - generic: "03"
+                  - strong: 只交方案
+                  - paragraph: 装订精美，锁进抽屉。
+      - region "品牌方法论" [ref=e30]
+      - generic [ref=e49]:
+        - img
+  - contentinfo [ref=e63]:
+    - generic [ref=e64]: © 上海同野观幂科技有限公司
+    - generic [ref=e65]: AI Transformation & Capability Building
