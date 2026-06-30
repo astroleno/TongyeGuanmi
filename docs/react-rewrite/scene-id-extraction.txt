@@ -1,0 +1,64 @@
+=== Original HTML data-scene-id ===
+aod-animation
+belief-star
+brand
+figure2-animation
+figure2-proof-cards
+figure2-proof-closing
+hero
+method-cocreation
+method-field-law
+method-lower
+method-proof
+method-tooling
+method-upper
+pattern-bloom
+services
+
+=== Spike realManifest scene ids ===
+aod-animation
+belief-star
+brand
+contact
+crane-animation
+education
+figure2-animation
+figure3-animation
+hero
+lab
+method-bottom
+method-top
+pattern-bloom
+ph-animation
+services
+ttg-animation
+
+=== Source-only scene ids ===
+figure2-proof-cards
+figure2-proof-closing
+method-cocreation
+method-field-law
+method-lower
+method-proof
+method-tooling
+method-upper
+
+=== Spike-only scene ids ===
+contact
+crane-animation
+education
+figure3-animation
+lab
+method-bottom
+method-top
+ph-animation
+ttg-animation
+
+=== Duplicate data-scene-id in SOURCE_REPO/index.html ===
+
+=== Duplicate scene ids in SPIKE_REPO realManifest scenes[] ===
+
+=== Reconciliation note ===
+Source-only method and Figure2 proof ids are resolved as local/sub-state ids in SCENE-NAMING-DECISIONS.md.
+Spike-only ids are canonical React runtime scenes introduced by the frozen scene graph.
+Duplicate id sections above must remain empty for the freeze to pass.

@@ -42,8 +42,8 @@ src/
 │   └── MediaLayer.tsx
 ├── scenes/
 │   ├── HeroScene.tsx
-│   ├── PatternTopScene.tsx
-│   ├── PatternBottomScene.tsx
+│   ├── PatternBloomScene.tsx
+│   ├── BeliefStarScene.tsx
 │   ├── AodScene.tsx
 │   ├── MethodTopScene.tsx
 │   ├── MethodBottomScene.tsx
@@ -83,6 +83,31 @@ Video ended -> component directly sets currentScene
 Canvas adapter -> writes DOM classes to hide target copy
 CSS gate -> decides committed scene
 ```
+
+## Frozen Scene Graph
+
+Phase 4.0A 后，scene graph 只从 `react-runtime-spike/src/manifest/realManifest.ts` 读取：
+
+```txt
+hero
+  -> pattern-bloom
+  -> belief-star
+  -> aod-animation
+  -> method-top
+  -> method-bottom
+  -> figure2-animation
+  -> brand
+  -> figure3-animation
+  -> services
+  -> ttg-animation
+  -> lab
+  -> ph-animation
+  -> education
+  -> crane-animation
+  -> contact
+```
+
+`star-map`、method 内部五段 id、Figure2 proof cards/closing 都不能作为组件私有 top-level scene id 注入 runtime。
 
 ## Runtime Store 策略
 
@@ -129,7 +154,7 @@ export interface SceneRuntimeState {
   nextScene: SceneId | null;
   committedScene: SceneId;
   activeSegment: SegmentId | null;
-  activeStep: SegmentId | null;
+  activeStep: CompoundStepId | null;
   segmentProgress: number;
   direction: 1 | -1;
   layerOwnership: LayerOwnership;
@@ -157,30 +182,41 @@ export interface LayerOwnership {
 ```ts
 type RuntimeEvent =
   | { type: 'SCROLL_WITHIN_SCENE'; scrollPx: number }
-  | { type: 'SCROLL_INTENT_10VH'; scene: SceneId }
+  | { type: 'TEXT_READ_PROGRESS'; segment: SegmentId; progress: number }
+  | { type: 'TEXT_READ_COMPLETE'; segment: SegmentId }
+  | { type: 'SCROLL_INTENT_10VH'; scene: SceneId; segment: SegmentId }
   | { type: 'FORWARD_CONFIRM' }
   | { type: 'REVERSE_CANCEL' }
   | { type: 'SNAP_DONE' }
   | { type: 'SNAP_FAILED'; reason: string }
   | { type: 'SEGMENT_PROGRESS'; segment: SegmentId; progress: number }
   | { type: 'SEGMENT_COMPLETE'; segment: SegmentId }
-  | { type: 'STEP_COMPLETE'; step: SegmentId }
+  | { type: 'STEP_COMPLETE'; step: CompoundStepId }
   | { type: 'MEDIA_PROGRESS'; segment: SegmentId; progress: number }
   | { type: 'MEDIA_REJECTED'; segment: SegmentId; reason: string }
   | { type: 'MEDIA_METADATA_TIMEOUT'; segment: SegmentId }
   | { type: 'MEDIA_ENDED_TIMEOUT'; segment: SegmentId }
   | { type: 'MEDIA_MISSING'; segment: SegmentId; src: string }
   | { type: 'SEGMENT_ERROR'; segment: SegmentId; reason: string }
+  | { type: 'REDUCED_MOTION_SKIP' }
+  | { type: 'COMMIT_PRESENTED' }
   | { type: 'RELEASE_COMPLETE' }
   | { type: 'HASH_NAVIGATE'; scene: SceneId }
   | { type: 'POPSTATE_NAVIGATE'; scene: SceneId }
   | { type: 'UNMOUNT' }
   | { type: 'OWNER_CONFLICT'; conflict: OwnerConflict }
-  | { type: 'SCROLL_LOCK_RECOVERY'; reason: string }
-  | { type: 'REDUCED_MOTION_SKIP' };
+  | { type: 'SCROLL_LOCK_RECOVERY'; reason: string };
 ```
 
 非法事件只更新 `lastIgnoredEvent`。不能“顺手”改 phase。
+
+Progress 事件规则：
+
+- timer/canvas/compound runner dispatch `SEGMENT_PROGRESS`。
+- media adapter dispatch `MEDIA_PROGRESS`。
+- reducer 是唯一写入 `state.segmentProgress` 的地方。
+- `MEDIA_PROGRESS` 不能绕过 reducer 直接改 scene 或 copy owner。
+- 80% copy reveal 不使用单独 adapter event；`applySegmentProgress()` 根据 manifest 的 `reveal.atProgress` 执行一次 `runtime-reveal` ownership action。
 
 ## Layer Ownership Resolver
 
@@ -217,7 +253,7 @@ function resolveLayerOwnership(input: {
 
 ## Segment Runner
 
-`segmentRunner` 负责执行 active segment 的副作用：
+`segmentRunner` 只负责执行 playback segment 的副作用：
 
 - scroll lock / unlock
 - timer progress
@@ -226,6 +262,8 @@ function resolveLayerOwnership(input: {
 - compound step sequencing
 
 它不能直接 `setState`。它只能 dispatch runtime events。
+
+`text-read` 不进入 segmentRunner。它由 IDLE 内的 reading policy 和 document flow/anchor 处理。
 
 ```ts
 interface SegmentRunner {
@@ -350,7 +388,7 @@ interface InkAdapter {
 
 ### Pattern Adapter
 
-优先从现有 `js/pattern-mirror-stage.js` / pattern bloom factory 抽包装层。pattern-top/bottom 的 scene identity 由 manifest 决定，不由 adapter 内部命名。
+优先从现有 `js/pattern-mirror-stage.js` / pattern bloom factory 抽包装层。`pattern-bloom` / `belief-star` 的 scene identity 由 manifest 决定，不由 adapter 内部命名。
 
 ### Media Adapter
 
@@ -385,8 +423,8 @@ compound sequence 不需要独立 global state。它只维护当前 step，并�
 - 每个 scene 除最后一个外都有下一条 segment。
 - 没有孤儿 scene。
 - 没有组件私有 scene id。
-- 每条 segment 都声明 layerOwnership 或可由默认 resolver 推导。
-- `compound-sequence.steps` 全部存在。
+- 每条非 `text-read` segment 都显式声明五层 layerOwnership。
+- `compound-sequence.steps` 是内部 step，不进入 top-level `scenes[]`。
 - timeline-owned copy 已标记跳过 global reveal。
 
 ## Debug Overlay
@@ -420,8 +458,8 @@ recoveryMode
 
 Phase 1 不以“能播完视频”为验收核心，而以 runtime 契约为核心：
 
-1. `hero -> pattern-top -> pattern-bottom -> aod-animation -> method-top -> method-bottom` 全部由 manifest 驱动。
-2. `pattern-top`/`pattern-bottom` 是 scene，转场是 segment。
+1. `hero -> contact` 全链路全部由 manifest 驱动。
+2. `pattern-bloom` 和 `belief-star` 是 canonical scene，`star-map` 不是 top-level scene id。
 3. AOD 80% 文案提前入场由 runtime ownership 改变实现。
 4. debug overlay 能在每个边界显示正确 owner。
 5. 快速滚动、hash 直达、media rejected、reduced motion 不会留下滚动锁或空白 copy。

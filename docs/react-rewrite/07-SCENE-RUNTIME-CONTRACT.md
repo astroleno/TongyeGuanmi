@@ -116,7 +116,7 @@ interface SceneRuntimeState {
   activeScene: SceneId;
   nextScene: SceneId | null;
   activeSegment: SegmentId | null;
-  activeStep: SegmentId | null;
+  activeStep: CompoundStepId | null;
   segmentProgress: number;
   committedScene: SceneId;
   direction: 1 | -1;
@@ -233,8 +233,8 @@ Canonical scenes：
 
 ```txt
 hero
-pattern-top
-pattern-bottom
+pattern-bloom
+belief-star
 aod-animation
 method-top
 method-bottom
@@ -250,13 +250,22 @@ crane-animation
 contact
 ```
 
-如果之后需要 `belief-star` 或其他中间文案，必须先进入这张 canonical scene list，不能在组件里临时出现。
+这张列表由 `react-runtime-spike/src/manifest/realManifest.ts` 冻结。`star-map`、`method-upper`、`method-lower`、`method-cocreation`、`method-tooling`、`method-proof`、`method-field-law`、`figure2-proof-cards`、`figure2-proof-closing` 都不是 top-level canonical scene id。
 
 ## Segment Definition
 
 ### text-read
 
-用于普通文案段落阅读。滚动只负责阅读和在尾部累计 10vh intent。
+用于普通文案段落阅读。`text-read` 是 scene graph 中的 reading policy edge，不是 playback segment。
+
+规则：
+
+- 保留在 `segments[]` 中，用来表达 `from -> to` 的阅读边界。
+- 不进入 SNAP_LOCKING/PLAYING/PRESENTING。
+- 不锁滚动。
+- 不设置 `activeSegment`。
+- 在 IDLE 内根据 document flow / anchor / scroll bounds 推进。
+- 只有读到边界并产生下一段 intent 时，才选择后续 playback segment。
 
 ```ts
 interface TextReadSegment {
@@ -282,7 +291,7 @@ interface InkTransitionSegment {
   durationMs: number;
   ink: {
     kind: 'horizontal' | 'radial' | 'pattern-rotate';
-    direction?: 'bottom-up' | 'top-down';
+    direction?: 'bottom-up' | 'top-down' | 'center-out' | 'left-rotate-out';
     origin?: 'center' | 'left' | 'ph-sun' | { x: number; y: number };
   };
   commitAt: 'end';
@@ -300,6 +309,7 @@ interface MediaAnimationSegment {
   type: 'media-animation';
   from: SceneId;
   to: SceneId;
+  layerOwnership: LayerOwnership;
   durationPolicy: 'media-ended' | 'fixed-duration' | 'adapter-complete';
   reveal?: {
     atProgress: number;
@@ -326,10 +336,30 @@ interface CompoundSequenceSegment {
   type: 'compound-sequence';
   from: SceneId;
   to: SceneId;
-  steps: SegmentId[];
+  steps: CompoundStepDefinition[];
   commitAt: 'last-step-end';
   cancelPolicy: 'finish-current-step-then-release';
   hashPolicy: 'jump-to-committed-scene';
+  layerOwnership: LayerOwnership;
+}
+
+type CompoundStepType =
+  | 'ink-transition'
+  | 'media-animation'
+  | 'text-hold'
+  | 'runtime-reveal';
+
+interface CompoundStepDefinition {
+  id: CompoundStepId;
+  type: CompoundStepType;
+  durationMs: number;
+  effect?: 'radial-expand' | 'particle-fade-in' | 'wave-sweep';
+  reveal?: {
+    atProgress: number;
+    targetScene: SceneId;
+    targetLayer: 'copy';
+  };
+  fallback?: MediaAnimationSegment['fallback'];
 }
 ```
 
@@ -353,19 +383,63 @@ interface CompoundSequenceSegment {
 - text-read 内部阅读视差。
 - ARMED 之前的 intent indicator。
 
+## Runtime Events
+
+`07` 是事件契约唯一来源。`01` 和 `03` 的表/类型必须与这里一致。
+
+```ts
+type RuntimeEvent =
+  | { type: 'SCROLL_WITHIN_SCENE'; scrollPx: number }
+  | { type: 'TEXT_READ_PROGRESS'; segment: SegmentId; progress: number }
+  | { type: 'TEXT_READ_COMPLETE'; segment: SegmentId }
+  | { type: 'SCROLL_INTENT_10VH'; scene: SceneId; segment: SegmentId }
+  | { type: 'FORWARD_CONFIRM' }
+  | { type: 'REVERSE_CANCEL' }
+  | { type: 'SNAP_DONE' }
+  | { type: 'SNAP_FAILED'; reason: string }
+  | { type: 'SEGMENT_PROGRESS'; segment: SegmentId; progress: number }
+  | { type: 'MEDIA_PROGRESS'; segment: SegmentId; progress: number }
+  | { type: 'SEGMENT_COMPLETE'; segment: SegmentId }
+  | { type: 'STEP_COMPLETE'; step: CompoundStepId }
+  | { type: 'MEDIA_REJECTED'; segment: SegmentId; reason: string }
+  | { type: 'MEDIA_METADATA_TIMEOUT'; segment: SegmentId }
+  | { type: 'MEDIA_ENDED_TIMEOUT'; segment: SegmentId }
+  | { type: 'MEDIA_MISSING'; segment: SegmentId; src: string }
+  | { type: 'SEGMENT_ERROR'; segment: SegmentId; reason: string }
+  | { type: 'REDUCED_MOTION_SKIP' }
+  | { type: 'COMMIT_PRESENTED' }
+  | { type: 'RELEASE_COMPLETE' }
+  | { type: 'HASH_NAVIGATE'; scene: SceneId }
+  | { type: 'POPSTATE_NAVIGATE'; scene: SceneId }
+  | { type: 'UNMOUNT' }
+  | { type: 'OWNER_CONFLICT'; conflict: OwnerConflict }
+  | { type: 'SCROLL_LOCK_RECOVERY'; reason: string };
+```
+
 ## FSM Event Table
 
-| Phase | 允许事件 | 动作 | 下一状态 |
-| --- | --- | --- | --- |
-| IDLE | scene 内自然滚动 | 更新 text-read view model | IDLE |
-| IDLE | scene 尾部累计 10vh | 选择 next segment | ARMED |
-| ARMED | 继续前进 | 锁定滚动，记录 from/to/segment | SNAP_LOCKING |
-| ARMED | 回退超过阈值 | 清空 next segment | IDLE |
-| SNAP_LOCKING | 对齐完成 | segment progress = 0，分配 layer owner | PLAYING |
-| PLAYING | segment complete | 原子提交 `committedScene = to` | PRESENTING |
-| PLAYING | media play rejected | 执行 segment fallback | PRESENTING |
-| PRESENTING | target 已提交 | 准备释放锁和 transient owner | RELEASING |
-| RELEASING | release 完成 | 清空 transient owner | IDLE |
+| Phase | Event | Guard | Action | Next |
+| --- | --- | --- | --- | --- |
+| IDLE | `SCROLL_WITHIN_SCENE` | inside active scene | 更新 reading view model | IDLE |
+| IDLE | `TEXT_READ_PROGRESS` | active text-read edge | 更新 reading progress，不设 activeSegment | IDLE |
+| IDLE | `TEXT_READ_COMPLETE` | active text-read edge complete | `activeScene=committedScene=to` | IDLE |
+| IDLE | `SCROLL_INTENT_10VH` | next playback segment exists | 记录 nextScene/segment | ARMED |
+| ARMED | `FORWARD_CONFIRM` | user keeps moving forward | 锁定滚动并对齐 | SNAP_LOCKING |
+| ARMED | `REVERSE_CANCEL` | user backs out | 清空 nextScene/segment | IDLE |
+| SNAP_LOCKING | `SNAP_DONE` | lock + align complete | progress=0，分配 layer owner | PLAYING |
+| SNAP_LOCKING | `SNAP_FAILED` | align failed | 恢复锁前状态，记录 error | IDLE |
+| PLAYING | `SEGMENT_PROGRESS` | active segment matches | `applySegmentProgress(progress)` | PLAYING |
+| PLAYING | `MEDIA_PROGRESS` | active media segment matches | `applySegmentProgress(progress)` | PLAYING |
+| PLAYING | `STEP_COMPLETE` | active compound step matches | 推进 compound activeStep | PLAYING |
+| PLAYING | `SEGMENT_COMPLETE` | progress=1 or adapter complete | 原子提交 `committedScene=to` | PRESENTING |
+| PLAYING | `MEDIA_REJECTED` | media play rejected | 执行 fallback policy | PRESENTING 或 RELEASING |
+| PLAYING | `MEDIA_METADATA_TIMEOUT` | metadata timeout | 执行 fallback policy | PRESENTING 或 RELEASING |
+| PLAYING | `MEDIA_ENDED_TIMEOUT` | ended timeout | 执行 fallback policy | PRESENTING 或 RELEASING |
+| PLAYING | `MEDIA_MISSING` | media src missing | 执行 fallback policy | PRESENTING 或 RELEASING |
+| PLAYING | `REDUCED_MOTION_SKIP` | reduced motion enabled | 跳过播放但执行同一 commit | PRESENTING |
+| PLAYING | `SEGMENT_ERROR` | adapter/owner/lock error | recovery 到 last committed scene | RELEASING |
+| PRESENTING | `COMMIT_PRESENTED` | target committed | 准备释放锁和 transient owner | RELEASING |
+| RELEASING | `RELEASE_COMPLETE` | owner 已归还 | 清空 transient state | IDLE |
 
 全局事件：
 
@@ -380,6 +454,16 @@ interface CompoundSequenceSegment {
 `PLAYING -> PRESENTING` 这一跳必须同时完成目标 scene commit 和 layer owner 归还，不能把 copy reveal 留给下一帧的组件副作用。
 
 所有 segment 都必须有 `from` 和 `to`。`media-animation` 也是普通 segment：例如 `aod-animation -> method-top`，在 PLAYING 中播放媒体，完成后 commit 到 `to`。PRESENTING 不启动新动作，只负责呈现已提交的目标 scene 并进入释放。
+
+`text-read` 是唯一不走播放状态链的 segment type：它作为 IDLE 内 reading policy 工作，不锁滚动、不进入 PLAYING。它存在于 manifest 是为了让 scene graph 完整，而不是为了播放动画。
+
+Progress/reveal 规则：
+
+- `SEGMENT_PROGRESS` 和 `MEDIA_PROGRESS` 只是来源不同。
+- reducer 内部统一调用 `applySegmentProgress(progress)` 写入 `state.segmentProgress`。
+- `reveal.atProgress` 不产生 adapter 事件。
+- 当 `applySegmentProgress()` 首次发现 progress >= `reveal.atProgress`，runtime 执行一次 `runtime-reveal` ownership claim。
+- adapter 不能 dispatch reveal，也不能直接改 copy owner。
 
 ## RenderLayerHost
 
@@ -421,12 +505,12 @@ recoveryMode
 
 这比单纯 console log 更重要，因为前 7 次失败主要发生在“看起来已经完成，但某个 owner 还没交接”的帧。
 
-## Phase 1 必须证明的事
+## Phase 4.0A 必须证明的事
 
-Phase 1 不再只是 hero 到 method 的视觉 spike，而是验证这份契约：
+Phase 4.0A 不做视觉迁移，只冻结并验证这份契约：
 
-1. `scenes[] + segments[]` 能完整表达 hero → method-bottom。
-2. pattern-top / pattern-bottom 是 scene，连接它们的是 segment，不再叫 transition scene。
-3. AOD 80% method 文案提前入场由 runtime reveal event 触发，不由 AOD 组件直接 set parent state。
-4. 锁滚动、解锁、play rejected、hash 直达、快速滚动至少有可验证路径。
-5. timeline-owned copy 不被全局 reveal 再隐藏。
+1. `scenes[] + segments[]` 能完整表达 `hero -> contact`。
+2. 每条 segment 的 `from/to` 都引用 frozen scene list。
+3. 每个非 `text-read` segment 都显式声明五层 layer ownership。
+4. 每个 `media-animation` segment 都声明 fallback policy。
+5. `figure2-proof-cards` 和 `figure2-proof-closing` 只作为 Figure2 内部状态，不进入 top-level `scenes[]`。
