@@ -459,11 +459,13 @@ type RuntimeEvent =
 
 Progress/reveal 规则：
 
-- `SEGMENT_PROGRESS` 和 `MEDIA_PROGRESS` 只是来源不同。
+- `SEGMENT_PROGRESS` 和 `MEDIA_PROGRESS` 是 reducer-owned milestone event，不是每帧动画 event。
+- 每帧视觉进度必须留在 `visualProgressDriver` / adapter 本地 visual callback。
 - reducer 内部统一调用 `applySegmentProgress(progress)` 写入 `state.segmentProgress`。
 - `reveal.atProgress` 不产生 adapter 事件。
 - 当 `applySegmentProgress()` 首次发现 progress >= `reveal.atProgress`，runtime 执行一次 `runtime-reveal` ownership claim。
 - adapter 不能 dispatch reveal，也不能直接改 copy owner。
+- adapter 不能每帧 dispatch `SEGMENT_PROGRESS` 或 `MEDIA_PROGRESS`。
 
 ## RenderLayerHost
 

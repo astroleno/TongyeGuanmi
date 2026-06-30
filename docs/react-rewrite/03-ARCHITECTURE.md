@@ -126,7 +126,8 @@ SceneRuntimeProvider + reducer + dispatch
 
 实现约束：
 
-- `segmentProgress` 是高频值，不能导致整棵 React tree 高频 rerender。
+- `segmentProgress` 是 reducer-owned milestone state，不承担每帧视觉进度。
+- 每帧视觉进度由 `visualProgressDriver` 驱动 adapter 本地渲染，不能导致整棵 React tree 高频 rerender。
 - DebugOverlay 可以订阅完整 state；普通 scene 只能订阅自己需要的 view model。
 - 如果 Context reducer 造成明显重渲，可切到 `useSyncExternalStore` 或 Zustand。
 - 不因为 Shopify 可能用了 Zustand 就提前引入 Zustand。
@@ -212,8 +213,10 @@ type RuntimeEvent =
 
 Progress 事件规则：
 
-- timer/canvas/compound runner dispatch `SEGMENT_PROGRESS`。
-- media adapter dispatch `MEDIA_PROGRESS`。
+- `visualProgressDriver` 可以每帧调用 adapter 本地 visual callback。
+- adapter 不能每帧 dispatch `SEGMENT_PROGRESS` 或 `MEDIA_PROGRESS`。
+- timer/canvas/compound runner 只能在 declared milestone dispatch `SEGMENT_PROGRESS`。
+- media adapter 只能在 declared milestone / lifecycle boundary dispatch `MEDIA_PROGRESS`。
 - reducer 是唯一写入 `state.segmentProgress` 的地方。
 - `MEDIA_PROGRESS` 不能绕过 reducer 直接改 scene 或 copy owner。
 - 80% copy reveal 不使用单独 adapter event；`applySegmentProgress()` 根据 manifest 的 `reveal.atProgress` 执行一次 `runtime-reveal` ownership action。
