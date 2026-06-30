@@ -79,23 +79,37 @@ Interpretation:
 
 ## Browser Probe Evidence
 
-Playwright Chromium probes were run against the Vite dev server.
+Playwright Chromium probes were codified in SPIKE_REPO:
+
+```bash
+npm run validate:phase42-aod
+```
 
 Desktop:
 ```json
 {
-  "progress": [0.0389, 0.5954],
+  "progress": [0.0382, 0.7698],
   "fps": 61,
-  "enhancement": "ready"
+  "enhancement": "ready",
+  "revealReached": true
 }
 ```
 
 iPhone SE viewport proxy:
 ```json
 {
-  "progress": [0.0382, 0.6009],
+  "progress": [0.0359, 0.7766],
   "fps": 61,
-  "enhancement": null
+  "enhancement": null,
+  "revealReached": true
+}
+```
+
+Reduced motion:
+```json
+{
+  "reducedMotionEvent": true,
+  "methodCommitted": true
 }
 ```
 
@@ -116,6 +130,7 @@ Interpretation:
 - The runtime reveal occurs once at the 80% milestone.
 - Method copy appears through runtime layer ownership, not GSAP DOM ownership.
 - Desktop loads GSAP enhancement; mobile proxy does not.
+- Reduced motion uses the poster-and-skip path and commits the method target.
 
 ## Video Fallback Matrix
 
