@@ -34,6 +34,7 @@ Automated tests prove:
 - `SEGMENT_COMPLETE` is emitted only at completion.
 - `MEDIA_REJECTED`, `MEDIA_MISSING`, `MEDIA_METADATA_TIMEOUT`, `MEDIA_ENDED_TIMEOUT`, and `REDUCED_MOTION_SKIP` are covered.
 - AOD render count stays below 10 while 30 imperative visual progress updates run.
+- AOD source visual parity is checked against `js/aod-scroll.js` constants and layer transform math.
 
 Command:
 ```bash
@@ -42,9 +43,30 @@ npm test -- --run
 
 Result:
 ```txt
-Test Files  14 passed (14)
-Tests       86 passed (86)
+Test Files  18 passed (18)
+Tests       96 passed (96)
 ```
+
+## Visual Fidelity Evidence
+
+Command:
+```bash
+SOURCE_REPO=/Users/aitoshuu/Documents/GitHub/TongyeGuanmi npm run validate:phase42-aod-fidelity
+```
+
+Result:
+```txt
+Test Files  1 passed (1)
+Tests       2 passed (2)
+```
+
+Interpretation:
+- The spike reads Source `js/aod-scroll.js` during the gate.
+- The gate verifies the frozen AOD constants used by the original page:
+  - transition duration, fullscreen range, backdrop exit range
+  - figure start scale and Y offset
+- The gate compares progress curve and owned layer transforms across multiple progress, parallax, and viewport samples.
+- This proves the AOD visual model is source-parity for the desktop/mobile baseline math before GSAP enhancement is applied.
 
 ## Bundle / GSAP Evidence
 
@@ -58,13 +80,13 @@ Result:
 ```json
 {
   "main": {
-    "file": "index-DspfMbKB.js",
-    "bytes": 256991,
-    "gzipBytes": 77516
+    "file": "index-IfoIMEXq.js",
+    "bytes": 258223,
+    "gzipBytes": 77895
   },
   "gsap": [
     {
-      "file": "aod-gsap-BBQpgIyP.js",
+      "file": "aod-gsap-CxagL6bE.js",
       "bytes": 69654,
       "gzipBytes": 27017
     }
@@ -88,8 +110,8 @@ npm run validate:phase42-aod
 Desktop:
 ```json
 {
-  "progress": [0.0382, 0.7698],
-  "fps": 61,
+  "progress": [0.0391, 0.7706],
+  "fps": 60,
   "enhancement": "ready",
   "revealReached": true
 }
@@ -98,7 +120,7 @@ Desktop:
 iPhone SE viewport proxy:
 ```json
 {
-  "progress": [0.0359, 0.7766],
+  "progress": [0.0357, 0.7761],
   "fps": 61,
   "enhancement": null,
   "revealReached": true
@@ -162,6 +184,7 @@ Recommended encoding baseline before Phase 4.3:
 ## Gate Status
 
 - AOD visual fidelity: implemented from original constants and validated by browser progress probes.
+- Source visual parity gate: passed.
 - GSAP lazy-load: passed.
 - Adapter milestone-only contract: passed.
 - Video fallback paths: passed.
