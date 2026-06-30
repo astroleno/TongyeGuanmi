@@ -44,7 +44,7 @@ npm test -- --run
 Result:
 ```txt
 Test Files  18 passed (18)
-Tests       96 passed (96)
+Tests       97 passed (97)
 ```
 
 ## Visual Fidelity Evidence
@@ -65,7 +65,8 @@ Interpretation:
 - The gate verifies the frozen AOD constants used by the original page:
   - transition duration, fullscreen range, backdrop exit range
   - figure start scale and Y offset
-- The gate compares progress curve and owned layer transforms across multiple progress, parallax, and viewport samples.
+- The gate compares progress curve, including Source `stableProgress()` dead-zone samples, and owned layer transforms across multiple progress, parallax, and viewport samples.
+- AOD runtime DOM diagnostics now read from the same visual model constants, so CDP sees `fullscreenEnd=0.6`, `backdrop=0..0.5`, `figureScale=0.62`, and `figureY=7.5`.
 - This proves the AOD visual model is source-parity for the desktop/mobile baseline math before GSAP enhancement is applied.
 
 ## Bundle / GSAP Evidence
@@ -80,15 +81,15 @@ Result:
 ```json
 {
   "main": {
-    "file": "index-IfoIMEXq.js",
-    "bytes": 258223,
-    "gzipBytes": 77895
+    "file": "index-Bac2kKus.js",
+    "bytes": 258518,
+    "gzipBytes": 77971
   },
   "gsap": [
     {
-      "file": "aod-gsap-CxagL6bE.js",
+      "file": "aod-gsap-C0D2DS-C.js",
       "bytes": 69654,
-      "gzipBytes": 27017
+      "gzipBytes": 27016
     }
   ]
 }
@@ -110,8 +111,8 @@ npm run validate:phase42-aod
 Desktop:
 ```json
 {
-  "progress": [0.0391, 0.7706],
-  "fps": 60,
+  "progress": [0.0382, 0.7734],
+  "fps": 61,
   "enhancement": "ready",
   "revealReached": true
 }
@@ -120,7 +121,7 @@ Desktop:
 iPhone SE viewport proxy:
 ```json
 {
-  "progress": [0.0357, 0.7761],
+  "progress": [0.0329, 0.7724],
   "fps": 61,
   "enhancement": null,
   "revealReached": true
