@@ -38,7 +38,7 @@
 - 最后一个 scene 之外，每个 scene 都有出口或明确 terminal。
 - 没有未引用 scene。
 - 没有组件私有 scene id。
-- compound steps 全部存在。
+- compound steps 全部存在于 `compoundSteps[]`。
 - segment type 只能是四类：
   - `ink-transition`
   - `media-animation`
@@ -71,6 +71,9 @@ IDLE
 必须断言：
 
 - `SEGMENT_COMPLETE` 同时更新 `committedScene` 和 layer owner。
+- `TEXT_READ_COMPLETE` 在 IDLE 内同步设置 `activeScene=committedScene=to`，不设置 activeSegment。
+- `STEP_COMPLETE` 推进 `activeStep`，不直接修改全局 phase。
+- `COMMIT_PRESENTED` 从 PRESENTING 进入 RELEASING。
 - `MEDIA_REJECTED` 不会停在 PLAYING。
 - 非法事件不改变 phase，只写入 `lastIgnoredEvent`。
 - `HASH_NAVIGATE` 只落到 committed scene + IDLE。
@@ -89,6 +92,13 @@ expectSingleOwner(state.layerOwnership.mediaOwner);
 ```
 
 Phase 0 P0 gate 边界：
+
+- fake-a -> fake-b ink commit。
+- fake-b -> fake-c media commit。
+- fake media 80% runtime-reveal ownership action。
+- fake media ended/rejected -> fake-c commit。
+
+Phase 1 integration gate 边界：
 
 - hero -> pattern-top commit。
 - pattern-top -> pattern-bottom commit。
@@ -144,7 +154,7 @@ Full-route P0 regression 边界：
 - missing media dispatch `MEDIA_MISSING`。
 - metadata timeout dispatch `MEDIA_METADATA_TIMEOUT`。
 - ended never fires dispatch `MEDIA_ENDED_TIMEOUT`。
-- `timeupdate` progress >= 0.8 只 dispatch runtime reveal event。
+- `timeupdate` progress >= 0.8 只 dispatch `MEDIA_PROGRESS`；reducer 内部执行一次 `runtime-reveal` ownership action。
 - `ended` 只 dispatch adapter ended，不直接改 scene。
 - reduced motion 走 poster/skip fallback。
 

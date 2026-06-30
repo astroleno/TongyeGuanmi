@@ -21,6 +21,11 @@ Phase 0 的目标不是还原首页视觉，而是证明 `SceneRuntime` 契约�
 
 Phase 0 只做 fake scenes，不接真实 Pattern/AOD/WebGL/video。
 
+fake-only 的含义：
+
+- fake 的是 scene、asset、visual adapter。
+- 真实的是 runtime contract、reducer、ownership resolver、scroll intent、scroll lock、adapter event 和 DebugOverlay。
+
 ```txt
 fake-a
 -> fake ink-transition
@@ -50,6 +55,7 @@ src/runtime/scrollLock.ts
 src/runtime/debugOverlay.tsx
 src/manifest/fakeScenes.ts
 src/manifest/fakeSegments.ts
+src/manifest/fakeCompoundSteps.ts
 src/manifest/validateManifest.ts
 src/render-host/RenderLayerHost.tsx
 src/scenes/FakeScene.tsx
@@ -63,6 +69,8 @@ src/scenes/FakeScene.tsx
 - 不做视觉还原度验收。
 - 不引入 Theatre.js、Rive、Three.js、Anime.js。
 - 不因为 Shopify 可能使用某个库就引入该库。
+- 不实现真实 `text-read` 文案段落视觉，只验证 reading policy 类型和 reducer 不进入 PLAYING。
+- 不实现真实 compound sequence，只验证 `CompoundStepDefinition` 校验和 activeStep 字段。
 
 ## Runtime Store
 
@@ -170,6 +178,9 @@ mediaOwner
 scrollLock
 lastEvent
 lastIgnoredEvent
+ownerConflict
+runtimeError
+recoveryMode
 ```
 
 手动触发状态转换时，这些字段必须逐帧更新。
@@ -181,6 +192,10 @@ P0 tests：
 - manifest validation
 - reducer legal transitions
 - reducer illegal event ignored
+- `TEXT_READ_COMPLETE` IDLE-only commit
+- `STEP_COMPLETE` activeStep advance
+- `COMMIT_PRESENTED` transition
+- `REDUCED_MOTION_SKIP` commit path
 - layer ownership single-owner invariant
 - deliberate owner conflict recovers, then throws in development
 - scroll intent 10vh
@@ -191,7 +206,7 @@ P0 tests：
 - hash navigate resets to IDLE
 - popstate/back/forward resets to IDLE
 - unmount restores scroll lock
-- mobile touch/momentum recovery
+- simulated touch/momentum recovery event
 - reduced motion skip still commits owner
 
 ## 验收标准
@@ -210,6 +225,15 @@ Phase 0 通过需要同时满足：
 
 - 需要 scene component 私自 set global scene。
 - 需要 moving real DOM 才能完成 copy preview。
-- React rerender 导致 segment progress 明显卡顿，且 store 策略未调整。
-- scroll lock 无法在 mobile touch/momentum 下可靠恢复。
+- runtime 设计会让整棵 React tree 随 `segmentProgress` 高频 rerender，且没有可替换 store 策略。
+- scroll lock snapshot/recovery 语义无法通过 fake/mobile-event tests。
 - ownership conflict 只能靠人工约定，runtime 不能检测。
+
+不作为 Phase 0 阻塞：
+
+- 真实 Pattern/AOD/WebGL/video 的视觉还原度。
+- 真实 FPS 和掉帧。
+- 真机移动端 momentum 手感。
+- canvas/WebGL 非空帧。
+
+这些进入 Phase 1/P1 browser verification。

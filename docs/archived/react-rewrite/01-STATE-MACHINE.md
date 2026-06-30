@@ -86,14 +86,22 @@ runtime 释放滚动和 transient owner。
 | 当前状态 | 事件 | 条件 | 动作 | 下一状态 |
 | --- | --- | --- | --- | --- |
 | IDLE | `SCROLL_WITHIN_SCENE` | 未到尾部 | 更新 scene view model | IDLE |
+| IDLE | `TEXT_READ_PROGRESS` | active text-read edge | 更新 reading progress，不设 activeSegment | IDLE |
+| IDLE | `TEXT_READ_COMPLETE` | active text-read edge complete | `activeScene=committedScene=to` | IDLE |
 | IDLE | `SCROLL_INTENT_10VH` | 存在 next segment | 记录 nextScene/segment | ARMED |
 | ARMED | `FORWARD_CONFIRM` | 用户继续前进 | 锁滚动并对齐 | SNAP_LOCKING |
 | ARMED | `REVERSE_CANCEL` | 用户回退 | 清空 nextScene/segment | IDLE |
 | SNAP_LOCKING | `SNAP_DONE` | 对齐完成 | 分配 layer owner，progress=0 | PLAYING |
 | SNAP_LOCKING | `SNAP_FAILED` | 对齐失败 | 恢复锁前状态，记录 error | IDLE |
 | PLAYING | `SEGMENT_PROGRESS` | activeSegment 匹配 | 更新 segmentProgress | PLAYING |
+| PLAYING | `MEDIA_PROGRESS` | active media segment 匹配 | 折算并更新 segmentProgress | PLAYING |
+| PLAYING | `STEP_COMPLETE` | active compound step 匹配 | 推进 compound activeStep | PLAYING |
 | PLAYING | `SEGMENT_COMPLETE` | progress=1 或 adapter complete | 原子提交 target scene | PRESENTING |
 | PLAYING | `MEDIA_REJECTED` | play() rejected | 执行 fallback | PRESENTING |
+| PLAYING | `MEDIA_METADATA_TIMEOUT` | metadata timeout | 执行 fallback | PRESENTING 或 RELEASING |
+| PLAYING | `MEDIA_ENDED_TIMEOUT` | ended timeout | 执行 fallback | PRESENTING 或 RELEASING |
+| PLAYING | `MEDIA_MISSING` | media src missing | 执行 fallback | PRESENTING 或 RELEASING |
+| PLAYING | `REDUCED_MOTION_SKIP` | reduced motion 开启 | 跳过播放但执行同一 commit | PRESENTING |
 | PLAYING | `SEGMENT_ERROR` | adapter/owner/lock 错误 | recovery 到 last committed scene | RELEASING |
 | PRESENTING | `COMMIT_PRESENTED` | target 已提交 | 准备恢复滚动 | RELEASING |
 | RELEASING | `RELEASE_COMPLETE` | owner 已归还 | 清空 transient state | IDLE |
@@ -114,7 +122,13 @@ runtime 释放滚动和 transient owner。
 
 ### text-read
 
-普通文案阅读。它可以使用 `scrollPx -> pure derived progress`，但只能影响当前 scene 内部的非关键视觉：
+普通文案阅读是 IDLE 内的 reading policy，不进入 SNAP_LOCKING/PLAYING/PRESENTING。
+
+它仍然写在 `segments[]` 里，目的是让 scene graph 有完整边界；但 runtime 不把它当成 playback segment，不锁滚动，也不设置 `activeSegment`。
+
+完成时 dispatch `TEXT_READ_COMPLETE`，同步设置 `activeScene=committedScene=to`，然后继续保持 IDLE。
+
+它可以使用 `scrollPx -> pure derived progress`，但只能影响当前 scene 内部的非关键视觉：
 
 - 文案阅读位置
 - 轻量透明度/位移
@@ -142,7 +156,8 @@ runtime 释放滚动和 transient owner。
 
 - Runtime 在 PLAYING 中触发 play。
 - Media adapter 只回报 `progress`、`ended`、`rejected`。
-- 80% 文案提前入场是 runtime event，不是子组件 set parent state。
+- Media adapter 发 `MEDIA_PROGRESS`，reducer 统一写入 `segmentProgress`；普通 adapter/timer segment 发 `SEGMENT_PROGRESS`。
+- 80% 文案提前入场由 reducer 的 `applySegmentProgress()` 根据 manifest `reveal.atProgress` 执行一次 `runtime-reveal` ownership action，不是 adapter event，也不是子组件 set parent state。
 - play rejected 必须有 fallback：poster+complete 或 scrub fallback，不能卡死在 PLAYING/RELEASING。
 - media segment 完成后在 PRESENTING 中 commit 到 `to`，然后 RELEASING，最后回到 IDLE。
 

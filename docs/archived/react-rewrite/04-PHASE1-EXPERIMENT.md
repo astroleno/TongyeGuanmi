@@ -123,7 +123,7 @@ Phase 1 复用并产品化 Phase 0 runtime，不重新定义 contract，不重�
 
 - `MethodTopScene.tsx`
 - `MethodBottomScene.tsx`
-- runtime reveal event
+- runtime-reveal ownership action
 
 验收：
 
