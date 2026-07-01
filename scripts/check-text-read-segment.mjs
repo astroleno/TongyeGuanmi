@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homepageSegments } from '../src/homepage/homepage.segments.mjs';
-import { createReadMonitor, READ_EVENTS } from '../js/scenes/runtime/read-monitor.js';
+import { createReadIntentAccumulator, createReadMonitor, READ_EVENTS } from '../js/scenes/runtime/read-monitor.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtimeSource = readFileSync(path.join(rootDir, 'js/scenes/runtime/SceneRuntime.js'), 'utf8');
@@ -21,6 +21,11 @@ assert(runtimeSource.includes("this.readMonitors.set('method-bottom'"), 'runtime
 assert(runtimeSource.includes('getBoundingClientRect()'), 'runtime ReadMonitor must use real DOM bounds');
 assert(runtimeSource.includes('window.addEventListener(\'scroll\', onScroll'), 'runtime must update read monitors from real scroll');
 assert(runtimeSource.includes("this.presentation.present('method-bottom', { reason: 'read-complete' })"), 'method-top completion must present method-bottom');
+assert(runtimeSource.includes('createReadIntentAccumulator'), 'runtime must accumulate post-complete read intent');
+assert(runtimeSource.includes('this.readIntentAccumulators'), 'runtime must keep per-scene read intent accumulators');
+assert(runtimeSource.includes('const sceneId = this.currentSceneId'), 'runtime must update only the current reading scene monitor');
+assert(runtimeSource.includes('this.resetReadIntent(this.currentSceneId)'), 'runtime must reset read intent on reverse input');
+assert(runtimeSource.includes('this.resetReadIntent();'), 'runtime must reset read intent on scene change/recovery');
 assert(!runtimeSource.includes("this.stateMachine.arm({ segmentId: 'method-read'"), 'method-read must not use snap-lock/player arming');
 
 const bounds = { top: 100, bottom: 1100 };
@@ -41,5 +46,12 @@ events = monitor.update({ forwardIntentVh: 9.9 });
 assert.deepEqual(events.map((event) => event.type), [READ_EVENTS.ACTIVE], 'under-10vh intent must not arm after read complete');
 events = monitor.update({ forwardIntentVh: 10 });
 assert.deepEqual(events.map((event) => event.type), [READ_EVENTS.ACTIVE, READ_EVENTS.ARM_NEXT_READY], '10vh intent after read complete must arm next');
+
+const readIntent = createReadIntentAccumulator({ thresholdVh: 10 });
+assert.equal(readIntent.update({ completeLatched: false, deltaVh: 30 }).thresholdReached, false, 'intent before read-complete must not count');
+assert.equal(readIntent.update({ completeLatched: true, deltaVh: 5.5 }).thresholdReached, false, 'first trackpad-like delta must not arm alone');
+assert.equal(readIntent.update({ completeLatched: true, deltaVh: 5.5 }).thresholdReached, true, 'small trackpad-like deltas must accumulate past 10vh');
+readIntent.reset({ reason: 'reverse' });
+assert.equal(readIntent.getState().forwardIntentVh, 0, 'reverse/reset must clear accumulated read intent');
 
 console.log('Text read segment checks passed.');

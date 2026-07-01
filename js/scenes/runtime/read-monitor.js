@@ -108,3 +108,43 @@ export function createReadMonitor({
     })
   };
 }
+
+export function createReadIntentAccumulator({ thresholdVh = 10 } = {}) {
+  let forwardIntentVh = 0;
+
+  function reset({ reason = 'reset' } = {}) {
+    forwardIntentVh = 0;
+    return {
+      forwardIntentVh,
+      thresholdReached: false,
+      reason
+    };
+  }
+
+  function update({ completeLatched = false, deltaVh = 0 } = {}) {
+    if (!completeLatched || deltaVh <= 0) {
+      return {
+        forwardIntentVh,
+        thresholdReached: false,
+        reason: completeLatched ? 'waiting-for-forward-intent' : 'waiting-for-read-complete'
+      };
+    }
+
+    forwardIntentVh += deltaVh;
+    return {
+      forwardIntentVh,
+      thresholdReached: forwardIntentVh >= thresholdVh,
+      reason: 'forward-intent'
+    };
+  }
+
+  return {
+    update,
+    reset,
+    getState: () => ({
+      forwardIntentVh,
+      thresholdVh,
+      thresholdReached: forwardIntentVh >= thresholdVh
+    })
+  };
+}

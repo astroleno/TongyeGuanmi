@@ -4,7 +4,7 @@ import { homepageSegments } from '../../../src/homepage/homepage.segments.mjs';
 import { initBeliefStarField } from '../../sections/belief.js';
 import { createLayerOwnershipRegistry } from './layer-ownership.js';
 import { createPresentationController } from './presentation.js';
-import { createReadMonitor, READ_EVENTS } from './read-monitor.js';
+import { createReadIntentAccumulator, createReadMonitor, READ_EVENTS } from './read-monitor.js';
 import { createRecoveryRoutine } from './recovery.js';
 import { createScrollIntentAccumulator } from './scroll-intent.js';
 import { createSceneStateMachine, RuntimePhase } from './state-machine.js';
@@ -113,6 +113,7 @@ class SceneRuntime {
     this.started = false;
     this.touchY = null;
     this.readMonitors = new Map();
+    this.readIntentAccumulators = new Map();
     this.cleanups = [];
     this.layerOwnership = createLayerOwnershipRegistry({ mode: 'production' });
     this.scrollLock = createScrollLock({ root });
@@ -135,6 +136,7 @@ class SceneRuntime {
       presentation: this.presentation,
       logger,
       onRecover: (record) => {
+        this.resetReadIntent();
         this.root.documentElement.dataset.sceneRuntimeRecoveryReason = record.recoveryReason;
       }
     });
@@ -228,6 +230,7 @@ class SceneRuntime {
         element: methodTop,
         nextSegmentId: 'method-read'
       }));
+      this.readIntentAccumulators.set('method-top', createReadIntentAccumulator());
     }
     if (methodBottom) {
       this.readMonitors.set('method-bottom', createDomReadMonitor({
@@ -235,6 +238,7 @@ class SceneRuntime {
         element: methodBottom,
         nextSegmentId: 'method-bottom-terminal'
       }));
+      this.readIntentAccumulators.set('method-bottom', createReadIntentAccumulator());
     }
   }
 
@@ -334,6 +338,7 @@ class SceneRuntime {
 
   setCurrentScene(sceneId, { scroll = false } = {}) {
     if (!this.sceneHosts.has(sceneId)) return;
+    if (sceneId !== this.currentSceneId) this.resetReadIntent();
     this.currentSceneId = sceneId;
     this.root.documentElement.dataset.sceneRuntimeCurrentScene = sceneId;
     this.sceneHosts.forEach((host, id) => {
@@ -367,6 +372,12 @@ class SceneRuntime {
     }
 
     if (readingScenes.has(this.currentSceneId)) {
+      if (deltaVh < 0) {
+        this.resetReadIntent(this.currentSceneId);
+        this.updateReadMonitors(0);
+        return;
+      }
+
       this.updateReadMonitors(deltaVh > 0 ? Math.abs(deltaVh) * 100 : 0);
       return;
     }
@@ -392,22 +403,53 @@ class SceneRuntime {
   updateReadMonitors(forwardIntentVh = 0) {
     if (!readingScenes.has(this.currentSceneId)) return;
 
-    this.readMonitors.forEach((monitor, sceneId) => {
-      const events = monitor.update({ forwardIntentVh });
-      for (const event of events) {
-        if (event.type === READ_EVENTS.COMPLETE_LATCHED) {
-          this.sceneHosts.get(sceneId).dataset.readComplete = 'true';
+    const sceneId = this.currentSceneId;
+    const monitor = this.readMonitors.get(sceneId);
+    if (!monitor) return;
+
+    const monitorState = monitor.getState();
+    const readIntent = this.readIntentAccumulators.get(sceneId);
+    const intentState = readIntent?.update({
+      completeLatched: monitorState.completeLatched,
+      deltaVh: forwardIntentVh
+    });
+    const armIntentVh = intentState?.thresholdReached ? intentState.forwardIntentVh : 0;
+    const events = monitor.update({ forwardIntentVh: armIntentVh });
+    const host = this.sceneHosts.get(sceneId);
+
+    if (host && intentState) {
+      host.dataset.readIntentVh = intentState.forwardIntentVh.toFixed(2);
+    }
+
+    for (const event of events) {
+      if (event.type === READ_EVENTS.COMPLETE_LATCHED) {
+        host.dataset.readComplete = 'true';
+        this.resetReadIntent(sceneId);
+      }
+      if (event.type === READ_EVENTS.ARM_NEXT_READY) {
+        host.dataset.readNextArmed = event.nextSegmentId;
+        this.resetReadIntent(sceneId);
+        if (sceneId === 'method-top') {
+          this.presentation.present('method-bottom', { reason: 'read-complete' });
         }
-        if (event.type === READ_EVENTS.ARM_NEXT_READY) {
-          this.sceneHosts.get(sceneId).dataset.readNextArmed = event.nextSegmentId;
-          if (sceneId === 'method-top') {
-            this.presentation.present('method-bottom', { reason: 'read-complete' });
-          }
-          if (sceneId === 'method-bottom') {
-            this.root.documentElement.dataset.sceneRuntimeTerminalArmed = 'method-bottom';
-          }
+        if (sceneId === 'method-bottom') {
+          this.root.documentElement.dataset.sceneRuntimeTerminalArmed = 'method-bottom';
         }
       }
+    }
+  }
+
+  resetReadIntent(sceneId = null) {
+    if (sceneId) {
+      this.readIntentAccumulators.get(sceneId)?.reset();
+      const host = this.sceneHosts.get(sceneId);
+      if (host) host.dataset.readIntentVh = '0.00';
+      return;
+    }
+
+    this.readIntentAccumulators.forEach((accumulator) => accumulator.reset());
+    this.sceneHosts.forEach((host) => {
+      if (readingScenes.has(host.dataset.sceneId)) host.dataset.readIntentVh = '0.00';
     });
   }
 
