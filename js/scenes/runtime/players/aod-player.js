@@ -4,7 +4,7 @@ import {
   waitForAodTransitionMetadata
 } from '../../../components/aod-transition.js';
 import { createInkCurtainTransition } from '../../../effects/ink-scene-transition.js';
-import { createHandoffReceiver } from '../../../transitions/homepage/handoff-receiver.js';
+import { createSceneRuntimeHandoffReceiver } from './handoff-receiver.js';
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const smoothStep = (value) => value * value * (3 - 2 * value);
@@ -102,7 +102,7 @@ export function createAodPlayer({
     const elements = prepareAodTransition(mountedSection, { progress: 0 });
     mountedVideo = elements.figureVideo;
     if (!mountedSection || !mountedVideo) throw new Error('Missing AOD media DOM');
-    mountedMethodReceiver ??= createHandoffReceiver({
+    mountedMethodReceiver ??= createSceneRuntimeHandoffReceiver({
       container: field,
       target: root.querySelector('.method-edition-layout--after-handoff'),
       sourceSelector: '.method-edition-layout--after-handoff',
@@ -122,8 +122,10 @@ export function createAodPlayer({
   function teardown() {
     mountedVideo?.removeEventListener?.('ended', onEnded);
     mountedVideo?.pause?.();
-    mountedVideo?.style.removeProperty('opacity');
-    mountedVideo?.style.removeProperty('visibility');
+    if (mountedVideo) {
+      mountedVideo.style.opacity = '0';
+      mountedVideo.style.visibility = 'hidden';
+    }
     mountedMethodReceiver?.destroy();
     mountedHost?.classList.remove('homepage-transition', 'homepage-transition--aod');
     mountedInkTransition = null;
@@ -165,7 +167,7 @@ export function createAodPlayer({
     const safeProgress = clamp(progress);
     syncFigureVisibility(video, safeProgress);
     renderAodTransitionProgress(section, safeProgress, { figureVideo: video });
-    mountedMethodReceiver?.update(safeProgress, { start: 0.58, end: 0.94, liftPx: 18 });
+    mountedMethodReceiver?.update(safeProgress, { start: 0.58, end: 0.94, liftPx: 18, restoreAtEnd: false });
     mountedInkTransition?.render(smoothStep(safeProgress));
   }
 

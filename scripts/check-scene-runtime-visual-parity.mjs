@@ -9,6 +9,7 @@ const read = (relativePath) => readFileSync(path.join(rootDir, relativePath), 'u
 const runtimeSource = read('js/scenes/runtime/SceneRuntime.js');
 const inkPlayerSource = read('js/scenes/runtime/players/ink-transition-player.js');
 const aodPlayerSource = read('js/scenes/runtime/players/aod-player.js');
+const handoffReceiverSource = read('js/scenes/runtime/players/handoff-receiver.js');
 const shellCss = read('css/sections/homepage-snap-heights.css');
 const packageJson = JSON.parse(read('package.json'));
 const checklist = read('docs/scene-runtime-visual-parity-checklist.md');
@@ -16,6 +17,8 @@ const checklist = read('docs/scene-runtime-visual-parity-checklist.md');
 assert(runtimeSource.includes("import { createPatternBloomScene } from '../../pattern-mirror-stage.js'"), 'SceneRuntime must mount the real pattern mirror canvas');
 assert(runtimeSource.includes('data-scene-runtime-pattern-canvas'), 'pattern scene must expose a SceneRuntime pattern canvas');
 assert(runtimeSource.includes('this.aodPlayer?.prepare?.()'), 'SceneRuntime must prepare AOD poster visuals when aod-animation is presented');
+assert(runtimeSource.includes('function presentRevealWithinScene(root)'), 'SceneRuntime early-copy must present reveal state through a scene-owned helper');
+assert(runtimeSource.includes("root.matches?.('.reveal')"), 'SceneRuntime early-copy must include the target scene host when it is itself a reveal');
 assert(!runtimeSource.includes('scene-runtime-pattern-field'), 'SceneRuntime must not render placeholder pattern rings');
 
 assert(inkPlayerSource.includes("import { mountPatternBloomTransition } from '../../../transitions/pattern-bloom-adapter.js'"), 'hero/pattern segments must reuse the legacy pattern bloom adapter');
@@ -31,12 +34,17 @@ assert(!inkPlayerSource.includes('--scene-runtime-ink-progress'), 'MVP ink playe
 assert(!inkPlayerSource.includes('data-ink-variant'), 'MVP ink player must not use CSS variant sinks');
 
 assert(aodPlayerSource.includes("import { createInkCurtainTransition } from '../../../effects/ink-scene-transition.js'"), 'AOD player must render the real ink curtain');
-assert(aodPlayerSource.includes("import { createHandoffReceiver } from '../../../transitions/homepage/handoff-receiver.js'"), 'AOD player must reuse the method handoff receiver');
+assert(aodPlayerSource.includes("import { createSceneRuntimeHandoffReceiver } from './handoff-receiver.js'"), 'AOD player must use the SceneRuntime-owned method handoff receiver');
+assert(!aodPlayerSource.includes('../../../transitions/homepage/handoff-receiver.js'), 'AOD player must not reload the legacy homepage handoff module');
+assert(handoffReceiverSource.includes('data-scene-runtime-handoff-receiver'), 'SceneRuntime handoff receiver must expose a runtime-owned DOM marker');
+assert(handoffReceiverSource.includes('presentRevealWithinSceneRuntime'), 'SceneRuntime handoff receiver must present reveal state without legacy reveal ownership filters');
 assert(aodPlayerSource.includes('function prepare()'), 'AOD player must expose a poster/first-frame prepare gate');
 assert(aodPlayerSource.includes("className: 'homepage-handoff-receiver--method'"), 'AOD player must use the legacy method handoff styling');
 assert(aodPlayerSource.includes('durationMs = 2600'), 'AOD player must preserve the legacy 2600ms playback window');
 assert(aodPlayerSource.includes('syncFigureVisibility(video, safeProgress)'), 'AOD poster gate must keep the figure video from covering the background stack at progress 0');
-assert(aodPlayerSource.includes('mountedMethodReceiver?.update(safeProgress, { start: 0.58, end: 0.94, liftPx: 18 })'), 'AOD player must preserve legacy method overlay timing');
+assert(aodPlayerSource.includes("mountedVideo.style.visibility = 'hidden'"), 'AOD teardown must hide the fixed video so it cannot cover method scenes');
+assert(aodPlayerSource.includes('mountedMethodReceiver?.update(safeProgress, { start: 0.58, end: 0.94, liftPx: 18, restoreAtEnd: false })'), 'AOD player must preserve method overlay timing until teardown can reveal method safely');
+assert(handoffReceiverSource.includes('restoreAtEnd = true'), 'SceneRuntime handoff receiver must support delayed restore for media handoff windows');
 assert(aodPlayerSource.includes('mountedInkTransition?.render(smoothStep(safeProgress))'), 'AOD player must render ink curtain progress during playback');
 assert(aodPlayerSource.includes('progress >= (segment.earlyCopyAt ?? 0.8)'), 'AOD player must keep 80% early-copy timing');
 

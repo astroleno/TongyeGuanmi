@@ -169,6 +169,19 @@ export function createSceneStateMachine({
     return release({ reason: 'normal' });
   }
 
+  function presentScene(sceneId, { reason = 'present' } = {}) {
+    requirePhase(RuntimePhase.IDLE);
+    presentation?.present?.(sceneId, { reason });
+    return setPhase(RuntimePhase.IDLE, {
+      currentSceneId: sceneId,
+      activeSegmentId: null,
+      targetSceneId: null,
+      intent: null,
+      releaseReason: null,
+      recoveryReason: null
+    });
+  }
+
   function release({ reason = 'normal', recoveryReason = null } = {}) {
     if (!releaseReasons.includes(reason)) throw new Error(`Invalid release reason ${reason}`);
     clearTimers();
@@ -231,6 +244,7 @@ export function createSceneStateMachine({
     beginSnapLock,
     completeSnapLock,
     completePlaying,
+    presentScene,
     cancel,
     recover,
     resourceFailed,

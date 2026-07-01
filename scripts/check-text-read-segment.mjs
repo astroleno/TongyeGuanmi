@@ -20,9 +20,11 @@ assert(runtimeSource.includes("this.readMonitors.set('method-top'"), 'runtime mu
 assert(runtimeSource.includes("this.readMonitors.set('method-bottom'"), 'runtime must wire a real method-bottom ReadMonitor');
 assert(runtimeSource.includes('getBoundingClientRect()'), 'runtime ReadMonitor must use real DOM bounds');
 assert(runtimeSource.includes('window.addEventListener(\'scroll\', onScroll'), 'runtime must update read monitors from real scroll');
-assert(runtimeSource.includes("this.presentation.present('method-bottom', { reason: 'read-complete' })"), 'method-top completion must present method-bottom');
+assert(runtimeSource.includes("this.stateMachine.presentScene('method-bottom', { reason: 'read-complete' })"), 'method-top read-complete must present method-bottom through the state machine');
 assert(runtimeSource.includes('createReadIntentAccumulator'), 'runtime must accumulate post-complete read intent');
 assert(runtimeSource.includes('this.readIntentAccumulators'), 'runtime must keep per-scene read intent accumulators');
+assert(runtimeSource.includes('READ_COMPLETE_MIN_DWELL_MS = 1200'), 'method read-complete must keep a short dwell before post-complete intent can advance');
+assert(runtimeSource.includes('this.readCompleteTimestamps'), 'runtime must track read-complete timestamps for dwell timing');
 assert(runtimeSource.includes('const sceneId = this.currentSceneId'), 'runtime must update only the current reading scene monitor');
 assert(runtimeSource.includes('this.resetReadIntent(this.currentSceneId)'), 'runtime must reset read intent on reverse input');
 assert(runtimeSource.includes('this.resetReadIntent();'), 'runtime must reset read intent on scene change/recovery');

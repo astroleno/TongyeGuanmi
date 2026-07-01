@@ -128,6 +128,22 @@ async function normalFlow() {
   assert.ok(!phases.includes('RECOVERING'));
 }
 
+function readCompletePresentationFlow() {
+  const clock = new FakeClock();
+  const ports = fakePorts(clock, null);
+  const machine = createSceneStateMachine({
+    segments: homepageSegments,
+    initialSceneId: 'method-top',
+    ...ports
+  });
+
+  const result = machine.presentScene('method-bottom', { reason: 'read-complete' });
+  assert.equal(result.phase, RuntimePhase.IDLE);
+  assert.equal(result.currentSceneId, 'method-bottom');
+  assert.equal(machine.getState().currentSceneId, 'method-bottom');
+  assert.deepEqual(ports.presentationCommits.at(-1), ['present', 'method-bottom', 'read-complete']);
+}
+
 function cancelFlow() {
   const clock = new FakeClock();
   const fakePlayer = deferredPlayer();
@@ -286,6 +302,7 @@ assert.throws(() => {
 }, /Unknown segment/);
 
 await normalFlow();
+readCompletePresentationFlow();
 cancelFlow();
 cancelWhilePlayingStopsPlayer();
 await playRejectRecovers();

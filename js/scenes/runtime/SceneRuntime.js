@@ -41,6 +41,7 @@ const inputScenes = new Map([
 ]);
 const readingScenes = new Set(['method-top', 'method-bottom']);
 const PATTERN_STEADY_BLOOM_PROGRESS = 0.58;
+const READ_COMPLETE_MIN_DWELL_MS = 1200;
 
 function normalizeWheelDelta(event) {
   const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
@@ -101,6 +102,22 @@ function createDomReadMonitor({ sceneId, element, nextSegmentId }) {
   });
 }
 
+function presentRevealWithinScene(root) {
+  if (!root) return;
+  const revealItems = root.matches?.('.reveal')
+    ? [root, ...root.querySelectorAll('.reveal')]
+    : [...root.querySelectorAll('.reveal')];
+
+  revealItems.forEach((item) => {
+    item.classList.add('is-visible');
+    item.dataset.entryState = 'presented';
+    item.setAttribute('data-entry-state', 'presented');
+    item.style.opacity = '1';
+    item.style.visibility = 'visible';
+    item.style.transform = 'none';
+  });
+}
+
 class SceneRuntime {
   constructor({
     root = document,
@@ -116,6 +133,7 @@ class SceneRuntime {
     this.touchY = null;
     this.readMonitors = new Map();
     this.readIntentAccumulators = new Map();
+    this.readCompleteTimestamps = new Map();
     this.staticVisuals = [];
     this.aodPlayer = null;
     this.cleanups = [];
@@ -340,10 +358,7 @@ class SceneRuntime {
       const target = this.sceneHosts.get(record.patch.earlyCopySceneId);
       if (target) {
         target.dataset.sceneRuntimeEarlyCopy = 'true';
-        target.querySelectorAll('.reveal').forEach((item) => {
-          item.classList.add('is-visible');
-          item.dataset.entryState = 'presented';
-        });
+        presentRevealWithinScene(target);
       }
       return;
     }
@@ -441,9 +456,12 @@ class SceneRuntime {
 
     const monitorState = monitor.getState();
     const readIntent = this.readIntentAccumulators.get(sceneId);
+    const completedAt = this.readCompleteTimestamps.get(sceneId);
+    const dwellElapsed = completedAt !== undefined
+      && performance.now() - completedAt >= READ_COMPLETE_MIN_DWELL_MS;
     const intentState = readIntent?.update({
       completeLatched: monitorState.completeLatched,
-      deltaVh: forwardIntentVh
+      deltaVh: dwellElapsed ? forwardIntentVh : 0
     });
     const armIntentVh = intentState?.thresholdReached ? intentState.forwardIntentVh : 0;
     const events = monitor.update({ forwardIntentVh: armIntentVh });
@@ -451,18 +469,22 @@ class SceneRuntime {
 
     if (host && intentState) {
       host.dataset.readIntentVh = intentState.forwardIntentVh.toFixed(2);
+      if (completedAt !== undefined) {
+        host.dataset.readDwellMs = Math.max(0, performance.now() - completedAt).toFixed(0);
+      }
     }
 
     for (const event of events) {
       if (event.type === READ_EVENTS.COMPLETE_LATCHED) {
+        this.readCompleteTimestamps.set(sceneId, performance.now());
         host.dataset.readComplete = 'true';
-        this.resetReadIntent(sceneId);
+        this.resetReadIntent(sceneId, { keepCompleteTimestamp: true });
       }
       if (event.type === READ_EVENTS.ARM_NEXT_READY) {
         host.dataset.readNextArmed = event.nextSegmentId;
         this.resetReadIntent(sceneId);
         if (sceneId === 'method-top') {
-          this.presentation.present('method-bottom', { reason: 'read-complete' });
+          this.stateMachine.presentScene('method-bottom', { reason: 'read-complete' });
         }
         if (sceneId === 'method-bottom') {
           this.root.documentElement.dataset.sceneRuntimeTerminalArmed = 'method-bottom';
@@ -471,17 +493,25 @@ class SceneRuntime {
     }
   }
 
-  resetReadIntent(sceneId = null) {
+  resetReadIntent(sceneId = null, { keepCompleteTimestamp = false } = {}) {
     if (sceneId) {
       this.readIntentAccumulators.get(sceneId)?.reset();
+      if (!keepCompleteTimestamp) this.readCompleteTimestamps.delete(sceneId);
       const host = this.sceneHosts.get(sceneId);
-      if (host) host.dataset.readIntentVh = '0.00';
+      if (host) {
+        host.dataset.readIntentVh = '0.00';
+        if (!keepCompleteTimestamp) delete host.dataset.readDwellMs;
+      }
       return;
     }
 
     this.readIntentAccumulators.forEach((accumulator) => accumulator.reset());
+    this.readCompleteTimestamps.clear();
     this.sceneHosts.forEach((host) => {
-      if (readingScenes.has(host.dataset.sceneId)) host.dataset.readIntentVh = '0.00';
+      if (readingScenes.has(host.dataset.sceneId)) {
+        host.dataset.readIntentVh = '0.00';
+        delete host.dataset.readDwellMs;
+      }
     });
   }
 
