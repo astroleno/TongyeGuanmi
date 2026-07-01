@@ -21,6 +21,9 @@ assert(runtimeSource.includes("this.readMonitors.set('method-bottom'"), 'runtime
 assert(runtimeSource.includes('getBoundingClientRect()'), 'runtime ReadMonitor must use real DOM bounds');
 assert(runtimeSource.includes('window.addEventListener(\'scroll\', onScroll'), 'runtime must update read monitors from real scroll');
 assert(runtimeSource.includes("this.stateMachine.presentScene('method-bottom', { reason: 'read-complete' })"), 'method-top read-complete must present method-bottom through the state machine');
+assert(runtimeSource.includes("'read-complete'"), 'read-complete presentation must be a first-class runtime reason');
+assert(runtimeSource.includes("nextSegmentId: 'method-bottom-to-figure2'"), 'method-bottom read monitor must arm the next ink transition');
+assert(runtimeSource.includes("this.playSegment(event.nextSegmentId"), 'method-bottom read-complete must play the next route segment');
 assert(runtimeSource.includes('createReadIntentAccumulator'), 'runtime must accumulate post-complete read intent');
 assert(runtimeSource.includes('this.readIntentAccumulators'), 'runtime must keep per-scene read intent accumulators');
 assert(runtimeSource.includes('READ_COMPLETE_MIN_DWELL_MS = 1200'), 'method read-complete must keep a short dwell before post-complete intent can advance');
@@ -34,7 +37,7 @@ const bounds = { top: 100, bottom: 1100 };
 const viewport = { top: 0, height: 800 };
 const monitor = createReadMonitor({
   sceneId: 'method-bottom',
-  nextSegmentId: 'method-bottom-terminal',
+  nextSegmentId: 'method-bottom-to-figure2',
   boundsProvider: () => bounds,
   viewportProvider: () => viewport
 });

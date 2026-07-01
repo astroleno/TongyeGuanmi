@@ -14,22 +14,21 @@ import { createPlayerRegistry } from './player-registry.js';
 import { createAodPlayer } from './players/aod-player.js';
 import { createInkTransitionPlayer } from './players/ink-transition-player.js';
 
-export const MVP_SCENE_ROUTE = Object.freeze([
-  'hero',
-  'pattern',
-  'star-map',
-  'aod-animation',
-  'method-top',
-  'method-bottom'
+export const MVP_ROUTE_STEPS = Object.freeze([
+  { from: 'hero', segmentId: 'hero-to-pattern', to: 'pattern', mode: 'ink-transition' },
+  { from: 'pattern', segmentId: 'pattern-to-star-map', to: 'star-map', mode: 'ink-transition' },
+  { from: 'star-map', segmentId: 'star-map-to-aod', to: 'aod-animation', mode: 'ink-transition' },
+  { from: 'aod-animation', segmentId: 'aod-play', to: 'method-top', mode: 'media-animation' },
+  { from: 'method-top', segmentId: 'method-read', to: 'method-bottom', mode: 'text-read' },
+  { from: 'method-bottom', segmentId: 'method-bottom-to-figure2', to: 'figure2-animation', mode: 'ink-transition' }
 ]);
 
-export const MVP_SEGMENT_ROUTE = Object.freeze([
-  'hero-to-pattern',
-  'pattern-to-star-map',
-  'star-map-to-aod',
-  'aod-play',
-  'method-read'
+export const MVP_SCENE_ROUTE = Object.freeze([
+  MVP_ROUTE_STEPS[0].from,
+  ...MVP_ROUTE_STEPS.map((step) => step.to)
 ]);
+
+export const MVP_SEGMENT_ROUTE = Object.freeze(MVP_ROUTE_STEPS.map((step) => step.segmentId));
 
 const sceneSet = new Set(homepageScenes.map((scene) => scene.id));
 const segmentById = new Map(homepageSegments.map((segment) => [segment.id, segment]));
@@ -44,6 +43,8 @@ const readingScenes = new Set(['method-top', 'method-bottom']);
 const PATTERN_STEADY_BLOOM_PROGRESS = 0.58;
 const READ_COMPLETE_MIN_DWELL_MS = 1200;
 const HERO_TRANSITION_EDGE_VH = 0.08;
+const INPUT_RELEASE_SETTLE_MS = 260;
+const routeVisibleSceneIds = new Set(MVP_SCENE_ROUTE);
 
 const localAnimationScripts = Object.freeze({
   gsap: new URL('../../vendor/gsap.min.js', import.meta.url).href,
@@ -166,6 +167,14 @@ function presentRevealWithinScene(root) {
   });
 }
 
+function applyUniqueSceneVisibility(host, sceneId, isCurrent) {
+  if (!routeVisibleSceneIds.has(sceneId)) return;
+  const visible = isCurrent || (sceneId === 'method-top' && host.dataset.sceneRuntimeEarlyCopy === 'true');
+  host.style.opacity = visible ? '1' : '0';
+  host.style.visibility = visible || sceneId === 'aod-animation' ? 'visible' : 'hidden';
+  host.style.pointerEvents = visible ? '' : 'none';
+}
+
 class SceneRuntime {
   constructor({
     root = document,
@@ -185,6 +194,7 @@ class SceneRuntime {
     this.staticVisuals = [];
     this.aodPlayer = null;
     this.heroVisualReadyPromise = null;
+    this.inputSettledUntil = 0;
     this.cleanups = [];
     this.layerOwnership = createLayerOwnershipRegistry({ mode: 'production' });
     this.scrollLock = createScrollLock({ root });
@@ -327,7 +337,7 @@ class SceneRuntime {
       claimLayer,
       onCover: ({ segment }) => this.coverTransitionTarget(segment)
     });
-    ['hero-to-pattern', 'pattern-to-star-map', 'star-map-to-aod'].forEach((segmentId) => {
+    ['hero-to-pattern', 'pattern-to-star-map', 'star-map-to-aod', 'method-bottom-to-figure2'].forEach((segmentId) => {
       this.playerRegistry.register(segmentId, inkPlayer);
     });
 
@@ -356,7 +366,7 @@ class SceneRuntime {
       this.readMonitors.set('method-bottom', createDomReadMonitor({
         sceneId: 'method-bottom',
         element: methodBottom,
-        nextSegmentId: 'method-bottom-terminal'
+        nextSegmentId: 'method-bottom-to-figure2'
       }));
       this.readIntentAccumulators.set('method-bottom', createReadIntentAccumulator());
     }
@@ -423,6 +433,10 @@ class SceneRuntime {
 
   applyRuntimeState(state) {
     this.root.documentElement.dataset.sceneRuntimePhase = state.phase;
+    if (state.phase === RuntimePhase.RELEASING) {
+      this.inputSettledUntil = performance.now() + INPUT_RELEASE_SETTLE_MS;
+      this.scrollIntent.reset({ reason: 'release-settle' });
+    }
     if (state.activeSegmentId) {
       this.root.documentElement.dataset.sceneRuntimeActiveSegment = state.activeSegmentId;
     } else {
@@ -436,6 +450,7 @@ class SceneRuntime {
       if (target) {
         target.dataset.sceneRuntimeEarlyCopy = 'true';
         presentRevealWithinScene(target);
+        applyUniqueSceneVisibility(target, record.patch.earlyCopySceneId, false);
       }
       return;
     }
@@ -449,7 +464,7 @@ class SceneRuntime {
 
     const sceneId = record.patch.currentSceneId;
     this.setCurrentScene(sceneId, {
-      scroll: ['play-complete', 'recovery', 'reduced-motion', 'hash-entry'].includes(record.patch.reason)
+      scroll: ['play-complete', 'read-complete', 'recovery', 'reduced-motion', 'hash-entry'].includes(record.patch.reason)
     });
   }
 
@@ -458,21 +473,20 @@ class SceneRuntime {
     if (sceneId !== this.currentSceneId) this.resetReadIntent();
     this.currentSceneId = sceneId;
     this.root.documentElement.dataset.sceneRuntimeCurrentScene = sceneId;
+    this.root.documentElement.dataset.sceneRuntimeRouteIndex = String(MVP_SCENE_ROUTE.indexOf(sceneId));
     this.sceneHosts.forEach((host, id) => {
       const isCurrent = id === sceneId;
       host.toggleAttribute('data-scene-runtime-current', isCurrent);
       host.toggleAttribute('aria-current', isCurrent);
       if (isCurrent) host.dataset.sceneRuntimePresented = 'true';
+      if (!isCurrent) delete host.dataset.sceneRuntimeEarlyCopy;
+      applyUniqueSceneVisibility(host, id, isCurrent);
     });
     if (scroll) {
       this.scrollSceneIntoView(sceneId, { deferIfLocked: true });
     }
     if (sceneId === 'aod-animation') {
-      this.aodPlayer?.prepare?.().catch((error) => {
-        const host = this.sceneHosts.get('aod-animation');
-        if (host) host.dataset.sceneRuntimePosterGate = 'failed';
-        this.logger.warn?.('SceneRuntime AOD poster gate failed.', error);
-      });
+      this.aodPlayer?.prepare?.().catch(() => {});
     }
   }
 
@@ -540,19 +554,29 @@ class SceneRuntime {
   }
 
   coverTransitionTarget(segment) {
-    if (segment?.id !== 'star-map-to-aod') return;
-    const target = this.sceneHosts.get('aod-animation');
-    this.aodPlayer?.prepare?.().catch((error) => {
-      if (target) target.dataset.sceneRuntimePosterGate = 'failed';
-      this.logger.warn?.('SceneRuntime AOD poster gate failed before covered transition.', error);
-    });
-    this.scrollSceneIntoView('aod-animation');
+    if (!segment?.to) return;
+    const target = this.sceneHosts.get(segment.to);
+    if (!target) return;
+
+    if (segment.id === 'star-map-to-aod') {
+      target.style.opacity = '1';
+      target.style.visibility = 'visible';
+      target.style.pointerEvents = 'none';
+      this.aodPlayer?.prepare?.().catch(() => {});
+    }
+
+    this.scrollSceneIntoView(segment.to);
   }
 
   handleIntentInput({ deltaVh, source, originalEvent }) {
     if (!Number.isFinite(deltaVh) || deltaVh === 0) return;
 
     const state = this.stateMachine.getState();
+    if (state.phase === RuntimePhase.RELEASING || performance.now() < this.inputSettledUntil) {
+      originalEvent?.preventDefault?.();
+      return;
+    }
+
     const isBusy = state.phase !== RuntimePhase.IDLE;
     const segmentId = inputScenes.get(this.currentSceneId);
 
@@ -579,6 +603,10 @@ class SceneRuntime {
         this.resetReadIntent(this.currentSceneId);
         this.updateReadMonitors(0);
         return;
+      }
+
+      if (this.currentSceneId === 'method-bottom' && this.readMonitors.get('method-bottom')?.getState().completeLatched) {
+        originalEvent?.preventDefault?.();
       }
 
       this.updateReadMonitors(deltaVh > 0 ? Math.abs(deltaVh) * 100 : 0);
@@ -643,7 +671,11 @@ class SceneRuntime {
           this.stateMachine.presentScene('method-bottom', { reason: 'read-complete' });
         }
         if (sceneId === 'method-bottom') {
-          this.root.documentElement.dataset.sceneRuntimeTerminalArmed = 'method-bottom';
+          this.playSegment(event.nextSegmentId, {
+            source: 'read-complete',
+            direction: 'forward',
+            distanceVh: 10
+          });
         }
       }
     }

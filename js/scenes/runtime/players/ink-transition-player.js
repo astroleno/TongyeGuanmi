@@ -23,6 +23,11 @@ const INK_CURTAIN_SEGMENTS = Object.freeze({
     durationMs: 860,
     visual: 'horizontal-irregular-bottom-up',
     coverAt: 0.52
+  },
+  'method-bottom-to-figure2': {
+    durationMs: 860,
+    visual: 'horizontal-irregular-bottom-up',
+    coverAt: 0.52
   }
 });
 
@@ -212,5 +217,6 @@ export function createInkTransitionPlayer({
 export const mvpInkTransitionVariants = Object.freeze({
   'hero-to-pattern': PATTERN_BLOOM_SEGMENTS['hero-to-pattern'].visual,
   'pattern-to-star-map': PATTERN_BLOOM_SEGMENTS['pattern-to-star-map'].visual,
-  'star-map-to-aod': INK_CURTAIN_SEGMENTS['star-map-to-aod'].visual
+  'star-map-to-aod': INK_CURTAIN_SEGMENTS['star-map-to-aod'].visual,
+  'method-bottom-to-figure2': INK_CURTAIN_SEGMENTS['method-bottom-to-figure2'].visual
 });

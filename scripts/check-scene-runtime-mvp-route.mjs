@@ -2,15 +2,27 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MVP_SCENE_ROUTE, MVP_SEGMENT_ROUTE } from '../js/scenes/runtime/SceneRuntime.js';
+import { MVP_ROUTE_STEPS, MVP_SCENE_ROUTE, MVP_SEGMENT_ROUTE } from '../js/scenes/runtime/SceneRuntime.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath) => readFileSync(path.join(rootDir, relativePath), 'utf8');
 
-const expectedScenes = ['hero', 'pattern', 'star-map', 'aod-animation', 'method-top', 'method-bottom'];
-const expectedSegments = ['hero-to-pattern', 'pattern-to-star-map', 'star-map-to-aod', 'aod-play', 'method-read'];
-assert.deepEqual(MVP_SCENE_ROUTE, expectedScenes, 'PR4 MVP scene route must stop at method-bottom');
-assert.deepEqual(MVP_SEGMENT_ROUTE, expectedSegments, 'PR4 MVP segment route must stop before Figure2');
+const expectedScenes = ['hero', 'pattern', 'star-map', 'aod-animation', 'method-top', 'method-bottom', 'figure2-animation'];
+const expectedSegments = ['hero-to-pattern', 'pattern-to-star-map', 'star-map-to-aod', 'aod-play', 'method-read', 'method-bottom-to-figure2'];
+assert.deepEqual(MVP_SCENE_ROUTE, expectedScenes, 'SceneRuntime MVP route order drifted');
+assert.deepEqual(MVP_SEGMENT_ROUTE, expectedSegments, 'SceneRuntime MVP segment order drifted');
+assert.deepEqual(
+  MVP_ROUTE_STEPS.map((step) => [step.from, step.segmentId, step.to]),
+  [
+    ['hero', 'hero-to-pattern', 'pattern'],
+    ['pattern', 'pattern-to-star-map', 'star-map'],
+    ['star-map', 'star-map-to-aod', 'aod-animation'],
+    ['aod-animation', 'aod-play', 'method-top'],
+    ['method-top', 'method-read', 'method-bottom'],
+    ['method-bottom', 'method-bottom-to-figure2', 'figure2-animation']
+  ],
+  'SceneRuntime MVP route steps must be a single explicit from/segment/to chain'
+);
 
 const mainSource = read('js/main.js');
 const serverSource = read('scripts/serve-static-site.mjs');
@@ -77,7 +89,13 @@ assert(sceneRuntimeGraph.includes('js/scenes/runtime/players/ink-transition-play
 
 const runtimeSource = read('js/scenes/runtime/SceneRuntime.js');
 assert(runtimeSource.includes("['aod-animation', 'aod-play']"), 'AOD autoplay must be armed by the second 10vh intent at aod-animation');
-assert(!runtimeSource.includes('figure2-compound-to-brand'), 'PR4 runtime must not wire Figure2');
+assert(runtimeSource.includes('INPUT_RELEASE_SETTLE_MS = 260'), 'runtime must hold a short input settle after segment release');
+assert(runtimeSource.includes("this.scrollIntent.reset({ reason: 'release-settle' })"), 'runtime must clear carried wheel intent during release');
+assert(
+  runtimeSource.includes('state.phase === RuntimePhase.RELEASING || performance.now() < this.inputSettledUntil'),
+  'runtime must not let release/momentum input arm the next segment'
+);
+assert(!runtimeSource.includes('figure2-compound-to-brand'), 'MVP runtime must not wire the Figure2 compound sequence yet');
 assert(!runtimeSource.includes('figure3-play'), 'PR4 runtime must not wire Figure3');
 assert(!runtimeSource.includes('ttg-play'), 'PR4 runtime must not wire TTG');
 assert(!runtimeSource.includes('ph-play'), 'PR4 runtime must not wire PH');

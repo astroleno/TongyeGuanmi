@@ -18,6 +18,14 @@
   min-height: 1480px;
 }
 
+.scene-runtime-active [data-scene-id="method-top"]:not([data-scene-runtime-current]):not([data-scene-runtime-early-copy]),
+.scene-runtime-active [data-scene-id="method-bottom"]:not([data-scene-runtime-current]),
+.scene-runtime-active [data-scene-id="figure2-animation"]:not([data-scene-runtime-current]) {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .scene-runtime-shell {
   display: block;
   overflow: hidden;

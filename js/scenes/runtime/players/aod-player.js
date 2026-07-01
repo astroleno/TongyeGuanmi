@@ -142,7 +142,10 @@ export function createAodPlayer({
   function prepare() {
     const { section, video } = mount();
     if (!preparePromise) {
-      preparePromise = gateFirstFrame(section, video);
+      preparePromise = gateFirstFrame(section, video).catch((error) => {
+        preparePromise = null;
+        throw error;
+      });
     }
     return preparePromise;
   }

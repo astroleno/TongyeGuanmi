@@ -22,6 +22,9 @@ assert(runtimeSource.includes('data-scene-runtime-pattern-canvas'), 'pattern sce
 assert(runtimeSource.includes('this.aodPlayer?.prepare?.()'), 'SceneRuntime must prepare AOD poster visuals when aod-animation is presented');
 assert(runtimeSource.includes('function presentRevealWithinScene(root)'), 'SceneRuntime early-copy must present reveal state through a scene-owned helper');
 assert(runtimeSource.includes("root.matches?.('.reveal')"), 'SceneRuntime early-copy must include the target scene host when it is itself a reveal');
+assert(runtimeSource.includes('const routeVisibleSceneIds = new Set(MVP_SCENE_ROUTE);'), 'SceneRuntime must gate MVP scenes to current-only visibility');
+assert(runtimeSource.includes('function applyUniqueSceneVisibility'), 'SceneRuntime must centralize current-only scene visibility');
+assert(runtimeSource.includes("sceneId === 'method-top' && host.dataset.sceneRuntimeEarlyCopy === 'true'"), 'method-top early-copy must be the only non-current visible exception');
 assert(!runtimeSource.includes('scene-runtime-pattern-field'), 'SceneRuntime must not render placeholder pattern rings');
 
 assert(inkPlayerSource.includes("import { mountPatternBloomTransition } from '../../../transitions/pattern-bloom-adapter.js'"), 'hero/pattern segments must reuse the legacy pattern bloom adapter');
@@ -29,6 +32,7 @@ assert(inkPlayerSource.includes("import { createInkCurtainTransition } from '../
 assert(inkPlayerSource.includes("'hero-to-pattern'"), 'hero-to-pattern must be wired in the visual player');
 assert(inkPlayerSource.includes("'pattern-to-star-map'"), 'pattern-to-star-map must be wired in the visual player');
 assert(inkPlayerSource.includes("'star-map-to-aod'"), 'star-map-to-aod must be wired in the visual player');
+assert(inkPlayerSource.includes("'method-bottom-to-figure2'"), 'method-bottom-to-figure2 must be wired in the visual player');
 assert(inkPlayerSource.includes('progressSource: () => controlledProgress'), 'pattern bloom must be driven by SceneRuntime player progress, not scrollY');
 assert(inkPlayerSource.includes('end: 0.58'), 'hero-to-pattern must stop before the legacy belief reveal range');
 assert(inkPlayerSource.includes('start: 0.58'), 'pattern-to-star-map must resume at the legacy belief reveal range');
@@ -42,6 +46,7 @@ assert(aodPlayerSource.includes("import { createInkCurtainTransition } from '../
 assert(!aodPlayerSource.includes('createSceneRuntimeHandoffReceiver'), 'AOD player must not use a handoff receiver for method copy');
 assert(!aodPlayerSource.includes('../../../transitions/homepage/handoff-receiver.js'), 'AOD player must not reload the legacy homepage handoff module');
 assert(aodPlayerSource.includes('function prepare()'), 'AOD player must expose a poster/first-frame prepare gate');
+assert(aodPlayerSource.includes('preparePromise = null;'), 'AOD prepare failure must clear the cached promise so play can retry');
 assert(aodPlayerSource.includes('function presentRealTargetCopy(targetScene)'), 'AOD player must present the real target scene copy directly');
 assert(aodPlayerSource.includes('window.scrollTo({ top, behavior: \'auto\' })'), 'AOD early copy must land on the real method-top DOM');
 assert(aodPlayerSource.includes('durationMs = 2600'), 'AOD player must preserve the legacy 2600ms playback window');
@@ -54,6 +59,9 @@ assert(shellCss.includes('.scene-runtime-pattern-canvas'), 'SceneRuntime shell C
 assert(shellCss.includes('.scene-runtime-ink-canvas'), 'SceneRuntime shell CSS must style the real ink canvas');
 assert(shellCss.includes('.scene-runtime-active .hero-wrap[data-scene-id="hero"]'), 'SceneRuntime CSS must preserve the real hero scroll range');
 assert(shellCss.includes('height: 230vh'), 'SceneRuntime hero must keep the legacy scroll-driven hero height');
+assert(shellCss.includes('[data-scene-id="method-top"]:not([data-scene-runtime-current]):not([data-scene-runtime-early-copy])'), 'method-top must not stay visible outside its active or early-copy window');
+assert(shellCss.includes('[data-scene-id="method-bottom"]:not([data-scene-runtime-current])'), 'method-bottom must not appear before its route step');
+assert(shellCss.includes('[data-scene-id="figure2-animation"]:not([data-scene-runtime-current])'), 'figure2-animation must not appear before method-bottom-to-figure2 completes');
 assert(shellCss.includes('@media (max-width: 900px) and (orientation: landscape)'), 'SceneRuntime shell CSS must define mobile landscape visual mode');
 assert(shellCss.includes('--scene-runtime-stage-width'), 'mobile landscape mode must define a cinematic stage width');
 assert(shellCss.includes('--scene-runtime-stage-height'), 'mobile landscape mode must define a cinematic stage height');
@@ -98,7 +106,8 @@ assert(checklist.includes('Mobile landscape: `844x390`'), 'manual visual checkli
   'aod poster',
   'AOD 80% early-copy',
   'method-top landed',
-  'method-bottom landed'
+  'method-bottom landed',
+  'after method-bottom-to-figure2'
 ].forEach((checkpoint) => {
   assert(checklist.includes(checkpoint), `manual visual checklist missing checkpoint: ${checkpoint}`);
 });
