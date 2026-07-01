@@ -10,10 +10,13 @@
     "dev:web": "node scripts/serve-static-site.mjs",
     "verify:ink-modules": "node scripts/check-ink-modules.mjs",
     "verify:scroll-modules": "node scripts/check-scroll-modules.mjs",
+    "verify:scene-runtime-contract": "node scripts/check-scene-runtime-contract.mjs",
+    "verify:scene-runtime-assets": "node scripts/check-scene-runtime-assets.mjs",
+    "verify:scene-runtime": "npm run verify:scene-runtime-contract && npm run verify:scene-runtime-assets",
     "verify:section-transitions": "node scripts/check-section-transition-contract.mjs",
     "verify:transition-runtime": "node scripts/check-transition-runtime.mjs",
     "verify:homepage-transitions": "node scripts/check-homepage-transition-integration.mjs",
     "verify:handoff-ownership": "node scripts/check-handoff-ownership.mjs",
-    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership"
+    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:scene-runtime && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership"
   }
 }

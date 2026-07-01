@@ -65,7 +65,9 @@ export const requiredAliases = {
   home: { legacyHash: '#home', mapsToScene: 'hero' },
   top: { legacyHash: '#top', mapsToScene: 'hero' },
   method: { legacyHash: '#method', mapsToScene: 'method-top' },
+  brand: { legacyHash: '#brand', mapsToScene: 'brand' },
   services: { legacyHash: '#services', mapsToScene: 'services' },
+  lab: { legacyHash: '#lab', mapsToScene: 'lab' },
   education: { legacyHash: '#education', mapsToScene: 'education' },
   contact: { legacyHash: '#contact', mapsToScene: 'contact' },
   philosophy: { legacyHash: '#philosophy', mapsToScene: 'education' }
