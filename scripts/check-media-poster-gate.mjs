@@ -24,7 +24,9 @@ assert(runtimeSource.includes('this.aodPlayer?.prepare?.()'), 'AOD poster must b
 assert(source.includes("video.readyState < 1"), 'AOD player must fail if first-frame readiness is unresolved');
 assert(source.includes('await playVideo(video)'), 'AOD player must autoplay media after the route intent');
 assert(source.includes('video.play?.()'), 'AOD player must call video.play()');
-assert(source.includes('presentation?.presentEarlyCopy?.({ targetScene: segment.to })'), 'AOD player must present early copy through Presentation');
+assert(source.includes('function presentRealTargetCopy(targetScene)'), 'AOD player must present early copy through a real target DOM helper');
+assert(source.includes('presentation?.presentEarlyCopy?.({ targetScene })'), 'AOD player must present early copy through Presentation');
+assert(source.includes('window.scrollTo({ top, behavior: \'auto\' })'), 'AOD early copy must land on the real method-top DOM');
 assert(source.includes('progress >= (segment.earlyCopyAt ?? 0.8)'), 'AOD player must trigger early copy at the segment threshold');
 assert(source.includes('await wait(endedGraceMs)'), 'AOD player must honor ended grace');
 assert(source.includes('throw new Error'), 'AOD missing media / play failures must reject to recovery');

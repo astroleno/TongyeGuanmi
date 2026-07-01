@@ -6,20 +6,23 @@ const PATTERN_BLOOM_SEGMENTS = Object.freeze({
     start: 0,
     end: 0.58,
     durationMs: 1500,
-    visual: 'radial-center-reveal'
+    visual: 'radial-center-reveal',
+    center: { x: 0.50, y: 0.55, mobileX: 0.50, mobileY: 0.58 }
   },
   'pattern-to-star-map': {
     start: 0.58,
     end: 1,
     durationMs: 1650,
-    visual: 'rotating-left-exit'
+    visual: 'rotating-left-exit',
+    center: { x: 0.24, y: 0.55, mobileX: 0.50, mobileY: 0.58 }
   }
 });
 
 const INK_CURTAIN_SEGMENTS = Object.freeze({
   'star-map-to-aod': {
     durationMs: 860,
-    visual: 'horizontal-irregular-bottom-up'
+    visual: 'horizontal-irregular-bottom-up',
+    coverAt: 0.52
   }
 });
 
@@ -71,7 +74,8 @@ async function animate({
 export function createInkTransitionPlayer({
   root = document,
   reduceMotion = false,
-  claimLayer = () => {}
+  claimLayer = () => {},
+  onCover = () => {}
 } = {}) {
   let activeCleanup = null;
   let stopped = false;
@@ -97,7 +101,8 @@ export function createInkTransitionPlayer({
       progressSource: () => controlledProgress,
       addCleanup: (destroy) => {
         activeCleanup = destroy;
-      }
+      },
+      center: config.center
     });
     activeCleanup = transition.destroy;
 
@@ -119,8 +124,10 @@ export function createInkTransitionPlayer({
       }
     });
 
-    cleanup();
-    if (!completed) return { cancelled: true, visual: config.visual };
+    if (!completed) {
+      cleanup();
+      return { cancelled: true, visual: config.visual };
+    }
     return { progress: 1, visual: config.visual };
   }
 
@@ -150,6 +157,7 @@ export function createInkTransitionPlayer({
 
     if (reduceMotion || !inkTransition) {
       inkTransition?.render(1);
+      onCover({ segment, progress: 1, reducedMotion: reduceMotion, webglFallback: !inkTransition });
       cleanup();
       return {
         progress: 1,
@@ -160,16 +168,26 @@ export function createInkTransitionPlayer({
     }
 
     inkTransition.prewarm?.();
+    let coverReported = false;
     const completed = await animate({
       from: 0,
       to: 1,
       durationMs: config.durationMs,
       isStopped: () => stopped,
-      onUpdate: (progress) => inkTransition.render(progress)
+      onUpdate: (progress) => {
+        inkTransition.render(progress);
+        if (!coverReported && progress >= (config.coverAt ?? 0.5)) {
+          coverReported = true;
+          onCover({ segment, progress });
+        }
+      }
     });
 
-    cleanup();
-    if (!completed) return { cancelled: true, visual: config.visual };
+    if (!completed) {
+      cleanup();
+      return { cancelled: true, visual: config.visual };
+    }
+    if (!coverReported) onCover({ segment, progress: 1 });
     return { progress: 1, visual: config.visual };
   }
 

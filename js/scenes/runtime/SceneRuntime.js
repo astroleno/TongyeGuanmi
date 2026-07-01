@@ -3,6 +3,7 @@ import { homepageScenes } from '../../../src/homepage/homepage.scenes.mjs';
 import { homepageSegments } from '../../../src/homepage/homepage.segments.mjs';
 import { createPatternBloomScene } from '../../pattern-mirror-stage.js';
 import { initBeliefStarField } from '../../sections/belief.js';
+import { initFallbackParallax, initLayeredHero } from '../../sections/hero.js';
 import { createLayerOwnershipRegistry } from './layer-ownership.js';
 import { createPresentationController } from './presentation.js';
 import { createReadIntentAccumulator, createReadMonitor, READ_EVENTS } from './read-monitor.js';
@@ -42,6 +43,53 @@ const inputScenes = new Map([
 const readingScenes = new Set(['method-top', 'method-bottom']);
 const PATTERN_STEADY_BLOOM_PROGRESS = 0.58;
 const READ_COMPLETE_MIN_DWELL_MS = 1200;
+const HERO_TRANSITION_EDGE_VH = 0.08;
+
+const localAnimationScripts = Object.freeze({
+  gsap: new URL('../../vendor/gsap.min.js', import.meta.url).href,
+  scrollTrigger: new URL('../../vendor/ScrollTrigger.min.js', import.meta.url).href
+});
+
+const loadedScripts = new Map();
+
+function loadRuntimeScript(src) {
+  if (loadedScripts.has(src)) return loadedScripts.get(src);
+
+  const promise = new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing?.dataset.loaded === 'true') {
+      resolve();
+      return;
+    }
+
+    const script = existing || document.createElement('script');
+    let settled = false;
+    const finish = (ok, value) => {
+      if (settled) return;
+      settled = true;
+      script.dataset.loaded = ok ? 'true' : 'false';
+      ok ? resolve(value) : reject(value);
+    };
+
+    script.src = src;
+    script.async = false;
+    script.onload = () => finish(true);
+    script.onerror = () => finish(false, new Error(`Failed to load ${src}`));
+    if (!existing) document.head.append(script);
+  });
+
+  loadedScripts.set(src, promise);
+  return promise;
+}
+
+async function loadHeroAnimationLibraries() {
+  if (!window.gsap) await loadRuntimeScript(localAnimationScripts.gsap);
+  if (!window.ScrollTrigger) await loadRuntimeScript(localAnimationScripts.scrollTrigger);
+  if (!window.gsap || !window.ScrollTrigger) {
+    throw new Error('SceneRuntime hero requires GSAP and ScrollTrigger.');
+  }
+  window.gsap.registerPlugin?.(window.ScrollTrigger);
+}
 
 function normalizeWheelDelta(event) {
   const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
@@ -136,6 +184,7 @@ class SceneRuntime {
     this.readCompleteTimestamps = new Map();
     this.staticVisuals = [];
     this.aodPlayer = null;
+    this.heroVisualReadyPromise = null;
     this.cleanups = [];
     this.layerOwnership = createLayerOwnershipRegistry({ mode: 'production' });
     this.scrollLock = createScrollLock({ root });
@@ -182,6 +231,7 @@ class SceneRuntime {
     this.started = true;
     this.collectSceneHosts();
     this.hideLegacyLoader();
+    this.setupHeroVisuals();
     this.mountStaticVisuals();
     this.setupPlayers();
     this.setupReadMonitors();
@@ -226,7 +276,7 @@ class SceneRuntime {
         scrollDrivenMotion: false,
         dprLimit: 1,
         center: {
-          x: 0.24,
+          x: 0.50,
           y: 0.55,
           mobileX: 0.50,
           mobileY: 0.58
@@ -243,12 +293,39 @@ class SceneRuntime {
     initBeliefStarField({ root: this.root, reduceMotion: this.reduceMotion });
   }
 
+  setupHeroVisuals() {
+    const html = this.root.documentElement || document.documentElement;
+    const body = this.root.body || document.body;
+    const runtime = { markLoaded() {} };
+
+    this.heroVisualReadyPromise = loadHeroAnimationLibraries()
+      .then(() => {
+        initLayeredHero({
+          root: html,
+          body,
+          runtime,
+          reduceMotion: this.reduceMotion
+        });
+        html.dataset.sceneRuntimeHeroDriver = 'layered';
+      })
+      .catch((error) => {
+        this.logger.warn?.('SceneRuntime layered hero failed; using fallback parallax.', error);
+        initFallbackParallax({
+          root: html,
+          runtime,
+          reduceMotion: this.reduceMotion
+        });
+        html.dataset.sceneRuntimeHeroDriver = 'fallback';
+      });
+  }
+
   setupPlayers() {
     const claimLayer = (claim) => this.layerOwnership.claim(claim);
     const inkPlayer = createInkTransitionPlayer({
       root: this.root,
       reduceMotion: this.reduceMotion,
-      claimLayer
+      claimLayer,
+      onCover: ({ segment }) => this.coverTransitionTarget(segment)
     });
     ['hero-to-pattern', 'pattern-to-star-map', 'star-map-to-aod'].forEach((segmentId) => {
       this.playerRegistry.register(segmentId, inkPlayer);
@@ -388,7 +465,7 @@ class SceneRuntime {
       if (isCurrent) host.dataset.sceneRuntimePresented = 'true';
     });
     if (scroll) {
-      this.sceneHosts.get(sceneId)?.scrollIntoView({ block: 'start', inline: 'nearest' });
+      this.scrollSceneIntoView(sceneId, { deferIfLocked: true });
     }
     if (sceneId === 'aod-animation') {
       this.aodPlayer?.prepare?.().catch((error) => {
@@ -399,12 +476,91 @@ class SceneRuntime {
     }
   }
 
+  scrollSceneIntoView(sceneId, { deferIfLocked = false } = {}) {
+    const target = this.sceneHosts.get(sceneId);
+    if (!target) return;
+
+    const scroll = () => {
+      const top = target.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top, behavior: 'auto' });
+    };
+
+    if (deferIfLocked && this.scrollLock.isLocked()) {
+      window.setTimeout(scroll, 0);
+      return;
+    }
+
+    scroll();
+  }
+
+  getHeroTransitionReadiness(deltaVh = 0) {
+    const hero = this.sceneHosts.get('hero');
+    if (!hero) return { ready: true, progress: 1, shouldSnapToEnd: false, endScrollY: window.scrollY };
+
+    const viewportHeight = Math.max(1, window.innerHeight);
+    const totalRange = Math.max(1, hero.offsetHeight - viewportHeight);
+    const rawScroll = window.scrollY - hero.offsetTop;
+    const progress = Math.min(1, Math.max(0, rawScroll / totalRange));
+    const remainingPx = Math.max(0, hero.getBoundingClientRect().bottom - viewportHeight);
+    const forwardPx = Math.max(0, deltaVh * viewportHeight);
+    const edgePx = viewportHeight * HERO_TRANSITION_EDGE_VH;
+    const ready = remainingPx <= edgePx || remainingPx - forwardPx <= edgePx;
+
+    return {
+      ready,
+      progress,
+      shouldSnapToEnd: ready && remainingPx > edgePx,
+      endScrollY: hero.offsetTop + totalRange
+    };
+  }
+
+  handleHeroIntent({ deltaVh, source, originalEvent }) {
+    if (deltaVh < 0) {
+      this.scrollIntent.reset({ reason: 'hero-reverse' });
+      return;
+    }
+
+    const readiness = this.getHeroTransitionReadiness(deltaVh);
+    this.root.documentElement.dataset.sceneRuntimeHeroProgress = readiness.progress.toFixed(4);
+    if (!readiness.ready) {
+      this.scrollIntent.reset({ reason: 'hero-natural-scroll' });
+      return;
+    }
+
+    originalEvent?.preventDefault?.();
+    if (readiness.shouldSnapToEnd) {
+      window.scrollTo({ top: readiness.endScrollY, behavior: 'auto' });
+    }
+
+    const result = this.scrollIntent.update({ deltaVh, source });
+    this.root.documentElement.dataset.sceneRuntimeIntentProgress = result.intentProgress.toFixed(4);
+    if (result.thresholdReached && result.direction === 'forward') {
+      this.playSegment('hero-to-pattern', result);
+    }
+  }
+
+  coverTransitionTarget(segment) {
+    if (segment?.id !== 'star-map-to-aod') return;
+    const target = this.sceneHosts.get('aod-animation');
+    this.aodPlayer?.prepare?.().catch((error) => {
+      if (target) target.dataset.sceneRuntimePosterGate = 'failed';
+      this.logger.warn?.('SceneRuntime AOD poster gate failed before covered transition.', error);
+    });
+    this.scrollSceneIntoView('aod-animation');
+  }
+
   handleIntentInput({ deltaVh, source, originalEvent }) {
     if (!Number.isFinite(deltaVh) || deltaVh === 0) return;
 
     const state = this.stateMachine.getState();
     const isBusy = state.phase !== RuntimePhase.IDLE;
     const segmentId = inputScenes.get(this.currentSceneId);
+
+    if (!isBusy && this.currentSceneId === 'hero') {
+      this.handleHeroIntent({ deltaVh, source, originalEvent });
+      return;
+    }
+
     const ownsIntent = Boolean(segmentId) || isBusy;
     if (ownsIntent) originalEvent?.preventDefault?.();
 

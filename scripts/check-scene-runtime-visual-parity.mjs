@@ -9,11 +9,14 @@ const read = (relativePath) => readFileSync(path.join(rootDir, relativePath), 'u
 const runtimeSource = read('js/scenes/runtime/SceneRuntime.js');
 const inkPlayerSource = read('js/scenes/runtime/players/ink-transition-player.js');
 const aodPlayerSource = read('js/scenes/runtime/players/aod-player.js');
-const handoffReceiverSource = read('js/scenes/runtime/players/handoff-receiver.js');
 const shellCss = read('css/sections/homepage-snap-heights.css');
 const packageJson = JSON.parse(read('package.json'));
 const checklist = read('docs/scene-runtime-visual-parity-checklist.md');
 
+assert(runtimeSource.includes("import { initFallbackParallax, initLayeredHero } from '../../sections/hero.js'"), 'SceneRuntime must drive the real layered hero visuals');
+assert(runtimeSource.includes('loadHeroAnimationLibraries'), 'SceneRuntime must load local animation libraries for the real hero driver');
+assert(runtimeSource.includes("html.dataset.sceneRuntimeHeroDriver = 'layered'"), 'SceneRuntime must expose layered hero driver state');
+assert(runtimeSource.includes('hero-natural-scroll'), 'SceneRuntime must let hero use natural scroll before arming hero-to-pattern');
 assert(runtimeSource.includes("import { createPatternBloomScene } from '../../pattern-mirror-stage.js'"), 'SceneRuntime must mount the real pattern mirror canvas');
 assert(runtimeSource.includes('data-scene-runtime-pattern-canvas'), 'pattern scene must expose a SceneRuntime pattern canvas');
 assert(runtimeSource.includes('this.aodPlayer?.prepare?.()'), 'SceneRuntime must prepare AOD poster visuals when aod-animation is presented');
@@ -29,27 +32,28 @@ assert(inkPlayerSource.includes("'star-map-to-aod'"), 'star-map-to-aod must be w
 assert(inkPlayerSource.includes('progressSource: () => controlledProgress'), 'pattern bloom must be driven by SceneRuntime player progress, not scrollY');
 assert(inkPlayerSource.includes('end: 0.58'), 'hero-to-pattern must stop before the legacy belief reveal range');
 assert(inkPlayerSource.includes('start: 0.58'), 'pattern-to-star-map must resume at the legacy belief reveal range');
+assert(inkPlayerSource.includes('center: { x: 0.50'), 'hero-to-pattern must bloom from the viewport center');
+assert(inkPlayerSource.includes('onCover({ segment, progress })'), 'ink curtain transitions must expose a covered point before switching from/to scenes');
 assert(!inkPlayerSource.includes('scene-runtime-ink-transition'), 'MVP ink player must not use the old flat CSS ink div');
 assert(!inkPlayerSource.includes('--scene-runtime-ink-progress'), 'MVP ink player must not drive flat CSS progress');
 assert(!inkPlayerSource.includes('data-ink-variant'), 'MVP ink player must not use CSS variant sinks');
 
 assert(aodPlayerSource.includes("import { createInkCurtainTransition } from '../../../effects/ink-scene-transition.js'"), 'AOD player must render the real ink curtain');
-assert(aodPlayerSource.includes("import { createSceneRuntimeHandoffReceiver } from './handoff-receiver.js'"), 'AOD player must use the SceneRuntime-owned method handoff receiver');
+assert(!aodPlayerSource.includes('createSceneRuntimeHandoffReceiver'), 'AOD player must not use a handoff receiver for method copy');
 assert(!aodPlayerSource.includes('../../../transitions/homepage/handoff-receiver.js'), 'AOD player must not reload the legacy homepage handoff module');
-assert(handoffReceiverSource.includes('data-scene-runtime-handoff-receiver'), 'SceneRuntime handoff receiver must expose a runtime-owned DOM marker');
-assert(handoffReceiverSource.includes('presentRevealWithinSceneRuntime'), 'SceneRuntime handoff receiver must present reveal state without legacy reveal ownership filters');
 assert(aodPlayerSource.includes('function prepare()'), 'AOD player must expose a poster/first-frame prepare gate');
-assert(aodPlayerSource.includes("className: 'homepage-handoff-receiver--method'"), 'AOD player must use the legacy method handoff styling');
+assert(aodPlayerSource.includes('function presentRealTargetCopy(targetScene)'), 'AOD player must present the real target scene copy directly');
+assert(aodPlayerSource.includes('window.scrollTo({ top, behavior: \'auto\' })'), 'AOD early copy must land on the real method-top DOM');
 assert(aodPlayerSource.includes('durationMs = 2600'), 'AOD player must preserve the legacy 2600ms playback window');
 assert(aodPlayerSource.includes('syncFigureVisibility(video, safeProgress)'), 'AOD poster gate must keep the figure video from covering the background stack at progress 0');
 assert(aodPlayerSource.includes("mountedVideo.style.visibility = 'hidden'"), 'AOD teardown must hide the fixed video so it cannot cover method scenes');
-assert(aodPlayerSource.includes('mountedMethodReceiver?.update(safeProgress, { start: 0.58, end: 0.94, liftPx: 18, restoreAtEnd: false })'), 'AOD player must preserve method overlay timing until teardown can reveal method safely');
-assert(handoffReceiverSource.includes('restoreAtEnd = true'), 'SceneRuntime handoff receiver must support delayed restore for media handoff windows');
 assert(aodPlayerSource.includes('mountedInkTransition?.render(smoothStep(safeProgress))'), 'AOD player must render ink curtain progress during playback');
 assert(aodPlayerSource.includes('progress >= (segment.earlyCopyAt ?? 0.8)'), 'AOD player must keep 80% early-copy timing');
 
 assert(shellCss.includes('.scene-runtime-pattern-canvas'), 'SceneRuntime shell CSS must style the real pattern canvas');
 assert(shellCss.includes('.scene-runtime-ink-canvas'), 'SceneRuntime shell CSS must style the real ink canvas');
+assert(shellCss.includes('.scene-runtime-active .hero-wrap[data-scene-id="hero"]'), 'SceneRuntime CSS must preserve the real hero scroll range');
+assert(shellCss.includes('height: 230vh'), 'SceneRuntime hero must keep the legacy scroll-driven hero height');
 assert(shellCss.includes('@media (max-width: 900px) and (orientation: landscape)'), 'SceneRuntime shell CSS must define mobile landscape visual mode');
 assert(shellCss.includes('--scene-runtime-stage-width'), 'mobile landscape mode must define a cinematic stage width');
 assert(shellCss.includes('--scene-runtime-stage-height'), 'mobile landscape mode must define a cinematic stage height');

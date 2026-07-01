@@ -36,7 +36,8 @@ export function mountPatternBloomTransition({
   host,
   reduceMotion = false,
   progressSource,
-  addCleanup
+  addCleanup,
+  center = {}
 } = {}) {
   if (!host || host.dataset.patternBloomMounted === 'true') {
     return { destroy() {} };
@@ -135,10 +136,10 @@ export function mountPatternBloomTransition({
     scrollDrivenMotion: true,
     dprLimit: 1,
     center: {
-      x: 0.24,
-      y: 0.55,
-      mobileX: 0.50,
-      mobileY: 0.58
+      x: center.x ?? 0.24,
+      y: center.y ?? 0.55,
+      mobileX: center.mobileX ?? 0.50,
+      mobileY: center.mobileY ?? 0.58
     }
   });
 

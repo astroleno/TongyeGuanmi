@@ -4,7 +4,6 @@ import {
   waitForAodTransitionMetadata
 } from '../../../components/aod-transition.js';
 import { createInkCurtainTransition } from '../../../effects/ink-scene-transition.js';
-import { createSceneRuntimeHandoffReceiver } from './handoff-receiver.js';
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const smoothStep = (value) => value * value * (3 - 2 * value);
@@ -80,7 +79,6 @@ export function createAodPlayer({
   let mountedVideo = null;
   let mountedHost = null;
   let mountedInkTransition = null;
-  let mountedMethodReceiver = null;
   let preparePromise = null;
   let ended = false;
   let earlyCopyPresented = false;
@@ -98,16 +96,9 @@ export function createAodPlayer({
     host.classList.add('homepage-transition', 'homepage-transition--aod');
     mountedHost = host;
     mountedSection = host.querySelector('[data-aod-transition]');
-    const field = host.querySelector('.aod-transition__field');
     const elements = prepareAodTransition(mountedSection, { progress: 0 });
     mountedVideo = elements.figureVideo;
     if (!mountedSection || !mountedVideo) throw new Error('Missing AOD media DOM');
-    mountedMethodReceiver ??= createSceneRuntimeHandoffReceiver({
-      container: field,
-      target: root.querySelector('.method-edition-layout--after-handoff'),
-      sourceSelector: '.method-edition-layout--after-handoff',
-      className: 'homepage-handoff-receiver--method'
-    });
     mountedInkTransition ??= reduceMotion ? null : createInkCurtainTransition(host.querySelector('[data-aod-ink-canvas]'), {
       direction: 'bottom-up',
       colorLift: 0.64,
@@ -126,10 +117,8 @@ export function createAodPlayer({
       mountedVideo.style.opacity = '0';
       mountedVideo.style.visibility = 'hidden';
     }
-    mountedMethodReceiver?.destroy();
     mountedHost?.classList.remove('homepage-transition', 'homepage-transition--aod');
     mountedInkTransition = null;
-    mountedMethodReceiver = null;
     mountedHost = null;
     mountedVideo = null;
     mountedSection = null;
@@ -167,8 +156,16 @@ export function createAodPlayer({
     const safeProgress = clamp(progress);
     syncFigureVisibility(video, safeProgress);
     renderAodTransitionProgress(section, safeProgress, { figureVideo: video });
-    mountedMethodReceiver?.update(safeProgress, { start: 0.58, end: 0.94, liftPx: 18, restoreAtEnd: false });
     mountedInkTransition?.render(smoothStep(safeProgress));
+  }
+
+  function presentRealTargetCopy(targetScene) {
+    presentation?.presentEarlyCopy?.({ targetScene });
+    const target = root.querySelector(`[data-scene-owner="scene-runtime"][data-scene-id="${targetScene}"]`);
+    if (target) {
+      const top = target.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top, behavior: 'auto' });
+    }
   }
 
   async function play({ segment }) {
@@ -184,7 +181,7 @@ export function createAodPlayer({
 
     await prepare();
     if (reduceMotion) {
-      presentation?.presentEarlyCopy?.({ targetScene: segment.to });
+      presentRealTargetCopy(segment.to);
       render(1, { section, video });
       teardown();
       return { progress: 1, reducedMotion: true };
@@ -200,7 +197,7 @@ export function createAodPlayer({
 
       if (!earlyCopyPresented && progress >= (segment.earlyCopyAt ?? 0.8)) {
         earlyCopyPresented = true;
-        presentation?.presentEarlyCopy?.({ targetScene: segment.to });
+        presentRealTargetCopy(segment.to);
       }
 
       if (ended) {
