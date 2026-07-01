@@ -31,6 +31,22 @@ const assertOutputShape = (output) => {
 
 {
   const clock = new FakeClock();
+  const intent = createScrollIntentAccumulator({ clock });
+  const first = intent.update({ deltaVh: 0.1, source: 'wheel' });
+  assert.equal(first.thresholdReached, false, 'update must honor default minArmedMs');
+  assert.equal(intent.getState().thresholdReached, false, 'getState must honor default minArmedMs');
+
+  clock.advance(149);
+  assert.equal(intent.getState().thresholdReached, false);
+  clock.advance(1);
+  assert.equal(intent.getState().thresholdReached, true);
+
+  intent.release();
+  assert.equal(intent.getState().thresholdReached, false, 'release cooldown must clear public threshold snapshot');
+}
+
+{
+  const clock = new FakeClock();
   const intent = createScrollIntentAccumulator({ clock, config: { minArmedMs: 0 } });
   const result = intent.update({ deltaVh: 2, source: 'wheel' });
   assert.equal(result.intentProgress, 0.25, 'single frame input must clamp at 25vh');

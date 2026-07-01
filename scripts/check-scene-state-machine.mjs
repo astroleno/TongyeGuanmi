@@ -235,11 +235,63 @@ function resourceFailureRecovers() {
   assert.ok(ports.scrollEvents.some((event) => event[0] === 'unlock' && event[1] === 'recovery'));
 }
 
+async function missingPlayerRecovers() {
+  const clock = new FakeClock();
+  const ports = fakePorts(clock, null);
+  const machine = createSceneStateMachine({
+    segments: homepageSegments,
+    initialSceneId: 'hero',
+    ...ports,
+    releaseCooldownMs: 10
+  });
+
+  machine.arm({ segmentId: 'hero-to-pattern' });
+  machine.beginSnapLock();
+  await machine.completeSnapLock();
+  assert.equal(machine.getState().phase, RuntimePhase.RELEASING);
+  assert.equal(machine.getState().releaseReason, 'recovery');
+  assert.equal(machine.getState().recoveryReason, 'RESOURCE_FAILED');
+  assert.equal(ports.recovery.getHistory().at(-1).targetScene, 'pattern');
+  assert.ok(ports.scrollEvents.some((event) => event[0] === 'unlock' && event[1] === 'recovery'));
+  clock.advance(10);
+  assert.equal(machine.getState().phase, RuntimePhase.IDLE);
+}
+
+async function nullPlayerPathRecovers() {
+  const clock = new FakeClock();
+  const ports = fakePorts(clock, { play: null });
+  const machine = createSceneStateMachine({
+    segments: homepageSegments,
+    initialSceneId: 'method-bottom',
+    ...ports,
+    releaseCooldownMs: 10
+  });
+
+  machine.arm({ segmentId: 'figure2-compound-to-brand' });
+  machine.beginSnapLock();
+  await machine.completeSnapLock();
+  assert.equal(machine.getState().releaseReason, 'recovery');
+  assert.equal(machine.getState().recoveryReason, 'RESOURCE_FAILED');
+}
+
+assert.throws(() => {
+  const clock = new FakeClock();
+  const ports = fakePorts(clock, null);
+  const machine = createSceneStateMachine({
+    segments: homepageSegments,
+    initialSceneId: 'hero',
+    ...ports
+  });
+  machine.arm({ segmentId: 'unknown-segment' });
+}, /Unknown segment/);
+
 await normalFlow();
 cancelFlow();
 cancelWhilePlayingStopsPlayer();
 await playRejectRecovers();
 timeoutRecovers();
 resourceFailureRecovers();
+await missingPlayerRecovers();
+await nullPlayerPathRecovers();
 
 console.log('SceneRuntime state machine checks passed.');

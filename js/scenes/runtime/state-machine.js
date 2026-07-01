@@ -132,7 +132,13 @@ export function createSceneStateMachine({
     const player = playerRegistry?.get?.(segment.id) || playerRegistry?.get?.(segment.player) || playerRegistry?.[segment.id] || null;
     activePlayer = player;
 
-    if (!player?.play) return Promise.resolve();
+    if (!player?.play) {
+      recover({
+        recoveryReason: 'RESOURCE_FAILED',
+        error: new Error(`Missing player for segment ${segment.id}`)
+      });
+      return Promise.resolve(getState());
+    }
 
     const cancelTimeout = addTimer(() => {
       recover({ recoveryReason: 'PLAYER_TIMEOUT' });

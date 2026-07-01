@@ -51,6 +51,14 @@ export function createScrollIntentAccumulator({
     return time < cooldownUntil;
   }
 
+  function hasArmedLongEnough(time = now()) {
+    return firstInputAt !== null && time - firstInputAt >= options.minArmedMs;
+  }
+
+  function hasReachedThreshold(time = now()) {
+    return progress >= options.intentThreshold && hasArmedLongEnough(time) && !isInCooldown(time);
+  }
+
   function normalizeDelta({ deltaVh, deltaPx, deltaY }) {
     if (Number.isFinite(deltaVh)) return deltaVh;
     if (Number.isFinite(deltaPx)) return deltaPx / Math.max(1, viewportHeight);
@@ -88,8 +96,7 @@ export function createScrollIntentAccumulator({
 
     source = eventSource;
     progress = clamp(progress + delta, 0, options.singleFrameClamp);
-    const armedLongEnough = firstInputAt === null || time - firstInputAt >= options.minArmedMs;
-    const thresholdReached = progress >= options.intentThreshold && armedLongEnough;
+    const thresholdReached = hasReachedThreshold(time);
     return output({ progress, direction, thresholdReached, source });
   }
 
@@ -120,13 +127,13 @@ export function createScrollIntentAccumulator({
     reset,
     release,
     touchEnd,
-    getState: () => ({
-      intentProgress: progress,
-      direction,
-      thresholdReached: progress >= options.intentThreshold && !isInCooldown(),
-      source,
-      cooldownUntil,
-      touchMomentumIgnoreUntil,
+	    getState: () => ({
+	      intentProgress: progress,
+	      direction,
+	      thresholdReached: hasReachedThreshold(),
+	      source,
+	      cooldownUntil,
+	      touchMomentumIgnoreUntil,
       lastCancelReason
     })
   };
