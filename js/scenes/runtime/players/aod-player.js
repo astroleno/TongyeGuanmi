@@ -3,6 +3,11 @@ import {
   renderAodTransitionProgress,
   waitForAodTransitionMetadata
 } from '../../../components/aod-transition.js';
+import { createInkCurtainTransition } from '../../../effects/ink-scene-transition.js';
+import { createHandoffReceiver } from '../../../transitions/homepage/handoff-receiver.js';
+
+const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+const smoothStep = (value) => value * value * (3 - 2 * value);
 
 const AOD_MARKUP = `
   <section
@@ -54,10 +59,17 @@ function animationFrame() {
   return new Promise((resolve) => requestAnimationFrame(resolve));
 }
 
+function syncFigureVisibility(video, progress) {
+  if (!video) return;
+  const visible = progress > 0.015;
+  video.style.opacity = visible ? '1' : '0';
+  video.style.visibility = visible ? 'visible' : 'hidden';
+}
+
 export function createAodPlayer({
   root = document,
   presentation,
-  durationMs = 1800,
+  durationMs = 2600,
   readyTimeoutMs = 1400,
   endedGraceMs = 180,
   reduceMotion = false,
@@ -66,27 +78,60 @@ export function createAodPlayer({
   let stopped = false;
   let mountedSection = null;
   let mountedVideo = null;
+  let mountedHost = null;
+  let mountedInkTransition = null;
+  let mountedMethodReceiver = null;
+  let preparePromise = null;
   let ended = false;
   let earlyCopyPresented = false;
 
   function mount() {
+    if (mountedSection && mountedVideo) {
+      return { host: mountedHost, section: mountedSection, video: mountedVideo };
+    }
+
     const host = root.querySelector('[data-scene-id="aod-animation"]');
     if (!host) throw new Error('Missing aod-animation scene host');
     if (!host.querySelector('[data-aod-player="mvp"]')) {
       host.innerHTML = AOD_MARKUP;
     }
+    host.classList.add('homepage-transition', 'homepage-transition--aod');
+    mountedHost = host;
     mountedSection = host.querySelector('[data-aod-transition]');
+    const field = host.querySelector('.aod-transition__field');
     const elements = prepareAodTransition(mountedSection, { progress: 0 });
     mountedVideo = elements.figureVideo;
     if (!mountedSection || !mountedVideo) throw new Error('Missing AOD media DOM');
+    mountedMethodReceiver ??= createHandoffReceiver({
+      container: field,
+      target: root.querySelector('.method-edition-layout--after-handoff'),
+      sourceSelector: '.method-edition-layout--after-handoff',
+      className: 'homepage-handoff-receiver--method'
+    });
+    mountedInkTransition ??= reduceMotion ? null : createInkCurtainTransition(host.querySelector('[data-aod-ink-canvas]'), {
+      direction: 'bottom-up',
+      colorLift: 0.64,
+      coverAlpha: 0.64,
+      fadeOutStart: 0.82,
+      fadeOutEnd: 1,
+      progressSpan: 1
+    });
     return { host, section: mountedSection, video: mountedVideo };
   }
 
   function teardown() {
     mountedVideo?.removeEventListener?.('ended', onEnded);
     mountedVideo?.pause?.();
+    mountedVideo?.style.removeProperty('opacity');
+    mountedVideo?.style.removeProperty('visibility');
+    mountedMethodReceiver?.destroy();
+    mountedHost?.classList.remove('homepage-transition', 'homepage-transition--aod');
+    mountedInkTransition = null;
+    mountedMethodReceiver = null;
+    mountedHost = null;
     mountedVideo = null;
     mountedSection = null;
+    preparePromise = null;
   }
 
   function onEnded() {
@@ -95,17 +140,33 @@ export function createAodPlayer({
 
   async function gateFirstFrame(section, video) {
     presentation?.markPoster?.('aod-animation');
-    renderAodTransitionProgress(section, 0, { figureVideo: video });
+    render(0, { section, video });
     await waitForAodTransitionMetadata(section, { timeoutMs: readyTimeoutMs });
     if (video.error || video.readyState < 1) {
       throw new Error('AOD media failed poster/first-frame gate');
     }
-    renderAodTransitionProgress(section, 0, { figureVideo: video });
+    render(0, { section, video });
+  }
+
+  function prepare() {
+    const { section, video } = mount();
+    if (!preparePromise) {
+      preparePromise = gateFirstFrame(section, video);
+    }
+    return preparePromise;
   }
 
   async function playVideo(video) {
     const playResult = video.play?.();
     if (playResult?.then) await playResult;
+  }
+
+  function render(progress, { section = mountedSection, video = mountedVideo } = {}) {
+    const safeProgress = clamp(progress);
+    syncFigureVisibility(video, safeProgress);
+    renderAodTransitionProgress(section, safeProgress, { figureVideo: video });
+    mountedMethodReceiver?.update(safeProgress, { start: 0.58, end: 0.94, liftPx: 18 });
+    mountedInkTransition?.render(smoothStep(safeProgress));
   }
 
   async function play({ segment }) {
@@ -119,10 +180,10 @@ export function createAodPlayer({
     const { section, video } = mount();
     video.addEventListener('ended', onEnded, { once: true });
 
-    await gateFirstFrame(section, video);
+    await prepare();
     if (reduceMotion) {
       presentation?.presentEarlyCopy?.({ targetScene: segment.to });
-      renderAodTransitionProgress(section, 1, { figureVideo: video });
+      render(1, { section, video });
       teardown();
       return { progress: 1, reducedMotion: true };
     }
@@ -133,7 +194,7 @@ export function createAodPlayer({
     while (!stopped) {
       await animationFrame();
       const progress = Math.min(1, (performance.now() - startedAt) / durationMs);
-      renderAodTransitionProgress(section, progress, { figureVideo: video });
+      render(progress, { section, video });
 
       if (!earlyCopyPresented && progress >= (segment.earlyCopyAt ?? 0.8)) {
         earlyCopyPresented = true;
@@ -148,7 +209,7 @@ export function createAodPlayer({
     }
 
     const completed = !stopped;
-    if (completed) renderAodTransitionProgress(section, 1, { figureVideo: video });
+    if (completed) render(1, { section, video });
     teardown();
     if (!completed) return { cancelled: true };
     return {
@@ -165,7 +226,7 @@ export function createAodPlayer({
     teardown();
   }
 
-  return { play, stop, destroy: stop };
+  return { prepare, play, stop, destroy: stop };
 }
 
 export const aodPlayerTimingContract = Object.freeze({

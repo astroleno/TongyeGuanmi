@@ -1,82 +1,198 @@
-const variantBySegment = {
-  'hero-to-pattern': 'radial-center',
-  'pattern-to-star-map': 'rotating-left',
-  'star-map-to-aod': 'horizontal-irregular-bottom-up'
-};
+import { createInkCurtainTransition } from '../../../effects/ink-scene-transition.js';
+import { mountPatternBloomTransition } from '../../../transitions/pattern-bloom-adapter.js';
 
-const ease = (value) => value * value * (3 - 2 * value);
+const PATTERN_BLOOM_SEGMENTS = Object.freeze({
+  'hero-to-pattern': {
+    start: 0,
+    end: 0.58,
+    durationMs: 1500,
+    visual: 'radial-center-reveal'
+  },
+  'pattern-to-star-map': {
+    start: 0.58,
+    end: 1,
+    durationMs: 1650,
+    visual: 'rotating-left-exit'
+  }
+});
+
+const INK_CURTAIN_SEGMENTS = Object.freeze({
+  'star-map-to-aod': {
+    durationMs: 860,
+    visual: 'horizontal-irregular-bottom-up'
+  }
+});
+
+const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+const smoothStep = (value) => value * value * (3 - 2 * value);
 
 function animationFrame() {
   return new Promise((resolve) => requestAnimationFrame(resolve));
 }
 
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function waitForPatternTexture(root, timeoutMs = 1300) {
+  const startedAt = performance.now();
+  while (performance.now() - startedAt < timeoutMs) {
+    const readyCanvas = root.querySelector(
+      '.pattern-bloom-transition__stage .pattern-bloom-transition__canvas[data-ink-texture-ready="true"]'
+    );
+    if (readyCanvas) return true;
+    await animationFrame();
+  }
+  return false;
+}
+
+async function animate({
+  from = 0,
+  to = 1,
+  durationMs,
+  isStopped,
+  onUpdate
+}) {
+  const startedAt = performance.now();
+  onUpdate(from);
+
+  while (!isStopped()) {
+    await animationFrame();
+    const elapsed = performance.now() - startedAt;
+    const progress = clamp(elapsed / Math.max(1, durationMs));
+    const value = from + (to - from) * smoothStep(progress);
+    onUpdate(value);
+    if (progress >= 1) break;
+  }
+
+  return !isStopped();
+}
+
 export function createInkTransitionPlayer({
   root = document,
-  durationMs = 620,
   reduceMotion = false,
   claimLayer = () => {}
 } = {}) {
-  let activeSurface = null;
-  let activeRaf = 0;
+  let activeCleanup = null;
   let stopped = false;
 
-  function removeSurface() {
-    activeSurface?.remove();
-    activeSurface = null;
+  function cleanup() {
+    activeCleanup?.();
+    activeCleanup = null;
   }
 
-  function render(surface, progress) {
-    const safeProgress = Math.min(1, Math.max(0, progress));
-    surface.style.setProperty('--scene-runtime-ink-progress', safeProgress.toFixed(4));
-    surface.style.opacity = String(1 - ease(Math.max(0, safeProgress - 0.72) / 0.28));
+  async function playPatternBloom({ segment, config }) {
+    claimLayer({ layer: 'visual-stage', owner: 'SegmentPlayer', segmentId: segment.id });
+    claimLayer({ layer: 'ink-mask', owner: 'SegmentPlayer', segmentId: segment.id });
+    stopped = false;
+    cleanup();
+
+    const host = root.querySelector(`[data-scene-id="${segment.from}"]`)
+      || root.querySelector(`[data-scene-id="${segment.to}"]`)
+      || root.body;
+    let controlledProgress = reduceMotion ? config.end : config.start;
+    const transition = mountPatternBloomTransition({
+      host,
+      reduceMotion,
+      progressSource: () => controlledProgress,
+      addCleanup: (destroy) => {
+        activeCleanup = destroy;
+      }
+    });
+    activeCleanup = transition.destroy;
+
+    if (reduceMotion) {
+      controlledProgress = config.end;
+      await wait(80);
+      cleanup();
+      return { progress: 1, visual: config.visual, reducedMotion: true };
+    }
+
+    await waitForPatternTexture(root);
+    const completed = await animate({
+      from: config.start,
+      to: config.end,
+      durationMs: config.durationMs,
+      isStopped: () => stopped,
+      onUpdate: (value) => {
+        controlledProgress = value;
+      }
+    });
+
+    cleanup();
+    if (!completed) return { cancelled: true, visual: config.visual };
+    return { progress: 1, visual: config.visual };
+  }
+
+  async function playInkCurtain({ segment, config }) {
+    claimLayer({ layer: 'ink-mask', owner: 'SegmentPlayer', segmentId: segment.id });
+    stopped = false;
+    cleanup();
+
+    const canvas = root.createElement('canvas');
+    canvas.className = 'scene-runtime-ink-canvas';
+    canvas.dataset.inkTransitionPlayer = 'mvp';
+    canvas.dataset.segmentId = segment.id;
+    canvas.setAttribute('aria-hidden', 'true');
+    (root.body || root.documentElement).append(canvas);
+    activeCleanup = () => {
+      canvas.remove();
+    };
+
+    const inkTransition = reduceMotion ? null : createInkCurtainTransition(canvas, {
+      direction: 'bottom-up',
+      colorLift: 0.64,
+      coverAlpha: 0.64,
+      fadeOutStart: 0.82,
+      fadeOutEnd: 1,
+      progressSpan: 1
+    });
+
+    if (reduceMotion || !inkTransition) {
+      inkTransition?.render(1);
+      cleanup();
+      return {
+        progress: 1,
+        visual: config.visual,
+        reducedMotion: reduceMotion,
+        webglFallback: !inkTransition
+      };
+    }
+
+    inkTransition.prewarm?.();
+    const completed = await animate({
+      from: 0,
+      to: 1,
+      durationMs: config.durationMs,
+      isStopped: () => stopped,
+      onUpdate: (progress) => inkTransition.render(progress)
+    });
+
+    cleanup();
+    if (!completed) return { cancelled: true, visual: config.visual };
+    return { progress: 1, visual: config.visual };
   }
 
   async function play({ segment }) {
-    const variant = variantBySegment[segment.id];
-    if (!variant) throw new Error(`Unsupported MVP ink segment: ${segment.id}`);
+    const patternConfig = PATTERN_BLOOM_SEGMENTS[segment.id];
+    if (patternConfig) return playPatternBloom({ segment, config: patternConfig });
 
-    claimLayer({ layer: 'ink-mask', owner: 'SegmentPlayer', segmentId: segment.id });
-    stopped = false;
-    removeSurface();
+    const inkConfig = INK_CURTAIN_SEGMENTS[segment.id];
+    if (inkConfig) return playInkCurtain({ segment, config: inkConfig });
 
-    const host = root.querySelector(`[data-scene-id="${segment.to}"]`) || root.body;
-    const surface = root.createElement('div');
-    surface.className = 'scene-runtime-ink-transition';
-    surface.dataset.inkTransitionPlayer = 'mvp';
-    surface.dataset.inkVariant = variant;
-    surface.dataset.segmentId = segment.id;
-    surface.setAttribute('aria-hidden', 'true');
-    host.appendChild(surface);
-    activeSurface = surface;
-
-    if (reduceMotion) {
-      render(surface, 1);
-      removeSurface();
-      return { progress: 1, variant, reducedMotion: true };
-    }
-
-    const startedAt = performance.now();
-    while (!stopped) {
-      await animationFrame();
-      const progress = Math.min(1, (performance.now() - startedAt) / durationMs);
-      render(surface, progress);
-      if (progress >= 1) break;
-    }
-
-    const completed = !stopped;
-    removeSurface();
-    if (!completed) return { cancelled: true, variant };
-    return { progress: 1, variant };
+    throw new Error(`Unsupported MVP ink segment: ${segment.id}`);
   }
 
   function stop() {
     stopped = true;
-    if (activeRaf) cancelAnimationFrame(activeRaf);
-    activeRaf = 0;
-    removeSurface();
+    cleanup();
   }
 
   return { play, stop, destroy: stop };
 }
 
-export const mvpInkTransitionVariants = Object.freeze({ ...variantBySegment });
+export const mvpInkTransitionVariants = Object.freeze({
+  'hero-to-pattern': PATTERN_BLOOM_SEGMENTS['hero-to-pattern'].visual,
+  'pattern-to-star-map': PATTERN_BLOOM_SEGMENTS['pattern-to-star-map'].visual,
+  'star-map-to-aod': INK_CURTAIN_SEGMENTS['star-map-to-aod'].visual
+});

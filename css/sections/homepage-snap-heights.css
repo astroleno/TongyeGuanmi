@@ -26,52 +26,23 @@
   scroll-margin-top: 0;
 }
 
-.scene-runtime-pattern-field {
+.scene-runtime-pattern-canvas {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  isolation: isolate;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(232, 213, 154, 0.22), transparent 0 18%, transparent 26%),
-    radial-gradient(circle at 30% 35%, rgba(56, 166, 154, 0.20), transparent 28%),
-    radial-gradient(circle at 68% 62%, rgba(183, 91, 52, 0.16), transparent 30%),
-    #07110e;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #07110e;
 }
 
-.scene-runtime-pattern-field span {
-  position: absolute;
-  width: min(72vmin, 680px);
-  aspect-ratio: 1;
-  border: 1px solid rgba(232, 213, 154, 0.22);
-  border-radius: 50%;
-  transform: rotate(calc(var(--ring-index, 0) * 28deg)) scale(calc(0.48 + var(--ring-index, 0) * 0.18));
-}
-
-.scene-runtime-pattern-field span:nth-child(1) { --ring-index: 1; }
-.scene-runtime-pattern-field span:nth-child(2) { --ring-index: 2; }
-.scene-runtime-pattern-field span:nth-child(3) { --ring-index: 3; }
-
-.scene-runtime-ink-transition {
-  --scene-runtime-ink-progress: 0;
+.scene-runtime-ink-canvas {
   position: fixed;
   inset: 0;
   z-index: 120;
+  display: block;
+  width: 100vw;
+  height: 100dvh;
   pointer-events: none;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(232, 213, 154, 0.30), transparent calc(var(--scene-runtime-ink-progress) * 44%)),
-    linear-gradient(135deg, rgba(5, 8, 7, 0.92), rgba(56, 166, 154, 0.28));
-  mix-blend-mode: normal;
-}
-
-.scene-runtime-ink-transition[data-ink-variant="rotating-left"] {
-  background:
-    conic-gradient(from calc(var(--scene-runtime-ink-progress) * -260deg), rgba(56, 166, 154, 0.72), rgba(5, 8, 7, 0.94), rgba(232, 213, 154, 0.54), rgba(56, 166, 154, 0.72));
-}
-
-.scene-runtime-ink-transition[data-ink-variant="horizontal-irregular-bottom-up"] {
-  background:
-    linear-gradient(0deg, rgba(237, 228, 210, 0.94) 0 calc(var(--scene-runtime-ink-progress) * 100%), rgba(5, 8, 7, 0.86) calc(var(--scene-runtime-ink-progress) * 100% + 1px)),
-    radial-gradient(circle at 24% 78%, rgba(183, 91, 52, 0.28), transparent 34%);
+  opacity: 0;
+  visibility: hidden;
 }

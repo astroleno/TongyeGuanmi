@@ -1,6 +1,7 @@
 import { homepageAliases } from '../../../src/homepage/homepage.aliases.mjs';
 import { homepageScenes } from '../../../src/homepage/homepage.scenes.mjs';
 import { homepageSegments } from '../../../src/homepage/homepage.segments.mjs';
+import { createPatternBloomScene } from '../../pattern-mirror-stage.js';
 import { initBeliefStarField } from '../../sections/belief.js';
 import { createLayerOwnershipRegistry } from './layer-ownership.js';
 import { createPresentationController } from './presentation.js';
@@ -39,6 +40,7 @@ const inputScenes = new Map([
   ['aod-animation', 'aod-play']
 ]);
 const readingScenes = new Set(['method-top', 'method-bottom']);
+const PATTERN_STEADY_BLOOM_PROGRESS = 0.58;
 
 function normalizeWheelDelta(event) {
   const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
@@ -114,6 +116,8 @@ class SceneRuntime {
     this.touchY = null;
     this.readMonitors = new Map();
     this.readIntentAccumulators = new Map();
+    this.staticVisuals = [];
+    this.aodPlayer = null;
     this.cleanups = [];
     this.layerOwnership = createLayerOwnershipRegistry({ mode: 'production' });
     this.scrollLock = createScrollLock({ root });
@@ -190,12 +194,33 @@ class SceneRuntime {
   mountStaticVisuals() {
     this.root.documentElement.classList.add('scene-runtime-active');
     const pattern = this.sceneHosts.get('pattern');
-    if (pattern && !pattern.querySelector('[data-scene-runtime-pattern]')) {
+    if (pattern && !pattern.querySelector('[data-scene-runtime-pattern-canvas]')) {
       pattern.innerHTML = `
-        <div class="scene-runtime-pattern-field" data-scene-runtime-pattern aria-hidden="true">
-          <span></span><span></span><span></span>
-        </div>
+        <canvas class="scene-runtime-pattern-canvas" data-scene-runtime-pattern-canvas aria-hidden="true"></canvas>
       `;
+      const canvas = pattern.querySelector('[data-scene-runtime-pattern-canvas]');
+      const patternScene = createPatternBloomScene({
+        canvas,
+        progressSource: () => PATTERN_STEADY_BLOOM_PROGRESS,
+        reducedMotion: this.reduceMotion,
+        reducedMotionProgress: PATTERN_STEADY_BLOOM_PROGRESS,
+        continuousMotion: true,
+        scrollDrivenMotion: false,
+        dprLimit: 1,
+        center: {
+          x: 0.24,
+          y: 0.55,
+          mobileX: 0.50,
+          mobileY: 0.58
+        }
+      });
+      patternScene.start().then(() => {
+        pattern.dataset.sceneRuntimePatternReady = 'true';
+      }).catch((error) => {
+        pattern.dataset.sceneRuntimePatternReady = 'failed';
+        this.logger.warn?.('SceneRuntime pattern canvas failed to start.', error);
+      });
+      this.staticVisuals.push(() => patternScene.destroy());
     }
     initBeliefStarField({ root: this.root, reduceMotion: this.reduceMotion });
   }
@@ -211,14 +236,14 @@ class SceneRuntime {
       this.playerRegistry.register(segmentId, inkPlayer);
     });
 
-    const aodPlayer = createAodPlayer({
+    this.aodPlayer = createAodPlayer({
       root: this.root,
       reduceMotion: this.reduceMotion,
       presentation: this.presentation,
       claimLayer
     });
-    this.playerRegistry.register('aod', aodPlayer);
-    this.playerRegistry.register('aod-play', aodPlayer);
+    this.playerRegistry.register('aod', this.aodPlayer);
+    this.playerRegistry.register('aod-play', this.aodPlayer);
   }
 
   setupReadMonitors() {
@@ -350,6 +375,13 @@ class SceneRuntime {
     if (scroll) {
       this.sceneHosts.get(sceneId)?.scrollIntoView({ block: 'start', inline: 'nearest' });
     }
+    if (sceneId === 'aod-animation') {
+      this.aodPlayer?.prepare?.().catch((error) => {
+        const host = this.sceneHosts.get('aod-animation');
+        if (host) host.dataset.sceneRuntimePosterGate = 'failed';
+        this.logger.warn?.('SceneRuntime AOD poster gate failed.', error);
+      });
+    }
   }
 
   handleIntentInput({ deltaVh, source, originalEvent }) {
@@ -455,10 +487,12 @@ class SceneRuntime {
 
   destroy() {
     this.cleanups.splice(0).forEach((cleanup) => cleanup());
+    this.staticVisuals.splice(0).forEach((cleanup) => cleanup());
     this.stateMachine.destroy();
     this.scrollLock.unlock();
     this.root.documentElement.classList.remove('scene-runtime-active');
     delete this.root.documentElement.dataset.sceneRuntimePhase;
+    this.aodPlayer = null;
   }
 }
 
