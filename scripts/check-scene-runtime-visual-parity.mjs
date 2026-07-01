@@ -42,6 +42,22 @@ assert(aodPlayerSource.includes('progress >= (segment.earlyCopyAt ?? 0.8)'), 'AO
 
 assert(shellCss.includes('.scene-runtime-pattern-canvas'), 'SceneRuntime shell CSS must style the real pattern canvas');
 assert(shellCss.includes('.scene-runtime-ink-canvas'), 'SceneRuntime shell CSS must style the real ink canvas');
+assert(shellCss.includes('@media (max-width: 900px) and (orientation: landscape)'), 'SceneRuntime shell CSS must define mobile landscape visual mode');
+assert(shellCss.includes('--scene-runtime-stage-width'), 'mobile landscape mode must define a cinematic stage width');
+assert(shellCss.includes('--scene-runtime-stage-height'), 'mobile landscape mode must define a cinematic stage height');
+assert(shellCss.includes('.scene-runtime-active .pattern-bloom-transition__stage'), 'mobile landscape mode must adapt pattern bloom stage layout');
+assert(shellCss.includes('.scene-runtime-active .aod-transition__sticky'), 'mobile landscape mode must adapt AOD stage layout');
+assert(shellCss.includes('.scene-runtime-active .method-edition-layout--after-handoff'), 'mobile landscape mode must adapt method reading layout');
+assert(
+  /\.scene-runtime-active \.method-edition-layout \.chapter-intro--method[\s\S]*position:\s*relative;[\s\S]*top:\s*auto;/.test(shellCss),
+  'mobile landscape method-top read host must remain in normal flow so read-complete can latch'
+);
+assert(
+  /\.scene-runtime-active \.method-flow[\s\S]*grid-column:\s*2;[\s\S]*grid-row:\s*1;/.test(shellCss),
+  'mobile landscape method-bottom flow must stay in the right column instead of dropping below method-top'
+);
+assert(shellCss.includes('@media (max-width: 900px) and (orientation: portrait)'), 'SceneRuntime shell CSS must define mobile portrait fallback mode');
+assert(shellCss.includes('横屏继续观看完整动态体验'), 'mobile portrait fallback must show a rotate prompt');
 assert(!shellCss.includes('.scene-runtime-pattern-field'), 'placeholder pattern CSS must not remain');
 assert(!shellCss.includes('.scene-runtime-ink-transition'), 'placeholder flat ink CSS must not remain');
 assert(!shellCss.includes('--scene-runtime-ink-progress'), 'flat CSS ink progress custom property must not remain');
@@ -55,7 +71,10 @@ assert(
   packageJson.scripts['verify:scene-runtime'].includes('verify:scene-runtime-visual-parity'),
   'verify:scene-runtime must include visual parity checks'
 );
+assert(checklist.includes('mobile portrait fallback'), 'manual visual checklist must specify mobile portrait fallback capture');
 assert(checklist.includes('mobile landscape widths'), 'manual visual checklist must specify mobile landscape capture');
+assert(checklist.includes('process flow in the right column'), 'manual visual checklist must verify the mobile landscape method flow column');
+assert(checklist.includes('Mobile portrait fallback: `390x844`'), 'manual visual checklist must name the mobile portrait fallback viewport');
 assert(checklist.includes('Mobile landscape: `844x390`'), 'manual visual checklist must name the mobile landscape reference viewport');
 
 [
