@@ -13,17 +13,27 @@ assert.match(
 );
 
 const mainJs = read('js/main.js');
+const legacyHomepageJs = exists('js/site/legacy-homepage.js') ? read('js/site/legacy-homepage.js') : '';
 const usesLegacyBridge = mainJs.includes("import './legacy-main.js';");
-const usesFinalBoot = [
+const usesFinalMainBoot = [
   "from './site/runtime.js'",
   "from './effects/ink-text-reveal.js'",
   "from './components/ink-keyword.js'",
   "from './sections/hero.js'"
 ].every((needle) => mainJs.includes(needle));
+const legacyHomepageKeepsFinalBoot = [
+  "from './runtime.js'",
+  "from '../effects/ink-text-reveal.js'",
+  "from '../components/ink-keyword.js'",
+  "from '../sections/hero.js'"
+].every((needle) => legacyHomepageJs.includes(needle));
+const usesSceneRuntimeSplit = mainJs.includes("import('./scenes/runtime/SceneRuntime.js')")
+  && mainJs.includes("import('./site/legacy-homepage.js')")
+  && legacyHomepageKeepsFinalBoot;
 
 assert.ok(
-  usesLegacyBridge || usesFinalBoot,
-  'js/main.js must be either the temporary legacy bridge or the final module bootstrap'
+  usesLegacyBridge || usesFinalMainBoot || usesSceneRuntimeSplit,
+  'js/main.js must be either the temporary legacy bridge, the final module bootstrap, or the SceneRuntime/legacy split bootstrap'
 );
 
 if (!usesLegacyBridge) {

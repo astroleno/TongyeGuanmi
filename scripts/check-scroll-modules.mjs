@@ -15,16 +15,18 @@ function assertNotContains(source, needle, message) {
 }
 
 const main = await read('js/main.js');
+const legacyHomepage = await read('js/site/legacy-homepage.js');
 const index = await read('index.html');
 const reveal = await read('js/ui/reveal.js');
 const styles = await read('css/styles.css');
 const template = await read('src/index.template.html');
 const smoothScroll = await read('js/ui/smooth-scroll.js').catch(() => '');
 
-assertContains(main, "lenis: 'https://cdn.jsdelivr.net/npm/lenis@1.3.23/dist/lenis.min.js'", 'main.js pins Lenis CDN version');
-assertContains(main, "import { initSmoothScroll } from './ui/smooth-scroll.js';", 'main.js imports smooth-scroll module');
-assertContains(main, 'await loadScript(CDN.lenis);', 'main.js loads Lenis before initialization');
-assertContains(main, 'const scrollRuntime = initSmoothScroll({', 'main.js stores smooth scroll runtime');
+assertContains(main, "import('./site/legacy-homepage.js')", 'main.js keeps a mutually exclusive legacy homepage branch');
+assertContains(legacyHomepage, "lenis: 'https://cdn.jsdelivr.net/npm/lenis@1.3.23/dist/lenis.min.js'", 'legacy homepage pins Lenis CDN version');
+assertContains(legacyHomepage, "import { initSmoothScroll } from '../ui/smooth-scroll.js';", 'legacy homepage imports smooth-scroll module');
+assertContains(legacyHomepage, 'await loadScript(CDN.lenis);', 'legacy homepage loads Lenis before initialization');
+assertContains(legacyHomepage, 'const scrollRuntime = initSmoothScroll({', 'legacy homepage stores smooth scroll runtime');
 
 assertContains(smoothScroll, 'export function initSmoothScroll', 'smooth-scroll.js exports initSmoothScroll');
 assertContains(smoothScroll, 'new window.Lenis', 'smooth-scroll.js creates Lenis from CDN global');
