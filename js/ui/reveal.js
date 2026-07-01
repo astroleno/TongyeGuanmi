@@ -4,10 +4,15 @@ const heldReveals = new WeakMap();
 const ENTRY_STATE_ATTR = 'data-entry-state';
 const ENTRY_COUNT_ATTR = 'data-entry-count';
 
-function getRevealItems(root = document) {
-  return root.matches?.('.reveal')
-    ? [root, ...root.querySelectorAll?.('.reveal') || []]
-    : [...root.querySelectorAll?.('.reveal') || []];
+export function isSceneRuntimeOwned(el) {
+  return Boolean(el?.closest?.('[data-scene-owner="scene-runtime"]'));
+}
+
+export function getRevealItems(root = document) {
+  const childItems = [...(root.querySelectorAll?.('.reveal') || [])];
+  const items = root.matches?.('.reveal') ? [root, ...childItems] : childItems;
+
+  return items.filter((item) => !isSceneRuntimeOwned(item));
 }
 
 function setRevealHidden(el) {
@@ -157,7 +162,7 @@ export function releaseRevealWithin(root = document, { revealVisible = true } = 
 }
 
 export function initVanillaReveal() {
-  const items = [...document.querySelectorAll('.reveal')];
+  const items = getRevealItems(document);
   if (!items.length) return;
 
   const observer = new IntersectionObserver((entries) => {
@@ -185,8 +190,9 @@ export function initGsapTextAndUI({ root = document.documentElement } = {}) {
     ignoreMobileResize: true
   });
 
-  gsap.set('.reveal', { autoAlpha: 0, y: 24 });
-  gsap.utils.toArray('.reveal').forEach((el) => {
+  const revealItems = getRevealItems(document);
+  gsap.set(revealItems, { autoAlpha: 0, y: 24 });
+  revealItems.forEach((el) => {
     el.setAttribute(ENTRY_STATE_ATTR, 'idle');
     el.dataset.entryState = 'idle';
     const tween = gsap.to(el, {

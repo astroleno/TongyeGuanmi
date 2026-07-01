@@ -1,0 +1,19 @@
+[data-scene-owner="scene-runtime"] {
+  position: relative;
+}
+
+[data-scene-owner="scene-runtime"][data-scene-kind="opening"],
+[data-scene-owner="scene-runtime"][data-scene-kind="visual"],
+[data-scene-owner="scene-runtime"][data-scene-kind="animation"] {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+[data-scene-owner="scene-runtime"][data-scene-kind="reading"] {
+  min-height: 100dvh;
+}
+
+.scene-runtime-shell {
+  display: block;
+  overflow: hidden;
+}
