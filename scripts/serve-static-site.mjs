@@ -31,7 +31,7 @@ const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`)
     const pathname = decodeURIComponent(url.pathname)
-    const { filePath, rootPath } = resolvePath(pathname)
+    const { filePath, rootPath } = resolvePath(pathname, url.searchParams)
 
     if (!filePath.startsWith(normalize(rootPath + sep))) {
       sendText(response, 403, 'Forbidden')
@@ -58,11 +58,13 @@ const server = createServer(async (request, response) => {
 
 listenOnAvailablePort(preferredPort)
 
-function resolvePath(pathname) {
+function resolvePath(pathname, searchParams = new URLSearchParams()) {
   const cleanedPath = pathname.replace(/^\/+/, '').replace(/\/+$/, '')
   const fileName = cleanedPath
     ? (extname(cleanedPath) ? cleanedPath : `${cleanedPath}.html`)
-    : 'index.html'
+    : searchParams.get('sceneRuntime') === '1'
+      ? 'index-scene-runtime.html'
+      : 'index.html'
 
   return {
     filePath: normalize(join(siteRoot, fileName)),

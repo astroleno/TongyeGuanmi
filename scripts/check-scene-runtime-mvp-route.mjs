@@ -13,6 +13,7 @@ assert.deepEqual(MVP_SCENE_ROUTE, expectedScenes, 'PR4 MVP scene route must stop
 assert.deepEqual(MVP_SEGMENT_ROUTE, expectedSegments, 'PR4 MVP segment route must stop before Figure2');
 
 const mainSource = read('js/main.js');
+const serverSource = read('scripts/serve-static-site.mjs');
 assert(!/^\s*import\s/m.test(mainSource), 'js/main.js must not have static imports');
 assert(mainSource.includes("params.get('sceneRuntime') === '1'"), '?sceneRuntime=1 gate is missing');
 assert(mainSource.includes("params.get('legacyTimeline') === '1'"), '?legacyTimeline=1 conflict check is missing');
@@ -21,6 +22,10 @@ assert(mainSource.includes("import('./scenes/runtime/SceneRuntime.js')"), 'Scene
 assert(mainSource.includes("import('./site/legacy-homepage.js')"), 'legacy branch must import only the legacy homepage module');
 assert(!mainSource.includes('homepage-transition-runtime.js'), 'main.js must not directly import the legacy homepage transition runtime');
 assert(!mainSource.includes('section-presentation-controller.js'), 'main.js must not directly import the legacy section presentation controller');
+assert(
+  serverSource.includes("searchParams.get('sceneRuntime') === '1'") && serverSource.includes("'index-scene-runtime.html'"),
+  'dev server must serve index-scene-runtime.html for /?sceneRuntime=1'
+);
 
 const legacySource = read('js/site/legacy-homepage.js');
 assert(legacySource.includes('../transitions/homepage-transition-runtime.js'), 'legacy homepage module must keep the legacy runtime import');
