@@ -91,6 +91,15 @@ assert(
   packageJson.scripts['verify:scene-runtime'].includes('verify:scene-runtime-visual-parity'),
   'verify:scene-runtime must include visual parity checks'
 );
+assert.equal(
+  packageJson.scripts['verify:scene-runtime-control'],
+  'node scripts/check-scene-runtime-control-contract.mjs',
+  'control contract checker must be exposed as an npm script'
+);
+assert(
+  packageJson.scripts['verify:scene-runtime-mvp'].includes('verify:scene-runtime-control'),
+  'verify:scene-runtime-mvp must include control contract checks'
+);
 assert(checklist.includes('mobile portrait fallback'), 'manual visual checklist must specify mobile portrait fallback capture');
 assert(checklist.includes('mobile landscape widths'), 'manual visual checklist must specify mobile landscape capture');
 assert(checklist.includes('process flow in the right column'), 'manual visual checklist must verify the mobile landscape method flow column');

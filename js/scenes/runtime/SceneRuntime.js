@@ -32,6 +32,7 @@ export const MVP_SEGMENT_ROUTE = Object.freeze(MVP_ROUTE_STEPS.map((step) => ste
 
 const sceneSet = new Set(homepageScenes.map((scene) => scene.id));
 const segmentById = new Map(homepageSegments.map((segment) => [segment.id, segment]));
+const routeStepBySegmentId = new Map(MVP_ROUTE_STEPS.map((step) => [step.segmentId, step]));
 const mvpSegments = MVP_SEGMENT_ROUTE.map((id) => segmentById.get(id)).filter(Boolean);
 const inputScenes = new Map([
   ['hero', 'hero-to-pattern'],
@@ -45,6 +46,7 @@ const READ_COMPLETE_MIN_DWELL_MS = 1200;
 const HERO_TRANSITION_EDGE_VH = 0.08;
 const INPUT_RELEASE_SETTLE_MS = 260;
 const routeVisibleSceneIds = new Set(MVP_SCENE_ROUTE);
+const stableTraceReasons = new Set(['initial', 'hash-entry']);
 
 const localAnimationScripts = Object.freeze({
   gsap: new URL('../../vendor/gsap.min.js', import.meta.url).href,
@@ -175,6 +177,10 @@ function applyUniqueSceneVisibility(host, sceneId, isCurrent) {
   host.style.pointerEvents = visible ? '' : 'none';
 }
 
+function traceClock() {
+  return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+}
+
 class SceneRuntime {
   constructor({
     root = document,
@@ -195,6 +201,10 @@ class SceneRuntime {
     this.aodPlayer = null;
     this.heroVisualReadyPromise = null;
     this.inputSettledUntil = 0;
+    this.trace = [];
+    this.lastRuntimePhase = RuntimePhase.IDLE;
+    this.pendingReleaseTrace = null;
+    this.tracedPresentedSegments = new Set();
     this.cleanups = [];
     this.layerOwnership = createLayerOwnershipRegistry({ mode: 'production' });
     this.scrollLock = createScrollLock({ root });
@@ -431,17 +441,137 @@ class SceneRuntime {
     return alias?.mapsToScene && this.sceneHosts.has(alias.mapsToScene) ? alias.mapsToScene : null;
   }
 
+  recordTrace(event, patch = {}) {
+    const state = this.stateMachine?.getState?.() || {};
+    const entry = {
+      index: this.trace.length,
+      at: Number(traceClock().toFixed(2)),
+      event,
+      phase: state.phase || null,
+      sceneId: this.currentSceneId,
+      activeSegmentId: state.activeSegmentId || null,
+      targetSceneId: state.targetSceneId || null,
+      ...patch
+    };
+    this.trace.push(entry);
+    this.root.documentElement.dataset.sceneRuntimeTraceLength = String(this.trace.length);
+    this.root.documentElement.dataset.sceneRuntimeLastTrace = event;
+    return entry;
+  }
+
+  recordPresentTarget({ segmentId, sceneId, direction = 'forward', reason = 'present' } = {}) {
+    if (!segmentId || this.tracedPresentedSegments.has(`${direction}:${segmentId}`)) return;
+    this.tracedPresentedSegments.add(`${direction}:${segmentId}`);
+    this.recordTrace('present:target', { segmentId, sceneId, direction, reason });
+  }
+
+  currentRouteIndex() {
+    return MVP_SCENE_ROUTE.indexOf(this.currentSceneId);
+  }
+
+  routeStepEndingAt(sceneId) {
+    const index = MVP_SCENE_ROUTE.indexOf(sceneId);
+    return index > 0 ? MVP_ROUTE_STEPS[index - 1] : null;
+  }
+
+  playerOwnerForSegment(segmentId) {
+    const step = routeStepBySegmentId.get(segmentId);
+    if (step?.mode === 'media-animation') return 'MediaPlayer';
+    if (step?.mode === 'text-read') return 'none';
+    return 'SegmentPlayer';
+  }
+
+  restorePreviousStableScene({ source = 'wheel', originalEvent = null } = {}) {
+    const index = this.currentRouteIndex();
+    if (index <= 0) return false;
+
+    const currentScene = this.currentSceneId;
+    const previousScene = MVP_SCENE_ROUTE[index - 1];
+    const forwardStep = this.routeStepEndingAt(currentScene);
+    if (!forwardStep) return false;
+
+    originalEvent?.preventDefault?.();
+    this.resetReadIntent();
+    this.scrollIntent.reset({ reason: 'reverse-restore' });
+    const traceBase = {
+      segmentId: forwardStep.segmentId,
+      from: currentScene,
+      to: previousScene,
+      direction: 'reverse',
+      owner: source === 'keyboard' ? 'KeyboardIntent' : 'ScrollIntent'
+    };
+
+    this.recordTrace('intent:armed', traceBase);
+    this.recordTrace('snap:locked', { ...traceBase, owner: 'none' });
+    this.recordTrace('player:started', { ...traceBase, owner: 'none' });
+    this.recordPresentTarget({
+      segmentId: forwardStep.segmentId,
+      sceneId: previousScene,
+      direction: 'reverse',
+      reason: 'reverse-restore'
+    });
+    this.presentation.present(previousScene, { reason: 'reverse-restore' });
+
+    const releaseTrace = {
+      segmentId: forwardStep.segmentId,
+      direction: 'reverse',
+      releaseReason: 'reverse-restore',
+      targetSceneId: previousScene
+    };
+    this.recordTrace('release:start', releaseTrace);
+    this.recordTrace('release:done', releaseTrace);
+    this.recordTrace('scene:stable', {
+      sceneId: previousScene,
+      segmentId: forwardStep.segmentId,
+      direction: 'reverse',
+      reason: 'reverse-restore'
+    });
+    this.tracedPresentedSegments.delete(`reverse:${forwardStep.segmentId}`);
+    return true;
+  }
+
   applyRuntimeState(state) {
     this.root.documentElement.dataset.sceneRuntimePhase = state.phase;
+    if (state.phase === RuntimePhase.PLAYING && this.lastRuntimePhase !== RuntimePhase.PLAYING) {
+      this.recordTrace('player:started', {
+        segmentId: state.activeSegmentId,
+        owner: this.playerOwnerForSegment(state.activeSegmentId),
+        direction: state.intent?.direction || 'forward'
+      });
+    }
     if (state.phase === RuntimePhase.RELEASING) {
       this.inputSettledUntil = performance.now() + INPUT_RELEASE_SETTLE_MS;
       this.scrollIntent.reset({ reason: 'release-settle' });
+      if (this.lastRuntimePhase !== RuntimePhase.RELEASING) {
+        this.pendingReleaseTrace = {
+          segmentId: state.activeSegmentId,
+          direction: state.intent?.direction || 'forward',
+          releaseReason: state.releaseReason || 'normal',
+          targetSceneId: state.targetSceneId
+        };
+        this.recordTrace('release:start', this.pendingReleaseTrace);
+        if (state.releaseReason === 'cancelled') {
+          this.setCurrentScene(this.currentSceneId, { scroll: true, reason: 'reverse-cancel' });
+        }
+      }
+    }
+    if (state.phase === RuntimePhase.IDLE && this.lastRuntimePhase === RuntimePhase.RELEASING && this.pendingReleaseTrace) {
+      this.recordTrace('release:done', this.pendingReleaseTrace);
+      this.recordTrace('scene:stable', {
+        sceneId: this.currentSceneId,
+        segmentId: this.pendingReleaseTrace.segmentId,
+        direction: this.pendingReleaseTrace.direction,
+        reason: this.pendingReleaseTrace.releaseReason
+      });
+      this.tracedPresentedSegments.delete(`${this.pendingReleaseTrace.direction}:${this.pendingReleaseTrace.segmentId}`);
+      this.pendingReleaseTrace = null;
     }
     if (state.activeSegmentId) {
       this.root.documentElement.dataset.sceneRuntimeActiveSegment = state.activeSegmentId;
     } else {
       delete this.root.documentElement.dataset.sceneRuntimeActiveSegment;
     }
+    this.lastRuntimePhase = state.phase;
   }
 
   applyPresentationCommit(record) {
@@ -452,6 +582,13 @@ class SceneRuntime {
         presentRevealWithinScene(target);
         applyUniqueSceneVisibility(target, record.patch.earlyCopySceneId, false);
       }
+      const activeState = this.stateMachine.getState();
+      this.recordTrace('early-copy', {
+        segmentId: activeState.activeSegmentId || null,
+        sceneId: record.patch.earlyCopySceneId,
+        direction: activeState.intent?.direction || 'forward',
+        owner: 'Presentation'
+      });
       return;
     }
 
@@ -463,12 +600,22 @@ class SceneRuntime {
     }
 
     const sceneId = record.patch.currentSceneId;
+    const activeState = this.stateMachine.getState();
+    if (activeState.activeSegmentId) {
+      this.recordPresentTarget({
+        segmentId: activeState.activeSegmentId,
+        sceneId,
+        direction: activeState.intent?.direction || 'forward',
+        reason: record.patch.reason
+      });
+    }
     this.setCurrentScene(sceneId, {
-      scroll: ['play-complete', 'read-complete', 'recovery', 'reduced-motion', 'hash-entry'].includes(record.patch.reason)
+      scroll: ['play-complete', 'read-complete', 'recovery', 'reduced-motion', 'hash-entry', 'reverse-restore'].includes(record.patch.reason),
+      reason: record.patch.reason
     });
   }
 
-  setCurrentScene(sceneId, { scroll = false } = {}) {
+  setCurrentScene(sceneId, { scroll = false, reason = 'present' } = {}) {
     if (!this.sceneHosts.has(sceneId)) return;
     if (sceneId !== this.currentSceneId) this.resetReadIntent();
     this.currentSceneId = sceneId;
@@ -479,7 +626,7 @@ class SceneRuntime {
       host.toggleAttribute('data-scene-runtime-current', isCurrent);
       host.toggleAttribute('aria-current', isCurrent);
       if (isCurrent) host.dataset.sceneRuntimePresented = 'true';
-      if (!isCurrent) delete host.dataset.sceneRuntimeEarlyCopy;
+      delete host.dataset.sceneRuntimeEarlyCopy;
       applyUniqueSceneVisibility(host, id, isCurrent);
     });
     if (scroll) {
@@ -487,6 +634,9 @@ class SceneRuntime {
     }
     if (sceneId === 'aod-animation') {
       this.aodPlayer?.prepare?.().catch(() => {});
+    }
+    if (stableTraceReasons.has(reason)) {
+      this.recordTrace('scene:stable', { sceneId, reason });
     }
   }
 
@@ -565,6 +715,12 @@ class SceneRuntime {
       this.aodPlayer?.prepare?.().catch(() => {});
     }
 
+    this.recordPresentTarget({
+      segmentId: segment.id,
+      sceneId: segment.to,
+      direction: 'forward',
+      reason: 'covered'
+    });
     this.scrollSceneIntoView(segment.to);
   }
 
@@ -598,6 +754,10 @@ class SceneRuntime {
       return;
     }
 
+    if (deltaVh < 0 && this.restorePreviousStableScene({ source, originalEvent })) {
+      return;
+    }
+
     if (readingScenes.has(this.currentSceneId)) {
       if (deltaVh < 0) {
         this.resetReadIntent(this.currentSceneId);
@@ -624,10 +784,26 @@ class SceneRuntime {
   async playSegment(segmentId, intent) {
     const state = this.stateMachine.getState();
     if (state.phase !== RuntimePhase.IDLE) return;
+    const segment = segmentById.get(segmentId);
+    this.recordTrace('intent:armed', {
+      segmentId,
+      from: segment?.from || this.currentSceneId,
+      to: segment?.to || null,
+      direction: intent?.direction || 'forward',
+      owner: intent?.source === 'read-complete' ? 'ReadMonitor' : 'ScrollIntent',
+      distanceVh: intent?.distanceVh ?? null
+    });
     this.scrollIntent.release();
     this.layerOwnership.beginFrame();
     this.stateMachine.arm({ segmentId, intent });
     this.stateMachine.beginSnapLock();
+    this.recordTrace('snap:locked', {
+      segmentId,
+      from: segment?.from || this.currentSceneId,
+      to: segment?.to || null,
+      direction: intent?.direction || 'forward',
+      owner: 'StateMachine'
+    });
     await this.stateMachine.completeSnapLock();
   }
 
@@ -668,7 +844,48 @@ class SceneRuntime {
         host.dataset.readNextArmed = event.nextSegmentId;
         this.resetReadIntent(sceneId);
         if (sceneId === 'method-top') {
+          this.recordTrace('intent:armed', {
+            segmentId: 'method-read',
+            from: 'method-top',
+            to: 'method-bottom',
+            direction: 'forward',
+            owner: 'ReadMonitor',
+            distanceVh: 10
+          });
+          this.recordTrace('snap:locked', {
+            segmentId: 'method-read',
+            from: 'method-top',
+            to: 'method-bottom',
+            direction: 'forward',
+            owner: 'none'
+          });
+          this.recordTrace('player:started', {
+            segmentId: 'method-read',
+            direction: 'forward',
+            owner: 'none'
+          });
+          this.recordPresentTarget({
+            segmentId: 'method-read',
+            sceneId: 'method-bottom',
+            direction: 'forward',
+            reason: 'read-complete'
+          });
           this.stateMachine.presentScene('method-bottom', { reason: 'read-complete' });
+          const releaseTrace = {
+            segmentId: 'method-read',
+            direction: 'forward',
+            releaseReason: 'read-complete',
+            targetSceneId: 'method-bottom'
+          };
+          this.recordTrace('release:start', releaseTrace);
+          this.recordTrace('release:done', releaseTrace);
+          this.recordTrace('scene:stable', {
+            sceneId: 'method-bottom',
+            segmentId: 'method-read',
+            direction: 'forward',
+            reason: 'read-complete'
+          });
+          this.tracedPresentedSegments.delete('forward:method-read');
         }
         if (sceneId === 'method-bottom') {
           this.playSegment(event.nextSegmentId, {
