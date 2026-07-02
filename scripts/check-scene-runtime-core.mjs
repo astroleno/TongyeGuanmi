@@ -195,7 +195,7 @@ function presentOrder(runtime) {
 }
 
 async function assertForwardHappyPath() {
-  const { runtime } = createRuntime();
+  const { runtime, instances } = createRuntime();
   await runtime.initialize('hero');
   await runtime.advance();
   assert.equal(runtime.snapshot().presentation.current, 'pattern', 'hero transition presents pattern');
@@ -233,6 +233,14 @@ async function assertForwardHappyPath() {
   });
   assert.equal(readResult.type, 'next', 'bottom plus additional 10vh advances reading scene');
   assert.equal(runtime.snapshot().presentation.current, 'method-bottom', 'reading boundary presents method-bottom');
+  assert(
+    !instances.get('method-top').calls.some(([methodName]) => methodName === 'playForward'),
+    'method-top to method-bottom uses ReadMonitor instead of a scene player'
+  );
+  assert(
+    !instances.get('method-bottom').calls.some(([methodName]) => methodName === 'playForward'),
+    'method-bottom is presented as reading target without animation player'
+  );
 
   await runtime.advance();
   assert.equal(runtime.snapshot().presentation.current, 'method-bottom', 'method-bottom exit transition keeps stable scene');
@@ -253,6 +261,12 @@ async function assertForwardHappyPath() {
   assert(
     runtime.trace.filter((entry) => entry.state === 'TRANSITIONING' && entry.segmentId === 'bottom-to-top-ink').length >= 2,
     'bottom-to-top-ink transition covers star-map to aod and method-bottom exit'
+  );
+  assert(
+    runtime.trace
+      .filter((entry) => entry.type === 'async-callback')
+      .every((entry) => Number.isInteger(entry.attemptId) && Number.isInteger(entry.epoch)),
+    'all async callback trace entries are tagged with attempt and epoch'
   );
 }
 
