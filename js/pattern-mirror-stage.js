@@ -182,7 +182,8 @@ export function createPatternBloomScene({
   scale = 1,
   continuousMotion = true,
   scrollDrivenMotion = false,
-  dprLimit = DPR_LIMIT
+  dprLimit = DPR_LIMIT,
+  listenToScroll = Boolean(scrollStage && typeof progressSource !== 'function')
 } = {}) {
   const context = canvas?.getContext('2d', { alpha: false });
   const sourceCanvas = document.createElement('canvas');
@@ -491,8 +492,14 @@ export function createPatternBloomScene({
       state.rafId = 0;
     }
     window.removeEventListener('resize', requestRender);
-    window.removeEventListener('scroll', requestRender);
+    if (listenToScroll) {
+      window.removeEventListener('scroll', requestRender);
+    }
     mediaQuery.removeEventListener?.('change', requestRender);
+    state.background = null;
+    state.layers = [];
+    state.ringCache = [];
+    state.ringCacheKey = '';
   };
 
   const api = {
@@ -503,11 +510,15 @@ export function createPatternBloomScene({
   };
 
   window.addEventListener('resize', requestRender, { passive: true });
-  window.addEventListener('scroll', requestRender, { passive: true });
+  if (listenToScroll) {
+    window.addEventListener('scroll', requestRender, { passive: true });
+  }
   mediaQuery.addEventListener?.('change', requestRender);
 
   return api;
 }
+
+export { createPatternBloomScene as createPatternMirrorScene };
 
 const initStandalonePatternBloom = () => {
   const canvas = document.querySelector('[data-mirror-stage-canvas], [data-bloom-canvas]');
