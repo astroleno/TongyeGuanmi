@@ -43,7 +43,6 @@ const requiredFiles = [
   'js/scene-harness/hero-scene-player.js',
   'scripts/check-hero-scene-harness.mjs',
   'assets/back1.png',
-  'assets/back2.png',
   'assets/back1_depth.png',
   'assets/middle1.png',
   'assets/middle1_depth.png',
@@ -76,7 +75,6 @@ for (const exportName of [
   assertIncludes(player, `export ${exportName === 'createHeroScenePlayer' ? 'function' : 'const'} ${exportName}`, `player exports ${exportName}`);
 }
 
-assertIncludes(player, "../effects/ink-scene-transition.js", 'player reuses the canvas ink transition helper');
 assertIncludes(player, 'heroVideoSrc', 'player owns hero asset configuration');
 assertIncludes(player, "'playing-forward'", 'player emits the playing-forward phase');
 assertIncludes(player, "'complete'", 'player emits the complete phase');
@@ -91,6 +89,7 @@ assertNotMatches(player, /\bscrollTo\s*\(/, 'hero-scene-player must not move pag
 assertNotMatches(player, /\bcurrentSceneId\b/, 'hero-scene-player must not mutate scene runtime identity');
 assertNotMatches(player, /\blocation\s*\.\s*hash\b|\bhashchange\b|\bwindow\s*\.\s*location\b/, 'hero-scene-player must not touch homepage hash');
 assertNotMatches(player, /\bScrollTrigger\b/, 'hero-scene-player must not use ScrollTrigger');
+assertNotMatches(player, /createInkSceneTransition|ink-scene-transition|heroNextSceneSrc|nextSceneSrc|back2\.png/, 'hero-scene-player must not use next-scene ink transition material');
 assertNotMatches(player, /from\s+['"].*sections\/hero\.js['"]/, 'hero-scene-player must not import the scroll-driven hero module');
 assertNotMatches(player, /from\s+['"].*(homepage|runtime).*['"]/, 'hero-scene-player must not import homepage runtime wiring');
 assertNotMatches(player, /\breleaseRevealWithin\b|\bholdRevealWithin\b|\bsetRevealPresentedWithin\b|querySelectorAll\(['"]\.reveal/, 'hero-scene-player must not own global reveal state');
@@ -113,8 +112,7 @@ for (const name of [
 const scenePlayer = module.createHeroScenePlayer({
   requestFrame: () => 0,
   cancelFrame: () => {},
-  now: () => 0,
-  createInkSceneTransition: () => null
+  now: () => 0
 });
 for (const name of ['mount', 'showPoster', 'playForward', 'cancelToSource', 'reverseToPoster', 'destroy', 'getState']) {
   assert(typeof scenePlayer[name] === 'function', `created player exposes ${name}`);

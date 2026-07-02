@@ -1,5 +1,3 @@
-import { createInkSceneTransition } from '../effects/ink-scene-transition.js';
-
 const PHASES = new Set([
   'idle',
   'mounted',
@@ -16,15 +14,11 @@ const DEFAULT_CONFIG = {
   heroVideoSrc: 'assets/figure1.webm',
   heroPosterSrc: 'assets/figure-poster.jpg',
   heroBackSceneSrc: 'assets/back1.png',
-  heroNextSceneSrc: 'assets/back2.png',
-  heroBackDepthSrc: 'assets/back1_depth.png',
-  heroMiddleDepthSrc: 'assets/middle1_depth.png',
   heroMiddleSrc: 'assets/middle1.png',
   titleStartProgress: 0.78,
   subtitleStartProgress: 0.86,
   videoSegmentSeconds: 2,
   backBaseScale: 1.10,
-  backImageBoxScale: 1.12,
   middleBaseYVh: 1,
   middleBaseScale: 0.98,
   figureBaseYVh: 12,
@@ -227,7 +221,6 @@ export function createHeroScenePlayer(options = {}) {
   const raf = options.requestFrame || ((callback) => requestAnimationFrame(callback));
   const caf = options.cancelFrame || ((id) => cancelAnimationFrame(id));
   const clock = options.now || (() => performance.now());
-  const createIntroTransition = options.createInkSceneTransition || createInkSceneTransition;
   const traceLog = [];
 
   let host = null;
@@ -235,7 +228,6 @@ export function createHeroScenePlayer(options = {}) {
   let root = null;
   let ownedRoot = false;
   let readyPromise = null;
-  let introTransition = null;
   let playFrame = 0;
   let stableTimer = 0;
   let assetReadyCleanup = null;
@@ -538,14 +530,7 @@ export function createHeroScenePlayer(options = {}) {
       refs.subtitle.style.filter = `blur(${((1 - subtitleProgress) * 6).toFixed(2)}px)`;
     }
 
-    const inkVisibility = introProgress > 0.002 && introProgress < 0.998 ? introProgress : 0;
-    if (introTransition && inkVisibility > 0) {
-      const clarity = smoothStep(introProgress);
-      refs.introInkCanvas.style.filter = `blur(${(4.5 + (1 - clarity) * 6.2).toFixed(2)}px) saturate(${(0.86 + clarity * 0.10).toFixed(3)}) contrast(${(0.92 + clarity * 0.06).toFixed(3)}) brightness(${(0.12 + clarity * 0.40).toFixed(3)})`;
-      introTransition.render(introProgress, 0, 0, inkVisibility);
-    } else {
-      setCanvasHidden(refs.introInkCanvas);
-    }
+    setCanvasHidden(refs.introInkCanvas);
   }
 
   function renderStable() {
@@ -591,25 +576,6 @@ export function createHeroScenePlayer(options = {}) {
     applyAssetConfig();
     updateSegmentBounds();
     readyPromise = prepareAssets(instanceId);
-    introTransition = createIntroTransition(refs.introInkCanvas, {
-      assets: {
-        nextSceneSrc: config.heroNextSceneSrc,
-        backDepthSrc: config.heroBackDepthSrc,
-        middleDepthSrc: config.heroMiddleDepthSrc
-      },
-      targetSrc: config.heroBackSceneSrc,
-      farOnly: true,
-      hideAtEnd: true,
-      imageScale: config.backImageBoxScale * config.backBaseScale,
-      imageCenterX: 0.5,
-      imageCenterY: 0.5,
-      inkCenterX: 0.5,
-      inkCenterY: 0.5,
-      progressSpan: 1,
-      colorLift: 0.72,
-      sourceElement: refs.back
-    });
-    introTransition?.prewarm?.();
     renderHero(0);
     resetTransientCanvases();
 
@@ -792,7 +758,6 @@ export function createHeroScenePlayer(options = {}) {
     documentRef = null;
     ownedRoot = false;
     readyPromise = null;
-    introTransition = null;
     progress = 0;
     lastRenderProgress = 0;
     state = {
