@@ -79,7 +79,7 @@ export class ScrollIntent {
       return { type: 'touchend' };
     }
 
-    if (type === 'wheel' && (inertia || at <= this.touchInertiaUntil)) {
+    if (type === 'wheel' && (inertia || (this.touchInertiaUntil > 0 && at <= this.touchInertiaUntil))) {
       this.trace.push({ type: 'ignored-inertia', at, deltaY });
       return { type: 'ignored-inertia' };
     }

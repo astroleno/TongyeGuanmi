@@ -55,6 +55,10 @@ function failureReason(error, fallback = 'failed') {
   return error?.name?.includes('Timeout') ? 'timeout' : fallback;
 }
 
+function now(clock = globalThis.performance) {
+  return Math.round(clock?.now?.() ?? Date.now());
+}
+
 export class SceneRuntimeCore {
   constructor({
     registry,
@@ -65,7 +69,9 @@ export class SceneRuntimeCore {
     transitionPlayer = new TransitionSegmentPlayer(),
     ownership = new LayerOwnership(),
     hosts = new Map(),
-    timeouts = {}
+    timeouts = {},
+    failureCooldownMs = 420,
+    clock = globalThis.performance
   } = {}) {
     if (!registry) throw new Error('SceneRuntimeCore requires a registry');
     this.registry = registry;
@@ -81,6 +87,9 @@ export class SceneRuntimeCore {
       scene: 1000,
       ...timeouts
     };
+    this.failureCooldownMs = failureCooldownMs;
+    this.clock = clock;
+    this.failureCooldowns = new Map();
     this.adapters = new Map();
     this.state = RUNTIME_STATES.IDLE;
     this.activeAttempt = null;
@@ -104,6 +113,7 @@ export class SceneRuntimeCore {
       ownership: this.ownership.snapshot(),
       scrollIntent: this.scrollIntent.snapshot(),
       readMonitor: this.readMonitor.snapshot(),
+      failureCooldowns: Object.fromEntries([...this.failureCooldowns.entries()]),
       trace: this.trace.slice()
     };
   }
@@ -158,9 +168,60 @@ export class SceneRuntimeCore {
     return step;
   }
 
+  cooldownKey(from, step) {
+    return [
+      from,
+      step.kind,
+      step.to || '',
+      step.segmentId || ''
+    ].join('|');
+  }
+
+  getActiveCooldown(from = this.current(), step = this.routeStep(from)) {
+    const key = this.cooldownKey(from, step);
+    const cooldown = this.failureCooldowns.get(key);
+    if (!cooldown) return null;
+    const remainingMs = cooldown.until - now(this.clock);
+    if (remainingMs <= 0) {
+      this.failureCooldowns.delete(key);
+      return null;
+    }
+    return { key, ...cooldown, remainingMs };
+  }
+
+  registerFailureCooldown(attempt, reason = 'failure') {
+    if (!attempt || this.failureCooldownMs <= 0) return null;
+    const key = this.cooldownKey(attempt.from, attempt.step);
+    const cooldown = {
+      from: attempt.from,
+      to: attempt.step.to,
+      kind: attempt.step.kind,
+      segmentId: attempt.step.segmentId || null,
+      reason,
+      attemptId: attempt.attemptId,
+      until: now(this.clock) + this.failureCooldownMs
+    };
+    this.failureCooldowns.set(key, cooldown);
+    this.record('failure-cooldown', {
+      key,
+      ...cooldown
+    });
+    return cooldown;
+  }
+
+  assertCanArm(from = this.current(), step = this.routeStep(from)) {
+    const cooldown = this.getActiveCooldown(from, step);
+    if (!cooldown) return;
+    const error = new Error(`Retry suppressed for ${from} after ${cooldown.reason}`);
+    error.name = 'SceneRuntimeRetrySuppressedError';
+    error.cooldown = cooldown;
+    throw error;
+  }
+
   createAttempt({ direction = 1, source = 'intent' } = {}) {
     const from = this.current();
     const step = this.routeStep(from);
+    this.assertCanArm(from, step);
     this.epoch += 1;
     const attempt = {
       attemptId: ++this.attemptSequence,
@@ -209,10 +270,23 @@ export class SceneRuntimeCore {
       return result;
     }
     if (result.type === 'intent' && this.state === RUNTIME_STATES.IDLE) {
-      this.armNext({
-        direction: result.direction,
-        source: event.type || 'scroll'
-      });
+      try {
+        this.armNext({
+          direction: result.direction,
+          source: event.type || 'scroll'
+        });
+      } catch (error) {
+        if (error.name !== 'SceneRuntimeRetrySuppressedError') throw error;
+        this.scrollIntent.reset('retry-suppressed');
+        this.record('retry-suppressed', {
+          direction: result.direction,
+          cooldown: error.cooldown
+        });
+        return {
+          type: 'retry-suppressed',
+          cooldown: error.cooldown
+        };
+      }
     }
     return result;
   }
@@ -423,6 +497,7 @@ export class SceneRuntimeCore {
 
   async recoverAttempt(attempt, reason = 'recover') {
     if (!attempt) return this.snapshot();
+    this.registerFailureCooldown(attempt, reason);
     this.presentation.clearEarlyCopy(reason);
     const adapter = await this.ensureAdapter(attempt.from);
     await this.cleanupSourceAdapter(adapter, attempt, reason);

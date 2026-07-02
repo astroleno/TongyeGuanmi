@@ -172,10 +172,11 @@ function createFakeRegistry(overrides = {}) {
 
 function createRuntime(options = {}) {
   const { registry, instances } = createFakeRegistry(options.sceneOverrides || {});
+  const clock = options.clock || { now: () => 0 };
   const runtime = new SceneRuntimeCore({
     registry,
     presentation: new Presentation(),
-    scrollIntent: new ScrollIntent({ viewportHeight: 1000 }),
+    scrollIntent: new ScrollIntent({ viewportHeight: 1000, clock }),
     readMonitor: new ReadMonitor({ viewportHeight: 1000 }),
     transitionPlayer: new TransitionSegmentPlayer(options.transition || {}),
     ownership: new LayerOwnership(),
@@ -183,7 +184,9 @@ function createRuntime(options = {}) {
       transition: 80,
       scene: 80,
       ...(options.timeouts || {})
-    }
+    },
+    failureCooldownMs: options.failureCooldownMs ?? 420,
+    clock
   });
   return { runtime, instances };
 }
@@ -464,6 +467,53 @@ async function assertTransitionRejectAndTimeout() {
   assert.deepEqual(timeoutRuntime.snapshot().ownership.owners, {}, 'transition timeout releases owners');
 }
 
+async function assertFailureCooldownSuppressesImmediateRetry() {
+  let currentTime = 1000;
+  const clock = { now: () => currentTime };
+  const rejectCase = createRuntime({
+    clock,
+    failureCooldownMs: 300,
+    transition: {
+      behavior: {
+        'center-ink-expand': { reject: true, rejectMessage: 'transition failed for cooldown' }
+      }
+    }
+  });
+  const runtime = rejectCase.runtime;
+  await runtime.initialize('hero');
+  await assert.rejects(
+    runtime.advance(),
+    /transition failed for cooldown/,
+    'initial transition failure is surfaced'
+  );
+  assert.equal(runtime.snapshot().state, 'IDLE', 'failed runtime releases to idle');
+  assert.equal(runtime.snapshot().presentation.current, 'hero', 'failed runtime recovers to source');
+  assert(Object.keys(runtime.snapshot().failureCooldowns).length >= 1, 'failure cooldown is registered');
+
+  assert.throws(
+    () => runtime.armNext(),
+    /Retry suppressed for hero/,
+    'manual re-arm is suppressed during failure cooldown'
+  );
+  assert.equal(runtime.snapshot().activeAttempt, null, 'suppressed manual re-arm does not create attempt');
+
+  const retryResult = runtime.inputScroll({ type: 'wheel', deltaY: 100, at: currentTime + 10 });
+  assert.equal(retryResult.type, 'retry-suppressed', 'residual wheel retry is suppressed');
+  assert.equal(runtime.snapshot().activeAttempt, null, 'suppressed wheel does not create attempt');
+  assert.equal(runtime.snapshot().scrollIntent.accumulatedPx, 0, 'suppressed wheel clears residual intent');
+  assert(
+    runtime.snapshot().trace.some((entry) => entry.type === 'retry-suppressed'),
+    'retry suppression is traced'
+  );
+
+  currentTime += 301;
+  rejectCase.runtime.transitionPlayer.behavior['center-ink-expand'].reject = false;
+  const attempt = runtime.armNext();
+  assert.equal(attempt.from, 'hero', 'same route can re-arm after cooldown expires');
+  await runtime.runArmed(attempt);
+  assert.equal(runtime.snapshot().presentation.current, 'pattern', 'retry after cooldown can complete');
+}
+
 function assertLayerConflict() {
   const ownership = new LayerOwnership();
   ownership.claim('transition', 'owner-a');
@@ -507,6 +557,7 @@ await assertOldFinallyCannotClobberNewAttempt();
 await assertPlayerRejectTimeoutAndEarlyRollback();
 await assertReverseScenePlayCancelsProvider();
 await assertTransitionRejectAndTimeout();
+await assertFailureCooldownSuppressesImmediateRetry();
 assertLayerConflict();
 
 console.log('scene runtime core checks passed.');
