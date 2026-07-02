@@ -327,7 +327,10 @@ await provider.playSteadyLoop({});
 assert(provider.getState().status === 'steady-loop', 'playSteadyLoop() reports steady loop');
 assert(provider.getState().progress === PATTERN_POSTER_PROGRESS, 'playSteadyLoop() holds poster progress');
 
-provider.destroy();
+const providerDestroyState = provider.destroy();
+const providerDestroyAgainState = provider.destroy();
+assert(providerDestroyState.status === 'destroyed', 'destroy() returns destroyed provider snapshot');
+assert(providerDestroyAgainState.status === 'destroyed', 'destroy() is idempotent for provider');
 assert(provider.getState().status === 'destroyed', 'destroy() reports destroyed');
 assert(sceneDestroyCount === sceneStartCount, 'destroy() tears down the renderer');
 assert(fakeWindow.frameCount() === 0, 'destroy() clears animation frames');
@@ -392,7 +395,11 @@ await finishFrames(playerWindow, 1000);
 await playerReverse;
 assert(player.getState().status === 'poster', 'adapter reverseToPoster() reports poster');
 
-player.destroy();
+const playerDestroyState = player.destroy();
+const playerDestroyAgainState = player.destroy();
+assert(playerDestroyState.status === 'destroyed', 'adapter destroy() returns destroyed snapshot');
+assert(playerDestroyState.providerStatus === 'destroyed', 'adapter destroy() snapshot includes destroyed provider status');
+assert(playerDestroyAgainState.status === 'destroyed', 'adapter destroy() is idempotent');
 assert(player.getState().status === 'destroyed', 'adapter destroy() reports destroyed');
 assert(playerWindow.frameCount() === 0, 'adapter destroy() clears animation frames');
 assert(playerWindow.listenerCount() === 0, 'adapter destroy() removes owned listeners');

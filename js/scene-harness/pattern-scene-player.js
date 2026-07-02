@@ -499,6 +499,9 @@ export function createPatternSceneProvider({
     },
 
     destroy() {
+      if (state.destroyed && state.status === STATUS.DESTROYED) {
+        return snapshot();
+      }
       activeRun?.cancel?.('destroyed');
       activeRun = null;
       stopFrame();
@@ -520,6 +523,7 @@ export function createPatternSceneProvider({
       root = null;
       canvas = null;
       readyPromise = null;
+      return snapshot();
     },
 
     getState() {
@@ -611,9 +615,13 @@ export function createPatternScenePlayer(options = {}) {
     },
 
     destroy() {
+      if (state.status === PLAYER_STATUS.DESTROYED) {
+        return snapshot();
+      }
       activeToken = null;
       provider.destroy();
       emit(PLAYER_STATUS.DESTROYED);
+      return snapshot();
     },
 
     getState() {
