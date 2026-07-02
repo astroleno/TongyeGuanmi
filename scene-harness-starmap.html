@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Star-map Scene Harness｜同野观幂</title>
+  <meta name="description" content="Standalone star-map scene harness." />
+  <meta name="theme-color" content="#07110e" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="assets/back2.png" as="image" />
+  <style>
+    :root {
+      color-scheme: dark;
+      background: #07110e;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #07110e;
+    }
+
+    body {
+      color: rgba(247, 237, 215, .86);
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(247, 237, 215, .24);
+      border-radius: 7px;
+      padding: 8px 11px;
+      color: rgba(247, 237, 215, .88);
+      background: rgba(5, 8, 7, .48);
+      font: inherit;
+      font-size: 12px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    button:hover,
+    button:focus-visible {
+      border-color: rgba(232, 213, 154, .68);
+      color: #fff3d4;
+      outline: none;
+      background: rgba(30, 45, 39, .68);
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: .52;
+    }
+
+    .starmap-harness {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .starmap-harness__stage {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #07110e;
+    }
+
+    .starmap-scene {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      isolation: isolate;
+      background:
+        radial-gradient(circle at 16% 22%, rgba(56, 166, 154, .12), transparent 32vw),
+        radial-gradient(circle at 84% 74%, rgba(183, 91, 52, .10), transparent 34vw),
+        linear-gradient(180deg, rgba(7, 17, 14, .96), #07110e),
+        #07110e;
+    }
+
+    .starmap-scene__source,
+    .starmap-scene__star-canvas,
+    .starmap-scene__wash {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .starmap-scene__source {
+      z-index: 1;
+      opacity: 1;
+    }
+
+    .starmap-scene__star-canvas {
+      z-index: 0;
+      opacity: 0;
+      filter: saturate(.98) contrast(1.04) brightness(.74);
+      transform: scale(1.03);
+      transition: opacity .42s ease;
+    }
+
+    .starmap-scene__star-canvas.is-ready {
+      opacity: .88;
+    }
+
+    .starmap-scene__wash {
+      z-index: 1;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(5, 8, 7, .40) 0%, rgba(5, 8, 7, .12) 42%, rgba(5, 8, 7, .38) 100%),
+        linear-gradient(180deg, rgba(5, 8, 7, .12) 0%, rgba(5, 8, 7, .04) 46%, rgba(5, 8, 7, .54) 100%);
+    }
+
+    .starmap-scene__copy-wrap {
+      position: relative;
+      z-index: 3;
+      display: grid;
+      align-items: center;
+      width: min(1280px, 100%);
+      height: 100%;
+      margin-inline: auto;
+      padding: clamp(96px, 10vw, 156px) clamp(26px, 7vw, 132px);
+      opacity: 1;
+      filter: blur(0);
+      transform: translate3d(0, 0, 0);
+      transition: opacity .18s ease, filter .18s ease, transform .18s ease;
+    }
+
+    .starmap-scene__copy {
+      width: min(1040px, 72vw);
+      max-width: 16.8em;
+      margin: 0;
+      color: rgba(247, 237, 215, .72);
+      font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+      font-size: clamp(30px, 3.25vw, 52px);
+      font-weight: 600;
+      line-height: 1.42;
+      letter-spacing: .012em;
+      text-shadow: 0 2px 18px rgba(5, 8, 7, .24);
+    }
+
+    .starmap-harness__panel {
+      position: fixed;
+      z-index: 20;
+      left: 18px;
+      right: 18px;
+      bottom: 16px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+      pointer-events: none;
+    }
+
+    .starmap-harness__status,
+    .starmap-harness__controls {
+      pointer-events: auto;
+      border: 1px solid rgba(247, 237, 215, .16);
+      border-radius: 8px;
+      background: rgba(5, 8, 7, .56);
+      box-shadow: 0 16px 60px rgba(0, 0, 0, .24);
+      backdrop-filter: blur(14px);
+    }
+
+    .starmap-harness__status {
+      min-width: 0;
+      padding: 12px 14px;
+    }
+
+    .starmap-harness__status strong {
+      display: block;
+      margin-bottom: 7px;
+      color: rgba(232, 213, 154, .84);
+      font-size: 11px;
+      font-weight: 760;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .starmap-harness__status code {
+      display: block;
+      overflow: hidden;
+      color: rgba(247, 237, 215, .72);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.55;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .starmap-harness__controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 7px;
+      padding: 8px;
+    }
+
+    @media (max-width: 760px) {
+      .starmap-scene__copy {
+        width: min(100%, 15.8em);
+        font-size: clamp(26px, 7.6vw, 42px);
+      }
+
+      .starmap-harness__panel {
+        grid-template-columns: 1fr;
+      }
+
+      .starmap-harness__controls {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="starmap-harness" aria-label="Star-map scene harness">
+    <section class="starmap-harness__stage" data-starmap-harness-host aria-label="Star-map visual scene"></section>
+    <aside class="starmap-harness__panel" aria-label="Harness controls">
+      <div class="starmap-harness__status" aria-live="polite">
+        <strong>Scene state</strong>
+        <code data-harness-state>idle</code>
+        <code data-harness-trace>idle</code>
+      </div>
+      <div class="starmap-harness__controls">
+        <button type="button" data-harness-action="poster">Poster</button>
+        <button type="button" data-harness-action="reveal">Reveal</button>
+        <button type="button" data-harness-action="cancel">Cancel</button>
+        <button type="button" data-harness-action="remount">Destroy / remount</button>
+      </div>
+    </aside>
+  </main>
+  <script type="module">
+    import { createStarmapScenePlayer } from './js/scene-harness/starmap-scene-player.js';
+
+    const host = document.querySelector('[data-starmap-harness-host]');
+    const stateNode = document.querySelector('[data-harness-state]');
+    const traceNode = document.querySelector('[data-harness-trace]');
+    const buttons = [...document.querySelectorAll('[data-harness-action]')];
+    let player = createStarmapScenePlayer();
+    let busy = false;
+
+    const renderStatus = () => {
+      const snapshot = player.getState();
+      stateNode.textContent = `${snapshot.state} / ${(snapshot.progress * 100).toFixed(0)}%`;
+      traceNode.textContent = snapshot.trace.join(' -> ');
+    };
+
+    const setBusy = (value) => {
+      busy = value;
+      buttons.forEach((button) => { button.disabled = value; });
+    };
+
+    const run = async (task) => {
+      if (busy) return;
+      setBusy(true);
+      try {
+        await task();
+      } finally {
+        renderStatus();
+        setBusy(false);
+      }
+    };
+
+    const waitFrames = (count = 2) => new Promise((resolve) => {
+      const tick = (remaining) => {
+        if (remaining <= 0) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(() => tick(remaining - 1));
+      };
+      tick(count);
+    });
+
+    const holdAtProgress = async (mode, threshold) => {
+      const controller = new AbortController();
+      const reached = new Promise((resolve) => {
+        const play = player.playForward({
+          mode,
+          signal: controller.signal,
+          onProgress(progress) {
+            if (progress >= threshold && !controller.signal.aborted) {
+              controller.abort();
+              resolve();
+            }
+          }
+        });
+        void play.catch(() => {});
+      });
+      await reached;
+      await waitFrames(2);
+    };
+
+    const mountPoster = async () => {
+      await player.mount({ host, onTrace: renderStatus });
+      await player.showPoster({ direction: 'forward' });
+      renderStatus();
+    };
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.harnessAction;
+        if (action === 'poster') run(() => player.showPoster({ direction: 'forward' }));
+        if (action === 'reveal') run(() => player.playForward({ mode: 'reveal' }));
+        if (action === 'cancel') run(() => player.cancelToSource({}));
+        if (action === 'remount') {
+          run(async () => {
+            player.destroy();
+            player = createStarmapScenePlayer();
+            window.starmapScenePlayer = player;
+            await mountPoster();
+          });
+        }
+      });
+    });
+
+    window.__starmapHarnessCapture = async (stateName) => {
+      if (stateName === 'starmap-poster') {
+        await player.showPoster({ direction: 'forward' });
+      } else if (stateName === 'starmap-reveal-mid') {
+        await holdAtProgress('reveal', .46);
+      } else if (stateName === 'starmap-stable') {
+        await player.playForward({ mode: 'reveal' });
+      } else if (stateName === 'starmap-cancel-restored') {
+        await player.showPoster({ direction: 'forward' });
+        await holdAtProgress('reveal', .38);
+        await player.cancelToSource({});
+      }
+      await waitFrames(2);
+      renderStatus();
+      return player.getState();
+    };
+
+    window.__starmapHarnessRunAcceptance = async () => {
+      await player.showPoster({ direction: 'forward' });
+      await player.playForward({ mode: 'reveal' });
+      await player.cancelToSource({});
+      player.destroy();
+      player = createStarmapScenePlayer();
+      window.starmapScenePlayer = player;
+      await mountPoster();
+      return player.getState();
+    };
+
+    await mountPoster();
+    window.starmapScenePlayer = player;
+    window.__starmapHarnessReady = true;
+  </script>
+</body>
+</html>
