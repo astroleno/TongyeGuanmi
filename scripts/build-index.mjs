@@ -6,6 +6,10 @@ import { chapterTransitions, contentSections, handoffs, sectionEntryPolicies } f
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir = path.join(rootDir, 'src');
 const includePattern = /\{\{>\s*([^}]+?)\s*\}\}/g;
+const sceneRuntimeDomShellEnabled = process.argv.includes('--scene-runtime') || process.env.SCENE_RUNTIME === '1';
+const sceneRuntimeDomShellScript = sceneRuntimeDomShellEnabled
+  ? '<script type="module" src="js/scene-runtime/scene-runtime-dom-entry.js" data-scene-runtime-dom-shell-entry></script>'
+  : '';
 
 function resolveSourcePath(partialPath) {
   if (path.isAbsolute(partialPath) || partialPath.split(/[\\/]/).includes('..')) {
@@ -156,6 +160,10 @@ async function renderFile(relativePath, stack = []) {
   return source;
 }
 
-const html = injectContractAttributes(await renderFile('index.template.html'));
+let html = injectContractAttributes(await renderFile('index.template.html'));
+html = html.replace(
+  /^\s*\{\{SCENE_RUNTIME_DOM_SHELL_SCRIPT\}\}\n?/m,
+  sceneRuntimeDomShellScript ? `  ${sceneRuntimeDomShellScript}\n` : ''
+);
 await writeFile(path.join(rootDir, 'index.html'), `${html.trimEnd()}\n`);
 console.log('Built index.html from src/index.template.html');
