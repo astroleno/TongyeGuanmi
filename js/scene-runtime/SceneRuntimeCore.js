@@ -248,20 +248,33 @@ export class SceneRuntimeCore {
       }
       throw new Error(`Unsupported route step kind: ${attempt.step.kind}`);
     } catch (error) {
-      await this.recoverAttempt(attempt, failureReason(error, 'attempt-failed'));
+      if (this.isAttemptCurrent(attempt)) {
+        await this.recoverAttempt(attempt, failureReason(error, 'attempt-failed'));
+      } else {
+        this.record('stale-catch', {
+          attemptId: attempt.attemptId,
+          epoch: attempt.epoch,
+          error: error.message
+        });
+      }
       throw error;
     } finally {
       this.ownership.releaseOwner(owner, 'attempt-finally');
-      this.scrollIntent.clearArmedAttempt();
-      if (this.activeAttempt?.attemptId === attempt.attemptId) {
+      if (this.isAttemptCurrent(attempt)) {
+        this.scrollIntent.clearArmedAttempt();
         this.activeAttempt = null;
+        this.setState(RUNTIME_STATES.RELEASING, {
+          attemptId: attempt.attemptId
+        });
+        this.setState(RUNTIME_STATES.IDLE, {
+          attemptId: attempt.attemptId
+        });
+      } else {
+        this.record('stale-finally', {
+          attemptId: attempt.attemptId,
+          epoch: attempt.epoch
+        });
       }
-      this.setState(RUNTIME_STATES.RELEASING, {
-        attemptId: attempt.attemptId
-      });
-      this.setState(RUNTIME_STATES.IDLE, {
-        attemptId: attempt.attemptId
-      });
     }
   }
 
@@ -411,7 +424,8 @@ export class SceneRuntimeCore {
   async recoverAttempt(attempt, reason = 'recover') {
     if (!attempt) return this.snapshot();
     this.presentation.clearEarlyCopy(reason);
-    await this.ensureAdapter(attempt.from);
+    const adapter = await this.ensureAdapter(attempt.from);
+    await this.cleanupSourceAdapter(adapter, attempt, reason);
     this.presentation.present(attempt.from, reason);
     this.record('recover', {
       attemptId: attempt.attemptId,
@@ -421,18 +435,46 @@ export class SceneRuntimeCore {
     return this.snapshot();
   }
 
-  reverse(reason = 'reverse') {
+  async cleanupSourceAdapter(adapter, attempt, reason = 'cleanup-source') {
+    if (!adapter) return null;
+    let result = null;
+    try {
+      if (attempt?.step?.kind === 'scene-play') {
+        result = await adapter.cancelToSource({ timeoutMs: this.timeouts.scene });
+      } else {
+        result = await adapter.showPoster({ direction: 'reverse', timeoutMs: this.timeouts.scene });
+      }
+      this.record('source-cleanup', {
+        attemptId: attempt?.attemptId,
+        sceneId: attempt?.from,
+        reason,
+        result
+      });
+    } catch (error) {
+      this.record('source-cleanup-failed', {
+        attemptId: attempt?.attemptId,
+        sceneId: attempt?.from,
+        reason,
+        error: error.message
+      });
+    }
+    return result;
+  }
+
+  async reverse(reason = 'reverse') {
     if (this.state === RUNTIME_STATES.ARMED) {
       return this.cancelArmed(reason);
     }
     if (!this.activeAttempt) return this.snapshot();
     const attempt = this.activeAttempt;
-    attempt.controller.abort(new Error(reason));
-    this.presentation.clearEarlyCopy(reason);
-    this.presentation.present(attempt.from, reason);
-    this.ownership.releaseOwner(`attempt:${attempt.attemptId}`, reason);
     this.activeAttempt = null;
     this.epoch += 1;
+    attempt.controller.abort(new Error(reason));
+    this.presentation.clearEarlyCopy(reason);
+    const adapter = await this.ensureAdapter(attempt.from);
+    await this.cleanupSourceAdapter(adapter, attempt, reason);
+    this.presentation.present(attempt.from, reason);
+    this.ownership.releaseOwner(`attempt:${attempt.attemptId}`, reason);
     this.setState(RUNTIME_STATES.IDLE, {
       attemptId: attempt.attemptId,
       reason

@@ -303,10 +303,11 @@ async function assertStaleCallbacksCannotCommit() {
   });
   await runtime.initialize('hero');
   const running = runtime.advance();
+  const runningError = running.then(() => null, (error) => error);
   await wait(5);
   const staleAttempt = runtime.snapshot().activeAttempt;
-  runtime.reverse('reverse-during-transition');
-  await assert.rejects(running, /reverse-during-transition/, 'reverse aborts active transition');
+  await runtime.reverse('reverse-during-transition');
+  assert.match((await runningError).message, /reverse-during-transition/, 'reverse aborts active transition');
   await wait(80);
   assert.equal(runtime.snapshot().presentation.current, 'hero', 'stale transition cannot present pattern');
 
@@ -319,15 +320,48 @@ async function assertStaleCallbacksCannotCommit() {
   assert.deepEqual(runtime.snapshot().presentation.earlyCopies, [], 'stale milestone cannot reveal early copy');
 }
 
+async function assertOldFinallyCannotClobberNewAttempt() {
+  const { runtime } = createRuntime({
+    transition: { defaultDurationMs: 70 }
+  });
+  await runtime.initialize('hero');
+
+  const oldRun = runtime.advance();
+  const oldRunError = oldRun.then(() => null, (error) => error);
+  await wait(5);
+  const oldAttempt = runtime.snapshot().activeAttempt;
+  await runtime.reverse('reverse-before-rearm');
+
+  const newRun = runtime.advance();
+  await wait(5);
+  const duringNewAttempt = runtime.snapshot();
+  assert.equal(duringNewAttempt.state, 'TRANSITIONING', 'new attempt remains transitioning while old attempt unwinds');
+  assert.equal(duringNewAttempt.activeAttempt?.from, 'hero', 'new attempt is still the active timeline owner');
+
+  assert.match((await oldRunError).message, /reverse-before-rearm/, 'old run rejects after reverse');
+  const afterOldFinally = runtime.snapshot();
+  assert.equal(afterOldFinally.activeAttempt?.attemptId, duringNewAttempt.activeAttempt.attemptId, 'old finally does not clear new active attempt');
+  assert.equal(afterOldFinally.state, 'TRANSITIONING', 'old finally does not overwrite new attempt state');
+  assert(
+    afterOldFinally.trace.some((entry) => entry.type === 'stale-finally' && entry.attemptId === oldAttempt.attemptId),
+    'old attempt finalizer is recorded as stale'
+  );
+
+  await newRun;
+  assert.equal(runtime.snapshot().presentation.current, 'pattern', 'new attempt can still complete normally');
+  assert.equal(runtime.snapshot().state, 'IDLE', 'runtime returns idle only after new attempt releases');
+}
+
 async function assertPlayerRejectTimeoutAndEarlyRollback() {
-  const rejectRuntime = createRuntime({
+  const rejectCase = createRuntime({
     sceneOverrides: {
       'aod-animation': {
         rejectAfterMilestone: true,
         playDelayMs: 30
       }
     }
-  }).runtime;
+  });
+  const rejectRuntime = rejectCase.runtime;
   await rejectRuntime.initialize('aod-animation');
   await assert.rejects(
     rejectRuntime.advance(),
@@ -339,8 +373,13 @@ async function assertPlayerRejectTimeoutAndEarlyRollback() {
   assert.deepEqual(rejectRuntime.snapshot().presentation.reveals, [], 'player reject clears active reveals');
   assert.deepEqual(rejectRuntime.snapshot().ownership.owners, {}, 'player reject releases owners');
   assert.equal(rejectRuntime.snapshot().state, 'IDLE', 'player reject releases runtime');
+  assert.equal(rejectCase.instances.get('aod-animation').getState().status, 'poster', 'player reject recovers source provider to poster');
+  assert(
+    rejectCase.instances.get('aod-animation').calls.some(([methodName]) => methodName === 'cancelToSource'),
+    'player reject invokes provider cancelToSource cleanup'
+  );
 
-  const timeoutRuntime = createRuntime({
+  const timeoutCase = createRuntime({
     sceneOverrides: {
       'aod-animation': {
         milestone: 'early-copy-ready',
@@ -348,7 +387,8 @@ async function assertPlayerRejectTimeoutAndEarlyRollback() {
       }
     },
     timeouts: { scene: 20 }
-  }).runtime;
+  });
+  const timeoutRuntime = timeoutCase.runtime;
   await timeoutRuntime.initialize('aod-animation');
   await assert.rejects(
     timeoutRuntime.advance(),
@@ -358,6 +398,39 @@ async function assertPlayerRejectTimeoutAndEarlyRollback() {
   assert.equal(timeoutRuntime.snapshot().presentation.current, 'aod-animation', 'player timeout recovers to source');
   assert.deepEqual(timeoutRuntime.snapshot().presentation.earlyCopies, [], 'player timeout clears early copy');
   assert.deepEqual(timeoutRuntime.snapshot().ownership.owners, {}, 'player timeout releases owners');
+  assert.equal(timeoutCase.instances.get('aod-animation').getState().status, 'poster', 'player timeout recovers source provider to poster');
+  assert(
+    timeoutCase.instances.get('aod-animation').calls.some(([methodName]) => methodName === 'cancelToSource'),
+    'player timeout invokes provider cancelToSource cleanup'
+  );
+}
+
+async function assertReverseScenePlayCancelsProvider() {
+  const { runtime, instances } = createRuntime({
+    sceneOverrides: {
+      'aod-animation': {
+        playDelayMs: 80
+      }
+    }
+  });
+  await runtime.initialize('aod-animation');
+  const running = runtime.advance();
+  const runningResult = running.then((result) => result, (error) => error);
+  await wait(10);
+  await runtime.reverse('reverse-scene-play');
+  const result = await runningResult;
+  assert(
+    result instanceof Error || result.cancelled || result.stale,
+    'reverse resolves or rejects old scene-play attempt without committing target'
+  );
+  assert.equal(runtime.snapshot().presentation.current, 'aod-animation', 'reverse scene-play recovers to source');
+  assert.equal(instances.get('aod-animation').getState().status, 'poster', 'reverse scene-play leaves provider at poster');
+  assert(
+    instances.get('aod-animation').calls.some(([methodName]) => methodName === 'cancelToSource'),
+    'reverse scene-play actively calls cancelToSource'
+  );
+  assert.deepEqual(runtime.snapshot().presentation.earlyCopies, [], 'reverse scene-play clears early copy');
+  assert.deepEqual(runtime.snapshot().ownership.owners, {}, 'reverse scene-play releases owners');
 }
 
 async function assertTransitionRejectAndTimeout() {
@@ -430,7 +503,9 @@ assertNoRuntimeSideEffects();
 await assertForwardHappyPath();
 await assertReverseCancelAndScrollIntent();
 await assertStaleCallbacksCannotCommit();
+await assertOldFinallyCannotClobberNewAttempt();
 await assertPlayerRejectTimeoutAndEarlyRollback();
+await assertReverseScenePlayCancelsProvider();
 await assertTransitionRejectAndTimeout();
 assertLayerConflict();
 
