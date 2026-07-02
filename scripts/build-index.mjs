@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chapterTransitions, contentSections, handoffs, sectionEntryPolicies } from '../src/section-manifest.mjs';
-import { DOM_SHELL_SCENE_IDS } from '../js/scene-runtime/FakeDomSceneProvider.js';
+import { DOM_SHELL_SCENE_IDS } from '../js/scene-runtime/SceneRuntimeSceneIds.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir = path.join(rootDir, 'src');

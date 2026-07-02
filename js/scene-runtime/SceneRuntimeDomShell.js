@@ -3,11 +3,7 @@ import { Presentation } from './Presentation.js';
 import { ReadMonitor } from './ReadMonitor.js';
 import { SceneRuntimeCore, RUNTIME_STATES } from './SceneRuntimeCore.js';
 import { ScrollIntent } from './ScrollIntent.js';
-import {
-  DOM_SHELL_SCENE_IDS,
-  createFakeDomSceneRegistry
-} from './FakeDomSceneProvider.js';
-import { createFakeDomTransitionPlayer } from './FakeDomTransitionPlayer.js';
+import { DOM_SHELL_SCENE_IDS } from './SceneRuntimeSceneIds.js';
 
 const LAYERS = Object.freeze([
   'source',
@@ -16,6 +12,8 @@ const LAYERS = Object.freeze([
   'early-copy',
   'debug'
 ]);
+
+const SUPPORT_STYLE_SELECTOR = '[data-scene-runtime-dom-shell-style]';
 
 const NAVIGATION_TARGETS = Object.freeze({
   '#home': 'hero',
@@ -55,29 +53,32 @@ export class SceneRuntimeDomShell {
     registry = null,
     transitionPlayer = null,
     runtime = null,
-    providerOverrides = {},
-    transition = {},
     timeouts = {},
     failureCooldownMs = 420,
     allowDynamicShell = false,
+    playStableScenes = [],
     clock = globalThis.performance
   } = {}) {
     this.document = documentRef;
     this.root = root;
     this.sceneIds = sceneIds.slice();
-    this.registryBundle = registry ? { registry, instances: new Map() } : createFakeDomSceneRegistry(providerOverrides);
-    this.registry = this.registryBundle.registry;
-    this.providerInstances = this.registryBundle.instances;
-    this.transitionPlayer = transitionPlayer || createFakeDomTransitionPlayer(transition);
+    if (!registry) throw new Error('SceneRuntimeDomShell requires a scene registry');
+    if (!transitionPlayer) throw new Error('SceneRuntimeDomShell requires a transition player');
+    this.registry = registry;
+    this.providerInstances = new Map();
+    this.transitionPlayer = transitionPlayer;
     this.runtime = runtime;
     this.timeouts = timeouts;
     this.failureCooldownMs = failureCooldownMs;
     this.allowDynamicShell = allowDynamicShell;
+    this.playStableScenes = new Set(playStableScenes);
     this.clock = clock;
     this.hosts = new Map();
     this.layers = new Map();
     this.mounted = false;
     this.hooksInstalled = false;
+    this.stablePlayback = new Map();
+    this.stablePlaybackCompleted = new Set();
     this.touchStartY = null;
     this.lastTouchY = null;
     this.unlisten = [];
@@ -164,6 +165,7 @@ export class SceneRuntimeDomShell {
   mount() {
     if (this.mounted) return this;
     this.ensureRoot();
+    this.ensureShellStyles();
     LAYERS.forEach((layerId) => this.ensureLayer(layerId));
     this.sceneIds.forEach((sceneId) => this.ensureSceneHost(sceneId));
     this.transitionPlayer.setLayer?.(this.layers.get('transition'));
@@ -173,6 +175,80 @@ export class SceneRuntimeDomShell {
     this.applyProjection('mount');
     this.mounted = true;
     return this;
+  }
+
+  ensureShellStyles() {
+    if (!this.document?.head || this.document.querySelector?.(SUPPORT_STYLE_SELECTOR)) return;
+    const style = createElement(this.document, 'style');
+    style.setAttribute('data-scene-runtime-dom-shell-style', '');
+    style.textContent = `
+      [data-scene-runtime-shell] {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        overflow: hidden;
+        isolation: isolate;
+        background: #07110e;
+        color: #f7edd7;
+      }
+
+      [data-runtime-layer] {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      [data-runtime-layer="source"] {
+        z-index: 1;
+      }
+
+      [data-runtime-layer="target"] {
+        z-index: 2;
+      }
+
+      [data-runtime-layer="transition"] {
+        z-index: 3;
+        overflow: hidden;
+      }
+
+      [data-runtime-layer="early-copy"] {
+        z-index: 4;
+      }
+
+      [data-runtime-layer="debug"] {
+        z-index: 5;
+        display: none;
+      }
+
+      [data-scene-id] {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        overflow: hidden;
+      }
+
+      [data-scene-visible="false"] {
+        display: none !important;
+      }
+
+      [data-scene-role="early-copy"] {
+        z-index: 2;
+      }
+
+      .scene-runtime-static-copy {
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 12vh min(8vw, 96px);
+        font: 400 clamp(28px, 5vw, 78px)/1.08 "Tongye Title", "PingFang SC", sans-serif;
+        text-align: center;
+        background: #eee5ce;
+        color: #17251f;
+      }
+    `;
+    this.document.head.appendChild(style);
   }
 
   installProjectionHooks() {
@@ -457,7 +533,50 @@ export class SceneRuntimeDomShell {
     this.root.dataset.runtimeState = snapshot.state;
     this.root.dataset.lastProjection = reason;
     this.writeDebug(`${snapshot.state}:${projection.current || 'none'}`);
+    this.cancelStaleStablePlayback(projection.current, reason);
+    this.queueStableScenePlayback(projection.current, reason);
     return snapshot;
+  }
+
+  cancelStaleStablePlayback(currentStableId, reason = 'stable-scene-changed') {
+    for (const sceneId of [...this.stablePlayback.keys()]) {
+      if (sceneId === currentStableId) continue;
+      const adapter = this.runtime?.adapters?.get?.(sceneId);
+      this.stablePlayback.delete(sceneId);
+      adapter?.cancelToSource?.({ timeoutMs: this.timeouts.scene }).catch(() => null);
+      this.runtime?.record?.('stable-scene-player-cancelled', { sceneId, reason });
+    }
+  }
+
+  queueStableScenePlayback(sceneId, reason = 'stable') {
+    if (!sceneId || !this.playStableScenes.has(sceneId)) return;
+    if (this.stablePlaybackCompleted.has(sceneId)) return;
+    if (this.stablePlayback.has(sceneId)) return;
+    const adapter = this.runtime?.adapters?.get?.(sceneId);
+    if (!adapter) return;
+    const epoch = this.runtime.snapshot().epoch;
+    const playback = adapter.playForward({
+      timeoutMs: this.timeouts.scene,
+      onTrace: (entry) => {
+        if (this.runtime?.current?.() !== sceneId || this.runtime.snapshot().epoch !== epoch) return;
+        this.runtime.record('stable-scene-player-trace', { sceneId, entry, reason });
+      },
+      onProgress: (progress) => {
+        if (this.runtime?.current?.() !== sceneId || this.runtime.snapshot().epoch !== epoch) return;
+        this.runtime.record('stable-scene-player-progress', { sceneId, progress });
+      }
+    }).catch(async (error) => {
+      this.runtime?.record?.('stable-scene-player-failed', {
+        sceneId,
+        reason,
+        error: error.message
+      });
+      await adapter.cancelToSource?.({ timeoutMs: this.timeouts.scene }).catch(() => null);
+    }).finally(() => {
+      this.stablePlaybackCompleted.add(sceneId);
+      if (this.stablePlayback.get(sceneId) === playback) this.stablePlayback.delete(sceneId);
+    });
+    this.stablePlayback.set(sceneId, playback);
   }
 
   projectTargetLayer(snapshot) {

@@ -6,7 +6,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { SceneRuntimeDomShell } from '../js/scene-runtime/SceneRuntimeDomShell.js';
-import { DOM_SHELL_SCENE_IDS } from '../js/scene-runtime/FakeDomSceneProvider.js';
+import { createFakeDomSceneRegistry } from '../js/scene-runtime/FakeDomSceneProvider.js';
+import { createFakeDomTransitionPlayer } from '../js/scene-runtime/FakeDomTransitionPlayer.js';
+import { DOM_SHELL_SCENE_IDS } from '../js/scene-runtime/SceneRuntimeSceneIds.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath) => readFileSync(path.join(rootDir, relativePath), 'utf8');
@@ -212,19 +214,20 @@ function createShell(options = {}) {
   const documentRef = new FakeDocument();
   installPrebuiltDomShell(documentRef);
   const clock = options.clock || { now: () => 0 };
+  const { registry } = createFakeDomSceneRegistry({
+    'aod-animation': {
+      playDelayMs: 60
+    },
+    ...(options.providerOverrides || {})
+  });
   const shell = new SceneRuntimeDomShell({
     documentRef,
-    providerOverrides: {
-      'aod-animation': {
-        playDelayMs: 60
-      },
-      ...(options.providerOverrides || {})
-    },
-    transition: {
+    registry,
+    transitionPlayer: createFakeDomTransitionPlayer({
       defaultDurationMs: 28,
       defaultTimeoutMs: 100,
       ...(options.transition || {})
-    },
+    }),
     timeouts: {
       transition: 100,
       scene: 180,

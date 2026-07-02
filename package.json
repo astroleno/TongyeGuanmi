@@ -21,7 +21,8 @@
     "verify:scene-provider-runtime": "node scripts/check-scene-provider-runtime.mjs",
     "verify:scene-runtime-core": "node scripts/check-scene-runtime-core.mjs",
     "verify:scene-runtime-dom-shell": "node scripts/check-scene-runtime-dom-shell.mjs",
+    "verify:scene-runtime-mvp-visual": "node scripts/check-scene-runtime-mvp-visual.mjs",
     "verify:scene-providers": "npm run verify:scene-harness:hero && npm run verify:scene-harness:pattern && npm run verify:scene-harness:starmap && npm run verify:scene-harness:aod && npm run verify:scene-provider-runtime",
-    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership && npm run verify:scene-providers && npm run verify:scene-runtime-core && npm run verify:scene-runtime-dom-shell"
+    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership && npm run verify:scene-providers && npm run verify:scene-runtime-core && npm run verify:scene-runtime-dom-shell && npm run verify:scene-runtime-mvp-visual"
   }
 }
