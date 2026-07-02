@@ -17,6 +17,18 @@ const LAYERS = Object.freeze([
   'debug'
 ]);
 
+const NAVIGATION_TARGETS = Object.freeze({
+  '#home': 'hero',
+  '#top': 'hero',
+  '#brand': 'brand',
+  '#method': 'method-top',
+  '#services': 'services',
+  '#lab': 'lab',
+  '#education': 'education',
+  '#philosophy': 'education',
+  '#contact': 'contact'
+});
+
 function dataSelector(name, value = null) {
   return value === null
     ? `[data-${name}]`
@@ -47,6 +59,7 @@ export class SceneRuntimeDomShell {
     transition = {},
     timeouts = {},
     failureCooldownMs = 420,
+    allowDynamicShell = false,
     clock = globalThis.performance
   } = {}) {
     this.document = documentRef;
@@ -59,11 +72,14 @@ export class SceneRuntimeDomShell {
     this.runtime = runtime;
     this.timeouts = timeouts;
     this.failureCooldownMs = failureCooldownMs;
+    this.allowDynamicShell = allowDynamicShell;
     this.clock = clock;
     this.hosts = new Map();
     this.layers = new Map();
     this.mounted = false;
     this.hooksInstalled = false;
+    this.touchStartY = null;
+    this.lastTouchY = null;
     this.unlisten = [];
   }
 
@@ -80,6 +96,9 @@ export class SceneRuntimeDomShell {
     if (this.root) return this.root;
     this.root = this.queryRoot();
     if (!this.root) {
+      if (!this.allowDynamicShell) {
+        throw new Error('SceneRuntimeDomShell requires prebuilt [data-scene-runtime-shell]');
+      }
       this.root = createElement(this.document, 'div');
       this.root.setAttribute('data-scene-runtime-shell', '');
       this.root.setAttribute('aria-hidden', 'true');
@@ -93,6 +112,9 @@ export class SceneRuntimeDomShell {
     const root = this.ensureRoot();
     let layer = root.querySelector?.(dataSelector('runtime-layer', layerId));
     if (!layer) {
+      if (!this.allowDynamicShell) {
+        throw new Error(`SceneRuntimeDomShell requires prebuilt layer: ${layerId}`);
+      }
       layer = createElement(this.document, 'div');
       layer.setAttribute('data-runtime-layer', layerId);
       root.appendChild(layer);
@@ -106,6 +128,9 @@ export class SceneRuntimeDomShell {
     const sourceLayer = this.ensureLayer('source');
     let host = sourceLayer.querySelector?.(dataSelector('scene-id', sceneId));
     if (!host) {
+      if (!this.allowDynamicShell) {
+        throw new Error(`SceneRuntimeDomShell requires prebuilt scene host: ${sceneId}`);
+      }
       host = createElement(this.document, 'section');
       host.setAttribute('data-scene-id', sceneId);
       host.setAttribute('data-scene-visible', 'false');
@@ -171,18 +196,46 @@ export class SceneRuntimeDomShell {
   }
 
   bindInputBridge() {
-    if (!this.root?.addEventListener) return;
+    const eventTarget = this.document?.addEventListener ? this.document : this.root;
+    if (!eventTarget?.addEventListener) return;
     const onWheel = (event) => {
-      this.handleWheel({
-        type: 'wheel',
-        deltaY: event.deltaY,
-        at: this.clock?.now?.()
-      }).catch((error) => {
+      this.handleWheelEvent(event).catch((error) => {
         this.writeDebug(`wheel:${error.message}`);
       });
     };
-    this.root.addEventListener('wheel', onWheel, { passive: true });
-    this.unlisten.push(() => this.root.removeEventListener('wheel', onWheel));
+    const onTouchStart = (event) => this.handleTouchStart(event);
+    const onTouchMove = (event) => {
+      this.handleTouchMove(event).catch((error) => {
+        this.writeDebug(`touch:${error.message}`);
+      });
+    };
+    const onTouchEnd = (event) => this.handleTouchEnd(event);
+    const onFragmentChange = () => {
+      const fragment = this.fragmentFromHref(globalThis.location?.href || '');
+      this.requestNavigationIntent(fragment || '#top');
+    };
+    const onClick = (event) => {
+      const anchor = this.findFragmentAnchor(event.target);
+      if (!anchor) return;
+      event.preventDefault?.();
+      this.requestNavigationIntent(anchor.getAttribute('href'));
+    };
+
+    eventTarget.addEventListener('wheel', onWheel, { passive: true });
+    eventTarget.addEventListener('touchstart', onTouchStart, { passive: true });
+    eventTarget.addEventListener('touchmove', onTouchMove, { passive: true });
+    eventTarget.addEventListener('touchend', onTouchEnd, { passive: true });
+    eventTarget.addEventListener('click', onClick);
+    globalThis.addEventListener?.('hashchange', onFragmentChange);
+
+    this.unlisten.push(() => {
+      eventTarget.removeEventListener('wheel', onWheel);
+      eventTarget.removeEventListener('touchstart', onTouchStart);
+      eventTarget.removeEventListener('touchmove', onTouchMove);
+      eventTarget.removeEventListener('touchend', onTouchEnd);
+      eventTarget.removeEventListener('click', onClick);
+      globalThis.removeEventListener?.('hashchange', onFragmentChange);
+    });
   }
 
   async start(initialScene = 'hero') {
@@ -230,6 +283,57 @@ export class SceneRuntimeDomShell {
     return result;
   }
 
+  async handleWheelEvent(event = {}) {
+    const deltaY = Number(event.deltaY || 0);
+    if (this.isReadingStep()) {
+      return this.handleReadInput({
+        ...this.readPositionForCurrentHost(),
+        deltaY
+      });
+    }
+    return this.handleWheel({
+      type: 'wheel',
+      deltaY,
+      at: this.clock?.now?.()
+    });
+  }
+
+  handleTouchStart(event = {}) {
+    const touch = event.touches?.[0] || event.changedTouches?.[0] || null;
+    this.touchStartY = touch?.clientY ?? null;
+    this.lastTouchY = this.touchStartY;
+    return { type: 'touchstart' };
+  }
+
+  async handleTouchMove(event = {}) {
+    const touch = event.touches?.[0] || event.changedTouches?.[0] || null;
+    if (!touch || this.lastTouchY === null) return { type: 'touchmove-ignored' };
+    const deltaY = this.lastTouchY - touch.clientY;
+    this.lastTouchY = touch.clientY;
+    if (this.isReadingStep()) {
+      return this.handleReadInput({
+        ...this.readPositionForCurrentHost(),
+        deltaY
+      });
+    }
+    return this.handleWheel({
+      type: 'touchmove',
+      deltaY,
+      at: this.clock?.now?.()
+    });
+  }
+
+  handleTouchEnd(event = {}) {
+    this.touchStartY = null;
+    this.lastTouchY = null;
+    return this.runtime.inputScroll({
+      type: 'touchend',
+      deltaY: 0,
+      at: this.clock?.now?.(),
+      inertia: Boolean(event.inertia)
+    });
+  }
+
   async handleReadInput(input = {}) {
     this.mount();
     const result = await this.runtime.handleReadInput(input);
@@ -237,19 +341,89 @@ export class SceneRuntimeDomShell {
     return result;
   }
 
+  fragmentFromHref(href) {
+    const index = String(href || '').indexOf('#');
+    return index >= 0 ? String(href).slice(index) : '';
+  }
+
+  normalizeFragment(token = '#top') {
+    const text = String(token || '#top').trim();
+    if (!text) return '#top';
+    return text.startsWith('#') ? text : `#${text}`;
+  }
+
+  resolveNavigationTarget(token = '#top') {
+    return NAVIGATION_TARGETS[this.normalizeFragment(token)] || null;
+  }
+
+  findFragmentAnchor(startNode) {
+    let node = startNode;
+    while (node) {
+      const href = node.getAttribute?.('href');
+      if (typeof href === 'string' && href.startsWith('#')) return node;
+      node = node.parentNode;
+    }
+    return null;
+  }
+
+  isReadingStep() {
+    try {
+      return this.runtime?.routeStep?.().kind === 'read';
+    } catch {
+      return false;
+    }
+  }
+
+  readPositionForCurrentHost() {
+    const host = this.hosts.get(this.runtime?.current?.());
+    const clientHeight = host?.clientHeight || 1000;
+    return {
+      scrollTop: host?.scrollTop || 0,
+      scrollHeight: host?.scrollHeight || clientHeight,
+      clientHeight
+    };
+  }
+
   requestNavigationIntent(token = 'nav') {
     this.mount();
+    const fragment = this.normalizeFragment(token);
+    const targetSceneId = this.resolveNavigationTarget(fragment);
+    if (!targetSceneId) {
+      this.runtime.record('nav-ignored', { fragment, reason: 'unknown-target' });
+      this.applyProjection('nav-ignored');
+      return { type: 'ignored', reason: 'unknown-target', fragment };
+    }
+    if (targetSceneId === this.runtime.current()) {
+      this.runtime.record('nav-current', { fragment, targetSceneId });
+      this.applyProjection('nav-current');
+      return { type: 'current', fragment, targetSceneId };
+    }
     if (this.runtime.snapshot().state !== RUNTIME_STATES.IDLE) {
-      return { type: 'ignored', reason: 'runtime-busy' };
+      return { type: 'ignored', reason: 'runtime-busy', fragment, targetSceneId };
+    }
+    const step = this.runtime.routeStep();
+    if (step.to !== targetSceneId) {
+      this.runtime.record('nav-deferred', {
+        fragment,
+        targetSceneId,
+        nextSceneId: step.to || null
+      });
+      this.applyProjection('nav-deferred');
+      return {
+        type: 'deferred',
+        fragment,
+        targetSceneId,
+        nextSceneId: step.to || null
+      };
     }
     try {
-      const attempt = this.runtime.armNext({ source: `nav:${token}` });
+      const attempt = this.runtime.armNext({ source: `nav:${fragment}` });
       this.applyProjection('nav-intent');
-      return { type: 'armed', attemptId: attempt.attemptId };
+      return { type: 'armed', attemptId: attempt.attemptId, fragment, targetSceneId };
     } catch (error) {
       if (error.name !== 'SceneRuntimeRetrySuppressedError') throw error;
       this.applyProjection('nav-suppressed');
-      return { type: 'retry-suppressed', cooldown: error.cooldown };
+      return { type: 'retry-suppressed', cooldown: error.cooldown, fragment, targetSceneId };
     }
   }
 

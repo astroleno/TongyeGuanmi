@@ -87,13 +87,15 @@ export class FakeDomScenePlayer {
     this.remember('mount', signal);
     this.host = host;
     this.setHostState('mounted');
-    host.replaceChildren?.();
 
-    const marker = createElement(host, 'div');
-    marker.setAttribute('data-fake-scene-content', '');
+    let marker = host.querySelector?.('[data-fake-scene-content]');
+    if (!marker) {
+      marker = createElement(host, 'div');
+      marker.setAttribute('data-fake-scene-content', '');
+      host.appendChild(marker);
+    }
     marker.setAttribute('data-provider-scene-id', this.sceneId);
     marker.textContent = this.sceneId;
-    host.appendChild(marker);
 
     onTrace?.({ type: 'mounted', sceneId: this.sceneId });
     return { completed: true };

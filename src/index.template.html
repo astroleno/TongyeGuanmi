@@ -17,6 +17,8 @@
   {{> partials/loader.html}}
   {{> partials/nav.html}}
 
+  {{SCENE_RUNTIME_DOM_SHELL_MARKUP}}
+
   <main id="top">
     {{> sections/hero.html}}
     <div class="chapter-transition" data-transition="home-belief" aria-hidden="true"></div>
@@ -41,7 +43,6 @@
   </main>
 
   {{> partials/footer.html}}
-  {{SCENE_RUNTIME_DOM_SHELL_SCRIPT}}
-  <script type="module" src="js/main.js"></script>
+  {{HOMEPAGE_ENTRY_SCRIPT}}
 </body>
 </html>

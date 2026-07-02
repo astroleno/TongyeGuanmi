@@ -2,14 +2,14 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chapterTransitions, contentSections, handoffs, sectionEntryPolicies } from '../src/section-manifest.mjs';
+import { DOM_SHELL_SCENE_IDS } from '../js/scene-runtime/FakeDomSceneProvider.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir = path.join(rootDir, 'src');
 const includePattern = /\{\{>\s*([^}]+?)\s*\}\}/g;
 const sceneRuntimeDomShellEnabled = process.argv.includes('--scene-runtime') || process.env.SCENE_RUNTIME === '1';
-const sceneRuntimeDomShellScript = sceneRuntimeDomShellEnabled
-  ? '<script type="module" src="js/scene-runtime/scene-runtime-dom-entry.js" data-scene-runtime-dom-shell-entry></script>'
-  : '';
+const sceneRuntimeDomShellScript = '<script type="module" src="js/scene-runtime/scene-runtime-dom-entry.js" data-scene-runtime-dom-shell-entry></script>';
+const homepageMainScript = '<script type="module" src="js/main.js"></script>';
 
 function resolveSourcePath(partialPath) {
   if (path.isAbsolute(partialPath) || partialPath.split(/[\\/]/).includes('..')) {
@@ -28,6 +28,32 @@ function escapeHtml(value) {
 
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function renderSceneRuntimeDomShellMarkup() {
+  const hosts = DOM_SHELL_SCENE_IDS.map((sceneId) => (
+    `      <section data-scene-id="${escapeHtml(sceneId)}" data-scene-visible="false" data-scene-role="hidden" aria-hidden="true" hidden></section>`
+  )).join('\n');
+
+  return [
+    '  <div data-scene-runtime-shell data-scene-runtime-artifact="true" aria-label="SceneRuntime DOM shell">',
+    '    <div data-runtime-layer="source">',
+    hosts,
+    '    </div>',
+    '    <div data-runtime-layer="target" aria-hidden="true"></div>',
+    '    <div data-runtime-layer="transition" aria-hidden="true"></div>',
+    '    <div data-runtime-layer="early-copy" aria-hidden="true"></div>',
+    '    <div data-runtime-layer="debug" aria-hidden="true"></div>',
+    '  </div>'
+  ].join('\n');
+}
+
+function disableLegacyHomepageForSceneRuntime(html) {
+  if (!sceneRuntimeDomShellEnabled) return html;
+  return html.replace(
+    '<main id="top">',
+    '<main id="top" data-scene-runtime-legacy-disabled hidden aria-hidden="true">'
+  );
 }
 
 function getAttribute(attrs, name) {
@@ -161,9 +187,14 @@ async function renderFile(relativePath, stack = []) {
 }
 
 let html = injectContractAttributes(await renderFile('index.template.html'));
+html = disableLegacyHomepageForSceneRuntime(html);
 html = html.replace(
-  /^\s*\{\{SCENE_RUNTIME_DOM_SHELL_SCRIPT\}\}\n?/m,
-  sceneRuntimeDomShellScript ? `  ${sceneRuntimeDomShellScript}\n` : ''
+  /^\s*\{\{SCENE_RUNTIME_DOM_SHELL_MARKUP\}\}\n?/m,
+  sceneRuntimeDomShellEnabled ? `${renderSceneRuntimeDomShellMarkup()}\n` : ''
+);
+html = html.replace(
+  /^\s*\{\{HOMEPAGE_ENTRY_SCRIPT\}\}\n?/m,
+  `  ${sceneRuntimeDomShellEnabled ? sceneRuntimeDomShellScript : homepageMainScript}\n`
 );
 await writeFile(path.join(rootDir, 'index.html'), `${html.trimEnd()}\n`);
 console.log('Built index.html from src/index.template.html');

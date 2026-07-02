@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { SceneRuntimeDomShell } from '../js/scene-runtime/SceneRuntimeDomShell.js';
+import { DOM_SHELL_SCENE_IDS } from '../js/scene-runtime/FakeDomSceneProvider.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath) => readFileSync(path.join(rootDir, relativePath), 'utf8');
@@ -40,6 +41,9 @@ class FakeElement {
     this.hidden = false;
     this.className = '';
     this.textContent = '';
+    this.scrollTop = 0;
+    this.scrollHeight = 1000;
+    this.clientHeight = 1000;
     this.listeners = new Map();
   }
 
@@ -144,6 +148,7 @@ class FakeDocument {
     this.head = new FakeElement('head', this);
     this.body = new FakeElement('body', this);
     this.readyState = 'complete';
+    this.listeners = new Map();
     this.documentElement.appendChild(this.head);
     this.documentElement.appendChild(this.body);
   }
@@ -152,7 +157,15 @@ class FakeDocument {
     return new FakeElement(tagName, this);
   }
 
-  addEventListener() {}
+  addEventListener(type, listener) {
+    const listeners = this.listeners.get(type) || new Set();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type, listener) {
+    this.listeners.get(type)?.delete(listener);
+  }
 
   querySelector(selector) {
     if (this.documentElement.matches(selector)) return this.documentElement;
@@ -166,12 +179,47 @@ class FakeDocument {
   }
 }
 
+function installPrebuiltDomShell(documentRef) {
+  const root = documentRef.createElement('div');
+  root.setAttribute('data-scene-runtime-shell', '');
+  root.setAttribute('data-scene-runtime-artifact', 'true');
+  documentRef.body.appendChild(root);
+
+  const source = documentRef.createElement('div');
+  source.setAttribute('data-runtime-layer', 'source');
+  root.appendChild(source);
+
+  for (const sceneId of DOM_SHELL_SCENE_IDS) {
+    const host = documentRef.createElement('section');
+    host.setAttribute('data-scene-id', sceneId);
+    host.setAttribute('data-scene-visible', 'false');
+    host.setAttribute('data-scene-role', 'hidden');
+    host.setAttribute('aria-hidden', 'true');
+    host.hidden = true;
+    source.appendChild(host);
+  }
+
+  for (const layerId of ['target', 'transition', 'early-copy', 'debug']) {
+    const layer = documentRef.createElement('div');
+    layer.setAttribute('data-runtime-layer', layerId);
+    root.appendChild(layer);
+  }
+
+  return root;
+}
+
 function createShell(options = {}) {
   const documentRef = new FakeDocument();
+  installPrebuiltDomShell(documentRef);
   const clock = options.clock || { now: () => 0 };
   const shell = new SceneRuntimeDomShell({
     documentRef,
-    providerOverrides: options.providerOverrides || {},
+    providerOverrides: {
+      'aod-animation': {
+        playDelayMs: 60
+      },
+      ...(options.providerOverrides || {})
+    },
     transition: {
       defaultDurationMs: 28,
       defaultTimeoutMs: 100,
@@ -179,7 +227,7 @@ function createShell(options = {}) {
     },
     timeouts: {
       transition: 100,
-      scene: 100,
+      scene: 180,
       ...(options.timeouts || {})
     },
     failureCooldownMs: options.failureCooldownMs ?? 420,
@@ -216,12 +264,22 @@ async function assertFlaggedBuild() {
   execFileSync(process.execPath, ['scripts/build-index.mjs'], { cwd: rootDir, stdio: 'pipe' });
   const defaultHtml = read('index.html');
   assert(!defaultHtml.includes('data-scene-runtime-dom-shell-entry'), 'default build does not inject DOM shell entry');
+  assert(!defaultHtml.includes('data-scene-runtime-shell'), 'default build does not emit runtime shell hosts');
   assert(defaultHtml.includes('src="js/main.js"'), 'default build keeps homepage main entry');
 
   execFileSync(process.execPath, ['scripts/build-index.mjs', '--scene-runtime'], { cwd: rootDir, stdio: 'pipe' });
   const flaggedHtml = read('index.html');
   assert(flaggedHtml.includes('data-scene-runtime-dom-shell-entry'), 'scene-runtime build injects gated DOM shell entry');
-  assert(flaggedHtml.includes('src="js/main.js"'), 'scene-runtime build keeps homepage main entry');
+  assert(!flaggedHtml.includes('src="js/main.js"'), 'scene-runtime build does not load legacy homepage main entry');
+  assert(flaggedHtml.includes('data-scene-runtime-shell'), 'scene-runtime build emits runtime shell root');
+  assert(flaggedHtml.includes('data-scene-runtime-legacy-disabled'), 'scene-runtime build disables legacy homepage content');
+  assert.equal((flaggedHtml.match(/data-scene-role="hidden"/g) || []).length, 16, 'scene-runtime build emits 16 static runtime scene hosts');
+  for (const sceneId of ['hero', 'pattern', 'star-map', 'aod-animation', 'method-top', 'method-bottom']) {
+    assert(flaggedHtml.includes(`data-scene-id="${sceneId}"`), `scene-runtime build emits MVP host: ${sceneId}`);
+  }
+  for (const layerId of ['source', 'target', 'transition', 'early-copy', 'debug']) {
+    assert(flaggedHtml.includes(`data-runtime-layer="${layerId}"`), `scene-runtime build emits layer: ${layerId}`);
+  }
 
   execFileSync(process.execPath, ['scripts/build-index.mjs'], { cwd: rootDir, stdio: 'pipe' });
 }
@@ -240,6 +298,37 @@ async function assertHostsAndLayers() {
   for (const sceneId of ['hero', 'pattern', 'star-map', 'aod-animation', 'method-top', 'method-bottom']) {
     assert(sceneHost(documentRef, sceneId), `MVP route host exists: ${sceneId}`);
   }
+}
+
+async function assertInputBridgeCoverage() {
+  const { documentRef, shell } = createShell();
+  await shell.start('hero');
+
+  for (const type of ['wheel', 'touchstart', 'touchmove', 'touchend', 'click']) {
+    assert(documentRef.listeners.get(type)?.size > 0, `input bridge binds ${type}`);
+  }
+
+  let navResult = shell.requestNavigationIntent('#method');
+  assert.equal(navResult.type, 'deferred', 'nav target that is not next route is deferred');
+  assert.equal(navResult.targetSceneId, 'method-top', 'method hash resolves to method-top target');
+  assert.equal(shell.runtime.current(), 'hero', 'deferred nav does not present target');
+
+  await shell.start('aod-animation');
+  navResult = shell.requestNavigationIntent('#method');
+  assert.equal(navResult.type, 'armed', 'nav target matching next route arms runtime');
+  assert.equal(shell.runtime.current(), 'aod-animation', 'armed nav does not directly present target');
+  await shell.runArmed();
+  assert.equal(shell.runtime.current(), 'method-top', 'armed nav advances through runtime');
+
+  await shell.start('method-top');
+  const touchStart = { touches: [{ clientY: 200 }] };
+  shell.handleTouchStart(touchStart);
+  sceneHost(documentRef, 'method-top').scrollTop = 500;
+  sceneHost(documentRef, 'method-top').scrollHeight = 1200;
+  sceneHost(documentRef, 'method-top').clientHeight = 700;
+  const touchResult = await shell.handleTouchMove({ touches: [{ clientY: 90 }] });
+  assert.equal(touchResult.type, 'next', 'touch movement enters ReadMonitor on reading scene');
+  assert.equal(shell.runtime.current(), 'method-bottom', 'touch reading input advances through runtime');
 }
 
 async function assertHappyPathDomProjection() {
@@ -262,7 +351,7 @@ async function assertHappyPathDomProjection() {
   assertOnlyVisible(documentRef, ['aod-animation'], 'star-map transition commits aod');
 
   const aodRun = shell.advance();
-  await wait(24);
+  await wait(50);
   assert.deepEqual(visibleScenes(documentRef).sort(), ['aod-animation', 'method-top'].sort(), 'aod milestone shows source and early copy');
   assert(documentRef.querySelector('[data-reveal-scene-id="method-top"]'), 'early-copy layer has method-top reveal marker');
   await aodRun;
@@ -424,6 +513,7 @@ function assertNoForbiddenSideEffects() {
 
 await assertFlaggedBuild();
 await assertHostsAndLayers();
+await assertInputBridgeCoverage();
 await assertHappyPathDomProjection();
 await assertScenePlayFailureRollback();
 await assertTransitionFailureRollback();
