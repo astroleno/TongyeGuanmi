@@ -1,1 +1,1 @@
-import './pattern-mirror-stage.js';
+import './pattern-mirror-standalone.js';

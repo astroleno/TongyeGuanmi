@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,6 +22,26 @@ const providerPaths = [
   'js/scene-harness/starmap-scene-player.js',
   'js/scene-harness/aod-scene-player.js'
 ];
+
+function collectLocalDependencies(relativePath, seen = new Set()) {
+  if (seen.has(relativePath)) return seen;
+  seen.add(relativePath);
+
+  const source = read(relativePath);
+  const importPattern = /\bimport\s+(?:[^'"]+\s+from\s+)?['"]([^'"]+)['"]/g;
+  for (const match of source.matchAll(importPattern)) {
+    const specifier = match[1];
+    if (!specifier.startsWith('.')) continue;
+
+    const resolved = path.resolve(path.join(rootDir, path.dirname(relativePath)), specifier);
+    const withExtension = path.extname(resolved) ? resolved : `${resolved}.js`;
+    if (!withExtension.startsWith(rootDir) || !existsSync(withExtension)) continue;
+
+    collectLocalDependencies(path.relative(rootDir, withExtension), seen);
+  }
+
+  return seen;
+}
 
 function stateTrace(adapter) {
   return adapter.getState().trace
@@ -47,10 +67,27 @@ function assertNoForbiddenProviderSideEffects() {
     }
   }
 
+  const providerDependencyPaths = [...new Set(providerPaths.flatMap((sourcePath) => [
+    ...collectLocalDependencies(sourcePath)
+  ]))];
+
+  for (const sourcePath of providerDependencyPaths) {
+    assert.notEqual(
+      sourcePath,
+      'js/pattern-mirror-standalone.js',
+      'provider import graph must not include standalone pattern bootstrap'
+    );
+  }
+
   assert.doesNotMatch(
     read('js/scene-harness/aod-scene-player.js'),
     /method-top/,
     'AOD player must not know the early-copy target scene'
+  );
+  assert.doesNotMatch(
+    read('js/pattern-mirror-stage.js'),
+    /initStandalonePatternBloom|documentRef\s*\.\s*body|document\s*\.\s*body/,
+    'pattern renderer module must not auto-start or touch document.body on import'
   );
 }
 
@@ -59,20 +96,28 @@ class FakeProvider {
     milestone = null,
     rejectPlay = false,
     neverResolve = false,
+    rejectDestroy = false,
+    neverDestroy = false,
+    destroyDelayMs = 0,
     playDelayMs = 26
   } = {}) {
     this.milestone = milestone;
     this.rejectPlay = rejectPlay;
     this.neverResolve = neverResolve;
+    this.rejectDestroy = rejectDestroy;
+    this.neverDestroy = neverDestroy;
+    this.destroyDelayMs = destroyDelayMs;
     this.playDelayMs = playDelayMs;
     this.state = 'idle';
     this.signals = [];
+    this.calls = [];
     this.destroyCount = 0;
     this.timers = new Set();
     this.activeResolve = null;
   }
 
-  rememberSignal(signal) {
+  rememberSignal(signal, methodName) {
+    this.calls.push([methodName, signal instanceof AbortSignal]);
     assert(signal instanceof AbortSignal, 'adapter passes an AbortSignal to every provider call');
     this.signals.push(signal);
   }
@@ -97,19 +142,19 @@ class FakeProvider {
   }
 
   async mount({ signal, onTrace } = {}) {
-    this.rememberSignal(signal);
+    this.rememberSignal(signal, 'mount');
     this.emit('mounted', onTrace);
     return { completed: true };
   }
 
   async showPoster({ signal, onTrace } = {}) {
-    this.rememberSignal(signal);
+    this.rememberSignal(signal, 'showPoster');
     this.emit('poster', onTrace);
     return { completed: true };
   }
 
   playForward({ signal, onTrace, onProgress } = {}) {
-    this.rememberSignal(signal);
+    this.rememberSignal(signal, 'playForward');
     this.emit('playing-forward', onTrace);
     if (this.rejectPlay) return Promise.reject(new Error('fake play reject'));
     if (this.neverResolve) return new Promise(() => {});
@@ -145,7 +190,7 @@ class FakeProvider {
   }
 
   async cancelToSource({ signal, onTrace } = {}) {
-    this.rememberSignal(signal);
+    this.rememberSignal(signal, 'cancelToSource');
     this.clearTimers();
     this.emit('poster', onTrace, { reason: 'cancel-to-source' });
     this.activeResolve?.({ completed: false, cancelled: true, reason: 'cancel-to-source' });
@@ -154,7 +199,7 @@ class FakeProvider {
   }
 
   async reverseToPoster({ signal, onTrace } = {}) {
-    this.rememberSignal(signal);
+    this.rememberSignal(signal, 'reverseToPoster');
     this.clearTimers();
     this.emit('poster', onTrace, { reason: 'reverse-to-poster' });
     this.activeResolve?.({ completed: false, cancelled: true, reason: 'reverse-to-poster' });
@@ -162,13 +207,27 @@ class FakeProvider {
     return { completed: true };
   }
 
-  destroy() {
-    this.destroyCount += 1;
-    this.clearTimers();
-    this.state = 'destroyed';
-    this.activeResolve?.({ completed: false, cancelled: true, reason: 'destroyed' });
-    this.activeResolve = null;
-    return this.getState();
+  destroy({ signal } = {}) {
+    this.rememberSignal(signal, 'destroy');
+    if (this.rejectDestroy) return Promise.reject(new Error('fake destroy reject'));
+    if (this.neverDestroy) return new Promise(() => {});
+
+    const completeDestroy = () => {
+      this.destroyCount += 1;
+      this.clearTimers();
+      this.state = 'destroyed';
+      this.activeResolve?.({ completed: false, cancelled: true, reason: 'destroyed' });
+      this.activeResolve = null;
+      return this.getState();
+    };
+
+    if (this.destroyDelayMs > 0) {
+      return new Promise((resolve) => {
+        this.schedule(() => resolve(completeDestroy()), this.destroyDelayMs);
+      });
+    }
+
+    return completeDestroy();
   }
 
   getState() {
@@ -202,8 +261,8 @@ async function assertAdapterLifecycle() {
   await adapter.mount({ host: { id: 'host' } });
   await adapter.showPoster({});
   await adapter.playForward({});
-  adapter.destroy();
-  adapter.destroy();
+  await adapter.destroy();
+  await adapter.destroy();
 
   assert.deepEqual(
     stateTrace(adapter),
@@ -229,6 +288,7 @@ async function assertAdapterTimeoutAndReject() {
     'adapter rejects on provider timeout'
   );
   assert(timeoutFactory.instances[0].signals.at(-1).aborted, 'timeout aborts provider signal');
+  assert.equal(timeoutAdapter.getState().phase, 'poster', 'timeout returns adapter to poster phase');
 
   const rejectFactory = fakeFactory({ rejectPlay: true });
   const rejectAdapter = createScenePlayerAdapter({
@@ -238,6 +298,61 @@ async function assertAdapterTimeoutAndReject() {
   await rejectAdapter.mount({ host: {} });
   await rejectAdapter.showPoster({});
   await assert.rejects(rejectAdapter.playForward({}), /fake play reject/, 'adapter propagates provider rejects');
+  assert.equal(rejectAdapter.getState().phase, 'poster', 'provider reject returns adapter to poster phase');
+}
+
+async function assertDestroySignalTimeoutAndNoRevive() {
+  const factory = fakeFactory({ destroyDelayMs: 4 });
+  const adapter = createScenePlayerAdapter({
+    sceneId: 'destroyable',
+    createPlayer: factory.createPlayer,
+    timeouts: { destroy: 100 }
+  });
+  await adapter.mount({ host: {} });
+  await adapter.showPoster({});
+  await adapter.destroy();
+
+  const provider = factory.instances[0];
+  const callCount = provider.calls.length;
+  assert(provider.calls.some(([methodName, hasSignal]) => methodName === 'destroy' && hasSignal), 'destroy receives AbortSignal');
+  assert.equal(adapter.getState().phase, 'destroyed', 'destroy leaves adapter destroyed');
+  assert.equal(adapter.getState().destroyed, true, 'destroyed flag remains true');
+
+  await adapter.destroy();
+  assert.equal(provider.calls.length, callCount, 'destroy after destroyed is idempotent');
+
+  for (const [methodName, args] of [
+    ['mount', { host: {} }],
+    ['showPoster', {}],
+    ['playForward', {}],
+    ['cancelToSource', {}],
+    ['reverseToPoster', {}]
+  ]) {
+    await assert.rejects(
+      adapter[methodName](args),
+      /is destroyed/,
+      `${methodName} cannot revive a destroyed adapter`
+    );
+  }
+  assert.equal(provider.calls.length, callCount, 'destroyed adapter does not call provider again');
+  assert.equal(adapter.getState().phase, 'destroyed', 'failed revive attempts keep destroyed phase');
+  assert.equal(adapter.getState().destroyed, true, 'failed revive attempts keep destroyed flag');
+
+  const timeoutFactory = fakeFactory({ neverDestroy: true });
+  const timeoutAdapter = createScenePlayerAdapter({
+    sceneId: 'destroy-timeout',
+    createPlayer: timeoutFactory.createPlayer,
+    timeouts: { destroy: 8 }
+  });
+  await timeoutAdapter.mount({ host: {} });
+  await assert.rejects(
+    timeoutAdapter.destroy(),
+    (error) => error instanceof SceneAdapterTimeoutError,
+    'destroy timeout rejects with SceneAdapterTimeoutError'
+  );
+  assert(timeoutFactory.instances[0].signals.at(-1).aborted, 'destroy timeout aborts provider signal');
+  assert.equal(timeoutAdapter.getState().phase, 'destroyed', 'destroy timeout still closes adapter state');
+  assert.equal(timeoutAdapter.getState().destroyed, true, 'destroy timeout does not leave adapter revivable');
 }
 
 async function assertRegistryAndOrchestrator() {
@@ -329,15 +444,71 @@ async function assertCancelAndReverseDoNotResurrectOldScenes() {
   await wait(20);
   assert.equal(orchestrator.getState().activePlayerSceneId, null, 'reverse clears active player');
   assert.equal(factory.instances[0].getState().status, 'poster', 'reverse leaves provider at poster');
-  orchestrator.destroy();
-  orchestrator.destroy();
+  await orchestrator.destroy();
+  await orchestrator.destroy();
   assert.equal(factory.instances[0].destroyCount, 1, 'orchestrator destroy is idempotent through adapter');
+}
+
+async function assertRevealClearsAfterMilestoneCancelAndReverse() {
+  const cancelFactory = fakeFactory({ milestone: 'early-copy-ready', playDelayMs: 90 });
+  const cancelRegistry = new SceneRegistry([
+    {
+      sceneId: 'aod-animation',
+      createPlayer: cancelFactory.createPlayer,
+      milestones: { 'early-copy-ready': { revealSceneId: 'method-top', atProgress: 0.8 } }
+    }
+  ]);
+  const cancelOrchestrator = createMockSceneOrchestrator({ registry: cancelRegistry });
+  await cancelOrchestrator.mount('aod-animation', { host: {} });
+  await cancelOrchestrator.showPoster('aod-animation');
+  const cancelPlay = cancelOrchestrator.playForward('aod-animation');
+  await wait(40);
+  assert.equal(cancelOrchestrator.getState().reveals.length, 1, 'milestone reveal is registered before cancel');
+  await cancelOrchestrator.cancelActiveToSource();
+  const cancelResult = await cancelPlay;
+  assert(cancelResult.cancelled, 'cancel after milestone resolves active play as cancelled');
+  await wait(80);
+  assert.equal(cancelOrchestrator.getState().reveals.length, 0, 'cancel after milestone clears reveal');
+  assert(
+    cancelOrchestrator.getState().trace.some((entry) => entry.type === 'reveal-clear' && entry.reason === 'cancel-to-source'),
+    'cancel emits reveal-clear trace'
+  );
+  assert(
+    !cancelOrchestrator.getState().trace.some((entry) => entry.phase === 'complete' || entry.phase === 'stable'),
+    'cancel after milestone does not emit late complete/stable'
+  );
+
+  const reverseFactory = fakeFactory({ milestone: 'early-copy-ready', playDelayMs: 90 });
+  const reverseRegistry = new SceneRegistry([
+    {
+      sceneId: 'aod-animation',
+      createPlayer: reverseFactory.createPlayer,
+      milestones: { 'early-copy-ready': { revealSceneId: 'method-top', atProgress: 0.8 } }
+    }
+  ]);
+  const reverseOrchestrator = createMockSceneOrchestrator({ registry: reverseRegistry });
+  await reverseOrchestrator.mount('aod-animation', { host: {} });
+  await reverseOrchestrator.showPoster('aod-animation');
+  const reversePlay = reverseOrchestrator.playForward('aod-animation');
+  await wait(40);
+  assert.equal(reverseOrchestrator.getState().reveals.length, 1, 'milestone reveal is registered before reverse');
+  await reverseOrchestrator.reverseToPoster('aod-animation');
+  const reverseResult = await reversePlay;
+  assert(reverseResult.cancelled, 'reverse after milestone resolves active play as cancelled');
+  await wait(80);
+  assert.equal(reverseOrchestrator.getState().reveals.length, 0, 'reverse after milestone clears reveal');
+  assert(
+    reverseOrchestrator.getState().trace.some((entry) => entry.type === 'reveal-clear' && entry.reason === 'reverse-to-poster'),
+    'reverse emits reveal-clear trace'
+  );
 }
 
 assertNoForbiddenProviderSideEffects();
 await assertAdapterLifecycle();
 await assertAdapterTimeoutAndReject();
+await assertDestroySignalTimeoutAndNoRevive();
 await assertRegistryAndOrchestrator();
 await assertCancelAndReverseDoNotResurrectOldScenes();
+await assertRevealClearsAfterMilestoneCancelAndReverse();
 
 console.log('scene provider adapter/registry/orchestrator checks passed.');

@@ -90,6 +90,7 @@ export class MockSceneOrchestrator {
         onTrace: (entry) => this.handleTrace(sceneId, entry)
       });
     } finally {
+      this.clearReveals(sceneId, 'cancel-to-source');
       if (this.activePlayerSceneId === sceneId) this.activePlayerSceneId = null;
     }
   }
@@ -105,6 +106,7 @@ export class MockSceneOrchestrator {
         signal,
         onTrace: (entry) => this.handleTrace(sceneId, entry)
       });
+      this.clearReveals(sceneId, 'reverse-to-poster');
       this.currentSceneId = sceneId;
       return result;
     } finally {
@@ -112,15 +114,16 @@ export class MockSceneOrchestrator {
     }
   }
 
-  destroy() {
+  async destroy() {
     for (const [sceneId, adapter] of this.adapters) {
-      adapter.destroy({
+      await adapter.destroy({
         onTrace: (entry) => this.handleTrace(sceneId, entry)
       });
     }
     this.adapters.clear();
     this.activePlayerSceneId = null;
     this.currentSceneId = null;
+    this.reveals = [];
     return this.getState();
   }
 
@@ -144,6 +147,18 @@ export class MockSceneOrchestrator {
       milestone: entry.milestone,
       revealSceneId: mapping.revealSceneId,
       atProgress: mapping.atProgress
+    });
+  }
+
+  clearReveals(sceneId, reason) {
+    const removed = this.reveals.filter((entry) => entry.sceneId === sceneId);
+    if (removed.length === 0) return;
+    this.reveals = this.reveals.filter((entry) => entry.sceneId !== sceneId);
+    this.trace.push({
+      type: 'reveal-clear',
+      sceneId,
+      reason,
+      removed
     });
   }
 }

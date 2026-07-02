@@ -145,6 +145,12 @@ export class ScenePlayerAdapter {
     return this.player;
   }
 
+  assertUsable(methodName) {
+    if (this.destroyed && methodName !== 'destroy') {
+      throw new Error(`ScenePlayerAdapter(${this.sceneId}) is destroyed`);
+    }
+  }
+
   getState() {
     const providerState = this.player?.getState?.() || null;
     return {
@@ -208,6 +214,7 @@ export class ScenePlayerAdapter {
   }
 
   beginOperation(methodName, { signal, timeoutMs } = {}) {
+    this.assertUsable(methodName);
     if (this.currentOperation) {
       const shouldAbortCurrent = !['cancelToSource', 'reverseToPoster'].includes(methodName);
       this.currentOperation.active = false;
@@ -217,10 +224,6 @@ export class ScenePlayerAdapter {
         this.currentOperation.cleanup?.();
       }
     }
-    if (this.destroyed && methodName !== 'destroy') {
-      throw new Error(`ScenePlayerAdapter(${this.sceneId}) is destroyed`);
-    }
-
     const timeoutSignal = createTimeoutSignal({
       sourceSignal: signal,
       timeoutMs: timeoutMs ?? this.timeouts[methodName],
@@ -250,6 +253,7 @@ export class ScenePlayerAdapter {
     onTrace,
     onProgress
   } = {}) {
+    this.assertUsable(methodName);
     const player = this.ensurePlayer();
     const method = player?.[methodName];
     if (typeof method !== 'function') {
@@ -293,13 +297,26 @@ export class ScenePlayerAdapter {
   }
 
   async playForward({ signal, timeoutMs, onProgress, onTrace } = {}) {
+    this.assertUsable('playForward');
+    const restorePhase = this.phase === 'stable' ? 'stable' : 'poster';
     this.emitState('playing-forward', { source: 'adapter' }, onTrace);
-    const result = await this.callProvider('playForward', {}, {
-      signal,
-      timeoutMs,
-      onProgress,
-      onTrace
-    });
+    let result;
+    try {
+      result = await this.callProvider('playForward', {}, {
+        signal,
+        timeoutMs,
+        onProgress,
+        onTrace
+      });
+    } catch (error) {
+      if (!this.destroyed && this.phase === 'playing-forward') {
+        this.emitState(restorePhase, {
+          reason: 'play-forward-failed',
+          source: 'adapter'
+        }, onTrace);
+      }
+      throw error;
+    }
     if (isCompletedResult(result)) {
       if (!['complete', 'stable'].includes(this.phase)) {
         this.emitState('complete', { source: 'adapter' }, onTrace);
@@ -328,16 +345,35 @@ export class ScenePlayerAdapter {
     return result;
   }
 
-  destroy({ onTrace } = {}) {
+  async destroy({ signal, timeoutMs, onTrace } = {}) {
     if (this.destroyed) return this.getState();
-    if (this.currentOperation) {
+    const player = this.player;
+    let thrown = null;
+
+    if (player?.destroy) {
+      const operation = this.beginOperation('destroy', { signal, timeoutMs });
+      try {
+        await Promise.race([
+          Promise.resolve().then(() => player.destroy({ signal: operation.signal })),
+          operation.abortPromise
+        ]);
+      } catch (error) {
+        thrown = error;
+      } finally {
+        this.finishOperation(operation);
+      }
+    } else if (this.currentOperation) {
       this.currentOperation.active = false;
       this.currentOperation.controller?.abort(new SceneAdapterAbortError('destroyed'));
       this.currentOperation.cleanup?.();
+      this.currentOperation = null;
     }
-    this.currentOperation = null;
-    this.ensurePlayer().destroy?.();
-    this.emitState('destroyed', { source: 'adapter' }, onTrace);
+
+    this.emitState('destroyed', {
+      source: 'adapter',
+      ...(thrown ? { reason: 'destroy-failed', error: thrown.message } : {})
+    }, onTrace);
+    if (thrown) throw thrown;
     return this.getState();
   }
 }

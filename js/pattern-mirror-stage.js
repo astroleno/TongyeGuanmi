@@ -519,24 +519,3 @@ export function createPatternBloomScene({
 }
 
 export { createPatternBloomScene as createPatternMirrorScene };
-
-const initStandalonePatternBloom = () => {
-  const canvas = document.querySelector('[data-mirror-stage-canvas], [data-bloom-canvas]');
-  if (!canvas || canvas.dataset.patternBloomMounted === 'true') return;
-
-  canvas.dataset.patternBloomMounted = 'true';
-  const scrollStage = document.querySelector('[data-mirror-stage-scroll]')
-    ?? document.querySelector('.bloom-page')
-    ?? document.body;
-  const scene = createPatternBloomScene({ canvas, scrollStage, reducedMotionProgress: 1 });
-
-  window.addEventListener('pagehide', scene.destroy, { once: true });
-  scene.start().catch((error) => {
-    console.error('Failed to start mirror stage', error);
-    scene.destroy();
-  });
-};
-
-if (typeof document !== 'undefined') {
-  initStandalonePatternBloom();
-}
