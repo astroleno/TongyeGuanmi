@@ -14,9 +14,8 @@ export const AOD_SCENE_TRACE_STATES = [
   'destroyed'
 ];
 
-export const AOD_EARLY_COPY_TARGET = 'method-top';
-
 const DEFAULT_VIDEO_DURATION_SECONDS = 5.03;
+const EARLY_COPY_READY_MILESTONE = 'early-copy-ready';
 const NO_SEEK = { minDeltaSeconds: Infinity };
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
@@ -243,9 +242,8 @@ export function createAodScenePlayer(options = {}) {
 
     earlyCopyFired = true;
     updateHostState();
-    recordTrace('early-copy-ready', {
-      target: AOD_EARLY_COPY_TARGET,
-      event: `early-copy-ready: ${AOD_EARLY_COPY_TARGET}`
+    recordTrace(EARLY_COPY_READY_MILESTONE, {
+      milestone: EARLY_COPY_READY_MILESTONE
     });
   }
 

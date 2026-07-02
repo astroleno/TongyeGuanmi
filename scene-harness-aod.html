@@ -355,6 +355,9 @@
     const progressBar = document.querySelector('[data-aod-progress-bar]');
     const tracePanel = document.querySelector('[data-aod-trace]');
     const buttons = [...document.querySelectorAll('[data-action]')];
+    const harnessManifest = {
+      earlyCopyTarget: 'method-top'
+    };
 
     let player = null;
     let traceEntries = [];
@@ -369,7 +372,7 @@
 
     function renderTrace() {
       tracePanel.textContent = traceEntries.map((entry) => {
-        const suffix = entry.target ? ` -> ${entry.target}` : '';
+        const suffix = entry.type === 'early-copy-ready' ? ` -> ${harnessManifest.earlyCopyTarget}` : '';
         const reason = entry.reason ? ` (${entry.reason})` : '';
         return `${String(entry.seq).padStart(2, '0')} ${entry.type}${suffix}${reason} p=${entry.progress}`;
       }).join('\n');

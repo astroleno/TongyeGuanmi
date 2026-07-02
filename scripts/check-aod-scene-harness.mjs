@@ -215,12 +215,14 @@ function createTestPlayer(fixture, options = {}) {
   for (const forbidden of ['scrollY', 'pageYOffset', 'currentSceneId', 'location.hash', 'ScrollTrigger']) {
     assert(!playerSource.includes(forbidden), `aod-scene-player does not reference ${forbidden}`);
   }
+  assert(!playerSource.includes('method-top'), 'aod-scene-player does not hard-code early-copy target scene');
   for (const forbidden of ['ink-scene-transition', 'createInkCurtainTransition', 'data-aod-ink-canvas', 'aod-transition__ink']) {
     assert(!playerSource.includes(forbidden), `aod-scene-player does not include ink transition wiring: ${forbidden}`);
   }
 
   assert(pageSource.includes('./js/scene-harness/aod-scene-player.js'), 'standalone page imports harness player');
   assert(pageSource.includes('data-action="reject"'), 'standalone page exposes simulated play reject action');
+  assert(pageSource.includes("earlyCopyTarget: 'method-top'"), 'standalone harness owns AOD early-copy target mapping');
   assert(
     JSON.stringify(AOD_SCENE_TRACE_STATES) === JSON.stringify(['idle', 'mounted', 'poster', 'playing-forward', 'complete', 'stable', 'destroyed']),
     'success trace states are fixed'
@@ -270,10 +272,10 @@ function createTestPlayer(fixture, options = {}) {
 
   const earlyCopyEvents = traceEvents.filter((entry) => entry.type === 'early-copy-ready');
   assert(earlyCopyEvents.length === 1, '80% early-copy event fires exactly once');
-  assert(earlyCopyEvents[0]?.target === 'method-top', '80% event targets method-top');
-  assert(earlyCopyEvents[0]?.event === 'early-copy-ready: method-top', '80% event includes exact early-copy trace payload');
+  assert(earlyCopyEvents[0]?.milestone === 'early-copy-ready', '80% event emits early-copy milestone');
+  assert(!('target' in earlyCopyEvents[0]), '80% player event does not include target scene');
   assert(
-    fixture.events.filter((entry) => entry?.type === 'early-copy-ready' && entry?.target === 'method-top').length === 1,
+    fixture.events.filter((entry) => entry?.type === 'early-copy-ready' && entry?.milestone === 'early-copy-ready' && !('target' in entry)).length === 1,
     '80% early-copy dispatches exactly one host event'
   );
 
