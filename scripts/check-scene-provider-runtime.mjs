@@ -95,7 +95,9 @@ class FakeProvider {
   constructor({
     milestone = null,
     rejectPlay = false,
+    rejectAfterMilestone = false,
     neverResolve = false,
+    neverResolveAfterMilestone = false,
     rejectDestroy = false,
     neverDestroy = false,
     destroyDelayMs = 0,
@@ -103,7 +105,9 @@ class FakeProvider {
   } = {}) {
     this.milestone = milestone;
     this.rejectPlay = rejectPlay;
+    this.rejectAfterMilestone = rejectAfterMilestone;
     this.neverResolve = neverResolve;
+    this.neverResolveAfterMilestone = neverResolveAfterMilestone;
     this.rejectDestroy = rejectDestroy;
     this.neverDestroy = neverDestroy;
     this.destroyDelayMs = destroyDelayMs;
@@ -114,6 +118,7 @@ class FakeProvider {
     this.destroyCount = 0;
     this.timers = new Set();
     this.activeResolve = null;
+    this.activeReject = null;
   }
 
   rememberSignal(signal, methodName) {
@@ -159,13 +164,21 @@ class FakeProvider {
     if (this.rejectPlay) return Promise.reject(new Error('fake play reject'));
     if (this.neverResolve) return new Promise(() => {});
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const settle = (result) => {
         this.clearTimers();
         this.activeResolve = null;
+        this.activeReject = null;
         resolve(result);
       };
+      const fail = (error) => {
+        this.clearTimers();
+        this.activeResolve = null;
+        this.activeReject = null;
+        reject(error);
+      };
       this.activeResolve = settle;
+      this.activeReject = fail;
       signal.addEventListener('abort', () => {
         this.emit('poster', onTrace, { reason: 'signal-abort' });
         settle({ completed: false, cancelled: true, reason: 'signal-abort' });
@@ -178,14 +191,19 @@ class FakeProvider {
             milestone: this.milestone,
             progress: 0.8
           });
+          if (this.rejectAfterMilestone) {
+            fail(new Error('fake play reject after milestone'));
+          }
         }, Math.max(1, Math.floor(this.playDelayMs / 3)));
       }
-      this.schedule(() => {
-        onProgress?.(1);
-        this.emit('complete', onTrace);
-        this.emit('stable', onTrace);
-        settle({ completed: true });
-      }, this.playDelayMs);
+      if (!this.neverResolveAfterMilestone) {
+        this.schedule(() => {
+          onProgress?.(1);
+          this.emit('complete', onTrace);
+          this.emit('stable', onTrace);
+          settle({ completed: true });
+        }, this.playDelayMs);
+      }
     });
   }
 
@@ -195,6 +213,7 @@ class FakeProvider {
     this.emit('poster', onTrace, { reason: 'cancel-to-source' });
     this.activeResolve?.({ completed: false, cancelled: true, reason: 'cancel-to-source' });
     this.activeResolve = null;
+    this.activeReject = null;
     return { completed: false, cancelled: true, reason: 'cancel-to-source' };
   }
 
@@ -204,6 +223,7 @@ class FakeProvider {
     this.emit('poster', onTrace, { reason: 'reverse-to-poster' });
     this.activeResolve?.({ completed: false, cancelled: true, reason: 'reverse-to-poster' });
     this.activeResolve = null;
+    this.activeReject = null;
     return { completed: true };
   }
 
@@ -218,6 +238,7 @@ class FakeProvider {
       this.state = 'destroyed';
       this.activeResolve?.({ completed: false, cancelled: true, reason: 'destroyed' });
       this.activeResolve = null;
+      this.activeReject = null;
       return this.getState();
     };
 
@@ -503,6 +524,69 @@ async function assertRevealClearsAfterMilestoneCancelAndReverse() {
   );
 }
 
+async function assertRevealClearsAfterMilestoneFailure() {
+  const rejectFactory = fakeFactory({
+    milestone: 'early-copy-ready',
+    rejectAfterMilestone: true,
+    playDelayMs: 90
+  });
+  const rejectRegistry = new SceneRegistry([
+    {
+      sceneId: 'aod-animation',
+      createPlayer: rejectFactory.createPlayer,
+      milestones: { 'early-copy-ready': { revealSceneId: 'method-top', atProgress: 0.8 } }
+    }
+  ]);
+  const rejectOrchestrator = createMockSceneOrchestrator({ registry: rejectRegistry });
+  await rejectOrchestrator.mount('aod-animation', { host: {} });
+  await rejectOrchestrator.showPoster('aod-animation');
+  await assert.rejects(
+    rejectOrchestrator.playForward('aod-animation'),
+    /fake play reject after milestone/,
+    'play reject after milestone is surfaced'
+  );
+  assert.equal(rejectOrchestrator.getState().reveals.length, 0, 'reject after milestone clears reveal');
+  assert(
+    rejectOrchestrator.getState().trace.some((entry) => (
+      entry.type === 'reveal-clear'
+      && entry.reason === 'play-forward-failed'
+      && entry.removed?.[0]?.revealSceneId === 'method-top'
+    )),
+    'reject after milestone emits reveal-clear trace'
+  );
+
+  const timeoutFactory = fakeFactory({
+    milestone: 'early-copy-ready',
+    neverResolveAfterMilestone: true,
+    playDelayMs: 90
+  });
+  const timeoutRegistry = new SceneRegistry([
+    {
+      sceneId: 'aod-animation',
+      createPlayer: timeoutFactory.createPlayer,
+      timeouts: { playForward: 50 },
+      milestones: { 'early-copy-ready': { revealSceneId: 'method-top', atProgress: 0.8 } }
+    }
+  ]);
+  const timeoutOrchestrator = createMockSceneOrchestrator({ registry: timeoutRegistry });
+  await timeoutOrchestrator.mount('aod-animation', { host: {} });
+  await timeoutOrchestrator.showPoster('aod-animation');
+  await assert.rejects(
+    timeoutOrchestrator.playForward('aod-animation'),
+    (error) => error instanceof SceneAdapterTimeoutError,
+    'play timeout after milestone is surfaced'
+  );
+  assert.equal(timeoutOrchestrator.getState().reveals.length, 0, 'timeout after milestone clears reveal');
+  assert(
+    timeoutOrchestrator.getState().trace.some((entry) => (
+      entry.type === 'reveal-clear'
+      && entry.reason === 'play-forward-timeout'
+      && entry.removed?.[0]?.revealSceneId === 'method-top'
+    )),
+    'timeout after milestone emits reveal-clear trace'
+  );
+}
+
 assertNoForbiddenProviderSideEffects();
 await assertAdapterLifecycle();
 await assertAdapterTimeoutAndReject();
@@ -510,5 +594,6 @@ await assertDestroySignalTimeoutAndNoRevive();
 await assertRegistryAndOrchestrator();
 await assertCancelAndReverseDoNotResurrectOldScenes();
 await assertRevealClearsAfterMilestoneCancelAndReverse();
+await assertRevealClearsAfterMilestoneFailure();
 
 console.log('scene provider adapter/registry/orchestrator checks passed.');

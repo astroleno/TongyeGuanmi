@@ -1,5 +1,17 @@
 import { createDefaultSceneRegistry } from './SceneRegistry.js';
 
+function isCompletedResult(result) {
+  if (result?.cancelled) return false;
+  if (result?.completed === false) return false;
+  return true;
+}
+
+function playFailureReason(error) {
+  return error?.name === 'SceneAdapterTimeoutError'
+    ? 'play-forward-timeout'
+    : 'play-forward-failed';
+}
+
 export class MockSceneOrchestrator {
   constructor({
     registry = createDefaultSceneRegistry(),
@@ -73,8 +85,15 @@ export class MockSceneOrchestrator {
         onTrace: (entry) => this.handleTrace(sceneId, entry),
         onProgress: (progress) => this.handleProgress(sceneId, progress)
       });
-      this.currentSceneId = sceneId;
+      if (isCompletedResult(result)) {
+        this.currentSceneId = sceneId;
+      } else {
+        this.clearReveals(sceneId, result?.reason || 'play-forward-failed');
+      }
       return result;
+    } catch (error) {
+      this.clearReveals(sceneId, playFailureReason(error));
+      throw error;
     } finally {
       if (this.activePlayerSceneId === sceneId) this.activePlayerSceneId = null;
     }
