@@ -44,8 +44,6 @@ for (const [label, source] of [
     [/createInkSceneTransition|createInkCurtainTransition/, 'imports ink transition'],
     [new RegExp(timelineBloomInName), 'leaks timeline bloom-in segment name'],
     [new RegExp(timelineExitName), 'leaks timeline exit segment name'],
-    [/\bplayForward\b/, 'uses scene-player timeline API instead of provider API'],
-    [/\bcancelToSource\b/, 'uses upstream/downstream source language'],
     [/\bstar-?map\b/i, 'declares an external target scene']
   ];
   for (const [pattern, reason] of banned) {
@@ -55,6 +53,7 @@ for (const [label, source] of [
 
 assert(playerSource.includes('createPatternMirrorScene'), 'provider reuses the Canvas 2D pattern renderer');
 assert(playerSource.includes('createPatternSceneProvider'), 'provider exports createPatternSceneProvider');
+assert(playerSource.includes('createPatternScenePlayer'), 'module exports the standard player adapter');
 assert(playerSource.includes('mount'), 'provider exposes mount');
 assert(playerSource.includes('showPoster'), 'provider exposes showPoster');
 assert(playerSource.includes('renderBloomProgress'), 'provider exposes renderBloomProgress');
@@ -65,15 +64,18 @@ assert(playerSource.includes('cancelToPoster'), 'provider exposes cancelToPoster
 assert(playerSource.includes('reverseToPoster'), 'provider exposes reverseToPoster');
 assert(playerSource.includes('destroy'), 'provider exposes destroy');
 assert(playerSource.includes('getState'), 'provider exposes getState');
+assert(playerSource.includes('playForward'), 'adapter exposes playForward');
+assert(playerSource.includes('cancelToSource'), 'adapter exposes cancelToSource');
 assert(playerSource.includes('progressSource: () => controlledProgress'), 'renderer is driven by controlled progress');
 assert(playerSource.includes('scrollStage: null'), 'provider does not pass a scroll-driven stage');
 assert(playerSource.includes('center: PATTERN_CENTER'), 'provider pins the main pattern center');
 assert(playerSource.includes('PATTERN_POSTER_PROGRESS = 1'), 'poster progress is explicit');
 assert(!/placeholder/i.test(playerSource + pageSource), 'no placeholder pattern visual');
 assert(pageSource.includes('data-pattern-harness-host'), 'standalone page has a dedicated host');
-assert(pageSource.includes('./js/scene-harness/pattern-scene-player.js'), 'standalone page imports the provider module');
-assert(pageSource.includes('renderBloomProgress'), 'standalone page exposes controlled progress');
-assert(pageSource.includes('playBloomIn'), 'standalone page exposes local bloom-in preview');
+assert(pageSource.includes('./js/scene-harness/pattern-scene-player.js'), 'standalone page imports the pattern player module');
+assert(pageSource.includes('createPatternScenePlayer'), 'standalone page mounts the standard player adapter');
+assert(pageSource.includes('playForward'), 'standalone page exercises playForward');
+assert(pageSource.includes('cancelToSource'), 'standalone page exercises cancelToSource');
 
 const requiredAssets = [
   'assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png',
@@ -219,6 +221,7 @@ async function finishFrames(fakeWindow, ms = 1000, limit = 8) {
 
 const {
   createPatternSceneProvider,
+  createPatternScenePlayer,
   PATTERN_POSTER_PROGRESS
 } = await import(pathToFileURL(PLAYER_PATH).href);
 
@@ -332,6 +335,68 @@ assert(fakeWindow.listenerCount() === 0, 'destroy() removes owned listeners');
 assert(provider.getState().canvasWidth === 0, 'destroy() clears owned canvas');
 assert(trace.includes('mounted') && trace.includes('poster') && trace.includes('bloom-in') && trace.includes('stable') && trace.includes('destroyed'), 'trace includes provider lifecycle states');
 assert(sceneRenderCount > 0, 'provider requests renderer refreshes');
+
+const playerDocument = new FakeDocument();
+const playerWindow = makeFakeWindow();
+playerDocument.defaultView = playerWindow;
+const playerHost = new FakeElement('section', playerDocument);
+const playerTrace = [];
+const player = createPatternScenePlayer({
+  createScene: fakeCreateScene,
+  durations: {
+    bloomIn: 1000,
+    reverseToPoster: 1000
+  },
+  deps: {
+    window: playerWindow,
+    now: () => playerWindow.performance.now(),
+    requestFrame: (callback) => playerWindow.requestAnimationFrame(callback),
+    cancelFrame: (id) => playerWindow.cancelAnimationFrame(id)
+  }
+});
+
+await player.mount({ host: playerHost, onTrace: (entry) => playerTrace.push(entry.status) });
+assert(player.getState().status === 'mounted', 'adapter mount() reports mounted');
+assert(player.getState().providerStatus === 'mounted', 'adapter keeps provider status as secondary state');
+
+await player.showPoster({});
+assert(player.getState().status === 'poster', 'adapter showPoster() reports poster');
+assert(player.getState().progress === PATTERN_POSTER_PROGRESS, 'adapter showPoster() restores poster progress');
+
+const playerSamples = [];
+const playerForward = player.playForward({
+  onProgress: (progress) => playerSamples.push(progress)
+});
+await finishFrames(playerWindow, 1000);
+const playerForwardResult = await playerForward;
+assert(playerForwardResult.completed, 'adapter playForward() completes');
+assert(player.getState().status === 'stable', 'adapter playForward() settles stable');
+assert(player.getState().providerStatus === 'steady-loop', 'adapter playForward() leaves provider in steady loop');
+assert(playerSamples.some((progress) => progress === PATTERN_POSTER_PROGRESS), 'adapter forwards progress callbacks');
+
+const playerCancelPlay = player.playForward({});
+await microtasks();
+playerWindow.flush(250);
+const playerCancelResult = await player.cancelToSource({});
+const playerCancelledPlayResult = await playerCancelPlay;
+assert(playerCancelResult.reason === 'cancelled', 'adapter cancelToSource() maps to provider cancelToPoster()');
+assert(!playerCancelledPlayResult.completed, 'adapter cancelToSource() resolves playForward() as incomplete');
+assert(player.getState().status === 'poster', 'adapter cancelToSource() reports poster');
+
+assert(typeof player.renderBloomProgress === 'undefined', 'adapter does not leak provider-only renderBloomProgress');
+assert(typeof player.playBloomIn === 'undefined', 'adapter does not leak provider-only playBloomIn');
+assert(typeof player.cancelToPoster === 'undefined', 'adapter does not leak provider-only cancelToPoster');
+
+const playerReverse = player.reverseToPoster({});
+await finishFrames(playerWindow, 1000);
+await playerReverse;
+assert(player.getState().status === 'poster', 'adapter reverseToPoster() reports poster');
+
+player.destroy();
+assert(player.getState().status === 'destroyed', 'adapter destroy() reports destroyed');
+assert(playerWindow.frameCount() === 0, 'adapter destroy() clears animation frames');
+assert(playerWindow.listenerCount() === 0, 'adapter destroy() removes owned listeners');
+assert(playerTrace.includes('mounted') && playerTrace.includes('poster') && playerTrace.includes('playing-forward') && playerTrace.includes('complete') && playerTrace.includes('stable') && playerTrace.includes('destroyed'), 'adapter trace uses standard player states');
 
 console.log(`pattern-scene-harness: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

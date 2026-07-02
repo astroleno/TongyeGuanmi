@@ -12,6 +12,16 @@ const STATUS = Object.freeze({
   DESTROYED: 'destroyed'
 });
 
+const PLAYER_STATUS = Object.freeze({
+  IDLE: 'idle',
+  MOUNTED: 'mounted',
+  POSTER: 'poster',
+  PLAYING_FORWARD: 'playing-forward',
+  COMPLETE: 'complete',
+  STABLE: 'stable',
+  DESTROYED: 'destroyed'
+});
+
 const MODE = Object.freeze({
   POSTER: 'poster',
   BLOOM_PROGRESS: 'bloom-progress',
@@ -520,5 +530,99 @@ export function createPatternSceneProvider({
   return api;
 }
 
-export const createPatternScenePlayer = createPatternSceneProvider;
-export { STATUS as PATTERN_SCENE_PROVIDER_STATUS };
+export function createPatternScenePlayer(options = {}) {
+  const provider = createPatternSceneProvider(options);
+  const state = {
+    status: PLAYER_STATUS.IDLE,
+    trace: [{ status: PLAYER_STATUS.IDLE, progress: PATTERN_POSTER_PROGRESS }]
+  };
+  let traceHandlers = [];
+  let activeToken = null;
+
+  function addTraceHandler(handler) {
+    if (handler && !traceHandlers.includes(handler)) traceHandlers.push(handler);
+  }
+
+  function emit(status, detail = {}) {
+    const providerState = provider.getState();
+    state.status = status;
+    const entry = {
+      status,
+      progress: providerState.progress ?? PATTERN_POSTER_PROGRESS,
+      providerStatus: providerState.status,
+      detail
+    };
+    state.trace.push(entry);
+    for (const handler of traceHandlers) handler(entry);
+    detail.onTrace?.(entry);
+  }
+
+  function snapshot() {
+    const providerState = provider.getState();
+    return {
+      ...providerState,
+      status: state.status,
+      providerStatus: providerState.status,
+      trace: state.trace.map((entry) => entry.status)
+    };
+  }
+
+  return {
+    async mount({ host, signal, onTrace } = {}) {
+      addTraceHandler(onTrace);
+      const result = await provider.mount({ host, signal });
+      if (result.completed !== false) emit(PLAYER_STATUS.MOUNTED);
+      return result;
+    },
+
+    async showPoster({ signal, direction, onTrace } = {}) {
+      const result = await provider.showPoster({ signal, direction });
+      if (result.completed !== false) emit(PLAYER_STATUS.POSTER, { direction, onTrace });
+      return result;
+    },
+
+    async playForward({ signal, onProgress, onTrace } = {}) {
+      const token = {};
+      activeToken = token;
+      emit(PLAYER_STATUS.PLAYING_FORWARD, { onTrace });
+      const result = await provider.playBloomIn({ signal, onProgress });
+      if (activeToken !== token) return result;
+      activeToken = null;
+      if (result.completed) {
+        emit(PLAYER_STATUS.COMPLETE, { onTrace });
+        await provider.playSteadyLoop({ signal });
+        emit(PLAYER_STATUS.STABLE, { onTrace });
+      }
+      return result;
+    },
+
+    async cancelToSource({ signal, onTrace } = {}) {
+      activeToken = null;
+      const result = await provider.cancelToPoster({ signal });
+      if (result.reason !== 'aborted') emit(PLAYER_STATUS.POSTER, { onTrace, reason: result.reason });
+      return result;
+    },
+
+    async reverseToPoster({ signal, onProgress, onTrace } = {}) {
+      activeToken = null;
+      const result = await provider.reverseToPoster({ signal, onProgress });
+      if (result.completed) emit(PLAYER_STATUS.POSTER, { onTrace });
+      return result;
+    },
+
+    destroy() {
+      activeToken = null;
+      provider.destroy();
+      emit(PLAYER_STATUS.DESTROYED);
+    },
+
+    getState() {
+      return snapshot();
+    }
+  };
+}
+
+export {
+  STATUS as PATTERN_SCENE_PROVIDER_STATUS,
+  PLAYER_STATUS as PATTERN_SCENE_PLAYER_STATUS
+};
