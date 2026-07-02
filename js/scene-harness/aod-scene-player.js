@@ -3,7 +3,6 @@ import {
   renderAodTransitionProgress,
   waitForAodTransitionMetadata
 } from '../components/aod-transition.js';
-import { createInkCurtainTransition } from '../effects/ink-scene-transition.js';
 
 export const AOD_SCENE_TRACE_STATES = [
   'idle',
@@ -21,8 +20,6 @@ const DEFAULT_VIDEO_DURATION_SECONDS = 5.03;
 const NO_SEEK = { minDeltaSeconds: Infinity };
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
-const smoothStep = (value) => value * value * (3 - 2 * value);
-
 function getWindow() {
   return typeof window !== 'undefined' ? window : globalThis;
 }
@@ -86,7 +83,6 @@ function defaultMountMarkup(host) {
             webkit-playsinline
           ></video>
           <div class="aod-transition__paper-solid" aria-hidden="true"></div>
-          <canvas class="aod-transition__ink" data-aod-ink-canvas aria-hidden="true"></canvas>
           <div class="aod-transition__progress" aria-hidden="true"><span></span></div>
         </div>
       </div>
@@ -144,7 +140,6 @@ export function createAodScenePlayer(options = {}) {
   const clearTimeoutFn = deps.clearTimeout || win.clearTimeout?.bind(win) || clearTimeout;
   const now = deps.now || (() => win.performance?.now?.() ?? Date.now());
   const mountMarkup = deps.mountMarkup || defaultMountMarkup;
-  const createInkTransition = deps.createInkTransition || createInkCurtainTransition;
   const playVideo = deps.playVideo || ((video) => video.play());
 
   const posterTimeoutMs = options.posterTimeoutMs ?? 5000;
@@ -157,8 +152,6 @@ export function createAodScenePlayer(options = {}) {
   let host = options.host || null;
   let section = null;
   let video = null;
-  let inkCanvas = null;
-  let inkTransition = null;
   let state = 'idle';
   let progress = 0;
   let earlyCopyFired = false;
@@ -223,14 +216,6 @@ export function createAodScenePlayer(options = {}) {
     return Number.isFinite(duration) && duration > 0 ? duration : durationFallbackSeconds;
   }
 
-  function renderInk(nextProgress) {
-    inkTransition?.render?.(smoothStep(clamp(nextProgress)));
-    if (inkCanvas && nextProgress <= 0) {
-      inkCanvas.style.visibility = 'hidden';
-      inkCanvas.style.opacity = '0';
-    }
-  }
-
   function renderPosterFrame() {
     if (!section) return;
     safeCall(() => video?.pause?.());
@@ -243,7 +228,6 @@ export function createAodScenePlayer(options = {}) {
     }
     setProgress(0);
     renderAodTransitionProgress(section, 0);
-    renderInk(0);
   }
 
   function renderPlaybackFrame() {
@@ -251,7 +235,6 @@ export function createAodScenePlayer(options = {}) {
     const nextProgress = clamp((video.currentTime || 0) / durationOf());
     setProgress(nextProgress);
     renderAodTransitionProgress(section, nextProgress, NO_SEEK);
-    renderInk(nextProgress);
     emitEarlyCopyReady(nextProgress);
   }
 
@@ -312,7 +295,6 @@ export function createAodScenePlayer(options = {}) {
     setProgress(1);
     emitEarlyCopyReady(1);
     if (section) renderAodTransitionProgress(section, 1, NO_SEEK);
-    renderInk(1);
     transitionTo('complete', { reason });
     clearStableTimer();
     stableTimerId = setTimeoutFn(() => {
@@ -343,18 +325,7 @@ export function createAodScenePlayer(options = {}) {
     if (!section) throw new Error('aod scene player failed to mount AOD section');
 
     video = section.querySelector?.('[data-aod-figure-video]') || null;
-    inkCanvas = section.querySelector?.('[data-aod-ink-canvas]') || null;
-    inkTransition = createInkTransition(inkCanvas, {
-      direction: 'bottom-up',
-      colorLift: 0.64,
-      coverAlpha: 0.64,
-      fadeOutStart: 0.82,
-      fadeOutEnd: 1,
-      progressSpan: 1
-    });
-    inkTransition?.prewarm?.();
     prepareAodTransition(section, { progress: 0 });
-    renderInk(0);
     setProgress(0);
     transitionTo('mounted');
     return getState();
@@ -545,8 +516,6 @@ export function createAodScenePlayer(options = {}) {
     safeCall(() => host?.replaceChildren?.());
     section = null;
     video = null;
-    inkCanvas = null;
-    inkTransition = null;
     return getState();
   }
 

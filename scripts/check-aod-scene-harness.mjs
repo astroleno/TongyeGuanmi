@@ -114,13 +114,11 @@ function makeFakeVideo({ duration = 5, readyState = 2 } = {}) {
 
 function makeFixture(opts = {}) {
   const video = makeFakeVideo(opts);
-  const inkCanvas = { style: makeStyle() };
   const layer = { style: makeStyle() };
   const section = {
     style: makeStyle(),
     querySelector(selector) {
       if (selector.includes('figure-video')) return video;
-      if (selector.includes('ink-canvas')) return inkCanvas;
       return layer;
     }
   };
@@ -143,7 +141,7 @@ function makeFixture(opts = {}) {
     }
   };
 
-  return { host, section, video, inkCanvas, events };
+  return { host, section, video, events };
 }
 
 function makePump() {
@@ -174,7 +172,6 @@ function makePump() {
 
 function createTestPlayer(fixture, options = {}) {
   const pump = options.pump || makePump();
-  const inkRenders = [];
   let playCount = 0;
   const traces = [];
   const player = createAodScenePlayer({
@@ -184,10 +181,6 @@ function createTestPlayer(fixture, options = {}) {
     stableDelayMs: options.stableDelayMs ?? 100000,
     deps: {
       mountMarkup: () => fixture.section,
-      createInkTransition: () => ({
-        render: (progress) => inkRenders.push(progress),
-        prewarm: () => inkRenders.push(0.003)
-      }),
       raf: pump.raf,
       caf: pump.caf,
       playVideo: options.playVideo || ((video) => {
@@ -202,7 +195,6 @@ function createTestPlayer(fixture, options = {}) {
   return {
     player,
     pump,
-    inkRenders,
     traces,
     get playCount() { return playCount; }
   };
@@ -222,6 +214,9 @@ function createTestPlayer(fixture, options = {}) {
 
   for (const forbidden of ['scrollY', 'pageYOffset', 'currentSceneId', 'location.hash', 'ScrollTrigger']) {
     assert(!playerSource.includes(forbidden), `aod-scene-player does not reference ${forbidden}`);
+  }
+  for (const forbidden of ['ink-scene-transition', 'createInkCurtainTransition', 'data-aod-ink-canvas', 'aod-transition__ink']) {
+    assert(!playerSource.includes(forbidden), `aod-scene-player does not include ink transition wiring: ${forbidden}`);
   }
 
   assert(pageSource.includes('./js/scene-harness/aod-scene-player.js'), 'standalone page imports harness player');
