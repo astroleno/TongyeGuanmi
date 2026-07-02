@@ -14,6 +14,12 @@
     "verify:transition-runtime": "node scripts/check-transition-runtime.mjs",
     "verify:homepage-transitions": "node scripts/check-homepage-transition-integration.mjs",
     "verify:handoff-ownership": "node scripts/check-handoff-ownership.mjs",
-    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership"
+    "verify:scene-harness:hero": "node scripts/check-hero-scene-harness.mjs",
+    "verify:scene-harness:pattern": "node scripts/check-pattern-scene-harness.mjs",
+    "verify:scene-harness:starmap": "node scripts/check-starmap-scene-harness.mjs",
+    "verify:scene-harness:aod": "node scripts/check-aod-scene-harness.mjs",
+    "verify:scene-provider-runtime": "node scripts/check-scene-provider-runtime.mjs",
+    "verify:scene-providers": "npm run verify:scene-harness:hero && npm run verify:scene-harness:pattern && npm run verify:scene-harness:starmap && npm run verify:scene-harness:aod && npm run verify:scene-provider-runtime",
+    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership && npm run verify:scene-providers"
   }
 }
