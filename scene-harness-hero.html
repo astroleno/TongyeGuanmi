@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hero Scene Harness</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
+  <link rel="preload" href="assets/back1.png" as="image" />
+  <link rel="preload" href="assets/middle1.png" as="image" />
+  <link rel="preload" href="assets/figure-poster.jpg" as="image" />
+  <link rel="stylesheet" href="css/sections/hero-stage.css" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07110e;
+      --ink: #f7edd7;
+      --line: rgba(247, 237, 215, .16);
+      --glass: rgba(5, 10, 8, .68);
+      --jade: #38a69a;
+      --gold: #e8d59a;
+    }
+
+    @font-face {
+      font-family: "Tongye Title";
+      src: url("assets/fonts/qiji-title-subset.ttf") format("truetype");
+      font-display: swap;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      background: #050807;
+      color: var(--ink);
+      font-family: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    img,
+    video,
+    canvas {
+      display: block;
+      max-width: 100%;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+      letter-spacing: 0;
+    }
+
+    .svg-filters {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+    }
+
+    .harness-shell {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      isolation: isolate;
+      background: #07110e;
+    }
+
+    .harness-stage {
+      position: absolute;
+      inset: 0;
+      min-height: 100dvh;
+    }
+
+    .harness-controls {
+      position: fixed;
+      left: max(16px, env(safe-area-inset-left));
+      right: max(16px, env(safe-area-inset-right));
+      bottom: max(16px, env(safe-area-inset-bottom));
+      z-index: 20;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      pointer-events: none;
+    }
+
+    .harness-actions,
+    .harness-state {
+      pointer-events: auto;
+      border: 1px solid var(--line);
+      background: var(--glass);
+      backdrop-filter: blur(18px) saturate(1.08);
+      -webkit-backdrop-filter: blur(18px) saturate(1.08);
+      box-shadow: 0 18px 60px rgba(0, 0, 0, .34);
+    }
+
+    .harness-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      width: fit-content;
+      max-width: min(720px, 100%);
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .harness-actions button {
+      min-height: 36px;
+      border: 1px solid rgba(247, 237, 215, .16);
+      border-radius: 8px;
+      padding: 0 12px;
+      background: rgba(247, 237, 215, .08);
+      cursor: pointer;
+    }
+
+    .harness-actions button:hover {
+      background: rgba(247, 237, 215, .14);
+    }
+
+    .harness-actions button:active {
+      transform: translateY(1px);
+    }
+
+    .harness-state {
+      justify-self: end;
+      width: min(360px, 44vw);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: rgba(247, 237, 215, .78);
+    }
+
+    .harness-state strong {
+      display: block;
+      margin-bottom: 6px;
+      color: rgba(247, 237, 215, .96);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .harness-state code {
+      color: var(--gold);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+    }
+
+    .harness-trace {
+      max-height: 92px;
+      margin-top: 8px;
+      overflow: hidden;
+      color: rgba(247, 237, 215, .58);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+    }
+
+    @media (max-width: 760px) {
+      .harness-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .harness-actions {
+        width: 100%;
+      }
+
+      .harness-actions button {
+        flex: 1 1 auto;
+      }
+
+      .harness-state {
+        justify-self: stretch;
+        width: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg class="svg-filters" aria-hidden="true" focusable="false">
+    <filter id="figure-alpha-clean" color-interpolation-filters="sRGB">
+      <feComponentTransfer in="SourceAlpha" result="thresholdAlpha">
+        <feFuncA type="table" tableValues="0 0 0.18 0.82 1 1" />
+      </feComponentTransfer>
+      <feMorphology in="thresholdAlpha" operator="erode" radius="0.38" result="trimmedAlpha" />
+      <feGaussianBlur in="trimmedAlpha" stdDeviation="0.28" result="featherAlpha" />
+      <feComposite in="SourceGraphic" in2="featherAlpha" operator="in" />
+    </filter>
+  </svg>
+
+  <main class="harness-shell">
+    <div class="harness-stage" data-hero-harness-host></div>
+  </main>
+
+  <div class="harness-controls" aria-label="Hero scene harness controls">
+    <div class="harness-actions">
+      <button type="button" data-action="poster">Show Poster</button>
+      <button type="button" data-action="play">Play Forward</button>
+      <button type="button" data-action="cancel">Cancel</button>
+      <button type="button" data-action="reverse">Reverse To Poster</button>
+      <button type="button" data-action="destroy">Destroy</button>
+      <button type="button" data-action="remount">Remount</button>
+    </div>
+    <div class="harness-state" aria-live="polite">
+      <strong>State</strong>
+      <div data-state-line></div>
+      <div class="harness-trace" data-trace-line></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createHeroScenePlayer } from './js/scene-harness/hero-scene-player.js';
+
+    const host = document.querySelector('[data-hero-harness-host]');
+    const stateLine = document.querySelector('[data-state-line]');
+    const traceLine = document.querySelector('[data-trace-line]');
+    const buttons = Array.from(document.querySelectorAll('[data-action]'));
+    const traces = [];
+
+    let player = null;
+
+    function onTrace(entry) {
+      traces.push(entry.phase);
+      if (traces.length > 8) traces.shift();
+      renderState();
+    }
+
+    function createPlayer() {
+      player = createHeroScenePlayer({ onTrace });
+      player.mount({ host });
+      renderState();
+    }
+
+    function renderState() {
+      if (!player) return;
+      const state = player.getState();
+      stateLine.innerHTML = [
+        `phase=<code>${state.phase}</code>`,
+        `ready=<code>${state.ready}</code>`,
+        `poster=<code>${state.posterShown}</code>`,
+        `playing=<code>${state.playing}</code>`,
+        `destroyed=<code>${state.destroyed}</code>`,
+        `progress=<code>${state.progress}</code>`
+      ].join(' ');
+      traceLine.textContent = traces.join(' -> ');
+    }
+
+    let playTask = null;
+
+    async function run(action) {
+      try {
+        if (action === 'poster') await player.showPoster({ direction: 1 });
+        if (action === 'play' && !playTask) {
+          playTask = player.playForward({ onProgress: renderState, onTrace })
+            .catch((error) => {
+              if (error?.name !== 'AbortError') {
+                stateLine.innerHTML = `phase=<code>error</code> message=<code>${error.name || error.message}</code>`;
+              }
+            })
+            .finally(() => {
+              playTask = null;
+              renderState();
+            });
+        }
+        if (action === 'cancel') await player.cancelToSource({});
+        if (action === 'reverse') await player.reverseToPoster({});
+        if (action === 'destroy') player.destroy();
+        if (action === 'remount') {
+          player.destroy();
+          createPlayer();
+          await player.showPoster({ direction: 1 });
+        }
+      } catch (error) {
+        stateLine.innerHTML = `phase=<code>error</code> message=<code>${error.name || error.message}</code>`;
+      } finally {
+        renderState();
+      }
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => run(button.dataset.action));
+    });
+
+    createPlayer();
+  </script>
+</body>
+</html>
