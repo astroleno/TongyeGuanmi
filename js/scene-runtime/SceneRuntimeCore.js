@@ -70,6 +70,7 @@ export class SceneRuntimeCore {
     ownership = new LayerOwnership(),
     hosts = new Map(),
     timeouts = {},
+    stableScenePlayers = [],
     failureCooldownMs = 420,
     clock = globalThis.performance
   } = {}) {
@@ -82,6 +83,7 @@ export class SceneRuntimeCore {
     this.transitionPlayer = transitionPlayer;
     this.ownership = ownership;
     this.hosts = hosts instanceof Map ? hosts : new Map(Object.entries(hosts));
+    this.stableScenePlayers = new Set(stableScenePlayers);
     this.timeouts = {
       transition: 1000,
       scene: 1000,
@@ -91,6 +93,8 @@ export class SceneRuntimeCore {
     this.clock = clock;
     this.failureCooldowns = new Map();
     this.adapters = new Map();
+    this.stableScenePlayback = new Map();
+    this.stableSceneCompleted = new Set();
     this.state = RUNTIME_STATES.IDLE;
     this.activeAttempt = null;
     this.epoch = 0;
@@ -111,6 +115,10 @@ export class SceneRuntimeCore {
       epoch: this.epoch,
       presentation: this.presentation.snapshot(),
       ownership: this.ownership.snapshot(),
+      stableScenePlayback: Object.fromEntries([...this.stableScenePlayback.entries()].map(([sceneId, playback]) => [
+        sceneId,
+        { epoch: playback.epoch }
+      ])),
       scrollIntent: this.scrollIntent.snapshot(),
       readMonitor: this.readMonitor.snapshot(),
       failureCooldowns: Object.fromEntries([...this.failureCooldowns.entries()]),
@@ -155,6 +163,13 @@ export class SceneRuntimeCore {
     await this.ensureAdapter(sceneId);
     this.presentation.present(sceneId, 'runtime-initial');
     this.setState(RUNTIME_STATES.IDLE, { sceneId, reason: 'runtime-initial' });
+    this.activateStableScene(sceneId, 'runtime-initial').catch((error) => {
+      this.record('stable-scene-activation-failed', {
+        sceneId,
+        reason: 'runtime-initial',
+        error: error.message
+      });
+    });
     return this.snapshot();
   }
 
@@ -222,6 +237,14 @@ export class SceneRuntimeCore {
     const from = this.current();
     const step = this.routeStep(from);
     this.assertCanArm(from, step);
+    const stableCancelPromise = this.cancelStableScenePlayback(from, 'attempt-start').catch((error) => {
+      this.record('stable-scene-cancel-failed', {
+        sceneId: from,
+        reason: 'attempt-start',
+        error: error.message
+      });
+      return null;
+    });
     this.epoch += 1;
     const attempt = {
       attemptId: ++this.attemptSequence,
@@ -230,6 +253,7 @@ export class SceneRuntimeCore {
       source,
       from,
       step,
+      stableCancelPromise,
       controller: new AbortController()
     };
     this.activeAttempt = attempt;
@@ -303,6 +327,9 @@ export class SceneRuntimeCore {
 
     const owner = `attempt:${attempt.attemptId}`;
     try {
+      await attempt.stableCancelPromise;
+      if (!this.isAttemptCurrent(attempt)) return { completed: false, stale: true };
+
       this.setState(RUNTIME_STATES.SNAP_LOCKING, {
         attemptId: attempt.attemptId,
         from: attempt.from,
@@ -387,6 +414,13 @@ export class SceneRuntimeCore {
     if (attempt.step.to) {
       await this.ensureAdapter(attempt.step.to);
       this.presentation.present(attempt.step.to, `transition:${attempt.step.segmentId}`);
+      this.activateStableScene(attempt.step.to, `transition:${attempt.step.segmentId}`).catch((error) => {
+        this.record('stable-scene-activation-failed', {
+          sceneId: attempt.step.to,
+          reason: `transition:${attempt.step.segmentId}`,
+          error: error.message
+        });
+      });
     } else {
       this.record('transition-only-complete', {
         attemptId: attempt.attemptId,
@@ -502,6 +536,13 @@ export class SceneRuntimeCore {
     const adapter = await this.ensureAdapter(attempt.from);
     await this.cleanupSourceAdapter(adapter, attempt, reason);
     this.presentation.present(attempt.from, reason);
+    this.activateStableScene(attempt.from, reason).catch((error) => {
+      this.record('stable-scene-activation-failed', {
+        sceneId: attempt.from,
+        reason,
+        error: error.message
+      });
+    });
     this.record('recover', {
       attemptId: attempt.attemptId,
       from: attempt.from,
@@ -549,6 +590,13 @@ export class SceneRuntimeCore {
     const adapter = await this.ensureAdapter(attempt.from);
     await this.cleanupSourceAdapter(adapter, attempt, reason);
     this.presentation.present(attempt.from, reason);
+    this.activateStableScene(attempt.from, reason).catch((error) => {
+      this.record('stable-scene-activation-failed', {
+        sceneId: attempt.from,
+        reason,
+        error: error.message
+      });
+    });
     this.ownership.releaseOwner(`attempt:${attempt.attemptId}`, reason);
     this.setState(RUNTIME_STATES.IDLE, {
       attemptId: attempt.attemptId,
@@ -565,6 +613,76 @@ export class SceneRuntimeCore {
     if (result.type !== 'next') return result;
     const attempt = this.armNext({ direction: 1, source: 'read-monitor' });
     await this.runArmed(attempt);
+    return result;
+  }
+
+  async activateStableScene(sceneId, reason = 'stable-scene') {
+    if (!sceneId || !this.stableScenePlayers.has(sceneId)) return null;
+    if (this.stableSceneCompleted.has(sceneId)) return null;
+    if (this.stableScenePlayback.has(sceneId)) return this.stableScenePlayback.get(sceneId).promise;
+
+    const adapter = await this.ensureAdapter(sceneId);
+    const epoch = this.epoch;
+    const owner = `stable-scene:${sceneId}:${epoch}`;
+    const controller = new AbortController();
+    const playback = {
+      sceneId,
+      epoch,
+      controller,
+      promise: null
+    };
+    this.stableScenePlayback.set(sceneId, playback);
+    this.ownership.claim('stable-scene', owner, { sceneId, reason, epoch });
+    this.record('stable-scene-play-start', { sceneId, reason, epoch });
+
+    playback.promise = adapter.playForward({
+      timeoutMs: this.timeouts.scene,
+      signal: controller.signal,
+      onTrace: (entry) => {
+        if (this.current() !== sceneId || this.epoch !== epoch) return;
+        this.record('stable-scene-player-trace', { sceneId, entry, reason });
+      },
+      onProgress: (progress) => {
+        if (this.current() !== sceneId || this.epoch !== epoch) return;
+        this.record('stable-scene-player-progress', { sceneId, progress });
+      }
+    }).then((result) => {
+      if (this.stableScenePlayback.get(sceneId) === playback && isCompletedResult(result)) {
+        this.stableSceneCompleted.add(sceneId);
+        this.record('stable-scene-play-complete', { sceneId, reason, epoch });
+      }
+      return result;
+    }).catch(async (error) => {
+      if (this.stableScenePlayback.get(sceneId) !== playback) {
+        this.record('stable-scene-play-aborted', { sceneId, reason, epoch, error: error.message });
+        return null;
+      }
+      this.record('stable-scene-play-failed', { sceneId, reason, epoch, error: error.message });
+      await adapter.cancelToSource?.({ timeoutMs: this.timeouts.scene }).catch(() => null);
+      return null;
+    }).finally(() => {
+      if (this.stableScenePlayback.get(sceneId) === playback) this.stableScenePlayback.delete(sceneId);
+      this.ownership.releaseOwner(owner, 'stable-scene-finally');
+    });
+
+    return playback.promise;
+  }
+
+  async cancelStableScenePlayback(sceneId, reason = 'stable-scene-cancel') {
+    const playback = this.stableScenePlayback.get(sceneId);
+    if (!playback) return null;
+    this.stableScenePlayback.delete(sceneId);
+    playback.controller.abort(new Error(reason));
+    const adapter = this.adapters.get(sceneId);
+    const result = await adapter?.cancelToSource?.({ timeoutMs: this.timeouts.scene }).catch((error) => {
+      this.record('stable-scene-cancel-failed', {
+        sceneId,
+        reason,
+        error: error.message
+      });
+      return null;
+    });
+    this.record('stable-scene-play-cancelled', { sceneId, reason });
     return result;
   }
 }

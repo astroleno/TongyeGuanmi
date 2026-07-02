@@ -144,6 +144,7 @@ export function createAodScenePlayer(options = {}) {
   const posterTimeoutMs = options.posterTimeoutMs ?? 5000;
   const playbackTimeoutMs = options.playbackTimeoutMs ?? 12000;
   const stableDelayMs = options.stableDelayMs ?? 700;
+  const earlyCopyLeadMs = options.earlyCopyLeadMs ?? 520;
   const completionPaddingSeconds = options.completionPaddingSeconds ?? 0.05;
   const durationFallbackSeconds = options.durationFallbackSeconds ?? DEFAULT_VIDEO_DURATION_SECONDS;
   const onTraceDefault = options.onTrace || null;
@@ -154,6 +155,7 @@ export function createAodScenePlayer(options = {}) {
   let state = 'idle';
   let progress = 0;
   let earlyCopyFired = false;
+  let earlyCopyFiredAt = 0;
   let completeFired = false;
   let rafId = 0;
   let playbackTimeoutId = 0;
@@ -215,6 +217,15 @@ export function createAodScenePlayer(options = {}) {
     return Number.isFinite(duration) && duration > 0 ? duration : durationFallbackSeconds;
   }
 
+  function mediaProgress() {
+    return clamp((video?.currentTime || 0) / durationOf());
+  }
+
+  function timelineProgress(startedAt) {
+    if (!startedAt) return 0;
+    return clamp((now() - startedAt) / Math.max(1, durationFallbackSeconds * 1000));
+  }
+
   function renderPosterFrame() {
     if (!section) return;
     safeCall(() => video?.pause?.());
@@ -229,22 +240,36 @@ export function createAodScenePlayer(options = {}) {
     renderAodTransitionProgress(section, 0);
   }
 
-  function renderPlaybackFrame() {
+  function renderPlaybackFrame(nextProgress = mediaProgress()) {
     if (!section || !video) return;
-    const nextProgress = clamp((video.currentTime || 0) / durationOf());
-    setProgress(nextProgress);
-    renderAodTransitionProgress(section, nextProgress, NO_SEEK);
-    emitEarlyCopyReady(nextProgress);
+    const intendedProgress = clamp(nextProgress);
+    const renderedProgress = !earlyCopyFired && intendedProgress >= 0.8 ? 0.8 : intendedProgress;
+    setProgress(renderedProgress);
+    renderAodTransitionProgress(section, renderedProgress, NO_SEEK);
+    emitEarlyCopyReady(renderedProgress);
   }
 
   function emitEarlyCopyReady(nextProgress = progress) {
     if (earlyCopyFired || nextProgress < 0.8) return;
 
     earlyCopyFired = true;
+    earlyCopyFiredAt = now();
     updateHostState();
     recordTrace(EARLY_COPY_READY_MILESTONE, {
-      milestone: EARLY_COPY_READY_MILESTONE
+      milestone: EARLY_COPY_READY_MILESTONE,
+      atProgress: 0.8
     });
+  }
+
+  function ensureEarlyCopyReady() {
+    if (earlyCopyFired) return;
+    setProgress(Math.max(progress, 0.8));
+    if (section) renderAodTransitionProgress(section, progress, NO_SEEK);
+    emitEarlyCopyReady(progress);
+  }
+
+  function earlyCopyLeadSatisfied() {
+    return earlyCopyFired && now() - earlyCopyFiredAt >= earlyCopyLeadMs;
   }
 
   function clearStableTimer() {
@@ -317,6 +342,7 @@ export function createAodScenePlayer(options = {}) {
     clearStableTimer();
     host = nextHost;
     earlyCopyFired = false;
+    earlyCopyFiredAt = 0;
     completeFired = false;
 
     section = mountMarkup(host);
@@ -336,6 +362,7 @@ export function createAodScenePlayer(options = {}) {
       cleanupPlayback();
       clearStableTimer();
       earlyCopyFired = false;
+      earlyCopyFiredAt = 0;
       completeFired = false;
       prepareAodTransition(section, { progress: 0 });
       await waitForAodTransitionMetadata(section, { timeoutMs: posterTimeoutMs });
@@ -393,6 +420,7 @@ export function createAodScenePlayer(options = {}) {
         runController?.abort();
         cleanupToPoster();
         earlyCopyFired = false;
+        earlyCopyFiredAt = 0;
         completeFired = false;
         clearStableTimer();
         transitionTo('poster', { reason });
@@ -413,15 +441,28 @@ export function createAodScenePlayer(options = {}) {
           throwIfAborted(runSignal);
 
           earlyCopyFired = false;
+          earlyCopyFiredAt = 0;
           completeFired = false;
           transitionTo('playing-forward');
+          const playbackStartedAt = now();
 
           if (!video) throw new Error('aod scene player has no video element');
 
           const handleEnded = () => {
             if (settled) return;
-            if (!completePlayback('ended')) return;
-            settle(true, { completed: true, reason: 'ended' });
+            ensureEarlyCopyReady();
+            const finish = () => {
+              if (settled) return;
+              if (!completePlayback('ended')) return;
+              settle(true, { completed: true, reason: 'ended' });
+            };
+            const remainingLeadMs = Math.max(0, earlyCopyLeadMs - (now() - earlyCopyFiredAt));
+            if (remainingLeadMs > 0) {
+              const timer = setTimeoutFn(finish, remainingLeadMs);
+              addPlaybackCleanup(() => clearTimeoutFn(timer));
+              return;
+            }
+            finish();
           };
           const handleError = () => {
             fail('video-error', new Error('aod scene player video error'));
@@ -442,7 +483,8 @@ export function createAodScenePlayer(options = {}) {
 
           const tick = () => {
             if (settled || state !== 'playing-forward') return;
-            renderPlaybackFrame();
+            const nextProgress = Math.max(mediaProgress(), timelineProgress(playbackStartedAt));
+            renderPlaybackFrame(nextProgress);
             onProgress?.(progress);
 
             const duration = durationOf();
@@ -452,6 +494,10 @@ export function createAodScenePlayer(options = {}) {
               && video.currentTime >= duration - completionPaddingSeconds;
 
             if (acceptedFallback) {
+              if (!earlyCopyLeadSatisfied()) {
+                rafId = raf(tick);
+                return;
+              }
               if (completePlayback('accepted-fallback')) {
                 settle(true, { completed: true, reason: 'accepted-fallback' });
               }
@@ -483,6 +529,7 @@ export function createAodScenePlayer(options = {}) {
     await ensureMounted(signal);
     cleanupToPoster();
     earlyCopyFired = false;
+    earlyCopyFiredAt = 0;
     completeFired = false;
     clearStableTimer();
     transitionTo('poster', { reason: 'cancel-to-source' });
@@ -498,6 +545,7 @@ export function createAodScenePlayer(options = {}) {
     await ensureMounted(signal);
     cleanupToPoster();
     earlyCopyFired = false;
+    earlyCopyFiredAt = 0;
     completeFired = false;
     clearStableTimer();
     transitionTo('poster', { reason: 'reverse-to-poster' });

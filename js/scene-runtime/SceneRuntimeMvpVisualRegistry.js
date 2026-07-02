@@ -7,9 +7,10 @@ import { DOM_SHELL_SCENE_IDS } from './SceneRuntimeSceneIds.js';
 
 const STATIC_SCENE_SOURCES = Object.freeze({
   'method-top': Object.freeze({
-    selector: '.chapter-intro--method',
+    selector: '.method-edition-layout--after-handoff',
     label: 'Method top',
-    copy: '先看懂，再用上。'
+    copy: '先看懂，再用上。',
+    readable: true
   }),
   'method-bottom': Object.freeze({
     selector: '.method-flow',
@@ -74,12 +75,17 @@ function cloneSourceForScene(documentRef, sceneId) {
     clone.setAttribute?.('data-static-scene-source', sceneId);
     clone.hidden = false;
     clone.setAttribute?.('aria-hidden', 'false');
+    if (source?.readable) {
+      clone.setAttribute?.('data-runtime-readable-copy', '');
+      clone.classList?.add?.('scene-runtime-readable-copy');
+    }
     return clone;
   }
 
   const fallback = documentRef.createElement('div');
   fallback.setAttribute('data-static-scene-source', sceneId);
   fallback.className = 'scene-runtime-static-copy';
+  if (source?.readable) fallback.setAttribute('data-runtime-readable-copy', '');
   fallback.textContent = source?.copy || sceneId;
   return fallback;
 }
@@ -111,6 +117,10 @@ export class StaticDomScenePlayer {
     this.remember('mount', signal);
     this.host = host;
     const documentRef = host?.ownerDocument || globalThis.document;
+    if (host?.dataset) {
+      if (STATIC_SCENE_SOURCES[this.sceneId]?.readable) host.dataset.sceneReadable = 'true';
+      else delete host.dataset.sceneReadable;
+    }
     host.replaceChildren?.(cloneSourceForScene(documentRef, this.sceneId));
     this.setPhase('mounted');
     return { completed: true };

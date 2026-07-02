@@ -179,10 +179,14 @@ function createTestPlayer(fixture, options = {}) {
     posterTimeoutMs: options.posterTimeoutMs ?? 100,
     playbackTimeoutMs: options.playbackTimeoutMs ?? 1000,
     stableDelayMs: options.stableDelayMs ?? 100000,
+    earlyCopyLeadMs: options.earlyCopyLeadMs ?? 0,
     deps: {
       mountMarkup: () => fixture.section,
       raf: pump.raf,
       caf: pump.caf,
+      setTimeout: options.setTimeoutFn || setTimeout,
+      clearTimeout: options.clearTimeoutFn || clearTimeout,
+      now: options.now,
       playVideo: options.playVideo || ((video) => {
         playCount += 1;
         video.paused = false;
@@ -273,6 +277,8 @@ function createTestPlayer(fixture, options = {}) {
   const earlyCopyEvents = traceEvents.filter((entry) => entry.type === 'early-copy-ready');
   assert(earlyCopyEvents.length === 1, '80% early-copy event fires exactly once');
   assert(earlyCopyEvents[0]?.milestone === 'early-copy-ready', '80% event emits early-copy milestone');
+  assert(earlyCopyEvents[0]?.atProgress === 0.8, '80% event declares atProgress 0.8');
+  assert(earlyCopyEvents[0]?.progress <= 0.8, '80% event is emitted before complete progress');
   assert(!('target' in earlyCopyEvents[0]), '80% player event does not include target scene');
   assert(
     fixture.events.filter((entry) => entry?.type === 'early-copy-ready' && entry?.milestone === 'early-copy-ready' && !('target' in entry)).length === 1,
@@ -312,6 +318,31 @@ function createTestPlayer(fixture, options = {}) {
   assert(harness.player.getState().earlyCopyFired, 'ended fast path sets early-copy flag');
   assert(traceEvents.filter((entry) => entry.type === 'early-copy-ready').length === 1, 'ended fast path emits early-copy once');
   assert(traceEvents.filter((entry) => entry.type === 'complete').length === 1, 'ended fast path emits complete once');
+}
+
+// Early-copy remains visible before complete when ended races RAF -------------
+{
+  const fixture = makeFixture();
+  const harness = createTestPlayer(fixture, { earlyCopyLeadMs: 8 });
+  const traceEvents = [];
+  await harness.player.mount({ host: fixture.host });
+  await harness.player.showPoster({});
+
+  const done = harness.player.playForward({
+    onTrace: (entry) => traceEvents.push(entry)
+  });
+  await microtask();
+  await microtask();
+
+  fixture.video.advance(5);
+  fixture.video.dispatch('ended');
+  await done;
+
+  const earlyCopyEvent = traceEvents.find((entry) => entry.type === 'early-copy-ready');
+  const completeEvent = traceEvents.find((entry) => entry.type === 'complete');
+  assert(Boolean(earlyCopyEvent), 'ended race emits early-copy before completing');
+  assert(Boolean(completeEvent), 'ended race emits complete');
+  assert(completeEvent.at - earlyCopyEvent.at >= 6, 'complete waits for early-copy lead time');
 }
 
 // Successful trace can settle to stable and then destroy ----------------------

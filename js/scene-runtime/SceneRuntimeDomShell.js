@@ -45,6 +45,10 @@ function setBooleanDataset(element, name, value) {
   element.dataset[name] = value ? 'true' : 'false';
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 export class SceneRuntimeDomShell {
   constructor({
     documentRef = globalThis.document,
@@ -56,7 +60,7 @@ export class SceneRuntimeDomShell {
     timeouts = {},
     failureCooldownMs = 420,
     allowDynamicShell = false,
-    playStableScenes = [],
+    stableScenePlayers = [],
     clock = globalThis.performance
   } = {}) {
     this.document = documentRef;
@@ -71,14 +75,12 @@ export class SceneRuntimeDomShell {
     this.timeouts = timeouts;
     this.failureCooldownMs = failureCooldownMs;
     this.allowDynamicShell = allowDynamicShell;
-    this.playStableScenes = new Set(playStableScenes);
+    this.stableScenePlayers = stableScenePlayers;
     this.clock = clock;
     this.hosts = new Map();
     this.layers = new Map();
     this.mounted = false;
     this.hooksInstalled = false;
-    this.stablePlayback = new Map();
-    this.stablePlaybackCompleted = new Set();
     this.touchStartY = null;
     this.lastTouchY = null;
     this.unlisten = [];
@@ -152,6 +154,7 @@ export class SceneRuntimeDomShell {
       transitionPlayer: this.transitionPlayer,
       ownership: new LayerOwnership(),
       hosts: this.hosts,
+      stableScenePlayers: this.stableScenePlayers,
       timeouts: {
         transition: 120,
         scene: 120,
@@ -227,6 +230,32 @@ export class SceneRuntimeDomShell {
         height: 100%;
         min-height: 100%;
         overflow: hidden;
+      }
+
+      [data-scene-id][data-scene-readable="true"] {
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+
+      [data-scene-id][data-scene-readable="true"]::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+      }
+
+      [data-scene-id][data-scene-readable="true"] > [data-runtime-readable-copy] {
+        display: block;
+        min-height: 150svh !important;
+        padding-bottom: 18vh !important;
+      }
+
+      [data-runtime-readable-copy] .reveal,
+      [data-runtime-readable-copy].reveal {
+        opacity: 1 !important;
+        transform: none !important;
+        filter: none !important;
       }
 
       [data-scene-visible="false"] {
@@ -362,9 +391,10 @@ export class SceneRuntimeDomShell {
   async handleWheelEvent(event = {}) {
     const deltaY = Number(event.deltaY || 0);
     if (this.isReadingStep()) {
+      const readingInput = this.applyReadingScroll(deltaY);
       return this.handleReadInput({
-        ...this.readPositionForCurrentHost(),
-        deltaY
+        ...readingInput,
+        deltaY: readingInput.remainingDeltaY
       });
     }
     return this.handleWheel({
@@ -387,9 +417,10 @@ export class SceneRuntimeDomShell {
     const deltaY = this.lastTouchY - touch.clientY;
     this.lastTouchY = touch.clientY;
     if (this.isReadingStep()) {
+      const readingInput = this.applyReadingScroll(deltaY);
       return this.handleReadInput({
-        ...this.readPositionForCurrentHost(),
-        deltaY
+        ...readingInput,
+        deltaY: readingInput.remainingDeltaY
       });
     }
     return this.handleWheel({
@@ -457,6 +488,33 @@ export class SceneRuntimeDomShell {
       scrollTop: host?.scrollTop || 0,
       scrollHeight: host?.scrollHeight || clientHeight,
       clientHeight
+    };
+  }
+
+  applyReadingScroll(deltaY = 0) {
+    const host = this.hosts.get(this.runtime?.current?.());
+    const position = this.readPositionForCurrentHost();
+    if (!host) {
+      return {
+        ...position,
+        consumedDeltaY: 0,
+        remainingDeltaY: Number(deltaY || 0)
+      };
+    }
+
+    const scrollHeight = Math.max(position.scrollHeight, position.clientHeight);
+    const maxScrollTop = Math.max(0, scrollHeight - position.clientHeight);
+    const before = clamp(position.scrollTop, 0, maxScrollTop);
+    const next = clamp(before + Number(deltaY || 0), 0, maxScrollTop);
+    const consumedDeltaY = next - before;
+    host.scrollTop = next;
+
+    return {
+      scrollTop: next,
+      scrollHeight,
+      clientHeight: position.clientHeight,
+      consumedDeltaY,
+      remainingDeltaY: Number(deltaY || 0) - consumedDeltaY
     };
   }
 
@@ -533,50 +591,7 @@ export class SceneRuntimeDomShell {
     this.root.dataset.runtimeState = snapshot.state;
     this.root.dataset.lastProjection = reason;
     this.writeDebug(`${snapshot.state}:${projection.current || 'none'}`);
-    this.cancelStaleStablePlayback(projection.current, reason);
-    this.queueStableScenePlayback(projection.current, reason);
     return snapshot;
-  }
-
-  cancelStaleStablePlayback(currentStableId, reason = 'stable-scene-changed') {
-    for (const sceneId of [...this.stablePlayback.keys()]) {
-      if (sceneId === currentStableId) continue;
-      const adapter = this.runtime?.adapters?.get?.(sceneId);
-      this.stablePlayback.delete(sceneId);
-      adapter?.cancelToSource?.({ timeoutMs: this.timeouts.scene }).catch(() => null);
-      this.runtime?.record?.('stable-scene-player-cancelled', { sceneId, reason });
-    }
-  }
-
-  queueStableScenePlayback(sceneId, reason = 'stable') {
-    if (!sceneId || !this.playStableScenes.has(sceneId)) return;
-    if (this.stablePlaybackCompleted.has(sceneId)) return;
-    if (this.stablePlayback.has(sceneId)) return;
-    const adapter = this.runtime?.adapters?.get?.(sceneId);
-    if (!adapter) return;
-    const epoch = this.runtime.snapshot().epoch;
-    const playback = adapter.playForward({
-      timeoutMs: this.timeouts.scene,
-      onTrace: (entry) => {
-        if (this.runtime?.current?.() !== sceneId || this.runtime.snapshot().epoch !== epoch) return;
-        this.runtime.record('stable-scene-player-trace', { sceneId, entry, reason });
-      },
-      onProgress: (progress) => {
-        if (this.runtime?.current?.() !== sceneId || this.runtime.snapshot().epoch !== epoch) return;
-        this.runtime.record('stable-scene-player-progress', { sceneId, progress });
-      }
-    }).catch(async (error) => {
-      this.runtime?.record?.('stable-scene-player-failed', {
-        sceneId,
-        reason,
-        error: error.message
-      });
-      await adapter.cancelToSource?.({ timeoutMs: this.timeouts.scene }).catch(() => null);
-    }).finally(() => {
-      this.stablePlaybackCompleted.add(sceneId);
-      if (this.stablePlayback.get(sceneId) === playback) this.stablePlayback.delete(sceneId);
-    });
-    this.stablePlayback.set(sceneId, playback);
   }
 
   projectTargetLayer(snapshot) {

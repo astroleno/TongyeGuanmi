@@ -422,7 +422,7 @@ function createSpyShell(options = {}) {
       defaultDurationMs: options.transitionDurationMs ?? 24,
       behavior: options.transitionBehavior || {}
     }),
-    playStableScenes: ['hero', 'pattern', 'star-map'],
+    stableScenePlayers: ['hero', 'pattern', 'star-map'],
     timeouts: {
       transition: 140,
       scene: 140
@@ -448,8 +448,13 @@ async function assertBuildAndEntryContracts() {
   const entry = read('js/scene-runtime/scene-runtime-dom-entry.js');
   assert(entry.includes('createSceneRuntimeMvpVisualRegistry'), 'entry uses MVP visual registry');
   assert(entry.includes('createMvpInkTransitionPlayer'), 'entry uses MVP ink transition player');
+  assert(entry.includes('stableScenePlayers'), 'entry delegates stable scene playback to RuntimeCore');
   assert(!entry.includes('createFakeDomSceneRegistry'), 'entry does not use fake provider registry');
   assert(!entry.includes('createFakeDomTransitionPlayer'), 'entry does not use fake transition player');
+
+  const shellSource = read('js/scene-runtime/SceneRuntimeDomShell.js');
+  assert(!shellSource.includes('playStableScenes'), 'DOM shell does not own stable scene playback');
+  assert(!shellSource.includes('queueStableScenePlayback'), 'DOM shell has no side-channel stable playback queue');
 
   const registry = read('js/scene-runtime/SceneRuntimeMvpVisualRegistry.js');
   for (const realImport of [
@@ -471,6 +476,7 @@ async function assertHappyPathWithVisualRegistry() {
   assert(instances.get('hero').calls.includes('mount'), 'hero provider mount called');
   assert(instances.get('hero').calls.includes('showPoster'), 'hero provider showPoster called');
   assert(instances.get('hero').calls.includes('playForward'), 'hero provider playForward called');
+  assert(shell.runtime.snapshot().trace.some((entry) => entry.type === 'stable-scene-play-start' && entry.sceneId === 'hero'), 'RuntimeCore owns hero stable playback');
   assertOnlyVisible(documentRef, ['hero'], 'initial scene is hero');
 
   const heroRun = shell.advance();
@@ -483,6 +489,7 @@ async function assertHappyPathWithVisualRegistry() {
   assert(instances.get('pattern').calls.includes('mount'), 'pattern provider mount called');
   assert(instances.get('pattern').calls.includes('showPoster'), 'pattern provider showPoster called');
   assert(instances.get('pattern').calls.includes('playForward'), 'pattern provider playForward called');
+  assert(shell.runtime.snapshot().trace.some((entry) => entry.type === 'stable-scene-play-start' && entry.sceneId === 'pattern'), 'RuntimeCore owns pattern stable playback');
 
   const patternRun = shell.advance();
   await wait(4);
@@ -494,6 +501,7 @@ async function assertHappyPathWithVisualRegistry() {
   assert(instances.get('star-map').calls.includes('mount'), 'star-map provider mount called');
   assert(instances.get('star-map').calls.includes('showPoster'), 'star-map provider showPoster called');
   assert(instances.get('star-map').calls.includes('playForward'), 'star-map provider playForward called');
+  assert(shell.runtime.snapshot().trace.some((entry) => entry.type === 'stable-scene-play-start' && entry.sceneId === 'star-map'), 'RuntimeCore owns star-map stable playback');
 
   await shell.advance();
   assertOnlyVisible(documentRef, ['aod-animation'], 'bottom-to-top transition presents aod after ended');
@@ -509,13 +517,25 @@ async function assertHappyPathWithVisualRegistry() {
   assertOnlyVisible(documentRef, ['method-top'], 'AOD ended commits method-top');
   assert.equal(documentRef.querySelectorAll('[data-reveal-scene-id]').length, 0, 'AOD commit clears early copy');
 
-  const readResult = await shell.handleReadInput({
-    scrollTop: 500,
-    scrollHeight: 1200,
-    clientHeight: 700,
-    deltaY: 110
-  });
-  assert.equal(readResult.type, 'next', 'method-top reading boundary advances');
+  const methodTopHost = sceneHost(documentRef, 'method-top');
+  methodTopHost.scrollTop = 0;
+  methodTopHost.scrollHeight = 1200;
+  methodTopHost.clientHeight = 700;
+
+  let readResult = await shell.handleWheelEvent({ deltaY: 200 });
+  assert.equal(readResult.type, 'reading', 'method-top wheel scrolls readable content first');
+  assert.equal(methodTopHost.scrollTop, 200, 'method-top host consumes wheel delta as scrollTop');
+  assertOnlyVisible(documentRef, ['method-top'], 'method-top remains stable while reading content');
+
+  readResult = await shell.handleWheelEvent({ deltaY: 300 });
+  assert.equal(readResult.type, 'reading', 'reaching DOM bottom alone does not advance');
+  assert.equal(methodTopHost.scrollTop, 500, 'method-top host reaches DOM bottom');
+
+  readResult = await shell.handleWheelEvent({ deltaY: 50 });
+  assert.equal(readResult.type, 'reading', 'under 10vh after bottom does not advance');
+
+  readResult = await shell.handleWheelEvent({ deltaY: 60 });
+  assert.equal(readResult.type, 'next', 'method-top reading boundary advances after bottom plus 10vh');
   assertOnlyVisible(documentRef, ['method-bottom'], 'reading boundary commits method-bottom');
   await shell.advance();
   assertOnlyVisible(documentRef, ['method-bottom'], 'method-bottom transition-only path remains stable');
