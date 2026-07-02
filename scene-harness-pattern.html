@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pattern Scene Provider Harness</title>
-  <meta name="description" content="Standalone Pattern scene provider bloom harness." />
+  <title>Pattern Scene Player Harness</title>
+  <meta name="description" content="Standalone Pattern scene-player bloom harness." />
   <meta name="theme-color" content="#d9c08f" />
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="preload" href="assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png" as="image" />
@@ -129,22 +129,18 @@
   </style>
 </head>
 <body>
-  <main class="pattern-harness" aria-label="Pattern scene provider harness">
+  <main class="pattern-harness" aria-label="Pattern scene player harness">
     <section class="pattern-harness__host" data-pattern-harness-host aria-label="Pattern scene viewport"></section>
     <div class="pattern-harness__controls" aria-label="Harness controls">
       <button type="button" data-action="poster">Poster</button>
-      <button type="button" data-action="bloom-in">Bloom In</button>
-      <button type="button" data-action="steady-loop">Steady Loop</button>
-      <button type="button" data-action="left-preview">Left Preview</button>
-      <button type="button" data-action="cancel">Cancel To Poster</button>
-      <button type="button" data-action="reverse">Reverse</button>
+      <button type="button" data-action="forward">Play Forward</button>
+      <button type="button" data-action="cancel">Cancel To Source</button>
+      <button type="button" data-action="reverse">Reverse To Poster</button>
       <button type="button" data-action="destroy">Destroy</button>
       <button type="button" data-action="mount">Mount</button>
-      <button type="button" data-action="progress-zero">Progress 0</button>
-      <button type="button" data-action="progress-poster">Progress 1</button>
       <label class="pattern-harness__progress">
         <span>Progress</span>
-        <input type="range" min="0" max="1" value="1" step="0.001" data-progress-control />
+        <input type="range" min="0" max="1" value="1" step="0.001" data-progress-control disabled />
         <span data-progress-label>1.000</span>
       </label>
     </div>
@@ -152,13 +148,13 @@
   </main>
 
   <script type="module">
-    import { createPatternSceneProvider, PATTERN_POSTER_PROGRESS } from './js/scene-harness/pattern-scene-player.js';
+    import { createPatternScenePlayer } from './js/scene-harness/pattern-scene-player.js';
 
     const host = document.querySelector('[data-pattern-harness-host]');
     const output = document.querySelector('[data-pattern-harness-state]');
     const progressControl = document.querySelector('[data-progress-control]');
     const progressLabel = document.querySelector('[data-progress-label]');
-    let provider = null;
+    let player = null;
     let currentRun = null;
 
     function setShot(name) {
@@ -172,50 +168,42 @@
     }
 
     function renderState() {
-      if (!provider) {
+      if (!player) {
         output.value = 'state=destroyed';
         output.textContent = output.value;
         return;
       }
-      const state = provider.getState();
+      const state = player.getState();
       syncProgressControl(state.progress);
-      output.value = `state=${state.status} mode=${state.mode || 'none'} progress=${state.progress.toFixed(3)} poster=${state.posterProgress.toFixed(3)} transient=${state.transientCount}`;
+      output.value = `state=${state.status} provider=${state.providerStatus || 'none'} progress=${state.progress.toFixed(3)} transient=${state.transientCount}`;
       output.textContent = output.value;
     }
 
-    async function mountProvider() {
-      if (provider?.getState().mounted) return provider;
-      provider = createPatternSceneProvider({
+    async function mountPlayer() {
+      if (player?.getState().mounted) return player;
+      player = createPatternScenePlayer({
         durations: {
           bloomIn: 8000,
-          leftRotatePreview: 8000,
           reverseToPoster: 900
         }
       });
-      await provider.mount({ host, onTrace: renderState });
-      await provider.showPoster({});
+      await player.mount({ host, onTrace: renderState });
+      await player.showPoster({});
       setShot('pattern-poster');
       renderState();
-      return provider;
+      return player;
     }
 
     async function showPoster() {
-      await mountProvider();
-      await provider.showPoster({});
+      await mountPlayer();
+      await player.showPoster({});
       setShot('pattern-poster');
       renderState();
     }
 
-    async function renderProgress(progress) {
-      await mountProvider();
-      provider.renderBloomProgress(progress);
-      setShot(progress === PATTERN_POSTER_PROGRESS ? 'pattern-poster' : 'pattern-bloom-progress');
-      renderState();
-    }
-
-    async function playBloomIn() {
-      await mountProvider();
-      currentRun = provider.playBloomIn({
+    async function playForward() {
+      await mountPlayer();
+      currentRun = player.playForward({
         onProgress(progress) {
           if (progress > 0.22 && progress < 0.78) setShot('pattern-bloom-mid');
           renderState();
@@ -228,45 +216,23 @@
       return result;
     }
 
-    async function playSteadyLoop() {
-      await mountProvider();
-      const result = await provider.playSteadyLoop({});
-      setShot('pattern-stable');
-      renderState();
-      return result;
-    }
-
-    async function playLeftPreview() {
-      await mountProvider();
-      currentRun = provider.playLeftRotatePreview({
-        onProgress(progress) {
-          if (progress > 0.16 && progress < 0.84) setShot('left-rotate-mid');
-          renderState();
-        }
-      });
-      const result = await currentRun;
-      currentRun = null;
-      renderState();
-      return result;
-    }
-
-    async function cancelToPoster() {
-      await mountProvider();
+    async function cancelToSource() {
+      await mountPlayer();
       if (currentRun) {
-        const result = await provider.cancelToPoster({});
+        const result = await player.cancelToSource({});
         currentRun = null;
         setShot('pattern-cleanup');
         renderState();
         return result;
       }
-      currentRun = provider.playLeftRotatePreview({
+      currentRun = player.playForward({
         onProgress(progress) {
-          if (progress > 0.16 && progress < 0.84) setShot('left-rotate-mid');
+          if (progress > 0.16 && progress < 0.84) setShot('pattern-bloom-mid');
           renderState();
         }
       });
       window.setTimeout(() => {
-        provider?.cancelToPoster({}).then(() => {
+        player?.cancelToSource({}).then(() => {
           setShot('pattern-cleanup');
           renderState();
         });
@@ -279,55 +245,44 @@
     }
 
     async function reverseToPoster() {
-      await mountProvider();
-      await provider.reverseToPoster({});
+      await mountPlayer();
+      await player.reverseToPoster({});
       setShot('pattern-cleanup');
       renderState();
     }
 
-    function destroyProvider() {
-      provider?.destroy();
-      provider = null;
+    function destroyPlayer() {
+      player?.destroy();
+      player = null;
       currentRun = null;
       host.replaceChildren();
       setShot('pattern-cleanup');
       renderState();
     }
 
-    progressControl.addEventListener('input', () => {
-      renderProgress(Number(progressControl.value));
-    });
-
     document.querySelectorAll('[data-action]').forEach((button) => {
       button.addEventListener('click', () => {
         const action = button.dataset.action;
         if (action === 'poster') showPoster();
-        if (action === 'bloom-in') playBloomIn();
-        if (action === 'steady-loop') playSteadyLoop();
-        if (action === 'left-preview') playLeftPreview();
-        if (action === 'cancel') cancelToPoster();
+        if (action === 'forward') playForward();
+        if (action === 'cancel') cancelToSource();
         if (action === 'reverse') reverseToPoster();
-        if (action === 'destroy') destroyProvider();
-        if (action === 'mount') mountProvider();
-        if (action === 'progress-zero') renderProgress(0);
-        if (action === 'progress-poster') renderProgress(PATTERN_POSTER_PROGRESS);
+        if (action === 'destroy') destroyPlayer();
+        if (action === 'mount') mountPlayer();
       });
     });
 
     window.patternSceneHarness = {
-      mountProvider,
+      mountPlayer,
       showPoster,
-      renderProgress,
-      playBloomIn,
-      playSteadyLoop,
-      playLeftPreview,
-      cancelToPoster,
+      playForward,
+      cancelToSource,
       reverseToPoster,
-      destroyProvider,
-      getState: () => provider?.getState() || { status: 'destroyed' }
+      destroyPlayer,
+      getState: () => player?.getState() || { status: 'destroyed' }
     };
 
-    mountProvider();
+    mountPlayer();
   </script>
 </body>
 </html>
