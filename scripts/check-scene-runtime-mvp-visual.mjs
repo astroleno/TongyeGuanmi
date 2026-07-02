@@ -422,7 +422,7 @@ function createSpyShell(options = {}) {
       defaultDurationMs: options.transitionDurationMs ?? 24,
       behavior: options.transitionBehavior || {}
     }),
-    stableScenePlayers: ['hero', 'pattern', 'star-map'],
+    stableScenePlayers: ['hero', 'pattern'],
     timeouts: {
       transition: 140,
       scene: 140
@@ -437,18 +437,21 @@ async function assertBuildAndEntryContracts() {
   const defaultHtml = read('index.html');
   assert(!defaultHtml.includes('data-scene-runtime-shell'), 'default build does not emit runtime shell');
   assert(defaultHtml.includes('src="js/main.js"'), 'default build keeps legacy homepage entry');
+  assert(defaultHtml.includes('class="loading-screen"'), 'default build keeps legacy loader');
 
   execFileSync(process.execPath, ['scripts/build-index.mjs', '--scene-runtime'], { cwd: rootDir, stdio: 'pipe' });
   const runtimeHtml = read('index.html');
   assert(runtimeHtml.includes('data-scene-runtime-shell'), 'scene-runtime build emits DOM shell');
   assert(runtimeHtml.includes('data-scene-runtime-dom-shell-entry'), 'scene-runtime build loads DOM shell entry');
   assert(!runtimeHtml.includes('src="js/main.js"'), 'scene-runtime build does not load legacy homepage entry');
+  assert(!runtimeHtml.includes('class="loading-screen"'), 'scene-runtime build removes legacy loader overlay');
   assert.equal((runtimeHtml.match(/data-scene-role="hidden"/g) || []).length, 16, 'scene-runtime build emits 16 runtime scene hosts');
 
   const entry = read('js/scene-runtime/scene-runtime-dom-entry.js');
   assert(entry.includes('createSceneRuntimeMvpVisualRegistry'), 'entry uses MVP visual registry');
   assert(entry.includes('createMvpInkTransitionPlayer'), 'entry uses MVP ink transition player');
   assert(entry.includes('stableScenePlayers'), 'entry delegates stable scene playback to RuntimeCore');
+  assert(entry.includes("stableScenePlayers: ['hero', 'pattern']"), 'entry does not auto-play star-map as a stable scene');
   assert(!entry.includes('createFakeDomSceneRegistry'), 'entry does not use fake provider registry');
   assert(!entry.includes('createFakeDomTransitionPlayer'), 'entry does not use fake transition player');
 
@@ -482,9 +485,13 @@ async function assertHappyPathWithVisualRegistry() {
   const heroRun = shell.advance();
   await wait(4);
   assert(documentRef.querySelector('[data-mvp-ink-transition]'), 'center transition owns ink canvas while playing');
-  assert.equal(sceneHost(documentRef, 'pattern').getAttribute('data-scene-visible'), 'false', 'pattern is not stable-visible during transition');
+  assert.equal(sceneHost(documentRef, 'pattern').getAttribute('data-scene-visible'), 'preview', 'pattern target poster is projected during transition');
+  assert.equal(sceneHost(documentRef, 'pattern').getAttribute('data-scene-role'), 'target-poster', 'pattern target poster has target role');
+  assert.equal(sceneHost(documentRef, 'pattern').parentNode?.getAttribute('data-runtime-layer'), 'target', 'pattern target poster is inside target layer');
+  assertOnlyVisible(documentRef, ['hero'], 'pattern target poster is not stable-visible during transition');
   await heroRun;
   assertOnlyVisible(documentRef, ['pattern'], 'center transition presents pattern after ended');
+  assert.equal(sceneHost(documentRef, 'pattern').parentNode?.getAttribute('data-runtime-layer'), 'source', 'committed pattern returns to source layer');
   await wait(28);
   assert(instances.get('pattern').calls.includes('mount'), 'pattern provider mount called');
   assert(instances.get('pattern').calls.includes('showPoster'), 'pattern provider showPoster called');
@@ -494,16 +501,25 @@ async function assertHappyPathWithVisualRegistry() {
   const patternRun = shell.advance();
   await wait(4);
   assert(documentRef.querySelector('[data-mvp-ink-transition]'), 'left rotate transition owns ink canvas while playing');
-  assert.equal(sceneHost(documentRef, 'star-map').getAttribute('data-scene-visible'), 'false', 'star-map is not stable-visible during transition');
+  assert.equal(sceneHost(documentRef, 'star-map').getAttribute('data-scene-visible'), 'preview', 'star-map target poster is projected during transition');
+  assert.equal(sceneHost(documentRef, 'star-map').parentNode?.getAttribute('data-runtime-layer'), 'target', 'star-map target poster is inside target layer');
+  assertOnlyVisible(documentRef, ['pattern'], 'star-map target poster is not stable-visible during transition');
   await patternRun;
   assertOnlyVisible(documentRef, ['star-map'], 'left rotate transition presents star-map after ended');
   await wait(28);
   assert(instances.get('star-map').calls.includes('mount'), 'star-map provider mount called');
   assert(instances.get('star-map').calls.includes('showPoster'), 'star-map provider showPoster called');
-  assert(instances.get('star-map').calls.includes('playForward'), 'star-map provider playForward called');
-  assert(shell.runtime.snapshot().trace.some((entry) => entry.type === 'stable-scene-play-start' && entry.sceneId === 'star-map'), 'RuntimeCore owns star-map stable playback');
+  assert(!instances.get('star-map').calls.includes('playForward'), 'star-map does not auto-play after pattern handoff');
+  assert(!shell.runtime.snapshot().trace.some((entry) => entry.type === 'stable-scene-play-start' && entry.sceneId === 'star-map'), 'RuntimeCore does not auto-play star-map as a stable scene');
 
-  await shell.advance();
+  const starRun = shell.advance();
+  await wait(4);
+  assert(instances.get('star-map').calls.includes('playForward'), 'star-map plays only after the next scroll intent');
+  assert.equal(sceneHost(documentRef, 'aod-animation').getAttribute('data-scene-visible'), 'false', 'AOD target is hidden while star-map scene is still playing');
+  await wait(24);
+  assert.equal(sceneHost(documentRef, 'aod-animation').getAttribute('data-scene-visible'), 'preview', 'AOD poster is projected before bottom-to-top transition completes');
+  assert.equal(sceneHost(documentRef, 'aod-animation').parentNode?.getAttribute('data-runtime-layer'), 'target', 'AOD poster is inside target layer for bottom-to-top handoff');
+  await starRun;
   assertOnlyVisible(documentRef, ['aod-animation'], 'bottom-to-top transition presents aod after ended');
   assert(instances.get('aod-animation').calls.includes('mount'), 'AOD provider mount called');
   assert(instances.get('aod-animation').calls.includes('showPoster'), 'AOD provider showPoster called');
@@ -572,6 +588,25 @@ async function assertTransitionPlayerSegments() {
   controller.abort(new Error('abort-test'));
   await assert.rejects(() => pending, /abort-test/, 'transition abort rejects');
   assert.equal(layer.querySelectorAll('[data-mvp-ink-transition]').length, 0, 'transition abort clears layer');
+}
+
+async function assertStableReverseRouteWithVisualRegistry() {
+  const { documentRef, shell } = createSpyShell();
+  await shell.start('hero');
+  await shell.advance();
+  await shell.advance();
+  assertOnlyVisible(documentRef, ['star-map'], 'reverse test starts from star-map');
+
+  const reverseToPattern = shell.handleWheelEvent({ deltaY: -120 });
+  await wait(4);
+  assert.equal(sceneHost(documentRef, 'pattern').getAttribute('data-scene-visible'), 'preview', 'reverse route projects pattern target poster');
+  assert.equal(sceneHost(documentRef, 'pattern').parentNode?.getAttribute('data-runtime-layer'), 'target', 'reverse target poster is inside target layer');
+  assertOnlyVisible(documentRef, ['star-map'], 'reverse target poster is not stable-visible before commit');
+  await reverseToPattern;
+  assertOnlyVisible(documentRef, ['pattern'], 'reverse route commits pattern');
+
+  await shell.handleWheelEvent({ deltaY: -120 });
+  assertOnlyVisible(documentRef, ['hero'], 'second reverse route commits hero');
 }
 
 async function assertFailureAndRecovery() {
@@ -659,6 +694,7 @@ function assertForbiddenSideEffects() {
 await assertBuildAndEntryContracts();
 await assertTransitionPlayerSegments();
 await assertHappyPathWithVisualRegistry();
+await assertStableReverseRouteWithVisualRegistry();
 await assertFailureAndRecovery();
 assertForbiddenSideEffects();
 

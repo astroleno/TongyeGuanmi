@@ -269,6 +269,7 @@ async function assertFlaggedBuild() {
   assert(!defaultHtml.includes('data-scene-runtime-dom-shell-entry'), 'default build does not inject DOM shell entry');
   assert(!defaultHtml.includes('data-scene-runtime-shell'), 'default build does not emit runtime shell hosts');
   assert(defaultHtml.includes('src="js/main.js"'), 'default build keeps homepage main entry');
+  assert(defaultHtml.includes('class="loading-screen"'), 'default build keeps legacy loader');
 
   execFileSync(process.execPath, ['scripts/build-index.mjs', '--scene-runtime'], { cwd: rootDir, stdio: 'pipe' });
   const flaggedHtml = read('index.html');
@@ -276,6 +277,7 @@ async function assertFlaggedBuild() {
   assert(!flaggedHtml.includes('src="js/main.js"'), 'scene-runtime build does not load legacy homepage main entry');
   assert(flaggedHtml.includes('data-scene-runtime-shell'), 'scene-runtime build emits runtime shell root');
   assert(flaggedHtml.includes('data-scene-runtime-legacy-disabled'), 'scene-runtime build disables legacy homepage content');
+  assert(!flaggedHtml.includes('class="loading-screen"'), 'scene-runtime build removes legacy loader overlay');
   assert.equal((flaggedHtml.match(/data-scene-role="hidden"/g) || []).length, 16, 'scene-runtime build emits 16 static runtime scene hosts');
   for (const sceneId of ['hero', 'pattern', 'star-map', 'aod-animation', 'method-top', 'method-bottom']) {
     assert(flaggedHtml.includes(`data-scene-id="${sceneId}"`), `scene-runtime build emits MVP host: ${sceneId}`);
@@ -342,15 +344,23 @@ async function assertHappyPathDomProjection() {
   const heroRun = shell.advance();
   await wait(1);
   assert(documentRef.querySelector('[data-fake-transition]'), 'transition layer renders marker while playing');
-  assert.equal(sceneHost(documentRef, 'pattern').getAttribute('data-scene-visible'), 'false', 'target is not stable-visible during transition');
+  assert.equal(sceneHost(documentRef, 'pattern').getAttribute('data-scene-visible'), 'preview', 'target poster is projected during transition');
+  assert.equal(sceneHost(documentRef, 'pattern').getAttribute('data-scene-role'), 'target-poster', 'target poster has target role');
+  assert.equal(sceneHost(documentRef, 'pattern').parentNode?.getAttribute('data-runtime-layer'), 'target', 'target poster is inside target layer');
+  assertOnlyVisible(documentRef, ['hero'], 'target poster is not stable-visible during transition');
   await heroRun;
   assertOnlyVisible(documentRef, ['pattern'], 'hero transition commits pattern');
+  assert.equal(sceneHost(documentRef, 'pattern').parentNode?.getAttribute('data-runtime-layer'), 'source', 'committed target returns to source layer');
   assertNoReveal(documentRef, 'no reveal after transition commit');
 
   await shell.advance();
   assertOnlyVisible(documentRef, ['star-map'], 'pattern transition commits star-map');
 
-  await shell.advance();
+  const starRun = shell.advance();
+  await wait(16);
+  assert.equal(sceneHost(documentRef, 'aod-animation').getAttribute('data-scene-visible'), 'preview', 'AOD target poster is projected during star-map to aod transition');
+  assert.equal(sceneHost(documentRef, 'aod-animation').parentNode?.getAttribute('data-runtime-layer'), 'target', 'AOD target poster is inside target layer');
+  await starRun;
   assertOnlyVisible(documentRef, ['aod-animation'], 'star-map transition commits aod');
 
   const aodRun = shell.advance();

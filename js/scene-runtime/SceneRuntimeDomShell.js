@@ -391,6 +391,14 @@ export class SceneRuntimeDomShell {
   async handleWheelEvent(event = {}) {
     const deltaY = Number(event.deltaY || 0);
     if (this.isReadingStep()) {
+      const position = this.readPositionForCurrentHost();
+      if (deltaY < 0 && position.scrollTop <= 0) {
+        return this.handleWheel({
+          type: 'wheel',
+          deltaY,
+          at: this.clock?.now?.()
+        });
+      }
       const readingInput = this.applyReadingScroll(deltaY);
       return this.handleReadInput({
         ...readingInput,
@@ -417,6 +425,14 @@ export class SceneRuntimeDomShell {
     const deltaY = this.lastTouchY - touch.clientY;
     this.lastTouchY = touch.clientY;
     if (this.isReadingStep()) {
+      const position = this.readPositionForCurrentHost();
+      if (deltaY < 0 && position.scrollTop <= 0) {
+        return this.handleWheel({
+          type: 'touchmove',
+          deltaY,
+          at: this.clock?.now?.()
+        });
+      }
       const readingInput = this.applyReadingScroll(deltaY);
       return this.handleReadInput({
         ...readingInput,
@@ -574,15 +590,19 @@ export class SceneRuntimeDomShell {
     const projection = snapshot.presentation;
     const visible = new Set(projection.visible);
     const earlyCopies = new Set(projection.earlyCopies);
+    const transitionTargetId = this.transitionTargetId(snapshot);
 
     for (const [sceneId, host] of this.hosts.entries()) {
-      const isVisible = visible.has(sceneId);
+      const isStableVisible = visible.has(sceneId);
+      const isTargetPreview = sceneId === transitionTargetId;
+      const isVisible = isStableVisible || isTargetPreview;
       host.hidden = !isVisible;
       host.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
-      host.setAttribute('data-scene-visible', isVisible ? 'true' : 'false');
-      host.setAttribute('data-scene-role', sceneId === projection.current ? 'stable' : earlyCopies.has(sceneId) ? 'early-copy' : 'hidden');
+      host.setAttribute('data-scene-visible', isStableVisible ? 'true' : isTargetPreview ? 'preview' : 'false');
+      host.setAttribute('data-scene-role', sceneId === projection.current ? 'stable' : isTargetPreview ? 'target-poster' : earlyCopies.has(sceneId) ? 'early-copy' : 'hidden');
       setBooleanDataset(host, 'sceneEarlyCopy', earlyCopies.has(sceneId));
       setBooleanDataset(host, 'sceneStable', sceneId === projection.current);
+      setBooleanDataset(host, 'sceneTargetPoster', isTargetPreview);
     }
 
     this.projectTargetLayer(snapshot);
@@ -594,17 +614,47 @@ export class SceneRuntimeDomShell {
     return snapshot;
   }
 
+  transitionTargetId(snapshot) {
+    const attempt = snapshot?.activeAttempt;
+    if (!attempt?.to) return null;
+    if (snapshot.presentation.current === attempt.to) return null;
+    if (!['transition', 'scene-play-transition'].includes(attempt.kind)) return null;
+    if (!['SNAP_LOCKING', 'TRANSITIONING'].includes(snapshot.state)) return null;
+    return attempt.to;
+  }
+
   projectTargetLayer(snapshot) {
     const targetLayer = this.layers.get('target');
+    const sourceLayer = this.layers.get('source');
+    const targetSceneId = this.transitionTargetId(snapshot);
     if (!targetLayer) return;
-    targetLayer.replaceChildren?.();
+
+    for (const marker of targetLayer.querySelectorAll?.('[data-target-scene-marker]') || []) marker.remove?.();
+    for (const [sceneId, host] of this.hosts.entries()) {
+      if (sceneId !== targetSceneId && host.parentNode === targetLayer) sourceLayer?.appendChild(host);
+    }
+
+    if (!targetSceneId) {
+      targetLayer.dataset.targetSceneId = '';
+      targetLayer.dataset.targetSourceSceneId = '';
+      targetLayer.dataset.targetKind = '';
+      return;
+    }
+
     const attempt = snapshot.activeAttempt;
-    if (!attempt?.to || snapshot.presentation.current === attempt.to) return;
+    const targetHost = this.hosts.get(targetSceneId);
+    if (targetHost && targetHost.parentNode !== targetLayer) targetLayer.appendChild(targetHost);
+    targetLayer.dataset.targetSceneId = targetSceneId;
+    targetLayer.dataset.targetSourceSceneId = attempt.from || '';
+    targetLayer.dataset.targetKind = attempt.kind || '';
+
     const marker = createElement(this.document, 'div');
-    marker.setAttribute('data-target-scene-id', attempt.to);
-    marker.setAttribute('data-target-source-scene-id', attempt.from);
-    marker.setAttribute('data-target-kind', attempt.kind);
-    marker.textContent = attempt.to;
+    marker.setAttribute('data-target-scene-marker', '');
+    marker.setAttribute('data-target-scene-id', targetSceneId);
+    marker.setAttribute('data-target-source-scene-id', attempt.from || '');
+    marker.setAttribute('data-target-kind', attempt.kind || '');
+    marker.hidden = true;
+    marker.textContent = targetSceneId;
     targetLayer.appendChild(marker);
   }
 

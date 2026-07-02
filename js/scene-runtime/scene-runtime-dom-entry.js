@@ -13,7 +13,7 @@ function startSceneRuntimeDomShell() {
     root,
     registry,
     transitionPlayer: createMvpInkTransitionPlayer({ layer: transitionLayer }),
-    stableScenePlayers: ['hero', 'pattern', 'star-map'],
+    stableScenePlayers: ['hero', 'pattern'],
     timeouts: {
       transition: 2200,
       scene: 15000

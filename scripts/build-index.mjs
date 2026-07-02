@@ -186,7 +186,18 @@ async function renderFile(relativePath, stack = []) {
   return source;
 }
 
+const loaderPartialMarkup = (await renderFile('partials/loader.html')).trimEnd();
 let html = injectContractAttributes(await renderFile('index.template.html'));
+html = html.replace(
+  /^(\s*)\{\{HOMEPAGE_LOADER_MARKUP\}\}\n?/m,
+  (_match, indent) => {
+    if (sceneRuntimeDomShellEnabled) {
+      return '';
+    }
+
+    return `${indent}${loaderPartialMarkup}\n`;
+  }
+);
 html = disableLegacyHomepageForSceneRuntime(html);
 html = html.replace(
   /^\s*\{\{SCENE_RUNTIME_DOM_SHELL_MARKUP\}\}\n?/m,

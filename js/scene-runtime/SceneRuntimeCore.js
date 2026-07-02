@@ -26,7 +26,7 @@ export const DEFAULT_RUNTIME_ROUTE = Object.freeze({
     segmentId: 'left-rotate-bloom'
   }),
   'star-map': Object.freeze({
-    kind: 'transition',
+    kind: 'scene-play-transition',
     to: 'aod-animation',
     segmentId: 'bottom-to-top-ink'
   }),
@@ -44,6 +44,41 @@ export const DEFAULT_RUNTIME_ROUTE = Object.freeze({
     segmentId: 'bottom-to-top-ink'
   })
 });
+
+export const DEFAULT_RUNTIME_REVERSE_ROUTE = Object.freeze({
+  pattern: Object.freeze({
+    kind: 'transition',
+    to: 'hero',
+    segmentId: 'center-ink-expand'
+  }),
+  'star-map': Object.freeze({
+    kind: 'transition',
+    to: 'pattern',
+    segmentId: 'left-rotate-bloom'
+  }),
+  'aod-animation': Object.freeze({
+    kind: 'transition',
+    to: 'star-map',
+    segmentId: 'bottom-to-top-ink'
+  }),
+  'method-top': Object.freeze({
+    kind: 'transition',
+    to: 'aod-animation',
+    segmentId: 'bottom-to-top-ink'
+  }),
+  'method-bottom': Object.freeze({
+    kind: 'present',
+    to: 'method-top'
+  })
+});
+
+export class SceneRuntimeBoundaryError extends Error {
+  constructor(message, detail = {}) {
+    super(message);
+    this.name = 'SceneRuntimeBoundaryError';
+    this.detail = detail;
+  }
+}
 
 function isCompletedResult(result) {
   if (result?.cancelled) return false;
@@ -63,6 +98,7 @@ export class SceneRuntimeCore {
   constructor({
     registry,
     route = DEFAULT_RUNTIME_ROUTE,
+    reverseRoute = DEFAULT_RUNTIME_REVERSE_ROUTE,
     presentation = new Presentation(),
     scrollIntent = new ScrollIntent(),
     readMonitor = new ReadMonitor(),
@@ -77,6 +113,7 @@ export class SceneRuntimeCore {
     if (!registry) throw new Error('SceneRuntimeCore requires a registry');
     this.registry = registry;
     this.route = route;
+    this.reverseRoute = reverseRoute;
     this.presentation = presentation;
     this.scrollIntent = scrollIntent;
     this.readMonitor = readMonitor;
@@ -177,8 +214,12 @@ export class SceneRuntimeCore {
     return this.presentation.snapshot().current;
   }
 
-  routeStep(sceneId = this.current()) {
-    const step = this.route[sceneId];
+  findRouteStep(sceneId = this.current(), direction = 1) {
+    return (direction < 0 ? this.reverseRoute : this.route)[sceneId] || null;
+  }
+
+  routeStep(sceneId = this.current(), direction = 1) {
+    const step = this.findRouteStep(sceneId, direction);
     if (!step) throw new Error(`No runtime route step for ${sceneId}`);
     return step;
   }
@@ -235,7 +276,14 @@ export class SceneRuntimeCore {
 
   createAttempt({ direction = 1, source = 'intent' } = {}) {
     const from = this.current();
-    const step = this.routeStep(from);
+    const step = this.findRouteStep(from, direction);
+    if (!step) {
+      throw new SceneRuntimeBoundaryError(`No runtime route step for ${from} in direction ${direction}`, {
+        from,
+        direction,
+        source
+      });
+    }
     this.assertCanArm(from, step);
     const stableCancelPromise = this.cancelStableScenePlayback(from, 'attempt-start').catch((error) => {
       this.record('stable-scene-cancel-failed', {
@@ -300,6 +348,15 @@ export class SceneRuntimeCore {
           source: event.type || 'scroll'
         });
       } catch (error) {
+        if (error.name === 'SceneRuntimeBoundaryError') {
+          this.scrollIntent.reset('route-boundary');
+          this.record('route-boundary', error.detail || {});
+          return {
+            type: 'route-boundary',
+            direction: result.direction,
+            detail: error.detail
+          };
+        }
         if (error.name !== 'SceneRuntimeRetrySuppressedError') throw error;
         this.scrollIntent.reset('retry-suppressed');
         this.record('retry-suppressed', {
@@ -344,8 +401,14 @@ export class SceneRuntimeCore {
       if (attempt.step.kind === 'scene-play') {
         return await this.runScenePlayAttempt(attempt, owner);
       }
+      if (attempt.step.kind === 'scene-play-transition') {
+        return await this.runScenePlayTransitionAttempt(attempt, owner);
+      }
       if (attempt.step.kind === 'read') {
         return await this.runReadAttempt(attempt, owner);
+      }
+      if (attempt.step.kind === 'present') {
+        return await this.runPresentAttempt(attempt);
       }
       throw new Error(`Unsupported route step kind: ${attempt.step.kind}`);
     } catch (error) {
@@ -389,6 +452,7 @@ export class SceneRuntimeCore {
     this.ownership.claim('transition', owner, {
       segmentId: attempt.step.segmentId
     });
+    await this.prepareTransitionTarget(attempt);
     const result = await this.transitionPlayer.play({
       segmentId: attempt.step.segmentId,
       from: attempt.from,
@@ -467,6 +531,40 @@ export class SceneRuntimeCore {
     return result;
   }
 
+  async runScenePlayTransitionAttempt(attempt, owner) {
+    this.setState(RUNTIME_STATES.PLAYING, {
+      attemptId: attempt.attemptId,
+      sceneId: attempt.from
+    });
+    this.ownership.claim('scene', owner, { sceneId: attempt.from });
+    const adapter = await this.ensureAdapter(attempt.from);
+    const playResult = await adapter.playForward({
+      timeoutMs: this.timeouts.scene,
+      signal: attempt.controller.signal,
+      onTrace: (entry) => this.handleSceneTrace(attempt, entry),
+      onProgress: (progress) => this.handleAsyncTrace(attempt, {
+        type: 'scene-progress',
+        progress,
+        sceneId: attempt.from,
+        attemptId: attempt.attemptId,
+        epoch: attempt.epoch
+      })
+    });
+    if (!this.isAttemptCurrent(attempt)) return { completed: false, stale: true };
+    if (!isCompletedResult(playResult)) {
+      await this.recoverAttempt(attempt, playResult?.reason || 'scene-play-cancelled');
+      return playResult;
+    }
+    this.ownership.release('scene', owner, 'scene-play-complete');
+
+    const transitionResult = await this.runTransitionAttempt(attempt, owner);
+    return {
+      completed: isCompletedResult(transitionResult),
+      scenePlay: playResult,
+      transition: transitionResult
+    };
+  }
+
   async runReadAttempt(attempt) {
     this.setState(RUNTIME_STATES.PRESENTING, {
       attemptId: attempt.attemptId,
@@ -476,6 +574,34 @@ export class SceneRuntimeCore {
     await this.ensureAdapter(attempt.step.to);
     this.presentation.present(attempt.step.to, 'reading-boundary');
     return { completed: true, kind: 'read' };
+  }
+
+  async runPresentAttempt(attempt) {
+    this.setState(RUNTIME_STATES.PRESENTING, {
+      attemptId: attempt.attemptId,
+      target: attempt.step.to,
+      reason: 'present-route'
+    });
+    await this.ensureAdapter(attempt.step.to);
+    this.presentation.present(attempt.step.to, 'present-route');
+    return { completed: true, kind: 'present' };
+  }
+
+  async prepareTransitionTarget(attempt) {
+    if (!attempt?.step?.to) return null;
+    const adapter = await this.ensureAdapter(attempt.step.to);
+    await adapter.showPoster({
+      direction: attempt.direction < 0 ? 'reverse' : 'forward',
+      timeoutMs: this.timeouts.scene
+    });
+    this.record('target-poster-ready', {
+      attemptId: attempt.attemptId,
+      from: attempt.from,
+      to: attempt.step.to,
+      segmentId: attempt.step.segmentId,
+      direction: attempt.direction
+    });
+    return adapter;
   }
 
   handleSceneTrace(attempt, entry) {

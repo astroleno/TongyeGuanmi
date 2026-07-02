@@ -204,8 +204,20 @@ async function assertForwardHappyPath() {
   assert.equal(runtime.snapshot().presentation.current, 'pattern', 'hero transition presents pattern');
   await runtime.advance();
   assert.equal(runtime.snapshot().presentation.current, 'star-map', 'pattern transition presents star-map');
+  assert(
+    !instances.get('star-map').calls.some(([methodName]) => methodName === 'playForward'),
+    'pattern to star-map lands on star-map poster without auto-play'
+  );
   await runtime.advance();
   assert.equal(runtime.snapshot().presentation.current, 'aod-animation', 'star-map transition presents aod');
+  assert(
+    instances.get('star-map').calls.some(([methodName]) => methodName === 'playForward'),
+    'star-map plays only when leaving toward aod'
+  );
+  assert(
+    runtime.trace.some((entry) => entry.type === 'target-poster-ready' && entry.from === 'star-map' && entry.to === 'aod-animation'),
+    'star-map to aod prepares real target poster before transition'
+  );
   await runtime.advance();
   assert.equal(runtime.snapshot().presentation.current, 'method-top', 'aod complete presents method-top');
   assert.deepEqual(runtime.snapshot().presentation.earlyCopies, [], 'aod commit clears early copy');
@@ -298,6 +310,28 @@ async function assertReverseCancelAndScrollIntent() {
     'touch inertia wheel is ignored'
   );
   assert.equal(touchIntent.snapshot().accumulatedPx, 0, 'touch inertia does not accumulate');
+}
+
+async function assertStableReverseRoute() {
+  const { runtime } = createRuntime();
+  await runtime.initialize('hero');
+  await runtime.advance();
+  await runtime.advance();
+  assert.equal(runtime.snapshot().presentation.current, 'star-map', 'setup reaches star-map');
+
+  const reverseToPattern = runtime.inputScroll({ type: 'wheel', deltaY: -100 });
+  assert.equal(reverseToPattern.type, 'intent', 'reverse wheel arms stable reverse route');
+  await runtime.runArmed();
+  assert.equal(runtime.snapshot().presentation.current, 'pattern', 'star-map reverse route returns to pattern');
+
+  const reverseToHero = runtime.inputScroll({ type: 'wheel', deltaY: -100 });
+  assert.equal(reverseToHero.type, 'intent', 'second reverse wheel arms previous route');
+  await runtime.runArmed();
+  assert.equal(runtime.snapshot().presentation.current, 'hero', 'pattern reverse route returns to hero');
+
+  const boundary = runtime.inputScroll({ type: 'wheel', deltaY: -100 });
+  assert.equal(boundary.type, 'route-boundary', 'reverse at hero is a clean route boundary');
+  assert.equal(runtime.snapshot().presentation.current, 'hero', 'route boundary does not leave hero');
 }
 
 async function assertStaleCallbacksCannotCommit() {
@@ -552,6 +586,7 @@ function assertNoRuntimeSideEffects() {
 assertNoRuntimeSideEffects();
 await assertForwardHappyPath();
 await assertReverseCancelAndScrollIntent();
+await assertStableReverseRoute();
 await assertStaleCallbacksCannotCommit();
 await assertOldFinallyCannotClobberNewAttempt();
 await assertPlayerRejectTimeoutAndEarlyRollback();
