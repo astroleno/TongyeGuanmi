@@ -243,7 +243,7 @@ function withFakeGlobals(document, callback) {
     timeline.updateFrame('belief-method', 0.5, { reason: 'unit-midframe' });
     assert.equal(sections.method.copy.getAttribute('data-timeline-fixed'), 'true', 'mid-playback copy is fixed');
 
-    timeline.presentTarget('belief-method', 'unit-present');
+    const presentedFrame = timeline.presentTarget('belief-method', 'unit-present');
     assert.equal(sections.method.copy.hasAttribute('data-timeline-fixed'), false, 'present clears fixed copy');
     assert.equal(
       document.documentElement.classList.contains('homepage-timeline-target-active'),
@@ -251,6 +251,21 @@ function withFakeGlobals(document, callback) {
       'present clears root fixed-copy class'
     );
     assert.equal(sections.method.copy.getAttribute('data-entry-state'), 'presented', 'present claims copy');
+    assert.equal(presentedFrame.phase, 'presented', 'present returns a presented frame');
+    assert.equal(presentedFrame.sourceOpacity, 0, 'forced present recomputes terminal source opacity');
+    assert.equal(presentedFrame.targetOpacity, 1, 'forced present recomputes terminal target opacity');
+
+    const lateUpdateFrame = timeline.updateFrame('belief-method', 0.5, { reason: 'unit-late-update' });
+    const repeatedPresentFrame = timeline.presentTarget('belief-method', 'unit-present-again');
+    assert.equal(lateUpdateFrame, presentedFrame, 'late adapter updates must not rewrite a presented join frame');
+    assert.equal(repeatedPresentFrame, presentedFrame, 'presentTarget stays idempotent after late adapter updates');
+    assert.equal(timeline.getFrame('belief-method').phase, 'presented', 'presented join frame remains authoritative');
+    assert.equal(sections.method.copy.hasAttribute('data-timeline-fixed'), false, 'late update must not restore fixed copy');
+    assert.equal(
+      document.events.filter((event) => event.type === 'scene-timeline:presented' && event.detail.joinId === 'belief-method').length,
+      1,
+      'late update and repeated present must not dispatch a second presented event'
+    );
   });
 }
 

@@ -136,10 +136,9 @@ function createFrameFromState(join, state, {
 }
 
 function forcePresentedState(join, state) {
-  const baseState = state || deriveTimelineState(join, 1);
+  const baseState = deriveTimelineState(join, 1, state?.milestones || {});
   return Object.freeze({
     ...baseState,
-    progress: Math.max(baseState.progress, baseState.presentAt),
     targetCommitted: true,
     targetPresented: true,
     cleanupReady: true,
@@ -408,6 +407,10 @@ export function createSceneTimelineController({
     if (!activeJoinId) activeJoinId = join.id;
     const frameDirection = direction ?? directionByJoinId.get(join.id) ?? 1;
     directionByJoinId.set(join.id, normalizeDirection(frameDirection));
+
+    if (presentedJoinIds.has(join.id) && normalizeDirection(frameDirection) >= 0) {
+      return lastFrameByJoinId.get(join.id) || null;
+    }
 
     const state = deriveTimelineState(join, progress, milestones);
     stateByJoinId.set(join.id, state);
