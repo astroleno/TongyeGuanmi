@@ -31,6 +31,7 @@ const MODULE_PLAY_MS = {
   ph: 1900,
   crane: 2200
 };
+const activeHomepageTransitionRuntimes = new Map();
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const easeInOutCubic = (value) => {
@@ -831,7 +832,7 @@ function fallbackHost(host, error) {
   host.classList.add('chapter-transition--fallback', 'scene-transition--fallback');
 }
 
-export async function initHomepageTransitions({
+async function createHomepageTransitionsRuntime({
   root = document,
   reduceMotion = false,
   scrollRuntime = null,
@@ -907,4 +908,32 @@ export async function initHomepageTransitions({
   cleanup.add(() => window.removeEventListener('pagehide', cleanup.destroy));
 
   return cleanup;
+}
+
+export function initHomepageTransitions(options = {}) {
+  const root = options.root || document;
+  const activeRuntime = activeHomepageTransitionRuntimes.get(root);
+  if (activeRuntime) return activeRuntime.promise;
+
+  const handle = { root, promise: null };
+  const promise = Promise.resolve()
+    .then(() => createHomepageTransitionsRuntime({ ...options, root }))
+    .then((cleanup) => {
+      cleanup.add(() => {
+        if (activeHomepageTransitionRuntimes.get(root) === handle) {
+          activeHomepageTransitionRuntimes.delete(root);
+        }
+      });
+      return cleanup;
+    })
+    .catch((error) => {
+      if (activeHomepageTransitionRuntimes.get(root) === handle) {
+        activeHomepageTransitionRuntimes.delete(root);
+      }
+      throw error;
+    });
+
+  handle.promise = promise;
+  activeHomepageTransitionRuntimes.set(root, handle);
+  return promise;
 }

@@ -14,12 +14,176 @@ const loadLibrariesSource = read('js/transitions/load-libraries.js');
 const videoScrubSource = read('js/transitions/video-scrub.js');
 const scrollSceneSource = read('js/transitions/scroll-scene.js');
 const routeEntrySource = read('js/transitions/route-entry.js');
+const runtimeSource = read('js/transitions/homepage-transition-runtime.js');
 const aodTransitionComponent = read('js/components/aod-transition.js');
 const aodTransitionRoute = read('js/aod-transition-route.js');
 const aodTransitionRouteHtml = read('aod-transition-route.html');
 const ttgTransitionComponent = read('js/components/ttg-transition.js');
 const ttgTransitionRoute = read('js/ttg-transition-route.js');
 const ttgTransitionRouteHtml = read('ttg-transition-route.html');
+
+class FakeStyle {
+  constructor() {
+    this.values = new Map();
+  }
+
+  getPropertyValue(name) {
+    return this.values.get(name) || '';
+  }
+
+  setProperty(name, value) {
+    this.values.set(name, String(value));
+  }
+
+  removeProperty(name) {
+    this.values.delete(name);
+  }
+}
+
+class FakeClassList {
+  constructor() {
+    this.values = new Set();
+  }
+
+  add(...names) {
+    names.forEach((name) => this.values.add(name));
+  }
+
+  remove(...names) {
+    names.forEach((name) => this.values.delete(name));
+  }
+}
+
+class FakeDocument {
+  constructor() {
+    this.documentElement = {
+      classList: new FakeClassList(),
+      style: new FakeStyle(),
+      clientHeight: 720
+    };
+  }
+
+  querySelectorAll() {
+    return [];
+  }
+
+  querySelector() {
+    return null;
+  }
+
+  getElementById() {
+    return null;
+  }
+}
+
+function makeFakeWindow() {
+  const listeners = new Map();
+  let rafId = 1;
+  const frames = new Map();
+
+  return {
+    innerHeight: 720,
+    innerWidth: 1280,
+    scrollX: 0,
+    scrollY: 0,
+    pageYOffset: 0,
+    performance: { now: () => 0 },
+    gsap: null,
+    ScrollTrigger: null,
+    addEventListener(type, callback) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type).add(callback);
+    },
+    removeEventListener(type, callback) {
+      listeners.get(type)?.delete(callback);
+    },
+    requestAnimationFrame(callback) {
+      const id = rafId;
+      rafId += 1;
+      frames.set(id, callback);
+      return id;
+    },
+    cancelAnimationFrame(id) {
+      frames.delete(id);
+    },
+    setTimeout(callback) {
+      const id = rafId;
+      rafId += 1;
+      frames.set(id, callback);
+      return id;
+    },
+    clearTimeout(id) {
+      frames.delete(id);
+    },
+    scrollTo() {},
+    listenerCount(type) {
+      return listeners.get(type)?.size || 0;
+    },
+    totalListenerCount() {
+      return [...listeners.values()].reduce((total, entries) => total + entries.size, 0);
+    }
+  };
+}
+
+async function verifyHomepageTransitionInitIdempotency() {
+  const previousGlobals = {
+    window: globalThis.window,
+    document: globalThis.document,
+    performance: globalThis.performance,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+    cancelAnimationFrame: globalThis.cancelAnimationFrame
+  };
+  const fakeWindow = makeFakeWindow();
+  const rootA = new FakeDocument();
+  const rootB = new FakeDocument();
+
+  globalThis.window = fakeWindow;
+  globalThis.document = rootA;
+  globalThis.performance = fakeWindow.performance;
+  globalThis.requestAnimationFrame = fakeWindow.requestAnimationFrame;
+  globalThis.cancelAnimationFrame = fakeWindow.cancelAnimationFrame;
+
+  try {
+    const { initHomepageTransitions } = await import('../js/transitions/homepage-transition-runtime.js');
+    const firstPromise = initHomepageTransitions({ root: rootA, gsap: null, ScrollTrigger: null });
+    const secondPromise = initHomepageTransitions({ root: rootA, gsap: null, ScrollTrigger: null });
+    assert.strictEqual(secondPromise, firstPromise, 'same root init must return the active cleanup promise');
+
+    const firstCleanup = await firstPromise;
+    assert.equal(typeof firstCleanup.destroy, 'function', 'init must resolve to a cleanup object with destroy()');
+    assert.equal(fakeWindow.listenerCount('scroll'), 1, 'same root init must not duplicate scroll listeners');
+
+    const otherRootPromise = initHomepageTransitions({ root: rootB, gsap: null, ScrollTrigger: null });
+    assert.notStrictEqual(otherRootPromise, firstPromise, 'different roots must not reuse the same runtime promise');
+    assert.strictEqual(
+      initHomepageTransitions({ root: rootA, gsap: null, ScrollTrigger: null }),
+      firstPromise,
+      'root A must remain cached while root B initializes'
+    );
+
+    const otherRootCleanup = await otherRootPromise;
+    assert.equal(fakeWindow.listenerCount('scroll'), 2, 'different roots may own separate listeners');
+
+    firstCleanup.destroy();
+    assert.equal(fakeWindow.listenerCount('scroll'), 1, 'destroy() must remove the first root listeners');
+
+    const rebuiltPromise = initHomepageTransitions({ root: rootA, gsap: null, ScrollTrigger: null });
+    assert.notStrictEqual(rebuiltPromise, firstPromise, 'destroyed root must be able to initialize a fresh runtime');
+    const rebuiltCleanup = await rebuiltPromise;
+
+    otherRootCleanup.destroy();
+    rebuiltCleanup.destroy();
+    assert.equal(fakeWindow.totalListenerCount(), 0, 'destroy() must remove all runtime listeners');
+  } finally {
+    for (const [key, value] of Object.entries(previousGlobals)) {
+      if (value === undefined) {
+        delete globalThis[key];
+      } else {
+        globalThis[key] = value;
+      }
+    }
+  }
+}
 
 function assertIncludes(source, needle, message) {
   assert.ok(source.includes(needle), message);
@@ -171,5 +335,13 @@ assertIncludes(ttgTransitionRouteHtml, 'data-ttg-figure-video', 'ttg-transition-
 assertIncludes(ttgTransitionRouteHtml, 'data-ttg-figure-video-reverse', 'ttg-transition-route.html includes the reverse figure video');
 assertIncludes(ttgTransitionRouteHtml, 'data-ttg-scroll-vh="153"', 'ttg-transition-route.html keeps the fixed route scroll height');
 assert.doesNotMatch(ttgTransitionRouteHtml, /data-ttg-tune-panel|ttg-tune-panel|js\/ttg-scroll\.js/, 'ttg-transition-route.html must not load the tuning panel route');
+
+assertIncludes(runtimeSource, 'const activeHomepageTransitionRuntimes = new Map()', 'homepage runtime tracks active runtimes by root');
+assertIncludes(runtimeSource, 'function initHomepageTransitions(options = {})', 'initHomepageTransitions keeps the public init function contract');
+assertIncludes(runtimeSource, 'return activeRuntime.promise', 'same-root init returns the active cleanup promise');
+assertIncludes(runtimeSource, 'activeHomepageTransitionRuntimes.delete(root)', 'destroy/failure clears the root-bound active runtime');
+assert.doesNotMatch(runtimeSource, /export async function initHomepageTransitions/, 'initHomepageTransitions must not own the runtime body directly');
+
+await verifyHomepageTransitionInitIdempotency();
 
 console.log('Transition runtime structure looks good.');
