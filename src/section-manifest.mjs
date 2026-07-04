@@ -447,6 +447,7 @@ export const timelineJoins = [
       bloom: [0.42, 0.70],
       secondReveal: [0.50, 0.86]
     },
+    handoffOverlaps: [['reveal', 'bloom'], ['bloom', 'secondReveal']],
     adapterVariant: 'perlin-no-stretch-centered-copy'
   },
   {

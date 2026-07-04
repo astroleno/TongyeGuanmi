@@ -190,6 +190,16 @@ export const timelineJoins = [
         0.86
       ]
     },
+    "handoffOverlaps": [
+      [
+        "reveal",
+        "bloom"
+      ],
+      [
+        "bloom",
+        "secondReveal"
+      ]
+    ],
     "adapterVariant": "perlin-no-stretch-centered-copy"
   },
   {

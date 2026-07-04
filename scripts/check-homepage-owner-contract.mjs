@@ -28,6 +28,49 @@ function resolveTiming(join) {
   };
 }
 
+function overlapKey(left, right) {
+  return [left, right].sort().join('->');
+}
+
+function assertPhaseIntervals(join) {
+  if (join.phases == null) return;
+  assert.equal(typeof join.phases, 'object', `${join.id}.phases must be an object`);
+  assert.ok(!Array.isArray(join.phases), `${join.id}.phases must not be an array`);
+
+  const phases = Object.entries(join.phases).map(([name, range]) => {
+    assertRange(`${join.id}.phases.${name}`, range);
+    return { name, start: range[0], end: range[1] };
+  }).sort((left, right) => left.start - right.start);
+
+  const phaseNames = new Set(phases.map((phase) => phase.name));
+  const declaredOverlaps = new Set();
+  for (const pair of asArray(join.handoffOverlaps)) {
+    assert.ok(Array.isArray(pair), `${join.id}.handoffOverlaps entries must be arrays`);
+    assert.equal(pair.length, 2, `${join.id}.handoffOverlaps entries must have two phase names`);
+    assert.ok(phaseNames.has(pair[0]), `${join.id}.handoffOverlaps references unknown phase ${pair[0]}`);
+    assert.ok(phaseNames.has(pair[1]), `${join.id}.handoffOverlaps references unknown phase ${pair[1]}`);
+    declaredOverlaps.add(overlapKey(pair[0], pair[1]));
+  }
+
+  const actualOverlaps = new Set();
+  for (let index = 0; index < phases.length - 1; index += 1) {
+    const current = phases[index];
+    const next = phases[index + 1];
+    if (current.end > next.start) {
+      const key = overlapKey(current.name, next.name);
+      actualOverlaps.add(key);
+      assert.ok(
+        declaredOverlaps.has(key),
+        `${join.id}.phases ${current.name}/${next.name} overlap must be declared in handoffOverlaps`
+      );
+    }
+  }
+
+  for (const key of declaredOverlaps) {
+    assert.ok(actualOverlaps.has(key), `${join.id}.handoffOverlaps declares non-overlapping phases ${key}`);
+  }
+}
+
 const sceneIds = new Set(timelineScenes.map((scene) => scene.id));
 const joinIds = new Set();
 const joinPairs = new Set();
@@ -54,6 +97,7 @@ for (const join of timelineJoins) {
 
   assertRange(`${join.id}.sourceOut`, join.sourceOut);
   assertRange(`${join.id}.targetIn`, join.targetIn);
+  assertPhaseIntervals(join);
 }
 
 for (const scene of timelineScenes) {
