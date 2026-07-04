@@ -161,12 +161,13 @@ export const timelineJoins = [
       0.98
     ],
     "targetIn": [
-      0.3,
-      0.62
+      0.52,
+      0.86
     ],
     "commitAt": 0.72,
-    "presentAt": 0.8,
+    "presentAt": 0.86,
     "cleanupAt": 0.96,
+    "targetCopyPolicy": "scroll-owner",
     "commitCondition": [
       "progress:commitAt",
       "lotusContracted",
@@ -215,12 +216,17 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.32,
-      0.68
+      0.78,
+      0.92
     ],
-    "commitAt": 0.68,
-    "presentAt": 0.74,
-    "cleanupAt": 0.92,
+    "commitAt": 0.8,
+    "presentAt": 0.92,
+    "cleanupAt": 0.96,
+    "targetCopyPolicy": "early",
+    "presentCondition": [
+      "progress:presentAt",
+      "targetReady"
+    ],
     "adapterVariant": "measure-order"
   },
   {
@@ -242,6 +248,10 @@ export const timelineJoins = [
     "commitAt": 0.72,
     "presentAt": 0.78,
     "cleanupAt": 0.94,
+    "targetCopyPolicy": "terminal",
+    "presentCondition": [
+      "runtimeHandoffComplete"
+    ],
     "sourceOnlyGhosts": [
       ".method-proof"
     ],
@@ -259,12 +269,17 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.42,
-      0.72
+      0.78,
+      0.92
     ],
-    "commitAt": 0.72,
-    "presentAt": 0.78,
-    "cleanupAt": 0.9,
+    "commitAt": 0.8,
+    "presentAt": 0.92,
+    "cleanupAt": 0.96,
+    "targetCopyPolicy": "early",
+    "presentCondition": [
+      "progress:presentAt",
+      "targetReady"
+    ],
     "adapterVariant": "fabric-menu"
   },
   {
@@ -285,6 +300,11 @@ export const timelineJoins = [
     "commitAt": 0.72,
     "presentAt": 0.78,
     "cleanupAt": 0.9,
+    "targetCopyPolicy": "terminal",
+    "presentCondition": [
+      "progress:presentAt",
+      "playbackComplete"
+    ],
     "adapterVariant": "structure-field"
   },
   {
@@ -305,6 +325,11 @@ export const timelineJoins = [
     "commitAt": 0.72,
     "presentAt": 0.78,
     "cleanupAt": 0.9,
+    "targetCopyPolicy": "terminal",
+    "presentCondition": [
+      "progress:presentAt",
+      "playbackComplete"
+    ],
     "adapterVariant": "learning-sun"
   },
   {
@@ -325,6 +350,11 @@ export const timelineJoins = [
     "commitAt": 0.78,
     "presentAt": 0.84,
     "cleanupAt": 0.94,
+    "targetCopyPolicy": "terminal",
+    "presentCondition": [
+      "progress:presentAt",
+      "playbackComplete"
+    ],
     "adapterVariant": "quiet-values"
   },
   {
@@ -340,12 +370,17 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.36,
-      0.68
+      0.78,
+      0.92
     ],
-    "commitAt": 0.68,
-    "presentAt": 0.76,
-    "cleanupAt": 0.92,
+    "commitAt": 0.8,
+    "presentAt": 0.92,
+    "cleanupAt": 0.96,
+    "targetCopyPolicy": "early",
+    "presentCondition": [
+      "progress:presentAt",
+      "targetReady"
+    ],
     "adapterVariant": "forward-motion"
   }
 ];

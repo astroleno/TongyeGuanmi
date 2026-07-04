@@ -5,7 +5,7 @@
  */
 
 .site-nav.has-scroll-edge-blur::before {
-  display: none;
+  display: block;
 }
 
 .scroll-edge-blur {

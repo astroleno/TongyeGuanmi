@@ -357,6 +357,9 @@ const sceneIds = new Set(timelineScenes.map((scene) => scene.id));
 const joinIds = new Set();
 const joinPairs = new Set();
 const seenSourceHiddenBeforePresentExceptions = new Set();
+const allowedTargetCopyPolicies = new Set(['early', 'terminal', 'scroll-owner']);
+const expectedEarlyCopyJoins = new Set(['belief-method', 'brand-services', 'philosophy-contact']);
+const seenEarlyCopyJoins = new Set();
 const selectorOwners = new Map();
 const timelineOwnedSelectors = [];
 const parsedHtml = parseHtmlNodes(indexHtml);
@@ -372,6 +375,12 @@ for (const join of timelineJoins) {
   assert.ok(sceneIds.has(join.toScene), `${join.id} must reference known toScene ${join.toScene}`);
   assert.equal(typeof join.progressPolicy, 'string', `${join.id} must declare progressPolicy`);
   assert.ok(join.progressPolicy.length > 0, `${join.id} progressPolicy must not be empty`);
+  assert.ok(allowedTargetCopyPolicies.has(join.targetCopyPolicy), `${join.id} must declare an allowed targetCopyPolicy`);
+  if (join.targetCopyPolicy === 'early') {
+    seenEarlyCopyJoins.add(join.id);
+    assert.ok(expectedEarlyCopyJoins.has(join.id), `${join.id} must not use early target copy without an explicit W2.5 allowance`);
+    assert.ok(asArray(join.presentCondition).includes('targetReady'), `${join.id} early target copy must wait for targetReady`);
+  }
 
   const pairKey = `${join.fromScene}->${join.toScene}`;
   assert.ok(!joinPairs.has(pairKey), `Duplicate timeline join pair: ${pairKey}`);
@@ -400,6 +409,10 @@ for (const joinId of SOURCE_HIDDEN_BEFORE_PRESENT_EXCEPTIONS) {
     seenSourceHiddenBeforePresentExceptions.has(joinId),
     `source-hidden-before-present exception ${joinId} must be exercised by a timeline join`
   );
+}
+
+for (const joinId of expectedEarlyCopyJoins) {
+  assert.ok(seenEarlyCopyJoins.has(joinId), `${joinId} must keep its explicit early target copy policy`);
 }
 
 for (const scene of timelineScenes) {

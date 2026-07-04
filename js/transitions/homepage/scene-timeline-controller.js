@@ -67,7 +67,7 @@ function resolveTiming(join) {
 }
 
 function shouldFixTargetCopy(join) {
-  return join?.progressPolicy !== 'scroll';
+  return join?.targetCopyPolicy === 'early';
 }
 
 function isSectionInReleaseRange(section) {
@@ -112,9 +112,12 @@ function framePhaseFromState(state) {
   return 'playing';
 }
 
-function copyOwnerFromState(state) {
+function copyOwnerFromState(join, state) {
   if (state.targetPresented) return 'native';
-  if (state.targetOpacity > 0.001 || (state.progress > 0.001 && state.progress < 0.998)) {
+  if (
+    shouldFixTargetCopy(join)
+    && (state.targetOpacity > 0.001 || (state.progress > 0.001 && state.progress < 0.998))
+  ) {
     return 'timeline-fixed';
   }
   return 'hidden';
@@ -123,7 +126,7 @@ function copyOwnerFromState(state) {
 function createFrameFromState(join, state, {
   direction = 1,
   phase = framePhaseFromState(state),
-  copyOwner = copyOwnerFromState(state),
+  copyOwner = null,
   visualOwner = state.targetPresented ? 'native' : 'adapter',
   interactionOwner = state.targetPresented ? 'native' : 'director'
 } = {}) {
@@ -136,7 +139,7 @@ function createFrameFromState(join, state, {
     progress: state.progress,
     sourceOpacity: state.sourceOpacity,
     targetOpacity: state.targetOpacity,
-    copyOwner,
+    copyOwner: copyOwner ?? copyOwnerFromState(join, state),
     visualOwner,
     interactionOwner,
     milestones: state.milestones
@@ -332,7 +335,7 @@ export function createSceneTimelineController({
     const frame = createFrameFromState(join, committedState, {
       direction: directionByJoinId.get(join.id) ?? 1,
       phase: committedState.targetPresented ? 'presented' : 'committed',
-      copyOwner: committedState.targetPresented ? 'native' : copyOwnerFromState(committedState),
+      copyOwner: committedState.targetPresented ? 'native' : copyOwnerFromState(join, committedState),
       visualOwner: committedState.targetPresented ? 'native' : 'adapter',
       interactionOwner: committedState.targetPresented ? 'native' : 'director'
     });

@@ -436,10 +436,11 @@ export const timelineJoins = [
     fromScene: 'home',
     toScene: 'belief',
     sourceOut: [0.72, 0.98],
-    targetIn: [0.30, 0.62],
+    targetIn: [0.52, 0.86],
     commitAt: 0.72,
-    presentAt: 0.80,
+    presentAt: 0.86,
     cleanupAt: 0.96,
+    targetCopyPolicy: 'scroll-owner',
     commitCondition: ['progress:commitAt', 'lotusContracted', 'targetReady'],
     presentCondition: ['progress:presentAt', 'beliefCopyComplete'],
     phases: {
@@ -459,10 +460,12 @@ export const timelineJoins = [
     fromScene: 'belief',
     toScene: 'method',
     sourceOut: [0.72, 0.96],
-    targetIn: [0.32, 0.68],
-    commitAt: 0.68,
-    presentAt: 0.74,
-    cleanupAt: 0.92,
+    targetIn: [0.78, 0.92],
+    commitAt: 0.80,
+    presentAt: 0.92,
+    cleanupAt: 0.96,
+    targetCopyPolicy: 'early',
+    presentCondition: ['progress:presentAt', 'targetReady'],
     adapterVariant: 'measure-order'
   },
   {
@@ -478,6 +481,8 @@ export const timelineJoins = [
     commitAt: 0.72,
     presentAt: 0.78,
     cleanupAt: 0.94,
+    targetCopyPolicy: 'terminal',
+    presentCondition: ['runtimeHandoffComplete'],
     sourceOnlyGhosts: ['.method-proof'],
     adapterVariant: 'questioning'
   },
@@ -489,10 +494,12 @@ export const timelineJoins = [
     fromScene: 'brand',
     toScene: 'services',
     sourceOut: [0.72, 0.96],
-    targetIn: [0.42, 0.72],
-    commitAt: 0.72,
-    presentAt: 0.78,
-    cleanupAt: 0.90,
+    targetIn: [0.78, 0.92],
+    commitAt: 0.80,
+    presentAt: 0.92,
+    cleanupAt: 0.96,
+    targetCopyPolicy: 'early',
+    presentCondition: ['progress:presentAt', 'targetReady'],
     adapterVariant: 'fabric-menu'
   },
   {
@@ -507,6 +514,8 @@ export const timelineJoins = [
     commitAt: 0.72,
     presentAt: 0.78,
     cleanupAt: 0.90,
+    targetCopyPolicy: 'terminal',
+    presentCondition: ['progress:presentAt', 'playbackComplete'],
     adapterVariant: 'structure-field'
   },
   {
@@ -521,6 +530,8 @@ export const timelineJoins = [
     commitAt: 0.72,
     presentAt: 0.78,
     cleanupAt: 0.90,
+    targetCopyPolicy: 'terminal',
+    presentCondition: ['progress:presentAt', 'playbackComplete'],
     adapterVariant: 'learning-sun'
   },
   {
@@ -535,6 +546,8 @@ export const timelineJoins = [
     commitAt: 0.78,
     presentAt: 0.84,
     cleanupAt: 0.94,
+    targetCopyPolicy: 'terminal',
+    presentCondition: ['progress:presentAt', 'playbackComplete'],
     adapterVariant: 'quiet-values'
   },
   {
@@ -546,10 +559,12 @@ export const timelineJoins = [
     fromScene: 'philosophy',
     toScene: 'contact',
     sourceOut: [0.72, 0.96],
-    targetIn: [0.36, 0.68],
-    commitAt: 0.68,
-    presentAt: 0.76,
-    cleanupAt: 0.92,
+    targetIn: [0.78, 0.92],
+    commitAt: 0.80,
+    presentAt: 0.92,
+    cleanupAt: 0.96,
+    targetCopyPolicy: 'early',
+    presentCondition: ['progress:presentAt', 'targetReady'],
     adapterVariant: 'forward-motion'
   }
 ];

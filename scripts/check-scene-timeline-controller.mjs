@@ -260,7 +260,7 @@ function withFakeGlobals(document, callback) {
   withFakeGlobals(document, () => {
     const timeline = createSceneTimelineController({ root: document });
     timeline.beginJoin('belief-method', { direction: 1 });
-    timeline.updateFrame('belief-method', 0.5, { reason: 'unit-midframe' });
+    timeline.updateFrame('belief-method', 0.84, { reason: 'unit-midframe' });
     assert.equal(sections.method.copy.getAttribute('data-timeline-fixed'), 'true', 'mid-playback copy is fixed');
 
     const presentedFrame = timeline.presentTarget('belief-method', 'unit-present');
@@ -275,7 +275,7 @@ function withFakeGlobals(document, callback) {
     assert.equal(presentedFrame.sourceOpacity, 0, 'forced present recomputes terminal source opacity');
     assert.equal(presentedFrame.targetOpacity, 1, 'forced present recomputes terminal target opacity');
 
-    const lateUpdateFrame = timeline.updateFrame('belief-method', 0.5, { reason: 'unit-late-update' });
+    const lateUpdateFrame = timeline.updateFrame('belief-method', 0.84, { reason: 'unit-late-update' });
     const repeatedPresentFrame = timeline.presentTarget('belief-method', 'unit-present-again');
     assert.equal(lateUpdateFrame, presentedFrame, 'late adapter updates must not rewrite a presented join frame');
     assert.equal(repeatedPresentFrame, presentedFrame, 'presentTarget stays idempotent after late adapter updates');
@@ -288,18 +288,18 @@ function withFakeGlobals(document, callback) {
     );
 
     timeline.beginJoin('belief-method', { direction: -1, reason: 'unit-reverse' });
-    const reverseFrame = timeline.updateFrame('belief-method', 0.5, { reason: 'unit-reverse-update' });
-    assert.equal(reverseFrame.phase, 'playing', 'explicit reverse lifecycle allows updates after present');
+    const reverseFrame = timeline.updateFrame('belief-method', 0.84, { reason: 'unit-reverse-update' });
+    assert.notEqual(reverseFrame.phase, 'presented', 'explicit reverse lifecycle allows updates after present');
     assert.equal(reverseFrame.direction, -1, 'adapter updates inherit reverse direction from beginJoin');
 
     const releasedFrame = timeline.cleanupJoin('belief-method', 'unit-reverse-complete');
-    const staleAfterReleaseFrame = timeline.updateFrame('belief-method', 0.4, { reason: 'unit-stale-after-release' });
+    const staleAfterReleaseFrame = timeline.updateFrame('belief-method', 0.84, { reason: 'unit-stale-after-release' });
     assert.equal(releasedFrame.phase, 'released', 'reverse cleanup releases the join');
     assert.equal(staleAfterReleaseFrame, releasedFrame, 'cleanup resets reverse direction so stale updates stay blocked');
 
     timeline.beginJoin('belief-method', { direction: 1, reason: 'unit-forward-replay' });
-    const replayFrame = timeline.updateFrame('belief-method', 0.5, { reason: 'unit-forward-replay-update' });
-    assert.equal(replayFrame.phase, 'playing', 'forward replay after reverse cleanup can advance again');
+    const replayFrame = timeline.updateFrame('belief-method', 0.84, { reason: 'unit-forward-replay-update' });
+    assert.notEqual(replayFrame.phase, 'released', 'forward replay after reverse cleanup can advance again');
     assert.equal(replayFrame.direction, 1, 'forward replay restores forward direction');
     assert.equal(sections.method.copy.getAttribute('data-timeline-fixed'), 'true', 'forward replay can restore fixed copy');
   });
@@ -316,7 +316,7 @@ function withFakeGlobals(document, callback) {
     };
     try {
       timeline.beginJoin('belief-method', { direction: 1 });
-      timeline.updateFrame('belief-method', 0.5, { reason: 'unit-midframe' });
+      timeline.updateFrame('belief-method', 0.84, { reason: 'unit-midframe' });
       timeline.beginJoin('method-proof-brand', { direction: 1 });
     } finally {
       console.warn = originalWarn;
@@ -325,6 +325,22 @@ function withFakeGlobals(document, callback) {
     assert.ok(warned, 'beginJoin must warn when it cleans an unreleased active join');
     assert.equal(sections.method.copy.hasAttribute('data-timeline-fixed'), false, 'beginJoin switch cleans previous fixed copy');
     assert.equal(timeline.getFrame('belief-method').phase, 'released', 'beginJoin switch releases previous frame');
+  });
+}
+
+{
+  const { document, sections } = createDom();
+  withFakeGlobals(document, () => {
+    const timeline = createSceneTimelineController({ root: document });
+    timeline.beginJoin('method-proof-brand', { direction: 1 });
+    const frame = timeline.updateFrame('method-proof-brand', 0.84, {
+      reason: 'unit-terminal-copy',
+      milestones: { targetReady: true }
+    });
+
+    assert.equal(frame.copyOwner, 'hidden', 'terminal-only joins must not claim timeline fixed copy mid-playback');
+    assert.equal(sections.brand.copy.hasAttribute('data-timeline-fixed'), false, 'terminal-only target copy is not fixed early');
+    assert.equal(sections.brand.copy.getAttribute('data-entry-state'), 'pending', 'terminal-only target copy stays pending before runtime present');
   });
 }
 

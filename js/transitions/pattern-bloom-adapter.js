@@ -205,9 +205,7 @@ export function mountPatternBloomTransition({
     const topSceneOpacity = canvasRevealed && secondRevealProgress < 0.998
       ? Math.min(lotusOpacity, sourceOpacity)
       : 0;
-    const beliefSceneOpacity = beliefPinned
-      ? Math.max(0.86, targetOpacity)
-      : 0;
+    const beliefSceneOpacity = beliefPinned && secondRevealProgress >= 0.998 ? targetOpacity : 0;
     const beliefCopyProgress = beliefPinned
       ? targetOpacity
       : 0;
