@@ -97,6 +97,14 @@ function normalizeDirection(direction) {
   return direction < 0 ? -1 : direction > 0 ? 1 : 0;
 }
 
+function inferFrameDirection({ direction, progress, lastFrame, cachedDirection, inferFromProgress = false }) {
+  if (direction != null) return normalizeDirection(direction);
+  if (inferFromProgress && lastFrame && Number.isFinite(progress) && Math.abs(progress - lastFrame.progress) > 0.0001) {
+    return normalizeDirection(progress - lastFrame.progress);
+  }
+  return normalizeDirection(cachedDirection ?? 1);
+}
+
 function framePhaseFromState(state) {
   if (state.targetPresented) return 'presented';
   if (state.targetCommitted) return 'committed';
@@ -410,10 +418,17 @@ export function createSceneTimelineController({
   function updateFrameForJoin(join, progress, { milestones = {}, reason = 'update', direction } = {}, { autoPresent = true } = {}) {
     if (!join) return null;
     if (!activeJoinId) activeJoinId = join.id;
-    const frameDirection = direction ?? directionByJoinId.get(join.id) ?? 1;
-    directionByJoinId.set(join.id, normalizeDirection(frameDirection));
+    const lastFrame = lastFrameByJoinId.get(join.id) || null;
+    const frameDirection = inferFrameDirection({
+      direction,
+      progress,
+      lastFrame,
+      cachedDirection: directionByJoinId.get(join.id),
+      inferFromProgress: join.progressPolicy === 'scroll'
+    });
+    directionByJoinId.set(join.id, frameDirection);
 
-    if (presentedJoinIds.has(join.id) && normalizeDirection(frameDirection) >= 0) {
+    if (presentedJoinIds.has(join.id) && frameDirection >= 0) {
       return lastFrameByJoinId.get(join.id) || null;
     }
 

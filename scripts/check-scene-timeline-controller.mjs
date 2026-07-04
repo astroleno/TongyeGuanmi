@@ -232,6 +232,12 @@ function withFakeGlobals(document, callback) {
     assert.equal(sections.belief.copy.getAttribute('data-entry-state'), 'presented', 'copy is marked presented');
     assert.ok(sections.belief.copy.classList.contains('is-visible'), 'copy reveal is claimed visible');
     assert.ok(Object.isFrozen(timeline.getFrame('home-belief')), 'getFrame must return a frozen frame');
+
+    const reverseScrollFrame = timeline.updateFrame('home-belief', 0.4, { reason: 'unit-scroll-reverse' });
+    assert.equal(reverseScrollFrame.phase, 'playing', 'scroll-driven progress rollback reopens presented joins');
+    assert.equal(reverseScrollFrame.direction, -1, 'scroll-driven progress rollback infers reverse direction');
+    assert.equal(reverseScrollFrame.progress, 0.4, 'scroll-driven reverse update advances to the requested progress');
+    assert.notEqual(reverseScrollFrame, firstFrame, 'scroll-driven reverse update must not return the terminal presented frame');
   });
 }
 
