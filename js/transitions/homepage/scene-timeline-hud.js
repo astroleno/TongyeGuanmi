@@ -202,7 +202,7 @@ export function initSceneTimelineHud({
   const documentRef = getDocument(root);
   const rootElement = root.documentElement || document.documentElement;
   const events = [];
-  let minimized = false;
+  let minimized = true;
   let marksEnabled = false;
   let raf = 0;
   let lastRender = 0;
@@ -213,7 +213,7 @@ export function initSceneTimelineHud({
   const controls = createElement(documentRef, 'div', 'scene-timeline-hud__controls');
   const markButton = createElement(documentRef, 'button', '', 'Marks');
   const copyButton = createElement(documentRef, 'button', '', 'Copy');
-  const minButton = createElement(documentRef, 'button', '', 'Min');
+  const minButton = createElement(documentRef, 'button', '', 'Open');
   const meta = createElement(documentRef, 'div', 'scene-timeline-hud__meta');
   const rows = createElement(documentRef, 'div', 'scene-timeline-hud__rows');
   const eventLog = createElement(documentRef, 'div', 'scene-timeline-hud__events');
@@ -225,6 +225,7 @@ export function initSceneTimelineHud({
   header.append(title, controls);
   hud.append(header, meta, rows, eventLog);
   documentRef.body.append(hud);
+  hud.classList.add('is-minimized');
   rootElement.classList.add(HUD_ROOT_CLASS);
 
   const render = (force = false) => {
@@ -233,11 +234,11 @@ export function initSceneTimelineHud({
     lastRender = now;
 
     const snapshot = makeSnapshot({ root, sceneTimeline, hosts, reduceMotion, events });
+    const issueCount = snapshot.joins.filter((join) => join.issues.length).length;
     meta.textContent = [
       `scroll ${snapshot.scrollY}`,
-      `vh ${snapshot.viewport}`,
       `section ${snapshot.activeSection || '-'}`,
-      `rm ${snapshot.reduceMotion ? 'on' : 'off'}`,
+      `warn ${issueCount}`,
       `events ${events.length}`
     ].join(' | ');
 
