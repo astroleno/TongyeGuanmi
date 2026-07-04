@@ -9,7 +9,7 @@
 }
 
 .scroll-edge-blur {
-  --scroll-edge-blur-height: calc((var(--nav-h) + var(--nav-h) + var(--nav-h) + var(--nav-h)) / 3 + env(safe-area-inset-top, 0px));
+  --scroll-edge-blur-height: calc(var(--nav-h) + var(--nav-h) + env(safe-area-inset-top, 0px));
   position: fixed;
   top: 0;
   left: 0;
@@ -28,7 +28,10 @@
 .scroll-edge-blur__layer,
 .scroll-edge-blur__tint {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 66.666%;
   pointer-events: none;
 }
 
