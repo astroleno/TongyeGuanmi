@@ -1,0 +1,165 @@
+.scene-timeline-hud {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 420;
+  width: min(520px, calc(100vw - 24px));
+  max-height: min(76vh, 720px);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 8px;
+  background: rgba(5, 9, 12, .86);
+  box-shadow: 0 18px 54px rgba(0, 0, 0, .36);
+  color: #f6f1df;
+  font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0;
+  pointer-events: auto;
+  backdrop-filter: blur(14px);
+}
+
+.scene-timeline-hud.is-minimized {
+  width: min(360px, calc(100vw - 24px));
+  grid-template-rows: auto auto;
+}
+
+.scene-timeline-hud.is-minimized .scene-timeline-hud__rows,
+.scene-timeline-hud.is-minimized .scene-timeline-hud__events {
+  display: none;
+}
+
+.scene-timeline-hud__header,
+.scene-timeline-hud__join-head,
+.scene-timeline-hud__controls {
+  display: flex;
+  align-items: center;
+}
+
+.scene-timeline-hud__header,
+.scene-timeline-hud__join-head {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.scene-timeline-hud__header strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.scene-timeline-hud__controls {
+  gap: 4px;
+}
+
+.scene-timeline-hud button {
+  min-width: 38px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .08);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.scene-timeline-hud button:hover,
+.scene-timeline-hud button.is-active {
+  border-color: rgba(125, 211, 252, .72);
+  background: rgba(14, 116, 144, .42);
+}
+
+.scene-timeline-hud__meta {
+  color: rgba(246, 241, 223, .74);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scene-timeline-hud__rows {
+  min-height: 0;
+  display: grid;
+  gap: 6px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.scene-timeline-hud__row {
+  display: grid;
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid rgba(255, 255, 255, .10);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .045);
+}
+
+.scene-timeline-hud__row.is-warn {
+  border-color: rgba(248, 113, 113, .78);
+  background: rgba(127, 29, 29, .32);
+}
+
+.scene-timeline-hud__join-head span:first-child {
+  font-weight: 700;
+}
+
+.scene-timeline-hud__join-head span:last-child {
+  color: rgba(125, 211, 252, .88);
+}
+
+.scene-timeline-hud__join-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px 8px;
+  color: rgba(246, 241, 223, .72);
+}
+
+.scene-timeline-hud__join-grid span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scene-timeline-hud__issues {
+  color: #fecaca;
+  font-weight: 700;
+}
+
+.scene-timeline-hud__events {
+  display: grid;
+  gap: 2px;
+  max-height: 100px;
+  overflow: auto;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, .12);
+  color: rgba(253, 230, 138, .86);
+}
+
+.scene-timeline-hud__event.is-empty {
+  color: rgba(246, 241, 223, .48);
+}
+
+html.scene-timeline-hud-marks [data-transition-id] {
+  outline: 2px solid rgba(125, 211, 252, .72);
+  outline-offset: -2px;
+}
+
+html.scene-timeline-hud-marks [data-section-id] {
+  outline: 2px solid rgba(253, 186, 116, .68);
+  outline-offset: -4px;
+}
+
+@media (max-width: 720px) {
+  .scene-timeline-hud {
+    right: 8px;
+    bottom: 8px;
+    width: calc(100vw - 16px);
+    max-height: 64vh;
+  }
+
+  .scene-timeline-hud__join-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

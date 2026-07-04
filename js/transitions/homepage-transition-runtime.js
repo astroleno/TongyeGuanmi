@@ -1,5 +1,6 @@
 import { homepageTransitionRegistry } from './homepage-transition-registry.js';
 import { createSceneTimelineController } from './homepage/scene-timeline-controller.js';
+import { initSceneTimelineHud } from './homepage/scene-timeline-hud.js';
 
 const NAMED_TRANSITION_SELECTOR = [
   '.chapter-transition[data-transition-module]',
@@ -863,6 +864,12 @@ async function createHomepageTransitionsRuntime({
   const cleanup = createCleanupStack();
   const hosts = [...root.querySelectorAll(NAMED_TRANSITION_SELECTOR)];
   const sceneTimeline = createSceneTimelineController({ root });
+  cleanup.add(initSceneTimelineHud({
+    root,
+    sceneTimeline,
+    hosts,
+    reduceMotion
+  }));
   const snapCoordinator = createHomepageSnapCoordinator({
     root,
     reduceMotion,
