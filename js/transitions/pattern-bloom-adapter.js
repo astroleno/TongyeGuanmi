@@ -92,21 +92,21 @@ export function mountPatternBloomTransition({
     progressSpan: 1,
     colorLift: 0.58,
     sceneBrightness: 1,
-    inkCenterX: 0.5,
-    inkCenterY: 0.5,
+    inkCenterX: 0.24,
+    inkCenterY: 0.55,
     transparentOutside: true
   });
   const exitInkTransition = createInkSceneTransition(exitInkCanvas, {
-    targetSrc: 'assets/back2.png',
+    targetSrc: '',
     nextSceneElement: beliefStarCanvas,
     hideAtEnd: true,
     perlinOverlay: true,
     perlinStrength: 0.40,
     progressSpan: 0.94,
     colorLift: 0.62,
-    sceneBrightness: 0.92,
-    inkCenterX: 0.50,
-    inkCenterY: 1.04,
+    sceneBrightness: 0.84,
+    inkCenterX: 0.24,
+    inkCenterY: 0.55,
     transparentOutside: true
   });
   const getViewportState = () => {
@@ -188,20 +188,22 @@ export function mountPatternBloomTransition({
       ? 1
       : (progress > 0.0001 ? Math.max(revealProgress, 0.003) : 0);
     const canvasRevealed = sceneReady && revealProgress >= 0.998;
+    const starTextureReady = beliefStarCanvas?.dataset?.inkTextureReady === 'true';
     const secondRevealProgress = smoothStep(range01(progress, SECOND_REVEAL_START, SECOND_REVEAL_END));
+    const secondRevealVisibility = starTextureReady ? secondRevealProgress : 0;
     const topSceneExit = smoothStep(range01(secondRevealProgress, 0.68, 0.98));
     const lotusOpacity = 1 - topSceneExit;
     const timelineState = timeline?.update(progress, {
       reason: 'pattern-bloom-render',
       milestones: {
         lotusContracted: topSceneExit >= 0.86,
-        targetReady: Boolean(beliefSection && sceneReady),
+        targetReady: Boolean(beliefSection && sceneReady && starTextureReady),
         beliefCopyComplete: secondRevealProgress >= 0.998
       }
     });
     const sourceOpacity = timelineState?.sourceOpacity ?? lotusOpacity;
     const targetOpacity = timelineState?.targetOpacity ?? secondRevealProgress;
-    const beliefPinned = overlayActive && targetOpacity > 0.002;
+    const beliefPinned = overlayActive && starTextureReady && secondRevealProgress >= 0.998 && targetOpacity > 0.002;
     const topSceneOpacity = canvasRevealed && secondRevealProgress < 0.998
       ? Math.min(lotusOpacity, sourceOpacity)
       : 0;
@@ -227,9 +229,9 @@ export function mountPatternBloomTransition({
     canvas.style.opacity = lotusVisible ? topSceneOpacity.toFixed(4) : '0';
     canvas.style.visibility = lotusVisible ? 'visible' : 'hidden';
     revealInkTransition?.render(revealProgress, 0, 0, sceneReady ? revealVisibility : 0);
-    exitInkTransition?.render(secondRevealProgress, 0, 0, secondRevealProgress, {
+    exitInkTransition?.render(secondRevealProgress, 0, 0, secondRevealVisibility, {
       perlinStrength: 0.40,
-      sceneBrightness: 0.92
+      sceneBrightness: 0.84
     });
     overlayRaf = requestAnimationFrame(renderOverlays);
   };

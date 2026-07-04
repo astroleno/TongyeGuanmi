@@ -103,7 +103,9 @@ export const chapterTransitions = [
     from: 'brand',
     to: 'services',
     module: 'figure3-transition',
-    variant: 'fabric-menu'
+    variant: 'fabric-menu',
+    handoffTarget: '#services',
+    handoffPhase: 'after-playback'
   },
   {
     id: 'services-lab',

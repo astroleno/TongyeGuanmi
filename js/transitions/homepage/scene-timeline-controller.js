@@ -70,6 +70,20 @@ function shouldFixTargetCopy(join) {
   return join?.targetCopyPolicy === 'early';
 }
 
+function milestoneConditions(conditions) {
+  return asArray(conditions).filter((condition) => !String(condition).startsWith('progress:'));
+}
+
+function shouldAutoPresentFromAdapter(join) {
+  return join?.progressPolicy === 'scroll' || join?.targetCopyPolicy !== 'early';
+}
+
+function isEarlyCopyReady(join, state) {
+  if (join?.targetCopyPolicy !== 'early' || !state) return false;
+  const milestonesReady = conditionsMet(milestoneConditions(join.presentCondition), state, state.milestones);
+  return state.targetCommitted && milestonesReady && state.progress > 0.001;
+}
+
 function isSectionInReleaseRange(section) {
   if (!section) return false;
   const viewportHeight = Math.max(1, window.innerHeight || 1);
@@ -113,13 +127,8 @@ function framePhaseFromState(state) {
 }
 
 function copyOwnerFromState(join, state) {
+  if (isEarlyCopyReady(join, state)) return 'timeline-fixed';
   if (state.targetPresented) return 'native';
-  if (
-    shouldFixTargetCopy(join)
-    && (state.targetOpacity > 0.001 || (state.progress > 0.001 && state.progress < 0.998))
-  ) {
-    return 'timeline-fixed';
-  }
   return 'hidden';
 }
 
@@ -418,7 +427,7 @@ export function createSceneTimelineController({
     return frame;
   }
 
-  function updateFrameForJoin(join, progress, { milestones = {}, reason = 'update', direction } = {}, { autoPresent = true } = {}) {
+  function updateFrameForJoin(join, progress, { milestones = {}, reason = 'update', direction } = {}, { autoPresent = true, deferPresentedFrame = false } = {}) {
     if (!join) return null;
     if (!activeJoinId) activeJoinId = join.id;
     const lastFrame = lastFrameByJoinId.get(join.id) || null;
@@ -446,7 +455,14 @@ export function createSceneTimelineController({
 
     const state = deriveTimelineState(join, progress, milestones);
     stateByJoinId.set(join.id, state);
-    const frame = createFrameFromState(join, state, { direction: frameDirection });
+    const deferredEarlyPresentation = state.targetPresented && deferPresentedFrame;
+    const frame = createFrameFromState(join, state, {
+      direction: frameDirection,
+      phase: deferredEarlyPresentation ? 'committed' : framePhaseFromState(state),
+      copyOwner: deferredEarlyPresentation ? 'timeline-fixed' : null,
+      visualOwner: deferredEarlyPresentation ? 'adapter' : undefined,
+      interactionOwner: deferredEarlyPresentation ? 'director' : undefined
+    });
     lastFrameByJoinId.set(join.id, frame);
 
     const scene = sceneById.get(join.toScene);
@@ -459,10 +475,9 @@ export function createSceneTimelineController({
       copy.setAttribute('data-timeline-reason', reason);
     });
 
-    const fixTargetCopy = shouldFixTargetCopy(join)
-      && state.progress > 0.001
-      && state.progress < 0.998
-      && !(state.cleanupReady && isSectionInReleaseRange(section));
+    const fixTargetCopy = isEarlyCopyReady(join, state)
+      && !presentedJoinIds.has(join.id)
+      && !(state.cleanupReady && isSectionInReleaseRange(section) && autoPresent);
     if (fixTargetCopy) {
       if (activeFixedJoinId && activeFixedJoinId !== join.id) clearAllFixedCopies({ clearStyle: true });
       activeFixedJoinId = join.id;
@@ -475,12 +490,20 @@ export function createSceneTimelineController({
       }
     }
 
-    if (state.targetCommitted && !committedJoinIds.has(join.id)) commitTarget(join.id, reason);
+    if (state.targetCommitted && !committedJoinIds.has(join.id)) {
+      if (deferredEarlyPresentation) {
+        committedJoinIds.add(join.id);
+        section?.setAttribute('data-scene-state', 'committed');
+        section?.setAttribute('data-timeline-active-join', join.id);
+      } else {
+        commitTarget(join.id, reason);
+      }
+    }
     if (autoPresent && state.targetPresented) {
       const presentedFrame = presentTarget(join.id, reason);
       return state.cleanupReady ? cleanupJoin(join.id, reason) : presentedFrame;
     }
-    if (state.cleanupReady) return cleanupJoin(join.id, reason);
+    if (autoPresent && state.cleanupReady) return cleanupJoin(join.id, reason);
     return lastFrameByJoinId.get(join.id) || frame;
   }
 
@@ -509,7 +532,10 @@ export function createSceneTimelineController({
         return join ? getFrame(join.id) : null;
       },
       update(progress, options) {
-        return updateFrame(join, progress, options);
+        return updateFrameForJoin(join, progress, options, {
+          autoPresent: shouldAutoPresentFromAdapter(join),
+          deferPresentedFrame: join?.targetCopyPolicy === 'early'
+        });
       },
       commit(reason = 'adapter-commit') {
         return join ? commitTarget(join.id, reason) : null;

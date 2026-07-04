@@ -66,6 +66,41 @@ function getHostProgress(host) {
   return clamp01((viewportHeight - rect.top) / span);
 }
 
+function getNavBlurSnapshot(root) {
+  const runtimeWindow = getWindow(root);
+  const documentRef = getDocument(root);
+  const edge = documentRef.querySelector('.scroll-edge-blur');
+  const nav = documentRef.querySelector('.site-nav');
+  if (!runtimeWindow || !edge) {
+    return {
+      height: 0,
+      opacity: 0,
+      visibility: 'missing',
+      beforeDisplay: nav ? 'unknown' : 'missing',
+      issues: ['nav blur missing']
+    };
+  }
+
+  const style = runtimeWindow.getComputedStyle?.(edge);
+  const beforeStyle = nav ? runtimeWindow.getComputedStyle?.(nav, '::before') : null;
+  const height = edge.getBoundingClientRect?.().height || parseFloat(style?.height || '0') || 0;
+  const opacity = parseFloat(style?.opacity || '0') || 0;
+  const visibility = style?.visibility || '';
+  const beforeDisplay = beforeStyle?.display || '';
+  const issues = [];
+  if (height > 0 && height < 48) issues.push(`nav blur thin ${Math.round(height)}px`);
+  if (opacity > 0.01 && visibility !== 'visible') issues.push('nav blur hidden');
+  if (opacity > 0.01 && beforeDisplay !== 'none') issues.push(`nav fallback ${beforeDisplay}`);
+
+  return {
+    height,
+    opacity,
+    visibility,
+    beforeDisplay,
+    issues
+  };
+}
+
 function getJoinIssues({ frame, section, copies, presentCount }) {
   const issues = [];
   if (presentCount > 1) issues.push(`present x${presentCount}`);
@@ -97,6 +132,7 @@ function makeSnapshot({ root, sceneTimeline, hosts, reduceMotion, events }) {
   });
 
   const activeSection = getActiveSection(root);
+  const navBlur = getNavBlurSnapshot(root);
   const eventCounts = events.reduce((counts, event) => {
     const joinId = event.detail?.joinId || '';
     counts.set(joinId, (counts.get(joinId) || 0) + 1);
@@ -133,6 +169,7 @@ function makeSnapshot({ root, sceneTimeline, hosts, reduceMotion, events }) {
     viewport: Math.round(getWindow(root)?.innerHeight || 0),
     reduceMotion: Boolean(reduceMotion),
     activeSection: activeSection?.dataset?.sectionId || activeSection?.id || '',
+    navBlur,
     joins,
     events: events.slice(-MAX_EVENTS)
   };
@@ -234,10 +271,11 @@ export function initSceneTimelineHud({
     lastRender = now;
 
     const snapshot = makeSnapshot({ root, sceneTimeline, hosts, reduceMotion, events });
-    const issueCount = snapshot.joins.filter((join) => join.issues.length).length;
+    const issueCount = snapshot.joins.filter((join) => join.issues.length).length + snapshot.navBlur.issues.length;
     meta.textContent = [
       `scroll ${snapshot.scrollY}`,
       `section ${snapshot.activeSection || '-'}`,
+      `blur h${Math.round(snapshot.navBlur.height)} o${formatNumber(snapshot.navBlur.opacity, 2)} ${snapshot.navBlur.beforeDisplay || '-'}`,
       `warn ${issueCount}`,
       `events ${events.length}`
     ].join(' | ');

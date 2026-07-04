@@ -78,9 +78,9 @@ html.homepage-timeline-target-active .long-canvas {
 }
 
 .canvas-section--belief {
-  height: 124svh;
-  min-height: 124svh;
-  overflow: visible;
+  height: 100svh;
+  min-height: 100svh;
+  overflow: hidden;
 }
 
 .canvas-section--belief.is-pattern-bloom-pinned {

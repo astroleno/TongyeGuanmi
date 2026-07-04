@@ -260,7 +260,10 @@ function withFakeGlobals(document, callback) {
   withFakeGlobals(document, () => {
     const timeline = createSceneTimelineController({ root: document });
     timeline.beginJoin('belief-method', { direction: 1 });
-    timeline.updateFrame('belief-method', 0.84, { reason: 'unit-midframe' });
+    timeline.updateFrame('belief-method', 0.84, {
+      reason: 'unit-midframe',
+      milestones: { targetReady: true }
+    });
     assert.equal(sections.method.copy.getAttribute('data-timeline-fixed'), 'true', 'mid-playback copy is fixed');
 
     const presentedFrame = timeline.presentTarget('belief-method', 'unit-present');
@@ -288,7 +291,10 @@ function withFakeGlobals(document, callback) {
     );
 
     timeline.beginJoin('belief-method', { direction: -1, reason: 'unit-reverse' });
-    const reverseFrame = timeline.updateFrame('belief-method', 0.84, { reason: 'unit-reverse-update' });
+    const reverseFrame = timeline.updateFrame('belief-method', 0.84, {
+      reason: 'unit-reverse-update',
+      milestones: { targetReady: true }
+    });
     assert.notEqual(reverseFrame.phase, 'presented', 'explicit reverse lifecycle allows updates after present');
     assert.equal(reverseFrame.direction, -1, 'adapter updates inherit reverse direction from beginJoin');
 
@@ -298,7 +304,10 @@ function withFakeGlobals(document, callback) {
     assert.equal(staleAfterReleaseFrame, releasedFrame, 'cleanup resets reverse direction so stale updates stay blocked');
 
     timeline.beginJoin('belief-method', { direction: 1, reason: 'unit-forward-replay' });
-    const replayFrame = timeline.updateFrame('belief-method', 0.84, { reason: 'unit-forward-replay-update' });
+    const replayFrame = timeline.updateFrame('belief-method', 0.84, {
+      reason: 'unit-forward-replay-update',
+      milestones: { targetReady: true }
+    });
     assert.notEqual(replayFrame.phase, 'released', 'forward replay after reverse cleanup can advance again');
     assert.equal(replayFrame.direction, 1, 'forward replay restores forward direction');
     assert.equal(sections.method.copy.getAttribute('data-timeline-fixed'), 'true', 'forward replay can restore fixed copy');
@@ -316,7 +325,10 @@ function withFakeGlobals(document, callback) {
     };
     try {
       timeline.beginJoin('belief-method', { direction: 1 });
-      timeline.updateFrame('belief-method', 0.84, { reason: 'unit-midframe' });
+      timeline.updateFrame('belief-method', 0.84, {
+        reason: 'unit-midframe',
+        milestones: { targetReady: true }
+      });
       timeline.beginJoin('method-proof-brand', { direction: 1 });
     } finally {
       console.warn = originalWarn;
@@ -325,6 +337,31 @@ function withFakeGlobals(document, callback) {
     assert.ok(warned, 'beginJoin must warn when it cleans an unreleased active join');
     assert.equal(sections.method.copy.hasAttribute('data-timeline-fixed'), false, 'beginJoin switch cleans previous fixed copy');
     assert.equal(timeline.getFrame('belief-method').phase, 'released', 'beginJoin switch releases previous frame');
+  });
+}
+
+{
+  const { document, sections } = createDom();
+  withFakeGlobals(document, () => {
+    const timeline = createSceneTimelineController({ root: document });
+    const host = new FakeElement({
+      dataset: { transitionId: 'belief-method' }
+    });
+    const context = timeline.createAdapterContext(host);
+    timeline.beginJoin('belief-method', { direction: 1, reason: 'unit-runtime-owned' });
+    const frame = context.update(0.96, {
+      reason: 'unit-adapter-update',
+      milestones: { targetReady: true }
+    });
+
+    assert.equal(frame.phase, 'committed', 'early adapter updates wait for runtime present even after presentAt');
+    assert.equal(frame.copyOwner, 'timeline-fixed', 'early adapter updates keep fixed copy until runtime present');
+    assert.equal(sections.method.copy.getAttribute('data-timeline-fixed'), 'true', 'early adapter update keeps fixed DOM copy');
+    assert.equal(
+      document.events.filter((event) => event.type === 'scene-timeline:presented' && event.detail.joinId === 'belief-method').length,
+      0,
+      'early adapter update must not dispatch present before runtime complete'
+    );
   });
 }
 
