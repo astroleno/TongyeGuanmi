@@ -429,6 +429,10 @@ export function createSceneTimelineController({
     directionByJoinId.set(join.id, frameDirection);
 
     if (presentedJoinIds.has(join.id) && frameDirection < 0 && join.progressPolicy === 'scroll') {
+      if (progress >= resolveTiming(join).presentAt) {
+        return lastFrameByJoinId.get(join.id) || null;
+      }
+
       presentedJoinIds.delete(join.id);
       committedJoinIds.delete(join.id);
     }

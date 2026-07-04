@@ -233,6 +233,14 @@ function withFakeGlobals(document, callback) {
     assert.ok(sections.belief.copy.classList.contains('is-visible'), 'copy reveal is claimed visible');
     assert.ok(Object.isFrozen(timeline.getFrame('home-belief')), 'getFrame must return a frozen frame');
 
+    const shallowReverseFrame = timeline.updateFrame('home-belief', 0.99, { reason: 'unit-scroll-shallow-reverse' });
+    assert.equal(shallowReverseFrame, firstFrame, 'scroll-driven shallow rollback inside presented range stays terminal');
+    assert.equal(
+      document.events.filter((event) => event.type === 'scene-timeline:presented' && event.detail.joinId === 'home-belief').length,
+      1,
+      'scroll-driven shallow rollback must not dispatch a second presented event'
+    );
+
     const reverseScrollFrame = timeline.updateFrame('home-belief', 0.4, { reason: 'unit-scroll-reverse' });
     assert.equal(reverseScrollFrame.phase, 'playing', 'scroll-driven progress rollback reopens presented joins');
     assert.equal(reverseScrollFrame.direction, -1, 'scroll-driven progress rollback infers reverse direction');
