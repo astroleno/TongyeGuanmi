@@ -143,7 +143,7 @@ function overlapKey(left, right) {
 }
 
 function violationKey(violation) {
-  return `${violation.sceneId}\0${violation.selector}\0${violation.ownerIndex}\0${violation.revealIndex}\0${violation.revealClass}`;
+  return `${violation.sceneId}\0${violation.selector}\0${violation.ownerIndex}\0${violation.relation ?? 'owned-subtree'}\0${violation.revealIndex}\0${violation.revealClass}`;
 }
 
 function parseAttributes(tag) {
@@ -223,6 +223,16 @@ function matchesSelector(node, selector) {
 
 function descendantsOf(node) {
   return node.children.flatMap((child) => [child, ...descendantsOf(child)]);
+}
+
+function ancestorsOf(node) {
+  const ancestors = [];
+  let current = node.parent;
+  while (current) {
+    ancestors.push(current);
+    current = current.parent;
+  }
+  return ancestors;
 }
 
 function lineNumberFor(index) {
@@ -337,6 +347,21 @@ for (const entry of timelineOwnedSelectors) {
         sceneId: entry.sceneId,
         selector: entry.selector,
         ownerIndex,
+        relation: 'owned-subtree',
+        revealIndex,
+        revealClass: revealNode.attrs.get('class') || '',
+        line: lineNumberFor(revealNode.index)
+      });
+    });
+
+    const revealAncestors = ancestorsOf(ownerNode)
+      .filter((node) => classList(node).includes('reveal'));
+    revealAncestors.forEach((revealNode, revealIndex) => {
+      ownerViolations.push({
+        sceneId: entry.sceneId,
+        selector: entry.selector,
+        ownerIndex,
+        relation: 'ancestor',
         revealIndex,
         revealClass: revealNode.attrs.get('class') || '',
         line: lineNumberFor(revealNode.index)
@@ -358,14 +383,14 @@ if (KNOWN_OWNER_VIOLATIONS.length > 0) {
   console.warn('homepage-owner-contract known reveal owner violations:');
   for (const violation of ownerViolations.filter((entry) => knownByKey.has(violationKey(entry)))) {
     const known = knownByKey.get(violationKey(violation));
-    console.warn(`  - index.html:${violation.line} ${violation.sceneId} ${violation.revealClass} -> remove in ${known.removalTaskId}`);
+    console.warn(`  - index.html:${violation.line} ${violation.sceneId} ${violation.relation} ${violation.revealClass} -> remove in ${known.removalTaskId}`);
   }
 }
 
 if (newOwnerViolations.length > 0) {
   console.error('\nNew timeline-owned reveal owner violations:');
   for (const violation of newOwnerViolations) {
-    console.error(`  x index.html:${violation.line} ${violation.sceneId} ${violation.selector}`);
+    console.error(`  x index.html:${violation.line} ${violation.sceneId} ${violation.selector} ${violation.relation}`);
     console.error(`    ${violation.revealClass}`);
   }
 }
