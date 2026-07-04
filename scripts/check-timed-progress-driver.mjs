@@ -108,6 +108,57 @@ function makeHarness(stepMs) {
   assert(driver.getProgress() === frozen, 'progress frozen after cancel (no stray ticks)');
 }
 
+// ---- partial ramp preserves speed and endpoint ------------------------------
+{
+  const h = makeHarness(100);
+  const driver = createTimedProgressDriver({
+    durationMs: 1000, easing: (t) => t,
+    now: h.now, requestFrame: h.requestFrame, cancelFrame: h.cancelFrame
+  });
+  let result = null;
+  driver.play({ from: 0.6, to: 0, direction: -1 }).then((r) => { result = r; });
+  assert(driver.getProgress() === 0.6, 'partial reverse starts at explicit from');
+  h.pump(3);
+  assert(Math.abs(driver.getProgress() - 0.3) < 1e-9, `partial reverse mid ~0.3 (got ${driver.getProgress()})`);
+  h.pump(3);
+  await Promise.resolve();
+  assert(driver.getProgress() === 0, 'partial reverse settles at explicit to');
+  assert(result && result.completed === true, 'partial reverse resolves completed:true');
+}
+
+// ---- partial cancel freezes mid-flight --------------------------------------
+{
+  const h = makeHarness(100);
+  const driver = createTimedProgressDriver({
+    durationMs: 1000, easing: (t) => t,
+    now: h.now, requestFrame: h.requestFrame, cancelFrame: h.cancelFrame
+  });
+  let result = null;
+  driver.play({ from: 0.6, to: 0, direction: -1 }).then((r) => { result = r; });
+  h.pump(2);
+  driver.cancel();
+  await Promise.resolve();
+  assert(result && result.completed === false, 'partial cancel resolves completed:false');
+  const frozen = driver.getProgress();
+  h.pump(5);
+  assert(driver.getProgress() === frozen, 'partial progress frozen after cancel');
+}
+
+// ---- per-play duration override ---------------------------------------------
+{
+  const h = makeHarness(100);
+  const driver = createTimedProgressDriver({
+    durationMs: 1000, easing: (t) => t,
+    now: h.now, requestFrame: h.requestFrame, cancelFrame: h.cancelFrame
+  });
+  let result = null;
+  driver.play({ from: 1, to: 0, direction: -1, durationMs: 500 }).then((r) => { result = r; });
+  h.pump(5);
+  await Promise.resolve();
+  assert(driver.getProgress() === 0, 'duration override settles at overridden duration');
+  assert(result && result.completed === true, 'duration override resolves completed:true');
+}
+
 // ---- last-call-wins: play() during a run restarts cleanly -------------------
 {
   const h = makeHarness(100);

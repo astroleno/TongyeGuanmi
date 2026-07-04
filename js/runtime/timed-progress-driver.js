@@ -21,7 +21,7 @@
  * @param {() => number} [options.now] - clock (default performance.now/Date.now)
  * @param {(cb:(t:number)=>void)=>number} [options.requestFrame] - scheduler (default rAF)
  * @param {(id:number)=>void} [options.cancelFrame] - canceller (default cAF)
- * @returns {{ play: (opts?:{direction?:1|-1})=>Promise<{completed:boolean}>, cancel: ()=>void, getProgress: ()=>number, isRunning: ()=>boolean }}
+ * @returns {{ play: (opts?:{direction?:1|-1, from?:number, to?:number, durationMs?:number})=>Promise<{completed:boolean}>, cancel: ()=>void, getProgress: ()=>number, isRunning: ()=>boolean }}
  */
 export function createTimedProgressDriver({
   durationMs = 1400,
@@ -60,31 +60,44 @@ export function createTimedProgressDriver({
   /**
    * Ramp progress over durationMs. Resolves { completed: true } at the end, or
    * { completed: false } if cancelled mid-flight.
-   * @param {{direction?: 1|-1}} [opts]
+   * @param {{direction?: 1|-1, from?: number, to?: number, durationMs?: number}} [opts]
    */
-  function play({ direction = 1 } = {}) {
+  function play({ direction = 1, from, to, durationMs: nextDurationMs } = {}) {
     // Cancel any in-flight ramp first (last call wins).
     if (running) cancel();
 
     const reverse = direction === -1;
-    const from = reverse ? 1 : 0;
-    const to = reverse ? 0 : 1;
-    progress = from;
+    const start = clamp01(from ?? (reverse ? 1 : 0));
+    const end = clamp01(to ?? (reverse ? 0 : 1));
+    const span = Math.abs(end - start);
+    const baseDurationMs = Number.isFinite(nextDurationMs) ? nextDurationMs : durationMs;
+    const rampDurationMs = baseDurationMs * span;
+    progress = start;
     running = true;
     const startedAt = clock();
 
     return new Promise((resolve) => {
+      if (span === 0 || rampDurationMs <= 0) {
+        progress = end;
+        onProgress(progress);
+        running = false;
+        frameId = 0;
+        settleActive = null;
+        resolve({ completed: true });
+        return;
+      }
+
       settleActive = resolve;
       const tick = () => {
         if (!running) { return; } // cancel() already settled the promise
         const elapsed = clock() - startedAt;
-        const t = durationMs <= 0 ? 1 : clamp01(elapsed / durationMs);
+        const t = clamp01(elapsed / rampDurationMs);
         const eased = easing(t);
-        progress = clamp01(reverse ? from + (to - from) * eased : eased);
+        progress = clamp01(start + (end - start) * eased);
         onProgress(progress);
 
         if (t >= 1) {
-          progress = to;
+          progress = end;
           onProgress(progress);
           running = false;
           frameId = 0;
