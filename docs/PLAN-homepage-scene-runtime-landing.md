@@ -66,11 +66,51 @@ git switch -c codex/scene-runtime-main-rebuild
 | Scene 语义合同 | FLAG。16 个 top-level scene 可从 `main` 映射，但现有 build 仍是旧 transition/handoff 合同 | PR1 先冻结 `src/homepage/**` 合同；PR3 再做 `--scene-runtime` DOM shell |
 | 纯 FSM 单测 | PASS + FLAG。无依赖 `node:test` 可覆盖核心状态流、reverse cancel、decay、touch inertia、media fail unlock | 先测纯状态机和输入合同；不得为了跑视觉而提前接 scroll / adapter |
 
+### 1.2 Scene Provider 可行性探针结论
+
+独立 provider / harness 探针已证明四个首段视觉模块可以被标准接口包装，但这只等价于 **provider 技术迁移可行**，不等价于 SceneRuntime 主链路已可用。
+
+已核对的 provider 提交链：
+
+| provider | 提交链 | 当前结论 |
+|---|---|---|
+| `hero` | `1bfdba3 -> f30624a` | 已移除 next-scene ink / `back2` 跨场景材料，边界可作为 scene provider 候选 |
+| `pattern` | `dba81d0 -> 718d362 -> 322ee32` | 已有标准 player adapter，renderer 由外部进度驱动，不读 scroll / hash / current scene |
+| `star-map` | `d2351e2` | 已拆掉 AOD target、ink exit 与 `star-map-to-aod`，保留纯 star-map reveal/stable |
+| `aod-animation` | `cbefb27 -> 6431240 -> 4465ff0` | 已移除 ink transition；80% 只发 `early-copy-ready` milestone，不再硬编码 `method-top` target |
+
+这些探针允许下一阶段实现统一 adapter / registry，但有三条限制：
+
+- provider 不能作为 timeline owner；它们只响应 `mount / showPoster / playForward / cancelToSource / reverseToPoster / destroy / getState`。
+- provider 发出的 milestone 不能自带目标 scene；`early-copy-ready -> method-top/services/contact` 只能由 manifest / Presentation 决定。
+- provider 探针不能替代 PR2。状态机必须先证明 stale callback、abort、failure cooldown、early-copy rollback 都不会错 commit，才能接真实 video / canvas player。
+
+### 1.3 Adapter / Registry / Orchestrator Mock 落地审查
+
+上一阶段目标是 **Scene Provider Adapter + Registry + Orchestrator Mock**。当前仓库实际落地情况不等于该目标闭环：
+
+| 项 | 当前落地 | 结论 |
+|---|---|---|
+| `SceneProvider` 探针 | 有。`js/scene-providers/starmap-scene-provider.js` 与 `scene-provider-starmap.html` 证明 StarMap 可作为独立 provider | 只证明单点 provider 可行 |
+| `ScenePlayerAdapter` | 未见统一模块。现有 provider 方法仍是 `playReveal / playLoop / cancelToPoster`，不是统一 player contract | 未完成 |
+| `SceneRegistry` | 未见统一注册表；没有注册 `hero / pattern / star-map / aod-animation` 的 manifest mapping | 未完成 |
+| `Orchestrator Mock` | 未见 fake orchestrator；没有单 active player、epoch、abort、trace、early-copy target mapping 测试 | 未完成 |
+| `Provider Compliance Tests` | StarMap checker 是结构检查，不能证明 stale callback / destroy return / abort cleanup / no duplicate active owner | 不足 |
+
+因此下一步不是接主页，也不是直接进入真实视觉链路，而是补一个 **Provider Adapter Contract PR**：
+
+- 统一 adapter 把 provider 差异方法归一到 `mount / showPoster / playForward / cancelToSource / reverseToPoster / destroy / getState`。
+- registry 只登记 provider factory、scene id、host selector、milestone mapping；不能拥有 scroll / hash / current scene。
+- orchestrator mock 只调用 adapter，不直接写 Presentation-owned state；所有 commit 都走 fake Presentation。
+- mock 必须证明同一时刻最多一个 active player，旧 epoch late callback 被忽略，AOD `early-copy-ready` 由 manifest 映射到 `method-top`。
+- 该 PR 仍不接真实 homepage DOM；可用 fake providers，也可在独立 harness 下 smoke 真 provider，但验收以合同测试为准。
+
 硬闸门：
 
 - Runtime / player agent 不得在 PR1 合同和资产 gate 通过前开始写视觉接入。
 - `build-index --scene-runtime` 不得在合同仍允许 `philosophy`、`method-proof`、`pattern-top`、`pattern-bottom` 作为 top-level scene 时合并。
 - 任一 runtime core PR 必须先用 fake clock / fake player / fake presentation 证明释放滚动和失败恢复，再接真实 media。
+- PR4 前禁止接真实 video / canvas provider，除非 PR2 stale callback、abort、failure cooldown、early-copy rollback gates 全部通过。
 
 ---
 
@@ -86,6 +126,11 @@ git switch -c codex/scene-runtime-main-rebuild
 - `ARMED` 只表示“边界后的 10vh intent 已经被锁存”，不是“画面已开始播放”。进入 `PLAYING` 前必须经过 `SNAP_LOCKING` 重新对齐并复核 from / to scene。
 - `10vh` 是 intent 阈值，不是视觉 progress。
 - `early-copy` 只在 `PLAYING` 内展示目标文案；`PLAY_COMPLETE` 后才进入 `PRESENTING`。
+- `early-copy` 是 preview，不是 final commit；cancel、reverse、recovery、stale epoch 必须 rollback。
+- 每次 segment attempt 都必须有唯一 epoch；任何 RAF、timer、media event、promise settle、resize 回调都必须校验 epoch 后才能产生 effect。
+- 所有 player / adapter / async helper 必须接受 `AbortSignal`；abort 后 late resolve / reject / event 只能记录 ignored trace，不能提交 scene / copy / hash。
+- Recovery target 必须由状态和 segment 类型确定，禁止使用模糊的 `targetScene or lastSafeScene`。
+- failure cooldown 必须抑制同一段惯性输入立刻重试；重试需要 fresh intent。
 - 同一帧同一 layer 只能一个 owner；dev 先执行 recovery routine 再 fail-fast，production 执行 recovery routine，并以 `RELEASING({ reason: 'recovery' })` fail-open。
 - 资源失败、`play()` reject、`ended` 丢失、resize 异常都必须释放滚动。
 - Reduced motion 直接 present target，不长时间锁滚。
@@ -132,8 +177,9 @@ IDLE -> ARMED -> SNAP_LOCKING -> PLAYING -> PRESENTING -> RELEASING -> IDLE
 ```txt
 PLAYING_ERROR / SNAP_LOCK_FAILED / PLAYER_TIMEOUT / RESOURCE_FAILED
 -> stop active player / timers / pending media
+-> rollback transient layer claims and early-copy previews owned by this attempt
 -> unlock scroll fail-open
--> Presentation.present(targetScene or lastSafeScene)
+-> Presentation.present(recoveryTarget resolved by policy table)
 -> RELEASING({ reason: 'recovery', recoveryReason })
 -> IDLE
 ```
@@ -178,6 +224,92 @@ ARMED reads scrollY to drive visual progress
 ARMED writes target copy / hash / nav
 PLAYING + MEDIA_PROGRESS(0.8) -> PRESENTING
 ```
+
+### 3.1 Attempt / Epoch Contract
+
+每次运行 segment 都创建一个 attempt。attempt 是 runtime 的最小所有权单元；同一个 segment 被取消后重新触发，也必须换新 epoch。
+
+```ts
+type RuntimeAttempt = {
+  epoch: number;
+  segmentId: string;
+  fromSceneId: string;
+  toSceneId: string;
+  phaseAtStart: RuntimePhase;
+  direction: 1 | -1;
+  startedAtMs: number;
+};
+```
+
+规则：
+
+- 所有异步来源必须携带 `epoch`：RAF、timer、media `ended/error/timeupdate`、`play()` promise、image/video preload、resize、hash jump follow-up、compound `awaitIntent()` resume。
+- `epoch !== activeAttempt.epoch` 的事件只能进入 `ignoredStaleEvents` trace，不得调用 `Presentation`、`LayerOwnership`、scroll lock、hash、nav、copy commit。
+- `PRESENTING` 开始后，该 attempt 进入 commit barrier；之后同 epoch 的 late progress / early-copy / cancel event 也不能改变 commit target。
+- `DESTROY` 使当前 epoch invalid；destroy 后所有 late event 必须被忽略。
+- PR2 必须用 fake clock 证明 stale `PLAY_COMPLETE`、stale `MEDIA_ENDED`、stale `EARLY_COPY_READY`、stale `TIMEOUT` 都不会 commit。
+
+### 3.2 Abortable Async Event Contract
+
+所有 player / adapter / helper 调用都必须接受 runtime 传入的 `AbortSignal`：
+
+```ts
+player.playForward({
+  signal,
+  onProgress(event) {},
+  onTrace(event) {}
+});
+```
+
+规则：
+
+- runtime 进入 cancel、reverse、recovery、hash jump、destroy 时必须 abort active attempt。
+- player / adapter 在 abort 后必须清掉 RAF、timer、media listener、pending preload、pending promise settle hook。
+- abort 后晚到的 resolve / reject / event 不能 throw 到未处理 promise，也不能更改 state；只能返回 `{ completed: false, reason: 'aborted' }` 或记录 ignored trace。
+- `AbortSignal` 是取消所有权，不是视觉恢复策略。恢复目标由 3.3 决定。
+- PR2 只用 fake player / fake media 测试；PR4 前禁止接真实 video，除非 abort + stale callback gates 全过。
+
+### 3.3 Deterministic Recovery Target Policy
+
+Recovery 不能再写“present target or lastSafeScene”。恢复目标必须由当前阶段、segment 类型、commit 状态和 early-copy 状态确定。
+
+| 失败位置 | 条件 | recovery target | 额外动作 |
+|---|---|---|---|
+| `ARMED` | 尚未锁滚 / 未创建 attempt | current presented scene | reset intent |
+| `SNAP_LOCKING` | from/to 复核失败或 snap timeout | source scene | unlock scroll, suppress retry |
+| `ink-transition PLAYING` | ink 未完成 | source scene | abort transition player, clear ink owner |
+| `ink-transition PLAYING` | ink complete 已进入 `PRESENTING` | target scene | finish atomic present, ignore late cancel |
+| `media-animation PLAYING` | progress `< earlyCopyAt` | animation poster/source scene | pause/reset media, clear media owner |
+| `media-animation PLAYING` | progress `>= earlyCopyAt` 且未 commit | animation poster/source scene | rollback early-copy first, then release |
+| `media-animation PLAYING` | `PLAY_COMPLETE` 已进入 `PRESENTING` | target scene or hold-current scene by segment contract | finish atomic present |
+| `text-read` | ReadMonitor bounds invalid / resize race | current reading scene | preserve natural scroll, refresh bounds |
+| `compound-sequence` | internal step failed before final present | compound source scene + last completed internal step | abort step, keep outer active segment recoverable |
+| any | `HASH_JUMP` | hash target scene via alias policy | abort attempt, no historical replay |
+| any | `DESTROY` | none | release locks, remove listeners, no present |
+
+`source scene` means the last fully presented scene before the attempt. `target scene` means the segment `to`. `hold-current scene` is only legal for `ttg-play` / `ph-play` with explicit `completion: 'hold-current'`.
+
+### 3.4 Failure Cooldown / Retry Suppression
+
+失败恢复后不能被同一次 wheel / touch inertia 立刻重触发。
+
+```ts
+type FailureCooldown = {
+  segmentId: string;
+  epoch: number;
+  reason: string;
+  untilMs: number;
+  requiresFreshIntent: true;
+};
+```
+
+规则：
+
+- recovery release 后记录 failure cooldown，默认不少于 `releaseCooldownMs`，并要求新的方向一致 fresh intent。
+- cooldown 内相同 `segmentId + direction` 的输入只能 reset / decay intent，不能进入 `ARMED`。
+- 反向输入可解除同 segment cooldown，但必须重新走 ScrollIntent 阈值。
+- hash jump、reduced motion、destroy 不进入 retry cooldown；它们有自己的互斥路径。
+- PR2 必须证明 media reject、timeout、snap fail、layer conflict recovery 后不会被同一惯性输入二次触发。
 
 ---
 
@@ -277,14 +409,57 @@ read: {
 
 CSS 只能反映 `data-scene-state`、`data-copy-state`、`data-layer-owner`，不能决定 commit。
 
-80% reveal 的真实解法不是 adapter 改 z-index，而是 Presentation 发起 `presentEarlyCopy()` 并设置 layer owner：
+Layer claim 必须走统一 resolver：
+
+```ts
+LayerOwnership.claim({
+  epoch,
+  layer: 'copy' | 'visual-stage' | 'ink-mask' | 'media' | 'scene-state' | 'nav/hash/focus',
+  owner: 'Presentation' | 'SegmentPlayer' | 'MediaPlayer' | 'ReadMonitor' | 'SiteRuntime',
+  scope: segmentId,
+  mode: 'exclusive'
+});
+```
+
+规则：
+
+- 同一 frame 同一 layer 的两个 exclusive owner 是冲突。
+- dev：先执行 recovery routine，再 fail-fast，让测试能看到恢复和错误。
+- production：执行 recovery routine、记录 conflict trace、进入 `RELEASING({ reason: 'recovery' })` fail-open。
+- `Presentation` 是 `copy`、`scene-state`、`nav/hash/focus` 的唯一提交者；Mock Orchestrator 也不能直接写这些状态。
+- SegmentPlayer 可以临时拥有 `visual-stage` / `ink-mask` / `media`，但不能提交 target scene。
+
+80% reveal 的真实解法不是 adapter 改 z-index，而是 player 发出 milestone，Presentation 根据 manifest 发起 `presentEarlyCopy()` 并设置 layer owner：
 
 ```txt
 PLAYING(aod-play, progress >= 0.8)
+-> player trace { type: 'early-copy-ready', milestone: 'early-copy-ready', epoch }
 -> Presentation.presentEarlyCopy({ targetScene: 'method-top' })
 -> copy layer owner = Presentation
 -> media layer remains MediaPlayer until PLAY_COMPLETE
 ```
+
+### 6.1 Early Copy Rollback Contract
+
+`early-copy` 是 preview ownership，不是 final scene commit。
+
+```ts
+type EarlyCopyPreview = {
+  epoch: number;
+  segmentId: string;
+  targetSceneId: string;
+  status: 'previewing' | 'rolled-back' | 'promoted';
+};
+```
+
+规则：
+
+- player 只能发 `early-copy-ready` milestone；不得携带 `targetSceneId`，不得写 target copy DOM。
+- runtime 根据 segment manifest 将 milestone 映射到 `targetSceneId`，再调用 `Presentation.presentEarlyCopy()`。
+- `cancel`、`reverse`、`recovery`、`hash jump`、`destroy`、stale epoch 必须调用 `Presentation.rollbackEarlyCopy({ epoch })`。
+- `PLAY_COMPLETE -> PRESENTING` 成功后，early-copy 才能 promote 为 final copy state。
+- rollback 必须恢复 source/current copy owner，不允许留下 method/services/contact 文案悬浮在旧 scene 上。
+- PR2 必须覆盖：80% 后 cancel rollback、80% 后 player reject rollback、80% stale callback ignored、early-copy 后 hash jump 不双 commit。
 
 ---
 
@@ -294,6 +469,7 @@ PLAYING(aod-play, progress >= 0.8)
 
 - 当前 reading / animation scene 到达 armed boundary。
 - 用户继续滚动 `10vh` 后进入 `ARMED -> SNAP_LOCKING -> PLAYING`，播放 ink。
+- 由独立 `TransitionSegmentPlayer` / `ink-transition-player` 播放，不由 source scene provider 或 target scene provider 播放。
 - ink progress 由 clock 驱动，不由 scrollY 驱动。
 - 完成后进入 `PRESENTING`，再释放滚动。
 - 如果目标是 animation scene，转场期间该 animation 的 webm 不播放，只显示 poster / 首帧 / 静态合成层。转场完成 commit 到 animation scene 后，用户再次滚动 `10vh` 才播放 animation。
@@ -303,7 +479,8 @@ PLAYING(aod-play, progress >= 0.8)
 - 进入 animation scene 后只显示 poster / first frame。
 - 用户继续滚动 `10vh` 后进入 `ARMED -> SNAP_LOCKING -> PLAYING`，再 `video.play()` 或 component clock 自动播放。
 - `seek/currentTime` 只用于 reset、first frame、reduced-motion、恢复。
-- AOD、Figure3、Crane 支持 `earlyCopyAt: 0.8`。
+- AOD、Figure3、Crane 支持 `earlyCopyAt: 0.8`；player 只发 milestone，target copy 由 Presentation 决定。
+- AOD、Figure3、Crane 最后 20% 依赖自身全屏视觉，不额外叠加 ink transition。
 
 TTG / PH 不再把 exit ink 藏进 media player。它们都是普通 `media-animation`，后面的 `ttg-to-lab`、`ph-to-education` 是独立 `ink-transition`，各自需要一次新的 `10vh` intent。
 
@@ -562,7 +739,9 @@ hero
 - [ ] `js/scenes/runtime/read-monitor.js`
 - [ ] `js/scenes/runtime/presentation.js`
 - [ ] `js/scenes/runtime/layer-ownership.js`
+- [ ] `js/scenes/runtime/scene-player-adapter.js`
 - [ ] `js/scenes/runtime/player-registry.js`
+- [ ] `js/scenes/runtime/orchestrator-mock.js`
 - [ ] `js/scenes/runtime/recovery.js`
 - [ ] `js/scenes/runtime/debug-panel.js`
 
@@ -642,11 +821,20 @@ npm run verify:section-transitions
 - [ ] 新建 `js/scenes/runtime/read-monitor.js`，实现 reading boundary。
 - [ ] 新建 `js/scenes/runtime/presentation.js`，实现单提交点。
 - [ ] 新建 `js/scenes/runtime/layer-ownership.js`，实现 dev conflict fail-fast。
+- [ ] 新建 `js/scenes/runtime/scene-player-adapter.js`，统一 provider contract。
+- [ ] 新建 `js/scenes/runtime/player-registry.js`，只做 scene id -> provider factory / host / milestone mapping。
+- [ ] 新建 `js/scenes/runtime/orchestrator-mock.js`，用 fake providers 证明调用顺序，不接 homepage DOM。
 - [ ] 新建 `js/scenes/runtime/recovery.js`，实现 fail-open unlock。
 - [ ] 新建 `scripts/check-scene-state-machine.mjs`。
 - [ ] 新建 `scripts/check-scroll-intent.mjs`。
 - [ ] 新建 `scripts/check-read-monitor-fsm.mjs`。
 - [ ] 新建 `scripts/check-presentation-invariants.mjs`。
+- [ ] 新建 `scripts/check-scene-player-adapter.mjs`。
+- [ ] 新建 `scripts/check-scene-registry.mjs`。
+- [ ] 新建 `scripts/check-orchestrator-mock.mjs`。
+- [ ] 新建 `scripts/check-stale-async-events.mjs`。
+- [ ] 新建 `scripts/check-failure-cooldown.mjs`。
+- [ ] 新建 `scripts/check-early-copy-rollback.mjs`。
 - [ ] 新建 `scripts/check-reduced-motion-runtime.mjs`。
 - [ ] 纯 FSM 检查允许使用 `node:test`，但不得引入新测试框架或浏览器依赖。
 - [ ] 状态机测试必须注入 fake clock、fake player、fake presentation、fake scroll lock；不接 DOM、canvas、video 元素。
@@ -654,6 +842,15 @@ npm run verify:section-transitions
 - [ ] `check-scene-state-machine.mjs` 必须断言 public `RuntimeState.phase` 只允许 `IDLE` / `ARMED` / `SNAP_LOCKING` / `PLAYING` / `PRESENTING` / `RELEASING`；recovery 只能作为 routine、`recoveryReason` 或 release reason 暴露。
 - [ ] 覆盖反向滚动取消、未满 `10vh` decay、touch inertia grace 内不误触发。
 - [ ] 覆盖 `play()` reject、media `ended` 丢失 / timeout、resource fail 均释放滚动，执行 recovery routine，并进入 `RELEASING({ reason: 'recovery' })`。
+- [ ] 覆盖 attempt / epoch：stale `PLAY_COMPLETE`、stale `MEDIA_ENDED`、stale `EARLY_COPY_READY`、stale timeout、stale resize 不能调用 Presentation。
+- [ ] 覆盖 AbortSignal：cancel / reverse / recovery / hash jump / destroy 后 late resolve / reject / callback 只能 ignored trace，不能 commit。
+- [ ] 覆盖 deterministic recovery target policy，不允许测试里出现 `targetScene or lastSafeScene` 这种模糊分支。
+- [ ] 覆盖 failure cooldown：同一惯性输入不能在 recovery 后重触发同 segment；fresh intent 才能重试。
+- [ ] 覆盖 early-copy rollback：80% 后 cancel、reverse、player reject、hash jump、stale epoch 都必须撤回 preview copy。
+- [ ] `ScenePlayerAdapter` 必须把 provider 差异方法归一成 `mount / showPoster / playForward / cancelToSource / reverseToPoster / destroy / getState`；禁止泄漏 provider-only 方法到 orchestrator。
+- [ ] `SceneRegistry` 必须禁止 provider 硬编码 timeline target；AOD `early-copy-ready` 只能经 manifest 映射到 `method-top`。
+- [ ] `OrchestratorMock` 必须证明同一时刻最多一个 active player；Presentation 是唯一 commit 点；Mock Orchestrator 不能直接写 scene/copy/nav/hash。
+- [ ] PR2 仍只允许 fake providers；真实 video / canvas provider 只能作为独立 smoke，不得作为 PR2 合同验收来源。
 - [ ] `ReadMonitor` 的 DOM bounds 先用 fake bounds 测几何合同；真实 viewport 手感放到 PR4 验收。
 
 通过命令：
@@ -663,6 +860,12 @@ node scripts/check-scene-state-machine.mjs
 node scripts/check-scroll-intent.mjs
 node scripts/check-read-monitor-fsm.mjs
 node scripts/check-presentation-invariants.mjs
+node scripts/check-scene-player-adapter.mjs
+node scripts/check-scene-registry.mjs
+node scripts/check-orchestrator-mock.mjs
+node scripts/check-stale-async-events.mjs
+node scripts/check-failure-cooldown.mjs
+node scripts/check-early-copy-rollback.mjs
 node scripts/check-reduced-motion-runtime.mjs
 ```
 
@@ -804,16 +1007,17 @@ PR1 必须先合并。PR1 后可以并行。
 | Worktree / Branch | Owner 范围 | 禁止修改 |
 |---|---|---|
 | `codex/scene-runtime-main-integration` | `package.json`、`scripts/build-index.mjs`、`js/main.js`、最终 verify aggregation | 不直接写 visual players |
-| `codex/scene-runtime-main-core` | `js/scenes/runtime/**`、runtime checks | 不改 `src/sections/**` |
+| `codex/scene-runtime-main-core` | `state-machine`、`scroll-intent`、`read-monitor`、`presentation`、`layer-ownership`、`recovery` 与 PR2 core checks | 不接真实 provider / video / DOM shell |
+| `codex/scene-runtime-main-provider-adapter` | `scene-player-adapter`、`player-registry`、`orchestrator-mock`、fake provider contract checks | 不写 ScrollIntent / Presentation internals；不接 homepage DOM |
 | `codex/scene-runtime-main-dom` | `src/index.template.html`、`src/sections/**`、`css/sections/**`、reveal ownership checks | 不改 runtime core |
-| `codex/scene-runtime-main-media` | ink/media/aod/figure3/ttg/ph/crane players | 不改 Figure2 compound |
+| `codex/scene-runtime-main-media` | 独立 provider/harness visual migration，可继续打磨 hero/pattern/star-map/aod/figure3/ttg/ph/crane | 不接 SceneRuntime 主链路；不写 orchestrator；不把 transition 塞进 scene provider |
 | `codex/scene-runtime-main-figure2` | `js/scenes/players/figure2-compound-player.js`、Figure2 checks、copy refs | 不改 global state machine |
 
 合并顺序：
 
 ```txt
 PR1 Contract
-  -> PR2 Runtime Core
+  -> PR2 Runtime Core + Provider Adapter Contract
   -> PR3 DOM Shell
   -> PR4 MVP
   -> PR5 Figure2
@@ -821,7 +1025,7 @@ PR1 Contract
   -> PR7 Production Switch
 ```
 
-PR2 与 PR3 可并行；PR4 依赖 PR2+PR3；PR5 与 PR6 在 PR4 后可并行，但最终由 `codex/scene-runtime-main-integration` 统一接入。
+PR2 core、PR2 provider-adapter 与 PR3 DOM shell 可并行，但 PR4 必须同时依赖三者通过。Media / Figure2 agent 可以继续做独立 harness，不得把真实 player 接入主页主链路；最终由 `codex/scene-runtime-main-integration` 统一接入。
 
 ---
 
@@ -854,6 +1058,12 @@ node scripts/check-scene-state-machine.mjs
 node scripts/check-scroll-intent.mjs
 node scripts/check-read-monitor-fsm.mjs
 node scripts/check-presentation-invariants.mjs
+node scripts/check-scene-player-adapter.mjs
+node scripts/check-scene-registry.mjs
+node scripts/check-orchestrator-mock.mjs
+node scripts/check-stale-async-events.mjs
+node scripts/check-failure-cooldown.mjs
+node scripts/check-early-copy-rollback.mjs
 node scripts/check-reduced-motion-runtime.mjs
 node scripts/check-scene-dom-shell.mjs
 node scripts/check-reveal-ownership.mjs
