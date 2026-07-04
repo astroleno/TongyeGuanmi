@@ -442,6 +442,11 @@ export const timelineJoins = [
     cleanupAt: 0.96,
     commitCondition: ['progress:commitAt', 'lotusContracted', 'targetReady'],
     presentCondition: ['progress:presentAt', 'beliefCopyComplete'],
+    phases: {
+      reveal: [0.00, 0.46],
+      bloom: [0.42, 0.70],
+      secondReveal: [0.50, 0.86]
+    },
     adapterVariant: 'perlin-no-stretch-centered-copy'
   },
   {

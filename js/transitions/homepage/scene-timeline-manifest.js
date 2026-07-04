@@ -176,6 +176,20 @@ export const timelineJoins = [
       "progress:presentAt",
       "beliefCopyComplete"
     ],
+    "phases": {
+      "reveal": [
+        0,
+        0.46
+      ],
+      "bloom": [
+        0.42,
+        0.7
+      ],
+      "secondReveal": [
+        0.5,
+        0.86
+      ]
+    },
     "adapterVariant": "perlin-no-stretch-centered-copy"
   },
   {
