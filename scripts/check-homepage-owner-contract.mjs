@@ -1,10 +1,20 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { timelineJoins, timelineScenes } from '../js/transitions/homepage/scene-timeline-manifest.js';
 
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const sourceRoot = new URL('../', import.meta.url);
+const SOURCE_SCAN_DIRS = Object.freeze(['js']);
+const ALLOWED_REVEAL_PRESENT_API_USERS = new Set([
+  'js/transitions/homepage/scene-timeline-controller.js'
+]);
+const ALLOWED_HANDOFF_STATE_WRITERS = new Set([
+  'js/transitions/homepage/scene-timeline-controller.js',
+  'js/transitions/homepage/section-presentation-controller.js'
+]);
+const SOURCE_HIDDEN_BEFORE_PRESENT_EXCEPTIONS = new Set([]);
 
 const KNOWN_OWNER_VIOLATIONS = Object.freeze([
   {
@@ -115,6 +125,70 @@ const KNOWN_OWNER_VIOLATIONS = Object.freeze([
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function listSourceFiles(dirUrl, prefix) {
+  return readdirSync(dirUrl, { withFileTypes: true }).flatMap((entry) => {
+    const relativePath = `${prefix}/${entry.name}`;
+    const entryUrl = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, dirUrl);
+    if (entry.isDirectory()) return listSourceFiles(entryUrl, relativePath);
+    return /\.(?:js|mjs)$/.test(entry.name) ? [relativePath] : [];
+  });
+}
+
+function readSource(relativePath) {
+  return readFileSync(new URL(relativePath, sourceRoot), 'utf8');
+}
+
+function matchCount(source, pattern) {
+  return [...source.matchAll(pattern)].length;
+}
+
+function assertSceneTimelineOwnership() {
+  const sourceFiles = SOURCE_SCAN_DIRS.flatMap((dir) => listSourceFiles(new URL(`${dir}/`, sourceRoot), dir));
+  const sourceByPath = new Map(sourceFiles.map((relativePath) => [relativePath, readSource(relativePath)]));
+  const controllerSource = sourceByPath.get('js/transitions/homepage/scene-timeline-controller.js') || '';
+  const runtimeSource = sourceByPath.get('js/transitions/homepage-transition-runtime.js') || '';
+
+  assert.equal(
+    matchCount(controllerSource, /\bfunction\s+presentTarget\s*\(/g),
+    1,
+    'SceneTimeline controller must define exactly one presentTarget entry'
+  );
+  assert.match(controllerSource, /\bclaimRevealWithin\b/, 'SceneTimeline presentTarget must claim reveal-owned copy');
+  assert.match(controllerSource, /scene-timeline:presented/, 'SceneTimeline presentTarget must emit the presented event');
+  assert.doesNotMatch(runtimeSource, /presentationController\./, 'Legacy runtime must not call presentation controller lifecycle methods');
+
+  for (const [relativePath, source] of sourceByPath) {
+    if (
+      /\bimport\s*\{[^}]*\b(?:presentRevealWithin|claimRevealWithin)\b[^}]*\}\s*from\b/s.test(source)
+      && !ALLOWED_REVEAL_PRESENT_API_USERS.has(relativePath)
+    ) {
+      assert.fail(`reveal presentation API imports are only allowed in scene-timeline-controller.js; found ${relativePath}`);
+    }
+
+    if (
+      /\bimport\s+\*\s+as\s+\w+\s+from\s+['"][^'"]*\/ui\/reveal\.js['"]/.test(source)
+      && !ALLOWED_REVEAL_PRESENT_API_USERS.has(relativePath)
+    ) {
+      assert.fail(`reveal namespace imports are only allowed in scene-timeline-controller.js; found ${relativePath}`);
+    }
+
+    if (
+      /\b(?:presentRevealWithin|claimRevealWithin)\s*\(/.test(source)
+      && relativePath !== 'js/ui/reveal.js'
+      && !ALLOWED_REVEAL_PRESENT_API_USERS.has(relativePath)
+    ) {
+      assert.fail(`reveal presentation API calls are only allowed in scene-timeline-controller.js; found ${relativePath}`);
+    }
+
+    if (
+      /(?:setAttribute\s*\(\s*['"]data-section-handoff-state['"]|dataset\s*\.\s*sectionHandoffState\s*=)/.test(source)
+      && !ALLOWED_HANDOFF_STATE_WRITERS.has(relativePath)
+    ) {
+      assert.fail(`data-section-handoff-state writes are only allowed in SceneTimeline/helper; found ${relativePath}`);
+    }
+  }
 }
 
 function assertRange(name, value) {
@@ -282,9 +356,12 @@ function assertPhaseIntervals(join) {
 const sceneIds = new Set(timelineScenes.map((scene) => scene.id));
 const joinIds = new Set();
 const joinPairs = new Set();
+const seenSourceHiddenBeforePresentExceptions = new Set();
 const selectorOwners = new Map();
 const timelineOwnedSelectors = [];
 const parsedHtml = parseHtmlNodes(indexHtml);
+
+assertSceneTimelineOwnership();
 
 for (const join of timelineJoins) {
   assert.ok(join.id, 'Each join must declare id');
@@ -306,7 +383,23 @@ for (const join of timelineJoins) {
 
   assertRange(`${join.id}.sourceOut`, join.sourceOut);
   assertRange(`${join.id}.targetIn`, join.targetIn);
+  if (SOURCE_HIDDEN_BEFORE_PRESENT_EXCEPTIONS.has(join.id)) {
+    seenSourceHiddenBeforePresentExceptions.add(join.id);
+  } else {
+    assert.ok(
+      join.sourceOut[1] >= timing.presentAt,
+      `${join.id} must keep source visible until target presentation or declare a source-hidden-before-present exception`
+    );
+  }
   assertPhaseIntervals(join);
+}
+
+for (const joinId of SOURCE_HIDDEN_BEFORE_PRESENT_EXCEPTIONS) {
+  assert.ok(joinIds.has(joinId), `source-hidden-before-present exception references unknown join ${joinId}`);
+  assert.ok(
+    seenSourceHiddenBeforePresentExceptions.has(joinId),
+    `source-hidden-before-present exception ${joinId} must be exercised by a timeline join`
+  );
 }
 
 for (const scene of timelineScenes) {

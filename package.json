@@ -13,6 +13,7 @@
     "verify:section-transitions": "node scripts/check-section-transition-contract.mjs",
     "verify:transition-runtime": "node scripts/check-transition-runtime.mjs",
     "verify:homepage-transitions": "node scripts/check-homepage-transition-integration.mjs",
+    "verify:scene-timeline": "node scripts/check-scene-timeline-controller.mjs",
     "verify:homepage-timeline": "node scripts/check-homepage-timeline.mjs",
     "verify:handoff-ownership": "node scripts/check-handoff-ownership.mjs",
     "verify:homepage-schema": "node scripts/check-homepage-timeline-schema.mjs",
@@ -32,7 +33,7 @@
     "verify:aod-adapter": "node scripts/check-aod-scene-adapter.mjs",
     "verify:figure2-adapter": "node scripts/check-figure2-scene-adapter.mjs",
     "verify:starmap-provider": "node scripts/check-starmap-scene-provider.mjs",
-    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership && npm run verify:homepage-schema && npm run verify:homepage-snap && npm run verify:homepage-media && npm run verify:homepage-boundaries && npm run verify:pilot-readiness && npm run verify:pilot-height && npm run verify:runtime-integration && npm run verify:snap-runtime && npm run verify:progress-driver && npm run verify:frame-contract && npm run verify:adapter-contract && npm run verify:homepage-owner-contract && npm run verify:pattern-bloom-adapter && npm run verify:aod-adapter && npm run verify:figure2-adapter && npm run verify:starmap-provider && npm run verify:pattern-scene-harness"
+    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:scene-timeline && npm run verify:handoff-ownership && npm run verify:homepage-schema && npm run verify:homepage-snap && npm run verify:homepage-media && npm run verify:homepage-boundaries && npm run verify:pilot-readiness && npm run verify:pilot-height && npm run verify:runtime-integration && npm run verify:snap-runtime && npm run verify:progress-driver && npm run verify:frame-contract && npm run verify:adapter-contract && npm run verify:homepage-owner-contract && npm run verify:pattern-bloom-adapter && npm run verify:aod-adapter && npm run verify:figure2-adapter && npm run verify:starmap-provider && npm run verify:pattern-scene-harness"
   },
   "devDependencies": {
     "playwright": "^1.61.1"

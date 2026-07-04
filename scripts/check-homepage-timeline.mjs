@@ -110,7 +110,7 @@ assert.match(controllerSource, /let activeFixedJoinId/, 'Scene timeline controll
 assert.match(controllerSource, /activeFixedJoinId && activeFixedJoinId !== join\.id/, 'Scene timeline controller must clear previous fixed target copy when a new join starts');
 assert.match(controllerSource, /state\.progress < 0\.998/, 'Scene timeline controller must not re-fix target copy after a join reaches completion');
 assert.match(revealSource, /export function presentRevealWithin/, 'Reveal runtime must expose the shared timeline presentation helper');
-assert.match(controllerSource, /presentRevealWithin/, 'Scene timeline controller must commit target copy through the shared reveal helper');
+assert.match(controllerSource, /claimRevealWithin/, 'Scene timeline controller must claim target copy through the shared reveal helper');
 assert.match(continuityCss, /\[data-entry-owner="timeline"\]\[data-timeline-fixed="true"\]/, 'Timeline CSS must render fixed target copy during active boundaries');
 assert.match(
   continuityCss,

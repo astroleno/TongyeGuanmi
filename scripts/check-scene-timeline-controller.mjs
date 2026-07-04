@@ -1,0 +1,296 @@
+#!/usr/bin/env node
+
+import assert from 'node:assert/strict';
+import { createSceneTimelineController } from '../js/transitions/homepage/scene-timeline-controller.js';
+
+class FakeClassList {
+  constructor(initial = []) {
+    this.classes = new Set(initial);
+  }
+
+  add(...names) {
+    names.filter(Boolean).forEach((name) => this.classes.add(name));
+  }
+
+  remove(...names) {
+    names.filter(Boolean).forEach((name) => this.classes.delete(name));
+  }
+
+  contains(name) {
+    return this.classes.has(name);
+  }
+
+  toString() {
+    return [...this.classes].join(' ');
+  }
+}
+
+class FakeStyle {
+  constructor() {
+    this.values = new Map();
+  }
+
+  setProperty(name, value) {
+    this.values.set(name, String(value));
+  }
+
+  removeProperty(name) {
+    this.values.delete(name);
+  }
+
+  getPropertyValue(name) {
+    return this.values.get(name) || '';
+  }
+}
+
+function datasetKey(name) {
+  return name.slice(5).replace(/-([a-z])/g, (_, char) => char.toUpperCase());
+}
+
+class FakeElement {
+  constructor({ tag = 'div', id = '', classes = [], dataset = {}, rect = null } = {}) {
+    this.tagName = tag.toUpperCase();
+    this.id = id;
+    this.children = [];
+    this.parentNode = null;
+    this.ownerDocument = null;
+    this.attributes = new Map();
+    this.dataset = { ...dataset };
+    this.classList = new FakeClassList(classes);
+    this.style = new FakeStyle();
+    this.rect = rect || { top: 0, bottom: 900 };
+
+    if (id) this.attributes.set('id', id);
+    if (classes.length) this.attributes.set('class', classes.join(' '));
+    Object.entries(dataset).forEach(([key, value]) => {
+      const attr = key.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
+      this.attributes.set(`data-${attr}`, String(value));
+    });
+  }
+
+  append(child) {
+    child.parentNode = this;
+    child.ownerDocument = this.ownerDocument || (this.defaultView ? this : null);
+    this.children.push(child);
+    child.children.forEach((grandchild) => {
+      grandchild.ownerDocument = child.ownerDocument;
+    });
+  }
+
+  setAttribute(name, value) {
+    const stringValue = String(value);
+    this.attributes.set(name, stringValue);
+    if (name === 'id') this.id = stringValue;
+    if (name === 'class') this.classList = new FakeClassList(stringValue.split(/\s+/).filter(Boolean));
+    if (name.startsWith('data-')) this.dataset[datasetKey(name)] = stringValue;
+  }
+
+  getAttribute(name) {
+    return this.attributes.get(name) ?? null;
+  }
+
+  hasAttribute(name) {
+    return this.attributes.has(name);
+  }
+
+  removeAttribute(name) {
+    this.attributes.delete(name);
+    if (name.startsWith('data-')) delete this.dataset[datasetKey(name)];
+  }
+
+  matches(selector) {
+    if (selector.startsWith('.')) return this.classList.contains(selector.slice(1));
+    if (selector.startsWith('#')) return this.id === selector.slice(1);
+    const attrMatch = selector.match(/^\[([A-Za-z0-9:_-]+)(?:="([^"]*)")?\]$/);
+    if (attrMatch) {
+      const [, name, value] = attrMatch;
+      return value === undefined ? this.hasAttribute(name) : this.getAttribute(name) === value;
+    }
+    return this.tagName.toLowerCase() === selector.toLowerCase();
+  }
+
+  querySelectorAll(selector) {
+    const matches = [];
+    const visit = (node) => {
+      node.children.forEach((child) => {
+        if (child.matches(selector)) matches.push(child);
+        visit(child);
+      });
+    };
+    visit(this);
+    return matches;
+  }
+
+  querySelector(selector) {
+    return this.querySelectorAll(selector)[0] || null;
+  }
+
+  getElementById(id) {
+    if (this.id === id) return this;
+    for (const child of this.children) {
+      const match = child.getElementById(id);
+      if (match) return match;
+    }
+    return null;
+  }
+
+  getBoundingClientRect() {
+    return this.rect;
+  }
+}
+
+class FakeDocument extends FakeElement {
+  constructor() {
+    super({ tag: 'document' });
+    this.events = [];
+    this.defaultView = {
+      CustomEvent: class CustomEvent {
+        constructor(type, init = {}) {
+          this.type = type;
+          this.detail = init.detail || {};
+        }
+      },
+      innerHeight: 1000,
+      gsap: null,
+      ScrollTrigger: null,
+      requestAnimationFrame: (callback) => callback(0)
+    };
+    this.documentElement = new FakeElement({ tag: 'html' });
+    this.documentElement.ownerDocument = this;
+    this.append(this.documentElement);
+  }
+
+  dispatchEvent(event) {
+    this.events.push(event);
+    return true;
+  }
+}
+
+function addSection(document, { id, copyClass }) {
+  const section = new FakeElement({
+    tag: 'section',
+    id,
+    dataset: { sectionId: id },
+    rect: { top: 100, bottom: 900 }
+  });
+  const copy = new FakeElement({
+    tag: 'div',
+    classes: [copyClass, 'reveal'],
+    dataset: {
+      sceneCopy: id,
+      sceneTarget: id,
+      entryOwner: 'timeline',
+      entryState: 'pending'
+    }
+  });
+  section.ownerDocument = document;
+  copy.ownerDocument = document;
+  section.append(copy);
+  document.documentElement.append(section);
+  return { section, copy };
+}
+
+function createDom() {
+  const document = new FakeDocument();
+  const sections = {
+    belief: addSection(document, { id: 'belief', copyClass: 'belief-copy-wrap' }),
+    method: addSection(document, { id: 'method', copyClass: 'method-edition-layout--after-handoff' }),
+    brand: addSection(document, { id: 'brand', copyClass: 'brand-definition-grid' }),
+    contact: addSection(document, { id: 'contact', copyClass: 'contact-endpoint' })
+  };
+  return { document, sections };
+}
+
+function withFakeGlobals(document, callback) {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  globalThis.window = document.defaultView;
+  globalThis.document = document;
+  try {
+    return callback();
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+  }
+}
+
+{
+  const { document, sections } = createDom();
+  withFakeGlobals(document, () => {
+    const timeline = createSceneTimelineController({ root: document });
+    const firstFrame = timeline.presentTarget('home-belief', 'unit-present');
+    const secondFrame = timeline.presentTarget('home-belief', 'unit-present-again');
+
+    assert.equal(firstFrame, secondFrame, 'presentTarget must be idempotent for one join');
+    assert.equal(
+      document.events.filter((event) => event.type === 'scene-timeline:presented').length,
+      1,
+      'presentTarget must dispatch one presented event'
+    );
+    assert.equal(sections.belief.section.getAttribute('data-scene-state'), 'presented', 'target section is presented');
+    assert.equal(sections.belief.section.getAttribute('data-section-handoff-state'), 'presented', 'handoff state is presented');
+    assert.equal(sections.belief.copy.getAttribute('data-entry-state'), 'presented', 'copy is marked presented');
+    assert.ok(sections.belief.copy.classList.contains('is-visible'), 'copy reveal is claimed visible');
+    assert.ok(Object.isFrozen(timeline.getFrame('home-belief')), 'getFrame must return a frozen frame');
+  });
+}
+
+{
+  const { document, sections } = createDom();
+  withFakeGlobals(document, () => {
+    const timeline = createSceneTimelineController({ root: document });
+    timeline.beginJoin('belief-method', { direction: 1 });
+    timeline.updateFrame('belief-method', 0.5, { reason: 'unit-midframe' });
+    assert.equal(sections.method.copy.getAttribute('data-timeline-fixed'), 'true', 'mid-playback copy is fixed');
+
+    timeline.presentTarget('belief-method', 'unit-present');
+    assert.equal(sections.method.copy.hasAttribute('data-timeline-fixed'), false, 'present clears fixed copy');
+    assert.equal(
+      document.documentElement.classList.contains('homepage-timeline-target-active'),
+      false,
+      'present clears root fixed-copy class'
+    );
+    assert.equal(sections.method.copy.getAttribute('data-entry-state'), 'presented', 'present claims copy');
+  });
+}
+
+{
+  const { document, sections } = createDom();
+  withFakeGlobals(document, () => {
+    const timeline = createSceneTimelineController({ root: document });
+    const originalWarn = console.warn;
+    let warned = false;
+    console.warn = () => {
+      warned = true;
+    };
+    try {
+      timeline.beginJoin('belief-method', { direction: 1 });
+      timeline.updateFrame('belief-method', 0.5, { reason: 'unit-midframe' });
+      timeline.beginJoin('method-proof-brand', { direction: 1 });
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    assert.ok(warned, 'beginJoin must warn when it cleans an unreleased active join');
+    assert.equal(sections.method.copy.hasAttribute('data-timeline-fixed'), false, 'beginJoin switch cleans previous fixed copy');
+    assert.equal(timeline.getFrame('belief-method').phase, 'released', 'beginJoin switch releases previous frame');
+  });
+}
+
+{
+  const { document, sections } = createDom();
+  withFakeGlobals(document, () => {
+    const timeline = createSceneTimelineController({ root: document });
+    const frame = timeline.presentTarget('philosophy-contact', 'unit-direct');
+
+    assert.equal(frame.phase, 'presented', 'presentTarget without prior frame presents target');
+    assert.equal(sections.contact.copy.getAttribute('data-entry-state'), 'presented', 'direct present claims target copy');
+    assert.equal(
+      document.events.filter((event) => event.type === 'scene-timeline:presented')[0]?.detail.joinId,
+      'philosophy-contact',
+      'presented event includes join id'
+    );
+  });
+}
+
+console.log('SceneTimeline controller contract OK.');

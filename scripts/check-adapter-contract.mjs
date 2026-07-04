@@ -139,6 +139,11 @@ const RULES = Object.freeze([
     pattern: /\bpresentRevealWithin\s*\(/
   },
   {
+    id: 'claim-reveal',
+    message: 'adapters must not call claimRevealWithin',
+    pattern: /\bclaimRevealWithin\s*\(/
+  },
+  {
     id: 'complete-handoff',
     message: 'adapters must not call completeHandoff',
     pattern: /\bcompleteHandoff\s*\(/

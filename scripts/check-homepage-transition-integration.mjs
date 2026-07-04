@@ -11,6 +11,7 @@ const registrySource = read('js/transitions/homepage-transition-registry.js');
 const runtimeSource = read('js/transitions/homepage-transition-runtime.js');
 const revealSource = read('js/ui/reveal.js');
 const presentationControllerSource = read('js/transitions/homepage/section-presentation-controller.js');
+const sceneTimelineControllerSource = read('js/transitions/homepage/scene-timeline-controller.js');
 const handoffPreviewSource = read('js/transitions/homepage/handoff-preview.js');
 const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js');
 const patternBloomAdapterSource = read('js/transitions/pattern-bloom-adapter.js');
@@ -261,6 +262,7 @@ assert.ok(
 );
 assert.ok(
   revealSource.includes('export function presentRevealWithin')
+    && revealSource.includes('export function claimRevealWithin')
     && revealSource.includes('export function setRevealPresentedWithin')
     && revealSource.includes('export function suppressRevealOnceWithin')
     && revealSource.includes('export function holdRevealWithin')
@@ -273,16 +275,21 @@ assert.ok(
 );
 assert.ok(
   presentationControllerSource.includes('createSectionPresentationController')
-    && presentationControllerSource.includes('markPresented')
+    && presentationControllerSource.includes('markSectionHandoffPreparing')
+    && presentationControllerSource.includes('markSectionHandoffPresented')
+    && presentationControllerSource.includes('markSectionScenePresented')
     && presentationControllerSource.includes('suppressEntryOnce')
-    && presentationControllerSource.includes('completeHandoff'),
-  'Homepage must have a section presentation controller'
+    && !presentationControllerSource.includes('activeHandoffs'),
+  'Homepage section presentation controller must be a stateless DOM helper'
 );
 assert.ok(
-  runtimeSource.includes("from './homepage/section-presentation-controller.js'")
-    && runtimeSource.includes('presentationController.completeHandoff')
-    && runtimeSource.includes('presentationController.beginHandoff'),
-  'Homepage runtime must notify the presentation controller during handoff lifecycle'
+  runtimeSource.includes('sceneTimeline?.beginJoin')
+    && runtimeSource.includes('sceneTimeline?.presentTarget')
+    && sceneTimelineControllerSource.includes("scene-timeline:presented")
+    && sceneTimelineControllerSource.includes('claimRevealWithin')
+    && !runtimeSource.includes('presentationController.completeHandoff')
+    && !runtimeSource.includes('presentationController.beginHandoff'),
+  'Homepage runtime must route handoff lifecycle through SceneTimeline'
 );
 assert.ok(
   runtimeSource.includes('beginTargetRevealGate')
@@ -301,8 +308,8 @@ assert.doesNotMatch(
   'Homepage runtime must not pause or hide child reveal tweens while gating visual bridge targets'
 );
 assert.ok(
-  runtimeSource.includes('controller.handoffId && controller.handoffTarget'),
-  'Homepage runtime must notify presentation state only for declared handoffs'
+  runtimeSource.includes('direction > 0 && controller.timelineJoin'),
+  'Homepage runtime must begin SceneTimeline joins only for declared timeline joins'
 );
 assert.ok(
   runtimeSource.includes('getDirectHashTargetId')

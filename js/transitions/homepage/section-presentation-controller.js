@@ -1,87 +1,73 @@
-import {
-  presentRevealWithin,
-  suppressRevealOnceWithin
-} from '../../ui/reveal.js';
+function getQueryRoot(root) {
+  return typeof root?.querySelector === 'function' ? root : document;
+}
 
 function resolveSection(root, sectionId) {
   if (!sectionId) return null;
-  const queryRoot = typeof root?.querySelector === 'function' ? root : document;
-  return queryRoot.getElementById?.(sectionId) || queryRoot.querySelector?.(`[data-section-id="${sectionId}"]`) || null;
+  const queryRoot = getQueryRoot(root);
+  return queryRoot.getElementById?.(sectionId)
+    || queryRoot.querySelector?.(`[data-section-id="${sectionId}"]`)
+    || null;
 }
 
 function sectionIdFromTarget(target) {
   return target?.dataset?.sectionId || target?.id || '';
 }
 
+function resolveTarget(root, sectionIdOrTarget) {
+  return typeof sectionIdOrTarget === 'string'
+    ? resolveSection(root, sectionIdOrTarget)
+    : sectionIdOrTarget;
+}
+
+export function markSectionHandoffPreparing(target) {
+  target?.setAttribute('data-section-handoff-state', 'transitioning-in');
+}
+
+export function markSectionHandoffPresented(target) {
+  target?.setAttribute('data-section-handoff-state', 'presented');
+}
+
+export function markSectionScenePresented(target) {
+  target?.setAttribute('data-scene-state', 'presented');
+}
+
+export function markSectionEntrySuppressed(target) {
+  target?.setAttribute('data-section-entry-suppressed', 'true');
+}
+
+export function clearSectionEntrySuppressed(target) {
+  target?.removeAttribute('data-section-entry-suppressed');
+}
+
 export function createSectionPresentationController({ root = document } = {}) {
-  const presentedSections = new Set();
-  const suppressedEntrySections = new Set();
-  const activeHandoffs = new Map();
-
-  return {
-    beginHandoff(handoff) {
-      if (!handoff?.id) return;
-      activeHandoffs.set(handoff.id, handoff);
-      const target = handoff.target || resolveSection(root, handoff.to);
-      target?.setAttribute('data-section-handoff-state', 'transitioning-in');
+  return Object.freeze({
+    markHandoffPreparing(sectionIdOrTarget) {
+      markSectionHandoffPreparing(resolveTarget(root, sectionIdOrTarget));
     },
 
-    markPresented(sectionIdOrTarget) {
-      const target = typeof sectionIdOrTarget === 'string'
-        ? resolveSection(root, sectionIdOrTarget)
-        : sectionIdOrTarget;
-      const sectionId = typeof sectionIdOrTarget === 'string'
-        ? sectionIdOrTarget
-        : sectionIdFromTarget(target);
-
-      if (!target || !sectionId) return;
-      presentedSections.add(sectionId);
-      target.setAttribute('data-section-handoff-state', 'presented');
-      presentRevealWithin(target);
+    markHandoffPresented(sectionIdOrTarget) {
+      markSectionHandoffPresented(resolveTarget(root, sectionIdOrTarget));
     },
 
-    isPresented(sectionId) {
-      return presentedSections.has(sectionId);
+    markScenePresented(sectionIdOrTarget) {
+      markSectionScenePresented(resolveTarget(root, sectionIdOrTarget));
     },
 
     suppressEntryOnce(sectionIdOrTarget) {
-      const target = typeof sectionIdOrTarget === 'string'
-        ? resolveSection(root, sectionIdOrTarget)
-        : sectionIdOrTarget;
-      const sectionId = typeof sectionIdOrTarget === 'string'
+      markSectionEntrySuppressed(resolveTarget(root, sectionIdOrTarget));
+    },
+
+    clearEntrySuppression(sectionIdOrTarget) {
+      clearSectionEntrySuppressed(resolveTarget(root, sectionIdOrTarget));
+    },
+
+    getSectionId(sectionIdOrTarget) {
+      return typeof sectionIdOrTarget === 'string'
         ? sectionIdOrTarget
-        : sectionIdFromTarget(target);
-
-      if (!target || !sectionId) return;
-      suppressedEntrySections.add(sectionId);
-      target.setAttribute('data-section-entry-suppressed', 'true');
-      suppressRevealOnceWithin(target);
+        : sectionIdFromTarget(sectionIdOrTarget);
     },
 
-    shouldSuppressEntry(sectionId) {
-      if (!suppressedEntrySections.has(sectionId)) return false;
-      suppressedEntrySections.delete(sectionId);
-      const target = resolveSection(root, sectionId);
-      target?.removeAttribute('data-section-entry-suppressed');
-      return true;
-    },
-
-    completeHandoff(handoff) {
-      if (!handoff?.to && !handoff?.target) return;
-      const target = handoff.target || resolveSection(root, handoff.to);
-      const sectionId = handoff.to || sectionIdFromTarget(target);
-      if (!target || !sectionId) return;
-
-      this.markPresented(target);
-      if (handoff.suppressEntryOnce !== false) this.suppressEntryOnce(target);
-      target.setAttribute('data-section-handoff-state', 'active');
-      activeHandoffs.delete(handoff.id);
-    },
-
-    clear() {
-      activeHandoffs.clear();
-      presentedSections.clear();
-      suppressedEntrySections.clear();
-    }
-  };
+    clear() {}
+  });
 }

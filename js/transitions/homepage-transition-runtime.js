@@ -1,5 +1,4 @@
 import { homepageTransitionRegistry } from './homepage-transition-registry.js';
-import { createSectionPresentationController } from './homepage/section-presentation-controller.js';
 import { createSceneTimelineController } from './homepage/scene-timeline-controller.js';
 
 const NAMED_TRANSITION_SELECTOR = [
@@ -229,7 +228,6 @@ function createHomepageSnapCoordinator({
   reduceMotion = false,
   scrollRuntime = null,
   root = document,
-  presentationController = createSectionPresentationController({ root }),
   sceneTimeline = null
 } = {}) {
   const lenis = getScrollRuntimeLenis(scrollRuntime);
@@ -501,14 +499,14 @@ function createHomepageSnapCoordinator({
     }, POST_SNAP_INPUT_LOCK_MS);
   };
 
-  const notifyHandoffComplete = (controller) => {
-    if (!controller?.handoffTarget) return;
-    presentationController.completeHandoff({
-      id: controller.handoffId || controller.host?.dataset?.transitionId || '',
-      to: controller.handoffTarget?.dataset?.sectionId || controller.handoffTarget?.id || '',
-      target: controller.handoffTarget,
-      suppressEntryOnce: controller.host?.dataset?.targetEntrySuppressOnce !== 'false'
-    });
+  const presentTimelineTarget = (controller, reason = 'runtime-complete') => {
+    if (!controller?.handoffTarget && !controller?.timelineJoin) return null;
+    const joinId = controller.timelineJoin?.id
+      || controller.handoffId
+      || controller.host?.dataset?.transitionId
+      || '';
+    if (!joinId) return null;
+    return sceneTimeline?.presentTarget(joinId, reason) || null;
   };
 
   const clearDirectHashAlignmentTimers = (controller) => {
@@ -540,7 +538,8 @@ function createHomepageSnapCoordinator({
     controller.host.classList.remove(FIXED_STAGE_CLASS);
     clearSnapVisualState(controller);
     if (!controller.directHashHandoffComplete) {
-      notifyHandoffComplete(controller);
+      releaseTargetRevealGate(controller);
+      presentTimelineTarget(controller, 'runtime-direct-hash');
       controller.directHashHandoffComplete = true;
     }
 
@@ -582,7 +581,8 @@ function createHomepageSnapCoordinator({
         }
         if (shouldHandoffAfterPlayback) {
           controller.handoffComplete = true;
-          notifyHandoffComplete(controller);
+          releaseTargetRevealGate(controller);
+          presentTimelineTarget(controller, 'runtime-complete');
         }
         finishPlayback(controller, { releaseTargetGate: !hold && direction > 0 });
       }
@@ -594,7 +594,8 @@ function createHomepageSnapCoordinator({
     if (!Number.isFinite(targetY)) return;
 
     controller.handoffComplete = true;
-    notifyHandoffComplete(controller);
+    releaseTargetRevealGate(controller);
+    presentTimelineTarget(controller, 'runtime-post-scroll-complete');
     clearReleaseTimer();
     inputLockUntil = performance.now() + POST_SNAP_INPUT_LOCK_MS;
     lockScroll();
@@ -620,11 +621,10 @@ function createHomepageSnapCoordinator({
     clearReleaseTimer();
     inputLockUntil = 0;
     activeController = controller;
-    if (direction > 0 && controller.handoffId && controller.handoffTarget) {
-      presentationController.beginHandoff({
-        id: controller.handoffId || controller.host?.dataset?.transitionId || '',
-        to: controller.handoffTarget?.dataset?.sectionId || controller.handoffTarget?.id || '',
-        target: controller.handoffTarget
+    if (direction > 0 && controller.timelineJoin) {
+      sceneTimeline?.beginJoin(controller.timelineJoin.id, {
+        direction,
+        reason: 'runtime-play'
       });
     }
     if (direction > 0) {
@@ -834,7 +834,6 @@ function createHomepageSnapCoordinator({
         rootElement?.style?.removeProperty(SNAP_VIEWPORT_HEIGHT_VAR);
       }
       if (lenis && originalLenisScrollTo) lenis.scrollTo = originalLenisScrollTo;
-      presentationController.clear();
       nativeTween.destroy();
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onResize);
@@ -860,13 +859,11 @@ async function createHomepageTransitionsRuntime({
 } = {}) {
   const cleanup = createCleanupStack();
   const hosts = [...root.querySelectorAll(NAMED_TRANSITION_SELECTOR)];
-  const presentationController = createSectionPresentationController({ root });
-  const sceneTimeline = createSceneTimelineController({ root, presentationController });
+  const sceneTimeline = createSceneTimelineController({ root });
   const snapCoordinator = createHomepageSnapCoordinator({
     root,
     reduceMotion,
     scrollRuntime,
-    presentationController,
     sceneTimeline
   });
   cleanup.add(snapCoordinator);

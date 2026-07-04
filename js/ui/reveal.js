@@ -80,6 +80,19 @@ export function presentRevealWithin(root = document, options = {}) {
   getRevealItems(root).forEach((item) => markPresented(item, options));
 }
 
+export function claimRevealWithin(root = document, { owner = '', state = 'presented', countEntry = false } = {}) {
+  if (root?.setAttribute && owner) root.setAttribute('data-entry-owner', owner);
+  if (root?.setAttribute && state) {
+    root.setAttribute(ENTRY_STATE_ATTR, state);
+    root.dataset.entryState = state;
+  }
+
+  getRevealItems(root).forEach((item) => {
+    if (owner) item.setAttribute('data-entry-owner', owner);
+    markPresented(item, { countEntry });
+  });
+}
+
 export function setRevealPresentedWithin(root = document) {
   presentRevealWithin(root);
 }
