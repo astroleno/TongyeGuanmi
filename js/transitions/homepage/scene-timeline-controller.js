@@ -280,6 +280,10 @@ export function createSceneTimelineController({
 
     activeJoinId = join.id;
     directionByJoinId.set(join.id, normalizeDirection(direction));
+    if (direction > 0 && lastFrameByJoinId.get(join.id)?.phase === 'released') {
+      presentedJoinIds.delete(join.id);
+      committedJoinIds.delete(join.id);
+    }
     const state = deriveTimelineState(join, 0);
     stateByJoinId.set(join.id, state);
     const frame = createFrameFromState(join, state, {

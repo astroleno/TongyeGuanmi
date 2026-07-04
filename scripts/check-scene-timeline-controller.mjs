@@ -276,6 +276,12 @@ function withFakeGlobals(document, callback) {
     const staleAfterReleaseFrame = timeline.updateFrame('belief-method', 0.4, { reason: 'unit-stale-after-release' });
     assert.equal(releasedFrame.phase, 'released', 'reverse cleanup releases the join');
     assert.equal(staleAfterReleaseFrame, releasedFrame, 'cleanup resets reverse direction so stale updates stay blocked');
+
+    timeline.beginJoin('belief-method', { direction: 1, reason: 'unit-forward-replay' });
+    const replayFrame = timeline.updateFrame('belief-method', 0.5, { reason: 'unit-forward-replay-update' });
+    assert.equal(replayFrame.phase, 'playing', 'forward replay after reverse cleanup can advance again');
+    assert.equal(replayFrame.direction, 1, 'forward replay restores forward direction');
+    assert.equal(sections.method.copy.getAttribute('data-timeline-fixed'), 'true', 'forward replay can restore fixed copy');
   });
 }
 
