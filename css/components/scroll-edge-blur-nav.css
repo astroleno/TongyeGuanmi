@@ -15,7 +15,7 @@
   right: 0;
   z-index: 99;
   width: 100vw;
-  height: calc(var(--nav-h) + var(--nav-h) + env(safe-area-inset-top, 0px));
+  height: calc(40px + env(safe-area-inset-top, 0px));
   overflow: hidden;
   opacity: 0;
   visibility: hidden;
@@ -113,7 +113,7 @@
 
 @media (max-width: 860px) {
   .scroll-edge-blur {
-    height: calc(var(--nav-h) + var(--nav-h) + env(safe-area-inset-top, 0px));
+    height: calc(40px + env(safe-area-inset-top, 0px));
   }
 
   .scroll-edge-blur__layer:nth-child(6),
