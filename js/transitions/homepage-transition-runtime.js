@@ -32,6 +32,7 @@ const MODULE_PLAY_MS = {
   crane: 2200
 };
 const activeHomepageTransitionRuntimes = new Map();
+const INIT_SIGNATURE_KEYS = ['reduceMotion', 'scrollRuntime', 'gsap', 'ScrollTrigger'];
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const easeInOutCubic = (value) => {
@@ -46,6 +47,24 @@ const parseNumberList = (value, { min = -Infinity, max = Infinity } = {}) => Str
   .split(',')
   .map((item) => Number(item.trim()))
   .filter((number) => Number.isFinite(number) && number > min && number < max);
+
+function getOptionOrDefault(options, key, fallback) {
+  return Object.hasOwn(options, key) ? options[key] : fallback;
+}
+
+function createInitOptionsSignature(options = {}) {
+  const runtimeWindow = typeof window !== 'undefined' ? window : {};
+  return Object.freeze({
+    reduceMotion: getOptionOrDefault(options, 'reduceMotion', false),
+    scrollRuntime: getOptionOrDefault(options, 'scrollRuntime', null),
+    gsap: getOptionOrDefault(options, 'gsap', runtimeWindow.gsap),
+    ScrollTrigger: getOptionOrDefault(options, 'ScrollTrigger', runtimeWindow.ScrollTrigger)
+  });
+}
+
+function hasSameInitOptionsSignature(left, right) {
+  return INIT_SIGNATURE_KEYS.every((key) => Object.is(left?.[key], right?.[key]));
+}
 
 function resolveHandoffTarget(root, host) {
   const selector = host?.dataset?.transitionHandoffTarget;
@@ -912,10 +931,19 @@ async function createHomepageTransitionsRuntime({
 
 export function initHomepageTransitions(options = {}) {
   const root = options.root || document;
+  const signature = createInitOptionsSignature(options);
   const activeRuntime = activeHomepageTransitionRuntimes.get(root);
-  if (activeRuntime) return activeRuntime.promise;
+  if (activeRuntime) {
+    if (hasSameInitOptionsSignature(activeRuntime.signature, signature)) {
+      return activeRuntime.promise;
+    }
 
-  const handle = { root, promise: null };
+    const error = new Error('Homepage transitions already initialized for this root with different options. Call cleanup.destroy() before reinitializing.');
+    console.warn(error.message);
+    return Promise.reject(error);
+  }
+
+  const handle = { root, promise: null, signature };
   const promise = Promise.resolve()
     .then(() => createHomepageTransitionsRuntime({ ...options, root }))
     .then((cleanup) => {

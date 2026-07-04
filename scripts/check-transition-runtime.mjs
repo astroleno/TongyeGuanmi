@@ -136,12 +136,15 @@ async function verifyHomepageTransitionInitIdempotency() {
   const fakeWindow = makeFakeWindow();
   const rootA = new FakeDocument();
   const rootB = new FakeDocument();
+  const originalWarn = console.warn;
+  const warnings = [];
 
   globalThis.window = fakeWindow;
   globalThis.document = rootA;
   globalThis.performance = fakeWindow.performance;
   globalThis.requestAnimationFrame = fakeWindow.requestAnimationFrame;
   globalThis.cancelAnimationFrame = fakeWindow.cancelAnimationFrame;
+  console.warn = (...args) => warnings.push(args.join(' '));
 
   try {
     const { initHomepageTransitions } = await import('../js/transitions/homepage-transition-runtime.js');
@@ -152,6 +155,14 @@ async function verifyHomepageTransitionInitIdempotency() {
     const firstCleanup = await firstPromise;
     assert.equal(typeof firstCleanup.destroy, 'function', 'init must resolve to a cleanup object with destroy()');
     assert.equal(fakeWindow.listenerCount('scroll'), 1, 'same root init must not duplicate scroll listeners');
+
+    await assert.rejects(
+      () => initHomepageTransitions({ root: rootA, reduceMotion: true, gsap: null, ScrollTrigger: null }),
+      /different options/,
+      'same root init with different options must reject instead of reusing stale runtime'
+    );
+    assert.equal(warnings.length, 1, 'different-option reuse must warn once');
+    assert.equal(fakeWindow.listenerCount('scroll'), 1, 'rejected different-option init must not add listeners');
 
     const otherRootPromise = initHomepageTransitions({ root: rootB, gsap: null, ScrollTrigger: null });
     assert.notStrictEqual(otherRootPromise, firstPromise, 'different roots must not reuse the same runtime promise');
@@ -167,7 +178,7 @@ async function verifyHomepageTransitionInitIdempotency() {
     firstCleanup.destroy();
     assert.equal(fakeWindow.listenerCount('scroll'), 1, 'destroy() must remove the first root listeners');
 
-    const rebuiltPromise = initHomepageTransitions({ root: rootA, gsap: null, ScrollTrigger: null });
+    const rebuiltPromise = initHomepageTransitions({ root: rootA, reduceMotion: true, gsap: null, ScrollTrigger: null });
     assert.notStrictEqual(rebuiltPromise, firstPromise, 'destroyed root must be able to initialize a fresh runtime');
     const rebuiltCleanup = await rebuiltPromise;
 
@@ -182,6 +193,7 @@ async function verifyHomepageTransitionInitIdempotency() {
         globalThis[key] = value;
       }
     }
+    console.warn = originalWarn;
   }
 }
 
@@ -337,8 +349,11 @@ assertIncludes(ttgTransitionRouteHtml, 'data-ttg-scroll-vh="153"', 'ttg-transiti
 assert.doesNotMatch(ttgTransitionRouteHtml, /data-ttg-tune-panel|ttg-tune-panel|js\/ttg-scroll\.js/, 'ttg-transition-route.html must not load the tuning panel route');
 
 assertIncludes(runtimeSource, 'const activeHomepageTransitionRuntimes = new Map()', 'homepage runtime tracks active runtimes by root');
+assertIncludes(runtimeSource, 'function createInitOptionsSignature(options = {})', 'homepage runtime records root init option signatures');
 assertIncludes(runtimeSource, 'function initHomepageTransitions(options = {})', 'initHomepageTransitions keeps the public init function contract');
 assertIncludes(runtimeSource, 'return activeRuntime.promise', 'same-root init returns the active cleanup promise');
+assertIncludes(runtimeSource, 'hasSameInitOptionsSignature(activeRuntime.signature, signature)', 'same-root init must compare option signatures');
+assertIncludes(runtimeSource, 'Call cleanup.destroy() before reinitializing.', 'different same-root options must require explicit destroy');
 assertIncludes(runtimeSource, 'activeHomepageTransitionRuntimes.delete(root)', 'destroy/failure clears the root-bound active runtime');
 assert.doesNotMatch(runtimeSource, /export async function initHomepageTransitions/, 'initHomepageTransitions must not own the runtime body directly');
 

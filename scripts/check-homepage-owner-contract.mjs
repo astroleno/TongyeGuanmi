@@ -1,7 +1,117 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { timelineJoins, timelineScenes } from '../js/transitions/homepage/scene-timeline-manifest.js';
+
+const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+
+const KNOWN_OWNER_VIOLATIONS = Object.freeze([
+  {
+    sceneId: 'method',
+    selector: '.method-edition-layout--after-handoff',
+    ownerIndex: 0,
+    revealIndex: 0,
+    revealClass: 'chapter-intro chapter-intro--method edition-vertical-lead reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'method',
+    selector: '.method-edition-layout--after-handoff',
+    ownerIndex: 0,
+    revealIndex: 1,
+    revealClass: 'process-row edition-row reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'method',
+    selector: '.method-edition-layout--after-handoff',
+    ownerIndex: 0,
+    revealIndex: 2,
+    revealClass: 'process-row edition-row reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'method',
+    selector: '.method-edition-layout--after-handoff',
+    ownerIndex: 0,
+    revealIndex: 3,
+    revealClass: 'process-row edition-row reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'method',
+    selector: '.method-edition-layout--after-handoff',
+    ownerIndex: 0,
+    revealIndex: 4,
+    revealClass: 'process-row edition-row reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'method',
+    selector: '.method-edition-layout--after-handoff',
+    ownerIndex: 0,
+    revealIndex: 5,
+    revealClass: 'process-row edition-row reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'brand',
+    selector: '.brand-definition-grid',
+    ownerIndex: 0,
+    revealIndex: 0,
+    revealClass: 'brand-definition-grid reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'services',
+    selector: '.enterprise-vertical-layout',
+    ownerIndex: 0,
+    revealIndex: 0,
+    revealClass: 'enterprise-vertical-lead edition-vertical-lead reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'services',
+    selector: '.enterprise-vertical-layout',
+    ownerIndex: 0,
+    revealIndex: 1,
+    revealClass: 'enterprise-capability-list edition-row-list reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'lab',
+    selector: '.scenario-wide-stage',
+    ownerIndex: 0,
+    revealIndex: 0,
+    revealClass: 'scenario-wide-stage edition-wide-stage reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'education',
+    selector: '.education-wide-stage',
+    ownerIndex: 0,
+    revealIndex: 0,
+    revealClass: 'education-wide-stage edition-wide-stage reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'philosophy',
+    selector: '.philosophy-list',
+    ownerIndex: 0,
+    revealIndex: 0,
+    revealClass: 'scenario-list philosophy-list reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  },
+  {
+    sceneId: 'contact',
+    selector: '.contact-endpoint',
+    ownerIndex: 0,
+    revealIndex: 0,
+    revealClass: 'canvas-track contact-endpoint reveal',
+    removalTaskId: 'T2.2-reveal-owner-suppression'
+  }
+]);
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -32,6 +142,93 @@ function overlapKey(left, right) {
   return [left, right].sort().join('->');
 }
 
+function violationKey(violation) {
+  return `${violation.sceneId}\0${violation.selector}\0${violation.ownerIndex}\0${violation.revealIndex}\0${violation.revealClass}`;
+}
+
+function parseAttributes(tag) {
+  const attrs = new Map();
+  const attrPattern = /\s([A-Za-z0-9:_-]+)(?:="([^"]*)")?/g;
+  for (const match of tag.matchAll(attrPattern)) {
+    attrs.set(match[1], match[2] ?? '');
+  }
+  return attrs;
+}
+
+function parseHtmlNodes(html) {
+  const roots = [];
+  const nodes = [];
+  const stack = [];
+  const tagPattern = /<\/?([A-Za-z][A-Za-z0-9:-]*)\b[^>]*>/g;
+  const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+
+  for (const match of html.matchAll(tagPattern)) {
+    const raw = match[0];
+    const tag = match[1].toLowerCase();
+    if (raw.startsWith('</')) {
+      while (stack.length) {
+        const node = stack.pop();
+        node.end = match.index ?? node.index;
+        if (node.tag === tag) break;
+      }
+      continue;
+    }
+
+    const node = {
+      tag,
+      raw,
+      attrs: parseAttributes(raw),
+      children: [],
+      index: match.index ?? -1,
+      end: html.length,
+      parent: stack.at(-1) || null
+    };
+
+    if (node.parent) {
+      node.parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+    nodes.push(node);
+
+    if (!raw.endsWith('/>') && !voidTags.has(tag)) {
+      stack.push(node);
+    }
+  }
+
+  return { roots, nodes };
+}
+
+function classList(node) {
+  return (node.attrs.get('class') || '').split(/\s+/).filter(Boolean);
+}
+
+function matchesSelector(node, selector) {
+  if (selector.startsWith('.')) {
+    return classList(node).includes(selector.slice(1));
+  }
+
+  if (selector.startsWith('#')) {
+    return node.attrs.get('id') === selector.slice(1);
+  }
+
+  const attrMatch = selector.match(/^\[([A-Za-z0-9:_-]+)(?:="([^"]*)")?\]$/);
+  if (attrMatch) {
+    const [, name, value] = attrMatch;
+    return value === undefined ? node.attrs.has(name) : node.attrs.get(name) === value;
+  }
+
+  return node.tag === selector.toLowerCase();
+}
+
+function descendantsOf(node) {
+  return node.children.flatMap((child) => [child, ...descendantsOf(child)]);
+}
+
+function lineNumberFor(index) {
+  return index < 0 ? 0 : indexHtml.slice(0, index).split('\n').length;
+}
+
 function assertPhaseIntervals(join) {
   if (join.phases == null) return;
   assert.equal(typeof join.phases, 'object', `${join.id}.phases must be an object`);
@@ -53,15 +250,16 @@ function assertPhaseIntervals(join) {
   }
 
   const actualOverlaps = new Set();
-  for (let index = 0; index < phases.length - 1; index += 1) {
-    const current = phases[index];
-    const next = phases[index + 1];
-    if (current.end > next.start) {
-      const key = overlapKey(current.name, next.name);
+  for (let leftIndex = 0; leftIndex < phases.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < phases.length; rightIndex += 1) {
+      const left = phases[leftIndex];
+      const right = phases[rightIndex];
+      if (Math.min(left.end, right.end) <= Math.max(left.start, right.start)) continue;
+      const key = overlapKey(left.name, right.name);
       actualOverlaps.add(key);
       assert.ok(
         declaredOverlaps.has(key),
-        `${join.id}.phases ${current.name}/${next.name} overlap must be declared in handoffOverlaps`
+        `${join.id}.phases ${left.name}/${right.name} overlap must be declared in handoffOverlaps`
       );
     }
   }
@@ -76,6 +274,7 @@ const joinIds = new Set();
 const joinPairs = new Set();
 const selectorOwners = new Map();
 const timelineOwnedSelectors = [];
+const parsedHtml = parseHtmlNodes(indexHtml);
 
 for (const join of timelineJoins) {
   assert.ok(join.id, 'Each join must declare id');
@@ -125,5 +324,60 @@ console.log('timeline-owned copy selectors:');
 for (const entry of timelineOwnedSelectors) {
   console.log(`  - ${entry.sceneId}: ${entry.selector}`);
 }
+
+const ownerViolations = [];
+for (const entry of timelineOwnedSelectors) {
+  const ownerNodes = parsedHtml.nodes.filter((node) => matchesSelector(node, entry.selector));
+  assert.ok(ownerNodes.length >= 1, `${entry.sceneId} timeline-owned selector ${entry.selector} must resolve in index.html`);
+  ownerNodes.forEach((ownerNode, ownerIndex) => {
+    const revealNodes = [ownerNode, ...descendantsOf(ownerNode)]
+      .filter((node) => classList(node).includes('reveal'));
+    revealNodes.forEach((revealNode, revealIndex) => {
+      ownerViolations.push({
+        sceneId: entry.sceneId,
+        selector: entry.selector,
+        ownerIndex,
+        revealIndex,
+        revealClass: revealNode.attrs.get('class') || '',
+        line: lineNumberFor(revealNode.index)
+      });
+    });
+  });
+}
+
+const knownByKey = new Map(KNOWN_OWNER_VIOLATIONS.map((violation) => [violationKey(violation), violation]));
+const actualKeys = new Set(ownerViolations.map(violationKey));
+const newOwnerViolations = ownerViolations.filter((violation) => !knownByKey.has(violationKey(violation)));
+const staleOwnerViolations = KNOWN_OWNER_VIOLATIONS.filter((violation) => !actualKeys.has(violationKey(violation)));
+
+for (const violation of KNOWN_OWNER_VIOLATIONS) {
+  assert.ok(violation.removalTaskId, `Known owner violation missing removalTaskId: ${violation.selector}`);
+}
+
+if (KNOWN_OWNER_VIOLATIONS.length > 0) {
+  console.warn('homepage-owner-contract known reveal owner violations:');
+  for (const violation of ownerViolations.filter((entry) => knownByKey.has(violationKey(entry)))) {
+    const known = knownByKey.get(violationKey(violation));
+    console.warn(`  - index.html:${violation.line} ${violation.sceneId} ${violation.revealClass} -> remove in ${known.removalTaskId}`);
+  }
+}
+
+if (newOwnerViolations.length > 0) {
+  console.error('\nNew timeline-owned reveal owner violations:');
+  for (const violation of newOwnerViolations) {
+    console.error(`  x index.html:${violation.line} ${violation.sceneId} ${violation.selector}`);
+    console.error(`    ${violation.revealClass}`);
+  }
+}
+
+if (staleOwnerViolations.length > 0) {
+  console.error('\nStale KNOWN_OWNER_VIOLATIONS entries; remove them from the baseline:');
+  for (const violation of staleOwnerViolations) {
+    console.error(`  x ${violation.sceneId} ${violation.selector}: ${violation.revealClass}`);
+  }
+}
+
+assert.equal(newOwnerViolations.length, 0, 'new timeline-owned reveal owner violations must fail');
+assert.equal(staleOwnerViolations.length, 0, 'stale KNOWN_OWNER_VIOLATIONS entries must be removed');
 
 console.log(`Homepage owner contract OK (${timelineJoins.length} joins, ${selectorOwners.size} copy selectors).`);
