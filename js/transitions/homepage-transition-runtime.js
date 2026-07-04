@@ -584,6 +584,9 @@ function createHomepageSnapCoordinator({
           releaseTargetRevealGate(controller);
           presentTimelineTarget(controller, 'runtime-complete');
         }
+        if (direction < 0 && controller.timelineJoin) {
+          sceneTimeline?.cleanupJoin(controller.timelineJoin.id, 'runtime-reverse-complete');
+        }
         finishPlayback(controller, { releaseTargetGate: !hold && direction > 0 });
       }
     });
@@ -621,7 +624,7 @@ function createHomepageSnapCoordinator({
     clearReleaseTimer();
     inputLockUntil = 0;
     activeController = controller;
-    if (direction > 0 && controller.timelineJoin) {
+    if (controller.timelineJoin) {
       sceneTimeline?.beginJoin(controller.timelineJoin.id, {
         direction,
         reason: 'runtime-play'

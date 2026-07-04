@@ -308,8 +308,10 @@ assert.doesNotMatch(
   'Homepage runtime must not pause or hide child reveal tweens while gating visual bridge targets'
 );
 assert.ok(
-  runtimeSource.includes('direction > 0 && controller.timelineJoin'),
-  'Homepage runtime must begin SceneTimeline joins only for declared timeline joins'
+  runtimeSource.includes('if (controller.timelineJoin)')
+    && runtimeSource.includes('sceneTimeline?.beginJoin(controller.timelineJoin.id')
+    && runtimeSource.includes("sceneTimeline?.cleanupJoin(controller.timelineJoin.id, 'runtime-reverse-complete')"),
+  'Homepage runtime must begin forward/reverse SceneTimeline joins only for declared timeline joins'
 );
 assert.ok(
   runtimeSource.includes('getDirectHashTargetId')

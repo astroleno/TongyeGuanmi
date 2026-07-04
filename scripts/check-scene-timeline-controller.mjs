@@ -266,6 +266,16 @@ function withFakeGlobals(document, callback) {
       1,
       'late update and repeated present must not dispatch a second presented event'
     );
+
+    timeline.beginJoin('belief-method', { direction: -1, reason: 'unit-reverse' });
+    const reverseFrame = timeline.updateFrame('belief-method', 0.5, { reason: 'unit-reverse-update' });
+    assert.equal(reverseFrame.phase, 'playing', 'explicit reverse lifecycle allows updates after present');
+    assert.equal(reverseFrame.direction, -1, 'adapter updates inherit reverse direction from beginJoin');
+
+    const releasedFrame = timeline.cleanupJoin('belief-method', 'unit-reverse-complete');
+    const staleAfterReleaseFrame = timeline.updateFrame('belief-method', 0.4, { reason: 'unit-stale-after-release' });
+    assert.equal(releasedFrame.phase, 'released', 'reverse cleanup releases the join');
+    assert.equal(staleAfterReleaseFrame, releasedFrame, 'cleanup resets reverse direction so stale updates stay blocked');
   });
 }
 

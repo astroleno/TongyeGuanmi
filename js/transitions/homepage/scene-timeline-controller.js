@@ -397,6 +397,7 @@ export function createSceneTimelineController({
       interactionOwner: presentedJoinIds.has(join.id) ? 'native' : 'none'
     });
     lastFrameByJoinId.set(join.id, frame);
+    directionByJoinId.set(join.id, 0);
 
     copies.forEach((copy) => copy.setAttribute('data-timeline-reason', reason));
     return frame;
