@@ -9,14 +9,17 @@
 }
 
 .scroll-edge-blur {
+  --scroll-edge-blur-height: calc(var(--nav-h) + var(--nav-h) + env(safe-area-inset-top, 0px));
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 99;
   width: 100vw;
-  height: calc(40px + env(safe-area-inset-top, 0px));
+  height: var(--scroll-edge-blur-height);
   overflow: hidden;
+  clip-path: inset(66.666% 0 0 0);
+  -webkit-clip-path: inset(66.666% 0 0 0);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -112,10 +115,6 @@
 }
 
 @media (max-width: 860px) {
-  .scroll-edge-blur {
-    height: calc(40px + env(safe-area-inset-top, 0px));
-  }
-
   .scroll-edge-blur__layer:nth-child(6),
   .scroll-edge-blur__layer:nth-child(7) {
     display: none;
