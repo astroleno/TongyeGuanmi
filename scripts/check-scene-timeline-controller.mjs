@@ -238,6 +238,12 @@ function withFakeGlobals(document, callback) {
     assert.equal(reverseScrollFrame.direction, -1, 'scroll-driven progress rollback infers reverse direction');
     assert.equal(reverseScrollFrame.progress, 0.4, 'scroll-driven reverse update advances to the requested progress');
     assert.notEqual(reverseScrollFrame, firstFrame, 'scroll-driven reverse update must not return the terminal presented frame');
+
+    const forwardScrollFrame = timeline.updateFrame('home-belief', 0.5, { reason: 'unit-scroll-forward-again' });
+    assert.equal(forwardScrollFrame.phase, 'playing', 'scroll-driven forward replay can advance after rollback');
+    assert.equal(forwardScrollFrame.direction, 1, 'scroll-driven forward replay infers forward direction');
+    assert.equal(forwardScrollFrame.progress, 0.5, 'scroll-driven forward replay advances to the requested progress');
+    assert.notEqual(forwardScrollFrame, reverseScrollFrame, 'scroll-driven forward replay must not return the reverse frame');
   });
 }
 
