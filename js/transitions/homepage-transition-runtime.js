@@ -539,8 +539,8 @@ function createHomepageSnapCoordinator({
     controller.host.classList.remove(FIXED_STAGE_CLASS);
     clearSnapVisualState(controller);
     if (!controller.directHashHandoffComplete) {
-      releaseTargetRevealGate(controller);
       presentTimelineTarget(controller, 'runtime-direct-hash');
+      releaseTargetRevealGate(controller);
       controller.directHashHandoffComplete = true;
     }
 
@@ -582,8 +582,8 @@ function createHomepageSnapCoordinator({
         }
         if (shouldHandoffAfterPlayback) {
           controller.handoffComplete = true;
-          releaseTargetRevealGate(controller);
           presentTimelineTarget(controller, 'runtime-complete');
+          releaseTargetRevealGate(controller);
         }
         if (direction < 0 && controller.timelineJoin) {
           sceneTimeline?.cleanupJoin(controller.timelineJoin.id, 'runtime-reverse-complete');
@@ -598,8 +598,8 @@ function createHomepageSnapCoordinator({
     if (!Number.isFinite(targetY)) return;
 
     controller.handoffComplete = true;
-    releaseTargetRevealGate(controller);
     presentTimelineTarget(controller, 'runtime-post-scroll-complete');
+    releaseTargetRevealGate(controller);
     clearReleaseTimer();
     inputLockUntil = performance.now() + POST_SNAP_INPUT_LOCK_MS;
     lockScroll();

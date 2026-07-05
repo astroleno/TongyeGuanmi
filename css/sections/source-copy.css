@@ -1181,8 +1181,8 @@
 
 .method-continuation-layout.edition-vertical-layout {
   display: grid;
-  min-height: clamp(720px, 106svh, 1040px);
-  padding-block: clamp(72px, 9svh, 118px) clamp(48px, 7vw, 112px);
+  min-height: clamp(680px, 100svh, 980px);
+  padding-block: clamp(40px, 5.4svh, 76px) clamp(48px, 7vw, 112px);
 }
 
 .method-handoff-anchor {
@@ -1199,6 +1199,10 @@
   align-self: start;
   min-width: 0;
   max-width: min(100%, 360px);
+}
+
+.method-continuation-layout .edition-vertical-lead {
+  top: clamp(42px, 5.8svh, 78px);
 }
 
 .edition-vertical-lead h2 {

@@ -362,6 +362,17 @@ function withFakeGlobals(document, callback) {
       0,
       'early adapter update must not dispatch present before runtime complete'
     );
+
+    const completedFrame = context.complete('unit-runtime-complete');
+    assert.equal(completedFrame.phase, 'presented', 'runtime complete presents early-copy target');
+    assert.equal(sections.method.copy.hasAttribute('data-timeline-fixed'), false, 'runtime complete clears fixed copy');
+    assert.equal(sections.method.copy.getAttribute('data-entry-state'), 'presented', 'runtime complete claims native copy');
+    assert.equal(sections.method.copy.hasAttribute('data-entry-count'), false, 'runtime complete must not count a second reveal entry');
+    assert.equal(
+      document.events.filter((event) => event.type === 'scene-timeline:presented' && event.detail.joinId === 'belief-method').length,
+      1,
+      'runtime complete dispatches one present event for early-copy target'
+    );
   });
 }
 

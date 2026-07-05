@@ -161,12 +161,12 @@ export const timelineJoins = [
       0.98
     ],
     "targetIn": [
-      0.52,
-      0.86
+      0.72,
+      0.96
     ],
     "commitAt": 0.72,
-    "presentAt": 0.86,
-    "cleanupAt": 0.96,
+    "presentAt": 0.96,
+    "cleanupAt": 0.985,
     "targetCopyPolicy": "scroll-owner",
     "commitCondition": [
       "progress:commitAt",
@@ -187,18 +187,14 @@ export const timelineJoins = [
         0.7
       ],
       "secondReveal": [
-        0.5,
-        0.86
+        0.72,
+        0.96
       ]
     },
     "handoffOverlaps": [
       [
         "reveal",
         "bloom"
-      ],
-      [
-        "bloom",
-        "secondReveal"
       ]
     ],
     "adapterVariant": "perlin-no-stretch-centered-copy"
@@ -216,8 +212,8 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.78,
-      0.92
+      0.68,
+      0.84
     ],
     "commitAt": 0.8,
     "presentAt": 0.92,

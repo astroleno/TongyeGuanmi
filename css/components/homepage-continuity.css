@@ -48,7 +48,11 @@ html.homepage-timeline-target-active .long-canvas {
   transform: none !important;
 }
 
-.method-edition-layout--after-handoff[data-timeline-fixed="true"],
+.method-edition-layout--after-handoff[data-timeline-fixed="true"] {
+  align-content: start;
+  padding-block: clamp(40px, 5.4svh, 76px) clamp(42px, 6vw, 96px);
+}
+
 .enterprise-vertical-layout[data-timeline-fixed="true"] {
   align-content: center;
   padding-block: clamp(72px, 9svh, 118px) clamp(48px, 7vw, 112px);
