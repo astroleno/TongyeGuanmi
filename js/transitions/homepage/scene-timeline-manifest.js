@@ -162,11 +162,11 @@ export const timelineJoins = [
     ],
     "targetIn": [
       0.72,
-      0.96
+      0.84
     ],
     "commitAt": 0.72,
-    "presentAt": 0.96,
-    "cleanupAt": 0.985,
+    "presentAt": 0.84,
+    "cleanupAt": 0.96,
     "targetCopyPolicy": "scroll-owner",
     "commitCondition": [
       "progress:commitAt",
@@ -188,7 +188,7 @@ export const timelineJoins = [
       ],
       "secondReveal": [
         0.72,
-        0.96
+        0.84
       ]
     },
     "handoffOverlaps": [
@@ -212,10 +212,10 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.68,
-      0.84
+      0.62,
+      0.82
     ],
-    "commitAt": 0.8,
+    "commitAt": 0.72,
     "presentAt": 0.92,
     "cleanupAt": 0.96,
     "targetCopyPolicy": "early",

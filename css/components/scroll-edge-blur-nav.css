@@ -118,14 +118,14 @@
     mask-image: linear-gradient(
         to bottom,
         rgba(0, 0, 0, 1) 0%,
-        rgba(0, 0, 0, 0.52) 15%,
-        rgba(0, 0, 0, 0) 44%
+        rgba(0, 0, 0, 0.42) 28%,
+        rgba(0, 0, 0, 0) 70%
     );
     -webkit-mask-image: linear-gradient(
         to bottom,
         rgba(0, 0, 0, 1) 0%,
-        rgba(0, 0, 0, 0.52) 15%,
-        rgba(0, 0, 0, 0) 44%
+        rgba(0, 0, 0, 0.42) 28%,
+        rgba(0, 0, 0, 0) 70%
     );
 }
 
@@ -135,15 +135,15 @@
     -webkit-backdrop-filter: blur(34px);
     mask-image: linear-gradient(
         to bottom,
-        rgba(0, 0, 0, 1) 0%,
-        rgba(0, 0, 0, 0.42) 9%,
-        rgba(0, 0, 0, 0) 30%
+        rgba(0, 0, 0, 0.82) 0%,
+        rgba(0, 0, 0, 0.32) 20%,
+        rgba(0, 0, 0, 0) 58%
     );
     -webkit-mask-image: linear-gradient(
         to bottom,
-        rgba(0, 0, 0, 1) 0%,
-        rgba(0, 0, 0, 0.42) 9%,
-        rgba(0, 0, 0, 0) 30%
+        rgba(0, 0, 0, 0.82) 0%,
+        rgba(0, 0, 0, 0.32) 20%,
+        rgba(0, 0, 0, 0) 58%
     );
 }
 
@@ -153,15 +153,15 @@
     -webkit-backdrop-filter: blur(48px);
     mask-image: linear-gradient(
         to bottom,
-        rgba(0, 0, 0, 0.76) 0%,
-        rgba(0, 0, 0, 0.30) 5%,
-        rgba(0, 0, 0, 0) 18%
+        rgba(0, 0, 0, 0.48) 0%,
+        rgba(0, 0, 0, 0.18) 14%,
+        rgba(0, 0, 0, 0) 44%
     );
     -webkit-mask-image: linear-gradient(
         to bottom,
-        rgba(0, 0, 0, 0.76) 0%,
-        rgba(0, 0, 0, 0.30) 5%,
-        rgba(0, 0, 0, 0) 18%
+        rgba(0, 0, 0, 0.48) 0%,
+        rgba(0, 0, 0, 0.18) 14%,
+        rgba(0, 0, 0, 0) 44%
     );
 }
 
@@ -169,8 +169,8 @@
     z-index: 80;
     background: linear-gradient(
         to bottom,
-        rgba(5, 8, 7, 0.18),
-        rgba(5, 8, 7, 0.06) 44%,
+        rgba(5, 8, 7, 0.12),
+        rgba(5, 8, 7, 0.04) 58%,
         transparent 100%
     );
 }
@@ -179,8 +179,8 @@
 .site-nav.is-on-light + .scroll-edge-blur .scroll-edge-blur__tint {
     background: linear-gradient(
         to bottom,
-        rgba(247, 237, 215, 0.22),
-        rgba(247, 237, 215, 0.08) 44%,
+        rgba(247, 237, 215, 0.14),
+        rgba(247, 237, 215, 0.05) 58%,
         transparent 100%
     );
 }

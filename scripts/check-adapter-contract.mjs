@@ -101,7 +101,7 @@ const KNOWN_VIOLATIONS = Object.freeze([
   {
     file: 'js/transitions/pattern-bloom-adapter.js',
     ruleId: 'module-progress-threshold',
-    text: 'const SECOND_REVEAL_END = 0.96;',
+    text: 'const SECOND_REVEAL_END = 0.84;',
     removalTaskId: 'P4.1-pattern-bloom-adapter'
   },
   {

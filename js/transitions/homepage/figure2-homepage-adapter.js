@@ -97,7 +97,7 @@ function createProofScrollOverlay(host) {
   field.append(overlay);
 
   let disposed = false;
-  const maxScroll = () => Math.max(160, Math.min(520, (window.innerHeight || 1) * 0.42));
+  const maxScroll = () => Math.max(640, (window.innerHeight || 1) * 1.90);
 
   return {
     update({ transitionProgress = 0, postProgress = 0, handoffProgress = 0 } = {}) {

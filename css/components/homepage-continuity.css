@@ -54,14 +54,18 @@ html.homepage-timeline-target-active .long-canvas {
 }
 
 .enterprise-vertical-layout[data-timeline-fixed="true"] {
-  align-content: center;
-  padding-block: clamp(72px, 9svh, 118px) clamp(48px, 7vw, 112px);
+  align-content: start;
+  padding-block: 0 clamp(50px, 7vw, 104px);
 }
 
-.method-edition-layout--after-handoff[data-timeline-fixed="true"] .chapter-intro--method,
-.enterprise-vertical-layout[data-timeline-fixed="true"] .enterprise-vertical-lead {
+.method-edition-layout--after-handoff[data-timeline-fixed="true"] .chapter-intro--method {
   position: relative;
   top: auto;
+}
+
+.enterprise-vertical-layout[data-timeline-fixed="true"] .enterprise-vertical-lead {
+  position: relative;
+  top: clamp(74px, 9svh, 112px);
 }
 
 .brand-definition-grid[data-timeline-fixed="true"],
@@ -79,6 +83,8 @@ html.homepage-timeline-target-active .long-canvas {
 
 .contact-endpoint[data-timeline-fixed="true"] {
   width: min(1280px, 84vw) !important;
+  align-content: center;
+  padding-block: clamp(120px, 14vw, 220px);
 }
 
 .canvas-section--belief {

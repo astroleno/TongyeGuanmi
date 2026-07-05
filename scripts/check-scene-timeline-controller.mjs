@@ -234,7 +234,8 @@ function withFakeGlobals(document, callback) {
     assert.ok(Object.isFrozen(timeline.getFrame('home-belief')), 'getFrame must return a frozen frame');
 
     const shallowReverseFrame = timeline.updateFrame('home-belief', 0.99, { reason: 'unit-scroll-shallow-reverse' });
-    assert.equal(shallowReverseFrame, firstFrame, 'scroll-driven shallow rollback inside presented range stays terminal');
+    assert.equal(shallowReverseFrame.phase, 'released', 'scroll-driven shallow rollback past cleanup releases the presented join');
+    assert.equal(shallowReverseFrame.copyOwner, 'native', 'released presented scroll join keeps native ownership');
     assert.equal(
       document.events.filter((event) => event.type === 'scene-timeline:presented' && event.detail.joinId === 'home-belief').length,
       1,

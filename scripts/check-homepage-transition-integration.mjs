@@ -140,6 +140,11 @@ assert.ok(
     && !patternBloomAdapterSource.includes('beliefPinned ? 0.18 : 1'),
   'Pattern Bloom must hand off through homepage timeline milestones instead of the old local opacity clamp'
 );
+assert.doesNotMatch(
+  patternBloomAdapterSource,
+  /nextSceneElement:\s*beliefStarCanvas/,
+  'Pattern Bloom must not project the real Belief star-map through the adapter overlay before native presentation'
+);
 assert.ok(
   patternBloomAdapterSource.includes('isDirectVisitToBelief')
     && patternBloomAdapterSource.includes('delete host.dataset.patternBloomMounted'),
@@ -221,8 +226,8 @@ assert.equal(
 );
 assert.equal(
   figure2SceneTransition?.attrs.get('data-transition-post-scroll-vh'),
-  '56',
-  'Figure2 method proof transition must keep the snapped Figure2 stage for a single proof-copy scene'
+  '190',
+  'Figure2 method proof transition must keep the snapped Figure2 stage through the lead, proof-list, and closing scenes'
 );
 assert.equal(
   figure2SceneTransition?.attrs.get('data-transition-handoff-target'),

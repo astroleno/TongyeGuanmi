@@ -438,17 +438,17 @@ export const timelineJoins = [
     fromScene: 'home',
     toScene: 'belief',
     sourceOut: [0.72, 0.98],
-    targetIn: [0.72, 0.96],
+    targetIn: [0.72, 0.84],
     commitAt: 0.72,
-    presentAt: 0.96,
-    cleanupAt: 0.985,
+    presentAt: 0.84,
+    cleanupAt: 0.96,
     targetCopyPolicy: 'scroll-owner',
     commitCondition: ['progress:commitAt', 'lotusContracted', 'targetReady'],
     presentCondition: ['progress:presentAt', 'beliefCopyComplete'],
     phases: {
       reveal: [0.00, 0.46],
       bloom: [0.42, 0.70],
-      secondReveal: [0.72, 0.96]
+      secondReveal: [0.72, 0.84]
     },
     handoffOverlaps: [['reveal', 'bloom']],
     adapterVariant: 'perlin-no-stretch-centered-copy'
@@ -462,8 +462,8 @@ export const timelineJoins = [
     fromScene: 'belief',
     toScene: 'method',
     sourceOut: [0.72, 0.96],
-    targetIn: [0.68, 0.84],
-    commitAt: 0.80,
+    targetIn: [0.62, 0.82],
+    commitAt: 0.72,
     presentAt: 0.92,
     cleanupAt: 0.96,
     targetCopyPolicy: 'early',

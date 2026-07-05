@@ -108,7 +108,7 @@ assert.match(runtimeSource, /&& !controller\.timelineJoin/, 'Homepage runtime mu
 assert.match(controllerSource, /data-timeline-fixed/, 'Scene timeline controller must expose fixed target-copy state');
 assert.match(controllerSource, /let activeFixedJoinId/, 'Scene timeline controller must track the single active fixed target join');
 assert.match(controllerSource, /activeFixedJoinId && activeFixedJoinId !== join\.id/, 'Scene timeline controller must clear previous fixed target copy when a new join starts');
-assert.match(controllerSource, /state\.progress < 0\.998/, 'Scene timeline controller must not re-fix target copy after a join reaches completion');
+assert.match(controllerSource, /!presentedJoinIds\.has\(join\.id\)/, 'Scene timeline controller must not re-fix target copy after a join is presented');
 assert.match(revealSource, /export function presentRevealWithin/, 'Reveal runtime must expose the shared timeline presentation helper');
 assert.match(controllerSource, /claimRevealWithin/, 'Scene timeline controller must claim target copy through the shared reveal helper');
 assert.match(continuityCss, /\[data-entry-owner="timeline"\]\[data-timeline-fixed="true"\]/, 'Timeline CSS must render fixed target copy during active boundaries');
@@ -209,12 +209,20 @@ for (const join of timelineJoins) {
   assert.ok(join.presentAt >= join.commitAt, `Timeline join ${join.id} must satisfy presentAt >= commitAt`);
   assert.ok(join.cleanupAt >= join.presentAt, `Timeline join ${join.id} must satisfy cleanupAt >= presentAt`);
   assertCloseEnough(join.cleanupAt, 0.96, `Timeline join ${join.id} must clean up before the transition tail can feel blank`);
-  if (join.progressPolicy !== 'scroll') {
+  if (join.progressPolicy !== 'scroll' && join.targetCopyPolicy !== 'early') {
     assertCloseEnough(join.targetIn[1], 0.82, `Timeline join ${join.id} target copy must finish entering before playback release`);
     assertCloseEnough(
       join.presentAt - join.targetIn[1],
       0.08,
       `Timeline join ${join.id} must not leave target copy waiting after targetIn completes`
+    );
+  }
+  if (join.targetCopyPolicy === 'early') {
+    assertCloseEnough(join.targetIn[1], 0.92, `Timeline join ${join.id} early target copy must finish before playback release`);
+    assertCloseEnough(
+      join.presentAt - join.targetIn[1],
+      0.10,
+      `Timeline join ${join.id} early target copy must stay visually continuous until presentation`
     );
   }
   if (join.handoffId) {
@@ -224,8 +232,8 @@ for (const join of timelineJoins) {
 
 const homeBelief = timelineJoins.find((join) => join.id === 'home-belief');
 assert.equal(homeBelief?.progressPolicy, 'scroll', 'home-belief must be scroll-driven');
-assertCloseEnough(homeBelief?.targetIn?.[0], 0.34, 'home-belief copy must begin entering while the lotus scene is still active');
-assertCloseEnough(homeBelief?.targetIn?.[1], 0.64, 'home-belief copy must be visually ready before the late transition tail');
+assertCloseEnough(homeBelief?.targetIn?.[0], 0.72, 'home-belief copy must begin after the lotus has contracted');
+assertCloseEnough(homeBelief?.targetIn?.[1], 0.84, 'home-belief copy must be visually ready before the late transition tail');
 assert.ok(homeBelief.commitCondition?.includes('lotusContracted'), 'home-belief must require lotusContracted');
 assert.ok(homeBelief.commitCondition?.includes('targetReady'), 'home-belief must require targetReady');
 assert.ok(homeBelief.presentCondition?.includes('beliefCopyComplete'), 'home-belief must require beliefCopyComplete');
