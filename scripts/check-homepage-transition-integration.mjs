@@ -301,12 +301,14 @@ assert.ok(
 );
 assert.ok(
   runtimeSource.includes('sceneTimeline?.beginJoin')
-    && runtimeSource.includes('sceneTimeline?.presentTarget')
+    && runtimeSource.includes('sceneTimeline?.updateFrame')
+    && runtimeSource.includes('runtimeHandoffComplete')
     && sceneTimelineControllerSource.includes("scene-timeline:presented")
     && sceneTimelineControllerSource.includes('claimRevealWithin')
+    && !runtimeSource.includes('sceneTimeline?.presentTarget')
     && !runtimeSource.includes('presentationController.completeHandoff')
     && !runtimeSource.includes('presentationController.beginHandoff'),
-  'Homepage runtime must route handoff lifecycle through SceneTimeline'
+  'Homepage runtime must request handoff lifecycle through SceneTimeline frame updates'
 );
 assert.ok(
   runtimeSource.includes('beginTargetRevealGate')
@@ -315,9 +317,13 @@ assert.ok(
     && runtimeSource.includes('DEFAULT_TARGET_GATE_RELEASE_PROGRESS')
     && runtimeSource.includes('transitionTargetReleaseProgress')
     && runtimeSource.includes('controller.playhead >= controller.targetRevealReleaseProgress')
-    && runtimeSource.includes('homepage-transition-target-gated')
     && runtimeSource.includes('releaseTargetGate: !hold && direction > 0'),
-  'Homepage runtime must gate non-handoff target sections only until the visual bridge tail can reveal native copy'
+  'Homepage runtime keeps the target-gate compatibility seam while bypassing old gate ownership'
+);
+assert.doesNotMatch(
+  runtimeSource,
+  /data-section-transition-state|homepage-transition-target-gated/,
+  'Legacy runtime must not write the old target gate state/class'
 );
 assert.doesNotMatch(
   runtimeSource,
@@ -335,10 +341,15 @@ assert.ok(
     && runtimeSource.includes('isDirectHandoffTarget')
     && runtimeSource.includes('skipForDirectHash')
     && runtimeSource.includes('completeDirectHashHandoff(controller)')
-    && runtimeSource.includes('directHashHandoffComplete')
-    && runtimeSource.includes('handoffComplete: isDirectHandoffTarget')
+    && runtimeSource.includes('directHashTimelinePresented')
+    && runtimeSource.includes('timelinePresented: isDirectHandoffTarget')
     && runtimeSource.includes('playedForward: isDirectHandoffTarget'),
-  'Homepage runtime must skip preceding handoff playback and complete target presentation for direct target anchors'
+  'Homepage runtime must skip preceding handoff playback for direct target anchors without owning handoff completion state'
+);
+assert.doesNotMatch(
+  runtimeSource,
+  /DIRECT_HASH_ALIGNMENT_DELAYS|directHashAlignmentTimers|handoffComplete/,
+  'Legacy runtime must not keep direct-hash retry timers or handoffComplete state'
 );
 assert.ok(
   runtimeSource.includes('shouldContinueStagedForward')

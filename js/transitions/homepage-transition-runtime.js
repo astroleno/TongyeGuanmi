@@ -20,7 +20,6 @@ const FIXED_STAGE_CLASS = 'homepage-transition--fixed-stage';
 const DEFAULT_SNAP_ENTRY_VH = 1.02;
 const DEFAULT_TARGET_GATE_RELEASE_PROGRESS = 0.86;
 const POST_SNAP_INPUT_LOCK_MS = 420;
-const DIRECT_HASH_ALIGNMENT_DELAYS = [0, 120, 420, 1100, 2400, 5200, 9200];
 const BLOCKED_SCROLL_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' ']);
 const MODULE_PLAY_MS = {
   aod: 1800,
@@ -237,7 +236,7 @@ function createHomepageSnapCoordinator({
   const controllers = [];
   let activeController = null;
   let lastScrollY = getScrollY();
-  let scrollLockDepth = 0;
+  let scrollLocked = false;
   let inputLockUntil = 0;
   let releaseTimer = 0;
   let isProgrammaticScroll = false;
@@ -371,14 +370,15 @@ function createHomepageSnapCoordinator({
   };
 
   const lockScroll = () => {
-    scrollLockDepth += 1;
+    if (scrollLocked) return;
+    scrollLocked = true;
     root.documentElement?.classList?.add('homepage-transition-snap-active');
     lenis?.stop?.();
   };
 
   const unlockScroll = () => {
-    scrollLockDepth = Math.max(0, scrollLockDepth - 1);
-    if (scrollLockDepth > 0) return;
+    if (!scrollLocked) return;
+    scrollLocked = false;
     root.documentElement?.classList?.remove('homepage-transition-snap-active');
     lenis?.start?.();
   };
@@ -469,16 +469,12 @@ function createHomepageSnapCoordinator({
 
   const beginTargetRevealGate = (controller) => {
     if (!shouldGateTargetReveal(controller) || controller.targetRevealHeld) return;
-    controller.handoffTarget.setAttribute('data-section-transition-state', 'gated-in');
-    controller.handoffTarget.classList.add('homepage-transition-target-gated');
-    controller.targetRevealHeld = true;
+    controller.targetRevealHeld = false;
   };
 
   const releaseTargetRevealGate = (controller) => {
     if (!controller?.targetRevealHeld) return;
     controller.targetRevealHeld = false;
-    controller.handoffTarget?.removeAttribute('data-section-transition-state');
-    controller.handoffTarget?.classList.remove('homepage-transition-target-gated');
     window.requestAnimationFrame?.(() => window.ScrollTrigger?.refresh?.());
   };
 
@@ -503,19 +499,26 @@ function createHomepageSnapCoordinator({
     }, POST_SNAP_INPUT_LOCK_MS);
   };
 
-  const presentTimelineTarget = (controller, reason = 'runtime-complete') => {
+  const completeTimelineHandoff = (controller, reason = 'runtime-complete') => {
     if (!controller?.handoffTarget && !controller?.timelineJoin) return null;
     const joinId = controller.timelineJoin?.id
       || controller.handoffId
       || controller.host?.dataset?.transitionId
       || '';
     if (!joinId) return null;
-    return sceneTimeline?.presentTarget(joinId, reason) || null;
-  };
-
-  const clearDirectHashAlignmentTimers = (controller) => {
-    controller?.directHashAlignmentTimers?.forEach((timer) => window.clearTimeout(timer));
-    if (controller) controller.directHashAlignmentTimers = [];
+    const frame = sceneTimeline?.updateFrame(joinId, 1, {
+      direction: 1,
+      reason,
+      milestones: {
+        targetReady: true,
+        playbackComplete: true,
+        runtimeHandoffComplete: true
+      }
+    }) || null;
+    if (frame?.phase === 'presented' || frame?.phase === 'released') {
+      controller.timelinePresented = true;
+    }
+    return frame;
   };
 
   const alignDirectHashTarget = (controller) => {
@@ -537,20 +540,17 @@ function createHomepageSnapCoordinator({
   const completeDirectHashHandoff = (controller) => {
     if (!controller?.handoffTarget || !isDirectHashTargetForController(controller)) return;
 
-    controller.handoffComplete = true;
+    controller.timelinePresented = true;
     controller.playedForward = true;
     controller.host.classList.remove(FIXED_STAGE_CLASS);
     clearSnapVisualState(controller);
-    if (!controller.directHashHandoffComplete) {
-      presentTimelineTarget(controller, 'runtime-direct-hash');
+    if (!controller.directHashTimelinePresented) {
+      completeTimelineHandoff(controller, 'runtime-direct-hash');
       releaseTargetRevealGate(controller);
-      controller.directHashHandoffComplete = true;
+      controller.directHashTimelinePresented = true;
     }
 
-    clearDirectHashAlignmentTimers(controller);
-    controller.directHashAlignmentTimers = DIRECT_HASH_ALIGNMENT_DELAYS.map((delay) => (
-      window.setTimeout(() => alignDirectHashTarget(controller), delay)
-    ));
+    alignDirectHashTarget(controller);
   };
 
   const completePlayback = (controller, direction, { hold = false } = {}) => {
@@ -584,8 +584,7 @@ function createHomepageSnapCoordinator({
           controller.playedBackward = false;
         }
         if (shouldHandoffAfterPlayback) {
-          controller.handoffComplete = true;
-          presentTimelineTarget(controller, 'runtime-complete');
+          completeTimelineHandoff(controller, 'runtime-complete');
           releaseTargetRevealGate(controller);
         }
         if (direction < 0 && controller.timelineJoin) {
@@ -600,8 +599,7 @@ function createHomepageSnapCoordinator({
     const targetY = getHandoffTargetY(controller);
     if (!Number.isFinite(targetY)) return;
 
-    controller.handoffComplete = true;
-    presentTimelineTarget(controller, 'runtime-post-scroll-complete');
+    completeTimelineHandoff(controller, 'runtime-post-scroll-complete');
     releaseTargetRevealGate(controller);
     clearReleaseTimer();
     inputLockUntil = performance.now() + POST_SNAP_INPUT_LOCK_MS;
@@ -691,7 +689,7 @@ function createHomepageSnapCoordinator({
     if (scrollY < backwardExit) {
       controller.playedForward = false;
       controller.playhead = 0;
-      controller.handoffComplete = false;
+      controller.timelinePresented = false;
       controller.host.classList.remove(FIXED_STAGE_CLASS);
       clearSnapVisualState(controller);
       releaseTargetRevealGate(controller);
@@ -722,7 +720,7 @@ function createHomepageSnapCoordinator({
     controllers.forEach((controller) => {
       if (
         controller.destroyed
-        || controller.handoffComplete
+        || controller.timelinePresented
         || controller.handoffPhase !== HANDOFF_POST_SCROLL
         || !controller.handoffTarget
         || controller.playhead < 0.998
@@ -786,10 +784,9 @@ function createHomepageSnapCoordinator({
         handoffScrollTo: host.dataset.handoffScrollTo || '',
         handoffTargetSelector: host.dataset.handoffTargetSelector || '',
         handoffPhase: host.dataset.transitionHandoffPhase || '',
-        handoffComplete: isDirectHandoffTarget,
+        timelinePresented: isDirectHandoffTarget,
         skipForDirectHash: isDirectHandoffTarget,
-        directHashHandoffComplete: false,
-        directHashAlignmentTimers: [],
+        directHashTimelinePresented: false,
         targetRevealHeld: false,
         targetRevealReleaseProgress: clamp(
           parseFiniteNumber(host.dataset.transitionTargetReleaseProgress, DEFAULT_TARGET_GATE_RELEASE_PROGRESS),
@@ -813,7 +810,6 @@ function createHomepageSnapCoordinator({
         },
         destroy() {
           this.destroyed = true;
-          clearDirectHashAlignmentTimers(this);
           releaseTargetRevealGate(this);
           this.host.classList.remove(FIXED_STAGE_CLASS);
           clearSnapVisualState(this);
@@ -833,7 +829,6 @@ function createHomepageSnapCoordinator({
       isProgrammaticScroll = false;
       inputLockUntil = 0;
       activeController = null;
-      scrollLockDepth = 1;
       unlockScroll();
       if (previousSnapViewportHeight) {
         rootElement?.style?.setProperty(SNAP_VIEWPORT_HEIGHT_VAR, previousSnapViewportHeight);
