@@ -99,9 +99,10 @@ assert.doesNotMatch(
   'Figure3 transition code and CSS must stay visual-only instead of keeping deprecated Services presentation copy surfaces'
 );
 assert.ok(
-  figure3HomepageAdapterSource.includes('timeline?.update(progress')
+  !/timeline\s*\??\.\s*update\s*\(/.test(figure3HomepageAdapterSource)
+    && figure3HomepageAdapterSource.includes("reportMilestone?.('targetReady'")
     && figure3HomepageAdapterSource.includes('playbackComplete'),
-  'Figure3 visual bridge must present Services through the homepage timeline'
+  'Figure3 visual bridge must report milestones without pushing timeline progress'
 );
 assert.equal(
   transitionById.get('education-philosophy')?.attrs.get('data-transition-module'),

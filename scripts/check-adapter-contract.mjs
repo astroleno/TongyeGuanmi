@@ -21,12 +21,6 @@ const KNOWN_VIOLATIONS = Object.freeze([
     removalTaskId: 'P4.5-crane-adapter'
   },
   {
-    file: 'js/transitions/homepage/figure3-homepage-adapter.js',
-    ruleId: 'timeline-update',
-    text: 'timeline?.update(progress, {',
-    removalTaskId: 'P4.4-figure3-adapter'
-  },
-  {
     file: 'js/transitions/homepage/ph-homepage-adapter.js',
     ruleId: 'timeline-update',
     text: 'timeline?.update(progress, {',

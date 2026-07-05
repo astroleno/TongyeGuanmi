@@ -4,7 +4,7 @@ import {
   waitForFigure3TransitionMetadata
 } from '../../components/figure3-transition.js';
 
-export function mountHomepageTransition({ host, reduceMotion = false, progressSource, timeline, addCleanup }) {
+export function mountHomepageTransition({ host, reduceMotion = false, progressSource, reportMilestone, addCleanup }) {
   host.classList.add('homepage-transition', 'homepage-transition--figure3');
   host.innerHTML = `
     <section
@@ -34,13 +34,8 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
     if (destroyed) return;
     const progress = reduceMotion ? 1 : progressSource();
     renderFigure3TransitionProgress(section, progress);
-    timeline?.update(progress, {
-      reason: 'figure3-render',
-      milestones: {
-        targetReady: true,
-        playbackComplete: progress >= 0.998
-      }
-    });
+    reportMilestone?.('targetReady', true);
+    reportMilestone?.('playbackComplete', progress >= 0.998);
     raf = requestAnimationFrame(render);
   };
 
@@ -48,7 +43,8 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
     waitForFigure3TransitionMetadata(section).then(() => {
       if (!destroyed) {
         renderFigure3TransitionProgress(section, 1);
-        timeline?.complete('figure3-reduced-motion');
+        reportMilestone?.('targetReady', true);
+        reportMilestone?.('playbackComplete', true);
       }
     });
   } else {
