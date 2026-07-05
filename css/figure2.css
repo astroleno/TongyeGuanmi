@@ -352,6 +352,8 @@
 }
 
 .figure2-proof-scroll__content .method-proof__lead {
+  position: relative;
+  top: auto;
   grid-column: 1;
   grid-row: 1;
   display: grid;
@@ -393,6 +395,8 @@
 }
 
 .figure2-proof-scroll__content .method-proof__finale {
+  position: relative;
+  top: auto;
   grid-column: 1;
   grid-row: 3;
   display: grid;

@@ -27,6 +27,7 @@ const figure3ComponentSource = read('js/components/figure3-transition.js');
 const stylesSource = read('css/styles.css');
 const homepageTransitionCss = read('css/components/homepage-transitions.css');
 const homepageContinuityCss = read('css/components/homepage-continuity.css');
+const scrollEdgeBlurCss = read('css/components/scroll-edge-blur-nav.css');
 const canvasStageCss = read('css/sections/canvas-stage.css');
 const figure3Css = read('css/components/figure3-transition.css');
 const figure2Css = read('css/figure2.css');
@@ -133,12 +134,14 @@ assert.ok(
   patternBloomAdapterSource.includes('textProgress: beliefCopyProgress')
     && patternBloomAdapterSource.includes('presentationTarget: beliefSection')
     && patternBloomAdapterSource.includes('const SECOND_REVEAL_START')
+    && patternBloomAdapterSource.includes('const SECOND_REVEAL_END = 0.98;')
+    && patternBloomAdapterSource.includes('Math.max(0.18, Math.min(lotusOpacity, sourceOpacity))')
     && patternBloomAdapterSource.includes('timeline?.update(progress')
     && patternBloomAdapterSource.includes('lotusContracted')
     && patternBloomAdapterSource.includes('targetReady')
     && patternBloomAdapterSource.includes('beliefCopyComplete')
     && !patternBloomAdapterSource.includes('beliefPinned ? 0.18 : 1'),
-  'Pattern Bloom must hand off through homepage timeline milestones instead of the old local opacity clamp'
+  'Pattern Bloom must hand off through homepage timeline milestones without dropping into a black tail'
 );
 assert.doesNotMatch(
   patternBloomAdapterSource,
@@ -233,8 +236,10 @@ assert.ok(
   indexHtml.indexOf('method-proof__scene--opening') < indexHtml.indexOf('method-proof__scene--cases')
     && indexHtml.indexOf('method-proof__scene--cases') < indexHtml.indexOf('method-proof__scene--closing')
     && figure2Css.includes('grid-template-rows: 100dvh minmax(96dvh, auto) 100dvh')
+    && figure2Css.includes('.figure2-proof-scroll__content .method-proof__lead {\n  position: relative;')
+    && figure2Css.includes('.figure2-proof-scroll__content .method-proof__finale {\n  position: relative;')
     && figure2Css.includes('.figure2-proof-scroll__content .method-proof__finale'),
-  'Figure2 proof copy must be split into real opening, cases, and closing scenes in DOM order'
+  'Figure2 proof copy must be split into real opening, cases, and closing scenes in DOM order without sticky overlay drift'
 );
 assert.equal(
   figure2SceneTransition?.attrs.get('data-transition-handoff-target'),
@@ -401,6 +406,12 @@ assert.ok(
     && homepageContinuityCss.includes('.belief-star-field.is-ready')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned .belief-copy-wrap'),
   'Homepage continuity CSS must define reduced-motion collapse, timeline target copy, method-brand collapse, target gates, and pinned belief copy'
+);
+assert.ok(
+  scrollEdgeBlurCss.includes('.scroll-edge-blur__layer {\n    background: transparent;')
+    && scrollEdgeBlurCss.includes('.scroll-edge-blur__tint {\n    z-index: 80;\n    background: transparent;')
+    && !/rgba\(\s*247,\s*237,\s*215,\s*0\.(?:0[1-9]|1)\s*\)/.test(scrollEdgeBlurCss),
+  'Scroll edge blur must stay blur-only and must not add a visible light glow layer'
 );
 assert.doesNotMatch(
   homepageContinuityCss,

@@ -208,7 +208,11 @@ for (const join of timelineJoins) {
   assert.ok(Number.isFinite(join.cleanupAt), `Timeline join ${join.id} must declare cleanupAt`);
   assert.ok(join.presentAt >= join.commitAt, `Timeline join ${join.id} must satisfy presentAt >= commitAt`);
   assert.ok(join.cleanupAt >= join.presentAt, `Timeline join ${join.id} must satisfy cleanupAt >= presentAt`);
-  assertCloseEnough(join.cleanupAt, 0.96, `Timeline join ${join.id} must clean up before the transition tail can feel blank`);
+  assertCloseEnough(
+    join.cleanupAt,
+    join.progressPolicy === 'scroll' ? 0.995 : 0.96,
+    `Timeline join ${join.id} must clean up before the transition tail can feel blank`
+  );
   if (join.progressPolicy !== 'scroll' && join.targetCopyPolicy !== 'early') {
     assertCloseEnough(join.targetIn[1], 0.82, `Timeline join ${join.id} target copy must finish entering before playback release`);
     assertCloseEnough(
@@ -232,8 +236,8 @@ for (const join of timelineJoins) {
 
 const homeBelief = timelineJoins.find((join) => join.id === 'home-belief');
 assert.equal(homeBelief?.progressPolicy, 'scroll', 'home-belief must be scroll-driven');
-assertCloseEnough(homeBelief?.targetIn?.[0], 0.90, 'home-belief copy must not show a complete star-map before the exit ink resolves');
-assertCloseEnough(homeBelief?.targetIn?.[1], 0.94, 'home-belief copy must be visually ready before the late transition tail');
+assertCloseEnough(homeBelief?.targetIn?.[0], 0.94, 'home-belief copy must not show a complete star-map before the exit ink resolves');
+assertCloseEnough(homeBelief?.targetIn?.[1], 0.98, 'home-belief copy must be visually ready before the late transition tail');
 assert.ok(homeBelief.commitCondition?.includes('lotusContracted'), 'home-belief must require lotusContracted');
 assert.ok(homeBelief.commitCondition?.includes('targetReady'), 'home-belief must require targetReady');
 assert.ok(homeBelief.presentCondition?.includes('beliefCopyComplete'), 'home-belief must require beliefCopyComplete');

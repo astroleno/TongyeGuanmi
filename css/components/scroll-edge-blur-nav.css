@@ -36,7 +36,7 @@
 }
 
 .scroll-edge-blur__layer {
-    background: rgba(255, 255, 255, 0.01);
+    background: transparent;
 }
 
 .scroll-edge-blur__layer:nth-child(1) {
@@ -167,22 +167,12 @@
 
 .scroll-edge-blur__tint {
     z-index: 80;
-    background: linear-gradient(
-        to bottom,
-        rgba(5, 8, 7, 0.12),
-        rgba(5, 8, 7, 0.04) 58%,
-        transparent 100%
-    );
+    background: transparent;
 }
 
 .site-nav[data-tone="light"] + .scroll-edge-blur .scroll-edge-blur__tint,
 .site-nav.is-on-light + .scroll-edge-blur .scroll-edge-blur__tint {
-    background: linear-gradient(
-        to bottom,
-        rgba(247, 237, 215, 0.14),
-        rgba(247, 237, 215, 0.05) 58%,
-        transparent 100%
-    );
+    background: transparent;
 }
 
 @supports not (

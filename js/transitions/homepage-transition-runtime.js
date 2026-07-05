@@ -280,7 +280,10 @@ function createHomepageSnapCoordinator({
 
   const getDirectHashTargetY = (controller) => (
     controller?.handoffTarget
-      ? Math.max(0, Math.round(getDocumentTop(controller.handoffTarget) - window.innerHeight * 0.2))
+      ? Math.max(0, Math.round(
+        getDocumentTop(controller.handoffTarget)
+        - window.innerHeight * (controller.timelineJoin?.targetCopyPolicy === 'early' ? 0 : 0.2)
+      ))
       : null
   );
 

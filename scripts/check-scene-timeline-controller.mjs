@@ -233,7 +233,10 @@ function withFakeGlobals(document, callback) {
     assert.ok(sections.belief.copy.classList.contains('is-visible'), 'copy reveal is claimed visible');
     assert.ok(Object.isFrozen(timeline.getFrame('home-belief')), 'getFrame must return a frozen frame');
 
-    const shallowReverseFrame = timeline.updateFrame('home-belief', 0.99, { reason: 'unit-scroll-shallow-reverse' });
+    const terminalBandFrame = timeline.updateFrame('home-belief', 0.99, { reason: 'unit-scroll-terminal-band-reverse' });
+    assert.equal(terminalBandFrame.phase, 'presented', 'scroll-driven rollback inside the presented band keeps the join presented');
+
+    const shallowReverseFrame = timeline.updateFrame('home-belief', 0.996, { reason: 'unit-scroll-shallow-reverse' });
     assert.equal(shallowReverseFrame.phase, 'released', 'scroll-driven shallow rollback past cleanup releases the presented join');
     assert.equal(shallowReverseFrame.copyOwner, 'native', 'released presented scroll join keeps native ownership');
     assert.equal(

@@ -157,16 +157,16 @@ export const timelineJoins = [
     "fromScene": "home",
     "toScene": "belief",
     "sourceOut": [
-      0.8,
-      0.98
+      0.94,
+      0.995
     ],
     "targetIn": [
-      0.9,
-      0.94
+      0.94,
+      0.98
     ],
     "commitAt": 0.8,
-    "presentAt": 0.94,
-    "cleanupAt": 0.96,
+    "presentAt": 0.98,
+    "cleanupAt": 0.995,
     "targetCopyPolicy": "scroll-owner",
     "commitCondition": [
       "progress:commitAt",
@@ -188,7 +188,7 @@ export const timelineJoins = [
       ],
       "secondReveal": [
         0.8,
-        0.94
+        0.98
       ]
     },
     "handoffOverlaps": [
@@ -212,11 +212,11 @@ export const timelineJoins = [
       0.96
     ],
     "targetIn": [
-      0.62,
-      0.82
+      0.54,
+      0.78
     ],
-    "commitAt": 0.72,
-    "presentAt": 0.92,
+    "commitAt": 0.58,
+    "presentAt": 0.88,
     "cleanupAt": 0.96,
     "targetCopyPolicy": "early",
     "presentCondition": [

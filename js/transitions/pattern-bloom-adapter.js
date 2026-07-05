@@ -9,7 +9,7 @@ const REVEAL_END = 0.46;
 const BLOOM_START = 0.42;
 const BLOOM_END = 0.70;
 const SECOND_REVEAL_START = 0.80;
-const SECOND_REVEAL_END = 0.94;
+const SECOND_REVEAL_END = 0.98;
 const BELIEF_PIN_CLASS = 'is-pattern-bloom-pinned';
 const COVER_PRIOR_SCENE_CLASS = 'is-pattern-bloom-covering';
 
@@ -191,7 +191,7 @@ export function mountPatternBloomTransition({
     const secondRevealProgress = smoothStep(range01(progress, SECOND_REVEAL_START, SECOND_REVEAL_END));
     const secondRevealVisibility = starTextureReady && secondRevealProgress < 0.998 ? secondRevealProgress : 0;
     const topSceneExit = starTextureReady
-      ? smoothStep(range01(secondRevealProgress, 0.68, 0.98))
+      ? smoothStep(range01(progress, SECOND_REVEAL_END, 0.998))
       : 0;
     const lotusOpacity = 1 - topSceneExit;
     const timelineState = timeline?.update(progress, {
@@ -204,9 +204,9 @@ export function mountPatternBloomTransition({
     });
     const sourceOpacity = starTextureReady ? timelineState?.sourceOpacity ?? lotusOpacity : 1;
     const targetOpacity = timelineState?.targetOpacity ?? secondRevealProgress;
-    const beliefPinned = overlayActive && starTextureReady && secondRevealProgress >= 0.998 && targetOpacity > 0.002;
-    const topSceneOpacity = canvasRevealed && (!starTextureReady || secondRevealProgress < 0.998)
-      ? Math.min(lotusOpacity, sourceOpacity)
+    const beliefPinned = overlayActive && starTextureReady && progress >= SECOND_REVEAL_END && targetOpacity > 0.72;
+    const topSceneOpacity = canvasRevealed && !beliefPinned
+      ? Math.max(0.18, Math.min(lotusOpacity, sourceOpacity))
       : 0;
     const beliefSceneOpacity = beliefPinned ? targetOpacity : 0;
     const beliefCopyProgress = beliefPinned
@@ -214,7 +214,7 @@ export function mountPatternBloomTransition({
       : 0;
     const lotusVisible = topSceneOpacity > 0.002;
 
-    const coverPriorScene = overlayActive && sceneReady && (canvasRevealed || beliefPinned);
+    const coverPriorScene = overlayActive && sceneReady && (lotusVisible || secondRevealVisibility > 0.002 || beliefPinned);
     doc.body?.classList.toggle(COVER_PRIOR_SCENE_CLASS, coverPriorScene);
     setBeliefTransitionState({
       pinned: beliefPinned,
