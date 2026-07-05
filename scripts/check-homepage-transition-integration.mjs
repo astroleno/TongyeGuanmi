@@ -193,10 +193,11 @@ assert.ok(
 );
 assert.ok(
   !aodHomepageAdapterSource.includes('createHandoffReceiver')
-    && aodHomepageAdapterSource.includes('timeline?.update')
+    && !/timeline\s*\??\.\s*update\s*\(/.test(aodHomepageAdapterSource)
+    && aodHomepageAdapterSource.includes("reportMilestone?.('targetReady'")
     && aodHomepageAdapterSource.includes('playbackComplete')
     && aodHomepageAdapterSource.includes('handoffProgressSource'),
-  'AOD handoff must report timeline progress without adopting the native Method DOM'
+  'AOD handoff must report milestones without adopting the native Method DOM or pushing timeline progress'
 );
 assert.ok(
   indexHtml.includes('method-handoff-anchor')

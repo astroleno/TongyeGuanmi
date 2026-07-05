@@ -14,7 +14,7 @@ export function mountHomepageTransition({
   progressSource,
   handoffTarget,
   handoffProgressSource,
-  timeline,
+  reportMilestone,
   addCleanup
 }) {
   host.classList.add('homepage-transition', 'homepage-transition--aod');
@@ -91,13 +91,8 @@ export function mountHomepageTransition({
     const inkProgress = smoothStep(clamp(progress));
     syncNavTone(progress);
     renderAodTransitionProgress(section, progress);
-    timeline?.update(Math.max(progress, handoffProgress), {
-      reason: 'aod-render',
-      milestones: {
-        targetReady: Boolean(handoffTarget),
-        playbackComplete: progress >= 0.998
-      }
-    });
+    reportMilestone?.('targetReady', Boolean(handoffTarget));
+    reportMilestone?.('playbackComplete', Math.max(progress, handoffProgress) >= 0.998);
     inkTransition?.render(inkProgress);
     raf = requestAnimationFrame(render);
   };
@@ -107,7 +102,8 @@ export function mountHomepageTransition({
       if (!destroyed) {
         syncNavTone(1);
         renderAodTransitionProgress(section, 1);
-        timeline?.complete('aod-reduced-motion');
+        reportMilestone?.('targetReady', Boolean(handoffTarget));
+        reportMilestone?.('playbackComplete', true);
         inkTransition?.render(1);
       }
     });
