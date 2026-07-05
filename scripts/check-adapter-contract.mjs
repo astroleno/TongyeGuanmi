@@ -21,36 +21,6 @@ const KNOWN_VIOLATIONS = Object.freeze([
     removalTaskId: 'P4.5-crane-adapter'
   },
   {
-    file: 'js/transitions/homepage/figure2-homepage-adapter.js',
-    ruleId: 'move-real-copy-dom',
-    text: 'overlay.append(sourceProof);',
-    removalTaskId: 'P4.3-figure2-adapter'
-  },
-  {
-    file: 'js/transitions/homepage/figure2-homepage-adapter.js',
-    ruleId: 'move-real-copy-dom',
-    text: 'marker.parentNode.insertBefore(sourceProof, marker);',
-    removalTaskId: 'P4.3-figure2-adapter'
-  },
-  {
-    file: 'js/transitions/homepage/figure2-homepage-adapter.js',
-    ruleId: 'move-real-copy-dom',
-    text: 'originalParent.insertBefore(sourceProof, originalNextSibling);',
-    removalTaskId: 'P4.3-figure2-adapter'
-  },
-  {
-    file: 'js/transitions/homepage/figure2-homepage-adapter.js',
-    ruleId: 'move-real-copy-dom',
-    text: 'originalParent.append(sourceProof);',
-    removalTaskId: 'P4.3-figure2-adapter'
-  },
-  {
-    file: 'js/transitions/homepage/figure2-homepage-adapter.js',
-    ruleId: 'timeline-update',
-    text: 'timeline?.update(Math.max(transitionProgress, postProgress, handoffProgress), {',
-    removalTaskId: 'P4.3-figure2-adapter'
-  },
-  {
     file: 'js/transitions/homepage/figure3-homepage-adapter.js',
     ruleId: 'timeline-update',
     text: 'timeline?.update(progress, {',

@@ -13,6 +13,14 @@ function findTransitionTargetScene(host) {
   return [...scenes].find((scene) => scene.dataset.sceneId === targetSceneId) || null;
 }
 
+function cloneProofForOverlay(sourceProof) {
+  const clone = sourceProof.cloneNode(true);
+  clone.querySelectorAll?.('[id]').forEach((node) => node.removeAttribute('id'));
+  clone.removeAttribute?.('id');
+  clone.setAttribute('aria-hidden', 'true');
+  return clone;
+}
+
 function createProofSceneTexture(host) {
   const canvas = host.ownerDocument.createElement('canvas');
   const context = canvas.getContext('2d', { alpha: true });
@@ -83,17 +91,12 @@ function createProofScrollOverlay(host) {
   overlay.dataset.transitionGhost = 'method-proof-bridge';
   overlay.setAttribute('aria-hidden', 'true');
 
-  const marker = host.ownerDocument.createComment('method proof overlay marker');
-  const originalParent = sourceProof.parentNode;
-  const originalNextSibling = sourceProof.nextSibling;
-  const originalClass = sourceProof.getAttribute('class');
-  const originalAriaLabel = sourceProof.getAttribute('aria-label');
+  const proofClone = cloneProofForOverlay(sourceProof);
 
-  originalParent.insertBefore(marker, sourceProof);
-  sourceProof.classList.add('figure2-proof-scroll__content');
-  sourceProof.classList.remove('quiet-proof', 'quiet-proof--source');
-  sourceProof.removeAttribute('aria-label');
-  overlay.append(sourceProof);
+  proofClone.classList.add('figure2-proof-scroll__content');
+  proofClone.classList.remove('quiet-proof', 'quiet-proof--source');
+  proofClone.removeAttribute('aria-label');
+  overlay.append(proofClone);
   field.append(overlay);
 
   let disposed = false;
@@ -116,24 +119,6 @@ function createProofScrollOverlay(host) {
     destroy() {
       if (disposed) return;
       disposed = true;
-      if (marker.parentNode) {
-        marker.parentNode.insertBefore(sourceProof, marker);
-        marker.remove();
-      } else if (originalNextSibling?.parentNode === originalParent) {
-        originalParent.insertBefore(sourceProof, originalNextSibling);
-      } else {
-        originalParent.append(sourceProof);
-      }
-      if (originalClass === null) {
-        sourceProof.removeAttribute('class');
-      } else {
-        sourceProof.setAttribute('class', originalClass);
-      }
-      if (originalAriaLabel === null) {
-        sourceProof.removeAttribute('aria-label');
-      } else {
-        sourceProof.setAttribute('aria-label', originalAriaLabel);
-      }
       overlay.remove();
     }
   };
@@ -146,7 +131,7 @@ export function mountHomepageTransition({
   postProgressSource,
   handoffTarget,
   handoffProgressSource,
-  timeline,
+  reportMilestone,
   addCleanup
 }) {
   host.classList.add('homepage-transition', 'homepage-transition--figure2', 'figure2-alpha-video');
@@ -227,14 +212,9 @@ export function mountHomepageTransition({
         : 0;
     const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? postProgress;
     proofScrollOverlay?.update({ transitionProgress, postProgress, handoffProgress });
-    timeline?.update(Math.max(transitionProgress, postProgress, handoffProgress), {
-      reason: 'figure2-render',
-      milestones: {
-        phaseTwoComplete: transitionProgress >= 0.998,
-        sourceGhostReady: Boolean(proofScrollOverlay),
-        targetReady: Boolean(handoffTarget)
-      }
-    });
+    reportMilestone?.('phaseTwoComplete', transitionProgress >= 0.998);
+    reportMilestone?.('sourceGhostReady', Boolean(proofScrollOverlay));
+    reportMilestone?.('targetReady', Boolean(handoffTarget));
     proofSceneTexture?.update();
 
     if (reduceMotion) {

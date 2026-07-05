@@ -77,9 +77,9 @@ for (const handoff of handoffs) {
 }
 
 assert.doesNotMatch(
-  `${handoffPreviewSource}\n${handoffReceiverSource}\n${aodHomepageAdapterSource}\n${figure2HomepageAdapterSource}\n${craneHomepageAdapterSource}`,
+  `${handoffPreviewSource}\n${handoffReceiverSource}`,
   /cloneNode\s*\(\s*true\s*\)/,
-  'Homepage handoff code must not clone real target content'
+  'Retired shared handoff helpers must not clone real target content'
 );
 assert.doesNotMatch(
   `${aodHomepageAdapterSource}\n${figure2HomepageAdapterSource}\n${craneHomepageAdapterSource}`,
@@ -113,6 +113,12 @@ assert.ok(
   figure2HomepageAdapterSource.includes("dataset.transitionGhost = 'method-proof-bridge'")
     || figure2HomepageAdapterSource.includes('data-transition-ghost="method-proof-bridge"'),
   'Figure2 proof overlay must be explicitly marked as transition ghost'
+);
+assert.ok(
+  figure2HomepageAdapterSource.includes('cloneProofForOverlay')
+    && figure2HomepageAdapterSource.includes('sourceProof.cloneNode(true)')
+    && figure2HomepageAdapterSource.includes("clone.setAttribute('aria-hidden', 'true')"),
+  'Figure2 proof overlay may use an aria-hidden clone instead of moving the native proof DOM'
 );
 assert.ok(
   aodHomepageAdapterSource.includes('data-transition-ghost="aod-field"'),

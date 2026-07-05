@@ -484,10 +484,12 @@ assert.ok(
 );
 assert.ok(
   !figure2HomepageAdapterSource.includes('createHandoffReceiver')
-    && figure2HomepageAdapterSource.includes('timeline?.update')
+    && !/timeline\s*\??\.\s*update\s*\(/.test(figure2HomepageAdapterSource)
+    && figure2HomepageAdapterSource.includes('cloneProofForOverlay')
+    && figure2HomepageAdapterSource.includes("reportMilestone?.('phaseTwoComplete'")
     && figure2HomepageAdapterSource.includes('phaseTwoComplete')
     && figure2HomepageAdapterSource.includes('handoffProgressSource'),
-  'Figure2 homepage transition must report timeline progress without adopting the native Brand grid'
+  'Figure2 homepage transition must report milestones without adopting native copy or pushing timeline progress'
 );
 assert.doesNotMatch(
   figure2HomepageAdapterSource,
