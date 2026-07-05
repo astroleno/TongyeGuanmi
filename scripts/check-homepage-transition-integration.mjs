@@ -133,15 +133,21 @@ assert.doesNotMatch(
 assert.ok(
   patternBloomAdapterSource.includes('textProgress: beliefCopyProgress')
     && patternBloomAdapterSource.includes('presentationTarget: beliefSection')
-    && patternBloomAdapterSource.includes('const SECOND_REVEAL_START')
-    && patternBloomAdapterSource.includes('const SECOND_REVEAL_END = 0.98;')
+    && patternBloomAdapterSource.includes('readPhaseRange')
+    && patternBloomAdapterSource.includes("timeline?.join?.phases")
     && patternBloomAdapterSource.includes('Math.max(0.18, Math.min(lotusOpacity, sourceOpacity))')
-    && patternBloomAdapterSource.includes('timeline?.update(progress')
+    && patternBloomAdapterSource.includes("reportMilestone?.('targetReady'")
+    && patternBloomAdapterSource.includes('timeline?.getFrame?.()')
     && patternBloomAdapterSource.includes('lotusContracted')
     && patternBloomAdapterSource.includes('targetReady')
     && patternBloomAdapterSource.includes('beliefCopyComplete')
     && !patternBloomAdapterSource.includes('beliefPinned ? 0.18 : 1'),
-  'Pattern Bloom must hand off through homepage timeline milestones without dropping into a black tail'
+  'Pattern Bloom must consume manifest phases and report homepage timeline milestones without pushing timeline updates'
+);
+assert.doesNotMatch(
+  patternBloomAdapterSource,
+  /timeline\s*\??\.\s*update\s*\(|const\s+(?:REVEAL_END|BLOOM_START|BLOOM_END|SECOND_REVEAL_START|SECOND_REVEAL_END)\b/,
+  'Pattern Bloom must not keep local threshold constants or push progress back into SceneTimeline'
 );
 assert.doesNotMatch(
   patternBloomAdapterSource,

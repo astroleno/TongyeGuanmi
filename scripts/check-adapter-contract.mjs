@@ -74,42 +74,6 @@ const KNOWN_VIOLATIONS = Object.freeze([
     text: 'timeline?.update(progress, {',
     removalTaskId: 'P4.6-ttg-adapter'
   },
-  {
-    file: 'js/transitions/pattern-bloom-adapter.js',
-    ruleId: 'module-progress-threshold',
-    text: 'const REVEAL_END = 0.46;',
-    removalTaskId: 'P4.1-pattern-bloom-adapter'
-  },
-  {
-    file: 'js/transitions/pattern-bloom-adapter.js',
-    ruleId: 'module-progress-threshold',
-    text: 'const BLOOM_START = 0.42;',
-    removalTaskId: 'P4.1-pattern-bloom-adapter'
-  },
-  {
-    file: 'js/transitions/pattern-bloom-adapter.js',
-    ruleId: 'module-progress-threshold',
-    text: 'const BLOOM_END = 0.70;',
-    removalTaskId: 'P4.1-pattern-bloom-adapter'
-  },
-  {
-    file: 'js/transitions/pattern-bloom-adapter.js',
-    ruleId: 'module-progress-threshold',
-    text: 'const SECOND_REVEAL_START = 0.80;',
-    removalTaskId: 'P4.1-pattern-bloom-adapter'
-  },
-  {
-    file: 'js/transitions/pattern-bloom-adapter.js',
-    ruleId: 'module-progress-threshold',
-    text: 'const SECOND_REVEAL_END = 0.98;',
-    removalTaskId: 'P4.1-pattern-bloom-adapter'
-  },
-  {
-    file: 'js/transitions/pattern-bloom-adapter.js',
-    ruleId: 'timeline-update',
-    text: 'const timelineState = timeline?.update(progress, {',
-    removalTaskId: 'P4.1-pattern-bloom-adapter'
-  }
 ]);
 
 const RULES = Object.freeze([

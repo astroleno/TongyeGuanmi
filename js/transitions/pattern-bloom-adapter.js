@@ -5,13 +5,15 @@ const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const range01 = (value, start, end) => clamp((value - start) / Math.max(0.001, end - start));
 const smoothStep = (value) => value * value * (3 - 2 * value);
 
-const REVEAL_END = 0.46;
-const BLOOM_START = 0.42;
-const BLOOM_END = 0.70;
-const SECOND_REVEAL_START = 0.80;
-const SECOND_REVEAL_END = 0.98;
 const BELIEF_PIN_CLASS = 'is-pattern-bloom-pinned';
 const COVER_PRIOR_SCENE_CLASS = 'is-pattern-bloom-covering';
+
+function readPhaseRange(phases, name, fallback) {
+  const range = phases?.[name];
+  return Array.isArray(range) && range.length === 2 && range.every(Number.isFinite)
+    ? range
+    : fallback;
+}
 
 function getCurrentHashId() {
   const hash = window.location.hash || '';
@@ -37,6 +39,7 @@ export function mountPatternBloomTransition({
   reduceMotion = false,
   progressSource,
   timeline,
+  reportMilestone,
   addCleanup
 } = {}) {
   if (!host || host.dataset.patternBloomMounted === 'true') {
@@ -124,7 +127,13 @@ export function mountPatternBloomTransition({
     if (typeof progressSource !== 'function') return viewportState.progress;
     return clamp(progressSource());
   };
-  const getBloomProgress = () => range01(getRawProgress(), BLOOM_START, BLOOM_END);
+  const phases = timeline?.join?.phases || {};
+  const revealRange = readPhaseRange(phases, 'reveal', [0, 0.46]);
+  const bloomRange = readPhaseRange(phases, 'bloom', [0.42, 0.70]);
+  const secondRevealRange = readPhaseRange(phases, 'secondReveal', [0.80, 0.98]);
+  const secondRevealEnd = secondRevealRange[1];
+  const pinBlendEnd = Math.min(1, secondRevealEnd + 0.035);
+  const getBloomProgress = () => range01(getRawProgress(), bloomRange[0], bloomRange[1]);
 
   const scene = createPatternBloomScene({
     canvas,
@@ -182,36 +191,33 @@ export function mountPatternBloomTransition({
     const viewportState = getViewportState();
     const progress = getRawProgress();
     const overlayActive = progress > 0.002 && (progress < 0.999 || viewportState.raw < 1.05);
-    const revealProgress = smoothStep(range01(progress, 0, REVEAL_END));
+    const revealProgress = smoothStep(range01(progress, revealRange[0], revealRange[1]));
     const revealVisibility = revealProgress >= 0.998
       ? 1
       : (progress > 0.0001 ? Math.max(revealProgress, 0.003) : 0);
     const canvasRevealed = sceneReady && revealProgress >= 0.998;
     const starTextureReady = beliefStarCanvas?.dataset?.inkTextureReady === 'true';
-    const secondRevealProgress = smoothStep(range01(progress, SECOND_REVEAL_START, SECOND_REVEAL_END));
+    const secondRevealProgress = smoothStep(range01(progress, secondRevealRange[0], secondRevealRange[1]));
     const secondRevealVisibility = starTextureReady && secondRevealProgress < 0.998 ? secondRevealProgress : 0;
     const topSceneExit = starTextureReady
-      ? smoothStep(range01(progress, SECOND_REVEAL_END, 0.998))
+      ? smoothStep(range01(progress, secondRevealEnd, 0.998))
       : 0;
     const lotusOpacity = 1 - topSceneExit;
-    const timelineState = timeline?.update(progress, {
-      reason: 'pattern-bloom-render',
-      milestones: {
-        lotusContracted: progress >= SECOND_REVEAL_START && sceneReady,
-        targetReady: Boolean(beliefSection && sceneReady && starTextureReady),
-        beliefCopyComplete: secondRevealProgress >= 0.998
-      }
-    });
+    reportMilestone?.('lotusContracted', progress >= secondRevealRange[0] && sceneReady);
+    reportMilestone?.('targetReady', Boolean(beliefSection && sceneReady && starTextureReady));
+    reportMilestone?.('beliefCopyComplete', secondRevealProgress >= 0.998);
+    const timelineState = timeline?.getFrame?.();
     const sourceOpacity = starTextureReady ? timelineState?.sourceOpacity ?? lotusOpacity : 1;
     const targetOpacity = timelineState?.targetOpacity ?? secondRevealProgress;
-    const beliefPinned = overlayActive && starTextureReady && progress >= SECOND_REVEAL_END && targetOpacity > 0.72;
-    const topSceneOpacity = canvasRevealed && !beliefPinned
-      ? Math.max(0.18, Math.min(lotusOpacity, sourceOpacity))
+    const beliefPinBlend = starTextureReady
+      ? smoothStep(range01(progress, secondRevealEnd, pinBlendEnd))
       : 0;
-    const beliefSceneOpacity = beliefPinned ? targetOpacity : 0;
-    const beliefCopyProgress = beliefPinned
-      ? targetOpacity
+    const beliefPinned = overlayActive && starTextureReady && beliefPinBlend > 0.01;
+    const topSceneOpacity = canvasRevealed
+      ? Math.max(0.18, Math.min(lotusOpacity, sourceOpacity)) * (1 - beliefPinBlend)
       : 0;
+    const beliefSceneOpacity = targetOpacity * beliefPinBlend;
+    const beliefCopyProgress = targetOpacity * beliefPinBlend;
     const lotusVisible = topSceneOpacity > 0.002;
 
     const coverPriorScene = overlayActive && sceneReady && (lotusVisible || secondRevealVisibility > 0.002 || beliefPinned);

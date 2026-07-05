@@ -852,6 +852,63 @@ function fallbackHost(host, error) {
   host.classList.add('chapter-transition--fallback', 'scene-transition--fallback');
 }
 
+function createRuntimeTimelineDriver({
+  reduceMotion = false,
+  progressSource,
+  handoffProgressSource,
+  handoffTarget,
+  timeline,
+  snapController,
+  getReportedMilestones = () => ({})
+} = {}) {
+  if (!timeline || typeof timeline.update !== 'function') return { destroy() {} };
+
+  let raf = 0;
+  let destroyed = false;
+
+  const readProgress = () => {
+    if (reduceMotion) return { progress: 1, handoffProgress: 1 };
+    const progress = typeof progressSource === 'function' ? progressSource() : 0;
+    const handoffProgress = typeof handoffProgressSource === 'function' ? handoffProgressSource() : progress;
+    return {
+      progress: clamp(progress),
+      handoffProgress: clamp(handoffProgress)
+    };
+  };
+
+  const update = () => {
+    const { progress, handoffProgress } = readProgress();
+    timeline.update(Math.max(progress, handoffProgress), {
+      reason: 'runtime-frame',
+      milestones: {
+        targetReady: Boolean(handoffTarget),
+        playbackComplete: progress >= 0.998,
+        runtimeHandoffComplete: Boolean(snapController?.timelinePresented),
+        ...getReportedMilestones()
+      }
+    });
+  };
+
+  const tick = () => {
+    if (destroyed) return;
+    update();
+    raf = requestAnimationFrame(tick);
+  };
+
+  if (reduceMotion) {
+    update();
+  } else {
+    tick();
+  }
+
+  return {
+    destroy() {
+      destroyed = true;
+      cancelAnimationFrame(raf);
+    }
+  };
+}
+
 async function createHomepageTransitionsRuntime({
   root = document,
   reduceMotion = false,
@@ -905,6 +962,19 @@ async function createHomepageTransitionsRuntime({
         ? snapController.postProgressSource.bind(snapController)
         : progressSource;
       const timeline = sceneTimeline.createAdapterContext(host);
+      const reportedMilestones = {};
+      const reportMilestone = (name, value = true) => {
+        if (name) reportedMilestones[name] = value;
+      };
+      cleanup.add(createRuntimeTimelineDriver({
+        reduceMotion,
+        progressSource,
+        handoffProgressSource,
+        handoffTarget,
+        timeline,
+        snapController,
+        getReportedMilestones: () => reportedMilestones
+      }));
       const adapterModule = await loadAdapter();
       const mount = adapterModule.mountHomepageTransition || adapterModule.mountPatternBloomTransition;
       if (typeof mount !== 'function') {
@@ -919,6 +989,7 @@ async function createHomepageTransitionsRuntime({
         handoffTarget,
         handoffProgressSource,
         timeline,
+        reportMilestone,
         addCleanup: cleanup.add,
         gsap,
         ScrollTrigger
