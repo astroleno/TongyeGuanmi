@@ -92,12 +92,12 @@ html.homepage-timeline-target-active .long-canvas {
 }
 
 .canvas-section--belief.is-pattern-bloom-pinned .belief-star-field.is-ready {
-  opacity: calc(var(--belief-transition-opacity, 0) * .88) !important;
+  opacity: 0 !important;
 }
 
 .canvas-section--belief.is-pattern-bloom-pinned .belief-star-wash,
 .canvas-section--belief.is-pattern-bloom-pinned::after {
-  opacity: var(--belief-transition-opacity, 0) !important;
+  opacity: 0 !important;
 }
 
 body.is-pattern-bloom-covering .hero-sticky,

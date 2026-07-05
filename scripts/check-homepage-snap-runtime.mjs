@@ -201,10 +201,12 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
   const tops = { hero: 0, reader: 1000, 'aod-animation': 2000, method: 3000 };
   window.scrollTo({ top: 1960 }); // reading scrolled near next animation top
   const calls = [];
+  const scrollToCalls = [];
   let completeSnap = null;
   const lenisLike = {
     velocity: 0,
     scrollTo(target, options = {}) {
+      scrollToCalls.push({ target, options });
       completeSnap = options.onComplete;
       window.scrollTo({ top: target });
     }
@@ -224,6 +226,8 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
   rt.handleScroll();
   await tick(30);
   assert(rt.getCurrentState().current === 'SnapAligning', 'reading exit enters snap aligning to next animation');
+  assert(scrollToCalls.some(call => call.target === 2000 && call.options?.force === true && call.options?.lock === true),
+    'reading exit snap force-locks Lenis so momentum cannot overrun the animation boundary');
   completeSnap?.();
   await tick(30);
   const armed = rt.getCurrentState();
@@ -235,6 +239,113 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
   await tick(40);
   assert(calls.length === 1 && calls[0].fromIndex === 1 && calls[0].toIndex === 2,
     `forward charge from reading boundary plays animation target, not next scene (got ${JSON.stringify(calls[0])})`);
+}
+
+// ---- rapid reading scroll cannot skip animation snap boundaries -------------
+{
+  const pairs = [
+    ['belief-star', 'aod-animation'],
+    ['method-lower', 'figure2-animation'],
+    ['brand', 'figure3-animation'],
+    ['services', 'ttg-animation'],
+    ['lab', 'ph-animation'],
+    ['philosophy', 'crane-animation']
+  ];
+
+  for (const [readerId, animationId] of pairs) {
+    const afterId = `${animationId}-after`;
+    const tops = { [readerId]: 0, [animationId]: 1000, [afterId]: 2000 };
+    const calls = [];
+    const scrollToCalls = [];
+    let completeSnap = null;
+    window.scrollTo({ top: 100 });
+    const lenisLike = {
+      velocity: 0,
+      scrollTo(target, options = {}) {
+        scrollToCalls.push({ target, options });
+        completeSnap = options.onComplete;
+        window.scrollTo({ top: target });
+      }
+    };
+    const rt = createHomepageSnapRuntime({
+      timeline: { scenes: [
+        { id: readerId, kind: 'reading' },
+        { id: animationId, kind: 'animation' },
+        { id: afterId, kind: 'reading' }
+      ] },
+      scrollController: lenisLike,
+      resolveSceneTop: (id) => tops[id],
+      scenePresenter: async (info) => { calls.push(info); }
+    });
+
+    rt.recalculateSceneBounds();
+    rt.handleScroll();
+    await tick(30);
+    assert(rt.getCurrentState().current === 'FreeScroll',
+      `${animationId}: starts in natural reading scroll before rapid input`);
+
+    lenisLike.velocity = 3;
+    window.scrollTo({ top: 1200 });
+    rt.handleScroll();
+    await tick(30);
+    assert(rt.getCurrentState().current === 'SnapAligning',
+      `${animationId}: rapid scroll crossing boundary enters SnapAligning, not ReadingScroll`);
+    assert(completeSnap && window.scrollY === 1000,
+      `${animationId}: rapid scroll is pulled back to animation top`);
+    assert(scrollToCalls.some(call => call.target === 1000 && call.options?.force === true && call.options?.lock === true),
+      `${animationId}: rapid boundary snap force-locks Lenis before arming`);
+
+    completeSnap?.();
+    await tick(30);
+    const armed = rt.getCurrentState();
+    assert(armed.current === 'SnappedArmed' && armed.currentSceneIndex === 0 && armed.targetSceneIndex === 1,
+      `${animationId}: rapid boundary arms reader -> animation target (got ${JSON.stringify(armed)})`);
+
+    rt.handleWheel({ deltaY: 80, deltaMode: 0 });
+    await tick(40);
+    assert(calls.length === 1 && calls[0].fromIndex === 0 && calls[0].toIndex === 1 && calls[0].direction === 1,
+      `${animationId}: charged playback runs the animation adapter (got ${JSON.stringify(calls[0])})`);
+  }
+}
+
+// ---- continuous input during snap is replayed after arming ------------------
+{
+  const tops = { reader: 0, 'aod-animation': 1000, after: 2000 };
+  window.scrollTo({ top: 100 });
+  const calls = [];
+  let completeSnap = null;
+  const lenisLike = {
+    velocity: 3,
+    scrollTo(target, options = {}) {
+      completeSnap = options.onComplete;
+      window.scrollTo({ top: target });
+    }
+  };
+  const rt = createHomepageSnapRuntime({
+    timeline: { scenes: [
+      { id: 'reader', kind: 'reading' },
+      { id: 'aod-animation', kind: 'animation' },
+      { id: 'after', kind: 'reading' }
+    ] },
+    scrollController: lenisLike,
+    resolveSceneTop: (id) => tops[id],
+    scenePresenter: async (info) => { calls.push(info); }
+  });
+
+  rt.recalculateSceneBounds();
+  rt.handleScroll();
+  await tick(30);
+  lenisLike.velocity = 3;
+  window.scrollTo({ top: 1200 });
+  rt.handleScroll();
+  await tick(30);
+  assert(rt.getCurrentState().current === 'SnapAligning', 'continuous input test enters SnapAligning at animation boundary');
+  assert(rt.handleWheel({ deltaY: 80, deltaMode: 0 }) === true,
+    'wheel input during SnapAligning is consumed and buffered');
+  completeSnap?.();
+  await tick(80);
+  assert(calls.length === 1 && calls[0].fromIndex === 0 && calls[0].toIndex === 1,
+    `buffered snap input triggers animation playback after arming (got ${JSON.stringify(calls[0])})`);
 }
 
 // ---- kind-based re-arm: animation re-arms + aligns + reverses ---------------
@@ -282,6 +393,15 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(Math.abs((window.scrollY || 0) - 1000) < 1e-9, `aligned to pattern-bloom top 1000 (got ${window.scrollY})`);
   assert(scrollToCalls.some(call => call.target === 1000 && call.options?.immediate === true && call.options?.force === true),
     'completion alignment forces stopped Lenis to committed scene top');
+  const cooldown = rt.getCurrentState();
+  assert(cooldown.current === 'ReleaseCooldown' && cooldown.isScrollLocked === true,
+    `animation re-arm cooldown stays scroll-locked (got ${JSON.stringify(cooldown)})`);
+  assert(document.body.style.overflow === 'hidden', 'animation re-arm cooldown keeps body overflow locked');
+  assert(lenisLike.stopped === true, 'animation re-arm cooldown keeps Lenis stopped');
+  const callsBeforeCooldownWheel = calls.length;
+  assert(rt.handleWheel({ deltaY: 80, deltaMode: 0 }) === true, 'cooldown wheel input is consumed');
+  await tick(40);
+  assert(calls.length === callsBeforeCooldownWheel, 'cooldown wheel input does not trigger next playback');
   await tick(500); // cooldown expiry (COOLDOWN_DURATION 420ms)
   assert(rt.getCurrentState().current === 'SnappedArmed', `animation scene re-arms after cooldown (got ${rt.getCurrentState().current})`);
   assert(rt.getCurrentScene() === 1, 're-armed AT pattern-bloom (index 1)');

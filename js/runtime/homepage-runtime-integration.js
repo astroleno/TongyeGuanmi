@@ -247,8 +247,18 @@ function createTransitionModuleSceneAdapter({
  */
 export function selectPlaybackAdapterScene({ scenes, fromIndex, toIndex, direction } = {}) {
   if (!Array.isArray(scenes)) return null;
-  const index = direction === -1 ? fromIndex : toIndex;
-  return scenes[index] || null;
+  const source = scenes[fromIndex] || null;
+  const target = scenes[toIndex] || null;
+
+  if (direction === -1) {
+    if (source?.kind === 'animation') return source;
+    if (target?.id === 'pattern-bloom') return target;
+    return source;
+  }
+
+  if (target?.kind === 'animation') return target;
+  if (source?.id === 'pattern-bloom') return source;
+  return target;
 }
 
 function findSceneById(scenes, id) {
@@ -303,6 +313,10 @@ export function selectTimelineJoinForPlayback({
   if (adapterIndex < 0) return null;
 
   if (direction === -1) return null;
+
+  if (adapterScene.id === 'pattern-bloom' && scenes[toIndex]?.id === 'pattern-bloom') {
+    return null;
+  }
 
   const fromScene = nearestPublicTimelineSceneId(scenes, adapterIndex - 1, -1);
   const explicitTargetScene = publicTimelineSceneId(adapterScene, scenes);
@@ -506,6 +520,10 @@ export function createHomepageRuntimeIntegration({
       await adapter.play({
         direction,
         frame,
+        fromIndex,
+        toIndex,
+        fromScene: scenes[fromIndex] || null,
+        toScene: scenes[toIndex] || null,
         recoveryHandler,
         ...(renderAdapterFrame ? { reportFrame: renderAdapterFrame } : {}),
         reportMilestone: (name, value = true) => reportTimelineMilestone(activePlayback, name, value)
@@ -627,19 +645,29 @@ export function createHomepageRuntimeIntegration({
     if (isDestroyed) return;
     syncStateToDom(newState, rootElement);
 
+    if (newState.isScrollLocked) {
+      document.body.style.overflow = 'hidden';
+      if (scrollController && scrollController.stop) scrollController.stop();
+    } else if (
+      newState.current === 'FreeScroll' ||
+      newState.current === 'ReadingScroll' ||
+      newState.current === 'ReleaseCooldown'
+    ) {
+      document.body.style.overflow = '';
+      if (scrollController && scrollController.start) scrollController.start();
+    }
+
     switch (newState.current) {
       case 'SnappedArmed':
         if (chargeIndicator) chargeIndicator.show();
-        break;
-      case 'Playing':
-        if (scrollController && scrollController.stop) scrollController.stop();
         break;
       case 'Completing':
         if (chargeIndicator) chargeIndicator.fadeOut();
         break;
       case 'ReleaseCooldown':
+        if (chargeIndicator) chargeIndicator.hide();
+        break;
       case 'FreeScroll':
-        if (scrollController && scrollController.start) scrollController.start();
         if (chargeIndicator) chargeIndicator.hide();
         break;
     }

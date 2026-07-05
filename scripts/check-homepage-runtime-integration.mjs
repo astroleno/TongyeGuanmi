@@ -16,6 +16,8 @@ import { fileURLToPath, pathToFileURL } from 'url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const integrationSource = readFileSync(join(ROOT, 'js/runtime/homepage-runtime-integration.js'), 'utf8');
 const indexHtml = readFileSync(join(ROOT, 'index.html'), 'utf8');
+const canvasStageCss = readFileSync(join(ROOT, 'css/sections/canvas-stage.css'), 'utf8');
+const continuityCss = readFileSync(join(ROOT, 'css/components/homepage-continuity.css'), 'utf8');
 const { homepageTimeline: builtHomepageTimeline } = await import(
   pathToFileURL(join(ROOT, 'js/transitions/homepage/scene-timeline-manifest.js')).href
 );
@@ -74,8 +76,18 @@ assert(
 );
 
 assert(
+  selectPlaybackAdapterScene({ scenes, fromIndex: 1, toIndex: 2, direction: 1 })?.id === 'pattern-bloom',
+  'forward pattern-bloom -> belief-star uses source pattern adapter'
+);
+
+assert(
   selectPlaybackAdapterScene({ scenes, fromIndex: 1, toIndex: 0, direction: -1 })?.id === 'pattern-bloom',
   'reverse pattern-bloom -> hero uses source animation adapter'
+);
+
+assert(
+  selectPlaybackAdapterScene({ scenes, fromIndex: 2, toIndex: 1, direction: -1 })?.id === 'pattern-bloom',
+  'reverse belief-star -> pattern-bloom uses target pattern adapter'
 );
 
 assert(
@@ -103,6 +115,30 @@ assert(
     joins
   })?.id === 'belief-method',
   'aod-animation maps to SceneTimeline join belief-method'
+);
+
+assert(
+  selectTimelineJoinForPlayback({
+    scenes: joinScenes,
+    fromIndex: 0,
+    toIndex: 1,
+    direction: 1,
+    adapterScene: joinScenes[1],
+    joins
+  }) === null,
+  'hero -> pattern-bloom does not present belief through home-belief'
+);
+
+assert(
+  selectTimelineJoinForPlayback({
+    scenes: joinScenes,
+    fromIndex: 1,
+    toIndex: 2,
+    direction: 1,
+    adapterScene: joinScenes[1],
+    joins
+  })?.id === 'home-belief',
+  'pattern-bloom -> belief-star owns the home-belief SceneTimeline join'
 );
 
 assert(
@@ -197,6 +233,12 @@ assert(
 );
 
 assert(
+  /if \(newState\.isScrollLocked\) \{[\s\S]*?document\.body\.style\.overflow = 'hidden';[\s\S]*?scrollController\.stop/.test(integrationSource)
+    && /newState\.current === 'ReadingScroll'[\s\S]*?document\.body\.style\.overflow = '';[\s\S]*?scrollController\.start/.test(integrationSource),
+  'default snap runtime stops Lenis and locks overflow for SnapAligning/SnappedArmed so rapid momentum cannot overrun animation snap points'
+);
+
+assert(
   integrationSource.includes('function createTransitionModuleSceneAdapter')
     && integrationSource.includes('TRANSITION_MODULE_SCENE_ADAPTERS')
     && integrationSource.includes("'ttg-animation': { moduleName: 'ttg'")
@@ -266,6 +308,21 @@ const missingBuiltSceneHosts = builtHomepageTimeline.scenes
 assert(
   missingBuiltSceneHosts.length === 0,
   `built index.html has a data-scene-id host for every homepageTimeline scene (missing: ${missingBuiltSceneHosts.join(', ') || 'none'})`
+);
+
+assert(
+  /\.canvas-section--belief\[data-scene-state="presented"\]\s+\.belief-star-field\.is-ready\s*\{[\s\S]*?opacity:\s*\.88/.test(canvasStageCss)
+    && /\.canvas-section--belief\.is-pattern-bloom-pinned\s+\.belief-star-field\.is-ready\s*\{[\s\S]*?opacity:\s*0/.test(canvasStageCss)
+    && /\.canvas-section--belief\.is-pattern-bloom-pinned\s+\.belief-star-field\.is-ready\s*\{[\s\S]*?opacity:\s*0\s*!important/.test(continuityCss)
+    && !/(^|\n)\s*\.belief-star-field\.is-ready\s*\{[\s\S]*?opacity:\s*\.88/.test(canvasStageCss),
+  'belief native star-map must be visible only after Director presents belief, not during pattern pin'
+);
+
+assert(
+  /\.belief-star-wash\s*\{[\s\S]*?opacity:\s*0/.test(canvasStageCss)
+    && /\.canvas-section--belief\[data-scene-state="presented"\]\s+\.belief-star-wash\s*\{[\s\S]*?opacity:\s*1/.test(canvasStageCss)
+    && /\.canvas-section--belief\.is-pattern-bloom-pinned\s+\.belief-star-wash,[\s\S]*?opacity:\s*0\s*!important/.test(continuityCss),
+  'belief star-map wash must stay hidden until belief is presented'
 );
 
 console.log(`homepage-runtime-integration: ${pass} passed, ${fail} failed`);

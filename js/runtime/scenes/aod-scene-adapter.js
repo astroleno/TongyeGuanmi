@@ -24,10 +24,12 @@
  */
 
 import { renderAodTransitionProgress, prepareAodTransition, waitForAodTransitionMetadata } from '../../components/aod-transition.js';
+import { createTimedProgressDriver } from '../timed-progress-driver.js';
 
 const AOD_SECTION_SELECTOR = '[data-aod-transition]';
 // Render layers from real playback time without ever writing currentTime.
 const NO_SEEK = { minDeltaSeconds: Infinity };
+const DEFAULT_FALLBACK_PLAYBACK_MS = 2600;
 
 function report(reportMilestone, name, value = true) {
   if (typeof reportMilestone === 'function') reportMilestone(name, value);
@@ -46,7 +48,9 @@ function report(reportMilestone, name, value = true) {
 export function createAodSceneAdapter({
   host,
   reduceMotion = false,
-  playbackStallTimeoutMs = 1800,
+  playbackStallTimeoutMs = 4800,
+  stallFallback = true,
+  fallbackPlaybackMs = DEFAULT_FALLBACK_PLAYBACK_MS,
   getRecoveryHandler = () => null,
   deps = {}
 } = {}) {
@@ -57,6 +61,7 @@ export function createAodSceneAdapter({
   const now = deps.now || (() => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
   // mountMarkup lets tests inject a section+fake video without real DOM/WebM.
   const mountMarkup = deps.mountMarkup || defaultMountMarkup;
+  const createDriver = deps.createDriver || createTimedProgressDriver;
 
   let section = null;
   let video = null;
@@ -112,12 +117,34 @@ export function createAodSceneAdapter({
     renderAodTransitionProgress(section, progress, NO_SEEK);
   }
 
+  function renderFallback(frame) {
+    if (!section) return;
+    const nextProgress = typeof frame === 'number' ? frame : frame?.progress;
+    progress = Math.min(1, Math.max(0, Number.isFinite(nextProgress) ? nextProgress : 0));
+    renderAodTransitionProgress(section, progress);
+  }
+
   function emitFrame(nextProgress, reason = 'aod-frame') {
     if (typeof activeReportFrame === 'function') {
       activeReportFrame(nextProgress, reason);
     } else {
       render(nextProgress);
     }
+  }
+
+  function emitFallbackFrame(nextProgress, reason = 'aod-fallback-frame') {
+    if (typeof activeReportFrame === 'function') activeReportFrame(nextProgress, reason);
+    renderFallback(nextProgress);
+  }
+
+  async function playStallFallback(fromProgress) {
+    try { video?.pause?.(); } catch { /* noop */ }
+    const driver = createDriver({
+      durationMs: fallbackPlaybackMs,
+      onProgress: (p) => emitFallbackFrame(p)
+    });
+    await driver.play({ from: fromProgress, to: 1, direction: 1 });
+    emitFallbackFrame(1, 'aod-fallback-complete');
   }
 
   /**
@@ -182,17 +209,17 @@ export function createAodSceneAdapter({
       await (playWatch ? Promise.all([playPromise, playWatch]) : playPromise);
 
       // Drive layers from real time until the video ends.
-      await new Promise((resolve, reject) => {
+      const playbackResult = await new Promise((resolve, reject) => {
         let settled = false;
         let lastProgress = playbackProgress() || 0;
         let lastProgressAt = now();
-        const finish = (ok, err) => {
+        const finish = (ok, err, result = null) => {
           if (settled) return;
           settled = true;
           stopLoop();
           video.removeEventListener('ended', onEnded);
           video.removeEventListener('error', onError);
-          ok ? resolve() : reject(err);
+          ok ? resolve(result) : reject(err);
         };
         const onEnded = () => { emitFrame(1, 'aod-ended'); finish(true); };
         const onError = () => finish(false, new Error('aod: video error during playback'));
@@ -208,7 +235,13 @@ export function createAodSceneAdapter({
             lastProgress = nextProgress;
             lastProgressAt = now();
           } else if (now() - lastProgressAt > playbackStallTimeoutMs) {
-            finish(false, new Error(`aod: playback stalled for ${playbackStallTimeoutMs}ms`));
+            if (stallFallback) {
+              finish(true, null, {
+                fallbackFrom: Math.max(progress, lastProgress, nextProgress || 0)
+              });
+            } else {
+              finish(false, new Error(`aod: playback stalled for ${playbackStallTimeoutMs}ms`));
+            }
             return;
           }
           // Safety: some browsers fire 'ended' unreliably; treat >=~end as done.
@@ -222,7 +255,12 @@ export function createAodSceneAdapter({
         rafId = raf(loop);
       });
 
-      emitFrame(1, 'aod-complete');
+      if (Number.isFinite(playbackResult?.fallbackFrom)) {
+        report(reportMilestone, 'mediaFallback');
+        await playStallFallback(playbackResult.fallbackFrom);
+      } else {
+        emitFrame(1, 'aod-complete');
+      }
       report(reportMilestone, 'playbackComplete');
       return { status: 'complete' };
     } finally {

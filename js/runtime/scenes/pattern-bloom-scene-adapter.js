@@ -23,6 +23,7 @@ import { createTimedProgressDriver } from '../timed-progress-driver.js';
 import { mountPatternBloomTransition } from '../../transitions/pattern-bloom-adapter.js';
 
 const DEFAULT_DURATION_MS = 1600;
+const PATTERN_SCENE_PROGRESS = 0.80;
 
 function report(reportMilestone, name, value = true) {
   if (typeof reportMilestone === 'function') reportMilestone(name, value);
@@ -62,6 +63,11 @@ export function createPatternBloomSceneAdapter({
     }
   }
 
+  function waitForVisualFrame() {
+    if (typeof requestAnimationFrame !== 'function') return Promise.resolve();
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
   // Driver owns playback timing; the Director turns reported progress into a
   // SceneTimelineFrame before calling render(frame).
   const driver = createDriver({
@@ -83,23 +89,51 @@ export function createPatternBloomSceneAdapter({
     addCleanup: () => {}
   });
 
+  function playbackRange({ direction, fromScene, toScene } = {}) {
+    const fromId = fromScene?.id;
+    const toId = toScene?.id;
+
+    if (direction === -1) {
+      if (fromId === 'belief-star' && toId === 'pattern-bloom') {
+        return { from: 1, to: PATTERN_SCENE_PROGRESS };
+      }
+      if (fromId === 'pattern-bloom' && toId === 'hero') {
+        return { from: PATTERN_SCENE_PROGRESS, to: 0 };
+      }
+      return { from: 1, to: 0 };
+    }
+
+    if (toId === 'pattern-bloom') {
+      return { from: 0, to: PATTERN_SCENE_PROGRESS };
+    }
+    if (fromId === 'pattern-bloom' && toId === 'belief-star') {
+      return { from: PATTERN_SCENE_PROGRESS, to: 1 };
+    }
+    return { from: 0, to: 1 };
+  }
+
   return {
     /**
      * Play the transition on its own clock. direction: 1 forward, -1 reverse.
      * Resolves when presented (or when superseded/cancelled — runtime treats
      * both as "done driving").
      */
-    async play({ direction = 1, reportMilestone, reportFrame } = {}) {
+    async play({ direction = 1, fromScene, toScene, reportMilestone, reportFrame } = {}) {
       activeReportFrame = reportFrame;
       report(reportMilestone, 'targetReady');
+      const range = playbackRange({ direction, fromScene, toScene });
       if (reduceMotion) {
         // Skip the ramp: jump to terminal state (plan reduced-motion contract).
-        emitFrame(direction === -1 ? 0 : 1, 'pattern-bloom-reduced-motion');
+        emitFrame(range.to, 'pattern-bloom-reduced-motion');
+        await waitForVisualFrame();
         report(reportMilestone, 'playbackComplete');
         activeReportFrame = null;
         return { status: 'complete' };
       }
-      await driver.play({ direction });
+      const span = Math.max(0.001, Math.abs(range.to - range.from));
+      await driver.play({ direction, ...range, durationMs: durationMs / span });
+      emitFrame(range.to, 'pattern-bloom-complete');
+      await waitForVisualFrame();
       report(reportMilestone, 'playbackComplete');
       activeReportFrame = null;
       return { status: 'complete' };

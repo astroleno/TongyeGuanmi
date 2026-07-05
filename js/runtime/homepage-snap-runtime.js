@@ -129,6 +129,37 @@ function getSnapSourceSceneIndex(context, targetIndex) {
   return targetIndex;
 }
 
+function findCrossedAnimationSnapBoundary(context, fromScrollY, toScrollY) {
+  if (!Number.isFinite(fromScrollY) || !Number.isFinite(toScrollY) || fromScrollY === toScrollY) {
+    return null;
+  }
+
+  const scenes = Array.isArray(context.timeline?.scenes)
+    ? context.timeline.scenes
+    : [];
+  const direction = toScrollY > fromScrollY ? 1 : -1;
+
+  if (direction === 1) {
+    for (let i = 1; i < scenes.length; i++) {
+      if (!isReadingToAnimationBoundary(context, i - 1, i)) continue;
+      const boundaryY = context.getSceneBounds(i)?.start;
+      if (Number.isFinite(boundaryY) && fromScrollY < boundaryY && toScrollY >= boundaryY) {
+        return { currentSceneIndex: i - 1, targetSceneIndex: i };
+      }
+    }
+    return null;
+  }
+
+  for (let i = scenes.length - 1; i >= 1; i--) {
+    if (scenes[i]?.kind !== 'animation') continue;
+    const boundaryY = context.getSceneBounds(i)?.start;
+    if (Number.isFinite(boundaryY) && fromScrollY > boundaryY && toScrollY <= boundaryY) {
+      return { currentSceneIndex: i, targetSceneIndex: i };
+    }
+  }
+  return null;
+}
+
 function getChargeTargetSceneIndex(state, direction, context) {
   const hasPendingForwardBoundary = isReadingToAnimationBoundary(
     context,
@@ -168,6 +199,21 @@ function reduceState(state, action, context) {
       // Programmatic JS-snap can emit high Lenis velocity while SnapAligning;
       // that must not cancel the snap before its onComplete fires.
       const canEnterReadingBypass = state.current === State.FreeScroll || state.current === State.ReadingScroll;
+      if (canEnterReadingBypass) {
+        const crossedAnimationBoundary = findCrossedAnimationSnapBoundary(context, state.scrollY, scrollY);
+        if (crossedAnimationBoundary) {
+          return transitionTo(
+            {
+              ...nextState,
+              currentSceneIndex: crossedAnimationBoundary.currentSceneIndex,
+              targetSceneIndex: crossedAnimationBoundary.targetSceneIndex
+            },
+            State.SnapAligning,
+            now
+          );
+        }
+      }
+
       if (canEnterReadingBypass && Math.abs(velocity) > CONFIG.RAPID_SCROLL_VELOCITY) {
         if (state.current !== State.ReadingScroll) {
           return transitionTo(nextState, State.ReadingScroll, now);
@@ -353,8 +399,11 @@ function transitionTo(state, nextState, now) {
 
     case State.FreeScroll:
     case State.ReadingScroll:
-    case State.ReleaseCooldown:
       newState.isScrollLocked = false;
+      break;
+
+    case State.ReleaseCooldown:
+      newState.isScrollLocked = newState.releaseMode === 'rearm';
       break;
   }
 
@@ -530,6 +579,8 @@ export function createHomepageSnapRuntime({
           ? (t) => t
           : (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
         immediate: prefersReducedMotion,
+        force: true,
+        lock: true,
         onComplete: () => {
           dispatch({ type: 'SNAP_COMPLETE' });
         }
@@ -632,6 +683,7 @@ export function createHomepageSnapRuntime({
   let state = createInitialState(window.scrollY || 0);
   let rafId = null;
   let snapAnimationId = null;
+  let pendingSnapCharge = 0;
 
   /**
    * Dispatch action to state machine
@@ -666,7 +718,12 @@ export function createHomepageSnapRuntime({
     // Entry actions
     switch (current.current) {
       case State.SnapAligning:
+        pendingSnapCharge = 0;
         executeSnap(current.targetSceneIndex);
+        break;
+
+      case State.SnappedArmed:
+        flushPendingSnapCharge();
         break;
 
       case State.TriggeredPlayback:
@@ -736,6 +793,8 @@ export function createHomepageSnapRuntime({
           ? (t) => t
           : (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t, // easeInOutQuad
         immediate: prefersReducedMotion,
+        force: true,
+        lock: true,
         onComplete: () => {
           dispatch({ type: 'SNAP_COMPLETE' });
         }
@@ -848,18 +907,23 @@ export function createHomepageSnapRuntime({
       alignDocumentTo(targetY);
     }
 
-    // Unlock scroll
-    document.body.style.overflow = '';
-    if (scrollController && scrollController.start) {
-      scrollController.start();
-    }
-
     // Reset charge so a fresh arm starts from zero.
     charge.reset();
     onChargeProgress(0, 0);
 
     // Release: animation scenes re-arm (reversible), reading scenes free-scroll.
     const releaseMode = shouldRearmAfterComplete(committedScene) ? 'rearm' : 'free';
+    if (releaseMode === 'free') {
+      document.body.style.overflow = '';
+      if (scrollController && scrollController.start) {
+        scrollController.start();
+      }
+    } else {
+      document.body.style.overflow = 'hidden';
+      if (scrollController && scrollController.stop) {
+        scrollController.stop();
+      }
+    }
     dispatch({ type: 'RELEASE', payload: { releaseMode } });
   }
 
@@ -926,6 +990,27 @@ export function createHomepageSnapRuntime({
     return true;
   }
 
+  function queuePendingSnapCharge(normalizedDelta) {
+    if (state.current !== State.SnapAligning) return false;
+    if (normalizedDelta !== 0) {
+      pendingSnapCharge += normalizedDelta;
+      lastChargeInputTs = Date.now();
+    }
+    return true;
+  }
+
+  function flushPendingSnapCharge() {
+    if (pendingSnapCharge === 0) return;
+    const normalizedDelta = pendingSnapCharge;
+    pendingSnapCharge = 0;
+    const schedule = typeof requestAnimationFrame === 'function'
+      ? requestAnimationFrame
+      : (cb) => setTimeout(cb, 0);
+    schedule(() => schedule(() => {
+      if (state.current === State.SnappedArmed) feedCharge(normalizedDelta);
+    }));
+  }
+
   /**
    * Apply charge decay when the user pauses mid-charge (called each frame while armed).
    */
@@ -963,7 +1048,10 @@ export function createHomepageSnapRuntime({
    * @returns {boolean} true if consumed
    */
   function handleWheel(event) {
-    if (state.current !== State.SnappedArmed) return false;
+    if (state.current === State.SnapAligning) {
+      return queuePendingSnapCharge(normalizer.normalizeWheel(event));
+    }
+    if (state.current !== State.SnappedArmed) return state.isScrollLocked;
     return feedCharge(normalizer.normalizeWheel(event));
   }
 
@@ -973,7 +1061,10 @@ export function createHomepageSnapRuntime({
    * @returns {boolean} true if consumed
    */
   function handleTouch(pixelDelta) {
-    if (state.current !== State.SnappedArmed) return false;
+    if (state.current === State.SnapAligning) {
+      return queuePendingSnapCharge(normalizer.normalizeTouchMove({ pixelDelta }));
+    }
+    if (state.current !== State.SnappedArmed) return state.isScrollLocked;
     return feedCharge(normalizer.normalizeTouchMove({ pixelDelta }));
   }
 
@@ -983,7 +1074,12 @@ export function createHomepageSnapRuntime({
    * @returns {boolean} true if consumed
    */
   function handleKeyboard(event) {
-    if (state.current !== State.SnappedArmed) return false;
+    if (state.current === State.SnapAligning) {
+      const pendingDelta = normalizer.normalizeKeyboard(event);
+      if (pendingDelta === 0) return false;
+      return queuePendingSnapCharge(pendingDelta);
+    }
+    if (state.current !== State.SnappedArmed) return state.isScrollLocked;
     const delta = normalizer.normalizeKeyboard(event);
     if (delta === 0) return false;
     return feedCharge(delta);
@@ -1017,6 +1113,7 @@ export function createHomepageSnapRuntime({
 
     // Reset charge tank
     charge.reset();
+    pendingSnapCharge = 0;
     onChargeProgress(0, 0);
 
     // Unlock scroll

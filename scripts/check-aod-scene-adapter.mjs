@@ -6,8 +6,9 @@
  *  1. play() awaits video.play() then completes on the `ended` event
  *  2. play() rejection (autoplay/decode failure) propagates -> runtime recovers
  *  3. `ended` never firing -> time-based safety completes (no wedge)
- *  4. stalled playback rejects instead of holding the Director in Playing
- *  5. currentTime is written ONLY on prepare/reset (to 0), NEVER per frame
+ *  4. stalled playback can fall back to a time-driven scrub instead of blank recovery
+ *  5. stalled playback can still reject when fallback is disabled
+ *  6. currentTime is written ONLY on prepare/reset (to 0), NEVER per frame
  *     (i.e. the main path does not scrub the webm — seekPolicy: reset-only)
  *
  * No real DOM/WebGL/WebM: a fake section+video are injected via deps.mountMarkup
@@ -210,6 +211,7 @@ function makePump() {
   const adapter = createAodSceneAdapter({
     host,
     playbackStallTimeoutMs: 30,
+    stallFallback: false,
     deps: {
       mountMarkup: (h) => h._section,
       raf: pump.raf,
@@ -225,6 +227,49 @@ function makePump() {
   nowMs = 50; await pump.run(1);
   await p;
   assert(rejected, 'stalled playback rejects instead of wedging Playing');
+}
+
+// ---- 6. default stalled playback falls back to time-driven scrub ------------
+{
+  const { host, writes } = makeFakeSection({ playBehavior: 'resolve' });
+  const pump = makePump();
+  let nowMs = 0;
+  const milestones = [];
+  const adapter = createAodSceneAdapter({
+    host,
+    playbackStallTimeoutMs: 30,
+    deps: {
+      mountMarkup: (h) => h._section,
+      raf: pump.raf,
+      caf: pump.caf,
+      now: () => nowMs,
+      createDriver: (opts) => ({
+        async play() {
+          opts.onProgress(0.5);
+          opts.onProgress(1);
+          return { completed: true };
+        },
+        cancel() {},
+        getProgress: () => 1,
+        isRunning: () => false
+      })
+    }
+  });
+  await adapter.showFirstFrame();
+  const writesAfterPrep = writes.length;
+  let done = false;
+  const p = adapter.play({
+    direction: 1,
+    reportMilestone: (name) => milestones.push(name)
+  }).then(() => { done = true; });
+  await microtask();
+  nowMs = 10; await pump.run(1);
+  nowMs = 50; await pump.run(1);
+  await p;
+  assert(done, 'stalled playback resolves through fallback by default');
+  assert(milestones.includes('mediaFallback'), 'fallback path reports mediaFallback milestone');
+  assert(writes.length > writesAfterPrep, 'fallback scrub writes currentTime only after live playback stalls');
+  assert(adapter.getProgress() === 1, 'fallback settles progress to 1');
 }
 
 // ---- reduced motion: terminal, no play ---------------------------------------

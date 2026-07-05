@@ -7,6 +7,13 @@ const smoothStep = (value) => value * value * (3 - 2 * value);
 
 const BELIEF_PIN_CLASS = 'is-pattern-bloom-pinned';
 const COVER_PRIOR_SCENE_CLASS = 'is-pattern-bloom-covering';
+const CENTER_INK = Object.freeze({ x: 0.50, y: 0.55, mobileX: 0.50, mobileY: 0.58 });
+const LEFT_INK = Object.freeze({ x: 0.24, y: 0.55, mobileX: 0.50, mobileY: 0.58 });
+const PATTERN_STATEMENT = Object.freeze({
+  eyebrow: ['一句话讲清', '我们干什么'].join(''),
+  headline: ['让 AI 从', '一场培训，', '变成账上的数字。'].join(''),
+  body: ['我们不卖课、不卖软件，', '而是进到你的业务现场，', '把 AI 做成团队天天在用、', '月底对得上账的东西。'].join('')
+});
 
 function readPhaseRange(phases, name, fallback) {
   const range = phases?.[name];
@@ -83,7 +90,20 @@ export function mountPatternBloomTransition({
   exitInkCanvas.className = 'pattern-bloom-transition__exit-ink';
   exitInkCanvas.setAttribute('aria-hidden', 'true');
 
-  stage.append(paper, canvas, exitInkCanvas, revealInkCanvas);
+  const statement = doc.createElement('div');
+  statement.className = 'pattern-bloom-transition__statement';
+  for (const [className, text] of [
+    ['pattern-bloom-transition__statement-eyebrow', PATTERN_STATEMENT.eyebrow],
+    ['pattern-bloom-transition__statement-headline', PATTERN_STATEMENT.headline],
+    ['pattern-bloom-transition__statement-body', PATTERN_STATEMENT.body]
+  ]) {
+    const line = doc.createElement('p');
+    line.className = className;
+    line.textContent = text;
+    statement.append(line);
+  }
+
+  stage.append(paper, canvas, statement, exitInkCanvas, revealInkCanvas);
   stage.dataset.transitionGhost = 'pattern-bloom-lotus';
   (doc.body || host).append(stage);
   const revealInkTransition = createInkSceneTransition(revealInkCanvas, {
@@ -95,8 +115,8 @@ export function mountPatternBloomTransition({
     progressSpan: 1,
     colorLift: 0.58,
     sceneBrightness: 1,
-    inkCenterX: 0.24,
-    inkCenterY: 0.55,
+    inkCenterX: CENTER_INK.x,
+    inkCenterY: CENTER_INK.y,
     transparentOutside: true
   });
   const exitInkTransition = createInkSceneTransition(exitInkCanvas, {
@@ -107,8 +127,8 @@ export function mountPatternBloomTransition({
     progressSpan: 0.94,
     colorLift: 0.52,
     sceneBrightness: 0.72,
-    inkCenterX: 0.24,
-    inkCenterY: 0.55,
+    inkCenterX: LEFT_INK.x,
+    inkCenterY: LEFT_INK.y,
     transparentOutside: true
   });
   const getViewportState = () => {
@@ -127,6 +147,7 @@ export function mountPatternBloomTransition({
     if (typeof progressSource !== 'function') return viewportState.progress;
     return clamp(progressSource());
   };
+  const hasExternalProgressSource = typeof progressSource === 'function';
   const phases = timeline?.join?.phases || {};
   const revealRange = readPhaseRange(phases, 'reveal', [0, 0.46]);
   const bloomRange = readPhaseRange(phases, 'bloom', [0.42, 0.70]);
@@ -144,10 +165,10 @@ export function mountPatternBloomTransition({
     scrollDrivenMotion: true,
     dprLimit: 1,
     center: {
-      x: 0.24,
-      y: 0.55,
-      mobileX: 0.50,
-      mobileY: 0.58
+      x: LEFT_INK.x,
+      y: LEFT_INK.y,
+      mobileX: LEFT_INK.mobileX,
+      mobileY: LEFT_INK.mobileY
     }
   });
 
@@ -190,7 +211,9 @@ export function mountPatternBloomTransition({
     if (destroyed) return;
     const viewportState = getViewportState();
     const progress = getRawProgress();
-    const overlayActive = progress > 0.002 && (progress < 0.999 || viewportState.raw < 1.05);
+    const overlayActive = progress > 0.002 && (
+      progress < 0.999 || (!hasExternalProgressSource && viewportState.raw < 1.05)
+    );
     const revealProgress = smoothStep(range01(progress, revealRange[0], revealRange[1]));
     const revealVisibility = revealProgress >= 0.998
       ? 1
@@ -219,6 +242,11 @@ export function mountPatternBloomTransition({
     const beliefSceneOpacity = targetOpacity * beliefPinBlend;
     const beliefCopyProgress = targetOpacity * beliefPinBlend;
     const lotusVisible = topSceneOpacity > 0.002;
+    const patternCopyEnter = smoothStep(range01(progress, bloomRange[1] - 0.06, secondRevealRange[0]));
+    const patternCopyExit = 1 - smoothStep(range01(progress, secondRevealRange[0], secondRevealEnd));
+    const patternCopyOpacity = lotusVisible
+      ? patternCopyEnter * patternCopyExit * Math.max(0, Math.min(lotusOpacity, sourceOpacity)) * (1 - beliefPinBlend)
+      : 0;
 
     const coverPriorScene = overlayActive && sceneReady && (lotusVisible || secondRevealVisibility > 0.002 || beliefPinned);
     doc.body?.classList.toggle(COVER_PRIOR_SCENE_CLASS, coverPriorScene);
@@ -235,6 +263,9 @@ export function mountPatternBloomTransition({
     paper.style.visibility = 'hidden';
     canvas.style.opacity = lotusVisible ? topSceneOpacity.toFixed(4) : '0';
     canvas.style.visibility = lotusVisible ? 'visible' : 'hidden';
+    statement.style.opacity = patternCopyOpacity.toFixed(4);
+    statement.style.visibility = patternCopyOpacity > 0.002 ? 'visible' : 'hidden';
+    statement.style.setProperty('--pattern-statement-y', `${((1 - patternCopyEnter) * 18).toFixed(2)}px`);
     revealInkTransition?.render(revealProgress, 0, 0, sceneReady ? revealVisibility : 0);
     exitInkTransition?.render(secondRevealProgress, 0, 0, secondRevealVisibility, {
       perlinStrength: 0.40,
