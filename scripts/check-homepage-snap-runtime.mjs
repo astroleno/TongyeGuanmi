@@ -72,9 +72,11 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 {
   const states = [];
   const calls = [];
+  const completions = [];
   const rt = createHomepageSnapRuntime({
     timeline: { scenes: [{ id: 'hero' }, { id: 'pattern-bloom' }, { id: 'belief-star' }] },
     scenePresenter: async (info) => { calls.push(info); },
+    onCompletePlayback: (info) => { completions.push(info); },
     onStateChange: (s) => states.push(s.current)
   });
   rt.handleScroll();
@@ -88,6 +90,7 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(calls.length === 1 && calls[0].direction === 1 && calls[0].toIndex === 1, 'forward playback to next scene');
   await tick(40);
   assert(rt.getCurrentScene() === 1, 'scene commits after completion');
+  assert(completions.length === 1 && completions[0].toIndex === 1, 'Director calls completion hook in Completing');
   assert(document.body.style.overflow === '', 'scroll unlocked after completion');
   assert(states.join(' ').includes('TriggeredPlayback') && states.join(' ').includes('Completing'), 'passes through TriggeredPlayback + Completing');
 }

@@ -1011,5 +1011,6 @@ export const homepageSceneDomMap = [
   { sceneId: 'figure2-proof-cards', selector: '.method-proof__list', mode: 'anchor' },
   { sceneId: 'figure2-proof-closing', selector: '.method-proof__scene--closing', mode: 'anchor' },
   { sceneId: 'brand', selector: '.canvas-section--brand', mode: 'section' },
+  { sceneId: 'figure3-animation', selector: '[data-transition-id="brand-services"]', mode: 'host' },
   { sceneId: 'services', selector: '#services', mode: 'section' }
 ];

@@ -13,7 +13,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const { selectPlaybackAdapterScene } = await import(
+const { selectPlaybackAdapterScene, selectTimelineJoinForPlayback } = await import(
   pathToFileURL(join(ROOT, 'js/runtime/homepage-runtime-integration.js')).href
 );
 
@@ -34,6 +34,22 @@ const scenes = [
   { id: 'belief-star', kind: 'reading' },
   { id: 'aod-animation', kind: 'animation' },
   { id: 'method-upper', kind: 'reading' }
+];
+
+const joinScenes = [
+  { id: 'hero', kind: 'reading', publicSectionId: 'home' },
+  { id: 'pattern-bloom', kind: 'animation' },
+  { id: 'belief-star', kind: 'reading', publicSectionId: 'belief' },
+  { id: 'aod-animation', kind: 'animation', copy: { targetScene: 'method-upper' } },
+  { id: 'method-upper', kind: 'reading', publicSectionId: 'method' },
+  { id: 'brand', kind: 'reading', publicSectionId: 'brand' },
+  { id: 'figure3-animation', kind: 'animation', copy: { targetScene: 'services' } },
+  { id: 'services', kind: 'reading', publicSectionId: 'services' }
+];
+const joins = [
+  { id: 'home-belief', fromScene: 'home', toScene: 'belief' },
+  { id: 'belief-method', fromScene: 'belief', toScene: 'method' },
+  { id: 'brand-services', fromScene: 'brand', toScene: 'services' }
 ];
 
 assert(
@@ -59,6 +75,30 @@ assert(
 assert(
   selectPlaybackAdapterScene({ scenes: null, fromIndex: 1, toIndex: 0, direction: -1 }) === null,
   'missing scene list returns null'
+);
+
+assert(
+  selectTimelineJoinForPlayback({
+    scenes: joinScenes,
+    fromIndex: 2,
+    toIndex: 3,
+    direction: 1,
+    adapterScene: joinScenes[3],
+    joins
+  })?.id === 'belief-method',
+  'aod-animation maps to SceneTimeline join belief-method'
+);
+
+assert(
+  selectTimelineJoinForPlayback({
+    scenes: joinScenes,
+    fromIndex: 5,
+    toIndex: 6,
+    direction: 1,
+    adapterScene: joinScenes[6],
+    joins
+  })?.id === 'brand-services',
+  'figure3-animation maps to SceneTimeline join brand-services'
 );
 
 console.log(`homepage-runtime-integration: ${pass} passed, ${fail} failed`);

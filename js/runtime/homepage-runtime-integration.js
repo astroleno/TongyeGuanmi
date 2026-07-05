@@ -14,13 +14,18 @@
  * those live in the dedicated, unit-tested runtime modules.
  */
 
-import { homepageTimeline } from '../transitions/homepage/scene-timeline-manifest.js';
+import {
+  homepageTimeline,
+  timelineJoins
+} from '../transitions/homepage/scene-timeline-manifest.js';
+import { createSceneTimelineController } from '../transitions/homepage/scene-timeline-controller.js';
 import { createHomepageSnapRuntime } from './homepage-snap-runtime.js';
 import { createChargeIndicator } from './charge-indicator.js';
 import { createRecoveryHandler } from './recovery-handler.js';
 import { createPatternBloomSceneAdapter } from './scenes/pattern-bloom-scene-adapter.js';
 import { createAodSceneAdapter } from './scenes/aod-scene-adapter.js';
 import { createFigure2SceneAdapter } from './scenes/figure2-scene-adapter.js';
+import { createFigure3SceneAdapter } from './scenes/figure3-scene-adapter.js';
 
 const CONFIG = {
   VIEWPORT_CHANGE_THRESHOLD_PX: 100, // mobile address-bar detection
@@ -70,6 +75,67 @@ export function selectPlaybackAdapterScene({ scenes, fromIndex, toIndex, directi
   return scenes[index] || null;
 }
 
+function findSceneById(scenes, id) {
+  return Array.isArray(scenes) ? scenes.find((scene) => scene.id === id) || null : null;
+}
+
+function sceneIndexOf(scenes, scene) {
+  if (!Array.isArray(scenes) || !scene) return -1;
+  return scenes.findIndex((entry) => entry.id === scene.id);
+}
+
+function publicTimelineSceneId(scene, scenes) {
+  if (!scene) return null;
+  if (scene.publicSectionId) return scene.publicSectionId;
+  if (scene.copy?.targetScene) {
+    return publicTimelineSceneId(findSceneById(scenes, scene.copy.targetScene), scenes);
+  }
+  return null;
+}
+
+function nearestPublicTimelineSceneId(scenes, startIndex, step) {
+  if (!Array.isArray(scenes) || step === 0) return null;
+  for (let i = startIndex; i >= 0 && i < scenes.length; i += step) {
+    const id = publicTimelineSceneId(scenes[i], scenes);
+    if (id) return id;
+  }
+  return null;
+}
+
+/**
+ * Map a snap-runtime playback scene (e.g. aod-animation) back to the homepage
+ * SceneTimeline join whose target copy must be owned/presented by Director.
+ */
+export function selectTimelineJoinForPlayback({
+  scenes,
+  fromIndex,
+  toIndex,
+  direction,
+  adapterScene,
+  joins = timelineJoins
+} = {}) {
+  if (!Array.isArray(scenes) || !Array.isArray(joins) || !adapterScene) return null;
+
+  const adapterIndex = sceneIndexOf(scenes, adapterScene);
+  if (adapterIndex < 0) return null;
+
+  const fromScene = nearestPublicTimelineSceneId(scenes, adapterIndex - 1, -1);
+  const explicitTargetScene = publicTimelineSceneId(adapterScene, scenes);
+  const toScene = explicitTargetScene
+    || nearestPublicTimelineSceneId(scenes, adapterIndex + 1, 1);
+
+  return joins.find((join) => join.fromScene === fromScene && join.toScene === toScene)
+    || joins.find((join) => {
+      const forwardSource = publicTimelineSceneId(scenes[fromIndex], scenes);
+      const forwardTarget = publicTimelineSceneId(scenes[toIndex], scenes);
+      return join.fromScene === forwardSource && join.toScene === forwardTarget;
+    })
+    || (direction === -1
+      ? joins.find((join) => join.fromScene === toScene && join.toScene === fromScene)
+      : null)
+    || null;
+}
+
 /**
  * Create integrated homepage runtime.
  * @param {Object} options
@@ -92,6 +158,7 @@ export function createHomepageRuntimeIntegration({
   // runtime is inert when this is empty. Indices below are into activeScenes.
   const scenes = homepageTimeline.scenes.filter((s) => resolveSceneElement(s.id));
   let isDestroyed = false;
+  const sceneTimeline = createSceneTimelineController({ root: document });
 
   // Real document top of a scene's DOM host (for DOM-driven snap bounds).
   function resolveSceneTop(sceneId) {
@@ -113,6 +180,33 @@ export function createHomepageRuntimeIntegration({
   // if the target scene has no DOM host, it REJECTS so the runtime routes to
   // recovery rather than silently "completing" a scene that isn't there.
   let recoveryHandler = null;
+  let activePlayback = null;
+
+  function reportTimelineMilestone(playback, name, value = true) {
+    if (!playback?.join || !name) return null;
+    playback.milestones[name] = value;
+    return sceneTimeline.updateFrame(playback.join.id, playback.frame?.progress || 0, {
+      direction: playback.direction,
+      milestones: playback.milestones,
+      reason: `director-milestone:${name}`
+    });
+  }
+
+  function completeTimelinePlayback(reason = 'director-completing') {
+    const playback = activePlayback;
+    if (!playback?.join) return null;
+
+    sceneTimeline.commitTarget(playback.join.id, reason);
+    const presentedFrame = sceneTimeline.presentTarget(playback.join.id, reason);
+    const releasedFrame = sceneTimeline.cleanupJoin(playback.join.id, reason);
+    activePlayback = null;
+    return releasedFrame || presentedFrame;
+  }
+
+  function recoverTimelinePlayback(reason = 'director-recovery') {
+    if (!activePlayback?.join) return null;
+    return completeTimelinePlayback(reason);
+  }
 
   async function scenePresenter({ fromIndex, toIndex, direction, scene }) {
     const target = scene || scenes[toIndex];
@@ -136,7 +230,32 @@ export function createHomepageRuntimeIntegration({
 
     const adapter = adapterScene ? sceneAdapters.get(adapterScene.id) : null;
     if (adapter && typeof adapter.play === 'function') {
-      await adapter.play({ direction, recoveryHandler });
+      const join = selectTimelineJoinForPlayback({
+        scenes,
+        fromIndex,
+        toIndex,
+        direction,
+        adapterScene
+      });
+      const frame = join
+        ? sceneTimeline.beginJoin(join.id, { direction, reason: 'director-playing' })
+        : null;
+      activePlayback = join ? {
+        join,
+        frame,
+        direction,
+        fromIndex,
+        toIndex,
+        adapterSceneId: adapterScene.id,
+        milestones: {}
+      } : null;
+
+      await adapter.play({
+        direction,
+        frame,
+        recoveryHandler,
+        reportMilestone: (name, value = true) => reportTimelineMilestone(activePlayback, name, value)
+      });
     }
 
     if (adapterEl && adapterEl !== el) {
@@ -182,6 +301,14 @@ export function createHomepageRuntimeIntegration({
     }));
   }
 
+  const figure3El = resolveSceneElement('figure3-animation');
+  if (figure3El) {
+    sceneAdapters.set('figure3-animation', createFigure3SceneAdapter({
+      host: figure3El,
+      reduceMotion
+    }));
+  }
+
   // ---- runtime --------------------------------------------------------------
   const runtime = createHomepageSnapRuntime({
     timeline: { scenes },
@@ -190,6 +317,7 @@ export function createHomepageRuntimeIntegration({
     resolveSceneTop,
     onStateChange: handleStateChange,
     onError: handleError,
+    onCompletePlayback: () => completeTimelinePlayback('director-completing'),
     onChargeProgress: handleChargeProgress
   });
 
@@ -203,6 +331,7 @@ export function createHomepageRuntimeIntegration({
     },
     onRecover: async (failedScene, reason) => {
       // Present terminal state of the target scene; never block scroll.
+      recoverTimelinePlayback('director-recovery');
       const idx = runtime.getCurrentState().targetSceneIndex;
       const target = scenes[idx];
       const el = target && resolveSceneElement(target.id);
@@ -375,6 +504,7 @@ export function createHomepageRuntimeIntegration({
     recalculateSceneBounds: () => runtime.recalculateSceneBounds(),
     /** Register a per-scene playback adapter (Phase 3+). */
     registerSceneAdapter: (sceneId, adapter) => { sceneAdapters.set(sceneId, adapter); },
+    sceneTimeline,
     reset: () => runtime.reset(),
     destroy() {
       if (isDestroyed) return;

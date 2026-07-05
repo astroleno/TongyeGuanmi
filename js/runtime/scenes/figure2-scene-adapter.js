@@ -29,6 +29,10 @@ import { createFigure2TransitionController } from '../../components/figure2-tran
 const FIGURE2_SECTION_SELECTOR = '[data-figure2-transition]';
 const DEFAULT_DURATION_MS = 2400; // matches the component's data-figure2-duration 2.4s
 
+function report(reportMilestone, name, value = true) {
+  if (typeof reportMilestone === 'function') reportMilestone(name, value);
+}
+
 /**
  * Same markup the legacy homepage adapter builds, minus behavior. Kept here so
  * the scene adapter owns its DOM and the controller can resolve every layer.
@@ -132,15 +136,18 @@ export function createFigure2SceneAdapter({
     controller?.finishFigureVideoPlayback?.();
   }
 
-  async function play({ direction = 1 } = {}) {
-    if (destroyed) return;
+  async function play({ direction = 1, reportMilestone } = {}) {
+    if (destroyed) return { status: 'complete' };
     if (!prepared) await showFirstFrame();
     if (!controller) throw new Error('figure2: no controller to play');
+    report(reportMilestone, 'mediaReady');
+    report(reportMilestone, 'targetReady');
 
     // Reduced motion, or reverse (true reverse video deferred): present terminal.
     if (reduceMotion || direction === -1) {
       presentTerminal();
-      return;
+      report(reportMilestone, 'playbackComplete');
+      return { status: 'complete' };
     }
 
     // Forward: real video playback + time-driven camera-expand ramp. No scrub.
@@ -150,6 +157,8 @@ export function createFigure2SceneAdapter({
     intro = 1;
     controller.renderStaticState?.({ introProgress: 1, transitionProgress: 0 });
     controller.finishFigureVideoPlayback?.();
+    report(reportMilestone, 'playbackComplete');
+    return { status: 'complete' };
   }
 
   function destroy() {

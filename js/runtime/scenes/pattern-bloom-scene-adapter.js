@@ -24,6 +24,10 @@ import { mountPatternBloomTransition } from '../../transitions/pattern-bloom-ada
 
 const DEFAULT_DURATION_MS = 1600;
 
+function report(reportMilestone, name, value = true) {
+  if (typeof reportMilestone === 'function') reportMilestone(name, value);
+}
+
 /**
  * @param {Object} options
  * @param {HTMLElement} options.host - the pattern-bloom transition host node
@@ -70,13 +74,17 @@ export function createPatternBloomSceneAdapter({
      * Resolves when presented (or when superseded/cancelled — runtime treats
      * both as "done driving").
      */
-    async play({ direction = 1 } = {}) {
+    async play({ direction = 1, reportMilestone } = {}) {
+      report(reportMilestone, 'targetReady');
       if (reduceMotion) {
         // Skip the ramp: jump to terminal state (plan reduced-motion contract).
         progress = direction === -1 ? 0 : 1;
-        return;
+        report(reportMilestone, 'playbackComplete');
+        return { status: 'complete' };
       }
       await driver.play({ direction });
+      report(reportMilestone, 'playbackComplete');
+      return { status: 'complete' };
     },
     getProgress: () => progress,
     destroy() {

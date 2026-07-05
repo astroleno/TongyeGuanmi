@@ -29,6 +29,10 @@ const AOD_SECTION_SELECTOR = '[data-aod-transition]';
 // Render layers from real playback time without ever writing currentTime.
 const NO_SEEK = { minDeltaSeconds: Infinity };
 
+function report(reportMilestone, name, value = true) {
+  if (typeof reportMilestone === 'function') reportMilestone(name, value);
+}
+
 /**
  * @param {Object} options
  * @param {HTMLElement} options.host - the aod scene DOM host ([data-scene-id="aod-animation"])
@@ -114,9 +118,11 @@ export function createAodSceneAdapter({
    * ends (or reaches the end by time); rejects on play() failure / no media so
    * the runtime recovers. Never scrubs.
    */
-  async function play({ direction = 1 } = {}) {
-    if (destroyed) return;
+  async function play({ direction = 1, reportMilestone } = {}) {
+    if (destroyed) return { status: 'complete' };
     if (!prepared) await showFirstFrame();
+    report(reportMilestone, 'mediaReady');
+    report(reportMilestone, 'targetReady');
 
     // Reduced motion or reverse: present terminal state, no playback.
     // (Reverse for a no-reverse-asset media scene degrades to terminal per the
@@ -124,7 +130,8 @@ export function createAodSceneAdapter({
     if (reduceMotion || direction === -1) {
       progress = direction === -1 ? 0 : 1;
       if (section) renderAodTransitionProgress(section, progress, NO_SEEK);
-      return;
+      report(reportMilestone, 'playbackComplete');
+      return { status: 'complete' };
     }
 
     if (!video) throw new Error('aod: no video element to play');
@@ -171,6 +178,8 @@ export function createAodSceneAdapter({
 
     progress = 1;
     if (section) renderAodTransitionProgress(section, 1, NO_SEEK);
+    report(reportMilestone, 'playbackComplete');
+    return { status: 'complete' };
   }
 
   function destroy() {

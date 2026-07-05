@@ -381,6 +381,9 @@ import { createChargeAccumulator } from './charge-accumulator.js';
  *   resolve when the target scene is presented, or reject to trigger recovery.
  * @param {Function} options.onStateChange - Callback for state changes
  * @param {Function} options.onError - Error handler
+ * @param {Function} [options.onCompletePlayback] - Completion hook called by
+ *   the Director while entering Completing. SceneTimeline commit/present/cleanup
+ *   belongs here, after adapter play() has only reported completion.
  * @param {Function} [options.onChargeProgress] - (progress 0-1, direction) while armed
  * @param {Function} [options.resolveSceneTop] - (sceneId) => number|null. Returns
  *   the real document Y of a scene's DOM host. When supplied, scene bounds use
@@ -393,6 +396,7 @@ export function createHomepageSnapRuntime({
   scenePresenter,
   onStateChange = () => {},
   onError = () => {},
+  onCompletePlayback = () => {},
   onChargeProgress = () => {},
   resolveSceneTop = null
 }) {
@@ -813,7 +817,23 @@ export function createHomepageSnapRuntime({
    */
   function executeComplete() {
     // Commit the target scene as the new current scene.
+    const previousIndex = state.currentSceneIndex;
     const committedIndex = state.targetSceneIndex;
+    const direction = state.playbackDirection === -1 ? -1 : 1;
+    const completingState = state;
+
+    try {
+      onCompletePlayback({
+        fromIndex: previousIndex,
+        toIndex: committedIndex,
+        direction,
+        state: completingState,
+        scene: Array.isArray(timeline.scenes) ? timeline.scenes[committedIndex] : null
+      });
+    } catch (err) {
+      onError(err instanceof Error ? err : new Error(String(err)));
+    }
+
     state = Object.freeze({ ...state, currentSceneIndex: committedIndex });
 
     const committedScene = Array.isArray(timeline.scenes)
