@@ -15,12 +15,6 @@ const SCAN_FILES = [
 
 const KNOWN_VIOLATIONS = Object.freeze([
   {
-    file: 'js/transitions/homepage/crane-homepage-adapter.js',
-    ruleId: 'timeline-update',
-    text: 'timeline?.update(Math.max(progress, handoffProgress), {',
-    removalTaskId: 'P4.5-crane-adapter'
-  },
-  {
     file: 'js/transitions/homepage/ph-homepage-adapter.js',
     ruleId: 'timeline-update',
     text: 'timeline?.update(progress, {',

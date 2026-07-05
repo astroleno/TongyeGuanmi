@@ -6,7 +6,7 @@ export function mountHomepageTransition({
   progressSource,
   handoffTarget,
   handoffProgressSource,
-  timeline,
+  reportMilestone,
   addCleanup
 }) {
   host.classList.add('homepage-transition', 'homepage-transition--crane', 'crane-page');
@@ -52,20 +52,16 @@ export function mountHomepageTransition({
     const progress = reduceMotion ? 1 : progressSource();
     const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? progress;
     scene.renderRawProgress(progress);
-    timeline?.update(Math.max(progress, handoffProgress), {
-      reason: 'crane-render',
-      milestones: {
-        targetReady: Boolean(handoffTarget),
-        playbackComplete: progress >= 0.998
-      }
-    });
+    reportMilestone?.('targetReady', Boolean(handoffTarget));
+    reportMilestone?.('playbackComplete', Math.max(progress, handoffProgress) >= 0.998);
     raf = requestAnimationFrame(render);
   };
 
   scene.prepare();
   if (reduceMotion) {
     scene.mountReducedMotion();
-    timeline?.complete('crane-reduced-motion');
+    reportMilestone?.('targetReady', Boolean(handoffTarget));
+    reportMilestone?.('playbackComplete', true);
   } else {
     scene.waitForVideos().finally(render);
   }

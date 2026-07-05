@@ -532,10 +532,11 @@ assert.ok(
 );
 assert.ok(
   !craneHomepageAdapterSource.includes('createHandoffReceiver')
-    && craneHomepageAdapterSource.includes('timeline?.update')
+    && !/timeline\s*\??\.\s*update\s*\(/.test(craneHomepageAdapterSource)
+    && craneHomepageAdapterSource.includes("reportMilestone?.('targetReady'")
     && craneHomepageAdapterSource.includes('playbackComplete')
     && craneHomepageAdapterSource.includes('handoffProgressSource'),
-  'Crane homepage transition must report timeline progress without adopting the native Contact endpoint'
+  'Crane homepage transition must report milestones without adopting the native Contact endpoint or pushing timeline progress'
 );
 assert.doesNotMatch(
   `${figure2HomepageAdapterSource}\n${homepageTransitionCss}\n${figure2Css}`,
