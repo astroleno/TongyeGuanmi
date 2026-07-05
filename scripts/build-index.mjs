@@ -288,9 +288,8 @@ function buildGeneratedTimelineManifest() {
 
 /**
  * Report which homepageTimeline scenes already have a DOM host in the built
- * page (data-scene-id=...) versus which are still pending scaffolding. This is
- * intentionally non-fatal: it documents coverage honestly instead of silently
- * implying every scene exists.
+ * page (data-scene-id=...). Phase 5 verification fails on missing hosts, so this
+ * build-time report is an early, human-readable coverage summary.
  * @param {string} html
  */
 function reportSceneDomCoverage(html) {
@@ -305,7 +304,7 @@ function reportSceneDomCoverage(html) {
   }
   console.log(`homepageTimeline DOM coverage: ${present.length}/${homepageTimeline.scenes.length} scenes have a host.`);
   if (missing.length) {
-    console.log(`  pending scaffold (${missing.length}): ${missing.join(', ')}`);
+    console.log(`  missing scene hosts (${missing.length}): ${missing.join(', ')}`);
   }
 }
 

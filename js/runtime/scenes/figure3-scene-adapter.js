@@ -49,7 +49,7 @@ function report(reportMilestone, name, value = true) {
  * @param {boolean} [options.reduceMotion]
  * @param {number} [options.durationMs]
  * @param {object} [options.deps]
- * @returns {{ play:(o?:{direction?:1|-1, reportMilestone?:Function})=>Promise<object>, showFirstFrame:()=>Promise<void>, getProgress:()=>number, destroy:()=>void }}
+ * @returns {{ play:(o?:{direction?:1|-1, reportMilestone?:Function, reportFrame?:Function})=>Promise<object>, render:(frame:object|number)=>void, showFirstFrame:()=>Promise<void>, getProgress:()=>number, destroy:()=>void }}
  */
 export function createFigure3SceneAdapter({
   host,
@@ -68,15 +68,25 @@ export function createFigure3SceneAdapter({
   let prepared = false;
   let destroyed = false;
   let preparePromise = null;
+  let activeReportFrame = null;
 
-  function render(nextProgress) {
+  function render(frame) {
+    const nextProgress = typeof frame === 'number' ? frame : frame?.progress;
     progress = Math.max(0, Math.min(1, Number.isFinite(nextProgress) ? nextProgress : 0));
     if (section) renderFigure3TransitionProgress(section, progress, { alphaVideo });
   }
 
+  function emitFrame(nextProgress, reason = 'figure3-frame') {
+    if (typeof activeReportFrame === 'function') {
+      activeReportFrame(nextProgress, reason);
+    } else {
+      render(nextProgress);
+    }
+  }
+
   const driver = createDriver({
     durationMs,
-    onProgress: (p) => render(p)
+    onProgress: (p) => emitFrame(p)
   });
 
   async function showFirstFrame() {
@@ -98,22 +108,27 @@ export function createFigure3SceneAdapter({
     }
   }
 
-  async function play({ direction = 1, reportMilestone } = {}) {
+  async function play({ direction = 1, reportMilestone, reportFrame } = {}) {
     if (destroyed) return { status: 'complete' };
-    if (!prepared) await showFirstFrame();
-    report(reportMilestone, 'mediaReady');
-    report(reportMilestone, 'targetReady');
+    activeReportFrame = reportFrame;
+    try {
+      if (!prepared) await showFirstFrame();
+      report(reportMilestone, 'mediaReady');
+      report(reportMilestone, 'targetReady');
 
-    if (reduceMotion || direction === -1) {
-      render(direction === -1 ? 0 : 1);
+      if (reduceMotion || direction === -1) {
+        emitFrame(direction === -1 ? 0 : 1, 'figure3-terminal');
+        report(reportMilestone, 'playbackComplete');
+        return { status: 'complete' };
+      }
+
+      await driver.play({ direction: 1 });
+      emitFrame(1, 'figure3-complete');
       report(reportMilestone, 'playbackComplete');
       return { status: 'complete' };
+    } finally {
+      activeReportFrame = null;
     }
-
-    await driver.play({ direction: 1 });
-    render(1);
-    report(reportMilestone, 'playbackComplete');
-    return { status: 'complete' };
   }
 
   function destroy() {
@@ -125,5 +140,5 @@ export function createFigure3SceneAdapter({
     host.classList.remove('homepage-transition', 'homepage-transition--figure3');
   }
 
-  return { play, showFirstFrame, getProgress: () => progress, destroy };
+  return { play, render, showFirstFrame, getProgress: () => progress, destroy };
 }

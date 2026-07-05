@@ -14,9 +14,9 @@
  *  - mountPatternBloomTransition: WebGL rendering — UNCHANGED, and the one part
  *    that genuinely needs in-browser confirmation (no WebGL in CI/node).
  *
- * play({direction}) resolves when the ramp completes (scene presented) so the
- * runtime can advance to Completing; a cancel mid-flight resolves the runtime's
- * normal not-completed path.
+ * play({direction}) reports driver progress to the Director; render(frame) is
+ * the only visual write path. A cancel mid-flight resolves the runtime's normal
+ * not-completed path.
  */
 
 import { createTimedProgressDriver } from '../timed-progress-driver.js';
@@ -35,7 +35,7 @@ function report(reportMilestone, name, value = true) {
  * @param {number} [options.durationMs]
  * @param {(opts:object)=>{destroy:Function}} [options.mount] - injectable for tests
  * @param {(opts:object)=>object} [options.createDriver] - injectable for tests
- * @returns {{ play: (o?:{direction?:1|-1})=>Promise<void>, getProgress: ()=>number, destroy: ()=>void }}
+ * @returns {{ play: (o?:{direction?:1|-1, reportMilestone?:Function, reportFrame?:Function})=>Promise<void>, render:(frame:object|number)=>void, getProgress: ()=>number, destroy: ()=>void }}
  */
 export function createPatternBloomSceneAdapter({
   host,
@@ -47,11 +47,26 @@ export function createPatternBloomSceneAdapter({
   if (!host) throw new Error('pattern-bloom scene adapter requires a host element');
 
   let progress = 0;
+  let activeReportFrame = null;
 
-  // Driver owns the clock; its onProgress updates the value the visual reads.
+  function render(frame) {
+    const nextProgress = typeof frame === 'number' ? frame : frame?.progress;
+    progress = Math.max(0, Math.min(1, Number.isFinite(nextProgress) ? nextProgress : 0));
+  }
+
+  function emitFrame(nextProgress, reason = 'pattern-bloom-frame') {
+    if (typeof activeReportFrame === 'function') {
+      activeReportFrame(nextProgress, reason);
+    } else {
+      render(nextProgress);
+    }
+  }
+
+  // Driver owns playback timing; the Director turns reported progress into a
+  // SceneTimelineFrame before calling render(frame).
   const driver = createDriver({
     durationMs,
-    onProgress: (p) => { progress = p; }
+    onProgress: (p) => emitFrame(p)
   });
 
   // The existing visual pulls this every frame. Returning the driver-managed
@@ -74,18 +89,22 @@ export function createPatternBloomSceneAdapter({
      * Resolves when presented (or when superseded/cancelled — runtime treats
      * both as "done driving").
      */
-    async play({ direction = 1, reportMilestone } = {}) {
+    async play({ direction = 1, reportMilestone, reportFrame } = {}) {
+      activeReportFrame = reportFrame;
       report(reportMilestone, 'targetReady');
       if (reduceMotion) {
         // Skip the ramp: jump to terminal state (plan reduced-motion contract).
-        progress = direction === -1 ? 0 : 1;
+        emitFrame(direction === -1 ? 0 : 1, 'pattern-bloom-reduced-motion');
         report(reportMilestone, 'playbackComplete');
+        activeReportFrame = null;
         return { status: 'complete' };
       }
       await driver.play({ direction });
       report(reportMilestone, 'playbackComplete');
+      activeReportFrame = null;
       return { status: 'complete' };
     },
+    render,
     getProgress: () => progress,
     destroy() {
       driver.cancel();

@@ -88,7 +88,7 @@ function defaultMountMarkup(hostEl) {
  * @param {object} [options.deps] - injectable seams for tests:
  *   mountMarkup(host)->section, createController(section,opts)->controller,
  *   createDriver(opts)->driver
- * @returns {{ play:(o?:{direction?:1|-1})=>Promise<void>, showFirstFrame:()=>Promise<void>, getProgress:()=>number, destroy:()=>void }}
+ * @returns {{ play:(o?:{direction?:1|-1, reportMilestone?:Function, reportFrame?:Function})=>Promise<void>, render:(frame:object|number)=>void, showFirstFrame:()=>Promise<void>, getProgress:()=>number, destroy:()=>void }}
  */
 export function createFigure2SceneAdapter({
   host,
@@ -109,13 +109,25 @@ export function createFigure2SceneAdapter({
   let destroyed = false;
   let intro = 0;
   let preparePromise = null;
+  let activeReportFrame = null;
+
+  function render(frame) {
+    const nextProgress = typeof frame === 'number' ? frame : frame?.progress;
+    intro = Math.max(0, Math.min(1, Number.isFinite(nextProgress) ? nextProgress : 0));
+    controller?.renderStaticState?.({ introProgress: intro, transitionProgress: 0 });
+  }
+
+  function emitFrame(nextProgress, reason = 'figure2-frame') {
+    if (typeof activeReportFrame === 'function') {
+      activeReportFrame(nextProgress, reason);
+    } else {
+      render(nextProgress);
+    }
+  }
 
   const driver = createDriver({
     durationMs,
-    onProgress: (p) => {
-      intro = p;
-      controller?.renderStaticState?.({ introProgress: p, transitionProgress: 0 });
-    }
+    onProgress: (p) => emitFrame(p)
   });
 
   async function showFirstFrame() {
@@ -129,8 +141,7 @@ export function createFigure2SceneAdapter({
       controller.prepare?.();
       // No mountGsap/mountNativeFallback — playback is time-driven, not scrolled.
       await (controller.waitForVideos?.() || Promise.resolve());
-      intro = 0;
-      controller.renderStaticState?.({ introProgress: 0, transitionProgress: 0 });
+      render(0);
       prepared = true;
     })();
 
@@ -142,34 +153,37 @@ export function createFigure2SceneAdapter({
   }
 
   function presentTerminal() {
-    intro = 1;
-    controller?.renderStaticState?.({ introProgress: 1, transitionProgress: 0 });
+    emitFrame(1, 'figure2-terminal');
     controller?.finishFigureVideoPlayback?.();
   }
 
-  async function play({ direction = 1, reportMilestone } = {}) {
+  async function play({ direction = 1, reportMilestone, reportFrame } = {}) {
     if (destroyed) return { status: 'complete' };
-    if (!prepared) await showFirstFrame();
-    if (!controller) throw new Error('figure2: no controller to play');
-    report(reportMilestone, 'mediaReady');
-    report(reportMilestone, 'targetReady');
+    activeReportFrame = reportFrame;
+    try {
+      if (!prepared) await showFirstFrame();
+      if (!controller) throw new Error('figure2: no controller to play');
+      report(reportMilestone, 'mediaReady');
+      report(reportMilestone, 'targetReady');
 
-    // Reduced motion, or reverse (true reverse video deferred): present terminal.
-    if (reduceMotion || direction === -1) {
-      presentTerminal();
+      // Reduced motion, or reverse (true reverse video deferred): present terminal.
+      if (reduceMotion || direction === -1) {
+        presentTerminal();
+        report(reportMilestone, 'playbackComplete');
+        return { status: 'complete' };
+      }
+
+      // Forward: real video playback + time-driven camera-expand ramp. No scrub.
+      controller.startFigureVideoPlayback?.();
+      await driver.play({ direction: 1 });
+      // Settle to the expanded terminal and let the video finish cleanly.
+      emitFrame(1, 'figure2-complete');
+      controller.finishFigureVideoPlayback?.();
       report(reportMilestone, 'playbackComplete');
       return { status: 'complete' };
+    } finally {
+      activeReportFrame = null;
     }
-
-    // Forward: real video playback + time-driven camera-expand ramp. No scrub.
-    controller.startFigureVideoPlayback?.();
-    await driver.play({ direction: 1 });
-    // Settle to the expanded terminal and let the video finish cleanly.
-    intro = 1;
-    controller.renderStaticState?.({ introProgress: 1, transitionProgress: 0 });
-    controller.finishFigureVideoPlayback?.();
-    report(reportMilestone, 'playbackComplete');
-    return { status: 'complete' };
   }
 
   function destroy() {
@@ -181,5 +195,5 @@ export function createFigure2SceneAdapter({
     host.replaceChildren?.();
   }
 
-  return { play, showFirstFrame, getProgress: () => intro, destroy };
+  return { play, render, showFirstFrame, getProgress: () => intro, destroy };
 }

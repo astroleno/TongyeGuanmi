@@ -280,7 +280,9 @@ T0.7 init 幂等守卫          └───────────────
 
 ---
 
-## 5. Phase 2-5 概要（不在本轮实施，仅锚定入口条件）
+## 5. Phase 2-5 概要（Phase 5 后状态）
+
+Phase 2-5 已推进到默认 snap runtime 路径：Director 负责播放生命周期和 SceneTimeline commit/present/cleanup，legacy runtime 仅保留 `?legacyRuntime=1` / `?snapRuntime=0` 调试 fallback。下表保留原入口条件，并把当前事实作为后续验收基线。
 
 | Phase | 入口条件 | 一句话范围 |
 |-------|---------|-----------|

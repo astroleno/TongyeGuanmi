@@ -109,6 +109,20 @@ export function initFallbackParallax(options = {}) {
     manifesto.classList.toggle('is-interactive', visibleProgress > 0.98 && exitProgress < 0.02);
   }
 
+  if (reduceMotion) {
+    back.style.opacity = '0';
+    middle.style.opacity = '0';
+    figure.style.opacity = '0';
+    if (content) {
+      content.style.opacity = '1';
+      content.style.pointerEvents = 'auto';
+      content.style.transform = 'none';
+      content.style.zIndex = '6';
+    }
+    runtime.markLoaded(120);
+    return;
+  }
+
   function tick() {
     mx = lerp(mx, tx, 0.08);
     my = lerp(my, ty, 0.08);
@@ -119,7 +133,7 @@ export function initFallbackParallax(options = {}) {
     updateFallbackManifesto();
     requestAnimationFrame(tick);
   }
-  if (!reduceMotion) tick();
+  tick();
   runtime.markLoaded(600);
 }
 

@@ -137,7 +137,7 @@ function checkAodNoAutoplay() {
 }
 
 function checkBuiltDomCoverage() {
-  console.log('🔍 built index.html has data-scene-id for all pilot scenes...');
+  console.log('🔍 built index.html has data-scene-id for the full homepageTimeline...');
   let html;
   try {
     html = read('index.html');
@@ -145,9 +145,9 @@ function checkBuiltDomCoverage() {
     errors.push('index.html not found — run build:page before this check');
     return;
   }
-  for (const id of PILOT_SCENES) {
-    if (!html.includes(`data-scene-id="${id}"`)) {
-      errors.push(`Pilot scene '${id}' has no data-scene-id host in index.html (run build:page; check homepageSceneDomMap)`);
+  for (const scene of homepageTimeline.scenes) {
+    if (!html.includes(`data-scene-id="${scene.id}"`)) {
+      errors.push(`Scene '${scene.id}' has no data-scene-id host in index.html (run build:page; check homepageSceneDomMap)`);
     }
   }
 }

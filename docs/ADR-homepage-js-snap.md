@@ -1,8 +1,9 @@
 # ADR: JS-Controlled Snap for Homepage Timeline
 
-**Status**: Accepted  
-**Date**: 2026-06-29  
-**Context**: Homepage master timeline visual migration (Phase 1)
+**Status**: Accepted, updated after Phase 5 default switch
+**Date**: 2026-06-29
+**Last Updated**: 2026-07-05
+**Context**: Homepage master timeline visual migration (Phase 1 to Phase 5)
 
 ## Context
 
@@ -22,6 +23,8 @@ Key constraints:
 ## Decision
 
 **Use JS-controlled snap with Lenis `scrollTo()` as primary, `window.scrollTo()` as fallback.**
+
+Phase 5 update: `homepage-runtime-integration.js` / `homepage-snap-runtime.js` is now the default homepage runtime. Legacy transition runtime is only a compatibility/debug fallback behind `?legacyRuntime=1` or `?snapRuntime=0`.
 
 ### Why JS-Snap
 
@@ -47,6 +50,14 @@ Runtime controls:
 - Calculate scene bounds at init and resize
 - Snap to nearest scene on scroll stop
 - Manage visual state transitions (charging → playing → presented → resting)
+
+Phase 5 owner contract:
+- Director enters `Playing`, invokes the selected scene adapter, and records SceneTimeline milestones.
+- Adapter progress reports are converted into `SceneTimelineFrame` before visual writes; adapters render only through `render(frame)`.
+- SceneTimeline is the only owner of `commitTarget()`, `presentTarget()`, and `cleanupJoin()`.
+- Adapters must not directly present target copy, write target presented state, move real target DOM, or own handoff completion.
+- Timeline-owned copy blocks are excluded from global `.reveal`; `verify:homepage-owner-contract` has no known reveal-owner baseline.
+- Legacy runtime no longer owns target reveal gates or handoff-complete decisions.
 
 ## Consequences
 
@@ -155,7 +166,7 @@ Use Lenis for smooth scroll between scenes, let browser handle snap on stop.
 
 ## Implementation Checklist
 
-Phase 1 must include:
+Phase 1 originally required:
 
 - [ ] Lenis `scrollTo()` with fallback to `window.scrollTo()`
 - [ ] Hash/deep link detection and target scene snap
@@ -165,3 +176,10 @@ Phase 1 must include:
 - [ ] `dvh`/`svh` viewport units for scene heights
 - [ ] IntersectionObserver for scene visibility tracking
 - [ ] Throttled scroll stop detection for snap trigger
+
+Phase 5 status:
+
+- [x] Snap runtime is the default homepage scroll owner.
+- [x] Direct hash, resize/orientation, visual viewport, and reduced-motion compatibility remain in the Director path.
+- [x] Legacy runtime is retained only as a temporary fallback flag.
+- [x] Timeline-owned copy owner violations are removed from the baseline.

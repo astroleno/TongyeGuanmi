@@ -2,11 +2,15 @@
 
 ## Status
 
-**Proposed** — Must be implemented in Phase 1 of master timeline migration
+**Accepted, Phase 5-compatible fallback active** — Declarative reverse strategies remain required; current shipped path uses Director-owned terminal fallbacks where reverse media is unavailable.
+
+Last updated: 2026-07-05
 
 ## Context
 
 The homepage master timeline requires bidirectional playback to support natural scroll behavior: users must be able to scroll both forward (down the page) and backward (up the page) through the visual narrative. The `SnappedArmed` state machine monitors scroll delta in both directions and must trigger appropriate playback strategies for each scene and transition block.
+
+Phase 5 update: the snap Director is now the default lifecycle owner. Reverse paths still use the matrix below, but target presentation and cleanup are recorded through SceneTimeline rather than adapter-owned handoff completion.
 
 ## Decision
 
@@ -14,6 +18,8 @@ Implement a declarative reverse playback matrix where every scene and block expl
 
 - **Positive scroll delta** → `playForward()` for the current block
 - **Negative scroll delta at scene top** → `playReverse()` to return to the previous scene
+
+Current implementation note: adapters report readiness/completion while SceneTimeline owns commit/present/cleanup. Blocks without a dedicated reverse asset use terminal fallback; this is an accepted degradation as long as no blank frame is exposed.
 
 ## Reverse Playback Matrix
 

@@ -40,7 +40,7 @@ function report(reportMilestone, name, value = true) {
  * @param {() => object|null} [options.getRecoveryHandler] - lazy accessor for the
  *   shared recovery-handler (it is created after adapters are registered).
  * @param {object} [options.deps] - injectable seams for tests (mountMarkup, raf, caf, now)
- * @returns {{ play: (o?:{direction?:1|-1})=>Promise<void>, showFirstFrame: ()=>Promise<void>, getProgress: ()=>number, destroy: ()=>void }}
+ * @returns {{ play: (o?:{direction?:1|-1, reportMilestone?:Function, reportFrame?:Function})=>Promise<void>, render:(frame:object|number)=>void, showFirstFrame: ()=>Promise<void>, getProgress: ()=>number, destroy: ()=>void }}
  */
 export function createAodSceneAdapter({
   host,
@@ -62,6 +62,7 @@ export function createAodSceneAdapter({
   let destroyed = false;
   let prepared = false;
   let preparePromise = null;
+  let activeReportFrame = null;
 
   function defaultMountMarkup(hostEl) {
     // Reuse the same markup the legacy aod homepage adapter builds.
@@ -95,11 +96,25 @@ export function createAodSceneAdapter({
     return Number.isFinite(d) && d > 0 ? d : 5.03; // fallback per component default
   }
 
-  /** Drive visual layers from REAL playback time; never writes currentTime. */
-  function renderFromPlayback() {
+  function playbackProgress() {
     if (!section || !video) return;
-    progress = Math.min(1, Math.max(0, (video.currentTime || 0) / durationOf()));
+    return Math.min(1, Math.max(0, (video.currentTime || 0) / durationOf()));
+  }
+
+  /** Render visual layers from the Director's SceneTimelineFrame. */
+  function render(frame) {
+    if (!section) return;
+    const nextProgress = typeof frame === 'number' ? frame : frame?.progress;
+    progress = Math.min(1, Math.max(0, Number.isFinite(nextProgress) ? nextProgress : 0));
     renderAodTransitionProgress(section, progress, NO_SEEK);
+  }
+
+  function emitFrame(nextProgress, reason = 'aod-frame') {
+    if (typeof activeReportFrame === 'function') {
+      activeReportFrame(nextProgress, reason);
+    } else {
+      render(nextProgress);
+    }
   }
 
   /**
@@ -117,8 +132,7 @@ export function createAodSceneAdapter({
       prepareAodTransition(section, { progress: 0 });
       if (video) { try { video.currentTime = 0; } catch { /* not seekable yet */ } }
       await waitForAodTransitionMetadata(section);
-      progress = 0;
-      renderAodTransitionProgress(section, 0, NO_SEEK);
+      render(0);
       prepared = true;
     })();
 
@@ -134,68 +148,74 @@ export function createAodSceneAdapter({
    * ends (or reaches the end by time); rejects on play() failure / no media so
    * the runtime recovers. Never scrubs.
    */
-  async function play({ direction = 1, reportMilestone } = {}) {
+  async function play({ direction = 1, reportMilestone, reportFrame } = {}) {
     if (destroyed) return { status: 'complete' };
-    if (!prepared) await showFirstFrame();
-    report(reportMilestone, 'mediaReady');
-    report(reportMilestone, 'targetReady');
+    activeReportFrame = reportFrame;
+    try {
+      if (!prepared) await showFirstFrame();
+      report(reportMilestone, 'mediaReady');
+      report(reportMilestone, 'targetReady');
 
-    // Reduced motion or reverse: present terminal state, no playback.
-    // (Reverse for a no-reverse-asset media scene degrades to terminal per the
-    //  reverse matrix; the ink/runtime handles the visual fallback.)
-    if (reduceMotion || direction === -1) {
-      progress = direction === -1 ? 0 : 1;
-      if (section) renderAodTransitionProgress(section, progress, NO_SEEK);
+      // Reduced motion or reverse: present terminal state, no playback.
+      // (Reverse for a no-reverse-asset media scene degrades to terminal per the
+      //  reverse matrix; the ink/runtime handles the visual fallback.)
+      if (reduceMotion || direction === -1) {
+        emitFrame(direction === -1 ? 0 : 1, 'aod-terminal');
+        report(reportMilestone, 'playbackComplete');
+        return { status: 'complete' };
+      }
+
+      if (!video) throw new Error('aod: no video element to play');
+
+      // Kick playback. video.play() can reject (autoplay policy, decode error).
+      const playPromise = Promise.resolve(video.play?.());
+
+      // Optional shared-watcher recovery (metadata/play/end timeouts).
+      const recovery = getRecoveryHandler();
+      if (recovery?.watchMediaPlay) {
+        recovery.watchMediaPlay(video, undefined, { id: 'aod-animation' }).catch(() => {});
+      }
+
+      await playPromise; // throws -> caller (scenePresenter) routes to recovery
+
+      // Drive layers from real time until the video ends.
+      await new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (ok, err) => {
+          if (settled) return;
+          settled = true;
+          stopLoop();
+          video.removeEventListener('ended', onEnded);
+          video.removeEventListener('error', onError);
+          ok ? resolve() : reject(err);
+        };
+        const onEnded = () => { emitFrame(1, 'aod-ended'); finish(true); };
+        const onError = () => finish(false, new Error('aod: video error during playback'));
+
+        video.addEventListener('ended', onEnded, { once: true });
+        video.addEventListener('error', onError, { once: true });
+
+        const loop = () => {
+          if (destroyed) { finish(true); return; }
+          const nextProgress = playbackProgress();
+          emitFrame(nextProgress, 'aod-playback');
+          // Safety: some browsers fire 'ended' unreliably; treat >=~end as done.
+          if (video.duration && video.currentTime >= video.duration - 0.05) {
+            emitFrame(1, 'aod-complete-by-time');
+            finish(true);
+            return;
+          }
+          rafId = raf(loop);
+        };
+        rafId = raf(loop);
+      });
+
+      emitFrame(1, 'aod-complete');
       report(reportMilestone, 'playbackComplete');
       return { status: 'complete' };
+    } finally {
+      activeReportFrame = null;
     }
-
-    if (!video) throw new Error('aod: no video element to play');
-
-    // Kick playback. video.play() can reject (autoplay policy, decode error).
-    const playPromise = Promise.resolve(video.play?.());
-
-    // Optional shared-watcher recovery (metadata/play/end timeouts).
-    const recovery = getRecoveryHandler();
-    if (recovery?.watchMediaPlay) {
-      recovery.watchMediaPlay(video, undefined, { id: 'aod-animation' }).catch(() => {});
-    }
-
-    await playPromise; // throws -> caller (scenePresenter) routes to recovery
-
-    // Drive layers from real time until the video ends.
-    await new Promise((resolve, reject) => {
-      let settled = false;
-      const finish = (ok, err) => {
-        if (settled) return;
-        settled = true;
-        stopLoop();
-        video.removeEventListener('ended', onEnded);
-        video.removeEventListener('error', onError);
-        ok ? resolve() : reject(err);
-      };
-      const onEnded = () => { progress = 1; renderFromPlayback(); finish(true); };
-      const onError = () => finish(false, new Error('aod: video error during playback'));
-
-      video.addEventListener('ended', onEnded, { once: true });
-      video.addEventListener('error', onError, { once: true });
-
-      const loop = () => {
-        if (destroyed) { finish(true); return; }
-        renderFromPlayback();
-        // Safety: some browsers fire 'ended' unreliably; treat >=~end as done.
-        if (video.duration && video.currentTime >= video.duration - 0.05) {
-          progress = 1; renderFromPlayback(); finish(true); return;
-        }
-        rafId = raf(loop);
-      };
-      rafId = raf(loop);
-    });
-
-    progress = 1;
-    if (section) renderAodTransitionProgress(section, 1, NO_SEEK);
-    report(reportMilestone, 'playbackComplete');
-    return { status: 'complete' };
   }
 
   function destroy() {
@@ -207,5 +227,5 @@ export function createAodSceneAdapter({
     host.classList?.remove('homepage-transition', 'homepage-transition--aod');
   }
 
-  return { play, showFirstFrame, getProgress: () => progress, destroy };
+  return { play, render, showFirstFrame, getProgress: () => progress, destroy };
 }

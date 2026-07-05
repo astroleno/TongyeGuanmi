@@ -1,6 +1,6 @@
 # Roadmap: 状态机与时序管理重构
 
-本文档把 `docs/newplan/state-machine-refactor-plan.md` 和 `docs/newplan/IMPLEMENT-state-machine-refactor.md` 落成可执行 roadmap。先按本轮完成 Phase 0 / 0A / 1；后续 Phase 2-5 只定义入口条件和目标，不在本轮直接开工。
+本文档把 `docs/newplan/state-machine-refactor-plan.md` 和 `docs/newplan/IMPLEMENT-state-machine-refactor.md` 落成可执行 roadmap。历史上先按 Phase 0 / 0A / 1 推进；截至 Phase 5 收口，Phase 2-5 已落到默认 snap runtime 路径，legacy runtime 仅保留反向 debug fallback。
 
 ## 总计划步骤
 
@@ -31,6 +31,7 @@
 - 每个 commit 前跑该任务验收命令和 `npm run verify:all`。
 - 每个 workstream 结束跑 `npm run build:page`、`npm run verify:all`，并手工检查三个历史症状：无重复入场、无交接空白、无黑闪。
 - W1 可在 T0.1 后开；W2 必须等 T0.2 / T0.4 / T0.6 / T0.7 完成后再动关键 runtime 路径。
+- Phase 5 后默认入口为 `homepage-runtime-integration.js` / snap runtime；`homepage-transition-runtime.js` 不再拥有 handoff completion 或 target presentation 决策。
 
 ## Goal 0: Phase 0 / W0 验证基建
 
@@ -278,7 +279,7 @@
 - 移除 `timeline.update()` / `timeline?.update()`。
 - 不再读取 DOM data attribute 做逻辑判断。
 - 不移动真实 target copy DOM，过渡素材只用 clone / snapshot / canvas / texture。
-- 只通过 `reportMilestone()` 上报 `targetReady / playbackComplete / mediaReady`。
+- 只通过 `reportFrame()` 上报播放进度，通过 `reportMilestone()` 上报 `targetReady / playbackComplete / mediaReady`；视觉写入只发生在 Director 回传的 `render(frame)`。
 
 pattern-bloom 专项：
 
@@ -312,7 +313,7 @@ pattern-bloom 专项：
 
 ### 参考文档
 
-- `docs/newplan/state-machine-refactor-plan.md:557-562`：Phase 5 checklist。
+- `docs/newplan/state-machine-refactor-plan.md:557-565`：Phase 5 checklist。
 - `docs/newplan/state-machine-refactor-plan.md:693-721`：文件清单和参考文档。
 - `docs/newplan/IMPLEMENT-state-machine-refactor.md:283-290`：Phase 5 入口条件概要。
 
@@ -324,6 +325,7 @@ pattern-bloom 专项：
 - snap runtime 改为默认，仅保留 `?legacyRuntime=1` / `?snapRuntime=0` 临时 fallback flag。
 - 更新 owner / frame / adapter contract 验证，确保 adapter 只消费 frame 并上报 milestone。
 - 清理 `KNOWN_VIOLATIONS` baseline，保留空清单防新增违规。
+- 更新 `docs/ADR-homepage-js-snap.md` / `docs/ADR-homepage-reverse-playback.md`，记录 Phase 5 后默认 runtime 与 fallback 边界。
 
 ### 验收标准
 
@@ -331,4 +333,5 @@ pattern-bloom 专项：
 - legacy 状态机代码不可达或已删除。
 - `npm run verify:all` 绿。
 - 文档和 ADR 与代码事实一致。
+- `verify:homepage-owner-contract` 不再输出 known reveal owner violations。
 - 全站手工回归通过：正向滚全程、反向滚 `home-belief`、直达 `#method` hash、reduced-motion。

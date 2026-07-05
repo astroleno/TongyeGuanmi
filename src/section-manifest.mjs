@@ -986,9 +986,8 @@ export const homepageTimeline = {
  *  - 'anchor'  : a sub-region split out of a shared section (e.g. method
  *                upper/lower) onto an existing structural anchor
  *
- * Only the 6 pilot scenes are mapped today; non-pilot scenes are added as later
- * phases scaffold them. Scenes absent here simply have no DOM host yet and the
- * runtime treats them as inactive.
+ * Every homepageTimeline scene must map to exactly one existing DOM host before
+ * Phase 5 can treat the snap runtime as the default full-page owner.
  */
 export const homepageSceneDomMap = [
   { sceneId: 'hero', selector: '#home', mode: 'section' },
@@ -998,11 +997,6 @@ export const homepageSceneDomMap = [
   { sceneId: 'method-upper', selector: '.chapter-intro--method', mode: 'anchor' },
   { sceneId: 'method-lower', selector: '.method-flow', mode: 'anchor' },
 
-  // Batch 2 — only the structurally clean hosts (1 scene : 1 node, physical
-  // order matches manifest order). Deliberately NOT scaffolded here:
-  //  - brand maps to its section as a HOST only; its copy is still main's
-  //    同野/观幂 two-card grid, not the fixture (brand-135-136). Content
-  //    migration remains a tracked pending gap — host coverage != content done.
   { sceneId: 'figure2-animation', selector: '[data-transition-id="method-tooling__method-proof"]', mode: 'host' },
   // Proof content is physically split into opening, cases, and closing anchors
   // so the figure2 bridge can scroll three real scenes instead of reordering one
@@ -1012,5 +1006,12 @@ export const homepageSceneDomMap = [
   { sceneId: 'figure2-proof-closing', selector: '.method-proof__scene--closing', mode: 'anchor' },
   { sceneId: 'brand', selector: '.canvas-section--brand', mode: 'section' },
   { sceneId: 'figure3-animation', selector: '[data-transition-id="brand-services"]', mode: 'host' },
-  { sceneId: 'services', selector: '#services', mode: 'section' }
+  { sceneId: 'services', selector: '#services', mode: 'section' },
+  { sceneId: 'ttg-animation', selector: '[data-transition-id="services-lab"]', mode: 'host' },
+  { sceneId: 'lab', selector: '#lab', mode: 'section' },
+  { sceneId: 'ph-animation', selector: '[data-transition-id="lab-education"]', mode: 'host' },
+  { sceneId: 'education', selector: '#education', mode: 'section' },
+  { sceneId: 'philosophy', selector: '#philosophy', mode: 'section' },
+  { sceneId: 'crane-animation', selector: '[data-transition-id="philosophy-contact"]', mode: 'host' },
+  { sceneId: 'contact', selector: '#contact', mode: 'section' }
 ];

@@ -5,7 +5,7 @@
  * Uses injected fakes for `mount` and `createDriver` so the wiring contract is
  * verified under node:
  *  - mounts the visual with a progressSource closure
- *  - play() drives that progressSource from the driver's progress
+ *  - play() reports driver progress; render(frame) updates progressSource
  *  - reduced-motion jumps to terminal without running the driver
  *  - destroy() tears down both driver and mounted visual
  *
@@ -47,7 +47,7 @@ function makeFakeDriver() {
   };
 }
 
-// ---- mounts visual + play() drives progressSource ---------------------------
+// ---- mounts visual + play() reports frames consumed by render(frame) --------
 {
   const fake = makeFakeDriver();
   let mountedWith = null;

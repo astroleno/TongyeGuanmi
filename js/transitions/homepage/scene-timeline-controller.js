@@ -559,7 +559,15 @@ export function createSceneTimelineController({
   }
 
   function updateFrame(joinId, progress, options = {}) {
-    return updateFrameForJoin(resolveJoin(joinId), progress, options);
+    const {
+      autoPresent = true,
+      deferPresentedFrame = false,
+      ...frameOptions
+    } = options;
+    return updateFrameForJoin(resolveJoin(joinId), progress, frameOptions, {
+      autoPresent,
+      deferPresentedFrame
+    });
   }
 
   function updateFrameForHost(host, progress, options = {}) {

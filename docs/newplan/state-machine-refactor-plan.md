@@ -543,7 +543,7 @@ npm run verify:pattern-scene-harness
 - adapter 不直接滚动页面。
 - adapter 不直接标记 target section presented。
 - adapter 不移动真实目标 DOM。
-- adapter 只通过 `reportMilestone()` 报告 `targetReady/playbackComplete/mediaReady`。
+- adapter 只通过 `reportFrame()` 报告播放进度、通过 `reportMilestone()` 报告 `targetReady/playbackComplete/mediaReady`；Director 把进度落成 `SceneTimelineFrame` 后再调用 `render(frame)`。
 - SceneTimeline 输出的 `copyOwner` 在截图/日志中无重复。
 - adapter 渲染路径无一次性布尔，`render(frame)` 对同一 frame 幂等（原则 8）。
 
@@ -560,6 +560,9 @@ npm run verify:pattern-scene-harness
 - [x] 删除 legacy runtime 的状态机代码。
 - [x] 把 snap runtime 从 opt-in 改成默认，仅保留 `?legacyRuntime=1` / `?snapRuntime=0` 临时 fallback flag。
 - [x] 更新 docs/ADR，明确新架构的 owner contract。
+  - `docs/ADR-homepage-js-snap.md` 记录 snap runtime 成为默认 owner、SceneTimeline 是唯一 present/cleanup 入口。
+  - `docs/ADR-homepage-reverse-playback.md` 记录当前 reverse fallback 策略。
+  - `verify:homepage-owner-contract` 已清空 known violation baseline，timeline-owned copy 不再由 `.reveal` 控制。
 
 ## 验证标准
 
