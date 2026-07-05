@@ -16,9 +16,11 @@
  */
 
 import { join, dirname } from 'path';
+import { readFileSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const adapterSource = readFileSync(join(ROOT, 'js/runtime/scenes/aod-scene-adapter.js'), 'utf8');
 
 // renderAodTransitionProgress / prepareAodTransition / waitForAodTransitionMetadata
 // touch DOM + window. Stub the component module is overkill; instead provide a
@@ -191,6 +193,12 @@ function makePump() {
   assert(!played, 'reduced motion does not call video.play()');
   assert(adapter.getProgress() === 1, 'reduced motion presents terminal (progress 1)');
 }
+
+assert(
+  adapterSource.includes("classList?.add('homepage-transition', 'homepage-transition--aod')")
+    && adapterSource.includes("classList?.remove('homepage-transition', 'homepage-transition--aod')"),
+  'aod scene adapter scopes fixed transition media to its host'
+);
 
 console.log(`aod-scene-adapter: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

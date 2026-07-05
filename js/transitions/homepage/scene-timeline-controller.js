@@ -74,7 +74,7 @@ function milestoneConditions(conditions) {
   return asArray(conditions).filter((condition) => !String(condition).startsWith('progress:'));
 }
 
-function shouldAutoPresentFromAdapter(join) {
+function shouldAutoPresentFromFrameDriver(join) {
   return join?.progressPolicy === 'scroll' || join?.targetCopyPolicy !== 'early';
 }
 
@@ -562,8 +562,12 @@ export function createSceneTimelineController({
     return updateFrameForJoin(resolveJoin(joinId), progress, options);
   }
 
-  function update(join, progress, options = {}) {
-    return updateFrame(join, progress, options);
+  function updateFrameForHost(host, progress, options = {}) {
+    const join = getJoinForHost(host);
+    return updateFrameForJoin(join, progress, options, {
+      autoPresent: shouldAutoPresentFromFrameDriver(join),
+      deferPresentedFrame: join?.targetCopyPolicy === 'early'
+    });
   }
 
   function getFrame(joinId) {
@@ -581,23 +585,6 @@ export function createSceneTimelineController({
       },
       getFrame() {
         return join ? getFrame(join.id) : null;
-      },
-      update(progress, options) {
-        return updateFrameForJoin(join, progress, options, {
-          autoPresent: shouldAutoPresentFromAdapter(join),
-          deferPresentedFrame: join?.targetCopyPolicy === 'early'
-        });
-      },
-      commit(reason = 'adapter-commit') {
-        return join ? commitTarget(join.id, reason) : null;
-      },
-      present(reason = 'adapter-present') {
-        return join ? presentTarget(join.id, reason) : null;
-      },
-      complete(reason = 'adapter-complete') {
-        if (!join) return null;
-        updateFrameForJoin(join, 1, { reason }, { autoPresent: false });
-        return presentTarget(join.id, reason);
       }
     });
   }
@@ -612,9 +599,9 @@ export function createSceneTimelineController({
     getFrame,
     beginJoin,
     updateFrame,
+    updateFrameForHost,
     commitTarget,
     presentTarget,
-    cleanupJoin,
-    update
+    cleanupJoin
   });
 }

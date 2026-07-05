@@ -108,6 +108,7 @@ export function createFigure2SceneAdapter({
   let prepared = false;
   let destroyed = false;
   let intro = 0;
+  let preparePromise = null;
 
   const driver = createDriver({
     durationMs,
@@ -119,15 +120,25 @@ export function createFigure2SceneAdapter({
 
   async function showFirstFrame() {
     if (destroyed || prepared) return;
-    section = mountMarkup(host);
-    controller = createController(section, { root: host, body: host, reduceMotion });
-    if (!controller) throw new Error('figure2 controller could not initialize');
-    controller.prepare?.();
-    // No mountGsap/mountNativeFallback — playback is time-driven, not scrolled.
-    await (controller.waitForVideos?.() || Promise.resolve());
-    intro = 0;
-    controller.renderStaticState?.({ introProgress: 0, transitionProgress: 0 });
-    prepared = true;
+    if (preparePromise) return preparePromise;
+
+    preparePromise = (async () => {
+      section = mountMarkup(host);
+      controller = createController(section, { root: host, body: host, reduceMotion });
+      if (!controller) throw new Error('figure2 controller could not initialize');
+      controller.prepare?.();
+      // No mountGsap/mountNativeFallback — playback is time-driven, not scrolled.
+      await (controller.waitForVideos?.() || Promise.resolve());
+      intro = 0;
+      controller.renderStaticState?.({ introProgress: 0, transitionProgress: 0 });
+      prepared = true;
+    })();
+
+    try {
+      await preparePromise;
+    } finally {
+      preparePromise = null;
+    }
   }
 
   function presentTerminal() {

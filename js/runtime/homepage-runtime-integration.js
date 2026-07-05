@@ -22,10 +22,17 @@ import { createSceneTimelineController } from '../transitions/homepage/scene-tim
 import { createHomepageSnapRuntime } from './homepage-snap-runtime.js';
 import { createChargeIndicator } from './charge-indicator.js';
 import { createRecoveryHandler } from './recovery-handler.js';
+import { homepageTransitionRegistry } from '../transitions/homepage-transition-registry.js';
 import { createPatternBloomSceneAdapter } from './scenes/pattern-bloom-scene-adapter.js';
 import { createAodSceneAdapter } from './scenes/aod-scene-adapter.js';
 import { createFigure2SceneAdapter } from './scenes/figure2-scene-adapter.js';
 import { createFigure3SceneAdapter } from './scenes/figure3-scene-adapter.js';
+
+const VISUAL_ONLY_TRANSITION_MODULES = new Set(['ttg', 'ph', 'crane']);
+const VISUAL_TRANSITION_SELECTOR = [
+  '.chapter-transition[data-transition-module]',
+  '.scene-transition[data-transition-module]'
+].join(',');
 
 const CONFIG = {
   VIEWPORT_CHANGE_THRESHOLD_PX: 100, // mobile address-bar detection
@@ -47,6 +54,35 @@ function resolveSceneElement(sceneId) {
   return document.querySelector(`[data-scene-id="${sceneId}"]`);
 }
 
+const clamp01 = (value) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+
+function createElementScrollProgressSource(element) {
+  return () => {
+    if (!element) return 0;
+    const viewportHeight = Math.max(1, window.innerHeight || 1);
+    const rect = element.getBoundingClientRect();
+    const scrollSpan = Math.max(1, element.offsetHeight || rect.height || viewportHeight);
+    return clamp01((viewportHeight - rect.top) / scrollSpan);
+  };
+}
+
+function resolveTransitionHandoffTarget(root, host) {
+  const selector = host?.dataset?.transitionHandoffTarget;
+  const queryRoot = typeof root?.querySelector === 'function' ? root : document;
+  if (selector) {
+    try {
+      const target = queryRoot.querySelector(selector);
+      if (target) return target;
+    } catch (error) {
+      console.warn(`Invalid transition handoff selector: ${selector}`, error);
+    }
+  }
+
+  const transitionTo = host?.dataset?.transitionTo;
+  if (!transitionTo) return null;
+  return queryRoot.getElementById?.(transitionTo) || null;
+}
+
 /**
  * Sync runtime state to DOM attributes for CSS/debugging hooks.
  */
@@ -56,6 +92,51 @@ function syncStateToDom(state, rootElement) {
   rootElement.setAttribute(a.runtimeState, state.current);
   rootElement.setAttribute(a.currentScene, String(state.currentSceneIndex));
   rootElement.setAttribute(a.scrollLocked, state.isScrollLocked ? 'true' : 'false');
+}
+
+async function mountVisualOnlyTransitionHosts({
+  root = document,
+  reduceMotion = false,
+  addCleanup,
+  isAlive = () => true
+}) {
+  const hosts = [...root.querySelectorAll(VISUAL_TRANSITION_SELECTOR)]
+    .filter((host) => (
+      !host.dataset.sceneId
+      && VISUAL_ONLY_TRANSITION_MODULES.has(host.dataset.transitionModule)
+    ));
+
+  await Promise.all(hosts.map(async (host) => {
+    const loadAdapter = homepageTransitionRegistry[host.dataset.transitionModule];
+    if (!loadAdapter || !isAlive()) return;
+
+    try {
+      const adapterModule = await loadAdapter();
+      if (!isAlive()) return;
+      const mount = adapterModule.mountHomepageTransition;
+      if (typeof mount !== 'function') return;
+      const progressSource = createElementScrollProgressSource(host);
+      let cleanupRegistered = false;
+      const registerCleanup = (cleanup) => {
+        cleanupRegistered = true;
+        if (typeof addCleanup === 'function') addCleanup(cleanup);
+      };
+      const mounted = mount({
+        host,
+        reduceMotion,
+        progressSource,
+        handoffTarget: resolveTransitionHandoffTarget(root, host),
+        handoffProgressSource: progressSource,
+        reportMilestone: () => {},
+        addCleanup: registerCleanup
+      });
+      if (!cleanupRegistered && typeof mounted?.destroy === 'function' && typeof addCleanup === 'function') {
+        addCleanup(() => mounted.destroy());
+      }
+    } catch (error) {
+      console.warn('[Homepage Runtime] visual-only transition mount failed:', error?.message || error);
+    }
+  }));
 }
 
 /**
@@ -159,6 +240,16 @@ export function createHomepageRuntimeIntegration({
   const scenes = homepageTimeline.scenes.filter((s) => resolveSceneElement(s.id));
   let isDestroyed = false;
   const sceneTimeline = createSceneTimelineController({ root: document });
+  const visualOnlyCleanups = new Set();
+
+  function addVisualOnlyCleanup(cleanup) {
+    if (typeof cleanup !== 'function') return;
+    if (isDestroyed) {
+      cleanup();
+      return;
+    }
+    visualOnlyCleanups.add(cleanup);
+  }
 
   // Real document top of a scene's DOM host (for DOM-driven snap bounds).
   function resolveSceneTop(sceneId) {
@@ -206,6 +297,13 @@ export function createHomepageRuntimeIntegration({
   function recoverTimelinePlayback(reason = 'director-recovery') {
     if (!activePlayback?.join) return null;
     return completeTimelinePlayback(reason);
+  }
+
+  function primeSceneAdapter(sceneId, adapter) {
+    if (!adapter || typeof adapter.showFirstFrame !== 'function') return;
+    Promise.resolve(adapter.showFirstFrame()).catch((error) => {
+      console.warn(`[Homepage Runtime] ${sceneId} first frame failed:`, error?.message || error);
+    });
   }
 
   async function scenePresenter({ fromIndex, toIndex, direction, scene }) {
@@ -273,21 +371,25 @@ export function createHomepageRuntimeIntegration({
   // Only register when its host is actually scaffolded.
   const patternBloomEl = resolveSceneElement('pattern-bloom');
   if (patternBloomEl) {
-    sceneAdapters.set('pattern-bloom', createPatternBloomSceneAdapter({
+    const adapter = createPatternBloomSceneAdapter({
       host: patternBloomEl,
       reduceMotion
-    }));
+    });
+    sceneAdapters.set('pattern-bloom', adapter);
+    primeSceneAdapter('pattern-bloom', adapter);
   }
 
   // Second real adapter: aod (media/autoplay). Uses video.play()/ended, never
   // scrubs. getRecoveryHandler is lazy because recoveryHandler is created below.
   const aodEl = resolveSceneElement('aod-animation');
   if (aodEl) {
-    sceneAdapters.set('aod-animation', createAodSceneAdapter({
+    const adapter = createAodSceneAdapter({
       host: aodEl,
       reduceMotion,
       getRecoveryHandler: () => recoveryHandler
-    }));
+    });
+    sceneAdapters.set('aod-animation', adapter);
+    primeSceneAdapter('aod-animation', adapter);
   }
 
   // Third real adapter: figure2 (camera-expand). Reuses the figure2 controller's
@@ -295,18 +397,22 @@ export function createHomepageRuntimeIntegration({
   // cards/closing + ink-sweep are separate scenes/blocks handled later.
   const figure2El = resolveSceneElement('figure2-animation');
   if (figure2El) {
-    sceneAdapters.set('figure2-animation', createFigure2SceneAdapter({
+    const adapter = createFigure2SceneAdapter({
       host: figure2El,
       reduceMotion
-    }));
+    });
+    sceneAdapters.set('figure2-animation', adapter);
+    primeSceneAdapter('figure2-animation', adapter);
   }
 
   const figure3El = resolveSceneElement('figure3-animation');
   if (figure3El) {
-    sceneAdapters.set('figure3-animation', createFigure3SceneAdapter({
+    const adapter = createFigure3SceneAdapter({
       host: figure3El,
       reduceMotion
-    }));
+    });
+    sceneAdapters.set('figure3-animation', adapter);
+    primeSceneAdapter('figure3-animation', adapter);
   }
 
   // ---- runtime --------------------------------------------------------------
@@ -492,6 +598,14 @@ export function createHomepageRuntimeIntegration({
 
   runtime.recalculateSceneBounds();
   syncStateToDom(runtime.getCurrentState(), rootElement);
+  mountVisualOnlyTransitionHosts({
+    root: document,
+    reduceMotion,
+    addCleanup: addVisualOnlyCleanup,
+    isAlive: () => !isDestroyed
+  }).catch((error) => {
+    console.warn('[Homepage Runtime] visual-only transition setup failed:', error?.message || error);
+  });
   decayRAF = requestAnimationFrame(decayLoop);
   // Kick the FSM so it can arm at the initial scroll position.
   runtime.handleScroll();
@@ -525,6 +639,14 @@ export function createHomepageRuntimeIntegration({
       if (resizeTimer) clearTimeout(resizeTimer);
       if (recoveryHandler) recoveryHandler.clearAllTimeouts();
       if (chargeIndicator) chargeIndicator.hide();
+      visualOnlyCleanups.forEach((cleanup) => {
+        try {
+          cleanup();
+        } catch (error) {
+          console.warn('[Homepage Runtime] visual-only cleanup failed:', error?.message || error);
+        }
+      });
+      visualOnlyCleanups.clear();
       sceneAdapters.forEach((a) => a?.destroy?.());
       sceneAdapters.clear();
       runtime.destroy();

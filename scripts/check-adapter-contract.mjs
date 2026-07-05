@@ -13,20 +13,7 @@ const SCAN_FILES = [
   'js/transitions/pattern-bloom-adapter.js'
 ];
 
-const KNOWN_VIOLATIONS = Object.freeze([
-  {
-    file: 'js/transitions/homepage/ph-homepage-adapter.js',
-    ruleId: 'timeline-update',
-    text: 'timeline?.update(progress, {',
-    removalTaskId: 'P4.7-ph-adapter'
-  },
-  {
-    file: 'js/transitions/homepage/ttg-homepage-adapter.js',
-    ruleId: 'timeline-update',
-    text: 'timeline?.update(progress, {',
-    removalTaskId: 'P4.6-ttg-adapter'
-  },
-]);
+const KNOWN_VIOLATIONS = Object.freeze([]);
 
 const RULES = Object.freeze([
   {

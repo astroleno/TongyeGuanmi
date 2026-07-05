@@ -10,9 +10,11 @@
  */
 
 import { join, dirname } from 'path';
+import { readFileSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const integrationSource = readFileSync(join(ROOT, 'js/runtime/homepage-runtime-integration.js'), 'utf8');
 const { selectPlaybackAdapterScene, selectTimelineJoinForPlayback } = await import(
   pathToFileURL(join(ROOT, 'js/runtime/homepage-runtime-integration.js')).href
 );
@@ -99,6 +101,25 @@ assert(
     joins
   })?.id === 'brand-services',
   'figure3-animation maps to SceneTimeline join brand-services'
+);
+
+assert(
+  integrationSource.includes('function primeSceneAdapter')
+    && integrationSource.includes('adapter.showFirstFrame')
+    && integrationSource.includes("primeSceneAdapter('aod-animation', adapter)")
+    && integrationSource.includes("primeSceneAdapter('figure2-animation', adapter)")
+    && integrationSource.includes("primeSceneAdapter('figure3-animation', adapter)"),
+  'registered media scene adapters prime their first frame so default snap path never exposes empty transition hosts'
+);
+
+assert(
+  integrationSource.includes('VISUAL_ONLY_TRANSITION_MODULES')
+    && integrationSource.includes("new Set(['ttg', 'ph', 'crane'])")
+    && integrationSource.includes('homepageTransitionRegistry')
+    && integrationSource.includes('function mountVisualOnlyTransitionHosts')
+    && integrationSource.includes('!host.dataset.sceneId')
+    && integrationSource.includes('reportMilestone: () => {}'),
+  'legacy visual-only TTG/PH/Crane hosts mount under default snap runtime without taking timeline ownership'
 );
 
 console.log(`homepage-runtime-integration: ${pass} passed, ${fail} failed`);

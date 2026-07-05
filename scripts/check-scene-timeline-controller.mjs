@@ -352,22 +352,25 @@ function withFakeGlobals(document, callback) {
       dataset: { transitionId: 'belief-method' }
     });
     const context = timeline.createAdapterContext(host);
+    assert.equal(typeof context.update, 'undefined', 'adapter context must not expose deprecated update');
+    assert.equal(typeof context.complete, 'undefined', 'adapter context must not expose direct completion');
+    assert.equal(typeof context.present, 'undefined', 'adapter context must not expose direct presentation');
     timeline.beginJoin('belief-method', { direction: 1, reason: 'unit-runtime-owned' });
-    const frame = context.update(0.96, {
-      reason: 'unit-adapter-update',
+    const frame = timeline.updateFrameForHost(host, 0.96, {
+      reason: 'unit-runtime-frame',
       milestones: { targetReady: true }
     });
 
-    assert.equal(frame.phase, 'committed', 'early adapter updates wait for runtime present even after presentAt');
-    assert.equal(frame.copyOwner, 'timeline-fixed', 'early adapter updates keep fixed copy until runtime present');
-    assert.equal(sections.method.copy.getAttribute('data-timeline-fixed'), 'true', 'early adapter update keeps fixed DOM copy');
+    assert.equal(frame.phase, 'committed', 'early runtime frames wait for Director present even after presentAt');
+    assert.equal(frame.copyOwner, 'timeline-fixed', 'early runtime frames keep fixed copy until Director present');
+    assert.equal(sections.method.copy.getAttribute('data-timeline-fixed'), 'true', 'early runtime frame keeps fixed DOM copy');
     assert.equal(
       document.events.filter((event) => event.type === 'scene-timeline:presented' && event.detail.joinId === 'belief-method').length,
       0,
-      'early adapter update must not dispatch present before runtime complete'
+      'early runtime frame must not dispatch present before Director complete'
     );
 
-    const completedFrame = context.complete('unit-runtime-complete');
+    const completedFrame = timeline.presentTarget('belief-method', 'unit-runtime-complete');
     assert.equal(completedFrame.phase, 'presented', 'runtime complete presents early-copy target');
     assert.equal(sections.method.copy.hasAttribute('data-timeline-fixed'), false, 'runtime complete clears fixed copy');
     assert.equal(sections.method.copy.getAttribute('data-entry-state'), 'presented', 'runtime complete claims native copy');

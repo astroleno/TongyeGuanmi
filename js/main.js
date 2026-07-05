@@ -49,14 +49,14 @@ initLoaderInkReveal({
 initInkKeywords({ reduceMotion, maxWebglKeywords: 2 });
 initBeliefStarField({ root: document, reduceMotion });
 
-// One scroll owner: the new snap runtime is opt-in. Default (flag off) keeps the
-// existing transition runtime as the sole owner of wheel/scroll/Lenis. With the
-// flag on we boot the snap runtime INSTEAD of the old one — never both, so the
-// two never fight over input/lock (see ADR-homepage-js-snap / plan safety fix).
-// Strict opt-in: only ?snapRuntime=1 (not bare ?snapRuntime or =0) or the dev global.
-const snapRuntimeEnabled =
-  new URLSearchParams(window.location.search).get('snapRuntime') === '1' ||
-  window.__SNAP_RUNTIME__ === true;
+// One scroll owner: the snap runtime is now the default. The old transition
+// runtime remains only as an explicit debug fallback while Phase 5 settles.
+const runtimeParams = new URLSearchParams(window.location.search);
+const legacyRuntimeEnabled =
+  runtimeParams.get('legacyRuntime') === '1' ||
+  runtimeParams.get('snapRuntime') === '0' ||
+  window.__LEGACY_HOMEPAGE_RUNTIME__ === true;
+const snapRuntimeEnabled = !legacyRuntimeEnabled;
 
 function bootHomepageRuntime(scrollController) {
   window.__homepageRuntime = createHomepageRuntimeIntegration({
@@ -66,8 +66,7 @@ function bootHomepageRuntime(scrollController) {
   });
 }
 
-// Boot the homepage scroll system: snap runtime when enabled, else the legacy
-// transition runtime. Exactly one attaches scroll/wheel/Lenis handlers.
+// Boot exactly one homepage scroll system.
 function bootHomepageScroll(opts, scrollController) {
   if (snapRuntimeEnabled) {
     bootHomepageRuntime(scrollController);

@@ -213,6 +213,7 @@ export function mountHomepageTransition({
     const handoffProgress = reduceMotion ? 1 : handoffProgressSource?.() ?? postProgress;
     proofScrollOverlay?.update({ transitionProgress, postProgress, handoffProgress });
     reportMilestone?.('phaseTwoComplete', transitionProgress >= 0.998);
+    reportMilestone?.('playbackComplete', transitionProgress >= 0.998);
     reportMilestone?.('sourceGhostReady', Boolean(proofScrollOverlay));
     reportMilestone?.('targetReady', Boolean(handoffTarget));
     proofSceneTexture?.update();

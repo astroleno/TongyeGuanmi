@@ -22,7 +22,6 @@ const craneSource = read('js/transitions/homepage/crane-homepage-adapter.js');
 const figure3Source = read('js/transitions/homepage/figure3-homepage-adapter.js');
 const ttgSource = read('js/transitions/homepage/ttg-homepage-adapter.js');
 const phSource = read('js/transitions/homepage/ph-homepage-adapter.js');
-const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js');
 const generatedManifest = await import(`${pathToFileURL(generatedManifestPath.pathname).href}?v=${Date.now()}`);
 
 function read(relativePath) {
@@ -104,7 +103,12 @@ assert.match(controllerSource, /export function createSceneTimelineController/, 
 assert.match(controllerSource, /export function deriveTimelineState/, 'Scene timeline controller must export deriveTimelineState');
 assert.match(runtimeSource, /createSceneTimelineController/, 'Homepage runtime must create the scene timeline controller');
 assert.match(runtimeSource, /\btimeline,/, 'Homepage runtime must pass timeline context to adapters');
-assert.match(runtimeSource, /&& !controller\.timelineJoin/, 'Homepage runtime must not whole-section gate timeline-owned targets');
+assert.match(runtimeSource, /updateFrameForHost/, 'Homepage runtime must drive SceneTimeline frames outside adapters');
+assert.doesNotMatch(
+  runtimeSource,
+  /shouldGateTargetReveal|beginTargetRevealGate|releaseTargetRevealGate|targetRevealHeld|transitionTargetReleaseProgress/,
+  'Homepage runtime must not whole-section gate timeline-owned targets'
+);
 assert.match(controllerSource, /data-timeline-fixed/, 'Scene timeline controller must expose fixed target-copy state');
 assert.match(controllerSource, /let activeFixedJoinId/, 'Scene timeline controller must track the single active fixed target join');
 assert.match(controllerSource, /activeFixedJoinId && activeFixedJoinId !== join\.id/, 'Scene timeline controller must clear previous fixed target copy when a new join starts');
@@ -118,20 +122,31 @@ assert.match(
   'Timeline presented-state CSS must not override fixed target-copy transform'
 );
 assert.doesNotMatch(continuityCss, /homepage-handoff-receiver/, 'Timeline CSS must not keep retired handoff receiver selectors');
-assert.match(patternBloomSource, /timeline\?\.update\(progress/, 'Pattern Bloom must update the timeline from render progress');
+assert.ok(
+  !existsSync(new URL('js/transitions/homepage/handoff-receiver.js', root))
+    && !existsSync(new URL('js/transitions/homepage/handoff-preview.js', root)),
+  'Retired handoff helper files must not exist'
+);
+assert.doesNotMatch(controllerSource, /function update\(|\bupdate\(progress,\s*options\)/, 'SceneTimeline must not expose the deprecated update alias');
+assert.doesNotMatch(patternBloomSource, /timeline\s*\??\.\s*update\s*\(/, 'Pattern Bloom must not push progress into the timeline');
+assert.match(patternBloomSource, /reportMilestone\?\.\('targetReady'/, 'Pattern Bloom must report target readiness');
+assert.match(patternBloomSource, /timeline\?\.getFrame\?\.\(\)/, 'Pattern Bloom must consume the current SceneTimeline frame');
 assert.match(patternBloomSource, /lotusContracted/, 'Pattern Bloom must report the lotusContracted milestone');
 assert.match(patternBloomSource, /beliefCopyComplete/, 'Pattern Bloom must report the beliefCopyComplete milestone');
 assert.doesNotMatch(patternBloomSource, /beliefPinned \? 0\.18 : 1/, 'Pattern Bloom must not use the old local opacity clamp');
 assert.doesNotMatch(`${aodSource}\n${figure2Source}\n${craneSource}`, /createHandoffReceiver/, 'Timeline-owned adapters must not use createHandoffReceiver');
 for (const [name, source] of [
+  ['AOD', aodSource],
+  ['Figure2', figure2Source],
+  ['Crane', craneSource],
   ['Figure3', figure3Source],
   ['TTG', ttgSource],
   ['PH', phSource]
 ]) {
-  assert.match(source, /timeline\?\.update\(progress/, `${name} visual bridge must update the timeline`);
+  assert.doesNotMatch(source, /timeline\s*\??\.\s*update\s*\(/, `${name} visual bridge must not push progress into the timeline`);
+  assert.match(source, /reportMilestone/, `${name} visual bridge must report timeline milestones`);
   assert.match(source, /playbackComplete/, `${name} visual bridge must report playbackComplete`);
 }
-assert.match(handoffReceiverSource, /has been retired/, 'createHandoffReceiver must fail loudly as retired code');
 assert.deepEqual(generatedManifest.timelineScenes, timelineScenes, 'Generated timelineScenes must match source manifest');
 assert.deepEqual(generatedManifest.timelineJoins, timelineJoins, 'Generated timelineJoins must match source manifest');
 

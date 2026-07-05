@@ -18,7 +18,6 @@ const SNAP_VIEWPORT_HEIGHT_VAR = '--homepage-transition-snap-height';
 const SNAP_EXTRA_HEIGHT_VAR = '--homepage-transition-extra-snap-height';
 const FIXED_STAGE_CLASS = 'homepage-transition--fixed-stage';
 const DEFAULT_SNAP_ENTRY_VH = 1.02;
-const DEFAULT_TARGET_GATE_RELEASE_PROGRESS = 0.86;
 const POST_SNAP_INPUT_LOCK_MS = 420;
 const BLOCKED_SCROLL_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' ']);
 const MODULE_PLAY_MS = {
@@ -101,15 +100,6 @@ function isDirectHashTargetForController(controller) {
       controller.handoffTarget.id === directHashTargetId
       || controller.handoffTarget.dataset?.sectionId === directHashTargetId
     )
-  );
-}
-
-function shouldGateTargetReveal(controller) {
-  return Boolean(
-    controller?.handoffTarget
-    && !controller.timelineJoin
-    && !controller.handoffId
-    && !controller.handoffPhase
   );
 }
 
@@ -445,14 +435,6 @@ function createHomepageSnapCoordinator({
       if (controller.destroyed) return;
       const progress = clamp((now - startTime) / durationMs);
       controller.playhead = from + (to - from) * easeInOutCubic(progress);
-      if (
-        direction > 0
-        && controller.targetRevealHeld
-        && controller.playhead >= controller.targetRevealReleaseProgress
-      ) {
-        releaseTargetRevealGate(controller);
-      }
-
       if (progress < 1) {
         controller.raf = requestAnimationFrame(tick);
         return;
@@ -467,26 +449,14 @@ function createHomepageSnapCoordinator({
     controller.raf = requestAnimationFrame(tick);
   };
 
-  const beginTargetRevealGate = (controller) => {
-    if (!shouldGateTargetReveal(controller) || controller.targetRevealHeld) return;
-    controller.targetRevealHeld = false;
-  };
-
-  const releaseTargetRevealGate = (controller) => {
-    if (!controller?.targetRevealHeld) return;
-    controller.targetRevealHeld = false;
-    window.requestAnimationFrame?.(() => window.ScrollTrigger?.refresh?.());
-  };
-
   const clearSnapVisualState = (controller) => {
     controller?.host?.removeAttribute('data-snap-state');
   };
 
-  const finishPlayback = (controller, { releaseTargetGate = true } = {}) => {
+  const finishPlayback = (controller) => {
     controller.host.classList.remove('homepage-transition--snapped', 'homepage-transition--playing');
     clearSnapVisualState(controller);
     syncFixedStageState(controller);
-    if (releaseTargetGate) releaseTargetRevealGate(controller);
     inputLockUntil = performance.now() + POST_SNAP_INPUT_LOCK_MS;
     syncLastScrollY();
     clearReleaseTimer();
@@ -546,7 +516,6 @@ function createHomepageSnapCoordinator({
     clearSnapVisualState(controller);
     if (!controller.directHashTimelinePresented) {
       completeTimelineHandoff(controller, 'runtime-direct-hash');
-      releaseTargetRevealGate(controller);
       controller.directHashTimelinePresented = true;
     }
 
@@ -585,12 +554,11 @@ function createHomepageSnapCoordinator({
         }
         if (shouldHandoffAfterPlayback) {
           completeTimelineHandoff(controller, 'runtime-complete');
-          releaseTargetRevealGate(controller);
         }
         if (direction < 0 && controller.timelineJoin) {
           sceneTimeline?.cleanupJoin(controller.timelineJoin.id, 'runtime-reverse-complete');
         }
-        finishPlayback(controller, { releaseTargetGate: !hold && direction > 0 });
+        finishPlayback(controller);
       }
     });
   };
@@ -600,7 +568,6 @@ function createHomepageSnapCoordinator({
     if (!Number.isFinite(targetY)) return;
 
     completeTimelineHandoff(controller, 'runtime-post-scroll-complete');
-    releaseTargetRevealGate(controller);
     clearReleaseTimer();
     inputLockUntil = performance.now() + POST_SNAP_INPUT_LOCK_MS;
     lockScroll();
@@ -631,11 +598,6 @@ function createHomepageSnapCoordinator({
         direction,
         reason: 'runtime-play'
       });
-    }
-    if (direction > 0) {
-      beginTargetRevealGate(controller);
-    } else {
-      releaseTargetRevealGate(controller);
     }
     controller.host.classList.add('homepage-transition--snapped', 'homepage-transition--playing');
     controller.host.dataset.snapState = direction > 0 ? 'forward' : 'backward';
@@ -692,7 +654,6 @@ function createHomepageSnapCoordinator({
       controller.timelinePresented = false;
       controller.host.classList.remove(FIXED_STAGE_CLASS);
       clearSnapVisualState(controller);
-      releaseTargetRevealGate(controller);
     }
 
     if (scrollY > hostTop + hostHeight + viewportHeight * 0.58) {
@@ -787,12 +748,6 @@ function createHomepageSnapCoordinator({
         timelinePresented: isDirectHandoffTarget,
         skipForDirectHash: isDirectHandoffTarget,
         directHashTimelinePresented: false,
-        targetRevealHeld: false,
-        targetRevealReleaseProgress: clamp(
-          parseFiniteNumber(host.dataset.transitionTargetReleaseProgress, DEFAULT_TARGET_GATE_RELEASE_PROGRESS),
-          0,
-          1
-        ),
         raf: 0,
         playedForward: isDirectHandoffTarget,
         playedBackward: false,
@@ -810,7 +765,6 @@ function createHomepageSnapCoordinator({
         },
         destroy() {
           this.destroyed = true;
-          releaseTargetRevealGate(this);
           this.host.classList.remove(FIXED_STAGE_CLASS);
           clearSnapVisualState(this);
           cancelAnimationFrame(this.raf);
@@ -857,11 +811,12 @@ function createRuntimeTimelineDriver({
   progressSource,
   handoffProgressSource,
   handoffTarget,
-  timeline,
+  sceneTimeline,
+  timelineHost,
   snapController,
   getReportedMilestones = () => ({})
 } = {}) {
-  if (!timeline || typeof timeline.update !== 'function') return { destroy() {} };
+  if (!sceneTimeline || !timelineHost || typeof sceneTimeline.updateFrameForHost !== 'function') return { destroy() {} };
 
   let raf = 0;
   let destroyed = false;
@@ -878,7 +833,7 @@ function createRuntimeTimelineDriver({
 
   const update = () => {
     const { progress, handoffProgress } = readProgress();
-    timeline.update(Math.max(progress, handoffProgress), {
+    sceneTimeline.updateFrameForHost(timelineHost, Math.max(progress, handoffProgress), {
       reason: 'runtime-frame',
       milestones: {
         targetReady: Boolean(handoffTarget),
@@ -971,7 +926,8 @@ async function createHomepageTransitionsRuntime({
         progressSource,
         handoffProgressSource,
         handoffTarget,
-        timeline,
+        sceneTimeline,
+        timelineHost: host,
         snapController,
         getReportedMilestones: () => reportedMilestones
       }));

@@ -4,7 +4,7 @@ import {
   waitForPhTransitionMetadata
 } from '../../components/ph-transition.js';
 
-export function mountHomepageTransition({ host, reduceMotion = false, progressSource, timeline, addCleanup }) {
+export function mountHomepageTransition({ host, reduceMotion = false, progressSource, reportMilestone, addCleanup }) {
   host.classList.add('homepage-transition', 'homepage-transition--ph', 'ph-page');
   host.innerHTML = `
     <section class="ph-scroll" data-ph-stage aria-hidden="true">
@@ -34,13 +34,8 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
     if (destroyed) return;
     const progress = reduceMotion ? 1 : progressSource();
     renderPhTransitionProgress(stage, progress, { alphaVideo });
-    timeline?.update(progress, {
-      reason: 'ph-render',
-      milestones: {
-        targetReady: true,
-        playbackComplete: progress >= 0.998
-      }
-    });
+    reportMilestone?.('targetReady', true);
+    reportMilestone?.('playbackComplete', progress >= 0.998);
     raf = requestAnimationFrame(render);
   };
 
@@ -48,7 +43,8 @@ export function mountHomepageTransition({ host, reduceMotion = false, progressSo
     waitForPhTransitionMetadata(stage).then(() => {
       if (!destroyed) {
         renderPhTransitionProgress(stage, 1, { alphaVideo });
-        timeline?.complete('ph-reduced-motion');
+        reportMilestone?.('targetReady', true);
+        reportMilestone?.('playbackComplete', true);
       }
     });
   } else {

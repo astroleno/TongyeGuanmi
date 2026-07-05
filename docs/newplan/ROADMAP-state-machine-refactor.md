@@ -192,11 +192,11 @@
 - Director 进入 `Playing` 时调用 adapter `play()`。
 - Director 进入 `Completing` 时由 SceneTimeline 执行 commit / present / cleanup。
 - recovery 统一走 `RecoverPresentTarget`，最终由 SceneTimeline 呈现 target 或 lastSafeScene。
-- 保持 `?snapRuntime=1` pilot，不默认替换旧 runtime。
+- Phase 2 期间保留 `?snapRuntime=1` pilot；Phase 5 完成后 snap runtime 默认启用。
 
 ### 验收标准
 
-- `?snapRuntime=1` 下只有 `homepage-snap-runtime` 消费 wheel / touch / key。
+- snap runtime 默认路径下只有 `homepage-snap-runtime` 消费 wheel / touch / key。
 - 播放失败释放滚动，并呈现安全 target 或 lastSafeScene。
 - `window.__homepageRuntime.getState()` 能解释当前页面状态。
 - runtime phase 可观察到 `FreeScroll -> SnapAligning -> SnappedArmed -> TriggeredPlayback -> Playing -> Completing -> ReleaseCooldown`。
@@ -300,7 +300,7 @@ pattern-bloom 专项：
 
 ### 总目标
 
-删除废弃 legacy 路径，把 `?snapRuntime=1` 从 opt-in 改为默认，并更新 ADR / owner contract 文档，让新架构成为项目默认事实。
+删除废弃 legacy 路径，把 snap runtime 从 opt-in 改为默认，并更新 ADR / owner contract 文档，让新架构成为项目默认事实。
 
 ### 技术栈
 
@@ -320,10 +320,10 @@ pattern-bloom 专项：
 
 - 入口条件：全部 join 已完成 Phase 4 迁移。
 - 删除废弃 handoff receiver / preview 路径。
-- 删除 legacy runtime 状态机代码。
-- `?snapRuntime=1` 改为默认，仅保留临时 fallback flag。
-- 更新 ADR，明确 owner contract、frame contract、adapter contract。
-- 清理 `KNOWN_VIOLATIONS`，让新增验证脚本不再依赖 baseline 豁免。
+- 删除 legacy runtime 的 gate / receiver / deprecated `timeline.update` 状态机入口。
+- snap runtime 改为默认，仅保留 `?legacyRuntime=1` / `?snapRuntime=0` 临时 fallback flag。
+- 更新 owner / frame / adapter contract 验证，确保 adapter 只消费 frame 并上报 milestone。
+- 清理 `KNOWN_VIOLATIONS` baseline，保留空清单防新增违规。
 
 ### 验收标准
 

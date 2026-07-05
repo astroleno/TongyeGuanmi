@@ -108,6 +108,26 @@ function checkBrowserRuntimeImportsGeneratedManifest() {
   }
 }
 
+function checkSnapRuntimeDefault() {
+  console.log('🔍 snap runtime is the default homepage scroll owner...');
+  const main = read('js/main.js');
+  if (!/const\s+legacyRuntimeEnabled\s*=/.test(main)) {
+    errors.push('main.js must expose an explicit legacyRuntimeEnabled fallback flag');
+  }
+  if (!/const\s+snapRuntimeEnabled\s*=\s*!legacyRuntimeEnabled\s*;/.test(main)) {
+    errors.push('snapRuntimeEnabled must default to true unless the legacy fallback flag is set');
+  }
+  if (!/runtimeParams\.get\('legacyRuntime'\)\s*===\s*'1'/.test(main)) {
+    errors.push('main.js must keep ?legacyRuntime=1 as the explicit debug fallback');
+  }
+  if (!/runtimeParams\.get\('snapRuntime'\)\s*===\s*'0'/.test(main)) {
+    errors.push('main.js must keep ?snapRuntime=0 as the temporary reverse debug flag');
+  }
+  if (/__SNAP_RUNTIME__|runtimeParams\.get\('snapRuntime'\)\s*===\s*'1'/.test(main)) {
+    errors.push('snap runtime must not remain opt-in via ?snapRuntime=1 or __SNAP_RUNTIME__');
+  }
+}
+
 function checkAodNoAutoplay() {
   console.log('🔍 AOD does not autoplay on viewport enter...');
   const aod = homepageTimeline.scenes.find((s) => s.id === 'aod-animation');
@@ -139,6 +159,7 @@ try {
   checkChargeIndicator();
   checkRuntimeChargeDriven();
   checkBrowserRuntimeImportsGeneratedManifest();
+  checkSnapRuntimeDefault();
   checkAodNoAutoplay();
   checkBuiltDomCoverage();
 

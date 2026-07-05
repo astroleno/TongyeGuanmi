@@ -67,6 +67,7 @@ export function createFigure3SceneAdapter({
   let progress = 0;
   let prepared = false;
   let destroyed = false;
+  let preparePromise = null;
 
   function render(nextProgress) {
     progress = Math.max(0, Math.min(1, Number.isFinite(nextProgress) ? nextProgress : 0));
@@ -80,11 +81,21 @@ export function createFigure3SceneAdapter({
 
   async function showFirstFrame() {
     if (destroyed || prepared) return;
-    section = mountMarkup(host);
-    ({ alphaVideo } = prepareFigure3Transition(section, { progress: 0 }));
-    await waitForFigure3TransitionMetadata(section);
-    render(0);
-    prepared = true;
+    if (preparePromise) return preparePromise;
+
+    preparePromise = (async () => {
+      section = mountMarkup(host);
+      ({ alphaVideo } = prepareFigure3Transition(section, { progress: 0 }));
+      await waitForFigure3TransitionMetadata(section);
+      render(0);
+      prepared = true;
+    })();
+
+    try {
+      await preparePromise;
+    } finally {
+      preparePromise = null;
+    }
   }
 
   async function play({ direction = 1, reportMilestone } = {}) {

@@ -498,15 +498,15 @@ npm run verify:pattern-scene-harness
 
 目标：用现有 `homepage-snap-runtime` 作为唯一顶层状态机。
 
-- [ ] 在 `homepage-runtime-integration.js` 的 `scenePresenter` 中接入 SceneTimeline frame。
-- [ ] Director 进入 `Playing` 时调用 adapter `play()`，adapter 只返回完成/失败，不直接 present target。
-- [ ] Director 进入 `Completing` 时由 SceneTimeline commit/present/cleanup。
-- [ ] recovery 统一走 `RecoverPresentTarget`，由 SceneTimeline 呈现最后安全状态。
-- [ ] 保持 `?snapRuntime=1` pilot 开关，迁移完成前不默认替换旧 runtime。
+- [x] 在 `homepage-runtime-integration.js` 的 `scenePresenter` 中接入 SceneTimeline frame。
+- [x] Director 进入 `Playing` 时调用 adapter `play()`，adapter 只返回完成/失败，不直接 present target。
+- [x] Director 进入 `Completing` 时由 SceneTimeline commit/present/cleanup。
+- [x] recovery 统一走 `RecoverPresentTarget`，由 SceneTimeline 呈现最后安全状态。
+- [x] Phase 2 期间保留 `?snapRuntime=1` pilot；Phase 5 已切为默认。
 
 验收：
 
-- `?snapRuntime=1` 下只有 `homepage-snap-runtime` 消费 wheel/touch/key。
+- snap runtime 默认路径下只有 `homepage-snap-runtime` 消费 wheel/touch/key。
 - 播放失败会释放滚动并呈现安全目标，不会卡死。
 - `window.__homepageRuntime.getState()` 能解释当前页面状态。
 
@@ -514,14 +514,14 @@ npm run verify:pattern-scene-harness
 
 目标：旧 runtime 不再拥有状态机职责。
 
-- [ ] 从 `homepage-transition-runtime.js` 抽出 adapter mount registry。
-- [ ] 删除或旁路旧 runtime 的这些职责：
+- [x] 从 `homepage-transition-runtime.js` 抽出 adapter mount registry。
+- [x] 删除或旁路旧 runtime 的这些职责：
   - `lockScroll()` / `unlockScroll()`
   - `beginTargetRevealGate()` / `releaseTargetRevealGate()`
   - `completePlayback()`
   - `completePostScrollHandoff()`
   - direct-hash alignment timers
-- [ ] 保留旧 path 作为视觉兼容层，直到所有 join 都迁完。
+- [x] 保留旧 path 作为视觉兼容层，直到所有 join 都迁完；Phase 5 后只作为显式 fallback。
 
 验收：
 
@@ -549,17 +549,17 @@ npm run verify:pattern-scene-harness
 
 `pattern-bloom`（join 1）专项要求——它是"转场乱搞/黑闪"的最严重复现：
 
-- [ ] 现有 9 个本地状态变量（`canvasRevealed`、`beliefPinned`、`beliefSceneOpacity`、`secondRevealProgress` 派生量等）收敛为从 frame 推导的局部量，不跨帧存活。
-- [ ] Phase 0 迁入 manifest 的阈值改为**有序、无隐式重叠**的阶段区间表；`REVEAL_END=0.46` vs `BLOOM_START=0.42`、`SECOND_REVEAL_START=0.50` 这类重叠要么显式声明为交接段，要么修正数值。
-- [ ] 消除 `pattern-bloom-adapter.js:205` 的硬切：`topSceneOpacity` 在 `secondRevealProgress` 边界必须连续（用 smoothstep 缓冲带替代 `< 0.998 ? x : 0`），验收标准为任意相邻两帧 opacity 差值有上限。
-- [ ] 前景 canvas、背景 scene、belief 文案三者的可见性必须在同一个 `render(frame)` 内从同一 progress 推导，禁止三条独立决策链。
+- [x] 现有 9 个本地状态变量（`canvasRevealed`、`beliefPinned`、`beliefSceneOpacity`、`secondRevealProgress` 派生量等）收敛为从 frame 推导的局部量，不跨帧存活。
+- [x] Phase 0 迁入 manifest 的阈值改为**有序、无隐式重叠**的阶段区间表；`REVEAL_END=0.46` vs `BLOOM_START=0.42`、`SECOND_REVEAL_START=0.50` 这类重叠要么显式声明为交接段，要么修正数值。
+- [x] 消除 `pattern-bloom-adapter.js:205` 的硬切：`topSceneOpacity` 在 `secondRevealProgress` 边界必须连续（用 smoothstep 缓冲带替代 `< 0.998 ? x : 0`），验收标准为任意相邻两帧 opacity 差值有上限。
+- [x] 前景 canvas、背景 scene、belief 文案三者的可见性必须在同一个 `render(frame)` 内从同一 progress 推导，禁止三条独立决策链。
 
 ### Phase 5: 清理和默认切换
 
-- [ ] 删除废弃 handoff receiver/preview 路径。
-- [ ] 删除 legacy runtime 的状态机代码。
-- [ ] 把 `?snapRuntime=1` 从 opt-in 改成默认，仅保留临时 fallback flag。
-- [ ] 更新 docs/ADR，明确新架构的 owner contract。
+- [x] 删除废弃 handoff receiver/preview 路径。
+- [x] 删除 legacy runtime 的状态机代码。
+- [x] 把 snap runtime 从 opt-in 改成默认，仅保留 `?legacyRuntime=1` / `?snapRuntime=0` 临时 fallback flag。
+- [x] 更新 docs/ADR，明确新架构的 owner contract。
 
 ## 验证标准
 
@@ -603,11 +603,11 @@ npm run verify:pattern-scene-harness
 - `body.style.overflow`
 - `presentRevealWithin`
 - `completeHandoff`
-- `timeline.update(` / `timeline?.update(`（实现用 `timeline\s*\??\.\s*update\s*\(`，不要依赖 reason 名称）
+- `timeline.update(` / `timeline?.update(`（实现用 `timeline\s*\??\.\s*update\s*\(`，不要依赖 reason 名称；当前 baseline 已清空）
 - 直接写 `data-section-handoff-state`
 - 读取 `data-section-handoff-state` / `data-timeline-phase`（getAttribute/dataset 形式）
 - 模块级 progress 阈值常量（阈值必须来自 manifest）
-- 移动真实 copy DOM 到 overlay/stage（当前 figure2 的 `.method-proof` 搬运作为 baseline violation，绑定 Phase 4 移除）
+- 移动真实 copy DOM 到 overlay/stage（真实 DOM 搬运 baseline 已清空；允许 clone / snapshot / canvas / texture）
 
 `verify:pattern-scene-harness` 应检查：
 
@@ -682,13 +682,13 @@ idle -> preparing -> playing -> committed -> presented -> cleanup -> released
 | `revealControls` WeakMap | reveal.js | 保留（renderer 资源，不是状态） | — |
 | `data-section-handoff-state` | 多处写入 | 只由 `presentTarget()` 写，输出属性 | Phase 1 |
 | `data-timeline-phase` | scene-timeline-controller.js | 保留，输出属性 | — |
-| `data-section-transition-state` + gate class | homepage-transition-runtime.js | 并入 timeline transaction | Phase 3 |
+| `data-section-transition-state` + gate class | homepage-transition-runtime.js | 已删除；不再作为状态机输入 | Phase 3 |
 | `is-pattern-bloom-pinned` / `is-pattern-bloom-covering` class | pattern-bloom-adapter.js | 从 frame 推导后写出 | Phase 4 |
 | pattern-bloom 9 个本地布尔/派生量 | pattern-bloom-adapter.js | 消灭，改为 frame 纯函数局部量 | Phase 4 |
 | `isForcingLightNav` / `destroyed` | aod-homepage-adapter.js | `destroyed` 保留（资源生命周期）；nav 色调从 frame 推导 | Phase 4 |
 | `currentRun` | scene-harness-pattern.html | PatternSceneController runId | Phase 0A |
 | provider `status/mode/progress` | pattern-scene-player.js | controller 单一 phase | Phase 0A |
-| `directHashAlignmentTimers` 数组 | homepage-transition-runtime.js:528 | Director 初始状态分支，删除重试 timer | Phase 3 |
+| `directHashAlignmentTimers` 数组 | homepage-transition-runtime.js | 已删除；direct hash 由 Director 初始状态分支处理 | Phase 3 |
 
 ## 文件清单
 

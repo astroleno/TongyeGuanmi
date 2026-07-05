@@ -12,8 +12,6 @@ const runtimeSource = read('js/transitions/homepage-transition-runtime.js');
 const revealSource = read('js/ui/reveal.js');
 const presentationControllerSource = read('js/transitions/homepage/section-presentation-controller.js');
 const sceneTimelineControllerSource = read('js/transitions/homepage/scene-timeline-controller.js');
-const handoffPreviewSource = read('js/transitions/homepage/handoff-preview.js');
-const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js');
 const patternBloomAdapterSource = read('js/transitions/pattern-bloom-adapter.js');
 const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
@@ -318,20 +316,10 @@ assert.ok(
     && !runtimeSource.includes('presentationController.beginHandoff'),
   'Homepage runtime must request handoff lifecycle through SceneTimeline frame updates'
 );
-assert.ok(
-  runtimeSource.includes('beginTargetRevealGate')
-    && runtimeSource.includes('releaseTargetRevealGate')
-    && runtimeSource.includes('targetRevealHeld')
-    && runtimeSource.includes('DEFAULT_TARGET_GATE_RELEASE_PROGRESS')
-    && runtimeSource.includes('transitionTargetReleaseProgress')
-    && runtimeSource.includes('controller.playhead >= controller.targetRevealReleaseProgress')
-    && runtimeSource.includes('releaseTargetGate: !hold && direction > 0'),
-  'Homepage runtime keeps the target-gate compatibility seam while bypassing old gate ownership'
-);
 assert.doesNotMatch(
   runtimeSource,
-  /data-section-transition-state|homepage-transition-target-gated/,
-  'Legacy runtime must not write the old target gate state/class'
+  /beginTargetRevealGate|releaseTargetRevealGate|targetRevealHeld|transitionTargetReleaseProgress|data-section-transition-state|homepage-transition-target-gated/,
+  'Legacy runtime must not keep the old target gate state/class'
 );
 assert.doesNotMatch(
   runtimeSource,
@@ -394,16 +382,9 @@ assert.ok(
   'Homepage Figure2 staged visuals must stay fixed to the viewport while snapped'
 );
 assert.ok(
-  handoffReceiverSource.includes('createHandoffReceiver')
-    && handoffPreviewSource.includes('createHandoffPreview')
-    && handoffReceiverSource.includes('has been retired')
-    && handoffReceiverSource.includes('throw new Error'),
-  'Shared handoff helper must be retired loudly instead of adopting real target DOM'
-);
-assert.doesNotMatch(
-  `${handoffPreviewSource}\n${handoffReceiverSource}`,
-  /cloneNode\s*\(\s*true\s*\)/,
-  'Shared handoff helper must not clone target content'
+  !existsSync(path.join(rootDir, 'js/transitions/homepage/handoff-preview.js'))
+    && !existsSync(path.join(rootDir, 'js/transitions/homepage/handoff-receiver.js')),
+  'Retired shared handoff helper files must be removed'
 );
 assert.equal(
   [...stylesSource.matchAll(/@import url\("([^"]+)"\);/g)].map((match) => match[1]).at(-1),
@@ -414,7 +395,6 @@ assert.ok(
   homepageContinuityCss.includes('homepage-transition--reduced-motion')
     && homepageContinuityCss.includes('[data-entry-owner="timeline"][data-timeline-fixed="true"]')
     && homepageContinuityCss.includes('height: 0 !important')
-    && homepageContinuityCss.includes('.canvas-section.homepage-transition-target-gated')
     && homepageContinuityCss.includes('body.is-pattern-bloom-covering .hero-content')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned')
     && homepageContinuityCss.includes('--timeline-fixed-top')
@@ -424,7 +404,7 @@ assert.ok(
     && homepageContinuityCss.includes('background: transparent !important')
     && homepageContinuityCss.includes('.belief-star-field.is-ready')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned .belief-copy-wrap'),
-  'Homepage continuity CSS must define reduced-motion collapse, timeline target copy, method-brand collapse, target gates, and pinned belief copy'
+  'Homepage continuity CSS must define reduced-motion collapse, timeline target copy, method-brand collapse, and pinned belief copy'
 );
 assert.ok(
   scrollEdgeBlurCss.includes('.scroll-edge-blur__layer {\n    background: transparent;')
@@ -554,14 +534,16 @@ assert.ok(
 assert.ok(
   ttgHomepageAdapterSource.includes('scene.renderRawProgress(progress, { syncVideo: false })')
     && ttgHomepageAdapterSource.includes('scene.enableGsapRendering(gsap)')
-    && ttgHomepageAdapterSource.includes('timeline?.update(progress')
+    && !/timeline\s*\??\.\s*update\s*\(/.test(ttgHomepageAdapterSource)
+    && ttgHomepageAdapterSource.includes("reportMilestone?.('targetReady'")
     && ttgComponentSource.includes('figurePlaybackDrivesScene'),
-  'TTG homepage transition must drive scenery from snap progress instead of video frame time'
+  'TTG homepage transition must drive scenery from snap progress and report milestones without pushing timeline progress'
 );
 assert.ok(
-  phHomepageAdapterSource.includes('timeline?.update(progress')
+  !/timeline\s*\??\.\s*update\s*\(/.test(phHomepageAdapterSource)
+    && phHomepageAdapterSource.includes("reportMilestone?.('targetReady'")
     && phHomepageAdapterSource.includes('playbackComplete'),
-  'PH visual bridge must present Education through the homepage timeline'
+  'PH visual bridge must report milestones without pushing timeline progress'
 );
 assert.doesNotMatch(
   ttgHomepageAdapterSource,

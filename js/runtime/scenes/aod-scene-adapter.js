@@ -61,12 +61,17 @@ export function createAodSceneAdapter({
   let rafId = 0;
   let destroyed = false;
   let prepared = false;
+  let preparePromise = null;
 
   function defaultMountMarkup(hostEl) {
     // Reuse the same markup the legacy aod homepage adapter builds.
+    hostEl.classList?.add('homepage-transition', 'homepage-transition--aod');
     hostEl.innerHTML = `
       <section class="aod-transition" data-aod-transition data-aod-duration="2"
-        data-aod-video-duration="5.03" data-aod-fullscreen-start="0" data-aod-fullscreen-end="0.85"
+        data-aod-scroll-vh="20" data-aod-video-duration="5.03"
+        data-aod-fullscreen-start="0" data-aod-fullscreen-end="0.85"
+        data-aod-backdrop-exit-start="0.18" data-aod-backdrop-exit-end="1.55"
+        data-aod-figure-start-scale="1" data-aod-figure-start-y-vh="10.5"
         aria-hidden="true">
         <div class="aod-transition__sticky"><div class="aod-transition__field">
           <div class="aod-transition__layer-stack" aria-hidden="true">
@@ -103,14 +108,25 @@ export function createAodSceneAdapter({
    */
   async function showFirstFrame() {
     if (destroyed) return;
-    if (!section) section = mountMarkup(host);
-    video = section.querySelector('[data-aod-figure-video]');
-    prepareAodTransition(section, { progress: 0 });
-    prepared = true;
-    if (video) { try { video.currentTime = 0; } catch { /* not seekable yet */ } }
-    await waitForAodTransitionMetadata(section);
-    progress = 0;
-    renderAodTransitionProgress(section, 0, NO_SEEK);
+    if (prepared) return;
+    if (preparePromise) return preparePromise;
+
+    preparePromise = (async () => {
+      if (!section) section = mountMarkup(host);
+      video = section.querySelector('[data-aod-figure-video]');
+      prepareAodTransition(section, { progress: 0 });
+      if (video) { try { video.currentTime = 0; } catch { /* not seekable yet */ } }
+      await waitForAodTransitionMetadata(section);
+      progress = 0;
+      renderAodTransitionProgress(section, 0, NO_SEEK);
+      prepared = true;
+    })();
+
+    try {
+      await preparePromise;
+    } finally {
+      preparePromise = null;
+    }
   }
 
   /**
@@ -188,6 +204,7 @@ export function createAodSceneAdapter({
     stopLoop();
     try { video?.pause?.(); } catch { /* noop */ }
     host.replaceChildren?.();
+    host.classList?.remove('homepage-transition', 'homepage-transition--aod');
   }
 
   return { play, showFirstFrame, getProgress: () => progress, destroy };

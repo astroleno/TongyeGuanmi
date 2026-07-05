@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import {
   chapterTransitions,
   contentSections,
@@ -10,8 +10,6 @@ import {
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const packageJson = JSON.parse(read('package.json'));
-const handoffPreviewSource = read('js/transitions/homepage/handoff-preview.js');
-const handoffReceiverSource = read('js/transitions/homepage/handoff-receiver.js');
 const aodHomepageAdapterSource = read('js/transitions/homepage/aod-homepage-adapter.js');
 const figure2HomepageAdapterSource = read('js/transitions/homepage/figure2-homepage-adapter.js');
 const craneHomepageAdapterSource = read('js/transitions/homepage/crane-homepage-adapter.js');
@@ -76,20 +74,15 @@ for (const handoff of handoffs) {
   }
 }
 
-assert.doesNotMatch(
-  `${handoffPreviewSource}\n${handoffReceiverSource}`,
-  /cloneNode\s*\(\s*true\s*\)/,
-  'Retired shared handoff helpers must not clone real target content'
+assert.ok(
+  !existsSync(new URL('../js/transitions/homepage/handoff-preview.js', import.meta.url))
+    && !existsSync(new URL('../js/transitions/homepage/handoff-receiver.js', import.meta.url)),
+  'Retired shared handoff helper files must be removed'
 );
 assert.doesNotMatch(
   `${aodHomepageAdapterSource}\n${figure2HomepageAdapterSource}\n${craneHomepageAdapterSource}`,
   /createHandoffReceiver/,
   'Active homepage adapters must not use the retired target DOM receiver'
-);
-assert.match(
-  handoffReceiverSource,
-  /throw new Error\([\s\S]*createHandoffReceiver has been retired/,
-  'Retired handoff receiver must fail loudly if called'
 );
 
 assert.doesNotMatch(
