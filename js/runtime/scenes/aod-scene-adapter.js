@@ -37,6 +37,7 @@ function report(reportMilestone, name, value = true) {
  * @param {Object} options
  * @param {HTMLElement} options.host - the aod scene DOM host ([data-scene-id="aod-animation"])
  * @param {boolean} [options.reduceMotion]
+ * @param {number} [options.playbackStallTimeoutMs]
  * @param {() => object|null} [options.getRecoveryHandler] - lazy accessor for the
  *   shared recovery-handler (it is created after adapters are registered).
  * @param {object} [options.deps] - injectable seams for tests (mountMarkup, raf, caf, now)
@@ -45,6 +46,7 @@ function report(reportMilestone, name, value = true) {
 export function createAodSceneAdapter({
   host,
   reduceMotion = false,
+  playbackStallTimeoutMs = 1800,
   getRecoveryHandler = () => null,
   deps = {}
 } = {}) {
@@ -52,6 +54,7 @@ export function createAodSceneAdapter({
 
   const raf = deps.raf || ((cb) => requestAnimationFrame(cb));
   const caf = deps.caf || ((id) => cancelAnimationFrame(id));
+  const now = deps.now || (() => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
   // mountMarkup lets tests inject a section+fake video without real DOM/WebM.
   const mountMarkup = deps.mountMarkup || defaultMountMarkup;
 
@@ -172,15 +175,17 @@ export function createAodSceneAdapter({
 
       // Optional shared-watcher recovery (metadata/play/end timeouts).
       const recovery = getRecoveryHandler();
-      if (recovery?.watchMediaPlay) {
-        recovery.watchMediaPlay(video, undefined, { id: 'aod-animation' }).catch(() => {});
-      }
+      const playWatch = recovery?.watchMediaPlay
+        ? recovery.watchMediaPlay(video, undefined, { id: 'aod-animation' })
+        : null;
 
-      await playPromise; // throws -> caller (scenePresenter) routes to recovery
+      await (playWatch ? Promise.all([playPromise, playWatch]) : playPromise);
 
       // Drive layers from real time until the video ends.
       await new Promise((resolve, reject) => {
         let settled = false;
+        let lastProgress = playbackProgress() || 0;
+        let lastProgressAt = now();
         const finish = (ok, err) => {
           if (settled) return;
           settled = true;
@@ -199,6 +204,13 @@ export function createAodSceneAdapter({
           if (destroyed) { finish(true); return; }
           const nextProgress = playbackProgress();
           emitFrame(nextProgress, 'aod-playback');
+          if (nextProgress > lastProgress + 0.001) {
+            lastProgress = nextProgress;
+            lastProgressAt = now();
+          } else if (now() - lastProgressAt > playbackStallTimeoutMs) {
+            finish(false, new Error(`aod: playback stalled for ${playbackStallTimeoutMs}ms`));
+            return;
+          }
           // Safety: some browsers fire 'ended' unreliably; treat >=~end as done.
           if (video.duration && video.currentTime >= video.duration - 0.05) {
             emitFrame(1, 'aod-complete-by-time');

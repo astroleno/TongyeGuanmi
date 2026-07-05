@@ -6,7 +6,8 @@
  *  1. play() awaits video.play() then completes on the `ended` event
  *  2. play() rejection (autoplay/decode failure) propagates -> runtime recovers
  *  3. `ended` never firing -> time-based safety completes (no wedge)
- *  4. currentTime is written ONLY on prepare/reset (to 0), NEVER per frame
+ *  4. stalled playback rejects instead of holding the Director in Playing
+ *  5. currentTime is written ONLY on prepare/reset (to 0), NEVER per frame
  *     (i.e. the main path does not scrub the webm — seekPolicy: reset-only)
  *
  * No real DOM/WebGL/WebM: a fake section+video are injected via deps.mountMarkup
@@ -176,6 +177,48 @@ function makePump() {
   video.advance(video.duration); await pump.run(2);
   await p;
   assert(done, 'reaches completion via time-safety when ended never fires');
+}
+
+// ---- 4. shared media watcher rejection propagates ---------------------------
+{
+  const { host } = makeFakeSection({ playBehavior: 'resolve' });
+  const pump = makePump();
+  const adapter = createAodSceneAdapter({
+    host,
+    getRecoveryHandler: () => ({
+      watchMediaPlay: () => Promise.reject(new Error('watchMediaPlay failed'))
+    }),
+    deps: { mountMarkup: (h) => h._section, raf: pump.raf, caf: pump.caf }
+  });
+  await adapter.showFirstFrame();
+  let rejected = false;
+  await adapter.play({ direction: 1 }).catch((e) => { rejected = /watchMediaPlay failed/.test(e.message); });
+  assert(rejected, 'watchMediaPlay rejection propagates to snap runtime recovery');
+}
+
+// ---- 5. play() resolve without time advancing rejects (no infinite Playing) -
+{
+  const { host } = makeFakeSection({ playBehavior: 'resolve' });
+  const pump = makePump();
+  let nowMs = 0;
+  const adapter = createAodSceneAdapter({
+    host,
+    playbackStallTimeoutMs: 30,
+    deps: {
+      mountMarkup: (h) => h._section,
+      raf: pump.raf,
+      caf: pump.caf,
+      now: () => nowMs
+    }
+  });
+  await adapter.showFirstFrame();
+  let rejected = false;
+  const p = adapter.play({ direction: 1 }).catch((e) => { rejected = /playback stalled/.test(e.message); });
+  await microtask();
+  nowMs = 10; await pump.run(1);
+  nowMs = 50; await pump.run(1);
+  await p;
+  assert(rejected, 'stalled playback rejects instead of wedging Playing');
 }
 
 // ---- reduced motion: terminal, no play ---------------------------------------

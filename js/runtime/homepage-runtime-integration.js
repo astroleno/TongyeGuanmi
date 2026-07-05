@@ -297,6 +297,8 @@ export function selectTimelineJoinForPlayback({
   const adapterIndex = sceneIndexOf(scenes, adapterScene);
   if (adapterIndex < 0) return null;
 
+  if (direction === -1) return null;
+
   const fromScene = nearestPublicTimelineSceneId(scenes, adapterIndex - 1, -1);
   const explicitTargetScene = publicTimelineSceneId(adapterScene, scenes);
   const toScene = explicitTargetScene
@@ -308,9 +310,6 @@ export function selectTimelineJoinForPlayback({
       const forwardTarget = publicTimelineSceneId(scenes[toIndex], scenes);
       return join.fromScene === forwardSource && join.toScene === forwardTarget;
     })
-    || (direction === -1
-      ? joins.find((join) => join.fromScene === toScene && join.toScene === fromScene)
-      : null)
     || null;
 }
 
@@ -392,6 +391,12 @@ export function createHomepageRuntimeIntegration({
     const playback = activePlayback;
     if (!playback?.join) return null;
 
+    if (playback.direction === -1) {
+      const releasedFrame = sceneTimeline.cleanupJoin(playback.join.id, reason);
+      activePlayback = null;
+      return releasedFrame;
+    }
+
     sceneTimeline.commitTarget(playback.join.id, reason);
     const presentedFrame = sceneTimeline.presentTarget(playback.join.id, reason);
     const releasedFrame = sceneTimeline.cleanupJoin(playback.join.id, reason);
@@ -455,17 +460,17 @@ export function createHomepageRuntimeIntegration({
       } : null;
       if (frame && typeof adapter.render === 'function') adapter.render(frame);
 
-      const renderAdapterFrame = (progress, reason = 'director-adapter-frame') => {
+      const renderAdapterFrame = activePlayback ? (progress, reason = 'director-adapter-frame') => {
         const nextFrame = updateTimelineFrame(activePlayback, progress, reason);
         if (nextFrame && typeof adapter.render === 'function') adapter.render(nextFrame);
         return nextFrame;
-      };
+      } : null;
 
       await adapter.play({
         direction,
         frame,
         recoveryHandler,
-        reportFrame: renderAdapterFrame,
+        ...(renderAdapterFrame ? { reportFrame: renderAdapterFrame } : {}),
         reportMilestone: (name, value = true) => reportTimelineMilestone(activePlayback, name, value)
       });
     }
@@ -609,6 +614,7 @@ export function createHomepageRuntimeIntegration({
 
   function handleError(error) {
     console.error('[Homepage Runtime] error:', error?.message || error);
+    recoverTimelinePlayback('director-error-recovery');
     if (scrollController && scrollController.start) scrollController.start();
     document.body.style.overflow = '';
     if (chargeIndicator) chargeIndicator.hide();

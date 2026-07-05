@@ -108,6 +108,18 @@ assert(
 assert(
   selectTimelineJoinForPlayback({
     scenes: joinScenes,
+    fromIndex: 3,
+    toIndex: 2,
+    direction: -1,
+    adapterScene: joinScenes[3],
+    joins
+  }) === null,
+  'reverse aod-animation -> belief-star does not reuse forward belief-method join'
+);
+
+assert(
+  selectTimelineJoinForPlayback({
+    scenes: joinScenes,
     fromIndex: 5,
     toIndex: 6,
     direction: 1,
@@ -115,6 +127,18 @@ assert(
     joins
   })?.id === 'brand-services',
   'figure3-animation maps to SceneTimeline join brand-services'
+);
+
+assert(
+  selectTimelineJoinForPlayback({
+    scenes: joinScenes,
+    fromIndex: 6,
+    toIndex: 5,
+    direction: -1,
+    adapterScene: joinScenes[6],
+    joins
+  }) === null,
+  'reverse figure3-animation -> brand does not present services through brand-services'
 );
 
 assert(
@@ -186,6 +210,14 @@ assert(
   integrationSource.includes('autoPresent: false')
     && integrationSource.includes("completeTimelinePlayback('director-completing')"),
   'Director frame updates do not auto-present before the Completing hook'
+);
+
+assert(
+  integrationSource.includes('if (direction === -1) return null;')
+    && integrationSource.includes('playback.direction === -1')
+    && integrationSource.includes('sceneTimeline.cleanupJoin(playback.join.id, reason)')
+    && integrationSource.includes("recoverTimelinePlayback('director-error-recovery')"),
+  'reverse playback and error recovery cannot commit/present the forward target copy'
 );
 
 assert(
