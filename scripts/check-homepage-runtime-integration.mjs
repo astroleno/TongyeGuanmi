@@ -216,8 +216,17 @@ assert(
   integrationSource.includes('if (direction === -1) return null;')
     && integrationSource.includes('playback.direction === -1')
     && integrationSource.includes('sceneTimeline.cleanupJoin(playback.join.id, reason)')
-    && integrationSource.includes("recoverTimelinePlayback('director-error-recovery')"),
+    && integrationSource.includes("recoverToTerminalState('director-error-recovery')"),
   'reverse playback and error recovery cannot commit/present the forward target copy'
+);
+
+assert(
+  integrationSource.includes('function recoverToTerminalState')
+    && integrationSource.includes('adapter.render(terminalProgress)')
+    && integrationSource.includes("data-runtime-recovery', 'terminal'")
+    && integrationSource.includes('alignDocumentToScene(targetScene)')
+    && integrationSource.includes("recoverToTerminalState('director-recovery')"),
+  'recovery terminalizes adapter/target hosts and aligns the document through the integration layer'
 );
 
 assert(

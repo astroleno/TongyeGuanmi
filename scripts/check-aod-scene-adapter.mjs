@@ -22,6 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const adapterSource = readFileSync(join(ROOT, 'js/runtime/scenes/aod-scene-adapter.js'), 'utf8');
+const recoverySource = readFileSync(join(ROOT, 'js/runtime/recovery-handler.js'), 'utf8');
 
 // renderAodTransitionProgress / prepareAodTransition / waitForAodTransitionMetadata
 // touch DOM + window. Stub the component module is overkill; instead provide a
@@ -183,16 +184,21 @@ function makePump() {
 {
   const { host } = makeFakeSection({ playBehavior: 'resolve' });
   const pump = makePump();
+  let attemptPlay = null;
   const adapter = createAodSceneAdapter({
     host,
     getRecoveryHandler: () => ({
-      watchMediaPlay: () => Promise.reject(new Error('watchMediaPlay failed'))
+      watchMediaPlay: (_video, _timeout, _scene, options) => {
+        attemptPlay = options?.attemptPlay;
+        return Promise.reject(new Error('watchMediaPlay failed'));
+      }
     }),
     deps: { mountMarkup: (h) => h._section, raf: pump.raf, caf: pump.caf }
   });
   await adapter.showFirstFrame();
   let rejected = false;
   await adapter.play({ direction: 1 }).catch((e) => { rejected = /watchMediaPlay failed/.test(e.message); });
+  assert(attemptPlay === false, 'AOD asks watchMediaPlay to observe without a second video.play()');
   assert(rejected, 'watchMediaPlay rejection propagates to snap runtime recovery');
 }
 
@@ -241,6 +247,12 @@ assert(
   adapterSource.includes("classList?.add('homepage-transition', 'homepage-transition--aod')")
     && adapterSource.includes("classList?.remove('homepage-transition', 'homepage-transition--aod')"),
   'aod scene adapter scopes fixed transition media to its host'
+);
+
+assert(
+  adapterSource.includes('attemptPlay: false')
+    && recoverySource.includes('options.attemptPlay === false ? null : video.play()'),
+  'watchMediaPlay can observe already-started playback without calling video.play() twice'
 );
 
 console.log(`aod-scene-adapter: ${pass} passed, ${fail} failed`);

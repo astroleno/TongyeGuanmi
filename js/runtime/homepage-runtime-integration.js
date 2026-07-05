@@ -347,6 +347,30 @@ export function createHomepageRuntimeIntegration({
     return rect.top + (window.scrollY || window.pageYOffset || 0);
   }
 
+  function alignDocumentToScene(scene) {
+    if (!scene?.id) return false;
+    const targetY = resolveSceneTop(scene.id);
+    if (!Number.isFinite(targetY)) return false;
+
+    if (scrollController?.scrollTo) {
+      scrollController.scrollTo(targetY, {
+        immediate: true,
+        duration: 0,
+        force: true,
+        lock: false
+      });
+    }
+    if (Math.abs((window.scrollY || 0) - targetY) > 1) {
+      window.scrollTo({
+        top: targetY,
+        left: window.scrollX || 0,
+        behavior: 'auto'
+      });
+    }
+    runtime?.handleScroll?.();
+    return true;
+  }
+
   // Charge indicator (visual feedback). Skipped entirely under reduced motion.
   const chargeIndicator = reduceMotion
     ? null
@@ -428,11 +452,13 @@ export function createHomepageRuntimeIntegration({
 
     // Mark playing, then presented. Real media/ink playback is delegated to a
     // per-scene adapter when available; absent that, present terminal state.
+    el.removeAttribute('data-runtime-recovery');
     el.setAttribute('data-scene-state', 'playing');
 
     const adapterScene = selectPlaybackAdapterScene({ scenes, fromIndex, toIndex, direction });
     const adapterEl = adapterScene ? resolveSceneElement(adapterScene.id) : null;
     if (adapterEl && adapterEl !== el) {
+      adapterEl.removeAttribute('data-runtime-recovery');
       adapterEl.setAttribute('data-scene-state', 'playing');
     }
 
@@ -570,11 +596,7 @@ export function createHomepageRuntimeIntegration({
     },
     onRecover: async (failedScene, reason) => {
       // Present terminal state of the target scene; never block scroll.
-      recoverTimelinePlayback('director-recovery');
-      const idx = runtime.getCurrentState().targetSceneIndex;
-      const target = scenes[idx];
-      const el = target && resolveSceneElement(target.id);
-      if (el) el.setAttribute('data-scene-state', 'presented');
+      recoverToTerminalState('director-recovery');
       console.warn('[Homepage Runtime] recovery:', reason);
     }
   });
@@ -612,9 +634,47 @@ export function createHomepageRuntimeIntegration({
     }
   }
 
+  function recoverToTerminalState(reason = 'director-error-recovery') {
+    const runtimeState = runtime?.getCurrentState?.() || {};
+    const playback = activePlayback;
+    const direction = playback?.direction ?? (runtimeState.playbackDirection === -1 ? -1 : 1);
+    const fromIndex = Number.isInteger(playback?.fromIndex) ? playback.fromIndex : runtimeState.currentSceneIndex;
+    const toIndex = Number.isInteger(playback?.toIndex) ? playback.toIndex : runtimeState.targetSceneIndex;
+    const terminalProgress = direction === -1 ? 0 : 1;
+    const adapterScene = playback?.adapterSceneId
+      ? findSceneById(scenes, playback.adapterSceneId)
+      : selectPlaybackAdapterScene({ scenes, fromIndex, toIndex, direction });
+    const adapter = adapterScene ? sceneAdapters.get(adapterScene.id) : null;
+
+    if (adapter && typeof adapter.render === 'function') {
+      try {
+        adapter.render(terminalProgress);
+      } catch (err) {
+        console.warn('[Homepage Runtime] recovery render failed:', err?.message || err);
+      }
+    }
+
+    const recoveredFrame = recoverTimelinePlayback(reason);
+    const targetScene = scenes[toIndex] || null;
+    const adapterEl = adapterScene ? resolveSceneElement(adapterScene.id) : null;
+    const targetEl = targetScene ? resolveSceneElement(targetScene.id) : null;
+    const terminalState = direction === -1 ? 'reversed' : 'presented';
+
+    if (adapterEl) {
+      adapterEl.setAttribute('data-scene-state', terminalState);
+      adapterEl.setAttribute('data-runtime-recovery', 'terminal');
+    }
+    if (targetEl) {
+      targetEl.setAttribute('data-scene-state', terminalState);
+      targetEl.setAttribute('data-runtime-recovery', 'terminal');
+    }
+    alignDocumentToScene(targetScene);
+    return recoveredFrame;
+  }
+
   function handleError(error) {
     console.error('[Homepage Runtime] error:', error?.message || error);
-    recoverTimelinePlayback('director-error-recovery');
+    recoverToTerminalState('director-error-recovery');
     if (scrollController && scrollController.start) scrollController.start();
     document.body.style.overflow = '';
     if (chargeIndicator) chargeIndicator.hide();

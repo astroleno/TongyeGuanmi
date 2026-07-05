@@ -176,7 +176,7 @@ export function createAodSceneAdapter({
       // Optional shared-watcher recovery (metadata/play/end timeouts).
       const recovery = getRecoveryHandler();
       const playWatch = recovery?.watchMediaPlay
-        ? recovery.watchMediaPlay(video, undefined, { id: 'aod-animation' })
+        ? recovery.watchMediaPlay(video, undefined, { id: 'aod-animation' }, { attemptPlay: false })
         : null;
 
       await (playWatch ? Promise.all([playPromise, playWatch]) : playPromise);

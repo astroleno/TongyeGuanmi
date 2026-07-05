@@ -136,9 +136,12 @@ export function createRecoveryHandler({ timeline, onRecover }) {
    * @param {HTMLVideoElement} video
    * @param {number} timeoutMs
    * @param {Object} scene - Scene identifier
+   * @param {Object} options
+   * @param {boolean} [options.attemptPlay=true] - Whether the watcher should
+   *   call video.play(), or only observe an already-started playback.
    * @returns {Promise<void>}
    */
-  function watchMediaPlay(video, timeoutMs = TIMEOUT_CONFIG.MEDIA_PLAY, scene) {
+  function watchMediaPlay(video, timeoutMs = TIMEOUT_CONFIG.MEDIA_PLAY, scene, options = {}) {
     return new Promise((resolve, reject) => {
       if (!video || !(video instanceof HTMLVideoElement)) {
         reject(new Error('Invalid video element'));
@@ -169,8 +172,8 @@ export function createRecoveryHandler({ timeline, onRecover }) {
       video.addEventListener('playing', handlePlaying, { once: true });
       video.addEventListener('error', handleError, { once: true });
 
-      // Attempt play
-      const playPromise = video.play();
+      // Attempt play unless the owner already started playback.
+      const playPromise = options.attemptPlay === false ? null : video.play();
       if (playPromise) {
         playPromise.catch((err) => {
           if (resolved) return;
