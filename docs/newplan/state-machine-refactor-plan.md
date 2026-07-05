@@ -557,7 +557,7 @@ npm run verify:pattern-scene-harness
 ### Phase 5: 清理和默认切换
 
 - [x] 删除废弃 handoff receiver/preview 路径。
-- [x] 删除 legacy runtime 的状态机代码。
+- [x] 默认路径移除 legacy runtime 的状态机控制权；`homepage-transition-runtime.js` 的旧状态机代码仍保留为 `?legacyRuntime=1` / `?snapRuntime=0` 显式 debug fallback。
 - [x] 把 snap runtime 从 opt-in 改成默认，仅保留 `?legacyRuntime=1` / `?snapRuntime=0` 临时 fallback flag。
 - [x] 更新 docs/ADR，明确新架构的 owner contract。
   - `docs/ADR-homepage-js-snap.md` 记录 snap runtime 成为默认 owner、SceneTimeline 是唯一 present/cleanup 入口。

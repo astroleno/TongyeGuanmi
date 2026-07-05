@@ -188,6 +188,15 @@ assert(
 );
 
 assert(
+  integrationSource.includes("import { initSceneTimelineHud }")
+    && integrationSource.includes('TIMELINE_HUD_HOST_SELECTOR')
+    && integrationSource.includes('const sceneTimelineHud = initSceneTimelineHud')
+    && integrationSource.includes('hosts: [...document.querySelectorAll(TIMELINE_HUD_HOST_SELECTOR)]')
+    && integrationSource.includes('sceneTimelineHud?.destroy?.()'),
+  '?timelineHud=1 is wired to the default snap runtime SceneTimeline'
+);
+
+assert(
   integrationSource.includes('function createTransitionModuleSceneAdapter')
     && integrationSource.includes('TRANSITION_MODULE_SCENE_ADAPTERS')
     && integrationSource.includes("'ttg-animation': { moduleName: 'ttg'")

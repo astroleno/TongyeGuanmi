@@ -23,7 +23,7 @@
    按 join 迁视觉 adapter；这是唯一允许调整视觉数值的阶段。
 
 7. **Phase 5：清理和默认切换**  
-   删除 legacy 状态机，`snapRuntime` 转默认，更新 ADR。
+   `snapRuntime` 转默认，legacy runtime 只保留显式 debug fallback，更新 ADR。
 
 执行规则：
 
@@ -321,7 +321,7 @@ pattern-bloom 专项：
 
 - 入口条件：全部 join 已完成 Phase 4 迁移。
 - 删除废弃 handoff receiver / preview 路径。
-- 删除 legacy runtime 的 gate / receiver / deprecated `timeline.update` 状态机入口。
+- 默认路径删除 legacy runtime 的 gate / receiver / deprecated `timeline.update` 状态机入口；`homepage-transition-runtime.js` 仍保留在 `?legacyRuntime=1` / `?snapRuntime=0` 显式 debug fallback 中。
 - snap runtime 改为默认，仅保留 `?legacyRuntime=1` / `?snapRuntime=0` 临时 fallback flag。
 - 更新 owner / frame / adapter contract 验证，确保 adapter 只消费 frame 并上报 milestone。
 - 清理 `KNOWN_VIOLATIONS` baseline，保留空清单防新增违规。
@@ -330,7 +330,7 @@ pattern-bloom 专项：
 ### 验收标准
 
 - 所有 join 默认走新 runtime。
-- legacy 状态机代码不可达或已删除。
+- legacy 状态机代码不可从默认路径进入；只允许显式 debug fallback 进入。
 - `npm run verify:all` 绿。
 - 文档和 ADR 与代码事实一致。
 - `verify:homepage-owner-contract` 不再输出 known reveal owner violations。

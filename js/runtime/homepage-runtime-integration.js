@@ -19,6 +19,7 @@ import {
   timelineJoins
 } from '../transitions/homepage/scene-timeline-manifest.js';
 import { createSceneTimelineController } from '../transitions/homepage/scene-timeline-controller.js';
+import { initSceneTimelineHud } from '../transitions/homepage/scene-timeline-hud.js';
 import { createHomepageSnapRuntime } from './homepage-snap-runtime.js';
 import { createChargeIndicator } from './charge-indicator.js';
 import { createRecoveryHandler } from './recovery-handler.js';
@@ -34,6 +35,10 @@ const TRANSITION_MODULE_SCENE_ADAPTERS = Object.freeze({
   'ph-animation': { moduleName: 'ph', durationMs: 1900 },
   'crane-animation': { moduleName: 'crane', durationMs: 2200 }
 });
+const TIMELINE_HUD_HOST_SELECTOR = [
+  '.chapter-transition[data-transition-module]',
+  '.scene-transition[data-transition-module]'
+].join(',');
 
 const CONFIG = {
   VIEWPORT_CHANGE_THRESHOLD_PX: 100, // mobile address-bar detection
@@ -338,6 +343,12 @@ export function createHomepageRuntimeIntegration({
   const scenes = homepageTimeline.scenes;
   let isDestroyed = false;
   const sceneTimeline = createSceneTimelineController({ root: document });
+  const sceneTimelineHud = initSceneTimelineHud({
+    root: document,
+    sceneTimeline,
+    hosts: [...document.querySelectorAll(TIMELINE_HUD_HOST_SELECTOR)],
+    reduceMotion
+  });
 
   // Real document top of a scene's DOM host (for DOM-driven snap bounds).
   function resolveSceneTop(sceneId) {
@@ -859,6 +870,7 @@ export function createHomepageRuntimeIntegration({
       if (resizeTimer) clearTimeout(resizeTimer);
       if (recoveryHandler) recoveryHandler.clearAllTimeouts();
       if (chargeIndicator) chargeIndicator.hide();
+      sceneTimelineHud?.destroy?.();
       sceneAdapters.forEach((a) => a?.destroy?.());
       sceneAdapters.clear();
       runtime.destroy();

@@ -289,7 +289,7 @@ Phase 2-5 已推进到默认 snap runtime 路径：Director 负责播放生命�
 | 2 Director 接管 | W1+W2 完成，`verify:snap-runtime` 绿 | `homepage-runtime-integration.js` 的 `scenePresenter` 接 SceneTimeline frame；adapter `play()` 只回完成信号 |
 | 3 Legacy 降级 | Phase 2 在 ≥2 个 join 上稳定 | 拆 `homepage-transition-runtime.js` 的 lock/gate/direct-hash（含删除 `DIRECT_HASH_ALIGNMENT_DELAYS` 重试组） |
 | 4 按 join 迁 adapter | Phase 3 完成 | 顺序：pattern-bloom → aod → figure2 → figure3 → crane；pattern-bloom 专项（去 9 布尔、修重叠区间、opacity 缓冲带）在此阶段做，是唯一允许改视觉数值的阶段 |
-| 5 清理切默认 | 全部 join 迁完 | 删 legacy、snap runtime 转默认、保留 `?legacyRuntime=1` / `?snapRuntime=0` fallback、更新 ADR |
+| 5 清理切默认 | 全部 join 迁完 | snap runtime 转默认；legacy runtime 仍保留为 `?legacyRuntime=1` / `?snapRuntime=0` 显式 debug fallback；更新 ADR |
 
 ## 6. 全局回归清单（每个 workstream 结束时跑）
 
