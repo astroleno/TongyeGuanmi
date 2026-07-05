@@ -223,6 +223,9 @@ assert(
 assert(
   integrationSource.includes('function recoverToTerminalState')
     && integrationSource.includes('adapter.render(terminalProgress)')
+    && integrationSource.includes("adapterTerminalState = direction === -1 ? 'reversed' : 'presented'")
+    && integrationSource.includes('adapterEl && adapterEl !== targetEl')
+    && integrationSource.includes("targetEl.setAttribute('data-scene-state', 'presented')")
     && integrationSource.includes("data-runtime-recovery', 'terminal'")
     && integrationSource.includes('alignDocumentToScene(targetScene)')
     && integrationSource.includes("recoverToTerminalState('director-recovery')"),

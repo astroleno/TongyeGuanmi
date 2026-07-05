@@ -658,14 +658,14 @@ export function createHomepageRuntimeIntegration({
     const targetScene = scenes[toIndex] || null;
     const adapterEl = adapterScene ? resolveSceneElement(adapterScene.id) : null;
     const targetEl = targetScene ? resolveSceneElement(targetScene.id) : null;
-    const terminalState = direction === -1 ? 'reversed' : 'presented';
+    const adapterTerminalState = direction === -1 ? 'reversed' : 'presented';
 
-    if (adapterEl) {
-      adapterEl.setAttribute('data-scene-state', terminalState);
+    if (adapterEl && adapterEl !== targetEl) {
+      adapterEl.setAttribute('data-scene-state', adapterTerminalState);
       adapterEl.setAttribute('data-runtime-recovery', 'terminal');
     }
     if (targetEl) {
-      targetEl.setAttribute('data-scene-state', terminalState);
+      targetEl.setAttribute('data-scene-state', 'presented');
       targetEl.setAttribute('data-runtime-recovery', 'terminal');
     }
     alignDocumentToScene(targetScene);
