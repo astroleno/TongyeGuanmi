@@ -11,11 +11,11 @@ html.homepage-timeline-target-active .long-canvas {
 
 [data-entry-owner="timeline"][data-timeline-fixed="true"] {
   position: fixed !important;
-  left: 50% !important;
-  top: calc(0px - var(--transition-seam-bleed, 0px)) !important;
+  left: var(--timeline-fixed-left, 50%) !important;
+  top: var(--timeline-fixed-top, calc(0px - var(--transition-seam-bleed, 0px))) !important;
   z-index: 82 !important;
-  width: min(1280px, 84vw) !important;
-  height: calc(var(--homepage-transition-snap-height, 100dvh) + var(--transition-seam-bleed, 0px) + var(--transition-seam-bleed, 0px)) !important;
+  width: var(--timeline-fixed-width, min(1280px, 84vw)) !important;
+  height: var(--timeline-fixed-height, calc(var(--homepage-transition-snap-height, 100dvh) + var(--transition-seam-bleed, 0px) + var(--transition-seam-bleed, 0px))) !important;
   min-height: 0 !important;
   max-height: none !important;
   margin: 0 !important;
@@ -23,7 +23,7 @@ html.homepage-timeline-target-active .long-canvas {
   visibility: visible !important;
   pointer-events: none !important;
   filter: blur(var(--timeline-target-blur, 0px)) !important;
-  transform: translate3d(-50%, var(--timeline-target-y, 0px), 0) !important;
+  transform: translate3d(var(--timeline-fixed-x, -50%), var(--timeline-target-y, 0px), 0) !important;
   transition: none !important;
   will-change: opacity, transform, filter;
 }
@@ -60,7 +60,7 @@ html.homepage-timeline-target-active .long-canvas {
 
 .method-edition-layout--after-handoff[data-timeline-fixed="true"] .chapter-intro--method {
   position: relative;
-  top: auto;
+  top: clamp(42px, 5.8svh, 78px);
 }
 
 .enterprise-vertical-layout[data-timeline-fixed="true"] .enterprise-vertical-lead {
@@ -78,13 +78,12 @@ html.homepage-timeline-target-active .long-canvas {
 }
 
 .brand-definition-grid[data-timeline-fixed="true"] {
-  width: min(1120px, 74vw) !important;
+  width: var(--timeline-fixed-width, min(1120px, 74vw)) !important;
 }
 
 .contact-endpoint[data-timeline-fixed="true"] {
-  width: min(1280px, 84vw) !important;
+  width: var(--timeline-fixed-width, min(1280px, 84vw)) !important;
   align-content: center;
-  padding-block: clamp(120px, 14vw, 220px);
 }
 
 .canvas-section--belief {

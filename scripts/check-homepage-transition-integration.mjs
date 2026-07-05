@@ -229,6 +229,13 @@ assert.equal(
   '190',
   'Figure2 method proof transition must keep the snapped Figure2 stage through the lead, proof-list, and closing scenes'
 );
+assert.ok(
+  indexHtml.indexOf('method-proof__scene--opening') < indexHtml.indexOf('method-proof__scene--cases')
+    && indexHtml.indexOf('method-proof__scene--cases') < indexHtml.indexOf('method-proof__scene--closing')
+    && figure2Css.includes('grid-template-rows: 100dvh minmax(96dvh, auto) 100dvh')
+    && figure2Css.includes('.figure2-proof-scroll__content .method-proof__finale'),
+  'Figure2 proof copy must be split into real opening, cases, and closing scenes in DOM order'
+);
 assert.equal(
   figure2SceneTransition?.attrs.get('data-transition-handoff-target'),
   '#brand',
@@ -386,6 +393,8 @@ assert.ok(
     && homepageContinuityCss.includes('.canvas-section.homepage-transition-target-gated')
     && homepageContinuityCss.includes('body.is-pattern-bloom-covering .hero-content')
     && homepageContinuityCss.includes('.canvas-section--belief.is-pattern-bloom-pinned')
+    && homepageContinuityCss.includes('--timeline-fixed-top')
+    && homepageContinuityCss.includes('--timeline-fixed-height')
     && homepageContinuityCss.includes('z-index: 95')
     && homepageContinuityCss.includes('opacity: 1 !important')
     && homepageContinuityCss.includes('background: transparent !important')

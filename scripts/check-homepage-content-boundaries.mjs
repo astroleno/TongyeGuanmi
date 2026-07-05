@@ -14,11 +14,17 @@ const contentRules = {
     expectedSource: 'fixture',
     expectedRef: 'method-upper-77'
   },
+  'figure2-proof-opening': {
+    description: 'Figure2 proof opening',
+    expectedSource: 'fixture',
+    expectedRef: 'proof-opening-121',
+    mustNotBe: ['brand', 'figure2-proof-cards', 'figure2-proof-closing']
+  },
   'figure2-proof-cards': {
     description: 'Figure2 proof cards (122-126)',
     expectedSource: 'fixture',
     expectedRef: 'proof-cards-122-126',
-    mustNotBe: ['brand', 'figure2-proof-closing']
+    mustNotBe: ['brand', 'figure2-proof-opening', 'figure2-proof-closing']
   },
   'figure2-proof-closing': {
     description: 'Figure2 proof closing (128)',
@@ -115,17 +121,19 @@ if (methodUpper && methodLower) {
 
 // Check figure2 proof stages are in order
 const figure2Animation = homepageTimeline.scenes.find(s => s.id === 'figure2-animation');
+const figure2ProofOpening = homepageTimeline.scenes.find(s => s.id === 'figure2-proof-opening');
 const figure2ProofCards = homepageTimeline.scenes.find(s => s.id === 'figure2-proof-cards');
 const figure2ProofClosing = homepageTimeline.scenes.find(s => s.id === 'figure2-proof-closing');
 
-if (figure2Animation && figure2ProofCards && figure2ProofClosing) {
+if (figure2Animation && figure2ProofOpening && figure2ProofCards && figure2ProofClosing) {
   const animIdx = sceneOrder.indexOf('figure2-animation');
+  const openingIdx = sceneOrder.indexOf('figure2-proof-opening');
   const cardsIdx = sceneOrder.indexOf('figure2-proof-cards');
   const closingIdx = sceneOrder.indexOf('figure2-proof-closing');
   const brandIdx = sceneOrder.indexOf('brand');
 
-  if (!(animIdx < cardsIdx && cardsIdx < closingIdx && closingIdx < brandIdx)) {
-    errors.push(`Figure2 order must be: animation -> proof-cards -> proof-closing -> brand. Got indices: ${animIdx} -> ${cardsIdx} -> ${closingIdx} -> ${brandIdx}`);
+  if (!(animIdx < openingIdx && openingIdx < cardsIdx && cardsIdx < closingIdx && closingIdx < brandIdx)) {
+    errors.push(`Figure2 order must be: animation -> proof-opening -> proof-cards -> proof-closing -> brand. Got indices: ${animIdx} -> ${openingIdx} -> ${cardsIdx} -> ${closingIdx} -> ${brandIdx}`);
   } else {
     console.log('✓ Figure2 proof stages in correct order');
   }
@@ -149,7 +157,14 @@ console.log('✓ No Downloads path references in content sources');
 // Verify proof cards and closing content references match fixture expectations
 const proofCardsScene = homepageTimeline.scenes.find(s => s.id === 'figure2-proof-cards');
 const proofClosingScene = homepageTimeline.scenes.find(s => s.id === 'figure2-proof-closing');
+const proofOpeningScene = homepageTimeline.scenes.find(s => s.id === 'figure2-proof-opening');
 const brandScene = homepageTimeline.scenes.find(s => s.id === 'brand');
+
+if (proofOpeningScene && proofOpeningScene.content) {
+  if (proofOpeningScene.content.ref !== 'proof-opening-121') {
+    errors.push(`figure2-proof-opening: content.ref must be 'proof-opening-121' (opening proof statement)`);
+  }
+}
 
 if (proofCardsScene && proofCardsScene.content) {
   if (proofCardsScene.content.ref !== 'proof-cards-122-126') {

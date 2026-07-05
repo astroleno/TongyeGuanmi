@@ -8,8 +8,8 @@ const smoothStep = (value) => value * value * (3 - 2 * value);
 const REVEAL_END = 0.46;
 const BLOOM_START = 0.42;
 const BLOOM_END = 0.70;
-const SECOND_REVEAL_START = 0.72;
-const SECOND_REVEAL_END = 0.84;
+const SECOND_REVEAL_START = 0.80;
+const SECOND_REVEAL_END = 0.94;
 const BELIEF_PIN_CLASS = 'is-pattern-bloom-pinned';
 const COVER_PRIOR_SCENE_CLASS = 'is-pattern-bloom-covering';
 
@@ -191,7 +191,7 @@ export function mountPatternBloomTransition({
     const secondRevealProgress = smoothStep(range01(progress, SECOND_REVEAL_START, SECOND_REVEAL_END));
     const secondRevealVisibility = starTextureReady && secondRevealProgress < 0.998 ? secondRevealProgress : 0;
     const topSceneExit = starTextureReady
-      ? smoothStep(range01(secondRevealProgress, 0.12, 0.98))
+      ? smoothStep(range01(secondRevealProgress, 0.68, 0.98))
       : 0;
     const lotusOpacity = 1 - topSceneExit;
     const timelineState = timeline?.update(progress, {
@@ -204,7 +204,7 @@ export function mountPatternBloomTransition({
     });
     const sourceOpacity = starTextureReady ? timelineState?.sourceOpacity ?? lotusOpacity : 1;
     const targetOpacity = timelineState?.targetOpacity ?? secondRevealProgress;
-    const beliefPinned = overlayActive && starTextureReady && secondRevealProgress > 0.002 && targetOpacity > 0.002;
+    const beliefPinned = overlayActive && starTextureReady && secondRevealProgress >= 0.998 && targetOpacity > 0.002;
     const topSceneOpacity = canvasRevealed && (!starTextureReady || secondRevealProgress < 0.998)
       ? Math.min(lotusOpacity, sourceOpacity)
       : 0;

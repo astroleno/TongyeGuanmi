@@ -752,7 +752,7 @@
   text-transform: uppercase;
 }
 
-.method-proof__lead p {
+.method-proof__finale p {
   max-width: 24em;
   margin: 0 !important;
   font-size: clamp(16px, 1.15vw, 18px);

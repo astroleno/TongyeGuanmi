@@ -99,6 +99,44 @@ function syncTimelineCopyStyle(copy, state) {
   copy.setAttribute('data-timeline-phase', state.phase);
 }
 
+function rectWidth(rect) {
+  return Number.isFinite(rect?.width) ? rect.width : Math.max(0, (rect?.right ?? 0) - (rect?.left ?? 0));
+}
+
+function rectHeight(rect) {
+  return Number.isFinite(rect?.height) ? rect.height : Math.max(0, (rect?.bottom ?? 0) - (rect?.top ?? 0));
+}
+
+function syncTimelineFixedGeometry(copy, section) {
+  if (!copy?.getBoundingClientRect || !section?.getBoundingClientRect) return;
+  if (copy.getAttribute?.('data-timeline-fixed') === 'true') return;
+
+  const copyRect = copy.getBoundingClientRect();
+  const sectionRect = section.getBoundingClientRect();
+  const width = rectWidth(copyRect);
+  const height = rectHeight(copyRect);
+  const left = Number.isFinite(copyRect.left) ? copyRect.left : NaN;
+  const top = Number.isFinite(copyRect.top) && Number.isFinite(sectionRect.top)
+    ? Math.max(0, copyRect.top - sectionRect.top)
+    : NaN;
+
+  if (Number.isFinite(left)) {
+    copy.style?.setProperty('--timeline-fixed-left', `${left.toFixed(2)}px`);
+    copy.style?.setProperty('--timeline-fixed-x', '0px');
+  }
+  if (Number.isFinite(top)) copy.style?.setProperty('--timeline-fixed-top', `${top.toFixed(2)}px`);
+  if (width > 0) copy.style?.setProperty('--timeline-fixed-width', `${width.toFixed(2)}px`);
+  if (height > 0) copy.style?.setProperty('--timeline-fixed-height', `${height.toFixed(2)}px`);
+}
+
+function clearTimelineFixedGeometry(copy) {
+  copy.style?.removeProperty('--timeline-fixed-left');
+  copy.style?.removeProperty('--timeline-fixed-top');
+  copy.style?.removeProperty('--timeline-fixed-width');
+  copy.style?.removeProperty('--timeline-fixed-height');
+  copy.style?.removeProperty('--timeline-fixed-x');
+}
+
 function clearTimelineCopyStyle(copy) {
   copy.style?.removeProperty('--timeline-target-opacity');
   copy.style?.removeProperty('--timeline-target-y');
@@ -266,6 +304,7 @@ export function createSceneTimelineController({
     fixedCopyElements.delete(copy);
     copy.classList.remove(FIXED_COPY_CLASS);
     copy.removeAttribute('data-timeline-fixed');
+    clearTimelineFixedGeometry(copy);
     copy.style.removeProperty('--timeline-target-y');
     copy.style.removeProperty('--timeline-target-blur');
     if (!fixedCopyElements.size) rootElement?.classList?.remove(ROOT_FIXED_COPY_CLASS);
@@ -490,7 +529,10 @@ export function createSceneTimelineController({
     if (fixTargetCopy) {
       if (activeFixedJoinId && activeFixedJoinId !== join.id) clearAllFixedCopies({ clearStyle: true });
       activeFixedJoinId = join.id;
-      copies.forEach((copy) => setFixedCopy(copy, true));
+      copies.forEach((copy) => {
+        syncTimelineFixedGeometry(copy, section);
+        setFixedCopy(copy, true);
+      });
     } else {
       clearFixedCopies(copies);
       if (activeFixedJoinId === join.id) activeFixedJoinId = '';

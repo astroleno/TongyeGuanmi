@@ -232,8 +232,8 @@ for (const join of timelineJoins) {
 
 const homeBelief = timelineJoins.find((join) => join.id === 'home-belief');
 assert.equal(homeBelief?.progressPolicy, 'scroll', 'home-belief must be scroll-driven');
-assertCloseEnough(homeBelief?.targetIn?.[0], 0.72, 'home-belief copy must begin after the lotus has contracted');
-assertCloseEnough(homeBelief?.targetIn?.[1], 0.84, 'home-belief copy must be visually ready before the late transition tail');
+assertCloseEnough(homeBelief?.targetIn?.[0], 0.90, 'home-belief copy must not show a complete star-map before the exit ink resolves');
+assertCloseEnough(homeBelief?.targetIn?.[1], 0.94, 'home-belief copy must be visually ready before the late transition tail');
 assert.ok(homeBelief.commitCondition?.includes('lotusContracted'), 'home-belief must require lotusContracted');
 assert.ok(homeBelief.commitCondition?.includes('targetReady'), 'home-belief must require targetReady');
 assert.ok(homeBelief.presentCondition?.includes('beliefCopyComplete'), 'home-belief must require beliefCopyComplete');

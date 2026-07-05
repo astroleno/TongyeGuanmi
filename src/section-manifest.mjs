@@ -437,10 +437,10 @@ export const timelineJoins = [
     progressPolicy: 'scroll',
     fromScene: 'home',
     toScene: 'belief',
-    sourceOut: [0.72, 0.98],
-    targetIn: [0.72, 0.84],
-    commitAt: 0.72,
-    presentAt: 0.84,
+    sourceOut: [0.80, 0.98],
+    targetIn: [0.90, 0.94],
+    commitAt: 0.80,
+    presentAt: 0.94,
     cleanupAt: 0.96,
     targetCopyPolicy: 'scroll-owner',
     commitCondition: ['progress:commitAt', 'lotusContracted', 'targetReady'],
@@ -448,7 +448,7 @@ export const timelineJoins = [
     phases: {
       reveal: [0.00, 0.46],
       bloom: [0.42, 0.70],
-      secondReveal: [0.72, 0.84]
+      secondReveal: [0.80, 0.94]
     },
     handoffOverlaps: [['reveal', 'bloom']],
     adapterVariant: 'perlin-no-stretch-centered-copy'
@@ -663,6 +663,15 @@ export const homepageTimeline = {
       fullScreen: true,
       snap: { enter: true },
       stages: ['camera-expand', 'arch-with-cards', 'arch-with-closing', 'ink-sweep']
+    },
+    {
+      id: 'figure2-proof-opening',
+      kind: 'reading',
+      publicSectionId: 'method-proof',
+      fullScreen: true,
+      snap: { enter: true },
+      reading: { allowNativeScroll: false },
+      content: { source: 'fixture', ref: 'proof-opening-121' }
     },
     {
       id: 'figure2-proof-cards',
@@ -991,20 +1000,16 @@ export const homepageSceneDomMap = [
 
   // Batch 2 — only the structurally clean hosts (1 scene : 1 node, physical
   // order matches manifest order). Deliberately NOT scaffolded here:
-  //  - figure2-proof-cards / figure2-proof-closing: live in one .method-proof
-  //    block in REVERSED order (closing above cards); splitting + reordering is
-  //    designed together with the figure2 multi-stage adapter.
   //  - brand maps to its section as a HOST only; its copy is still main's
   //    同野/观幂 two-card grid, not the fixture (brand-135-136). Content
   //    migration remains a tracked pending gap — host coverage != content done.
   { sceneId: 'figure2-animation', selector: '[data-transition-id="method-tooling__method-proof"]', mode: 'host' },
-  // Proof content split into two reading scenes. The source template
-  // (src/sections/method.html) was reordered so cards (.method-proof__list)
-  // physically precede closing (.method-proof__lead), matching manifest scene
-  // order figure2-proof-cards -> figure2-proof-closing so the runtime's
-  // position-sorted bounds stay monotonic.
+  // Proof content is physically split into opening, cases, and closing anchors
+  // so the figure2 bridge can scroll three real scenes instead of reordering one
+  // mixed block with CSS.
+  { sceneId: 'figure2-proof-opening', selector: '.method-proof__scene--opening', mode: 'anchor' },
   { sceneId: 'figure2-proof-cards', selector: '.method-proof__list', mode: 'anchor' },
-  { sceneId: 'figure2-proof-closing', selector: '.method-proof__lead', mode: 'anchor' },
+  { sceneId: 'figure2-proof-closing', selector: '.method-proof__scene--closing', mode: 'anchor' },
   { sceneId: 'brand', selector: '.canvas-section--brand', mode: 'section' },
   { sceneId: 'services', selector: '#services', mode: 'section' }
 ];

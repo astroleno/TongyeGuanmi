@@ -157,15 +157,15 @@ export const timelineJoins = [
     "fromScene": "home",
     "toScene": "belief",
     "sourceOut": [
-      0.72,
+      0.8,
       0.98
     ],
     "targetIn": [
-      0.72,
-      0.84
+      0.9,
+      0.94
     ],
-    "commitAt": 0.72,
-    "presentAt": 0.84,
+    "commitAt": 0.8,
+    "presentAt": 0.94,
     "cleanupAt": 0.96,
     "targetCopyPolicy": "scroll-owner",
     "commitCondition": [
@@ -187,8 +187,8 @@ export const timelineJoins = [
         0.7
       ],
       "secondReveal": [
-        0.72,
-        0.84
+        0.8,
+        0.94
       ]
     },
     "handoffOverlaps": [
@@ -489,6 +489,22 @@ export const homepageTimeline = {
         "arch-with-closing",
         "ink-sweep"
       ]
+    },
+    {
+      "id": "figure2-proof-opening",
+      "kind": "reading",
+      "publicSectionId": "method-proof",
+      "fullScreen": true,
+      "snap": {
+        "enter": true
+      },
+      "reading": {
+        "allowNativeScroll": false
+      },
+      "content": {
+        "source": "fixture",
+        "ref": "proof-opening-121"
+      }
     },
     {
       "id": "figure2-proof-cards",
