@@ -1,0 +1,30 @@
+name: R0 React Scaffold
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - codex/react-refactor-r0-scaffold
+
+jobs:
+  r0:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: |
+          corepack enable
+          corepack prepare pnpm@8.15.1 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Old site baseline guard
+        run: pnpm run ci:baseline
+
+      - name: New app smoke
+        run: pnpm run ci:app-smoke

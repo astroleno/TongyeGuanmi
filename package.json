@@ -2,6 +2,7 @@
   "name": "tongye-guanmi-site",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@8.15.1",
   "type": "module",
   "scripts": {
     "build:page": "node scripts/build-index.mjs",
@@ -14,6 +15,9 @@
     "verify:transition-runtime": "node scripts/check-transition-runtime.mjs",
     "verify:homepage-transitions": "node scripts/check-homepage-transition-integration.mjs",
     "verify:handoff-ownership": "node scripts/check-handoff-ownership.mjs",
-    "verify:all": "npm run build:page && npm run verify:copy && npm run verify:ink-modules && npm run verify:scroll-modules && npm run verify:section-transitions && npm run verify:transition-runtime && npm run verify:homepage-transitions && npm run verify:handoff-ownership"
+    "verify:all": "pnpm run build:page && pnpm run verify:copy && pnpm run verify:ink-modules && pnpm run verify:scroll-modules && pnpm run verify:section-transitions && pnpm run verify:transition-runtime && pnpm run verify:homepage-transitions && pnpm run verify:handoff-ownership",
+    "ci:baseline": "pnpm run build:page && pnpm run verify:all",
+    "ci:app-smoke": "pnpm -C app lint && pnpm -C app test && pnpm -C app build && pnpm -C app test:smoke",
+    "ci:r0": "pnpm run ci:baseline && pnpm run ci:app-smoke"
   }
 }

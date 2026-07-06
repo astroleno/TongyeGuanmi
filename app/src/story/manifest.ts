@@ -1,0 +1,418 @@
+import migrationInventory from '../../../docs/react-refactor/inventory/migration-inventory.json';
+import interruptibleCandidates from '../../../docs/react-refactor/inventory/interruptible-candidates.json';
+import copyReference from '../../../docs/react-refactor/inventory/copy-reference.json';
+import { canonicalSpine } from './canonical-spine';
+import { parseInventoryManifestSeed, type InventoryManifestSeed } from './inventory-schema';
+import type {
+  MediaPlaybackContract,
+  SceneId,
+  SegmentId,
+  SegmentPolicy,
+  SegmentVisual,
+  SpineHoldNode,
+  SpineNode,
+  SpineSegmentNode,
+  StoryManifest
+} from './types';
+
+export const inventoryManifestSeed = parseInventoryManifestSeed({
+  migrationInventory,
+  interruptibleCandidates,
+  copyReference
+});
+
+const defaults = {
+  buildTimeoutMs: 1800,
+  chargeThreshold: 0.1,
+  chargeDecayPerMs: 0.001,
+  settlingMs: 420
+} as const;
+
+const fallbackDurations = {
+  snapMs: 1200,
+  readingMs: 900
+} as const;
+
+function transitionSeed(legacyTransitionId: string, seed: InventoryManifestSeed) {
+  const found = seed.transitions.find((transition) => transition.legacyTransitionId === legacyTransitionId);
+  if (!found) {
+    throw new Error(`R-1 transition seed missing: ${legacyTransitionId}`);
+  }
+  return found;
+}
+
+const seedByLegacy = {
+  homeBelief: transitionSeed('home-belief', inventoryManifestSeed),
+  beliefMethod: transitionSeed('belief-method', inventoryManifestSeed),
+  figure2: transitionSeed('method-tooling__method-proof', inventoryManifestSeed),
+  figure3: transitionSeed('brand-services', inventoryManifestSeed),
+  ttg: transitionSeed('services-lab', inventoryManifestSeed),
+  ph: transitionSeed('lab-education', inventoryManifestSeed),
+  crane: transitionSeed('philosophy-contact', inventoryManifestSeed)
+} as const;
+
+function snapPolicy(segment: SegmentId): SegmentPolicy {
+  const isInterruptible = inventoryManifestSeed.interruptibleSegmentIds.includes(segment);
+  return {
+    kind: 'snap',
+    chargeThreshold: defaults.chargeThreshold,
+    ...(isInterruptible ? { interruptible: true } : {})
+  };
+}
+
+function stagedPolicy(
+  stageStops: readonly number[] | undefined,
+  stagePlayMs: readonly number[] | undefined,
+  postScrollVh?: number
+): SegmentPolicy {
+  if (!stageStops || !stagePlayMs) {
+    throw new Error('R-1 staged policy seed is missing stageStops or stagePlayMs');
+  }
+  return {
+    kind: 'stagedSnap',
+    stops: stageStops,
+    playMs: stagePlayMs,
+    ...(postScrollVh !== undefined ? { postScrollVh } : {})
+  };
+}
+
+function readingPolicy(anchor: SceneId, edgeArm: 'bottom' | 'top' = 'bottom'): SegmentPolicy {
+  return { kind: 'reading', anchor, edgeArm };
+}
+
+function durationFromPlayMs(value: number | undefined): number {
+  return value ?? fallbackDurations.snapMs;
+}
+
+function durationFromModulePlayMs(value: number | undefined): number {
+  return value ?? fallbackDurations.snapMs;
+}
+
+function durationFromStages(playMs: readonly number[] | undefined): number {
+  return playMs?.reduce((sum, value) => sum + value, 0) ?? fallbackDurations.snapMs;
+}
+
+function visualFor(segment: SegmentId): SegmentVisual | undefined {
+  switch (segment) {
+    case 'hero-pattern':
+      return { type: 'ink', ink: 'center-expand' };
+    case 'pattern-star-map':
+      return { type: 'ink', ink: 'left-rotate-expand' };
+    case 'star-map-aod':
+    case 'method-bottom-figure2':
+    case 'figure2-proof-brand':
+    case 'brand-figure3':
+    case 'services-ttg':
+    case 'education-crane':
+      return { type: 'ink', ink: 'horizontal', direction: 'bottom-to-top' };
+    case 'ttg-lab':
+    case 'ph-education':
+      return { type: 'ink', ink: 'horizontal', direction: 'top-to-bottom' };
+    case 'lab-ph':
+      return { type: 'ink', ink: 'sun-radial' };
+    case 'aod-method-top':
+      return { type: 'media', media: ['aod_figure-alpha-front-scrub'] };
+    case 'figure2-distance-expand':
+      return { type: 'internal', milestone: 'figure2-distance-expand' };
+    case 'figure3-services':
+      return { type: 'media', media: ['figure3-alpha-scrub'] };
+    case 'crane-contact':
+      return { type: 'media', media: ['crane-figure-transition'] };
+    case 'method-top-method-bottom':
+    case 'figure2-proof-opening-cards':
+    case 'figure2-proof-cards-closing':
+      return undefined;
+  }
+}
+
+function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' | 'virtualDuration'> {
+  switch (segment) {
+    case 'aod-method-top':
+      return {
+        policy: snapPolicy(segment),
+        virtualDuration: durationFromPlayMs(seedByLegacy.beliefMethod.playMs)
+      };
+    case 'method-top-method-bottom':
+      return {
+        policy: readingPolicy('method-bottom'),
+        virtualDuration: fallbackDurations.readingMs
+      };
+    case 'figure2-distance-expand':
+      return {
+        policy: stagedPolicy(
+          seedByLegacy.figure2.stageStops,
+          seedByLegacy.figure2.stagePlayMs,
+          seedByLegacy.figure2.postScrollVh
+        ),
+        virtualDuration: durationFromStages(seedByLegacy.figure2.stagePlayMs)
+      };
+    case 'figure2-proof-opening-cards':
+      return {
+        policy: readingPolicy('figure2-proof-cards'),
+        virtualDuration: fallbackDurations.readingMs
+      };
+    case 'figure2-proof-cards-closing':
+      return {
+        policy: readingPolicy('figure2-proof-closing'),
+        virtualDuration: fallbackDurations.readingMs
+      };
+    case 'figure3-services':
+      return {
+        policy: stagedPolicy(seedByLegacy.figure3.stageStops, seedByLegacy.figure3.stagePlayMs),
+        virtualDuration: durationFromStages(seedByLegacy.figure3.stagePlayMs)
+      };
+    case 'ttg-lab':
+      return {
+        policy: snapPolicy(segment),
+        virtualDuration: durationFromModulePlayMs(seedByLegacy.ttg.modulePlayMs)
+      };
+    case 'ph-education':
+      return {
+        policy: snapPolicy(segment),
+        virtualDuration: durationFromModulePlayMs(seedByLegacy.ph.modulePlayMs)
+      };
+    case 'crane-contact':
+      return {
+        policy: snapPolicy(segment),
+        virtualDuration: durationFromModulePlayMs(seedByLegacy.crane.modulePlayMs)
+      };
+    case 'hero-pattern':
+    case 'pattern-star-map':
+    case 'star-map-aod':
+    case 'method-bottom-figure2':
+    case 'figure2-proof-brand':
+    case 'brand-figure3':
+    case 'services-ttg':
+    case 'lab-ph':
+    case 'education-crane':
+      return {
+        policy: snapPolicy(segment),
+        virtualDuration: fallbackDurations.snapMs
+      };
+  }
+}
+
+function copyCueFor(segment: SegmentId) {
+  switch (segment) {
+    case 'aod-method-top':
+      return { targetScene: 'method-top', atProgress: 0.8 } as const;
+    case 'figure3-services':
+      return { targetScene: 'services', atProgress: 0.8 } as const;
+    case 'crane-contact':
+      return { targetScene: 'contact', atProgress: 0.8 } as const;
+    default:
+      return undefined;
+  }
+}
+
+function mediaPlaybackContract(
+  id: string,
+  media: readonly string[],
+  terminalFallbackScene: SceneId,
+  preparingTimeoutMs = defaults.buildTimeoutMs
+): MediaPlaybackContract {
+  return {
+    id,
+    media,
+    forward: { mode: 'play', required: true },
+    reverse: { mode: 'static-fallback', required: false },
+    readyMilestones: ['targetReady', 'mediaReady'],
+    terminalFallbackScene,
+    preparingTimeoutMs
+  };
+}
+
+function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackContract[] | undefined {
+  switch (segment) {
+    case 'aod-method-top':
+      return [
+        mediaPlaybackContract(
+          'aod-front-figure',
+          ['aod_figure-alpha-front-scrub'],
+          'method-top'
+        )
+      ];
+    case 'figure3-services':
+      return [
+        mediaPlaybackContract(
+          'figure3-alpha',
+          ['figure3-alpha-scrub'],
+          'services'
+        )
+      ];
+    case 'ttg-lab':
+      return [
+        mediaPlaybackContract(
+          'ttg-alpha',
+          ['ttg_figure-alpha-scrub'],
+          'lab'
+        )
+      ];
+    case 'ph-education':
+      return [
+        mediaPlaybackContract(
+          'ph-alpha',
+          ['ph_figure-alpha-scrub'],
+          'education'
+        )
+      ];
+    case 'crane-contact':
+      return [
+        mediaPlaybackContract(
+          'crane-transition',
+          ['crane-figure1-transition', 'crane-figure2-transition'],
+          'contact'
+        )
+      ];
+    default:
+      return undefined;
+  }
+}
+
+function buildNodes(): readonly SpineNode[] {
+  return canonicalSpine.map((node): SpineNode => {
+    if (node.kind === 'hold') {
+      return {
+        kind: 'hold',
+        scene: node.scene,
+        reading: node.reading,
+        staticFallback: node.staticFallback,
+        buildTimeoutMs: defaults.buildTimeoutMs
+      };
+    }
+
+    const policy = policyAndDuration(node.id);
+    const visual = visualFor(node.id);
+    const copyCue = copyCueFor(node.id);
+    const mediaPlayback = mediaPlaybackFor(node.id);
+    return {
+      kind: 'segment',
+      id: node.id,
+      from: node.from,
+      to: node.to,
+      policy: policy.policy,
+      virtualDuration: policy.virtualDuration,
+      buildTimeoutMs: defaults.buildTimeoutMs,
+      ...(visual ? { visual } : {}),
+      ...(copyCue ? { copyCue } : {}),
+      ...(mediaPlayback ? { mediaPlayback } : {})
+    };
+  });
+}
+
+export const storyManifest: StoryManifest = {
+  version: 0,
+  defaults,
+  inventory: {
+    source: 'R-1',
+    generatedAt: inventoryManifestSeed.generatedAt,
+    interruptibleCandidates: inventoryManifestSeed.interruptibleSegmentIds
+  },
+  nodes: buildNodes()
+};
+
+export function validateStoryManifest(
+  manifest: StoryManifest,
+  allowedInterruptibleSegments: readonly SegmentId[] = inventoryManifestSeed.interruptibleSegmentIds
+): void {
+  if (manifest.defaults.buildTimeoutMs <= 0) {
+    throw new Error('manifest defaults must include a positive buildTimeoutMs');
+  }
+
+  if (manifest.nodes.length < 3 || manifest.nodes[0]?.kind !== 'hold') {
+    throw new Error('manifest nodes must start with a hold');
+  }
+
+  const hasStaticFallback = manifest.nodes.some((node) => node.kind === 'hold' && node.staticFallback);
+  if (!hasStaticFallback) {
+    throw new Error('manifest must include at least one staticFallback hold');
+  }
+
+  const heroHold = manifest.nodes.find((node): node is SpineHoldNode => node.kind === 'hold' && node.scene === 'hero');
+  if (!heroHold?.staticFallback) {
+    throw new Error('hero hold must be a staticFallback hold');
+  }
+
+  for (let index = 0; index < manifest.nodes.length; index += 1) {
+    const node = manifest.nodes[index];
+    if (!node) {
+      throw new Error(`manifest node ${index} is missing`);
+    }
+    const expectedKind = index % 2 === 0 ? 'hold' : 'segment';
+    if (node.kind !== expectedKind) {
+      throw new Error(`manifest node ${index} must be ${expectedKind}`);
+    }
+  }
+
+  for (let index = 1; index < manifest.nodes.length - 1; index += 2) {
+    const previous = manifest.nodes[index - 1];
+    const segment = manifest.nodes[index];
+    const next = manifest.nodes[index + 1];
+    if (previous?.kind !== 'hold' || segment?.kind !== 'segment' || next?.kind !== 'hold') {
+      throw new Error(`manifest segment triplet at index ${index} is malformed`);
+    }
+
+    if (segment.from !== previous.scene || segment.to !== next.scene) {
+      throw new Error(`segment ${segment.id} from/to must match neighboring holds`);
+    }
+
+    if (segment.virtualDuration <= 0) {
+      throw new Error(`segment ${segment.id} virtualDuration must be positive`);
+    }
+
+    if (segment.copyCue) {
+      if (segment.copyCue.atProgress <= 0 || segment.copyCue.atProgress >= 1) {
+        throw new Error(`segment ${segment.id} copyCue.atProgress must be inside 0..1`);
+      }
+      const targetExists = manifest.nodes.some((node) => node.kind === 'hold' && node.scene === segment.copyCue?.targetScene);
+      if (!targetExists) {
+        throw new Error(`segment ${segment.id} copyCue targetScene must exist`);
+      }
+    }
+
+    if (segment.visual?.type === 'media' && !segment.mediaPlayback?.length) {
+      throw new Error(`segment ${segment.id} media visual requires mediaPlayback seed`);
+    }
+
+    for (const mediaPlayback of segment.mediaPlayback ?? []) {
+      if (mediaPlayback.media.length === 0) {
+        throw new Error(`segment ${segment.id} mediaPlayback ${mediaPlayback.id} must declare media`);
+      }
+      if (mediaPlayback.readyMilestones.length === 0) {
+        throw new Error(`segment ${segment.id} mediaPlayback ${mediaPlayback.id} must declare readyMilestones`);
+      }
+      const terminalFallbackExists = manifest.nodes.some(
+        (node) => node.kind === 'hold' && node.scene === mediaPlayback.terminalFallbackScene
+      );
+      if (!terminalFallbackExists) {
+        throw new Error(
+          `segment ${segment.id} mediaPlayback ${mediaPlayback.id} terminalFallbackScene must exist`
+        );
+      }
+      if (mediaPlayback.preparingTimeoutMs <= 0) {
+        throw new Error(`segment ${segment.id} mediaPlayback ${mediaPlayback.id} preparingTimeoutMs must be positive`);
+      }
+    }
+
+    if (segment.policy.kind === 'stagedSnap') {
+      const stops = segment.policy.stops;
+      const sorted = [...stops].sort((left, right) => left - right);
+      const allInsideRange = stops.every((stop) => stop > 0 && stop < 1);
+      const strictlySorted = stops.every((stop, stopIndex) => stop === sorted[stopIndex]);
+      if (!allInsideRange || !strictlySorted) {
+        throw new Error(`segment ${segment.id} stagedSnap stops must be sorted and inside 0..1`);
+      }
+      if (segment.policy.playMs.length !== stops.length + 1) {
+        throw new Error(`segment ${segment.id} stagedSnap playMs must have stops.length + 1 entries`);
+      }
+    }
+
+    if (segment.policy.kind === 'snap' && segment.policy.interruptible) {
+      if (!allowedInterruptibleSegments.includes(segment.id)) {
+        throw new Error(`segment ${segment.id} interruptible must come from R-1 candidates`);
+      }
+    }
+  }
+}
+
+validateStoryManifest(storyManifest);

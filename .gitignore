@@ -2,6 +2,8 @@
 node_modules/
 dist/
 output/
+playwright-report/
+test-results/
 .review-*.png
 .worktrees/
 tmp/
