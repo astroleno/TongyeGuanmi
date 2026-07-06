@@ -46,8 +46,9 @@ export const SEGMENT_IDS = [
 export type SceneId = (typeof SCENE_IDS)[number];
 export type SegmentId = (typeof SEGMENT_IDS)[number];
 export type Direction = 1 | -1;
-export type SegmentRunId = `run:${string}`;
-export type PrepareToken = `prepare:${string}`;
+export type ActorEpoch = string;
+export type SegmentRunId = `${ActorEpoch}:${number}`;
+export type PrepareToken = `${ActorEpoch}:prepare:${number}`;
 export type MilestoneKey =
   | 'targetReady'
   | 'timelineReady'
@@ -217,29 +218,57 @@ export type MilestoneReport = {
   runId: SegmentRunId;
   direction: Direction;
   progress?: number;
+  stageIndex?: number;
 };
 
 export type SegmentResult =
   | { status: 'completed'; runId: SegmentRunId; segment: SegmentId; direction: Direction }
-  | { status: 'aborted'; runId: SegmentRunId; segment: SegmentId; reason: 'seek' | 'superseded' | 'dispose' | 'recovery' }
-  | { status: 'failed'; runId: SegmentRunId; segment: SegmentId; error: unknown };
+  | {
+      status: 'aborted';
+      runId: SegmentRunId;
+      segment: SegmentId;
+      reason: 'seek' | 'superseded' | 'dispose' | 'recovery';
+    }
+  | { status: 'failed'; runId: SegmentRunId; segment: SegmentId; error: Error };
 
-export type DirectorInputSource = 'wheel' | 'touch' | 'key' | 'hash' | 'menu' | 'devtools';
+export type DirectorInputSource = 'wheel' | 'touch' | 'key';
+export type DirectorSeekSource = 'hash' | 'menu' | 'history';
+
+export type StoryCursor =
+  | { status: 'hold'; scene: SceneId }
+  | { status: 'segment'; segment: SegmentId; from: SceneId; to: SceneId }
+  | { status: 'settling'; segment: SegmentId; from: SceneId; to: SceneId; target: SceneId };
+
+export type PausePoint = {
+  segmentId: SegmentId;
+  stageIndex: number;
+};
+
+export type QueuedIntent = {
+  direction: Direction;
+  strength: number;
+  deadline: number;
+  updatedAt: number;
+  ttlMs: number;
+  decayRatePerMs: number;
+};
 
 export type DirectorEvent =
-  | { type: 'BOOT' }
-  | { type: 'BOOT_READY'; initialScene: SceneId }
+  | { type: 'BOOT_READY' }
   | { type: 'BOOT_FAILED'; error: unknown }
-  | { type: 'CHARGE_FIRED'; direction: Direction; source: DirectorInputSource; ttlMs?: number }
-  | { type: 'PREPARE_REQUESTED'; segment: SegmentId; direction: Direction; token: PrepareToken }
-  | { type: 'PREPARE_READY'; segment: SegmentId; token: PrepareToken }
-  | { type: 'PREPARE_FAILED'; segment: SegmentId; token: PrepareToken; error: unknown }
-  | { type: 'SEGMENT_STARTED'; segment: SegmentId; runId: SegmentRunId; direction: Direction }
-  | { type: 'SEGMENT_FINISHED'; result: SegmentResult }
-  | { type: 'STAGE_PAUSED'; segment: SegmentId; runId: SegmentRunId; pausePoint: number }
-  | { type: 'STAGE_RESUMED'; segment: SegmentId; runId: SegmentRunId }
-  | { type: 'SEEK_REQUESTED'; target: SceneId; source: DirectorInputSource }
-  | { type: 'RECOVERY_REQUESTED'; segment?: SegmentId; error: unknown };
+  | { type: 'INPUT_DELTA'; delta: number; source: DirectorInputSource; now?: number }
+  | { type: 'CHARGE_FIRED'; direction: Direction; now?: number }
+  | { type: 'TARGET_READY'; scene: SceneId; prepareToken: PrepareToken }
+  | { type: 'MEDIA_READY'; key: MilestoneKey; prepareToken?: PrepareToken; runId?: SegmentRunId }
+  | { type: 'PREPARE_TIMEOUT'; segment: SegmentId; prepareToken: PrepareToken }
+  | { type: 'BUILD_TIMEOUT'; segment: SegmentId; runId?: SegmentRunId; prepareToken?: PrepareToken }
+  | { type: 'PLAYBACK_DONE'; runId: SegmentRunId }
+  | { type: 'PLAYBACK_FAILED'; runId: SegmentRunId; error: Error }
+  | { type: 'STAGE_PAUSED'; runId: SegmentRunId; segment: SegmentId; stageIndex: number }
+  | { type: 'STAGE_RESUMED'; runId: SegmentRunId; segment: SegmentId; stageIndex: number }
+  | { type: 'SETTLING_DONE'; now?: number }
+  | { type: 'SEEK'; label: string; source: DirectorSeekSource }
+  | { type: 'SEGMENT_ABORTED'; runId: SegmentRunId; reason: string };
 
 export type StoryManifest = {
   version: 0;

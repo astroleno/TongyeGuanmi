@@ -1,11 +1,21 @@
 import { storyManifest } from './story/manifest';
 import { canUseDOM } from './runtime/browser-guard';
+import { MachineHarness } from './harness/MachineHarness';
+import { DevtoolsHarness } from './harness/DevtoolsHarness';
 import './styles.css';
 
 const holdCount = storyManifest.nodes.filter((node) => node.kind === 'hold').length;
 const segmentCount = storyManifest.nodes.filter((node) => node.kind === 'segment').length;
 
 export function App() {
+  const path = canUseDOM() ? window.location.pathname : '/';
+  if (path === '/harness/machine') {
+    return <MachineHarness />;
+  }
+  if (path === '/harness/devtools') {
+    return <DevtoolsHarness />;
+  }
+
   return (
     <main className="app-shell" data-testid="r0-scaffold">
       <section className="app-panel" aria-labelledby="runtime-title">
