@@ -1,0 +1,372 @@
+{
+  "generatedAt": "2026-07-06",
+  "sourceBranch": "codex/react-refactor-r-1-inventory",
+  "baseBranch": "codex/react-refactor-plan",
+  "mainMergeBase": "a78b064d65f024a301a3b179c62a458a1445bbf6",
+  "planCommit": "151cb5e403d6c53dabb99bd4273552e3ebe2eacc",
+  "generatedIndexSha256": "d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7",
+  "canonicalSpineStatus": {
+    "architectureSection": "docs/react-refactor/ARCHITECTURE.md#31-canonical-story-spine",
+    "correctionAdrGenerated": false,
+    "reason": "DOM/hash/adapter/build-output evidence fits the planned one-way mapping. Legacy philosophy is duplicate brand copy and legacy education-philosophy is a soft-breath continuity join, so no canonical scene is added in R-1."
+  },
+  "evidenceSources": [
+    "src/index.template.html",
+    "src/sections/*.html",
+    "src/section-manifest.mjs",
+    "index.html",
+    "js/transitions/homepage-transition-registry.js",
+    "js/transitions/homepage-transition-runtime.js",
+    "js/transitions/homepage/*.js",
+    "js/transitions/pattern-bloom-adapter.js",
+    "js/components/*-transition.js",
+    "root *.html preview/route-entry pages",
+    "assets/**",
+    "scripts/check-*.mjs"
+  ],
+  "adapterRegistry": {
+    "aod": "js/transitions/homepage/aod-homepage-adapter.js",
+    "figure2": "js/transitions/homepage/figure2-homepage-adapter.js",
+    "pattern-bloom": "js/transitions/pattern-bloom-adapter.js",
+    "ttg": "js/transitions/homepage/ttg-homepage-adapter.js",
+    "figure3-transition": "js/transitions/homepage/figure3-homepage-adapter.js",
+    "ph": "js/transitions/homepage/ph-homepage-adapter.js",
+    "crane": "js/transitions/homepage/crane-homepage-adapter.js"
+  },
+  "sections": [
+    {
+      "sectionId": "home",
+      "hashId": "home",
+      "source": "src/sections/hero.html",
+      "buildOutput": "index.html#home",
+      "canonicalScenes": ["hero"],
+      "copySource": "src/sections/hero.html",
+      "mediaAssets": ["assets/back1.png", "assets/middle1.png", "assets/figure1.webm", "assets/figure-poster.jpg"],
+      "notes": "Hero title and subtitle are present in build output before js/main.js."
+    },
+    {
+      "sectionId": "belief",
+      "hashId": "belief",
+      "source": "src/sections/belief.html",
+      "buildOutput": "index.html#belief",
+      "canonicalScenes": ["pattern", "star-map"],
+      "copySource": "src/sections/belief.html",
+      "mediaAssets": ["assets/back2.png", "assets/patterns/**"],
+      "notes": "Legacy belief section contains the star canvas and belief copy; canonical naming splits renderer identity into pattern and star-map."
+    },
+    {
+      "sectionId": "method",
+      "hashId": "method",
+      "source": "src/sections/method.html",
+      "buildOutput": "index.html#method",
+      "canonicalScenes": ["method-top", "method-bottom", "figure2-proof-opening", "figure2-proof-cards", "figure2-proof-closing"],
+      "legacySceneAnchors": ["method-field-law", "method-cocreation", "method-tooling", "method-proof"],
+      "copySource": "src/sections/method.html",
+      "mediaAssets": ["assets/figure2-*.png", "assets/figure2a-*", "assets/figure2b-*", "assets/arch2d-alpha.png"],
+      "notes": "Method top/bottom and proof copy are one section in the legacy DOM. R0 must split by canonical naming, not by legacy anchor names."
+    },
+    {
+      "sectionId": "brand",
+      "hashId": "brand",
+      "source": "src/sections/brand.html",
+      "buildOutput": "index.html#brand",
+      "canonicalScenes": ["brand"],
+      "copySource": "src/sections/brand.html",
+      "mediaAssets": [],
+      "notes": "Brand grid is adopted by Figure2 handoff receiver using .brand-definition-grid."
+    },
+    {
+      "sectionId": "services",
+      "hashId": "services",
+      "source": "src/sections/services.html",
+      "buildOutput": "index.html#services",
+      "canonicalScenes": ["services"],
+      "copySource": "src/sections/services.html",
+      "mediaAssets": ["assets/figure3-alpha-scrub.webm", "assets/figure3-alpha-poster.png"],
+      "notes": "Services copy remains native section content; figure3 homepage adapter is visual-only."
+    },
+    {
+      "sectionId": "lab",
+      "hashId": "lab",
+      "source": "src/sections/lab.html",
+      "buildOutput": "index.html#lab",
+      "canonicalScenes": ["lab"],
+      "copySource": "src/sections/lab.html",
+      "mediaAssets": ["assets/ttg_*.png", "assets/ttg_*.webm"],
+      "notes": "Scenario/lab copy remains native section content; TTG adapter owns visual transition only."
+    },
+    {
+      "sectionId": "education",
+      "hashId": "education",
+      "source": "src/sections/education.html",
+      "buildOutput": "index.html#education",
+      "canonicalScenes": ["education"],
+      "copySource": "src/sections/education.html",
+      "mediaAssets": ["assets/ph_*.png", "assets/ph_*.webm"],
+      "notes": "Education copy is the canonical hold after ph-animation."
+    },
+    {
+      "sectionId": "philosophy",
+      "hashId": "philosophy",
+      "source": "src/sections/philosophy.html",
+      "buildOutput": "index.html#philosophy",
+      "canonicalScenes": [],
+      "copySource": "src/sections/philosophy.html",
+      "mediaAssets": [],
+      "notes": "Legacy-only continuity section. Its headings duplicate brand concepts; canonical spine does not add a philosophy scene."
+    },
+    {
+      "sectionId": "contact",
+      "hashId": "contact",
+      "source": "src/sections/contact.html",
+      "buildOutput": "index.html#contact",
+      "canonicalScenes": ["contact"],
+      "copySource": "src/sections/contact.html",
+      "mediaAssets": ["assets/crane-figure1-transition.webm", "assets/crane-figure2-transition.webm", "assets/crane1_*.png"],
+      "notes": "Contact endpoint is adopted by Crane handoff receiver using .contact-endpoint."
+    }
+  ],
+  "transitions": [
+    {
+      "oldTransitionId": "home-belief",
+      "oldHandoffId": "home-belief",
+      "domHost": "index.html .chapter-transition[data-transition-id=\"home-belief\"]",
+      "sourceHost": "src/index.template.html data-transition=\"home-belief\"",
+      "from": "home",
+      "to": "belief",
+      "adapterModule": "pattern-bloom",
+      "adapterPath": "js/transitions/pattern-bloom-adapter.js",
+      "canonicalExpansion": ["hero", "hero-pattern", "pattern", "pattern-star-map", "star-map"],
+      "policySeed": {
+        "legacyDrive": "scroll",
+        "handoffOwner": "target-section",
+        "targetSelector": ".belief-copy-wrap",
+        "reducedMotion": "jump-to-presented",
+        "adapterProgressRanges": {
+          "revealEnd": 0.46,
+          "bloomStart": 0.42,
+          "bloomEnd": 0.7,
+          "secondRevealStart": 0.58,
+          "secondRevealEnd": 0.985
+        }
+      },
+      "copySource": ["src/sections/hero.html", "src/sections/belief.html"],
+      "mediaAssets": ["assets/back2.png", "assets/patterns/**"],
+      "evidence": ["src/section-manifest.mjs chapterTransitions", "index.html build host", "js/transitions/pattern-bloom-adapter.js"]
+    },
+    {
+      "oldTransitionId": "belief-method",
+      "oldHandoffId": "belief-method",
+      "domHost": "index.html .chapter-transition[data-transition-id=\"belief-method\"]",
+      "sourceHost": "src/index.template.html data-transition=\"belief-method\"",
+      "from": "belief",
+      "to": "method-field-law",
+      "adapterModule": "aod",
+      "adapterPath": "js/transitions/homepage/aod-homepage-adapter.js",
+      "canonicalExpansion": ["star-map", "star-map-aod", "aod-animation", "aod-method-top", "method-top"],
+      "policySeed": {
+        "playMs": 2600,
+        "handoffTarget": "#method",
+        "handoffPhase": "after-playback",
+        "targetSelector": ".method-edition-layout--after-handoff",
+        "receiverRange": { "start": 0.58, "end": 0.94, "liftPx": 18 },
+        "visualAttributes": {
+          "dataAodDuration": 2,
+          "dataAodScrollVh": 20,
+          "dataAodVideoDuration": 5.03
+        }
+      },
+      "copySource": ["src/sections/belief.html", "src/sections/method.html"],
+      "mediaAssets": ["assets/aod_cloud-alpha.png", "assets/aod_sun-alpha.png", "assets/aod_figure-alpha-front-scrub.webm"],
+      "evidence": ["src/section-manifest.mjs", "index.html build host", "js/transitions/homepage/aod-homepage-adapter.js"]
+    },
+    {
+      "oldTransitionId": "method-tooling__method-proof",
+      "oldHandoffId": "method-proof-brand",
+      "domHost": "index.html .scene-transition[data-transition-id=\"method-tooling__method-proof\"]",
+      "sourceHost": "src/sections/method.html .scene-transition[data-transition-id=\"method-tooling__method-proof\"]",
+      "from": "method-tooling",
+      "to": "method-proof",
+      "adapterModule": "figure2",
+      "adapterPath": "js/transitions/homepage/figure2-homepage-adapter.js",
+      "canonicalExpansion": ["method-bottom", "method-bottom-figure2", "figure2-animation", "figure2-distance-expand", "figure2-proof-opening", "figure2-proof-cards", "figure2-proof-closing", "figure2-proof-brand", "brand"],
+      "policySeed": {
+        "stageStops": [0.72],
+        "stagePlayMs": [2600, 1500],
+        "stageHoldVh": 30,
+        "postScrollVh": 56,
+        "handoffTarget": "#brand",
+        "handoffPhase": "post-scroll",
+        "targetSelector": ".brand-definition-grid",
+        "adapterProgressSplit": {
+          "introProgress": "range01(progress, 0, 0.72)",
+          "transitionProgress": "range01(progress, 0.72, 1)",
+          "postProgress": "postProgressSource only after transitionProgress >= 0.998"
+        },
+        "proofOverlayRanges": {
+          "transitionRevealProgress": "smoothStep(range01(transitionProgress, 0.10, 0.94))",
+          "handoffFade": "1 - smoothStep(range01(handoffProgress, 0.58, 0.90))",
+          "brandReceiver": { "start": 0.58, "end": 0.96, "liftPx": 22 }
+        }
+      },
+      "copySource": ["src/sections/method.html .method-proof", "src/sections/brand.html .brand-definition-grid"],
+      "mediaAssets": [
+        "assets/figure2-cloud-source.png",
+        "assets/figure2-front-white-source.png",
+        "assets/figure2-front-color-source.png",
+        "assets/figure2-middle-fresco-opaque-alpha.png",
+        "assets/arch2d-alpha.png",
+        "assets/figure2a-alpha-auto.webm",
+        "assets/figure2a-reverse.mp4",
+        "assets/figure2b-alpha-auto.webm",
+        "assets/figure2b-reverse.mp4"
+      ],
+      "evidence": ["src/sections/method.html", "index.html build host", "js/transitions/homepage/figure2-homepage-adapter.js", "js/components/figure2-transition.js"]
+    },
+    {
+      "oldTransitionId": "method-brand",
+      "oldHandoffId": null,
+      "domHost": "index.html .chapter-transition[data-transition-id=\"method-brand\"]",
+      "sourceHost": "src/index.template.html data-transition=\"method-brand\"",
+      "from": "method-proof",
+      "to": "brand",
+      "adapterModule": "soft-divider",
+      "adapterPath": null,
+      "canonicalExpansion": ["covered-by:figure2-proof-brand"],
+      "policySeed": {
+        "legacyModule": "soft-divider",
+        "continuityCss": "homepage-continuity collapses .long-canvas > .chapter-transition[data-transition-id=\"method-brand\"] to height: 0"
+      },
+      "copySource": ["src/sections/method.html", "src/sections/brand.html"],
+      "mediaAssets": [],
+      "evidence": ["src/section-manifest.mjs", "index.html build host", "scripts/check-homepage-transition-integration.mjs"]
+    },
+    {
+      "oldTransitionId": "brand-services",
+      "oldHandoffId": null,
+      "domHost": "index.html .chapter-transition[data-transition-id=\"brand-services\"]",
+      "sourceHost": "src/index.template.html data-transition=\"brand-services\"",
+      "from": "brand",
+      "to": "services",
+      "adapterModule": "figure3-transition",
+      "adapterPath": "js/transitions/homepage/figure3-homepage-adapter.js",
+      "canonicalExpansion": ["brand", "brand-figure3", "figure3-animation", "figure3-services", "services"],
+      "policySeed": {
+        "stageStops": [0.997],
+        "stagePlayMs": [2800, 620],
+        "visualAttributes": { "dataFigure3Duration": 2, "dataFigure3ScrollVh": 20 },
+        "copyOwnership": "adapter is visual-only; services copy stays in src/sections/services.html"
+      },
+      "copySource": ["src/sections/brand.html", "src/sections/services.html"],
+      "mediaAssets": ["assets/figure3-alpha-scrub.webm", "assets/figure3-alpha-poster.png"],
+      "evidence": ["src/index.template.html", "index.html build host", "js/transitions/homepage/figure3-homepage-adapter.js", "scripts/check-homepage-transition-integration.mjs"]
+    },
+    {
+      "oldTransitionId": "services-lab",
+      "oldHandoffId": null,
+      "domHost": "index.html .chapter-transition[data-transition-id=\"services-lab\"]",
+      "sourceHost": "src/index.template.html data-transition=\"services-lab\"",
+      "from": "services",
+      "to": "lab",
+      "adapterModule": "ttg",
+      "adapterPath": "js/transitions/homepage/ttg-homepage-adapter.js",
+      "canonicalExpansion": ["services", "services-ttg", "ttg-animation", "ttg-lab", "lab"],
+      "policySeed": {
+        "modulePlayMs": 2500,
+        "visualAttributes": {
+          "dataTtgDuration": 2.5,
+          "dataTtgScrollVh": 153,
+          "dataTtgVideoDuration": 2.459
+        },
+        "videoPlayback": "adapter starts forward/reverse video playback from snap progress but renders scenery from progress"
+      },
+      "copySource": ["src/sections/services.html", "src/sections/lab.html"],
+      "mediaAssets": ["assets/ttg_bg.png", "assets/ttg_middle-alpha.png", "assets/ttg_front-alpha.png", "assets/ttg_figure-alpha-scrub.webm", "assets/ttg_figure-alpha-scrub-reverse.webm"],
+      "evidence": ["src/section-manifest.mjs", "index.html build host", "js/transitions/homepage/ttg-homepage-adapter.js"]
+    },
+    {
+      "oldTransitionId": "lab-education",
+      "oldHandoffId": null,
+      "domHost": "index.html .chapter-transition[data-transition-id=\"lab-education\"]",
+      "sourceHost": "src/index.template.html data-transition=\"lab-education\"",
+      "from": "lab",
+      "to": "education",
+      "adapterModule": "ph",
+      "adapterPath": "js/transitions/homepage/ph-homepage-adapter.js",
+      "canonicalExpansion": ["lab", "lab-ph", "ph-animation", "ph-education", "education"],
+      "policySeed": {
+        "modulePlayMs": 1900,
+        "singleVideoScrub": "data-ph-alpha-video src assets/ph_figure-alpha-scrub.webm"
+      },
+      "copySource": ["src/sections/lab.html", "src/sections/education.html"],
+      "mediaAssets": ["assets/ph_background.png", "assets/ph_front-alpha.png", "assets/ph_figure-alpha-scrub.webm"],
+      "evidence": ["src/section-manifest.mjs", "index.html build host", "js/transitions/homepage/ph-homepage-adapter.js"]
+    },
+    {
+      "oldTransitionId": "education-philosophy",
+      "oldHandoffId": null,
+      "domHost": "index.html .chapter-transition[data-transition-id=\"education-philosophy\"]",
+      "sourceHost": "src/index.template.html data-transition=\"education-philosophy\"",
+      "from": "education",
+      "to": "philosophy",
+      "adapterModule": "soft-breath",
+      "adapterPath": null,
+      "canonicalExpansion": ["retired:legacy-soft-breath-to-duplicate-philosophy-copy"],
+      "policySeed": {
+        "legacyModule": "soft-breath",
+        "reason": "No executable homepage adapter; philosophy copy duplicates brand concepts and is not a canonical scene in ARCHITECTURE 3.1."
+      },
+      "copySource": ["src/sections/education.html", "src/sections/philosophy.html"],
+      "mediaAssets": [],
+      "evidence": ["src/section-manifest.mjs", "index.html build host", "src/sections/philosophy.html", "src/sections/brand.html"]
+    },
+    {
+      "oldTransitionId": "philosophy-contact",
+      "oldHandoffId": "philosophy-contact",
+      "domHost": "index.html .chapter-transition[data-transition-id=\"philosophy-contact\"]",
+      "sourceHost": "src/index.template.html data-transition=\"philosophy-contact\"",
+      "from": "philosophy",
+      "to": "contact",
+      "adapterModule": "crane",
+      "adapterPath": "js/transitions/homepage/crane-homepage-adapter.js",
+      "canonicalExpansion": ["education", "education-crane", "crane-animation", "crane-contact", "contact"],
+      "policySeed": {
+        "modulePlayMs": 2200,
+        "handoffTarget": "#contact",
+        "handoffPhase": "after-playback",
+        "targetSelector": ".contact-endpoint",
+        "receiverRange": { "start": 0.58, "end": 0.94, "liftPx": 20 }
+      },
+      "copySource": ["src/sections/contact.html"],
+      "mediaAssets": ["assets/crane1_cloud2-alpha.png", "assets/crane1_arch-alpha.png", "assets/crane1_cloud-front2-alpha.png", "assets/crane1_cloud1-alpha.png", "assets/crane-figure1-transition.webm", "assets/crane-figure2-transition.webm"],
+      "evidence": ["src/section-manifest.mjs", "index.html build host", "js/transitions/homepage/crane-homepage-adapter.js"]
+    }
+  ],
+  "rootPreviewPages": [
+    { "file": "index.html", "canonicalUse": "generated homepage build output and primary DOM/hash evidence, not a standalone preview", "script": "js/main.js" },
+    { "file": "aod-transition-route.html", "canonicalUse": "harness seed for aod-animation", "script": "js/aod-transition-route.js" },
+    { "file": "aod.html", "canonicalUse": "legacy standalone AOD preview", "script": "js/aod-scroll.js" },
+    { "file": "blob-glass-preview.html", "canonicalUse": "reviewed root HTML; unrelated blob glass preview, excluded from canonical story spine", "script": null },
+    { "file": "crane-component.html", "canonicalUse": "legacy standalone crane component preview", "script": "js/crane-scroll-route-entry.js" },
+    { "file": "crane-transition-route.html", "canonicalUse": "harness seed for crane-animation", "script": "js/crane-transition-route.js" },
+    { "file": "crane.html", "canonicalUse": "legacy standalone crane preview", "script": "js/crane-scroll.js" },
+    { "file": "figure2-fresco-preview.html", "canonicalUse": "figure2 fresco material/look reference for figure2-animation and proof texture", "script": "js/figure2-fresco-preview.js" },
+    { "file": "figure2-transition-route.html", "canonicalUse": "harness seed for figure2-animation / figure2-distance-expand", "script": "js/figure2-transition-route.js?v=routeentry1" },
+    { "file": "figure2.html", "canonicalUse": "legacy standalone figure2 preview", "script": "js/figure2-scroll.js?v=layerfix8" },
+    { "file": "figure3-transition-route.html", "canonicalUse": "harness seed for figure3-animation", "script": "js/figure3-transition-route.js" },
+    { "file": "figure3-transition.html", "canonicalUse": "legacy standalone figure3 preview", "script": "js/figure3-transition.js" },
+    { "file": "pattern-bloom-component.html", "canonicalUse": "pattern-bloom adapter/component reference", "script": "js/pattern-bloom-component-preview.js" },
+    { "file": "pattern-bloom-model.html", "canonicalUse": "pattern bloom model/reference page for pattern renderer", "script": "js/pattern-bloom-model.js" },
+    { "file": "pattern-bloom.html", "canonicalUse": "pattern renderer reference", "script": "js/pattern-bloom.js" },
+    { "file": "pattern-kaleidoscope.html", "canonicalUse": "pattern kaleidoscope experiment; reviewed and excluded unless R4 chooses to reuse renderer details", "script": "js/pattern-kaleidoscope.js" },
+    { "file": "pattern-mirror-stage.html", "canonicalUse": "pattern threshold reference", "script": "js/pattern-mirror-stage.js" },
+    { "file": "pattern-petal-converge.html", "canonicalUse": "pattern petal convergence experiment; reference for pattern renderer only", "script": "js/pattern-petal-converge.js" },
+    { "file": "pattern.html", "canonicalUse": "pattern controls/tuning reference for pattern renderer", "script": "js/pattern-controls.js" },
+    { "file": "ph-route-entry.html", "canonicalUse": "harness seed for ph-animation", "script": "js/ph-route-entry.js" },
+    { "file": "ph.html", "canonicalUse": "legacy standalone PH preview", "script": "js/ph-scroll.js" },
+    { "file": "shader-blob-glass-preview.html", "canonicalUse": "reviewed root HTML; unrelated shader blob glass preview, excluded from canonical story spine", "script": "js/components/shader-blob-glass.js" },
+    { "file": "star-converge.html", "canonicalUse": "star-map visual reference", "script": "inline module import: js/effects/star-field-reveal.js" },
+    { "file": "ttg-transition-route.html", "canonicalUse": "harness seed for ttg-animation", "script": "js/ttg-transition-route.js" },
+    { "file": "ttg.html", "canonicalUse": "legacy standalone TTG preview", "script": "js/ttg-scroll.js?v=ttg-panel-20" }
+  ]
+}

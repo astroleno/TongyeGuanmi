@@ -1,0 +1,259 @@
+{
+  "generatedAt": "2026-07-06",
+  "sourceBranch": "codex/react-refactor-r-1-inventory",
+  "normalization": {
+    "algorithm": "Remove comments/script/style, replace tags with newlines, decode basic HTML entities, collapse whitespace, drop empty lines.",
+    "sourceInputs": ["src/sections/*.html", "index.html"],
+    "buildCommand": "npm run build:page",
+    "buildOutput": "index.html",
+    "buildOutputSha256": "d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7"
+  },
+  "sections": [
+    {
+      "sectionId": "home",
+      "canonicalScenes": ["hero"],
+      "sourcePath": "src/sections/hero.html",
+      "sourceSha256": "7577969bf58b9523de19caf7a8f7cfbaf552b3ae7526ca14bb3bf49599cbdfd8",
+      "buildSelector": "#home",
+      "normalizedText": [
+        "同",
+        "野",
+        "观",
+        "幂",
+        "你的同行不是更聪明，只是更早把 AI 用进了生意里。"
+      ]
+    },
+    {
+      "sectionId": "belief",
+      "canonicalScenes": ["pattern", "star-map"],
+      "sourcePath": "src/sections/belief.html",
+      "sourceSha256": "a2a4a4f78d698c593a0d5ae12d4663b77e7cc80111e9779005d08abc178470ab",
+      "buildSelector": "#belief",
+      "normalizedText": [
+        "AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。它决定了未来三年你是领跑还是追赶。"
+      ]
+    },
+    {
+      "sectionId": "method",
+      "canonicalScenes": ["method-top", "method-bottom", "figure2-proof-opening", "figure2-proof-cards", "figure2-proof-closing"],
+      "sourcePath": "src/sections/method.html",
+      "sourceSha256": "3b3f7e2c1ee08535b5a906b6fed2b19ac81dcf036eef652abaca7b26a966e442",
+      "buildSelector": "#method",
+      "normalizedText": [
+        "先识场，再立法",
+        "先看懂，",
+        "再用上。",
+        "你的生意怎么跑，你比谁都懂。我们不重画流程，先把现场的耗损、断点和慢单找出来，再决定 AI 接到哪里。",
+        "现场",
+        "钱耗在哪，人卡在哪，订单为什么慢。",
+        "章法",
+        "什么能问，哪些能信，哪些数据碰不得。",
+        "01",
+        "识场",
+        "先摸清最耗人、最容易断的环节：老师傅一走就带走的本事，先理出来；哪笔钱花得冤，先算清楚。不瞎铺摊子。",
+        "02",
+        "立法",
+        "给团队定一套能看懂、敢用的规矩。怎么问 AI、什么能信、哪些数据碰不得，先讲清楚，团队才敢用，也不乱用。",
+        "03",
+        "共创",
+        "拉上你、你的中层和一线老员工一起设计。流程得让一线认账，不然做得再漂亮也推不动。",
+        "04",
+        "成器",
+        "把摸索出来的东西沉淀成模板、专属 AI 助手、知识库和自动流程。人走了，本事留在公司里。",
+        "05",
+        "陪跑",
+        "交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。",
+        "用不上，不算落地",
+        "我们见过太多",
+        "“用不上”。",
+        "同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。",
+        "01",
+        "只培训",
+        "听完很激动，回去照旧。",
+        "02",
+        "只上软件",
+        "账号开了，一线没人碰。",
+        "03",
+        "只交方案",
+        "装订精美，锁进抽屉。"
+      ],
+      "canonicalSplitHints": [
+        {
+          "scene": "method-top",
+          "textRange": ["先识场，再立法", "什么能问，哪些能信，哪些数据碰不得。"]
+        },
+        {
+          "scene": "method-bottom",
+          "textRange": ["01", "交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。"]
+        },
+        {
+          "scene": "figure2-proof-opening",
+          "textRange": ["用不上，不算落地", "“用不上”。"]
+        },
+        {
+          "scene": "figure2-proof-cards",
+          "textRange": ["只培训", "装订精美，锁进抽屉。"]
+        },
+        {
+          "scene": "figure2-proof-closing",
+          "textRange": ["同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。"]
+        }
+      ]
+    },
+    {
+      "sectionId": "brand",
+      "canonicalScenes": ["brand"],
+      "sourcePath": "src/sections/brand.html",
+      "sourceSha256": "fa13035479e6bf5c94ddd6688b97bfbbe4ee009369ec3ab583ce2c9219dd1073",
+      "buildSelector": "#brand",
+      "normalizedText": [
+        "同野",
+        "在开放真实的场域中并肩协作。",
+        "“同野”取自《易经》“同人于野”。AI 转型，难的从来不是买工具。方向怎么定、中层怎么带、一线怎么用，得理出一条线。",
+        "观幂",
+        "看见复杂系统背后的结构与门道。",
+        "我们不爱炫技术。我们在意的是 AI 在你的生意里能不能让人看得懂、用得顺、长久用下去，而不是热闹三个月就没人提了。"
+      ]
+    },
+    {
+      "sectionId": "services",
+      "canonicalScenes": ["services"],
+      "sourcePath": "src/sections/services.html",
+      "sourceSha256": "6dc0cf79465a73979077312a12ab624a06271f6003ed3ba0314e54bce6344abe",
+      "buildSelector": "#services",
+      "normalizedText": [
+        "先小做，再扩",
+        "先跑通，",
+        "再铺开。",
+        "不必一上来就大动干戈。先挑一个环节，几天内做出能跑的东西给你看，值不值、扩不扩，你看着实物决定。",
+        "01",
+        "AI 转型咨询",
+        "帮你理清楚哪儿该上 AI、能省多少、先动哪一步。给你一张看得懂、能落地的路线图，不是一本锁进抽屉的方案书。",
+        "管理层关门对齐会 / 先动哪个环节，排清顺序 / 风险与数据安全把关",
+        "02",
+        "企业培训",
+        "培训不按热闹算，按会不会用算。老板、中层、一线都要把 AI 用顺手，开会不再是你一个人懂、底下没人接得住。",
+        "怎么把活儿交代给 AI / 哪些活交给 AI、哪些人把关 / 按岗位定制课程",
+        "03",
+        "场景共创",
+        "把你嘴里那句“我也说不清想要啥”的模糊需求，拆成做得出、用得上、能复用的具体 AI 应用。",
+        "销售获客与跟单 / 电商素材与投放复盘 / 核心经验与文档整理",
+        "04",
+        "工具实施与陪跑",
+        "帮你搭模板、建知识库、做专属 AI 助手和自动流程，然后陪着用起来，让“装了”真的变成“在用”。",
+        "专属 AI 助手搭建 / 知识库落地 / 定期复盘优化"
+      ]
+    },
+    {
+      "sectionId": "lab",
+      "canonicalScenes": ["lab"],
+      "sourcePath": "src/sections/lab.html",
+      "sourceSha256": "b31c04a655bce6133c37319f25685a217c3f8cab52814135f7dca0bbe23b1a1d",
+      "buildSelector": "#lab",
+      "normalizedText": [
+        "Scenario / 03",
+        "同样一件事，有人报三万有人报三千万。我们帮你看真生意里的",
+        "AI",
+        "——投流怎么花、店怎么卖、车间怎么排。",
+        "报价差距",
+        "3万 / 3000万",
+        "先看三件事",
+        "投流 · 门店 · 车间",
+        "落到现场",
+        "先看账，",
+        "再定工具。",
+        "我们把场景拆成可判断的小题，不听概念，先看钱、单、人、货和流程。",
+        "FIELD CHECK",
+        "06 SCENES",
+        "01",
+        "选型与决策",
+        "报价、方案、招人，分不清谁靠谱？我们陪你把账算清，你只管拍板。",
+        "02",
+        "知识管理",
+        "老师傅一走，本事就带走了？把团队经验存成 AI 随时能调的活资产。",
+        "03",
+        "电商投放",
+        "素材、投放、客资连成一条线，钱花出去几个小时就知道值不值，不用等一个月。",
+        "04",
+        "销售增长",
+        "摸透客户、磨好话术、给没成交的线索自动备好材料，让销售把时间花在成单上。",
+        "05",
+        "运营提效",
+        "天天重复的对账单、走流程、回消息，交给 AI 自动跑，省下的人去干更值钱的活。",
+        "06",
+        "供应链与采购",
+        "比价、合同跟踪、库存预警这些琐碎盯梢，交给 AI 看着，账目更清爽。"
+      ]
+    },
+    {
+      "sectionId": "education",
+      "canonicalScenes": ["education"],
+      "sourcePath": "src/sections/education.html",
+      "sourceSha256": "3dd09cf2d067b54213644183fb4568fe2a7330c9551eda37ccbc289f56850be8",
+      "buildSelector": "#education",
+      "normalizedText": [
+        "Education / 04",
+        "你为生意请的这套 AI 打法，也能用在孩子身上。",
+        "先会用",
+        "资料 · 研究 · 表达",
+        "再出海",
+        "课堂 · 申请 · 竞争",
+        "给企业家的延伸服务",
+        "先会用，",
+        "再出海。",
+        "很多老板做着做着会问一句，孩子出国，是不是也该会用这些工具？答案是会。查资料、做研究、写申请、适应海外课堂，用当下的工具，准备当下的竞争。",
+        "01",
+        "AI 工具使用",
+        "让孩子掌握一套属于自己的高效 AI 学习方法：查资料、读东西、做展示这些事先用顺手，比同龄人快一截。",
+        "02",
+        "研究项目",
+        "把孩子的一个兴趣，做成一个拿得出手的研究项目，申请材料里就有了别人没有的东西。",
+        "03",
+        "申请表达",
+        "把零散的经历和想法理出一条清楚的主线，让孩子的个人故事真正打动招生官。",
+        "04",
+        "海外学习准备",
+        "提前练好大学要用的查资料、小组协作、课堂表达，出去不慌，也不掉队。"
+      ]
+    },
+    {
+      "sectionId": "philosophy",
+      "canonicalScenes": [],
+      "sourcePath": "src/sections/philosophy.html",
+      "sourceSha256": "9d92f34dedcd50267e70f600bd65b527ca8509d3405e30afebf3dc730ffa428f",
+      "buildSelector": "#philosophy",
+      "legacyOnly": true,
+      "normalizedText": [
+        "同野",
+        "在开放真实的场域中并肩协作。",
+        "AI 转型，难的从来不是买工具。方向怎么定、中层怎么带、一线怎么用，得理出一条线。最难的一步是把技术翻成老板能直接用的决策判断——这一头，我们陪你做。",
+        "观幂",
+        "看见复杂系统背后的结构与门道。",
+        "我们不爱炫技术。我们在意的是 AI 在你的生意里能不能让人看得懂、用得顺、长久用下去，而不是热闹三个月就没人提了。"
+      ],
+      "notes": "Legacy duplicate of brand concept copy; retained in baseline so removal/merge is explicit in R0/R5."
+    },
+    {
+      "sectionId": "contact",
+      "canonicalScenes": ["contact"],
+      "sourcePath": "src/sections/contact.html",
+      "sourceSha256": "3ce6e987ed18d0f8b51af317cb2030e5d96b1741b9dcf8edaf33fdf17fc0f5fe",
+      "buildSelector": "#contact",
+      "normalizedText": [
+        "START FROM THE FIELD",
+        "把你拿不准的那个决定，先拿出来聊。",
+        "带上一个正在耗人耗钱的环节、一场谈不拢的管理层会，或者孩子的留学规划。我们先帮你拆成看得懂、落得了地的下一步。一次现场诊断你会拿到三样东西：哪个环节值得上 AI、先后顺序、大概要投入多少。真要做，也是先挑一个环节小做，几天内见到能跑的东西，再谈要不要扩大。聊完再决定要不要合作，不推销、不卖课。",
+        "约一次 AI 现场诊断",
+        "回到首屏"
+      ]
+    }
+  ],
+  "footerText": ["© 上海同野观幂科技有限公司", "AI Transformation & Capability Building"],
+  "navText": ["同野观幂", "方法", "场景", "留学", "联系", "预约诊断"],
+  "repeatabilityChecks": [
+    "Run npm run build:page before extraction.",
+    "Recompute sourceSha256 for every src/sections/*.html file.",
+    "Extract visible text from index.html and assert each normalizedText entry appears in build output.",
+    "Fail the baseline if any canonical section loses sourcePath, sourceSha256, buildSelector, or normalizedText."
+  ]
+}
