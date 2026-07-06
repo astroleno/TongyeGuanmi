@@ -5,6 +5,7 @@ import { createDirectorMachine, type DirectorContext, type DirectorMachineOption
 import { routeInput, type DirectorDiscreteState } from './input-router';
 import { storyManifest } from '../story/manifest';
 import { BuildTimeoutError, SegmentPlayer } from '../story/segment-player';
+import { StorySpine } from '../story/spine';
 import type {
   DirectorEvent,
   Direction,
@@ -35,6 +36,7 @@ export type StoryDebugSnapshot = {
   state: unknown;
   context: DirectorContext;
   eventLog: readonly DirectorEventRecord[];
+  virtualProgress: number;
 };
 
 export type DirectorRuntimeOptions = DirectorMachineOptions & {
@@ -165,6 +167,18 @@ function valueAsStateName(value: unknown): DirectorDiscreteState {
   return String(value) as DirectorDiscreteState;
 }
 
+function virtualProgressFor(context: DirectorContext): number {
+  const spine = new StorySpine(context.manifest);
+  if (context.cursor.status === 'hold') {
+    spine.enterHold(context.cursor.scene);
+  } else if (context.cursor.status === 'segment') {
+    spine.enterSegment(context.cursor.segment);
+  } else {
+    spine.enterSettling(context.cursor.segment, context.cursor.target);
+  }
+  return spine.virtualProgress;
+}
+
 export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
   const manifest = options.manifest ?? storyManifest;
   const actor = createActor(createDirectorMachine(options));
@@ -173,6 +187,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
   let handledPrepareToken: DirectorContext['prepareToken'];
   let handledRunId: DirectorContext['activeRunId'];
   let isStarted = false;
+  let cachedSnapshot: StoryDebugSnapshot | undefined;
 
   const runtime = {
     actor,
@@ -189,6 +204,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       if (!isStarted) {
         actor.start();
         isStarted = true;
+        refreshSnapshot();
         pumpMainLoop();
       }
       return runtime;
@@ -212,12 +228,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       notifyListeners();
     },
     getState(): StoryDebugSnapshot {
-      const snapshot = actor.getSnapshot();
-      return {
-        state: snapshot.value,
-        context: snapshot.context,
-        eventLog: ringBuffer.snapshot()
-      };
+      return cachedSnapshot ?? refreshSnapshot();
     },
     subscribe(listener: RuntimeListener): () => void {
       listeners.add(listener);
@@ -229,8 +240,20 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
 
   actor.subscribe(() => {
     pumpMainLoop();
+    refreshSnapshot();
     notifyListeners();
   });
+
+  function refreshSnapshot(): StoryDebugSnapshot {
+    const snapshot = actor.getSnapshot();
+    cachedSnapshot = {
+      state: snapshot.value,
+      context: snapshot.context,
+      eventLog: ringBuffer.snapshot(),
+      virtualProgress: virtualProgressFor(snapshot.context)
+    };
+    return cachedSnapshot;
+  }
 
   function notifyListeners(): void {
     for (const listener of listeners) {
@@ -293,6 +316,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       layerWindow: context.layerWindow,
       ...(milestone ? { milestone } : {})
     });
+    refreshSnapshot();
   }
 
   function pumpMainLoop(): void {

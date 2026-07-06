@@ -34,6 +34,7 @@ export function DevtoolsHarness() {
           queuedIntent: snapshot.context.queuedIntent,
           pausePoint: snapshot.context.pausePoint,
           cursor: snapshot.context.cursor,
+          virtualProgress: snapshot.virtualProgress,
           LayerWindow: snapshot.context.layerWindow
         })}</pre>
       </section>

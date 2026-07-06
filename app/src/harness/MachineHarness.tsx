@@ -24,6 +24,34 @@ function fireCharge(direction: Direction): void {
   send({ type: 'CHARGE_FIRED', direction });
 }
 
+function fireRecovery(): void {
+  const snapshot = directorRuntime.getState();
+  const { context } = snapshot;
+  if (snapshot.state === 'booting') {
+    send({ type: 'BOOT_FAILED', error: new Error('boot failed') });
+    return;
+  }
+  if (context.activeRunId) {
+    send({ type: 'PLAYBACK_FAILED', runId: context.activeRunId, error: new Error('synthetic playback failed') });
+    return;
+  }
+  if (context.prepareToken && context.pendingSegment) {
+    send({ type: 'BUILD_TIMEOUT', segment: context.pendingSegment, prepareToken: context.prepareToken });
+    return;
+  }
+
+  const direction = context.cursor.status === 'hold' && context.cursor.scene === 'contact' ? -1 : 1;
+  send({ type: 'CHARGE_FIRED', direction });
+  window.setTimeout(() => {
+    const next = directorRuntime.getState().context;
+    if (next.activeRunId) {
+      send({ type: 'PLAYBACK_FAILED', runId: next.activeRunId, error: new Error('synthetic playback failed') });
+    } else if (next.prepareToken && next.pendingSegment) {
+      send({ type: 'BUILD_TIMEOUT', segment: next.pendingSegment, prepareToken: next.prepareToken });
+    }
+  }, 0);
+}
+
 export function MachineHarness() {
   const snapshot = useDirectorSnapshot();
   const context = snapshot.context;
@@ -70,6 +98,10 @@ export function MachineHarness() {
             <dd>{context.charge.value.toFixed(3)}</dd>
           </div>
           <div>
+            <dt>virtualProgress</dt>
+            <dd>{snapshot.virtualProgress.toFixed(3)}</dd>
+          </div>
+          <div>
             <dt>runId</dt>
             <dd>{context.activeRunId ?? '-'}</dd>
           </div>
@@ -84,7 +116,7 @@ export function MachineHarness() {
           <button type="button" disabled={!pause} onClick={() => pause && send(pause)}>Pause</button>
           <button type="button" disabled={!resume} onClick={() => resume && send(resume)}>Resume</button>
           <button type="button" onClick={() => send({ type: 'SEEK', label: 'scene:brand', source: 'menu' })}>Seek</button>
-          <button type="button" onClick={() => send({ type: 'BOOT_FAILED', error: new Error('boot failed') })}>Fail</button>
+          <button type="button" onClick={fireRecovery}>Fail</button>
         </div>
       </aside>
     </main>

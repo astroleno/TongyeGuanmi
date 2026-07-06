@@ -52,6 +52,7 @@ describe('director runtime actor loop', () => {
     runtime.stop();
     expect(snapshot.state).toBe('hold');
     expect(snapshot.context.cursor).toEqual({ status: 'hold', scene: 'pattern' });
+    expect(snapshot.virtualProgress).toBeGreaterThan(0);
     expect(snapshot.eventLog.map((record) => record.event.type)).toEqual(
       expect.arrayContaining(['INPUT_DELTA', 'TARGET_READY', 'PLAYBACK_DONE'])
     );
@@ -60,6 +61,22 @@ describe('director runtime actor loop', () => {
       prepareToken: undefined,
       cursor: { status: 'hold', scene: 'pattern' }
     });
+  });
+
+  it('returns a stable cached snapshot until the actor or event log changes', () => {
+    const runtime = createDirectorRuntime({ actorEpoch: 'stable-snapshot' });
+    const first = runtime.getState();
+    const second = runtime.getState();
+
+    expect(second).toBe(first);
+
+    runtime.send({ type: 'BOOT_READY' });
+    const third = runtime.getState();
+    const fourth = runtime.getState();
+    runtime.stop();
+
+    expect(third).not.toBe(first);
+    expect(fourth).toBe(third);
   });
 
   it('routes scrub input into an automatic SegmentPlayer completion path', async () => {
