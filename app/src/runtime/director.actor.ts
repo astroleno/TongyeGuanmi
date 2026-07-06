@@ -245,6 +245,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
 
     const snapshot = actor.getSnapshot();
     const context = snapshot.context;
+    const state = valueAsStateName(snapshot.value);
     const direction: Direction = event.delta >= 0 ? 1 : -1;
     const segment =
       context.cursor.status === 'hold'
@@ -253,7 +254,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
           ? findSegment(context.manifest, context.activeSegment)
           : undefined;
     const route = routeInput({
-      state: valueAsStateName(snapshot.value),
+      state,
       cursor: context.cursor,
       delta: event.delta,
       readingCanScroll: false,
@@ -261,6 +262,9 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
     });
 
     if (route.path === 'none' || route.path === 'innerScroll') {
+      if (state === 'preparing' && context.pendingDirection === -direction) {
+        return event;
+      }
       return null;
     }
     if (route.path === 'chargeResume' && Math.abs(event.delta) >= context.chargeThreshold) {

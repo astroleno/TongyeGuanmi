@@ -46,4 +46,17 @@ describe('StorySpine', () => {
 
     expect(() => spine.enterSettling('hero-pattern', 'brand')).toThrow(/not an endpoint/);
   });
+
+  it('maps reverse settling virtual time to the segment start boundary', () => {
+    const spine = new StorySpine(storyManifest);
+    const start = spine.labelOf('segment:hero-pattern:start');
+    const end = spine.labelOf('segment:hero-pattern:end');
+
+    spine.enterSettling('hero-pattern', 'pattern');
+    expect(spine.virtualTime).toBe(end);
+
+    spine.enterSettling('hero-pattern', 'hero');
+    expect(spine.virtualTime).toBe(start);
+    expect(spine.virtualProgress).toBe(0);
+  });
 });

@@ -42,7 +42,8 @@ export class StorySpine {
       return this.labelOf(`scene:${this.activeCursor.scene}`);
     }
     if (this.activeCursor.status === 'settling') {
-      return this.labelOf(`segment:${this.activeCursor.segment}:end`);
+      const edge = this.activeCursor.target === this.activeCursor.from ? 'start' : 'end';
+      return this.labelOf(`segment:${this.activeCursor.segment}:${edge}`);
     }
     return this.labelOf(`segment:${this.activeCursor.segment}:start`);
   }

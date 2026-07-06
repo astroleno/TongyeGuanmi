@@ -101,4 +101,28 @@ describe('director runtime actor loop', () => {
     await flush(50);
     runtime.stop();
   });
+
+  it('lets reverse preparing input reach the machine for supersede', async () => {
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'prepare-reverse',
+      syntheticBuildDelayMs: 100,
+      syntheticPlayMs: 20
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'SEEK', label: 'scene:pattern', source: 'menu' });
+    await flush(0);
+
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
+    const oldToken = runtime.getState().context.prepareToken;
+    expect(runtime.getState().context.pendingSegment).toBe('pattern-star-map');
+
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: -0.11, now: 1 });
+    const snapshot = runtime.getState();
+
+    runtime.stop();
+    expect(snapshot.state).toBe('preparing');
+    expect(snapshot.context.pendingSegment).toBe('hero-pattern');
+    expect(snapshot.context.pendingDirection).toBe(-1);
+    expect(snapshot.context.prepareToken).not.toBe(oldToken);
+  });
 });
