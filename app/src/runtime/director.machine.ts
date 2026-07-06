@@ -3,7 +3,13 @@ import { createChargeState, applyChargeDelta, mergeQueuedIntent, sampleQueuedInt
 import { createRecoveryPlan } from './recovery';
 import { storyManifest } from '../story/manifest';
 import { StorySpine } from '../story/spine';
-import { advanceLayerWindow, createLayerWindow, fallbackLayerWindow, type LayerWindowSnapshot } from '../stage/layer-window';
+import {
+  advanceLayerWindow,
+  createLayerWindow,
+  fallbackLayerWindow,
+  releaseRetiringLayers,
+  type LayerWindowSnapshot
+} from '../stage/LayerWindow';
 import type {
   Direction,
   DirectorEvent,
@@ -491,6 +497,32 @@ const directorSetup = setup({
         return {};
       }
       return appendErrorPatch(event.error);
+    }),
+    releaseRetiring: assign(({ context }) => ({
+      layerWindow: releaseRetiringLayers(context.layerWindow)
+    })),
+    finalizeAndPrepareQueuedWithRetiringReleased: assign(({ context, event }) => {
+      if (!context.settlingTarget || !context.queuedIntent) {
+        return {};
+      }
+      const now = nowFrom(event);
+      const sampled = sampleQueuedIntent(context.queuedIntent, now);
+      if (!sampled || sampled.strength < context.chargeThreshold) {
+        return {
+          cursor: { status: 'hold', scene: context.settlingTarget },
+          layerWindow: releaseRetiringLayers(advanceLayerWindow(context.layerWindow, context.settlingTarget, context.manifest)),
+          settlingSegment: undefined,
+          settlingTarget: undefined,
+          queuedIntent: undefined
+        };
+      }
+      return {
+        cursor: { status: 'hold', scene: context.settlingTarget },
+        layerWindow: releaseRetiringLayers(advanceLayerWindow(context.layerWindow, context.settlingTarget, context.manifest)),
+        settlingSegment: undefined,
+        settlingTarget: undefined,
+        ...preparePatch(context, sampled.direction, context.settlingTarget)
+      };
     })
   }
 });
@@ -501,6 +533,9 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
     initial: 'booting',
     context: () => createInitialContext(options),
     on: {
+      RETIRING_RELEASED: {
+        actions: 'releaseRetiring'
+      },
       SEEK: {
         target: '.seeking',
         actions: 'beginSeek'
@@ -522,19 +557,19 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
         always: {
           guard: 'queuedIntentCanFlush',
           target: 'preparing',
-          actions: 'finalizeAndPrepareQueued'
+          actions: 'finalizeAndPrepareQueuedWithRetiringReleased'
         },
         on: {
           INPUT_DELTA: [
             {
               guard: 'nextTargetIsScrub',
               target: 'scrubbing',
-              actions: ['applyInputCharge', 'enterScrubbing']
+              actions: ['applyInputCharge', 'releaseRetiring', 'enterScrubbing']
             },
             {
               guard: 'inputWouldFireCharge',
               target: 'preparing',
-              actions: ['startPreparingFromCharge']
+              actions: ['releaseRetiring', 'startPreparingFromCharge']
             },
             {
               actions: 'applyInputCharge'
@@ -544,12 +579,12 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
             {
               guard: 'nextTargetIsScrub',
               target: 'scrubbing',
-              actions: 'enterScrubbing'
+              actions: ['releaseRetiring', 'enterScrubbing']
             },
             {
               guard: 'hasChargeTarget',
               target: 'preparing',
-              actions: 'startPreparingFromCharge'
+              actions: ['releaseRetiring', 'startPreparingFromCharge']
             }
           ]
         }
@@ -665,7 +700,7 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
             {
               guard: 'queuedIntentCanFlush',
               target: 'preparing',
-              actions: 'finalizeAndPrepareQueued'
+              actions: 'finalizeAndPrepareQueuedWithRetiringReleased'
             },
             {
               target: 'hold',
@@ -684,7 +719,7 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
             {
               guard: 'queuedIntentCanFlush',
               target: 'preparing',
-              actions: 'finalizeAndPrepareQueued'
+              actions: 'finalizeAndPrepareQueuedWithRetiringReleased'
             },
             {
               target: 'hold',

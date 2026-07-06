@@ -1,0 +1,122 @@
+{
+  "generatedBy": "app/e2e/r3-pilot.spec.ts",
+  "mode": "aod-method-top",
+  "phase": "hold",
+  "window": {
+    "current": "method-top",
+    "retiring": [],
+    "prev": "aod-animation"
+  },
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "PREPARE_TIMEOUT",
+    "DUPLICATE_MEDIA_READY:duplicate",
+    "STALE_MEDIA_READY:stale",
+    "MEDIA_timeout:timeout",
+    "PLAY:aod-method-top:1"
+  ],
+  "mediaMilestones": [
+    {
+      "milestone": "timeout",
+      "key": "aod_figure-alpha-front-scrub",
+      "prepareToken": "r3-pilot:prepare:1",
+      "accepted": false,
+      "reason": "timeout"
+    }
+  ],
+  "trace": [
+    {
+      "id": 1,
+      "at": 1783357499429,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "next": "method-top"
+      },
+      "milestone": null
+    },
+    {
+      "id": 2,
+      "at": 1783357499429,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "next": "method-top"
+      },
+      "milestone": null
+    },
+    {
+      "id": 3,
+      "at": 1783357499445,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": "r3-pilot:prepare:1",
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "next": "method-top"
+      },
+      "milestone": null
+    },
+    {
+      "id": 4,
+      "at": 1783357499669,
+      "event": {
+        "type": "PREPARE_TIMEOUT",
+        "segment": "aod-method-top",
+        "prepareToken": "r3-pilot:prepare:1"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "method-top"
+      },
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "prev": "aod-animation"
+      },
+      "milestone": null
+    }
+  ]
+}

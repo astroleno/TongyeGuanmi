@@ -47,6 +47,7 @@ export type SegmentPlayerOptions = {
   stage?: StageHandle;
   mailbox?: SegmentPlayerMailbox;
   actorEpoch?: string;
+  prefersReducedMotion?: boolean | (() => boolean);
 };
 
 type ActiveRun = {
@@ -139,12 +140,19 @@ function createNullStage(): StageHandle {
   };
 }
 
+function detectPrefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 export class SegmentPlayer {
   private readonly manifest: StoryManifest;
   private readonly transitions: Partial<Record<SegmentId, TransitionModule>>;
   private readonly stage: StageHandle;
   private readonly mailbox: SegmentPlayerMailbox | undefined;
   private readonly actorEpoch: string;
+  private readonly prefersReducedMotion: () => boolean;
   private readonly built = new Map<SegmentId, SegmentTimelineHandle>();
   private active: ActiveRun | null = null;
   private runCounter = 0;
@@ -155,6 +163,10 @@ export class SegmentPlayer {
     this.stage = options.stage ?? createNullStage();
     this.mailbox = options.mailbox;
     this.actorEpoch = options.actorEpoch ?? 'segment-player';
+    const prefersReducedMotion = options.prefersReducedMotion;
+    this.prefersReducedMotion = typeof prefersReducedMotion === 'function'
+      ? prefersReducedMotion
+      : () => prefersReducedMotion ?? detectPrefersReducedMotion();
   }
 
   ensureBuilt(id: SegmentId, options: EnsureBuiltOptions = {}): Promise<SegmentTimelineHandle> {
@@ -186,7 +198,7 @@ export class SegmentPlayer {
         direction,
         runId,
         prepareToken,
-        prefersReducedMotion: false,
+        prefersReducedMotion: this.prefersReducedMotion(),
         reportMilestone: (milestone) => this.reportMilestone(milestone)
       })
     );
@@ -232,13 +244,14 @@ export class SegmentPlayer {
     })
       .then((timeline) => {
         if (this.active?.runId !== runId || run.settled) {
+          this.disposeCachedTimeline(id, timeline);
           this.settleRun(run, { status: 'aborted', runId, segment: id, reason: 'superseded' }, false);
           return;
         }
 
         run.timeline = timeline;
         run.progress = direction === 1 ? 0 : 1;
-        const playback = direction === 1 ? timeline.play(direction) : (timeline.progress(1), timeline.reverse());
+        const playback = direction === 1 ? (timeline.progress(0), timeline.play(direction)) : (timeline.progress(1), timeline.reverse());
         return Promise.resolve(playback)
           .then(() => {
             if (this.active?.runId !== runId) {
@@ -290,7 +303,9 @@ export class SegmentPlayer {
     if (!run || run.settled) {
       return;
     }
-    run.timeline?.dispose();
+    if (run.timeline) {
+      this.disposeCachedTimeline(run.segmentId, run.timeline);
+    }
     this.settleRun(run, { status: 'aborted', runId: run.runId, segment: run.segmentId, reason }, true);
   }
 
@@ -357,6 +372,13 @@ export class SegmentPlayer {
   private nextRunId(): SegmentRunId {
     this.runCounter += 1;
     return `${this.actorEpoch}:${this.runCounter}`;
+  }
+
+  private disposeCachedTimeline(id: SegmentId, timeline: SegmentTimelineHandle): void {
+    timeline.dispose();
+    if (this.built.get(id) === timeline) {
+      this.built.delete(id);
+    }
   }
 
   private reportMilestone(milestone: MilestoneReport): void {

@@ -10,9 +10,12 @@ import type {
   DirectorEvent,
   Direction,
   MilestoneKey,
+  PrepareToken,
   SceneId,
   SegmentId,
+  SegmentRunId,
   SegmentTimelineHandle,
+  StageHandle,
   SpineSegmentNode,
   StoryManifest,
   TransitionModule
@@ -43,6 +46,27 @@ export type DirectorRuntimeOptions = DirectorMachineOptions & {
   ringBufferSize?: number;
   syntheticPlayMs?: number;
   syntheticBuildDelayMs?: number;
+  transitions?: Partial<Record<SegmentId, TransitionModule>>;
+  stage?: StageHandle;
+  readyGate?: DirectorRuntimeReadyGate;
+};
+
+export type RuntimeReadyGateArgs = {
+  segment: SpineSegmentNode;
+  prepareToken: PrepareToken;
+  direction: Direction;
+  targetScene: SceneId;
+};
+
+export type RuntimeBuildGateArgs = RuntimeReadyGateArgs & {
+  prepareRunId: SegmentRunId;
+};
+
+export type DirectorRuntimeReadyGate = {
+  waitForTargetReady?(args: RuntimeReadyGateArgs): Promise<void> | void;
+  waitForMediaReady?(args: RuntimeReadyGateArgs): Promise<void> | void;
+  beginBuild?(args: RuntimeBuildGateArgs): void;
+  reportBuildReady?(args: RuntimeBuildGateArgs): boolean | void;
 };
 
 type RuntimeListener = () => void;
@@ -186,6 +210,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
   const listeners = new Set<RuntimeListener>();
   let handledPrepareToken: DirectorContext['prepareToken'];
   let handledRunId: DirectorContext['activeRunId'];
+  let handledRetiringKey = '';
   let isStarted = false;
   let cachedSnapshot: StoryDebugSnapshot | undefined;
 
@@ -193,7 +218,11 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
     actor,
     segmentPlayer: new SegmentPlayer({
       manifest,
-      transitions: createSyntheticTransitions(manifest, options.syntheticPlayMs ?? 80, options.syntheticBuildDelayMs ?? 0),
+      transitions: {
+        ...createSyntheticTransitions(manifest, options.syntheticPlayMs ?? 80, options.syntheticBuildDelayMs ?? 0),
+        ...(options.transitions ?? {})
+      },
+      ...(options.stage ? { stage: options.stage } : {}),
       mailbox: {
         send(event) {
           runtime.send(event);
@@ -349,25 +378,71 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
 
     if (state === 'recovering') {
       runtime.segmentPlayer.abort('recovery');
+      return;
     }
+
+    if (state === 'hold' && context.layerWindow.retiring.length > 0) {
+      const retiringKey = [
+        context.cursor.status === 'hold' ? context.cursor.scene : 'non-hold',
+        ...context.layerWindow.retiring
+      ].join('|');
+      if (handledRetiringKey !== retiringKey) {
+        handledRetiringKey = retiringKey;
+        scheduleRetiringRelease();
+      }
+    } else if (context.layerWindow.retiring.length === 0) {
+      handledRetiringKey = '';
+    }
+  }
+
+  function scheduleRetiringRelease(): void {
+    const release = () => {
+      if (actor.getSnapshot().context.layerWindow.retiring.length > 0) {
+        runtime.send({ type: 'RETIRING_RELEASED' });
+      }
+    };
+    if (canUseDOM() && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(release);
+      return;
+    }
+    setTimeout(release, 0);
   }
 
   async function prepareSegment(prepareToken: NonNullable<DirectorContext['prepareToken']>, segmentId: SegmentId): Promise<void> {
     const context = actor.getSnapshot().context;
     const segment = findSegment(context.manifest, segmentId);
+    const direction = context.pendingDirection ?? 1;
+    const target = targetScene(segment, direction);
     const prepareRunId = `${context.actorEpoch}:0` as const;
+    const gateArgs: RuntimeReadyGateArgs = {
+      segment,
+      prepareToken,
+      direction,
+      targetScene: target
+    };
+    const buildGateArgs: RuntimeBuildGateArgs = {
+      ...gateArgs,
+      prepareRunId
+    };
 
     try {
+      await options.readyGate?.waitForTargetReady?.(gateArgs);
+      await options.readyGate?.waitForMediaReady?.(gateArgs);
+      options.readyGate?.beginBuild?.(buildGateArgs);
       await runtime.segmentPlayer.ensureBuilt(segmentId, {
         runId: prepareRunId,
         prepareToken,
         timeoutMs: segment.buildTimeoutMs ?? context.manifest.defaults.buildTimeoutMs,
-        direction: context.pendingDirection ?? 1
+        direction
       });
+      const buildReady = options.readyGate?.reportBuildReady?.(buildGateArgs);
+      if (buildReady === false) {
+        return;
+      }
     } catch (error) {
       const current = actor.getSnapshot();
       if (current.value === 'preparing' && current.context.prepareToken === prepareToken && !(error instanceof BuildTimeoutError)) {
-        runtime.send({ type: 'BUILD_TIMEOUT', segment: segmentId, prepareToken });
+        runtime.send({ type: 'PREPARE_TIMEOUT', segment: segmentId, prepareToken });
       }
       return;
     }

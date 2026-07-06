@@ -8,6 +8,14 @@ async function flush(ms = 0): Promise<void> {
   await Promise.resolve();
 }
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return { promise, resolve };
+}
+
 function withFirstSegmentScrub(): StoryManifest {
   const source = structuredClone(storyManifest);
   const nodes = [...source.nodes];
@@ -39,7 +47,7 @@ describe('director runtime actor loop', () => {
     const runtime = createDirectorRuntime({ actorEpoch: 'loop', syntheticPlayMs: 20 });
     runtime.send({ type: 'BOOT_READY' });
     runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
-    await flush(0);
+    await flush(1);
 
     expect(runtime.getState().state).toBe('playing');
     expect(runtime.getState().context.activeRunId).toBe('loop:1');
@@ -61,6 +69,104 @@ describe('director runtime actor loop', () => {
       prepareToken: undefined,
       cursor: { status: 'hold', scene: 'pattern' }
     });
+  });
+
+  it('releases retiring layers through the real actor loop after a second snap hold', async () => {
+    const runtime = createDirectorRuntime({ actorEpoch: 'retiring-loop', syntheticPlayMs: 20 });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
+    await flush(20);
+    await flush(420);
+
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 500 });
+    await flush(20);
+    await flush(420);
+
+    expect(runtime.getState().state).toBe('hold');
+    expect(runtime.getState().context.cursor).toEqual({ status: 'hold', scene: 'star-map' });
+    expect(runtime.getState().context.layerWindow.retiring).toEqual(['hero']);
+
+    await flush(1);
+    const snapshot = runtime.getState();
+    runtime.stop();
+
+    expect(snapshot.context.layerWindow.retiring).toEqual([]);
+    expect(snapshot.eventLog.map((record) => record.event.type)).toContain('RETIRING_RELEASED');
+  });
+
+  it('does not enter playing until the runtime mediaReady gate resolves', async () => {
+    const mediaReady = deferred();
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'media-gate',
+      syntheticPlayMs: 20,
+      readyGate: {
+        waitForMediaReady: () => mediaReady.promise
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
+    await flush(0);
+
+    expect(runtime.getState().state).toBe('preparing');
+    expect(runtime.getState().eventLog.map((record) => record.event.type)).not.toContain('TARGET_READY');
+
+    mediaReady.resolve();
+    await flush(0);
+
+    const snapshot = runtime.getState();
+    runtime.stop();
+    expect(snapshot.state).toBe('playing');
+    expect(snapshot.eventLog.map((record) => record.event.type)).toContain('TARGET_READY');
+  });
+
+  it('does not enter playing until the runtime targetReady gate resolves', async () => {
+    const targetReady = deferred();
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'target-gate',
+      syntheticPlayMs: 20,
+      readyGate: {
+        waitForTargetReady: () => targetReady.promise
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
+    await flush(0);
+
+    expect(runtime.getState().state).toBe('preparing');
+    expect(runtime.getState().eventLog.map((record) => record.event.type)).not.toContain('TARGET_READY');
+
+    targetReady.resolve();
+    await flush(0);
+
+    const snapshot = runtime.getState();
+    runtime.stop();
+    expect(snapshot.state).toBe('playing');
+    expect(snapshot.eventLog.map((record) => record.event.type)).toContain('TARGET_READY');
+  });
+
+  it('uses the runtime buildReady gate before targetReady unlocks playing', async () => {
+    const calls: string[] = [];
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'build-gate',
+      syntheticPlayMs: 20,
+      readyGate: {
+        beginBuild: ({ segment, prepareRunId }) => calls.push(`begin:${segment.id}:${prepareRunId}`),
+        reportBuildReady: ({ segment, prepareRunId }) => {
+          calls.push(`ready:${segment.id}:${prepareRunId}`);
+          return true;
+        }
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
+    await flush(0);
+
+    const snapshot = runtime.getState();
+    runtime.stop();
+
+    expect(snapshot.state).toBe('playing');
+    expect(calls).toEqual(['begin:hero-pattern:build-gate:0', 'ready:hero-pattern:build-gate:0']);
+    expect(snapshot.eventLog.map((record) => record.event.type)).toContain('TARGET_READY');
   });
 
   it('returns a stable cached snapshot until the actor or event log changes', () => {

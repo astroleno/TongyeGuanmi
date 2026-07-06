@@ -2,6 +2,8 @@ import { storyManifest } from './story/manifest';
 import { canUseDOM } from './runtime/browser-guard';
 import { MachineHarness } from './harness/MachineHarness';
 import { DevtoolsHarness } from './harness/DevtoolsHarness';
+import { StageHarness } from './harness/StageHarness';
+import { PilotHarness } from './harness/r3/PilotHarness';
 import './styles.css';
 
 const holdCount = storyManifest.nodes.filter((node) => node.kind === 'hold').length;
@@ -14,6 +16,21 @@ export function App() {
   }
   if (path === '/harness/devtools') {
     return <DevtoolsHarness />;
+  }
+  if (path === '/harness/stage') {
+    return <StageHarness />;
+  }
+  if (path === '/harness/r3-pilot') {
+    return <PilotHarness mode="pilot" />;
+  }
+  if (path === '/harness/aod-animation') {
+    return <PilotHarness mode="aod-animation" />;
+  }
+  if (path === '/harness/star-map-aod') {
+    return <PilotHarness mode="star-map-aod" />;
+  }
+  if (path === '/harness/aod-method-top') {
+    return <PilotHarness mode="aod-method-top" />;
   }
 
   return (

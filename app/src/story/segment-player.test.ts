@@ -148,6 +148,117 @@ describe('SegmentPlayer', () => {
     expect(events).not.toContainEqual({ type: 'PLAYBACK_DONE', runId: 'epoch:1' });
   });
 
+  it('rebuilds a disposed cached timeline after seek abort', async () => {
+    const playback = deferred<void>();
+    const firstTimeline: SegmentTimelineHandle = {
+      play: vi.fn(() => playback.promise),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    };
+    const secondTimeline: SegmentTimelineHandle = {
+      play: vi.fn(() => Promise.resolve()),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    };
+    let buildCount = 0;
+    const buildTimeline = vi.fn<TransitionModule['buildTimeline']>(() => {
+      buildCount += 1;
+      return buildCount === 1 ? firstTimeline : secondTimeline;
+    });
+    const player = new SegmentPlayer({
+      transitions: {
+        'hero-pattern': {
+          id: 'hero-pattern',
+          buildTimeline
+        }
+      },
+      actorEpoch: 'epoch'
+    });
+
+    const firstResult = player.play('hero-pattern', 1, { runId: 'epoch:1' });
+    await vi.waitFor(() => expect(firstTimeline.play).toHaveBeenCalledTimes(1));
+    player.abort('seek');
+    await expect(firstResult).resolves.toMatchObject({ status: 'aborted', reason: 'seek' });
+
+    await expect(player.play('hero-pattern', 1, { runId: 'epoch:2' })).resolves.toMatchObject({
+      status: 'completed',
+      runId: 'epoch:2'
+    });
+
+    expect(firstTimeline.dispose).toHaveBeenCalledTimes(1);
+    expect(buildTimeline).toHaveBeenCalledTimes(2);
+    expect(secondTimeline.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes reduced-motion preference into transition build context', async () => {
+    let prefersReducedMotion: boolean | undefined;
+    const player = new SegmentPlayer({
+      transitions: {
+        'hero-pattern': {
+          id: 'hero-pattern',
+          buildTimeline: (context) => {
+            prefersReducedMotion = context.prefersReducedMotion;
+            return {
+              play: () => Promise.resolve(),
+              progress: vi.fn(),
+              reverse: () => Promise.resolve(),
+              jumpToEnd: vi.fn(),
+              dispose: vi.fn()
+            };
+          }
+        }
+      },
+      prefersReducedMotion: true,
+      actorEpoch: 'epoch'
+    });
+
+    await player.ensureBuilt('hero-pattern');
+
+    expect(prefersReducedMotion).toBe(true);
+  });
+
+  it('resets cached timelines to progress 0 before replaying forward', async () => {
+    let progressValue = 0;
+    const playStarts: number[] = [];
+    const progress = vi.fn((value: number) => {
+      progressValue = value;
+    });
+    const play = vi.fn(() => {
+      playStarts.push(progressValue);
+      progressValue = 1;
+      return Promise.resolve();
+    });
+    const buildTimeline = vi.fn<TransitionModule['buildTimeline']>(() => ({
+      play,
+      progress,
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    }));
+    const player = new SegmentPlayer({
+      transitions: {
+        'hero-pattern': {
+          id: 'hero-pattern',
+          buildTimeline
+        }
+      },
+      actorEpoch: 'epoch'
+    });
+
+    await player.play('hero-pattern', 1, { runId: 'epoch:1' });
+    await player.play('hero-pattern', 1, { runId: 'epoch:2' });
+
+    expect(buildTimeline).toHaveBeenCalledTimes(1);
+    expect(play).toHaveBeenCalledTimes(2);
+    expect(progress).toHaveBeenNthCalledWith(1, 0);
+    expect(progress).toHaveBeenNthCalledWith(2, 0);
+    expect(playStarts).toEqual([0, 0]);
+  });
+
   it('starts reverse playback from progress 1', async () => {
     const progress = vi.fn();
     const reverse = vi.fn(() => Promise.resolve());

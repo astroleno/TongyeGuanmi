@@ -1,0 +1,87 @@
+{
+  "generatedBy": "app/e2e/r3-pilot.spec.ts",
+  "mode": "aod-animation",
+  "phase": "hold",
+  "window": {
+    "current": "aod-animation",
+    "retiring": [],
+    "next": "method-top"
+  },
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "MEDIA_loadedmetadata:accepted",
+    "MEDIA_canplay:accepted",
+    "MEDIA_ended:accepted",
+    "VIDEO_MILESTONE_PROBE:completed"
+  ],
+  "mediaMilestones": [
+    {
+      "milestone": "loadedmetadata",
+      "key": "aod_figure-alpha-front-scrub",
+      "prepareToken": "r3-probe:prepare:1",
+      "accepted": true,
+      "readyState": 1
+    },
+    {
+      "milestone": "canplay",
+      "key": "aod_figure-alpha-front-scrub",
+      "prepareToken": "r3-probe:prepare:1",
+      "accepted": true,
+      "readyState": 4
+    },
+    {
+      "milestone": "ended",
+      "key": "aod_figure-alpha-front-scrub",
+      "runId": "r3-probe:1",
+      "accepted": true,
+      "readyState": 4
+    }
+  ],
+  "trace": [
+    {
+      "id": 1,
+      "at": 1783357499049,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "next": "method-top"
+      },
+      "milestone": null
+    },
+    {
+      "id": 2,
+      "at": 1783357499050,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "next": "method-top"
+      },
+      "milestone": null
+    }
+  ]
+}

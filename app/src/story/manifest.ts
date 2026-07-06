@@ -209,16 +209,19 @@ function mediaPlaybackContract(
   id: string,
   media: readonly string[],
   terminalFallbackScene: SceneId,
-  preparingTimeoutMs = defaults.buildTimeoutMs
+  options: {
+    forwardMode?: MediaPlaybackContract['forward']['mode'];
+    preparingTimeoutMs?: number;
+  } = {}
 ): MediaPlaybackContract {
   return {
     id,
     media,
-    forward: { mode: 'play', required: true },
+    forward: { mode: options.forwardMode ?? 'play', required: true },
     reverse: { mode: 'static-fallback', required: false },
     readyMilestones: ['targetReady', 'mediaReady'],
     terminalFallbackScene,
-    preparingTimeoutMs
+    preparingTimeoutMs: options.preparingTimeoutMs ?? defaults.buildTimeoutMs
   };
 }
 
@@ -229,7 +232,8 @@ function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackContract[] 
         mediaPlaybackContract(
           'aod-front-figure',
           ['aod_figure-alpha-front-scrub'],
-          'method-top'
+          'method-top',
+          { forwardMode: 'timeline' }
         )
       ];
     case 'figure3-services':

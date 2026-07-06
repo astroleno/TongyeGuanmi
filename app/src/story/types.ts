@@ -51,6 +51,7 @@ export type SegmentRunId = `${ActorEpoch}:${number}`;
 export type PrepareToken = `${ActorEpoch}:prepare:${number}`;
 export type MilestoneKey =
   | 'targetReady'
+  | 'buildReady'
   | 'timelineReady'
   | 'mediaReady'
   | 'copyCue'
@@ -165,6 +166,8 @@ export type SceneComponentProps = {
   scene: SceneId;
   hidden: boolean;
   children?: ReactNode;
+  copyCueActive?: boolean;
+  registerHandle?: (name: string, element: HTMLElement | null) => void;
 };
 
 export type StaticFallbackContract = {
@@ -188,6 +191,13 @@ export type SegmentTimelineHandle = {
   reverse(): Promise<void>;
   jumpToEnd(direction: Direction): void;
   dispose(): void;
+  labels?: Readonly<Record<string, number>>;
+  pauses?: readonly string[];
+  sample?(progress: number): {
+    from: LayerVisibilityState;
+    to: LayerVisibilityState;
+    copyCueActive?: boolean;
+  };
 };
 
 export type TransitionContext = {
@@ -267,6 +277,7 @@ export type DirectorEvent =
   | { type: 'STAGE_PAUSED'; runId: SegmentRunId; segment: SegmentId; stageIndex: number }
   | { type: 'STAGE_RESUMED'; runId: SegmentRunId; segment: SegmentId; stageIndex: number }
   | { type: 'SETTLING_DONE'; now?: number }
+  | { type: 'RETIRING_RELEASED' }
   | { type: 'SEEK'; label: string; source: DirectorSeekSource }
   | { type: 'SEGMENT_ABORTED'; runId: SegmentRunId; reason: string };
 

@@ -1,0 +1,291 @@
+{
+  "generatedBy": "app/e2e/r3-pilot.spec.ts",
+  "mode": "pilot",
+  "phase": "hold",
+  "window": {
+    "current": "method-top",
+    "retiring": [],
+    "prev": "aod-animation"
+  },
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "MEDIA_READY:mediaReady",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
+    "BUILD_READY:star-map-aod",
+    "PLAY:star-map-aod:1",
+    "MEDIA_loadedmetadata:accepted",
+    "MEDIA_canplay:accepted",
+    "MEDIA_READY:accepted",
+    "BUILD_READY:aod-method-top",
+    "PLAY:aod-method-top:1"
+  ],
+  "mediaMilestones": [
+    {
+      "milestone": "loadedmetadata",
+      "key": "aod_figure-alpha-front-scrub",
+      "prepareToken": "r3-pilot:prepare:2",
+      "accepted": true,
+      "readyState": 4
+    },
+    {
+      "milestone": "canplay",
+      "key": "aod_figure-alpha-front-scrub",
+      "prepareToken": "r3-pilot:prepare:2",
+      "accepted": true,
+      "readyState": 4
+    }
+  ],
+  "trace": [
+    {
+      "id": 1,
+      "at": 1783357480249,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "next": "aod-animation"
+      },
+      "milestone": null
+    },
+    {
+      "id": 2,
+      "at": 1783357480250,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "next": "aod-animation"
+      },
+      "milestone": null
+    },
+    {
+      "id": 3,
+      "at": 1783357480583,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": "r3-pilot:prepare:1",
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "next": "aod-animation"
+      },
+      "milestone": null
+    },
+    {
+      "id": 4,
+      "at": 1783357480639,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "aod-animation",
+        "prepareToken": "r3-pilot:prepare:1"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": "r3-pilot:1",
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "segment",
+        "segment": "star-map-aod",
+        "from": "star-map",
+        "to": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "next": "aod-animation"
+      },
+      "milestone": null
+    },
+    {
+      "id": 5,
+      "at": 1783357481979,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r3-pilot:1"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "settling",
+        "segment": "star-map-aod",
+        "from": "star-map",
+        "to": "aod-animation",
+        "target": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "next": "aod-animation"
+      },
+      "milestone": null
+    },
+    {
+      "id": 6,
+      "at": 1783357482865,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": "r3-pilot:prepare:2",
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "milestone": null
+    },
+    {
+      "id": 7,
+      "at": 1783357483511,
+      "event": {
+        "type": "MEDIA_READY",
+        "key": "mediaReady",
+        "prepareToken": "r3-pilot:prepare:2"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": "r3-pilot:prepare:2",
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "milestone": "mediaReady"
+    },
+    {
+      "id": 8,
+      "at": 1783357483512,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "method-top",
+        "prepareToken": "r3-pilot:prepare:2"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": "r3-pilot:2",
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "segment",
+        "segment": "aod-method-top",
+        "from": "aod-animation",
+        "to": "method-top"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "milestone": null
+    },
+    {
+      "id": 9,
+      "at": 1783357486341,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r3-pilot:2"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "settling",
+        "segment": "aod-method-top",
+        "from": "aod-animation",
+        "to": "method-top",
+        "target": "method-top"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "milestone": null
+    },
+    {
+      "id": 10,
+      "at": 1783357487162,
+      "event": {
+        "type": "RETIRING_RELEASED"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "method-top"
+      },
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "prev": "aod-animation"
+      },
+      "milestone": null
+    }
+  ]
+}

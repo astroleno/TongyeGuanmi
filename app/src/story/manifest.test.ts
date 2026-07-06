@@ -82,8 +82,9 @@ describe('story manifest contract', () => {
       'crane-contact'
     ]);
     for (const segment of mediaSegments) {
+      const forwardMode = segment.id === 'aod-method-top' ? 'timeline' : 'play';
       expect(segment.mediaPlayback?.[0]).toMatchObject({
-        forward: { mode: 'play', required: true },
+        forward: { mode: forwardMode, required: true },
         reverse: { mode: 'static-fallback', required: false },
         readyMilestones: ['targetReady', 'mediaReady']
       });

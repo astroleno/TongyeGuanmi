@@ -170,6 +170,60 @@ describe('Director machine', () => {
     expect(context(actor).layerWindow).toMatchObject({ prev: 'hero', current: 'pattern', next: 'star-map' });
   });
 
+  it('marks retiring on the real second settling path and releases it through the director event', async () => {
+    const actor = startDirector();
+    bootToHold(actor);
+    enterPlaying(actor);
+    let runId = context(actor).activeRunId;
+    if (!runId) {
+      throw new Error('missing first runId');
+    }
+    actor.send({ type: 'PLAYBACK_DONE', runId });
+    actor.send({ type: 'SETTLING_DONE', now: 0 });
+    expect(context(actor).cursor).toEqual({ status: 'hold', scene: 'pattern' });
+
+    enterPlaying(actor);
+    runId = context(actor).activeRunId;
+    if (!runId) {
+      throw new Error('missing second runId');
+    }
+    actor.send({ type: 'PLAYBACK_DONE', runId });
+    actor.send({ type: 'SETTLING_DONE', now: 1 });
+
+    expect(context(actor).cursor).toEqual({ status: 'hold', scene: 'star-map' });
+    expect(context(actor).layerWindow.retiring).toEqual(['hero']);
+
+    actor.send({ type: 'RETIRING_RELEASED' });
+    expect(context(actor).layerWindow.retiring).toEqual([]);
+  });
+
+  it('releases retiring before a hold with retiring can enter another preparing run', () => {
+    const actor = startDirector();
+    bootToHold(actor);
+    enterPlaying(actor);
+    let runId = context(actor).activeRunId;
+    if (!runId) {
+      throw new Error('missing first runId');
+    }
+    actor.send({ type: 'PLAYBACK_DONE', runId });
+    actor.send({ type: 'SETTLING_DONE', now: 0 });
+
+    enterPlaying(actor);
+    runId = context(actor).activeRunId;
+    if (!runId) {
+      throw new Error('missing second runId');
+    }
+    actor.send({ type: 'PLAYBACK_DONE', runId });
+    actor.send({ type: 'SETTLING_DONE', now: 1 });
+    expect(context(actor).layerWindow.retiring).toEqual(['hero']);
+
+    actor.send({ type: 'CHARGE_FIRED', direction: 1 });
+
+    expect(stateValue(actor)).toBe('preparing');
+    expect(context(actor).layerWindow.retiring).toEqual([]);
+    expect(context(actor).pendingSegment).toBe('star-map-aod');
+  });
+
   it('recovers from preparing timeout, build timeout and playback failure without locking input', async () => {
     const actor = startDirector({ prepareTimeoutMs: 20 });
     bootToHold(actor);
@@ -200,6 +254,19 @@ describe('Director machine', () => {
     await flushTimers(0);
     expect(stateValue(actor)).toBe('hold');
     expect(context(actor).cursor).toEqual({ status: 'hold', scene: 'hero' });
+  });
+
+  it('enters playing when slow targetReady arrives before the preparing timeout', async () => {
+    const actor = startDirector({ prepareTimeoutMs: 100 });
+    bootToHold(actor);
+    actor.send({ type: 'CHARGE_FIRED', direction: 1 });
+
+    await flushTimers(60);
+    expect(stateValue(actor)).toBe('preparing');
+    sendTargetReady(actor);
+
+    expect(stateValue(actor)).toBe('playing');
+    expect(context(actor).activeSegment).toBe('hero-pattern');
   });
 
   it('buffers queued intent during playing and flushes only when ttl and decay keep it above threshold', async () => {
