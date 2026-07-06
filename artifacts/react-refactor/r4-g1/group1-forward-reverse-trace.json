@@ -1,0 +1,300 @@
+{
+  "phase": "hold",
+  "mode": "group1",
+  "window": {
+    "current": "pattern",
+    "retiring": [],
+    "prev": "hero",
+    "next": "star-map"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 3,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "BUILD_READY:hero-pattern",
+    "PLAY:hero-pattern:1",
+    "BUILD_READY:pattern-star-map",
+    "PLAY:pattern-star-map:1",
+    "BUILD_READY:pattern-star-map",
+    "PLAY:pattern-star-map:-1"
+  ],
+  "recoveryCount": 0,
+  "staleCompletionIgnored": 0,
+  "trace": [
+    {
+      "at": 1783359127385,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g1-group1",
+      "cursor": {
+        "status": "hold",
+        "scene": "hero"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783359127385,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g1-group1",
+      "cursor": {
+        "status": "hold",
+        "scene": "hero"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783359127437,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g1-group1",
+      "prepareToken": "r4-g1-group1:prepare:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "hero"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783359127438,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "pattern",
+        "prepareToken": "r4-g1-group1:prepare:1"
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:1",
+      "cursor": {
+        "status": "segment",
+        "segment": "hero-pattern",
+        "from": "hero",
+        "to": "pattern"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 4
+    },
+    {
+      "at": 1783359128808,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g1-group1:1"
+      },
+      "actorEpoch": "r4-g1-group1",
+      "cursor": {
+        "status": "settling",
+        "segment": "hero-pattern",
+        "from": "hero",
+        "to": "pattern",
+        "target": "pattern"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 5
+    },
+    {
+      "at": 1783359130111,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g1-group1",
+      "prepareToken": "r4-g1-group1:prepare:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "pattern"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 6
+    },
+    {
+      "at": 1783359130111,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "star-map",
+        "prepareToken": "r4-g1-group1:prepare:2"
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 7
+    },
+    {
+      "at": 1783359131454,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g1-group1:2"
+      },
+      "actorEpoch": "r4-g1-group1",
+      "cursor": {
+        "status": "settling",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map",
+        "target": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 8
+    },
+    {
+      "at": 1783359132098,
+      "event": {
+        "type": "RETIRING_RELEASED"
+      },
+      "actorEpoch": "r4-g1-group1",
+      "cursor": {
+        "status": "hold",
+        "scene": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783359132712,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": -1
+      },
+      "actorEpoch": "r4-g1-group1",
+      "prepareToken": "r4-g1-group1:prepare:3",
+      "cursor": {
+        "status": "hold",
+        "scene": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783359132712,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "pattern",
+        "prepareToken": "r4-g1-group1:prepare:3"
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 11
+    },
+    {
+      "at": 1783359134052,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g1-group1:3"
+      },
+      "actorEpoch": "r4-g1-group1",
+      "cursor": {
+        "status": "settling",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map",
+        "target": "pattern"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 12
+    }
+  ],
+  "layers": [
+    {
+      "scene": "hero",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "pattern",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    },
+    {
+      "scene": "star-map",
+      "role": "next",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    }
+  ]
+}

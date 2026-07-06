@@ -1,0 +1,271 @@
+{
+  "phase": "hold",
+  "mode": "hero-pattern",
+  "window": {
+    "current": "pattern",
+    "retiring": [],
+    "prev": "hero"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 2,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "BUILD_READY:hero-pattern",
+    "PLAY:hero-pattern:1",
+    "BUILD_READY:hero-pattern",
+    "PLAY:hero-pattern:-1",
+    "BUILD_READY:hero-pattern",
+    "PLAY:hero-pattern:1"
+  ],
+  "recoveryCount": 0,
+  "staleCompletionIgnored": 0,
+  "trace": [
+    {
+      "at": 1783359136357,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "cursor": {
+        "status": "hold",
+        "scene": "hero"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783359136358,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "cursor": {
+        "status": "hold",
+        "scene": "hero"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783359136393,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "prepareToken": "r4-g1-hero-pattern:prepare:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "hero"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783359136393,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "pattern",
+        "prepareToken": "r4-g1-hero-pattern:prepare:1"
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "activeRunId": "r4-g1-hero-pattern:1",
+      "cursor": {
+        "status": "segment",
+        "segment": "hero-pattern",
+        "from": "hero",
+        "to": "pattern"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 4
+    },
+    {
+      "at": 1783359136393,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g1-hero-pattern:1"
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "cursor": {
+        "status": "settling",
+        "segment": "hero-pattern",
+        "from": "hero",
+        "to": "pattern",
+        "target": "pattern"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 5
+    },
+    {
+      "at": 1783359136848,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": -1
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "prepareToken": "r4-g1-hero-pattern:prepare:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "pattern"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero"
+      },
+      "id": 6
+    },
+    {
+      "at": 1783359136848,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "hero",
+        "prepareToken": "r4-g1-hero-pattern:prepare:2"
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "activeRunId": "r4-g1-hero-pattern:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "hero-pattern",
+        "from": "hero",
+        "to": "pattern"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero"
+      },
+      "id": 7
+    },
+    {
+      "at": 1783359136848,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g1-hero-pattern:2"
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "cursor": {
+        "status": "settling",
+        "segment": "hero-pattern",
+        "from": "hero",
+        "to": "pattern",
+        "target": "hero"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero"
+      },
+      "id": 8
+    },
+    {
+      "at": 1783359137279,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "prepareToken": "r4-g1-hero-pattern:prepare:3",
+      "cursor": {
+        "status": "hold",
+        "scene": "hero"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783359137279,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "pattern",
+        "prepareToken": "r4-g1-hero-pattern:prepare:3"
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "activeRunId": "r4-g1-hero-pattern:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "hero-pattern",
+        "from": "hero",
+        "to": "pattern"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783359137280,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g1-hero-pattern:3"
+      },
+      "actorEpoch": "r4-g1-hero-pattern",
+      "cursor": {
+        "status": "settling",
+        "segment": "hero-pattern",
+        "from": "hero",
+        "to": "pattern",
+        "target": "pattern"
+      },
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "id": 11
+    }
+  ],
+  "layers": [
+    {
+      "scene": "hero",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "pattern",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    }
+  ]
+}
