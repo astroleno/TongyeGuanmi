@@ -1,0 +1,271 @@
+{
+  "phase": "hold",
+  "mode": "brand-figure3",
+  "window": {
+    "current": "figure3-animation",
+    "retiring": [],
+    "prev": "brand"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 2,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "BUILD_READY:brand-figure3",
+    "PLAY:brand-figure3:1",
+    "BUILD_READY:brand-figure3",
+    "PLAY:brand-figure3:-1",
+    "BUILD_READY:brand-figure3",
+    "PLAY:brand-figure3:1"
+  ],
+  "recoveryCount": 0,
+  "staleCompletionIgnored": 0,
+  "trace": [
+    {
+      "at": 1783433414694,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "cursor": {
+        "status": "hold",
+        "scene": "brand"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783433414694,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "cursor": {
+        "status": "hold",
+        "scene": "brand"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783433414707,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "prepareToken": "r4-g4-brand-figure3:prepare:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "brand"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783433414709,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "figure3-animation",
+        "prepareToken": "r4-g4-brand-figure3:prepare:1"
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "activeRunId": "r4-g4-brand-figure3:1",
+      "cursor": {
+        "status": "segment",
+        "segment": "brand-figure3",
+        "from": "brand",
+        "to": "figure3-animation"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 4
+    },
+    {
+      "at": 1783433414709,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g4-brand-figure3:1"
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "cursor": {
+        "status": "settling",
+        "segment": "brand-figure3",
+        "from": "brand",
+        "to": "figure3-animation",
+        "target": "figure3-animation"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 5
+    },
+    {
+      "at": 1783433415151,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": -1
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "prepareToken": "r4-g4-brand-figure3:prepare:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "figure3-animation"
+      },
+      "layerWindow": {
+        "current": "figure3-animation",
+        "retiring": [],
+        "prev": "brand"
+      },
+      "id": 6
+    },
+    {
+      "at": 1783433415151,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "brand",
+        "prepareToken": "r4-g4-brand-figure3:prepare:2"
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "activeRunId": "r4-g4-brand-figure3:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "brand-figure3",
+        "from": "brand",
+        "to": "figure3-animation"
+      },
+      "layerWindow": {
+        "current": "figure3-animation",
+        "retiring": [],
+        "prev": "brand"
+      },
+      "id": 7
+    },
+    {
+      "at": 1783433415152,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g4-brand-figure3:2"
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "cursor": {
+        "status": "settling",
+        "segment": "brand-figure3",
+        "from": "brand",
+        "to": "figure3-animation",
+        "target": "brand"
+      },
+      "layerWindow": {
+        "current": "figure3-animation",
+        "retiring": [],
+        "prev": "brand"
+      },
+      "id": 8
+    },
+    {
+      "at": 1783433415596,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "prepareToken": "r4-g4-brand-figure3:prepare:3",
+      "cursor": {
+        "status": "hold",
+        "scene": "brand"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783433415596,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "figure3-animation",
+        "prepareToken": "r4-g4-brand-figure3:prepare:3"
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "activeRunId": "r4-g4-brand-figure3:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "brand-figure3",
+        "from": "brand",
+        "to": "figure3-animation"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783433415596,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g4-brand-figure3:3"
+      },
+      "actorEpoch": "r4-g4-brand-figure3",
+      "cursor": {
+        "status": "settling",
+        "segment": "brand-figure3",
+        "from": "brand",
+        "to": "figure3-animation",
+        "target": "figure3-animation"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 11
+    }
+  ],
+  "layers": [
+    {
+      "scene": "brand",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "figure3-animation",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    }
+  ]
+}
