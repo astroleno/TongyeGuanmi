@@ -137,6 +137,11 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
         policy: readingPolicy('method-bottom'),
         virtualDuration: fallbackDurations.readingMs
       };
+    case 'method-bottom-figure2':
+      return {
+        policy: snapPolicy(segment),
+        virtualDuration: (seedByLegacy.figure2.stagePlayMs?.[0] ?? 2600) + 900
+      };
     case 'figure2-distance-expand':
       return {
         policy: stagedPolicy(
@@ -179,7 +184,6 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
     case 'hero-pattern':
     case 'pattern-star-map':
     case 'star-map-aod':
-    case 'method-bottom-figure2':
     case 'figure2-proof-brand':
     case 'brand-figure3':
     case 'services-ttg':

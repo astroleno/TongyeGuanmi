@@ -35,7 +35,7 @@ function Figure2ProofOpeningScene({ registerHandle }: SceneComponentProps) {
       className="r4-proof r4-proof-opening"
       data-r4-scene="figure2-proof-opening"
     >
-      <img className="r4-proof-opening__arch" src={NEAR_ARCH_IMAGE} alt="" aria-hidden="true" />
+      <img className="r4-proof__arch r4-proof-opening__arch" src={NEAR_ARCH_IMAGE} alt="" aria-hidden="true" />
       <div className="r4-proof__lead">
         <span>{FIGURE2_PROOF_OPENING_COPY[0]}</span>
         <h2>

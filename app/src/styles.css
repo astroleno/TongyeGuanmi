@@ -344,7 +344,7 @@ pre {
   pointer-events: none;
   visibility: hidden;
   opacity: 0;
-  mix-blend-mode: multiply;
+  mix-blend-mode: normal;
   contain: strict;
 }
 
@@ -666,7 +666,7 @@ pre {
   --r4-method-bottom-row-y: 0px;
   width: 100%;
   min-height: 100svh;
-  padding: clamp(72px, 9svh, 118px) clamp(26px, 7vw, 132px);
+  padding: clamp(68px, 8.4svh, 108px) clamp(26px, 7vw, 132px);
   color: rgba(37, 39, 25, .94);
   background:
     radial-gradient(circle at 14% 8%, rgba(232, 213, 154, .18), transparent 32vw),
@@ -676,9 +676,75 @@ pre {
   color-scheme: light;
 }
 
-.r4-method-bottom__list {
-  width: min(1240px, 84vw);
+.r4-method-bottom__layout {
+  display: grid;
+  grid-template-columns: minmax(280px, .86fr) minmax(0, 1.42fr);
+  gap: clamp(48px, 8vw, 128px);
+  align-items: start;
+  width: min(1320px, 88vw);
   margin: 0 auto;
+}
+
+.r4-method-bottom__lead {
+  position: sticky;
+  top: clamp(64px, 10svh, 118px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 2.2vw, 30px);
+  max-width: 460px;
+}
+
+.r4-method-bottom__lead .section-index {
+  color: rgba(120, 99, 41, .82);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: .18em;
+  line-height: 1.7;
+}
+
+.r4-method-bottom__lead h2 {
+  margin: 0;
+  color: rgba(37, 39, 25, .9);
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(44px, 5.2vw, 92px);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: 0;
+}
+
+.r4-method-bottom__lead h2 span {
+  display: block;
+}
+
+.r4-method-bottom__lead > p {
+  margin: 0;
+  color: rgba(37, 39, 25, .62);
+  font-size: clamp(16px, 1.16vw, 20px);
+  line-height: 1.86;
+}
+
+.r4-method-bottom__brief {
+  display: grid;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.r4-method-bottom__brief span {
+  display: block;
+  color: rgba(37, 39, 25, .62);
+  font-size: clamp(14px, 1vw, 17px);
+  line-height: 1.72;
+}
+
+.r4-method-bottom__brief b {
+  margin-right: .62em;
+  color: rgba(120, 99, 41, .94);
+  font-weight: 760;
+}
+
+.r4-method-bottom__list {
+  width: 100%;
+  margin: 0;
   padding: 0;
   border-top: 1px solid rgba(37, 39, 25, .16);
   list-style: none;
@@ -970,6 +1036,18 @@ pre {
     padding-inline: 24px;
   }
 
+  .r4-method-bottom__layout {
+    width: 100%;
+    grid-template-columns: 1fr;
+    gap: 42px;
+  }
+
+  .r4-method-bottom__lead {
+    position: relative;
+    top: auto;
+    max-width: 100%;
+  }
+
   .r4-method-bottom__list {
     width: 100%;
   }
@@ -1035,7 +1113,7 @@ pre {
   padding: clamp(72px, 9svh, 118px) max(96px, 8vw);
 }
 
-.r4-proof-opening__arch {
+.r4-proof__arch {
   position: absolute;
   left: 50%;
   top: 48%;

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
-import { createMethodBottomFigure2Transition } from './index';
+import {
+  createMethodBottomFigure2Transition,
+  figure2InkProgressForMethodBottom,
+  figure2StageProgressForMethodBottom
+} from './index';
 import type { LayerHandle, LayerVisibilityState, SceneId, SpineSegmentNode, TransitionContext } from '../../story/types';
 
 function layer(scene: SceneId, role: 'current' | 'next'): LayerHandle {
@@ -56,6 +60,14 @@ function context(prefersReducedMotion = false): TransitionContext {
 }
 
 describe('method-bottom-figure2 transition', () => {
+  it('separates the bottom ink reveal from the figure2 zoom stage', () => {
+    expect(figure2InkProgressForMethodBottom(0.17)).toBeCloseTo(0.5, 5);
+    expect(figure2InkProgressForMethodBottom(0.34)).toBe(1);
+    expect(figure2StageProgressForMethodBottom(0.339)).toBe(0);
+    expect(figure2StageProgressForMethodBottom(0.67)).toBeCloseTo(0.5, 2);
+    expect(figure2StageProgressForMethodBottom(1)).toBe(1);
+  });
+
   it('passes timeline verification and exposes reduced motion fallback', async () => {
     const transition = createMethodBottomFigure2Transition();
     const timeline = await transition.buildTimeline(context());

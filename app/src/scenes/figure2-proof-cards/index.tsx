@@ -1,5 +1,7 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
+const NEAR_ARCH_IMAGE = new URL('../../../../assets/arch2d-alpha.png', import.meta.url).href;
+
 export const FIGURE2_PROOF_CARDS_COPY = [
   '01',
   '只培训',
@@ -45,6 +47,7 @@ function Figure2ProofCardsScene({ registerHandle }: SceneComponentProps) {
       className="r4-proof r4-proof-cards"
       data-r4-scene="figure2-proof-cards"
     >
+      <img className="r4-proof__arch" src={NEAR_ARCH_IMAGE} alt="" aria-hidden="true" />
       <ol className="r4-proof-cards__list" aria-label="常见 AI 落地失败方式">
         {PROOF_CARDS.map((card) => (
           <li key={card.index} className="r4-proof-cards__row">

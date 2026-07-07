@@ -51,6 +51,11 @@ function range01(value: number, start: number, end: number): number {
   return Math.min(1, Math.max(0, (value - start) / (end - start)));
 }
 
+function isInkTransitionActive(root: HTMLElement | null): boolean {
+  const layer = root?.closest<HTMLElement>('[data-stage-layer]');
+  return Boolean(layer?.dataset.r4Transition || layer?.dataset.r4InkActive === 'true');
+}
+
 function bindMetadataResync(video: Figure2VideoElement): void {
   if (video.__r4Figure2MetadataBound) {
     return;
@@ -172,6 +177,9 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
   const rightVideoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
+    if (isInkTransitionActive(rootRef.current)) {
+      return;
+    }
     renderFigure2AnimationProgress(rootRef.current, hidden ? 0 : 1);
   }, [hidden]);
 

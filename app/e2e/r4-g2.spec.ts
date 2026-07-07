@@ -55,6 +55,7 @@ type Group2VisualSnapshot = {
   figureWidth: number;
   farArcadeImageCount: number;
   cloudCount: number;
+  methodContinuationLeadCount: number;
   visibleCaptionCount: number;
   videos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
 };
@@ -87,6 +88,7 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
       figureWidth: figureRect?.width ?? 0,
       farArcadeImageCount: document.querySelectorAll('.r4-figure2__far-arcade img').length,
       cloudCount: document.querySelectorAll('.r4-figure2__cloud').length,
+      methodContinuationLeadCount: document.querySelectorAll('.r4-method-bottom__lead').length,
       visibleCaptionCount: [...document.querySelectorAll<HTMLElement>('.r4-figure2__figure figcaption')]
         .filter((caption) => {
           const rect = caption.getBoundingClientRect();
@@ -147,6 +149,8 @@ test.describe('R4 group2 canonical spine harness', () => {
       }
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-bottom');
+    const methodBottomHold = await visualSnapshot(page);
+    expect(methodBottomHold.methodContinuationLeadCount).toBe(1);
 
     await page.evaluate(() => {
       void window.__r4Group2?.playForward();
@@ -160,11 +164,10 @@ test.describe('R4 group2 canonical spine harness', () => {
         expect(visual.transitions).toContain('method-bottom-figure2-bottom-ink');
         expect(visual.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
         expect(visual.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1.04, 2);
-        expect(visual.figure2Progress).toBeGreaterThan(0);
-        expect(visual.figure2Progress).toBeLessThan(1);
+        expect(visual.figure2Progress).toBe(0);
         expect(visual.videos).toHaveLength(2);
         expect(visual.videos.every((video) => video.loop === false)).toBe(true);
-        expect(visual.videos.every((video) => video.paused && video.currentTime > 0)).toBe(true);
+        expect(visual.videos.every((video) => video.paused)).toBe(true);
       }
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure2-animation');

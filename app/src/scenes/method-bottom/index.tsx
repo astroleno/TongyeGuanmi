@@ -1,4 +1,5 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
+import { METHOD_TOP_COPY } from '../method-top';
 
 export const METHOD_BOTTOM_COPY = [
   '01',
@@ -53,15 +54,29 @@ function MethodBottomScene({ registerHandle }: SceneComponentProps) {
       className="r4-method-bottom"
       data-r4-scene="method-bottom"
     >
-      <ol className="r4-method-bottom__list" aria-label="AI 落地五步">
-        {METHOD_STEPS.map((step) => (
-          <li key={step.index} className="r4-method-bottom__row">
-            <span>{step.index}</span>
-            <strong>{step.title}</strong>
-            <p>{step.body}</p>
-          </li>
-        ))}
-      </ol>
+      <div className="r4-method-bottom__layout">
+        <div className="r4-method-bottom__lead" aria-label="方法首屏重点延续">
+          <span className="section-index">{METHOD_TOP_COPY[0]}</span>
+          <h2>
+            <span>{METHOD_TOP_COPY[1]}</span>
+            <span>{METHOD_TOP_COPY[2]}</span>
+          </h2>
+          <p>{METHOD_TOP_COPY[3]}</p>
+          <div className="r4-method-bottom__brief" aria-label="方法首屏重点">
+            <span><b>{METHOD_TOP_COPY[4]}</b>{METHOD_TOP_COPY[5]}</span>
+            <span><b>{METHOD_TOP_COPY[6]}</b>{METHOD_TOP_COPY[7]}</span>
+          </div>
+        </div>
+        <ol className="r4-method-bottom__list" aria-label="AI 落地五步">
+          {METHOD_STEPS.map((step) => (
+            <li key={step.index} className="r4-method-bottom__row">
+              <span>{step.index}</span>
+              <strong>{step.title}</strong>
+              <p>{step.body}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
     </article>
   );
 }

@@ -49,6 +49,8 @@ type Group1VisualSnapshot = {
   transitions: readonly string[];
   inkOrigins: Record<string, { x: number; y: number }>;
   patternProgress: number;
+  patternClipProgress: number;
+  patternInkProgress: number;
   largestRingScale: number;
   compactRingScale: number;
   patternCanvasOpacity: number;
@@ -62,6 +64,7 @@ type Group1VisualSnapshot = {
 async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
   return page.evaluate(() => {
     const patternRoot = document.querySelector<HTMLElement>('[data-r4-scene="pattern"]');
+    const patternLayer = patternRoot?.closest<HTMLElement>('[data-stage-layer]');
     const patternStyle = patternRoot ? window.getComputedStyle(patternRoot) : undefined;
     const patternCanvas = document.querySelector<HTMLCanvasElement>('[data-pattern-canvas]');
     const patternCanvasStyle = patternCanvas ? window.getComputedStyle(patternCanvas) : undefined;
@@ -99,6 +102,8 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
         }
       ])),
       patternProgress: Number.parseFloat(patternRoot?.dataset.patternProgress ?? '0'),
+      patternClipProgress: Number.parseFloat(patternLayer?.dataset.r4ClipProgress ?? '0'),
+      patternInkProgress: Number.parseFloat(patternLayer?.dataset.r4InkProgress ?? '0'),
       largestRingScale: Number.parseFloat(patternStyle?.getPropertyValue('--r4-pattern-largest-ring-scale') ?? '0'),
       compactRingScale: Number.parseFloat(patternStyle?.getPropertyValue('--r4-pattern-compact-ring-scale') ?? '0'),
       patternCanvasOpacity: Number.parseFloat(patternCanvasStyle?.opacity ?? '0'),
@@ -151,6 +156,16 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(earlyHeroPattern.transitions).toContain('hero-pattern-center-ink');
     expect(earlyHeroPattern.patternProgress).toBe(0);
     expect(earlyHeroPattern.patternCanvasOpacity).toBe(1);
+    expect(earlyHeroPattern.patternClipProgress).toBeGreaterThan(0.35);
+    expect(earlyHeroPattern.patternClipProgress).toBeLessThan(0.5);
+    await page.evaluate(async () => {
+      await window.__r4Group1?.scrubHeroPattern(0.5);
+    });
+    const revealedBloomingPattern = await visualSnapshot(page);
+    expect(revealedBloomingPattern.patternClipProgress).toBe(1);
+    expect(revealedBloomingPattern.patternInkProgress).toBe(1);
+    expect(revealedBloomingPattern.patternProgress).toBeGreaterThan(0.25);
+    expect(revealedBloomingPattern.patternProgress).toBeLessThan(0.35);
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubHeroPattern(0);
     });

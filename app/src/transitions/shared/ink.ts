@@ -18,8 +18,11 @@ export type InkSegmentOptions = {
   origin: InkOrigin;
   delayMs?: (() => number) | undefined;
   renderFrom?: (root: HTMLElement | null, progress: number) => void;
-  renderFromProgress?: 'remaining' | 'forward';
+  renderFromProgress?: 'remaining' | 'forward' | ((progress: number) => number);
   renderTo?: (root: HTMLElement | null, progress: number) => void;
+  renderToProgress?: 'remaining' | 'forward' | ((progress: number) => number);
+  clipProgress?: (progress: number) => number;
+  inkProgress?: (progress: number) => number;
   rootSelector?: (scene: string) => string;
   transitionAttr?: string;
   stops?: readonly number[];
@@ -63,6 +66,18 @@ function sampleInk(progress: number): InkSample {
   };
 }
 
+function mappedProgress(
+  mode: 'remaining' | 'forward' | ((progress: number) => number) | undefined,
+  progress: number,
+  fallback: 'remaining' | 'forward'
+): number {
+  if (typeof mode === 'function') {
+    return clamp(mode(progress));
+  }
+  const resolved = mode ?? fallback;
+  return resolved === 'forward' ? progress : 1 - progress;
+}
+
 function ensureCanvas(container: HTMLElement | null, id: SegmentId, origin: InkOrigin): HTMLCanvasElement | null {
   if (!container) {
     return null;
@@ -97,7 +112,7 @@ function renderInkCanvas(canvas: HTMLCanvasElement | null, progress: number, ori
   if (!context) {
     return;
   }
-  const p = smoothStep(progress);
+  const p = smoothStep(clamp(progress));
   canvas.style.visibility = p > 0.002 && p < 0.998 ? 'visible' : 'hidden';
   canvas.style.opacity = p > 0.002 && p < 0.998 ? '1' : '0';
   context.clearRect(0, 0, width, height);
@@ -143,7 +158,7 @@ function applyClip(element: HTMLElement | null, progress: number, origin: InkOri
   if (!element) {
     return;
   }
-  const p = smoothStep(progress);
+  const p = smoothStep(clamp(progress));
   if (p <= 0.001) {
     element.style.clipPath = `circle(0% at ${(origin.x * 100).toFixed(2)}% ${(origin.y * 100).toFixed(2)}%)`;
     element.style.setProperty('-webkit-clip-path', element.style.clipPath);
@@ -209,16 +224,21 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     }
     const clamped = clamp(value);
     const sample = sampleInk(clamped);
+    const clipProgress = clamp(this.options.clipProgress?.(clamped) ?? clamped);
+    const inkProgress = clamp(this.options.inkProgress?.(clamped) ?? clipProgress);
     this.progressValue = clamped;
     applyLayerVisibility(this.context.from, sample.from);
     applyLayerVisibility(this.context.to, sample.to);
     this.context.to.element?.setAttribute('data-r4-transition', this.options.transitionAttr ?? this.options.id);
-    this.context.to.element?.setAttribute('data-r4-ink-active', String(clamped > 0.002 && clamped < 0.998));
-    applyClip(this.context.to.element, clamped, this.options.origin);
-    renderInkCanvas(this.canvas, clamped, this.options.origin);
-    const fromProgress = this.options.renderFromProgress === 'forward' ? clamped : 1 - clamped;
+    this.context.to.element?.setAttribute('data-r4-ink-active', String(inkProgress > 0.002 && inkProgress < 0.998));
+    this.context.to.element?.setAttribute('data-r4-clip-progress', clipProgress.toFixed(4));
+    this.context.to.element?.setAttribute('data-r4-ink-progress', inkProgress.toFixed(4));
+    applyClip(this.context.to.element, clipProgress, this.options.origin);
+    renderInkCanvas(this.canvas, inkProgress, this.options.origin);
+    const fromProgress = mappedProgress(this.options.renderFromProgress, clamped, 'remaining');
+    const toProgress = mappedProgress(this.options.renderToProgress, clamped, 'forward');
     this.options.renderFrom?.(sceneRoot(this.context.from.element, this.context.from.scene, this.options.rootSelector), fromProgress);
-    this.options.renderTo?.(sceneRoot(this.context.to.element, this.context.to.scene, this.options.rootSelector), clamped);
+    this.options.renderTo?.(sceneRoot(this.context.to.element, this.context.to.scene, this.options.rootSelector), toProgress);
     if (this.options.reportTimelineReadyAt !== undefined && clamped >= this.options.reportTimelineReadyAt) {
       this.context.reportMilestone({
         key: 'timelineReady',
@@ -288,9 +308,9 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
       applyLayerVisibility(context.to, holdVisibility(true));
       options.renderFrom?.(
         sceneRoot(context.from.element, context.from.scene, options.rootSelector),
-        options.renderFromProgress === 'forward' ? 1 : 0
+        mappedProgress(options.renderFromProgress, 1, 'remaining')
       );
-      options.renderTo?.(sceneRoot(context.to.element, context.to.scene, options.rootSelector), 1);
+      options.renderTo?.(sceneRoot(context.to.element, context.to.scene, options.rootSelector), mappedProgress(options.renderToProgress, 1, 'forward'));
     },
     buildTimeline: async (context) => {
       const delay = options.delayMs?.() ?? 0;

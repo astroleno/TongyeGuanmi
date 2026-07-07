@@ -26,15 +26,13 @@
     "BUILD_READY:method-top-method-bottom",
     "PLAY:method-top-method-bottom:1",
     "BUILD_READY:method-bottom-figure2",
-    "PLAY:method-bottom-figure2:1",
-    "BUILD_READY:method-bottom-figure2",
-    "PLAY:method-bottom-figure2:-1"
+    "BUILD_READY:method-bottom-figure2"
   ],
   "recoveryCount": 0,
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783399238391,
+      "at": 1783406217196,
       "event": {
         "type": "BOOT_READY"
       },
@@ -51,7 +49,7 @@
       "id": 1
     },
     {
-      "at": 1783399238391,
+      "at": 1783406217197,
       "event": {
         "type": "BOOT_READY"
       },
@@ -68,7 +66,7 @@
       "id": 2
     },
     {
-      "at": 1783399238439,
+      "at": 1783406217224,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -87,7 +85,7 @@
       "id": 3
     },
     {
-      "at": 1783399238441,
+      "at": 1783406217225,
       "event": {
         "type": "TARGET_READY",
         "scene": "method-bottom",
@@ -109,7 +107,7 @@
       "id": 4
     },
     {
-      "at": 1783399239349,
+      "at": 1783406218140,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g2-group2:1"
@@ -130,7 +128,7 @@
       "id": 5
     },
     {
-      "at": 1783399240071,
+      "at": 1783406218711,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -150,7 +148,7 @@
       "id": 6
     },
     {
-      "at": 1783399240072,
+      "at": 1783406218712,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-animation",
@@ -173,7 +171,7 @@
       "id": 7
     },
     {
-      "at": 1783399241317,
+      "at": 1783406222234,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g2-group2:2"
@@ -195,7 +193,7 @@
       "id": 8
     },
     {
-      "at": 1783399241762,
+      "at": 1783406222671,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -212,7 +210,7 @@
       "id": 9
     },
     {
-      "at": 1783399242635,
+      "at": 1783406223482,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -231,7 +229,7 @@
       "id": 10
     },
     {
-      "at": 1783399242635,
+      "at": 1783406223482,
       "event": {
         "type": "TARGET_READY",
         "scene": "method-bottom",
@@ -253,7 +251,7 @@
       "id": 11
     },
     {
-      "at": 1783399243849,
+      "at": 1783406226990,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g2-group2:3"

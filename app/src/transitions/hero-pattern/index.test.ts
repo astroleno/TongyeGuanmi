@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
-import { createHeroPatternTransition, patternBloomProgressForHeroPattern, renderPatternForHeroPattern } from './index';
+import {
+  createHeroPatternTransition,
+  patternBloomProgressForHeroPattern,
+  patternRevealProgressForHeroPattern,
+  renderPatternForHeroPattern
+} from './index';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
 
 class FakeStyle {
@@ -74,6 +79,9 @@ function context(prefersReducedMotion = false): TransitionContext {
 
 describe('hero-pattern transition', () => {
   it('matches main bloom timing after the initial full-petal reveal', () => {
+    expect(patternRevealProgressForHeroPattern(0)).toBe(0);
+    expect(patternRevealProgressForHeroPattern(0.23)).toBeCloseTo(0.5, 5);
+    expect(patternRevealProgressForHeroPattern(0.46)).toBe(1);
     expect(patternBloomProgressForHeroPattern(0)).toBe(0);
     expect(patternBloomProgressForHeroPattern(0.419)).toBe(0);
     expect(patternBloomProgressForHeroPattern(0.56)).toBeCloseTo(0.5, 5);

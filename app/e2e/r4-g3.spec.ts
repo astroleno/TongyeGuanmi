@@ -48,6 +48,7 @@ type Group3VisualSnapshot = {
   transitions: readonly string[];
   proofOpeningProgress: number;
   proofArchArea: number;
+  proofArchCount: number;
   proofArchOpacity: number;
   proofArchBlurPx: number;
   figure2ProofProgress: number;
@@ -73,6 +74,7 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
         .map((element) => element.dataset.r4Transition ?? ''),
       proofOpeningProgress: Number.parseFloat(proofRoot?.dataset.proofOpeningProgress ?? '0'),
       proofArchArea: (archRect?.width ?? 0) * (archRect?.height ?? 0),
+      proofArchCount: document.querySelectorAll('.r4-proof__arch').length,
       proofArchOpacity: Number.parseFloat(archStyle?.opacity ?? '0'),
       proofArchBlurPx: Number.parseFloat((archStyle?.filter.match(/blur\(([^p]+)px\)/)?.[1]) ?? '0'),
       figure2ProofProgress: Number.parseFloat(figureRoot?.dataset.figure2ProofProgress ?? '0'),
@@ -155,9 +157,11 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         }
         if (index === 5 && target === 'figure2-proof-cards') {
           assertReadingFrame(frame, 'figure2-proof-opening', 'figure2-proof-cards');
+          expect((await visualSnapshot(page)).proofArchCount).toBeGreaterThanOrEqual(2);
         }
         if (index === 5 && target === 'figure2-proof-closing') {
           assertReadingFrame(frame, 'figure2-proof-cards', 'figure2-proof-closing');
+          expect((await visualSnapshot(page)).proofArchCount).toBeGreaterThanOrEqual(2);
         }
         if (index === 5 && target === 'brand') {
           assertReadingFrame(frame, 'figure2-proof-closing', 'brand');
@@ -170,6 +174,9 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         expect(visual.proofArchArea).toBeGreaterThan(100_000);
         expect(visual.proofArchOpacity).toBeGreaterThan(0.3);
         expect(visual.proofArchBlurPx).toBeGreaterThan(6);
+      }
+      if (target === 'figure2-proof-cards' || target === 'figure2-proof-closing') {
+        expect((await visualSnapshot(page)).proofArchCount).toBeGreaterThanOrEqual(1);
       }
     }
 
