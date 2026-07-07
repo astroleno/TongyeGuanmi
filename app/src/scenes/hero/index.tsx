@@ -6,6 +6,9 @@ const HERO_MIDDLE_IMAGE = new URL('../../../../assets/middle1.png', import.meta.
 const HERO_MIDDLE_DEPTH_IMAGE = new URL('../../../../assets/middle1_depth.png', import.meta.url).href;
 const HERO_FIGURE_VIDEO = new URL('../../../../assets/figure1.webm', import.meta.url).href;
 const HERO_FIGURE_POSTER = new URL('../../../../assets/figure-poster.jpg', import.meta.url).href;
+const HERO_VIDEO_SEGMENT_SECONDS = 2;
+const HERO_VIDEO_START_SECONDS = 0.34;
+const HERO_VIDEO_END_EPSILON = 0.08;
 
 export const HERO_COPY = [
   '同',
@@ -24,6 +27,61 @@ export type HeroRenderState = {
   exitLift: number;
 };
 
+type HeroVideoElement = HTMLVideoElement & {
+  __r4HeroPendingTime?: number;
+  __r4HeroMetadataBound?: boolean;
+};
+
+function heroVideoIn(root: HTMLElement | null): HTMLVideoElement | null {
+  if (typeof root?.querySelector !== 'function') {
+    return null;
+  }
+  return root?.querySelector<HTMLVideoElement>('[data-hero-figure-video]') ?? null;
+}
+
+function bindHeroMetadataResync(video: HeroVideoElement): void {
+  if (video.__r4HeroMetadataBound) {
+    return;
+  }
+  video.__r4HeroMetadataBound = true;
+  video.addEventListener('loadedmetadata', () => {
+    const pending = video.__r4HeroPendingTime;
+    if (pending === undefined) {
+      return;
+    }
+    try {
+      video.currentTime = pending;
+    } catch {
+      // Browsers can reject a seek until the first seekable range is ready.
+    }
+  });
+}
+
+function configureHeroVideo(video: HTMLVideoElement): void {
+  video.muted = true;
+  video.loop = false;
+  video.autoplay = false;
+  video.playsInline = true;
+  video.pause();
+}
+
+function seekHeroVideo(video: HeroVideoElement, progress: number): void {
+  configureHeroVideo(video);
+  bindHeroMetadataResync(video);
+  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 5.04;
+  const start = Math.min(HERO_VIDEO_START_SECONDS, Math.max(0, duration * 0.08));
+  const end = Math.min(duration - HERO_VIDEO_END_EPSILON, start + Math.min(HERO_VIDEO_SEGMENT_SECONDS, duration * 0.55));
+  const targetTime = start + (Math.max(start, end) - start) * Math.min(1, Math.max(0, progress));
+  video.__r4HeroPendingTime = targetTime;
+  try {
+    if (Math.abs(video.currentTime - targetTime) > 0.055) {
+      video.currentTime = targetTime;
+    }
+  } catch {
+    // loadedmetadata rebuilds the scrubbed frame once duration is available.
+  }
+}
+
 export function renderHeroProgress(root: HTMLElement | null, progress: number): HeroRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
   const eased = clamped * clamped * (3 - 2 * clamped);
@@ -40,6 +98,10 @@ export function renderHeroProgress(root: HTMLElement | null, progress: number): 
   root?.style.setProperty('--r4-hero-content-opacity', contentOpacity.toFixed(4));
   root?.style.setProperty('--r4-hero-exit-lift', `${exitLift.toFixed(2)}px`);
   root?.setAttribute('data-hero-progress', clamped.toFixed(4));
+  const video = heroVideoIn(root);
+  if (video) {
+    seekHeroVideo(video as HeroVideoElement, 1 - clamped);
+  }
 
   return { progress: clamped, backOpacity, middleOpacity, figureOpacity, contentOpacity, exitLift };
 }
@@ -57,14 +119,8 @@ function HeroScene({ hidden, registerHandle }: SceneComponentProps) {
     if (!video) {
       return;
     }
-    video.muted = true;
-    video.loop = true;
-    video.playsInline = true;
-    if (hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      video.pause();
-      return;
-    }
-    void video.play().catch(() => undefined);
+    configureHeroVideo(video);
+    renderHeroProgress(rootRef.current, hidden ? 0 : 1);
   }, [hidden]);
 
   return (
@@ -85,6 +141,7 @@ function HeroScene({ hidden, registerHandle }: SceneComponentProps) {
             registerHandle?.('figure', element);
           }}
           className="r4-hero-scene__figure"
+          data-hero-figure-video
           src={HERO_FIGURE_VIDEO}
           poster={HERO_FIGURE_POSTER}
           muted

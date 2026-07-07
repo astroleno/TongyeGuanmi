@@ -45,7 +45,7 @@
   "trace": [
     {
       "id": 1,
-      "at": 1783400275971,
+      "at": 1783401463838,
       "event": {
         "type": "BOOT_READY"
       },
@@ -67,7 +67,7 @@
     },
     {
       "id": 2,
-      "at": 1783400275972,
+      "at": 1783401463839,
       "event": {
         "type": "BOOT_READY"
       },
@@ -89,7 +89,7 @@
     },
     {
       "id": 3,
-      "at": 1783400276336,
+      "at": 1783401464176,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -112,7 +112,7 @@
     },
     {
       "id": 4,
-      "at": 1783400276389,
+      "at": 1783401464224,
       "event": {
         "type": "TARGET_READY",
         "scene": "aod-animation",
@@ -138,7 +138,7 @@
     },
     {
       "id": 5,
-      "at": 1783400277657,
+      "at": 1783401465577,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r3-pilot:1"
@@ -164,7 +164,7 @@
     },
     {
       "id": 6,
-      "at": 1783400278405,
+      "at": 1783401466912,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -188,7 +188,7 @@
     },
     {
       "id": 7,
-      "at": 1783400279303,
+      "at": 1783401467831,
       "event": {
         "type": "MEDIA_READY",
         "key": "mediaReady",
@@ -213,7 +213,7 @@
     },
     {
       "id": 8,
-      "at": 1783400279303,
+      "at": 1783401467832,
       "event": {
         "type": "TARGET_READY",
         "scene": "method-top",
@@ -240,7 +240,7 @@
     },
     {
       "id": 9,
-      "at": 1783400282183,
+      "at": 1783401470627,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r3-pilot:2"
@@ -267,7 +267,7 @@
     },
     {
       "id": 10,
-      "at": 1783400282839,
+      "at": 1783401471271,
       "event": {
         "type": "RETIRING_RELEASED"
       },

@@ -54,6 +54,9 @@ type Group1VisualSnapshot = {
   patternCanvasOpacity: number;
   patternCanvasArea: number;
   patternCanvasNonBlankSamples: number;
+  heroVideoLoop: boolean | null;
+  heroVideoPaused: boolean | null;
+  heroVideoAutoplay: boolean | null;
 };
 
 async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
@@ -63,6 +66,7 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
     const patternCanvas = document.querySelector<HTMLCanvasElement>('[data-pattern-canvas]');
     const patternCanvasStyle = patternCanvas ? window.getComputedStyle(patternCanvas) : undefined;
     const canvasRect = patternCanvas?.getBoundingClientRect();
+    const heroVideo = document.querySelector<HTMLVideoElement>('[data-hero-figure-video]');
     let patternCanvasNonBlankSamples = 0;
     const context = patternCanvas?.getContext('2d');
     if (patternCanvas && context && patternCanvas.width > 0 && patternCanvas.height > 0) {
@@ -99,7 +103,10 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
       compactRingScale: Number.parseFloat(patternStyle?.getPropertyValue('--r4-pattern-compact-ring-scale') ?? '0'),
       patternCanvasOpacity: Number.parseFloat(patternCanvasStyle?.opacity ?? '0'),
       patternCanvasArea: (canvasRect?.width ?? 0) * (canvasRect?.height ?? 0),
-      patternCanvasNonBlankSamples
+      patternCanvasNonBlankSamples,
+      heroVideoLoop: heroVideo?.loop ?? null,
+      heroVideoPaused: heroVideo?.paused ?? null,
+      heroVideoAutoplay: heroVideo?.autoplay ?? null
     };
   });
 }
@@ -132,6 +139,10 @@ test.describe('R4 group1 canonical spine harness', () => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g1');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
+    const initialVisual = await visualSnapshot(page);
+    expect(initialVisual.heroVideoLoop).toBe(false);
+    expect(initialVisual.heroVideoAutoplay).toBe(false);
+    expect(initialVisual.heroVideoPaused).toBe(true);
 
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubHeroPattern(0.2);
