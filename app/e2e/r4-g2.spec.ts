@@ -59,6 +59,7 @@ type Group2VisualSnapshot = {
   visibleCaptionCount: number;
   methodBottomLayerZ: number;
   figure2LayerZ: number;
+  figure2LayerClipPath: string;
   figure2LayerElevated: boolean;
   videos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
 };
@@ -102,6 +103,7 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
         }).length,
       methodBottomLayerZ: Number.parseInt(window.getComputedStyle(methodBottomLayer ?? document.body).zIndex || '0', 10),
       figure2LayerZ: Number.parseInt(window.getComputedStyle(figure2Layer ?? document.body).zIndex || '0', 10),
+      figure2LayerClipPath: window.getComputedStyle(figure2Layer ?? document.body).clipPath,
       figure2LayerElevated: figure2Layer?.dataset.r4TransitionElevated === 'true',
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
         loop: video.loop,
@@ -172,6 +174,7 @@ test.describe('R4 group2 canonical spine harness', () => {
         expect(visual.transitions).toContain('method-bottom-figure2-bottom-ink');
         expect(visual.figure2LayerElevated).toBe(true);
         expect(visual.figure2LayerZ).toBeGreaterThan(visual.methodBottomLayerZ);
+        expect(visual.figure2LayerClipPath).toBe('none');
         expect(visual.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
         expect(visual.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1.04, 2);
         expect(visual.figure2Progress).toBe(0);

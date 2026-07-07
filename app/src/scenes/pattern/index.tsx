@@ -36,6 +36,7 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
   const washOpacity = 0.58 + clamped * 0.28;
 
   root?.style.setProperty('--r4-pattern-progress', clamped.toFixed(4));
+  root?.style.setProperty('--r4-pattern-scene-opacity', '1.0000');
   root?.style.setProperty('--r4-pattern-opacity', opacity.toFixed(4));
   root?.style.setProperty('--r4-pattern-field-rotation', `${snapshot.fieldRotationDegrees.toFixed(2)}deg`);
   root?.style.setProperty('--r4-pattern-largest-ring-scale', snapshot.largestRingScale.toFixed(4));

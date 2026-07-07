@@ -60,6 +60,8 @@ type Group1VisualSnapshot = {
   heroLayerZ: number;
   patternLayerZ: number;
   starMapLayerZ: number;
+  patternLayerClipPath: string;
+  starMapLayerClipPath: string;
   patternLayerElevated: boolean;
   starMapLayerElevated: boolean;
   heroVideoLoop: boolean | null;
@@ -121,6 +123,8 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
       heroLayerZ: Number.parseInt(window.getComputedStyle(heroLayer ?? document.body).zIndex || '0', 10),
       patternLayerZ: Number.parseInt(window.getComputedStyle(patternLayer ?? document.body).zIndex || '0', 10),
       starMapLayerZ: Number.parseInt(window.getComputedStyle(starMapLayer ?? document.body).zIndex || '0', 10),
+      patternLayerClipPath: window.getComputedStyle(patternLayer ?? document.body).clipPath,
+      starMapLayerClipPath: window.getComputedStyle(starMapLayer ?? document.body).clipPath,
       patternLayerElevated: patternLayer?.dataset.r4TransitionElevated === 'true',
       starMapLayerElevated: starMapLayer?.dataset.r4TransitionElevated === 'true',
       heroVideoLoop: heroVideo?.loop ?? null,
@@ -171,6 +175,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(earlyHeroPattern.patternInkRenderer).toBe('scene');
     expect(earlyHeroPattern.patternLayerElevated).toBe(true);
     expect(earlyHeroPattern.patternLayerZ).toBeGreaterThan(earlyHeroPattern.heroLayerZ);
+    expect(earlyHeroPattern.patternLayerClipPath).toBe('none');
     expect(earlyHeroPattern.patternProgress).toBe(0);
     expect(earlyHeroPattern.patternCanvasOpacity).toBe(1);
     expect(earlyHeroPattern.patternClipProgress).toBeGreaterThan(0.35);
@@ -224,6 +229,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(patternStarMapInk.patternInkRenderer).toBe('scene');
     expect(patternStarMapInk.starMapLayerElevated).toBe(true);
     expect(patternStarMapInk.starMapLayerZ).toBeGreaterThan(patternStarMapInk.patternLayerZ);
+    expect(patternStarMapInk.starMapLayerClipPath).toBe('none');
     expect(patternStarMapInk.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
     expect(patternStarMapInk.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);
     expect(patternStarMapInk.patternProgress).toBe(1);

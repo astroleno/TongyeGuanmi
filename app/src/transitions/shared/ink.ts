@@ -8,6 +8,7 @@ import type {
   TransitionModule
 } from '../../story/types';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from './layerElevation';
+import { createCurtainInkRenderer, type CurtainInkRenderer } from './sceneInk';
 
 export type InkOrigin = {
   x: number;
@@ -97,95 +98,6 @@ function ensureCanvas(container: HTMLElement | null, id: SegmentId, origin: InkO
   return canvas;
 }
 
-function renderInkCanvas(canvas: HTMLCanvasElement | null, progress: number, origin: InkOrigin): void {
-  if (!canvas) {
-    return;
-  }
-  const rect = canvas.getBoundingClientRect();
-  const ratio = Math.min(window.devicePixelRatio || 1, 1.35);
-  const width = Math.max(1, Math.round((rect.width || window.innerWidth || 1) * ratio));
-  const height = Math.max(1, Math.round((rect.height || window.innerHeight || 1) * ratio));
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
-  const context = canvas.getContext('2d');
-  if (!context) {
-    return;
-  }
-  const p = smoothStep(clamp(progress));
-  canvas.style.visibility = p > 0.002 && p < 0.998 ? 'visible' : 'hidden';
-  canvas.style.opacity = p > 0.002 && p < 0.998 ? '1' : '0';
-  context.clearRect(0, 0, width, height);
-  if (p <= 0.002 || p >= 0.998) {
-    return;
-  }
-
-  const cx = origin.x * width;
-  const cy = origin.y * height;
-  const corners = [
-    [0, 0],
-    [width, 0],
-    [0, height],
-    [width, height]
-  ] as const;
-  const maxRadius = Math.max(...corners.map(([x, y]) => Math.hypot(x - cx, y - cy)));
-  const radius = maxRadius * (0.04 + p * 1.06);
-  const edge = Math.max(18 * ratio, radius * 0.035);
-  const gradient = context.createRadialGradient(cx, cy, Math.max(0, radius - edge * 2.2), cx, cy, radius + edge);
-  gradient.addColorStop(0, 'rgba(4, 8, 7, 0.72)');
-  gradient.addColorStop(0.72, 'rgba(8, 18, 14, 0.46)');
-  gradient.addColorStop(0.88, 'rgba(183, 91, 52, 0.22)');
-  gradient.addColorStop(1, 'rgba(4, 8, 7, 0)');
-  context.fillStyle = gradient;
-  context.beginPath();
-  context.arc(cx, cy, radius + edge, 0, Math.PI * 2);
-  context.fill();
-
-  context.globalCompositeOperation = 'screen';
-  context.fillStyle = 'rgba(232, 213, 154, 0.12)';
-  for (let index = 0; index < 44; index += 1) {
-    const angle = index * 2.399963 + p * 1.7;
-    const distance = radius * (0.82 + ((index * 37) % 17) / 100);
-    const dotRadius = (2 + ((index * 19) % 9)) * ratio * (1 - Math.abs(p - 0.5) * 0.7);
-    context.beginPath();
-    context.arc(cx + Math.cos(angle) * distance, cy + Math.sin(angle) * distance, dotRadius, 0, Math.PI * 2);
-    context.fill();
-  }
-  context.globalCompositeOperation = 'source-over';
-}
-
-function applyClip(element: HTMLElement | null, progress: number, origin: InkOrigin): void {
-  if (!element) {
-    return;
-  }
-  const p = smoothStep(clamp(progress));
-  if (p <= 0.001) {
-    element.style.clipPath = `circle(0% at ${(origin.x * 100).toFixed(2)}% ${(origin.y * 100).toFixed(2)}%)`;
-    element.style.setProperty('-webkit-clip-path', element.style.clipPath);
-    return;
-  }
-  if (p >= 0.999) {
-    element.style.clipPath = '';
-    element.style.removeProperty('-webkit-clip-path');
-    return;
-  }
-  const rect = element.getBoundingClientRect();
-  const width = Math.max(1, rect.width || window.innerWidth || 1);
-  const height = Math.max(1, rect.height || window.innerHeight || 1);
-  const cx = origin.x * width;
-  const cy = origin.y * height;
-  const radiusPx = Math.max(
-    Math.hypot(cx, cy),
-    Math.hypot(width - cx, cy),
-    Math.hypot(cx, height - cy),
-    Math.hypot(width - cx, height - cy)
-  ) * (0.04 + p * 1.06);
-  const clip = `circle(${radiusPx.toFixed(2)}px at ${(origin.x * 100).toFixed(2)}% ${(origin.y * 100).toFixed(2)}%)`;
-  element.style.clipPath = clip;
-  element.style.setProperty('-webkit-clip-path', clip);
-}
-
 class InkSegmentTimeline implements SegmentTimelineHandle {
   readonly labels: Readonly<Record<string, number>>;
   readonly pauses: readonly string[];
@@ -194,6 +106,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private disposed = false;
   private animationFrame = 0;
   private readonly canvas: HTMLCanvasElement | null;
+  private readonly inkRenderer: CurtainInkRenderer | null;
   private readonly elevation: TransitionLayerElevation;
 
   constructor(
@@ -209,7 +122,16 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     ]);
     this.pauses = stops.map((_, index) => `stage:${index}`);
     this.canvas = ensureCanvas(context.to.element, options.id, options.origin);
+    this.inkRenderer = createCurtainInkRenderer(this.canvas, {
+      direction: options.origin.y >= 0.5 ? 'bottom-up' : 'top-down',
+      colorLift: 0.56,
+      coverAlpha: 0.82,
+      fadeOutStart: 0.74,
+      fadeOutEnd: 0.98,
+      progressSpan: 1
+    });
     this.elevation = createTransitionLayerElevation(context.to.element);
+    this.inkRenderer?.prewarm();
     this.progress(0);
   }
 
@@ -237,8 +159,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.context.to.element?.setAttribute('data-r4-ink-active', String(inkProgress > 0.002 && inkProgress < 0.998));
     this.context.to.element?.setAttribute('data-r4-clip-progress', clipProgress.toFixed(4));
     this.context.to.element?.setAttribute('data-r4-ink-progress', inkProgress.toFixed(4));
-    applyClip(this.context.to.element, clipProgress, this.options.origin);
-    renderInkCanvas(this.canvas, inkProgress, this.options.origin);
+    this.inkRenderer?.render(inkProgress);
     const fromProgress = mappedProgress(this.options.renderFromProgress, clamped, 'remaining');
     const toProgress = mappedProgress(this.options.renderToProgress, clamped, 'forward');
     this.options.renderFrom?.(sceneRoot(this.context.from.element, this.context.from.scene, this.options.rootSelector), fromProgress);
@@ -268,7 +189,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
     }
-    this.canvas?.remove();
+    this.inkRenderer?.destroy();
     this.elevation.restore();
     this.context.to.element?.style.removeProperty('clip-path');
     this.context.to.element?.style.removeProperty('-webkit-clip-path');

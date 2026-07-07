@@ -5,7 +5,7 @@ import storyContracts from './eslint-rules/story-contracts.mjs';
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', 'playwright-report/**', 'test-results/**']
+    ignores: ['dist/**', 'node_modules/**', 'playwright-report/**', 'test-results/**', 'src/vendor/**']
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

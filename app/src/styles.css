@@ -386,6 +386,7 @@ pre {
 }
 
 .r3-star-map {
+  --r3-star-scene-opacity: 1;
   --r3-star-copy-opacity: .72;
   --r3-star-canvas-opacity: .88;
   position: relative;
@@ -399,6 +400,7 @@ pre {
     radial-gradient(circle at 84% 74%, rgba(183, 91, 52, .10), transparent 34vw),
     linear-gradient(180deg, rgba(7, 17, 14, .96), #07110e),
     #07110e;
+  opacity: var(--r3-star-scene-opacity);
 }
 
 .r3-star-map__canvas,
@@ -613,6 +615,7 @@ pre {
 }
 
 .r4-pattern-scene {
+  --r4-pattern-scene-opacity: 1;
   --r4-pattern-progress: 1;
   --r4-pattern-opacity: 1;
   --r4-pattern-field-rotation: 0deg;
@@ -627,6 +630,7 @@ pre {
   isolation: isolate;
   color: #221815;
   background: #d9c08f;
+  opacity: var(--r4-pattern-scene-opacity);
 }
 
 .r4-pattern-scene__canvas,

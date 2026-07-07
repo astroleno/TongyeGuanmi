@@ -59,6 +59,7 @@ type Group3VisualSnapshot = {
   retainedArchCount: number;
   figure2LayerZ: number;
   proofLayerZ: number;
+  proofLayerClipPath: string;
   proofLayerElevated: boolean;
   proofInkRenderer: string | null;
   depthInkMode: string | null;
@@ -97,6 +98,7 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       retainedArchCount: document.querySelectorAll('[data-figure2-retained-arch="true"]').length,
       figure2LayerZ: Number.parseInt(window.getComputedStyle(figure2Layer ?? document.body).zIndex || '0', 10),
       proofLayerZ: Number.parseInt(window.getComputedStyle(proofLayer ?? document.body).zIndex || '0', 10),
+      proofLayerClipPath: window.getComputedStyle(proofLayer ?? document.body).clipPath,
       proofLayerElevated: proofLayer?.dataset.r4TransitionElevated === 'true',
       proofInkRenderer: proofRoot?.dataset.figure2ProofInkRenderer ?? proofLayer?.dataset.figure2ProofInkRenderer ?? null,
       depthInkMode: proofInkCanvas?.dataset.figure2DepthInkMode ?? null,
@@ -173,6 +175,7 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
           expect(visual.transitions).toContain('figure2-proof-overlay-scene-ink');
           expect(visual.proofLayerElevated).toBe(true);
           expect(visual.proofLayerZ).toBeGreaterThan(visual.figure2LayerZ);
+          expect(visual.proofLayerClipPath).toBe('none');
           expect(visual.proofInkRenderer).toBe('depth-scene');
           expect(visual.depthInkMode).toBe('threshold');
           expect(visual.depthReady).toBe(true);

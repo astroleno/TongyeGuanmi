@@ -17,6 +17,7 @@ export function renderStarMapProgress(root: HTMLElement | null, progress: number
   const clamped = Math.min(1, Math.max(0, progress));
   const copyOpacity = 0.72 * clamped;
   const canvasStrength = 0.88 * clamped;
+  root?.style.setProperty('--r3-star-scene-opacity', '1.0000');
   root?.style.setProperty('--r3-star-copy-opacity', copyOpacity.toFixed(4));
   root?.style.setProperty('--r3-star-canvas-opacity', canvasStrength.toFixed(4));
   root?.setAttribute('data-star-map-progress', clamped.toFixed(4));

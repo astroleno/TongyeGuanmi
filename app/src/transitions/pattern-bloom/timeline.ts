@@ -68,38 +68,6 @@ function ensureInkCanvas(container: HTMLElement | null, id: SegmentId): HTMLCanv
   return canvas;
 }
 
-function applyRadialClip(element: HTMLElement | null, progress: number, origin: { x: number; y: number }): void {
-  if (!element) {
-    return;
-  }
-  const clamped = smoothStep(clamp(progress));
-  if (clamped <= 0.001) {
-    const clip = `circle(0% at ${(origin.x * 100).toFixed(2)}% ${(origin.y * 100).toFixed(2)}%)`;
-    element.style.clipPath = clip;
-    element.style.setProperty('-webkit-clip-path', clip);
-    return;
-  }
-  if (clamped >= 0.999) {
-    element.style.clipPath = '';
-    element.style.removeProperty('-webkit-clip-path');
-    return;
-  }
-  const rect = element.getBoundingClientRect();
-  const width = Math.max(1, rect.width || window.innerWidth || 1);
-  const height = Math.max(1, rect.height || window.innerHeight || 1);
-  const cx = origin.x * width;
-  const cy = origin.y * height;
-  const radius = Math.max(
-    Math.hypot(cx, cy),
-    Math.hypot(width - cx, cy),
-    Math.hypot(cx, height - cy),
-    Math.hypot(width - cx, height - cy)
-  ) * (0.04 + clamped * 1.06);
-  const clip = `circle(${radius.toFixed(2)}px at ${(origin.x * 100).toFixed(2)}% ${(origin.y * 100).toFixed(2)}%)`;
-  element.style.clipPath = clip;
-  element.style.setProperty('-webkit-clip-path', clip);
-}
-
 function setTransitionAttrs(
   element: HTMLElement | null,
   id: SegmentId,
@@ -239,31 +207,33 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
   private renderHeroPattern(progress: number): void {
     const reveal = patternRevealProgressForHeroPattern(progress);
     const bloom = patternBloomProgressForHeroPattern(progress);
+    const sceneOpacity = reveal >= 0.998 ? 1 : 0;
     const patternRoot = sceneRoot(this.context.to.element, 'pattern');
     renderHeroProgress(sceneRoot(this.context.from.element, 'hero'), 1 - progress);
     renderPatternProgress(patternRoot, bloom, { visible: true });
+    patternRoot?.style.setProperty('--r4-pattern-scene-opacity', sceneOpacity.toFixed(4));
     patternRoot?.setAttribute('data-pattern-reveal-progress', reveal.toFixed(4));
     patternRoot?.setAttribute('data-pattern-bloom-progress', bloom.toFixed(4));
     patternRoot?.setAttribute('data-pattern-ink-renderer', 'scene');
     setTransitionAttrs(this.context.to.element, this.options.id, 'pattern-bloom-hero-scene-ink', reveal, reveal, progress);
-    applyRadialClip(this.context.to.element, reveal, { x: 0.5, y: 0.5 });
     this.inkRenderer?.render(reveal, reveal);
   }
 
   private renderPatternStarMap(progress: number): void {
     const secondReveal = patternSecondRevealProgressForStarMap(progress);
     const patternOpacity = patternTopSceneOpacityForStarMap(progress);
+    const starSceneOpacity = secondReveal >= 0.998 ? 1 : smoothStep(range01(secondReveal, 0.10, 0.28)) * 0.86;
     const patternRoot = sceneRoot(this.context.from.element, 'pattern');
     const starMapRoot = sceneRoot(this.context.to.element, 'star-map');
     renderPatternProgress(patternRoot, 1, { visible: true, opacity: patternOpacity });
     renderStarMapProgress(starMapRoot, secondReveal > 0.002 ? Math.max(0.92, smoothStep(range01(secondReveal, 0.002, 0.16))) : secondReveal);
+    starMapRoot?.style.setProperty('--r3-star-scene-opacity', starSceneOpacity.toFixed(4));
     patternRoot?.setAttribute('data-pattern-second-reveal-progress', secondReveal.toFixed(4));
     patternRoot?.setAttribute('data-pattern-top-scene-opacity', patternOpacity.toFixed(4));
     patternRoot?.setAttribute('data-pattern-ink-renderer', 'scene');
     starMapRoot?.setAttribute('data-pattern-second-reveal-progress', secondReveal.toFixed(4));
     starMapRoot?.setAttribute('data-pattern-ink-renderer', 'scene');
     setTransitionAttrs(this.context.to.element, this.options.id, 'pattern-bloom-star-map-scene-ink', secondReveal, secondReveal, progress);
-    applyRadialClip(this.context.to.element, secondReveal, { x: 0.24, y: 0.55 });
     this.inkRenderer?.render(secondReveal, secondReveal, {
       perlinStrength: 0.40,
       sceneBrightness: 0.92
