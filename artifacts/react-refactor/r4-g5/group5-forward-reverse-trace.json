@@ -1,0 +1,300 @@
+{
+  "phase": "hold",
+  "mode": "group5",
+  "window": {
+    "current": "ttg-animation",
+    "retiring": [],
+    "prev": "services",
+    "next": "lab"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 3,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "BUILD_READY:services-ttg",
+    "PLAY:services-ttg:1",
+    "BUILD_READY:ttg-lab",
+    "PLAY:ttg-lab:1",
+    "BUILD_READY:ttg-lab",
+    "PLAY:ttg-lab:-1"
+  ],
+  "recoveryCount": 0,
+  "staleCompletionIgnored": 0,
+  "trace": [
+    {
+      "at": 1783434233553,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g5-group5",
+      "cursor": {
+        "status": "hold",
+        "scene": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783434233553,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g5-group5",
+      "cursor": {
+        "status": "hold",
+        "scene": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783434233569,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g5-group5",
+      "prepareToken": "r4-g5-group5:prepare:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783434233572,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "ttg-animation",
+        "prepareToken": "r4-g5-group5:prepare:1"
+      },
+      "actorEpoch": "r4-g5-group5",
+      "activeRunId": "r4-g5-group5:1",
+      "cursor": {
+        "status": "segment",
+        "segment": "services-ttg",
+        "from": "services",
+        "to": "ttg-animation"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 4
+    },
+    {
+      "at": 1783434234776,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g5-group5:1"
+      },
+      "actorEpoch": "r4-g5-group5",
+      "cursor": {
+        "status": "settling",
+        "segment": "services-ttg",
+        "from": "services",
+        "to": "ttg-animation",
+        "target": "ttg-animation"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 5
+    },
+    {
+      "at": 1783434235956,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g5-group5",
+      "prepareToken": "r4-g5-group5:prepare:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "ttg-animation"
+      },
+      "layerWindow": {
+        "current": "ttg-animation",
+        "retiring": [],
+        "prev": "services",
+        "next": "lab"
+      },
+      "id": 6
+    },
+    {
+      "at": 1783434235957,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "lab",
+        "prepareToken": "r4-g5-group5:prepare:2"
+      },
+      "actorEpoch": "r4-g5-group5",
+      "activeRunId": "r4-g5-group5:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "ttg-lab",
+        "from": "ttg-animation",
+        "to": "lab"
+      },
+      "layerWindow": {
+        "current": "ttg-animation",
+        "retiring": [],
+        "prev": "services",
+        "next": "lab"
+      },
+      "id": 7
+    },
+    {
+      "at": 1783434238459,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g5-group5:2"
+      },
+      "actorEpoch": "r4-g5-group5",
+      "cursor": {
+        "status": "settling",
+        "segment": "ttg-lab",
+        "from": "ttg-animation",
+        "to": "lab",
+        "target": "lab"
+      },
+      "layerWindow": {
+        "current": "ttg-animation",
+        "retiring": [],
+        "prev": "services",
+        "next": "lab"
+      },
+      "id": 8
+    },
+    {
+      "at": 1783434238881,
+      "event": {
+        "type": "RETIRING_RELEASED"
+      },
+      "actorEpoch": "r4-g5-group5",
+      "cursor": {
+        "status": "hold",
+        "scene": "lab"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783434239327,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": -1
+      },
+      "actorEpoch": "r4-g5-group5",
+      "prepareToken": "r4-g5-group5:prepare:3",
+      "cursor": {
+        "status": "hold",
+        "scene": "lab"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783434239328,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "ttg-animation",
+        "prepareToken": "r4-g5-group5:prepare:3"
+      },
+      "actorEpoch": "r4-g5-group5",
+      "activeRunId": "r4-g5-group5:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "ttg-lab",
+        "from": "ttg-animation",
+        "to": "lab"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation"
+      },
+      "id": 11
+    },
+    {
+      "at": 1783434241842,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g5-group5:3"
+      },
+      "actorEpoch": "r4-g5-group5",
+      "cursor": {
+        "status": "settling",
+        "segment": "ttg-lab",
+        "from": "ttg-animation",
+        "to": "lab",
+        "target": "ttg-animation"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation"
+      },
+      "id": 12
+    }
+  ],
+  "layers": [
+    {
+      "scene": "services",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "ttg-animation",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    },
+    {
+      "scene": "lab",
+      "role": "next",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    }
+  ]
+}
