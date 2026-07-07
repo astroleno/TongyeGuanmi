@@ -995,6 +995,232 @@ pre {
   }
 }
 
+.r4-proof,
+.r4-brand {
+  position: relative;
+  width: 100%;
+  height: 100svh;
+  min-height: 100svh;
+  overflow: hidden;
+  isolation: isolate;
+  color: rgba(36, 38, 28, .92);
+  background:
+    radial-gradient(ellipse at 50% 18%, rgba(255, 252, 244, .48), transparent 34rem),
+    linear-gradient(180deg, #f6f2e8 0%, #ece8dc 58%, #e4ddcf 100%);
+  color-scheme: light;
+}
+
+.r4-proof::before,
+.r4-brand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .42;
+  background:
+    radial-gradient(ellipse at 50% 16%, rgba(255, 252, 244, .54), transparent 34rem),
+    linear-gradient(90deg, rgba(5, 8, 7, .05) 0%, transparent 18%, transparent 82%, rgba(5, 8, 7, .06) 100%);
+}
+
+.r4-proof__lead,
+.r4-proof-cards__list,
+.r4-proof-closing p,
+.r4-brand__grid {
+  position: relative;
+  z-index: 1;
+}
+
+.r4-proof-opening {
+  --r4-proof-opening-opacity: 1;
+  --r4-proof-opening-y: 0px;
+  display: grid;
+  align-items: center;
+  padding: clamp(72px, 9svh, 118px) max(96px, 8vw);
+}
+
+.r4-proof-opening .r4-proof__lead {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(20px, 2.6vw, 34px);
+  max-width: 420px;
+  opacity: var(--r4-proof-opening-opacity);
+  transform: translate3d(0, var(--r4-proof-opening-y), 0);
+}
+
+.r4-proof__lead > span {
+  color: rgba(120, 99, 41, .82);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: .18em;
+  line-height: 1.7;
+}
+
+.r4-proof__lead h2 {
+  max-width: 7.4em;
+  margin: 0;
+  color: rgba(36, 38, 28, .82);
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(40px, 4.7vw, 82px);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.r4-proof__lead h2 span {
+  display: block;
+}
+
+.r4-proof-cards {
+  --r4-proof-cards-opacity: 1;
+  --r4-proof-cards-y: 0px;
+  display: grid;
+  align-items: center;
+  padding: clamp(72px, 9svh, 118px) max(96px, 8vw);
+}
+
+.r4-proof-cards__list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(37, 39, 25, .16);
+  list-style: none;
+  opacity: var(--r4-proof-cards-opacity);
+  transform: translate3d(0, var(--r4-proof-cards-y), 0);
+}
+
+.r4-proof-cards__row {
+  display: grid;
+  grid-template-columns: 56px minmax(200px, .9fr) minmax(0, 2.6fr);
+  gap: clamp(24px, 3vw, 52px);
+  align-items: baseline;
+  padding: clamp(30px, 3.4vw, 48px) 0;
+  border-bottom: 1px solid rgba(37, 39, 25, .14);
+}
+
+.r4-proof-cards__row span {
+  color: rgba(120, 99, 41, .92);
+  font-size: clamp(14px, .9vw, 18px);
+  font-weight: 760;
+}
+
+.r4-proof-cards__row strong {
+  color: rgba(36, 38, 28, .92);
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(42px, 2.7vw, 58px);
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.r4-proof-cards__row p {
+  max-width: 30em;
+  margin: 0;
+  color: rgba(36, 38, 28, .56);
+  font-size: clamp(18px, 1.2vw, 24px);
+  line-height: 1.72;
+}
+
+.r4-proof-closing {
+  --r4-proof-closing-opacity: 1;
+  --r4-proof-closing-y: 0px;
+  display: grid;
+  place-items: center start;
+  padding: clamp(72px, 9svh, 118px) max(96px, 8vw);
+}
+
+.r4-proof-closing p {
+  max-width: 13.5em;
+  margin: 0;
+  color: rgba(36, 38, 28, .86);
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(36px, 4.4vw, 78px);
+  font-weight: 600;
+  line-height: 1.12;
+  opacity: var(--r4-proof-closing-opacity);
+  transform: translate3d(0, var(--r4-proof-closing-y), 0);
+}
+
+.r4-brand {
+  --r4-brand-opacity: 1;
+  --r4-brand-y: 0px;
+  display: grid;
+  align-items: center;
+  padding: clamp(72px, 9svh, 118px) max(72px, 7vw);
+}
+
+.r4-brand__grid {
+  width: min(1180px, 84vw);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(28px, 6vw, 96px);
+  margin: 0 auto;
+  opacity: var(--r4-brand-opacity);
+  transform: translate3d(0, var(--r4-brand-y), 0);
+}
+
+.r4-brand__definition {
+  display: grid;
+  gap: clamp(18px, 2.2vw, 30px);
+  align-self: start;
+}
+
+.r4-brand__definition--right {
+  margin-top: clamp(84px, 12svh, 160px);
+}
+
+.r4-brand__definition span {
+  color: rgba(120, 99, 41, .88);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: .18em;
+  line-height: 1.7;
+}
+
+.r4-brand__definition h2 {
+  max-width: 9.6em;
+  margin: 0;
+  color: rgba(36, 38, 28, .9);
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: clamp(34px, 4.4vw, 74px);
+  font-weight: 600;
+  line-height: 1.08;
+}
+
+.r4-brand__definition p {
+  max-width: 34em;
+  margin: 0;
+  color: rgba(36, 38, 28, .60);
+  font-size: clamp(16px, 1.16vw, 19px);
+  line-height: 1.86;
+}
+
+@media (max-width: 860px) {
+  .r4-proof-opening,
+  .r4-proof-cards,
+  .r4-proof-closing,
+  .r4-brand {
+    padding-inline: 24px;
+  }
+
+  .r4-proof-cards__row {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .r4-proof-cards__row p {
+    grid-column: 2;
+  }
+
+  .r4-brand__grid {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .r4-brand__definition--right {
+    margin-top: 0;
+  }
+}
+
 .aod-transition {
   --aod-transition-progress: 0;
   --aod-transition-paper: #ede4d2;
