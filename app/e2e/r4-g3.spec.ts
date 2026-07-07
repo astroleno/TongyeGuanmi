@@ -60,6 +60,10 @@ type Group3VisualSnapshot = {
   figure2LayerZ: number;
   proofLayerZ: number;
   proofLayerElevated: boolean;
+  proofInkRenderer: string | null;
+  depthInkMode: string | null;
+  depthReady: boolean;
+  figureMaskReady: boolean;
 };
 
 async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
@@ -72,6 +76,7 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
     const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
     const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
+    const proofInkCanvas = document.querySelector<HTMLCanvasElement>('[data-r4-ink-segment="figure2-distance-expand"]');
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
@@ -92,7 +97,11 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       retainedArchCount: document.querySelectorAll('[data-figure2-retained-arch="true"]').length,
       figure2LayerZ: Number.parseInt(window.getComputedStyle(figure2Layer ?? document.body).zIndex || '0', 10),
       proofLayerZ: Number.parseInt(window.getComputedStyle(proofLayer ?? document.body).zIndex || '0', 10),
-      proofLayerElevated: proofLayer?.dataset.r4TransitionElevated === 'true'
+      proofLayerElevated: proofLayer?.dataset.r4TransitionElevated === 'true',
+      proofInkRenderer: proofRoot?.dataset.figure2ProofInkRenderer ?? proofLayer?.dataset.figure2ProofInkRenderer ?? null,
+      depthInkMode: proofInkCanvas?.dataset.figure2DepthInkMode ?? null,
+      depthReady: proofInkCanvas?.dataset.figure2DepthReady === 'true',
+      figureMaskReady: proofInkCanvas?.dataset.figure2FigureMaskReady === 'true'
     };
   });
 }
@@ -164,6 +173,10 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
           expect(visual.transitions).toContain('figure2-proof-overlay-scene-ink');
           expect(visual.proofLayerElevated).toBe(true);
           expect(visual.proofLayerZ).toBeGreaterThan(visual.figure2LayerZ);
+          expect(visual.proofInkRenderer).toBe('depth-scene');
+          expect(visual.depthInkMode).toBe('threshold');
+          expect(visual.depthReady).toBe(true);
+          expect(visual.figureMaskReady).toBe(true);
           expect(visual.proofOpeningProgress).toBeGreaterThan(0);
           expect(visual.proofOverlayProgress).toBeGreaterThan(0);
           expect(visual.proofArchArea).toBeGreaterThan(100_000);

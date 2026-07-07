@@ -9,7 +9,12 @@ import type {
   TransitionModule
 } from '../../story/types';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
-import { createSceneInkRenderer, type SceneInkRenderer } from '../shared/sceneInk';
+import { createFigure2DepthInkRenderer, type Figure2DepthInkRenderer } from '../shared/figure2DepthInk';
+
+const FIGURE2_DEPTH_IMAGE = new URL('../../../../assets/figure2-middle-depth.png', import.meta.url).href;
+const FIGURE2_NEXT_WHITE_IMAGE = new URL('../../../../assets/figure2-next-white.png', import.meta.url).href;
+const FIGURE2_PAPER_GROUND = '#ece8dc';
+const FIGURE2_PAPER_GROUND_SOFT = '#f6f2e8';
 
 type Figure2ProofSample = {
   from: LayerVisibilityState;
@@ -46,41 +51,130 @@ function ensureInkCanvas(container: HTMLElement | null): HTMLCanvasElement | nul
   const canvas = document.createElement('canvas');
   canvas.className = 'r4-ink-transition-canvas r4-scene-ink-canvas r4-figure2-proof-ink-canvas';
   canvas.dataset.r4InkSegment = 'figure2-distance-expand';
-  canvas.dataset.figure2ProofInkRenderer = 'scene';
+  canvas.dataset.figure2ProofInkRenderer = 'depth-scene';
   canvas.setAttribute('aria-hidden', 'true');
   container.append(canvas);
   return canvas;
 }
 
-function applyRadialClip(element: HTMLElement | null, progress: number): void {
-  if (!element) {
+type ProofPaperTexture = {
+  canvas: HTMLCanvasElement;
+  update(): void;
+  destroy(): void;
+};
+
+function createProofPaperTexture(): ProofPaperTexture | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d', { alpha: true });
+  if (!context) {
+    return null;
+  }
+
+  let width = 0;
+  let height = 0;
+  let disposed = false;
+
+  return {
+    canvas,
+    update() {
+      if (disposed) {
+        return;
+      }
+      const viewportWidth = Math.max(1, window.innerWidth || 1);
+      const viewportHeight = Math.max(1, window.innerHeight || 1);
+      const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+      const nextWidth = Math.round(viewportWidth * ratio);
+      const nextHeight = Math.round(viewportHeight * ratio);
+      if (nextWidth === width && nextHeight === height && canvas.dataset.inkTextureReady === 'true') {
+        return;
+      }
+      width = nextWidth;
+      height = nextHeight;
+      canvas.width = width;
+      canvas.height = height;
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, viewportWidth, viewportHeight);
+      const paperGradient = context.createLinearGradient(0, 0, 0, viewportHeight);
+      paperGradient.addColorStop(0, FIGURE2_PAPER_GROUND_SOFT);
+      paperGradient.addColorStop(0.58, FIGURE2_PAPER_GROUND);
+      paperGradient.addColorStop(1, '#e4ddcf');
+      context.fillStyle = paperGradient;
+      context.fillRect(0, 0, viewportWidth, viewportHeight);
+      canvas.dataset.inkTextureReady = 'true';
+    },
+    destroy() {
+      disposed = true;
+      canvas.dataset.inkTextureReady = 'false';
+    }
+  };
+}
+
+function ensureFigureMaskCanvas(fromRoot: HTMLElement | null): HTMLCanvasElement | null {
+  const figureGroup = fromRoot?.querySelector<HTMLElement>('.r4-figure2__figures') ?? null;
+  if (!figureGroup) {
+    return null;
+  }
+  const existing = figureGroup.querySelector<HTMLCanvasElement>(':scope > canvas[data-r4-figure2-mask-canvas="true"]');
+  if (existing) {
+    return existing;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.className = 'r4-figure2__figure-mask-canvas';
+  canvas.dataset.r4Figure2MaskCanvas = 'true';
+  canvas.dataset.inkTextureReady = 'false';
+  canvas.setAttribute('aria-hidden', 'true');
+  figureGroup.append(canvas);
+  return canvas;
+}
+
+function updateFigureMaskCanvas(canvas: HTMLCanvasElement | null, fromRoot: HTMLElement | null, inkProgress: number): void {
+  const figureGroup = fromRoot?.querySelector<HTMLElement>('.r4-figure2__figures') ?? null;
+  const context = canvas?.getContext('2d', { alpha: true }) ?? null;
+  if (!canvas || !context || !figureGroup || inkProgress <= 0.001) {
+    if (canvas) {
+      canvas.dataset.inkTextureReady = 'false';
+    }
     return;
   }
-  const clamped = smoothStep(clamp(progress));
-  if (clamped <= 0.001) {
-    element.style.clipPath = 'circle(0% at 50.00% 52.00%)';
-    element.style.setProperty('-webkit-clip-path', element.style.clipPath);
-    return;
+
+  const groupRect = figureGroup.getBoundingClientRect();
+  const ratio = Math.min(window.devicePixelRatio || 1, 1.35);
+  const width = Math.max(1, Math.round(groupRect.width * ratio));
+  const height = Math.max(1, Math.round(groupRect.height * ratio));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
   }
-  if (clamped >= 0.999) {
-    element.style.clipPath = '';
-    element.style.removeProperty('-webkit-clip-path');
-    return;
+
+  context.clearRect(0, 0, width, height);
+  let drewFrame = false;
+
+  for (const video of fromRoot?.querySelectorAll<HTMLVideoElement>('[data-figure2-video]') ?? []) {
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) {
+      continue;
+    }
+    const rect = video.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      continue;
+    }
+    try {
+      context.drawImage(
+        video,
+        (rect.left - groupRect.left) * ratio,
+        (rect.top - groupRect.top) * ratio,
+        rect.width * ratio,
+        rect.height * ratio
+      );
+      drewFrame = true;
+    } catch {
+      // The video buffer can miss a frame while the browser swaps decoded data.
+    }
   }
-  const rect = element.getBoundingClientRect();
-  const width = Math.max(1, rect.width || window.innerWidth || 1);
-  const height = Math.max(1, rect.height || window.innerHeight || 1);
-  const cx = width * 0.5;
-  const cy = height * 0.52;
-  const radius = Math.max(
-    Math.hypot(cx, cy),
-    Math.hypot(width - cx, cy),
-    Math.hypot(cx, height - cy),
-    Math.hypot(width - cx, height - cy)
-  ) * (0.04 + clamped * 1.06);
-  const clip = `circle(${radius.toFixed(2)}px at 50.00% 52.00%)`;
-  element.style.clipPath = clip;
-  element.style.setProperty('-webkit-clip-path', clip);
+
+  canvas.dataset.inkTextureReady = drewFrame ? 'true' : 'false';
 }
 
 export function figure2ProofRevealProgress(progress: number): number {
@@ -96,24 +190,33 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   private animationFrame = 0;
   private reportedTimelineReady = false;
   private readonly inkCanvas: HTMLCanvasElement | null;
-  private readonly inkRenderer: SceneInkRenderer | null;
+  private readonly inkRenderer: Figure2DepthInkRenderer | null;
   private readonly elevation: TransitionLayerElevation;
+  private readonly proofTexture: ProofPaperTexture | null;
+  private readonly figureMaskCanvas: HTMLCanvasElement | null;
 
   constructor(private readonly context: TransitionContext) {
+    const fromRoot = sceneRoot(context.from.element, 'figure2-animation');
     const proofRoot = sceneRoot(context.to.element, 'figure2-proof-opening');
     this.elevation = createTransitionLayerElevation(context.to.element);
-    this.inkCanvas = ensureInkCanvas(proofRoot);
-    this.inkRenderer = createSceneInkRenderer(this.inkCanvas, {
-      hideAtEnd: true,
-      perlinOverlay: true,
-      perlinStrength: 0.36,
-      progressSpan: 1.04,
-      colorLift: 0.64,
+    this.proofTexture = createProofPaperTexture();
+    this.proofTexture?.update();
+    this.figureMaskCanvas = ensureFigureMaskCanvas(fromRoot);
+    this.inkCanvas = ensureInkCanvas(context.to.element);
+    this.inkRenderer = createFigure2DepthInkRenderer(this.inkCanvas, {
+      targetSrc: FIGURE2_NEXT_WHITE_IMAGE,
+      depthSrc: FIGURE2_DEPTH_IMAGE,
+      nextSceneElement: this.proofTexture?.canvas ?? null,
+      figureMaskElement: this.figureMaskCanvas,
+      hideAtEnd: false,
+      progressSpan: 1,
+      colorLift: 0.34,
       sceneBrightness: 1,
       inkCenterX: 0.5,
       inkCenterY: 0.52,
       transparentOutside: true
     });
+    proofRoot?.setAttribute('data-figure2-proof-ink-renderer', 'depth-scene');
     this.inkRenderer?.prewarm();
     this.progress(0);
   }
@@ -166,6 +269,8 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       this.animationFrame = 0;
     }
     this.inkRenderer?.destroy();
+    this.proofTexture?.destroy();
+    this.figureMaskCanvas?.remove();
     this.elevation.restore();
     this.context.to.element?.style.removeProperty('clip-path');
     this.context.to.element?.style.removeProperty('-webkit-clip-path');
@@ -176,6 +281,8 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof-opening');
     renderFigure2ProofTransitionProgress(fromRoot, reveal);
     renderProofOpeningProgress(toRoot, reveal);
+    this.proofTexture?.update();
+    updateFigureMaskCanvas(this.figureMaskCanvas, fromRoot, reveal);
     toRoot?.style.setProperty('--r4-proof-overlay-opacity', overlayOpacity.toFixed(4));
     toRoot?.style.setProperty('--r4-proof-reveal-stop', `${(-12 + reveal * 122).toFixed(2)}%`);
     toRoot?.style.setProperty('--r4-proof-reveal-edge', `${(2 + reveal * 132).toFixed(2)}%`);
@@ -186,13 +293,12 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     this.context.to.element?.setAttribute('data-r4-ink-active', String(reveal > 0.002 && reveal < 0.998));
     this.context.to.element?.setAttribute('data-r4-ink-progress', reveal.toFixed(4));
     this.context.to.element?.setAttribute('data-r4-clip-progress', reveal.toFixed(4));
-    this.context.to.element?.setAttribute('data-figure2-proof-ink-renderer', 'scene');
+    this.context.to.element?.setAttribute('data-figure2-proof-ink-renderer', 'depth-scene');
     toRoot?.setAttribute('data-r4-transition', 'figure2-proof-overlay-scene-ink');
     toRoot?.setAttribute('data-r4-ink-active', String(reveal > 0.002 && reveal < 0.998));
     toRoot?.setAttribute('data-r4-ink-progress', reveal.toFixed(4));
-    toRoot?.setAttribute('data-figure2-proof-ink-renderer', 'scene');
-    applyRadialClip(this.context.to.element, reveal);
-    this.inkRenderer?.render(reveal, reveal, { perlinStrength: 0.36, sceneBrightness: 1 });
+    toRoot?.setAttribute('data-figure2-proof-ink-renderer', 'depth-scene');
+    this.inkRenderer?.render(reveal, reveal);
   }
 
   private animateTo(target: number): Promise<void> {

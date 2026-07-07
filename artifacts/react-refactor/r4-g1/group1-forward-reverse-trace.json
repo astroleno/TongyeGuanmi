@@ -34,7 +34,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783413470498,
+      "at": 1783417973544,
       "event": {
         "type": "BOOT_READY"
       },
@@ -51,7 +51,7 @@
       "id": 1
     },
     {
-      "at": 1783413470498,
+      "at": 1783417973545,
       "event": {
         "type": "BOOT_READY"
       },
@@ -68,7 +68,7 @@
       "id": 2
     },
     {
-      "at": 1783413472588,
+      "at": 1783417975547,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -87,7 +87,7 @@
       "id": 3
     },
     {
-      "at": 1783413472588,
+      "at": 1783417975547,
       "event": {
         "type": "TARGET_READY",
         "scene": "pattern",
@@ -109,7 +109,7 @@
       "id": 4
     },
     {
-      "at": 1783413474200,
+      "at": 1783417977187,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-group1:1"
@@ -130,7 +130,7 @@
       "id": 5
     },
     {
-      "at": 1783413474816,
+      "at": 1783417977771,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -150,7 +150,7 @@
       "id": 6
     },
     {
-      "at": 1783413474838,
+      "at": 1783417977777,
       "event": {
         "type": "TARGET_READY",
         "scene": "star-map",
@@ -173,7 +173,7 @@
       "id": 7
     },
     {
-      "at": 1783413476115,
+      "at": 1783417979082,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-group1:2"
@@ -195,7 +195,7 @@
       "id": 8
     },
     {
-      "at": 1783413477269,
+      "at": 1783417980198,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -212,7 +212,7 @@
       "id": 9
     },
     {
-      "at": 1783413479285,
+      "at": 1783417982391,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -231,7 +231,7 @@
       "id": 10
     },
     {
-      "at": 1783413479285,
+      "at": 1783417982391,
       "event": {
         "type": "TARGET_READY",
         "scene": "pattern",
@@ -253,7 +253,7 @@
       "id": 11
     },
     {
-      "at": 1783413480576,
+      "at": 1783417983710,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-group1:3"
