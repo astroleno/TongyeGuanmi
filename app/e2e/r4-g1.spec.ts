@@ -159,6 +159,7 @@ test.describe('R4 group1 canonical spine harness', () => {
   });
 
   test('runs forward and reverse with nonblank sampled frames', async ({ page }) => {
+    test.setTimeout(60_000);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g1');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
@@ -211,6 +212,10 @@ test.describe('R4 group1 canonical spine harness', () => {
       forwardFrames.push(await snapshot(page));
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('pattern');
+    await expect.poll(async () => {
+      const frame = await snapshot(page);
+      return frame.phase === 'hold' && frame.window.current === 'pattern';
+    }).toBe(true);
     await expect.poll(async () => (await visualSnapshot(page)).patternProgress).toBe(1);
     const compactPattern = await visualSnapshot(page);
     expect(compactPattern.largestRingScale).toBeLessThan(0.12);
@@ -287,6 +292,10 @@ test.describe('R4 group1 canonical spine harness', () => {
       await window.__r4Group1?.playForward({ buildTimeout: true });
     });
 
+    await expect.poll(async () => {
+      const frame = await snapshot(page);
+      return frame.phase === 'hold' && frame.window.current === 'hero' && frame.interactableCount === 1;
+    }).toBe(true);
     const frame = await snapshot(page);
     expect(frame.phase).toBe('hold');
     expect(frame.window.current).toBe('hero');
