@@ -1,16 +1,17 @@
-import { renderPatternProgress } from '../../scenes/pattern';
-import { renderStarMapProgress } from '../../scenes/star-map';
-import { createInkSegmentTransition } from '../shared/ink';
 import type { TransitionModule } from '../../story/types';
+import {
+  createPatternBloomTransition,
+  patternSecondRevealProgressForStarMap,
+  patternTopSceneOpacityForStarMap
+} from '../pattern-bloom/timeline';
+
+export { patternSecondRevealProgressForStarMap, patternTopSceneOpacityForStarMap };
 
 export function createPatternStarMapTransition(options: { delayMs?: () => number } = {}): TransitionModule {
-  return createInkSegmentTransition({
+  return createPatternBloomTransition({
     id: 'pattern-star-map',
     delayMs: options.delayMs,
-    origin: { x: 0.24, y: 0.55 },
-    renderFrom: (root) => renderPatternProgress(root, 1),
-    renderTo: renderStarMapProgress,
-    transitionAttr: 'pattern-star-map-left-ink'
+    variant: 'pattern-star-map'
   });
 }
 

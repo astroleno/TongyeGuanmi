@@ -2,9 +2,14 @@
 
 ## Status
 
-Draft for HITL confirmation before implementation.
+Iteration plan for the post-`39f8a76f`返工.
 
-Current g1-g3 work has validated the runtime contract path, harness shape, timeline checks, copy alignment, and regression plumbing. It does not yet satisfy visual parity with `main`. This document defines the g1-g3 visual parity返工 scope while preserving the existing R4 ownership and runtime architecture.
+`39f8a76f` proved the R4 runtime can host the g1-g3 spine, but it still approximates two main visuals with generic scene transitions:
+
+- g1 uses `createInkSegmentTransition()` plus a circular clip instead of the legacy `pattern-bloom-adapter` / `createInkSceneTransition` composition.
+- g3 keeps proof copy as independent scene handoffs instead of the legacy Figure2 field + `createProofScrollOverlay()` composition.
+
+This iteration must replace those approximations with dedicated adapters while preserving the existing R4 runtime contract. The goal is visual parity, not a smaller substitute.
 
 ## Non-Negotiables
 
@@ -28,7 +33,15 @@ Current g1-g3 work has validated the runtime contract path, harness shape, timel
 
 Add a transition helper only if it can reuse the current `TransitionModule` contract without runtime changes.
 
-Preferred shape:
+`createReadingSegmentTransition()` may remain for plain reading handoffs, but it must not be used as the primary implementation for:
+
+- `hero-pattern`
+- `pattern-star-map`
+- `figure2-distance-expand`
+
+Those segments need dedicated adapter semantics because their main behavior is not a generic ink reveal.
+
+Allowed plain reading shape:
 
 ```ts
 createReadingSegmentTransition({
@@ -47,13 +60,47 @@ Expected semantics:
 - Reduced motion remains a first-class branch.
 - No manifest policy or machine event changes.
 
-Candidate users:
+Candidate users after this iteration:
 
 - `method-top-method-bottom`
-- `figure2-proof-opening-cards`
-- `figure2-proof-cards-closing`
+- `figure2-proof-opening-cards`, only as a canonical cursor wrapper around the proof overlay scroll state.
+- `figure2-proof-cards-closing`, only as a canonical cursor wrapper around the proof overlay scroll state.
 
 `figure2-proof-brand` remains a canonical segment and may keep a visual handoff to `brand`, but it must match the confirmed visual semantics rather than a generic fade.
+
+## Dedicated Adapter Boundary
+
+### g1 `pattern-bloom` adapter
+
+Add a dedicated R4 pattern transition adapter rather than extending generic ink:
+
+- Owns both `hero-pattern` and `pattern-star-map`.
+- Reuses the existing React `PatternBloomRenderer` canvas as the lotus/petal field source.
+- Ports the main timing constants exactly:
+  - `REVEAL_END = 0.46`
+  - `BLOOM_START = 0.42`
+  - `BLOOM_END = 0.70`
+  - `SECOND_REVEAL_START = 0.58`
+  - `SECOND_REVEAL_END = 0.985`
+- Uses a WebGL ink scene renderer derived from `js/effects/ink-scene-transition.js` for the visible ink surface, not the existing 2D radial canvas.
+- Keeps scene IDs, segment IDs, manifest policy, `DirectorEvent`, `LayerWindow`, and visibility predicates unchanged.
+- Does not move pattern ownership into `star-map`.
+
+Segment mapping:
+
+- `hero-pattern`: segment progress uses the main pattern-bloom constants directly. Center ink reveal comes from `0 -> 0.46`; bloom collapse comes from `0.42 -> 0.70`; `0.70 -> 1` holds the compact pattern. Pattern canvas remains visible at `bloomProgress=0`; ink controls reveal.
+- `pattern-star-map`: global pattern bloom progress `0.58 -> 0.985`. Pattern source is held compact/ghosted, star-map receiver is revealed by the left/petal-center ink. Pattern exit opacity follows the main `topSceneExit` rhythm.
+
+### g3 `figure2-proof-overlay` adapter
+
+Add a dedicated proof overlay adapter rather than treating opening/cards/closing as unrelated screens:
+
+- `figure2-distance-expand` starts from the completed Figure2 field.
+- Stage 2 keeps the near foreground arch as the retained blurred horizontal arch.
+- Ink reveal drives proof overlay reveal, using the same reveal-stop/reveal-edge semantics as `createProofScrollOverlay()`.
+- Opening copy appears once during stage 2; later proof copy is normal vertical reading inside the same proof visual treatment.
+- Canonical proof scenes remain as spine nodes and static fallback owners, but their visual state must share the same proof overlay shell.
+- `figure2-proof-opening-cards` and `figure2-proof-cards-closing` update proof overlay scroll/page state; they must not introduce fade/cinematic scene transitions.
 
 ## g1 Required Fixes
 
@@ -77,7 +124,7 @@ Implementation direction:
 
 ### `hero-pattern`
 
-Current implementation is a crossfade. It must become center ink expansion.
+Current implementation is a generic clipped ink approximation. It must become the first half of the dedicated pattern bloom adapter.
 
 Required visual facts:
 
@@ -88,12 +135,15 @@ Required visual facts:
 
 Implementation direction:
 
-- Port the ink reveal behavior from `pattern-bloom-adapter` / `createInkSceneTransition`.
-- Use a local transition canvas or reusable ink helper, but keep the `TransitionModule` interface.
+- Replace `createInkSegmentTransition()` for this segment with the dedicated pattern bloom timeline.
+- Render the pattern canvas at `visible=true` even when `bloomProgress=0`.
+- Drive reveal ink with `smoothStep(range01(progress, 0, 0.46))`.
+- Drive bloom collapse with `range01(progress, 0.42, 0.70)`.
+- Expose testable attributes for `data-pattern-bloom-progress`, `data-pattern-reveal-progress`, and `data-pattern-ink-renderer`.
 
 ### `pattern-star-map`
 
-Current implementation is a crossfade. It must become the left-side pattern center ink expansion into star-map.
+Current implementation is a generic clipped ink approximation. It must become the second half of the dedicated pattern bloom adapter.
 
 Required visual facts:
 
@@ -103,8 +153,11 @@ Required visual facts:
 
 Implementation direction:
 
-- Port the exit ink behavior from `pattern-bloom-adapter`.
-- Use the pattern canvas as the source/ghost and `star-map` as the receiver.
+- Replace `createInkSegmentTransition()` for this segment with the dedicated pattern bloom timeline.
+- Drive second reveal with `smoothStep(range01(globalProgress, 0.58, 0.985))`.
+- Use the left/petal-center origin from main: desktop `0.24, 0.55`; mobile `0.50, 0.58`.
+- Keep the pattern source as a ghost until the main `topSceneExit` window completes.
+- Expose testable attributes for `data-pattern-second-reveal-progress`, `data-pattern-top-scene-opacity`, and `data-pattern-ink-renderer`.
 
 ## g2 Required Fixes
 
@@ -174,7 +227,7 @@ Implementation direction:
 
 ### `figure2-distance-expand`
 
-Current implementation fades from Figure2 into a plain proof screen. It must become Figure2 stage 2.
+Current implementation is still a generic ink handoff into a standalone proof scene. It must become Figure2 stage 2 plus proof overlay reveal.
 
 Required visual facts:
 
@@ -187,6 +240,7 @@ Required visual facts:
 
 Implementation direction:
 
+- Replace `createInkSegmentTransition()` for this segment with the dedicated Figure2 proof overlay timeline.
 - Extend the Figure2 controller/renderer so stage 2 can render:
   - completed intro state,
   - transition ink progress,
@@ -194,10 +248,11 @@ Implementation direction:
   - retained blurred near arch.
 - Port the proof overlay reveal behavior from `figure2-homepage-adapter`.
 - Avoid turning `figure2-distance-expand` into a scene; it remains a segment.
+- Expose testable attributes for `data-figure2-proof-overlay-progress`, `data-figure2-proof-reveal-stop`, and `data-figure2-retained-arch`.
 
 ### `figure2-proof-opening-cards`
 
-Current implementation is a fade. It should be reading/no-op visual behavior.
+Current implementation is a reading transition between independent proof scenes. It should instead update the shared proof overlay page/scroll state.
 
 Required visual facts:
 
@@ -208,12 +263,14 @@ Required visual facts:
 
 Implementation direction:
 
-- Use the reading transition helper.
+- Keep the canonical segment.
+- Use a proof overlay page timeline that visually moves from opening copy to cards inside one retained proof treatment.
+- The proof arch and paper field remain present across both holds.
 - Remove fade-specific assertions and CSS variable animation expectations.
 
 ### `figure2-proof-cards-closing`
 
-Current implementation is a fade. It should be reading/no-op visual behavior.
+Current implementation is a reading transition between independent proof scenes. It should instead update the shared proof overlay page/scroll state.
 
 Required visual facts:
 
@@ -223,7 +280,9 @@ Required visual facts:
 
 Implementation direction:
 
-- Use the reading transition helper.
+- Keep the canonical segment.
+- Use a proof overlay page timeline that visually moves from cards to closing inside one retained proof treatment.
+- The proof arch and paper field remain present across both holds.
 - Preserve copy baseline and segment harness.
 
 ### `figure2-proof-brand`
@@ -263,8 +322,12 @@ Existing tests are allowed to fail during返工 if they protect incorrect visual
 ### Playwright / Harness
 
 - g1:
-  - `hero-pattern` has an active ink canvas during transition.
+  - `hero-pattern` uses the dedicated pattern bloom adapter, not `createInkSegmentTransition()`.
+  - `hero-pattern` has a WebGL ink canvas during transition and reports `data-pattern-ink-renderer="scene"`.
+  - At progress `0.20`, bloom progress is `0`, pattern canvas opacity is `1`, and ink reveal is active.
+  - At progress `0.70`, bloom progress is `1`.
   - `pattern-star-map` ink origin is left/pattern-centered.
+  - `pattern-star-map` second reveal progresses forward, not reversed.
   - pattern sampled frames show full-field -> compact collapse.
 
 - g2:
@@ -274,8 +337,10 @@ Existing tests are allowed to fail during返工 if they protect incorrect visual
   - sampled Figure2 frames show foreground blur and layer parallax.
 
 - g3:
+  - `figure2-distance-expand` uses the dedicated proof overlay adapter, not `createInkSegmentTransition()`.
   - `figure2-distance-expand` keeps Figure2/proof arch visual present while text appears.
-  - `figure2-proof-opening-cards` and `figure2-proof-cards-closing` do not crossfade.
+  - `figure2-proof-opening-cards` and `figure2-proof-cards-closing` update proof overlay page/scroll state and do not crossfade.
+  - retained arch exists and remains visible on opening, cards, and closing holds.
   - `figure2-proof-brand` matches the confirmed handoff behavior.
 
 ### Regression
@@ -291,16 +356,17 @@ After each fixed group lands on integration:
 
 ## Implementation Order
 
-1. Add `createReadingSegmentTransition()` on R4 integration, with tests.
-2. Fix g1 pattern canvas and ink transitions.
-3. Fix g2 method reading, method-to-Figure2 ink, and Figure2 controller parity.
-4. Fix g3 Figure2 stage 2 proof opening and reading/no-op proof text segments.
-5. Rerun g1-g3 harnesses and regressions.
-6. HITL review g1-g3 again.
-7. Only after HITL approval, continue g4-g7.
+1. Add the shared WebGL ink scene renderer port used by dedicated adapters.
+2. Replace g1 `hero-pattern` and `pattern-star-map` with the dedicated pattern bloom timeline.
+3. Replace g3 `figure2-distance-expand` with the dedicated proof overlay timeline.
+4. Convert proof opening/cards/closing visual shells to one shared proof overlay treatment while preserving scene IDs and static fallbacks.
+5. Update tests that currently protect generic ink/independent scene behavior.
+6. Rerun g1-g3 harnesses and regressions.
+7. HITL review g1-g3 again.
+8. Only after HITL approval, continue g4-g7.
 
-## Open HITL Questions
+## Closed Decisions For This Iteration
 
-- For `figure2-proof-brand`, should the handoff remain a cinematic ink handoff into `brand`, or should it be reduced to a reading/no-op handoff after the proof sequence?
-- For proof cards/closing, should each canonical hold be exactly one viewport, or should it preserve the old overlay scroll spacing from `data-transition-post-scroll-vh="56"`?
-- For pattern collapse, should React R4 match the exact main timing constants (`0..0.46`, `0.42..0.70`, `0.58..0.985`) or only the visual endpoints and perceived rhythm?
+- Pattern timing must match exact main constants.
+- Proof cards/closing must read as normal continuous proof content, not cinematic transitions.
+- `figure2-proof-brand` remains in scope only for regression safety; do not spend this iteration redesigning its final handoff unless the dedicated overlay changes break it.

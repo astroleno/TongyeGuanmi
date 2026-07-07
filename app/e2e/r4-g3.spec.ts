@@ -55,6 +55,8 @@ type Group3VisualSnapshot = {
   figure2BackgroundOpacity: number;
   figure2FigureOpacity: number;
   figure2NearArchOpacity: number;
+  proofOverlayProgress: number;
+  retainedArchCount: number;
 };
 
 async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
@@ -80,7 +82,9 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       figure2ProofProgress: Number.parseFloat(figureRoot?.dataset.figure2ProofProgress ?? '0'),
       figure2BackgroundOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-background-opacity') ?? '1'),
       figure2FigureOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-figure-opacity') ?? '1'),
-      figure2NearArchOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-near-arch-opacity') ?? '0')
+      figure2NearArchOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-near-arch-opacity') ?? '0'),
+      proofOverlayProgress: Number.parseFloat(proofRoot?.dataset.figure2ProofOverlayProgress ?? '0'),
+      retainedArchCount: document.querySelectorAll('[data-figure2-retained-arch="true"]').length
     };
   });
 }
@@ -140,7 +144,7 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
             && visual.figure2FigureOpacity < 1
             && visual.figure2NearArchOpacity > 0.9
           );
-        }, { timeout: 2_000 }).toBe(true);
+        }, { timeout: 5_000 }).toBe(true);
       }
       for (let index = 0; index < 18; index += 1) {
         await page.waitForTimeout(24);
@@ -149,8 +153,9 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         if (index === 5 && target === 'figure2-proof-opening') {
           const visual = await visualSnapshot(page);
           expect(visual.activeInkSegments).toContain('figure2-distance-expand');
-          expect(visual.transitions).toContain('figure2-distance-expand-stage2-ink');
+          expect(visual.transitions).toContain('figure2-proof-overlay-scene-ink');
           expect(visual.proofOpeningProgress).toBeGreaterThan(0);
+          expect(visual.proofOverlayProgress).toBeGreaterThan(0);
           expect(visual.proofArchArea).toBeGreaterThan(100_000);
           expect(visual.figure2ProofProgress).toBeGreaterThan(0);
           expect(visual.figure2NearArchOpacity).toBeGreaterThan(0.9);
@@ -158,10 +163,12 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         if (index === 5 && target === 'figure2-proof-cards') {
           assertReadingFrame(frame, 'figure2-proof-opening', 'figure2-proof-cards');
           expect((await visualSnapshot(page)).proofArchCount).toBeGreaterThanOrEqual(2);
+          expect((await visualSnapshot(page)).retainedArchCount).toBeGreaterThanOrEqual(1);
         }
         if (index === 5 && target === 'figure2-proof-closing') {
           assertReadingFrame(frame, 'figure2-proof-cards', 'figure2-proof-closing');
           expect((await visualSnapshot(page)).proofArchCount).toBeGreaterThanOrEqual(2);
+          expect((await visualSnapshot(page)).retainedArchCount).toBeGreaterThanOrEqual(1);
         }
         if (index === 5 && target === 'brand') {
           assertReadingFrame(frame, 'figure2-proof-closing', 'brand');

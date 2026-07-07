@@ -18,6 +18,7 @@ export type PatternRenderState = {
 
 export type PatternRenderOptions = {
   visible?: boolean;
+  opacity?: number;
 };
 
 type PatternRoot = HTMLElement & {
@@ -31,7 +32,7 @@ function isInkTransitionActive(root: HTMLElement | null): boolean {
 export function renderPatternProgress(root: HTMLElement | null, progress: number, options: PatternRenderOptions = {}): PatternRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
   const snapshot = patternBloomSnapshot(clamped);
-  const opacity = (options.visible ?? clamped > 0.001) ? 1 : 0;
+  const opacity = (options.visible ?? clamped > 0.001) ? Math.min(1, Math.max(0, options.opacity ?? 1)) : 0;
   const washOpacity = 0.58 + clamped * 0.28;
 
   root?.style.setProperty('--r4-pattern-progress', clamped.toFixed(4));
@@ -67,9 +68,14 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
     }
     const renderer = new PatternBloomRenderer(canvas);
     root.__r4PatternRenderer = renderer;
-    void renderer.start();
+    void renderer.start().then(() => {
+      if (root.__r4PatternRenderer === renderer) {
+        canvas.dataset.inkTextureReady = 'true';
+      }
+    });
     return () => {
       renderer.destroy();
+      delete canvas.dataset.inkTextureReady;
       if (root.__r4PatternRenderer === renderer) {
         delete root.__r4PatternRenderer;
       }

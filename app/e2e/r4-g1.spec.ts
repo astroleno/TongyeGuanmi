@@ -56,6 +56,7 @@ type Group1VisualSnapshot = {
   patternCanvasOpacity: number;
   patternCanvasArea: number;
   patternCanvasNonBlankSamples: number;
+  patternInkRenderer: string | null;
   heroVideoLoop: boolean | null;
   heroVideoPaused: boolean | null;
   heroVideoAutoplay: boolean | null;
@@ -109,6 +110,7 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
       patternCanvasOpacity: Number.parseFloat(patternCanvasStyle?.opacity ?? '0'),
       patternCanvasArea: (canvasRect?.width ?? 0) * (canvasRect?.height ?? 0),
       patternCanvasNonBlankSamples,
+      patternInkRenderer: patternRoot?.dataset.patternInkRenderer ?? patternLayer?.dataset.patternInkRenderer ?? null,
       heroVideoLoop: heroVideo?.loop ?? null,
       heroVideoPaused: heroVideo?.paused ?? null,
       heroVideoAutoplay: heroVideo?.autoplay ?? null
@@ -153,7 +155,8 @@ test.describe('R4 group1 canonical spine harness', () => {
       await window.__r4Group1?.scrubHeroPattern(0.2);
     });
     const earlyHeroPattern = await visualSnapshot(page);
-    expect(earlyHeroPattern.transitions).toContain('hero-pattern-center-ink');
+    expect(earlyHeroPattern.transitions).toContain('pattern-bloom-hero-scene-ink');
+    expect(earlyHeroPattern.patternInkRenderer).toBe('scene');
     expect(earlyHeroPattern.patternProgress).toBe(0);
     expect(earlyHeroPattern.patternCanvasOpacity).toBe(1);
     expect(earlyHeroPattern.patternClipProgress).toBeGreaterThan(0.35);
@@ -178,7 +181,8 @@ test.describe('R4 group1 canonical spine harness', () => {
       return visual.activeInkSegments.includes('hero-pattern');
     }, { timeout: 3_000 }).toBe(true);
     const heroPatternInk = await visualSnapshot(page);
-    expect(heroPatternInk.transitions).toContain('hero-pattern-center-ink');
+    expect(heroPatternInk.transitions).toContain('pattern-bloom-hero-scene-ink');
+    expect(heroPatternInk.patternInkRenderer).toBe('scene');
     expect(heroPatternInk.patternCanvasOpacity).toBe(1);
     expect(heroPatternInk.patternCanvasArea).toBeGreaterThan(100_000);
 
@@ -202,7 +206,8 @@ test.describe('R4 group1 canonical spine harness', () => {
       return visual.activeInkSegments.includes('pattern-star-map');
     }, { timeout: 3_000 }).toBe(true);
     const patternStarMapInk = await visualSnapshot(page);
-    expect(patternStarMapInk.transitions).toContain('pattern-star-map-left-ink');
+    expect(patternStarMapInk.transitions).toContain('pattern-bloom-star-map-scene-ink');
+    expect(patternStarMapInk.patternInkRenderer).toBe('scene');
     expect(patternStarMapInk.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
     expect(patternStarMapInk.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);
     expect(patternStarMapInk.patternProgress).toBe(1);

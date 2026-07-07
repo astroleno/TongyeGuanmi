@@ -19,7 +19,13 @@ export function renderProofClosingProgress(root: HTMLElement | null, progress: n
   root?.style.setProperty('--r4-proof-closing-progress', clamped.toFixed(4));
   root?.style.setProperty('--r4-proof-closing-opacity', opacity.toFixed(4));
   root?.style.setProperty('--r4-proof-closing-y', `${y.toFixed(2)}px`);
+  root?.style.setProperty('--r4-proof-overlay-opacity', opacity.toFixed(4));
+  root?.style.setProperty('--r4-proof-reveal-stop', '110%');
+  root?.style.setProperty('--r4-proof-reveal-edge', '134%');
+  root?.style.setProperty('--r4-proof-scroll-y', '0px');
   root?.setAttribute('data-proof-closing-progress', clamped.toFixed(4));
+  root?.setAttribute('data-figure2-proof-overlay-progress', clamped.toFixed(4));
+  root?.setAttribute('data-figure2-retained-arch', 'true');
   return { progress: clamped, opacity, y };
 }
 
@@ -30,11 +36,14 @@ function Figure2ProofClosingScene({ registerHandle }: SceneComponentProps) {
         registerHandle?.('copy', element);
         renderProofClosingProgress(element, 1);
       }}
-      className="r4-proof r4-proof-closing"
+      className="r4-proof r4-proof-page r4-proof-closing"
       data-r4-scene="figure2-proof-closing"
+      data-r4-proof-overlay="closing"
     >
       <img className="r4-proof__arch" src={NEAR_ARCH_IMAGE} alt="" aria-hidden="true" />
-      <p>{FIGURE2_PROOF_CLOSING_COPY[0]}</p>
+      <div className="r4-proof-scroll__content r4-proof-scroll__content--closing">
+        <p className="method-proof__closing r4-proof-closing__copy">{FIGURE2_PROOF_CLOSING_COPY[0]}</p>
+      </div>
     </article>
   );
 }

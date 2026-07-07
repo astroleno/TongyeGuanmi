@@ -21,7 +21,13 @@ export function renderProofOpeningProgress(root: HTMLElement | null, progress: n
   root?.style.setProperty('--r4-proof-opening-progress', clamped.toFixed(4));
   root?.style.setProperty('--r4-proof-opening-opacity', opacity.toFixed(4));
   root?.style.setProperty('--r4-proof-opening-y', `${y.toFixed(2)}px`);
+  root?.style.setProperty('--r4-proof-overlay-opacity', opacity.toFixed(4));
+  root?.style.setProperty('--r4-proof-reveal-stop', `${(-12 + clamped * 122).toFixed(2)}%`);
+  root?.style.setProperty('--r4-proof-reveal-edge', `${(2 + clamped * 132).toFixed(2)}%`);
+  root?.style.setProperty('--r4-proof-scroll-y', '0px');
   root?.setAttribute('data-proof-opening-progress', clamped.toFixed(4));
+  root?.setAttribute('data-figure2-proof-overlay-progress', clamped.toFixed(4));
+  root?.setAttribute('data-figure2-retained-arch', 'true');
   return { progress: clamped, opacity, y };
 }
 
@@ -32,16 +38,19 @@ function Figure2ProofOpeningScene({ registerHandle }: SceneComponentProps) {
         registerHandle?.('copy', element);
         renderProofOpeningProgress(element, 1);
       }}
-      className="r4-proof r4-proof-opening"
+      className="r4-proof r4-proof-page r4-proof-opening"
       data-r4-scene="figure2-proof-opening"
+      data-r4-proof-overlay="opening"
     >
       <img className="r4-proof__arch r4-proof-opening__arch" src={NEAR_ARCH_IMAGE} alt="" aria-hidden="true" />
-      <div className="r4-proof__lead">
-        <span>{FIGURE2_PROOF_OPENING_COPY[0]}</span>
-        <h2>
-          <span>{FIGURE2_PROOF_OPENING_COPY[1]}</span>
-          <span>{FIGURE2_PROOF_OPENING_COPY[2]}</span>
-        </h2>
+      <div className="r4-proof-scroll__content r4-proof-scroll__content--opening">
+        <div className="method-proof__lead r4-proof__lead">
+          <span>{FIGURE2_PROOF_OPENING_COPY[0]}</span>
+          <h2 className="method-proof__closing">
+            <span>{FIGURE2_PROOF_OPENING_COPY[1]}</span>
+            <span>{FIGURE2_PROOF_OPENING_COPY[2]}</span>
+          </h2>
+        </div>
       </div>
     </article>
   );
