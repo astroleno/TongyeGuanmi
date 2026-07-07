@@ -99,9 +99,14 @@ describe('figure2 proof chain transitions', () => {
 
       expect(transition.reducedMotionFallback).toBeTypeOf('function');
       expect(verifySegmentTimeline(timeline, { policy: segment(item.id).policy })).toMatchObject({
-        maxVisibleLayers: 2
+        maxVisibleLayers: item.id === 'figure2-proof-brand' ? 1 : 2
       });
-      if (isReadingSegment) {
+      if (item.id === 'figure2-proof-brand') {
+        expect(timeline.sample?.(0.5)).toMatchObject({
+          from: { visible: true, opacity: 1 },
+          to: { visible: false, opacity: 0 }
+        });
+      } else if (isReadingSegment) {
         expect(timeline.sample?.(0.5)).toMatchObject({
           from: { visible: true, opacity: 1 },
           to: { visible: true, opacity: 1 }

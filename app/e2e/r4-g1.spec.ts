@@ -57,6 +57,9 @@ type Group1VisualSnapshot = {
   patternCanvasArea: number;
   patternCanvasNonBlankSamples: number;
   patternInkRenderer: string | null;
+  starMapProgress: number;
+  starMapCopyOpacity: number;
+  starMapCanvasOpacity: number;
   heroLayerZ: number;
   patternLayerZ: number;
   starMapLayerZ: number;
@@ -77,6 +80,9 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
     const starMapLayer = document.querySelector<HTMLElement>('[data-stage-layer="star-map"]');
     const patternStyle = patternRoot ? window.getComputedStyle(patternRoot) : undefined;
     const patternCanvas = document.querySelector<HTMLCanvasElement>('[data-pattern-canvas]');
+    const starMapRoot = document.querySelector<HTMLElement>('[data-r3-scene="star-map"]');
+    const starMapCopy = document.querySelector<HTMLElement>('.r3-star-map__copy');
+    const starMapCanvas = document.querySelector<HTMLCanvasElement>('[data-belief-star-field]');
     const patternCanvasStyle = patternCanvas ? window.getComputedStyle(patternCanvas) : undefined;
     const canvasRect = patternCanvas?.getBoundingClientRect();
     const heroVideo = document.querySelector<HTMLVideoElement>('[data-hero-figure-video]');
@@ -120,6 +126,9 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
       patternCanvasArea: (canvasRect?.width ?? 0) * (canvasRect?.height ?? 0),
       patternCanvasNonBlankSamples,
       patternInkRenderer: patternRoot?.dataset.patternInkRenderer ?? patternLayer?.dataset.patternInkRenderer ?? null,
+      starMapProgress: Number.parseFloat(starMapRoot?.dataset.starMapProgress ?? '0'),
+      starMapCopyOpacity: Number.parseFloat(starMapCopy ? window.getComputedStyle(starMapCopy).opacity : '0'),
+      starMapCanvasOpacity: Number.parseFloat(starMapCanvas ? window.getComputedStyle(starMapCanvas).opacity : '0'),
       heroLayerZ: Number.parseInt(window.getComputedStyle(heroLayer ?? document.body).zIndex || '0', 10),
       patternLayerZ: Number.parseInt(window.getComputedStyle(patternLayer ?? document.body).zIndex || '0', 10),
       starMapLayerZ: Number.parseInt(window.getComputedStyle(starMapLayer ?? document.body).zIndex || '0', 10),
@@ -225,19 +234,28 @@ test.describe('R4 group1 canonical spine harness', () => {
     await page.evaluate(() => {
       void window.__r4Group1?.playForward();
     });
+    let patternStarMapInk: Group1VisualSnapshot | undefined;
     await expect.poll(async () => {
       const visual = await visualSnapshot(page);
-      return visual.activeInkSegments.includes('pattern-star-map');
+      if (
+        visual.activeInkSegments.includes('pattern-star-map')
+        && visual.starMapProgress === 0
+        && visual.starMapCopyOpacity === 0
+        && visual.starMapCanvasOpacity === 0
+      ) {
+        patternStarMapInk = visual;
+        return true;
+      }
+      return false;
     }, { timeout: 3_000 }).toBe(true);
-    const patternStarMapInk = await visualSnapshot(page);
-    expect(patternStarMapInk.transitions).toContain('pattern-bloom-star-map-scene-ink');
-    expect(patternStarMapInk.patternInkRenderer).toBe('scene');
-    expect(patternStarMapInk.starMapLayerElevated).toBe(true);
-    expect(patternStarMapInk.starMapLayerZ).toBeGreaterThan(patternStarMapInk.patternLayerZ);
-    expect(patternStarMapInk.starMapLayerClipPath).toBe('none');
-    expect(patternStarMapInk.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
-    expect(patternStarMapInk.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);
-    expect(patternStarMapInk.patternProgress).toBe(1);
+    expect(patternStarMapInk?.transitions).toContain('pattern-bloom-star-map-scene-ink');
+    expect(patternStarMapInk?.patternInkRenderer).toBe('scene');
+    expect(patternStarMapInk?.starMapLayerElevated).toBe(true);
+    expect(patternStarMapInk?.starMapLayerZ ?? 0).toBeGreaterThan(patternStarMapInk?.patternLayerZ ?? 0);
+    expect(patternStarMapInk?.starMapLayerClipPath).toBe('none');
+    expect(patternStarMapInk?.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
+    expect(patternStarMapInk?.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);
+    expect(patternStarMapInk?.patternProgress).toBe(1);
 
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);

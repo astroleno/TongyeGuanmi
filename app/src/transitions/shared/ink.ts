@@ -19,6 +19,10 @@ export type InkSegmentOptions = {
   id: SegmentId;
   origin: InkOrigin;
   delayMs?: (() => number) | undefined;
+  canvasHost?: 'from' | 'to';
+  elevateTarget?: boolean;
+  clipTarget?: boolean;
+  sample?: (progress: number) => InkSample;
   renderFrom?: (root: HTMLElement | null, progress: number) => void;
   renderFromProgress?: 'remaining' | 'forward' | ((progress: number) => number);
   renderTo?: (root: HTMLElement | null, progress: number) => void;
@@ -31,13 +35,18 @@ export type InkSegmentOptions = {
   reportTimelineReadyAt?: number;
 };
 
-type InkSample = {
+export type InkSample = {
   from: LayerVisibilityState;
   to: LayerVisibilityState;
 };
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function easeInOutCubic(value: number): number {
+  const p = clamp(value);
+  return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
 }
 
 function defaultRootSelector(scene: string): string {
@@ -98,6 +107,20 @@ function ensureCanvas(container: HTMLElement | null, id: SegmentId, origin: InkO
   return canvas;
 }
 
+function targetClipPath(origin: InkOrigin, progress: number): string {
+  const p = clamp(progress);
+  if (p >= 0.999) {
+    return '';
+  }
+  if (origin.y >= 0.98) {
+    return `inset(${((1 - p) * 100).toFixed(3)}% 0 0 0)`;
+  }
+  if (origin.y <= 0.02) {
+    return `inset(0 0 ${((1 - p) * 100).toFixed(3)}% 0)`;
+  }
+  return `circle(${(p * 142).toFixed(3)}% at ${(origin.x * 100).toFixed(3)}% ${(origin.y * 100).toFixed(3)}%)`;
+}
+
 class InkSegmentTimeline implements SegmentTimelineHandle {
   readonly labels: Readonly<Record<string, number>>;
   readonly pauses: readonly string[];
@@ -107,7 +130,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private animationFrame = 0;
   private readonly canvas: HTMLCanvasElement | null;
   private readonly inkRenderer: CurtainInkRenderer | null;
-  private readonly elevation: TransitionLayerElevation;
+  private readonly elevation: TransitionLayerElevation | null;
+  private readonly attrsElement: HTMLElement | null;
 
   constructor(
     private readonly context: TransitionContext,
@@ -121,7 +145,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       ['end', 1]
     ]);
     this.pauses = stops.map((_, index) => `stage:${index}`);
-    this.canvas = ensureCanvas(context.to.element, options.id, options.origin);
+    this.attrsElement = options.canvasHost === 'from' ? context.from.element : context.to.element;
+    this.canvas = ensureCanvas(this.attrsElement, options.id, options.origin);
     this.inkRenderer = createCurtainInkRenderer(this.canvas, {
       direction: options.origin.y >= 0.5 ? 'bottom-up' : 'top-down',
       colorLift: 0.56,
@@ -130,7 +155,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       fadeOutEnd: 0.98,
       progressSpan: 1
     });
-    this.elevation = createTransitionLayerElevation(context.to.element);
+    this.elevation = options.elevateTarget === false ? null : createTransitionLayerElevation(context.to.element);
     this.inkRenderer?.prewarm();
     this.progress(0);
   }
@@ -148,17 +173,33 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       return;
     }
     const clamped = clamp(value);
-    const sample = sampleInk(clamped);
+    const sample = this.options.sample?.(clamped) ?? sampleInk(clamped);
     const clipProgress = clamp(this.options.clipProgress?.(clamped) ?? clamped);
     const inkProgress = clamp(this.options.inkProgress?.(clamped) ?? clipProgress);
     this.progressValue = clamped;
     applyLayerVisibility(this.context.from, sample.from);
     applyLayerVisibility(this.context.to, sample.to);
-    this.elevation.elevate();
-    this.context.to.element?.setAttribute('data-r4-transition', this.options.transitionAttr ?? this.options.id);
-    this.context.to.element?.setAttribute('data-r4-ink-active', String(inkProgress > 0.002 && inkProgress < 0.998));
-    this.context.to.element?.setAttribute('data-r4-clip-progress', clipProgress.toFixed(4));
-    this.context.to.element?.setAttribute('data-r4-ink-progress', inkProgress.toFixed(4));
+    this.elevation?.elevate();
+    if (this.options.clipTarget !== false && this.context.to.element) {
+      const clipPath = targetClipPath(this.options.origin, clipProgress);
+      const revealActive = Boolean(clipPath) && clipProgress > 0.002 && clipProgress < 0.998;
+      if (clipPath) {
+        this.context.to.element.style.clipPath = clipPath;
+        this.context.to.element.style.setProperty('-webkit-clip-path', clipPath);
+      } else {
+        this.context.to.element.style.removeProperty('clip-path');
+        this.context.to.element.style.removeProperty('-webkit-clip-path');
+      }
+      if (revealActive) {
+        this.context.to.element.dataset.r4RevealProgress = clipProgress.toFixed(4);
+      } else {
+        this.context.to.element.removeAttribute('data-r4-reveal-progress');
+      }
+    }
+    this.attrsElement?.setAttribute('data-r4-transition', this.options.transitionAttr ?? this.options.id);
+    this.attrsElement?.setAttribute('data-r4-ink-active', String(inkProgress > 0.002 && inkProgress < 0.998));
+    this.attrsElement?.setAttribute('data-r4-clip-progress', clipProgress.toFixed(4));
+    this.attrsElement?.setAttribute('data-r4-ink-progress', inkProgress.toFixed(4));
     this.inkRenderer?.render(inkProgress);
     const fromProgress = mappedProgress(this.options.renderFromProgress, clamped, 'remaining');
     const toProgress = mappedProgress(this.options.renderToProgress, clamped, 'forward');
@@ -180,7 +221,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   }
 
   sample(progress: number): InkSample {
-    return sampleInk(clamp(progress));
+    const clamped = clamp(progress);
+    return this.options.sample?.(clamped) ?? sampleInk(clamped);
   }
 
   dispose(): void {
@@ -190,9 +232,16 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       this.animationFrame = 0;
     }
     this.inkRenderer?.destroy();
-    this.elevation.restore();
+    this.elevation?.restore();
     this.context.to.element?.style.removeProperty('clip-path');
     this.context.to.element?.style.removeProperty('-webkit-clip-path');
+    this.context.to.element?.removeAttribute('data-r4-reveal-progress');
+    this.attrsElement?.style.removeProperty('clip-path');
+    this.attrsElement?.style.removeProperty('-webkit-clip-path');
+    this.attrsElement?.removeAttribute('data-r4-transition');
+    this.attrsElement?.removeAttribute('data-r4-ink-active');
+    this.attrsElement?.removeAttribute('data-r4-clip-progress');
+    this.attrsElement?.removeAttribute('data-r4-ink-progress');
   }
 
   private animateTo(target: number): Promise<void> {
@@ -213,7 +262,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         }
         const elapsed = now - startedAt;
         const progress = Math.min(1, elapsed / durationMs);
-        this.progress(start + delta * progress);
+        this.progress(start + delta * easeInOutCubic(progress));
         if (progress >= 1) {
           resolve();
           return;

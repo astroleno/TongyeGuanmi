@@ -4,6 +4,9 @@ import { SceneLayer } from './SceneLayer';
 import type { HandleRegistry } from '../story/registry';
 import type { LayerVisibilityState, SceneId, SceneModule, StageLayerRole } from '../story/types';
 
+const PROOF_ARCH_IMAGE = new URL('../../../assets/arch2d-alpha.png', import.meta.url).href;
+const PROOF_SCENES = new Set<SceneId>(['figure2-proof-opening', 'figure2-proof-cards', 'figure2-proof-closing']);
+
 export type StageProps = {
   window: LayerWindowSnapshot;
   modules: Partial<Record<SceneId, SceneModule>>;
@@ -46,9 +49,23 @@ function zIndexFor(role: StageLayerRole): number {
   }
 }
 
+function proofArchIsActive(members: readonly StageMember[], visibilityByScene: Partial<Record<SceneId, LayerVisibilityState>>): boolean {
+  return members.some((member) => {
+    if (!PROOF_SCENES.has(member.scene)) {
+      return false;
+    }
+    const visibility = visibilityByScene[member.scene];
+    if (visibility) {
+      return visibility.visible && visibility.opacity > 0.001;
+    }
+    return member.role === 'current';
+  });
+}
+
 export function Stage({ window, modules, registry, visibilityByScene = {}, copyCueScene, onLayerElement }: StageProps) {
   assertLayerWindowInvariants(window);
   const members = useMemo(() => membersForWindow(window), [window]);
+  const showProofArch = proofArchIsActive(members, visibilityByScene);
 
   return (
     <main
@@ -75,6 +92,9 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
           />
         );
       })}
+      {showProofArch ? (
+        <img className="stage-proof-retained-arch" src={PROOF_ARCH_IMAGE} alt="" aria-hidden="true" data-figure2-retained-arch="true" />
+      ) : null}
     </main>
   );
 }

@@ -29,6 +29,7 @@ type Figure2Root = HTMLElement & {
 type Figure2RenderOptions = {
   proofProgress?: number;
   syncVideo?: boolean;
+  videoMode?: 'seek' | 'native' | 'none';
 };
 
 type Figure2VideoElement = HTMLVideoElement & {
@@ -117,6 +118,44 @@ function syncFigureVideos(root: HTMLElement | null, progress: number): void {
   root.querySelectorAll<HTMLVideoElement>('[data-figure2-video]').forEach((video) => syncVideo(video, progress));
 }
 
+function syncNativeVideo(video: HTMLVideoElement, progress: number): void {
+  const controlledVideo = video as Figure2VideoElement;
+  video.loop = false;
+  video.muted = true;
+  video.playsInline = true;
+  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : VIDEO_SEGMENT_SECONDS;
+  const start = 0.001;
+  const end = Math.max(start + 0.2, Math.min(duration - VIDEO_END_EPSILON, start + Math.min(VIDEO_SEGMENT_SECONDS, duration)));
+
+  if (progress <= 0.001) {
+    video.pause();
+    seekVideo(controlledVideo, start);
+    return;
+  }
+
+  if (progress >= 0.998) {
+    video.pause();
+    seekVideo(controlledVideo, end);
+    return;
+  }
+
+  if (video.paused) {
+    const play = video.play();
+    if (play && typeof play.catch === 'function') {
+      void play.catch(() => {
+        seekVideo(controlledVideo, start + (end - start) * progress);
+      });
+    }
+  }
+}
+
+function syncNativeFigureVideos(root: HTMLElement | null, progress: number): void {
+  if (typeof root?.querySelectorAll !== 'function') {
+    return;
+  }
+  root.querySelectorAll<HTMLVideoElement>('[data-figure2-video]').forEach((video) => syncNativeVideo(video, progress));
+}
+
 export function renderFigure2AnimationProgress(
   root: HTMLElement | null,
   progress: number,
@@ -161,8 +200,11 @@ export function renderFigure2AnimationProgress(
   if (root) {
     (root as Figure2Root).__r4Figure2Progress = clamped;
   }
-  if (options.syncVideo !== false) {
+  const videoMode = options.videoMode ?? (options.syncVideo === false ? 'none' : 'seek');
+  if (videoMode === 'seek') {
     syncFigureVideos(root, clamped);
+  } else if (videoMode === 'native') {
+    syncNativeFigureVideos(root, clamped);
   }
   return { progress: clamped, proofProgress, stageOpacity, backgroundOpacity, figureOpacity, cameraScale };
 }
@@ -180,7 +222,7 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
     if (isInkTransitionActive(rootRef.current)) {
       return;
     }
-    renderFigure2AnimationProgress(rootRef.current, hidden ? 0 : 1);
+    renderFigure2AnimationProgress(rootRef.current, 0);
   }, [hidden]);
 
   useEffect(() => {

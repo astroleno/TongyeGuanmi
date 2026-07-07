@@ -165,33 +165,34 @@ test.describe('R4 group2 canonical spine harness', () => {
     await page.evaluate(() => {
       void window.__r4Group2?.playForward();
     });
+    await expect.poll(async () => {
+      const visual = await visualSnapshot(page);
+      return visual.activeInkSegments.includes('method-bottom-figure2');
+    }, { timeout: 3_000 }).toBe(true);
+    const methodFigureInk = await visualSnapshot(page);
+    expect(methodFigureInk.activeInkSegments).toContain('method-bottom-figure2');
+    expect(methodFigureInk.figure2LayerElevated).toBe(false);
+    expect(methodFigureInk.figure2LayerZ).toBeLessThan(methodFigureInk.methodBottomLayerZ);
+    expect(methodFigureInk.figure2LayerClipPath).toBe('none');
+    expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
+    expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1.04, 2);
+    expect(methodFigureInk.figure2Progress).toBe(0);
+    expect(methodFigureInk.videos).toHaveLength(2);
+    expect(methodFigureInk.videos.every((video) => video.loop === false)).toBe(true);
+
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       forwardFrames.push(await snapshot(page));
-      if (index === 5) {
-        const visual = await visualSnapshot(page);
-        expect(visual.activeInkSegments).toContain('method-bottom-figure2');
-        expect(visual.transitions).toContain('method-bottom-figure2-bottom-ink');
-        expect(visual.figure2LayerElevated).toBe(true);
-        expect(visual.figure2LayerZ).toBeGreaterThan(visual.methodBottomLayerZ);
-        expect(visual.figure2LayerClipPath).toBe('none');
-        expect(visual.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
-        expect(visual.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1.04, 2);
-        expect(visual.figure2Progress).toBe(0);
-        expect(visual.videos).toHaveLength(2);
-        expect(visual.videos.every((video) => video.loop === false)).toBe(true);
-        expect(visual.videos.every((video) => video.paused)).toBe(true);
-      }
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure2-animation');
     const figure2Hold = await visualSnapshot(page);
-    expect(figure2Hold.figure2Progress).toBe(1);
+    expect(figure2Hold.figure2Progress).toBe(0);
     expect(figure2Hold.farArcadeImageCount).toBe(3);
     expect(figure2Hold.cloudCount).toBe(1);
-    expect(figure2Hold.cloudScale).toBeGreaterThan(1);
-    expect(figure2Hold.farArcadeScale).toBeGreaterThan(figure2Hold.cloudScale);
-    expect(figure2Hold.nearArchBlurPx).toBeGreaterThan(3);
-    expect(figure2Hold.figureScale).toBeGreaterThan(1);
+    expect(figure2Hold.cloudScale).toBeCloseTo(1, 2);
+    expect(figure2Hold.farArcadeScale).toBeCloseTo(1, 2);
+    expect(figure2Hold.nearArchBlurPx).toBeLessThan(0.1);
+    expect(figure2Hold.figureScale).toBeCloseTo(1, 2);
     expect(figure2Hold.figureWidth).toBeGreaterThan(153);
     expect(figure2Hold.figureWidth).toBeLessThan(261);
     expect(figure2Hold.visibleCaptionCount).toBe(0);

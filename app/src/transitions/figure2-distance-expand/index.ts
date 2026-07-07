@@ -1,4 +1,4 @@
-import { renderFigure2ProofTransitionProgress } from '../../scenes/figure2-animation';
+import { renderFigure2AnimationProgress, renderFigure2ProofTransitionProgress } from '../../scenes/figure2-animation';
 import { renderProofOpeningProgress } from '../../scenes/figure2-proof-opening';
 import { applyLayerVisibility, hiddenVisibility, holdVisibility, range01, smoothStep } from '../../pilot/visibility';
 import type {
@@ -15,6 +15,7 @@ const FIGURE2_DEPTH_IMAGE = new URL('../../../../assets/figure2-middle-depth.png
 const FIGURE2_NEXT_WHITE_IMAGE = new URL('../../../../assets/figure2-next-white.png', import.meta.url).href;
 const FIGURE2_PAPER_GROUND = '#ece8dc';
 const FIGURE2_PAPER_GROUND_SOFT = '#f6f2e8';
+const FIGURE2_INTRO_END = 0.72;
 
 type Figure2ProofSample = {
   from: LayerVisibilityState;
@@ -34,7 +35,7 @@ function sampleFigure2Proof(progress: number): Figure2ProofSample {
   if (clamped >= 0.999) {
     return { from: hiddenVisibility(), to: holdVisibility(false) };
   }
-  if (clamped <= 0.001) {
+  if (clamped < FIGURE2_INTRO_END) {
     return { from: holdVisibility(false), to: hiddenVisibility() };
   }
   return { from: holdVisibility(false), to: holdVisibility(false) };
@@ -181,6 +182,14 @@ export function figure2ProofRevealProgress(progress: number): number {
   return smoothStep(range01(progress, 0.10, 0.94));
 }
 
+export function figure2IntroProgress(progress: number): number {
+  return range01(progress, 0, FIGURE2_INTRO_END);
+}
+
+export function figure2ProofTransitionProgress(progress: number): number {
+  return range01(progress, FIGURE2_INTRO_END, 1);
+}
+
 class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   readonly labels: Readonly<Record<string, number>> = { start: 0, 'stage:0': 0.72, end: 1 };
   readonly pauses: readonly string[] = ['stage:0'];
@@ -234,14 +243,16 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       return;
     }
     const clamped = clamp(value);
-    const reveal = figure2ProofRevealProgress(clamped);
+    const introProgress = figure2IntroProgress(clamped);
+    const transitionProgress = figure2ProofTransitionProgress(clamped);
+    const reveal = figure2ProofRevealProgress(transitionProgress);
     const overlayOpacity = smoothStep(range01(reveal, 0.015, 0.16));
     const sample = sampleFigure2Proof(clamped);
     this.progressValue = clamped;
     applyLayerVisibility(this.context.from, sample.from);
     applyLayerVisibility(this.context.to, sample.to);
     this.elevation.elevate();
-    this.render(reveal, overlayOpacity);
+    this.render(introProgress, reveal, overlayOpacity);
     if (!this.reportedTimelineReady && clamped >= 0.5) {
       this.reportedTimelineReady = true;
       this.context.reportMilestone({
@@ -276,10 +287,10 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     this.context.to.element?.style.removeProperty('-webkit-clip-path');
   }
 
-  private render(reveal: number, overlayOpacity: number): void {
+  private render(introProgress: number, reveal: number, overlayOpacity: number): void {
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof-opening');
-    renderFigure2ProofTransitionProgress(fromRoot, reveal);
+    renderFigure2AnimationProgress(fromRoot, introProgress, { proofProgress: reveal, videoMode: 'native' });
     renderProofOpeningProgress(toRoot, reveal);
     this.proofTexture?.update();
     updateFigureMaskCanvas(this.figureMaskCanvas, fromRoot, reveal);

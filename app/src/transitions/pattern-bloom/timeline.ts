@@ -222,16 +222,18 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
   private renderPatternStarMap(progress: number): void {
     const secondReveal = patternSecondRevealProgressForStarMap(progress);
     const patternOpacity = patternTopSceneOpacityForStarMap(progress);
-    const starSceneOpacity = secondReveal >= 0.998 ? 1 : smoothStep(range01(secondReveal, 0.10, 0.28)) * 0.86;
+    const starPresentationProgress = progress >= 0.999 ? 1 : 0;
+    const starSceneOpacity = progress >= 0.999 ? 1 : 0;
     const patternRoot = sceneRoot(this.context.from.element, 'pattern');
     const starMapRoot = sceneRoot(this.context.to.element, 'star-map');
     renderPatternProgress(patternRoot, 1, { visible: true, opacity: patternOpacity });
-    renderStarMapProgress(starMapRoot, secondReveal > 0.002 ? Math.max(0.92, smoothStep(range01(secondReveal, 0.002, 0.16))) : secondReveal);
+    renderStarMapProgress(starMapRoot, starPresentationProgress);
     starMapRoot?.style.setProperty('--r3-star-scene-opacity', starSceneOpacity.toFixed(4));
     patternRoot?.setAttribute('data-pattern-second-reveal-progress', secondReveal.toFixed(4));
     patternRoot?.setAttribute('data-pattern-top-scene-opacity', patternOpacity.toFixed(4));
     patternRoot?.setAttribute('data-pattern-ink-renderer', 'scene');
     starMapRoot?.setAttribute('data-pattern-second-reveal-progress', secondReveal.toFixed(4));
+    starMapRoot?.setAttribute('data-pattern-star-presentation-progress', starPresentationProgress.toFixed(4));
     starMapRoot?.setAttribute('data-pattern-ink-renderer', 'scene');
     setTransitionAttrs(this.context.to.element, this.options.id, 'pattern-bloom-star-map-scene-ink', secondReveal, secondReveal, progress);
     this.inkRenderer?.render(secondReveal, secondReveal, {

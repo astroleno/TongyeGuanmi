@@ -1,7 +1,5 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
-const NEAR_ARCH_IMAGE = new URL('../../../../assets/arch2d-alpha.png', import.meta.url).href;
-
 export const FIGURE2_PROOF_CARDS_COPY = [
   '01',
   '只培训',
@@ -39,7 +37,9 @@ export function renderProofCardsProgress(root: HTMLElement | null, progress: num
   root?.style.setProperty('--r4-proof-scroll-y', '0px');
   root?.setAttribute('data-proof-cards-progress', clamped.toFixed(4));
   root?.setAttribute('data-figure2-proof-overlay-progress', clamped.toFixed(4));
-  root?.setAttribute('data-figure2-retained-arch', 'true');
+  if (typeof root?.removeAttribute === 'function') {
+    root.removeAttribute('data-figure2-retained-arch');
+  }
   return { progress: clamped, opacity, y };
 }
 
@@ -54,7 +54,6 @@ function Figure2ProofCardsScene({ registerHandle }: SceneComponentProps) {
       data-r4-scene="figure2-proof-cards"
       data-r4-proof-overlay="cards"
     >
-      <img className="r4-proof__arch" src={NEAR_ARCH_IMAGE} alt="" aria-hidden="true" />
       <div className="r4-proof-scroll__content r4-proof-scroll__content--cards">
         <ol className="method-proof__list r4-proof-cards__list" aria-label="常见 AI 落地失败方式">
           {PROOF_CARDS.map((card) => (

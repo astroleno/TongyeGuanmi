@@ -1,7 +1,5 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
-const NEAR_ARCH_IMAGE = new URL('../../../../assets/arch2d-alpha.png', import.meta.url).href;
-
 export const FIGURE2_PROOF_CLOSING_COPY = [
   '同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。'
 ] as const;
@@ -25,7 +23,9 @@ export function renderProofClosingProgress(root: HTMLElement | null, progress: n
   root?.style.setProperty('--r4-proof-scroll-y', '0px');
   root?.setAttribute('data-proof-closing-progress', clamped.toFixed(4));
   root?.setAttribute('data-figure2-proof-overlay-progress', clamped.toFixed(4));
-  root?.setAttribute('data-figure2-retained-arch', 'true');
+  if (typeof root?.removeAttribute === 'function') {
+    root.removeAttribute('data-figure2-retained-arch');
+  }
   return { progress: clamped, opacity, y };
 }
 
@@ -40,7 +40,6 @@ function Figure2ProofClosingScene({ registerHandle }: SceneComponentProps) {
       data-r4-scene="figure2-proof-closing"
       data-r4-proof-overlay="closing"
     >
-      <img className="r4-proof__arch" src={NEAR_ARCH_IMAGE} alt="" aria-hidden="true" />
       <div className="r4-proof-scroll__content r4-proof-scroll__content--closing">
         <p className="method-proof__closing r4-proof-closing__copy">{FIGURE2_PROOF_CLOSING_COPY[0]}</p>
       </div>

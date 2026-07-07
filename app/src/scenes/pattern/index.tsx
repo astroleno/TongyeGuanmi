@@ -8,6 +8,7 @@ export const PATTERN_COPY = [STAR_MAP_COPY] as const;
 export type PatternRenderState = {
   progress: number;
   opacity: number;
+  copyOpacity: number;
   centerXRatio: number;
   centerYRatio: number;
   fieldRotationDegrees: number;
@@ -33,11 +34,13 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
   const clamped = Math.min(1, Math.max(0, progress));
   const snapshot = patternBloomSnapshot(clamped);
   const opacity = (options.visible ?? clamped > 0.001) ? Math.min(1, Math.max(0, options.opacity ?? 1)) : 0;
+  const copyOpacity = Math.min(0.72, Math.max(0, (options.opacity ?? 1) * (0.18 + clamped * 0.54)));
   const washOpacity = 0.58 + clamped * 0.28;
 
   root?.style.setProperty('--r4-pattern-progress', clamped.toFixed(4));
   root?.style.setProperty('--r4-pattern-scene-opacity', '1.0000');
   root?.style.setProperty('--r4-pattern-opacity', opacity.toFixed(4));
+  root?.style.setProperty('--r4-pattern-copy-opacity', copyOpacity.toFixed(4));
   root?.style.setProperty('--r4-pattern-field-rotation', `${snapshot.fieldRotationDegrees.toFixed(2)}deg`);
   root?.style.setProperty('--r4-pattern-largest-ring-scale', snapshot.largestRingScale.toFixed(4));
   root?.style.setProperty('--r4-pattern-compact-ring-scale', snapshot.compactRingScale.toFixed(4));
@@ -48,6 +51,7 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
   return {
     progress: clamped,
     opacity,
+    copyOpacity,
     centerXRatio: snapshot.centerXRatio,
     centerYRatio: snapshot.centerYRatio,
     fieldRotationDegrees: snapshot.fieldRotationDegrees,
@@ -94,9 +98,11 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
     <article ref={rootRef} className="r4-pattern-scene" data-r4-scene="pattern">
       <canvas ref={canvasRef} className="r4-pattern-scene__canvas" data-pattern-canvas aria-hidden="true" />
       <div className="r4-pattern-scene__wash" aria-hidden="true" />
-      <p ref={(element) => registerHandle?.('copy', element)} className="r4-visually-hidden">
-        {PATTERN_COPY[0]}
-      </p>
+      <div className="r4-pattern-scene__copy">
+        <p ref={(element) => registerHandle?.('copy', element)} className="large-copy large-copy--standalone">
+          {PATTERN_COPY[0]}
+        </p>
+      </div>
     </article>
   );
 }

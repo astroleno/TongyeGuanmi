@@ -1,7 +1,5 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
-const NEAR_ARCH_IMAGE = new URL('../../../../assets/arch2d-alpha.png', import.meta.url).href;
-
 export const FIGURE2_PROOF_OPENING_COPY = [
   '用不上，不算落地',
   '我们见过太多',
@@ -27,7 +25,9 @@ export function renderProofOpeningProgress(root: HTMLElement | null, progress: n
   root?.style.setProperty('--r4-proof-scroll-y', '0px');
   root?.setAttribute('data-proof-opening-progress', clamped.toFixed(4));
   root?.setAttribute('data-figure2-proof-overlay-progress', clamped.toFixed(4));
-  root?.setAttribute('data-figure2-retained-arch', 'true');
+  if (typeof root?.removeAttribute === 'function') {
+    root.removeAttribute('data-figure2-retained-arch');
+  }
   return { progress: clamped, opacity, y };
 }
 
@@ -42,7 +42,6 @@ function Figure2ProofOpeningScene({ registerHandle }: SceneComponentProps) {
       data-r4-scene="figure2-proof-opening"
       data-r4-proof-overlay="opening"
     >
-      <img className="r4-proof__arch r4-proof-opening__arch" src={NEAR_ARCH_IMAGE} alt="" aria-hidden="true" />
       <div className="r4-proof-scroll__content r4-proof-scroll__content--opening">
         <div className="method-proof__lead r4-proof__lead">
           <span>{FIGURE2_PROOF_OPENING_COPY[0]}</span>

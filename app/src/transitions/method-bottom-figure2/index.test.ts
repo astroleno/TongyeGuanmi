@@ -63,9 +63,9 @@ describe('method-bottom-figure2 transition', () => {
   it('separates the bottom ink reveal from the figure2 zoom stage', () => {
     expect(figure2InkProgressForMethodBottom(0.17)).toBeCloseTo(0.5, 5);
     expect(figure2InkProgressForMethodBottom(0.34)).toBe(1);
-    expect(figure2StageProgressForMethodBottom(0.339)).toBe(0);
-    expect(figure2StageProgressForMethodBottom(0.67)).toBeCloseTo(0.5, 2);
-    expect(figure2StageProgressForMethodBottom(1)).toBe(1);
+    expect(figure2StageProgressForMethodBottom()).toBe(0);
+    expect(figure2StageProgressForMethodBottom()).toBe(0);
+    expect(figure2StageProgressForMethodBottom()).toBe(0);
   });
 
   it('passes timeline verification and exposes reduced motion fallback', async () => {
@@ -74,10 +74,14 @@ describe('method-bottom-figure2 transition', () => {
 
     expect(transition.reducedMotionFallback).toBeTypeOf('function');
     expect(verifySegmentTimeline(timeline, { policy: segment().policy })).toMatchObject({
-      maxVisibleLayers: 2
+      maxVisibleLayers: 1
+    });
+    expect(timeline.sample?.(0.17)).toMatchObject({
+      from: { visible: true, opacity: 1 },
+      to: { visible: false, opacity: 0 }
     });
     expect(timeline.sample?.(0.5)).toMatchObject({
-      from: { visible: true, opacity: 1 },
+      from: { visible: false, opacity: 0 },
       to: { visible: true, opacity: 1 }
     });
   });

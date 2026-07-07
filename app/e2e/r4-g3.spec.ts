@@ -71,7 +71,7 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
   return page.evaluate(() => {
     const proofRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-proof-opening"]');
     const proofLayer = proofRoot?.closest<HTMLElement>('[data-stage-layer]');
-    const arch = document.querySelector<HTMLElement>('.r4-proof-opening__arch');
+    const arch = document.querySelector<HTMLElement>('.stage-proof-retained-arch');
     const archRect = arch?.getBoundingClientRect();
     const archStyle = arch ? window.getComputedStyle(arch) : undefined;
     const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
@@ -87,7 +87,7 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
         .map((element) => element.dataset.r4Transition ?? ''),
       proofOpeningProgress: Number.parseFloat(proofRoot?.dataset.proofOpeningProgress ?? '0'),
       proofArchArea: (archRect?.width ?? 0) * (archRect?.height ?? 0),
-      proofArchCount: document.querySelectorAll('.r4-proof__arch').length,
+      proofArchCount: document.querySelectorAll('.stage-proof-retained-arch').length,
       proofArchOpacity: Number.parseFloat(archStyle?.opacity ?? '0'),
       proofArchBlurPx: Number.parseFloat((archStyle?.filter.match(/blur\(([^p]+)px\)/)?.[1]) ?? '0'),
       figure2ProofProgress: Number.parseFloat(figureRoot?.dataset.figure2ProofProgress ?? '0'),
@@ -155,8 +155,10 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         void window.__r4Group3?.playForward();
       });
       if (target === 'figure2-proof-opening') {
+        let proofTransitionVisual: Group3VisualSnapshot | undefined;
         await expect.poll(async () => {
           const visual = await visualSnapshot(page);
+          proofTransitionVisual = visual;
           return (
             visual.activeInkSegments.includes('figure2-distance-expand')
             && visual.figure2BackgroundOpacity < 1
@@ -164,40 +166,43 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
             && visual.figure2NearArchOpacity > 0.9
           );
         }, { timeout: 5_000 }).toBe(true);
+        expect(proofTransitionVisual?.transitions).toContain('figure2-proof-overlay-scene-ink');
+        expect(proofTransitionVisual?.proofLayerElevated).toBe(true);
+        expect((proofTransitionVisual?.proofLayerZ ?? 0)).toBeGreaterThan(proofTransitionVisual?.figure2LayerZ ?? 0);
+        expect(proofTransitionVisual?.proofLayerClipPath).toBe('none');
+        expect(proofTransitionVisual?.proofInkRenderer).toBe('depth-scene');
+        expect(proofTransitionVisual?.depthInkMode).toBe('threshold');
+        expect(proofTransitionVisual?.depthReady).toBe(true);
+        expect(proofTransitionVisual?.figureMaskReady).toBe(true);
+        expect(proofTransitionVisual?.proofOpeningProgress).toBeGreaterThan(0);
+        expect(proofTransitionVisual?.proofOverlayProgress).toBeGreaterThan(0);
+        expect(proofTransitionVisual?.proofArchArea).toBeGreaterThan(100_000);
+        expect(proofTransitionVisual?.figure2ProofProgress).toBeGreaterThan(0);
+      }
+      if (target === 'brand') {
+        await expect.poll(async () => {
+          const visual = await visualSnapshot(page);
+          return visual.transitions.includes('figure2-proof-brand-ink-handoff');
+        }, { timeout: 3_000 }).toBe(true);
       }
       for (let index = 0; index < 18; index += 1) {
         await page.waitForTimeout(24);
         const frame = await snapshot(page);
         frames.push(frame);
-        if (index === 5 && target === 'figure2-proof-opening') {
-          const visual = await visualSnapshot(page);
-          expect(visual.activeInkSegments).toContain('figure2-distance-expand');
-          expect(visual.transitions).toContain('figure2-proof-overlay-scene-ink');
-          expect(visual.proofLayerElevated).toBe(true);
-          expect(visual.proofLayerZ).toBeGreaterThan(visual.figure2LayerZ);
-          expect(visual.proofLayerClipPath).toBe('none');
-          expect(visual.proofInkRenderer).toBe('depth-scene');
-          expect(visual.depthInkMode).toBe('threshold');
-          expect(visual.depthReady).toBe(true);
-          expect(visual.figureMaskReady).toBe(true);
-          expect(visual.proofOpeningProgress).toBeGreaterThan(0);
-          expect(visual.proofOverlayProgress).toBeGreaterThan(0);
-          expect(visual.proofArchArea).toBeGreaterThan(100_000);
-          expect(visual.figure2ProofProgress).toBeGreaterThan(0);
-          expect(visual.figure2NearArchOpacity).toBeGreaterThan(0.9);
-        }
         if (index === 5 && target === 'figure2-proof-cards') {
           assertReadingFrame(frame, 'figure2-proof-opening', 'figure2-proof-cards');
-          expect((await visualSnapshot(page)).proofArchCount).toBeGreaterThanOrEqual(2);
-          expect((await visualSnapshot(page)).retainedArchCount).toBeGreaterThanOrEqual(1);
+          const visual = await visualSnapshot(page);
+          expect(visual.proofArchCount).toBe(1);
+          expect(visual.retainedArchCount).toBe(1);
         }
         if (index === 5 && target === 'figure2-proof-closing') {
           assertReadingFrame(frame, 'figure2-proof-cards', 'figure2-proof-closing');
-          expect((await visualSnapshot(page)).proofArchCount).toBeGreaterThanOrEqual(2);
-          expect((await visualSnapshot(page)).retainedArchCount).toBeGreaterThanOrEqual(1);
+          const visual = await visualSnapshot(page);
+          expect(visual.proofArchCount).toBe(1);
+          expect(visual.retainedArchCount).toBe(1);
         }
         if (index === 5 && target === 'brand') {
-          assertReadingFrame(frame, 'figure2-proof-closing', 'brand');
+          expect(frame.visibleCount).toBeLessThanOrEqual(2);
         }
       }
       await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 7_000 }).toBe(target);
@@ -209,7 +214,7 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         expect(visual.proofArchBlurPx).toBeGreaterThan(6);
       }
       if (target === 'figure2-proof-cards' || target === 'figure2-proof-closing') {
-        expect((await visualSnapshot(page)).proofArchCount).toBeGreaterThanOrEqual(1);
+        expect((await visualSnapshot(page)).proofArchCount).toBe(1);
       }
     }
 
