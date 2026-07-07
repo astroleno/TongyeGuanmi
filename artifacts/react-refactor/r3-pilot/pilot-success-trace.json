@@ -15,6 +15,9 @@
     "PLAYBACK_DONE",
     "CHARGE_FIRED",
     "MEDIA_READY:mediaReady",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
     "BUILD_READY:star-map-aod",
     "PLAY:star-map-aod:1",
     "MEDIA_loadedmetadata:accepted",
@@ -42,7 +45,7 @@
   "trace": [
     {
       "id": 1,
-      "at": 1783437156786,
+      "at": 1783437482828,
       "event": {
         "type": "BOOT_READY"
       },
@@ -64,7 +67,7 @@
     },
     {
       "id": 2,
-      "at": 1783437156787,
+      "at": 1783437482829,
       "event": {
         "type": "BOOT_READY"
       },
@@ -86,7 +89,7 @@
     },
     {
       "id": 3,
-      "at": 1783437156807,
+      "at": 1783437482844,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -109,7 +112,7 @@
     },
     {
       "id": 4,
-      "at": 1783437156886,
+      "at": 1783437482906,
       "event": {
         "type": "TARGET_READY",
         "scene": "aod-animation",
@@ -135,7 +138,7 @@
     },
     {
       "id": 5,
-      "at": 1783437158328,
+      "at": 1783437484179,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r3-pilot:1"
@@ -161,7 +164,7 @@
     },
     {
       "id": 6,
-      "at": 1783437161569,
+      "at": 1783437485216,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -185,11 +188,88 @@
     },
     {
       "id": 7,
-      "at": 1783437171525,
+      "at": 1783437485866,
       "event": {
         "type": "MEDIA_READY",
         "key": "mediaReady",
         "prepareToken": "r3-pilot:prepare:2"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": "r3-pilot:prepare:2",
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "milestone": "mediaReady"
+    },
+    {
+      "id": 8,
+      "at": 1783437485866,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "method-top",
+        "prepareToken": "r3-pilot:prepare:2"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": "r3-pilot:2",
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "segment",
+        "segment": "aod-method-top",
+        "from": "aod-animation",
+        "to": "method-top"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "milestone": null
+    },
+    {
+      "id": 9,
+      "at": 1783437488752,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r3-pilot:2"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "settling",
+        "segment": "aod-method-top",
+        "from": "aod-animation",
+        "to": "method-top",
+        "target": "method-top"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "milestone": null
+    },
+    {
+      "id": 10,
+      "at": 1783437489393,
+      "event": {
+        "type": "RETIRING_RELEASED"
       },
       "actorEpoch": "r3-pilot",
       "activeRunId": null,
@@ -205,7 +285,7 @@
         "retiring": [],
         "prev": "aod-animation"
       },
-      "milestone": "mediaReady"
+      "milestone": null
     }
   ]
 }
