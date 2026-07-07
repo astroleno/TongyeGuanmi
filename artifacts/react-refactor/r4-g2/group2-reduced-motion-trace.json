@@ -32,7 +32,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783394678652,
+      "at": 1783396364219,
       "event": {
         "type": "BOOT_READY"
       },
@@ -49,7 +49,7 @@
       "id": 1
     },
     {
-      "at": 1783394678653,
+      "at": 1783396364219,
       "event": {
         "type": "BOOT_READY"
       },
@@ -66,7 +66,7 @@
       "id": 2
     },
     {
-      "at": 1783394678663,
+      "at": 1783396364229,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -85,7 +85,7 @@
       "id": 3
     },
     {
-      "at": 1783394678663,
+      "at": 1783396364230,
       "event": {
         "type": "TARGET_READY",
         "scene": "method-bottom",
@@ -107,7 +107,7 @@
       "id": 4
     },
     {
-      "at": 1783394678664,
+      "at": 1783396364230,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g2-method-top-method-bottom:1"
@@ -128,7 +128,7 @@
       "id": 5
     },
     {
-      "at": 1783394679102,
+      "at": 1783396364683,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -147,7 +147,7 @@
       "id": 6
     },
     {
-      "at": 1783394679102,
+      "at": 1783396364683,
       "event": {
         "type": "TARGET_READY",
         "scene": "method-top",
@@ -169,7 +169,7 @@
       "id": 7
     },
     {
-      "at": 1783394679102,
+      "at": 1783396364683,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g2-method-top-method-bottom:2"
@@ -190,7 +190,7 @@
       "id": 8
     },
     {
-      "at": 1783394679543,
+      "at": 1783396365113,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -209,7 +209,7 @@
       "id": 9
     },
     {
-      "at": 1783394679543,
+      "at": 1783396365113,
       "event": {
         "type": "TARGET_READY",
         "scene": "method-bottom",
@@ -231,7 +231,7 @@
       "id": 10
     },
     {
-      "at": 1783394679543,
+      "at": 1783396365113,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g2-method-top-method-bottom:3"

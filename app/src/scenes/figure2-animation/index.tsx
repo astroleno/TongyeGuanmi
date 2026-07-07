@@ -15,13 +15,25 @@ const RIGHT_POSTER = new URL('../../../../assets/figure2b-alpha-reverse-lite-pos
 
 export type Figure2AnimationRenderState = {
   progress: number;
+  proofProgress: number;
   stageOpacity: number;
+  backgroundOpacity: number;
   figureOpacity: number;
   cameraScale: number;
 };
 
 type Figure2Root = HTMLElement & {
   __r4Figure2Progress?: number;
+};
+
+type Figure2RenderOptions = {
+  proofProgress?: number;
+  syncVideo?: boolean;
+};
+
+type Figure2VideoElement = HTMLVideoElement & {
+  __r4Figure2PendingTime?: number;
+  __r4Figure2MetadataBound?: boolean;
 };
 
 const VIDEO_SEGMENT_SECONDS = 5;
@@ -32,66 +44,86 @@ function smoothStep(value: number): number {
   return clamped * clamped * (3 - 2 * clamped);
 }
 
-function syncVideo(video: HTMLVideoElement, progress: number, previousProgress: number): void {
+function range01(value: number, start: number, end: number): number {
+  if (end <= start) {
+    return value >= end ? 1 : 0;
+  }
+  return Math.min(1, Math.max(0, (value - start) / (end - start)));
+}
+
+function bindMetadataResync(video: Figure2VideoElement): void {
+  if (video.__r4Figure2MetadataBound) {
+    return;
+  }
+  video.__r4Figure2MetadataBound = true;
+  video.addEventListener('loadedmetadata', () => {
+    const pending = video.__r4Figure2PendingTime;
+    if (pending === undefined) {
+      return;
+    }
+    try {
+      video.currentTime = pending;
+    } catch {
+      // Some browsers defer seekability until the next readyState tick.
+    }
+  });
+}
+
+function seekVideo(video: Figure2VideoElement, time: number): void {
+  video.__r4Figure2PendingTime = time;
+  bindMetadataResync(video);
+  try {
+    if (Math.abs(video.currentTime - time) > 0.025) {
+      video.currentTime = time;
+    }
+  } catch {
+    // loadedmetadata will rebuild the terminal frame as soon as duration is known.
+  }
+}
+
+function syncVideo(video: HTMLVideoElement, progress: number): void {
+  const controlledVideo = video as Figure2VideoElement;
   video.loop = false;
   video.muted = true;
   video.playsInline = true;
+  video.pause();
   const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : VIDEO_SEGMENT_SECONDS;
   const start = 0.001;
   const end = Math.max(start + 0.2, Math.min(duration - VIDEO_END_EPSILON, start + Math.min(VIDEO_SEGMENT_SECONDS, duration)));
+  const targetTime = start + (end - start) * Math.min(1, Math.max(0, progress));
 
   if (progress <= 0.001) {
-    video.pause();
-    try {
-      video.currentTime = start;
-    } catch {
-      // Metadata can settle after the first render.
-    }
+    seekVideo(controlledVideo, start);
     return;
   }
 
   if (progress >= 0.998) {
-    video.pause();
-    try {
-      video.currentTime = end;
-    } catch {
-      // Metadata can settle after the first render.
-    }
+    seekVideo(controlledVideo, end);
     return;
   }
 
-  if (progress >= previousProgress) {
-    video.playbackRate = Math.max(0.5, Math.min(3.5, (end - start) / 2.4));
-    void video.play().catch(() => {
-      try {
-        video.currentTime = start + (end - start) * progress;
-      } catch {
-        // Autoplay may be denied in synthetic contexts; seek keeps the frame deterministic.
-      }
-    });
-  } else {
-    video.pause();
-    try {
-      video.currentTime = start + (end - start) * progress;
-    } catch {
-      // Metadata can settle after the first render.
-    }
-  }
+  seekVideo(controlledVideo, targetTime);
 }
 
-function syncFigureVideos(root: HTMLElement | null, progress: number, previousProgress: number): void {
+function syncFigureVideos(root: HTMLElement | null, progress: number): void {
   if (typeof root?.querySelectorAll !== 'function') {
     return;
   }
-  root.querySelectorAll<HTMLVideoElement>('[data-figure2-video]').forEach((video) => syncVideo(video, progress, previousProgress));
+  root.querySelectorAll<HTMLVideoElement>('[data-figure2-video]').forEach((video) => syncVideo(video, progress));
 }
 
-export function renderFigure2AnimationProgress(root: HTMLElement | null, progress: number): Figure2AnimationRenderState {
+export function renderFigure2AnimationProgress(
+  root: HTMLElement | null,
+  progress: number,
+  options: Figure2RenderOptions = {}
+): Figure2AnimationRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
   const eased = smoothStep(clamped);
-  const previousProgress = (root as Figure2Root | null)?.__r4Figure2Progress ?? clamped;
+  const proofProgress = smoothStep(Math.min(1, Math.max(0, options.proofProgress ?? 0)));
+  const foregroundOpacity = 1 - smoothStep(range01(proofProgress, 0.08, 0.62));
+  const backgroundOpacity = 1 - smoothStep(range01(proofProgress, 0.06, 0.58));
   const stageOpacity = 1;
-  const figureOpacity = 1;
+  const figureOpacity = foregroundOpacity;
   const cameraScale = 1.012 + eased * 0.13;
   const cloudScale = 1 + eased * 0.10;
   const cloudY = eased * 3;
@@ -103,8 +135,12 @@ export function renderFigure2AnimationProgress(root: HTMLElement | null, progres
   const figureY = -eased * 12;
   const figureScale = 1 + eased * 0.035;
   root?.style.setProperty('--r4-figure2-progress', clamped.toFixed(4));
+  root?.style.setProperty('--r4-figure2-proof-progress', proofProgress.toFixed(4));
   root?.style.setProperty('--r4-figure2-stage-opacity', stageOpacity.toFixed(4));
+  root?.style.setProperty('--r4-figure2-background-opacity', backgroundOpacity.toFixed(4));
   root?.style.setProperty('--r4-figure2-figure-opacity', figureOpacity.toFixed(4));
+  root?.style.setProperty('--r4-figure2-contact-shadow-opacity', (0.82 * figureOpacity).toFixed(4));
+  root?.style.setProperty('--r4-figure2-near-arch-opacity', '0.9800');
   root?.style.setProperty('--r4-figure2-camera-scale', cameraScale.toFixed(4));
   root?.style.setProperty('--r4-figure2-cloud-y', `${cloudY.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-cloud-scale', cloudScale.toFixed(4));
@@ -116,11 +152,18 @@ export function renderFigure2AnimationProgress(root: HTMLElement | null, progres
   root?.style.setProperty('--r4-figure2-figure-y', `${figureY.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-figure-scale', figureScale.toFixed(4));
   root?.setAttribute('data-figure2-progress', clamped.toFixed(4));
+  root?.setAttribute('data-figure2-proof-progress', proofProgress.toFixed(4));
   if (root) {
     (root as Figure2Root).__r4Figure2Progress = clamped;
   }
-  syncFigureVideos(root, clamped, previousProgress);
-  return { progress: clamped, stageOpacity, figureOpacity, cameraScale };
+  if (options.syncVideo !== false) {
+    syncFigureVideos(root, clamped);
+  }
+  return { progress: clamped, proofProgress, stageOpacity, backgroundOpacity, figureOpacity, cameraScale };
+}
+
+export function renderFigure2ProofTransitionProgress(root: HTMLElement | null, progress: number): Figure2AnimationRenderState {
+  return renderFigure2AnimationProgress(root, 1, { proofProgress: progress, syncVideo: false });
 }
 
 function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) {

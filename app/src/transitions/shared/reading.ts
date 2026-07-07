@@ -10,7 +10,6 @@ import type {
 
 export type ReadingSegmentOptions = {
   id: SegmentId;
-  switchAt?: number;
   delayMs?: (() => number) | undefined;
   renderFrom?: (root: HTMLElement | null, progress: number) => void;
   renderTo?: (root: HTMLElement | null, progress: number) => void;
@@ -34,17 +33,31 @@ function sceneRoot(element: HTMLElement | null | undefined, scene: string, selec
   return element?.querySelector<HTMLElement>(selector(scene)) ?? element ?? null;
 }
 
-function sampleReading(progress: number, switchAt: number): ReadingSample {
-  if (progress >= switchAt) {
+function sampleReading(progress: number): ReadingSample {
+  if (progress >= 0.999) {
     return {
       from: hiddenVisibility(),
       to: holdVisibility(false)
     };
   }
+  if (progress <= 0.001) {
+    return {
+      from: holdVisibility(false),
+      to: hiddenVisibility()
+    };
+  }
   return {
     from: holdVisibility(false),
-    to: hiddenVisibility()
+    to: holdVisibility(false)
   };
+}
+
+function setReadingTransform(element: HTMLElement | null, transform: string): void {
+  if (!element) {
+    return;
+  }
+  element.style.transform = transform;
+  element.style.willChange = transform ? 'transform, opacity' : '';
 }
 
 class ReadingSegmentTimeline implements SegmentTimelineHandle {
@@ -57,12 +70,11 @@ class ReadingSegmentTimeline implements SegmentTimelineHandle {
 
   constructor(
     private readonly context: TransitionContext,
-    private readonly switchAt: number,
     private readonly renderFrom?: (root: HTMLElement | null, progress: number) => void,
     private readonly renderTo?: (root: HTMLElement | null, progress: number) => void,
     private readonly rootSelector?: (scene: string) => string
   ) {
-    this.labels = { start: 0, handoff: switchAt, end: 1 };
+    this.labels = { start: 0, middle: 0.5, end: 1 };
     this.progress(0);
   }
 
@@ -79,12 +91,22 @@ class ReadingSegmentTimeline implements SegmentTimelineHandle {
       return;
     }
     const next = clamp(value);
-    const sample = sampleReading(next, this.switchAt);
+    const sample = sampleReading(next);
     this.progressValue = next;
     applyLayerVisibility(this.context.from, sample.from);
     applyLayerVisibility(this.context.to, sample.to);
+    if (next <= 0.001) {
+      setReadingTransform(this.context.from.element, '');
+      setReadingTransform(this.context.to.element, 'translate3d(0, 100%, 0)');
+    } else if (next >= 0.999) {
+      setReadingTransform(this.context.from.element, 'translate3d(0, -100%, 0)');
+      setReadingTransform(this.context.to.element, '');
+    } else {
+      setReadingTransform(this.context.from.element, `translate3d(0, ${(-next * 100).toFixed(3)}%, 0)`);
+      setReadingTransform(this.context.to.element, `translate3d(0, ${((1 - next) * 100).toFixed(3)}%, 0)`);
+    }
     this.renderFrom?.(sceneRoot(this.context.from.element, this.context.from.scene, this.rootSelector), 1);
-    this.renderTo?.(sceneRoot(this.context.to.element, this.context.to.scene, this.rootSelector), next >= this.switchAt ? 1 : 0);
+    this.renderTo?.(sceneRoot(this.context.to.element, this.context.to.scene, this.rootSelector), 1);
   }
 
   jumpToEnd(direction: Direction): void {
@@ -92,7 +114,7 @@ class ReadingSegmentTimeline implements SegmentTimelineHandle {
   }
 
   sample(progress: number): ReadingSample {
-    return sampleReading(clamp(progress), this.switchAt);
+    return sampleReading(clamp(progress));
   }
 
   dispose(): void {
@@ -101,6 +123,8 @@ class ReadingSegmentTimeline implements SegmentTimelineHandle {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
     }
+    setReadingTransform(this.context.from.element, '');
+    setReadingTransform(this.context.to.element, '');
   }
 
   private animateTo(target: number): Promise<void> {
@@ -134,13 +158,14 @@ class ReadingSegmentTimeline implements SegmentTimelineHandle {
 }
 
 export function createReadingSegmentTransition(options: ReadingSegmentOptions): TransitionModule {
-  const switchAt = clamp(options.switchAt ?? 0.995);
   return {
     id: options.id,
     requiredMilestones: ['targetReady', 'buildReady'],
     reducedMotionFallback: (context) => {
       applyLayerVisibility(context.from, hiddenVisibility());
       applyLayerVisibility(context.to, holdVisibility(true));
+      setReadingTransform(context.from.element, '');
+      setReadingTransform(context.to.element, '');
       options.renderFrom?.(sceneRoot(context.from.element, context.from.scene, options.rootSelector), 1);
       options.renderTo?.(sceneRoot(context.to.element, context.to.scene, options.rootSelector), 1);
     },
@@ -151,7 +176,6 @@ export function createReadingSegmentTransition(options: ReadingSegmentOptions): 
       }
       return new ReadingSegmentTimeline(
         context,
-        switchAt,
         options.renderFrom,
         options.renderTo,
         options.rootSelector

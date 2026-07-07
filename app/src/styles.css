@@ -719,8 +719,12 @@ pre {
 
 .r4-figure2 {
   --r4-figure2-progress: 1;
+  --r4-figure2-proof-progress: 0;
   --r4-figure2-stage-opacity: 1;
+  --r4-figure2-background-opacity: 1;
   --r4-figure2-figure-opacity: 1;
+  --r4-figure2-contact-shadow-opacity: .82;
+  --r4-figure2-near-arch-opacity: .98;
   --r4-figure2-camera-scale: 1.142;
   --r4-figure2-cloud-y: 3px;
   --r4-figure2-cloud-scale: 1.1;
@@ -784,9 +788,10 @@ pre {
   width: max(100vw, calc(100svh * 16 / 9));
   height: max(100svh, calc(100vw * 9 / 16));
   pointer-events: none;
+  opacity: var(--r4-figure2-background-opacity);
   transform: translate3d(-50%, calc(-50% + var(--r4-figure2-middle-y)), 0) scale(var(--r4-figure2-camera-scale));
   transform-origin: 50% 56%;
-  will-change: transform;
+  will-change: transform, opacity;
 }
 
 .r4-figure2__window-mask {
@@ -888,7 +893,7 @@ pre {
   object-fit: cover;
   object-position: 50% 50%;
   transform: translate3d(-50%, -50%, 0) scale(var(--r4-figure2-near-arch-scale));
-  opacity: .98;
+  opacity: var(--r4-figure2-near-arch-opacity);
   filter: blur(var(--r4-figure2-near-arch-blur)) brightness(.82) contrast(1.08) saturate(.84) sepia(.04);
 }
 
@@ -910,7 +915,7 @@ pre {
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: .82;
+  opacity: var(--r4-figure2-contact-shadow-opacity);
   pointer-events: none;
   background:
     radial-gradient(ellipse at 43% 92%, rgba(38, 28, 18, .22) 0%, rgba(38, 28, 18, .10) 5%, transparent 12%),

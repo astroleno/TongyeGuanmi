@@ -18,6 +18,7 @@ export type InkSegmentOptions = {
   origin: InkOrigin;
   delayMs?: (() => number) | undefined;
   renderFrom?: (root: HTMLElement | null, progress: number) => void;
+  renderFromProgress?: 'remaining' | 'forward';
   renderTo?: (root: HTMLElement | null, progress: number) => void;
   rootSelector?: (scene: string) => string;
   transitionAttr?: string;
@@ -215,7 +216,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.context.to.element?.setAttribute('data-r4-ink-active', String(clamped > 0.002 && clamped < 0.998));
     applyClip(this.context.to.element, clamped, this.options.origin);
     renderInkCanvas(this.canvas, clamped, this.options.origin);
-    this.options.renderFrom?.(sceneRoot(this.context.from.element, this.context.from.scene, this.options.rootSelector), 1 - clamped);
+    const fromProgress = this.options.renderFromProgress === 'forward' ? clamped : 1 - clamped;
+    this.options.renderFrom?.(sceneRoot(this.context.from.element, this.context.from.scene, this.options.rootSelector), fromProgress);
     this.options.renderTo?.(sceneRoot(this.context.to.element, this.context.to.scene, this.options.rootSelector), clamped);
     if (this.options.reportTimelineReadyAt !== undefined && clamped >= this.options.reportTimelineReadyAt) {
       this.context.reportMilestone({
@@ -284,7 +286,10 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
     reducedMotionFallback: (context) => {
       applyLayerVisibility(context.from, hiddenVisibility());
       applyLayerVisibility(context.to, holdVisibility(true));
-      options.renderFrom?.(sceneRoot(context.from.element, context.from.scene, options.rootSelector), 0);
+      options.renderFrom?.(
+        sceneRoot(context.from.element, context.from.scene, options.rootSelector),
+        options.renderFromProgress === 'forward' ? 1 : 0
+      );
       options.renderTo?.(sceneRoot(context.to.element, context.to.scene, options.rootSelector), 1);
     },
     buildTimeline: async (context) => {

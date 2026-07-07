@@ -8,7 +8,7 @@ export function createPatternStarMapTransition(options: { delayMs?: () => number
     id: 'pattern-star-map',
     delayMs: options.delayMs,
     origin: { x: 0.24, y: 0.55 },
-    renderFrom: (root, progress) => renderPatternProgress(root, 0.58 + Math.max(0, progress) * 0.405),
+    renderFrom: (root) => renderPatternProgress(root, 1),
     renderTo: renderStarMapProgress,
     transitionAttr: 'pattern-star-map-left-ink'
   });

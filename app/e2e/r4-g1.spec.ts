@@ -163,6 +163,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(patternStarMapInk.transitions).toContain('pattern-star-map-left-ink');
     expect(patternStarMapInk.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
     expect(patternStarMapInk.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);
+    expect(patternStarMapInk.patternProgress).toBe(1);
 
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);

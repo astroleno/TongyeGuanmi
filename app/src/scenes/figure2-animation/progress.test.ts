@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { figure2AnimationScene, renderFigure2AnimationProgress } from './index';
+import { figure2AnimationScene, renderFigure2AnimationProgress, renderFigure2ProofTransitionProgress } from './index';
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -34,7 +34,23 @@ describe('figure2-animation scene renderer', () => {
     expect(root.style.values.get('--r4-figure2-near-arch-blur')).toBe('3.60px');
     expect(root.style.values.get('--r4-figure2-figure-scale')).toBe('1.0350');
     expect(root.style.values.get('--r4-figure2-progress')).toBe('1.0000');
+    expect(root.style.values.get('--r4-figure2-proof-progress')).toBe('0.0000');
+    expect(root.style.values.get('--r4-figure2-background-opacity')).toBe('1.0000');
+    expect(root.style.values.get('--r4-figure2-figure-opacity')).toBe('1.0000');
     expect(root.attributes.get('data-figure2-progress')).toBe('1.0000');
+  });
+
+  it('fades stage2 foreground while retaining the blurred near arch', () => {
+    const root = new FakeElement();
+
+    const state = renderFigure2ProofTransitionProgress(root as unknown as HTMLElement, 0.72);
+
+    expect(state.progress).toBe(1);
+    expect(state.proofProgress).toBeGreaterThan(0.7);
+    expect(Number(root.style.values.get('--r4-figure2-background-opacity'))).toBeLessThan(0.2);
+    expect(Number(root.style.values.get('--r4-figure2-figure-opacity'))).toBeLessThan(0.4);
+    expect(root.style.values.get('--r4-figure2-near-arch-opacity')).toBe('0.9800');
+    expect(root.attributes.get('data-figure2-proof-progress')).not.toBe('0.0000');
   });
 
   it('declares targetReady preload without public copy fallback', () => {

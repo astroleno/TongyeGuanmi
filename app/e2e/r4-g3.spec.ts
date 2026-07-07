@@ -50,6 +50,10 @@ type Group3VisualSnapshot = {
   proofArchArea: number;
   proofArchOpacity: number;
   proofArchBlurPx: number;
+  figure2ProofProgress: number;
+  figure2BackgroundOpacity: number;
+  figure2FigureOpacity: number;
+  figure2NearArchOpacity: number;
 };
 
 async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
@@ -58,6 +62,8 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
     const arch = document.querySelector<HTMLElement>('.r4-proof-opening__arch');
     const archRect = arch?.getBoundingClientRect();
     const archStyle = arch ? window.getComputedStyle(arch) : undefined;
+    const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
+    const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
@@ -68,7 +74,11 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       proofOpeningProgress: Number.parseFloat(proofRoot?.dataset.proofOpeningProgress ?? '0'),
       proofArchArea: (archRect?.width ?? 0) * (archRect?.height ?? 0),
       proofArchOpacity: Number.parseFloat(archStyle?.opacity ?? '0'),
-      proofArchBlurPx: Number.parseFloat((archStyle?.filter.match(/blur\(([^p]+)px\)/)?.[1]) ?? '0')
+      proofArchBlurPx: Number.parseFloat((archStyle?.filter.match(/blur\(([^p]+)px\)/)?.[1]) ?? '0'),
+      figure2ProofProgress: Number.parseFloat(figureRoot?.dataset.figure2ProofProgress ?? '0'),
+      figure2BackgroundOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-background-opacity') ?? '1'),
+      figure2FigureOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-figure-opacity') ?? '1'),
+      figure2NearArchOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-near-arch-opacity') ?? '0')
     };
   });
 }
@@ -80,9 +90,9 @@ function assertReadingFrame(
 ): void {
   const fromLayer = frame.layers.find((layer) => layer.scene === from);
   const toLayer = frame.layers.find((layer) => layer.scene === to);
-  expect(frame.visibleCount).toBe(1);
+  expect(frame.visibleCount).toBe(2);
   expect(fromLayer).toMatchObject({ visible: true, opacity: 1 });
-  expect(toLayer).toMatchObject({ visible: false, opacity: 0 });
+  expect(toLayer).toMatchObject({ visible: true, opacity: 1 });
 }
 
 async function assertFrame(frame: Group3Snapshot): Promise<void> {
@@ -119,6 +129,17 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       await page.evaluate(() => {
         void window.__r4Group3?.playForward();
       });
+      if (target === 'figure2-proof-opening') {
+        await expect.poll(async () => {
+          const visual = await visualSnapshot(page);
+          return (
+            visual.activeInkSegments.includes('figure2-distance-expand')
+            && visual.figure2BackgroundOpacity < 1
+            && visual.figure2FigureOpacity < 1
+            && visual.figure2NearArchOpacity > 0.9
+          );
+        }, { timeout: 2_000 }).toBe(true);
+      }
       for (let index = 0; index < 18; index += 1) {
         await page.waitForTimeout(24);
         const frame = await snapshot(page);
@@ -129,6 +150,8 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
           expect(visual.transitions).toContain('figure2-distance-expand-stage2-ink');
           expect(visual.proofOpeningProgress).toBeGreaterThan(0);
           expect(visual.proofArchArea).toBeGreaterThan(100_000);
+          expect(visual.figure2ProofProgress).toBeGreaterThan(0);
+          expect(visual.figure2NearArchOpacity).toBeGreaterThan(0.9);
         }
         if (index === 5 && target === 'figure2-proof-cards') {
           assertReadingFrame(frame, 'figure2-proof-opening', 'figure2-proof-cards');

@@ -136,7 +136,7 @@ test.describe('R4 group2 canonical spine harness', () => {
         const methodTop = frame.layers.find((layer) => layer.scene === 'method-top');
         const methodBottom = frame.layers.find((layer) => layer.scene === 'method-bottom');
         expect(methodTop).toMatchObject({ visible: true, opacity: 1 });
-        expect(methodBottom).toMatchObject({ visible: false, opacity: 0 });
+        expect(methodBottom).toMatchObject({ visible: true, opacity: 1 });
       }
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-bottom');
@@ -157,6 +157,7 @@ test.describe('R4 group2 canonical spine harness', () => {
         expect(visual.figure2Progress).toBeLessThan(1);
         expect(visual.videos).toHaveLength(2);
         expect(visual.videos.every((video) => video.loop === false)).toBe(true);
+        expect(visual.videos.every((video) => video.paused && video.currentTime > 0)).toBe(true);
       }
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure2-animation');
