@@ -1,0 +1,271 @@
+{
+  "phase": "hold",
+  "mode": "ph-education",
+  "window": {
+    "current": "education",
+    "retiring": [],
+    "prev": "ph-animation"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 2,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "BUILD_READY:ph-education",
+    "PLAY:ph-education:1",
+    "BUILD_READY:ph-education",
+    "PLAY:ph-education:-1",
+    "BUILD_READY:ph-education",
+    "PLAY:ph-education:1"
+  ],
+  "recoveryCount": 0,
+  "staleCompletionIgnored": 0,
+  "trace": [
+    {
+      "at": 1783434852210,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "cursor": {
+        "status": "hold",
+        "scene": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "next": "education"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783434852212,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "cursor": {
+        "status": "hold",
+        "scene": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "next": "education"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783434852223,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "prepareToken": "r4-g6-ph-education:prepare:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "next": "education"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783434852225,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "education",
+        "prepareToken": "r4-g6-ph-education:prepare:1"
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "activeRunId": "r4-g6-ph-education:1",
+      "cursor": {
+        "status": "segment",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "next": "education"
+      },
+      "id": 4
+    },
+    {
+      "at": 1783434852225,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g6-ph-education:1"
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "cursor": {
+        "status": "settling",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education",
+        "target": "education"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "next": "education"
+      },
+      "id": 5
+    },
+    {
+      "at": 1783434852667,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": -1
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "prepareToken": "r4-g6-ph-education:prepare:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "education"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation"
+      },
+      "id": 6
+    },
+    {
+      "at": 1783434852667,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "ph-animation",
+        "prepareToken": "r4-g6-ph-education:prepare:2"
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "activeRunId": "r4-g6-ph-education:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation"
+      },
+      "id": 7
+    },
+    {
+      "at": 1783434852669,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g6-ph-education:2"
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "cursor": {
+        "status": "settling",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education",
+        "target": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation"
+      },
+      "id": 8
+    },
+    {
+      "at": 1783434853111,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "prepareToken": "r4-g6-ph-education:prepare:3",
+      "cursor": {
+        "status": "hold",
+        "scene": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "next": "education"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783434853111,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "education",
+        "prepareToken": "r4-g6-ph-education:prepare:3"
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "activeRunId": "r4-g6-ph-education:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "next": "education"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783434853111,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g6-ph-education:3"
+      },
+      "actorEpoch": "r4-g6-ph-education",
+      "cursor": {
+        "status": "settling",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education",
+        "target": "education"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "next": "education"
+      },
+      "id": 11
+    }
+  ],
+  "layers": [
+    {
+      "scene": "ph-animation",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "education",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    }
+  ]
+}

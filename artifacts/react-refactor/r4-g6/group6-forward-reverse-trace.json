@@ -1,0 +1,300 @@
+{
+  "phase": "hold",
+  "mode": "group6",
+  "window": {
+    "current": "ph-animation",
+    "retiring": [],
+    "prev": "lab",
+    "next": "education"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 3,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "BUILD_READY:lab-ph",
+    "PLAY:lab-ph:1",
+    "BUILD_READY:ph-education",
+    "PLAY:ph-education:1",
+    "BUILD_READY:ph-education",
+    "PLAY:ph-education:-1"
+  ],
+  "recoveryCount": 0,
+  "staleCompletionIgnored": 0,
+  "trace": [
+    {
+      "at": 1783434844671,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g6-group6",
+      "cursor": {
+        "status": "hold",
+        "scene": "lab"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "next": "ph-animation"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783434844672,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g6-group6",
+      "cursor": {
+        "status": "hold",
+        "scene": "lab"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "next": "ph-animation"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783434844693,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g6-group6",
+      "prepareToken": "r4-g6-group6:prepare:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "lab"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "next": "ph-animation"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783434844700,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "ph-animation",
+        "prepareToken": "r4-g6-group6:prepare:1"
+      },
+      "actorEpoch": "r4-g6-group6",
+      "activeRunId": "r4-g6-group6:1",
+      "cursor": {
+        "status": "segment",
+        "segment": "lab-ph",
+        "from": "lab",
+        "to": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "next": "ph-animation"
+      },
+      "id": 4
+    },
+    {
+      "at": 1783434845902,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g6-group6:1"
+      },
+      "actorEpoch": "r4-g6-group6",
+      "cursor": {
+        "status": "settling",
+        "segment": "lab-ph",
+        "from": "lab",
+        "to": "ph-animation",
+        "target": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "next": "ph-animation"
+      },
+      "id": 5
+    },
+    {
+      "at": 1783434847073,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g6-group6",
+      "prepareToken": "r4-g6-group6:prepare:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "id": 6
+    },
+    {
+      "at": 1783434847074,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "education",
+        "prepareToken": "r4-g6-group6:prepare:2"
+      },
+      "actorEpoch": "r4-g6-group6",
+      "activeRunId": "r4-g6-group6:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "id": 7
+    },
+    {
+      "at": 1783434848985,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g6-group6:2"
+      },
+      "actorEpoch": "r4-g6-group6",
+      "cursor": {
+        "status": "settling",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education",
+        "target": "education"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "id": 8
+    },
+    {
+      "at": 1783434849408,
+      "event": {
+        "type": "RETIRING_RELEASED"
+      },
+      "actorEpoch": "r4-g6-group6",
+      "cursor": {
+        "status": "hold",
+        "scene": "education"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783434849439,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": -1
+      },
+      "actorEpoch": "r4-g6-group6",
+      "prepareToken": "r4-g6-group6:prepare:3",
+      "cursor": {
+        "status": "hold",
+        "scene": "education"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783434849439,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "ph-animation",
+        "prepareToken": "r4-g6-group6:prepare:3"
+      },
+      "actorEpoch": "r4-g6-group6",
+      "activeRunId": "r4-g6-group6:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation"
+      },
+      "id": 11
+    },
+    {
+      "at": 1783434851368,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g6-group6:3"
+      },
+      "actorEpoch": "r4-g6-group6",
+      "cursor": {
+        "status": "settling",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education",
+        "target": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation"
+      },
+      "id": 12
+    }
+  ],
+  "layers": [
+    {
+      "scene": "lab",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "ph-animation",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    },
+    {
+      "scene": "education",
+      "role": "next",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    }
+  ]
+}
