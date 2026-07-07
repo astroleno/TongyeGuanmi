@@ -29,6 +29,10 @@ describe('figure2-animation scene renderer', () => {
 
     expect(restored).toEqual(start);
     expect(replayed).toEqual(end);
+    expect(Number(root.style.values.get('--r4-figure2-cloud-scale'))).toBeGreaterThan(1);
+    expect(Number(root.style.values.get('--r4-figure2-far-arcade-scale'))).toBeGreaterThan(Number(root.style.values.get('--r4-figure2-cloud-scale')));
+    expect(root.style.values.get('--r4-figure2-near-arch-blur')).toBe('3.60px');
+    expect(root.style.values.get('--r4-figure2-figure-scale')).toBe('1.0350');
     expect(root.style.values.get('--r4-figure2-progress')).toBe('1.0000');
     expect(root.attributes.get('data-figure2-progress')).toBe('1.0000');
   });

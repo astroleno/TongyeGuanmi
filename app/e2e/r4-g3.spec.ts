@@ -43,6 +43,48 @@ async function snapshot(page: Page): Promise<Group3Snapshot> {
   });
 }
 
+type Group3VisualSnapshot = {
+  activeInkSegments: readonly string[];
+  transitions: readonly string[];
+  proofOpeningProgress: number;
+  proofArchArea: number;
+  proofArchOpacity: number;
+  proofArchBlurPx: number;
+};
+
+async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
+  return page.evaluate(() => {
+    const proofRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-proof-opening"]');
+    const arch = document.querySelector<HTMLElement>('.r4-proof-opening__arch');
+    const archRect = arch?.getBoundingClientRect();
+    const archStyle = arch ? window.getComputedStyle(arch) : undefined;
+    const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
+    return {
+      activeInkSegments: inkCanvases
+        .filter((canvas) => canvas.parentElement?.dataset.r4InkActive === 'true')
+        .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
+      transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
+        .map((element) => element.dataset.r4Transition ?? ''),
+      proofOpeningProgress: Number.parseFloat(proofRoot?.dataset.proofOpeningProgress ?? '0'),
+      proofArchArea: (archRect?.width ?? 0) * (archRect?.height ?? 0),
+      proofArchOpacity: Number.parseFloat(archStyle?.opacity ?? '0'),
+      proofArchBlurPx: Number.parseFloat((archStyle?.filter.match(/blur\(([^p]+)px\)/)?.[1]) ?? '0')
+    };
+  });
+}
+
+function assertReadingFrame(
+  frame: Group3Snapshot,
+  from: string,
+  to: string
+): void {
+  const fromLayer = frame.layers.find((layer) => layer.scene === from);
+  const toLayer = frame.layers.find((layer) => layer.scene === to);
+  expect(frame.visibleCount).toBe(1);
+  expect(fromLayer).toMatchObject({ visible: true, opacity: 1 });
+  expect(toLayer).toMatchObject({ visible: false, opacity: 0 });
+}
+
 async function assertFrame(frame: Group3Snapshot): Promise<void> {
   expect(frame.visibleCount).toBeGreaterThan(0);
   expect(frame.visibleCount).toBeLessThanOrEqual(2);
@@ -79,9 +121,33 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       });
       for (let index = 0; index < 18; index += 1) {
         await page.waitForTimeout(24);
-        frames.push(await snapshot(page));
+        const frame = await snapshot(page);
+        frames.push(frame);
+        if (index === 5 && target === 'figure2-proof-opening') {
+          const visual = await visualSnapshot(page);
+          expect(visual.activeInkSegments).toContain('figure2-distance-expand');
+          expect(visual.transitions).toContain('figure2-distance-expand-stage2-ink');
+          expect(visual.proofOpeningProgress).toBeGreaterThan(0);
+          expect(visual.proofArchArea).toBeGreaterThan(100_000);
+        }
+        if (index === 5 && target === 'figure2-proof-cards') {
+          assertReadingFrame(frame, 'figure2-proof-opening', 'figure2-proof-cards');
+        }
+        if (index === 5 && target === 'figure2-proof-closing') {
+          assertReadingFrame(frame, 'figure2-proof-cards', 'figure2-proof-closing');
+        }
+        if (index === 5 && target === 'brand') {
+          assertReadingFrame(frame, 'figure2-proof-closing', 'brand');
+        }
       }
       await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 7_000 }).toBe(target);
+      if (target === 'figure2-proof-opening') {
+        const visual = await visualSnapshot(page);
+        expect(visual.proofOpeningProgress).toBe(1);
+        expect(visual.proofArchArea).toBeGreaterThan(100_000);
+        expect(visual.proofArchOpacity).toBeGreaterThan(0.3);
+        expect(visual.proofArchBlurPx).toBeGreaterThan(6);
+      }
     }
 
     await page.evaluate(() => {

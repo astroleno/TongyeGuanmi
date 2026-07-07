@@ -1,5 +1,7 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
+const NEAR_ARCH_IMAGE = new URL('../../../../assets/arch2d-alpha.png', import.meta.url).href;
+
 export const FIGURE2_PROOF_OPENING_COPY = [
   '用不上，不算落地',
   '我们见过太多',
@@ -33,6 +35,7 @@ function Figure2ProofOpeningScene({ registerHandle }: SceneComponentProps) {
       className="r4-proof r4-proof-opening"
       data-r4-scene="figure2-proof-opening"
     >
+      <img className="r4-proof-opening__arch" src={NEAR_ARCH_IMAGE} alt="" aria-hidden="true" />
       <div className="r4-proof__lead">
         <span>{FIGURE2_PROOF_OPENING_COPY[0]}</span>
         <h2>

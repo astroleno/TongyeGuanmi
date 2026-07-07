@@ -64,6 +64,10 @@ describe('hero-pattern transition', () => {
     expect(verifySegmentTimeline(timeline, { policy: segment().policy })).toMatchObject({
       maxVisibleLayers: 2
     });
+    expect(timeline.sample?.(0.5)).toMatchObject({
+      from: { visible: true, opacity: 1 },
+      to: { visible: true, opacity: 1 }
+    });
   });
 
   it('is idempotent across 0 to 1 to 0 to 1 progress', async () => {

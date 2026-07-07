@@ -43,6 +43,63 @@ async function snapshot(page: Page): Promise<Group1Snapshot> {
   });
 }
 
+type Group1VisualSnapshot = {
+  activeInkSegments: readonly string[];
+  transitions: readonly string[];
+  inkOrigins: Record<string, { x: number; y: number }>;
+  patternProgress: number;
+  largestRingScale: number;
+  compactRingScale: number;
+  patternCanvasArea: number;
+  patternCanvasNonBlankSamples: number;
+};
+
+async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
+  return page.evaluate(() => {
+    const patternRoot = document.querySelector<HTMLElement>('[data-r4-scene="pattern"]');
+    const patternStyle = patternRoot ? window.getComputedStyle(patternRoot) : undefined;
+    const patternCanvas = document.querySelector<HTMLCanvasElement>('[data-pattern-canvas]');
+    const canvasRect = patternCanvas?.getBoundingClientRect();
+    let patternCanvasNonBlankSamples = 0;
+    const context = patternCanvas?.getContext('2d');
+    if (patternCanvas && context && patternCanvas.width > 0 && patternCanvas.height > 0) {
+      for (let y = 0; y < 8; y += 1) {
+        for (let x = 0; x < 8; x += 1) {
+          const pixel = context.getImageData(
+            Math.min(patternCanvas.width - 1, Math.round((x + 0.5) * patternCanvas.width / 8)),
+            Math.min(patternCanvas.height - 1, Math.round((y + 0.5) * patternCanvas.height / 8)),
+            1,
+            1
+          ).data;
+          if (pixel[3] > 0 && pixel[0] + pixel[1] + pixel[2] > 0) {
+            patternCanvasNonBlankSamples += 1;
+          }
+        }
+      }
+    }
+    const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
+    return {
+      activeInkSegments: inkCanvases
+        .filter((canvas) => canvas.parentElement?.dataset.r4InkActive === 'true')
+        .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
+      transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
+        .map((element) => element.dataset.r4Transition ?? ''),
+      inkOrigins: Object.fromEntries(inkCanvases.map((canvas) => [
+        canvas.dataset.r4InkSegment ?? '',
+        {
+          x: Number.parseFloat(canvas.dataset.inkOriginX ?? 'NaN'),
+          y: Number.parseFloat(canvas.dataset.inkOriginY ?? 'NaN')
+        }
+      ])),
+      patternProgress: Number.parseFloat(patternRoot?.dataset.patternProgress ?? '0'),
+      largestRingScale: Number.parseFloat(patternStyle?.getPropertyValue('--r4-pattern-largest-ring-scale') ?? '0'),
+      compactRingScale: Number.parseFloat(patternStyle?.getPropertyValue('--r4-pattern-compact-ring-scale') ?? '0'),
+      patternCanvasArea: (canvasRect?.width ?? 0) * (canvasRect?.height ?? 0),
+      patternCanvasNonBlankSamples
+    };
+  });
+}
+
 async function assertFrame(frame: Group1Snapshot): Promise<void> {
   expect(frame.visibleCount).toBeGreaterThan(0);
   expect(frame.visibleCount).toBeLessThanOrEqual(2);
@@ -75,16 +132,38 @@ test.describe('R4 group1 canonical spine harness', () => {
     await page.evaluate(() => {
       void window.__r4Group1?.playForward();
     });
+    await expect.poll(async () => {
+      const visual = await visualSnapshot(page);
+      return visual.activeInkSegments.includes('hero-pattern');
+    }, { timeout: 3_000 }).toBe(true);
+    const heroPatternInk = await visualSnapshot(page);
+    expect(heroPatternInk.transitions).toContain('hero-pattern-center-ink');
+    expect(heroPatternInk.patternCanvasArea).toBeGreaterThan(100_000);
+
     const forwardFrames: Group1Snapshot[] = [];
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       forwardFrames.push(await snapshot(page));
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('pattern');
+    await expect.poll(async () => (await visualSnapshot(page)).patternProgress).toBe(1);
+    const compactPattern = await visualSnapshot(page);
+    expect(compactPattern.largestRingScale).toBeLessThan(0.12);
+    expect(compactPattern.compactRingScale).toBeGreaterThan(0.2);
+    expect(compactPattern.patternCanvasNonBlankSamples).toBeGreaterThan(0);
 
     await page.evaluate(() => {
       void window.__r4Group1?.playForward();
     });
+    await expect.poll(async () => {
+      const visual = await visualSnapshot(page);
+      return visual.activeInkSegments.includes('pattern-star-map');
+    }, { timeout: 3_000 }).toBe(true);
+    const patternStarMapInk = await visualSnapshot(page);
+    expect(patternStarMapInk.transitions).toContain('pattern-star-map-left-ink');
+    expect(patternStarMapInk.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
+    expect(patternStarMapInk.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);
+
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       forwardFrames.push(await snapshot(page));

@@ -95,11 +95,18 @@ describe('figure2 proof chain transitions', () => {
     it(`verifies ${item.id} timeline and reduced-motion fallback`, async () => {
       const transition = item.create();
       const timeline = await transition.buildTimeline(context(item.id, item.from, item.to));
+      const isReadingSegment = item.id !== 'figure2-distance-expand';
 
       expect(transition.reducedMotionFallback).toBeTypeOf('function');
       expect(verifySegmentTimeline(timeline, { policy: segment(item.id).policy })).toMatchObject({
-        maxVisibleLayers: 2
+        maxVisibleLayers: isReadingSegment ? 1 : 2
       });
+      if (isReadingSegment) {
+        expect(timeline.sample?.(0.5)).toMatchObject({
+          from: { visible: true, opacity: 1 },
+          to: { visible: false, opacity: 0 }
+        });
+      }
     });
 
     it(`keeps ${item.id} idempotent across 0 to 1 to 0 to 1`, async () => {

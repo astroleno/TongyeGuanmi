@@ -43,6 +43,58 @@ async function snapshot(page: Page): Promise<Group2Snapshot> {
   });
 }
 
+type Group2VisualSnapshot = {
+  activeInkSegments: readonly string[];
+  transitions: readonly string[];
+  inkOrigins: Record<string, { x: number; y: number }>;
+  figure2Progress: number;
+  cloudScale: number;
+  farArcadeScale: number;
+  nearArchBlurPx: number;
+  figureScale: number;
+  figureWidth: number;
+  farArcadeImageCount: number;
+  cloudCount: number;
+  videos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
+};
+
+async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
+  return page.evaluate(() => {
+    const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
+    const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
+    const figure = document.querySelector<HTMLElement>('.r4-figure2__figure');
+    const figureRect = figure?.getBoundingClientRect();
+    const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
+    return {
+      activeInkSegments: inkCanvases
+        .filter((canvas) => canvas.parentElement?.dataset.r4InkActive === 'true')
+        .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
+      transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
+        .map((element) => element.dataset.r4Transition ?? ''),
+      inkOrigins: Object.fromEntries(inkCanvases.map((canvas) => [
+        canvas.dataset.r4InkSegment ?? '',
+        {
+          x: Number.parseFloat(canvas.dataset.inkOriginX ?? 'NaN'),
+          y: Number.parseFloat(canvas.dataset.inkOriginY ?? 'NaN')
+        }
+      ])),
+      figure2Progress: Number.parseFloat(figureRoot?.dataset.figure2Progress ?? '0'),
+      cloudScale: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-cloud-scale') ?? '0'),
+      farArcadeScale: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-far-arcade-scale') ?? '0'),
+      nearArchBlurPx: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-near-arch-blur') ?? '0'),
+      figureScale: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-figure-scale') ?? '0'),
+      figureWidth: figureRect?.width ?? 0,
+      farArcadeImageCount: document.querySelectorAll('.r4-figure2__far-arcade img').length,
+      cloudCount: document.querySelectorAll('.r4-figure2__cloud').length,
+      videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
+        loop: video.loop,
+        paused: video.paused,
+        currentTime: video.currentTime
+      }))
+    };
+  });
+}
+
 async function assertFrame(frame: Group2Snapshot): Promise<void> {
   expect(frame.visibleCount).toBeGreaterThan(0);
   expect(frame.visibleCount).toBeLessThanOrEqual(2);
@@ -78,7 +130,14 @@ test.describe('R4 group2 canonical spine harness', () => {
     const forwardFrames: Group2Snapshot[] = [];
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
-      forwardFrames.push(await snapshot(page));
+      const frame = await snapshot(page);
+      forwardFrames.push(frame);
+      if (index === 5) {
+        const methodTop = frame.layers.find((layer) => layer.scene === 'method-top');
+        const methodBottom = frame.layers.find((layer) => layer.scene === 'method-bottom');
+        expect(methodTop).toMatchObject({ visible: true, opacity: 1 });
+        expect(methodBottom).toMatchObject({ visible: false, opacity: 0 });
+      }
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-bottom');
 
@@ -88,8 +147,30 @@ test.describe('R4 group2 canonical spine harness', () => {
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       forwardFrames.push(await snapshot(page));
+      if (index === 5) {
+        const visual = await visualSnapshot(page);
+        expect(visual.activeInkSegments).toContain('method-bottom-figure2');
+        expect(visual.transitions).toContain('method-bottom-figure2-bottom-ink');
+        expect(visual.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
+        expect(visual.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1.04, 2);
+        expect(visual.figure2Progress).toBeGreaterThan(0);
+        expect(visual.figure2Progress).toBeLessThan(1);
+        expect(visual.videos).toHaveLength(2);
+        expect(visual.videos.every((video) => video.loop === false)).toBe(true);
+      }
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure2-animation');
+    const figure2Hold = await visualSnapshot(page);
+    expect(figure2Hold.figure2Progress).toBe(1);
+    expect(figure2Hold.farArcadeImageCount).toBe(3);
+    expect(figure2Hold.cloudCount).toBe(1);
+    expect(figure2Hold.cloudScale).toBeGreaterThan(1);
+    expect(figure2Hold.farArcadeScale).toBeGreaterThan(figure2Hold.cloudScale);
+    expect(figure2Hold.nearArchBlurPx).toBeGreaterThan(3);
+    expect(figure2Hold.figureScale).toBeGreaterThan(1);
+    expect(figure2Hold.figureWidth).toBeGreaterThan(153);
+    expect(figure2Hold.figureWidth).toBeLessThan(261);
+    expect(figure2Hold.videos.every((video) => video.loop === false && video.paused)).toBe(true);
 
     await page.evaluate(() => {
       void window.__r4Group2?.playReverse();
