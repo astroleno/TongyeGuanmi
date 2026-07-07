@@ -1,0 +1,300 @@
+{
+  "phase": "hold",
+  "mode": "group4",
+  "window": {
+    "current": "figure3-animation",
+    "retiring": [],
+    "prev": "brand",
+    "next": "services"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 3,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "BUILD_READY:brand-figure3",
+    "PLAY:brand-figure3:1",
+    "BUILD_READY:figure3-services",
+    "PLAY:figure3-services:1",
+    "BUILD_READY:figure3-services",
+    "PLAY:figure3-services:-1"
+  ],
+  "recoveryCount": 0,
+  "staleCompletionIgnored": 0,
+  "trace": [
+    {
+      "at": 1783433404438,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g4-group4",
+      "cursor": {
+        "status": "hold",
+        "scene": "brand"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783433404439,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g4-group4",
+      "cursor": {
+        "status": "hold",
+        "scene": "brand"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783433404459,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g4-group4",
+      "prepareToken": "r4-g4-group4:prepare:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "brand"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783433404464,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "figure3-animation",
+        "prepareToken": "r4-g4-group4:prepare:1"
+      },
+      "actorEpoch": "r4-g4-group4",
+      "activeRunId": "r4-g4-group4:1",
+      "cursor": {
+        "status": "segment",
+        "segment": "brand-figure3",
+        "from": "brand",
+        "to": "figure3-animation"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 4
+    },
+    {
+      "at": 1783433405680,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g4-group4:1"
+      },
+      "actorEpoch": "r4-g4-group4",
+      "cursor": {
+        "status": "settling",
+        "segment": "brand-figure3",
+        "from": "brand",
+        "to": "figure3-animation",
+        "target": "figure3-animation"
+      },
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "next": "figure3-animation"
+      },
+      "id": 5
+    },
+    {
+      "at": 1783433406832,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g4-group4",
+      "prepareToken": "r4-g4-group4:prepare:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "figure3-animation"
+      },
+      "layerWindow": {
+        "current": "figure3-animation",
+        "retiring": [],
+        "prev": "brand",
+        "next": "services"
+      },
+      "id": 6
+    },
+    {
+      "at": 1783433406833,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "services",
+        "prepareToken": "r4-g4-group4:prepare:2"
+      },
+      "actorEpoch": "r4-g4-group4",
+      "activeRunId": "r4-g4-group4:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "figure3-services",
+        "from": "figure3-animation",
+        "to": "services"
+      },
+      "layerWindow": {
+        "current": "figure3-animation",
+        "retiring": [],
+        "prev": "brand",
+        "next": "services"
+      },
+      "id": 7
+    },
+    {
+      "at": 1783433409648,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g4-group4:2"
+      },
+      "actorEpoch": "r4-g4-group4",
+      "cursor": {
+        "status": "settling",
+        "segment": "figure3-services",
+        "from": "figure3-animation",
+        "to": "services",
+        "target": "services"
+      },
+      "layerWindow": {
+        "current": "figure3-animation",
+        "retiring": [],
+        "prev": "brand",
+        "next": "services"
+      },
+      "id": 8
+    },
+    {
+      "at": 1783433410077,
+      "event": {
+        "type": "RETIRING_RELEASED"
+      },
+      "actorEpoch": "r4-g4-group4",
+      "cursor": {
+        "status": "hold",
+        "scene": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "prev": "figure3-animation"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783433411063,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": -1
+      },
+      "actorEpoch": "r4-g4-group4",
+      "prepareToken": "r4-g4-group4:prepare:3",
+      "cursor": {
+        "status": "hold",
+        "scene": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "prev": "figure3-animation"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783433411064,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "figure3-animation",
+        "prepareToken": "r4-g4-group4:prepare:3"
+      },
+      "actorEpoch": "r4-g4-group4",
+      "activeRunId": "r4-g4-group4:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "figure3-services",
+        "from": "figure3-animation",
+        "to": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "prev": "figure3-animation"
+      },
+      "id": 11
+    },
+    {
+      "at": 1783433413881,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g4-group4:3"
+      },
+      "actorEpoch": "r4-g4-group4",
+      "cursor": {
+        "status": "settling",
+        "segment": "figure3-services",
+        "from": "figure3-animation",
+        "to": "services",
+        "target": "figure3-animation"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "prev": "figure3-animation"
+      },
+      "id": 12
+    }
+  ],
+  "layers": [
+    {
+      "scene": "brand",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "figure3-animation",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    },
+    {
+      "scene": "services",
+      "role": "next",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    }
+  ]
+}
