@@ -7,6 +7,7 @@ import { PilotHarness } from './harness/r3/PilotHarness';
 import { Group1Harness } from './harness/r4/Group1Harness';
 import { Group2Harness } from './harness/r4/Group2Harness';
 import { Group3Harness } from './harness/r4/Group3Harness';
+import { Group7Harness } from './harness/r4/Group7Harness';
 import './styles.css';
 
 const holdCount = storyManifest.nodes.filter((node) => node.kind === 'hold').length;
@@ -67,6 +68,15 @@ export function App() {
   }
   if (path === '/harness/r4-g3-figure2-proof-brand') {
     return <Group3Harness mode="figure2-proof-brand" />;
+  }
+  if (path === '/harness/r4-g7') {
+    return <Group7Harness mode="group7" />;
+  }
+  if (path === '/harness/r4-g7-education-crane') {
+    return <Group7Harness mode="education-crane" />;
+  }
+  if (path === '/harness/r4-g7-crane-contact') {
+    return <Group7Harness mode="crane-contact" />;
   }
 
   return (

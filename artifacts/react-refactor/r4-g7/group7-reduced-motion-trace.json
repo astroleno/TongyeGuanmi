@@ -1,0 +1,271 @@
+{
+  "phase": "hold",
+  "mode": "crane-contact",
+  "window": {
+    "current": "contact",
+    "retiring": [],
+    "prev": "crane-animation"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 2,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "BUILD_READY:crane-contact",
+    "PLAY:crane-contact:1",
+    "BUILD_READY:crane-contact",
+    "PLAY:crane-contact:-1",
+    "BUILD_READY:crane-contact",
+    "PLAY:crane-contact:1"
+  ],
+  "recoveryCount": 0,
+  "staleCompletionIgnored": 0,
+  "trace": [
+    {
+      "at": 1783435391457,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "cursor": {
+        "status": "hold",
+        "scene": "crane-animation"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "next": "contact"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783435391457,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "cursor": {
+        "status": "hold",
+        "scene": "crane-animation"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "next": "contact"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783435391477,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "prepareToken": "r4-g7-crane-contact:prepare:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "crane-animation"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "next": "contact"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783435391478,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "contact",
+        "prepareToken": "r4-g7-crane-contact:prepare:1"
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "activeRunId": "r4-g7-crane-contact:1",
+      "cursor": {
+        "status": "segment",
+        "segment": "crane-contact",
+        "from": "crane-animation",
+        "to": "contact"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "next": "contact"
+      },
+      "id": 4
+    },
+    {
+      "at": 1783435391478,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g7-crane-contact:1"
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "cursor": {
+        "status": "settling",
+        "segment": "crane-contact",
+        "from": "crane-animation",
+        "to": "contact",
+        "target": "contact"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "next": "contact"
+      },
+      "id": 5
+    },
+    {
+      "at": 1783435391922,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": -1
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "prepareToken": "r4-g7-crane-contact:prepare:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "contact"
+      },
+      "layerWindow": {
+        "current": "contact",
+        "retiring": [],
+        "prev": "crane-animation"
+      },
+      "id": 6
+    },
+    {
+      "at": 1783435391922,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "crane-animation",
+        "prepareToken": "r4-g7-crane-contact:prepare:2"
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "activeRunId": "r4-g7-crane-contact:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "crane-contact",
+        "from": "crane-animation",
+        "to": "contact"
+      },
+      "layerWindow": {
+        "current": "contact",
+        "retiring": [],
+        "prev": "crane-animation"
+      },
+      "id": 7
+    },
+    {
+      "at": 1783435391922,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g7-crane-contact:2"
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "cursor": {
+        "status": "settling",
+        "segment": "crane-contact",
+        "from": "crane-animation",
+        "to": "contact",
+        "target": "crane-animation"
+      },
+      "layerWindow": {
+        "current": "contact",
+        "retiring": [],
+        "prev": "crane-animation"
+      },
+      "id": 8
+    },
+    {
+      "at": 1783435392366,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "prepareToken": "r4-g7-crane-contact:prepare:3",
+      "cursor": {
+        "status": "hold",
+        "scene": "crane-animation"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "next": "contact"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783435392366,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "contact",
+        "prepareToken": "r4-g7-crane-contact:prepare:3"
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "activeRunId": "r4-g7-crane-contact:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "crane-contact",
+        "from": "crane-animation",
+        "to": "contact"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "next": "contact"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783435392366,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g7-crane-contact:3"
+      },
+      "actorEpoch": "r4-g7-crane-contact",
+      "cursor": {
+        "status": "settling",
+        "segment": "crane-contact",
+        "from": "crane-animation",
+        "to": "contact",
+        "target": "contact"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "next": "contact"
+      },
+      "id": 11
+    }
+  ],
+  "layers": [
+    {
+      "scene": "crane-animation",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "contact",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    }
+  ]
+}
