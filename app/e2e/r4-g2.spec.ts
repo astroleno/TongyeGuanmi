@@ -55,6 +55,7 @@ type Group2VisualSnapshot = {
   figureWidth: number;
   farArcadeImageCount: number;
   cloudCount: number;
+  visibleCaptionCount: number;
   videos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
 };
 
@@ -86,6 +87,12 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
       figureWidth: figureRect?.width ?? 0,
       farArcadeImageCount: document.querySelectorAll('.r4-figure2__far-arcade img').length,
       cloudCount: document.querySelectorAll('.r4-figure2__cloud').length,
+      visibleCaptionCount: [...document.querySelectorAll<HTMLElement>('.r4-figure2__figure figcaption')]
+        .filter((caption) => {
+          const rect = caption.getBoundingClientRect();
+          const style = window.getComputedStyle(caption);
+          return rect.width > 1.5 || rect.height > 1.5 || style.overflow !== 'hidden' || style.clip === 'auto';
+        }).length,
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
         loop: video.loop,
         paused: video.paused,
@@ -171,6 +178,7 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(figure2Hold.figureScale).toBeGreaterThan(1);
     expect(figure2Hold.figureWidth).toBeGreaterThan(153);
     expect(figure2Hold.figureWidth).toBeLessThan(261);
+    expect(figure2Hold.visibleCaptionCount).toBe(0);
     expect(figure2Hold.videos.every((video) => video.loop === false && video.paused)).toBe(true);
 
     await page.evaluate(() => {

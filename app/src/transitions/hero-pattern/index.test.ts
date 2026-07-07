@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
-import { createHeroPatternTransition } from './index';
+import { createHeroPatternTransition, patternBloomProgressForHeroPattern } from './index';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
 
 function layer(scene: 'hero' | 'pattern', role: 'current' | 'next'): LayerHandle {
@@ -56,6 +56,14 @@ function context(prefersReducedMotion = false): TransitionContext {
 }
 
 describe('hero-pattern transition', () => {
+  it('matches main bloom timing after the initial full-petal reveal', () => {
+    expect(patternBloomProgressForHeroPattern(0)).toBe(0);
+    expect(patternBloomProgressForHeroPattern(0.419)).toBe(0);
+    expect(patternBloomProgressForHeroPattern(0.56)).toBeCloseTo(0.5, 5);
+    expect(patternBloomProgressForHeroPattern(0.70)).toBe(1);
+    expect(patternBloomProgressForHeroPattern(1)).toBe(1);
+  });
+
   it('passes timeline verification and exposes a reduced-motion fallback', async () => {
     const transition = createHeroPatternTransition();
     const timeline = await transition.buildTimeline(context());

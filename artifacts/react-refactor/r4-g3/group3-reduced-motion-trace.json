@@ -32,7 +32,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783396370733,
+      "at": 1783399251849,
       "event": {
         "type": "BOOT_READY"
       },
@@ -49,7 +49,7 @@
       "id": 1
     },
     {
-      "at": 1783396370734,
+      "at": 1783399251850,
       "event": {
         "type": "BOOT_READY"
       },
@@ -66,7 +66,7 @@
       "id": 2
     },
     {
-      "at": 1783396370848,
+      "at": 1783399252058,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -85,7 +85,7 @@
       "id": 3
     },
     {
-      "at": 1783396370850,
+      "at": 1783399252059,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-proof-opening",
@@ -107,7 +107,7 @@
       "id": 4
     },
     {
-      "at": 1783396370850,
+      "at": 1783399252060,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-figure2-distance-expand:1"
@@ -128,7 +128,7 @@
       "id": 5
     },
     {
-      "at": 1783396371306,
+      "at": 1783399252499,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -147,7 +147,7 @@
       "id": 6
     },
     {
-      "at": 1783396371306,
+      "at": 1783399252499,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-animation",
@@ -169,7 +169,7 @@
       "id": 7
     },
     {
-      "at": 1783396371306,
+      "at": 1783399252500,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-figure2-distance-expand:2"
@@ -190,7 +190,7 @@
       "id": 8
     },
     {
-      "at": 1783396371742,
+      "at": 1783399252948,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -209,7 +209,7 @@
       "id": 9
     },
     {
-      "at": 1783396371742,
+      "at": 1783399252948,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-proof-opening",
@@ -231,7 +231,7 @@
       "id": 10
     },
     {
-      "at": 1783396371742,
+      "at": 1783399252949,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-figure2-distance-expand:3"
