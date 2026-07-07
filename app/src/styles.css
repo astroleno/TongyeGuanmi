@@ -165,6 +165,11 @@ h1 {
   will-change: opacity;
 }
 
+.stage-layer[data-stage-layer="lab"],
+.stage-layer[data-stage-layer="education"] {
+  place-items: start stretch;
+}
+
 .stage-proof-retained-arch {
   position: absolute;
   left: 50%;
@@ -1573,15 +1578,15 @@ pre {
 }
 
 .figure3-transition.r4-figure3-animation {
-  --figure3-progress: 1;
+  --figure3-progress: 0;
   --figure3-paper: #ede4d2;
   --figure3-theme-solid: #ede4d2;
   --figure3-ink: #292919;
-  --figure3-backdrop-opacity: .54;
-  --figure3-backdrop-scale: 1.14;
-  --figure3-video-opacity: 0;
-  --figure3-video-scale: 1.056;
-  --figure3-fill-opacity: 1;
+  --figure3-backdrop-opacity: 1;
+  --figure3-backdrop-scale: 1.06;
+  --figure3-video-opacity: 1;
+  --figure3-video-scale: 1.004;
+  --figure3-fill-opacity: 0;
   position: relative;
   width: 100%;
   height: 100svh;
@@ -2727,7 +2732,7 @@ pre {
 }
 
 .crane-page.r4-crane-animation {
-  --crane-progress: 1;
+  --crane-progress: 0;
   --crane-scroll-vh: 330;
   --crane-arch-blur: 0px;
   --crane-video-scale: .8;

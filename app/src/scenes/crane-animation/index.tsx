@@ -19,6 +19,7 @@ const FIGURE_START_SECONDS = 0.5;
 const FIGURE_FULLSCREEN_SECONDS = FIGURE_START_SECONDS + 1;
 const FIGURE_END_SECONDS = FIGURE_START_SECONDS + VIDEO_DURATION_FALLBACK;
 const FIGURE_POSITION = { x: 0, y: 198, scale: 0.8 };
+export const CRANE_HOLD_PROGRESS = 0;
 
 export type CraneRenderState = {
   progress: number;
@@ -161,6 +162,7 @@ export function renderCraneAnimationProgress(root: HTMLElement | null | undefine
   if (options.playback) {
     driveCranePlayback(section, progress, figureProgress, flockProgress);
   } else {
+    section?.setAttribute('data-crane-playback-active', 'false');
     seekVideo(section?.querySelector<HTMLVideoElement>('[data-crane-figure-video]'), figureProgress);
     seekVideo(section?.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]'), flockProgress);
   }
@@ -174,7 +176,7 @@ function CraneAnimationScene({ role, registerHandle }: SceneComponentProps) {
 
   useEffect(() => {
     if (role === 'current' && rootRef.current) {
-      renderCraneAnimationProgress(rootRef.current, 1);
+      renderCraneAnimationProgress(rootRef.current, CRANE_HOLD_PROGRESS);
     }
   }, [role]);
 
@@ -184,7 +186,7 @@ function CraneAnimationScene({ role, registerHandle }: SceneComponentProps) {
         rootRef.current = element;
         registerHandle?.('stage', element);
         if (element && !initializedRef.current) {
-          renderCraneAnimationProgress(element, role === 'current' ? 1 : 0);
+          renderCraneAnimationProgress(element, CRANE_HOLD_PROGRESS);
           initializedRef.current = true;
         }
       }}

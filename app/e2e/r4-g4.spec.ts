@@ -57,6 +57,7 @@ type Group4VisualSnapshot = {
   revealProgress: number;
   revealClip: string;
   handoffProgress: number;
+  servicesElevated: boolean;
 };
 
 async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
@@ -88,7 +89,8 @@ async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
       copyCueActive: servicesLayer?.dataset.copyCueActive === 'true',
       revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
       revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none',
-      handoffProgress: Number.parseFloat(servicesLayer?.dataset.r4HandoffReceiverProgress ?? '0')
+      handoffProgress: Number.parseFloat(servicesLayer?.dataset.r4HandoffReceiverProgress ?? '0'),
+      servicesElevated: servicesLayer?.dataset.r4TransitionElevated === 'true'
     };
   });
 }
@@ -141,8 +143,9 @@ test.describe('R4 group4 brand figure3 services harness', () => {
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure3-animation');
     const figureHold = await visualSnapshot(page);
-    expect(figureHold.figure3Progress).toBe(1);
-    expect(figureHold.figure3FillOpacity).toBeGreaterThan(0.95);
+    expect(figureHold.figure3Progress).toBe(0);
+    expect(figureHold.figure3VideoOpacity).toBeGreaterThan(0.95);
+    expect(figureHold.figure3FillOpacity).toBeLessThan(0.05);
     expect(figureHold.figure3Videos).toHaveLength(1);
     expect(figureHold.figure3Videos.every((video) => video.loop === false && video.paused)).toBe(true);
 
@@ -158,7 +161,8 @@ test.describe('R4 group4 brand figure3 services harness', () => {
       return visual.transitions.includes('figure3-services-media')
         && visual.copyCueActive
         && visual.servicesProgress > 0
-        && visual.handoffProgress > 0;
+        && visual.handoffProgress > 0
+        && visual.servicesElevated;
     }, { timeout: 5_000 }).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 7_000 }).toBe('services');
     const servicesHold = await visualSnapshot(page);

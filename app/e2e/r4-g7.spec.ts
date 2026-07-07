@@ -55,6 +55,7 @@ type Group7VisualSnapshot = {
   contactCopyCue: string | undefined;
   contactScheme: string;
   contactHandoffProgress: number;
+  contactElevated: boolean;
   educationReference: boolean;
   revealProgress: number;
   revealClip: string;
@@ -89,6 +90,7 @@ async function visualSnapshot(page: Page): Promise<Group7VisualSnapshot> {
       contactCopyCue: contactLayer?.dataset.copyCueActive,
       contactScheme: window.getComputedStyle(contactRoot ?? document.body).colorScheme,
       contactHandoffProgress: Number.parseFloat(contactLayer?.dataset.r4HandoffReceiverProgress ?? '0'),
+      contactElevated: contactLayer?.dataset.r4TransitionElevated === 'true',
       educationReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
       revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
       revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none'
@@ -141,7 +143,8 @@ test.describe('R4 group7 education crane contact harness', () => {
         expect(visual.revealProgress).toBeGreaterThan(0);
         expect(visual.revealProgress).toBeLessThan(1);
         expect(visual.revealClip).not.toBe('none');
-        expect(visual.cranePlaybackActive).toBe('true');
+        expect(visual.craneProgress).toBe(0);
+        expect(visual.cranePlaybackActive).not.toBe('true');
       }
       const visual = await visualSnapshot(page);
       sawEducationCraneReveal ||= visual.activeInkSegments.includes('education-crane')
@@ -152,7 +155,7 @@ test.describe('R4 group7 education crane contact harness', () => {
     expect(sawEducationCraneReveal).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('crane-animation');
     const craneHold = await visualSnapshot(page);
-    expect(craneHold.craneProgress).toBe(1);
+    expect(craneHold.craneProgress).toBe(0);
     expect(craneHold.craneVideos).toHaveLength(2);
     expect(craneHold.craneVideos.every((video) => video.loop === false && video.paused)).toBe(true);
     expect(craneHold.craneArchTransform).not.toBe('none');
@@ -169,14 +172,15 @@ test.describe('R4 group7 education crane contact harness', () => {
         const visual = await visualSnapshot(page);
         expect(visual.transitions).toContain('crane-contact-media');
         expect(visual.transitions).toContain('crane-contact-copy-cue');
+        expect(visual.cranePlaybackActive).toBe('true');
       }
       const visual = await visualSnapshot(page);
-      sawContactHandoff ||= visual.contactHandoffProgress > 0;
+      sawContactHandoff ||= visual.contactHandoffProgress > 0 && visual.contactElevated;
     }
     if (!sawContactHandoff) {
       await expect.poll(async () => {
         const visual = await visualSnapshot(page);
-        return visual.contactHandoffProgress;
+        return visual.contactElevated ? visual.contactHandoffProgress : 0;
       }, { timeout: 5_000 }).toBeGreaterThan(0);
       sawContactHandoff = true;
     }

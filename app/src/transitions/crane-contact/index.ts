@@ -2,6 +2,7 @@ import { PilotProgressTimeline } from '../../pilot/progress-timeline';
 import { fadeVisibility, range01, smoothStep } from '../../pilot/visibility';
 import { CRANE_FIGURE_MEDIA_KEY, CRANE_FLOCK_MEDIA_KEY, renderCraneAnimationProgress } from '../../scenes/crane-animation';
 import { renderContactProgress } from '../../scenes/contact';
+import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 import type { Direction, LayerVisibilityState, SegmentTimelineHandle, TransitionContext, TransitionModule } from '../../story/types';
 
 export const CRANE_CONTACT_COPY_CUE = { targetScene: 'contact', atProgress: 0.8 } as const;
@@ -38,8 +39,10 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   } as const;
   readonly pauses: readonly string[] = [];
   private readonly timeline: PilotProgressTimeline;
+  private readonly elevation: TransitionLayerElevation;
 
   constructor(context: TransitionContext) {
+    this.elevation = createTransitionLayerElevation(context.to.element);
     this.timeline = new PilotProgressTimeline({
       from: context.from,
       to: context.to,
@@ -47,6 +50,7 @@ class CraneContactTimeline implements SegmentTimelineHandle {
       copyCue: CRANE_CONTACT_COPY_CUE,
       sample: sampleCraneContact,
       render: (progress) => {
+        this.elevation.elevate();
         renderCraneAnimationProgress(rootFor(context.from.element, 'crane-animation'), progress, { playback: true });
         renderContactProgress(rootFor(context.to.element, 'contact'), smoothStep(range01(progress, CONTACT_RECEIVER_START, CONTACT_RECEIVER_END)));
         writeHandoffReceiver(context.to.element, progress);
@@ -73,6 +77,7 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   }
 
   dispose(): void {
+    this.elevation.restore();
     this.timeline.dispose();
   }
 

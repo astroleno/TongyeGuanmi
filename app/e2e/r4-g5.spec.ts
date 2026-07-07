@@ -53,6 +53,8 @@ type Group5VisualSnapshot = {
   ttgPlaybackDirection: string | undefined;
   labProgress: number;
   labRows: number;
+  labTop: number;
+  labWideTop: number;
   servicesReference: boolean;
   revealProgress: number;
   revealClip: string;
@@ -64,6 +66,7 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
     const bgLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--bg');
     const figureLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--figure.is-active');
     const labRoot = document.querySelector<HTMLElement>('[data-r4-scene="lab"]');
+    const labWide = document.querySelector<HTMLElement>('.r4-lab__wide');
     const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
       .find((element) => element.dataset.r4InkActive === 'true') ?? null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
@@ -84,6 +87,8 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
       ttgPlaybackDirection: ttgRoot?.dataset.ttgPlaybackDirection,
       labProgress: Number.parseFloat(labRoot?.dataset.labProgress ?? '0'),
       labRows: document.querySelectorAll('.r4-lab__row').length,
+      labTop: labRoot?.getBoundingClientRect().top ?? Number.NaN,
+      labWideTop: labWide?.getBoundingClientRect().top ?? Number.NaN,
       servicesReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
       revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
       revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none'
@@ -172,6 +177,9 @@ test.describe('R4 group5 services ttg lab harness', () => {
     const labHold = await visualSnapshot(page);
     expect(labHold.labProgress).toBe(1);
     expect(labHold.labRows).toBe(6);
+    expect(Math.abs(labHold.labTop)).toBeLessThan(1);
+    expect(labHold.labWideTop).toBeGreaterThanOrEqual(0);
+    expect(labHold.labWideTop).toBeLessThan(100);
 
     await page.evaluate(() => {
       void window.__r4Group5?.playReverse();

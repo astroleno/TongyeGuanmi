@@ -54,6 +54,8 @@ type Group6VisualSnapshot = {
   educationProgress: number;
   educationRows: number;
   educationScheme: string;
+  educationTop: number;
+  educationWideTop: number;
   labReference: boolean;
   revealProgress: number;
   revealClip: string;
@@ -66,6 +68,7 @@ async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
     const frontLayer = document.querySelector<HTMLElement>('.r4-ph-animation .ph-layer--front');
     const figureLayer = document.querySelector<HTMLElement>('.r4-ph-animation .ph-layer--figure');
     const educationRoot = document.querySelector<HTMLElement>('[data-r4-scene="education"]');
+    const educationWide = document.querySelector<HTMLElement>('.r4-education__wide');
     const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
       .find((element) => element.dataset.r4InkActive === 'true') ?? null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
@@ -87,6 +90,8 @@ async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
       educationProgress: Number.parseFloat(educationRoot?.dataset.educationProgress ?? '0'),
       educationRows: document.querySelectorAll('.r4-education__row').length,
       educationScheme: window.getComputedStyle(educationRoot ?? document.body).colorScheme,
+      educationTop: educationRoot?.getBoundingClientRect().top ?? Number.NaN,
+      educationWideTop: educationWide?.getBoundingClientRect().top ?? Number.NaN,
       labReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
       revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
       revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none'
@@ -176,6 +181,9 @@ test.describe('R4 group6 lab ph education harness', () => {
     expect(educationHold.educationProgress).toBe(1);
     expect(educationHold.educationRows).toBe(4);
     expect(educationHold.educationScheme).toContain('light');
+    expect(Math.abs(educationHold.educationTop)).toBeLessThan(1);
+    expect(educationHold.educationWideTop).toBeGreaterThanOrEqual(0);
+    expect(educationHold.educationWideTop).toBeLessThan(100);
 
     await page.evaluate(() => {
       void window.__r4Group6?.playReverse();

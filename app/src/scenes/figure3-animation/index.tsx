@@ -23,6 +23,8 @@ const acceleratedProgress = (progress: number) => {
   return clamp(0.78 * p + 0.22 * p * p);
 };
 
+export const FIGURE3_HOLD_PROGRESS = 0;
+
 function seekVideo(video: HTMLVideoElement | null | undefined, progress: number): void {
   if (!video) {
     return;
@@ -64,7 +66,7 @@ function Figure3AnimationScene({ role, registerHandle }: SceneComponentProps) {
 
   useEffect(() => {
     if (role === 'current' && rootRef.current) {
-      renderFigure3AnimationProgress(rootRef.current, 1);
+      renderFigure3AnimationProgress(rootRef.current, FIGURE3_HOLD_PROGRESS);
     }
   }, [role]);
 
@@ -74,7 +76,7 @@ function Figure3AnimationScene({ role, registerHandle }: SceneComponentProps) {
         rootRef.current = element;
         registerHandle?.('field', element);
         if (element && !initializedRef.current) {
-          renderFigure3AnimationProgress(element, role === 'current' ? 1 : 0);
+          renderFigure3AnimationProgress(element, FIGURE3_HOLD_PROGRESS);
           initializedRef.current = true;
         }
       }}
