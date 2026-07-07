@@ -11,6 +11,7 @@ import { Group4Harness } from './harness/r4/Group4Harness';
 import { Group5Harness } from './harness/r4/Group5Harness';
 import { Group6Harness } from './harness/r4/Group6Harness';
 import { Group7Harness } from './harness/r4/Group7Harness';
+import { BackHalfHarness } from './harness/r4/BackHalfHarness';
 import './styles.css';
 
 const holdCount = storyManifest.nodes.filter((node) => node.kind === 'hold').length;
@@ -107,6 +108,9 @@ export function App() {
   }
   if (path === '/harness/r4-g7-crane-contact') {
     return <Group7Harness mode="crane-contact" />;
+  }
+  if (path === '/harness/r4-back-half') {
+    return <BackHalfHarness />;
   }
 
   return (

@@ -1,0 +1,578 @@
+{
+  "phase": "hold",
+  "window": {
+    "current": "contact",
+    "retiring": [],
+    "prev": "crane-animation"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 2,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "RETIRING_RELEASED",
+    "BUILD_READY:services-ttg",
+    "PLAY:services-ttg:1",
+    "BUILD_READY:ttg-lab",
+    "PLAY:ttg-lab:1",
+    "BUILD_READY:lab-ph",
+    "PLAY:lab-ph:1",
+    "BUILD_READY:ph-education",
+    "PLAY:ph-education:1",
+    "BUILD_READY:education-crane",
+    "PLAY:education-crane:1",
+    "BUILD_READY:crane-contact",
+    "PLAY:crane-contact:1"
+  ],
+  "trace": [
+    {
+      "at": 1783437853763,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "hold",
+        "scene": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783437853764,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "hold",
+        "scene": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783437853775,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-back-half",
+      "prepareToken": "r4-back-half:prepare:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783437853784,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "ttg-animation",
+        "prepareToken": "r4-back-half:prepare:1"
+      },
+      "actorEpoch": "r4-back-half",
+      "activeRunId": "r4-back-half:1",
+      "cursor": {
+        "status": "segment",
+        "segment": "services-ttg",
+        "from": "services",
+        "to": "ttg-animation"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 4
+    },
+    {
+      "at": 1783437853784,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-back-half:1"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "settling",
+        "segment": "services-ttg",
+        "from": "services",
+        "to": "ttg-animation",
+        "target": "ttg-animation"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 5
+    },
+    {
+      "at": 1783437854232,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-back-half",
+      "prepareToken": "r4-back-half:prepare:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "ttg-animation"
+      },
+      "layerWindow": {
+        "current": "ttg-animation",
+        "retiring": [],
+        "prev": "services",
+        "next": "lab"
+      },
+      "id": 6
+    },
+    {
+      "at": 1783437854242,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "lab",
+        "prepareToken": "r4-back-half:prepare:2"
+      },
+      "actorEpoch": "r4-back-half",
+      "activeRunId": "r4-back-half:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "ttg-lab",
+        "from": "ttg-animation",
+        "to": "lab"
+      },
+      "layerWindow": {
+        "current": "ttg-animation",
+        "retiring": [],
+        "prev": "services",
+        "next": "lab"
+      },
+      "id": 7
+    },
+    {
+      "at": 1783437854243,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-back-half:2"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "settling",
+        "segment": "ttg-lab",
+        "from": "ttg-animation",
+        "to": "lab",
+        "target": "lab"
+      },
+      "layerWindow": {
+        "current": "ttg-animation",
+        "retiring": [],
+        "prev": "services",
+        "next": "lab"
+      },
+      "id": 8
+    },
+    {
+      "at": 1783437854666,
+      "event": {
+        "type": "RETIRING_RELEASED"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "hold",
+        "scene": "lab"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation",
+        "next": "ph-animation"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783437854676,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-back-half",
+      "prepareToken": "r4-back-half:prepare:3",
+      "cursor": {
+        "status": "hold",
+        "scene": "lab"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation",
+        "next": "ph-animation"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783437854689,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "ph-animation",
+        "prepareToken": "r4-back-half:prepare:3"
+      },
+      "actorEpoch": "r4-back-half",
+      "activeRunId": "r4-back-half:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "lab-ph",
+        "from": "lab",
+        "to": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation",
+        "next": "ph-animation"
+      },
+      "id": 11
+    },
+    {
+      "at": 1783437854689,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-back-half:3"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "settling",
+        "segment": "lab-ph",
+        "from": "lab",
+        "to": "ph-animation",
+        "target": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation",
+        "next": "ph-animation"
+      },
+      "id": 12
+    },
+    {
+      "at": 1783437855123,
+      "event": {
+        "type": "RETIRING_RELEASED"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "hold",
+        "scene": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "id": 13
+    },
+    {
+      "at": 1783437855138,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-back-half",
+      "prepareToken": "r4-back-half:prepare:4",
+      "cursor": {
+        "status": "hold",
+        "scene": "ph-animation"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "id": 14
+    },
+    {
+      "at": 1783437855147,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "education",
+        "prepareToken": "r4-back-half:prepare:4"
+      },
+      "actorEpoch": "r4-back-half",
+      "activeRunId": "r4-back-half:4",
+      "cursor": {
+        "status": "segment",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "id": 15
+    },
+    {
+      "at": 1783437855148,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-back-half:4"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "settling",
+        "segment": "ph-education",
+        "from": "ph-animation",
+        "to": "education",
+        "target": "education"
+      },
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "id": 16
+    },
+    {
+      "at": 1783437855583,
+      "event": {
+        "type": "RETIRING_RELEASED"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "hold",
+        "scene": "education"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation",
+        "next": "crane-animation"
+      },
+      "id": 17
+    },
+    {
+      "at": 1783437855597,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-back-half",
+      "prepareToken": "r4-back-half:prepare:5",
+      "cursor": {
+        "status": "hold",
+        "scene": "education"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation",
+        "next": "crane-animation"
+      },
+      "id": 18
+    },
+    {
+      "at": 1783437855608,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "crane-animation",
+        "prepareToken": "r4-back-half:prepare:5"
+      },
+      "actorEpoch": "r4-back-half",
+      "activeRunId": "r4-back-half:5",
+      "cursor": {
+        "status": "segment",
+        "segment": "education-crane",
+        "from": "education",
+        "to": "crane-animation"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation",
+        "next": "crane-animation"
+      },
+      "id": 19
+    },
+    {
+      "at": 1783437855609,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-back-half:5"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "settling",
+        "segment": "education-crane",
+        "from": "education",
+        "to": "crane-animation",
+        "target": "crane-animation"
+      },
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation",
+        "next": "crane-animation"
+      },
+      "id": 20
+    },
+    {
+      "at": 1783437856030,
+      "event": {
+        "type": "RETIRING_RELEASED"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "hold",
+        "scene": "crane-animation"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "prev": "education",
+        "next": "contact"
+      },
+      "id": 21
+    },
+    {
+      "at": 1783437856047,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-back-half",
+      "prepareToken": "r4-back-half:prepare:6",
+      "cursor": {
+        "status": "hold",
+        "scene": "crane-animation"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "prev": "education",
+        "next": "contact"
+      },
+      "id": 22
+    },
+    {
+      "at": 1783437856047,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "contact",
+        "prepareToken": "r4-back-half:prepare:6"
+      },
+      "actorEpoch": "r4-back-half",
+      "activeRunId": "r4-back-half:6",
+      "cursor": {
+        "status": "segment",
+        "segment": "crane-contact",
+        "from": "crane-animation",
+        "to": "contact"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "prev": "education",
+        "next": "contact"
+      },
+      "id": 23
+    },
+    {
+      "at": 1783437856048,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-back-half:6"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "settling",
+        "segment": "crane-contact",
+        "from": "crane-animation",
+        "to": "contact",
+        "target": "contact"
+      },
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "prev": "education",
+        "next": "contact"
+      },
+      "id": 24
+    },
+    {
+      "at": 1783437856472,
+      "event": {
+        "type": "RETIRING_RELEASED"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "hold",
+        "scene": "contact"
+      },
+      "layerWindow": {
+        "current": "contact",
+        "retiring": [],
+        "prev": "crane-animation"
+      },
+      "id": 25
+    }
+  ],
+  "layers": [
+    {
+      "scene": "crane-animation",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "contact",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    }
+  ]
+}

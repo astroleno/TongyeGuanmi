@@ -1,0 +1,109 @@
+{
+  "phase": "hold",
+  "window": {
+    "current": "contact",
+    "retiring": [],
+    "prev": "crane-animation"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 2,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "SEEK",
+    "SEEK"
+  ],
+  "trace": [
+    {
+      "at": 1783437853427,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "hold",
+        "scene": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783437853428,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-back-half",
+      "cursor": {
+        "status": "hold",
+        "scene": "services"
+      },
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "next": "ttg-animation"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783437853430,
+      "event": {
+        "type": "SEEK",
+        "label": "scene:contact",
+        "source": "menu"
+      },
+      "actorEpoch": "r4-back-half",
+      "activeRunId": "r4-back-half:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "contact"
+      },
+      "layerWindow": {
+        "current": "contact",
+        "retiring": [],
+        "prev": "crane-animation"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783437853430,
+      "event": {
+        "type": "SEEK",
+        "label": "scene:contact",
+        "source": "menu"
+      },
+      "actorEpoch": "r4-back-half",
+      "activeRunId": "r4-back-half:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "contact"
+      },
+      "layerWindow": {
+        "current": "contact",
+        "retiring": [],
+        "prev": "crane-animation"
+      },
+      "id": 4
+    }
+  ],
+  "layers": [
+    {
+      "scene": "crane-animation",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "contact",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    }
+  ]
+}
