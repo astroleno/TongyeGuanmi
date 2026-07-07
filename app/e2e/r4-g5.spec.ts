@@ -55,6 +55,8 @@ type Group5VisualSnapshot = {
   labRows: number;
   labTop: number;
   labWideTop: number;
+  labPortraitTop: number;
+  viewportHeight: number;
   servicesReference: boolean;
   revealProgress: number;
   revealClip: string;
@@ -67,6 +69,7 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
     const figureLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--figure.is-active');
     const labRoot = document.querySelector<HTMLElement>('[data-r4-scene="lab"]');
     const labWide = document.querySelector<HTMLElement>('.r4-lab__wide');
+    const labPortrait = document.querySelector<HTMLElement>('.r4-lab__portrait');
     const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
       .find((element) => element.dataset.r4InkActive === 'true') ?? null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
@@ -89,6 +92,8 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
       labRows: document.querySelectorAll('.r4-lab__row').length,
       labTop: labRoot?.getBoundingClientRect().top ?? Number.NaN,
       labWideTop: labWide?.getBoundingClientRect().top ?? Number.NaN,
+      labPortraitTop: labPortrait?.getBoundingClientRect().top ?? Number.NaN,
+      viewportHeight: window.innerHeight,
       servicesReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
       revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
       revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none'
@@ -180,6 +185,7 @@ test.describe('R4 group5 services ttg lab harness', () => {
     expect(Math.abs(labHold.labTop)).toBeLessThan(1);
     expect(labHold.labWideTop).toBeGreaterThanOrEqual(0);
     expect(labHold.labWideTop).toBeLessThan(100);
+    expect(labHold.labPortraitTop).toBeGreaterThan(labHold.viewportHeight - 16);
 
     await page.evaluate(() => {
       void window.__r4Group5?.playReverse();

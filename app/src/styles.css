@@ -2026,8 +2026,11 @@ pre {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(260px, .72fr);
   gap: clamp(30px, 5vw, 76px);
+  min-height: calc(100svh - clamp(24px, 5svh, 48px));
+  align-content: center;
   align-items: end;
   padding-bottom: clamp(34px, 5svh, 58px);
+  border-top: 1px solid rgba(37, 39, 25, .14);
   border-bottom: 1px solid rgba(37, 39, 25, .14);
 }
 
@@ -2164,6 +2167,11 @@ pre {
   .r4-lab__portrait {
     width: 100%;
     grid-template-columns: 1fr;
+  }
+
+  .r4-lab__wide {
+    min-height: auto;
+    align-content: stretch;
   }
 
   .r4-lab__lead {
@@ -2453,8 +2461,11 @@ pre {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(260px, .74fr);
   gap: clamp(32px, 5vw, 76px);
+  min-height: calc(100svh - clamp(24px, 5svh, 48px));
+  align-content: center;
   align-items: end;
   padding-bottom: clamp(34px, 5svh, 58px);
+  border-top: 1px solid var(--paper-rule);
   border-bottom: 1px solid var(--paper-rule);
 }
 
@@ -2484,7 +2495,7 @@ pre {
 }
 
 .r4-education__signals span {
-  color: rgba(247, 237, 215, .54);
+  color: var(--paper-accent);
   font-size: 12px;
   font-weight: 760;
   letter-spacing: .18em;
@@ -2554,7 +2565,7 @@ pre {
   min-height: 0;
   margin: 0;
   padding: clamp(26px, 3vw, 42px) 0;
-  border-bottom: 1px solid rgba(247, 237, 215, .12);
+  border-bottom: 1px solid var(--paper-rule);
 }
 
 .r4-education__row span {
@@ -2608,6 +2619,11 @@ pre {
   .r4-education__vertical {
     width: 100%;
     grid-template-columns: 1fr;
+  }
+
+  .r4-education__wide {
+    min-height: auto;
+    align-content: stretch;
   }
 
   .r4-education__lead {
