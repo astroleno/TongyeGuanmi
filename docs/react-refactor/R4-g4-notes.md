@@ -21,6 +21,12 @@
 - `figure3-services` keeps the R-1 `copyCue.atProgress = 0.8`; services text enters only after the cue.
 - `brand-figure3` uses the existing shared ink factory with a bottom origin, matching the manifest horizontal bottom-to-top direction without forking shared code.
 
+## Post-Integration Repair
+
+- Shared ink was fixed on `codex/react-refactor-r4-integration` to reveal the target layer with a clipped from/to handoff instead of letting the target cover the source at mid-progress.
+- `figure3-animation` now initializes next-layer mounts at progress `0` and only settles to progress `1` while held as the current scene, matching the old route's delayed playback semantics.
+- `figure3-services` now records a handoff receiver progress window alongside the `0.8` copy cue so Playwright can assert the services copy does not appear as a nominal-only cue.
+
 ## Evidence
 
 - Copy baseline covered by `app/src/scenes/group4-scenes.test.ts`.
@@ -30,6 +36,7 @@
   - `artifacts/react-refactor/r4-g4/group4-forward-reverse-trace.json`
   - `artifacts/react-refactor/r4-g4/group4-reduced-motion-trace.json`
   - `artifacts/react-refactor/r4-g4/group4-old-new-figure3-side-by-side.png`
+- Repair screenshot: `artifacts/react-refactor/r4-g4/group4-repair-figure3-reveal.png`
 
 ## Open Risks
 

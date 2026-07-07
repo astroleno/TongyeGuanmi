@@ -33,8 +33,15 @@
 
 ## Harness Boundary
 
-- `lab` is represented by a G6 harness-only read-only reference scene, because the canonical `lab` scene belongs to G5 and is merged earlier in the integration train.
-- No shared contract was changed in this group. `DirectorEvent`, `LayerWindow`, visibility predicates, and `transitions/shared/*` remain untouched.
+- `lab` was represented by a G6 harness-only read-only reference scene on the standalone group branch; the integration harness now uses the real G5 `lab` scene.
+- No shared contract was changed in the standalone group branch. The post-integration repair fixed shared ink and timeline easing centrally on `codex/react-refactor-r4-integration`.
+
+## Post-Integration Repair
+
+- Shared ink reveal semantics were fixed centrally in integration, so `lab-ph` and `ph-education` keep source and target distinct during mid-transition.
+- The group harness now mounts the real `lab` scene from G5, keeping copy and layout aligned across G5 and G6.
+- `ph-animation` now initializes next-layer mounts at progress `0` and only settles to progress `1` when held as current.
+- Education was restored to the light paper background and continuous two-screen scene treatment used by the adjacent service/lab sections.
 
 ## Evidence
 

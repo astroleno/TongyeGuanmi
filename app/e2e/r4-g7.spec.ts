@@ -50,9 +50,14 @@ type Group7VisualSnapshot = {
   craneArchTransform: string;
   craneFrontTransform: string;
   craneVideos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
+  cranePlaybackActive: string | undefined;
   contactProgress: number;
   contactCopyCue: string | undefined;
+  contactScheme: string;
+  contactHandoffProgress: number;
   educationReference: boolean;
+  revealProgress: number;
+  revealClip: string;
 };
 
 async function visualSnapshot(page: Page): Promise<Group7VisualSnapshot> {
@@ -62,6 +67,8 @@ async function visualSnapshot(page: Page): Promise<Group7VisualSnapshot> {
     const frontLayer = document.querySelector<HTMLElement>('.r4-crane-animation .crane-layer--cloud-front');
     const contactRoot = document.querySelector<HTMLElement>('[data-r4-scene="contact"]');
     const contactLayer = contactRoot?.closest<HTMLElement>('[data-stage-layer]');
+    const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
+      .find((element) => element.dataset.r4InkActive === 'true') ?? null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
@@ -77,9 +84,14 @@ async function visualSnapshot(page: Page): Promise<Group7VisualSnapshot> {
         paused: video.paused,
         currentTime: video.currentTime
       })),
+      cranePlaybackActive: craneRoot?.dataset.cranePlaybackActive,
       contactProgress: Number.parseFloat(contactRoot?.dataset.contactProgress ?? '0'),
       contactCopyCue: contactLayer?.dataset.copyCueActive,
-      educationReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null
+      contactScheme: window.getComputedStyle(contactRoot ?? document.body).colorScheme,
+      contactHandoffProgress: Number.parseFloat(contactLayer?.dataset.r4HandoffReceiverProgress ?? '0'),
+      educationReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
+      revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
+      revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none'
     };
   });
 }
@@ -112,12 +124,13 @@ test.describe('R4 group7 education crane contact harness', () => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g7');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
-    expect((await visualSnapshot(page)).educationReference).toBe(true);
+    expect((await visualSnapshot(page)).educationReference).toBe(false);
 
     await page.evaluate(() => {
       void window.__r4Group7?.playForward();
     });
     const frames: Group7Snapshot[] = [];
+    let sawEducationCraneReveal = false;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
@@ -125,8 +138,18 @@ test.describe('R4 group7 education crane contact harness', () => {
         const visual = await visualSnapshot(page);
         expect(visual.activeInkSegments).toContain('education-crane');
         expect(visual.transitions).toContain('education-crane-bottom-ink');
+        expect(visual.revealProgress).toBeGreaterThan(0);
+        expect(visual.revealProgress).toBeLessThan(1);
+        expect(visual.revealClip).not.toBe('none');
+        expect(visual.cranePlaybackActive).toBe('true');
       }
+      const visual = await visualSnapshot(page);
+      sawEducationCraneReveal ||= visual.activeInkSegments.includes('education-crane')
+        && visual.revealProgress > 0
+        && visual.revealProgress < 1
+        && visual.revealClip !== 'none';
     }
+    expect(sawEducationCraneReveal).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('crane-animation');
     const craneHold = await visualSnapshot(page);
     expect(craneHold.craneProgress).toBe(1);
@@ -138,6 +161,7 @@ test.describe('R4 group7 education crane contact harness', () => {
     await page.evaluate(() => {
       void window.__r4Group7?.playForward();
     });
+    let sawContactHandoff = false;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
@@ -146,11 +170,22 @@ test.describe('R4 group7 education crane contact harness', () => {
         expect(visual.transitions).toContain('crane-contact-media');
         expect(visual.transitions).toContain('crane-contact-copy-cue');
       }
+      const visual = await visualSnapshot(page);
+      sawContactHandoff ||= visual.contactHandoffProgress > 0;
     }
+    if (!sawContactHandoff) {
+      await expect.poll(async () => {
+        const visual = await visualSnapshot(page);
+        return visual.contactHandoffProgress;
+      }, { timeout: 5_000 }).toBeGreaterThan(0);
+      sawContactHandoff = true;
+    }
+    expect(sawContactHandoff).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('contact');
     const contactHold = await visualSnapshot(page);
     expect(contactHold.contactProgress).toBe(1);
     expect(contactHold.contactCopyCue).toBe('true');
+    expect(contactHold.contactScheme).toContain('light');
 
     await page.evaluate(() => {
       void window.__r4Group7?.playReverse();

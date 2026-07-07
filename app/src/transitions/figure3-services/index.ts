@@ -22,6 +22,12 @@ function sampleFigure3Services(progress: number): { from: LayerVisibilityState; 
   };
 }
 
+function writeHandoffReceiver(element: HTMLElement | null | undefined, progress: number): void {
+  const receiverProgress = smoothStep(range01(progress, 0.8, 1));
+  element?.setAttribute('data-r4-handoff-receiver-active', String(receiverProgress > 0.001 && receiverProgress < 0.999));
+  element?.setAttribute('data-r4-handoff-receiver-progress', receiverProgress.toFixed(4));
+}
+
 class Figure3ServicesTimeline implements SegmentTimelineHandle {
   readonly labels: Readonly<Record<string, number>>;
   readonly pauses: readonly string[];
@@ -38,6 +44,7 @@ class Figure3ServicesTimeline implements SegmentTimelineHandle {
       render: (progress) => {
         renderFigure3AnimationProgress(rootFor(context.from.element, 'figure3-animation'), progress);
         renderServicesProgress(rootFor(context.to.element, 'services'), smoothStep(range01(progress, 0.8, 1)));
+        writeHandoffReceiver(context.to.element, progress);
         context.from.element?.setAttribute('data-r4-transition', 'figure3-services-media');
         context.to.element?.setAttribute('data-r4-transition', 'figure3-services-copy-cue');
       }
@@ -95,6 +102,7 @@ export function createFigure3ServicesTransition(options: { delayMs?: () => numbe
     reducedMotionFallback: (context) => {
       renderFigure3AnimationProgress(rootFor(context.from.element, 'figure3-animation'), 1);
       renderServicesProgress(rootFor(context.to.element, 'services'), 1);
+      writeHandoffReceiver(context.to.element, 1);
       context.from.setVisibility(fadeVisibility(0));
       context.to.setVisibility(fadeVisibility(1));
     },

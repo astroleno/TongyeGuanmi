@@ -14,11 +14,11 @@ import type {
   StageLayerRole
 } from '../../story/types';
 import { labScene } from '../../scenes/lab';
+import { servicesScene } from '../../scenes/services';
 import { ttgAnimationScene } from '../../scenes/ttg-animation';
 import { createServicesTtgTransition } from '../../transitions/services-ttg';
 import { createTtgLabTransition } from '../../transitions/ttg-lab';
 import { createR4Group5Manifest, type R4Group5HarnessMode } from './group5Manifest';
-import { servicesReferenceScene } from './group5ReferenceScenes';
 
 type HarnessPhase = 'booting' | 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
 
@@ -61,7 +61,7 @@ type Group5HarnessApi = {
 };
 
 const modules = {
-  services: servicesReferenceScene,
+  services: servicesScene,
   'ttg-animation': ttgAnimationScene,
   lab: labScene
 };

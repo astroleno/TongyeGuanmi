@@ -8,7 +8,7 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
     id: 'ttg-lab',
     delayMs: options.delayMs,
     origin: { x: 0.5, y: -0.04 },
-    renderFrom: renderTtgAnimationProgress,
+    renderFrom: (root, progress) => renderTtgAnimationProgress(root, progress, { playback: true }),
     renderTo: renderLabProgress,
     transitionAttr: 'ttg-lab-top-ink'
   });

@@ -11,6 +11,7 @@
     "BOOT_READY",
     "BOOT_READY",
     "MEDIA_loadedmetadata:accepted",
+    "MEDIA_loadedmetadata:duplicate",
     "MEDIA_canplay:accepted",
     "MEDIA_ended:accepted",
     "VIDEO_MILESTONE_PROBE:completed"
@@ -21,6 +22,14 @@
       "key": "aod_figure-alpha-front-scrub",
       "prepareToken": "r3-probe:prepare:1",
       "accepted": true,
+      "readyState": 1
+    },
+    {
+      "milestone": "loadedmetadata",
+      "key": "aod_figure-alpha-front-scrub",
+      "prepareToken": "r3-probe:prepare:1",
+      "accepted": false,
+      "reason": "duplicate",
       "readyState": 1
     },
     {
@@ -41,7 +50,7 @@
   "trace": [
     {
       "id": 1,
-      "at": 1783438379241,
+      "at": 1783444518280,
       "event": {
         "type": "BOOT_READY"
       },
@@ -63,7 +72,7 @@
     },
     {
       "id": 2,
-      "at": 1783438379242,
+      "at": 1783444518281,
       "event": {
         "type": "BOOT_READY"
       },

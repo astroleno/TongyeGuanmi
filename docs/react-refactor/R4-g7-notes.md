@@ -26,16 +26,23 @@
 
 ## Ported Behavior
 
-- `crane-animation` is scrub-only. It seeks both crane transition videos, keeps them paused, and writes deterministic progress attributes.
+- `crane-animation` supports deterministic seek rendering and transition-time native playback for the main crane and flock/ornithopter video layers.
 - `education-crane` uses the existing shared bottom-origin ink helper: `{ x: 0.5, y: 1.04 }`.
-- `crane-contact` uses a local `PilotProgressTimeline` media/copyCue handoff with copy cue at `0.8`.
+- `crane-contact` uses a local `PilotProgressTimeline` media/copyCue handoff with contact receiver progress from `0.58 -> 0.94` and copy cue at `0.8`.
 - `contact` copy is ported verbatim from the R-1 copy baseline.
 - Reduced motion collapses to the target hold and keeps video playback scrubbed/paused.
 
 ## Harness Boundary
 
-- `education` is represented by a G7 harness-only read-only reference scene, because the canonical `education` scene belongs to G6 and is merged earlier in the integration train.
-- No shared contract was changed in this group. `DirectorEvent`, `LayerWindow`, visibility predicates, and `transitions/shared/*` remain untouched.
+- `education` was represented by a G7 harness-only read-only reference scene on the standalone group branch; the integration harness now uses the real G6 `education` scene.
+- No shared contract was changed in the standalone group branch. The post-integration repair fixed shared ink and timeline easing centrally on `codex/react-refactor-r4-integration`.
+
+## Post-Integration Repair
+
+- Shared ink reveal semantics were fixed centrally in integration, so `education-crane` keeps the education source and crane target distinct during mid-transition.
+- The group harness now mounts the real `education` scene from G6, including the restored light paper background.
+- `crane-animation` now initializes next-layer mounts at progress `0`, uses native video playback during transition-time renderers, and keeps deterministic seek mode for tests and reduced motion.
+- `contact` was restored to the light paper background, and `crane-contact` now models the old homepage handoff receiver window before the `0.8` copy cue.
 
 ## Evidence
 
@@ -53,10 +60,11 @@
   - `artifacts/react-refactor/r4-g7/group7-forward-reverse-trace.json`
   - `artifacts/react-refactor/r4-g7/group7-reduced-motion-trace.json`
   - `artifacts/react-refactor/r4-g7/group7-old-new-crane-side-by-side.png`
+- Repair screenshot: `artifacts/react-refactor/r4-g7/group7-repair-contact-hold.png`
 
 ## Visual Notes And Risks
 
 - Crane layer widths, offsets, video scale, clipping, flock opacity, and down-exit movement are taken from `crane.css` and `crane-transition.js`.
-- The old homepage adapter also ghosts the contact receiver from the DOM. In R4 this is modeled by `crane-contact` copyCue at `0.8`, matching the manifest contract.
+- The old homepage adapter ghosts the contact receiver from the DOM. In R4 this is modeled by `crane-contact` receiver progress `0.58 -> 0.94` plus copyCue at `0.8`, matching both the visual handoff and manifest contract.
 - Contact endpoint typography and copy are carried from `contact.html` and `source-copy.css`.
 - Final side-by-side visual parity still needs HITL confirmation after G4-G7 land in integration.

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const CRANE_FIGURE_MEDIA_KEY = 'crane-figure1-transition';
@@ -25,6 +26,10 @@ export type CraneRenderState = {
   videoOpacity: number;
   flockOpacity: number;
   downExitY: number;
+};
+
+type CraneRenderOptions = {
+  playback?: boolean;
 };
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
@@ -60,6 +65,54 @@ function seekVideo(video: HTMLVideoElement | null | undefined, progress: number)
   }
 }
 
+function finishVideo(video: HTMLVideoElement | null | undefined, progress: number): void {
+  if (!video) {
+    return;
+  }
+  video.loop = false;
+  video.pause();
+  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : VIDEO_DURATION_FALLBACK;
+  video.currentTime = Math.max(0, Math.min(duration - 0.001, clamp(progress) * duration));
+}
+
+function playVideo(video: HTMLVideoElement | null | undefined): void {
+  if (!video || !video.paused) {
+    return;
+  }
+  void video.play().catch(() => undefined);
+}
+
+function driveCranePlayback(
+  section: HTMLElement | null,
+  progress: number,
+  figureProgress: number,
+  flockProgress: number
+): void {
+  const figureVideo = section?.querySelector<HTMLVideoElement>('[data-crane-figure-video]');
+  const flockVideo = section?.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]');
+  section?.setAttribute('data-crane-playback-active', String(progress > 0.001 && progress < 0.999));
+  if (progress <= 0.001) {
+    finishVideo(figureVideo, 0);
+    finishVideo(flockVideo, 0);
+    return;
+  }
+  if (progress >= 0.999) {
+    finishVideo(figureVideo, 1);
+    finishVideo(flockVideo, 1);
+    return;
+  }
+  if (figureProgress > 0.001 && figureProgress < 0.999) {
+    playVideo(figureVideo);
+  } else {
+    finishVideo(figureVideo, figureProgress);
+  }
+  if (flockProgress > 0.001 && flockProgress < 0.999) {
+    playVideo(flockVideo);
+  } else {
+    finishVideo(flockVideo, flockProgress);
+  }
+}
+
 function setTransform(element: HTMLElement | null | undefined, transform: string): void {
   if (element) {
     element.style.transform = transform;
@@ -72,7 +125,7 @@ function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
     : root?.querySelector<HTMLElement>('[data-r4-scene="crane-animation"]') ?? null;
 }
 
-export function renderCraneAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number): CraneRenderState {
+export function renderCraneAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number, options: CraneRenderOptions = {}): CraneRenderState {
   const section = rootFor(root);
   const progress = acceleratedProgress(rawProgress);
   const time = progress * TIMELINE_DURATION_SECONDS;
@@ -103,18 +156,37 @@ export function renderCraneAnimationProgress(root: HTMLElement | null | undefine
   setTransform(section?.querySelector<HTMLElement>('.crane-layer--arch'), `translate3d(-50%, ${downExitY.toFixed(2)}px, 0)`);
   setTransform(section?.querySelector<HTMLElement>('.crane-layer--cloud-front-second'), `translate3d(-50%, ${(downExitY * 1.28).toFixed(2)}px, 0)`);
   setTransform(section?.querySelector<HTMLElement>('.crane-layer--cloud-front'), `translate3d(-50%, ${(downExitY * 1.14).toFixed(2)}px, 0)`);
-  seekVideo(section?.querySelector<HTMLVideoElement>('[data-crane-figure-video]'), range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS));
-  seekVideo(section?.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]'), range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS));
+  const figureProgress = range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS);
+  const flockProgress = range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS);
+  if (options.playback) {
+    driveCranePlayback(section, progress, figureProgress, flockProgress);
+  } else {
+    seekVideo(section?.querySelector<HTMLVideoElement>('[data-crane-figure-video]'), figureProgress);
+    seekVideo(section?.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]'), flockProgress);
+  }
 
   return { progress, videoScale, videoOpacity: reveal, flockOpacity, downExitY };
 }
 
-function CraneAnimationScene({ registerHandle }: SceneComponentProps) {
+function CraneAnimationScene({ role, registerHandle }: SceneComponentProps) {
+  const rootRef = useRef<HTMLElement | null>(null);
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (role === 'current' && rootRef.current) {
+      renderCraneAnimationProgress(rootRef.current, 1);
+    }
+  }, [role]);
+
   return (
     <article
       ref={(element) => {
+        rootRef.current = element;
         registerHandle?.('stage', element);
-        renderCraneAnimationProgress(element, 1);
+        if (element && !initializedRef.current) {
+          renderCraneAnimationProgress(element, role === 'current' ? 1 : 0);
+          initializedRef.current = true;
+        }
       }}
       className="crane-page r4-crane-animation"
       data-r4-scene="crane-animation"

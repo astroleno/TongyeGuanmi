@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const PH_MEDIA_KEY = 'ph_figure-alpha-scrub';
@@ -55,12 +56,25 @@ export function renderPhAnimationProgress(root: HTMLElement | null | undefined, 
   return { progress, bgY, frontY, figureY };
 }
 
-function PhAnimationScene({ registerHandle }: SceneComponentProps) {
+function PhAnimationScene({ role, registerHandle }: SceneComponentProps) {
+  const rootRef = useRef<HTMLElement | null>(null);
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (role === 'current' && rootRef.current) {
+      renderPhAnimationProgress(rootRef.current, 1);
+    }
+  }, [role]);
+
   return (
     <article
       ref={(element) => {
+        rootRef.current = element;
         registerHandle?.('field', element);
-        renderPhAnimationProgress(element, 1);
+        if (element && !initializedRef.current) {
+          renderPhAnimationProgress(element, role === 'current' ? 1 : 0);
+          initializedRef.current = true;
+        }
       }}
       className="ph-page r4-ph-animation"
       data-r4-scene="ph-animation"

@@ -165,6 +165,7 @@ export type ScenePreloadResult = {
 export type SceneComponentProps = {
   scene: SceneId;
   hidden: boolean;
+  role?: StageLayerRole;
   children?: ReactNode;
   copyCueActive?: boolean;
   registerHandle?: (name: string, element: HTMLElement | null) => void;

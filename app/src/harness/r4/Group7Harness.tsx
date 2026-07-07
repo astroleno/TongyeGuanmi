@@ -15,10 +15,10 @@ import type {
 } from '../../story/types';
 import { contactScene } from '../../scenes/contact';
 import { craneAnimationScene } from '../../scenes/crane-animation';
+import { educationScene } from '../../scenes/education';
 import { createCraneContactTransition } from '../../transitions/crane-contact';
 import { createEducationCraneTransition } from '../../transitions/education-crane';
 import { createR4Group7Manifest, type R4Group7HarnessMode } from './group7Manifest';
-import { educationReferenceScene } from './group7ReferenceScenes';
 
 type HarnessPhase = 'booting' | 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
 
@@ -61,7 +61,7 @@ type Group7HarnessApi = {
 };
 
 const modules = {
-  education: educationReferenceScene,
+  education: educationScene,
   'crane-animation': craneAnimationScene,
   contact: contactScene
 };

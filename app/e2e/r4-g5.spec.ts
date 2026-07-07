@@ -50,9 +50,12 @@ type Group5VisualSnapshot = {
   ttgBgTransform: string;
   ttgFigureTransform: string;
   ttgVideos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
+  ttgPlaybackDirection: string | undefined;
   labProgress: number;
   labRows: number;
   servicesReference: boolean;
+  revealProgress: number;
+  revealClip: string;
 };
 
 async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
@@ -61,6 +64,8 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
     const bgLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--bg');
     const figureLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--figure.is-active');
     const labRoot = document.querySelector<HTMLElement>('[data-r4-scene="lab"]');
+    const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
+      .find((element) => element.dataset.r4InkActive === 'true') ?? null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
@@ -76,9 +81,12 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
         paused: video.paused,
         currentTime: video.currentTime
       })),
+      ttgPlaybackDirection: ttgRoot?.dataset.ttgPlaybackDirection,
       labProgress: Number.parseFloat(labRoot?.dataset.labProgress ?? '0'),
       labRows: document.querySelectorAll('.r4-lab__row').length,
-      servicesReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null
+      servicesReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
+      revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
+      revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none'
     };
   });
 }
@@ -111,12 +119,13 @@ test.describe('R4 group5 services ttg lab harness', () => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g5');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
-    expect((await visualSnapshot(page)).servicesReference).toBe(true);
+    expect((await visualSnapshot(page)).servicesReference).toBe(false);
 
     await page.evaluate(() => {
       void window.__r4Group5?.playForward();
     });
     const frames: Group5Snapshot[] = [];
+    let sawServicesTtgReveal = false;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
@@ -124,8 +133,18 @@ test.describe('R4 group5 services ttg lab harness', () => {
         const visual = await visualSnapshot(page);
         expect(visual.activeInkSegments).toContain('services-ttg');
         expect(visual.transitions).toContain('services-ttg-bottom-ink');
+        expect(visual.revealProgress).toBeGreaterThan(0);
+        expect(visual.revealProgress).toBeLessThan(1);
+        expect(visual.revealClip).not.toBe('none');
+        expect(visual.ttgPlaybackDirection).toBe('1');
       }
+      const visual = await visualSnapshot(page);
+      sawServicesTtgReveal ||= visual.activeInkSegments.includes('services-ttg')
+        && visual.revealProgress > 0
+        && visual.revealProgress < 1
+        && visual.revealClip !== 'none';
     }
+    expect(sawServicesTtgReveal).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('ttg-animation');
     const ttgHold = await visualSnapshot(page);
     expect(ttgHold.ttgProgress).toBe(1);
@@ -137,15 +156,18 @@ test.describe('R4 group5 services ttg lab harness', () => {
     await page.evaluate(() => {
       void window.__r4Group5?.playForward();
     });
+    let sawTtgLabReveal = false;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
-      if (index === 5) {
-        const visual = await visualSnapshot(page);
-        expect(visual.activeInkSegments).toContain('ttg-lab');
-        expect(visual.transitions).toContain('ttg-lab-top-ink');
-      }
+      const visual = await visualSnapshot(page);
+      sawTtgLabReveal ||= visual.activeInkSegments.includes('ttg-lab')
+        && visual.transitions.includes('ttg-lab-top-ink')
+        && visual.revealProgress > 0
+        && visual.revealProgress < 1
+        && visual.revealClip !== 'none';
     }
+    expect(sawTtgLabReveal).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('lab');
     const labHold = await visualSnapshot(page);
     expect(labHold.labProgress).toBe(1);

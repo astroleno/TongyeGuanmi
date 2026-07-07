@@ -2102,17 +2102,16 @@ pre {
 }
 
 .r4-lab__screen {
-  border: 1px solid rgba(37, 39, 25, .14);
-  border-radius: 8px;
-  background: rgba(255, 252, 244, .42);
-  overflow: hidden;
+  border-top: 1px solid rgba(37, 39, 25, .16);
+  background: transparent;
+  overflow: visible;
 }
 
 .r4-lab__screen-head {
   display: flex;
   justify-content: space-between;
   gap: 18px;
-  padding: 14px 18px;
+  padding: 14px 0;
   color: rgba(120, 99, 41, .78);
   border-bottom: 1px solid rgba(37, 39, 25, .12);
   font-size: 12px;
@@ -2128,7 +2127,7 @@ pre {
   grid-template-columns: 46px minmax(150px, .72fr) minmax(0, 1.4fr);
   gap: clamp(18px, 2.4vw, 34px);
   align-items: baseline;
-  padding: clamp(22px, 2.6vw, 34px) 18px;
+  padding: clamp(22px, 2.6vw, 34px) 0;
   border-bottom: 1px solid rgba(37, 39, 25, .10);
 }
 
@@ -2418,10 +2417,10 @@ pre {
   --r4-education-progress: 1;
   --r4-education-opacity: 1;
   --r4-education-y: 0px;
-  --paper-ink: rgba(247, 237, 215, .92);
-  --paper-muted: rgba(247, 237, 215, .68);
-  --paper-rule: rgba(247, 237, 215, .16);
-  --paper-accent: rgba(232, 213, 154, .78);
+  --paper-ink: rgba(37, 39, 25, .94);
+  --paper-muted: rgba(37, 39, 25, .66);
+  --paper-rule: rgba(37, 39, 25, .16);
+  --paper-accent: #786329;
   position: relative;
   width: 100%;
   min-height: 100svh;
@@ -2430,11 +2429,11 @@ pre {
   gap: clamp(40px, 6vw, 88px);
   padding: clamp(52px, 7svh, 86px) clamp(24px, 6vw, 96px);
   color: var(--paper-ink);
-  color-scheme: dark;
+  color-scheme: light;
   background:
     radial-gradient(circle at 18% 16%, rgba(232, 213, 154, .16), transparent 34vw),
-    radial-gradient(circle at 80% 24%, rgba(61, 116, 104, .18), transparent 32vw),
-    linear-gradient(180deg, #17211d 0%, #0f1614 54%, #090d0c 100%);
+    radial-gradient(circle at 80% 24%, rgba(61, 116, 104, .08), transparent 32vw),
+    #ede4d2;
 }
 
 .r4-education__wide,
@@ -2941,12 +2940,12 @@ pre {
   place-items: center start;
   overflow: hidden;
   padding: clamp(72px, 9svh, 118px) max(72px, 7vw);
-  color: rgba(247, 237, 215, .92);
+  color: rgba(37, 39, 25, .94);
   background:
-    radial-gradient(circle at 20% 24%, rgba(232, 213, 154, .14), transparent 34vw),
-    radial-gradient(circle at 78% 20%, rgba(61, 116, 104, .17), transparent 32vw),
-    linear-gradient(180deg, #111817 0%, #090e0d 100%);
-  color-scheme: dark;
+    radial-gradient(circle at 20% 24%, rgba(232, 213, 154, .18), transparent 34vw),
+    radial-gradient(circle at 78% 20%, rgba(61, 116, 104, .09), transparent 32vw),
+    #ede4d2;
+  color-scheme: light;
 }
 
 .r4-contact::before {
@@ -2955,8 +2954,8 @@ pre {
   inset: 7%;
   z-index: 0;
   pointer-events: none;
-  opacity: .12;
-  filter: saturate(.95) brightness(.66);
+  opacity: .10;
+  filter: saturate(.9) brightness(.82);
   background:
     radial-gradient(circle at 20% 35%, rgba(232, 213, 154, .44), transparent 24vw),
     radial-gradient(circle at 72% 62%, rgba(61, 116, 104, .42), transparent 28vw);
@@ -2973,7 +2972,7 @@ pre {
 }
 
 .r4-contact .eyebrow {
-  color: rgba(232, 213, 154, .78);
+  color: rgba(120, 99, 41, .82);
   font-size: 12px;
   font-weight: 760;
   letter-spacing: .18em;
@@ -2983,7 +2982,7 @@ pre {
 .r4-contact h2 {
   max-width: 11em;
   margin: 0;
-  color: rgba(247, 237, 215, .94);
+  color: rgba(37, 39, 25, .94);
   font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
   font-size: clamp(54px, 5vw, 78px);
   font-weight: 600;
@@ -2994,7 +2993,7 @@ pre {
 .r4-contact p {
   width: min(720px, 100%);
   margin: 0;
-  color: rgba(247, 237, 215, .68);
+  color: rgba(37, 39, 25, .66);
   font-size: clamp(16px, 1.25vw, 18px);
   line-height: 1.82;
 }
@@ -3011,20 +3010,20 @@ pre {
   display: inline-flex;
   align-items: center;
   min-height: 42px;
-  color: rgba(247, 237, 215, .92);
+  color: rgba(37, 39, 25, .94);
   font-weight: 760;
   text-decoration: none;
 }
 
 .r4-contact .btn {
   padding: 0 18px;
-  border: 1px solid rgba(232, 213, 154, .36);
+  border: 1px solid rgba(37, 39, 25, .22);
   border-radius: 6px;
-  background: rgba(232, 213, 154, .12);
+  background: rgba(255, 252, 244, .42);
 }
 
 .r4-contact .text-link {
-  color: rgba(232, 213, 154, .78);
+  color: rgba(120, 99, 41, .86);
 }
 
 @media (max-width: 860px) {

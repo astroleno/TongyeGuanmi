@@ -5,6 +5,8 @@ import { renderContactProgress } from '../../scenes/contact';
 import type { Direction, LayerVisibilityState, SegmentTimelineHandle, TransitionContext, TransitionModule } from '../../story/types';
 
 export const CRANE_CONTACT_COPY_CUE = { targetScene: 'contact', atProgress: 0.8 } as const;
+const CONTACT_RECEIVER_START = 0.58;
+const CONTACT_RECEIVER_END = 0.94;
 
 function rootFor(element: HTMLElement | null | undefined, scene: string): HTMLElement | null {
   return element?.querySelector<HTMLElement>(`[data-r4-scene="${scene}"]`) ?? element ?? null;
@@ -12,13 +14,20 @@ function rootFor(element: HTMLElement | null | undefined, scene: string): HTMLEl
 
 function sampleCraneContact(progress: number): { from: LayerVisibilityState; to: LayerVisibilityState; copyCueActive: boolean } {
   const copyCueActive = progress >= CRANE_CONTACT_COPY_CUE.atProgress;
-  const contactOpacity = copyCueActive ? Math.max(0.02, smoothStep(range01(progress, 0.8, 1))) : 0;
-  const craneOpacity = 1 - smoothStep(range01(progress, 0.72, 1));
+  const receiverProgress = smoothStep(range01(progress, CONTACT_RECEIVER_START, CONTACT_RECEIVER_END));
+  const contactOpacity = receiverProgress > 0 ? Math.max(0.02, receiverProgress) : 0;
+  const craneOpacity = 1 - smoothStep(range01(progress, 0.88, 1));
   return {
     from: fadeVisibility(craneOpacity),
     to: fadeVisibility(contactOpacity),
     copyCueActive
   };
+}
+
+function writeHandoffReceiver(element: HTMLElement | null | undefined, progress: number): void {
+  const receiverProgress = smoothStep(range01(progress, CONTACT_RECEIVER_START, CONTACT_RECEIVER_END));
+  element?.setAttribute('data-r4-handoff-receiver-active', String(receiverProgress > 0.001 && receiverProgress < 0.999));
+  element?.setAttribute('data-r4-handoff-receiver-progress', receiverProgress.toFixed(4));
 }
 
 class CraneContactTimeline implements SegmentTimelineHandle {
@@ -38,8 +47,9 @@ class CraneContactTimeline implements SegmentTimelineHandle {
       copyCue: CRANE_CONTACT_COPY_CUE,
       sample: sampleCraneContact,
       render: (progress) => {
-        renderCraneAnimationProgress(rootFor(context.from.element, 'crane-animation'), progress);
-        renderContactProgress(rootFor(context.to.element, 'contact'), smoothStep(range01(progress, 0.8, 1)));
+        renderCraneAnimationProgress(rootFor(context.from.element, 'crane-animation'), progress, { playback: true });
+        renderContactProgress(rootFor(context.to.element, 'contact'), smoothStep(range01(progress, CONTACT_RECEIVER_START, CONTACT_RECEIVER_END)));
+        writeHandoffReceiver(context.to.element, progress);
         context.from.element?.setAttribute('data-r4-transition', 'crane-contact-media');
         context.to.element?.setAttribute('data-r4-transition', 'crane-contact-copy-cue');
       }
@@ -90,6 +100,7 @@ export function createCraneContactTransition(options: { delayMs?: () => number }
     reducedMotionFallback: (context) => {
       renderCraneAnimationProgress(rootFor(context.from.element, 'crane-animation'), 1);
       renderContactProgress(rootFor(context.to.element, 'contact'), 1);
+      writeHandoffReceiver(context.to.element, 1);
       context.from.setVisibility(fadeVisibility(0));
       context.to.setVisibility(fadeVisibility(1));
     },

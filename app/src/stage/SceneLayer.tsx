@@ -76,7 +76,7 @@ export function SceneLayer({ module, role, registry, visibility, copyCueActive =
       inert={state.inert ? true : undefined}
       style={style}
     >
-      <Component scene={module.id} hidden={hidden} copyCueActive={copyCueActive} registerHandle={registerHandle} />
+      <Component scene={module.id} hidden={hidden} role={role} copyCueActive={copyCueActive} registerHandle={registerHandle} />
     </section>
   );
 }

@@ -22,6 +22,11 @@ export type PilotProgressTimelineOptions = {
   render?(progress: number): void;
 };
 
+function easeInOutCubic(value: number): number {
+  const p = Math.min(1, Math.max(0, value));
+  return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+}
+
 export class PilotProgressTimeline implements SegmentTimelineHandle {
   readonly labels = { start: 0, end: 1 } as const;
   readonly pauses: readonly string[] = [];
@@ -127,7 +132,7 @@ export class PilotProgressTimeline implements SegmentTimelineHandle {
         }
         const elapsed = now - startedAt;
         const progress = Math.min(1, elapsed / this.durationMs);
-        this.progress(start + delta * progress);
+        this.progress(start + delta * easeInOutCubic(progress));
         if (progress >= 1) {
           resolve();
           return;

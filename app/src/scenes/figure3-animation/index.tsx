@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const FIGURE3_MEDIA_KEY = 'figure3-alpha-scrub';
@@ -57,12 +58,25 @@ export function renderFigure3AnimationProgress(root: HTMLElement | null | undefi
   return { progress, fillOpacity, videoOpacity, videoScale };
 }
 
-function Figure3AnimationScene({ registerHandle }: SceneComponentProps) {
+function Figure3AnimationScene({ role, registerHandle }: SceneComponentProps) {
+  const rootRef = useRef<HTMLElement | null>(null);
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (role === 'current' && rootRef.current) {
+      renderFigure3AnimationProgress(rootRef.current, 1);
+    }
+  }, [role]);
+
   return (
     <article
       ref={(element) => {
+        rootRef.current = element;
         registerHandle?.('field', element);
-        renderFigure3AnimationProgress(element, 1);
+        if (element && !initializedRef.current) {
+          renderFigure3AnimationProgress(element, role === 'current' ? 1 : 0);
+          initializedRef.current = true;
+        }
       }}
       className="figure3-transition r4-figure3-animation"
       data-r4-scene="figure3-animation"

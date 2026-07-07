@@ -53,7 +53,10 @@ type Group6VisualSnapshot = {
   phVideos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
   educationProgress: number;
   educationRows: number;
+  educationScheme: string;
   labReference: boolean;
+  revealProgress: number;
+  revealClip: string;
 };
 
 async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
@@ -63,6 +66,8 @@ async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
     const frontLayer = document.querySelector<HTMLElement>('.r4-ph-animation .ph-layer--front');
     const figureLayer = document.querySelector<HTMLElement>('.r4-ph-animation .ph-layer--figure');
     const educationRoot = document.querySelector<HTMLElement>('[data-r4-scene="education"]');
+    const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
+      .find((element) => element.dataset.r4InkActive === 'true') ?? null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
@@ -81,7 +86,10 @@ async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
       })),
       educationProgress: Number.parseFloat(educationRoot?.dataset.educationProgress ?? '0'),
       educationRows: document.querySelectorAll('.r4-education__row').length,
-      labReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null
+      educationScheme: window.getComputedStyle(educationRoot ?? document.body).colorScheme,
+      labReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
+      revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
+      revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none'
     };
   });
 }
@@ -114,12 +122,13 @@ test.describe('R4 group6 lab ph education harness', () => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g6');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
-    expect((await visualSnapshot(page)).labReference).toBe(true);
+    expect((await visualSnapshot(page)).labReference).toBe(false);
 
     await page.evaluate(() => {
       void window.__r4Group6?.playForward();
     });
     const frames: Group6Snapshot[] = [];
+    let sawLabPhReveal = false;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
@@ -127,8 +136,17 @@ test.describe('R4 group6 lab ph education harness', () => {
         const visual = await visualSnapshot(page);
         expect(visual.activeInkSegments).toContain('lab-ph');
         expect(visual.transitions).toContain('lab-ph-sun-radial-ink');
+        expect(visual.revealProgress).toBeGreaterThan(0);
+        expect(visual.revealProgress).toBeLessThan(1);
+        expect(visual.revealClip).not.toBe('none');
       }
+      const visual = await visualSnapshot(page);
+      sawLabPhReveal ||= visual.activeInkSegments.includes('lab-ph')
+        && visual.revealProgress > 0
+        && visual.revealProgress < 1
+        && visual.revealClip !== 'none';
     }
+    expect(sawLabPhReveal).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('ph-animation');
     const phHold = await visualSnapshot(page);
     expect(phHold.phProgress).toBe(1);
@@ -141,19 +159,23 @@ test.describe('R4 group6 lab ph education harness', () => {
     await page.evaluate(() => {
       void window.__r4Group6?.playForward();
     });
+    let sawPhEducationReveal = false;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
-      if (index === 5) {
-        const visual = await visualSnapshot(page);
-        expect(visual.activeInkSegments).toContain('ph-education');
-        expect(visual.transitions).toContain('ph-education-top-ink');
-      }
+      const visual = await visualSnapshot(page);
+      sawPhEducationReveal ||= visual.activeInkSegments.includes('ph-education')
+        && visual.transitions.includes('ph-education-top-ink')
+        && visual.revealProgress > 0
+        && visual.revealProgress < 1
+        && visual.revealClip !== 'none';
     }
+    expect(sawPhEducationReveal).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('education');
     const educationHold = await visualSnapshot(page);
     expect(educationHold.educationProgress).toBe(1);
     expect(educationHold.educationRows).toBe(4);
+    expect(educationHold.educationScheme).toContain('light');
 
     await page.evaluate(() => {
       void window.__r4Group6?.playReverse();

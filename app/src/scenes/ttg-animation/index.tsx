@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const TTG_MEDIA_KEY = 'ttg_figure-alpha-scrub';
@@ -17,6 +18,10 @@ export type TtgRenderState = {
   middleY: number;
   frontY: number;
   figureY: number;
+};
+
+type TtgRenderOptions = {
+  playback?: boolean;
 };
 
 const TTG_CONFIG = {
@@ -55,7 +60,59 @@ function seekVideo(video: HTMLVideoElement | null | undefined, progress: number)
   }
 }
 
-export function renderTtgAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number): TtgRenderState {
+function finishVideo(video: HTMLVideoElement | null | undefined, progress: number): void {
+  if (!video) {
+    return;
+  }
+  video.loop = false;
+  video.pause();
+  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : TTG_CONFIG.videoDurationFallback;
+  video.currentTime = Math.max(0, Math.min(duration - 0.02, progress * duration));
+}
+
+function playVideo(video: HTMLVideoElement | null | undefined): void {
+  if (!video || !video.paused) {
+    return;
+  }
+  void video.play().catch(() => undefined);
+}
+
+function driveFigurePlayback(section: HTMLElement | null, progress: number): void {
+  const forwardVideo = section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
+  const reverseVideo = section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
+  const previous = Number.parseFloat(section?.dataset.ttgRawProgress ?? `${progress}`);
+  const direction = progress >= previous ? 1 : -1;
+  section?.setAttribute('data-ttg-playback-direction', String(direction));
+  section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));
+
+  if (progress <= 0.001) {
+    forwardVideo?.classList.add('is-active');
+    reverseVideo?.classList.remove('is-active');
+    finishVideo(forwardVideo, 0);
+    finishVideo(reverseVideo, 1);
+    return;
+  }
+  if (progress >= 0.999) {
+    forwardVideo?.classList.add('is-active');
+    reverseVideo?.classList.remove('is-active');
+    finishVideo(forwardVideo, 1);
+    finishVideo(reverseVideo, 0);
+    return;
+  }
+  if (direction >= 0) {
+    forwardVideo?.classList.add('is-active');
+    reverseVideo?.classList.remove('is-active');
+    reverseVideo?.pause();
+    playVideo(forwardVideo);
+  } else {
+    reverseVideo?.classList.add('is-active');
+    forwardVideo?.classList.remove('is-active');
+    forwardVideo?.pause();
+    playVideo(reverseVideo);
+  }
+}
+
+export function renderTtgAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number, options: TtgRenderOptions = {}): TtgRenderState {
   const section = root?.matches('[data-r4-scene="ttg-animation"]')
     ? root
     : root?.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]') ?? null;
@@ -79,18 +136,36 @@ export function renderTtgAnimationProgress(root: HTMLElement | null | undefined,
   section?.style.setProperty('--ttg-figure-scale', TTG_CONFIG.figureScale.toFixed(4));
   section?.setAttribute('data-ttg-progress', visualProgress.toFixed(4));
 
-  seekVideo(section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]'), progress);
-  seekVideo(section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]'), 1 - progress);
+  if (options.playback) {
+    driveFigurePlayback(section, progress);
+  } else {
+    seekVideo(section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]'), progress);
+    seekVideo(section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]'), 1 - progress);
+    section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));
+  }
 
   return { progress, visualProgress, bgY, middleY, frontY, figureY };
 }
 
-function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
+function TtgAnimationScene({ role, registerHandle }: SceneComponentProps) {
+  const rootRef = useRef<HTMLElement | null>(null);
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (role === 'current' && rootRef.current) {
+      renderTtgAnimationProgress(rootRef.current, 1);
+    }
+  }, [role]);
+
   return (
     <article
       ref={(element) => {
+        rootRef.current = element;
         registerHandle?.('field', element);
-        renderTtgAnimationProgress(element, 1);
+        if (element && !initializedRef.current) {
+          renderTtgAnimationProgress(element, role === 'current' ? 1 : 0);
+          initializedRef.current = true;
+        }
       }}
       className="ttg-page r4-ttg-animation"
       data-r4-scene="ttg-animation"

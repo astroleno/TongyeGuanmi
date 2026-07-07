@@ -14,11 +14,11 @@ import type {
   StageLayerRole
 } from '../../story/types';
 import { educationScene } from '../../scenes/education';
+import { labScene } from '../../scenes/lab';
 import { phAnimationScene } from '../../scenes/ph-animation';
 import { createLabPhTransition } from '../../transitions/lab-ph';
 import { createPhEducationTransition } from '../../transitions/ph-education';
 import { createR4Group6Manifest, type R4Group6HarnessMode } from './group6Manifest';
-import { labReferenceScene } from './group6ReferenceScenes';
 
 type HarnessPhase = 'booting' | 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
 
@@ -61,7 +61,7 @@ type Group6HarnessApi = {
 };
 
 const modules = {
-  lab: labReferenceScene,
+  lab: labScene,
   'ph-animation': phAnimationScene,
   education: educationScene
 };

@@ -5,7 +5,7 @@
 - Branch: `codex/react-refactor-r4-g5-ttg-lab`
 - Scenes: `ttg-animation`, `lab`
 - Segments: `services-ttg`, `ttg-lab`
-- Read-only endpoint: `services` is represented by a harness-only reference scene until G4 is merged.
+- Read-only endpoint: `services` was represented by a harness-only reference scene on the standalone group branch; the integration harness now uses the real G4 `services` scene.
 
 ## Legacy Sources
 
@@ -22,6 +22,13 @@
 - `ttg-lab` uses existing shared ink with a top origin to preserve the manifest top-to-bottom direction.
 - No `transitions/shared`, `LayerWindow`, Director event, or visibility predicate changes.
 
+## Post-Integration Repair
+
+- Shared ink reveal semantics were fixed centrally in integration, so both `services-ttg` and `ttg-lab` keep source and target distinct during the handoff.
+- The group harness now mounts the real `services` scene from G4, removing the simplified reference copy from the integration path.
+- `ttg-animation` now starts next-layer mounts at progress `0` and uses native forward/reverse video playback during transition renderers, while preserving deterministic seek behavior outside playback.
+- Lab layout was flattened away from the bordered screen/bento treatment and kept as a continuous two-screen scene without an extra inter-screen transition.
+
 ## Evidence
 
 - Copy baseline covered by `app/src/scenes/group5-scenes.test.ts`.
@@ -31,6 +38,7 @@
   - `artifacts/react-refactor/r4-g5/group5-forward-reverse-trace.json`
   - `artifacts/react-refactor/r4-g5/group5-reduced-motion-trace.json`
   - `artifacts/react-refactor/r4-g5/group5-old-new-ttg-side-by-side.png`
+- Repair screenshot: `artifacts/react-refactor/r4-g5/group5-repair-ttg-hold.png`
 
 ## Open Risks
 

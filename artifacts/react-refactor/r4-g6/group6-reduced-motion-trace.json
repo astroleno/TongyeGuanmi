@@ -32,7 +32,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783438448223,
+      "at": 1783444589693,
       "event": {
         "type": "BOOT_READY"
       },
@@ -49,7 +49,7 @@
       "id": 1
     },
     {
-      "at": 1783438448224,
+      "at": 1783444589694,
       "event": {
         "type": "BOOT_READY"
       },
@@ -66,7 +66,7 @@
       "id": 2
     },
     {
-      "at": 1783438448235,
+      "at": 1783444589711,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -85,7 +85,7 @@
       "id": 3
     },
     {
-      "at": 1783438448244,
+      "at": 1783444589720,
       "event": {
         "type": "TARGET_READY",
         "scene": "education",
@@ -107,7 +107,7 @@
       "id": 4
     },
     {
-      "at": 1783438448245,
+      "at": 1783444589720,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g6-ph-education:1"
@@ -128,7 +128,7 @@
       "id": 5
     },
     {
-      "at": 1783438448676,
+      "at": 1783444590160,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -147,7 +147,7 @@
       "id": 6
     },
     {
-      "at": 1783438448676,
+      "at": 1783444590160,
       "event": {
         "type": "TARGET_READY",
         "scene": "ph-animation",
@@ -169,7 +169,7 @@
       "id": 7
     },
     {
-      "at": 1783438448677,
+      "at": 1783444590162,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g6-ph-education:2"
@@ -190,7 +190,7 @@
       "id": 8
     },
     {
-      "at": 1783438449120,
+      "at": 1783444590604,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -209,7 +209,7 @@
       "id": 9
     },
     {
-      "at": 1783438449120,
+      "at": 1783444590604,
       "event": {
         "type": "TARGET_READY",
         "scene": "education",
@@ -231,7 +231,7 @@
       "id": 10
     },
     {
-      "at": 1783438449121,
+      "at": 1783444590605,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g6-ph-education:3"

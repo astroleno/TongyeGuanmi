@@ -54,6 +54,9 @@ type Group4VisualSnapshot = {
   servicesRows: number;
   servicesSmallCount: number;
   copyCueActive: boolean;
+  revealProgress: number;
+  revealClip: string;
+  handoffProgress: number;
 };
 
 async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
@@ -62,6 +65,8 @@ async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
     const servicesRoot = document.querySelector<HTMLElement>('[data-r4-scene="services"]');
     const servicesLayer = servicesRoot?.closest<HTMLElement>('[data-stage-layer]');
+    const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
+      .find((element) => element.dataset.r4InkActive === 'true') ?? null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
@@ -80,7 +85,10 @@ async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
       servicesProgress: Number.parseFloat(servicesRoot?.dataset.servicesProgress ?? '0'),
       servicesRows: document.querySelectorAll('.r4-services__row').length,
       servicesSmallCount: document.querySelectorAll('.r4-services__row small').length,
-      copyCueActive: servicesLayer?.dataset.copyCueActive === 'true'
+      copyCueActive: servicesLayer?.dataset.copyCueActive === 'true',
+      revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
+      revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none',
+      handoffProgress: Number.parseFloat(servicesLayer?.dataset.r4HandoffReceiverProgress ?? '0')
     };
   });
 }
@@ -126,6 +134,9 @@ test.describe('R4 group4 brand figure3 services harness', () => {
         const visual = await visualSnapshot(page);
         expect(visual.activeInkSegments).toContain('brand-figure3');
         expect(visual.transitions).toContain('brand-figure3-bottom-ink');
+        expect(visual.revealProgress).toBeGreaterThan(0);
+        expect(visual.revealProgress).toBeLessThan(1);
+        expect(visual.revealClip).not.toBe('none');
       }
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure3-animation');
@@ -146,7 +157,8 @@ test.describe('R4 group4 brand figure3 services harness', () => {
       const visual = await visualSnapshot(page);
       return visual.transitions.includes('figure3-services-media')
         && visual.copyCueActive
-        && visual.servicesProgress > 0;
+        && visual.servicesProgress > 0
+        && visual.handoffProgress > 0;
     }, { timeout: 5_000 }).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 7_000 }).toBe('services');
     const servicesHold = await visualSnapshot(page);
