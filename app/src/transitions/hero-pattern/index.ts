@@ -13,13 +13,17 @@ export function patternBloomProgressForHeroPattern(progress: number): number {
   return Math.min(1, Math.max(0, (progress - BLOOM_START) / (BLOOM_END - BLOOM_START)));
 }
 
+export function renderPatternForHeroPattern(root: HTMLElement | null, progress: number): void {
+  renderPatternProgress(root, patternBloomProgressForHeroPattern(progress), { visible: true });
+}
+
 export function createHeroPatternTransition(options: { delayMs?: () => number } = {}): TransitionModule {
   return createInkSegmentTransition({
     id: 'hero-pattern',
     delayMs: options.delayMs,
     origin: { x: 0.5, y: 0.5 },
     renderFrom: renderHeroProgress,
-    renderTo: (root, progress) => renderPatternProgress(root, patternBloomProgressForHeroPattern(progress)),
+    renderTo: renderPatternForHeroPattern,
     transitionAttr: 'hero-pattern-center-ink'
   });
 }

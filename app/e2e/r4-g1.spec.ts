@@ -27,6 +27,7 @@ declare global {
       playForward(options?: { buildTimeout?: boolean }): Promise<void>;
       playReverse(options?: { buildTimeout?: boolean }): Promise<void>;
       seek(scene: 'hero' | 'pattern' | 'star-map'): void;
+      scrubHeroPattern(progress: number): Promise<void>;
       idempotentCycle(): Promise<void>;
       snapshot(): Group1Snapshot;
     };
@@ -50,6 +51,7 @@ type Group1VisualSnapshot = {
   patternProgress: number;
   largestRingScale: number;
   compactRingScale: number;
+  patternCanvasOpacity: number;
   patternCanvasArea: number;
   patternCanvasNonBlankSamples: number;
 };
@@ -59,6 +61,7 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
     const patternRoot = document.querySelector<HTMLElement>('[data-r4-scene="pattern"]');
     const patternStyle = patternRoot ? window.getComputedStyle(patternRoot) : undefined;
     const patternCanvas = document.querySelector<HTMLCanvasElement>('[data-pattern-canvas]');
+    const patternCanvasStyle = patternCanvas ? window.getComputedStyle(patternCanvas) : undefined;
     const canvasRect = patternCanvas?.getBoundingClientRect();
     let patternCanvasNonBlankSamples = 0;
     const context = patternCanvas?.getContext('2d');
@@ -94,6 +97,7 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
       patternProgress: Number.parseFloat(patternRoot?.dataset.patternProgress ?? '0'),
       largestRingScale: Number.parseFloat(patternStyle?.getPropertyValue('--r4-pattern-largest-ring-scale') ?? '0'),
       compactRingScale: Number.parseFloat(patternStyle?.getPropertyValue('--r4-pattern-compact-ring-scale') ?? '0'),
+      patternCanvasOpacity: Number.parseFloat(patternCanvasStyle?.opacity ?? '0'),
       patternCanvasArea: (canvasRect?.width ?? 0) * (canvasRect?.height ?? 0),
       patternCanvasNonBlankSamples
     };
@@ -129,6 +133,17 @@ test.describe('R4 group1 canonical spine harness', () => {
     await page.goto('/harness/r4-g1');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
 
+    await page.evaluate(async () => {
+      await window.__r4Group1?.scrubHeroPattern(0.2);
+    });
+    const earlyHeroPattern = await visualSnapshot(page);
+    expect(earlyHeroPattern.transitions).toContain('hero-pattern-center-ink');
+    expect(earlyHeroPattern.patternProgress).toBe(0);
+    expect(earlyHeroPattern.patternCanvasOpacity).toBe(1);
+    await page.evaluate(async () => {
+      await window.__r4Group1?.scrubHeroPattern(0);
+    });
+
     await page.evaluate(() => {
       void window.__r4Group1?.playForward();
     });
@@ -138,6 +153,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     }, { timeout: 3_000 }).toBe(true);
     const heroPatternInk = await visualSnapshot(page);
     expect(heroPatternInk.transitions).toContain('hero-pattern-center-ink');
+    expect(heroPatternInk.patternCanvasOpacity).toBe(1);
     expect(heroPatternInk.patternCanvasArea).toBeGreaterThan(100_000);
 
     const forwardFrames: Group1Snapshot[] = [];

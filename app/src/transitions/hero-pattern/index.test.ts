@@ -1,8 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
-import { createHeroPatternTransition, patternBloomProgressForHeroPattern } from './index';
+import { createHeroPatternTransition, patternBloomProgressForHeroPattern, renderPatternForHeroPattern } from './index';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
+
+class FakeStyle {
+  values = new Map<string, string>();
+
+  setProperty(name: string, value: string): void {
+    this.values.set(name, value);
+  }
+}
+
+class FakeElement {
+  style = new FakeStyle();
+  attributes = new Map<string, string>();
+
+  setAttribute(name: string, value: string): void {
+    this.attributes.set(name, value);
+  }
+}
 
 function layer(scene: 'hero' | 'pattern', role: 'current' | 'next'): LayerHandle {
   let visibility: LayerVisibilityState = {
@@ -62,6 +79,21 @@ describe('hero-pattern transition', () => {
     expect(patternBloomProgressForHeroPattern(0.56)).toBeCloseTo(0.5, 5);
     expect(patternBloomProgressForHeroPattern(0.70)).toBe(1);
     expect(patternBloomProgressForHeroPattern(1)).toBe(1);
+  });
+
+  it('keeps the full-petal pattern visible while the ink reveals before collapse', () => {
+    const root = new FakeElement();
+
+    renderPatternForHeroPattern(root as unknown as HTMLElement, 0.2);
+
+    expect(root.attributes.get('data-pattern-progress')).toBe('0.0000');
+    expect(root.style.values.get('--r4-pattern-progress')).toBe('0.0000');
+    expect(root.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
+
+    renderPatternForHeroPattern(root as unknown as HTMLElement, 0.419);
+
+    expect(root.attributes.get('data-pattern-progress')).toBe('0.0000');
+    expect(root.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
   });
 
   it('passes timeline verification and exposes a reduced-motion fallback', async () => {

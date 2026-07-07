@@ -56,6 +56,7 @@ type Group1HarnessApi = {
   playForward(options?: PlayOptions): Promise<void>;
   playReverse(options?: PlayOptions): Promise<void>;
   seek(scene: 'hero' | 'pattern' | 'star-map'): void;
+  scrubHeroPattern(progress: number): Promise<void>;
   idempotentCycle(): Promise<void>;
   snapshot(): Group1Snapshot;
 };
@@ -330,6 +331,14 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
     }
   };
 
+  const scrubHeroPattern = async (progress: number) => {
+    const clamped = Math.min(1, Math.max(0, progress));
+    await runtime.segmentPlayer.ensureBuilt('hero-pattern', {
+      direction: 1
+    });
+    runtime.segmentPlayer.scrub('hero-pattern', clamped);
+  };
+
   const idempotentCycle = async () => {
     await play(1);
     await play(-1);
@@ -341,6 +350,7 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
       playForward: (options) => play(1, options),
       playReverse: (options) => play(-1, options),
       seek,
+      scrubHeroPattern,
       idempotentCycle,
       snapshot: () => readDomSnapshot(mode, runtimeSnapshotRef.current, metricsRef.current)
     };

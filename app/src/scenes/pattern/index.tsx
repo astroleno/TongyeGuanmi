@@ -16,14 +16,22 @@ export type PatternRenderState = {
   washOpacity: number;
 };
 
+export type PatternRenderOptions = {
+  visible?: boolean;
+};
+
 type PatternRoot = HTMLElement & {
   __r4PatternRenderer?: PatternBloomRenderer;
 };
 
-export function renderPatternProgress(root: HTMLElement | null, progress: number): PatternRenderState {
+function isInkTransitionActive(root: HTMLElement | null): boolean {
+  return root?.closest<HTMLElement>('[data-stage-layer]')?.dataset.r4InkActive === 'true';
+}
+
+export function renderPatternProgress(root: HTMLElement | null, progress: number, options: PatternRenderOptions = {}): PatternRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
   const snapshot = patternBloomSnapshot(clamped);
-  const opacity = clamped > 0.001 ? 1 : 0;
+  const opacity = (options.visible ?? clamped > 0.001) ? 1 : 0;
   const washOpacity = 0.58 + clamped * 0.28;
 
   root?.style.setProperty('--r4-pattern-progress', clamped.toFixed(4));
@@ -69,6 +77,9 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
   }, []);
 
   useEffect(() => {
+    if (isInkTransitionActive(rootRef.current)) {
+      return;
+    }
     renderPatternProgress(rootRef.current, hidden ? 0 : 1);
   }, [hidden]);
 
