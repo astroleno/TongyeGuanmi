@@ -32,7 +32,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783433414694,
+      "at": 1783436035718,
       "event": {
         "type": "BOOT_READY"
       },
@@ -49,7 +49,7 @@
       "id": 1
     },
     {
-      "at": 1783433414694,
+      "at": 1783436035719,
       "event": {
         "type": "BOOT_READY"
       },
@@ -66,7 +66,7 @@
       "id": 2
     },
     {
-      "at": 1783433414707,
+      "at": 1783436035744,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -85,7 +85,7 @@
       "id": 3
     },
     {
-      "at": 1783433414709,
+      "at": 1783436035769,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure3-animation",
@@ -107,7 +107,7 @@
       "id": 4
     },
     {
-      "at": 1783433414709,
+      "at": 1783436035771,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g4-brand-figure3:1"
@@ -128,7 +128,7 @@
       "id": 5
     },
     {
-      "at": 1783433415151,
+      "at": 1783436036217,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -147,7 +147,7 @@
       "id": 6
     },
     {
-      "at": 1783433415151,
+      "at": 1783436036217,
       "event": {
         "type": "TARGET_READY",
         "scene": "brand",
@@ -169,7 +169,7 @@
       "id": 7
     },
     {
-      "at": 1783433415152,
+      "at": 1783436036218,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g4-brand-figure3:2"
@@ -190,7 +190,7 @@
       "id": 8
     },
     {
-      "at": 1783433415596,
+      "at": 1783436036658,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -209,7 +209,7 @@
       "id": 9
     },
     {
-      "at": 1783433415596,
+      "at": 1783436036658,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure3-animation",
@@ -231,7 +231,7 @@
       "id": 10
     },
     {
-      "at": 1783433415596,
+      "at": 1783436036659,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g4-brand-figure3:3"

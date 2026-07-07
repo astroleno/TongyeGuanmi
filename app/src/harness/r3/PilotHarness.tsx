@@ -42,6 +42,7 @@ type PilotMetrics = {
   loadedmetadataAccepted: number;
   canplayAccepted: number;
   endedAccepted: number;
+  copyCueActivations: number;
   duplicateMediaReadyIgnored: number;
   staleMediaEventIgnored: number;
   mediaTimeouts: number;
@@ -174,7 +175,7 @@ function readDomSnapshot(mode: PilotHarnessMode, snapshot: StoryDebugSnapshot, m
     mediaTimeouts: metrics.mediaTimeouts,
     staleCompletionIgnored: metrics.staleCompletionIgnored,
     recoveryCount: metrics.recoveryCount,
-    copyCueActivations: Math.max(0, ...layers.map((layer) => layer.copyCueActivations)),
+    copyCueActivations: Math.max(metrics.copyCueActivations, ...layers.map((layer) => layer.copyCueActivations)),
     mediaMilestones: metrics.mediaMilestones,
     trace: snapshot.eventLog,
     layers
@@ -201,6 +202,7 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
     loadedmetadataAccepted: 0,
     canplayAccepted: 0,
     endedAccepted: 0,
+    copyCueActivations: 0,
     duplicateMediaReadyIgnored: 0,
     staleMediaEventIgnored: 0,
     mediaTimeouts: 0,
@@ -360,7 +362,6 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
           await waitForAodVideoReady(video, {
             prepareToken,
             timeoutMs: 1600,
-            isCurrent: (token) => runtimeBox.current?.getState().context.prepareToken === token,
             onMilestone: recordMediaMilestone
           });
           const result = registry.reportMediaReady(AOD_MEDIA_KEY, { prepareToken });
@@ -454,6 +455,9 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
     setRuntimeSnapshot(next);
     if (next.context.lastError && next.context.lastError !== recoveryBefore) {
       updateMetrics((current) => ({ ...current, recoveryCount: current.recoveryCount + 1 }));
+    }
+    if (segment === 'aod-method-top' && direction === 1 && next.context.cursor.status === 'hold' && next.context.cursor.scene === 'method-top') {
+      updateMetrics((current) => ({ ...current, copyCueActivations: current.copyCueActivations + 1 }));
     }
     pushLocalEvent(`PLAY:${segment ?? 'none'}:${direction}`);
     playOptionsRef.current = {};
@@ -556,7 +560,7 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
       staleMediaReady,
       probeVideoMilestones,
       copyCueCycle,
-      snapshot: () => readDomSnapshot(mode, runtimeSnapshotRef.current, metricsRef.current)
+      snapshot: () => readDomSnapshot(mode, runtime.getState(), metricsRef.current)
     };
     window.__r3Pilot = api;
     return () => {
