@@ -57,15 +57,20 @@ type Group3VisualSnapshot = {
   figure2NearArchOpacity: number;
   proofOverlayProgress: number;
   retainedArchCount: number;
+  figure2LayerZ: number;
+  proofLayerZ: number;
+  proofLayerElevated: boolean;
 };
 
 async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
   return page.evaluate(() => {
     const proofRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-proof-opening"]');
+    const proofLayer = proofRoot?.closest<HTMLElement>('[data-stage-layer]');
     const arch = document.querySelector<HTMLElement>('.r4-proof-opening__arch');
     const archRect = arch?.getBoundingClientRect();
     const archStyle = arch ? window.getComputedStyle(arch) : undefined;
     const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
+    const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
@@ -84,7 +89,10 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       figure2FigureOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-figure-opacity') ?? '1'),
       figure2NearArchOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-near-arch-opacity') ?? '0'),
       proofOverlayProgress: Number.parseFloat(proofRoot?.dataset.figure2ProofOverlayProgress ?? '0'),
-      retainedArchCount: document.querySelectorAll('[data-figure2-retained-arch="true"]').length
+      retainedArchCount: document.querySelectorAll('[data-figure2-retained-arch="true"]').length,
+      figure2LayerZ: Number.parseInt(window.getComputedStyle(figure2Layer ?? document.body).zIndex || '0', 10),
+      proofLayerZ: Number.parseInt(window.getComputedStyle(proofLayer ?? document.body).zIndex || '0', 10),
+      proofLayerElevated: proofLayer?.dataset.r4TransitionElevated === 'true'
     };
   });
 }
@@ -154,6 +162,8 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
           const visual = await visualSnapshot(page);
           expect(visual.activeInkSegments).toContain('figure2-distance-expand');
           expect(visual.transitions).toContain('figure2-proof-overlay-scene-ink');
+          expect(visual.proofLayerElevated).toBe(true);
+          expect(visual.proofLayerZ).toBeGreaterThan(visual.figure2LayerZ);
           expect(visual.proofOpeningProgress).toBeGreaterThan(0);
           expect(visual.proofOverlayProgress).toBeGreaterThan(0);
           expect(visual.proofArchArea).toBeGreaterThan(100_000);

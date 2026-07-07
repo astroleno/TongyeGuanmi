@@ -10,6 +10,7 @@ import type {
   TransitionContext,
   TransitionModule
 } from '../../story/types';
+import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 import { createSceneInkRenderer, type SceneInkRenderer } from '../shared/sceneInk';
 
 export const PATTERN_REVEAL_END = 0.46;
@@ -170,12 +171,14 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
   private animationFrame = 0;
   private readonly inkCanvas: HTMLCanvasElement | null;
   private readonly inkRenderer: SceneInkRenderer | null;
+  private readonly elevation: TransitionLayerElevation;
 
   constructor(
     private readonly context: TransitionContext,
     private readonly options: PatternBloomOptions
   ) {
     this.labels = { start: 0, reveal: 0.46, bloom: 0.7, end: 1 };
+    this.elevation = createTransitionLayerElevation(context.to.element);
     this.inkCanvas = ensureInkCanvas(context.to.element, options.id);
     if (this.inkCanvas) {
       const origin = options.variant === 'hero-pattern' ? { x: 0.5, y: 0.5 } : { x: 0.24, y: 0.55 };
@@ -204,6 +207,7 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
     this.progressValue = clamped;
     applyLayerVisibility(this.context.from, sample.from);
     applyLayerVisibility(this.context.to, sample.to);
+    this.elevation.elevate();
     if (this.options.variant === 'hero-pattern') {
       this.renderHeroPattern(clamped);
     } else {
@@ -226,6 +230,7 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
       this.animationFrame = 0;
     }
     this.inkRenderer?.destroy();
+    this.elevation.restore();
     clearTransitionAttrs(this.context.to.element);
     this.context.to.element?.style.removeProperty('clip-path');
     this.context.to.element?.style.removeProperty('-webkit-clip-path');

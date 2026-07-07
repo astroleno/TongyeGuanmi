@@ -8,6 +8,7 @@ import type {
   TransitionContext,
   TransitionModule
 } from '../../story/types';
+import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 import { createSceneInkRenderer, type SceneInkRenderer } from '../shared/sceneInk';
 
 type Figure2ProofSample = {
@@ -96,9 +97,11 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   private reportedTimelineReady = false;
   private readonly inkCanvas: HTMLCanvasElement | null;
   private readonly inkRenderer: SceneInkRenderer | null;
+  private readonly elevation: TransitionLayerElevation;
 
   constructor(private readonly context: TransitionContext) {
     const proofRoot = sceneRoot(context.to.element, 'figure2-proof-opening');
+    this.elevation = createTransitionLayerElevation(context.to.element);
     this.inkCanvas = ensureInkCanvas(proofRoot);
     this.inkRenderer = createSceneInkRenderer(this.inkCanvas, {
       hideAtEnd: true,
@@ -134,6 +137,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     this.progressValue = clamped;
     applyLayerVisibility(this.context.from, sample.from);
     applyLayerVisibility(this.context.to, sample.to);
+    this.elevation.elevate();
     this.render(reveal, overlayOpacity);
     if (!this.reportedTimelineReady && clamped >= 0.5) {
       this.reportedTimelineReady = true;
@@ -162,6 +166,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       this.animationFrame = 0;
     }
     this.inkRenderer?.destroy();
+    this.elevation.restore();
     this.context.to.element?.style.removeProperty('clip-path');
     this.context.to.element?.style.removeProperty('-webkit-clip-path');
   }

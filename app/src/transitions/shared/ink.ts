@@ -7,6 +7,7 @@ import type {
   TransitionContext,
   TransitionModule
 } from '../../story/types';
+import { createTransitionLayerElevation, type TransitionLayerElevation } from './layerElevation';
 
 export type InkOrigin = {
   x: number;
@@ -193,6 +194,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private disposed = false;
   private animationFrame = 0;
   private readonly canvas: HTMLCanvasElement | null;
+  private readonly elevation: TransitionLayerElevation;
 
   constructor(
     private readonly context: TransitionContext,
@@ -207,6 +209,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     ]);
     this.pauses = stops.map((_, index) => `stage:${index}`);
     this.canvas = ensureCanvas(context.to.element, options.id, options.origin);
+    this.elevation = createTransitionLayerElevation(context.to.element);
     this.progress(0);
   }
 
@@ -229,6 +232,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.progressValue = clamped;
     applyLayerVisibility(this.context.from, sample.from);
     applyLayerVisibility(this.context.to, sample.to);
+    this.elevation.elevate();
     this.context.to.element?.setAttribute('data-r4-transition', this.options.transitionAttr ?? this.options.id);
     this.context.to.element?.setAttribute('data-r4-ink-active', String(inkProgress > 0.002 && inkProgress < 0.998));
     this.context.to.element?.setAttribute('data-r4-clip-progress', clipProgress.toFixed(4));
@@ -265,6 +269,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       this.animationFrame = 0;
     }
     this.canvas?.remove();
+    this.elevation.restore();
     this.context.to.element?.style.removeProperty('clip-path');
     this.context.to.element?.style.removeProperty('-webkit-clip-path');
   }

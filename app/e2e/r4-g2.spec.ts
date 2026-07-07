@@ -57,12 +57,17 @@ type Group2VisualSnapshot = {
   cloudCount: number;
   methodContinuationLeadCount: number;
   visibleCaptionCount: number;
+  methodBottomLayerZ: number;
+  figure2LayerZ: number;
+  figure2LayerElevated: boolean;
   videos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
 };
 
 async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
   return page.evaluate(() => {
     const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
+    const methodBottomLayer = document.querySelector<HTMLElement>('[data-stage-layer="method-bottom"]');
+    const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
     const figure = document.querySelector<HTMLElement>('.r4-figure2__figure');
     const figureRect = figure?.getBoundingClientRect();
@@ -95,6 +100,9 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
           const style = window.getComputedStyle(caption);
           return rect.width > 1.5 || rect.height > 1.5 || style.overflow !== 'hidden' || style.clip === 'auto';
         }).length,
+      methodBottomLayerZ: Number.parseInt(window.getComputedStyle(methodBottomLayer ?? document.body).zIndex || '0', 10),
+      figure2LayerZ: Number.parseInt(window.getComputedStyle(figure2Layer ?? document.body).zIndex || '0', 10),
+      figure2LayerElevated: figure2Layer?.dataset.r4TransitionElevated === 'true',
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
         loop: video.loop,
         paused: video.paused,
@@ -162,6 +170,8 @@ test.describe('R4 group2 canonical spine harness', () => {
         const visual = await visualSnapshot(page);
         expect(visual.activeInkSegments).toContain('method-bottom-figure2');
         expect(visual.transitions).toContain('method-bottom-figure2-bottom-ink');
+        expect(visual.figure2LayerElevated).toBe(true);
+        expect(visual.figure2LayerZ).toBeGreaterThan(visual.methodBottomLayerZ);
         expect(visual.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
         expect(visual.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1.04, 2);
         expect(visual.figure2Progress).toBe(0);

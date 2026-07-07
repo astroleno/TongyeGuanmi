@@ -57,6 +57,11 @@ type Group1VisualSnapshot = {
   patternCanvasArea: number;
   patternCanvasNonBlankSamples: number;
   patternInkRenderer: string | null;
+  heroLayerZ: number;
+  patternLayerZ: number;
+  starMapLayerZ: number;
+  patternLayerElevated: boolean;
+  starMapLayerElevated: boolean;
   heroVideoLoop: boolean | null;
   heroVideoPaused: boolean | null;
   heroVideoAutoplay: boolean | null;
@@ -65,7 +70,9 @@ type Group1VisualSnapshot = {
 async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
   return page.evaluate(() => {
     const patternRoot = document.querySelector<HTMLElement>('[data-r4-scene="pattern"]');
+    const heroLayer = document.querySelector<HTMLElement>('[data-stage-layer="hero"]');
     const patternLayer = patternRoot?.closest<HTMLElement>('[data-stage-layer]');
+    const starMapLayer = document.querySelector<HTMLElement>('[data-stage-layer="star-map"]');
     const patternStyle = patternRoot ? window.getComputedStyle(patternRoot) : undefined;
     const patternCanvas = document.querySelector<HTMLCanvasElement>('[data-pattern-canvas]');
     const patternCanvasStyle = patternCanvas ? window.getComputedStyle(patternCanvas) : undefined;
@@ -111,6 +118,11 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
       patternCanvasArea: (canvasRect?.width ?? 0) * (canvasRect?.height ?? 0),
       patternCanvasNonBlankSamples,
       patternInkRenderer: patternRoot?.dataset.patternInkRenderer ?? patternLayer?.dataset.patternInkRenderer ?? null,
+      heroLayerZ: Number.parseInt(window.getComputedStyle(heroLayer ?? document.body).zIndex || '0', 10),
+      patternLayerZ: Number.parseInt(window.getComputedStyle(patternLayer ?? document.body).zIndex || '0', 10),
+      starMapLayerZ: Number.parseInt(window.getComputedStyle(starMapLayer ?? document.body).zIndex || '0', 10),
+      patternLayerElevated: patternLayer?.dataset.r4TransitionElevated === 'true',
+      starMapLayerElevated: starMapLayer?.dataset.r4TransitionElevated === 'true',
       heroVideoLoop: heroVideo?.loop ?? null,
       heroVideoPaused: heroVideo?.paused ?? null,
       heroVideoAutoplay: heroVideo?.autoplay ?? null
@@ -157,6 +169,8 @@ test.describe('R4 group1 canonical spine harness', () => {
     const earlyHeroPattern = await visualSnapshot(page);
     expect(earlyHeroPattern.transitions).toContain('pattern-bloom-hero-scene-ink');
     expect(earlyHeroPattern.patternInkRenderer).toBe('scene');
+    expect(earlyHeroPattern.patternLayerElevated).toBe(true);
+    expect(earlyHeroPattern.patternLayerZ).toBeGreaterThan(earlyHeroPattern.heroLayerZ);
     expect(earlyHeroPattern.patternProgress).toBe(0);
     expect(earlyHeroPattern.patternCanvasOpacity).toBe(1);
     expect(earlyHeroPattern.patternClipProgress).toBeGreaterThan(0.35);
@@ -208,6 +222,8 @@ test.describe('R4 group1 canonical spine harness', () => {
     const patternStarMapInk = await visualSnapshot(page);
     expect(patternStarMapInk.transitions).toContain('pattern-bloom-star-map-scene-ink');
     expect(patternStarMapInk.patternInkRenderer).toBe('scene');
+    expect(patternStarMapInk.starMapLayerElevated).toBe(true);
+    expect(patternStarMapInk.starMapLayerZ).toBeGreaterThan(patternStarMapInk.patternLayerZ);
     expect(patternStarMapInk.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
     expect(patternStarMapInk.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);
     expect(patternStarMapInk.patternProgress).toBe(1);
