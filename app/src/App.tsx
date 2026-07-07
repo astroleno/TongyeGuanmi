@@ -5,6 +5,7 @@ import { DevtoolsHarness } from './harness/DevtoolsHarness';
 import { StageHarness } from './harness/StageHarness';
 import { PilotHarness } from './harness/r3/PilotHarness';
 import { Group1Harness } from './harness/r4/Group1Harness';
+import { Group2Harness } from './harness/r4/Group2Harness';
 import './styles.css';
 
 const holdCount = storyManifest.nodes.filter((node) => node.kind === 'hold').length;
@@ -41,6 +42,15 @@ export function App() {
   }
   if (path === '/harness/r4-g1-pattern-star-map') {
     return <Group1Harness mode="pattern-star-map" />;
+  }
+  if (path === '/harness/r4-g2') {
+    return <Group2Harness mode="group2" />;
+  }
+  if (path === '/harness/r4-g2-method-top-method-bottom') {
+    return <Group2Harness mode="method-top-method-bottom" />;
+  }
+  if (path === '/harness/r4-g2-method-bottom-figure2') {
+    return <Group2Harness mode="method-bottom-figure2" />;
   }
 
   return (

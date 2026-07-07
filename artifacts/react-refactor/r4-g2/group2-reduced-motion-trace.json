@@ -1,0 +1,271 @@
+{
+  "phase": "hold",
+  "mode": "method-top-method-bottom",
+  "window": {
+    "current": "method-bottom",
+    "retiring": [],
+    "prev": "method-top"
+  },
+  "visibleCount": 1,
+  "interactableCount": 1,
+  "mountedCount": 2,
+  "eventLog": [
+    "BOOT_READY",
+    "BOOT_READY",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "PLAYBACK_DONE",
+    "BUILD_READY:method-top-method-bottom",
+    "PLAY:method-top-method-bottom:1",
+    "BUILD_READY:method-top-method-bottom",
+    "PLAY:method-top-method-bottom:-1",
+    "BUILD_READY:method-top-method-bottom",
+    "PLAY:method-top-method-bottom:1"
+  ],
+  "recoveryCount": 0,
+  "staleCompletionIgnored": 0,
+  "trace": [
+    {
+      "at": 1783384722768,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "cursor": {
+        "status": "hold",
+        "scene": "method-top"
+      },
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "next": "method-bottom"
+      },
+      "id": 1
+    },
+    {
+      "at": 1783384722768,
+      "event": {
+        "type": "BOOT_READY"
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "cursor": {
+        "status": "hold",
+        "scene": "method-top"
+      },
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "next": "method-bottom"
+      },
+      "id": 2
+    },
+    {
+      "at": 1783384722778,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "prepareToken": "r4-g2-method-top-method-bottom:prepare:1",
+      "cursor": {
+        "status": "hold",
+        "scene": "method-top"
+      },
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "next": "method-bottom"
+      },
+      "id": 3
+    },
+    {
+      "at": 1783384722778,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "method-bottom",
+        "prepareToken": "r4-g2-method-top-method-bottom:prepare:1"
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "activeRunId": "r4-g2-method-top-method-bottom:1",
+      "cursor": {
+        "status": "segment",
+        "segment": "method-top-method-bottom",
+        "from": "method-top",
+        "to": "method-bottom"
+      },
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "next": "method-bottom"
+      },
+      "id": 4
+    },
+    {
+      "at": 1783384722778,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g2-method-top-method-bottom:1"
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "cursor": {
+        "status": "settling",
+        "segment": "method-top-method-bottom",
+        "from": "method-top",
+        "to": "method-bottom",
+        "target": "method-bottom"
+      },
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "next": "method-bottom"
+      },
+      "id": 5
+    },
+    {
+      "at": 1783384723223,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": -1
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "prepareToken": "r4-g2-method-top-method-bottom:prepare:2",
+      "cursor": {
+        "status": "hold",
+        "scene": "method-bottom"
+      },
+      "layerWindow": {
+        "current": "method-bottom",
+        "retiring": [],
+        "prev": "method-top"
+      },
+      "id": 6
+    },
+    {
+      "at": 1783384723223,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "method-top",
+        "prepareToken": "r4-g2-method-top-method-bottom:prepare:2"
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "activeRunId": "r4-g2-method-top-method-bottom:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "method-top-method-bottom",
+        "from": "method-top",
+        "to": "method-bottom"
+      },
+      "layerWindow": {
+        "current": "method-bottom",
+        "retiring": [],
+        "prev": "method-top"
+      },
+      "id": 7
+    },
+    {
+      "at": 1783384723224,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g2-method-top-method-bottom:2"
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "cursor": {
+        "status": "settling",
+        "segment": "method-top-method-bottom",
+        "from": "method-top",
+        "to": "method-bottom",
+        "target": "method-top"
+      },
+      "layerWindow": {
+        "current": "method-bottom",
+        "retiring": [],
+        "prev": "method-top"
+      },
+      "id": 8
+    },
+    {
+      "at": 1783384723667,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": 1
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "prepareToken": "r4-g2-method-top-method-bottom:prepare:3",
+      "cursor": {
+        "status": "hold",
+        "scene": "method-top"
+      },
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "next": "method-bottom"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783384723667,
+      "event": {
+        "type": "TARGET_READY",
+        "scene": "method-bottom",
+        "prepareToken": "r4-g2-method-top-method-bottom:prepare:3"
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "activeRunId": "r4-g2-method-top-method-bottom:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "method-top-method-bottom",
+        "from": "method-top",
+        "to": "method-bottom"
+      },
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "next": "method-bottom"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783384723667,
+      "event": {
+        "type": "PLAYBACK_DONE",
+        "runId": "r4-g2-method-top-method-bottom:3"
+      },
+      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "cursor": {
+        "status": "settling",
+        "segment": "method-top-method-bottom",
+        "from": "method-top",
+        "to": "method-bottom",
+        "target": "method-bottom"
+      },
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "next": "method-bottom"
+      },
+      "id": 11
+    }
+  ],
+  "layers": [
+    {
+      "scene": "method-top",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
+    },
+    {
+      "scene": "method-bottom",
+      "role": "current",
+      "visible": true,
+      "interactable": true,
+      "opacity": 1
+    }
+  ]
+}
