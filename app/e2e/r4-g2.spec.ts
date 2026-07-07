@@ -186,17 +186,17 @@ test.describe('R4 group2 canonical spine harness', () => {
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure2-animation');
     const figure2Hold = await visualSnapshot(page);
-    expect(figure2Hold.figure2Progress).toBe(0);
+    expect(figure2Hold.figure2Progress).toBe(1);
     expect(figure2Hold.farArcadeImageCount).toBe(3);
     expect(figure2Hold.cloudCount).toBe(1);
-    expect(figure2Hold.cloudScale).toBeCloseTo(1, 2);
-    expect(figure2Hold.farArcadeScale).toBeCloseTo(1, 2);
-    expect(figure2Hold.nearArchBlurPx).toBeLessThan(0.1);
-    expect(figure2Hold.figureScale).toBeCloseTo(1, 2);
+    expect(figure2Hold.cloudScale).toBeGreaterThan(1.08);
+    expect(figure2Hold.farArcadeScale).toBeGreaterThan(1.18);
+    expect(figure2Hold.nearArchBlurPx).toBeGreaterThan(3);
+    expect(figure2Hold.figureScale).toBeGreaterThan(1.02);
     expect(figure2Hold.figureWidth).toBeGreaterThan(153);
     expect(figure2Hold.figureWidth).toBeLessThan(261);
     expect(figure2Hold.visibleCaptionCount).toBe(0);
-    expect(figure2Hold.videos.every((video) => video.loop === false && video.paused)).toBe(true);
+    expect(figure2Hold.videos.every((video) => video.loop === false && video.paused && video.currentTime > 0)).toBe(true);
 
     await page.evaluate(() => {
       void window.__r4Group2?.playReverse();

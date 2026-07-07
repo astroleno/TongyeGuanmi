@@ -211,6 +211,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
   let handledPrepareToken: DirectorContext['prepareToken'];
   let handledRunId: DirectorContext['activeRunId'];
   let handledRetiringKey = '';
+  let pendingScrubDelta = 0;
   let isStarted = false;
   let cachedSnapshot: StoryDebugSnapshot | undefined;
 
@@ -252,6 +253,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
         if (routed.type === 'BOOT_FAILED' || routed.type === 'BUILD_TIMEOUT' || routed.type === 'PLAYBACK_FAILED') {
           runtime.segmentPlayer.abort('recovery');
         }
+        handleScrubInput(routed);
       }
       recordEvent(event);
       notifyListeners();
@@ -362,7 +364,22 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
     }
 
     if (
-      (state === 'playing' || state === 'scrubbing') &&
+      state === 'playing' &&
+      context.activeRunId &&
+      context.activeSegment &&
+      context.activeDirection
+    ) {
+      if (handledRunId !== context.activeRunId) {
+        handledRunId = context.activeRunId;
+        void runtime.segmentPlayer.play(context.activeSegment, context.activeDirection, {
+          runId: context.activeRunId
+        });
+      }
+      return;
+    }
+
+    if (
+      state === 'scrubbing' &&
       context.activeRunId &&
       context.activeSegment &&
       context.activeDirection
@@ -456,6 +473,63 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       scene: targetScene(segment, current.context.pendingDirection),
       prepareToken
     });
+  }
+
+  function handleScrubInput(event: DirectorEvent): void {
+    if (event.type !== 'INPUT_DELTA' && event.type !== 'CHARGE_FIRED') {
+      return;
+    }
+    const snapshot = actor.getSnapshot();
+    const context = snapshot.context;
+    if (
+      snapshot.value !== 'scrubbing' ||
+      !context.activeSegment ||
+      !context.activeDirection
+    ) {
+      return;
+    }
+    const segment = findSegment(context.manifest, context.activeSegment);
+    if (segment.policy.kind !== 'scrub') {
+      return;
+    }
+    const active = runtime.segmentPlayer.snapshot();
+    const currentProgress = active?.segmentId === context.activeSegment
+      ? active.progress
+      : context.activeDirection === 1
+        ? 0
+        : 1;
+    const delta = event.type === 'INPUT_DELTA' ? event.delta : event.direction;
+    if (!active) {
+      pendingScrubDelta += delta;
+      queueMicrotask(flushPendingScrubDelta);
+      return;
+    }
+    const effectiveDelta = pendingScrubDelta + delta;
+    pendingScrubDelta = 0;
+    runtime.segmentPlayer.scrub(context.activeSegment, Math.min(1, Math.max(0, currentProgress + effectiveDelta)));
+  }
+
+  function flushPendingScrubDelta(): void {
+    if (pendingScrubDelta === 0) {
+      return;
+    }
+    const snapshot = actor.getSnapshot();
+    const context = snapshot.context;
+    const active = runtime.segmentPlayer.snapshot();
+    if (snapshot.value !== 'scrubbing') {
+      pendingScrubDelta = 0;
+      return;
+    }
+    if (
+      !context.activeSegment ||
+      active?.segmentId !== context.activeSegment
+    ) {
+      return;
+    }
+    const currentProgress = active.progress;
+    const effectiveDelta = pendingScrubDelta;
+    pendingScrubDelta = 0;
+    runtime.segmentPlayer.scrub(context.activeSegment, Math.min(1, Math.max(0, currentProgress + effectiveDelta)));
   }
 
   return runtime.start();

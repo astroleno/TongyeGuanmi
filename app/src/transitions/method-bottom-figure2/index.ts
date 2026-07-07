@@ -6,8 +6,8 @@ import type { TransitionModule } from '../../story/types';
 
 const FIGURE2_INK_END = 0.34;
 
-export function figure2StageProgressForMethodBottom(): number {
-  return 0;
+export function figure2StageProgressForMethodBottom(progress: number): number {
+  return range01(progress, FIGURE2_INK_END, 1);
 }
 
 export function figure2InkProgressForMethodBottom(progress: number): number {

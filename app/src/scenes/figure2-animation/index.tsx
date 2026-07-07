@@ -222,7 +222,7 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
     if (isInkTransitionActive(rootRef.current)) {
       return;
     }
-    renderFigure2AnimationProgress(rootRef.current, 0);
+    renderFigure2AnimationProgress(rootRef.current, hidden ? 0 : 1);
   }, [hidden]);
 
   useEffect(() => {

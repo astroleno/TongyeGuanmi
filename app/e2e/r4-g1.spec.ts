@@ -67,6 +67,7 @@ type Group1VisualSnapshot = {
   starMapLayerClipPath: string;
   patternLayerElevated: boolean;
   starMapLayerElevated: boolean;
+  starMapLayerVisible: boolean;
   heroVideoLoop: boolean | null;
   heroVideoPaused: boolean | null;
   heroVideoAutoplay: boolean | null;
@@ -136,6 +137,7 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
       starMapLayerClipPath: window.getComputedStyle(starMapLayer ?? document.body).clipPath,
       patternLayerElevated: patternLayer?.dataset.r4TransitionElevated === 'true',
       starMapLayerElevated: starMapLayer?.dataset.r4TransitionElevated === 'true',
+      starMapLayerVisible: starMapLayer?.dataset.visible === 'true',
       heroVideoLoop: heroVideo?.loop ?? null,
       heroVideoPaused: heroVideo?.paused ?? null,
       heroVideoAutoplay: heroVideo?.autoplay ?? null
@@ -250,8 +252,10 @@ test.describe('R4 group1 canonical spine harness', () => {
     }, { timeout: 3_000 }).toBe(true);
     expect(patternStarMapInk?.transitions).toContain('pattern-bloom-star-map-scene-ink');
     expect(patternStarMapInk?.patternInkRenderer).toBe('scene');
-    expect(patternStarMapInk?.starMapLayerElevated).toBe(true);
-    expect(patternStarMapInk?.starMapLayerZ ?? 0).toBeGreaterThan(patternStarMapInk?.patternLayerZ ?? 0);
+    expect(patternStarMapInk?.patternLayerElevated).toBe(true);
+    expect(patternStarMapInk?.starMapLayerElevated).toBe(false);
+    expect(patternStarMapInk?.starMapLayerVisible).toBe(false);
+    expect(patternStarMapInk?.patternLayerZ ?? 0).toBeGreaterThan(patternStarMapInk?.starMapLayerZ ?? 0);
     expect(patternStarMapInk?.starMapLayerClipPath).toBe('none');
     expect(patternStarMapInk?.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
     expect(patternStarMapInk?.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);

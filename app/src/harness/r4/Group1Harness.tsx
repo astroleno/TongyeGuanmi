@@ -9,6 +9,7 @@ import type {
   LayerVisibilityState,
   SceneId,
   SegmentId,
+  SpineSegmentNode,
   StageHandle,
   StageLayerRole
 } from '../../story/types';
@@ -297,6 +298,21 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
     return candidate?.kind === 'segment' ? candidate.id : undefined;
   };
 
+  const segmentNode = (id: SegmentId | undefined): SpineSegmentNode | undefined =>
+    id ? manifest.nodes.find((node): node is SpineSegmentNode => node.kind === 'segment' && node.id === id) : undefined;
+
+  const driveScrubSegment = async (direction: Direction) => {
+    const delta = direction * 0.12;
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta, now: Date.now() });
+    for (let step = 0; step < 12; step += 1) {
+      await wait(86);
+      if (String(runtime.getState().state) !== 'scrubbing') {
+        return;
+      }
+      runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta, now: Date.now() });
+    }
+  };
+
   const play = async (direction: Direction, options: PlayOptions = {}) => {
     buildDelayMs.current = options.buildTimeout ? 2200 : 0;
     if (options.buildTimeout) {
@@ -306,7 +322,11 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
     }
     const segment = segmentForCurrentHold(direction);
     const recoveryBefore = runtime.getState().context.lastError;
-    runtime.send({ type: 'CHARGE_FIRED', direction });
+    if (segmentNode(segment)?.policy.kind === 'scrub') {
+      await driveScrubSegment(direction);
+    } else {
+      runtime.send({ type: 'CHARGE_FIRED', direction });
+    }
     await waitForRuntimeIdle(runtime);
     const next = runtime.getState();
     runtimeSnapshotRef.current = next;

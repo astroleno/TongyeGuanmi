@@ -233,18 +233,18 @@ h1 {
 
 .stage-harness-hud {
   position: fixed;
-  top: 14px;
-  right: 14px;
+  top: 10px;
+  right: 10px;
   z-index: 240;
-  width: min(230px, calc(100vw - 28px));
-  max-height: calc(100svh - 28px);
+  width: min(176px, calc(100vw - 20px));
+  max-height: calc(100svh - 20px);
   overflow: auto;
-  padding: 10px;
+  padding: 7px;
   border: 1px solid rgba(29, 27, 22, 0.16);
-  border-radius: 8px;
-  background: rgba(248, 247, 242, 0.86);
-  box-shadow: 0 14px 48px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(10px);
+  border-radius: 6px;
+  background: rgba(248, 247, 242, 0.72);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(8px);
   color: #1d1b16;
 }
 
@@ -256,15 +256,15 @@ h1 {
 }
 
 .harness-state {
-  margin-bottom: 8px;
-  font-size: 1rem;
+  margin-bottom: 5px;
+  font-size: 0.78rem;
   font-weight: 800;
   line-height: 1;
 }
 
 .hud-grid {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   margin: 0;
 }
 
@@ -277,37 +277,37 @@ h1 {
 }
 
 .hud-grid div {
-  padding: 6px;
+  padding: 4px;
 }
 
 .hud-grid dt {
   color: #6f6b61;
-  font-size: 0.62rem;
+  font-size: 0.55rem;
   font-weight: 750;
 }
 
 .hud-grid dd {
-  margin: 2px 0 0;
+  margin: 1px 0 0;
   overflow-wrap: anywhere;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.68rem;
+  font-size: 0.58rem;
 }
 
 .harness-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 8px;
+  gap: 4px;
+  margin-top: 6px;
 }
 
 button {
-  min-height: 28px;
+  min-height: 22px;
   border: 1px solid rgba(29, 27, 22, 0.2);
-  border-radius: 6px;
+  border-radius: 5px;
   background: #fff;
   color: #1d1b16;
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 0.58rem;
   font-weight: 750;
   cursor: pointer;
 }
@@ -400,7 +400,7 @@ pre {
   .stage-harness-hud {
     top: 8px;
     right: 8px;
-    width: min(210px, calc(100vw - 16px));
+    width: min(168px, calc(100vw - 16px));
     max-height: calc(100svh - 16px);
   }
 

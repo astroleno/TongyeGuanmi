@@ -63,9 +63,9 @@ describe('method-bottom-figure2 transition', () => {
   it('separates the bottom ink reveal from the figure2 zoom stage', () => {
     expect(figure2InkProgressForMethodBottom(0.17)).toBeCloseTo(0.5, 5);
     expect(figure2InkProgressForMethodBottom(0.34)).toBe(1);
-    expect(figure2StageProgressForMethodBottom()).toBe(0);
-    expect(figure2StageProgressForMethodBottom()).toBe(0);
-    expect(figure2StageProgressForMethodBottom()).toBe(0);
+    expect(figure2StageProgressForMethodBottom(0.17)).toBe(0);
+    expect(figure2StageProgressForMethodBottom(0.67)).toBeGreaterThan(0.45);
+    expect(figure2StageProgressForMethodBottom(1)).toBe(1);
   });
 
   it('passes timeline verification and exposes reduced motion fallback', async () => {

@@ -62,11 +62,11 @@ describe('pattern-star-map transition', () => {
 
     expect(transition.reducedMotionFallback).toBeTypeOf('function');
     expect(verifySegmentTimeline(timeline, { policy: segment().policy })).toMatchObject({
-      maxVisibleLayers: 2
+      maxVisibleLayers: 1
     });
     expect(timeline.sample?.(0.5)).toMatchObject({
       from: { visible: true, opacity: 1 },
-      to: { visible: true, opacity: 1 }
+      to: { visible: false, opacity: 0 }
     });
   });
 

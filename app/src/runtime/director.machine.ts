@@ -635,6 +635,15 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
             target: 'settling',
             actions: 'enterSettling'
           },
+          PLAYBACK_FAILED: {
+            guard: 'validRunId',
+            target: 'recovering',
+            actions: ['notePlaybackFailure', 'recoverFromEvent']
+          },
+          BUILD_TIMEOUT: {
+            target: 'recovering',
+            actions: 'recoverFromEvent'
+          },
           SETTLING_DONE: {
             target: 'settling',
             actions: 'enterSettling'

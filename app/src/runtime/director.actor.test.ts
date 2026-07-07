@@ -198,6 +198,9 @@ describe('director runtime actor loop', () => {
     expect(runtime.getState().state).toBe('scrubbing');
     expect(runtime.getState().context.activeRunId).toBe('scrub-loop:1');
 
+    for (let index = 0; index < 9; index += 1) {
+      runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: index + 1 });
+    }
     await flush(20);
     expect(runtime.getState().state).toBe('settling');
     await flush(420);

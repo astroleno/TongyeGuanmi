@@ -51,6 +51,14 @@ function samplePatternBloom(progress: number): PatternBloomSample {
   return { from: holdVisibility(false), to: holdVisibility(false) };
 }
 
+function samplePatternStarMap(progress: number): PatternBloomSample {
+  const clamped = clamp(progress);
+  if (clamped >= 0.999) {
+    return { from: hiddenVisibility(), to: holdVisibility(false) };
+  }
+  return { from: holdVisibility(false), to: hiddenVisibility() };
+}
+
 function ensureInkCanvas(container: HTMLElement | null, id: SegmentId): HTMLCanvasElement | null {
   if (!container) {
     return null;
@@ -146,8 +154,10 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
     private readonly options: PatternBloomOptions
   ) {
     this.labels = { start: 0, reveal: 0.46, bloom: 0.7, end: 1 };
-    this.elevation = createTransitionLayerElevation(context.to.element);
-    this.inkCanvas = ensureInkCanvas(context.to.element, options.id);
+    const inkHost = options.variant === 'pattern-star-map' ? context.from.element : context.to.element;
+    const elevationTarget = options.variant === 'pattern-star-map' ? context.from.element : context.to.element;
+    this.elevation = createTransitionLayerElevation(elevationTarget);
+    this.inkCanvas = ensureInkCanvas(inkHost, options.id);
     if (this.inkCanvas) {
       const origin = options.variant === 'hero-pattern' ? { x: 0.5, y: 0.5 } : { x: 0.24, y: 0.55 };
       this.inkCanvas.dataset.inkOriginX = origin.x.toFixed(3);
@@ -171,7 +181,7 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
       return;
     }
     const clamped = clamp(value);
-    const sample = samplePatternBloom(clamped);
+    const sample = this.options.variant === 'pattern-star-map' ? samplePatternStarMap(clamped) : samplePatternBloom(clamped);
     this.progressValue = clamped;
     applyLayerVisibility(this.context.from, sample.from);
     applyLayerVisibility(this.context.to, sample.to);
@@ -188,7 +198,7 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
   }
 
   sample(progress: number): PatternBloomSample {
-    return samplePatternBloom(progress);
+    return this.options.variant === 'pattern-star-map' ? samplePatternStarMap(progress) : samplePatternBloom(progress);
   }
 
   dispose(): void {
@@ -200,6 +210,7 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
     this.inkRenderer?.destroy();
     this.elevation.restore();
     clearTransitionAttrs(this.context.to.element);
+    clearTransitionAttrs(this.context.from.element);
     this.context.to.element?.style.removeProperty('clip-path');
     this.context.to.element?.style.removeProperty('-webkit-clip-path');
   }
@@ -235,7 +246,7 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
     starMapRoot?.setAttribute('data-pattern-second-reveal-progress', secondReveal.toFixed(4));
     starMapRoot?.setAttribute('data-pattern-star-presentation-progress', starPresentationProgress.toFixed(4));
     starMapRoot?.setAttribute('data-pattern-ink-renderer', 'scene');
-    setTransitionAttrs(this.context.to.element, this.options.id, 'pattern-bloom-star-map-scene-ink', secondReveal, secondReveal, progress);
+    setTransitionAttrs(this.context.from.element, this.options.id, 'pattern-bloom-star-map-scene-ink', secondReveal, secondReveal, progress);
     this.inkRenderer?.render(secondReveal, secondReveal, {
       perlinStrength: 0.40,
       sceneBrightness: 0.92

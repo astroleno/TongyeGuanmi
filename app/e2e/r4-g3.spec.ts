@@ -65,6 +65,7 @@ type Group3VisualSnapshot = {
   depthInkMode: string | null;
   depthReady: boolean;
   figureMaskReady: boolean;
+  proofInkVisible: boolean;
 };
 
 async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
@@ -103,7 +104,8 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       proofInkRenderer: proofRoot?.dataset.figure2ProofInkRenderer ?? proofLayer?.dataset.figure2ProofInkRenderer ?? null,
       depthInkMode: proofInkCanvas?.dataset.figure2DepthInkMode ?? null,
       depthReady: proofInkCanvas?.dataset.figure2DepthReady === 'true',
-      figureMaskReady: proofInkCanvas?.dataset.figure2FigureMaskReady === 'true'
+      figureMaskReady: proofInkCanvas?.dataset.figure2FigureMaskReady === 'true',
+      proofInkVisible: proofInkCanvas ? window.getComputedStyle(proofInkCanvas).visibility !== 'hidden' : false
     };
   });
 }
@@ -209,6 +211,7 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       if (target === 'figure2-proof-opening') {
         const visual = await visualSnapshot(page);
         expect(visual.proofOpeningProgress).toBe(1);
+        expect(visual.proofInkVisible).toBe(false);
         expect(visual.proofArchArea).toBeGreaterThan(100_000);
         expect(visual.proofArchOpacity).toBeGreaterThan(0.3);
         expect(visual.proofArchBlurPx).toBeGreaterThan(6);

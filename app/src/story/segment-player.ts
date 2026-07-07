@@ -154,6 +154,7 @@ export class SegmentPlayer {
   private readonly actorEpoch: string;
   private readonly prefersReducedMotion: () => boolean;
   private readonly built = new Map<SegmentId, SegmentTimelineHandle>();
+  private readonly pendingScrubProgress = new Map<SegmentId, number>();
   private active: ActiveRun | null = null;
   private runCounter = 0;
 
@@ -251,6 +252,16 @@ export class SegmentPlayer {
 
         run.timeline = timeline;
         run.progress = direction === 1 ? 0 : 1;
+        const segment = this.findSegment(id);
+        if (segment.policy.kind === 'scrub') {
+          timeline.progress(run.progress);
+          const pendingScrubProgress = this.pendingScrubProgress.get(id);
+          if (pendingScrubProgress !== undefined) {
+            this.pendingScrubProgress.delete(id);
+            this.scrub(id, pendingScrubProgress);
+          }
+          return;
+        }
         const playback = direction === 1 ? (timeline.progress(0), timeline.play(direction)) : (timeline.progress(1), timeline.reverse());
         return Promise.resolve(playback)
           .then(() => {
@@ -283,11 +294,28 @@ export class SegmentPlayer {
   }
 
   scrub(id: SegmentId, progress: number): void {
+    const clamped = Math.min(1, Math.max(0, progress));
     const timeline = this.built.get(id);
+    if (!timeline && this.active?.segmentId === id && !this.active.settled && this.findSegment(id).policy.kind === 'scrub') {
+      this.pendingScrubProgress.set(id, clamped);
+      this.active.progress = clamped;
+      return;
+    }
     if (!timeline) {
       throw new Error(`Cannot scrub unbuilt segment: ${id}`);
     }
-    timeline.progress(Math.min(1, Math.max(0, progress)));
+    timeline.progress(clamped);
+    if (this.active?.segmentId !== id || this.active.settled) {
+      return;
+    }
+    this.active.progress = clamped;
+    if (this.findSegment(id).policy.kind !== 'scrub') {
+      return;
+    }
+    const reachedEnd = this.active.direction === 1 ? clamped >= 0.999 : clamped <= 0.001;
+    if (reachedEnd) {
+      this.settleRun(this.active, { status: 'completed', runId: this.active.runId, segment: id, direction: this.active.direction }, true);
+    }
   }
 
   jumpToEnd(id: SegmentId, direction: Direction): void {

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const FIGURE2_PROOF_OPENING_COPY = [
@@ -31,12 +32,27 @@ export function renderProofOpeningProgress(root: HTMLElement | null, progress: n
   return { progress: clamped, opacity, y };
 }
 
-function Figure2ProofOpeningScene({ registerHandle }: SceneComponentProps) {
+function isTransitionActive(root: HTMLElement | null): boolean {
+  const layer = root?.closest<HTMLElement>('[data-stage-layer]');
+  return Boolean(layer?.dataset.r4Transition || layer?.dataset.r4InkActive === 'true');
+}
+
+function Figure2ProofOpeningScene({ hidden, registerHandle }: SceneComponentProps) {
+  const rootRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (isTransitionActive(rootRef.current)) {
+      return;
+    }
+    renderProofOpeningProgress(rootRef.current, hidden ? 0 : 1);
+  }, [hidden]);
+
   return (
     <article
       ref={(element) => {
+        rootRef.current = element;
         registerHandle?.('copy', element);
-        renderProofOpeningProgress(element, 1);
+        renderProofOpeningProgress(element, hidden ? 0 : 1);
       }}
       className="r4-proof r4-proof-page r4-proof-opening"
       data-r4-scene="figure2-proof-opening"
