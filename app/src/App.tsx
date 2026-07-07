@@ -9,6 +9,7 @@ import { Group2Harness } from './harness/r4/Group2Harness';
 import { Group3Harness } from './harness/r4/Group3Harness';
 import { Group4Harness } from './harness/r4/Group4Harness';
 import { Group5Harness } from './harness/r4/Group5Harness';
+import { Group6Harness } from './harness/r4/Group6Harness';
 import './styles.css';
 
 const holdCount = storyManifest.nodes.filter((node) => node.kind === 'hold').length;
@@ -87,6 +88,15 @@ export function App() {
   }
   if (path === '/harness/r4-g5-ttg-lab') {
     return <Group5Harness mode="ttg-lab" />;
+  }
+  if (path === '/harness/r4-g6') {
+    return <Group6Harness mode="group6" />;
+  }
+  if (path === '/harness/r4-g6-lab-ph') {
+    return <Group6Harness mode="lab-ph" />;
+  }
+  if (path === '/harness/r4-g6-ph-education') {
+    return <Group6Harness mode="ph-education" />;
   }
 
   return (
