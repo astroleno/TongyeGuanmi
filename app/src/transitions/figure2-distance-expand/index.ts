@@ -283,11 +283,14 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     this.elevation.restore();
     this.context.to.element?.style.removeProperty('clip-path');
     this.context.to.element?.style.removeProperty('-webkit-clip-path');
+    const toRoot = sceneRoot(this.context.to.element, 'figure2-proof-opening');
+    toRoot?.removeAttribute('data-r4-proof-transition-active');
   }
 
   private render(reveal: number, overlayOpacity: number): void {
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof-opening');
+    const active = reveal > 0.002 && reveal < 0.998;
     renderFigure2AnimationProgress(fromRoot, 1, { proofProgress: reveal, videoMode: 'none' });
     renderProofOpeningProgress(toRoot, reveal);
     this.proofTexture?.update();
@@ -298,13 +301,18 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     toRoot?.setAttribute('data-figure2-proof-overlay-progress', reveal.toFixed(4));
     toRoot?.setAttribute('data-figure2-proof-reveal-stop', `${(-12 + reveal * 122).toFixed(2)}%`);
     toRoot?.setAttribute('data-figure2-retained-arch', 'true');
+    if (active) {
+      toRoot?.setAttribute('data-r4-proof-transition-active', 'true');
+    } else {
+      toRoot?.removeAttribute('data-r4-proof-transition-active');
+    }
     this.context.to.element?.setAttribute('data-r4-transition', 'figure2-proof-overlay-scene-ink');
-    this.context.to.element?.setAttribute('data-r4-ink-active', String(reveal > 0.002 && reveal < 0.998));
+    this.context.to.element?.setAttribute('data-r4-ink-active', String(active));
     this.context.to.element?.setAttribute('data-r4-ink-progress', reveal.toFixed(4));
     this.context.to.element?.setAttribute('data-r4-clip-progress', reveal.toFixed(4));
     this.context.to.element?.setAttribute('data-figure2-proof-ink-renderer', 'depth-scene');
     toRoot?.setAttribute('data-r4-transition', 'figure2-proof-overlay-scene-ink');
-    toRoot?.setAttribute('data-r4-ink-active', String(reveal > 0.002 && reveal < 0.998));
+    toRoot?.setAttribute('data-r4-ink-active', String(active));
     toRoot?.setAttribute('data-r4-ink-progress', reveal.toFixed(4));
     toRoot?.setAttribute('data-figure2-proof-ink-renderer', 'depth-scene');
     this.inkRenderer?.render(reveal, reveal);

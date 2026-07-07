@@ -66,6 +66,8 @@ type Group3VisualSnapshot = {
   depthReady: boolean;
   figureMaskReady: boolean;
   proofInkVisible: boolean;
+  proofTransitionActive: boolean;
+  proofBackgroundImage: string;
 };
 
 async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
@@ -75,6 +77,7 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
     const arch = document.querySelector<HTMLElement>('.stage-proof-retained-arch');
     const archRect = arch?.getBoundingClientRect();
     const archStyle = arch ? window.getComputedStyle(arch) : undefined;
+    const proofStyle = proofRoot ? window.getComputedStyle(proofRoot) : undefined;
     const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
     const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
@@ -105,7 +108,9 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       depthInkMode: proofInkCanvas?.dataset.figure2DepthInkMode ?? null,
       depthReady: proofInkCanvas?.dataset.figure2DepthReady === 'true',
       figureMaskReady: proofInkCanvas?.dataset.figure2FigureMaskReady === 'true',
-      proofInkVisible: proofInkCanvas ? window.getComputedStyle(proofInkCanvas).visibility !== 'hidden' : false
+      proofInkVisible: proofInkCanvas ? window.getComputedStyle(proofInkCanvas).visibility !== 'hidden' : false,
+      proofTransitionActive: proofRoot?.dataset.r4ProofTransitionActive === 'true',
+      proofBackgroundImage: proofStyle?.backgroundImage ?? ''
     };
   });
 }
@@ -176,6 +181,8 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         expect(proofTransitionVisual?.depthInkMode).toBe('threshold');
         expect(proofTransitionVisual?.depthReady).toBe(true);
         expect(proofTransitionVisual?.figureMaskReady).toBe(true);
+        expect(proofTransitionVisual?.proofTransitionActive).toBe(true);
+        expect(proofTransitionVisual?.proofBackgroundImage).toBe('none');
         expect(proofTransitionVisual?.proofOpeningProgress).toBeGreaterThan(0);
         expect(proofTransitionVisual?.proofOverlayProgress).toBeGreaterThan(0);
         expect(proofTransitionVisual?.proofArchArea).toBeGreaterThan(100_000);
@@ -212,9 +219,11 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         const visual = await visualSnapshot(page);
         expect(visual.proofOpeningProgress).toBe(1);
         expect(visual.proofInkVisible).toBe(false);
+        expect(visual.proofTransitionActive).toBe(false);
+        expect(visual.proofBackgroundImage).not.toBe('none');
         expect(visual.proofArchArea).toBeGreaterThan(100_000);
-        expect(visual.proofArchOpacity).toBeGreaterThan(0.3);
-        expect(visual.proofArchBlurPx).toBeGreaterThan(6);
+        expect(visual.proofArchOpacity).toBeGreaterThan(0.8);
+        expect(visual.proofArchBlurPx).toBeGreaterThan(3);
       }
       if (target === 'figure2-proof-cards' || target === 'figure2-proof-closing') {
         expect((await visualSnapshot(page)).proofArchCount).toBe(1);

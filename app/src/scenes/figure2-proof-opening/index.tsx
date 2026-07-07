@@ -37,22 +37,29 @@ function isTransitionActive(root: HTMLElement | null): boolean {
   return Boolean(layer?.dataset.r4Transition || layer?.dataset.r4InkActive === 'true');
 }
 
-function Figure2ProofOpeningScene({ hidden, registerHandle }: SceneComponentProps) {
+function initialProgressForLayer(hidden: boolean, role: SceneComponentProps['role']): number {
+  return hidden || role !== 'current' ? 0 : 1;
+}
+
+function Figure2ProofOpeningScene({ hidden, role, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (isTransitionActive(rootRef.current)) {
       return;
     }
-    renderProofOpeningProgress(rootRef.current, hidden ? 0 : 1);
-  }, [hidden]);
+    renderProofOpeningProgress(rootRef.current, initialProgressForLayer(hidden, role));
+  }, [hidden, role]);
 
   return (
     <article
       ref={(element) => {
         rootRef.current = element;
         registerHandle?.('copy', element);
-        renderProofOpeningProgress(element, hidden ? 0 : 1);
+        if (element && element.dataset.proofOpeningInitialized !== 'true') {
+          element.dataset.proofOpeningInitialized = 'true';
+          renderProofOpeningProgress(element, initialProgressForLayer(hidden, role));
+        }
       }}
       className="r4-proof r4-proof-page r4-proof-opening"
       data-r4-scene="figure2-proof-opening"
