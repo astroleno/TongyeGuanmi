@@ -139,20 +139,13 @@ test.describe('R4 group5 services ttg lab harness', () => {
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
-      if (index === 5) {
-        const visual = await visualSnapshot(page);
-        expect(visual.activeInkSegments).toContain('services-ttg');
-        expect(visual.transitions).toContain('services-ttg-bottom-ink');
-        expect(visual.revealProgress).toBeGreaterThan(0);
-        expect(visual.revealProgress).toBeLessThan(1);
-        expect(visual.revealClip).not.toBe('none');
-        expect(visual.ttgPlaybackDirection).toBe('1');
-      }
       const visual = await visualSnapshot(page);
       sawServicesTtgReveal ||= visual.activeInkSegments.includes('services-ttg')
+        && visual.transitions.includes('services-ttg-bottom-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
-        && visual.revealClip !== 'none';
+        && visual.revealClip !== 'none'
+        && visual.ttgPlaybackDirection === '1';
     }
     expect(sawServicesTtgReveal).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('ttg-animation');

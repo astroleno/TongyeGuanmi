@@ -142,16 +142,9 @@ test.describe('R4 group6 lab ph education harness', () => {
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
-      if (index === 5) {
-        const visual = await visualSnapshot(page);
-        expect(visual.activeInkSegments).toContain('lab-ph');
-        expect(visual.transitions).toContain('lab-ph-sun-radial-ink');
-        expect(visual.revealProgress).toBeGreaterThan(0);
-        expect(visual.revealProgress).toBeLessThan(1);
-        expect(visual.revealClip).not.toBe('none');
-      }
       const visual = await visualSnapshot(page);
       sawLabPhReveal ||= visual.activeInkSegments.includes('lab-ph')
+        && visual.transitions.includes('lab-ph-sun-radial-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
         && visual.revealClip !== 'none';

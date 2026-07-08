@@ -32,7 +32,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783465921270,
+      "at": 1783471092303,
       "event": {
         "type": "BOOT_READY"
       },
@@ -49,7 +49,7 @@
       "id": 1
     },
     {
-      "at": 1783465921271,
+      "at": 1783471092303,
       "event": {
         "type": "BOOT_READY"
       },
@@ -66,7 +66,7 @@
       "id": 2
     },
     {
-      "at": 1783465921282,
+      "at": 1783471092316,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -85,7 +85,7 @@
       "id": 3
     },
     {
-      "at": 1783465921289,
+      "at": 1783471092329,
       "event": {
         "type": "TARGET_READY",
         "scene": "lab",
@@ -107,7 +107,7 @@
       "id": 4
     },
     {
-      "at": 1783465921290,
+      "at": 1783471092329,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g5-ttg-lab:1"
@@ -128,7 +128,7 @@
       "id": 5
     },
     {
-      "at": 1783465921726,
+      "at": 1783471092761,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -147,7 +147,7 @@
       "id": 6
     },
     {
-      "at": 1783465921726,
+      "at": 1783471092761,
       "event": {
         "type": "TARGET_READY",
         "scene": "ttg-animation",
@@ -169,7 +169,7 @@
       "id": 7
     },
     {
-      "at": 1783465921727,
+      "at": 1783471092762,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g5-ttg-lab:2"
@@ -190,7 +190,7 @@
       "id": 8
     },
     {
-      "at": 1783465922182,
+      "at": 1783471093203,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -209,7 +209,7 @@
       "id": 9
     },
     {
-      "at": 1783465922183,
+      "at": 1783471093203,
       "event": {
         "type": "TARGET_READY",
         "scene": "lab",
@@ -231,7 +231,7 @@
       "id": 10
     },
     {
-      "at": 1783465922183,
+      "at": 1783471093203,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g5-ttg-lab:3"

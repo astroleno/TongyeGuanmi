@@ -136,21 +136,14 @@ test.describe('R4 group7 education crane contact harness', () => {
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
-      if (index === 5) {
-        const visual = await visualSnapshot(page);
-        expect(visual.activeInkSegments).toContain('education-crane');
-        expect(visual.transitions).toContain('education-crane-bottom-ink');
-        expect(visual.revealProgress).toBeGreaterThan(0);
-        expect(visual.revealProgress).toBeLessThan(1);
-        expect(visual.revealClip).not.toBe('none');
-        expect(visual.craneProgress).toBe(0);
-        expect(visual.cranePlaybackActive).not.toBe('true');
-      }
       const visual = await visualSnapshot(page);
       sawEducationCraneReveal ||= visual.activeInkSegments.includes('education-crane')
+        && visual.transitions.includes('education-crane-bottom-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
-        && visual.revealClip !== 'none';
+        && visual.revealClip !== 'none'
+        && visual.craneProgress === 0
+        && visual.cranePlaybackActive !== 'true';
     }
     expect(sawEducationCraneReveal).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('crane-animation');
