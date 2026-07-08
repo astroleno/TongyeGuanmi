@@ -166,7 +166,7 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
     this.elevation = createTransitionLayerElevation(elevationTarget);
     this.inkCanvas = ensureInkCanvas(inkHost, options.id);
     if (this.inkCanvas) {
-      const origin = options.variant === 'hero-pattern' ? { x: 0.5, y: 0.5 } : { x: 0.5, y: 1.04 };
+      const origin = options.variant === 'hero-pattern' ? { x: 0.5, y: 0.5 } : { x: 0.24, y: 0.55 };
       this.inkCanvas.dataset.inkOriginX = origin.x.toFixed(3);
       this.inkCanvas.dataset.inkOriginY = origin.y.toFixed(3);
     }
@@ -287,8 +287,8 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
       progressSpan: 0.94,
       colorLift: 0.62,
       sceneBrightness: 0.92,
-      inkCenterX: 0.50,
-      inkCenterY: 1.04,
+      inkCenterX: 0.24,
+      inkCenterY: 0.55,
       transparentOutside: true
     };
   }
