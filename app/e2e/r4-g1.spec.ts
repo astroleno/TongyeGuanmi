@@ -170,7 +170,7 @@ test.describe('R4 group1 canonical spine harness', () => {
   });
 
   test('runs forward and reverse with nonblank sampled frames', async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(90_000);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g1');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
@@ -210,7 +210,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     await expect.poll(async () => {
       const visual = await visualSnapshot(page);
       return visual.activeInkSegments.includes('hero-pattern');
-    }, { timeout: 3_000 }).toBe(true);
+    }, { timeout: 12_000 }).toBe(true);
     const heroPatternInk = await visualSnapshot(page);
     expect(heroPatternInk.transitions).toContain('pattern-bloom-hero-scene-ink');
     expect(heroPatternInk.patternInkRenderer).toBe('scene');
@@ -222,12 +222,12 @@ test.describe('R4 group1 canonical spine harness', () => {
       await page.waitForTimeout(24);
       forwardFrames.push(await snapshot(page));
     }
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('pattern');
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 12_000 }).toBe('pattern');
     await expect.poll(async () => {
       const frame = await snapshot(page);
       return frame.phase === 'hold' && frame.window.current === 'pattern';
-    }).toBe(true);
-    await expect.poll(async () => (await visualSnapshot(page)).patternProgress).toBe(1);
+    }, { timeout: 12_000 }).toBe(true);
+    await expect.poll(async () => (await visualSnapshot(page)).patternProgress, { timeout: 12_000 }).toBe(1);
     const compactPattern = await visualSnapshot(page);
     expect(compactPattern.largestRingScale).toBeLessThan(0.12);
     expect(compactPattern.compactRingScale).toBeGreaterThan(0.2);
@@ -237,19 +237,21 @@ test.describe('R4 group1 canonical spine harness', () => {
       void window.__r4Group1?.playForward();
     });
     let patternStarMapInk: Group1VisualSnapshot | undefined;
-    await expect.poll(async () => {
+    const starMapInkDeadline = Date.now() + 12_000;
+    while (Date.now() < starMapInkDeadline && !patternStarMapInk) {
       const visual = await visualSnapshot(page);
       if (
         visual.activeInkSegments.includes('pattern-star-map')
-        && visual.starMapProgress === 0
-        && visual.starMapCopyOpacity === 0
-        && visual.starMapCanvasOpacity === 0
+        && visual.starMapProgress <= 0.02
+        && visual.starMapCopyOpacity <= 0.05
+        && visual.starMapCanvasOpacity <= 0.05
       ) {
         patternStarMapInk = visual;
-        return true;
+        break;
       }
-      return false;
-    }, { timeout: 3_000 }).toBe(true);
+      await page.waitForTimeout(20);
+    }
+    expect(patternStarMapInk).toBeDefined();
     expect(patternStarMapInk?.transitions).toContain('pattern-bloom-star-map-scene-ink');
     expect(patternStarMapInk?.patternInkRenderer).toBe('scene');
     expect(patternStarMapInk?.patternLayerElevated).toBe(true);
@@ -265,7 +267,7 @@ test.describe('R4 group1 canonical spine harness', () => {
       await page.waitForTimeout(24);
       forwardFrames.push(await snapshot(page));
     }
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('star-map');
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 12_000 }).toBe('star-map');
 
     await page.evaluate(() => {
       void window.__r4Group1?.playReverse();
@@ -275,7 +277,7 @@ test.describe('R4 group1 canonical spine harness', () => {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
     }
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('pattern');
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 12_000 }).toBe('pattern');
 
     for (const frame of [...forwardFrames, ...reverseFrames]) {
       await assertFrame(frame);

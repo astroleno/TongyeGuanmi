@@ -127,20 +127,20 @@ test.describe('R4 group4 brand figure3 services harness', () => {
     await page.evaluate(() => {
       void window.__r4Group4?.playForward();
     });
-    const frames: Group4Snapshot[] = [];
-    let sawBrandFigure3Reveal = false;
-    for (let index = 0; index < 18; index += 1) {
-      await page.waitForTimeout(24);
-      const frame = await snapshot(page);
-      frames.push(frame);
+    await expect.poll(async () => {
       const visual = await visualSnapshot(page);
-      sawBrandFigure3Reveal ||= visual.activeInkSegments.includes('brand-figure3')
+      return visual.activeInkSegments.includes('brand-figure3')
         && visual.transitions.includes('brand-figure3-bottom-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
         && visual.revealClip !== 'none';
+    }, { timeout: 7_000 }).toBe(true);
+    const frames: Group4Snapshot[] = [];
+    for (let index = 0; index < 18; index += 1) {
+      await page.waitForTimeout(24);
+      const frame = await snapshot(page);
+      frames.push(frame);
     }
-    expect(sawBrandFigure3Reveal).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure3-animation');
     const figureHold = await visualSnapshot(page);
     expect(figureHold.figure3Progress).toBe(0);

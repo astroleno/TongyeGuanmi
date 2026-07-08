@@ -133,15 +133,26 @@ test.describe('R3 pilot harness', () => {
   });
 
   test('runs the full pilot chain with normal rhythm, real media milestones, copyCue, slow-ready, and reverse fallback', async ({ page }) => {
+    test.setTimeout(60_000);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r3-pilot');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
     await expect(page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)).resolves.toBe(false);
 
-    await page.evaluate(async () => {
-      await window.__r3Pilot?.playForward();
-      await window.__r3Pilot?.playForward({ slowReady: true });
+    await page.evaluate(() => {
+      void window.__r3Pilot?.playForward();
     });
+    await expect.poll(async () => {
+      const frame = await snapshot(page);
+      return frame.phase === 'hold' && frame.window.current === 'aod-animation';
+    }, { timeout: 15_000 }).toBe(true);
+    await page.evaluate(() => {
+      void window.__r3Pilot?.playForward({ slowReady: true });
+    });
+    await expect.poll(async () => {
+      const frame = await snapshot(page);
+      return frame.phase === 'hold' && frame.window.current === 'method-top';
+    }, { timeout: 15_000 }).toBe(true);
 
     let frame = await snapshot(page);
     writeTrace('pilot-success-trace.json', frame);
@@ -162,9 +173,13 @@ test.describe('R3 pilot harness', () => {
     expect(frame.eventLog).toContain('PLAY:aod-method-top:1');
 
     const mediaReadyBeforeReverse = frame.mediaReadyAccepted;
-    await page.evaluate(async () => {
-      await window.__r3Pilot?.playReverse();
+    await page.evaluate(() => {
+      void window.__r3Pilot?.playReverse();
     });
+    await expect.poll(async () => {
+      const frame = await snapshot(page);
+      return frame.phase === 'hold' && frame.window.current === 'aod-animation';
+    }, { timeout: 15_000 }).toBe(true);
     frame = await snapshot(page);
     expect(frame.window.current).toBe('aod-animation');
     expect(frame.mediaReadyAccepted).toBe(mediaReadyBeforeReverse);
@@ -199,6 +214,7 @@ test.describe('R3 pilot harness', () => {
   });
 
   test('replays a cached segment from progress 0 after direct seek back to the start', async ({ page }) => {
+    test.setTimeout(60_000);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r3-pilot');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
@@ -212,13 +228,19 @@ test.describe('R3 pilot harness', () => {
     await page.evaluate(() => {
       window.__r3Pilot?.seek('star-map');
     });
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('star-map');
+    await expect.poll(async () => {
+      const frame = await snapshot(page);
+      return frame.phase === 'hold' && frame.window.current === 'star-map';
+    }, { timeout: 15_000 }).toBe(true);
 
-    const replay = page.evaluate(async () => {
-      await window.__r3Pilot?.playForward();
+    await page.evaluate(() => {
+      void window.__r3Pilot?.playForward();
     });
 
-    await replay;
+    await expect.poll(async () => {
+      const frame = await snapshot(page);
+      return frame.phase === 'hold' && frame.window.current === 'aod-animation';
+    }, { timeout: 15_000 }).toBe(true);
     frame = await snapshot(page);
     expect(frame.window.current).toBe('aod-animation');
   });

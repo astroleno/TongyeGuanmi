@@ -163,16 +163,37 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       });
       if (target === 'figure2-proof-opening') {
         let proofTransitionVisual: Group3VisualSnapshot | undefined;
-        await expect.poll(async () => {
+        const proofTransitionSeen = {
+          depthInk: false,
+          sourceFade: false
+        };
+        const deadline = Date.now() + 12_000;
+        while (Date.now() < deadline && (!proofTransitionSeen.depthInk || !proofTransitionSeen.sourceFade)) {
           const visual = await visualSnapshot(page);
-          proofTransitionVisual = visual;
-          return (
-            visual.activeInkSegments.includes('figure2-distance-expand')
-            && visual.figure2BackgroundOpacity < 1
-            && visual.figure2FigureOpacity < 1
-            && visual.figure2NearArchOpacity > 0.9
-          );
-        }, { timeout: 5_000 }).toBe(true);
+          const hasDepthInk = visual.activeInkSegments.includes('figure2-distance-expand')
+            && visual.transitions.includes('figure2-proof-overlay-scene-ink')
+            && visual.proofLayerElevated
+            && visual.proofInkRenderer === 'depth-scene'
+            && visual.depthInkMode === 'threshold'
+            && visual.depthReady
+            && visual.figureMaskReady
+            && visual.proofTransitionActive
+            && visual.proofBackgroundImage === 'none'
+            && visual.proofOpeningProgress > 0
+            && visual.proofOverlayProgress > 0
+            && visual.figure2ProofProgress > 0;
+          if (hasDepthInk) {
+            proofTransitionVisual = visual;
+            proofTransitionSeen.depthInk = true;
+          }
+          proofTransitionSeen.sourceFade ||= visual.figure2BackgroundOpacity < 1
+            && visual.figure2FigureOpacity < 1;
+          if (!proofTransitionSeen.depthInk || !proofTransitionSeen.sourceFade) {
+            await page.waitForTimeout(20);
+          }
+        }
+        expect(proofTransitionSeen.depthInk).toBe(true);
+        expect(proofTransitionSeen.sourceFade).toBe(true);
         expect(proofTransitionVisual?.transitions).toContain('figure2-proof-overlay-scene-ink');
         expect(proofTransitionVisual?.proofLayerElevated).toBe(true);
         expect((proofTransitionVisual?.proofLayerZ ?? 0)).toBeGreaterThan(proofTransitionVisual?.figure2LayerZ ?? 0);

@@ -29,7 +29,7 @@
   "trace": [
     {
       "id": 1,
-      "at": 1783444518743,
+      "at": 1783481143493,
       "event": {
         "type": "BOOT_READY"
       },
@@ -51,7 +51,7 @@
     },
     {
       "id": 2,
-      "at": 1783444518743,
+      "at": 1783481143494,
       "event": {
         "type": "BOOT_READY"
       },
@@ -73,7 +73,7 @@
     },
     {
       "id": 3,
-      "at": 1783444518760,
+      "at": 1783481143505,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -96,7 +96,7 @@
     },
     {
       "id": 4,
-      "at": 1783444518982,
+      "at": 1783481143729,
       "event": {
         "type": "PREPARE_TIMEOUT",
         "segment": "aod-method-top",
