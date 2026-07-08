@@ -1630,16 +1630,14 @@ pre {
   opacity: var(--figure3-backdrop-opacity);
   transform: translateZ(0) scale(var(--figure3-backdrop-scale));
   will-change: opacity, transform;
-  background:
-    radial-gradient(ellipse at 34% 42%, rgba(255, 252, 235, .42), transparent 42%),
-    linear-gradient(180deg, rgba(237, 228, 210, .84), #ede4d2);
+  background: var(--figure3-paper);
 }
 
 .figure3-transition__sticky::after {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 1;
   pointer-events: none;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, .10), transparent 32%, rgba(41, 41, 25, .055)),
