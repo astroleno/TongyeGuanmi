@@ -15,7 +15,7 @@ export type Figure2DepthInkOptions = {
 };
 
 export type Figure2DepthInkRenderer = {
-  render(progress: number, visibilityProgress?: number): void;
+  render(progress: number, visibilityProgress?: number, options?: { sceneBrightness?: number }): void;
   prewarm(): void;
   destroy(): void;
 };
@@ -75,14 +75,15 @@ export function createFigure2DepthInkRenderer(canvas: HTMLCanvasElement | null, 
   canvas.dataset.figure2DepthInkMode = 'threshold';
 
   return {
-    render(progress: number, visibilityProgress = progress) {
+    render(progress: number, visibilityProgress = progress, renderOptions: { sceneBrightness?: number } = {}) {
       renderer.render(progress, visibilityProgress, {
         perlinStrength: 0,
-        sceneBrightness: options.sceneBrightness ?? 1
+        sceneBrightness: renderOptions.sceneBrightness ?? options.sceneBrightness ?? 1
       });
       canvas.dataset.figure2DepthInkMode = 'threshold';
       canvas.dataset.figure2DepthReady = String(depthReady);
       canvas.dataset.figure2FigureMaskReady = String(textureSourceIsReady(options.figureMaskElement ?? null));
+      canvas.dataset.figure2SceneBrightness = String(renderOptions.sceneBrightness ?? options.sceneBrightness ?? 1);
     },
     prewarm() {
       renderer.prewarm();

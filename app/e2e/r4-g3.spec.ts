@@ -47,6 +47,9 @@ type Group3VisualSnapshot = {
   activeInkSegments: readonly string[];
   transitions: readonly string[];
   proofOpeningProgress: number;
+  proofCopyProgress: number;
+  proofSceneBrightness: number;
+  proofInkCanvasOpacity: number;
   proofArchArea: number;
   proofArchCount: number;
   proofArchOpacity: number;
@@ -90,6 +93,9 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
       proofOpeningProgress: Number.parseFloat(proofRoot?.dataset.proofOpeningProgress ?? '0'),
+      proofCopyProgress: Number.parseFloat(proofRoot?.dataset.figure2ProofCopyProgress ?? '0'),
+      proofSceneBrightness: Number.parseFloat(proofRoot?.dataset.figure2ProofSceneBrightness ?? '1'),
+      proofInkCanvasOpacity: Number.parseFloat(proofInkCanvas?.dataset.figure2InkCanvasOpacity ?? proofRoot?.dataset.figure2ProofInkCanvasOpacity ?? '1'),
       proofArchArea: (archRect?.width ?? 0) * (archRect?.height ?? 0),
       proofArchCount: document.querySelectorAll('.stage-proof-retained-arch').length,
       proofArchOpacity: Number.parseFloat(archStyle?.opacity ?? '0'),
@@ -179,8 +185,10 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
             && visual.figureMaskReady
             && visual.proofTransitionActive
             && visual.proofBackgroundImage === 'none'
-            && visual.proofOpeningProgress > 0
             && visual.proofOverlayProgress > 0
+            && visual.proofOpeningProgress <= visual.proofOverlayProgress
+            && visual.proofSceneBrightness < 0.95
+            && visual.proofInkCanvasOpacity < 1
             && visual.figure2ProofProgress > 0;
           if (hasDepthInk) {
             proofTransitionVisual = visual;
@@ -204,8 +212,10 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         expect(proofTransitionVisual?.figureMaskReady).toBe(true);
         expect(proofTransitionVisual?.proofTransitionActive).toBe(true);
         expect(proofTransitionVisual?.proofBackgroundImage).toBe('none');
-        expect(proofTransitionVisual?.proofOpeningProgress).toBeGreaterThan(0);
         expect(proofTransitionVisual?.proofOverlayProgress).toBeGreaterThan(0);
+        expect(proofTransitionVisual?.proofOpeningProgress ?? 1).toBeLessThanOrEqual(proofTransitionVisual?.proofOverlayProgress ?? 0);
+        expect(proofTransitionVisual?.proofSceneBrightness ?? 1).toBeLessThan(1);
+        expect(proofTransitionVisual?.proofInkCanvasOpacity ?? 1).toBeLessThan(1);
         expect(proofTransitionVisual?.proofArchArea).toBeGreaterThan(100_000);
         expect(proofTransitionVisual?.figure2ProofProgress).toBeGreaterThan(0);
       }
@@ -239,6 +249,9 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       if (target === 'figure2-proof-opening') {
         const visual = await visualSnapshot(page);
         expect(visual.proofOpeningProgress).toBe(1);
+        expect(visual.proofCopyProgress).toBe(1);
+        expect(visual.proofSceneBrightness).toBe(1);
+        expect(visual.proofInkCanvasOpacity).toBe(0);
         expect(visual.proofInkVisible).toBe(false);
         expect(visual.proofTransitionActive).toBe(false);
         expect(visual.proofBackgroundImage).not.toBe('none');

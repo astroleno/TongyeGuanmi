@@ -16,6 +16,12 @@ const FIGURE2_NEXT_WHITE_IMAGE = new URL('../../../../assets/figure2-next-white.
 const FIGURE2_PAPER_GROUND = '#ece8dc';
 const FIGURE2_PAPER_GROUND_SOFT = '#f6f2e8';
 const PROOF_LAYER_SHOW_START = 0.16;
+const PROOF_COPY_REVEAL_START = 0.52;
+const PROOF_COPY_REVEAL_END = 0.86;
+const PROOF_INK_BRIGHTNESS_START = 0.58;
+const PROOF_INK_BRIGHTNESS_END = 0.98;
+const PROOF_INK_OPACITY_START = 0.30;
+const PROOF_INK_OPACITY_END = 0.86;
 
 type Figure2ProofSample = {
   from: LayerVisibilityState;
@@ -182,6 +188,20 @@ export function figure2ProofRevealProgress(progress: number): number {
   return smoothStep(range01(progress, 0.10, 0.94));
 }
 
+export function figure2ProofCopyProgress(revealProgress: number): number {
+  return smoothStep(range01(revealProgress, PROOF_COPY_REVEAL_START, PROOF_COPY_REVEAL_END));
+}
+
+export function figure2ProofInkSceneBrightness(revealProgress: number): number {
+  return 0.72 + smoothStep(range01(revealProgress, PROOF_INK_BRIGHTNESS_START, PROOF_INK_BRIGHTNESS_END)) * 0.28;
+}
+
+export function figure2ProofInkCanvasOpacity(revealProgress: number): number {
+  const entranceOpacity = 0.52 + smoothStep(range01(revealProgress, PROOF_INK_OPACITY_START, PROOF_INK_OPACITY_END)) * 0.48;
+  const exitFade = 1 - smoothStep(range01(revealProgress, 0.94, 0.995));
+  return entranceOpacity * exitFade;
+}
+
 export function figure2IntroProgress(progress: number): number {
   return progress <= 0 ? 0 : 1;
 }
@@ -291,14 +311,20 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof-opening');
     const active = reveal > 0.002 && reveal < 0.998;
+    const copyReveal = figure2ProofCopyProgress(reveal);
+    const sceneBrightness = figure2ProofInkSceneBrightness(reveal);
+    const inkCanvasOpacity = figure2ProofInkCanvasOpacity(reveal);
     renderFigure2AnimationProgress(fromRoot, 1, { proofProgress: reveal, videoMode: 'none' });
-    renderProofOpeningProgress(toRoot, reveal);
+    renderProofOpeningProgress(toRoot, copyReveal);
     this.proofTexture?.update();
     updateFigureMaskCanvas(this.figureMaskCanvas, fromRoot, reveal);
     toRoot?.style.setProperty('--r4-proof-overlay-opacity', overlayOpacity.toFixed(4));
     toRoot?.style.setProperty('--r4-proof-reveal-stop', `${(-12 + reveal * 122).toFixed(2)}%`);
     toRoot?.style.setProperty('--r4-proof-reveal-edge', `${(2 + reveal * 132).toFixed(2)}%`);
     toRoot?.setAttribute('data-figure2-proof-overlay-progress', reveal.toFixed(4));
+    toRoot?.setAttribute('data-figure2-proof-copy-progress', copyReveal.toFixed(4));
+    toRoot?.setAttribute('data-figure2-proof-scene-brightness', sceneBrightness.toFixed(4));
+    toRoot?.setAttribute('data-figure2-proof-ink-canvas-opacity', inkCanvasOpacity.toFixed(4));
     toRoot?.setAttribute('data-figure2-proof-reveal-stop', `${(-12 + reveal * 122).toFixed(2)}%`);
     toRoot?.setAttribute('data-figure2-retained-arch', 'true');
     if (active) {
@@ -315,7 +341,13 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     toRoot?.setAttribute('data-r4-ink-active', String(active));
     toRoot?.setAttribute('data-r4-ink-progress', reveal.toFixed(4));
     toRoot?.setAttribute('data-figure2-proof-ink-renderer', 'depth-scene');
-    this.inkRenderer?.render(reveal, reveal);
+    this.inkRenderer?.render(reveal, reveal, { sceneBrightness });
+    if (this.inkCanvas) {
+      if (active) {
+        this.inkCanvas.style.opacity = inkCanvasOpacity.toFixed(4);
+      }
+      this.inkCanvas.dataset.figure2InkCanvasOpacity = active ? inkCanvasOpacity.toFixed(4) : '0.0000';
+    }
   }
 
   private animateTo(target: number): Promise<void> {
