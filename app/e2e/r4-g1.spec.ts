@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 type Group1Snapshot = {
-  phase: 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'settling' | 'recovering' | 'seeking';
+  phase: 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
   mode: string;
   window: { current: string; retiring: readonly string[] };
   visibleCount: number;
@@ -128,15 +128,12 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
-      inkOrigins: Object.fromEntries(inkCanvases.map((canvas) => [
-        canvas.dataset.r4InkSegment ?? '',
-        {
-          x: Number.parseFloat(canvas.dataset.inkOriginX ?? 'NaN'),
-          y: Number.parseFloat(canvas.dataset.inkOriginY ?? 'NaN')
-        }
-      ])),
+      inkOrigins: Object.fromEntries(inkCanvases.map((canvas) => {
+        const [x, y] = (canvas.dataset.r4InkBoundaryOrigin ?? '').split(',').map(Number.parseFloat);
+        return [canvas.dataset.r4InkSegment ?? '', { x: x ?? Number.NaN, y: y ?? Number.NaN }];
+      })),
       patternProgress: Number.parseFloat(patternRoot?.dataset.patternProgress ?? '0'),
-      patternClipProgress: Number.parseFloat(patternLayer?.dataset.r4ClipProgress ?? '0'),
+      patternClipProgress: Number.parseFloat(patternLayer?.dataset.r4InkBoundaryProgress ?? '0'),
       patternInkProgress: Number.parseFloat(patternLayer?.dataset.r4InkProgress ?? '0'),
       patternCopyOpacity: Number.parseFloat(patternStyle?.getPropertyValue('--r4-pattern-copy-opacity') ?? '0'),
       patternFieldRotationDegrees: Number.parseFloat(patternStyle?.getPropertyValue('--r4-pattern-field-rotation') ?? '0'),
@@ -259,7 +256,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(earlyHeroPattern.transitions).toContain('hero-pattern-live-circle');
     expect(earlyHeroPattern.patternLayerElevated).toBe(true);
     expect(earlyHeroPattern.patternLayerZ).toBeGreaterThan(earlyHeroPattern.heroLayerZ);
-    expect(earlyHeroPattern.patternLayerClipPath).toContain('circle(');
+    expect(earlyHeroPattern.patternLayerClipPath).toContain('polygon(');
     expect(earlyHeroPattern.heroProgress).toBe(1);
     expect(earlyHeroPattern.patternProgress).toBe(0);
     expect(earlyHeroPattern.patternCanvasOpacity).toBe(1);
@@ -274,6 +271,15 @@ test.describe('R4 group1 canonical spine harness', () => {
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubHeroPattern(0);
     });
+
+    await page.evaluate(async () => {
+      await window.__r4Group1?.playForward();
+    });
+    const collapsePause = await snapshot(page);
+    expect(collapsePause.phase).toBe('staged-paused');
+    const compactPattern = await visualSnapshot(page);
+    expect(compactPattern.patternProgress).toBe(1);
+    expect(compactPattern.starMapLayerVisible).toBe(false);
 
     await page.evaluate(() => {
       void window.__r4Group1?.playForward();
@@ -349,13 +355,13 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(patternStarMapInk?.starMapLayerElevated).toBe(true);
     expect(patternStarMapInk?.starMapLayerVisible).toBe(true);
     expect(patternStarMapInk?.starMapLayerZ ?? 0).toBeGreaterThan(patternStarMapInk?.patternLayerZ ?? 0);
-    expect(patternStarMapInk?.starMapLayerClipPath).toContain('circle(');
+    expect(patternStarMapInk?.starMapLayerClipPath).toContain('polygon(');
     expect(patternStarMapInk?.starMapCanvasTextureUploads ?? 99).toBeLessThanOrEqual(3);
     expect(patternStarMapInk?.starMapSnapshotCaptures).toBe(0);
     expect(patternStarMapInk?.starMapCanvasMotionActive).toBe(true);
     expect(patternStarMapInk?.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
     expect(patternStarMapInk?.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);
-    expect(patternStarMapInk?.patternProgress).toBe(0);
+    expect(patternStarMapInk?.patternProgress).toBe(1);
     expect(patternStarMapInk?.starMapCopyOpacity).toBeGreaterThan(0.95);
     expect(patternStarMapInk?.starMapCanvasOpacity).toBeGreaterThan(0.8);
 
@@ -370,6 +376,14 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(starHoldLater.starMapCanvasRevision).toBeGreaterThan(starHold.starMapCanvasRevision);
     expect(starHoldLater.starMapCanvasMotionActive).toBe(true);
 
+    await page.evaluate(async () => {
+      await window.__r4Group1?.playReverse();
+    });
+    const reversePause = await snapshot(page);
+    expect(reversePause.phase).toBe('staged-paused');
+    const reverseCompactPattern = await visualSnapshot(page);
+    expect(reverseCompactPattern.patternProgress).toBe(1);
+
     await page.evaluate(() => {
       void window.__r4Group1?.playReverse();
     });
@@ -379,6 +393,7 @@ test.describe('R4 group1 canonical spine harness', () => {
       reverseFrames.push(await snapshot(page));
     }
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 12_000 }).toBe('pattern');
+    expect((await visualSnapshot(page)).patternProgress).toBe(0);
 
     for (const frame of [...forwardFrames, ...reverseFrames]) {
       await assertFrame(frame);

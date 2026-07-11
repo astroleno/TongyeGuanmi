@@ -7,6 +7,16 @@ const MIN_RING_TEXTURE_SIZE = 320;
 const MAX_RING_TEXTURE_SIZE = 512;
 const STRUCTURAL_FRAME_INTERVAL_MS = 1000 / 24;
 
+export const PATTERN_MOBILE_MAX_WIDTH = 760;
+const DESKTOP_PATTERN_CENTER = Object.freeze({ x: 0.24, y: 0.55 });
+const MOBILE_PATTERN_CENTER = Object.freeze({ x: 0.50, y: 0.58 });
+
+export function patternCenterForViewport(viewportWidth: number): Readonly<{ x: number; y: number }> {
+  return viewportWidth <= PATTERN_MOBILE_MAX_WIDTH
+    ? MOBILE_PATTERN_CENTER
+    : DESKTOP_PATTERN_CENTER;
+}
+
 export const PATTERN_BACKGROUND_IMAGE = new URL('../../../../assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png', import.meta.url).href;
 
 export const PATTERN_SOURCE_ART = {
@@ -164,12 +174,14 @@ export function patternBloomSnapshot(progress: number, rotationProgress = progre
   const clamped = clamp(progress);
   const eased = easeInOutCubic(rotationProgress);
   const collapse = smoothstep(0.02, 1, clamped);
+  const desktopCenter = patternCenterForViewport(PATTERN_MOBILE_MAX_WIDTH + 1);
+  const mobileCenter = patternCenterForViewport(PATTERN_MOBILE_MAX_WIDTH);
   return {
     progress: clamped,
-    centerXRatio: 0.24,
-    centerYRatio: 0.55,
-    mobileCenterXRatio: 0.50,
-    mobileCenterYRatio: 0.58,
+    centerXRatio: desktopCenter.x,
+    centerYRatio: desktopCenter.y,
+    mobileCenterXRatio: mobileCenter.x,
+    mobileCenterYRatio: mobileCenter.y,
     fieldRotationDegrees: interpolate(120, 0, eased),
     largestRingScale: interpolate(largestBloomRing.scale, largestBloomRing.endScale, collapse),
     compactRingScale: interpolate(compactBloomRing.scale, compactBloomRing.endScale, collapse)
@@ -333,15 +345,16 @@ export class PatternBloomRenderer {
   }
 
   private getObjectMetrics(): ObjectMetrics {
-    const isMobile = this.width < 760 * this.dpr;
+    const center = patternCenterForViewport(this.width / this.dpr);
+    const isMobile = this.width / this.dpr <= PATTERN_MOBILE_MAX_WIDTH;
     const vmin = Math.min(this.width, this.height);
     const displaySize = isMobile
       ? Math.min(vmin * 1.34, this.width * 1.12)
       : Math.min(vmin * 1.34, this.width * 0.96);
     return {
       size: displaySize,
-      centerX: this.width * (isMobile ? 0.50 : 0.24),
-      centerY: this.height * (isMobile ? 0.58 : 0.55)
+      centerX: this.width * center.x,
+      centerY: this.height * center.y
     };
   }
 

@@ -473,6 +473,38 @@ describe('director runtime actor loop', () => {
     expect(renderedProgress).toBe(1);
   });
 
+  it('requires a second Forward input after the real Pattern collapse stage', async () => {
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'pattern-two-inputs',
+      manifest: storyManifest,
+      syntheticPlayMs: 20
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'SEEK', label: 'scene:pattern', source: 'menu' });
+    await flush(0);
+
+    runtime.send({ type: 'CHARGE_FIRED', direction: 1, now: 0 });
+    await flush(1800);
+
+    expect(runtime.getState()).toMatchObject({
+      state: 'staged-paused',
+      context: {
+        activeSegment: 'pattern-star-map',
+        pausePoint: { segmentId: 'pattern-star-map', stageIndex: 0 }
+      }
+    });
+    expect(runtime.getState().context.cursor).not.toEqual({ status: 'hold', scene: 'star-map' });
+
+    runtime.send({ type: 'CHARGE_FIRED', direction: 1, now: 1801 });
+    await flush(1800);
+    expect(runtime.getState().state).toBe('settling');
+    await flush(420);
+
+    const completed = runtime.getState();
+    runtime.stop();
+    expect(completed.context.cursor).toEqual({ status: 'hold', scene: 'star-map' });
+  });
+
   it('accumulates small same-direction deltas before resuming a stagedSnap run', async () => {
     let renderedProgress = 0;
     const runtime = createDirectorRuntime({

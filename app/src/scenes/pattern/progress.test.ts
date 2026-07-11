@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PATTERN_COPY, patternScene, renderPatternHold, renderPatternProgress } from './index';
+import {
+  PATTERN_COPY,
+  patternCenterForViewport,
+  patternScene,
+  readPatternCenter,
+  renderPatternHold,
+  renderPatternProgress
+} from './index';
 import { fixtureStaticFallbackText } from '../../story/copy-baseline';
 import { STAR_MAP_COPY } from '../star-map';
 
@@ -16,13 +23,33 @@ class FakeStyle {
 class FakeElement {
   style = new FakeStyle();
   attributes = new Map<string, string>();
+  clientWidth = 1440;
 
   setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
   }
+
+  getAttribute(name: string): string | null {
+    return this.attributes.get(name) ?? null;
+  }
 }
 
 describe('pattern scene renderer', () => {
+  it('resolves one authored center with 760px included in the mobile range', () => {
+    expect(patternCenterForViewport(1440)).toEqual({ x: 0.24, y: 0.55 });
+    expect(patternCenterForViewport(761)).toEqual({ x: 0.24, y: 0.55 });
+    expect(patternCenterForViewport(760)).toEqual({ x: 0.50, y: 0.58 });
+    expect(patternCenterForViewport(390)).toEqual({ x: 0.50, y: 0.58 });
+
+    const mobileRoot = new FakeElement();
+    mobileRoot.clientWidth = 760;
+    renderPatternHold(mobileRoot as unknown as HTMLElement);
+
+    expect(mobileRoot.style.values.get('--r4-pattern-center-x')).toBe('50.000%');
+    expect(mobileRoot.style.values.get('--r4-pattern-center-y')).toBe('58.000%');
+    expect(readPatternCenter(mobileRoot as unknown as HTMLElement)).toEqual({ x: 0.5, y: 0.58 });
+  });
+
   it('is idempotent for 0 to 1 to 0 to 1 progress renders', () => {
     const root = new FakeElement();
 

@@ -8,8 +8,7 @@ import type {
   Direction,
   LayerVisibilityState,
   SceneId,
-  SegmentId,
-  SpineSegmentNode
+  SegmentId
 } from '../../story/types';
 import { heroScene } from '../../scenes/hero';
 import { patternScene } from '../../scenes/pattern';
@@ -72,10 +71,6 @@ const GROUP_SEGMENTS: SegmentId[] = ['hero-pattern', 'pattern-star-map'];
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-export function scrubDriveDurationMs(virtualDuration = 1600, distance = 1): number {
-  return Math.max(220, virtualDuration * Math.abs(distance));
 }
 
 function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<SceneId, LayerVisibilityState>> {
@@ -246,55 +241,6 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
     return candidate?.kind === 'segment' ? candidate.id : undefined;
   };
 
-  const segmentNode = (id: SegmentId | undefined): SpineSegmentNode | undefined =>
-    id ? manifest.nodes.find((node): node is SpineSegmentNode => node.kind === 'segment' && node.id === id) : undefined;
-
-  const driveScrubSegment = async (direction: Direction, segment: SegmentId | undefined) => {
-    const kickDelta = direction * 0.12;
-    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: kickDelta, now: Date.now() });
-    if (!segment) {
-      return;
-    }
-    let activeFound = false;
-    for (let attempt = 0; attempt < 80; attempt += 1) {
-      const active = runtime.segmentPlayer.snapshot();
-      if (String(runtime.getState().state) === 'scrubbing' && active?.segmentId === segment) {
-        activeFound = true;
-        break;
-      }
-      await wait(16);
-    }
-    if (!activeFound) {
-      return;
-    }
-    const target = direction === 1 ? 1 : 0;
-    const startProgress = direction === 1 ? 0 : 1;
-    runtime.segmentPlayer.scrub(segment, startProgress);
-    const node = segmentNode(segment);
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      runtime.segmentPlayer.scrub(segment, target);
-      return;
-    }
-    const durationMs = scrubDriveDurationMs(node?.virtualDuration, target - startProgress);
-    const startedAt = performance.now();
-    while (true) {
-      if (String(runtime.getState().state) !== 'scrubbing') {
-        return;
-      }
-      const active = runtime.segmentPlayer.snapshot();
-      if (active?.segmentId !== segment) {
-        return;
-      }
-      const progress = Math.min(1, (performance.now() - startedAt) / durationMs);
-      runtime.segmentPlayer.scrub(segment, startProgress + (target - startProgress) * progress);
-      runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: direction * 0.0001, now: Date.now() });
-      if (progress >= 1) {
-        return;
-      }
-      await wait(16);
-    }
-  };
-
   const play = async (direction: Direction, options: PlayOptions = {}) => {
     buildDelayMs.current = options.buildTimeout ? 2200 : 0;
     if (options.buildTimeout) {
@@ -311,11 +257,7 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
       segment = segmentForCurrentHold(direction);
     }
     const recoveryBefore = runtime.getState().context.lastError;
-    if (segmentNode(segment)?.policy.kind === 'scrub') {
-      await driveScrubSegment(direction, segment);
-    } else {
-      runtime.send({ type: 'CHARGE_FIRED', direction });
-    }
+    runtime.send({ type: 'CHARGE_FIRED', direction });
     await waitForRuntimeIdle(runtime);
     const next = runtime.getState();
     runtimeSnapshotRef.current = next;

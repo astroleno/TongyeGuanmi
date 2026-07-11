@@ -56,6 +56,22 @@ function withHeroPatternSnap(): StoryManifest {
   return { ...manifest, nodes };
 }
 
+function withPatternStarMapScrub(): StoryManifest {
+  const manifest = structuredClone(storyManifest);
+  return {
+    ...manifest,
+    nodes: manifest.nodes.map((node) =>
+      node.kind === 'segment' && node.id === 'pattern-star-map'
+        ? {
+            ...node,
+            policy: { kind: 'scrub' as const, snapAfterIdleMs: 160 },
+            virtualDuration: 1800
+          }
+        : node
+    )
+  };
+}
+
 describe('SegmentPlayer', () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -558,6 +574,45 @@ describe('SegmentPlayer', () => {
     expect(renderedProgress).toBe(1);
   });
 
+  it('uses the real Pattern-to-Star Map stop as a separate runtime input boundary', async () => {
+    vi.useFakeTimers();
+    let renderedProgress = 0;
+    const player = new SegmentPlayer({
+      manifest: storyManifest,
+      transitions: {
+        'pattern-star-map': {
+          id: 'pattern-star-map',
+          buildTimeline: () => ({
+            play: () => Promise.resolve(),
+            progress: (value) => {
+              renderedProgress = value;
+            },
+            reverse: () => Promise.resolve(),
+            jumpToEnd: vi.fn(),
+            dispose: vi.fn()
+          })
+        }
+      },
+      actorEpoch: 'pattern-stage'
+    });
+
+    const result = player.play('pattern-star-map', 1, { runId: 'pattern-stage:1' });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(1800);
+
+    expect(renderedProgress).toBe(0.5);
+    expect(player.snapshot()).toMatchObject({
+      segmentId: 'pattern-star-map',
+      progress: 0.5,
+      pausedAt: 'stage:0'
+    });
+
+    expect(player.resumeStaged('pattern-stage:1')).toBe(true);
+    await vi.advanceTimersByTimeAsync(1800);
+    await expect(result).resolves.toMatchObject({ status: 'completed', direction: 1 });
+    expect(renderedProgress).toBe(1);
+  });
+
   it('drives stagedSnap playback on animation frames when the browser scheduler is available', async () => {
     vi.useFakeTimers();
     const requestFrame = vi.fn(() => 41);
@@ -761,6 +816,7 @@ describe('SegmentPlayer', () => {
     let renderedProgress = 0;
     const events: DirectorEvent[] = [];
     const player = new SegmentPlayer({
+      manifest: withPatternStarMapScrub(),
       transitions: {
         'pattern-star-map': {
           id: 'pattern-star-map',
@@ -796,6 +852,7 @@ describe('SegmentPlayer', () => {
     vi.useFakeTimers();
     let renderedProgress = 0;
     const player = new SegmentPlayer({
+      manifest: withPatternStarMapScrub(),
       transitions: {
         'pattern-star-map': {
           id: 'pattern-star-map',
@@ -829,6 +886,7 @@ describe('SegmentPlayer', () => {
     vi.useFakeTimers();
     const rendered: number[] = [];
     const player = new SegmentPlayer({
+      manifest: withPatternStarMapScrub(),
       transitions: {
         'pattern-star-map': {
           id: 'pattern-star-map',

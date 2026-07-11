@@ -3,6 +3,11 @@ import interruptibleCandidates from '../../../docs/react-refactor/inventory/inte
 import copyReference from '../../../docs/react-refactor/inventory/copy-reference.json';
 import { canonicalSpine } from './canonical-spine';
 import { parseInventoryManifestSeed, type InventoryManifestSeed } from './inventory-schema';
+import {
+  PATTERN_COLLAPSE_MS,
+  PATTERN_COLLAPSE_STOP,
+  PATTERN_STAR_MAP_INK_MS
+} from '../transitions/pattern-star-map';
 import type {
   MediaPlaybackContract,
   MilestoneKey,
@@ -61,10 +66,6 @@ function snapPolicy(segment: SegmentId): SegmentPolicy {
     chargeThreshold: defaults.chargeThreshold,
     ...(isInterruptible ? { interruptible: true } : {})
   };
-}
-
-function scrubPolicy(snapAfterIdleMs = 160): SegmentPolicy {
-  return { kind: 'scrub', snapAfterIdleMs };
 }
 
 function stagedPolicy(
@@ -196,8 +197,11 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
       };
     case 'pattern-star-map':
       return {
-        policy: scrubPolicy(),
-        virtualDuration: 1800
+        policy: stagedPolicy(
+          [PATTERN_COLLAPSE_STOP],
+          [PATTERN_COLLAPSE_MS, PATTERN_STAR_MAP_INK_MS]
+        ),
+        virtualDuration: PATTERN_COLLAPSE_MS + PATTERN_STAR_MAP_INK_MS
       };
     case 'star-map-aod':
     case 'figure2-proof-brand':

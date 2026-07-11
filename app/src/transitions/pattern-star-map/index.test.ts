@@ -1,35 +1,26 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
+import { patternScene } from '../../scenes/pattern';
 import { starMapMotionEnabled } from '../../scenes/star-map';
-import { createPatternStarMapTransition, PATTERN_STAR_MAP_ORIGIN } from './index';
-import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
+import {
+  createPatternStarMapTransition,
+  PATTERN_COLLAPSE_MS,
+  PATTERN_COLLAPSE_STOP,
+  PATTERN_STAR_MAP_INK_MS
+} from './index';
+import { createBackHalfDomContext, FakeCanvas } from '../__fixtures__/back-half.fixture';
+import type { SpineSegmentNode } from '../../story/types';
 
 const transitionSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 const stylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
-function layer(scene: 'pattern' | 'star-map', role: 'current' | 'next'): LayerHandle {
-  let visibility: LayerVisibilityState = {
-    mounted: true,
-    visible: role === 'current',
-    inert: role !== 'current',
-    opacity: role === 'current' ? 1 : 0,
-    pointerEvents: role === 'current' ? 'auto' : 'none'
-  };
-  return {
-    scene,
-    role,
-    element: null,
-    get visibility() {
-      return visibility;
-    },
-    setVisibility(next) {
-      visibility = next;
-    },
-    dispose() {}
-  };
-}
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function segment(): SpineSegmentNode {
   const found = storyManifest.nodes.find(
@@ -41,33 +32,28 @@ function segment(): SpineSegmentNode {
   return structuredClone(found);
 }
 
-function context(prefersReducedMotion = false): TransitionContext {
-  return {
-    segment: segment(),
-    from: layer('pattern', 'current'),
-    to: layer('star-map', 'next'),
-    stage: {
-      getLayer: () => undefined,
-      ensureLayer: (scene, role) => layer(scene as 'pattern' | 'star-map', role === 'current' ? 'current' : 'next'),
-      releaseLayer: () => undefined,
-      snapshot: () => []
-    },
-    direction: 1,
-    runId: 'r4-g1-test:1',
-    prepareToken: 'r4-g1-test:prepare:1',
-    prefersReducedMotion,
-    reportMilestone: () => undefined
-  };
+function fixture() {
+  const result = createBackHalfDomContext('pattern-star-map', 'pattern', 'star-map');
+  Object.assign(result.fromRoot, { clientWidth: 1440 });
+  const canvas = new FakeCanvas();
+  vi.stubGlobal('document', { createElement: () => canvas });
+  return { ...result, canvas };
 }
 
 describe('pattern-star-map transition', () => {
-  it('reveals the live Star-map from the canonical expanded Pattern center', () => {
-    expect(PATTERN_STAR_MAP_ORIGIN).toEqual({ x: 0.24, y: 0.55 });
-    expect(transitionSource).toContain('renderPatternHold');
-    expect(transitionSource).toContain('renderStarMapHold');
+  it('uses the canonical Pattern center and keeps all five source-art rotors', () => {
+    const markup = renderToStaticMarkup(createElement(patternScene.Component, {
+      scene: 'pattern',
+      hidden: false
+    }));
+
+    expect(transitionSource).toContain('readPatternCenter(from)');
+    expect(transitionSource).toContain("kind: 'radial'");
+    expect(transitionSource).not.toContain('PATTERN_STAR_MAP_ORIGIN');
     expect(transitionSource).not.toContain('PATTERN_STAR_MAP_INK_TARGET_IMAGE');
     expect(transitionSource).not.toContain('back2.png');
     expect(transitionSource).not.toContain('pauseStarMapTransitionMotion');
+    expect(markup.match(/data-pattern-rotor=/g)).toHaveLength(5);
   });
 
   it('uses the live Star canvas with the canonical .92 grade and active Perlin owner', () => {
@@ -78,28 +64,74 @@ describe('pattern-star-map transition', () => {
     expect(starMapMotionEnabled(false, true)).toBe(false);
   });
 
-  it('passes timeline verification without swapping roots', async () => {
-    const transition = createPatternStarMapTransition();
-    const timeline = await transition.buildTimeline(context());
+  it('collapses Pattern at stage 0 while Star Map remains hidden', async () => {
+    const setup = fixture();
+    const timeline = await createPatternStarMapTransition().buildTimeline(setup.context);
 
-    expect(verifySegmentTimeline(timeline, { policy: segment().policy })).toMatchObject({ maxVisibleLayers: 2 });
-    expect(timeline.sample?.(0.5)).toMatchObject({
+    timeline.progress(PATTERN_COLLAPSE_STOP);
+
+    expect(PATTERN_COLLAPSE_STOP).toBe(0.5);
+    expect(timeline.pauses).toEqual(['stage:0']);
+    expect(setup.fromRoot.dataset.patternProgress).toBe('1.0000');
+    expect(setup.fromLayer.visibility.visible).toBe(true);
+    expect(setup.toLayer.visibility.visible).toBe(false);
+    expect(setup.canvas.dataset.r4InkActive).toBe('false');
+    expect(timeline.sample?.(PATTERN_COLLAPSE_STOP)).toMatchObject({
       from: { visible: true, opacity: 1 },
-      to: { visible: true, opacity: 1 }
+      to: { visible: false, opacity: 0 }
     });
   });
 
-  it('is idempotent in both directions and collapses reduced motion to the endpoint', async () => {
+  it('starts radial Ink only in the second stage and shares the Pattern origin', async () => {
+    const setup = fixture();
+    const timeline = await createPatternStarMapTransition().buildTimeline(setup.context);
+    const receiver = setup.stage.children[1]!;
+
+    timeline.progress(0.75);
+
+    expect(setup.fromRoot.dataset.patternProgress).toBe('1.0000');
+    expect(setup.toLayer.visibility.visible).toBe(true);
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('circle(');
+    expect(receiver.dataset.r4InkBoundaryKind).toBe('radial');
+    expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.2400,0.5500');
+    expect(receiver.dataset.r4InkBoundaryRevision).toBe(setup.canvas.dataset.r4InkBoundaryRevision);
+  });
+
+  it('uses two explicit 1800ms input phases and passes timeline verification', async () => {
+    const setup = fixture();
     const transition = createPatternStarMapTransition();
-    const timeline = await transition.buildTimeline(context(true));
-    const start = timeline.sample?.(0);
-    const end = timeline.sample?.(1);
+    const timeline = await transition.buildTimeline(setup.context);
+
+    expect(PATTERN_COLLAPSE_MS).toBe(1800);
+    expect(PATTERN_STAR_MAP_INK_MS).toBe(1800);
+    expect(segment()).toMatchObject({
+      policy: {
+        kind: 'stagedSnap',
+        stops: [PATTERN_COLLAPSE_STOP],
+        playMs: [PATTERN_COLLAPSE_MS, PATTERN_STAR_MAP_INK_MS]
+      },
+      virtualDuration: PATTERN_COLLAPSE_MS + PATTERN_STAR_MAP_INK_MS
+    });
+    expect(verifySegmentTimeline(timeline, { policy: segment().policy })).toMatchObject({
+      maxVisibleLayers: 2,
+      reverseSymmetric: true
+    });
+  });
+
+  it('reverses through compact Pattern before restoring its expanded hold', async () => {
+    const setup = fixture();
+    const timeline = await createPatternStarMapTransition().buildTimeline(setup.context);
 
     timeline.progress(1);
+    timeline.progress(PATTERN_COLLAPSE_STOP);
+    expect(setup.fromRoot.dataset.patternProgress).toBe('1.0000');
+    expect(setup.fromLayer.visibility.visible).toBe(true);
+    expect(setup.toLayer.visibility.visible).toBe(false);
+
     timeline.progress(0);
-    expect(timeline.sample?.(0)).toEqual(start);
-    timeline.progress(1);
-    expect(timeline.sample?.(1)).toEqual(end);
-    await expect(timeline.play(1)).resolves.toBeUndefined();
+    expect(setup.fromRoot.dataset.patternProgress).toBe('0.0000');
+    expect(setup.fromLayer.visibility.visible).toBe(true);
+    expect(setup.toLayer.visibility.visible).toBe(false);
   });
 });

@@ -200,6 +200,22 @@ describe('story manifest contract', () => {
     });
   });
 
+  it('models Pattern collapse and radial Star Map entry as separate input phases', () => {
+    const segment = storyManifest.nodes.find(
+      (node) => node.kind === 'segment' && node.id === 'pattern-star-map'
+    );
+
+    expect(segment).toMatchObject({
+      kind: 'segment',
+      policy: {
+        kind: 'stagedSnap',
+        stops: [0.5],
+        playMs: [1800, 1800]
+      },
+      virtualDuration: 3600
+    });
+  });
+
   it('marks the figure2 animation hold as a fresh-input boundary', () => {
     const hold = storyManifest.nodes.find((node) => node.kind === 'hold' && node.scene === 'figure2-animation');
 

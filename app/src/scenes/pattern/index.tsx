@@ -5,8 +5,11 @@ import {
   PATTERN_BACKGROUND_IMAGE,
   PATTERN_SOURCE_ART,
   PatternBloomRenderer,
+  patternCenterForViewport,
   patternBloomSnapshot
 } from './patternBloomRenderer';
+
+export { patternCenterForViewport } from './patternBloomRenderer';
 
 export const PATTERN_COPY = [STAR_MAP_COPY] as const;
 
@@ -35,12 +38,35 @@ type PatternRoot = HTMLElement & {
 
 const PATTERN_ROTOR_IDS = ['06', '05', '04', '03', '02'] as const;
 
+function patternViewportWidth(root: HTMLElement | null): number {
+  const rectWidth = root?.getBoundingClientRect?.().width ?? 0;
+  if (rectWidth > 0) {
+    return rectWidth;
+  }
+  if ((root?.clientWidth ?? 0) > 0) {
+    return root?.clientWidth ?? 1440;
+  }
+  return typeof window === 'undefined' ? 1440 : window.innerWidth || 1440;
+}
+
+export function readPatternCenter(root: HTMLElement | null): Readonly<{ x: number; y: number }> {
+  const serialized = root?.dataset?.patternCenter
+    ?? root?.getAttribute?.('data-pattern-center')
+    ?? '';
+  const [x, y] = serialized.split(',').map(Number);
+  if (Number.isFinite(x) && Number.isFinite(y)) {
+    return { x: x ?? 0.24, y: y ?? 0.55 };
+  }
+  return patternCenterForViewport(patternViewportWidth(root));
+}
+
 export function renderPatternProgress(root: HTMLElement | null, progress: number, options: PatternRenderOptions = {}): PatternRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
   const rotationProgress = Math.min(1, Math.max(0, options.rotationProgress ?? clamped));
   const copyProgress = Math.min(1, Math.max(0, options.copyProgress ?? clamped));
   const copyReveal = copyProgress * copyProgress * (3 - 2 * copyProgress);
   const snapshot = patternBloomSnapshot(clamped, rotationProgress);
+  const center = patternCenterForViewport(patternViewportWidth(root));
   const opacity = (options.visible ?? clamped > 0.001) ? Math.min(1, Math.max(0, options.opacity ?? 1)) : 0;
   const copyOpacity = Math.min(0.96, Math.max(0, (options.opacity ?? 1) * copyReveal * 0.96));
   const washOpacity = 0.58 + clamped * 0.28;
@@ -54,15 +80,18 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
   root?.style.setProperty('--r4-pattern-compact-ring-scale', snapshot.compactRingScale.toFixed(4));
   root?.style.setProperty('--r4-pattern-wash-opacity', washOpacity.toFixed(4));
   root?.style.setProperty('--r4-pattern-wash-visible-opacity', (washOpacity * opacity).toFixed(4));
+  root?.style.setProperty('--r4-pattern-center-x', `${(center.x * 100).toFixed(3)}%`);
+  root?.style.setProperty('--r4-pattern-center-y', `${(center.y * 100).toFixed(3)}%`);
   root?.setAttribute('data-pattern-progress', clamped.toFixed(4));
+  root?.setAttribute('data-pattern-center', `${center.x.toFixed(4)},${center.y.toFixed(4)}`);
   (root as PatternRoot | null)?.__r4PatternRenderer?.setFrameProgress(clamped, rotationProgress);
 
   return {
     progress: clamped,
     opacity,
     copyOpacity,
-    centerXRatio: snapshot.centerXRatio,
-    centerYRatio: snapshot.centerYRatio,
+    centerXRatio: center.x,
+    centerYRatio: center.y,
     fieldRotationDegrees: snapshot.fieldRotationDegrees,
     largestRingScale: snapshot.largestRingScale,
     compactRingScale: snapshot.compactRingScale,

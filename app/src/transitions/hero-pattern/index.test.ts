@@ -1,16 +1,21 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import {
   createHeroPatternTransition,
-  HERO_PATTERN_ORIGIN,
   renderHeroForHeroPattern,
   renderPatternForHeroPattern
 } from './index';
+import { patternCenterForViewport } from '../../scenes/pattern';
+import { createBackHalfDomContext, FakeCanvas } from '../__fixtures__/back-half.fixture';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
 
 const transitionSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -88,7 +93,7 @@ describe('hero-pattern transition', () => {
     renderPatternForHeroPattern(patternRoot as unknown as HTMLElement);
     renderHeroForHeroPattern(heroRoot as unknown as HTMLElement);
 
-    expect(HERO_PATTERN_ORIGIN).toEqual({ x: 0.24, y: 0.55 });
+    expect(patternCenterForViewport(1440)).toEqual({ x: 0.24, y: 0.55 });
     expect(patternRoot.attributes.get('data-pattern-progress')).toBe('0.0000');
     expect(patternRoot.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
     expect(heroRoot.attributes.get('data-hero-progress')).toBe('1.0000');
@@ -99,6 +104,27 @@ describe('hero-pattern transition', () => {
     expect(transitionSource).not.toContain('HERO_PATTERN_INK_TARGET_IMAGE');
     expect(transitionSource).not.toContain('pattern-bloom-initial-no-stars.png');
     expect(transitionSource).not.toContain('patternBloomProgressForHeroPattern');
+    expect(transitionSource).not.toContain('HERO_PATTERN_ORIGIN');
+    expect(transitionSource).toContain("kind: 'radial'");
+    expect(transitionSource).toContain('readPatternCenter(to)');
+  });
+
+  it('shares one radial Pattern-center boundary with the effect canvas', async () => {
+    const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
+    const canvas = new FakeCanvas();
+    Object.assign(fixture.toRoot, { clientWidth: 1440 });
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const timeline = await createHeroPatternTransition().buildTimeline(fixture.context);
+    const receiver = fixture.stage.children[1]!;
+
+    timeline.progress(0.5);
+
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('circle(');
+    expect(receiver.dataset.r4InkBoundaryKind).toBe('radial');
+    expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.2400,0.5500');
+    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(fixture.toRoot.dataset.patternProgress).toBe('0.0000');
   });
 
   it('uses one 2200ms snap and passes timeline verification', async () => {

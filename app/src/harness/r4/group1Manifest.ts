@@ -16,14 +16,7 @@ function segment(id: SegmentId): SpineSegmentNode {
   if (!found) {
     throw new Error(`R4 group1 segment missing from manifest: ${id}`);
   }
-  const cloned = structuredClone(found);
-  if (id === 'pattern-star-map') {
-    return {
-      ...cloned,
-      policy: { kind: 'scrub', snapAfterIdleMs: 160 }
-    };
-  }
-  return cloned;
+  return structuredClone(found);
 }
 
 function manifest(nodes: readonly SpineNode[]): StoryManifest {

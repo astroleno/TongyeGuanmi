@@ -123,7 +123,7 @@ function horizontalFrame(
   const edge = [...profile].map((value, index) =>
     point(index / (samples - 1), 1 - value / 255)
   );
-  const top = [point(0, 0), point(1, 0), ...edge.toReversed()];
+  const top = [point(0, 0), point(1, 0), ...[...edge].reverse()];
   const bottom = [...edge, point(1, 1), point(0, 1)];
   const reveal = spec.direction === 'bottom-to-top' ? bottom : top;
   const conceal = spec.direction === 'bottom-to-top' ? top : bottom;

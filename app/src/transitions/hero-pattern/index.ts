@@ -1,9 +1,7 @@
 import type { TransitionModule } from '../../story/types';
 import { renderHeroProgress } from '../../scenes/hero';
-import { renderPatternHold } from '../../scenes/pattern';
+import { readPatternCenter, renderPatternHold } from '../../scenes/pattern';
 import { createInkSegmentTransition } from '../shared/ink';
-
-export const HERO_PATTERN_ORIGIN = { x: 0.24, y: 0.55 } as const;
 
 export function renderHeroForHeroPattern(root: HTMLElement | null): void {
   renderHeroProgress(root, 1);
@@ -17,8 +15,11 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
   return createInkSegmentTransition({
     id: 'hero-pattern',
     delayMs: options.delayMs,
-    origin: HERO_PATTERN_ORIGIN,
-    revealMode: 'live-clip',
+    boundary: ({ to }) => ({
+      kind: 'radial',
+      origin: readPatternCenter(to),
+      seed: 'hero-pattern'
+    }),
     prepareEndpoints: ({ from, to }) => {
       renderHeroForHeroPattern(from);
       renderPatternForHeroPattern(to);
