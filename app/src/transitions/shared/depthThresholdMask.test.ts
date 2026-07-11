@@ -127,6 +127,44 @@ describe('depth threshold mask', () => {
     expect(host.children).toHaveLength(0);
   });
 
+  it('bypasses the dynamic mask at fully visible endpoints and restores it in between', () => {
+    const document = new FakeDocument();
+    const host = new FakeNode(document);
+    const reveal = new FakeNode(document);
+    const conceal = new FakeNode(document);
+    const mask = createDepthThresholdMask({
+      host: host as unknown as HTMLElement,
+      targets: [
+        { element: reveal as unknown as HTMLElement, polarity: 'reveal' },
+        { element: conceal as unknown as HTMLElement, polarity: 'conceal' }
+      ],
+      depthSrc: '/depth.png',
+      runId: 'endpoint-contract:1'
+    });
+
+    mask?.render(0, depthTransform);
+    expect(conceal.style.getPropertyValue('mask-image')).toBe('');
+    expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+
+    mask?.render(0.37, depthTransform);
+    expect(conceal.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
+    expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+
+    mask?.render(1, depthTransform);
+    expect(reveal.style.getPropertyValue('mask-image')).toBe('');
+    expect(conceal.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
+
+    mask?.render(0.37, depthTransform);
+    expect(conceal.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
+    expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+
+    mask?.render(0, depthTransform);
+    expect(conceal.style.getPropertyValue('mask-image')).toBe('');
+    expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+    mask?.dispose();
+    expect(host.children).toHaveLength(0);
+  });
+
   it('creates two discrete alpha definitions independently of source alpha', () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);

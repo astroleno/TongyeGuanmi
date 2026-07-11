@@ -48,11 +48,12 @@ function sceneRoot(element: HTMLElement | null | undefined, scene: string): HTML
 }
 
 function sampleFigure2Proof(progress: number): Figure2ProofSample {
-  const clamped = clamp(progress);
-  if (clamped >= 0.999) {
+  const reveal = figure2ProofRevealProgress(clamp(progress));
+  const ownership = inkOwnershipGateProgress(reveal);
+  if (ownership === 1) {
     return { from: hiddenVisibility(), to: holdVisibility(false) };
   }
-  if (clamped <= FIGURE2_PROOF_REVEAL_START) {
+  if (ownership === 0) {
     return { from: holdVisibility(false), to: hiddenVisibility() };
   }
   return { from: holdVisibility(false), to: holdVisibility(false) };

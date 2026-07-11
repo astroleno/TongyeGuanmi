@@ -6,6 +6,7 @@ import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import {
   createFigure2DistanceExpandTransition,
+  FIGURE2_INTRO_END,
   figure2ProofRevealProgress,
   figure2VideoModeForProofTransition
 } from './figure2-distance-expand';
@@ -455,6 +456,9 @@ describe('figure2 proof chain transitions', () => {
       })
     );
 
+    timeline.progress(FIGURE2_INTRO_END);
+    expect(depthField.style.getPropertyValue('mask-image')).toBe('');
+
     timeline.progress(0.86);
 
     expect(toElement.dataset.figure2ProofMaskValues).toBe('1,0');
@@ -622,9 +626,14 @@ describe('figure2 proof chain transitions', () => {
 
       expect(transition.reducedMotionFallback).toBeTypeOf('function');
       expect(verifySegmentTimeline(timeline, { policy: segment(item.id).policy })).toMatchObject({
-        maxVisibleLayers: item.id === 'figure2-distance-expand' || isSectionHandoff || item.id === 'figure2-proof-brand' ? 2 : 1
+        maxVisibleLayers: isSectionHandoff || item.id === 'figure2-proof-brand' ? 2 : 1
       });
-      if (item.id === 'figure2-proof-brand') {
+      if (item.id === 'figure2-distance-expand') {
+        expect(timeline.sample?.(0.86)).toMatchObject({
+          from: { visible: true, opacity: 1 },
+          to: { visible: true, opacity: 1 }
+        });
+      } else if (item.id === 'figure2-proof-brand') {
         expect(timeline.sample?.(0.5)).toMatchObject({
           from: { visible: true, opacity: 1 },
           to: { visible: true, opacity: 1 }

@@ -61,8 +61,28 @@ function safeId(value: string): string {
 type AttachedTarget = Readonly<{
   element: HTMLElement;
   polarity: DepthThresholdPolarity;
+  maskUrl: string;
   previousStyles: ReadonlyMap<string, string>;
 }>;
+
+function applyManagedMask(target: AttachedTarget): void {
+  target.element.style.setProperty('mask-image', target.maskUrl);
+  target.element.style.setProperty('-webkit-mask-image', target.maskUrl);
+  target.element.style.setProperty('mask-size', '100% 100%');
+  target.element.style.setProperty('-webkit-mask-size', '100% 100%');
+  target.element.style.setProperty('mask-repeat', 'no-repeat');
+  target.element.style.setProperty('-webkit-mask-repeat', 'no-repeat');
+  target.element.style.setProperty('mask-mode', 'alpha');
+  target.element.style.setProperty('-webkit-mask-mode', 'alpha');
+}
+
+function restoreManagedMaskStyles(target: AttachedTarget): void {
+  for (const property of MASK_STYLE_PROPERTIES) {
+    const previous = target.previousStyles.get(property) ?? '';
+    if (previous) target.element.style.setProperty(property, previous);
+    else target.element.style.removeProperty(property);
+  }
+}
 
 function attachMask(target: DepthThresholdTarget, maskUrl: string, runId: string): AttachedTarget {
   const previousStyles = new Map<string, string>();
@@ -70,29 +90,16 @@ function attachMask(target: DepthThresholdTarget, maskUrl: string, runId: string
     previousStyles.set(property, target.element.style.getPropertyValue(property));
   }
 
-  target.element.style.setProperty('mask-image', maskUrl);
-  target.element.style.setProperty('-webkit-mask-image', maskUrl);
-  target.element.style.setProperty('mask-size', '100% 100%');
-  target.element.style.setProperty('-webkit-mask-size', '100% 100%');
-  target.element.style.setProperty('mask-repeat', 'no-repeat');
-  target.element.style.setProperty('-webkit-mask-repeat', 'no-repeat');
-  target.element.style.setProperty('mask-mode', 'alpha');
-  target.element.style.setProperty('-webkit-mask-mode', 'alpha');
+  const attached: AttachedTarget = { ...target, maskUrl, previousStyles };
+  applyManagedMask(attached);
   target.element.setAttribute('data-r4-depth-mask-run', runId);
   target.element.setAttribute('data-r4-depth-mask-polarity', target.polarity);
 
-  return { ...target, previousStyles };
+  return attached;
 }
 
 function restoreTarget(target: AttachedTarget): void {
-  for (const property of MASK_STYLE_PROPERTIES) {
-    const previous = target.previousStyles.get(property) ?? '';
-    if (previous) {
-      target.element.style.setProperty(property, previous);
-    } else {
-      target.element.style.removeProperty(property);
-    }
-  }
+  restoreManagedMaskStyles(target);
   target.element.removeAttribute('data-r4-depth-mask-run');
   target.element.removeAttribute('data-r4-depth-mask-polarity');
   target.element.removeAttribute('data-r4-depth-mask-progress');
@@ -296,6 +303,10 @@ export function createDepthThresholdMask(options: {
       }
       for (const target of attachedTargets) {
         const table = tables[target.polarity];
+        const fullyVisible = (target.polarity === 'conceal' && clamped === 0)
+          || (target.polarity === 'reveal' && clamped === 1);
+        if (fullyVisible) restoreManagedMaskStyles(target);
+        else applyManagedMask(target);
         target.element.setAttribute('data-r4-depth-mask-progress', clamped.toFixed(4));
         target.element.setAttribute('data-r4-depth-mask-values', [...new Set(table)].join(','));
       }
