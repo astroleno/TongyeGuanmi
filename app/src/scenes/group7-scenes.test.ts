@@ -1,7 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { inventoryManifestSeed } from '../story/manifest';
 import { CONTACT_COPY, contactScene, renderContactProgress } from './contact';
-import { renderCraneAnimationProgress } from './crane-animation';
+import { craneAnimationScene, renderCraneAnimationProgress } from './crane-animation';
+
+const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -52,5 +57,20 @@ describe('R4 group7 scenes', () => {
 
     expect(contactScene.staticFallback?.text).toEqual(CONTACT_COPY);
     expect(contact?.normalizedText).toEqual([...CONTACT_COPY]);
+  });
+
+  it('uses native alpha with the figure between back and foreground clouds and no divider', () => {
+    const markup = renderToStaticMarkup(createElement(craneAnimationScene.Component, {
+      scene: 'crane-animation',
+      hidden: false
+    }));
+
+    expect(markup).not.toContain('crane-progress');
+    expect(stylesheet).toMatch(/\.r4-crane-animation \.crane-figure-video\s*\{[^}]*mix-blend-mode:\s*normal;[^}]*filter:\s*none;/s);
+    expect(stylesheet).toMatch(/\.crane-video-transition--figure\s*\{[^}]*z-index:\s*2;/s);
+    expect(stylesheet).toMatch(/\.crane-layer--cloud-back\s*\{[^}]*z-index:\s*1;/s);
+    expect(stylesheet).toMatch(/\.crane-layer--arch\s*\{[^}]*z-index:\s*3;/s);
+    expect(stylesheet).toMatch(/\.crane-layer--cloud-front\s*\{[^}]*z-index:\s*4;/s);
+    expect(stylesheet).toMatch(/\.crane-layer--cloud-front-second\s*\{[^}]*z-index:\s*5;/s);
   });
 });

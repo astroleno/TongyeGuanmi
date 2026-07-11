@@ -1,5 +1,5 @@
-import { renderEducationProgress } from '../../scenes/education';
-import { CRANE_HOLD_PROGRESS, renderCraneAnimationProgress } from '../../scenes/crane-animation';
+import { renderEducationHold } from '../../scenes/education';
+import { renderCraneHold } from '../../scenes/crane-animation';
 import { createInkSegmentTransition } from '../shared/ink';
 import type { TransitionModule } from '../../story/types';
 
@@ -10,9 +10,8 @@ export function createEducationCraneTransition(options: { delayMs?: () => number
     origin: { x: 0.5, y: 1.04 },
     positionFromReadingOnReverse: true,
     revealMode: 'live-clip',
-    renderFrom: renderEducationProgress,
-    renderTo: (root) => renderCraneAnimationProgress(root, CRANE_HOLD_PROGRESS),
-    renderToProgress: () => CRANE_HOLD_PROGRESS,
+    renderFrom: renderEducationHold,
+    renderTo: renderCraneHold,
     transitionAttr: 'education-crane-bottom-ink'
   });
 }

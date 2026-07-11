@@ -94,10 +94,10 @@ describe('R4 group6 transitions', () => {
 
     expect(canvas.dataset.inkOriginX).toBe('0.500');
     expect(canvas.dataset.inkOriginY).toBe('-0.040');
-    expect(receiver.dataset.r4RevealMode).toBe('ink-body');
-    expect(receiver.style.clipPath).toBe('');
+    expect(receiver.dataset.r4RevealMode).toBe('live-clip');
+    expect(receiver.style.clipPath).toContain('inset(');
     expect(receiver.style.getPropertyValue('mask-image')).toBe('');
-    expect(canvas.dataset.r4InkBoundary).toBe('shader-body');
+    expect(canvas.dataset.r4InkTargetReady).toBeUndefined();
     expect(receiver.dataset.r4Transition).toBe('lab-ph-top-ink');
   });
 

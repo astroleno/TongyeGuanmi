@@ -196,7 +196,6 @@ function CraneAnimationScene({ registerHandle }: SceneComponentProps) {
             <div className="crane-warmth" aria-hidden="true" />
             <div className="crane-center-wash" aria-hidden="true" />
             <div className="crane-texture" aria-hidden="true" />
-            <div className="crane-progress" aria-hidden="true"><span /></div>
           </div>
         </div>
       </section>

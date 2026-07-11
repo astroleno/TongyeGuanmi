@@ -1,4 +1,4 @@
-import { renderLabProgress } from '../../scenes/lab';
+import { renderLabHold } from '../../scenes/lab';
 import { renderTtgAnimationProgress } from '../../scenes/ttg-animation';
 import { hiddenVisibility, holdVisibility, range01 } from '../../pilot/visibility';
 import { createInkSegmentTransition, type InkSample } from '../shared/ink';
@@ -30,8 +30,7 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
     revealMode: 'live-clip',
     renderFrom: (root, progress) => renderTtgAnimationProgress(root, progress, { playback: true }),
     renderFromProgress: (progress) => range01(progress, 0, TTG_LAB_ANIMATION_STOP),
-    renderTo: (root) => renderLabProgress(root, 1),
-    renderToProgress: () => 1,
+    renderTo: renderLabHold,
     clipProgress: inkProgress,
     inkProgress,
     sample: sampleTtgLab,

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -8,6 +9,8 @@ import { createServicesTtgTransition } from './services-ttg';
 import { createTtgLabTransition } from './ttg-lab';
 import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/back-half.fixture';
+
+const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -85,6 +88,10 @@ const cases: readonly {
 ];
 
 describe('R4 group5 transitions', () => {
+  it('removes the TTG scene vignette instead of compensating for it in the transition', () => {
+    expect(stylesheet).not.toContain('.r4-ttg-animation .ttg-field::after');
+  });
+
   it('plays TTG to its terminal frame, pauses, then runs a motionless Ink reveal to Lab', async () => {
     const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
     const forwardVideo = new FakeVideo();

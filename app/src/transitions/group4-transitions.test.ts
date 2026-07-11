@@ -1,9 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { createBrandFigure3Transition } from './brand-figure3';
 import { createFigure3ServicesTransition, FIGURE3_SERVICES_COPY_CUE, FIGURE3_SERVICES_DURATION_MS } from './figure3-services';
 import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
+
+const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 class FakeStyle {
   [key: string]: unknown;
@@ -134,6 +137,11 @@ const cases: readonly {
 ];
 
 describe('R4 group4 transitions', () => {
+  it('removes the horizontal Figure3 edge gradient without changing Figure3-to-Services choreography', () => {
+    const overlay = stylesheet.match(/\.figure3-transition__sticky::after\s*\{([^}]*)\}/s)?.[1] ?? '';
+    expect(overlay).not.toContain('linear-gradient(90deg');
+  });
+
   it('reveals completed Services copy at 80% while its paper builds linearly to the staged hold', async () => {
     const policy = segment('figure3-services').policy;
     if (policy.kind !== 'stagedSnap') {

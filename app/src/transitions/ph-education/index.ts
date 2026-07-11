@@ -1,4 +1,4 @@
-import { renderEducationProgress } from '../../scenes/education';
+import { renderEducationHold } from '../../scenes/education';
 import { PH_PLAYBACK_MS, renderPhAnimationProgress } from '../../scenes/ph-animation';
 import { hiddenVisibility, holdVisibility, range01 } from '../../pilot/visibility';
 import { createInkSegmentTransition, type InkSample } from '../shared/ink';
@@ -31,8 +31,7 @@ export function createPhEducationTransition(options: { delayMs?: () => number } 
     revealMode: 'live-clip',
     renderFrom: (root, progress) => renderPhAnimationProgress(root, progress, { playback: true }),
     renderFromProgress: (progress) => range01(progress, 0, PH_EDUCATION_ANIMATION_STOP),
-    renderTo: (root) => renderEducationProgress(root, 1),
-    renderToProgress: () => 1,
+    renderTo: renderEducationHold,
     clipProgress: inkProgress,
     inkProgress,
     sample: samplePhEducation,

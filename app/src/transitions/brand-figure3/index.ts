@@ -1,5 +1,5 @@
-import { renderBrandProgress } from '../../scenes/brand';
-import { FIGURE3_HOLD_PROGRESS, renderFigure3AnimationProgress } from '../../scenes/figure3-animation';
+import { renderBrandHold } from '../../scenes/brand';
+import { renderFigure3Hold } from '../../scenes/figure3-animation';
 import { createInkSegmentTransition } from '../shared/ink';
 import type { TransitionModule } from '../../story/types';
 
@@ -9,10 +9,8 @@ export function createBrandFigure3Transition(options: { delayMs?: () => number }
     delayMs: options.delayMs,
     origin: { x: 0.5, y: 1.04 },
     revealMode: 'live-clip',
-    renderFrom: renderBrandProgress,
-    renderFromProgress: 'static',
-    renderTo: renderFigure3AnimationProgress,
-    renderToProgress: () => FIGURE3_HOLD_PROGRESS,
+    renderFrom: renderBrandHold,
+    renderTo: renderFigure3Hold,
     transitionAttr: 'brand-figure3-bottom-ink'
   });
 }
