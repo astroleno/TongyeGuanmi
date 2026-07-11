@@ -7,8 +7,11 @@ export function createBrandFigure3Transition(options: { delayMs?: () => number }
   return createInkSegmentTransition({
     id: 'brand-figure3',
     delayMs: options.delayMs,
-    origin: { x: 0.5, y: 1.04 },
-    revealMode: 'live-clip',
+    boundary: {
+      kind: 'horizontal',
+      direction: 'bottom-to-top',
+      seed: 'brand-figure3'
+    },
     prepareEndpoints: ({ from, to }) => {
       renderBrandHold(from);
       renderFigure3Hold(to);

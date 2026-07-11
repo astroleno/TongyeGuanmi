@@ -8,12 +8,12 @@ import { mediaPlaybackFor, requiredMilestonesFor } from '../../story/manifest';
 export const PH_EDUCATION_INK_MS = 1200;
 export const PH_EDUCATION_ANIMATION_STOP = PH_PLAYBACK_MS / (PH_PLAYBACK_MS + PH_EDUCATION_INK_MS);
 
-function inkProgress(progress: number): number {
+function boundaryProgress(progress: number): number {
   return range01(progress, PH_EDUCATION_ANIMATION_STOP, 1);
 }
 
 function samplePhEducation(progress: number): InkSample {
-  const reveal = inkProgress(progress);
+  const reveal = boundaryProgress(progress);
   if (reveal <= 0.001) {
     return { from: holdVisibility(false), to: hiddenVisibility() };
   }
@@ -27,13 +27,15 @@ export function createPhEducationTransition(options: { delayMs?: () => number } 
   const transition = createInkSegmentTransition({
     id: 'ph-education',
     delayMs: options.delayMs,
-    origin: { x: 0.5, y: -0.04 },
-    revealMode: 'live-clip',
+    boundary: {
+      kind: 'horizontal',
+      direction: 'top-to-bottom',
+      seed: 'ph-education'
+    },
+    boundaryProgress,
     prepareEndpoints: ({ to }) => renderEducationHold(to),
     renderSource: (root, progress) => renderPhAnimationProgress(root, progress, { playback: true }),
     renderSourceProgress: (progress) => range01(progress, 0, PH_EDUCATION_ANIMATION_STOP),
-    clipProgress: inkProgress,
-    inkProgress,
     sample: samplePhEducation,
     stops: [PH_EDUCATION_ANIMATION_STOP],
     transitionAttr: 'ph-education-top-ink'

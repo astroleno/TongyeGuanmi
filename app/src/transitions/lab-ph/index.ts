@@ -7,8 +7,11 @@ export function createLabPhTransition(options: { delayMs?: () => number } = {}):
   return createInkSegmentTransition({
     id: 'lab-ph',
     delayMs: options.delayMs,
-    origin: { x: 0.5, y: -0.04 },
-    revealMode: 'live-clip',
+    boundary: {
+      kind: 'horizontal',
+      direction: 'top-to-bottom',
+      seed: 'lab-ph'
+    },
     positionFromReadingOnReverse: true,
     prepareEndpoints: ({ from, to }) => {
       renderLabHold(from);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import {
@@ -7,6 +7,11 @@ import {
 } from './index';
 import { figure2AnimationScene, renderFigure2Hold } from '../../scenes/figure2-animation';
 import type { LayerHandle, LayerVisibilityState, SceneId, SpineSegmentNode, TransitionContext } from '../../story/types';
+import { createBackHalfDomContext, FakeCanvas } from '../__fixtures__/back-half.fixture';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function layer(scene: SceneId, role: 'current' | 'next', element: HTMLElement | null = null): LayerHandle {
   let visibility: LayerVisibilityState = {
@@ -72,6 +77,25 @@ describe('method-bottom-figure2 transition', () => {
     expect(figure2InkProgressForMethodBottom(0.4)).toBeCloseTo(0.5, 5);
     expect(figure2InkProgressForMethodBottom(0.8)).toBe(1);
     expect(figure2AnimationScene.renderHold).toBe(renderFigure2Hold);
+  });
+
+  it('shares one organic bottom-to-top boundary between Figure2 and the effect canvas', async () => {
+    const fixture = createBackHalfDomContext(
+      'method-bottom-figure2',
+      'method-top',
+      'figure2-animation'
+    );
+    const canvas = new FakeCanvas();
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const timeline = await createMethodBottomFigure2Transition().buildTimeline(fixture.context);
+    const receiver = fixture.stage.children[1]!;
+
+    timeline.progress(0.5);
+
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('inset(');
+    expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
+    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
   });
 
   it('passes timeline verification and exposes reduced motion fallback', async () => {

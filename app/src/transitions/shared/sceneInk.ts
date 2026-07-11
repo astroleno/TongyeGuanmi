@@ -13,6 +13,10 @@ export type BoundaryInkRenderer = {
   destroy(): void;
 };
 
+export type BoundaryInkRendererLifecycleOptions = Readonly<{
+  removeCanvasOnDestroy?: boolean;
+}>;
+
 export type TransitionInkCanvasOptions = {
   renderer: 'boundary';
   preset?: 'cinematic-color';
@@ -48,6 +52,13 @@ function markCinematicPreset(
   }
 }
 
+function markBoundaryFrame(canvas: HTMLCanvasElement, frame: InkBoundaryFrame): void {
+  canvas.dataset.r4InkBoundaryKind = frame.kind;
+  canvas.dataset.r4InkBoundaryOrigin = `${frame.origin.x.toFixed(4)},${frame.origin.y.toFixed(4)}`;
+  canvas.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
+  canvas.dataset.r4InkBoundaryRevision = frame.revision;
+}
+
 /**
  * Shared DOM surface for every R4 ink handoff. Keeping the canvas beside the
  * scene layers prevents receiver masks and scene overflow from clipping the
@@ -80,7 +91,8 @@ export function mountTransitionInkCanvas(
 
 export function createBoundaryInkRenderer(
   canvas: HTMLCanvasElement | null,
-  options: BoundaryInkOptions = {}
+  options: BoundaryInkOptions = {},
+  lifecycle: BoundaryInkRendererLifecycleOptions = {}
 ): BoundaryInkRenderer | null {
   const resolvedOptions: InkBoundaryTransitionOptions = {
     ...CINEMATIC_BOUNDARY_PRESET,
@@ -107,12 +119,14 @@ export function createBoundaryInkRenderer(
       if (destroyed) {
         return;
       }
+      markBoundaryFrame(canvas, frame);
       transition.render(frame, 0, 0);
     },
     prewarm(frame: InkBoundaryFrame) {
       if (destroyed) {
         return;
       }
+      markBoundaryFrame(canvas, frame);
       transition.prewarm(frame);
     },
     destroy() {
@@ -121,7 +135,14 @@ export function createBoundaryInkRenderer(
       }
       destroyed = true;
       transition.destroy();
-      canvas.remove();
+      if (lifecycle.removeCanvasOnDestroy !== false) {
+        canvas.remove();
+      } else {
+        delete canvas.dataset.r4InkBoundaryKind;
+        delete canvas.dataset.r4InkBoundaryOrigin;
+        delete canvas.dataset.r4InkBoundaryProgress;
+        delete canvas.dataset.r4InkBoundaryRevision;
+      }
     }
   };
 }

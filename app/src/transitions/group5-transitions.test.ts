@@ -6,7 +6,7 @@ import { ttgAnimationScene } from '../scenes/ttg-animation';
 import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { createServicesTtgTransition } from './services-ttg';
-import { createTtgLabTransition } from './ttg-lab';
+import { createTtgLabTransition, TTG_LAB_ANIMATION_STOP } from './ttg-lab';
 import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/back-half.fixture';
 
@@ -88,6 +88,38 @@ const cases: readonly {
 ];
 
 describe('R4 group5 transitions', () => {
+  it('shares organic horizontal boundaries for Services to TTG and TTG to Lab', async () => {
+    for (const item of [
+      {
+        id: 'services-ttg' as const,
+        from: 'services' as const,
+        to: 'ttg-animation' as const,
+        create: createServicesTtgTransition
+      },
+      {
+        id: 'ttg-lab' as const,
+        from: 'ttg-animation' as const,
+        to: 'lab' as const,
+        create: createTtgLabTransition
+      }
+    ]) {
+      const fixture = createBackHalfDomContext(item.id, item.from, item.to);
+      const canvas = new FakeCanvas();
+      vi.stubGlobal('document', { createElement: () => canvas });
+      const timeline = await item.create().buildTimeline(fixture.context);
+      const receiver = fixture.stage.children[1]!;
+
+      timeline.progress(item.id === 'ttg-lab' ? (TTG_LAB_ANIMATION_STOP + 1) / 2 : 0.5);
+
+      expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+      expect(receiver.style.clipPath).not.toContain('inset(');
+      expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
+      expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+      timeline.dispose();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('removes the TTG scene vignette instead of compensating for it in the transition', () => {
     expect(stylesheet).not.toContain('.r4-ttg-animation .ttg-field::after');
   });

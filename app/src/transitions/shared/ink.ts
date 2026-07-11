@@ -177,7 +177,7 @@ function viewportFor(element: HTMLElement | null): Readonly<{ width: number; hei
   };
 }
 
-function clearBoundaryGeometry(element: HTMLElement | null | undefined): void {
+export function clearBoundaryGeometry(element: HTMLElement | null | undefined): void {
   if (!element) {
     return;
   }
@@ -205,7 +205,7 @@ function applyBoundaryGeometry(
   element.dataset.r4InkBoundaryRevision = frame.revision;
 }
 
-function applyRevealBoundary(element: HTMLElement, frame: InkBoundaryFrame): void {
+export function applyRevealBoundary(element: HTMLElement, frame: InkBoundaryFrame): void {
   if (frame.progress >= 0.999) {
     clearBoundaryGeometry(element);
     return;

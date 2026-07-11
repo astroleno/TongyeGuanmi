@@ -292,7 +292,11 @@ describe('figure2 proof chain transitions', () => {
       to: { visible: true, opacity: 1 }
     });
     expect(toElement.dataset.r4RevealMode).toBe('live-clip');
-    expect(toElement.style.clipPath).toContain('inset(');
+    expect(toElement.style.clipPath).toMatch(/^polygon\(/);
+    expect(toElement.style.clipPath).not.toContain('inset(');
+    const inkCanvas = stage.children.find((child) => child.dataset.r4InkSegment === 'figure2-proof-brand');
+    expect(toElement.dataset.r4InkBoundaryKind).toBe('horizontal');
+    expect(toElement.dataset.r4InkBoundaryRevision).toBe(inkCanvas?.dataset.r4InkBoundaryRevision);
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
     expect(fromElement.style.getPropertyValue('--r4-proof-closing-opacity')).toBe('1.0000');
     expect(fromElement.style.getPropertyValue('--r4-proof-closing-y')).toBe('0.00px');
@@ -309,7 +313,8 @@ describe('figure2 proof chain transitions', () => {
 
     timeline.progress(0.4);
     expect(toElement.dataset.r4RevealMode).toBe('live-clip');
-    expect(toElement.style.clipPath).toContain('inset(');
+    expect(toElement.style.clipPath).toMatch(/^polygon\(/);
+    expect(toElement.style.clipPath).not.toContain('inset(');
     timeline.progress(0);
 
     timeline.progress(0.7);

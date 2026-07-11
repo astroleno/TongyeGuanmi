@@ -7,8 +7,11 @@ export function createServicesTtgTransition(options: { delayMs?: () => number } 
   return createInkSegmentTransition({
     id: 'services-ttg',
     delayMs: options.delayMs,
-    origin: { x: 0.5, y: 1.04 },
-    revealMode: 'live-clip',
+    boundary: {
+      kind: 'horizontal',
+      direction: 'bottom-to-top',
+      seed: 'services-ttg'
+    },
     prepareEndpoints: ({ from, to }) => {
       renderServicesHold(from);
       renderTtgHold(to);

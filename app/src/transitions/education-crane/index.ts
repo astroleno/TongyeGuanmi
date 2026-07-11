@@ -7,9 +7,12 @@ export function createEducationCraneTransition(options: { delayMs?: () => number
   return createInkSegmentTransition({
     id: 'education-crane',
     delayMs: options.delayMs,
-    origin: { x: 0.5, y: 1.04 },
+    boundary: {
+      kind: 'horizontal',
+      direction: 'bottom-to-top',
+      seed: 'education-crane'
+    },
     positionFromReadingOnReverse: true,
-    revealMode: 'live-clip',
     prepareEndpoints: ({ from, to }) => {
       renderEducationHold(from);
       renderCraneHold(to);

@@ -1,12 +1,17 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { createBrandFigure3Transition } from './brand-figure3';
 import { createFigure3ServicesTransition, FIGURE3_SERVICES_COPY_CUE, FIGURE3_SERVICES_DURATION_MS } from './figure3-services';
 import type { Direction, LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
+import { createBackHalfDomContext, FakeCanvas } from './__fixtures__/back-half.fixture';
 
 const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 class FakeStyle {
   [key: string]: unknown;
@@ -146,6 +151,21 @@ const cases: readonly {
 ];
 
 describe('R4 group4 transitions', () => {
+  it('shares one organic bottom-to-top boundary for Brand to Figure3', async () => {
+    const fixture = createBackHalfDomContext('brand-figure3', 'brand', 'figure3-animation');
+    const canvas = new FakeCanvas();
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const timeline = await createBrandFigure3Transition().buildTimeline(fixture.context);
+    const receiver = fixture.stage.children[1]!;
+
+    timeline.progress(0.5);
+
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('inset(');
+    expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
+    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+  });
+
   it('builds reverse Figure3-to-Services directly at p=1', async () => {
     const fromElement = new FakeElement();
     const toElement = new FakeElement();

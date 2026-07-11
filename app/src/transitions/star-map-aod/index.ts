@@ -1,7 +1,15 @@
 import { PilotProgressTimeline } from '../../pilot/progress-timeline';
 import { fadeVisibility, smoothStep } from '../../pilot/visibility';
 import type { LayerVisibilityState, TransitionModule } from '../../story/types';
-import { createInkCurtainTransition } from './inkCurtain';
+import { applyRevealBoundary, clearBoundaryGeometry } from '../shared/ink';
+import { createInkBoundaryFrame, type InkBoundaryFrame } from '../shared/inkBoundary';
+import { createBoundaryInkRenderer } from '../shared/sceneInk';
+
+const STAR_MAP_AOD_BOUNDARY = {
+  kind: 'horizontal',
+  direction: 'bottom-to-top',
+  seed: 'star-map-aod'
+} as const;
 
 function sampleStarMapAod(progress: number): { from: LayerVisibilityState; to: LayerVisibilityState } {
   const p = smoothStep(progress);
@@ -34,22 +42,30 @@ function liftInkLayerOverSource(element: HTMLElement | null | undefined): void {
   element.style.zIndex = '40';
 }
 
-function renderLiveRevealClip(surface: HTMLElement | null, progress: number): void {
-  if (!surface) {
+function boundaryViewport(
+  canvas: HTMLCanvasElement | null,
+  fallback: HTMLElement | null
+): Readonly<{ width: number; height: number }> {
+  const rect = canvas?.getBoundingClientRect?.() ?? fallback?.getBoundingClientRect?.();
+  return {
+    width: rect?.width || (typeof window === 'undefined' ? 1440 : window.innerWidth) || 1440,
+    height: rect?.height || (typeof window === 'undefined' ? 900 : window.innerHeight) || 900
+  };
+}
+
+function markAodBoundaryCanvas(canvas: HTMLCanvasElement | null, frame: InkBoundaryFrame): void {
+  if (!canvas) {
     return;
   }
-  surface.style.removeProperty('opacity');
-  surface.style.removeProperty('visibility');
-  if (progress >= 0.999) {
-    surface.style.removeProperty('clip-path');
-    surface.style.removeProperty('-webkit-clip-path');
-    surface.removeAttribute('data-r4-reveal-progress');
-    return;
-  }
-  const clipPath = `inset(${((1 - progress) * 100).toFixed(3)}% 0 0 0)`;
-  surface.style.clipPath = clipPath;
-  surface.style.setProperty('-webkit-clip-path', clipPath);
-  surface.dataset.r4RevealProgress = progress.toFixed(4);
+  canvas.dataset.r4InkEffectOnly = 'true';
+  canvas.dataset.r4InkRenderer = 'boundary';
+  canvas.dataset.r4InkSegment = 'star-map-aod';
+  canvas.dataset.r4InkActive = String(frame.progress > 0.002 && frame.progress < 0.999);
+  canvas.dataset.r4InkProgress = frame.progress.toFixed(4);
+  canvas.dataset.r4InkBoundaryKind = frame.kind;
+  canvas.dataset.r4InkBoundaryOrigin = `${frame.origin.x.toFixed(4)},${frame.origin.y.toFixed(4)}`;
+  canvas.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
+  canvas.dataset.r4InkBoundaryRevision = frame.revision;
 }
 
 export function createStarMapAodTransition(options: { delayMs?: () => number } = {}): TransitionModule {
@@ -61,18 +77,15 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
       if (delay > 0) {
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
-      const inkCanvas = context.prefersReducedMotion
-        ? null
-        : context.to.element?.querySelector<HTMLCanvasElement>('[data-aod-ink-canvas]');
-      const inkTransition = context.prefersReducedMotion ? null : createInkCurtainTransition(inkCanvas ?? null, {
-        direction: 'bottom-up',
+      const inkCanvas = context.to.element?.querySelector<HTMLCanvasElement>('[data-aod-ink-canvas]') ?? null;
+      const inkRenderer = context.prefersReducedMotion ? null : createBoundaryInkRenderer(inkCanvas, {
         colorLift: 0.56,
         coverAlpha: 0.82,
         fadeOutStart: 0.74,
-        fadeOutEnd: 0.98,
-        progressSpan: 1
-      });
-      inkTransition?.prewarm();
+        fadeOutEnd: 0.98
+      }, { removeCanvasOnDestroy: false });
+      const viewport = boundaryViewport(inkCanvas, context.to.element);
+      inkRenderer?.prewarm(createInkBoundaryFrame(STAR_MAP_AOD_BOUNDARY, 0.003, viewport));
       return new PilotProgressTimeline({
         from: context.from,
         to: context.to,
@@ -80,15 +93,25 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
         direction: context.direction,
         sample: sampleStarMapAod,
         render: (progress) => {
-          const inkProgress = smoothStep(progress);
+          const boundaryProgress = context.prefersReducedMotion ? 1 : smoothStep(progress);
+          const frame = createInkBoundaryFrame(STAR_MAP_AOD_BOUNDARY, boundaryProgress, viewport);
+          const revealSurface = getAodRevealSurface(context.to.element);
           liftInkLayerOverSource(context.to.element);
-          renderLiveRevealClip(getAodRevealSurface(context.to.element), context.prefersReducedMotion ? 1 : inkProgress);
+          if (revealSurface) {
+            revealSurface.style.removeProperty('opacity');
+            revealSurface.style.removeProperty('visibility');
+            applyRevealBoundary(revealSurface, frame);
+          }
           context.to.element?.setAttribute('data-r3-transition', 'star-map-aod');
-          inkTransition?.render(inkProgress);
+          markAodBoundaryCanvas(inkCanvas, frame);
+          inkRenderer?.render(frame);
         },
         dispose: () => {
-          inkTransition?.destroy();
-          renderLiveRevealClip(getAodRevealSurface(context.to.element), 1);
+          inkRenderer?.destroy();
+          clearBoundaryGeometry(getAodRevealSurface(context.to.element));
+          if (inkCanvas) {
+            inkCanvas.dataset.r4InkActive = 'false';
+          }
           context.to.element?.removeAttribute('data-r3-transition');
         }
       });

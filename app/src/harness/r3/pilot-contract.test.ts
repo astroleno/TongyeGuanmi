@@ -92,6 +92,12 @@ class FakeVideo extends FakeElement {
   }
 }
 
+class FakeCanvas extends FakeElement {
+  getContext(): null {
+    return null;
+  }
+}
+
 function segment(id: SegmentId): SpineSegmentNode {
   const found = storyManifest.nodes.find((node): node is SpineSegmentNode => node.kind === 'segment' && node.id === id);
   if (!found) {
@@ -234,6 +240,27 @@ describe('R3 pilot contract on real segments', () => {
       from: { opacity: 1 },
       to: { opacity: 1 }
     });
+  });
+
+  it('shares the AOD horizontal boundary revision with its live reveal surface', async () => {
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    const revealSurface = new FakeElement();
+    const canvas = new FakeCanvas();
+    toElement.connect('[data-aod-reveal-surface]', revealSurface);
+    toElement.connect('[data-aod-ink-canvas]', canvas);
+    const timeline = await createStarMapAodTransition().buildTimeline(context('star-map-aod', 1, {
+      from: fromElement as unknown as HTMLElement,
+      to: toElement as unknown as HTMLElement
+    }));
+
+    timeline.progress(0.5);
+
+    expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
+    expect(revealSurface.style.clipPath).not.toContain('inset(');
+    expect(revealSurface.dataset.r4InkBoundaryKind).toBe('horizontal');
+    expect(revealSurface.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(canvas.dataset.r4InkEffectOnly).toBe('true');
   });
 
   it('passes R2 copyCue invariants for aod-method-top at 80%', async () => {

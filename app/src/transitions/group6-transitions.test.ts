@@ -92,10 +92,12 @@ describe('R4 group6 transitions', () => {
 
     timeline.progress(0.5);
 
-    expect(canvas.dataset.inkOriginX).toBe('0.500');
-    expect(canvas.dataset.inkOriginY).toBe('-0.040');
     expect(receiver.dataset.r4RevealMode).toBe('live-clip');
-    expect(receiver.style.clipPath).toContain('inset(');
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('inset(');
+    expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
+    expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.5000,0.0000');
+    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
     expect(receiver.style.getPropertyValue('mask-image')).toBe('');
     expect(canvas.dataset.r4InkTargetReady).toBeUndefined();
     expect(receiver.dataset.r4Transition).toBe('lab-ph-top-ink');
@@ -141,6 +143,10 @@ describe('R4 group6 transitions', () => {
     expect(fixture.toRoot.dataset.educationProgress).toBe('1.0000');
     expect(fixture.toRoot.style.getPropertyValue('--r4-education-y')).toBe('0.00px');
     expect(canvas.dataset.r4InkProgress).toBe('0.5000');
+    const receiver = fixture.stage.children[1]!;
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('inset(');
+    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
 
     timeline.progress(stop / 2);
     expect(video.currentTime).toBeCloseTo(forwardMidTime, 3);

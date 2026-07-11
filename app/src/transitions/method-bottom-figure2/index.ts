@@ -24,14 +24,15 @@ export function createMethodBottomFigure2Transition(options: { delayMs?: () => n
   const inkTransition = createInkSegmentTransition({
     id: 'method-bottom-figure2',
     delayMs: options.delayMs,
-    origin: { x: 0.5, y: 1.04 },
+    boundary: {
+      kind: 'horizontal',
+      direction: 'bottom-to-top',
+      seed: 'method-bottom-figure2'
+    },
+    boundaryProgress: figure2InkProgressForMethodBottom,
     elevateTarget: true,
-    clipTarget: true,
-    revealMode: 'live-clip',
     sample: sampleMethodBottomFigure2,
     prepareEndpoints: ({ to }) => renderFigure2Hold(to),
-    clipProgress: figure2InkProgressForMethodBottom,
-    inkProgress: figure2InkProgressForMethodBottom,
     transitionAttr: 'method-bottom-figure2-bottom-ink'
   });
 
