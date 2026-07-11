@@ -22,6 +22,10 @@ class FakeStyle {
   [key: string]: unknown;
   private readonly values = new Map<string, string>();
   clipPath = '';
+  filter = '';
+  opacity = '';
+  transform = '';
+  visibility = '';
 
   get length(): number {
     return this.values.size;
@@ -288,11 +292,13 @@ describe('figure2 proof chain transitions', () => {
     const stage = new FakeElement();
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
+    const retainedArch = new FakeElement();
     stage.ownerDocument = document;
     fromElement.ownerDocument = document;
     toElement.ownerDocument = document;
-    stage.append(fromElement);
-    stage.append(toElement);
+    retainedArch.ownerDocument = document;
+    retainedArch.dataset.stageRetainedFigure2Arch = 'true';
+    stage.append(retainedArch, fromElement, toElement);
     vi.stubGlobal('document', document);
     const timeline = await createFigure2ProofBrandTransition().buildTimeline(
       context(
@@ -315,6 +321,10 @@ describe('figure2 proof chain transitions', () => {
     const inkCanvas = stage.children.find((child) => child.dataset.r4InkSegment === 'figure2-proof-brand');
     expect(toElement.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(toElement.dataset.r4InkBoundaryRevision).toBe(inkCanvas?.dataset.r4InkBoundaryRevision);
+    expect(retainedArch.dataset.r4InkBoundaryRevision).toBe(toElement.dataset.r4InkBoundaryRevision);
+    expect(retainedArch.style.clipPath).toMatch(/^polygon\(/);
+    expect(retainedArch.style.clipPath).not.toContain('inset(');
+    expect(retainedArch.style.visibility).toBe('visible');
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
     expect(fromElement.style.getPropertyValue('--r4-proof-closing-opacity')).toBe('1.0000');
     expect(fromElement.style.getPropertyValue('--r4-proof-closing-y')).toBe('0.00px');
@@ -328,17 +338,69 @@ describe('figure2 proof chain transitions', () => {
     });
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
     expect(toElement.style.clipPath).toBe('');
+    expect(retainedArch.style.visibility).toBe('hidden');
+    expect(retainedArch.style.clipPath).toBe('');
 
     timeline.progress(0.4);
     expect(toElement.dataset.r4RevealMode).toBe('live-clip');
     expect(toElement.style.clipPath).toMatch(/^polygon\(/);
     expect(toElement.style.clipPath).not.toContain('inset(');
     timeline.progress(0);
+    expect(stage.querySelector('[data-stage-retained-figure2-arch="true"]')).toBe(retainedArch);
+    expect(retainedArch.style.visibility).toBe('visible');
+    expect(retainedArch.style.clipPath).toBe('');
 
-    timeline.progress(0.7);
+    timeline.progress(1);
     timeline.dispose();
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
     expect(toElement.style.clipPath).toBe('');
+    expect(retainedArch.style.visibility).toBe('hidden');
+    expect(retainedArch.style.clipPath).toBe('');
+  });
+
+  it.each([
+    ['figure2-proof-opening-cards', 'figure2-proof-opening', 'figure2-proof-cards', createFigure2ProofOpeningCardsTransition],
+    ['figure2-proof-cards-closing', 'figure2-proof-cards', 'figure2-proof-closing', createFigure2ProofCardsClosingTransition]
+  ] as const)('leaves the retained arch untouched through forward and reverse %s handoffs', async (segmentId, from, to, create) => {
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    const retainedArch = new FakeElement();
+    retainedArch.dataset.stageRetainedFigure2Arch = 'true';
+    retainedArch.style.filter = 'brightness(.76)';
+    retainedArch.style.transform = 'scale(1.135)';
+    retainedArch.style.opacity = '0.88';
+    retainedArch.style.clipPath = 'polygon(0 0, 100% 0, 100% 100%, 0 100%)';
+    stage.append(retainedArch, fromElement, toElement);
+    const retainedPresentation = () => ({
+      identity: stage.querySelector('[data-stage-retained-figure2-arch="true"]'),
+      filter: retainedArch.style.filter,
+      transform: retainedArch.style.transform,
+      opacity: retainedArch.style.opacity,
+      clipPath: retainedArch.style.clipPath
+    });
+    const initial = retainedPresentation();
+
+    for (const direction of [1, -1] as const) {
+      const timeline = await create().buildTimeline(context(
+        segmentId,
+        from,
+        to,
+        false,
+        {
+          from: fromElement as unknown as HTMLElement,
+          to: toElement as unknown as HTMLElement
+        },
+        direction
+      ));
+      expect(retainedPresentation()).toEqual(initial);
+      timeline.progress(0.54);
+      expect(retainedPresentation()).toEqual(initial);
+      timeline.progress(direction === 1 ? 1 : 0);
+      expect(retainedPresentation()).toEqual(initial);
+      timeline.dispose();
+      expect(retainedPresentation()).toEqual(initial);
+    }
   });
 
   it('uses time-varying depth thresholds whose authored mask values stay strictly binary', () => {

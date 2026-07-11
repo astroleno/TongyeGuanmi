@@ -12,6 +12,11 @@ export function createFigure2ProofBrandTransition(options: { delayMs?: () => num
       direction: 'bottom-to-top',
       seed: 'figure2-proof-brand'
     },
+    boundarySurfaces: ({ stage }) => ({
+      conceal: [
+        stage?.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]')
+      ].filter((element): element is HTMLElement => Boolean(element))
+    }),
     prepareEndpoints: ({ from, to }) => {
       renderProofClosingHold(from);
       renderBrandHold(to);

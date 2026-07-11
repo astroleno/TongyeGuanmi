@@ -95,4 +95,23 @@ describe('RetainedFigure2Arch', () => {
     expect(stylesheet).toMatch(/\.stage-proof-retained-arch\s*\{[^}]*--r4-figure2-near-arch-scale:\s*1\.135;/s);
     expect(stylesheet).toMatch(/\.stage-proof-retained-arch\s*\{[^}]*--r4-figure2-near-arch-blur:\s*3\.6px;/s);
   });
+
+  it('stays mounted while its Proof owner is temporarily hidden', () => {
+    const state = retainedFigure2ArchState([
+      { scene: 'figure2-proof-closing', current: true }
+    ], {
+      'figure2-proof-closing': {
+        mounted: true,
+        visible: false,
+        inert: true,
+        opacity: 0,
+        pointerEvents: 'none'
+      }
+    });
+    const markup = renderToStaticMarkup(createElement(RetainedFigure2Arch, state));
+
+    expect(state).toEqual({ mounted: true, visible: false });
+    expect(markup.match(/data-stage-retained-figure2-arch=/g)).toHaveLength(1);
+    expect(markup).toContain('data-visible="false"');
+  });
 });
