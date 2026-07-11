@@ -4,6 +4,8 @@
 
 Iteration plan for the post-`39f8a76f`返工.
 
+Final integration note: the dedicated adapters below are now implemented and covered by the R4 harness. Scene Ink renders at a `0.5` DPR cap, Pattern-to-Star lets the shared Ink surface own the raster during the handoff, and the Star hold keeps one Main-matched Perlin frame static (`saturate(.98) contrast(1.04) brightness(.74)`, canvas opacity `.88`) to stay inside the idle CPU budget.
+
 `39f8a76f` proved the R4 runtime can host the g1-g3 spine, but it still approximates two main visuals with generic scene transitions:
 
 - g1 uses `createInkSegmentTransition()` plus a circular clip instead of the legacy `pattern-bloom-adapter` / `createInkSceneTransition` composition.
@@ -161,22 +163,22 @@ Implementation direction:
 
 ## g2 Required Fixes
 
-### `method-top-method-bottom`
+### Method reading hold
 
-Current implementation is a fade transition. It should be reading behavior only.
+The Method intro and five-step list are one long reading scene, not two scene layers.
 
 Required visual facts:
 
-- Method top and bottom are two reading screens in the same method flow.
-- No cinematic transition between them.
-- The user should experience continuous downward reading, matching `src/sections/method.html`.
-- Keep `method-top-method-bottom` as a canonical segment.
+- Method intro and all five rows share one `method-top` layer.
+- The left column and paper background remain locked while the right list scrolls natively.
+- `method-bottom-figure2` can start only after the owned scrollport reaches its bottom edge.
+- Reverse returns to that bottom edge so upward reading is continuous.
 
 Implementation direction:
 
-- Use `createReadingSegmentTransition()` or equivalent helper.
-- Preserve the canonical segment and harness route.
-- Update tests so fade is rejected.
+- Remove `method-top-method-bottom` from the canonical spine and harness.
+- Keep one scene-owned `[data-reading-scrollport="true"]` inside `method-top`.
+- Keep `method-bottom-figure2` as the historical transition id, but source it from `method-top`.
 
 ### `method-bottom-figure2`
 
@@ -331,7 +333,8 @@ Existing tests are allowed to fail during返工 if they protect incorrect visual
   - pattern sampled frames show full-field -> compact collapse.
 
 - g2:
-  - `method-top-method-bottom` does not crossfade.
+  - Method is one `method-top` reading layer; no `method-bottom` stage layer or handoff exists.
+  - the right-hand five-step scrollport must reach its bottom edge before handoff.
   - `method-bottom-figure2` has active ink surface.
   - figure videos do not loop and are terminal-paused after forward playback.
   - sampled Figure2 frames show foreground blur and layer parallax.
@@ -370,3 +373,13 @@ After each fixed group lands on integration:
 - Pattern timing must match exact main constants.
 - Proof cards/closing must read as normal continuous proof content, not cinematic transitions.
 - `figure2-proof-brand` remains in scope only for regression safety; do not spend this iteration redesigning its final handoff unless the dedicated overlay changes break it.
+
+## Hero text-effect names
+
+The three independent Hero entrance primitives use these stable names everywhere after this iteration:
+
+- `rise-up`: 向上出现。
+- `blur-to-clear`: 模糊变清晰。
+- `stagger`: 元素依次错峰。
+
+Only Hero opts into all three. Other copy remains static unless a later requirement names the effects explicitly.

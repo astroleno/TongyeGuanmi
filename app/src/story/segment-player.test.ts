@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fromSyntheticVisibility, isVisuallyVisible } from './visibility-predicate';
 import { BuildTimeoutError, SegmentPlayer } from './segment-player';
-import type { DirectorEvent, SegmentTimelineHandle, TransitionModule } from './types';
+import { storyManifest } from './manifest';
+import type { DirectorEvent, SegmentTimelineHandle, StoryManifest, TransitionModule } from './types';
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -22,6 +23,37 @@ function transitionWithTimeline(timeline: SegmentTimelineHandle): TransitionModu
     id: 'hero-pattern',
     buildTimeline: () => timeline
   };
+}
+
+function withHeroPatternStaged(stops: readonly number[], playMs: readonly number[]): StoryManifest {
+  const manifest = structuredClone(storyManifest);
+  const nodes = [...manifest.nodes];
+  const index = nodes.findIndex((node) => node.kind === 'segment' && node.id === 'hero-pattern');
+  const segment = nodes[index];
+  if (segment?.kind !== 'segment') {
+    throw new Error('hero-pattern segment missing');
+  }
+  nodes[index] = {
+    ...segment,
+    policy: { kind: 'stagedSnap', stops, playMs },
+    virtualDuration: playMs.reduce((sum, value) => sum + value, 0)
+  };
+  return { ...manifest, nodes };
+}
+
+function withHeroPatternSnap(): StoryManifest {
+  const manifest = structuredClone(storyManifest);
+  const nodes = [...manifest.nodes];
+  const index = nodes.findIndex((node) => node.kind === 'segment' && node.id === 'hero-pattern');
+  const segment = nodes[index];
+  if (segment?.kind !== 'segment') {
+    throw new Error('hero-pattern segment missing');
+  }
+  nodes[index] = {
+    ...segment,
+    policy: { kind: 'snap', chargeThreshold: 0.1 }
+  };
+  return { ...manifest, nodes };
 }
 
 describe('SegmentPlayer', () => {
@@ -65,6 +97,99 @@ describe('SegmentPlayer', () => {
     });
   });
 
+  it('disposes a timeline that resolves after its build timeout', async () => {
+    vi.useFakeTimers();
+    const lateBuild = deferred<SegmentTimelineHandle>();
+    const dispose = vi.fn();
+    const player = new SegmentPlayer({
+      transitions: {
+        'hero-pattern': {
+          id: 'hero-pattern',
+          buildTimeline: () => lateBuild.promise
+        }
+      },
+      actorEpoch: 'epoch'
+    });
+
+    const build = player.ensureBuilt('hero-pattern', { timeoutMs: 10 });
+    const expectedRejection = expect(build).rejects.toBeInstanceOf(BuildTimeoutError);
+    await vi.advanceTimersByTimeAsync(10);
+    await expectedRejection;
+
+    lateBuild.resolve({
+      play: () => Promise.resolve(),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose
+    });
+    await flushMicrotasks();
+    await flushMicrotasks();
+
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('cancels pending builds on disposeAll and disposes their late timelines', async () => {
+    const lateBuild = deferred<SegmentTimelineHandle>();
+    const lateDispose = vi.fn();
+    const replacementTimeline: SegmentTimelineHandle = {
+      play: () => Promise.resolve(),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    };
+    const buildTimeline = vi.fn<TransitionModule['buildTimeline']>()
+      .mockImplementationOnce(() => lateBuild.promise)
+      .mockImplementationOnce(() => replacementTimeline);
+    const player = new SegmentPlayer({
+      transitions: {
+        'hero-pattern': { id: 'hero-pattern', buildTimeline }
+      },
+      actorEpoch: 'epoch'
+    });
+
+    const pending = player.ensureBuilt('hero-pattern');
+    player.disposeAll();
+    lateBuild.resolve({
+      play: () => Promise.resolve(),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: lateDispose
+    });
+
+    await expect(pending).rejects.toThrow(/cancelled/i);
+    await expect(player.ensureBuilt('hero-pattern')).resolves.toBe(replacementTimeline);
+    expect(lateDispose).toHaveBeenCalledOnce();
+    expect(buildTimeline).toHaveBeenCalledTimes(2);
+  });
+
+  it('deduplicates concurrent builds for the same segment', async () => {
+    const lateBuild = deferred<SegmentTimelineHandle>();
+    const timeline: SegmentTimelineHandle = {
+      play: () => Promise.resolve(),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    };
+    const buildTimeline = vi.fn<TransitionModule['buildTimeline']>(() => lateBuild.promise);
+    const player = new SegmentPlayer({
+      transitions: {
+        'hero-pattern': { id: 'hero-pattern', buildTimeline }
+      },
+      actorEpoch: 'epoch'
+    });
+
+    const first = player.ensureBuilt('hero-pattern');
+    const second = player.ensureBuilt('hero-pattern');
+    lateBuild.resolve(timeline);
+
+    await expect(Promise.all([first, second])).resolves.toEqual([timeline, timeline]);
+    expect(buildTimeline).toHaveBeenCalledOnce();
+  });
+
   it('resolves completed play and reports completion asynchronously', async () => {
     const events: DirectorEvent[] = [];
     const timeline = transitionWithTimeline({
@@ -75,6 +200,7 @@ describe('SegmentPlayer', () => {
       dispose: vi.fn()
     });
     const player = new SegmentPlayer({
+      manifest: withHeroPatternSnap(),
       transitions: { 'hero-pattern': timeline },
       mailbox: { send: (event) => events.push(event) },
       actorEpoch: 'epoch'
@@ -90,11 +216,36 @@ describe('SegmentPlayer', () => {
     expect(events).toContainEqual({ type: 'PLAYBACK_DONE', runId: 'epoch:1' });
   });
 
+  it('disposes a completed timeline so transition canvases cannot accumulate between holds', async () => {
+    const dispose = vi.fn();
+    const buildTimeline = vi.fn<TransitionModule['buildTimeline']>(() => ({
+      play: () => Promise.resolve(),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose
+    }));
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternSnap(),
+      transitions: {
+        'hero-pattern': { id: 'hero-pattern', buildTimeline }
+      },
+      actorEpoch: 'epoch'
+    });
+
+    await player.play('hero-pattern', 1, { runId: 'epoch:1' });
+    await player.ensureBuilt('hero-pattern');
+
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(buildTimeline).toHaveBeenCalledTimes(2);
+  });
+
   it('resolves playback failure without unhandled rejection', async () => {
     const unhandled: unknown[] = [];
     const onUnhandled = (reason: unknown) => unhandled.push(reason);
     process.on('unhandledRejection', onUnhandled);
     const player = new SegmentPlayer({
+      manifest: withHeroPatternSnap(),
       transitions: {
         'hero-pattern': transitionWithTimeline({
           play: () => Promise.reject(new Error('boom')),
@@ -119,6 +270,7 @@ describe('SegmentPlayer', () => {
     const playback = deferred<void>();
     const events: DirectorEvent[] = [];
     const player = new SegmentPlayer({
+      manifest: withHeroPatternSnap(),
       transitions: {
         'hero-pattern': transitionWithTimeline({
           play: () => playback.promise,
@@ -170,6 +322,7 @@ describe('SegmentPlayer', () => {
       return buildCount === 1 ? firstTimeline : secondTimeline;
     });
     const player = new SegmentPlayer({
+      manifest: withHeroPatternSnap(),
       transitions: {
         'hero-pattern': {
           id: 'hero-pattern',
@@ -221,7 +374,7 @@ describe('SegmentPlayer', () => {
     expect(prefersReducedMotion).toBe(true);
   });
 
-  it('resets cached timelines to progress 0 before replaying forward', async () => {
+  it('rebuilds completed timelines and starts every forward replay at progress 0', async () => {
     let progressValue = 0;
     const playStarts: number[] = [];
     const progress = vi.fn((value: number) => {
@@ -240,6 +393,7 @@ describe('SegmentPlayer', () => {
       dispose: vi.fn()
     }));
     const player = new SegmentPlayer({
+      manifest: withHeroPatternSnap(),
       transitions: {
         'hero-pattern': {
           id: 'hero-pattern',
@@ -252,7 +406,7 @@ describe('SegmentPlayer', () => {
     await player.play('hero-pattern', 1, { runId: 'epoch:1' });
     await player.play('hero-pattern', 1, { runId: 'epoch:2' });
 
-    expect(buildTimeline).toHaveBeenCalledTimes(1);
+    expect(buildTimeline).toHaveBeenCalledTimes(2);
     expect(play).toHaveBeenCalledTimes(2);
     expect(progress).toHaveBeenNthCalledWith(1, 0);
     expect(progress).toHaveBeenNthCalledWith(2, 0);
@@ -263,6 +417,7 @@ describe('SegmentPlayer', () => {
     const progress = vi.fn();
     const reverse = vi.fn(() => Promise.resolve());
     const player = new SegmentPlayer({
+      manifest: withHeroPatternSnap(),
       transitions: {
         'hero-pattern': transitionWithTimeline({
           play: () => Promise.resolve(),
@@ -284,6 +439,7 @@ describe('SegmentPlayer', () => {
   it('reports staged pause/resume events through the mailbox', async () => {
     const events: DirectorEvent[] = [];
     const player = new SegmentPlayer({
+      manifest: withHeroPatternSnap(),
       transitions: {
         'hero-pattern': {
           id: 'hero-pattern',
@@ -333,6 +489,237 @@ describe('SegmentPlayer', () => {
     });
   });
 
+  it('pauses a stagedSnap run at its first stop until explicitly resumed', async () => {
+    vi.useFakeTimers();
+    const events: DirectorEvent[] = [];
+    let renderedProgress = 0;
+    const timeline: SegmentTimelineHandle = {
+      play: () => Promise.resolve(),
+      progress: (value) => {
+        renderedProgress = value;
+      },
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    };
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged([0.5], [40, 60]),
+      transitions: { 'hero-pattern': transitionWithTimeline(timeline) },
+      mailbox: { send: (event) => events.push(event) },
+      actorEpoch: 'epoch'
+    });
+
+    let settled = false;
+    const result = player.play('hero-pattern', 1, { runId: 'epoch:1' });
+    void result.then(() => {
+      settled = true;
+    });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(renderedProgress).toBeGreaterThan(0);
+    expect(renderedProgress).toBeLessThan(0.5);
+
+    await vi.advanceTimersByTimeAsync(20);
+    await flushMicrotasks();
+
+    expect(renderedProgress).toBe(0.5);
+    expect(settled).toBe(false);
+    expect(player.snapshot()).toMatchObject({
+      runId: 'epoch:1',
+      segmentId: 'hero-pattern',
+      direction: 1,
+      progress: 0.5,
+      pausedAt: 'stage:0'
+    });
+    expect(events).toContainEqual({
+      type: 'STAGE_PAUSED',
+      runId: 'epoch:1',
+      segment: 'hero-pattern',
+      stageIndex: 0
+    });
+
+    expect(player.resumeStaged('epoch:1')).toBe(true);
+    await flushMicrotasks();
+    expect(events).toContainEqual({
+      type: 'STAGE_RESUMED',
+      runId: 'epoch:1',
+      segment: 'hero-pattern',
+      stageIndex: 0
+    });
+
+    await vi.advanceTimersByTimeAsync(60);
+    await expect(result).resolves.toEqual({
+      status: 'completed',
+      runId: 'epoch:1',
+      segment: 'hero-pattern',
+      direction: 1
+    });
+    expect(renderedProgress).toBe(1);
+  });
+
+  it('drives stagedSnap playback on animation frames when the browser scheduler is available', async () => {
+    vi.useFakeTimers();
+    const requestFrame = vi.fn(() => 41);
+    const cancelFrame = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', requestFrame);
+    vi.stubGlobal('cancelAnimationFrame', cancelFrame);
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged([0.5], [40, 60]),
+      transitions: {
+        'hero-pattern': transitionWithTimeline({
+          play: () => Promise.resolve(),
+          progress: vi.fn(),
+          reverse: () => Promise.resolve(),
+          jumpToEnd: vi.fn(),
+          dispose: vi.fn()
+        })
+      },
+      actorEpoch: 'epoch'
+    });
+
+    try {
+      const result = player.play('hero-pattern', 1, { runId: 'epoch:1' });
+      for (let turn = 0; turn < 12; turn += 1) {
+        await flushMicrotasks();
+      }
+      const scheduledFrames = requestFrame.mock.calls.length;
+      player.disposeAll();
+      await result;
+
+      expect(scheduledFrames).toBeGreaterThan(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not skip a staged leg when one browser frame stalls longer than the leg', async () => {
+    const callbacks: FrameRequestCallback[] = [];
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    });
+    vi.stubGlobal('requestAnimationFrame', requestFrame);
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    let now = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const renderedProgress: number[] = [];
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged([0.5], [1_000, 1_000]),
+      transitions: {
+        'hero-pattern': transitionWithTimeline({
+          play: () => Promise.resolve(),
+          progress: (value) => renderedProgress.push(value),
+          reverse: () => Promise.resolve(),
+          jumpToEnd: vi.fn(),
+          dispose: vi.fn()
+        })
+      },
+      actorEpoch: 'epoch'
+    });
+
+    const result = player.play('hero-pattern', 1, { runId: 'epoch:1' });
+    try {
+      for (let turn = 0; turn < 12; turn += 1) {
+        await flushMicrotasks();
+      }
+      expect(callbacks).toHaveLength(1);
+
+      now = 5_000;
+      callbacks.shift()?.(now);
+
+      expect(renderedProgress.at(-1)).toBeGreaterThan(0);
+      expect(renderedProgress.at(-1)).toBeLessThan(0.5);
+      expect(player.snapshot()?.pausedAt).toBeUndefined();
+    } finally {
+      player.disposeAll();
+      await result;
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('reverses a stagedSnap run from a pause back to the previous boundary', async () => {
+    vi.useFakeTimers();
+    let renderedProgress = 0;
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged([0.5], [40, 60]),
+      transitions: {
+        'hero-pattern': transitionWithTimeline({
+          play: () => Promise.resolve(),
+          progress: (value) => {
+            renderedProgress = value;
+          },
+          reverse: () => Promise.resolve(),
+          jumpToEnd: vi.fn(),
+          dispose: vi.fn()
+        })
+      },
+      actorEpoch: 'epoch'
+    });
+
+    const result = player.play('hero-pattern', 1, { runId: 'epoch:1' });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(40);
+
+    expect(player.snapshot()).toMatchObject({
+      direction: 1,
+      progress: 0.5,
+      pausedAt: 'stage:0'
+    });
+    expect(player.resumeStaged('epoch:1', -1)).toBe(true);
+    expect(player.snapshot()).toMatchObject({ direction: -1, progress: 0.5 });
+
+    await vi.advanceTimersByTimeAsync(40);
+    await expect(result).resolves.toMatchObject({ status: 'completed', direction: -1 });
+    expect(renderedProgress).toBe(0);
+  });
+
+  it('visits stagedSnap stops in reverse order during reverse playback', async () => {
+    vi.useFakeTimers();
+    const events: DirectorEvent[] = [];
+    let renderedProgress = 0;
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged([0.25, 0.75], [20, 30, 40]),
+      transitions: {
+        'hero-pattern': transitionWithTimeline({
+          play: () => Promise.resolve(),
+          progress: (value) => {
+            renderedProgress = value;
+          },
+          reverse: () => Promise.resolve(),
+          jumpToEnd: vi.fn(),
+          dispose: vi.fn()
+        })
+      },
+      mailbox: { send: (event) => events.push(event) },
+      actorEpoch: 'epoch'
+    });
+
+    const result = player.play('hero-pattern', -1, { runId: 'epoch:1' });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(40);
+    await flushMicrotasks();
+
+    expect(renderedProgress).toBe(0.75);
+    expect(player.snapshot()?.pausedAt).toBe('stage:1');
+    expect(player.resumeStaged('epoch:1')).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(30);
+    await flushMicrotasks();
+    expect(renderedProgress).toBe(0.25);
+    expect(player.snapshot()?.pausedAt).toBe('stage:0');
+    expect(player.resumeStaged('epoch:1')).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(20);
+    await expect(result).resolves.toMatchObject({ status: 'completed', direction: -1 });
+    expect(renderedProgress).toBe(0);
+    expect(events.filter((event) => event.type === 'STAGE_PAUSED')).toEqual([
+      expect.objectContaining({ stageIndex: 1 }),
+      expect.objectContaining({ stageIndex: 0 })
+    ]);
+  });
+
   it('lets jumpToEnd fixtures assert terminal visibility with the shared predicate', async () => {
     let from = fromSyntheticVisibility({ mounted: true, opacity: 1 });
     let to = fromSyntheticVisibility({ mounted: true, opacity: 0, visibility: 'hidden' });
@@ -367,5 +754,103 @@ describe('SegmentPlayer', () => {
     player.jumpToEnd('hero-pattern', -1);
     expect(isVisuallyVisible(from)).toBe(true);
     expect(isVisuallyVisible(to)).toBe(false);
+  });
+
+  it('snaps an idle scrub to its forward endpoint after the manifest delay', async () => {
+    vi.useFakeTimers();
+    let renderedProgress = 0;
+    const events: DirectorEvent[] = [];
+    const player = new SegmentPlayer({
+      transitions: {
+        'pattern-star-map': {
+          id: 'pattern-star-map',
+          buildTimeline: () => ({
+            play: () => Promise.resolve(),
+            progress: (value) => {
+              renderedProgress = value;
+            },
+            reverse: () => Promise.resolve(),
+            jumpToEnd: vi.fn(),
+            dispose: vi.fn()
+          })
+        }
+      },
+      mailbox: { send: (event) => events.push(event) },
+      actorEpoch: 'epoch'
+    });
+
+    const result = player.play('pattern-star-map', 1, { runId: 'epoch:1' });
+    await flushMicrotasks();
+    player.scrub('pattern-star-map', 0.45);
+    await vi.advanceTimersByTimeAsync(159);
+    expect(renderedProgress).toBe(0.45);
+
+    await vi.advanceTimersByTimeAsync(700);
+    await expect(result).resolves.toMatchObject({ status: 'completed', direction: 1 });
+    await flushMicrotasks();
+    expect(renderedProgress).toBe(1);
+    expect(events).toContainEqual({ type: 'PLAYBACK_DONE', runId: 'epoch:1' });
+  });
+
+  it('restarts the scrub idle delay when fresh input arrives', async () => {
+    vi.useFakeTimers();
+    let renderedProgress = 0;
+    const player = new SegmentPlayer({
+      transitions: {
+        'pattern-star-map': {
+          id: 'pattern-star-map',
+          buildTimeline: () => ({
+            play: () => Promise.resolve(),
+            progress: (value) => {
+              renderedProgress = value;
+            },
+            reverse: () => Promise.resolve(),
+            jumpToEnd: vi.fn(),
+            dispose: vi.fn()
+          })
+        }
+      },
+      actorEpoch: 'epoch'
+    });
+
+    const result = player.play('pattern-star-map', 1, { runId: 'epoch:1' });
+    await flushMicrotasks();
+    player.scrub('pattern-star-map', 0.3);
+    await vi.advanceTimersByTimeAsync(100);
+    player.scrub('pattern-star-map', 0.4);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(renderedProgress).toBe(0.4);
+    player.disposeAll();
+    await result;
+  });
+
+  it('snaps an idle reverse scrub through intermediate frames to zero', async () => {
+    vi.useFakeTimers();
+    const rendered: number[] = [];
+    const player = new SegmentPlayer({
+      transitions: {
+        'pattern-star-map': {
+          id: 'pattern-star-map',
+          buildTimeline: () => ({
+            play: () => Promise.resolve(),
+            progress: (value) => rendered.push(value),
+            reverse: () => Promise.resolve(),
+            jumpToEnd: vi.fn(),
+            dispose: vi.fn()
+          })
+        }
+      },
+      actorEpoch: 'epoch'
+    });
+
+    const result = player.play('pattern-star-map', -1, { runId: 'epoch:1' });
+    await flushMicrotasks();
+    player.scrub('pattern-star-map', 0.62);
+    await vi.advanceTimersByTimeAsync(900);
+
+    await expect(result).resolves.toMatchObject({ status: 'completed', direction: -1 });
+    expect(rendered.at(-1)).toBe(0);
+    expect(rendered.some((value) => value > 0 && value < 0.62)).toBe(true);
   });
 });

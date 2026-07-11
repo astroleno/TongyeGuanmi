@@ -3,8 +3,11 @@ import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import {
   createHeroPatternTransition,
+  HERO_PATTERN_INK_TARGET_IMAGE,
   patternBloomProgressForHeroPattern,
   patternRevealProgressForHeroPattern,
+  patternSceneOpacityForHeroPattern,
+  renderHeroForHeroPattern,
   renderPatternForHeroPattern
 } from './index';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
@@ -78,14 +81,14 @@ function context(prefersReducedMotion = false): TransitionContext {
 }
 
 describe('hero-pattern transition', () => {
-  it('matches main bloom timing after the initial full-petal reveal', () => {
+  it('pauses on the fully revealed lotus before a second input collapses it', () => {
     expect(patternRevealProgressForHeroPattern(0)).toBe(0);
-    expect(patternRevealProgressForHeroPattern(0.23)).toBeCloseTo(0.5, 5);
-    expect(patternRevealProgressForHeroPattern(0.46)).toBe(1);
+    expect(patternRevealProgressForHeroPattern(0.29)).toBeCloseTo(0.5, 5);
+    expect(patternRevealProgressForHeroPattern(0.58)).toBe(1);
     expect(patternBloomProgressForHeroPattern(0)).toBe(0);
-    expect(patternBloomProgressForHeroPattern(0.419)).toBe(0);
-    expect(patternBloomProgressForHeroPattern(0.56)).toBeCloseTo(0.5, 5);
-    expect(patternBloomProgressForHeroPattern(0.70)).toBe(1);
+    expect(patternBloomProgressForHeroPattern(0.5)).toBe(0);
+    expect(patternBloomProgressForHeroPattern(0.58)).toBe(0);
+    expect(patternBloomProgressForHeroPattern(0.79)).toBeCloseTo(0.5, 5);
     expect(patternBloomProgressForHeroPattern(1)).toBe(1);
   });
 
@@ -98,10 +101,39 @@ describe('hero-pattern transition', () => {
     expect(root.style.values.get('--r4-pattern-progress')).toBe('0.0000');
     expect(root.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
 
-    renderPatternForHeroPattern(root as unknown as HTMLElement, 0.419);
+    renderPatternForHeroPattern(root as unknown as HTMLElement, 0.58);
 
     expect(root.attributes.get('data-pattern-progress')).toBe('0.0000');
     expect(root.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
+  });
+
+  it('rotates the full-size lotus while the ink reveal is running', () => {
+    const root = new FakeElement();
+
+    renderPatternForHeroPattern(root as unknown as HTMLElement, 0.29);
+    expect(root.style.values.get('--r4-pattern-progress')).toBe('0.0000');
+    expect(root.style.values.get('--r4-pattern-field-rotation')).toBe('60.00deg');
+
+    renderPatternForHeroPattern(root as unknown as HTMLElement, 0.58);
+    expect(root.style.values.get('--r4-pattern-field-rotation')).toBe('0.00deg');
+  });
+
+  it('crossfades the real Pattern canvas before the ink texture fades out', () => {
+    expect(patternSceneOpacityForHeroPattern(0.46)).toBe(0);
+    expect(patternSceneOpacityForHeroPattern(0.52)).toBeGreaterThan(0);
+    expect(patternSceneOpacityForHeroPattern(0.52)).toBeLessThan(1);
+    expect(patternSceneOpacityForHeroPattern(0.58)).toBe(1);
+  });
+
+  it('keeps Hero fully composed while the static Pattern ink target owns the reveal', () => {
+    const root = new FakeElement();
+
+    renderHeroForHeroPattern(root as unknown as HTMLElement);
+
+    expect(root.attributes.get('data-hero-progress')).toBe('1.0000');
+    expect(root.style.values.get('--r4-hero-progress')).toBe('1.0000');
+    expect(root.style.values.get('--r4-hero-exit-lift')).toBe('0.00px');
+    expect(HERO_PATTERN_INK_TARGET_IMAGE).toContain('pattern-bloom-initial-no-stars.png');
   });
 
   it('passes timeline verification and exposes a reduced-motion fallback', async () => {

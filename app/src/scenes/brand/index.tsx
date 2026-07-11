@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const BRAND_COPY = [
@@ -27,11 +28,15 @@ export function renderBrandProgress(root: HTMLElement | null, progress: number):
 }
 
 function BrandScene({ registerHandle }: SceneComponentProps) {
+  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        renderBrandProgress(element, 1);
+        if (element && !initializedRef.current) {
+          renderBrandProgress(element, 1);
+          initializedRef.current = true;
+        }
       }}
       className="r4-brand"
       data-r4-scene="brand"

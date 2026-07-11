@@ -27,6 +27,8 @@ import { createPhEducationTransition } from '../../transitions/ph-education';
 import { createServicesTtgTransition } from '../../transitions/services-ttg';
 import { createTtgLabTransition } from '../../transitions/ttg-lab';
 import { createR4BackHalfManifest } from './backHalfManifest';
+import { inputBudgetBetweenScenes } from './inputBudget';
+import { findMediaElementByKey, prepareTimeoutForManifest, waitForRequiredMediaReady } from './mediaGate';
 
 type HarnessPhase = 'booting' | 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
 type BackHalfScene = 'services' | 'ttg-animation' | 'lab' | 'ph-animation' | 'education' | 'crane-animation' | 'contact';
@@ -58,6 +60,7 @@ type BackHalfHarnessApi = {
   playReverse(): Promise<void>;
   playThroughContact(): Promise<void>;
   playThroughServices(): Promise<void>;
+  inputBudgetTo(scene: BackHalfScene): number;
   seek(scene: BackHalfScene): void;
   snapshot(): BackHalfSnapshot;
 };
@@ -100,8 +103,9 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 }
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
-  for (let attempt = 0; attempt < 180; attempt += 1) {
-    if (String(runtime.getState().state) === 'hold') {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    const state = String(runtime.getState().state);
+    if (state === 'hold' || state === 'staged-paused') {
       return;
     }
     await wait(25);
@@ -241,6 +245,7 @@ export function BackHalfHarness() {
     () =>
       createDirectorRuntime({
         actorEpoch: 'r4-back-half',
+        prepareTimeoutMs: prepareTimeoutForManifest(manifest),
         manifest,
         stage: stageHandle,
         transitions: {
@@ -261,6 +266,14 @@ export function BackHalfHarness() {
             }
             throw new Error(`targetReady timed out for ${targetScene}`);
           },
+          waitForMediaReady: ({ segment, prepareToken, direction }) =>
+            waitForRequiredMediaReady({
+              segment,
+              prepareToken,
+              direction,
+              registry,
+              getMediaElement: (key) => findMediaElementByKey(layerElements.current.values(), key)
+            }),
           beginBuild: ({ segment, prepareToken, prepareRunId }) => {
             if (BACK_HALF_SEGMENTS.includes(segment.id)) {
               registry.beginBuildGate(segment.id, { prepareToken, runId: prepareRunId });
@@ -308,12 +321,17 @@ export function BackHalfHarness() {
   };
 
   const playUntil = async (target: BackHalfScene, direction: Direction) => {
-    for (let attempt = 0; attempt <= BACK_HALF_SEGMENTS.length; attempt += 1) {
+    const start = runtime.getState().context.layerWindow.current;
+    const inputBudget = inputBudgetBetweenScenes(manifest, start, target);
+    for (let attempt = 0; attempt < inputBudget; attempt += 1) {
       const current = runtime.getState().context.layerWindow.current;
       if (current === target) {
         return;
       }
       await play(direction);
+    }
+    if (runtime.getState().context.layerWindow.current === target) {
+      return;
     }
     throw new Error(`R4 back-half did not reach ${target}`);
   };
@@ -329,6 +347,7 @@ export function BackHalfHarness() {
   };
 
   useEffect(() => {
+    runtime.start();
     const unsubscribe = runtime.subscribe(() => {
       const next = runtime.getState();
       runtimeSnapshotRef.current = next;
@@ -344,6 +363,7 @@ export function BackHalfHarness() {
     }
     return () => {
       unsubscribe();
+      runtime.stop();
     };
   }, [runtime]);
 
@@ -353,6 +373,11 @@ export function BackHalfHarness() {
       playReverse: () => play(-1),
       playThroughContact: () => playUntil('contact', 1),
       playThroughServices: () => playUntil('services', -1),
+      inputBudgetTo: (scene) => inputBudgetBetweenScenes(
+        manifest,
+        runtime.getState().context.layerWindow.current,
+        scene
+      ),
       seek,
       snapshot: () => readDomSnapshot(runtimeSnapshotRef.current, metricsRef.current)
     };

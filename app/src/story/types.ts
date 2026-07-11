@@ -27,7 +27,6 @@ export const SEGMENT_IDS = [
   'pattern-star-map',
   'star-map-aod',
   'aod-method-top',
-  'method-top-method-bottom',
   'method-bottom-figure2',
   'figure2-distance-expand',
   'figure2-proof-opening-cards',
@@ -69,7 +68,7 @@ export type MediaKey = string;
 export type SegmentVisual =
   | {
       type: 'ink';
-      ink: 'center-expand' | 'left-rotate-expand' | 'horizontal' | 'sun-radial';
+      ink: 'center-expand' | 'left-rotate-expand' | 'horizontal';
       direction?: 'bottom-to-top' | 'top-to-bottom';
     }
   | { type: 'media'; media: readonly MediaKey[] }
@@ -100,6 +99,7 @@ export type SpineHoldNode = {
   scene: SceneId;
   reading: boolean;
   staticFallback: boolean;
+  freshInput?: boolean;
   buildTimeoutMs?: number;
 };
 
@@ -110,6 +110,7 @@ export type SpineSegmentNode = {
   to: SceneId;
   policy: SegmentPolicy;
   virtualDuration: number;
+  requiredMilestones?: readonly MilestoneKey[];
   visual?: SegmentVisual;
   copyCue?: CopyCue;
   mediaPlayback?: readonly MediaPlaybackContract[];

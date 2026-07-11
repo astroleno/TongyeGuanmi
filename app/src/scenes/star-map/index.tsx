@@ -3,6 +3,7 @@ import type { SceneComponentProps, SceneModule } from '../../story/types';
 import { initStarFieldReveal } from './starFieldReveal';
 
 const STAR_MAP_IMAGE = new URL('../../../../assets/back2.png', import.meta.url).href;
+const STAR_MAP_FRAME_INTERVAL_MS = 1000 / 12;
 
 export const STAR_MAP_COPY =
   'AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。它决定了未来三年你是领跑还是追赶。';
@@ -13,9 +14,41 @@ export type StarMapRenderState = {
   canvasStrength: number;
 };
 
+type StarMapPaintController = {
+  setActive(active: boolean): void;
+};
+
+type StarMapRoot = HTMLElement & {
+  __r4StarMapPaintController?: StarMapPaintController;
+};
+
+export function starMapMotionEnabled(hidden: boolean, reducedMotion: boolean): boolean {
+  void hidden;
+  void reducedMotion;
+  return false;
+}
+
+export function pauseStarMapTransitionMotion(root: HTMLElement | null | undefined): void {
+  const controlledRoot = root as StarMapRoot | null | undefined;
+  if (!controlledRoot) {
+    return;
+  }
+  controlledRoot.dataset.starMapTransitionMotion = 'paused';
+  controlledRoot.__r4StarMapPaintController?.setActive(false);
+}
+
+export function releaseStarMapTransitionMotion(root: HTMLElement | null | undefined): void {
+  const controlledRoot = root as StarMapRoot | null | undefined;
+  if (!controlledRoot) {
+    return;
+  }
+  delete controlledRoot.dataset.starMapTransitionMotion;
+  controlledRoot.__r4StarMapPaintController?.setActive(false);
+}
+
 export function renderStarMapProgress(root: HTMLElement | null, progress: number): StarMapRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
-  const copyOpacity = 0.72 * clamped;
+  const copyOpacity = clamped;
   const canvasStrength = 0.88 * clamped;
   root?.style.setProperty('--r3-star-scene-opacity', '1.0000');
   root?.style.setProperty('--r3-star-copy-opacity', copyOpacity.toFixed(4));
@@ -27,6 +60,7 @@ export function renderStarMapProgress(root: HTMLElement | null, progress: number
 function StarMapScene({ hidden, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const paintControllerRef = useRef<{ setActive(active: boolean): void } | null>(null);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -39,8 +73,13 @@ function StarMapScene({ hidden, registerHandle }: SceneComponentProps) {
       return;
     }
     let disposed = false;
-    let animationFrame = 0;
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let readyFrame = 0;
+    let liveFrame = 0;
+    let revision = 0;
+    let motionActive = false;
+    let firstFramePainted = false;
+    let lastPaintedAt = -Infinity;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const reveal = initStarFieldReveal({
       canvas,
       sourceUrl: STAR_MAP_IMAGE,
@@ -51,45 +90,95 @@ function StarMapScene({ hidden, registerHandle }: SceneComponentProps) {
       }
     });
 
-    const renderLiveBackground = (now = performance.now()) => {
-      if (disposed || !reveal.ready) {
-        return;
+    const paintBackground = (now = performance.now(), force = false) => {
+      if (disposed || !reveal.ready || (!force && now - lastPaintedAt < STAR_MAP_FRAME_INTERVAL_MS)) {
+        return false;
       }
       const timeSeconds = now / 1000;
-      const pulse = reduceMotion ? 0 : (Math.sin(timeSeconds * 0.34) * 0.08 + Math.sin(timeSeconds * 0.17) * 0.05);
+      const pulse = reducedMotion ? 0 : Math.sin(timeSeconds * 0.34) * 0.08 + Math.sin(timeSeconds * 0.17) * 0.05;
       reveal.renderBackground({
         timeSeconds,
-        strength: reduceMotion ? 0.72 : 1.05 + pulse,
-        noiseFloor: reduceMotion ? 0.02 : 0.028
+        strength: reducedMotion ? 0.72 : 1.05 + pulse,
+        noiseFloor: reducedMotion ? 0.02 : 0.028
       });
+      firstFramePainted = true;
+      lastPaintedAt = now;
       canvas.classList.add('is-ready');
       canvas.dataset.inkTextureReady = 'true';
-      if (!reduceMotion) {
-        animationFrame = requestAnimationFrame(renderLiveBackground);
+      revision += 1;
+      canvas.dataset.inkTextureRevision = String(revision);
+      return true;
+    };
+
+    const renderLiveBackground = (now: number) => {
+      liveFrame = 0;
+      if (!motionActive || reducedMotion) {
+        return;
       }
+      paintBackground(now);
+      liveFrame = requestAnimationFrame(renderLiveBackground);
+    };
+
+    const scheduleLiveBackground = () => {
+      if (!motionActive || reducedMotion || liveFrame || !firstFramePainted) {
+        return;
+      }
+      liveFrame = requestAnimationFrame(renderLiveBackground);
     };
 
     const markReady = () => {
-      if (disposed) {
+      readyFrame = 0;
+      if (disposed || firstFramePainted) {
         return;
       }
       if (!reveal.ready) {
-        animationFrame = requestAnimationFrame(markReady);
+        readyFrame = requestAnimationFrame(markReady);
         return;
       }
-      renderLiveBackground();
+      paintBackground(performance.now(), true);
+      scheduleLiveBackground();
     };
 
-    markReady();
+    readyFrame = requestAnimationFrame(markReady);
+    const controller: StarMapPaintController = {
+      setActive(nextActive) {
+        motionActive = nextActive && !reducedMotion;
+        canvas.dataset.starMapMotionActive = String(motionActive);
+        if (!motionActive) {
+          cancelAnimationFrame(liveFrame);
+          liveFrame = 0;
+          return;
+        }
+        scheduleLiveBackground();
+      }
+    };
+    paintControllerRef.current = controller;
+    const root = rootRef.current as StarMapRoot | null;
+    if (root) {
+      root.__r4StarMapPaintController = controller;
+    }
 
     return () => {
       disposed = true;
-      cancelAnimationFrame(animationFrame);
+      cancelAnimationFrame(readyFrame);
+      cancelAnimationFrame(liveFrame);
       reveal.dispose();
+      paintControllerRef.current = null;
+      if (root?.__r4StarMapPaintController === controller) {
+        delete root.__r4StarMapPaintController;
+      }
       canvas.classList.remove('is-ready');
       delete canvas.dataset.inkTextureReady;
+      delete canvas.dataset.inkTextureRevision;
+      delete canvas.dataset.starMapMotionActive;
     };
   }, []);
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const transitionPaused = rootRef.current?.dataset.starMapTransitionMotion === 'paused';
+    paintControllerRef.current?.setActive(transitionPaused ? false : starMapMotionEnabled(hidden, reducedMotion));
+  }, [hidden]);
 
   return (
     <article ref={rootRef} className="r3-star-map" data-r3-scene="star-map">

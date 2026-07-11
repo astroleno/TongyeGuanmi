@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const SERVICES_COPY = [
@@ -48,11 +49,15 @@ export function renderServicesProgress(root: HTMLElement | null | undefined, pro
 }
 
 function ServicesScene({ registerHandle }: SceneComponentProps) {
+  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        renderServicesProgress(element, 1);
+        if (element && !initializedRef.current) {
+          renderServicesProgress(element, 1);
+          initializedRef.current = true;
+        }
       }}
       className="r4-services"
       data-r4-scene="services"

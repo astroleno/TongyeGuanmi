@@ -13,6 +13,7 @@ export const CRANE_FLOCK_VIDEO_SRC = new URL('../../../../assets/crane-figure2-t
 
 const TIMELINE_DURATION_SECONDS = 3.5;
 const VIDEO_DURATION_FALLBACK = 2.5;
+export const CRANE_PLAYBACK_MS = 4200;
 const FLOCK_START_SECONDS = 0;
 const FLOCK_END_SECONDS = 2.5;
 const FIGURE_START_SECONDS = 0.5;
@@ -31,6 +32,7 @@ export type CraneRenderState = {
 
 type CraneRenderOptions = {
   playback?: boolean;
+  reverseScrub?: boolean;
 };
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
@@ -66,52 +68,19 @@ function seekVideo(video: HTMLVideoElement | null | undefined, progress: number)
   }
 }
 
-function finishVideo(video: HTMLVideoElement | null | undefined, progress: number): void {
-  if (!video) {
-    return;
-  }
-  video.loop = false;
-  video.pause();
-  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : VIDEO_DURATION_FALLBACK;
-  video.currentTime = Math.max(0, Math.min(duration - 0.001, clamp(progress) * duration));
-}
-
-function playVideo(video: HTMLVideoElement | null | undefined): void {
-  if (!video || !video.paused) {
-    return;
-  }
-  void video.play().catch(() => undefined);
-}
-
-function driveCranePlayback(
+function driveCraneTimeline(
   section: HTMLElement | null,
   progress: number,
   figureProgress: number,
-  flockProgress: number
+  flockProgress: number,
+  direction: 1 | -1
 ): void {
   const figureVideo = section?.querySelector<HTMLVideoElement>('[data-crane-figure-video]');
   const flockVideo = section?.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]');
+  seekVideo(figureVideo, figureProgress);
+  seekVideo(flockVideo, flockProgress);
+  section?.setAttribute('data-crane-playback-direction', String(direction));
   section?.setAttribute('data-crane-playback-active', String(progress > 0.001 && progress < 0.999));
-  if (progress <= 0.001) {
-    finishVideo(figureVideo, 0);
-    finishVideo(flockVideo, 0);
-    return;
-  }
-  if (progress >= 0.999) {
-    finishVideo(figureVideo, 1);
-    finishVideo(flockVideo, 1);
-    return;
-  }
-  if (figureProgress > 0.001 && figureProgress < 0.999) {
-    playVideo(figureVideo);
-  } else {
-    finishVideo(figureVideo, figureProgress);
-  }
-  if (flockProgress > 0.001 && flockProgress < 0.999) {
-    playVideo(flockVideo);
-  } else {
-    finishVideo(flockVideo, flockProgress);
-  }
 }
 
 function setTransform(element: HTMLElement | null | undefined, transform: string): void {
@@ -128,7 +97,8 @@ function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
 
 export function renderCraneAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number, options: CraneRenderOptions = {}): CraneRenderState {
   const section = rootFor(root);
-  const progress = acceleratedProgress(rawProgress);
+  const timelineProgress = stableProgress(rawProgress);
+  const progress = acceleratedProgress(timelineProgress);
   const time = progress * TIMELINE_DURATION_SECONDS;
   const grow = smoothStep(range01(time, FIGURE_START_SECONDS, FIGURE_FULLSCREEN_SECONDS));
   const reveal = smoothStep(range01(time, FIGURE_START_SECONDS + 0.05, FIGURE_START_SECONDS + 0.7));
@@ -159,8 +129,10 @@ export function renderCraneAnimationProgress(root: HTMLElement | null | undefine
   setTransform(section?.querySelector<HTMLElement>('.crane-layer--cloud-front'), `translate3d(-50%, ${(downExitY * 1.14).toFixed(2)}px, 0)`);
   const figureProgress = range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS);
   const flockProgress = range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS);
-  if (options.playback) {
-    driveCranePlayback(section, progress, figureProgress, flockProgress);
+  if (options.reverseScrub) {
+    driveCraneTimeline(section, timelineProgress, figureProgress, flockProgress, -1);
+  } else if (options.playback) {
+    driveCraneTimeline(section, timelineProgress, figureProgress, flockProgress, 1);
   } else {
     section?.setAttribute('data-crane-playback-active', 'false');
     seekVideo(section?.querySelector<HTMLVideoElement>('[data-crane-figure-video]'), figureProgress);

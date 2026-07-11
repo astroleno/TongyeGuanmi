@@ -119,16 +119,22 @@ function holdVisibility(window: LayerWindowSnapshot): Partial<Record<SceneId, La
 
 function harnessManifest(): StoryManifest {
   const clone = structuredClone(storyManifest);
-  const firstSegment = clone.nodes[1];
-  if (firstSegment?.kind !== 'segment' || firstSegment.id !== 'hero-pattern') {
-    throw new Error('R2 harness requires hero-pattern as the first segment');
-  }
-  const nodes = [...clone.nodes];
-  nodes[1] = {
-    ...firstSegment,
-    buildTimeoutMs: 220,
-    copyCue: syntheticCopyCue
-  };
+  const nodes = clone.nodes.map((node) => {
+    if (node.kind !== 'segment' || (node.id !== 'hero-pattern' && node.id !== 'pattern-star-map')) {
+      return node;
+    }
+    return {
+      ...node,
+      policy: {
+        kind: 'snap' as const,
+        chargeThreshold: clone.defaults.chargeThreshold
+      },
+      virtualDuration: 260,
+      ...(node.id === 'hero-pattern'
+        ? { buildTimeoutMs: 220, copyCue: syntheticCopyCue }
+        : { copyCue: syntheticRetiringCopyCue })
+    };
+  });
   return {
     ...clone,
     nodes
@@ -153,9 +159,9 @@ function applyElementVisibility(element: HTMLElement | undefined, state: LayerVi
 }
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
     const state = String(runtime.getState().state);
-    if (state === 'hold') {
+    if (state === 'hold' || state === 'staged-paused') {
       return;
     }
     await wait(25);
@@ -383,6 +389,7 @@ export function StageHarness() {
   const runtimeSnapshotRef = useRef(runtimeSnapshot);
 
   useEffect(() => {
+    runtime.start();
     const unsubscribe = runtime.subscribe(() => {
       const next = runtime.getState();
       runtimeSnapshotRef.current = next;
@@ -394,6 +401,7 @@ export function StageHarness() {
     runtime.send({ type: 'BOOT_READY' });
     return () => {
       unsubscribe();
+      runtime.stop();
     };
   }, [runtime]);
 

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const TTG_MEDIA_KEY = 'ttg_figure-alpha-scrub';
+export const TTG_REVERSE_MEDIA_KEY = 'ttg_figure-alpha-scrub-reverse';
 export const TTG_BG_SRC = new URL('../../../../assets/ttg_bg.png', import.meta.url).href;
 export const TTG_MIDDLE_SRC = new URL('../../../../assets/ttg_middle-alpha.png', import.meta.url).href;
 export const TTG_MIDDLE_OVERLAY_SRC = new URL('../../../../assets/ttg_middle-original-overlay-alpha.png', import.meta.url).href;
@@ -10,6 +11,8 @@ export const TTG_FRONT_OVERLAY_SRC = new URL('../../../../assets/ttg_front-alpha
 export const TTG_FIGURE_VIDEO_SRC = new URL('../../../../assets/ttg_figure-alpha-scrub.webm', import.meta.url).href;
 export const TTG_FIGURE_REVERSE_VIDEO_SRC = new URL('../../../../assets/ttg_figure-alpha-scrub-reverse.webm', import.meta.url).href;
 export const TTG_FIGURE_POSTER_SRC = new URL('../../../../assets/ttg_figure-alpha-scrub-poster.png', import.meta.url).href;
+export const TTG_HOLD_PROGRESS = 0;
+export const TTG_PLAYBACK_MS = 2500;
 
 export type TtgRenderState = {
   progress: number;
@@ -38,6 +41,8 @@ const TTG_CONFIG = {
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 const stableProgress = (value: number) => (value < 0.002 ? 0 : value > 0.998 ? 1 : clamp(value));
+const playbackFallbackVideos = new WeakSet<HTMLVideoElement>();
+const playbackGenerations = new WeakMap<HTMLVideoElement, number>();
 const acceleratedProgress = (progress: number) => {
   const p = stableProgress(progress);
   return clamp(0.78 * p + 0.22 * p * p);
@@ -70,11 +75,48 @@ function finishVideo(video: HTMLVideoElement | null | undefined, progress: numbe
   video.currentTime = Math.max(0, Math.min(duration - 0.02, progress * duration));
 }
 
-function playVideo(video: HTMLVideoElement | null | undefined): void {
-  if (!video || !video.paused) {
+function invalidatePlayback(video: HTMLVideoElement | null | undefined): void {
+  if (!video) {
     return;
   }
-  void video.play().catch(() => undefined);
+  playbackGenerations.set(video, (playbackGenerations.get(video) ?? 0) + 1);
+  video.pause();
+}
+
+function playVideo(
+  video: HTMLVideoElement | null | undefined,
+  remainingProgress: number,
+  mediaProgress: number,
+  section: HTMLElement | null
+): void {
+  if (!video) {
+    return;
+  }
+  if (playbackFallbackVideos.has(video)) {
+    seekVideo(video, mediaProgress);
+    section?.setAttribute('data-ttg-playback-fallback', 'true');
+    return;
+  }
+  if (video.paused) {
+    seekVideo(video, mediaProgress);
+  }
+  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : TTG_CONFIG.videoDurationFallback;
+  const remainingTimelineSeconds = Math.max(0.05, clamp(remainingProgress) * (TTG_PLAYBACK_MS / 1000));
+  const remainingMediaSeconds = Math.max(0, duration - video.currentTime);
+  video.playbackRate = Math.min(2, Math.max(0.25, remainingMediaSeconds / remainingTimelineSeconds));
+  if (!video.paused) {
+    return;
+  }
+  const generation = (playbackGenerations.get(video) ?? 0) + 1;
+  playbackGenerations.set(video, generation);
+  void video.play().catch(() => {
+    if (playbackGenerations.get(video) !== generation) {
+      return;
+    }
+    playbackFallbackVideos.add(video);
+    section?.setAttribute('data-ttg-playback-fallback', 'true');
+    seekVideo(video, mediaProgress);
+  });
 }
 
 function driveFigurePlayback(section: HTMLElement | null, progress: number): void {
@@ -84,12 +126,14 @@ function driveFigurePlayback(section: HTMLElement | null, progress: number): voi
   const direction = progress >= previous ? 1 : -1;
   section?.setAttribute('data-ttg-playback-direction', String(direction));
   section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));
+  section?.setAttribute('data-ttg-playback-active', String(progress > 0.001 && progress < 0.999));
 
   if (progress <= 0.001) {
     forwardVideo?.classList.add('is-active');
     reverseVideo?.classList.remove('is-active');
     finishVideo(forwardVideo, 0);
     finishVideo(reverseVideo, 1);
+    section?.setAttribute('data-ttg-playback-active', 'false');
     return;
   }
   if (progress >= 0.999) {
@@ -97,18 +141,19 @@ function driveFigurePlayback(section: HTMLElement | null, progress: number): voi
     reverseVideo?.classList.remove('is-active');
     finishVideo(forwardVideo, 1);
     finishVideo(reverseVideo, 0);
+    section?.setAttribute('data-ttg-playback-active', 'false');
     return;
   }
   if (direction >= 0) {
     forwardVideo?.classList.add('is-active');
     reverseVideo?.classList.remove('is-active');
-    reverseVideo?.pause();
-    playVideo(forwardVideo);
+    invalidatePlayback(reverseVideo);
+    playVideo(forwardVideo, 1 - progress, progress, section);
   } else {
     reverseVideo?.classList.add('is-active');
     forwardVideo?.classList.remove('is-active');
-    forwardVideo?.pause();
-    playVideo(reverseVideo);
+    invalidatePlayback(forwardVideo);
+    playVideo(reverseVideo, progress, 1 - progress, section);
   }
 }
 
@@ -153,7 +198,7 @@ function TtgAnimationScene({ role, registerHandle }: SceneComponentProps) {
 
   useEffect(() => {
     if (role === 'current' && rootRef.current) {
-      renderTtgAnimationProgress(rootRef.current, 1);
+      renderTtgAnimationProgress(rootRef.current, TTG_HOLD_PROGRESS);
     }
   }, [role]);
 
@@ -163,7 +208,7 @@ function TtgAnimationScene({ role, registerHandle }: SceneComponentProps) {
         rootRef.current = element;
         registerHandle?.('field', element);
         if (element && !initializedRef.current) {
-          renderTtgAnimationProgress(element, role === 'current' ? 1 : 0);
+          renderTtgAnimationProgress(element, TTG_HOLD_PROGRESS);
           initializedRef.current = true;
         }
       }}
@@ -207,8 +252,10 @@ function TtgAnimationScene({ role, registerHandle }: SceneComponentProps) {
                 playsInline
               />
               <video
+                ref={(element) => registerHandle?.('figure-video-reverse', element)}
                 className="ttg-layer ttg-layer--figure"
                 data-ttg-figure-video-reverse
+                data-media-key={TTG_REVERSE_MEDIA_KEY}
                 src={TTG_FIGURE_REVERSE_VIDEO_SRC}
                 width="720"
                 height="1280"
@@ -228,6 +275,6 @@ function TtgAnimationScene({ role, registerHandle }: SceneComponentProps) {
 export const ttgAnimationScene: SceneModule = {
   id: 'ttg-animation',
   Component: TtgAnimationScene,
-  requiredHandles: ['field', 'figure-video'],
+  requiredHandles: ['field', 'figure-video', 'figure-video-reverse'],
   preload: () => ({ milestones: ['targetReady', 'mediaReady'] })
 };

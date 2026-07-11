@@ -19,6 +19,8 @@ import { phAnimationScene } from '../../scenes/ph-animation';
 import { createLabPhTransition } from '../../transitions/lab-ph';
 import { createPhEducationTransition } from '../../transitions/ph-education';
 import { createR4Group6Manifest, type R4Group6HarnessMode } from './group6Manifest';
+import { adjacentHoldScene, inputBudgetBetweenScenes } from './inputBudget';
+import { findMediaElementByKey, prepareTimeoutForManifest, waitForRequiredMediaReady } from './mediaGate';
 
 type HarnessPhase = 'booting' | 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
 
@@ -86,7 +88,8 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
   for (let attempt = 0; attempt < 160; attempt += 1) {
-    if (String(runtime.getState().state) === 'hold') {
+    const state = String(runtime.getState().state);
+    if (state === 'hold' || state === 'staged-paused') {
       return;
     }
     await wait(25);
@@ -232,6 +235,7 @@ export function Group6Harness({ mode }: { mode: R4Group6HarnessMode }) {
     () =>
       createDirectorRuntime({
         actorEpoch: `r4-g6-${mode}`,
+        prepareTimeoutMs: prepareTimeoutForManifest(manifest),
         manifest,
         stage: stageHandle,
         transitions: {
@@ -248,6 +252,14 @@ export function Group6Harness({ mode }: { mode: R4Group6HarnessMode }) {
             }
             throw new Error(`targetReady timed out for ${targetScene}`);
           },
+          waitForMediaReady: ({ segment, prepareToken, direction }) =>
+            waitForRequiredMediaReady({
+              segment,
+              prepareToken,
+              direction,
+              registry,
+              getMediaElement: (key) => findMediaElementByKey(layerElements.current.values(), key)
+            }),
           beginBuild: ({ segment, prepareToken, prepareRunId }) => {
             if (GROUP_SEGMENTS.includes(segment.id)) {
               registry.beginBuildGate(segment.id, { prepareToken, runId: prepareRunId });
@@ -272,6 +284,7 @@ export function Group6Harness({ mode }: { mode: R4Group6HarnessMode }) {
   const runtimeSnapshotRef = useRef(runtimeSnapshot);
 
   useEffect(() => {
+    runtime.start();
     const unsubscribe = runtime.subscribe(() => {
       const next = runtime.getState();
       runtimeSnapshotRef.current = next;
@@ -283,6 +296,7 @@ export function Group6Harness({ mode }: { mode: R4Group6HarnessMode }) {
     runtime.send({ type: 'BOOT_READY' });
     return () => {
       unsubscribe();
+      runtime.stop();
     };
   }, [runtime]);
 
@@ -330,10 +344,29 @@ export function Group6Harness({ mode }: { mode: R4Group6HarnessMode }) {
     }
   };
 
+  const playUntilScene = async (target: SceneId, direction: Direction) => {
+    const start = runtime.getState().context.layerWindow.current;
+    const inputBudget = inputBudgetBetweenScenes(manifest, start, target);
+    for (let attempt = 0; attempt < inputBudget; attempt += 1) {
+      if (runtime.getState().context.layerWindow.current === target) {
+        return;
+      }
+      await play(direction);
+    }
+    if (runtime.getState().context.layerWindow.current !== target) {
+      throw new Error(`R4 group6 did not reach ${target}`);
+    }
+  };
+
   const idempotentCycle = async () => {
-    await play(1);
-    await play(-1);
-    await play(1);
+    const start = runtime.getState().context.layerWindow.current;
+    const target = adjacentHoldScene(manifest, start, 1);
+    if (!target) {
+      return;
+    }
+    await playUntilScene(target, 1);
+    await playUntilScene(start, -1);
+    await playUntilScene(target, 1);
   };
 
   useEffect(() => {

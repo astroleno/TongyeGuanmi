@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDirectorRuntime } from './director.actor';
 import { storyManifest } from '../story/manifest';
-import type { StoryManifest } from '../story/types';
+import type { LayerHandle, LayerVisibilityState, SceneId, StageHandle, StoryManifest } from '../story/types';
 
 async function flush(ms = 0): Promise<void> {
   await vi.advanceTimersByTimeAsync(ms);
@@ -33,6 +33,65 @@ function withFirstSegmentScrub(): StoryManifest {
   } as StoryManifest;
 }
 
+function withFirstSegmentStaged(): StoryManifest {
+  const source = structuredClone(storyManifest);
+  const nodes = [...source.nodes];
+  const firstSegment = nodes[1];
+  if (firstSegment?.kind !== 'segment') {
+    throw new Error('missing first segment');
+  }
+  return {
+    ...source,
+    nodes: [
+      nodes[0]!,
+      {
+        ...firstSegment,
+        policy: { kind: 'stagedSnap', stops: [0.5], playMs: [40, 60] },
+        virtualDuration: 100
+      },
+      ...nodes.slice(2)
+    ]
+  } as StoryManifest;
+}
+
+function withSegmentsSnap(...segmentIds: readonly string[]): StoryManifest {
+  const source = structuredClone(storyManifest);
+  return {
+    ...source,
+    nodes: source.nodes.map((node) => node.kind === 'segment' && segmentIds.includes(node.id)
+      ? { ...node, policy: { kind: 'snap', chargeThreshold: 0.1 } }
+      : node)
+  } as StoryManifest;
+}
+
+function readingStage(scene: SceneId, element: HTMLElement): StageHandle {
+  let visibility: LayerVisibilityState = {
+    mounted: true,
+    visible: true,
+    inert: false,
+    opacity: 1,
+    pointerEvents: 'auto'
+  };
+  const layer: LayerHandle = {
+    scene,
+    role: 'current',
+    element,
+    get visibility() {
+      return visibility;
+    },
+    setVisibility(next) {
+      visibility = next;
+    },
+    dispose() {}
+  };
+  return {
+    getLayer: (candidate) => candidate === scene ? layer : undefined,
+    ensureLayer: () => layer,
+    releaseLayer() {},
+    snapshot: () => [layer]
+  };
+}
+
 describe('director runtime actor loop', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -43,8 +102,113 @@ describe('director runtime actor loop', () => {
     vi.useRealTimers();
   });
 
+  it('disposes cached transition resources when the runtime stops', async () => {
+    const dispose = vi.fn();
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'stop-dispose',
+      manifest: withSegmentsSnap('hero-pattern'),
+      transitions: {
+        'hero-pattern': {
+          id: 'hero-pattern',
+          buildTimeline: () => ({
+            play: () => Promise.resolve(),
+            progress: vi.fn(),
+            reverse: () => Promise.resolve(),
+            jumpToEnd: vi.fn(),
+            dispose
+          })
+        }
+      }
+    });
+
+    await runtime.segmentPlayer.ensureBuilt('hero-pattern');
+    runtime.stop();
+
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('drops queued segment mailbox events after the runtime has stopped', async () => {
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'stop-mailbox',
+      manifest: withSegmentsSnap('hero-pattern'),
+      syntheticPlayMs: 1_000
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'CHARGE_FIRED', direction: 1, now: 0 });
+    await flush(0);
+    expect(runtime.getState().state).toBe('playing');
+
+    runtime.stop();
+    await flush(0);
+
+    expect(runtime.getState().eventLog.map((record) => record.event.type)).not.toContain('SEGMENT_ABORTED');
+  });
+
+  it('restarts the actor pump after a StrictMode-style stop and start cycle', async () => {
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'strict-restart',
+      manifest: withSegmentsSnap('hero-pattern'),
+      syntheticPlayMs: 20
+    });
+    runtime.send({ type: 'BOOT_READY' });
+
+    runtime.stop();
+    runtime.start();
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'CHARGE_FIRED', direction: 1, now: 0 });
+    await flush(0);
+
+    expect(runtime.getState().state).toBe('playing');
+
+    await flush(20);
+    await flush(420);
+    const snapshot = runtime.getState();
+    runtime.stop();
+
+    expect(snapshot.context.cursor).toEqual({ status: 'hold', scene: 'pattern' });
+  });
+
+  it('ignores readiness work that resolves after a stopped actor was replaced', async () => {
+    const targetReady = deferred();
+    const buildTimeline = vi.fn(() => ({
+      play: () => Promise.resolve(),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    }));
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'stale-prepare',
+      manifest: withSegmentsSnap('hero-pattern'),
+      transitions: {
+        'hero-pattern': { id: 'hero-pattern', buildTimeline }
+      },
+      readyGate: {
+        waitForTargetReady: () => targetReady.promise
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'CHARGE_FIRED', direction: 1, now: 0 });
+    await flush(0);
+    expect(runtime.getState().state).toBe('preparing');
+
+    runtime.stop();
+    runtime.start();
+    runtime.send({ type: 'BOOT_READY' });
+    targetReady.resolve();
+    await flush(0);
+
+    expect(runtime.getState().state).toBe('hold');
+    expect(buildTimeline).not.toHaveBeenCalled();
+    runtime.stop();
+  });
+
   it('wires input-router, SegmentPlayer and Director into an automatic snap loop', async () => {
-    const runtime = createDirectorRuntime({ actorEpoch: 'loop', syntheticPlayMs: 20 });
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'loop',
+      manifest: withSegmentsSnap('hero-pattern'),
+      syntheticPlayMs: 20
+    });
     runtime.send({ type: 'BOOT_READY' });
     runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
     await flush(1);
@@ -72,7 +236,11 @@ describe('director runtime actor loop', () => {
   });
 
   it('releases retiring layers through the real actor loop after a second snap hold', async () => {
-    const runtime = createDirectorRuntime({ actorEpoch: 'retiring-loop', syntheticPlayMs: 20 });
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'retiring-loop',
+      manifest: withSegmentsSnap('hero-pattern', 'pattern-star-map'),
+      syntheticPlayMs: 20
+    });
     runtime.send({ type: 'BOOT_READY' });
     runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
     await flush(20);
@@ -98,6 +266,7 @@ describe('director runtime actor loop', () => {
     const mediaReady = deferred();
     const runtime = createDirectorRuntime({
       actorEpoch: 'media-gate',
+      manifest: withSegmentsSnap('hero-pattern'),
       syntheticPlayMs: 20,
       readyGate: {
         waitForMediaReady: () => mediaReady.promise
@@ -123,6 +292,7 @@ describe('director runtime actor loop', () => {
     const targetReady = deferred();
     const runtime = createDirectorRuntime({
       actorEpoch: 'target-gate',
+      manifest: withSegmentsSnap('hero-pattern'),
       syntheticPlayMs: 20,
       readyGate: {
         waitForTargetReady: () => targetReady.promise
@@ -148,6 +318,7 @@ describe('director runtime actor loop', () => {
     const calls: string[] = [];
     const runtime = createDirectorRuntime({
       actorEpoch: 'build-gate',
+      manifest: withSegmentsSnap('hero-pattern'),
       syntheticPlayMs: 20,
       readyGate: {
         beginBuild: ({ segment, prepareRunId }) => calls.push(`begin:${segment.id}:${prepareRunId}`),
@@ -198,10 +369,7 @@ describe('director runtime actor loop', () => {
     expect(runtime.getState().state).toBe('scrubbing');
     expect(runtime.getState().context.activeRunId).toBe('scrub-loop:1');
 
-    for (let index = 0; index < 9; index += 1) {
-      runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: index + 1 });
-    }
-    await flush(20);
+    await flush(820);
     expect(runtime.getState().state).toBe('settling');
     await flush(420);
 
@@ -214,6 +382,7 @@ describe('director runtime actor loop', () => {
   it('uses input-router to drop deltas while preparing instead of mutating charge', async () => {
     const runtime = createDirectorRuntime({
       actorEpoch: 'prepare-drop',
+      manifest: withSegmentsSnap('hero-pattern'),
       syntheticBuildDelayMs: 50,
       syntheticPlayMs: 20
     });
@@ -231,6 +400,7 @@ describe('director runtime actor loop', () => {
   it('lets reverse preparing input reach the machine for supersede', async () => {
     const runtime = createDirectorRuntime({
       actorEpoch: 'prepare-reverse',
+      manifest: withSegmentsSnap('hero-pattern', 'pattern-star-map'),
       syntheticBuildDelayMs: 100,
       syntheticPlayMs: 20
     });
@@ -250,5 +420,238 @@ describe('director runtime actor loop', () => {
     expect(snapshot.context.pendingSegment).toBe('hero-pattern');
     expect(snapshot.context.pendingDirection).toBe(-1);
     expect(snapshot.context.prepareToken).not.toBe(oldToken);
+  });
+
+  it('resumes a stagedSnap run after a same-direction charge without completing at the stop', async () => {
+    let renderedProgress = 0;
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'staged-loop',
+      manifest: withFirstSegmentStaged(),
+      transitions: {
+        'hero-pattern': {
+          id: 'hero-pattern',
+          buildTimeline: () => ({
+            play: () => Promise.resolve(),
+            progress: (value) => {
+              renderedProgress = value;
+            },
+            reverse: () => Promise.resolve(),
+            jumpToEnd: vi.fn(),
+            dispose: vi.fn()
+          })
+        }
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
+    await flush(40);
+
+    const paused = runtime.getState();
+    expect(paused.state).toBe('staged-paused');
+    expect(paused.context.pausePoint).toEqual({ segmentId: 'hero-pattern', stageIndex: 0 });
+    expect(renderedProgress).toBe(0.5);
+    expect(paused.eventLog.map((record) => record.event.type)).toContain('STAGE_PAUSED');
+    expect(paused.eventLog.map((record) => record.event.type)).not.toContain('PLAYBACK_DONE');
+    const runId = paused.context.activeRunId;
+
+    runtime.send({ type: 'CHARGE_FIRED', direction: 1, now: 41 });
+    await flush(0);
+
+    const resumed = runtime.getState();
+    expect(resumed.state).toBe('playing');
+    expect(resumed.context.activeRunId).toBe(runId);
+    expect(resumed.eventLog.map((record) => record.event.type)).toContain('STAGE_RESUMED');
+
+    await flush(60);
+    expect(runtime.getState().state).toBe('settling');
+    await flush(420);
+
+    const completed = runtime.getState();
+    runtime.stop();
+    expect(completed.state).toBe('hold');
+    expect(completed.context.cursor).toEqual({ status: 'hold', scene: 'pattern' });
+    expect(renderedProgress).toBe(1);
+  });
+
+  it('accumulates small same-direction deltas before resuming a stagedSnap run', async () => {
+    let renderedProgress = 0;
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'staged-small-delta',
+      manifest: withFirstSegmentStaged(),
+      transitions: {
+        'hero-pattern': {
+          id: 'hero-pattern',
+          buildTimeline: () => ({
+            play: () => Promise.resolve(),
+            progress: (value) => {
+              renderedProgress = value;
+            },
+            reverse: () => Promise.resolve(),
+            jumpToEnd: vi.fn(),
+            dispose: vi.fn()
+          })
+        }
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
+    await flush(40);
+
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.04, now: 41 });
+    expect(runtime.getState()).toMatchObject({
+      state: 'staged-paused',
+      context: { charge: { value: 0.04 }, queuedIntent: undefined }
+    });
+
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.07, now: 41 });
+    await flush(0);
+    expect(runtime.getState()).toMatchObject({
+      state: 'playing',
+      context: { activeDirection: 1, queuedIntent: undefined }
+    });
+
+    await flush(60);
+    await flush(420);
+    const completed = runtime.getState();
+    runtime.stop();
+    expect(completed.context.cursor).toEqual({ status: 'hold', scene: 'pattern' });
+    expect(renderedProgress).toBe(1);
+  });
+
+  it('reverses a stagedSnap run from its pause back to the source hold', async () => {
+    let renderedProgress = 0;
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'staged-reverse',
+      manifest: withFirstSegmentStaged(),
+      transitions: {
+        'hero-pattern': {
+          id: 'hero-pattern',
+          buildTimeline: () => ({
+            play: () => Promise.resolve(),
+            progress: (value) => {
+              renderedProgress = value;
+            },
+            reverse: () => Promise.resolve(),
+            jumpToEnd: vi.fn(),
+            dispose: vi.fn()
+          })
+        }
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 0 });
+    await flush(40);
+
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: -0.11, now: 41 });
+    await flush(0);
+    expect(runtime.getState()).toMatchObject({
+      state: 'playing',
+      context: { activeDirection: -1, pausePoint: undefined }
+    });
+
+    await flush(40);
+    expect(runtime.getState().state).toBe('settling');
+    await flush(420);
+
+    const completed = runtime.getState();
+    runtime.stop();
+    expect(completed.context.cursor).toEqual({ status: 'hold', scene: 'hero' });
+    expect(renderedProgress).toBe(0);
+  });
+
+  it('requires fresh input at the figure2-animation hold after method-bottom-figure2', async () => {
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'figure2-fresh-input',
+      syntheticPlayMs: 20
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'SEEK', label: 'scene:method-top', source: 'menu' });
+    await flush(0);
+
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 1 });
+    await flush(0);
+    expect(runtime.getState().state).toBe('playing');
+
+    await flush(20);
+    expect(runtime.getState().state).toBe('settling');
+
+    await flush(390);
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 410 });
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 411 });
+    await flush(30);
+
+    const held = runtime.getState();
+    runtime.stop();
+    expect(held).toMatchObject({
+      state: 'hold',
+      context: {
+        cursor: { status: 'hold', scene: 'figure2-animation' },
+        activeSegment: undefined,
+        pendingSegment: undefined,
+        queuedIntent: undefined
+      }
+    });
+  });
+
+  it('leaves wheel input with a reading layer until it reaches the scroll edge', async () => {
+    const scrollport = {
+      scrollTop: 120,
+      clientHeight: 720,
+      scrollHeight: 1440
+    } as HTMLElement;
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'reading-edge',
+      stage: readingStage('lab', scrollport),
+      manifest: withSegmentsSnap('lab-ph')
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'SEEK', label: 'scene:lab', source: 'menu' });
+    await flush(0);
+
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 1 });
+    expect(runtime.getState()).toMatchObject({
+      state: 'hold',
+      context: { cursor: { status: 'hold', scene: 'lab' } }
+    });
+
+    scrollport.scrollTop = 720;
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 2 });
+    expect(runtime.getState().state).toBe('preparing');
+    await flush(0);
+    runtime.stop();
+  });
+
+  it('uses a scene-owned reading scrollport instead of scrolling the fixed stage layer', async () => {
+    const scrollport = {
+      scrollTop: 120,
+      clientHeight: 720,
+      scrollHeight: 1440
+    } as HTMLElement;
+    const fixedLayer = {
+      scrollTop: 0,
+      clientHeight: 720,
+      scrollHeight: 720,
+      querySelector: (selector: string) => selector === '[data-reading-scrollport="true"]' ? scrollport : null
+    } as unknown as HTMLElement;
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'reading-owned-scrollport',
+      stage: readingStage('method-top', fixedLayer),
+      manifest: withSegmentsSnap('method-bottom-figure2')
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'SEEK', label: 'scene:method-top', source: 'menu' });
+    await flush(0);
+
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 1 });
+    expect(runtime.getState()).toMatchObject({
+      state: 'hold',
+      context: { cursor: { status: 'hold', scene: 'method-top' } }
+    });
+
+    scrollport.scrollTop = 720;
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 2 });
+    expect(runtime.getState().state).toBe('preparing');
+    await flush(0);
+    runtime.stop();
   });
 });

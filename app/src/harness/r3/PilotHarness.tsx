@@ -119,8 +119,9 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 }
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
-  for (let attempt = 0; attempt < 180; attempt += 1) {
-    if (String(runtime.getState().state) === 'hold') {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    const state = String(runtime.getState().state);
+    if (state === 'hold' || state === 'staged-paused') {
       return;
     }
     await wait(25);
@@ -412,6 +413,7 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
   const runtimeSnapshotRef = useRef(runtimeSnapshot);
 
   useEffect(() => {
+    runtime.start();
     const unsubscribe = runtime.subscribe(() => {
       const next = runtime.getState();
       runtimeSnapshotRef.current = next;
@@ -423,6 +425,7 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
     runtime.send({ type: 'BOOT_READY' });
     return () => {
       unsubscribe();
+      runtime.stop();
     };
   }, [runtime]);
 

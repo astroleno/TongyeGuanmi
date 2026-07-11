@@ -31,7 +31,18 @@ export function fadeVisibility(opacity: number): LayerVisibilityState {
   };
 }
 
+function visibilityEquals(left: LayerVisibilityState, right: LayerVisibilityState): boolean {
+  return left.mounted === right.mounted
+    && left.visible === right.visible
+    && left.inert === right.inert
+    && left.opacity === right.opacity
+    && left.pointerEvents === right.pointerEvents;
+}
+
 export function applyLayerVisibility(layer: LayerHandle, state: LayerVisibilityState): void {
+  if (visibilityEquals(layer.visibility, state)) {
+    return;
+  }
   layer.setVisibility(state);
   const element = layer.element;
   if (!element) {

@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const LAB_COPY = [
@@ -62,14 +63,19 @@ export function renderLabProgress(root: HTMLElement | null | undefined, progress
 }
 
 function LabScene({ registerHandle }: SceneComponentProps) {
+  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        renderLabProgress(element, 1);
+        if (element && !initializedRef.current) {
+          renderLabProgress(element, 1);
+          initializedRef.current = true;
+        }
       }}
       className="r4-lab"
       data-r4-scene="lab"
+      data-reading-scrollport="true"
     >
       <div className="r4-lab__wide" aria-label="AI 场景判断横屏">
         <div className="r4-lab__wide-copy">

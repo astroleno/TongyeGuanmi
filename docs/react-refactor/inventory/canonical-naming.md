@@ -69,9 +69,9 @@ contact
 | `method` reading | `method-top -> method-top-method-bottom -> method-bottom` | no transition adapter | Native reading/scroll section; old anchors `method-field-law`, `method-cocreation`, `method-tooling` | DOM fact only |
 | `method-tooling__method-proof` + handoff `method-proof-brand` | `method-bottom -> method-bottom-figure2 -> figure2-animation -> figure2-distance-expand -> figure2-proof-opening -> figure2-proof-cards -> figure2-proof-closing -> figure2-proof-brand -> brand` | `figure2` | `stageStops=[0.72]`, `stagePlayMs=[2600,1500]`, `stageHoldVh=30`, `postScrollVh=56`, `handoffPhase=post-scroll` | Requires HITL confirmation of proof split |
 | `method-brand` | covered by `figure2-proof-brand` | `soft-divider` | Legacy divider; continuity CSS collapses it in homepage path | Retire in R0 manifest |
-| `brand-services` | `brand -> brand-figure3 -> figure3-animation -> figure3-services -> services` | `figure3-transition` | `stageStops=[0.997]`, `stagePlayMs=[2800,620]`; adapter has no Services copy | DOM/build/adapter aligned |
+| `brand-services` | `brand -> brand-figure3 -> figure3-animation -> figure3-services -> services` | `figure3-transition` | `stageStops=[0.997]`, `stagePlayMs=[2000,620]`; adapter has no Services copy | DOM/build/adapter aligned |
 | `services-lab` | `services -> services-ttg -> ttg-animation -> ttg-lab -> lab` | `ttg` | runtime `MODULE_PLAY_MS.ttg=2500`; adapter `data-ttg-duration=2.5` | DOM/build/adapter aligned |
-| `lab-education` | `lab -> lab-ph -> ph-animation -> ph-education -> education` | `ph` | runtime `MODULE_PLAY_MS.ph=1900`; single PH alpha video | DOM/build/adapter aligned |
+| `lab-education` | `lab -> lab-ph -> ph-animation -> ph-education -> education` | `ph` | runtime `MODULE_PLAY_MS.ph=1520`; single PH alpha video | DOM/build/adapter aligned |
 | `education-philosophy` | retired legacy soft join | `soft-breath` | No executable adapter; target section not canonical | No spine correction; explicit R0 retirement |
 | `philosophy-contact` | `education -> education-crane -> crane-animation -> crane-contact -> contact` | `crane` | `handoffPhase=after-playback`; receiver `.contact-endpoint`; old `from=philosophy` ignored for canonical order | DOM/build/adapter aligned with planned retirement of philosophy |
 
@@ -106,4 +106,3 @@ Facts that look different from the canonical spine but do not require correction
 | Legacy build output has `#philosophy` between `#education` and `#contact`. | `philosophy` repeats brand concept copy and has only a `soft-breath` join; architecture already maps the crane path into `education -> crane-animation -> contact`. |
 | Legacy build output has `method-brand` after `.method-proof`. | The actual Figure2 post-scroll handoff is `method-tooling__method-proof` with handoff id `method-proof-brand`; `method-brand` is a collapsed soft divider. |
 | Legacy `.method-proof` has one DOM block, not three scene blocks. | The canonical proof opening/cards/closing split is a required R0/R4 scene split inferred from text roles and overlay scroll; it is not a legacy DOM fact. |
-

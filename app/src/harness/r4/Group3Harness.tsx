@@ -23,6 +23,7 @@ import { createFigure2ProofCardsClosingTransition } from '../../transitions/figu
 import { createFigure2ProofOpeningCardsTransition } from '../../transitions/figure2-proof-opening-cards';
 import { applyLayerVisibility, hiddenVisibility, holdVisibility } from '../../pilot/visibility';
 import { createR4Group3Manifest, type R4Group3HarnessMode } from './group3Manifest';
+import { findMediaElementByKey, prepareTimeoutForManifest, waitForRequiredMediaReady } from './mediaGate';
 
 type HarnessPhase = 'booting' | 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
 
@@ -103,7 +104,8 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
   for (let attempt = 0; attempt < 180; attempt += 1) {
-    if (String(runtime.getState().state) === 'hold') {
+    const state = String(runtime.getState().state);
+    if (state === 'hold' || state === 'staged-paused') {
       return;
     }
     await wait(25);
@@ -249,6 +251,7 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
     () =>
       createDirectorRuntime({
         actorEpoch: `r4-g3-${mode}`,
+        prepareTimeoutMs: prepareTimeoutForManifest(manifest),
         manifest,
         stage: stageHandle,
         transitions: {
@@ -267,6 +270,14 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
             }
             throw new Error(`targetReady timed out for ${targetScene}`);
           },
+          waitForMediaReady: ({ segment, prepareToken, direction }) =>
+            waitForRequiredMediaReady({
+              segment,
+              prepareToken,
+              direction,
+              registry,
+              getMediaElement: (key) => findMediaElementByKey(layerElements.current.values(), key)
+            }),
           beginBuild: ({ segment, prepareToken, prepareRunId }) => {
             if (GROUP_SEGMENTS.includes(segment.id)) {
               registry.beginBuildGate(segment.id, { prepareToken, runId: prepareRunId });
@@ -291,6 +302,7 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
   const runtimeSnapshotRef = useRef(runtimeSnapshot);
 
   useEffect(() => {
+    runtime.start();
     const unsubscribe = runtime.subscribe(() => {
       const next = runtime.getState();
       runtimeSnapshotRef.current = next;
@@ -302,6 +314,7 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
     runtime.send({ type: 'BOOT_READY' });
     return () => {
       unsubscribe();
+      runtime.stop();
     };
   }, [runtime]);
 
@@ -350,9 +363,18 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
   };
 
   const idempotentCycle = async () => {
-    await play(1);
-    await play(-1);
-    await play(1);
+    const playThroughStages = async (direction: Direction) => {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await play(direction);
+        const state = runtime.getState();
+        if (state.state !== 'staged-paused' || state.context.activeDirection !== direction) {
+          return;
+        }
+      }
+    };
+    await playThroughStages(1);
+    await playThroughStages(-1);
+    await playThroughStages(1);
   };
 
   useEffect(() => {

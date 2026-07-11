@@ -26,7 +26,7 @@ declare global {
     __r4Group2?: {
       playForward(options?: { buildTimeout?: boolean }): Promise<void>;
       playReverse(options?: { buildTimeout?: boolean }): Promise<void>;
-      seek(scene: 'method-top' | 'method-bottom' | 'figure2-animation'): void;
+      seek(scene: 'method-top' | 'figure2-animation'): void;
       idempotentCycle(): Promise<void>;
       snapshot(): Group2Snapshot;
     };
@@ -45,6 +45,7 @@ async function snapshot(page: Page): Promise<Group2Snapshot> {
 
 type Group2VisualSnapshot = {
   activeInkSegments: readonly string[];
+  shaderBodyInkSegments: readonly string[];
   transitions: readonly string[];
   inkOrigins: Record<string, { x: number; y: number }>;
   figure2Progress: number;
@@ -55,11 +56,19 @@ type Group2VisualSnapshot = {
   figureWidth: number;
   farArcadeImageCount: number;
   cloudCount: number;
-  methodContinuationLeadCount: number;
+  methodSceneCount: number;
+  methodLeadCount: number;
+  methodRowCount: number;
+  methodLayerScrollHeight: number;
+  methodLayerClientHeight: number;
+  methodScrollTop: number;
+  methodScrollHeight: number;
+  methodScrollClientHeight: number;
   visibleCaptionCount: number;
-  methodBottomLayerZ: number;
+  methodLayerZ: number;
   figure2LayerZ: number;
   figure2LayerClipPath: string;
+  figure2LayerRevealMode: string | null;
   figure2LayerElevated: boolean;
   videos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
 };
@@ -67,7 +76,8 @@ type Group2VisualSnapshot = {
 async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
   return page.evaluate(() => {
     const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
-    const methodBottomLayer = document.querySelector<HTMLElement>('[data-stage-layer="method-bottom"]');
+    const methodLayer = document.querySelector<HTMLElement>('[data-stage-layer="method-top"]');
+    const methodScrollport = methodLayer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]');
     const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
     const figure = document.querySelector<HTMLElement>('.r4-figure2__figure');
@@ -75,7 +85,10 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
-        .filter((canvas) => canvas.parentElement?.dataset.r4InkActive === 'true')
+        .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
+        .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
+      shaderBodyInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
@@ -94,16 +107,24 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
       figureWidth: figureRect?.width ?? 0,
       farArcadeImageCount: document.querySelectorAll('.r4-figure2__far-arcade img').length,
       cloudCount: document.querySelectorAll('.r4-figure2__cloud').length,
-      methodContinuationLeadCount: document.querySelectorAll('.r4-method-bottom__lead').length,
+      methodSceneCount: document.querySelectorAll('[data-r4-scene="method-top"]').length,
+      methodLeadCount: document.querySelectorAll('.r4-method__lead').length,
+      methodRowCount: document.querySelectorAll('.r4-method__row').length,
+      methodLayerScrollHeight: methodLayer?.scrollHeight ?? 0,
+      methodLayerClientHeight: methodLayer?.clientHeight ?? 0,
+      methodScrollTop: methodScrollport?.scrollTop ?? 0,
+      methodScrollHeight: methodScrollport?.scrollHeight ?? 0,
+      methodScrollClientHeight: methodScrollport?.clientHeight ?? 0,
       visibleCaptionCount: [...document.querySelectorAll<HTMLElement>('.r4-figure2__figure figcaption')]
         .filter((caption) => {
           const rect = caption.getBoundingClientRect();
           const style = window.getComputedStyle(caption);
           return rect.width > 1.5 || rect.height > 1.5 || style.overflow !== 'hidden' || style.clip === 'auto';
         }).length,
-      methodBottomLayerZ: Number.parseInt(window.getComputedStyle(methodBottomLayer ?? document.body).zIndex || '0', 10),
+      methodLayerZ: Number.parseInt(window.getComputedStyle(methodLayer ?? document.body).zIndex || '0', 10),
       figure2LayerZ: Number.parseInt(window.getComputedStyle(figure2Layer ?? document.body).zIndex || '0', 10),
       figure2LayerClipPath: window.getComputedStyle(figure2Layer ?? document.body).clipPath,
+      figure2LayerRevealMode: figure2Layer?.dataset.r4RevealMode ?? null,
       figure2LayerElevated: figure2Layer?.dataset.r4TransitionElevated === 'true',
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
         loop: video.loop,
@@ -143,42 +164,51 @@ test.describe('R4 group2 canonical spine harness', () => {
     await page.goto('/harness/r4-g2');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
 
-    await page.evaluate(() => {
-      void window.__r4Group2?.playForward();
-    });
     const forwardFrames: Group2Snapshot[] = [];
-    for (let index = 0; index < 18; index += 1) {
-      await page.waitForTimeout(24);
-      const frame = await snapshot(page);
-      forwardFrames.push(frame);
-      if (index === 5) {
-        const methodTop = frame.layers.find((layer) => layer.scene === 'method-top');
-        const methodBottom = frame.layers.find((layer) => layer.scene === 'method-bottom');
-        expect(methodTop).toMatchObject({ visible: true, opacity: 1 });
-        expect(methodBottom).toMatchObject({ visible: true, opacity: 1 });
-      }
-    }
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-bottom');
-    const methodBottomHold = await visualSnapshot(page);
-    expect(methodBottomHold.methodContinuationLeadCount).toBe(1);
+    const methodHold = await visualSnapshot(page);
+    expect((await snapshot(page)).window.current).toBe('method-top');
+    expect(methodHold.methodSceneCount).toBe(1);
+    expect(methodHold.methodLeadCount).toBe(1);
+    expect(methodHold.methodRowCount).toBe(5);
+    expect(methodHold.methodLayerScrollHeight).toBe(methodHold.methodLayerClientHeight);
+    expect(methodHold.methodScrollHeight).toBeGreaterThan(methodHold.methodScrollClientHeight);
+    expect(await page.locator('[data-stage-layer="method-bottom"]').count()).toBe(0);
+    await page.evaluate(() => {
+      const scrollport = document.querySelector<HTMLElement>('[data-stage-layer="method-top"] [data-reading-scrollport="true"]');
+      if (scrollport) scrollport.scrollTop = scrollport.scrollHeight;
+    });
+    await expect.poll(async () => {
+      const visual = await visualSnapshot(page);
+      return visual.methodScrollTop + visual.methodScrollClientHeight >= visual.methodScrollHeight - 1;
+    }).toBe(true);
 
     await page.evaluate(() => {
       void window.__r4Group2?.playForward();
     });
+    let methodFigureInk: Group2VisualSnapshot | null = null;
     await expect.poll(async () => {
       const visual = await visualSnapshot(page);
-      return visual.activeInkSegments.includes('method-bottom-figure2');
+      const matches = visual.activeInkSegments.includes('method-bottom-figure2')
+        && visual.shaderBodyInkSegments.includes('method-bottom-figure2')
+        && visual.figure2LayerRevealMode === 'ink-body'
+        && visual.figure2LayerClipPath === 'none'
+        && visual.figure2Progress === 0;
+      if (matches) methodFigureInk = visual;
+      return matches;
     }, { timeout: 3_000 }).toBe(true);
-    const methodFigureInk = await visualSnapshot(page);
+    if (!methodFigureInk) throw new Error('Method to Figure2 Ink frame was not captured');
     expect(methodFigureInk.activeInkSegments).toContain('method-bottom-figure2');
-    expect(methodFigureInk.figure2LayerElevated).toBe(false);
-    expect(methodFigureInk.figure2LayerZ).toBeLessThan(methodFigureInk.methodBottomLayerZ);
+    expect(methodFigureInk.figure2LayerElevated).toBe(true);
+    expect(methodFigureInk.figure2LayerZ).toBeGreaterThan(methodFigureInk.methodLayerZ);
     expect(methodFigureInk.figure2LayerClipPath).toBe('none');
+    expect(methodFigureInk.figure2LayerRevealMode).toBe('ink-body');
+    expect(methodFigureInk.shaderBodyInkSegments).toContain('method-bottom-figure2');
     expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
     expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1.04, 2);
     expect(methodFigureInk.figure2Progress).toBe(0);
     expect(methodFigureInk.videos).toHaveLength(2);
     expect(methodFigureInk.videos.every((video) => video.loop === false)).toBe(true);
+    expect(methodFigureInk.videos.every((video) => video.paused && video.currentTime < 0.1)).toBe(true);
 
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
@@ -186,17 +216,17 @@ test.describe('R4 group2 canonical spine harness', () => {
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure2-animation');
     const figure2Hold = await visualSnapshot(page);
-    expect(figure2Hold.figure2Progress).toBe(1);
+    expect(figure2Hold.figure2Progress).toBe(0);
     expect(figure2Hold.farArcadeImageCount).toBe(3);
     expect(figure2Hold.cloudCount).toBe(1);
-    expect(figure2Hold.cloudScale).toBeGreaterThan(1.08);
-    expect(figure2Hold.farArcadeScale).toBeGreaterThan(1.18);
-    expect(figure2Hold.nearArchBlurPx).toBeGreaterThan(3);
-    expect(figure2Hold.figureScale).toBeGreaterThan(1.02);
+    expect(figure2Hold.cloudScale).toBe(1);
+    expect(figure2Hold.farArcadeScale).toBe(1);
+    expect(figure2Hold.nearArchBlurPx).toBe(0);
+    expect(figure2Hold.figureScale).toBe(1);
     expect(figure2Hold.figureWidth).toBeGreaterThan(153);
     expect(figure2Hold.figureWidth).toBeLessThan(261);
     expect(figure2Hold.visibleCaptionCount).toBe(0);
-    expect(figure2Hold.videos.every((video) => video.loop === false && video.paused && video.currentTime > 0)).toBe(true);
+    expect(figure2Hold.videos.every((video) => video.loop === false && video.paused && video.currentTime < 0.1)).toBe(true);
 
     await page.evaluate(() => {
       void window.__r4Group2?.playReverse();
@@ -206,7 +236,11 @@ test.describe('R4 group2 canonical spine harness', () => {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
     }
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-bottom');
+    await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-top');
+    const reversedMethod = await visualSnapshot(page);
+    expect(reversedMethod.methodScrollTop + reversedMethod.methodScrollClientHeight).toBeGreaterThanOrEqual(
+      reversedMethod.methodScrollHeight - 1
+    );
 
     for (const frame of [...forwardFrames, ...reverseFrames]) {
       await assertFrame(frame);
@@ -221,7 +255,7 @@ test.describe('R4 group2 canonical spine harness', () => {
 
   test('covers reduced motion and 0 to 1 to 0 to 1 replay', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/harness/r4-g2-method-top-method-bottom');
+    await page.goto('/harness/r4-g2-method-bottom-figure2');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
     await expect(page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)).resolves.toBe(true);
 
@@ -232,7 +266,7 @@ test.describe('R4 group2 canonical spine harness', () => {
     const frame = await snapshot(page);
     writeTrace('group2-reduced-motion-trace.json', frame);
     expect(frame.phase).toBe('hold');
-    expect(frame.window.current).toBe('method-bottom');
+    expect(frame.window.current).toBe('figure2-animation');
     expect(frame.visibleCount).toBe(1);
     expect(frame.interactableCount).toBe(1);
   });
@@ -250,6 +284,6 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(frame.window.current).toBe('method-top');
     expect(frame.interactableCount).toBe(1);
     expect(frame.recoveryCount).toBe(1);
-    expect(frame.eventLog).toContain('BUILD_TIMEOUT:method-top-method-bottom');
+    expect(frame.eventLog).toContain('BUILD_TIMEOUT:method-bottom-figure2');
   });
 });

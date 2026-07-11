@@ -253,7 +253,7 @@
       "canonicalExpansion": ["brand", "brand-figure3", "figure3-animation", "figure3-services", "services"],
       "policySeed": {
         "stageStops": [0.997],
-        "stagePlayMs": [2800, 620],
+        "stagePlayMs": [2000, 620],
         "visualAttributes": { "dataFigure3Duration": 2, "dataFigure3ScrollVh": 20 },
         "copyOwnership": "adapter is visual-only; services copy stays in src/sections/services.html"
       },
@@ -295,7 +295,7 @@
       "adapterPath": "js/transitions/homepage/ph-homepage-adapter.js",
       "canonicalExpansion": ["lab", "lab-ph", "ph-animation", "ph-education", "education"],
       "policySeed": {
-        "modulePlayMs": 1900,
+        "modulePlayMs": 1520,
         "singleVideoScrub": "data-ph-alpha-video src assets/ph_figure-alpha-scrub.webm"
       },
       "copySource": ["src/sections/lab.html", "src/sections/education.html"],

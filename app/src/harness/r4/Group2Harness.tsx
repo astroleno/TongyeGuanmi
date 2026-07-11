@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createDirectorRuntime, type StoryDebugSnapshot } from '../../runtime/director.actor';
+import { normalizeInputDelta, type RawInput } from '../../runtime/input-normalizer';
 import { Stage } from '../../stage/Stage';
 import type { LayerWindowSnapshot } from '../../stage/LayerWindow';
 import { HandleRegistry } from '../../story/registry';
@@ -13,9 +14,7 @@ import type {
   StageLayerRole
 } from '../../story/types';
 import { methodTopScene } from '../../scenes/method-top';
-import { methodBottomScene } from '../../scenes/method-bottom';
 import { figure2AnimationScene } from '../../scenes/figure2-animation';
-import { createMethodTopMethodBottomTransition } from '../../transitions/method-top-method-bottom';
 import { createMethodBottomFigure2Transition } from '../../transitions/method-bottom-figure2';
 import { applyLayerVisibility, hiddenVisibility, holdVisibility } from '../../pilot/visibility';
 import { createR4Group2Manifest, type R4Group2HarnessMode } from './group2Manifest';
@@ -55,19 +54,18 @@ export type Group2Snapshot = {
 type Group2HarnessApi = {
   playForward(options?: PlayOptions): Promise<void>;
   playReverse(options?: PlayOptions): Promise<void>;
-  seek(scene: 'method-top' | 'method-bottom' | 'figure2-animation'): void;
+  seek(scene: 'method-top' | 'figure2-animation'): void;
   idempotentCycle(): Promise<void>;
   snapshot(): Group2Snapshot;
 };
 
 const modules = {
   'method-top': methodTopScene,
-  'method-bottom': methodBottomScene,
   'figure2-animation': figure2AnimationScene
 };
 
-const GROUP_SCENES: SceneId[] = ['method-top', 'method-bottom', 'figure2-animation'];
-const GROUP_SEGMENTS: SegmentId[] = ['method-top-method-bottom', 'method-bottom-figure2'];
+const GROUP_SCENES: SceneId[] = ['method-top', 'figure2-animation'];
+const GROUP_SEGMENTS: SegmentId[] = ['method-bottom-figure2'];
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -86,7 +84,8 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
   for (let attempt = 0; attempt < 140; attempt += 1) {
-    if (String(runtime.getState().state) === 'hold') {
+    const state = String(runtime.getState().state);
+    if (state === 'hold' || state === 'staged-paused') {
       return;
     }
     await wait(25);
@@ -235,7 +234,6 @@ export function Group2Harness({ mode }: { mode: R4Group2HarnessMode }) {
         manifest,
         stage: stageHandle,
         transitions: {
-          'method-top-method-bottom': createMethodTopMethodBottomTransition({ delayMs: () => buildDelayMs.current }),
           'method-bottom-figure2': createMethodBottomFigure2Transition({ delayMs: () => buildDelayMs.current })
         },
         readyGate: {
@@ -270,8 +268,18 @@ export function Group2Harness({ mode }: { mode: R4Group2HarnessMode }) {
   );
   const [runtimeSnapshot, setRuntimeSnapshot] = useState(runtime.getState());
   const runtimeSnapshotRef = useRef(runtimeSnapshot);
+  const previousTouchY = useRef<number | null>(null);
+
+  const sendRawInput = (input: RawInput) => {
+    const normalized = normalizeInputDelta(input);
+    if (Math.abs(normalized.delta) < 0.0001) {
+      return;
+    }
+    runtime.send({ type: 'INPUT_DELTA', ...normalized, now: Date.now() });
+  };
 
   useEffect(() => {
+    runtime.start();
     const unsubscribe = runtime.subscribe(() => {
       const next = runtime.getState();
       runtimeSnapshotRef.current = next;
@@ -283,6 +291,7 @@ export function Group2Harness({ mode }: { mode: R4Group2HarnessMode }) {
     runtime.send({ type: 'BOOT_READY' });
     return () => {
       unsubscribe();
+      runtime.stop();
     };
   }, [runtime]);
 
@@ -320,7 +329,7 @@ export function Group2Harness({ mode }: { mode: R4Group2HarnessMode }) {
     buildDelayMs.current = 0;
   };
 
-  const seek = (scene: 'method-top' | 'method-bottom' | 'figure2-animation') => {
+  const seek = (scene: 'method-top' | 'figure2-animation') => {
     const activeRunId = runtime.getState().context.activeRunId;
     runtime.send({ type: 'SEEK', label: `scene:${scene}`, source: 'menu' });
     if (activeRunId) {
@@ -353,7 +362,40 @@ export function Group2Harness({ mode }: { mode: R4Group2HarnessMode }) {
   const frame = readDomSnapshot(mode, runtimeSnapshot, metrics);
 
   return (
-    <div className="stage-harness-shell r4-group-shell" data-r4-group="2" data-r4-mode={mode}>
+    <div
+      className="stage-harness-shell r4-group-shell"
+      data-r4-group="2"
+      data-r4-mode={mode}
+      onWheel={(event) => {
+        if ((event.target as HTMLElement | null)?.closest('.stage-harness-hud')) {
+          return;
+        }
+        const deltaMode = event.deltaMode === 1 || event.deltaMode === 2 ? event.deltaMode : 0;
+        sendRawInput({ type: 'wheel', deltaY: event.deltaY, deltaMode, viewportHeight: window.innerHeight });
+      }}
+      onKeyDown={(event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('button, a, input, textarea, select, .stage-harness-hud')) {
+          return;
+        }
+        sendRawInput({ type: 'key', key: event.key, viewportHeight: window.innerHeight });
+      }}
+      onTouchStart={(event) => {
+        previousTouchY.current = event.touches[0]?.clientY ?? null;
+      }}
+      onTouchMove={(event) => {
+        const currentY = event.touches[0]?.clientY;
+        const previousY = previousTouchY.current;
+        if (currentY === undefined || previousY === null) {
+          return;
+        }
+        previousTouchY.current = currentY;
+        sendRawInput({ type: 'touch', currentY, previousY, viewportHeight: window.innerHeight });
+      }}
+      onTouchEnd={() => {
+        previousTouchY.current = null;
+      }}
+    >
       <Stage
         window={runtimeSnapshot.context.layerWindow}
         modules={modules}
@@ -391,8 +433,7 @@ export function Group2Harness({ mode }: { mode: R4Group2HarnessMode }) {
           <button type="button" onClick={() => void play(1)}>Forward</button>
           <button type="button" onClick={() => void play(-1)}>Reverse</button>
           <button type="button" onClick={() => void play(1, { buildTimeout: true })}>Build Timeout</button>
-          <button type="button" onClick={() => seek('method-top')}>Seek Top</button>
-          <button type="button" onClick={() => seek('method-bottom')}>Seek Bottom</button>
+          <button type="button" onClick={() => seek('method-top')}>Seek Method</button>
           <button type="button" onClick={() => seek('figure2-animation')}>Seek Figure2</button>
           <button type="button" onClick={() => void idempotentCycle()}>0-1-0-1</button>
         </div>

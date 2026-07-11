@@ -97,12 +97,12 @@ contact
 
 - `home-belief` 不再等价于一个 segment；它展开为 `hero → pattern → star-map`。
 - `belief-method` 展开为 `star-map → aod-animation → method-top`，并保留 `copyCue.atProgress = 0.8`。
-- `method` 拆成 `method-top` / `method-bottom` 两个阅读停驻点，中间是普通阅读/滚动推进。
-- `method-proof-brand` 展开为 `method-bottom → figure2-animation → figure2-proof-opening → figure2-proof-cards → figure2-proof-closing → brand`。
+- `method` 收敛为一个 `method-top` reading hold：intro 与五步列表同属一个 scene，左侧锁定，右侧原生滚动；不再创建 `method-top-method-bottom` handoff。
+- `method-proof-brand` 展开为 `method-top → figure2-animation → figure2-proof-opening → figure2-proof-cards → figure2-proof-closing → brand`；`method-bottom-figure2` 仅保留历史 segment id。
 - `figure2-distance-expand` 固定为 `figure2-animation → figure2-proof-opening` 的 segment，不是 scene；它由 R-1 从旧 adapter progress 区间和 `method-proof` DOM anchor 反推。
 - 旧数据里的 `stageStops/stagePlayMs/stageHoldVh/postScrollVh` 必须从 `src/sections/method.html` 与 figure2 adapter 事实提取；不得把“stagedSnap 4 段”当作现成数据事实。
 - `brand-services`、`crane-contact` 均保留“动画 80% 目标文案提前入场”的 copy cue。
-- `ttg-lab` 是上到下水平墨滴；`lab-ph` 是 PH 太阳点放射墨滴；`ph-education` 是上到下水平墨滴。
+- `ttg-lab`、`lab-ph`、`ph-education` 都由上到下推进；`lab-ph` 不再叠加太阳点径向扩散。
 
 ### 1.3 UX 参数（manifest 默认值）
 
@@ -114,6 +114,7 @@ contact
 |---|---|
 | 文案二次入场 | R0 先用 fixture + review checklist + Stage 可见性测试约束 mount 自淡入；R2 Stage 契约稳定后再升 ESLint error。可见性只归 transition timeline（ARCHITECTURE §6.2） |
 | 交接空白帧 / 黑闪 | Playwright settling 前后逐帧断言（§8.1 不变量） |
+| Ink 边界出现直线/双轮廓 | `to` 帧直接进入既有 curtain shader，`body` 是唯一 mask；禁止 CSS clip/mask 与自绘 polygon；连续 Stage 额外验证 canvas live remount |
 | progress 幂等渲染（Phase 4 遗产） | 每个 cinematic scene `0→1→0→1` 快照进 harness |
 | 滚动锁多 owner 互踩 | 新设计无全局滚动锁（虚拟滚动底座），仅 inert 单一入口 |
 | 资产失败吞输入 | recovering 状态契约：`jumpToEnd` 落位，永不锁死（§5） |

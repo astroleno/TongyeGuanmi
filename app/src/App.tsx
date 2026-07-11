@@ -52,9 +52,6 @@ export function App() {
   if (path === '/harness/r4-g2') {
     return <Group2Harness mode="group2" />;
   }
-  if (path === '/harness/r4-g2-method-top-method-bottom') {
-    return <Group2Harness mode="method-top-method-bottom" />;
-  }
   if (path === '/harness/r4-g2-method-bottom-figure2') {
     return <Group2Harness mode="method-bottom-figure2" />;
   }

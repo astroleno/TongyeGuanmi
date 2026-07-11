@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { TextReveal, TextRevealItem } from '../../components/TextReveal';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 const HERO_BACK_IMAGE = new URL('../../../../assets/back1.png', import.meta.url).href;
@@ -28,15 +29,17 @@ export type HeroRenderState = {
 };
 
 type HeroVideoElement = HTMLVideoElement & {
+  __r4HeroActive?: boolean;
+  __r4HeroBoundaryBound?: boolean;
   __r4HeroPendingTime?: number;
   __r4HeroMetadataBound?: boolean;
 };
 
-function heroVideoIn(root: HTMLElement | null): HTMLVideoElement | null {
-  if (typeof root?.querySelector !== 'function') {
-    return null;
-  }
-  return root?.querySelector<HTMLVideoElement>('[data-hero-figure-video]') ?? null;
+function heroVideoBounds(video: HTMLVideoElement): { start: number; end: number } {
+  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 5.04;
+  const start = Math.min(HERO_VIDEO_START_SECONDS, Math.max(0, duration * 0.08));
+  const end = Math.min(duration - HERO_VIDEO_END_EPSILON, start + Math.min(HERO_VIDEO_SEGMENT_SECONDS, duration * 0.55));
+  return { start, end: Math.max(start, end) };
 }
 
 function bindHeroMetadataResync(video: HeroVideoElement): void {
@@ -54,6 +57,9 @@ function bindHeroMetadataResync(video: HeroVideoElement): void {
     } catch {
       // Browsers can reject a seek until the first seekable range is ready.
     }
+    if (video.__r4HeroActive) {
+      void video.play().catch(() => undefined);
+    }
   });
 }
 
@@ -62,24 +68,43 @@ function configureHeroVideo(video: HTMLVideoElement): void {
   video.loop = false;
   video.autoplay = false;
   video.playsInline = true;
-  video.pause();
+  video.playbackRate = 1;
 }
 
-function seekHeroVideo(video: HeroVideoElement, progress: number): void {
+function bindHeroPlaybackBoundary(video: HeroVideoElement): void {
+  if (video.__r4HeroBoundaryBound) {
+    return;
+  }
+  video.__r4HeroBoundaryBound = true;
+  video.addEventListener('timeupdate', () => {
+    const { end } = heroVideoBounds(video);
+    if (video.currentTime < end - 0.015) {
+      return;
+    }
+    video.currentTime = end;
+    video.pause();
+  });
+}
+
+export function setHeroPlaybackActive(element: HTMLVideoElement, active: boolean): void {
+  const video = element as HeroVideoElement;
   configureHeroVideo(video);
   bindHeroMetadataResync(video);
-  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 5.04;
-  const start = Math.min(HERO_VIDEO_START_SECONDS, Math.max(0, duration * 0.08));
-  const end = Math.min(duration - HERO_VIDEO_END_EPSILON, start + Math.min(HERO_VIDEO_SEGMENT_SECONDS, duration * 0.55));
-  const targetTime = start + (Math.max(start, end) - start) * Math.min(1, Math.max(0, progress));
-  video.__r4HeroPendingTime = targetTime;
-  try {
-    if (Math.abs(video.currentTime - targetTime) > 0.055) {
-      video.currentTime = targetTime;
-    }
-  } catch {
-    // loadedmetadata rebuilds the scrubbed frame once duration is available.
+  bindHeroPlaybackBoundary(video);
+  video.__r4HeroActive = active;
+  if (!active) {
+    video.pause();
+    return;
   }
+
+  const { start } = heroVideoBounds(video);
+  video.__r4HeroPendingTime = start;
+  try {
+    video.currentTime = start;
+  } catch {
+    // loadedmetadata starts native playback once the first seekable range exists.
+  }
+  void video.play().catch(() => undefined);
 }
 
 export function renderHeroProgress(root: HTMLElement | null, progress: number): HeroRenderState {
@@ -98,11 +123,6 @@ export function renderHeroProgress(root: HTMLElement | null, progress: number): 
   root?.style.setProperty('--r4-hero-content-opacity', contentOpacity.toFixed(4));
   root?.style.setProperty('--r4-hero-exit-lift', `${exitLift.toFixed(2)}px`);
   root?.setAttribute('data-hero-progress', clamped.toFixed(4));
-  const video = heroVideoIn(root);
-  if (video) {
-    seekHeroVideo(video as HeroVideoElement, 1 - clamped);
-  }
-
   return { progress: clamped, backOpacity, middleOpacity, figureOpacity, contentOpacity, exitLift };
 }
 
@@ -119,8 +139,8 @@ function HeroScene({ hidden, registerHandle }: SceneComponentProps) {
     if (!video) {
       return;
     }
-    configureHeroVideo(video);
-    renderHeroProgress(rootRef.current, hidden ? 0 : 1);
+    setHeroPlaybackActive(video, !hidden);
+    return () => setHeroPlaybackActive(video, false);
   }, [hidden]);
 
   return (
@@ -149,20 +169,41 @@ function HeroScene({ hidden, registerHandle }: SceneComponentProps) {
           preload="auto"
           aria-hidden="true"
         />
-        <div ref={(element) => registerHandle?.('copy', element)} className="r4-hero-scene__content">
-          <h1 className="r4-hero-scene__title" aria-label="同野观幂">
-            <span aria-hidden="true">
-              <span>{HERO_COPY[0]}</span>
-              <span>{HERO_COPY[1]}</span>
-            </span>
-            <span aria-hidden="true">
-              <span>{HERO_COPY[2]}</span>
-              <span>{HERO_COPY[3]}</span>
-            </span>
-          </h1>
-          <p>{HERO_COPY[4]}</p>
-        </div>
       </div>
+      <div ref={(element) => registerHandle?.('copy', element)} className="r4-hero-scene__content">
+        <TextReveal
+          active={!hidden}
+          as="h1"
+          className="r4-hero-scene__title"
+          aria-label="同野观幂"
+          effects={['stagger', 'blur-to-clear', 'rise-up']}
+          variant="staggered"
+        >
+          <span aria-hidden="true">
+            <TextRevealItem index={0}>{HERO_COPY[0]}</TextRevealItem>
+            <TextRevealItem index={1}>{HERO_COPY[1]}</TextRevealItem>
+          </span>
+          <span aria-hidden="true">
+            <TextRevealItem index={2}>{HERO_COPY[2]}</TextRevealItem>
+            <TextRevealItem index={3}>{HERO_COPY[3]}</TextRevealItem>
+          </span>
+        </TextReveal>
+        <TextReveal
+          active={!hidden}
+          as="p"
+          blurPx={6}
+          delayMs={420}
+          durationMs={2850}
+          effects={['stagger', 'blur-to-clear', 'rise-up']}
+          scaleX={1}
+          staggerMs={0}
+          variant="line"
+          yPx={14}
+        >
+          <TextRevealItem>{HERO_COPY[4]}</TextRevealItem>
+        </TextReveal>
+      </div>
+      <div className="r4-hero-scene__vignette" aria-hidden="true" />
     </article>
   );
 }

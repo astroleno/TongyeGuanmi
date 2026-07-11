@@ -13,17 +13,32 @@
   "eventLog": [
     "BOOT_READY",
     "BOOT_READY",
-    "INPUT_DELTA",
-    "INPUT_DELTA",
-    "INPUT_DELTA",
-    "INPUT_DELTA",
-    "INPUT_DELTA",
-    "INPUT_DELTA",
-    "INPUT_DELTA",
-    "INPUT_DELTA",
-    "INPUT_DELTA",
-    "INPUT_DELTA",
+    "CHARGE_FIRED",
+    "TARGET_READY",
+    "STAGE_PAUSED",
+    "CHARGE_FIRED",
+    "STAGE_RESUMED",
     "PLAYBACK_DONE",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
     "INPUT_DELTA",
     "INPUT_DELTA",
     "INPUT_DELTA",
@@ -45,7 +60,25 @@
     "INPUT_DELTA",
     "INPUT_DELTA",
     "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
+    "INPUT_DELTA",
     "PLAYBACK_DONE",
+    "BUILD_READY:hero-pattern",
+    "PLAY:hero-pattern:1",
     "PLAY:hero-pattern:1",
     "PLAY:pattern-star-map:1",
     "PLAY:pattern-star-map:-1"
@@ -54,7 +87,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783481179444,
+      "at": 1783759433094,
       "event": {
         "type": "BOOT_READY"
       },
@@ -71,7 +104,7 @@
       "id": 1
     },
     {
-      "at": 1783481179445,
+      "at": 1783759433095,
       "event": {
         "type": "BOOT_READY"
       },
@@ -88,20 +121,16 @@
       "id": 2
     },
     {
-      "at": 1783481181114,
+      "at": 1783759433518,
       "event": {
-        "type": "INPUT_DELTA",
-        "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481181112
+        "type": "CHARGE_FIRED",
+        "direction": 1
       },
       "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:1",
+      "prepareToken": "r4-g1-group1:prepare:1",
       "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
+        "status": "hold",
+        "scene": "hero"
       },
       "layerWindow": {
         "current": "hero",
@@ -111,12 +140,11 @@
       "id": 3
     },
     {
-      "at": 1783481181678,
+      "at": 1783759433518,
       "event": {
-        "type": "INPUT_DELTA",
-        "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481181676
+        "type": "TARGET_READY",
+        "scene": "pattern",
+        "prepareToken": "r4-g1-group1:prepare:1"
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:1",
@@ -134,15 +162,19 @@
       "id": 4
     },
     {
-      "at": 1783481181900,
+      "at": 1783759436659,
       "event": {
-        "type": "INPUT_DELTA",
-        "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481181898
+        "type": "STAGE_PAUSED",
+        "runId": "r4-g1-group1:1",
+        "segment": "hero-pattern",
+        "stageIndex": 0
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:1",
+      "pausePoint": {
+        "segmentId": "hero-pattern",
+        "stageIndex": 0
+      },
       "cursor": {
         "status": "segment",
         "segment": "hero-pattern",
@@ -154,15 +186,14 @@
         "retiring": [],
         "next": "pattern"
       },
+      "milestone": "stagePaused",
       "id": 5
     },
     {
-      "at": 1783481182148,
+      "at": 1783759437370,
       "event": {
-        "type": "INPUT_DELTA",
-        "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481182147
+        "type": "CHARGE_FIRED",
+        "direction": 1
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:1",
@@ -180,12 +211,12 @@
       "id": 6
     },
     {
-      "at": 1783481182361,
+      "at": 1783759437370,
       "event": {
-        "type": "INPUT_DELTA",
-        "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481182360
+        "type": "STAGE_RESUMED",
+        "runId": "r4-g1-group1:1",
+        "segment": "hero-pattern",
+        "stageIndex": 0
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:1",
@@ -200,125 +231,11 @@
         "retiring": [],
         "next": "pattern"
       },
+      "milestone": "stageResumed",
       "id": 7
     },
     {
-      "at": 1783481182932,
-      "event": {
-        "type": "INPUT_DELTA",
-        "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481182931
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:1",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "id": 8
-    },
-    {
-      "at": 1783481183168,
-      "event": {
-        "type": "INPUT_DELTA",
-        "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481183168
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:1",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "id": 9
-    },
-    {
-      "at": 1783481183298,
-      "event": {
-        "type": "INPUT_DELTA",
-        "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481183297
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:1",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "id": 10
-    },
-    {
-      "at": 1783481183408,
-      "event": {
-        "type": "INPUT_DELTA",
-        "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481183407
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:1",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "id": 11
-    },
-    {
-      "at": 1783481183517,
-      "event": {
-        "type": "INPUT_DELTA",
-        "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481183517
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:1",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "id": 12
-    },
-    {
-      "at": 1783481183518,
+      "at": 1783759440146,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-group1:1"
@@ -336,15 +253,135 @@
         "retiring": [],
         "next": "pattern"
       },
-      "id": 13
+      "id": 8
     },
     {
-      "at": 1783481184524,
+      "at": 1783759441501,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
         "delta": 0.12,
-        "now": 1783481184515
+        "now": 1783759441497
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 9
+    },
+    {
+      "at": 1783759441501,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759441501
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 10
+    },
+    {
+      "at": 1783759441517,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759441517
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 11
+    },
+    {
+      "at": 1783759441534,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759441534
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 12
+    },
+    {
+      "at": 1783759441550,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759441550
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 13
+    },
+    {
+      "at": 1783759441567,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759441566
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:2",
@@ -363,12 +400,12 @@
       "id": 14
     },
     {
-      "at": 1783481184862,
+      "at": 1783759441583,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481184862
+        "delta": 0.0001,
+        "now": 1783759441583
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:2",
@@ -387,12 +424,12 @@
       "id": 15
     },
     {
-      "at": 1783481185186,
+      "at": 1783759441599,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481185185
+        "delta": 0.0001,
+        "now": 1783759441599
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:2",
@@ -411,12 +448,12 @@
       "id": 16
     },
     {
-      "at": 1783481185512,
+      "at": 1783759442112,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481185512
+        "delta": 0.0001,
+        "now": 1783759442112
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:2",
@@ -435,12 +472,12 @@
       "id": 17
     },
     {
-      "at": 1783481185839,
+      "at": 1783759442128,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481185837
+        "delta": 0.0001,
+        "now": 1783759442128
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:2",
@@ -459,12 +496,12 @@
       "id": 18
     },
     {
-      "at": 1783481186497,
+      "at": 1783759442245,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481186494
+        "delta": 0.0001,
+        "now": 1783759442245
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:2",
@@ -483,12 +520,12 @@
       "id": 19
     },
     {
-      "at": 1783481186896,
+      "at": 1783759442309,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481186893
+        "delta": 0.0001,
+        "now": 1783759442308
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:2",
@@ -507,12 +544,12 @@
       "id": 20
     },
     {
-      "at": 1783481187296,
+      "at": 1783759442325,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481187295
+        "delta": 0.0001,
+        "now": 1783759442325
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:2",
@@ -531,12 +568,12 @@
       "id": 21
     },
     {
-      "at": 1783481188096,
+      "at": 1783759442341,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": 0.12,
-        "now": 1783481188096
+        "delta": 0.0001,
+        "now": 1783759442341
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:2",
@@ -555,7 +592,367 @@
       "id": 22
     },
     {
-      "at": 1783481188096,
+      "at": 1783759442512,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759442512
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 23
+    },
+    {
+      "at": 1783759442529,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759442528
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 24
+    },
+    {
+      "at": 1783759442545,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759442545
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 25
+    },
+    {
+      "at": 1783759442711,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759442711
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 26
+    },
+    {
+      "at": 1783759442779,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759442779
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 27
+    },
+    {
+      "at": 1783759442795,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759442795
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 28
+    },
+    {
+      "at": 1783759442907,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759442907
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 29
+    },
+    {
+      "at": 1783759442988,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759442988
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 30
+    },
+    {
+      "at": 1783759443062,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759443062
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 31
+    },
+    {
+      "at": 1783759443128,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759443128
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 32
+    },
+    {
+      "at": 1783759443145,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759443144
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 33
+    },
+    {
+      "at": 1783759443259,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759443259
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 34
+    },
+    {
+      "at": 1783759443275,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759443275
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 35
+    },
+    {
+      "at": 1783759443292,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759443291
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 36
+    },
+    {
+      "at": 1783759443357,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": 0.0001,
+        "now": 1783759443357
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:2",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "id": 37
+    },
+    {
+      "at": 1783759443358,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-group1:2"
@@ -574,10 +971,10 @@
         "prev": "hero",
         "next": "star-map"
       },
-      "id": 23
+      "id": 38
     },
     {
-      "at": 1783481189295,
+      "at": 1783759443796,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -591,15 +988,15 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 24
+      "id": 39
     },
     {
-      "at": 1783481189919,
+      "at": 1783759444127,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
         "delta": -0.12,
-        "now": 1783481189917
+        "now": 1783759444119
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:3",
@@ -614,15 +1011,15 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 25
+      "id": 40
     },
     {
-      "at": 1783481190274,
+      "at": 1783759444127,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": -0.12,
-        "now": 1783481190271
+        "delta": -0.0001,
+        "now": 1783759444127
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:3",
@@ -637,15 +1034,15 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 26
+      "id": 41
     },
     {
-      "at": 1783481191108,
+      "at": 1783759444148,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": -0.12,
-        "now": 1783481191105
+        "delta": -0.0001,
+        "now": 1783759444147
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:3",
@@ -660,15 +1057,15 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 27
+      "id": 42
     },
     {
-      "at": 1783481191512,
+      "at": 1783759444168,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": -0.12,
-        "now": 1783481191510
+        "delta": -0.0001,
+        "now": 1783759444168
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:3",
@@ -683,15 +1080,15 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 28
+      "id": 43
     },
     {
-      "at": 1783481191907,
+      "at": 1783759444184,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": -0.12,
-        "now": 1783481191906
+        "delta": -0.0001,
+        "now": 1783759444184
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:3",
@@ -706,15 +1103,15 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 29
+      "id": 44
     },
     {
-      "at": 1783481192229,
+      "at": 1783759444200,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": -0.12,
-        "now": 1783481192228
+        "delta": -0.0001,
+        "now": 1783759444200
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:3",
@@ -729,15 +1126,15 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 30
+      "id": 45
     },
     {
-      "at": 1783481192551,
+      "at": 1783759444217,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": -0.12,
-        "now": 1783481192550
+        "delta": -0.0001,
+        "now": 1783759444217
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:3",
@@ -752,15 +1149,15 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 31
+      "id": 46
     },
     {
-      "at": 1783481192873,
+      "at": 1783759444674,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": -0.12,
-        "now": 1783481192873
+        "delta": -0.0001,
+        "now": 1783759444674
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:3",
@@ -775,15 +1172,15 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 32
+      "id": 47
     },
     {
-      "at": 1783481193195,
+      "at": 1783759444730,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": -0.12,
-        "now": 1783481193195
+        "delta": -0.0001,
+        "now": 1783759444730
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:3",
@@ -798,15 +1195,15 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 33
+      "id": 48
     },
     {
-      "at": 1783481193518,
+      "at": 1783759444793,
       "event": {
         "type": "INPUT_DELTA",
         "source": "wheel",
-        "delta": -0.12,
-        "now": 1783481193517
+        "delta": -0.0001,
+        "now": 1783759444793
       },
       "actorEpoch": "r4-g1-group1",
       "activeRunId": "r4-g1-group1:3",
@@ -821,10 +1218,378 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 34
+      "id": 49
     },
     {
-      "at": 1783481193518,
+      "at": 1783759444860,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759444860
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 50
+    },
+    {
+      "at": 1783759444934,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759444934
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 51
+    },
+    {
+      "at": 1783759444950,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759444950
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 52
+    },
+    {
+      "at": 1783759445098,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445098
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 53
+    },
+    {
+      "at": 1783759445196,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445196
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 54
+    },
+    {
+      "at": 1783759445212,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445212
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 55
+    },
+    {
+      "at": 1783759445371,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445371
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 56
+    },
+    {
+      "at": 1783759445449,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445449
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 57
+    },
+    {
+      "at": 1783759445466,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445466
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 58
+    },
+    {
+      "at": 1783759445482,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445482
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 59
+    },
+    {
+      "at": 1783759445648,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445648
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 60
+    },
+    {
+      "at": 1783759445665,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445665
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 61
+    },
+    {
+      "at": 1783759445786,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445786
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 62
+    },
+    {
+      "at": 1783759445862,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445862
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 63
+    },
+    {
+      "at": 1783759445879,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759445878
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 64
+    },
+    {
+      "at": 1783759446026,
+      "event": {
+        "type": "INPUT_DELTA",
+        "source": "wheel",
+        "delta": -0.0001,
+        "now": 1783759446025
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 65
+    },
+    {
+      "at": 1783759446026,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-group1:3"
@@ -842,7 +1607,7 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 35
+      "id": 66
     }
   ],
   "layers": [

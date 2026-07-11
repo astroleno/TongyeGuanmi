@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 type BackHalfSnapshot = {
-  phase: 'hold' | 'preparing' | 'playing' | 'recovering';
+  phase: 'hold' | 'preparing' | 'playing' | 'staged-paused' | 'recovering';
   window: { current: string; retiring: readonly string[] };
   visibleCount: number;
   interactableCount: number;
@@ -25,6 +25,7 @@ declare global {
       playReverse(): Promise<void>;
       playThroughContact(): Promise<void>;
       playThroughServices(): Promise<void>;
+      inputBudgetTo(scene: 'services' | 'ttg-animation' | 'lab' | 'ph-animation' | 'education' | 'crane-animation' | 'contact'): number;
       seek(scene: 'services' | 'ttg-animation' | 'lab' | 'ph-animation' | 'education' | 'crane-animation' | 'contact'): void;
       snapshot(): BackHalfSnapshot;
     };
@@ -59,7 +60,7 @@ function writeTrace(name: string, frame: BackHalfSnapshot): void {
   writeFileSync(resolve(artifactDir, name), `${JSON.stringify(frame, null, 2)}\n`);
 }
 
-async function playOne(page: Page, direction: 1 | -1, expectedScene: string): Promise<BackHalfSnapshot[]> {
+async function playInput(page: Page, direction: 1 | -1): Promise<BackHalfSnapshot[]> {
   await page.evaluate((playDirection) => {
     if (playDirection === 1) {
       void window.__r4BackHalf?.playForward();
@@ -73,7 +74,32 @@ async function playOne(page: Page, direction: 1 | -1, expectedScene: string): Pr
     await page.waitForTimeout(28);
     frames.push(await snapshot(page));
   }
-  await expect.poll(async () => (await snapshot(page)).window.current).toBe(expectedScene);
+  await expect.poll(async () => (await snapshot(page)).phase, { timeout: 8_000 }).toMatch(/^(hold|staged-paused)$/);
+  frames.push(await snapshot(page));
+  return frames;
+}
+
+async function playToScene(
+  page: Page,
+  direction: 1 | -1,
+  expectedScene: string
+): Promise<BackHalfSnapshot[]> {
+  const budget = await page.evaluate((scene) => {
+    const api = window.__r4BackHalf;
+    if (!api) {
+      throw new Error('R4 back-half harness API is not installed');
+    }
+    return api.inputBudgetTo(scene as Parameters<typeof api.inputBudgetTo>[0]);
+  }, expectedScene);
+  const frames: BackHalfSnapshot[] = [];
+
+  for (let input = 0; input < budget; input += 1) {
+    frames.push(...await playInput(page, direction));
+  }
+
+  const finalFrame = await snapshot(page);
+  expect(finalFrame.window.current).toBe(expectedScene);
+  expect(finalFrame.phase).toBe('hold');
   return frames;
 }
 
@@ -94,7 +120,7 @@ test.describe('R4 G4-G7 back-half integration harness', () => {
     const frames: BackHalfSnapshot[] = [];
 
     for (const scene of forwardScenes) {
-      frames.push(...await playOne(page, 1, scene));
+      frames.push(...await playToScene(page, 1, scene));
     }
     let finalFrame = await snapshot(page);
     expect(finalFrame.phase).toBe('hold');
@@ -109,7 +135,7 @@ test.describe('R4 G4-G7 back-half integration harness', () => {
     ]));
 
     for (const scene of reverseScenes) {
-      frames.push(...await playOne(page, -1, scene));
+      frames.push(...await playToScene(page, -1, scene));
     }
     finalFrame = await snapshot(page);
     writeTrace('back-half-forward-reverse-trace.json', finalFrame);

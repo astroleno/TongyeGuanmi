@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const CONTACT_COPY = [
@@ -26,11 +27,15 @@ export function renderContactProgress(root: HTMLElement | null | undefined, prog
 }
 
 function ContactScene({ registerHandle }: SceneComponentProps) {
+  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        renderContactProgress(element, 1);
+        if (element && !initializedRef.current) {
+          renderContactProgress(element, 1);
+          initializedRef.current = true;
+        }
       }}
       className="r4-contact contact-endpoint"
       data-r4-scene="contact"

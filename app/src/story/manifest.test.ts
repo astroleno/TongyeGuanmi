@@ -82,14 +82,134 @@ describe('story manifest contract', () => {
       'crane-contact'
     ]);
     for (const segment of mediaSegments) {
-      const forwardMode = segment.id === 'aod-method-top' ? 'timeline' : 'play';
+      const reverse = segment.id === 'crane-contact'
+        ? { mode: 'timeline', required: true }
+        : { mode: 'static-fallback', required: false };
       expect(segment.mediaPlayback?.[0]).toMatchObject({
-        forward: { mode: forwardMode, required: true },
-        reverse: { mode: 'static-fallback', required: false },
+        forward: { mode: 'timeline', required: true },
+        reverse,
         readyMilestones: ['targetReady', 'mediaReady']
       });
       expect(segment.mediaPlayback?.[0]?.media.length).toBeGreaterThan(0);
     }
+  });
+
+  it('gates both Figure2 videos before the staged distance playback can start', () => {
+    const segment = storyManifest.nodes.find(
+      (node) => node.kind === 'segment' && node.id === 'figure2-distance-expand'
+    );
+
+    expect(segment).toMatchObject({
+      kind: 'segment',
+      requiredMilestones: ['targetReady', 'mediaReady', 'buildReady', 'timelineReady'],
+      mediaPlayback: [
+        {
+          id: 'figure2-pair',
+          media: ['figure2-left-alpha', 'figure2-right-alpha'],
+          forward: { mode: 'play', required: true },
+          reverse: { mode: 'timeline', required: true },
+          readyMilestones: ['targetReady', 'mediaReady'],
+          terminalFallbackScene: 'figure2-proof-opening',
+          preparingTimeoutMs: 4000
+        }
+      ]
+    });
+  });
+
+  it('uses one top-down Ink reveal for Lab to PH', () => {
+    const segment = storyManifest.nodes.find((node) => node.kind === 'segment' && node.id === 'lab-ph');
+
+    expect(segment).toMatchObject({
+      kind: 'segment',
+      visual: { type: 'ink', ink: 'horizontal', direction: 'top-to-bottom' }
+    });
+  });
+
+  it('marks every long copy hold as a native reading scene', () => {
+    const readingByScene = new Map(
+      storyManifest.nodes.flatMap((node) => node.kind === 'hold' ? [[node.scene, node.reading] as const] : [])
+    );
+
+    expect(readingByScene.get('services')).toBe(true);
+    expect(readingByScene.get('lab')).toBe(true);
+    expect(readingByScene.get('education')).toBe(true);
+  });
+
+  it('models Method as one native reading hold without a scene-to-scene handoff', () => {
+    const methodNodes = storyManifest.nodes.filter((node) =>
+      node.kind === 'hold'
+        ? node.scene === 'method-top' || node.scene === 'method-bottom'
+        : node.id === 'method-bottom-figure2'
+    );
+
+    expect(methodNodes).toEqual([
+      expect.objectContaining({
+        kind: 'hold',
+        scene: 'method-top',
+        reading: true
+      }),
+      expect.objectContaining({
+        kind: 'segment',
+        id: 'method-bottom-figure2',
+        from: 'method-top',
+        to: 'figure2-animation'
+      })
+    ]);
+    expect(storyManifest.nodes.some((node) =>
+      node.kind === 'segment' && String(node.id) === 'method-top-method-bottom'
+    )).toBe(false);
+  });
+
+  it('separates TTG and PH media playback from their following Ink handoffs', () => {
+    const byId = new Map(
+      storyManifest.nodes.flatMap((node) => node.kind === 'segment' ? [[node.id, node] as const] : [])
+    );
+
+    expect(byId.get('ttg-lab')).toMatchObject({
+      policy: { kind: 'stagedSnap', stops: [0.676], playMs: [2500, 1200] },
+      virtualDuration: 3700,
+      mediaPlayback: [{ reverse: { mode: 'play', required: true } }]
+    });
+    expect(byId.get('ph-education')).toMatchObject({
+      policy: { kind: 'stagedSnap', stops: [1520 / 2720], playMs: [1520, 1200] },
+      virtualDuration: 2720,
+      mediaPlayback: [{ reverse: { mode: 'timeline', required: true } }]
+    });
+    expect(byId.get('crane-contact')).toMatchObject({
+      mediaPlayback: [{ reverse: { mode: 'timeline', required: true } }]
+    });
+  });
+
+  it('cues Services at 80% of Figure3 playback', () => {
+    const segment = storyManifest.nodes.find((node) => node.kind === 'segment' && node.id === 'figure3-services');
+
+    expect(segment).toMatchObject({
+      copyCue: { targetScene: 'services', atProgress: 0.8 }
+    });
+  });
+
+  it('models Hero to Pattern as reveal, pause, then collapse', () => {
+    const segment = storyManifest.nodes.find((node) => node.kind === 'segment' && node.id === 'hero-pattern');
+
+    expect(segment).toMatchObject({
+      kind: 'segment',
+      policy: {
+        kind: 'stagedSnap',
+        stops: [0.58],
+        playMs: [2200, 1800]
+      },
+      virtualDuration: 4000
+    });
+  });
+
+  it('marks the figure2 animation hold as a fresh-input boundary', () => {
+    const hold = storyManifest.nodes.find((node) => node.kind === 'hold' && node.scene === 'figure2-animation');
+
+    expect(hold).toMatchObject({
+      kind: 'hold',
+      scene: 'figure2-animation',
+      freshInput: true
+    });
   });
 
   it('rejects media visual segments without mediaPlayback seed', () => {
@@ -124,6 +244,23 @@ describe('story manifest contract', () => {
     };
 
     expect(() => validateStoryManifest(manifest)).toThrow(/terminalFallbackScene/);
+  });
+
+  it('rejects required media playback without a mediaReady segment milestone', () => {
+    const manifest = mutableManifest();
+    const index = manifest.nodes.findIndex(
+      (node) => node.kind === 'segment' && node.id === 'figure2-distance-expand'
+    );
+    const segment = manifest.nodes[index];
+    if (segment?.kind !== 'segment') {
+      throw new Error('test fixture missing Figure2 media segment');
+    }
+    manifest.nodes[index] = {
+      ...segment,
+      requiredMilestones: (segment.requiredMilestones ?? []).filter((key) => key !== 'mediaReady')
+    };
+
+    expect(() => validateStoryManifest(manifest)).toThrow(/mediaReady requiredMilestone/);
   });
 
   it('rejects interruptible segments absent from the R-1 candidate list', () => {

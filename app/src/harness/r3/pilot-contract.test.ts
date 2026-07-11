@@ -123,6 +123,124 @@ describe('R3 pilot contract on real segments', () => {
     expect(video.playbackRate).toBe(1);
   });
 
+  it('positions Method at its top edge whenever AOD enters it again', async () => {
+    const scrollport = {
+      clientHeight: 400,
+      dataset: {},
+      scrollHeight: 800,
+      scrollTop: 400
+    };
+    const methodRoot = {
+      dataset: {},
+      inert: false,
+      matches: () => false,
+      querySelector: (selector: string) => selector === '[data-reading-scrollport="true"]' ? scrollport : null,
+      querySelectorAll: () => [],
+      removeAttribute: () => undefined,
+      setAttribute: () => undefined,
+      style: {
+        clipPath: '',
+        opacity: '',
+        pointerEvents: '',
+        visibility: '',
+        removeProperty: () => undefined
+      }
+    } as unknown as HTMLElement;
+    const base = context('aod-method-top');
+    const transitionContext: TransitionContext = {
+      ...base,
+      prefersReducedMotion: true,
+      to: { ...base.to, element: methodRoot }
+    };
+    const timeline = await createAodMethodTopTransition().buildTimeline(transitionContext);
+
+    await timeline.play(1);
+
+    expect(scrollport.scrollTop).toBe(0);
+    expect(scrollport.dataset).toMatchObject({ readingEdge: 'top' });
+  });
+
+  it('retries the Method top positioning after its reading scrollport mounts', async () => {
+    const scrollport = {
+      clientHeight: 400,
+      dataset: {},
+      scrollHeight: 800,
+      scrollTop: 400
+    };
+    let mounted = false;
+    const methodRoot = {
+      dataset: {},
+      inert: false,
+      matches: () => false,
+      querySelector: (selector: string) => mounted && selector === '[data-reading-scrollport="true"]' ? scrollport : null,
+      querySelectorAll: () => [],
+      removeAttribute: () => undefined,
+      setAttribute: () => undefined,
+      style: {
+        clipPath: '',
+        opacity: '',
+        pointerEvents: '',
+        visibility: '',
+        removeProperty: () => undefined
+      }
+    } as unknown as HTMLElement;
+    const base = context('aod-method-top');
+    const timeline = await createAodMethodTopTransition().buildTimeline({
+      ...base,
+      to: { ...base.to, element: methodRoot }
+    });
+
+    mounted = true;
+    timeline.progress(0.5);
+
+    expect(scrollport.scrollTop).toBe(0);
+    expect(scrollport.dataset).toMatchObject({ readingEdge: 'top' });
+  });
+
+  it('reasserts the Method top edge after the target layer settles', async () => {
+    const scrollport = {
+      clientHeight: 400,
+      dataset: {},
+      scrollHeight: 800,
+      scrollTop: 400
+    };
+    let opacity = '';
+    const style = {
+      clipPath: '',
+      pointerEvents: '',
+      visibility: '',
+      get opacity() {
+        return opacity;
+      },
+      set opacity(value: string) {
+        opacity = value;
+        scrollport.scrollTop = 400;
+      },
+      removeProperty: () => undefined
+    };
+    const methodRoot = {
+      dataset: {},
+      inert: false,
+      matches: () => false,
+      querySelector: (selector: string) => selector === '[data-reading-scrollport="true"]' ? scrollport : null,
+      querySelectorAll: () => [],
+      removeAttribute: () => undefined,
+      setAttribute: () => undefined,
+      style
+    } as unknown as HTMLElement;
+    const base = context('aod-method-top');
+    const timeline = await createAodMethodTopTransition().buildTimeline({
+      ...base,
+      prefersReducedMotion: true,
+      to: { ...base.to, element: methodRoot }
+    });
+
+    await timeline.play(1);
+
+    expect(scrollport.scrollTop).toBe(0);
+    expect(scrollport.dataset).toMatchObject({ readingEdge: 'top' });
+  });
+
   it('dedupes StrictMode-style duplicate mediaReady and rejects stale pilot media events', () => {
     const registry = new HandleRegistry();
     registry.beginMediaGate(AOD_MEDIA_KEY, { prepareToken: 'r3-pilot:prepare:1' });

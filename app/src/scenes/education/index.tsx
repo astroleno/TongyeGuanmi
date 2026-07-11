@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const EDUCATION_COPY = [
@@ -50,14 +51,19 @@ export function renderEducationProgress(root: HTMLElement | null | undefined, pr
 }
 
 function EducationScene({ registerHandle }: SceneComponentProps) {
+  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        renderEducationProgress(element, 1);
+        if (element && !initializedRef.current) {
+          renderEducationProgress(element, 1);
+          initializedRef.current = true;
+        }
       }}
       className="r4-education"
       data-r4-scene="education"
+      data-reading-scrollport="true"
     >
       <div className="r4-education__wide" aria-label="留学 AI 能力横屏">
         <div className="r4-education__wide-copy">

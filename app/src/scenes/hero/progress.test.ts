@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { HERO_COPY, heroScene, renderHeroProgress } from './index';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { HERO_COPY, heroScene, renderHeroProgress, setHeroPlaybackActive } from './index';
 import { fixtureStaticFallbackText } from '../../story/copy-baseline';
 
 class FakeStyle {
@@ -26,11 +28,21 @@ class FakeVideo {
   playsInline = false;
   currentTime = 0;
   duration = 5.04;
+  paused = true;
+  playbackRate = 0;
   pauseCount = 0;
+  playCount = 0;
   listeners = new Map<string, EventListener>();
 
   pause(): void {
+    this.paused = true;
     this.pauseCount += 1;
+  }
+
+  play(): Promise<void> {
+    this.paused = false;
+    this.playCount += 1;
+    return Promise.resolve();
   }
 
   addEventListener(type: string, listener: EventListener): void {
@@ -63,25 +75,64 @@ describe('hero scene renderer', () => {
     expect(root.attributes.get('data-hero-progress')).toBe('1.0000');
   });
 
-  it('keeps the hero video scrub-controlled instead of autoplay looping', () => {
+  it('plays the hero video natively and never seeks it from visual progress frames', () => {
     const video = new FakeVideo();
     const root = new FakeHeroRoot(video);
 
-    renderHeroProgress(root as unknown as HTMLElement, 1);
+    setHeroPlaybackActive(video as unknown as HTMLVideoElement, true);
 
     expect(video.loop).toBe(false);
     expect(video.autoplay).toBe(false);
-    expect(video.pauseCount).toBe(1);
+    expect(video.playbackRate).toBe(1);
+    expect(video.playCount).toBe(1);
+    expect(video.pauseCount).toBe(0);
     expect(video.currentTime).toBeCloseTo(0.34, 2);
 
+    renderHeroProgress(root as unknown as HTMLElement, 1);
     renderHeroProgress(root as unknown as HTMLElement, 0);
 
-    expect(video.pauseCount).toBe(2);
+    expect(video.playCount).toBe(1);
+    expect(video.pauseCount).toBe(0);
+    expect(video.currentTime).toBeCloseTo(0.34, 2);
+
+    video.currentTime = 2.5;
+    video.listeners.get('timeupdate')?.(new Event('timeupdate'));
+    expect(video.pauseCount).toBe(1);
     expect(video.currentTime).toBeCloseTo(2.34, 2);
+
+    setHeroPlaybackActive(video as unknown as HTMLVideoElement, false);
+    expect(video.pauseCount).toBe(2);
   });
 
   it('keeps static fallback copy aligned with R-1 baseline', () => {
     expect(heroScene.staticFallback?.text).toEqual(HERO_COPY);
     expect(heroScene.staticFallback?.text).toEqual(fixtureStaticFallbackText('hero'));
+  });
+
+  it('renders the title and subtitle through the reusable staggered text reveal contract', () => {
+    const markup = renderToStaticMarkup(createElement(heroScene.Component, {
+      scene: 'hero',
+      hidden: false
+    }));
+
+    expect(markup).toContain('data-text-reveal="staggered"');
+    expect(markup).toContain('data-text-reveal-item="0"');
+    expect(markup).toContain('data-text-reveal-item="3"');
+    expect(markup).toContain('data-text-reveal="line"');
+    expect(markup.match(/data-text-reveal-effects="stagger blur-to-clear rise-up"/g)).toHaveLength(2);
+  });
+
+  it('keeps the copy in a dedicated layer between the artwork and vignette', () => {
+    const markup = renderToStaticMarkup(createElement(heroScene.Component, {
+      scene: 'hero',
+      hidden: false
+    }));
+    const artworkIndex = markup.indexOf('r4-hero-scene__stage');
+    const copyIndex = markup.indexOf('r4-hero-scene__content');
+    const vignetteIndex = markup.indexOf('r4-hero-scene__vignette');
+
+    expect(artworkIndex).toBeGreaterThanOrEqual(0);
+    expect(copyIndex).toBeGreaterThan(artworkIndex);
+    expect(vignetteIndex).toBeGreaterThan(copyIndex);
   });
 });

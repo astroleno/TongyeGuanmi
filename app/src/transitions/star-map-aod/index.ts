@@ -134,9 +134,13 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
       if (delay > 0) {
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
-      const inkCanvas = context.to.element?.querySelector<HTMLCanvasElement>('[data-aod-ink-canvas]');
-      const sourceCanvas = typeof document === 'undefined' ? null : document.createElement('canvas');
-      const inkTransition = createInkCurtainTransition(inkCanvas, {
+      const inkCanvas = context.prefersReducedMotion
+        ? null
+        : context.to.element?.querySelector<HTMLCanvasElement>('[data-aod-ink-canvas]');
+      const sourceCanvas = context.prefersReducedMotion || typeof document === 'undefined'
+        ? null
+        : document.createElement('canvas');
+      const inkTransition = context.prefersReducedMotion ? null : createInkCurtainTransition(inkCanvas ?? null, {
         direction: 'bottom-up',
         colorLift: 0.56,
         coverAlpha: 0.82,
@@ -159,9 +163,20 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
         render: (progress) => {
           const inkProgress = smoothStep(progress);
           liftInkLayerOverSource(context.to.element);
-          setRevealSurfaceVisible(getAodRevealSurface(context.to.element), inkProgress >= 0.999);
+          setRevealSurfaceVisible(
+            getAodRevealSurface(context.to.element),
+            context.prefersReducedMotion || inkProgress >= 0.999
+          );
           context.to.element?.setAttribute('data-r3-transition', 'star-map-aod');
           inkTransition?.render(inkProgress);
+        },
+        dispose: () => {
+          inkTransition?.destroy();
+          if (sourceCanvas) {
+            sourceCanvas.width = 0;
+            sourceCanvas.height = 0;
+            delete sourceCanvas.dataset.inkTextureReady;
+          }
         }
       });
     }

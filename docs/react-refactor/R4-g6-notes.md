@@ -26,7 +26,7 @@
 ## Ported Behavior
 
 - `ph-animation` is a scrub-only scene. The renderer seeks `ph_figure-alpha-scrub.webm`, keeps video paused, and writes deterministic progress attributes for timeline tests.
-- `lab-ph` uses the existing shared radial ink helper with the old sun-origin handoff approximation: `{ x: 0.11, y: 0.36 }`.
+- `lab-ph` uses one top-origin curtain: `{ x: 0.5, y: -0.04 }`. The old sun-origin radial receiver clip was removed.
 - `ph-education` uses the existing shared top-origin ink helper: `{ x: 0.5, y: -0.04 }`.
 - `education` copy is ported verbatim from the R-1 copy baseline.
 - Reduced motion uses the shared ink fallback, collapsing to the target hold without video playback.
@@ -39,9 +39,11 @@
 ## Post-Integration Repair
 
 - Shared ink reveal semantics were fixed centrally in integration, so `lab-ph` and `ph-education` keep source and target distinct during mid-transition.
+- Directional receivers no longer draw a second CSS contour. The target frame is composited directly through the existing Ink shader `body`, so `edge`, `body`, `feather`, spatter, and particles all share one native boundary; live DOM takes over only on the completed frame.
 - The group harness now mounts the real `lab` scene from G5, keeping copy and layout aligned across G5 and G6.
-- `ph-animation` now initializes next-layer mounts at progress `0` and only settles to progress `1` when held as current.
-- Education was restored to the light paper background and continuous two-screen scene treatment used by the adjacent service/lab sections.
+- `ph-animation` now initializes next-layer mounts at progress `0`. The first staged leg advances the paused media clock from `0 -> 1`, then stops; a fresh input runs the separate PH-to-Education ink leg. Reverse performs those two legs in the symmetric order.
+- PH media playback is `1520ms` (80% of the former `1900ms`); the following `1200ms` Ink leg remains separate.
+- Lab and Education keep their wide and portrait halves inside scene-owned reading scrollports. The stage and paper background stay fixed; the adjacent ink segment starts only from the relevant reading boundary.
 
 ## Evidence
 
@@ -64,5 +66,5 @@
 
 - PH layer widths, bottom offsets, parallax travel, paper wash, sun wash, edge light, and texture values are taken from `css/ph.css`.
 - The PH React scene is fixed to the harness viewport instead of using the old route's scroll-height wrapper. Progress remains deterministic through the segment renderer.
-- Education uses the old edition row hierarchy and copy, but the long-page layout is constrained into the R4 scene shell for harness stability.
+- Education uses the old row hierarchy and copy as a continuous two-screen reading scene inside the fixed R4 viewport; its last row remains reachable without moving the document or background.
 - Final side-by-side visual parity still needs HITL confirmation after G4-G7 land in integration.

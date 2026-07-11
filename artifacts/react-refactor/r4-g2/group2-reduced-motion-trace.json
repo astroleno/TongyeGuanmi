@@ -1,8 +1,8 @@
 {
   "phase": "hold",
-  "mode": "method-top-method-bottom",
+  "mode": "method-bottom-figure2",
   "window": {
-    "current": "method-bottom",
+    "current": "figure2-animation",
     "retiring": [],
     "prev": "method-top"
   },
@@ -21,22 +21,22 @@
     "CHARGE_FIRED",
     "TARGET_READY",
     "PLAYBACK_DONE",
-    "BUILD_READY:method-top-method-bottom",
-    "PLAY:method-top-method-bottom:1",
-    "BUILD_READY:method-top-method-bottom",
-    "PLAY:method-top-method-bottom:-1",
-    "BUILD_READY:method-top-method-bottom",
-    "PLAY:method-top-method-bottom:1"
+    "BUILD_READY:method-bottom-figure2",
+    "PLAY:method-bottom-figure2:1",
+    "BUILD_READY:method-bottom-figure2",
+    "PLAY:method-bottom-figure2:-1",
+    "BUILD_READY:method-bottom-figure2",
+    "PLAY:method-bottom-figure2:1"
   ],
   "recoveryCount": 0,
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783481216693,
+      "at": 1783759461165,
       "event": {
         "type": "BOOT_READY"
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
       "cursor": {
         "status": "hold",
         "scene": "method-top"
@@ -44,16 +44,16 @@
       "layerWindow": {
         "current": "method-top",
         "retiring": [],
-        "next": "method-bottom"
+        "next": "figure2-animation"
       },
       "id": 1
     },
     {
-      "at": 1783481216693,
+      "at": 1783759461166,
       "event": {
         "type": "BOOT_READY"
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
       "cursor": {
         "status": "hold",
         "scene": "method-top"
@@ -61,18 +61,18 @@
       "layerWindow": {
         "current": "method-top",
         "retiring": [],
-        "next": "method-bottom"
+        "next": "figure2-animation"
       },
       "id": 2
     },
     {
-      "at": 1783481216703,
+      "at": 1783759461174,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
-      "prepareToken": "r4-g2-method-top-method-bottom:prepare:1",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
+      "prepareToken": "r4-g2-method-bottom-figure2:prepare:1",
       "cursor": {
         "status": "hold",
         "scene": "method-top"
@@ -80,123 +80,123 @@
       "layerWindow": {
         "current": "method-top",
         "retiring": [],
-        "next": "method-bottom"
+        "next": "figure2-animation"
       },
       "id": 3
     },
     {
-      "at": 1783481216703,
+      "at": 1783759461426,
       "event": {
         "type": "TARGET_READY",
-        "scene": "method-bottom",
-        "prepareToken": "r4-g2-method-top-method-bottom:prepare:1"
+        "scene": "figure2-animation",
+        "prepareToken": "r4-g2-method-bottom-figure2:prepare:1"
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
-      "activeRunId": "r4-g2-method-top-method-bottom:1",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
+      "activeRunId": "r4-g2-method-bottom-figure2:1",
       "cursor": {
         "status": "segment",
-        "segment": "method-top-method-bottom",
+        "segment": "method-bottom-figure2",
         "from": "method-top",
-        "to": "method-bottom"
+        "to": "figure2-animation"
       },
       "layerWindow": {
         "current": "method-top",
         "retiring": [],
-        "next": "method-bottom"
+        "next": "figure2-animation"
       },
       "id": 4
     },
     {
-      "at": 1783481216704,
+      "at": 1783759461644,
       "event": {
         "type": "PLAYBACK_DONE",
-        "runId": "r4-g2-method-top-method-bottom:1"
+        "runId": "r4-g2-method-bottom-figure2:1"
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
       "cursor": {
         "status": "settling",
-        "segment": "method-top-method-bottom",
+        "segment": "method-bottom-figure2",
         "from": "method-top",
-        "to": "method-bottom",
-        "target": "method-bottom"
+        "to": "figure2-animation",
+        "target": "figure2-animation"
       },
       "layerWindow": {
         "current": "method-top",
         "retiring": [],
-        "next": "method-bottom"
+        "next": "figure2-animation"
       },
       "id": 5
     },
     {
-      "at": 1783481217136,
+      "at": 1783759462098,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
-      "prepareToken": "r4-g2-method-top-method-bottom:prepare:2",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
+      "prepareToken": "r4-g2-method-bottom-figure2:prepare:2",
       "cursor": {
         "status": "hold",
-        "scene": "method-bottom"
+        "scene": "figure2-animation"
       },
       "layerWindow": {
-        "current": "method-bottom",
+        "current": "figure2-animation",
         "retiring": [],
         "prev": "method-top"
       },
       "id": 6
     },
     {
-      "at": 1783481217137,
+      "at": 1783759462234,
       "event": {
         "type": "TARGET_READY",
         "scene": "method-top",
-        "prepareToken": "r4-g2-method-top-method-bottom:prepare:2"
+        "prepareToken": "r4-g2-method-bottom-figure2:prepare:2"
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
-      "activeRunId": "r4-g2-method-top-method-bottom:2",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
+      "activeRunId": "r4-g2-method-bottom-figure2:2",
       "cursor": {
         "status": "segment",
-        "segment": "method-top-method-bottom",
+        "segment": "method-bottom-figure2",
         "from": "method-top",
-        "to": "method-bottom"
+        "to": "figure2-animation"
       },
       "layerWindow": {
-        "current": "method-bottom",
+        "current": "figure2-animation",
         "retiring": [],
         "prev": "method-top"
       },
       "id": 7
     },
     {
-      "at": 1783481217137,
+      "at": 1783759462449,
       "event": {
         "type": "PLAYBACK_DONE",
-        "runId": "r4-g2-method-top-method-bottom:2"
+        "runId": "r4-g2-method-bottom-figure2:2"
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
       "cursor": {
         "status": "settling",
-        "segment": "method-top-method-bottom",
+        "segment": "method-bottom-figure2",
         "from": "method-top",
-        "to": "method-bottom",
+        "to": "figure2-animation",
         "target": "method-top"
       },
       "layerWindow": {
-        "current": "method-bottom",
+        "current": "figure2-animation",
         "retiring": [],
         "prev": "method-top"
       },
       "id": 8
     },
     {
-      "at": 1783481217568,
+      "at": 1783759462897,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
-      "prepareToken": "r4-g2-method-top-method-bottom:prepare:3",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
+      "prepareToken": "r4-g2-method-bottom-figure2:prepare:3",
       "cursor": {
         "status": "hold",
         "scene": "method-top"
@@ -204,50 +204,50 @@
       "layerWindow": {
         "current": "method-top",
         "retiring": [],
-        "next": "method-bottom"
+        "next": "figure2-animation"
       },
       "id": 9
     },
     {
-      "at": 1783481217568,
+      "at": 1783759463059,
       "event": {
         "type": "TARGET_READY",
-        "scene": "method-bottom",
-        "prepareToken": "r4-g2-method-top-method-bottom:prepare:3"
+        "scene": "figure2-animation",
+        "prepareToken": "r4-g2-method-bottom-figure2:prepare:3"
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
-      "activeRunId": "r4-g2-method-top-method-bottom:3",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
+      "activeRunId": "r4-g2-method-bottom-figure2:3",
       "cursor": {
         "status": "segment",
-        "segment": "method-top-method-bottom",
+        "segment": "method-bottom-figure2",
         "from": "method-top",
-        "to": "method-bottom"
+        "to": "figure2-animation"
       },
       "layerWindow": {
         "current": "method-top",
         "retiring": [],
-        "next": "method-bottom"
+        "next": "figure2-animation"
       },
       "id": 10
     },
     {
-      "at": 1783481217569,
+      "at": 1783759463289,
       "event": {
         "type": "PLAYBACK_DONE",
-        "runId": "r4-g2-method-top-method-bottom:3"
+        "runId": "r4-g2-method-bottom-figure2:3"
       },
-      "actorEpoch": "r4-g2-method-top-method-bottom",
+      "actorEpoch": "r4-g2-method-bottom-figure2",
       "cursor": {
         "status": "settling",
-        "segment": "method-top-method-bottom",
+        "segment": "method-bottom-figure2",
         "from": "method-top",
-        "to": "method-bottom",
-        "target": "method-bottom"
+        "to": "figure2-animation",
+        "target": "figure2-animation"
       },
       "layerWindow": {
         "current": "method-top",
         "retiring": [],
-        "next": "method-bottom"
+        "next": "figure2-animation"
       },
       "id": 11
     }
@@ -261,7 +261,7 @@
       "opacity": 0
     },
     {
-      "scene": "method-bottom",
+      "scene": "figure2-animation",
       "role": "current",
       "visible": true,
       "interactable": true,

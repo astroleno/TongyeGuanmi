@@ -45,6 +45,7 @@ async function snapshot(page: Page): Promise<Group4Snapshot> {
 
 type Group4VisualSnapshot = {
   activeInkSegments: readonly string[];
+  shaderBodyInkSegments: readonly string[];
   transitions: readonly string[];
   figure3Progress: number;
   figure3VideoOpacity: number;
@@ -56,8 +57,13 @@ type Group4VisualSnapshot = {
   copyCueActive: boolean;
   revealProgress: number;
   revealClip: string;
+  revealMask: string;
+  revealMode: string | undefined;
   handoffProgress: number;
+  handoffPaperAlpha: number;
   servicesElevated: boolean;
+  brandY: number;
+  brandOpacity: number;
 };
 
 async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
@@ -66,12 +72,18 @@ async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
     const servicesRoot = document.querySelector<HTMLElement>('[data-r4-scene="services"]');
     const servicesLayer = servicesRoot?.closest<HTMLElement>('[data-stage-layer]');
+    const brandRoot = document.querySelector<HTMLElement>('[data-r4-scene="brand"]');
+    const brandStyle = brandRoot ? window.getComputedStyle(brandRoot) : undefined;
     const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
       .find((element) => element.dataset.r4InkActive === 'true') ?? null;
+    const revealStyle = revealLayer ? window.getComputedStyle(revealLayer) : null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
-        .filter((canvas) => canvas.parentElement?.dataset.r4InkActive === 'true')
+        .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
+        .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
+      shaderBodyInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
@@ -88,9 +100,14 @@ async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
       servicesSmallCount: document.querySelectorAll('.r4-services__row small').length,
       copyCueActive: servicesLayer?.dataset.copyCueActive === 'true',
       revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
-      revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none',
+      revealClip: revealStyle?.clipPath ?? 'none',
+      revealMask: revealStyle?.getPropertyValue('-webkit-mask-image') || revealStyle?.getPropertyValue('mask-image') || 'none',
+      revealMode: revealLayer?.dataset.r4RevealMode,
       handoffProgress: Number.parseFloat(servicesLayer?.dataset.r4HandoffReceiverProgress ?? '0'),
-      servicesElevated: servicesLayer?.dataset.r4TransitionElevated === 'true'
+      handoffPaperAlpha: Number.parseFloat(servicesLayer?.style.getPropertyValue('--r4-handoff-paper-alpha') ?? '0'),
+      servicesElevated: servicesLayer?.dataset.r4TransitionElevated === 'true',
+      brandY: Number.parseFloat(brandStyle?.getPropertyValue('--r4-brand-y') ?? '0'),
+      brandOpacity: Number.parseFloat(brandStyle?.getPropertyValue('--r4-brand-opacity') ?? '0')
     };
   });
 }
@@ -133,8 +150,14 @@ test.describe('R4 group4 brand figure3 services harness', () => {
         && visual.transitions.includes('brand-figure3-bottom-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
-        && visual.revealClip !== 'none';
-    }, { timeout: 7_000 }).toBe(true);
+        && visual.revealMode === 'ink-body'
+        && visual.revealClip === 'none'
+        && visual.revealMask === 'none';
+    }, { timeout: 7_000, intervals: [20, 20, 40, 80] }).toBe(true);
+    const staticBrandInk = await visualSnapshot(page);
+    expect(staticBrandInk.brandY).toBe(0);
+    expect(staticBrandInk.brandOpacity).toBe(1);
+    expect(staticBrandInk.shaderBodyInkSegments).toContain('brand-figure3');
     const frames: Group4Snapshot[] = [];
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
@@ -152,18 +175,16 @@ test.describe('R4 group4 brand figure3 services harness', () => {
     await page.evaluate(() => {
       void window.__r4Group4?.playForward();
     });
-    for (let index = 0; index < 18; index += 1) {
-      await page.waitForTimeout(24);
-      frames.push(await snapshot(page));
-    }
-    await expect.poll(async () => {
-      const visual = await visualSnapshot(page);
-      return visual.transitions.includes('figure3-services-media')
-        && visual.copyCueActive
-        && visual.servicesProgress > 0
-        && visual.handoffProgress > 0
-        && visual.servicesElevated;
-    }, { timeout: 5_000 }).toBe(true);
+    await expect.poll(async () => (await snapshot(page)).phase, { timeout: 7_000 }).toBe('staged-paused');
+    const figureTerminal = await visualSnapshot(page);
+    expect(figureTerminal.servicesProgress).toBe(1);
+    expect(figureTerminal.copyCueActive).toBe(true);
+    expect(figureTerminal.handoffProgress).toBe(1);
+    expect(figureTerminal.handoffPaperAlpha).toBe(1);
+    expect(figureTerminal.figure3VideoOpacity).toBeLessThan(0.05);
+    await page.evaluate(() => {
+      void window.__r4Group4?.playForward();
+    });
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 7_000 }).toBe('services');
     const servicesHold = await visualSnapshot(page);
     expect(servicesHold.servicesProgress).toBe(1);
@@ -178,6 +199,10 @@ test.describe('R4 group4 brand figure3 services harness', () => {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
     }
+    await expect.poll(async () => (await snapshot(page)).phase, { timeout: 7_000 }).toBe('staged-paused');
+    await page.evaluate(() => {
+      void window.__r4Group4?.playReverse();
+    });
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure3-animation');
 
     for (const frame of [...frames, ...reverseFrames]) {

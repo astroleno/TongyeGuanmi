@@ -172,6 +172,15 @@ test.describe('R3 pilot harness', () => {
     ).toBeGreaterThan(500);
     expect(frame.eventLog).toContain('PLAY:aod-method-top:1');
 
+    await page.evaluate(() => {
+      const scrollport = document.querySelector<HTMLElement>('[data-r4-scene="method-top"] [data-reading-scrollport="true"]');
+      scrollport?.scrollTo({ top: scrollport.scrollHeight, behavior: 'instant' });
+    });
+    await expect.poll(async () => page.evaluate(() => {
+      const scrollport = document.querySelector<HTMLElement>('[data-reading-scrollport="true"]');
+      return (scrollport?.scrollTop ?? 0) + (scrollport?.clientHeight ?? 0) >= (scrollport?.scrollHeight ?? 0) - 1;
+    })).toBe(true);
+
     const mediaReadyBeforeReverse = frame.mediaReadyAccepted;
     await page.evaluate(() => {
       void window.__r3Pilot?.playReverse();
@@ -184,6 +193,21 @@ test.describe('R3 pilot harness', () => {
     expect(frame.window.current).toBe('aod-animation');
     expect(frame.mediaReadyAccepted).toBe(mediaReadyBeforeReverse);
     expect(frame.eventLog).toContain('MEDIA_READY:reverse-static-fallback');
+
+    await page.evaluate(() => {
+      void window.__r3Pilot?.playForward();
+    });
+    await expect.poll(async () => {
+      const next = await snapshot(page);
+      return next.phase === 'hold' && next.window.current === 'method-top';
+    }, { timeout: 15_000 }).toBe(true);
+    await expect.poll(async () => page.evaluate(() => {
+      const scrollport = document.querySelector<HTMLElement>('[data-r4-scene="method-top"] [data-reading-scrollport="true"]');
+      return {
+        edge: scrollport?.dataset.readingEdge,
+        top: scrollport?.scrollTop
+      };
+    })).toEqual({ edge: 'top', top: 0 });
   });
 
   test('covers the reduced-motion pilot branch separately from the normal rhythm trace', async ({ page }) => {

@@ -19,6 +19,7 @@ import { educationScene } from '../../scenes/education';
 import { createCraneContactTransition } from '../../transitions/crane-contact';
 import { createEducationCraneTransition } from '../../transitions/education-crane';
 import { createR4Group7Manifest, type R4Group7HarnessMode } from './group7Manifest';
+import { findMediaElementByKey, prepareTimeoutForManifest, waitForRequiredMediaReady } from './mediaGate';
 
 type HarnessPhase = 'booting' | 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
 
@@ -85,8 +86,9 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 }
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
-  for (let attempt = 0; attempt < 160; attempt += 1) {
-    if (String(runtime.getState().state) === 'hold') {
+  for (let attempt = 0; attempt < 260; attempt += 1) {
+    const state = String(runtime.getState().state);
+    if (state === 'hold' || state === 'staged-paused') {
       return;
     }
     await wait(25);
@@ -232,6 +234,7 @@ export function Group7Harness({ mode }: { mode: R4Group7HarnessMode }) {
     () =>
       createDirectorRuntime({
         actorEpoch: `r4-g7-${mode}`,
+        prepareTimeoutMs: prepareTimeoutForManifest(manifest),
         manifest,
         stage: stageHandle,
         transitions: {
@@ -248,6 +251,14 @@ export function Group7Harness({ mode }: { mode: R4Group7HarnessMode }) {
             }
             throw new Error(`targetReady timed out for ${targetScene}`);
           },
+          waitForMediaReady: ({ segment, prepareToken, direction }) =>
+            waitForRequiredMediaReady({
+              segment,
+              prepareToken,
+              direction,
+              registry,
+              getMediaElement: (key) => findMediaElementByKey(layerElements.current.values(), key)
+            }),
           beginBuild: ({ segment, prepareToken, prepareRunId }) => {
             if (GROUP_SEGMENTS.includes(segment.id)) {
               registry.beginBuildGate(segment.id, { prepareToken, runId: prepareRunId });
@@ -272,6 +283,7 @@ export function Group7Harness({ mode }: { mode: R4Group7HarnessMode }) {
   const runtimeSnapshotRef = useRef(runtimeSnapshot);
 
   useEffect(() => {
+    runtime.start();
     const unsubscribe = runtime.subscribe(() => {
       const next = runtime.getState();
       runtimeSnapshotRef.current = next;
@@ -283,6 +295,7 @@ export function Group7Harness({ mode }: { mode: R4Group7HarnessMode }) {
     runtime.send({ type: 'BOOT_READY' });
     return () => {
       unsubscribe();
+      runtime.stop();
     };
   }, [runtime]);
 

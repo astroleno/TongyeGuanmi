@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 type Group6Snapshot = {
-  phase: 'hold' | 'preparing' | 'playing' | 'recovering';
+  phase: 'hold' | 'preparing' | 'playing' | 'staged-paused' | 'recovering';
   mode: string;
   window: { current: string; retiring: readonly string[] };
   visibleCount: number;
@@ -45,12 +45,15 @@ async function snapshot(page: Page): Promise<Group6Snapshot> {
 
 type Group6VisualSnapshot = {
   activeInkSegments: readonly string[];
+  shaderBodyInkSegments: readonly string[];
   transitions: readonly string[];
   phProgress: number;
   phBgTransform: string;
   phFrontTransform: string;
   phFigureTransform: string;
   phVideos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
+  phPlaybackActive: string | undefined;
+  phPlaybackDirection: string | undefined;
   educationProgress: number;
   educationRows: number;
   educationScheme: string;
@@ -61,6 +64,8 @@ type Group6VisualSnapshot = {
   labReference: boolean;
   revealProgress: number;
   revealClip: string;
+  revealMask: string;
+  revealMode: string | undefined;
 };
 
 async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
@@ -74,10 +79,14 @@ async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
     const educationVertical = document.querySelector<HTMLElement>('.r4-education__vertical');
     const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
       .find((element) => element.dataset.r4InkActive === 'true') ?? null;
+    const revealStyle = revealLayer ? window.getComputedStyle(revealLayer) : null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
-        .filter((canvas) => canvas.parentElement?.dataset.r4InkActive === 'true')
+        .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
+        .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
+      shaderBodyInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
@@ -90,6 +99,8 @@ async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
         paused: video.paused,
         currentTime: video.currentTime
       })),
+      phPlaybackActive: phRoot?.dataset.phPlaybackActive,
+      phPlaybackDirection: phRoot?.dataset.phPlaybackDirection,
       educationProgress: Number.parseFloat(educationRoot?.dataset.educationProgress ?? '0'),
       educationRows: document.querySelectorAll('.r4-education__row').length,
       educationScheme: window.getComputedStyle(educationRoot ?? document.body).colorScheme,
@@ -99,7 +110,9 @@ async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
       viewportHeight: window.innerHeight,
       labReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
       revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
-      revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none'
+      revealClip: revealStyle?.clipPath ?? 'none',
+      revealMask: revealStyle?.getPropertyValue('-webkit-mask-image') || revealStyle?.getPropertyValue('mask-image') || 'none',
+      revealMode: revealLayer?.dataset.r4RevealMode
     };
   });
 }
@@ -144,15 +157,19 @@ test.describe('R4 group6 lab ph education harness', () => {
       frames.push(await snapshot(page));
       const visual = await visualSnapshot(page);
       sawLabPhReveal ||= visual.activeInkSegments.includes('lab-ph')
-        && visual.transitions.includes('lab-ph-sun-radial-ink')
+        && visual.transitions.includes('lab-ph-top-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
-        && visual.revealClip !== 'none';
+        && visual.revealMode === 'ink-body'
+        && visual.revealClip === 'none'
+        && visual.revealMask === 'none'
+        && visual.shaderBodyInkSegments.includes('lab-ph')
+        && visual.phProgress === 0;
     }
     expect(sawLabPhReveal).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('ph-animation');
     const phHold = await visualSnapshot(page);
-    expect(phHold.phProgress).toBe(1);
+    expect(phHold.phProgress).toBe(0);
     expect(phHold.phVideos).toHaveLength(1);
     expect(phHold.phVideos.every((video) => video.loop === false && video.paused)).toBe(true);
     expect(phHold.phBgTransform).not.toBe('none');
@@ -162,19 +179,102 @@ test.describe('R4 group6 lab ph education harness', () => {
     await page.evaluate(() => {
       void window.__r4Group6?.playForward();
     });
-    let sawPhEducationReveal = false;
+    let sawPhTimelinePlayback = false;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
       const visual = await visualSnapshot(page);
-      sawPhEducationReveal ||= visual.activeInkSegments.includes('ph-education')
-        && visual.transitions.includes('ph-education-top-ink')
-        && visual.revealProgress > 0
-        && visual.revealProgress < 1
-        && visual.revealClip !== 'none';
+      sawPhTimelinePlayback ||= visual.activeInkSegments.includes('ph-education') === false
+        && visual.phProgress > 0
+        && visual.phProgress < 1
+        && visual.phPlaybackActive === 'true'
+        && visual.phVideos.some((video) => video.paused && video.currentTime > 0.02);
     }
-    expect(sawPhEducationReveal).toBe(true);
+    if (!sawPhTimelinePlayback) {
+      await expect.poll(async () => {
+        const visual = await visualSnapshot(page);
+        return visual.phPlaybackActive === 'true'
+          && visual.phProgress > 0
+          && visual.phProgress < 1
+          && visual.phVideos.some((video) => video.paused && video.currentTime > 0.02);
+      }, { timeout: 5_000, intervals: [20] }).toBe(true);
+      sawPhTimelinePlayback = true;
+    }
+    expect(sawPhTimelinePlayback).toBe(true);
+    await expect.poll(async () => (await snapshot(page)).phase).toBe('staged-paused');
+    const phTerminalPause = await visualSnapshot(page);
+    expect(phTerminalPause.phProgress).toBe(1);
+    expect(phTerminalPause.activeInkSegments).not.toContain('ph-education');
+
+    await page.evaluate(() => {
+      const evidenceWindow = window as Window & {
+        __phEducationInkEvidence?: {
+          segment: string;
+          boundary: string;
+          targetReady: string;
+          mode: string;
+          clip: string;
+          mask: string;
+          transition: string;
+          revealProgress: string;
+          phProgress: string;
+          playbackActive: string;
+        };
+      };
+      delete evidenceWindow.__phEducationInkEvidence;
+      const sampleInkFrame = () => {
+        const canvas = document.querySelector<HTMLCanvasElement>('[data-r4-ink-segment="ph-education"]');
+        const receiver = document.querySelector<HTMLElement>('[data-stage-layer="education"]');
+        const ph = document.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]');
+        const revealProgress = Number.parseFloat(receiver?.dataset.r4RevealProgress ?? '0');
+        if (
+          canvas?.dataset.r4InkActive === 'true'
+          && receiver?.dataset.r4RevealMode === 'ink-body'
+          && revealProgress > 0
+          && revealProgress < 1
+        ) {
+          const style = window.getComputedStyle(receiver);
+          evidenceWindow.__phEducationInkEvidence = {
+            segment: canvas.dataset.r4InkSegment ?? '',
+            boundary: canvas.dataset.r4InkBoundary ?? '',
+            targetReady: canvas.dataset.r4InkTargetReady ?? '',
+            mode: receiver.dataset.r4RevealMode ?? '',
+            clip: style.clipPath,
+            mask: style.maskImage,
+            transition: receiver.dataset.r4Transition ?? '',
+            revealProgress: receiver.dataset.r4RevealProgress ?? '',
+            phProgress: ph?.dataset.phProgress ?? '',
+            playbackActive: ph?.dataset.phPlaybackActive ?? ''
+          };
+          return;
+        }
+        window.requestAnimationFrame(sampleInkFrame);
+      };
+      window.requestAnimationFrame(sampleInkFrame);
+      void window.__r4Group6?.playForward();
+    });
+    for (let index = 0; index < 18; index += 1) {
+      await page.waitForTimeout(24);
+      frames.push(await snapshot(page));
+    }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('education');
+    const phEducationInkEvidence = await page.evaluate(() => (
+      window as Window & { __phEducationInkEvidence?: Record<string, string> }
+    ).__phEducationInkEvidence);
+    expect(phEducationInkEvidence).toMatchObject({
+      segment: 'ph-education',
+      boundary: 'shader-body',
+      targetReady: 'true',
+      mode: 'ink-body',
+      clip: 'none',
+      mask: 'none',
+      transition: 'ph-education-top-ink',
+      phProgress: '1.0000',
+      playbackActive: 'false'
+    });
+    const phEducationRevealProgress = Number.parseFloat(phEducationInkEvidence?.revealProgress ?? '0');
+    expect(phEducationRevealProgress).toBeGreaterThan(0);
+    expect(phEducationRevealProgress).toBeLessThan(1);
     const educationHold = await visualSnapshot(page);
     expect(educationHold.educationProgress).toBe(1);
     expect(educationHold.educationRows).toBe(4);
@@ -192,6 +292,23 @@ test.describe('R4 group6 lab ph education harness', () => {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
     }
+    await expect.poll(async () => (await snapshot(page)).phase).toBe('staged-paused');
+    const phReverseStart = await visualSnapshot(page);
+    const terminalTime = phReverseStart.phVideos[0]?.currentTime ?? 0;
+    await page.evaluate(() => {
+      void window.__r4Group6?.playReverse();
+    });
+    let sawPhReversePlayback = false;
+    for (let index = 0; index < 18; index += 1) {
+      await page.waitForTimeout(24);
+      reverseFrames.push(await snapshot(page));
+      const visual = await visualSnapshot(page);
+      sawPhReversePlayback ||= visual.phPlaybackDirection === '-1'
+        && visual.phProgress > 0
+        && visual.phProgress < 1
+        && (visual.phVideos[0]?.currentTime ?? terminalTime) < terminalTime - 0.02;
+    }
+    expect(sawPhReversePlayback).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('ph-animation');
 
     for (const frame of [...frames, ...reverseFrames]) {
@@ -212,7 +329,12 @@ test.describe('R4 group6 lab ph education harness', () => {
     await expect(page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)).resolves.toBe(true);
 
     await page.evaluate(async () => {
-      await window.__r4Group6?.idempotentCycle();
+      await window.__r4Group6?.playForward();
+      await window.__r4Group6?.playForward();
+      await window.__r4Group6?.playReverse();
+      await window.__r4Group6?.playReverse();
+      await window.__r4Group6?.playForward();
+      await window.__r4Group6?.playForward();
     });
 
     const frame = await snapshot(page);

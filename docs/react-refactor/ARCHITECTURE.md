@@ -108,10 +108,8 @@ hero
 → star-map-aod / 下到上水平墨滴
 → aod-animation
 → aod-method-top / 动画 80% method 文案提前入场
-→ method-top
-→ method-top-method-bottom / 普通阅读/滚动
-→ method-bottom
-→ method-bottom-figure2 / 下到上水平墨滴
+→ method-top / 单一 Method reading hold；左侧锁定，右侧五步原生滚动
+→ method-bottom-figure2 / 右侧滚到底后，下到上水平墨滴（segment id 保留历史命名）
 → figure2-animation
 → figure2-distance-expand / figure2 内部远景扩散（segment，不是 scene）
 → figure2-proof-opening / 保留前景模糊横拱 + “我们见过太多用不上”整屏
@@ -127,7 +125,7 @@ hero
 → ttg-animation
 → ttg-lab / 上到下水平墨滴
 → lab
-→ lab-ph / PH 太阳点放射墨滴
+→ lab-ph / 单一上到下墨滴
 → ph-animation
 → ph-education / 上到下水平墨滴
 → education
@@ -145,7 +143,6 @@ pattern
 star-map
 aod-animation
 method-top
-method-bottom
 figure2-animation
 figure2-proof-opening
 figure2-proof-cards
@@ -169,8 +166,8 @@ contact
 |---|---|---|
 | `home-belief` | `hero → pattern → star-map` | 中心扩散 + 左侧旋转扩散 |
 | `belief-method` | `star-map → aod-animation → method-top` | `copyCue.atProgress = 0.8` |
-| `method` | `method-top / method-bottom`（中间 reading 推进） | — |
-| `method-proof-brand` | `method-bottom → figure2-animation → figure2-proof-opening → figure2-proof-cards → figure2-proof-closing → brand` | R-1 从 DOM attribute + adapter 反推 staged/post-scroll 事实；不得把“4 段”当既有数据事实 |
+| `method` | `method-top` 单一 reading hold（intro + 五步列表） | 右侧滚到底才交接 |
+| `method-proof-brand` | `method-top → figure2-animation → figure2-proof-opening → figure2-proof-cards → figure2-proof-closing → brand` | `method-bottom-figure2` 仅保留历史 segment id；R-1 从 DOM attribute + adapter 反推 staged/post-scroll 事实 |
 | `brand-services` | `brand → figure3-animation → services` | `copyCue.atProgress = 0.8` |
 | `services-lab` / `lab-education` | `services → ttg → lab`、`lab → ph → education` | 水平墨滴方向见 §3.1 |
 | `philosophy-contact` / crane | `education → crane-animation → contact` | `copyCue.atProgress = 0.8` |
@@ -194,7 +191,7 @@ type SegmentPolicy =
   | { kind: 'reading'; anchor: SceneId; edgeArm?: 'bottom' | 'top' };
 
 type SegmentVisual =
-  | { type: 'ink'; ink: 'center-expand' | 'left-rotate-expand' | 'horizontal' | 'sun-radial';
+  | { type: 'ink'; ink: 'center-expand' | 'left-rotate-expand' | 'horizontal';
       direction?: 'bottom-to-top' | 'top-to-bottom' }
   | { type: 'media'; media: MediaKey[] }
   | { type: 'internal'; milestone: string };
@@ -208,7 +205,7 @@ type CopyCue = {
 - **虚拟时间**：每个 segment 的 `virtualDuration` 来自 manifest，spine 由此提供全局进度（HUD、进度指示、菜单定位），无需真实 timeline 常驻。
 - **label 寻址**：`spine.labelOf('scene:star-map')` / `spine.cursor`。所有导航（蓄力、菜单、hash、seek）都以 label 为单位，等价贴文的 `master.tweenTo(label)`。
 - **游标不变量**：cursor 要么停在 hold，要么在恰好一个 active segment 内。绝无两个 segment 同时活跃。
-- **reading segment**：只用于 `method-top → method-bottom` 这类普通阅读/滚动推进。它不创建视觉转场 timeline；Director 只负责在内部滚动到达锚点后更新 cursor 与 URL。
+- **reading hold / 内部滚动**：`method-top`、`lab`、`education` 各自拥有 scene-owned reading scrollport。Director 在未到边缘时把输入留给原生滚动，到达对应边缘后下一次输入才进入相邻 segment。Stage、document 与纸张背景始终固定；不得把同一连续长页拆成额外 scene handoff。
 - **stagedSnap segment**：用于需要离散 stop 的分段播放与 post-scroll 保留。`stops/playMs/postScrollVh` 必须在 manifest 明示，TransitionModule 不能私藏 stage state。R-1 必须从 `data-transition-stage-stops`、`data-transition-stage-play-ms`、adapter progress 区间和 DOM anchor 反推，不得用文档里的口头“几段”代替事实。
 - **interruptible 默认 false**：R-1 产出 `interruptible-candidates` 清单，默认空。只有从旧站 scrub / 可往返章节事实反推出来、并在 R2/R3 有专项测试的 segment，R0 manifest 才能设 `interruptible: true`。
 
@@ -481,6 +478,12 @@ interface TransitionContext {
 - Transition 是唯一允许同时引用两个 scene 的地方；组合方式自由：直接编排两层属性、嵌入 `from.buildOutro()` / `to.buildIntro()`、共享元素用 Flip（`getSharedElements` 两端配对，跨层克隆飞行后落点归 to 层）。
 - 强制 label：`start / end`，可选 `gate:media`。dev/测试用 `verifySegmentTimeline()` 断言：0 处与 end 处两层状态合法（from 全见/to 全隐 ↔ from 全隐或钉住 / to 全见）。
 - `reducedMotion` 分支：所有 segment 必须提供 crossfade 降级（`gsap.matchMedia` 或 ctx 分支），协议不变。
+
+#### 8.3.1 定向 Ink 的唯一边界
+
+- 横向/纵向 Ink curtain 不允许再给 `to` 层叠加 CSS `clip-path`、渐变 `mask-image` 或 CPU 自绘轮廓。唯一揭示边界是现有 Ink fragment shader 计算出的 `body`；目标静态帧作为纹理在同一个 shader 内按 `targetMask = body * targetReady` 合成。
+- 活动段内 live `to` DOM 保持原坐标但视觉隐藏；`progress >= .999` 时 shader 帧与 live DOM 在同一完成态交接。`from/to` 都不做位移、模糊或二次文字入场。
+- 目标 DOM 纹理在 build gate 内绘制一次，带 revision 的静态纹理只上传一次。Stage 因角色变化重新协调 DOM 时，timeline 必须重新解析 live layer 并把原 WebGL canvas 挂回当前 Stage，不能创建第二个 renderer，也不能静默漏掉 Ink。
 
 ### 8.4 反向（direction: -1）
 

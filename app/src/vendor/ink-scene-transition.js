@@ -1,14 +1,36 @@
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const smoothStep = (value) => value * value * (3 - 2 * value);
 
+export function releaseInkWebGlResources(gl, { buffer = null, program = null, shaders = [], textures = [] } = {}) {
+  textures.forEach((texture) => {
+    if (texture) gl.deleteTexture(texture);
+  });
+  if (buffer) gl.deleteBuffer(buffer);
+  if (program) gl.deleteProgram(program);
+  shaders.forEach((shader) => {
+    if (shader) gl.deleteShader(shader);
+  });
+  gl.getExtension?.('WEBGL_lose_context')?.loseContext?.();
+}
+
+export function dynamicTextureUploadDue({ fps, lastRevision = null, nextRevision = null, lastUploadAt, now }) {
+  if (nextRevision !== null && nextRevision === lastRevision) return false;
+  const intervalMs = 1000 / Math.max(1, fps || 24);
+  return !Number.isFinite(lastUploadAt) || now - lastUploadAt >= intervalMs;
+}
+
 export function createInkCurtainTransition(canvas, options = {}) {
     if (!canvas) return null;
     const colorLift = clamp(options.colorLift ?? 0.32, 0, 1);
+    const particleStrength = clamp(options.particleStrength ?? 0.45, 0, 1);
     const progressSpan = Math.max(0.01, options.progressSpan || 1);
     const direction = options.direction === 'top-down' ? 1 : 0;
     const coverAlpha = clamp(options.coverAlpha ?? 0.72, 0, 1);
     const fadeOutStart = clamp(options.fadeOutStart ?? 0.76, 0, 0.98);
     const fadeOutEnd = Math.max(fadeOutStart + 0.01, clamp(options.fadeOutEnd ?? 0.98, 0.01, 1));
+    const dprLimit = Math.max(0.5, Math.min(1, options.dprLimit ?? 1));
+    const targetTextureFps = Math.max(1, Math.min(30, options.targetTextureFps ?? 24));
+    const targetElement = options.targetElement || null;
 
     const gl = canvas.getContext('webgl', {
       alpha: true,
@@ -38,9 +60,12 @@ export function createInkCurtainTransition(canvas, options = {}) {
       uniform float uProgress;
       uniform float uTime;
       uniform float uColorLift;
+      uniform float uParticleStrength;
       uniform float uDirection;
       uniform float uProgressSpan;
       uniform float uCoverAlpha;
+      uniform sampler2D uTargetScene;
+      uniform float uTargetReady;
 
       float hash(vec2 p) {
         p = fract(p * vec2(127.1, 311.7));
@@ -116,12 +141,14 @@ export function createInkCurtainTransition(canvas, options = {}) {
           hash(particleCell + vec2(17.3, 5.1)),
           hash(particleCell + vec2(43.7, 9.8))
         ) - 0.5;
-        float particleRadius = mix(0.075, 0.190, hash(particleCell + vec2(2.6, 11.9)));
+        float particleRadius = mix(0.075, 0.190, hash(particleCell + vec2(2.6, 11.9))) * mix(0.92, 1.34, uParticleStrength);
         float particleDot = 1.0 - smoothstep(particleRadius * 0.28, particleRadius, length(particleLocal - particleJitter * 0.38));
         float particleWindow = (1.0 - smoothstep(0.026, 0.290, abs(edge))) * smoothstep(0.06, 0.94, p);
         float sprayWindow = smoothstep(-0.240, -0.030, edge) * (1.0 - smoothstep(-0.030, 0.130, edge)) * smoothstep(0.08, 0.86, p);
         particleWindow = max(particleWindow * 0.72, sprayWindow);
-        float particles = particleDot * smoothstep(0.860, 0.975, particleSeed) * particleWindow * (0.40 + energy * 0.66);
+        float particleGateLow = mix(0.860, 0.720, uParticleStrength);
+        float particleGateHigh = mix(0.975, 0.850, uParticleStrength);
+        float particles = particleDot * smoothstep(particleGateLow, particleGateHigh, particleSeed) * particleWindow * (0.40 + energy * 0.66) * mix(0.78, 1.25, uParticleStrength);
         float particleCore = particles * smoothstep(0.55, 0.98, particleDot);
         float late = smoothstep(0.92, 1.0, p);
 
@@ -140,6 +167,22 @@ export function createInkCurtainTransition(canvas, options = {}) {
         float alpha = coreWash;
         alpha += feather * 0.18 + hot * 0.13 + veins * 0.05 + ember * 0.28 + particles * 0.76 + particleCore * 0.36;
         alpha = clamp(alpha, 0.0, 1.0);
+
+        vec3 targetScene = texture2D(uTargetScene, uv).rgb;
+        float targetMask = body * uTargetReady;
+        float targetDetail = clamp(
+          feather * 0.18
+            + hot * 0.16
+            + veins * 0.06
+            + ember * 0.20
+            + particles * 0.60
+            + particleCore * 0.32,
+          0.0,
+          1.0
+        );
+        vec3 targetComposite = targetScene + color * targetDetail;
+        color = mix(color, targetComposite, targetMask);
+        alpha = max(alpha, targetMask);
 
         gl_FragColor = vec4(color, alpha);
       }
@@ -181,16 +224,98 @@ export function createInkCurtainTransition(canvas, options = {}) {
       progress: gl.getUniformLocation(program, 'uProgress'),
       time: gl.getUniformLocation(program, 'uTime'),
       colorLift: gl.getUniformLocation(program, 'uColorLift'),
+      particleStrength: gl.getUniformLocation(program, 'uParticleStrength'),
       direction: gl.getUniformLocation(program, 'uDirection'),
       progressSpan: gl.getUniformLocation(program, 'uProgressSpan'),
-      coverAlpha: gl.getUniformLocation(program, 'uCoverAlpha')
+      coverAlpha: gl.getUniformLocation(program, 'uCoverAlpha'),
+      targetScene: gl.getUniformLocation(program, 'uTargetScene'),
+      targetReady: gl.getUniformLocation(program, 'uTargetReady')
+    };
+
+    const targetTexture = gl.createTexture();
+    const targetLayer = {
+      width: 1,
+      height: 1,
+      ready: 0,
+      lastRevision: null,
+      lastUploadAt: -Infinity
+    };
+    if (targetTexture) {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        1,
+        1,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        new Uint8Array([0, 0, 0, 0])
+      );
+    }
+
+    const targetRevision = (source) => {
+      if (!source) return null;
+      if (typeof HTMLMediaElement !== 'undefined' && source instanceof HTMLMediaElement) {
+        return Number.isFinite(source.currentTime) ? source.currentTime.toFixed(3) : null;
+      }
+      return source.dataset?.inkTextureRevision ?? null;
+    };
+
+    const updateTargetLayer = (now) => {
+      options.renderTarget?.();
+      const source = targetElement;
+      const isMediaSource = typeof HTMLMediaElement !== 'undefined' && source instanceof HTMLMediaElement;
+      const sourceWidth = isMediaSource ? source.videoWidth : (source?.width || source?.naturalWidth || 0);
+      const sourceHeight = isMediaSource ? source.videoHeight : (source?.height || source?.naturalHeight || 0);
+      const sourceReady = isMediaSource
+        ? source.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+        : source?.dataset?.inkTextureReady === 'true';
+      if (!targetTexture || !source || !sourceReady || !sourceWidth || !sourceHeight) {
+        targetLayer.ready = 0;
+        canvas.dataset.r4InkTargetReady = 'false';
+        return;
+      }
+      const nextRevision = targetRevision(source);
+      if (!dynamicTextureUploadDue({
+        fps: targetTextureFps,
+        lastRevision: targetLayer.lastRevision,
+        nextRevision,
+        lastUploadAt: targetLayer.lastUploadAt,
+        now
+      })) return;
+      try {
+        targetLayer.width = sourceWidth;
+        targetLayer.height = sourceHeight;
+        targetLayer.ready = 1;
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+        targetLayer.lastRevision = nextRevision;
+        targetLayer.lastUploadAt = now;
+        canvas.dataset.r4InkTargetReady = 'true';
+        canvas.dataset.r4InkTargetUploads = String(Number(canvas.dataset.r4InkTargetUploads || 0) + 1);
+        if (source.dataset) {
+          source.dataset.r4InkTextureUploads = String(Number(source.dataset.r4InkTextureUploads || 0) + 1);
+        }
+      } catch {
+        targetLayer.ready = 0;
+        canvas.dataset.r4InkTargetReady = 'false';
+      }
     };
 
     let width = 0;
     let height = 0;
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
-      const ratio = Math.min(window.devicePixelRatio || 1, 1.25);
+      const ratio = Math.min(window.devicePixelRatio || 1, dprLimit);
       const nextWidth = Math.max(1, Math.round(rect.width * ratio));
       const nextHeight = Math.max(1, Math.round(rect.height * ratio));
       if (nextWidth !== width || nextHeight !== height) {
@@ -209,14 +334,20 @@ export function createInkCurtainTransition(canvas, options = {}) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.clearColor(0, 0, 0, 0);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+    gl.uniform1i(uniforms.targetScene, 0);
 
+    let destroyed = false;
     return {
       render(progress, pointerX = 0, pointerY = 0) {
+        if (destroyed) return;
         const visibleProgress = clamp(progress, 0, 1);
         const fadeIn = smoothStep(clamp(visibleProgress / 0.08, 0, 1));
         const fadeOut = 1 - smoothStep(clamp((visibleProgress - fadeOutStart) / (fadeOutEnd - fadeOutStart), 0, 1));
-        const canvasOpacity = fadeIn * fadeOut;
-        const active = canvasOpacity > 0.002;
+        const targetCompositeActive = Boolean(targetElement) && visibleProgress < 0.999;
+        const canvasOpacity = targetElement ? fadeIn : fadeIn * fadeOut;
+        const active = targetCompositeActive || canvasOpacity > 0.002;
         canvas.style.visibility = active ? 'visible' : 'hidden';
         canvas.style.opacity = active ? canvasOpacity.toFixed(4) : '0';
         if (!resize()) return;
@@ -234,13 +365,33 @@ export function createInkCurtainTransition(canvas, options = {}) {
         gl.uniform1f(uniforms.progress, visibleProgress);
         gl.uniform1f(uniforms.time, performance.now() * 0.001);
         gl.uniform1f(uniforms.colorLift, colorLift);
+        gl.uniform1f(uniforms.particleStrength, particleStrength);
         gl.uniform1f(uniforms.direction, direction);
         gl.uniform1f(uniforms.progressSpan, progressSpan);
         gl.uniform1f(uniforms.coverAlpha, coverAlpha);
+        const now = performance.now();
+        updateTargetLayer(now);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+        gl.uniform1f(uniforms.targetReady, targetLayer.ready);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       },
       prewarm() {
         this.render(0.003, 0, 0);
+        canvas.style.visibility = 'hidden';
+        canvas.style.opacity = '0';
+      },
+      destroy() {
+        if (destroyed) return;
+        destroyed = true;
+        releaseInkWebGlResources(gl, {
+          buffer,
+          program,
+          shaders: [vertexShader, fragmentShader],
+          textures: [targetTexture]
+        });
+        canvas.width = 0;
+        canvas.height = 0;
         canvas.style.visibility = 'hidden';
         canvas.style.opacity = '0';
       }
@@ -254,6 +405,9 @@ export function createInkSceneTransition(canvas, options = {}) {
     const farOnly = options.farOnly ? 1 : 0;
     const hideAtEnd = Boolean(options.hideAtEnd);
     const colorLift = clamp(options.colorLift ?? 0, 0, 1);
+    const particleStrength = clamp(options.particleStrength ?? 0.45, 0, 1);
+    const dynamicTextureFps = Math.max(1, Math.min(30, options.dynamicTextureFps ?? 24));
+    const dprLimit = Math.max(0.5, Math.min(1, options.dprLimit ?? 1));
 
     const gl = canvas.getContext('webgl', {
       alpha: true,
@@ -264,6 +418,7 @@ export function createInkSceneTransition(canvas, options = {}) {
       powerPreference: 'high-performance'
     });
     if (!gl) return null;
+    let destroyed = false;
 
     const vertexSource = `
       attribute vec2 aPosition;
@@ -295,6 +450,7 @@ export function createInkSceneTransition(canvas, options = {}) {
       uniform vec2 uInkCenter;
       uniform float uProgressSpan;
       uniform float uColorLift;
+      uniform float uParticleStrength;
       uniform vec4 uImageRect;
       uniform float uUseImageRect;
       uniform sampler2D uFigureMask;
@@ -447,7 +603,7 @@ export function createInkSceneTransition(canvas, options = {}) {
           hash(thresholdParticleCell + vec2(17.3, 5.1)),
           hash(thresholdParticleCell + vec2(43.7, 9.8))
         ) - 0.5;
-        float thresholdParticleRadius = mix(0.075, 0.190, hash(thresholdParticleCell + vec2(2.6, 11.9)));
+        float thresholdParticleRadius = mix(0.075, 0.190, hash(thresholdParticleCell + vec2(2.6, 11.9))) * mix(0.92, 1.34, uParticleStrength);
         float thresholdParticleDot = 1.0 - smoothstep(
           thresholdParticleRadius * 0.28,
           thresholdParticleRadius,
@@ -458,10 +614,13 @@ export function createInkSceneTransition(canvas, options = {}) {
           * (1.0 - smoothstep(-0.024, 0.132, thresholdEdge))
           * smoothstep(0.04, 0.88, p);
         thresholdParticleWindow = max(thresholdParticleWindow * 0.76, thresholdSprayWindow);
+        float thresholdParticleGateLow = mix(0.805, 0.700, uParticleStrength);
+        float thresholdParticleGateHigh = mix(0.965, 0.860, uParticleStrength);
         float thresholdParticles = thresholdParticleDot
-          * smoothstep(0.805, 0.965, thresholdParticleSeed)
+          * smoothstep(thresholdParticleGateLow, thresholdParticleGateHigh, thresholdParticleSeed)
           * thresholdParticleWindow
-          * (0.50 + energy * 0.78);
+          * (0.50 + energy * 0.78)
+          * mix(0.78, 1.25, uParticleStrength);
         float thresholdParticleCore = thresholdParticles * smoothstep(0.55, 0.98, thresholdParticleDot);
         float thresholdEmberMask = smoothstep(0.68, 0.982, hash(floor((aspectUv + warp * 0.62) * uResolution.y * 0.058 + uTime * 4.35)));
         float thresholdEmber = (thresholdSoftBand * thresholdEmberMask + thresholdParticles * 0.38) * (0.16 + energy * 0.48);
@@ -606,6 +765,8 @@ export function createInkSceneTransition(canvas, options = {}) {
 
         float outsideAlpha = (1.0 - dissolve) * (0.05 + p * 0.34 + late * 0.22) * (1.0 - uTransparentOutside);
         float insideMask = smoothstep(0.08, 0.42, dissolve);
+        float depthThresholdMask = step(0.0, thresholdEdge);
+        insideMask = mix(insideMask, depthThresholdMask, uDepthThresholdMode);
         vec3 edgeColor = mix(jade, gold, smoothstep(0.24, 0.90, fbm(aspectUv * (4.5 + zDepth * 4.0) + uTime * 0.04)));
         vec3 outsideColor = vec3(0.012, 0.022, 0.018);
         vec3 color = mix(outsideColor, innerColor, insideMask);
@@ -684,6 +845,7 @@ export function createInkSceneTransition(canvas, options = {}) {
       inkCenter: gl.getUniformLocation(program, 'uInkCenter'),
       progressSpan: gl.getUniformLocation(program, 'uProgressSpan'),
       colorLift: gl.getUniformLocation(program, 'uColorLift'),
+      particleStrength: gl.getUniformLocation(program, 'uParticleStrength'),
       imageRect: gl.getUniformLocation(program, 'uImageRect'),
       useImageRect: gl.getUniformLocation(program, 'uUseImageRect'),
       figureMask: gl.getUniformLocation(program, 'uFigureMask'),
@@ -699,7 +861,7 @@ export function createInkSceneTransition(canvas, options = {}) {
 
     const createTextureLayer = (src, fallback) => {
       const texture = gl.createTexture();
-      const layer = { texture, width: 1, height: 1, ready: 0 };
+      const layer = { texture, width: 1, height: 1, ready: 0, lastRevision: null, lastUploadAt: -Infinity };
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -710,12 +872,15 @@ export function createInkSceneTransition(canvas, options = {}) {
       const image = new Image();
       image.decoding = 'async';
       image.onload = () => {
+        if (destroyed) return;
         layer.width = image.naturalWidth || 1;
         layer.height = image.naturalHeight || 1;
         layer.ready = 1;
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        layer.lastRevision = null;
+        layer.lastUploadAt = -Infinity;
       };
       image.src = src;
       return layer;
@@ -735,7 +900,9 @@ export function createInkSceneTransition(canvas, options = {}) {
       width: 1,
       height: 1,
       ready: 0,
-      element: options.figureMaskElement || null
+      element: options.figureMaskElement || null,
+      lastRevision: null,
+      lastUploadAt: -Infinity
     };
     gl.bindTexture(gl.TEXTURE_2D, figureLayer.texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -744,7 +911,20 @@ export function createInkSceneTransition(canvas, options = {}) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
 
-    const updateFigureLayer = () => {
+    const sourceRevision = (source) => {
+      if (!source) return null;
+      if (typeof HTMLMediaElement !== 'undefined' && source instanceof HTMLMediaElement) {
+        return Number.isFinite(source.currentTime) ? source.currentTime.toFixed(3) : null;
+      }
+      return source.dataset?.inkTextureRevision ?? null;
+    };
+
+    const recordTextureUpload = (source) => {
+      if (!source?.dataset) return;
+      source.dataset.r4InkTextureUploads = String(Number(source.dataset.r4InkTextureUploads || 0) + 1);
+    };
+
+    const updateFigureLayer = (now) => {
       const source = figureLayer.element;
       const isMediaSource = typeof HTMLMediaElement !== 'undefined' && source instanceof HTMLMediaElement;
       const sourceWidth = isMediaSource ? source?.videoWidth : (source?.width || source?.naturalWidth || 0);
@@ -757,6 +937,14 @@ export function createInkSceneTransition(canvas, options = {}) {
         figureLayer.ready = 0;
         return;
       }
+      const nextRevision = sourceRevision(source);
+      if (!dynamicTextureUploadDue({
+        fps: dynamicTextureFps,
+        lastRevision: figureLayer.lastRevision,
+        nextRevision,
+        lastUploadAt: figureLayer.lastUploadAt,
+        now
+      })) return;
       try {
         figureLayer.width = sourceWidth;
         figureLayer.height = sourceHeight;
@@ -764,15 +952,26 @@ export function createInkSceneTransition(canvas, options = {}) {
         gl.bindTexture(gl.TEXTURE_2D, figureLayer.texture);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+        figureLayer.lastRevision = nextRevision;
+        figureLayer.lastUploadAt = now;
+        recordTextureUpload(source);
       } catch {
         figureLayer.ready = 0;
       }
     };
 
-    const updateElementLayer = (layer) => {
+    const updateElementLayer = (layer, now) => {
       const element = layer.element;
       if (!element || !element.width || !element.height) return;
       if (element.dataset?.inkTextureReady !== 'true') return;
+      const nextRevision = sourceRevision(element);
+      if (!dynamicTextureUploadDue({
+        fps: dynamicTextureFps,
+        lastRevision: layer.lastRevision,
+        nextRevision,
+        lastUploadAt: layer.lastUploadAt,
+        now
+      })) return;
       try {
         layer.width = element.width;
         layer.height = element.height;
@@ -780,6 +979,9 @@ export function createInkSceneTransition(canvas, options = {}) {
         gl.bindTexture(gl.TEXTURE_2D, layer.texture);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, element);
+        layer.lastRevision = nextRevision;
+        layer.lastUploadAt = now;
+        recordTextureUpload(element);
       } catch {
         // Keep the last uploaded texture if the dynamic source is briefly unavailable.
       }
@@ -789,7 +991,7 @@ export function createInkSceneTransition(canvas, options = {}) {
     let height = 0;
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
-      const ratio = Math.min(window.devicePixelRatio || 1, 1.35);
+      const ratio = Math.min(window.devicePixelRatio || 1, dprLimit);
       const nextWidth = Math.max(1, Math.round(rect.width * ratio));
       const nextHeight = Math.max(1, Math.round(rect.height * ratio));
       if (nextWidth !== width || nextHeight !== height) {
@@ -820,6 +1022,7 @@ export function createInkSceneTransition(canvas, options = {}) {
 
     return {
       render(progress, pointerX, pointerY, visibilityProgress = progress, renderOptions = {}) {
+        if (destroyed) return;
         const active = visibilityProgress > 0.002 && !(hideAtEnd && visibilityProgress > 0.999);
         const exitFade = hideAtEnd
           ? 1 - smoothStep(clamp((visibilityProgress - 0.94) / 0.055, 0, 1))
@@ -831,6 +1034,7 @@ export function createInkSceneTransition(canvas, options = {}) {
         gl.clear(gl.COLOR_BUFFER_BIT);
         if (!active) return;
 
+        const now = performance.now();
         gl.useProgram(program);
         gl.uniform2f(uniforms.resolution, width, height);
         gl.uniform2f(
@@ -839,9 +1043,9 @@ export function createInkSceneTransition(canvas, options = {}) {
           clamp(pointerY / Math.max(1, window.innerHeight), -0.5, 0.5)
         );
         gl.uniform1f(uniforms.progress, progress);
-        gl.uniform1f(uniforms.time, performance.now() * 0.001);
-        updateElementLayer(nextLayer);
-        updateFigureLayer();
+        gl.uniform1f(uniforms.time, now * 0.001);
+        updateElementLayer(nextLayer, now);
+        updateFigureLayer(now);
         bindLayer(0, nextLayer);
         bindLayer(1, backDepthLayer);
         bindLayer(2, middleDepthLayer);
@@ -857,6 +1061,7 @@ export function createInkSceneTransition(canvas, options = {}) {
         gl.uniform2f(uniforms.inkCenter, options.inkCenterX || 0.50, options.inkCenterY || 0.54);
         gl.uniform1f(uniforms.progressSpan, options.progressSpan || 1.16);
         gl.uniform1f(uniforms.colorLift, colorLift);
+        gl.uniform1f(uniforms.particleStrength, particleStrength);
         gl.uniform1f(uniforms.perlinOverlay, options.perlinOverlay ? 1 : 0);
         gl.uniform1f(uniforms.perlinStrength, renderOptions.perlinStrength ?? options.perlinStrength ?? 0.34);
         gl.uniform1f(uniforms.sceneBrightness, renderOptions.sceneBrightness ?? options.sceneBrightness ?? 1);
@@ -896,6 +1101,20 @@ export function createInkSceneTransition(canvas, options = {}) {
       },
       prewarm() {
         this.render(0.003, 0, 0);
+        canvas.style.visibility = 'hidden';
+        canvas.style.opacity = '0';
+      },
+      destroy() {
+        if (destroyed) return;
+        destroyed = true;
+        releaseInkWebGlResources(gl, {
+          buffer,
+          program,
+          shaders: [vertexShader, fragmentShader],
+          textures: [nextLayer.texture, backDepthLayer.texture, middleDepthLayer.texture, figureLayer.texture]
+        });
+        canvas.width = 0;
+        canvas.height = 0;
         canvas.style.visibility = 'hidden';
         canvas.style.opacity = '0';
       }

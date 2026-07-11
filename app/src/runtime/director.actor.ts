@@ -117,6 +117,38 @@ function segmentForHoldDirection(manifest: StoryManifest, scene: SceneId, direct
   return candidate?.kind === 'segment' ? candidate : undefined;
 }
 
+function readingLayerCanScroll(
+  manifest: StoryManifest,
+  stage: StageHandle | undefined,
+  cursor: DirectorContext['cursor'],
+  direction: Direction
+): boolean {
+  if (cursor.status !== 'hold') {
+    return false;
+  }
+  const hold = manifest.nodes.find((node) => node.kind === 'hold' && node.scene === cursor.scene);
+  if (hold?.kind !== 'hold' || !hold.reading) {
+    return false;
+  }
+  const element = stage?.getLayer(cursor.scene)?.element
+    ?? (canUseDOM()
+      ? document.querySelector<HTMLElement>(`[data-stage-layer="${cursor.scene}"][data-reading="true"]`)
+      : null);
+  if (!element) {
+    return false;
+  }
+  const scrollport = typeof element.querySelector === 'function'
+    ? element.querySelector<HTMLElement>('[data-reading-scrollport="true"]') ?? element
+    : element;
+  const maxScrollTop = Math.max(0, scrollport.scrollHeight - scrollport.clientHeight);
+  if (maxScrollTop <= 1) {
+    return false;
+  }
+  return direction === 1
+    ? scrollport.scrollTop < maxScrollTop - 1
+    : scrollport.scrollTop > 1;
+}
+
 function targetScene(segment: SpineSegmentNode, direction: Direction): SceneId {
   return direction === 1 ? segment.to : segment.from;
 }
@@ -205,7 +237,8 @@ function virtualProgressFor(context: DirectorContext): number {
 
 export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
   const manifest = options.manifest ?? storyManifest;
-  const actor = createActor(createDirectorMachine(options));
+  const machine = createDirectorMachine(options);
+  let actor = createActor(machine);
   const ringBuffer = new EventRingBuffer(options.ringBufferSize ?? 120);
   const listeners = new Set<RuntimeListener>();
   let handledPrepareToken: DirectorContext['prepareToken'];
@@ -213,10 +246,14 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
   let handledRetiringKey = '';
   let pendingScrubDelta = 0;
   let isStarted = false;
+  let recreateActorOnStart = false;
   let cachedSnapshot: StoryDebugSnapshot | undefined;
+  let actorSubscription: { unsubscribe(): void } | undefined;
 
   const runtime = {
-    actor,
+    get actor() {
+      return actor;
+    },
     segmentPlayer: new SegmentPlayer({
       manifest,
       transitions: {
@@ -226,12 +263,21 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       ...(options.stage ? { stage: options.stage } : {}),
       mailbox: {
         send(event) {
+          if (!isStarted) {
+            return;
+          }
           runtime.send(event);
         }
       }
     }),
     start() {
       if (!isStarted) {
+        if (recreateActorOnStart) {
+          actor = createActor(machine);
+          recreateActorOnStart = false;
+          cachedSnapshot = undefined;
+        }
+        actorSubscription = actor.subscribe(handleActorSnapshot);
         actor.start();
         isStarted = true;
         refreshSnapshot();
@@ -240,16 +286,34 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       return runtime;
     },
     stop() {
+      runtime.segmentPlayer.disposeAll();
+      actorSubscription?.unsubscribe();
+      actorSubscription = undefined;
       actor.stop();
       isStarted = false;
+      recreateActorOnStart = true;
+      handledPrepareToken = undefined;
+      handledRunId = undefined;
+      handledRetiringKey = '';
+      pendingScrubDelta = 0;
     },
     send(event: DirectorEvent): void {
       const routed = routeEvent(event);
+      const before = actor.getSnapshot();
       if (event.type === 'SEEK') {
         runtime.segmentPlayer.abort('seek');
       }
       if (routed) {
         actor.send(routed);
+        const after = actor.getSnapshot();
+        const stagedResumeRunId = valueAsStateName(before.value) === 'staged-paused'
+          && valueAsStateName(after.value) === 'playing'
+          && before.context.activeRunId === after.context.activeRunId
+          ? after.context.activeRunId
+          : undefined;
+        if (stagedResumeRunId && after.context.activeDirection) {
+          runtime.segmentPlayer.resumeStaged(stagedResumeRunId, after.context.activeDirection);
+        }
         if (routed.type === 'BOOT_FAILED' || routed.type === 'BUILD_TIMEOUT' || routed.type === 'PLAYBACK_FAILED') {
           runtime.segmentPlayer.abort('recovery');
         }
@@ -269,11 +333,11 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
     }
   };
 
-  actor.subscribe(() => {
+  function handleActorSnapshot(): void {
     pumpMainLoop();
     refreshSnapshot();
     notifyListeners();
-  });
+  }
 
   function refreshSnapshot(): StoryDebugSnapshot {
     const snapshot = actor.getSnapshot();
@@ -311,7 +375,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       state,
       cursor: context.cursor,
       delta: event.delta,
-      readingCanScroll: false,
+      readingCanScroll: readingLayerCanScroll(context.manifest, options.stage, context.cursor, direction),
       ...(segment ? { segmentPolicy: segment.policy } : {})
     });
 
@@ -320,13 +384,6 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
         return event;
       }
       return null;
-    }
-    if (route.path === 'chargeResume' && Math.abs(event.delta) >= context.chargeThreshold) {
-      return {
-        type: 'CHARGE_FIRED',
-        direction: route.direction,
-        ...(event.now !== undefined ? { now: event.now } : {})
-      };
     }
     return event;
   }
@@ -426,7 +483,8 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
   }
 
   async function prepareSegment(prepareToken: NonNullable<DirectorContext['prepareToken']>, segmentId: SegmentId): Promise<void> {
-    const context = actor.getSnapshot().context;
+    const preparingActor = actor;
+    const context = preparingActor.getSnapshot().context;
     const segment = findSegment(context.manifest, segmentId);
     const direction = context.pendingDirection ?? 1;
     const target = targetScene(segment, direction);
@@ -441,10 +499,22 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       ...gateArgs,
       prepareRunId
     };
+    const preparationIsCurrent = () => {
+      const current = preparingActor.getSnapshot();
+      return actor === preparingActor
+        && current.value === 'preparing'
+        && current.context.prepareToken === prepareToken;
+    };
 
     try {
       await options.readyGate?.waitForTargetReady?.(gateArgs);
+      if (!preparationIsCurrent()) {
+        return;
+      }
       await options.readyGate?.waitForMediaReady?.(gateArgs);
+      if (!preparationIsCurrent()) {
+        return;
+      }
       options.readyGate?.beginBuild?.(buildGateArgs);
       await runtime.segmentPlayer.ensureBuilt(segmentId, {
         runId: prepareRunId,
@@ -452,20 +522,24 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
         timeoutMs: segment.buildTimeoutMs ?? context.manifest.defaults.buildTimeoutMs,
         direction
       });
+      if (!preparationIsCurrent()) {
+        runtime.segmentPlayer.dispose(segmentId);
+        return;
+      }
       const buildReady = options.readyGate?.reportBuildReady?.(buildGateArgs);
       if (buildReady === false) {
         return;
       }
     } catch (error) {
-      const current = actor.getSnapshot();
-      if (current.value === 'preparing' && current.context.prepareToken === prepareToken && !(error instanceof BuildTimeoutError)) {
+      const current = preparingActor.getSnapshot();
+      if (actor === preparingActor && current.value === 'preparing' && current.context.prepareToken === prepareToken && !(error instanceof BuildTimeoutError)) {
         runtime.send({ type: 'PREPARE_TIMEOUT', segment: segmentId, prepareToken });
       }
       return;
     }
 
-    const current = actor.getSnapshot();
-    if (current.value !== 'preparing' || current.context.prepareToken !== prepareToken || !current.context.pendingDirection) {
+    const current = preparingActor.getSnapshot();
+    if (actor !== preparingActor || current.value !== 'preparing' || current.context.prepareToken !== prepareToken || !current.context.pendingDirection) {
       return;
     }
     runtime.send({

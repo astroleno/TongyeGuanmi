@@ -1,7 +1,9 @@
 import { PilotProgressTimeline } from '../../pilot/progress-timeline';
 import { fadeVisibility, range01, smoothStep } from '../../pilot/visibility';
 import { AOD_MEDIA_KEY } from './media';
+import { methodReadingScrollport, positionMethodReadingAtEdge } from '../../scenes/method-top';
 import type {
+  Direction,
   LayerVisibilityState,
   TransitionContext,
   TransitionModule
@@ -158,6 +160,9 @@ class AodMethodTopTimeline extends PilotProgressTimeline {
       copyCue: AOD_METHOD_COPY_CUE,
       sample: sampleAodMethodTop,
       render: (progress) => {
+        if (context.direction === 1 && methodReadingScrollport(context.to.element)) {
+          positionMethodReadingAtEdge(context.to.element, 'top');
+        }
         renderAodTransitionProgress(context.from.element, progress, { video: options.getVideo?.() });
         context.to.element?.setAttribute('data-r3-transition', 'aod-method-top');
       }
@@ -167,12 +172,21 @@ class AodMethodTopTimeline extends PilotProgressTimeline {
   }
 
   override async play(): Promise<void> {
+    positionMethodReadingAtEdge(this.context.to.element, 'top');
     const video = this.getVideo?.() ?? videoIn(this.context.from.element);
     video?.pause();
     if (video) {
       video.playbackRate = 1;
     }
     await super.play();
+    positionMethodReadingAtEdge(this.context.to.element, 'top');
+  }
+
+  override jumpToEnd(direction: Direction): void {
+    if (direction === 1) {
+      positionMethodReadingAtEdge(this.context.to.element, 'top');
+    }
+    super.jumpToEnd(direction);
   }
 
   override async reverse(): Promise<void> {

@@ -18,6 +18,53 @@ class FakeElement {
   }
 }
 
+class FakeVideo {
+  private time = 0;
+  readonly seekWrites: number[] = [];
+  duration = 2.417;
+  loop = false;
+  muted = false;
+  paused = true;
+  playbackRate = 1;
+  playCalls = 0;
+  playsInline = false;
+
+  get currentTime(): number {
+    return this.time;
+  }
+
+  set currentTime(value: number) {
+    this.time = value;
+    this.seekWrites.push(value);
+  }
+
+  addEventListener(): void {}
+
+  pause(): void {
+    this.paused = true;
+  }
+
+  play(): Promise<void> {
+    this.playCalls += 1;
+    this.paused = false;
+    return Promise.resolve();
+  }
+
+  setNaturalTime(value: number): void {
+    this.time = value;
+  }
+}
+
+class FakeVideoRoot extends FakeElement {
+  constructor(private readonly videos: readonly FakeVideo[]) {
+    super();
+  }
+
+  querySelectorAll(): readonly FakeVideo[] {
+    return this.videos;
+  }
+}
+
 describe('figure2-animation scene renderer', () => {
   it('is idempotent for 0 to 1 to 0 to 1 progress renders', () => {
     const root = new FakeElement();
@@ -53,8 +100,67 @@ describe('figure2-animation scene renderer', () => {
     expect(root.attributes.get('data-figure2-proof-progress')).not.toBe('0.0000');
   });
 
-  it('declares targetReady preload without public copy fallback', () => {
+  it('declares target and media readiness without public copy fallback', () => {
     expect(figure2AnimationScene.staticFallback).toBeUndefined();
-    expect(figure2AnimationScene.preload()).toEqual({ milestones: ['targetReady'] });
+    expect(figure2AnimationScene.preload()).toEqual({ milestones: ['targetReady', 'mediaReady'] });
+  });
+
+  it('slows short Figure2 media to the 2.6 second intro instead of finishing early', () => {
+    const video = new FakeVideo();
+    const root = new FakeVideoRoot([video]);
+
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.2, { videoMode: 'native' });
+
+    expect(video.playbackRate).toBeGreaterThan(0.8);
+    expect(video.playbackRate).toBeLessThan(1);
+  });
+
+  it('does not seek a natively playing Figure2 video between its endpoints', () => {
+    const video = new FakeVideo();
+    const root = new FakeVideoRoot([video]);
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0, { videoMode: 'native' });
+    video.seekWrites.length = 0;
+    video.setNaturalTime(0.3);
+
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.2, { videoMode: 'native' });
+
+    expect(video.seekWrites).toEqual([]);
+  });
+
+  it('uses timeline frames after one rejected native play without retrying autoplay', async () => {
+    class RejectingVideo extends FakeVideo {
+      override play(): Promise<void> {
+        this.playCalls += 1;
+        this.paused = true;
+        return Promise.reject(new Error('autoplay denied'));
+      }
+    }
+    const video = new RejectingVideo();
+    const root = new FakeVideoRoot([video]);
+
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.2, { videoMode: 'native' });
+    await Promise.resolve();
+    const firstFallbackTime = video.currentTime;
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.4, { videoMode: 'native' });
+    const secondFallbackTime = video.currentTime;
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.6, { videoMode: 'native' });
+
+    expect(video.playCalls).toBe(1);
+    expect(secondFallbackTime).toBeGreaterThan(firstFallbackTime);
+    expect(video.currentTime).toBeGreaterThan(secondFallbackTime);
+  });
+
+  it('seeks reverse Figure2 samples continuously through intermediate frames', () => {
+    const video = new FakeVideo();
+    const root = new FakeVideoRoot([video]);
+
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.8, { videoMode: 'seek' });
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.5, { videoMode: 'seek' });
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.2, { videoMode: 'seek' });
+
+    expect(video.seekWrites).toHaveLength(3);
+    expect(video.seekWrites[0]).toBeGreaterThan(video.seekWrites[1] ?? 0);
+    expect(video.seekWrites[1]).toBeGreaterThan(video.seekWrites[2] ?? 0);
+    expect(video.seekWrites[2]).toBeGreaterThan(0);
   });
 });

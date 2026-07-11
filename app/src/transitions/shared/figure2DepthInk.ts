@@ -7,7 +7,6 @@ export type Figure2DepthInkOptions = {
   figureMaskElement?: DynamicTextureSource | null;
   hideAtEnd?: boolean;
   progressSpan?: number;
-  colorLift?: number;
   sceneBrightness?: number;
   inkCenterX?: number;
   inkCenterY?: number;
@@ -58,7 +57,6 @@ export function createFigure2DepthInkRenderer(canvas: HTMLCanvasElement | null, 
     figureMaskElement: options.figureMaskElement ?? null,
     hideAtEnd: options.hideAtEnd ?? false,
     progressSpan: options.progressSpan ?? 1,
-    colorLift: options.colorLift ?? 0.34,
     sceneBrightness: options.sceneBrightness ?? 1,
     inkCenterX: options.inkCenterX ?? 0.5,
     inkCenterY: options.inkCenterY ?? 0.52,

@@ -8,6 +8,7 @@ export type SceneLayerProps = {
   role: StageLayerRole;
   registry: HandleRegistry;
   visibility: LayerVisibilityState | undefined;
+  reading?: boolean;
   copyCueActive?: boolean;
   zIndex: number;
   onElement?: ((scene: SceneId, element: HTMLElement | null) => void) | undefined;
@@ -32,7 +33,7 @@ function defaultVisibility(role: StageLayerRole): LayerVisibilityState {
   });
 }
 
-export function SceneLayer({ module, role, registry, visibility, copyCueActive = false, zIndex, onElement }: SceneLayerProps) {
+export function SceneLayer({ module, role, registry, visibility, reading = false, copyCueActive = false, zIndex, onElement }: SceneLayerProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const state = visibility ?? defaultVisibility(role);
   const hidden = !state.visible || state.opacity <= 0.001;
@@ -71,9 +72,11 @@ export function SceneLayer({ module, role, registry, visibility, copyCueActive =
       data-role={role}
       data-visible={String(state.visible && state.opacity > 0.001)}
       data-interactable={String(!state.inert && state.pointerEvents === 'auto')}
+      data-reading={String(reading)}
       data-copy-cue-active={String(copyCueActive)}
       aria-hidden={state.inert ? 'true' : 'false'}
       inert={state.inert ? true : undefined}
+      tabIndex={reading && !state.inert ? 0 : undefined}
       style={style}
     >
       <Component scene={module.id} hidden={hidden} role={role} copyCueActive={copyCueActive} registerHandle={registerHandle} />

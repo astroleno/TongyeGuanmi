@@ -14,6 +14,10 @@ export type ReadingSegmentOptions = {
   renderFrom?: (root: HTMLElement | null, progress: number) => void;
   renderTo?: (root: HTMLElement | null, progress: number) => void;
   rootSelector?: (scene: string) => string;
+  transformSelector?: (scene: string) => string;
+  fixedFrom?: boolean;
+  fixedTo?: boolean;
+  renderProgress?: 'complete' | 'current';
 };
 
 type ReadingSample = {
@@ -72,7 +76,11 @@ class ReadingSegmentTimeline implements SegmentTimelineHandle {
     private readonly context: TransitionContext,
     private readonly renderFrom?: (root: HTMLElement | null, progress: number) => void,
     private readonly renderTo?: (root: HTMLElement | null, progress: number) => void,
-    private readonly rootSelector?: (scene: string) => string
+    private readonly rootSelector?: (scene: string) => string,
+    private readonly transformSelector?: (scene: string) => string,
+    private readonly fixedFrom = false,
+    private readonly fixedTo = false,
+    private readonly renderProgress: 'complete' | 'current' = 'complete'
   ) {
     this.labels = { start: 0, middle: 0.5, end: 1 };
     this.progress(0);
@@ -92,21 +100,28 @@ class ReadingSegmentTimeline implements SegmentTimelineHandle {
     }
     const next = clamp(value);
     const sample = sampleReading(next);
+    const fromTransformRoot = this.transformRoot(this.context.from.element, this.context.from.scene);
+    const toTransformRoot = this.transformRoot(this.context.to.element, this.context.to.scene);
     this.progressValue = next;
     applyLayerVisibility(this.context.from, sample.from);
     applyLayerVisibility(this.context.to, sample.to);
-    if (next <= 0.001) {
+    if (this.transformSelector) {
       setReadingTransform(this.context.from.element, '');
-      setReadingTransform(this.context.to.element, 'translate3d(0, 100%, 0)');
-    } else if (next >= 0.999) {
-      setReadingTransform(this.context.from.element, 'translate3d(0, -100%, 0)');
       setReadingTransform(this.context.to.element, '');
-    } else {
-      setReadingTransform(this.context.from.element, `translate3d(0, ${(-next * 100).toFixed(3)}%, 0)`);
-      setReadingTransform(this.context.to.element, `translate3d(0, ${((1 - next) * 100).toFixed(3)}%, 0)`);
     }
-    this.renderFrom?.(sceneRoot(this.context.from.element, this.context.from.scene, this.rootSelector), 1);
-    this.renderTo?.(sceneRoot(this.context.to.element, this.context.to.scene, this.rootSelector), 1);
+    if (next <= 0.001) {
+      setReadingTransform(fromTransformRoot, '');
+      setReadingTransform(toTransformRoot, this.fixedTo ? '' : 'translate3d(0, 100%, 0)');
+    } else if (next >= 0.999) {
+      setReadingTransform(fromTransformRoot, this.fixedFrom ? '' : 'translate3d(0, -100%, 0)');
+      setReadingTransform(toTransformRoot, '');
+    } else {
+      setReadingTransform(fromTransformRoot, this.fixedFrom ? '' : `translate3d(0, ${(-next * 100).toFixed(3)}%, 0)`);
+      setReadingTransform(toTransformRoot, this.fixedTo ? '' : `translate3d(0, ${((1 - next) * 100).toFixed(3)}%, 0)`);
+    }
+    const renderProgress = this.renderProgress === 'current' ? next : 1;
+    this.renderFrom?.(sceneRoot(this.context.from.element, this.context.from.scene, this.rootSelector), renderProgress);
+    this.renderTo?.(sceneRoot(this.context.to.element, this.context.to.scene, this.rootSelector), renderProgress);
   }
 
   jumpToEnd(direction: Direction): void {
@@ -125,6 +140,15 @@ class ReadingSegmentTimeline implements SegmentTimelineHandle {
     }
     setReadingTransform(this.context.from.element, '');
     setReadingTransform(this.context.to.element, '');
+    setReadingTransform(this.transformRoot(this.context.from.element, this.context.from.scene), '');
+    setReadingTransform(this.transformRoot(this.context.to.element, this.context.to.scene), '');
+  }
+
+  private transformRoot(element: HTMLElement | null | undefined, scene: string): HTMLElement | null {
+    if (!this.transformSelector) {
+      return element ?? null;
+    }
+    return sceneRoot(element, scene, this.transformSelector);
   }
 
   private animateTo(target: number): Promise<void> {
@@ -166,6 +190,10 @@ export function createReadingSegmentTransition(options: ReadingSegmentOptions): 
       applyLayerVisibility(context.to, holdVisibility(true));
       setReadingTransform(context.from.element, '');
       setReadingTransform(context.to.element, '');
+      if (options.transformSelector) {
+        setReadingTransform(sceneRoot(context.from.element, context.from.scene, options.transformSelector), '');
+        setReadingTransform(sceneRoot(context.to.element, context.to.scene, options.transformSelector), '');
+      }
       options.renderFrom?.(sceneRoot(context.from.element, context.from.scene, options.rootSelector), 1);
       options.renderTo?.(sceneRoot(context.to.element, context.to.scene, options.rootSelector), 1);
     },
@@ -178,7 +206,11 @@ export function createReadingSegmentTransition(options: ReadingSegmentOptions): 
         context,
         options.renderFrom,
         options.renderTo,
-        options.rootSelector
+        options.rootSelector,
+        options.transformSelector,
+        options.fixedFrom,
+        options.fixedTo,
+        options.renderProgress
       );
     }
   };

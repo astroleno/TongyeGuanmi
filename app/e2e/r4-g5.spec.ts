@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 type Group5Snapshot = {
-  phase: 'hold' | 'preparing' | 'playing' | 'recovering';
+  phase: 'hold' | 'preparing' | 'playing' | 'staged-paused' | 'recovering';
   mode: string;
   window: { current: string; retiring: readonly string[] };
   visibleCount: number;
@@ -45,6 +45,7 @@ async function snapshot(page: Page): Promise<Group5Snapshot> {
 
 type Group5VisualSnapshot = {
   activeInkSegments: readonly string[];
+  shaderBodyInkSegments: readonly string[];
   transitions: readonly string[];
   ttgProgress: number;
   ttgBgTransform: string;
@@ -60,6 +61,8 @@ type Group5VisualSnapshot = {
   servicesReference: boolean;
   revealProgress: number;
   revealClip: string;
+  revealMask: string;
+  revealMode: string | undefined;
 };
 
 async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
@@ -72,10 +75,14 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
     const labPortrait = document.querySelector<HTMLElement>('.r4-lab__portrait');
     const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
       .find((element) => element.dataset.r4InkActive === 'true') ?? null;
+    const revealStyle = revealLayer ? window.getComputedStyle(revealLayer) : null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
-        .filter((canvas) => canvas.parentElement?.dataset.r4InkActive === 'true')
+        .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
+        .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
+      shaderBodyInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
@@ -96,7 +103,9 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
       viewportHeight: window.innerHeight,
       servicesReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
       revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
-      revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none'
+      revealClip: revealStyle?.clipPath ?? 'none',
+      revealMask: revealStyle?.getPropertyValue('-webkit-mask-image') || revealStyle?.getPropertyValue('mask-image') || 'none',
+      revealMode: revealLayer?.dataset.r4RevealMode
     };
   });
 }
@@ -144,13 +153,19 @@ test.describe('R4 group5 services ttg lab harness', () => {
         && visual.transitions.includes('services-ttg-bottom-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
-        && visual.revealClip !== 'none'
-        && visual.ttgPlaybackDirection === '1';
+        && visual.revealMode === 'ink-body'
+        && visual.revealClip === 'none'
+        && visual.revealMask === 'none'
+        && visual.shaderBodyInkSegments.includes('services-ttg')
+        && visual.ttgProgress === 0;
     }
     expect(sawServicesTtgReveal).toBe(true);
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('ttg-animation');
+    await expect.poll(
+      async () => (await snapshot(page)).window.current,
+      { timeout: 10_000, intervals: [40, 80, 120] }
+    ).toBe('ttg-animation');
     const ttgHold = await visualSnapshot(page);
-    expect(ttgHold.ttgProgress).toBe(1);
+    expect(ttgHold.ttgProgress).toBe(0);
     expect(ttgHold.ttgVideos).toHaveLength(2);
     expect(ttgHold.ttgVideos.every((video) => video.loop === false && video.paused)).toBe(true);
     expect(ttgHold.ttgBgTransform).not.toBe('none');
@@ -159,19 +174,80 @@ test.describe('R4 group5 services ttg lab harness', () => {
     await page.evaluate(() => {
       void window.__r4Group5?.playForward();
     });
-    let sawTtgLabReveal = false;
+    let sawTtgNativePlayback = false;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
       const visual = await visualSnapshot(page);
-      sawTtgLabReveal ||= visual.activeInkSegments.includes('ttg-lab')
-        && visual.transitions.includes('ttg-lab-top-ink')
-        && visual.revealProgress > 0
-        && visual.revealProgress < 1
-        && visual.revealClip !== 'none';
+      sawTtgNativePlayback ||= visual.activeInkSegments.includes('ttg-lab') === false
+        && visual.ttgProgress > 0
+        && visual.ttgProgress < 1
+        && visual.ttgVideos.some((video) => !video.paused);
     }
-    expect(sawTtgLabReveal).toBe(true);
+    expect(sawTtgNativePlayback).toBe(true);
+    await expect.poll(async () => (await snapshot(page)).phase).toBe('staged-paused');
+    const ttgTerminalPause = await visualSnapshot(page);
+    expect(ttgTerminalPause.ttgProgress).toBe(1);
+    expect(ttgTerminalPause.activeInkSegments).not.toContain('ttg-lab');
+
+    await page.evaluate(() => {
+      const evidenceWindow = window as Window & {
+        __ttgLabInkEvidence?: {
+          segment: string;
+          boundary: string;
+          targetReady: string;
+          mode: string;
+          clip: string;
+          mask: string;
+          transition: string;
+          ttgProgress: string;
+          direction: string;
+        };
+      };
+      delete evidenceWindow.__ttgLabInkEvidence;
+      const sampleInkFrame = () => {
+        const canvas = document.querySelector<HTMLCanvasElement>('[data-r4-ink-segment="ttg-lab"]');
+        const receiver = document.querySelector<HTMLElement>('[data-stage-layer="lab"]');
+        const ttg = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
+        if (canvas?.dataset.r4InkActive === 'true' && receiver?.dataset.r4RevealMode === 'ink-body') {
+          const style = window.getComputedStyle(receiver);
+          evidenceWindow.__ttgLabInkEvidence = {
+            segment: canvas.dataset.r4InkSegment ?? '',
+            boundary: canvas.dataset.r4InkBoundary ?? '',
+            targetReady: canvas.dataset.r4InkTargetReady ?? '',
+            mode: receiver.dataset.r4RevealMode ?? '',
+            clip: style.clipPath,
+            mask: style.maskImage,
+            transition: receiver.dataset.r4Transition ?? '',
+            ttgProgress: ttg?.dataset.ttgProgress ?? '',
+            direction: ttg?.dataset.ttgPlaybackDirection ?? ''
+          };
+          return;
+        }
+        window.requestAnimationFrame(sampleInkFrame);
+      };
+      window.requestAnimationFrame(sampleInkFrame);
+      void window.__r4Group5?.playForward();
+    });
+    for (let index = 0; index < 18; index += 1) {
+      await page.waitForTimeout(24);
+      frames.push(await snapshot(page));
+    }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('lab');
+    const ttgLabInkEvidence = await page.evaluate(() => (
+      window as Window & { __ttgLabInkEvidence?: Record<string, string> }
+    ).__ttgLabInkEvidence);
+    expect(ttgLabInkEvidence).toEqual({
+      segment: 'ttg-lab',
+      boundary: 'shader-body',
+      targetReady: 'true',
+      mode: 'ink-body',
+      clip: 'none',
+      mask: 'none',
+      transition: 'ttg-lab-top-ink',
+      ttgProgress: '1.0000',
+      direction: '1'
+    });
     const labHold = await visualSnapshot(page);
     expect(labHold.labProgress).toBe(1);
     expect(labHold.labRows).toBe(6);
@@ -188,7 +264,26 @@ test.describe('R4 group5 services ttg lab harness', () => {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
     }
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('ttg-animation');
+    await expect.poll(async () => (await snapshot(page)).phase).toBe('staged-paused');
+    expect((await visualSnapshot(page)).ttgProgress).toBe(1);
+    await page.evaluate(() => {
+      void window.__r4Group5?.playReverse();
+    });
+    let sawTtgReversePlayback = false;
+    for (let index = 0; index < 18; index += 1) {
+      await page.waitForTimeout(24);
+      reverseFrames.push(await snapshot(page));
+      const visual = await visualSnapshot(page);
+      sawTtgReversePlayback ||= visual.ttgPlaybackDirection === '-1'
+        && visual.ttgProgress > 0
+        && visual.ttgProgress < 1
+        && visual.ttgVideos.some((video) => !video.paused);
+    }
+    expect(sawTtgReversePlayback).toBe(true);
+    await expect.poll(
+      async () => (await snapshot(page)).window.current,
+      { timeout: 10_000, intervals: [40, 80, 120] }
+    ).toBe('ttg-animation');
 
     for (const frame of [...frames, ...reverseFrames]) {
       await assertFrame(frame);
@@ -208,7 +303,12 @@ test.describe('R4 group5 services ttg lab harness', () => {
     await expect(page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)).resolves.toBe(true);
 
     await page.evaluate(async () => {
-      await window.__r4Group5?.idempotentCycle();
+      await window.__r4Group5?.playForward();
+      await window.__r4Group5?.playForward();
+      await window.__r4Group5?.playReverse();
+      await window.__r4Group5?.playReverse();
+      await window.__r4Group5?.playForward();
+      await window.__r4Group5?.playForward();
     });
 
     const frame = await snapshot(page);

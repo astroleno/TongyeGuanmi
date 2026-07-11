@@ -5,6 +5,7 @@ import { canonicalSpine } from './canonical-spine';
 import { parseInventoryManifestSeed, type InventoryManifestSeed } from './inventory-schema';
 import type {
   MediaPlaybackContract,
+  MilestoneKey,
   SceneId,
   SegmentId,
   SegmentPolicy,
@@ -33,6 +34,8 @@ const fallbackDurations = {
   readingMs: 900
 } as const;
 
+const stagedMediaPreparingTimeoutMs = 4000;
+
 function transitionSeed(legacyTransitionId: string, seed: InventoryManifestSeed) {
   const found = seed.transitions.find((transition) => transition.legacyTransitionId === legacyTransitionId);
   if (!found) {
@@ -58,6 +61,10 @@ function snapPolicy(segment: SegmentId): SegmentPolicy {
     chargeThreshold: defaults.chargeThreshold,
     ...(isInterruptible ? { interruptible: true } : {})
   };
+}
+
+function scrubPolicy(snapAfterIdleMs = 160): SegmentPolicy {
+  return { kind: 'scrub', snapAfterIdleMs };
 }
 
 function stagedPolicy(
@@ -92,6 +99,10 @@ function durationFromStages(playMs: readonly number[] | undefined): number {
   return playMs?.reduce((sum, value) => sum + value, 0) ?? fallbackDurations.snapMs;
 }
 
+function leadingStageStop(leadMs: number, tailMs: number): number {
+  return leadMs / Math.max(1, leadMs + tailMs);
+}
+
 function visualFor(segment: SegmentId): SegmentVisual | undefined {
   switch (segment) {
     case 'hero-pattern':
@@ -105,11 +116,11 @@ function visualFor(segment: SegmentId): SegmentVisual | undefined {
     case 'services-ttg':
     case 'education-crane':
       return { type: 'ink', ink: 'horizontal', direction: 'bottom-to-top' };
+    case 'lab-ph':
+      return { type: 'ink', ink: 'horizontal', direction: 'top-to-bottom' };
     case 'ttg-lab':
     case 'ph-education':
       return { type: 'ink', ink: 'horizontal', direction: 'top-to-bottom' };
-    case 'lab-ph':
-      return { type: 'ink', ink: 'sun-radial' };
     case 'aod-method-top':
       return { type: 'media', media: ['aod_figure-alpha-front-scrub'] };
     case 'figure2-distance-expand':
@@ -118,7 +129,6 @@ function visualFor(segment: SegmentId): SegmentVisual | undefined {
       return { type: 'media', media: ['figure3-alpha-scrub'] };
     case 'crane-contact':
       return { type: 'media', media: ['crane-figure-transition'] };
-    case 'method-top-method-bottom':
     case 'figure2-proof-opening-cards':
     case 'figure2-proof-cards-closing':
       return undefined;
@@ -132,15 +142,10 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
         policy: snapPolicy(segment),
         virtualDuration: durationFromPlayMs(seedByLegacy.beliefMethod.playMs)
       };
-    case 'method-top-method-bottom':
-      return {
-        policy: readingPolicy('method-bottom'),
-        virtualDuration: fallbackDurations.readingMs
-      };
     case 'method-bottom-figure2':
       return {
         policy: snapPolicy(segment),
-        virtualDuration: (seedByLegacy.figure2.stagePlayMs?.[0] ?? 2600) + 900
+        virtualDuration: fallbackDurations.snapMs
       };
     case 'figure2-distance-expand':
       return {
@@ -168,21 +173,32 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
       };
     case 'ttg-lab':
       return {
-        policy: snapPolicy(segment),
-        virtualDuration: durationFromModulePlayMs(seedByLegacy.ttg.modulePlayMs)
+        policy: stagedPolicy([0.676], [durationFromModulePlayMs(seedByLegacy.ttg.modulePlayMs), 1200]),
+        virtualDuration: durationFromModulePlayMs(seedByLegacy.ttg.modulePlayMs) + 1200
       };
-    case 'ph-education':
+    case 'ph-education': {
+      const modulePlayMs = durationFromModulePlayMs(seedByLegacy.ph.modulePlayMs);
+      const inkPlayMs = 1200;
       return {
-        policy: snapPolicy(segment),
-        virtualDuration: durationFromModulePlayMs(seedByLegacy.ph.modulePlayMs)
+        policy: stagedPolicy([leadingStageStop(modulePlayMs, inkPlayMs)], [modulePlayMs, inkPlayMs]),
+        virtualDuration: modulePlayMs + inkPlayMs
       };
+    }
     case 'crane-contact':
       return {
         policy: snapPolicy(segment),
-        virtualDuration: durationFromModulePlayMs(seedByLegacy.crane.modulePlayMs)
+        virtualDuration: 4200
       };
     case 'hero-pattern':
+      return {
+        policy: stagedPolicy([0.58], [2200, 1800]),
+        virtualDuration: 4000
+      };
     case 'pattern-star-map':
+      return {
+        policy: scrubPolicy(),
+        virtualDuration: 1800
+      };
     case 'star-map-aod':
     case 'figure2-proof-brand':
     case 'brand-figure3':
@@ -215,6 +231,8 @@ function mediaPlaybackContract(
   terminalFallbackScene: SceneId,
   options: {
     forwardMode?: MediaPlaybackContract['forward']['mode'];
+    reverseMode?: MediaPlaybackContract['reverse']['mode'];
+    reverseRequired?: boolean;
     preparingTimeoutMs?: number;
   } = {}
 ): MediaPlaybackContract {
@@ -222,14 +240,17 @@ function mediaPlaybackContract(
     id,
     media,
     forward: { mode: options.forwardMode ?? 'play', required: true },
-    reverse: { mode: 'static-fallback', required: false },
+    reverse: {
+      mode: options.reverseMode ?? 'static-fallback',
+      required: options.reverseRequired ?? false
+    },
     readyMilestones: ['targetReady', 'mediaReady'],
     terminalFallbackScene,
     preparingTimeoutMs: options.preparingTimeoutMs ?? defaults.buildTimeoutMs
   };
 }
 
-function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackContract[] | undefined {
+export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackContract[] | undefined {
   switch (segment) {
     case 'aod-method-top':
       return [
@@ -245,15 +266,34 @@ function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackContract[] 
         mediaPlaybackContract(
           'figure3-alpha',
           ['figure3-alpha-scrub'],
-          'services'
+          'services',
+          { forwardMode: 'timeline' }
+        )
+      ];
+    case 'figure2-distance-expand':
+      return [
+        mediaPlaybackContract(
+          'figure2-pair',
+          ['figure2-left-alpha', 'figure2-right-alpha'],
+          'figure2-proof-opening',
+          {
+            reverseMode: 'timeline',
+            reverseRequired: true,
+            preparingTimeoutMs: stagedMediaPreparingTimeoutMs
+          }
         )
       ];
     case 'ttg-lab':
       return [
         mediaPlaybackContract(
           'ttg-alpha',
-          ['ttg_figure-alpha-scrub'],
-          'lab'
+          ['ttg_figure-alpha-scrub', 'ttg_figure-alpha-scrub-reverse'],
+          'lab',
+          {
+            reverseMode: 'play',
+            reverseRequired: true,
+            preparingTimeoutMs: stagedMediaPreparingTimeoutMs
+          }
         )
       ];
     case 'ph-education':
@@ -261,7 +301,13 @@ function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackContract[] 
         mediaPlaybackContract(
           'ph-alpha',
           ['ph_figure-alpha-scrub'],
-          'education'
+          'education',
+          {
+            forwardMode: 'timeline',
+            reverseMode: 'timeline',
+            reverseRequired: true,
+            preparingTimeoutMs: stagedMediaPreparingTimeoutMs
+          }
         )
       ];
     case 'crane-contact':
@@ -269,12 +315,25 @@ function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackContract[] 
         mediaPlaybackContract(
           'crane-transition',
           ['crane-figure1-transition', 'crane-figure2-transition'],
-          'contact'
+          'contact',
+          { forwardMode: 'timeline', reverseMode: 'timeline', reverseRequired: true }
         )
       ];
     default:
       return undefined;
   }
+}
+
+export function requiredMilestonesFor(segment: SegmentId): readonly MilestoneKey[] {
+  const milestones: MilestoneKey[] = ['targetReady'];
+  if (mediaPlaybackFor(segment)?.some((contract) => contract.forward.required || contract.reverse.required)) {
+    milestones.push('mediaReady');
+  }
+  milestones.push('buildReady');
+  if (segment === 'figure2-distance-expand') {
+    milestones.push('timelineReady');
+  }
+  return milestones;
 }
 
 function buildNodes(): readonly SpineNode[] {
@@ -285,6 +344,7 @@ function buildNodes(): readonly SpineNode[] {
         scene: node.scene,
         reading: node.reading,
         staticFallback: node.staticFallback,
+        ...(node.freshInput ? { freshInput: true } : {}),
         buildTimeoutMs: defaults.buildTimeoutMs
       };
     }
@@ -293,6 +353,7 @@ function buildNodes(): readonly SpineNode[] {
     const visual = visualFor(node.id);
     const copyCue = copyCueFor(node.id);
     const mediaPlayback = mediaPlaybackFor(node.id);
+    const requiredMilestones = requiredMilestonesFor(node.id);
     return {
       kind: 'segment',
       id: node.id,
@@ -300,6 +361,7 @@ function buildNodes(): readonly SpineNode[] {
       to: node.to,
       policy: policy.policy,
       virtualDuration: policy.virtualDuration,
+      requiredMilestones,
       buildTimeoutMs: defaults.buildTimeoutMs,
       ...(visual ? { visual } : {}),
       ...(copyCue ? { copyCue } : {}),
@@ -380,6 +442,13 @@ export function validateStoryManifest(
 
     if (segment.visual?.type === 'media' && !segment.mediaPlayback?.length) {
       throw new Error(`segment ${segment.id} media visual requires mediaPlayback seed`);
+    }
+
+    const requiresMedia = segment.mediaPlayback?.some(
+      (contract) => contract.forward.required || contract.reverse.required
+    ) ?? false;
+    if (requiresMedia && !segment.requiredMilestones?.includes('mediaReady')) {
+      throw new Error(`segment ${segment.id} media playback requires a mediaReady requiredMilestone`);
     }
 
     for (const mediaPlayback of segment.mediaPlayback ?? []) {

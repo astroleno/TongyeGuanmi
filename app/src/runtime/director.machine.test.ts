@@ -68,6 +68,16 @@ function withFirstSegmentScrub(): StoryManifest {
   } as StoryManifest;
 }
 
+function withSegmentsSnap(...segmentIds: readonly string[]): StoryManifest {
+  const source = structuredClone(storyManifest);
+  return {
+    ...source,
+    nodes: source.nodes.map((node) => node.kind === 'segment' && segmentIds.includes(node.id)
+      ? { ...node, policy: { kind: 'snap', chargeThreshold: 0.1 } }
+      : node)
+  } as StoryManifest;
+}
+
 describe('Director machine', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -171,7 +181,7 @@ describe('Director machine', () => {
   });
 
   it('marks retiring on the real second settling path and releases it through the director event', async () => {
-    const actor = startDirector();
+    const actor = startDirector({ manifest: withSegmentsSnap('pattern-star-map') });
     bootToHold(actor);
     enterPlaying(actor);
     let runId = context(actor).activeRunId;
@@ -198,7 +208,7 @@ describe('Director machine', () => {
   });
 
   it('releases retiring before a hold with retiring can enter another preparing run', () => {
-    const actor = startDirector();
+    const actor = startDirector({ manifest: withSegmentsSnap('pattern-star-map') });
     bootToHold(actor);
     enterPlaying(actor);
     let runId = context(actor).activeRunId;
@@ -311,7 +321,7 @@ describe('Director machine', () => {
   });
 
   it('supersedes preparing direction and ignores stale prepare tokens', async () => {
-    const actor = startDirector();
+    const actor = startDirector({ manifest: withSegmentsSnap('pattern-star-map') });
     bootToHold(actor);
     actor.send({ type: 'SEEK', label: 'scene:pattern', source: 'menu' });
     await flushTimers(0);
@@ -334,7 +344,7 @@ describe('Director machine', () => {
   });
 
   it('restarts preparing timeout after supersede instead of letting the stale timer recover', async () => {
-    const actor = startDirector({ prepareTimeoutMs: 100 });
+    const actor = startDirector({ prepareTimeoutMs: 100, manifest: withSegmentsSnap('pattern-star-map') });
     bootToHold(actor);
     actor.send({ type: 'SEEK', label: 'scene:pattern', source: 'menu' });
     await flushTimers(0);

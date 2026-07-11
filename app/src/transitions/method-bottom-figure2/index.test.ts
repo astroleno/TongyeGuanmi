@@ -8,7 +8,7 @@ import {
 } from './index';
 import type { LayerHandle, LayerVisibilityState, SceneId, SpineSegmentNode, TransitionContext } from '../../story/types';
 
-function layer(scene: SceneId, role: 'current' | 'next'): LayerHandle {
+function layer(scene: SceneId, role: 'current' | 'next', element: HTMLElement | null = null): LayerHandle {
   let visibility: LayerVisibilityState = {
     mounted: true,
     visible: role === 'current',
@@ -19,7 +19,7 @@ function layer(scene: SceneId, role: 'current' | 'next'): LayerHandle {
   return {
     scene,
     role,
-    element: null,
+    element,
     get visibility() {
       return visibility;
     },
@@ -40,10 +40,10 @@ function segment(): SpineSegmentNode {
   return structuredClone(found);
 }
 
-function context(prefersReducedMotion = false): TransitionContext {
+function context(prefersReducedMotion = false, methodElement: HTMLElement | null = null): TransitionContext {
   return {
     segment: segment(),
-    from: layer('method-bottom', 'current'),
+    from: layer('method-top', 'current', methodElement),
     to: layer('figure2-animation', 'next'),
     stage: {
       getLayer: () => undefined,
@@ -60,12 +60,21 @@ function context(prefersReducedMotion = false): TransitionContext {
 }
 
 describe('method-bottom-figure2 transition', () => {
-  it('separates the bottom ink reveal from the figure2 zoom stage', () => {
-    expect(figure2InkProgressForMethodBottom(0.17)).toBeCloseTo(0.5, 5);
-    expect(figure2InkProgressForMethodBottom(0.34)).toBe(1);
-    expect(figure2StageProgressForMethodBottom(0.17)).toBe(0);
-    expect(figure2StageProgressForMethodBottom(0.67)).toBeGreaterThan(0.45);
-    expect(figure2StageProgressForMethodBottom(1)).toBe(1);
+  it('uses the single Method reading scene as its source', () => {
+    expect(segment()).toMatchObject({
+      from: 'method-top',
+      to: 'figure2-animation'
+    });
+  });
+
+  it('keeps figure2 on its opening frame while the bottom ink reveal runs', () => {
+    expect(segment().virtualDuration).toBeLessThanOrEqual(1600);
+    expect(figure2InkProgressForMethodBottom(0.4)).toBeCloseTo(0.5, 5);
+    expect(figure2InkProgressForMethodBottom(0.8)).toBe(1);
+    expect(figure2StageProgressForMethodBottom(0.07)).toBe(0);
+    expect(figure2StageProgressForMethodBottom(0.5)).toBe(0);
+    expect(figure2StageProgressForMethodBottom(0.92)).toBe(0);
+    expect(figure2StageProgressForMethodBottom(1)).toBe(0);
   });
 
   it('passes timeline verification and exposes reduced motion fallback', async () => {
@@ -74,14 +83,14 @@ describe('method-bottom-figure2 transition', () => {
 
     expect(transition.reducedMotionFallback).toBeTypeOf('function');
     expect(verifySegmentTimeline(timeline, { policy: segment().policy })).toMatchObject({
-      maxVisibleLayers: 1
+      maxVisibleLayers: 2
     });
     expect(timeline.sample?.(0.17)).toMatchObject({
       from: { visible: true, opacity: 1 },
-      to: { visible: false, opacity: 0 }
+      to: { visible: true, opacity: 1 }
     });
     expect(timeline.sample?.(0.5)).toMatchObject({
-      from: { visible: false, opacity: 0 },
+      from: { visible: true, opacity: 1 },
       to: { visible: true, opacity: 1 }
     });
   });
@@ -104,5 +113,45 @@ describe('method-bottom-figure2 transition', () => {
 
     await expect(timeline.play(1)).resolves.toBeUndefined();
     expect(timeline.sample?.(1).to.visible).toBe(true);
+  });
+
+  it('returns to the bottom of the Method reading scrollport before reverse playback', async () => {
+    const scrollport = {
+      scrollTop: 0,
+      scrollHeight: 1_640,
+      clientHeight: 640,
+      dataset: {}
+    } as unknown as HTMLElement;
+    const inkCanvas = {
+      dataset: {},
+      getContext: () => null,
+      remove: () => undefined
+    } as unknown as HTMLCanvasElement;
+    const methodLayer = {
+      style: {
+        opacity: '',
+        visibility: '',
+        pointerEvents: '',
+        setProperty: () => undefined,
+        removeProperty: () => undefined
+      },
+      dataset: {},
+      inert: false,
+      setAttribute: () => undefined,
+      removeAttribute: () => undefined,
+      querySelector: (selector: string) => {
+        if (selector === '[data-reading-scrollport="true"]') {
+          return scrollport;
+        }
+        return selector.includes('canvas[data-r4-ink-segment=') ? inkCanvas : null;
+      }
+    } as unknown as HTMLElement;
+    const timeline = await createMethodBottomFigure2Transition().buildTimeline(context(true, methodLayer));
+
+    timeline.progress(1);
+    await timeline.reverse();
+
+    expect(scrollport.scrollTop).toBe(1_000);
+    expect(scrollport.dataset.readingEdge).toBe('bottom');
   });
 });

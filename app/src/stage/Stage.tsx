@@ -3,9 +3,13 @@ import { assertLayerWindowInvariants, type LayerWindowSnapshot } from './LayerWi
 import { SceneLayer } from './SceneLayer';
 import type { HandleRegistry } from '../story/registry';
 import type { LayerVisibilityState, SceneId, SceneModule, StageLayerRole } from '../story/types';
+import { canonicalSpine } from '../story/canonical-spine';
 
 const PROOF_ARCH_IMAGE = new URL('../../../assets/arch2d-alpha.png', import.meta.url).href;
 const PROOF_SCENES = new Set<SceneId>(['figure2-proof-opening', 'figure2-proof-cards', 'figure2-proof-closing']);
+const READING_SCENES = new Set(
+  canonicalSpine.flatMap((node) => node.kind === 'hold' && node.reading ? [node.scene] : [])
+);
 
 export type StageProps = {
   window: LayerWindowSnapshot;
@@ -74,6 +78,9 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
       data-active-layer-count={members.filter((member) => member.role !== 'retiring').length}
       data-mounted-layer-count={members.length}
     >
+      {showProofArch ? (
+        <div className="stage-proof-retained-ground" aria-hidden="true" data-figure2-retained-ground="true" />
+      ) : null}
       {members.map((member) => {
         const module = modules[member.scene];
         if (!module) {
@@ -86,6 +93,7 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
             role={member.role}
             registry={registry}
             visibility={visibilityByScene[member.scene]}
+            reading={READING_SCENES.has(member.scene)}
             copyCueActive={copyCueScene === member.scene}
             zIndex={zIndexFor(member.role)}
             onElement={onLayerElement}

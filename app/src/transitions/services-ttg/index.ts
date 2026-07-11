@@ -1,5 +1,5 @@
 import { renderServicesProgress } from '../../scenes/services';
-import { renderTtgAnimationProgress } from '../../scenes/ttg-animation';
+import { TTG_HOLD_PROGRESS, renderTtgAnimationProgress } from '../../scenes/ttg-animation';
 import { createInkSegmentTransition } from '../shared/ink';
 import type { TransitionModule } from '../../story/types';
 
@@ -8,8 +8,9 @@ export function createServicesTtgTransition(options: { delayMs?: () => number } 
     id: 'services-ttg',
     delayMs: options.delayMs,
     origin: { x: 0.5, y: 1.04 },
+    revealMode: 'ink-body',
     renderFrom: renderServicesProgress,
-    renderTo: (root, progress) => renderTtgAnimationProgress(root, progress, { playback: true }),
+    renderTo: (root) => renderTtgAnimationProgress(root, TTG_HOLD_PROGRESS),
     transitionAttr: 'services-ttg-bottom-ink'
   });
 }

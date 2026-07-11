@@ -5,6 +5,8 @@ export const PH_MEDIA_KEY = 'ph_figure-alpha-scrub';
 export const PH_BG_SRC = new URL('../../../../assets/ph_background.png', import.meta.url).href;
 export const PH_FRONT_SRC = new URL('../../../../assets/ph_front-alpha.png', import.meta.url).href;
 export const PH_FIGURE_VIDEO_SRC = new URL('../../../../assets/ph_figure-alpha-scrub.webm', import.meta.url).href;
+export const PH_HOLD_PROGRESS = 0;
+export const PH_PLAYBACK_MS = 1520;
 
 export type PhRenderState = {
   progress: number;
@@ -13,12 +15,16 @@ export type PhRenderState = {
   figureY: number;
 };
 
+type PhRenderOptions = {
+  playback?: boolean;
+};
+
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 const smoothStep = (value: number) => {
   const p = clamp(value);
   return p * p * (3 - 2 * p);
 };
-const acceleratedProgress = (progress: number) => {
+export const phPlaybackProgress = (progress: number) => {
   const p = clamp(progress);
   return clamp(0.78 * p + 0.22 * p * p);
 };
@@ -36,11 +42,40 @@ function seekVideo(video: HTMLVideoElement | null | undefined, progress: number)
   }
 }
 
-export function renderPhAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number): PhRenderState {
+function finishVideo(video: HTMLVideoElement | null | undefined, progress: number): void {
+  if (!video) {
+    return;
+  }
+  video.loop = false;
+  video.pause();
+  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 76 / 30;
+  video.currentTime = Math.max(0, Math.min(duration - 0.02, progress * duration));
+}
+
+function drivePhPlayback(section: HTMLElement | null, progress: number, mediaProgress: number): void {
+  const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
+  const previous = Number.parseFloat(section?.dataset.phRawProgress ?? `${progress}`);
+  const direction = progress >= previous ? 1 : -1;
+  section?.setAttribute('data-ph-playback-direction', String(direction));
+  section?.setAttribute('data-ph-raw-progress', progress.toFixed(4));
+  section?.setAttribute('data-ph-playback-active', String(progress > 0.001 && progress < 0.999));
+  if (progress <= 0.001) {
+    finishVideo(video, 0);
+    return;
+  }
+  if (progress >= 0.999) {
+    finishVideo(video, 1);
+    return;
+  }
+  seekVideo(video, mediaProgress);
+}
+
+export function renderPhAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number, options: PhRenderOptions = {}): PhRenderState {
   const section = root?.matches('[data-r4-scene="ph-animation"]')
     ? root
     : root?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]') ?? null;
-  const progress = acceleratedProgress(rawProgress);
+  const raw = clamp(rawProgress);
+  const progress = phPlaybackProgress(raw);
   const eased = smoothStep(progress);
   const bgY = eased * -18;
   const frontY = eased * 230;
@@ -51,7 +86,13 @@ export function renderPhAnimationProgress(root: HTMLElement | null | undefined, 
   section?.style.setProperty('--ph-front-parallax-y', `${frontY.toFixed(2)}px`);
   section?.style.setProperty('--ph-figure-parallax-y', `${figureY.toFixed(2)}px`);
   section?.setAttribute('data-ph-progress', progress.toFixed(4));
-  seekVideo(section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]'), progress);
+  if (options.playback) {
+    drivePhPlayback(section, raw, progress);
+  } else {
+    section?.setAttribute('data-ph-playback-active', 'false');
+    seekVideo(section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]'), progress);
+    section?.setAttribute('data-ph-raw-progress', raw.toFixed(4));
+  }
 
   return { progress, bgY, frontY, figureY };
 }
@@ -62,7 +103,7 @@ function PhAnimationScene({ role, registerHandle }: SceneComponentProps) {
 
   useEffect(() => {
     if (role === 'current' && rootRef.current) {
-      renderPhAnimationProgress(rootRef.current, 1);
+      renderPhAnimationProgress(rootRef.current, PH_HOLD_PROGRESS);
     }
   }, [role]);
 
@@ -72,7 +113,7 @@ function PhAnimationScene({ role, registerHandle }: SceneComponentProps) {
         rootRef.current = element;
         registerHandle?.('field', element);
         if (element && !initializedRef.current) {
-          renderPhAnimationProgress(element, role === 'current' ? 1 : 0);
+          renderPhAnimationProgress(element, PH_HOLD_PROGRESS);
           initializedRef.current = true;
         }
       }}

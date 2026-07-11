@@ -86,6 +86,10 @@ function firstHold(manifest: StoryManifest): SceneId {
   return hold.scene;
 }
 
+function holdRequiresFreshInput(manifest: StoryManifest, scene: SceneId): boolean {
+  return manifest.nodes.some((node) => node.kind === 'hold' && node.scene === scene && node.freshInput === true);
+}
+
 function createInitialContext(options: DirectorMachineOptions = {}): DirectorContext {
   const manifest = options.manifest ?? storyManifest;
   const initialScene = firstHold(manifest);
@@ -271,6 +275,9 @@ const directorSetup = setup({
         return false;
       }
       const scene = context.settlingTarget ?? (context.cursor.status === 'hold' ? context.cursor.scene : undefined);
+      if (scene && holdRequiresFreshInput(context.manifest, scene)) {
+        return false;
+      }
       return Boolean(scene && segmentFor(context, sampled.direction, scene));
     }
   },
@@ -438,6 +445,18 @@ const directorSetup = setup({
           segmentId: event.segment,
           stageIndex: event.stageIndex
         }
+      };
+    }),
+    resumeStagedPlayback: assign(({ context, event }) => {
+      const direction = chargeFireDirection(context, event);
+      if (direction === null) {
+        return {};
+      }
+      return {
+        activeDirection: direction,
+        pausePoint: undefined,
+        queuedIntent: undefined,
+        charge: createChargeState(nowFrom(event), context.chargeThreshold, context.decayRatePerMs)
       };
     }),
     clearPausePoint: assign(() => ({ pausePoint: undefined })),
@@ -687,7 +706,7 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
         on: {
           CHARGE_FIRED: {
             target: 'playing',
-            actions: 'clearPausePoint'
+            actions: 'resumeStagedPlayback'
           },
           STAGE_RESUMED: {
             guard: 'validRunId',
@@ -698,9 +717,16 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
             guard: 'validRunId',
             actions: 'setStagePaused'
           },
-          INPUT_DELTA: {
-            actions: 'bufferInputIntent'
-          }
+          INPUT_DELTA: [
+            {
+              guard: 'inputWouldFireCharge',
+              target: 'playing',
+              actions: 'resumeStagedPlayback'
+            },
+            {
+              actions: 'applyInputCharge'
+            }
+          ]
         }
       },
       settling: {

@@ -45,20 +45,26 @@ async function snapshot(page: Page): Promise<Group7Snapshot> {
 
 type Group7VisualSnapshot = {
   activeInkSegments: readonly string[];
+  shaderBodyInkSegments: readonly string[];
   transitions: readonly string[];
   craneProgress: number;
   craneArchTransform: string;
   craneFrontTransform: string;
-  craneVideos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
+  craneVideos: readonly { loop: boolean; paused: boolean; currentTime: number; duration: number }[];
   cranePlaybackActive: string | undefined;
+  cranePlaybackDirection: string | undefined;
   contactProgress: number;
   contactCopyCue: string | undefined;
   contactScheme: string;
   contactHandoffProgress: number;
+  contactPaperAlpha: number;
+  contactWashAlpha: number;
   contactElevated: boolean;
   educationReference: boolean;
   revealProgress: number;
   revealClip: string;
+  revealMask: string;
+  revealMode: string | undefined;
 };
 
 async function visualSnapshot(page: Page): Promise<Group7VisualSnapshot> {
@@ -70,10 +76,14 @@ async function visualSnapshot(page: Page): Promise<Group7VisualSnapshot> {
     const contactLayer = contactRoot?.closest<HTMLElement>('[data-stage-layer]');
     const revealLayer = [...document.querySelectorAll<HTMLElement>('[data-r4-reveal-progress]')]
       .find((element) => element.dataset.r4InkActive === 'true') ?? null;
+    const revealStyle = revealLayer ? window.getComputedStyle(revealLayer) : null;
     const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
       activeInkSegments: inkCanvases
-        .filter((canvas) => canvas.parentElement?.dataset.r4InkActive === 'true')
+        .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
+        .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
+      shaderBodyInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
@@ -83,17 +93,23 @@ async function visualSnapshot(page: Page): Promise<Group7VisualSnapshot> {
       craneVideos: [...document.querySelectorAll<HTMLVideoElement>('[data-crane-figure-video], [data-crane-figure-front-video]')].map((video) => ({
         loop: video.loop,
         paused: video.paused,
-        currentTime: video.currentTime
+        currentTime: video.currentTime,
+        duration: video.duration
       })),
       cranePlaybackActive: craneRoot?.dataset.cranePlaybackActive,
+      cranePlaybackDirection: craneRoot?.dataset.cranePlaybackDirection,
       contactProgress: Number.parseFloat(contactRoot?.dataset.contactProgress ?? '0'),
       contactCopyCue: contactLayer?.dataset.copyCueActive,
       contactScheme: window.getComputedStyle(contactRoot ?? document.body).colorScheme,
       contactHandoffProgress: Number.parseFloat(contactLayer?.dataset.r4HandoffReceiverProgress ?? '0'),
+      contactPaperAlpha: Number.parseFloat(contactLayer?.style.getPropertyValue('--r4-handoff-paper-alpha') || '0'),
+      contactWashAlpha: Number.parseFloat(contactLayer?.style.getPropertyValue('--r4-handoff-wash-alpha') || '0'),
       contactElevated: contactLayer?.dataset.r4TransitionElevated === 'true',
       educationReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
       revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
-      revealClip: revealLayer ? window.getComputedStyle(revealLayer).clipPath : 'none'
+      revealClip: revealStyle?.clipPath ?? 'none',
+      revealMask: revealStyle?.getPropertyValue('-webkit-mask-image') || revealStyle?.getPropertyValue('mask-image') || 'none',
+      revealMode: revealLayer?.dataset.r4RevealMode
     };
   });
 }
@@ -141,7 +157,10 @@ test.describe('R4 group7 education crane contact harness', () => {
         && visual.transitions.includes('education-crane-bottom-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
-        && visual.revealClip !== 'none'
+        && visual.revealMode === 'ink-body'
+        && visual.revealClip === 'none'
+        && visual.revealMask === 'none'
+        && visual.shaderBodyInkSegments.includes('education-crane')
         && visual.craneProgress === 0
         && visual.cranePlaybackActive !== 'true';
     }
@@ -158,40 +177,92 @@ test.describe('R4 group7 education crane contact harness', () => {
       void window.__r4Group7?.playForward();
     });
     let sawContactHandoff = false;
+    let sawCraneTimelinePlayback = false;
+    let sawCraneTransitionAttrs = false;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
-      if (index === 12) {
-        const visual = await visualSnapshot(page);
-        expect(visual.transitions).toContain('crane-contact-media');
-        expect(visual.transitions).toContain('crane-contact-copy-cue');
-        expect(visual.cranePlaybackActive).toBe('true');
-      }
       const visual = await visualSnapshot(page);
+      sawCraneTransitionAttrs ||= visual.transitions.includes('crane-contact-media')
+        && visual.transitions.includes('crane-contact-copy-cue');
+      sawCraneTimelinePlayback ||= visual.cranePlaybackActive === 'true'
+        && visual.craneVideos.some((video) => video.paused && video.currentTime > 0.02);
       sawContactHandoff ||= visual.contactHandoffProgress > 0 && visual.contactElevated;
     }
+    if (!sawCraneTransitionAttrs) {
+      await expect.poll(async () => {
+        const visual = await visualSnapshot(page);
+        return visual.transitions.includes('crane-contact-media')
+          && visual.transitions.includes('crane-contact-copy-cue');
+      }, { timeout: 5_000, intervals: [20] }).toBe(true);
+      sawCraneTransitionAttrs = true;
+    }
+    if (!sawCraneTimelinePlayback) {
+      await expect.poll(async () => {
+        const visual = await visualSnapshot(page);
+        return visual.cranePlaybackActive === 'true'
+          && visual.craneProgress > 0
+          && visual.craneProgress < 1
+          && visual.craneVideos.some((video) => video.paused && video.currentTime > 0.02);
+      }, { timeout: 5_000, intervals: [20] }).toBe(true);
+      sawCraneTimelinePlayback = true;
+    }
+    expect(sawCraneTransitionAttrs).toBe(true);
+    expect(sawCraneTimelinePlayback).toBe(true);
     if (!sawContactHandoff) {
       await expect.poll(async () => {
         const visual = await visualSnapshot(page);
-        return visual.contactElevated ? visual.contactHandoffProgress : 0;
-      }, { timeout: 5_000 }).toBeGreaterThan(0);
+        const fading = visual.contactHandoffProgress > 0 && visual.contactHandoffProgress < 1;
+        const backgroundFading = visual.contactPaperAlpha > 0
+          && visual.contactPaperAlpha < 1
+          && visual.contactWashAlpha > 0
+          && visual.contactWashAlpha < 1;
+        return visual.contactElevated && fading && backgroundFading;
+      }, { timeout: 5_000, intervals: [20] }).toBe(true);
       sawContactHandoff = true;
     }
     expect(sawContactHandoff).toBe(true);
+    await expect.poll(async () => {
+      const visual = await visualSnapshot(page);
+      const backgroundIsLinear = Math.abs(visual.contactPaperAlpha - visual.contactHandoffProgress) < 0.002
+        && Math.abs(visual.contactWashAlpha - visual.contactHandoffProgress) < 0.002;
+      const craneStillPlaying = visual.cranePlaybackActive === 'true'
+        && visual.craneProgress < 0.999
+        && visual.craneVideos.length === 2
+        && visual.craneVideos.every((video) => video.paused)
+        && (visual.craneVideos[0]?.currentTime ?? 0) < (visual.craneVideos[0]?.duration ?? 0) - 0.03;
+      return visual.contactCopyCue === 'true'
+        && visual.contactHandoffProgress >= 0.23
+        && visual.contactHandoffProgress < 0.45
+        && backgroundIsLinear
+        && craneStillPlaying;
+    }, { timeout: 5_000, intervals: [20] }).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('contact');
     const contactHold = await visualSnapshot(page);
     expect(contactHold.contactProgress).toBe(1);
     expect(contactHold.contactCopyCue).toBe('true');
     expect(contactHold.contactScheme).toContain('light');
+    expect(contactHold.craneVideos.every((video) => video.paused && video.currentTime >= video.duration - 0.03)).toBe(true);
 
     await page.evaluate(() => {
       void window.__r4Group7?.playReverse();
     });
     const reverseFrames: Group7Snapshot[] = [];
-    for (let index = 0; index < 18; index += 1) {
+    let sawCraneReverse = false;
+    const reverseStart = await visualSnapshot(page);
+    const reverseStartTimes = reverseStart.craneVideos.map((video) => video.currentTime);
+    for (let index = 0; index < 96; index += 1) {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
+      const visual = await visualSnapshot(page);
+      const currentTimes = visual.craneVideos.map((video) => video.currentTime);
+      sawCraneReverse ||= visual.cranePlaybackDirection === '-1'
+        && currentTimes.length === 2
+        && currentTimes.every((time, videoIndex) => time > 0.02
+          && time < (visual.craneVideos[videoIndex]?.duration ?? 0) - 0.04
+          && time < (reverseStartTimes[videoIndex] ?? Number.POSITIVE_INFINITY) - 0.02);
     }
+    expect(sawCraneReverse).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('crane-animation');
 
     for (const frame of [...frames, ...reverseFrames]) {

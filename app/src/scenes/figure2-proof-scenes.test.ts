@@ -42,6 +42,14 @@ describe('figure2 proof and brand scene renderers', () => {
     expectIdempotent(renderBrandProgress, 'data-brand-progress');
   });
 
+  it('keeps proof opening copy at its authored position while visibility crosses the depth threshold', () => {
+    const root = new FakeElement();
+
+    expect(renderProofOpeningProgress(root as unknown as HTMLElement, 0)).toMatchObject({ opacity: 0, y: 0 });
+    expect(renderProofOpeningProgress(root as unknown as HTMLElement, 1)).toMatchObject({ opacity: 1, y: 0 });
+    expect(root.style.values.get('--r4-proof-opening-y')).toBe('0.00px');
+  });
+
   it('uses the R-1 proof split and brand baseline verbatim', () => {
     const method = inventoryManifestSeed.copySections.find((section) => section.sectionId === 'method');
     const brand = inventoryManifestSeed.copySections.find((section) => section.sectionId === 'brand');

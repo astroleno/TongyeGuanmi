@@ -19,20 +19,18 @@
     "TARGET_READY",
     "PLAYBACK_DONE",
     "CHARGE_FIRED",
-    "TARGET_READY",
-    "PLAYBACK_DONE",
+    "PREPARE_TIMEOUT",
     "BUILD_READY:crane-contact",
     "PLAY:crane-contact:1",
     "BUILD_READY:crane-contact",
     "PLAY:crane-contact:-1",
-    "BUILD_READY:crane-contact",
     "PLAY:crane-contact:1"
   ],
-  "recoveryCount": 0,
+  "recoveryCount": 1,
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783481284428,
+      "at": 1783759572211,
       "event": {
         "type": "BOOT_READY"
       },
@@ -49,7 +47,7 @@
       "id": 1
     },
     {
-      "at": 1783481284428,
+      "at": 1783759572211,
       "event": {
         "type": "BOOT_READY"
       },
@@ -66,7 +64,7 @@
       "id": 2
     },
     {
-      "at": 1783481284448,
+      "at": 1783759572248,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -85,7 +83,7 @@
       "id": 3
     },
     {
-      "at": 1783481284449,
+      "at": 1783759572280,
       "event": {
         "type": "TARGET_READY",
         "scene": "contact",
@@ -107,7 +105,7 @@
       "id": 4
     },
     {
-      "at": 1783481284449,
+      "at": 1783759572280,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g7-crane-contact:1"
@@ -128,7 +126,7 @@
       "id": 5
     },
     {
-      "at": 1783481284904,
+      "at": 1783759572720,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -147,7 +145,7 @@
       "id": 6
     },
     {
-      "at": 1783481284905,
+      "at": 1783759572721,
       "event": {
         "type": "TARGET_READY",
         "scene": "crane-animation",
@@ -169,7 +167,7 @@
       "id": 7
     },
     {
-      "at": 1783481284905,
+      "at": 1783759572722,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g7-crane-contact:2"
@@ -190,7 +188,7 @@
       "id": 8
     },
     {
-      "at": 1783481285337,
+      "at": 1783759573164,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -209,47 +207,23 @@
       "id": 9
     },
     {
-      "at": 1783481285337,
+      "at": 1783759574967,
       "event": {
-        "type": "TARGET_READY",
-        "scene": "contact",
+        "type": "PREPARE_TIMEOUT",
+        "segment": "crane-contact",
         "prepareToken": "r4-g7-crane-contact:prepare:3"
       },
       "actorEpoch": "r4-g7-crane-contact",
-      "activeRunId": "r4-g7-crane-contact:3",
       "cursor": {
-        "status": "segment",
-        "segment": "crane-contact",
-        "from": "crane-animation",
-        "to": "contact"
+        "status": "hold",
+        "scene": "contact"
       },
       "layerWindow": {
-        "current": "crane-animation",
+        "current": "contact",
         "retiring": [],
-        "next": "contact"
+        "prev": "crane-animation"
       },
       "id": 10
-    },
-    {
-      "at": 1783481285338,
-      "event": {
-        "type": "PLAYBACK_DONE",
-        "runId": "r4-g7-crane-contact:3"
-      },
-      "actorEpoch": "r4-g7-crane-contact",
-      "cursor": {
-        "status": "settling",
-        "segment": "crane-contact",
-        "from": "crane-animation",
-        "to": "contact",
-        "target": "contact"
-      },
-      "layerWindow": {
-        "current": "crane-animation",
-        "retiring": [],
-        "next": "contact"
-      },
-      "id": 11
     }
   ],
   "layers": [

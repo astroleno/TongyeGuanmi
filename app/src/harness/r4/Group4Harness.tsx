@@ -19,6 +19,7 @@ import { servicesScene } from '../../scenes/services';
 import { createBrandFigure3Transition } from '../../transitions/brand-figure3';
 import { createFigure3ServicesTransition } from '../../transitions/figure3-services';
 import { createR4Group4Manifest, type R4Group4HarnessMode } from './group4Manifest';
+import { findMediaElementByKey, prepareTimeoutForManifest, waitForRequiredMediaReady } from './mediaGate';
 
 type HarnessPhase = 'booting' | 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
 
@@ -86,7 +87,8 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
   for (let attempt = 0; attempt < 180; attempt += 1) {
-    if (String(runtime.getState().state) === 'hold') {
+    const state = String(runtime.getState().state);
+    if (state === 'hold' || state === 'staged-paused') {
       return;
     }
     await wait(25);
@@ -233,6 +235,7 @@ export function Group4Harness({ mode }: { mode: R4Group4HarnessMode }) {
     () =>
       createDirectorRuntime({
         actorEpoch: `r4-g4-${mode}`,
+        prepareTimeoutMs: prepareTimeoutForManifest(manifest),
         manifest,
         stage: stageHandle,
         transitions: {
@@ -249,6 +252,14 @@ export function Group4Harness({ mode }: { mode: R4Group4HarnessMode }) {
             }
             throw new Error(`targetReady timed out for ${targetScene}`);
           },
+          waitForMediaReady: ({ segment, prepareToken, direction }) =>
+            waitForRequiredMediaReady({
+              segment,
+              prepareToken,
+              direction,
+              registry,
+              getMediaElement: (key) => findMediaElementByKey(layerElements.current.values(), key)
+            }),
           beginBuild: ({ segment, prepareToken, prepareRunId }) => {
             if (GROUP_SEGMENTS.includes(segment.id)) {
               registry.beginBuildGate(segment.id, { prepareToken, runId: prepareRunId });
@@ -273,6 +284,7 @@ export function Group4Harness({ mode }: { mode: R4Group4HarnessMode }) {
   const runtimeSnapshotRef = useRef(runtimeSnapshot);
 
   useEffect(() => {
+    runtime.start();
     const unsubscribe = runtime.subscribe(() => {
       const next = runtime.getState();
       runtimeSnapshotRef.current = next;
@@ -284,6 +296,7 @@ export function Group4Harness({ mode }: { mode: R4Group4HarnessMode }) {
     runtime.send({ type: 'BOOT_READY' });
     return () => {
       unsubscribe();
+      runtime.stop();
     };
   }, [runtime]);
 

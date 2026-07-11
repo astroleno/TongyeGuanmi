@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const FIGURE2_PROOF_CARDS_COPY = [
@@ -44,11 +45,15 @@ export function renderProofCardsProgress(root: HTMLElement | null, progress: num
 }
 
 function Figure2ProofCardsScene({ registerHandle }: SceneComponentProps) {
+  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        renderProofCardsProgress(element, 1);
+        if (element && !initializedRef.current) {
+          renderProofCardsProgress(element, 1);
+          initializedRef.current = true;
+        }
       }}
       className="r4-proof r4-proof-page r4-proof-cards"
       data-r4-scene="figure2-proof-cards"

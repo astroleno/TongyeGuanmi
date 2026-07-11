@@ -1,13 +1,14 @@
 import { PilotProgressTimeline } from '../../pilot/progress-timeline';
-import { fadeVisibility, range01, smoothStep } from '../../pilot/visibility';
+import { hiddenVisibility, holdVisibility, range01 } from '../../pilot/visibility';
 import { CRANE_FIGURE_MEDIA_KEY, CRANE_FLOCK_MEDIA_KEY, renderCraneAnimationProgress } from '../../scenes/crane-animation';
 import { renderContactProgress } from '../../scenes/contact';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 import type { Direction, LayerVisibilityState, SegmentTimelineHandle, TransitionContext, TransitionModule } from '../../story/types';
 
 export const CRANE_CONTACT_COPY_CUE = { targetScene: 'contact', atProgress: 0.8 } as const;
-const CONTACT_RECEIVER_START = 0.58;
-const CONTACT_RECEIVER_END = 0.94;
+const CRANE_MOTION_END = 1;
+const CONTACT_RECEIVER_START = CRANE_CONTACT_COPY_CUE.atProgress;
+const CONTACT_RECEIVER_END = 1;
 
 function rootFor(element: HTMLElement | null | undefined, scene: string): HTMLElement | null {
   return element?.querySelector<HTMLElement>(`[data-r4-scene="${scene}"]`) ?? element ?? null;
@@ -15,20 +16,27 @@ function rootFor(element: HTMLElement | null | undefined, scene: string): HTMLEl
 
 function sampleCraneContact(progress: number): { from: LayerVisibilityState; to: LayerVisibilityState; copyCueActive: boolean } {
   const copyCueActive = progress >= CRANE_CONTACT_COPY_CUE.atProgress;
-  const receiverProgress = smoothStep(range01(progress, CONTACT_RECEIVER_START, CONTACT_RECEIVER_END));
-  const contactOpacity = receiverProgress > 0 ? Math.max(0.02, receiverProgress) : 0;
-  const craneOpacity = 1 - smoothStep(range01(progress, 0.88, 1));
   return {
-    from: fadeVisibility(craneOpacity),
-    to: fadeVisibility(contactOpacity),
+    from: progress >= 0.999 ? hiddenVisibility() : holdVisibility(false),
+    to: progress >= CONTACT_RECEIVER_START ? holdVisibility(false) : hiddenVisibility(),
     copyCueActive
   };
 }
 
 function writeHandoffReceiver(element: HTMLElement | null | undefined, progress: number): void {
-  const receiverProgress = smoothStep(range01(progress, CONTACT_RECEIVER_START, CONTACT_RECEIVER_END));
+  const receiverProgress = range01(progress, CONTACT_RECEIVER_START, CONTACT_RECEIVER_END);
+  const paperProgress = receiverProgress;
   element?.setAttribute('data-r4-handoff-receiver-active', String(receiverProgress > 0.001 && receiverProgress < 0.999));
   element?.setAttribute('data-r4-handoff-receiver-progress', receiverProgress.toFixed(4));
+  element?.style.setProperty('--r4-handoff-paper-alpha', paperProgress.toFixed(4));
+  element?.style.setProperty('--r4-handoff-wash-alpha', paperProgress.toFixed(4));
+}
+
+function clearHandoffReceiver(element: HTMLElement | null | undefined): void {
+  element?.removeAttribute('data-r4-handoff-receiver-active');
+  element?.removeAttribute('data-r4-handoff-receiver-progress');
+  element?.style.removeProperty('--r4-handoff-paper-alpha');
+  element?.style.removeProperty('--r4-handoff-wash-alpha');
 }
 
 class CraneContactTimeline implements SegmentTimelineHandle {
@@ -40,19 +48,34 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   readonly pauses: readonly string[] = [];
   private readonly timeline: PilotProgressTimeline;
   private readonly elevation: TransitionLayerElevation;
+  private readonly toElement: HTMLElement | null | undefined;
+  private renderedProgress = 0;
 
   constructor(context: TransitionContext) {
     this.elevation = createTransitionLayerElevation(context.to.element);
+    this.toElement = context.to.element;
     this.timeline = new PilotProgressTimeline({
       from: context.from,
       to: context.to,
       durationMs: context.prefersReducedMotion ? 0 : context.segment.virtualDuration,
+      easing: 'linear',
       copyCue: CRANE_CONTACT_COPY_CUE,
       sample: sampleCraneContact,
       render: (progress) => {
+        const movingForward = progress >= this.renderedProgress;
+        const craneProgress = range01(progress, 0, CRANE_MOTION_END);
+        const mediaOptions = movingForward ? { playback: true } : { reverseScrub: true };
         this.elevation.elevate();
-        renderCraneAnimationProgress(rootFor(context.from.element, 'crane-animation'), progress, { playback: true });
-        renderContactProgress(rootFor(context.to.element, 'contact'), smoothStep(range01(progress, CONTACT_RECEIVER_START, CONTACT_RECEIVER_END)));
+        renderCraneAnimationProgress(
+          rootFor(context.from.element, 'crane-animation'),
+          craneProgress,
+          mediaOptions
+        );
+        this.renderedProgress = progress;
+        renderContactProgress(
+          rootFor(context.to.element, 'contact'),
+          progress >= CRANE_CONTACT_COPY_CUE.atProgress ? 1 : 0
+        );
         writeHandoffReceiver(context.to.element, progress);
         context.from.element?.setAttribute('data-r4-transition', 'crane-contact-media');
         context.to.element?.setAttribute('data-r4-transition', 'crane-contact-copy-cue');
@@ -78,6 +101,7 @@ class CraneContactTimeline implements SegmentTimelineHandle {
 
   dispose(): void {
     this.elevation.restore();
+    clearHandoffReceiver(this.toElement);
     this.timeline.dispose();
   }
 
@@ -96,7 +120,7 @@ export function createCraneContactTransition(options: { delayMs?: () => number }
         id: 'crane-transition',
         media: [CRANE_FIGURE_MEDIA_KEY, CRANE_FLOCK_MEDIA_KEY],
         forward: { mode: 'timeline', required: true },
-        reverse: { mode: 'static-fallback', required: false },
+        reverse: { mode: 'timeline', required: true },
         readyMilestones: ['targetReady', 'mediaReady'],
         terminalFallbackScene: 'contact',
         preparingTimeoutMs: 1800
@@ -106,8 +130,8 @@ export function createCraneContactTransition(options: { delayMs?: () => number }
       renderCraneAnimationProgress(rootFor(context.from.element, 'crane-animation'), 1);
       renderContactProgress(rootFor(context.to.element, 'contact'), 1);
       writeHandoffReceiver(context.to.element, 1);
-      context.from.setVisibility(fadeVisibility(0));
-      context.to.setVisibility(fadeVisibility(1));
+      context.from.setVisibility(hiddenVisibility());
+      context.to.setVisibility(holdVisibility(true));
     },
     buildTimeline: async (context) => {
       const delay = options.delayMs?.() ?? 0;

@@ -1,5 +1,5 @@
 import { renderLabProgress } from '../../scenes/lab';
-import { renderPhAnimationProgress } from '../../scenes/ph-animation';
+import { PH_HOLD_PROGRESS, renderPhAnimationProgress } from '../../scenes/ph-animation';
 import { createInkSegmentTransition } from '../shared/ink';
 import type { TransitionModule } from '../../story/types';
 
@@ -7,10 +7,12 @@ export function createLabPhTransition(options: { delayMs?: () => number } = {}):
   return createInkSegmentTransition({
     id: 'lab-ph',
     delayMs: options.delayMs,
-    origin: { x: 0.11, y: 0.36 },
+    origin: { x: 0.5, y: -0.04 },
+    revealMode: 'ink-body',
+    positionFromReadingOnReverse: true,
     renderFrom: renderLabProgress,
-    renderTo: renderPhAnimationProgress,
-    transitionAttr: 'lab-ph-sun-radial-ink'
+    renderTo: (root) => renderPhAnimationProgress(root, PH_HOLD_PROGRESS),
+    transitionAttr: 'lab-ph-top-ink'
   });
 }
 

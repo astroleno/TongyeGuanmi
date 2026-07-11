@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { PATTERN_COPY, patternScene, renderPatternProgress } from './index';
 import { fixtureStaticFallbackText } from '../../story/copy-baseline';
+import { STAR_MAP_COPY } from '../star-map';
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -40,7 +43,20 @@ describe('pattern scene renderer', () => {
   });
 
   it('keeps static fallback copy aligned with the belief baseline', () => {
+    expect(PATTERN_COPY).toEqual([STAR_MAP_COPY]);
     expect(patternScene.staticFallback?.text).toEqual(PATTERN_COPY);
     expect(patternScene.staticFallback?.text).toEqual(fixtureStaticFallbackText('pattern'));
+  });
+
+  it('renders all five source-art layers as independent GPU rotors', () => {
+    const markup = renderToStaticMarkup(createElement(patternScene.Component, {
+      scene: 'pattern',
+      hidden: false
+    }));
+
+    expect(markup.match(/data-pattern-rotor=/g)).toHaveLength(5);
+    for (const layer of ['02', '03', '04', '05', '06']) {
+      expect(markup).toContain(`data-pattern-rotor="${layer}"`);
+    }
   });
 });

@@ -17,9 +17,11 @@ export type PilotProgressTimelineOptions = {
   from: LayerHandle;
   to: LayerHandle;
   durationMs: number;
+  easing?: 'ease-in-out-cubic' | 'linear';
   copyCue?: CopyCue;
   sample(progress: number): PilotTimelineSample;
   render?(progress: number): void;
+  dispose?(): void;
 };
 
 function easeInOutCubic(value: number): number {
@@ -34,9 +36,11 @@ export class PilotProgressTimeline implements SegmentTimelineHandle {
   private readonly from: LayerHandle;
   private readonly to: LayerHandle;
   private readonly durationMs: number;
+  private readonly easing: 'ease-in-out-cubic' | 'linear';
   private readonly copyCue: CopyCue | undefined;
   private readonly sampleAt: (progress: number) => PilotTimelineSample;
   private readonly renderAt: ((progress: number) => void) | undefined;
+  private readonly disposeRenderer: (() => void) | undefined;
   private progressValue = 0;
   private disposed = false;
   private copyCueActive = false;
@@ -48,9 +52,11 @@ export class PilotProgressTimeline implements SegmentTimelineHandle {
     this.from = options.from;
     this.to = options.to;
     this.durationMs = options.durationMs;
+    this.easing = options.easing ?? 'ease-in-out-cubic';
     this.copyCue = options.copyCue;
     this.sampleAt = options.sample;
     this.renderAt = options.render;
+    this.disposeRenderer = options.dispose;
     this.progress(0);
   }
 
@@ -95,11 +101,15 @@ export class PilotProgressTimeline implements SegmentTimelineHandle {
   }
 
   dispose(): void {
+    if (this.disposed) {
+      return;
+    }
     this.disposed = true;
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
     }
+    this.disposeRenderer?.();
   }
 
   private updateCopyCue(progress: number, explicitActive: boolean | undefined): void {
@@ -132,7 +142,8 @@ export class PilotProgressTimeline implements SegmentTimelineHandle {
         }
         const elapsed = now - startedAt;
         const progress = Math.min(1, elapsed / this.durationMs);
-        this.progress(start + delta * easeInOutCubic(progress));
+        const timelineProgress = this.easing === 'linear' ? progress : easeInOutCubic(progress);
+        this.progress(start + delta * timelineProgress);
         if (progress >= 1) {
           resolve();
           return;

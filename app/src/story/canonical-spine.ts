@@ -5,6 +5,7 @@ export type CanonicalHoldSeed = {
   scene: SceneId;
   reading: boolean;
   staticFallback: boolean;
+  freshInput?: boolean;
 };
 
 export type CanonicalSegmentSeed = {
@@ -22,7 +23,6 @@ export const canonicalSceneIds = [
   'star-map',
   'aod-animation',
   'method-top',
-  'method-bottom',
   'figure2-animation',
   'figure2-proof-opening',
   'figure2-proof-cards',
@@ -43,8 +43,7 @@ export const canonicalSegments = [
   { id: 'pattern-star-map', from: 'pattern', to: 'star-map' },
   { id: 'star-map-aod', from: 'star-map', to: 'aod-animation' },
   { id: 'aod-method-top', from: 'aod-animation', to: 'method-top' },
-  { id: 'method-top-method-bottom', from: 'method-top', to: 'method-bottom' },
-  { id: 'method-bottom-figure2', from: 'method-bottom', to: 'figure2-animation' },
+  { id: 'method-bottom-figure2', from: 'method-top', to: 'figure2-animation' },
   { id: 'figure2-distance-expand', from: 'figure2-animation', to: 'figure2-proof-opening' },
   { id: 'figure2-proof-opening-cards', from: 'figure2-proof-opening', to: 'figure2-proof-cards' },
   { id: 'figure2-proof-cards-closing', from: 'figure2-proof-cards', to: 'figure2-proof-closing' },
@@ -61,16 +60,17 @@ export const canonicalSegments = [
 
 const readingSceneIds = new Set<SceneId>([
   'method-top',
-  'method-bottom',
   'figure2-proof-opening',
   'figure2-proof-cards',
-  'figure2-proof-closing'
+  'figure2-proof-closing',
+  'services',
+  'lab',
+  'education'
 ]);
 
 const staticFallbackSceneIds = new Set<SceneId>([
   'hero',
   'method-top',
-  'method-bottom',
   'figure2-proof-opening',
   'figure2-proof-cards',
   'figure2-proof-closing',
@@ -81,12 +81,17 @@ const staticFallbackSceneIds = new Set<SceneId>([
   'contact'
 ]);
 
+const freshInputSceneIds = new Set<SceneId>([
+  'figure2-animation'
+]);
+
 export const canonicalSpine = canonicalSceneIds.flatMap((scene, index) => {
   const hold: CanonicalHoldSeed = {
     kind: 'hold',
     scene,
     reading: readingSceneIds.has(scene),
-    staticFallback: staticFallbackSceneIds.has(scene)
+    staticFallback: staticFallbackSceneIds.has(scene),
+    ...(freshInputSceneIds.has(scene) ? { freshInput: true } : {})
   };
   const next = canonicalSegments[index];
   if (!next) {

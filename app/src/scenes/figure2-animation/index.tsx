@@ -12,6 +12,8 @@ const LEFT_VIDEO = new URL('../../../../assets/figure2a-alpha-auto.webm', import
 const RIGHT_VIDEO = new URL('../../../../assets/figure2b-alpha-auto.webm', import.meta.url).href;
 const LEFT_POSTER = new URL('../../../../assets/figure2a-alpha-reverse-lite-poster.png', import.meta.url).href;
 const RIGHT_POSTER = new URL('../../../../assets/figure2b-alpha-reverse-lite-poster.png', import.meta.url).href;
+export const FIGURE2_LEFT_MEDIA_KEY = 'figure2-left-alpha';
+export const FIGURE2_RIGHT_MEDIA_KEY = 'figure2-right-alpha';
 
 export type Figure2AnimationRenderState = {
   progress: number;
@@ -37,8 +39,13 @@ type Figure2VideoElement = HTMLVideoElement & {
   __r4Figure2MetadataBound?: boolean;
 };
 
+const nativePlaybackFallback = new WeakSet<HTMLVideoElement>();
+const nativePlaybackGenerations = new WeakMap<HTMLVideoElement, number>();
+
 const VIDEO_SEGMENT_SECONDS = 5;
 const VIDEO_END_EPSILON = 0.045;
+export const FIGURE2_INTRO_PLAYBACK_MS = 2600;
+const VIDEO_INTRO_PLAYBACK_SECONDS = FIGURE2_INTRO_PLAYBACK_MS / 1000;
 
 function smoothStep(value: number): number {
   const clamped = Math.min(1, Math.max(0, value));
@@ -87,11 +94,16 @@ function seekVideo(video: Figure2VideoElement, time: number): void {
   }
 }
 
+function invalidateNativePlayback(video: HTMLVideoElement): void {
+  nativePlaybackGenerations.set(video, (nativePlaybackGenerations.get(video) ?? 0) + 1);
+}
+
 function syncVideo(video: HTMLVideoElement, progress: number): void {
   const controlledVideo = video as Figure2VideoElement;
   video.loop = false;
   video.muted = true;
   video.playsInline = true;
+  invalidateNativePlayback(video);
   video.pause();
   const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : VIDEO_SEGMENT_SECONDS;
   const start = 0.001;
@@ -126,24 +138,38 @@ function syncNativeVideo(video: HTMLVideoElement, progress: number): void {
   const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : VIDEO_SEGMENT_SECONDS;
   const start = 0.001;
   const end = Math.max(start + 0.2, Math.min(duration - VIDEO_END_EPSILON, start + Math.min(VIDEO_SEGMENT_SECONDS, duration)));
+  const segmentDuration = end - start;
+  video.playbackRate = Math.min(3.5, Math.max(0.5, segmentDuration / VIDEO_INTRO_PLAYBACK_SECONDS));
 
   if (progress <= 0.001) {
+    invalidateNativePlayback(video);
     video.pause();
     seekVideo(controlledVideo, start);
     return;
   }
 
   if (progress >= 0.998) {
+    invalidateNativePlayback(video);
     video.pause();
     seekVideo(controlledVideo, end);
     return;
   }
 
+  if (nativePlaybackFallback.has(video)) {
+    syncVideo(video, progress);
+    return;
+  }
   if (video.paused) {
+    const generation = (nativePlaybackGenerations.get(video) ?? 0) + 1;
+    nativePlaybackGenerations.set(video, generation);
     const play = video.play();
     if (play && typeof play.catch === 'function') {
       void play.catch(() => {
-        seekVideo(controlledVideo, start + (end - start) * progress);
+        if (nativePlaybackGenerations.get(video) !== generation) {
+          return;
+        }
+        nativePlaybackFallback.add(video);
+        syncVideo(video, progress);
       });
     }
   }
@@ -222,7 +248,7 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
     if (isInkTransitionActive(rootRef.current)) {
       return;
     }
-    renderFigure2AnimationProgress(rootRef.current, hidden ? 0 : 1);
+    renderFigure2AnimationProgress(rootRef.current, 0, { videoMode: 'none' });
   }, [hidden]);
 
   useEffect(() => {
@@ -253,11 +279,37 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
         <div ref={(element) => registerHandle?.('figures', element)} className="r4-figure2__figures" aria-label="子问老子人物动画">
           <div className="r4-figure2__people-contact-shadow" aria-hidden="true" />
           <figure className="r4-figure2__figure r4-figure2__figure--left">
-            <video ref={leftVideoRef} data-figure2-video src={LEFT_VIDEO} poster={LEFT_POSTER} muted playsInline preload="auto" aria-hidden="true" />
+            <video
+              ref={(element) => {
+                leftVideoRef.current = element;
+                registerHandle?.('left-video', element);
+              }}
+              data-figure2-video
+              data-media-key={FIGURE2_LEFT_MEDIA_KEY}
+              src={LEFT_VIDEO}
+              poster={LEFT_POSTER}
+              muted
+              playsInline
+              preload="auto"
+              aria-hidden="true"
+            />
             <figcaption>问道者</figcaption>
           </figure>
           <figure className="r4-figure2__figure r4-figure2__figure--right">
-            <video ref={rightVideoRef} data-figure2-video src={RIGHT_VIDEO} poster={RIGHT_POSTER} muted playsInline preload="auto" aria-hidden="true" />
+            <video
+              ref={(element) => {
+                rightVideoRef.current = element;
+                registerHandle?.('right-video', element);
+              }}
+              data-figure2-video
+              data-media-key={FIGURE2_RIGHT_MEDIA_KEY}
+              src={RIGHT_VIDEO}
+              poster={RIGHT_POSTER}
+              muted
+              playsInline
+              preload="auto"
+              aria-hidden="true"
+            />
             <figcaption>老子</figcaption>
           </figure>
         </div>
@@ -269,6 +321,6 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
 export const figure2AnimationScene: SceneModule = {
   id: 'figure2-animation',
   Component: Figure2AnimationScene,
-  requiredHandles: ['stage', 'figures'],
-  preload: () => ({ milestones: ['targetReady'] })
+  requiredHandles: ['stage', 'figures', 'left-video', 'right-video'],
+  preload: () => ({ milestones: ['targetReady', 'mediaReady'] })
 };

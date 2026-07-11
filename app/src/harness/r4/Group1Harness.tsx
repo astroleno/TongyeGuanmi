@@ -58,6 +58,7 @@ type Group1HarnessApi = {
   playReverse(options?: PlayOptions): Promise<void>;
   seek(scene: 'hero' | 'pattern' | 'star-map'): void;
   scrubHeroPattern(progress: number): Promise<void>;
+  scrubPatternStarMap(progress: number): Promise<void>;
   idempotentCycle(): Promise<void>;
   snapshot(): Group1Snapshot;
 };
@@ -75,6 +76,10 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+export function scrubDriveDurationMs(virtualDuration = 1600, distance = 1): number {
+  return Math.max(220, virtualDuration * Math.abs(distance));
+}
+
 function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<SceneId, LayerVisibilityState>> {
   const next = Object.fromEntries(GROUP_SCENES.map((scene) => [scene, hiddenVisibility()])) as Partial<Record<SceneId, LayerVisibilityState>>;
   next[window.current] = holdVisibility(true);
@@ -88,7 +93,8 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
   for (let attempt = 0; attempt < 140; attempt += 1) {
-    if (String(runtime.getState().state) === 'hold') {
+    const state = String(runtime.getState().state);
+    if (state === 'hold' || state === 'staged-paused') {
       return;
     }
     await wait(25);
@@ -274,6 +280,7 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
   const runtimeSnapshotRef = useRef(runtimeSnapshot);
 
   useEffect(() => {
+    runtime.start();
     const unsubscribe = runtime.subscribe(() => {
       const next = runtime.getState();
       runtimeSnapshotRef.current = next;
@@ -285,6 +292,7 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
     runtime.send({ type: 'BOOT_READY' });
     return () => {
       unsubscribe();
+      runtime.stop();
     };
   }, [runtime]);
 
@@ -301,15 +309,49 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
   const segmentNode = (id: SegmentId | undefined): SpineSegmentNode | undefined =>
     id ? manifest.nodes.find((node): node is SpineSegmentNode => node.kind === 'segment' && node.id === id) : undefined;
 
-  const driveScrubSegment = async (direction: Direction) => {
-    const delta = direction * 0.12;
-    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta, now: Date.now() });
-    for (let step = 0; step < 12; step += 1) {
-      await wait(86);
+  const driveScrubSegment = async (direction: Direction, segment: SegmentId | undefined) => {
+    const kickDelta = direction * 0.12;
+    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: kickDelta, now: Date.now() });
+    if (!segment) {
+      return;
+    }
+    let activeFound = false;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const active = runtime.segmentPlayer.snapshot();
+      if (String(runtime.getState().state) === 'scrubbing' && active?.segmentId === segment) {
+        activeFound = true;
+        break;
+      }
+      await wait(16);
+    }
+    if (!activeFound) {
+      return;
+    }
+    const target = direction === 1 ? 1 : 0;
+    const startProgress = direction === 1 ? 0 : 1;
+    runtime.segmentPlayer.scrub(segment, startProgress);
+    const node = segmentNode(segment);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      runtime.segmentPlayer.scrub(segment, target);
+      return;
+    }
+    const durationMs = scrubDriveDurationMs(node?.virtualDuration, target - startProgress);
+    const startedAt = performance.now();
+    while (true) {
       if (String(runtime.getState().state) !== 'scrubbing') {
         return;
       }
-      runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta, now: Date.now() });
+      const active = runtime.segmentPlayer.snapshot();
+      if (active?.segmentId !== segment) {
+        return;
+      }
+      const progress = Math.min(1, (performance.now() - startedAt) / durationMs);
+      runtime.segmentPlayer.scrub(segment, startProgress + (target - startProgress) * progress);
+      runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: direction * 0.0001, now: Date.now() });
+      if (progress >= 1) {
+        return;
+      }
+      await wait(16);
     }
   };
 
@@ -320,10 +362,17 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
         runtime.segmentPlayer.dispose(segment);
       }
     }
-    const segment = segmentForCurrentHold(direction);
+    const before = runtime.getState();
+    let segment = before.state === 'staged-paused'
+      ? before.context.activeSegment
+      : segmentForCurrentHold(direction);
+    for (let attempt = 0; !segment && before.state !== 'staged-paused' && attempt < 24; attempt += 1) {
+      await wait(16);
+      segment = segmentForCurrentHold(direction);
+    }
     const recoveryBefore = runtime.getState().context.lastError;
     if (segmentNode(segment)?.policy.kind === 'scrub') {
-      await driveScrubSegment(direction);
+      await driveScrubSegment(direction, segment);
     } else {
       runtime.send({ type: 'CHARGE_FIRED', direction });
     }
@@ -359,10 +408,27 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
     runtime.segmentPlayer.scrub('hero-pattern', clamped);
   };
 
+  const scrubPatternStarMap = async (progress: number) => {
+    const clamped = Math.min(1, Math.max(0, progress));
+    await runtime.segmentPlayer.ensureBuilt('pattern-star-map', {
+      direction: 1
+    });
+    runtime.segmentPlayer.scrub('pattern-star-map', clamped);
+  };
+
   const idempotentCycle = async () => {
-    await play(1);
-    await play(-1);
-    await play(1);
+    const playThroughStages = async (direction: Direction) => {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await play(direction);
+        const state = runtime.getState();
+        if (state.state !== 'staged-paused' || state.context.activeDirection !== direction) {
+          return;
+        }
+      }
+    };
+    await playThroughStages(1);
+    await playThroughStages(-1);
+    await playThroughStages(1);
   };
 
   useEffect(() => {
@@ -371,6 +437,7 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
       playReverse: (options) => play(-1, options),
       seek,
       scrubHeroPattern,
+      scrubPatternStarMap,
       idempotentCycle,
       snapshot: () => readDomSnapshot(mode, runtimeSnapshotRef.current, metricsRef.current)
     };

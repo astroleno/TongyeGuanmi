@@ -1,6 +1,6 @@
 import { renderHeroProgress } from '../../scenes/hero';
 import { renderPatternProgress } from '../../scenes/pattern';
-import { renderStarMapProgress } from '../../scenes/star-map';
+import { pauseStarMapTransitionMotion, releaseStarMapTransitionMotion, renderStarMapProgress } from '../../scenes/star-map';
 import { applyLayerVisibility, hiddenVisibility, holdVisibility, range01, smoothStep } from '../../pilot/visibility';
 import type {
   Direction,
@@ -11,16 +11,21 @@ import type {
   TransitionModule
 } from '../../story/types';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
-import { createSceneInkRenderer, type SceneInkRenderer } from '../shared/sceneInk';
+import { createSceneInkRenderer, mountTransitionInkCanvas, type SceneInkRenderer } from '../shared/sceneInk';
 
-const STAR_MAP_IMAGE = new URL('../../../../assets/back2.png', import.meta.url).href;
+export const HERO_PATTERN_INK_TARGET_IMAGE = new URL('../../../../assets/patterns/exports/pattern-bloom-initial-no-stars.png', import.meta.url).href;
+export const PATTERN_STAR_MAP_INK_TARGET_IMAGE = new URL('../../../../assets/back2.png', import.meta.url).href;
 
-export const PATTERN_REVEAL_END = 0.46;
-export const PATTERN_BLOOM_START = 0.42;
-export const PATTERN_BLOOM_END = 0.70;
+export const PATTERN_REVEAL_END = 0.58;
+export const PATTERN_BLOOM_START = PATTERN_REVEAL_END;
+export const PATTERN_BLOOM_END = 1;
 export const PATTERN_SECOND_REVEAL_START = 0.58;
-export const PATTERN_SECOND_REVEAL_END = 0.985;
-export const PATTERN_SECOND_INK_START = 0.62;
+export const PATTERN_SECOND_REVEAL_END = 1;
+export const PATTERN_STAR_MAP_INK_PROGRESS_SPAN = 0.94;
+export const PATTERN_STAR_MAP_MAIN_BRIGHTNESS = 0.74;
+export const PATTERN_STAR_MAP_PERLIN_RESOLVE_START = 0.72;
+const PATTERN_STAR_MAP_TRANSITION_BRIGHTNESS = 0.92;
+const PATTERN_STAR_MAP_TRANSITION_PERLIN_STRENGTH = 0.40;
 
 type PatternBloomSample = {
   from: LayerVisibilityState;
@@ -59,24 +64,16 @@ function samplePatternStarMap(progress: number): PatternBloomSample {
   if (clamped >= 0.999) {
     return { from: hiddenVisibility(), to: holdVisibility(false) };
   }
-  return { from: holdVisibility(false), to: hiddenVisibility() };
+  if (clamped <= 0.001) {
+    return { from: holdVisibility(false), to: hiddenVisibility() };
+  }
+  return { from: holdVisibility(false), to: holdVisibility(false) };
 }
 
-function ensureInkCanvas(container: HTMLElement | null, id: SegmentId): HTMLCanvasElement | null {
-  if (!container) {
-    return null;
-  }
-  const existing = container.querySelector<HTMLCanvasElement>(`:scope > canvas[data-r4-ink-segment="${id}"]`);
-  if (existing) {
-    return existing;
-  }
-  const canvas = document.createElement('canvas');
-  canvas.className = 'r4-ink-transition-canvas r4-scene-ink-canvas';
-  canvas.dataset.r4InkSegment = id;
-  canvas.dataset.patternInkRenderer = 'scene';
-  canvas.setAttribute('aria-hidden', 'true');
-  container.append(canvas);
-  return canvas;
+function sharedStageHost(context: TransitionContext): HTMLElement | null {
+  const fromParent = context.from.element?.parentElement ?? null;
+  const toParent = context.to.element?.parentElement ?? null;
+  return fromParent && fromParent === toParent ? fromParent : toParent ?? fromParent ?? context.to.element ?? context.from.element ?? null;
 }
 
 function setTransitionAttrs(
@@ -119,8 +116,21 @@ export function patternBloomProgressForHeroPattern(progress: number): number {
   return range01(patternHeroGlobalProgress(progress), PATTERN_BLOOM_START, PATTERN_BLOOM_END);
 }
 
+export function patternRotationProgressForHeroPattern(progress: number): number {
+  return smoothStep(range01(patternHeroGlobalProgress(progress), 0, PATTERN_REVEAL_END));
+}
+
 export function patternRevealProgressForHeroPattern(progress: number): number {
   return smoothStep(range01(patternHeroGlobalProgress(progress), 0, PATTERN_REVEAL_END));
+}
+
+export function patternSceneOpacityForHeroPattern(progress: number): number {
+  const reveal = patternRevealProgressForHeroPattern(progress);
+  return smoothStep(range01(reveal, 0.90, 0.998));
+}
+
+export function renderHeroForHeroPattern(root: HTMLElement | null): void {
+  renderHeroProgress(root, 1);
 }
 
 export function patternStarMapGlobalProgress(progress: number): number {
@@ -132,7 +142,7 @@ export function patternSecondRevealProgressForStarMap(progress: number): number 
 }
 
 export function patternSecondInkProgressForStarMap(progress: number): number {
-  return smoothStep(range01(patternSecondRevealProgressForStarMap(progress), PATTERN_SECOND_INK_START, 1));
+  return patternSecondRevealProgressForStarMap(progress);
 }
 
 export function patternTopSceneOpacityForStarMap(progress: number): number {
@@ -142,12 +152,30 @@ export function patternTopSceneOpacityForStarMap(progress: number): number {
   if (secondReveal >= 0.998) {
     return 0;
   }
-  return Math.min(lotusOpacity, secondReveal > 0.002 ? 0.18 : 1);
+  return Math.max(0, Math.min(lotusOpacity, secondReveal > 0.002 ? 0.18 : 1));
+}
+
+export function starMapPresentationProgressForPatternStarMap(progress: number): number {
+  const inkReveal = patternSecondInkProgressForStarMap(progress);
+  return smoothStep(range01(inkReveal, 0.92, 0.998));
+}
+
+function starMapInkGrade(inkReveal: number): { perlinStrength: number; sceneBrightness: number } {
+  const resolved = smoothStep(range01(
+    inkReveal,
+    PATTERN_STAR_MAP_PERLIN_RESOLVE_START,
+    PATTERN_STAR_MAP_INK_PROGRESS_SPAN
+  ));
+  return {
+    perlinStrength: PATTERN_STAR_MAP_TRANSITION_PERLIN_STRENGTH * (1 - resolved),
+    sceneBrightness: PATTERN_STAR_MAP_TRANSITION_BRIGHTNESS
+      + (PATTERN_STAR_MAP_MAIN_BRIGHTNESS - PATTERN_STAR_MAP_TRANSITION_BRIGHTNESS) * resolved
+  };
 }
 
 class PatternBloomTimeline implements SegmentTimelineHandle {
   readonly labels: Readonly<Record<string, number>>;
-  readonly pauses: readonly string[] = [];
+  readonly pauses: readonly string[];
 
   private progressValue = 0;
   private disposed = false;
@@ -155,20 +183,35 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
   private readonly inkCanvas: HTMLCanvasElement | null;
   private readonly inkRenderer: SceneInkRenderer | null;
   private readonly elevation: TransitionLayerElevation;
+  private readonly starMapRoot: HTMLElement | null;
+  private readonly starMapSourceCanvas: HTMLCanvasElement | null;
 
   constructor(
     private readonly context: TransitionContext,
     private readonly options: PatternBloomOptions
   ) {
-    this.labels = { start: 0, reveal: 0.46, bloom: 0.7, end: 1 };
-    const inkHost = options.variant === 'pattern-star-map' ? context.from.element : context.to.element;
+    const stops = context.segment.policy.kind === 'stagedSnap' ? context.segment.policy.stops : [];
+    this.labels = Object.fromEntries([
+      ['start', 0],
+      ['reveal', PATTERN_REVEAL_END],
+      ['bloom', PATTERN_BLOOM_END],
+      ...stops.map((stop, index) => [`stage:${index}`, stop] as const),
+      ['end', 1]
+    ]);
+    this.pauses = stops.map((_, index) => `stage:${index}`);
     const elevationTarget = options.variant === 'pattern-star-map' ? context.from.element : context.to.element;
     this.elevation = createTransitionLayerElevation(elevationTarget);
-    this.inkCanvas = ensureInkCanvas(inkHost, options.id);
+    this.starMapRoot = options.variant === 'pattern-star-map' ? sceneRoot(context.to.element, 'star-map') : null;
+    this.starMapSourceCanvas = this.starMapRoot?.querySelector<HTMLCanvasElement>('[data-belief-star-field]') ?? null;
+    pauseStarMapTransitionMotion(this.starMapRoot);
+    const origin = options.variant === 'hero-pattern' ? { x: 0.5, y: 0.5 } : { x: 0.24, y: 0.55 };
+    this.inkCanvas = mountTransitionInkCanvas(sharedStageHost(context), options.id, {
+      renderer: 'scene',
+      origin,
+      preset: 'cinematic-color'
+    });
     if (this.inkCanvas) {
-      const origin = options.variant === 'hero-pattern' ? { x: 0.5, y: 0.5 } : { x: 0.24, y: 0.55 };
-      this.inkCanvas.dataset.inkOriginX = origin.x.toFixed(3);
-      this.inkCanvas.dataset.inkOriginY = origin.y.toFixed(3);
+      this.inkCanvas.dataset.patternInkRenderer = 'scene';
     }
     this.inkRenderer = createSceneInkRenderer(this.inkCanvas, this.createInkOptions());
     this.inkRenderer?.prewarm();
@@ -215,39 +258,51 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
       this.animationFrame = 0;
     }
     this.inkRenderer?.destroy();
+    this.inkCanvas?.remove();
     this.elevation.restore();
+    releaseStarMapTransitionMotion(this.starMapRoot);
     clearTransitionAttrs(this.context.to.element);
     clearTransitionAttrs(this.context.from.element);
-    this.context.to.element?.style.removeProperty('clip-path');
-    this.context.to.element?.style.removeProperty('-webkit-clip-path');
   }
 
   private renderHeroPattern(progress: number): void {
     const reveal = patternRevealProgressForHeroPattern(progress);
     const bloom = patternBloomProgressForHeroPattern(progress);
-    const sceneOpacity = reveal >= 0.998 ? 1 : 0;
+    const rotation = patternRotationProgressForHeroPattern(progress);
+    const sceneOpacity = patternSceneOpacityForHeroPattern(progress);
     const patternRoot = sceneRoot(this.context.to.element, 'pattern');
-    renderHeroProgress(sceneRoot(this.context.from.element, 'hero'), 1 - progress);
-    renderPatternProgress(patternRoot, bloom, { visible: true });
+    renderHeroForHeroPattern(sceneRoot(this.context.from.element, 'hero'));
+    renderPatternProgress(patternRoot, bloom, { visible: true, copyProgress: bloom, rotationProgress: rotation });
     patternRoot?.style.setProperty('--r4-pattern-scene-opacity', sceneOpacity.toFixed(4));
     patternRoot?.setAttribute('data-pattern-reveal-progress', reveal.toFixed(4));
     patternRoot?.setAttribute('data-pattern-bloom-progress', bloom.toFixed(4));
+    patternRoot?.setAttribute('data-pattern-rotation-progress', rotation.toFixed(4));
     patternRoot?.setAttribute('data-pattern-ink-renderer', 'scene');
     setTransitionAttrs(this.context.to.element, this.options.id, 'pattern-bloom-hero-scene-ink', reveal, reveal, progress);
     this.inkRenderer?.render(reveal, reveal);
+    if (this.inkCanvas) {
+      this.inkCanvas.dataset.r4InkActive = String(reveal > 0.002 && reveal < 0.998);
+      this.inkCanvas.dataset.r4InkProgress = reveal.toFixed(4);
+    }
   }
 
   private renderPatternStarMap(progress: number): void {
     const secondReveal = patternSecondRevealProgressForStarMap(progress);
     const inkReveal = patternSecondInkProgressForStarMap(progress);
     const patternOpacity = patternTopSceneOpacityForStarMap(progress);
-    const starPresentationProgress = progress >= 0.999 ? 1 : 0;
-    const starSceneOpacity = progress >= 0.999 ? 1 : 0;
+    const starPresentationProgress = starMapPresentationProgressForPatternStarMap(progress);
+    const grade = starMapInkGrade(inkReveal);
     const patternRoot = sceneRoot(this.context.from.element, 'pattern');
-    const starMapRoot = sceneRoot(this.context.to.element, 'star-map');
-    renderPatternProgress(patternRoot, 1, { visible: true, opacity: patternOpacity });
-    renderStarMapProgress(starMapRoot, starPresentationProgress);
-    starMapRoot?.style.setProperty('--r3-star-scene-opacity', starSceneOpacity.toFixed(4));
+    const starMapRoot = this.starMapRoot;
+    if (inkReveal >= PATTERN_STAR_MAP_INK_PROGRESS_SPAN) {
+      releaseStarMapTransitionMotion(starMapRoot);
+    } else {
+      pauseStarMapTransitionMotion(starMapRoot);
+    }
+    renderPatternProgress(patternRoot, 1, { visible: true, opacity: patternOpacity, copyProgress: 1, rotationProgress: 1 });
+    renderStarMapProgress(starMapRoot, 1);
+    starMapRoot?.style.setProperty('--r3-star-copy-opacity', (starPresentationProgress * 0.72).toFixed(4));
+    starMapRoot?.style.setProperty('--r3-star-scene-opacity', '1.0000');
     patternRoot?.setAttribute('data-pattern-second-reveal-progress', secondReveal.toFixed(4));
     patternRoot?.setAttribute('data-pattern-top-scene-opacity', patternOpacity.toFixed(4));
     patternRoot?.setAttribute('data-pattern-ink-renderer', 'scene');
@@ -256,37 +311,39 @@ class PatternBloomTimeline implements SegmentTimelineHandle {
     starMapRoot?.setAttribute('data-pattern-ink-renderer', 'scene');
     setTransitionAttrs(this.context.from.element, this.options.id, 'pattern-bloom-star-map-scene-ink', inkReveal, inkReveal, progress);
     this.inkRenderer?.render(inkReveal, inkReveal, {
-      perlinStrength: 0.40,
-      sceneBrightness: 0.92
+      perlinStrength: grade.perlinStrength,
+      sceneBrightness: grade.sceneBrightness
     });
+    if (this.inkCanvas) {
+      this.inkCanvas.dataset.r4InkActive = String(inkReveal > 0.002 && inkReveal < 0.998);
+      this.inkCanvas.dataset.r4InkProgress = inkReveal.toFixed(4);
+      this.inkCanvas.dataset.starMapSceneBrightness = grade.sceneBrightness.toFixed(4);
+      this.inkCanvas.dataset.starMapPerlinStrength = grade.perlinStrength.toFixed(4);
+    }
   }
 
   private createInkOptions() {
     if (this.options.variant === 'hero-pattern') {
-      const patternCanvas = sceneRoot(this.context.to.element, 'pattern')?.querySelector<HTMLCanvasElement>('[data-pattern-canvas]') ?? null;
       return {
-        nextSceneElement: patternCanvas,
+        targetSrc: HERO_PATTERN_INK_TARGET_IMAGE,
         hideAtEnd: true,
         perlinOverlay: false,
         perlinStrength: 0,
         progressSpan: 1,
-        colorLift: 0.58,
         sceneBrightness: 1,
         inkCenterX: 0.5,
         inkCenterY: 0.5,
         transparentOutside: true
       };
     }
-    const starCanvas = sceneRoot(this.context.to.element, 'star-map')?.querySelector<HTMLCanvasElement>('[data-belief-star-field]') ?? null;
     return {
-      targetSrc: STAR_MAP_IMAGE,
-      nextSceneElement: starCanvas,
+      targetSrc: PATTERN_STAR_MAP_INK_TARGET_IMAGE,
+      nextSceneElement: this.starMapSourceCanvas,
       hideAtEnd: true,
       perlinOverlay: true,
-      perlinStrength: 0.40,
-      progressSpan: 0.94,
-      colorLift: 0.62,
-      sceneBrightness: 0.92,
+      perlinStrength: PATTERN_STAR_MAP_TRANSITION_PERLIN_STRENGTH,
+      progressSpan: PATTERN_STAR_MAP_INK_PROGRESS_SPAN,
+      sceneBrightness: PATTERN_STAR_MAP_TRANSITION_BRIGHTNESS,
       inkCenterX: 0.24,
       inkCenterY: 0.55,
       transparentOutside: true

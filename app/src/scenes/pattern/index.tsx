@@ -1,7 +1,12 @@
 import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 import { STAR_MAP_COPY } from '../star-map';
-import { PatternBloomRenderer, patternBloomSnapshot } from './patternBloomRenderer';
+import {
+  PATTERN_BACKGROUND_IMAGE,
+  PATTERN_SOURCE_ART,
+  PatternBloomRenderer,
+  patternBloomSnapshot
+} from './patternBloomRenderer';
 
 export const PATTERN_COPY = [STAR_MAP_COPY] as const;
 
@@ -20,11 +25,15 @@ export type PatternRenderState = {
 export type PatternRenderOptions = {
   visible?: boolean;
   opacity?: number;
+  copyProgress?: number;
+  rotationProgress?: number;
 };
 
 type PatternRoot = HTMLElement & {
   __r4PatternRenderer?: PatternBloomRenderer;
 };
+
+const PATTERN_ROTOR_IDS = ['06', '05', '04', '03', '02'] as const;
 
 function isInkTransitionActive(root: HTMLElement | null): boolean {
   return root?.closest<HTMLElement>('[data-stage-layer]')?.dataset.r4InkActive === 'true';
@@ -32,9 +41,12 @@ function isInkTransitionActive(root: HTMLElement | null): boolean {
 
 export function renderPatternProgress(root: HTMLElement | null, progress: number, options: PatternRenderOptions = {}): PatternRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
-  const snapshot = patternBloomSnapshot(clamped);
+  const rotationProgress = Math.min(1, Math.max(0, options.rotationProgress ?? clamped));
+  const copyProgress = Math.min(1, Math.max(0, options.copyProgress ?? clamped));
+  const copyReveal = copyProgress * copyProgress * (3 - 2 * copyProgress);
+  const snapshot = patternBloomSnapshot(clamped, rotationProgress);
   const opacity = (options.visible ?? clamped > 0.001) ? Math.min(1, Math.max(0, options.opacity ?? 1)) : 0;
-  const copyOpacity = Math.min(0.72, Math.max(0, (options.opacity ?? 1) * (0.18 + clamped * 0.54)));
+  const copyOpacity = Math.min(0.96, Math.max(0, (options.opacity ?? 1) * copyReveal * 0.96));
   const washOpacity = 0.58 + clamped * 0.28;
 
   root?.style.setProperty('--r4-pattern-progress', clamped.toFixed(4));
@@ -45,8 +57,9 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
   root?.style.setProperty('--r4-pattern-largest-ring-scale', snapshot.largestRingScale.toFixed(4));
   root?.style.setProperty('--r4-pattern-compact-ring-scale', snapshot.compactRingScale.toFixed(4));
   root?.style.setProperty('--r4-pattern-wash-opacity', washOpacity.toFixed(4));
+  root?.style.setProperty('--r4-pattern-wash-visible-opacity', (washOpacity * opacity).toFixed(4));
   root?.setAttribute('data-pattern-progress', clamped.toFixed(4));
-  (root as PatternRoot | null)?.__r4PatternRenderer?.setProgress(clamped);
+  (root as PatternRoot | null)?.__r4PatternRenderer?.setFrameProgress(clamped, rotationProgress);
 
   return {
     progress: clamped,
@@ -73,11 +86,7 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
     }
     const renderer = new PatternBloomRenderer(canvas);
     root.__r4PatternRenderer = renderer;
-    void renderer.start().then(() => {
-      if (root.__r4PatternRenderer === renderer) {
-        canvas.dataset.inkTextureReady = 'true';
-      }
-    });
+    void renderer.start();
     return () => {
       renderer.destroy();
       delete canvas.dataset.inkTextureReady;
@@ -88,20 +97,43 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
   }, []);
 
   useEffect(() => {
-    if (isInkTransitionActive(rootRef.current)) {
+    const root = rootRef.current as PatternRoot | null;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    root?.__r4PatternRenderer?.setRenderActive(!hidden, !hidden && !reduceMotion);
+    if (isInkTransitionActive(root)) {
       return;
     }
-    renderPatternProgress(rootRef.current, hidden ? 0 : 1);
+    renderPatternProgress(root, hidden ? 0 : 1);
   }, [hidden]);
 
   return (
     <article ref={rootRef} className="r4-pattern-scene" data-r4-scene="pattern">
+      <div
+        className="r4-pattern-scene__ground"
+        data-pattern-ground
+        style={{ backgroundImage: `url(${PATTERN_BACKGROUND_IMAGE})` }}
+        aria-hidden="true"
+      />
+      <div className="r4-pattern-scene__rotors" aria-hidden="true">
+        {PATTERN_ROTOR_IDS.map((id) => (
+          <div key={id} className={`r4-pattern-scene__rotor-frame r4-pattern-scene__rotor-frame--${id}`}>
+            <img
+              className={`r4-pattern-scene__rotor r4-pattern-scene__rotor--${id}`}
+              src={PATTERN_SOURCE_ART[id]}
+              data-pattern-rotor={id}
+              alt=""
+              draggable={false}
+              decoding="async"
+            />
+          </div>
+        ))}
+      </div>
       <canvas ref={canvasRef} className="r4-pattern-scene__canvas" data-pattern-canvas aria-hidden="true" />
       <div className="r4-pattern-scene__wash" aria-hidden="true" />
       <div className="r4-pattern-scene__copy">
-        <p ref={(element) => registerHandle?.('copy', element)} className="large-copy large-copy--standalone">
-          {PATTERN_COPY[0]}
-        </p>
+        <section ref={(element) => registerHandle?.('copy', element)} className="r4-pattern-scene__statement">
+          <p className="large-copy large-copy--standalone">{PATTERN_COPY[0]}</p>
+        </section>
       </div>
     </article>
   );

@@ -16,7 +16,7 @@ export type ProofOpeningRenderState = {
 export function renderProofOpeningProgress(root: HTMLElement | null, progress: number): ProofOpeningRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
   const opacity = clamped;
-  const y = (1 - clamped) * 24;
+  const y = 0;
   root?.style.setProperty('--r4-proof-opening-progress', clamped.toFixed(4));
   root?.style.setProperty('--r4-proof-opening-opacity', opacity.toFixed(4));
   root?.style.setProperty('--r4-proof-opening-y', `${y.toFixed(2)}px`);
