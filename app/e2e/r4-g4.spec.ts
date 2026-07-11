@@ -175,17 +175,13 @@ test.describe('R4 group4 brand figure3 services harness', () => {
     await page.evaluate(() => {
       void window.__r4Group4?.playForward();
     });
-    await expect.poll(async () => (await snapshot(page)).phase, { timeout: 7_000 }).toBe('staged-paused');
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 7_000 }).toBe('services');
     const figureTerminal = await visualSnapshot(page);
     expect(figureTerminal.servicesProgress).toBe(1);
     expect(figureTerminal.copyCueActive).toBe(true);
     expect(figureTerminal.handoffProgress).toBe(1);
     expect(figureTerminal.handoffPaperAlpha).toBe(1);
     expect(figureTerminal.figure3VideoOpacity).toBeLessThan(0.05);
-    await page.evaluate(() => {
-      void window.__r4Group4?.playForward();
-    });
-    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 7_000 }).toBe('services');
     const servicesHold = await visualSnapshot(page);
     expect(servicesHold.servicesProgress).toBe(1);
     expect(servicesHold.servicesRows).toBe(4);
@@ -199,10 +195,6 @@ test.describe('R4 group4 brand figure3 services harness', () => {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
     }
-    await expect.poll(async () => (await snapshot(page)).phase, { timeout: 7_000 }).toBe('staged-paused');
-    await page.evaluate(() => {
-      void window.__r4Group4?.playReverse();
-    });
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure3-animation');
 
     for (const frame of [...frames, ...reverseFrames]) {

@@ -180,10 +180,12 @@ describe('story manifest contract', () => {
     });
   });
 
-  it('cues Services at 80% of Figure3 playback', () => {
+  it('settles Figure3 to Services in one 2000ms snap with an 80% copy cue', () => {
     const segment = storyManifest.nodes.find((node) => node.kind === 'segment' && node.id === 'figure3-services');
 
     expect(segment).toMatchObject({
+      policy: { kind: 'snap' },
+      virtualDuration: 2000,
       copyCue: { targetScene: 'services', atProgress: 0.8 }
     });
   });

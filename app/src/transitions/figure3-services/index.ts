@@ -7,27 +7,25 @@ import type { Direction, LayerVisibilityState, SegmentTimelineHandle, Transition
 
 export const FIGURE3_SERVICES_DURATION_MS = 2000;
 export const FIGURE3_SERVICES_COPY_CUE = { targetScene: 'services', atProgress: 0.8 } as const;
-const DEFAULT_FIGURE3_STAGE_STOP = 0.997;
 
 function rootFor(element: HTMLElement | null | undefined, scene: string): HTMLElement | null {
   return element?.querySelector<HTMLElement>(`[data-r4-scene="${scene}"]`) ?? element ?? null;
 }
 
 function sampleFigure3Services(
-  progress: number,
-  stageStop: number
+  progress: number
 ): { from: LayerVisibilityState; to: LayerVisibilityState; copyCueActive: boolean } {
   const copyCueActive = progress >= FIGURE3_SERVICES_COPY_CUE.atProgress;
   const receiverVisible = copyCueActive;
   return {
-    from: progress >= stageStop ? hiddenVisibility() : holdVisibility(false),
+    from: progress >= 1 ? hiddenVisibility() : holdVisibility(false),
     to: receiverVisible ? holdVisibility(false) : hiddenVisibility(),
     copyCueActive
   };
 }
 
-function writeHandoffReceiver(element: HTMLElement | null | undefined, progress: number, stageStop: number): void {
-  const receiverProgress = range01(progress, FIGURE3_SERVICES_COPY_CUE.atProgress, stageStop);
+function writeHandoffReceiver(element: HTMLElement | null | undefined, progress: number): void {
+  const receiverProgress = range01(progress, FIGURE3_SERVICES_COPY_CUE.atProgress, 1);
   const paperProgress = receiverProgress;
   element?.setAttribute('data-r4-handoff-receiver-active', String(receiverProgress > 0.001 && receiverProgress < 0.999));
   element?.setAttribute('data-r4-handoff-receiver-progress', receiverProgress.toFixed(4));
@@ -48,11 +46,8 @@ class Figure3ServicesTimeline implements SegmentTimelineHandle {
   private readonly timeline: PilotProgressTimeline;
   private readonly elevation: TransitionLayerElevation;
   private readonly toElement: HTMLElement | null | undefined;
-  private readonly stageStop: number;
 
   constructor(context: TransitionContext, durationMs: number) {
-    const stops = context.segment.policy.kind === 'stagedSnap' ? context.segment.policy.stops : [];
-    this.stageStop = stops[0] ?? DEFAULT_FIGURE3_STAGE_STOP;
     this.elevation = createTransitionLayerElevation(context.to.element);
     this.toElement = context.to.element;
     this.timeline = new PilotProgressTimeline({
@@ -61,29 +56,28 @@ class Figure3ServicesTimeline implements SegmentTimelineHandle {
       durationMs,
       direction: context.direction,
       copyCue: FIGURE3_SERVICES_COPY_CUE,
-      sample: (progress) => sampleFigure3Services(progress, this.stageStop),
+      sample: sampleFigure3Services,
       render: (progress) => {
         this.elevation.elevate();
         renderFigure3AnimationProgress(
           rootFor(context.from.element, 'figure3-animation'),
-          smoothStep(range01(progress, 0, this.stageStop))
+          smoothStep(progress)
         );
         renderServicesProgress(
           rootFor(context.to.element, 'services'),
           progress >= FIGURE3_SERVICES_COPY_CUE.atProgress ? 1 : 0
         );
-        writeHandoffReceiver(context.to.element, progress, this.stageStop);
+        writeHandoffReceiver(context.to.element, progress);
         context.from.element?.setAttribute('data-r4-transition', 'figure3-services-media');
         context.to.element?.setAttribute('data-r4-transition', 'figure3-services-copy-cue');
       }
     });
-    this.labels = Object.fromEntries([
-      ['start', 0],
-      ['copyCue', FIGURE3_SERVICES_COPY_CUE.atProgress],
-      ...stops.map((stop, index) => [`stage:${index}`, stop] as const),
-      ['end', 1]
-    ]);
-    this.pauses = stops.map((_, index) => `stage:${index}`);
+    this.labels = {
+      start: 0,
+      copyCue: FIGURE3_SERVICES_COPY_CUE.atProgress,
+      end: 1
+    };
+    this.pauses = [];
   }
 
   play(): Promise<void> {
@@ -106,7 +100,7 @@ class Figure3ServicesTimeline implements SegmentTimelineHandle {
     const progress = this.timeline.snapshot.progress;
     this.elevation.restore();
     if (progress >= 0.999) {
-      writeHandoffReceiver(this.toElement, 1, this.stageStop);
+      writeHandoffReceiver(this.toElement, 1);
     } else {
       clearHandoffReceiver(this.toElement);
     }
@@ -142,7 +136,7 @@ export function createFigure3ServicesTransition(options: { delayMs?: () => numbe
       const endpoint = context.direction === 1 ? 1 : 0;
       renderFigure3AnimationProgress(rootFor(context.from.element, 'figure3-animation'), FIGURE3_HOLD_PROGRESS);
       renderServicesProgress(rootFor(context.to.element, 'services'), 1);
-      writeHandoffReceiver(context.to.element, endpoint, DEFAULT_FIGURE3_STAGE_STOP);
+      writeHandoffReceiver(context.to.element, endpoint);
       context.from.setVisibility(context.direction === 1 ? hiddenVisibility() : holdVisibility(true));
       context.to.setVisibility(context.direction === 1 ? holdVisibility(true) : hiddenVisibility());
     },

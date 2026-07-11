@@ -214,18 +214,17 @@ describe('R4 group4 transitions', () => {
     expect(overlay).not.toContain('linear-gradient(90deg');
   });
 
-  it('reveals completed Services copy at 80% while its paper builds linearly to the staged hold', async () => {
+  it('reveals completed Services copy at 80% and settles in one 2000ms snap', async () => {
     const policy = segment('figure3-services').policy;
-    if (policy.kind !== 'stagedSnap') {
-      throw new Error('figure3-services must remain staged');
-    }
-    const stop = policy.stops[0] ?? 0;
     const timeline = await createFigure3ServicesTransition().buildTimeline(
       context('figure3-services', 'figure3-animation', 'services')
     );
 
     expect(FIGURE3_SERVICES_DURATION_MS).toBe(2000);
-    expect(policy.playMs).toEqual([2000, 620]);
+    expect(policy).toMatchObject({ kind: 'snap' });
+    expect(segment('figure3-services').virtualDuration).toBe(2000);
+    expect(timeline.pauses).toEqual([]);
+    expect(timeline.labels).not.toHaveProperty('stage:0');
 
     expect(FIGURE3_SERVICES_COPY_CUE.atProgress).toBe(0.8);
     expect(timeline.sample?.(0.799)).toMatchObject({
@@ -236,7 +235,11 @@ describe('R4 group4 transitions', () => {
       from: { visible: true, opacity: 1 },
       to: { visible: true, opacity: 1 }
     });
-    expect(timeline.sample?.(stop)).toMatchObject({
+    expect(timeline.sample?.(0.999)).toMatchObject({
+      from: { visible: true, opacity: 1 },
+      to: { visible: true, opacity: 1 }
+    });
+    expect(timeline.sample?.(1)).toMatchObject({
       from: { visible: false, opacity: 0 },
       to: { visible: true, opacity: 1 }
     });
@@ -244,10 +247,7 @@ describe('R4 group4 transitions', () => {
 
   it('keeps Figure3 behind the receiver until paper and wash are fully opaque in forward and reverse', async () => {
     const policy = segment('figure3-services').policy;
-    if (policy.kind !== 'stagedSnap') {
-      throw new Error('figure3-services must remain staged');
-    }
-    const stop = policy.stops[0] ?? 0;
+    expect(policy.kind).toBe('snap');
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
     const transitionContext = context(
@@ -258,7 +258,7 @@ describe('R4 group4 transitions', () => {
       { from: fromElement as unknown as HTMLElement, to: toElement as unknown as HTMLElement }
     );
     const timeline = await createFigure3ServicesTransition().buildTimeline(transitionContext);
-    const midpoint = 0.8 + (stop - 0.8) * 0.5;
+    const midpoint = 0.9;
 
     expect(timeline.rootIdentity?.()).toEqual({
       from: fromElement,
@@ -278,7 +278,7 @@ describe('R4 group4 transitions', () => {
     expect(transitionContext.from.visibility.visible).toBe(true);
     expect(transitionContext.to.visibility.visible).toBe(true);
 
-    timeline.progress(stop);
+    timeline.progress(1);
     expect(toElement.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('1.0000');
     expect(toElement.style.getPropertyValue('--r4-handoff-wash-alpha')).toBe('1.0000');
     expect(transitionContext.from.visibility.visible).toBe(false);

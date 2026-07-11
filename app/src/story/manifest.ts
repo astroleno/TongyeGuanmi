@@ -8,6 +8,7 @@ import {
   PATTERN_COLLAPSE_STOP,
   PATTERN_STAR_MAP_INK_MS
 } from '../transitions/pattern-star-map';
+import { FIGURE3_SERVICES_DURATION_MS } from '../transitions/figure3-services';
 import type {
   MediaPlaybackContract,
   MilestoneKey,
@@ -169,8 +170,8 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
       };
     case 'figure3-services':
       return {
-        policy: stagedPolicy(seedByLegacy.figure3.stageStops, seedByLegacy.figure3.stagePlayMs),
-        virtualDuration: durationFromStages(seedByLegacy.figure3.stagePlayMs)
+        policy: snapPolicy(segment),
+        virtualDuration: FIGURE3_SERVICES_DURATION_MS
       };
     case 'ttg-lab':
       return {
