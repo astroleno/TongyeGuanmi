@@ -1,37 +1,27 @@
 import type { TransitionModule } from '../../story/types';
-import { renderPatternProgress } from '../../scenes/pattern';
-import {
-  createPatternBloomTransition,
-  HERO_PATTERN_INK_TARGET_IMAGE,
-  patternBloomProgressForHeroPattern,
-  patternRevealProgressForHeroPattern,
-  patternRotationProgressForHeroPattern,
-  patternSceneOpacityForHeroPattern,
-  renderHeroForHeroPattern
-} from '../pattern-bloom/timeline';
+import { renderHeroProgress } from '../../scenes/hero';
+import { renderPatternHold } from '../../scenes/pattern';
+import { createInkSegmentTransition } from '../shared/ink';
 
-export {
-  HERO_PATTERN_INK_TARGET_IMAGE,
-  patternBloomProgressForHeroPattern,
-  patternRevealProgressForHeroPattern,
-  patternSceneOpacityForHeroPattern,
-  renderHeroForHeroPattern
-};
+export const HERO_PATTERN_ORIGIN = { x: 0.24, y: 0.55 } as const;
 
-export function renderPatternForHeroPattern(root: HTMLElement | null, progress: number): void {
-  const bloomProgress = patternBloomProgressForHeroPattern(progress);
-  renderPatternProgress(root, bloomProgress, {
-    visible: true,
-    copyProgress: bloomProgress,
-    rotationProgress: patternRotationProgressForHeroPattern(progress)
-  });
+export function renderHeroForHeroPattern(root: HTMLElement | null): void {
+  renderHeroProgress(root, 1);
+}
+
+export function renderPatternForHeroPattern(root: HTMLElement | null): void {
+  renderPatternHold(root);
 }
 
 export function createHeroPatternTransition(options: { delayMs?: () => number } = {}): TransitionModule {
-  return createPatternBloomTransition({
+  return createInkSegmentTransition({
     id: 'hero-pattern',
     delayMs: options.delayMs,
-    variant: 'hero-pattern'
+    origin: HERO_PATTERN_ORIGIN,
+    revealMode: 'live-clip',
+    renderFrom: renderHeroForHeroPattern,
+    renderTo: renderPatternForHeroPattern,
+    transitionAttr: 'hero-pattern-live-circle'
   });
 }
 

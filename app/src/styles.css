@@ -502,17 +502,8 @@ pre {
 .r3-star-map__canvas {
   z-index: 0;
   opacity: var(--r3-star-canvas-opacity);
-  filter: saturate(.98) contrast(1.04) brightness(.74);
+  filter: saturate(.98) contrast(1.04) brightness(.92);
   transform: scale(1.03);
-}
-
-.r3-star-map[data-star-map-transition-motion="paused"] {
-  background: transparent;
-}
-
-.r3-star-map[data-star-map-transition-motion="paused"] .r3-star-map__canvas,
-.r3-star-map[data-star-map-transition-motion="paused"] .r3-star-map__wash {
-  opacity: 0;
 }
 
 .r3-star-map__wash {

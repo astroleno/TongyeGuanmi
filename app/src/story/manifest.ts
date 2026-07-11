@@ -106,7 +106,7 @@ function leadingStageStop(leadMs: number, tailMs: number): number {
 function visualFor(segment: SegmentId): SegmentVisual | undefined {
   switch (segment) {
     case 'hero-pattern':
-      return { type: 'ink', ink: 'center-expand' };
+      return { type: 'ink', ink: 'left-rotate-expand' };
     case 'pattern-star-map':
       return { type: 'ink', ink: 'left-rotate-expand' };
     case 'star-map-aod':
@@ -191,8 +191,8 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
       };
     case 'hero-pattern':
       return {
-        policy: stagedPolicy([0.58], [2200, 1800]),
-        virtualDuration: 4000
+        policy: snapPolicy(segment),
+        virtualDuration: 2200
       };
     case 'pattern-star-map':
       return {

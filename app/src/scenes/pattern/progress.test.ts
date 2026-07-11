@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PATTERN_COPY, patternScene, renderPatternProgress } from './index';
+import { PATTERN_COPY, patternScene, renderPatternHold, renderPatternProgress } from './index';
 import { fixtureStaticFallbackText } from '../../story/copy-baseline';
 import { STAR_MAP_COPY } from '../star-map';
 
@@ -46,6 +46,16 @@ describe('pattern scene renderer', () => {
     expect(PATTERN_COPY).toEqual([STAR_MAP_COPY]);
     expect(patternScene.staticFallback?.text).toEqual(PATTERN_COPY);
     expect(patternScene.staticFallback?.text).toEqual(fixtureStaticFallbackText('pattern'));
+  });
+
+  it('defines the canonical hold as the fully expanded left-side Pattern', () => {
+    const root = new FakeElement();
+
+    renderPatternHold(root as unknown as HTMLElement);
+
+    expect(root.attributes.get('data-pattern-progress')).toBe('0.0000');
+    expect(root.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
+    expect(patternScene.renderHold).toBe(renderPatternHold);
   });
 
   it('renders all five source-art layers as independent GPU rotors', () => {

@@ -1,16 +1,16 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import {
   createHeroPatternTransition,
-  HERO_PATTERN_INK_TARGET_IMAGE,
-  patternBloomProgressForHeroPattern,
-  patternRevealProgressForHeroPattern,
-  patternSceneOpacityForHeroPattern,
+  HERO_PATTERN_ORIGIN,
   renderHeroForHeroPattern,
   renderPatternForHeroPattern
 } from './index';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
+
+const transitionSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -47,14 +47,14 @@ function layer(scene: 'hero' | 'pattern', role: 'current' | 'next'): LayerHandle
     setVisibility(next) {
       visibility = next;
     },
-    dispose() {
-      visibility = { mounted: false, visible: false, inert: true, opacity: 0, pointerEvents: 'none' };
-    }
+    dispose() {}
   };
 }
 
 function segment(): SpineSegmentNode {
-  const found = storyManifest.nodes.find((node): node is SpineSegmentNode => node.kind === 'segment' && node.id === 'hero-pattern');
+  const found = storyManifest.nodes.find(
+    (node): node is SpineSegmentNode => node.kind === 'segment' && node.id === 'hero-pattern'
+  );
   if (!found) {
     throw new Error('hero-pattern segment missing');
   }
@@ -81,94 +81,52 @@ function context(prefersReducedMotion = false): TransitionContext {
 }
 
 describe('hero-pattern transition', () => {
-  it('pauses on the fully revealed lotus before a second input collapses it', () => {
-    expect(patternRevealProgressForHeroPattern(0)).toBe(0);
-    expect(patternRevealProgressForHeroPattern(0.29)).toBeCloseTo(0.5, 5);
-    expect(patternRevealProgressForHeroPattern(0.58)).toBe(1);
-    expect(patternBloomProgressForHeroPattern(0)).toBe(0);
-    expect(patternBloomProgressForHeroPattern(0.5)).toBe(0);
-    expect(patternBloomProgressForHeroPattern(0.58)).toBe(0);
-    expect(patternBloomProgressForHeroPattern(0.79)).toBeCloseTo(0.5, 5);
-    expect(patternBloomProgressForHeroPattern(1)).toBe(1);
+  it('reveals the canonical expanded Pattern at its authored left-side center', () => {
+    const patternRoot = new FakeElement();
+    const heroRoot = new FakeElement();
+
+    renderPatternForHeroPattern(patternRoot as unknown as HTMLElement);
+    renderHeroForHeroPattern(heroRoot as unknown as HTMLElement);
+
+    expect(HERO_PATTERN_ORIGIN).toEqual({ x: 0.24, y: 0.55 });
+    expect(patternRoot.attributes.get('data-pattern-progress')).toBe('0.0000');
+    expect(patternRoot.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
+    expect(heroRoot.attributes.get('data-hero-progress')).toBe('1.0000');
   });
 
-  it('keeps the full-petal pattern visible while the ink reveals before collapse', () => {
-    const root = new FakeElement();
-
-    renderPatternForHeroPattern(root as unknown as HTMLElement, 0.2);
-
-    expect(root.attributes.get('data-pattern-progress')).toBe('0.0000');
-    expect(root.style.values.get('--r4-pattern-progress')).toBe('0.0000');
-    expect(root.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
-
-    renderPatternForHeroPattern(root as unknown as HTMLElement, 0.58);
-
-    expect(root.attributes.get('data-pattern-progress')).toBe('0.0000');
-    expect(root.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
+  it('contains no transition-only Pattern target or second collapse phase', () => {
+    expect(transitionSource).toContain('renderPatternHold');
+    expect(transitionSource).not.toContain('HERO_PATTERN_INK_TARGET_IMAGE');
+    expect(transitionSource).not.toContain('pattern-bloom-initial-no-stars.png');
+    expect(transitionSource).not.toContain('patternBloomProgressForHeroPattern');
   });
 
-  it('rotates the full-size lotus while the ink reveal is running', () => {
-    const root = new FakeElement();
-
-    renderPatternForHeroPattern(root as unknown as HTMLElement, 0.29);
-    expect(root.style.values.get('--r4-pattern-progress')).toBe('0.0000');
-    expect(root.style.values.get('--r4-pattern-field-rotation')).toBe('60.00deg');
-
-    renderPatternForHeroPattern(root as unknown as HTMLElement, 0.58);
-    expect(root.style.values.get('--r4-pattern-field-rotation')).toBe('0.00deg');
-  });
-
-  it('crossfades the real Pattern canvas before the ink texture fades out', () => {
-    expect(patternSceneOpacityForHeroPattern(0.46)).toBe(0);
-    expect(patternSceneOpacityForHeroPattern(0.52)).toBeGreaterThan(0);
-    expect(patternSceneOpacityForHeroPattern(0.52)).toBeLessThan(1);
-    expect(patternSceneOpacityForHeroPattern(0.58)).toBe(1);
-  });
-
-  it('keeps Hero fully composed while the static Pattern ink target owns the reveal', () => {
-    const root = new FakeElement();
-
-    renderHeroForHeroPattern(root as unknown as HTMLElement);
-
-    expect(root.attributes.get('data-hero-progress')).toBe('1.0000');
-    expect(root.style.values.get('--r4-hero-progress')).toBe('1.0000');
-    expect(root.style.values.get('--r4-hero-exit-lift')).toBe('0.00px');
-    expect(HERO_PATTERN_INK_TARGET_IMAGE).toContain('pattern-bloom-initial-no-stars.png');
-  });
-
-  it('passes timeline verification and exposes a reduced-motion fallback', async () => {
+  it('uses one 2200ms snap and passes timeline verification', async () => {
     const transition = createHeroPatternTransition();
     const timeline = await transition.buildTimeline(context());
 
-    expect(transition.reducedMotionFallback).toBeTypeOf('function');
-    expect(verifySegmentTimeline(timeline, { policy: segment().policy })).toMatchObject({
-      maxVisibleLayers: 2
+    expect(segment()).toMatchObject({
+      policy: { kind: 'snap' },
+      virtualDuration: 2200
     });
+    expect(verifySegmentTimeline(timeline, { policy: segment().policy })).toMatchObject({ maxVisibleLayers: 2 });
     expect(timeline.sample?.(0.5)).toMatchObject({
       from: { visible: true, opacity: 1 },
       to: { visible: true, opacity: 1 }
     });
   });
 
-  it('is idempotent across 0 to 1 to 0 to 1 progress', async () => {
+  it('is idempotent in both directions and collapses reduced motion to the endpoint', async () => {
     const transition = createHeroPatternTransition();
-    const timeline = await transition.buildTimeline(context());
-
-    timeline.progress(0);
+    const timeline = await transition.buildTimeline(context(true));
     const start = timeline.sample?.(0);
-    timeline.progress(1);
     const end = timeline.sample?.(1);
+
+    timeline.progress(1);
     timeline.progress(0);
     expect(timeline.sample?.(0)).toEqual(start);
     timeline.progress(1);
     expect(timeline.sample?.(1)).toEqual(end);
-  });
-
-  it('collapses duration in reduced motion', async () => {
-    const transition = createHeroPatternTransition();
-    const timeline = await transition.buildTimeline(context(true));
-
     await expect(timeline.play(1)).resolves.toBeUndefined();
-    expect(timeline.sample?.(1).to.visible).toBe(true);
   });
 });

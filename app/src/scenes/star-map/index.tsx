@@ -26,24 +26,6 @@ export function starMapMotionEnabled(hidden: boolean, reducedMotion: boolean): b
   return !hidden && !reducedMotion;
 }
 
-export function pauseStarMapTransitionMotion(root: HTMLElement | null | undefined): void {
-  const controlledRoot = root as StarMapRoot | null | undefined;
-  if (!controlledRoot) {
-    return;
-  }
-  controlledRoot.dataset.starMapTransitionMotion = 'paused';
-  controlledRoot.__r4StarMapPaintController?.setActive(false);
-}
-
-export function releaseStarMapTransitionMotion(root: HTMLElement | null | undefined): void {
-  const controlledRoot = root as StarMapRoot | null | undefined;
-  if (!controlledRoot) {
-    return;
-  }
-  delete controlledRoot.dataset.starMapTransitionMotion;
-  controlledRoot.__r4StarMapPaintController?.setActive(false);
-}
-
 export function renderStarMapProgress(root: HTMLElement | null, progress: number): StarMapRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
   const copyOpacity = clamped;
@@ -177,8 +159,7 @@ function StarMapScene({ hidden, registerHandle }: SceneComponentProps) {
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const transitionPaused = rootRef.current?.dataset.starMapTransitionMotion === 'paused';
-    paintControllerRef.current?.setActive(transitionPaused ? false : starMapMotionEnabled(hidden, reducedMotion));
+    paintControllerRef.current?.setActive(starMapMotionEnabled(hidden, reducedMotion));
   }, [hidden]);
 
   return (

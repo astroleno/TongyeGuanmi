@@ -188,17 +188,15 @@ describe('story manifest contract', () => {
     });
   });
 
-  it('models Hero to Pattern as reveal, pause, then collapse', () => {
+  it('models Hero to Pattern as one live-scene reveal', () => {
     const segment = storyManifest.nodes.find((node) => node.kind === 'segment' && node.id === 'hero-pattern');
 
     expect(segment).toMatchObject({
       kind: 'segment',
       policy: {
-        kind: 'stagedSnap',
-        stops: [0.58],
-        playMs: [2200, 1800]
+        kind: 'snap'
       },
-      virtualDuration: 4000
+      virtualDuration: 2200
     });
   });
 

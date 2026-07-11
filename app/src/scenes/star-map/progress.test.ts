@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { pauseStarMapTransitionMotion, releaseStarMapTransitionMotion, renderStarMapProgress, starMapMotionEnabled } from './index';
+import { describe, expect, it } from 'vitest';
+import { renderStarMapProgress, starMapMotionEnabled } from './index';
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -19,25 +19,10 @@ class FakeElement {
 }
 
 describe('star-map progress renderer', () => {
-  it('keeps the rendered Perlin field static on hold so the scene stays inside the idle CPU budget', () => {
+  it('keeps the canonical live Perlin owner active while visible', () => {
     expect(starMapMotionEnabled(true, false)).toBe(false);
     expect(starMapMotionEnabled(false, true)).toBe(false);
-    expect(starMapMotionEnabled(false, false)).toBe(false);
-  });
-
-  it('pauses live Perlin during a snapshot handoff and keeps the captured destination frame static', () => {
-    const setActive = vi.fn();
-    const root = {
-      dataset: {},
-      __r4StarMapPaintController: { setActive }
-    } as unknown as HTMLElement;
-
-    pauseStarMapTransitionMotion(root);
-    releaseStarMapTransitionMotion(root);
-
-    expect(setActive).toHaveBeenNthCalledWith(1, false);
-    expect(setActive).toHaveBeenNthCalledWith(2, false);
-    expect(root.dataset.starMapTransitionMotion).toBeUndefined();
+    expect(starMapMotionEnabled(false, false)).toBe(true);
   });
 
   it('is idempotent for repeated progress renders', () => {

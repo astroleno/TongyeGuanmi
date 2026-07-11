@@ -1,26 +1,19 @@
 import type { TransitionModule } from '../../story/types';
-import {
-  createPatternBloomTransition,
-  PATTERN_STAR_MAP_INK_TARGET_IMAGE,
-  PATTERN_STAR_MAP_INK_PROGRESS_SPAN,
-  patternSecondRevealProgressForStarMap,
-  patternTopSceneOpacityForStarMap,
-  starMapPresentationProgressForPatternStarMap
-} from '../pattern-bloom/timeline';
+import { renderPatternHold } from '../../scenes/pattern';
+import { renderStarMapHold } from '../../scenes/star-map';
+import { createInkSegmentTransition } from '../shared/ink';
 
-export {
-  PATTERN_STAR_MAP_INK_TARGET_IMAGE,
-  PATTERN_STAR_MAP_INK_PROGRESS_SPAN,
-  patternSecondRevealProgressForStarMap,
-  patternTopSceneOpacityForStarMap,
-  starMapPresentationProgressForPatternStarMap
-};
+export const PATTERN_STAR_MAP_ORIGIN = { x: 0.24, y: 0.55 } as const;
 
 export function createPatternStarMapTransition(options: { delayMs?: () => number } = {}): TransitionModule {
-  return createPatternBloomTransition({
+  return createInkSegmentTransition({
     id: 'pattern-star-map',
     delayMs: options.delayMs,
-    variant: 'pattern-star-map'
+    origin: PATTERN_STAR_MAP_ORIGIN,
+    revealMode: 'live-clip',
+    renderFrom: renderPatternHold,
+    renderTo: renderStarMapHold,
+    transitionAttr: 'pattern-star-map-live-circle'
   });
 }
 
