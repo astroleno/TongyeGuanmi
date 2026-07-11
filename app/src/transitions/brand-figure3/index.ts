@@ -7,7 +7,7 @@ export function createBrandFigure3Transition(options: { delayMs?: () => number }
   return createInkSegmentTransition({
     id: 'brand-figure3',
     delayMs: options.delayMs,
-    boundary: {
+    field: {
       kind: 'horizontal',
       direction: 'bottom-to-top',
       seed: 'brand-figure3'

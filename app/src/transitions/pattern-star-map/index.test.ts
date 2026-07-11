@@ -75,7 +75,7 @@ describe('pattern-star-map transition', () => {
     expect(setup.fromRoot.dataset.patternProgress).toBe('1.0000');
     expect(setup.fromLayer.visibility.visible).toBe(true);
     expect(setup.toLayer.visibility.visible).toBe(false);
-    expect(setup.canvas.dataset.r4InkActive).toBe('false');
+    expect(setup.canvas.dataset.r4InkActive).toBeUndefined();
     expect(timeline.sample?.(PATTERN_COLLAPSE_STOP)).toMatchObject({
       from: { visible: true, opacity: 1 },
       to: { visible: false, opacity: 0 }
@@ -108,11 +108,12 @@ describe('pattern-star-map transition', () => {
 
     expect(setup.fromRoot.dataset.patternProgress).toBe('1.0000');
     expect(setup.toLayer.visibility.visible).toBe(true);
-    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
-    expect(receiver.style.clipPath).not.toContain('circle(');
+    expect(receiver.style.clipPath).toMatch(/^circle\(/);
+    expect(receiver.style.clipPath).not.toContain('polygon(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('radial');
     expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.2400,0.5500');
-    expect(receiver.dataset.r4InkBoundaryRevision).toBe(setup.canvas.dataset.r4InkBoundaryRevision);
+    expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(setup.canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
   });
 
   it('uses two explicit 1800ms input phases and passes timeline verification', async () => {

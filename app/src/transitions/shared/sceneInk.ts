@@ -7,18 +7,18 @@ import { inkFieldOrigin, type InkFieldFrame } from './inkField';
 
 export type BoundaryInkOptions = InkBoundaryTransitionOptions;
 
-export type BoundaryInkRenderer = {
+export type InkFieldRenderer = {
   render(frame: InkFieldFrame): void;
   prewarm(frame: InkFieldFrame): void;
   destroy(): void;
 };
 
-export type BoundaryInkRendererLifecycleOptions = Readonly<{
+export type InkFieldRendererLifecycleOptions = Readonly<{
   removeCanvasOnDestroy?: boolean;
 }>;
 
 export type TransitionInkCanvasOptions = {
-  renderer: 'boundary';
+  renderer: 'field';
   preset?: 'cinematic-color';
   className?: string;
 };
@@ -99,11 +99,11 @@ export function mountTransitionInkCanvas(
   return canvas;
 }
 
-export function createBoundaryInkRenderer(
+export function createInkFieldRenderer(
   canvas: HTMLCanvasElement | null,
   options: BoundaryInkOptions = {},
-  lifecycle: BoundaryInkRendererLifecycleOptions = {}
-): BoundaryInkRenderer | null {
+  lifecycle: InkFieldRendererLifecycleOptions = {}
+): InkFieldRenderer | null {
   const resolvedOptions: InkBoundaryTransitionOptions = {
     ...CINEMATIC_BOUNDARY_PRESET,
     ...options
@@ -111,7 +111,7 @@ export function createBoundaryInkRenderer(
   if (canvas) {
     markCinematicPreset(
       canvas,
-      'boundary',
+      'field',
       resolvedOptions.colorLift ?? CINEMATIC_BOUNDARY_PRESET.colorLift,
       resolvedOptions.particleStrength ?? CINEMATIC_BOUNDARY_PRESET.particleStrength,
       resolvedOptions.dprLimit ?? CINEMATIC_BOUNDARY_PRESET.dprLimit

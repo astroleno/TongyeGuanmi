@@ -92,12 +92,13 @@ describe('R4 group6 transitions', () => {
 
     timeline.progress(0.5);
 
-    expect(receiver.dataset.r4RevealMode).toBe('live-clip');
-    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
-    expect(receiver.style.clipPath).not.toContain('inset(');
+    expect(receiver.dataset.r4RevealMode).toBe('ink-occluded-live-gate');
+    expect(receiver.style.clipPath).toMatch(/^inset\(/);
+    expect(receiver.style.clipPath).not.toContain('polygon(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.5000,0.0000');
-    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
     expect(receiver.style.getPropertyValue('mask-image')).toBe('');
     expect(canvas.dataset.r4InkTargetReady).toBeUndefined();
     expect(receiver.dataset.r4Transition).toBe('lab-ph-top-ink');
@@ -130,12 +131,12 @@ describe('R4 group6 transitions', () => {
     const forwardMidTime = video.currentTime;
     expect(Number(fixture.fromRoot.dataset.phProgress)).toBeGreaterThan(0);
     expect(Number(fixture.fromRoot.dataset.phProgress)).toBeLessThan(1);
-    expect(canvas.dataset.r4InkProgress).toBe('0.0000');
+    expect(canvas.dataset.r4InkProgress).toBeUndefined();
     expect(fixture.toLayer.visibility.visible).toBe(false);
 
     timeline.progress(stop);
     expect(fixture.fromRoot.dataset.phProgress).toBe('1.0000');
-    expect(canvas.dataset.r4InkProgress).toBe('0.0000');
+    expect(canvas.dataset.r4InkProgress).toBeUndefined();
     expect(timeline.pauses).toEqual(['stage:0']);
 
     timeline.progress((stop + 1) / 2);
@@ -144,9 +145,10 @@ describe('R4 group6 transitions', () => {
     expect(fixture.toRoot.style.getPropertyValue('--r4-education-y')).toBe('0.00px');
     expect(canvas.dataset.r4InkProgress).toBe('0.5000');
     const receiver = fixture.stage.children[1]!;
-    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
-    expect(receiver.style.clipPath).not.toContain('inset(');
-    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(receiver.style.clipPath).toMatch(/^inset\(/);
+    expect(receiver.style.clipPath).not.toContain('polygon(');
+    expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
 
     timeline.progress(stop / 2);
     expect(video.currentTime).toBeCloseTo(forwardMidTime, 3);

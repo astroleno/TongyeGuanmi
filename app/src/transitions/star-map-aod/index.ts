@@ -2,10 +2,10 @@ import { PilotProgressTimeline } from '../../pilot/progress-timeline';
 import { fadeVisibility, smoothStep } from '../../pilot/visibility';
 import type { LayerVisibilityState, TransitionModule } from '../../story/types';
 import { applyRevealBoundary, clearBoundaryGeometry } from '../shared/ink';
-import { createInkBoundaryFrame, type InkBoundaryFrame } from '../shared/inkBoundary';
-import { createBoundaryInkRenderer } from '../shared/sceneInk';
+import { createInkFieldFrame, inkFieldOrigin, type InkFieldFrame } from '../shared/inkField';
+import { createInkFieldRenderer } from '../shared/sceneInk';
 
-const STAR_MAP_AOD_BOUNDARY = {
+const STAR_MAP_AOD_FIELD = {
   kind: 'horizontal',
   direction: 'bottom-to-top',
   seed: 'star-map-aod'
@@ -42,7 +42,7 @@ function liftInkLayerOverSource(element: HTMLElement | null | undefined): void {
   element.style.zIndex = '40';
 }
 
-function boundaryViewport(
+function fieldViewport(
   canvas: HTMLCanvasElement | null,
   fallback: HTMLElement | null
 ): Readonly<{ width: number; height: number }> {
@@ -53,19 +53,32 @@ function boundaryViewport(
   };
 }
 
-function markAodBoundaryCanvas(canvas: HTMLCanvasElement | null, frame: InkBoundaryFrame): void {
+function markAodFieldCanvas(canvas: HTMLCanvasElement | null, frame: InkFieldFrame): void {
   if (!canvas) {
     return;
   }
+  const active = frame.progress > 0.002 && frame.progress < 0.999;
+  const origin = inkFieldOrigin(frame.spec);
   canvas.dataset.r4InkEffectOnly = 'true';
-  canvas.dataset.r4InkRenderer = 'boundary';
+  canvas.dataset.r4InkRenderer = 'field';
   canvas.dataset.r4InkSegment = 'star-map-aod';
-  canvas.dataset.r4InkActive = String(frame.progress > 0.002 && frame.progress < 0.999);
+  if (!active) {
+    delete canvas.dataset.r4InkActive;
+    delete canvas.dataset.r4InkProgress;
+    delete canvas.dataset.r4InkBoundaryKind;
+    delete canvas.dataset.r4InkBoundaryOrigin;
+    delete canvas.dataset.r4InkBoundaryProgress;
+    delete canvas.dataset.r4InkBoundaryRevision;
+    delete canvas.dataset.r4InkFieldSeed;
+    return;
+  }
+  canvas.dataset.r4InkActive = 'true';
   canvas.dataset.r4InkProgress = frame.progress.toFixed(4);
-  canvas.dataset.r4InkBoundaryKind = frame.kind;
-  canvas.dataset.r4InkBoundaryOrigin = `${frame.origin.x.toFixed(4)},${frame.origin.y.toFixed(4)}`;
+  canvas.dataset.r4InkBoundaryKind = frame.spec.kind;
+  canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
   canvas.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
-  canvas.dataset.r4InkBoundaryRevision = frame.revision;
+  canvas.dataset.r4InkFieldSeed = String(frame.seed);
+  delete canvas.dataset.r4InkBoundaryRevision;
 }
 
 export function createStarMapAodTransition(options: { delayMs?: () => number } = {}): TransitionModule {
@@ -78,14 +91,12 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
       const inkCanvas = context.to.element?.querySelector<HTMLCanvasElement>('[data-aod-ink-canvas]') ?? null;
-      const inkRenderer = context.prefersReducedMotion ? null : createBoundaryInkRenderer(inkCanvas, {
+      const inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(inkCanvas, {
         colorLift: 0.56,
-        coverAlpha: 0.82,
-        fadeOutStart: 0.74,
-        fadeOutEnd: 0.98
+        coverAlpha: 0.82
       }, { removeCanvasOnDestroy: false });
-      const viewport = boundaryViewport(inkCanvas, context.to.element);
-      inkRenderer?.prewarm(createInkBoundaryFrame(STAR_MAP_AOD_BOUNDARY, 0.003, viewport));
+      const viewport = fieldViewport(inkCanvas, context.to.element);
+      inkRenderer?.prewarm(createInkFieldFrame(STAR_MAP_AOD_FIELD, 0.003, viewport));
       return new PilotProgressTimeline({
         from: context.from,
         to: context.to,
@@ -93,8 +104,8 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
         direction: context.direction,
         sample: sampleStarMapAod,
         render: (progress) => {
-          const boundaryProgress = context.prefersReducedMotion ? 1 : smoothStep(progress);
-          const frame = createInkBoundaryFrame(STAR_MAP_AOD_BOUNDARY, boundaryProgress, viewport);
+          const fieldProgress = context.prefersReducedMotion ? 1 : smoothStep(progress);
+          const frame = createInkFieldFrame(STAR_MAP_AOD_FIELD, fieldProgress, viewport);
           const revealSurface = getAodRevealSurface(context.to.element);
           liftInkLayerOverSource(context.to.element);
           if (revealSurface) {
@@ -103,14 +114,15 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
             applyRevealBoundary(revealSurface, frame);
           }
           context.to.element?.setAttribute('data-r3-transition', 'star-map-aod');
-          markAodBoundaryCanvas(inkCanvas, frame);
+          markAodFieldCanvas(inkCanvas, frame);
           inkRenderer?.render(frame);
         },
         dispose: () => {
           inkRenderer?.destroy();
           clearBoundaryGeometry(getAodRevealSurface(context.to.element));
           if (inkCanvas) {
-            inkCanvas.dataset.r4InkActive = 'false';
+            delete inkCanvas.dataset.r4InkActive;
+            delete inkCanvas.dataset.r4InkProgress;
           }
           context.to.element?.removeAttribute('data-r3-transition');
         }

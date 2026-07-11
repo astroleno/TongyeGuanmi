@@ -7,7 +7,7 @@ export function createEducationCraneTransition(options: { delayMs?: () => number
   return createInkSegmentTransition({
     id: 'education-crane',
     delayMs: options.delayMs,
-    boundary: {
+    field: {
       kind: 'horizontal',
       direction: 'bottom-to-top',
       seed: 'education-crane'

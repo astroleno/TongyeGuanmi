@@ -8,7 +8,7 @@ export const PATTERN_COLLAPSE_STOP = 0.5;
 export const PATTERN_COLLAPSE_MS = 1800;
 export const PATTERN_STAR_MAP_INK_MS = 1800;
 
-function boundaryProgress(progress: number): number {
+function fieldProgress(progress: number): number {
   return range01(progress, PATTERN_COLLAPSE_STOP, 1);
 }
 
@@ -30,12 +30,12 @@ export function createPatternStarMapTransition(options: { delayMs?: () => number
   return createInkSegmentTransition({
     id: 'pattern-star-map',
     delayMs: options.delayMs,
-    boundary: ({ from }) => ({
+    field: ({ from }) => ({
       kind: 'radial',
       origin: readPatternCenter(from),
       seed: 'pattern-star-map'
     }),
-    boundaryProgress,
+    fieldProgress,
     prepareEndpoints: ({ from, to }) => {
       renderPatternHold(from);
       renderStarMapHold(to);
@@ -46,7 +46,7 @@ export function createPatternStarMapTransition(options: { delayMs?: () => number
       rotationProgress: 1
     }),
     renderSourceProgress: collapseProgress,
-    sample: (progress) => samplePatternThenStarMap(boundaryProgress(progress)),
+    sample: (progress) => samplePatternThenStarMap(fieldProgress(progress)),
     stops: [PATTERN_COLLAPSE_STOP],
     transitionAttr: 'pattern-star-map-live-circle'
   });

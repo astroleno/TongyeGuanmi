@@ -7,12 +7,12 @@ import { mediaPlaybackFor, requiredMilestonesFor } from '../../story/manifest';
 
 export const TTG_LAB_ANIMATION_STOP = 0.676;
 
-function boundaryProgress(progress: number): number {
+function fieldProgress(progress: number): number {
   return range01(progress, TTG_LAB_ANIMATION_STOP, 1);
 }
 
 function sampleTtgLab(progress: number): InkSample {
-  const reveal = boundaryProgress(progress);
+  const reveal = fieldProgress(progress);
   if (reveal <= 0.001) {
     return { from: holdVisibility(false), to: hiddenVisibility() };
   }
@@ -26,12 +26,12 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
   const transition = createInkSegmentTransition({
     id: 'ttg-lab',
     delayMs: options.delayMs,
-    boundary: {
+    field: {
       kind: 'horizontal',
       direction: 'top-to-bottom',
       seed: 'ttg-lab'
     },
-    boundaryProgress,
+    fieldProgress,
     prepareEndpoints: ({ to }) => renderLabHold(to),
     renderSource: (root, progress) => renderTtgAnimationProgress(root, progress, { playback: true }),
     renderSourceProgress: (progress) => range01(progress, 0, TTG_LAB_ANIMATION_STOP),

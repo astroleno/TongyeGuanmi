@@ -7,7 +7,7 @@ export function createServicesTtgTransition(options: { delayMs?: () => number } 
   return createInkSegmentTransition({
     id: 'services-ttg',
     delayMs: options.delayMs,
-    boundary: {
+    field: {
       kind: 'horizontal',
       direction: 'bottom-to-top',
       seed: 'services-ttg'

@@ -7,7 +7,7 @@ export function createLabPhTransition(options: { delayMs?: () => number } = {}):
   return createInkSegmentTransition({
     id: 'lab-ph',
     delayMs: options.delayMs,
-    boundary: {
+    field: {
       kind: 'horizontal',
       direction: 'top-to-bottom',
       seed: 'lab-ph'

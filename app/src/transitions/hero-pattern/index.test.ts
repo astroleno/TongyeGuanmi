@@ -1,9 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import {
   createHeroPatternTransition,
+  HERO_PATTERN_INK_ORIGIN,
   renderHeroForHeroPattern,
   renderPatternForHeroPattern
 } from './index';
@@ -100,17 +101,18 @@ describe('hero-pattern transition', () => {
     expect(heroRoot.attributes.get('data-hero-progress')).toBe('1.0000');
   });
 
-  it('contains no transition-only Pattern target or second collapse phase', () => {
+  it('uses the screen center without a transition-only Pattern target or second collapse phase', () => {
     expect(transitionSource).toContain('renderPatternHold');
     expect(transitionSource).not.toContain('HERO_PATTERN_INK_TARGET_IMAGE');
     expect(transitionSource).not.toContain('pattern-bloom-initial-no-stars.png');
     expect(transitionSource).not.toContain('patternBloomProgressForHeroPattern');
-    expect(transitionSource).not.toContain('HERO_PATTERN_ORIGIN');
+    expect(HERO_PATTERN_INK_ORIGIN).toEqual({ x: 0.5, y: 0.5 });
+    expect(transitionSource).toContain('HERO_PATTERN_INK_ORIGIN');
     expect(transitionSource).toContain("kind: 'radial'");
-    expect(transitionSource).toContain('readPatternCenter(to)');
+    expect(transitionSource).not.toContain('readPatternCenter(to)');
   });
 
-  it('shares one radial Pattern-center boundary with the effect canvas', async () => {
+  it('shares one screen-center radial field with the effect canvas', async () => {
     const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
     const canvas = new FakeCanvas();
     Object.assign(fixture.toRoot, { clientWidth: 1440 });
@@ -120,12 +122,31 @@ describe('hero-pattern transition', () => {
 
     timeline.progress(0.5);
 
-    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
-    expect(receiver.style.clipPath).not.toContain('circle(');
+    expect(receiver.style.clipPath).toMatch(/^circle\(/);
+    expect(receiver.style.clipPath).not.toContain('polygon(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('radial');
-    expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.2400,0.5500');
-    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.5000,0.5000');
+    expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
     expect(fixture.toRoot.dataset.patternProgress).toBe('0.0000');
+  });
+
+  it('keeps exactly Hero → Pattern and Pattern → Star Map as radial consumers', () => {
+    const transitionsRoot = new URL('../', import.meta.url);
+    const radialConsumers = readdirSync(transitionsRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .filter((entry) => {
+        try {
+          return readFileSync(new URL(`${entry.name}/index.ts`, transitionsRoot), 'utf8')
+            .includes("kind: 'radial'");
+        } catch {
+          return false;
+        }
+      })
+      .map((entry) => entry.name)
+      .sort();
+
+    expect(radialConsumers).toEqual(['hero-pattern', 'pattern-star-map']);
   });
 
   it('uses one 2200ms snap and passes timeline verification', async () => {

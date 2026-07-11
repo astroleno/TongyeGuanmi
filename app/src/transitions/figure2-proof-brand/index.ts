@@ -7,12 +7,12 @@ export function createFigure2ProofBrandTransition(options: { delayMs?: () => num
   return createInkSegmentTransition({
     id: 'figure2-proof-brand',
     delayMs: options.delayMs,
-    boundary: {
+    field: {
       kind: 'horizontal',
       direction: 'bottom-to-top',
       seed: 'figure2-proof-brand'
     },
-    boundarySurfaces: ({ stage }) => ({
+    ownershipSurfaces: ({ stage }) => ({
       conceal: [
         stage?.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]')
       ].filter((element): element is HTMLElement => Boolean(element))

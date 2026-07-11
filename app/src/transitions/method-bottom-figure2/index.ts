@@ -24,13 +24,13 @@ export function createMethodBottomFigure2Transition(options: { delayMs?: () => n
   const inkTransition = createInkSegmentTransition({
     id: 'method-bottom-figure2',
     delayMs: options.delayMs,
-    boundary: {
+    field: {
       kind: 'horizontal',
       direction: 'bottom-to-top',
       seed: 'method-bottom-figure2'
     },
-    boundaryProgress: figure2InkProgressForMethodBottom,
-    boundarySurfaces: ({ stage }) => ({
+    fieldProgress: figure2InkProgressForMethodBottom,
+    ownershipSurfaces: ({ stage }) => ({
       reveal: [
         stage?.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]')
       ].filter((element): element is HTMLElement => Boolean(element))

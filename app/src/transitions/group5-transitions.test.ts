@@ -111,10 +111,11 @@ describe('R4 group5 transitions', () => {
 
       timeline.progress(item.id === 'ttg-lab' ? (TTG_LAB_ANIMATION_STOP + 1) / 2 : 0.5);
 
-      expect(receiver.style.clipPath).toMatch(/^polygon\(/);
-      expect(receiver.style.clipPath).not.toContain('inset(');
+      expect(receiver.style.clipPath).toMatch(/^inset\(/);
+      expect(receiver.style.clipPath).not.toContain('polygon(');
       expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
-      expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+      expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
+      expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
       timeline.dispose();
       vi.unstubAllGlobals();
     }
@@ -149,12 +150,12 @@ describe('R4 group5 transitions', () => {
     timeline.progress(stop / 2);
     expect(Number(fixture.fromRoot.dataset.ttgProgress)).toBeGreaterThan(0);
     expect(Number(fixture.fromRoot.dataset.ttgProgress)).toBeLessThan(1);
-    expect(canvas.dataset.r4InkProgress).toBe('0.0000');
+    expect(canvas.dataset.r4InkProgress).toBeUndefined();
     expect(fixture.toLayer.visibility.visible).toBe(false);
 
     timeline.progress(stop);
     expect(fixture.fromRoot.dataset.ttgProgress).toBe('1.0000');
-    expect(canvas.dataset.r4InkProgress).toBe('0.0000');
+    expect(canvas.dataset.r4InkProgress).toBeUndefined();
     expect(timeline.pauses).toEqual(['stage:0']);
 
     timeline.progress((stop + 1) / 2);

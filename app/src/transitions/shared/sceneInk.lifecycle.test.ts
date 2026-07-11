@@ -15,7 +15,7 @@ vi.mock('../../vendor/ink-scene-transition.js', () => ({
 }));
 
 import { createInkFieldFrame } from './inkField';
-import { createBoundaryInkRenderer } from './sceneInk';
+import { createInkFieldRenderer } from './sceneInk';
 
 function canvas(): HTMLCanvasElement {
   return {
@@ -33,7 +33,7 @@ beforeEach(() => {
 describe('shared ink renderer lifecycle', () => {
   it('forwards one boundary frame and releases WebGL resources before removing its canvas', () => {
     const surface = canvas();
-    const renderer = createBoundaryInkRenderer(surface);
+    const renderer = createInkFieldRenderer(surface);
     const frame = createInkFieldFrame(
       { kind: 'horizontal', direction: 'bottom-to-top', seed: 'shared-field-frame' },
       0.5,

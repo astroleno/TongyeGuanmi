@@ -145,7 +145,7 @@ describe('shared ink transition surface', () => {
     };
     const options = {
       id: 'services-ttg',
-      boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
       prepareEndpoints: (roots: { from: HTMLElement | null; to: HTMLElement | null }) => prepared.push(roots),
       renderSource: (_root: HTMLElement | null, progress: number) => sourceProgress.push(progress),
       renderSourceProgress: 'forward'
@@ -171,7 +171,7 @@ describe('shared ink transition surface', () => {
     expect(inkSource).not.toContain('return `circle(');
     expect(inkSource).not.toContain('clipProgress?:');
     expect(inkSource).not.toContain('inkProgress?:');
-    expect(inkSource).toContain('boundaryProgress?:');
+    expect(inkSource).toContain('fieldProgress?:');
   });
 
   it('prepares source and receiver holds once instead of rerendering the target per frame', async () => {
@@ -202,7 +202,7 @@ describe('shared ink transition surface', () => {
     };
     const transition = createInkSegmentTransition({
       id: 'services-ttg',
-      boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
       prepareEndpoints: () => {
         fromProgress.push(1);
         toProgress.push(1);
@@ -234,7 +234,7 @@ describe('shared ink transition surface', () => {
     const to = layer('ttg-animation', 'next', toElement);
     const transition = createInkSegmentTransition({
       id: 'services-ttg',
-      boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
       prepareEndpoints: () => undefined,
       renderSource: (_root, progress) => sourceProgress.push(progress),
       renderSourceProgress: (progress) => Math.min(1, progress / 0.4)
@@ -290,8 +290,8 @@ describe('shared ink transition surface', () => {
     };
     const transition = createInkSegmentTransition({
       id: 'services-ttg',
-      boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
-      boundarySurfaces: () => ({
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+      ownershipSurfaces: () => ({
         conceal: [concealSurface as unknown as HTMLElement],
         reveal: [revealSurface as unknown as HTMLElement]
       }),
@@ -301,7 +301,7 @@ describe('shared ink transition surface', () => {
     const timeline = await transition.buildTimeline(context);
 
     expect(canvas.parentElement).toBe(stage);
-    expect(canvas.dataset.r4InkRenderer).toBe('boundary');
+    expect(canvas.dataset.r4InkRenderer).toBe('field');
     expect(canvas.dataset.r4InkPreset).toBe('cinematic-color');
     expect(canvas.dataset.r4InkPresetApplied).toBe('true');
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
@@ -386,7 +386,7 @@ describe('shared ink transition surface', () => {
       const to = layer('ttg-animation', 'next', toElement);
       return createInkSegmentTransition({
         id: 'services-ttg',
-        boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+        field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
         prepareEndpoints: () => undefined
       }).buildTimeline({
         segment,
@@ -455,7 +455,7 @@ describe('shared ink transition surface', () => {
     };
     const transition = createInkSegmentTransition({
       id: 'services-ttg',
-      boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
       prepareEndpoints: () => undefined,
       renderSource: (_root, progress) => renderedProgress.push(progress),
       renderSourceProgress: 'forward'

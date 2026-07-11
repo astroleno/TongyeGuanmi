@@ -315,15 +315,16 @@ describe('figure2 proof chain transitions', () => {
       from: { visible: true, opacity: 1 },
       to: { visible: true, opacity: 1 }
     });
-    expect(toElement.dataset.r4RevealMode).toBe('live-clip');
-    expect(toElement.style.clipPath).toMatch(/^polygon\(/);
-    expect(toElement.style.clipPath).not.toContain('inset(');
+    expect(toElement.dataset.r4RevealMode).toBe('ink-occluded-live-gate');
+    expect(toElement.style.clipPath).toMatch(/^inset\(/);
+    expect(toElement.style.clipPath).not.toContain('polygon(');
     const inkCanvas = stage.children.find((child) => child.dataset.r4InkSegment === 'figure2-proof-brand');
     expect(toElement.dataset.r4InkBoundaryKind).toBe('horizontal');
-    expect(toElement.dataset.r4InkBoundaryRevision).toBe(inkCanvas?.dataset.r4InkBoundaryRevision);
-    expect(retainedArch.dataset.r4InkBoundaryRevision).toBe(toElement.dataset.r4InkBoundaryRevision);
-    expect(retainedArch.style.clipPath).toMatch(/^polygon\(/);
-    expect(retainedArch.style.clipPath).not.toContain('inset(');
+    expect(toElement.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(inkCanvas?.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(retainedArch.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(retainedArch.style.clipPath).toMatch(/^inset\(/);
+    expect(retainedArch.style.clipPath).not.toContain('polygon(');
     expect(retainedArch.style.visibility).toBe('visible');
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
     expect(fromElement.style.getPropertyValue('--r4-proof-closing-opacity')).toBe('1.0000');
@@ -342,9 +343,9 @@ describe('figure2 proof chain transitions', () => {
     expect(retainedArch.style.clipPath).toBe('');
 
     timeline.progress(0.4);
-    expect(toElement.dataset.r4RevealMode).toBe('live-clip');
-    expect(toElement.style.clipPath).toMatch(/^polygon\(/);
-    expect(toElement.style.clipPath).not.toContain('inset(');
+    expect(toElement.dataset.r4RevealMode).toBe('ink-occluded-live-gate');
+    expect(toElement.style.clipPath).toMatch(/^inset\(/);
+    expect(toElement.style.clipPath).not.toContain('polygon(');
     timeline.progress(0);
     expect(stage.querySelector('[data-stage-retained-figure2-arch="true"]')).toBe(retainedArch);
     expect(retainedArch.style.visibility).toBe('visible');
