@@ -67,4 +67,4 @@
 - PH layer widths, bottom offsets, parallax travel, paper wash, sun wash, edge light, and texture values are taken from `css/ph.css`.
 - The PH React scene is fixed to the harness viewport instead of using the old route's scroll-height wrapper. Progress remains deterministic through the segment renderer.
 - Education uses the old row hierarchy and copy as a continuous two-screen reading scene inside the fixed R4 viewport; its last row remains reachable without moving the document or background.
-- Final side-by-side visual parity still needs HITL confirmation after G4-G7 land in integration.
+- Final side-by-side visual parity received HITL confirmation; current release status is recorded in `R4-CLOSEOUT.md`.

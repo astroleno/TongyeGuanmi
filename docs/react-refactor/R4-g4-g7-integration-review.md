@@ -1,9 +1,12 @@
 # R4 G4-G7 Integration Review
 
+> 状态：historical integration evidence。R4 最终验收与分支点以 `R4-CLOSEOUT.md` 为准。
+
 ## Scope
 
 - Integration branch: `codex/react-refactor-r4-integration`
-- Final reviewed head: `77cd8032 test: refresh final r4 integration traces`
+- Original G4-G7 integration head: `77cd8032 test: refresh final r4 integration traces`
+- Final R4 code/visual review head: `55b8a12 test: cover figure2 single-depth ownership`
 - Group merge order:
   1. G4 `13cc4829 feat: migrate r4 group4 figure3 services`
   2. G5 `0d781f9c feat: migrate r4 group5 ttg lab`
@@ -64,5 +67,6 @@
 
 ## Handoff State
 
-- Integration worktree is clean after dropping obsolete protection stashes and restoring unrelated R4 G1 trace timestamp churn.
-- HITL still needs final back-half visual parity approval before treating visual parity as signed off.
+- 用户已完成人工视觉验收，原文中的 pending HITL 状态已解除。
+- `codex/react-refactor-r4-integration` 应 fast-forward 到 `react-refactor-r4-closeout`；不得把 dirty R4 worktree 的未提交依赖或浏览器产物带入。
+- R5 只从 closeout tag 开始；本文件保留为 G4-G7 集成证据，不再作为当前执行清单。

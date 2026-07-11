@@ -67,4 +67,4 @@
 - Crane layer widths, offsets, video scale, clipping, flock opacity, and down-exit movement are taken from `crane.css` and `crane-transition.js`.
 - The old homepage adapter ghosts the contact receiver from the DOM. The corrected R4 timing keeps it transparent before `0.8`, makes the complete copy visible at `0.8`, and maps paper/wash opacity exactly to `range01(progress, 0.8, 1)`.
 - Contact endpoint typography and copy are carried from `contact.html` and `source-copy.css`.
-- Final side-by-side visual parity still needs HITL confirmation after G4-G7 land in integration.
+- Final side-by-side visual parity received HITL confirmation; current release status is recorded in `R4-CLOSEOUT.md`.

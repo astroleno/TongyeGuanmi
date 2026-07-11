@@ -1,5 +1,7 @@
 # R2 Goal：Stage 交接协议
 
+> 状态：completed historical phase。
+
 ## 目标
 
 用合成 cinematic scene 验证单 Stage、prev/current/next 窗口、pre-mount、from/to 交接、反向、seek、recovery。真实 scene 迁移必须等 R2 收口。

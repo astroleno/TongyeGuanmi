@@ -1,6 +1,8 @@
 # ADR: SEO And No-JS Content Strategy
 
-Status: proposed in R-1, requires HITL confirmation before R0.
+Status: accepted. Static prerendering / crawlable HTML is the R5 cutover contract; a client-only empty `#root` shell is not acceptable for the public entry.
+
+Accepted for implementation: 2026-07-12. R5 must record artifact-level evidence in `docs/react-refactor/reports/r5-seo-no-js.md` before cutover approval.
 
 ## Decision
 
@@ -22,7 +24,7 @@ The React rewrite must ship crawlable HTML that already contains the core page c
 
 Client-only HTML shell is rejected for public routes. It would make core marketing copy dependent on JS execution and would violate `ARCHITECTURE.md` section 0: "正文文本不能只存在于 JS 运行后".
 
-## R0 Requirements
+## Build Requirements
 
 | Requirement | Verification |
 |---|---|
@@ -44,7 +46,7 @@ R5 cutover cannot pass unless:
 
 ## Implementation Direction
 
-R0 should select a Vite-compatible static prerender path for the marketing entry. The exact library/tooling can be decided in R0, but the artifact contract is fixed here:
+R5 must select a Vite-compatible static prerender path for the marketing entry. The exact library/tooling may vary, but the artifact contract is fixed here:
 
 ```txt
 dist/index.html
@@ -54,5 +56,4 @@ dist/index.html
   does not require JS for the text baseline
 ```
 
-If R0 discovers that full prerendering is impractical, it must produce a new ADR before implementation and still provide a crawlable HTML shell with all copy baseline text. The shell cannot be empty placeholders.
-
+If full prerendering is impractical, R5 must produce a replacement ADR before implementation and still provide a crawlable HTML shell with all copy baseline text. The shell cannot be empty placeholders.

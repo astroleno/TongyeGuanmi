@@ -1,6 +1,6 @@
 # 目标架构：Cinematic Story Runtime（完全重新设计）
 
-状态：替代性总体规划。落地分支以 `main` 为基线；`codex/state-machine-refactor-roadmap` 只作为历史实验与教训来源，不作为代码继承底座。本文档取代 `docs/newplan/` 系列；旧站代码不再是迁移对象，只作为**素材库（renderer/文案/参数）与教训清单**。
+状态：R4 runtime architecture 已落地，R5 将补齐 production StoryApp、public entry 与 prerender/cutover。旧站基线固定为 `react-refactor-legacy-static-baseline`；`codex/state-machine-refactor-roadmap` 只作为历史实验与教训来源，不作为代码继承底座。旧站代码只作为**素材库（renderer/文案/参数）与教训清单**。
 
 文档闭环：入口见 `README.md`；阶段落地与分支纪律见 `ROADMAP.md`；旧站复用、退役和切换边界见 `MIGRATION.md`；每阶段执行清单见 `goals/`。
 
@@ -15,8 +15,8 @@
 | 故事顺序 | 以 §3.1 的 canonical story spine 为唯一时序。旧 `main` 的 `contentSections/chapterTransitions` 只作为粗粒度种子 |
 | 与旧站关系 | 全新实现；复用 renderer、媒体资产、文案、UX 参数与不变量（见 MIGRATION.md） |
 | Lenis | 不再是核心依赖。阅读区内部滚动先用原生 overflow，平滑化是后期可选项 |
-| 可爬取内容 | React app 不能牺牲营销站正文可见性。R-1/R0 必须决定静态预渲染或可爬 HTML shell，正文文本不能只存在于 JS 运行后 |
-| 落地基线 | 从 `main` 新开 `codex/react-refactor-plan` 与后续阶段分支；state-machine 分支不合入新 runtime |
+| 可爬取内容 | React app 不能牺牲营销站正文可见性。静态预渲染 / crawlable HTML 已确认，R5 必须交付 artifact-level 验证，正文文本不能只存在于 JS 运行后 |
+| 落地基线 | R5 从 `react-refactor-r4-closeout` 开始；旧静态站由 immutable baseline tag 保留，state-machine 分支不合入新 runtime |
 | R2/R3 判定边界 | R2 只证明合成场景下协议闭环；真实媒体、copyCue、异步 milestone 的真值在 R3 pilot 首次判定。R3 未平价前不得宣称“播放顺序 + 状态机已彻底解决” |
 
 ### 为什么换底座

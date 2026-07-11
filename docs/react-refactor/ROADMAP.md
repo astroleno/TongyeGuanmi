@@ -1,12 +1,12 @@
 # Roadmap：Cinematic Story Runtime 重写
 
 入口文档：`README.md`。配套文档：`ARCHITECTURE.md`（目标架构与契约）、`MIGRATION.md`（复用与退役清单），阶段执行清单见 `goals/`。
-本 roadmap 为替代性总体规划，取代 `docs/newplan/ROADMAP-state-machine-refactor.md`（归档）。落地执行从 `main` 开新分支；state-machine / scene-runtime 系列分支只作为历史实验参考，不作为代码基线。
+本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地。旧站基线现固定为 `react-refactor-legacy-static-baseline`，R5 从 `react-refactor-r4-closeout` 开始；state-machine / scene-runtime 系列分支继续只作历史参考。
 
-## 执行纪律
+## 当前执行纪律
 
-- 落地前先从 `main` 创建 `codex/react-refactor-plan`，提交 `docs/react-refactor/` 作为契约基线；不得从 `codex/state-machine-refactor-roadmap` 或 scene-runtime 实验分支继续实现。
-- `codex/react-refactor-plan` 是 docs-only PR：只新增/更新 `docs/react-refactor/`，不创建 `app/`，不修改旧站业务代码。旧 route/runtime PR 栈必须标注为 superseded / reference only，避免双主线。
+- R0-R4 的历史分支链不再是新工作起点；R5 只能从 `react-refactor-r4-closeout` 创建。
+- 不得从浮动 `main`、`codex/state-machine-refactor-roadmap` 或 scene-runtime 实验分支重新组装 R5。
 - 包管理器先定 pnpm workspace：R0 在根 `package.json` 增加精确 `packageManager: "pnpm@<version>"`，提交 `pnpm-workspace.yaml`，沿用并更新 `pnpm-lock.yaml`，CI 使用 `corepack enable && pnpm install --frozen-lockfile`；阶段验收命令统一为 `pnpm -C app test`。除非先补 ADR，否则不得临时改 npm/yarn workspace。
 - 一个任务一个 commit；commit 前跑该任务验收命令 + `pnpm -C app test`（Vitest 全量）。
 - 每个阶段收口跑 Playwright 回归 + 手工检查三大历史症状：**无重复入场、无交接空白、无黑闪**。
@@ -15,7 +15,7 @@
 - **R2 未收口前禁止迁移任何真实 scene**（合成场景先把交接协议打通）。
 - **R2 收口不等于播放顺序/状态机已彻底解决**。R2 只证明合成场景协议；R3 pilot 负责真实媒体、copyCue、React effect、浏览器媒体事件的 truth pass。
 
-## 分支策略
+## 分支策略与历史链
 
 ```txt
 main
@@ -26,18 +26,23 @@ main
                           └── codex/react-refactor-r2-stage-handoff
                                 └── codex/react-refactor-r3-pilot
                                       └── codex/react-refactor-r4-*
+                                            └── react-refactor-r4-closeout
+                                                 └── codex/react-refactor-r5-parity-cutover
+                                                      └── HITL-approved cutover
+                                                           └── codex/react-refactor-r6-cleanup
 ```
 
 - `codex/react-refactor-plan`：只提交 `docs/react-refactor/`，确认架构、迁移边界、阶段 goal；PR 标题建议 `docs: add cinematic story runtime rewrite plan`。
 - R-1 到 R3 串行推进，避免在契约未稳定前并行写散。
 - R4 可按 story group 并行 worktree，但每个分支必须从 R3 收口点开，合并顺序按 canonical spine。
 - R4 使用 merge train：每个 group 合入集成分支后，必须在集成分支重跑 R2 全套逐帧断言 + R3 pilot 回归；共享协议变化先回集成分支，不允许各 group fork 私版。figure2/proof 高风险 group 必须在 groups 4-7 之前进入 merge train，避免后段才暴露共享协议缺口。
+- R5 与 R6 各保留一个阶段分支；不再为设备矩阵、SEO、性能或 cleanup 子项创建长期分支。R6 只在 R5 cutover 获批后创建。
 - `codex/state-machine-refactor-roadmap`、`codex/scene-runtime-*`、`react-rewrite/*` 只作对照资料，不作为新分支父级。
 - 仍在旧 route/runtime helper 方向上的 PR 不再合入主线；统一标注 superseded / reference only，只能作为 R-1 inventory 的历史证据来源。
 
-## Docs-only PR Summary
+## 历史规划基线
 
-本计划 PR 只提交 `docs/react-refactor/`，用于确认 React rewrite 的架构、迁移边界与阶段目标。它不创建 `app/`，不修改旧站业务代码，不合入 state-machine / scene-runtime 实验代码；旧 route/runtime helper 方向 PR 状态为 **superseded / reference only**。合并后下一步是从该规划提交创建 R-1 inventory 分支，先做事实盘点和人工确认，再进入任何实现阶段。
+最初的 `codex/react-refactor-plan` 是 docs-only 契约基线；该阶段已经完成。当前事实以 app 代码、阶段 tag、`R4-CLOSEOUT.md` 和 R5/R6 goal 为准。旧 route/runtime helper 方向仍为 **superseded / reference only**。
 
 ## 阶段 Goal
 
@@ -146,6 +151,8 @@ main
 
 **目标**：迁完剩余 canonical story groups。R4 是唯一允许做新审美调参、节奏改写与视觉数值偏好调整的阶段。
 
+**状态**：已完成。人工视觉验收点为 `react-refactor-r4-visual-accepted`，R5 起点为 `react-refactor-r4-closeout`；详见 `R4-CLOSEOUT.md`。
+
 迁移顺序（R2/R3 契约稳定后可按组并行分支，合并顺序仍按 story spine）：
 
 1. `hero → pattern → star-map`：中心扩散 + 左侧旋转扩散，包含 pattern/star-map renderer 幂等验证。
@@ -166,32 +173,44 @@ main
 
 **验收**：canonical story spine 全部完成；全站正向全程 + 反向关键 segment + 全部 hash 直达锚点回归通过。
 
-## R5：平价验收与切换
+## R5：生产组装、平价验收与可回滚切换
 
-**目标**：整站替换旧静态站。
+**目标**：把 R4 scene/transition 组装成真正的 production StoryApp，整站替换旧静态站，并在任何破坏性清理前保留可执行 rollback。
 
 任务：
 
-- T5.1 全站回归矩阵：正向全程、反向 `hero → pattern → star-map` 与 `star-map → aod-animation → method-top`、全部 hash 直达、reduced-motion、桌面/移动/触控板/触屏、慢网（媒体 recovery）、阅读区内部滚动 + 边缘蓄力交接。
-- T5.2 性能预算：LCP、播放期帧率、prev/current/next 三层驻留下的内存/GPU 采样（对照旧站不劣化）。
-- T5.3 SEO / 无 JS 正文验收：构建产物可提取核心正文、title/description/hash 语义正确；如采用预渲染，检查所有 public scene 文案存在。
-- T5.4 cutover/rollback runbook：记录如何切默认入口、如何恢复旧构建产物、archive/assets 边界、失败回滚触发条件。
-- T5.5 部署根切到 `app/` 构建产物；旧站源码移入 `archive/`。
-- T5.6 文档收口：`docs/newplan/` 标注归档；新增 ADR 记录"React runtime 为默认、无 legacy fallback"；README 更新开发命令。
+- T5.0 锁定 `legacy-static-baseline`、`r4-visual-accepted`、`r4-closeout` 三个不可变点，从干净 closeout 创建 R5。
+- T5.1 production assembly：`/` 接入完整 canonical spine、Director、Stage、真实输入、reading handoff、hash/history、reduced-motion 和 media recovery；不得继续显示 R0 scaffold。
+- T5.2 production boundary：harness 与 public 入口分离/lazy-load；根 dev/build/test/CI/deploy 切到新 app；旧 runtime 默认路径不可达。
+- T5.3 全站回归矩阵：desktop/mobile、mouse/touchpad/touchscreen/keyboard、正向全程、关键反向、全部 hash、慢网和恢复；TTG 新正反向 alpha 媒体单列。
+- T5.4 SEO / no-JS：静态预渲染或 crawlable shell，构建产物可逐字提取核心正文，title/description/hash 正确。
+- T5.5 性能预算：同设备对照 legacy，冻结 LCP、frame interval/long frame、bundle、三层驻留 GPU/内存与 dispose 回收门槛。
+- T5.6 cutover/rollback runbook：切换、恢复、archive/assets、触发条件和干净环境演练。
+- T5.7 输出 release candidate 和默认 runtime ADR，停止等待 HITL；批准后才合并/部署并建立 R5 cutover tag。
 
-**验收**：线上入口为新应用；cutover/rollback runbook 可执行；仓库默认路径无旧 runtime 可达代码；文档与代码事实一致。
+**验收**：候选新入口可上线；完整回归、SEO/no-JS、性能预算通过；rollback 演练成功；旧 runtime 默认路径不可达；HITL 明确批准后才算 cutover。
 
-## R6：清理与巩固
+完整执行契约见 `goals/R5-parity-cutover.md`。
 
-- 删除迁移期一次性 diff 脚本与死代码（refactor/dead-code 扫描）。
-- ESLint 契约规则违例清零并转 error 级。
-- harness 路由文档化，作为新增 scene 标准流程（新 scene checklist：SceneModule → harness 预览 → transition timeline → 逐帧断言 → 接入 manifest）。
+## R6：迁移清理与长期流程巩固
+
+R6 只能从 HITL 批准后的 R5 cutover tag 开始，不能与 R5 合并：
+
+- 先完成引用图和 rollback 影响审计，再删除一次性 diff 脚本、旧 runtime、预览入口和死代码。
+- 把 validation map 每条旧脚本关闭为 replaced / retained / retired，不留 open gap。
+- ESLint 契约规则违例清零并提升到 error，不使用 blanket ignore。
+- harness 路由、无后缀的 g1-g7 主 review 入口和新 scene checklist 固化。
+- 审计真实 tracked 历史文档并标记 historical/superseded；仓库不存在的 `docs/newplan/` 不再列为任务。
+- 跑 test、lint、typecheck、build、production browser suite 和旧路径不可达验证，输出最终迁移总结。
+
+完整执行契约见 `goals/R6-cleanup.md`。
 
 ## 关键依赖关系
 
 ```txt
-R-1 → R0 → R1 → R2 → R3 → R4 → R5 → R6
+R-1 → R0 → R1 → R2 → R3 → R4 closeout → R5 candidate → HITL cutover → R6
                   ↑
          R2 未收口前禁止开始任何真实 scene 迁移（R3/R4）
          R4 各 story group 可并行分支，合并顺序按 canonical spine
+         R5/R6 不得合并；R6 的破坏性删除必须在 cutover 批准之后
 ```

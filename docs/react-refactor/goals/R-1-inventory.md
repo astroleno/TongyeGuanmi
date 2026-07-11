@@ -1,5 +1,7 @@
 # R-1 Goal：仓库实况盘点与正名
 
+> 状态：completed historical phase。
+
 ## 目标
 
 从 `main` 生成新 React runtime 的输入事实源。只读盘点，不写 `app/`，不迁真实 scene。

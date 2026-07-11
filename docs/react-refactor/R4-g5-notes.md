@@ -42,4 +42,4 @@
 
 ## Open Risks
 
-- HITL still needs final visual parity approval against `ttg-transition-route.html` and the old lab section.
+- HITL visual parity approval is complete. The later canonical TTG media refresh is recorded in `R4-CLOSEOUT.md` and remains an explicit R5 regression item.

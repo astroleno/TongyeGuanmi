@@ -40,4 +40,4 @@
 
 ## Open Risks
 
-- HITL still needs final visual parity approval against `figure3-transition-route.html` and the old services section.
+- HITL visual parity approval is complete; current release status is recorded in `R4-CLOSEOUT.md`.

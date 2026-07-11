@@ -2,7 +2,7 @@
 
 ## Status
 
-Iteration plan for the post-`39f8a76f`返工.
+Completed and superseded by `R4-CLOSEOUT.md`. This file is retained as historical design evidence for the post-`39f8a76f` iteration; it is not an active implementation plan. Final code/visual acceptance is `55b8a12`.
 
 Final integration note: the dedicated adapters below are now implemented and covered by the R4 harness. Scene Ink renders at a `0.5` DPR cap, Pattern-to-Star lets the shared Ink surface own the raster during the handoff, and the Star hold keeps one Main-matched Perlin frame static (`saturate(.98) contrast(1.04) brightness(.74)`, canvas opacity `.88`) to stay inside the idle CPU budget.
 

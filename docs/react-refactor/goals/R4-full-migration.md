@@ -1,5 +1,7 @@
 # R4 Goal：全量 Scene/Segment 迁移
 
+> 状态：completed。人工视觉验收点为 `react-refactor-r4-visual-accepted`（`55b8a123a7a5b28647c40acc81783ee37cd58302`）；阶段收口与 R5 分支点见 `../R4-CLOSEOUT.md` 和 `react-refactor-r4-closeout`。
+
 ## 目标
 
 迁完 canonical story spine 的剩余 scene 和 segment。R4 是唯一允许做新审美调参、节奏重设与视觉数值偏好调整的阶段；R3 已允许的旧站平价搬运修正不算 R4 调参。
@@ -70,3 +72,10 @@
 ## 并行拆分
 
 R4 可以并行，但合并顺序固定。每个 group 需要在分支说明里标明“拥有/只引用”的 scene、segment、manifest 区间；`figure2/proof` group 风险最高，建议单独 worktree、尽早进入 merge train，而不是后段合并。
+
+## 收口说明
+
+- g1-g7 已按 canonical spine 集成，用户已完成主路由人工视觉验收。
+- R4 code/visual acceptance 固定在 `55b8a12`，不随 `main` 或后续文档提交漂移。
+- `5f53013` 将用户提供的 TTG review-v2 媒体生产化为 canonical 正向、反向 alpha WebM 与匹配首帧 poster；R5 regression matrix 必须单列复核该媒体的正反向播放。
+- R4 后续只允许 release/docs/asset closeout；生产 StoryApp、SEO、性能和默认入口切换属于 R5。

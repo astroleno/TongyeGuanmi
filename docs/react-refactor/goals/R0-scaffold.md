@@ -1,5 +1,7 @@
 # R0 Goal：脚手架、类型契约、Manifest 种子
 
+> 状态：completed historical phase。
+
 ## 目标
 
 建立 `app/` React 工程、冻结核心类型契约、落地 canonical spine 与 manifest 种子。仍不写真实业务视觉。

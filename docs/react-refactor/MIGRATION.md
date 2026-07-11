@@ -2,11 +2,11 @@
 
 入口文档：`README.md`。配套文档：`ARCHITECTURE.md`（目标架构）、`ROADMAP.md`（执行阶段），阶段执行清单见 `goals/`。
 
-定位：**这不是迁移映射**。新 runtime 是完全重新设计（ARCHITECTURE §0），旧代码不作为翻译对象。落地盘点以 `main` 为事实基线，`codex/state-machine-refactor-roadmap` 及其他实验分支只能作为参考资料库。本文档回答三个问题：旧站里**什么值得搬**、**什么整体丢弃**、**并行期与切换怎么走**。
+定位：**这不是迁移映射**。新 runtime 是完全重新设计（ARCHITECTURE §0），旧代码不作为翻译对象。旧站事实已冻结在 `react-refactor-legacy-static-baseline`（`a78b064d`），不能继续用会移动的 `main` 作为 R5 对照。`codex/state-machine-refactor-roadmap` 及其他实验分支只能作为参考资料库。本文档回答三个问题：旧站里**什么值得搬**、**什么整体丢弃**、**并行期与切换怎么走**。
 
 ## 前置：分支基线
 
-执行分支从干净 `main` 开，不从 state-machine / scene-runtime 实验分支继承代码：
+以下是迁移启动时的历史分支链；R5 的实际起点改为 `react-refactor-r4-closeout`，不得重新从 `main` 或实验分支开始：
 
 ```txt
 main
@@ -133,13 +133,13 @@ contact
 - 旧 `scripts/check-*.mjs` 静态验证脚本家族 —— 由 TS 类型 / ESLint 规则 / Vitest / Playwright 取代。R-1 必须产出“旧脚本/旧断言 → 新覆盖项”映射，禁止写死数量。
 - `scripts/build-index.mjs` / `serve-static-site.mjs` —— Vite 取代。
 - 根目录约 20 个独立预览 HTML（`aod.html`、`crane.html`、`pattern-*.html` 等）—— `/harness/<scene>`、`/harness/<segment>` 路由取代。
-- `docs/newplan/` 三份文档 —— 归档，标注"已由 docs/react-refactor/ 取代"。
+- 真实 tracked 历史文档 —— R6 逐份标注 historical/superseded。当前仓库不存在 `docs/newplan/`，不得保留这个无效清理任务。
 
 ## 3. 并行运行与切换（dual-run）
 
 1. 新应用在 `app/` 目录开发；旧静态站根目录**冻结**（只允许 hotfix），作为平价验收 baseline。
 2. 平价验收（ROADMAP R5）：逐 scene/segment 并排对照三大历史症状（无重复入场、无交接空白、无黑闪）+ 正反向 + hash 直达 + reduced-motion。
-3. 验收通过后部署根切到 `app/` 构建产物；旧站源码移入 `archive/`。
+3. R5 先产出 release candidate 并演练 rollback；HITL 批准后部署根切到新构建产物。旧站恢复能力由 immutable tag + 校验过的 release artifact 保证，repo 内 archive 边界由 runbook 明确。
 4. 并行期禁止双向同步：文案/视觉修改只改基准（R-1/R0 生成的 copy baseline / manifest 数据），两边各自消费。
 
 ## 4. 风险与对策

@@ -1,5 +1,7 @@
 # R1 Goal：Runtime 骨架
 
+> 状态：completed historical phase。
+
 ## 目标
 
 用合成 scene 打通 Director、StorySpine、SegmentPlayer、输入路由、recovery 与 HUD 的主循环。

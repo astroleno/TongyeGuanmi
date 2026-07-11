@@ -1,5 +1,7 @@
 # R3 Goal：Pilot 竖切
 
+> 状态：completed historical phase。R3 收口 commit 为 `98dbdbc2c829407362f8f37210f05a2bfbab6c1c`。
+
 ## 目标
 
 迁第一条真实链路 `star-map → aod-animation → method-top`，覆盖真实 renderer、video milestone、copyCue、reading scene、反向与 recovery。
