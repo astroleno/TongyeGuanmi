@@ -217,6 +217,48 @@ describe('shared ink transition surface', () => {
     expect(toProgress).toEqual([1]);
   });
 
+  it('renders a staged source only when its root or mapped progress changes', async () => {
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    const canvas = new FakeCanvas();
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const sourceProgress: number[] = [];
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const to = layer('ttg-animation', 'next', toElement);
+    const transition = createInkSegmentTransition({
+      id: 'services-ttg',
+      boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+      prepareEndpoints: () => undefined,
+      renderSource: (_root, progress) => sourceProgress.push(progress),
+      renderSourceProgress: (progress) => Math.min(1, progress / 0.4)
+    });
+    const timeline = await transition.buildTimeline({
+      segment,
+      from: layer('services', 'current', fromElement),
+      to,
+      stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+      direction: 1,
+      runId: 'ink-source-idempotence:1',
+      prepareToken: 'ink-source-idempotence:prepare:1',
+      prefersReducedMotion: false,
+      reportMilestone() {}
+    });
+
+    timeline.progress(0.4);
+    timeline.progress(0.6);
+    timeline.progress(0.8);
+
+    expect(sourceProgress).toEqual([0, 1]);
+    timeline.dispose();
+  });
+
   it('mounts its colored particle canvas beside scene layers so the receiver mask cannot clip it', async () => {
     const stage = new FakeElement();
     const fromElement = new FakeElement();
@@ -274,21 +316,22 @@ describe('shared ink transition surface', () => {
     timeline.progress(0.75);
     const secondClip = String(toElement.style.clipPath ?? '');
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
-    expect(firstClip).toMatch(/^polygon\(/);
-    expect(secondClip).toMatch(/^polygon\(/);
-    expect(firstClip).not.toContain('inset(');
-    expect(secondClip).not.toContain('inset(');
+    expect(firstClip).toMatch(/^inset\(/);
+    expect(secondClip).toMatch(/^inset\(/);
+    expect(firstClip).not.toContain('polygon(');
+    expect(secondClip).not.toContain('polygon(');
     expect(firstClip).not.toBe(secondClip);
     expect(toElement.style.visibility).not.toBe('hidden');
     expect(toElement.style.opacity).not.toBe('0');
-    expect(toElement.dataset.r4RevealMode).toBe('live-clip');
+    expect(toElement.dataset.r4RevealMode).toBe('ink-occluded-live-gate');
     expect(toElement.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(toElement.dataset.r4InkBoundaryProgress).toBe('0.7500');
-    expect(canvas.dataset.r4InkBoundaryRevision).toBe(toElement.dataset.r4InkBoundaryRevision);
-    expect(revealSurface.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
-    expect(concealSurface.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
-    expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
-    expect(concealSurface.style.clipPath).toMatch(/^polygon\(/);
+    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(toElement.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(revealSurface.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(concealSurface.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(revealSurface.style.clipPath).toMatch(/^inset\(/);
+    expect(concealSurface.style.clipPath).toMatch(/^inset\(/);
     expect(canvas.dataset.r4InkTargetReady).toBeUndefined();
     expect(timeline.sample?.(0.99)).toMatchObject({
       from: { visible: true, opacity: 1 },
@@ -315,6 +358,13 @@ describe('shared ink transition surface', () => {
     expect(concealSurface.style.visibility).toBe('visible');
     timeline.dispose();
     expect(canvas.parentElement).toBeNull();
+  });
+
+  it('does not retain sampled boundary profiles or revision bookkeeping', () => {
+    expect(inkSource).not.toContain('profileRevision');
+    expect(inkSource).not.toContain('frame.profile');
+    expect(inkSource).not.toContain('frame.revision');
+    expect(inkSource).not.toContain('polygon(');
   });
 
   it('verifies generic Ink presentation and effect cleanup independently at p=0 and p=1', async () => {

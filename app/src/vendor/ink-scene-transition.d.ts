@@ -18,8 +18,8 @@ export type InkBoundaryTransitionOptions = {
 };
 
 export type InkBoundaryTransition = {
-  render(frame: InkBoundaryFrame, pointerX?: number, pointerY?: number): void;
-  prewarm(frame: InkBoundaryFrame): void;
+  render(frame: InkFieldFrame, pointerX?: number, pointerY?: number): void;
+  prewarm(frame: InkFieldFrame): void;
   destroy(): void;
 };
 
@@ -27,4 +27,4 @@ export function createInkBoundaryTransition(
   canvas: HTMLCanvasElement | null,
   options?: InkBoundaryTransitionOptions
 ): InkBoundaryTransition | null;
-import type { InkBoundaryFrame } from '../transitions/shared/inkBoundary';
+import type { InkFieldFrame } from '../transitions/shared/inkField';

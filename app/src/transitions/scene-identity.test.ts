@@ -13,7 +13,8 @@ const FORBIDDEN_PRODUCTION_PATTERNS = [
   'targetElement:',
   'HERO_PATTERN_INK_TARGET_IMAGE',
   'PATTERN_STAR_MAP_INK_TARGET_IMAGE',
-  "revealMode: 'ink-body'"
+  "revealMode: 'ink-body'",
+  'data-transition-ghost'
 ] as const;
 
 function productionSources(directory: URL): URL[] {
@@ -31,7 +32,11 @@ function productionSources(directory: URL): URL[] {
 
 describe('R4 transition Scene identity source contract', () => {
   it('forbids transition-owned endpoint renderers and target captures', () => {
-    const violations = productionSources(TRANSITIONS_ROOT).flatMap((file) => {
+    const productionFiles = [
+      ...productionSources(TRANSITIONS_ROOT),
+      new URL('../vendor/ink-scene-transition.js', import.meta.url)
+    ];
+    const violations = productionFiles.flatMap((file) => {
       const source = readFileSync(file, 'utf8');
       return FORBIDDEN_PRODUCTION_PATTERNS.flatMap((pattern) =>
         source.includes(pattern)

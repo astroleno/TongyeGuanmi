@@ -3,13 +3,13 @@ import {
   type InkBoundaryTransition,
   type InkBoundaryTransitionOptions,
 } from '../../vendor/ink-scene-transition.js';
-import type { InkBoundaryFrame } from './inkBoundary';
+import { inkFieldOrigin, type InkFieldFrame } from './inkField';
 
 export type BoundaryInkOptions = InkBoundaryTransitionOptions;
 
 export type BoundaryInkRenderer = {
-  render(frame: InkBoundaryFrame): void;
-  prewarm(frame: InkBoundaryFrame): void;
+  render(frame: InkFieldFrame): void;
+  prewarm(frame: InkFieldFrame): void;
   destroy(): void;
 };
 
@@ -27,7 +27,7 @@ const CINEMATIC_BOUNDARY_PRESET = Object.freeze({
   colorLift: 0.92,
   particleStrength: 1,
   coverAlpha: 0.82,
-  fadeOutStart: 0.78,
+  fadeOutStart: 0.94,
   fadeOutEnd: 0.995,
   dprLimit: 1
 }) satisfies InkBoundaryTransitionOptions;
@@ -52,11 +52,21 @@ function markCinematicPreset(
   }
 }
 
-function markBoundaryFrame(canvas: HTMLCanvasElement, frame: InkBoundaryFrame): void {
-  canvas.dataset.r4InkBoundaryKind = frame.kind;
-  canvas.dataset.r4InkBoundaryOrigin = `${frame.origin.x.toFixed(4)},${frame.origin.y.toFixed(4)}`;
+function markBoundaryFrame(canvas: HTMLCanvasElement, frame: InkFieldFrame): void {
+  const origin = inkFieldOrigin(frame.spec);
+  canvas.dataset.r4InkBoundaryKind = frame.spec.kind;
+  canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
   canvas.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
-  canvas.dataset.r4InkBoundaryRevision = frame.revision;
+  canvas.dataset.r4InkFieldSeed = String(frame.seed);
+  delete canvas.dataset.r4InkBoundaryRevision;
+}
+
+function clearBoundaryFrameMark(canvas: HTMLCanvasElement): void {
+  delete canvas.dataset.r4InkBoundaryKind;
+  delete canvas.dataset.r4InkBoundaryOrigin;
+  delete canvas.dataset.r4InkBoundaryProgress;
+  delete canvas.dataset.r4InkBoundaryRevision;
+  delete canvas.dataset.r4InkFieldSeed;
 }
 
 /**
@@ -115,14 +125,18 @@ export function createBoundaryInkRenderer(
   let destroyed = false;
 
   return {
-    render(frame: InkBoundaryFrame) {
+    render(frame: InkFieldFrame) {
       if (destroyed) {
         return;
       }
-      markBoundaryFrame(canvas, frame);
+      if (frame.progress <= 0.002 || frame.progress >= 0.999) {
+        clearBoundaryFrameMark(canvas);
+      } else {
+        markBoundaryFrame(canvas, frame);
+      }
       transition.render(frame, 0, 0);
     },
-    prewarm(frame: InkBoundaryFrame) {
+    prewarm(frame: InkFieldFrame) {
       if (destroyed) {
         return;
       }
@@ -138,10 +152,7 @@ export function createBoundaryInkRenderer(
       if (lifecycle.removeCanvasOnDestroy !== false) {
         canvas.remove();
       } else {
-        delete canvas.dataset.r4InkBoundaryKind;
-        delete canvas.dataset.r4InkBoundaryOrigin;
-        delete canvas.dataset.r4InkBoundaryProgress;
-        delete canvas.dataset.r4InkBoundaryRevision;
+        clearBoundaryFrameMark(canvas);
       }
     }
   };

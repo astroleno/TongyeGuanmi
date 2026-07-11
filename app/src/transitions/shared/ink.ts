@@ -14,10 +14,11 @@ import {
   type BoundaryInkRenderer
 } from './sceneInk';
 import {
-  createInkBoundaryFrame,
-  type InkBoundaryFrame,
-  type InkBoundarySpec
-} from './inkBoundary';
+  createInkFieldFrame,
+  inkFieldOrigin,
+  type InkFieldFrame,
+  type InkFieldSpec
+} from './inkField';
 import { positionReadingAtEdge } from '../../stage/reading';
 
 export type InkBoundaryRoots = Readonly<{
@@ -33,7 +34,7 @@ export type InkBoundarySurfaces = Readonly<{
 
 export type InkSegmentOptions = {
   id: SegmentId;
-  boundary: InkBoundarySpec | ((roots: InkBoundaryRoots) => InkBoundarySpec);
+  boundary: InkFieldSpec | ((roots: InkBoundaryRoots) => InkFieldSpec);
   boundaryProgress?: (progress: number) => number;
   boundarySurfaces?: (roots: InkBoundaryRoots) => InkBoundarySurfaces;
   delayMs?: (() => number) | undefined;
@@ -190,44 +191,51 @@ export function clearBoundaryGeometry(element: HTMLElement | null | undefined): 
   element.removeAttribute('data-r4-ink-boundary-origin');
   element.removeAttribute('data-r4-ink-boundary-progress');
   element.removeAttribute('data-r4-ink-boundary-revision');
+  element.removeAttribute('data-r4-ink-field-seed');
 }
 
 function applyBoundaryGeometry(
   element: HTMLElement,
-  frame: InkBoundaryFrame,
+  frame: InkFieldFrame,
   clipPath: string
 ): void {
+  const origin = inkFieldOrigin(frame.spec);
   element.style.clipPath = clipPath;
   element.style.setProperty('-webkit-clip-path', clipPath);
-  element.dataset.r4InkBoundaryKind = frame.kind;
-  element.dataset.r4InkBoundaryOrigin = `${frame.origin.x.toFixed(4)},${frame.origin.y.toFixed(4)}`;
+  element.dataset.r4InkBoundaryKind = frame.spec.kind;
+  element.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
   element.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
-  element.dataset.r4InkBoundaryRevision = frame.revision;
+  element.dataset.r4InkFieldSeed = String(frame.seed);
+  delete element.dataset.r4InkBoundaryRevision;
 }
 
-export function applyRevealBoundary(element: HTMLElement, frame: InkBoundaryFrame): void {
+export function applyRevealBoundary(element: HTMLElement, frame: InkFieldFrame): void {
   if (frame.progress >= 0.999) {
     clearBoundaryGeometry(element);
     return;
   }
-  applyBoundaryGeometry(element, frame, frame.revealClipPath);
+  if (!frame.ownership.revealClip) {
+    clearBoundaryGeometry(element);
+    return;
+  }
+  applyBoundaryGeometry(element, frame, frame.ownership.revealClip);
   element.dataset.r4RevealProgress = frame.progress.toFixed(4);
-  element.dataset.r4RevealMode = 'live-clip';
+  element.dataset.r4RevealMode = 'ink-occluded-live-gate';
 }
 
-function applyConcealBoundary(element: HTMLElement, frame: InkBoundaryFrame): void {
+function applyConcealBoundary(element: HTMLElement, frame: InkFieldFrame): void {
   if (frame.progress <= 0.001) {
     element.style.visibility = 'visible';
     clearBoundaryGeometry(element);
     return;
   }
-  if (frame.progress >= 0.999 || !frame.concealClipPath) {
+  if (frame.progress >= 0.999 || !frame.ownership.concealClip) {
     element.style.visibility = 'hidden';
     clearBoundaryGeometry(element);
     return;
   }
   element.style.visibility = 'visible';
-  applyBoundaryGeometry(element, frame, frame.concealClipPath);
+  applyBoundaryGeometry(element, frame, frame.ownership.concealClip);
 }
 
 class InkSegmentTimeline implements SegmentTimelineHandle {
@@ -239,7 +247,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private animationFrame = 0;
   private readonly canvas: HTMLCanvasElement | null;
   private readonly inkRenderer: BoundaryInkRenderer | null;
-  private readonly boundarySpec: InkBoundarySpec;
+  private readonly boundarySpec: InkFieldSpec;
   private readonly elevation: TransitionLayerElevation | null;
   private readonly attrsElement: HTMLElement | null;
   private readonly surfaceHost: HTMLElement | null;
@@ -248,6 +256,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private endpointsPrepared = false;
   private preparedFromRoot: HTMLElement | null = null;
   private preparedToRoot: HTMLElement | null = null;
+  private renderedSourceRoot: HTMLElement | null = null;
+  private renderedSourceProgress = Number.NaN;
   private readonly revealSurfaces = new Set<HTMLElement>();
   private readonly concealSurfaces = new Set<HTMLElement>();
 
@@ -282,7 +292,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       : options.boundary;
     this.inkRenderer = createBoundaryInkRenderer(this.canvas);
     this.inkRenderer?.prewarm(
-      createInkBoundaryFrame(this.boundarySpec, 0.003, viewportFor(surfaceHost))
+      createInkFieldFrame(this.boundarySpec, 0.003, viewportFor(surfaceHost))
     );
     this.progress(context.direction === 1 ? 0 : 1);
   }
@@ -337,8 +347,19 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       this.liveElevation?.elevate();
     }
     const sourceProgress = mappedProgress(this.options.renderSourceProgress, clamped, 'static');
-    this.options.renderSource?.(fromRoot, sourceProgress);
-    const frame = createInkBoundaryFrame(
+    if (
+      this.options.renderSource
+      && (
+        fromRoot !== this.renderedSourceRoot
+        || !Number.isFinite(this.renderedSourceProgress)
+        || Math.abs(sourceProgress - this.renderedSourceProgress) > 0.0001
+      )
+    ) {
+      this.options.renderSource(fromRoot, sourceProgress);
+      this.renderedSourceRoot = fromRoot;
+      this.renderedSourceProgress = sourceProgress;
+    }
+    const frame = createInkFieldFrame(
       this.boundarySpec,
       boundaryProgress,
       viewportFor(activeSurfaceHost)
@@ -375,16 +396,35 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       : this.options.canvasHost === 'stage'
         ? activeSurfaceHost
          : liveToElement;
-    liveAttrsElement?.setAttribute('data-r4-transition', this.options.transitionAttr ?? this.options.id);
-    liveAttrsElement?.setAttribute('data-r4-ink-active', String(boundaryProgress > 0.002 && boundaryProgress < 0.999));
-    liveAttrsElement?.setAttribute('data-r4-ink-progress', boundaryProgress.toFixed(4));
+    const inkActive = boundaryProgress > 0.002 && boundaryProgress < 0.999;
+    if (inkActive) {
+      liveAttrsElement?.setAttribute('data-r4-transition', this.options.transitionAttr ?? this.options.id);
+      liveAttrsElement?.setAttribute('data-r4-ink-active', 'true');
+      liveAttrsElement?.setAttribute('data-r4-ink-progress', boundaryProgress.toFixed(4));
+    } else {
+      liveAttrsElement?.removeAttribute('data-r4-transition');
+      liveAttrsElement?.removeAttribute('data-r4-ink-active');
+      liveAttrsElement?.removeAttribute('data-r4-ink-progress');
+    }
     if (this.canvas) {
-      this.canvas.dataset.r4InkActive = String(boundaryProgress > 0.002 && boundaryProgress < 0.999);
-      this.canvas.dataset.r4InkProgress = boundaryProgress.toFixed(4);
-      this.canvas.dataset.r4InkBoundaryKind = frame.kind;
-      this.canvas.dataset.r4InkBoundaryOrigin = `${frame.origin.x.toFixed(4)},${frame.origin.y.toFixed(4)}`;
-      this.canvas.dataset.r4InkBoundaryProgress = boundaryProgress.toFixed(4);
-      this.canvas.dataset.r4InkBoundaryRevision = frame.revision;
+      if (inkActive) {
+        this.canvas.dataset.r4InkActive = 'true';
+        this.canvas.dataset.r4InkProgress = boundaryProgress.toFixed(4);
+        const origin = inkFieldOrigin(frame.spec);
+        this.canvas.dataset.r4InkBoundaryKind = frame.spec.kind;
+        this.canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
+        this.canvas.dataset.r4InkBoundaryProgress = boundaryProgress.toFixed(4);
+        this.canvas.dataset.r4InkFieldSeed = String(frame.seed);
+        delete this.canvas.dataset.r4InkBoundaryRevision;
+      } else {
+        delete this.canvas.dataset.r4InkActive;
+        delete this.canvas.dataset.r4InkProgress;
+        delete this.canvas.dataset.r4InkBoundaryKind;
+        delete this.canvas.dataset.r4InkBoundaryOrigin;
+        delete this.canvas.dataset.r4InkBoundaryProgress;
+        delete this.canvas.dataset.r4InkBoundaryRevision;
+        delete this.canvas.dataset.r4InkFieldSeed;
+      }
     }
     this.inkRenderer?.render(frame);
     if (this.options.reportTimelineReadyAt !== undefined && clamped >= this.options.reportTimelineReadyAt) {

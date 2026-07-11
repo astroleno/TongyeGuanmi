@@ -1,10 +1,89 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { InkBoundaryFrame } from '../transitions/shared/inkBoundary';
+import { createInkFieldFrame, type InkFieldFrame } from '../transitions/shared/inkField';
 import { createInkBoundaryTransition, releaseInkWebGlResources } from './ink-scene-transition.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
+
+function webGlHarness() {
+  const texture = {} as WebGLTexture;
+  const loseContext = vi.fn();
+  const gl = {
+    ARRAY_BUFFER: 1,
+    BLEND: 2,
+    CLAMP_TO_EDGE: 3,
+    COLOR_BUFFER_BIT: 4,
+    COMPILE_STATUS: 5,
+    FLOAT: 6,
+    FRAGMENT_SHADER: 7,
+    LINEAR: 8,
+    LINK_STATUS: 9,
+    LUMINANCE: 10,
+    ONE_MINUS_SRC_ALPHA: 11,
+    RGBA: 12,
+    SRC_ALPHA: 13,
+    STATIC_DRAW: 14,
+    TEXTURE0: 15,
+    TEXTURE_2D: 16,
+    TEXTURE_MAG_FILTER: 17,
+    TEXTURE_MIN_FILTER: 18,
+    TEXTURE_WRAP_S: 19,
+    TEXTURE_WRAP_T: 20,
+    TRIANGLES: 21,
+    UNPACK_ALIGNMENT: 22,
+    UNPACK_FLIP_Y_WEBGL: 23,
+    UNSIGNED_BYTE: 24,
+    VERTEX_SHADER: 25,
+    activeTexture: vi.fn(),
+    attachShader: vi.fn(),
+    bindBuffer: vi.fn(),
+    bindTexture: vi.fn(),
+    blendFunc: vi.fn(),
+    bufferData: vi.fn(),
+    clear: vi.fn(),
+    clearColor: vi.fn(),
+    compileShader: vi.fn(),
+    createBuffer: vi.fn(() => ({})),
+    createProgram: vi.fn(() => ({})),
+    createShader: vi.fn(() => ({})),
+    createTexture: vi.fn(() => texture),
+    deleteBuffer: vi.fn(),
+    deleteProgram: vi.fn(),
+    deleteShader: vi.fn(),
+    deleteTexture: vi.fn(),
+    drawArrays: vi.fn(),
+    enable: vi.fn(),
+    enableVertexAttribArray: vi.fn(),
+    getAttribLocation: vi.fn(() => 0),
+    getExtension: vi.fn(() => ({ loseContext })),
+    getProgramParameter: vi.fn(() => true),
+    getShaderParameter: vi.fn(() => true),
+    getUniformLocation: vi.fn(() => ({})),
+    linkProgram: vi.fn(),
+    pixelStorei: vi.fn(),
+    shaderSource: vi.fn(),
+    texImage2D: vi.fn(),
+    texParameteri: vi.fn(),
+    uniform1f: vi.fn(),
+    uniform1i: vi.fn(),
+    uniform2f: vi.fn(),
+    uniform4f: vi.fn(),
+    useProgram: vi.fn(),
+    vertexAttribPointer: vi.fn(),
+    viewport: vi.fn()
+  };
+  const canvas = {
+    dataset: {},
+    getBoundingClientRect: () => ({ width: 320, height: 180 }),
+    getContext: () => gl,
+    height: 0,
+    style: { opacity: '', visibility: '' },
+    width: 0
+  } as unknown as HTMLCanvasElement;
+  vi.stubGlobal('window', { devicePixelRatio: 1, innerHeight: 180, innerWidth: 320 });
+  return { canvas, gl, loseContext, texture };
+}
 
 describe('ink WebGL resource lifecycle', () => {
   it('deletes every owned resource and explicitly releases the context', () => {
@@ -31,97 +110,66 @@ describe('ink WebGL resource lifecycle', () => {
     expect(loseContext).toHaveBeenCalledOnce();
   });
 
-  it('uploads one boundary profile texture and releases it exactly once', () => {
-    const texture = {} as WebGLTexture;
-    const loseContext = vi.fn();
-    const gl = {
-      ARRAY_BUFFER: 1,
-      BLEND: 2,
-      CLAMP_TO_EDGE: 3,
-      COLOR_BUFFER_BIT: 4,
-      COMPILE_STATUS: 5,
-      FLOAT: 6,
-      FRAGMENT_SHADER: 7,
-      LINEAR: 8,
-      LINK_STATUS: 9,
-      LUMINANCE: 10,
-      ONE_MINUS_SRC_ALPHA: 11,
-      SRC_ALPHA: 12,
-      STATIC_DRAW: 13,
-      TEXTURE0: 14,
-      TEXTURE_2D: 15,
-      TEXTURE_MAG_FILTER: 16,
-      TEXTURE_MIN_FILTER: 17,
-      TEXTURE_WRAP_S: 18,
-      TEXTURE_WRAP_T: 19,
-      TRIANGLES: 20,
-      UNPACK_ALIGNMENT: 21,
-      UNSIGNED_BYTE: 22,
-      VERTEX_SHADER: 23,
-      activeTexture: vi.fn(),
-      attachShader: vi.fn(),
-      bindBuffer: vi.fn(),
-      bindTexture: vi.fn(),
-      blendFunc: vi.fn(),
-      bufferData: vi.fn(),
-      clear: vi.fn(),
-      clearColor: vi.fn(),
-      compileShader: vi.fn(),
-      createBuffer: vi.fn(() => ({})),
-      createProgram: vi.fn(() => ({})),
-      createShader: vi.fn(() => ({})),
-      createTexture: vi.fn(() => texture),
-      deleteBuffer: vi.fn(),
-      deleteProgram: vi.fn(),
-      deleteShader: vi.fn(),
-      deleteTexture: vi.fn(),
-      drawArrays: vi.fn(),
-      enable: vi.fn(),
-      enableVertexAttribArray: vi.fn(),
-      getAttribLocation: vi.fn(() => 0),
-      getExtension: vi.fn(() => ({ loseContext })),
-      getProgramParameter: vi.fn(() => true),
-      getShaderParameter: vi.fn(() => true),
-      getUniformLocation: vi.fn(() => ({})),
-      linkProgram: vi.fn(),
-      pixelStorei: vi.fn(),
-      shaderSource: vi.fn(),
-      texImage2D: vi.fn(),
-      texParameteri: vi.fn(),
-      uniform1f: vi.fn(),
-      uniform1i: vi.fn(),
-      uniform2f: vi.fn(),
-      useProgram: vi.fn(),
-      vertexAttribPointer: vi.fn(),
-      viewport: vi.fn()
-    } as unknown as WebGLRenderingContext;
-    const canvas = {
-      getBoundingClientRect: () => ({ width: 320, height: 180 }),
-      getContext: () => gl,
-      height: 0,
-      style: { opacity: '', visibility: '' },
-      width: 0
-    } as unknown as HTMLCanvasElement;
-    vi.stubGlobal('window', { devicePixelRatio: 1, innerHeight: 180, innerWidth: 320 });
-    const frame: InkBoundaryFrame = {
-      kind: 'horizontal',
-      origin: { x: 0.5, y: 1 },
-      progress: 0.5,
-      profile: new Uint8Array([112, 127, 139, 121]),
-      revealClipPath: 'polygon(0% 50%, 100% 50%, 100% 100%, 0% 100%)',
-      concealClipPath: 'polygon(0% 0%, 100% 0%, 100% 50%, 0% 50%)',
-      revision: 'test-boundary-revision'
-    };
-
+  it('does not upload a texture for each horizontal or radial progress frame', () => {
+    const { canvas, gl, texture } = webGlHarness();
     const transition = createInkBoundaryTransition(canvas);
-    transition?.render(frame);
-    transition?.render(frame);
+    const initializationUploads = gl.texImage2D.mock.calls.length;
+    for (const progress of [0.25, 0.5, 0.75]) {
+      transition?.render(createInkFieldFrame(
+        { kind: 'horizontal', direction: 'bottom-to-top', seed: 'horizontal-lifecycle' },
+        progress,
+        { width: 320, height: 180 }
+      ));
+      transition?.render(createInkFieldFrame(
+        { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'radial-lifecycle' },
+        progress,
+        { width: 320, height: 180 }
+      ));
+    }
 
     expect(gl.createTexture).toHaveBeenCalledOnce();
-    expect(gl.texImage2D).toHaveBeenCalledOnce();
+    expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads);
     transition?.destroy();
     transition?.destroy();
     expect(gl.deleteTexture).toHaveBeenCalledOnce();
     expect(gl.deleteTexture).toHaveBeenCalledWith(texture);
+  });
+
+  it('uploads one depth image and reuses it across progress samples', () => {
+    const loadedImages: Array<{ onload: (() => void) | null; src: string }> = [];
+    class FakeImage {
+      crossOrigin = '';
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      src = '';
+
+      constructor() {
+        loadedImages.push(this);
+      }
+    }
+    vi.stubGlobal('Image', FakeImage);
+    const { canvas, gl } = webGlHarness();
+    const transition = createInkBoundaryTransition(canvas);
+    const initializationUploads = gl.texImage2D.mock.calls.length;
+    const transform = {
+      viewport: { width: 320, height: 180 },
+      cover: { x: 0, y: 0, width: 320, height: 180 },
+      camera: { scale: 1, translateX: 0, translateY: 0, originX: 0.5, originY: 0.5 }
+    } as const;
+    const frame = (progress: number): InkFieldFrame => createInkFieldFrame(
+      { kind: 'depth', depthSrc: '/depth.png', seed: 'depth-lifecycle', transform },
+      progress,
+      { width: 320, height: 180 }
+    );
+
+    transition?.render(frame(0.25));
+    transition?.render(frame(0.5));
+    expect(loadedImages).toHaveLength(1);
+    loadedImages[0]?.onload?.();
+    expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads + 1);
+    transition?.render(frame(0.75));
+    expect(loadedImages).toHaveLength(1);
+    expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads + 1);
+    transition?.destroy();
   });
 });

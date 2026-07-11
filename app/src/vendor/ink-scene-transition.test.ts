@@ -1,37 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { createInkBoundaryFrame } from '../transitions/shared/inkBoundary';
 
 const shaderSource = readFileSync(new URL('./ink-scene-transition.js', import.meta.url), 'utf8');
-
-function polygonPoints(clipPath: string): Array<readonly [number, number]> {
-  return [...clipPath.matchAll(/(-?\d+(?:\.\d+)?)% (-?\d+(?:\.\d+)?)%/g)].map((match) => [
-    Number(match[1]) / 100,
-    Number(match[2]) / 100
-  ] as const);
-}
-
-function pointInPolygon(
-  point: readonly [number, number],
-  polygon: readonly (readonly [number, number])[]
-): boolean {
-  let inside = false;
-  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
-    const currentPoint = polygon[index];
-    const previousPoint = polygon[previous];
-    if (!currentPoint || !previousPoint) {
-      continue;
-    }
-    const [currentX, currentY] = currentPoint;
-    const [previousX, previousY] = previousPoint;
-    const crosses = currentY > point[1] !== previousY > point[1]
-      && point[0] < (previousX - currentX) * (point[1] - currentY) / (previousY - currentY) + currentX;
-    if (crosses) {
-      inside = !inside;
-    }
-  }
-  return inside;
-}
 
 describe('ink boundary shader contract', () => {
   it('does not retain the retired Scene-texture depth compositor', () => {
@@ -46,46 +16,39 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).not.toContain('targetElement');
   });
 
-  it('renders the shared horizontal or radial boundary profile', () => {
+  it('renders horizontal, radial, and depth rank modes through one procedural field', () => {
     expect(shaderSource).toContain('createInkBoundaryTransition');
     expect(shaderSource).not.toContain('createInkCurtainTransition');
-    expect(shaderSource).toContain('uniform sampler2D uBoundaryProfile');
-    expect(shaderSource).toContain('uniform float uBoundaryKind');
-    expect(shaderSource).toContain('uniform float uBoundaryDirection');
-    expect(shaderSource).toContain('uniform vec2 uBoundaryOrigin');
-    expect(shaderSource).toContain('float horizontalEdge(');
-    expect(shaderSource).toContain('float radialEdge(');
+    expect(shaderSource).toContain('uniform float uFieldMode');
+    expect(shaderSource).toContain('uniform float uFieldDirection');
+    expect(shaderSource).toContain('uniform vec2 uFieldOrigin');
+    expect(shaderSource).toContain('uniform sampler2D uDepthMap');
+    expect(shaderSource).toContain('float horizontalRank(');
+    expect(shaderSource).toContain('float radialRank(');
+    expect(shaderSource).toContain('float depthRank(');
   });
 
-  it.each(['bottom-to-top', 'top-to-bottom'] as const)(
-    'keeps the %s body-positive side inside the receiver reveal polygon',
-    (direction) => {
-      const frame = createInkBoundaryFrame(
-        { kind: 'horizontal', direction, seed: `polarity-${direction}` },
-        0.5,
-        { width: 1440, height: 900, samples: 96 }
-      );
-      const sampleIndex = Math.floor(frame.profile.length / 2);
-      const edgeY = (frame.profile[sampleIndex] ?? 0) / 255;
-      const x = sampleIndex / (frame.profile.length - 1);
-      const cssBoundaryY = 1 - edgeY;
-      const revealCssY = direction === 'bottom-to-top'
-        ? cssBoundaryY + 0.08
-        : cssBoundaryY - 0.08;
-      const concealCssY = direction === 'bottom-to-top'
-        ? cssBoundaryY - 0.08
-        : cssBoundaryY + 0.08;
-      const bodyDistance = (cssY: number) => direction === 'bottom-to-top'
-        ? edgeY - (1 - cssY)
-        : (1 - cssY) - edgeY;
+  it('uses Main erosion terms to move the final edge', () => {
+    expect(shaderSource).not.toContain('uBoundaryProfile');
+    expect(shaderSource).not.toContain('sampledBoundary');
+    expect(shaderSource).not.toContain('gl.LUMINANCE');
+    expect(shaderSource).not.toContain('frame.profile');
+    expect(shaderSource).toContain('float field =');
+    expect(shaderSource).toContain('openingBreakup');
+    expect(shaderSource).toContain('tendril');
+    expect(shaderSource).toMatch(/float edge = [^;]*field/);
+  });
 
-      expect(pointInPolygon([x, revealCssY], polygonPoints(frame.revealClipPath))).toBe(true);
-      expect(pointInPolygon([x, concealCssY], polygonPoints(frame.revealClipPath))).toBe(false);
-      expect(bodyDistance(revealCssY)).toBeGreaterThan(0);
-      expect(bodyDistance(concealCssY)).toBeLessThan(0);
-      expect(shaderSource).toContain(
-        'return uBoundaryDirection < 0.5 ? edgeY - uv.y : uv.y - edgeY;'
-      );
-    }
-  );
+  it('keeps body erosion deterministic while allowing time only in effect particles', () => {
+    expect(shaderSource).toContain('uniform float uSeed');
+    expect(shaderSource).toContain('vec2 bodyPhase');
+    expect(shaderSource).not.toMatch(/bodyPhase[^;]*uTime/);
+    expect(shaderSource).toMatch(/particleUv[^;]*uTime/);
+  });
+
+  it('contains a localized near-opaque seam occlusion belt without a global dim', () => {
+    expect(shaderSource).toContain('float seamOcclusion');
+    expect(shaderSource).toMatch(/seamOcclusion[^;]*0\.92/);
+    expect(shaderSource).not.toContain('uSceneDim');
+  });
 });
