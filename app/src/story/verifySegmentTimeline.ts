@@ -7,12 +7,14 @@ export type SegmentTimelineVerification = {
   maxVisibleLayers: number;
   copyCueCrossed: boolean;
   stagedPauses: readonly string[];
+  stableSceneIdentity: boolean;
 };
 
 export type VerifySegmentTimelineOptions = {
   policy?: SegmentPolicy;
   copyCueAtProgress?: number;
   reducedMotion?: boolean;
+  requireStableSceneIdentity?: boolean;
 };
 
 function assertLabel(timeline: SegmentTimelineHandle, label: string): void {
@@ -51,8 +53,20 @@ export function verifySegmentTimeline(
   const sampledProgress = samplePoints(options);
   let maxVisibleLayers = 0;
   let copyCueCrossed = false;
+  const initialRoots = options.requireStableSceneIdentity ? timeline.rootIdentity?.() : undefined;
+
+  if (options.requireStableSceneIdentity && (!initialRoots?.from || !initialRoots.to)) {
+    throw new Error('Segment timeline must expose mounted from/to root identity for R4 verification');
+  }
 
   for (const progress of sampledProgress) {
+    if (options.requireStableSceneIdentity) {
+      timeline.progress(progress);
+      const roots = timeline.rootIdentity?.();
+      if (roots?.from !== initialRoots?.from || roots?.to !== initialRoots?.to) {
+        throw new Error(`Segment timeline replaced a canonical Scene root at progress ${progress}`);
+      }
+    }
     const sample = timeline.sample(progress);
     const visibleCount = [sample.from, sample.to].filter(isVisuallyVisible).length;
     maxVisibleLayers = Math.max(maxVisibleLayers, visibleCount);
@@ -95,6 +109,7 @@ export function verifySegmentTimeline(
     sampledProgress,
     maxVisibleLayers,
     copyCueCrossed,
-    stagedPauses
+    stagedPauses,
+    stableSceneIdentity: true
   };
 }

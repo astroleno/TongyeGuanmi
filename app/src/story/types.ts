@@ -183,8 +183,14 @@ export type SceneModule = {
   staticFallback?: StaticFallbackContract;
   requiredHandles?: readonly string[];
   preload(): Promise<ScenePreloadResult> | ScenePreloadResult;
+  renderHold?(layerRoot: HTMLElement | null): void;
   mount?(layer: LayerHandle): Promise<void> | void;
   dispose?(): Promise<void> | void;
+};
+
+export type SegmentSceneRootIdentity = {
+  from: HTMLElement | null;
+  to: HTMLElement | null;
 };
 
 export type SegmentTimelineHandle = {
@@ -200,6 +206,7 @@ export type SegmentTimelineHandle = {
     to: LayerVisibilityState;
     copyCueActive?: boolean;
   };
+  rootIdentity?(): SegmentSceneRootIdentity;
 };
 
 export type TransitionContext = {

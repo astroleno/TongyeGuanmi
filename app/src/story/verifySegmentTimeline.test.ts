@@ -116,4 +116,29 @@ describe('verifySegmentTimeline', () => {
 
     expect(() => verifySegmentTimeline(blankTimeline)).toThrow(/blank frame/);
   });
+
+  it('rejects a timeline that swaps either canonical Scene root', () => {
+    const timeline = new SyntheticSegmentTimeline(context());
+    const fromRoot = {} as HTMLElement;
+    const toRoot = {} as HTMLElement;
+    let sampled = false;
+    const replacingTimeline = {
+      ...timeline,
+      play: timeline.play.bind(timeline),
+      progress(value: number) {
+        sampled = value > 0;
+        timeline.progress(value);
+      },
+      reverse: timeline.reverse.bind(timeline),
+      jumpToEnd: timeline.jumpToEnd.bind(timeline),
+      dispose: timeline.dispose.bind(timeline),
+      labels: timeline.labels,
+      sample: timeline.sample.bind(timeline),
+      rootIdentity: () => ({ from: fromRoot, to: sampled ? ({} as HTMLElement) : toRoot })
+    };
+
+    expect(() => verifySegmentTimeline(replacingTimeline, { requireStableSceneIdentity: true })).toThrow(
+      /replaced a canonical Scene root/
+    );
+  });
 });
