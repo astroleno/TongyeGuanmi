@@ -8,24 +8,23 @@ export function releaseInkWebGlResources(
   }
 ): void;
 
-export type InkCurtainTransitionOptions = {
-  direction?: 'top-down' | 'bottom-up';
+export type InkBoundaryTransitionOptions = {
   colorLift?: number;
   particleStrength?: number;
   dprLimit?: number;
-  progressSpan?: number;
   coverAlpha?: number;
   fadeOutStart?: number;
   fadeOutEnd?: number;
 };
 
-export type InkCurtainTransition = {
-  render(progress: number, pointerX?: number, pointerY?: number): void;
-  prewarm(): void;
+export type InkBoundaryTransition = {
+  render(frame: InkBoundaryFrame, pointerX?: number, pointerY?: number): void;
+  prewarm(frame: InkBoundaryFrame): void;
   destroy(): void;
 };
 
-export function createInkCurtainTransition(
+export function createInkBoundaryTransition(
   canvas: HTMLCanvasElement | null,
-  options?: InkCurtainTransitionOptions
-): InkCurtainTransition | null;
+  options?: InkBoundaryTransitionOptions
+): InkBoundaryTransition | null;
+import type { InkBoundaryFrame } from '../transitions/shared/inkBoundary';

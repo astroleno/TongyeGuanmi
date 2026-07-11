@@ -13,12 +13,10 @@ export function releaseInkWebGlResources(gl, { buffer = null, program = null, sh
   gl.getExtension?.('WEBGL_lose_context')?.loseContext?.();
 }
 
-export function createInkCurtainTransition(canvas, options = {}) {
+export function createInkBoundaryTransition(canvas, options = {}) {
     if (!canvas) return null;
     const colorLift = clamp(options.colorLift ?? 0.32, 0, 1);
     const particleStrength = clamp(options.particleStrength ?? 0.45, 0, 1);
-    const progressSpan = Math.max(0.01, options.progressSpan || 1);
-    const direction = options.direction === 'top-down' ? 1 : 0;
     const coverAlpha = clamp(options.coverAlpha ?? 0.72, 0, 1);
     const fadeOutStart = clamp(options.fadeOutStart ?? 0.76, 0, 0.98);
     const fadeOutEnd = Math.max(fadeOutStart + 0.01, clamp(options.fadeOutEnd ?? 0.98, 0.01, 1));
@@ -52,9 +50,12 @@ export function createInkCurtainTransition(canvas, options = {}) {
       uniform float uTime;
       uniform float uColorLift;
       uniform float uParticleStrength;
-      uniform float uDirection;
-      uniform float uProgressSpan;
       uniform float uCoverAlpha;
+      uniform sampler2D uBoundaryProfile;
+      uniform float uBoundaryKind;
+      uniform float uBoundaryDirection;
+      uniform vec2 uBoundaryOrigin;
+      uniform float uBoundaryRadiusScale;
 
       float hash(vec2 p) {
         p = fract(p * vec2(127.1, 311.7));
@@ -85,14 +86,30 @@ export function createInkCurtainTransition(canvas, options = {}) {
         return value;
       }
 
+      float sampledBoundary(float coordinate) {
+        return texture2D(uBoundaryProfile, vec2(clamp(coordinate, 0.0, 0.999999), 0.5)).r;
+      }
+
+      float horizontalEdge(vec2 uv) {
+        float edgeY = sampledBoundary(uv.x);
+        return uBoundaryDirection < 0.5 ? uv.y - edgeY : edgeY - uv.y;
+      }
+
+      float radialEdge(vec2 uv, float aspect) {
+        vec2 delta = (uv - uBoundaryOrigin) * vec2(aspect, 1.0);
+        float angle = fract(atan(delta.y, delta.x) / 6.28318530718 + 0.5);
+        float radius = sampledBoundary(angle) * uBoundaryRadiusScale;
+        return radius - length(delta);
+      }
+
       void main() {
-        float p = smoothstep(0.0, max(0.01, uProgressSpan), uProgress);
+        float p = clamp(uProgress, 0.0, 1.0);
         float energy = sin(p * 3.14159265);
         float aspect = uResolution.x / max(uResolution.y, 1.0);
         vec2 uv = vUv;
         vec2 aspectUv = vec2(uv.x * aspect, uv.y);
         vec2 mouseDrift = uMouse * vec2(0.065, -0.030);
-        float sweepY = mix(uv.y, 1.0 - uv.y, uDirection);
+        float edge = mix(horizontalEdge(uv), radialEdge(uv, aspect), uBoundaryKind);
 
         vec2 warpUv = aspectUv * 2.35 + vec2(0.0, -uTime * 0.030) + mouseDrift;
         vec2 warp = vec2(
@@ -103,18 +120,14 @@ export function createInkCurtainTransition(canvas, options = {}) {
         float wet = fbm(aspectUv * 7.25 + warp * 1.65 + vec2(broad * 1.7, uTime * 0.045) - mouseDrift * 0.45);
         float pore = fbm(aspectUv * 25.0 - warp * 2.55 + vec2(-uTime * 0.060, broad * 1.35));
         float column = fbm(vec2(uv.x * 4.65, uTime * 0.018 + broad * 0.72));
-        float ripple = sin(uv.x * 18.0 + wet * 3.2 - uTime * 0.42) * 0.018;
-        float edgeBand = 1.0 - smoothstep(0.02, 0.34, abs(sweepY - p));
-        float upwardRun = smoothstep(p - 0.04, p + 0.02, sweepY) * (1.0 - smoothstep(p + 0.02, p + 0.30, sweepY));
+        float edgeBand = 1.0 - smoothstep(0.02, 0.34, abs(edge));
+        float upwardRun = smoothstep(-0.30, -0.02, edge) * (1.0 - smoothstep(-0.02, 0.04, edge));
         float tendril = smoothstep(0.56, 0.92, column + wet * 0.30) * (edgeBand * 0.62 + upwardRun * 0.72) * smoothstep(0.08, 0.82, p);
         float mud = fbm(aspectUv * 4.5 + warp * 1.65 - uTime * 0.040) * 0.30;
         mud += fbm(aspectUv * 13.5 - warp * 2.6 + uTime * 0.075) * 0.105;
         mud += fbm(aspectUv * 31.0 + warp * 3.2 - uTime * 0.12) * 0.035;
         float openingBreakup = smoothstep(0.30, 0.72, fbm(aspectUv * 8.4 + warp * 2.6 - uTime * 0.08));
         openingBreakup *= smoothstep(0.22, 0.62, fbm(aspectUv * 23.0 - warp * 3.4 + uTime * 0.13));
-        float field = (broad - 0.5) * 0.118 + (wet - 0.5) * 0.078 + (pore - 0.5) * 0.024 + mud * 0.10 + ripple;
-        field -= openingBreakup * edgeBand * 0.045;
-        float edge = p + tendril * (0.058 + wet * 0.116) - (sweepY + field);
 
         float body = smoothstep(-0.040, 0.085, edge);
         float feather = 1.0 - smoothstep(0.0, 0.132, abs(edge));
@@ -150,6 +163,7 @@ export function createInkCurtainTransition(canvas, options = {}) {
         color += mix(jade, gold, particleSeed) * particles * mix(0.16, 0.58, uColorLift);
         color += mix(vec3(0.28, 0.78, 0.66), vec3(0.96, 0.80, 0.42), particleSeed) * particleCore * mix(0.22, 0.74, uColorLift);
         color += vec3(0.025, 0.075, 0.060) * openingBreakup * feather * mix(0.08, 0.34, uColorLift);
+        color += edgeColor * tendril * mud * 0.08 * mix(0.20, 0.72, uColorLift);
         color = mix(color, vec3(0.004, 0.008, 0.007), late * 0.35);
 
         float coreWash = body * (0.14 + uCoverAlpha * 0.72 + late * 0.10);
@@ -198,10 +212,23 @@ export function createInkCurtainTransition(canvas, options = {}) {
       time: gl.getUniformLocation(program, 'uTime'),
       colorLift: gl.getUniformLocation(program, 'uColorLift'),
       particleStrength: gl.getUniformLocation(program, 'uParticleStrength'),
-      direction: gl.getUniformLocation(program, 'uDirection'),
-      progressSpan: gl.getUniformLocation(program, 'uProgressSpan'),
-      coverAlpha: gl.getUniformLocation(program, 'uCoverAlpha')
+      coverAlpha: gl.getUniformLocation(program, 'uCoverAlpha'),
+      boundaryProfile: gl.getUniformLocation(program, 'uBoundaryProfile'),
+      boundaryKind: gl.getUniformLocation(program, 'uBoundaryKind'),
+      boundaryDirection: gl.getUniformLocation(program, 'uBoundaryDirection'),
+      boundaryOrigin: gl.getUniformLocation(program, 'uBoundaryOrigin'),
+      boundaryRadiusScale: gl.getUniformLocation(program, 'uBoundaryRadiusScale')
     };
+
+    const boundaryTexture = gl.createTexture();
+    if (!boundaryTexture) return null;
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, boundaryTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
     let width = 0;
     let height = 0;
@@ -227,10 +254,11 @@ export function createInkCurtainTransition(canvas, options = {}) {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.clearColor(0, 0, 0, 0);
     let destroyed = false;
+    let boundaryRevision = '';
     return {
-      render(progress, pointerX = 0, pointerY = 0) {
+      render(frame, pointerX = 0, pointerY = 0) {
         if (destroyed) return;
-        const visibleProgress = clamp(progress, 0, 1);
+        const visibleProgress = clamp(frame?.progress ?? 0, 0, 1);
         const fadeIn = smoothStep(clamp(visibleProgress / 0.08, 0, 1));
         const fadeOut = 1 - smoothStep(clamp((visibleProgress - fadeOutStart) / (fadeOutEnd - fadeOutStart), 0, 1));
         const canvasOpacity = fadeIn * fadeOut;
@@ -243,6 +271,22 @@ export function createInkCurtainTransition(canvas, options = {}) {
         if (!active) return;
 
         gl.useProgram(program);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, boundaryTexture);
+        if (boundaryRevision !== frame.revision) {
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.LUMINANCE,
+            Math.max(1, frame.profile.length),
+            1,
+            0,
+            gl.LUMINANCE,
+            gl.UNSIGNED_BYTE,
+            frame.profile.length > 0 ? frame.profile : new Uint8Array([0])
+          );
+          boundaryRevision = frame.revision;
+        }
         gl.uniform2f(uniforms.resolution, width, height);
         gl.uniform2f(
           uniforms.mouse,
@@ -253,13 +297,32 @@ export function createInkCurtainTransition(canvas, options = {}) {
         gl.uniform1f(uniforms.time, performance.now() * 0.001);
         gl.uniform1f(uniforms.colorLift, colorLift);
         gl.uniform1f(uniforms.particleStrength, particleStrength);
-        gl.uniform1f(uniforms.direction, direction);
-        gl.uniform1f(uniforms.progressSpan, progressSpan);
         gl.uniform1f(uniforms.coverAlpha, coverAlpha);
+        gl.uniform1i(uniforms.boundaryProfile, 0);
+        gl.uniform1f(uniforms.boundaryKind, frame.kind === 'radial' ? 1 : 0);
+        gl.uniform1f(
+          uniforms.boundaryDirection,
+          frame.kind === 'horizontal' && frame.origin.y <= 0.5 ? 1 : 0
+        );
+        gl.uniform2f(uniforms.boundaryOrigin, frame.origin.x, 1 - frame.origin.y);
+        const aspect = width / Math.max(height, 1);
+        const radiusScale = Math.max(
+          Math.hypot(frame.origin.x * aspect, frame.origin.y),
+          Math.hypot((1 - frame.origin.x) * aspect, frame.origin.y),
+          Math.hypot(frame.origin.x * aspect, 1 - frame.origin.y),
+          Math.hypot((1 - frame.origin.x) * aspect, 1 - frame.origin.y)
+        );
+        gl.uniform1f(uniforms.boundaryRadiusScale, radiusScale);
+        if (canvas.dataset) {
+          canvas.dataset.r4InkBoundaryKind = frame.kind;
+          canvas.dataset.r4InkBoundaryOrigin = `${frame.origin.x.toFixed(4)},${frame.origin.y.toFixed(4)}`;
+          canvas.dataset.r4InkBoundaryProgress = visibleProgress.toFixed(4);
+          canvas.dataset.r4InkBoundaryRevision = frame.revision;
+        }
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       },
-      prewarm() {
-        this.render(0.003, 0, 0);
+      prewarm(frame) {
+        this.render(frame, 0, 0);
         canvas.style.visibility = 'hidden';
         canvas.style.opacity = '0';
       },
@@ -269,7 +332,8 @@ export function createInkCurtainTransition(canvas, options = {}) {
         releaseInkWebGlResources(gl, {
           buffer,
           program,
-          shaders: [vertexShader, fragmentShader]
+          shaders: [vertexShader, fragmentShader],
+          textures: [boundaryTexture]
         });
         canvas.width = 0;
         canvas.height = 0;

@@ -37,4 +37,33 @@ describe('InkBoundaryFrame', () => {
       createInkBoundaryFrame(spec, 0.63, viewport)
     );
   });
+
+  it('keeps radial geometry deterministic and exposes no independent conceal edge', () => {
+    const spec = {
+      kind: 'radial',
+      origin: { x: 0.5, y: 0.58 },
+      seed: 'pattern-star-map'
+    } as const;
+    const first = createInkBoundaryFrame(spec, 0.42, viewport);
+    const second = createInkBoundaryFrame(spec, 0.42, viewport);
+
+    expect(first.profile).toEqual(second.profile);
+    expect(first.revision).toBe(second.revision);
+    expect(first.concealClipPath).toBeNull();
+  });
+
+  it('clamps endpoint profiles to exact fully hidden and fully revealed edges', () => {
+    const spec = {
+      kind: 'horizontal',
+      direction: 'bottom-to-top',
+      seed: 'education-crane'
+    } as const;
+
+    expect([...createInkBoundaryFrame(spec, -1, viewport).profile]).toEqual(
+      Array(viewport.samples).fill(0)
+    );
+    expect([...createInkBoundaryFrame(spec, 2, viewport).profile]).toEqual(
+      Array(viewport.samples).fill(255)
+    );
+  });
 });
