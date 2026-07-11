@@ -59,7 +59,7 @@ describe('R4 group7 scenes', () => {
     expect(contact?.normalizedText).toEqual([...CONTACT_COPY]);
   });
 
-  it('uses native alpha with the figure between back and foreground clouds and no divider', () => {
+  it('uses native alpha with the figure above every landscape layer and below the front video', () => {
     const markup = renderToStaticMarkup(createElement(craneAnimationScene.Component, {
       scene: 'crane-animation',
       hidden: false
@@ -67,10 +67,11 @@ describe('R4 group7 scenes', () => {
 
     expect(markup).not.toContain('crane-progress');
     expect(stylesheet).toMatch(/\.r4-crane-animation \.crane-figure-video\s*\{[^}]*mix-blend-mode:\s*normal;[^}]*filter:\s*none;/s);
-    expect(stylesheet).toMatch(/\.crane-video-transition--figure\s*\{[^}]*z-index:\s*2;/s);
+    expect(stylesheet).toMatch(/\.crane-video-transition--figure\s*\{[^}]*z-index:\s*6;/s);
     expect(stylesheet).toMatch(/\.crane-layer--cloud-back\s*\{[^}]*z-index:\s*1;/s);
     expect(stylesheet).toMatch(/\.crane-layer--arch\s*\{[^}]*z-index:\s*3;/s);
     expect(stylesheet).toMatch(/\.crane-layer--cloud-front\s*\{[^}]*z-index:\s*4;/s);
     expect(stylesheet).toMatch(/\.crane-layer--cloud-front-second\s*\{[^}]*z-index:\s*5;/s);
+    expect(stylesheet).toMatch(/\.crane-video-transition--front\s*\{[^}]*z-index:\s*8;/s);
   });
 });

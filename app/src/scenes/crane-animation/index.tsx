@@ -100,8 +100,9 @@ export function renderCraneAnimationProgress(root: HTMLElement | null | undefine
   const progress = acceleratedProgress(timelineProgress);
   const time = progress * TIMELINE_DURATION_SECONDS;
   const grow = smoothStep(range01(time, FIGURE_START_SECONDS, FIGURE_FULLSCREEN_SECONDS));
-  const reveal = smoothStep(range01(time, FIGURE_START_SECONDS + 0.05, FIGURE_START_SECONDS + 0.7));
   const unmask = smoothStep(range01(time, FIGURE_START_SECONDS + 0.12, FIGURE_START_SECONDS + 1.05));
+  const figureActive = time >= FIGURE_START_SECONDS;
+  const videoOpacity = figureActive ? 1 : 0;
   const flockOpacity = 1 - smoothStep(range01(time, FLOCK_END_SECONDS - 0.24, FLOCK_END_SECONDS));
   const figureX = FIGURE_POSITION.x * (1 - grow);
   const figureY = FIGURE_POSITION.y * (1 - grow);
@@ -116,7 +117,7 @@ export function renderCraneAnimationProgress(root: HTMLElement | null | undefine
   section?.style.setProperty('--crane-figure-x', `${figureX.toFixed(1)}px`);
   section?.style.setProperty('--crane-figure-base-y', `${figureY.toFixed(1)}px`);
   section?.style.setProperty('--crane-video-y', '0px');
-  section?.style.setProperty('--crane-video-opacity', reveal.toFixed(4));
+  section?.style.setProperty('--crane-video-opacity', videoOpacity.toFixed(4));
   section?.style.setProperty('--crane-video-clip-bottom', `${clipBottom.toFixed(2)}%`);
   section?.style.setProperty('--crane-flock-opacity', flockOpacity.toFixed(4));
   section?.style.setProperty('--crane-flock-y', '0px');
@@ -138,7 +139,7 @@ export function renderCraneAnimationProgress(root: HTMLElement | null | undefine
     seekVideo(section?.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]'), flockProgress);
   }
 
-  return { progress, videoScale, videoOpacity: reveal, flockOpacity, downExitY };
+  return { progress, videoScale, videoOpacity, flockOpacity, downExitY };
 }
 
 export function renderCraneHold(root: HTMLElement | null): void {

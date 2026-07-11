@@ -3,6 +3,7 @@ import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { CRANE_CONTACT_COPY_CUE, createCraneContactTransition } from './crane-contact';
 import { createEducationCraneTransition } from './education-crane';
+import { renderCraneAnimationProgress } from '../scenes/crane-animation';
 import type { Direction, LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeElement as FixtureElement } from './__fixtures__/back-half.fixture';
 
@@ -252,6 +253,16 @@ const cases: readonly {
 ];
 
 describe('R4 group7 transitions', () => {
+  it('lets the main Crane video natural alpha own transparency while active', () => {
+    const root = new FakeElement();
+    root.dataset.r4Scene = 'crane-animation';
+
+    expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0).videoOpacity).toBe(0);
+    expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0.2).videoOpacity).toBe(1);
+    expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0.4).videoOpacity).toBe(1);
+    expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0.8).videoOpacity).toBe(1);
+  });
+
   it('builds reverse Crane-to-Contact directly at p=1', async () => {
     const fixture = craneContactDomContext(-1);
     const fromVisibilityWrites: LayerVisibilityState[] = [];

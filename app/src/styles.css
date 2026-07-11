@@ -3158,7 +3158,7 @@ pre {
 }
 
 .r4-crane-animation .crane-video-transition--figure {
-  z-index: 2;
+  z-index: 6;
   transform: translate3d(
       var(--crane-figure-x),
       calc(var(--crane-figure-base-y) + var(--crane-video-y)),
