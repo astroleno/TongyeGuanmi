@@ -18,6 +18,8 @@ export type StageProps = {
   visibilityByScene?: Partial<Record<SceneId, LayerVisibilityState>>;
   copyCueScene?: SceneId | undefined;
   onLayerElement?: (scene: SceneId, element: HTMLElement | null) => void;
+  onSceneMount?: (scene: SceneId) => void;
+  onSceneDispose?: (scene: SceneId, resources: { canvases: number; videos: number }) => void;
 };
 
 type StageMember = {
@@ -69,7 +71,7 @@ function proofGroundState(
   };
 }
 
-export function Stage({ window, modules, registry, visibilityByScene = {}, copyCueScene, onLayerElement }: StageProps) {
+export function Stage({ window, modules, registry, visibilityByScene = {}, copyCueScene, onLayerElement, onSceneMount, onSceneDispose }: StageProps) {
   assertLayerWindowInvariants(window);
   const members = useMemo(() => membersForWindow(window), [window]);
   const proofGround = proofGroundState(members, visibilityByScene);
@@ -110,6 +112,8 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
             copyCueActive={copyCueScene === member.scene}
             zIndex={zIndexFor(member.role)}
             onElement={onLayerElement}
+            onMount={onSceneMount}
+            onDispose={onSceneDispose}
           />
         );
       })}

@@ -1,4 +1,4 @@
-const DPR_LIMIT = 1.25;
+const DPR_LIMIT = 1;
 const SOURCE_SIZE = 1152;
 const TAU = Math.PI * 2;
 const FINAL_ROTATION = 120 * Math.PI / 180;
@@ -98,7 +98,8 @@ type BloomRing = {
 };
 
 type RingCache = {
-  canvas: HTMLCanvasElement;
+  startCanvas: HTMLCanvasElement;
+  endCanvas: HTMLCanvasElement;
   drawSize: number;
   rotationBase: number;
   spin: number;
@@ -243,6 +244,35 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+let patternLayerImagesPromise: Promise<readonly HTMLImageElement[]> | undefined;
+let patternBackgroundPromise: Promise<HTMLImageElement> | undefined;
+
+function loadPatternLayerImages(): Promise<readonly HTMLImageElement[]> {
+  if (!patternLayerImagesPromise) {
+    const promise = Promise.all(layerConfigs.map((layer) => loadImage(layer.src)));
+    patternLayerImagesPromise = promise;
+    void promise.catch(() => {
+      if (patternLayerImagesPromise === promise) {
+        patternLayerImagesPromise = undefined;
+      }
+    });
+  }
+  return patternLayerImagesPromise;
+}
+
+export async function preloadPatternAssets(): Promise<void> {
+  if (!patternBackgroundPromise) {
+    const promise = loadImage(PATTERN_BACKGROUND_IMAGE);
+    patternBackgroundPromise = promise;
+    void promise.catch(() => {
+      if (patternBackgroundPromise === promise) {
+        patternBackgroundPromise = undefined;
+      }
+    });
+  }
+  await Promise.all([loadPatternLayerImages(), patternBackgroundPromise]);
+}
+
 function drawCenteredLayer(
   ctx: CanvasRenderingContext2D,
   layer: LoadedLayer,
@@ -296,6 +326,7 @@ export class PatternBloomRenderer {
   private readonly flowerCanvas = document.createElement('canvas');
   private readonly flowerContext = this.flowerCanvas.getContext('2d');
   private readonly ringCanvases = bloomRings.map(() => document.createElement('canvas'));
+  private readonly terminalRingCanvases = bloomRings.map(() => document.createElement('canvas'));
   private width = 0;
   private height = 0;
   private dpr = 1;
@@ -314,6 +345,11 @@ export class PatternBloomRenderer {
   private ringStructuralKey = '';
   private frameRevision = 0;
   private destroyed = false;
+  private staticFrameRequested = false;
+  private lastFlowerPhase = Number.NaN;
+  private lastFlowerTextureSize = 0;
+  private readyPromise: Promise<void> | undefined;
+  private resolveReady: (() => void) | undefined;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.context = canvas.getContext('2d', { alpha: true });
@@ -321,6 +357,11 @@ export class PatternBloomRenderer {
     this.flowerCanvas.dataset.patternTextureRole = 'source-flower';
     for (const ringCanvas of this.ringCanvases) {
       ringCanvas.dataset.patternTextureRole = 'ring';
+      ringCanvas.dataset.patternTextureEndpoint = 'start';
+    }
+    for (const ringCanvas of this.terminalRingCanvases) {
+      ringCanvas.dataset.patternTextureRole = 'ring';
+      ringCanvas.dataset.patternTextureEndpoint = 'end';
     }
   }
 
@@ -329,7 +370,7 @@ export class PatternBloomRenderer {
       return;
     }
 
-    const layers = await Promise.all(layerConfigs.map((layer) => loadImage(layer.src)));
+    const layers = await loadPatternLayerImages();
     if (this.destroyed) {
       return;
     }
@@ -347,6 +388,23 @@ export class PatternBloomRenderer {
     this.buildSourceTextures();
     this.resize();
     this.requestRender();
+  }
+
+  prepareStaticFrame(): Promise<void> {
+    if (this.destroyed) {
+      return Promise.resolve();
+    }
+    if (this.canvas.dataset.inkTextureReady === 'true') {
+      return Promise.resolve();
+    }
+    if (!this.readyPromise) {
+      this.readyPromise = new Promise((resolve) => {
+        this.resolveReady = resolve;
+      });
+    }
+    this.staticFrameRequested = true;
+    this.requestRender();
+    return this.readyPromise;
   }
 
   setProgress(progress: number): void {
@@ -419,9 +477,21 @@ export class PatternBloomRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.staticFrameRequested = false;
     if (this.rafId) {
       window.cancelAnimationFrame(this.rafId);
       this.rafId = 0;
+    }
+    this.resolveReady?.();
+    this.resolveReady = undefined;
+    for (const canvas of [
+      this.petalCanvas,
+      this.flowerCanvas,
+      ...this.ringCanvases,
+      ...this.terminalRingCanvases
+    ]) {
+      canvas.width = 0;
+      canvas.height = 0;
     }
   }
 
@@ -453,6 +523,8 @@ export class PatternBloomRenderer {
       this.textureSize = textureSize;
       this.flowerCanvas.width = textureSize;
       this.flowerCanvas.height = textureSize;
+      this.lastFlowerPhase = Number.NaN;
+      this.lastFlowerTextureSize = 0;
       this.ringStructuralKey = '';
       this.ringTextureIndex = 0;
     }
@@ -494,6 +566,12 @@ export class PatternBloomRenderer {
     if (!context || size <= 0) {
       return;
     }
+    if (
+      this.lastFlowerTextureSize === size
+      && Math.abs(this.lastFlowerPhase - phase) < 0.0001
+    ) {
+      return;
+    }
     context.clearRect(0, 0, size, size);
     for (const layer of this.layers) {
       if (layer.role === 'decor') {
@@ -510,6 +588,8 @@ export class PatternBloomRenderer {
         rotationOffset
       );
     }
+    this.lastFlowerPhase = phase;
+    this.lastFlowerTextureSize = size;
   }
 
   private drawDecorLayers(phase: number, metrics: ObjectMetrics): void {
@@ -563,14 +643,14 @@ export class PatternBloomRenderer {
   }
 
   private drawRingTexture(
+    canvas: HTMLCanvasElement,
     index: number,
     structuralPhase: number,
     metrics: ObjectMetrics
   ): void {
     const ring = bloomRings[index];
-    const canvas = this.ringCanvases[index];
-    const context = canvas?.getContext('2d');
-    if (!ring || !canvas || !context) {
+    const context = canvas.getContext('2d');
+    if (!ring || !context) {
       return;
     }
 
@@ -606,33 +686,49 @@ export class PatternBloomRenderer {
   }
 
   private refreshRingTextures(
-    structuralPhase: number,
+    _structuralPhase: number,
     metrics: ObjectMetrics
   ): void {
-    const normalized = clamp(structuralPhase / PATTERN_STRUCTURAL_PHASE);
-    const bucket = Math.round(normalized * 160);
-    const key = `${bucket}:${Math.round(metrics.size)}`;
+    const key = `endpoints:${Math.round(metrics.size)}`;
     if (
       key === this.ringStructuralKey
-      && this.ringCanvases.every((canvas) => canvas.width > 0)
+      && [...this.ringCanvases, ...this.terminalRingCanvases]
+        .every((canvas) => canvas.width > 0)
     ) return;
 
-    const quantizedStructuralPhase = bucket / 160 * PATTERN_STRUCTURAL_PHASE;
     for (let index = 0; index < bloomRings.length; index += 1) {
-      this.drawRingTexture(index, quantizedStructuralPhase, metrics);
+      const startCanvas = this.ringCanvases[index];
+      const endCanvas = this.terminalRingCanvases[index];
+      if (startCanvas && endCanvas) {
+        this.drawRingTexture(startCanvas, index, 0, metrics);
+        this.drawRingTexture(endCanvas, index, PATTERN_STRUCTURAL_PHASE, metrics);
+      }
     }
-    this.ringTextureIndex = bloomRings.length;
+    this.ringTextureIndex = bloomRings.length * 2;
     this.ringStructuralKey = key;
   }
 
   private buildNextRingTexture(): void {
-    if (!this.textureSize || this.ringTextureIndex >= bloomRings.length) return;
+    const endpointCount = bloomRings.length * 2;
+    if (!this.textureSize || this.ringTextureIndex >= endpointCount) return;
     const metrics = this.getObjectMetrics();
-    const index = this.ringTextureIndex;
+    const endpointIndex = this.ringTextureIndex;
     this.ringTextureIndex += 1;
-    this.drawRingTexture(index, 0, metrics);
-    if (this.ringTextureIndex === bloomRings.length) {
-      this.ringStructuralKey = `0:${Math.round(metrics.size)}`;
+    const terminal = endpointIndex >= bloomRings.length;
+    const index = terminal ? endpointIndex - bloomRings.length : endpointIndex;
+    const canvas = terminal
+      ? this.terminalRingCanvases[index]
+      : this.ringCanvases[index];
+    if (canvas) {
+      this.drawRingTexture(
+        canvas,
+        index,
+        terminal ? PATTERN_STRUCTURAL_PHASE : 0,
+        metrics
+      );
+    }
+    if (this.ringTextureIndex === endpointCount) {
+      this.ringStructuralKey = `endpoints:${Math.round(metrics.size)}`;
     }
   }
 
@@ -678,12 +774,20 @@ export class PatternBloomRenderer {
 
     return bloomRings.flatMap((ring, index) => {
       const drawSize = metrics.size * interpolate(ring.scale, ring.endScale, collapse);
-      const ringCanvas = this.ringCanvases[index];
-      if (drawSize < 2 || !ringCanvas?.width || !ringCanvas.height) {
+      const startCanvas = this.ringCanvases[index];
+      const endCanvas = this.terminalRingCanvases[index];
+      if (
+        drawSize < 2
+        || !startCanvas?.width
+        || !startCanvas.height
+        || !endCanvas?.width
+        || !endCanvas.height
+      ) {
         return [];
       }
       return [{
-        canvas: ringCanvas,
+        startCanvas,
+        endCanvas,
         drawSize,
         rotationBase: ring.rotation * Math.PI / 180 + fieldRotation * ring.spin,
         spin: ring.spin
@@ -696,12 +800,32 @@ export class PatternBloomRenderer {
     if (!context) {
       return;
     }
+    const endpointMix = smoothstep(0.02, 1, progress);
     for (const ring of this.buildRingCache(progress, rotationProgress, metrics)) {
       const rotation = ring.rotationBase + phase * 0.028 * ring.spin;
       context.save();
       context.translate(metrics.centerX, metrics.centerY);
       context.rotate(rotation);
-      context.drawImage(ring.canvas, -ring.drawSize / 2, -ring.drawSize / 2, ring.drawSize, ring.drawSize);
+      if (endpointMix < 0.999) {
+        context.globalAlpha = 1 - endpointMix;
+        context.drawImage(
+          ring.startCanvas,
+          -ring.drawSize / 2,
+          -ring.drawSize / 2,
+          ring.drawSize,
+          ring.drawSize
+        );
+      }
+      if (endpointMix > 0.001) {
+        context.globalAlpha = endpointMix;
+        context.drawImage(
+          ring.endCanvas,
+          -ring.drawSize / 2,
+          -ring.drawSize / 2,
+          ring.drawSize,
+          ring.drawSize
+        );
+      }
       context.restore();
     }
   }
@@ -743,19 +867,28 @@ export class PatternBloomRenderer {
     }
     this.rafId = window.requestAnimationFrame((now) => {
       this.rafId = 0;
-      const prewarming = this.ringTextureIndex < bloomRings.length;
+      const prewarming = this.ringTextureIndex < bloomRings.length * 2;
       if (prewarming) {
         this.buildNextRingTexture();
       }
       const elapsed = now - this.lastRenderedAt;
       const structuralFrameDue = !Number.isFinite(this.lastRenderedAt) || elapsed >= STRUCTURAL_FRAME_INTERVAL_MS;
-      const renderRequested = this.framePending || this.animateMotion;
-      if (!prewarming && this.renderActive && renderRequested && structuralFrameDue) {
+      const renderRequested = this.framePending || this.animateMotion || this.staticFrameRequested;
+      if (!prewarming && renderRequested && structuralFrameDue) {
         this.renderFrame(now);
         this.framePending = false;
         this.lastRenderedAt = now;
+        if (this.staticFrameRequested) {
+          this.staticFrameRequested = false;
+          this.resolveReady?.();
+          this.resolveReady = undefined;
+        }
       }
-      if ((this.renderActive && (this.framePending || this.animateMotion)) || this.ringTextureIndex < bloomRings.length) {
+      if (
+        (this.renderActive && (this.framePending || this.animateMotion))
+        || this.staticFrameRequested
+        || this.ringTextureIndex < bloomRings.length * 2
+      ) {
         this.requestRender();
       }
     });

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { fromSyntheticVisibility } from '../story/visibility-predicate';
 import type { HandleRegistry } from '../story/registry';
 import type { LayerVisibilityState, SceneId, SceneModule, StageLayerRole } from '../story/types';
@@ -12,6 +12,8 @@ export type SceneLayerProps = {
   copyCueActive?: boolean;
   zIndex: number;
   onElement?: ((scene: SceneId, element: HTMLElement | null) => void) | undefined;
+  onMount?: ((scene: SceneId) => void) | undefined;
+  onDispose?: ((scene: SceneId, resources: { canvases: number; videos: number }) => void) | undefined;
 };
 
 function defaultVisibility(role: StageLayerRole): LayerVisibilityState {
@@ -33,8 +35,35 @@ function defaultVisibility(role: StageLayerRole): LayerVisibilityState {
   });
 }
 
-export function SceneLayer({ module, role, registry, visibility, reading = false, copyCueActive = false, zIndex, onElement }: SceneLayerProps) {
+function releaseLayerResources(root: HTMLElement | null): { canvases: number; videos: number } {
+  if (!root) {
+    return { canvases: 0, videos: 0 };
+  }
+  const canvases = [...root.querySelectorAll('canvas')];
+  const videos = [...root.querySelectorAll('video')];
+  for (const video of videos) {
+    video.pause();
+    video.removeAttribute('src');
+    for (const source of video.querySelectorAll('source')) {
+      source.removeAttribute('src');
+    }
+    video.load();
+  }
+  for (const canvas of canvases) {
+    if (canvas.matches('[data-r4-ink-renderer], [data-aod-ink-canvas]')) {
+      const context = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+      context?.getExtension('WEBGL_lose_context')?.loseContext();
+    }
+    canvas.width = 1;
+    canvas.height = 1;
+  }
+  return { canvases: canvases.length, videos: videos.length };
+}
+
+export function SceneLayer({ module, role, registry, visibility, reading = false, copyCueActive = false, zIndex, onElement, onMount, onDispose }: SceneLayerProps) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const lastRootRef = useRef<HTMLElement | null>(null);
+  const pendingDisposeRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const state = visibility ?? defaultVisibility(role);
   const hidden = !state.visible || state.opacity <= 0.001;
   const style = useMemo<CSSProperties>(
@@ -48,9 +77,23 @@ export function SceneLayer({ module, role, registry, visibility, reading = false
   );
 
   useEffect(() => {
+    if (pendingDisposeRef.current) {
+      clearTimeout(pendingDisposeRef.current);
+      pendingDisposeRef.current = undefined;
+    }
     registry.registerScene(module);
     void registry.startPreload(module.id);
-  }, [module, registry]);
+    onMount?.(module.id);
+    return () => {
+      const root = lastRootRef.current;
+      pendingDisposeRef.current = setTimeout(() => {
+        const resources = releaseLayerResources(root);
+        void module.dispose?.();
+        onDispose?.(module.id, resources);
+        pendingDisposeRef.current = undefined;
+      }, 0);
+    };
+  }, [module, onDispose, onMount, registry]);
 
   useLayoutEffect(() => {
     if (role === 'current' && state.visible && state.opacity > 0.999) {
@@ -58,15 +101,18 @@ export function SceneLayer({ module, role, registry, visibility, reading = false
     }
   }, [module, role, state.opacity, state.visible]);
 
-  const registerRoot = (element: HTMLElement | null) => {
+  const registerRoot = useCallback((element: HTMLElement | null) => {
     rootRef.current = element;
+    if (element) {
+      lastRootRef.current = element;
+    }
     registry.registerRoot(module.id, element, module.requiredHandles ?? []);
     onElement?.(module.id, element);
-  };
+  }, [module, onElement, registry]);
 
-  const registerHandle = (name: string, element: HTMLElement | null) => {
+  const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     registry.registerHandle(module.id, name, element);
-  };
+  }, [module.id, registry]);
 
   const Component = module.Component;
 

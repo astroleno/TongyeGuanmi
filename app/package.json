@@ -5,13 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/verify-release-build.mjs && node scripts/verify-performance-budgets.mjs && node scripts/create-release-manifest.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:smoke": "playwright test"
+    "test:smoke": "playwright test e2e/smoke.spec.ts",
+    "test:e2e": "playwright test",
+    "test:release": "pnpm build && playwright test --config playwright.release.config.ts",
+    "evidence:visual": "node scripts/capture-r5-visual-evidence.mjs",
+    "evidence:memory": "node scripts/profile-r5-process-memory.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

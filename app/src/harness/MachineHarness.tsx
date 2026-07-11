@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { directorRuntime, useDirectorSnapshot } from '../runtime/director.actor';
+import { directorRuntime, useDirectorSnapshot } from './harness-director';
 import { normalizeInputDelta } from '../runtime/input-normalizer';
 import type { DirectorEvent, Direction } from '../story/types';
 

@@ -1,4 +1,4 @@
-import { directorRuntime, useDirectorSnapshot } from '../runtime/director.actor';
+import { directorRuntime, useDirectorSnapshot } from './harness-director';
 
 function formatValue(value: unknown): string {
   return JSON.stringify(

@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: '**/r5-*.spec.ts',
   timeout: 30_000,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
@@ -23,7 +24,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] }
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' }
     }
   ]
 });

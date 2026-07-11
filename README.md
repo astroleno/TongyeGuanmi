@@ -1,60 +1,55 @@
 # Tongye Guanmi
 
-同野观幂网站当前处于 React runtime 迁移的 R4 收口状态：R4 scene / transition 已完成人工视觉验收；R5 将负责生产 StoryApp 组装、全站验收与可回滚 cutover。默认发布入口在 R5 HITL 批准前仍是旧静态站。
+当前状态：`codex/react-refactor-r5-parity-cutover` 已把完整 React `StoryApp` 设为默认开发、构建、测试与部署产物，形成 `react-refactor-r5-candidate`。候选仍等待 HITL 批准；批准前禁止合并或部署 `main`，也不得建立 `react-refactor-r5-cutover`。
 
-## 环境
+## 环境与安装
 
 - Node.js 22
 - pnpm 8.15.1
 
 ```bash
-cd /Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r4-scene-identity
 corepack enable
 corepack prepare pnpm@8.15.1 --activate
 pnpm install --frozen-lockfile
 ```
 
-## 当前开发命令
-
-旧静态站基线：
+## 默认入口
 
 ```bash
-cd /Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r4-scene-identity
 pnpm dev
+pnpm build
+pnpm preview
 ```
 
-React app / R4 harness：
+- `pnpm dev`：React 开发入口；`/` 是完整 production StoryApp。
+- `pnpm build`：输出可部署的 `dist/`，同时验证 crawlable HTML、production/harness 边界、bundle 与 assets 预算，并生成 `dist/r5-release-manifest.json`。
+- production build 不包含 `/harness/*`；开发环境仍可按需 lazy-load R4 harness。
+- 旧静态 runtime 只保留在 immutable baseline/tag 与显式 `legacy:*` 命令中，不再是默认入口。
+
+## 验证与发布候选
 
 ```bash
-cd /Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r4-scene-identity
-pnpm -C app dev --host 127.0.0.1
+pnpm run verify:all
+pnpm run test:browser
+pnpm run test:release
+pnpm run deploy:build
 ```
 
-人工主 review 只使用以下无额外后缀的路由：
+`test:release` 覆盖 desktop Chromium/WebKit、Android Chrome 与 iOS WebKit：完整正向、关键反向、输入矩阵、history/hash、reduced-motion、reading handoff、media recovery、TTG 正反向 alpha、SEO/no-JS 与性能预算。
 
-- `http://127.0.0.1:5173/harness/r4-g1`
-- `http://127.0.0.1:5173/harness/r4-g2`
-- `http://127.0.0.1:5173/harness/r4-g3`
-- `http://127.0.0.1:5173/harness/r4-g4`
-- `http://127.0.0.1:5173/harness/r4-g5`
-- `http://127.0.0.1:5173/harness/r4-g6`
-- `http://127.0.0.1:5173/harness/r4-g7`
-
-## 验证
+旧站只允许显式调用：
 
 ```bash
-cd /Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r4-scene-identity
-pnpm -C app test
-pnpm -C app typecheck
-pnpm -C app lint
-pnpm -C app build
+pnpm run legacy:build
+pnpm run legacy:dev
+pnpm run legacy:verify:all
 ```
 
-R5 完成后，根目录命令将切换为新 app 的默认命令；切换前不要把当前根目录 `pnpm dev` 误认为 React 生产入口。
+## R5 证据与操作入口
 
-## 阶段入口
-
+- [R5 candidate 报告](docs/react-refactor/reports/r5-candidate.md)
+- [全站回归矩阵](docs/react-refactor/reports/r5-regression-matrix.md)
+- [性能预算](docs/react-refactor/reports/r5-performance-budget.md)
+- [SEO/no-JS 报告](docs/react-refactor/reports/r5-seo-no-js.md)
+- [Cutover / rollback runbook](docs/react-refactor/runbooks/react-cutover-rollback.md)
 - [React refactor 文档索引](docs/react-refactor/README.md)
-- [R4 收口记录](docs/react-refactor/R4-CLOSEOUT.md)
-- [R5 Goal](docs/react-refactor/goals/R5-parity-cutover.md)
-- [R6 Goal](docs/react-refactor/goals/R6-cleanup.md)

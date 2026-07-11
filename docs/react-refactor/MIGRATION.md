@@ -135,12 +135,16 @@ contact
 - 根目录约 20 个独立预览 HTML（`aod.html`、`crane.html`、`pattern-*.html` 等）—— `/harness/<scene>`、`/harness/<segment>` 路由取代。
 - 真实 tracked 历史文档 —— R6 逐份标注 historical/superseded。当前仓库不存在 `docs/newplan/`，不得保留这个无效清理任务。
 
-## 3. 并行运行与切换（dual-run）
+## 3. R5 candidate、cutover 与 archive
 
-1. 新应用在 `app/` 目录开发；旧静态站根目录**冻结**（只允许 hotfix），作为平价验收 baseline。
-2. 平价验收（ROADMAP R5）：逐 scene/segment 并排对照三大历史症状（无重复入场、无交接空白、无黑闪）+ 正反向 + hash 直达 + reduced-motion。
-3. R5 先产出 release candidate 并演练 rollback；HITL 批准后部署根切到新构建产物。旧站恢复能力由 immutable tag + 校验过的 release artifact 保证，repo 内 archive 边界由 runbook 明确。
-4. 并行期禁止双向同步：文案/视觉修改只改基准（R-1/R0 生成的 copy baseline / manifest 数据），两边各自消费。
+1. production React app 已成为仓库内唯一默认入口：根 `dev/build/test/lint/typecheck/ci/deploy:build` 均指向 `app/`，产物是 `dist/`。
+2. 旧站只保留为 `react-refactor-legacy-static-baseline`、显式 `legacy:*` 命令和外部 immutable rollback artifact；它不再参与默认 CI 或 public routing。
+3. `assets/` 仍是新旧两边的共同事实源。R5 不复制一份 557 MB archive 进 git，也不删除源资产；candidate 的 `dist/assets` 由内容 hash 命名并由 release manifest 验签。
+4. R4/R5 harness 仅在开发 build gate 下 lazy-load，production build 进行字符串与路由扫描，`/harness/*` 和旧独立 HTML 返回 404。
+5. HITL 批准后按 runbook 发布 candidate；触发条件满足时直接恢复 legacy immutable artifact。R6 只有在 rollback retention 到期且引用图审计完成后，才允许删除旧 runtime、预览 HTML 和一次性脚本。
+6. 并行保留期禁止双向同步：文案/视觉修改只改 copy baseline、manifest 和 React scene；旧 tag 永不回写。
+
+详细命令、验签值、恢复条件与负责人见 `runbooks/react-cutover-rollback.md`。
 
 ## 4. 风险与对策
 

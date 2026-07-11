@@ -1,6 +1,6 @@
 # 目标架构：Cinematic Story Runtime（完全重新设计）
 
-状态：R4 runtime architecture 已落地，R5 将补齐 production StoryApp、public entry 与 prerender/cutover。旧站基线固定为 `react-refactor-legacy-static-baseline`；`codex/state-machine-refactor-roadmap` 只作为历史实验与教训来源，不作为代码继承底座。旧站代码只作为**素材库（renderer/文案/参数）与教训清单**。
+状态：R5 production architecture 已落地并形成 release candidate，等待 HITL cutover approval。production StoryApp、public entry、crawlable shell、lazy module boundary、release CI 与 rollback contract 已实现；旧站基线固定为 `react-refactor-legacy-static-baseline`，不再是默认 runtime。
 
 文档闭环：入口见 `README.md`；阶段落地与分支纪律见 `ROADMAP.md`；旧站复用、退役和切换边界见 `MIGRATION.md`；每阶段执行清单见 `goals/`。
 
@@ -15,8 +15,9 @@
 | 故事顺序 | 以 §3.1 的 canonical story spine 为唯一时序。旧 `main` 的 `contentSections/chapterTransitions` 只作为粗粒度种子 |
 | 与旧站关系 | 全新实现；复用 renderer、媒体资产、文案、UX 参数与不变量（见 MIGRATION.md） |
 | Lenis | 不再是核心依赖。阅读区内部滚动先用原生 overflow，平滑化是后期可选项 |
-| 可爬取内容 | React app 不能牺牲营销站正文可见性。静态预渲染 / crawlable HTML 已确认，R5 必须交付 artifact-level 验证，正文文本不能只存在于 JS 运行后 |
-| 落地基线 | R5 从 `react-refactor-r4-closeout` 开始；旧静态站由 immutable baseline tag 保留，state-machine 分支不合入新 runtime |
+| 可爬取内容 | `static-story-shell` 在 Vite build 时把 8 个正文区与 metadata/hash anchors 注入 `dist/index.html`；React 只做渐进增强，127 条 public baseline copy 可在无 JS 时提取 |
+| 默认 runtime | 根 `dev/build/test/lint/typecheck/CI/deploy:build` 指向 production React app；旧 runtime 只保留为显式 `legacy:*` 与 immutable rollback baseline |
+| 落地基线 | R5 从 `react-refactor-r4-closeout` 开始；候选等待 HITL，批准前不合并/部署 main，不建立 cutover tag |
 | R2/R3 判定边界 | R2 只证明合成场景下协议闭环；真实媒体、copyCue、异步 milestone 的真值在 R3 pilot 首次判定。R3 未平价前不得宣称“播放顺序 + 状态机已彻底解决” |
 
 ### 为什么换底座
@@ -60,6 +61,11 @@ Stage（唯一 100svh 舞台）
 app/
   src/
     main.tsx
+    production/
+      StoryApp.tsx             # production composition root
+      input-controller.ts      # wheel/touch/key + reading edge handoff
+      module-loaders.ts        # scene/transition dynamic imports
+      navigation.ts            # hash/history/menu mapping
     runtime/
       director.machine.ts      # §5 状态机
       input-normalizer.ts      # wheel/touch/key → fraction（参数沿用旧站）
@@ -88,7 +94,9 @@ app/
       timeline.ts              # segment 工厂
     transitions/shared/        # ink-crossfade 等通用工厂
     a11y/                      # URL 同步、焦点管理、键盘导航、SR 策略（§9）
-    harness/routes.tsx         # /harness/<scene> /harness/<segment>
+    harness/HarnessRouter.tsx  # dev-only lazy /harness/* boundary
+  build/static-shell.ts        # crawlable/no-JS HTML shell
+  scripts/verify-*.mjs         # release/bundle/manifest gates
   index.html
   vite.config.ts
 ```
@@ -503,7 +511,7 @@ interface TransitionContext {
 
 - **阅读层内部滚动**：reading scene 的层内容器 `overflow-y: auto`，原生滚动（触控、惯性、无障碍免费）。Director 只在"层已到边缘且输入继续同向"时才把输入转为 charge；未到边缘的 wheel 不 preventDefault，交给容器。
 - **URL 同步**：settling 时 `history.replaceState('#'+sceneId)`；直达 hash / 前进后退 → seeking：卸载当前窗口 → 挂载目标窗口 → cursor 置位 → hold。无需合成中间状态。
-- **SEO / 无 JS**：正文文本必须能从构建产物中被读取。可选方案是 Vite 预渲染静态 shell 或在 `index.html` 内保留可爬取的 scene copy 镜像；R-1/R0 必须选定并验证，不等 R5 部署时补。
+- **SEO / 无 JS**：Vite 的 `static-story-shell` build plugin 已把 public copy、metadata、导航和 canonical ids 注入 `dist/index.html`。JS 禁用时 static shell 保持可见和可滚动；hydration 成功后才由 StoryApp 隐藏 shell。
 - **键盘**：PageDown/Space/↓ = 触发下一 segment（等价蓄力满），↑ 反向；Tab 焦点被 inert 天然约束在 current 层。
 - **屏幕阅读器**：层是真实 DOM；非 current 层 inert + aria-hidden；scene 切换时移焦到新层标题。提供 `prefers-reduced-motion` 全局降级。
 - **无滚动条**：HUD 提供章节进度指示（基于 spine 虚拟时间）+ 章节菜单（label 导航）。
@@ -519,6 +527,9 @@ interface TransitionContext {
 | 三大历史症状 | Playwright：settling 前后逐帧截图（无空白帧/无双层残影）、正反向全程、hash 直达、reduced-motion |
 | 文案 | R-1/R0 从 `src/sections/*.html` 与构建产物生成 copy baseline；Vitest 渲染各 scene 提取文本逐字 diff |
 | 参数 | manifest 数据与旧 `section-manifest.mjs` 的顺序/时长/文案映射一次性 diff |
+| Production | release Playwright matrix：完整正向/反向、全部 hash、真实输入、recovery、TTG 媒体与旧路径不可达 |
+| SEO / no-JS | build extractor + JavaScript-disabled Chromium/WebKit projects |
+| 性能 | build budgets + hardware Chrome LCP/frame/heap + OS process-tree RSS/GPU process + dispose counters |
 
 R2 验收只能证明合成场景协议；R3 pilot 是第一次真实媒体、真实 copyCue、真实 React effect / 媒体事件的 truth pass。R3 如果暴露 R2 未覆盖的 milestone 或 abort 语义，必须写入 `docs/react-refactor/contract-diff/R3-pilot.md`，再决定是否回补 R2 contract；不得在 R3 私下 fork 协议。
 

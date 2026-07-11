@@ -44,6 +44,7 @@ export type PlayOptions = {
 export type SegmentPlayerOptions = {
   manifest?: StoryManifest;
   transitions: Partial<Record<SegmentId, TransitionModule>>;
+  transitionLoader?: (id: SegmentId) => Promise<TransitionModule> | TransitionModule;
   stage?: StageHandle;
   mailbox?: SegmentPlayerMailbox;
   actorEpoch?: string;
@@ -195,6 +196,7 @@ function detectPrefersReducedMotion(): boolean {
 export class SegmentPlayer {
   private readonly manifest: StoryManifest;
   private readonly transitions: Partial<Record<SegmentId, TransitionModule>>;
+  private readonly transitionLoader: SegmentPlayerOptions['transitionLoader'];
   private readonly stage: StageHandle;
   private readonly mailbox: SegmentPlayerMailbox | undefined;
   private readonly actorEpoch: string;
@@ -209,6 +211,7 @@ export class SegmentPlayer {
   constructor(options: SegmentPlayerOptions) {
     this.manifest = options.manifest ?? storyManifest;
     this.transitions = options.transitions;
+    this.transitionLoader = options.transitionLoader;
     this.stage = options.stage ?? createNullStage();
     this.mailbox = options.mailbox;
     this.actorEpoch = options.actorEpoch ?? 'segment-player';
@@ -229,11 +232,6 @@ export class SegmentPlayer {
     }
 
     const segment = this.findSegment(id);
-    const transition = this.transitions[id];
-    if (!transition) {
-      return Promise.reject(new Error(`Missing transition module for ${id}`));
-    }
-
     const timeoutMs = options.timeoutMs ?? segment.buildTimeoutMs ?? this.manifest.defaults.buildTimeoutMs;
     const runId = options.runId ?? this.nextRunId();
     const prepareToken = options.prepareToken ?? `${this.actorEpoch}:prepare:0`;
@@ -244,18 +242,18 @@ export class SegmentPlayer {
 
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let buildExpired = false;
-    const buildPromise = Promise.resolve(
+    const buildPromise = this.resolveTransition(id).then((transition) =>
       transition.buildTimeline({
-        segment,
-        stage: this.stage,
-        from,
-        to,
-        direction,
-        runId,
-        prepareToken,
-        prefersReducedMotion: this.prefersReducedMotion(),
-        reportMilestone: (milestone) => this.reportMilestone(milestone)
-      })
+          segment,
+          stage: this.stage,
+          from,
+          to,
+          direction,
+          runId,
+          prepareToken,
+          prefersReducedMotion: this.prefersReducedMotion(),
+          reportMilestone: (milestone) => this.reportMilestone(milestone)
+        })
     ).then((timeline) => {
       if (buildExpired) {
         timeline.dispose();
@@ -690,6 +688,22 @@ export class SegmentPlayer {
       throw new Error(`Unknown segment: ${id}`);
     }
     return segment;
+  }
+
+  private async resolveTransition(id: SegmentId): Promise<TransitionModule> {
+    const registered = this.transitions[id];
+    if (registered) {
+      return registered;
+    }
+    if (!this.transitionLoader) {
+      throw new Error(`Missing transition module for ${id}`);
+    }
+    const loaded = await this.transitionLoader(id);
+    if (loaded.id !== id) {
+      throw new Error(`Transition loader returned ${loaded.id} for ${id}`);
+    }
+    this.transitions[id] = loaded;
+    return loaded;
   }
 
   private nextRunId(): SegmentRunId {

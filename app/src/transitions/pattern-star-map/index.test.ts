@@ -64,6 +64,7 @@ describe('pattern-star-map transition', () => {
     expect(starMapMotionEnabled(false, false)).toBe(true);
     expect(starMapMotionEnabled(true, false)).toBe(false);
     expect(starMapMotionEnabled(false, true)).toBe(false);
+    expect(starMapMotionEnabled(false, false, 'next')).toBe(false);
   });
 
   it('collapses Pattern at stage 0 while Star Map remains hidden', async () => {

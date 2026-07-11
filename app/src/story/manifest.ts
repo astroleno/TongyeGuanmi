@@ -4,11 +4,11 @@ import copyReference from '../../../docs/react-refactor/inventory/copy-reference
 import { canonicalSpine } from './canonical-spine';
 import { parseInventoryManifestSeed, type InventoryManifestSeed } from './inventory-schema';
 import {
+  FIGURE3_SERVICES_DURATION_MS,
   PATTERN_COLLAPSE_MS,
   PATTERN_COLLAPSE_STOP,
   PATTERN_STAR_MAP_INK_MS
-} from '../transitions/pattern-star-map';
-import { FIGURE3_SERVICES_DURATION_MS } from '../transitions/figure3-services';
+} from './timings';
 import type {
   MediaPlaybackContract,
   MilestoneKey,

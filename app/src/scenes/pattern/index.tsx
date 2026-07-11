@@ -5,7 +5,8 @@ import {
   PATTERN_BACKGROUND_IMAGE,
   PatternBloomRenderer,
   patternCenterForViewport,
-  patternBloomSnapshot
+  patternBloomSnapshot,
+  preloadPatternAssets
 } from './patternBloomRenderer';
 
 export { patternCenterForViewport } from './patternBloomRenderer';
@@ -32,6 +33,7 @@ export type PatternRenderOptions = {
   opacity?: number;
   copyProgress?: number;
   rotationProgress?: number;
+  freezeMotion?: boolean;
 };
 
 type PatternRoot = HTMLElement & {
@@ -84,7 +86,11 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
   root?.style.setProperty('--r4-pattern-center-y', `${(center.y * 100).toFixed(3)}%`);
   root?.setAttribute('data-pattern-progress', clamped.toFixed(4));
   root?.setAttribute('data-pattern-center', `${center.x.toFixed(4)},${center.y.toFixed(4)}`);
-  (root as PatternRoot | null)?.__r4PatternRenderer?.setFrameProgress(clamped, rotationProgress);
+  const renderer = (root as PatternRoot | null)?.__r4PatternRenderer;
+  if (options.freezeMotion) {
+    renderer?.setRenderActive(true, false);
+  }
+  renderer?.setFrameProgress(clamped, rotationProgress);
 
   return {
     progress: clamped,
@@ -110,7 +116,7 @@ export function renderPatternHold(root: HTMLElement | null): PatternRenderState 
   });
 }
 
-function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
+function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -122,21 +128,31 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
     }
     const renderer = new PatternBloomRenderer(canvas);
     root.__r4PatternRenderer = renderer;
-    void renderer.start();
+    let disposed = false;
+    void renderer.start().then(() => renderer.prepareStaticFrame()).then(() => {
+      if (!disposed) {
+        registerHandle?.('pattern-texture', canvas);
+      }
+    });
     return () => {
+      disposed = true;
+      registerHandle?.('pattern-texture', null);
       renderer.destroy();
       delete canvas.dataset.inkTextureReady;
       if (root.__r4PatternRenderer === renderer) {
         delete root.__r4PatternRenderer;
       }
     };
-  }, []);
+  }, [registerHandle]);
 
   useEffect(() => {
     const root = rootRef.current as PatternRoot | null;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    root?.__r4PatternRenderer?.setRenderActive(!hidden, !hidden && !reduceMotion);
-  }, [hidden]);
+    root?.__r4PatternRenderer?.setRenderActive(
+      !hidden && role === 'current',
+      !hidden && !reduceMotion && role === 'current'
+    );
+  }, [hidden, role]);
 
   return (
     <article ref={rootRef} className="r4-pattern-scene" data-r4-scene="pattern">
@@ -161,10 +177,13 @@ export const patternScene: SceneModule = {
   id: 'pattern',
   Component: PatternScene,
   renderHold: renderPatternHold,
-  requiredHandles: ['copy'],
+  requiredHandles: ['copy', 'pattern-texture'],
   staticFallback: {
     sectionIds: ['belief'],
     text: PATTERN_COPY
   },
-  preload: () => ({ milestones: ['targetReady'] })
+  preload: async () => {
+    await preloadPatternAssets();
+    return { milestones: ['targetReady'] };
+  }
 };

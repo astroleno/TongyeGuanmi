@@ -69,6 +69,7 @@ export type DirectorMachineOptions = {
   manifest?: StoryManifest;
   actorEpoch?: string;
   prepareTimeoutMs?: number;
+  initialScene?: SceneId;
 };
 
 function nowFrom(event: DirectorEvent): number {
@@ -92,7 +93,10 @@ function holdRequiresFreshInput(manifest: StoryManifest, scene: SceneId): boolea
 
 function createInitialContext(options: DirectorMachineOptions = {}): DirectorContext {
   const manifest = options.manifest ?? storyManifest;
-  const initialScene = firstHold(manifest);
+  const initialScene = options.initialScene ?? firstHold(manifest);
+  if (!manifest.nodes.some((node) => node.kind === 'hold' && node.scene === initialScene)) {
+    throw new Error(`Director initial scene is not a manifest hold: ${initialScene}`);
+  }
   const now = Date.now();
   return {
     actorEpoch: options.actorEpoch ?? `director-${Math.random().toString(36).slice(2)}`,

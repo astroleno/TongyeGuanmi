@@ -106,11 +106,18 @@ export class HandleRegistry {
 
     entry.preloadStarted = true;
     const preloadFn = preload ?? entry.module?.preload;
-    entry.preloadPromise = Promise.resolve(preloadFn?.call(entry.module)).then((result) => {
+    const promise = Promise.resolve(preloadFn?.call(entry.module)).then((result) => {
       entry.preloadReady = true;
       return result;
     });
-    return entry.preloadPromise;
+    entry.preloadPromise = promise;
+    void promise.catch(() => {
+      if (entry.preloadPromise === promise) {
+        delete entry.preloadPromise;
+        entry.preloadStarted = false;
+      }
+    });
+    return promise;
   }
 
   markPreloadReady(scene: SceneId): void {

@@ -3,10 +3,13 @@ import { readPatternCenter, renderPatternHold, renderPatternProgress } from '../
 import { renderStarMapHold } from '../../scenes/star-map';
 import { hiddenVisibility, holdVisibility, range01 } from '../../pilot/visibility';
 import { createInkSegmentTransition, type InkSample } from '../shared/ink';
+import { PATTERN_COLLAPSE_STOP } from '../../story/timings';
 
-export const PATTERN_COLLAPSE_STOP = 0.5;
-export const PATTERN_COLLAPSE_MS = 1800;
-export const PATTERN_STAR_MAP_INK_MS = 1800;
+export {
+  PATTERN_COLLAPSE_MS,
+  PATTERN_COLLAPSE_STOP,
+  PATTERN_STAR_MAP_INK_MS
+} from '../../story/timings';
 
 function fieldProgress(progress: number): number {
   return range01(progress, PATTERN_COLLAPSE_STOP, 1);
@@ -43,7 +46,8 @@ export function createPatternStarMapTransition(options: { delayMs?: () => number
     renderSource: (root, mapped) => renderPatternProgress(root, mapped, {
       visible: true,
       copyProgress: 1,
-      rotationProgress: mapped
+      rotationProgress: mapped,
+      freezeMotion: true
     }),
     renderSourceProgress: collapseProgress,
     sample: (progress) => samplePatternThenStarMap(fieldProgress(progress)),

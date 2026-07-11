@@ -22,6 +22,7 @@ describe('star-map progress renderer', () => {
   it('keeps the canonical live Perlin owner active while visible', () => {
     expect(starMapMotionEnabled(true, false)).toBe(false);
     expect(starMapMotionEnabled(false, true)).toBe(false);
+    expect(starMapMotionEnabled(false, false, 'next')).toBe(false);
     expect(starMapMotionEnabled(false, false)).toBe(true);
   });
 

@@ -176,6 +176,7 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
       createDirectorRuntime({
         actorEpoch: `r4-g1-${mode}`,
         manifest,
+        prepareTimeoutMs: manifest.defaults.buildTimeoutMs + 1500,
         stage: stageHandle,
         transitions: {
           'hero-pattern': createHeroPatternTransition({ delayMs: () => buildDelayMs.current }),
@@ -183,7 +184,7 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
         },
         readyGate: {
           waitForTargetReady: async ({ targetScene }) => {
-            for (let attempt = 0; attempt < 80; attempt += 1) {
+            for (let attempt = 0; attempt < 240; attempt += 1) {
               if (registry.isTargetReady(targetScene)) {
                 return;
               }

@@ -1,37 +1,29 @@
 # React Refactor
 
-状态：R4 已完成人工视觉验收并进入收口；R5 尚未 cutover。本文档集现在记录实际 React runtime、迁移证据、阶段 goal 和 release gate，不再是 docs-only 计划。
+状态：R5 release candidate 已完成，等待 HITL cutover approval。`/`、根工具链、CI 与部署构建均已切到 production React StoryApp；旧 runtime 默认路径不可达。候选尚未合并或部署 `main`。
 
 ## 当前事实
 
-- 旧静态站事实基线固定为 `react-refactor-legacy-static-baseline`。
-- R4 人工视觉验收点固定为 `react-refactor-r4-visual-accepted`。
-- R5 从 `react-refactor-r4-closeout` 创建，不从 dirty worktree 或浮动 `main` 创建。
-- 当前 `app/` 已包含 canonical scene / transition 与 R4 harness，但 `/` 仍是 R0 scaffold；完整 production StoryApp、SEO prerender、默认命令和部署切换属于 R5。
-- R5 先产出 release candidate 并等待 HITL；R6 只能从 HITL 批准后的 cutover tag 开始，二者不得合并。
+- 旧静态站基线：`react-refactor-legacy-static-baseline` → `a78b064d65f024a301a3b179c62a458a1445bbf6`。
+- R4 视觉验收点：`react-refactor-r4-visual-accepted` → `55b8a123a7a5b28647c40acc81783ee37cd58302`。
+- R5 起点：`react-refactor-r4-closeout` → `c2a52dbefd99d2ee99ffa13db0abbdf7b760a143`。
+- R5 阶段分支：`codex/react-refactor-r5-parity-cutover`。
+- `/` 已覆盖完整 canonical spine；Director、Stage、真实输入、reading handoff、history/hash、菜单、reduced-motion 与 recovery 已接通。
+- public build 只装配 production module；scene/transition 按需加载，harness 只在开发 gate 下 lazy-load。
+- `dist/index.html` 在无 JS 时包含 8 个正文区、127 条非 legacy copy、metadata 与 hash anchors。
+- R5 candidate 通过自动化回归与预算，最终视觉、实体移动设备、SEO、性能与 rollback 仍需 HITL 同时批准。
 
 ## 阅读顺序
 
-1. `R4-CLOSEOUT.md`：R4 验收点、验证结果、TGG 媒体收口与 R5 起点。
-2. `goals/R5-parity-cutover.md`：生产组装、回归、SEO、性能、cutover/rollback 和 HITL gate。
-3. `goals/R6-cleanup.md`：cutover 后的破坏性清理与长期流程固化。
-4. `ROADMAP.md`：完整阶段链和依赖边界。
-5. `ARCHITECTURE.md`：Director / Stage / Segment / Scene / Transition 契约。
-6. `MIGRATION.md`：旧站素材、archive、旧 runtime 退役与 validation map。
-7. `decisions/seo-no-js.md`：已确认的静态预渲染 / crawlable HTML 契约。
+1. `reports/r5-candidate.md`：候选边界、验证汇总与 HITL gate。
+2. `reports/r5-regression-matrix.md`：设备、浏览器、输入、网络与 TTG 证据。
+3. `reports/r5-performance-budget.md`：legacy 对照、bundle、帧率、GPU/RSS/heap/dispose。
+4. `reports/r5-seo-no-js.md`：构建产物正文与无 JS 验证。
+5. `runbooks/react-cutover-rollback.md`：批准后的 cutover、触发回滚、恢复和 archive 策略。
+6. `decisions/react-default-runtime.md`：React 默认 runtime ADR。
+7. `goals/R5-parity-cutover.md` 与 `goals/R6-cleanup.md`：阶段边界。
 
-## 文档职责
-
-| 文档 | 负责回答 |
-|---|---|
-| `R4-CLOSEOUT.md` | R4 到底在哪个不可变点完成，哪些验证已经通过 |
-| `ROADMAP.md` | 阶段顺序、依赖和 release gate |
-| `ARCHITECTURE.md` | 新 runtime 的目标结构与不可破坏契约 |
-| `MIGRATION.md` | 旧站什么保留、什么归档、什么删除 |
-| `goals/*.md` | 每阶段输入、必须输出、禁止事项与验收 |
-| `inventory/validation-map.md` | 每条旧检查由什么长期验证取代 |
-
-## 分支链
+## 分支链与 gate
 
 ```txt
 react-refactor-legacy-static-baseline
@@ -39,9 +31,10 @@ react-refactor-legacy-static-baseline
                     └─ react-refactor-r4-visual-accepted
                          └─ react-refactor-r4-closeout
                               └─ codex/react-refactor-r5-parity-cutover
-                                   └─ HITL cutover approval
-                                        └─ react-refactor-r5-cutover
-                                             └─ codex/react-refactor-r6-cleanup
+                                   └─ react-refactor-r5-candidate
+                                        └─ HITL approval
+                                             └─ main deploy + react-refactor-r5-cutover
+                                                  └─ codex/react-refactor-r6-cleanup
 ```
 
-R5/R6 goal 中写明的 tag 是 release contract；变更 tag 含义必须同时更新 runbook、ROADMAP 和本索引。
+`react-refactor-r5-cutover` 只能在 HITL 明确批准并完成 main cutover 后建立；R6 不得从 candidate 或未批准的 main 开始。

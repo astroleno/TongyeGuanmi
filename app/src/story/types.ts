@@ -252,7 +252,7 @@ export type SegmentResult =
   | { status: 'failed'; runId: SegmentRunId; segment: SegmentId; error: Error };
 
 export type DirectorInputSource = 'wheel' | 'touch' | 'key';
-export type DirectorSeekSource = 'hash' | 'menu' | 'history';
+export type DirectorSeekSource = 'hash' | 'menu' | 'history' | 'recovery';
 
 export type StoryCursor =
   | { status: 'hold'; scene: SceneId }

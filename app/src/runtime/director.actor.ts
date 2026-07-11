@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from 'react';
 import { createActor } from 'xstate';
 import { canUseDOM } from './browser-guard';
 import { createDirectorMachine, type DirectorContext, type DirectorMachineOptions } from './director.machine';
@@ -43,10 +42,14 @@ export type StoryDebugSnapshot = {
 };
 
 export type DirectorRuntimeOptions = DirectorMachineOptions & {
+  autoStart?: boolean;
   ringBufferSize?: number;
   syntheticPlayMs?: number;
   syntheticBuildDelayMs?: number;
   transitions?: Partial<Record<SegmentId, TransitionModule>>;
+  transitionLoader?: (id: SegmentId) => Promise<TransitionModule> | TransitionModule;
+  useSyntheticTransitions?: boolean;
+  prefersReducedMotion?: boolean | (() => boolean);
   stage?: StageHandle;
   readyGate?: DirectorRuntimeReadyGate;
 };
@@ -70,6 +73,12 @@ export type DirectorRuntimeReadyGate = {
 };
 
 type RuntimeListener = () => void;
+
+type RecoveryEndpoint = {
+  segment: SegmentId;
+  direction: Direction;
+  scene: SceneId;
+};
 
 class EventRingBuffer {
   private readonly capacity: number;
@@ -151,6 +160,23 @@ function readingLayerCanScroll(
 
 function targetScene(segment: SpineSegmentNode, direction: Direction): SceneId {
   return direction === 1 ? segment.to : segment.from;
+}
+
+function recoveryEndpoint(context: DirectorContext, event: DirectorEvent): RecoveryEndpoint | undefined {
+  if (event.type === 'PREPARE_TIMEOUT' || event.type === 'BUILD_TIMEOUT') {
+    const segment = findSegment(context.manifest, event.segment);
+    const direction = context.pendingDirection ?? context.activeDirection ?? 1;
+    return { segment: segment.id, direction, scene: targetScene(segment, direction) };
+  }
+  if (event.type === 'PLAYBACK_FAILED' && context.activeSegment && context.activeDirection) {
+    const segment = findSegment(context.manifest, context.activeSegment);
+    return {
+      segment: segment.id,
+      direction: context.activeDirection,
+      scene: targetScene(segment, context.activeDirection)
+    };
+  }
+  return undefined;
 }
 
 function syntheticDelay(ms: number): Promise<void> {
@@ -247,8 +273,11 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
   let pendingScrubDelta = 0;
   let isStarted = false;
   let recreateActorOnStart = false;
+  let interactionGeneration = 0;
+  const activeRecoveries = new Set<string>();
   let cachedSnapshot: StoryDebugSnapshot | undefined;
   let actorSubscription: { unsubscribe(): void } | undefined;
+  const useSyntheticTransitions = options.useSyntheticTransitions ?? !options.transitionLoader;
 
   const runtime = {
     get actor() {
@@ -257,10 +286,15 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
     segmentPlayer: new SegmentPlayer({
       manifest,
       transitions: {
-        ...createSyntheticTransitions(manifest, options.syntheticPlayMs ?? 80, options.syntheticBuildDelayMs ?? 0),
+        ...(useSyntheticTransitions
+          ? createSyntheticTransitions(manifest, options.syntheticPlayMs ?? 80, options.syntheticBuildDelayMs ?? 0)
+          : {}),
         ...(options.transitions ?? {})
       },
+      ...(options.transitionLoader ? { transitionLoader: options.transitionLoader } : {}),
       ...(options.stage ? { stage: options.stage } : {}),
+      ...(options.prefersReducedMotion !== undefined ? { prefersReducedMotion: options.prefersReducedMotion } : {}),
+      ...(options.actorEpoch ? { actorEpoch: options.actorEpoch } : {}),
       mailbox: {
         send(event) {
           if (!isStarted) {
@@ -296,10 +330,21 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       handledRunId = undefined;
       handledRetiringKey = '';
       pendingScrubDelta = 0;
+      interactionGeneration += 1;
+      activeRecoveries.clear();
     },
     send(event: DirectorEvent): void {
-      const routed = routeEvent(event);
       const before = actor.getSnapshot();
+      const endpoint = recoveryEndpoint(before.context, event);
+      if (
+        event.type === 'INPUT_DELTA'
+        || event.type === 'CHARGE_FIRED'
+        || (event.type === 'SEEK' && event.source !== 'recovery')
+      ) {
+        interactionGeneration += 1;
+      }
+      const recoveryGeneration = interactionGeneration;
+      const routed = routeEvent(event);
       if (event.type === 'SEEK') {
         runtime.segmentPlayer.abort('seek');
       }
@@ -314,13 +359,21 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
         if (stagedResumeRunId && after.context.activeDirection) {
           runtime.segmentPlayer.resumeStaged(stagedResumeRunId, after.context.activeDirection);
         }
-        if (routed.type === 'BOOT_FAILED' || routed.type === 'BUILD_TIMEOUT' || routed.type === 'PLAYBACK_FAILED') {
+        if (
+          routed.type === 'BOOT_FAILED'
+          || routed.type === 'PREPARE_TIMEOUT'
+          || routed.type === 'BUILD_TIMEOUT'
+          || routed.type === 'PLAYBACK_FAILED'
+        ) {
           runtime.segmentPlayer.abort('recovery');
         }
         handleScrubInput(routed);
       }
       recordEvent(event);
       notifyListeners();
+      if (endpoint) {
+        void recoverToEndpoint(endpoint, recoveryGeneration);
+      }
     },
     getState(): StoryDebugSnapshot {
       return cachedSnapshot ?? refreshSnapshot();
@@ -549,6 +602,36 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
     });
   }
 
+  async function recoverToEndpoint(endpoint: RecoveryEndpoint, generation: number): Promise<void> {
+    const key = `${endpoint.segment}:${endpoint.direction}`;
+    if (activeRecoveries.has(key)) {
+      return;
+    }
+    activeRecoveries.add(key);
+    try {
+      const segment = findSegment(manifest, endpoint.segment);
+      await runtime.segmentPlayer.ensureBuilt(endpoint.segment, {
+        direction: endpoint.direction,
+        timeoutMs: segment.buildTimeoutMs ?? manifest.defaults.buildTimeoutMs
+      });
+      if (!isStarted || interactionGeneration !== generation) {
+        runtime.segmentPlayer.dispose(endpoint.segment);
+        return;
+      }
+      runtime.segmentPlayer.jumpToEnd(endpoint.segment, endpoint.direction);
+      runtime.segmentPlayer.dispose(endpoint.segment);
+      runtime.send({
+        type: 'SEEK',
+        label: `scene:${endpoint.scene}`,
+        source: 'recovery'
+      });
+    } catch {
+      runtime.segmentPlayer.dispose(endpoint.segment);
+    } finally {
+      activeRecoveries.delete(key);
+    }
+  }
+
   function handleScrubInput(event: DirectorEvent): void {
     if (event.type !== 'INPUT_DELTA' && event.type !== 'CHARGE_FIRED') {
       return;
@@ -606,25 +689,5 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
     runtime.segmentPlayer.scrub(context.activeSegment, Math.min(1, Math.max(0, currentProgress + effectiveDelta)));
   }
 
-  return runtime.start();
-}
-
-export const directorRuntime = createDirectorRuntime();
-
-export function useDirectorSnapshot(): StoryDebugSnapshot {
-  return useSyncExternalStore(
-    directorRuntime.subscribe,
-    directorRuntime.getState,
-    directorRuntime.getState
-  );
-}
-
-declare global {
-  interface Window {
-    __story?: typeof directorRuntime;
-  }
-}
-
-if (canUseDOM()) {
-  window.__story = directorRuntime;
+  return options.autoStart === false ? runtime : runtime.start();
 }

@@ -1,7 +1,7 @@
 # Roadmap：Cinematic Story Runtime 重写
 
 入口文档：`README.md`。配套文档：`ARCHITECTURE.md`（目标架构与契约）、`MIGRATION.md`（复用与退役清单），阶段执行清单见 `goals/`。
-本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地。旧站基线现固定为 `react-refactor-legacy-static-baseline`，R5 从 `react-refactor-r4-closeout` 开始；state-machine / scene-runtime 系列分支继续只作历史参考。
+本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地，R5 release candidate 已完成并等待 HITL。旧站基线固定为 `react-refactor-legacy-static-baseline`；state-machine / scene-runtime 系列分支继续只作历史参考。
 
 ## 当前执行纪律
 
@@ -176,6 +176,8 @@ main
 ## R5：生产组装、平价验收与可回滚切换
 
 **目标**：把 R4 scene/transition 组装成真正的 production StoryApp，整站替换旧静态站，并在任何破坏性清理前保留可执行 rollback。
+
+**状态**：release candidate 已完成。production `/`、默认工具链、SEO/no-JS、全站矩阵、性能预算与 rollback 演练已收口；当前停止在 HITL gate，尚未合并/部署 `main`，也未建立 `react-refactor-r5-cutover`。
 
 任务：
 

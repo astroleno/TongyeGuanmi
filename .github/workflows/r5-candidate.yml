@@ -1,0 +1,47 @@
+name: R5 React Production Candidate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - codex/react-refactor-r5-parity-cutover
+
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install workspace
+        run: |
+          corepack enable
+          corepack prepare pnpm@8.15.1 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Root quality and production build
+        run: pnpm run verify:all
+
+      - name: Install release browsers
+        run: pnpm -C app exec playwright install --with-deps chrome webkit
+
+      - name: Production browser matrix
+        run: pnpm -C app exec playwright test --config playwright.release.config.ts
+
+      - name: Harness contract regression
+        run: pnpm -C app exec playwright test
+
+      - name: Rebuild deployable artifact without harness routes
+        run: pnpm run deploy:build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r5-candidate-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

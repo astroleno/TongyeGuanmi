@@ -22,8 +22,12 @@ type StarMapRoot = HTMLElement & {
   __r4StarMapPaintController?: StarMapPaintController;
 };
 
-export function starMapMotionEnabled(hidden: boolean, reducedMotion: boolean): boolean {
-  return !hidden && !reducedMotion;
+export function starMapMotionEnabled(
+  hidden: boolean,
+  reducedMotion: boolean,
+  role: SceneComponentProps['role'] = 'current'
+): boolean {
+  return !hidden && !reducedMotion && role === 'current';
 }
 
 export function renderStarMapProgress(root: HTMLElement | null, progress: number): StarMapRenderState {
@@ -39,13 +43,9 @@ export function renderStarMapProgress(root: HTMLElement | null, progress: number
 
 export function renderStarMapHold(root: HTMLElement | null): void {
   renderStarMapProgress(root, 1);
-  const controlledRoot = root as StarMapRoot | null;
-  const reducedMotion = typeof window !== 'undefined'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  controlledRoot?.__r4StarMapPaintController?.setActive(!reducedMotion);
 }
 
-function StarMapScene({ hidden, registerHandle }: SceneComponentProps) {
+function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const paintControllerRef = useRef<{ setActive(active: boolean): void } | null>(null);
@@ -159,8 +159,8 @@ function StarMapScene({ hidden, registerHandle }: SceneComponentProps) {
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    paintControllerRef.current?.setActive(starMapMotionEnabled(hidden, reducedMotion));
-  }, [hidden]);
+    paintControllerRef.current?.setActive(starMapMotionEnabled(hidden, reducedMotion, role));
+  }, [hidden, role]);
 
   return (
     <article ref={rootRef} className="r3-star-map" data-r3-scene="star-map">

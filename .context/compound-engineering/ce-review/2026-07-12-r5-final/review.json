@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "runId": "2026-07-12-r5-final",
+  "mode": "interactive-safe-fix",
+  "scope": {
+    "base": "c2a52dbefd99d2ee99ffa13db0abbdf7b760a143",
+    "branch": "codex/react-refactor-r5-parity-cutover",
+    "requirements": "docs/react-refactor/goals/R5-parity-cutover.md"
+  },
+  "reviewers": [
+    "correctness",
+    "testing",
+    "maintainability",
+    "project-standards",
+    "agent-native",
+    "learnings",
+    "performance",
+    "api-contract",
+    "reliability",
+    "adversarial",
+    "typescript",
+    "frontend-races",
+    "cli-readiness"
+  ],
+  "executionNote": "Review lenses were run sequentially by the primary agent because repository policy prohibits unapproved subagents.",
+  "appliedFixes": [
+    "Evict rejected scene, transition, preload, and Pattern asset promises so stale failures are not permanently cached.",
+    "Make the latest asynchronous navigation request authoritative and contain lazy-load failures without corrupting history.",
+    "Resolve destroyed Pattern static-frame waiters and cover the startup/dispose race.",
+    "Use locale-independent release-manifest ordering and verify consecutive build identity.",
+    "Create harness lazy components once at module scope instead of during Suspense retries.",
+    "Preserve public #home/#method hash semantics and the clean root URL.",
+    "Add explicit TTG poster/first-frame checks, a favicon, one static h1, and actionable console error locations.",
+    "Separate media-request failure from real offline/online recovery evidence.",
+    "Let the current Hero hold boot independently of a slow next-scene prefetch while retaining LayerWindow preloading.",
+    "Install the actual Chrome channel used by CI and correct SPA-fallback curl smoke semantics.",
+    "Measure production hold readiness separately from static-shell LCP.",
+    "Align the historical G1 contract with the frozen Star Map idle layer during transition while retaining live hold motion."
+  ],
+  "residualActionableWork": [],
+  "advisoryOnly": [
+    "HITL must inspect physical desktop Safari, iOS Safari, and Android Chrome input/visual behavior.",
+    "Live crawler/search-console verification occurs only after an approved deployment.",
+    "No merge or deployment to main is authorized before explicit HITL approval."
+  ],
+  "requirementsCompleteness": "All R5 implementation and automated validation requirements are represented; clean rollback rehearsal and immutable candidate tagging remain the release-finalization steps.",
+  "verdict": "ready_for_candidate_rehearsal"
+}

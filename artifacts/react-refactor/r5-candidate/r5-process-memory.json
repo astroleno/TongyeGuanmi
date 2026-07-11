@@ -1,0 +1,4629 @@
+{
+  "schemaVersion": 1,
+  "environment": "macOS / Chrome hardware process-tree sample",
+  "sampleIntervalMs": 250,
+  "budgets": {
+    "peakBrowserTreeRssBytes": 1500000000,
+    "peakGpuProcessRssBytes": 536870912,
+    "peakRendererRssBytes": 1073741824,
+    "settledHeapFractionOfPeak": 0.9
+  },
+  "actual": {
+    "peakBrowserTreeRssBytes": 1495482368,
+    "peakGpuProcessRssBytes": 323321856,
+    "peakRendererRssBytes": 866467840,
+    "peakJsHeapBytes": 28609150,
+    "finalJsHeapBytes": 12456224,
+    "peakCanvasPixelBytes": 11657408,
+    "maxMountedLayers": 3,
+    "maxWebglCanvasesAtHold": 1
+  },
+  "pass": true,
+  "holds": [
+    {
+      "direction": "boot",
+      "phase": "hold",
+      "current": "hero",
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "virtualProgress": 0,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 1,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 1,
+      "loadedScenes": [
+        "hero",
+        "pattern"
+      ],
+      "loadedTransitions": [
+        "hero-pattern"
+      ],
+      "lifecycle": {
+        "mounted": 2,
+        "disposed": 0,
+        "releasedCanvases": 0,
+        "releasedVideos": 0
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 3807607,
+      "canvasPixelBytes": 5184000
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "pattern",
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "virtualProgress": 0.0622876557191393,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 2,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map"
+      ],
+      "lifecycle": {
+        "mounted": 3,
+        "disposed": 0,
+        "releasedCanvases": 0,
+        "releasedVideos": 0
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 17799079,
+      "canvasPixelBytes": 11477408
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "star-map",
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern",
+        "next": "aod-animation"
+      },
+      "virtualProgress": 0.16421291053227632,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 3,
+      "webglCanvases": 1,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod"
+      ],
+      "lifecycle": {
+        "mounted": 4,
+        "disposed": 1,
+        "releasedCanvases": 0,
+        "releasedVideos": 1
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 16976187,
+      "canvasPixelBytes": 11657408
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "aod-animation",
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "virtualProgress": 0.19818799546998866,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 2,
+      "webglCanvases": 1,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top"
+      ],
+      "lifecycle": {
+        "mounted": 5,
+        "disposed": 2,
+        "releasedCanvases": 1,
+        "releasedVideos": 1
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 16299456,
+      "canvasPixelBytes": 6293408
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "method-top",
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "prev": "aod-animation",
+        "next": "figure2-animation"
+      },
+      "virtualProgress": 0.2718006795016987,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 1,
+      "webglCanvases": 1,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2"
+      ],
+      "lifecycle": {
+        "mounted": 6,
+        "disposed": 3,
+        "releasedCanvases": 2,
+        "releasedVideos": 1
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 18852323,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "figure2-animation",
+      "layerWindow": {
+        "current": "figure2-animation",
+        "retiring": [],
+        "prev": "method-top",
+        "next": "figure2-proof-opening"
+      },
+      "virtualProgress": 0.3057757644394111,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand"
+      ],
+      "lifecycle": {
+        "mounted": 7,
+        "disposed": 4,
+        "releasedCanvases": 3,
+        "releasedVideos": 2
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 19825581,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "figure2-proof-opening",
+      "layerWindow": {
+        "current": "figure2-proof-opening",
+        "retiring": [],
+        "prev": "figure2-animation",
+        "next": "figure2-proof-cards"
+      },
+      "virtualProgress": 0.4218573046432616,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards"
+      ],
+      "lifecycle": {
+        "mounted": 8,
+        "disposed": 5,
+        "releasedCanvases": 3,
+        "releasedVideos": 2
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 22589773,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "figure2-proof-cards",
+      "layerWindow": {
+        "current": "figure2-proof-cards",
+        "retiring": [],
+        "prev": "figure2-proof-opening",
+        "next": "figure2-proof-closing"
+      },
+      "virtualProgress": 0.44733861834654587,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 0,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing"
+      ],
+      "lifecycle": {
+        "mounted": 9,
+        "disposed": 6,
+        "releasedCanvases": 3,
+        "releasedVideos": 4
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 23301838,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "figure2-proof-closing",
+      "layerWindow": {
+        "current": "figure2-proof-closing",
+        "retiring": [],
+        "prev": "figure2-proof-cards",
+        "next": "brand"
+      },
+      "virtualProgress": 0.47281993204983014,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 0,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand"
+      ],
+      "lifecycle": {
+        "mounted": 10,
+        "disposed": 7,
+        "releasedCanvases": 3,
+        "releasedVideos": 4
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 16466606,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "brand",
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "prev": "figure2-proof-closing",
+        "next": "figure3-animation"
+      },
+      "virtualProgress": 0.5067950169875425,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3"
+      ],
+      "lifecycle": {
+        "mounted": 10,
+        "disposed": 8,
+        "releasedCanvases": 3,
+        "releasedVideos": 4
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5177365,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "figure3-animation",
+      "layerWindow": {
+        "current": "figure3-animation",
+        "retiring": [],
+        "prev": "brand",
+        "next": "services"
+      },
+      "virtualProgress": 0.5407701019252548,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services"
+      ],
+      "lifecycle": {
+        "mounted": 12,
+        "disposed": 9,
+        "releasedCanvases": 3,
+        "releasedVideos": 4
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5380508,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "services",
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "prev": "figure3-animation",
+        "next": "ttg-animation"
+      },
+      "virtualProgress": 0.5973952434881087,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg"
+      ],
+      "lifecycle": {
+        "mounted": 12,
+        "disposed": 10,
+        "releasedCanvases": 3,
+        "releasedVideos": 4
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5601385,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "ttg-animation",
+      "layerWindow": {
+        "current": "ttg-animation",
+        "retiring": [],
+        "prev": "services",
+        "next": "lab"
+      },
+      "virtualProgress": 0.6313703284258211,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab"
+      ],
+      "lifecycle": {
+        "mounted": 14,
+        "disposed": 11,
+        "releasedCanvases": 3,
+        "releasedVideos": 5
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5474170,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "lab",
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation",
+        "next": "ph-animation"
+      },
+      "virtualProgress": 0.7361268403171007,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph"
+      ],
+      "lifecycle": {
+        "mounted": 15,
+        "disposed": 12,
+        "releasedCanvases": 3,
+        "releasedVideos": 5
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5781995,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "ph-animation",
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "virtualProgress": 0.7701019252548131,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education"
+      ],
+      "lifecycle": {
+        "mounted": 16,
+        "disposed": 13,
+        "releasedCanvases": 3,
+        "releasedVideos": 7
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5669684,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "education",
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation",
+        "next": "crane-animation"
+      },
+      "virtualProgress": 0.8471121177802945,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane"
+      ],
+      "lifecycle": {
+        "mounted": 16,
+        "disposed": 14,
+        "releasedCanvases": 3,
+        "releasedVideos": 7
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5556067,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "crane-animation",
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "prev": "education",
+        "next": "contact"
+      },
+      "virtualProgress": 0.8810872027180068,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 18,
+        "disposed": 15,
+        "releasedCanvases": 3,
+        "releasedVideos": 8
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5774353,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "contact",
+      "layerWindow": {
+        "current": "contact",
+        "retiring": [],
+        "prev": "crane-animation"
+      },
+      "virtualProgress": 1,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 18,
+        "disposed": 16,
+        "releasedCanvases": 3,
+        "releasedVideos": 8
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5562237,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward-settled",
+      "phase": "hold",
+      "current": "contact",
+      "layerWindow": {
+        "current": "contact",
+        "retiring": [],
+        "prev": "crane-animation"
+      },
+      "virtualProgress": 1,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 18,
+        "disposed": 16,
+        "releasedCanvases": 3,
+        "releasedVideos": 8
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5586893,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "crane-animation",
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "prev": "education",
+        "next": "contact"
+      },
+      "virtualProgress": 0.8810872027180068,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 19,
+        "disposed": 16,
+        "releasedCanvases": 3,
+        "releasedVideos": 8
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5380855,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "education",
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation",
+        "next": "crane-animation"
+      },
+      "virtualProgress": 0.8471121177802945,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 20,
+        "disposed": 17,
+        "releasedCanvases": 3,
+        "releasedVideos": 8
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5252651,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "ph-animation",
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "virtualProgress": 0.7701019252548131,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 21,
+        "disposed": 18,
+        "releasedCanvases": 3,
+        "releasedVideos": 10
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5468494,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "lab",
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation",
+        "next": "ph-animation"
+      },
+      "virtualProgress": 0.7361268403171007,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 22,
+        "disposed": 19,
+        "releasedCanvases": 3,
+        "releasedVideos": 10
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5327629,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "ttg-animation",
+      "layerWindow": {
+        "current": "ttg-animation",
+        "retiring": [],
+        "prev": "services",
+        "next": "lab"
+      },
+      "virtualProgress": 0.6313703284258211,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 23,
+        "disposed": 20,
+        "releasedCanvases": 3,
+        "releasedVideos": 11
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 6105381,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "services",
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "prev": "figure3-animation",
+        "next": "ttg-animation"
+      },
+      "virtualProgress": 0.5973952434881087,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 24,
+        "disposed": 21,
+        "releasedCanvases": 3,
+        "releasedVideos": 11
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5947150,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "figure3-animation",
+      "layerWindow": {
+        "current": "figure3-animation",
+        "retiring": [],
+        "prev": "brand",
+        "next": "services"
+      },
+      "virtualProgress": 0.5407701019252548,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 25,
+        "disposed": 22,
+        "releasedCanvases": 3,
+        "releasedVideos": 13
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5853072,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "brand",
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "prev": "figure2-proof-closing",
+        "next": "figure3-animation"
+      },
+      "virtualProgress": 0.5067950169875425,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 26,
+        "disposed": 23,
+        "releasedCanvases": 3,
+        "releasedVideos": 13
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5341583,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "figure2-proof-closing",
+      "layerWindow": {
+        "current": "figure2-proof-closing",
+        "retiring": [],
+        "prev": "figure2-proof-cards",
+        "next": "brand"
+      },
+      "virtualProgress": 0.47281993204983014,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 0,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 27,
+        "disposed": 24,
+        "releasedCanvases": 3,
+        "releasedVideos": 14
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 6164835,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "figure2-proof-cards",
+      "layerWindow": {
+        "current": "figure2-proof-cards",
+        "retiring": [],
+        "prev": "figure2-proof-opening",
+        "next": "figure2-proof-closing"
+      },
+      "virtualProgress": 0.44733861834654587,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 0,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 28,
+        "disposed": 25,
+        "releasedCanvases": 3,
+        "releasedVideos": 14
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5976659,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "figure2-proof-opening",
+      "layerWindow": {
+        "current": "figure2-proof-opening",
+        "retiring": [],
+        "prev": "figure2-animation",
+        "next": "figure2-proof-cards"
+      },
+      "virtualProgress": 0.4218573046432616,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 29,
+        "disposed": 26,
+        "releasedCanvases": 3,
+        "releasedVideos": 14
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5373761,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "figure2-animation",
+      "layerWindow": {
+        "current": "figure2-animation",
+        "retiring": [],
+        "prev": "method-top",
+        "next": "figure2-proof-opening"
+      },
+      "virtualProgress": 0.3057757644394111,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 30,
+        "disposed": 27,
+        "releasedCanvases": 3,
+        "releasedVideos": 14
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 6248595,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "method-top",
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "prev": "aod-animation",
+        "next": "figure2-animation"
+      },
+      "virtualProgress": 0.2718006795016987,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 1,
+      "webglCanvases": 1,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 31,
+        "disposed": 28,
+        "releasedCanvases": 3,
+        "releasedVideos": 14
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 5414161,
+      "canvasPixelBytes": 180000
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "aod-animation",
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "virtualProgress": 0.19818799546998866,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 2,
+      "webglCanvases": 1,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 32,
+        "disposed": 29,
+        "releasedCanvases": 3,
+        "releasedVideos": 16
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 28609150,
+      "canvasPixelBytes": 6473408
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "star-map",
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern",
+        "next": "aod-animation"
+      },
+      "virtualProgress": 0.16421291053227632,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 3,
+      "webglCanvases": 1,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 33,
+        "disposed": 30,
+        "releasedCanvases": 3,
+        "releasedVideos": 16
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 13462059,
+      "canvasPixelBytes": 11477408
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "pattern",
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "virtualProgress": 0.0622876557191393,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 2,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 34,
+        "disposed": 31,
+        "releasedCanvases": 4,
+        "releasedVideos": 17
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 19303907,
+      "canvasPixelBytes": 11477408
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "hero",
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "virtualProgress": 0,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 1,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 34,
+        "disposed": 32,
+        "releasedCanvases": 5,
+        "releasedVideos": 17
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 13154910,
+      "canvasPixelBytes": 5184000
+    },
+    {
+      "direction": "reverse-settled",
+      "phase": "hold",
+      "current": "hero",
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "virtualProgress": 0,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 1,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 34,
+        "disposed": 32,
+        "releasedCanvases": 5,
+        "releasedVideos": 17
+      },
+      "reducedMotion": false,
+      "usedJsHeapBytes": 12456224,
+      "canvasPixelBytes": 5184000
+    }
+  ],
+  "processSamples": [
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 405667840,
+      "gpuRssBytes": 63438848,
+      "rendererRssBytes": 0,
+      "processCount": 5
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 649576448,
+      "gpuRssBytes": 120078336,
+      "rendererRssBytes": 191234048,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1010565120,
+      "gpuRssBytes": 214827008,
+      "rendererRssBytes": 415170560,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1083932672,
+      "gpuRssBytes": 249561088,
+      "rendererRssBytes": 465469440,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1007271936,
+      "gpuRssBytes": 243318784,
+      "rendererRssBytes": 417497088,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1103200256,
+      "gpuRssBytes": 321208320,
+      "rendererRssBytes": 456753152,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1093468160,
+      "gpuRssBytes": 322174976,
+      "rendererRssBytes": 459882496,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1095516160,
+      "gpuRssBytes": 323321856,
+      "rendererRssBytes": 461373440,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1094500352,
+      "gpuRssBytes": 323026944,
+      "rendererRssBytes": 462405632,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1085898752,
+      "gpuRssBytes": 321683456,
+      "rendererRssBytes": 463568896,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1089224704,
+      "gpuRssBytes": 321994752,
+      "rendererRssBytes": 466550784,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1086685184,
+      "gpuRssBytes": 312770560,
+      "rendererRssBytes": 467075072,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1097809920,
+      "gpuRssBytes": 298369024,
+      "rendererRssBytes": 494469120,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1108869120,
+      "gpuRssBytes": 298434560,
+      "rendererRssBytes": 504741888,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1123565568,
+      "gpuRssBytes": 298450944,
+      "rendererRssBytes": 518799360,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1134018560,
+      "gpuRssBytes": 297336832,
+      "rendererRssBytes": 530235392,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1137459200,
+      "gpuRssBytes": 296599552,
+      "rendererRssBytes": 534298624,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1132052480,
+      "gpuRssBytes": 290013184,
+      "rendererRssBytes": 534921216,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1131216896,
+      "gpuRssBytes": 287358976,
+      "rendererRssBytes": 536756224,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1126301696,
+      "gpuRssBytes": 281165824,
+      "rendererRssBytes": 538017792,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1127464960,
+      "gpuRssBytes": 280231936,
+      "rendererRssBytes": 540082176,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1083588608,
+      "gpuRssBytes": 235962368,
+      "rendererRssBytes": 540491776,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1086341120,
+      "gpuRssBytes": 235782144,
+      "rendererRssBytes": 543408128,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1090764800,
+      "gpuRssBytes": 235896832,
+      "rendererRssBytes": 547684352,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1093124096,
+      "gpuRssBytes": 235749376,
+      "rendererRssBytes": 550092800,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1098317824,
+      "gpuRssBytes": 235732992,
+      "rendererRssBytes": 554827776,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1093451776,
+      "gpuRssBytes": 228966400,
+      "rendererRssBytes": 545030144,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1117765632,
+      "gpuRssBytes": 243187712,
+      "rendererRssBytes": 558628864,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1120026624,
+      "gpuRssBytes": 244056064,
+      "rendererRssBytes": 560021504,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1119567872,
+      "gpuRssBytes": 242466816,
+      "rendererRssBytes": 561070080,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1119436800,
+      "gpuRssBytes": 242368512,
+      "rendererRssBytes": 561037312,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1119764480,
+      "gpuRssBytes": 242401280,
+      "rendererRssBytes": 561217536,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1134723072,
+      "gpuRssBytes": 246759424,
+      "rendererRssBytes": 571785216,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1135443968,
+      "gpuRssBytes": 246857728,
+      "rendererRssBytes": 572063744,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1008074752,
+      "gpuRssBytes": 182386688,
+      "rendererRssBytes": 509050880,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1009025024,
+      "gpuRssBytes": 182321152,
+      "rendererRssBytes": 510083072,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1009369088,
+      "gpuRssBytes": 181534720,
+      "rendererRssBytes": 511033344,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 975339520,
+      "gpuRssBytes": 176996352,
+      "rendererRssBytes": 495288320,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 947175424,
+      "gpuRssBytes": 159973376,
+      "rendererRssBytes": 484196352,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 947634176,
+      "gpuRssBytes": 159973376,
+      "rendererRssBytes": 484524032,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 947699712,
+      "gpuRssBytes": 159973376,
+      "rendererRssBytes": 484589568,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 956760064,
+      "gpuRssBytes": 159940608,
+      "rendererRssBytes": 486768640,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1043726336,
+      "gpuRssBytes": 160464896,
+      "rendererRssBytes": 561037312,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1291059200,
+      "gpuRssBytes": 308330496,
+      "rendererRssBytes": 660406272,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1133199360,
+      "gpuRssBytes": 266141696,
+      "rendererRssBytes": 561758208,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1133330432,
+      "gpuRssBytes": 266190848,
+      "rendererRssBytes": 561856512,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1133215744,
+      "gpuRssBytes": 266125312,
+      "rendererRssBytes": 561807360,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1133215744,
+      "gpuRssBytes": 266108928,
+      "rendererRssBytes": 561823744,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1140948992,
+      "gpuRssBytes": 267026432,
+      "rendererRssBytes": 566411264,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1148518400,
+      "gpuRssBytes": 272023552,
+      "rendererRssBytes": 568918016,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1158463488,
+      "gpuRssBytes": 278429696,
+      "rendererRssBytes": 572440576,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1158610944,
+      "gpuRssBytes": 278429696,
+      "rendererRssBytes": 572588032,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1158823936,
+      "gpuRssBytes": 278364160,
+      "rendererRssBytes": 572932096,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1122926592,
+      "gpuRssBytes": 260292608,
+      "rendererRssBytes": 555106304,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1040203776,
+      "gpuRssBytes": 177160192,
+      "rendererRssBytes": 555515904,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1040580608,
+      "gpuRssBytes": 177209344,
+      "rendererRssBytes": 555843584,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1040760832,
+      "gpuRssBytes": 177209344,
+      "rendererRssBytes": 556023808,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1031749632,
+      "gpuRssBytes": 168181760,
+      "rendererRssBytes": 556040192,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1065353216,
+      "gpuRssBytes": 196706304,
+      "rendererRssBytes": 562233344,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1062584320,
+      "gpuRssBytes": 196952064,
+      "rendererRssBytes": 560414720,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1062928384,
+      "gpuRssBytes": 197312512,
+      "rendererRssBytes": 560398336,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1056997376,
+      "gpuRssBytes": 191119360,
+      "rendererRssBytes": 560660480,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1050722304,
+      "gpuRssBytes": 191053824,
+      "rendererRssBytes": 554336256,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1067089920,
+      "gpuRssBytes": 187678720,
+      "rendererRssBytes": 556417024,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1060012032,
+      "gpuRssBytes": 183435264,
+      "rendererRssBytes": 553533440,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1060225024,
+      "gpuRssBytes": 183435264,
+      "rendererRssBytes": 553779200,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1060372480,
+      "gpuRssBytes": 183435264,
+      "rendererRssBytes": 553828352,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1024311296,
+      "gpuRssBytes": 183435264,
+      "rendererRssBytes": 517750784,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1037975552,
+      "gpuRssBytes": 183484416,
+      "rendererRssBytes": 531333120,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1037811712,
+      "gpuRssBytes": 183402496,
+      "rendererRssBytes": 531234816,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1037828096,
+      "gpuRssBytes": 183402496,
+      "rendererRssBytes": 531251200,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1037828096,
+      "gpuRssBytes": 183402496,
+      "rendererRssBytes": 531251200,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1037860864,
+      "gpuRssBytes": 183402496,
+      "rendererRssBytes": 531267584,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1041629184,
+      "gpuRssBytes": 185450496,
+      "rendererRssBytes": 532987904,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1033715712,
+      "gpuRssBytes": 177045504,
+      "rendererRssBytes": 533479424,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1033584640,
+      "gpuRssBytes": 176898048,
+      "rendererRssBytes": 533495808,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1033650176,
+      "gpuRssBytes": 176930816,
+      "rendererRssBytes": 533528576,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1033306112,
+      "gpuRssBytes": 176750592,
+      "rendererRssBytes": 533430272,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1057947648,
+      "gpuRssBytes": 176652288,
+      "rendererRssBytes": 551911424,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1071644672,
+      "gpuRssBytes": 176652288,
+      "rendererRssBytes": 565608448,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1103151104,
+      "gpuRssBytes": 193380352,
+      "rendererRssBytes": 580386816,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1103118336,
+      "gpuRssBytes": 193380352,
+      "rendererRssBytes": 580386816,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1103183872,
+      "gpuRssBytes": 193396736,
+      "rendererRssBytes": 580435968,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1103085568,
+      "gpuRssBytes": 193282048,
+      "rendererRssBytes": 580452352,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1107656704,
+      "gpuRssBytes": 193298432,
+      "rendererRssBytes": 585023488,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1107689472,
+      "gpuRssBytes": 193298432,
+      "rendererRssBytes": 585056256,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1113423872,
+      "gpuRssBytes": 198868992,
+      "rendererRssBytes": 585187328,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1113686016,
+      "gpuRssBytes": 198868992,
+      "rendererRssBytes": 585449472,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1114374144,
+      "gpuRssBytes": 198868992,
+      "rendererRssBytes": 586121216,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1114914816,
+      "gpuRssBytes": 199065600,
+      "rendererRssBytes": 586498048,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1114996736,
+      "gpuRssBytes": 199147520,
+      "rendererRssBytes": 586498048,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1114800128,
+      "gpuRssBytes": 198918144,
+      "rendererRssBytes": 586514432,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1114816512,
+      "gpuRssBytes": 198918144,
+      "rendererRssBytes": 586514432,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1205272576,
+      "gpuRssBytes": 198606848,
+      "rendererRssBytes": 648642560,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1400766464,
+      "gpuRssBytes": 288686080,
+      "rendererRssBytes": 754008064,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1432715264,
+      "gpuRssBytes": 317325312,
+      "rendererRssBytes": 757284864,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1433124864,
+      "gpuRssBytes": 317718528,
+      "rendererRssBytes": 757284864,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1433059328,
+      "gpuRssBytes": 317669376,
+      "rendererRssBytes": 757268480,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1432977408,
+      "gpuRssBytes": 317652992,
+      "rendererRssBytes": 757268480,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1409236992,
+      "gpuRssBytes": 309362688,
+      "rendererRssBytes": 741801984,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1419689984,
+      "gpuRssBytes": 312737792,
+      "rendererRssBytes": 748470272,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1423622144,
+      "gpuRssBytes": 312737792,
+      "rendererRssBytes": 751747072,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1425670144,
+      "gpuRssBytes": 312737792,
+      "rendererRssBytes": 753795072,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1425539072,
+      "gpuRssBytes": 312672256,
+      "rendererRssBytes": 753795072,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1425539072,
+      "gpuRssBytes": 312672256,
+      "rendererRssBytes": 753795072,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1329774592,
+      "gpuRssBytes": 264634368,
+      "rendererRssBytes": 705773568,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1237794816,
+      "gpuRssBytes": 172261376,
+      "rendererRssBytes": 705789952,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1237991424,
+      "gpuRssBytes": 172408832,
+      "rendererRssBytes": 705822720,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1238024192,
+      "gpuRssBytes": 172408832,
+      "rendererRssBytes": 705839104,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1243611136,
+      "gpuRssBytes": 177356800,
+      "rendererRssBytes": 706478080,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1240334336,
+      "gpuRssBytes": 174047232,
+      "rendererRssBytes": 706510848,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1235386368,
+      "gpuRssBytes": 169082880,
+      "rendererRssBytes": 706527232,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1235009536,
+      "gpuRssBytes": 168689664,
+      "rendererRssBytes": 706543616,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1234862080,
+      "gpuRssBytes": 168624128,
+      "rendererRssBytes": 706461696,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1234878464,
+      "gpuRssBytes": 168607744,
+      "rendererRssBytes": 706461696,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1309605888,
+      "gpuRssBytes": 167428096,
+      "rendererRssBytes": 763150336,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1321713664,
+      "gpuRssBytes": 211582976,
+      "rendererRssBytes": 740540416,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1248985088,
+      "gpuRssBytes": 211910656,
+      "rendererRssBytes": 677789696,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1246248960,
+      "gpuRssBytes": 211910656,
+      "rendererRssBytes": 675201024,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1246068736,
+      "gpuRssBytes": 211812352,
+      "rendererRssBytes": 675119104,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1238319104,
+      "gpuRssBytes": 211795968,
+      "rendererRssBytes": 675119104,
+      "processCount": 8
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1197670400,
+      "gpuRssBytes": 212025344,
+      "rendererRssBytes": 640958464,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1198096384,
+      "gpuRssBytes": 212025344,
+      "rendererRssBytes": 641384448,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1198260224,
+      "gpuRssBytes": 212025344,
+      "rendererRssBytes": 641515520,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1198374912,
+      "gpuRssBytes": 212025344,
+      "rendererRssBytes": 641630208,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1133428736,
+      "gpuRssBytes": 166051840,
+      "rendererRssBytes": 622657536,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1138196480,
+      "gpuRssBytes": 170524672,
+      "rendererRssBytes": 622952448,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1138409472,
+      "gpuRssBytes": 170721280,
+      "rendererRssBytes": 622968832,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1138442240,
+      "gpuRssBytes": 170737664,
+      "rendererRssBytes": 622985216,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1138475008,
+      "gpuRssBytes": 170754048,
+      "rendererRssBytes": 623001600,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1136803840,
+      "gpuRssBytes": 169132032,
+      "rendererRssBytes": 622952448,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1136803840,
+      "gpuRssBytes": 169132032,
+      "rendererRssBytes": 622952448,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1375928320,
+      "gpuRssBytes": 170459136,
+      "rendererRssBytes": 728612864,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1433960448,
+      "gpuRssBytes": 206389248,
+      "rendererRssBytes": 750698496,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1437450240,
+      "gpuRssBytes": 209567744,
+      "rendererRssBytes": 751009792,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1437679616,
+      "gpuRssBytes": 209780736,
+      "rendererRssBytes": 751026176,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1437466624,
+      "gpuRssBytes": 209633280,
+      "rendererRssBytes": 750960640,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1437450240,
+      "gpuRssBytes": 209616896,
+      "rendererRssBytes": 750960640,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1407434752,
+      "gpuRssBytes": 212402176,
+      "rendererRssBytes": 718159872,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1407500288,
+      "gpuRssBytes": 212418560,
+      "rendererRssBytes": 718192640,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1407516672,
+      "gpuRssBytes": 212418560,
+      "rendererRssBytes": 718209024,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1410744320,
+      "gpuRssBytes": 215547904,
+      "rendererRssBytes": 718307328,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1410646016,
+      "gpuRssBytes": 215482368,
+      "rendererRssBytes": 718323712,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1410809856,
+      "gpuRssBytes": 215482368,
+      "rendererRssBytes": 718487552,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1349894144,
+      "gpuRssBytes": 169705472,
+      "rendererRssBytes": 703348736,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1350041600,
+      "gpuRssBytes": 169689088,
+      "rendererRssBytes": 703512576,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1350516736,
+      "gpuRssBytes": 169689088,
+      "rendererRssBytes": 703987712,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1350762496,
+      "gpuRssBytes": 169689088,
+      "rendererRssBytes": 704233472,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1350844416,
+      "gpuRssBytes": 169689088,
+      "rendererRssBytes": 704315392,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1356038144,
+      "gpuRssBytes": 174505984,
+      "rendererRssBytes": 704626688,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1357807616,
+      "gpuRssBytes": 174489600,
+      "rendererRssBytes": 706412544,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1357807616,
+      "gpuRssBytes": 174489600,
+      "rendererRssBytes": 706412544,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1357856768,
+      "gpuRssBytes": 174489600,
+      "rendererRssBytes": 706428928,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1355431936,
+      "gpuRssBytes": 172048384,
+      "rendererRssBytes": 706428928,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1355563008,
+      "gpuRssBytes": 172113920,
+      "rendererRssBytes": 706428928,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1355563008,
+      "gpuRssBytes": 172097536,
+      "rendererRssBytes": 706428928,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1355563008,
+      "gpuRssBytes": 172097536,
+      "rendererRssBytes": 706428928,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1355563008,
+      "gpuRssBytes": 172097536,
+      "rendererRssBytes": 706428928,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1355563008,
+      "gpuRssBytes": 172097536,
+      "rendererRssBytes": 706428928,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1355563008,
+      "gpuRssBytes": 172097536,
+      "rendererRssBytes": 706428928,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1344700416,
+      "gpuRssBytes": 161398784,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1344569344,
+      "gpuRssBytes": 161333248,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1344569344,
+      "gpuRssBytes": 161333248,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1344569344,
+      "gpuRssBytes": 161333248,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1344569344,
+      "gpuRssBytes": 161333248,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1343848448,
+      "gpuRssBytes": 160612352,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1343848448,
+      "gpuRssBytes": 160612352,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1342816256,
+      "gpuRssBytes": 159580160,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1342816256,
+      "gpuRssBytes": 159580160,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1342816256,
+      "gpuRssBytes": 159580160,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1342832640,
+      "gpuRssBytes": 159580160,
+      "rendererRssBytes": 706265088,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1345191936,
+      "gpuRssBytes": 161890304,
+      "rendererRssBytes": 706314240,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1345191936,
+      "gpuRssBytes": 161890304,
+      "rendererRssBytes": 706314240,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1348354048,
+      "gpuRssBytes": 165036032,
+      "rendererRssBytes": 706330624,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1348386816,
+      "gpuRssBytes": 165052416,
+      "rendererRssBytes": 706347008,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1351286784,
+      "gpuRssBytes": 167919616,
+      "rendererRssBytes": 706379776,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1351680000,
+      "gpuRssBytes": 167919616,
+      "rendererRssBytes": 706772992,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1351892992,
+      "gpuRssBytes": 167919616,
+      "rendererRssBytes": 706985984,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1352204288,
+      "gpuRssBytes": 167936000,
+      "rendererRssBytes": 707297280,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1352286208,
+      "gpuRssBytes": 167968768,
+      "rendererRssBytes": 707346432,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1352482816,
+      "gpuRssBytes": 168050688,
+      "rendererRssBytes": 707461120,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1352548352,
+      "gpuRssBytes": 168050688,
+      "rendererRssBytes": 707461120,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1352548352,
+      "gpuRssBytes": 168050688,
+      "rendererRssBytes": 707461120,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1352548352,
+      "gpuRssBytes": 168050688,
+      "rendererRssBytes": 707461120,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1352056832,
+      "gpuRssBytes": 167559168,
+      "rendererRssBytes": 707461120,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1347846144,
+      "gpuRssBytes": 163299328,
+      "rendererRssBytes": 707510272,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1347387392,
+      "gpuRssBytes": 163102720,
+      "rendererRssBytes": 707379200,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1272233984,
+      "gpuRssBytes": 160841728,
+      "rendererRssBytes": 655720448,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1250230272,
+      "gpuRssBytes": 159875072,
+      "rendererRssBytes": 637026304,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1221574656,
+      "gpuRssBytes": 159924224,
+      "rendererRssBytes": 613597184,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1221640192,
+      "gpuRssBytes": 159940608,
+      "rendererRssBytes": 613646336,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1221509120,
+      "gpuRssBytes": 159858688,
+      "rendererRssBytes": 613597184,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1220804608,
+      "gpuRssBytes": 159186944,
+      "rendererRssBytes": 613564416,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1306083328,
+      "gpuRssBytes": 203161600,
+      "rendererRssBytes": 653656064,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1255391232,
+      "gpuRssBytes": 202817536,
+      "rendererRssBytes": 611647488,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1237204992,
+      "gpuRssBytes": 198623232,
+      "rendererRssBytes": 598294528,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1237352448,
+      "gpuRssBytes": 198656000,
+      "rendererRssBytes": 598409216,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1176780800,
+      "gpuRssBytes": 155959296,
+      "rendererRssBytes": 580599808,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1175257088,
+      "gpuRssBytes": 155615232,
+      "rendererRssBytes": 579420160,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1172684800,
+      "gpuRssBytes": 152502272,
+      "rendererRssBytes": 579895296,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1173110784,
+      "gpuRssBytes": 152502272,
+      "rendererRssBytes": 580321280,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1162395648,
+      "gpuRssBytes": 152518656,
+      "rendererRssBytes": 569589760,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1169948672,
+      "gpuRssBytes": 152403968,
+      "rendererRssBytes": 577208320,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1145257984,
+      "gpuRssBytes": 157417472,
+      "rendererRssBytes": 545374208,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1142603776,
+      "gpuRssBytes": 159449088,
+      "rendererRssBytes": 542048256,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 939900928,
+      "gpuRssBytes": 159547392,
+      "rendererRssBytes": 428769280,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 940376064,
+      "gpuRssBytes": 159662080,
+      "rendererRssBytes": 428949504,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 940343296,
+      "gpuRssBytes": 159580160,
+      "rendererRssBytes": 428998656,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 940343296,
+      "gpuRssBytes": 159563776,
+      "rendererRssBytes": 429015040,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1162412032,
+      "gpuRssBytes": 188432384,
+      "rendererRssBytes": 606388224,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1295269888,
+      "gpuRssBytes": 292274176,
+      "rendererRssBytes": 635404288,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1295450112,
+      "gpuRssBytes": 292421632,
+      "rendererRssBytes": 635437056,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1295499264,
+      "gpuRssBytes": 292421632,
+      "rendererRssBytes": 635453440,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1080229888,
+      "gpuRssBytes": 153960448,
+      "rendererRssBytes": 558694400,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1092730880,
+      "gpuRssBytes": 157270016,
+      "rendererRssBytes": 567721984,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1096220672,
+      "gpuRssBytes": 157302784,
+      "rendererRssBytes": 571179008,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1096630272,
+      "gpuRssBytes": 157302784,
+      "rendererRssBytes": 571555840,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1096826880,
+      "gpuRssBytes": 157319168,
+      "rendererRssBytes": 571736064,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1096974336,
+      "gpuRssBytes": 157319168,
+      "rendererRssBytes": 571883520,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1097154560,
+      "gpuRssBytes": 157319168,
+      "rendererRssBytes": 572063744,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1097383936,
+      "gpuRssBytes": 157319168,
+      "rendererRssBytes": 572293120,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1097547776,
+      "gpuRssBytes": 157319168,
+      "rendererRssBytes": 572456960,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1097662464,
+      "gpuRssBytes": 157220864,
+      "rendererRssBytes": 572669952,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1097646080,
+      "gpuRssBytes": 157204480,
+      "rendererRssBytes": 572669952,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1072676864,
+      "gpuRssBytes": 162234368,
+      "rendererRssBytes": 542572544,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1072758784,
+      "gpuRssBytes": 162283520,
+      "rendererRssBytes": 542588928,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1072840704,
+      "gpuRssBytes": 162267136,
+      "rendererRssBytes": 542687232,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1072873472,
+      "gpuRssBytes": 162283520,
+      "rendererRssBytes": 542703616,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1072807936,
+      "gpuRssBytes": 162185216,
+      "rendererRssBytes": 542736384,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1103364096,
+      "gpuRssBytes": 162201600,
+      "rendererRssBytes": 572112896,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1106198528,
+      "gpuRssBytes": 164970496,
+      "rendererRssBytes": 572112896,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1106296832,
+      "gpuRssBytes": 165068800,
+      "rendererRssBytes": 572112896,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1106395136,
+      "gpuRssBytes": 165134336,
+      "rendererRssBytes": 572145664,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1106984960,
+      "gpuRssBytes": 165134336,
+      "rendererRssBytes": 572702720,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1106870272,
+      "gpuRssBytes": 165068800,
+      "rendererRssBytes": 572719104,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1107263488,
+      "gpuRssBytes": 165068800,
+      "rendererRssBytes": 572882944,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1107378176,
+      "gpuRssBytes": 165068800,
+      "rendererRssBytes": 572882944,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1107361792,
+      "gpuRssBytes": 165052416,
+      "rendererRssBytes": 572882944,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1054212096,
+      "gpuRssBytes": 158793728,
+      "rendererRssBytes": 525844480,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1054572544,
+      "gpuRssBytes": 159154176,
+      "rendererRssBytes": 525844480,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1054638080,
+      "gpuRssBytes": 159186944,
+      "rendererRssBytes": 525860864,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1054670848,
+      "gpuRssBytes": 159186944,
+      "rendererRssBytes": 525860864,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1054490624,
+      "gpuRssBytes": 159088640,
+      "rendererRssBytes": 525778944,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1054474240,
+      "gpuRssBytes": 159072256,
+      "rendererRssBytes": 525778944,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1075511296,
+      "gpuRssBytes": 159367168,
+      "rendererRssBytes": 542605312,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1219575808,
+      "gpuRssBytes": 236879872,
+      "rendererRssBytes": 609140736,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1220034560,
+      "gpuRssBytes": 237289472,
+      "rendererRssBytes": 609173504,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1220231168,
+      "gpuRssBytes": 237436928,
+      "rendererRssBytes": 609222656,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1220083712,
+      "gpuRssBytes": 237355008,
+      "rendererRssBytes": 609157120,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1219936256,
+      "gpuRssBytes": 237273088,
+      "rendererRssBytes": 609157120,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1198735360,
+      "gpuRssBytes": 237355008,
+      "rendererRssBytes": 587792384,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1198800896,
+      "gpuRssBytes": 237404160,
+      "rendererRssBytes": 587808768,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1198850048,
+      "gpuRssBytes": 237404160,
+      "rendererRssBytes": 587743232,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1198899200,
+      "gpuRssBytes": 237404160,
+      "rendererRssBytes": 587759616,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1198899200,
+      "gpuRssBytes": 237387776,
+      "rendererRssBytes": 587759616,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1199063040,
+      "gpuRssBytes": 237404160,
+      "rendererRssBytes": 587890688,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1199046656,
+      "gpuRssBytes": 237371392,
+      "rendererRssBytes": 587907072,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1199046656,
+      "gpuRssBytes": 237371392,
+      "rendererRssBytes": 587907072,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1199046656,
+      "gpuRssBytes": 237371392,
+      "rendererRssBytes": 587907072,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1222852608,
+      "gpuRssBytes": 237371392,
+      "rendererRssBytes": 597508096,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1282228224,
+      "gpuRssBytes": 243712000,
+      "rendererRssBytes": 654131200,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1382924288,
+      "gpuRssBytes": 316735488,
+      "rendererRssBytes": 681705472,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1383088128,
+      "gpuRssBytes": 316964864,
+      "rendererRssBytes": 681639936,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1339359232,
+      "gpuRssBytes": 272990208,
+      "rendererRssBytes": 681885696,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1340473344,
+      "gpuRssBytes": 273629184,
+      "rendererRssBytes": 682426368,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1340620800,
+      "gpuRssBytes": 273678336,
+      "rendererRssBytes": 682524672,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1340637184,
+      "gpuRssBytes": 273694720,
+      "rendererRssBytes": 682524672,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1340751872,
+      "gpuRssBytes": 273743872,
+      "rendererRssBytes": 682590208,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1340981248,
+      "gpuRssBytes": 273743872,
+      "rendererRssBytes": 682819584,
+      "processCount": 7
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1341128704,
+      "gpuRssBytes": 273743872,
+      "rendererRssBytes": 682950656,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1341276160,
+      "gpuRssBytes": 273743872,
+      "rendererRssBytes": 683098112,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1341456384,
+      "gpuRssBytes": 273760256,
+      "rendererRssBytes": 683261952,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1341521920,
+      "gpuRssBytes": 273760256,
+      "rendererRssBytes": 683327488,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1341538304,
+      "gpuRssBytes": 273776640,
+      "rendererRssBytes": 683327488,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1328939008,
+      "gpuRssBytes": 267403264,
+      "rendererRssBytes": 676986880,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1328939008,
+      "gpuRssBytes": 267403264,
+      "rendererRssBytes": 676986880,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1331937280,
+      "gpuRssBytes": 267894784,
+      "rendererRssBytes": 679280640,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1331937280,
+      "gpuRssBytes": 267894784,
+      "rendererRssBytes": 679280640,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1332150272,
+      "gpuRssBytes": 268107776,
+      "rendererRssBytes": 679280640,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1274871808,
+      "gpuRssBytes": 210812928,
+      "rendererRssBytes": 679297024,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1274707968,
+      "gpuRssBytes": 210731008,
+      "rendererRssBytes": 679215104,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1274675200,
+      "gpuRssBytes": 210698240,
+      "rendererRssBytes": 679215104,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1325793280,
+      "gpuRssBytes": 210583552,
+      "rendererRssBytes": 729907200,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1334476800,
+      "gpuRssBytes": 219267072,
+      "rendererRssBytes": 729907200,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1334493184,
+      "gpuRssBytes": 219267072,
+      "rendererRssBytes": 729923584,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1334640640,
+      "gpuRssBytes": 219250688,
+      "rendererRssBytes": 730087424,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1358446592,
+      "gpuRssBytes": 237535232,
+      "rendererRssBytes": 735608832,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1358610432,
+      "gpuRssBytes": 237502464,
+      "rendererRssBytes": 735870976,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1358938112,
+      "gpuRssBytes": 237502464,
+      "rendererRssBytes": 736198656,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1359331328,
+      "gpuRssBytes": 237502464,
+      "rendererRssBytes": 736542720,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1359347712,
+      "gpuRssBytes": 237502464,
+      "rendererRssBytes": 736559104,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1256751104,
+      "gpuRssBytes": 175095808,
+      "rendererRssBytes": 696369152,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1256734720,
+      "gpuRssBytes": 175079424,
+      "rendererRssBytes": 696369152,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1274003456,
+      "gpuRssBytes": 187072512,
+      "rendererRssBytes": 708001792,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1280376832,
+      "gpuRssBytes": 190234624,
+      "rendererRssBytes": 711213056,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1280458752,
+      "gpuRssBytes": 190234624,
+      "rendererRssBytes": 711262208,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1280458752,
+      "gpuRssBytes": 190218240,
+      "rendererRssBytes": 711278592,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1280294912,
+      "gpuRssBytes": 190136320,
+      "rendererRssBytes": 711196672,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1280278528,
+      "gpuRssBytes": 190119936,
+      "rendererRssBytes": 711196672,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1292894208,
+      "gpuRssBytes": 198230016,
+      "rendererRssBytes": 715653120,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1441726464,
+      "gpuRssBytes": 286736384,
+      "rendererRssBytes": 775929856,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1443282944,
+      "gpuRssBytes": 287080448,
+      "rendererRssBytes": 777125888,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1442480128,
+      "gpuRssBytes": 285868032,
+      "rendererRssBytes": 777535488,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1440481280,
+      "gpuRssBytes": 286130176,
+      "rendererRssBytes": 776077312,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1441234944,
+      "gpuRssBytes": 286310400,
+      "rendererRssBytes": 776716288,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1442103296,
+      "gpuRssBytes": 286425088,
+      "rendererRssBytes": 777469952,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1443545088,
+      "gpuRssBytes": 286605312,
+      "rendererRssBytes": 778731520,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1445249024,
+      "gpuRssBytes": 287784960,
+      "rendererRssBytes": 779239424,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1445330944,
+      "gpuRssBytes": 287817728,
+      "rendererRssBytes": 779255808,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1445330944,
+      "gpuRssBytes": 287817728,
+      "rendererRssBytes": 779255808,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1444773888,
+      "gpuRssBytes": 287227904,
+      "rendererRssBytes": 779272192,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1442283520,
+      "gpuRssBytes": 286965760,
+      "rendererRssBytes": 777060352,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1438957568,
+      "gpuRssBytes": 286375936,
+      "rendererRssBytes": 774488064,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1432682496,
+      "gpuRssBytes": 286261248,
+      "rendererRssBytes": 769196032,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1415757824,
+      "gpuRssBytes": 283951104,
+      "rendererRssBytes": 758923264,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1447624704,
+      "gpuRssBytes": 283410432,
+      "rendererRssBytes": 787628032,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1491910656,
+      "gpuRssBytes": 297893888,
+      "rendererRssBytes": 817430528,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1495482368,
+      "gpuRssBytes": 299925504,
+      "rendererRssBytes": 818954240,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1451573248,
+      "gpuRssBytes": 255983616,
+      "rendererRssBytes": 818987008,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1452048384,
+      "gpuRssBytes": 256278528,
+      "rendererRssBytes": 819167232,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1452048384,
+      "gpuRssBytes": 256278528,
+      "rendererRssBytes": 819167232,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1451966464,
+      "gpuRssBytes": 256180224,
+      "rendererRssBytes": 819183616,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1451933696,
+      "gpuRssBytes": 256114688,
+      "rendererRssBytes": 819281920,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1451802624,
+      "gpuRssBytes": 256000000,
+      "rendererRssBytes": 819265536,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1451933696,
+      "gpuRssBytes": 255672320,
+      "rendererRssBytes": 819560448,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1440251904,
+      "gpuRssBytes": 247824384,
+      "rendererRssBytes": 815579136,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1471152128,
+      "gpuRssBytes": 247824384,
+      "rendererRssBytes": 846430208,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1472479232,
+      "gpuRssBytes": 247824384,
+      "rendererRssBytes": 847691776,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1472430080,
+      "gpuRssBytes": 247824384,
+      "rendererRssBytes": 847593472,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1472446464,
+      "gpuRssBytes": 247824384,
+      "rendererRssBytes": 847593472,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1476902912,
+      "gpuRssBytes": 247824384,
+      "rendererRssBytes": 852033536,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1479229440,
+      "gpuRssBytes": 247824384,
+      "rendererRssBytes": 854360064,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1479294976,
+      "gpuRssBytes": 247758848,
+      "rendererRssBytes": 854523904,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1479376896,
+      "gpuRssBytes": 247283712,
+      "rendererRssBytes": 855048192,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1459847168,
+      "gpuRssBytes": 227753984,
+      "rendererRssBytes": 854966272,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1458651136,
+      "gpuRssBytes": 226672640,
+      "rendererRssBytes": 854818816,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1458601984,
+      "gpuRssBytes": 226689024,
+      "rendererRssBytes": 854720512,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1467416576,
+      "gpuRssBytes": 226623488,
+      "rendererRssBytes": 863584256,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1467465728,
+      "gpuRssBytes": 226639872,
+      "rendererRssBytes": 863617024,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1469202432,
+      "gpuRssBytes": 226639872,
+      "rendererRssBytes": 865337344,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1470332928,
+      "gpuRssBytes": 226623488,
+      "rendererRssBytes": 866467840,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1470021632,
+      "gpuRssBytes": 226639872,
+      "rendererRssBytes": 866123776,
+      "processCount": 6
+    },
+    {
+      "browserPid": 79329,
+      "totalRssBytes": 1469743104,
+      "gpuRssBytes": 226656256,
+      "rendererRssBytes": 865828864,
+      "processCount": 6
+    }
+  ]
+}

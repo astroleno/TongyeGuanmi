@@ -293,7 +293,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(canonicalStarHandoff.starMapCanvasOpacity).toBeGreaterThan(0.8);
     expect(canonicalStarHandoff.starMapTransitionPaused).toBe(false);
     expect(canonicalStarHandoff.starMapCanvasFilter).toContain('brightness(0.92)');
-    expect(canonicalStarHandoff.starMapCanvasMotionActive).toBe(true);
+    expect(canonicalStarHandoff.starMapCanvasMotionActive).toBe(false);
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubPatternStarMap(0);
     });
@@ -320,7 +320,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(patternStarMapInk?.starMapLayerClipPath).toContain('circle(');
     expect(patternStarMapInk?.starMapCanvasTextureUploads ?? 99).toBeLessThanOrEqual(3);
     expect(patternStarMapInk?.starMapSnapshotCaptures).toBe(0);
-    expect(patternStarMapInk?.starMapCanvasMotionActive).toBe(true);
+    expect(patternStarMapInk?.starMapCanvasMotionActive).toBe(false);
     expect(patternStarMapInk?.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
     expect(patternStarMapInk?.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);
     expect(patternStarMapInk?.patternProgress).toBe(1);

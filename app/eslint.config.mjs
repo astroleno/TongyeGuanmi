@@ -10,7 +10,7 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['*.config.{js,mjs,ts}', 'eslint-rules/**/*.mjs'],
+    files: ['*.config.{js,mjs,ts}', 'eslint-rules/**/*.mjs', 'scripts/**/*.mjs'],
     languageOptions: {
       globals: {
         ...globals.node

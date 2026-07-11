@@ -53,6 +53,26 @@ describe('HandleRegistry', () => {
     expect(preload).toHaveBeenCalledTimes(1);
   });
 
+  it('evicts a rejected preload so a later readiness attempt can recover', async () => {
+    const registry = new HandleRegistry();
+    const preload = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary image outage'))
+      .mockResolvedValueOnce({ milestones: ['targetReady'] as const });
+    const module: SceneModule = {
+      id: 'hero',
+      Component: () => null,
+      renderHold: () => undefined,
+      preload
+    };
+    registry.registerScene(module);
+
+    await expect(registry.startPreload('hero')).rejects.toThrow('temporary image outage');
+    await expect(registry.startPreload('hero')).resolves.toEqual({ milestones: ['targetReady'] });
+
+    expect(preload).toHaveBeenCalledTimes(2);
+    expect(registry.snapshotScene('hero').preloadReady).toBe(true);
+  });
+
   it('accepts duplicate mediaReady only once and rejects stale events', () => {
     const registry = new HandleRegistry();
     registry.beginMediaGate('synthetic-video', { prepareToken: 'epoch:prepare:1' });

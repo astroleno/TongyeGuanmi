@@ -1,14 +1,14 @@
 # ADR: SEO And No-JS Content Strategy
 
-Status: accepted. Static prerendering / crawlable HTML is the R5 cutover contract; a client-only empty `#root` shell is not acceptable for the public entry.
+Status: implemented in the R5 candidate. Crawlable HTML is emitted by the Vite `static-story-shell` build plugin; a client-only empty `#root` shell remains forbidden for the public entry.
 
-Accepted for implementation: 2026-07-12. R5 must record artifact-level evidence in `docs/react-refactor/reports/r5-seo-no-js.md` before cutover approval.
+Accepted for implementation: 2026-07-12. Artifact-level evidence is recorded in `docs/react-refactor/reports/r5-seo-no-js.md`.
 
 ## Decision
 
-Use static prerendering for public marketing pages.
+Use a build-time static story shell for the public marketing entry.
 
-The React rewrite must ship crawlable HTML that already contains the core page copy before client JavaScript runs. JS may hydrate/enhance cinematic playback, but it must not be the only source of marketing copy.
+`app/build/static-shell.ts` serializes the accepted copy reference into `dist/index.html` during Vite build. JS hydrates/enhances cinematic playback, but is not the source of the marketing text baseline. The shell is hidden only after StoryApp reaches a valid hold and marks the document hydrated.
 
 ## Current Baseline Facts
 
@@ -44,9 +44,7 @@ R5 cutover cannot pass unless:
 - Reduced-motion/no-JS path does not hide core content behind `opacity: 0`, `visibility: hidden`, `inert`, or an unremoved loader.
 - Any old `#philosophy` retirement is explicit: either no public promise links to it, or the duplicate brand copy is intentionally merged into `brand`/`contact`.
 
-## Implementation Direction
-
-R5 must select a Vite-compatible static prerender path for the marketing entry. The exact library/tooling may vary, but the artifact contract is fixed here:
+## Implemented Artifact Contract
 
 ```txt
 dist/index.html
@@ -56,4 +54,4 @@ dist/index.html
   does not require JS for the text baseline
 ```
 
-If full prerendering is impractical, R5 must produce a replacement ADR before implementation and still provide a crawlable HTML shell with all copy baseline text. The shell cannot be empty placeholders.
+`verify-release-build.mjs` extracts visible text from the built artifact and checks 127 non-legacy copy items across 8 static sections. JavaScript-disabled Chromium/WebKit projects verify visibility, scrolling, metadata and anchors. `#philosophy` is intentionally retired: no public navigation promises it and the duplicate material is represented in the accepted brand/contact copy.

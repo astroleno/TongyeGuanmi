@@ -162,7 +162,7 @@ describe('PatternBloomRenderer', () => {
       .filter((canvas) => canvas.dataset.patternTextureRole === 'ring' && canvas.width > 0)
       .length;
     let previousBuilt = builtRingCount();
-    for (let frame = 0; frame < 8 && harness.rafCount(); frame += 1) {
+    for (let frame = 0; frame < 16 && harness.rafCount(); frame += 1) {
       harness.flushRaf(frame * 16.67);
       const nextBuilt = builtRingCount();
       expect(nextBuilt - previousBuilt).toBeLessThanOrEqual(1);
@@ -170,7 +170,7 @@ describe('PatternBloomRenderer', () => {
       expect(harness.canvas.dataset.inkTextureRevision).toBeUndefined();
     }
 
-    expect(previousBuilt).toBe(6);
+    expect(previousBuilt).toBe(12);
     expect(harness.rafCount()).toBe(0);
     renderer.setMotionEnabled(true);
     expect(harness.rafCount()).toBe(1);
@@ -182,7 +182,7 @@ describe('PatternBloomRenderer', () => {
     renderer.destroy();
   });
 
-  it('restores Main DPR at a 1280x720 viewport without exceeding the 1.25 cap', async () => {
+  it('caps the full-screen animated canvas at CSS-pixel resolution', async () => {
     const harness = installRendererDom(2);
     const renderer = new PatternBloomRenderer(harness.canvas);
 
@@ -190,9 +190,21 @@ describe('PatternBloomRenderer', () => {
     renderer.setMotionEnabled(true);
     harness.flushRaf();
 
-    expect(harness.canvas.width).toBe(1600);
-    expect(harness.canvas.height).toBe(900);
+    expect(harness.canvas.width).toBe(1280);
+    expect(harness.canvas.height).toBe(720);
     renderer.destroy();
+  });
+
+  it('does not leave a static-frame waiter pending after destruction during startup', async () => {
+    const harness = installRendererDom();
+    const renderer = new PatternBloomRenderer(harness.canvas);
+
+    const start = renderer.start();
+    renderer.destroy();
+    await start;
+
+    await expect(renderer.prepareStaticFrame()).resolves.toBeUndefined();
+    expect(harness.rafCount()).toBe(0);
   });
 
   it('renders once for coalesced scroll progress updates', async () => {
@@ -277,7 +289,7 @@ describe('PatternBloomRenderer', () => {
 
     await renderer.start();
     renderer.setRenderActive(true, false);
-    for (let frame = 0; frame < 8 && harness.rafCount(); frame += 1) {
+    for (let frame = 0; frame < 16 && harness.rafCount(); frame += 1) {
       harness.flushRaf(frame * 16.67);
     }
 
@@ -285,7 +297,7 @@ describe('PatternBloomRenderer', () => {
       .map(({ value }) => value as FakeCanvas)
       .filter((canvas) => canvas.dataset.patternTextureRole === 'ring' && canvas.width > 0)
       .length;
-    expect(builtRingCount).toBe(6);
+    expect(builtRingCount).toBe(12);
     expect(Number(harness.canvas.dataset.inkTextureRevision)).toBe(1);
     expect(harness.canvas.dataset.inkTextureReady).toBe('true');
     expect(harness.rafCount()).toBe(0);
@@ -298,7 +310,7 @@ describe('PatternBloomRenderer', () => {
 
     await renderer.start();
     renderer.setRenderActive(true, true);
-    for (let frame = 0; frame < 8; frame += 1) {
+    for (let frame = 0; frame < 16; frame += 1) {
       renderer.setFrameProgress(frame / 60, frame / 60);
       harness.flushRaf(frame * (1000 / 60));
     }
@@ -315,12 +327,12 @@ describe('PatternBloomRenderer', () => {
     renderer.destroy();
   });
 
-  it('rebuilds persistent ring textures for structural progress but not for idle motion', async () => {
+  it('prebuilds endpoint ring textures and reuses them for structural progress and idle motion', async () => {
     const harness = installRendererDom();
     const renderer = new PatternBloomRenderer(harness.canvas);
     await renderer.start();
     renderer.setMotionEnabled(true);
-    for (let frame = 0; frame < 8 && harness.rafCount(); frame += 1) {
+    for (let frame = 0; frame < 16 && harness.rafCount(); frame += 1) {
       harness.flushRaf(frame * 48);
     }
 
@@ -336,7 +348,7 @@ describe('PatternBloomRenderer', () => {
     const compact = ringBuilds();
     harness.flushRaf(528);
 
-    expect(compact - initial).toBe(6);
+    expect(compact - initial).toBe(0);
     expect(ringBuilds()).toBe(compact);
     renderer.destroy();
   });
@@ -347,7 +359,7 @@ describe('PatternBloomRenderer', () => {
 
     await renderer.start();
     renderer.setMotionEnabled(true);
-    for (let frame = 0; frame < 8 && harness.rafCount(); frame += 1) {
+    for (let frame = 0; frame < 16 && harness.rafCount(); frame += 1) {
       harness.flushRaf(frame * 48);
     }
 
@@ -355,7 +367,7 @@ describe('PatternBloomRenderer', () => {
     harness.flushRaf(480);
     const ringCanvases = harness.createElement.mock.results
       .map(({ value }) => value as FakeCanvas)
-      .filter((canvas) => canvas.dataset.patternTextureRole === 'ring');
+      .filter((canvas) => canvas.dataset.patternTextureEndpoint === 'end');
     const outputContext = (harness.canvas as unknown as FakeCanvas).context;
 
     expect(ringCanvases.map((canvas) => canvas.width)).toEqual([320, 320, 320, 320, 320, 320]);

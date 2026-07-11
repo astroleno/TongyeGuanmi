@@ -1,8 +1,8 @@
 # Validation Map
 
-Status: R0-R4 replacement coverage has landed. The remaining open work is R5 production/prerender/cutover verification followed by R6 final `replaced / retained / retired` disposition.
+Status: R5 replacement coverage is closed. Default root commands and CI now validate production React; old scripts remain only behind explicit `legacy:*` aliases for rollback. R6 owns physical deletion/final archive cleanup after approved cutover.
 
-Required columns are present on every row:
+Required columns:
 
 `oldScript | oldAssertionSummary | oldAssertionCategory | newCoverageType | targetPhase | owner | automated | baselineGuard | r5Disposition | gapStatus`
 
@@ -10,44 +10,41 @@ Required columns are present on every row:
 
 | oldScript | oldAssertionSummary | oldAssertionCategory | newCoverageType | targetPhase | owner | automated | baselineGuard | r5Disposition | gapStatus |
 |---|---|---|---|---|---|---|---|---|---|
-| `verify:copy` | Runs `scripts/check-copy-alignment.mjs`; ensures required source copy exists in generated `index.html` and stale rewritten copy is gone. | copy alignment | Vitest | R0 copy baseline, R5 parity | R0 copy owner | yes | continue through R5 via old-site baseline guard | delete after new prerender copy diff and R5 SEO/no-JS extraction pass | mapped; R0-R4 coverage landed; R5/R6 disposition remains |
-| `verify:ink-modules` | Runs `scripts/check-ink-modules.mjs`; checks ES module bootstrap, ink exports, keyword budget, reduced motion CSS, bottom-up exit ink surface. | adapter contract | ESLint | R0 lint/type scaffold, R2 transition contract | R0/R2 runtime owner | yes | continue until app ink/transition module contracts are green | delete when app ESLint and transition contract tests cover the invariants | mapped; R0-R4 coverage landed; R5/R6 disposition remains |
-| `verify:scroll-modules` | Runs `scripts/check-scroll-modules.mjs`; checks Lenis wiring, anchor alignment, long-canvas, nav/reveal compatibility, removal of stale snap stage. | scroll/runtime integration | Vitest | R1 input/charge/router, R5 no-JS/hash UAT | R1 runtime owner | yes | continue while old site remains deployable | delete at R5 because Lenis is retired from core runtime | mapped; R1 coverage landed; R5 production/hash verification remains |
-| `verify:section-transitions` | Runs `scripts/check-section-transition-contract.mjs`; checks generated section/transition order, attrs, manifest consistency, handoff attrs, stale ids. | build/index/manifest injection | Vitest | R0 inventory schema and manifest tests | R0 manifest owner | yes | continue through R0-R4 as old baseline | delete when `story/manifest.ts` schema tests and prerender extraction cover equivalent facts | mapped; R0-R4 coverage landed; R5/R6 disposition remains |
-| `verify:transition-runtime` | Runs `scripts/check-transition-runtime.mjs`; checks shared route-entry helpers, component exports, route HTML markers, media/scrub contracts for AOD/Figure2/TTG/PH. | adapter contract | TS 类型 | R0 types, R2 synthetic contracts, R3 pilot | R0/R2/R3 owners | yes | continue until corresponding app SceneModule/TransitionModule contracts exist | delete after R5 if all old route-entry pages are replaced by harness routes | mapped; R0-R4 coverage landed; R5 route retirement remains |
-| `verify:homepage-transitions` | Runs `scripts/check-homepage-transition-integration.mjs`; checks all homepage modules, staged snap, direct hash skip, target gates, copy ownership, Figure2 proof overlay, TTG native playback. | handoff/runtime integration | Playwright | R2 stage handoff, R3 pilot, R4 full migration | R2/R3/R4 owners | yes | continue as strongest old homepage guard until R5 | delete only after R5 visual parity matrix and app Playwright suite pass | mapped; R2-R4 coverage landed; R5 full-production parity remains |
-| `verify:handoff-ownership` | Runs `scripts/check-handoff-ownership.mjs`; checks handoff schema, target entry policies, no cloneNode copy, receiver restore, ghost markings. | handoff ownership | Playwright | R2 stage handoff contract | R2 Stage owner | yes | continue through R4 | delete after app handoff contract and visual ownership Playwright tests pass at R5 | mapped; R2-R4 coverage landed; R5 production verification remains |
-| `verify:all` | Runs `build:page` plus all root `verify:*` scripts in sequence. | CI baseline aggregate | CI baseline guard | R0 CI through R5 cutover | release owner | yes | continue as default old-site guard unless this map is superseded by a confirmed subset | retire at R5 cutover when old static site is archived | mapped; dual-run CI exists; R5 default CI cutover remains |
+| `verify:copy` | Generated HTML copy alignment | Vitest/build extraction | Vitest | R0/R5 | copy/SEO | yes | immutable legacy tag | replaced by `copy-baseline` tests plus `verify-release-build.mjs`; legacy alias retained | closed for R5; deletion deferred to R6 |
+| `verify:ink-modules` | Ink exports, reduced motion and module shape | adapter contract | ESLint + Vitest | R2/R5 | transition | yes | R4 harness | replaced by lint, ink lifecycle/contract tests and production browser matrix | closed for R5 |
+| `verify:scroll-modules` | Lenis, anchors and scroll integration | input/runtime | Vitest + Playwright | R1/R5 | runtime | yes | legacy tag | Lenis retired; input controller, reading handoff and hash tests replace it | closed for R5 |
+| `verify:section-transitions` | Section order, attrs and manifest consistency | manifest/build | TS + Vitest | R0/R5 | manifest | yes | canonical spine | replaced by typed manifest/canonical spine tests and static shell anchors | closed for R5 |
+| `verify:transition-runtime` | Adapter/media/scrub route contracts | runtime contract | TS + Vitest | R2-R5 | runtime | yes | R4 harness | replaced by Scene/TransitionModule contracts, media gates and lazy loaders | closed for R5 |
+| `verify:homepage-transitions` | Homepage integration, staged snap, hash and media | full integration | Playwright | R2-R5 | release | yes | legacy/R4 tags | replaced by 41-test harness suite plus R5 production matrix | closed for R5 |
+| `verify:handoff-ownership` | Handoff ownership/no clone/ghost cleanup | Stage ownership | Vitest + Playwright | R2-R5 | Stage | yes | R4 harness | replaced by LayerWindow/Stage/ink ownership tests and layer invariants | closed for R5 |
+| old `verify:all` | Legacy build plus all static checks | CI aggregate | CI | R5 | release | yes | `legacy:verify:all` | root `verify:all` now lint + typecheck + 418 Vitest + release build; old aggregate is explicit legacy only | closed for R5 |
 
 ## Check Scripts
 
 | oldScript | oldAssertionSummary | oldAssertionCategory | newCoverageType | targetPhase | owner | automated | baselineGuard | r5Disposition | gapStatus |
 |---|---|---|---|---|---|---|---|---|---|
-| `scripts/check-copy-alignment.mjs` | Extracts visible text from current `index.html`, searches generated output plus Figure3 adapter, requires standard copy, forbids stale copy strings. | copy alignment | Vitest | R0 copy baseline and prerender text diff | R0 copy owner | yes | continue through R5 | replace with app copy baseline diff against `copy-reference.json` | mapped; baseline generated; R5 prerender extraction remains |
-| `scripts/check-ink-modules.mjs` | Confirms `index.html` loads `js/main.js`, final bootstrap imports expected modules, ink text/scene exports exist, CSS handles reduced motion, WebGL keyword budget <= 2, homepage has exit ink canvas. | adapter/module structure | ESLint | R0 module boundary rules and R2 transition reduced-motion contract | R0 lint owner | yes | continue until app lint/tests enforce module boundaries | delete after app module contracts and reduced-motion transition tests pass | mapped; R0-R4 coverage landed; R5/R6 disposition remains |
-| `scripts/check-scroll-modules.mjs` | Confirms Lenis CDN pin/loading, `initSmoothScroll`, anchor numeric target alignment, initial hash correction, long-canvas/template/nav/reveal compatibility, removal of old post-hero snap stage. | scroll/runtime integration | Vitest | R1 InputNormalizer/InputRouter, R5 hash/no-JS UAT | R1 runtime owner | yes | continue while old static site is baseline | delete at R5 because core React runtime uses virtual scroll and native inner overflow, not Lenis | mapped; R1 coverage landed; R5 production/hash verification remains |
-| `scripts/check-section-transition-contract.mjs` | Imports `src/section-manifest.mjs`; validates generated section count/order/attrs, transition count/order/attrs, DOM order, executable modules, entry policies, handoff attrs, method proof internal transition, stale transition ids. | build/index/manifest injection | Vitest | R0 `inventory-schema` and `story/manifest.ts` tests | R0 manifest owner | yes | continue through R4 as old-baseline build guard | delete once new manifest schema, canonical spine, and prerender output tests cover all facts | mapped; R0-R4 coverage landed; R5/R6 disposition remains |
-| `scripts/check-transition-runtime.mjs` | Checks route-entry and component contracts for shared loaders, ScrollTrigger wrappers, video scrub helpers, reduced motion, metadata waits, single-video PH/AOD, Figure2 controller exports, TTG scene factory, HTML route markers. | adapter contract | TS 类型 | R0 `SceneModule`/`TransitionModule` types, R2 synthetic contracts, R3 pilot media contract | R0/R2/R3 owners | yes | continue until every referenced renderer has app harness coverage | delete after R5 when route-entry previews are replaced by app harness routes | mapped; R0-R4 coverage landed; R5 route retirement remains |
-| `scripts/check-homepage-transition-integration.mjs` | Validates one homepage instance per named module, pattern direct-hash behavior, AOD/Crane/Brand handoff targets, Figure2 staged values/proof overlay/single DOM copy, target gates, CSS fixed-stage behavior, TTG playback decoupling, no route-entry calls in homepage runtime. | homepage transition integration | Playwright | R2 Stage handoff, R3 pilot, R4 full migration, R5 parity | R2/R3/R4 owners | yes | continue as old homepage parity baseline through R5 | delete after app Playwright visual/DOM ownership suite and R5 parity pass | mapped; R2-R4 coverage landed; R5 full-production parity remains |
-| `scripts/check-handoff-ownership.mjs` | Validates handoff ids/policies/reduced motion, no cloned target content, receiver restore re-presents source, visual adapters mark transition ghosts, Figure3/Pattern do not own deprecated copy. | handoff ownership | Playwright | R2 Stage/LayerWindow ownership tests | R2 Stage owner | yes | continue through R4 migration | delete after app handoff ownership and no-duplicate-copy Playwright tests pass | mapped; R2-R4 coverage landed; R5 production verification remains |
+| `scripts/check-copy-alignment.mjs` | Required/stale visible copy | copy alignment | Vitest + build extractor | R5 | copy/SEO | yes | `copy-reference.json` | replaced; `dist/index.html` checks 127 public items | closed for R5 |
+| `scripts/check-ink-modules.mjs` | Ink bootstrap/exports/reduced motion | module contract | ESLint + Vitest | R5 | transition | yes | R4 ink harness | replaced by module/lifecycle/reduced-motion contracts | closed for R5 |
+| `scripts/check-scroll-modules.mjs` | Smooth scroll/hash/anchor integration | input/runtime | Vitest + Playwright | R5 | runtime | yes | legacy tag | replaced by normalized wheel/touch/key, reading edge and history/hash coverage | closed for R5 |
+| `scripts/check-section-transition-contract.mjs` | Section/transition order and policies | manifest | TS + Vitest | R5 | manifest | yes | canonical spine | replaced by manifest/schema/spine/static-shell tests | closed for R5 |
+| `scripts/check-transition-runtime.mjs` | Route-entry and renderer/media contracts | adapter contract | TS + Vitest | R5 | runtime | yes | R4 harness | replaced; production module loader imports every scene/transition lazily | closed for R5 |
+| `scripts/check-homepage-transition-integration.mjs` | One-instance ownership, target gates, proof and TTG | integration | Playwright | R5 | release | yes | legacy/R4 evidence | replaced by production full-spine/reverse/recovery/TTG tests | closed for R5 |
+| `scripts/check-handoff-ownership.mjs` | No cloned copy, receiver restore and ghost cleanup | ownership | Vitest + Playwright | R5 | Stage | yes | R4 harness | replaced by Stage/LayerWindow/endpoint continuity and visual-layer assertions | closed for R5 |
 
 ## Build And Serve Scripts
 
 | oldScript | oldAssertionSummary | oldAssertionCategory | newCoverageType | targetPhase | owner | automated | baselineGuard | r5Disposition | gapStatus |
 |---|---|---|---|---|---|---|---|---|---|
-| `build:page` / `scripts/build-index.mjs` | Expands `src/index.template.html` partials and injects section/transition/handoff attrs from `src/section-manifest.mjs` into `index.html`. | build/index/manifest injection | CI baseline guard | R0 CI, R5 cutover | release owner | yes | continue as part of `verify:all` | retire when Vite/prerender build is default and old site is archived | mapped; dual-run CI exists; R5 default CI cutover remains |
-| `dev` / `dev:web` / `scripts/serve-static-site.mjs` | Serves old static site with no-store headers and range support for media. | local preview | 退役理由 | R5 cleanup | release owner | no | not required for new app baseline | retire when app dev server/harness replaces old static preview | mapped; legacy dev path retained only until R5 cutover |
+| `build:page` / `scripts/build-index.mjs` | Assemble legacy static homepage | build | CI release build | R5 | release | yes | legacy tag + checksum | replaced by Vite/static shell and `deploy:build`; available only as `legacy:build` | closed for R5; delete after retention in R6 |
+| old `dev` / `serve-static-site.mjs` | Serve legacy root/media ranges | local preview | retirement reason | R5 | release | no | `legacy:dev` | root `dev` is React; legacy server explicit only and not production reachable | closed for R5; delete after retention in R6 |
 
-## Pre-R5 Baseline Guard
-
-Until R5 switches the default entry, the legacy baseline guard remains explicit and the React app is verified separately:
+## R5 Default Guard
 
 ```txt
-pnpm run ci:baseline
-pnpm -C app typecheck
-pnpm -C app lint
-pnpm -C app test
-pnpm -C app build
+pnpm run verify:all
+pnpm run test:browser
+pnpm run test:release
+pnpm run deploy:build
 ```
 
-R5 replaces the default root commands and CI only after its production entry, SEO/no-JS artifact checks, performance budget and rollback runbook pass. R6 then closes every row to a final disposition; it must not leave the historical “implementation required” wording as an open-ended task.
+CI uses Node 22, frozen pnpm install, the four-project release matrix, all historical harness contracts, a final production rebuild and uploads only `dist/`. `legacy:verify:all` is not a default or release dependency.

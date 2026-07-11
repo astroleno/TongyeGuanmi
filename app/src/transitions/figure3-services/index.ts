@@ -4,8 +4,9 @@ import { FIGURE3_HOLD_PROGRESS, FIGURE3_MEDIA_KEY, renderFigure3AnimationProgres
 import { renderServicesProgress } from '../../scenes/services';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 import type { Direction, LayerVisibilityState, SegmentTimelineHandle, TransitionContext, TransitionModule } from '../../story/types';
+import { FIGURE3_SERVICES_DURATION_MS } from '../../story/timings';
 
-export const FIGURE3_SERVICES_DURATION_MS = 2000;
+export { FIGURE3_SERVICES_DURATION_MS } from '../../story/timings';
 export const FIGURE3_SERVICES_COPY_CUE = { targetScene: 'services', atProgress: 0.8 } as const;
 
 function rootFor(element: HTMLElement | null | undefined, scene: string): HTMLElement | null {

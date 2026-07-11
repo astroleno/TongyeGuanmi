@@ -11,14 +11,18 @@ function rule(selector: string): string {
 }
 
 describe('viewport background contract', () => {
-  it('locks the document and stage shell to the viewport so overscroll cannot expose the base color', () => {
+  it('locks the hydrated StoryApp while leaving the no-JS document scrollable', () => {
     const viewportRule = rule('html,\nbody,\n#root');
+    const hydratedRule = rule('html[data-story-hydrated="true"],\nhtml[data-story-hydrated="true"] body,\nhtml[data-story-hydrated="true"] #root');
+    const noJsRule = rule('html:not([data-story-hydrated="true"]),\nhtml:not([data-story-hydrated="true"]) body');
     const shellRule = rule('.stage-harness-shell');
 
     expect(viewportRule).toContain('height: 100%');
-    expect(viewportRule).toContain('overflow: hidden');
-    expect(viewportRule).toContain('overscroll-behavior: none');
     expect(viewportRule).toContain('background: #07110e');
+    expect(hydratedRule).toContain('overflow: hidden');
+    expect(hydratedRule).toContain('overscroll-behavior: none');
+    expect(noJsRule).toContain('overflow: auto');
+    expect(noJsRule).toContain('overscroll-behavior: auto');
     expect(shellRule).toContain('position: fixed');
     expect(shellRule).toContain('inset: 0');
   });
