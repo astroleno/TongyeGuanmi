@@ -19,7 +19,11 @@ import {
   thresholdTables,
   type DepthThresholdMask
 } from '../shared/depthThresholdMask';
-import { createInkFieldFrame, type InkDepthTransform } from '../shared/inkField';
+import {
+  createInkFieldFrame,
+  inkOwnershipGateProgress,
+  type InkDepthTransform
+} from '../shared/inkField';
 import {
   createInkFieldRenderer,
   mountTransitionInkCanvas,
@@ -218,9 +222,12 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection)
     });
     renderProofOpeningHold(toRoot);
-    const binaryTables = this.depthMask?.render(reveal, figureState.depthTransform) ?? thresholdTables(reveal);
+    const depthOwnership = inkOwnershipGateProgress(reveal);
+    const binaryTables = this.depthMask?.render(depthOwnership, figureState.depthTransform)
+      ?? thresholdTables(depthOwnership);
+    const figureGate = figureGateProgress(reveal);
     applyFigureGate(this.figureField, reveal);
-    const inkFrame = this.depthFrame(reveal, figureState.depthTransform);
+    const inkFrame = this.depthFrame(reveal, figureState.depthTransform, figureGate);
     if (this.inkCanvas) {
       const active = reveal > 0.002 && reveal < 0.999;
       if (active) {
@@ -230,6 +237,8 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
         this.inkCanvas.dataset.r4InkBoundaryOrigin = '0.5000,0.5000';
         this.inkCanvas.dataset.r4InkBoundaryProgress = reveal.toFixed(4);
         this.inkCanvas.dataset.r4InkFieldSeed = String(inkFrame.seed);
+        this.inkCanvas.dataset.r4InkSecondaryGateKind = 'horizontal';
+        this.inkCanvas.dataset.r4InkSecondaryGateRank = (1 - figureGate).toFixed(4);
       } else {
         delete this.inkCanvas.dataset.r4InkActive;
         delete this.inkCanvas.dataset.r4InkProgress;
@@ -237,6 +246,8 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
         delete this.inkCanvas.dataset.r4InkBoundaryOrigin;
         delete this.inkCanvas.dataset.r4InkBoundaryProgress;
         delete this.inkCanvas.dataset.r4InkFieldSeed;
+        delete this.inkCanvas.dataset.r4InkSecondaryGateKind;
+        delete this.inkCanvas.dataset.r4InkSecondaryGateRank;
       }
     }
     this.inkRenderer?.render(inkFrame);
@@ -304,7 +315,11 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     clearTransitionAttrs(sceneRoot(this.context.to.element, 'figure2-proof-opening'));
   }
 
-  private depthFrame(progress: number, transform: InkDepthTransform) {
+  private depthFrame(
+    progress: number,
+    transform: InkDepthTransform,
+    figureGate = figureGateProgress(progress)
+  ) {
     return createInkFieldFrame(
       {
         kind: 'depth',
@@ -313,7 +328,13 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
         transform
       },
       progress,
-      transform.viewport
+      transform.viewport,
+      {
+        secondaryHorizontal: {
+          direction: 'top-to-bottom',
+          gateRank: 1 - figureGate
+        }
+      }
     );
   }
 

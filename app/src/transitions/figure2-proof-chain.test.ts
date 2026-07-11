@@ -474,6 +474,11 @@ describe('figure2 proof chain transitions', () => {
     );
     expect(inkCanvas?.dataset.r4InkEffectOnly).toBe('true');
     expect(inkCanvas?.dataset.r4InkBoundaryKind).toBe('depth');
+    expect(inkCanvas?.dataset.r4InkSecondaryGateKind).toBe('horizontal');
+    expect(Number(inkCanvas?.dataset.r4InkSecondaryGateRank)).toBeCloseTo(
+      1 - Number(figureField.dataset.figure2FigureGateProgress),
+      4
+    );
     expect(timeline.effectCanvases?.()).toEqual([inkCanvas]);
 
     timeline.progress(1);

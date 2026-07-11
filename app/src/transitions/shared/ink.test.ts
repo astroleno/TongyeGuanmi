@@ -306,7 +306,7 @@ describe('shared ink transition surface', () => {
     expect(canvas.dataset.r4InkPresetApplied).toBe('true');
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkParticleProfile).toBe('jade-gold');
-    expect(canvas.dataset.r4InkParticleStrength).toBe('1.000');
+    expect(canvas.dataset.r4InkParticleStrength).toBeUndefined();
     expect(canvas.dataset.r4InkColorLift).toBe('0.920');
     canvas.remove();
     expect(canvas.parentElement).toBeNull();

@@ -16,7 +16,6 @@ export function releaseInkWebGlResources(gl, { buffer = null, program = null, sh
 export function createInkBoundaryTransition(canvas, options = {}) {
   if (!canvas) return null;
   const colorLift = clamp(options.colorLift ?? 0.32, 0, 1);
-  const particleStrength = clamp(options.particleStrength ?? 0.45, 0, 1);
   const coverAlpha = clamp(options.coverAlpha ?? 0.72, 0, 1);
   const fadeOutStart = clamp(options.fadeOutStart ?? 0.94, 0, 0.98);
   const fadeOutEnd = Math.max(fadeOutStart + 0.01, clamp(options.fadeOutEnd ?? 0.995, 0.01, 1));
@@ -49,7 +48,6 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     uniform float uTime;
     uniform float uSeed;
     uniform float uColorLift;
-    uniform float uParticleStrength;
     uniform float uCoverAlpha;
     uniform float uFieldMode;
     uniform float uFieldDirection;
@@ -61,6 +59,11 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     uniform vec4 uDepthCover;
     uniform vec4 uDepthCamera;
     uniform vec2 uDepthOrigin;
+    uniform float uOwnershipGateRank;
+    uniform vec2 uOwnershipCore;
+    uniform float uOcclusionAlphaMin;
+    uniform vec4 uSecondaryHorizontalGate;
+    uniform vec2 uSecondaryHorizontalCore;
 
     float hash(vec2 p) {
       p = fract(p * vec2(127.1, 311.7));
@@ -91,8 +94,12 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       return value;
     }
 
+    float horizontalRankForDirection(vec2 uv, float direction) {
+      return direction < 0.5 ? 1.0 - uv.y : uv.y;
+    }
+
     float horizontalRank(vec2 uv) {
-      return uFieldDirection < 0.5 ? 1.0 - uv.y : uv.y;
+      return horizontalRankForDirection(uv, uFieldDirection);
     }
 
     float radialRank(vec2 uv, float aspect) {
@@ -113,6 +120,19 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         * step(0.0, depthUv.y) * step(depthUv.y, 1.0);
       float sampledDepth = texture2D(uDepthMap, vec2(depthUv.x, 1.0 - depthUv.y)).r;
       return mix(1.0, sampledDepth, inside * uDepthReady);
+    }
+
+    float ownershipOcclusion(
+      float rank,
+      float gateRank,
+      vec2 core,
+      float alphaMin,
+      float warp
+    ) {
+      float halfWidth = max(max(gateRank - core.x, core.y - gateRank), 0.0001);
+      float normalizedDistance = abs(rank - gateRank) / halfWidth * warp;
+      float envelope = 1.0 - smoothstep(0.18, 1.0, normalizedDistance);
+      return clamp(alphaMin, 0.0, 1.0) * envelope;
     }
 
     void main() {
@@ -163,7 +183,27 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       float feather = 1.0 - smoothstep(0.0, 0.132, abs(edge));
       float hot = 1.0 - smoothstep(0.0, 0.034, abs(edge));
       float seamBelt = 1.0 - smoothstep(0.034, 0.112, abs(edge));
-      float seamOcclusion = seamBelt * 0.92;
+      float proceduralOcclusion = seamBelt * uOcclusionAlphaMin;
+      float ownershipWarp = clamp(1.0 + field * 2.4 + (wet - 0.5) * 0.35, 0.62, 1.38);
+      float primaryOwnershipOcclusion = ownershipOcclusion(
+        baseRank,
+        uOwnershipGateRank,
+        uOwnershipCore,
+        uOcclusionAlphaMin,
+        ownershipWarp
+      );
+      float secondaryHorizontalRank = horizontalRankForDirection(uv, uSecondaryHorizontalGate.y);
+      float secondaryOwnershipOcclusion = uSecondaryHorizontalGate.x * ownershipOcclusion(
+        secondaryHorizontalRank,
+        uSecondaryHorizontalGate.z,
+        uSecondaryHorizontalCore,
+        uSecondaryHorizontalGate.w,
+        ownershipWarp
+      );
+      float seamOcclusion = max(
+        proceduralOcclusion,
+        max(primaryOwnershipOcclusion, secondaryOwnershipOcclusion)
+      );
       float veins = smoothstep(0.66, 0.97, wet + pore * 0.34) * feather;
       float openingSpatter = smoothstep(
         0.70,
@@ -179,8 +219,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         hash(particleCell + vec2(17.3, 5.1) + bodyPhase),
         hash(particleCell + vec2(43.7, 9.8) - bodyPhase)
       ) - 0.5;
-      float particleRadius = mix(0.075, 0.190, hash(particleCell + vec2(2.6, 11.9)))
-        * mix(0.92, 1.34, uParticleStrength);
+      float particleRadius = mix(0.075, 0.190, hash(particleCell + vec2(2.6, 11.9)));
       float particleDot = 1.0 - smoothstep(
         particleRadius * 0.28,
         particleRadius,
@@ -192,13 +231,10 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         * (1.0 - smoothstep(-0.030, 0.130, edge))
         * smoothstep(0.08, 0.86, p);
       particleWindow = max(particleWindow * 0.72, sprayWindow);
-      float particleGateLow = mix(0.860, 0.720, uParticleStrength);
-      float particleGateHigh = mix(0.975, 0.850, uParticleStrength);
       float particles = particleDot
-        * smoothstep(particleGateLow, particleGateHigh, particleSeed)
+        * smoothstep(0.860, 0.975, particleSeed)
         * particleWindow
-        * (0.40 + energy * 0.66)
-        * mix(0.78, 1.25, uParticleStrength);
+        * (0.40 + energy * 0.66);
       float particleCore = particles * smoothstep(0.55, 0.98, particleDot);
       float late = smoothstep(0.94, 1.0, p);
 
@@ -219,9 +255,10 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       color = mix(color, vec3(0.004, 0.008, 0.007), late * 0.35);
 
       float coreWash = body * (0.14 + uCoverAlpha * 0.72 + late * 0.10);
-      float alpha = max(coreWash, seamOcclusion);
+      float alpha = coreWash;
       alpha += feather * 0.18 + hot * 0.13 + veins * 0.05
         + ember * 0.28 + particles * 0.76 + particleCore * 0.36;
+      alpha = max(alpha, seamOcclusion);
       alpha = clamp(alpha, 0.0, 1.0);
 
       gl_FragColor = vec4(color, alpha);
@@ -264,7 +301,6 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     time: gl.getUniformLocation(program, 'uTime'),
     seed: gl.getUniformLocation(program, 'uSeed'),
     colorLift: gl.getUniformLocation(program, 'uColorLift'),
-    particleStrength: gl.getUniformLocation(program, 'uParticleStrength'),
     coverAlpha: gl.getUniformLocation(program, 'uCoverAlpha'),
     fieldMode: gl.getUniformLocation(program, 'uFieldMode'),
     fieldDirection: gl.getUniformLocation(program, 'uFieldDirection'),
@@ -275,7 +311,12 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     depthViewport: gl.getUniformLocation(program, 'uDepthViewport'),
     depthCover: gl.getUniformLocation(program, 'uDepthCover'),
     depthCamera: gl.getUniformLocation(program, 'uDepthCamera'),
-    depthOrigin: gl.getUniformLocation(program, 'uDepthOrigin')
+    depthOrigin: gl.getUniformLocation(program, 'uDepthOrigin'),
+    ownershipGateRank: gl.getUniformLocation(program, 'uOwnershipGateRank'),
+    ownershipCore: gl.getUniformLocation(program, 'uOwnershipCore'),
+    occlusionAlphaMin: gl.getUniformLocation(program, 'uOcclusionAlphaMin'),
+    secondaryHorizontalGate: gl.getUniformLocation(program, 'uSecondaryHorizontalGate'),
+    secondaryHorizontalCore: gl.getUniformLocation(program, 'uSecondaryHorizontalCore')
   };
 
   const depthTexture = gl.createTexture();
@@ -355,7 +396,12 @@ export function createInkBoundaryTransition(canvas, options = {}) {
   gl.enableVertexAttribArray(positionLocation);
   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
   gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.blendFuncSeparate(
+    gl.SRC_ALPHA,
+    gl.ONE_MINUS_SRC_ALPHA,
+    gl.ONE,
+    gl.ONE_MINUS_SRC_ALPHA
+  );
   gl.clearColor(0, 0, 0, 0);
 
   return {
@@ -408,7 +454,6 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       gl.uniform1f(uniforms.time, performance.now() * 0.001);
       gl.uniform1f(uniforms.seed, frame.seed / 0xffffffff);
       gl.uniform1f(uniforms.colorLift, colorLift);
-      gl.uniform1f(uniforms.particleStrength, particleStrength);
       gl.uniform1f(uniforms.coverAlpha, coverAlpha);
       gl.uniform1f(uniforms.fieldMode, spec.kind === 'radial' ? 1 : spec.kind === 'depth' ? 2 : 0);
       gl.uniform1f(
@@ -435,6 +480,26 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         0
       );
       gl.uniform2f(uniforms.depthOrigin, depthCamera.originX, depthCamera.originY);
+      gl.uniform1f(uniforms.ownershipGateRank, frame.occlusion.gateRank);
+      gl.uniform2f(
+        uniforms.ownershipCore,
+        frame.occlusion.coreMin,
+        frame.occlusion.coreMax
+      );
+      gl.uniform1f(uniforms.occlusionAlphaMin, frame.occlusion.alphaMin);
+      const secondaryHorizontal = frame.occlusion.secondaryHorizontal;
+      gl.uniform4f(
+        uniforms.secondaryHorizontalGate,
+        secondaryHorizontal ? 1 : 0,
+        secondaryHorizontal?.direction === 'bottom-to-top' ? 1 : 0,
+        secondaryHorizontal?.gateRank ?? 0,
+        secondaryHorizontal?.alphaMin ?? 0
+      );
+      gl.uniform2f(
+        uniforms.secondaryHorizontalCore,
+        secondaryHorizontal?.coreMin ?? 0,
+        secondaryHorizontal?.coreMax ?? 0
+      );
       if (canvas.dataset) {
         canvas.dataset.r4InkBoundaryKind = spec.kind;
         canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;

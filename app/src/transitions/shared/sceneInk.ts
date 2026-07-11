@@ -5,8 +5,6 @@ import {
 } from '../../vendor/ink-scene-transition.js';
 import { inkFieldOrigin, type InkFieldFrame } from './inkField';
 
-export type BoundaryInkOptions = InkBoundaryTransitionOptions;
-
 export type InkFieldRenderer = {
   render(frame: InkFieldFrame): void;
   prewarm(frame: InkFieldFrame): void;
@@ -25,7 +23,6 @@ export type TransitionInkCanvasOptions = {
 
 const CINEMATIC_BOUNDARY_PRESET = Object.freeze({
   colorLift: 0.92,
-  particleStrength: 1,
   coverAlpha: 0.82,
   fadeOutStart: 0.94,
   fadeOutEnd: 0.995,
@@ -36,14 +33,13 @@ function markCinematicPreset(
   canvas: HTMLCanvasElement,
   renderer: TransitionInkCanvasOptions['renderer'],
   colorLift: number,
-  particleStrength: number,
   dprLimit: number,
   dynamicTextureFps?: number
 ): void {
   canvas.dataset.r4InkPreset = 'cinematic-color';
   canvas.dataset.r4InkPresetApplied = 'true';
   canvas.dataset.r4InkParticleProfile = 'jade-gold';
-  canvas.dataset.r4InkParticleStrength = particleStrength.toFixed(3);
+  delete canvas.dataset.r4InkParticleStrength;
   canvas.dataset.r4InkRenderer = renderer;
   canvas.dataset.r4InkColorLift = colorLift.toFixed(3);
   canvas.dataset.r4InkDprLimit = dprLimit.toFixed(2);
@@ -101,19 +97,14 @@ export function mountTransitionInkCanvas(
 
 export function createInkFieldRenderer(
   canvas: HTMLCanvasElement | null,
-  options: BoundaryInkOptions = {},
   lifecycle: InkFieldRendererLifecycleOptions = {}
 ): InkFieldRenderer | null {
-  const resolvedOptions: InkBoundaryTransitionOptions = {
-    ...CINEMATIC_BOUNDARY_PRESET,
-    ...options
-  };
+  const resolvedOptions: InkBoundaryTransitionOptions = CINEMATIC_BOUNDARY_PRESET;
   if (canvas) {
     markCinematicPreset(
       canvas,
       'field',
       resolvedOptions.colorLift ?? CINEMATIC_BOUNDARY_PRESET.colorLift,
-      resolvedOptions.particleStrength ?? CINEMATIC_BOUNDARY_PRESET.particleStrength,
       resolvedOptions.dprLimit ?? CINEMATIC_BOUNDARY_PRESET.dprLimit
     );
   }

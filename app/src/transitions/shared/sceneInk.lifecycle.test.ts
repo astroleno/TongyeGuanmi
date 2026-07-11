@@ -3,15 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const vendor = vi.hoisted(() => ({
   boundaryDestroy: vi.fn(),
   boundaryPrewarm: vi.fn(),
-  boundaryRender: vi.fn()
+  boundaryRender: vi.fn(),
+  createBoundary: vi.fn()
 }));
 
 vi.mock('../../vendor/ink-scene-transition.js', () => ({
-  createInkBoundaryTransition: () => ({
-    destroy: vendor.boundaryDestroy,
-    prewarm: vendor.boundaryPrewarm,
-    render: vendor.boundaryRender
-  })
+  createInkBoundaryTransition: (...args: unknown[]) => {
+    vendor.createBoundary(...args);
+    return {
+      destroy: vendor.boundaryDestroy,
+      prewarm: vendor.boundaryPrewarm,
+      render: vendor.boundaryRender
+    };
+  }
 }));
 
 import { createInkFieldFrame } from './inkField';
@@ -28,6 +32,7 @@ beforeEach(() => {
   vendor.boundaryDestroy.mockClear();
   vendor.boundaryPrewarm.mockClear();
   vendor.boundaryRender.mockClear();
+  vendor.createBoundary.mockClear();
 });
 
 describe('shared ink renderer lifecycle', () => {
@@ -49,5 +54,12 @@ describe('shared ink renderer lifecycle', () => {
     expect(vendor.boundaryRender).toHaveBeenCalledWith(frame, 0, 0);
     expect(vendor.boundaryDestroy).toHaveBeenCalledTimes(1);
     expect(surface.remove).toHaveBeenCalledOnce();
+    expect(vendor.createBoundary).toHaveBeenCalledWith(surface, {
+      colorLift: 0.92,
+      coverAlpha: 0.82,
+      fadeOutStart: 0.94,
+      fadeOutEnd: 0.995,
+      dprLimit: 1
+    });
   });
 });

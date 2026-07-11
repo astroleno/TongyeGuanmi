@@ -20,26 +20,28 @@ function webGlHarness() {
     LINEAR: 8,
     LINK_STATUS: 9,
     LUMINANCE: 10,
-    ONE_MINUS_SRC_ALPHA: 11,
-    RGBA: 12,
-    SRC_ALPHA: 13,
-    STATIC_DRAW: 14,
-    TEXTURE0: 15,
-    TEXTURE_2D: 16,
-    TEXTURE_MAG_FILTER: 17,
-    TEXTURE_MIN_FILTER: 18,
-    TEXTURE_WRAP_S: 19,
-    TEXTURE_WRAP_T: 20,
-    TRIANGLES: 21,
-    UNPACK_ALIGNMENT: 22,
-    UNPACK_FLIP_Y_WEBGL: 23,
-    UNSIGNED_BYTE: 24,
-    VERTEX_SHADER: 25,
+    ONE: 11,
+    ONE_MINUS_SRC_ALPHA: 12,
+    RGBA: 13,
+    SRC_ALPHA: 14,
+    STATIC_DRAW: 15,
+    TEXTURE0: 16,
+    TEXTURE_2D: 17,
+    TEXTURE_MAG_FILTER: 18,
+    TEXTURE_MIN_FILTER: 19,
+    TEXTURE_WRAP_S: 20,
+    TEXTURE_WRAP_T: 21,
+    TRIANGLES: 22,
+    UNPACK_ALIGNMENT: 23,
+    UNPACK_FLIP_Y_WEBGL: 24,
+    UNSIGNED_BYTE: 25,
+    VERTEX_SHADER: 26,
     activeTexture: vi.fn(),
     attachShader: vi.fn(),
     bindBuffer: vi.fn(),
     bindTexture: vi.fn(),
     blendFunc: vi.fn(),
+    blendFuncSeparate: vi.fn(),
     bufferData: vi.fn(),
     clear: vi.fn(),
     clearColor: vi.fn(),
@@ -59,7 +61,7 @@ function webGlHarness() {
     getExtension: vi.fn(() => ({ loseContext })),
     getProgramParameter: vi.fn(() => true),
     getShaderParameter: vi.fn(() => true),
-    getUniformLocation: vi.fn(() => ({})),
+    getUniformLocation: vi.fn((_program, name: string) => name),
     linkProgram: vi.fn(),
     pixelStorei: vi.fn(),
     shaderSource: vi.fn(),
@@ -133,6 +135,48 @@ describe('ink WebGL resource lifecycle', () => {
     transition?.destroy();
     expect(gl.deleteTexture).toHaveBeenCalledOnce();
     expect(gl.deleteTexture).toHaveBeenCalledWith(texture);
+  });
+
+  it('uploads the primary and secondary ownership occlusion contracts', () => {
+    const { canvas, gl } = webGlHarness();
+    const transition = createInkBoundaryTransition(canvas);
+    const frame = createInkFieldFrame(
+      {
+        kind: 'depth',
+        depthSrc: '/depth.png',
+        seed: 'depth-occlusion-contract',
+        transform: {
+          viewport: { width: 320, height: 180 },
+          cover: { x: 0, y: 0, width: 320, height: 180 },
+          camera: { scale: 1, translateX: 0, translateY: 0, originX: 0.5, originY: 0.5 }
+        }
+      },
+      0.5,
+      { width: 320, height: 180 },
+      {
+        secondaryHorizontal: {
+          direction: 'top-to-bottom',
+          gateRank: 0.37
+        }
+      }
+    );
+
+    transition?.render(frame);
+
+    expect(gl.uniform1f).toHaveBeenCalledWith('uOwnershipGateRank', frame.occlusion.gateRank);
+    expect(gl.uniform2f).toHaveBeenCalledWith(
+      'uOwnershipCore',
+      frame.occlusion.coreMin,
+      frame.occlusion.coreMax
+    );
+    expect(gl.uniform1f).toHaveBeenCalledWith('uOcclusionAlphaMin', 0.92);
+    expect(gl.uniform4f).toHaveBeenCalledWith(
+      'uSecondaryHorizontalGate',
+      1,
+      0,
+      0.37,
+      0.92
+    );
   });
 
   it('uploads one depth image and reuses it across progress samples', () => {

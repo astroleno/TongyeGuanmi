@@ -36,6 +36,8 @@ describe('star-map AOD one-boundary integration', () => {
     expect(transitionSource).not.toContain('sourceCanvas');
     expect(transitionSource).not.toContain('renderAodSourceCanvas');
     expect(transitionSource).not.toContain('targetElement:');
+    expect(transitionSource).not.toContain('colorLift:');
+    expect(transitionSource).not.toContain('coverAlpha:');
   });
 
   it('applies one hidden ownership gate to the live AOD surface, then destroys once', async () => {

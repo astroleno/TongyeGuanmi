@@ -46,9 +46,24 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toMatch(/particleUv[^;]*uTime/);
   });
 
-  it('contains a localized near-opaque seam occlusion belt without a global dim', () => {
-    expect(shaderSource).toContain('float seamOcclusion');
-    expect(shaderSource).toMatch(/seamOcclusion[^;]*0\.92/);
+  it('consumes the live ownership gate and guarantees its minimum alpha', () => {
+    expect(shaderSource).toContain('uniform float uOwnershipGateRank');
+    expect(shaderSource).toContain('uniform vec2 uOwnershipCore');
+    expect(shaderSource).toContain('uniform float uOcclusionAlphaMin');
+    expect(shaderSource).toContain('uniform vec4 uSecondaryHorizontalGate');
+    expect(shaderSource).toContain('float ownershipOcclusion(');
+    expect(shaderSource).toContain('float ownershipWarp = clamp(');
+    expect(shaderSource).toMatch(/ownershipOcclusion\([^)]*ownershipWarp/s);
+    expect(shaderSource).toMatch(/alpha\s*=\s*max\(alpha,\s*seamOcclusion\)/);
     expect(shaderSource).not.toContain('uSceneDim');
+  });
+
+  it('uses the Main particle radius, gate, and intensity without an enhancement control', () => {
+    expect(shaderSource).not.toContain('uParticleStrength');
+    expect(shaderSource).not.toContain('particleGateLow');
+    expect(shaderSource).not.toContain('particleGateHigh');
+    expect(shaderSource).toMatch(/float particleRadius = mix\(0\.075, 0\.190,[^;]+\);/);
+    expect(shaderSource).toContain('smoothstep(0.860, 0.975, particleSeed)');
+    expect(shaderSource).not.toMatch(/particles[^;]*mix\(0\.78, 1\.25/);
   });
 });

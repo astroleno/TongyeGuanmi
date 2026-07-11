@@ -35,7 +35,27 @@ export type InkFieldFrame = Readonly<{
     concealClip: string | null;
     edge: number;
   }>;
-  occlusion: Readonly<{ coreMin: number; coreMax: number }>;
+  occlusion: InkOcclusionBand & Readonly<{
+    secondaryHorizontal: InkHorizontalOcclusionBand | null;
+  }>;
+}>;
+
+export type InkOcclusionBand = Readonly<{
+  gateRank: number;
+  coreMin: number;
+  coreMax: number;
+  alphaMin: number;
+}>;
+
+export type InkHorizontalOcclusionBand = InkOcclusionBand & Readonly<{
+  direction: 'top-to-bottom' | 'bottom-to-top';
+}>;
+
+export type InkFieldFrameOptions = Readonly<{
+  secondaryHorizontal?: Readonly<{
+    direction: InkHorizontalOcclusionBand['direction'];
+    gateRank: number;
+  }>;
 }>;
 
 type InkViewport = Readonly<{ width: number; height: number }>;
@@ -43,6 +63,7 @@ type InkViewport = Readonly<{ width: number; height: number }>;
 const GATE_START = 0.06;
 const GATE_END = 0.94;
 const CORE_HALF_WIDTH = 0.072;
+const OCCLUSION_ALPHA_MIN = 0.92;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -65,8 +86,18 @@ function percent(value: number): string {
   return `${(value * 100).toFixed(3)}%`;
 }
 
-function gateProgress(progress: number): number {
+export function inkOwnershipGateProgress(progress: number): number {
   return clamp((progress - GATE_START) / (GATE_END - GATE_START));
+}
+
+function occlusionBand(gateRank: number): InkOcclusionBand {
+  const rank = clamp(gateRank);
+  return {
+    gateRank: rank,
+    coreMin: clamp(rank - CORE_HALF_WIDTH),
+    coreMax: clamp(rank + CORE_HALF_WIDTH),
+    alphaMin: OCCLUSION_ALPHA_MIN
+  };
 }
 
 function horizontalOwnership(
@@ -123,15 +154,24 @@ export function inkFieldOrigin(spec: InkFieldSpec): InkOrigin {
 export function createInkFieldFrame(
   spec: InkFieldSpec,
   progress: number,
-  viewport: InkViewport
+  viewport: InkViewport,
+  options: InkFieldFrameOptions = {}
 ): InkFieldFrame {
   const clampedProgress = clamp(Number.isFinite(progress) ? progress : 0);
-  const edge = gateProgress(clampedProgress);
+  const edge = inkOwnershipGateProgress(clampedProgress);
   const clips = spec.kind === 'horizontal'
     ? horizontalOwnership(spec, edge)
     : spec.kind === 'radial'
       ? radialOwnership(spec, edge, viewport)
       : { revealClip: null, concealClip: null };
+
+  const primaryGateRank = edge;
+  const secondaryHorizontal = options.secondaryHorizontal
+    ? {
+        ...occlusionBand(options.secondaryHorizontal.gateRank),
+        direction: options.secondaryHorizontal.direction
+      }
+    : null;
 
   return {
     spec,
@@ -142,8 +182,8 @@ export function createInkFieldFrame(
       edge
     },
     occlusion: {
-      coreMin: clamp(clampedProgress - CORE_HALF_WIDTH),
-      coreMax: clamp(clampedProgress + CORE_HALF_WIDTH)
+      ...occlusionBand(primaryGateRank),
+      secondaryHorizontal
     }
   };
 }

@@ -91,10 +91,10 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
       const inkCanvas = context.to.element?.querySelector<HTMLCanvasElement>('[data-aod-ink-canvas]') ?? null;
-      const inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(inkCanvas, {
-        colorLift: 0.56,
-        coverAlpha: 0.82
-      }, { removeCanvasOnDestroy: false });
+      const inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(
+        inkCanvas,
+        { removeCanvasOnDestroy: false }
+      );
       const viewport = fieldViewport(inkCanvas, context.to.element);
       inkRenderer?.prewarm(createInkFieldFrame(STAR_MAP_AOD_FIELD, 0.003, viewport));
       return new PilotProgressTimeline({
