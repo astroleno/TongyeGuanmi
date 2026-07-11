@@ -71,7 +71,10 @@ function finishVideo(video: HTMLVideoElement | null | undefined, progress: numbe
   video.loop = false;
   video.pause();
   const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : TTG_CONFIG.videoDurationFallback;
-  video.currentTime = Math.max(0, Math.min(duration - 0.02, progress * duration));
+  const targetTime = Math.max(0, Math.min(duration - 0.02, progress * duration));
+  if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.016) {
+    video.currentTime = targetTime;
+  }
 }
 
 function invalidatePlayback(video: HTMLVideoElement | null | undefined): void {

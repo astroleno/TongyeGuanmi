@@ -52,4 +52,47 @@ describe('R4 group5 scenes', () => {
     expect(labScene.staticFallback?.text).toEqual(LAB_COPY);
     expect(lab?.normalizedText).toEqual([...LAB_COPY]);
   });
+
+  it('does not rewrite terminal TTG media times on repeated endpoint renders', () => {
+    class CountingVideo {
+      private time = 0;
+      currentTimeWrites = 0;
+      duration = 2.5;
+      loop = false;
+      paused = true;
+      playbackRate = 1;
+      classList = { add() {}, remove() {} };
+
+      get currentTime(): number { return this.time; }
+      set currentTime(value: number) {
+        this.time = value;
+        this.currentTimeWrites += 1;
+      }
+      pause(): void { this.paused = true; }
+      play(): Promise<void> { this.paused = false; return Promise.resolve(); }
+    }
+    const forward = new CountingVideo();
+    const reverse = new CountingVideo();
+    const root = {
+      attributes: new Map<string, string>(),
+      dataset: {} as Record<string, string>,
+      style: new FakeStyle(),
+      matches: () => true,
+      querySelector: (selector: string) => selector.includes('reverse') ? reverse : forward,
+      setAttribute(name: string, value: string) {
+        this.attributes.set(name, value);
+        if (name.startsWith('data-')) {
+          const key = name.slice(5).replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase());
+          this.dataset[key] = value;
+        }
+      }
+    };
+
+    renderTtgAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
+    const writes = [forward.currentTimeWrites, reverse.currentTimeWrites];
+    renderTtgAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
+    renderTtgAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
+
+    expect([forward.currentTimeWrites, reverse.currentTimeWrites]).toEqual(writes);
+  });
 });

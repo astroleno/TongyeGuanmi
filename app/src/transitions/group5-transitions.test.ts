@@ -157,12 +157,19 @@ describe('R4 group5 transitions', () => {
     expect(fixture.fromRoot.dataset.ttgProgress).toBe('1.0000');
     expect(canvas.dataset.r4InkProgress).toBeUndefined();
     expect(timeline.pauses).toEqual(['stage:0']);
+    const forwardWritesAtStop = forwardVideo.currentTimeWrites;
+    const reverseWritesAtStop = reverseVideo.currentTimeWrites;
 
     timeline.progress((stop + 1) / 2);
     expect(fixture.fromRoot.dataset.ttgProgress).toBe('1.0000');
     expect(fixture.toRoot.dataset.labProgress).toBe('1.0000');
     expect(fixture.toRoot.style.getPropertyValue('--r4-lab-y')).toBe('0.00px');
     expect(canvas.dataset.r4InkProgress).toBe('0.5000');
+    for (const progress of [(stop + 2) / 3, (stop + 3) / 4]) {
+      timeline.progress(progress);
+    }
+    expect(forwardVideo.currentTimeWrites).toBe(forwardWritesAtStop);
+    expect(reverseVideo.currentTimeWrites).toBe(reverseWritesAtStop);
 
     timeline.progress(stop / 2);
     expect(fixture.fromRoot.dataset.ttgPlaybackDirection).toBe('-1');

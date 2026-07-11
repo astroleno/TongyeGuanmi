@@ -52,4 +52,43 @@ describe('R4 group6 scenes', () => {
     expect(educationScene.staticFallback?.text).toEqual(EDUCATION_COPY);
     expect(education?.normalizedText).toEqual([...EDUCATION_COPY]);
   });
+
+  it('does not rewrite terminal PH media time on repeated endpoint renders', () => {
+    class CountingVideo {
+      private time = 0;
+      currentTimeWrites = 0;
+      duration = 76 / 30;
+      loop = false;
+      paused = true;
+
+      get currentTime(): number { return this.time; }
+      set currentTime(value: number) {
+        this.time = value;
+        this.currentTimeWrites += 1;
+      }
+      pause(): void { this.paused = true; }
+    }
+    const video = new CountingVideo();
+    const root = {
+      attributes: new Map<string, string>(),
+      dataset: {} as Record<string, string>,
+      style: new FakeStyle(),
+      matches: () => true,
+      querySelector: () => video,
+      setAttribute(name: string, value: string) {
+        this.attributes.set(name, value);
+        if (name.startsWith('data-')) {
+          const key = name.slice(5).replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase());
+          this.dataset[key] = value;
+        }
+      }
+    };
+
+    renderPhAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
+    const writes = video.currentTimeWrites;
+    renderPhAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
+    renderPhAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
+
+    expect(video.currentTimeWrites).toBe(writes);
+  });
 });

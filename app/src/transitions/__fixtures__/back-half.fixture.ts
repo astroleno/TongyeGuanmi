@@ -128,11 +128,21 @@ export class FakeCanvas extends FakeElement {
 
 export class FakeVideo extends FakeElement {
   duration = 2.5;
-  currentTime = 0;
+  private time = 0;
+  currentTimeWrites = 0;
   paused = true;
   loop = false;
   playbackRate = 1;
   playCalls = 0;
+
+  get currentTime(): number {
+    return this.time;
+  }
+
+  set currentTime(value: number) {
+    this.time = value;
+    this.currentTimeWrites += 1;
+  }
 
   get ended(): boolean {
     return this.currentTime >= this.duration - 0.001;

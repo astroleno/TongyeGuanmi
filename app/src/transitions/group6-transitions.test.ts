@@ -138,6 +138,7 @@ describe('R4 group6 transitions', () => {
     expect(fixture.fromRoot.dataset.phProgress).toBe('1.0000');
     expect(canvas.dataset.r4InkProgress).toBeUndefined();
     expect(timeline.pauses).toEqual(['stage:0']);
+    const writesAtStop = video.currentTimeWrites;
 
     timeline.progress((stop + 1) / 2);
     expect(fixture.fromRoot.dataset.phProgress).toBe('1.0000');
@@ -149,6 +150,10 @@ describe('R4 group6 transitions', () => {
     expect(receiver.style.clipPath).not.toContain('polygon(');
     expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
     expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
+    for (const progress of [(stop + 2) / 3, (stop + 3) / 4]) {
+      timeline.progress(progress);
+    }
+    expect(video.currentTimeWrites).toBe(writesAtStop);
 
     timeline.progress(stop / 2);
     expect(video.currentTime).toBeCloseTo(forwardMidTime, 3);
