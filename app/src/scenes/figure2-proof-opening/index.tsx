@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const FIGURE2_PROOF_OPENING_COPY = [
@@ -32,34 +31,15 @@ export function renderProofOpeningProgress(root: HTMLElement | null, progress: n
   return { progress: clamped, opacity, y };
 }
 
-function isTransitionActive(root: HTMLElement | null): boolean {
-  const layer = root?.closest<HTMLElement>('[data-stage-layer]');
-  return Boolean(layer?.dataset.r4Transition || layer?.dataset.r4InkActive === 'true');
+export function renderProofOpeningHold(root: HTMLElement | null): void {
+  renderProofOpeningProgress(root, 1);
 }
 
-function initialProgressForLayer(hidden: boolean, role: SceneComponentProps['role']): number {
-  return hidden || role !== 'current' ? 0 : 1;
-}
-
-function Figure2ProofOpeningScene({ hidden, role, registerHandle }: SceneComponentProps) {
-  const rootRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (isTransitionActive(rootRef.current)) {
-      return;
-    }
-    renderProofOpeningProgress(rootRef.current, initialProgressForLayer(hidden, role));
-  }, [hidden, role]);
-
+function Figure2ProofOpeningScene({ registerHandle }: SceneComponentProps) {
   return (
     <article
       ref={(element) => {
-        rootRef.current = element;
         registerHandle?.('copy', element);
-        if (element && element.dataset.proofOpeningInitialized !== 'true') {
-          element.dataset.proofOpeningInitialized = 'true';
-          renderProofOpeningProgress(element, initialProgressForLayer(hidden, role));
-        }
       }}
       className="r4-proof r4-proof-page r4-proof-opening"
       data-r4-scene="figure2-proof-opening"
@@ -81,6 +61,7 @@ function Figure2ProofOpeningScene({ hidden, role, registerHandle }: SceneCompone
 export const figure2ProofOpeningScene: SceneModule = {
   id: 'figure2-proof-opening',
   Component: Figure2ProofOpeningScene,
+  renderHold: renderProofOpeningHold,
   requiredHandles: ['copy'],
   staticFallback: {
     sectionIds: ['method'],

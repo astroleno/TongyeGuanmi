@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const LAB_COPY = [
@@ -62,16 +61,15 @@ export function renderLabProgress(root: HTMLElement | null | undefined, progress
   return { progress: clamped, opacity, y };
 }
 
+export function renderLabHold(root: HTMLElement | null): void {
+  renderLabProgress(root, 1);
+}
+
 function LabScene({ registerHandle }: SceneComponentProps) {
-  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        if (element && !initializedRef.current) {
-          renderLabProgress(element, 1);
-          initializedRef.current = true;
-        }
       }}
       className="r4-lab"
       data-r4-scene="lab"
@@ -121,6 +119,7 @@ function LabScene({ registerHandle }: SceneComponentProps) {
 export const labScene: SceneModule = {
   id: 'lab',
   Component: LabScene,
+  renderHold: renderLabHold,
   requiredHandles: ['copy'],
   staticFallback: {
     sectionIds: ['lab'],

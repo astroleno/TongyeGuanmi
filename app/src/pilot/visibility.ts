@@ -44,27 +44,6 @@ export function applyLayerVisibility(layer: LayerHandle, state: LayerVisibilityS
     return;
   }
   layer.setVisibility(state);
-  const element = layer.element;
-  if (!element) {
-    return;
-  }
-  element.style.opacity = String(state.opacity);
-  element.style.visibility = state.visible ? 'visible' : 'hidden';
-  element.style.pointerEvents = state.pointerEvents;
-  element.style.clipPath = '';
-  element.style.removeProperty('-webkit-clip-path');
-  if (typeof element.querySelectorAll === 'function') {
-    element.querySelectorAll<HTMLElement>('[data-transition-clip]').forEach((target) => {
-      target.style.clipPath = '';
-      target.style.removeProperty('-webkit-clip-path');
-      target.style.opacity = '';
-      target.style.visibility = '';
-    });
-  }
-  element.inert = state.inert;
-  element.setAttribute('aria-hidden', state.inert ? 'true' : 'false');
-  element.dataset.visible = String(state.visible && state.opacity > 0.001);
-  element.dataset.interactable = String(!state.inert && state.pointerEvents === 'auto');
 }
 
 export function smoothStep(value: number): number {

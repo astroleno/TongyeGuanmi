@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const TTG_MEDIA_KEY = 'ttg_figure-alpha-scrub';
@@ -192,25 +191,15 @@ export function renderTtgAnimationProgress(root: HTMLElement | null | undefined,
   return { progress, visualProgress, bgY, middleY, frontY, figureY };
 }
 
-function TtgAnimationScene({ role, registerHandle }: SceneComponentProps) {
-  const rootRef = useRef<HTMLElement | null>(null);
-  const initializedRef = useRef(false);
+export function renderTtgHold(root: HTMLElement | null): void {
+  renderTtgAnimationProgress(root, TTG_HOLD_PROGRESS);
+}
 
-  useEffect(() => {
-    if (role === 'current' && rootRef.current) {
-      renderTtgAnimationProgress(rootRef.current, TTG_HOLD_PROGRESS);
-    }
-  }, [role]);
-
+function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
   return (
     <article
       ref={(element) => {
-        rootRef.current = element;
         registerHandle?.('field', element);
-        if (element && !initializedRef.current) {
-          renderTtgAnimationProgress(element, TTG_HOLD_PROGRESS);
-          initializedRef.current = true;
-        }
       }}
       className="ttg-page r4-ttg-animation"
       data-r4-scene="ttg-animation"
@@ -275,6 +264,7 @@ function TtgAnimationScene({ role, registerHandle }: SceneComponentProps) {
 export const ttgAnimationScene: SceneModule = {
   id: 'ttg-animation',
   Component: TtgAnimationScene,
+  renderHold: renderTtgHold,
   requiredHandles: ['field', 'figure-video', 'figure-video-reverse'],
   preload: () => ({ milestones: ['targetReady', 'mediaReady'] })
 };

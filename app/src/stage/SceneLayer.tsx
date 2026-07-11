@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { fromSyntheticVisibility } from '../story/visibility-predicate';
 import type { HandleRegistry } from '../story/registry';
 import type { LayerVisibilityState, SceneId, SceneModule, StageLayerRole } from '../story/types';
@@ -51,6 +51,12 @@ export function SceneLayer({ module, role, registry, visibility, reading = false
     registry.registerScene(module);
     void registry.startPreload(module.id);
   }, [module, registry]);
+
+  useLayoutEffect(() => {
+    if (role === 'current' && state.visible && state.opacity > 0.999) {
+      module.renderHold?.(rootRef.current);
+    }
+  }, [module, role, state.opacity, state.visible]);
 
   const registerRoot = (element: HTMLElement | null) => {
     rootRef.current = element;

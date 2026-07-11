@@ -1,24 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createDirectorRuntime, type StoryDebugSnapshot } from '../../runtime/director.actor';
 import { Stage } from '../../stage/Stage';
+import { LayerStore } from '../../stage/LayerStore';
 import type { LayerWindowSnapshot } from '../../stage/LayerWindow';
 import { HandleRegistry } from '../../story/registry';
 import type {
   Direction,
-  LayerHandle,
   LayerVisibilityState,
   SceneId,
   SegmentId,
-  SpineSegmentNode,
-  StageHandle,
-  StageLayerRole
+  SpineSegmentNode
 } from '../../story/types';
 import { heroScene } from '../../scenes/hero';
 import { patternScene } from '../../scenes/pattern';
 import { starMapScene } from '../../scenes/star-map';
 import { createHeroPatternTransition } from '../../transitions/hero-pattern';
 import { createPatternStarMapTransition } from '../../transitions/pattern-star-map';
-import { applyLayerVisibility, hiddenVisibility, holdVisibility } from '../../pilot/visibility';
+import { hiddenVisibility, holdVisibility } from '../../pilot/visibility';
 import { createR4Group1Manifest, type R4Group1HarnessMode } from './group1Manifest';
 
 type HarnessPhase = 'booting' | 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
@@ -145,14 +143,13 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
   const manifest = useMemo(() => createR4Group1Manifest(mode), [mode]);
   const registry = useMemo(() => new HandleRegistry(), []);
   const buildDelayMs = useRef(0);
-  const layerElements = useRef(new Map<SceneId, HTMLElement>());
-  const layers = useRef(new Map<SceneId, LayerHandle>());
   const localLog = useRef<string[]>([]);
-  const [visibilityByScene, setVisibilityByScene] = useState<Partial<Record<SceneId, LayerVisibilityState>>>(() => {
+  const layerStore = useMemo(() => {
     const initialHold = manifest.nodes.find((node) => node.kind === 'hold')?.scene ?? 'hero';
-    return holdVisibilityForWindow({ current: initialHold, retiring: [] });
-  });
-  const visibilityRef = useRef(visibilityByScene);
+    return new LayerStore(holdVisibilityForWindow({ current: initialHold, retiring: [] }));
+  }, [manifest]);
+  const layerSnapshot = useSyncExternalStore(layerStore.subscribe, layerStore.getSnapshot, layerStore.getSnapshot);
+  const visibilityByScene = layerSnapshot.visibilityByScene;
   const [metrics, setMetrics] = useState<Group1Metrics>({
     recoveryCount: 0,
     staleCompletionIgnored: 0,
@@ -173,68 +170,11 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
     updateMetrics((current) => ({ ...current, localEvents: localLog.current }));
   };
 
-  const updateVisibility = (scene: SceneId, visibility: LayerVisibilityState) => {
-    visibilityRef.current = {
-      ...visibilityRef.current,
-      [scene]: visibility
-    };
-    setVisibilityByScene(visibilityRef.current);
-  };
-
   const setHoldVisibility = (window: LayerWindowSnapshot) => {
-    const next = holdVisibilityForWindow(window);
-    visibilityRef.current = next;
-    for (const [scene, state] of Object.entries(next) as [SceneId, LayerVisibilityState][]) {
-      const layer = layers.current.get(scene);
-      if (layer) {
-        applyLayerVisibility(layer, state);
-      }
-    }
-    setVisibilityByScene(visibilityRef.current);
+    layerStore.replaceVisibility(holdVisibilityForWindow(window));
   };
 
-  const createLayer = (scene: SceneId, role: StageLayerRole): LayerHandle => ({
-    scene,
-    role,
-    get element() {
-      return layerElements.current.get(scene) ?? null;
-    },
-    get visibility() {
-      return visibilityRef.current[scene] ?? hiddenVisibility();
-    },
-    setVisibility(next) {
-      updateVisibility(scene, next);
-    },
-    dispose() {
-      updateVisibility(scene, hiddenVisibility());
-    }
-  });
-
-  const stageHandle = useMemo<StageHandle>(
-    () => ({
-      getLayer(scene) {
-        return layers.current.get(scene);
-      },
-      ensureLayer(scene, role) {
-        const existing = layers.current.get(scene);
-        if (existing) {
-          existing.role = role;
-          return existing;
-        }
-        const layer = createLayer(scene, role);
-        layers.current.set(scene, layer);
-        return layer;
-      },
-      releaseLayer(scene) {
-        layers.current.get(scene)?.dispose();
-        layers.current.delete(scene);
-      },
-      snapshot() {
-        return [...layers.current.values()];
-      }
-    }),
-    []
-  );
+  const stageHandle = layerStore;
 
   const runtime = useMemo(
     () =>
@@ -456,13 +396,7 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
         modules={modules}
         registry={registry}
         visibilityByScene={visibilityByScene}
-        onLayerElement={(scene, element) => {
-          if (element) {
-            layerElements.current.set(scene, element);
-          } else {
-            layerElements.current.delete(scene);
-          }
-        }}
+        onLayerElement={(scene, element) => layerStore.bindElement(scene, element)}
       />
       <aside className="stage-harness-hud">
         <div className="harness-state">{frame.phase}</div>

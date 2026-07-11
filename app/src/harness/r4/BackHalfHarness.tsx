@@ -1,17 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createDirectorRuntime, type StoryDebugSnapshot } from '../../runtime/director.actor';
 import { Stage } from '../../stage/Stage';
+import { LayerStore } from '../../stage/LayerStore';
 import type { LayerWindowSnapshot } from '../../stage/LayerWindow';
-import { applyLayerVisibility, hiddenVisibility, holdVisibility } from '../../pilot/visibility';
+import { hiddenVisibility, holdVisibility } from '../../pilot/visibility';
 import { HandleRegistry } from '../../story/registry';
 import type {
   Direction,
-  LayerHandle,
   LayerVisibilityState,
   SceneId,
-  SegmentId,
-  StageHandle,
-  StageLayerRole
+  SegmentId
 } from '../../story/types';
 import { contactScene } from '../../scenes/contact';
 import { craneAnimationScene } from '../../scenes/crane-animation';
@@ -152,13 +150,13 @@ function readDomSnapshot(snapshot: StoryDebugSnapshot, metrics: BackHalfMetrics)
 export function BackHalfHarness() {
   const manifest = useMemo(() => createR4BackHalfManifest(), []);
   const registry = useMemo(() => new HandleRegistry(), []);
-  const layerElements = useRef(new Map<SceneId, HTMLElement>());
-  const layers = useRef(new Map<SceneId, LayerHandle>());
   const localLog = useRef<string[]>([]);
-  const [visibilityByScene, setVisibilityByScene] = useState<Partial<Record<SceneId, LayerVisibilityState>>>(() =>
-    holdVisibilityForWindow({ current: hashScene() ?? 'services', retiring: [] })
+  const layerStore = useMemo(
+    () => new LayerStore(holdVisibilityForWindow({ current: hashScene() ?? 'services', retiring: [] })),
+    []
   );
-  const visibilityRef = useRef(visibilityByScene);
+  const layerSnapshot = useSyncExternalStore(layerStore.subscribe, layerStore.getSnapshot, layerStore.getSnapshot);
+  const visibilityByScene = layerSnapshot.visibilityByScene;
   const [metrics, setMetrics] = useState<BackHalfMetrics>({
     localEvents: [],
     staleCompletionIgnored: 0
@@ -178,68 +176,11 @@ export function BackHalfHarness() {
     updateMetrics((current) => ({ ...current, localEvents: localLog.current }));
   };
 
-  const updateVisibility = (scene: SceneId, visibility: LayerVisibilityState) => {
-    visibilityRef.current = {
-      ...visibilityRef.current,
-      [scene]: visibility
-    };
-    setVisibilityByScene(visibilityRef.current);
-  };
-
   const setHoldVisibility = (window: LayerWindowSnapshot) => {
-    const next = holdVisibilityForWindow(window);
-    visibilityRef.current = next;
-    for (const [scene, state] of Object.entries(next) as [SceneId, LayerVisibilityState][]) {
-      const layer = layers.current.get(scene);
-      if (layer) {
-        applyLayerVisibility(layer, state);
-      }
-    }
-    setVisibilityByScene(visibilityRef.current);
+    layerStore.replaceVisibility(holdVisibilityForWindow(window));
   };
 
-  const createLayer = (scene: SceneId, role: StageLayerRole): LayerHandle => ({
-    scene,
-    role,
-    get element() {
-      return layerElements.current.get(scene) ?? null;
-    },
-    get visibility() {
-      return visibilityRef.current[scene] ?? hiddenVisibility();
-    },
-    setVisibility(next) {
-      updateVisibility(scene, next);
-    },
-    dispose() {
-      updateVisibility(scene, hiddenVisibility());
-    }
-  });
-
-  const stageHandle = useMemo<StageHandle>(
-    () => ({
-      getLayer(scene) {
-        return layers.current.get(scene);
-      },
-      ensureLayer(scene, role) {
-        const existing = layers.current.get(scene);
-        if (existing) {
-          existing.role = role;
-          return existing;
-        }
-        const layer = createLayer(scene, role);
-        layers.current.set(scene, layer);
-        return layer;
-      },
-      releaseLayer(scene) {
-        layers.current.get(scene)?.dispose();
-        layers.current.delete(scene);
-      },
-      snapshot() {
-        return [...layers.current.values()];
-      }
-    }),
-    []
-  );
+  const stageHandle = layerStore;
 
   const runtime = useMemo(
     () =>
@@ -272,7 +213,7 @@ export function BackHalfHarness() {
               prepareToken,
               direction,
               registry,
-              getMediaElement: (key) => findMediaElementByKey(layerElements.current.values(), key)
+              getMediaElement: (key) => findMediaElementByKey(layerStore.boundElements(), key)
             }),
           beginBuild: ({ segment, prepareToken, prepareRunId }) => {
             if (BACK_HALF_SEGMENTS.includes(segment.id)) {
@@ -396,13 +337,7 @@ export function BackHalfHarness() {
         modules={modules}
         registry={registry}
         visibilityByScene={visibilityByScene}
-        onLayerElement={(scene, element) => {
-          if (element) {
-            layerElements.current.set(scene, element);
-          } else {
-            layerElements.current.delete(scene);
-          }
-        }}
+        onLayerElement={(scene, element) => layerStore.bindElement(scene, element)}
       />
       <aside className="stage-harness-hud">
         <div className="harness-state">{frame.phase}</div>

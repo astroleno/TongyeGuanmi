@@ -59,11 +59,6 @@ function range01(value: number, start: number, end: number): number {
   return Math.min(1, Math.max(0, (value - start) / (end - start)));
 }
 
-function isInkTransitionActive(root: HTMLElement | null): boolean {
-  const layer = root?.closest<HTMLElement>('[data-stage-layer]');
-  return Boolean(layer?.dataset.r4Transition || layer?.dataset.r4InkActive === 'true');
-}
-
 function bindMetadataResync(video: Figure2VideoElement): void {
   if (video.__r4Figure2MetadataBound) {
     return;
@@ -239,17 +234,14 @@ export function renderFigure2ProofTransitionProgress(root: HTMLElement | null, p
   return renderFigure2AnimationProgress(root, 1, { proofProgress: progress, syncVideo: false });
 }
 
+export function renderFigure2Hold(root: HTMLElement | null): void {
+  renderFigure2AnimationProgress(root, 0, { videoMode: 'seek' });
+}
+
 function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const leftVideoRef = useRef<HTMLVideoElement | null>(null);
   const rightVideoRef = useRef<HTMLVideoElement | null>(null);
-
-  useEffect(() => {
-    if (isInkTransitionActive(rootRef.current)) {
-      return;
-    }
-    renderFigure2AnimationProgress(rootRef.current, 0, { videoMode: 'none' });
-  }, [hidden]);
 
   useEffect(() => {
     const videos = [leftVideoRef.current, rightVideoRef.current].filter(Boolean) as HTMLVideoElement[];
@@ -321,6 +313,7 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
 export const figure2AnimationScene: SceneModule = {
   id: 'figure2-animation',
   Component: Figure2AnimationScene,
+  renderHold: renderFigure2Hold,
   requiredHandles: ['stage', 'figures', 'left-video', 'right-video'],
   preload: () => ({ milestones: ['targetReady', 'mediaReady'] })
 };

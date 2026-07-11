@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const FIGURE3_MEDIA_KEY = 'figure3-alpha-scrub';
@@ -60,25 +59,15 @@ export function renderFigure3AnimationProgress(root: HTMLElement | null | undefi
   return { progress, fillOpacity, videoOpacity, videoScale };
 }
 
-function Figure3AnimationScene({ role, registerHandle }: SceneComponentProps) {
-  const rootRef = useRef<HTMLElement | null>(null);
-  const initializedRef = useRef(false);
+export function renderFigure3Hold(root: HTMLElement | null): void {
+  renderFigure3AnimationProgress(root, FIGURE3_HOLD_PROGRESS);
+}
 
-  useEffect(() => {
-    if (role === 'current' && rootRef.current) {
-      renderFigure3AnimationProgress(rootRef.current, FIGURE3_HOLD_PROGRESS);
-    }
-  }, [role]);
-
+function Figure3AnimationScene({ registerHandle }: SceneComponentProps) {
   return (
     <article
       ref={(element) => {
-        rootRef.current = element;
         registerHandle?.('field', element);
-        if (element && !initializedRef.current) {
-          renderFigure3AnimationProgress(element, FIGURE3_HOLD_PROGRESS);
-          initializedRef.current = true;
-        }
       }}
       className="figure3-transition r4-figure3-animation"
       data-r4-scene="figure3-animation"
@@ -112,6 +101,7 @@ function Figure3AnimationScene({ role, registerHandle }: SceneComponentProps) {
 export const figure3AnimationScene: SceneModule = {
   id: 'figure3-animation',
   Component: Figure3AnimationScene,
+  renderHold: renderFigure3Hold,
   requiredHandles: ['field', 'figure3-video'],
   preload: () => ({ milestones: ['targetReady', 'mediaReady'] })
 };

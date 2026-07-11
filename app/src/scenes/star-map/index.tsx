@@ -23,9 +23,7 @@ type StarMapRoot = HTMLElement & {
 };
 
 export function starMapMotionEnabled(hidden: boolean, reducedMotion: boolean): boolean {
-  void hidden;
-  void reducedMotion;
-  return false;
+  return !hidden && !reducedMotion;
 }
 
 export function pauseStarMapTransitionMotion(root: HTMLElement | null | undefined): void {
@@ -57,15 +55,18 @@ export function renderStarMapProgress(root: HTMLElement | null, progress: number
   return { progress: clamped, copyOpacity, canvasStrength };
 }
 
+export function renderStarMapHold(root: HTMLElement | null): void {
+  renderStarMapProgress(root, 1);
+  const controlledRoot = root as StarMapRoot | null;
+  const reducedMotion = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  controlledRoot?.__r4StarMapPaintController?.setActive(!reducedMotion);
+}
+
 function StarMapScene({ hidden, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const paintControllerRef = useRef<{ setActive(active: boolean): void } | null>(null);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    renderStarMapProgress(root, hidden ? 0 : 1);
-  }, [hidden]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -204,6 +205,7 @@ function StarMapScene({ hidden, registerHandle }: SceneComponentProps) {
 export const starMapScene: SceneModule = {
   id: 'star-map',
   Component: StarMapScene,
+  renderHold: renderStarMapHold,
   requiredHandles: ['copy', 'star-canvas'],
   staticFallback: {
     sectionIds: ['belief'],

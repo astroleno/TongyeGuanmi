@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const SERVICES_COPY = [
@@ -48,16 +47,15 @@ export function renderServicesProgress(root: HTMLElement | null | undefined, pro
   return { progress: clamped, opacity, y };
 }
 
+export function renderServicesHold(root: HTMLElement | null): void {
+  renderServicesProgress(root, 1);
+}
+
 function ServicesScene({ registerHandle }: SceneComponentProps) {
-  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        if (element && !initializedRef.current) {
-          renderServicesProgress(element, 1);
-          initializedRef.current = true;
-        }
       }}
       className="r4-services"
       data-r4-scene="services"
@@ -88,6 +86,7 @@ function ServicesScene({ registerHandle }: SceneComponentProps) {
 export const servicesScene: SceneModule = {
   id: 'services',
   Component: ServicesScene,
+  renderHold: renderServicesHold,
   requiredHandles: ['copy'],
   staticFallback: {
     sectionIds: ['services'],

@@ -1,16 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createDirectorRuntime, type StoryDebugSnapshot } from '../../runtime/director.actor';
 import { Stage } from '../../stage/Stage';
+import { LayerStore } from '../../stage/LayerStore';
 import type { LayerWindowSnapshot } from '../../stage/LayerWindow';
 import { HandleRegistry } from '../../story/registry';
 import type {
   Direction,
-  LayerHandle,
   LayerVisibilityState,
   SceneId,
-  SegmentId,
-  StageHandle,
-  StageLayerRole
+  SegmentId
 } from '../../story/types';
 import { brandScene } from '../../scenes/brand';
 import { figure2AnimationScene } from '../../scenes/figure2-animation';
@@ -21,7 +19,7 @@ import { createFigure2DistanceExpandTransition } from '../../transitions/figure2
 import { createFigure2ProofBrandTransition } from '../../transitions/figure2-proof-brand';
 import { createFigure2ProofCardsClosingTransition } from '../../transitions/figure2-proof-cards-closing';
 import { createFigure2ProofOpeningCardsTransition } from '../../transitions/figure2-proof-opening-cards';
-import { applyLayerVisibility, hiddenVisibility, holdVisibility } from '../../pilot/visibility';
+import { hiddenVisibility, holdVisibility } from '../../pilot/visibility';
 import { createR4Group3Manifest, type R4Group3HarnessMode } from './group3Manifest';
 import { findMediaElementByKey, prepareTimeoutForManifest, waitForRequiredMediaReady } from './mediaGate';
 
@@ -156,14 +154,13 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
   const manifest = useMemo(() => createR4Group3Manifest(mode), [mode]);
   const registry = useMemo(() => new HandleRegistry(), []);
   const buildDelayMs = useRef(0);
-  const layerElements = useRef(new Map<SceneId, HTMLElement>());
-  const layers = useRef(new Map<SceneId, LayerHandle>());
   const localLog = useRef<string[]>([]);
-  const [visibilityByScene, setVisibilityByScene] = useState<Partial<Record<SceneId, LayerVisibilityState>>>(() => {
+  const layerStore = useMemo(() => {
     const initialHold = manifest.nodes.find((node) => node.kind === 'hold')?.scene ?? 'figure2-animation';
-    return holdVisibilityForWindow({ current: initialHold, retiring: [] });
-  });
-  const visibilityRef = useRef(visibilityByScene);
+    return new LayerStore(holdVisibilityForWindow({ current: initialHold, retiring: [] }));
+  }, [manifest]);
+  const layerSnapshot = useSyncExternalStore(layerStore.subscribe, layerStore.getSnapshot, layerStore.getSnapshot);
+  const visibilityByScene = layerSnapshot.visibilityByScene;
   const [metrics, setMetrics] = useState<Group3Metrics>({
     recoveryCount: 0,
     staleCompletionIgnored: 0,
@@ -184,68 +181,11 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
     updateMetrics((current) => ({ ...current, localEvents: localLog.current }));
   };
 
-  const updateVisibility = (scene: SceneId, visibility: LayerVisibilityState) => {
-    visibilityRef.current = {
-      ...visibilityRef.current,
-      [scene]: visibility
-    };
-    setVisibilityByScene(visibilityRef.current);
-  };
-
   const setHoldVisibility = (window: LayerWindowSnapshot) => {
-    const next = holdVisibilityForWindow(window);
-    visibilityRef.current = next;
-    for (const [scene, state] of Object.entries(next) as [SceneId, LayerVisibilityState][]) {
-      const layer = layers.current.get(scene);
-      if (layer) {
-        applyLayerVisibility(layer, state);
-      }
-    }
-    setVisibilityByScene(visibilityRef.current);
+    layerStore.replaceVisibility(holdVisibilityForWindow(window));
   };
 
-  const createLayer = (scene: SceneId, role: StageLayerRole): LayerHandle => ({
-    scene,
-    role,
-    get element() {
-      return layerElements.current.get(scene) ?? null;
-    },
-    get visibility() {
-      return visibilityRef.current[scene] ?? hiddenVisibility();
-    },
-    setVisibility(next) {
-      updateVisibility(scene, next);
-    },
-    dispose() {
-      updateVisibility(scene, hiddenVisibility());
-    }
-  });
-
-  const stageHandle = useMemo<StageHandle>(
-    () => ({
-      getLayer(scene) {
-        return layers.current.get(scene);
-      },
-      ensureLayer(scene, role) {
-        const existing = layers.current.get(scene);
-        if (existing) {
-          existing.role = role;
-          return existing;
-        }
-        const layer = createLayer(scene, role);
-        layers.current.set(scene, layer);
-        return layer;
-      },
-      releaseLayer(scene) {
-        layers.current.get(scene)?.dispose();
-        layers.current.delete(scene);
-      },
-      snapshot() {
-        return [...layers.current.values()];
-      }
-    }),
-    []
-  );
+  const stageHandle = layerStore;
 
   const runtime = useMemo(
     () =>
@@ -276,7 +216,7 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
               prepareToken,
               direction,
               registry,
-              getMediaElement: (key) => findMediaElementByKey(layerElements.current.values(), key)
+              getMediaElement: (key) => findMediaElementByKey(layerStore.boundElements(), key)
             }),
           beginBuild: ({ segment, prepareToken, prepareRunId }) => {
             if (GROUP_SEGMENTS.includes(segment.id)) {
@@ -400,13 +340,7 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
         modules={modules}
         registry={registry}
         visibilityByScene={visibilityByScene}
-        onLayerElement={(scene, element) => {
-          if (element) {
-            layerElements.current.set(scene, element);
-          } else {
-            layerElements.current.delete(scene);
-          }
-        }}
+        onLayerElement={(scene, element) => layerStore.bindElement(scene, element)}
       />
       <aside className="stage-harness-hud">
         <div className="harness-state">{frame.phase}</div>

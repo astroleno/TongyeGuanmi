@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const CRANE_FIGURE_MEDIA_KEY = 'crane-figure1-transition';
@@ -142,25 +141,15 @@ export function renderCraneAnimationProgress(root: HTMLElement | null | undefine
   return { progress, videoScale, videoOpacity: reveal, flockOpacity, downExitY };
 }
 
-function CraneAnimationScene({ role, registerHandle }: SceneComponentProps) {
-  const rootRef = useRef<HTMLElement | null>(null);
-  const initializedRef = useRef(false);
+export function renderCraneHold(root: HTMLElement | null): void {
+  renderCraneAnimationProgress(root, CRANE_HOLD_PROGRESS);
+}
 
-  useEffect(() => {
-    if (role === 'current' && rootRef.current) {
-      renderCraneAnimationProgress(rootRef.current, CRANE_HOLD_PROGRESS);
-    }
-  }, [role]);
-
+function CraneAnimationScene({ registerHandle }: SceneComponentProps) {
   return (
     <article
       ref={(element) => {
-        rootRef.current = element;
         registerHandle?.('stage', element);
-        if (element && !initializedRef.current) {
-          renderCraneAnimationProgress(element, CRANE_HOLD_PROGRESS);
-          initializedRef.current = true;
-        }
       }}
       className="crane-page r4-crane-animation"
       data-r4-scene="crane-animation"
@@ -218,6 +207,7 @@ function CraneAnimationScene({ role, registerHandle }: SceneComponentProps) {
 export const craneAnimationScene: SceneModule = {
   id: 'crane-animation',
   Component: CraneAnimationScene,
+  renderHold: renderCraneHold,
   requiredHandles: ['stage', 'figure-video', 'flock-video'],
   preload: () => ({ milestones: ['targetReady', 'mediaReady'] })
 };

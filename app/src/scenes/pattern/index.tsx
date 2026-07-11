@@ -35,10 +35,6 @@ type PatternRoot = HTMLElement & {
 
 const PATTERN_ROTOR_IDS = ['06', '05', '04', '03', '02'] as const;
 
-function isInkTransitionActive(root: HTMLElement | null): boolean {
-  return root?.closest<HTMLElement>('[data-stage-layer]')?.dataset.r4InkActive === 'true';
-}
-
 export function renderPatternProgress(root: HTMLElement | null, progress: number, options: PatternRenderOptions = {}): PatternRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
   const rotationProgress = Math.min(1, Math.max(0, options.rotationProgress ?? clamped));
@@ -74,6 +70,10 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
   };
 }
 
+export function renderPatternHold(root: HTMLElement | null): void {
+  renderPatternProgress(root, 0, { visible: true });
+}
+
 function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -100,10 +100,6 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
     const root = rootRef.current as PatternRoot | null;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     root?.__r4PatternRenderer?.setRenderActive(!hidden, !hidden && !reduceMotion);
-    if (isInkTransitionActive(root)) {
-      return;
-    }
-    renderPatternProgress(root, hidden ? 0 : 1);
   }, [hidden]);
 
   return (
@@ -142,6 +138,7 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
 export const patternScene: SceneModule = {
   id: 'pattern',
   Component: PatternScene,
+  renderHold: renderPatternHold,
   requiredHandles: ['copy'],
   staticFallback: {
     sectionIds: ['belief'],

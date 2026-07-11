@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const EDUCATION_COPY = [
@@ -50,16 +49,15 @@ export function renderEducationProgress(root: HTMLElement | null | undefined, pr
   return { progress: clamped, opacity, y };
 }
 
+export function renderEducationHold(root: HTMLElement | null): void {
+  renderEducationProgress(root, 1);
+}
+
 function EducationScene({ registerHandle }: SceneComponentProps) {
-  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        if (element && !initializedRef.current) {
-          renderEducationProgress(element, 1);
-          initializedRef.current = true;
-        }
       }}
       className="r4-education"
       data-r4-scene="education"
@@ -103,6 +101,7 @@ function EducationScene({ registerHandle }: SceneComponentProps) {
 export const educationScene: SceneModule = {
   id: 'education',
   Component: EducationScene,
+  renderHold: renderEducationHold,
   requiredHandles: ['copy'],
   staticFallback: {
     sectionIds: ['education'],

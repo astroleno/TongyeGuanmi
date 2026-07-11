@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const FIGURE2_PROOF_CLOSING_COPY = [
@@ -30,16 +29,15 @@ export function renderProofClosingProgress(root: HTMLElement | null, progress: n
   return { progress: clamped, opacity, y };
 }
 
+export function renderProofClosingHold(root: HTMLElement | null): void {
+  renderProofClosingProgress(root, 1);
+}
+
 function Figure2ProofClosingScene({ registerHandle }: SceneComponentProps) {
-  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        if (element && !initializedRef.current) {
-          renderProofClosingProgress(element, 1);
-          initializedRef.current = true;
-        }
       }}
       className="r4-proof r4-proof-page r4-proof-closing"
       data-r4-scene="figure2-proof-closing"
@@ -55,6 +53,7 @@ function Figure2ProofClosingScene({ registerHandle }: SceneComponentProps) {
 export const figure2ProofClosingScene: SceneModule = {
   id: 'figure2-proof-closing',
   Component: Figure2ProofClosingScene,
+  renderHold: renderProofClosingHold,
   requiredHandles: ['copy'],
   staticFallback: {
     sectionIds: ['method'],
