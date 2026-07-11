@@ -50,10 +50,12 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toContain('uniform float uOwnershipGateRank');
     expect(shaderSource).toContain('uniform vec2 uOwnershipCore');
     expect(shaderSource).toContain('uniform float uOcclusionAlphaMin');
-    expect(shaderSource).toContain('uniform vec4 uSecondaryHorizontalGate');
+    expect(shaderSource).not.toContain('uSecondaryHorizontalGate');
+    expect(shaderSource).not.toContain('secondaryOwnershipOcclusion');
     expect(shaderSource).toContain('float ownershipOcclusion(');
     expect(shaderSource).toContain('float ownershipWarp = clamp(');
     expect(shaderSource).toMatch(/ownershipOcclusion\([^)]*ownershipWarp/s);
+    expect(shaderSource).toContain('max(alpha, seamOcclusion)');
     expect(shaderSource).toMatch(/alpha\s*=\s*max\(alpha,\s*seamOcclusion\)/);
     expect(shaderSource).not.toContain('uSceneDim');
   });

@@ -427,6 +427,7 @@ describe('figure2 proof chain transitions', () => {
     const toElement = new FakeElement();
     const fromRoot = new FakeElement();
     const depthField = new FakeElement();
+    const figureDepthSurface = new FakeElement();
     const figureField = new FakeElement();
     const proofGround = new FakeElement();
     const retainedArch = new FakeElement();
@@ -435,6 +436,7 @@ describe('figure2 proof chain transitions', () => {
     toElement.ownerDocument = document;
     fromRoot.ownerDocument = document;
     depthField.ownerDocument = document;
+    figureDepthSurface.ownerDocument = document;
     figureField.ownerDocument = document;
     proofGround.ownerDocument = document;
     retainedArch.ownerDocument = document;
@@ -443,6 +445,10 @@ describe('figure2 proof chain transitions', () => {
       fromRoot
     );
     fromRoot.connect('[data-figure2-depth-ranked-field="true"]', depthField);
+    fromRoot.connect(
+      '[data-figure2-figure-depth-surface="true"]',
+      figureDepthSurface
+    );
     fromRoot.connect('[data-figure2-figure-field="true"]', figureField);
     proofGround.dataset.figure2RetainedGround = 'true';
     retainedArch.dataset.stageRetainedFigure2Arch = 'true';
@@ -466,23 +472,22 @@ describe('figure2 proof chain transitions', () => {
     expect(toElement.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
     expect(proofGround.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
     expect(depthField.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
-    expect(figureField.style.getPropertyValue('mask-image')).toBe('');
-    expect(figureField.style.clipPath).toMatch(/^inset\(/);
-    expect(figureField.dataset.figure2FigureGateValues).toBe('0,1');
+    expect(figureDepthSurface.style.getPropertyValue('mask-image'))
+      .toContain('depth-threshold-conceal-mask');
+    expect(figureField.style.clipPath).toBe('');
+    expect(fromRoot.style.getPropertyValue('--r4-figure2-figure-opacity')).toBe('1.0000');
+    expect(figureField.style.getPropertyValue('opacity')).toBe('');
     expect(toElement.dataset.r4DepthMaskValues).toBe('1,0');
     expect(proofGround.dataset.r4DepthMaskValues).toBe('1,0');
     expect(depthField.dataset.r4DepthMaskValues).toBe('0,1');
+    expect(figureDepthSurface.dataset.r4DepthMaskValues).toBe('0,1');
     expect(retainedArch.style.getPropertyValue('mask-image')).toBe('');
     const inkCanvas = stage.children.find(
       (child) => child.dataset.r4InkSegment === 'figure2-distance-expand'
     );
     expect(inkCanvas?.dataset.r4InkEffectOnly).toBe('true');
     expect(inkCanvas?.dataset.r4InkBoundaryKind).toBe('depth');
-    expect(inkCanvas?.dataset.r4InkSecondaryGateKind).toBe('horizontal');
-    expect(Number(inkCanvas?.dataset.r4InkSecondaryGateRank)).toBeCloseTo(
-      1 - Number(figureField.dataset.figure2FigureGateProgress),
-      4
-    );
+    expect(inkCanvas?.dataset.r4InkSecondaryGateKind).toBeUndefined();
     expect(timeline.effectCanvases?.()).toEqual([inkCanvas]);
 
     timeline.progress(1);
@@ -490,6 +495,7 @@ describe('figure2 proof chain transitions', () => {
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
     expect(proofGround.style.getPropertyValue('mask-image')).toBe('');
     expect(depthField.style.getPropertyValue('mask-image')).toBe('');
+    expect(figureDepthSurface.style.getPropertyValue('mask-image')).toBe('');
     expect(figureField.style.clipPath).toBe('');
   });
 

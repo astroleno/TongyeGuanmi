@@ -320,46 +320,51 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
           </div>
         </div>
         <div
-          ref={(element) => registerHandle?.('figures', element)}
-          className="r4-figure2__figures"
-          data-figure2-figure-field="true"
-          aria-label="子问老子人物动画"
+          className="r4-figure2__figure-depth-surface"
+          data-figure2-figure-depth-surface="true"
         >
-          <div className="r4-figure2__people-contact-shadow" aria-hidden="true" />
-          <figure className="r4-figure2__figure r4-figure2__figure--left">
-            <video
-              ref={(element) => {
-                leftVideoRef.current = element;
-                registerHandle?.('left-video', element);
-              }}
-              data-figure2-video
-              data-media-key={FIGURE2_LEFT_MEDIA_KEY}
-              src={LEFT_VIDEO}
-              poster={LEFT_POSTER}
-              muted
-              playsInline
-              preload="auto"
-              aria-hidden="true"
-            />
-            <figcaption>问道者</figcaption>
-          </figure>
-          <figure className="r4-figure2__figure r4-figure2__figure--right">
-            <video
-              ref={(element) => {
-                rightVideoRef.current = element;
-                registerHandle?.('right-video', element);
-              }}
-              data-figure2-video
-              data-media-key={FIGURE2_RIGHT_MEDIA_KEY}
-              src={RIGHT_VIDEO}
-              poster={RIGHT_POSTER}
-              muted
-              playsInline
-              preload="auto"
-              aria-hidden="true"
-            />
-            <figcaption>老子</figcaption>
-          </figure>
+          <div
+            ref={(element) => registerHandle?.('figures', element)}
+            className="r4-figure2__figures"
+            data-figure2-figure-field="true"
+            aria-label="子问老子人物动画"
+          >
+            <div className="r4-figure2__people-contact-shadow" aria-hidden="true" />
+            <figure className="r4-figure2__figure r4-figure2__figure--left">
+              <video
+                ref={(element) => {
+                  leftVideoRef.current = element;
+                  registerHandle?.('left-video', element);
+                }}
+                data-figure2-video
+                data-media-key={FIGURE2_LEFT_MEDIA_KEY}
+                src={LEFT_VIDEO}
+                poster={LEFT_POSTER}
+                muted
+                playsInline
+                preload="auto"
+                aria-hidden="true"
+              />
+              <figcaption>问道者</figcaption>
+            </figure>
+            <figure className="r4-figure2__figure r4-figure2__figure--right">
+              <video
+                ref={(element) => {
+                  rightVideoRef.current = element;
+                  registerHandle?.('right-video', element);
+                }}
+                data-figure2-video
+                data-media-key={FIGURE2_RIGHT_MEDIA_KEY}
+                src={RIGHT_VIDEO}
+                poster={RIGHT_POSTER}
+                muted
+                playsInline
+                preload="auto"
+                aria-hidden="true"
+              />
+              <figcaption>老子</figcaption>
+            </figure>
+          </div>
         </div>
       </div>
     </article>

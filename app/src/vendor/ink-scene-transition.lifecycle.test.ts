@@ -137,7 +137,7 @@ describe('ink WebGL resource lifecycle', () => {
     expect(gl.deleteTexture).toHaveBeenCalledWith(texture);
   });
 
-  it('uploads the primary and secondary ownership occlusion contracts', () => {
+  it('uploads one primary ownership occlusion contract', () => {
     const { canvas, gl } = webGlHarness();
     const transition = createInkBoundaryTransition(canvas);
     const frame = createInkFieldFrame(
@@ -152,13 +152,7 @@ describe('ink WebGL resource lifecycle', () => {
         }
       },
       0.5,
-      { width: 320, height: 180 },
-      {
-        secondaryHorizontal: {
-          direction: 'top-to-bottom',
-          gateRank: 0.37
-        }
-      }
+      { width: 320, height: 180 }
     );
 
     transition?.render(frame);
@@ -170,12 +164,15 @@ describe('ink WebGL resource lifecycle', () => {
       frame.occlusion.coreMax
     );
     expect(gl.uniform1f).toHaveBeenCalledWith('uOcclusionAlphaMin', 0.92);
-    expect(gl.uniform4f).toHaveBeenCalledWith(
+    const uniformNames = gl.getUniformLocation.mock.calls.map(([, name]) => name);
+    expect(uniformNames).not.toContain('uSecondaryHorizontalGate');
+    expect(uniformNames).not.toContain('uSecondaryHorizontalCore');
+    expect(gl.uniform4f).not.toHaveBeenCalledWith(
       'uSecondaryHorizontalGate',
-      1,
-      0,
-      0.37,
-      0.92
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
     );
   });
 

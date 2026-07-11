@@ -62,8 +62,6 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     uniform float uOwnershipGateRank;
     uniform vec2 uOwnershipCore;
     uniform float uOcclusionAlphaMin;
-    uniform vec4 uSecondaryHorizontalGate;
-    uniform vec2 uSecondaryHorizontalCore;
 
     float hash(vec2 p) {
       p = fract(p * vec2(127.1, 311.7));
@@ -192,17 +190,9 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         uOcclusionAlphaMin,
         ownershipWarp
       );
-      float secondaryHorizontalRank = horizontalRankForDirection(uv, uSecondaryHorizontalGate.y);
-      float secondaryOwnershipOcclusion = uSecondaryHorizontalGate.x * ownershipOcclusion(
-        secondaryHorizontalRank,
-        uSecondaryHorizontalGate.z,
-        uSecondaryHorizontalCore,
-        uSecondaryHorizontalGate.w,
-        ownershipWarp
-      );
       float seamOcclusion = max(
         proceduralOcclusion,
-        max(primaryOwnershipOcclusion, secondaryOwnershipOcclusion)
+        primaryOwnershipOcclusion
       );
       float veins = smoothstep(0.66, 0.97, wet + pore * 0.34) * feather;
       float openingSpatter = smoothstep(
@@ -314,9 +304,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     depthOrigin: gl.getUniformLocation(program, 'uDepthOrigin'),
     ownershipGateRank: gl.getUniformLocation(program, 'uOwnershipGateRank'),
     ownershipCore: gl.getUniformLocation(program, 'uOwnershipCore'),
-    occlusionAlphaMin: gl.getUniformLocation(program, 'uOcclusionAlphaMin'),
-    secondaryHorizontalGate: gl.getUniformLocation(program, 'uSecondaryHorizontalGate'),
-    secondaryHorizontalCore: gl.getUniformLocation(program, 'uSecondaryHorizontalCore')
+    occlusionAlphaMin: gl.getUniformLocation(program, 'uOcclusionAlphaMin')
   };
 
   const depthTexture = gl.createTexture();
@@ -487,19 +475,6 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         frame.occlusion.coreMax
       );
       gl.uniform1f(uniforms.occlusionAlphaMin, frame.occlusion.alphaMin);
-      const secondaryHorizontal = frame.occlusion.secondaryHorizontal;
-      gl.uniform4f(
-        uniforms.secondaryHorizontalGate,
-        secondaryHorizontal ? 1 : 0,
-        secondaryHorizontal?.direction === 'bottom-to-top' ? 1 : 0,
-        secondaryHorizontal?.gateRank ?? 0,
-        secondaryHorizontal?.alphaMin ?? 0
-      );
-      gl.uniform2f(
-        uniforms.secondaryHorizontalCore,
-        secondaryHorizontal?.coreMin ?? 0,
-        secondaryHorizontal?.coreMax ?? 0
-      );
       if (canvas.dataset) {
         canvas.dataset.r4InkBoundaryKind = spec.kind;
         canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;

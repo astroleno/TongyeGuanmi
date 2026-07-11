@@ -85,6 +85,7 @@ describe('figure2-animation scene renderer', () => {
     }));
 
     expect(markup.match(/data-figure2-depth-ranked-field=/g)).toHaveLength(1);
+    expect(markup.match(/data-figure2-figure-depth-surface=/g)).toHaveLength(1);
     expect(markup.match(/data-figure2-figure-field=/g)).toHaveLength(1);
     expect(markup).not.toContain('r4-figure2__near-arch');
   });

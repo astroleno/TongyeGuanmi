@@ -43,7 +43,12 @@ describe('InkFieldFrame', () => {
     expect(frame.occlusion.gateRank).toBeGreaterThanOrEqual(frame.occlusion.coreMin);
     expect(frame.occlusion.gateRank).toBeLessThanOrEqual(frame.occlusion.coreMax);
     expect(frame.occlusion.alphaMin).toBe(0.92);
-    expect(frame.occlusion.secondaryHorizontal).toBeNull();
+    expect(Object.keys(frame.occlusion).sort()).toEqual([
+      'alphaMin',
+      'coreMax',
+      'coreMin',
+      'gateRank'
+    ]);
   });
 
   it('uses a hidden circle ownership gate for radial Ink', () => {
@@ -82,23 +87,18 @@ describe('InkFieldFrame', () => {
         transform
       },
       0.5,
-      viewport,
-      {
-        secondaryHorizontal: {
-          direction: 'top-to-bottom',
-          gateRank: 0.37
-        }
-      }
+      viewport
     );
 
     expect(frame.spec).toMatchObject({ kind: 'depth', transform });
     expect(frame.ownership.revealClip).toBeNull();
     expect(frame.occlusion.gateRank).toBeCloseTo(0.5, 6);
-    expect(frame.occlusion.secondaryHorizontal).toMatchObject({
-      direction: 'top-to-bottom',
-      gateRank: 0.37,
-      alphaMin: 0.92
-    });
+    expect(Object.keys(frame.occlusion).sort()).toEqual([
+      'alphaMin',
+      'coreMax',
+      'coreMin',
+      'gateRank'
+    ]);
     expect(frame).not.toHaveProperty('profile');
     expect(frame).not.toHaveProperty('revision');
   });

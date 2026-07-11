@@ -35,9 +35,7 @@ export type InkFieldFrame = Readonly<{
     concealClip: string | null;
     edge: number;
   }>;
-  occlusion: InkOcclusionBand & Readonly<{
-    secondaryHorizontal: InkHorizontalOcclusionBand | null;
-  }>;
+  occlusion: InkOcclusionBand;
 }>;
 
 export type InkOcclusionBand = Readonly<{
@@ -45,17 +43,6 @@ export type InkOcclusionBand = Readonly<{
   coreMin: number;
   coreMax: number;
   alphaMin: number;
-}>;
-
-export type InkHorizontalOcclusionBand = InkOcclusionBand & Readonly<{
-  direction: 'top-to-bottom' | 'bottom-to-top';
-}>;
-
-export type InkFieldFrameOptions = Readonly<{
-  secondaryHorizontal?: Readonly<{
-    direction: InkHorizontalOcclusionBand['direction'];
-    gateRank: number;
-  }>;
 }>;
 
 type InkViewport = Readonly<{ width: number; height: number }>;
@@ -154,8 +141,7 @@ export function inkFieldOrigin(spec: InkFieldSpec): InkOrigin {
 export function createInkFieldFrame(
   spec: InkFieldSpec,
   progress: number,
-  viewport: InkViewport,
-  options: InkFieldFrameOptions = {}
+  viewport: InkViewport
 ): InkFieldFrame {
   const clampedProgress = clamp(Number.isFinite(progress) ? progress : 0);
   const edge = inkOwnershipGateProgress(clampedProgress);
@@ -165,14 +151,6 @@ export function createInkFieldFrame(
       ? radialOwnership(spec, edge, viewport)
       : { revealClip: null, concealClip: null };
 
-  const primaryGateRank = edge;
-  const secondaryHorizontal = options.secondaryHorizontal
-    ? {
-        ...occlusionBand(options.secondaryHorizontal.gateRank),
-        direction: options.secondaryHorizontal.direction
-      }
-    : null;
-
   return {
     spec,
     progress: clampedProgress,
@@ -181,9 +159,6 @@ export function createInkFieldFrame(
       ...clips,
       edge
     },
-    occlusion: {
-      ...occlusionBand(primaryGateRank),
-      secondaryHorizontal
-    }
+    occlusion: occlusionBand(edge)
   };
 }

@@ -1216,10 +1216,18 @@ pre {
   filter: brightness(.96) contrast(.94) saturate(.86) sepia(.08);
 }
 
+.r4-figure2__figure-depth-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .r4-figure2__figures {
   position: absolute;
   left: 50%;
-  z-index: 16;
+  z-index: 0;
   bottom: 16svh;
   width: 100vw;
   height: 66svh;
@@ -1227,7 +1235,7 @@ pre {
   transform: translate3d(-50%, var(--r4-figure2-figure-y), 0) scale(var(--r4-figure2-figure-scale));
   transform-origin: 50% 90%;
   pointer-events: none;
-  will-change: transform, clip-path;
+  will-change: transform;
 }
 
 .r4-figure2__people-contact-shadow {

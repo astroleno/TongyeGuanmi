@@ -4,7 +4,6 @@ type InkMode = 'horizontal' | 'radial' | 'depth';
 
 type AlphaProbe = {
   primaryMin: number;
-  secondaryMin: number | null;
 };
 
 async function probeOwnershipAlpha(
@@ -65,15 +64,7 @@ async function probeOwnershipAlpha(
     const frame = createInkFieldFrame(
       spec,
       fieldProgress,
-      { width, height },
-      fieldMode === 'depth'
-        ? {
-            secondaryHorizontal: {
-              direction: 'top-to-bottom',
-              gateRank: 0.37
-            }
-          }
-        : undefined
+      { width, height }
     );
     const transition = createInkBoundaryTransition(canvas, {
       colorLift: 0.92,
@@ -133,12 +124,8 @@ async function probeOwnershipAlpha(
       );
     }
 
-    const secondarySamples = fieldMode === 'depth'
-      ? [24, 72, 248, 296].map((x) => readAlpha(x, height * (1 - 0.37)))
-      : null;
     const result = {
-      primaryMin: Math.min(...primarySamples),
-      secondaryMin: secondarySamples ? Math.min(...secondarySamples) : null
+      primaryMin: Math.min(...primarySamples)
     };
     transition.destroy();
     canvas.remove();
@@ -268,7 +255,6 @@ test.describe('R4 Ink ownership alpha diagnostics', () => {
           expect(Math.abs(
             (depthAlignment?.boundaryY ?? 0) - (depthAlignment?.expectedY ?? 0)
           )).toBeLessThanOrEqual(1);
-          expect(probe.secondaryMin).toBeGreaterThanOrEqual(0.92);
         }
       }
     });
