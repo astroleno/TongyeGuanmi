@@ -14,6 +14,8 @@ class FakeStyle {
 class FakeElement {
   style = new FakeStyle();
   attributes = new Map<string, string>();
+  clientHeight = 900;
+  clientWidth = 1440;
 
   setAttribute(name: string, value: string): void {
     this.attributes.set(name, value);
@@ -76,14 +78,32 @@ class FakeStageRoot extends FakeVideoRoot {
 }
 
 describe('figure2-animation scene renderer', () => {
-  it('groups every thresholded Figure2 pixel in one live depth field', () => {
+  it('separates depth-ranked architecture from the binary figure group', () => {
     const markup = renderToStaticMarkup(createElement(figure2AnimationScene.Component, {
       scene: 'figure2-animation',
       hidden: false
     }));
 
-    expect(markup.match(/data-figure2-depth-field=/g)).toHaveLength(1);
+    expect(markup.match(/data-figure2-depth-ranked-field=/g)).toHaveLength(1);
+    expect(markup.match(/data-figure2-figure-field=/g)).toHaveLength(1);
     expect(markup).not.toContain('r4-figure2__near-arch');
+  });
+
+  it('publishes the same terminal cover and camera transform used by the middle architecture', () => {
+    const root = new FakeElement();
+    const state = renderFigure2AnimationProgress(root as unknown as HTMLElement, 1);
+
+    expect(state.depthTransform).toEqual({
+      viewport: { width: 1440, height: 900 },
+      cover: { x: -80, y: 0, width: 1600, height: 900 },
+      camera: {
+        scale: 1.142,
+        translateX: 0,
+        translateY: -34,
+        originX: 0.5,
+        originY: 0.56
+      }
+    });
   });
 
   it('is idempotent for 0 to 1 to 0 to 1 progress renders', () => {
@@ -118,15 +138,17 @@ describe('figure2-animation scene renderer', () => {
     expect(root.style.values.has('--r4-figure2-near-arch-blur')).toBe(false);
   });
 
-  it('fades stage2 foreground while retaining the Stage-owned blurred near arch', () => {
+  it('keeps Scene opacity binary while the transition owns depth visibility', () => {
     const root = new FakeStageRoot([]);
 
     const state = renderFigure2ProofTransitionProgress(root as unknown as HTMLElement, 0.72);
 
     expect(state.progress).toBe(1);
     expect(state.proofProgress).toBeGreaterThan(0.7);
-    expect(Number(root.style.values.get('--r4-figure2-background-opacity'))).toBeLessThan(0.2);
-    expect(Number(root.style.values.get('--r4-figure2-figure-opacity'))).toBeLessThan(0.4);
+    expect(state.backgroundOpacity).toBe(1);
+    expect(state.figureOpacity).toBe(1);
+    expect(root.style.values.get('--r4-figure2-background-opacity')).toBe('1.0000');
+    expect(root.style.values.get('--r4-figure2-figure-opacity')).toBe('1.0000');
     expect(root.retainedArch.style.values.get('--r4-figure2-near-arch-blur')).toBe('3.60px');
     expect(root.attributes.get('data-figure2-proof-progress')).not.toBe('0.0000');
   });

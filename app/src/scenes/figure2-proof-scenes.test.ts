@@ -1,9 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { inventoryManifestSeed } from '../story/manifest';
 import { BRAND_COPY, brandScene, renderBrandProgress } from './brand';
 import { FIGURE2_PROOF_CARDS_COPY, figure2ProofCardsScene, renderProofCardsProgress } from './figure2-proof-cards';
 import { FIGURE2_PROOF_CLOSING_COPY, figure2ProofClosingScene, renderProofClosingProgress } from './figure2-proof-closing';
 import { FIGURE2_PROOF_OPENING_COPY, figure2ProofOpeningScene, renderProofOpeningProgress } from './figure2-proof-opening';
+
+const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -48,6 +51,11 @@ describe('figure2 proof and brand scene renderers', () => {
     expect(renderProofOpeningProgress(root as unknown as HTMLElement, 0)).toMatchObject({ opacity: 0, y: 0 });
     expect(renderProofOpeningProgress(root as unknown as HTMLElement, 1)).toMatchObject({ opacity: 1, y: 0 });
     expect(root.style.values.get('--r4-proof-opening-y')).toBe('0.00px');
+  });
+
+  it('uses one Main-derived title token for Proof Opening', () => {
+    expect(stylesheet).toContain('--r4-proof-opening-title-size: clamp(28px, 2.3vw, 42px)');
+    expect(stylesheet).toMatch(/\.r4-proof-page \.r4-proof-scroll__content--opening \.method-proof__closing\s*\{[^}]*font-size: var\(--r4-proof-opening-title-size\)/s);
   });
 
   it('uses the R-1 proof split and brand baseline verbatim', () => {

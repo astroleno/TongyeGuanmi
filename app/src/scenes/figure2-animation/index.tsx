@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
+import type { InkDepthTransform } from '../../transitions/shared/inkField';
 
 const CLOUD_IMAGE = new URL('../../../../assets/figure2-cloud-source.png', import.meta.url).href;
 const FRONT_WHITE_IMAGE = new URL('../../../../assets/figure2-front-white-source.png', import.meta.url).href;
@@ -21,6 +22,7 @@ export type Figure2AnimationRenderState = {
   backgroundOpacity: number;
   figureOpacity: number;
   cameraScale: number;
+  depthTransform: InkDepthTransform;
 };
 
 type Figure2Root = HTMLElement & {
@@ -45,17 +47,54 @@ const VIDEO_SEGMENT_SECONDS = 5;
 const VIDEO_END_EPSILON = 0.045;
 export const FIGURE2_INTRO_PLAYBACK_MS = 2600;
 const VIDEO_INTRO_PLAYBACK_SECONDS = FIGURE2_INTRO_PLAYBACK_MS / 1000;
+const FIGURE2_MIDDLE_ASPECT_RATIO = 16 / 9;
 
 function smoothStep(value: number): number {
   const clamped = Math.min(1, Math.max(0, value));
   return clamped * clamped * (3 - 2 * clamped);
 }
 
-function range01(value: number, start: number, end: number): number {
-  if (end <= start) {
-    return value >= end ? 1 : 0;
-  }
-  return Math.min(1, Math.max(0, (value - start) / (end - start)));
+function figure2Viewport(root: HTMLElement | null): Readonly<{ width: number; height: number }> {
+  const rect = root?.getBoundingClientRect?.();
+  const width = rect?.width || root?.clientWidth || (typeof window === 'undefined' ? 1440 : window.innerWidth) || 1440;
+  const height = rect?.height || root?.clientHeight || (typeof window === 'undefined' ? 900 : window.innerHeight) || 900;
+  return {
+    width: Math.max(1, width),
+    height: Math.max(1, height)
+  };
+}
+
+export function figure2DepthTransformForProgress(
+  root: HTMLElement | null,
+  progress: number
+): InkDepthTransform {
+  const viewport = figure2Viewport(root);
+  const viewportRatio = viewport.width / viewport.height;
+  const cover = viewportRatio >= FIGURE2_MIDDLE_ASPECT_RATIO
+    ? {
+        x: 0,
+        y: (viewport.height - viewport.width / FIGURE2_MIDDLE_ASPECT_RATIO) / 2,
+        width: viewport.width,
+        height: viewport.width / FIGURE2_MIDDLE_ASPECT_RATIO
+      }
+    : {
+        x: (viewport.width - viewport.height * FIGURE2_MIDDLE_ASPECT_RATIO) / 2,
+        y: 0,
+        width: viewport.height * FIGURE2_MIDDLE_ASPECT_RATIO,
+        height: viewport.height
+      };
+  const eased = smoothStep(progress);
+  return {
+    viewport,
+    cover,
+    camera: {
+      scale: Number((1.012 + eased * 0.13).toFixed(4)),
+      translateX: 0,
+      translateY: Number((-eased * 34).toFixed(2)),
+      originX: 0.5,
+      originY: 0.56
+    }
+  };
 }
 
 function bindMetadataResync(video: Figure2VideoElement): void {
@@ -184,10 +223,9 @@ export function renderFigure2AnimationProgress(
   const clamped = Math.min(1, Math.max(0, progress));
   const eased = smoothStep(clamped);
   const proofProgress = smoothStep(Math.min(1, Math.max(0, options.proofProgress ?? 0)));
-  const foregroundOpacity = 1 - smoothStep(range01(proofProgress, 0.08, 0.62));
-  const backgroundOpacity = 1 - smoothStep(range01(proofProgress, 0.06, 0.58));
+  const backgroundOpacity = 1;
   const stageOpacity = 1;
-  const figureOpacity = foregroundOpacity;
+  const figureOpacity = 1;
   const cameraScale = 1.012 + eased * 0.13;
   const cloudScale = 1 + eased * 0.10;
   const cloudY = eased * 3;
@@ -198,6 +236,7 @@ export function renderFigure2AnimationProgress(
   const nearArchBlur = eased * 3.6;
   const figureY = -eased * 12;
   const figureScale = 1 + eased * 0.035;
+  const depthTransform = figure2DepthTransformForProgress(root, clamped);
   root?.style.setProperty('--r4-figure2-progress', clamped.toFixed(4));
   root?.style.setProperty('--r4-figure2-proof-progress', proofProgress.toFixed(4));
   root?.style.setProperty('--r4-figure2-stage-opacity', stageOpacity.toFixed(4));
@@ -230,7 +269,15 @@ export function renderFigure2AnimationProgress(
   } else if (videoMode === 'native') {
     syncNativeFigureVideos(root, clamped);
   }
-  return { progress: clamped, proofProgress, stageOpacity, backgroundOpacity, figureOpacity, cameraScale };
+  return {
+    progress: clamped,
+    proofProgress,
+    stageOpacity,
+    backgroundOpacity,
+    figureOpacity,
+    cameraScale,
+    depthTransform
+  };
 }
 
 export function renderFigure2ProofTransitionProgress(root: HTMLElement | null, progress: number): Figure2AnimationRenderState {
@@ -259,7 +306,7 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
   return (
     <article ref={rootRef} className="r4-figure2" data-r4-scene="figure2-animation">
       <div ref={(element) => registerHandle?.('stage', element)} className="r4-figure2__field">
-        <div className="r4-figure2__depth-field" data-figure2-depth-field="true">
+        <div className="r4-figure2__depth-field" data-figure2-depth-ranked-field="true">
           <div className="r4-figure2__middle-camera">
             <div className="r4-figure2__window-mask" style={{ WebkitMaskImage: `url(${MIDDLE_MASK_IMAGE})`, maskImage: `url(${MIDDLE_MASK_IMAGE})` }}>
               <img className="r4-figure2__cloud" src={CLOUD_IMAGE} alt="" aria-hidden="true" />
@@ -271,43 +318,48 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
             </div>
             <img className="r4-figure2__middle" src={MIDDLE_IMAGE} alt="" aria-hidden="true" />
           </div>
-          <div ref={(element) => registerHandle?.('figures', element)} className="r4-figure2__figures" aria-label="子问老子人物动画">
-            <div className="r4-figure2__people-contact-shadow" aria-hidden="true" />
-            <figure className="r4-figure2__figure r4-figure2__figure--left">
-              <video
-                ref={(element) => {
-                  leftVideoRef.current = element;
-                  registerHandle?.('left-video', element);
-                }}
-                data-figure2-video
-                data-media-key={FIGURE2_LEFT_MEDIA_KEY}
-                src={LEFT_VIDEO}
-                poster={LEFT_POSTER}
-                muted
-                playsInline
-                preload="auto"
-                aria-hidden="true"
-              />
-              <figcaption>问道者</figcaption>
-            </figure>
-            <figure className="r4-figure2__figure r4-figure2__figure--right">
-              <video
-                ref={(element) => {
-                  rightVideoRef.current = element;
-                  registerHandle?.('right-video', element);
-                }}
-                data-figure2-video
-                data-media-key={FIGURE2_RIGHT_MEDIA_KEY}
-                src={RIGHT_VIDEO}
-                poster={RIGHT_POSTER}
-                muted
-                playsInline
-                preload="auto"
-                aria-hidden="true"
-              />
-              <figcaption>老子</figcaption>
-            </figure>
-          </div>
+        </div>
+        <div
+          ref={(element) => registerHandle?.('figures', element)}
+          className="r4-figure2__figures"
+          data-figure2-figure-field="true"
+          aria-label="子问老子人物动画"
+        >
+          <div className="r4-figure2__people-contact-shadow" aria-hidden="true" />
+          <figure className="r4-figure2__figure r4-figure2__figure--left">
+            <video
+              ref={(element) => {
+                leftVideoRef.current = element;
+                registerHandle?.('left-video', element);
+              }}
+              data-figure2-video
+              data-media-key={FIGURE2_LEFT_MEDIA_KEY}
+              src={LEFT_VIDEO}
+              poster={LEFT_POSTER}
+              muted
+              playsInline
+              preload="auto"
+              aria-hidden="true"
+            />
+            <figcaption>问道者</figcaption>
+          </figure>
+          <figure className="r4-figure2__figure r4-figure2__figure--right">
+            <video
+              ref={(element) => {
+                rightVideoRef.current = element;
+                registerHandle?.('right-video', element);
+              }}
+              data-figure2-video
+              data-media-key={FIGURE2_RIGHT_MEDIA_KEY}
+              src={RIGHT_VIDEO}
+              poster={RIGHT_POSTER}
+              muted
+              playsInline
+              preload="auto"
+              aria-hidden="true"
+            />
+            <figcaption>老子</figcaption>
+          </figure>
         </div>
       </div>
     </article>

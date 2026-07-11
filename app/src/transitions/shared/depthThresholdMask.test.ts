@@ -68,6 +68,18 @@ function descendants(node: FakeNode): FakeNode[] {
   return node.children.flatMap((child) => [child, ...descendants(child)]);
 }
 
+const depthTransform = {
+  viewport: { width: 1440, height: 900 },
+  cover: { x: -80, y: 0, width: 1600, height: 900 },
+  camera: {
+    scale: 1.142,
+    translateX: 0,
+    translateY: -34,
+    originX: 0.5,
+    originY: 0.56
+  }
+} as const;
+
 describe('depth threshold mask', () => {
   it('produces complementary binary tables at every sampled direction point', () => {
     for (const progress of [0, 0.37, 0.73, 1, 0.37]) {
@@ -97,7 +109,7 @@ describe('depth threshold mask', () => {
       runId: 'epoch:7'
     });
 
-    const tables = mask?.render(0.37);
+    const tables = mask?.render(0.37, depthTransform);
 
     expect(tables?.reveal.every((value, index) => value + (tables.conceal[index] ?? -1) === 1)).toBe(true);
     expect(proof.style.getPropertyValue('opacity')).toBe('1');
@@ -142,5 +154,42 @@ describe('depth threshold mask', () => {
     expect(binaryAlpha.every((node) => node.attributes.get('values')?.includes('1 0 0 0 0'))).toBe(true);
     expect(masks).toHaveLength(2);
     expect(masks.every((node) => node.attributes.get('mask-type') === 'alpha')).toBe(true);
+  });
+
+  it('uses Stage coordinates and updates only constant-size threshold intercepts', () => {
+    const document = new FakeDocument();
+    const host = new FakeNode(document);
+    const reveal = new FakeNode(document);
+    const mask = createDepthThresholdMask({
+      host: host as unknown as HTMLElement,
+      targets: [{ element: reveal as unknown as HTMLElement, polarity: 'reveal' }],
+      depthSrc: '/depth.png',
+      runId: 'camera-contract:1'
+    });
+
+    mask?.render(0.37, depthTransform);
+    const nodes = descendants(host);
+    const masks = nodes.filter((node) => node.nodeName === 'mask');
+    const filters = nodes.filter((node) => node.nodeName === 'filter');
+    const images = nodes.filter((node) => node.nodeName === 'image');
+    const linearFunctions = nodes.filter((node) => node.attributes.get('type') === 'linear');
+    const discreteFunctions = nodes.filter(
+      (node) => node.nodeName !== 'feFuncA' && node.attributes.get('type') === 'discrete'
+    );
+    const firstIntercepts = linearFunctions.map((node) => node.attributes.get('intercept'));
+
+    mask?.render(0.73, depthTransform);
+
+    expect(masks.every((node) => node.attributes.get('maskUnits') === 'userSpaceOnUse')).toBe(true);
+    expect(masks.every((node) => node.attributes.get('maskContentUnits') === 'userSpaceOnUse')).toBe(true);
+    expect(filters.every((node) => node.attributes.get('filterUnits') === 'userSpaceOnUse')).toBe(true);
+    expect(images.every((node) => node.attributes.get('x') === '-80')).toBe(true);
+    expect(images.every((node) => node.attributes.get('width') === '1600')).toBe(true);
+    expect(images.every((node) => node.attributes.get('transform')?.includes('scale(1.142)'))).toBe(true);
+    expect(images.every((node) => node.attributes.get('transform')?.includes('translate(0 -34)'))).toBe(true);
+    expect(linearFunctions).toHaveLength(6);
+    expect(linearFunctions.map((node) => node.attributes.get('intercept'))).not.toEqual(firstIntercepts);
+    expect(discreteFunctions).toHaveLength(6);
+    expect(discreteFunctions.every((node) => (node.attributes.get('tableValues')?.length ?? 0) <= 3)).toBe(true);
   });
 });

@@ -1122,7 +1122,7 @@ pre {
   opacity: var(--r4-figure2-background-opacity);
   transform: translate3d(-50%, calc(-50% + var(--r4-figure2-middle-y)), 0) scale(var(--r4-figure2-camera-scale));
   transform-origin: 50% 56%;
-  will-change: transform, opacity;
+  will-change: transform;
 }
 
 .r4-figure2__window-mask {
@@ -1227,7 +1227,7 @@ pre {
   transform: translate3d(-50%, var(--r4-figure2-figure-y), 0) scale(var(--r4-figure2-figure-scale));
   transform-origin: 50% 90%;
   pointer-events: none;
-  will-change: transform, opacity;
+  will-change: transform, clip-path;
 }
 
 .r4-figure2__people-contact-shadow {
@@ -1350,6 +1350,7 @@ pre {
 }
 
 .r4-proof {
+  --r4-proof-opening-title-size: clamp(28px, 2.3vw, 42px);
   background: transparent;
 }
 
@@ -1414,7 +1415,7 @@ pre {
   margin: 0;
   color: rgba(36, 38, 28, .82);
   font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
-  font-size: clamp(40px, 4.7vw, 82px);
+  font-size: var(--r4-proof-opening-title-size);
   font-weight: 600;
   line-height: 1.08;
   letter-spacing: 0;
@@ -1596,6 +1597,10 @@ pre {
   line-height: 1.05;
   letter-spacing: 0;
   text-wrap: balance;
+}
+
+.r4-proof-page .r4-proof-scroll__content--opening .method-proof__closing {
+  font-size: var(--r4-proof-opening-title-size);
 }
 
 .r4-proof-scroll__content--opening .method-proof__closing,

@@ -1,3 +1,5 @@
+import type { InkDepthTransform } from './inkField';
+
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
 export type DepthThresholdPolarity = 'reveal' | 'conceal';
@@ -15,7 +17,7 @@ export type DepthThresholdTables = Readonly<{
 export type DepthThresholdMask = {
   readonly maskIds: Readonly<Record<DepthThresholdPolarity, string>>;
   readonly filterIds: Readonly<Record<DepthThresholdPolarity, string>>;
-  render(progress: number): DepthThresholdTables;
+  render(progress: number, transform?: InkDepthTransform): DepthThresholdTables;
   dispose(): void;
 };
 
@@ -32,6 +34,10 @@ const MASK_STYLE_PROPERTIES = [
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function attributeNumber(value: number): string {
+  return String(Number(value.toFixed(4)));
 }
 
 export function thresholdTable(progress: number, steps = 256): number[] {
@@ -93,12 +99,34 @@ function restoreTarget(target: AttachedTarget): void {
   target.element.removeAttribute('data-r4-depth-mask-values');
 }
 
+function defaultDepthTransform(host: HTMLElement): InkDepthTransform {
+  const rect = host.getBoundingClientRect?.();
+  const width = rect?.width || host.clientWidth || (typeof window === 'undefined' ? 1440 : window.innerWidth) || 1440;
+  const height = rect?.height || host.clientHeight || (typeof window === 'undefined' ? 900 : window.innerHeight) || 900;
+  return {
+    viewport: { width, height },
+    cover: { x: 0, y: 0, width, height },
+    camera: {
+      scale: 1,
+      translateX: 0,
+      translateY: 0,
+      originX: 0.5,
+      originY: 0.5
+    }
+  };
+}
+
+function thresholdIntercept(progress: number): number {
+  return 0.5001 - clamp(progress) * 1.0002;
+}
+
 export function createDepthThresholdMask(options: {
   host: HTMLElement | null;
   targets: readonly DepthThresholdTarget[];
   depthSrc: string;
   runId: string;
   steps?: number;
+  transform?: InkDepthTransform;
 }): DepthThresholdMask | null {
   const { host, targets, depthSrc } = options;
   const documentRef = targets[0]?.element.ownerDocument
@@ -127,18 +155,19 @@ export function createDepthThresholdMask(options: {
   svg.style.pointerEvents = 'none';
 
   const defs = documentRef.createElementNS(SVG_NAMESPACE, 'defs');
-  const channelFunctions: Record<DepthThresholdPolarity, SVGComponentTransferFunctionElement[]> = {
+  const thresholdFunctions: Record<DepthThresholdPolarity, SVGComponentTransferFunctionElement[]> = {
     reveal: [],
     conceal: []
   };
+  const filters: SVGFilterElement[] = [];
+  const masks: SVGMaskElement[] = [];
+  const images: SVGImageElement[] = [];
 
   for (const polarity of ['reveal', 'conceal'] as const) {
     const filter = documentRef.createElementNS(SVG_NAMESPACE, 'filter');
     filter.setAttribute('id', filterIds[polarity]);
-    filter.setAttribute('x', '0');
-    filter.setAttribute('y', '0');
-    filter.setAttribute('width', '100%');
-    filter.setAttribute('height', '100%');
+    filter.setAttribute('filterUnits', 'userSpaceOnUse');
+    filter.setAttribute('primitiveUnits', 'userSpaceOnUse');
     filter.setAttribute('color-interpolation-filters', 'sRGB');
 
     const luminance = documentRef.createElementNS(SVG_NAMESPACE, 'feColorMatrix');
@@ -151,19 +180,31 @@ export function createDepthThresholdMask(options: {
     ].join(' '));
     luminance.setAttribute('result', `${polarity}-depth-luminance`);
 
-    const transfer = documentRef.createElementNS(SVG_NAMESPACE, 'feComponentTransfer');
-    transfer.setAttribute('in', `${polarity}-depth-luminance`);
-    transfer.setAttribute('result', `${polarity}-binary-depth`);
+    const thresholdOffset = documentRef.createElementNS(SVG_NAMESPACE, 'feComponentTransfer');
+    thresholdOffset.setAttribute('in', `${polarity}-depth-luminance`);
+    thresholdOffset.setAttribute('result', `${polarity}-threshold-offset`);
+    for (const channel of ['R', 'G', 'B'] as const) {
+      const fn = documentRef.createElementNS(SVG_NAMESPACE, `feFunc${channel}`);
+      fn.setAttribute('type', 'linear');
+      fn.setAttribute('slope', '1');
+      fn.setAttribute('intercept', attributeNumber(thresholdIntercept(0)));
+      thresholdOffset.append(fn);
+      thresholdFunctions[polarity].push(fn);
+    }
+
+    const binaryTransfer = documentRef.createElementNS(SVG_NAMESPACE, 'feComponentTransfer');
+    binaryTransfer.setAttribute('in', `${polarity}-threshold-offset`);
+    binaryTransfer.setAttribute('result', `${polarity}-binary-depth`);
     for (const channel of ['R', 'G', 'B'] as const) {
       const fn = documentRef.createElementNS(SVG_NAMESPACE, `feFunc${channel}`);
       fn.setAttribute('type', 'discrete');
-      transfer.append(fn);
-      channelFunctions[polarity].push(fn);
+      fn.setAttribute('tableValues', polarity === 'reveal' ? '1 0' : '0 1');
+      binaryTransfer.append(fn);
     }
     const alphaFunction = documentRef.createElementNS(SVG_NAMESPACE, 'feFuncA');
     alphaFunction.setAttribute('type', 'discrete');
     alphaFunction.setAttribute('tableValues', '1 1');
-    transfer.append(alphaFunction);
+    binaryTransfer.append(alphaFunction);
 
     const binaryAlpha = documentRef.createElementNS(SVG_NAMESPACE, 'feColorMatrix');
     binaryAlpha.setAttribute('in', `${polarity}-binary-depth`);
@@ -175,25 +216,56 @@ export function createDepthThresholdMask(options: {
       '1 0 0 0 0'
     ].join(' '));
     binaryAlpha.setAttribute('result', `${polarity}-binary-alpha`);
-    filter.append(luminance, transfer, binaryAlpha);
+    filter.append(luminance, thresholdOffset, binaryTransfer, binaryAlpha);
 
     const mask = documentRef.createElementNS(SVG_NAMESPACE, 'mask');
     mask.setAttribute('id', maskIds[polarity]);
-    mask.setAttribute('maskUnits', 'objectBoundingBox');
-    mask.setAttribute('maskContentUnits', 'objectBoundingBox');
+    mask.setAttribute('maskUnits', 'userSpaceOnUse');
+    mask.setAttribute('maskContentUnits', 'userSpaceOnUse');
     mask.setAttribute('mask-type', 'alpha');
     const image = documentRef.createElementNS(SVG_NAMESPACE, 'image');
-    image.setAttribute('x', '0');
-    image.setAttribute('y', '0');
-    image.setAttribute('width', '1');
-    image.setAttribute('height', '1');
-    image.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+    image.setAttribute('preserveAspectRatio', 'none');
     image.setAttribute('href', depthSrc);
     image.setAttribute('filter', `url("#${filterIds[polarity]}")`);
     mask.append(image);
     defs.append(filter, mask);
+    filters.push(filter);
+    masks.push(mask);
+    images.push(image);
   }
 
+  const applyTransform = (transform: InkDepthTransform) => {
+    const { viewport, cover, camera } = transform;
+    const originX = cover.x + cover.width * camera.originX;
+    const originY = cover.y + cover.height * camera.originY;
+    const cameraTransform = [
+      `translate(${attributeNumber(camera.translateX)} ${attributeNumber(camera.translateY)})`,
+      `translate(${attributeNumber(originX)} ${attributeNumber(originY)})`,
+      `scale(${attributeNumber(camera.scale)})`,
+      `translate(${attributeNumber(-originX)} ${attributeNumber(-originY)})`
+    ].join(' ');
+    for (const filter of filters) {
+      filter.setAttribute('x', '0');
+      filter.setAttribute('y', '0');
+      filter.setAttribute('width', attributeNumber(viewport.width));
+      filter.setAttribute('height', attributeNumber(viewport.height));
+    }
+    for (const mask of masks) {
+      mask.setAttribute('x', '0');
+      mask.setAttribute('y', '0');
+      mask.setAttribute('width', attributeNumber(viewport.width));
+      mask.setAttribute('height', attributeNumber(viewport.height));
+    }
+    for (const image of images) {
+      image.setAttribute('x', attributeNumber(cover.x));
+      image.setAttribute('y', attributeNumber(cover.y));
+      image.setAttribute('width', attributeNumber(cover.width));
+      image.setAttribute('height', attributeNumber(cover.height));
+      image.setAttribute('transform', cameraTransform);
+    }
+  };
+
+  applyTransform(options.transform ?? defaultDepthTransform(host));
   svg.append(defs);
   host.append(svg);
 
@@ -207,17 +279,19 @@ export function createDepthThresholdMask(options: {
   return {
     maskIds,
     filterIds,
-    render(progress) {
+    render(progress, transform) {
       const clamped = clamp(progress);
       const tables = thresholdTables(clamped, steps);
       if (disposed) {
         return tables;
       }
-
+      if (transform) {
+        applyTransform(transform);
+      }
+      const intercept = attributeNumber(thresholdIntercept(clamped));
       for (const polarity of ['reveal', 'conceal'] as const) {
-        const value = tables[polarity].join(' ');
-        for (const fn of channelFunctions[polarity]) {
-          fn.setAttribute('tableValues', value);
+        for (const fn of thresholdFunctions[polarity]) {
+          fn.setAttribute('intercept', intercept);
         }
       }
       for (const target of attachedTargets) {

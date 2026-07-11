@@ -1,4 +1,8 @@
-import { renderFigure2AnimationProgress, renderFigure2Hold } from '../../scenes/figure2-animation';
+import {
+  figure2DepthTransformForProgress,
+  renderFigure2AnimationProgress,
+  renderFigure2Hold
+} from '../../scenes/figure2-animation';
 import { renderProofOpeningHold } from '../../scenes/figure2-proof-opening';
 import { applyLayerVisibility, hiddenVisibility, holdVisibility, range01, smoothStep } from '../../pilot/visibility';
 import type {
@@ -15,6 +19,12 @@ import {
   thresholdTables,
   type DepthThresholdMask
 } from '../shared/depthThresholdMask';
+import { createInkFieldFrame, type InkDepthTransform } from '../shared/inkField';
+import {
+  createInkFieldRenderer,
+  mountTransitionInkCanvas,
+  type InkFieldRenderer
+} from '../shared/sceneInk';
 
 const FIGURE2_DEPTH_IMAGE = new URL('../../../../assets/figure2-middle-depth.png', import.meta.url).href;
 export const FIGURE2_INTRO_END = 0.72;
@@ -63,6 +73,43 @@ function clearTransitionAttrs(element: HTMLElement | null | undefined): void {
   element.removeAttribute('data-figure2-proof-mask-values');
 }
 
+function figureGateProgress(revealProgress: number): number {
+  return smoothStep(range01(revealProgress, 0.35, 0.94));
+}
+
+function clearFigureGate(element: HTMLElement | null, hidden: boolean): void {
+  if (!element) {
+    return;
+  }
+  element.style.visibility = hidden ? 'hidden' : 'visible';
+  element.style.clipPath = '';
+  element.style.removeProperty('clip-path');
+  element.style.removeProperty('-webkit-clip-path');
+  element.removeAttribute('data-figure2-figure-gate-progress');
+  element.removeAttribute('data-figure2-figure-gate-values');
+}
+
+function applyFigureGate(element: HTMLElement | null, revealProgress: number): void {
+  if (!element) {
+    return;
+  }
+  if (revealProgress <= 0.001) {
+    clearFigureGate(element, false);
+    return;
+  }
+  if (revealProgress >= 0.999) {
+    clearFigureGate(element, true);
+    return;
+  }
+  const gate = figureGateProgress(revealProgress);
+  const clip = `inset(0 0 ${(gate * 100).toFixed(3)}% 0)`;
+  element.style.visibility = 'visible';
+  element.style.clipPath = clip;
+  element.style.setProperty('-webkit-clip-path', clip);
+  element.setAttribute('data-figure2-figure-gate-progress', gate.toFixed(4));
+  element.setAttribute('data-figure2-figure-gate-values', '0,1');
+}
+
 export function figure2ProofRevealProgress(progress: number): number {
   const transitionProgress = range01(progress, FIGURE2_INTRO_END, 1);
   return smoothStep(range01(transitionProgress, 0.10, 0.94));
@@ -102,14 +149,19 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   private reportedTimelineReady = false;
   private readonly elevation: TransitionLayerElevation;
   private readonly depthMask: DepthThresholdMask | null;
+  private readonly figureField: HTMLElement | null;
+  private readonly inkCanvas: HTMLCanvasElement | null;
+  private readonly inkRenderer: InkFieldRenderer | null;
 
   constructor(private readonly context: TransitionContext) {
     this.playbackDirection = context.direction;
     this.elevation = createTransitionLayerElevation(context.to.element);
     const fromRoot = sceneRoot(context.from.element, 'figure2-animation');
     const stage = sharedStageHost(context);
-    const depthField = fromRoot?.querySelector<HTMLElement>('[data-figure2-depth-field="true"]') ?? null;
+    const depthField = fromRoot?.querySelector<HTMLElement>('[data-figure2-depth-ranked-field="true"]') ?? null;
+    this.figureField = fromRoot?.querySelector<HTMLElement>('[data-figure2-figure-field="true"]') ?? null;
     const proofGround = stage?.querySelector<HTMLElement>('[data-figure2-retained-ground="true"]') ?? null;
+    const terminalTransform = figure2DepthTransformForProgress(fromRoot, 1);
     this.depthMask = createDepthThresholdMask({
       host: stage,
       targets: [
@@ -118,8 +170,16 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
         ...(context.to.element ? [{ element: context.to.element, polarity: 'reveal' as const }] : [])
       ],
       depthSrc: FIGURE2_DEPTH_IMAGE,
-      runId: context.runId
+      runId: context.runId,
+      transform: terminalTransform
     });
+    this.inkCanvas = mountTransitionInkCanvas(stage, 'figure2-distance-expand', {
+      renderer: 'field',
+      preset: 'cinematic-color',
+      className: 'r4-figure2-proof-ink-canvas'
+    });
+    this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.inkCanvas);
+    this.inkRenderer?.prewarm(this.depthFrame(0.003, terminalTransform));
     renderProofOpeningHold(sceneRoot(context.to.element, 'figure2-proof-opening'));
     this.progress(context.direction === 1 ? 0 : 1);
   }
@@ -153,12 +213,33 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
 
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof-opening');
-    renderFigure2AnimationProgress(fromRoot, intro, {
+    const figureState = renderFigure2AnimationProgress(fromRoot, intro, {
       proofProgress: 0,
       videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection)
     });
     renderProofOpeningHold(toRoot);
-    const binaryTables = this.depthMask?.render(reveal) ?? thresholdTables(reveal);
+    const binaryTables = this.depthMask?.render(reveal, figureState.depthTransform) ?? thresholdTables(reveal);
+    applyFigureGate(this.figureField, reveal);
+    const inkFrame = this.depthFrame(reveal, figureState.depthTransform);
+    if (this.inkCanvas) {
+      const active = reveal > 0.002 && reveal < 0.999;
+      if (active) {
+        this.inkCanvas.dataset.r4InkActive = 'true';
+        this.inkCanvas.dataset.r4InkProgress = reveal.toFixed(4);
+        this.inkCanvas.dataset.r4InkBoundaryKind = 'depth';
+        this.inkCanvas.dataset.r4InkBoundaryOrigin = '0.5000,0.5000';
+        this.inkCanvas.dataset.r4InkBoundaryProgress = reveal.toFixed(4);
+        this.inkCanvas.dataset.r4InkFieldSeed = String(inkFrame.seed);
+      } else {
+        delete this.inkCanvas.dataset.r4InkActive;
+        delete this.inkCanvas.dataset.r4InkProgress;
+        delete this.inkCanvas.dataset.r4InkBoundaryKind;
+        delete this.inkCanvas.dataset.r4InkBoundaryOrigin;
+        delete this.inkCanvas.dataset.r4InkBoundaryProgress;
+        delete this.inkCanvas.dataset.r4InkFieldSeed;
+      }
+    }
+    this.inkRenderer?.render(inkFrame);
     const valueDomain = [...new Set(binaryTables.reveal)].join(',');
 
     this.context.to.element?.setAttribute('data-r4-transition', 'figure2-proof-binary-depth');
@@ -197,6 +278,10 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     };
   }
 
+  effectCanvases(): readonly HTMLCanvasElement[] {
+    return this.inkCanvas ? [this.inkCanvas] : [];
+  }
+
   dispose(): void {
     if (this.disposed) {
       return;
@@ -206,14 +291,30 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
     }
+    this.inkRenderer?.destroy();
+    this.inkCanvas?.remove();
     if (this.progressValue > 0.001 && this.progressValue < 0.999) {
       applyLayerVisibility(this.context.from, holdVisibility(false));
       applyLayerVisibility(this.context.to, hiddenVisibility());
     }
     this.depthMask?.dispose();
+    clearFigureGate(this.figureField, this.progressValue >= 0.999);
     this.elevation.restore();
     clearTransitionAttrs(this.context.to.element);
     clearTransitionAttrs(sceneRoot(this.context.to.element, 'figure2-proof-opening'));
+  }
+
+  private depthFrame(progress: number, transform: InkDepthTransform) {
+    return createInkFieldFrame(
+      {
+        kind: 'depth',
+        depthSrc: FIGURE2_DEPTH_IMAGE,
+        seed: 'figure2-distance-expand',
+        transform
+      },
+      progress,
+      transform.viewport
+    );
   }
 
   private animateTo(target: number): Promise<void> {
