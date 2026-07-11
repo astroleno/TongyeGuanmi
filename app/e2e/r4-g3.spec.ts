@@ -67,11 +67,10 @@ type Group3VisualSnapshot = {
   proofInkRenderer: string | null;
   proofInkEffectOnly: boolean;
   proofInkBoundaryKind: string | null;
-  proofInkSecondaryGateKind: string | null;
-  proofInkSecondaryGateRank: number;
   proofInkVisible: boolean;
   depthFieldMask: string;
-  figureGateClip: string;
+  figureDepthSurfaceMask: string;
+  figureClip: string;
   depthMaskValues: string;
   proofBackgroundImage: string;
   proofGroundBackgroundImage: string;
@@ -100,6 +99,9 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
     const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
     const depthField = figureRoot?.querySelector<HTMLElement>('[data-figure2-depth-ranked-field="true"]');
+    const figureDepthSurface = figureRoot?.querySelector<HTMLElement>(
+      '[data-figure2-figure-depth-surface="true"]'
+    );
     const figureField = figureRoot?.querySelector<HTMLElement>('[data-figure2-figure-field="true"]');
     const proofInkCanvas = document.querySelector<HTMLCanvasElement>('[data-r4-ink-segment="figure2-distance-expand"]');
     const proofGround = document.querySelector<HTMLElement>('[data-figure2-retained-ground="true"]');
@@ -140,11 +142,14 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       proofInkRenderer: proofInkCanvas?.dataset.r4InkRenderer ?? null,
       proofInkEffectOnly: proofInkCanvas?.dataset.r4InkEffectOnly === 'true',
       proofInkBoundaryKind: proofInkCanvas?.dataset.r4InkBoundaryKind ?? null,
-      proofInkSecondaryGateKind: proofInkCanvas?.dataset.r4InkSecondaryGateKind ?? null,
-      proofInkSecondaryGateRank: Number.parseFloat(proofInkCanvas?.dataset.r4InkSecondaryGateRank ?? 'NaN'),
       proofInkVisible: proofInkCanvas ? window.getComputedStyle(proofInkCanvas).visibility !== 'hidden' : false,
       depthFieldMask: depthField ? window.getComputedStyle(depthField).maskImage : 'none',
-      figureGateClip: figureField ? window.getComputedStyle(figureField).clipPath : 'none',
+      figureDepthSurfaceMask: figureDepthSurface
+        ? window.getComputedStyle(figureDepthSurface).maskImage
+        : 'none',
+      figureClip: figureField
+        ? window.getComputedStyle(figureField).clipPath
+        : 'none',
       depthMaskValues: proofLayer?.dataset.r4DepthMaskValues ?? '',
       proofBackgroundImage: proofStyle?.backgroundImage ?? '',
       proofGroundBackgroundImage: proofGroundStyle?.backgroundImage ?? '',
@@ -210,6 +215,10 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         const stagedFigure = await visualSnapshot(page);
         expect(stagedFigure.videos).toHaveLength(2);
         expect(stagedFigure.videos.every((video) => video.loop === false && video.paused && video.currentTime > 2)).toBe(true);
+        expect(stagedFigure.depthFieldMask).toBe('none');
+        expect(stagedFigure.figureDepthSurfaceMask).toBe('none');
+        expect(stagedFigure.figureClip).toBe('none');
+        expect(stagedFigure.activeInkSegments).not.toContain('figure2-distance-expand');
         await page.evaluate(() => {
           void window.__r4Group3?.playForward();
         });
@@ -225,14 +234,13 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
             && visual.proofInkRenderer === 'field'
             && visual.proofInkEffectOnly
             && visual.proofInkBoundaryKind === 'depth'
-            && visual.proofInkSecondaryGateKind === 'horizontal'
-            && Number.isFinite(visual.proofInkSecondaryGateRank)
             && visual.proofBackgroundImage === 'none'
             && visual.proofRevealProgress > 0
             && visual.proofRevealProgress < 1
             && visual.proofLayerMask !== 'none'
             && visual.depthFieldMask !== 'none'
-            && visual.figureGateClip.startsWith('inset(')
+            && visual.figureDepthSurfaceMask !== 'none'
+            && visual.figureClip === 'none'
             && visual.depthMaskValues === '1,0';
           if (hasDepthInk) {
             proofTransitionVisual = visual;
@@ -249,10 +257,10 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         expect(proofTransitionVisual?.proofInkRenderer).toBe('field');
         expect(proofTransitionVisual?.proofInkEffectOnly).toBe(true);
         expect(proofTransitionVisual?.proofInkBoundaryKind).toBe('depth');
-        expect(proofTransitionVisual?.proofInkSecondaryGateKind).toBe('horizontal');
         expect(proofTransitionVisual?.proofLayerMask).not.toBe('none');
         expect(proofTransitionVisual?.depthFieldMask).not.toBe('none');
-        expect(proofTransitionVisual?.figureGateClip.startsWith('inset(')).toBe(true);
+        expect(proofTransitionVisual?.figureDepthSurfaceMask).not.toBe('none');
+        expect(proofTransitionVisual?.figureClip).toBe('none');
         expect(proofTransitionVisual?.depthMaskValues).toBe('1,0');
         expect(proofTransitionVisual?.proofBackgroundImage).toBe('none');
         expect(proofTransitionVisual?.proofRevealProgress).toBeGreaterThan(0);

@@ -25,12 +25,13 @@ describe('R4 Ink browser regression source contract', () => {
     expect(source).not.toContain("revealClip === 'none'");
   });
 
-  it('uses the effect-only depth field and its secondary figure gate in G3', () => {
+  it('uses the effect-only depth field and one figure depth surface in G3', () => {
     const source = e2eSource(3);
 
     expect(source).toContain("r4InkRenderer === 'field'");
     expect(source).toContain("r4InkEffectOnly === 'true'");
-    expect(source).toContain('r4InkSecondaryGateKind');
+    expect(source).toContain('data-figure2-figure-depth-surface');
+    expect(source).not.toContain('r4InkSecondaryGateKind');
     expect(source).not.toContain('proofInkTarget');
     expect(source).not.toContain('proofInkTextureReady');
     expect(source).not.toContain('figure2-proof-overlay-scene-ink');
