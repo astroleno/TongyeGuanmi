@@ -36,7 +36,7 @@ export function createMethodBottomFigure2Transition(options: { delayMs?: () => n
     origin: { x: 0.5, y: 1.04 },
     elevateTarget: true,
     clipTarget: true,
-    revealMode: 'ink-body',
+    revealMode: 'live-clip',
     sample: sampleMethodBottomFigure2,
     renderTo: renderFigure2StageProgress,
     renderToProgress: figure2StageProgressForMethodBottom,

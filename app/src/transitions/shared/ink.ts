@@ -10,7 +10,6 @@ import type {
 import { createTransitionLayerElevation, type TransitionLayerElevation } from './layerElevation';
 import { createCurtainInkRenderer, mountTransitionInkCanvas, type CurtainInkRenderer } from './sceneInk';
 import { positionReadingAtEdge } from '../../stage/reading';
-import { createInkTargetTexture, type InkTargetTexture } from './inkTargetTexture';
 
 export type InkOrigin = {
   x: number;
@@ -24,7 +23,7 @@ export type InkSegmentOptions = {
   canvasHost?: 'from' | 'to' | 'stage';
   elevateTarget?: boolean;
   clipTarget?: boolean;
-  revealMode?: 'clip' | 'ink-body';
+  revealMode?: 'live-clip';
   sample?: (progress: number) => InkSample;
   renderFrom?: (root: HTMLElement | null, progress: number) => void;
   renderFromProgress?: 'static' | 'remaining' | 'forward' | ((progress: number) => number);
@@ -165,10 +164,6 @@ function targetClipPath(origin: InkOrigin, progress: number): string {
   return `circle(${(p * 142).toFixed(3)}% at ${(origin.x * 100).toFixed(3)}% ${(origin.y * 100).toFixed(3)}%)`;
 }
 
-function isCurtainOrigin(origin: InkOrigin): boolean {
-  return origin.y >= 0.98 || origin.y <= 0.02;
-}
-
 function clearTargetReveal(element: HTMLElement | null | undefined): void {
   if (!element) {
     return;
@@ -198,8 +193,6 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private readonly inkRenderer: CurtainInkRenderer | null;
   private readonly elevation: TransitionLayerElevation | null;
   private readonly attrsElement: HTMLElement | null;
-  private readonly targetTexture: InkTargetTexture | null;
-  private readonly usesInkBody: boolean;
   private readonly surfaceHost: HTMLElement | null;
   private liveElevation: TransitionLayerElevation | null = null;
   private liveElevationElement: HTMLElement | null = null;
@@ -228,49 +221,12 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       origin: options.origin,
       preset: 'cinematic-color'
     });
-    this.usesInkBody = options.clipTarget !== false
-      && options.revealMode === 'ink-body'
-      && isCurtainOrigin(options.origin);
-    this.targetTexture = this.usesInkBody ? createInkTargetTexture(context.to.element) : null;
-    if (this.canvas && this.usesInkBody) {
-      this.canvas.dataset.r4InkBoundary = 'shader-body';
-      this.canvas.dataset.r4InkTargetReady = 'false';
-    }
     this.inkRenderer = createCurtainInkRenderer(this.canvas, {
-      direction: options.origin.y >= 0.5 ? 'bottom-up' : 'top-down',
-      ...(this.targetTexture
-        ? {
-            targetElement: this.targetTexture.canvas,
-            renderTarget: () => this.targetTexture?.update()
-          }
-        : {})
+      direction: options.origin.y >= 0.5 ? 'bottom-up' : 'top-down'
     });
     this.elevation = options.elevateTarget === false ? null : createTransitionLayerElevation(context.to.element);
     this.inkRenderer?.prewarm();
     this.progress(0);
-  }
-
-  async prepareTargetTexture(): Promise<void> {
-    if (!this.targetTexture) {
-      return;
-    }
-    const ready = await this.targetTexture.prepare();
-    if (this.canvas) {
-      this.canvas.dataset.r4InkTargetReady = String(ready);
-      this.canvas.dataset.r4InkTargetCaptureReady = this.targetTexture.canvas.dataset.inkTextureReady ?? 'false';
-      this.canvas.dataset.r4InkTargetCaptureWidth = String(this.targetTexture.canvas.width);
-      this.canvas.dataset.r4InkTargetCaptureHeight = String(this.targetTexture.canvas.height);
-      this.canvas.dataset.r4InkTargetCaptureMs = this.targetTexture.canvas.dataset.r4InkTargetCaptureMs ?? '';
-      const error = this.targetTexture.canvas.dataset.r4InkTargetError;
-      if (error) {
-        this.canvas.dataset.r4InkTargetError = error;
-      } else {
-        delete this.canvas.dataset.r4InkTargetError;
-      }
-    }
-    if (ready) {
-      this.inkRenderer?.prewarm();
-    }
   }
 
   play(): Promise<void> {
@@ -325,32 +281,20 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.options.renderFrom?.(sceneRoot(liveFromElement, this.context.from.scene, this.options.rootSelector), fromProgress);
     this.options.renderTo?.(sceneRoot(liveToElement, this.context.to.scene, this.options.rootSelector), toProgress);
     if (this.options.clipTarget !== false && liveToElement) {
-      const revealMode = this.usesInkBody ? 'ink-body' : 'clip';
       const revealActive = clipProgress > 0.002 && clipProgress < 0.999;
-      if (revealMode === 'ink-body') {
-        clearTargetReveal(liveToElement);
-        if (revealActive && this.targetTexture?.ready) {
-          liveToElement.style.visibility = 'hidden';
-          liveToElement.style.opacity = '0';
-        } else {
-          liveToElement.style.visibility = sample.to.visible ? 'visible' : 'hidden';
-          liveToElement.style.opacity = String(sample.to.opacity);
-        }
+      liveToElement.style.removeProperty('mask-image');
+      liveToElement.style.removeProperty('-webkit-mask-image');
+      const clipPath = targetClipPath(this.options.origin, clipProgress);
+      if (clipPath) {
+        liveToElement.style.clipPath = clipPath;
+        liveToElement.style.setProperty('-webkit-clip-path', clipPath);
       } else {
-        liveToElement.style.removeProperty('mask-image');
-        liveToElement.style.removeProperty('-webkit-mask-image');
-        const clipPath = targetClipPath(this.options.origin, clipProgress);
-        if (clipPath) {
-          liveToElement.style.clipPath = clipPath;
-          liveToElement.style.setProperty('-webkit-clip-path', clipPath);
-        } else {
-          liveToElement.style.removeProperty('clip-path');
-          liveToElement.style.removeProperty('-webkit-clip-path');
-        }
+        liveToElement.style.removeProperty('clip-path');
+        liveToElement.style.removeProperty('-webkit-clip-path');
       }
       if (revealActive) {
         liveToElement.dataset.r4RevealProgress = clipProgress.toFixed(4);
-        liveToElement.dataset.r4RevealMode = revealMode;
+        liveToElement.dataset.r4RevealMode = 'live-clip';
       } else {
         liveToElement.removeAttribute('data-r4-reveal-progress');
         liveToElement.removeAttribute('data-r4-reveal-mode');
@@ -393,6 +337,13 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     return this.options.sample?.(clamped) ?? sampleInk(clamped);
   }
 
+  rootIdentity() {
+    return {
+      from: liveLayerElement(this.context.from),
+      to: liveLayerElement(this.context.to)
+    };
+  }
+
   dispose(): void {
     this.disposed = true;
     if (this.animationFrame) {
@@ -400,7 +351,6 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       this.animationFrame = 0;
     }
     this.inkRenderer?.destroy();
-    this.targetTexture?.destroy();
     this.canvas?.remove();
     this.elevation?.restore();
     this.liveElevation?.restore();
@@ -484,7 +434,6 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
       const timeline = new InkSegmentTimeline(context, options);
-      await timeline.prepareTargetTexture();
       return timeline;
     }
   };

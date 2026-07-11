@@ -28,7 +28,7 @@ export function createPhEducationTransition(options: { delayMs?: () => number } 
     id: 'ph-education',
     delayMs: options.delayMs,
     origin: { x: 0.5, y: -0.04 },
-    revealMode: 'ink-body',
+    revealMode: 'live-clip',
     renderFrom: (root, progress) => renderPhAnimationProgress(root, progress, { playback: true }),
     renderFromProgress: (progress) => range01(progress, 0, PH_EDUCATION_ANIMATION_STOP),
     renderTo: (root) => renderEducationProgress(root, 1),

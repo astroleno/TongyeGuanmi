@@ -9,7 +9,7 @@ export function createEducationCraneTransition(options: { delayMs?: () => number
     delayMs: options.delayMs,
     origin: { x: 0.5, y: 1.04 },
     positionFromReadingOnReverse: true,
-    revealMode: 'ink-body',
+    revealMode: 'live-clip',
     renderFrom: renderEducationProgress,
     renderTo: (root) => renderCraneAnimationProgress(root, CRANE_HOLD_PROGRESS),
     renderToProgress: () => CRANE_HOLD_PROGRESS,

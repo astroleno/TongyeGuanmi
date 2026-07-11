@@ -8,7 +8,7 @@ export function createLabPhTransition(options: { delayMs?: () => number } = {}):
     id: 'lab-ph',
     delayMs: options.delayMs,
     origin: { x: 0.5, y: -0.04 },
-    revealMode: 'ink-body',
+    revealMode: 'live-clip',
     positionFromReadingOnReverse: true,
     renderFrom: renderLabProgress,
     renderTo: (root) => renderPhAnimationProgress(root, PH_HOLD_PROGRESS),

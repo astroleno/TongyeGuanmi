@@ -93,7 +93,7 @@ export function createFigure2ProofBrandTransition(options: { delayMs?: () => num
     id: 'figure2-proof-brand',
     delayMs: options.delayMs,
     origin: PROOF_BRAND_ORIGIN,
-    revealMode: 'ink-body',
+    revealMode: 'live-clip',
     elevateTarget: false,
     renderFrom: renderProofClosingWithRetainedArch,
     renderFromProgress: 'remaining',

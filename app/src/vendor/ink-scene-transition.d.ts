@@ -66,9 +66,6 @@ export type InkCurtainTransitionOptions = {
   coverAlpha?: number;
   fadeOutStart?: number;
   fadeOutEnd?: number;
-  targetElement?: InkSceneTextureSource | null;
-  renderTarget?: () => void;
-  targetTextureFps?: number;
 };
 
 export type InkCurtainTransition = {

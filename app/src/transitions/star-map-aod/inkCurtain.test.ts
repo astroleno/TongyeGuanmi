@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { createInkCurtainTransition } from './inkCurtain';
+
+const transitionSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 
 function createWebGlHarness() {
   const resources = {
@@ -77,6 +80,13 @@ function createWebGlHarness() {
 }
 
 describe('star-map AOD ink curtain lifecycle', () => {
+  it('clips the live AOD reveal surface without drawing a target snapshot', () => {
+    expect(transitionSource).toContain('renderLiveRevealClip');
+    expect(transitionSource).not.toContain('sourceCanvas');
+    expect(transitionSource).not.toContain('renderAodSourceCanvas');
+    expect(transitionSource).not.toContain('targetElement:');
+  });
+
   it('deletes owned WebGL resources and releases its context exactly once', () => {
     const { gl, resources, loseContext } = createWebGlHarness();
     const canvas = {
@@ -93,7 +103,7 @@ describe('star-map AOD ink curtain lifecycle', () => {
 
     expect(gl.deleteBuffer).toHaveBeenCalledOnce();
     expect(gl.deleteBuffer).toHaveBeenCalledWith(resources.buffer);
-    expect(gl.deleteTexture).toHaveBeenCalledWith(resources.texture);
+    expect(gl.deleteTexture).not.toHaveBeenCalled();
     expect(gl.deleteProgram).toHaveBeenCalledWith(resources.program);
     expect(gl.deleteShader).toHaveBeenCalledWith(resources.vertexShader);
     expect(gl.deleteShader).toHaveBeenCalledWith(resources.fragmentShader);

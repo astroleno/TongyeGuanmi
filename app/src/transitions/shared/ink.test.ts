@@ -173,7 +173,7 @@ describe('shared ink transition surface', () => {
     const transition = createInkSegmentTransition({
       id: 'services-ttg',
       origin: { x: 0.5, y: 1.04 },
-      revealMode: 'ink-body'
+      revealMode: 'live-clip'
     });
 
     const timeline = await transition.buildTimeline(context);
@@ -193,10 +193,13 @@ describe('shared ink transition surface', () => {
     timeline.progress(0.75);
     const secondClip = String(toElement.style.clipPath ?? '');
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
-    expect(firstClip).toBe('');
-    expect(secondClip).toBe('');
-    expect(toElement.dataset.r4RevealMode).toBe('ink-body');
-    expect(canvas.dataset.r4InkBoundary).toBe('shader-body');
+    expect(firstClip).toContain('inset(');
+    expect(secondClip).toContain('inset(');
+    expect(firstClip).not.toBe(secondClip);
+    expect(toElement.style.visibility).not.toBe('hidden');
+    expect(toElement.style.opacity).not.toBe('0');
+    expect(toElement.dataset.r4RevealMode).toBe('live-clip');
+    expect(canvas.dataset.r4InkTargetReady).toBeUndefined();
     expect(timeline.sample?.(0.99)).toMatchObject({
       from: { visible: true, opacity: 1 },
       to: { visible: true, opacity: 1 }

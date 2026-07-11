@@ -8,7 +8,7 @@ export function createServicesTtgTransition(options: { delayMs?: () => number } 
     id: 'services-ttg',
     delayMs: options.delayMs,
     origin: { x: 0.5, y: 1.04 },
-    revealMode: 'ink-body',
+    revealMode: 'live-clip',
     renderFrom: renderServicesProgress,
     renderTo: (root) => renderTtgAnimationProgress(root, TTG_HOLD_PROGRESS),
     transitionAttr: 'services-ttg-bottom-ink'

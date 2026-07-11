@@ -8,7 +8,7 @@ export function createBrandFigure3Transition(options: { delayMs?: () => number }
     id: 'brand-figure3',
     delayMs: options.delayMs,
     origin: { x: 0.5, y: 1.04 },
-    revealMode: 'ink-body',
+    revealMode: 'live-clip',
     renderFrom: renderBrandProgress,
     renderFromProgress: 'static',
     renderTo: renderFigure3AnimationProgress,

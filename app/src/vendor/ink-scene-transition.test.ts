@@ -34,10 +34,10 @@ describe('ink scene dynamic texture upload budget', () => {
     expect(shaderSource).toContain('insideMask = mix(insideMask, depthThresholdMask, uDepthThresholdMode);');
   });
 
-  it('composites curtain targets through the curtain shader body itself', () => {
-    expect(shaderSource).toContain('uniform sampler2D uTargetScene;');
-    expect(shaderSource).toContain('float targetMask = body * uTargetReady;');
-    expect(shaderSource).toContain('color = mix(color, targetComposite, targetMask);');
-    expect(shaderSource).toContain('alpha = max(alpha, targetMask);');
+  it('keeps curtain output effect-only and never samples a target Scene', () => {
+    expect(shaderSource).not.toContain('uTargetScene');
+    expect(shaderSource).not.toContain('uTargetReady');
+    expect(shaderSource).not.toContain('targetComposite');
+    expect(shaderSource).not.toContain('targetElement');
   });
 });

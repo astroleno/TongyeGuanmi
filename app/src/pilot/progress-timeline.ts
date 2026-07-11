@@ -100,6 +100,13 @@ export class PilotProgressTimeline implements SegmentTimelineHandle {
     return copyCueActive === undefined ? sample : { ...sample, copyCueActive };
   }
 
+  rootIdentity() {
+    return {
+      from: this.from.element,
+      to: this.to.element
+    };
+  }
+
   dispose(): void {
     if (this.disposed) {
       return;

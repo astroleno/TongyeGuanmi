@@ -29,9 +29,6 @@ export function createInkCurtainTransition(canvas, options = {}) {
     const fadeOutStart = clamp(options.fadeOutStart ?? 0.76, 0, 0.98);
     const fadeOutEnd = Math.max(fadeOutStart + 0.01, clamp(options.fadeOutEnd ?? 0.98, 0.01, 1));
     const dprLimit = Math.max(0.5, Math.min(1, options.dprLimit ?? 1));
-    const targetTextureFps = Math.max(1, Math.min(30, options.targetTextureFps ?? 24));
-    const targetElement = options.targetElement || null;
-
     const gl = canvas.getContext('webgl', {
       alpha: true,
       antialias: false,
@@ -64,8 +61,6 @@ export function createInkCurtainTransition(canvas, options = {}) {
       uniform float uDirection;
       uniform float uProgressSpan;
       uniform float uCoverAlpha;
-      uniform sampler2D uTargetScene;
-      uniform float uTargetReady;
 
       float hash(vec2 p) {
         p = fract(p * vec2(127.1, 311.7));
@@ -168,22 +163,6 @@ export function createInkCurtainTransition(canvas, options = {}) {
         alpha += feather * 0.18 + hot * 0.13 + veins * 0.05 + ember * 0.28 + particles * 0.76 + particleCore * 0.36;
         alpha = clamp(alpha, 0.0, 1.0);
 
-        vec3 targetScene = texture2D(uTargetScene, uv).rgb;
-        float targetMask = body * uTargetReady;
-        float targetDetail = clamp(
-          feather * 0.18
-            + hot * 0.16
-            + veins * 0.06
-            + ember * 0.20
-            + particles * 0.60
-            + particleCore * 0.32,
-          0.0,
-          1.0
-        );
-        vec3 targetComposite = targetScene + color * targetDetail;
-        color = mix(color, targetComposite, targetMask);
-        alpha = max(alpha, targetMask);
-
         gl_FragColor = vec4(color, alpha);
       }
     `;
@@ -227,88 +206,7 @@ export function createInkCurtainTransition(canvas, options = {}) {
       particleStrength: gl.getUniformLocation(program, 'uParticleStrength'),
       direction: gl.getUniformLocation(program, 'uDirection'),
       progressSpan: gl.getUniformLocation(program, 'uProgressSpan'),
-      coverAlpha: gl.getUniformLocation(program, 'uCoverAlpha'),
-      targetScene: gl.getUniformLocation(program, 'uTargetScene'),
-      targetReady: gl.getUniformLocation(program, 'uTargetReady')
-    };
-
-    const targetTexture = gl.createTexture();
-    const targetLayer = {
-      width: 1,
-      height: 1,
-      ready: 0,
-      lastRevision: null,
-      lastUploadAt: -Infinity
-    };
-    if (targetTexture) {
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, targetTexture);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA,
-        1,
-        1,
-        0,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        new Uint8Array([0, 0, 0, 0])
-      );
-    }
-
-    const targetRevision = (source) => {
-      if (!source) return null;
-      if (typeof HTMLMediaElement !== 'undefined' && source instanceof HTMLMediaElement) {
-        return Number.isFinite(source.currentTime) ? source.currentTime.toFixed(3) : null;
-      }
-      return source.dataset?.inkTextureRevision ?? null;
-    };
-
-    const updateTargetLayer = (now) => {
-      options.renderTarget?.();
-      const source = targetElement;
-      const isMediaSource = typeof HTMLMediaElement !== 'undefined' && source instanceof HTMLMediaElement;
-      const sourceWidth = isMediaSource ? source.videoWidth : (source?.width || source?.naturalWidth || 0);
-      const sourceHeight = isMediaSource ? source.videoHeight : (source?.height || source?.naturalHeight || 0);
-      const sourceReady = isMediaSource
-        ? source.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-        : source?.dataset?.inkTextureReady === 'true';
-      if (!targetTexture || !source || !sourceReady || !sourceWidth || !sourceHeight) {
-        targetLayer.ready = 0;
-        canvas.dataset.r4InkTargetReady = 'false';
-        return;
-      }
-      const nextRevision = targetRevision(source);
-      if (!dynamicTextureUploadDue({
-        fps: targetTextureFps,
-        lastRevision: targetLayer.lastRevision,
-        nextRevision,
-        lastUploadAt: targetLayer.lastUploadAt,
-        now
-      })) return;
-      try {
-        targetLayer.width = sourceWidth;
-        targetLayer.height = sourceHeight;
-        targetLayer.ready = 1;
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, targetTexture);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-        targetLayer.lastRevision = nextRevision;
-        targetLayer.lastUploadAt = now;
-        canvas.dataset.r4InkTargetReady = 'true';
-        canvas.dataset.r4InkTargetUploads = String(Number(canvas.dataset.r4InkTargetUploads || 0) + 1);
-        if (source.dataset) {
-          source.dataset.r4InkTextureUploads = String(Number(source.dataset.r4InkTextureUploads || 0) + 1);
-        }
-      } catch {
-        targetLayer.ready = 0;
-        canvas.dataset.r4InkTargetReady = 'false';
-      }
+      coverAlpha: gl.getUniformLocation(program, 'uCoverAlpha')
     };
 
     let width = 0;
@@ -334,10 +232,6 @@ export function createInkCurtainTransition(canvas, options = {}) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.clearColor(0, 0, 0, 0);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, targetTexture);
-    gl.uniform1i(uniforms.targetScene, 0);
-
     let destroyed = false;
     return {
       render(progress, pointerX = 0, pointerY = 0) {
@@ -345,9 +239,8 @@ export function createInkCurtainTransition(canvas, options = {}) {
         const visibleProgress = clamp(progress, 0, 1);
         const fadeIn = smoothStep(clamp(visibleProgress / 0.08, 0, 1));
         const fadeOut = 1 - smoothStep(clamp((visibleProgress - fadeOutStart) / (fadeOutEnd - fadeOutStart), 0, 1));
-        const targetCompositeActive = Boolean(targetElement) && visibleProgress < 0.999;
-        const canvasOpacity = targetElement ? fadeIn : fadeIn * fadeOut;
-        const active = targetCompositeActive || canvasOpacity > 0.002;
+        const canvasOpacity = fadeIn * fadeOut;
+        const active = canvasOpacity > 0.002;
         canvas.style.visibility = active ? 'visible' : 'hidden';
         canvas.style.opacity = active ? canvasOpacity.toFixed(4) : '0';
         if (!resize()) return;
@@ -369,11 +262,6 @@ export function createInkCurtainTransition(canvas, options = {}) {
         gl.uniform1f(uniforms.direction, direction);
         gl.uniform1f(uniforms.progressSpan, progressSpan);
         gl.uniform1f(uniforms.coverAlpha, coverAlpha);
-        const now = performance.now();
-        updateTargetLayer(now);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, targetTexture);
-        gl.uniform1f(uniforms.targetReady, targetLayer.ready);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       },
       prewarm() {
@@ -387,8 +275,7 @@ export function createInkCurtainTransition(canvas, options = {}) {
         releaseInkWebGlResources(gl, {
           buffer,
           program,
-          shaders: [vertexShader, fragmentShader],
-          textures: [targetTexture]
+          shaders: [vertexShader, fragmentShader]
         });
         canvas.width = 0;
         canvas.height = 0;

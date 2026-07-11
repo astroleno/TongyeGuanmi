@@ -27,7 +27,7 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
     id: 'ttg-lab',
     delayMs: options.delayMs,
     origin: { x: 0.5, y: -0.04 },
-    revealMode: 'ink-body',
+    revealMode: 'live-clip',
     renderFrom: (root, progress) => renderTtgAnimationProgress(root, progress, { playback: true }),
     renderFromProgress: (progress) => range01(progress, 0, TTG_LAB_ANIMATION_STOP),
     renderTo: (root) => renderLabProgress(root, 1),
