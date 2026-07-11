@@ -26,6 +26,10 @@ export function renderContactProgress(root: HTMLElement | null | undefined, prog
   return { progress: clamped, opacity, y };
 }
 
+export function renderContactHold(root: HTMLElement | null): void {
+  renderContactProgress(root, 1);
+}
+
 function ContactScene({ registerHandle }: SceneComponentProps) {
   const initializedRef = useRef(false);
   return (
@@ -56,6 +60,7 @@ function ContactScene({ registerHandle }: SceneComponentProps) {
 export const contactScene: SceneModule = {
   id: 'contact',
   Component: ContactScene,
+  renderHold: renderContactHold,
   requiredHandles: ['copy'],
   staticFallback: {
     sectionIds: ['contact'],

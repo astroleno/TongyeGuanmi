@@ -7,6 +7,7 @@ function syntheticScene(requiredHandles: readonly string[] = ['copy']) {
   const module: SceneModule = {
     id: 'hero',
     Component: () => null,
+    renderHold: () => undefined,
     requiredHandles,
     preload
   };

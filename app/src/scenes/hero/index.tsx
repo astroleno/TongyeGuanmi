@@ -126,6 +126,10 @@ export function renderHeroProgress(root: HTMLElement | null, progress: number): 
   return { progress: clamped, backOpacity, middleOpacity, figureOpacity, contentOpacity, exitLift };
 }
 
+export function renderHeroHold(root: HTMLElement | null): void {
+  renderHeroProgress(root, 1);
+}
+
 function HeroScene({ hidden, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -211,6 +215,7 @@ function HeroScene({ hidden, registerHandle }: SceneComponentProps) {
 export const heroScene: SceneModule = {
   id: 'hero',
   Component: HeroScene,
+  renderHold: renderHeroHold,
   requiredHandles: ['stage', 'figure', 'copy'],
   staticFallback: {
     sectionIds: ['home'],

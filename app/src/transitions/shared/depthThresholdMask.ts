@@ -82,7 +82,18 @@ export function createDepthThresholdMask(options: {
   filter.setAttribute('width', '100%');
   filter.setAttribute('height', '100%');
   filter.setAttribute('color-interpolation-filters', 'sRGB');
+  const luminance = documentRef.createElementNS(SVG_NAMESPACE, 'feColorMatrix');
+  luminance.setAttribute('type', 'matrix');
+  luminance.setAttribute('values', [
+    '0.2126 0.7152 0.0722 0 0',
+    '0.2126 0.7152 0.0722 0 0',
+    '0.2126 0.7152 0.0722 0 0',
+    '0 0 0 0 1'
+  ].join(' '));
+  luminance.setAttribute('result', 'depth-luminance');
   const transfer = documentRef.createElementNS(SVG_NAMESPACE, 'feComponentTransfer');
+  transfer.setAttribute('in', 'depth-luminance');
+  transfer.setAttribute('result', 'binary-depth');
   const channels = ['R', 'G', 'B'] as const;
   const channelFunctions = channels.map((channel) => {
     const fn = documentRef.createElementNS(SVG_NAMESPACE, `feFunc${channel}`);
@@ -90,13 +101,27 @@ export function createDepthThresholdMask(options: {
     transfer.append(fn);
     return fn;
   });
-  filter.append(transfer);
+  const alphaFunction = documentRef.createElementNS(SVG_NAMESPACE, 'feFuncA');
+  alphaFunction.setAttribute('type', 'discrete');
+  alphaFunction.setAttribute('tableValues', '1 1');
+  transfer.append(alphaFunction);
+  const binaryAlpha = documentRef.createElementNS(SVG_NAMESPACE, 'feColorMatrix');
+  binaryAlpha.setAttribute('in', 'binary-depth');
+  binaryAlpha.setAttribute('type', 'matrix');
+  binaryAlpha.setAttribute('values', [
+    '0 0 0 0 1',
+    '0 0 0 0 1',
+    '0 0 0 0 1',
+    '1 0 0 0 0'
+  ].join(' '));
+  binaryAlpha.setAttribute('result', 'binary-alpha');
+  filter.append(luminance, transfer, binaryAlpha);
 
   const mask = documentRef.createElementNS(SVG_NAMESPACE, 'mask');
   mask.setAttribute('id', maskId);
   mask.setAttribute('maskUnits', 'objectBoundingBox');
   mask.setAttribute('maskContentUnits', 'objectBoundingBox');
-  mask.setAttribute('mask-type', 'luminance');
+  mask.setAttribute('mask-type', 'alpha');
   const image = documentRef.createElementNS(SVG_NAMESPACE, 'image');
   image.setAttribute('x', '0');
   image.setAttribute('y', '0');
@@ -116,7 +141,7 @@ export function createDepthThresholdMask(options: {
   target.style.setProperty('-webkit-mask-size', '100% 100%');
   target.style.setProperty('mask-repeat', 'no-repeat');
   target.style.setProperty('-webkit-mask-repeat', 'no-repeat');
-  target.style.setProperty('mask-mode', 'luminance');
+  target.style.setProperty('mask-mode', 'alpha');
   target.setAttribute('data-r4-depth-mask-run', options.runId);
 
   let disposed = false;

@@ -29,7 +29,7 @@ export function createMethodBottomFigure2Transition(options: { delayMs?: () => n
     clipTarget: true,
     revealMode: 'live-clip',
     sample: sampleMethodBottomFigure2,
-    renderTo: renderFigure2Hold,
+    prepareEndpoints: ({ to }) => renderFigure2Hold(to),
     clipProgress: figure2InkProgressForMethodBottom,
     inkProgress: figure2InkProgressForMethodBottom,
     transitionAttr: 'method-bottom-figure2-bottom-ink'
@@ -62,7 +62,8 @@ export function createMethodBottomFigure2Transition(options: { delayMs?: () => n
         ...(timeline.labels ? { labels: timeline.labels } : {}),
         ...(timeline.pauses ? { pauses: timeline.pauses } : {}),
         ...(timeline.sample ? { sample: (progress) => timeline.sample?.(progress) ?? sampleMethodBottomFigure2(progress) } : {}),
-        ...(timeline.rootIdentity ? { rootIdentity: () => timeline.rootIdentity?.() ?? { from: null, to: null } } : {})
+        ...(timeline.rootIdentity ? { rootIdentity: () => timeline.rootIdentity?.() ?? { from: null, to: null } } : {}),
+        ...(timeline.effectCanvases ? { effectCanvases: () => timeline.effectCanvases?.() ?? [] } : {})
       };
       return wrapped;
     }

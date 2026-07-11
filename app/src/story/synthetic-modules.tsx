@@ -53,6 +53,7 @@ export const syntheticSourceScene: SyntheticSceneModule = {
   id: 'hero',
   fixture: 'source',
   Component: SyntheticSceneComponent,
+  renderHold: () => undefined,
   requiredHandles: ['copy', 'media'],
   preload: () => ({ milestones: ['targetReady'] })
 };
@@ -61,6 +62,7 @@ export const syntheticTargetScene: SyntheticSceneModule = {
   id: 'pattern',
   fixture: 'target',
   Component: SyntheticSceneComponent,
+  renderHold: () => undefined,
   requiredHandles: ['copy', 'media'],
   preload: () => ({ milestones: ['targetReady', 'mediaReady'] })
 };
@@ -69,6 +71,7 @@ export const syntheticRetiringSentinelScene: SyntheticSceneModule = {
   id: 'star-map',
   fixture: 'retiring-sentinel',
   Component: SyntheticSceneComponent,
+  renderHold: () => undefined,
   requiredHandles: ['copy', 'media'],
   preload: () => ({ milestones: ['targetReady'] })
 };

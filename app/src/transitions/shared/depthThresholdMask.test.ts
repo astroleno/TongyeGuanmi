@@ -26,7 +26,7 @@ class FakeNode {
   ownerDocument: FakeDocument;
   parent: FakeNode | null = null;
 
-  constructor(ownerDocument: FakeDocument) {
+  constructor(ownerDocument: FakeDocument, readonly nodeName = '') {
     this.ownerDocument = ownerDocument;
   }
 
@@ -55,9 +55,13 @@ class FakeNode {
 }
 
 class FakeDocument {
-  createElementNS(): FakeNode {
-    return new FakeNode(this);
+  createElementNS(_namespace: string, nodeName: string): FakeNode {
+    return new FakeNode(this, nodeName);
   }
+}
+
+function descendants(node: FakeNode): FakeNode[] {
+  return node.children.flatMap((child) => [child, ...descendants(child)]);
 }
 
 describe('depth threshold mask', () => {
@@ -96,5 +100,29 @@ describe('depth threshold mask', () => {
     mask?.dispose();
     expect(target.style.getPropertyValue('mask-image')).toBe('');
     expect(host.children).toHaveLength(0);
+  });
+
+  it('writes the binary threshold into mask alpha independently of source alpha', () => {
+    const document = new FakeDocument();
+    const host = new FakeNode(document);
+    const target = new FakeNode(document);
+
+    createDepthThresholdMask({
+      host: host as unknown as HTMLElement,
+      target: target as unknown as HTMLElement,
+      depthSrc: '/depth-with-alpha.png',
+      runId: 'alpha-contract:1'
+    });
+
+    const nodes = descendants(host);
+    const alphaFunction = nodes.find((node) => node.nodeName === 'feFuncA');
+    const binaryAlpha = nodes.find((node) => node.attributes.get('result') === 'binary-alpha');
+    const mask = nodes.find((node) => node.nodeName === 'mask');
+    expect(alphaFunction?.attributes.get('type')).toBe('discrete');
+    expect(alphaFunction?.attributes.get('tableValues')).toBe('1 1');
+    expect(binaryAlpha?.nodeName).toBe('feColorMatrix');
+    expect(binaryAlpha?.attributes.get('values')).toContain('1 0 0 0 0');
+    expect(mask?.attributes.get('mask-type')).toBe('alpha');
+    expect(target.style.getPropertyValue('mask-mode')).toBe('alpha');
   });
 });

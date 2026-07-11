@@ -71,6 +71,7 @@ export function mountTransitionInkCanvas(
     .filter(Boolean)
     .join(' ');
   canvas.dataset.r4InkSegment = segmentId;
+  canvas.dataset.r4InkEffectOnly = 'true';
   canvas.dataset.r4InkRenderer = options.renderer;
   canvas.dataset.r4InkPreset = options.preset ?? 'cinematic-color';
   canvas.dataset.inkOriginX = options.origin.x.toFixed(3);

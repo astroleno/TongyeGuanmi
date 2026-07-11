@@ -1,4 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { aodAnimationScene } from '../scenes/aod-animation';
+import { contactScene } from '../scenes/contact';
+import { heroScene } from '../scenes/hero';
+import { methodTopScene } from '../scenes/method-top';
 import { patternScene } from '../scenes/pattern';
 import { starMapScene } from '../scenes/star-map';
 import { figure2AnimationScene } from '../scenes/figure2-animation';
@@ -16,8 +21,11 @@ import { craneAnimationScene } from '../scenes/crane-animation';
 import type { SceneModule } from '../story/types';
 
 const HOLD_SCENES: readonly SceneModule[] = [
+  heroScene,
   patternScene,
   starMapScene,
+  aodAnimationScene,
+  methodTopScene,
   figure2AnimationScene,
   figure2ProofOpeningScene,
   figure2ProofCardsScene,
@@ -29,8 +37,11 @@ const HOLD_SCENES: readonly SceneModule[] = [
   labScene,
   phAnimationScene,
   educationScene,
-  craneAnimationScene
+  craneAnimationScene,
+  contactScene
 ];
+
+const sceneTypesSource = readFileSync(new URL('../story/types.ts', import.meta.url), 'utf8');
 
 describe('R4 transition endpoint continuity', () => {
   it.each(HOLD_SCENES.map((scene) => [scene.id, scene] as const))(
@@ -39,4 +50,9 @@ describe('R4 transition endpoint continuity', () => {
       expect(scene.renderHold).toBeTypeOf('function');
     }
   );
+
+  it('makes the canonical hold renderer mandatory in the Scene contract', () => {
+    expect(sceneTypesSource).toContain('renderHold(layerRoot: HTMLElement | null): void;');
+    expect(sceneTypesSource).not.toContain('renderHold?(layerRoot: HTMLElement | null): void;');
+  });
 });

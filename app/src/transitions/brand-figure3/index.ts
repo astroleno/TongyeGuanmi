@@ -9,8 +9,10 @@ export function createBrandFigure3Transition(options: { delayMs?: () => number }
     delayMs: options.delayMs,
     origin: { x: 0.5, y: 1.04 },
     revealMode: 'live-clip',
-    renderFrom: renderBrandHold,
-    renderTo: renderFigure3Hold,
+    prepareEndpoints: ({ from, to }) => {
+      renderBrandHold(from);
+      renderFigure3Hold(to);
+    },
     transitionAttr: 'brand-figure3-bottom-ink'
   });
 }

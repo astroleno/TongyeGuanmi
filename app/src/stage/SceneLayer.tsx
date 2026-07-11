@@ -54,7 +54,7 @@ export function SceneLayer({ module, role, registry, visibility, reading = false
 
   useLayoutEffect(() => {
     if (role === 'current' && state.visible && state.opacity > 0.999) {
-      module.renderHold?.(rootRef.current);
+      module.renderHold(rootRef.current);
     }
   }, [module, role, state.opacity, state.visible]);
 

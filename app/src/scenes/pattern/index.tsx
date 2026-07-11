@@ -71,7 +71,11 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
 }
 
 export function renderPatternHold(root: HTMLElement | null): void {
-  renderPatternProgress(root, 0, { visible: true });
+  renderPatternProgress(root, 0, {
+    visible: true,
+    copyProgress: 1,
+    rotationProgress: 1
+  });
 }
 
 function PatternScene({ hidden, registerHandle }: SceneComponentProps) {

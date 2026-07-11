@@ -57,6 +57,7 @@ function EducationReferenceScene({ registerHandle }: SceneComponentProps) {
 export const educationReferenceScene: SceneModule = {
   id: 'education',
   Component: EducationReferenceScene,
+  renderHold: (root) => renderEducationReferenceProgress(root, 1),
   requiredHandles: ['copy'],
   preload: () => ({ milestones: ['targetReady'] })
 };

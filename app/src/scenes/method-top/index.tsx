@@ -57,6 +57,11 @@ export function positionMethodReadingAtEdge(
   return positionReadingAtEdge(root, edge);
 }
 
+export function renderMethodTopHold(root: HTMLElement | null): void {
+  // Method owns a user-controlled reading scroll position; settling must preserve it.
+  void root;
+}
+
 function MethodScene({ copyCueActive = false, registerHandle }: SceneComponentProps) {
   return (
     <article
@@ -102,6 +107,7 @@ function MethodScene({ copyCueActive = false, registerHandle }: SceneComponentPr
 export const methodTopScene: SceneModule = {
   id: 'method-top',
   Component: MethodScene,
+  renderHold: renderMethodTopHold,
   requiredHandles: ['copy'],
   staticFallback: {
     sectionIds: ['method'],

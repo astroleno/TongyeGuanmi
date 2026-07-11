@@ -10,8 +10,10 @@ export function createEducationCraneTransition(options: { delayMs?: () => number
     origin: { x: 0.5, y: 1.04 },
     positionFromReadingOnReverse: true,
     revealMode: 'live-clip',
-    renderFrom: renderEducationHold,
-    renderTo: renderCraneHold,
+    prepareEndpoints: ({ from, to }) => {
+      renderEducationHold(from);
+      renderCraneHold(to);
+    },
     transitionAttr: 'education-crane-bottom-ink'
   });
 }

@@ -16,7 +16,7 @@ import {
 import { createFigure2ProofBrandTransition } from './figure2-proof-brand';
 import { createFigure2ProofCardsClosingTransition } from './figure2-proof-cards-closing';
 import { createFigure2ProofOpeningCardsTransition } from './figure2-proof-opening-cards';
-import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
+import type { Direction, LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
 
 class FakeStyle {
   [key: string]: unknown;
@@ -167,19 +167,20 @@ function context(
   from: SceneId,
   to: SceneId,
   prefersReducedMotion = false,
-  elements: { from?: HTMLElement; to?: HTMLElement } = {}
+  elements: { from?: HTMLElement; to?: HTMLElement } = {},
+  direction: Direction = 1
 ): TransitionContext {
   return {
     segment: segment(segmentId),
-    from: layer(from, 'current', elements.from ?? null),
-    to: layer(to, 'next', elements.to ?? null),
+    from: layer(from, direction === 1 ? 'current' : 'next', elements.from ?? null),
+    to: layer(to, direction === 1 ? 'next' : 'current', elements.to ?? null),
     stage: {
       getLayer: () => undefined,
       ensureLayer: (scene, role) => layer(scene, role === 'current' ? 'current' : 'next'),
       releaseLayer: () => undefined,
       snapshot: () => []
     },
-    direction: 1,
+    direction,
     runId: 'r4-g3-test:1',
     prepareToken: 'r4-g3-test:prepare:1',
     prefersReducedMotion,
@@ -347,6 +348,46 @@ describe('figure2 proof chain transitions', () => {
     timeline.progress(1);
     timeline.dispose();
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
+  });
+
+  it('initializes a reverse Figure2-to-Proof build at the forward end', async () => {
+    const document = new FakeDocument();
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    stage.ownerDocument = document;
+    fromElement.ownerDocument = document;
+    toElement.ownerDocument = document;
+    stage.append(fromElement, toElement);
+    vi.stubGlobal('document', document);
+    const reverseContext = context(
+      'figure2-distance-expand',
+      'figure2-animation',
+      'figure2-proof-opening',
+      false,
+      { from: fromElement as unknown as HTMLElement, to: toElement as unknown as HTMLElement },
+      -1
+    );
+    const fromVisibilityWrites: LayerVisibilityState[] = [];
+    const toVisibilityWrites: LayerVisibilityState[] = [];
+    const setFromVisibility = reverseContext.from.setVisibility.bind(reverseContext.from);
+    const setToVisibility = reverseContext.to.setVisibility.bind(reverseContext.to);
+    reverseContext.from.setVisibility = (state) => {
+      fromVisibilityWrites.push(state);
+      setFromVisibility(state);
+    };
+    reverseContext.to.setVisibility = (state) => {
+      toVisibilityWrites.push(state);
+      setToVisibility(state);
+    };
+
+    await createFigure2DistanceExpandTransition().buildTimeline(reverseContext);
+
+    expect(reverseContext.from.visibility).toMatchObject({ visible: false, opacity: 0 });
+    expect(reverseContext.to.visibility).toMatchObject({ visible: true, opacity: 1 });
+    expect(fromVisibilityWrites.some((state) => state.visible)).toBe(false);
+    expect(toVisibilityWrites.some((state) => !state.visible)).toBe(false);
+    expect(toElement.dataset.figure2ProofTransitionProgress).toBe('1.0000');
   });
 
   it('plays the figure videos continuously during the intro and releases them once ink begins', () => {

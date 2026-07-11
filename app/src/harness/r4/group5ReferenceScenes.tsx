@@ -41,6 +41,7 @@ function ServicesReferenceScene({ registerHandle }: SceneComponentProps) {
 export const servicesReferenceScene: SceneModule = {
   id: 'services',
   Component: ServicesReferenceScene,
+  renderHold: (root) => renderServicesReferenceProgress(root, 1),
   requiredHandles: ['copy'],
   preload: () => ({ milestones: ['targetReady'] })
 };

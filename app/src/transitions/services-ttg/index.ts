@@ -9,8 +9,10 @@ export function createServicesTtgTransition(options: { delayMs?: () => number } 
     delayMs: options.delayMs,
     origin: { x: 0.5, y: 1.04 },
     revealMode: 'live-clip',
-    renderFrom: renderServicesHold,
-    renderTo: renderTtgHold,
+    prepareEndpoints: ({ from, to }) => {
+      renderServicesHold(from);
+      renderTtgHold(to);
+    },
     transitionAttr: 'services-ttg-bottom-ink'
   });
 }

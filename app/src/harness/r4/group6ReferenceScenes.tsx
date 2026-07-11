@@ -43,6 +43,7 @@ function LabReferenceScene({ registerHandle }: SceneComponentProps) {
 export const labReferenceScene: SceneModule = {
   id: 'lab',
   Component: LabReferenceScene,
+  renderHold: (root) => renderLabReferenceProgress(root, 1),
   requiredHandles: ['copy'],
   preload: () => ({ milestones: ['targetReady'] })
 };

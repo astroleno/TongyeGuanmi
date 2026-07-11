@@ -11,8 +11,10 @@ export function createPatternStarMapTransition(options: { delayMs?: () => number
     delayMs: options.delayMs,
     origin: PATTERN_STAR_MAP_ORIGIN,
     revealMode: 'live-clip',
-    renderFrom: renderPatternHold,
-    renderTo: renderStarMapHold,
+    prepareEndpoints: ({ from, to }) => {
+      renderPatternHold(from);
+      renderStarMapHold(to);
+    },
     transitionAttr: 'pattern-star-map-live-circle'
   });
 }

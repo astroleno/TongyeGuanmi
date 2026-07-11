@@ -55,6 +55,8 @@ describe('pattern scene renderer', () => {
 
     expect(root.attributes.get('data-pattern-progress')).toBe('0.0000');
     expect(root.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
+    expect(root.style.values.get('--r4-pattern-copy-opacity')).toBe('0.9600');
+    expect(root.style.values.get('--r4-pattern-field-rotation')).toBe('0.00deg');
     expect(patternScene.renderHold).toBe(renderPatternHold);
   });
 

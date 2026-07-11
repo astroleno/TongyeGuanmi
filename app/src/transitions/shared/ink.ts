@@ -25,10 +25,9 @@ export type InkSegmentOptions = {
   clipTarget?: boolean;
   revealMode?: 'live-clip';
   sample?: (progress: number) => InkSample;
-  renderFrom?: (root: HTMLElement | null, progress: number) => void;
-  renderFromProgress?: 'static' | 'remaining' | 'forward' | ((progress: number) => number);
-  renderTo?: (root: HTMLElement | null, progress: number) => void;
-  renderToProgress?: 'static' | 'remaining' | 'forward' | ((progress: number) => number);
+  prepareEndpoints(roots: InkEndpointRoots): void;
+  renderSource?: (root: HTMLElement | null, progress: number) => void;
+  renderSourceProgress?: 'static' | 'remaining' | 'forward' | ((progress: number) => number);
   clipProgress?: (progress: number) => number;
   inkProgress?: (progress: number) => number;
   rootSelector?: (scene: string) => string;
@@ -37,6 +36,11 @@ export type InkSegmentOptions = {
   reportTimelineReadyAt?: number;
   positionFromReadingOnReverse?: boolean;
 };
+
+export type InkEndpointRoots = Readonly<{
+  from: HTMLElement | null;
+  to: HTMLElement | null;
+}>;
 
 export type InkSample = {
   from: LayerVisibilityState;
@@ -196,6 +200,9 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private readonly surfaceHost: HTMLElement | null;
   private liveElevation: TransitionLayerElevation | null = null;
   private liveElevationElement: HTMLElement | null = null;
+  private endpointsPrepared = false;
+  private preparedFromRoot: HTMLElement | null = null;
+  private preparedToRoot: HTMLElement | null = null;
 
   constructor(
     private readonly context: TransitionContext,
@@ -226,7 +233,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     });
     this.elevation = options.elevateTarget === false ? null : createTransitionLayerElevation(context.to.element);
     this.inkRenderer?.prewarm();
-    this.progress(0);
+    this.ensureEndpointsPrepared();
+    this.progress(context.direction === 1 ? 0 : 1);
   }
 
   play(): Promise<void> {
@@ -261,6 +269,9 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     applyLayerVisibility(this.context.to, sample.to);
     const liveFromElement = liveLayerElement(this.context.from);
     const liveToElement = liveLayerElement(this.context.to);
+    const fromRoot = sceneRoot(liveFromElement, this.context.from.scene, this.options.rootSelector);
+    const toRoot = sceneRoot(liveToElement, this.context.to.scene, this.options.rootSelector);
+    this.ensureEndpointsPrepared(fromRoot, toRoot);
     if (liveFromElement !== this.context.from.element) {
       applyVisibilityToElement(liveFromElement, sample.from);
     }
@@ -276,10 +287,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       }
       this.liveElevation?.elevate();
     }
-    const fromProgress = mappedProgress(this.options.renderFromProgress, clamped, 'static');
-    const toProgress = mappedProgress(this.options.renderToProgress, clamped, 'static');
-    this.options.renderFrom?.(sceneRoot(liveFromElement, this.context.from.scene, this.options.rootSelector), fromProgress);
-    this.options.renderTo?.(sceneRoot(liveToElement, this.context.to.scene, this.options.rootSelector), toProgress);
+    const sourceProgress = mappedProgress(this.options.renderSourceProgress, clamped, 'static');
+    this.options.renderSource?.(fromRoot, sourceProgress);
     if (this.options.clipTarget !== false && liveToElement) {
       const revealActive = clipProgress > 0.002 && clipProgress < 0.999;
       liveToElement.style.removeProperty('mask-image');
@@ -344,6 +353,10 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     };
   }
 
+  effectCanvases(): readonly HTMLCanvasElement[] {
+    return this.canvas ? [this.canvas] : [];
+  }
+
   dispose(): void {
     this.disposed = true;
     if (this.animationFrame) {
@@ -377,6 +390,23 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     if (this.options.positionFromReadingOnReverse) {
       positionReadingAtEdge(liveLayerElement(this.context.from), 'bottom');
     }
+  }
+
+  private ensureEndpointsPrepared(
+    fromRoot = sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.options.rootSelector),
+    toRoot = sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.options.rootSelector)
+  ): void {
+    if (
+      this.endpointsPrepared
+      && this.preparedFromRoot === fromRoot
+      && this.preparedToRoot === toRoot
+    ) {
+      return;
+    }
+    this.options.prepareEndpoints({ from: fromRoot, to: toRoot });
+    this.preparedFromRoot = fromRoot;
+    this.preparedToRoot = toRoot;
+    this.endpointsPrepared = true;
   }
 
   private animateTo(target: number): Promise<void> {
@@ -420,13 +450,18 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
       if (context.direction === -1 && options.positionFromReadingOnReverse) {
         positionReadingAtEdge(liveLayerElement(context.from), 'bottom');
       }
-      applyLayerVisibility(context.from, hiddenVisibility());
-      applyLayerVisibility(context.to, holdVisibility(true));
-      options.renderFrom?.(
-        sceneRoot(context.from.element, context.from.scene, options.rootSelector),
-        mappedProgress(options.renderFromProgress, 1, 'static')
+      const endpoint = context.direction === 1 ? 1 : 0;
+      const roots = {
+        from: sceneRoot(liveLayerElement(context.from), context.from.scene, options.rootSelector),
+        to: sceneRoot(liveLayerElement(context.to), context.to.scene, options.rootSelector)
+      };
+      options.prepareEndpoints(roots);
+      options.renderSource?.(
+        roots.from,
+        mappedProgress(options.renderSourceProgress, endpoint, 'static')
       );
-      options.renderTo?.(sceneRoot(context.to.element, context.to.scene, options.rootSelector), mappedProgress(options.renderToProgress, 1, 'static'));
+      applyLayerVisibility(context.from, context.direction === 1 ? hiddenVisibility() : holdVisibility(true));
+      applyLayerVisibility(context.to, context.direction === 1 ? holdVisibility(true) : hiddenVisibility());
     },
     buildTimeline: async (context) => {
       const delay = options.delayMs?.() ?? 0;

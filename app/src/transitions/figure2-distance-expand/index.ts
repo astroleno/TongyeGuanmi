@@ -109,7 +109,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       runId: context.runId
     });
     renderProofOpeningHold(sceneRoot(context.to.element, 'figure2-proof-opening'));
-    this.progress(0);
+    this.progress(context.direction === 1 ? 0 : 1);
   }
 
   play(): Promise<void> {

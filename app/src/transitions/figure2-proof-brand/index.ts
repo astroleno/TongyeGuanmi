@@ -11,8 +11,10 @@ export function createFigure2ProofBrandTransition(options: { delayMs?: () => num
     delayMs: options.delayMs,
     origin: PROOF_BRAND_ORIGIN,
     revealMode: 'live-clip',
-    renderFrom: renderProofClosingHold,
-    renderTo: renderBrandHold,
+    prepareEndpoints: ({ from, to }) => {
+      renderProofClosingHold(from);
+      renderBrandHold(to);
+    },
     transitionAttr: 'figure2-proof-brand-live-clip'
   });
 }

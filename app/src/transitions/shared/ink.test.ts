@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
-import { createInkSegmentTransition } from './ink';
+import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
+import { createInkSegmentTransition, type InkSegmentOptions } from './ink';
+
+const inkSource = readFileSync(new URL('./ink.ts', import.meta.url), 'utf8');
 
 class FakeStyle {
   [key: string]: unknown;
@@ -100,7 +104,64 @@ afterEach(() => {
 });
 
 describe('shared ink transition surface', () => {
-  it('keeps source and receiver scene renderers at their completed static state by default', async () => {
+  it('initializes a reverse build at the forward end and prepares endpoint holds only once', async () => {
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    stage.append(fromElement);
+    stage.append(toElement);
+    const canvas = new FakeCanvas();
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const from = layer('services', 'next', fromElement);
+    const to = layer('ttg-animation', 'current', toElement);
+    const sourceProgress: number[] = [];
+    const prepared: Array<{ from: HTMLElement | null; to: HTMLElement | null }> = [];
+    const context: TransitionContext = {
+      segment,
+      from,
+      to,
+      stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+      direction: -1,
+      runId: 'ink-reverse-build-test:1',
+      prepareToken: 'ink-reverse-build-test:prepare:1',
+      prefersReducedMotion: false,
+      reportMilestone() {}
+    };
+    const options = {
+      id: 'services-ttg',
+      origin: { x: 0.5, y: 1.04 },
+      clipTarget: false,
+      prepareEndpoints: (roots: { from: HTMLElement | null; to: HTMLElement | null }) => prepared.push(roots),
+      renderSource: (_root: HTMLElement | null, progress: number) => sourceProgress.push(progress),
+      renderSourceProgress: 'forward'
+    } satisfies InkSegmentOptions;
+
+    const timeline = await createInkSegmentTransition(options).buildTimeline(context);
+
+    expect(from.visibility).toMatchObject({ visible: false, opacity: 0 });
+    expect(to.visibility).toMatchObject({ visible: true, opacity: 1 });
+    expect(sourceProgress).toEqual([1]);
+    expect(prepared).toHaveLength(1);
+    timeline.progress(0.75);
+    timeline.progress(0.25);
+    expect(prepared).toHaveLength(1);
+  });
+
+  it('does not expose a target progress renderer from the generic Ink API', () => {
+    expect(inkSource).toContain('prepareEndpoints(roots: InkEndpointRoots): void;');
+    expect(inkSource).not.toContain('renderTo?:');
+    expect(inkSource).not.toContain('renderToProgress?:');
+  });
+
+  it('prepares source and receiver holds once instead of rerendering the target per frame', async () => {
     const fromProgress: number[] = [];
     const toProgress: number[] = [];
     const segment = {
@@ -130,16 +191,18 @@ describe('shared ink transition surface', () => {
       id: 'services-ttg',
       origin: { x: 0.5, y: 1.04 },
       clipTarget: false,
-      renderFrom: (_root, progress) => fromProgress.push(progress),
-      renderTo: (_root, progress) => toProgress.push(progress)
+      prepareEndpoints: () => {
+        fromProgress.push(1);
+        toProgress.push(1);
+      }
     });
 
     const timeline = await transition.buildTimeline(context);
     timeline.progress(0.35);
     timeline.progress(0.72);
 
-    expect(fromProgress.slice(-2)).toEqual([1, 1]);
-    expect(toProgress.slice(-2)).toEqual([1, 1]);
+    expect(fromProgress).toEqual([1]);
+    expect(toProgress).toEqual([1]);
   });
 
   it('mounts its colored particle canvas beside scene layers so the receiver mask cannot clip it', async () => {
@@ -172,7 +235,8 @@ describe('shared ink transition surface', () => {
     const transition = createInkSegmentTransition({
       id: 'services-ttg',
       origin: { x: 0.5, y: 1.04 },
-      revealMode: 'live-clip'
+      revealMode: 'live-clip',
+      prepareEndpoints: () => undefined
     });
 
     const timeline = await transition.buildTimeline(context);
@@ -181,6 +245,7 @@ describe('shared ink transition surface', () => {
     expect(canvas.dataset.r4InkRenderer).toBe('curtain');
     expect(canvas.dataset.r4InkPreset).toBe('cinematic-color');
     expect(canvas.dataset.r4InkPresetApplied).toBe('true');
+    expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkParticleProfile).toBe('jade-gold');
     expect(canvas.dataset.r4InkParticleStrength).toBe('1.000');
     expect(canvas.dataset.r4InkColorLift).toBe('0.920');
@@ -207,7 +272,15 @@ describe('shared ink transition surface', () => {
       from: { visible: false, opacity: 0 },
       to: { visible: true, opacity: 1 }
     });
-    timeline.dispose();
+    expect(verifySegmentTimeline(timeline, {
+      requireStableSceneIdentity: true,
+      requireEffectOnlyCanvas: true,
+      verifyDisposeInvariance: true
+    })).toMatchObject({
+      reverseSymmetric: true,
+      disposeInvariant: true,
+      effectOnlyCanvas: true
+    });
     expect(canvas.parentElement).toBeNull();
   });
 
@@ -250,8 +323,9 @@ describe('shared ink transition surface', () => {
       id: 'services-ttg',
       origin: { x: 0.5, y: 1.04 },
       clipTarget: false,
-      renderFrom: (_root, progress) => renderedProgress.push(progress),
-      renderFromProgress: 'forward'
+      prepareEndpoints: () => undefined,
+      renderSource: (_root, progress) => renderedProgress.push(progress),
+      renderSourceProgress: 'forward'
     });
     const timeline = await transition.buildTimeline(context);
     const playback = timeline.play(1);

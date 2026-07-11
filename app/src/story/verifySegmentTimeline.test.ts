@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createSyntheticTransitionModule, SyntheticSegmentTimeline, syntheticCopyCue } from './synthetic-modules';
 import { verifySegmentTimeline } from './verifySegmentTimeline';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from './types';
+import type { VerifySegmentTimelineOptions } from './verifySegmentTimeline';
 
 function layer(scene: 'hero' | 'pattern', role: 'current' | 'next'): LayerHandle {
   let visibility: LayerVisibilityState = {
@@ -140,5 +141,80 @@ describe('verifySegmentTimeline', () => {
     expect(() => verifySegmentTimeline(replacingTimeline, { requireStableSceneIdentity: true })).toThrow(
       /replaced a canonical Scene root/
     );
+  });
+
+  it('rejects traversal-dependent samples that are not reverse symmetric', () => {
+    const timeline = new SyntheticSegmentTimeline(context());
+    let previousProgress = 0;
+    let reversing = false;
+    const asymmetricTimeline = {
+      play: timeline.play.bind(timeline),
+      progress(value: number) {
+        reversing ||= value < previousProgress;
+        previousProgress = value;
+        timeline.progress(value);
+      },
+      reverse: timeline.reverse.bind(timeline),
+      jumpToEnd: timeline.jumpToEnd.bind(timeline),
+      dispose: timeline.dispose.bind(timeline),
+      labels: timeline.labels,
+      sample(progress: number) {
+        const sample = timeline.sample(progress);
+        return reversing && progress === 0.5
+          ? { ...sample, to: { ...sample.to, opacity: 0.75 } }
+          : sample;
+      }
+    };
+
+    expect(() => verifySegmentTimeline(asymmetricTimeline)).toThrow(/reverse symmetry/);
+  });
+
+  it('rejects disposal that replaces canonical roots', () => {
+    const timeline = new SyntheticSegmentTimeline(context());
+    const fromRoot = {} as HTMLElement;
+    const toRoot = {} as HTMLElement;
+    let disposed = false;
+    const disposingTimeline = {
+      play: timeline.play.bind(timeline),
+      progress: timeline.progress.bind(timeline),
+      reverse: timeline.reverse.bind(timeline),
+      jumpToEnd: timeline.jumpToEnd.bind(timeline),
+      dispose() {
+        disposed = true;
+        timeline.dispose();
+      },
+      labels: timeline.labels,
+      sample: timeline.sample.bind(timeline),
+      rootIdentity: () => ({ from: fromRoot, to: disposed ? ({} as HTMLElement) : toRoot })
+    };
+    const options = {
+      requireStableSceneIdentity: true,
+      verifyDisposeInvariance: true
+    } as VerifySegmentTimelineOptions & { verifyDisposeInvariance: boolean };
+
+    expect(() => verifySegmentTimeline(disposingTimeline, options)).toThrow(/dispose invariance/);
+  });
+
+  it('rejects transition canvases that are not declared effect-only', () => {
+    const timeline = new SyntheticSegmentTimeline(context());
+    const effectCanvas = {
+      dataset: { r4InkEffectOnly: 'false' },
+      parentElement: {}
+    } as unknown as HTMLCanvasElement;
+    const capturedTimeline = {
+      play: timeline.play.bind(timeline),
+      progress: timeline.progress.bind(timeline),
+      reverse: timeline.reverse.bind(timeline),
+      jumpToEnd: timeline.jumpToEnd.bind(timeline),
+      dispose: timeline.dispose.bind(timeline),
+      labels: timeline.labels,
+      sample: timeline.sample.bind(timeline),
+      effectCanvases: () => [effectCanvas]
+    };
+    const options = {
+      requireEffectOnlyCanvas: true
+    } as VerifySegmentTimelineOptions & { requireEffectOnlyCanvas: boolean };
+
+    expect(() => verifySegmentTimeline(capturedTimeline, options)).toThrow(/effect-only/);
   });
 });

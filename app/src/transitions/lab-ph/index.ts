@@ -10,8 +10,10 @@ export function createLabPhTransition(options: { delayMs?: () => number } = {}):
     origin: { x: 0.5, y: -0.04 },
     revealMode: 'live-clip',
     positionFromReadingOnReverse: true,
-    renderFrom: renderLabHold,
-    renderTo: renderPhHold,
+    prepareEndpoints: ({ from, to }) => {
+      renderLabHold(from);
+      renderPhHold(to);
+    },
     transitionAttr: 'lab-ph-top-ink'
   });
 }

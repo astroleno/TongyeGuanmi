@@ -19,8 +19,10 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
     delayMs: options.delayMs,
     origin: HERO_PATTERN_ORIGIN,
     revealMode: 'live-clip',
-    renderFrom: renderHeroForHeroPattern,
-    renderTo: renderPatternForHeroPattern,
+    prepareEndpoints: ({ from, to }) => {
+      renderHeroForHeroPattern(from);
+      renderPatternForHeroPattern(to);
+    },
     transitionAttr: 'hero-pattern-live-circle'
   });
 }
