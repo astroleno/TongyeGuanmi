@@ -242,7 +242,7 @@ describe('R3 pilot contract on real segments', () => {
     });
   });
 
-  it('shares the AOD horizontal boundary revision with its live reveal surface', async () => {
+  it('uses one hidden inset ownership gate for the live AOD reveal surface', async () => {
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
     const revealSurface = new FakeElement();
@@ -256,11 +256,13 @@ describe('R3 pilot contract on real segments', () => {
 
     timeline.progress(0.5);
 
-    expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
-    expect(revealSurface.style.clipPath).not.toContain('inset(');
+    expect(revealSurface.style.clipPath).toMatch(/^inset\(/);
+    expect(revealSurface.style.clipPath).not.toContain('polygon(');
     expect(revealSurface.dataset.r4InkBoundaryKind).toBe('horizontal');
-    expect(revealSurface.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(revealSurface.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
+    expect(canvas.dataset.r4InkRenderer).toBe('field');
   });
 
   it('passes R2 copyCue invariants for aod-method-top at 80%', async () => {

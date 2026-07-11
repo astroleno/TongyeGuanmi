@@ -35,16 +35,12 @@ describe('viewport background contract', () => {
     expect(rule('.r3-star-map__wash')).toContain('z-index: 1');
   });
 
-  it('rotates Pattern source layers and petal rings independently without rotating the viewport canvas', () => {
-    expect(stylesheet).toContain('@keyframes r4-pattern-dom-spin');
-    expect(rule('.r4-pattern-scene__rotor--02')).toContain('animation: r4-pattern-dom-spin 76s linear infinite reverse');
-    expect(rule('.r4-pattern-scene__rotor--03')).toContain('animation: r4-pattern-dom-spin 42s linear infinite');
-    expect(rule('.r4-pattern-scene__rotor--04')).toContain('animation: r4-pattern-dom-spin 42s linear infinite');
-    expect(rule('.r4-pattern-scene__rotor--05')).toContain('animation: r4-pattern-dom-spin 96s linear infinite');
-    expect(rule('.r4-pattern-scene__rotor--06')).toContain('animation: r4-pattern-dom-spin 110s linear infinite');
+  it('leaves Pattern layer rotation to the single authored Canvas renderer', () => {
+    expect(stylesheet).not.toContain('@keyframes r4-pattern-dom-spin');
+    expect(stylesheet).not.toContain('.r4-pattern-scene__rotor');
     expect(stylesheet).not.toContain('@keyframes r4-pattern-canvas-spin');
     expect(rule('.r4-pattern-scene__canvas')).not.toContain('animation:');
-    expect(rule('.r4-pattern-scene__rotor-frame')).not.toContain('--r4-pattern-field-rotation');
+    expect(rule('.r4-pattern-scene__canvas')).not.toContain('transform:');
   });
 
   it('lets every named Hero reveal item apply the rise-up transform', () => {
