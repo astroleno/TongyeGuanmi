@@ -6,13 +6,10 @@ import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import {
   createFigure2DistanceExpandTransition,
-  figure2ProofCopyProgress,
-  figure2ProofInkCanvasOpacity,
-  figure2ProofInkSceneBrightness,
   figure2ProofRevealProgress,
-  figure2ProofSourceExitProgress,
   figure2VideoModeForProofTransition
 } from './figure2-distance-expand';
+import { thresholdTable } from './shared/depthThresholdMask';
 import {
   FIGURE2_INTRO_PLAYBACK_MS
 } from '../scenes/figure2-animation';
@@ -51,10 +48,12 @@ class FakeElement {
   inert = false;
   className = '';
 
-  append(child: FakeElement): void {
-    child.parentElement = this;
-    child.ownerDocument = this.ownerDocument;
-    this.children.push(child);
+  append(...children: FakeElement[]): void {
+    for (const child of children) {
+      child.parentElement = this;
+      child.ownerDocument = this.ownerDocument;
+      this.children.push(child);
+    }
   }
 
   querySelector(selector: string): FakeElement | null {
@@ -83,6 +82,17 @@ class FakeElement {
       this.dataset[key] = value;
     }
   }
+
+  remove(): void {
+    if (!this.parentElement) {
+      return;
+    }
+    const index = this.parentElement.children.indexOf(this);
+    if (index >= 0) {
+      this.parentElement.children.splice(index, 1);
+    }
+    this.parentElement = null;
+  }
 }
 
 class FakeCanvas extends FakeElement {
@@ -103,16 +113,20 @@ class FakeCanvas extends FakeElement {
 }
 
 class FakeDocument {
-  constructor(readonly retainedArch: FakeElement) {}
-
   createElement(): FakeCanvas {
     const canvas = new FakeCanvas();
     canvas.ownerDocument = this;
     return canvas;
   }
 
-  querySelector(selector: string): FakeElement | null {
-    return selector === '.stage-proof-retained-arch' ? this.retainedArch : null;
+  createElementNS(): FakeElement {
+    const element = new FakeElement();
+    element.ownerDocument = this;
+    return element;
+  }
+
+  querySelector(): FakeElement | null {
+    return null;
   }
 }
 
@@ -242,16 +256,14 @@ describe('figure2 proof chain transitions', () => {
     expect(transition.mediaPlayback).toEqual(manifestSegment.mediaPlayback);
   });
 
-  it('reveals Brand and covers the retained arch through the same shader body in both directions', async () => {
-    const retainedArch = new FakeElement();
-    const document = new FakeDocument(retainedArch);
+  it('reveals the live Brand while Proof remains geometrically unchanged in both directions', async () => {
+    const document = new FakeDocument();
     const stage = new FakeElement();
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
     stage.ownerDocument = document;
     fromElement.ownerDocument = document;
     toElement.ownerDocument = document;
-    retainedArch.ownerDocument = document;
     stage.append(fromElement);
     stage.append(toElement);
     vi.stubGlobal('document', document);
@@ -270,12 +282,9 @@ describe('figure2 proof chain transitions', () => {
       from: { visible: true, opacity: 1 },
       to: { visible: true, opacity: 1 }
     });
-    expect(toElement.dataset.r4RevealMode).toBe('ink-body');
-    expect(toElement.style.clipPath).toBe('');
+    expect(toElement.dataset.r4RevealMode).toBe('live-clip');
+    expect(toElement.style.clipPath).toContain('inset(');
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
-    expect(retainedArch.style.clipPath).toBe('');
-    expect(retainedArch.style.getPropertyValue('mask-image')).toBe('');
-    expect(retainedArch.style.getPropertyValue('--r4-proof-retained-arch-opacity')).toBe('0.9200');
     expect(fromElement.style.getPropertyValue('--r4-proof-closing-opacity')).toBe('1.0000');
     expect(fromElement.style.getPropertyValue('--r4-proof-closing-y')).toBe('0.00px');
     expect(toElement.style.getPropertyValue('--r4-brand-opacity')).toBe('1.0000');
@@ -290,40 +299,54 @@ describe('figure2 proof chain transitions', () => {
     expect(toElement.style.clipPath).toBe('');
 
     timeline.progress(0.4);
-    expect(toElement.dataset.r4RevealMode).toBe('ink-body');
-    expect(retainedArch.style.clipPath).toBe('');
-    expect(retainedArch.style.getPropertyValue('--r4-proof-retained-arch-opacity')).toBe('0.9200');
+    expect(toElement.dataset.r4RevealMode).toBe('live-clip');
+    expect(toElement.style.clipPath).toContain('inset(');
     timeline.progress(0);
-    expect(retainedArch.style.getPropertyValue('mask-image')).toBe('');
-    expect(retainedArch.style.clipPath).toBe('');
 
     timeline.progress(0.7);
     timeline.dispose();
-    expect(retainedArch.style.getPropertyValue('mask-image')).toBe('');
-    expect(retainedArch.style.clipPath).toBe('');
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
     expect(toElement.style.clipPath).toBe('');
   });
 
-  it('keeps figure2 proof ink dark and delays source exit until the ink has structure', () => {
+  it('uses time-varying depth thresholds whose authored mask values stay strictly binary', () => {
     const midReveal = figure2ProofRevealProgress(0.86);
     expect(midReveal).toBeGreaterThan(0.35);
     expect(midReveal).toBeLessThan(0.78);
-    expect(figure2ProofSourceExitProgress(midReveal)).toBeLessThan(0.55);
-    expect(figure2ProofInkSceneBrightness(midReveal)).toBeLessThan(0.7);
-    expect(figure2ProofInkCanvasOpacity(midReveal)).toBeLessThan(0.72);
+    expect(new Set(thresholdTable(midReveal))).toEqual(new Set([0, 1]));
 
     const lateReveal = figure2ProofRevealProgress(0.985);
     expect(lateReveal).toBeGreaterThan(0.9);
-    expect(figure2ProofSourceExitProgress(lateReveal)).toBeGreaterThan(0.85);
+    expect(thresholdTable(lateReveal).every((value) => value === 0 || value === 1)).toBe(true);
   });
 
-  it('hands opening copy to live DOM only after the source has fully dissolved', () => {
-    expect(figure2ProofCopyProgress(0.75)).toBe(0);
-    expect(figure2ProofInkCanvasOpacity(0.98)).toBe(0);
-    expect(figure2ProofCopyProgress(0.99)).toBe(0);
-    expect(figure2ProofCopyProgress(0.999)).toBe(1);
-    expect(figure2ProofCopyProgress(1)).toBe(1);
+  it('applies the binary mask to the live Proof layer without changing layer opacity', async () => {
+    const document = new FakeDocument();
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    stage.ownerDocument = document;
+    fromElement.ownerDocument = document;
+    toElement.ownerDocument = document;
+    toElement.style.setProperty('opacity', '1');
+    stage.append(fromElement, toElement);
+    vi.stubGlobal('document', document);
+    const timeline = await createFigure2DistanceExpandTransition().buildTimeline(
+      context('figure2-distance-expand', 'figure2-animation', 'figure2-proof-opening', false, {
+        from: fromElement as unknown as HTMLElement,
+        to: toElement as unknown as HTMLElement
+      })
+    );
+
+    timeline.progress(0.86);
+
+    expect(toElement.dataset.figure2ProofMaskValues).toBe('1,0');
+    expect(toElement.style.getPropertyValue('opacity')).toBe('1');
+    expect(toElement.style.getPropertyValue('mask-image')).toContain('depth-threshold-mask');
+
+    timeline.progress(1);
+    timeline.dispose();
+    expect(toElement.style.getPropertyValue('mask-image')).toBe('');
   });
 
   it('plays the figure videos continuously during the intro and releases them once ink begins', () => {

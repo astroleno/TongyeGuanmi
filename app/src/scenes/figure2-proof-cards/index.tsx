@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const FIGURE2_PROOF_CARDS_COPY = [
@@ -38,22 +37,18 @@ export function renderProofCardsProgress(root: HTMLElement | null, progress: num
   root?.style.setProperty('--r4-proof-scroll-y', '0px');
   root?.setAttribute('data-proof-cards-progress', clamped.toFixed(4));
   root?.setAttribute('data-figure2-proof-overlay-progress', clamped.toFixed(4));
-  if (typeof root?.removeAttribute === 'function') {
-    root.removeAttribute('data-figure2-retained-arch');
-  }
   return { progress: clamped, opacity, y };
 }
 
+export function renderProofCardsHold(root: HTMLElement | null): void {
+  renderProofCardsProgress(root, 1);
+}
+
 function Figure2ProofCardsScene({ registerHandle }: SceneComponentProps) {
-  const initializedRef = useRef(false);
   return (
     <article
       ref={(element) => {
         registerHandle?.('copy', element);
-        if (element && !initializedRef.current) {
-          renderProofCardsProgress(element, 1);
-          initializedRef.current = true;
-        }
       }}
       className="r4-proof r4-proof-page r4-proof-cards"
       data-r4-scene="figure2-proof-cards"
@@ -77,6 +72,7 @@ function Figure2ProofCardsScene({ registerHandle }: SceneComponentProps) {
 export const figure2ProofCardsScene: SceneModule = {
   id: 'figure2-proof-cards',
   Component: Figure2ProofCardsScene,
+  renderHold: renderProofCardsHold,
   requiredHandles: ['copy'],
   staticFallback: {
     sectionIds: ['method'],

@@ -3,6 +3,7 @@ import { patternScene } from '../scenes/pattern';
 import { starMapScene } from '../scenes/star-map';
 import { figure2AnimationScene } from '../scenes/figure2-animation';
 import { figure2ProofOpeningScene } from '../scenes/figure2-proof-opening';
+import { figure2ProofCardsScene } from '../scenes/figure2-proof-cards';
 import { figure2ProofClosingScene } from '../scenes/figure2-proof-closing';
 import { brandScene } from '../scenes/brand';
 import { figure3AnimationScene } from '../scenes/figure3-animation';
@@ -19,6 +20,7 @@ const HOLD_SCENES: readonly SceneModule[] = [
   starMapScene,
   figure2AnimationScene,
   figure2ProofOpeningScene,
+  figure2ProofCardsScene,
   figure2ProofClosingScene,
   brandScene,
   figure3AnimationScene,

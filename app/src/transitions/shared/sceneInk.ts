@@ -1,23 +1,8 @@
 import {
   createInkCurtainTransition,
-  createInkSceneTransition,
   type InkCurtainTransition,
   type InkCurtainTransitionOptions,
-  type InkSceneTextureSource,
-  type InkSceneTransition,
-  type InkSceneTransitionOptions,
-  type InkSceneTransitionRenderOptions
 } from '../../vendor/ink-scene-transition.js';
-
-export type DynamicTextureSource = InkSceneTextureSource;
-
-export type SceneInkOptions = InkSceneTransitionOptions;
-
-export type SceneInkRenderer = {
-  render(progress: number, visibilityProgress?: number, options?: InkSceneTransitionRenderOptions): void;
-  prewarm(): void;
-  destroy(): void;
-};
 
 export type CurtainInkOptions = InkCurtainTransitionOptions;
 
@@ -28,7 +13,7 @@ export type CurtainInkRenderer = {
 };
 
 export type TransitionInkCanvasOptions = {
-  renderer: 'curtain' | 'scene';
+  renderer: 'curtain';
   origin: { x: number; y: number };
   preset?: 'cinematic-color';
   className?: string;
@@ -43,13 +28,6 @@ const CINEMATIC_CURTAIN_PRESET = Object.freeze({
   progressSpan: 1,
   dprLimit: 1
 }) satisfies InkCurtainTransitionOptions;
-
-const CINEMATIC_SCENE_PRESET = Object.freeze({
-  colorLift: 0.92,
-  particleStrength: 1,
-  dynamicTextureFps: 24,
-  dprLimit: 0.5
-}) satisfies InkSceneTransitionOptions;
 
 function markCinematicPreset(
   canvas: HTMLCanvasElement,
@@ -89,7 +67,7 @@ export function mountTransitionInkCanvas(
     return existing;
   }
   const canvas = document.createElement('canvas');
-  canvas.className = ['r4-ink-transition-canvas', options.renderer === 'scene' ? 'r4-scene-ink-canvas' : '', options.className ?? '']
+  canvas.className = ['r4-ink-transition-canvas', options.className ?? '']
     .filter(Boolean)
     .join(' ');
   canvas.dataset.r4InkSegment = segmentId;
@@ -100,49 +78,6 @@ export function mountTransitionInkCanvas(
   canvas.setAttribute('aria-hidden', 'true');
   host.append(canvas);
   return canvas;
-}
-
-export function createSceneInkRenderer(canvas: HTMLCanvasElement | null, options: SceneInkOptions = {}): SceneInkRenderer | null {
-  const resolvedOptions: InkSceneTransitionOptions = {
-    ...options,
-    ...CINEMATIC_SCENE_PRESET
-  };
-  if (canvas) {
-    markCinematicPreset(
-      canvas,
-      'scene',
-      resolvedOptions.colorLift ?? CINEMATIC_SCENE_PRESET.colorLift,
-      resolvedOptions.particleStrength ?? CINEMATIC_SCENE_PRESET.particleStrength,
-      resolvedOptions.dprLimit ?? CINEMATIC_SCENE_PRESET.dprLimit,
-      resolvedOptions.dynamicTextureFps ?? CINEMATIC_SCENE_PRESET.dynamicTextureFps
-    );
-  }
-  const transition: InkSceneTransition | null = createInkSceneTransition(canvas, resolvedOptions);
-  if (!canvas || !transition) {
-    return null;
-  }
-
-  let destroyed = false;
-
-  return {
-    render(progress: number, visibilityProgress = progress, renderOptions: InkSceneTransitionRenderOptions = {}) {
-      if (destroyed) {
-        return;
-      }
-      transition.render(progress, 0, 0, visibilityProgress, renderOptions);
-    },
-    prewarm() {
-      if (destroyed) {
-        return;
-      }
-      transition.prewarm();
-    },
-    destroy() {
-      destroyed = true;
-      transition.destroy();
-      canvas.remove();
-    }
-  };
 }
 
 export function createCurtainInkRenderer(canvas: HTMLCanvasElement | null, options: CurtainInkOptions = {}): CurtainInkRenderer | null {

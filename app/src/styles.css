@@ -224,23 +224,6 @@ h1 {
     linear-gradient(90deg, rgba(5, 8, 7, .05) 0%, transparent 18%, transparent 82%, rgba(5, 8, 7, .06) 100%);
 }
 
-.stage-proof-retained-arch {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 72;
-  width: 106vw;
-  height: 106svh;
-  max-width: none;
-  object-fit: cover;
-  object-position: 50% 50%;
-  opacity: var(--r4-proof-retained-arch-opacity, .92);
-  filter: blur(3.6px) brightness(.82) contrast(1.08) saturate(.84) sepia(.04);
-  transform: translate3d(-50%, -50%, 0) scale(1.125);
-  pointer-events: none;
-  user-select: none;
-}
-
 .synthetic-scene {
   width: min(760px, calc(100% - 48px));
   min-height: 48svh;

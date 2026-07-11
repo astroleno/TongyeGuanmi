@@ -5,7 +5,6 @@ import type { HandleRegistry } from '../story/registry';
 import type { LayerVisibilityState, SceneId, SceneModule, StageLayerRole } from '../story/types';
 import { canonicalSpine } from '../story/canonical-spine';
 
-const PROOF_ARCH_IMAGE = new URL('../../../assets/arch2d-alpha.png', import.meta.url).href;
 const PROOF_SCENES = new Set<SceneId>(['figure2-proof-opening', 'figure2-proof-cards', 'figure2-proof-closing']);
 const READING_SCENES = new Set(
   canonicalSpine.flatMap((node) => node.kind === 'hold' && node.reading ? [node.scene] : [])
@@ -53,7 +52,7 @@ function zIndexFor(role: StageLayerRole): number {
   }
 }
 
-function proofArchIsActive(members: readonly StageMember[], visibilityByScene: Partial<Record<SceneId, LayerVisibilityState>>): boolean {
+function proofGroundIsActive(members: readonly StageMember[], visibilityByScene: Partial<Record<SceneId, LayerVisibilityState>>): boolean {
   return members.some((member) => {
     if (!PROOF_SCENES.has(member.scene)) {
       return false;
@@ -69,7 +68,7 @@ function proofArchIsActive(members: readonly StageMember[], visibilityByScene: P
 export function Stage({ window, modules, registry, visibilityByScene = {}, copyCueScene, onLayerElement }: StageProps) {
   assertLayerWindowInvariants(window);
   const members = useMemo(() => membersForWindow(window), [window]);
-  const showProofArch = proofArchIsActive(members, visibilityByScene);
+  const showProofGround = proofGroundIsActive(members, visibilityByScene);
 
   return (
     <main
@@ -78,7 +77,7 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
       data-active-layer-count={members.filter((member) => member.role !== 'retiring').length}
       data-mounted-layer-count={members.length}
     >
-      {showProofArch ? (
+      {showProofGround ? (
         <div className="stage-proof-retained-ground" aria-hidden="true" data-figure2-retained-ground="true" />
       ) : null}
       {members.map((member) => {
@@ -100,9 +99,6 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
           />
         );
       })}
-      {showProofArch ? (
-        <img className="stage-proof-retained-arch" src={PROOF_ARCH_IMAGE} alt="" aria-hidden="true" data-figure2-retained-arch="true" />
-      ) : null}
     </main>
   );
 }

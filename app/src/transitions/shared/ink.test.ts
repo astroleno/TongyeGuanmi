@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
 import { createInkSegmentTransition } from './ink';
-import { createSceneInkRenderer } from './sceneInk';
 
 class FakeStyle {
   [key: string]: unknown;
@@ -210,30 +209,6 @@ describe('shared ink transition surface', () => {
     });
     timeline.dispose();
     expect(canvas.parentElement).toBeNull();
-  });
-
-  it('applies the same cinematic jade-gold particle preset to scene-texture ink', () => {
-    const canvas = new FakeCanvas();
-
-    createSceneInkRenderer(canvas as unknown as HTMLCanvasElement, {
-      inkCenterX: 0.5,
-      inkCenterY: 0.5
-    });
-
-    expect(canvas.dataset.r4InkRenderer).toBe('scene');
-    expect(canvas.dataset.r4InkPresetApplied).toBe('true');
-    expect(canvas.dataset.r4InkParticleProfile).toBe('jade-gold');
-    expect(canvas.dataset.r4InkParticleStrength).toBe('1.000');
-    expect(canvas.dataset.r4InkColorLift).toBe('0.920');
-    expect(canvas.dataset.r4InkTextureFps).toBe('24');
-  });
-
-  it('caps scene-texture ink at half resolution to protect the animation frame budget', () => {
-    const canvas = new FakeCanvas();
-
-    createSceneInkRenderer(canvas as unknown as HTMLCanvasElement);
-
-    expect(canvas.dataset.r4InkDprLimit).toBe('0.50');
   });
 
   it('keeps automatic ink playback inside the transition after one long browser frame', async () => {

@@ -25,9 +25,6 @@ export function renderProofOpeningProgress(root: HTMLElement | null, progress: n
   root?.style.setProperty('--r4-proof-scroll-y', '0px');
   root?.setAttribute('data-proof-opening-progress', clamped.toFixed(4));
   root?.setAttribute('data-figure2-proof-overlay-progress', clamped.toFixed(4));
-  if (typeof root?.removeAttribute === 'function') {
-    root.removeAttribute('data-figure2-retained-arch');
-  }
   return { progress: clamped, opacity, y };
 }
 
