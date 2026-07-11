@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { figure2AnimationScene, renderFigure2AnimationProgress, renderFigure2Hold, renderFigure2ProofTransitionProgress } from './index';
 
 class FakeStyle {
@@ -74,6 +76,16 @@ class FakeStageRoot extends FakeVideoRoot {
 }
 
 describe('figure2-animation scene renderer', () => {
+  it('groups every thresholded Figure2 pixel in one live depth field', () => {
+    const markup = renderToStaticMarkup(createElement(figure2AnimationScene.Component, {
+      scene: 'figure2-animation',
+      hidden: false
+    }));
+
+    expect(markup.match(/data-figure2-depth-field=/g)).toHaveLength(1);
+    expect(markup).not.toContain('r4-figure2__near-arch');
+  });
+
   it('is idempotent for 0 to 1 to 0 to 1 progress renders', () => {
     const root = new FakeElement();
 

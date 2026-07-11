@@ -224,6 +224,11 @@ h1 {
     linear-gradient(90deg, rgba(5, 8, 7, .05) 0%, transparent 18%, transparent 82%, rgba(5, 8, 7, .06) 100%);
 }
 
+.stage-proof-retained-ground[data-visible="false"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
 .stage-proof-retained-arch {
   --r4-figure2-near-arch-brightness: .76;
   --r4-figure2-near-arch-scale: 1.135;
@@ -1177,7 +1182,7 @@ pre {
   min-height: 100svh;
   overflow: hidden;
   isolation: isolate;
-  background: #07110e;
+  background: transparent;
   color-scheme: light;
 }
 
@@ -1187,20 +1192,28 @@ pre {
   overflow: hidden;
   isolation: isolate;
   opacity: var(--r4-figure2-stage-opacity);
+}
+
+.r4-figure2__depth-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  background-color: #07110e;
   background:
     radial-gradient(ellipse at 50% 48%, rgba(255, 252, 242, .34), transparent 32rem),
     linear-gradient(180deg, #f6f2e8 0%, #ece8dc 56%, #e2dac9 100%);
 }
 
-.r4-figure2__field::before,
-.r4-figure2__field::after {
+.r4-figure2__depth-field::before,
+.r4-figure2__depth-field::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
 
-.r4-figure2__field::before {
+.r4-figure2__depth-field::before {
   z-index: 6;
   opacity: .38;
   background:
@@ -1209,7 +1222,7 @@ pre {
     linear-gradient(180deg, rgba(5, 8, 7, .035) 0%, transparent 20%, transparent 78%, rgba(5, 8, 7, .07) 100%);
 }
 
-.r4-figure2__field::after {
+.r4-figure2__depth-field::after {
   z-index: 20;
   background:
     radial-gradient(ellipse at 50% 46%, rgba(255, 244, 210, .14) 0%, rgba(255, 244, 210, .06) 22%, transparent 48%),

@@ -9,7 +9,7 @@ import {
   figure2ProofRevealProgress,
   figure2VideoModeForProofTransition
 } from './figure2-distance-expand';
-import { thresholdTable } from './shared/depthThresholdMask';
+import { thresholdTable, thresholdTables } from './shared/depthThresholdMask';
 import {
   FIGURE2_INTRO_PLAYBACK_MS
 } from '../scenes/figure2-animation';
@@ -55,6 +55,7 @@ class FakeElement {
   parentElement: FakeElement | null = null;
   inert = false;
   className = '';
+  private readonly selectors = new Map<string, FakeElement>();
 
   append(...children: FakeElement[]): void {
     for (const child of children) {
@@ -64,9 +65,26 @@ class FakeElement {
     }
   }
 
+  connect(selector: string, element: FakeElement): void {
+    this.selectors.set(selector, element);
+  }
+
   querySelector(selector: string): FakeElement | null {
+    const direct = this.selectors.get(selector);
+    if (direct) {
+      return direct;
+    }
     const match = selector.match(/data-r4-ink-segment="([^"]+)"/);
-    return match ? this.children.find((child) => child.dataset.r4InkSegment === match[1]) ?? null : null;
+    if (match) {
+      return this.children.find((child) => child.dataset.r4InkSegment === match[1]) ?? null;
+    }
+    if (selector === '[data-figure2-retained-ground="true"]') {
+      return this.children.find((child) => child.dataset.figure2RetainedGround === 'true') ?? null;
+    }
+    if (selector === '[data-stage-retained-figure2-arch="true"]') {
+      return this.children.find((child) => child.dataset.stageRetainedFigure2Arch === 'true') ?? null;
+    }
+    return null;
   }
 
   querySelectorAll(): FakeElement[] {
@@ -332,18 +350,37 @@ describe('figure2 proof chain transitions', () => {
     const lateReveal = figure2ProofRevealProgress(0.985);
     expect(lateReveal).toBeGreaterThan(0.9);
     expect(thresholdTable(lateReveal).every((value) => value === 0 || value === 1)).toBe(true);
+    for (const progress of [0, midReveal, lateReveal, 1, midReveal]) {
+      const tables = thresholdTables(progress);
+      expect(tables.reveal.every((value, index) => value + (tables.conceal[index] ?? -1) === 1)).toBe(true);
+    }
   });
 
-  it('applies the binary mask to the live Proof layer without changing layer opacity', async () => {
+  it('applies complementary binary masks to live Figure2 and both live Proof surfaces', async () => {
     const document = new FakeDocument();
     const stage = new FakeElement();
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
+    const fromRoot = new FakeElement();
+    const depthField = new FakeElement();
+    const proofGround = new FakeElement();
+    const retainedArch = new FakeElement();
     stage.ownerDocument = document;
     fromElement.ownerDocument = document;
     toElement.ownerDocument = document;
+    fromRoot.ownerDocument = document;
+    depthField.ownerDocument = document;
+    proofGround.ownerDocument = document;
+    retainedArch.ownerDocument = document;
+    fromElement.connect(
+      '[data-r4-scene="figure2-animation"], [data-r3-scene="figure2-animation"]',
+      fromRoot
+    );
+    fromRoot.connect('[data-figure2-depth-field="true"]', depthField);
+    proofGround.dataset.figure2RetainedGround = 'true';
+    retainedArch.dataset.stageRetainedFigure2Arch = 'true';
     toElement.style.setProperty('opacity', '1');
-    stage.append(fromElement, toElement);
+    stage.append(proofGround, retainedArch, fromElement, toElement);
     vi.stubGlobal('document', document);
     const timeline = await createFigure2DistanceExpandTransition().buildTimeline(
       context('figure2-distance-expand', 'figure2-animation', 'figure2-proof-opening', false, {
@@ -356,11 +393,19 @@ describe('figure2 proof chain transitions', () => {
 
     expect(toElement.dataset.figure2ProofMaskValues).toBe('1,0');
     expect(toElement.style.getPropertyValue('opacity')).toBe('1');
-    expect(toElement.style.getPropertyValue('mask-image')).toContain('depth-threshold-mask');
+    expect(toElement.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+    expect(proofGround.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+    expect(depthField.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
+    expect(toElement.dataset.r4DepthMaskValues).toBe('1,0');
+    expect(proofGround.dataset.r4DepthMaskValues).toBe('1,0');
+    expect(depthField.dataset.r4DepthMaskValues).toBe('0,1');
+    expect(retainedArch.style.getPropertyValue('mask-image')).toBe('');
 
     timeline.progress(1);
     timeline.dispose();
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
+    expect(proofGround.style.getPropertyValue('mask-image')).toBe('');
+    expect(depthField.style.getPropertyValue('mask-image')).toBe('');
   });
 
   it('initializes a reverse Figure2-to-Proof build at the forward end', async () => {

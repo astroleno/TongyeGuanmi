@@ -259,53 +259,55 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
   return (
     <article ref={rootRef} className="r4-figure2" data-r4-scene="figure2-animation">
       <div ref={(element) => registerHandle?.('stage', element)} className="r4-figure2__field">
-        <div className="r4-figure2__middle-camera">
-          <div className="r4-figure2__window-mask" style={{ WebkitMaskImage: `url(${MIDDLE_MASK_IMAGE})`, maskImage: `url(${MIDDLE_MASK_IMAGE})` }}>
-            <img className="r4-figure2__cloud" src={CLOUD_IMAGE} alt="" aria-hidden="true" />
-            <div className="r4-figure2__far-arcade" aria-hidden="true">
-              <img className="r4-figure2__far-arcade-white" src={FRONT_WHITE_IMAGE} alt="" style={{ WebkitMask: `url(${FAR_ARCH_MASK}) center / contain no-repeat`, mask: `url(${FAR_ARCH_MASK}) center / contain no-repeat` }} />
-              <img className="r4-figure2__far-arcade-color" src={FRONT_COLOR_IMAGE} alt="" style={{ WebkitMask: `url(${FAR_ARCH_MASK}) center / contain no-repeat`, mask: `url(${FAR_ARCH_MASK}) center / contain no-repeat` }} />
-              <img className="r4-figure2__far-arcade-relief" src={FRONT_WHITE_IMAGE} alt="" style={{ WebkitMask: `url(${FAR_ARCH_MASK}) center / contain no-repeat`, mask: `url(${FAR_ARCH_MASK}) center / contain no-repeat` }} />
+        <div className="r4-figure2__depth-field" data-figure2-depth-field="true">
+          <div className="r4-figure2__middle-camera">
+            <div className="r4-figure2__window-mask" style={{ WebkitMaskImage: `url(${MIDDLE_MASK_IMAGE})`, maskImage: `url(${MIDDLE_MASK_IMAGE})` }}>
+              <img className="r4-figure2__cloud" src={CLOUD_IMAGE} alt="" aria-hidden="true" />
+              <div className="r4-figure2__far-arcade" aria-hidden="true">
+                <img className="r4-figure2__far-arcade-white" src={FRONT_WHITE_IMAGE} alt="" style={{ WebkitMask: `url(${FAR_ARCH_MASK}) center / contain no-repeat`, mask: `url(${FAR_ARCH_MASK}) center / contain no-repeat` }} />
+                <img className="r4-figure2__far-arcade-color" src={FRONT_COLOR_IMAGE} alt="" style={{ WebkitMask: `url(${FAR_ARCH_MASK}) center / contain no-repeat`, mask: `url(${FAR_ARCH_MASK}) center / contain no-repeat` }} />
+                <img className="r4-figure2__far-arcade-relief" src={FRONT_WHITE_IMAGE} alt="" style={{ WebkitMask: `url(${FAR_ARCH_MASK}) center / contain no-repeat`, mask: `url(${FAR_ARCH_MASK}) center / contain no-repeat` }} />
+              </div>
             </div>
+            <img className="r4-figure2__middle" src={MIDDLE_IMAGE} alt="" aria-hidden="true" />
           </div>
-          <img className="r4-figure2__middle" src={MIDDLE_IMAGE} alt="" aria-hidden="true" />
-        </div>
-        <div ref={(element) => registerHandle?.('figures', element)} className="r4-figure2__figures" aria-label="子问老子人物动画">
-          <div className="r4-figure2__people-contact-shadow" aria-hidden="true" />
-          <figure className="r4-figure2__figure r4-figure2__figure--left">
-            <video
-              ref={(element) => {
-                leftVideoRef.current = element;
-                registerHandle?.('left-video', element);
-              }}
-              data-figure2-video
-              data-media-key={FIGURE2_LEFT_MEDIA_KEY}
-              src={LEFT_VIDEO}
-              poster={LEFT_POSTER}
-              muted
-              playsInline
-              preload="auto"
-              aria-hidden="true"
-            />
-            <figcaption>问道者</figcaption>
-          </figure>
-          <figure className="r4-figure2__figure r4-figure2__figure--right">
-            <video
-              ref={(element) => {
-                rightVideoRef.current = element;
-                registerHandle?.('right-video', element);
-              }}
-              data-figure2-video
-              data-media-key={FIGURE2_RIGHT_MEDIA_KEY}
-              src={RIGHT_VIDEO}
-              poster={RIGHT_POSTER}
-              muted
-              playsInline
-              preload="auto"
-              aria-hidden="true"
-            />
-            <figcaption>老子</figcaption>
-          </figure>
+          <div ref={(element) => registerHandle?.('figures', element)} className="r4-figure2__figures" aria-label="子问老子人物动画">
+            <div className="r4-figure2__people-contact-shadow" aria-hidden="true" />
+            <figure className="r4-figure2__figure r4-figure2__figure--left">
+              <video
+                ref={(element) => {
+                  leftVideoRef.current = element;
+                  registerHandle?.('left-video', element);
+                }}
+                data-figure2-video
+                data-media-key={FIGURE2_LEFT_MEDIA_KEY}
+                src={LEFT_VIDEO}
+                poster={LEFT_POSTER}
+                muted
+                playsInline
+                preload="auto"
+                aria-hidden="true"
+              />
+              <figcaption>问道者</figcaption>
+            </figure>
+            <figure className="r4-figure2__figure r4-figure2__figure--right">
+              <video
+                ref={(element) => {
+                  rightVideoRef.current = element;
+                  registerHandle?.('right-video', element);
+                }}
+                data-figure2-video
+                data-media-key={FIGURE2_RIGHT_MEDIA_KEY}
+                src={RIGHT_VIDEO}
+                poster={RIGHT_POSTER}
+                muted
+                playsInline
+                preload="auto"
+                aria-hidden="true"
+              />
+              <figcaption>老子</figcaption>
+            </figure>
+          </div>
         </div>
       </div>
     </article>

@@ -53,23 +53,26 @@ function zIndexFor(role: StageLayerRole): number {
   }
 }
 
-function proofGroundIsActive(members: readonly StageMember[], visibilityByScene: Partial<Record<SceneId, LayerVisibilityState>>): boolean {
-  return members.some((member) => {
-    if (!PROOF_SCENES.has(member.scene)) {
-      return false;
-    }
-    const visibility = visibilityByScene[member.scene];
-    if (visibility) {
-      return visibility.visible && visibility.opacity > 0.001;
-    }
-    return member.role === 'current';
-  });
+function proofGroundState(
+  members: readonly StageMember[],
+  visibilityByScene: Partial<Record<SceneId, LayerVisibilityState>>
+): Readonly<{ mounted: boolean; visible: boolean }> {
+  const owners = members.filter((member) => PROOF_SCENES.has(member.scene));
+  return {
+    mounted: owners.length > 0,
+    visible: owners.some((member) => {
+      const visibility = visibilityByScene[member.scene];
+      return visibility
+        ? visibility.visible && visibility.opacity > 0.001
+        : member.role === 'current';
+    })
+  };
 }
 
 export function Stage({ window, modules, registry, visibilityByScene = {}, copyCueScene, onLayerElement }: StageProps) {
   assertLayerWindowInvariants(window);
   const members = useMemo(() => membersForWindow(window), [window]);
-  const showProofGround = proofGroundIsActive(members, visibilityByScene);
+  const proofGround = proofGroundState(members, visibilityByScene);
   const retainedArch = retainedFigure2ArchState(
     members.map((member) => ({ scene: member.scene, current: member.role === 'current' })),
     visibilityByScene
@@ -82,8 +85,13 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
       data-active-layer-count={members.filter((member) => member.role !== 'retiring').length}
       data-mounted-layer-count={members.length}
     >
-      {showProofGround ? (
-        <div className="stage-proof-retained-ground" aria-hidden="true" data-figure2-retained-ground="true" />
+      {proofGround.mounted ? (
+        <div
+          className="stage-proof-retained-ground"
+          aria-hidden="true"
+          data-figure2-retained-ground="true"
+          data-visible={String(proofGround.visible)}
+        />
       ) : null}
       <RetainedFigure2Arch mounted={retainedArch.mounted} visible={retainedArch.visible} />
       {members.map((member) => {

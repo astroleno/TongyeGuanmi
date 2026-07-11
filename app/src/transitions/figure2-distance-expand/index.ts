@@ -10,7 +10,11 @@ import type {
 } from '../../story/types';
 import { mediaPlaybackFor, requiredMilestonesFor } from '../../story/manifest';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
-import { createDepthThresholdMask, type DepthThresholdMask } from '../shared/depthThresholdMask';
+import {
+  createDepthThresholdMask,
+  thresholdTables,
+  type DepthThresholdMask
+} from '../shared/depthThresholdMask';
 
 const FIGURE2_DEPTH_IMAGE = new URL('../../../../assets/figure2-middle-depth.png', import.meta.url).href;
 export const FIGURE2_INTRO_END = 0.72;
@@ -102,9 +106,17 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   constructor(private readonly context: TransitionContext) {
     this.playbackDirection = context.direction;
     this.elevation = createTransitionLayerElevation(context.to.element);
+    const fromRoot = sceneRoot(context.from.element, 'figure2-animation');
+    const stage = sharedStageHost(context);
+    const depthField = fromRoot?.querySelector<HTMLElement>('[data-figure2-depth-field="true"]') ?? null;
+    const proofGround = stage?.querySelector<HTMLElement>('[data-figure2-retained-ground="true"]') ?? null;
     this.depthMask = createDepthThresholdMask({
-      host: sharedStageHost(context),
-      target: context.to.element,
+      host: stage,
+      targets: [
+        ...(depthField ? [{ element: depthField, polarity: 'conceal' as const }] : []),
+        ...(proofGround ? [{ element: proofGround, polarity: 'reveal' as const }] : []),
+        ...(context.to.element ? [{ element: context.to.element, polarity: 'reveal' as const }] : [])
+      ],
       depthSrc: FIGURE2_DEPTH_IMAGE,
       runId: context.runId
     });
@@ -146,8 +158,8 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection)
     });
     renderProofOpeningHold(toRoot);
-    const binaryValues = this.depthMask?.render(reveal) ?? [];
-    const valueDomain = [...new Set(binaryValues)].join(',');
+    const binaryTables = this.depthMask?.render(reveal) ?? thresholdTables(reveal);
+    const valueDomain = [...new Set(binaryTables.reveal)].join(',');
 
     this.context.to.element?.setAttribute('data-r4-transition', 'figure2-proof-binary-depth');
     this.context.to.element?.setAttribute('data-figure2-intro-progress', intro.toFixed(4));
