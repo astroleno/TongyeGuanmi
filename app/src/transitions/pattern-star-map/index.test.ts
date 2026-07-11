@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
-import { patternScene } from '../../scenes/pattern';
+import { patternScene, renderPatternHold } from '../../scenes/pattern';
 import { starMapMotionEnabled } from '../../scenes/star-map';
 import {
   createPatternStarMapTransition,
@@ -80,6 +80,23 @@ describe('pattern-star-map transition', () => {
       from: { visible: true, opacity: 1 },
       to: { visible: false, opacity: 0 }
     });
+  });
+
+  it('preserves the zero-degree Pattern hold across build, reverse settle, and disposal', async () => {
+    const setup = fixture();
+    renderPatternHold(setup.fromRoot as unknown as HTMLElement);
+    const incomingHoldRotation = setup.fromRoot.style.getPropertyValue('--r4-pattern-field-rotation');
+
+    const timeline = await createPatternStarMapTransition().buildTimeline(setup.context);
+    expect(incomingHoldRotation).toBe('0.00deg');
+    expect(setup.fromRoot.style.getPropertyValue('--r4-pattern-field-rotation')).toBe(incomingHoldRotation);
+
+    timeline.progress(1);
+    timeline.progress(0);
+    expect(setup.fromRoot.style.getPropertyValue('--r4-pattern-field-rotation')).toBe(incomingHoldRotation);
+
+    timeline.dispose();
+    expect(setup.fromRoot.style.getPropertyValue('--r4-pattern-field-rotation')).toBe(incomingHoldRotation);
   });
 
   it('starts radial Ink only in the second stage and shares the Pattern origin', async () => {

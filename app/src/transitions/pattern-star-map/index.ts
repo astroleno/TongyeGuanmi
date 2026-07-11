@@ -43,7 +43,7 @@ export function createPatternStarMapTransition(options: { delayMs?: () => number
     renderSource: (root, mapped) => renderPatternProgress(root, mapped, {
       visible: true,
       copyProgress: 1,
-      rotationProgress: mapped
+      rotationProgress: 1
     }),
     renderSourceProgress: collapseProgress,
     sample: (progress) => samplePatternThenStarMap(boundaryProgress(progress)),

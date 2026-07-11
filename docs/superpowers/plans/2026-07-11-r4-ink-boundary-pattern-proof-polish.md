@@ -1177,9 +1177,11 @@ git commit -m "docs: record r4 ink boundary implementation"
 - Task commits: `3e597b6`, `0c65283`, `0adecec`, `d96b420`, `b8158d5`, `24eed73`, `1531cd9`, `79b1a71`, `80a0007`.
 - Forbidden-pattern scan: PASS, no matches.
 - Focused G1-G7 regression: PASS, 8 files / 92 tests.
-- Full unit regression: PASS, 59 files / 372 tests.
+- Correctness-review regression: PASS, 12 files / 85 tests.
+- Full unit regression after review fixes: PASS, 59 files / 377 tests.
 - `typecheck`, `lint`, production `build`, and `git diff --check`: PASS.
 - Automated acceptance facts in Step 4 are covered by the focused and full suites, including reverse, reduced-motion, disposal, Scene identity, shared boundary revision, complementary depth masks, singleton retained arch, and Crane stacking contracts.
+- Correctness follow-up aligns the horizontal shader body with the receiver reveal side, preserves Pattern's `0deg` hold through build/reverse/disposal, and closes radial profile textures with identical first/last samples.
 - The production build still reports Vite's non-blocking chunk-size advisory; it exits `0` and is outside this plan's visual-correction scope.
 - Playwright and manual visual review were intentionally not run. The seven routes in Step 5 remain the HITL handoff set.
 

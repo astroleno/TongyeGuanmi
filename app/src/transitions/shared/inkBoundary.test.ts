@@ -52,6 +52,21 @@ describe('InkBoundaryFrame', () => {
     expect(first.concealClipPath).toBeNull();
   });
 
+  it.each(['hero-pattern', 'pattern-star-map'])(
+    'keeps the %s radial texture continuous across the wrapped angle seam',
+    (seed) => {
+      for (const progress of [0, 0.37, 0.5, 0.79, 1, 0.37]) {
+        const frame = createInkBoundaryFrame(
+          { kind: 'radial', origin: { x: 0.24, y: 0.55 }, seed },
+          progress,
+          viewport
+        );
+
+        expect(frame.profile[frame.profile.length - 1]).toBe(frame.profile[0]);
+      }
+    }
+  );
+
   it('clamps endpoint profiles to exact fully hidden and fully revealed edges', () => {
     const spec = {
       kind: 'horizontal',

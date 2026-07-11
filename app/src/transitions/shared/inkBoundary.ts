@@ -151,9 +151,11 @@ function radialFrame(
 ): InkBoundaryFrame {
   const aspect = width / height;
   const offsets = smoothOffsets(hashString(spec.seed), samples, progress, true);
-  const profile = Uint8Array.from(offsets, (offset) =>
+  const profileValues = offsets.map((offset) =>
     Math.round(clamp(progress + offset) * 255)
   );
+  profileValues[profileValues.length - 1] = profileValues[0] ?? 0;
+  const profile = Uint8Array.from(profileValues);
   const radiusScale = Math.max(
     Math.hypot(spec.origin.x * aspect, spec.origin.y),
     Math.hypot((1 - spec.origin.x) * aspect, spec.origin.y),

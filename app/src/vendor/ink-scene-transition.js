@@ -92,7 +92,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
 
       float horizontalEdge(vec2 uv) {
         float edgeY = sampledBoundary(uv.x);
-        return uBoundaryDirection < 0.5 ? uv.y - edgeY : edgeY - uv.y;
+        return uBoundaryDirection < 0.5 ? edgeY - uv.y : uv.y - edgeY;
       }
 
       float radialEdge(vec2 uv, float aspect) {

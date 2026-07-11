@@ -96,6 +96,7 @@ describe('hero-pattern transition', () => {
     expect(patternCenterForViewport(1440)).toEqual({ x: 0.24, y: 0.55 });
     expect(patternRoot.attributes.get('data-pattern-progress')).toBe('0.0000');
     expect(patternRoot.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
+    expect(patternRoot.style.values.get('--r4-pattern-field-rotation')).toBe('0.00deg');
     expect(heroRoot.attributes.get('data-hero-progress')).toBe('1.0000');
   });
 
