@@ -106,3 +106,7 @@ node scripts/serve-static-site.mjs
 | HITL approver | visual/mobile/TTG/SEO/performance/rollback acceptance |
 
 Candidate and rehearsal results live in `docs/react-refactor/reports/r5-candidate.md`; machine evidence lives under `artifacts/react-refactor/r5-candidate/`.
+
+## Rehearsal Record
+
+The 2026-07-12 clean-environment rehearsal passed using implementation commit `469a9caf7e2530232d298635bfaf8dbc26498936`. A `--no-local` clone reproduced the candidate manifest, a separate detached legacy worktree reproduced the frozen legacy index checksum, and the same port was switched candidate → legacy → candidate with root/copy/bootstrap, HTTP 206 media range and candidate-manifest presence/absence checks. The exact tagged candidate is rebuilt once more after this record-only commit; see `reports/r5-candidate.md` for the result and immutable hashes.

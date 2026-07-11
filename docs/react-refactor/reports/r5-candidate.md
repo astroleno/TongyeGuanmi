@@ -45,6 +45,18 @@ The manifest contains sorted path, byte count and SHA-256 entries for every rele
 | R4 visual accepted | `55b8a123a7a5b28647c40acc81783ee37cd58302` | immutable visual gate |
 | R4 closeout | `c2a52dbefd99d2ee99ffa13db0abbdf7b760a143` | app/dist manifest `ae1ff9…078b`; initial JS 544,942 B |
 
+## Clean Rollback Rehearsal
+
+Rehearsal passed on 2026-07-12 from a fresh `git clone --no-local` of implementation commit `469a9caf7e2530232d298635bfaf8dbc26498936`:
+
+1. detached candidate checkout was clean; Node 22 + frozen pnpm install and `pnpm run deploy:build` reproduced manifest `49f7eda598b74a460828d4c3480b0075ff67a451c730bde9623d5931e20f960e`;
+2. clean candidate browser smoke passed public root, JS-disabled正文 and rendered old/harness 404 checks (3/3);
+3. a separate clean worktree at legacy `a78b064d65f024a301a3b179c62a458a1445bbf6` rebuilt `index.html` SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7`;
+4. the same local release port switched candidate → legacy → candidate; legacy served the expected title/CTA/bootstrap and a 100-byte video range as HTTP 206 while the candidate manifest returned 404;
+5. the restored candidate again served the crawlable shell and the exact approved manifest hash.
+
+The final candidate tag adds only this rehearsal/review record to the verified implementation commit. Its exact checkout is rebuilt and hash-checked after tagging; any mismatch invalidates the tag.
+
 ## HITL Checklist
 
 Approval must explicitly cover:

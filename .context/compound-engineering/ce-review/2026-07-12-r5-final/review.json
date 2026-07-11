@@ -43,6 +43,6 @@
     "Live crawler/search-console verification occurs only after an approved deployment.",
     "No merge or deployment to main is authorized before explicit HITL approval."
   ],
-  "requirementsCompleteness": "All R5 implementation and automated validation requirements are represented; clean rollback rehearsal and immutable candidate tagging remain the release-finalization steps.",
-  "verdict": "ready_for_candidate_rehearsal"
+  "requirementsCompleteness": "All R5 implementation, automated validation, and clean rollback rehearsal requirements are represented; immutable candidate tagging is the remaining release-finalization step.",
+  "verdict": "ready_for_candidate_freeze"
 }
