@@ -23,18 +23,16 @@ describe('viewport background contract', () => {
     expect(shellRule).toContain('inset: 0');
   });
 
-  it('matches main branch Star-map base exposure so Perlin highlights retain contrast', () => {
+  it('keeps the canonical Star-map grade identical during transition and hold', () => {
     const canvasRule = rule('.r3-star-map__canvas');
 
-    expect(canvasRule).toContain('filter: saturate(.98) contrast(1.04) brightness(.74)');
+    expect(canvasRule).toContain('filter: saturate(.98) contrast(1.04) brightness(.92)');
   });
 
-  it('lets scene Ink exclusively composite Star-map raster layers during the handoff', () => {
-    const transitionRootRule = rule('.r3-star-map[data-star-map-transition-motion="paused"]');
-    const transitionRasterRule = rule('.r3-star-map[data-star-map-transition-motion="paused"] .r3-star-map__canvas,\n.r3-star-map[data-star-map-transition-motion="paused"] .r3-star-map__wash');
-
-    expect(transitionRootRule).toContain('background: transparent');
-    expect(transitionRasterRule).toContain('opacity: 0');
+  it('keeps the live Star-map raster layers mounted throughout handoff', () => {
+    expect(stylesheet).not.toContain('data-star-map-transition-motion="paused"');
+    expect(rule('.r3-star-map__canvas')).toContain('opacity: var(--r3-star-canvas-opacity)');
+    expect(rule('.r3-star-map__wash')).toContain('z-index: 1');
   });
 
   it('rotates Pattern source layers and petal rings independently without rotating the viewport canvas', () => {
