@@ -3,9 +3,9 @@ import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import {
   createMethodBottomFigure2Transition,
-  figure2InkProgressForMethodBottom,
-  figure2StageProgressForMethodBottom
+  figure2InkProgressForMethodBottom
 } from './index';
+import { figure2AnimationScene, renderFigure2Hold } from '../../scenes/figure2-animation';
 import type { LayerHandle, LayerVisibilityState, SceneId, SpineSegmentNode, TransitionContext } from '../../story/types';
 
 function layer(scene: SceneId, role: 'current' | 'next', element: HTMLElement | null = null): LayerHandle {
@@ -71,10 +71,7 @@ describe('method-bottom-figure2 transition', () => {
     expect(segment().virtualDuration).toBeLessThanOrEqual(1600);
     expect(figure2InkProgressForMethodBottom(0.4)).toBeCloseTo(0.5, 5);
     expect(figure2InkProgressForMethodBottom(0.8)).toBe(1);
-    expect(figure2StageProgressForMethodBottom(0.07)).toBe(0);
-    expect(figure2StageProgressForMethodBottom(0.5)).toBe(0);
-    expect(figure2StageProgressForMethodBottom(0.92)).toBe(0);
-    expect(figure2StageProgressForMethodBottom(1)).toBe(0);
+    expect(figure2AnimationScene.renderHold).toBe(renderFigure2Hold);
   });
 
   it('passes timeline verification and exposes reduced motion fallback', async () => {

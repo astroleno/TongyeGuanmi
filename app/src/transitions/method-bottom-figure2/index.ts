@@ -1,15 +1,10 @@
-import { renderFigure2AnimationProgress } from '../../scenes/figure2-animation';
+import { renderFigure2Hold } from '../../scenes/figure2-animation';
 import { positionMethodReadingAtEdge } from '../../scenes/method-top';
 import { hiddenVisibility, holdVisibility, range01 } from '../../pilot/visibility';
 import { createInkSegmentTransition } from '../shared/ink';
 import type { SegmentTimelineHandle, TransitionModule } from '../../story/types';
 
 const FIGURE2_INK_END = 0.80;
-
-export function figure2StageProgressForMethodBottom(progress: number): number {
-  void progress;
-  return 0;
-}
 
 export function figure2InkProgressForMethodBottom(progress: number): number {
   return range01(progress, 0, FIGURE2_INK_END);
@@ -25,10 +20,6 @@ function sampleMethodBottomFigure2(progress: number) {
   return { from: holdVisibility(false), to: holdVisibility(false) };
 }
 
-function renderFigure2StageProgress(root: HTMLElement | null, progress: number): void {
-  renderFigure2AnimationProgress(root, progress, { videoMode: 'seek' });
-}
-
 export function createMethodBottomFigure2Transition(options: { delayMs?: () => number } = {}): TransitionModule {
   const inkTransition = createInkSegmentTransition({
     id: 'method-bottom-figure2',
@@ -38,8 +29,7 @@ export function createMethodBottomFigure2Transition(options: { delayMs?: () => n
     clipTarget: true,
     revealMode: 'live-clip',
     sample: sampleMethodBottomFigure2,
-    renderTo: renderFigure2StageProgress,
-    renderToProgress: figure2StageProgressForMethodBottom,
+    renderTo: renderFigure2Hold,
     clipProgress: figure2InkProgressForMethodBottom,
     inkProgress: figure2InkProgressForMethodBottom,
     transitionAttr: 'method-bottom-figure2-bottom-ink'
@@ -71,7 +61,8 @@ export function createMethodBottomFigure2Transition(options: { delayMs?: () => n
         dispose: () => timeline.dispose(),
         ...(timeline.labels ? { labels: timeline.labels } : {}),
         ...(timeline.pauses ? { pauses: timeline.pauses } : {}),
-        ...(timeline.sample ? { sample: (progress) => timeline.sample?.(progress) ?? sampleMethodBottomFigure2(progress) } : {})
+        ...(timeline.sample ? { sample: (progress) => timeline.sample?.(progress) ?? sampleMethodBottomFigure2(progress) } : {}),
+        ...(timeline.rootIdentity ? { rootIdentity: () => timeline.rootIdentity?.() ?? { from: null, to: null } } : {})
       };
       return wrapped;
     }

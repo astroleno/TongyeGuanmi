@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { figure2AnimationScene, renderFigure2AnimationProgress, renderFigure2ProofTransitionProgress } from './index';
+import { figure2AnimationScene, renderFigure2AnimationProgress, renderFigure2Hold, renderFigure2ProofTransitionProgress } from './index';
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -103,6 +103,21 @@ describe('figure2-animation scene renderer', () => {
   it('declares target and media readiness without public copy fallback', () => {
     expect(figure2AnimationScene.staticFallback).toBeUndefined();
     expect(figure2AnimationScene.preload()).toEqual({ milestones: ['targetReady', 'mediaReady'] });
+  });
+
+  it('restores the exact opening hold including media time and scene-owned variables', () => {
+    const video = new FakeVideo();
+    const root = new FakeVideoRoot([video]);
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 1, { videoMode: 'seek' });
+
+    renderFigure2Hold(root as unknown as HTMLElement);
+
+    expect(root.attributes.get('data-figure2-progress')).toBe('0.0000');
+    expect(root.style.values.get('--r4-figure2-background-opacity')).toBe('1.0000');
+    expect(root.style.values.get('--r4-figure2-figure-opacity')).toBe('1.0000');
+    expect(root.style.values.get('--r4-figure2-camera-scale')).toBe('1.0120');
+    expect(root.style.values.get('--r4-figure2-near-arch-blur')).toBe('0.00px');
+    expect(video.currentTime).toBe(0.001);
   });
 
   it('slows short Figure2 media to the 2.6 second intro instead of finishing early', () => {
