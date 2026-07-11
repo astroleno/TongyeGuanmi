@@ -224,6 +224,37 @@ h1 {
     linear-gradient(90deg, rgba(5, 8, 7, .05) 0%, transparent 18%, transparent 82%, rgba(5, 8, 7, .06) 100%);
 }
 
+.stage-proof-retained-arch {
+  --r4-figure2-near-arch-brightness: .76;
+  --r4-figure2-near-arch-scale: 1.135;
+  --r4-figure2-near-arch-blur: 3.6px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 72;
+  width: 106vw;
+  height: 106svh;
+  max-width: none;
+  object-fit: cover;
+  object-position: 50% 50%;
+  opacity: .98;
+  filter:
+    blur(var(--r4-figure2-near-arch-blur))
+    brightness(var(--r4-figure2-near-arch-brightness))
+    contrast(1.08)
+    saturate(.84)
+    sepia(.04);
+  transform: translate3d(-50%, -50%, 0)
+    scale(var(--r4-figure2-near-arch-scale));
+  pointer-events: none;
+  user-select: none;
+}
+
+.stage-proof-retained-arch[data-visible="false"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
 .synthetic-scene {
   width: min(760px, calc(100% - 48px));
   min-height: 48svh;
@@ -1132,15 +1163,12 @@ pre {
   --r4-figure2-background-opacity: 1;
   --r4-figure2-figure-opacity: 1;
   --r4-figure2-contact-shadow-opacity: .82;
-  --r4-figure2-near-arch-opacity: .98;
   --r4-figure2-camera-scale: 1.012;
   --r4-figure2-cloud-y: 0px;
   --r4-figure2-cloud-scale: 1;
   --r4-figure2-far-arcade-y: 10px;
   --r4-figure2-far-arcade-scale: 1;
   --r4-figure2-middle-y: 0px;
-  --r4-figure2-near-arch-scale: 1.025;
-  --r4-figure2-near-arch-blur: 0px;
   --r4-figure2-figure-y: 0px;
   --r4-figure2-figure-scale: 1;
   position: relative;
@@ -1229,8 +1257,7 @@ pre {
 }
 
 .r4-figure2__cloud,
-.r4-figure2__middle,
-.r4-figure2__near-arch {
+.r4-figure2__middle {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -1292,17 +1319,6 @@ pre {
   object-fit: fill;
   transform: translate3d(-50%, -50%, 0);
   filter: brightness(.96) contrast(.94) saturate(.86) sepia(.08);
-}
-
-.r4-figure2__near-arch {
-  z-index: 14;
-  width: 106vw;
-  height: 106svh;
-  object-fit: cover;
-  object-position: 50% 50%;
-  transform: translate3d(-50%, -50%, 0) scale(var(--r4-figure2-near-arch-scale));
-  opacity: var(--r4-figure2-near-arch-opacity);
-  filter: blur(var(--r4-figure2-near-arch-blur)) brightness(.82) contrast(1.08) saturate(.84) sepia(.04);
 }
 
 .r4-figure2__figures {
@@ -1481,22 +1497,6 @@ pre {
   padding: clamp(72px, 9svh, 118px) max(96px, 8vw);
 }
 
-.r4-proof__arch {
-  position: absolute;
-  left: 50%;
-  top: 48%;
-  z-index: 1;
-  width: 112vw;
-  height: 112svh;
-  max-width: none;
-  object-fit: cover;
-  object-position: 50% 50%;
-  opacity: .42;
-  filter: blur(7px) brightness(.92) contrast(.96) saturate(.76) sepia(.08);
-  transform: translate3d(-50%, -50%, 0) scale(1.15);
-  pointer-events: none;
-}
-
 .r4-proof-opening .r4-proof__lead {
   display: flex;
   flex-direction: column;
@@ -1615,16 +1615,6 @@ pre {
 
 .r4-proof-page[data-r4-proof-transition-active="true"]::before {
   opacity: 0;
-}
-
-.r4-proof-page .r4-proof__arch {
-  top: 50%;
-  z-index: 1;
-  width: 118vw;
-  height: 118svh;
-  opacity: .48;
-  filter: blur(8px) brightness(.88) contrast(1.02) saturate(.74) sepia(.08);
-  transform: translate3d(-50%, -50%, 0) scale(1.18);
 }
 
 .stage-layer > .r4-figure2-proof-ink-canvas {

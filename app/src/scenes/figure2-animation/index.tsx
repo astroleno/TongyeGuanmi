@@ -7,7 +7,6 @@ const FRONT_COLOR_IMAGE = new URL('../../../../assets/figure2-front-color-source
 const FAR_ARCH_MASK = new URL('../../../../assets/arch2b-alpha.png', import.meta.url).href;
 const MIDDLE_IMAGE = new URL('../../../../assets/figure2-middle-fresco-opaque-alpha.png', import.meta.url).href;
 const MIDDLE_MASK_IMAGE = new URL('../../../../assets/figure2-middle-window-mask.png', import.meta.url).href;
-const NEAR_ARCH_IMAGE = new URL('../../../../assets/arch2d-alpha.png', import.meta.url).href;
 const LEFT_VIDEO = new URL('../../../../assets/figure2a-alpha-auto.webm', import.meta.url).href;
 const RIGHT_VIDEO = new URL('../../../../assets/figure2b-alpha-auto.webm', import.meta.url).href;
 const LEFT_POSTER = new URL('../../../../assets/figure2a-alpha-reverse-lite-poster.png', import.meta.url).href;
@@ -195,7 +194,7 @@ export function renderFigure2AnimationProgress(
   const farArcadeScale = 1 + eased * 0.22;
   const farArcadeY = 10 + eased * 8;
   const middleY = -eased * 34;
-  const nearArchScale = 1.025 + eased * 0.10;
+  const nearArchScale = 1.025 + eased * 0.11;
   const nearArchBlur = eased * 3.6;
   const figureY = -eased * 12;
   const figureScale = 1 + eased * 0.035;
@@ -205,15 +204,19 @@ export function renderFigure2AnimationProgress(
   root?.style.setProperty('--r4-figure2-background-opacity', backgroundOpacity.toFixed(4));
   root?.style.setProperty('--r4-figure2-figure-opacity', figureOpacity.toFixed(4));
   root?.style.setProperty('--r4-figure2-contact-shadow-opacity', (0.82 * figureOpacity).toFixed(4));
-  root?.style.setProperty('--r4-figure2-near-arch-opacity', '0.9800');
   root?.style.setProperty('--r4-figure2-camera-scale', cameraScale.toFixed(4));
   root?.style.setProperty('--r4-figure2-cloud-y', `${cloudY.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-cloud-scale', cloudScale.toFixed(4));
   root?.style.setProperty('--r4-figure2-far-arcade-y', `${farArcadeY.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-far-arcade-scale', farArcadeScale.toFixed(4));
   root?.style.setProperty('--r4-figure2-middle-y', `${middleY.toFixed(2)}px`);
-  root?.style.setProperty('--r4-figure2-near-arch-scale', nearArchScale.toFixed(4));
-  root?.style.setProperty('--r4-figure2-near-arch-blur', `${nearArchBlur.toFixed(2)}px`);
+  const retainedArch = typeof root?.closest === 'function'
+    ? root
+        .closest<HTMLElement>('[data-testid="r2-stage"]')
+        ?.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]')
+    : null;
+  retainedArch?.style.setProperty('--r4-figure2-near-arch-scale', nearArchScale.toFixed(4));
+  retainedArch?.style.setProperty('--r4-figure2-near-arch-blur', `${nearArchBlur.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-figure-y', `${figureY.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-figure-scale', figureScale.toFixed(4));
   root?.setAttribute('data-figure2-progress', clamped.toFixed(4));
@@ -267,7 +270,6 @@ function Figure2AnimationScene({ hidden, registerHandle }: SceneComponentProps) 
           </div>
           <img className="r4-figure2__middle" src={MIDDLE_IMAGE} alt="" aria-hidden="true" />
         </div>
-        <img className="r4-figure2__near-arch" src={NEAR_ARCH_IMAGE} alt="" aria-hidden="true" />
         <div ref={(element) => registerHandle?.('figures', element)} className="r4-figure2__figures" aria-label="子问老子人物动画">
           <div className="r4-figure2__people-contact-shadow" aria-hidden="true" />
           <figure className="r4-figure2__figure r4-figure2__figure--left">

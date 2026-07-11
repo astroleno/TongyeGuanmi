@@ -7,7 +7,7 @@ import {
 } from './index';
 import { figure2AnimationScene, renderFigure2Hold } from '../../scenes/figure2-animation';
 import type { LayerHandle, LayerVisibilityState, SceneId, SpineSegmentNode, TransitionContext } from '../../story/types';
-import { createBackHalfDomContext, FakeCanvas } from '../__fixtures__/back-half.fixture';
+import { createBackHalfDomContext, FakeCanvas, FakeElement } from '../__fixtures__/back-half.fixture';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -86,6 +86,9 @@ describe('method-bottom-figure2 transition', () => {
       'figure2-animation'
     );
     const canvas = new FakeCanvas();
+    const retainedArch = new FakeElement();
+    retainedArch.dataset.stageRetainedFigure2Arch = 'true';
+    fixture.stage.append(retainedArch);
     vi.stubGlobal('document', { createElement: () => canvas });
     const timeline = await createMethodBottomFigure2Transition().buildTimeline(fixture.context);
     const receiver = fixture.stage.children[1]!;
@@ -96,6 +99,8 @@ describe('method-bottom-figure2 transition', () => {
     expect(receiver.style.clipPath).not.toContain('inset(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(retainedArch.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(retainedArch.style.clipPath).toMatch(/^polygon\(/);
   });
 
   it('passes timeline verification and exposes reduced motion fallback', async () => {

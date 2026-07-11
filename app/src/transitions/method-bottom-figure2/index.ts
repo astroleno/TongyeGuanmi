@@ -30,6 +30,11 @@ export function createMethodBottomFigure2Transition(options: { delayMs?: () => n
       seed: 'method-bottom-figure2'
     },
     boundaryProgress: figure2InkProgressForMethodBottom,
+    boundarySurfaces: ({ stage }) => ({
+      reveal: [
+        stage?.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]')
+      ].filter((element): element is HTMLElement => Boolean(element))
+    }),
     elevateTarget: true,
     sample: sampleMethodBottomFigure2,
     prepareEndpoints: ({ to }) => renderFigure2Hold(to),

@@ -81,9 +81,13 @@ export class FakeElement {
       return sceneMatch;
     }
     const inkSegment = selector.match(/data-r4-ink-segment="([^"]+)"/)?.[1];
-    return inkSegment
-      ? this.children.find((child) => child.dataset.r4InkSegment === inkSegment) ?? null
-      : null;
+    if (inkSegment) {
+      return this.children.find((child) => child.dataset.r4InkSegment === inkSegment) ?? null;
+    }
+    if (selector === '[data-stage-retained-figure2-arch="true"]') {
+      return this.children.find((child) => child.dataset.stageRetainedFigure2Arch === 'true') ?? null;
+    }
+    return null;
   }
 
   querySelectorAll(): FakeElement[] {

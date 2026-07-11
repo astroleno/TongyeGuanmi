@@ -65,6 +65,14 @@ class FakeVideoRoot extends FakeElement {
   }
 }
 
+class FakeStageRoot extends FakeVideoRoot {
+  readonly retainedArch = new FakeElement();
+
+  closest(): { querySelector: () => FakeElement } {
+    return { querySelector: () => this.retainedArch };
+  }
+}
+
 describe('figure2-animation scene renderer', () => {
   it('is idempotent for 0 to 1 to 0 to 1 progress renders', () => {
     const root = new FakeElement();
@@ -78,7 +86,7 @@ describe('figure2-animation scene renderer', () => {
     expect(replayed).toEqual(end);
     expect(Number(root.style.values.get('--r4-figure2-cloud-scale'))).toBeGreaterThan(1);
     expect(Number(root.style.values.get('--r4-figure2-far-arcade-scale'))).toBeGreaterThan(Number(root.style.values.get('--r4-figure2-cloud-scale')));
-    expect(root.style.values.get('--r4-figure2-near-arch-blur')).toBe('3.60px');
+    expect(root.style.values.has('--r4-figure2-near-arch-blur')).toBe(false);
     expect(root.style.values.get('--r4-figure2-figure-scale')).toBe('1.0350');
     expect(root.style.values.get('--r4-figure2-progress')).toBe('1.0000');
     expect(root.style.values.get('--r4-figure2-proof-progress')).toBe('0.0000');
@@ -87,8 +95,19 @@ describe('figure2-animation scene renderer', () => {
     expect(root.attributes.get('data-figure2-progress')).toBe('1.0000');
   });
 
-  it('fades stage2 foreground while retaining the blurred near arch', () => {
-    const root = new FakeElement();
+  it('writes foreground scale and blur to the one Stage-retained arch', () => {
+    const root = new FakeStageRoot([]);
+
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 1);
+
+    expect(root.retainedArch.style.values.get('--r4-figure2-near-arch-scale')).toBe('1.1350');
+    expect(root.retainedArch.style.values.get('--r4-figure2-near-arch-blur')).toBe('3.60px');
+    expect(root.style.values.has('--r4-figure2-near-arch-scale')).toBe(false);
+    expect(root.style.values.has('--r4-figure2-near-arch-blur')).toBe(false);
+  });
+
+  it('fades stage2 foreground while retaining the Stage-owned blurred near arch', () => {
+    const root = new FakeStageRoot([]);
 
     const state = renderFigure2ProofTransitionProgress(root as unknown as HTMLElement, 0.72);
 
@@ -96,7 +115,7 @@ describe('figure2-animation scene renderer', () => {
     expect(state.proofProgress).toBeGreaterThan(0.7);
     expect(Number(root.style.values.get('--r4-figure2-background-opacity'))).toBeLessThan(0.2);
     expect(Number(root.style.values.get('--r4-figure2-figure-opacity'))).toBeLessThan(0.4);
-    expect(root.style.values.get('--r4-figure2-near-arch-opacity')).toBe('0.9800');
+    expect(root.retainedArch.style.values.get('--r4-figure2-near-arch-blur')).toBe('3.60px');
     expect(root.attributes.get('data-figure2-proof-progress')).not.toBe('0.0000');
   });
 
@@ -107,7 +126,7 @@ describe('figure2-animation scene renderer', () => {
 
   it('restores the exact opening hold including media time and scene-owned variables', () => {
     const video = new FakeVideo();
-    const root = new FakeVideoRoot([video]);
+    const root = new FakeStageRoot([video]);
     renderFigure2AnimationProgress(root as unknown as HTMLElement, 1, { videoMode: 'seek' });
 
     renderFigure2Hold(root as unknown as HTMLElement);
@@ -116,7 +135,7 @@ describe('figure2-animation scene renderer', () => {
     expect(root.style.values.get('--r4-figure2-background-opacity')).toBe('1.0000');
     expect(root.style.values.get('--r4-figure2-figure-opacity')).toBe('1.0000');
     expect(root.style.values.get('--r4-figure2-camera-scale')).toBe('1.0120');
-    expect(root.style.values.get('--r4-figure2-near-arch-blur')).toBe('0.00px');
+    expect(root.retainedArch.style.values.get('--r4-figure2-near-arch-blur')).toBe('0.00px');
     expect(video.currentTime).toBe(0.001);
   });
 

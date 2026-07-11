@@ -4,6 +4,7 @@ import { SceneLayer } from './SceneLayer';
 import type { HandleRegistry } from '../story/registry';
 import type { LayerVisibilityState, SceneId, SceneModule, StageLayerRole } from '../story/types';
 import { canonicalSpine } from '../story/canonical-spine';
+import { RetainedFigure2Arch, retainedFigure2ArchState } from './RetainedFigure2Arch';
 
 const PROOF_SCENES = new Set<SceneId>(['figure2-proof-opening', 'figure2-proof-cards', 'figure2-proof-closing']);
 const READING_SCENES = new Set(
@@ -69,6 +70,10 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
   assertLayerWindowInvariants(window);
   const members = useMemo(() => membersForWindow(window), [window]);
   const showProofGround = proofGroundIsActive(members, visibilityByScene);
+  const retainedArch = retainedFigure2ArchState(
+    members.map((member) => ({ scene: member.scene, current: member.role === 'current' })),
+    visibilityByScene
+  );
 
   return (
     <main
@@ -80,6 +85,7 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
       {showProofGround ? (
         <div className="stage-proof-retained-ground" aria-hidden="true" data-figure2-retained-ground="true" />
       ) : null}
+      <RetainedFigure2Arch mounted={retainedArch.mounted} visible={retainedArch.visible} />
       {members.map((member) => {
         const module = modules[member.scene];
         if (!module) {
