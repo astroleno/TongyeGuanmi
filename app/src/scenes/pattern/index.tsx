@@ -18,6 +18,8 @@ export type PatternRenderState = {
   copyOpacity: number;
   centerXRatio: number;
   centerYRatio: number;
+  mobileCenterXRatio: number;
+  mobileCenterYRatio: number;
   rotationProgress: number;
   fieldRotationDegrees: number;
   largestRingScale: number;
@@ -90,6 +92,8 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
     copyOpacity,
     centerXRatio: center.x,
     centerYRatio: center.y,
+    mobileCenterXRatio: snapshot.mobileCenterXRatio,
+    mobileCenterYRatio: snapshot.mobileCenterYRatio,
     rotationProgress,
     fieldRotationDegrees: snapshot.fieldRotationDegrees,
     largestRingScale: snapshot.largestRingScale,

@@ -280,6 +280,9 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(collapsePause.phase).toBe('staged-paused');
     const compactPattern = await visualSnapshot(page);
     expect(compactPattern.patternProgress).toBe(1);
+    expect(compactPattern.patternFieldRotationDegrees).toBeCloseTo(0, 3);
+    expect(compactPattern.largestRingScale).toBeCloseTo(0.08, 3);
+    expect(compactPattern.compactRingScale).toBeCloseTo(0.28, 3);
     expect(compactPattern.starMapLayerVisible).toBe(false);
 
     await page.evaluate(async () => {

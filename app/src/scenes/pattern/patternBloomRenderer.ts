@@ -4,8 +4,11 @@ const TAU = Math.PI * 2;
 const FINAL_ROTATION = 120 * Math.PI / 180;
 const SOURCE_FLOWER_SCALE = 0.702;
 const OUTER_KALEIDOSCOPE_SEGMENTS = 16;
-const MIN_RING_TEXTURE_SIZE = 640;
-const MAX_RING_TEXTURE_SIZE = 1180;
+const MIN_FLOWER_TEXTURE_SIZE = 640;
+const MAX_FLOWER_TEXTURE_SIZE = 1180;
+const MIN_RING_CACHE_SIZE = 320;
+const MAX_RING_CACHE_SIZE = 1180;
+const PATTERN_STRUCTURAL_PHASE = 4.2;
 const STRUCTURAL_FRAME_INTERVAL_MS = 1000 / 24;
 
 export const PATTERN_MOBILE_MAX_WIDTH = 760;
@@ -16,6 +19,41 @@ export function patternCenterForViewport(viewportWidth: number): Readonly<{ x: n
   return viewportWidth <= PATTERN_MOBILE_MAX_WIDTH
     ? MOBILE_PATTERN_CENTER
     : DESKTOP_PATTERN_CENTER;
+}
+
+export type PatternObjectMetrics = Readonly<{
+  size: number;
+  centerX: number;
+  centerY: number;
+}>;
+
+export function patternObjectMetricsForViewport(
+  width: number,
+  height: number
+): PatternObjectMetrics {
+  const safeWidth = Math.max(1, width);
+  const safeHeight = Math.max(1, height);
+  const center = patternCenterForViewport(safeWidth);
+  const mobile = safeWidth <= PATTERN_MOBILE_MAX_WIDTH;
+  const vmin = Math.min(safeWidth, safeHeight);
+  const size = mobile
+    ? Math.min(vmin * 1.34, safeWidth * 1.12)
+    : Math.min(vmin * 1.34, safeWidth * 0.96);
+  return {
+    size,
+    centerX: safeWidth * center.x,
+    centerY: safeHeight * center.y
+  };
+}
+
+export function patternFramePhases(
+  collapseProgress: number,
+  motionSeconds: number
+): Readonly<{ ringStructuralPhase: number; liveMotionPhase: number }> {
+  return {
+    ringStructuralPhase: clamp(collapseProgress) * PATTERN_STRUCTURAL_PHASE,
+    liveMotionPhase: Math.max(0, motionSeconds)
+  };
 }
 
 export const PATTERN_BACKGROUND_IMAGE = new URL('../../../../assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png', import.meta.url).href;
@@ -64,7 +102,6 @@ type RingCache = {
   drawSize: number;
   rotationBase: number;
   spin: number;
-  filter: string;
 };
 
 type ObjectMetrics = {
@@ -179,6 +216,8 @@ function clamp(value: number): number {
 }
 
 function interpolate(from: number, to: number, progress: number): number {
+  if (progress <= 0) return from;
+  if (progress >= 1) return to;
   return from + (to - from) * progress;
 }
 
@@ -271,8 +310,8 @@ export class PatternBloomRenderer {
   private progress = 0;
   private rotationProgress = 0;
   private layers: readonly LoadedLayer[] = [];
-  private ringTextureSize = 0;
   private ringTextureIndex = 0;
+  private ringStructuralKey = '';
   private frameRevision = 0;
   private destroyed = false;
 
@@ -394,39 +433,40 @@ export class PatternBloomRenderer {
     const width = Math.max(1, Math.round(cssWidth * dpr));
     const height = Math.max(1, Math.round(cssHeight * dpr));
 
-    if (width !== this.width || height !== this.height || dpr !== this.dpr) {
+    const viewportChanged = width !== this.width || height !== this.height || dpr !== this.dpr;
+    if (viewportChanged) {
       this.width = width;
       this.height = height;
       this.dpr = dpr;
       this.canvas.width = width;
       this.canvas.height = height;
+      this.ringStructuralKey = '';
+      this.ringTextureIndex = 0;
     }
 
     const metrics = this.getObjectMetrics();
     const textureSize = Math.max(
-      MIN_RING_TEXTURE_SIZE,
-      Math.min(MAX_RING_TEXTURE_SIZE, Math.round(metrics.size))
+      MIN_FLOWER_TEXTURE_SIZE,
+      Math.min(MAX_FLOWER_TEXTURE_SIZE, Math.round(metrics.size))
     );
     if (textureSize !== this.textureSize) {
       this.textureSize = textureSize;
       this.flowerCanvas.width = textureSize;
       this.flowerCanvas.height = textureSize;
-      this.ringTextureSize = 0;
+      this.ringStructuralKey = '';
       this.ringTextureIndex = 0;
     }
   }
 
   private getObjectMetrics(): ObjectMetrics {
-    const center = patternCenterForViewport(this.width / this.dpr);
-    const isMobile = this.width / this.dpr <= PATTERN_MOBILE_MAX_WIDTH;
-    const vmin = Math.min(this.width, this.height);
-    const displaySize = isMobile
-      ? Math.min(vmin * 1.34, this.width * 1.12)
-      : Math.min(vmin * 1.34, this.width * 0.96);
+    const cssMetrics = patternObjectMetricsForViewport(
+      this.width / this.dpr,
+      this.height / this.dpr
+    );
     return {
-      size: displaySize,
-      centerX: this.width * center.x,
-      centerY: this.height * center.y
+      size: cssMetrics.size * this.dpr,
+      centerX: cssMetrics.centerX * this.dpr,
+      centerY: cssMetrics.centerY * this.dpr
     };
   }
 
@@ -444,7 +484,7 @@ export class PatternBloomRenderer {
       }
       drawCenteredLayer(this.petalContext, layer, SOURCE_SIZE, SOURCE_SIZE / 2, SOURCE_SIZE / 2, 0.9);
     }
-    this.ringTextureSize = 0;
+    this.ringStructuralKey = '';
     this.ringTextureIndex = 0;
   }
 
@@ -522,34 +562,78 @@ export class PatternBloomRenderer {
     context.restore();
   }
 
-  private scrubPhase(progress = this.rotationProgress): number {
-    return clamp(progress) * 4.2;
-  }
-
-  private buildNextRingTexture(): void {
-    if (!this.textureSize || this.ringTextureIndex >= bloomRings.length) {
-      return;
-    }
-    const textureSize = Math.max(MIN_RING_TEXTURE_SIZE, Math.min(MAX_RING_TEXTURE_SIZE, Math.round(this.textureSize)));
-    if (this.ringTextureSize !== textureSize) {
-      this.ringTextureSize = textureSize;
-      this.ringTextureIndex = 0;
-    }
-    const index = this.ringTextureIndex;
+  private drawRingTexture(
+    index: number,
+    structuralPhase: number,
+    metrics: ObjectMetrics
+  ): void {
     const ring = bloomRings[index];
     const canvas = this.ringCanvases[index];
     const context = canvas?.getContext('2d');
-    this.ringTextureIndex += 1;
     if (!ring || !canvas || !context) {
       return;
     }
-    canvas.width = textureSize;
-    canvas.height = textureSize;
-    context.clearRect(0, 0, textureSize, textureSize);
+
+    const structuralProgress = clamp(
+      structuralPhase / PATTERN_STRUCTURAL_PHASE
+    );
+    const collapse = smoothstep(0.02, 1, structuralProgress);
+    const drawSize = metrics.size * interpolate(
+      ring.scale,
+      ring.endScale,
+      collapse
+    );
+    const cacheSize = Math.max(
+      MIN_RING_CACHE_SIZE,
+      Math.min(MAX_RING_CACHE_SIZE, Math.round(drawSize))
+    );
+    if (canvas.width !== cacheSize || canvas.height !== cacheSize) {
+      canvas.width = cacheSize;
+      canvas.height = cacheSize;
+    }
+    context.clearRect(0, 0, cacheSize, cacheSize);
     context.save();
-    context.translate(textureSize / 2, textureSize / 2);
-    this.drawOuterPetalKaleidoscope(context, textureSize, 0, 'none', 0, ring.spin);
+    context.translate(cacheSize / 2, cacheSize / 2);
+    this.drawOuterPetalKaleidoscope(
+      context,
+      cacheSize,
+      0,
+      ring.filter,
+      structuralPhase,
+      ring.spin
+    );
     context.restore();
+  }
+
+  private refreshRingTextures(
+    structuralPhase: number,
+    metrics: ObjectMetrics
+  ): void {
+    const normalized = clamp(structuralPhase / PATTERN_STRUCTURAL_PHASE);
+    const bucket = Math.round(normalized * 160);
+    const key = `${bucket}:${Math.round(metrics.size)}`;
+    if (
+      key === this.ringStructuralKey
+      && this.ringCanvases.every((canvas) => canvas.width > 0)
+    ) return;
+
+    const quantizedStructuralPhase = bucket / 160 * PATTERN_STRUCTURAL_PHASE;
+    for (let index = 0; index < bloomRings.length; index += 1) {
+      this.drawRingTexture(index, quantizedStructuralPhase, metrics);
+    }
+    this.ringTextureIndex = bloomRings.length;
+    this.ringStructuralKey = key;
+  }
+
+  private buildNextRingTexture(): void {
+    if (!this.textureSize || this.ringTextureIndex >= bloomRings.length) return;
+    const metrics = this.getObjectMetrics();
+    const index = this.ringTextureIndex;
+    this.ringTextureIndex += 1;
+    this.drawRingTexture(index, 0, metrics);
+    if (this.ringTextureIndex === bloomRings.length) {
+      this.ringStructuralKey = `0:${Math.round(metrics.size)}`;
+    }
   }
 
   private drawOuterPetalKaleidoscope(
@@ -602,8 +686,7 @@ export class PatternBloomRenderer {
         canvas: ringCanvas,
         drawSize,
         rotationBase: ring.rotation * Math.PI / 180 + fieldRotation * ring.spin,
-        spin: ring.spin,
-        filter: ring.filter
+        spin: ring.spin
       }];
     });
   }
@@ -618,17 +701,16 @@ export class PatternBloomRenderer {
       context.save();
       context.translate(metrics.centerX, metrics.centerY);
       context.rotate(rotation);
-      context.filter = ring.filter;
       context.drawImage(ring.canvas, -ring.drawSize / 2, -ring.drawSize / 2, ring.drawSize, ring.drawSize);
       context.restore();
     }
   }
 
-  private motionPhase(now: number): number {
+  private motionElapsed(now: number): number {
     const activeElapsed = this.animateMotion
       ? Math.max(0, now - this.motionStartedAt) / 1000
       : 0;
-    return this.scrubPhase() + this.motionElapsedSeconds + activeElapsed;
+    return this.motionElapsedSeconds + activeElapsed;
   }
 
   private renderFrame(now = performance.now()): void {
@@ -638,11 +720,18 @@ export class PatternBloomRenderer {
     }
     this.resize();
     const metrics = this.getObjectMetrics();
-    const phase = this.motionPhase(now);
+    const motionSeconds = this.motionElapsed(now);
+    const phases = patternFramePhases(this.progress, motionSeconds);
+    this.refreshRingTextures(phases.ringStructuralPhase, metrics);
     context.clearRect(0, 0, this.width, this.height);
-    this.drawDecorLayers(phase, metrics);
-    this.drawPetalField(this.progress, this.rotationProgress, metrics, phase);
-    this.drawSourceFlower(phase, metrics);
+    this.drawDecorLayers(phases.liveMotionPhase, metrics);
+    this.drawPetalField(
+      this.progress,
+      this.rotationProgress,
+      metrics,
+      phases.liveMotionPhase
+    );
+    this.drawSourceFlower(phases.liveMotionPhase, metrics);
     this.frameRevision += 1;
     this.canvas.dataset.inkTextureReady = 'true';
     this.canvas.dataset.inkTextureRevision = String(this.frameRevision);

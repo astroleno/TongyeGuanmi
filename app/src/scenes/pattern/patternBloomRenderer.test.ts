@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   PatternBloomRenderer,
+  patternFramePhases,
   patternLayerDirections,
   patternLayerIds,
+  patternObjectMetricsForViewport,
   patternSourceFlowerScale
 } from './patternBloomRenderer';
 
 class FakeCanvasContext {
   private filterValue = 'none';
+  clearRectCount = 0;
   filteredDrawCount = 0;
   imageSmoothingEnabled = false;
   imageSmoothingQuality: ImageSmoothingQuality = 'low';
@@ -18,7 +21,9 @@ class FakeCanvasContext {
 
   arc(): void {}
   beginPath(): void {}
-  clearRect(): void {}
+  clearRect(): void {
+    this.clearRectCount += 1;
+  }
   clip(): void {}
   closePath(): void {}
   get filter(): string { return this.filterValue; }
@@ -123,6 +128,25 @@ describe('PatternBloomRenderer', () => {
     expect(patternLayerIds()).toEqual(['06', '05', '04', '03', '02']);
     expect(patternLayerDirections()).toEqual({ '02': -1, '03': 1, '04': -1 });
     expect(patternSourceFlowerScale()).toBeCloseTo(0.702, 3);
+  });
+
+  it('keeps Main object metrics at desktop and mobile sizes', () => {
+    const desktop = patternObjectMetricsForViewport(1280, 720);
+    expect(desktop.centerX).toBeCloseTo(307.2, 4);
+    expect(desktop.centerY).toBeCloseTo(396, 4);
+    expect(desktop.size).toBeCloseTo(964.8, 4);
+
+    const mobile = patternObjectMetricsForViewport(390, 844);
+    expect(mobile.centerX).toBeCloseTo(195, 4);
+    expect(mobile.centerY).toBeCloseTo(489.52, 4);
+    expect(mobile.size).toBeCloseTo(436.8, 4);
+  });
+
+  it('does not add collapse phase to decor or source-flower motion', () => {
+    expect(patternFramePhases(1, 2)).toEqual({
+      ringStructuralPhase: 4.2,
+      liveMotionPhase: 2
+    });
   });
 
   it('prewarms ring textures while hidden without redrawing the scene during the transition', async () => {
@@ -291,7 +315,33 @@ describe('PatternBloomRenderer', () => {
     renderer.destroy();
   });
 
-  it('keeps ring textures unfiltered and applies blur at final output size', async () => {
+  it('rebuilds persistent ring textures for structural progress but not for idle motion', async () => {
+    const harness = installRendererDom();
+    const renderer = new PatternBloomRenderer(harness.canvas);
+    await renderer.start();
+    renderer.setMotionEnabled(true);
+    for (let frame = 0; frame < 8 && harness.rafCount(); frame += 1) {
+      harness.flushRaf(frame * 48);
+    }
+
+    const ringCanvases = () => harness.createElement.mock.results
+      .map(({ value }) => value as FakeCanvas)
+      .filter((canvas) => canvas.dataset.patternTextureRole === 'ring');
+    const ringBuilds = () => ringCanvases()
+      .reduce((sum, canvas) => sum + canvas.context.clearRectCount, 0);
+
+    const initial = ringBuilds();
+    renderer.setFrameProgress(1, 1);
+    harness.flushRaf(480);
+    const compact = ringBuilds();
+    harness.flushRaf(528);
+
+    expect(compact - initial).toBe(6);
+    expect(ringBuilds()).toBe(compact);
+    renderer.destroy();
+  });
+
+  it('bakes Main filters into six 320px terminal ring caches', async () => {
     const harness = installRendererDom();
     const renderer = new PatternBloomRenderer(harness.canvas);
 
@@ -300,14 +350,17 @@ describe('PatternBloomRenderer', () => {
     for (let frame = 0; frame < 8 && harness.rafCount(); frame += 1) {
       harness.flushRaf(frame * 48);
     }
-    const cacheContexts = harness.createElement.mock.results
+
+    renderer.setFrameProgress(1, 1);
+    harness.flushRaf(480);
+    const ringCanvases = harness.createElement.mock.results
       .map(({ value }) => value as FakeCanvas)
-      .filter((canvas) => canvas.dataset.patternTextureRole === 'ring')
-      .map((canvas) => canvas.context);
+      .filter((canvas) => canvas.dataset.patternTextureRole === 'ring');
     const outputContext = (harness.canvas as unknown as FakeCanvas).context;
 
-    expect(Math.max(...cacheContexts.map((context) => context.filteredDrawCount))).toBe(0);
-    expect(outputContext.filteredDrawCount).toBeGreaterThanOrEqual(6);
+    expect(ringCanvases.map((canvas) => canvas.width)).toEqual([320, 320, 320, 320, 320, 320]);
+    expect(ringCanvases.every((canvas) => canvas.context.filteredDrawCount > 0)).toBe(true);
+    expect(outputContext.filteredDrawCount).toBe(0);
     expect(outputContext.shadowBlur).toBeGreaterThan(0);
     renderer.destroy();
   });

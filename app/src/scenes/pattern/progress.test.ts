@@ -66,6 +66,11 @@ describe('pattern scene renderer', () => {
     expect(start.fieldRotationDegrees).toBe(120);
     expect(end.fieldRotationDegrees).toBe(0);
     expect(end.centerXRatio).toBe(0.24);
+    expect(end.centerYRatio).toBe(0.55);
+    expect(end.mobileCenterXRatio).toBe(0.50);
+    expect(end.mobileCenterYRatio).toBe(0.58);
+    expect(end.largestRingScale).toBe(0.08);
+    expect(end.compactRingScale).toBe(0.28);
     expect(root.style.values.get('--r4-pattern-progress')).toBe('1.0000');
     expect(root.attributes.get('data-pattern-progress')).toBe('1.0000');
   });
