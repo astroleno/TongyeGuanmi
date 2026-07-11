@@ -23,6 +23,14 @@ class FakeStyle {
   private readonly values = new Map<string, string>();
   clipPath = '';
 
+  get length(): number {
+    return this.values.size;
+  }
+
+  item(index: number): string {
+    return [...this.values.keys()][index] ?? '';
+  }
+
   setProperty(name: string, value: string): void {
     this.values.set(name, value);
   }
@@ -388,6 +396,78 @@ describe('figure2 proof chain transitions', () => {
     expect(fromVisibilityWrites.some((state) => state.visible)).toBe(false);
     expect(toVisibilityWrites.some((state) => !state.visible)).toBe(false);
     expect(toElement.dataset.figure2ProofTransitionProgress).toBe('1.0000');
+  });
+
+  it.each([
+    ['figure2-proof-opening-cards', 'figure2-proof-opening', 'figure2-proof-cards', createFigure2ProofOpeningCardsTransition],
+    ['figure2-proof-cards-closing', 'figure2-proof-cards', 'figure2-proof-closing', createFigure2ProofCardsClosingTransition]
+  ] as const)('initializes reverse %s at the forward endpoint', async (segmentId, from, to, create) => {
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    const reverseContext = context(
+      segmentId,
+      from,
+      to,
+      false,
+      { from: fromElement as unknown as HTMLElement, to: toElement as unknown as HTMLElement },
+      -1
+    );
+    const fromVisibilityWrites: LayerVisibilityState[] = [];
+    const toVisibilityWrites: LayerVisibilityState[] = [];
+    const setFromVisibility = reverseContext.from.setVisibility.bind(reverseContext.from);
+    const setToVisibility = reverseContext.to.setVisibility.bind(reverseContext.to);
+    reverseContext.from.setVisibility = (state) => {
+      fromVisibilityWrites.push(state);
+      setFromVisibility(state);
+    };
+    reverseContext.to.setVisibility = (state) => {
+      toVisibilityWrites.push(state);
+      setToVisibility(state);
+    };
+
+    const timeline = await create().buildTimeline(reverseContext);
+
+    expect(reverseContext.from.visibility).toMatchObject({ visible: false, opacity: 0 });
+    expect(reverseContext.to.visibility).toMatchObject({ visible: true, opacity: 1 });
+    expect(fromElement.style.transform).toBe('translate3d(0, -100%, 0)');
+    expect(toElement.style.transform).toBe('');
+    expect(fromVisibilityWrites.some((state) => state.visible)).toBe(false);
+    expect(toVisibilityWrites.some((state) => !state.visible)).toBe(false);
+    expect(timeline.rootIdentity?.()).toEqual({
+      from: fromElement,
+      to: toElement
+    });
+  });
+
+  it.each([
+    ['figure2-proof-opening-cards', 'figure2-proof-opening', 'figure2-proof-cards', createFigure2ProofOpeningCardsTransition],
+    ['figure2-proof-cards-closing', 'figure2-proof-cards', 'figure2-proof-closing', createFigure2ProofCardsClosingTransition]
+  ] as const)('verifies %s presentation symmetry and both dispose endpoints', async (segmentId, from, to, create) => {
+    const build = () => create().buildTimeline(context(
+      segmentId,
+      from,
+      to,
+      false,
+      {
+        from: new FakeElement() as unknown as HTMLElement,
+        to: new FakeElement() as unknown as HTMLElement
+      }
+    ));
+    const main = await build();
+    const start = await build();
+    const end = await build();
+
+    expect(verifySegmentTimeline(main, {
+      policy: segment(segmentId).policy,
+      requireStableSceneIdentity: true,
+      requirePresentation: true,
+      disposeEndpointTimelines: { start, end }
+    })).toMatchObject({
+      presentationSymmetric: true,
+      disposeInvariant: true,
+      disposedEndpoints: [0, 1]
+    });
+    main.dispose();
   });
 
   it('plays the figure videos continuously during the intro and releases them once ink begins', () => {

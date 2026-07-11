@@ -77,6 +77,7 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
         from: context.from,
         to: context.to,
         durationMs: context.prefersReducedMotion ? 0 : context.segment.virtualDuration,
+        direction: context.direction,
         sample: sampleStarMapAod,
         render: (progress) => {
           const inkProgress = smoothStep(progress);

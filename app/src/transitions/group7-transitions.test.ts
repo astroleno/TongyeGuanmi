@@ -3,7 +3,7 @@ import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { CRANE_CONTACT_COPY_CUE, createCraneContactTransition } from './crane-contact';
 import { createEducationCraneTransition } from './education-crane';
-import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
+import type { Direction, LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeElement as FixtureElement } from './__fixtures__/back-half.fixture';
 
 afterEach(() => {
@@ -17,6 +17,14 @@ class FakeStyle {
   pointerEvents = '';
   clipPath = '';
   zIndex = '';
+
+  get length(): number {
+    return this.values.size;
+  }
+
+  item(index: number): string {
+    return [...this.values.keys()][index] ?? '';
+  }
 
   setProperty(name: string, value: string): void {
     this.values.set(name, value);
@@ -52,7 +60,8 @@ class FakeElement {
   }
 
   querySelectorAll(): FakeElement[] {
-    return [];
+    const direct = [...new Set(this.selectors.values())];
+    return direct.flatMap((element) => [element, ...element.querySelectorAll()]);
   }
 
   setAttribute(name: string, value: string): void {
@@ -127,18 +136,24 @@ function segment(id: SegmentId): SpineSegmentNode {
   return structuredClone(found);
 }
 
-function context(segmentId: SegmentId, from: SceneId, to: SceneId, prefersReducedMotion = false): TransitionContext {
+function context(
+  segmentId: SegmentId,
+  from: SceneId,
+  to: SceneId,
+  prefersReducedMotion = false,
+  direction: Direction = 1
+): TransitionContext {
   return {
     segment: segment(segmentId),
-    from: layer(from, 'current'),
-    to: layer(to, 'next'),
+    from: layer(from, direction === 1 ? 'current' : 'next'),
+    to: layer(to, direction === 1 ? 'next' : 'current'),
     stage: {
       getLayer: () => undefined,
       ensureLayer: (scene, role) => layer(scene, role === 'current' ? 'current' : 'next'),
       releaseLayer: () => undefined,
       snapshot: () => []
     },
-    direction: 1,
+    direction,
     runId: 'r4-g7-test:1',
     prepareToken: 'r4-g7-test:prepare:1',
     prefersReducedMotion,
@@ -164,7 +179,7 @@ function layerWithElement(scene: SceneId, role: 'current' | 'next', element: Fak
   };
 }
 
-function craneContactDomContext(): {
+function craneContactDomContext(direction: Direction = 1): {
   context: TransitionContext;
   craneLayer: LayerHandle;
   contactLayer: LayerHandle;
@@ -195,10 +210,10 @@ function craneContactDomContext(): {
     craneRoot.connect(selector, new FakeElement());
   }
 
-  const craneLayer = layerWithElement('crane-animation', 'current', craneLayerElement);
-  const contactLayer = layerWithElement('contact', 'next', contactLayerElement);
+  const craneLayer = layerWithElement('crane-animation', direction === 1 ? 'current' : 'next', craneLayerElement);
+  const contactLayer = layerWithElement('contact', direction === 1 ? 'next' : 'current', contactLayerElement);
   const transitionContext: TransitionContext = {
-    ...context('crane-contact', 'crane-animation', 'contact'),
+    ...context('crane-contact', 'crane-animation', 'contact', false, direction),
     from: craneLayer,
     to: contactLayer
   };
@@ -237,6 +252,40 @@ const cases: readonly {
 ];
 
 describe('R4 group7 transitions', () => {
+  it('builds reverse Crane-to-Contact directly at p=1', async () => {
+    const fixture = craneContactDomContext(-1);
+    const fromVisibilityWrites: LayerVisibilityState[] = [];
+    const toVisibilityWrites: LayerVisibilityState[] = [];
+    const setFromVisibility = fixture.context.from.setVisibility.bind(fixture.context.from);
+    const setToVisibility = fixture.context.to.setVisibility.bind(fixture.context.to);
+    fixture.context.from.setVisibility = (state) => {
+      fromVisibilityWrites.push(state);
+      setFromVisibility(state);
+    };
+    fixture.context.to.setVisibility = (state) => {
+      toVisibilityWrites.push(state);
+      setToVisibility(state);
+    };
+
+    await createCraneContactTransition().buildTimeline(fixture.context);
+
+    expect(fixture.context.from.visibility).toMatchObject({ visible: false, opacity: 0 });
+    expect(fixture.context.to.visibility).toMatchObject({ visible: true, opacity: 1 });
+    expect(fromVisibilityWrites.some((state) => state.visible)).toBe(false);
+    expect(toVisibilityWrites.some((state) => !state.visible)).toBe(false);
+    expect(fixture.figureVideo.currentTime).toBeCloseTo(2.499, 3);
+    expect(fixture.flockVideo.currentTime).toBeCloseTo(2.499, 3);
+  });
+
+  it('settles reverse Crane-to-Contact reduced motion at the forward start', async () => {
+    const reverseContext = context('crane-contact', 'crane-animation', 'contact', true, -1);
+
+    await createCraneContactTransition().reducedMotionFallback?.(reverseContext);
+
+    expect(reverseContext.from.visibility).toMatchObject({ visible: true, opacity: 1 });
+    expect(reverseContext.to.visibility).toMatchObject({ visible: false, opacity: 0 });
+  });
+
   it('keeps Education and the initial Crane frame motionless during their Ink handoff', async () => {
     const fixture = createBackHalfDomContext('education-crane', 'education', 'crane-animation');
     const canvas = new FakeCanvas();
@@ -370,6 +419,10 @@ describe('R4 group7 transitions', () => {
   it('reverses crane media continuously instead of holding the end frame then jumping to zero', async () => {
     const fixture = craneContactDomContext();
     const timeline = await createCraneContactTransition().buildTimeline(fixture.context);
+    expect(timeline.rootIdentity?.()).toEqual({
+      from: fixture.craneLayer.element,
+      to: fixture.contactLayer.element
+    });
     timeline.progress(0.2);
     timeline.progress(0.5);
     const forwardFigureAtHalf = fixture.figureVideo.currentTime;
@@ -407,6 +460,29 @@ describe('R4 group7 transitions', () => {
     timeline.progress(0);
     expect(fixture.figureVideo.currentTime).toBe(0);
     expect(fixture.flockVideo.currentTime).toBe(0);
+  });
+
+  it('preserves Crane and Contact presentation when disposing independently at both endpoints', async () => {
+    const build = async () => {
+      const fixture = craneContactDomContext();
+      return createCraneContactTransition().buildTimeline(fixture.context);
+    };
+    const main = await build();
+    const start = await build();
+    const end = await build();
+
+    expect(verifySegmentTimeline(main, {
+      policy: segment('crane-contact').policy,
+      copyCueAtProgress: CRANE_CONTACT_COPY_CUE.atProgress,
+      requireStableSceneIdentity: true,
+      requirePresentation: true,
+      disposeEndpointTimelines: { start, end }
+    })).toMatchObject({
+      presentationSymmetric: true,
+      disposeInvariant: true,
+      disposedEndpoints: [0, 1]
+    });
+    main.dispose();
   });
 
   for (const item of cases) {

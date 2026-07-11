@@ -113,7 +113,7 @@ export function renderAodTransitionProgress(
   const video = options.video ?? videoIn(section);
   if (video && Number.isFinite(video.duration) && video.duration > 0) {
     const targetTime = Math.max(0, Math.min(video.duration - 0.02, p * video.duration));
-    if (Math.abs(video.currentTime - targetTime) > 0.016) {
+    if (Math.abs(video.currentTime - targetTime) > 0.0005) {
       video.currentTime = targetTime;
     }
   }

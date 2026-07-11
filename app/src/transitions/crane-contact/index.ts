@@ -54,15 +54,18 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   constructor(context: TransitionContext) {
     this.elevation = createTransitionLayerElevation(context.to.element);
     this.toElement = context.to.element;
+    this.renderedProgress = context.direction === 1 ? 0 : 1;
     this.timeline = new PilotProgressTimeline({
       from: context.from,
       to: context.to,
       durationMs: context.prefersReducedMotion ? 0 : context.segment.virtualDuration,
+      direction: context.direction,
       easing: 'linear',
       copyCue: CRANE_CONTACT_COPY_CUE,
       sample: sampleCraneContact,
       render: (progress) => {
-        const movingForward = progress >= this.renderedProgress;
+        const movingForward = progress > this.renderedProgress
+          || (progress === this.renderedProgress && context.direction === 1);
         const craneProgress = range01(progress, 0, CRANE_MOTION_END);
         const mediaOptions = movingForward ? { playback: true } : { reverseScrub: true };
         this.elevation.elevate();
@@ -100,13 +103,22 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   }
 
   dispose(): void {
+    const progress = this.timeline.snapshot.progress;
     this.elevation.restore();
-    clearHandoffReceiver(this.toElement);
+    if (progress >= 0.999) {
+      writeHandoffReceiver(this.toElement, 1);
+    } else {
+      clearHandoffReceiver(this.toElement);
+    }
     this.timeline.dispose();
   }
 
   sample(progress: number) {
     return this.timeline.sample(progress);
+  }
+
+  rootIdentity() {
+    return this.timeline.rootIdentity();
   }
 }
 
@@ -127,11 +139,12 @@ export function createCraneContactTransition(options: { delayMs?: () => number }
       }
     ],
     reducedMotionFallback: (context) => {
-      renderCraneAnimationProgress(rootFor(context.from.element, 'crane-animation'), 1);
-      renderContactProgress(rootFor(context.to.element, 'contact'), 1);
-      writeHandoffReceiver(context.to.element, 1);
-      context.from.setVisibility(hiddenVisibility());
-      context.to.setVisibility(holdVisibility(true));
+      const endpoint = context.direction === 1 ? 1 : 0;
+      renderCraneAnimationProgress(rootFor(context.from.element, 'crane-animation'), endpoint);
+      renderContactProgress(rootFor(context.to.element, 'contact'), endpoint);
+      writeHandoffReceiver(context.to.element, endpoint);
+      context.from.setVisibility(context.direction === 1 ? hiddenVisibility() : holdVisibility(true));
+      context.to.setVisibility(context.direction === 1 ? holdVisibility(true) : hiddenVisibility());
     },
     buildTimeline: async (context) => {
       const delay = options.delayMs?.() ?? 0;

@@ -17,6 +17,7 @@ export type PilotProgressTimelineOptions = {
   from: LayerHandle;
   to: LayerHandle;
   durationMs: number;
+  direction: Direction;
   easing?: 'ease-in-out-cubic' | 'linear';
   copyCue?: CopyCue;
   sample(progress: number): PilotTimelineSample;
@@ -57,7 +58,7 @@ export class PilotProgressTimeline implements SegmentTimelineHandle {
     this.sampleAt = options.sample;
     this.renderAt = options.render;
     this.disposeRenderer = options.dispose;
-    this.progress(0);
+    this.progress(options.direction === 1 ? 0 : 1);
   }
 
   get snapshot() {

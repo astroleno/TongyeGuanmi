@@ -59,6 +59,7 @@ class Figure3ServicesTimeline implements SegmentTimelineHandle {
       from: context.from,
       to: context.to,
       durationMs,
+      direction: context.direction,
       copyCue: FIGURE3_SERVICES_COPY_CUE,
       sample: (progress) => sampleFigure3Services(progress, this.stageStop),
       render: (progress) => {
@@ -102,13 +103,22 @@ class Figure3ServicesTimeline implements SegmentTimelineHandle {
   }
 
   dispose(): void {
+    const progress = this.timeline.snapshot.progress;
     this.elevation.restore();
-    clearHandoffReceiver(this.toElement);
+    if (progress >= 0.999) {
+      writeHandoffReceiver(this.toElement, 1, this.stageStop);
+    } else {
+      clearHandoffReceiver(this.toElement);
+    }
     this.timeline.dispose();
   }
 
   sample(progress: number) {
     return this.timeline.sample(progress);
+  }
+
+  rootIdentity() {
+    return this.timeline.rootIdentity();
   }
 }
 
@@ -129,11 +139,12 @@ export function createFigure3ServicesTransition(options: { delayMs?: () => numbe
       }
     ],
     reducedMotionFallback: (context) => {
+      const endpoint = context.direction === 1 ? 1 : 0;
       renderFigure3AnimationProgress(rootFor(context.from.element, 'figure3-animation'), FIGURE3_HOLD_PROGRESS);
       renderServicesProgress(rootFor(context.to.element, 'services'), 1);
-      writeHandoffReceiver(context.to.element, 1, DEFAULT_FIGURE3_STAGE_STOP);
-      context.from.setVisibility(hiddenVisibility());
-      context.to.setVisibility(holdVisibility(true));
+      writeHandoffReceiver(context.to.element, endpoint, DEFAULT_FIGURE3_STAGE_STOP);
+      context.from.setVisibility(context.direction === 1 ? hiddenVisibility() : holdVisibility(true));
+      context.to.setVisibility(context.direction === 1 ? holdVisibility(true) : hiddenVisibility());
     },
     buildTimeline: async (context) => {
       const delay = options.delayMs?.() ?? 0;

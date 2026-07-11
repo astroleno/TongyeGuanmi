@@ -69,7 +69,7 @@ class SectionHandoffTimeline implements SegmentTimelineHandle {
     private readonly context: TransitionContext,
     private readonly options: SectionHandoffOptions
   ) {
-    this.progress(0);
+    this.progress(context.direction === 1 ? 0 : 1);
   }
 
   play(): Promise<void> {
@@ -111,6 +111,13 @@ class SectionHandoffTimeline implements SegmentTimelineHandle {
 
   sample(progress: number): SectionSample {
     return sampleSection(progress);
+  }
+
+  rootIdentity() {
+    return {
+      from: this.context.from.element,
+      to: this.context.to.element
+    };
   }
 
   dispose(): void {
@@ -156,8 +163,8 @@ export function createSectionHandoffTransition(options: SectionHandoffOptions): 
     id: options.id,
     requiredMilestones: ['targetReady', 'buildReady'],
     reducedMotionFallback: (context) => {
-      applyLayerVisibility(context.from, hiddenVisibility());
-      applyLayerVisibility(context.to, holdVisibility(true));
+      applyLayerVisibility(context.from, context.direction === 1 ? hiddenVisibility() : holdVisibility(true));
+      applyLayerVisibility(context.to, context.direction === 1 ? holdVisibility(true) : hiddenVisibility());
       setTransform(sceneRoot(context.from.element, context.from.scene, options.rootSelector), '');
       setTransform(sceneRoot(context.to.element, context.to.scene, options.rootSelector), '');
       options.renderFrom?.(sceneRoot(context.from.element, context.from.scene, options.rootSelector), 1);

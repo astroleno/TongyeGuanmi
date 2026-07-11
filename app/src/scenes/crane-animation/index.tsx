@@ -62,7 +62,7 @@ function seekVideo(video: HTMLVideoElement | null | undefined, progress: number)
   video.pause();
   const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : VIDEO_DURATION_FALLBACK;
   const targetTime = Math.max(0, Math.min(duration - 0.001, clamp(progress) * duration));
-  if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.008) {
+  if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.0005) {
     video.currentTime = targetTime;
   }
 }

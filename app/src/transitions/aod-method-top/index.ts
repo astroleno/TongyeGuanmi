@@ -43,6 +43,7 @@ class AodMethodTopTimeline extends PilotProgressTimeline {
       from: context.from,
       to: context.to,
       durationMs: options.durationMs,
+      direction: context.direction,
       copyCue: AOD_METHOD_COPY_CUE,
       sample: sampleAodMethodTop,
       render: (progress) => {

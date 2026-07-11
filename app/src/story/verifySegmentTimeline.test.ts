@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { createSyntheticTransitionModule, SyntheticSegmentTimeline, syntheticCopyCue } from './synthetic-modules';
 import { verifySegmentTimeline } from './verifySegmentTimeline';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from './types';
-import type { VerifySegmentTimelineOptions } from './verifySegmentTimeline';
 
 function layer(scene: 'hero' | 'pattern', role: 'current' | 'next'): LayerHandle {
   let visibility: LayerVisibilityState = {
@@ -65,6 +64,128 @@ function context(policy?: SpineSegmentNode['policy']): TransitionContext {
   };
 }
 
+class PresentationStyle {
+  private readonly values = new Map<string, string>();
+
+  get length(): number {
+    return this.values.size;
+  }
+
+  item(index: number): string {
+    return [...this.values.keys()][index] ?? '';
+  }
+
+  getPropertyValue(name: string): string {
+    return this.values.get(name) ?? '';
+  }
+
+  setProperty(name: string, value: string): void {
+    this.values.set(name, value);
+  }
+}
+
+class PresentationElement {
+  readonly style = new PresentationStyle();
+  readonly dataset: Record<string, string> = {};
+  readonly children: PresentationElement[] = [];
+  textContent = '';
+
+  constructor(readonly tagName = 'DIV') {}
+
+  append(child: PresentationElement): void {
+    this.children.push(child);
+  }
+
+  querySelectorAll(selector: string): PresentationElement[] {
+    const nodes = this.children.flatMap((child) => [child, ...child.querySelectorAll('*')]);
+    if (selector === '*') {
+      return nodes;
+    }
+    return nodes.filter((node) => node.tagName.toLowerCase() === selector.toLowerCase());
+  }
+}
+
+class PresentationVideo extends PresentationElement {
+  readonly src = '/scene.webm';
+  readonly currentSrc = '/scene.webm';
+  currentTime = 0;
+  paused = true;
+  playbackRate = 1;
+  loop = false;
+
+  constructor() {
+    super('VIDEO');
+  }
+}
+
+function presentationSample(progress: number) {
+  const shown = { mounted: true, visible: true, inert: true, opacity: 1, pointerEvents: 'none' as const };
+  const hidden = { mounted: true, visible: false, inert: true, opacity: 0, pointerEvents: 'none' as const };
+  if (progress <= 0.001) {
+    return { from: shown, to: hidden };
+  }
+  if (progress >= 0.999) {
+    return { from: hidden, to: shown };
+  }
+  return { from: shown, to: shown };
+}
+
+function presentationTimeline(options: {
+  reverseDrift?: boolean;
+  disposeDriftAt?: 0 | 1;
+} = {}) {
+  const fromRoot = new PresentationElement();
+  const toRoot = new PresentationElement();
+  const fromVideo = new PresentationVideo();
+  const toVideo = new PresentationVideo();
+  fromRoot.append(fromVideo);
+  toRoot.append(toVideo);
+  let previousProgress = 0;
+  let reversing = false;
+  let currentProgress = 0;
+
+  const render = (progress: number) => {
+    const clamped = Math.min(1, Math.max(0, progress));
+    reversing ||= clamped < previousProgress;
+    previousProgress = clamped;
+    currentProgress = clamped;
+    for (const [root, video] of [[fromRoot, fromVideo], [toRoot, toVideo]] as const) {
+      root.style.setProperty('--scene-brightness', '0.92');
+      root.style.setProperty('filter', 'brightness(0.92)');
+      root.dataset.sceneProgress = clamped.toFixed(4);
+      video.currentTime = clamped;
+    }
+    if (options.reverseDrift && reversing && clamped === 0.5) {
+      toRoot.style.setProperty('--scene-brightness', '0.74');
+      toRoot.style.setProperty('filter', 'brightness(0.74)');
+      toVideo.currentTime = 0.25;
+    }
+  };
+  render(0);
+
+  return {
+    play: async () => undefined,
+    progress: render,
+    reverse: async () => undefined,
+    jumpToEnd: (direction: 1 | -1) => render(direction === 1 ? 1 : 0),
+    dispose() {
+      if (options.disposeDriftAt === currentProgress) {
+        const root = currentProgress === 0 ? fromRoot : toRoot;
+        const video = currentProgress === 0 ? fromVideo : toVideo;
+        root.style.setProperty('--scene-brightness', '0.74');
+        root.style.setProperty('filter', 'brightness(0.74)');
+        video.currentTime = 0;
+      }
+    },
+    labels: { start: 0, end: 1 },
+    sample: presentationSample,
+    rootIdentity: () => ({
+      from: fromRoot as unknown as HTMLElement,
+      to: toRoot as unknown as HTMLElement
+    })
+  };
+}
+
 describe('verifySegmentTimeline', () => {
   it('accepts the synthetic transition labels, endpoints and copyCue threshold', async () => {
     const transition = createSyntheticTransitionModule();
@@ -72,7 +193,11 @@ describe('verifySegmentTimeline', () => {
 
     expect(verifySegmentTimeline(timeline, { copyCueAtProgress: syntheticCopyCue.atProgress })).toMatchObject({
       maxVisibleLayers: 2,
-      copyCueCrossed: true
+      copyCueCrossed: true,
+      stableSceneIdentity: false,
+      presentationSymmetric: false,
+      disposeInvariant: false,
+      disposedEndpoints: []
     });
   });
 
@@ -169,30 +294,58 @@ describe('verifySegmentTimeline', () => {
     expect(() => verifySegmentTimeline(asymmetricTimeline)).toThrow(/reverse symmetry/);
   });
 
-  it('rejects disposal that replaces canonical roots', () => {
-    const timeline = new SyntheticSegmentTimeline(context());
-    const fromRoot = {} as HTMLElement;
-    const toRoot = {} as HTMLElement;
-    let disposed = false;
-    const disposingTimeline = {
-      play: timeline.play.bind(timeline),
-      progress: timeline.progress.bind(timeline),
-      reverse: timeline.reverse.bind(timeline),
-      jumpToEnd: timeline.jumpToEnd.bind(timeline),
-      dispose() {
-        disposed = true;
-        timeline.dispose();
-      },
-      labels: timeline.labels,
-      sample: timeline.sample.bind(timeline),
-      rootIdentity: () => ({ from: fromRoot, to: disposed ? ({} as HTMLElement) : toRoot })
-    };
+  it('rejects reverse traversal that changes CSS variables, filter, or media time', () => {
+    const timeline = presentationTimeline({ reverseDrift: true });
     const options = {
       requireStableSceneIdentity: true,
-      verifyDisposeInvariance: true
-    } as VerifySegmentTimelineOptions & { verifyDisposeInvariance: boolean };
+      requirePresentation: true
+    };
 
-    expect(() => verifySegmentTimeline(disposingTimeline, options)).toThrow(/dispose invariance/);
+    expect(() => verifySegmentTimeline(timeline, options)).toThrow(/presentation reverse symmetry/);
+  });
+
+  it('rejects p=1 disposal that changes the visible endpoint presentation', () => {
+    const timeline = presentationTimeline();
+    const options = {
+      requireStableSceneIdentity: true,
+      requirePresentation: true,
+      disposeEndpointTimelines: {
+        start: presentationTimeline(),
+        end: presentationTimeline({ disposeDriftAt: 1 })
+      }
+    };
+
+    expect(() => verifySegmentTimeline(timeline, options)).toThrow(/p=1 dispose presentation invariance/);
+  });
+
+  it('verifies dispose presentation independently at p=0 and p=1', () => {
+    const timeline = presentationTimeline();
+    const options = {
+      requireStableSceneIdentity: true,
+      requirePresentation: true,
+      disposeEndpointTimelines: {
+        start: presentationTimeline(),
+        end: presentationTimeline()
+      }
+    };
+
+    expect(verifySegmentTimeline(timeline, options)).toMatchObject({
+      presentationSymmetric: true,
+      disposeInvariant: true,
+      disposedEndpoints: [0, 1]
+    });
+  });
+
+  it('requires both dispose probes to be independent from the traversal timeline', () => {
+    const timeline = presentationTimeline();
+
+    expect(() => verifySegmentTimeline(timeline, {
+      requirePresentation: true,
+      disposeEndpointTimelines: {
+        start: timeline,
+        end: presentationTimeline()
+      }
+    })).toThrow(/independent from the traversal timeline/);
   });
 
   it('rejects transition canvases that are not declared effect-only', () => {
@@ -213,7 +366,7 @@ describe('verifySegmentTimeline', () => {
     };
     const options = {
       requireEffectOnlyCanvas: true
-    } as VerifySegmentTimelineOptions & { requireEffectOnlyCanvas: boolean };
+    };
 
     expect(() => verifySegmentTimeline(capturedTimeline, options)).toThrow(/effect-only/);
   });

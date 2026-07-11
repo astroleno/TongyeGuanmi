@@ -10,6 +10,14 @@ class FakeStyle {
   [key: string]: unknown;
   private readonly values = new Map<string, string>();
 
+  get length(): number {
+    return this.values.size;
+  }
+
+  item(index: number): string {
+    return [...this.values.keys()][index] ?? '';
+  }
+
   setProperty(name: string, value: string): void {
     this.values.set(name, value);
   }
@@ -274,14 +282,67 @@ describe('shared ink transition surface', () => {
     });
     expect(verifySegmentTimeline(timeline, {
       requireStableSceneIdentity: true,
+      requirePresentation: true,
       requireEffectOnlyCanvas: true,
-      verifyDisposeInvariance: true
     })).toMatchObject({
       reverseSymmetric: true,
-      disposeInvariant: true,
+      presentationSymmetric: true,
       effectOnlyCanvas: true
     });
+    timeline.dispose();
     expect(canvas.parentElement).toBeNull();
+  });
+
+  it('verifies generic Ink presentation and effect cleanup independently at p=0 and p=1', async () => {
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const build = async () => {
+      const stage = new FakeElement();
+      const fromElement = new FakeElement();
+      const toElement = new FakeElement();
+      stage.append(fromElement);
+      stage.append(toElement);
+      const to = layer('ttg-animation', 'next', toElement);
+      return createInkSegmentTransition({
+        id: 'services-ttg',
+        origin: { x: 0.5, y: 1.04 },
+        revealMode: 'live-clip',
+        prepareEndpoints: () => undefined
+      }).buildTimeline({
+        segment,
+        from: layer('services', 'current', fromElement),
+        to,
+        stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+        direction: 1,
+        runId: 'ink-dispose-contract:1',
+        prepareToken: 'ink-dispose-contract:prepare:1',
+        prefersReducedMotion: false,
+        reportMilestone() {}
+      });
+    };
+    const main = await build();
+    const start = await build();
+    const end = await build();
+
+    expect(verifySegmentTimeline(main, {
+      requireStableSceneIdentity: true,
+      requirePresentation: true,
+      requireEffectOnlyCanvas: true,
+      disposeEndpointTimelines: { start, end }
+    })).toMatchObject({
+      presentationSymmetric: true,
+      disposeInvariant: true,
+      disposedEndpoints: [0, 1],
+      effectOnlyCanvas: true
+    });
+    main.dispose();
   });
 
   it('keeps automatic ink playback inside the transition after one long browser frame', async () => {

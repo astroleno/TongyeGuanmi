@@ -83,7 +83,7 @@ class ReadingSegmentTimeline implements SegmentTimelineHandle {
     private readonly renderProgress: 'complete' | 'current' = 'complete'
   ) {
     this.labels = { start: 0, middle: 0.5, end: 1 };
-    this.progress(0);
+    this.progress(context.direction === 1 ? 0 : 1);
   }
 
   play(): Promise<void> {
@@ -130,6 +130,13 @@ class ReadingSegmentTimeline implements SegmentTimelineHandle {
 
   sample(progress: number): ReadingSample {
     return sampleReading(clamp(progress));
+  }
+
+  rootIdentity() {
+    return {
+      from: this.context.from.element,
+      to: this.context.to.element
+    };
   }
 
   dispose(): void {
@@ -186,16 +193,18 @@ export function createReadingSegmentTransition(options: ReadingSegmentOptions): 
     id: options.id,
     requiredMilestones: ['targetReady', 'buildReady'],
     reducedMotionFallback: (context) => {
-      applyLayerVisibility(context.from, hiddenVisibility());
-      applyLayerVisibility(context.to, holdVisibility(true));
+      const endpoint = context.direction === 1 ? 1 : 0;
+      const renderProgress = options.renderProgress === 'current' ? endpoint : 1;
+      applyLayerVisibility(context.from, context.direction === 1 ? hiddenVisibility() : holdVisibility(true));
+      applyLayerVisibility(context.to, context.direction === 1 ? holdVisibility(true) : hiddenVisibility());
       setReadingTransform(context.from.element, '');
       setReadingTransform(context.to.element, '');
       if (options.transformSelector) {
         setReadingTransform(sceneRoot(context.from.element, context.from.scene, options.transformSelector), '');
         setReadingTransform(sceneRoot(context.to.element, context.to.scene, options.transformSelector), '');
       }
-      options.renderFrom?.(sceneRoot(context.from.element, context.from.scene, options.rootSelector), 1);
-      options.renderTo?.(sceneRoot(context.to.element, context.to.scene, options.rootSelector), 1);
+      options.renderFrom?.(sceneRoot(context.from.element, context.from.scene, options.rootSelector), renderProgress);
+      options.renderTo?.(sceneRoot(context.to.element, context.to.scene, options.rootSelector), renderProgress);
     },
     buildTimeline: async (context) => {
       const delay = options.delayMs?.() ?? 0;
