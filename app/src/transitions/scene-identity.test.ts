@@ -8,6 +8,8 @@ const FORBIDDEN_PRODUCTION_PATTERNS = [
   '.outerHTML',
   '<foreignObject',
   'createInkTargetTexture(',
+  'targetSrc:',
+  'nextSceneElement:',
   'targetElement:',
   'HERO_PATTERN_INK_TARGET_IMAGE',
   'PATTERN_STAR_MAP_INK_TARGET_IMAGE',

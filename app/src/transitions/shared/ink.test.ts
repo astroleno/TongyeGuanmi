@@ -167,6 +167,12 @@ describe('shared ink transition surface', () => {
     expect(inkSource).toContain('prepareEndpoints(roots: InkEndpointRoots): void;');
     expect(inkSource).not.toContain('renderTo?:');
     expect(inkSource).not.toContain('renderToProgress?:');
+    expect(inkSource).not.toContain('function targetClipPath');
+    expect(inkSource).not.toContain('return `inset(');
+    expect(inkSource).not.toContain('return `circle(');
+    expect(inkSource).not.toContain('clipProgress?:');
+    expect(inkSource).not.toContain('inkProgress?:');
+    expect(inkSource).toContain('boundaryProgress?:');
   });
 
   it('prepares source and receiver holds once instead of rerendering the target per frame', async () => {
@@ -250,7 +256,7 @@ describe('shared ink transition surface', () => {
     const timeline = await transition.buildTimeline(context);
 
     expect(canvas.parentElement).toBe(stage);
-    expect(canvas.dataset.r4InkRenderer).toBe('curtain');
+    expect(canvas.dataset.r4InkRenderer).toBe('boundary');
     expect(canvas.dataset.r4InkPreset).toBe('cinematic-color');
     expect(canvas.dataset.r4InkPresetApplied).toBe('true');
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
@@ -265,12 +271,17 @@ describe('shared ink transition surface', () => {
     timeline.progress(0.75);
     const secondClip = String(toElement.style.clipPath ?? '');
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
-    expect(firstClip).toContain('inset(');
-    expect(secondClip).toContain('inset(');
+    expect(firstClip).toMatch(/^polygon\(/);
+    expect(secondClip).toMatch(/^polygon\(/);
+    expect(firstClip).not.toContain('inset(');
+    expect(secondClip).not.toContain('inset(');
     expect(firstClip).not.toBe(secondClip);
     expect(toElement.style.visibility).not.toBe('hidden');
     expect(toElement.style.opacity).not.toBe('0');
     expect(toElement.dataset.r4RevealMode).toBe('live-clip');
+    expect(toElement.dataset.r4InkBoundaryKind).toBe('horizontal');
+    expect(toElement.dataset.r4InkBoundaryProgress).toBe('0.7500');
+    expect(canvas.dataset.r4InkBoundaryRevision).toBe(toElement.dataset.r4InkBoundaryRevision);
     expect(canvas.dataset.r4InkTargetReady).toBeUndefined();
     expect(timeline.sample?.(0.99)).toMatchObject({
       from: { visible: true, opacity: 1 },
