@@ -210,6 +210,7 @@ describe('ink WebGL resource lifecycle', () => {
     transition?.render(frame(0.5));
     expect(loadedImages).toHaveLength(1);
     loadedImages[0]?.onload?.();
+    expect(gl.pixelStorei).toHaveBeenCalledWith(gl.UNPACK_FLIP_Y_WEBGL, true);
     expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads + 1);
     transition?.render(frame(0.75));
     expect(loadedImages).toHaveLength(1);
