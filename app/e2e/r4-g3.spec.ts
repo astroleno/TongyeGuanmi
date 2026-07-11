@@ -45,11 +45,10 @@ async function snapshot(page: Page): Promise<Group3Snapshot> {
 
 type Group3VisualSnapshot = {
   activeInkSegments: readonly string[];
-  shaderBodyInkSegments: readonly string[];
+  fieldInkSegments: readonly string[];
   transitions: readonly string[];
   proofOpeningProgress: number;
-  proofCopyProgress: number;
-  proofSceneBrightness: number;
+  proofRevealProgress: number;
   proofInkCanvasOpacity: number;
   proofArchArea: number;
   proofArchCount: number;
@@ -59,20 +58,21 @@ type Group3VisualSnapshot = {
   figure2BackgroundOpacity: number;
   figure2FigureOpacity: number;
   figure2NearArchOpacity: number;
-  proofOverlayProgress: number;
   retainedArchCount: number;
   figure2LayerZ: number;
   proofLayerZ: number;
   proofLayerClipPath: string;
+  proofLayerMask: string;
   proofLayerElevated: boolean;
   proofInkRenderer: string | null;
-  proofInkTarget: string | null;
-  proofInkTextureReady: boolean;
-  proofInkTextureAlpha: number;
-  proofInkTextureRebuildCount: number;
-  proofInkReadyGate: boolean;
+  proofInkEffectOnly: boolean;
+  proofInkBoundaryKind: string | null;
+  proofInkSecondaryGateKind: string | null;
+  proofInkSecondaryGateRank: number;
   proofInkVisible: boolean;
-  proofTransitionActive: boolean;
+  depthFieldMask: string;
+  figureGateClip: string;
+  depthMaskValues: string;
   proofBackgroundImage: string;
   proofGroundBackgroundImage: string;
   proofOpeningY: number;
@@ -99,6 +99,8 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
     const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
     const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
+    const depthField = figureRoot?.querySelector<HTMLElement>('[data-figure2-depth-ranked-field="true"]');
+    const figureField = figureRoot?.querySelector<HTMLElement>('[data-figure2-figure-field="true"]');
     const proofInkCanvas = document.querySelector<HTMLCanvasElement>('[data-r4-ink-segment="figure2-distance-expand"]');
     const proofGround = document.querySelector<HTMLElement>('[data-figure2-retained-ground="true"]');
     const proofGroundStyle = proofGround ? window.getComputedStyle(proofGround) : undefined;
@@ -113,15 +115,14 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       activeInkSegments: inkCanvases
         .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
-      shaderBodyInkSegments: inkCanvases
-        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
+      fieldInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkRenderer === 'field' && canvas.dataset.r4InkEffectOnly === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
       proofOpeningProgress: Number.parseFloat(proofRoot?.dataset.proofOpeningProgress ?? '0'),
-      proofCopyProgress: Number.parseFloat(proofRoot?.dataset.figure2ProofCopyProgress ?? '0'),
-      proofSceneBrightness: Number.parseFloat(proofRoot?.dataset.figure2ProofSceneBrightness ?? '1'),
-      proofInkCanvasOpacity: Number.parseFloat(proofInkCanvas?.dataset.figure2InkCanvasOpacity ?? proofRoot?.dataset.figure2ProofInkCanvasOpacity ?? '1'),
+      proofRevealProgress: Number.parseFloat(proofRoot?.dataset.figure2ProofRevealProgress ?? '0'),
+      proofInkCanvasOpacity: Number.parseFloat(proofInkCanvas ? window.getComputedStyle(proofInkCanvas).opacity : '0'),
       proofArchArea: (archRect?.width ?? 0) * (archRect?.height ?? 0),
       proofArchCount: document.querySelectorAll('.stage-proof-retained-arch').length,
       proofArchOpacity: Number.parseFloat(archStyle?.opacity ?? '0'),
@@ -130,20 +131,21 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       figure2BackgroundOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-background-opacity') ?? '1'),
       figure2FigureOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-figure-opacity') ?? '1'),
       figure2NearArchOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-near-arch-opacity') ?? '0'),
-      proofOverlayProgress: Number.parseFloat(proofRoot?.dataset.figure2ProofOverlayProgress ?? '0'),
-      retainedArchCount: document.querySelectorAll('[data-figure2-retained-arch="true"]').length,
+      retainedArchCount: document.querySelectorAll('[data-stage-retained-figure2-arch="true"]').length,
       figure2LayerZ: Number.parseInt(window.getComputedStyle(figure2Layer ?? document.body).zIndex || '0', 10),
       proofLayerZ: Number.parseInt(window.getComputedStyle(proofLayer ?? document.body).zIndex || '0', 10),
       proofLayerClipPath: window.getComputedStyle(proofLayer ?? document.body).clipPath,
+      proofLayerMask: proofLayer ? window.getComputedStyle(proofLayer).maskImage : 'none',
       proofLayerElevated: proofLayer?.dataset.r4TransitionElevated === 'true',
-      proofInkRenderer: proofRoot?.dataset.figure2ProofInkRenderer ?? proofLayer?.dataset.figure2ProofInkRenderer ?? null,
-      proofInkTarget: proofRoot?.dataset.figure2ProofInkTarget ?? proofLayer?.dataset.figure2ProofInkTarget ?? null,
-      proofInkTextureReady: proofInkCanvas?.dataset.inkTextureReady === 'true',
-      proofInkTextureAlpha: Number.parseFloat(proofInkCanvas?.dataset.figure2ProofTextureAlpha ?? '0'),
-      proofInkTextureRebuildCount: Number.parseInt(proofInkCanvas?.dataset.figure2ProofTextureRebuildCount ?? '0', 10),
-      proofInkReadyGate: (proofRoot?.dataset.figure2ProofTextureReadyGate ?? proofLayer?.dataset.figure2ProofTextureReadyGate) === 'true',
+      proofInkRenderer: proofInkCanvas?.dataset.r4InkRenderer ?? null,
+      proofInkEffectOnly: proofInkCanvas?.dataset.r4InkEffectOnly === 'true',
+      proofInkBoundaryKind: proofInkCanvas?.dataset.r4InkBoundaryKind ?? null,
+      proofInkSecondaryGateKind: proofInkCanvas?.dataset.r4InkSecondaryGateKind ?? null,
+      proofInkSecondaryGateRank: Number.parseFloat(proofInkCanvas?.dataset.r4InkSecondaryGateRank ?? 'NaN'),
       proofInkVisible: proofInkCanvas ? window.getComputedStyle(proofInkCanvas).visibility !== 'hidden' : false,
-      proofTransitionActive: proofRoot?.dataset.r4ProofTransitionActive === 'true',
+      depthFieldMask: depthField ? window.getComputedStyle(depthField).maskImage : 'none',
+      figureGateClip: figureField ? window.getComputedStyle(figureField).clipPath : 'none',
+      depthMaskValues: proofLayer?.dataset.r4DepthMaskValues ?? '',
       proofBackgroundImage: proofStyle?.backgroundImage ?? '',
       proofGroundBackgroundImage: proofGroundStyle?.backgroundImage ?? '',
       proofOpeningY: Number.parseFloat(proofStyle?.getPropertyValue('--r4-proof-opening-y') ?? '0'),
@@ -175,12 +177,6 @@ async function assertFrame(frame: Group3Snapshot): Promise<void> {
   if (frame.phase === 'hold') {
     expect(frame.interactableCount).toBe(1);
   }
-}
-
-function expectedProofCopyProgress(revealProgress: number): 0 | 1 {
-  const normalized = Math.min(1, Math.max(0, (revealProgress - 0.82) / 0.18));
-  const sourceExit = normalized * normalized * (3 - 2 * normalized);
-  return revealProgress >= 0.998 || sourceExit >= 0.999 ? 1 : 0;
 }
 
 function writeTrace(name: string, frame: Group3Snapshot): void {
@@ -218,65 +214,59 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
           void window.__r4Group3?.playForward();
         });
         let proofTransitionVisual: Group3VisualSnapshot | undefined;
-        const proofTransitionSeen = {
-          sceneInk: false,
-          sourceFade: false
-        };
+        let proofTransitionSeen = false;
         const deadline = Date.now() + 12_000;
-        while (Date.now() < deadline && (!proofTransitionSeen.sceneInk || !proofTransitionSeen.sourceFade)) {
+        while (Date.now() < deadline && !proofTransitionSeen) {
           const visual = await visualSnapshot(page);
-          const hasSceneInk = visual.activeInkSegments.includes('figure2-distance-expand')
-            && visual.transitions.includes('figure2-proof-overlay-scene-ink')
+          const hasDepthInk = visual.activeInkSegments.includes('figure2-distance-expand')
+            && visual.fieldInkSegments.includes('figure2-distance-expand')
+            && visual.transitions.includes('figure2-proof-binary-depth')
             && visual.proofLayerElevated
-            && visual.proofInkRenderer === 'scene'
-            && visual.proofInkTarget === 'proof-opening-dom-scene'
-            && visual.proofInkTextureReady
-            && visual.proofInkTextureAlpha > 0
-            && visual.proofInkTextureRebuildCount === 1
-            && visual.proofInkReadyGate
-            && visual.proofTransitionActive
+            && visual.proofInkRenderer === 'field'
+            && visual.proofInkEffectOnly
+            && visual.proofInkBoundaryKind === 'depth'
+            && visual.proofInkSecondaryGateKind === 'horizontal'
+            && Number.isFinite(visual.proofInkSecondaryGateRank)
             && visual.proofBackgroundImage === 'none'
-            && visual.proofOverlayProgress > 0
-            && visual.proofOpeningProgress <= visual.proofOverlayProgress
-            && visual.proofSceneBrightness < 0.95
-            && visual.proofInkCanvasOpacity < 1;
-          if (hasSceneInk) {
+            && visual.proofRevealProgress > 0
+            && visual.proofRevealProgress < 1
+            && visual.proofLayerMask !== 'none'
+            && visual.depthFieldMask !== 'none'
+            && visual.figureGateClip.startsWith('inset(')
+            && visual.depthMaskValues === '1,0';
+          if (hasDepthInk) {
             proofTransitionVisual = visual;
-            proofTransitionSeen.sceneInk = true;
-          }
-          proofTransitionSeen.sourceFade ||= visual.figure2BackgroundOpacity < 1
-            && visual.figure2FigureOpacity < 1;
-          if (!proofTransitionSeen.sceneInk || !proofTransitionSeen.sourceFade) {
+            proofTransitionSeen = true;
+          } else {
             await page.waitForTimeout(20);
           }
         }
-        expect(proofTransitionSeen.sceneInk).toBe(true);
-        expect(proofTransitionSeen.sourceFade).toBe(true);
-        expect(proofTransitionVisual?.transitions).toContain('figure2-proof-overlay-scene-ink');
+        expect(proofTransitionSeen).toBe(true);
+        expect(proofTransitionVisual?.transitions).toContain('figure2-proof-binary-depth');
         expect(proofTransitionVisual?.proofLayerElevated).toBe(true);
         expect((proofTransitionVisual?.proofLayerZ ?? 0)).toBeGreaterThan(proofTransitionVisual?.figure2LayerZ ?? 0);
         expect(proofTransitionVisual?.proofLayerClipPath).toBe('none');
-        expect(proofTransitionVisual?.proofInkRenderer).toBe('scene');
-        expect(proofTransitionVisual?.proofInkTarget).toBe('proof-opening-dom-scene');
-        expect(proofTransitionVisual?.proofInkTextureReady).toBe(true);
-        expect(proofTransitionVisual?.proofInkTextureAlpha).toBeGreaterThan(0);
-        expect(proofTransitionVisual?.proofInkTextureRebuildCount).toBe(1);
-        expect(proofTransitionVisual?.proofInkReadyGate).toBe(true);
-        expect(proofTransitionVisual?.proofTransitionActive).toBe(true);
+        expect(proofTransitionVisual?.proofInkRenderer).toBe('field');
+        expect(proofTransitionVisual?.proofInkEffectOnly).toBe(true);
+        expect(proofTransitionVisual?.proofInkBoundaryKind).toBe('depth');
+        expect(proofTransitionVisual?.proofInkSecondaryGateKind).toBe('horizontal');
+        expect(proofTransitionVisual?.proofLayerMask).not.toBe('none');
+        expect(proofTransitionVisual?.depthFieldMask).not.toBe('none');
+        expect(proofTransitionVisual?.figureGateClip.startsWith('inset(')).toBe(true);
+        expect(proofTransitionVisual?.depthMaskValues).toBe('1,0');
         expect(proofTransitionVisual?.proofBackgroundImage).toBe('none');
-        expect(proofTransitionVisual?.proofOverlayProgress).toBeGreaterThan(0);
-        const expectedCopy = expectedProofCopyProgress(proofTransitionVisual?.proofOverlayProgress ?? 0);
-        expect(proofTransitionVisual?.proofOpeningProgress).toBe(expectedCopy);
-        expect(proofTransitionVisual?.proofCopyProgress).toBe(expectedCopy);
+        expect(proofTransitionVisual?.proofRevealProgress).toBeGreaterThan(0);
+        expect(proofTransitionVisual?.proofOpeningProgress).toBe(1);
         expect(proofTransitionVisual?.proofOpeningY).toBe(0);
-        expect(proofTransitionVisual?.proofSceneBrightness ?? 1).toBeLessThan(1);
-        expect(proofTransitionVisual?.proofInkCanvasOpacity ?? 1).toBeLessThan(1);
+        expect(proofTransitionVisual?.figure2BackgroundOpacity).toBe(1);
+        expect(proofTransitionVisual?.figure2FigureOpacity).toBe(1);
+        expect(proofTransitionVisual?.proofInkCanvasOpacity ?? 0).toBeGreaterThan(0);
         expect(proofTransitionVisual?.proofArchArea).toBeGreaterThan(100_000);
       }
       if (target === 'brand') {
         await expect.poll(async () => {
           const visual = await visualSnapshot(page);
-          return visual.transitions.includes('figure2-proof-brand-ink-handoff');
+          return visual.transitions.includes('figure2-proof-brand-live-clip');
         }, { timeout: 3_000 }).toBe(true);
         const staticInkCopy = await visualSnapshot(page);
         expect(staticInkCopy.proofClosingY).toBe(0);
@@ -285,9 +275,9 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         expect(staticInkCopy.brandOpacity).toBe(1);
         expect(staticInkCopy.brandLayerMask).toBe('');
         expect(staticInkCopy.retainedArchMask).toBe('');
-        expect(staticInkCopy.brandLayerClip).toBe('');
-        expect(staticInkCopy.retainedArchClip).toBe('');
-        expect(staticInkCopy.shaderBodyInkSegments).toContain('figure2-proof-brand');
+        expect(staticInkCopy.brandLayerClip.startsWith('inset(')).toBe(true);
+        expect(staticInkCopy.retainedArchClip.startsWith('inset(')).toBe(true);
+        expect(staticInkCopy.fieldInkSegments).toContain('figure2-proof-brand');
       }
       for (let index = 0; index < 18; index += 1) {
         await page.waitForTimeout(24);
@@ -313,12 +303,9 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       if (target === 'figure2-proof-opening') {
         const visual = await visualSnapshot(page);
         expect(visual.proofOpeningProgress).toBe(1);
-        expect(visual.proofCopyProgress).toBe(1);
         expect(visual.proofOpeningY).toBe(0);
-        expect(visual.proofSceneBrightness).toBe(1);
         expect(visual.proofInkCanvasOpacity).toBe(0);
         expect(visual.proofInkVisible).toBe(false);
-        expect(visual.proofTransitionActive).toBe(false);
         expect(visual.proofBackgroundImage).toBe('none');
         expect(visual.proofGroundBackgroundImage).not.toBe('none');
         expect(visual.proofArchArea).toBeGreaterThan(100_000);

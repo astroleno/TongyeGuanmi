@@ -45,7 +45,7 @@ async function snapshot(page: Page): Promise<Group6Snapshot> {
 
 type Group6VisualSnapshot = {
   activeInkSegments: readonly string[];
-  shaderBodyInkSegments: readonly string[];
+  fieldInkSegments: readonly string[];
   transitions: readonly string[];
   phProgress: number;
   phBgTransform: string;
@@ -85,8 +85,8 @@ async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
       activeInkSegments: inkCanvases
         .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
-      shaderBodyInkSegments: inkCanvases
-        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
+      fieldInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkRenderer === 'field' && canvas.dataset.r4InkEffectOnly === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
@@ -160,10 +160,10 @@ test.describe('R4 group6 lab ph education harness', () => {
         && visual.transitions.includes('lab-ph-top-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
-        && visual.revealMode === 'ink-body'
-        && visual.revealClip === 'none'
+        && visual.revealMode === 'ink-occluded-live-gate'
+        && visual.revealClip.startsWith('inset(')
         && visual.revealMask === 'none'
-        && visual.shaderBodyInkSegments.includes('lab-ph')
+        && visual.fieldInkSegments.includes('lab-ph')
         && visual.phProgress === 0;
     }
     expect(sawLabPhReveal).toBe(true);
@@ -210,8 +210,8 @@ test.describe('R4 group6 lab ph education harness', () => {
       const evidenceWindow = window as Window & {
         __phEducationInkEvidence?: {
           segment: string;
-          boundary: string;
-          targetReady: string;
+          renderer: string;
+          effectOnly: string;
           mode: string;
           clip: string;
           mask: string;
@@ -229,15 +229,15 @@ test.describe('R4 group6 lab ph education harness', () => {
         const revealProgress = Number.parseFloat(receiver?.dataset.r4RevealProgress ?? '0');
         if (
           canvas?.dataset.r4InkActive === 'true'
-          && receiver?.dataset.r4RevealMode === 'ink-body'
+          && receiver?.dataset.r4RevealMode === 'ink-occluded-live-gate'
           && revealProgress > 0
           && revealProgress < 1
         ) {
           const style = window.getComputedStyle(receiver);
           evidenceWindow.__phEducationInkEvidence = {
             segment: canvas.dataset.r4InkSegment ?? '',
-            boundary: canvas.dataset.r4InkBoundary ?? '',
-            targetReady: canvas.dataset.r4InkTargetReady ?? '',
+            renderer: canvas.dataset.r4InkRenderer ?? '',
+            effectOnly: canvas.dataset.r4InkEffectOnly ?? '',
             mode: receiver.dataset.r4RevealMode ?? '',
             clip: style.clipPath,
             mask: style.maskImage,
@@ -263,10 +263,10 @@ test.describe('R4 group6 lab ph education harness', () => {
     ).__phEducationInkEvidence);
     expect(phEducationInkEvidence).toMatchObject({
       segment: 'ph-education',
-      boundary: 'shader-body',
-      targetReady: 'true',
-      mode: 'ink-body',
-      clip: 'none',
+      renderer: 'field',
+      effectOnly: 'true',
+      mode: 'ink-occluded-live-gate',
+      clip: expect.stringMatching(/^inset\(/),
       mask: 'none',
       transition: 'ph-education-top-ink',
       phProgress: '1.0000',

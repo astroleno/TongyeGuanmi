@@ -45,7 +45,7 @@ async function snapshot(page: Page): Promise<Group4Snapshot> {
 
 type Group4VisualSnapshot = {
   activeInkSegments: readonly string[];
-  shaderBodyInkSegments: readonly string[];
+  fieldInkSegments: readonly string[];
   transitions: readonly string[];
   figure3Progress: number;
   figure3VideoOpacity: number;
@@ -82,8 +82,8 @@ async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
       activeInkSegments: inkCanvases
         .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
-      shaderBodyInkSegments: inkCanvases
-        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
+      fieldInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkRenderer === 'field' && canvas.dataset.r4InkEffectOnly === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
@@ -150,14 +150,14 @@ test.describe('R4 group4 brand figure3 services harness', () => {
         && visual.transitions.includes('brand-figure3-bottom-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
-        && visual.revealMode === 'ink-body'
-        && visual.revealClip === 'none'
+        && visual.revealMode === 'ink-occluded-live-gate'
+        && visual.revealClip.startsWith('inset(')
         && visual.revealMask === 'none';
     }, { timeout: 7_000, intervals: [20, 20, 40, 80] }).toBe(true);
     const staticBrandInk = await visualSnapshot(page);
     expect(staticBrandInk.brandY).toBe(0);
     expect(staticBrandInk.brandOpacity).toBe(1);
-    expect(staticBrandInk.shaderBodyInkSegments).toContain('brand-figure3');
+    expect(staticBrandInk.fieldInkSegments).toContain('brand-figure3');
     const frames: Group4Snapshot[] = [];
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);

@@ -45,7 +45,7 @@ async function snapshot(page: Page): Promise<Group2Snapshot> {
 
 type Group2VisualSnapshot = {
   activeInkSegments: readonly string[];
-  shaderBodyInkSegments: readonly string[];
+  fieldInkSegments: readonly string[];
   transitions: readonly string[];
   inkOrigins: Record<string, { x: number; y: number }>;
   figure2Progress: number;
@@ -76,6 +76,7 @@ type Group2VisualSnapshot = {
 async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
   return page.evaluate(() => {
     const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
+    const retainedArch = document.querySelector<HTMLElement>('.stage-proof-retained-arch');
     const methodLayer = document.querySelector<HTMLElement>('[data-stage-layer="method-top"]');
     const methodScrollport = methodLayer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]');
     const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
@@ -87,22 +88,21 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
       activeInkSegments: inkCanvases
         .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
-      shaderBodyInkSegments: inkCanvases
-        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
+      fieldInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkRenderer === 'field' && canvas.dataset.r4InkEffectOnly === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
-      inkOrigins: Object.fromEntries(inkCanvases.map((canvas) => [
-        canvas.dataset.r4InkSegment ?? '',
-        {
-          x: Number.parseFloat(canvas.dataset.inkOriginX ?? 'NaN'),
-          y: Number.parseFloat(canvas.dataset.inkOriginY ?? 'NaN')
-        }
-      ])),
+      inkOrigins: Object.fromEntries(inkCanvases.map((canvas) => {
+        const [x, y] = (canvas.dataset.r4InkBoundaryOrigin ?? '').split(',').map(Number.parseFloat);
+        return [canvas.dataset.r4InkSegment ?? '', { x: x ?? Number.NaN, y: y ?? Number.NaN }];
+      })),
       figure2Progress: Number.parseFloat(figureRoot?.dataset.figure2Progress ?? '0'),
       cloudScale: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-cloud-scale') ?? '0'),
       farArcadeScale: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-far-arcade-scale') ?? '0'),
-      nearArchBlurPx: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-near-arch-blur') ?? '0'),
+      nearArchBlurPx: Number.parseFloat(
+        retainedArch ? window.getComputedStyle(retainedArch).getPropertyValue('--r4-figure2-near-arch-blur') : '0'
+      ),
       figureScale: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-figure-scale') ?? '0'),
       figureWidth: figureRect?.width ?? 0,
       farArcadeImageCount: document.querySelectorAll('.r4-figure2__far-arcade img').length,
@@ -189,9 +189,9 @@ test.describe('R4 group2 canonical spine harness', () => {
     await expect.poll(async () => {
       const visual = await visualSnapshot(page);
       const matches = visual.activeInkSegments.includes('method-bottom-figure2')
-        && visual.shaderBodyInkSegments.includes('method-bottom-figure2')
-        && visual.figure2LayerRevealMode === 'ink-body'
-        && visual.figure2LayerClipPath === 'none'
+        && visual.fieldInkSegments.includes('method-bottom-figure2')
+        && visual.figure2LayerRevealMode === 'ink-occluded-live-gate'
+        && visual.figure2LayerClipPath.startsWith('inset(')
         && visual.figure2Progress === 0;
       if (matches) methodFigureInk = visual;
       return matches;
@@ -200,11 +200,11 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(methodFigureInk.activeInkSegments).toContain('method-bottom-figure2');
     expect(methodFigureInk.figure2LayerElevated).toBe(true);
     expect(methodFigureInk.figure2LayerZ).toBeGreaterThan(methodFigureInk.methodLayerZ);
-    expect(methodFigureInk.figure2LayerClipPath).toBe('none');
-    expect(methodFigureInk.figure2LayerRevealMode).toBe('ink-body');
-    expect(methodFigureInk.shaderBodyInkSegments).toContain('method-bottom-figure2');
+    expect(methodFigureInk.figure2LayerClipPath.startsWith('inset(')).toBe(true);
+    expect(methodFigureInk.figure2LayerRevealMode).toBe('ink-occluded-live-gate');
+    expect(methodFigureInk.fieldInkSegments).toContain('method-bottom-figure2');
     expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
-    expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1.04, 2);
+    expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1, 2);
     expect(methodFigureInk.figure2Progress).toBe(0);
     expect(methodFigureInk.videos).toHaveLength(2);
     expect(methodFigureInk.videos.every((video) => video.loop === false)).toBe(true);

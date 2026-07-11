@@ -45,7 +45,7 @@ async function snapshot(page: Page): Promise<Group7Snapshot> {
 
 type Group7VisualSnapshot = {
   activeInkSegments: readonly string[];
-  shaderBodyInkSegments: readonly string[];
+  fieldInkSegments: readonly string[];
   transitions: readonly string[];
   craneProgress: number;
   craneArchTransform: string;
@@ -82,8 +82,8 @@ async function visualSnapshot(page: Page): Promise<Group7VisualSnapshot> {
       activeInkSegments: inkCanvases
         .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
-      shaderBodyInkSegments: inkCanvases
-        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
+      fieldInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkRenderer === 'field' && canvas.dataset.r4InkEffectOnly === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
@@ -157,10 +157,10 @@ test.describe('R4 group7 education crane contact harness', () => {
         && visual.transitions.includes('education-crane-bottom-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
-        && visual.revealMode === 'ink-body'
-        && visual.revealClip === 'none'
+        && visual.revealMode === 'ink-occluded-live-gate'
+        && visual.revealClip.startsWith('inset(')
         && visual.revealMask === 'none'
-        && visual.shaderBodyInkSegments.includes('education-crane')
+        && visual.fieldInkSegments.includes('education-crane')
         && visual.craneProgress === 0
         && visual.cranePlaybackActive !== 'true';
     }

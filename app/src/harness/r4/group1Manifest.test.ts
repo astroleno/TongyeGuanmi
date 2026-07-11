@@ -34,8 +34,11 @@ describe('R4 group1 harness manifest', () => {
     expect(group1E2eSource).toContain('patternProgress).toBe(1)');
     expect(group1E2eSource).not.toContain('toBeCloseTo(0.74');
     expect(group1E2eSource).not.toContain('starMapCanvasMotionActive).toBe(false)');
-    expect(group1E2eSource).not.toContain("ClipPath).toContain('circle(')");
-    expect(group1E2eSource).toContain("ClipPath).toContain('polygon(')");
+    expect(group1E2eSource).not.toContain("ClipPath).toContain('polygon(')");
+    expect(group1E2eSource).toContain("ClipPath).toContain('circle(')");
+    expect(group1E2eSource).not.toContain('[data-pattern-rotor]');
+    expect(group1E2eSource).not.toContain('patternRotorTransforms');
+    expect(group1E2eSource).toContain('patternFieldRotationDegrees).toBeCloseTo(120');
     expect(group1E2eSource).toContain('patternCopyOpacity).toBeCloseTo(0.96');
     expect(group1E2eSource).toContain("starMapCanvasFilter).toContain('brightness(0.92)')");
     expect(group1E2eSource).toContain('starMapCanvasMotionActive).toBe(true)');

@@ -45,7 +45,7 @@ async function snapshot(page: Page): Promise<Group5Snapshot> {
 
 type Group5VisualSnapshot = {
   activeInkSegments: readonly string[];
-  shaderBodyInkSegments: readonly string[];
+  fieldInkSegments: readonly string[];
   transitions: readonly string[];
   ttgProgress: number;
   ttgBgTransform: string;
@@ -81,8 +81,8 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
       activeInkSegments: inkCanvases
         .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
-      shaderBodyInkSegments: inkCanvases
-        .filter((canvas) => canvas.dataset.r4InkBoundary === 'shader-body' && canvas.dataset.r4InkTargetReady === 'true')
+      fieldInkSegments: inkCanvases
+        .filter((canvas) => canvas.dataset.r4InkRenderer === 'field' && canvas.dataset.r4InkEffectOnly === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
@@ -153,10 +153,10 @@ test.describe('R4 group5 services ttg lab harness', () => {
         && visual.transitions.includes('services-ttg-bottom-ink')
         && visual.revealProgress > 0
         && visual.revealProgress < 1
-        && visual.revealMode === 'ink-body'
-        && visual.revealClip === 'none'
+        && visual.revealMode === 'ink-occluded-live-gate'
+        && visual.revealClip.startsWith('inset(')
         && visual.revealMask === 'none'
-        && visual.shaderBodyInkSegments.includes('services-ttg')
+        && visual.fieldInkSegments.includes('services-ttg')
         && visual.ttgProgress === 0;
     }
     expect(sawServicesTtgReveal).toBe(true);
@@ -194,8 +194,8 @@ test.describe('R4 group5 services ttg lab harness', () => {
       const evidenceWindow = window as Window & {
         __ttgLabInkEvidence?: {
           segment: string;
-          boundary: string;
-          targetReady: string;
+          renderer: string;
+          effectOnly: string;
           mode: string;
           clip: string;
           mask: string;
@@ -209,12 +209,15 @@ test.describe('R4 group5 services ttg lab harness', () => {
         const canvas = document.querySelector<HTMLCanvasElement>('[data-r4-ink-segment="ttg-lab"]');
         const receiver = document.querySelector<HTMLElement>('[data-stage-layer="lab"]');
         const ttg = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
-        if (canvas?.dataset.r4InkActive === 'true' && receiver?.dataset.r4RevealMode === 'ink-body') {
+        if (
+          canvas?.dataset.r4InkActive === 'true'
+          && receiver?.dataset.r4RevealMode === 'ink-occluded-live-gate'
+        ) {
           const style = window.getComputedStyle(receiver);
           evidenceWindow.__ttgLabInkEvidence = {
             segment: canvas.dataset.r4InkSegment ?? '',
-            boundary: canvas.dataset.r4InkBoundary ?? '',
-            targetReady: canvas.dataset.r4InkTargetReady ?? '',
+            renderer: canvas.dataset.r4InkRenderer ?? '',
+            effectOnly: canvas.dataset.r4InkEffectOnly ?? '',
             mode: receiver.dataset.r4RevealMode ?? '',
             clip: style.clipPath,
             mask: style.maskImage,
@@ -239,10 +242,10 @@ test.describe('R4 group5 services ttg lab harness', () => {
     ).__ttgLabInkEvidence);
     expect(ttgLabInkEvidence).toEqual({
       segment: 'ttg-lab',
-      boundary: 'shader-body',
-      targetReady: 'true',
-      mode: 'ink-body',
-      clip: 'none',
+      renderer: 'field',
+      effectOnly: 'true',
+      mode: 'ink-occluded-live-gate',
+      clip: expect.stringMatching(/^inset\(/),
       mask: 'none',
       transition: 'ttg-lab-top-ink',
       ttgProgress: '1.0000',
