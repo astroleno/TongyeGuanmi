@@ -8,28 +8,41 @@ import type {
   TransitionModule
 } from '../../story/types';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from './layerElevation';
-import { createCurtainInkRenderer, mountTransitionInkCanvas, type CurtainInkRenderer } from './sceneInk';
+import {
+  createBoundaryInkRenderer,
+  mountTransitionInkCanvas,
+  type BoundaryInkRenderer
+} from './sceneInk';
+import {
+  createInkBoundaryFrame,
+  type InkBoundaryFrame,
+  type InkBoundarySpec
+} from './inkBoundary';
 import { positionReadingAtEdge } from '../../stage/reading';
 
-export type InkOrigin = {
-  x: number;
-  y: number;
-};
+export type InkBoundaryRoots = Readonly<{
+  from: HTMLElement | null;
+  to: HTMLElement | null;
+  stage: HTMLElement | null;
+}>;
+
+export type InkBoundarySurfaces = Readonly<{
+  reveal?: readonly HTMLElement[];
+  conceal?: readonly HTMLElement[];
+}>;
 
 export type InkSegmentOptions = {
   id: SegmentId;
-  origin: InkOrigin;
+  boundary: InkBoundarySpec | ((roots: InkBoundaryRoots) => InkBoundarySpec);
+  boundaryProgress?: (progress: number) => number;
+  boundarySurfaces?: (roots: InkBoundaryRoots) => InkBoundarySurfaces;
   delayMs?: (() => number) | undefined;
   canvasHost?: 'from' | 'to' | 'stage';
   elevateTarget?: boolean;
-  clipTarget?: boolean;
-  revealMode?: 'live-clip';
   sample?: (progress: number) => InkSample;
   prepareEndpoints(roots: InkEndpointRoots): void;
   renderSource?: (root: HTMLElement | null, progress: number) => void;
   renderSourceProgress?: 'static' | 'remaining' | 'forward' | ((progress: number) => number);
-  clipProgress?: (progress: number) => number;
-  inkProgress?: (progress: number) => number;
   rootSelector?: (scene: string) => string;
   transitionAttr?: string;
   stops?: readonly number[];
@@ -154,36 +167,67 @@ function canvasHost(context: TransitionContext, host: InkSegmentOptions['canvasH
   return sharedStageHost(context) ?? context.to.element ?? context.from.element ?? null;
 }
 
-function targetClipPath(origin: InkOrigin, progress: number): string {
-  const p = clamp(progress);
-  if (p >= 0.999) {
-    return '';
-  }
-  if (origin.y >= 0.98) {
-    return `inset(${((1 - p) * 100).toFixed(3)}% 0 0 0)`;
-  }
-  if (origin.y <= 0.02) {
-    return `inset(0 0 ${((1 - p) * 100).toFixed(3)}% 0)`;
-  }
-  return `circle(${(p * 142).toFixed(3)}% at ${(origin.x * 100).toFixed(3)}% ${(origin.y * 100).toFixed(3)}%)`;
+function viewportFor(element: HTMLElement | null): Readonly<{ width: number; height: number }> {
+  const rect = element?.getBoundingClientRect?.();
+  const windowWidth = typeof window === 'undefined' ? 1440 : window.innerWidth;
+  const windowHeight = typeof window === 'undefined' ? 900 : window.innerHeight;
+  return {
+    width: rect?.width || element?.clientWidth || windowWidth || 1440,
+    height: rect?.height || element?.clientHeight || windowHeight || 900
+  };
 }
 
-function clearTargetReveal(element: HTMLElement | null | undefined): void {
+function clearBoundaryGeometry(element: HTMLElement | null | undefined): void {
   if (!element) {
     return;
   }
+  element.style.clipPath = '';
   element.style.removeProperty('clip-path');
   element.style.removeProperty('-webkit-clip-path');
-  element.style.removeProperty('mask-image');
-  element.style.removeProperty('-webkit-mask-image');
-  element.style.removeProperty('mask-size');
-  element.style.removeProperty('-webkit-mask-size');
-  element.style.removeProperty('mask-repeat');
-  element.style.removeProperty('-webkit-mask-repeat');
-  element.style.removeProperty('mask-mode');
-  element.style.removeProperty('--r4-ink-reveal-edge');
   element.removeAttribute('data-r4-reveal-progress');
   element.removeAttribute('data-r4-reveal-mode');
+  element.removeAttribute('data-r4-ink-boundary-kind');
+  element.removeAttribute('data-r4-ink-boundary-origin');
+  element.removeAttribute('data-r4-ink-boundary-progress');
+  element.removeAttribute('data-r4-ink-boundary-revision');
+}
+
+function applyBoundaryGeometry(
+  element: HTMLElement,
+  frame: InkBoundaryFrame,
+  clipPath: string
+): void {
+  element.style.clipPath = clipPath;
+  element.style.setProperty('-webkit-clip-path', clipPath);
+  element.dataset.r4InkBoundaryKind = frame.kind;
+  element.dataset.r4InkBoundaryOrigin = `${frame.origin.x.toFixed(4)},${frame.origin.y.toFixed(4)}`;
+  element.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
+  element.dataset.r4InkBoundaryRevision = frame.revision;
+}
+
+function applyRevealBoundary(element: HTMLElement, frame: InkBoundaryFrame): void {
+  if (frame.progress >= 0.999) {
+    clearBoundaryGeometry(element);
+    return;
+  }
+  applyBoundaryGeometry(element, frame, frame.revealClipPath);
+  element.dataset.r4RevealProgress = frame.progress.toFixed(4);
+  element.dataset.r4RevealMode = 'live-clip';
+}
+
+function applyConcealBoundary(element: HTMLElement, frame: InkBoundaryFrame): void {
+  if (frame.progress <= 0.001) {
+    element.style.visibility = 'visible';
+    clearBoundaryGeometry(element);
+    return;
+  }
+  if (frame.progress >= 0.999 || !frame.concealClipPath) {
+    element.style.visibility = 'hidden';
+    clearBoundaryGeometry(element);
+    return;
+  }
+  element.style.visibility = 'visible';
+  applyBoundaryGeometry(element, frame, frame.concealClipPath);
 }
 
 class InkSegmentTimeline implements SegmentTimelineHandle {
@@ -194,7 +238,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private disposed = false;
   private animationFrame = 0;
   private readonly canvas: HTMLCanvasElement | null;
-  private readonly inkRenderer: CurtainInkRenderer | null;
+  private readonly inkRenderer: BoundaryInkRenderer | null;
+  private readonly boundarySpec: InkBoundarySpec;
   private readonly elevation: TransitionLayerElevation | null;
   private readonly attrsElement: HTMLElement | null;
   private readonly surfaceHost: HTMLElement | null;
@@ -203,6 +248,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private endpointsPrepared = false;
   private preparedFromRoot: HTMLElement | null = null;
   private preparedToRoot: HTMLElement | null = null;
+  private readonly revealSurfaces = new Set<HTMLElement>();
+  private readonly concealSurfaces = new Set<HTMLElement>();
 
   constructor(
     private readonly context: TransitionContext,
@@ -224,16 +271,19 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         ? surfaceHost
         : context.to.element;
     this.canvas = mountTransitionInkCanvas(surfaceHost, options.id, {
-      renderer: 'curtain',
-      origin: options.origin,
+      renderer: 'boundary',
       preset: 'cinematic-color'
     });
-    this.inkRenderer = createCurtainInkRenderer(this.canvas, {
-      direction: options.origin.y >= 0.5 ? 'bottom-up' : 'top-down'
-    });
     this.elevation = options.elevateTarget === false ? null : createTransitionLayerElevation(context.to.element);
-    this.inkRenderer?.prewarm();
     this.ensureEndpointsPrepared();
+    const roots = this.boundaryRoots();
+    this.boundarySpec = typeof options.boundary === 'function'
+      ? options.boundary(roots)
+      : options.boundary;
+    this.inkRenderer = createBoundaryInkRenderer(this.canvas);
+    this.inkRenderer?.prewarm(
+      createInkBoundaryFrame(this.boundarySpec, 0.003, viewportFor(surfaceHost))
+    );
     this.progress(context.direction === 1 ? 0 : 1);
   }
 
@@ -262,8 +312,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     }
     const clamped = clamp(value);
     const sample = this.options.sample?.(clamped) ?? sampleInk(clamped);
-    const clipProgress = clamp(this.options.clipProgress?.(clamped) ?? clamped);
-    const inkProgress = clamp(this.options.inkProgress?.(clamped) ?? clipProgress);
+    const boundaryProgress = clamp(this.options.boundaryProgress?.(clamped) ?? clamped);
     this.progressValue = clamped;
     applyLayerVisibility(this.context.from, sample.from);
     applyLayerVisibility(this.context.to, sample.to);
@@ -289,40 +338,55 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     }
     const sourceProgress = mappedProgress(this.options.renderSourceProgress, clamped, 'static');
     this.options.renderSource?.(fromRoot, sourceProgress);
-    if (this.options.clipTarget !== false && liveToElement) {
-      const revealActive = clipProgress > 0.002 && clipProgress < 0.999;
-      liveToElement.style.removeProperty('mask-image');
-      liveToElement.style.removeProperty('-webkit-mask-image');
-      const clipPath = targetClipPath(this.options.origin, clipProgress);
-      if (clipPath) {
-        liveToElement.style.clipPath = clipPath;
-        liveToElement.style.setProperty('-webkit-clip-path', clipPath);
-      } else {
-        liveToElement.style.removeProperty('clip-path');
-        liveToElement.style.removeProperty('-webkit-clip-path');
+    const frame = createInkBoundaryFrame(
+      this.boundarySpec,
+      boundaryProgress,
+      viewportFor(activeSurfaceHost)
+    );
+    const roots = this.boundaryRoots(fromRoot, toRoot, activeSurfaceHost);
+    const surfaces = this.options.boundarySurfaces?.(roots) ?? {};
+    const revealSurfaces = new Set(
+      [liveToElement, ...(surfaces.reveal ?? [])].filter(
+        (element): element is HTMLElement => Boolean(element)
+      )
+    );
+    const concealSurfaces = new Set(
+      [...(surfaces.conceal ?? [])].filter(
+        (element): element is HTMLElement => Boolean(element)
+      )
+    );
+    this.replaceManagedSurfaces(this.revealSurfaces, revealSurfaces, clearBoundaryGeometry);
+    this.replaceManagedSurfaces(this.concealSurfaces, concealSurfaces, (element) => {
+      clearBoundaryGeometry(element);
+      if (boundaryProgress <= 0.001) {
+        element.style.visibility = 'visible';
+      } else if (boundaryProgress >= 0.999) {
+        element.style.visibility = 'hidden';
       }
-      if (revealActive) {
-        liveToElement.dataset.r4RevealProgress = clipProgress.toFixed(4);
-        liveToElement.dataset.r4RevealMode = 'live-clip';
-      } else {
-        liveToElement.removeAttribute('data-r4-reveal-progress');
-        liveToElement.removeAttribute('data-r4-reveal-mode');
-      }
+    });
+    for (const element of revealSurfaces) {
+      applyRevealBoundary(element, frame);
+    }
+    for (const element of concealSurfaces) {
+      applyConcealBoundary(element, frame);
     }
     const liveAttrsElement = this.options.canvasHost === 'from'
       ? liveFromElement
       : this.options.canvasHost === 'stage'
         ? activeSurfaceHost
-        : liveToElement;
+         : liveToElement;
     liveAttrsElement?.setAttribute('data-r4-transition', this.options.transitionAttr ?? this.options.id);
-    liveAttrsElement?.setAttribute('data-r4-ink-active', String(inkProgress > 0.002 && inkProgress < 0.999));
-    liveAttrsElement?.setAttribute('data-r4-clip-progress', clipProgress.toFixed(4));
-    liveAttrsElement?.setAttribute('data-r4-ink-progress', inkProgress.toFixed(4));
+    liveAttrsElement?.setAttribute('data-r4-ink-active', String(boundaryProgress > 0.002 && boundaryProgress < 0.999));
+    liveAttrsElement?.setAttribute('data-r4-ink-progress', boundaryProgress.toFixed(4));
     if (this.canvas) {
-      this.canvas.dataset.r4InkActive = String(inkProgress > 0.002 && inkProgress < 0.999);
-      this.canvas.dataset.r4InkProgress = inkProgress.toFixed(4);
+      this.canvas.dataset.r4InkActive = String(boundaryProgress > 0.002 && boundaryProgress < 0.999);
+      this.canvas.dataset.r4InkProgress = boundaryProgress.toFixed(4);
+      this.canvas.dataset.r4InkBoundaryKind = frame.kind;
+      this.canvas.dataset.r4InkBoundaryOrigin = `${frame.origin.x.toFixed(4)},${frame.origin.y.toFixed(4)}`;
+      this.canvas.dataset.r4InkBoundaryProgress = boundaryProgress.toFixed(4);
+      this.canvas.dataset.r4InkBoundaryRevision = frame.revision;
     }
-    this.inkRenderer?.render(inkProgress);
+    this.inkRenderer?.render(frame);
     if (this.options.reportTimelineReadyAt !== undefined && clamped >= this.options.reportTimelineReadyAt) {
       this.context.reportMilestone({
         key: 'timelineReady',
@@ -367,21 +431,33 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.canvas?.remove();
     this.elevation?.restore();
     this.liveElevation?.restore();
-    clearTargetReveal(this.context.to.element);
     const liveFromElement = liveLayerElement(this.context.from);
     const liveToElement = liveLayerElement(this.context.to);
     const activeSurfaceHost = liveStageHost(this.context, this.surfaceHost);
-    clearTargetReveal(liveToElement);
+    for (const element of this.revealSurfaces) {
+      clearBoundaryGeometry(element);
+    }
+    for (const element of this.concealSurfaces) {
+      if (this.progressValue >= 0.999) {
+        element.style.visibility = 'hidden';
+      } else if (this.progressValue <= 0.001) {
+        element.style.visibility = 'visible';
+      }
+      clearBoundaryGeometry(element);
+    }
+    this.revealSurfaces.clear();
+    this.concealSurfaces.clear();
+    clearBoundaryGeometry(this.context.to.element);
+    clearBoundaryGeometry(liveToElement);
     const liveAttrsElement = this.options.canvasHost === 'from'
       ? liveFromElement
       : this.options.canvasHost === 'stage'
         ? activeSurfaceHost
         : liveToElement;
     for (const element of new Set([this.attrsElement, liveAttrsElement])) {
-      clearTargetReveal(element);
+      clearBoundaryGeometry(element);
       element?.removeAttribute('data-r4-transition');
       element?.removeAttribute('data-r4-ink-active');
-      element?.removeAttribute('data-r4-clip-progress');
       element?.removeAttribute('data-r4-ink-progress');
     }
   }
@@ -407,6 +483,30 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.preparedFromRoot = fromRoot;
     this.preparedToRoot = toRoot;
     this.endpointsPrepared = true;
+  }
+
+  private boundaryRoots(
+    from = sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.options.rootSelector),
+    to = sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.options.rootSelector),
+    stage = liveStageHost(this.context, this.surfaceHost)
+  ): InkBoundaryRoots {
+    return { from, to, stage };
+  }
+
+  private replaceManagedSurfaces(
+    managed: Set<HTMLElement>,
+    next: Set<HTMLElement>,
+    release: (element: HTMLElement) => void
+  ): void {
+    for (const element of managed) {
+      if (!next.has(element)) {
+        release(element);
+        managed.delete(element);
+      }
+    }
+    for (const element of next) {
+      managed.add(element);
+    }
   }
 
   private animateTo(target: number): Promise<void> {

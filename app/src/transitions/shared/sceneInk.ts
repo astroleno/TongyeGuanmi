@@ -1,33 +1,32 @@
 import {
-  createInkCurtainTransition,
-  type InkCurtainTransition,
-  type InkCurtainTransitionOptions,
+  createInkBoundaryTransition,
+  type InkBoundaryTransition,
+  type InkBoundaryTransitionOptions,
 } from '../../vendor/ink-scene-transition.js';
+import type { InkBoundaryFrame } from './inkBoundary';
 
-export type CurtainInkOptions = InkCurtainTransitionOptions;
+export type BoundaryInkOptions = InkBoundaryTransitionOptions;
 
-export type CurtainInkRenderer = {
-  render(progress: number): void;
-  prewarm(): void;
+export type BoundaryInkRenderer = {
+  render(frame: InkBoundaryFrame): void;
+  prewarm(frame: InkBoundaryFrame): void;
   destroy(): void;
 };
 
 export type TransitionInkCanvasOptions = {
-  renderer: 'curtain';
-  origin: { x: number; y: number };
+  renderer: 'boundary';
   preset?: 'cinematic-color';
   className?: string;
 };
 
-const CINEMATIC_CURTAIN_PRESET = Object.freeze({
+const CINEMATIC_BOUNDARY_PRESET = Object.freeze({
   colorLift: 0.92,
   particleStrength: 1,
   coverAlpha: 0.82,
   fadeOutStart: 0.78,
   fadeOutEnd: 0.995,
-  progressSpan: 1,
   dprLimit: 1
-}) satisfies InkCurtainTransitionOptions;
+}) satisfies InkBoundaryTransitionOptions;
 
 function markCinematicPreset(
   canvas: HTMLCanvasElement,
@@ -74,28 +73,29 @@ export function mountTransitionInkCanvas(
   canvas.dataset.r4InkEffectOnly = 'true';
   canvas.dataset.r4InkRenderer = options.renderer;
   canvas.dataset.r4InkPreset = options.preset ?? 'cinematic-color';
-  canvas.dataset.inkOriginX = options.origin.x.toFixed(3);
-  canvas.dataset.inkOriginY = options.origin.y.toFixed(3);
   canvas.setAttribute('aria-hidden', 'true');
   host.append(canvas);
   return canvas;
 }
 
-export function createCurtainInkRenderer(canvas: HTMLCanvasElement | null, options: CurtainInkOptions = {}): CurtainInkRenderer | null {
-  const resolvedOptions: InkCurtainTransitionOptions = {
-    ...CINEMATIC_CURTAIN_PRESET,
+export function createBoundaryInkRenderer(
+  canvas: HTMLCanvasElement | null,
+  options: BoundaryInkOptions = {}
+): BoundaryInkRenderer | null {
+  const resolvedOptions: InkBoundaryTransitionOptions = {
+    ...CINEMATIC_BOUNDARY_PRESET,
     ...options
   };
   if (canvas) {
     markCinematicPreset(
       canvas,
-      'curtain',
-      resolvedOptions.colorLift ?? CINEMATIC_CURTAIN_PRESET.colorLift,
-      resolvedOptions.particleStrength ?? CINEMATIC_CURTAIN_PRESET.particleStrength,
-      resolvedOptions.dprLimit ?? CINEMATIC_CURTAIN_PRESET.dprLimit
+      'boundary',
+      resolvedOptions.colorLift ?? CINEMATIC_BOUNDARY_PRESET.colorLift,
+      resolvedOptions.particleStrength ?? CINEMATIC_BOUNDARY_PRESET.particleStrength,
+      resolvedOptions.dprLimit ?? CINEMATIC_BOUNDARY_PRESET.dprLimit
     );
   }
-  const transition: InkCurtainTransition | null = createInkCurtainTransition(canvas, resolvedOptions);
+  const transition: InkBoundaryTransition | null = createInkBoundaryTransition(canvas, resolvedOptions);
   if (!canvas || !transition) {
     return null;
   }
@@ -103,19 +103,22 @@ export function createCurtainInkRenderer(canvas: HTMLCanvasElement | null, optio
   let destroyed = false;
 
   return {
-    render(progress: number) {
+    render(frame: InkBoundaryFrame) {
       if (destroyed) {
         return;
       }
-      transition.render(progress, 0, 0);
+      transition.render(frame, 0, 0);
     },
-    prewarm() {
+    prewarm(frame: InkBoundaryFrame) {
       if (destroyed) {
         return;
       }
-      transition.prewarm();
+      transition.prewarm(frame);
     },
     destroy() {
+      if (destroyed) {
+        return;
+      }
       destroyed = true;
       transition.destroy();
       canvas.remove();

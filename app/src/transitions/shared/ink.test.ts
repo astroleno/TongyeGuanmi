@@ -145,8 +145,7 @@ describe('shared ink transition surface', () => {
     };
     const options = {
       id: 'services-ttg',
-      origin: { x: 0.5, y: 1.04 },
-      clipTarget: false,
+      boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
       prepareEndpoints: (roots: { from: HTMLElement | null; to: HTMLElement | null }) => prepared.push(roots),
       renderSource: (_root: HTMLElement | null, progress: number) => sourceProgress.push(progress),
       renderSourceProgress: 'forward'
@@ -203,8 +202,7 @@ describe('shared ink transition surface', () => {
     };
     const transition = createInkSegmentTransition({
       id: 'services-ttg',
-      origin: { x: 0.5, y: 1.04 },
-      clipTarget: false,
+      boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
       prepareEndpoints: () => {
         fromProgress.push(1);
         toProgress.push(1);
@@ -226,6 +224,8 @@ describe('shared ink transition surface', () => {
     stage.append(fromElement);
     stage.append(toElement);
     const canvas = new FakeCanvas();
+    const revealSurface = new FakeElement();
+    const concealSurface = new FakeElement();
     vi.stubGlobal('document', { createElement: () => canvas });
     const segment = {
       kind: 'segment',
@@ -248,8 +248,11 @@ describe('shared ink transition surface', () => {
     };
     const transition = createInkSegmentTransition({
       id: 'services-ttg',
-      origin: { x: 0.5, y: 1.04 },
-      revealMode: 'live-clip',
+      boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+      boundarySurfaces: () => ({
+        conceal: [concealSurface as unknown as HTMLElement],
+        reveal: [revealSurface as unknown as HTMLElement]
+      }),
       prepareEndpoints: () => undefined
     });
 
@@ -282,6 +285,10 @@ describe('shared ink transition surface', () => {
     expect(toElement.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(toElement.dataset.r4InkBoundaryProgress).toBe('0.7500');
     expect(canvas.dataset.r4InkBoundaryRevision).toBe(toElement.dataset.r4InkBoundaryRevision);
+    expect(revealSurface.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(concealSurface.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
+    expect(concealSurface.style.clipPath).toMatch(/^polygon\(/);
     expect(canvas.dataset.r4InkTargetReady).toBeUndefined();
     expect(timeline.sample?.(0.99)).toMatchObject({
       from: { visible: true, opacity: 1 },
@@ -300,6 +307,12 @@ describe('shared ink transition surface', () => {
       presentationSymmetric: true,
       effectOnlyCanvas: true
     });
+    timeline.progress(1);
+    expect(toElement.style.clipPath ?? '').toBe('');
+    expect(concealSurface.style.visibility).toBe('hidden');
+    expect(concealSurface.style.clipPath ?? '').toBe('');
+    timeline.progress(0);
+    expect(concealSurface.style.visibility).toBe('visible');
     timeline.dispose();
     expect(canvas.parentElement).toBeNull();
   });
@@ -323,8 +336,7 @@ describe('shared ink transition surface', () => {
       const to = layer('ttg-animation', 'next', toElement);
       return createInkSegmentTransition({
         id: 'services-ttg',
-        origin: { x: 0.5, y: 1.04 },
-        revealMode: 'live-clip',
+        boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
         prepareEndpoints: () => undefined
       }).buildTimeline({
         segment,
@@ -393,8 +405,7 @@ describe('shared ink transition surface', () => {
     };
     const transition = createInkSegmentTransition({
       id: 'services-ttg',
-      origin: { x: 0.5, y: 1.04 },
-      clipTarget: false,
+      boundary: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
       prepareEndpoints: () => undefined,
       renderSource: (_root, progress) => renderedProgress.push(progress),
       renderSourceProgress: 'forward'
