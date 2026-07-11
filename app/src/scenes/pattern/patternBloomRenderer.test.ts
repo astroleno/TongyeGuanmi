@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PatternBloomRenderer } from './patternBloomRenderer';
+import {
+  PatternBloomRenderer,
+  patternLayerDirections,
+  patternLayerIds,
+  patternSourceFlowerScale
+} from './patternBloomRenderer';
 
 class FakeCanvasContext {
   private filterValue = 'none';
@@ -114,6 +119,12 @@ afterEach(() => {
 });
 
 describe('PatternBloomRenderer', () => {
+  it('uses all five authored layers and the compact 010 flower directions', () => {
+    expect(patternLayerIds()).toEqual(['06', '05', '04', '03', '02']);
+    expect(patternLayerDirections()).toEqual({ '02': -1, '03': 1, '04': -1 });
+    expect(patternSourceFlowerScale()).toBeCloseTo(0.702, 3);
+  });
+
   it('prewarms ring textures while hidden without redrawing the scene during the transition', async () => {
     const harness = installRendererDom();
     const renderer = new PatternBloomRenderer(harness.canvas);
@@ -123,8 +134,9 @@ describe('PatternBloomRenderer', () => {
     expect(harness.rafCount()).toBe(1);
     expect(harness.canvas.dataset.inkTextureRevision).toBeUndefined();
     const builtRingCount = () => harness.createElement.mock.results
-      .map(({ value }) => (value as FakeCanvas).context)
-      .filter((context) => context.filteredDrawCount === 1).length;
+      .map(({ value }) => value as FakeCanvas)
+      .filter((canvas) => canvas.dataset.patternTextureRole === 'ring' && canvas.width > 0)
+      .length;
     let previousBuilt = builtRingCount();
     for (let frame = 0; frame < 8 && harness.rafCount(); frame += 1) {
       harness.flushRaf(frame * 16.67);
@@ -146,7 +158,7 @@ describe('PatternBloomRenderer', () => {
     renderer.destroy();
   });
 
-  it('caps the Pattern canvas to an 800x450 internal pixel budget at a 1280x720 viewport', async () => {
+  it('restores Main DPR at a 1280x720 viewport without exceeding the 1.25 cap', async () => {
     const harness = installRendererDom(2);
     const renderer = new PatternBloomRenderer(harness.canvas);
 
@@ -154,8 +166,8 @@ describe('PatternBloomRenderer', () => {
     renderer.setMotionEnabled(true);
     harness.flushRaf();
 
-    expect(harness.canvas.width).toBe(800);
-    expect(harness.canvas.height).toBe(450);
+    expect(harness.canvas.width).toBe(1600);
+    expect(harness.canvas.height).toBe(900);
     renderer.destroy();
   });
 
@@ -246,8 +258,9 @@ describe('PatternBloomRenderer', () => {
     }
 
     const builtRingCount = harness.createElement.mock.results
-      .map(({ value }) => (value as FakeCanvas).context)
-      .filter((context) => context.filteredDrawCount === 1).length;
+      .map(({ value }) => value as FakeCanvas)
+      .filter((canvas) => canvas.dataset.patternTextureRole === 'ring' && canvas.width > 0)
+      .length;
     expect(builtRingCount).toBe(6);
     expect(Number(harness.canvas.dataset.inkTextureRevision)).toBe(1);
     expect(harness.canvas.dataset.inkTextureReady).toBe('true');
@@ -278,17 +291,24 @@ describe('PatternBloomRenderer', () => {
     renderer.destroy();
   });
 
-  it('applies each expensive ring filter once and avoids a live full-canvas shadow blur', async () => {
+  it('keeps ring textures unfiltered and applies blur at final output size', async () => {
     const harness = installRendererDom();
     const renderer = new PatternBloomRenderer(harness.canvas);
 
     await renderer.start();
     renderer.setMotionEnabled(true);
-    harness.flushRaf();
-    const contexts = harness.createElement.mock.results.map(({ value }) => (value as FakeCanvas).context);
+    for (let frame = 0; frame < 8 && harness.rafCount(); frame += 1) {
+      harness.flushRaf(frame * 48);
+    }
+    const cacheContexts = harness.createElement.mock.results
+      .map(({ value }) => value as FakeCanvas)
+      .filter((canvas) => canvas.dataset.patternTextureRole === 'ring')
+      .map((canvas) => canvas.context);
+    const outputContext = (harness.canvas as unknown as FakeCanvas).context;
 
-    expect(Math.max(...contexts.map((context) => context.filteredDrawCount))).toBeLessThanOrEqual(3);
-    expect((harness.canvas as unknown as FakeCanvas).context.shadowBlur).toBe(0);
+    expect(Math.max(...cacheContexts.map((context) => context.filteredDrawCount))).toBe(0);
+    expect(outputContext.filteredDrawCount).toBeGreaterThanOrEqual(6);
+    expect(outputContext.shadowBlur).toBeGreaterThan(0);
     renderer.destroy();
   });
 

@@ -1,10 +1,11 @@
-const DPR_LIMIT = 0.625;
+const DPR_LIMIT = 1.25;
 const SOURCE_SIZE = 1152;
 const TAU = Math.PI * 2;
 const FINAL_ROTATION = 120 * Math.PI / 180;
+const SOURCE_FLOWER_SCALE = 0.702;
 const OUTER_KALEIDOSCOPE_SEGMENTS = 16;
-const MIN_RING_TEXTURE_SIZE = 320;
-const MAX_RING_TEXTURE_SIZE = 512;
+const MIN_RING_TEXTURE_SIZE = 640;
+const MAX_RING_TEXTURE_SIZE = 1180;
 const STRUCTURAL_FRAME_INTERVAL_MS = 1000 / 24;
 
 export const PATTERN_MOBILE_MAX_WIDTH = 760;
@@ -27,15 +28,22 @@ export const PATTERN_SOURCE_ART = {
   '06': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-06.png', import.meta.url).href
 } as const;
 
+type PatternLayerId = keyof typeof PATTERN_SOURCE_ART;
+
 type LayerConfig = {
-  id: '03' | '04';
+  id: PatternLayerId;
   src: string;
-  widthVmin: number;
+  role: 'decor' | 'petal';
+  widthVmin?: number;
+  sizeRatio?: number;
+  offsetX?: number;
+  offsetY?: number;
   baseAngle: number;
-  anchorX: number;
-  anchorY: number;
+  anchorX?: number;
+  anchorY?: number;
   direction: number;
   duration: number;
+  sourceScale?: number;
   filter?: string;
 };
 
@@ -56,6 +64,7 @@ type RingCache = {
   drawSize: number;
   rotationBase: number;
   spin: number;
+  filter: string;
 };
 
 type ObjectMetrics = {
@@ -77,19 +86,43 @@ export type PatternBloomSnapshot = {
 
 const layerConfigs: readonly LayerConfig[] = [
   {
+    id: '06',
+    src: PATTERN_SOURCE_ART['06'],
+    role: 'decor',
+    sizeRatio: 1.12,
+    offsetX: 0,
+    offsetY: -0.03,
+    baseAngle: -5,
+    direction: 1,
+    duration: 110
+  },
+  {
+    id: '05',
+    src: PATTERN_SOURCE_ART['05'],
+    role: 'decor',
+    sizeRatio: 0.66,
+    offsetX: 0.03,
+    offsetY: -0.02,
+    baseAngle: 0,
+    direction: 1,
+    duration: 96
+  },
+  {
     id: '04',
     src: PATTERN_SOURCE_ART['04'],
+    role: 'petal',
     widthVmin: 1,
     baseAngle: 22.5,
     anchorX: 835.7,
     anchorY: 469.9,
-    direction: 1,
+    direction: -1,
     duration: 42,
     filter: 'brightness(0.86) contrast(1.06)'
   },
   {
     id: '03',
     src: PATTERN_SOURCE_ART['03'],
+    role: 'petal',
     widthVmin: 1.28,
     baseAngle: 0,
     anchorX: 834.3,
@@ -97,8 +130,37 @@ const layerConfigs: readonly LayerConfig[] = [
     direction: 1,
     duration: 42,
     filter: 'brightness(0.94) contrast(1.04)'
+  },
+  {
+    id: '02',
+    src: PATTERN_SOURCE_ART['02'],
+    role: 'petal',
+    widthVmin: 1,
+    baseAngle: 0,
+    anchorX: 835.1,
+    anchorY: 463.8,
+    direction: -1,
+    duration: 76,
+    sourceScale: 1.04,
+    filter: 'brightness(0.92) contrast(1.08)'
   }
 ];
+
+export function patternLayerIds(): readonly PatternLayerId[] {
+  return layerConfigs.map((layer) => layer.id);
+}
+
+export function patternLayerDirections(): Readonly<Record<'02' | '03' | '04', number>> {
+  return {
+    '02': layerConfigs.find((layer) => layer.id === '02')?.direction ?? 0,
+    '03': layerConfigs.find((layer) => layer.id === '03')?.direction ?? 0,
+    '04': layerConfigs.find((layer) => layer.id === '04')?.direction ?? 0
+  };
+}
+
+export function patternSourceFlowerScale(): number {
+  return SOURCE_FLOWER_SCALE;
+}
 
 const bloomRings: readonly BloomRing[] = [
   { scale: 4.86, endScale: 0.08, rotation: 11.25, spin: 1.34, filter: 'blur(8px) brightness(0.58) saturate(1.14) contrast(1.12)' },
@@ -192,9 +254,9 @@ export class PatternBloomRenderer {
   private readonly context: CanvasRenderingContext2D | null;
   private readonly petalCanvas = document.createElement('canvas');
   private readonly petalContext = this.petalCanvas.getContext('2d');
+  private readonly flowerCanvas = document.createElement('canvas');
+  private readonly flowerContext = this.flowerCanvas.getContext('2d');
   private readonly ringCanvases = bloomRings.map(() => document.createElement('canvas'));
-  private readonly ringWorkCanvas = document.createElement('canvas');
-  private readonly ringWorkContext = this.ringWorkCanvas.getContext('2d');
   private width = 0;
   private height = 0;
   private dpr = 1;
@@ -206,8 +268,8 @@ export class PatternBloomRenderer {
   private framePending = false;
   private motionElapsedSeconds = 0;
   private motionStartedAt = 0;
-  private progress = 1;
-  private rotationProgress = 1;
+  private progress = 0;
+  private rotationProgress = 0;
   private layers: readonly LoadedLayer[] = [];
   private ringTextureSize = 0;
   private ringTextureIndex = 0;
@@ -216,10 +278,15 @@ export class PatternBloomRenderer {
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.context = canvas.getContext('2d', { alpha: true });
+    this.petalCanvas.dataset.patternTextureRole = 'petal-source';
+    this.flowerCanvas.dataset.patternTextureRole = 'source-flower';
+    for (const ringCanvas of this.ringCanvases) {
+      ringCanvas.dataset.patternTextureRole = 'ring';
+    }
   }
 
   async start(): Promise<void> {
-    if (!this.context || !this.petalContext) {
+    if (!this.context || !this.petalContext || !this.flowerContext) {
       return;
     }
 
@@ -238,7 +305,7 @@ export class PatternBloomRenderer {
         image
       };
     });
-    this.buildSourceTexture();
+    this.buildSourceTextures();
     this.resize();
     this.requestRender();
   }
@@ -336,9 +403,14 @@ export class PatternBloomRenderer {
     }
 
     const metrics = this.getObjectMetrics();
-    const textureSize = Math.max(384, Math.min(720, Math.round(metrics.size)));
+    const textureSize = Math.max(
+      MIN_RING_TEXTURE_SIZE,
+      Math.min(MAX_RING_TEXTURE_SIZE, Math.round(metrics.size))
+    );
     if (textureSize !== this.textureSize) {
       this.textureSize = textureSize;
+      this.flowerCanvas.width = textureSize;
+      this.flowerCanvas.height = textureSize;
       this.ringTextureSize = 0;
       this.ringTextureIndex = 0;
     }
@@ -358,7 +430,7 @@ export class PatternBloomRenderer {
     };
   }
 
-  private buildSourceTexture(): void {
+  private buildSourceTextures(): void {
     if (!this.petalContext) {
       return;
     }
@@ -367,10 +439,87 @@ export class PatternBloomRenderer {
     this.petalContext.clearRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
 
     for (const layer of this.layers) {
+      if (layer.role === 'decor' || layer.id === '02') {
+        continue;
+      }
       drawCenteredLayer(this.petalContext, layer, SOURCE_SIZE, SOURCE_SIZE / 2, SOURCE_SIZE / 2, 0.9);
     }
     this.ringTextureSize = 0;
     this.ringTextureIndex = 0;
+  }
+
+  private renderSourceFlowerTexture(phase: number): void {
+    const context = this.flowerContext;
+    const size = this.textureSize;
+    if (!context || size <= 0) {
+      return;
+    }
+    context.clearRect(0, 0, size, size);
+    for (const layer of this.layers) {
+      if (layer.role === 'decor') {
+        continue;
+      }
+      const rotationOffset = layer.direction * (phase / layer.duration) * TAU;
+      drawCenteredLayer(
+        context,
+        layer,
+        size,
+        size / 2,
+        size / 2,
+        SOURCE_FLOWER_SCALE * (layer.sourceScale ?? 1),
+        rotationOffset
+      );
+    }
+  }
+
+  private drawDecorLayers(phase: number, metrics: ObjectMetrics): void {
+    const context = this.context;
+    if (!context) {
+      return;
+    }
+    for (const layer of this.layers) {
+      if (layer.role !== 'decor' || !layer.sizeRatio) {
+        continue;
+      }
+      const image = layer.image;
+      const width = metrics.size * layer.sizeRatio;
+      const height = width * (image.naturalHeight / image.naturalWidth);
+      const imageScale = width / image.naturalWidth;
+      const anchorX = (layer.anchorX ?? image.naturalWidth / 2) * imageScale;
+      const anchorY = (layer.anchorY ?? image.naturalHeight / 2) * imageScale;
+      const rotation = layer.baseAngle * Math.PI / 180
+        + layer.direction * (phase / layer.duration) * TAU;
+      context.save();
+      context.translate(
+        metrics.centerX + metrics.size * (layer.offsetX ?? 0),
+        metrics.centerY + metrics.size * (layer.offsetY ?? 0)
+      );
+      context.rotate(rotation);
+      context.drawImage(image, -anchorX, -anchorY, width, height);
+      context.restore();
+    }
+  }
+
+  private drawSourceFlower(phase: number, metrics: ObjectMetrics): void {
+    const context = this.context;
+    if (!context || !this.textureSize) {
+      return;
+    }
+    this.renderSourceFlowerTexture(phase);
+    context.save();
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.shadowColor = 'rgba(34, 24, 21, 0.24)';
+    context.shadowBlur = Math.min(this.width, this.height) * 0.055;
+    context.shadowOffsetY = Math.min(this.width, this.height) * 0.018;
+    context.drawImage(
+      this.flowerCanvas,
+      metrics.centerX - metrics.size / 2,
+      metrics.centerY - metrics.size / 2,
+      metrics.size,
+      metrics.size
+    );
+    context.restore();
   }
 
   private scrubPhase(progress = this.rotationProgress): number {
@@ -390,24 +539,16 @@ export class PatternBloomRenderer {
     const ring = bloomRings[index];
     const canvas = this.ringCanvases[index];
     const context = canvas?.getContext('2d');
-    const workContext = this.ringWorkContext;
     this.ringTextureIndex += 1;
-    if (!ring || !canvas || !context || !workContext) {
+    if (!ring || !canvas || !context) {
       return;
     }
-    this.ringWorkCanvas.width = textureSize;
-    this.ringWorkCanvas.height = textureSize;
-    workContext.clearRect(0, 0, textureSize, textureSize);
-    workContext.save();
-    workContext.translate(textureSize / 2, textureSize / 2);
-    this.drawOuterPetalKaleidoscope(workContext, textureSize, 0, 'none', 0, ring.spin);
-    workContext.restore();
     canvas.width = textureSize;
     canvas.height = textureSize;
     context.clearRect(0, 0, textureSize, textureSize);
     context.save();
-    context.filter = ring.filter;
-    context.drawImage(this.ringWorkCanvas, 0, 0);
+    context.translate(textureSize / 2, textureSize / 2);
+    this.drawOuterPetalKaleidoscope(context, textureSize, 0, 'none', 0, ring.spin);
     context.restore();
   }
 
@@ -461,7 +602,8 @@ export class PatternBloomRenderer {
         canvas: ringCanvas,
         drawSize,
         rotationBase: ring.rotation * Math.PI / 180 + fieldRotation * ring.spin,
-        spin: ring.spin
+        spin: ring.spin,
+        filter: ring.filter
       }];
     });
   }
@@ -476,6 +618,7 @@ export class PatternBloomRenderer {
       context.save();
       context.translate(metrics.centerX, metrics.centerY);
       context.rotate(rotation);
+      context.filter = ring.filter;
       context.drawImage(ring.canvas, -ring.drawSize / 2, -ring.drawSize / 2, ring.drawSize, ring.drawSize);
       context.restore();
     }
@@ -497,7 +640,9 @@ export class PatternBloomRenderer {
     const metrics = this.getObjectMetrics();
     const phase = this.motionPhase(now);
     context.clearRect(0, 0, this.width, this.height);
+    this.drawDecorLayers(phase, metrics);
     this.drawPetalField(this.progress, this.rotationProgress, metrics, phase);
+    this.drawSourceFlower(phase, metrics);
     this.frameRevision += 1;
     this.canvas.dataset.inkTextureReady = 'true';
     this.canvas.dataset.inkTextureRevision = String(this.frameRevision);

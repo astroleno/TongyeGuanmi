@@ -3,7 +3,6 @@ import type { SceneComponentProps, SceneModule } from '../../story/types';
 import { STAR_MAP_COPY } from '../star-map';
 import {
   PATTERN_BACKGROUND_IMAGE,
-  PATTERN_SOURCE_ART,
   PatternBloomRenderer,
   patternCenterForViewport,
   patternBloomSnapshot
@@ -19,6 +18,7 @@ export type PatternRenderState = {
   copyOpacity: number;
   centerXRatio: number;
   centerYRatio: number;
+  rotationProgress: number;
   fieldRotationDegrees: number;
   largestRingScale: number;
   compactRingScale: number;
@@ -35,8 +35,6 @@ export type PatternRenderOptions = {
 type PatternRoot = HTMLElement & {
   __r4PatternRenderer?: PatternBloomRenderer;
 };
-
-const PATTERN_ROTOR_IDS = ['06', '05', '04', '03', '02'] as const;
 
 function patternViewportWidth(root: HTMLElement | null): number {
   const rectWidth = root?.getBoundingClientRect?.().width ?? 0;
@@ -92,6 +90,7 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
     copyOpacity,
     centerXRatio: center.x,
     centerYRatio: center.y,
+    rotationProgress,
     fieldRotationDegrees: snapshot.fieldRotationDegrees,
     largestRingScale: snapshot.largestRingScale,
     compactRingScale: snapshot.compactRingScale,
@@ -99,11 +98,11 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
   };
 }
 
-export function renderPatternHold(root: HTMLElement | null): void {
-  renderPatternProgress(root, 0, {
+export function renderPatternHold(root: HTMLElement | null): PatternRenderState {
+  return renderPatternProgress(root, 0, {
     visible: true,
     copyProgress: 1,
-    rotationProgress: 1
+    rotationProgress: 0
   });
 }
 
@@ -143,20 +142,6 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
         style={{ backgroundImage: `url(${PATTERN_BACKGROUND_IMAGE})` }}
         aria-hidden="true"
       />
-      <div className="r4-pattern-scene__rotors" aria-hidden="true">
-        {PATTERN_ROTOR_IDS.map((id) => (
-          <div key={id} className={`r4-pattern-scene__rotor-frame r4-pattern-scene__rotor-frame--${id}`}>
-            <img
-              className={`r4-pattern-scene__rotor r4-pattern-scene__rotor--${id}`}
-              src={PATTERN_SOURCE_ART[id]}
-              data-pattern-rotor={id}
-              alt=""
-              draggable={false}
-              decoding="async"
-            />
-          </div>
-        ))}
-      </div>
       <canvas ref={canvasRef} className="r4-pattern-scene__canvas" data-pattern-canvas aria-hidden="true" />
       <div className="r4-pattern-scene__wash" aria-hidden="true" />
       <div className="r4-pattern-scene__copy">

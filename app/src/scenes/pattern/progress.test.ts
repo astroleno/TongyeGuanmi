@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   PATTERN_COPY,
+  type PatternRenderState,
   patternCenterForViewport,
   patternScene,
   readPatternCenter,
@@ -83,19 +84,28 @@ describe('pattern scene renderer', () => {
     expect(root.attributes.get('data-pattern-progress')).toBe('0.0000');
     expect(root.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
     expect(root.style.values.get('--r4-pattern-copy-opacity')).toBe('0.9600');
-    expect(root.style.values.get('--r4-pattern-field-rotation')).toBe('0.00deg');
+    expect(root.style.values.get('--r4-pattern-field-rotation')).toBe('120.00deg');
     expect(patternScene.renderHold).toBe(renderPatternHold);
   });
 
-  it('renders all five source-art layers as independent GPU rotors', () => {
+  it('couples collapse and rotation progress in the authored Pattern frame', () => {
+    const root = new FakeElement();
+    const collapseFrame = renderPatternProgress(root as unknown as HTMLElement, 0.42, {
+      rotationProgress: 0.42
+    });
+    const holdFrame = renderPatternHold(root as unknown as HTMLElement) as unknown as PatternRenderState;
+
+    expect(collapseFrame.rotationProgress).toBe(collapseFrame.progress);
+    expect(holdFrame.fieldRotationDegrees).toBeCloseTo(120, 3);
+  });
+
+  it('renders Pattern art through one Canvas instead of five independent DOM rotors', () => {
     const markup = renderToStaticMarkup(createElement(patternScene.Component, {
       scene: 'pattern',
       hidden: false
     }));
 
-    expect(markup.match(/data-pattern-rotor=/g)).toHaveLength(5);
-    for (const layer of ['02', '03', '04', '05', '06']) {
-      expect(markup).toContain(`data-pattern-rotor="${layer}"`);
-    }
+    expect(markup.match(/data-pattern-rotor=/g)).toBeNull();
+    expect(markup.match(/data-pattern-canvas/g)).toHaveLength(1);
   });
 });

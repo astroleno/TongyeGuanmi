@@ -770,14 +770,14 @@ pre {
 
 .r4-pattern-scene {
   --r4-pattern-scene-opacity: 1;
-  --r4-pattern-progress: 1;
+  --r4-pattern-progress: 0;
   --r4-pattern-opacity: 1;
   --r4-pattern-copy-opacity: .96;
-  --r4-pattern-field-rotation: 0deg;
-  --r4-pattern-largest-ring-scale: .08;
-  --r4-pattern-compact-ring-scale: .28;
-  --r4-pattern-wash-opacity: .86;
-  --r4-pattern-wash-visible-opacity: .86;
+  --r4-pattern-field-rotation: 120deg;
+  --r4-pattern-largest-ring-scale: 4.86;
+  --r4-pattern-compact-ring-scale: 1.24;
+  --r4-pattern-wash-opacity: .58;
+  --r4-pattern-wash-visible-opacity: .58;
   --r4-pattern-center-x: 24%;
   --r4-pattern-center-y: 55%;
   position: relative;
@@ -792,7 +792,6 @@ pre {
 }
 
 .r4-pattern-scene__ground,
-.r4-pattern-scene__rotors,
 .r4-pattern-scene__canvas,
 .r4-pattern-scene__wash {
   position: absolute;
@@ -808,98 +807,6 @@ pre {
   background-repeat: no-repeat;
   background-size: cover;
   will-change: opacity;
-}
-
-.r4-pattern-scene__rotors {
-  pointer-events: none;
-}
-
-.r4-pattern-scene__rotor-frame {
-  --r4-pattern-rotor-base-angle: 0deg;
-  position: absolute;
-  left: var(--r4-pattern-center-x);
-  top: var(--r4-pattern-center-y);
-  height: auto;
-  opacity: var(--r4-pattern-opacity);
-  transform: translate3d(-50%, -50%, 0) rotate(var(--r4-pattern-rotor-base-angle));
-  transform-origin: 50% 50%;
-  will-change: opacity, transform;
-}
-
-.r4-pattern-scene__rotor-frame--06 {
-  --r4-pattern-rotor-base-angle: -5deg;
-  top: calc(var(--r4-pattern-center-y) - 4vmin);
-  z-index: 1;
-  width: 150vmin;
-}
-
-.r4-pattern-scene__rotor-frame--05 {
-  left: calc(var(--r4-pattern-center-x) + 4vmin);
-  top: calc(var(--r4-pattern-center-y) - 2.7vmin);
-  z-index: 1;
-  width: 88.5vmin;
-}
-
-.r4-pattern-scene__rotor-frame--04 {
-  --r4-pattern-rotor-base-angle: 22.5deg;
-  z-index: 3;
-  width: 94vmin;
-}
-
-.r4-pattern-scene__rotor-frame--03 {
-  z-index: 3;
-  width: 120.3vmin;
-}
-
-.r4-pattern-scene__rotor-frame--02 {
-  z-index: 3;
-  width: 97.8vmin;
-}
-
-.r4-pattern-scene__rotor {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-width: none;
-  pointer-events: none;
-  user-select: none;
-  transform: rotate(0deg);
-  transform-origin: 50% 50%;
-  backface-visibility: hidden;
-  will-change: transform;
-}
-
-.r4-pattern-scene__rotor--02 {
-  animation: r4-pattern-dom-spin 76s linear infinite reverse;
-  filter: brightness(.92) contrast(1.08);
-}
-
-.r4-pattern-scene__rotor--03 {
-  animation: r4-pattern-dom-spin 42s linear infinite;
-  filter: brightness(.94) contrast(1.04);
-}
-
-.r4-pattern-scene__rotor--04 {
-  animation: r4-pattern-dom-spin 42s linear infinite;
-  filter: brightness(.86) contrast(1.06);
-}
-
-.r4-pattern-scene__rotor--05 {
-  animation: r4-pattern-dom-spin 96s linear infinite;
-}
-
-.r4-pattern-scene__rotor--06 {
-  animation: r4-pattern-dom-spin 110s linear infinite;
-}
-
-@keyframes r4-pattern-dom-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.stage-layer[data-stage-layer="pattern"][data-visible="false"] .r4-pattern-scene__rotor {
-  animation-play-state: paused;
 }
 
 .r4-pattern-scene__canvas {
@@ -994,31 +901,6 @@ pre {
     --r4-pattern-center-y: 58%;
   }
 
-  .r4-pattern-scene__rotor-frame--06 {
-    width: 125.5vmin;
-  }
-
-  .r4-pattern-scene__rotor-frame--05 {
-    width: 74vmin;
-  }
-
-  .r4-pattern-scene__rotor-frame--04 {
-    width: 78.7vmin;
-  }
-
-  .r4-pattern-scene__rotor-frame--03 {
-    width: 100.7vmin;
-  }
-
-  .r4-pattern-scene__rotor-frame--02 {
-    width: 81.8vmin;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .r4-pattern-scene__rotor {
-    animation: none !important;
-  }
 }
 
 .r4-method {

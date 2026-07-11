@@ -41,7 +41,7 @@ function fixture() {
 }
 
 describe('pattern-star-map transition', () => {
-  it('uses the canonical Pattern center and keeps all five source-art rotors', () => {
+  it('uses the canonical Pattern center and one authored Canvas composition', () => {
     const markup = renderToStaticMarkup(createElement(patternScene.Component, {
       scene: 'pattern',
       hidden: false
@@ -53,7 +53,9 @@ describe('pattern-star-map transition', () => {
     expect(transitionSource).not.toContain('PATTERN_STAR_MAP_INK_TARGET_IMAGE');
     expect(transitionSource).not.toContain('back2.png');
     expect(transitionSource).not.toContain('pauseStarMapTransitionMotion');
-    expect(markup.match(/data-pattern-rotor=/g)).toHaveLength(5);
+    expect(markup.match(/data-pattern-rotor=/g)).toBeNull();
+    expect(markup.match(/data-pattern-canvas/g)).toHaveLength(1);
+    expect(transitionSource).toContain('rotationProgress: mapped');
   });
 
   it('uses the live Star canvas with the canonical .92 grade and active Perlin owner', () => {
@@ -82,13 +84,13 @@ describe('pattern-star-map transition', () => {
     });
   });
 
-  it('preserves the zero-degree Pattern hold across build, reverse settle, and disposal', async () => {
+  it('preserves the authored 120-degree Pattern hold across build, reverse settle, and disposal', async () => {
     const setup = fixture();
     renderPatternHold(setup.fromRoot as unknown as HTMLElement);
     const incomingHoldRotation = setup.fromRoot.style.getPropertyValue('--r4-pattern-field-rotation');
 
     const timeline = await createPatternStarMapTransition().buildTimeline(setup.context);
-    expect(incomingHoldRotation).toBe('0.00deg');
+    expect(incomingHoldRotation).toBe('120.00deg');
     expect(setup.fromRoot.style.getPropertyValue('--r4-pattern-field-rotation')).toBe(incomingHoldRotation);
 
     timeline.progress(1);
