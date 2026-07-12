@@ -94,11 +94,23 @@ class FakeVideo extends FakeElement {
   currentTime = 0;
   duration = 5.03;
   paused = true;
+  preload = 'auto';
   playbackRate = 1;
   loop = false;
+  muted = true;
+  playsInline = true;
+
+  addEventListener(): void {}
+  removeEventListener(): void {}
+  load(): void {}
 
   pause(): void {
     this.paused = true;
+  }
+
+  play(): Promise<void> {
+    this.paused = false;
+    return Promise.resolve();
   }
 }
 
@@ -368,18 +380,17 @@ describe('R3 pilot contract on real segments', () => {
   });
 
   it('keeps aod-method-top visual playback scrub-only without starting video playback', async () => {
-    const video = {
-      playbackRate: 16,
-      pause: vi.fn(),
-      play: vi.fn()
-    } as unknown as HTMLVideoElement;
-    const transition = createAodMethodTopTransition({ getVideo: () => video });
+    const video = new FakeVideo();
+    video.playbackRate = 16;
+    const pause = vi.spyOn(video, 'pause');
+    const play = vi.spyOn(video, 'play');
+    const transition = createAodMethodTopTransition({ getVideo: () => video as unknown as HTMLVideoElement });
     const timeline = await transition.buildTimeline({ ...context('aod-method-top'), prefersReducedMotion: true });
 
     await timeline.play(1);
 
-    expect(video.pause).toHaveBeenCalled();
-    expect(video.play).not.toHaveBeenCalled();
+    expect(pause).toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled();
     expect(video.playbackRate).toBe(1);
   });
 
@@ -515,12 +526,12 @@ describe('R3 pilot contract on real segments', () => {
     expect(stale).toMatchObject({ accepted: false, reason: 'stale' });
   });
 
-  it('requires mediaReady only for forward aod-method-top playback', () => {
+  it('requires mediaReady for both directions of aod-method-top playback', () => {
     const mediaSegment = segment('aod-method-top');
     const inkSegment = segment('star-map-aod');
 
     expect(shouldWaitForPilotMediaReady(mediaSegment, 1)).toBe(true);
-    expect(shouldWaitForPilotMediaReady(mediaSegment, -1)).toBe(false);
+    expect(shouldWaitForPilotMediaReady(mediaSegment, -1)).toBe(true);
     expect(shouldWaitForPilotMediaReady(inkSegment, 1)).toBe(false);
   });
 });

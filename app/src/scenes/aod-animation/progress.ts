@@ -48,14 +48,9 @@ function aodSection(root: HTMLElement | null | undefined): HTMLElement | null {
     : root.querySelector<HTMLElement>('[data-aod-transition]');
 }
 
-function videoIn(root: HTMLElement | null | undefined): HTMLVideoElement | null {
-  return root?.querySelector<HTMLVideoElement>('[data-aod-figure-video]') ?? null;
-}
-
 export function renderAodTransitionProgress(
   root: HTMLElement | null | undefined,
-  rawProgress: number,
-  options: { video?: HTMLVideoElement | null | undefined } = {}
+  rawProgress: number
 ): void {
   const section = aodSection(root);
   if (!section) {
@@ -112,11 +107,4 @@ export function renderAodTransitionProgress(
     section.style.setProperty(`--aod-method-y-${index}`, formatPx((1 - itemProgress) * 18));
   }
 
-  const video = options.video ?? videoIn(section);
-  if (video && Number.isFinite(video.duration) && video.duration > 0) {
-    const targetTime = Math.max(0, Math.min(video.duration - 0.02, p * video.duration));
-    if (Math.abs(video.currentTime - targetTime) > 0.0005) {
-      video.currentTime = targetTime;
-    }
-  }
 }

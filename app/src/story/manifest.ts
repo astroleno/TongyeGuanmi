@@ -282,7 +282,11 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           'aod-front-figure',
           ['aod_figure-alpha-front-scrub'],
           'method-top',
-          { forwardMode: 'timeline' }
+          {
+            forwardMode: 'timeline',
+            reverseMode: 'timeline',
+            reverseRequired: true
+          }
         )
       ];
     case 'figure3-services':

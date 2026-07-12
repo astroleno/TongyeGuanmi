@@ -50,7 +50,9 @@ describe('R4 contract-driven media readiness gate', () => {
       'figure2-left-alpha',
       'figure2-right-alpha'
     ]);
-    expect(requiredMediaKeys(segment('aod-method-top'), -1)).toEqual([]);
+    expect(requiredMediaKeys(segment('aod-method-top'), -1)).toEqual([
+      'aod_figure-alpha-front-scrub'
+    ]);
   });
 
   it('does not resolve until every required video has decoded future data', async () => {

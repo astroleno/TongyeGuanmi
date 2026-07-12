@@ -65,7 +65,7 @@ describe('AOD alpha compositing', () => {
     const section = new FakeAodSection();
     const video = { currentTime: 1.25, duration: 5.03 } as HTMLVideoElement;
 
-    renderAodTransitionProgress(section as unknown as HTMLElement, 0.7, { video });
+    renderAodTransitionProgress(section as unknown as HTMLElement, 0.7);
 
     expect(video.currentTime).toBe(1.25);
   });
