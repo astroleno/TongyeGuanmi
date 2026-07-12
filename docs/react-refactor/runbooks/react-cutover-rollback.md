@@ -1,6 +1,6 @@
 # React Cutover And Rollback Runbook
 
-Status: corrected candidate freeze, exact-tag smokes, and same-port rollback rehearsal passed. Production cutover is not authorized.
+Status: immutable parity-repair candidate remains preserved; the post-candidate review commit is verified separately and is not a deployable candidate until a new tag is explicitly authorized. Production cutover is not authorized.
 
 ## Immutable Inputs
 
@@ -13,11 +13,12 @@ Status: corrected candidate freeze, exact-tag smokes, and same-port rollback reh
 | superseded R5 candidate | `react-refactor-r5-candidate-v2` | `a5bef3785b766dac0e5ecfc95e96d03cd5c51c90` |
 | parity-repair base / superseded candidate | `react-refactor-r5-candidate-v3` | `59065730712c6d9718928fd25cba23e33455395e` |
 | corrected candidate | `react-refactor-r5-parity-repair-candidate` | commit `18490690992bffef6c9705cd47438b9cd17e756a`; tag object `7f96b243d42efd3e7409ca8628109b0901900a9b` |
+| post-candidate review implementation | branch commit | `0a8fe99bf392965aa1b8f99c8886df7ff2dfbe75` |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |
 | corrected release artifact | exact-tag `dist/r5-release-manifest.json` | schema 2; 97 files / 139,518,637B; SHA-256 `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
 
-Always peel annotated tags with `git rev-parse <tag>^{}`. Never move or reuse an old candidate tag. The three old R5 candidates do not contain the production parity repair.
+Always peel annotated tags with `git rev-parse <tag>^{}`. Never move or reuse an old candidate tag. The existing parity-repair candidate does not contain the later Generic Ink/media changes; a new annotated tag requires separate authorization.
 
 ## Pre-Freeze Acceptance
 
@@ -27,6 +28,7 @@ From the completed implementation branch, run the full automated gate once:
 pnpm run verify:all
 pnpm -C app exec playwright test
 pnpm -C app exec playwright test --config playwright.release.config.ts
+pnpm -C app evidence:memory
 ```
 
 Also run the historical harness and the hardware performance/process-memory profile required by `r5-regression-matrix.md` and `r5-performance-budget.md`. Do not capture screenshots or request manual visual acceptance for this gate.
@@ -90,6 +92,8 @@ Store the exact tag, peeled commit, tag object, manifest digest, emitted-file co
 ## Same-Port Rollback Rehearsal
 
 Use separate clean corrected-candidate and legacy checkouts. Reuse one local port and switch the served directory in this order:
+
+For an authorized-but-untagged review build, substitute a clean detached checkout of the recorded review implementation commit for `corrected-candidate` in this rehearsal only. Its plain build is rollback evidence, not a publishable artifact; do not create, move, or imply a candidate tag.
 
 1. Corrected candidate: verify root, static footer, manifest presence, no-JS, direct hash, representative media range, and key forward/reverse smoke.
 2. Stop the candidate server completely.

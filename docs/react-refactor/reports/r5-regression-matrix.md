@@ -1,12 +1,12 @@
 # R5 Production Regression Matrix
 
-Status: parity-repair implementation, final automated acceptance, exact-tag smokes, and rollback rehearsal passed.
+Status: post-candidate Generic Ink/media implementation and canonical root gate passed. Affected browser contracts passed; the immutable candidate's complete browser/release evidence remains historical and was not reclassified as this review build.
 
 Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 
-The earlier results in `r5-candidate.md` belong to `react-refactor-r5-candidate-v3`. That tag does not contain this repair, so its counts are historical evidence only and are not carried forward as a pass claim.
+The earlier complete browser/release results belong to immutable tags, including `react-refactor-r5-parity-repair-candidate`. None contains R21/R22, so those counts remain historical evidence only and are not carried forward as a current-branch pass claim.
 
-## Frozen Matrix
+## Immutable Candidate Historical Matrix
 
 | Project | Canonical traversal | Critical reverse | Input/navigation | Media/lifecycle | SEO/no-JS | Final result |
 |---|---|---|---|---|---|---|
@@ -17,7 +17,7 @@ The earlier results in `r5-candidate.md` belong to `react-refactor-r5-candidate-
 
 Layer invariants remain: visible layers ≤2 during transition, exactly one visible/interactable hold after settlement, bounded retiring layers, and no stale Hero layer during Contact reverse recovery.
 
-## R1–R20 Coverage Map
+## R1–R22 Coverage Map
 
 | ID | Deterministic assertion owner | Required proof | Final result |
 |---|---|---|---|
@@ -41,21 +41,26 @@ Layer invariants remain: visible layers ≤2 during transition, exactly one visi
 | R18 PH/TTG reliability | timeline-driver tests, `media-ready.test.ts`, group5/group6 transition tests | ≥20 alternating/interrupted/re-entry runs; both directions and rejection/recovery | pass |
 | R19 TTG reverse endpoint | timeline-driver tests, `r5-ttg-alpha.spec.ts` | target frame presented before swap; no stale terminal/standing frame | pass |
 | R20 edge-only grade | `sceneInk.lifecycle.test.ts`, shared ink tests, pilot contract/browser test | production cover alpha zero; explicit dark harness preset shares geometry | pass |
+| R21 shared horizontal contour | contour/Ink field/vendor lifecycle tests, group4–group7 consumer tests, `r4-ink-occlusion.spec.ts` | one per-run 32-sample contour drives live polygons and the 1×32 texture; forward/reverse fresh runs align without SVG/snapshot compositor | pass: deterministic suites plus affected Chromium 3/3 |
+| R22 TTG/PH internal dissolve | `stagedMediaHandoff.test.ts`, group5/group6 transition tests and affected Chromium paths | 600ms two-surface dissolve in both directions; zero internal Ink canvas/mask/particles | pass: deterministic suites plus affected Chromium 9/9 |
 
 The full reproduction/root-cause/minimum-file record is `../contract-diff/R5-production-parity-repair.md`.
 
 ## Final Commands
 
-Run only after implementation and documentation are closed:
+Canonical commands retained by the repository:
 
 ```bash
 pnpm run verify:all
 pnpm -C app exec playwright test
 pnpm -C app exec playwright test --config playwright.release.config.ts
+pnpm -C app evidence:memory
 ```
 
-Recorded pre-freeze results: root lint/typecheck/build plus 76 test files and 493 tests passed; the historical harness passed 43/43; the four-project release matrix passed 52 applicable cases with 40 declared applicability skips; three hardware performance samples and the forward/reverse process-memory traversal passed. The remaining acceptance record is the identity-bound exact-tag build, exact-tag production/no-JS/direct-hash/key-direction smokes, and same-port rollback rehearsal.
+Current review implementation `0a8fe99bf392965aa1b8f99c8886df7ff2dfbe75`: root lint/typecheck/build, static-shell/release verification, 78 test files / 504 tests, and all bundle budgets passed. During implementation, affected browser runs passed 9/9 for the TTG/PH staged handoffs and 3/3 for Ink ownership. A later historical-harness invocation lost a reused external dev server after 24 passes; its clean restart was stopped at 22 passes on explicit instruction not to repeat already-covered E2E. It is therefore not claimed as a complete current-branch matrix. Release Playwright, process-memory, and same-port rollback were not repeated.
+
+Historical immutable-candidate evidence remains: default harness 43/43, four-project release matrix 52 applicable with 40 declared skips, three hardware samples, process-memory traversal, exact-tag smokes, and same-port rollback. Those results do not certify R21/R22.
 
 ## Acceptance Boundary
 
-This repair intentionally has no screenshot baseline and no manual visual-review requirement. Browser tests assert state, DOM, input, media readiness, compositor ownership diagnostics, and resource lifecycle. After automated freeze, stop for HITL without merging or deploying.
+This delivery intentionally captures no screenshots and performs no automated visual acceptance. The remaining visual judgment is user HITL. Do not move/create a tag, merge, or deploy by implication.

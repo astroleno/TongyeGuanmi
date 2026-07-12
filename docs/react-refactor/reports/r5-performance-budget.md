@@ -1,6 +1,6 @@
 # R5 Performance Budget
 
-Status: frozen budgets and exact-tag identity verification passed.
+Status: post-candidate review build passes the frozen bundle budgets. Hardware/process-memory values below remain immutable-candidate history and were not rerun for R21/R22.
 
 Date: 2026-07-12. The values previously published for `react-refactor-r5-candidate-v3` are historical and cannot certify this repair because that tag does not contain the re-enabled transition motion, loader/Hero lifecycle, new media driver, or shell assets.
 
@@ -13,6 +13,8 @@ The old report stated that Pattern froze during structural transition and Star M
 - Run-scoped leases stop both renderers when hidden, reduced-motion, settled away, aborted, sought, recovered, remounted, or unmounted.
 - Production ink uses the `edge-only` grade, so boundary particles remain without a scene-wide dark cover.
 - Every ink run owns a fresh canvas/context; every managed timeline video releases listeners, frame callbacks, timers, and shared-driver ownership on unmount.
+- Horizontal Ink adds one 32-byte contour texture upload per invocation and shares its threshold with live DOM polygons; it does not capture scene textures, snapshots, or SVG masks.
+- TTG/PH internal handoffs use two existing media surfaces and a 600ms opacity dissolve, with no additional canvas or WebGL context.
 
 Passing performance by permanently freezing required animation is not permitted.
 
@@ -35,17 +37,17 @@ LCP is measured independently from cinematic presentation readiness. Hero media 
 
 | Metric | Budget | Parity-repair result |
 |---|---:|---|
-| initial JS raw | ≤368,640B | pass; 356,960B |
-| initial JS gzip | ≤114,688B | pass; 109,708B |
+| initial JS raw | ≤368,640B | pass; 357,032B |
+| initial JS gzip | ≤114,688B | pass; 109,760B |
 | initial CSS raw | ≤76,800B | pass; 74,028B |
-| total JS raw | ≤532,480B | pass; 522,622B |
-| largest lazy JS | ≤65,536B | pass; 18,801B |
+| total JS raw | ≤532,480B | pass; 532,440B |
+| largest lazy JS | ≤65,536B | pass; 23,223B |
 | largest emitted asset | ≤16,777,216B | pass; 15,302,466B |
-| total asset tree | ≤152,043,520B | pass; 139,508,560B |
+| total asset tree | ≤152,043,520B | pass; 139,518,378B |
 
 The timeline-video driver remains reachable through lazy scene/transition chunks. SceneLayer unmount cleanup uses element-owned disposal without importing the driver into the initial production graph. The harness-only dark grade remains behind the existing lazy harness boundary.
 
-## Frozen GPU, Memory, And Disposal Budgets
+## Frozen GPU, Memory, And Disposal Budgets (Immutable Candidate History)
 
 | Metric | Budget | Parity-repair result |
 |---|---:|---|
@@ -62,4 +64,4 @@ The stress sample must overlap Pattern, Star Map, and active ink, then traverse 
 
 ## Final Evidence
 
-The table records the final build budget JSON, three hardware frame/LCP samples (two desktop Chromium, one mobile Chromium), and `artifacts/react-refactor/r5-parity-repair-candidate/r5-process-memory.json`. Trace, video, screenshot capture, and manual visual review were disabled for this gate.
+The current review build regenerated and passed `dist/r5-performance-budget.json` at source commit `0a8fe99bf392965aa1b8f99c8886df7ff2dfbe75`. The hardware frame/LCP and process-memory values in this report were produced for the immutable earlier candidate and are retained as historical ceilings, not asserted as a fresh R21/R22 traversal. Trace, video, screenshots, and automated visual acceptance were not requested for the current review build.

@@ -1,14 +1,14 @@
 # R5 Production Parity Repair Contract Diff
 
-Status: implementation, automated acceptance, corrected-candidate freeze, exact-tag smokes, and rollback rehearsal complete; stopped for HITL.
+Status: post-candidate Generic Ink/media repair implemented on the review branch. Canonical root verification and affected browser contracts passed; no further browser-matrix repetition is authorized in this delivery. Visual acceptance remains HITL.
 
 Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 
 ## Release Identity Boundary
 
-The immutable tags `react-refactor-r5-candidate`, `react-refactor-r5-candidate-v2`, and `react-refactor-r5-candidate-v3` predate this repair and do **not** contain the contracts below. They remain audit records and must not be moved, reused, or described as repaired builds.
+The immutable tags `react-refactor-r5-candidate`, `react-refactor-r5-candidate-v2`, `react-refactor-r5-candidate-v3`, and `react-refactor-r5-parity-repair-candidate` predate R21/R22 below. They remain audit records and must not be moved, reused, or described as containing this post-candidate review build.
 
-After the final automated acceptance passes, the only permitted corrected identity is the annotated tag `react-refactor-r5-parity-repair-candidate`. This work does not authorize a `main` merge, deployment, `react-refactor-r5-cutover`, or R6 cleanup.
+The review implementation identity is branch commit `0a8fe99bf392965aa1b8f99c8886df7ff2dfbe75`. Creating and pushing a new annotated candidate tag requires separate authorization; this work does not authorize moving the existing tag, a `main` merge, deployment, `react-refactor-r5-cutover`, or R6 cleanup.
 
 ## Preserved Architecture
 
@@ -41,6 +41,8 @@ After the final automated acceptance passes, the only permitted corrected identi
 | R18 | Alternate/interfere with PH and TTG forward/reverse runs; stale seek/play callbacks or unused-direction media can time out or overwrite the active run. | Direction was inferred from mutable DOM progress and seek/play readiness lacked a shared generation owner. | `app/src/media/timeline-video-driver.ts`, `app/src/runtime/media-ready.ts`, `app/src/scenes/ph-animation/index.tsx`, `app/src/scenes/ttg-animation/index.tsx`, `app/src/story/manifest.ts` | Run direction is explicit, seeks coalesce to the latest target, play/seek/metadata/frame callbacks are generation guarded, unmount disposes drivers, and the progress-zero poster hold keeps both TTG videos metadata-only until readiness promotes the required direction. |
 | R19 | Finish TTG reverse; the active surface can show the stale forward terminal/standing frame while the reverse asset swaps. | Surface activation happened before the target frame was decoded/presented, and an older pending target could win. | `app/src/scenes/ttg-animation/index.tsx`, `app/src/media/timeline-video-driver.ts` | The latest target frame must be seeked and presented before class/surface activation; reverse endpoint atomically restores the prepared forward-start frame. |
 | R20 | Inspect production ink during radial/horizontal/depth handoffs; a full-screen dark body grades the whole scene. | Boundary geometry and a cinematic cover alpha were one inseparable preset. | `app/src/transitions/shared/sceneInk.ts`, `app/src/transitions/shared/ink.ts`, `app/src/vendor/ink-scene-transition.js`, `app/src/harness/r3/PilotHarness.tsx` | Production defaults to `edge-only` with zero scene-wide cover. `dark` remains a named harness-only comparison using identical boundary geometry and ownership. |
+| R21 | Slow a later horizontal Generic Ink handoff; the live target edge can trail the moving Ink front and expose a straight seam. Repeat forward and reverse invocations. | DOM ownership used a straight inset while WebGL independently displaced its front, so two macro boundaries advanced at different speeds. | `app/src/transitions/shared/horizontalInkContour.ts`, `app/src/transitions/shared/inkField.ts`, `app/src/transitions/shared/ink.ts`, `app/src/transitions/shared/sceneInk.ts`, `app/src/transitions/star-map-aod/index.ts`, `app/src/vendor/ink-scene-transition.js` | One per-invocation 32-sample contour and one threshold drive both live DOM polygons and a 1×32 WebGL texture. Fresh runs vary, forward/reverse are independently correct, and no SVG/snapshot/scene texture is introduced. |
+| R22 | Traverse TTG → Lab and PH → Education in both directions; a second Generic Ink appears inside an already established media chapter. | Chapter-internal media handoff reused the cross-chapter Ink transition instead of owning only the two media states. | `app/src/transitions/shared/stagedMediaHandoff.ts`, `app/src/transitions/ttg-lab/index.ts`, `app/src/transitions/ph-education/index.ts` | Each internal handoff keeps two live staged media surfaces and performs one 600ms complementary opacity dissolve. It creates no Ink canvas, polygon, mask, transform, blur, scale, or particle layer. |
 
 ## Lifecycle Invariants
 
@@ -48,10 +50,12 @@ After the final automated acceptance passes, the only permitted corrected identi
 - Settle, abort, seek, recovery, StrictMode remount, scene unmount, and duplicate disposal are idempotent.
 - Hidden/reduced-motion Pattern and Star Map loops stop; authored motion is not permanently frozen to satisfy performance.
 - TTG's progress-zero hold uses the canonical poster with both video surfaces parked metadata-only. During playback only the requested direction is decoded; required-direction readiness promotes it before use. Surface state and every shared driver are disposed with their owning media element.
+- A horizontal Ink timeline owns one immutable contour revision for its lifetime; a fresh invocation owns a fresh revision. Only the 32-byte WebGL contour texture is revision-uploaded, never per progress frame.
+- Generic Ink retains exactly two live canonical scenes plus one effect-only canvas. TTG/PH internal dissolves are separately revertible and never acquire Generic Ink ownership.
 - Copy remains owned by the existing single copy cue; the repair does not add duplicate scene copy.
 
 ## Acceptance Boundary
 
-The final gate is automated and non-visual: root tests/lint/typecheck/build, production functional matrix, historical harness, release matrix, SEO/no-JS, performance/process-memory/disposal budgets, exact-tag smokes, and same-port corrected-candidate → legacy → corrected-candidate rollback. No screenshot baseline or manual visual review is part of this repair gate.
+The review build passed root tests/lint/typecheck/build, release/static-shell checks, and bundle budgets (78 test files / 504 tests), plus the affected staged-media and horizontal-Ink browser contracts already run during implementation. The historical full harness/release/memory/rollback records remain evidence for the immutable earlier tag and are not relabeled as current-branch results. No screenshot baseline or automated visual acceptance is part of this repair gate; exact-new-tag evidence remains pending separate tag authorization.
 
-After those gates and the annotated tag freeze, work stops for HITL. HITL is not permission to merge or deploy by implication.
+After those gates, work stops for HITL. HITL is not permission to tag, merge, or deploy by implication.

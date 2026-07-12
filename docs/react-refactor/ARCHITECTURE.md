@@ -1,6 +1,6 @@
 # 目标架构：Cinematic Story Runtime（完全重新设计）
 
-状态：R5 production architecture 已落地并形成 release candidate，等待 HITL cutover approval。production StoryApp、public entry、crawlable shell、lazy module boundary、release CI 与 rollback contract 已实现；旧站基线固定为 `react-refactor-legacy-static-baseline`，不再是默认 runtime。
+状态：R5 production architecture 已落地；当前分支在既有 immutable candidate 之后完成 Generic Ink 边界修复与 TTG/PH 内部 dissolve，等待 HITL 视觉验收。production StoryApp、public entry、crawlable shell、lazy module boundary、release CI 与 rollback contract 已实现；旧站基线固定为 `react-refactor-legacy-static-baseline`，不再是默认 runtime。
 
 文档闭环：入口见 `README.md`；阶段落地与分支纪律见 `ROADMAP.md`；旧站复用、退役和切换边界见 `MIGRATION.md`；每阶段执行清单见 `goals/`。
 
@@ -491,9 +491,10 @@ interface TransitionContext {
 
 #### 8.3.1 定向 Ink 的唯一边界
 
-- 横向/纵向 Ink curtain 不允许再给 `to` 层叠加 CSS `clip-path`、渐变 `mask-image` 或 CPU 自绘轮廓。唯一揭示边界是现有 Ink fragment shader 计算出的 `body`；目标静态帧作为纹理在同一个 shader 内按 `targetMask = body * targetReady` 合成。
-- 活动段内 live `to` DOM 保持原坐标但视觉隐藏；`progress >= .999` 时 shader 帧与 live DOM 在同一完成态交接。`from/to` 都不做位移、模糊或二次文字入场。
-- 目标 DOM 纹理在 build gate 内绘制一次，带 revision 的静态纹理只上传一次。Stage 因角色变化重新协调 DOM 时，timeline 必须重新解析 live layer 并把原 WebGL canvas 挂回当前 Stage，不能创建第二个 renderer，也不能静默漏掉 Ink。
+- Generic Ink 始终只有两个 canonical live scene roots：`from` 与 `to`。第三层仅是 effect-only WebGL canvas；禁止 SVG mask、DOM snapshot、目标场景纹理或 scene compositor。
+- 横向 Ink 的一次 timeline invocation 持有一条由 authored seed 与 `runId` 生成的 32-sample 轮廓。新 invocation（包括反向新运行）生成新轮廓；同一运行只移动 threshold，不逐帧重随机。正向与逆向各自正确，不要求复用同一形状。
+- 同一个 ownership threshold 同时驱动目标/保留 DOM 的 `clip-path: polygon(...)` 宏观边界，以及 WebGL 中一次上传的 1×32 单通道轮廓纹理。shader 只叠加有界微侵蚀，不再用独立 procedural seam 把 Ink 前沿甩在目标边界后面。
+- 对齐目标是快速播放与慢速观察都没有明显直边漏缝，不承诺逐像素身份。径向和 depth Ink 保留原 contract；`from/to` 不增加位移、模糊或二次文字入场。
 
 ### 8.4 反向（direction: -1）
 

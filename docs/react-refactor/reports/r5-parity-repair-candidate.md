@@ -1,6 +1,6 @@
 # R5 Production Parity Repair Candidate
 
-Status: corrected candidate frozen and fully verified. Exact-tag build/smokes and same-port rollback rehearsal passed; stopped for HITL with no main merge or deployment.
+Status: the corrected candidate remains immutable and fully verified for its tagged source. The later Generic Ink/media review build is branch-only; no tag was moved or created, and visual HITL remains pending.
 
 ## Identity
 
@@ -8,10 +8,11 @@ Status: corrected candidate frozen and fully verified. Exact-tag build/smokes an
 |---|---|
 | branch | `codex/react-refactor-r5-parity-cutover` |
 | repair base | `59065730712c6d9718928fd25cba23e33455395e` |
-| corrected annotated tag | `react-refactor-r5-parity-repair-candidate` (create only after every automated gate passes) |
+| immutable corrected tag | `react-refactor-r5-parity-repair-candidate` (does not contain R21/R22) |
+| post-candidate review implementation | `0a8fe99bf392965aa1b8f99c8886df7ff2dfbe75` |
 | deployable directory | exact-tag `dist/` from identity-bound `pnpm run deploy:build` |
 | release manifest | exact-tag `dist/r5-release-manifest.json` |
-| source commit | `18490690992bffef6c9705cd47438b9cd17e756a` |
+| immutable candidate source commit | `18490690992bffef6c9705cd47438b9cd17e756a` |
 | annotated tag object | `7f96b243d42efd3e7409ca8628109b0901900a9b` |
 | external manifest SHA-256 | `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
 | exact-tag artifact | 97 files / 139,518,637B; schema 2; `sourceDirty: false` |
@@ -37,11 +38,22 @@ None of these tags may be moved, repointed, or published as the corrected artifa
 - Segment-local recovery that cannot route Contact reverse through Hero.
 - Cold/direct/reduced loader behavior, 2.7s Hero intro, scoped pointer parallax, and committed-hold progressive navigation.
 - Shared interactive/static footer metadata, filing link, canonical favicon, canonical title font, and shared font tokens.
+- Per-invocation random 32-sample horizontal contours shared by live DOM ownership and a one-row WebGL texture; forward/reverse runs are independently correct without shape replay, SVG, snapshots, or scene compositing.
+- TTG → Lab and PH → Education now use separately revertible 600ms staged-media dissolves with no chapter-internal Ink.
 - No canonical-spine, scene-id, hash, copy, default-entry, or architecture split.
 
-Detailed reproduction/root-cause/file ownership for R1–R20 is in `../contract-diff/R5-production-parity-repair.md`.
+Detailed reproduction/root-cause/file ownership for R1–R22 is in `../contract-diff/R5-production-parity-repair.md`.
 
-## Final Gate Record
+## Post-Candidate Review-Build Gate Record
+
+| Gate | Recorded result |
+|---|---|
+| root `pnpm run verify:all` | pass on `0a8fe99`: lint, typecheck, 78 files / 504 tests, static-shell/release verification, build, and bundle budgets |
+| affected browser contracts | pass: staged TTG/PH handoffs 9/9; Ink ownership 3/3 |
+| full historical/release/memory/rollback rerun | not claimed for this branch-only review build; no further E2E repetition authorized |
+| visual acceptance | pending user HITL |
+
+## Immutable Candidate Historical Gate Record
 
 | Gate | Required result | Recorded result |
 |---|---|---|
@@ -54,8 +66,8 @@ Detailed reproduction/root-cause/file ownership for R1–R20 is in `../contract-
 | exact-tag build and smokes | identity-bound clean build; root/no-JS/direct hash/key forward/reverse smokes pass | pass: identity-bound deploy build; 9/9 exact-tag smokes; restored TTG bidirectional smoke 1/1 |
 | same-port rollback | corrected candidate → legacy → corrected candidate passes | pass on port 4173; candidate manifest/range → legacy hash/range/no-manifest → identical candidate manifest/range |
 
-No screenshots or manual visual acceptance are required by this gate.
+These exact-tag results certify commit `1849069`, not the later R21/R22 branch delta.
 
 ## Stop Boundary
 
-The corrected tag is frozen and pushed with branch `codex/react-refactor-r5-parity-cutover`. Work stops for HITL. Without explicit later approval: do not merge or deploy `main`, do not create `react-refactor-r5-cutover`, and do not start R6 cleanup.
+The corrected tag stays frozen at `1849069`; the branch review implementation is `0a8fe99`. Work stops for HITL after documentation closure. Without explicit later approval: do not move/create a candidate tag, merge or deploy `main`, create `react-refactor-r5-cutover`, or start R6 cleanup.
