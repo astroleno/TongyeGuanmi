@@ -302,7 +302,7 @@ test.describe('R3 pilot harness', () => {
       .toBe('aod-animation');
   });
 
-  test('runs the full pilot chain with normal rhythm, real media milestones, copyCue, slow-ready, and reverse fallback', async ({ page }) => {
+  test('runs the full pilot chain with normal rhythm, real media milestones, copyCue, slow-ready, and required reverse readiness', async ({ page }) => {
     test.setTimeout(60_000);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r3-pilot');
@@ -352,6 +352,8 @@ test.describe('R3 pilot harness', () => {
     })).toBe(true);
 
     const mediaReadyBeforeReverse = frame.mediaReadyAccepted;
+    const metadataBeforeReverse = frame.loadedmetadataAccepted;
+    const canPlayBeforeReverse = frame.canplayAccepted;
     await page.evaluate(() => {
       void window.__r3Pilot?.playReverse();
     });
@@ -361,8 +363,10 @@ test.describe('R3 pilot harness', () => {
     }, { timeout: 15_000 }).toBe(true);
     frame = await snapshot(page);
     expect(frame.window.current).toBe('aod-animation');
-    expect(frame.mediaReadyAccepted).toBe(mediaReadyBeforeReverse);
-    expect(frame.eventLog).toContain('MEDIA_READY:reverse-static-fallback');
+    expect(frame.mediaReadyAccepted).toBe(mediaReadyBeforeReverse + 1);
+    expect(frame.loadedmetadataAccepted).toBe(metadataBeforeReverse + 1);
+    expect(frame.canplayAccepted).toBe(canPlayBeforeReverse + 1);
+    expect(frame.eventLog).not.toContain('MEDIA_READY:reverse-static-fallback');
 
     await page.evaluate(() => {
       void window.__r3Pilot?.playForward();

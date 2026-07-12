@@ -21,7 +21,7 @@
       "key": "aod_figure-alpha-front-scrub",
       "prepareToken": "r3-probe:prepare:1",
       "accepted": true,
-      "readyState": 1
+      "readyState": 4
     },
     {
       "milestone": "canplay",
@@ -41,7 +41,7 @@
   "trace": [
     {
       "id": 1,
-      "at": 1783759370146,
+      "at": 1783880651657,
       "event": {
         "type": "BOOT_READY"
       },
@@ -63,7 +63,7 @@
     },
     {
       "id": 2,
-      "at": 1783759370147,
+      "at": 1783880651658,
       "event": {
         "type": "BOOT_READY"
       },

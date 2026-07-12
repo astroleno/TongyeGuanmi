@@ -9,11 +9,11 @@
     "settledHeapFractionOfPeak": 0.9
   },
   "actual": {
-    "peakBrowserTreeRssBytes": 1461190656,
-    "peakGpuProcessRssBytes": 344408064,
-    "peakRendererRssBytes": 785072128,
-    "peakJsHeapBytes": 41857578,
-    "finalJsHeapBytes": 17873726,
+    "peakBrowserTreeRssBytes": 1451737088,
+    "peakGpuProcessRssBytes": 351125504,
+    "peakRendererRssBytes": 755056640,
+    "peakJsHeapBytes": 39200008,
+    "finalJsHeapBytes": 11967697,
     "peakCanvasPixelBytes": 11657408,
     "maxMountedLayers": 3,
     "maxWebglCanvasesAtHold": 1
@@ -55,7 +55,7 @@
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 16143913,
+      "usedJsHeapBytes": 11887871,
       "canvasPixelBytes": 5184000
     },
     {
@@ -68,7 +68,7 @@
         "prev": "hero",
         "next": "star-map"
       },
-      "virtualProgress": 0.06447831184056271,
+      "virtualProgress": 0.06682867557715674,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -96,7 +96,7 @@
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 32156351,
+      "usedJsHeapBytes": 31609713,
       "canvasPixelBytes": 11477408
     },
     {
@@ -109,7 +109,7 @@
         "prev": "pattern",
         "next": "aod-animation"
       },
-      "virtualProgress": 0.16998827667057445,
+      "virtualProgress": 0.17618469015795868,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -139,7 +139,7 @@
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 34780039,
+      "usedJsHeapBytes": 34618981,
       "canvasPixelBytes": 11657408
     },
     {
@@ -152,7 +152,7 @@
         "prev": "star-map",
         "next": "method-top"
       },
-      "virtualProgress": 0.205158264947245,
+      "virtualProgress": 0.212636695018226,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -184,7 +184,7 @@
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 33239524,
+      "usedJsHeapBytes": 35878500,
       "canvasPixelBytes": 6473408
     },
     {
@@ -197,13 +197,13 @@
         "prev": "aod-animation",
         "next": "figure2-animation"
       },
-      "virtualProgress": 0.2813599062133646,
+      "virtualProgress": 0.2916160388821385,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
       "canvases": 1,
       "webglCanvases": 1,
-      "videos": 3,
+      "videos": 5,
       "playingVideos": 0,
       "loadedScenes": [
         "hero",
@@ -231,7 +231,7 @@
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 36353211,
+      "usedJsHeapBytes": 39200008,
       "canvasPixelBytes": 180000
     },
     {
@@ -244,13 +244,13 @@
         "prev": "method-top",
         "next": "figure2-proof-opening"
       },
-      "virtualProgress": 0.31652989449003516,
+      "virtualProgress": 0.32806804374240583,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
       "canvases": 0,
       "webglCanvases": 0,
-      "videos": 2,
+      "videos": 4,
       "playingVideos": 0,
       "loadedScenes": [
         "hero",
@@ -280,7 +280,7 @@
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 37870304,
+      "usedJsHeapBytes": 17922294,
       "canvasPixelBytes": 0
     },
     {
@@ -293,13 +293,13 @@
         "prev": "figure2-animation",
         "next": "figure2-proof-cards"
       },
-      "virtualProgress": 0.43669402110199296,
+      "virtualProgress": 0.4526123936816525,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
       "canvases": 0,
       "webglCanvases": 0,
-      "videos": 2,
+      "videos": 4,
       "playingVideos": 0,
       "loadedScenes": [
         "hero",
@@ -331,7 +331,7 @@
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 40858665,
+      "usedJsHeapBytes": 20726643,
       "canvasPixelBytes": 0
     },
     {
@@ -344,7 +344,7 @@
         "prev": "figure2-proof-opening",
         "next": "figure2-proof-closing"
       },
-      "virtualProgress": 0.4630715123094959,
+      "virtualProgress": 0.479951397326853,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -377,14 +377,14 @@
         "mounted": 9,
         "disposed": 6,
         "releasedCanvases": 3,
-        "releasedVideos": 4
+        "releasedVideos": 6
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 14608600,
+      "usedJsHeapBytes": 21517472,
       "canvasPixelBytes": 0
     },
     {
@@ -397,7 +397,7 @@
         "prev": "figure2-proof-cards",
         "next": "brand"
       },
-      "virtualProgress": 0.4894490035169988,
+      "virtualProgress": 0.5072904009720535,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -432,14 +432,14 @@
         "mounted": 10,
         "disposed": 7,
         "releasedCanvases": 3,
-        "releasedVideos": 4
+        "releasedVideos": 6
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 15318896,
+      "usedJsHeapBytes": 22217772,
       "canvasPixelBytes": 0
     },
     {
@@ -452,7 +452,7 @@
         "prev": "figure2-proof-closing",
         "next": "figure3-animation"
       },
-      "virtualProgress": 0.5246189917936694,
+      "virtualProgress": 0.5437424058323208,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -489,14 +489,14 @@
         "mounted": 11,
         "disposed": 8,
         "releasedCanvases": 3,
-        "releasedVideos": 4
+        "releasedVideos": 6
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 6888223,
+      "usedJsHeapBytes": 5480253,
       "canvasPixelBytes": 0
     },
     {
@@ -509,7 +509,7 @@
         "prev": "brand",
         "next": "services"
       },
-      "virtualProgress": 0.55978898007034,
+      "virtualProgress": 0.5801944106925881,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -548,14 +548,14 @@
         "mounted": 12,
         "disposed": 9,
         "releasedCanvases": 3,
-        "releasedVideos": 4
+        "releasedVideos": 6
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 7946001,
+      "usedJsHeapBytes": 6159475,
       "canvasPixelBytes": 0
     },
     {
@@ -568,7 +568,7 @@
         "prev": "figure3-animation",
         "next": "ttg-animation"
       },
-      "virtualProgress": 0.6184056271981243,
+      "virtualProgress": 0.6409477521263669,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -609,14 +609,14 @@
         "mounted": 13,
         "disposed": 10,
         "releasedCanvases": 3,
-        "releasedVideos": 4
+        "releasedVideos": 6
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 9015009,
+      "usedJsHeapBytes": 6351589,
       "canvasPixelBytes": 0
     },
     {
@@ -629,7 +629,7 @@
         "prev": "services",
         "next": "lab"
       },
-      "virtualProgress": 0.6535756154747948,
+      "virtualProgress": 0.6773997569866342,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -672,14 +672,14 @@
         "mounted": 14,
         "disposed": 11,
         "releasedCanvases": 3,
-        "releasedVideos": 5
+        "releasedVideos": 7
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 6342427,
+      "usedJsHeapBytes": 6072464,
       "canvasPixelBytes": 0
     },
     {
@@ -692,7 +692,7 @@
         "prev": "ttg-animation",
         "next": "ph-animation"
       },
-      "virtualProgress": 0.7620164126611958,
+      "virtualProgress": 0.7715674362089915,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -737,14 +737,14 @@
         "mounted": 15,
         "disposed": 12,
         "releasedCanvases": 3,
-        "releasedVideos": 5
+        "releasedVideos": 7
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5476740,
+      "usedJsHeapBytes": 6484086,
       "canvasPixelBytes": 0
     },
     {
@@ -757,7 +757,7 @@
         "prev": "lab",
         "next": "education"
       },
-      "virtualProgress": 0.7971864009378663,
+      "virtualProgress": 0.8080194410692588,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -804,14 +804,14 @@
         "mounted": 16,
         "disposed": 13,
         "releasedCanvases": 3,
-        "releasedVideos": 7
+        "releasedVideos": 9
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5730137,
+      "usedJsHeapBytes": 6201203,
       "canvasPixelBytes": 0
     },
     {
@@ -824,7 +824,7 @@
         "prev": "ph-animation",
         "next": "crane-animation"
       },
-      "virtualProgress": 0.876905041031653,
+      "virtualProgress": 0.8724179829890644,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -873,14 +873,14 @@
         "mounted": 17,
         "disposed": 14,
         "releasedCanvases": 3,
-        "releasedVideos": 7
+        "releasedVideos": 9
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5607019,
+      "usedJsHeapBytes": 5801093,
       "canvasPixelBytes": 0
     },
     {
@@ -893,7 +893,7 @@
         "prev": "education",
         "next": "contact"
       },
-      "virtualProgress": 0.9120750293083235,
+      "virtualProgress": 0.9088699878493317,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -944,14 +944,14 @@
         "mounted": 18,
         "disposed": 15,
         "releasedCanvases": 3,
-        "releasedVideos": 8
+        "releasedVideos": 10
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5862655,
+      "usedJsHeapBytes": 6233341,
       "canvasPixelBytes": 0
     },
     {
@@ -1014,14 +1014,14 @@
         "mounted": 18,
         "disposed": 16,
         "releasedCanvases": 3,
-        "releasedVideos": 8
+        "releasedVideos": 10
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 6127282,
+      "usedJsHeapBytes": 6377989,
       "canvasPixelBytes": 0
     },
     {
@@ -1084,14 +1084,14 @@
         "mounted": 18,
         "disposed": 16,
         "releasedCanvases": 3,
-        "releasedVideos": 8
+        "releasedVideos": 10
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 6154090,
+      "usedJsHeapBytes": 6404797,
       "canvasPixelBytes": 0
     },
     {
@@ -1104,7 +1104,7 @@
         "prev": "education",
         "next": "contact"
       },
-      "virtualProgress": 0.9120750293083235,
+      "virtualProgress": 0.9088699878493317,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -1155,14 +1155,14 @@
         "mounted": 19,
         "disposed": 16,
         "releasedCanvases": 3,
-        "releasedVideos": 8
+        "releasedVideos": 10
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 6318581,
+      "usedJsHeapBytes": 6239633,
       "canvasPixelBytes": 0
     },
     {
@@ -1175,7 +1175,7 @@
         "prev": "ph-animation",
         "next": "crane-animation"
       },
-      "virtualProgress": 0.876905041031653,
+      "virtualProgress": 0.8724179829890644,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -1226,14 +1226,14 @@
         "mounted": 20,
         "disposed": 17,
         "releasedCanvases": 3,
-        "releasedVideos": 8
+        "releasedVideos": 10
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5775147,
+      "usedJsHeapBytes": 6531040,
       "canvasPixelBytes": 0
     },
     {
@@ -1246,7 +1246,7 @@
         "prev": "lab",
         "next": "education"
       },
-      "virtualProgress": 0.7971864009378663,
+      "virtualProgress": 0.8080194410692588,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -1297,14 +1297,14 @@
         "mounted": 21,
         "disposed": 18,
         "releasedCanvases": 3,
-        "releasedVideos": 10
+        "releasedVideos": 12
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 6272779,
+      "usedJsHeapBytes": 6387070,
       "canvasPixelBytes": 0
     },
     {
@@ -1317,7 +1317,7 @@
         "prev": "ttg-animation",
         "next": "ph-animation"
       },
-      "virtualProgress": 0.7620164126611958,
+      "virtualProgress": 0.7715674362089915,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -1368,14 +1368,14 @@
         "mounted": 22,
         "disposed": 19,
         "releasedCanvases": 3,
-        "releasedVideos": 10
+        "releasedVideos": 12
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5819813,
+      "usedJsHeapBytes": 6005723,
       "canvasPixelBytes": 0
     },
     {
@@ -1388,7 +1388,7 @@
         "prev": "services",
         "next": "lab"
       },
-      "virtualProgress": 0.6535756154747948,
+      "virtualProgress": 0.6773997569866342,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -1439,14 +1439,14 @@
         "mounted": 23,
         "disposed": 20,
         "releasedCanvases": 3,
-        "releasedVideos": 11
+        "releasedVideos": 13
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 6022541,
+      "usedJsHeapBytes": 6148138,
       "canvasPixelBytes": 0
     },
     {
@@ -1459,7 +1459,7 @@
         "prev": "figure3-animation",
         "next": "ttg-animation"
       },
-      "virtualProgress": 0.6184056271981243,
+      "virtualProgress": 0.6409477521263669,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -1510,14 +1510,14 @@
         "mounted": 24,
         "disposed": 21,
         "releasedCanvases": 3,
-        "releasedVideos": 11
+        "releasedVideos": 13
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5855393,
+      "usedJsHeapBytes": 6086349,
       "canvasPixelBytes": 0
     },
     {
@@ -1530,7 +1530,7 @@
         "prev": "brand",
         "next": "services"
       },
-      "virtualProgress": 0.55978898007034,
+      "virtualProgress": 0.5801944106925881,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -1581,14 +1581,14 @@
         "mounted": 25,
         "disposed": 22,
         "releasedCanvases": 3,
-        "releasedVideos": 13
+        "releasedVideos": 15
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5933171,
+      "usedJsHeapBytes": 7042209,
       "canvasPixelBytes": 0
     },
     {
@@ -1601,7 +1601,7 @@
         "prev": "figure2-proof-closing",
         "next": "figure3-animation"
       },
-      "virtualProgress": 0.5246189917936694,
+      "virtualProgress": 0.5437424058323208,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -1652,14 +1652,14 @@
         "mounted": 26,
         "disposed": 23,
         "releasedCanvases": 3,
-        "releasedVideos": 13
+        "releasedVideos": 15
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5872010,
+      "usedJsHeapBytes": 6235132,
       "canvasPixelBytes": 0
     },
     {
@@ -1672,7 +1672,7 @@
         "prev": "figure2-proof-cards",
         "next": "brand"
       },
-      "virtualProgress": 0.4894490035169988,
+      "virtualProgress": 0.5072904009720535,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -1723,14 +1723,14 @@
         "mounted": 27,
         "disposed": 24,
         "releasedCanvases": 3,
-        "releasedVideos": 14
+        "releasedVideos": 16
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 6031044,
+      "usedJsHeapBytes": 6682713,
       "canvasPixelBytes": 0
     },
     {
@@ -1743,7 +1743,7 @@
         "prev": "figure2-proof-opening",
         "next": "figure2-proof-closing"
       },
-      "virtualProgress": 0.4630715123094959,
+      "virtualProgress": 0.479951397326853,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -1794,14 +1794,14 @@
         "mounted": 28,
         "disposed": 25,
         "releasedCanvases": 3,
-        "releasedVideos": 14
+        "releasedVideos": 16
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 6672248,
+      "usedJsHeapBytes": 7334019,
       "canvasPixelBytes": 0
     },
     {
@@ -1814,13 +1814,13 @@
         "prev": "figure2-animation",
         "next": "figure2-proof-cards"
       },
-      "virtualProgress": 0.43669402110199296,
+      "virtualProgress": 0.4526123936816525,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
       "canvases": 0,
       "webglCanvases": 0,
-      "videos": 2,
+      "videos": 4,
       "playingVideos": 0,
       "loadedScenes": [
         "hero",
@@ -1865,14 +1865,14 @@
         "mounted": 29,
         "disposed": 26,
         "releasedCanvases": 3,
-        "releasedVideos": 14
+        "releasedVideos": 16
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5896852,
+      "usedJsHeapBytes": 6421443,
       "canvasPixelBytes": 0
     },
     {
@@ -1885,13 +1885,13 @@
         "prev": "method-top",
         "next": "figure2-proof-opening"
       },
-      "virtualProgress": 0.31652989449003516,
+      "virtualProgress": 0.32806804374240583,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
       "canvases": 0,
       "webglCanvases": 0,
-      "videos": 2,
+      "videos": 4,
       "playingVideos": 0,
       "loadedScenes": [
         "hero",
@@ -1936,14 +1936,14 @@
         "mounted": 30,
         "disposed": 27,
         "releasedCanvases": 3,
-        "releasedVideos": 14
+        "releasedVideos": 16
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 6217144,
+      "usedJsHeapBytes": 6920937,
       "canvasPixelBytes": 0
     },
     {
@@ -1956,13 +1956,13 @@
         "prev": "aod-animation",
         "next": "figure2-animation"
       },
-      "virtualProgress": 0.2813599062133646,
+      "virtualProgress": 0.2916160388821385,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
       "canvases": 1,
       "webglCanvases": 1,
-      "videos": 3,
+      "videos": 5,
       "playingVideos": 0,
       "loadedScenes": [
         "hero",
@@ -2007,14 +2007,14 @@
         "mounted": 31,
         "disposed": 28,
         "releasedCanvases": 3,
-        "releasedVideos": 14
+        "releasedVideos": 16
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 5896697,
+      "usedJsHeapBytes": 6246236,
       "canvasPixelBytes": 180000
     },
     {
@@ -2027,7 +2027,7 @@
         "prev": "star-map",
         "next": "method-top"
       },
-      "virtualProgress": 0.205158264947245,
+      "virtualProgress": 0.212636695018226,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -2078,14 +2078,14 @@
         "mounted": 32,
         "disposed": 29,
         "releasedCanvases": 3,
-        "releasedVideos": 16
+        "releasedVideos": 20
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 41857578,
+      "usedJsHeapBytes": 20375692,
       "canvasPixelBytes": 6473408
     },
     {
@@ -2098,7 +2098,7 @@
         "prev": "pattern",
         "next": "aod-animation"
       },
-      "virtualProgress": 0.16998827667057445,
+      "virtualProgress": 0.17618469015795868,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -2149,14 +2149,14 @@
         "mounted": 33,
         "disposed": 30,
         "releasedCanvases": 3,
-        "releasedVideos": 16
+        "releasedVideos": 20
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 13633076,
+      "usedJsHeapBytes": 14700933,
       "canvasPixelBytes": 11657408
     },
     {
@@ -2169,7 +2169,7 @@
         "prev": "hero",
         "next": "star-map"
       },
-      "virtualProgress": 0.06447831184056271,
+      "virtualProgress": 0.06682867557715674,
       "visibleLayers": 1,
       "interactableLayers": 1,
       "mountedLayers": 3,
@@ -2220,14 +2220,14 @@
         "mounted": 34,
         "disposed": 31,
         "releasedCanvases": 4,
-        "releasedVideos": 17
+        "releasedVideos": 21
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 19828962,
+      "usedJsHeapBytes": 19758638,
       "canvasPixelBytes": 11477408
     },
     {
@@ -2290,14 +2290,14 @@
         "mounted": 34,
         "disposed": 32,
         "releasedCanvases": 5,
-        "releasedVideos": 17
+        "releasedVideos": 21
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 13827014,
+      "usedJsHeapBytes": 13088692,
       "canvasPixelBytes": 5184000
     },
     {
@@ -2360,2952 +2360,2936 @@
         "mounted": 34,
         "disposed": 32,
         "releasedCanvases": 5,
-        "releasedVideos": 17
+        "releasedVideos": 21
       },
       "reducedMotion": false,
       "loaderMode": "cold-hero",
       "loaderStatus": "hidden",
       "heroIntroMode": "complete",
       "presentationReady": true,
-      "usedJsHeapBytes": 17873726,
+      "usedJsHeapBytes": 11967697,
       "canvasPixelBytes": 5184000
     }
   ],
   "processSamples": [
     {
       "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 428605440,
-      "gpuRssBytes": 82509824,
+      "browserPid": 58145,
+      "totalRssBytes": 428965888,
+      "gpuRssBytes": 81920000,
       "rendererRssBytes": 0,
       "processCount": 5
     },
     {
       "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 949190656,
-      "gpuRssBytes": 196280320,
-      "rendererRssBytes": 394477568,
+      "browserPid": 58145,
+      "totalRssBytes": 969392128,
+      "gpuRssBytes": 195166208,
+      "rendererRssBytes": 398950400,
       "processCount": 6
     },
     {
       "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 1041776640,
-      "gpuRssBytes": 227131392,
-      "rendererRssBytes": 455294976,
+      "browserPid": 58145,
+      "totalRssBytes": 1074200576,
+      "gpuRssBytes": 224083968,
+      "rendererRssBytes": 471220224,
       "processCount": 6
     },
     {
       "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 1044922368,
-      "gpuRssBytes": 227196928,
-      "rendererRssBytes": 455819264,
+      "browserPid": 58145,
+      "totalRssBytes": 1076051968,
+      "gpuRssBytes": 224133120,
+      "rendererRssBytes": 471465984,
       "processCount": 6
     },
     {
       "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 1047248896,
-      "gpuRssBytes": 227459072,
-      "rendererRssBytes": 456376320,
+      "browserPid": 58145,
+      "totalRssBytes": 1077346304,
+      "gpuRssBytes": 224149504,
+      "rendererRssBytes": 471760896,
       "processCount": 6
     },
     {
       "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 1047953408,
-      "gpuRssBytes": 227590144,
-      "rendererRssBytes": 456802304,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 1055064064,
-      "gpuRssBytes": 233996288,
-      "rendererRssBytes": 457506816,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 912392192,
-      "gpuRssBytes": 216825856,
-      "rendererRssBytes": 381190144,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 867958784,
-      "gpuRssBytes": 208551936,
-      "rendererRssBytes": 363085824,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 874446848,
-      "gpuRssBytes": 206569472,
-      "rendererRssBytes": 368590848,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 888422400,
-      "gpuRssBytes": 205881344,
-      "rendererRssBytes": 383254528,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 908886016,
-      "gpuRssBytes": 202375168,
-      "rendererRssBytes": 405012480,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 926269440,
-      "gpuRssBytes": 201064448,
-      "rendererRssBytes": 423346176,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 927252480,
-      "gpuRssBytes": 201064448,
-      "rendererRssBytes": 424312832,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 927236096,
-      "gpuRssBytes": 201064448,
-      "rendererRssBytes": 424296448,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 927465472,
-      "gpuRssBytes": 201064448,
-      "rendererRssBytes": 424525824,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 927809536,
-      "gpuRssBytes": 201064448,
-      "rendererRssBytes": 424738816,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 933429248,
-      "gpuRssBytes": 201080832,
-      "rendererRssBytes": 430292992,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 934330368,
-      "gpuRssBytes": 201097216,
-      "rendererRssBytes": 430866432,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 917782528,
-      "gpuRssBytes": 183975936,
-      "rendererRssBytes": 431341568,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 902365184,
-      "gpuRssBytes": 167723008,
-      "rendererRssBytes": 432177152,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 902529024,
-      "gpuRssBytes": 167772160,
-      "rendererRssBytes": 432291840,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 927776768,
-      "gpuRssBytes": 185466880,
-      "rendererRssBytes": 439812096,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 927989760,
-      "gpuRssBytes": 185499648,
-      "rendererRssBytes": 439992320,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 928219136,
-      "gpuRssBytes": 185499648,
-      "rendererRssBytes": 440221696,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 926269440,
-      "gpuRssBytes": 179306496,
-      "rendererRssBytes": 444071936,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 931627008,
-      "gpuRssBytes": 183795712,
-      "rendererRssBytes": 444907520,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 931954688,
-      "gpuRssBytes": 184025088,
-      "rendererRssBytes": 445005824,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 926072832,
-      "gpuRssBytes": 177930240,
-      "rendererRssBytes": 445202432,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 927645696,
-      "gpuRssBytes": 178159616,
-      "rendererRssBytes": 446496768,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 930168832,
-      "gpuRssBytes": 180174848,
-      "rendererRssBytes": 446971904,
-      "processCount": 6
-    },
-    {
-      "label": "launch",
-      "browserPid": 75679,
-      "totalRssBytes": 938737664,
-      "gpuRssBytes": 185532416,
-      "rendererRssBytes": 450183168,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 956694528,
-      "gpuRssBytes": 191283200,
-      "rendererRssBytes": 461815808,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 976519168,
-      "gpuRssBytes": 191578112,
-      "rendererRssBytes": 481345536,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1121304576,
-      "gpuRssBytes": 265863168,
-      "rendererRssBytes": 555270144,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1122353152,
-      "gpuRssBytes": 266944512,
-      "rendererRssBytes": 555237376,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1091223552,
-      "gpuRssBytes": 250036224,
-      "rendererRssBytes": 540426240,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1093861376,
-      "gpuRssBytes": 251019264,
-      "rendererRssBytes": 542081024,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1094303744,
-      "gpuRssBytes": 251002880,
-      "rendererRssBytes": 542556160,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1094811648,
-      "gpuRssBytes": 251199488,
-      "rendererRssBytes": 542867456,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1097187328,
-      "gpuRssBytes": 251199488,
-      "rendererRssBytes": 545046528,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1164951552,
-      "gpuRssBytes": 269697024,
-      "rendererRssBytes": 589086720,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1166180352,
-      "gpuRssBytes": 270598144,
-      "rendererRssBytes": 589430784,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1160757248,
-      "gpuRssBytes": 270696448,
-      "rendererRssBytes": 583892992,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1171537920,
-      "gpuRssBytes": 270761984,
-      "rendererRssBytes": 594608128,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1172570112,
-      "gpuRssBytes": 270794752,
-      "rendererRssBytes": 595607552,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1172357120,
-      "gpuRssBytes": 270827520,
-      "rendererRssBytes": 595361792,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1170915328,
-      "gpuRssBytes": 268976128,
-      "rendererRssBytes": 595918848,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1169473536,
-      "gpuRssBytes": 266436608,
-      "rendererRssBytes": 597098496,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1174831104,
-      "gpuRssBytes": 269926400,
-      "rendererRssBytes": 599048192,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1153384448,
-      "gpuRssBytes": 248217600,
-      "rendererRssBytes": 599310336,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1150648320,
-      "gpuRssBytes": 247873536,
-      "rendererRssBytes": 598294528,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1140768768,
-      "gpuRssBytes": 228786176,
-      "rendererRssBytes": 607502336,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1148469248,
-      "gpuRssBytes": 227983360,
-      "rendererRssBytes": 616005632,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1165819904,
-      "gpuRssBytes": 228098048,
-      "rendererRssBytes": 633241600,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1176125440,
-      "gpuRssBytes": 228016128,
-      "rendererRssBytes": 643629056,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1175552000,
-      "gpuRssBytes": 229163008,
-      "rendererRssBytes": 635846656,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1177501696,
-      "gpuRssBytes": 229244928,
-      "rendererRssBytes": 637714432,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1212989440,
-      "gpuRssBytes": 249282560,
-      "rendererRssBytes": 653148160,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1213874176,
-      "gpuRssBytes": 249364480,
-      "rendererRssBytes": 653950976,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1212841984,
-      "gpuRssBytes": 247922688,
-      "rendererRssBytes": 654360576,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1212661760,
-      "gpuRssBytes": 247824384,
-      "rendererRssBytes": 654278656,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1218494464,
-      "gpuRssBytes": 247857152,
-      "rendererRssBytes": 659996672,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1219493888,
-      "gpuRssBytes": 247857152,
-      "rendererRssBytes": 660996096,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1219690496,
-      "gpuRssBytes": 247857152,
-      "rendererRssBytes": 661176320,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1220198400,
-      "gpuRssBytes": 247906304,
-      "rendererRssBytes": 661536768,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1220919296,
-      "gpuRssBytes": 247906304,
-      "rendererRssBytes": 662257664,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1220476928,
-      "gpuRssBytes": 247087104,
-      "rendererRssBytes": 662667264,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1221869568,
-      "gpuRssBytes": 247070720,
-      "rendererRssBytes": 664043520,
-      "processCount": 6
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1239580672,
-      "gpuRssBytes": 247070720,
-      "rendererRssBytes": 664207360,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1239793664,
-      "gpuRssBytes": 247103488,
-      "rendererRssBytes": 664436736,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1240154112,
-      "gpuRssBytes": 247103488,
-      "rendererRssBytes": 664698880,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 1240186880,
-      "gpuRssBytes": 247087104,
-      "rendererRssBytes": 664748032,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1332232192,
-      "gpuRssBytes": 247300096,
-      "rendererRssBytes": 745209856,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1332592640,
-      "gpuRssBytes": 247414784,
-      "rendererRssBytes": 745455616,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1461190656,
-      "gpuRssBytes": 338722816,
-      "rendererRssBytes": 784629760,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1449345024,
-      "gpuRssBytes": 326516736,
-      "rendererRssBytes": 785072128,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1426653184,
-      "gpuRssBytes": 325681152,
-      "rendererRssBytes": 763232256,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1426505728,
-      "gpuRssBytes": 325599232,
-      "rendererRssBytes": 763166720,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1409941504,
-      "gpuRssBytes": 330776576,
-      "rendererRssBytes": 740212736,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1424130048,
-      "gpuRssBytes": 336117760,
-      "rendererRssBytes": 749060096,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1430421504,
-      "gpuRssBytes": 344408064,
-      "rendererRssBytes": 747061248,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1417183232,
-      "gpuRssBytes": 340082688,
-      "rendererRssBytes": 742834176,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1314422784,
-      "gpuRssBytes": 335691776,
-      "rendererRssBytes": 659341312,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1312686080,
-      "gpuRssBytes": 334839808,
-      "rendererRssBytes": 659111936,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1281212416,
-      "gpuRssBytes": 303890432,
-      "rendererRssBytes": 658767872,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1219018752,
-      "gpuRssBytes": 241369088,
-      "rendererRssBytes": 659013632,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1109164032,
-      "gpuRssBytes": 188596224,
-      "rendererRssBytes": 601931776,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1109245952,
-      "gpuRssBytes": 188612608,
-      "rendererRssBytes": 601964544,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1103659008,
-      "gpuRssBytes": 182304768,
-      "rendererRssBytes": 602669056,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1128120320,
-      "gpuRssBytes": 202194944,
-      "rendererRssBytes": 608370688,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1128497152,
-      "gpuRssBytes": 202407936,
-      "rendererRssBytes": 608534528,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1126498304,
-      "gpuRssBytes": 202096640,
-      "rendererRssBytes": 606879744,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1126891520,
-      "gpuRssBytes": 202276864,
-      "rendererRssBytes": 607092736,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1114210304,
-      "gpuRssBytes": 195919872,
-      "rendererRssBytes": 600768512,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1114685440,
-      "gpuRssBytes": 195903488,
-      "rendererRssBytes": 601178112,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-cards",
-      "browserPid": 75679,
-      "totalRssBytes": 1117028352,
-      "gpuRssBytes": 196018176,
-      "rendererRssBytes": 603324416,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-cards",
-      "browserPid": 75679,
-      "totalRssBytes": 1114357760,
-      "gpuRssBytes": 193282048,
-      "rendererRssBytes": 603389952,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-cards",
-      "browserPid": 75679,
-      "totalRssBytes": 1112424448,
-      "gpuRssBytes": 191201280,
-      "rendererRssBytes": 603537408,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-cards",
-      "browserPid": 75679,
-      "totalRssBytes": 1106493440,
-      "gpuRssBytes": 185270272,
-      "rendererRssBytes": 603537408,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 1074675712,
-      "gpuRssBytes": 184401920,
-      "rendererRssBytes": 572506112,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 1074675712,
-      "gpuRssBytes": 184401920,
-      "rendererRssBytes": 572506112,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 1074987008,
-      "gpuRssBytes": 184565760,
-      "rendererRssBytes": 572653568,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 1074970624,
-      "gpuRssBytes": 184549376,
-      "rendererRssBytes": 572653568,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 1074970624,
-      "gpuRssBytes": 184549376,
-      "rendererRssBytes": 572653568,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 1081294848,
-      "gpuRssBytes": 189595648,
-      "rendererRssBytes": 573898752,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 1085964288,
-      "gpuRssBytes": 193757184,
-      "rendererRssBytes": 574210048,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 1076985856,
-      "gpuRssBytes": 184205312,
-      "rendererRssBytes": 574242816,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 1077329920,
-      "gpuRssBytes": 184532992,
-      "rendererRssBytes": 574259200,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 1077067776,
-      "gpuRssBytes": 184418304,
-      "rendererRssBytes": 574177280,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 1077051392,
-      "gpuRssBytes": 184401920,
-      "rendererRssBytes": 574177280,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1109655552,
-      "gpuRssBytes": 184418304,
-      "rendererRssBytes": 605405184,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1141260288,
-      "gpuRssBytes": 200212480,
-      "rendererRssBytes": 621215744,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1140621312,
-      "gpuRssBytes": 199540736,
-      "rendererRssBytes": 621248512,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1140637696,
-      "gpuRssBytes": 199540736,
-      "rendererRssBytes": 621264896,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1136803840,
-      "gpuRssBytes": 195510272,
-      "rendererRssBytes": 621215744,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1135640576,
-      "gpuRssBytes": 194134016,
-      "rendererRssBytes": 621297664,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1065861120,
-      "gpuRssBytes": 173981696,
-      "rendererRssBytes": 586891264,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1060110336,
-      "gpuRssBytes": 174424064,
-      "rendererRssBytes": 581156864,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1053540352,
-      "gpuRssBytes": 170885120,
-      "rendererRssBytes": 577912832,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1048526848,
-      "gpuRssBytes": 166641664,
-      "rendererRssBytes": 577142784,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1036369920,
-      "gpuRssBytes": 168378368,
-      "rendererRssBytes": 563167232,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1020526592,
-      "gpuRssBytes": 167493632,
-      "rendererRssBytes": 548323328,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1020674048,
-      "gpuRssBytes": 167608320,
-      "rendererRssBytes": 548356096,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1020690432,
-      "gpuRssBytes": 167608320,
-      "rendererRssBytes": 548372480,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1109082112,
-      "gpuRssBytes": 167510016,
-      "rendererRssBytes": 622854144,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1101561856,
-      "gpuRssBytes": 167526400,
-      "rendererRssBytes": 622854144,
-      "processCount": 8
-    },
-    {
-      "label": "transition:forward:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1310441472,
-      "gpuRssBytes": 280100864,
-      "rendererRssBytes": 725630976,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1311866880,
-      "gpuRssBytes": 280805376,
-      "rendererRssBytes": 726351872,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1305985024,
-      "gpuRssBytes": 280723456,
-      "rendererRssBytes": 720896000,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1305804800,
-      "gpuRssBytes": 280625152,
-      "rendererRssBytes": 720814080,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1321238528,
-      "gpuRssBytes": 276103168,
-      "rendererRssBytes": 740573184,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1321123840,
-      "gpuRssBytes": 274874368,
-      "rendererRssBytes": 741687296,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1324302336,
-      "gpuRssBytes": 274726912,
-      "rendererRssBytes": 745013248,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1324367872,
-      "gpuRssBytes": 274726912,
-      "rendererRssBytes": 745078784,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1324515328,
-      "gpuRssBytes": 274726912,
-      "rendererRssBytes": 745226240,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1324498944,
-      "gpuRssBytes": 274661376,
-      "rendererRssBytes": 745340928,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1324646400,
-      "gpuRssBytes": 274661376,
-      "rendererRssBytes": 745488384,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1156710400,
-      "gpuRssBytes": 151158784,
-      "rendererRssBytes": 701054976,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1156890624,
-      "gpuRssBytes": 151158784,
-      "rendererRssBytes": 701235200,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1162330112,
-      "gpuRssBytes": 156041216,
-      "rendererRssBytes": 701808640,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1162493952,
-      "gpuRssBytes": 156073984,
-      "rendererRssBytes": 701890560,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1162559488,
-      "gpuRssBytes": 156106752,
-      "rendererRssBytes": 701906944,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1162756096,
-      "gpuRssBytes": 156188672,
-      "rendererRssBytes": 702021632,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1162690560,
-      "gpuRssBytes": 156090368,
-      "rendererRssBytes": 702054400,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 1162674176,
-      "gpuRssBytes": 156073984,
-      "rendererRssBytes": 702054400,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1180745728,
-      "gpuRssBytes": 156303360,
-      "rendererRssBytes": 714653696,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1263386624,
-      "gpuRssBytes": 199966720,
-      "rendererRssBytes": 753598464,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1263665152,
-      "gpuRssBytes": 200146944,
-      "rendererRssBytes": 753696768,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1263747072,
-      "gpuRssBytes": 200196096,
-      "rendererRssBytes": 753729536,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1264500736,
-      "gpuRssBytes": 200097792,
-      "rendererRssBytes": 754581504,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1222885376,
-      "gpuRssBytes": 200163328,
-      "rendererRssBytes": 712753152,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1223213056,
-      "gpuRssBytes": 200163328,
-      "rendererRssBytes": 713048064,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1220657152,
-      "gpuRssBytes": 197279744,
-      "rendererRssBytes": 713342976,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1213612032,
-      "gpuRssBytes": 197263360,
-      "rendererRssBytes": 706854912,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1135050752,
-      "gpuRssBytes": 148307968,
-      "rendererRssBytes": 677298176,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1137164288,
-      "gpuRssBytes": 150306816,
-      "rendererRssBytes": 677478400,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1103446016,
-      "gpuRssBytes": 154402816,
-      "rendererRssBytes": 639778816,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1019576320,
-      "gpuRssBytes": 154206208,
-      "rendererRssBytes": 563347456,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1013383168,
-      "gpuRssBytes": 154304512,
-      "rendererRssBytes": 556957696,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1013448704,
-      "gpuRssBytes": 154320896,
-      "rendererRssBytes": 557006848,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1013284864,
-      "gpuRssBytes": 154222592,
-      "rendererRssBytes": 556941312,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:education",
-      "browserPid": 75679,
-      "totalRssBytes": 1013268480,
-      "gpuRssBytes": 154206208,
-      "rendererRssBytes": 556941312,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1111621632,
-      "gpuRssBytes": 154763264,
-      "rendererRssBytes": 649281536,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1172291584,
-      "gpuRssBytes": 188923904,
-      "rendererRssBytes": 675774464,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1101660160,
-      "gpuRssBytes": 189087744,
-      "rendererRssBytes": 616120320,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 969523200,
-      "gpuRssBytes": 166838272,
-      "rendererRssBytes": 510984192,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 896450560,
-      "gpuRssBytes": 157843456,
-      "rendererRssBytes": 448462848,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 874954752,
-      "gpuRssBytes": 158056448,
-      "rendererRssBytes": 426311680,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 901824512,
-      "gpuRssBytes": 160301056,
-      "rendererRssBytes": 451051520,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 902004736,
-      "gpuRssBytes": 160317440,
-      "rendererRssBytes": 451215360,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 930217984,
-      "gpuRssBytes": 163430400,
-      "rendererRssBytes": 476315648,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 939982848,
-      "gpuRssBytes": 164823040,
-      "rendererRssBytes": 484687872,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 942260224,
-      "gpuRssBytes": 164823040,
-      "rendererRssBytes": 486866944,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 920911872,
-      "gpuRssBytes": 143392768,
-      "rendererRssBytes": 486948864,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 921288704,
-      "gpuRssBytes": 143392768,
-      "rendererRssBytes": 487325696,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 922353664,
-      "gpuRssBytes": 143409152,
-      "rendererRssBytes": 488292352,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 929169408,
-      "gpuRssBytes": 149225472,
-      "rendererRssBytes": 489291776,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 937099264,
-      "gpuRssBytes": 149225472,
-      "rendererRssBytes": 497221632,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 936853504,
-      "gpuRssBytes": 148914176,
-      "rendererRssBytes": 497287168,
-      "processCount": 7
-    },
-    {
-      "label": "transition:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 936919040,
-      "gpuRssBytes": 148897792,
-      "rendererRssBytes": 497287168,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 937230336,
-      "gpuRssBytes": 148996096,
-      "rendererRssBytes": 497369088,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 937230336,
-      "gpuRssBytes": 148979712,
-      "rendererRssBytes": 497369088,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 937213952,
-      "gpuRssBytes": 148963328,
-      "rendererRssBytes": 497369088,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 937213952,
-      "gpuRssBytes": 148963328,
-      "rendererRssBytes": 497369088,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 937164800,
-      "gpuRssBytes": 148963328,
-      "rendererRssBytes": 497369088,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 936935424,
-      "gpuRssBytes": 148733952,
-      "rendererRssBytes": 497369088,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 926089216,
-      "gpuRssBytes": 138100736,
-      "rendererRssBytes": 497221632,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 926072832,
-      "gpuRssBytes": 138084352,
-      "rendererRssBytes": 497221632,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 926072832,
-      "gpuRssBytes": 138084352,
-      "rendererRssBytes": 497221632,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 925237248,
-      "gpuRssBytes": 137248768,
-      "rendererRssBytes": 497221632,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 923254784,
-      "gpuRssBytes": 135299072,
-      "rendererRssBytes": 497205248,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 919322624,
-      "gpuRssBytes": 133480448,
-      "rendererRssBytes": 495239168,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 908558336,
-      "gpuRssBytes": 133169152,
-      "rendererRssBytes": 485883904,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 908427264,
-      "gpuRssBytes": 133152768,
-      "rendererRssBytes": 485752832,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 908427264,
-      "gpuRssBytes": 133152768,
-      "rendererRssBytes": 485752832,
-      "processCount": 7
-    },
-    {
-      "label": "settled:forward:contact",
-      "browserPid": 75679,
-      "totalRssBytes": 908427264,
-      "gpuRssBytes": 133152768,
-      "rendererRssBytes": 485752832,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 908525568,
-      "gpuRssBytes": 133152768,
-      "rendererRssBytes": 485752832,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 920289280,
-      "gpuRssBytes": 144670720,
-      "rendererRssBytes": 485998592,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 926220288,
-      "gpuRssBytes": 150372352,
-      "rendererRssBytes": 486227968,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 926613504,
-      "gpuRssBytes": 150388736,
-      "rendererRssBytes": 486604800,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 927203328,
-      "gpuRssBytes": 150405120,
-      "rendererRssBytes": 487096320,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 927285248,
-      "gpuRssBytes": 150405120,
-      "rendererRssBytes": 487178240,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 927350784,
-      "gpuRssBytes": 150421504,
-      "rendererRssBytes": 487227392,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 927776768,
-      "gpuRssBytes": 150716416,
-      "rendererRssBytes": 487358464,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 928088064,
-      "gpuRssBytes": 150749184,
-      "rendererRssBytes": 487636992,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 928382976,
-      "gpuRssBytes": 150765568,
-      "rendererRssBytes": 487915520,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 928727040,
-      "gpuRssBytes": 150765568,
-      "rendererRssBytes": 488259584,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 915718144,
-      "gpuRssBytes": 137740288,
-      "rendererRssBytes": 488259584,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:crane-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 921223168,
-      "gpuRssBytes": 138100736,
-      "rendererRssBytes": 488423424,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:education",
-      "browserPid": 75679,
-      "totalRssBytes": 883572736,
-      "gpuRssBytes": 144719872,
-      "rendererRssBytes": 443351040,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:education",
-      "browserPid": 75679,
-      "totalRssBytes": 883671040,
-      "gpuRssBytes": 144801792,
-      "rendererRssBytes": 443367424,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:education",
-      "browserPid": 75679,
-      "totalRssBytes": 883949568,
-      "gpuRssBytes": 144850944,
-      "rendererRssBytes": 443596800,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:education",
-      "browserPid": 75679,
-      "totalRssBytes": 884375552,
-      "gpuRssBytes": 144850944,
-      "rendererRssBytes": 443858944,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:education",
-      "browserPid": 75679,
-      "totalRssBytes": 884211712,
-      "gpuRssBytes": 144769024,
-      "rendererRssBytes": 443777024,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:education",
-      "browserPid": 75679,
-      "totalRssBytes": 921894912,
-      "gpuRssBytes": 144916480,
-      "rendererRssBytes": 476299264,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1028161536,
-      "gpuRssBytes": 188432384,
-      "rendererRssBytes": 538427392,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1031979008,
-      "gpuRssBytes": 188465152,
-      "rendererRssBytes": 541589504,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1031979008,
-      "gpuRssBytes": 188465152,
-      "rendererRssBytes": 541589504,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1032093696,
-      "gpuRssBytes": 188547072,
-      "rendererRssBytes": 541622272,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1011187712,
-      "gpuRssBytes": 167411712,
-      "rendererRssBytes": 541736960,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1011793920,
-      "gpuRssBytes": 167411712,
-      "rendererRssBytes": 542343168,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 973946880,
-      "gpuRssBytes": 148422656,
-      "rendererRssBytes": 523485184,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 974749696,
-      "gpuRssBytes": 148996096,
-      "rendererRssBytes": 523714560,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 974962688,
-      "gpuRssBytes": 148996096,
-      "rendererRssBytes": 523927552,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 974798848,
-      "gpuRssBytes": 148897792,
-      "rendererRssBytes": 523862016,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ph-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 974798848,
-      "gpuRssBytes": 148897792,
-      "rendererRssBytes": 523862016,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 933822464,
-      "gpuRssBytes": 153190400,
-      "rendererRssBytes": 478511104,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 932151296,
-      "gpuRssBytes": 152485888,
-      "rendererRssBytes": 477544448,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 930250752,
-      "gpuRssBytes": 152584192,
-      "rendererRssBytes": 475594752,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 922714112,
-      "gpuRssBytes": 151732224,
-      "rendererRssBytes": 469041152,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 914997248,
-      "gpuRssBytes": 149405696,
-      "rendererRssBytes": 464683008,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:lab",
-      "browserPid": 75679,
-      "totalRssBytes": 914980864,
-      "gpuRssBytes": 149389312,
-      "rendererRssBytes": 464683008,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1191444480,
-      "gpuRssBytes": 261308416,
-      "rendererRssBytes": 607256576,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1191755776,
-      "gpuRssBytes": 261734400,
-      "rendererRssBytes": 607289344,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1191886848,
-      "gpuRssBytes": 261783552,
-      "rendererRssBytes": 607354880,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1192017920,
-      "gpuRssBytes": 261914624,
-      "rendererRssBytes": 607354880,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1195425792,
-      "gpuRssBytes": 261718016,
-      "rendererRssBytes": 610942976,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1032781824,
-      "gpuRssBytes": 147668992,
-      "rendererRssBytes": 562413568,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1036288000,
-      "gpuRssBytes": 147783680,
-      "rendererRssBytes": 565805056,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1036304384,
-      "gpuRssBytes": 147783680,
-      "rendererRssBytes": 565821440,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1036419072,
-      "gpuRssBytes": 147783680,
-      "rendererRssBytes": 565936128,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1036500992,
-      "gpuRssBytes": 147783680,
-      "rendererRssBytes": 566018048,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1036533760,
-      "gpuRssBytes": 147783680,
-      "rendererRssBytes": 566050816,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1036664832,
-      "gpuRssBytes": 147783680,
-      "rendererRssBytes": 566116352,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1036779520,
-      "gpuRssBytes": 147783680,
-      "rendererRssBytes": 566214656,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1053409280,
-      "gpuRssBytes": 147881984,
-      "rendererRssBytes": 582483968,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:ttg-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1053409280,
-      "gpuRssBytes": 147865600,
-      "rendererRssBytes": 582500352,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1007403008,
-      "gpuRssBytes": 153370624,
-      "rendererRssBytes": 530776064,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1007370240,
-      "gpuRssBytes": 153370624,
-      "rendererRssBytes": 530792448,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1007419392,
-      "gpuRssBytes": 153387008,
-      "rendererRssBytes": 530808832,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1007337472,
-      "gpuRssBytes": 153337856,
-      "rendererRssBytes": 530776064,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:services",
-      "browserPid": 75679,
-      "totalRssBytes": 1007239168,
-      "gpuRssBytes": 153255936,
-      "rendererRssBytes": 530710528,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1044217856,
-      "gpuRssBytes": 153272320,
-      "rendererRssBytes": 561594368,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1044332544,
-      "gpuRssBytes": 153288704,
-      "rendererRssBytes": 561643520,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1047265280,
-      "gpuRssBytes": 156188672,
-      "rendererRssBytes": 561676288,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1047363584,
-      "gpuRssBytes": 156270592,
-      "rendererRssBytes": 561692672,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1048150016,
-      "gpuRssBytes": 156270592,
-      "rendererRssBytes": 562462720,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1048068096,
-      "gpuRssBytes": 156205056,
-      "rendererRssBytes": 562511872,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1048264704,
-      "gpuRssBytes": 156205056,
-      "rendererRssBytes": 562708480,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1037418496,
-      "gpuRssBytes": 145424384,
-      "rendererRssBytes": 562642944,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure3-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1037418496,
-      "gpuRssBytes": 145408000,
-      "rendererRssBytes": 562659328,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 1023803392,
-      "gpuRssBytes": 149913600,
-      "rendererRssBytes": 544342016,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 1021476864,
-      "gpuRssBytes": 147587072,
-      "rendererRssBytes": 544342016,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 1018511360,
-      "gpuRssBytes": 144605184,
-      "rendererRssBytes": 544342016,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 1004224512,
-      "gpuRssBytes": 143998976,
-      "rendererRssBytes": 532709376,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 983793664,
-      "gpuRssBytes": 143720448,
-      "rendererRssBytes": 512884736,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:brand",
-      "browserPid": 75679,
-      "totalRssBytes": 977108992,
-      "gpuRssBytes": 143540224,
-      "rendererRssBytes": 506150912,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 993280000,
-      "gpuRssBytes": 143687680,
-      "rendererRssBytes": 521043968,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 1028407296,
-      "gpuRssBytes": 145014784,
-      "rendererRssBytes": 554713088,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 1140883456,
+      "browserPid": 58145,
+      "totalRssBytes": 1078149120,
       "gpuRssBytes": 224215040,
-      "rendererRssBytes": 587956224,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 1141293056,
-      "gpuRssBytes": 224526336,
-      "rendererRssBytes": 588054528,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 1141850112,
-      "gpuRssBytes": 225083392,
-      "rendererRssBytes": 587988992,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure2-proof-closing",
-      "browserPid": 75679,
-      "totalRssBytes": 1141555200,
-      "gpuRssBytes": 224935936,
-      "rendererRssBytes": 587907072,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure2-proof-cards",
-      "browserPid": 75679,
-      "totalRssBytes": 1120649216,
-      "gpuRssBytes": 225181696,
-      "rendererRssBytes": 566607872,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure2-proof-cards",
-      "browserPid": 75679,
-      "totalRssBytes": 1120845824,
-      "gpuRssBytes": 225230848,
-      "rendererRssBytes": 566738944,
-      "processCount": 7
-    },
-    {
-      "label": "transition:reverse:figure2-proof-cards",
-      "browserPid": 75679,
-      "totalRssBytes": 1120862208,
-      "gpuRssBytes": 225230848,
-      "rendererRssBytes": 566738944,
+      "rendererRssBytes": 472481792,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:figure2-proof-cards",
-      "browserPid": 75679,
-      "totalRssBytes": 1120878592,
-      "gpuRssBytes": 225230848,
-      "rendererRssBytes": 566755328,
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1078722560,
+      "gpuRssBytes": 224247808,
+      "rendererRssBytes": 473022464,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:figure2-proof-cards",
-      "browserPid": 75679,
-      "totalRssBytes": 1120878592,
-      "gpuRssBytes": 225214464,
-      "rendererRssBytes": 566755328,
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1079148544,
+      "gpuRssBytes": 224264192,
+      "rendererRssBytes": 473415680,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1121189888,
-      "gpuRssBytes": 225230848,
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1021067264,
+      "gpuRssBytes": 172376064,
+      "rendererRssBytes": 459718656,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1022083072,
+      "gpuRssBytes": 172490752,
+      "rendererRssBytes": 460570624,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1030946816,
+      "gpuRssBytes": 172490752,
+      "rendererRssBytes": 469417984,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1063632896,
+      "gpuRssBytes": 172539904,
+      "rendererRssBytes": 499761152,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1094090752,
+      "gpuRssBytes": 177291264,
+      "rendererRssBytes": 525123584,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1096810496,
+      "gpuRssBytes": 177307648,
+      "rendererRssBytes": 527826944,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1096957952,
+      "gpuRssBytes": 177307648,
+      "rendererRssBytes": 527974400,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1097334784,
+      "gpuRssBytes": 177324032,
+      "rendererRssBytes": 528203776,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1100447744,
+      "gpuRssBytes": 177340416,
+      "rendererRssBytes": 531300352,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1102053376,
+      "gpuRssBytes": 177340416,
+      "rendererRssBytes": 532905984,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1102299136,
+      "gpuRssBytes": 177356800,
+      "rendererRssBytes": 533086208,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1102610432,
+      "gpuRssBytes": 177389568,
+      "rendererRssBytes": 533315584,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1102626816,
+      "gpuRssBytes": 177291264,
+      "rendererRssBytes": 533430272,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1104379904,
+      "gpuRssBytes": 177487872,
+      "rendererRssBytes": 535035904,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1126055936,
+      "gpuRssBytes": 191266816,
+      "rendererRssBytes": 542932992,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1126547456,
+      "gpuRssBytes": 191528960,
+      "rendererRssBytes": 543162368,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1127759872,
+      "gpuRssBytes": 191528960,
+      "rendererRssBytes": 544374784,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1129529344,
+      "gpuRssBytes": 191528960,
+      "rendererRssBytes": 546144256,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1131560960,
+      "gpuRssBytes": 193118208,
+      "rendererRssBytes": 546242560,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1131692032,
+      "gpuRssBytes": 193134592,
+      "rendererRssBytes": 546340864,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1131692032,
+      "gpuRssBytes": 193150976,
+      "rendererRssBytes": 546357248,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1110753280,
+      "gpuRssBytes": 183795712,
+      "rendererRssBytes": 546390016,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1127038976,
+      "gpuRssBytes": 185188352,
+      "rendererRssBytes": 561250304,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 58145,
+      "totalRssBytes": 1129267200,
+      "gpuRssBytes": 186007552,
+      "rendererRssBytes": 562659328,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1139965952,
+      "gpuRssBytes": 191987712,
       "rendererRssBytes": 566951936,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1121042432,
-      "gpuRssBytes": 225067008,
-      "rendererRssBytes": 566968320,
+      "label": "transition:forward:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1141800960,
+      "gpuRssBytes": 192299008,
+      "rendererRssBytes": 568459264,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1121091584,
-      "gpuRssBytes": 225067008,
-      "rendererRssBytes": 567017472,
+      "label": "transition:forward:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1236549632,
+      "gpuRssBytes": 259801088,
+      "rendererRssBytes": 620527616,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1121107968,
-      "gpuRssBytes": 225067008,
-      "rendererRssBytes": 567033856,
+      "label": "transition:forward:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1220083712,
+      "gpuRssBytes": 263602176,
+      "rendererRssBytes": 608043008,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:figure2-proof-opening",
-      "browserPid": 75679,
-      "totalRssBytes": 1136312320,
-      "gpuRssBytes": 225067008,
-      "rendererRssBytes": 574029824,
+      "label": "transition:forward:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1217839104,
+      "gpuRssBytes": 263651328,
+      "rendererRssBytes": 607944704,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1206075392,
-      "gpuRssBytes": 228229120,
-      "rendererRssBytes": 632700928,
+      "label": "transition:forward:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1220329472,
+      "gpuRssBytes": 265453568,
+      "rendererRssBytes": 608518144,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1106460672,
-      "gpuRssBytes": 248643584,
-      "rendererRssBytes": 532332544,
+      "label": "transition:forward:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1221722112,
+      "gpuRssBytes": 266108928,
+      "rendererRssBytes": 609255424,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1106935808,
-      "gpuRssBytes": 249561088,
-      "rendererRssBytes": 532185088,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1107722240,
-      "gpuRssBytes": 250068992,
-      "rendererRssBytes": 532463616,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1108312064,
-      "gpuRssBytes": 250593280,
-      "rendererRssBytes": 532611072,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1121812480,
-      "gpuRssBytes": 255131648,
-      "rendererRssBytes": 542261248,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1123975168,
-      "gpuRssBytes": 255180800,
-      "rendererRssBytes": 544391168,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1129136128,
-      "gpuRssBytes": 255246336,
-      "rendererRssBytes": 549470208,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1134231552,
-      "gpuRssBytes": 255246336,
-      "rendererRssBytes": 554565632,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1133445120,
-      "gpuRssBytes": 253952000,
-      "rendererRssBytes": 554811392,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 995082240,
-      "gpuRssBytes": 154730496,
-      "rendererRssBytes": 515670016,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 995180544,
-      "gpuRssBytes": 154730496,
-      "rendererRssBytes": 515768320,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 995065856,
-      "gpuRssBytes": 154566656,
-      "rendererRssBytes": 515817472,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 997392384,
-      "gpuRssBytes": 156778496,
-      "rendererRssBytes": 515932160,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 995672064,
-      "gpuRssBytes": 155041792,
-      "rendererRssBytes": 515948544,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:figure2-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 981893120,
-      "gpuRssBytes": 147177472,
-      "rendererRssBytes": 510033920,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 978255872,
-      "gpuRssBytes": 145522688,
-      "rendererRssBytes": 508231680,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 988020736,
-      "gpuRssBytes": 151060480,
-      "rendererRssBytes": 512475136,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 983203840,
-      "gpuRssBytes": 153812992,
-      "rendererRssBytes": 505249792,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 967213056,
-      "gpuRssBytes": 152862720,
-      "rendererRssBytes": 490487808,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 966508544,
-      "gpuRssBytes": 152944640,
-      "rendererRssBytes": 489586688,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:method-top",
-      "browserPid": 75679,
-      "totalRssBytes": 966672384,
-      "gpuRssBytes": 152911872,
-      "rendererRssBytes": 489783296,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1040171008,
-      "gpuRssBytes": 153010176,
-      "rendererRssBytes": 551403520,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1040629760,
-      "gpuRssBytes": 153010176,
-      "rendererRssBytes": 551829504,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1050673152,
-      "gpuRssBytes": 161939456,
-      "rendererRssBytes": 552894464,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1051328512,
-      "gpuRssBytes": 161939456,
-      "rendererRssBytes": 553549824,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1051639808,
-      "gpuRssBytes": 161955840,
-      "rendererRssBytes": 553795584,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1079902208,
-      "gpuRssBytes": 181239808,
-      "rendererRssBytes": 562839552,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1080475648,
-      "gpuRssBytes": 181239808,
-      "rendererRssBytes": 563412992,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1081376768,
-      "gpuRssBytes": 181256192,
-      "rendererRssBytes": 564297728,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1081884672,
-      "gpuRssBytes": 181256192,
-      "rendererRssBytes": 564772864,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1082245120,
-      "gpuRssBytes": 181305344,
-      "rendererRssBytes": 565002240,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1082621952,
-      "gpuRssBytes": 181387264,
-      "rendererRssBytes": 565149696,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:aod-animation",
-      "browserPid": 75679,
-      "totalRssBytes": 1071448064,
-      "gpuRssBytes": 179142656,
-      "rendererRssBytes": 557842432,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1126350848,
-      "gpuRssBytes": 188022784,
-      "rendererRssBytes": 603734016,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1133789184,
-      "gpuRssBytes": 191643648,
-      "rendererRssBytes": 607518720,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1132314624,
-      "gpuRssBytes": 190136320,
-      "rendererRssBytes": 607551488,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1132249088,
-      "gpuRssBytes": 190054400,
-      "rendererRssBytes": 607567872,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1132118016,
-      "gpuRssBytes": 189956096,
-      "rendererRssBytes": 607502336,
-      "processCount": 6
-    },
-    {
-      "label": "transition:reverse:star-map",
-      "browserPid": 75679,
-      "totalRssBytes": 1134084096,
-      "gpuRssBytes": 189956096,
+      "label": "transition:forward:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1221967872,
+      "gpuRssBytes": 266141696,
       "rendererRssBytes": 609468416,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1206452224,
-      "gpuRssBytes": 216825856,
-      "rendererRssBytes": 654868480,
+      "label": "transition:forward:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1221722112,
+      "gpuRssBytes": 266010624,
+      "rendererRssBytes": 609353728,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1309556736,
-      "gpuRssBytes": 282099712,
-      "rendererRssBytes": 692813824,
+      "label": "transition:forward:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1223196672,
+      "gpuRssBytes": 266010624,
+      "rendererRssBytes": 610795520,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1277526016,
-      "gpuRssBytes": 278872064,
-      "rendererRssBytes": 676593664,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1243152384,
+      "gpuRssBytes": 265256960,
+      "rendererRssBytes": 629129216,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1278689280,
-      "gpuRssBytes": 279609344,
-      "rendererRssBytes": 677658624,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1233387520,
+      "gpuRssBytes": 265453568,
+      "rendererRssBytes": 619888640,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1267367936,
-      "gpuRssBytes": 273399808,
-      "rendererRssBytes": 672612352,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1233993728,
+      "gpuRssBytes": 265551872,
+      "rendererRssBytes": 620363776,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1268580352,
-      "gpuRssBytes": 273416192,
-      "rendererRssBytes": 673808384,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1236516864,
+      "gpuRssBytes": 265601024,
+      "rendererRssBytes": 622837760,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1267974144,
-      "gpuRssBytes": 271663104,
-      "rendererRssBytes": 674955264,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1230667776,
+      "gpuRssBytes": 265535488,
+      "rendererRssBytes": 617496576,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1270317056,
-      "gpuRssBytes": 273154048,
-      "rendererRssBytes": 675790848,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1230635008,
+      "gpuRssBytes": 265584640,
+      "rendererRssBytes": 617414656,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1270530048,
-      "gpuRssBytes": 273186816,
-      "rendererRssBytes": 675971072,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1230864384,
+      "gpuRssBytes": 265682944,
+      "rendererRssBytes": 617545728,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1267154944,
-      "gpuRssBytes": 270073856,
-      "rendererRssBytes": 676020224,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1223540736,
+      "gpuRssBytes": 266895360,
+      "rendererRssBytes": 609075200,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1267236864,
-      "gpuRssBytes": 270090240,
-      "rendererRssBytes": 676085760,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1164230656,
+      "gpuRssBytes": 265912320,
+      "rendererRssBytes": 560939008,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1267318784,
-      "gpuRssBytes": 270123008,
-      "rendererRssBytes": 676134912,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1109295104,
+      "gpuRssBytes": 257867776,
+      "rendererRssBytes": 544899072,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1267695616,
-      "gpuRssBytes": 270319616,
-      "rendererRssBytes": 676233216,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1106411520,
+      "gpuRssBytes": 258293760,
+      "rendererRssBytes": 545570816,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1259634688,
-      "gpuRssBytes": 267927552,
-      "rendererRssBytes": 671612928,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1088077824,
+      "gpuRssBytes": 214188032,
+      "rendererRssBytes": 571342848,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:pattern",
-      "browserPid": 75679,
-      "totalRssBytes": 1181843456,
-      "gpuRssBytes": 267452416,
-      "rendererRssBytes": 600047616,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1097809920,
+      "gpuRssBytes": 217513984,
+      "rendererRssBytes": 577748992,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1222656000,
-      "gpuRssBytes": 261750784,
-      "rendererRssBytes": 635469824,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1098563584,
+      "gpuRssBytes": 217743360,
+      "rendererRssBytes": 578224128,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1246609408,
-      "gpuRssBytes": 290013184,
-      "rendererRssBytes": 635224064,
+      "label": "transition:forward:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1100808192,
+      "gpuRssBytes": 217743360,
+      "rendererRssBytes": 580468736,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1250312192,
-      "gpuRssBytes": 289914880,
-      "rendererRssBytes": 639074304,
+      "label": "transition:forward:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1150189568,
+      "gpuRssBytes": 216465408,
+      "rendererRssBytes": 616366080,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1172062208,
-      "gpuRssBytes": 245612544,
-      "rendererRssBytes": 618233856,
+      "label": "transition:forward:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1149452288,
+      "gpuRssBytes": 216580096,
+      "rendererRssBytes": 615530496,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1172406272,
-      "gpuRssBytes": 245743616,
-      "rendererRssBytes": 618430464,
+      "label": "transition:forward:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1125908480,
+      "gpuRssBytes": 216203264,
+      "rendererRssBytes": 592347136,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1172733952,
-      "gpuRssBytes": 245891072,
-      "rendererRssBytes": 618610688,
+      "label": "transition:forward:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1127383040,
+      "gpuRssBytes": 216530944,
+      "rendererRssBytes": 593444864,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1172914176,
-      "gpuRssBytes": 245956608,
-      "rendererRssBytes": 618725376,
+      "label": "transition:forward:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1126727680,
+      "gpuRssBytes": 215105536,
+      "rendererRssBytes": 594214912,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1173094400,
-      "gpuRssBytes": 245923840,
-      "rendererRssBytes": 619003904,
+      "label": "transition:forward:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1126596608,
+      "gpuRssBytes": 215007232,
+      "rendererRssBytes": 594182144,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1173110784,
-      "gpuRssBytes": 245923840,
-      "rendererRssBytes": 619020288,
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1134297088,
+      "gpuRssBytes": 215023616,
+      "rendererRssBytes": 601653248,
       "processCount": 6
     },
     {
-      "label": "transition:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1173323776,
-      "gpuRssBytes": 245923840,
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1139671040,
+      "gpuRssBytes": 219398144,
+      "rendererRssBytes": 602636288,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1130463232,
+      "gpuRssBytes": 217923584,
+      "rendererRssBytes": 596344832,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1121107968,
+      "gpuRssBytes": 216891392,
+      "rendererRssBytes": 589709312,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1119731712,
+      "gpuRssBytes": 215220224,
+      "rendererRssBytes": 589856768,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1048821760,
+      "gpuRssBytes": 169902080,
+      "rendererRssBytes": 564314112,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1062993920,
+      "gpuRssBytes": 174604288,
+      "rendererRssBytes": 565788672,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1072562176,
+      "gpuRssBytes": 174604288,
+      "rendererRssBytes": 566034432,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1073119232,
+      "gpuRssBytes": 174620672,
+      "rendererRssBytes": 566444032,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1073184768,
+      "gpuRssBytes": 174620672,
+      "rendererRssBytes": 566509568,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1073266688,
+      "gpuRssBytes": 174604288,
+      "rendererRssBytes": 566607872,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1132920832,
+      "gpuRssBytes": 174620672,
+      "rendererRssBytes": 594509824,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1139818496,
+      "gpuRssBytes": 175407104,
+      "rendererRssBytes": 607141888,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1401602048,
+      "gpuRssBytes": 324517888,
+      "rendererRssBytes": 730464256,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1386299392,
+      "gpuRssBytes": 332120064,
+      "rendererRssBytes": 709115904,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1383743488,
+      "gpuRssBytes": 332021760,
+      "rendererRssBytes": 707018752,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1383628800,
+      "gpuRssBytes": 331956224,
+      "rendererRssBytes": 706969600,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1352056832,
+      "gpuRssBytes": 332955648,
+      "rendererRssBytes": 674316288,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1432698880,
+      "gpuRssBytes": 351010816,
+      "rendererRssBytes": 734232576,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1433387008,
+      "gpuRssBytes": 351076352,
+      "rendererRssBytes": 734855168,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1438105600,
+      "gpuRssBytes": 351109120,
+      "rendererRssBytes": 739540992,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1438187520,
+      "gpuRssBytes": 351125504,
+      "rendererRssBytes": 739606528,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1438121984,
+      "gpuRssBytes": 351076352,
+      "rendererRssBytes": 739655680,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1226473472,
+      "gpuRssBytes": 197951488,
+      "rendererRssBytes": 681181184,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1226539008,
+      "gpuRssBytes": 197967872,
+      "rendererRssBytes": 681230336,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1226555392,
+      "gpuRssBytes": 197967872,
+      "rendererRssBytes": 681279488,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1226604544,
+      "gpuRssBytes": 197984256,
+      "rendererRssBytes": 681312256,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1226997760,
+      "gpuRssBytes": 198017024,
+      "rendererRssBytes": 681672704,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1247952896,
+      "gpuRssBytes": 212418560,
+      "rendererRssBytes": 688226304,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1248493568,
+      "gpuRssBytes": 212811776,
+      "rendererRssBytes": 688373760,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1248608256,
+      "gpuRssBytes": 212762624,
+      "rendererRssBytes": 688488448,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1248952320,
+      "gpuRssBytes": 212926464,
+      "rendererRssBytes": 688619520,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1198637056,
+      "gpuRssBytes": 206716928,
+      "rendererRssBytes": 644497408,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1198620672,
+      "gpuRssBytes": 206700544,
+      "rendererRssBytes": 644497408,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-cards",
+      "browserPid": 58145,
+      "totalRssBytes": 1201192960,
+      "gpuRssBytes": 206848000,
+      "rendererRssBytes": 646807552,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-cards",
+      "browserPid": 58145,
+      "totalRssBytes": 1201307648,
+      "gpuRssBytes": 206880768,
+      "rendererRssBytes": 646889472,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-cards",
+      "browserPid": 58145,
+      "totalRssBytes": 1201356800,
+      "gpuRssBytes": 206880768,
+      "rendererRssBytes": 646938624,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-cards",
+      "browserPid": 58145,
+      "totalRssBytes": 1201487872,
+      "gpuRssBytes": 206946304,
+      "rendererRssBytes": 646987776,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-cards",
+      "browserPid": 58145,
+      "totalRssBytes": 1201487872,
+      "gpuRssBytes": 206929920,
+      "rendererRssBytes": 647004160,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1203191808,
+      "gpuRssBytes": 206979072,
+      "rendererRssBytes": 648282112,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1179402240,
+      "gpuRssBytes": 205127680,
+      "rendererRssBytes": 635961344,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1132986368,
+      "gpuRssBytes": 202997760,
+      "rendererRssBytes": 602439680,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1133035520,
+      "gpuRssBytes": 202997760,
+      "rendererRssBytes": 602488832,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1133051904,
+      "gpuRssBytes": 202997760,
+      "rendererRssBytes": 602505216,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1135575040,
+      "gpuRssBytes": 204079104,
+      "rendererRssBytes": 603881472,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1139261440,
+      "gpuRssBytes": 206127104,
+      "rendererRssBytes": 604569600,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1040220160,
+      "gpuRssBytes": 195919872,
+      "rendererRssBytes": 515719168,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1041612800,
+      "gpuRssBytes": 196149248,
+      "rendererRssBytes": 516882432,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1027424256,
+      "gpuRssBytes": 195985408,
+      "rendererRssBytes": 502923264,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1027670016,
+      "gpuRssBytes": 196083712,
+      "rendererRssBytes": 502923264,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1065598976,
+      "gpuRssBytes": 196149248,
+      "rendererRssBytes": 534331392,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1094483968,
+      "gpuRssBytes": 212844544,
+      "rendererRssBytes": 546504704,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1094565888,
+      "gpuRssBytes": 212910080,
+      "rendererRssBytes": 546521088,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1094631424,
+      "gpuRssBytes": 212942848,
+      "rendererRssBytes": 546553856,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1094434816,
+      "gpuRssBytes": 212844544,
+      "rendererRssBytes": 546455552,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1098924032,
+      "gpuRssBytes": 212844544,
+      "rendererRssBytes": 550846464,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1098924032,
+      "gpuRssBytes": 212844544,
+      "rendererRssBytes": 550846464,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1104560128,
+      "gpuRssBytes": 218415104,
+      "rendererRssBytes": 550895616,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1104674816,
+      "gpuRssBytes": 218415104,
+      "rendererRssBytes": 551010304,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1105035264,
+      "gpuRssBytes": 218415104,
+      "rendererRssBytes": 551370752,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1105575936,
+      "gpuRssBytes": 218595328,
+      "rendererRssBytes": 551698432,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1098088448,
+      "gpuRssBytes": 218628096,
+      "rendererRssBytes": 551714816,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1091567616,
+      "gpuRssBytes": 218529792,
+      "rendererRssBytes": 551714816,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1091584000,
+      "gpuRssBytes": 218529792,
+      "rendererRssBytes": 551714816,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1162657792,
+      "gpuRssBytes": 217858048,
+      "rendererRssBytes": 593805312,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1330823168,
+      "gpuRssBytes": 299335680,
+      "rendererRssBytes": 682819584,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1357152256,
+      "gpuRssBytes": 327581696,
+      "rendererRssBytes": 681066496,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1358053376,
+      "gpuRssBytes": 328171520,
+      "rendererRssBytes": 681377792,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1358266368,
+      "gpuRssBytes": 328302592,
+      "rendererRssBytes": 681459712,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1349763072,
+      "gpuRssBytes": 319897600,
+      "rendererRssBytes": 681361408,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1365409792,
+      "gpuRssBytes": 323239936,
+      "rendererRssBytes": 693501952,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1372028928,
+      "gpuRssBytes": 323239936,
+      "rendererRssBytes": 700121088,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1375305728,
+      "gpuRssBytes": 323239936,
+      "rendererRssBytes": 703397888,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1375305728,
+      "gpuRssBytes": 323239936,
+      "rendererRssBytes": 703397888,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1361543168,
+      "gpuRssBytes": 323239936,
+      "rendererRssBytes": 689635328,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1337065472,
+      "gpuRssBytes": 318701568,
+      "rendererRssBytes": 673546240,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1264631808,
+      "gpuRssBytes": 311525376,
+      "rendererRssBytes": 620331008,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1180942336,
+      "gpuRssBytes": 301957120,
+      "rendererRssBytes": 548356096,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1056997376,
+      "gpuRssBytes": 177930240,
+      "rendererRssBytes": 548438016,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1062404096,
+      "gpuRssBytes": 182566912,
+      "rendererRssBytes": 549109760,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1062715392,
+      "gpuRssBytes": 182730752,
+      "rendererRssBytes": 549257216,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1062748160,
+      "gpuRssBytes": 182730752,
+      "rendererRssBytes": 549289984,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1034190848,
+      "gpuRssBytes": 182730752,
+      "rendererRssBytes": 520732672,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1055571968,
+      "gpuRssBytes": 183500800,
+      "rendererRssBytes": 528564224,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1099038720,
+      "gpuRssBytes": 183500800,
+      "rendererRssBytes": 571998208,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1142390784,
+      "gpuRssBytes": 225722368,
+      "rendererRssBytes": 573128704,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1142521856,
+      "gpuRssBytes": 225804288,
+      "rendererRssBytes": 573177856,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1142603776,
+      "gpuRssBytes": 225820672,
+      "rendererRssBytes": 573243392,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1142374400,
+      "gpuRssBytes": 225722368,
+      "rendererRssBytes": 573112320,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1223933952,
+      "gpuRssBytes": 234553344,
+      "rendererRssBytes": 637698048,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1224228864,
+      "gpuRssBytes": 234569728,
+      "rendererRssBytes": 637960192,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1224622080,
+      "gpuRssBytes": 234569728,
+      "rendererRssBytes": 638320640,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1224769536,
+      "gpuRssBytes": 234569728,
+      "rendererRssBytes": 638468096,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1224949760,
+      "gpuRssBytes": 234569728,
+      "rendererRssBytes": 638599168,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1224966144,
+      "gpuRssBytes": 234504192,
+      "rendererRssBytes": 638746624,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1226145792,
+      "gpuRssBytes": 234782720,
+      "rendererRssBytes": 639647744,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1226178560,
+      "gpuRssBytes": 234782720,
+      "rendererRssBytes": 639680512,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1194426368,
+      "gpuRssBytes": 234782720,
+      "rendererRssBytes": 607911936,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1194360832,
+      "gpuRssBytes": 234766336,
+      "rendererRssBytes": 607911936,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1272463360,
+      "gpuRssBytes": 231424000,
+      "rendererRssBytes": 677396480,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1300430848,
+      "gpuRssBytes": 251543552,
+      "rendererRssBytes": 685228032,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1304035328,
+      "gpuRssBytes": 254345216,
+      "rendererRssBytes": 685998080,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1304412160,
+      "gpuRssBytes": 254509056,
+      "rendererRssBytes": 686211072,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1288896512,
+      "gpuRssBytes": 238452736,
+      "rendererRssBytes": 686751744,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1288880128,
+      "gpuRssBytes": 238436352,
+      "rendererRssBytes": 686751744,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1290993664,
+      "gpuRssBytes": 238518272,
+      "rendererRssBytes": 688783360,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1291042816,
+      "gpuRssBytes": 238518272,
+      "rendererRssBytes": 688832512,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1294286848,
+      "gpuRssBytes": 241647616,
+      "rendererRssBytes": 688947200,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1294286848,
+      "gpuRssBytes": 241647616,
+      "rendererRssBytes": 688947200,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1294483456,
+      "gpuRssBytes": 241582080,
+      "rendererRssBytes": 689176576,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1208156160,
+      "gpuRssBytes": 182501376,
+      "rendererRssBytes": 661929984,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1208156160,
+      "gpuRssBytes": 182501376,
+      "rendererRssBytes": 661929984,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1208287232,
+      "gpuRssBytes": 182501376,
+      "rendererRssBytes": 662061056,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1215889408,
+      "gpuRssBytes": 187432960,
+      "rendererRssBytes": 664715264,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1215840256,
+      "gpuRssBytes": 187400192,
+      "rendererRssBytes": 664698880,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1203240960,
+      "gpuRssBytes": 187088896,
+      "rendererRssBytes": 652443648,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1203322880,
+      "gpuRssBytes": 187088896,
+      "rendererRssBytes": 652443648,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1203453952,
+      "gpuRssBytes": 187154432,
+      "rendererRssBytes": 652443648,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1203437568,
+      "gpuRssBytes": 187138048,
+      "rendererRssBytes": 652443648,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1203404800,
+      "gpuRssBytes": 187105280,
+      "rendererRssBytes": 652443648,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1203404800,
+      "gpuRssBytes": 187105280,
+      "rendererRssBytes": 652443648,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1203404800,
+      "gpuRssBytes": 187105280,
+      "rendererRssBytes": 652443648,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1203404800,
+      "gpuRssBytes": 187105280,
+      "rendererRssBytes": 652443648,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1203126272,
+      "gpuRssBytes": 186826752,
+      "rendererRssBytes": 652443648,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1189052416,
+      "gpuRssBytes": 172998656,
+      "rendererRssBytes": 652263424,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1189036032,
+      "gpuRssBytes": 172982272,
+      "rendererRssBytes": 652263424,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1189036032,
+      "gpuRssBytes": 172982272,
+      "rendererRssBytes": 652263424,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1189019648,
+      "gpuRssBytes": 172965888,
+      "rendererRssBytes": 652263424,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1189019648,
+      "gpuRssBytes": 172965888,
+      "rendererRssBytes": 652263424,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1189019648,
+      "gpuRssBytes": 172965888,
+      "rendererRssBytes": 652263424,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1189019648,
+      "gpuRssBytes": 172965888,
+      "rendererRssBytes": 652263424,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1189019648,
+      "gpuRssBytes": 172965888,
+      "rendererRssBytes": 652263424,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1189019648,
+      "gpuRssBytes": 172965888,
+      "rendererRssBytes": 652263424,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 58145,
+      "totalRssBytes": 1188970496,
+      "gpuRssBytes": 172965888,
+      "rendererRssBytes": 652263424,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1196572672,
+      "gpuRssBytes": 180486144,
+      "rendererRssBytes": 652345344,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1202176000,
+      "gpuRssBytes": 186056704,
+      "rendererRssBytes": 652378112,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1202765824,
+      "gpuRssBytes": 186155008,
+      "rendererRssBytes": 652869632,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1206648832,
+      "gpuRssBytes": 189267968,
+      "rendererRssBytes": 653557760,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1206943744,
+      "gpuRssBytes": 189267968,
+      "rendererRssBytes": 653852672,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1207009280,
+      "gpuRssBytes": 189267968,
+      "rendererRssBytes": 653918208,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1207058432,
+      "gpuRssBytes": 189317120,
+      "rendererRssBytes": 653918208,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1200717824,
+      "gpuRssBytes": 189317120,
+      "rendererRssBytes": 647561216,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1200832512,
+      "gpuRssBytes": 189317120,
+      "rendererRssBytes": 647675904,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1200013312,
+      "gpuRssBytes": 189317120,
+      "rendererRssBytes": 646856704,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1200111616,
+      "gpuRssBytes": 189317120,
+      "rendererRssBytes": 646955008,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1200193536,
+      "gpuRssBytes": 189317120,
+      "rendererRssBytes": 647036928,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1201471488,
+      "gpuRssBytes": 189480960,
+      "rendererRssBytes": 648085504,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1202585600,
+      "gpuRssBytes": 189808640,
+      "rendererRssBytes": 648888320,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1184792576,
+      "gpuRssBytes": 189710336,
+      "rendererRssBytes": 637370368,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1132855296,
+      "gpuRssBytes": 188956672,
+      "rendererRssBytes": 590053376,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1108082688,
+      "gpuRssBytes": 188792832,
+      "rendererRssBytes": 564838400,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 58145,
+      "totalRssBytes": 1005568000,
+      "gpuRssBytes": 188694528,
+      "rendererRssBytes": 462520320,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1145946112,
+      "gpuRssBytes": 227590144,
+      "rendererRssBytes": 557678592,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1152303104,
+      "gpuRssBytes": 232980480,
+      "rendererRssBytes": 558301184,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1152303104,
+      "gpuRssBytes": 232980480,
+      "rendererRssBytes": 558301184,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1170276352,
+      "gpuRssBytes": 233062400,
+      "rendererRssBytes": 576192512,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1173340160,
+      "gpuRssBytes": 233062400,
+      "rendererRssBytes": 579272704,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1177796608,
+      "gpuRssBytes": 232996864,
+      "rendererRssBytes": 583319552,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1180663808,
+      "gpuRssBytes": 232996864,
+      "rendererRssBytes": 586186752,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1111048192,
+      "gpuRssBytes": 180994048,
+      "rendererRssBytes": 568573952,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1118863360,
+      "gpuRssBytes": 180994048,
+      "rendererRssBytes": 576389120,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1118846976,
+      "gpuRssBytes": 180977664,
+      "rendererRssBytes": 576389120,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1077559296,
+      "gpuRssBytes": 185483264,
+      "rendererRssBytes": 530497536,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1078509568,
+      "gpuRssBytes": 186400768,
+      "rendererRssBytes": 530530304,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1083506688,
+      "gpuRssBytes": 186597376,
+      "rendererRssBytes": 535314432,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1083588608,
+      "gpuRssBytes": 186646528,
+      "rendererRssBytes": 535347200,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1083392000,
+      "gpuRssBytes": 186548224,
+      "rendererRssBytes": 535248896,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 58145,
+      "totalRssBytes": 1083375616,
+      "gpuRssBytes": 186531840,
+      "rendererRssBytes": 535248896,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1438253056,
+      "gpuRssBytes": 343359488,
+      "rendererRssBytes": 721403904,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1441726464,
+      "gpuRssBytes": 346800128,
+      "rendererRssBytes": 721420288,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1445167104,
+      "gpuRssBytes": 346849280,
+      "rendererRssBytes": 724860928,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1451737088,
+      "gpuRssBytes": 346865664,
+      "rendererRssBytes": 731414528,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1208664064,
+      "gpuRssBytes": 181190656,
+      "rendererRssBytes": 654082048,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1208664064,
+      "gpuRssBytes": 181190656,
+      "rendererRssBytes": 654082048,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1208664064,
+      "gpuRssBytes": 181190656,
+      "rendererRssBytes": 654082048,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1208664064,
+      "gpuRssBytes": 181190656,
+      "rendererRssBytes": 654082048,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1208680448,
+      "gpuRssBytes": 181207040,
+      "rendererRssBytes": 654082048,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1208598528,
+      "gpuRssBytes": 181207040,
+      "rendererRssBytes": 654000128,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1208598528,
+      "gpuRssBytes": 181207040,
+      "rendererRssBytes": 654000128,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1199226880,
+      "gpuRssBytes": 181338112,
+      "rendererRssBytes": 644415488,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1199226880,
+      "gpuRssBytes": 181338112,
+      "rendererRssBytes": 644415488,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1173700608,
+      "gpuRssBytes": 185778176,
+      "rendererRssBytes": 614367232,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1175273472,
+      "gpuRssBytes": 186318848,
+      "rendererRssBytes": 615399424,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1176027136,
+      "gpuRssBytes": 186335232,
+      "rendererRssBytes": 616103936,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1176535040,
+      "gpuRssBytes": 186384384,
+      "rendererRssBytes": 616562688,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1176846336,
+      "gpuRssBytes": 186302464,
+      "rendererRssBytes": 616955904,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 58145,
+      "totalRssBytes": 1176846336,
+      "gpuRssBytes": 186286080,
+      "rendererRssBytes": 616972288,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1205452800,
+      "gpuRssBytes": 186302464,
+      "rendererRssBytes": 644808704,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1165557760,
+      "gpuRssBytes": 182730752,
+      "rendererRssBytes": 618201088,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1138032640,
+      "gpuRssBytes": 183992320,
+      "rendererRssBytes": 589578240,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1138835456,
+      "gpuRssBytes": 184025088,
+      "rendererRssBytes": 590249984,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1139720192,
+      "gpuRssBytes": 184025088,
+      "rendererRssBytes": 591085568,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1139654656,
+      "gpuRssBytes": 183959552,
+      "rendererRssBytes": 591118336,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1139687424,
+      "gpuRssBytes": 183959552,
+      "rendererRssBytes": 591151104,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1125957632,
+      "gpuRssBytes": 170295296,
+      "rendererRssBytes": 591052800,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1125957632,
+      "gpuRssBytes": 170295296,
+      "rendererRssBytes": 591052800,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1101742080,
+      "gpuRssBytes": 174768128,
+      "rendererRssBytes": 562282496,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1102249984,
+      "gpuRssBytes": 175128576,
+      "rendererRssBytes": 562429952,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1102348288,
+      "gpuRssBytes": 175161344,
+      "rendererRssBytes": 562495488,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1102397440,
+      "gpuRssBytes": 175194112,
+      "rendererRssBytes": 562511872,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1102200832,
+      "gpuRssBytes": 175095808,
+      "rendererRssBytes": 562413568,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 58145,
+      "totalRssBytes": 1102184448,
+      "gpuRssBytes": 175079424,
+      "rendererRssBytes": 562413568,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1110048768,
+      "gpuRssBytes": 175226880,
+      "rendererRssBytes": 571097088,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1258684416,
+      "gpuRssBytes": 257048576,
+      "rendererRssBytes": 637878272,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1263648768,
+      "gpuRssBytes": 261980160,
+      "rendererRssBytes": 637911040,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1264500736,
+      "gpuRssBytes": 262848512,
+      "rendererRssBytes": 637894656,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1264287744,
+      "gpuRssBytes": 262750208,
+      "rendererRssBytes": 637845504,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 58145,
+      "totalRssBytes": 1243136000,
+      "gpuRssBytes": 262848512,
+      "rendererRssBytes": 616595456,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-cards",
+      "browserPid": 58145,
+      "totalRssBytes": 1243660288,
+      "gpuRssBytes": 263012352,
+      "rendererRssBytes": 616677376,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-cards",
+      "browserPid": 58145,
+      "totalRssBytes": 1243873280,
+      "gpuRssBytes": 263094272,
+      "rendererRssBytes": 616792064,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-cards",
+      "browserPid": 58145,
+      "totalRssBytes": 1243987968,
+      "gpuRssBytes": 263094272,
+      "rendererRssBytes": 616906752,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-cards",
+      "browserPid": 58145,
+      "totalRssBytes": 1243987968,
+      "gpuRssBytes": 263094272,
+      "rendererRssBytes": 616906752,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1244184576,
+      "gpuRssBytes": 263094272,
+      "rendererRssBytes": 617054208,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1244446720,
+      "gpuRssBytes": 263127040,
+      "rendererRssBytes": 617250816,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1244479488,
+      "gpuRssBytes": 263127040,
+      "rendererRssBytes": 617250816,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1244479488,
+      "gpuRssBytes": 263127040,
+      "rendererRssBytes": 617250816,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-opening",
+      "browserPid": 58145,
+      "totalRssBytes": 1244479488,
+      "gpuRssBytes": 263127040,
+      "rendererRssBytes": 617250816,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1274724352,
+      "gpuRssBytes": 263061504,
+      "rendererRssBytes": 644808704,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1286242304,
+      "gpuRssBytes": 269402112,
+      "rendererRssBytes": 649953280,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1321074688,
+      "gpuRssBytes": 338853888,
+      "rendererRssBytes": 623476736,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1320370176,
+      "gpuRssBytes": 339148800,
+      "rendererRssBytes": 622575616,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1275494400,
+      "gpuRssBytes": 294944768,
+      "rendererRssBytes": 621920256,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1269547008,
+      "gpuRssBytes": 291930112,
       "rendererRssBytes": 619233280,
       "processCount": 6
     },
     {
-      "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1190084608,
-      "gpuRssBytes": 246300672,
-      "rendererRssBytes": 634257408,
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1286832128,
+      "gpuRssBytes": 282869760,
+      "rendererRssBytes": 650477568,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1251393536,
+      "gpuRssBytes": 276660224,
+      "rendererRssBytes": 628850688,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1247117312,
+      "gpuRssBytes": 274644992,
+      "rendererRssBytes": 626802688,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1180696576,
+      "gpuRssBytes": 220807168,
+      "rendererRssBytes": 617005056,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1180975104,
+      "gpuRssBytes": 220823552,
+      "rendererRssBytes": 617267200,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1101283328,
+      "gpuRssBytes": 177192960,
+      "rendererRssBytes": 581206016,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1099726848,
+      "gpuRssBytes": 177209344,
+      "rendererRssBytes": 579633152,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1100300288,
+      "gpuRssBytes": 177209344,
+      "rendererRssBytes": 580206592,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1100742656,
+      "gpuRssBytes": 177258496,
+      "rendererRssBytes": 580599808,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1100759040,
+      "gpuRssBytes": 177258496,
+      "rendererRssBytes": 580616192,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1093844992,
+      "gpuRssBytes": 173785088,
+      "rendererRssBytes": 577175552,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1095204864,
+      "gpuRssBytes": 173785088,
+      "rendererRssBytes": 578453504,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1101414400,
+      "gpuRssBytes": 179191808,
+      "rendererRssBytes": 578928640,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1107345408,
+      "gpuRssBytes": 182517760,
+      "rendererRssBytes": 581517312,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1108164608,
+      "gpuRssBytes": 183271424,
+      "rendererRssBytes": 581582848,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1108361216,
+      "gpuRssBytes": 183451648,
+      "rendererRssBytes": 581599232,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 58145,
+      "totalRssBytes": 1108197376,
+      "gpuRssBytes": 183369728,
+      "rendererRssBytes": 581517312,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1172635648,
+      "gpuRssBytes": 183369728,
+      "rendererRssBytes": 633765888,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1175453696,
+      "gpuRssBytes": 183369728,
+      "rendererRssBytes": 636485632,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1184710656,
+      "gpuRssBytes": 192086016,
+      "rendererRssBytes": 636993536,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1184940032,
+      "gpuRssBytes": 192086016,
+      "rendererRssBytes": 637222912,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1185153024,
+      "gpuRssBytes": 192102400,
+      "rendererRssBytes": 637337600,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1211351040,
+      "gpuRssBytes": 211369984,
+      "rendererRssBytes": 644382720,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1211678720,
+      "gpuRssBytes": 211468288,
+      "rendererRssBytes": 644612096,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1212055552,
+      "gpuRssBytes": 211468288,
+      "rendererRssBytes": 644988928,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1212268544,
+      "gpuRssBytes": 211468288,
+      "rendererRssBytes": 645136384,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1212416000,
+      "gpuRssBytes": 211468288,
+      "rendererRssBytes": 645283840,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1212547072,
+      "gpuRssBytes": 211550208,
+      "rendererRssBytes": 645332992,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 58145,
+      "totalRssBytes": 1212579840,
+      "gpuRssBytes": 211550208,
+      "rendererRssBytes": 645332992,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1218445312,
+      "gpuRssBytes": 215171072,
+      "rendererRssBytes": 644333568,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1251278848,
+      "gpuRssBytes": 208683008,
+      "rendererRssBytes": 683638784,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1226407936,
+      "gpuRssBytes": 210976768,
+      "rendererRssBytes": 656474112,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1226211328,
+      "gpuRssBytes": 210780160,
+      "rendererRssBytes": 656474112,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1226063872,
+      "gpuRssBytes": 210665472,
+      "rendererRssBytes": 656408576,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 58145,
+      "totalRssBytes": 1226113024,
+      "gpuRssBytes": 210681856,
+      "rendererRssBytes": 656408576,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1232044032,
+      "gpuRssBytes": 211730432,
+      "rendererRssBytes": 661209088,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1382203392,
+      "gpuRssBytes": 285933568,
+      "rendererRssBytes": 737099776,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1348567040,
+      "gpuRssBytes": 285491200,
+      "rendererRssBytes": 710787072,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1349877760,
+      "gpuRssBytes": 285573120,
+      "rendererRssBytes": 712015872,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1350647808,
+      "gpuRssBytes": 285589504,
+      "rendererRssBytes": 712867840,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1342750720,
+      "gpuRssBytes": 281542656,
+      "rendererRssBytes": 710000640,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1152204800,
+      "gpuRssBytes": 245137408,
+      "rendererRssBytes": 586924032,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1159413760,
+      "gpuRssBytes": 248233984,
+      "rendererRssBytes": 590921728,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1161265152,
+      "gpuRssBytes": 248233984,
+      "rendererRssBytes": 592756736,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1159561216,
+      "gpuRssBytes": 248266752,
+      "rendererRssBytes": 591020032,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1159659520,
+      "gpuRssBytes": 248315904,
+      "rendererRssBytes": 591069184,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1159725056,
+      "gpuRssBytes": 248332288,
+      "rendererRssBytes": 591118336,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1159823360,
+      "gpuRssBytes": 248365056,
+      "rendererRssBytes": 591167488,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1159921664,
+      "gpuRssBytes": 248397824,
+      "rendererRssBytes": 591233024,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1159790592,
+      "gpuRssBytes": 248332288,
+      "rendererRssBytes": 591167488,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 58145,
+      "totalRssBytes": 1184546816,
+      "gpuRssBytes": 248365056,
+      "rendererRssBytes": 599015424,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1287372800,
+      "gpuRssBytes": 285261824,
+      "rendererRssBytes": 666370048,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1302413312,
+      "gpuRssBytes": 285655040,
+      "rendererRssBytes": 680984576,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1307983872,
+      "gpuRssBytes": 288342016,
+      "rendererRssBytes": 683835392,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1253113856,
+      "gpuRssBytes": 233472000,
+      "rendererRssBytes": 683835392,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1253474304,
+      "gpuRssBytes": 233750528,
+      "rendererRssBytes": 683884544,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1253621760,
+      "gpuRssBytes": 233717760,
+      "rendererRssBytes": 684064768,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1253654528,
+      "gpuRssBytes": 233717760,
+      "rendererRssBytes": 684097536,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1253588992,
+      "gpuRssBytes": 233652224,
+      "rendererRssBytes": 684163072,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1253376000,
+      "gpuRssBytes": 233537536,
+      "rendererRssBytes": 684064768,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1206681600,
-      "gpuRssBytes": 246513664,
-      "rendererRssBytes": 650117120,
+      "browserPid": 58145,
+      "totalRssBytes": 1257570304,
+      "gpuRssBytes": 232095744,
+      "rendererRssBytes": 689242112,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1229127680,
-      "gpuRssBytes": 246513664,
-      "rendererRssBytes": 672530432,
+      "browserPid": 58145,
+      "totalRssBytes": 1269760000,
+      "gpuRssBytes": 232161280,
+      "rendererRssBytes": 701235200,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1230028800,
-      "gpuRssBytes": 246513664,
-      "rendererRssBytes": 673431552,
+      "browserPid": 58145,
+      "totalRssBytes": 1305149440,
+      "gpuRssBytes": 232161280,
+      "rendererRssBytes": 736559104,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1229881344,
-      "gpuRssBytes": 246513664,
-      "rendererRssBytes": 673267712,
+      "browserPid": 58145,
+      "totalRssBytes": 1305853952,
+      "gpuRssBytes": 232161280,
+      "rendererRssBytes": 737247232,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1230176256,
-      "gpuRssBytes": 246513664,
-      "rendererRssBytes": 673562624,
+      "browserPid": 58145,
+      "totalRssBytes": 1305788416,
+      "gpuRssBytes": 232161280,
+      "rendererRssBytes": 737132544,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1230471168,
-      "gpuRssBytes": 246513664,
-      "rendererRssBytes": 673857536,
+      "browserPid": 58145,
+      "totalRssBytes": 1308344320,
+      "gpuRssBytes": 232161280,
+      "rendererRssBytes": 739622912,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1230684160,
-      "gpuRssBytes": 246415360,
-      "rendererRssBytes": 674234368,
+      "browserPid": 58145,
+      "totalRssBytes": 1314832384,
+      "gpuRssBytes": 232161280,
+      "rendererRssBytes": 746061824,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1230405632,
-      "gpuRssBytes": 246169600,
-      "rendererRssBytes": 674201600,
+      "browserPid": 58145,
+      "totalRssBytes": 1314619392,
+      "gpuRssBytes": 232161280,
+      "rendererRssBytes": 745816064,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1210875904,
-      "gpuRssBytes": 226639872,
-      "rendererRssBytes": 674201600,
+      "browserPid": 58145,
+      "totalRssBytes": 1314308096,
+      "gpuRssBytes": 232095744,
+      "rendererRssBytes": 745619456,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1211203584,
-      "gpuRssBytes": 226590720,
-      "rendererRssBytes": 674578432,
+      "browserPid": 58145,
+      "totalRssBytes": 1295040512,
+      "gpuRssBytes": 212271104,
+      "rendererRssBytes": 746160128,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1209843712,
-      "gpuRssBytes": 225509376,
-      "rendererRssBytes": 674299904,
+      "browserPid": 58145,
+      "totalRssBytes": 1294680064,
+      "gpuRssBytes": 212107264,
+      "rendererRssBytes": 745930752,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1209745408,
-      "gpuRssBytes": 225492992,
-      "rendererRssBytes": 674217984,
+      "browserPid": 58145,
+      "totalRssBytes": 1293336576,
+      "gpuRssBytes": 210944000,
+      "rendererRssBytes": 745766912,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1213382656,
-      "gpuRssBytes": 225492992,
-      "rendererRssBytes": 677855232,
+      "browserPid": 58145,
+      "totalRssBytes": 1293778944,
+      "gpuRssBytes": 210944000,
+      "rendererRssBytes": 746209280,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1213104128,
-      "gpuRssBytes": 225411072,
-      "rendererRssBytes": 677658624,
+      "browserPid": 58145,
+      "totalRssBytes": 1295007744,
+      "gpuRssBytes": 210944000,
+      "rendererRssBytes": 747438080,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1213530112,
-      "gpuRssBytes": 225411072,
-      "rendererRssBytes": 678084608,
+      "browserPid": 58145,
+      "totalRssBytes": 1302528000,
+      "gpuRssBytes": 210944000,
+      "rendererRssBytes": 754941952,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1213284352,
-      "gpuRssBytes": 225394688,
-      "rendererRssBytes": 677855232,
+      "browserPid": 58145,
+      "totalRssBytes": 1302331392,
+      "gpuRssBytes": 210927616,
+      "rendererRssBytes": 754745344,
       "processCount": 6
     },
     {
       "label": "settled:reverse:hero",
-      "browserPid": 75679,
-      "totalRssBytes": 1212989440,
-      "gpuRssBytes": 225394688,
-      "rendererRssBytes": 677560320,
+      "browserPid": 58145,
+      "totalRssBytes": 1302233088,
+      "gpuRssBytes": 210927616,
+      "rendererRssBytes": 754581504,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1302724608,
+      "gpuRssBytes": 210927616,
+      "rendererRssBytes": 755056640,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 58145,
+      "totalRssBytes": 1302265856,
+      "gpuRssBytes": 210927616,
+      "rendererRssBytes": 754597888,
       "processCount": 6
     }
   ]

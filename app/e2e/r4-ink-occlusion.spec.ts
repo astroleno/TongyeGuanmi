@@ -232,6 +232,8 @@ async function measureSvgDepthBoundary(page: Page, progress: number): Promise<{
       transform
     });
     if (!mask) throw new Error('SVG depth mask probe unavailable');
+    await mask.ready;
+    mask.commit();
     const tables = mask.render(gateRank, transform);
     const firstHiddenIndex = tables.reveal.findIndex((value: number) => value === 0);
     const boundaryY = (firstHiddenIndex < 0 ? tables.reveal.length : firstHiddenIndex)

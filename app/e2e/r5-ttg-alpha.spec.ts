@@ -92,9 +92,29 @@ test('TTG alpha pair plays the canonical forward and reverse assets on every dev
 
   const reverse = await ttgMediaState(page);
   expect(reverse.direction).toBe('-1');
-  expect(reverse.reverse.active).toBe(true);
-  expect(reverse.reverse.opacity).toBeGreaterThan(0.9);
+  expect(reverse.forward.active).toBe(true);
+  expect(reverse.forward.opacity).toBeGreaterThan(0.9);
+  expect(reverse.reverse.active).toBe(false);
+
   await page.keyboard.press('PageUp');
+  await page.waitForFunction(() => {
+    const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
+    const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
+    return scene?.dataset.ttgActiveSurface === 'reverse'
+      && video?.classList.contains('is-active')
+      && (video.currentTime ?? 0) > 0.05
+      && (video.currentTime ?? 0) < 2.4;
+  });
+  const reversePlayback = await ttgMediaState(page);
+  expect(reversePlayback.reverse.active).toBe(true);
+  expect(reversePlayback.reverse.opacity).toBeGreaterThan(0.9);
+  const reverseTime = reversePlayback.reverse.currentTime;
+  await expect.poll(async () => (await ttgMediaState(page)).reverse.currentTime).toBeGreaterThan(reverseTime + 0.05);
+
   await waitForHold(page, 'ttg-animation');
+  const restored = await ttgMediaState(page);
+  expect(restored.forward.active).toBe(true);
+  expect(restored.forward.currentTime).toBeLessThan(0.05);
+  expect(restored.reverse.active).toBe(false);
   expect((await storySnapshot(page)).lastError).toBeUndefined();
 });

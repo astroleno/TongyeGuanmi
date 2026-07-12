@@ -27,7 +27,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783759456071,
+      "at": 1783880721408,
       "event": {
         "type": "BOOT_READY"
       },
@@ -44,7 +44,7 @@
       "id": 1
     },
     {
-      "at": 1783759456071,
+      "at": 1783880721409,
       "event": {
         "type": "BOOT_READY"
       },
@@ -61,7 +61,7 @@
       "id": 2
     },
     {
-      "at": 1783759456104,
+      "at": 1783880721889,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -80,7 +80,7 @@
       "id": 3
     },
     {
-      "at": 1783759456363,
+      "at": 1783880721913,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-animation",
@@ -102,7 +102,7 @@
       "id": 4
     },
     {
-      "at": 1783759457837,
+      "at": 1783880723145,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g2-group2:1"
@@ -123,7 +123,7 @@
       "id": 5
     },
     {
-      "at": 1783759458671,
+      "at": 1783880724518,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -142,7 +142,7 @@
       "id": 6
     },
     {
-      "at": 1783759458828,
+      "at": 1783880724540,
       "event": {
         "type": "TARGET_READY",
         "scene": "method-top",
@@ -164,7 +164,7 @@
       "id": 7
     },
     {
-      "at": 1783759460341,
+      "at": 1783880725728,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g2-group2:2"

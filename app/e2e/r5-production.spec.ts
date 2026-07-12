@@ -380,7 +380,7 @@ test('reading input is content-first, then 10svh commitment, with deterministic 
     element.scrollTop = element.scrollHeight - element.clientHeight;
   });
   await page.evaluate(() => window.dispatchEvent(new Event('story-reading-entry')));
-  await page.evaluate(() => {
+  const beforeCommit = await page.evaluate(() => {
     const lead = document.querySelector<HTMLElement>('[data-stage-layer="method-top"] .r4-method__lead');
     const height = window.innerHeight;
     lead?.dispatchEvent(new WheelEvent('wheel', {
@@ -389,14 +389,26 @@ test('reading input is content-first, then 10svh commitment, with deterministic 
       deltaMode: 0,
       deltaY: height * 0.099
     }));
+    const before = window.__storyApp?.snapshot();
+    lead?.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaMode: 0,
+      deltaY: height * 0.001
+    }));
+    return before;
   });
-  expect((await storySnapshot(page)).current).toBe('method-top');
-  await expect(scrollport).toHaveAttribute('data-reading-commitment-progress', '0.9900');
-  await expect(scrollport).toHaveAttribute('data-reading-commitment-committed', 'false');
+  expect(beforeCommit?.current).toBe('method-top');
+  expect(beforeCommit?.phase).toBe('hold');
 
-  await page.evaluate(() => window.dispatchEvent(new Event('story-reading-entry')));
-  await page.keyboard.press('PageDown');
   await waitForHold(page, 'figure2-animation');
+  await expectLayerInvariants(page);
+
+  await page.keyboard.press('PageUp');
+  await waitForHold(page, 'method-top');
+  await expect.poll(async () => scrollport.evaluate((element) => (
+    element.scrollTop + element.clientHeight >= element.scrollHeight - 1
+  ))).toBe(true);
   await expectLayerInvariants(page);
 });
 

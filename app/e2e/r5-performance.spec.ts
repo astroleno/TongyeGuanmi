@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { navigateStory, storySnapshot, waitForHold } from './r5-helpers';
+import { bootStory, navigateStory, storySnapshot, waitForHold } from './r5-helpers';
 
 test.use({ video: 'off', trace: 'off', screenshot: 'off' });
 
@@ -14,11 +14,14 @@ function summarizeFrames(frameIntervals: number[]) {
   const p95FrameIntervalMs = sorted[
     Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))
   ] ?? 0;
-  const longFramesOver50Ms = frameIntervals.filter((value) => value > 50).length;
+  const longFrameIndices = frameIntervals.flatMap((value, index) => value > 50 ? [index] : []);
+  const longFramesOver50Ms = longFrameIndices.length;
   return {
     samples: frameIntervals.length,
     p95FrameIntervalMs,
+    maxFrameIntervalMs: Math.max(0, ...frameIntervals),
     longFramesOver50Ms,
+    longFrameIndices,
     longFrameRatio: longFramesOver50Ms / frameIntervals.length
   };
 }
@@ -191,4 +194,145 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   if (finalHeap !== undefined) {
     expect(finalHeap).toBeLessThanOrEqual(192 * 1024 * 1024);
   }
+});
+
+test('focused media and horizontal Ink paths separate first decode from steady frame pacing', async ({ page }, testInfo) => {
+  test.skip(
+    !['desktop-chromium', 'mobile-chromium'].includes(testInfo.project.name),
+    'focused frame sampling is Chromium-only'
+  );
+  test.setTimeout(120_000);
+
+  await bootStory(page, '/#ttg-animation');
+  let startedAt = Date.now();
+  await page.keyboard.press('PageDown');
+  await page.waitForFunction(() => {
+    const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
+    const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
+    return scene?.dataset.ttgActiveSurface === 'forward'
+      && video?.classList.contains('is-active')
+      && !video.paused
+      && video.currentTime > 0.05;
+  });
+  const ttgForwardFirstDecodeMs = Date.now() - startedAt;
+  await startFrameSampling(page);
+  await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
+  const ttgForwardFrames = await stopFrameSampling(page);
+
+  startedAt = Date.now();
+  await page.keyboard.press('PageUp');
+  await page.waitForFunction(() => {
+    const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
+    const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
+    return scene?.dataset.ttgActiveSurface === 'reverse'
+      && video?.classList.contains('is-active')
+      && !video.paused
+      && video.currentTime > 0.05;
+  });
+  const ttgSameRunReverseFirstDecodeMs = Date.now() - startedAt;
+  await startFrameSampling(page);
+  await waitForHold(page, 'ttg-animation');
+  const ttgSameRunReverseFrames = await stopFrameSampling(page);
+
+  await bootStory(page, '/#figure2-proof-opening');
+  await page.keyboard.press('PageUp');
+  await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
+  startedAt = Date.now();
+  await page.keyboard.press('PageUp');
+  await page.waitForFunction(() => {
+    const reverse = [...document.querySelectorAll<HTMLVideoElement>(
+      '[data-figure2-video][data-figure2-direction="reverse"]'
+    )];
+    return reverse.length === 2
+      && reverse.every((video) => video.classList.contains('is-active') && !video.paused)
+      && reverse.every((video) => video.currentTime > 0.05);
+  });
+  const figure2ReverseFirstDecodeMs = Date.now() - startedAt;
+  await startFrameSampling(page);
+  await waitForHold(page, 'figure2-animation');
+  const figure2ReverseFrames = await stopFrameSampling(page);
+
+  await bootStory(page, '/#method');
+  startedAt = Date.now();
+  await page.keyboard.press('PageUp');
+  await page.waitForFunction(() => {
+    const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+    return window.__storyApp?.snapshot().phase === 'playing'
+      && Boolean(video)
+      && Number.isFinite(video?.duration)
+      && (video?.currentTime ?? 0) > 0.05
+      && (video?.currentTime ?? 0) < (video?.duration ?? 0) - 0.05;
+  });
+  const aodReverseFirstDecodeMs = Date.now() - startedAt;
+  await startFrameSampling(page);
+  await waitForHold(page, 'aod-animation');
+  const aodReverseFrames = await stopFrameSampling(page);
+
+  await bootStory(page, '/#services');
+  await page.evaluate(() => {
+    const layer = document.querySelector<HTMLElement>('[data-stage-layer="services"]');
+    const scrollport = layer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
+      ?? (layer?.matches('[data-reading="true"]') ? layer : null);
+    if (scrollport) {
+      scrollport.scrollTop = Math.max(0, scrollport.scrollHeight - scrollport.clientHeight);
+    }
+    window.dispatchEvent(new Event('story-reading-entry'));
+  });
+  startedAt = Date.now();
+  await page.keyboard.press('PageDown');
+  await page.waitForFunction(() => Boolean(document.querySelector(
+    '[data-r4-ink-boundary-kind="horizontal"][data-r4-ink-active="true"]'
+  )));
+  const horizontalInkActivationMs = Date.now() - startedAt;
+  await startFrameSampling(page);
+  await waitForHold(page, 'ttg-animation');
+  const horizontalInkFrames = await stopFrameSampling(page);
+
+  const paths = {
+    ttgFirstForward: {
+      firstDecodeMs: ttgForwardFirstDecodeMs,
+      steady: summarizeFrames(ttgForwardFrames)
+    },
+    ttgSameRunReverse: {
+      firstDecodeMs: ttgSameRunReverseFirstDecodeMs,
+      steady: summarizeFrames(ttgSameRunReverseFrames)
+    },
+    figure2NativeReverse: {
+      firstDecodeMs: figure2ReverseFirstDecodeMs,
+      steady: summarizeFrames(figure2ReverseFrames)
+    },
+    aodReverse: {
+      firstDecodeMs: aodReverseFirstDecodeMs,
+      steady: summarizeFrames(aodReverseFrames)
+    },
+    horizontalInk: {
+      activationMs: horizontalInkActivationMs,
+      steady: summarizeFrames(horizontalInkFrames)
+    }
+  };
+  const report = {
+    ...paths,
+    aggregate: summarizeFrames([
+      ...ttgForwardFrames,
+      ...ttgSameRunReverseFrames,
+      ...figure2ReverseFrames,
+      ...aodReverseFrames,
+      ...horizontalInkFrames
+    ])
+  };
+  console.log(`R5_FOCUSED_FRAME_PERFORMANCE ${JSON.stringify(report)}`);
+  await testInfo.attach('r5-focused-frame-performance.json', {
+    body: Buffer.from(JSON.stringify(report, null, 2)),
+    contentType: 'application/json'
+  });
+
+  const p95BudgetMs = testInfo.project.name.startsWith('mobile-') ? 34 : 20;
+  for (const [name, sample] of Object.entries(paths)) {
+    const delay = 'firstDecodeMs' in sample ? sample.firstDecodeMs : sample.activationMs;
+    expect(delay, `${name} preparation/activation delay`).toBeLessThan(10_000);
+    expect(sample.steady.samples, `${name} steady sample count`).toBeGreaterThan(15);
+    expect(sample.steady.p95FrameIntervalMs, `${name} steady p95`).toBeLessThanOrEqual(p95BudgetMs);
+  }
+  expect(report.aggregate.longFrameRatio, 'focused aggregate long-frame ratio').toBeLessThan(0.01);
+  expect((await storySnapshot(page)).lastError).toBeUndefined();
 });

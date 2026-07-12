@@ -25,26 +25,23 @@
     "STAGE_RESUMED",
     "PLAYBACK_DONE",
     "CHARGE_FIRED",
-    "TARGET_READY",
-    "STAGE_PAUSED",
+    "PREPARE_TIMEOUT",
+    "SEEK",
     "CHARGE_FIRED",
-    "STAGE_RESUMED",
-    "PLAYBACK_DONE",
     "BUILD_READY:ttg-lab",
     "PLAY:ttg-lab:1",
     "PLAY:none:1",
     "BUILD_READY:ttg-lab",
     "PLAY:ttg-lab:-1",
     "PLAY:none:-1",
-    "BUILD_READY:ttg-lab",
     "PLAY:ttg-lab:1",
     "PLAY:none:1"
   ],
-  "recoveryCount": 0,
+  "recoveryCount": 1,
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783759533782,
+      "at": 1783880798654,
       "event": {
         "type": "BOOT_READY"
       },
@@ -61,7 +58,7 @@
       "id": 1
     },
     {
-      "at": 1783759533783,
+      "at": 1783880798655,
       "event": {
         "type": "BOOT_READY"
       },
@@ -78,7 +75,7 @@
       "id": 2
     },
     {
-      "at": 1783759533873,
+      "at": 1783880799117,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -97,7 +94,7 @@
       "id": 3
     },
     {
-      "at": 1783759534051,
+      "at": 1783880799124,
       "event": {
         "type": "TARGET_READY",
         "scene": "lab",
@@ -119,7 +116,7 @@
       "id": 4
     },
     {
-      "at": 1783759534052,
+      "at": 1783880799156,
       "event": {
         "type": "STAGE_PAUSED",
         "runId": "r4-g5-ttg-lab:1",
@@ -147,7 +144,7 @@
       "id": 5
     },
     {
-      "at": 1783759534338,
+      "at": 1783880799170,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -168,7 +165,7 @@
       "id": 6
     },
     {
-      "at": 1783759534338,
+      "at": 1783880799173,
       "event": {
         "type": "STAGE_RESUMED",
         "runId": "r4-g5-ttg-lab:1",
@@ -192,7 +189,7 @@
       "id": 7
     },
     {
-      "at": 1783759534338,
+      "at": 1783880799173,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g5-ttg-lab:1"
@@ -213,7 +210,7 @@
       "id": 8
     },
     {
-      "at": 1783759534783,
+      "at": 1783880799627,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -232,7 +229,7 @@
       "id": 9
     },
     {
-      "at": 1783759534799,
+      "at": 1783880799632,
       "event": {
         "type": "TARGET_READY",
         "scene": "ttg-animation",
@@ -254,7 +251,7 @@
       "id": 10
     },
     {
-      "at": 1783759534799,
+      "at": 1783880799716,
       "event": {
         "type": "STAGE_PAUSED",
         "runId": "r4-g5-ttg-lab:2",
@@ -282,7 +279,7 @@
       "id": 11
     },
     {
-      "at": 1783759535152,
+      "at": 1783880799736,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -303,7 +300,7 @@
       "id": 12
     },
     {
-      "at": 1783759535152,
+      "at": 1783880799823,
       "event": {
         "type": "STAGE_RESUMED",
         "runId": "r4-g5-ttg-lab:2",
@@ -327,7 +324,7 @@
       "id": 13
     },
     {
-      "at": 1783759535152,
+      "at": 1783880799823,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g5-ttg-lab:2"
@@ -348,7 +345,7 @@
       "id": 14
     },
     {
-      "at": 1783759535597,
+      "at": 1783880800272,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -367,19 +364,28 @@
       "id": 15
     },
     {
-      "at": 1783759535617,
+      "at": 1783880800278,
       "event": {
-        "type": "TARGET_READY",
-        "scene": "lab",
+        "type": "PREPARE_TIMEOUT",
+        "segment": "ttg-lab",
         "prepareToken": "r4-g5-ttg-lab:prepare:3"
       },
       "actorEpoch": "r4-g5-ttg-lab",
-      "activeRunId": "r4-g5-ttg-lab:3",
-      "cursor": {
-        "status": "segment",
+      "recovery": {
+        "scope": "segment",
+        "status": "recovering",
+        "committedScene": "ttg-animation",
         "segment": "ttg-lab",
-        "from": "ttg-animation",
-        "to": "lab"
+        "direction": 1,
+        "endpoint": "lab",
+        "reason": "prepare-timeout",
+        "error": {
+          "name": "Error"
+        }
+      },
+      "cursor": {
+        "status": "hold",
+        "scene": "ttg-animation"
       },
       "layerWindow": {
         "current": "ttg-animation",
@@ -389,98 +395,42 @@
       "id": 16
     },
     {
-      "at": 1783759535617,
+      "at": 1783880800278,
       "event": {
-        "type": "STAGE_PAUSED",
-        "runId": "r4-g5-ttg-lab:3",
-        "segment": "ttg-lab",
-        "stageIndex": 0
+        "type": "SEEK",
+        "label": "scene:lab",
+        "source": "recovery"
       },
       "actorEpoch": "r4-g5-ttg-lab",
       "activeRunId": "r4-g5-ttg-lab:3",
-      "pausePoint": {
-        "segmentId": "ttg-lab",
-        "stageIndex": 0
-      },
       "cursor": {
-        "status": "segment",
-        "segment": "ttg-lab",
-        "from": "ttg-animation",
-        "to": "lab"
+        "status": "hold",
+        "scene": "lab"
       },
       "layerWindow": {
-        "current": "ttg-animation",
+        "current": "lab",
         "retiring": [],
-        "next": "lab"
+        "prev": "ttg-animation"
       },
-      "milestone": "stagePaused",
       "id": 17
     },
     {
-      "at": 1783759536714,
+      "at": 1783880800299,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
       },
       "actorEpoch": "r4-g5-ttg-lab",
-      "activeRunId": "r4-g5-ttg-lab:3",
       "cursor": {
-        "status": "segment",
-        "segment": "ttg-lab",
-        "from": "ttg-animation",
-        "to": "lab"
+        "status": "hold",
+        "scene": "lab"
       },
       "layerWindow": {
-        "current": "ttg-animation",
+        "current": "lab",
         "retiring": [],
-        "next": "lab"
+        "prev": "ttg-animation"
       },
       "id": 18
-    },
-    {
-      "at": 1783759536715,
-      "event": {
-        "type": "STAGE_RESUMED",
-        "runId": "r4-g5-ttg-lab:3",
-        "segment": "ttg-lab",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g5-ttg-lab",
-      "activeRunId": "r4-g5-ttg-lab:3",
-      "cursor": {
-        "status": "segment",
-        "segment": "ttg-lab",
-        "from": "ttg-animation",
-        "to": "lab"
-      },
-      "layerWindow": {
-        "current": "ttg-animation",
-        "retiring": [],
-        "next": "lab"
-      },
-      "milestone": "stageResumed",
-      "id": 19
-    },
-    {
-      "at": 1783759536715,
-      "event": {
-        "type": "PLAYBACK_DONE",
-        "runId": "r4-g5-ttg-lab:3"
-      },
-      "actorEpoch": "r4-g5-ttg-lab",
-      "cursor": {
-        "status": "settling",
-        "segment": "ttg-lab",
-        "from": "ttg-animation",
-        "to": "lab",
-        "target": "lab"
-      },
-      "layerWindow": {
-        "current": "ttg-animation",
-        "retiring": [],
-        "next": "lab"
-      },
-      "id": 20
     }
   ],
   "layers": [

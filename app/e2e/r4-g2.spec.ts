@@ -70,7 +70,15 @@ type Group2VisualSnapshot = {
   figure2LayerClipPath: string;
   figure2LayerRevealMode: string | null;
   figure2LayerElevated: boolean;
-  videos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
+  videos: readonly {
+    side: string;
+    direction: string;
+    active: boolean;
+    loop: boolean;
+    paused: boolean;
+    currentTime: number;
+    preload: string;
+  }[];
 };
 
 async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
@@ -127,9 +135,13 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
       figure2LayerRevealMode: figure2Layer?.dataset.r4RevealMode ?? null,
       figure2LayerElevated: figure2Layer?.dataset.r4TransitionElevated === 'true',
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
+        side: video.dataset.figure2Side ?? '',
+        direction: video.dataset.figure2Direction ?? '',
+        active: video.classList.contains('is-active'),
         loop: video.loop,
         paused: video.paused,
-        currentTime: video.currentTime
+        currentTime: video.currentTime,
+        preload: video.preload
       }))
     };
   });
@@ -206,9 +218,14 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
     expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1, 2);
     expect(methodFigureInk.figure2Progress).toBe(0);
-    expect(methodFigureInk.videos).toHaveLength(2);
+    expect(methodFigureInk.videos).toHaveLength(4);
+    expect(methodFigureInk.videos.filter((video) => video.direction === 'forward')).toHaveLength(2);
+    expect(methodFigureInk.videos.filter((video) => video.direction === 'reverse')).toHaveLength(2);
+    expect(methodFigureInk.videos.filter((video) => video.active)).toHaveLength(2);
+    expect(methodFigureInk.videos.filter((video) => video.active).every((video) => video.direction === 'forward')).toBe(true);
     expect(methodFigureInk.videos.every((video) => video.loop === false)).toBe(true);
     expect(methodFigureInk.videos.every((video) => video.paused && video.currentTime < 0.1)).toBe(true);
+    expect(methodFigureInk.videos.filter((video) => video.direction === 'reverse').every((video) => video.preload === 'metadata')).toBe(true);
 
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
@@ -226,6 +243,9 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(figure2Hold.figureWidth).toBeGreaterThan(153);
     expect(figure2Hold.figureWidth).toBeLessThan(261);
     expect(figure2Hold.visibleCaptionCount).toBe(0);
+    expect(figure2Hold.videos).toHaveLength(4);
+    expect(figure2Hold.videos.filter((video) => video.active)).toHaveLength(2);
+    expect(figure2Hold.videos.filter((video) => video.active).every((video) => video.direction === 'forward')).toBe(true);
     expect(figure2Hold.videos.every((video) => video.loop === false && video.paused && video.currentTime < 0.1)).toBe(true);
 
     await page.evaluate(() => {

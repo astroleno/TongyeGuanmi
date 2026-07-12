@@ -84,7 +84,15 @@ type Group3VisualSnapshot = {
   retainedArchMask: string;
   brandLayerClip: string;
   retainedArchClip: string;
-  videos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
+  videos: readonly {
+    side: string;
+    direction: string;
+    active: boolean;
+    loop: boolean;
+    paused: boolean;
+    currentTime: number;
+    preload: string;
+  }[];
 };
 
 async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
@@ -164,9 +172,13 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       brandLayerClip: brandLayer?.style.clipPath ?? '',
       retainedArchClip: arch?.style.clipPath ?? '',
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
+        side: video.dataset.figure2Side ?? '',
+        direction: video.dataset.figure2Direction ?? '',
+        active: video.classList.contains('is-active'),
         loop: video.loop,
         paused: video.paused,
-        currentTime: video.currentTime
+        currentTime: video.currentTime,
+        preload: video.preload
       }))
     };
   });
@@ -209,12 +221,23 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       if (target === 'figure2-proof-opening') {
         await expect.poll(async () => {
           const visual = await visualSnapshot(page);
-          return visual.videos.some((video) => !video.paused && video.currentTime > 0.05 && video.currentTime < 2.4);
+          return visual.videos.some((video) => (
+            video.direction === 'forward'
+            && video.active
+            && !video.paused
+            && video.currentTime > 0.05
+            && video.currentTime < 2.4
+          ));
         }, { timeout: 3_000 }).toBe(true);
         await expect.poll(async () => (await snapshot(page)).phase, { timeout: 7_000 }).toBe('staged-paused');
         const stagedFigure = await visualSnapshot(page);
-        expect(stagedFigure.videos).toHaveLength(2);
-        expect(stagedFigure.videos.every((video) => video.loop === false && video.paused && video.currentTime > 2)).toBe(true);
+        const stagedForward = stagedFigure.videos.filter((video) => video.direction === 'forward');
+        const stagedReverse = stagedFigure.videos.filter((video) => video.direction === 'reverse');
+        expect(stagedFigure.videos).toHaveLength(4);
+        expect(stagedForward).toHaveLength(2);
+        expect(stagedReverse).toHaveLength(2);
+        expect(stagedForward.every((video) => video.active && video.loop === false && video.paused && video.currentTime > 2)).toBe(true);
+        expect(stagedReverse.every((video) => !video.active && video.paused && video.currentTime < 0.1 && video.preload === 'metadata')).toBe(true);
         expect(stagedFigure.depthFieldMask).toBe('none');
         expect(stagedFigure.figureDepthSurfaceMask).toBe('none');
         expect(stagedFigure.figureClip).toBe('none');
@@ -363,18 +386,19 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
     await page.evaluate(() => { void window.__r4Group3?.playForward(); });
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 8_000 }).toBe('figure2-proof-opening');
 
-    const terminalTimes = (await visualSnapshot(page)).videos.map((video) => video.currentTime);
-    expect(terminalTimes).toHaveLength(2);
+    const parkedAtProof = (await visualSnapshot(page)).videos;
+    expect(parkedAtProof).toHaveLength(4);
+    expect(parkedAtProof.every((video) => !video.active && video.paused && video.currentTime < 0.1 && video.preload === 'metadata')).toBe(true);
 
     const sampleReverseLeg = async () => {
-      const samples: number[][] = [];
+      const samples: Group3VisualSnapshot['videos'][] = [];
       for (let index = 0; index < 18; index += 1) {
         await page.waitForTimeout(50);
         const frame = await snapshot(page);
         if (frame.phase === 'hold') {
           break;
         }
-        samples.push((await visualSnapshot(page)).videos.map((video) => video.currentTime));
+        samples.push((await visualSnapshot(page)).videos);
       }
       return samples;
     };
@@ -382,23 +406,38 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
     await page.evaluate(() => { void window.__r4Group3?.playReverse(); });
     const inkLegSamples = await sampleReverseLeg();
     expect(inkLegSamples.length).toBeGreaterThan(2);
+    expect(inkLegSamples.every((videos) => (
+      videos.length === 4
+      && videos.every((video) => !video.active && video.paused && video.currentTime < 0.1)
+    ))).toBe(true);
     await expect.poll(async () => (await snapshot(page)).phase, { timeout: 8_000 }).toBe('staged-paused');
 
     await page.evaluate(() => { void window.__r4Group3?.playReverse(); });
     const introLegSamples = await sampleReverseLeg();
     expect(introLegSamples.length).toBeGreaterThan(2);
 
-    for (let videoIndex = 0; videoIndex < terminalTimes.length; videoIndex += 1) {
-      const inkValues = inkLegSamples.map((times) => times[videoIndex] ?? 0);
-      expect(Math.max(...inkValues) - Math.min(...inkValues)).toBeLessThan(0.03);
-      expect(inkValues[0]).toBeCloseTo(terminalTimes[videoIndex] ?? 0, 1);
+    const activeReverseSamples = introLegSamples.filter((videos) => {
+      const reverse = videos.filter((video) => video.direction === 'reverse');
+      return reverse.length === 2 && reverse.every((video) => video.active);
+    });
+    expect(activeReverseSamples.length).toBeGreaterThan(2);
+    for (const side of ['left', 'right']) {
+      const reverseValues = activeReverseSamples.map((videos) => (
+        videos.find((video) => video.side === side && video.direction === 'reverse')?.currentTime ?? 0
+      ));
+      expect(Math.max(...reverseValues) - Math.min(...reverseValues)).toBeGreaterThan(0.2);
+      expect(reverseValues.some((value, index) => index > 0 && value > (reverseValues[index - 1] ?? 0) + 0.01)).toBe(true);
+      expect(reverseValues.at(-1) ?? 0).toBeGreaterThan((reverseValues[0] ?? 0) + 0.2);
 
-      const introValues = introLegSamples.map((times) => times[videoIndex] ?? 0);
-      expect(Math.max(...introValues) - Math.min(...introValues)).toBeGreaterThan(0.2);
-      expect(introValues.some((value, index) => index > 0 && value < (introValues[index - 1] ?? 0) - 0.01)).toBe(true);
-      expect(introValues.at(-1) ?? Number.POSITIVE_INFINITY).toBeLessThan((introValues[0] ?? 0) - 0.2);
+      const parkedForwardValues = introLegSamples.map((videos) => (
+        videos.find((video) => video.side === side && video.direction === 'forward')?.currentTime ?? 0
+      ));
+      expect(Math.max(...parkedForwardValues) - Math.min(...parkedForwardValues)).toBeLessThan(0.03);
     }
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 8_000 }).toBe('figure2-animation');
+    const reversedHold = (await visualSnapshot(page)).videos;
+    expect(reversedHold.filter((video) => video.direction === 'reverse' && video.active)).toHaveLength(2);
+    expect(reversedHold.filter((video) => video.direction === 'reverse').every((video) => video.paused && video.currentTime > 4.8)).toBe(true);
   });
 
   test('covers reduced motion and 0 to 1 to 0 to 1 replay on the staged segment', async ({ page }) => {

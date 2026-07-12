@@ -12,6 +12,7 @@
     "BOOT_READY",
     "CHARGE_FIRED",
     "PREPARE_TIMEOUT",
+    "SEEK",
     "DUPLICATE_MEDIA_READY:duplicate",
     "STALE_MEDIA_READY:stale",
     "MEDIA_timeout:timeout",
@@ -29,7 +30,7 @@
   "trace": [
     {
       "id": 1,
-      "at": 1783759370622,
+      "at": 1783880652740,
       "event": {
         "type": "BOOT_READY"
       },
@@ -51,7 +52,7 @@
     },
     {
       "id": 2,
-      "at": 1783759370623,
+      "at": 1783880652741,
       "event": {
         "type": "BOOT_READY"
       },
@@ -73,7 +74,7 @@
     },
     {
       "id": 3,
-      "at": 1783759370644,
+      "at": 1783880653214,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -96,7 +97,7 @@
     },
     {
       "id": 4,
-      "at": 1783759370867,
+      "at": 1783880653436,
       "event": {
         "type": "PREPARE_TIMEOUT",
         "segment": "aod-method-top",
@@ -104,6 +105,30 @@
       },
       "actorEpoch": "r3-pilot",
       "activeRunId": null,
+      "prepareToken": null,
+      "queuedIntent": null,
+      "pausePoint": null,
+      "cursor": {
+        "status": "hold",
+        "scene": "aod-animation"
+      },
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "next": "method-top"
+      },
+      "milestone": null
+    },
+    {
+      "id": 5,
+      "at": 1783880653520,
+      "event": {
+        "type": "SEEK",
+        "label": "scene:method-top",
+        "source": "recovery"
+      },
+      "actorEpoch": "r3-pilot",
+      "activeRunId": "r3-pilot:1",
       "prepareToken": null,
       "queuedIntent": null,
       "pausePoint": null,

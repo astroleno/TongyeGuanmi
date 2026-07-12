@@ -14,37 +14,25 @@
     "BOOT_READY",
     "CHARGE_FIRED",
     "TARGET_READY",
-    "STAGE_PAUSED",
-    "CHARGE_FIRED",
-    "STAGE_RESUMED",
     "PLAYBACK_DONE",
     "CHARGE_FIRED",
     "TARGET_READY",
-    "STAGE_PAUSED",
-    "CHARGE_FIRED",
-    "STAGE_RESUMED",
     "PLAYBACK_DONE",
     "CHARGE_FIRED",
     "TARGET_READY",
-    "STAGE_PAUSED",
-    "CHARGE_FIRED",
-    "STAGE_RESUMED",
     "PLAYBACK_DONE",
     "BUILD_READY:hero-pattern",
     "PLAY:hero-pattern:1",
-    "PLAY:hero-pattern:1",
     "BUILD_READY:hero-pattern",
     "PLAY:hero-pattern:-1",
-    "PLAY:hero-pattern:-1",
     "BUILD_READY:hero-pattern",
-    "PLAY:hero-pattern:1",
     "PLAY:hero-pattern:1"
   ],
   "recoveryCount": 0,
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783759447545,
+      "at": 1783880713231,
       "event": {
         "type": "BOOT_READY"
       },
@@ -61,7 +49,7 @@
       "id": 1
     },
     {
-      "at": 1783759447546,
+      "at": 1783880713233,
       "event": {
         "type": "BOOT_READY"
       },
@@ -78,7 +66,7 @@
       "id": 2
     },
     {
-      "at": 1783759447615,
+      "at": 1783880713697,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -97,7 +85,7 @@
       "id": 3
     },
     {
-      "at": 1783759447623,
+      "at": 1783880713703,
       "event": {
         "type": "TARGET_READY",
         "scene": "pattern",
@@ -119,80 +107,7 @@
       "id": 4
     },
     {
-      "at": 1783759447624,
-      "event": {
-        "type": "STAGE_PAUSED",
-        "runId": "r4-g1-hero-pattern:1",
-        "segment": "hero-pattern",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g1-hero-pattern",
-      "activeRunId": "r4-g1-hero-pattern:1",
-      "pausePoint": {
-        "segmentId": "hero-pattern",
-        "stageIndex": 0
-      },
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "milestone": "stagePaused",
-      "id": 5
-    },
-    {
-      "at": 1783759448005,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": 1
-      },
-      "actorEpoch": "r4-g1-hero-pattern",
-      "activeRunId": "r4-g1-hero-pattern:1",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "id": 6
-    },
-    {
-      "at": 1783759448005,
-      "event": {
-        "type": "STAGE_RESUMED",
-        "runId": "r4-g1-hero-pattern:1",
-        "segment": "hero-pattern",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g1-hero-pattern",
-      "activeRunId": "r4-g1-hero-pattern:1",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "milestone": "stageResumed",
-      "id": 7
-    },
-    {
-      "at": 1783759448005,
+      "at": 1783880713706,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-hero-pattern:1"
@@ -210,10 +125,10 @@
         "retiring": [],
         "next": "pattern"
       },
-      "id": 8
+      "id": 5
     },
     {
-      "at": 1783759448457,
+      "at": 1783880714155,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -229,10 +144,10 @@
         "retiring": [],
         "prev": "hero"
       },
-      "id": 9
+      "id": 6
     },
     {
-      "at": 1783759448463,
+      "at": 1783880714160,
       "event": {
         "type": "TARGET_READY",
         "scene": "hero",
@@ -251,83 +166,10 @@
         "retiring": [],
         "prev": "hero"
       },
-      "id": 10
+      "id": 7
     },
     {
-      "at": 1783759448463,
-      "event": {
-        "type": "STAGE_PAUSED",
-        "runId": "r4-g1-hero-pattern:2",
-        "segment": "hero-pattern",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g1-hero-pattern",
-      "activeRunId": "r4-g1-hero-pattern:2",
-      "pausePoint": {
-        "segmentId": "hero-pattern",
-        "stageIndex": 0
-      },
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "pattern",
-        "retiring": [],
-        "prev": "hero"
-      },
-      "milestone": "stagePaused",
-      "id": 11
-    },
-    {
-      "at": 1783759448846,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": -1
-      },
-      "actorEpoch": "r4-g1-hero-pattern",
-      "activeRunId": "r4-g1-hero-pattern:2",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "pattern",
-        "retiring": [],
-        "prev": "hero"
-      },
-      "id": 12
-    },
-    {
-      "at": 1783759448846,
-      "event": {
-        "type": "STAGE_RESUMED",
-        "runId": "r4-g1-hero-pattern:2",
-        "segment": "hero-pattern",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g1-hero-pattern",
-      "activeRunId": "r4-g1-hero-pattern:2",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "pattern",
-        "retiring": [],
-        "prev": "hero"
-      },
-      "milestone": "stageResumed",
-      "id": 13
-    },
-    {
-      "at": 1783759448846,
+      "at": 1783880714164,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-hero-pattern:2"
@@ -345,10 +187,10 @@
         "retiring": [],
         "prev": "hero"
       },
-      "id": 14
+      "id": 8
     },
     {
-      "at": 1783759449292,
+      "at": 1783880714613,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -364,10 +206,10 @@
         "retiring": [],
         "next": "pattern"
       },
-      "id": 15
+      "id": 9
     },
     {
-      "at": 1783759449296,
+      "at": 1783880714614,
       "event": {
         "type": "TARGET_READY",
         "scene": "pattern",
@@ -386,83 +228,10 @@
         "retiring": [],
         "next": "pattern"
       },
-      "id": 16
+      "id": 10
     },
     {
-      "at": 1783759449296,
-      "event": {
-        "type": "STAGE_PAUSED",
-        "runId": "r4-g1-hero-pattern:3",
-        "segment": "hero-pattern",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g1-hero-pattern",
-      "activeRunId": "r4-g1-hero-pattern:3",
-      "pausePoint": {
-        "segmentId": "hero-pattern",
-        "stageIndex": 0
-      },
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "milestone": "stagePaused",
-      "id": 17
-    },
-    {
-      "at": 1783759449674,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": 1
-      },
-      "actorEpoch": "r4-g1-hero-pattern",
-      "activeRunId": "r4-g1-hero-pattern:3",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "id": 18
-    },
-    {
-      "at": 1783759449674,
-      "event": {
-        "type": "STAGE_RESUMED",
-        "runId": "r4-g1-hero-pattern:3",
-        "segment": "hero-pattern",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g1-hero-pattern",
-      "activeRunId": "r4-g1-hero-pattern:3",
-      "cursor": {
-        "status": "segment",
-        "segment": "hero-pattern",
-        "from": "hero",
-        "to": "pattern"
-      },
-      "layerWindow": {
-        "current": "hero",
-        "retiring": [],
-        "next": "pattern"
-      },
-      "milestone": "stageResumed",
-      "id": 19
-    },
-    {
-      "at": 1783759449674,
+      "at": 1783880714616,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-hero-pattern:3"
@@ -480,7 +249,7 @@
         "retiring": [],
         "next": "pattern"
       },
-      "id": 20
+      "id": 11
     }
   ],
   "layers": [

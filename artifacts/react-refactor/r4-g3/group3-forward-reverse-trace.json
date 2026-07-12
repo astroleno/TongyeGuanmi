@@ -38,10 +38,10 @@
     "PLAY:figure2-distance-expand:1",
     "PLAY:none:1",
     "BUILD_READY:figure2-proof-opening-cards",
-    "BUILD_READY:figure2-proof-cards-closing",
-    "BUILD_READY:figure2-proof-brand",
-    "PLAY:figure2-proof-cards-closing:1",
     "PLAY:figure2-proof-opening-cards:1",
+    "BUILD_READY:figure2-proof-cards-closing",
+    "PLAY:figure2-proof-cards-closing:1",
+    "BUILD_READY:figure2-proof-brand",
     "PLAY:figure2-proof-brand:1",
     "BUILD_READY:figure2-proof-brand",
     "PLAY:figure2-proof-brand:-1"
@@ -50,7 +50,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783759466268,
+      "at": 1783880732674,
       "event": {
         "type": "BOOT_READY"
       },
@@ -67,7 +67,7 @@
       "id": 1
     },
     {
-      "at": 1783759466270,
+      "at": 1783880732675,
       "event": {
         "type": "BOOT_READY"
       },
@@ -84,7 +84,7 @@
       "id": 2
     },
     {
-      "at": 1783759466363,
+      "at": 1783880733144,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -103,7 +103,7 @@
       "id": 3
     },
     {
-      "at": 1783759466389,
+      "at": 1783880733174,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-proof-opening",
@@ -125,7 +125,7 @@
       "id": 4
     },
     {
-      "at": 1783759469144,
+      "at": 1783880735842,
       "event": {
         "type": "STAGE_PAUSED",
         "runId": "r4-g3-group3:1",
@@ -153,7 +153,7 @@
       "id": 5
     },
     {
-      "at": 1783759469387,
+      "at": 1783880736188,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -174,7 +174,7 @@
       "id": 6
     },
     {
-      "at": 1783759469387,
+      "at": 1783880736189,
       "event": {
         "type": "STAGE_RESUMED",
         "runId": "r4-g3-group3:1",
@@ -198,7 +198,7 @@
       "id": 7
     },
     {
-      "at": 1783759471159,
+      "at": 1783880737699,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:1"
@@ -219,7 +219,7 @@
       "id": 8
     },
     {
-      "at": 1783759471682,
+      "at": 1783880738956,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -239,7 +239,7 @@
       "id": 9
     },
     {
-      "at": 1783759471683,
+      "at": 1783880738963,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-proof-cards",
@@ -262,7 +262,7 @@
       "id": 10
     },
     {
-      "at": 1783759472596,
+      "at": 1783880739877,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:2"
@@ -284,7 +284,7 @@
       "id": 11
     },
     {
-      "at": 1783759473025,
+      "at": 1783880740308,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -302,7 +302,7 @@
       "id": 12
     },
     {
-      "at": 1783759473040,
+      "at": 1783880740421,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -322,7 +322,7 @@
       "id": 13
     },
     {
-      "at": 1783759473040,
+      "at": 1783880740426,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-proof-closing",
@@ -345,7 +345,7 @@
       "id": 14
     },
     {
-      "at": 1783759473956,
+      "at": 1783880741342,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:3"
@@ -367,7 +367,7 @@
       "id": 15
     },
     {
-      "at": 1783759474384,
+      "at": 1783880741768,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -385,7 +385,7 @@
       "id": 16
     },
     {
-      "at": 1783759474400,
+      "at": 1783880741900,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -405,7 +405,7 @@
       "id": 17
     },
     {
-      "at": 1783759474436,
+      "at": 1783880741924,
       "event": {
         "type": "TARGET_READY",
         "scene": "brand",
@@ -428,7 +428,7 @@
       "id": 18
     },
     {
-      "at": 1783759475987,
+      "at": 1783880743111,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:4"
@@ -450,7 +450,7 @@
       "id": 19
     },
     {
-      "at": 1783759476413,
+      "at": 1783880743540,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -467,7 +467,7 @@
       "id": 20
     },
     {
-      "at": 1783759476740,
+      "at": 1783880744520,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -486,7 +486,7 @@
       "id": 21
     },
     {
-      "at": 1783759476770,
+      "at": 1783880744541,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-proof-closing",
@@ -508,7 +508,7 @@
       "id": 22
     },
     {
-      "at": 1783759478198,
+      "at": 1783880745729,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:5"
