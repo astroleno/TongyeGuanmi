@@ -33,6 +33,7 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).not.toContain('sampledBoundary');
     expect(shaderSource).not.toContain('frame.profile');
     expect(shaderSource).toContain('uniform sampler2D uContourMap');
+    expect(shaderSource).toContain('uniform float uContourSampleCount');
     expect(shaderSource).toContain('uniform float uOwnershipThreshold');
     expect(shaderSource).toContain('gl.LUMINANCE');
     expect(shaderSource).toContain('frame.contour.samples.length');
@@ -60,9 +61,11 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toContain('float ownershipOcclusion(');
     expect(shaderSource).toContain('float ownershipWarp = clamp(');
     expect(shaderSource).toMatch(/ownershipOcclusion\([^)]*ownershipWarp/s);
+    expect(shaderSource).toMatch(/float horizontalCoreOcclusion = ownershipOcclusion\(\s*horizontal,/s);
     expect(shaderSource).toContain('max(alpha, seamOcclusion)');
     expect(shaderSource).toMatch(/alpha\s*=\s*max\(alpha,\s*seamOcclusion\)/);
-    expect(shaderSource).toMatch(/float seamOcclusion = max\([\s\S]*\) \* nonHorizontalMode;/);
+    expect(shaderSource).toMatch(/float seamOcclusion = mix\(\s*horizontalCoreOcclusion,/s);
+    expect(shaderSource).not.toMatch(/horizontalCoreOcclusion[\s\S]*?\*\s*nonHorizontalMode/);
     expect(shaderSource).not.toContain('uSceneDim');
   });
 

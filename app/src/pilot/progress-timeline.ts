@@ -137,11 +137,15 @@ export class PilotProgressTimeline implements SegmentTimelineHandle {
     const start = this.progressValue;
     const delta = target - start;
     if (delta === 0 || this.durationMs <= 0) {
-      this.progress(target);
-      return Promise.resolve();
+      try {
+        this.progress(target);
+        return Promise.resolve();
+      } catch (error) {
+        return Promise.reject(error);
+      }
     }
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const startedAt = performance.now();
       const tick = (now: number) => {
         if (this.disposed) {
@@ -151,7 +155,12 @@ export class PilotProgressTimeline implements SegmentTimelineHandle {
         const elapsed = now - startedAt;
         const progress = Math.min(1, elapsed / this.durationMs);
         const timelineProgress = this.easing === 'linear' ? progress : easeInOutCubic(progress);
-        this.progress(start + delta * timelineProgress);
+        try {
+          this.progress(start + delta * timelineProgress);
+        } catch (error) {
+          reject(error);
+          return;
+        }
         if (progress >= 1) {
           resolve();
           return;

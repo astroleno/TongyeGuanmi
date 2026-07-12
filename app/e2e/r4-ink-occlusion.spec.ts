@@ -6,6 +6,8 @@ type AlphaProbe = {
   primaryMin: number;
   contourRevision?: string;
   contourTextureUploads?: number;
+  contourSamples?: number;
+  resizeStable?: boolean;
 };
 
 async function probeOwnershipAlpha(
@@ -72,7 +74,7 @@ async function probeOwnershipAlpha(
     );
     const transition = createInkBoundaryTransition(canvas, {
       colorLift: 0.92,
-      coverAlpha: 0.82,
+      coverAlpha: 0,
       fadeOutStart: 0.94,
       fadeOutEnd: 0.995,
       dprLimit: 1
@@ -104,9 +106,9 @@ async function probeOwnershipAlpha(
     let primarySamples: number[];
     if (fieldMode === 'horizontal') {
       primarySamples = Array.from(
-        { length: 32 },
+        { length: frame.contour.samples.length },
         (_, index) => {
-          const x = index / 31;
+          const x = index / Math.max(1, frame.contour.samples.length - 1);
           const envelope = Math.sin(frame.threshold * Math.PI);
           const offset = horizontalInkOffset(frame.contour, x)
             * HORIZONTAL_INK_CONTOUR_AMPLITUDE
@@ -136,12 +138,29 @@ async function probeOwnershipAlpha(
       );
     }
 
+    let resizeStable: boolean | undefined;
+    if (fieldMode === 'horizontal') {
+      const revisionBeforeResize = canvas.dataset.r4InkContourRevision;
+      canvas.style.width = '400px';
+      canvas.style.height = '220px';
+      transition.render(createInkFieldFrame(
+        spec,
+        fieldProgress,
+        { width: 400, height: 220 },
+        { contour: frame.contour }
+      ));
+      resizeStable = canvas.dataset.r4InkContourRevision === revisionBeforeResize
+        && Number(canvas.dataset.r4InkContourTextureUploads ?? 0) === 1;
+    }
+
     const result = {
       primaryMin: Math.min(...primarySamples),
       ...(fieldMode === 'horizontal'
         ? {
             contourRevision: canvas.dataset.r4InkContourRevision,
-            contourTextureUploads: Number(canvas.dataset.r4InkContourTextureUploads ?? 0)
+            contourTextureUploads: Number(canvas.dataset.r4InkContourTextureUploads ?? 0),
+            contourSamples: frame.contour.samples.length,
+            resizeStable
           }
         : {})
     };
@@ -259,9 +278,11 @@ test.describe('R4 Ink ownership alpha diagnostics', () => {
         );
 
         if (mode === 'horizontal') {
-          expect(probe.primaryMin).toBeGreaterThanOrEqual(0.06);
+          expect(probe.primaryMin).toBeGreaterThanOrEqual(0.92);
           expect(probe.contourRevision).toMatch(/^horizontal-ink-contour-v1-/);
           expect(probe.contourTextureUploads).toBe(1);
+          expect(probe.contourSamples).toBeGreaterThanOrEqual(128);
+          expect(probe.resizeStable).toBe(true);
         } else {
           expect(probe.primaryMin).toBeGreaterThanOrEqual(0.92);
         }

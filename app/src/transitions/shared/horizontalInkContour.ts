@@ -1,4 +1,4 @@
-export const HORIZONTAL_INK_CONTOUR_SAMPLES = 32;
+export const HORIZONTAL_INK_CONTOUR_SAMPLES = 128;
 export const HORIZONTAL_INK_CONTOUR_AMPLITUDE = 0.055;
 
 export type HorizontalInkDirection = 'bottom-to-top' | 'top-to-bottom';
@@ -112,8 +112,8 @@ export function horizontalInkPolygon(
 ): string {
   const normalizedThreshold = clamp(Number.isFinite(threshold) ? threshold : 0);
   const envelope = Math.sin(normalizedThreshold * Math.PI);
-  const boundary = Array.from({ length: contour.samples.length + 1 }, (_, index) => {
-    const x = index / contour.samples.length;
+  const boundary = Array.from({ length: contour.samples.length }, (_, index) => {
+    const x = index / Math.max(1, contour.samples.length - 1);
     const offset = horizontalInkOffset(contour, x) * HORIZONTAL_INK_CONTOUR_AMPLITUDE * envelope;
     const y = direction === 'bottom-to-top'
       ? 1 - normalizedThreshold + offset

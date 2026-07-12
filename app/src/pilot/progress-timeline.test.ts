@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LayerHandle, LayerVisibilityState } from '../story/types';
 import { PilotProgressTimeline, type PilotProgressTimelineOptions } from './progress-timeline';
 
@@ -23,6 +23,11 @@ function layer(role: 'current' | 'next'): LayerHandle {
     dispose() {}
   };
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('PilotProgressTimeline lifecycle', () => {
   it('initializes a reverse build at p=1 without writing the forward start first', () => {
@@ -71,5 +76,35 @@ describe('PilotProgressTimeline lifecycle', () => {
     timeline.dispose();
 
     expect(release).toHaveBeenCalledOnce();
+  });
+
+  it('rejects automatic playback when a renderer frame fails', async () => {
+    const callbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    const failure = new Error('renderer context lost');
+    const timeline = new PilotProgressTimeline({
+      from: layer('current'),
+      to: layer('next'),
+      durationMs: 1_000,
+      direction: 1,
+      sample: () => ({
+        from: { mounted: true, visible: true, inert: true, opacity: 1, pointerEvents: 'none' },
+        to: { mounted: true, visible: true, inert: true, opacity: 1, pointerEvents: 'none' }
+      }),
+      render: (progress) => {
+        if (progress > 0) throw failure;
+      }
+    });
+
+    const playback = timeline.play();
+    callbacks.shift()?.(16);
+
+    await expect(playback).rejects.toBe(failure);
+    timeline.dispose();
   });
 });

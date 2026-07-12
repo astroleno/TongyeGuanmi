@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import { createInkSegmentTransition, type InkSegmentOptions } from './ink';
+import { InkRendererRunError } from './sceneInk';
 
 const inkSource = readFileSync(new URL('./ink.ts', import.meta.url), 'utf8');
 const inkFieldSource = readFileSync(new URL('./inkField.ts', import.meta.url), 'utf8');
@@ -86,6 +87,103 @@ class FakeCanvas extends FakeElement {
   }
 }
 
+function browserInkCanvas() {
+  const listeners = new Map<string, EventListener>();
+  const loseContext = vi.fn();
+  const gl = {
+    ARRAY_BUFFER: 1,
+    BLEND: 2,
+    CLAMP_TO_EDGE: 3,
+    COLOR_BUFFER_BIT: 4,
+    COMPILE_STATUS: 5,
+    FLOAT: 6,
+    FRAGMENT_SHADER: 7,
+    LINEAR: 8,
+    LINK_STATUS: 9,
+    LUMINANCE: 10,
+    ONE: 11,
+    ONE_MINUS_SRC_ALPHA: 12,
+    RGBA: 13,
+    SRC_ALPHA: 14,
+    STATIC_DRAW: 15,
+    TEXTURE0: 16,
+    TEXTURE1: 17,
+    TEXTURE_2D: 18,
+    TEXTURE_MAG_FILTER: 19,
+    TEXTURE_MIN_FILTER: 20,
+    TEXTURE_WRAP_S: 21,
+    TEXTURE_WRAP_T: 22,
+    TRIANGLES: 23,
+    UNPACK_ALIGNMENT: 24,
+    UNPACK_FLIP_Y_WEBGL: 25,
+    UNSIGNED_BYTE: 26,
+    VERTEX_SHADER: 27,
+    activeTexture: vi.fn(),
+    attachShader: vi.fn(),
+    bindBuffer: vi.fn(),
+    bindTexture: vi.fn(),
+    blendFuncSeparate: vi.fn(),
+    bufferData: vi.fn(),
+    clear: vi.fn(),
+    clearColor: vi.fn(),
+    compileShader: vi.fn(),
+    createBuffer: vi.fn(() => ({})),
+    createProgram: vi.fn(() => ({})),
+    createShader: vi.fn(() => ({})),
+    createTexture: vi.fn(() => ({})),
+    deleteBuffer: vi.fn(),
+    deleteProgram: vi.fn(),
+    deleteShader: vi.fn(),
+    deleteTexture: vi.fn(),
+    drawArrays: vi.fn(),
+    enable: vi.fn(),
+    enableVertexAttribArray: vi.fn(),
+    getAttribLocation: vi.fn(() => 0),
+    getExtension: vi.fn(() => ({ loseContext })),
+    getProgramParameter: vi.fn(() => true),
+    getShaderParameter: vi.fn(() => true),
+    getUniformLocation: vi.fn((_program, name: string) => name),
+    linkProgram: vi.fn(),
+    pixelStorei: vi.fn(),
+    shaderSource: vi.fn(),
+    texImage2D: vi.fn(),
+    texParameteri: vi.fn(),
+    uniform1f: vi.fn(),
+    uniform1i: vi.fn(),
+    uniform2f: vi.fn(),
+    uniform4f: vi.fn(),
+    useProgram: vi.fn(),
+    vertexAttribPointer: vi.fn(),
+    viewport: vi.fn()
+  };
+  const surface = new FakeCanvas() as FakeCanvas & {
+    addEventListener(type: string, listener: EventListener): void;
+    getBoundingClientRect(): { width: number; height: number };
+    height: number;
+    removeEventListener(type: string, listener: EventListener): void;
+    width: number;
+  };
+  Object.assign(surface, {
+    addEventListener: (type: string, listener: EventListener) => listeners.set(type, listener),
+    getBoundingClientRect: () => ({ width: 320, height: 180 }),
+    getContext: () => gl,
+    height: 0,
+    removeEventListener: (type: string, listener: EventListener) => {
+      if (listeners.get(type) === listener) listeners.delete(type);
+    },
+    width: 0
+  });
+  return {
+    gl,
+    listeners,
+    loseContext,
+    surface,
+    dispatch(type: string, event: Pick<Event, 'preventDefault'>) {
+      listeners.get(type)?.(event as Event);
+    }
+  };
+}
+
 function layer(scene: 'services' | 'ttg-animation', role: 'current' | 'next', element: FakeElement): LayerHandle {
   let visibility: LayerVisibilityState = {
     mounted: true,
@@ -145,7 +243,59 @@ describe('shared ink transition surface', () => {
       prepareToken: 'webgl-required:prepare:1',
       prefersReducedMotion: false,
       reportMilestone() {}
-    })).rejects.toThrow(/Ink renderer/i);
+    })).rejects.toThrow(/Ink renderer unavailable/i);
+    expect(stage.children).toHaveLength(2);
+  });
+
+  it('fails the next progress frame after context loss without advancing bare clip geometry', async () => {
+    vi.stubGlobal('WebGLRenderingContext', class WebGLRenderingContext {});
+    vi.stubGlobal('window', { devicePixelRatio: 1, innerHeight: 180, innerWidth: 320 });
+    const browserCanvas = browserInkCanvas();
+    vi.stubGlobal('document', { createElement: () => browserCanvas.surface });
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    stage.append(fromElement);
+    stage.append(toElement);
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const to = layer('ttg-animation', 'next', toElement);
+    const timeline = await createInkSegmentTransition({
+      id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'context-loss' },
+      prepareEndpoints: () => undefined
+    }).buildTimeline({
+      segment,
+      from: layer('services', 'current', fromElement),
+      to,
+      stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+      direction: 1,
+      runId: 'context-loss:1',
+      prepareToken: 'context-loss:prepare:1',
+      prefersReducedMotion: false,
+      reportMilestone() {}
+    });
+    timeline.progress(0.5);
+    const revealClip = toElement.style.clipPath;
+    const concealClip = fromElement.style.clipPath;
+    const preventDefault = vi.fn();
+
+    browserCanvas.dispatch('webglcontextlost', { preventDefault });
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(() => timeline.progress(0.6)).toThrow(InkRendererRunError);
+    expect(toElement.style.clipPath).toBe(revealClip);
+    expect(fromElement.style.clipPath).toBe(concealClip);
+    expect(browserCanvas.surface.dataset.r4InkRendererStatus).toBe('context-lost');
+    timeline.dispose();
+    expect(browserCanvas.listeners.size).toBe(0);
+    expect(browserCanvas.loseContext).toHaveBeenCalledOnce();
   });
 
   it('initializes a reverse build at the forward end and prepares endpoint holds only once', async () => {
@@ -208,6 +358,89 @@ describe('shared ink transition surface', () => {
     expect(inkSource).not.toContain('clipProgress?:');
     expect(inkSource).not.toContain('inkProgress?:');
     expect(inkSource).toContain('fieldProgress?:');
+  });
+
+  it('keeps radial ownership unchanged without applying a horizontal source clip', async () => {
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    stage.append(fromElement);
+    stage.append(toElement);
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const to = layer('ttg-animation', 'next', toElement);
+    const timeline = await createInkSegmentTransition({
+      id: 'services-ttg',
+      field: { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'radial-unchanged' },
+      prepareEndpoints: () => undefined
+    }).buildTimeline({
+      segment,
+      from: layer('services', 'current', fromElement),
+      to,
+      stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+      direction: 1,
+      runId: 'radial-unchanged:1',
+      prepareToken: 'radial-unchanged:prepare:1',
+      prefersReducedMotion: false,
+      reportMilestone() {}
+    });
+
+    timeline.progress(0.5);
+
+    expect(toElement.style.clipPath).toMatch(/^circle\(/);
+    expect(fromElement.style.clipPath ?? '').toBe('');
+    expect(fromElement.style.visibility).not.toBe('hidden');
+    expect(fromElement.dataset.r4InkOwnership).toBeUndefined();
+    timeline.dispose();
+  });
+
+  it('uses deterministic endpoints without mounting a live renderer for reduced motion', async () => {
+    const createElement = vi.fn(() => new FakeCanvas());
+    vi.stubGlobal('document', { createElement });
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    stage.append(fromElement);
+    stage.append(toElement);
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const to = layer('ttg-animation', 'next', toElement);
+    const timeline = await createInkSegmentTransition({
+      id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'reduced-endpoint' },
+      prepareEndpoints: () => undefined
+    }).buildTimeline({
+      segment,
+      from: layer('services', 'current', fromElement),
+      to,
+      stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+      direction: 1,
+      runId: 'reduced-endpoint:1',
+      prepareToken: 'reduced-endpoint:prepare:1',
+      prefersReducedMotion: true,
+      reportMilestone() {}
+    });
+
+    timeline.jumpToEnd(1);
+
+    expect(createElement).not.toHaveBeenCalled();
+    expect(timeline.effectCanvases?.()).toEqual([]);
+    expect(toElement.style.clipPath).toBe('');
+    expect(fromElement.style.clipPath).toBe('');
+    timeline.dispose();
   });
 
   it('prepares source and receiver holds once instead of rerendering the target per frame', async () => {
@@ -352,14 +585,20 @@ describe('shared ink transition surface', () => {
     timeline.progress(0.25);
     expect(canvas.parentElement).toBe(stage);
     const firstClip = String(toElement.style.clipPath ?? '');
+    const firstSourceClip = String(fromElement.style.clipPath ?? '');
     timeline.progress(0.75);
     const secondClip = String(toElement.style.clipPath ?? '');
+    const secondSourceClip = String(fromElement.style.clipPath ?? '');
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
     expect(firstClip).toMatch(/^polygon\(/);
     expect(secondClip).toMatch(/^polygon\(/);
+    expect(firstSourceClip).toMatch(/^polygon\(/);
+    expect(secondSourceClip).toMatch(/^polygon\(/);
     expect(firstClip).not.toContain('inset(');
     expect(secondClip).not.toContain('inset(');
     expect(firstClip).not.toBe(secondClip);
+    expect(firstSourceClip).not.toBe(secondSourceClip);
+    expect(secondSourceClip).not.toBe(secondClip);
     expect(toElement.style.visibility).not.toBe('hidden');
     expect(toElement.style.opacity).not.toBe('0');
     expect(toElement.dataset.r4RevealMode).toBe('ink-occluded-live-gate');
@@ -367,9 +606,13 @@ describe('shared ink transition surface', () => {
     expect(toElement.dataset.r4InkBoundaryProgress).toBe('0.7500');
     expect(canvas.dataset.r4InkContourRevision).toMatch(/^horizontal-ink-contour-v1-/);
     expect(toElement.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
+    expect(fromElement.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
     expect(revealSurface.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
     expect(concealSurface.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
     expect(toElement.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
+    expect(fromElement.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
+    expect(toElement.dataset.r4InkOwnership).toBe('reveal');
+    expect(fromElement.dataset.r4InkOwnership).toBe('conceal');
     expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
     expect(concealSurface.style.clipPath).toMatch(/^polygon\(/);
     expect(canvas.dataset.r4InkTargetReady).toBeUndefined();
@@ -392,9 +635,12 @@ describe('shared ink transition surface', () => {
     });
     timeline.progress(1);
     expect(toElement.style.clipPath ?? '').toBe('');
+    expect(fromElement.style.clipPath ?? '').toBe('');
+    expect(fromElement.style.visibility).toBe('hidden');
     expect(concealSurface.style.visibility).toBe('hidden');
     expect(concealSurface.style.clipPath ?? '').toBe('');
     timeline.progress(0);
+    expect(fromElement.style.visibility).toBe('visible');
     expect(concealSurface.style.visibility).toBe('visible');
     timeline.dispose();
     expect(canvas.parentElement).toBeNull();
@@ -443,7 +689,7 @@ describe('shared ink transition surface', () => {
         prefersReducedMotion: false,
         reportMilestone() {}
       });
-      return { timeline, toElement };
+      return { fromElement, timeline, toElement };
     };
 
     const forward = await build(1, 'ink-variation-forward:1');
@@ -456,6 +702,12 @@ describe('shared ink transition surface', () => {
     reverse.timeline.progress(0.75);
     expect(reverse.toElement.dataset.r4InkContourRevision).not.toBe(forwardRevision);
     expect(reverse.toElement.style.clipPath).toMatch(/^polygon\(/);
+    expect(reverse.fromElement.style.clipPath).toMatch(/^polygon\(/);
+    expect(reverse.fromElement.style.clipPath).not.toBe(reverse.toElement.style.clipPath);
+    expect(reverse.fromElement.dataset.r4InkContourRevision)
+      .toBe(reverse.toElement.dataset.r4InkContourRevision);
+    expect(reverse.fromElement.dataset.r4InkContourThreshold)
+      .toBe(reverse.toElement.dataset.r4InkContourThreshold);
 
     forward.timeline.dispose();
     reverse.timeline.dispose();

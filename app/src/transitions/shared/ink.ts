@@ -10,9 +10,12 @@ import type {
 import { createTransitionLayerElevation, type TransitionLayerElevation } from './layerElevation';
 import {
   createInkFieldRenderer,
+  InkRendererRunError,
   mountTransitionInkCanvas,
   type InkFieldRenderer,
-  type InkGradePreset
+  type InkGradePreset,
+  type InkRendererFailure,
+  productionInkRendererRequired
 } from './sceneInk';
 import {
   clearHorizontalInkDiagnostics,
@@ -215,6 +218,7 @@ export function clearBoundaryGeometry(element: HTMLElement | null | undefined): 
   element.removeAttribute('data-r4-ink-boundary-origin');
   element.removeAttribute('data-r4-ink-boundary-progress');
   element.removeAttribute('data-r4-ink-field-seed');
+  element.removeAttribute('data-r4-ink-ownership');
   clearHorizontalInkDiagnostics(element);
 }
 
@@ -225,7 +229,8 @@ function isHorizontalFrame(frame: InkFieldFrame): frame is HorizontalInkFieldFra
 function applyBoundaryGeometry(
   element: HTMLElement,
   frame: InkFieldFrame,
-  clipPath: string
+  clipPath: string,
+  ownership: 'reveal' | 'conceal'
 ): void {
   const origin = inkFieldOrigin(frame.spec);
   element.style.clipPath = clipPath;
@@ -234,6 +239,7 @@ function applyBoundaryGeometry(
   element.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
   element.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
   element.dataset.r4InkFieldSeed = String(frame.seed);
+  element.dataset.r4InkOwnership = ownership;
   if (isHorizontalFrame(frame)) {
     markHorizontalInkDiagnostics(element, frame);
   } else {
@@ -250,12 +256,12 @@ export function applyRevealBoundary(element: HTMLElement, frame: InkFieldFrame):
     clearBoundaryGeometry(element);
     return;
   }
-  applyBoundaryGeometry(element, frame, frame.ownership.revealClip);
+  applyBoundaryGeometry(element, frame, frame.ownership.revealClip, 'reveal');
   element.dataset.r4RevealProgress = frame.progress.toFixed(4);
   element.dataset.r4RevealMode = 'ink-occluded-live-gate';
 }
 
-function applyConcealBoundary(element: HTMLElement, frame: InkFieldFrame): void {
+export function applyConcealBoundary(element: HTMLElement, frame: InkFieldFrame): void {
   if (frame.progress <= 0.001) {
     element.style.visibility = 'visible';
     clearBoundaryGeometry(element);
@@ -267,7 +273,7 @@ function applyConcealBoundary(element: HTMLElement, frame: InkFieldFrame): void 
     return;
   }
   element.style.visibility = 'visible';
-  applyBoundaryGeometry(element, frame, frame.ownership.concealClip);
+  applyBoundaryGeometry(element, frame, frame.ownership.concealClip, 'conceal');
 }
 
 class InkSegmentTimeline implements SegmentTimelineHandle {
@@ -285,6 +291,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private readonly attrsElement: HTMLElement | null;
   private readonly surfaceHost: HTMLElement | null;
   private readonly motionLeases: SceneMotionLeaseGroup;
+  private readonly generation: string;
+  private rendererFailure: InkRendererFailure | null = null;
   private liveElevation: TransitionLayerElevation | null = null;
   private liveElevationElement: HTMLElement | null = null;
   private endpointsPrepared = false;
@@ -301,6 +309,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     private readonly options: InkSegmentOptions
   ) {
     const generation = `${context.runId}:${context.prepareToken}`;
+    this.generation = generation;
     this.playbackDirection = context.direction;
     this.progressValue = context.direction === 1 ? 0 : 1;
     this.motionLeases = createSceneMotionLeaseGroup(`${context.runId}:${options.id}`);
@@ -319,13 +328,16 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       : options.canvasHost === 'stage'
         ? surfaceHost
         : context.to.element;
-    this.canvas = mountTransitionInkCanvas(surfaceHost, options.id, {
-      renderer: 'field',
-      grade: options.grade ?? 'edge-only',
-      generation
-    });
+    this.canvas = context.prefersReducedMotion ? null : mountTransitionInkCanvas(
+      surfaceHost,
+      options.id,
+      {
+        renderer: 'field',
+        grade: options.grade ?? 'edge-only',
+        generation
+      }
+    );
     this.elevation = options.elevateTarget === false ? null : createTransitionLayerElevation(context.to.element);
-    this.ensureEndpointsPrepared();
     const roots = this.fieldRoots();
     this.fieldSpec = typeof options.field === 'function'
       ? options.field(roots)
@@ -336,10 +348,21 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
           variationKey: context.runId
         })
       : null;
-    this.inkRenderer = createInkFieldRenderer(this.canvas, {
+    this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.canvas, {
       grade: options.grade ?? 'edge-only',
-      generation
+      generation,
+      onInvalidated: (failure) => {
+        this.rendererFailure = failure;
+      }
     });
+    if (productionInkRendererRequired(context.prefersReducedMotion) && !this.inkRenderer) {
+      this.motionLeases.dispose();
+      this.elevation?.restore();
+      this.canvas?.remove();
+      this.canvas = null;
+      throw this.rendererError();
+    }
+    this.ensureEndpointsPrepared();
     this.inkRenderer?.prewarm(
       createInkFieldFrame(
         this.fieldSpec,
@@ -365,6 +388,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     if (this.disposed) {
       return;
     }
+    this.assertRendererReady();
     const activeSurfaceHost = liveStageHost(this.context, this.surfaceHost);
     if (
       this.canvas
@@ -450,7 +474,10 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       )
     );
     const concealSurfaces = new Set(
-      [...(surfaces.conceal ?? [])].filter(
+      [
+        ...(isHorizontalFrame(frame) ? [liveFromElement] : []),
+        ...(surfaces.conceal ?? [])
+      ].filter(
         (element): element is HTMLElement => Boolean(element)
       )
     );
@@ -613,6 +640,24 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     };
   }
 
+  private rendererError(): InkRendererRunError {
+    return new InkRendererRunError(this.options.id, this.rendererFailure ?? {
+      generation: this.generation,
+      reason: 'unavailable'
+    });
+  }
+
+  private assertRendererReady(): void {
+    if (!productionInkRendererRequired(this.context.prefersReducedMotion)) {
+      return;
+    }
+    const active = this.inkRenderer?.isActive() ?? false;
+    this.rendererFailure ??= this.inkRenderer?.getFailure() ?? null;
+    if (!active || this.rendererFailure) {
+      throw this.rendererError();
+    }
+  }
+
   private ensureEndpointsPrepared(
     fromRoot = sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.options.rootSelector),
     toRoot = sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.options.rootSelector)
@@ -659,11 +704,15 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     const delta = target - start;
     const durationMs = this.context.prefersReducedMotion ? 0 : this.context.segment.virtualDuration;
     if (delta === 0 || durationMs <= 0) {
-      this.progress(target);
-      return Promise.resolve();
+      try {
+        this.progress(target);
+        return Promise.resolve();
+      } catch (error) {
+        return Promise.reject(error);
+      }
     }
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       let elapsedMs = 0;
       let lastFrameAt = performance.now();
       const tick = (now: number) => {
@@ -675,7 +724,12 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         lastFrameAt = now;
         elapsedMs += Math.min(frameDelta, MAX_INK_FRAME_DELTA_MS);
         const progress = Math.min(1, elapsedMs / durationMs);
-        this.progress(start + delta * easeInOutCubic(progress));
+        try {
+          this.progress(start + delta * easeInOutCubic(progress));
+        } catch (error) {
+          reject(error);
+          return;
+        }
         if (progress >= 1) {
           resolve();
           return;

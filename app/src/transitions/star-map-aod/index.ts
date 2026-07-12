@@ -1,7 +1,7 @@
 import { PilotProgressTimeline } from '../../pilot/progress-timeline';
 import { fadeVisibility, smoothStep } from '../../pilot/visibility';
 import type { LayerVisibilityState, TransitionModule } from '../../story/types';
-import { applyRevealBoundary, clearBoundaryGeometry } from '../shared/ink';
+import { applyConcealBoundary, applyRevealBoundary, clearBoundaryGeometry } from '../shared/ink';
 import {
   clearHorizontalInkDiagnostics,
   createInkFieldFrame,
@@ -11,8 +11,11 @@ import {
 } from '../shared/inkField';
 import {
   createInkFieldRenderer,
+  InkRendererRunError,
   mountTransitionInkCanvas,
-  type InkGradePreset
+  type InkGradePreset,
+  type InkRendererFailure,
+  productionInkRendererRequired
 } from '../shared/sceneInk';
 import { createTransitionLayerElevation } from '../shared/layerElevation';
 import { createHorizontalInkContour } from '../shared/horizontalInkContour';
@@ -129,17 +132,40 @@ export function createStarMapAodTransition(options: {
         'star-map-aod',
         { renderer: 'field', grade, generation }
       );
+      let rendererFailure: InkRendererFailure | null = null;
       const inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(inkCanvas, {
         grade,
-        generation
+        generation,
+        onInvalidated: (failure) => {
+          rendererFailure = failure;
+        }
       });
+      const rendererRequired = productionInkRendererRequired(context.prefersReducedMotion);
+      if (rendererRequired && !inkRenderer) {
+        inkCanvas?.remove();
+        throw new InkRendererRunError('star-map-aod', rendererFailure ?? {
+          generation,
+          reason: 'unavailable'
+        });
+      }
+      const rendererActive = () => {
+        const active = inkRenderer?.isActive() ?? false;
+        rendererFailure ??= inkRenderer?.getFailure() ?? null;
+        if (rendererRequired && (!active || rendererFailure)) {
+          throw new InkRendererRunError('star-map-aod', rendererFailure ?? {
+            generation,
+            reason: 'unavailable'
+          });
+        }
+        return active;
+      };
       const elevation = createTransitionLayerElevation(context.to.element, 40);
-      const viewport = fieldViewport(inkCanvas, stageHost);
+      const initialViewport = fieldViewport(inkCanvas, stageHost);
       const contour = createHorizontalInkContour({
         authoredSeed: STAR_MAP_AOD_FIELD.seed,
         variationKey: context.runId
       });
-      inkRenderer?.prewarm(createInkFieldFrame(STAR_MAP_AOD_FIELD, 0.003, viewport, { contour }));
+      inkRenderer?.prewarm(createInkFieldFrame(STAR_MAP_AOD_FIELD, 0.003, initialViewport, { contour }));
       return new PilotProgressTimeline({
         from: context.from,
         to: context.to,
@@ -147,7 +173,9 @@ export function createStarMapAodTransition(options: {
         direction: context.direction,
         sample: sampleStarMapAod,
         render: (progress) => {
+          const activeRenderer = rendererActive();
           const fieldProgress = context.prefersReducedMotion ? 1 : smoothStep(progress);
+          const viewport = fieldViewport(inkCanvas, stageHost);
           const frame = createInkFieldFrame(STAR_MAP_AOD_FIELD, fieldProgress, viewport, { contour });
           const revealSurface = getAodRevealSurface(context.to.element);
           elevation.elevate();
@@ -156,14 +184,18 @@ export function createStarMapAodTransition(options: {
             revealSurface.style.removeProperty('visibility');
             applyRevealBoundary(revealSurface, frame);
           }
+          if (context.from.element) {
+            applyConcealBoundary(context.from.element, frame);
+          }
           context.to.element?.setAttribute('data-r3-transition', 'star-map-aod');
-          markAodFieldCanvas(inkCanvas, frame, Boolean(inkRenderer?.isActive()));
+          markAodFieldCanvas(inkCanvas, frame, activeRenderer);
           inkRenderer?.render(frame);
         },
         dispose: () => {
           inkRenderer?.destroy();
           inkCanvas?.remove();
           clearBoundaryGeometry(getAodRevealSurface(context.to.element));
+          clearBoundaryGeometry(context.from.element);
           if (inkCanvas) {
             delete inkCanvas.dataset.r4InkActive;
             delete inkCanvas.dataset.r4InkProgress;

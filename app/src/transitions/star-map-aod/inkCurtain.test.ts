@@ -63,12 +63,19 @@ describe('star-map AOD one-boundary integration', () => {
     timeline.progress(0.5);
 
     const frame = boundaryRenderer.render.mock.lastCall?.[0] as HorizontalInkFieldFrame;
+    const source = fixture.stage.children[0]!;
     expect(frame.spec.kind).toBe('horizontal');
     expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
     expect(revealSurface.style.clipPath).not.toContain('inset(');
     expect(revealSurface.dataset.r4InkContourRevision).toBe(frame.revision);
+    expect(source.dataset.r4InkContourRevision).toBe(frame.revision);
     expect(canvas.dataset.r4InkContourRevision).toBe(frame.revision);
     expect(revealSurface.dataset.r4InkContourThreshold).toBe(frame.threshold.toFixed(6));
+    expect(source.dataset.r4InkContourThreshold).toBe(frame.threshold.toFixed(6));
+    expect(revealSurface.dataset.r4InkOwnership).toBe('reveal');
+    expect(source.dataset.r4InkOwnership).toBe('conceal');
+    expect(source.style.clipPath).toMatch(/^polygon\(/);
+    expect(source.style.clipPath).not.toBe(revealSurface.style.clipPath);
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkRenderer).toBe('field');
     expect(canvas.dataset.r4InkGrade).toBe('edge-only');
@@ -83,6 +90,7 @@ describe('star-map AOD one-boundary integration', () => {
     expect(boundaryRenderer.destroy).toHaveBeenCalledOnce();
     expect(canvas.parentElement).toBeNull();
     expect(revealSurface.dataset.r4InkContourRevision).toBeUndefined();
+    expect(source.dataset.r4InkContourRevision).toBeUndefined();
   });
 
   it('uses ten fresh renderers and canvases across alternating directions', async () => {
@@ -141,5 +149,47 @@ describe('star-map AOD one-boundary integration', () => {
     expect(canvas.dataset.r4InkGrade).toBe('dark');
     expect(rendererFactory).toHaveBeenCalledWith(canvas, expect.objectContaining({ coverAlpha: 0.82 }));
     timeline.dispose();
+  });
+
+  it('rejects a browser build instead of continuing with a bare polygon', async () => {
+    vi.stubGlobal('WebGLRenderingContext', class WebGLRenderingContext {});
+    const fixture = createBackHalfDomContext('star-map-aod', 'star-map', 'aod-animation');
+    const revealSurface = new FakeElement();
+    const canvas = new FakeCanvas();
+    fixture.stage.children[1]!.connect('[data-aod-reveal-surface]', revealSurface);
+    vi.stubGlobal('document', { createElement: () => canvas });
+    rendererFactory.mockImplementationOnce(() => null as never);
+
+    await expect(createStarMapAodTransition().buildTimeline(fixture.context))
+      .rejects.toThrow(/Ink renderer unavailable/i);
+    expect(canvas.parentElement).toBeNull();
+    expect(revealSurface.style.clipPath).toBe('');
+  });
+
+  it('turns context loss into a typed run failure on the next progress frame', async () => {
+    vi.stubGlobal('WebGLRenderingContext', class WebGLRenderingContext {});
+    const fixture = createBackHalfDomContext('star-map-aod', 'star-map', 'aod-animation');
+    const revealSurface = new FakeElement();
+    const canvas = new FakeCanvas();
+    const listeners = new Map<string, EventListener>();
+    Object.assign(canvas, {
+      addEventListener: (type: string, listener: EventListener) => listeners.set(type, listener),
+      removeEventListener: (type: string, listener: EventListener) => {
+        if (listeners.get(type) === listener) listeners.delete(type);
+      }
+    });
+    fixture.stage.children[1]!.connect('[data-aod-reveal-surface]', revealSurface);
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const timeline = await createStarMapAodTransition().buildTimeline(fixture.context);
+    const preventDefault = vi.fn();
+
+    listeners.get('webglcontextlost')?.({ preventDefault } as unknown as Event);
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(() => timeline.progress(0.6)).toThrow(/Ink renderer context-lost/i);
+    expect(canvas.dataset.r4InkRendererStatus).toBe('context-lost');
+    timeline.dispose();
+    expect(boundaryRenderer.destroy).toHaveBeenCalledOnce();
+    expect(listeners.size).toBe(0);
   });
 });

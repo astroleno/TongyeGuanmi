@@ -2,6 +2,7 @@ import {
   clearHorizontalInkDiagnostics,
   markHorizontalInkDiagnostics
 } from '../transitions/shared/inkField.ts';
+import { HORIZONTAL_INK_CONTOUR_AMPLITUDE } from '../transitions/shared/horizontalInkContour.ts';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const smoothStep = (value) => value * value * (3 - 2 * value);
@@ -60,6 +61,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     uniform float uFieldRadiusScale;
     uniform sampler2D uContourMap;
     uniform float uContourReady;
+    uniform float uContourSampleCount;
     uniform float uOwnershipThreshold;
     uniform sampler2D uDepthMap;
     uniform float uDepthReady;
@@ -105,10 +107,12 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     }
 
     float horizontalRank(vec2 uv) {
-      float signedContour = texture2D(uContourMap, vec2(uv.x, 0.5)).r * 2.0 - 1.0;
+      float sampleCount = max(uContourSampleCount, 1.0);
+      float contourU = (clamp(uv.x, 0.0, 1.0) * (sampleCount - 1.0) + 0.5) / sampleCount;
+      float signedContour = texture2D(uContourMap, vec2(contourU, 0.5)).r * 2.0 - 1.0;
       float contourEnvelope = sin(clamp(uOwnershipThreshold, 0.0, 1.0) * 3.14159265);
       return horizontalRankForDirection(uv, uFieldDirection)
-        + signedContour * 0.055 * contourEnvelope * uContourReady;
+        + signedContour * ${HORIZONTAL_INK_CONTOUR_AMPLITUDE.toFixed(6)} * contourEnvelope * uContourReady;
     }
 
     float radialRank(vec2 uv, float aspect) {
@@ -207,10 +211,22 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         uOcclusionAlphaMin,
         ownershipWarp
       );
-      float seamOcclusion = max(
+      float horizontalCoreOcclusion = ownershipOcclusion(
+        horizontal,
+        uOwnershipGateRank,
+        uOwnershipCore,
+        uOcclusionAlphaMin,
+        1.0
+      );
+      float nonHorizontalCoreOcclusion = max(
         proceduralOcclusion,
         primaryOwnershipOcclusion
-      ) * nonHorizontalMode;
+      );
+      float seamOcclusion = mix(
+        horizontalCoreOcclusion,
+        nonHorizontalCoreOcclusion,
+        nonHorizontalMode
+      );
       float veins = smoothstep(0.66, 0.97, wet + pore * 0.34) * feather;
       float openingSpatter = smoothstep(
         0.70,
@@ -274,6 +290,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
 
   const compileShader = (type, source) => {
     const shader = gl.createShader(type);
+    if (!shader) return null;
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
@@ -286,22 +303,38 @@ export function createInkBoundaryTransition(canvas, options = {}) {
 
   const vertexShader = compileShader(gl.VERTEX_SHADER, vertexSource);
   const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fragmentSource);
-  if (!vertexShader || !fragmentShader) return null;
+  if (!vertexShader || !fragmentShader) {
+    releaseInkWebGlResources(gl, { shaders: [vertexShader, fragmentShader] });
+    return null;
+  }
 
   const program = gl.createProgram();
+  if (!program) {
+    releaseInkWebGlResources(gl, { shaders: [vertexShader, fragmentShader] });
+    return null;
+  }
   gl.attachShader(program, vertexShader);
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     console.warn('Ink field shader link failed:', gl.getProgramInfoLog(program));
+    releaseInkWebGlResources(gl, { program, shaders: [vertexShader, fragmentShader] });
     return null;
   }
 
   const buffer = gl.createBuffer();
+  if (!buffer) {
+    releaseInkWebGlResources(gl, { program, shaders: [vertexShader, fragmentShader] });
+    return null;
+  }
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
 
   const positionLocation = gl.getAttribLocation(program, 'aPosition');
+  if (positionLocation < 0) {
+    releaseInkWebGlResources(gl, { buffer, program, shaders: [vertexShader, fragmentShader] });
+    return null;
+  }
   const uniforms = {
     resolution: gl.getUniformLocation(program, 'uResolution'),
     progress: gl.getUniformLocation(program, 'uProgress'),
@@ -315,6 +348,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     fieldRadiusScale: gl.getUniformLocation(program, 'uFieldRadiusScale'),
     contourMap: gl.getUniformLocation(program, 'uContourMap'),
     contourReady: gl.getUniformLocation(program, 'uContourReady'),
+    contourSampleCount: gl.getUniformLocation(program, 'uContourSampleCount'),
     ownershipThreshold: gl.getUniformLocation(program, 'uOwnershipThreshold'),
     depthMap: gl.getUniformLocation(program, 'uDepthMap'),
     depthReady: gl.getUniformLocation(program, 'uDepthReady'),
@@ -328,7 +362,10 @@ export function createInkBoundaryTransition(canvas, options = {}) {
   };
 
   const depthTexture = gl.createTexture();
-  if (!depthTexture) return null;
+  if (!depthTexture) {
+    releaseInkWebGlResources(gl, { buffer, program, shaders: [vertexShader, fragmentShader] });
+    return null;
+  }
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, depthTexture);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -349,13 +386,33 @@ export function createInkBoundaryTransition(canvas, options = {}) {
   );
 
   const contourTexture = gl.createTexture();
-  if (!contourTexture) return null;
+  if (!contourTexture) {
+    releaseInkWebGlResources(gl, {
+      buffer,
+      program,
+      shaders: [vertexShader, fragmentShader],
+      textures: [depthTexture]
+    });
+    return null;
+  }
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, contourTexture);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.LUMINANCE,
+    1,
+    1,
+    0,
+    gl.LUMINANCE,
+    gl.UNSIGNED_BYTE,
+    new Uint8Array([128])
+  );
 
   let width = 0;
   let height = 0;
@@ -516,6 +573,10 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       gl.uniform1f(uniforms.fieldRadiusScale, radiusScale);
       gl.uniform1i(uniforms.contourMap, 1);
       gl.uniform1f(uniforms.contourReady, spec.kind === 'horizontal' && contourReady ? 1 : 0);
+      gl.uniform1f(
+        uniforms.contourSampleCount,
+        spec.kind === 'horizontal' && frame.contour ? frame.contour.samples.length : 1
+      );
       gl.uniform1f(
         uniforms.ownershipThreshold,
         spec.kind === 'horizontal' && typeof frame.threshold === 'number'

@@ -75,6 +75,8 @@ const GATE_START = 0.06;
 const GATE_END = 0.94;
 const CORE_HALF_WIDTH = 0.072;
 const OCCLUSION_ALPHA_MIN = 0.92;
+export const HORIZONTAL_INK_CORE_HALF_WIDTH_PX = 3;
+export const HORIZONTAL_INK_CORE_ALPHA_MIN = 1;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -101,13 +103,18 @@ export function inkOwnershipGateProgress(progress: number): number {
   return clamp((progress - GATE_START) / (GATE_END - GATE_START));
 }
 
-function occlusionBand(gateRank: number): InkOcclusionBand {
+function occlusionBand(
+  gateRank: number,
+  halfWidth = CORE_HALF_WIDTH,
+  alphaMin = OCCLUSION_ALPHA_MIN
+): InkOcclusionBand {
   const rank = clamp(gateRank);
+  const width = Math.min(CORE_HALF_WIDTH, Math.max(0.0001, halfWidth));
   return {
     gateRank: rank,
-    coreMin: clamp(rank - CORE_HALF_WIDTH),
-    coreMax: clamp(rank + CORE_HALF_WIDTH),
-    alphaMin: OCCLUSION_ALPHA_MIN
+    coreMin: clamp(rank - width),
+    coreMax: clamp(rank + width),
+    alphaMin
   };
 }
 
@@ -218,7 +225,11 @@ export function createInkFieldFrame(
         ...horizontalOwnership(spec, edge, contour),
         edge
       },
-      occlusion: occlusionBand(edge)
+      occlusion: occlusionBand(
+        edge,
+        HORIZONTAL_INK_CORE_HALF_WIDTH_PX / finitePositive(viewport.height, 1),
+        HORIZONTAL_INK_CORE_ALPHA_MIN
+      )
     };
   }
 

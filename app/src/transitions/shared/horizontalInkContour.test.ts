@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  HORIZONTAL_INK_CONTOUR_AMPLITUDE,
   HORIZONTAL_INK_CONTOUR_SAMPLES,
   createHorizontalInkContour,
   horizontalInkOffset,
@@ -23,6 +24,7 @@ describe('horizontal Ink contour', () => {
 
     expect(first.samples).toHaveLength(HORIZONTAL_INK_CONTOUR_SAMPLES);
     expect(HORIZONTAL_INK_CONTOUR_SAMPLES).toBeGreaterThanOrEqual(128);
+    expect(HORIZONTAL_INK_CONTOUR_SAMPLES).toBeLessThanOrEqual(256);
     expect(first.samples).toEqual(replay.samples);
     expect(first.revision).toBe(replay.revision);
     expect(first.seed).toBe(replay.seed);
@@ -58,6 +60,8 @@ describe('horizontal Ink contour', () => {
     expect(reveal).toMatch(/^polygon\(/);
     expect(conceal).toMatch(/^polygon\(/);
     expect(reveal).not.toBe(conceal);
+    expect(reveal.match(/%/g)).toHaveLength((HORIZONTAL_INK_CONTOUR_SAMPLES + 2) * 2);
+    expect(conceal.match(/%/g)).toHaveLength((HORIZONTAL_INK_CONTOUR_SAMPLES + 2) * 2);
     expect(reveal).toContain('0.000% 100.000%');
     expect(reveal).toContain('100.000% 100.000%');
     expect(conceal).toContain('0.000% 0.000%');
@@ -71,12 +75,27 @@ describe('horizontal Ink contour', () => {
     });
 
     expect(horizontalInkPolygon(contour, 'bottom-to-top', 0, 'reveal'))
-      .toContain('50.000% 100.000%');
+      .toMatch(/^polygon\([^)]*% 100\.000%(?:, [^)]*% 100\.000%)*\)$/);
     expect(horizontalInkPolygon(contour, 'bottom-to-top', 1, 'reveal'))
-      .toContain('50.000% 0.000%');
+      .toContain('49.606% 0.000%');
     expect(horizontalInkPolygon(contour, 'top-to-bottom', 0, 'reveal'))
-      .toContain('50.000% 0.000%');
+      .toContain('49.606% 0.000%');
     expect(horizontalInkPolygon(contour, 'top-to-bottom', 1, 'reveal'))
-      .toContain('50.000% 100.000%');
+      .toContain('49.606% 100.000%');
+  });
+
+  it('places CSS vertices on the exact texture sample coordinates', () => {
+    const contour = createHorizontalInkContour({
+      authoredSeed: 'exact-contour',
+      variationKey: 'epoch:41'
+    });
+    const threshold = 0.5;
+    const polygon = horizontalInkPolygon(contour, 'bottom-to-top', threshold, 'reveal');
+
+    for (const index of [0, 1, 64, contour.samples.length - 1]) {
+      const x = index / (contour.samples.length - 1);
+      const y = 1 - threshold + horizontalInkOffset(contour, x) * HORIZONTAL_INK_CONTOUR_AMPLITUDE;
+      expect(polygon).toContain(`${(x * 100).toFixed(3)}% ${(y * 100).toFixed(3)}%`);
+    }
   });
 });

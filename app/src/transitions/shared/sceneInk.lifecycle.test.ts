@@ -19,7 +19,10 @@ vi.mock('../../vendor/ink-scene-transition.js', () => ({
 }));
 
 import { createInkFieldFrame } from './inkField';
-import { createHorizontalInkContour } from './horizontalInkContour';
+import {
+  HORIZONTAL_INK_CONTOUR_SAMPLES,
+  createHorizontalInkContour
+} from './horizontalInkContour';
 import {
   createInkFieldRenderer,
   mountTransitionInkCanvas
@@ -74,7 +77,7 @@ describe('shared ink renderer lifecycle', () => {
     expect(surface.dataset.r4InkContourRevision).toBe(contour.revision);
     expect(surface.dataset.r4InkContourThreshold).toBe('0.500000');
     expect(surface.dataset.r4InkContourSeed).toBe(String(contour.seed));
-    expect(surface.dataset.r4InkContourSamples).toBe('32');
+    expect(surface.dataset.r4InkContourSamples).toBe(String(HORIZONTAL_INK_CONTOUR_SAMPLES));
 
     renderer?.destroy();
 
@@ -136,7 +139,7 @@ describe('shared ink renderer lifecycle', () => {
     expect(surface.dataset.r4InkContourRevision).toBe(contour.revision);
     expect(surface.dataset.r4InkContourThreshold).toBe(frame.threshold.toFixed(6));
     expect(surface.dataset.r4InkContourSeed).toBe(String(contour.seed));
-    expect(surface.dataset.r4InkContourSamples).toBe('32');
+    expect(surface.dataset.r4InkContourSamples).toBe(String(HORIZONTAL_INK_CONTOUR_SAMPLES));
 
     renderer?.destroy();
 
@@ -148,7 +151,11 @@ describe('shared ink renderer lifecycle', () => {
 
   it('invalidates only the matching run generation after context loss', () => {
     const { surface, dispatch } = canvas();
-    const renderer = createInkFieldRenderer(surface, { generation: 'run:lost:1' });
+    const invalidated = vi.fn();
+    const renderer = createInkFieldRenderer(surface, {
+      generation: 'run:lost:1',
+      onInvalidated: invalidated
+    });
     const replacementCanvas = canvas();
     const replacement = createInkFieldRenderer(replacementCanvas.surface, {
       generation: 'run:replacement:2'
@@ -165,6 +172,9 @@ describe('shared ink renderer lifecycle', () => {
 
     expect(preventDefault).toHaveBeenCalledOnce();
     expect(renderer?.isActive()).toBe(false);
+    expect(renderer?.getFailure()).toEqual({ generation: 'run:lost:1', reason: 'context-lost' });
+    expect(invalidated).toHaveBeenCalledWith({ generation: 'run:lost:1', reason: 'context-lost' });
+    expect(invalidated).toHaveBeenCalledOnce();
     expect(surface.dataset.r4InkRendererStatus).toBe('context-lost');
     expect(vendor.boundaryRender).not.toHaveBeenCalled();
     dispatch('webglcontextlost', { preventDefault });
@@ -177,6 +187,27 @@ describe('shared ink renderer lifecycle', () => {
     expect(vendor.boundaryDestroy).toHaveBeenCalledOnce();
     replacement?.destroy();
     expect(vendor.boundaryDestroy).toHaveBeenCalledTimes(2);
+  });
+
+  it('invalidates and releases a renderer whose run generation is replaced', () => {
+    const { surface } = canvas();
+    const invalidated = vi.fn();
+    const renderer = createInkFieldRenderer(surface, {
+      generation: 'run:original:1',
+      onInvalidated: invalidated
+    });
+
+    surface.dataset.r4InkGeneration = 'run:replacement:2';
+
+    expect(renderer?.isActive()).toBe(false);
+    expect(renderer?.getFailure()).toEqual({
+      generation: 'run:original:1',
+      reason: 'generation-mismatch'
+    });
+    expect(invalidated).toHaveBeenCalledOnce();
+    expect(vendor.boundaryDestroy).toHaveBeenCalledOnce();
+    renderer?.destroy();
+    expect(vendor.boundaryDestroy).toHaveBeenCalledOnce();
   });
 
   it('mounts a fresh Stage canvas for every run even with the same segment id', () => {

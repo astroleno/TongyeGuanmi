@@ -5,6 +5,7 @@ import { createInkBoundaryTransition, releaseInkWebGlResources } from './ink-sce
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 function webGlHarness() {
@@ -62,7 +63,9 @@ function webGlHarness() {
     getAttribLocation: vi.fn(() => 0),
     getExtension: vi.fn(() => ({ loseContext })),
     getProgramParameter: vi.fn(() => true),
+    getProgramInfoLog: vi.fn(() => ''),
     getShaderParameter: vi.fn(() => true),
+    getShaderInfoLog: vi.fn(() => ''),
     getUniformLocation: vi.fn((_program, name: string) => name),
     linkProgram: vi.fn(),
     pixelStorei: vi.fn(),
@@ -77,19 +80,44 @@ function webGlHarness() {
     vertexAttribPointer: vi.fn(),
     viewport: vi.fn()
   };
+  let width = 320;
+  let height = 180;
   const canvas = {
     dataset: {},
-    getBoundingClientRect: () => ({ width: 320, height: 180 }),
+    getBoundingClientRect: () => ({ width, height }),
     getContext: () => gl,
     height: 0,
     style: { opacity: '', visibility: '' },
     width: 0
   } as unknown as HTMLCanvasElement;
   vi.stubGlobal('window', { devicePixelRatio: 1, innerHeight: 180, innerWidth: 320 });
-  return { canvas, gl, loseContext, texture };
+  return {
+    canvas,
+    gl,
+    loseContext,
+    texture,
+    setSize(nextWidth: number, nextHeight: number) {
+      width = nextWidth;
+      height = nextHeight;
+    }
+  };
 }
 
 describe('ink WebGL resource lifecycle', () => {
+  it('releases partial resources when renderer initialization fails', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { canvas, gl, loseContext } = webGlHarness();
+    gl.getShaderParameter
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+
+    const transition = createInkBoundaryTransition(canvas);
+
+    expect(transition).toBeNull();
+    expect(gl.deleteShader).toHaveBeenCalledTimes(2);
+    expect(loseContext).toHaveBeenCalledOnce();
+  });
+
   it('deletes every owned resource and explicitly releases the context', () => {
     const loseContext = vi.fn();
     const gl = {
@@ -115,7 +143,7 @@ describe('ink WebGL resource lifecycle', () => {
   });
 
   it('uploads one horizontal contour texture per revision and never per progress frame', () => {
-    const { canvas, gl, texture } = webGlHarness();
+    const { canvas, gl, setSize, texture } = webGlHarness();
     const transition = createInkBoundaryTransition(canvas);
     const initializationUploads = gl.texImage2D.mock.calls.length;
     const firstContour = createHorizontalInkContour({
@@ -135,6 +163,19 @@ describe('ink WebGL resource lifecycle', () => {
     expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads + 1);
     expect(canvas.dataset.r4InkContourTextureUploads).toBe('1');
     expect(canvas.dataset.r4InkContourRevision).toBe(firstContour.revision);
+    expect(gl.uniform1f).toHaveBeenCalledWith('uContourSampleCount', firstContour.samples.length);
+    expect(gl.uniform1f).toHaveBeenCalledWith('uOcclusionAlphaMin', 1);
+
+    setSize(640, 360);
+    transition?.render(createInkFieldFrame(
+      { kind: 'horizontal', direction: 'bottom-to-top', seed: 'horizontal-lifecycle' },
+      0.5,
+      { width: 640, height: 360 },
+      { contour: firstContour }
+    ));
+    expect(canvas.dataset.r4InkContourTextureUploads).toBe('1');
+    expect(canvas.dataset.r4InkContourRevision).toBe(firstContour.revision);
+    expect(gl.viewport).toHaveBeenLastCalledWith(0, 0, 640, 360);
 
     for (const progress of [0.25, 0.5, 0.75]) {
       transition?.render(createInkFieldFrame(
@@ -217,6 +258,8 @@ describe('ink WebGL resource lifecycle', () => {
       .map(([, source]) => String(source))
       .find((source) => source.includes('precision highp float')) ?? '';
     expect(fragmentSource).toContain('float horizontalCoreOcclusion');
+    expect(fragmentSource).toContain('float contourU');
+    expect(fragmentSource).toContain('(sampleCount - 1.0) + 0.5');
     expect(fragmentSource).toMatch(/ownershipOcclusion\(\s*horizontal,\s*uOwnershipGateRank,[\s\S]*?1\.0\s*\)/);
     expect(fragmentSource).not.toMatch(/horizontalCoreOcclusion[\s\S]*?\*\s*nonHorizontalMode/);
   });
