@@ -1,6 +1,6 @@
 # React Refactor
 
-状态：R5 release candidate v2 已完成自动验收，等待 HITL cutover approval。`/`、根工具链、CI 与部署构建均已切到 production React StoryApp；旧 runtime 默认路径不可达。候选尚未合并或部署 `main`。
+状态：R5 release candidate v3 已完成自动验收与 release identity 绑定，等待 HITL cutover approval。`/`、根工具链、CI 与部署构建均已切到 production React StoryApp；旧 runtime 默认路径不可达。候选尚未合并或部署 `main`。
 
 ## 当前事实
 
@@ -8,7 +8,7 @@
 - R4 视觉验收点：`react-refactor-r4-visual-accepted` → `55b8a123a7a5b28647c40acc81783ee37cd58302`。
 - R5 起点：`react-refactor-r4-closeout` → `c2a52dbefd99d2ee99ffa13db0abbdf7b760a143`。
 - R5 阶段分支：`codex/react-refactor-r5-parity-cutover`。
-- 当前候选：`react-refactor-r5-candidate-v2`。原 `react-refactor-r5-candidate` 仍不可变地指向 `0de4972de64455a14d8c36262e58cc6af5c4875b`，但因 G1 静态测试合同漏同步而 superseded，不得用于批准或部署。
+- 当前候选：`react-refactor-r5-candidate-v3`。`react-refactor-r5-candidate` 因 G1 合同漏同步而 superseded；`react-refactor-r5-candidate-v2` 因 manifest 仍自称旧 candidate 而 superseded。两个旧 tag 均保持不可变，不得用于批准或部署。
 - `/` 已覆盖完整 canonical spine；Director、Stage、真实输入、reading handoff、history/hash、菜单、reduced-motion 与 recovery 已接通。
 - public build 只装配 production module；scene/transition 按需加载，harness 只在开发 gate 下 lazy-load。
 - `dist/index.html` 在无 JS 时包含 8 个正文区、127 条非 legacy copy、metadata 与 hash anchors。
@@ -33,10 +33,11 @@ react-refactor-legacy-static-baseline
                          └─ react-refactor-r4-closeout
                               └─ codex/react-refactor-r5-parity-cutover
                                    └─ react-refactor-r5-candidate (superseded; immutable)
-                                        └─ react-refactor-r5-candidate-v2
-                                             └─ HITL approval
-                                                  └─ main deploy + react-refactor-r5-cutover
-                                                       └─ codex/react-refactor-r6-cleanup
+                                        └─ react-refactor-r5-candidate-v2 (superseded; immutable)
+                                             └─ react-refactor-r5-candidate-v3
+                                                  └─ HITL approval
+                                                       └─ main deploy + react-refactor-r5-cutover
+                                                            └─ codex/react-refactor-r6-cleanup
 ```
 
 `react-refactor-r5-cutover` 只能在 HITL 明确批准并完成 main cutover 后建立；R6 不得从 candidate 或未批准的 main 开始。

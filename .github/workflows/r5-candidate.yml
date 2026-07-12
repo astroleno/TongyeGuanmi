@@ -6,6 +6,8 @@ on:
     branches:
       - main
       - codex/react-refactor-r5-parity-cutover
+    tags:
+      - 'react-refactor-r5-candidate-v3'
 
 jobs:
   candidate:
@@ -13,6 +15,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -36,12 +40,17 @@ jobs:
       - name: Harness contract regression
         run: pnpm -C app exec playwright test
 
-      - name: Rebuild deployable artifact without harness routes
+      - name: Rebuild identity-bound deployable artifact
+        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3'
+        env:
+          R5_CANDIDATE_TAG: ${{ github.ref_name }}
+          R5_SOURCE_COMMIT: ${{ github.sha }}
         run: pnpm run deploy:build
 
       - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3'
         with:
-          name: r5-candidate-${{ github.sha }}
+          name: r5-candidate-${{ github.ref_name }}-${{ github.sha }}
           path: dist/
           if-no-files-found: error
           retention-days: 14

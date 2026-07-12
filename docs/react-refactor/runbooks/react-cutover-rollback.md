@@ -9,12 +9,13 @@ Status: candidate-ready. No step under “Production cutover” is authorized un
 | legacy rollback source | `react-refactor-legacy-static-baseline` | `a78b064d65f024a301a3b179c62a458a1445bbf6` |
 | R4 visual baseline | `react-refactor-r4-visual-accepted` | `55b8a123a7a5b28647c40acc81783ee37cd58302` |
 | R5 start | `react-refactor-r4-closeout` | `c2a52dbefd99d2ee99ffa13db0abbdf7b760a143` |
-| active R5 candidate | `react-refactor-r5-candidate-v2` | peel the annotated tag and match the candidate report |
-| superseded R5 candidate | `react-refactor-r5-candidate` | `0de4972de64455a14d8c36262e58cc6af5c4875b`; never approve or deploy |
+| active R5 candidate | `react-refactor-r5-candidate-v3` | peel the annotated tag and match manifest `candidateTagObject` / `sourceCommit` |
+| superseded R5 candidate | `react-refactor-r5-candidate-v2` | `a5bef3785b766dac0e5ecfc95e96d03cd5c51c90`; manifest names the wrong candidate |
+| superseded R5 candidate | `react-refactor-r5-candidate` | `0de4972de64455a14d8c36262e58cc6af5c4875b`; root G1 contract fails |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |
 | R4 clean `app/dist` manifest | sorted per-file hashes | SHA-256 `ae1ff9bcb8d7ea6228204440a1d526be3d6da482a74680873ac4052ceec0078b` |
-| R5 candidate artifact | `dist/r5-release-manifest.json` | manifest SHA-256 recorded in the candidate report |
+| R5 candidate artifact | `dist/r5-release-manifest.json` | schema-2 identity plus SHA-256 stored with the immutable release artifact |
 
 Always peel annotated tags with `git rev-parse <tag>^{}`. Do not trust an unpeeled tag-object SHA.
 
@@ -23,21 +24,25 @@ Always peel annotated tags with `git rev-parse <tag>^{}`. Do not trust an unpeel
 Run from a clean clone/worktree with Node 22 and pnpm 8.15.1:
 
 ```bash
-git checkout react-refactor-r5-candidate-v2
+git checkout react-refactor-r5-candidate-v3
 corepack enable
 corepack prepare pnpm@8.15.1 --activate
 pnpm install --frozen-lockfile
+R5_CANDIDATE_TAG=react-refactor-r5-candidate-v3 \
+R5_SOURCE_COMMIT="$(git rev-parse HEAD)" \
 pnpm run verify:all
 pnpm -C app exec playwright install chrome webkit
 pnpm -C app exec playwright test --config playwright.release.config.ts
 pnpm -C app exec playwright test
+R5_CANDIDATE_TAG=react-refactor-r5-candidate-v3 \
+R5_SOURCE_COMMIT="$(git rev-parse HEAD)" \
 pnpm run deploy:build
 shasum -a 256 dist/r5-release-manifest.json
 ```
 
-`dist/` is the only deployable candidate directory. Preserve it as an immutable artifact keyed by candidate commit and manifest hash. Do not publish root `index.html`, old `js/`, preview HTML or `app/dist`.
+Only `dist/` produced by the strict `deploy:build` command above is deployable. A plain `pnpm build` emits an unbound validation manifest and must never be published. Preserve the bound artifact keyed by candidate tag object, source commit and manifest hash. Do not publish root `index.html`, old `js/`, preview HTML or `app/dist`.
 
-Never substitute the superseded `react-refactor-r5-candidate` tag: it is retained only as an immutable audit record of the failed G1 test contract.
+Never substitute either superseded candidate tag: both are retained only as immutable audit records.
 
 Pre-cutover smoke:
 
@@ -55,7 +60,7 @@ The static preview server uses an SPA fallback, so the two `curl` checks prove t
 
 1. Record approver, time, candidate tag/commit, artifact manifest hash and rollback artifact id in the release record.
 2. Merge the reviewed candidate to `main` through the approved repository process; do not rebuild from a different commit.
-3. In a clean checkout of the exact deployed commit, run `pnpm install --frozen-lockfile && pnpm run deploy:build` and verify its manifest equals the approved candidate.
+3. In a clean checkout of the exact deployed commit, rerun `deploy:build` with the approved candidate tag and source commit inputs shown above; verify candidate tag object, source commit and manifest digest equal the approved artifact.
 4. Publish only `dist/` with atomic release switching. Keep the previous legacy artifact addressable; do not overwrite it.
 5. Run the smoke commands above against the production URL, plus a real desktop Safari, iOS Safari and Android Chrome forward/reverse check.
 6. Observe error rate, media failures, LCP and navigation for the agreed watch window.
@@ -113,4 +118,4 @@ Candidate and rehearsal results live in `docs/react-refactor/reports/r5-candidat
 
 ## Rehearsal Record
 
-The 2026-07-12 clean-environment rehearsal passed using implementation commit `469a9caf7e2530232d298635bfaf8dbc26498936`. A `--no-local` clone reproduced the candidate manifest, a separate detached legacy worktree reproduced the frozen legacy index checksum, and the same port was switched candidate → legacy → candidate with root/copy/bootstrap, HTTP 206 media range and candidate-manifest presence/absence checks. Candidate v2 changes only the G1 source contract and release records, emits the same manifest, and its exact tagged checkout passed root verification plus production smoke after re-freeze; see `reports/r5-candidate.md` for the result and immutable hashes.
+The 2026-07-12 clean-environment rehearsal passed using implementation commit `469a9caf7e2530232d298635bfaf8dbc26498936`. A `--no-local` clone reproduced the candidate payload, a separate detached legacy worktree reproduced the frozen legacy index checksum, and the same port was switched candidate → legacy → candidate with root/copy/bootstrap, HTTP 206 media range and candidate-manifest presence/absence checks. Candidate v3 preserves every runtime payload hash, emits a schema-2 manifest bound to its tag object and source commit, and repeats the exact-tag root/deploy/smoke/rollback checks; see `reports/r5-candidate.md` for the release record.

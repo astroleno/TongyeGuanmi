@@ -35,7 +35,8 @@
     "Let the current Hero hold boot independently of a slow next-scene prefetch while retaining LayerWindow preloading.",
     "Install the actual Chrome channel used by CI and correct SPA-fallback curl smoke semantics.",
     "Measure production hold readiness separately from static-shell LCP.",
-    "Resolve the post-freeze review blocker by replacing the stale G1 negative source check with explicit transition=false and hold=true motion contracts."
+    "Resolve the post-freeze review blocker by replacing the stale G1 negative source check with explicit transition=false and hold=true motion contracts.",
+    "Bind schema-2 release manifests to an explicitly supplied annotated candidate tag, tag-object SHA, peeled source commit, HEAD, and clean worktree; gate CI artifact upload and deploy builds on that identity."
   ],
   "residualActionableWork": [],
   "advisoryOnly": [
@@ -43,12 +44,19 @@
     "Live crawler/search-console verification occurs only after an approved deployment.",
     "No merge or deployment to main is authorized before explicit HITL approval."
   ],
-  "supersededCandidate": {
-    "tag": "react-refactor-r5-candidate",
-    "peeledCommit": "0de4972de64455a14d8c36262e58cc6af5c4875b",
-    "reason": "The exact tag failed the root G1 static source contract and is retained only as an immutable audit record."
-  },
-  "nextCandidate": "react-refactor-r5-candidate-v2",
-  "requirementsCompleteness": "All R5 implementation, automated validation, clean rollback rehearsal, and post-freeze G1 contract correction requirements are represented; immutable candidate v2 tagging is the remaining release-finalization step.",
+  "supersededCandidates": [
+    {
+      "tag": "react-refactor-r5-candidate",
+      "peeledCommit": "0de4972de64455a14d8c36262e58cc6af5c4875b",
+      "reason": "The exact tag failed the root G1 static source contract and is retained only as an immutable audit record."
+    },
+    {
+      "tag": "react-refactor-r5-candidate-v2",
+      "peeledCommit": "a5bef3785b766dac0e5ecfc95e96d03cd5c51c90",
+      "reason": "The generated release manifest still identified the superseded original candidate."
+    }
+  ],
+  "nextCandidate": "react-refactor-r5-candidate-v3",
+  "requirementsCompleteness": "All R5 implementation, automated validation, rollback rehearsal, G1 contract correction, and release identity binding requirements are represented; immutable candidate v3 tagging is the remaining release-finalization step.",
   "verdict": "ready_for_candidate_freeze"
 }
