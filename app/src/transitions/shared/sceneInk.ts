@@ -69,7 +69,25 @@ function markBoundaryFrame(canvas: HTMLCanvasElement, frame: InkFieldFrame): voi
   canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
   canvas.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
   canvas.dataset.r4InkFieldSeed = String(frame.seed);
-  delete canvas.dataset.r4InkBoundaryRevision;
+  if (frame.spec.kind === 'horizontal' && 'revision' in frame) {
+    canvas.dataset.r4InkBoundaryRevision = frame.revision;
+    canvas.dataset.r4InkContourRevision = frame.revision;
+    canvas.dataset.r4InkContourThreshold = frame.threshold.toFixed(6);
+    canvas.dataset.r4InkContourSeed = String(frame.contour.seed);
+    canvas.dataset.r4InkContourDirection = frame.spec.direction;
+    canvas.dataset.r4InkContourSamples = String(frame.contour.samples.length);
+  } else {
+    delete canvas.dataset.r4InkBoundaryRevision;
+    clearContourFrameMark(canvas);
+  }
+}
+
+function clearContourFrameMark(canvas: HTMLCanvasElement): void {
+  delete canvas.dataset.r4InkContourRevision;
+  delete canvas.dataset.r4InkContourThreshold;
+  delete canvas.dataset.r4InkContourSeed;
+  delete canvas.dataset.r4InkContourDirection;
+  delete canvas.dataset.r4InkContourSamples;
 }
 
 function clearBoundaryFrameMark(canvas: HTMLCanvasElement): void {
@@ -78,6 +96,7 @@ function clearBoundaryFrameMark(canvas: HTMLCanvasElement): void {
   delete canvas.dataset.r4InkBoundaryProgress;
   delete canvas.dataset.r4InkBoundaryRevision;
   delete canvas.dataset.r4InkFieldSeed;
+  clearContourFrameMark(canvas);
 }
 
 /**
@@ -195,10 +214,9 @@ export function createInkFieldRenderer(
         canvas.dataset.r4InkRendererActive = 'false';
         canvas.dataset.r4InkRendererStatus = 'disposed';
       }
+      clearBoundaryFrameMark(canvas);
       if (lifecycle.removeCanvasOnDestroy !== false) {
         canvas.remove();
-      } else {
-        clearBoundaryFrameMark(canvas);
       }
     }
   };

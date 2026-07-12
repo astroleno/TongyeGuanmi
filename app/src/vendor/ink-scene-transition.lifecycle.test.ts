@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createInkFieldFrame, type InkFieldFrame } from '../transitions/shared/inkField';
+import { createHorizontalInkContour } from '../transitions/shared/horizontalInkContour';
 import { createInkBoundaryTransition, releaseInkWebGlResources } from './ink-scene-transition.js';
 
 afterEach(() => {
@@ -26,16 +27,17 @@ function webGlHarness() {
     SRC_ALPHA: 14,
     STATIC_DRAW: 15,
     TEXTURE0: 16,
-    TEXTURE_2D: 17,
-    TEXTURE_MAG_FILTER: 18,
-    TEXTURE_MIN_FILTER: 19,
-    TEXTURE_WRAP_S: 20,
-    TEXTURE_WRAP_T: 21,
-    TRIANGLES: 22,
-    UNPACK_ALIGNMENT: 23,
-    UNPACK_FLIP_Y_WEBGL: 24,
-    UNSIGNED_BYTE: 25,
-    VERTEX_SHADER: 26,
+    TEXTURE1: 17,
+    TEXTURE_2D: 18,
+    TEXTURE_MAG_FILTER: 19,
+    TEXTURE_MIN_FILTER: 20,
+    TEXTURE_WRAP_S: 21,
+    TEXTURE_WRAP_T: 22,
+    TRIANGLES: 23,
+    UNPACK_ALIGNMENT: 24,
+    UNPACK_FLIP_Y_WEBGL: 25,
+    UNSIGNED_BYTE: 26,
+    VERTEX_SHADER: 27,
     activeTexture: vi.fn(),
     attachShader: vi.fn(),
     bindBuffer: vi.fn(),
@@ -112,16 +114,29 @@ describe('ink WebGL resource lifecycle', () => {
     expect(loseContext).toHaveBeenCalledOnce();
   });
 
-  it('does not upload a texture for each horizontal or radial progress frame', () => {
+  it('uploads one horizontal contour texture per revision and never per progress frame', () => {
     const { canvas, gl, texture } = webGlHarness();
     const transition = createInkBoundaryTransition(canvas);
     const initializationUploads = gl.texImage2D.mock.calls.length;
+    const firstContour = createHorizontalInkContour({
+      authoredSeed: 'horizontal-lifecycle',
+      variationKey: 'run:1'
+    });
     for (const progress of [0.25, 0.5, 0.75]) {
       transition?.render(createInkFieldFrame(
         { kind: 'horizontal', direction: 'bottom-to-top', seed: 'horizontal-lifecycle' },
         progress,
-        { width: 320, height: 180 }
+        { width: 320, height: 180 },
+        { contour: firstContour }
       ));
+    }
+
+    expect(gl.createTexture).toHaveBeenCalledTimes(2);
+    expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads + 1);
+    expect(canvas.dataset.r4InkContourTextureUploads).toBe('1');
+    expect(canvas.dataset.r4InkContourRevision).toBe(firstContour.revision);
+
+    for (const progress of [0.25, 0.5, 0.75]) {
       transition?.render(createInkFieldFrame(
         { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'radial-lifecycle' },
         progress,
@@ -129,12 +144,29 @@ describe('ink WebGL resource lifecycle', () => {
       ));
     }
 
-    expect(gl.createTexture).toHaveBeenCalledOnce();
-    expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads);
+    expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads + 1);
+    expect(canvas.dataset.r4InkContourTextureUploads).toBe('1');
+
+    const nextContour = createHorizontalInkContour({
+      authoredSeed: 'horizontal-lifecycle',
+      variationKey: 'run:2'
+    });
+    transition?.render(createInkFieldFrame(
+      { kind: 'horizontal', direction: 'bottom-to-top', seed: 'horizontal-lifecycle' },
+      0.5,
+      { width: 320, height: 180 },
+      { contour: nextContour }
+    ));
+    expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads + 2);
+    expect(canvas.dataset.r4InkContourTextureUploads).toBe('2');
+    expect(canvas.dataset.r4InkContourRevision).toBe(nextContour.revision);
+
     transition?.destroy();
     transition?.destroy();
-    expect(gl.deleteTexture).toHaveBeenCalledOnce();
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(2);
     expect(gl.deleteTexture).toHaveBeenCalledWith(texture);
+    expect(canvas.dataset.r4InkContourTextureUploads).toBeUndefined();
+    expect(canvas.dataset.r4InkContourRevision).toBeUndefined();
   });
 
   it('uploads one primary ownership occlusion contract', () => {

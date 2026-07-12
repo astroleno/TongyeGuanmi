@@ -19,6 +19,7 @@ vi.mock('../../vendor/ink-scene-transition.js', () => ({
 }));
 
 import { createInkFieldFrame } from './inkField';
+import { createHorizontalInkContour } from './horizontalInkContour';
 import {
   createInkFieldRenderer,
   mountTransitionInkCanvas
@@ -56,14 +57,24 @@ describe('shared ink renderer lifecycle', () => {
   it('forwards one boundary frame and releases WebGL resources before removing its canvas', () => {
     const { surface } = canvas();
     const renderer = createInkFieldRenderer(surface);
+    const contour = createHorizontalInkContour({
+      authoredSeed: 'shared-field-frame',
+      variationKey: 'run:shared:1'
+    });
     const frame = createInkFieldFrame(
       { kind: 'horizontal', direction: 'bottom-to-top', seed: 'shared-field-frame' },
       0.5,
-      { width: 1440, height: 900 }
+      { width: 1440, height: 900 },
+      { contour }
     );
 
     renderer?.prewarm(frame);
     renderer?.render(frame);
+
+    expect(surface.dataset.r4InkContourRevision).toBe(contour.revision);
+    expect(surface.dataset.r4InkContourThreshold).toBe('0.500000');
+    expect(surface.dataset.r4InkContourSeed).toBe(String(contour.seed));
+    expect(surface.dataset.r4InkContourSamples).toBe('32');
 
     renderer?.destroy();
 
@@ -80,6 +91,10 @@ describe('shared ink renderer lifecycle', () => {
     });
     expect(surface.dataset.r4InkGrade).toBe('edge-only');
     expect(surface.dataset.r4InkRendererActive).toBe('false');
+    expect(surface.dataset.r4InkContourRevision).toBeUndefined();
+    expect(surface.dataset.r4InkContourThreshold).toBeUndefined();
+    expect(surface.dataset.r4InkContourSeed).toBeUndefined();
+    expect(surface.dataset.r4InkContourSamples).toBeUndefined();
   });
 
   it('keeps dark as an explicit grade with the same renderer contract', () => {
@@ -97,6 +112,38 @@ describe('shared ink renderer lifecycle', () => {
     expect(surface.dataset.r4InkGeneration).toBe('dark-run:1');
     expect(renderer?.isActive()).toBe(true);
     renderer?.destroy();
+  });
+
+  it('marks and clears the shared horizontal contour lifecycle', () => {
+    const { surface } = canvas();
+    const renderer = createInkFieldRenderer(surface, {
+      generation: 'contour-run:1',
+      removeCanvasOnDestroy: false
+    });
+    const contour = createHorizontalInkContour({
+      authoredSeed: 'services-ttg',
+      variationKey: 'contour-run:1'
+    });
+    const frame = createInkFieldFrame(
+      { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+      0.5,
+      { width: 1440, height: 900 },
+      { contour }
+    );
+
+    renderer?.render(frame);
+
+    expect(surface.dataset.r4InkContourRevision).toBe(contour.revision);
+    expect(surface.dataset.r4InkContourThreshold).toBe(frame.threshold.toFixed(6));
+    expect(surface.dataset.r4InkContourSeed).toBe(String(contour.seed));
+    expect(surface.dataset.r4InkContourSamples).toBe('32');
+
+    renderer?.destroy();
+
+    expect(surface.dataset.r4InkContourRevision).toBeUndefined();
+    expect(surface.dataset.r4InkContourThreshold).toBeUndefined();
+    expect(surface.dataset.r4InkContourSeed).toBeUndefined();
+    expect(surface.dataset.r4InkContourSamples).toBeUndefined();
   });
 
   it('invalidates only the matching run generation after context loss', () => {
