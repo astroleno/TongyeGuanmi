@@ -28,14 +28,19 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toContain('float depthRank(');
   });
 
-  it('uses Main erosion terms to move the final edge', () => {
+  it('uses one lightweight contour texture for the horizontal macro edge', () => {
     expect(shaderSource).not.toContain('uBoundaryProfile');
     expect(shaderSource).not.toContain('sampledBoundary');
-    expect(shaderSource).not.toContain('gl.LUMINANCE');
     expect(shaderSource).not.toContain('frame.profile');
+    expect(shaderSource).toContain('uniform sampler2D uContourMap');
+    expect(shaderSource).toContain('uniform float uOwnershipThreshold');
+    expect(shaderSource).toContain('gl.LUMINANCE');
+    expect(shaderSource).toContain('frame.contour.samples.length');
+    expect(shaderSource).toContain('float boundaryProgress = mix(uOwnershipThreshold, p, nonHorizontalMode)');
     expect(shaderSource).toContain('float field =');
     expect(shaderSource).toContain('openingBreakup');
     expect(shaderSource).toContain('tendril');
+    expect(shaderSource).toContain('float ownershipFieldScale = mix(0.28, 1.0, nonHorizontalMode)');
     expect(shaderSource).toMatch(/float edge = [^;]*field/);
   });
 
@@ -57,6 +62,7 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toMatch(/ownershipOcclusion\([^)]*ownershipWarp/s);
     expect(shaderSource).toContain('max(alpha, seamOcclusion)');
     expect(shaderSource).toMatch(/alpha\s*=\s*max\(alpha,\s*seamOcclusion\)/);
+    expect(shaderSource).toMatch(/float seamOcclusion = max\([\s\S]*\) \* nonHorizontalMode;/);
     expect(shaderSource).not.toContain('uSceneDim');
   });
 
