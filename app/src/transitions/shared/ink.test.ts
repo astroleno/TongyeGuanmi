@@ -319,22 +319,23 @@ describe('shared ink transition surface', () => {
     timeline.progress(0.75);
     const secondClip = String(toElement.style.clipPath ?? '');
     expect(toElement.style.getPropertyValue('mask-image')).toBe('');
-    expect(firstClip).toMatch(/^inset\(/);
-    expect(secondClip).toMatch(/^inset\(/);
-    expect(firstClip).not.toContain('polygon(');
-    expect(secondClip).not.toContain('polygon(');
+    expect(firstClip).toMatch(/^polygon\(/);
+    expect(secondClip).toMatch(/^polygon\(/);
+    expect(firstClip).not.toContain('inset(');
+    expect(secondClip).not.toContain('inset(');
     expect(firstClip).not.toBe(secondClip);
     expect(toElement.style.visibility).not.toBe('hidden');
     expect(toElement.style.opacity).not.toBe('0');
     expect(toElement.dataset.r4RevealMode).toBe('ink-occluded-live-gate');
     expect(toElement.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(toElement.dataset.r4InkBoundaryProgress).toBe('0.7500');
-    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(toElement.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(revealSurface.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(concealSurface.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(revealSurface.style.clipPath).toMatch(/^inset\(/);
-    expect(concealSurface.style.clipPath).toMatch(/^inset\(/);
+    expect(canvas.dataset.r4InkContourRevision).toMatch(/^horizontal-ink-contour-v1-/);
+    expect(toElement.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
+    expect(revealSurface.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
+    expect(concealSurface.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
+    expect(toElement.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
+    expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
+    expect(concealSurface.style.clipPath).toMatch(/^polygon\(/);
     expect(canvas.dataset.r4InkTargetReady).toBeUndefined();
     expect(timeline.sample?.(0.99)).toMatchObject({
       from: { visible: true, opacity: 1 },
@@ -363,11 +364,66 @@ describe('shared ink transition surface', () => {
     expect(canvas.parentElement).toBeNull();
   });
 
-  it('does not retain sampled boundary profiles or revision bookkeeping', () => {
-    expect(inkSource).not.toContain('profileRevision');
-    expect(inkSource).not.toContain('frame.profile');
-    expect(inkSource).not.toContain('frame.revision');
-    expect(inkSource).not.toContain('polygon(');
+  it('retains only one lightweight run contour without a mask or snapshot compositor', () => {
+    expect(inkSource).toContain('createHorizontalInkContour');
+    expect(inkSource).toContain('frame.contour');
+    expect(inkSource).toContain('frame.revision');
+    expect(inkSource).not.toContain('mask-image:');
+    expect(inkSource).not.toContain('createElementNS');
+    expect(inkSource).not.toContain('snapshotCapture');
+  });
+
+  it('varies fresh forward and reverse invocations while keeping each timeline stable', async () => {
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const build = async (direction: 1 | -1, runId: TransitionContext['runId']) => {
+      const stage = new FakeElement();
+      const fromElement = new FakeElement();
+      const toElement = new FakeElement();
+      stage.append(fromElement);
+      stage.append(toElement);
+      const from = layer('services', direction === 1 ? 'current' : 'next', fromElement);
+      const to = layer('ttg-animation', direction === 1 ? 'next' : 'current', toElement);
+      const timeline = await createInkSegmentTransition({
+        id: 'services-ttg',
+        field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+        prepareEndpoints: () => undefined
+      }).buildTimeline({
+        segment,
+        from,
+        to,
+        stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+        direction,
+        runId,
+        prepareToken: 'ink-variation:prepare:1',
+        prefersReducedMotion: false,
+        reportMilestone() {}
+      });
+      return { timeline, toElement };
+    };
+
+    const forward = await build(1, 'ink-variation-forward:1');
+    forward.timeline.progress(0.25);
+    const forwardRevision = forward.toElement.dataset.r4InkContourRevision;
+    forward.timeline.progress(0.75);
+    expect(forward.toElement.dataset.r4InkContourRevision).toBe(forwardRevision);
+
+    const reverse = await build(-1, 'ink-variation-reverse:2');
+    reverse.timeline.progress(0.75);
+    expect(reverse.toElement.dataset.r4InkContourRevision).not.toBe(forwardRevision);
+    expect(reverse.toElement.style.clipPath).toMatch(/^polygon\(/);
+
+    forward.timeline.dispose();
+    reverse.timeline.dispose();
+    expect(forward.toElement.dataset.r4InkContourRevision).toBeUndefined();
+    expect(reverse.toElement.dataset.r4InkContourRevision).toBeUndefined();
   });
 
   it('verifies generic Ink presentation and effect cleanup independently at p=0 and p=1', async () => {

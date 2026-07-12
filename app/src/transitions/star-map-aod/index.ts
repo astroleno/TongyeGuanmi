@@ -9,6 +9,7 @@ import {
   type InkGradePreset
 } from '../shared/sceneInk';
 import { createTransitionLayerElevation } from '../shared/layerElevation';
+import { createHorizontalInkContour } from '../shared/horizontalInkContour';
 
 const STAR_MAP_AOD_FIELD = {
   kind: 'horizontal',
@@ -81,6 +82,11 @@ function markAodFieldCanvas(
     delete canvas.dataset.r4InkBoundaryProgress;
     delete canvas.dataset.r4InkBoundaryRevision;
     delete canvas.dataset.r4InkFieldSeed;
+    delete canvas.dataset.r4InkContourRevision;
+    delete canvas.dataset.r4InkContourThreshold;
+    delete canvas.dataset.r4InkContourSeed;
+    delete canvas.dataset.r4InkContourDirection;
+    delete canvas.dataset.r4InkContourSamples;
     return;
   }
   if (active) {
@@ -95,7 +101,21 @@ function markAodFieldCanvas(
   canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
   canvas.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
   canvas.dataset.r4InkFieldSeed = String(frame.seed);
-  delete canvas.dataset.r4InkBoundaryRevision;
+  if (frame.spec.kind === 'horizontal' && 'revision' in frame) {
+    canvas.dataset.r4InkBoundaryRevision = frame.revision;
+    canvas.dataset.r4InkContourRevision = frame.revision;
+    canvas.dataset.r4InkContourThreshold = frame.threshold.toFixed(6);
+    canvas.dataset.r4InkContourSeed = String(frame.contour.seed);
+    canvas.dataset.r4InkContourDirection = frame.spec.direction;
+    canvas.dataset.r4InkContourSamples = String(frame.contour.samples.length);
+  } else {
+    delete canvas.dataset.r4InkBoundaryRevision;
+    delete canvas.dataset.r4InkContourRevision;
+    delete canvas.dataset.r4InkContourThreshold;
+    delete canvas.dataset.r4InkContourSeed;
+    delete canvas.dataset.r4InkContourDirection;
+    delete canvas.dataset.r4InkContourSamples;
+  }
 }
 
 export function createStarMapAodTransition(options: {
@@ -124,7 +144,11 @@ export function createStarMapAodTransition(options: {
       });
       const elevation = createTransitionLayerElevation(context.to.element, 40);
       const viewport = fieldViewport(inkCanvas, stageHost);
-      inkRenderer?.prewarm(createInkFieldFrame(STAR_MAP_AOD_FIELD, 0.003, viewport));
+      const contour = createHorizontalInkContour({
+        authoredSeed: STAR_MAP_AOD_FIELD.seed,
+        variationKey: context.runId
+      });
+      inkRenderer?.prewarm(createInkFieldFrame(STAR_MAP_AOD_FIELD, 0.003, viewport, { contour }));
       return new PilotProgressTimeline({
         from: context.from,
         to: context.to,
@@ -133,7 +157,7 @@ export function createStarMapAodTransition(options: {
         sample: sampleStarMapAod,
         render: (progress) => {
           const fieldProgress = context.prefersReducedMotion ? 1 : smoothStep(progress);
-          const frame = createInkFieldFrame(STAR_MAP_AOD_FIELD, fieldProgress, viewport);
+          const frame = createInkFieldFrame(STAR_MAP_AOD_FIELD, fieldProgress, viewport, { contour });
           const revealSurface = getAodRevealSurface(context.to.element);
           elevation.elevate();
           if (revealSurface) {

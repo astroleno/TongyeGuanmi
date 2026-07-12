@@ -17,10 +17,15 @@ import {
 import {
   createInkFieldFrame,
   inkFieldOrigin,
+  type HorizontalInkFieldFrame,
   type InkFieldFrame,
   type InkFieldSpec
 } from './inkField';
 import { createSceneMotionLeaseGroup, type SceneMotionLeaseGroup } from '../../stage/scene-motion';
+import {
+  createHorizontalInkContour,
+  type HorizontalInkContour
+} from './horizontalInkContour';
 
 export type InkFieldRoots = Readonly<{
   from: HTMLElement | null;
@@ -209,6 +214,15 @@ export function clearBoundaryGeometry(element: HTMLElement | null | undefined): 
   element.removeAttribute('data-r4-ink-boundary-progress');
   element.removeAttribute('data-r4-ink-boundary-revision');
   element.removeAttribute('data-r4-ink-field-seed');
+  element.removeAttribute('data-r4-ink-contour-revision');
+  element.removeAttribute('data-r4-ink-contour-threshold');
+  element.removeAttribute('data-r4-ink-contour-seed');
+  element.removeAttribute('data-r4-ink-contour-direction');
+  element.removeAttribute('data-r4-ink-contour-samples');
+}
+
+function isHorizontalFrame(frame: InkFieldFrame): frame is HorizontalInkFieldFrame {
+  return frame.spec.kind === 'horizontal';
 }
 
 function applyBoundaryGeometry(
@@ -223,7 +237,21 @@ function applyBoundaryGeometry(
   element.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
   element.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
   element.dataset.r4InkFieldSeed = String(frame.seed);
-  delete element.dataset.r4InkBoundaryRevision;
+  if (isHorizontalFrame(frame)) {
+    element.dataset.r4InkBoundaryRevision = frame.revision;
+    element.dataset.r4InkContourRevision = frame.revision;
+    element.dataset.r4InkContourThreshold = frame.threshold.toFixed(6);
+    element.dataset.r4InkContourSeed = String(frame.contour.seed);
+    element.dataset.r4InkContourDirection = frame.spec.direction;
+    element.dataset.r4InkContourSamples = String(frame.contour.samples.length);
+  } else {
+    delete element.dataset.r4InkBoundaryRevision;
+    delete element.dataset.r4InkContourRevision;
+    delete element.dataset.r4InkContourThreshold;
+    delete element.dataset.r4InkContourSeed;
+    delete element.dataset.r4InkContourDirection;
+    delete element.dataset.r4InkContourSamples;
+  }
 }
 
 export function applyRevealBoundary(element: HTMLElement, frame: InkFieldFrame): void {
@@ -265,6 +293,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private canvas: HTMLCanvasElement | null;
   private inkRenderer: InkFieldRenderer | null;
   private readonly fieldSpec: InkFieldSpec;
+  private readonly horizontalContour: HorizontalInkContour | null;
   private readonly elevation: TransitionLayerElevation | null;
   private readonly attrsElement: HTMLElement | null;
   private readonly surfaceHost: HTMLElement | null;
@@ -314,12 +343,23 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.fieldSpec = typeof options.field === 'function'
       ? options.field(roots)
       : options.field;
+    this.horizontalContour = this.fieldSpec.kind === 'horizontal'
+      ? createHorizontalInkContour({
+          authoredSeed: this.fieldSpec.seed,
+          variationKey: context.runId
+        })
+      : null;
     this.inkRenderer = createInkFieldRenderer(this.canvas, {
       grade: options.grade ?? 'edge-only',
       generation
     });
     this.inkRenderer?.prewarm(
-      createInkFieldFrame(this.fieldSpec, 0.003, viewportFor(surfaceHost))
+      createInkFieldFrame(
+        this.fieldSpec,
+        0.003,
+        viewportFor(surfaceHost),
+        this.horizontalContour ? { contour: this.horizontalContour } : {}
+      )
     );
     this.progress(context.direction === 1 ? 0 : 1);
   }
@@ -412,7 +452,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     const frame = createInkFieldFrame(
       this.fieldSpec,
       fieldProgress,
-      viewportFor(activeSurfaceHost)
+      viewportFor(activeSurfaceHost),
+      this.horizontalContour ? { contour: this.horizontalContour } : {}
     );
     const roots = this.fieldRoots(fromRoot, toRoot, activeSurfaceHost);
     const surfaces = this.options.ownershipSurfaces?.(roots) ?? {};
@@ -474,7 +515,21 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         this.canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
         this.canvas.dataset.r4InkBoundaryProgress = fieldProgress.toFixed(4);
         this.canvas.dataset.r4InkFieldSeed = String(frame.seed);
-        delete this.canvas.dataset.r4InkBoundaryRevision;
+        if (isHorizontalFrame(frame)) {
+          this.canvas.dataset.r4InkBoundaryRevision = frame.revision;
+          this.canvas.dataset.r4InkContourRevision = frame.revision;
+          this.canvas.dataset.r4InkContourThreshold = frame.threshold.toFixed(6);
+          this.canvas.dataset.r4InkContourSeed = String(frame.contour.seed);
+          this.canvas.dataset.r4InkContourDirection = frame.spec.direction;
+          this.canvas.dataset.r4InkContourSamples = String(frame.contour.samples.length);
+        } else {
+          delete this.canvas.dataset.r4InkBoundaryRevision;
+          delete this.canvas.dataset.r4InkContourRevision;
+          delete this.canvas.dataset.r4InkContourThreshold;
+          delete this.canvas.dataset.r4InkContourSeed;
+          delete this.canvas.dataset.r4InkContourDirection;
+          delete this.canvas.dataset.r4InkContourSamples;
+        }
       } else {
         delete this.canvas.dataset.r4InkActive;
         delete this.canvas.dataset.r4InkProgress;
@@ -483,6 +538,11 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         delete this.canvas.dataset.r4InkBoundaryProgress;
         delete this.canvas.dataset.r4InkBoundaryRevision;
         delete this.canvas.dataset.r4InkFieldSeed;
+        delete this.canvas.dataset.r4InkContourRevision;
+        delete this.canvas.dataset.r4InkContourThreshold;
+        delete this.canvas.dataset.r4InkContourSeed;
+        delete this.canvas.dataset.r4InkContourDirection;
+        delete this.canvas.dataset.r4InkContourSamples;
       }
     }
     this.inkRenderer?.render(frame);

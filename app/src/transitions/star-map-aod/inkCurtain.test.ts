@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { InkFieldFrame } from '../shared/inkField';
+import type { HorizontalInkFieldFrame } from '../shared/inkField';
 import { createBackHalfDomContext, FakeCanvas, FakeElement } from '../__fixtures__/back-half.fixture';
 
 const boundaryRenderer = vi.hoisted(() => ({
@@ -34,6 +34,7 @@ describe('star-map AOD one-boundary integration', () => {
   it('uses the shared boundary frame instead of a local clip or vendor alias', () => {
     expect(transitionSource).toContain('createInkFieldFrame');
     expect(transitionSource).toContain('createInkFieldRenderer');
+    expect(transitionSource).toContain('createHorizontalInkContour');
     expect(transitionSource).not.toContain('renderLiveRevealClip');
     expect(transitionSource).not.toContain("from './inkCurtain'");
     expect(transitionSource).not.toContain('sourceCanvas');
@@ -61,12 +62,13 @@ describe('star-map AOD one-boundary integration', () => {
 
     timeline.progress(0.5);
 
-    const frame = boundaryRenderer.render.mock.lastCall?.[0] as InkFieldFrame;
+    const frame = boundaryRenderer.render.mock.lastCall?.[0] as HorizontalInkFieldFrame;
     expect(frame.spec.kind).toBe('horizontal');
-    expect(revealSurface.style.clipPath).toMatch(/^inset\(/);
-    expect(revealSurface.style.clipPath).not.toContain('polygon(');
-    expect(revealSurface.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
+    expect(revealSurface.style.clipPath).not.toContain('inset(');
+    expect(revealSurface.dataset.r4InkContourRevision).toBe(frame.revision);
+    expect(canvas.dataset.r4InkContourRevision).toBe(frame.revision);
+    expect(revealSurface.dataset.r4InkContourThreshold).toBe(frame.threshold.toFixed(6));
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkRenderer).toBe('field');
     expect(canvas.dataset.r4InkGrade).toBe('edge-only');
@@ -80,6 +82,7 @@ describe('star-map AOD one-boundary integration', () => {
 
     expect(boundaryRenderer.destroy).toHaveBeenCalledOnce();
     expect(canvas.parentElement).toBeNull();
+    expect(revealSurface.dataset.r4InkContourRevision).toBeUndefined();
   });
 
   it('uses ten fresh renderers and canvases across alternating directions', async () => {
@@ -95,6 +98,7 @@ describe('star-map AOD one-boundary integration', () => {
         return canvas;
       }
     });
+    const revisions = new Set<string>();
 
     for (let index = 0; index < 10; index += 1) {
       const runId = `star-map-aod:${index}` as const;
@@ -105,17 +109,21 @@ describe('star-map AOD one-boundary integration', () => {
       });
       timeline.progress(0.5);
       const canvas = created[index];
+      const frame = boundaryRenderer.render.mock.lastCall?.[0] as HorizontalInkFieldFrame;
+      revisions.add(frame.revision);
 
       expect(canvas?.parentElement).toBe(fixture.stage);
       expect(canvas?.dataset.r4InkGeneration).toBe(`${runId}:${fixture.context.prepareToken}`);
       expect(canvas?.dataset.r4InkRendererActive).toBe('true');
       expect(canvas?.dataset.r4InkActive).toBe('true');
       expect(canvas?.dataset.r4InkBoundaryKind).toBe('horizontal');
+      expect(canvas?.dataset.r4InkContourRevision).toBe(frame.revision);
       timeline.dispose();
       expect(canvas?.parentElement).toBeNull();
     }
 
     expect(new Set(created).size).toBe(10);
+    expect(revisions.size).toBe(10);
     expect(rendererFactory).toHaveBeenCalledTimes(10);
     expect(boundaryRenderer.destroy).toHaveBeenCalledTimes(10);
   });
