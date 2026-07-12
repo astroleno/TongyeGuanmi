@@ -1,6 +1,6 @@
 # R5 Performance Budget
 
-Status: implementation build budgets pass; final hardware frame, transfer, process-memory, and exact-candidate evidence is pending the candidate-v2 qualification run.
+Status: pre-freeze build, hardware frame, transfer, process-memory, and disposal budgets pass. Exact-candidate identity and final exact-tag E2E remain external post-freeze evidence.
 
 Date: 2026-07-13. Earlier values belong to superseded source and are audit history only.
 
@@ -19,16 +19,28 @@ Passing performance by freezing required animation, skipping presented-frame rea
 
 | Metric | Budget | Candidate-v2 record |
 |---|---:|---|
-| desktop LCP | ≤2.5s and no worse than the accepted comparison gate | pending final hardware run |
-| mobile LCP | ≤4.0s | pending final hardware run |
-| production runtime ready | ≤2.5s desktop / ≤4.0s mobile | pending final hardware run |
-| cold Hero presentation ready | loader + 2.7s intro inside the accepted safety envelope | pending final hardware run |
-| desktop steady playback p95 frame interval | ≤20ms | pending final focused/full run |
-| mobile steady playback p95 frame interval | ≤34ms | pending final focused/full run |
-| frames >50ms | <1% | pending final focused/full run |
-| cold initial transferred resources | ≤40MiB | pending final run |
+| desktop LCP | ≤2.5s and no worse than the accepted comparison gate | 188ms |
+| mobile LCP | ≤4.0s | 184ms |
+| production runtime ready | ≤2.5s desktop / ≤4.0s mobile | 182.7ms desktop / 147.3ms mobile |
+| cold Hero presentation ready | loader + 2.7s intro inside the accepted safety envelope | 8,597ms desktop / 8,592.8ms mobile |
+| desktop steady playback p95 frame interval | ≤20ms | 16.8ms full traversal / 17.5ms focused aggregate |
+| mobile steady playback p95 frame interval | ≤34ms | 16.8ms full traversal / 18.2ms focused aggregate |
+| frames >50ms | <1% | full traversal 0 / 407 on both; focused 2 / 759 desktop and 2 / 758 mobile |
+| cold initial transferred resources | ≤40MiB | 29,895,224B |
 
 LCP is independent from cinematic presentation readiness. Hero media remains an early LCP candidate under the loader overlay; the loader must not defer LCP until its 5.38s phrase clock exits.
+
+## Focused Direction And Ink Profile
+
+| Path | Desktop first decode / activation | Desktop p95 | Mobile first decode / activation | Mobile p95 |
+|---|---:|---:|---:|---:|
+| TTG first forward | 93ms | 17.5ms | 128ms | 18.2ms |
+| TTG same-run reverse | 147ms | 17.8ms | 146ms | 17.8ms |
+| Figure2 native reverse | 99ms | 16.8ms | 116ms | 16.8ms |
+| AOD reverse | 434ms | 17.3ms | 418ms | 18.2ms |
+| horizontal Ink | 114ms | 18.1ms | 117ms | 18.2ms |
+
+The aggregate desktop sample contained 759 intervals at p95 17.5ms with two intervals over 50ms (0.2635%). The aggregate mobile sample contained 758 intervals at p95 18.2ms with two intervals over 50ms (0.2639%). Both remain below the frozen 1% long-frame budget.
 
 ## Bundle Budgets
 
@@ -54,17 +66,17 @@ The initial JS/CSS, gzip, largest-lazy, and largest-asset caps are unchanged. Tw
 
 | Metric | Budget | Candidate-v2 record |
 |---|---:|---|
-| browser process-tree peak RSS | ≤1,500,000,000B | pending final run |
-| GPU process peak RSS | ≤536,870,912B | pending final run |
-| renderer process peak RSS | ≤1,073,741,824B | pending final run |
-| JS heap | peak ≤192MiB; settled ≤90% of peak | pending final run |
-| mounted layers at settled holds | ≤3 | pending final run |
-| WebGL contexts at settled holds | ≤1 | pending final run |
-| disposed Contact snapshot | ≤3 layers, ≤1 WebGL, ≤4 paused videos | pending final run |
-| lifecycle release evidence | retired canvas and video; no managed callback/lease leak | pending final run |
+| browser process-tree peak RSS | ≤1,500,000,000B | 1,451,737,088B |
+| GPU process peak RSS | ≤536,870,912B | 351,125,504B |
+| renderer process peak RSS | ≤1,073,741,824B | 755,056,640B |
+| JS heap | peak ≤192MiB; settled ≤90% of peak | 39,200,008B peak; 11,967,697B settled |
+| mounted layers at settled holds | ≤3 | 3 |
+| WebGL contexts at settled holds | ≤1 | 1 |
+| disposed Contact snapshot | ≤3 layers, ≤1 WebGL, ≤4 paused videos | 2 layers, 0 WebGL, 2 videos |
+| lifecycle release evidence | retired canvas and video; no managed callback/lease leak | 3 canvases and 2 videos released; pass |
 
-The memory run must traverse all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour, then wait at both endpoints before recording process and Stage disposal diagnostics.
+The memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour, then waited at both endpoints before recording process and Stage disposal diagnostics. One first sample reported a host-contaminated process-tree RSS of 1,537,753,088B while GPU, renderer, heap, layers, and WebGL remained inside budget. It was invalidated under the evidence rule and repeated from a fresh browser boundary; the clean repeat above passed.
 
 ## Evidence Rule
 
-Trace, video, screenshots, and automated aesthetic acceptance remain disabled. Final values must be generated from the exact candidate-v2 source; a host-jittered sample may be invalidated only with the reason recorded and that exact gate repeated.
+Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The pre-freeze values above were generated from the corrected source. Exact-tag identity and final browser evidence are attached to the external handoff; a host-jittered sample may be invalidated only with the reason recorded and that exact gate repeated.

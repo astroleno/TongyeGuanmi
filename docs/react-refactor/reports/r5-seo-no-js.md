@@ -1,6 +1,6 @@
 # R5 SEO And No-JS Report
 
-Status: repaired artifact contract and current build verification pass; final four-project no-JS and exact candidate-v2 identity smokes are pending.
+Status: repaired artifact contract, build verification, and four-project no-JS qualification pass. Exact candidate-v2 identity smokes remain an external post-freeze record.
 
 ## Shared Source Contract
 
@@ -41,4 +41,4 @@ The build verifier normalizes visible copy, asserts exactly one static footer, v
 
 The current build verifier checked 127 copy items, 8 static sections, and 47 JavaScript files. It also verified the no-JS loader escape, loader fallback marker, one 13,534B lazy loader Ink chunk, opaque Star Map production copy, and absence of loader shader markers from the initial entry. The emitted favicon SHA-256 is `4441a740a9cb105a5fa041fbb11cd497733a490581d100667d64aba3d38b256e`; the emitted title-font SHA-256 is `bf69d2fd62129c670b741b756d2defab495074a65696ff6fd7d234211e17636b`.
 
-Desktop/mobile Chromium/WebKit no-JS cases and the clean exact-tag identity smoke must be rerun before candidate-v2 is accepted. Results are recorded in `r5-parity-repair-candidate.md`; no earlier R5 tag contains this HITL regression closure.
+Desktop/mobile Chromium/WebKit no-JS cases passed in the corrected-source release matrix. The clean exact-tag identity smoke and final exact-tag no-JS rerun are recorded externally after freeze; no earlier R5 tag contains this HITL regression closure.

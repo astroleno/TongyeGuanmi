@@ -1,6 +1,6 @@
 # R5 Production Regression Matrix
 
-Status: **candidate-v2 requalification in progress.** The automation recorded for earlier tags and `14743aa` is historical only; it does not qualify the source that closes the HITL findings.
+Status: **pre-freeze browser qualification passed.** The automation recorded for earlier tags and `14743aa` remains historical only. The corrected source passed the default and four-project release matrices; a final exact-tag rerun remains an external post-freeze record.
 
 Date: 2026-07-13. Branch: `codex/react-refactor-r5-parity-cutover`. Intended immutable tag after all gates pass: `react-refactor-r5-parity-repair-candidate-v2`.
 
@@ -8,16 +8,16 @@ Date: 2026-07-13. Branch: `codex/react-refactor-r5-parity-cutover`. Intended imm
 
 | Project | Canonical traversal | Critical reverse | Input/navigation | Media/lifecycle | SEO/no-JS | Current record |
 |---|---|---|---|---|---|---|
-| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | required | pending final run |
-| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | required | pending final run |
-| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | pending final run |
-| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | pending final run |
+| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | pass | 21 pass / 3 declared skips |
+| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | pass | 9 pass / 15 declared skips |
+| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | pass | 13 pass / 11 declared skips |
+| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | pass | 11 pass / 13 declared skips |
 
 Layer invariants are unchanged: at most two visible layers during transition, exactly one visible/interactable settled hold, bounded retiring layers, one canonical receiver root, and no Hero current/visible fallback during Contact reverse.
 
 ## R1–R22 Deterministic Ownership
 
-Every row has implementation-level coverage. Its qualification result remains pending until the exact final matrix is rerun.
+Every row has implementation-level coverage and passed the corrected-source qualification. The final exact-tag matrix is repeated after freeze to bind the browser evidence to the immutable candidate.
 
 | ID | Assertion owners | Required proof |
 |---|---|---|
@@ -55,7 +55,7 @@ pnpm -C app exec playwright test --config playwright.release.config.ts
 pnpm -C app evidence:memory
 ```
 
-The final run additionally records focused frame pacing for TTG first forward, same-run TTG reverse, Figure2 native reverse, AOD reverse, and active horizontal Ink. First-decode wait is reported separately from steady playback.
+The pre-freeze run recorded 44 / 44 default cases and 54 applicable release cases with 42 declared project skips. It also recorded focused frame pacing for TTG first forward, same-run TTG reverse, Figure2 native reverse, AOD reverse, and active horizontal Ink. First-decode/activation wait is reported separately from steady playback.
 
 ## Acceptance Boundary
 

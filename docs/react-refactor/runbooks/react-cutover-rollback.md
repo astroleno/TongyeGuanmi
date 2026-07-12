@@ -1,6 +1,6 @@
 # React Cutover And Rollback Runbook
 
-Status: candidate-v2 regression closure is in pre-freeze qualification. Production cutover is not authorized.
+Status: candidate-v2 regression closure passed pre-freeze automated qualification; corrected-candidate freeze is authorized. Exact-tag build/smoke, same-port rollback, final E2E, and user HITL remain required. Production cutover is not authorized.
 
 ## Immutable Inputs
 
@@ -14,7 +14,7 @@ Status: candidate-v2 regression closure is in pre-freeze qualification. Producti
 | parity-repair base / superseded candidate | `react-refactor-r5-candidate-v3` | `59065730712c6d9718928fd25cba23e33455395e` |
 | superseded parity-repair candidate | `react-refactor-r5-parity-repair-candidate` | commit `18490690992bffef6c9705cd47438b9cd17e756a`; tag object `7f96b243d42efd3e7409ca8628109b0901900a9b` |
 | rejected HITL head | branch commit | `2501704d63dbd7c150861d21a31c2d39525c23e5` |
-| intended corrected candidate | `react-refactor-r5-parity-repair-candidate-v2` | create only after the complete pre-freeze gate passes; record peel/tag object externally |
+| intended corrected candidate | `react-refactor-r5-parity-repair-candidate-v2` | pre-freeze gate passed; create immutable annotated tag and record peel/tag object externally |
 | review rollback build | plain build manifest | 98 files / 139,528,455B; SHA-256 `2b91f5e3cd34883125a613a2a005ff3f3a4de4db8ef7c8a317f03297ce21742a` |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |
@@ -36,6 +36,8 @@ pnpm -C app evidence:memory
 Also run the focused AOD/Figure2/TTG/PH/loader/Ink paths and the hardware frame/process-memory profile required by `r5-regression-matrix.md` and `r5-performance-budget.md`. Do not capture screenshots or infer manual visual acceptance from this gate.
 
 Any failure invalidates the freeze. Fix the owning implementation and use focused diagnostics while repairing; rerun the complete gate only when the branch is again ready for a final decision.
+
+Candidate-v2 pre-freeze record: root verification passed 82 Vitest files / 545 tests plus lint, typecheck, builds, release/static checks, and budgets; default browser matrix passed 44 / 44; the four-project release matrix passed 54 applicable cases with 42 declared project skips; four-project no-JS, focused direction/Ink pacing, and the clean repeated process-memory/disposal gate passed. The immutable source, tag object, manifest digest, rollback result, and final exact-tag E2E are intentionally recorded outside the tagged source.
 
 ## Corrected Candidate Freeze
 

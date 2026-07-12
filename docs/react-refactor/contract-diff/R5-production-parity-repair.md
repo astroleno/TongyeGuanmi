@@ -1,6 +1,6 @@
 # R5 Production Parity Repair Contract Diff
 
-Status: regression closure implemented on the branch; final candidate-v2 qualification is in progress. The prior HITL rejection remains authoritative until the corrected exact source passes the full gate.
+Status: regression closure implemented and the pre-freeze automated qualification passed on the branch. Candidate-v2 freeze is authorized; exact-tag identity, rollback, and final browser evidence are recorded externally after the immutable tag exists. The prior HITL rejection remains authoritative until the user approves the corrected candidate.
 
 Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 
@@ -56,6 +56,6 @@ The rejected review head is `2501704d63dbd7c150861d21a31c2d39525c23e5`. After th
 
 ## Acceptance Boundary
 
-Historical green results at `14743aa` and the later HITL-rejected head are not qualification evidence for this closure. Final acceptance must be regenerated from one clean source and must include root verification, both browser matrices, the focused direction/media/Ink paths, frame pacing, process memory/disposal, exact identity-bound build, and same-port rollback.
+Historical green results at `14743aa` and the later HITL-rejected head are not qualification evidence for this closure. The branch qualification regenerated root verification, both browser matrices, focused direction/media/Ink paths, frame pacing, and process memory/disposal from the corrected source. Because tag object, identity-bound manifest digest, rollback, and final exact-tag E2E cannot exist inside the source they identify, those records must be attached to the external handoff after freeze.
 
-Only after all gates pass may `react-refactor-r5-parity-repair-candidate-v2` be created. Work then stops for HITL. Candidate creation is not permission to merge, deploy, create a cutover tag, or begin R6.
+The pre-freeze gate authorizes creation of `react-refactor-r5-parity-repair-candidate-v2`. Work then stops for user HITL after exact-tag qualification. Candidate creation is not permission to merge, deploy, create a cutover tag, or begin R6.
