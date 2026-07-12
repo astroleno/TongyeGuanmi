@@ -217,9 +217,10 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(earlyHeroPattern.patternProgress).toBe(0);
     expect(earlyHeroPattern.patternCanvasOpacity).toBe(1);
     expect(earlyHeroPattern.patternClipProgress).toBeCloseTo(0.2, 2);
-    await page.waitForTimeout(180);
-    const earlyHeroPatternLater = await visualSnapshot(page);
-    expect(earlyHeroPatternLater.patternCanvasRevision).toBeGreaterThan(earlyHeroPattern.patternCanvasRevision);
+    await expect.poll(
+      async () => (await visualSnapshot(page)).patternCanvasRevision,
+      { timeout: 2_000 }
+    ).toBeGreaterThan(earlyHeroPattern.patternCanvasRevision);
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubHeroPattern(0.79);
     });
