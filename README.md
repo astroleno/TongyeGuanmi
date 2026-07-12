@@ -1,6 +1,6 @@
 # Tongye Guanmi
 
-当前状态：`codex/react-refactor-r5-parity-cutover` 已把完整 React `StoryApp` 设为默认开发、构建、测试与部署产物，形成 `react-refactor-r5-candidate`。候选仍等待 HITL 批准；批准前禁止合并或部署 `main`，也不得建立 `react-refactor-r5-cutover`。
+当前状态：`codex/react-refactor-r5-parity-cutover` 已把完整 React `StoryApp` 设为默认开发、构建、测试与部署产物，并在修正 G1 测试合同后重新冻结为 `react-refactor-r5-candidate-v2`。原 `react-refactor-r5-candidate` 保持不可变，但已标记为 superseded、不可批准。v2 仍等待 HITL 批准；批准前禁止合并或部署 `main`，也不得建立 `react-refactor-r5-cutover`。
 
 ## 环境与安装
 

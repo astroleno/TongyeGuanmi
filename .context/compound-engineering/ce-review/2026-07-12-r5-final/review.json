@@ -35,7 +35,7 @@
     "Let the current Hero hold boot independently of a slow next-scene prefetch while retaining LayerWindow preloading.",
     "Install the actual Chrome channel used by CI and correct SPA-fallback curl smoke semantics.",
     "Measure production hold readiness separately from static-shell LCP.",
-    "Align the historical G1 contract with the frozen Star Map idle layer during transition while retaining live hold motion."
+    "Resolve the post-freeze review blocker by replacing the stale G1 negative source check with explicit transition=false and hold=true motion contracts."
   ],
   "residualActionableWork": [],
   "advisoryOnly": [
@@ -43,6 +43,12 @@
     "Live crawler/search-console verification occurs only after an approved deployment.",
     "No merge or deployment to main is authorized before explicit HITL approval."
   ],
-  "requirementsCompleteness": "All R5 implementation, automated validation, and clean rollback rehearsal requirements are represented; immutable candidate tagging is the remaining release-finalization step.",
+  "supersededCandidate": {
+    "tag": "react-refactor-r5-candidate",
+    "peeledCommit": "0de4972de64455a14d8c36262e58cc6af5c4875b",
+    "reason": "The exact tag failed the root G1 static source contract and is retained only as an immutable audit record."
+  },
+  "nextCandidate": "react-refactor-r5-candidate-v2",
+  "requirementsCompleteness": "All R5 implementation, automated validation, clean rollback rehearsal, and post-freeze G1 contract correction requirements are represented; immutable candidate v2 tagging is the remaining release-finalization step.",
   "verdict": "ready_for_candidate_freeze"
 }

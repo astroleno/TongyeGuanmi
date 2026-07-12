@@ -10,7 +10,7 @@ Date: 2026-07-12. Hardware sample: macOS 15.6.1, Apple M4, Chrome 149, 1440×900
 |---|---:|---:|---:|---|
 | desktop LCP | 320 ms | 316 ms worst | ≤352 ms (legacy +10%) and ≤2.5 s | pass |
 | production hold ready | not instrumented | 201 ms worst | ≤2.5 s desktop / ≤4.0 s mobile | pass |
-| cold initial transferred resources | 24,874,426 B | 30,755,972 B worst release run | ≤40 MiB | pass |
+| cold initial transferred resources | 24,874,426 B | 31,935,620 B worst release run | ≤40 MiB | pass |
 | desktop playback p95 frame interval | 51.6 ms | 18.2 ms | ≤20 ms | pass |
 | desktop frames >50 ms | 22 observed | 0.49% worst | <1% | pass |
 | mobile playback p95 | not separately frozen in legacy | 18.2 ms | ≤34 ms | pass |

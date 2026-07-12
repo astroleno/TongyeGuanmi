@@ -9,6 +9,8 @@ Status: candidate-ready. No step under “Production cutover” is authorized un
 | legacy rollback source | `react-refactor-legacy-static-baseline` | `a78b064d65f024a301a3b179c62a458a1445bbf6` |
 | R4 visual baseline | `react-refactor-r4-visual-accepted` | `55b8a123a7a5b28647c40acc81783ee37cd58302` |
 | R5 start | `react-refactor-r4-closeout` | `c2a52dbefd99d2ee99ffa13db0abbdf7b760a143` |
+| active R5 candidate | `react-refactor-r5-candidate-v2` | peel the annotated tag and match the candidate report |
+| superseded R5 candidate | `react-refactor-r5-candidate` | `0de4972de64455a14d8c36262e58cc6af5c4875b`; never approve or deploy |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |
 | R4 clean `app/dist` manifest | sorted per-file hashes | SHA-256 `ae1ff9bcb8d7ea6228204440a1d526be3d6da482a74680873ac4052ceec0078b` |
@@ -21,7 +23,7 @@ Always peel annotated tags with `git rev-parse <tag>^{}`. Do not trust an unpeel
 Run from a clean clone/worktree with Node 22 and pnpm 8.15.1:
 
 ```bash
-git checkout react-refactor-r5-candidate
+git checkout react-refactor-r5-candidate-v2
 corepack enable
 corepack prepare pnpm@8.15.1 --activate
 pnpm install --frozen-lockfile
@@ -34,6 +36,8 @@ shasum -a 256 dist/r5-release-manifest.json
 ```
 
 `dist/` is the only deployable candidate directory. Preserve it as an immutable artifact keyed by candidate commit and manifest hash. Do not publish root `index.html`, old `js/`, preview HTML or `app/dist`.
+
+Never substitute the superseded `react-refactor-r5-candidate` tag: it is retained only as an immutable audit record of the failed G1 test contract.
 
 Pre-cutover smoke:
 
@@ -109,4 +113,4 @@ Candidate and rehearsal results live in `docs/react-refactor/reports/r5-candidat
 
 ## Rehearsal Record
 
-The 2026-07-12 clean-environment rehearsal passed using implementation commit `469a9caf7e2530232d298635bfaf8dbc26498936`. A `--no-local` clone reproduced the candidate manifest, a separate detached legacy worktree reproduced the frozen legacy index checksum, and the same port was switched candidate → legacy → candidate with root/copy/bootstrap, HTTP 206 media range and candidate-manifest presence/absence checks. The exact tagged candidate is rebuilt once more after this record-only commit; see `reports/r5-candidate.md` for the result and immutable hashes.
+The 2026-07-12 clean-environment rehearsal passed using implementation commit `469a9caf7e2530232d298635bfaf8dbc26498936`. A `--no-local` clone reproduced the candidate manifest, a separate detached legacy worktree reproduced the frozen legacy index checksum, and the same port was switched candidate → legacy → candidate with root/copy/bootstrap, HTTP 206 media range and candidate-manifest presence/absence checks. Candidate v2 changes only the G1 source contract and release records, emits the same manifest, and its exact tagged checkout passed root verification plus production smoke after re-freeze; see `reports/r5-candidate.md` for the result and immutable hashes.
