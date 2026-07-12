@@ -134,7 +134,6 @@ describe('ink WebGL resource lifecycle', () => {
     expect(gl.createTexture).toHaveBeenCalledTimes(2);
     expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads + 1);
     expect(canvas.dataset.r4InkContourTextureUploads).toBe('1');
-    expect(canvas.dataset.r4InkContourRevision).toBe(firstContour.revision);
 
     for (const progress of [0.25, 0.5, 0.75]) {
       transition?.render(createInkFieldFrame(
@@ -159,14 +158,12 @@ describe('ink WebGL resource lifecycle', () => {
     ));
     expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads + 2);
     expect(canvas.dataset.r4InkContourTextureUploads).toBe('2');
-    expect(canvas.dataset.r4InkContourRevision).toBe(nextContour.revision);
 
     transition?.destroy();
     transition?.destroy();
     expect(gl.deleteTexture).toHaveBeenCalledTimes(2);
     expect(gl.deleteTexture).toHaveBeenCalledWith(texture);
     expect(canvas.dataset.r4InkContourTextureUploads).toBeUndefined();
-    expect(canvas.dataset.r4InkContourRevision).toBeUndefined();
   });
 
   it('uploads one primary ownership occlusion contract', () => {

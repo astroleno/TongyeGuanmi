@@ -73,8 +73,6 @@ describe('shared ink renderer lifecycle', () => {
 
     expect(surface.dataset.r4InkContourRevision).toBe(contour.revision);
     expect(surface.dataset.r4InkContourThreshold).toBe('0.500000');
-    expect(surface.dataset.r4InkContourSeed).toBe(String(contour.seed));
-    expect(surface.dataset.r4InkContourSamples).toBe('32');
 
     renderer?.destroy();
 
@@ -93,8 +91,6 @@ describe('shared ink renderer lifecycle', () => {
     expect(surface.dataset.r4InkRendererActive).toBe('false');
     expect(surface.dataset.r4InkContourRevision).toBeUndefined();
     expect(surface.dataset.r4InkContourThreshold).toBeUndefined();
-    expect(surface.dataset.r4InkContourSeed).toBeUndefined();
-    expect(surface.dataset.r4InkContourSamples).toBeUndefined();
   });
 
   it('keeps dark as an explicit grade with the same renderer contract', () => {
@@ -135,15 +131,11 @@ describe('shared ink renderer lifecycle', () => {
 
     expect(surface.dataset.r4InkContourRevision).toBe(contour.revision);
     expect(surface.dataset.r4InkContourThreshold).toBe(frame.threshold.toFixed(6));
-    expect(surface.dataset.r4InkContourSeed).toBe(String(contour.seed));
-    expect(surface.dataset.r4InkContourSamples).toBe('32');
 
     renderer?.destroy();
 
     expect(surface.dataset.r4InkContourRevision).toBeUndefined();
     expect(surface.dataset.r4InkContourThreshold).toBeUndefined();
-    expect(surface.dataset.r4InkContourSeed).toBeUndefined();
-    expect(surface.dataset.r4InkContourSamples).toBeUndefined();
   });
 
   it('invalidates only the matching run generation after context loss', () => {

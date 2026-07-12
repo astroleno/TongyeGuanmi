@@ -368,8 +368,8 @@ describe('shared ink transition surface', () => {
   it('retains only one lightweight run contour without a mask or snapshot compositor', () => {
     expect(inkSource).toContain('createHorizontalInkContour');
     expect(inkSource).toContain('markHorizontalInkDiagnostics');
-    expect(inkFieldSource).toContain('frame.contour');
-    expect(inkFieldSource).toContain('frame.revision');
+    expect(inkFieldSource).toContain('contour,');
+    expect(inkFieldSource).toContain('revision: contour.revision');
     expect(inkSource).not.toContain('mask-image:');
     expect(inkSource).not.toContain('createElementNS');
     expect(inkSource).not.toContain('snapshotCapture');

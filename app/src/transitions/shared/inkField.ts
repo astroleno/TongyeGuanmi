@@ -129,18 +129,12 @@ export function markHorizontalInkDiagnostics(
   target.dataset.r4InkBoundaryRevision = frame.revision;
   target.dataset.r4InkContourRevision = frame.revision;
   target.dataset.r4InkContourThreshold = frame.threshold.toFixed(6);
-  target.dataset.r4InkContourSeed = String(frame.contour.seed);
-  target.dataset.r4InkContourDirection = frame.spec.direction;
-  target.dataset.r4InkContourSamples = String(frame.contour.samples.length);
 }
 
 export function clearHorizontalInkDiagnostics(target: InkDiagnosticTarget): void {
   delete target.dataset.r4InkBoundaryRevision;
   delete target.dataset.r4InkContourRevision;
   delete target.dataset.r4InkContourThreshold;
-  delete target.dataset.r4InkContourSeed;
-  delete target.dataset.r4InkContourDirection;
-  delete target.dataset.r4InkContourSamples;
 }
 
 function radialOwnership(
