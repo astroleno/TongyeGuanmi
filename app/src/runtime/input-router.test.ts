@@ -12,6 +12,15 @@ describe('input router', () => {
     });
   });
 
+  it('lets committed reading-edge residual reach charge once inner scroll is exhausted', () => {
+    expect(routeInput({
+      state: 'hold',
+      cursor: holdCursor,
+      delta: 0.03,
+      readingCanScroll: false
+    })).toEqual({ path: 'charge', delta: 0.03, direction: 1 });
+  });
+
   it('routes scrub policies to scrub', () => {
     expect(
       routeInput({

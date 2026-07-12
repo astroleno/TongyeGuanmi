@@ -4,6 +4,7 @@ import copyReference from '../../../docs/react-refactor/inventory/copy-reference
 import { canonicalSpine } from './canonical-spine';
 import { parseInventoryManifestSeed, type InventoryManifestSeed } from './inventory-schema';
 import {
+  CRANE_CONTACT_DURATION_MS,
   FIGURE3_SERVICES_DURATION_MS,
   PATTERN_COLLAPSE_MS,
   PATTERN_COLLAPSE_STOP,
@@ -189,7 +190,7 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
     case 'crane-contact':
       return {
         policy: snapPolicy(segment),
-        virtualDuration: 4200
+        virtualDuration: CRANE_CONTACT_DURATION_MS
       };
     case 'hero-pattern':
       return {
@@ -238,16 +239,23 @@ function mediaPlaybackContract(
     forwardMode?: MediaPlaybackContract['forward']['mode'];
     reverseMode?: MediaPlaybackContract['reverse']['mode'];
     reverseRequired?: boolean;
+    forwardMedia?: readonly string[];
+    reverseMedia?: readonly string[];
     preparingTimeoutMs?: number;
   } = {}
 ): MediaPlaybackContract {
   return {
     id,
     media,
-    forward: { mode: options.forwardMode ?? 'play', required: true },
+    forward: {
+      mode: options.forwardMode ?? 'play',
+      required: true,
+      ...(options.forwardMedia ? { media: options.forwardMedia } : {})
+    },
     reverse: {
       mode: options.reverseMode ?? 'static-fallback',
-      required: options.reverseRequired ?? false
+      required: options.reverseRequired ?? false,
+      ...(options.reverseMedia ? { media: options.reverseMedia } : {})
     },
     readyMilestones: ['targetReady', 'mediaReady'],
     terminalFallbackScene,
@@ -297,6 +305,8 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           {
             reverseMode: 'play',
             reverseRequired: true,
+            forwardMedia: ['ttg_figure-alpha-scrub'],
+            reverseMedia: ['ttg_figure-alpha-scrub-reverse'],
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
           }
         )
@@ -462,6 +472,18 @@ export function validateStoryManifest(
       }
       if (mediaPlayback.readyMilestones.length === 0) {
         throw new Error(`segment ${segment.id} mediaPlayback ${mediaPlayback.id} must declare readyMilestones`);
+      }
+      for (const direction of [mediaPlayback.forward, mediaPlayback.reverse]) {
+        if (direction.required && direction.media?.length === 0) {
+          throw new Error(
+            `segment ${segment.id} mediaPlayback ${mediaPlayback.id} required direction must declare media`
+          );
+        }
+        if (direction.media?.some((key) => !mediaPlayback.media.includes(key))) {
+          throw new Error(
+            `segment ${segment.id} mediaPlayback ${mediaPlayback.id} direction media must belong to contract media`
+          );
+        }
       }
       const terminalFallbackExists = manifest.nodes.some(
         (node) => node.kind === 'hold' && node.scene === mediaPlayback.terminalFallbackScene

@@ -1,6 +1,9 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,10 +20,12 @@ import { Stage } from '../stage/Stage';
 import { LayerStore } from '../stage/LayerStore';
 import { createLayerWindow, type LayerWindowSnapshot } from '../stage/LayerWindow';
 import { hiddenVisibility, holdVisibility } from '../pilot/visibility';
+import { positionReadingAtEdge, readingScrollport } from '../stage/reading';
 import { storyManifest } from '../story/manifest';
 import { HandleRegistry } from '../story/registry';
 import type {
   DirectorSeekSource,
+  HeroIntroMode,
   LayerVisibilityState,
   SceneId,
   SceneModule,
@@ -28,16 +33,23 @@ import type {
 } from '../story/types';
 import { attachStoryInput } from './input-controller';
 import {
+  StoryLoader,
+  type StoryLoaderExitReason,
+  type StoryLoaderMode,
+  type StoryLoaderStatus
+} from './StoryLoader';
+import {
   loadSceneModule,
   loadTransitionModule,
   loadedProductionModules
 } from './module-loaders';
 import {
   hashForScene,
-  publicMenuItems,
   sceneFromHash,
   sceneLabel
 } from './navigation';
+
+const StoryNav = lazy(() => import('./StoryNav').then(({ StoryNav: Component }) => ({ default: Component })));
 
 type LifecycleMetrics = {
   mounted: number;
@@ -62,6 +74,17 @@ export type StoryAppSnapshot = {
   loadedTransitions: readonly SegmentId[];
   lifecycle: LifecycleMetrics;
   reducedMotion: boolean;
+  loaderMode: StoryLoaderMode;
+  loaderStatus: StoryLoaderStatus;
+  heroIntroMode: HeroIntroMode;
+  presentationReady: boolean;
+  recovery?: {
+    scope: 'boot' | 'segment';
+    status: 'fallback' | 'recovering' | 'failed';
+    segment?: SegmentId;
+    direction?: 1 | -1;
+    endpoint?: SceneId;
+  };
   lastError?: string;
 };
 
@@ -121,6 +144,7 @@ function focusSceneHeading(scene: SceneId): void {
 
 export function StoryApp() {
   const initialSceneRef = useRef<SceneId>(initialScene());
+  const initialReducedMotionRef = useRef(detectReducedMotion());
   const registry = useMemo(() => new HandleRegistry(), []);
   const layerStore = useMemo(
     () => new LayerStore(holdVisibilityForWindow(createLayerWindow(initialSceneRef.current))),
@@ -136,11 +160,20 @@ export function StoryApp() {
     releasedVideos: 0
   });
   const lastCommittedSceneRef = useRef<SceneId | undefined>(undefined);
+  const lastFocusedSceneRef = useRef<SceneId | undefined>(undefined);
+  const appliedReadingEntryTokenRef = useRef<number | undefined>(undefined);
   const pendingHistorySceneRef = useRef<SceneId | undefined>(undefined);
   const navigationRequestRef = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(detectReducedMotion);
+  const [reducedMotion, setReducedMotion] = useState(initialReducedMotionRef.current);
   const [bootError, setBootError] = useState<string>();
+  const [bootFailed, setBootFailed] = useState(false);
+  const [loaderStatus, setLoaderStatus] = useState<StoryLoaderStatus>('running');
+  const [loaderExitReason, setLoaderExitReason] = useState<StoryLoaderExitReason>();
+  const [heroIntroMode, setHeroIntroMode] = useState<HeroIntroMode>(
+    initialSceneRef.current === 'hero' && !initialReducedMotionRef.current ? 'waiting' : 'endpoint'
+  );
+  const [presentationReady, setPresentationReady] = useState(false);
 
   const runtime = useMemo(() => createDirectorRuntime({
     actorEpoch: 'production-story',
@@ -184,6 +217,43 @@ export function StoryApp() {
 
   const runtimeSnapshot = useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
   const layerSnapshot = useSyncExternalStore(layerStore.subscribe, layerStore.getSnapshot, layerStore.getSnapshot);
+  const currentScene = runtimeSnapshot.context.layerWindow.current;
+  const loaderMode: StoryLoaderMode = reducedMotion
+    ? 'reduced'
+    : initialSceneRef.current === 'hero'
+      ? 'cold-hero'
+      : 'direct';
+  const loaderReady = runtimeSnapshot.state === 'hold' && !bootFailed;
+
+  const handleHeroIntroComplete = useCallback(() => {
+    setHeroIntroMode('complete');
+    setPresentationReady(true);
+  }, []);
+
+  const handleLoaderHidden = useCallback((reason: StoryLoaderExitReason) => {
+    setLoaderExitReason(reason);
+    if (reason === 'error' || bootFailed) {
+      setHeroIntroMode('endpoint');
+      return;
+    }
+    if (runtime.getState().state !== 'hold') {
+      return;
+    }
+    if (initialSceneRef.current === 'hero' && !reducedMotion && reason === 'ready') {
+      setHeroIntroMode('running');
+      return;
+    }
+    setHeroIntroMode('endpoint');
+    setPresentationReady(true);
+  }, [bootFailed, reducedMotion, runtime]);
+
+  const presentationByScene = useMemo(() => ({
+    hero: {
+      heroIntroMode,
+      reducedMotion,
+      onHeroIntroComplete: handleHeroIntroComplete
+    }
+  }), [handleHeroIntroComplete, heroIntroMode, reducedMotion]);
 
   const ensureScene = useCallback(async (scene: SceneId) => {
     const existing = modulesRef.current[scene];
@@ -242,11 +312,13 @@ export function StoryApp() {
           await wait(16);
         }
         if (!cancelled) {
+          setBootFailed(false);
           runtime.send({ type: 'BOOT_READY' });
         }
       })
       .catch((error: unknown) => {
         const normalized = error instanceof Error ? error : new Error(String(error));
+        setBootFailed(true);
         setBootError(normalized.message);
         runtime.send({ type: 'BOOT_FAILED', error: normalized });
       });
@@ -269,14 +341,17 @@ export function StoryApp() {
     }
     const scene = snapshot.context.cursor.scene;
     layerStore.replaceVisibility(holdVisibilityForWindow(snapshot.context.layerWindow));
-    document.documentElement.dataset.storyHydrated = 'true';
+    if (bootFailed) {
+      delete document.documentElement.dataset.storyHydrated;
+    } else {
+      document.documentElement.dataset.storyHydrated = 'true';
+    }
     if (lastCommittedSceneRef.current !== scene) {
       lastCommittedSceneRef.current = scene;
       const location = scene === 'hero' && window.location.hash === ''
         ? `${window.location.pathname}${window.location.search}`
         : hashForScene(scene);
       window.history.replaceState({ scene }, '', location);
-      focusSceneHeading(scene);
     }
     const sceneIndex = storyManifest.nodes.findIndex(
       (node) => node.kind === 'hold' && node.scene === scene
@@ -285,14 +360,70 @@ export function StoryApp() {
     if (next?.kind === 'segment') {
       void loadTransitionModule(next.id).catch(() => undefined);
     }
-  }, [ensureWindow, layerStore, runtime, runtimeSnapshot]);
+  }, [bootFailed, ensureWindow, layerStore, runtime, runtimeSnapshot]);
 
-  useEffect(() => attachStoryInput({
-    runtime,
-    getCurrentScene: () => runtime.getState().context.layerWindow.current,
-    getLayerElement: (scene) => layerStore.getLayer(scene)?.element
-      ?? document.querySelector<HTMLElement>(`[data-stage-layer="${scene}"]`)
-  }), [layerStore, runtime]);
+  useEffect(() => {
+    if (
+      loaderStatus !== 'hidden'
+      || loaderExitReason !== 'safety'
+      || runtimeSnapshot.state !== 'hold'
+      || bootFailed
+      || presentationReady
+    ) {
+      return;
+    }
+    setHeroIntroMode('endpoint');
+    setPresentationReady(true);
+  }, [bootFailed, loaderExitReason, loaderStatus, presentationReady, runtimeSnapshot.state]);
+
+  useEffect(() => {
+    if (
+      !presentationReady
+      || bootFailed
+      || runtimeSnapshot.state !== 'hold'
+      || runtimeSnapshot.context.cursor.status !== 'hold'
+      || lastFocusedSceneRef.current === currentScene
+    ) {
+      return;
+    }
+    lastFocusedSceneRef.current = currentScene;
+    focusSceneHeading(currentScene);
+  }, [bootFailed, currentScene, presentationReady, runtimeSnapshot]);
+
+  useLayoutEffect(() => {
+    if (runtimeSnapshot.state !== 'hold' || runtimeSnapshot.context.cursor.status !== 'hold') {
+      return;
+    }
+    const entry = runtimeSnapshot.context.holdEntry;
+    const scene = runtimeSnapshot.context.cursor.scene;
+    if (
+      entry.scene !== scene
+      || appliedReadingEntryTokenRef.current === entry.token
+    ) {
+      return;
+    }
+    const layer = layerStore.getLayer(scene)?.element
+      ?? document.querySelector<HTMLElement>(`[data-stage-layer="${scene}"]`);
+    if (!readingScrollport(layer)) {
+      appliedReadingEntryTokenRef.current = entry.token;
+      return;
+    }
+    positionReadingAtEdge(layer, entry.edge);
+    appliedReadingEntryTokenRef.current = entry.token;
+    window.dispatchEvent(new Event('story-reading-entry'));
+  }, [layerStore, runtimeSnapshot]);
+
+  useEffect(() => {
+    if (!presentationReady || bootFailed) {
+      return;
+    }
+    return attachStoryInput({
+      runtime,
+      getCurrentScene: () => runtime.getState().context.layerWindow.current,
+      getLayerElement: (scene) => layerStore.getLayer(scene)?.element
+        ?? document.querySelector<HTMLElement>(`[data-stage-layer="${scene}"]`)
+    });
+  }, [bootFailed, layerStore, presentationReady, runtime]);
 
   useEffect(() => {
     const onHistoryNavigation = () => {
@@ -330,14 +461,15 @@ export function StoryApp() {
     runtimeSnapshot.context.activeSegment ?? runtimeSnapshot.context.settlingSegment,
     layerSnapshot.visibilityByScene
   );
-  const currentScene = runtimeSnapshot.context.layerWindow.current;
 
   const readSnapshot = useCallback((): StoryAppSnapshot => {
     const layers = [...document.querySelectorAll<HTMLElement>('[data-stage-layer]')];
     const canvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-stage-layer] canvas')];
     const videos = [...document.querySelectorAll<HTMLVideoElement>('[data-stage-layer] video')];
     const loaded = loadedProductionModules();
-    const lastError = runtime.getState().context.lastError ?? (bootError ? new Error(bootError) : undefined);
+    const context = runtime.getState().context;
+    const recovery = context.recovery;
+    const lastError = context.lastError ?? (bootError ? new Error(bootError) : undefined);
     return {
       phase: String(runtime.getState().state),
       current: runtime.getState().context.layerWindow.current,
@@ -354,9 +486,28 @@ export function StoryApp() {
       loadedTransitions: loaded.transitions,
       lifecycle: { ...lifecycleRef.current },
       reducedMotion: detectReducedMotion(),
+      loaderMode,
+      loaderStatus,
+      heroIntroMode,
+      presentationReady,
+      ...(recovery
+        ? {
+            recovery: {
+              scope: recovery.scope,
+              status: recovery.status,
+              ...(recovery.scope === 'segment'
+                ? {
+                    segment: recovery.segment,
+                    direction: recovery.direction,
+                    endpoint: recovery.endpoint
+                  }
+                : {})
+            }
+          }
+        : {}),
       ...(lastError ? { lastError: lastError.message } : {})
     };
-  }, [bootError, runtime]);
+  }, [bootError, heroIntroMode, loaderMode, loaderStatus, presentationReady, runtime]);
 
   const handleLayerElement = useCallback((scene: SceneId, element: HTMLElement | null) => {
     layerStore.bindElement(scene, element);
@@ -389,60 +540,61 @@ export function StoryApp() {
     };
   }, [navigate, readSnapshot, runtime]);
 
+  const navVisible = presentationReady && !bootFailed && currentScene !== 'hero';
+
+  useEffect(() => {
+    if (!navVisible) {
+      setMenuOpen(false);
+    }
+  }, [navVisible]);
+
   return (
     <div
       className="story-app"
       data-production-story-app="true"
       data-phase={String(runtimeSnapshot.state)}
       data-reduced-motion={String(reducedMotion)}
+      data-loader-status={loaderStatus}
+      data-hero-intro={heroIntroMode}
+      data-presentation-ready={String(presentationReady)}
+      data-recovery-scope={runtimeSnapshot.context.recovery?.scope}
+      data-recovery-status={runtimeSnapshot.context.recovery?.status}
+      data-recovery-segment={runtimeSnapshot.context.recovery?.scope === 'segment'
+        ? runtimeSnapshot.context.recovery.segment
+        : undefined}
+      data-recovery-direction={runtimeSnapshot.context.recovery?.scope === 'segment'
+        ? runtimeSnapshot.context.recovery.direction
+        : undefined}
     >
+      <StoryLoader
+        mode={loaderMode}
+        ready={loaderReady}
+        failed={bootFailed}
+        onStatusChange={setLoaderStatus}
+        onHidden={handleLoaderHidden}
+      />
       <Stage
         window={runtimeSnapshot.context.layerWindow}
         modules={modules}
         registry={registry}
         visibilityByScene={layerSnapshot.visibilityByScene}
         copyCueScene={copyCueScene}
+        presentationByScene={presentationByScene}
+        interactive={presentationReady && !bootFailed}
         onLayerElement={handleLayerElement}
         onSceneMount={handleSceneMount}
         onSceneDispose={handleSceneDispose}
       />
 
-      <header className="story-nav" data-menu-open={String(menuOpen)}>
-        <a
-          className="story-nav__brand"
-          href="#home"
-          onClick={(event) => {
-            event.preventDefault();
-            void navigate('hero');
-          }}
-        >
-          同野观幂
-        </a>
-        <button
-          className="story-nav__toggle"
-          type="button"
-          aria-expanded={menuOpen}
-          aria-controls="story-menu"
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          菜单
-        </button>
-        <nav id="story-menu" className="story-nav__menu" aria-label="章节导航">
-          {publicMenuItems.map((item) => (
-            <a
-              key={item.hash}
-              href={item.hash}
-              aria-current={currentScene === item.scene ? 'page' : undefined}
-              onClick={(event) => {
-                event.preventDefault();
-                void navigate(item.scene);
-              }}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-      </header>
+      <Suspense fallback={null}>
+        <StoryNav
+          currentScene={currentScene}
+          visible={navVisible}
+          menuOpen={menuOpen}
+          onToggleMenu={() => setMenuOpen((open) => !open)}
+          onNavigate={(scene) => void navigate(scene)}
+        />
+      </Suspense>
 
       <div
         className="story-progress"
@@ -455,7 +607,13 @@ export function StoryApp() {
         <span style={{ transform: `scaleX(${runtimeSnapshot.virtualProgress})` }} />
       </div>
       <p className="story-status" aria-live="polite">
-        {bootError ? `媒体恢复：${bootError}` : `${currentScene} · ${String(runtimeSnapshot.state)}`}
+        {bootError
+          ? `媒体恢复：${bootError}`
+          : runtimeSnapshot.context.recovery?.scope === 'segment'
+            ? runtimeSnapshot.context.recovery.status === 'failed'
+              ? `${currentScene} · 局部恢复失败，可重试`
+              : `${currentScene} · 正在恢复相邻场景`
+            : `${currentScene} · ${String(runtimeSnapshot.state)}`}
       </p>
     </div>
   );

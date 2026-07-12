@@ -58,11 +58,13 @@ test('touchscreen swipe drives the same normalized input contract', async ({ pag
 test('mobile menu remains touch reachable and closes after navigation', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith('mobile-'), 'mobile navigation matrix');
   await bootStory(page);
+  expect((await moveOneHold(page, 1)).current).toBe('pattern');
+  await expect(page.locator('.site-nav')).toBeVisible();
   await page.getByRole('button', { name: '菜单' }).tap();
-  await expect(page.locator('.story-nav')).toHaveAttribute('data-menu-open', 'true');
+  await expect(page.locator('.site-nav')).toHaveAttribute('data-menu-open', 'true');
   await page.getByRole('link', { name: '联系' }).tap();
   await waitForHold(page, 'contact');
-  await expect(page.locator('.story-nav')).toHaveAttribute('data-menu-open', 'false');
+  await expect(page.locator('.site-nav')).toHaveAttribute('data-menu-open', 'false');
 });
 
 test('mobile rotation and dynamic viewport height keep the active scene stable', async ({ page }, testInfo) => {

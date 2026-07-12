@@ -7,7 +7,7 @@ import {
 } from './index';
 import { figure2AnimationScene, renderFigure2Hold } from '../../scenes/figure2-animation';
 import type { LayerHandle, LayerVisibilityState, SceneId, SpineSegmentNode, TransitionContext } from '../../story/types';
-import { createBackHalfDomContext, FakeCanvas, FakeElement } from '../__fixtures__/back-half.fixture';
+import { createBackHalfDomContext, FakeCanvas, FakeElement, FakeVideo } from '../__fixtures__/back-half.fixture';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -79,6 +79,24 @@ describe('method-bottom-figure2 transition', () => {
     expect(figure2AnimationScene.renderHold).toBe(renderFigure2Hold);
   });
 
+  it('uses the existing posters during ink and defers dual-video seeking until the settled hold', async () => {
+    const fixture = createBackHalfDomContext(
+      'method-bottom-figure2',
+      'method-top',
+      'figure2-animation'
+    );
+    const left = new FakeVideo();
+    const right = new FakeVideo();
+    vi.spyOn(fixture.toRoot, 'querySelectorAll').mockReturnValue([left, right]);
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+
+    const timeline = await createMethodBottomFigure2Transition().buildTimeline(fixture.context);
+
+    expect(left.currentTimeWrites).toBe(0);
+    expect(right.currentTimeWrites).toBe(0);
+    timeline.dispose();
+  });
+
   it('shares one organic bottom-to-top boundary between Figure2 and the effect canvas', async () => {
     const fixture = createBackHalfDomContext(
       'method-bottom-figure2',
@@ -142,7 +160,7 @@ describe('method-bottom-figure2 transition', () => {
     expect(timeline.sample?.(1).to.visible).toBe(true);
   });
 
-  it('returns to the bottom of the Method reading scrollport before reverse playback', async () => {
+  it('leaves reverse Method entry positioning to Director settlement', async () => {
     const scrollport = {
       scrollTop: 0,
       scrollHeight: 1_640,
@@ -178,7 +196,7 @@ describe('method-bottom-figure2 transition', () => {
     timeline.progress(1);
     await timeline.reverse();
 
-    expect(scrollport.scrollTop).toBe(1_000);
-    expect(scrollport.dataset.readingEdge).toBe('bottom');
+    expect(scrollport.scrollTop).toBe(0);
+    expect(scrollport.dataset.readingEdge).toBeUndefined();
   });
 });

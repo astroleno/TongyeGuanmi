@@ -302,12 +302,15 @@ describe('shared ink transition surface', () => {
 
     expect(canvas.parentElement).toBe(stage);
     expect(canvas.dataset.r4InkRenderer).toBe('field');
-    expect(canvas.dataset.r4InkPreset).toBe('cinematic-color');
+    expect(canvas.dataset.r4InkPreset).toBe('edge-only');
+    expect(canvas.dataset.r4InkGrade).toBe('edge-only');
+    expect(canvas.dataset.r4InkGeneration).toBe('ink-test:1:ink-test:prepare:1');
     expect(canvas.dataset.r4InkPresetApplied).toBe('true');
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkParticleProfile).toBe('jade-gold');
     expect(canvas.dataset.r4InkParticleStrength).toBeUndefined();
     expect(canvas.dataset.r4InkColorLift).toBe('0.920');
+    expect(canvas.dataset.r4InkCoverAlpha).toBe('0.000');
     canvas.remove();
     expect(canvas.parentElement).toBeNull();
     timeline.progress(0.25);

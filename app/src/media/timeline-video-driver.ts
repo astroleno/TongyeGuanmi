@@ -1,0 +1,525 @@
+import type { Direction } from '../story/types';
+
+export type TimelineVideoMode = 'timeline' | 'native-preferred';
+
+export type TimelineVideoEndpointPolicy = Readonly<{
+  start?: 'seek' | 'hold';
+  end?: 'seek' | 'hold';
+}>;
+
+export type TimelineVideoDriveInput = Readonly<{
+  runId: string;
+  direction: Direction;
+  progress: number;
+  durationFallbackSeconds: number;
+  startSeconds?: number;
+  endSeconds?: number;
+  endEpsilonSeconds?: number;
+  timelineDurationMs?: number;
+  mode?: TimelineVideoMode;
+  nativePlaybackDirection?: Direction;
+  endpointPolicy?: TimelineVideoEndpointPolicy;
+  reducedMotion?: boolean;
+}>;
+
+export type TimelineVideoFrameResult = Readonly<{
+  status: 'ready' | 'stale';
+  runId: string;
+  direction: Direction;
+  generation: number;
+  targetTime: number;
+}>;
+
+export type TimelineVideoDriverSnapshot = Readonly<{
+  runId: string | undefined;
+  direction: Direction | undefined;
+  generation: number;
+  desiredProgress: number | undefined;
+  targetTime: number | undefined;
+  seekPending: boolean;
+  nativeFallback: boolean;
+  frameReady: boolean;
+}>;
+
+export type TimelineVideoDriver = Readonly<{
+  drive(input: TimelineVideoDriveInput): TimelineVideoDriverSnapshot;
+  prepareFrame(input: TimelineVideoDriveInput): Promise<TimelineVideoFrameResult>;
+  snapshot(): TimelineVideoDriverSnapshot;
+  dispose(): void;
+}>;
+
+type DesiredFrame = Readonly<{
+  generation: number;
+  runId: string;
+  direction: Direction;
+  progress: number;
+  targetTime: number;
+}>;
+
+type FrameWaiter = DesiredFrame & {
+  resolve(result: TimelineVideoFrameResult): void;
+};
+
+type VideoWithFrameCallbacks = HTMLVideoElement & {
+  requestVideoFrameCallback?: (
+    callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
+  ) => number;
+  cancelVideoFrameCallback?: (handle: number) => void;
+};
+
+type TimelineManagedVideo = HTMLVideoElement & {
+  __r5TimelineVideoDispose?: () => void;
+};
+
+const SEEK_TOLERANCE_SECONDS = 0.001;
+const DEFAULT_END_EPSILON_SECONDS = 0.02;
+const PRESENTED_FRAME_FALLBACK_MS = 80;
+
+function clamp(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function finiteDuration(video: HTMLVideoElement, fallback: number): number {
+  return Number.isFinite(video.duration) && video.duration > 0
+    ? video.duration
+    : Math.max(0.001, fallback);
+}
+
+function frameResult(frame: DesiredFrame, status: TimelineVideoFrameResult['status']): TimelineVideoFrameResult {
+  return {
+    status,
+    runId: frame.runId,
+    direction: frame.direction,
+    generation: frame.generation,
+    targetTime: frame.targetTime
+  };
+}
+
+class TimelineVideoDriverImpl implements TimelineVideoDriver {
+  private generation = 0;
+  private runId: string | undefined;
+  private direction: Direction | undefined;
+  private latest: DesiredFrame | undefined;
+  private latestInput: TimelineVideoDriveInput | undefined;
+  private queuedSeek: DesiredFrame | undefined;
+  private inFlightSeek: DesiredFrame | undefined;
+  private readonly waiters = new Set<FrameWaiter>();
+  private nativeFallback = false;
+  private nativeStarted = false;
+  private nativeAttempt = 0;
+  private frameReadyGeneration = 0;
+  private frameReadyTime = Number.NaN;
+  private frameCallbackId: number | undefined;
+  private presentingFrame: DesiredFrame | undefined;
+  private frameFallbackTimer: ReturnType<typeof setTimeout> | undefined;
+  private disposed = false;
+
+  private readonly onSeeked = () => {
+    this.completeInFlightSeek();
+  };
+
+  private readonly onLoadedMetadata = () => {
+    if (!this.latest || !this.latestInput || this.latest.generation !== this.generation) {
+      return;
+    }
+    const refreshed = this.desiredFrame(this.latest.progress, this.latestInput);
+    this.latest = refreshed;
+    this.scheduleSeek(refreshed);
+  };
+
+  constructor(private readonly video: HTMLVideoElement) {
+    video.addEventListener('seeked', this.onSeeked);
+    video.addEventListener('loadedmetadata', this.onLoadedMetadata);
+  }
+
+  drive(input: TimelineVideoDriveInput): TimelineVideoDriverSnapshot {
+    if (this.disposed) {
+      return this.snapshot();
+    }
+    const desired = this.activate(input);
+    this.latestInput = input;
+    this.latest = desired;
+    this.writeDiagnostics(desired);
+    this.configureElement();
+
+    const endpoint = desired.progress <= 0.001
+      ? 'start'
+      : desired.progress >= 0.999
+        ? 'end'
+        : undefined;
+    if (endpoint) {
+      this.stopNativePlayback();
+      if ((input.endpointPolicy?.[endpoint] ?? 'seek') === 'seek') {
+        this.scheduleSeek(desired);
+      }
+      return this.snapshot();
+    }
+
+    const nativeEligible = input.mode === 'native-preferred'
+      && (input.nativePlaybackDirection ?? input.direction) === 1
+      && !input.reducedMotion;
+    if (!nativeEligible || this.nativeFallback) {
+      this.stopNativePlayback();
+      this.scheduleSeek(desired);
+      return this.snapshot();
+    }
+
+    this.driveNative(desired, input);
+    return this.snapshot();
+  }
+
+  prepareFrame(input: TimelineVideoDriveInput): Promise<TimelineVideoFrameResult> {
+    if (this.disposed) {
+      const desired = this.desiredFrame(input.progress, input);
+      return Promise.resolve(frameResult(desired, 'stale'));
+    }
+    const desired = this.activate({ ...input, mode: 'timeline' });
+    this.latestInput = { ...input, mode: 'timeline' };
+    this.latest = desired;
+    this.writeDiagnostics(desired);
+    this.configureElement();
+    this.stopNativePlayback();
+
+    for (const waiter of [...this.waiters]) {
+      if (
+        waiter.generation === desired.generation
+        && Math.abs(waiter.targetTime - desired.targetTime) > SEEK_TOLERANCE_SECONDS
+      ) {
+        this.waiters.delete(waiter);
+        waiter.resolve(frameResult(waiter, 'stale'));
+      }
+    }
+
+    if (
+      this.frameReadyGeneration === desired.generation
+      && Math.abs(this.frameReadyTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS
+    ) {
+      return Promise.resolve(frameResult(desired, 'ready'));
+    }
+
+    const promise = new Promise<TimelineVideoFrameResult>((resolve) => {
+      this.waiters.add({ ...desired, resolve });
+    });
+    this.scheduleSeek(desired);
+    return promise;
+  }
+
+  snapshot(): TimelineVideoDriverSnapshot {
+    const frameReady = Boolean(
+      this.latest
+      && this.frameReadyGeneration === this.latest.generation
+      && Math.abs(this.frameReadyTime - this.latest.targetTime) <= SEEK_TOLERANCE_SECONDS
+    );
+    return {
+      runId: this.runId,
+      direction: this.direction,
+      generation: this.generation,
+      desiredProgress: this.latest?.progress,
+      targetTime: this.latest?.targetTime,
+      seekPending: Boolean(this.inFlightSeek || this.queuedSeek),
+      nativeFallback: this.nativeFallback,
+      frameReady
+    };
+  }
+
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    this.generation += 1;
+    this.stopNativePlayback();
+    this.cancelFrameCallback();
+    this.resolveAllWaitersAsStale();
+    this.video.removeEventListener('seeked', this.onSeeked);
+    this.video.removeEventListener('loadedmetadata', this.onLoadedMetadata);
+    this.queuedSeek = undefined;
+    this.inFlightSeek = undefined;
+    this.latest = undefined;
+    this.latestInput = undefined;
+  }
+
+  private activate(input: TimelineVideoDriveInput): DesiredFrame {
+    if (this.runId !== input.runId || this.direction !== input.direction) {
+      this.generation += 1;
+      this.runId = input.runId;
+      this.direction = input.direction;
+      this.nativeFallback = false;
+      this.nativeStarted = false;
+      this.nativeAttempt += 1;
+      this.frameReadyGeneration = 0;
+      this.frameReadyTime = Number.NaN;
+      this.queuedSeek = undefined;
+      this.cancelFrameCallback();
+      this.video.pause();
+      this.resolveAllWaitersAsStale();
+    }
+    return this.desiredFrame(input.progress, input);
+  }
+
+  private desiredFrame(progress: number, input: TimelineVideoDriveInput): DesiredFrame {
+    const duration = finiteDuration(this.video, input.durationFallbackSeconds);
+    const epsilon = Math.max(0, input.endEpsilonSeconds ?? DEFAULT_END_EPSILON_SECONDS);
+    const start = Math.min(duration, Math.max(0, input.startSeconds ?? 0));
+    const defaultEnd = Math.max(start, duration - epsilon);
+    const end = Math.max(start, Math.min(defaultEnd, input.endSeconds ?? defaultEnd));
+    const clamped = clamp(progress);
+    return {
+      generation: this.generation,
+      runId: input.runId,
+      direction: input.direction,
+      progress: clamped,
+      targetTime: start + (end - start) * clamped
+    };
+  }
+
+  private configureElement(): void {
+    if (this.video.preload !== 'auto') {
+      this.video.preload = 'auto';
+      this.video.load?.();
+    }
+    this.video.loop = false;
+    this.video.muted = true;
+    this.video.playsInline = true;
+  }
+
+  private driveNative(desired: DesiredFrame, input: TimelineVideoDriveInput): void {
+    if (this.nativeStarted && !this.video.paused) {
+      return;
+    }
+    if (!this.nativeStarted) {
+      this.scheduleSeek(desired);
+    }
+    const duration = finiteDuration(this.video, input.durationFallbackSeconds);
+    const end = Math.max(desired.targetTime, Math.min(duration, input.endSeconds ?? duration));
+    const remainingMediaSeconds = Math.max(0.001, end - desired.targetTime);
+    const remainingTimelineSeconds = Math.max(
+      0.05,
+      ((input.timelineDurationMs ?? remainingMediaSeconds * 1000) / 1000) * (1 - desired.progress)
+    );
+    this.video.playbackRate = Math.min(4, Math.max(0.25, remainingMediaSeconds / remainingTimelineSeconds));
+    this.nativeStarted = true;
+    const nativeAttempt = ++this.nativeAttempt;
+    let playback: Promise<void> | undefined;
+    try {
+      playback = this.video.play();
+    } catch {
+      playback = Promise.reject(new Error('native playback rejected'));
+    }
+    void playback?.catch(() => {
+      if (
+        this.disposed
+        || desired.generation !== this.generation
+        || nativeAttempt !== this.nativeAttempt
+      ) {
+        return;
+      }
+      this.nativeFallback = true;
+      this.nativeStarted = false;
+      this.video.dataset.timelineVideoFallback = 'true';
+      this.video.pause();
+      if (this.latest?.generation === this.generation) {
+        this.scheduleSeek(this.latest);
+      }
+    });
+  }
+
+  private stopNativePlayback(): void {
+    this.nativeAttempt += 1;
+    if (this.nativeStarted || !this.video.paused) {
+      this.video.pause();
+    }
+    this.nativeStarted = false;
+  }
+
+  private scheduleSeek(desired: DesiredFrame): void {
+    this.queuedSeek = desired;
+    this.flushQueuedSeek();
+  }
+
+  private flushQueuedSeek(): void {
+    if (this.disposed || this.inFlightSeek || !this.queuedSeek) {
+      return;
+    }
+    const desired = this.queuedSeek;
+    this.queuedSeek = undefined;
+    if (desired.generation !== this.generation) {
+      this.flushQueuedSeek();
+      return;
+    }
+    if (Math.abs(this.video.currentTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS) {
+      this.presentFrame(desired);
+      this.flushQueuedSeek();
+      return;
+    }
+    this.inFlightSeek = desired;
+    try {
+      this.video.currentTime = desired.targetTime;
+    } catch {
+      this.inFlightSeek = undefined;
+      return;
+    }
+    if (!this.video.seeking) {
+      this.completeInFlightSeek();
+    }
+  }
+
+  private completeInFlightSeek(): void {
+    const completed = this.inFlightSeek;
+    if (!completed) {
+      return;
+    }
+    this.inFlightSeek = undefined;
+    if (completed.generation === this.generation) {
+      this.presentFrame(completed);
+    }
+    this.flushQueuedSeek();
+  }
+
+  private presentFrame(frame: DesiredFrame): void {
+    if (
+      this.frameCallbackId !== undefined
+      && this.presentingFrame?.generation === frame.generation
+      && Math.abs(this.presentingFrame.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+    ) {
+      return;
+    }
+    this.cancelFrameCallback();
+    const video = this.video as VideoWithFrameCallbacks;
+    if (typeof video.requestVideoFrameCallback !== 'function') {
+      this.presentingFrame = undefined;
+      this.markFrameReady(frame);
+      return;
+    }
+    const generation = frame.generation;
+    this.presentingFrame = frame;
+    this.frameCallbackId = video.requestVideoFrameCallback(() => {
+      if (this.frameFallbackTimer !== undefined) {
+        clearTimeout(this.frameFallbackTimer);
+        this.frameFallbackTimer = undefined;
+      }
+      this.frameCallbackId = undefined;
+      this.presentingFrame = undefined;
+      if (this.disposed || generation !== this.generation) {
+        return;
+      }
+      this.markFrameReady(frame);
+    });
+    this.frameFallbackTimer = setTimeout(() => {
+      this.frameFallbackTimer = undefined;
+      if (this.disposed || generation !== this.generation) {
+        return;
+      }
+      if (this.frameCallbackId !== undefined) {
+        video.cancelVideoFrameCallback?.(this.frameCallbackId);
+        this.frameCallbackId = undefined;
+      }
+      this.presentingFrame = undefined;
+      this.markFrameReady(frame);
+    }, PRESENTED_FRAME_FALLBACK_MS);
+  }
+
+  private markFrameReady(frame: DesiredFrame): void {
+    if (frame.generation !== this.generation) {
+      return;
+    }
+    this.frameReadyGeneration = frame.generation;
+    this.frameReadyTime = frame.targetTime;
+    this.video.dataset.timelineVideoFrameReady = 'true';
+    for (const waiter of [...this.waiters]) {
+      if (
+        waiter.generation === frame.generation
+        && Math.abs(waiter.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+      ) {
+        this.waiters.delete(waiter);
+        waiter.resolve(frameResult(waiter, 'ready'));
+      }
+    }
+  }
+
+  private cancelFrameCallback(): void {
+    if (this.frameFallbackTimer !== undefined) {
+      clearTimeout(this.frameFallbackTimer);
+      this.frameFallbackTimer = undefined;
+    }
+    if (this.frameCallbackId === undefined) {
+      this.presentingFrame = undefined;
+      return;
+    }
+    const video = this.video as VideoWithFrameCallbacks;
+    video.cancelVideoFrameCallback?.(this.frameCallbackId);
+    this.frameCallbackId = undefined;
+    this.presentingFrame = undefined;
+  }
+
+  private resolveAllWaitersAsStale(): void {
+    for (const waiter of this.waiters) {
+      waiter.resolve(frameResult(waiter, 'stale'));
+    }
+    this.waiters.clear();
+  }
+
+  private writeDiagnostics(desired: DesiredFrame): void {
+    this.video.dataset.timelineVideoRun = desired.runId;
+    this.video.dataset.timelineVideoDirection = String(desired.direction);
+    this.video.dataset.timelineVideoGeneration = String(desired.generation);
+    this.video.dataset.timelineVideoProgress = desired.progress.toFixed(4);
+    this.video.dataset.timelineVideoTarget = desired.targetTime.toFixed(4);
+    this.video.dataset.timelineVideoFallback = String(this.nativeFallback);
+    delete this.video.dataset.timelineVideoFrameReady;
+  }
+}
+
+const sharedDrivers = new WeakMap<HTMLVideoElement, TimelineVideoDriver>();
+
+export function createTimelineVideoDriver(video: HTMLVideoElement): TimelineVideoDriver {
+  return new TimelineVideoDriverImpl(video);
+}
+
+export function timelineVideoDriverFor(video: HTMLVideoElement): TimelineVideoDriver {
+  const existing = sharedDrivers.get(video);
+  if (existing) {
+    return existing;
+  }
+  const driver = createTimelineVideoDriver(video);
+  sharedDrivers.set(video, driver);
+  const managedVideo = video as TimelineManagedVideo;
+  const dispose = () => {
+    if (sharedDrivers.get(video) !== driver) {
+      return;
+    }
+    sharedDrivers.delete(video);
+    driver.dispose();
+    if (managedVideo.__r5TimelineVideoDispose === dispose) {
+      delete managedVideo.__r5TimelineVideoDispose;
+    }
+  };
+  managedVideo.__r5TimelineVideoDispose = dispose;
+  return driver;
+}
+
+export function disposeTimelineVideoDriver(video: HTMLVideoElement): void {
+  const managedVideo = video as TimelineManagedVideo;
+  if (managedVideo.__r5TimelineVideoDispose) {
+    managedVideo.__r5TimelineVideoDispose();
+    return;
+  }
+  sharedDrivers.get(video)?.dispose();
+  sharedDrivers.delete(video);
+}
+
+export function driveTimelineVideo(
+  video: HTMLVideoElement | null | undefined,
+  input: TimelineVideoDriveInput
+): TimelineVideoDriverSnapshot | undefined {
+  return video ? timelineVideoDriverFor(video).drive(input) : undefined;
+}
+
+export function prepareTimelineVideoFrame(
+  video: HTMLVideoElement | null | undefined,
+  input: TimelineVideoDriveInput
+): Promise<TimelineVideoFrameResult | undefined> {
+  return video
+    ? timelineVideoDriverFor(video).prepareFrame(input)
+    : Promise.resolve(undefined);
+}

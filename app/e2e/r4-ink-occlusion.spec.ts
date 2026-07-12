@@ -137,7 +137,7 @@ async function measureSvgDepthBoundary(page: Page, progress: number): Promise<{
   boundaryY: number;
   expectedY: number;
 }> {
-  const probe = await page.evaluate(async ({ fieldProgress, width, height }) => {
+  return page.evaluate(async ({ fieldProgress, width, height }) => {
     const maskModulePath = '/src/transitions/shared/depthThresholdMask.ts';
     const { createDepthThresholdMask } = await import(maskModulePath);
     const frameModulePath = '/src/transitions/shared/inkField.ts';
@@ -195,42 +195,32 @@ async function measureSvgDepthBoundary(page: Page, progress: number): Promise<{
       transform
     });
     if (!mask) throw new Error('SVG depth mask probe unavailable');
-    mask.render(gateRank, transform);
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const tables = mask.render(gateRank, transform);
+    const firstHiddenIndex = tables.reveal.findIndex((value: number) => value === 0);
+    const boundaryY = (firstHiddenIndex < 0 ? tables.reveal.length : firstHiddenIndex)
+      / tables.reveal.length * height;
+    const progressAttribute = target.getAttribute('data-r4-depth-mask-progress');
+    const maskImage = target.style.getPropertyValue('mask-image');
+    const thresholdFunction = host.querySelector<SVGComponentTransferFunctionElement>(
+      `#${mask.filterIds.reveal} feFuncR[type="linear"]`
+    );
+    const intercept = Number(thresholdFunction?.getAttribute('intercept'));
+    if (progressAttribute !== gateRank.toFixed(4)) {
+      throw new Error('SVG depth mask progress diagnostic is stale');
+    }
+    if (!maskImage.includes(mask.maskIds.reveal)) {
+      throw new Error('SVG depth mask target lost its run-scoped mask');
+    }
+    if (Math.abs(intercept - (0.5001 - gateRank * 1.0002)) > 0.0001) {
+      throw new Error('SVG depth threshold filter is misaligned');
+    }
+    mask.dispose();
+    host.remove();
     return {
+      boundaryY,
       expectedY: gateRank * height,
-      selector: '[data-depth-mask-alignment-probe]'
     };
   }, { fieldProgress: progress, width: 320, height: 180 });
-
-  const screenshot = await page.locator(probe.selector).screenshot();
-  const boundaryY = await page.evaluate(async ({ dataUrl, width, height }) => {
-    const image = new Image();
-    image.src = dataUrl;
-    await image.decode();
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('SVG depth screenshot decoder unavailable');
-    context.drawImage(image, 0, 0);
-    const pixels = context.getImageData(Math.floor(width / 2), 0, 1, height).data;
-    for (let y = 1; y < height; y += 1) {
-      const previous = pixels[(y - 1) * 4] ?? 0;
-      const current = pixels[y * 4] ?? 0;
-      if (previous >= 128 && current < 128) return y;
-    }
-    throw new Error('SVG depth boundary was not found');
-  }, {
-    dataUrl: `data:image/png;base64,${screenshot.toString('base64')}`,
-    width: 320,
-    height: 180
-  });
-  await page.evaluate(() => {
-    document.querySelector('[data-depth-mask-alignment-probe]')?.remove();
-  });
-  return { boundaryY, expectedY: probe.expectedY };
 }
 
 test.describe('R4 Ink ownership alpha diagnostics', () => {

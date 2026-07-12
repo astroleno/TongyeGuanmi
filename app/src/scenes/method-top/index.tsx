@@ -1,9 +1,4 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
-import {
-  positionReadingAtEdge,
-  readingScrollport,
-  type ReadingEdge
-} from '../../stage/reading';
 
 export const METHOD_TOP_COPY = [
   '先识场，再立法',
@@ -43,19 +38,6 @@ const METHOD_STEPS = [
   { index: METHOD_STEPS_COPY[9], title: METHOD_STEPS_COPY[10], body: METHOD_STEPS_COPY[11] },
   { index: METHOD_STEPS_COPY[12], title: METHOD_STEPS_COPY[13], body: METHOD_STEPS_COPY[14] }
 ] as const;
-
-export type MethodReadingEdge = ReadingEdge;
-
-export function methodReadingScrollport(root: HTMLElement | null | undefined): HTMLElement | null {
-  return readingScrollport(root);
-}
-
-export function positionMethodReadingAtEdge(
-  root: HTMLElement | null | undefined,
-  edge: MethodReadingEdge
-): number {
-  return positionReadingAtEdge(root, edge);
-}
 
 export function renderMethodTopHold(root: HTMLElement | null): void {
   // Method owns a user-controlled reading scroll position; settling must preserve it.

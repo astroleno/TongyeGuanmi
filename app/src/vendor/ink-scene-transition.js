@@ -16,7 +16,7 @@ export function releaseInkWebGlResources(gl, { buffer = null, program = null, sh
 export function createInkBoundaryTransition(canvas, options = {}) {
   if (!canvas) return null;
   const colorLift = clamp(options.colorLift ?? 0.32, 0, 1);
-  const coverAlpha = clamp(options.coverAlpha ?? 0.72, 0, 1);
+  const coverAlpha = clamp(options.coverAlpha ?? 0, 0, 1);
   const fadeOutStart = clamp(options.fadeOutStart ?? 0.94, 0, 0.98);
   const fadeOutEnd = Math.max(fadeOutStart + 0.01, clamp(options.fadeOutEnd ?? 0.995, 0.01, 1));
   const dprLimit = Math.max(0.5, Math.min(1.25, options.dprLimit ?? 1));
@@ -244,7 +244,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       color += edgeColor * tendril * mud * 0.08 * mix(0.20, 0.72, uColorLift);
       color = mix(color, vec3(0.004, 0.008, 0.007), late * 0.35);
 
-      float coreWash = body * (0.14 + uCoverAlpha * 0.72 + late * 0.10);
+      float coreWash = body * uCoverAlpha * (0.89 + late * 0.12);
       float alpha = coreWash;
       alpha += feather * 0.18 + hot * 0.13 + veins * 0.05
         + ember * 0.28 + particles * 0.76 + particleCore * 0.36;

@@ -1,16 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDirectorRuntime } from './director.actor';
 import { storyManifest } from '../story/manifest';
-import type { LayerHandle, LayerVisibilityState, SceneId, StageHandle, StoryManifest } from '../story/types';
+import type {
+  LayerHandle,
+  LayerVisibilityState,
+  SceneId,
+  SegmentTimelineHandle,
+  StageHandle,
+  StoryManifest
+} from '../story/types';
 
 async function flush(ms = 0): Promise<void> {
   await vi.advanceTimersByTimeAsync(ms);
   await Promise.resolve();
 }
 
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((innerResolve) => {
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((innerResolve) => {
     resolve = innerResolve;
   });
   return { promise, resolve };
@@ -625,12 +632,230 @@ describe('director runtime actor loop', () => {
     });
   });
 
+  it('recovers a failed Contact reverse run to Crane without exposing Hero', async () => {
+    let buildCount = 0;
+    let rejectPlayback!: (error: Error) => void;
+    const playback = new Promise<void>((_resolve, reject) => {
+      rejectPlayback = reject;
+    });
+    const endpointBuild = deferred<SegmentTimelineHandle>();
+    const jumpToEnd = vi.fn();
+    const endpointTimeline: SegmentTimelineHandle = {
+      play: () => Promise.resolve(),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd,
+      dispose: vi.fn()
+    };
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'contact-local-recovery',
+      transitions: {
+        'crane-contact': {
+          id: 'crane-contact',
+          buildTimeline: () => {
+            buildCount += 1;
+            if (buildCount === 1) {
+              return {
+                play: () => Promise.resolve(),
+                progress: vi.fn(),
+                reverse: () => playback,
+                jumpToEnd: vi.fn(),
+                dispose: vi.fn()
+              };
+            }
+            return endpointBuild.promise;
+          }
+        }
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'SEEK', label: 'scene:contact', source: 'menu' });
+    await flush(0);
+    runtime.send({ type: 'CHARGE_FIRED', direction: -1 });
+    await flush(0);
+    expect(runtime.getState().state).toBe('playing');
+    const runId = runtime.getState().context.activeRunId;
+    if (!runId) {
+      throw new Error('missing Contact reverse runId');
+    }
+
+    rejectPlayback(new Error('crane reverse media timeout'));
+    await flush(0);
+    await flush(0);
+
+    expect(buildCount).toBe(2);
+    expect(runtime.getState().context).toMatchObject({
+      cursor: { status: 'hold', scene: 'contact' },
+      layerWindow: { current: 'contact' },
+      recovery: {
+        scope: 'segment',
+        status: 'recovering',
+        segment: 'crane-contact',
+        direction: -1,
+        endpoint: 'crane-animation'
+      }
+    });
+
+    runtime.send({
+      type: 'PLAYBACK_FAILED',
+      runId,
+      error: new Error('duplicate crane reverse failure')
+    });
+    expect(buildCount).toBe(2);
+
+    endpointBuild.resolve(endpointTimeline);
+    await flush(0);
+    await flush(0);
+
+    const recovered = runtime.getState();
+    const failureIndex = recovered.eventLog.findIndex((record) => record.event.type === 'PLAYBACK_FAILED');
+    const recoveryWindows = recovered.eventLog.slice(failureIndex).map((record) => record.layerWindow.current);
+    runtime.stop();
+    expect(recovered).toMatchObject({
+      state: 'hold',
+      context: { cursor: { status: 'hold', scene: 'crane-animation' } }
+    });
+    expect(jumpToEnd).toHaveBeenCalledOnce();
+    expect(jumpToEnd).toHaveBeenCalledWith(-1);
+    expect(recoveryWindows).not.toContain('hero');
+  });
+
+  it('keeps Contact usable when endpoint reconstruction also fails', async () => {
+    let buildCount = 0;
+    let rejectPlayback!: (error: Error) => void;
+    const playback = new Promise<void>((_resolve, reject) => {
+      rejectPlayback = reject;
+    });
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'contact-recovery-failed',
+      transitions: {
+        'crane-contact': {
+          id: 'crane-contact',
+          buildTimeline: () => {
+            buildCount += 1;
+            if (buildCount === 1) {
+              return {
+                play: () => Promise.resolve(),
+                progress: vi.fn(),
+                reverse: () => playback,
+                jumpToEnd: vi.fn(),
+                dispose: vi.fn()
+              };
+            }
+            if (buildCount === 2) {
+              throw new Error('endpoint reconstruction failed');
+            }
+            return {
+              play: () => Promise.resolve(),
+              progress: vi.fn(),
+              reverse: () => Promise.resolve(),
+              jumpToEnd: vi.fn(),
+              dispose: vi.fn()
+            };
+          }
+        }
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'SEEK', label: 'scene:contact', source: 'menu' });
+    await flush(0);
+    runtime.send({ type: 'CHARGE_FIRED', direction: -1 });
+    await flush(0);
+    rejectPlayback(new Error('crane reverse media timeout'));
+    await flush(0);
+    await flush(0);
+
+    expect(runtime.getState()).toMatchObject({
+      state: 'hold',
+      context: {
+        cursor: { status: 'hold', scene: 'contact' },
+        layerWindow: { current: 'contact' },
+        recovery: { scope: 'segment', status: 'failed' },
+        lastError: new Error('endpoint reconstruction failed')
+      }
+    });
+    expect(runtime.getState().eventLog.map((record) => record.event.type)).toContain('RECOVERY_FAILED');
+
+    runtime.send({ type: 'CHARGE_FIRED', direction: -1 });
+    expect(runtime.getState()).toMatchObject({
+      state: 'preparing',
+      context: { pendingSegment: 'crane-contact', recovery: undefined }
+    });
+    await flush(0);
+    runtime.stop();
+  });
+
+  it('cannot let stale Contact recovery overwrite an explicit menu seek', async () => {
+    let buildCount = 0;
+    let rejectPlayback!: (error: Error) => void;
+    const playback = new Promise<void>((_resolve, reject) => {
+      rejectPlayback = reject;
+    });
+    const endpointBuild = deferred<SegmentTimelineHandle>();
+    const jumpToEnd = vi.fn();
+    const dispose = vi.fn();
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'contact-stale-recovery',
+      transitions: {
+        'crane-contact': {
+          id: 'crane-contact',
+          buildTimeline: () => {
+            buildCount += 1;
+            if (buildCount === 1) {
+              return {
+                play: () => Promise.resolve(),
+                progress: vi.fn(),
+                reverse: () => playback,
+                jumpToEnd: vi.fn(),
+                dispose: vi.fn()
+              };
+            }
+            return endpointBuild.promise;
+          }
+        }
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'SEEK', label: 'scene:contact', source: 'menu' });
+    await flush(0);
+    runtime.send({ type: 'CHARGE_FIRED', direction: -1 });
+    await flush(0);
+    rejectPlayback(new Error('crane reverse media timeout'));
+    await flush(0);
+    await flush(0);
+    expect(buildCount).toBe(2);
+
+    runtime.send({ type: 'SEEK', label: 'scene:services', source: 'menu' });
+    await flush(0);
+    endpointBuild.resolve({
+      play: () => Promise.resolve(),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd,
+      dispose
+    });
+    await flush(0);
+    await flush(0);
+
+    const settled = runtime.getState();
+    runtime.stop();
+    expect(settled).toMatchObject({
+      state: 'hold',
+      context: { cursor: { status: 'hold', scene: 'services' }, recovery: undefined }
+    });
+    expect(jumpToEnd).not.toHaveBeenCalled();
+    expect(settled.eventLog.map((record) => record.event.type)).not.toContain('RECOVERY_FAILED');
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
   it('leaves wheel input with a reading layer until it reaches the scroll edge', async () => {
     const scrollport = {
       scrollTop: 120,
       clientHeight: 720,
-      scrollHeight: 1440
-    } as HTMLElement;
+      scrollHeight: 1440,
+      dataset: { reading: 'true' },
+      matches: (selector: string) => selector === '[data-reading="true"]'
+    } as unknown as HTMLElement;
     const runtime = createDirectorRuntime({
       actorEpoch: 'reading-edge',
       stage: readingStage('lab', scrollport),

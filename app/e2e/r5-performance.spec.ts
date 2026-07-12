@@ -1,10 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { bootStory, navigateStory, storySnapshot, waitForHold } from './r5-helpers';
+import { navigateStory, storySnapshot, waitForHold } from './r5-helpers';
 
 test.use({ video: 'off', trace: 'off', screenshot: 'off' });
 
 type PerformanceWindow = Window & {
   __r5Lcp?: number;
+  __r5LcpElement?: string;
   __r5StopFrames?: () => number[];
 };
 
@@ -56,12 +57,23 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
     (window as PerformanceWindow).__r5Lcp = 0;
     new PerformanceObserver((list) => {
       const last = list.getEntries().at(-1);
-      if (last) (window as PerformanceWindow).__r5Lcp = last.startTime;
+      if (last) {
+        const entry = last as PerformanceEntry & { element?: Element | null };
+        (window as PerformanceWindow).__r5Lcp = last.startTime;
+        (window as PerformanceWindow).__r5LcpElement = entry.element
+          ? `${entry.element.tagName.toLowerCase()}.${entry.element.className}`
+          : 'unknown';
+      }
     }).observe({ type: 'largest-contentful-paint', buffered: true });
   });
 
-  await bootStory(page);
-  const storyReadyMs = await page.evaluate(() => performance.now());
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'hold');
+  const runtimeReadyMs = await page.evaluate(() => performance.now());
+  await page.waitForFunction(() => window.__storyApp?.snapshot().presentationReady === true, undefined, {
+    timeout: 15_000
+  });
+  const presentationReadyMs = await page.evaluate(() => performance.now());
   await page.waitForTimeout(1_200);
   const observedBootMetrics = await page.evaluate(() => {
     const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
@@ -76,6 +88,7 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
       : 'unavailable';
     return {
       lcpMs: (window as PerformanceWindow).__r5Lcp ?? 0,
+      lcpElement: (window as PerformanceWindow).__r5LcpElement ?? 'unknown',
       initialResourceBytes: resources.reduce(
         (sum, entry) => sum + (entry.transferSize || entry.encodedBodySize || 0),
         0
@@ -86,7 +99,8 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   });
   const bootMetrics = {
     ...observedBootMetrics,
-    storyReadyMs
+    runtimeReadyMs,
+    presentationReadyMs
   };
   const idleFrameIntervals = await page.evaluate(() => new Promise<number[]>((resolve) => {
     const intervals: number[] = [];
@@ -152,8 +166,11 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
 
   expect(bootMetrics.lcpMs).toBeGreaterThan(0);
   expect(bootMetrics.lcpMs).toBeLessThanOrEqual(2_500);
-  expect(storyReadyMs).toBeLessThanOrEqual(
+  expect(runtimeReadyMs).toBeLessThanOrEqual(
     testInfo.project.name.startsWith('mobile-') ? 4_000 : 2_500
+  );
+  expect(presentationReadyMs).toBeLessThanOrEqual(
+    testInfo.project.name.startsWith('mobile-') ? 11_000 : 9_500
   );
   expect(bootMetrics.initialResourceBytes).toBeLessThanOrEqual(40 * 1024 * 1024);
   if (bootMetrics.usedJsHeapBytes !== undefined) {

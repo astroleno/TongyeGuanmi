@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -7,6 +8,8 @@ const repoDir = path.dirname(appDir);
 const distDir = path.join(repoDir, 'dist');
 const indexPath = path.join(distDir, 'index.html');
 const copyPath = path.join(repoDir, 'docs/react-refactor/inventory/copy-reference.json');
+const faviconSourcePath = path.join(repoDir, 'assets/favicon.svg');
+const titleFontSourcePath = path.join(repoDir, 'assets/fonts/qiji-title-subset.ttf');
 
 function assert(condition, message) {
   if (!condition) {
@@ -34,6 +37,34 @@ function visibleText(html) {
     .trim();
 }
 
+function attribute(tag, name) {
+  return tag.match(new RegExp(`\\b${name}=["']([^"']+)["']`, 'i'))?.[1] ?? null;
+}
+
+function releaseLinkHref(html, predicate, label) {
+  for (const tag of html.match(/<link\b[^>]*>/gi) ?? []) {
+    if (predicate(tag)) {
+      const href = attribute(tag, 'href');
+      assert(href, `${label} link has no href`);
+      return href;
+    }
+  }
+  throw new Error(`${label} link is missing`);
+}
+
+function distPathFromHref(href, label) {
+  assert(!href.startsWith('data:'), `${label} must not be an inline data URL`);
+  const pathname = new URL(href, 'https://release.invalid/').pathname;
+  const relativePath = decodeURIComponent(pathname).replace(/^\/+/, '');
+  const target = path.resolve(distDir, relativePath);
+  assert(target.startsWith(`${distDir}${path.sep}`), `${label} resolves outside dist`);
+  return target;
+}
+
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
 async function filesBelow(directory) {
   const entries = await readdir(directory);
   const files = [];
@@ -54,6 +85,36 @@ const [html, copy] = await Promise.all([
   readFile(copyPath, 'utf8').then(JSON.parse)
 ]);
 const text = visibleText(html);
+const faviconHref = releaseLinkHref(
+  html,
+  (tag) => attribute(tag, 'rel') === 'icon',
+  'release favicon'
+);
+const titleFontHref = releaseLinkHref(
+  html,
+  (tag) => attribute(tag, 'rel') === 'preload' && attribute(tag, 'as') === 'font',
+  'release title font preload'
+);
+const stylesheetHrefs = (html.match(/<link\b[^>]*>/gi) ?? [])
+  .filter((tag) => attribute(tag, 'rel') === 'stylesheet')
+  .map((tag) => attribute(tag, 'href'))
+  .filter(Boolean);
+assert(stylesheetHrefs.length > 0, 'release build emitted no initial stylesheet');
+
+const [faviconBytes, faviconSourceBytes, titleFontBytes, titleFontSourceBytes, ...stylesheets] = await Promise.all([
+  readFile(distPathFromHref(faviconHref, 'release favicon')),
+  readFile(faviconSourcePath),
+  readFile(distPathFromHref(titleFontHref, 'release title font preload')),
+  readFile(titleFontSourcePath),
+  ...stylesheetHrefs.map((href) => readFile(distPathFromHref(href, 'release stylesheet'), 'utf8'))
+]);
+assert(faviconBytes.equals(faviconSourceBytes), 'emitted favicon bytes differ from assets/favicon.svg');
+assert(titleFontBytes.equals(titleFontSourceBytes), 'emitted title font bytes differ from assets/fonts/qiji-title-subset.ttf');
+const initialCss = stylesheets.join('\n');
+for (const token of ['@font-face', '--font-title:', '--font-sans:', '--font-traditional:']) {
+  assert(initialCss.includes(token), `initial stylesheet is missing ${token}`);
+}
+assert(!/font-family:\s*Inter\b/.test(initialCss), 'initial stylesheet restored Inter-first drift');
 
 assert(html.includes('<title>同野观幂｜AI 转型与能力建设</title>'), 'release title is missing');
 assert(
@@ -62,6 +123,15 @@ assert(
 );
 assert(html.includes('<link rel="canonical" href="/">'), 'release canonical link is missing');
 assert(html.includes('<html lang="zh-CN">'), 'release language is missing');
+assert((html.match(/data-site-footer="true"/g) ?? []).length === 1, 'release static footer must render exactly once');
+for (const footerText of [
+  '© 上海同野观幂科技有限公司',
+  'AI Transformation & Capability Building',
+  '服务备案号 沪ICP备2024086119号-3'
+]) {
+  assert(text.split(footerText).length === 2, `release static footer must contain ${footerText} exactly once`);
+}
+assert(html.includes('href="https://beian.miit.gov.cn/"'), 'release filing link is missing');
 for (const anchor of ['home', 'method', 'services', 'education', 'contact']) {
   assert(html.includes(`href="#${anchor}"`), `static navigation is missing #${anchor}`);
   assert(html.includes(`id="${anchor}"`), `static content is missing #${anchor}`);
@@ -100,5 +170,17 @@ process.stdout.write(`${JSON.stringify({
   index: path.relative(repoDir, indexPath),
   checkedCopyItems,
   jsFiles: jsFiles.length,
-  staticSections: copy.sections.filter((section) => !section.legacyOnly).length
+  staticSections: copy.sections.filter((section) => !section.legacyOnly).length,
+  assets: {
+    favicon: {
+      path: path.relative(repoDir, distPathFromHref(faviconHref, 'release favicon')),
+      bytes: faviconBytes.byteLength,
+      sha256: sha256(faviconBytes)
+    },
+    titleFont: {
+      path: path.relative(repoDir, distPathFromHref(titleFontHref, 'release title font preload')),
+      bytes: titleFontBytes.byteLength,
+      sha256: sha256(titleFontBytes)
+    }
+  }
 })}\n`);

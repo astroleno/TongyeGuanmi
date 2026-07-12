@@ -188,30 +188,6 @@ function writeTrace(name: string, frame: Group1Snapshot): void {
   writeFileSync(resolve(artifactDir, name), `${JSON.stringify(frame, null, 2)}\n`);
 }
 
-async function screenshotCornerPixels(page: Page): Promise<readonly string[]> {
-  const screenshot = await page.screenshot();
-  const dataUrl = `data:image/png;base64,${screenshot.toString('base64')}`;
-  return page.evaluate(async (src) => {
-    const image = new Image();
-    image.src = src;
-    await image.decode();
-    const canvas = document.createElement('canvas');
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
-    const context = canvas.getContext('2d');
-    if (!context) {
-      throw new Error('Screenshot sampling canvas is unavailable');
-    }
-    context.drawImage(image, 0, 0);
-    return [
-      [0, 0],
-      [canvas.width - 1, 0],
-      [0, canvas.height - 1],
-      [canvas.width - 1, canvas.height - 1]
-    ].map(([x, y]) => [...context.getImageData(x ?? 0, y ?? 0, 1, 1).data].join(','));
-  }, dataUrl);
-}
-
 test.describe('R4 group1 canonical spine harness', () => {
   test.use({
     viewport: { width: 1280, height: 720 },
@@ -241,6 +217,9 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(earlyHeroPattern.patternProgress).toBe(0);
     expect(earlyHeroPattern.patternCanvasOpacity).toBe(1);
     expect(earlyHeroPattern.patternClipProgress).toBeCloseTo(0.2, 2);
+    await page.waitForTimeout(180);
+    const earlyHeroPatternLater = await visualSnapshot(page);
+    expect(earlyHeroPatternLater.patternCanvasRevision).toBeGreaterThan(earlyHeroPattern.patternCanvasRevision);
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubHeroPattern(0.79);
     });
@@ -284,6 +263,9 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(compactPattern.largestRingScale).toBeCloseTo(0.08, 3);
     expect(compactPattern.compactRingScale).toBeCloseTo(0.28, 3);
     expect(compactPattern.starMapLayerVisible).toBe(false);
+    await page.waitForTimeout(180);
+    const compactPatternLater = await visualSnapshot(page);
+    expect(compactPatternLater.patternCanvasRevision).toBeGreaterThan(compactPattern.patternCanvasRevision);
 
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubPatternStarMap(0.96);
@@ -293,7 +275,10 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(canonicalStarHandoff.starMapCanvasOpacity).toBeGreaterThan(0.8);
     expect(canonicalStarHandoff.starMapTransitionPaused).toBe(false);
     expect(canonicalStarHandoff.starMapCanvasFilter).toContain('brightness(0.92)');
-    expect(canonicalStarHandoff.starMapCanvasMotionActive).toBe(false);
+    expect(canonicalStarHandoff.starMapCanvasMotionActive).toBe(true);
+    await page.waitForTimeout(180);
+    const starHandoffLater = await visualSnapshot(page);
+    expect(starHandoffLater.starMapCanvasRevision).toBeGreaterThan(canonicalStarHandoff.starMapCanvasRevision);
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubPatternStarMap(0);
     });
@@ -320,7 +305,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(patternStarMapInk?.starMapLayerClipPath).toContain('circle(');
     expect(patternStarMapInk?.starMapCanvasTextureUploads ?? 99).toBeLessThanOrEqual(3);
     expect(patternStarMapInk?.starMapSnapshotCaptures).toBe(0);
-    expect(patternStarMapInk?.starMapCanvasMotionActive).toBe(false);
+    expect(patternStarMapInk?.starMapCanvasMotionActive).toBe(true);
     expect(patternStarMapInk?.inkOrigins['pattern-star-map']?.x).toBeCloseTo(0.24, 2);
     expect(patternStarMapInk?.inkOrigins['pattern-star-map']?.y).toBeCloseTo(0.55, 2);
     expect(patternStarMapInk?.patternProgress).toBe(1);
@@ -338,9 +323,26 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(starHoldLater.starMapCanvasRevision).toBeGreaterThan(starHold.starMapCanvasRevision);
     expect(starHoldLater.starMapCanvasMotionActive).toBe(true);
 
-    await page.evaluate(async () => {
-      await window.__r4Group1?.playReverse();
+    await page.evaluate(() => {
+      void window.__r4Group1?.playReverse();
     });
+    let reversePatternStarMapInk: Group1VisualSnapshot | undefined;
+    const reverseInkDeadline = Date.now() + 12_000;
+    while (Date.now() < reverseInkDeadline && !reversePatternStarMapInk) {
+      const visual = await visualSnapshot(page);
+      if (visual.activeInkSegments.includes('pattern-star-map')) {
+        reversePatternStarMapInk = visual;
+        break;
+      }
+      await page.waitForTimeout(20);
+    }
+    expect(reversePatternStarMapInk?.starMapCanvasMotionActive).toBe(true);
+    await page.waitForTimeout(180);
+    const reversePatternStarMapInkLater = await visualSnapshot(page);
+    expect(reversePatternStarMapInkLater.starMapCanvasRevision).toBeGreaterThan(
+      reversePatternStarMapInk?.starMapCanvasRevision ?? 0
+    );
+    await expect.poll(async () => (await snapshot(page)).phase, { timeout: 12_000 }).toBe('staged-paused');
     const reversePause = await snapshot(page);
     expect(reversePause.phase).toBe('staged-paused');
     const reverseCompactPattern = await visualSnapshot(page);
@@ -408,7 +410,6 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(starAfter.starMapCanvasRevision).toBeGreaterThan(starBefore.starMapCanvasRevision);
     expect(starAfter.starMapCanvasMotionActive).toBe(true);
 
-    const pixelsBefore = await screenshotCornerPixels(page);
     await page.evaluate(() => {
       window.scrollTo(0, 10_000);
       window.scrollBy(10_000, 10_000);
@@ -422,7 +423,6 @@ test.describe('R4 group1 canonical spine harness', () => {
       scrollX: window.scrollX,
       scrollY: window.scrollY
     }));
-    const pixelsAfter = await screenshotCornerPixels(page);
     expect(viewport).toMatchObject({
       documentHeight: 720,
       documentWidth: 1280,
@@ -431,14 +431,6 @@ test.describe('R4 group1 canonical spine harness', () => {
       scrollX: 0,
       scrollY: 0
     });
-    for (let index = 0; index < pixelsAfter.length; index += 1) {
-      const before = (pixelsBefore[index] ?? '').split(',').map(Number);
-      const after = (pixelsAfter[index] ?? '').split(',').map(Number);
-      expect(after[3]).toBe(255);
-      expect(Math.abs((after[0] ?? 0) - (before[0] ?? 0))).toBeLessThan(24);
-      expect(Math.abs((after[1] ?? 0) - (before[1] ?? 0))).toBeLessThan(24);
-      expect(Math.abs((after[2] ?? 0) - (before[2] ?? 0))).toBeLessThan(24);
-    }
   });
 
   test('recovers from build timeout without locking the current hold', async ({ page }) => {

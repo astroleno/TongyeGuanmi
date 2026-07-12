@@ -21,6 +21,17 @@ export type BrowserStorySnapshot = {
     releasedVideos: number;
   };
   reducedMotion: boolean;
+  loaderMode: 'cold-hero' | 'direct' | 'reduced';
+  loaderStatus: 'running' | 'exiting' | 'hidden';
+  heroIntroMode: 'waiting' | 'running' | 'complete' | 'endpoint';
+  presentationReady: boolean;
+  recovery?: {
+    scope: 'boot' | 'segment';
+    status: 'fallback' | 'recovering' | 'failed';
+    segment?: string;
+    direction?: 1 | -1;
+    endpoint?: string;
+  };
   lastError?: string;
 };
 
@@ -62,7 +73,8 @@ export async function bootStory(page: Page, path = '/'): Promise<BrowserStorySna
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => {
     const story = (window as StoryWindow).__storyApp;
-    return story?.snapshot().phase === 'hold';
+    const snapshot = story?.snapshot();
+    return snapshot?.phase === 'hold' && snapshot.presentationReady === true;
   }, undefined, { timeout: 30_000 });
   return storySnapshot(page);
 }
@@ -80,7 +92,17 @@ export async function storySnapshot(page: Page): Promise<BrowserStorySnapshot> {
 export async function waitForHold(page: Page, scene: string): Promise<BrowserStorySnapshot> {
   await page.waitForFunction((expected) => {
     const snapshot = (window as StoryWindow).__storyApp?.snapshot();
-    return snapshot?.phase === 'hold' && snapshot.current === expected;
+    if (snapshot?.phase !== 'hold' || snapshot.current !== expected) {
+      return false;
+    }
+    const layer = document.querySelector<HTMLElement>(`[data-stage-layer="${expected}"]`);
+    if (layer?.dataset.reading !== 'true') {
+      return true;
+    }
+    const scrollport = layer.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
+      ?? (layer.matches('[data-reading-scrollport="true"]') ? layer : null);
+    return scrollport?.dataset.readingEdge === 'top'
+      || scrollport?.dataset.readingEdge === 'bottom';
   }, scene, { timeout: 30_000 });
   return storySnapshot(page);
 }
@@ -110,6 +132,7 @@ async function positionReadingAtDirectionEdge(page: Page, direction: 1 | -1): Pr
     scrollport.scrollTop = value === 1
       ? Math.max(0, scrollport.scrollHeight - scrollport.clientHeight)
       : 0;
+    window.dispatchEvent(new Event('story-reading-entry'));
   }, direction);
 }
 
@@ -117,8 +140,17 @@ export async function moveOneHold(page: Page, direction: 1 | -1): Promise<Browse
   const start = (await storySnapshot(page)).current;
   await positionReadingAtDirectionEdge(page, direction);
   const key = direction === 1 ? 'PageDown' : 'PageUp';
+  const reading = await page.evaluate(() => {
+    const current = (window as StoryWindow).__storyApp?.snapshot().current;
+    return current
+      ? document.querySelector<HTMLElement>(`[data-stage-layer="${current}"]`)?.dataset.reading === 'true'
+      : false;
+  });
+  if (reading) {
+    await page.keyboard.press(key);
+  }
 
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     const before = await storySnapshot(page);
     if (before.current !== start && before.phase === 'hold') {
       return before;
@@ -132,11 +164,7 @@ export async function moveOneHold(page: Page, direction: 1 | -1): Promise<Browse
       continue;
     }
     await page.keyboard.press(key);
-    await page.waitForFunction((scene) => {
-      const snapshot = (window as StoryWindow).__storyApp?.snapshot();
-      return snapshot?.phase === 'staged-paused'
-        || (snapshot?.phase === 'hold' && snapshot.current !== scene);
-    }, start, { timeout: 20_000 });
+    await page.waitForTimeout(60);
   }
 
   const final = await storySnapshot(page);

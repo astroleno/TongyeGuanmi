@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createDirectorRuntime, type StoryDebugSnapshot } from '../../runtime/director.actor';
 import { Stage } from '../../stage/Stage';
+import { positionReadingAtEdge } from '../../stage/reading';
 import type { LayerWindowSnapshot } from '../../stage/LayerWindow';
 import { HandleRegistry } from '../../story/registry';
 import type {
@@ -28,6 +29,7 @@ import {
 import { hiddenVisibility, holdVisibility, applyLayerVisibility } from '../../pilot/visibility';
 import { createR3PilotManifest, type PilotHarnessMode } from './pilotManifest';
 import { shouldWaitForPilotMediaReady } from './mediaGate';
+import type { InkGradePreset } from '../../transitions/shared/sceneInk';
 
 type HarnessPhase = 'booting' | 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
 
@@ -72,6 +74,7 @@ export type PilotSnapshot = {
   copyCueActivations: number;
   mediaMilestones: readonly AodVideoMilestoneRecord[];
   trace: StoryDebugSnapshot['eventLog'];
+  inkGrade: InkGradePreset;
   layers: readonly {
     scene: string;
     role: string;
@@ -91,6 +94,7 @@ type PilotHarnessApi = {
   staleMediaReady(): void;
   probeVideoMilestones(): Promise<void>;
   copyCueCycle(): Promise<void>;
+  setInkGrade(grade: InkGradePreset): void;
   snapshot(): PilotSnapshot;
 };
 
@@ -144,7 +148,12 @@ function eventTypes(snapshot: StoryDebugSnapshot): string[] {
   });
 }
 
-function readDomSnapshot(mode: PilotHarnessMode, snapshot: StoryDebugSnapshot, metrics: PilotMetrics): PilotSnapshot {
+function readDomSnapshot(
+  mode: PilotHarnessMode,
+  snapshot: StoryDebugSnapshot,
+  metrics: PilotMetrics,
+  inkGrade: InkGradePreset
+): PilotSnapshot {
   const layers = [...document.querySelectorAll<HTMLElement>('[data-stage-layer]')].map((layer) => {
     const computed = window.getComputedStyle(layer);
     return {
@@ -179,6 +188,7 @@ function readDomSnapshot(mode: PilotHarnessMode, snapshot: StoryDebugSnapshot, m
     copyCueActivations: Math.max(metrics.copyCueActivations, ...layers.map((layer) => layer.copyCueActivations)),
     mediaMilestones: metrics.mediaMilestones,
     trace: snapshot.eventLog,
+    inkGrade,
     layers
   };
 }
@@ -193,6 +203,7 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
   const mediaGateCounter = useRef(0);
   const videoProbeCounter = useRef(0);
   const playOptionsRef = useRef<PlayOptions>({});
+  const inkGradeRef = useRef<InkGradePreset>('edge-only');
   const [visibilityByScene, setVisibilityByScene] = useState<Partial<Record<SceneId, LayerVisibilityState>>>(() => {
     const initialWindow = { current: manifest.nodes.find((node) => node.kind === 'hold')?.scene ?? 'star-map', retiring: [] } as LayerWindowSnapshot;
     return holdVisibilityForWindow(initialWindow);
@@ -308,7 +319,10 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
   const runtime = useMemo(() => {
     const runtimeBox: { current?: ReturnType<typeof createDirectorRuntime> } = {};
     const transitions = {
-      'star-map-aod': createStarMapAodTransition({ delayMs: () => buildDelayMs.current }),
+      'star-map-aod': createStarMapAodTransition({
+        delayMs: () => buildDelayMs.current,
+        grade: () => inkGradeRef.current
+      }),
       'aod-method-top': createAodMethodTopTransition({
         delayMs: () => buildDelayMs.current,
         getVideo: aodVideo
@@ -454,6 +468,10 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
     runtimeSnapshotRef.current = next;
     if (next.state === 'hold') {
       setHoldVisibility(next.context.layerWindow);
+      const entry = next.context.holdEntry;
+      if (next.context.cursor.status === 'hold' && entry.scene === next.context.cursor.scene) {
+        positionReadingAtEdge(layerElements.current.get(entry.scene), entry.edge);
+      }
     }
     setRuntimeSnapshot(next);
     if (next.context.lastError && next.context.lastError !== recoveryBefore) {
@@ -554,6 +572,12 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
     await play(1);
   };
 
+  function setInkGrade(grade: InkGradePreset) {
+    inkGradeRef.current = grade;
+    runtime.segmentPlayer.dispose('star-map-aod');
+    pushLocalEvent(`INK_GRADE:${grade}`);
+  }
+
   useEffect(() => {
     const api: PilotHarnessApi = {
       playForward: (options) => play(1, options),
@@ -563,7 +587,8 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
       staleMediaReady,
       probeVideoMilestones,
       copyCueCycle,
-      snapshot: () => readDomSnapshot(mode, runtime.getState(), metricsRef.current)
+      setInkGrade: (grade) => setInkGrade(grade),
+      snapshot: () => readDomSnapshot(mode, runtime.getState(), metricsRef.current, inkGradeRef.current)
     };
     window.__r3Pilot = api;
     return () => {
@@ -571,7 +596,7 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
     };
   });
 
-  const frame = readDomSnapshot(mode, runtimeSnapshot, metrics);
+  const frame = readDomSnapshot(mode, runtimeSnapshot, metrics, inkGradeRef.current);
   const copyCueScene = (visibilityByScene['method-top']?.opacity ?? 0) > 0.001 ? 'method-top' : undefined;
 
   return (
@@ -609,6 +634,10 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
             <dt>copyCue</dt>
             <dd>{frame.copyCueActivations}</dd>
           </div>
+          <div>
+            <dt>ink grade</dt>
+            <dd>{frame.inkGrade}</dd>
+          </div>
         </dl>
         <div className="harness-controls">
           <button type="button" onClick={() => void play(1)}>Forward</button>
@@ -621,6 +650,8 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
           <button type="button" onClick={duplicateMediaReady}>Duplicate Media</button>
           <button type="button" onClick={staleMediaReady}>Stale Media</button>
           <button type="button" onClick={() => void copyCueCycle()}>CopyCue Cycle</button>
+          <button type="button" onClick={() => setInkGrade('edge-only')}>Ink Edge</button>
+          <button type="button" onClick={() => setInkGrade('dark')}>Ink Dark</button>
         </div>
       </aside>
     </div>

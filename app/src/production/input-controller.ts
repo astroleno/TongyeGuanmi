@@ -1,7 +1,8 @@
 import { normalizeInputDelta, type RawInput } from '../runtime/input-normalizer';
-import { readingScrollport } from '../stage/reading';
+import { readingCanScroll } from '../stage/reading';
 import type { createDirectorRuntime } from '../runtime/director.actor';
 import type { Direction, SceneId } from '../story/types';
+import { createReadingHandoff } from './reading-handoff';
 
 type Runtime = ReturnType<typeof createDirectorRuntime>;
 
@@ -16,17 +17,10 @@ function direction(delta: number): Direction {
 }
 
 export function canScrollNatively(root: HTMLElement | null | undefined, delta: number): boolean {
-  const scrollport = readingScrollport(root);
-  if (!scrollport || delta === 0) {
+  if (delta === 0) {
     return false;
   }
-  const maxScrollTop = Math.max(0, scrollport.scrollHeight - scrollport.clientHeight);
-  if (maxScrollTop <= 1) {
-    return false;
-  }
-  return direction(delta) === 1
-    ? scrollport.scrollTop < maxScrollTop - 1
-    : scrollport.scrollTop > 1;
+  return readingCanScroll(root, direction(delta));
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -34,8 +28,17 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return Boolean(element?.closest('input, textarea, select, [contenteditable="true"]'));
 }
 
+function storyViewportHeight(): number {
+  const storyHeight = typeof document === 'undefined'
+    ? 0
+    : document.querySelector<HTMLElement>('[data-production-story-app="true"]')?.clientHeight ?? 0;
+  return storyHeight > 0 ? storyHeight : window.innerHeight;
+}
+
 export function attachStoryInput(options: StoryInputControllerOptions): () => void {
   let previousTouchY: number | undefined;
+  let observedScene = options.getCurrentScene();
+  const readingHandoff = createReadingHandoff();
 
   const dispatch = (raw: RawInput, event: Event) => {
     const normalized = normalizeInputDelta(raw);
@@ -44,16 +47,36 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
     }
     const currentScene = options.getCurrentScene();
     const currentLayer = currentScene ? options.getLayerElement(currentScene) : null;
-    if (canScrollNatively(currentLayer, normalized.delta)) {
-      if (raw.type === 'key') {
-        event.preventDefault();
-        const scrollport = readingScrollport(currentLayer);
-        scrollport?.scrollBy({
-          top: normalized.delta * window.innerHeight,
-          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    const runtimeSnapshot = options.runtime.getState();
+    const ownsReadingInput = Boolean(
+      currentScene
+      && runtimeSnapshot.state === 'hold'
+      && runtimeSnapshot.context.cursor.status === 'hold'
+      && runtimeSnapshot.context.cursor.scene === currentScene
+    );
+    if (ownsReadingInput && currentScene) {
+      const handoff = readingHandoff.consume({
+        scene: currentScene,
+        root: currentLayer,
+        pixels: normalized.pixels,
+        viewportHeight: normalized.viewportHeight,
+        now: Date.now()
+      });
+      if (handoff.owned) {
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+        if (handoff.directorDelta === 0) {
+          return;
+        }
+        options.runtime.send({
+          type: 'INPUT_DELTA',
+          delta: handoff.directorDelta,
+          source: normalized.source,
+          now: Date.now()
         });
+        return;
       }
-      return;
     }
     if (event.cancelable) {
       event.preventDefault();
@@ -71,7 +94,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
       type: 'wheel',
       deltaY: event.deltaY,
       deltaMode: event.deltaMode as 0 | 1 | 2,
-      viewportHeight: window.innerHeight
+      viewportHeight: storyViewportHeight()
     }, event);
   };
 
@@ -91,19 +114,20 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
       type: 'touch',
       currentY,
       previousY: before,
-      viewportHeight: window.innerHeight
+      viewportHeight: storyViewportHeight()
     }, event);
   };
 
   const onTouchEnd = () => {
     previousTouchY = undefined;
+    readingHandoff.reset('gesture-idle');
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableTarget(event.target)) {
       return;
     }
-    dispatch({ type: 'key', key: event.key, viewportHeight: window.innerHeight }, event);
+    dispatch({ type: 'key', key: event.key, viewportHeight: storyViewportHeight() }, event);
   };
 
   window.addEventListener('wheel', onWheel, { passive: false });
@@ -113,6 +137,23 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   window.addEventListener('touchcancel', onTouchEnd, { passive: true });
   window.addEventListener('keydown', onKeyDown);
 
+  const resetForViewport = () => readingHandoff.reset('viewport-change');
+  const resetForEntry = () => readingHandoff.reset('entry-position');
+  window.addEventListener('resize', resetForViewport);
+  window.addEventListener('orientationchange', resetForViewport);
+  window.addEventListener('story-reading-entry', resetForEntry);
+  window.visualViewport?.addEventListener('resize', resetForViewport);
+  const unsubscribeRuntime = options.runtime.subscribe(() => {
+    const next = options.getCurrentScene();
+    if (next !== observedScene) {
+      observedScene = next;
+      readingHandoff.reset('scene-change');
+    }
+    if (options.runtime.getState().state === 'seeking') {
+      readingHandoff.reset('seek');
+    }
+  });
+
   return () => {
     window.removeEventListener('wheel', onWheel);
     window.removeEventListener('touchstart', onTouchStart);
@@ -120,5 +161,11 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
     window.removeEventListener('touchend', onTouchEnd);
     window.removeEventListener('touchcancel', onTouchEnd);
     window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('resize', resetForViewport);
+    window.removeEventListener('orientationchange', resetForViewport);
+    window.removeEventListener('story-reading-entry', resetForEntry);
+    window.visualViewport?.removeEventListener('resize', resetForViewport);
+    unsubscribeRuntime();
+    readingHandoff.reset('dispose');
   };
 }

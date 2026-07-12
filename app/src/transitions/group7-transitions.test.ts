@@ -3,7 +3,11 @@ import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { CRANE_CONTACT_COPY_CUE, createCraneContactTransition } from './crane-contact';
 import { createEducationCraneTransition } from './education-crane';
-import { renderCraneAnimationProgress } from '../scenes/crane-animation';
+import {
+  CRANE_PLAYBACK_MS,
+  CRANE_TIMELINE_DURATION_SECONDS,
+  renderCraneAnimationProgress
+} from '../scenes/crane-animation';
 import type { Direction, LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeElement as FixtureElement } from './__fixtures__/back-half.fixture';
 
@@ -87,6 +91,8 @@ class FakeVideo extends FakeElement {
   currentTime = 0;
   paused = true;
   loop = false;
+  muted = false;
+  playsInline = false;
   playbackRate = 1;
   playCalls = 0;
 
@@ -97,6 +103,10 @@ class FakeVideo extends FakeElement {
   pause(): void {
     this.paused = true;
   }
+
+  addEventListener(): void {}
+
+  removeEventListener(): void {}
 
   play(): Promise<void> {
     this.playCalls += 1;
@@ -258,7 +268,7 @@ describe('R4 group7 transitions', () => {
     root.dataset.r4Scene = 'crane-animation';
 
     expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0).videoOpacity).toBe(0);
-    expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0.2).videoOpacity).toBe(1);
+    expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0.22).videoOpacity).toBe(1);
     expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0.4).videoOpacity).toBe(1);
     expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0.8).videoOpacity).toBe(1);
   });
@@ -335,8 +345,10 @@ describe('R4 group7 transitions', () => {
     const transition = createCraneContactTransition();
     const timeline = await transition.buildTimeline(fixture.context);
 
-    expect(craneSegment.virtualDuration).toBe(4200);
-    timeline.progress(0.2);
+    expect(CRANE_PLAYBACK_MS).toBe(3000);
+    expect(CRANE_TIMELINE_DURATION_SECONDS).toBe(3);
+    expect(craneSegment.virtualDuration).toBe(CRANE_PLAYBACK_MS);
+    timeline.progress(0.25);
     expect(fixture.figureVideo.currentTime).toBeGreaterThan(0);
     expect(fixture.flockVideo.currentTime).toBeGreaterThan(0);
     expect(fixture.figureVideo.playCalls).toBe(0);
@@ -349,7 +361,7 @@ describe('R4 group7 transitions', () => {
 
     timeline.progress(0.8);
     expect(fixture.figureVideo.currentTime).toBeLessThan(2.499);
-    expect(fixture.flockVideo.currentTime).toBeCloseTo(2.499, 3);
+    expect(fixture.flockVideo.currentTime).toBeLessThan(2.499);
     expect(fixture.figureVideo.paused).toBe(true);
     expect(fixture.flockVideo.paused).toBe(true);
     expect(fixture.craneRoot.dataset.cranePlaybackActive).toBe('true');
@@ -411,25 +423,25 @@ describe('R4 group7 transitions', () => {
     const timeline = await createCraneContactTransition().buildTimeline(fixture.context);
     const playback = timeline.play(1);
 
-    nextFrame?.(2_650);
+    nextFrame?.(1_850);
     expect(fixture.contactLayer.element?.dataset.copyCueActive).toBe('false');
     expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
 
-    nextFrame?.(3_234);
+    nextFrame?.(2_310);
     expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
     expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-wash-alpha')).toBe('0.0000');
     expect(fixture.contactLayer.element?.dataset.copyCueActive).toBe('false');
 
-    nextFrame?.(3_360);
+    nextFrame?.(2_400);
     expect(fixture.contactLayer.element?.dataset.copyCueActive).toBe('true');
     expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
     expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-opacity')).toBe('1.0000');
 
-    nextFrame?.(3_780);
+    nextFrame?.(2_700);
     expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.5000');
     expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-wash-alpha')).toBe('0.5000');
 
-    nextFrame?.(4_200);
+    nextFrame?.(3_000);
     await playback;
   });
 

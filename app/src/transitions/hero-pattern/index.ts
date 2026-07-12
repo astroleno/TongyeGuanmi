@@ -26,6 +26,7 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
       renderHeroForHeroPattern(from);
       renderPatternForHeroPattern(to);
     },
+    motionScenes: ['to'],
     transitionAttr: 'hero-pattern-live-circle'
   });
 }

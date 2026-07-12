@@ -320,6 +320,58 @@ describe('Director machine', () => {
     expect(context(actor).cursor).toEqual({ status: 'hold', scene: 'pattern' });
   });
 
+  it('carries top and bottom reading entry intent through sequential settlement', async () => {
+    const actor = startDirector();
+    bootToHold(actor);
+    actor.send({ type: 'SEEK', label: 'scene:method-top', source: 'menu' });
+    await flushTimers(0);
+    expect(context(actor).holdEntry).toMatchObject({
+      scene: 'method-top',
+      edge: 'top',
+      source: 'menu'
+    });
+
+    enterPlaying(actor, 1);
+    const forwardRun = context(actor).activeRunId;
+    if (!forwardRun) throw new Error('missing forward run');
+    actor.send({ type: 'PLAYBACK_DONE', runId: forwardRun });
+    actor.send({ type: 'SETTLING_DONE', now: 1 });
+    expect(context(actor).cursor).toEqual({ status: 'hold', scene: 'figure2-animation' });
+
+    enterPlaying(actor, -1);
+    const reverseRun = context(actor).activeRunId;
+    if (!reverseRun) throw new Error('missing reverse run');
+    actor.send({ type: 'PLAYBACK_DONE', runId: reverseRun });
+    actor.send({ type: 'SETTLING_DONE', now: 2 });
+
+    expect(context(actor).holdEntry).toMatchObject({
+      scene: 'method-top',
+      edge: 'bottom',
+      source: 'sequential'
+    });
+  });
+
+  it('does not flush momentum from the prior segment through a reading hold', async () => {
+    const actor = startDirector();
+    bootToHold(actor);
+    actor.send({ type: 'SEEK', label: 'scene:aod-animation', source: 'menu' });
+    await flushTimers(0);
+    enterPlaying(actor, 1);
+    const runId = context(actor).activeRunId;
+    if (!runId) throw new Error('missing run');
+
+    actor.send({ type: 'INPUT_DELTA', delta: 0.12, source: 'wheel', now: 0 });
+    actor.send({ type: 'PLAYBACK_DONE', runId });
+    actor.send({ type: 'SETTLING_DONE', now: 10 });
+
+    expect(stateValue(actor)).toBe('hold');
+    expect(context(actor)).toMatchObject({
+      cursor: { status: 'hold', scene: 'method-top' },
+      queuedIntent: undefined,
+      holdEntry: { scene: 'method-top', edge: 'top', source: 'sequential' }
+    });
+  });
+
   it('supersedes preparing direction and ignores stale prepare tokens', async () => {
     const actor = startDirector({ manifest: withSegmentsSnap('pattern-star-map') });
     bootToHold(actor);
@@ -421,6 +473,39 @@ describe('Director machine', () => {
     expect(context(actor).layerWindow.current).toBe('hero');
     await flushTimers(0);
     expect(stateValue(actor)).toBe('hold');
+  });
+
+  it('keeps Contact committed while a failed reverse crane-contact run recovers locally', async () => {
+    const actor = startDirector();
+    bootToHold(actor);
+    actor.send({ type: 'SEEK', label: 'scene:contact', source: 'menu' });
+    await flushTimers(0);
+    enterPlaying(actor, -1);
+    const runId = context(actor).activeRunId;
+    if (!runId) {
+      throw new Error('missing Contact reverse runId');
+    }
+
+    actor.send({ type: 'PLAYBACK_FAILED', runId, error: new Error('crane media timeout') });
+
+    expect(stateValue(actor)).toBe('recovering');
+    expect(context(actor)).toMatchObject({
+      cursor: { status: 'hold', scene: 'contact' },
+      layerWindow: { current: 'contact', prev: 'crane-animation' },
+      recovery: {
+        scope: 'segment',
+        status: 'recovering',
+        committedScene: 'contact',
+        segment: 'crane-contact',
+        direction: -1,
+        endpoint: 'crane-animation'
+      }
+    });
+    expect(Object.values(context(actor).layerWindow)).not.toContain('hero');
+
+    await flushTimers(0);
+    expect(stateValue(actor)).toBe('hold');
+    expect(context(actor).cursor).toEqual({ status: 'hold', scene: 'contact' });
   });
 
   it('handles quick repeat input by buffering during settling', () => {

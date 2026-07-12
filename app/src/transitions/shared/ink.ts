@@ -11,7 +11,8 @@ import { createTransitionLayerElevation, type TransitionLayerElevation } from '.
 import {
   createInkFieldRenderer,
   mountTransitionInkCanvas,
-  type InkFieldRenderer
+  type InkFieldRenderer,
+  type InkGradePreset
 } from './sceneInk';
 import {
   createInkFieldFrame,
@@ -19,7 +20,7 @@ import {
   type InkFieldFrame,
   type InkFieldSpec
 } from './inkField';
-import { positionReadingAtEdge } from '../../stage/reading';
+import { createSceneMotionLeaseGroup, type SceneMotionLeaseGroup } from '../../stage/scene-motion';
 
 export type InkFieldRoots = Readonly<{
   from: HTMLElement | null;
@@ -32,6 +33,13 @@ export type InkOwnershipSurfaces = Readonly<{
   conceal?: readonly HTMLElement[];
 }>;
 
+export type InkSourceRenderContext = Readonly<{
+  runId: TransitionContext['runId'];
+  prepareToken: TransitionContext['prepareToken'];
+  direction: Direction;
+  prefersReducedMotion: boolean;
+}>;
+
 export type InkSegmentOptions = {
   id: SegmentId;
   field: InkFieldSpec | ((roots: InkFieldRoots) => InkFieldSpec);
@@ -42,13 +50,18 @@ export type InkSegmentOptions = {
   elevateTarget?: boolean;
   sample?: (progress: number) => InkSample;
   prepareEndpoints(roots: InkEndpointRoots): void;
-  renderSource?: (root: HTMLElement | null, progress: number) => void;
+  renderSource?: (
+    root: HTMLElement | null,
+    progress: number,
+    context: InkSourceRenderContext
+  ) => void;
   renderSourceProgress?: 'static' | 'remaining' | 'forward' | ((progress: number) => number);
   rootSelector?: (scene: string) => string;
   transitionAttr?: string;
   stops?: readonly number[];
   reportTimelineReadyAt?: number;
-  positionFromReadingOnReverse?: boolean;
+  motionScenes?: readonly ('from' | 'to')[];
+  grade?: InkGradePreset;
 };
 
 export type InkEndpointRoots = Readonly<{
@@ -178,6 +191,10 @@ function viewportFor(element: HTMLElement | null): Readonly<{ width: number; hei
   };
 }
 
+function visibleForMotion(state: LayerVisibilityState): boolean {
+  return state.mounted && state.visible && state.opacity > 0.001;
+}
+
 export function clearBoundaryGeometry(element: HTMLElement | null | undefined): void {
   if (!element) {
     return;
@@ -245,12 +262,13 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private progressValue = 0;
   private disposed = false;
   private animationFrame = 0;
-  private readonly canvas: HTMLCanvasElement | null;
-  private readonly inkRenderer: InkFieldRenderer | null;
+  private canvas: HTMLCanvasElement | null;
+  private inkRenderer: InkFieldRenderer | null;
   private readonly fieldSpec: InkFieldSpec;
   private readonly elevation: TransitionLayerElevation | null;
   private readonly attrsElement: HTMLElement | null;
   private readonly surfaceHost: HTMLElement | null;
+  private readonly motionLeases: SceneMotionLeaseGroup;
   private liveElevation: TransitionLayerElevation | null = null;
   private liveElevationElement: HTMLElement | null = null;
   private endpointsPrepared = false;
@@ -258,6 +276,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private preparedToRoot: HTMLElement | null = null;
   private renderedSourceRoot: HTMLElement | null = null;
   private renderedSourceProgress = Number.NaN;
+  private playbackDirection: Direction;
   private readonly revealSurfaces = new Set<HTMLElement>();
   private readonly concealSurfaces = new Set<HTMLElement>();
 
@@ -265,6 +284,10 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     private readonly context: TransitionContext,
     private readonly options: InkSegmentOptions
   ) {
+    const generation = `${context.runId}:${context.prepareToken}`;
+    this.playbackDirection = context.direction;
+    this.progressValue = context.direction === 1 ? 0 : 1;
+    this.motionLeases = createSceneMotionLeaseGroup(`${context.runId}:${options.id}`);
     const stops = options.stops ?? [];
     this.labels = Object.fromEntries([
       ['start', 0],
@@ -282,7 +305,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         : context.to.element;
     this.canvas = mountTransitionInkCanvas(surfaceHost, options.id, {
       renderer: 'field',
-      preset: 'cinematic-color'
+      grade: options.grade ?? 'edge-only',
+      generation
     });
     this.elevation = options.elevateTarget === false ? null : createTransitionLayerElevation(context.to.element);
     this.ensureEndpointsPrepared();
@@ -290,7 +314,10 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.fieldSpec = typeof options.field === 'function'
       ? options.field(roots)
       : options.field;
-    this.inkRenderer = createInkFieldRenderer(this.canvas);
+    this.inkRenderer = createInkFieldRenderer(this.canvas, {
+      grade: options.grade ?? 'edge-only',
+      generation
+    });
     this.inkRenderer?.prewarm(
       createInkFieldFrame(this.fieldSpec, 0.003, viewportFor(surfaceHost))
     );
@@ -298,11 +325,12 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   }
 
   play(): Promise<void> {
+    this.playbackDirection = 1;
     return this.animateTo(1);
   }
 
   reverse(): Promise<void> {
-    this.positionFromReadingForReverse();
+    this.playbackDirection = -1;
     return this.animateTo(0);
   }
 
@@ -321,6 +349,11 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       this.canvas.dataset.r4InkRemounts = String(Number(this.canvas.dataset.r4InkRemounts ?? 0) + 1);
     }
     const clamped = clamp(value);
+    if (clamped > this.progressValue + 0.0001) {
+      this.playbackDirection = 1;
+    } else if (clamped < this.progressValue - 0.0001) {
+      this.playbackDirection = -1;
+    }
     const sample = this.options.sample?.(clamped) ?? sampleInk(clamped);
     const fieldProgress = clamp(this.options.fieldProgress?.(clamped) ?? clamped);
     this.progressValue = clamped;
@@ -331,6 +364,23 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     const fromRoot = sceneRoot(liveFromElement, this.context.from.scene, this.options.rootSelector);
     const toRoot = sceneRoot(liveToElement, this.context.to.scene, this.options.rootSelector);
     this.ensureEndpointsPrepared(fromRoot, toRoot);
+    const motionScenes = this.options.motionScenes ?? [];
+    this.motionLeases.sync([
+      {
+        key: 'from',
+        root: fromRoot,
+        active: !this.context.prefersReducedMotion
+          && motionScenes.includes('from')
+          && visibleForMotion(sample.from)
+      },
+      {
+        key: 'to',
+        root: toRoot,
+        active: !this.context.prefersReducedMotion
+          && motionScenes.includes('to')
+          && visibleForMotion(sample.to)
+      }
+    ]);
     if (liveFromElement !== this.context.from.element) {
       applyVisibilityToElement(liveFromElement, sample.from);
     }
@@ -355,7 +405,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         || Math.abs(sourceProgress - this.renderedSourceProgress) > 0.0001
       )
     ) {
-      this.options.renderSource(fromRoot, sourceProgress);
+      this.options.renderSource(fromRoot, sourceProgress, this.sourceRenderContext());
       this.renderedSourceRoot = fromRoot;
       this.renderedSourceProgress = sourceProgress;
     }
@@ -396,19 +446,28 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       : this.options.canvasHost === 'stage'
         ? activeSurfaceHost
          : liveToElement;
-    const inkActive = fieldProgress > 0.002 && fieldProgress < 0.999;
-    if (inkActive) {
+    const fieldVisible = fieldProgress > 0.002 && fieldProgress < 0.999;
+    const inkActive = fieldVisible && Boolean(this.inkRenderer?.isActive());
+    if (fieldVisible) {
       liveAttrsElement?.setAttribute('data-r4-transition', this.options.transitionAttr ?? this.options.id);
-      liveAttrsElement?.setAttribute('data-r4-ink-active', 'true');
       liveAttrsElement?.setAttribute('data-r4-ink-progress', fieldProgress.toFixed(4));
+      if (inkActive) {
+        liveAttrsElement?.setAttribute('data-r4-ink-active', 'true');
+      } else {
+        liveAttrsElement?.removeAttribute('data-r4-ink-active');
+      }
     } else {
       liveAttrsElement?.removeAttribute('data-r4-transition');
       liveAttrsElement?.removeAttribute('data-r4-ink-active');
       liveAttrsElement?.removeAttribute('data-r4-ink-progress');
     }
     if (this.canvas) {
-      if (inkActive) {
-        this.canvas.dataset.r4InkActive = 'true';
+      if (fieldVisible) {
+        if (inkActive) {
+          this.canvas.dataset.r4InkActive = 'true';
+        } else {
+          delete this.canvas.dataset.r4InkActive;
+        }
         this.canvas.dataset.r4InkProgress = fieldProgress.toFixed(4);
         const origin = inkFieldOrigin(frame.spec);
         this.canvas.dataset.r4InkBoundaryKind = frame.spec.kind;
@@ -439,9 +498,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   }
 
   jumpToEnd(direction: Direction): void {
-    if (direction === -1) {
-      this.positionFromReadingForReverse();
-    }
+    this.playbackDirection = direction;
     this.progress(direction === 1 ? 1 : 0);
   }
 
@@ -462,13 +519,21 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   }
 
   dispose(): void {
+    if (this.disposed) {
+      return;
+    }
     this.disposed = true;
+    this.motionLeases.dispose();
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
     }
-    this.inkRenderer?.destroy();
-    this.canvas?.remove();
+    const inkRenderer = this.inkRenderer;
+    const canvas = this.canvas;
+    this.inkRenderer = null;
+    this.canvas = null;
+    inkRenderer?.destroy();
+    canvas?.remove();
     this.elevation?.restore();
     this.liveElevation?.restore();
     const liveFromElement = liveLayerElement(this.context.from);
@@ -487,6 +552,11 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     }
     this.revealSurfaces.clear();
     this.concealSurfaces.clear();
+    this.preparedFromRoot = null;
+    this.preparedToRoot = null;
+    this.renderedSourceRoot = null;
+    this.liveElevation = null;
+    this.liveElevationElement = null;
     clearBoundaryGeometry(this.context.to.element);
     clearBoundaryGeometry(liveToElement);
     const liveAttrsElement = this.options.canvasHost === 'from'
@@ -502,10 +572,13 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     }
   }
 
-  private positionFromReadingForReverse(): void {
-    if (this.options.positionFromReadingOnReverse) {
-      positionReadingAtEdge(liveLayerElement(this.context.from), 'bottom');
-    }
+  private sourceRenderContext(): InkSourceRenderContext {
+    return {
+      runId: this.context.runId,
+      prepareToken: this.context.prepareToken,
+      direction: this.playbackDirection,
+      prefersReducedMotion: this.context.prefersReducedMotion
+    };
   }
 
   private ensureEndpointsPrepared(
@@ -587,9 +660,6 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
     id: options.id,
     requiredMilestones: ['targetReady', 'buildReady'],
     reducedMotionFallback: (context) => {
-      if (context.direction === -1 && options.positionFromReadingOnReverse) {
-        positionReadingAtEdge(liveLayerElement(context.from), 'bottom');
-      }
       const endpoint = context.direction === 1 ? 1 : 0;
       const roots = {
         from: sceneRoot(liveLayerElement(context.from), context.from.scene, options.rootSelector),
@@ -598,7 +668,13 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
       options.prepareEndpoints(roots);
       options.renderSource?.(
         roots.from,
-        mappedProgress(options.renderSourceProgress, endpoint, 'static')
+        mappedProgress(options.renderSourceProgress, endpoint, 'static'),
+        {
+          runId: context.runId,
+          prepareToken: context.prepareToken,
+          direction: context.direction,
+          prefersReducedMotion: context.prefersReducedMotion
+        }
       );
       applyLayerVisibility(context.from, context.direction === 1 ? hiddenVisibility() : holdVisibility(true));
       applyLayerVisibility(context.to, context.direction === 1 ? holdVisibility(true) : hiddenVisibility());

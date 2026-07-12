@@ -55,9 +55,9 @@ if (sourceCommit !== resolvedSourceCommit) {
   );
 }
 if (candidate) {
-  if (!/^react-refactor-r5-candidate(?:-v[1-9][0-9]*)?$/.test(candidate)) {
+  if (!/^(?:react-refactor-r5-candidate(?:-v[1-9][0-9]*)?|react-refactor-r5-parity-repair-candidate)$/.test(candidate)) {
     throw new Error(
-      `candidate tag ${candidate} must match react-refactor-r5-candidate[-vN]`
+      `candidate tag ${candidate} must match react-refactor-r5-candidate[-vN] or react-refactor-r5-parity-repair-candidate`
     );
   }
   if (sourceDirty) {

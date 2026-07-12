@@ -19,6 +19,7 @@ type PilotSnapshot = {
   mediaTimeouts: number;
   recoveryCount: number;
   copyCueActivations: number;
+  inkGrade: 'edge-only' | 'dark';
   mediaMilestones: readonly {
     milestone?: string;
     accepted?: boolean;
@@ -50,6 +51,7 @@ declare global {
       staleMediaReady(): void;
       probeVideoMilestones(): Promise<void>;
       copyCueCycle(): Promise<void>;
+      setInkGrade(grade: 'edge-only' | 'dark'): void;
       snapshot(): PilotSnapshot;
     };
   }
@@ -130,6 +132,174 @@ test.describe('R3 pilot harness', () => {
   test.use({
     viewport: { width: 1280, height: 720 },
     deviceScaleFactor: 1
+  });
+
+  test('alternates Star Map and AOD ten times with a fresh live ink run', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto('/harness/r3-pilot');
+    await expect(page.getByTestId('r2-stage')).toBeVisible();
+    expect((await snapshot(page)).inkGrade).toBe('edge-only');
+    const generations = new Set<string>();
+
+    for (let index = 0; index < 10; index += 1) {
+      const direction = index % 2 === 0 ? 1 : -1;
+      const expectedScene = direction === 1 ? 'aod-animation' : 'star-map';
+      await page.evaluate((runDirection) => {
+        if (runDirection === 1) {
+          void window.__r3Pilot?.playForward();
+        } else {
+          void window.__r3Pilot?.playReverse();
+        }
+      }, direction);
+
+      let observed: {
+        count: number;
+        generation: string;
+        rendererActive: boolean;
+        bodyVisible: boolean;
+        parentIsStage: boolean;
+      } | undefined;
+      await expect.poll(async () => {
+        const next = await page.evaluate(() => {
+          const canvases = [...document.querySelectorAll<HTMLCanvasElement>(
+            '.stage > canvas[data-r4-ink-segment="star-map-aod"]'
+          )];
+          const canvas = canvases[0];
+          return {
+            count: canvases.length,
+            generation: canvas?.dataset.r4InkGeneration ?? '',
+            rendererActive: canvas?.dataset.r4InkRendererActive === 'true',
+            bodyVisible: canvas?.dataset.r4InkBodyVisible === 'true',
+            parentIsStage: canvas?.parentElement?.classList.contains('stage') === true
+          };
+        });
+        if (
+          next.count === 1
+          && next.generation.length > 0
+          && next.rendererActive
+          && next.bodyVisible
+          && next.parentIsStage
+        ) {
+          observed = next;
+          return true;
+        }
+        return false;
+      }, { timeout: 15_000 }).toBe(true);
+
+      expect(observed).toBeDefined();
+      generations.add(observed?.generation ?? '');
+      await expect.poll(async () => {
+        const frame = await snapshot(page);
+        return frame.phase === 'hold' && frame.window.current === expectedScene;
+      }, { timeout: 15_000 }).toBe(true);
+      await expect.poll(() => page.locator(
+        '.stage > canvas[data-r4-ink-segment="star-map-aod"]'
+      ).count()).toBe(0);
+    }
+
+    expect(generations.size).toBe(10);
+  });
+
+  test('composites Method beneath authored AOD alpha in both directions', async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto('/harness/aod-method-top');
+    await expect(page.getByTestId('r2-stage')).toBeVisible();
+
+    const captureAlphaInterval = async (direction: 1 | -1) => page.evaluate((playDirection) => new Promise<{
+        progress: number;
+        aodLayerOpacity: string;
+        methodLayerOpacity: string;
+        copyCueActive: string;
+        methodCopyVisibility: string;
+        alphaComposite: string;
+        rootBackgroundColor: string;
+        stickyBackgroundColor: string;
+        fieldBackgroundColor: string;
+        revealBackgroundColor: string;
+        paperSolidOpacity: string;
+        figureOpacity: string;
+      } | null>((resolve) => {
+        let animationFrame = 0;
+        const timeout = window.setTimeout(() => {
+          cancelAnimationFrame(animationFrame);
+          resolve(null);
+        }, 15_000);
+        const sample = () => {
+          const aodLayer = document.querySelector<HTMLElement>('[data-stage-layer="aod-animation"]');
+          const methodLayer = document.querySelector<HTMLElement>('[data-stage-layer="method-top"]');
+          const root = aodLayer?.querySelector<HTMLElement>('[data-aod-transition]');
+          const sticky = root?.querySelector<HTMLElement>('.aod-transition__sticky');
+          const field = root?.querySelector<HTMLElement>('.aod-transition__field');
+          const reveal = root?.querySelector<HTMLElement>('.aod-transition__reveal-surface');
+          const paperSolid = root?.querySelector<HTMLElement>('.aod-transition__paper-solid');
+          const figure = root?.querySelector<HTMLElement>('[data-aod-figure-video]');
+          const methodCopy = methodLayer?.querySelector<HTMLElement>('.r4-method__layout');
+          const next = {
+            progress: Number.parseFloat(methodLayer?.dataset.aodMethodTransitionProgress ?? '-1'),
+            aodLayerOpacity: aodLayer ? getComputedStyle(aodLayer).opacity : '',
+            methodLayerOpacity: methodLayer ? getComputedStyle(methodLayer).opacity : '',
+            copyCueActive: methodLayer?.dataset.copyCueActive ?? '',
+            methodCopyVisibility: methodCopy ? getComputedStyle(methodCopy).visibility : '',
+            alphaComposite: root?.dataset.aodAlphaComposite ?? '',
+            rootBackgroundColor: root ? getComputedStyle(root).backgroundColor : '',
+            stickyBackgroundColor: sticky ? getComputedStyle(sticky).backgroundColor : '',
+            fieldBackgroundColor: field ? getComputedStyle(field).backgroundColor : '',
+            revealBackgroundColor: reveal ? getComputedStyle(reveal).backgroundColor : '',
+            paperSolidOpacity: paperSolid ? getComputedStyle(paperSolid).opacity : '',
+            figureOpacity: figure ? getComputedStyle(figure).opacity : ''
+          };
+          if (next.progress >= 0.18 && next.progress <= 0.3) {
+            window.clearTimeout(timeout);
+            resolve(next);
+            return;
+          }
+          animationFrame = requestAnimationFrame(sample);
+        };
+        animationFrame = requestAnimationFrame(sample);
+        if (playDirection === 1) {
+          void window.__r3Pilot?.playForward();
+        } else {
+          void window.__r3Pilot?.playReverse();
+        }
+      }), direction);
+
+    const forward = await captureAlphaInterval(1);
+    expect(forward).not.toBeNull();
+    expect(forward).toMatchObject({
+      aodLayerOpacity: '1',
+      methodLayerOpacity: '1',
+      copyCueActive: 'false',
+      methodCopyVisibility: 'hidden',
+      alphaComposite: 'true',
+      rootBackgroundColor: 'rgba(0, 0, 0, 0)',
+      stickyBackgroundColor: 'rgba(0, 0, 0, 0)',
+      fieldBackgroundColor: 'rgba(0, 0, 0, 0)',
+      revealBackgroundColor: 'rgba(0, 0, 0, 0)',
+      paperSolidOpacity: '0',
+      figureOpacity: '1'
+    });
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 15_000 })
+      .toBe('method-top');
+
+    const reverse = await captureAlphaInterval(-1);
+    expect(reverse).not.toBeNull();
+    expect(reverse).toMatchObject({
+      aodLayerOpacity: forward?.aodLayerOpacity,
+      methodLayerOpacity: forward?.methodLayerOpacity,
+      copyCueActive: 'false',
+      methodCopyVisibility: 'hidden',
+      alphaComposite: 'true',
+      rootBackgroundColor: forward?.rootBackgroundColor,
+      stickyBackgroundColor: forward?.stickyBackgroundColor,
+      fieldBackgroundColor: forward?.fieldBackgroundColor,
+      revealBackgroundColor: forward?.revealBackgroundColor,
+      paperSolidOpacity: '0',
+      figureOpacity: '1'
+    });
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 15_000 })
+      .toBe('aod-animation');
   });
 
   test('runs the full pilot chain with normal rhythm, real media milestones, copyCue, slow-ready, and reverse fallback', async ({ page }) => {

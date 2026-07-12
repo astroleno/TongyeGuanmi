@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HandleRegistry } from '../../story/registry';
 import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
@@ -7,6 +8,8 @@ import { createStarMapAodTransition } from '../../transitions/star-map-aod';
 import { AOD_METHOD_COPY_CUE, createAodMethodTopTransition } from '../../transitions/aod-method-top';
 import { AOD_MEDIA_KEY } from '../../transitions/aod-method-top/media';
 import { shouldWaitForPilotMediaReady } from './mediaGate';
+
+const pilotHarnessSource = readFileSync(new URL('./PilotHarness.tsx', import.meta.url), 'utf8');
 
 class FakeStyle {
   [key: string]: unknown;
@@ -42,11 +45,18 @@ class FakeStyle {
 }
 
 class FakeElement {
+  readonly children: FakeElement[] = [];
   readonly dataset: Record<string, string> = {};
   readonly style = new FakeStyle();
   readonly ownerDocument = { defaultView: { innerHeight: 800 } };
   private readonly selectors = new Map<string, FakeElement>();
   inert = false;
+  parentElement: FakeElement | null = null;
+
+  append(element: FakeElement): void {
+    element.parentElement = this;
+    this.children.push(element);
+  }
 
   connect(selector: string, element: FakeElement): void {
     this.selectors.set(selector, element);
@@ -96,7 +106,22 @@ class FakeCanvas extends FakeElement {
   getContext(): null {
     return null;
   }
+
+  remove(): void {
+    if (!this.parentElement) {
+      return;
+    }
+    const index = this.parentElement.children.indexOf(this);
+    if (index >= 0) {
+      this.parentElement.children.splice(index, 1);
+    }
+    this.parentElement = null;
+  }
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function segment(id: SegmentId): SpineSegmentNode {
   const found = storyManifest.nodes.find((node): node is SpineSegmentNode => node.kind === 'segment' && node.id === id);
@@ -165,6 +190,14 @@ function context(
 }
 
 describe('R3 pilot contract on real segments', () => {
+  it('keeps edge-only as production default and exposes dark only through the harness API', () => {
+    expect(pilotHarnessSource).toContain("useRef<InkGradePreset>('edge-only')");
+    expect(pilotHarnessSource).toContain("setInkGrade(grade: InkGradePreset)");
+    expect(pilotHarnessSource).toContain("setInkGrade: (grade) =>");
+    expect(pilotHarnessSource).toContain("inkGradeRef.current = grade");
+    expect(pilotHarnessSource).toContain("grade: () => inkGradeRef.current");
+  });
+
   it.each([
     ['star-map-aod', createStarMapAodTransition],
     ['aod-method-top', createAodMethodTopTransition]
@@ -216,7 +249,12 @@ describe('R3 pilot contract on real segments', () => {
 
     expect(verifySegmentTimeline(main, {
       policy: segment(id).policy,
-      ...(id === 'aod-method-top' ? { copyCueAtProgress: AOD_METHOD_COPY_CUE.atProgress } : {}),
+      ...(id === 'aod-method-top'
+        ? {
+            copyCueAtProgress: AOD_METHOD_COPY_CUE.atProgress,
+            allowVisibleTargetAtStart: true
+          }
+        : {}),
       requireStableSceneIdentity: true,
       requirePresentation: true,
       disposeEndpointTimelines: { start, end }
@@ -243,12 +281,15 @@ describe('R3 pilot contract on real segments', () => {
   });
 
   it('uses one hidden inset ownership gate for the live AOD reveal surface', async () => {
+    const stage = new FakeElement();
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
     const revealSurface = new FakeElement();
     const canvas = new FakeCanvas();
+    stage.append(fromElement);
+    stage.append(toElement);
     toElement.connect('[data-aod-reveal-surface]', revealSurface);
-    toElement.connect('[data-aod-ink-canvas]', canvas);
+    vi.stubGlobal('document', { createElement: () => canvas });
     const timeline = await createStarMapAodTransition().buildTimeline(context('star-map-aod', 1, {
       from: fromElement as unknown as HTMLElement,
       to: toElement as unknown as HTMLElement
@@ -263,16 +304,50 @@ describe('R3 pilot contract on real segments', () => {
     expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkRenderer).toBe('field');
+    expect(canvas.dataset.r4InkGrade).toBe('edge-only');
+    expect(canvas.parentElement).toBe(stage);
   });
 
   it('passes R2 copyCue invariants for aod-method-top at 80%', async () => {
     const transition = createAodMethodTopTransition();
     const timeline = await transition.buildTimeline(context('aod-method-top'));
 
-    expect(verifySegmentTimeline(timeline, { copyCueAtProgress: AOD_METHOD_COPY_CUE.atProgress })).toMatchObject({
+    expect(verifySegmentTimeline(timeline, {
+      copyCueAtProgress: AOD_METHOD_COPY_CUE.atProgress,
+      allowVisibleTargetAtStart: true
+    })).toMatchObject({
       maxVisibleLayers: 2,
       copyCueCrossed: true
     });
+  });
+
+  it('keeps the Method receiver visible under authored AOD alpha while copy stays cue-owned', async () => {
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    fromElement.dataset.aodTransition = 'true';
+    const timeline = await createAodMethodTopTransition().buildTimeline(context('aod-method-top', 1, {
+      from: fromElement as unknown as HTMLElement,
+      to: toElement as unknown as HTMLElement
+    }));
+
+    timeline.progress(0.2);
+    expect(timeline.sample?.(0.2)).toMatchObject({
+      from: { visible: true, opacity: 1 },
+      to: { visible: true, opacity: 1 },
+      copyCueActive: false
+    });
+    expect(toElement.dataset.copyCueActive).toBe('false');
+    expect(fromElement.dataset.aodAlphaComposite).toBe('true');
+
+    timeline.progress(1 / 3);
+    expect(timeline.sample?.(1 / 3)).toMatchObject({
+      from: { opacity: 1 },
+      to: { opacity: 1 },
+      copyCueActive: false
+    });
+    timeline.progress(0.8);
+    expect(toElement.dataset.copyCueActive).toBe('true');
+    expect((timeline as typeof timeline & { snapshot: { copyCueActivations: number } }).snapshot.copyCueActivations).toBe(1);
   });
 
   it('keeps copyCue enter idempotent across 0 to 1 to 0 to 1 on the real pilot transition', async () => {
@@ -307,7 +382,7 @@ describe('R3 pilot contract on real segments', () => {
     expect(video.playbackRate).toBe(1);
   });
 
-  it('positions Method at its top edge whenever AOD enters it again', async () => {
+  it('leaves Method entry positioning to the committed hold lifecycle', async () => {
     const scrollport = {
       clientHeight: 400,
       dataset: {},
@@ -340,11 +415,11 @@ describe('R3 pilot contract on real segments', () => {
 
     await timeline.play(1);
 
-    expect(scrollport.scrollTop).toBe(0);
-    expect(scrollport.dataset).toMatchObject({ readingEdge: 'top' });
+    expect(scrollport.scrollTop).toBe(400);
+    expect(scrollport.dataset).not.toHaveProperty('readingEdge');
   });
 
-  it('retries the Method top positioning after its reading scrollport mounts', async () => {
+  it('does not reset Method reading during intermediate transition renders', async () => {
     const scrollport = {
       clientHeight: 400,
       dataset: {},
@@ -375,13 +450,14 @@ describe('R3 pilot contract on real segments', () => {
     });
 
     mounted = true;
+    scrollport.scrollTop = 321;
     timeline.progress(0.5);
 
-    expect(scrollport.scrollTop).toBe(0);
-    expect(scrollport.dataset).toMatchObject({ readingEdge: 'top' });
+    expect(scrollport.scrollTop).toBe(321);
+    expect(scrollport.dataset).not.toHaveProperty('readingEdge');
   });
 
-  it('reasserts the Method top edge after the target layer settles', async () => {
+  it('does not overwrite Method scroll after the target layer settles', async () => {
     const scrollport = {
       clientHeight: 400,
       dataset: {},
@@ -421,8 +497,8 @@ describe('R3 pilot contract on real segments', () => {
 
     await timeline.play(1);
 
-    expect(scrollport.scrollTop).toBe(0);
-    expect(scrollport.dataset).toMatchObject({ readingEdge: 'top' });
+    expect(scrollport.scrollTop).toBe(400);
+    expect(scrollport.dataset).not.toHaveProperty('readingEdge');
   });
 
   it('dedupes StrictMode-style duplicate mediaReady and rejects stale pilot media events', () => {

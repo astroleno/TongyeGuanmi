@@ -34,7 +34,7 @@ export function createPhEducationTransition(options: { delayMs?: () => number } 
     },
     fieldProgress,
     prepareEndpoints: ({ to }) => renderEducationHold(to),
-    renderSource: (root, progress) => renderPhAnimationProgress(root, progress, { playback: true }),
+    renderSource: (root, progress, mediaRun) => renderPhAnimationProgress(root, progress, { mediaRun }),
     renderSourceProgress: (progress) => range01(progress, 0, PH_EDUCATION_ANIMATION_STOP),
     sample: samplePhEducation,
     stops: [PH_EDUCATION_ANIMATION_STOP],

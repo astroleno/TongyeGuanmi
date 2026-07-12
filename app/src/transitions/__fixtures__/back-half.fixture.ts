@@ -132,8 +132,12 @@ export class FakeVideo extends FakeElement {
   currentTimeWrites = 0;
   paused = true;
   loop = false;
+  muted = false;
+  playsInline = false;
   playbackRate = 1;
   playCalls = 0;
+  preload = 'auto';
+  loadCalls = 0;
 
   get currentTime(): number {
     return this.time;
@@ -150,6 +154,20 @@ export class FakeVideo extends FakeElement {
 
   pause(): void {
     this.paused = true;
+  }
+
+  load(): void {
+    this.loadCalls += 1;
+  }
+
+  addEventListener(type: string, listener: () => void): void {
+    void type;
+    void listener;
+  }
+
+  removeEventListener(type: string, listener: () => void): void {
+    void type;
+    void listener;
   }
 
   play(): Promise<void> {

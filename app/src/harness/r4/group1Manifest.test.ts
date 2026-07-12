@@ -29,15 +29,18 @@ describe('R4 group1 harness manifest', () => {
     expect(group1HarnessSource).toContain("runtime.send({ type: 'CHARGE_FIRED', direction })");
   });
 
-  it('keeps Star Map idle motion frozen during transition and live at hold', () => {
+  it('keeps Pattern and Star Map live whenever they are visible during transition', () => {
     expect(group1E2eSource).toContain("toBe('staged-paused')");
     expect(group1E2eSource).toContain('patternProgress).toBe(1)');
     expect(group1E2eSource).not.toContain('toBeCloseTo(0.74');
     expect(group1E2eSource).toContain(
-      'canonicalStarHandoff.starMapCanvasMotionActive).toBe(false)'
+      'canonicalStarHandoff.starMapCanvasMotionActive).toBe(true)'
     );
     expect(group1E2eSource).toContain(
-      'patternStarMapInk?.starMapCanvasMotionActive).toBe(false)'
+      'patternStarMapInk?.starMapCanvasMotionActive).toBe(true)'
+    );
+    expect(group1E2eSource).toContain(
+      'starHandoffLater.starMapCanvasRevision).toBeGreaterThan(canonicalStarHandoff.starMapCanvasRevision)'
     );
     expect(group1E2eSource).toContain(
       'starHoldLater.starMapCanvasMotionActive).toBe(true)'

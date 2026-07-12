@@ -5,7 +5,10 @@ const LINE_HEIGHT_PX = 16;
 
 export type NormalizedInputDelta = {
   source: DirectorInputSource;
+  pixels: number;
+  viewportFraction: number;
   delta: number;
+  viewportHeight: number;
 };
 
 export type WheelLikeInput = {
@@ -50,24 +53,38 @@ export function pixelsToViewportFraction(pixels: number, inputViewportHeight?: n
 }
 
 export function normalizeInputDelta(input: RawInput): NormalizedInputDelta {
+  const height = viewportHeight(input.viewportHeight);
   if (input.type === 'wheel') {
+    const pixels = wheelDeltaPixels(input);
+    const viewportFraction = pixels / height;
     return {
       source: 'wheel',
-      delta: pixelsToViewportFraction(wheelDeltaPixels(input), input.viewportHeight)
+      pixels,
+      viewportFraction,
+      delta: viewportFraction,
+      viewportHeight: height
     };
   }
 
   if (input.type === 'touch') {
+    const pixels = input.previousY - input.currentY;
+    const viewportFraction = pixels / height;
     return {
       source: 'touch',
-      delta: pixelsToViewportFraction(input.previousY - input.currentY, input.viewportHeight)
+      pixels,
+      viewportFraction,
+      delta: viewportFraction,
+      viewportHeight: height
     };
   }
 
-  const keyDelta = keyToViewportFraction(input.key);
+  const viewportFraction = keyToViewportFraction(input.key);
   return {
     source: 'key',
-    delta: keyDelta
+    pixels: viewportFraction * height,
+    viewportFraction,
+    delta: viewportFraction,
+    viewportHeight: height
   };
 }
 

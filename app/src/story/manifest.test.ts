@@ -168,7 +168,18 @@ describe('story manifest contract', () => {
     expect(byId.get('ttg-lab')).toMatchObject({
       policy: { kind: 'stagedSnap', stops: [0.676], playMs: [2500, 1200] },
       virtualDuration: 3700,
-      mediaPlayback: [{ reverse: { mode: 'play', required: true } }]
+      mediaPlayback: [{
+        forward: {
+          mode: 'play',
+          required: true,
+          media: ['ttg_figure-alpha-scrub']
+        },
+        reverse: {
+          mode: 'play',
+          required: true,
+          media: ['ttg_figure-alpha-scrub-reverse']
+        }
+      }]
     });
     expect(byId.get('ph-education')).toMatchObject({
       policy: { kind: 'stagedSnap', stops: [1520 / 2720], playMs: [1520, 1200] },
@@ -176,6 +187,8 @@ describe('story manifest contract', () => {
       mediaPlayback: [{ reverse: { mode: 'timeline', required: true } }]
     });
     expect(byId.get('crane-contact')).toMatchObject({
+      virtualDuration: 3000,
+      copyCue: { targetScene: 'contact', atProgress: 0.8 },
       mediaPlayback: [{ reverse: { mode: 'timeline', required: true } }]
     });
   });

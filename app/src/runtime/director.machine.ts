@@ -1,6 +1,14 @@
 import { assign, setup } from 'xstate';
 import { createChargeState, applyChargeDelta, mergeQueuedIntent, sampleQueuedIntent } from './charge';
-import { createRecoveryPlan } from './recovery';
+import {
+  createBootRecoveryPlan,
+  createSegmentRecoveryPlan,
+  firstStaticFallbackScene,
+  toError,
+  type RecoveryPlan,
+  type SegmentRecoveryPlan,
+  type SegmentRecoveryReason
+} from './recovery';
 import { storyManifest } from '../story/manifest';
 import { StorySpine } from '../story/spine';
 import {
@@ -16,6 +24,7 @@ import type {
   PausePoint,
   PrepareToken,
   QueuedIntent,
+  ReadingEntryIntent,
   SceneId,
   SegmentId,
   SegmentRunId,
@@ -53,6 +62,9 @@ export type DirectorContext = {
   pendingDirection: Direction | undefined;
   settlingSegment: SegmentId | undefined;
   settlingTarget: SceneId | undefined;
+  settlingEntry: ReadingEntryIntent | undefined;
+  holdEntry: ReadingEntryIntent;
+  entryCounter: number;
   pausePoint: PausePoint | undefined;
   layerWindow: LayerWindowSnapshot;
   chargeThreshold: number;
@@ -62,6 +74,7 @@ export type DirectorContext = {
   prepareTimeoutMs: number;
   runCounter: number;
   prepareCounter: number;
+  recovery: RecoveryPlan | undefined;
   lastError: Error | undefined;
 };
 
@@ -87,8 +100,12 @@ function firstHold(manifest: StoryManifest): SceneId {
   return hold.scene;
 }
 
-function holdRequiresFreshInput(manifest: StoryManifest, scene: SceneId): boolean {
-  return manifest.nodes.some((node) => node.kind === 'hold' && node.scene === scene && node.freshInput === true);
+function holdBlocksQueuedInput(manifest: StoryManifest, scene: SceneId): boolean {
+  return manifest.nodes.some(
+    (node) => node.kind === 'hold'
+      && node.scene === scene
+      && (node.freshInput === true || node.reading)
+  );
 }
 
 function createInitialContext(options: DirectorMachineOptions = {}): DirectorContext {
@@ -112,6 +129,14 @@ function createInitialContext(options: DirectorMachineOptions = {}): DirectorCon
     pendingDirection: undefined,
     settlingSegment: undefined,
     settlingTarget: undefined,
+    settlingEntry: undefined,
+    holdEntry: {
+      scene: initialScene,
+      edge: 'top',
+      source: 'initial',
+      token: 0
+    },
+    entryCounter: 0,
     pausePoint: undefined,
     layerWindow: createLayerWindow(initialScene, manifest),
     chargeThreshold: manifest.defaults.chargeThreshold,
@@ -121,6 +146,7 @@ function createInitialContext(options: DirectorMachineOptions = {}): DirectorCon
     prepareTimeoutMs: options.prepareTimeoutMs ?? manifest.defaults.buildTimeoutMs,
     runCounter: 0,
     prepareCounter: 0,
+    recovery: undefined,
     lastError: undefined
   };
 }
@@ -205,7 +231,57 @@ function targetScene(context: DirectorContext): SceneId | undefined {
 }
 
 function appendErrorPatch(error: unknown): Pick<DirectorContext, 'lastError'> {
-  return { lastError: createRecoveryPlan('playback-failed', error).error };
+  return { lastError: toError(error) };
+}
+
+function segmentNode(context: DirectorContext, segmentId: SegmentId): SpineSegmentNode | undefined {
+  return context.manifest.nodes.find(
+    (node): node is SpineSegmentNode => node.kind === 'segment' && node.id === segmentId
+  );
+}
+
+function segmentRecoveryFromEvent(
+  context: DirectorContext,
+  event: DirectorEvent
+): SegmentRecoveryPlan | undefined {
+  let segmentId: SegmentId | undefined;
+  let direction: Direction | undefined;
+  let reason: SegmentRecoveryReason;
+  let error: unknown;
+
+  if (event.type === 'PREPARE_TIMEOUT' || event.type === 'BUILD_TIMEOUT') {
+    segmentId = event.segment;
+    direction = context.pendingDirection ?? context.activeDirection;
+    reason = event.type === 'PREPARE_TIMEOUT' ? 'prepare-timeout' : 'build-timeout';
+    error = new Error(event.type);
+  } else if (event.type === 'PLAYBACK_FAILED') {
+    segmentId = context.activeSegment;
+    direction = context.activeDirection;
+    reason = 'playback-failed';
+    error = event.error;
+  } else if (event.type === 'SEGMENT_ABORTED') {
+    segmentId = context.activeSegment;
+    direction = context.activeDirection;
+    reason = 'segment-aborted';
+    error = new Error(`SEGMENT_ABORTED: ${event.reason}`);
+  } else {
+    segmentId = context.pendingSegment ?? context.activeSegment;
+    direction = context.pendingDirection ?? context.activeDirection;
+    reason = context.pendingSegment ? 'prepare-timeout' : 'playback-failed';
+    error = new Error(reason === 'prepare-timeout' ? 'PREPARE_TIMEOUT' : 'PLAYBACK_FAILED');
+  }
+
+  const segment = segmentId ? segmentNode(context, segmentId) : undefined;
+  if (!segment || !direction) {
+    return undefined;
+  }
+  return createSegmentRecoveryPlan(
+    reason,
+    context.layerWindow.current,
+    segment,
+    direction,
+    error
+  );
 }
 
 function isRunEvent(event: DirectorEvent): event is Extract<
@@ -272,6 +348,13 @@ const directorSetup = setup({
       }
       return directionFromInput(event) === -context.pendingDirection;
     },
+    recoveryFailureMatches: ({ context, event }) => {
+      return event.type === 'RECOVERY_FAILED'
+        && context.recovery?.scope === 'segment'
+        && context.recovery.status === 'recovering'
+        && context.recovery.segment === event.segment
+        && context.recovery.direction === event.direction;
+    },
     queuedIntentCanFlush: ({ context, event }) => {
       const now = nowFrom(event);
       const sampled = context.queuedIntent ? sampleQueuedIntent(context.queuedIntent, now) : null;
@@ -279,7 +362,7 @@ const directorSetup = setup({
         return false;
       }
       const scene = context.settlingTarget ?? (context.cursor.status === 'hold' ? context.cursor.scene : undefined);
-      if (scene && holdRequiresFreshInput(context.manifest, scene)) {
+      if (scene && holdBlocksQueuedInput(context.manifest, scene)) {
         return false;
       }
       return Boolean(scene && segmentFor(context, sampled.direction, scene));
@@ -290,7 +373,10 @@ const directorSetup = setup({
       if (event.type !== 'INPUT_DELTA') {
         return {};
       }
-      return { charge: applyChargeDelta(context.charge, event.delta, nowFrom(event)).state };
+      return {
+        charge: applyChargeDelta(context.charge, event.delta, nowFrom(event)).state,
+        recovery: undefined
+      };
     }),
     startPreparingFromCharge: assign(({ context, event }) => {
       const direction = chargeFireDirection(context, event);
@@ -299,6 +385,7 @@ const directorSetup = setup({
       }
       return {
         ...preparePatch(context, direction),
+        recovery: undefined,
         charge: createChargeState(nowFrom(event), context.chargeThreshold, context.decayRatePerMs)
       };
     }),
@@ -323,6 +410,7 @@ const directorSetup = setup({
         activeRunId: nextRunId(context),
         activeSegment: segment.id,
         activeDirection: direction,
+        recovery: undefined,
         runCounter: context.runCounter + 1
       };
     }),
@@ -334,7 +422,10 @@ const directorSetup = setup({
       if (direction === null) {
         return {};
       }
-      return preparePatch(context, direction);
+      return {
+        ...preparePatch(context, direction),
+        recovery: undefined
+      };
     }),
     startPlaying: assign(({ context }) => {
       if (!context.pendingSegment || !context.pendingDirection) {
@@ -346,6 +437,7 @@ const directorSetup = setup({
         activeRunId: runId,
         activeSegment: segment.id,
         activeDirection: context.pendingDirection,
+        recovery: undefined,
         runCounter: context.runCounter + 1,
         cursor: {
           status: 'segment',
@@ -389,6 +481,7 @@ const directorSetup = setup({
       }
       const segment = spineFor(context).segment(context.activeSegment);
       const target = endpointFor(segment, context.activeDirection);
+      const entryCounter = context.entryCounter + 1;
       return {
         cursor: {
           status: 'settling',
@@ -399,6 +492,13 @@ const directorSetup = setup({
         },
         settlingSegment: segment.id,
         settlingTarget: target,
+        settlingEntry: {
+          scene: target,
+          edge: context.activeDirection === 1 ? 'top' : 'bottom',
+          source: 'sequential',
+          token: entryCounter
+        },
+        entryCounter,
         activeRunId: undefined,
         activeSegment: undefined,
         activeDirection: undefined,
@@ -412,8 +512,10 @@ const directorSetup = setup({
       return {
         cursor: { status: 'hold', scene: context.settlingTarget },
         layerWindow: advanceLayerWindow(context.layerWindow, context.settlingTarget, context.manifest),
+        holdEntry: context.settlingEntry ?? context.holdEntry,
         settlingSegment: undefined,
         settlingTarget: undefined,
+        settlingEntry: undefined,
         queuedIntent: undefined
       };
     }),
@@ -427,16 +529,20 @@ const directorSetup = setup({
         return {
           cursor: { status: 'hold', scene: context.settlingTarget },
           layerWindow: advanceLayerWindow(context.layerWindow, context.settlingTarget, context.manifest),
+          holdEntry: context.settlingEntry ?? context.holdEntry,
           settlingSegment: undefined,
           settlingTarget: undefined,
+          settlingEntry: undefined,
           queuedIntent: undefined
         };
       }
       return {
         cursor: { status: 'hold', scene: context.settlingTarget },
         layerWindow: advanceLayerWindow(context.layerWindow, context.settlingTarget, context.manifest),
+        holdEntry: context.settlingEntry ?? context.holdEntry,
         settlingSegment: undefined,
         settlingTarget: undefined,
+        settlingEntry: undefined,
         ...preparePatch(context, sampled.direction, context.settlingTarget)
       };
     }),
@@ -465,16 +571,20 @@ const directorSetup = setup({
     }),
     clearPausePoint: assign(() => ({ pausePoint: undefined })),
     recoverFromEvent: assign(({ context, event }) => {
-      const error =
-        event.type === 'BOOT_FAILED' || event.type === 'PLAYBACK_FAILED'
-          ? event.error
-          : event.type === 'BUILD_TIMEOUT' || event.type === 'PREPARE_TIMEOUT'
-            ? new Error(event.type)
-            : new Error('recovery');
-      const fallback = createRecoveryPlan(event.type === 'BOOT_FAILED' ? 'boot-failed' : 'playback-failed', error, context.manifest);
+      const bootRecovery = event.type === 'BOOT_FAILED'
+        ? createBootRecoveryPlan(event.error, context.manifest)
+        : undefined;
+      const segmentRecovery = bootRecovery ? undefined : segmentRecoveryFromEvent(context, event);
+      const currentScene = context.layerWindow.current;
+      const error = bootRecovery?.error
+        ?? segmentRecovery?.error
+        ?? new Error('Segment recovery could not identify an endpoint');
       return {
-        cursor: { status: 'hold', scene: fallback.fallbackScene },
-        layerWindow: fallbackLayerWindow(context.manifest),
+        cursor: {
+          status: 'hold',
+          scene: bootRecovery?.fallbackScene ?? currentScene
+        },
+        layerWindow: bootRecovery ? fallbackLayerWindow(context.manifest) : context.layerWindow,
         activeRunId: undefined,
         activeSegment: undefined,
         activeDirection: undefined,
@@ -483,11 +593,27 @@ const directorSetup = setup({
         pendingDirection: undefined,
         settlingSegment: undefined,
         settlingTarget: undefined,
+        settlingEntry: undefined,
         queuedIntent: undefined,
         pausePoint: undefined,
-        lastError: fallback.error
+        recovery: bootRecovery ?? segmentRecovery,
+        lastError: error
       };
     }),
+    markRecoveryFailed: assign(({ context, event }) => {
+      if (event.type !== 'RECOVERY_FAILED' || context.recovery?.scope !== 'segment') {
+        return {};
+      }
+      return {
+        recovery: {
+          ...context.recovery,
+          status: 'failed' as const,
+          error: event.error
+        },
+        lastError: event.error
+      };
+    }),
+    clearRecovery: assign(() => ({ recovery: undefined })),
     beginSeek: assign(({ context, event }) => {
       if (event.type !== 'SEEK') {
         return {};
@@ -495,12 +621,20 @@ const directorSetup = setup({
       const label = event.label.startsWith('scene:') ? event.label : `scene:${event.label}`;
       const scene = label.slice('scene:'.length) as SceneId;
       const exists = context.manifest.nodes.some((node) => node.kind === 'hold' && node.scene === scene);
-      const target = exists ? scene : createRecoveryPlan('jump-to-end-failed', `Unknown seek label ${event.label}`, context.manifest).fallbackScene;
+      const target = exists ? scene : firstStaticFallbackScene(context.manifest);
+      const entryCounter = context.entryCounter + 1;
       return {
         cursor: { status: 'hold', scene: target },
         layerWindow: createLayerWindow(target, context.manifest),
         activeRunId: nextRunId(context),
         runCounter: context.runCounter + 1,
+        entryCounter,
+        holdEntry: {
+          scene: target,
+          edge: 'top',
+          source: event.source,
+          token: entryCounter
+        },
         activeSegment: undefined,
         activeDirection: undefined,
         prepareToken: undefined,
@@ -508,8 +642,10 @@ const directorSetup = setup({
         pendingDirection: undefined,
         settlingSegment: undefined,
         settlingTarget: undefined,
+        settlingEntry: undefined,
         queuedIntent: undefined,
-        pausePoint: undefined
+        pausePoint: undefined,
+        recovery: undefined
       };
     }),
     clearSeekingRun: assign(() => ({
@@ -534,16 +670,20 @@ const directorSetup = setup({
         return {
           cursor: { status: 'hold', scene: context.settlingTarget },
           layerWindow: releaseRetiringLayers(advanceLayerWindow(context.layerWindow, context.settlingTarget, context.manifest)),
+          holdEntry: context.settlingEntry ?? context.holdEntry,
           settlingSegment: undefined,
           settlingTarget: undefined,
+          settlingEntry: undefined,
           queuedIntent: undefined
         };
       }
       return {
         cursor: { status: 'hold', scene: context.settlingTarget },
         layerWindow: releaseRetiringLayers(advanceLayerWindow(context.layerWindow, context.settlingTarget, context.manifest)),
+        holdEntry: context.settlingEntry ?? context.holdEntry,
         settlingSegment: undefined,
         settlingTarget: undefined,
+        settlingEntry: undefined,
         ...preparePatch(context, sampled.direction, context.settlingTarget)
       };
     })
@@ -558,6 +698,13 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
     on: {
       RETIRING_RELEASED: {
         actions: 'releaseRetiring'
+      },
+      RECOVERY_FAILED: {
+        guard: 'recoveryFailureMatches',
+        actions: 'markRecoveryFailed'
+      },
+      RECOVERY_CANCELLED: {
+        actions: 'clearRecovery'
       },
       SEEK: {
         target: '.seeking',

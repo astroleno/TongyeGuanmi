@@ -82,6 +82,7 @@ export type CopyCue = {
 export type MediaPlaybackDirectionContract = {
   mode: 'play' | 'scrub' | 'timeline' | 'static-fallback' | 'none';
   required: boolean;
+  media?: readonly MediaKey[];
 };
 
 export type MediaPlaybackContract = {
@@ -163,12 +164,21 @@ export type ScenePreloadResult = {
   media?: readonly MediaPlaybackHandle[];
 };
 
+export type HeroIntroMode = 'waiting' | 'running' | 'complete' | 'endpoint';
+
+export type ScenePresentationState = Readonly<{
+  heroIntroMode?: HeroIntroMode;
+  reducedMotion?: boolean;
+  onHeroIntroComplete?: () => void;
+}>;
+
 export type SceneComponentProps = {
   scene: SceneId;
   hidden: boolean;
   role?: StageLayerRole;
   children?: ReactNode;
   copyCueActive?: boolean;
+  presentation?: ScenePresentationState;
   registerHandle?: (name: string, element: HTMLElement | null) => void;
 };
 
@@ -254,6 +264,15 @@ export type SegmentResult =
 export type DirectorInputSource = 'wheel' | 'touch' | 'key';
 export type DirectorSeekSource = 'hash' | 'menu' | 'history' | 'recovery';
 
+export type ReadingEntrySource = DirectorSeekSource | 'initial' | 'sequential';
+
+export type ReadingEntryIntent = Readonly<{
+  scene: SceneId;
+  edge: 'top' | 'bottom';
+  source: ReadingEntrySource;
+  token: number;
+}>;
+
 export type StoryCursor =
   | { status: 'hold'; scene: SceneId }
   | { status: 'segment'; segment: SegmentId; from: SceneId; to: SceneId }
@@ -288,6 +307,8 @@ export type DirectorEvent =
   | { type: 'STAGE_RESUMED'; runId: SegmentRunId; segment: SegmentId; stageIndex: number }
   | { type: 'SETTLING_DONE'; now?: number }
   | { type: 'RETIRING_RELEASED' }
+  | { type: 'RECOVERY_FAILED'; segment: SegmentId; direction: Direction; error: Error }
+  | { type: 'RECOVERY_CANCELLED' }
   | { type: 'SEEK'; label: string; source: DirectorSeekSource }
   | { type: 'SEGMENT_ABORTED'; runId: SegmentRunId; reason: string };
 

@@ -1,3 +1,5 @@
+import { SITE_META } from '../src/content/site-meta';
+
 export type StaticCopySection = {
   sectionId: string;
   normalizedText: readonly string[];
@@ -44,8 +46,10 @@ export function renderStaticStoryShell(copy: StaticCopyReference): string {
     '<main class="static-content__main">',
     ...sections.map((section, index) => renderSection(section, index === 0 ? 'h1' : 'h2')),
     '</main>',
-    '<footer>',
-    ...copy.footerText.map((text) => `<p>${escapeHtml(text)}</p>`),
+    '<footer class="site-footer" data-site-footer="true">',
+    `<span>${escapeHtml(SITE_META.footer.company)}</span>`,
+    `<span>${escapeHtml(SITE_META.footer.tagline)}</span>`,
+    `<a href="${escapeHtml(SITE_META.footer.filingUrl)}">${escapeHtml(SITE_META.footer.filingText)}</a>`,
     '</footer>',
     '<noscript><p>当前为无 JavaScript 正文模式；全部核心内容与章节锚点仍可阅读。</p></noscript>',
     '</div>'

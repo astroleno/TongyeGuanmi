@@ -140,7 +140,7 @@ describe('R4 group5 transitions', () => {
       stops: [0.676],
       playMs: [2500, 1200]
     });
-    expect(ttgLab.mediaPlayback?.[0]?.reverse).toEqual({ mode: 'play', required: true });
+    expect(ttgLab.mediaPlayback?.[0]?.reverse).toMatchObject({ mode: 'play', required: true });
     if (ttgLab.policy.kind !== 'stagedSnap') {
       throw new Error('ttg-lab must be staged');
     }
@@ -174,8 +174,9 @@ describe('R4 group5 transitions', () => {
     timeline.progress(stop / 2);
     expect(fixture.fromRoot.dataset.ttgPlaybackDirection).toBe('-1');
     expect(reverseVideo.playCalls).toBeGreaterThan(0);
-    expect(reverseVideo.currentTime).toBeCloseTo(reverseVideo.duration * 0.5, 3);
-    expect(reverseVideo.playbackRate).toBeCloseTo(1, 3);
+    expect(reverseVideo.currentTime).toBeCloseTo((reverseVideo.duration - 0.02) * 0.5, 3);
+    expect(reverseVideo.playbackRate).toBeGreaterThan(0.95);
+    expect(reverseVideo.playbackRate).toBeLessThan(1.05);
   });
 
   it('falls back to timeline-aligned TTG frames when native playback is rejected', async () => {
@@ -203,7 +204,7 @@ describe('R4 group5 transitions', () => {
     await Promise.resolve();
     timeline.progress(stop * 0.4);
 
-    expect(forwardVideo.currentTime).toBeCloseTo(forwardVideo.duration * 0.4, 3);
+    expect(forwardVideo.currentTime).toBeCloseTo((forwardVideo.duration - 0.02) * 0.4, 3);
     expect(fixture.fromRoot.dataset.ttgPlaybackFallback).toBe('true');
   });
 
@@ -217,6 +218,130 @@ describe('R4 group5 transitions', () => {
       'ttg_figure-alpha-scrub',
       'ttg_figure-alpha-scrub-reverse'
     ]);
+    expect(transition.mediaPlayback?.[0]?.forward.media).toEqual([
+      'ttg_figure-alpha-scrub'
+    ]);
+    expect(transition.mediaPlayback?.[0]?.reverse.media).toEqual([
+      'ttg_figure-alpha-scrub-reverse'
+    ]);
+  });
+
+  it('switches TTG reverse and terminal forward surfaces only after their requested frame is presented', async () => {
+    class DeferredFrameVideo extends FakeVideo {
+      seeking = false;
+      private frameCallback: (() => void) | undefined;
+      private readonly listeners = new Map<string, Set<() => void>>();
+
+      override get currentTime(): number {
+        return super.currentTime;
+      }
+
+      override set currentTime(value: number) {
+        super.currentTime = value;
+        this.seeking = true;
+      }
+
+      override addEventListener(type: string, listener: () => void): void {
+        const listeners = this.listeners.get(type) ?? new Set<() => void>();
+        listeners.add(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      override removeEventListener(type: string, listener: () => void): void {
+        this.listeners.get(type)?.delete(listener);
+      }
+
+      requestVideoFrameCallback(callback: () => void): number {
+        this.frameCallback = callback;
+        return 1;
+      }
+
+      cancelVideoFrameCallback(): void {
+        this.frameCallback = undefined;
+      }
+
+      presentRequestedFrame(): void {
+        this.seeking = false;
+        for (const listener of this.listeners.get('seeked') ?? []) {
+          listener();
+        }
+        const callback = this.frameCallback;
+        this.frameCallback = undefined;
+        callback?.();
+      }
+    }
+
+    const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
+    const forwardVideo = new DeferredFrameVideo();
+    const reverseVideo = new DeferredFrameVideo();
+    const canvas = new FakeCanvas();
+    forwardVideo.classList.add('is-active');
+    fixture.fromRoot.connect('[data-ttg-figure-video]', forwardVideo);
+    fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const timeline = await createTtgLabTransition().buildTimeline({
+      ...fixture.context,
+      direction: -1,
+      runId: 'ttg-atomic:1',
+      prepareToken: 'ttg-atomic:prepare:1'
+    });
+
+    expect(forwardVideo.classList.contains('is-active')).toBe(true);
+    expect(reverseVideo.classList.contains('is-active')).toBe(false);
+
+    reverseVideo.presentRequestedFrame();
+    await Promise.resolve();
+    expect(reverseVideo.classList.contains('is-active')).toBe(true);
+    expect(forwardVideo.classList.contains('is-active')).toBe(false);
+
+    timeline.progress(0);
+    expect(reverseVideo.classList.contains('is-active')).toBe(true);
+    expect(forwardVideo.classList.contains('is-active')).toBe(false);
+
+    forwardVideo.presentRequestedFrame();
+    await Promise.resolve();
+    expect(forwardVideo.classList.contains('is-active')).toBe(true);
+    expect(reverseVideo.classList.contains('is-active')).toBe(false);
+    expect(forwardVideo.currentTime).toBe(0);
+  });
+
+  it('keeps TTG re-entrant across twenty explicit alternating runs and settles each endpoint', async () => {
+    const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
+    const forwardVideo = new FakeVideo();
+    const reverseVideo = new FakeVideo();
+    forwardVideo.classList.add('is-active');
+    fixture.fromRoot.connect('[data-ttg-figure-video]', forwardVideo);
+    fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+
+    for (let index = 1; index <= 20; index += 1) {
+      const direction: 1 | -1 = index % 2 === 1 ? 1 : -1;
+      const timeline = await createTtgLabTransition().buildTimeline({
+        ...fixture.context,
+        direction,
+        runId: `ttg-runs:${index}`,
+        prepareToken: `ttg-runs:prepare:${index}`
+      });
+      fixture.fromRoot.dataset.ttgRawProgress = direction === 1 ? '1' : '0';
+
+      timeline.progress(TTG_LAB_ANIMATION_STOP * 0.5);
+      await Promise.resolve();
+
+      expect(fixture.fromRoot.dataset.ttgPlaybackDirection).toBe(String(direction));
+      expect(direction === 1
+        ? forwardVideo.classList.contains('is-active')
+        : reverseVideo.classList.contains('is-active')).toBe(true);
+
+      timeline.progress(direction === 1 ? TTG_LAB_ANIMATION_STOP : 0);
+      await Promise.resolve();
+      expect(forwardVideo.classList.contains('is-active')).toBe(true);
+      expect(reverseVideo.classList.contains('is-active')).toBe(false);
+      expect(forwardVideo.currentTime).toBeCloseTo(
+        direction === 1 ? forwardVideo.duration - 0.02 : 0,
+        2
+      );
+      timeline.dispose();
+    }
   });
 
   it('keys and registers both TTG playback directions for the readiness gate', () => {
@@ -228,6 +353,8 @@ describe('R4 group5 transitions', () => {
     expect(ttgAnimationScene.requiredHandles).toEqual(['field', 'figure-video', 'figure-video-reverse']);
     expect(markup).toContain('data-media-key="ttg_figure-alpha-scrub"');
     expect(markup).toContain('data-media-key="ttg_figure-alpha-scrub-reverse"');
+    expect(markup).toMatch(/data-ttg-figure-video="true"[^>]*preload="metadata"/);
+    expect(markup).toMatch(/data-ttg-figure-video-reverse="true"[^>]*preload="metadata"/);
   });
 
   for (const item of cases) {

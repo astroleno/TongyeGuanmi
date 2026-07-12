@@ -40,14 +40,19 @@ describe('production runtime assembly', () => {
     expect(loader).toHaveBeenCalledTimes(1);
   });
 
-  it('jumps to a static endpoint after media/target recovery instead of locking input', async () => {
+  it('keeps Contact committed until reverse recovery reaches the directional Crane endpoint', async () => {
     const jumpToEnd = vi.fn();
+    let resolveEndpoint!: (value: SegmentTimelineHandle) => void;
+    const endpoint = new Promise<SegmentTimelineHandle>((resolve) => {
+      resolveEndpoint = resolve;
+    });
     const runtime = createDirectorRuntime({
       actorEpoch: 'production-recovery',
+      initialScene: 'contact',
       transitions: {
-        'hero-pattern': {
-          id: 'hero-pattern',
-          buildTimeline: () => ({ ...timeline(), jumpToEnd })
+        'crane-contact': {
+          id: 'crane-contact',
+          buildTimeline: () => endpoint
         }
       },
       readyGate: {
@@ -55,14 +60,30 @@ describe('production runtime assembly', () => {
       }
     });
     runtime.send({ type: 'BOOT_READY' });
-    runtime.send({ type: 'CHARGE_FIRED', direction: 1 });
+    runtime.send({ type: 'CHARGE_FIRED', direction: -1 });
 
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(runtime.getState()).toMatchObject({
+      context: {
+        cursor: { status: 'hold', scene: 'contact' },
+        layerWindow: { current: 'contact' },
+        recovery: {
+          scope: 'segment',
+          status: 'recovering',
+          segment: 'crane-contact',
+          direction: -1,
+          endpoint: 'crane-animation'
+        }
+      }
+    });
+
+    resolveEndpoint({ ...timeline(), jumpToEnd });
     await new Promise((resolve) => setTimeout(resolve, 30));
 
-    expect(jumpToEnd).toHaveBeenCalledWith(1);
+    expect(jumpToEnd).toHaveBeenCalledWith(-1);
     expect(runtime.getState()).toMatchObject({
       state: 'hold',
-      context: { cursor: { status: 'hold', scene: 'pattern' } }
+      context: { cursor: { status: 'hold', scene: 'crane-animation' } }
     });
     runtime.stop();
   });

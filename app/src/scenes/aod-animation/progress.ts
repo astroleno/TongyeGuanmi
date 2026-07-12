@@ -63,6 +63,7 @@ export function renderAodTransitionProgress(
   }
 
   const p = acceleratedProgress(rawProgress);
+  const alphaComposite = rawProgress <= 1 / 3;
   const config = HOMEPAGE_AOD_CONFIG;
   const backdropExit = smoothStep(secondsRange(
     p,
@@ -78,14 +79,15 @@ export function renderAodTransitionProgress(
   ));
   const upExitY = viewportHeight() * -1.08;
   const backgroundFade = 1 - backdropExit;
-  const paperWash = smoothStep(range01(p, 0.42, 0.86));
-  const bottomMist = smoothStep(range01(p, 0.56, 1));
-  const paperSolid = smoothStep(range01(p, 0.70, 1));
+  const paperWash = alphaComposite ? 0 : smoothStep(range01(p, 0.42, 0.86));
+  const bottomMist = alphaComposite ? 0 : smoothStep(range01(p, 0.56, 1));
+  const paperSolid = alphaComposite ? 0 : smoothStep(range01(p, 0.70, 1));
   const methodEnter = smoothStep(range01(p, 0.44, 0.86));
   const figureScale = config.figureStartScale + fullscreen * (1 - config.figureStartScale);
   const figureY = (1 - fullscreen) * viewportHeight() * (config.figureStartYVh / 100);
 
   section.style.setProperty('--aod-transition-progress', p.toFixed(4));
+  section.setAttribute('data-aod-alpha-composite', String(alphaComposite));
   section.style.setProperty('--aod-transition-sun-x', '0px');
   section.style.setProperty('--aod-transition-sun-y', formatPx(backdropExit * upExitY * 1.02));
   section.style.setProperty('--aod-transition-sun-opacity', (0.96 * backgroundFade).toFixed(4));

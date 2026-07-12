@@ -352,7 +352,7 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
     expect(finalFrame.interactableCount).toBe(1);
   });
 
-  test('keeps Figure2 videos frozen while reversing the proof transition', async ({ page }) => {
+  test('holds Figure2 through reverse Ink, then animates every reverse intro frame', async ({ page }) => {
     test.setTimeout(45_000);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g3-figure2-distance-expand');
@@ -388,12 +388,15 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
     const introLegSamples = await sampleReverseLeg();
     expect(introLegSamples.length).toBeGreaterThan(2);
 
-    for (const samples of [inkLegSamples, introLegSamples]) {
-      for (let videoIndex = 0; videoIndex < terminalTimes.length; videoIndex += 1) {
-        const values = samples.map((times) => times[videoIndex] ?? 0);
-        expect(Math.max(...values) - Math.min(...values)).toBeLessThan(0.03);
-        expect(values[0]).toBeCloseTo(terminalTimes[videoIndex] ?? 0, 1);
-      }
+    for (let videoIndex = 0; videoIndex < terminalTimes.length; videoIndex += 1) {
+      const inkValues = inkLegSamples.map((times) => times[videoIndex] ?? 0);
+      expect(Math.max(...inkValues) - Math.min(...inkValues)).toBeLessThan(0.03);
+      expect(inkValues[0]).toBeCloseTo(terminalTimes[videoIndex] ?? 0, 1);
+
+      const introValues = introLegSamples.map((times) => times[videoIndex] ?? 0);
+      expect(Math.max(...introValues) - Math.min(...introValues)).toBeGreaterThan(0.2);
+      expect(introValues.some((value, index) => index > 0 && value < (introValues[index - 1] ?? 0) - 0.01)).toBe(true);
+      expect(introValues.at(-1) ?? Number.POSITIVE_INFINITY).toBeLessThan((introValues[0] ?? 0) - 0.2);
     }
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 8_000 }).toBe('figure2-animation');
   });
@@ -416,7 +419,7 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
     expect(frame.interactableCount).toBe(1);
   });
 
-  test('recovers from build timeout to the group static fallback', async ({ page }) => {
+  test('keeps the committed hold when endpoint reconstruction also times out', async ({ page }) => {
     await page.goto('/harness/r4-g3');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
 
@@ -426,7 +429,7 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
 
     const frame = await snapshot(page);
     expect(frame.phase).toBe('hold');
-    expect(frame.window.current).toBe('figure2-proof-opening');
+    expect(frame.window.current).toBe('figure2-animation');
     expect(frame.interactableCount).toBe(1);
     expect(frame.recoveryCount).toBe(1);
     expect(frame.eventLog).toContain('BUILD_TIMEOUT:figure2-distance-expand');

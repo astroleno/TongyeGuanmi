@@ -31,7 +31,7 @@ function requiredMedia(segment: SpineSegmentNode, direction: Direction): readonl
     if (!directionContract.required) {
       continue;
     }
-    for (const key of contract.media) {
+    for (const key of directionContract.media ?? contract.media) {
       const existing = byKey.get(key);
       byKey.set(key, {
         key,
@@ -85,6 +85,10 @@ function waitForDecodedMedia(
       if (media && media.readyState >= HAVE_FUTURE_DATA) {
         resolve();
         return;
+      }
+      if (media && media.preload !== 'auto') {
+        media.preload = 'auto';
+        media.load?.();
       }
       if (Date.now() - startedAt >= timeoutMs) {
         reject(new Error(`Media ${key} timed out before decoded future data was ready`));

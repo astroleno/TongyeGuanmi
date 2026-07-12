@@ -18,6 +18,18 @@ test('no-JS HTML exposes core正文, metadata, navigation, and scrollable anchor
   await expect(page.locator('#contact')).toContainText('约一次 AI 现场诊断');
   await expect(page.locator('a[href="#method"]')).toBeVisible();
   await expect(page.locator('a[href="#contact"]')).toBeVisible();
+  const footer = page.locator('[data-site-footer="true"]');
+  await expect(footer).toBeVisible();
+  await expect(footer).toHaveCount(1);
+  await expect(footer.getByText('© 上海同野观幂科技有限公司', { exact: true })).toHaveCount(1);
+  await expect(footer.getByText('AI Transformation & Capability Building', { exact: true })).toHaveCount(1);
+  await expect(footer.getByRole('link', { name: '服务备案号 沪ICP备2024086119号-3', exact: true }))
+    .toHaveAttribute('href', 'https://beian.miit.gov.cn/');
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', /\/assets\/favicon-[^/]+\.svg$/);
+  await expect(page.locator('link[rel="preload"][as="font"]')).toHaveAttribute(
+    'href',
+    /\/assets\/qiji-title-subset-[^/]+\.ttf$/
+  );
   expect(await page.evaluate(() => document.body.scrollHeight > window.innerHeight)).toBe(true);
   expect(await page.locator('[inert], [style*="visibility: hidden"], [style*="opacity: 0"]').count()).toBe(0);
 });

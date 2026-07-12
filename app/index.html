@@ -1,15 +1,30 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="__SITE_LANGUAGE__">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="同野观幂是一家面向组织与个人能力建设的 AI 转型咨询公司，帮助企业把 AI 变成团队真正会用、业务真正用得上的能力。" />
+    <meta name="description" content="__SITE_DESCRIPTION__" />
     <meta name="theme-color" content="#07110e" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307110e'/%3E%3Cpath d='M18 20h28v7H35v24h-7V27H18z' fill='%23d7b44f'/%3E%3Ccircle cx='46' cy='45' r='5' fill='%232a7b69'/%3E%3C/svg%3E" />
+    <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="../assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
     <!--__CANONICAL_LINK__-->
-    <title>同野观幂｜AI 转型与能力建设</title>
+    <title>__SITE_TITLE__</title>
   </head>
   <body>
+    <div
+      id="story-loader-static"
+      class="story-loader story-loader--static loading-screen"
+      data-story-loader-static="true"
+      data-loader-status="running"
+      aria-live="polite"
+      aria-label="正在进入同人于野，观象知幂"
+    >
+      <div class="story-loader__word loader-word" aria-hidden="true">
+        <div class="story-loader__ink-blur"><span>同人于野</span></div>
+        <div class="story-loader__ink-clear"><span>同人于野</span></div>
+      </div>
+    </div>
+    <noscript><style>#story-loader-static { display: none !important; }</style></noscript>
     <div id="root"></div>
     <!--__STATIC_STORY_CONTENT__-->
     <script type="module" src="/src/main.tsx"></script>

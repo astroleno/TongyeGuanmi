@@ -1,3 +1,10 @@
+import {
+  disposeTimelineVideoDriver,
+  driveTimelineVideo,
+  prepareTimelineVideoFrame,
+  timelineVideoDriverFor,
+  type TimelineVideoDriveInput
+} from '../../media/timeline-video-driver';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const TTG_MEDIA_KEY = 'ttg_figure-alpha-scrub';
@@ -23,7 +30,11 @@ export type TtgRenderState = {
 };
 
 type TtgRenderOptions = {
-  playback?: boolean;
+  mediaRun?: {
+    runId: string;
+    direction: 1 | -1;
+    reducedMotion?: boolean;
+  };
 };
 
 const TTG_CONFIG = {
@@ -40,8 +51,6 @@ const TTG_CONFIG = {
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 const stableProgress = (value: number) => (value < 0.002 ? 0 : value > 0.998 ? 1 : clamp(value));
-const playbackFallbackVideos = new WeakSet<HTMLVideoElement>();
-const playbackGenerations = new WeakMap<HTMLVideoElement, number>();
 const acceleratedProgress = (progress: number) => {
   const p = stableProgress(progress);
   return clamp(0.78 * p + 0.22 * p * p);
@@ -51,111 +60,164 @@ function viewportHeight(): number {
   return typeof window === 'undefined' ? 800 : window.innerHeight;
 }
 
-function seekVideo(video: HTMLVideoElement | null | undefined, progress: number): void {
-  if (!video) {
-    return;
-  }
-  video.loop = false;
-  video.pause();
-  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : TTG_CONFIG.videoDurationFallback;
-  const targetTime = Math.max(0, Math.min(duration - 0.02, progress * duration));
-  if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.016) {
-    video.currentTime = targetTime;
-  }
+type TtgSurface = 'forward' | 'reverse';
+
+type TtgSurfaceState = {
+  token: number;
+  runId: string;
+  direction: 1 | -1;
+  pendingSurface?: TtgSurface;
+  pendingProgress?: number;
+};
+
+const surfaceStates = new WeakMap<HTMLElement, TtgSurfaceState>();
+
+function mediaInput(
+  mediaRun: NonNullable<TtgRenderOptions['mediaRun']>,
+  progress: number,
+  mode: NonNullable<TimelineVideoDriveInput['mode']>
+): TimelineVideoDriveInput {
+  return {
+    runId: mediaRun.runId,
+    direction: mediaRun.direction,
+    progress,
+    durationFallbackSeconds: TTG_CONFIG.videoDurationFallback,
+    endEpsilonSeconds: 0.02,
+    timelineDurationMs: TTG_PLAYBACK_MS,
+    mode,
+    nativePlaybackDirection: 1,
+    ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {})
+  };
 }
 
-function finishVideo(video: HTMLVideoElement | null | undefined, progress: number): void {
-  if (!video) {
-    return;
-  }
-  video.loop = false;
-  video.pause();
-  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : TTG_CONFIG.videoDurationFallback;
-  const targetTime = Math.max(0, Math.min(duration - 0.02, progress * duration));
-  if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.016) {
-    video.currentTime = targetTime;
-  }
-}
-
-function invalidatePlayback(video: HTMLVideoElement | null | undefined): void {
-  if (!video) {
-    return;
-  }
-  playbackGenerations.set(video, (playbackGenerations.get(video) ?? 0) + 1);
-  video.pause();
-}
-
-function playVideo(
-  video: HTMLVideoElement | null | undefined,
-  remainingProgress: number,
-  mediaProgress: number,
-  section: HTMLElement | null
+function setActiveSurface(
+  section: HTMLElement,
+  surface: TtgSurface,
+  forwardVideo: HTMLVideoElement,
+  reverseVideo: HTMLVideoElement
 ): void {
-  if (!video) {
+  const active = surface === 'forward' ? forwardVideo : reverseVideo;
+  const inactive = surface === 'forward' ? reverseVideo : forwardVideo;
+  active.classList.add('is-active');
+  inactive.classList.remove('is-active');
+  section.dataset.ttgActiveSurface = surface;
+}
+
+function parkSurface(video: HTMLVideoElement): void {
+  disposeTimelineVideoDriver(video);
+  video.pause();
+  video.dataset.ttgSurfaceParked = 'true';
+  if (video.preload !== 'metadata') {
+    video.preload = 'metadata';
+    video.load?.();
+  }
+}
+
+function prepareAndActivate(
+  section: HTMLElement,
+  surface: TtgSurface,
+  progress: number,
+  mediaRun: NonNullable<TtgRenderOptions['mediaRun']>,
+  forwardVideo: HTMLVideoElement,
+  reverseVideo: HTMLVideoElement
+): void {
+  const target = surface === 'forward' ? forwardVideo : reverseVideo;
+  const state = surfaceStates.get(section) ?? {
+    token: 0,
+    runId: mediaRun.runId,
+    direction: mediaRun.direction
+  };
+  if (
+    state.pendingSurface === surface
+    && state.runId === mediaRun.runId
+    && state.direction === mediaRun.direction
+    && state.pendingProgress !== undefined
+    && Math.abs(state.pendingProgress - progress) <= 0.001
+  ) {
     return;
   }
-  if (playbackFallbackVideos.has(video)) {
-    seekVideo(video, mediaProgress);
-    section?.setAttribute('data-ttg-playback-fallback', 'true');
-    return;
-  }
-  if (video.paused) {
-    seekVideo(video, mediaProgress);
-  }
-  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : TTG_CONFIG.videoDurationFallback;
-  const remainingTimelineSeconds = Math.max(0.05, clamp(remainingProgress) * (TTG_PLAYBACK_MS / 1000));
-  const remainingMediaSeconds = Math.max(0, duration - video.currentTime);
-  video.playbackRate = Math.min(2, Math.max(0.25, remainingMediaSeconds / remainingTimelineSeconds));
-  if (!video.paused) {
-    return;
-  }
-  const generation = (playbackGenerations.get(video) ?? 0) + 1;
-  playbackGenerations.set(video, generation);
-  void video.play().catch(() => {
-    if (playbackGenerations.get(video) !== generation) {
+  state.token += 1;
+  state.runId = mediaRun.runId;
+  state.direction = mediaRun.direction;
+  state.pendingSurface = surface;
+  state.pendingProgress = progress;
+  surfaceStates.set(section, state);
+  const token = state.token;
+  section.dataset.ttgPendingSurface = surface;
+  const input = mediaInput(mediaRun, progress, 'timeline');
+  let activated = false;
+  const activate = () => {
+    if (
+      activated
+      || state.token !== token
+      || state.runId !== mediaRun.runId
+      || state.direction !== mediaRun.direction
+    ) {
       return;
     }
-    playbackFallbackVideos.add(video);
-    section?.setAttribute('data-ttg-playback-fallback', 'true');
-    seekVideo(video, mediaProgress);
+    activated = true;
+    delete state.pendingSurface;
+    delete state.pendingProgress;
+    setActiveSurface(section, surface, forwardVideo, reverseVideo);
+    delete section.dataset.ttgPendingSurface;
+    delete target.dataset.ttgSurfaceParked;
+    driveTimelineVideo(target, { ...input, mode: 'native-preferred', nativePlaybackDirection: 1 });
+    const inactive = surface === 'forward' ? reverseVideo : forwardVideo;
+    parkSurface(inactive);
+  };
+  const ready = prepareTimelineVideoFrame(target, input);
+  if (timelineVideoDriverFor(target).snapshot().frameReady) {
+    activate();
+  }
+  void ready.then((result) => {
+    if (result?.status === 'ready') {
+      activate();
+    }
   });
 }
 
-function driveFigurePlayback(section: HTMLElement | null, progress: number): void {
+function driveFigurePlayback(
+  section: HTMLElement | null,
+  progress: number,
+  mediaRun: NonNullable<TtgRenderOptions['mediaRun']>
+): void {
   const forwardVideo = section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
   const reverseVideo = section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
-  const previous = Number.parseFloat(section?.dataset.ttgRawProgress ?? `${progress}`);
-  const direction = progress >= previous ? 1 : -1;
-  section?.setAttribute('data-ttg-playback-direction', String(direction));
+  section?.setAttribute('data-ttg-playback-direction', String(mediaRun.direction));
+  section?.setAttribute('data-ttg-playback-run', mediaRun.runId);
   section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));
   section?.setAttribute('data-ttg-playback-active', String(progress > 0.001 && progress < 0.999));
+  if (!section || !forwardVideo || !reverseVideo) {
+    return;
+  }
 
-  if (progress <= 0.001) {
-    forwardVideo?.classList.add('is-active');
-    reverseVideo?.classList.remove('is-active');
-    finishVideo(forwardVideo, 0);
-    finishVideo(reverseVideo, 1);
-    section?.setAttribute('data-ttg-playback-active', 'false');
+  const desiredSurface: TtgSurface = mediaRun.direction === 1 ? 'forward' : 'reverse';
+  const desiredVideo = desiredSurface === 'forward' ? forwardVideo : reverseVideo;
+  const mediaProgress = desiredSurface === 'forward' ? progress : 1 - progress;
+  const desiredIsActive = desiredVideo.classList.contains('is-active');
+
+  if (!desiredIsActive) {
+    prepareAndActivate(
+      section,
+      desiredSurface,
+      mediaProgress,
+      mediaRun,
+      forwardVideo,
+      reverseVideo
+    );
     return;
   }
-  if (progress >= 0.999) {
-    forwardVideo?.classList.add('is-active');
-    reverseVideo?.classList.remove('is-active');
-    finishVideo(forwardVideo, 1);
-    finishVideo(reverseVideo, 0);
-    section?.setAttribute('data-ttg-playback-active', 'false');
-    return;
-  }
-  if (direction >= 0) {
-    forwardVideo?.classList.add('is-active');
-    reverseVideo?.classList.remove('is-active');
-    invalidatePlayback(reverseVideo);
-    playVideo(forwardVideo, 1 - progress, progress, section);
-  } else {
-    reverseVideo?.classList.add('is-active');
-    forwardVideo?.classList.remove('is-active');
-    invalidatePlayback(forwardVideo);
-    playVideo(reverseVideo, progress, 1 - progress, section);
+
+  const snapshot = driveTimelineVideo(
+    desiredVideo,
+    mediaInput(mediaRun, mediaProgress, 'native-preferred')
+  );
+  delete desiredVideo.dataset.ttgSurfaceParked;
+  section.dataset.ttgPlaybackFallback = String(snapshot?.nativeFallback ?? false);
+  parkSurface(desiredSurface === 'forward' ? reverseVideo : forwardVideo);
+
+  if (mediaRun.direction === -1 && progress <= 0.001) {
+    prepareAndActivate(section, 'forward', 0, mediaRun, forwardVideo, reverseVideo);
   }
 }
 
@@ -183,11 +245,20 @@ export function renderTtgAnimationProgress(root: HTMLElement | null | undefined,
   section?.style.setProperty('--ttg-figure-scale', TTG_CONFIG.figureScale.toFixed(4));
   section?.setAttribute('data-ttg-progress', visualProgress.toFixed(4));
 
-  if (options.playback) {
-    driveFigurePlayback(section, progress);
+  if (options.mediaRun) {
+    driveFigurePlayback(section, progress, options.mediaRun);
   } else {
-    seekVideo(section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]'), progress);
-    seekVideo(section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]'), 1 - progress);
+    const forwardVideo = section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
+    const reverseVideo = section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
+    if (section && forwardVideo && reverseVideo) {
+      setActiveSurface(section, 'forward', forwardVideo, reverseVideo);
+    }
+    if (forwardVideo) {
+      parkSurface(forwardVideo);
+    }
+    if (reverseVideo) {
+      parkSurface(reverseVideo);
+    }
     section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));
   }
 
@@ -240,7 +311,7 @@ function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
                 width="720"
                 height="1280"
                 muted
-                preload="auto"
+                preload="metadata"
                 playsInline
               />
               <video
@@ -252,7 +323,7 @@ function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
                 width="720"
                 height="1280"
                 muted
-                preload="auto"
+                preload="metadata"
                 playsInline
               />
             </div>

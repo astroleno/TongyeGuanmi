@@ -3,6 +3,7 @@ import type { Direction, QueuedIntent } from '../story/types';
 export const DEFAULT_CHARGE_THRESHOLD = 0.1;
 export const DEFAULT_CHARGE_DECAY_PER_MS = 0.001;
 export const DEFAULT_QUEUED_INTENT_TTL_MS = 420;
+const CHARGE_THRESHOLD_EPSILON = 1e-9;
 
 export type ChargeState = {
   value: number;
@@ -52,7 +53,7 @@ export function sampleCharge(state: ChargeState, now: number): ChargeState {
 export function applyChargeDelta(state: ChargeState, delta: number, now: number): ChargeUpdate {
   const sampled = sampleCharge(state, now);
   const nextValue = sampled.value + delta;
-  if (Math.abs(nextValue) >= sampled.threshold) {
+  if (Math.abs(nextValue) + CHARGE_THRESHOLD_EPSILON >= sampled.threshold) {
     return {
       fired: directionOf(nextValue),
       state: {

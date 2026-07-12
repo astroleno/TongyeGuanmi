@@ -2,7 +2,13 @@ import { useMemo } from 'react';
 import { assertLayerWindowInvariants, type LayerWindowSnapshot } from './LayerWindow';
 import { SceneLayer } from './SceneLayer';
 import type { HandleRegistry } from '../story/registry';
-import type { LayerVisibilityState, SceneId, SceneModule, StageLayerRole } from '../story/types';
+import type {
+  LayerVisibilityState,
+  SceneId,
+  SceneModule,
+  ScenePresentationState,
+  StageLayerRole
+} from '../story/types';
 import { canonicalSpine } from '../story/canonical-spine';
 import { RetainedFigure2Arch, retainedFigure2ArchState } from './RetainedFigure2Arch';
 
@@ -17,6 +23,8 @@ export type StageProps = {
   registry: HandleRegistry;
   visibilityByScene?: Partial<Record<SceneId, LayerVisibilityState>>;
   copyCueScene?: SceneId | undefined;
+  presentationByScene?: Partial<Record<SceneId, ScenePresentationState>>;
+  interactive?: boolean;
   onLayerElement?: (scene: SceneId, element: HTMLElement | null) => void;
   onSceneMount?: (scene: SceneId) => void;
   onSceneDispose?: (scene: SceneId, resources: { canvases: number; videos: number }) => void;
@@ -71,7 +79,7 @@ function proofGroundState(
   };
 }
 
-export function Stage({ window, modules, registry, visibilityByScene = {}, copyCueScene, onLayerElement, onSceneMount, onSceneDispose }: StageProps) {
+export function Stage({ window, modules, registry, visibilityByScene = {}, copyCueScene, presentationByScene = {}, interactive = true, onLayerElement, onSceneMount, onSceneDispose }: StageProps) {
   assertLayerWindowInvariants(window);
   const members = useMemo(() => membersForWindow(window), [window]);
   const proofGround = proofGroundState(members, visibilityByScene);
@@ -86,6 +94,9 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
       data-testid="r2-stage"
       data-active-layer-count={members.filter((member) => member.role !== 'retiring').length}
       data-mounted-layer-count={members.length}
+      data-interactive={String(interactive)}
+      aria-hidden={interactive ? undefined : 'true'}
+      inert={interactive ? undefined : true}
     >
       {proofGround.mounted ? (
         <div
@@ -110,6 +121,9 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
             visibility={visibilityByScene[member.scene]}
             reading={READING_SCENES.has(member.scene)}
             copyCueActive={copyCueScene === member.scene}
+            {...(presentationByScene[member.scene]
+              ? { presentation: presentationByScene[member.scene] }
+              : {})}
             zIndex={zIndexFor(member.role)}
             onElement={onLayerElement}
             onMount={onSceneMount}

@@ -68,4 +68,10 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toContain('smoothstep(0.860, 0.975, particleSeed)');
     expect(shaderSource).not.toMatch(/particles[^;]*mix\(0\.78, 1\.25/);
   });
+
+  it('allows edge-only grade to remove scene-wide body wash without changing the boundary', () => {
+    expect(shaderSource).toMatch(/float coreWash = body \* uCoverAlpha/);
+    expect(shaderSource).not.toContain('0.14 + uCoverAlpha');
+    expect(shaderSource).toContain('alpha = max(alpha, seamOcclusion)');
+  });
 });

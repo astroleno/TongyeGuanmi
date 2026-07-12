@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
+import { bindSceneMotion, type SceneMotionBinding } from '../../stage/scene-motion';
 import { STAR_MAP_COPY } from '../star-map';
 import {
   PATTERN_BACKGROUND_IMAGE,
@@ -33,7 +34,6 @@ export type PatternRenderOptions = {
   opacity?: number;
   copyProgress?: number;
   rotationProgress?: number;
-  freezeMotion?: boolean;
 };
 
 type PatternRoot = HTMLElement & {
@@ -87,9 +87,6 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
   root?.setAttribute('data-pattern-progress', clamped.toFixed(4));
   root?.setAttribute('data-pattern-center', `${center.x.toFixed(4)},${center.y.toFixed(4)}`);
   const renderer = (root as PatternRoot | null)?.__r4PatternRenderer;
-  if (options.freezeMotion) {
-    renderer?.setRenderActive(true, false);
-  }
   renderer?.setFrameProgress(clamped, rotationProgress);
 
   return {
@@ -119,6 +116,7 @@ export function renderPatternHold(root: HTMLElement | null): PatternRenderState 
 function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const motionBindingRef = useRef<SceneMotionBinding | null>(null);
 
   useEffect(() => {
     const root = rootRef.current as PatternRoot | null;
@@ -128,6 +126,11 @@ function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
     }
     const renderer = new PatternBloomRenderer(canvas);
     root.__r4PatternRenderer = renderer;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const motionBinding = bindSceneMotion(root, (active) => {
+      renderer.setRenderActive(active, active && !reducedMotion);
+    });
+    motionBindingRef.current = motionBinding;
     let disposed = false;
     void renderer.start().then(() => renderer.prepareStaticFrame()).then(() => {
       if (!disposed) {
@@ -136,6 +139,10 @@ function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
     });
     return () => {
       disposed = true;
+      motionBinding.dispose();
+      if (motionBindingRef.current === motionBinding) {
+        motionBindingRef.current = null;
+      }
       registerHandle?.('pattern-texture', null);
       renderer.destroy();
       delete canvas.dataset.inkTextureReady;
@@ -146,12 +153,8 @@ function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
   }, [registerHandle]);
 
   useEffect(() => {
-    const root = rootRef.current as PatternRoot | null;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    root?.__r4PatternRenderer?.setRenderActive(
-      !hidden && role === 'current',
-      !hidden && !reduceMotion && role === 'current'
-    );
+    motionBindingRef.current?.setBaseActive(!hidden && !reduceMotion && role === 'current');
   }, [hidden, role]);
 
   return (

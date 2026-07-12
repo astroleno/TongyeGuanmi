@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { fromSyntheticVisibility } from '../story/visibility-predicate';
 import type { HandleRegistry } from '../story/registry';
-import type { LayerVisibilityState, SceneId, SceneModule, StageLayerRole } from '../story/types';
+import type {
+  LayerVisibilityState,
+  SceneId,
+  SceneModule,
+  ScenePresentationState,
+  StageLayerRole
+} from '../story/types';
 
 export type SceneLayerProps = {
   module: SceneModule;
@@ -10,6 +16,7 @@ export type SceneLayerProps = {
   visibility: LayerVisibilityState | undefined;
   reading?: boolean;
   copyCueActive?: boolean;
+  presentation?: ScenePresentationState;
   zIndex: number;
   onElement?: ((scene: SceneId, element: HTMLElement | null) => void) | undefined;
   onMount?: ((scene: SceneId) => void) | undefined;
@@ -41,8 +48,17 @@ function releaseLayerResources(root: HTMLElement | null): { canvases: number; vi
   }
   const canvases = [...root.querySelectorAll('canvas')];
   const videos = [...root.querySelectorAll('video')];
+  const images = [...root.querySelectorAll('img')];
+  for (const image of images) {
+    image.removeAttribute('src');
+    image.removeAttribute('srcset');
+    image.removeAttribute('sizes');
+  }
   for (const video of videos) {
+    (video as HTMLVideoElement & { __r5TimelineVideoDispose?: () => void })
+      .__r5TimelineVideoDispose?.();
     video.pause();
+    video.removeAttribute('poster');
     video.removeAttribute('src');
     for (const source of video.querySelectorAll('source')) {
       source.removeAttribute('src');
@@ -60,7 +76,7 @@ function releaseLayerResources(root: HTMLElement | null): { canvases: number; vi
   return { canvases: canvases.length, videos: videos.length };
 }
 
-export function SceneLayer({ module, role, registry, visibility, reading = false, copyCueActive = false, zIndex, onElement, onMount, onDispose }: SceneLayerProps) {
+export function SceneLayer({ module, role, registry, visibility, reading = false, copyCueActive = false, presentation, zIndex, onElement, onMount, onDispose }: SceneLayerProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const lastRootRef = useRef<HTMLElement | null>(null);
   const pendingDisposeRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -96,10 +112,12 @@ export function SceneLayer({ module, role, registry, visibility, reading = false
   }, [module, onDispose, onMount, registry]);
 
   useLayoutEffect(() => {
-    if (role === 'current' && state.visible && state.opacity > 0.999) {
+    const heroIntroPending = module.id === 'hero'
+      && (presentation?.heroIntroMode === 'waiting' || presentation?.heroIntroMode === 'running');
+    if (role === 'current' && state.visible && state.opacity > 0.999 && !heroIntroPending) {
       module.renderHold(rootRef.current);
     }
-  }, [module, role, state.opacity, state.visible]);
+  }, [module, presentation?.heroIntroMode, role, state.opacity, state.visible]);
 
   const registerRoot = useCallback((element: HTMLElement | null) => {
     rootRef.current = element;
@@ -131,7 +149,14 @@ export function SceneLayer({ module, role, registry, visibility, reading = false
       tabIndex={reading && !state.inert ? 0 : undefined}
       style={style}
     >
-      <Component scene={module.id} hidden={hidden} role={role} copyCueActive={copyCueActive} registerHandle={registerHandle} />
+      <Component
+        scene={module.id}
+        hidden={hidden}
+        role={role}
+        copyCueActive={copyCueActive}
+        {...(presentation ? { presentation } : {})}
+        registerHandle={registerHandle}
+      />
     </section>
   );
 }

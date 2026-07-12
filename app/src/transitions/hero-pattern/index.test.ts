@@ -131,6 +131,30 @@ describe('hero-pattern transition', () => {
     expect(fixture.toRoot.dataset.patternProgress).toBe('0.0000');
   });
 
+  it('leases Pattern motion only while Pattern is visible and releases it idempotently', async () => {
+    const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
+    const canvas = new FakeCanvas();
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const timeline = await createHeroPatternTransition().buildTimeline(fixture.context);
+
+    expect(fixture.toRoot.dataset.sceneMotionActive).toBe('false');
+    expect(fixture.toRoot.dataset.sceneMotionLeaseCount).toBe('0');
+
+    timeline.progress(0.5);
+    expect(fixture.toRoot.dataset.sceneMotionActive).toBe('true');
+    expect(fixture.toRoot.dataset.sceneMotionLeaseCount).toBe('1');
+
+    timeline.progress(0);
+    expect(fixture.toRoot.dataset.sceneMotionActive).toBe('false');
+    expect(fixture.toRoot.dataset.sceneMotionLeaseCount).toBe('0');
+
+    timeline.progress(0.5);
+    timeline.dispose();
+    timeline.dispose();
+    expect(fixture.toRoot.dataset.sceneMotionActive).toBe('false');
+    expect(fixture.toRoot.dataset.sceneMotionLeaseCount).toBe('0');
+  });
+
   it('keeps exactly Hero → Pattern and Pattern → Star Map as radial consumers', () => {
     const transitionsRoot = new URL('../', import.meta.url);
     const radialConsumers = readdirSync(transitionsRoot, { withFileTypes: true })

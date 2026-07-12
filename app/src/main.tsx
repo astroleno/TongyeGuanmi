@@ -14,6 +14,10 @@ if (!rootElement) {
   throw new Error('Root element #root was not found');
 }
 
+if (window.location.pathname !== '/' && window.location.pathname !== '/index.html') {
+  document.getElementById('story-loader-static')?.remove();
+}
+
 createRoot(rootElement).render(
   <StrictMode>
     <App />

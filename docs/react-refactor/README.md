@@ -1,28 +1,28 @@
 # React Refactor
 
-状态：R5 release candidate v3 已完成自动验收与 release identity 绑定，等待 HITL cutover approval。`/`、根工具链、CI 与部署构建均已切到 production React StoryApp；旧 runtime 默认路径不可达。候选尚未合并或部署 `main`。
+状态：R5 production parity repair 的实现、必需文档和 pre-freeze 完整自动化验收已通过；尚未冻结 corrected candidate，也尚未完成 exact-tag smoke 与同端口 rollback。当前不允许合并、部署 `main`、创建 cutover tag 或开始 R6。
 
 ## 当前事实
 
 - 旧静态站基线：`react-refactor-legacy-static-baseline` → `a78b064d65f024a301a3b179c62a458a1445bbf6`。
 - R4 视觉验收点：`react-refactor-r4-visual-accepted` → `55b8a123a7a5b28647c40acc81783ee37cd58302`。
 - R5 起点：`react-refactor-r4-closeout` → `c2a52dbefd99d2ee99ffa13db0abbdf7b760a143`。
-- R5 阶段分支：`codex/react-refactor-r5-parity-cutover`。
-- 当前候选：`react-refactor-r5-candidate-v3`。`react-refactor-r5-candidate` 因 G1 合同漏同步而 superseded；`react-refactor-r5-candidate-v2` 因 manifest 仍自称旧 candidate 而 superseded。两个旧 tag 均保持不可变，不得用于批准或部署。
-- `/` 已覆盖完整 canonical spine；Director、Stage、真实输入、reading handoff、history/hash、菜单、reduced-motion 与 recovery 已接通。
-- public build 只装配 production module；scene/transition 按需加载，harness 只在开发 gate 下 lazy-load。
-- `dist/index.html` 在无 JS 时包含 8 个正文区、127 条非 legacy copy、metadata 与 hash anchors。
-- R5 candidate 通过自动化回归与预算，最终视觉、实体移动设备、SEO、性能与 rollback 仍需 HITL 同时批准。
+- 修复分支：`codex/react-refactor-r5-parity-cutover`；修复基点：`59065730712c6d9718928fd25cba23e33455395e`。
+- `react-refactor-r5-candidate`、`-v2`、`-v3` 都不包含本轮 20 项修复，全部只保留为不可变审计记录，禁止移动或冒充 corrected candidate。
+- 最终自动验收全部通过后，唯一允许创建的新候选 tag 是 `react-refactor-r5-parity-repair-candidate`。
+- 18 holds、17 segments、canonical 顺序、scene id、hash、copy、Director/SegmentPlayer/Stage/LayerWindow、production/harness lazy 边界和 no-JS shell 架构保持不变。
+- 本轮修复覆盖可见转场 motion、AOD alpha、ink lifecycle/grade、Figure2/Crane/PH/TTG 媒体、10svh 阅读交接、逆向阅读进入、Contact 局部恢复、loader/Hero/nav、footer/备案/favicon/fonts。
+- 此 Goal 的验收不新增 screenshot baseline，不要求人工视觉复核；完整自动化通过并完成 exact-tag/rollback 后停止等待 HITL。
 
 ## 阅读顺序
 
-1. `reports/r5-candidate.md`：候选边界、验证汇总与 HITL gate。
-2. `reports/r5-regression-matrix.md`：设备、浏览器、输入、网络与 TTG 证据。
-3. `reports/r5-performance-budget.md`：legacy 对照、bundle、帧率、GPU/RSS/heap/dispose。
-4. `reports/r5-seo-no-js.md`：构建产物正文与无 JS 验证。
-5. `runbooks/react-cutover-rollback.md`：批准后的 cutover、触发回滚、恢复和 archive 策略。
-6. `decisions/react-default-runtime.md`：React 默认 runtime ADR。
-7. `goals/R5-parity-cutover.md` 与 `goals/R6-cleanup.md`：阶段边界。
+1. `contract-diff/R5-production-parity-repair.md`：R1–R20 的复现、根因、最小责任文件和修复合同。
+2. `reports/r5-parity-repair-candidate.md`：corrected candidate 身份、最终 gate 与冻结结果。
+3. `reports/r5-regression-matrix.md`：设备、输入、媒体、recovery 与 lifecycle 覆盖。
+4. `reports/r5-performance-budget.md`：恢复可见 motion 后仍必须满足的 LCP/frame/bundle/GPU/RSS/heap/dispose 预算。
+5. `reports/r5-seo-no-js.md`：footer/备案/favicon/font 与无 JS 产物合同。
+6. `runbooks/react-cutover-rollback.md`：exact-tag build/smoke、同端口 rollback 和未来 cutover 边界。
+7. `reports/r5-candidate.md`：旧 v3 的历史审计记录；不得作为本轮通过证据。
 
 ## 分支链与 gate
 
@@ -31,13 +31,13 @@ react-refactor-legacy-static-baseline
   └─ R0 → R1 → R2 → R3
                     └─ react-refactor-r4-visual-accepted
                          └─ react-refactor-r4-closeout
-                              └─ codex/react-refactor-r5-parity-cutover
-                                   └─ react-refactor-r5-candidate (superseded; immutable)
-                                        └─ react-refactor-r5-candidate-v2 (superseded; immutable)
-                                             └─ react-refactor-r5-candidate-v3
-                                                  └─ HITL approval
-                                                       └─ main deploy + react-refactor-r5-cutover
-                                                            └─ codex/react-refactor-r6-cleanup
+                              └─ react-refactor-r5-candidate / v2 / v3
+                                   (superseded, immutable, unrepaired)
+                                   └─ codex/react-refactor-r5-parity-cutover
+                                        └─ final automated acceptance
+                                             └─ react-refactor-r5-parity-repair-candidate
+                                                  └─ exact-tag build/smoke + rollback rehearsal
+                                                       └─ stop for HITL
 ```
 
-`react-refactor-r5-cutover` 只能在 HITL 明确批准并完成 main cutover 后建立；R6 不得从 candidate 或未批准的 main 开始。
+`react-refactor-r5-cutover` 只能在后续 HITL 明确批准并完成 main cutover 后建立；R6 不得从 candidate、未批准的 main 或本轮工作分支开始。

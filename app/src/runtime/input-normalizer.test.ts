@@ -5,7 +5,10 @@ describe('input normalizer', () => {
   it('translates wheel pixels into viewport fractions', () => {
     expect(normalizeInputDelta({ type: 'wheel', deltaY: 100, viewportHeight: 1000 })).toEqual({
       source: 'wheel',
-      delta: 0.1
+      pixels: 100,
+      viewportFraction: 0.1,
+      delta: 0.1,
+      viewportHeight: 1000
     });
   });
 
@@ -17,7 +20,20 @@ describe('input normalizer', () => {
   it('normalizes touch drag direction like wheel direction', () => {
     expect(normalizeInputDelta({ type: 'touch', previousY: 500, currentY: 400, viewportHeight: 1000 })).toEqual({
       source: 'touch',
-      delta: 0.1
+      pixels: 100,
+      viewportFraction: 0.1,
+      delta: 0.1,
+      viewportHeight: 1000
+    });
+  });
+
+  it('retains the physical 10svh keyboard step alongside normalized intent', () => {
+    expect(normalizeInputDelta({ type: 'key', key: 'PageDown', viewportHeight: 900 })).toEqual({
+      source: 'key',
+      pixels: 90,
+      viewportFraction: 0.1,
+      delta: 0.1,
+      viewportHeight: 900
     });
   });
 

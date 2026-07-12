@@ -50,7 +50,7 @@ type Group5VisualSnapshot = {
   ttgProgress: number;
   ttgBgTransform: string;
   ttgFigureTransform: string;
-  ttgVideos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
+  ttgVideos: readonly { loop: boolean; paused: boolean; currentTime: number; active: boolean }[];
   ttgPlaybackDirection: string | undefined;
   labProgress: number;
   labRows: number;
@@ -92,7 +92,8 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
       ttgVideos: [...document.querySelectorAll<HTMLVideoElement>('[data-ttg-figure-video], [data-ttg-figure-video-reverse]')].map((video) => ({
         loop: video.loop,
         paused: video.paused,
-        currentTime: video.currentTime
+        currentTime: video.currentTime,
+        active: video.classList.contains('is-active')
       })),
       ttgPlaybackDirection: ttgRoot?.dataset.ttgPlaybackDirection,
       labProgress: Number.parseFloat(labRoot?.dataset.labProgress ?? '0'),
@@ -175,6 +176,7 @@ test.describe('R4 group5 services ttg lab harness', () => {
       void window.__r4Group5?.playForward();
     });
     let sawTtgNativePlayback = false;
+    let previousForwardTime = 0;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       frames.push(await snapshot(page));
@@ -182,7 +184,10 @@ test.describe('R4 group5 services ttg lab harness', () => {
       sawTtgNativePlayback ||= visual.activeInkSegments.includes('ttg-lab') === false
         && visual.ttgProgress > 0
         && visual.ttgProgress < 1
-        && visual.ttgVideos.some((video) => !video.paused);
+        && visual.ttgVideos[0]?.active === true
+        && (visual.ttgVideos.some((video) => !video.paused)
+          || (visual.ttgVideos[0]?.currentTime ?? 0) > previousForwardTime + 0.01);
+      previousForwardTime = visual.ttgVideos[0]?.currentTime ?? previousForwardTime;
     }
     expect(sawTtgNativePlayback).toBe(true);
     await expect.poll(async () => (await snapshot(page)).phase).toBe('staged-paused');
@@ -273,16 +278,30 @@ test.describe('R4 group5 services ttg lab harness', () => {
       void window.__r4Group5?.playReverse();
     });
     let sawTtgReversePlayback = false;
+    let previousReverseTime = 0;
+    const reverseEvidence: Array<{
+      direction: string | undefined;
+      progress: number;
+      videos: Group5VisualSnapshot['ttgVideos'];
+    }> = [];
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
       const visual = await visualSnapshot(page);
+      reverseEvidence.push({
+        direction: visual.ttgPlaybackDirection,
+        progress: visual.ttgProgress,
+        videos: visual.ttgVideos
+      });
       sawTtgReversePlayback ||= visual.ttgPlaybackDirection === '-1'
         && visual.ttgProgress > 0
         && visual.ttgProgress < 1
-        && visual.ttgVideos.some((video) => !video.paused);
+        && visual.ttgVideos[1]?.active === true
+        && (visual.ttgVideos.some((video) => !video.paused)
+          || (visual.ttgVideos[1]?.currentTime ?? 0) > previousReverseTime + 0.01);
+      previousReverseTime = visual.ttgVideos[1]?.currentTime ?? previousReverseTime;
     }
-    expect(sawTtgReversePlayback).toBe(true);
+    expect(sawTtgReversePlayback, JSON.stringify(reverseEvidence)).toBe(true);
     await expect.poll(
       async () => (await snapshot(page)).window.current,
       { timeout: 10_000, intervals: [40, 80, 120] }

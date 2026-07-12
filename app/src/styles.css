@@ -1,9 +1,18 @@
+@font-face {
+  font-family: "Tongye Title";
+  src: url("../../assets/fonts/qiji-title-subset.ttf") format("truetype");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
 :root {
+  --font-title: "Tongye Title", "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-sans: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-traditional: ui-serif, "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif CJK SC", serif;
   color: #1d1b16;
   background: #f8f7f2;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  font-family: var(--font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -53,7 +62,7 @@ body {
   padding: 0 clamp(20px, 5vw, 76px) 64px;
   background: #f4f0e6;
   color: #171b18;
-  font-family: ui-serif, Georgia, "Songti SC", serif;
+  font-family: var(--font-sans);
 }
 
 html[data-story-hydrated="true"] .static-content {
@@ -104,6 +113,7 @@ html[data-story-hydrated="true"] .static-content {
   max-width: 16ch;
   font-size: clamp(2rem, 6vw, 5rem);
   line-height: 1.05;
+  font-family: var(--font-traditional);
 }
 
 .static-content p {
@@ -112,9 +122,26 @@ html[data-story-hydrated="true"] .static-content {
   line-height: 1.8;
 }
 
-.static-content footer {
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.site-footer a {
+  color: inherit;
+}
+
+.static-content .site-footer {
   width: min(900px, 100%);
   margin: 52px auto 0;
+  padding-top: 20px;
+  border-top: 1px solid rgba(23, 27, 24, .14);
   color: rgba(23, 27, 24, .68);
 }
 
@@ -143,70 +170,114 @@ html:not([data-story-hydrated="true"]) .story-app {
   outline: none;
 }
 
-.story-nav {
+.loading-screen,
+.story-loader {
   position: fixed;
-  top: 14px;
-  left: 50%;
-  z-index: 300;
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  width: min(780px, calc(100vw - 28px));
-  min-height: 48px;
-  padding: 8px 12px 8px 18px;
-  border: 1px solid rgba(248, 247, 242, .18);
-  border-radius: 999px;
-  background: rgba(7, 17, 14, .66);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, .2);
-  backdrop-filter: blur(18px) saturate(1.15);
-  transform: translateX(-50%);
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: start center;
+  overflow: hidden;
+  isolation: isolate;
+  background: #000;
+  color: rgba(247, 237, 215, .82);
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity var(--story-loader-exit-ms, 420ms) ease,
+    visibility 0s linear var(--story-loader-exit-ms, 420ms);
 }
 
-.story-nav a {
-  color: #f8f7f2;
-  text-decoration: none;
+.story-loader[data-loader-status="exiting"] {
+  opacity: 0;
+  pointer-events: none;
 }
 
-.story-nav__brand {
-  flex: 0 0 auto;
-  font-family: ui-serif, Georgia, "Songti SC", serif;
-  font-size: .92rem;
-  font-weight: 760;
-  letter-spacing: .08em;
-}
-
-.story-nav__menu {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.story-nav__menu a {
-  padding: 7px 11px;
-  border-radius: 999px;
-  color: rgba(248, 247, 242, .74);
-  font-size: .78rem;
-}
-
-.story-nav__menu a[aria-current="page"],
-.story-nav__menu a:hover,
-.story-nav__menu a:focus-visible {
-  background: rgba(248, 247, 242, .13);
-  color: #fff;
-}
-
-.story-nav__toggle {
+.story-loader[data-loader-status="hidden"],
+.story-loader[hidden] {
   display: none;
-  min-height: 32px;
-  margin-left: auto;
-  padding: 5px 11px;
-  border-color: rgba(248, 247, 242, .25);
-  border-radius: 999px;
-  background: transparent;
-  color: #fff;
-  font-size: .72rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.story-loader--static {
+  animation: story-loader-static-safety 0s linear 8s forwards;
+}
+
+@keyframes story-loader-static-safety {
+  to {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+.loader-word,
+.story-loader__word {
+  position: relative;
+  z-index: 3;
+  width: min(86vw, 4.36em);
+  height: 1.12em;
+  margin-top: 17svh;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  font-family: var(--font-title);
+  font-size: clamp(76px, 12vw, 176px);
+  line-height: .82;
+  font-weight: 400;
+  color: rgba(247, 237, 215, .82);
+}
+
+.story-loader__ink-blur,
+.story-loader__ink-clear {
+  position: absolute;
+  inset: -.16em -.10em;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.story-loader__ink-blur {
+  z-index: 1;
+  color: rgba(247, 237, 215, .76);
+  background: #000;
+  filter: blur(.07em) contrast(15);
+}
+
+.story-loader__ink-clear {
+  z-index: 2;
+}
+
+.story-loader__ink-blur span,
+.story-loader__ink-clear span {
+  white-space: nowrap;
+  clip-path: inset(0 0 0 0);
+}
+
+.story-loader[data-loader-phase="waiting"] :is(.story-loader__ink-blur, .story-loader__ink-clear),
+.story-loader[data-loader-phase="gap"] :is(.story-loader__ink-blur, .story-loader__ink-clear),
+.story-loader[data-loader-phase="complete"] :is(.story-loader__ink-blur, .story-loader__ink-clear) {
+  opacity: 0;
+}
+
+.story-loader[data-loader-phase="revealing"] :is(.story-loader__ink-blur, .story-loader__ink-clear) span {
+  animation: story-loader-ink-reveal var(--story-loader-reveal-ms, 1150ms) cubic-bezier(.37, 0, .63, 1) both;
+}
+
+.story-loader[data-loader-phase="concealing"] :is(.story-loader__ink-blur, .story-loader__ink-clear) span {
+  animation: story-loader-ink-conceal var(--story-loader-reveal-ms, 1150ms) cubic-bezier(.37, 0, .63, 1) both;
+}
+
+@keyframes story-loader-ink-reveal {
+  from { clip-path: inset(0 100% 0 0); opacity: 0; }
+  to { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+
+@keyframes story-loader-ink-conceal {
+  from { clip-path: inset(0 0 0 0); opacity: 1; }
+  to { clip-path: inset(0 0 0 100%); opacity: 0; }
 }
 
 .story-progress {
@@ -266,31 +337,60 @@ html:not([data-story-hydrated="true"]) .story-app {
     padding: 18px 0;
   }
 
-  .story-nav {
-    align-items: center;
-    flex-wrap: wrap;
-    border-radius: 24px;
+  .loader-word,
+  .story-loader__word {
+    margin-top: 18svh;
+    font-size: clamp(52px, 16vw, 96px);
   }
 
-  .story-nav__toggle {
-    display: inline-flex;
-    align-items: center;
+  .r4-hero-scene__content {
+    padding: 18svh 24px 0;
   }
 
-  .story-nav__menu {
-    display: none;
-    flex: 1 0 100%;
-    justify-content: flex-start;
-    overflow-x: auto;
-    padding: 4px 0 2px;
+  .r4-hero-scene__title {
+    max-width: 86vw;
+    gap: clamp(18px, 4vw, 34px);
+    font-size: clamp(52px, 16vw, 96px);
+    line-height: .86;
   }
 
-  .story-nav[data-menu-open="true"] .story-nav__menu {
-    display: flex;
+  .r4-hero-scene__content p {
+    margin-top: 20px;
+    font-size: 18px;
+  }
+
+}
+
+@media (max-width: 520px) {
+  .loader-word,
+  .story-loader__word {
+    margin-top: 20svh;
+    font-size: clamp(46px, 17vw, 78px);
+  }
+
+  .r4-hero-scene__content {
+    padding: 20svh 24px 0;
+  }
+
+  .r4-hero-scene__title {
+    max-width: 88vw;
+    gap: clamp(14px, 3.5vw, 24px);
+    font-size: clamp(46px, 17vw, 78px);
+  }
+
+  .r4-hero-scene__content p {
+    width: min(88vw, 360px);
+    font-size: 16px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .story-loader,
+  .story-loader::before {
+    transition: none !important;
+    animation: none !important;
+  }
+
   .story-app *,
   .story-app *::before,
   .story-app *::after {
@@ -498,7 +598,7 @@ h1 {
 }
 
 .stage-proof-retained-arch {
-  --r4-figure2-near-arch-brightness: .76;
+  --r4-figure2-near-arch-brightness: 1;
   --r4-figure2-near-arch-scale: 1.135;
   --r4-figure2-near-arch-blur: 3.6px;
   position: absolute;
@@ -848,6 +948,12 @@ pre {
   --r4-hero-figure-opacity: 1;
   --r4-hero-content-opacity: 1;
   --r4-hero-exit-lift: 0px;
+  --r4-hero-back-parallax-x: 0px;
+  --r4-hero-back-parallax-y: 0px;
+  --r4-hero-middle-parallax-x: 0px;
+  --r4-hero-middle-parallax-y: 0px;
+  --r4-hero-figure-parallax-x: 0px;
+  --r4-hero-figure-parallax-y: 0px;
   position: relative;
   width: 100%;
   height: 100svh;
@@ -891,20 +997,28 @@ pre {
   height: 112%;
   opacity: var(--r4-hero-back-opacity);
   filter: blur(calc(10px * (1 - var(--r4-hero-progress)))) saturate(.94) contrast(.97) brightness(.58);
-  transform: translate3d(-50%, calc(-52% + var(--r4-hero-exit-lift) * -0.26), 0) scale(calc(1.08 + var(--r4-hero-progress) * .08));
+  transform: translate3d(
+    calc(-50% + var(--r4-hero-back-parallax-x)),
+    calc(-52% + var(--r4-hero-back-parallax-y) + var(--r4-hero-exit-lift) * -0.26),
+    0
+  ) scale(calc(1.08 + var(--r4-hero-progress) * .08));
 }
 
 .r4-hero-scene__middle {
-  z-index: 2;
+  z-index: 1;
   width: max(122vw, 168vh);
   height: auto;
   opacity: var(--r4-hero-middle-opacity);
   filter: blur(calc(18px * (1 - var(--r4-hero-progress)))) saturate(1.02) contrast(1.02) brightness(1.06);
-  transform: translate3d(-50%, calc(-50% + 8svh + var(--r4-hero-exit-lift)), 0) scale(calc(.92 + var(--r4-hero-progress) * .16));
+  transform: translate3d(
+    calc(-50% + var(--r4-hero-middle-parallax-x)),
+    calc(-50% + 8svh + var(--r4-hero-middle-parallax-y) + var(--r4-hero-exit-lift)),
+    0
+  ) scale(calc(.92 + var(--r4-hero-progress) * .16));
 }
 
 .r4-hero-scene__middle--depth {
-  z-index: 3;
+  z-index: 2;
   opacity: calc(var(--r4-hero-progress) * .26);
   filter: blur(7px) saturate(1.06) contrast(1.03) brightness(1.12);
   -webkit-mask-size: 100% 100%;
@@ -921,7 +1035,11 @@ pre {
   opacity: var(--r4-hero-figure-opacity);
   object-fit: contain;
   filter: blur(calc(20px * (1 - var(--r4-hero-progress)))) brightness(1.18) saturate(1.08) contrast(1.03);
-  transform: translate3d(-50%, calc(-50% + 12svh - var(--r4-hero-exit-lift) * .18), 0) scale(calc(.98 + var(--r4-hero-progress) * .05));
+  transform: translate3d(
+    calc(-50% + var(--r4-hero-figure-parallax-x)),
+    calc(-50% + 12svh + var(--r4-hero-figure-parallax-y) - var(--r4-hero-exit-lift) * .18),
+    0
+  ) scale(calc(.98 + var(--r4-hero-progress) * .05));
   -webkit-mask-image:
     linear-gradient(90deg, transparent 0, #000 2.4%, #000 97.6%, transparent 100%),
     linear-gradient(180deg, transparent 0, #000 1.6%, #000 98.4%, transparent 100%);
@@ -946,7 +1064,7 @@ pre {
 .r4-hero-scene__content {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 3;
   display: grid;
   align-content: start;
   justify-items: center;
@@ -964,7 +1082,7 @@ pre {
   display: flex;
   justify-content: center;
   gap: clamp(24px, 2.2vw, 42px);
-  font-family: "Tongye Title", "SF Pro Display", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-title);
   font-size: clamp(76px, 12vw, 176px);
   line-height: .82;
   letter-spacing: 0;
@@ -1196,6 +1314,16 @@ pre {
   margin: 0 auto;
 }
 
+.stage-layer[data-r3-transition="aod-method-top"][data-copy-cue-active="false"] .r4-method__layout {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.stage-layer[data-r3-transition="aod-method-top"][data-copy-cue-active="true"] .r4-method__layout {
+  opacity: 1;
+  visibility: visible;
+}
+
 .r4-method__lead {
   position: sticky;
   top: clamp(74px, 9svh, 112px);
@@ -1217,7 +1345,7 @@ pre {
   max-width: 6.8em;
   margin: 0;
   color: rgba(37, 39, 25, .9);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(36px, 4vw, 62px);
   font-weight: 600;
   line-height: 1.04;
@@ -1298,7 +1426,7 @@ pre {
 
 .r4-method__row strong {
   color: rgba(37, 39, 25, .9);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(24px, 2.4vw, 42px);
   font-weight: 600;
   line-height: 1.08;
@@ -1690,7 +1818,7 @@ pre {
   max-width: 7.4em;
   margin: 0;
   color: rgba(36, 38, 28, .82);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: var(--r4-proof-opening-title-size);
   font-weight: 600;
   line-height: 1.08;
@@ -1736,7 +1864,7 @@ pre {
 
 .r4-proof-cards__row strong {
   color: rgba(36, 38, 28, .92);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(42px, 2.7vw, 58px);
   font-weight: 600;
   line-height: 1.15;
@@ -1763,7 +1891,7 @@ pre {
   max-width: 13.5em;
   margin: 0;
   color: rgba(36, 38, 28, .86);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(36px, 4.4vw, 78px);
   font-weight: 600;
   line-height: 1.12;
@@ -1789,8 +1917,8 @@ pre {
   opacity: 0;
 }
 
-.stage-layer > .r4-figure2-proof-ink-canvas {
-  z-index: 12;
+.stage > .r4-figure2-proof-ink-canvas {
+  z-index: 60;
 }
 
 .r4-proof-scroll__content {
@@ -1867,7 +1995,7 @@ pre {
   max-width: 7.4em;
   margin: 0;
   color: rgba(36, 38, 28, .82);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(34px, 3.7vw, 58px);
   font-weight: 600;
   line-height: 1.05;
@@ -1918,7 +2046,7 @@ pre {
 
 .r4-proof-page .method-proof__row strong {
   color: rgba(36, 38, 28, .92);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(42px, 2.7vw, 58px);
   font-weight: 600;
   line-height: 1.15;
@@ -2020,7 +2148,7 @@ pre {
   max-width: 9.6em;
   margin: 0;
   color: rgba(36, 38, 28, .9);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(34px, 4.4vw, 74px);
   font-weight: 600;
   line-height: 1.08;
@@ -2197,7 +2325,7 @@ pre {
 .r4-services__lead h2 {
   margin: 0;
   color: rgba(37, 39, 25, .9);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(44px, 5.2vw, 92px);
   font-weight: 600;
   line-height: 1.04;
@@ -2241,7 +2369,7 @@ pre {
 
 .r4-services__row strong {
   color: rgba(37, 39, 25, .9);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(22px, 2.2vw, 38px);
   font-weight: 600;
   line-height: 1.08;
@@ -2323,7 +2451,7 @@ pre {
 .r4-services-ref__copy h2 {
   margin: 0;
   color: rgba(37, 39, 25, .9);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(44px, 5.2vw, 92px);
   font-weight: 600;
   line-height: 1.04;
@@ -2530,7 +2658,7 @@ pre {
   max-width: 13.8em;
   margin: 16px 0 0;
   color: rgba(37, 39, 25, .88);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(32px, 3.8vw, 68px);
   font-weight: 600;
   line-height: 1.12;
@@ -2576,7 +2704,7 @@ pre {
 .r4-lab__lead h2 {
   margin: 0;
   color: rgba(37, 39, 25, .9);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(38px, 4.4vw, 78px);
   font-weight: 600;
   line-height: 1.04;
@@ -2634,7 +2762,7 @@ pre {
 
 .r4-lab__row strong {
   color: rgba(37, 39, 25, .9);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(21px, 1.9vw, 34px);
   font-weight: 600;
 }
@@ -2710,7 +2838,7 @@ pre {
 .r4-lab-ref__copy h3 {
   margin: 0;
   color: rgba(37, 39, 25, .9);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-weight: 600;
   letter-spacing: 0;
 }
@@ -2972,7 +3100,7 @@ pre {
   max-width: 12.8em;
   margin: 16px 0 0;
   color: var(--paper-ink);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(32px, 3.8vw, 68px);
   font-weight: 600;
   line-height: 1.12;
@@ -2995,7 +3123,7 @@ pre {
 .r4-education__signals b {
   margin-bottom: clamp(8px, 1.4vw, 18px);
   color: var(--paper-ink);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(22px, 2.1vw, 34px);
   font-weight: 600;
   line-height: 1.08;
@@ -3023,7 +3151,7 @@ pre {
   max-width: 6.8em;
   margin: 0;
   color: var(--paper-ink);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(36px, 4vw, 62px);
   font-weight: 600;
   line-height: 1.04;
@@ -3068,7 +3196,7 @@ pre {
 
 .r4-education__row strong {
   color: var(--paper-ink);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(25px, 2.35vw, 38px);
   font-weight: 600;
   line-height: 1.14;
@@ -3194,7 +3322,7 @@ pre {
 .r4-education-ref__lead h3 {
   margin: 14px 0 0;
   color: rgba(247, 237, 215, .92);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-weight: 600;
   letter-spacing: 0;
 }
@@ -3221,7 +3349,7 @@ pre {
 
 .r4-education-ref__signals b {
   color: rgba(247, 237, 215, .92);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(22px, 2.1vw, 34px);
   font-weight: 600;
   line-height: 1.08;
@@ -3430,7 +3558,9 @@ pre {
   width: 100%;
   min-height: 100svh;
   display: grid;
-  place-items: center start;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: center;
+  justify-items: start;
   overflow: hidden;
   padding: clamp(72px, 9svh, 118px) max(72px, 7vw);
   color: rgba(37, 39, 25, .94);
@@ -3481,7 +3611,7 @@ pre {
   max-width: 11em;
   margin: 0;
   color: rgba(37, 39, 25, .94);
-  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-family: var(--font-traditional);
   font-size: clamp(54px, 5vw, 78px);
   font-weight: 600;
   line-height: 1.1;
@@ -3524,16 +3654,35 @@ pre {
   color: rgba(120, 99, 41, .86);
 }
 
+.r4-contact .site-footer {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding-top: 18px;
+  border-top: 1px solid rgba(37, 39, 25, .16);
+  color: rgba(37, 39, 25, .58);
+  opacity: var(--r4-contact-opacity);
+}
+
 @media (max-width: 860px) {
   .r4-education-ref,
   .r4-contact {
     padding-inline: 24px;
   }
 
+  .r4-contact {
+    padding-block: clamp(32px, 5svh, 56px);
+  }
+
   .r4-education-ref__wide,
   .r4-education-ref__lead,
   .r4-contact__content {
     width: 100%;
+  }
+
+  .site-footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .r4-education-ref__wide {
@@ -3571,6 +3720,31 @@ pre {
     max-width: 100%;
     font-size: clamp(34px, 10vw, 52px);
     line-height: 1.14;
+  }
+}
+
+@media (max-height: 720px) {
+  .r4-contact {
+    padding-block: 24px;
+  }
+
+  .r4-contact__content {
+    gap: 12px;
+  }
+
+  .r4-contact h2 {
+    font-size: clamp(30px, 6svh, 44px);
+  }
+
+  .r4-contact p {
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .r4-contact .site-footer {
+    gap: 4px 16px;
+    padding-top: 10px;
+    font-size: 10px;
   }
 }
 
@@ -3663,6 +3837,13 @@ pre {
 .stage-layer[data-r3-transition="star-map-aod"] .aod-transition,
 .stage-layer[data-r3-transition="star-map-aod"] .aod-transition__sticky,
 .stage-layer[data-r3-transition="star-map-aod"] .aod-transition__field {
+  background: transparent;
+}
+
+.stage-layer[data-r3-transition="aod-method-top"] .aod-transition[data-aod-alpha-composite="true"],
+.stage-layer[data-r3-transition="aod-method-top"] .aod-transition[data-aod-alpha-composite="true"] .aod-transition__sticky,
+.stage-layer[data-r3-transition="aod-method-top"] .aod-transition[data-aod-alpha-composite="true"] .aod-transition__field,
+.stage-layer[data-r3-transition="aod-method-top"] .aod-transition[data-aod-alpha-composite="true"] .aod-transition__reveal-surface {
   background: transparent;
 }
 

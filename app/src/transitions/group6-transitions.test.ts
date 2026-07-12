@@ -169,6 +169,35 @@ describe('R4 group6 transitions', () => {
     expect(transition.mediaPlayback?.[0]?.forward).toEqual({ mode: 'timeline', required: true });
   });
 
+  it('keeps PH re-entrant across twenty explicit alternating runs without reading stale DOM direction', async () => {
+    const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
+    const video = new FakeVideo();
+    video.duration = 76 / 30;
+    fixture.fromRoot.connect('[data-ph-alpha-video]', video);
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+
+    for (let index = 1; index <= 20; index += 1) {
+      const direction: 1 | -1 = index % 2 === 1 ? 1 : -1;
+      const timeline = await createPhEducationTransition().buildTimeline({
+        ...fixture.context,
+        direction,
+        runId: `ph-runs:${index}`,
+        prepareToken: `ph-runs:prepare:${index}`
+      });
+      fixture.fromRoot.dataset.phRawProgress = direction === 1 ? '1' : '0';
+
+      timeline.progress(PH_EDUCATION_ANIMATION_STOP * 0.5);
+
+      expect(fixture.fromRoot.dataset.phPlaybackDirection).toBe(String(direction));
+      expect(video.currentTime).toBeGreaterThan(0);
+      expect(video.currentTime).toBeLessThan(video.duration);
+
+      timeline.progress(direction === 1 ? PH_EDUCATION_ANIMATION_STOP : 0);
+      expect(video.currentTime).toBeCloseTo(direction === 1 ? video.duration - 0.02 : 0, 2);
+      timeline.dispose();
+    }
+  });
+
   for (const item of cases) {
     it(`verifies ${item.id} timeline and reduced-motion fallback`, async () => {
       const transition = item.create();

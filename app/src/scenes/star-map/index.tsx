@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
+import { bindSceneMotion, type SceneMotionBinding } from '../../stage/scene-motion';
 import { initStarFieldReveal } from './starFieldReveal';
 
 const STAR_MAP_IMAGE = new URL('../../../../assets/back2.png', import.meta.url).href;
@@ -25,9 +26,10 @@ type StarMapRoot = HTMLElement & {
 export function starMapMotionEnabled(
   hidden: boolean,
   reducedMotion: boolean,
-  role: SceneComponentProps['role'] = 'current'
+  role: SceneComponentProps['role'] = 'current',
+  transitionLeaseActive = false
 ): boolean {
-  return !hidden && !reducedMotion && role === 'current';
+  return !hidden && !reducedMotion && (role === 'current' || transitionLeaseActive);
 }
 
 export function renderStarMapProgress(root: HTMLElement | null, progress: number): StarMapRenderState {
@@ -49,6 +51,7 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const paintControllerRef = useRef<{ setActive(active: boolean): void } | null>(null);
+  const motionBindingRef = useRef<SceneMotionBinding | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -140,9 +143,17 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
     if (root) {
       root.__r4StarMapPaintController = controller;
     }
+    const motionBinding = root
+      ? bindSceneMotion(root, (active) => controller.setActive(active && !reducedMotion))
+      : null;
+    motionBindingRef.current = motionBinding;
 
     return () => {
       disposed = true;
+      motionBinding?.dispose();
+      if (motionBindingRef.current === motionBinding) {
+        motionBindingRef.current = null;
+      }
       cancelAnimationFrame(readyFrame);
       cancelAnimationFrame(liveFrame);
       reveal.dispose();
@@ -159,7 +170,7 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    paintControllerRef.current?.setActive(starMapMotionEnabled(hidden, reducedMotion, role));
+    motionBindingRef.current?.setBaseActive(starMapMotionEnabled(hidden, reducedMotion, role));
   }, [hidden, role]);
 
   return (

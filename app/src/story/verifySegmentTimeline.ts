@@ -26,6 +26,7 @@ export type VerifySegmentTimelineOptions = {
   reducedMotion?: boolean;
   requireStableSceneIdentity?: boolean;
   requirePresentation?: boolean;
+  allowVisibleTargetAtStart?: boolean;
   disposeEndpointTimelines?: DisposeEndpointTimelines;
   requireEffectOnlyCanvas?: boolean;
 };
@@ -376,7 +377,10 @@ export function verifySegmentTimeline(
 
   const start = timeline.sample(0);
   const end = timeline.sample(1);
-  if (!isVisuallyVisible(start.from) || isVisuallyVisible(start.to)) {
+  if (
+    !isVisuallyVisible(start.from)
+    || (!options.allowVisibleTargetAtStart && isVisuallyVisible(start.to))
+  ) {
     throw new Error('Segment timeline start state must show from and hide to');
   }
   if (!isVisuallyVisible(end.to)) {

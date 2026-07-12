@@ -57,11 +57,21 @@ describe('R4 group5 scenes', () => {
     class CountingVideo {
       private time = 0;
       currentTimeWrites = 0;
+      readonly dataset: Record<string, string> = {};
       duration = 2.5;
       loop = false;
+      muted = false;
       paused = true;
+      playsInline = false;
       playbackRate = 1;
-      classList = { add() {}, remove() {} };
+      preload = 'auto';
+      loadCalls = 0;
+      private readonly classes = new Set<string>();
+      classList = {
+        add: (...tokens: string[]) => tokens.forEach((token) => this.classes.add(token)),
+        remove: (...tokens: string[]) => tokens.forEach((token) => this.classes.delete(token)),
+        contains: (token: string) => this.classes.has(token)
+      };
 
       get currentTime(): number { return this.time; }
       set currentTime(value: number) {
@@ -70,9 +80,13 @@ describe('R4 group5 scenes', () => {
       }
       pause(): void { this.paused = true; }
       play(): Promise<void> { this.paused = false; return Promise.resolve(); }
+      load(): void { this.loadCalls += 1; }
+      addEventListener(): void {}
+      removeEventListener(): void {}
     }
     const forward = new CountingVideo();
     const reverse = new CountingVideo();
+    forward.classList.add('is-active');
     const root = {
       attributes: new Map<string, string>(),
       dataset: {} as Record<string, string>,
@@ -88,11 +102,15 @@ describe('R4 group5 scenes', () => {
       }
     };
 
-    renderTtgAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
+    const mediaRun = { runId: 'ttg-scenes:1', direction: 1 as const };
+    renderTtgAnimationProgress(root as unknown as HTMLElement, 1, { mediaRun });
     const writes = [forward.currentTimeWrites, reverse.currentTimeWrites];
-    renderTtgAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
-    renderTtgAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
+    renderTtgAnimationProgress(root as unknown as HTMLElement, 1, { mediaRun });
+    renderTtgAnimationProgress(root as unknown as HTMLElement, 1, { mediaRun });
 
     expect([forward.currentTimeWrites, reverse.currentTimeWrites]).toEqual(writes);
+    expect(reverse.currentTimeWrites).toBe(0);
+    expect(reverse.preload).toBe('metadata');
+    expect(reverse.loadCalls).toBe(1);
   });
 });

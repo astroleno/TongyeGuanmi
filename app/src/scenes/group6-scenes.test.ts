@@ -58,8 +58,11 @@ describe('R4 group6 scenes', () => {
       private time = 0;
       currentTimeWrites = 0;
       duration = 76 / 30;
+      readonly dataset: Record<string, string> = {};
       loop = false;
+      muted = false;
       paused = true;
+      playsInline = false;
 
       get currentTime(): number { return this.time; }
       set currentTime(value: number) {
@@ -67,6 +70,8 @@ describe('R4 group6 scenes', () => {
         this.currentTimeWrites += 1;
       }
       pause(): void { this.paused = true; }
+      addEventListener(): void {}
+      removeEventListener(): void {}
     }
     const video = new CountingVideo();
     const root = {
@@ -84,10 +89,11 @@ describe('R4 group6 scenes', () => {
       }
     };
 
-    renderPhAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
+    const mediaRun = { runId: 'ph-scenes:1', direction: 1 as const };
+    renderPhAnimationProgress(root as unknown as HTMLElement, 1, { mediaRun });
     const writes = video.currentTimeWrites;
-    renderPhAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
-    renderPhAnimationProgress(root as unknown as HTMLElement, 1, { playback: true });
+    renderPhAnimationProgress(root as unknown as HTMLElement, 1, { mediaRun });
+    renderPhAnimationProgress(root as unknown as HTMLElement, 1, { mediaRun });
 
     expect(video.currentTimeWrites).toBe(writes);
   });

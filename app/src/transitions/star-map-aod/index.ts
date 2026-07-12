@@ -3,7 +3,12 @@ import { fadeVisibility, smoothStep } from '../../pilot/visibility';
 import type { LayerVisibilityState, TransitionModule } from '../../story/types';
 import { applyRevealBoundary, clearBoundaryGeometry } from '../shared/ink';
 import { createInkFieldFrame, inkFieldOrigin, type InkFieldFrame } from '../shared/inkField';
-import { createInkFieldRenderer } from '../shared/sceneInk';
+import {
+  createInkFieldRenderer,
+  mountTransitionInkCanvas,
+  type InkGradePreset
+} from '../shared/sceneInk';
+import { createTransitionLayerElevation } from '../shared/layerElevation';
 
 const STAR_MAP_AOD_FIELD = {
   kind: 'horizontal',
@@ -35,11 +40,12 @@ function getAodRevealSurface(element: HTMLElement | null | undefined): HTMLEleme
   return element?.querySelector<HTMLElement>('[data-aod-reveal-surface]') ?? null;
 }
 
-function liftInkLayerOverSource(element: HTMLElement | null | undefined): void {
-  if (!element) {
-    return;
-  }
-  element.style.zIndex = '40';
+function sharedStageHost(context: Parameters<TransitionModule['buildTimeline']>[0]): HTMLElement | null {
+  const fromParent = context.from.element?.parentElement ?? null;
+  const toParent = context.to.element?.parentElement ?? null;
+  return fromParent && fromParent === toParent
+    ? fromParent
+    : toParent ?? fromParent ?? context.to.element ?? context.from.element ?? null;
 }
 
 function fieldViewport(
@@ -53,16 +59,21 @@ function fieldViewport(
   };
 }
 
-function markAodFieldCanvas(canvas: HTMLCanvasElement | null, frame: InkFieldFrame): void {
+function markAodFieldCanvas(
+  canvas: HTMLCanvasElement | null,
+  frame: InkFieldFrame,
+  rendererActive: boolean
+): void {
   if (!canvas) {
     return;
   }
-  const active = frame.progress > 0.002 && frame.progress < 0.999;
+  const fieldVisible = frame.progress > 0.002 && frame.progress < 0.999;
+  const active = fieldVisible && rendererActive;
   const origin = inkFieldOrigin(frame.spec);
   canvas.dataset.r4InkEffectOnly = 'true';
   canvas.dataset.r4InkRenderer = 'field';
   canvas.dataset.r4InkSegment = 'star-map-aod';
-  if (!active) {
+  if (!fieldVisible) {
     delete canvas.dataset.r4InkActive;
     delete canvas.dataset.r4InkProgress;
     delete canvas.dataset.r4InkBoundaryKind;
@@ -72,7 +83,13 @@ function markAodFieldCanvas(canvas: HTMLCanvasElement | null, frame: InkFieldFra
     delete canvas.dataset.r4InkFieldSeed;
     return;
   }
-  canvas.dataset.r4InkActive = 'true';
+  if (active) {
+    canvas.dataset.r4InkActive = 'true';
+    canvas.dataset.r4InkBodyVisible = 'true';
+  } else {
+    delete canvas.dataset.r4InkActive;
+    delete canvas.dataset.r4InkBodyVisible;
+  }
   canvas.dataset.r4InkProgress = frame.progress.toFixed(4);
   canvas.dataset.r4InkBoundaryKind = frame.spec.kind;
   canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
@@ -81,7 +98,10 @@ function markAodFieldCanvas(canvas: HTMLCanvasElement | null, frame: InkFieldFra
   delete canvas.dataset.r4InkBoundaryRevision;
 }
 
-export function createStarMapAodTransition(options: { delayMs?: () => number } = {}): TransitionModule {
+export function createStarMapAodTransition(options: {
+  delayMs?: () => number;
+  grade?: InkGradePreset | (() => InkGradePreset);
+} = {}): TransitionModule {
   return {
     id: 'star-map-aod',
     requiredMilestones: ['targetReady', 'buildReady'],
@@ -90,12 +110,20 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
       if (delay > 0) {
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
-      const inkCanvas = context.to.element?.querySelector<HTMLCanvasElement>('[data-aod-ink-canvas]') ?? null;
-      const inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(
-        inkCanvas,
-        { removeCanvasOnDestroy: false }
+      const grade = typeof options.grade === 'function' ? options.grade() : options.grade ?? 'edge-only';
+      const generation = `${context.runId}:${context.prepareToken}`;
+      const stageHost = sharedStageHost(context);
+      const inkCanvas = context.prefersReducedMotion ? null : mountTransitionInkCanvas(
+        stageHost,
+        'star-map-aod',
+        { renderer: 'field', grade, generation }
       );
-      const viewport = fieldViewport(inkCanvas, context.to.element);
+      const inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(inkCanvas, {
+        grade,
+        generation
+      });
+      const elevation = createTransitionLayerElevation(context.to.element, 40);
+      const viewport = fieldViewport(inkCanvas, stageHost);
       inkRenderer?.prewarm(createInkFieldFrame(STAR_MAP_AOD_FIELD, 0.003, viewport));
       return new PilotProgressTimeline({
         from: context.from,
@@ -107,23 +135,26 @@ export function createStarMapAodTransition(options: { delayMs?: () => number } =
           const fieldProgress = context.prefersReducedMotion ? 1 : smoothStep(progress);
           const frame = createInkFieldFrame(STAR_MAP_AOD_FIELD, fieldProgress, viewport);
           const revealSurface = getAodRevealSurface(context.to.element);
-          liftInkLayerOverSource(context.to.element);
+          elevation.elevate();
           if (revealSurface) {
             revealSurface.style.removeProperty('opacity');
             revealSurface.style.removeProperty('visibility');
             applyRevealBoundary(revealSurface, frame);
           }
           context.to.element?.setAttribute('data-r3-transition', 'star-map-aod');
-          markAodFieldCanvas(inkCanvas, frame);
+          markAodFieldCanvas(inkCanvas, frame, Boolean(inkRenderer?.isActive()));
           inkRenderer?.render(frame);
         },
         dispose: () => {
           inkRenderer?.destroy();
+          inkCanvas?.remove();
           clearBoundaryGeometry(getAodRevealSurface(context.to.element));
           if (inkCanvas) {
             delete inkCanvas.dataset.r4InkActive;
             delete inkCanvas.dataset.r4InkProgress;
+            delete inkCanvas.dataset.r4InkBodyVisible;
           }
+          elevation.restore();
           context.to.element?.removeAttribute('data-r3-transition');
         }
       });

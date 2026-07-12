@@ -11,7 +11,7 @@ const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
 const outputPath = path.join(
   repoDir,
-  'artifacts/react-refactor/r5-candidate/r5-process-memory.json'
+  'artifacts/react-refactor/r5-parity-repair-candidate/r5-process-memory.json'
 );
 const baseUrl = process.env.R5_BASE_URL ?? 'http://127.0.0.1:4173';
 const scenes = [
@@ -179,10 +179,11 @@ const browser = await chromium.launch({
 });
 const samples = [];
 let sampling = true;
+let sampleLabel = 'launch';
 const sampleMemory = async () => {
   while (sampling) {
     const sample = await readBrowserMemory();
-    if (sample) samples.push(sample);
+    if (sample) samples.push({ label: sampleLabel, ...sample });
     await sleep(250);
   }
 };
@@ -193,27 +194,37 @@ try {
   await page.bringToFront();
   await page.goto(baseUrl);
   await waitForHold(page, 'hero');
+  await page.waitForFunction(() => (
+    window.__storyApp?.snapshot().presentationReady === true
+  ), undefined, { timeout: 15_000 });
+  sampleLabel = 'hold:boot:hero';
   const holds = [{ direction: 'boot', ...(await storySnapshot(page)) }];
 
   for (const expected of scenes.slice(1)) {
+    sampleLabel = `transition:forward:${expected}`;
     process.stdout.write(`forward:${expected}\n`);
     const snapshot = await moveOneHold(page, 1);
     if (snapshot.current !== expected) {
       throw new Error(`Expected ${expected}, received ${snapshot.current}`);
     }
+    sampleLabel = `hold:forward:${expected}`;
     holds.push({ direction: 'forward', ...snapshot });
   }
+  sampleLabel = 'settled:forward:contact';
   await sleep(5_000);
   holds.push({ direction: 'forward-settled', ...(await storySnapshot(page)) });
 
   for (const expected of [...scenes].reverse().slice(1)) {
+    sampleLabel = `transition:reverse:${expected}`;
     process.stdout.write(`reverse:${expected}\n`);
     const snapshot = await moveOneHold(page, -1);
     if (snapshot.current !== expected) {
       throw new Error(`Expected reverse ${expected}, received ${snapshot.current}`);
     }
+    sampleLabel = `hold:reverse:${expected}`;
     holds.push({ direction: 'reverse', ...snapshot });
   }
+  sampleLabel = 'settled:reverse:hero';
   await sleep(5_000);
   holds.push({ direction: 'reverse-settled', ...(await storySnapshot(page)) });
 

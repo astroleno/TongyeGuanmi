@@ -3,3 +3,5 @@ export const PATTERN_COLLAPSE_MS = 1800;
 export const PATTERN_STAR_MAP_INK_MS = 1800;
 
 export const FIGURE3_SERVICES_DURATION_MS = 2000;
+
+export const CRANE_CONTACT_DURATION_MS = 3000;

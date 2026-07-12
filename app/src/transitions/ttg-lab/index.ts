@@ -33,7 +33,7 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
     },
     fieldProgress,
     prepareEndpoints: ({ to }) => renderLabHold(to),
-    renderSource: (root, progress) => renderTtgAnimationProgress(root, progress, { playback: true }),
+    renderSource: (root, progress, mediaRun) => renderTtgAnimationProgress(root, progress, { mediaRun }),
     renderSourceProgress: (progress) => range01(progress, 0, TTG_LAB_ANIMATION_STOP),
     sample: sampleTtgLab,
     stops: [TTG_LAB_ANIMATION_STOP],

@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { TextReveal, TextRevealItem } from '../../components/TextReveal';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
+import { attachHeroParallax, sampleHeroIntro, startHeroIntro, type HeroIntroSample } from './motion';
 
 const HERO_BACK_IMAGE = new URL('../../../../assets/back1.png', import.meta.url).href;
 const HERO_MIDDLE_IMAGE = new URL('../../../../assets/middle1.png', import.meta.url).href;
@@ -10,6 +11,7 @@ const HERO_FIGURE_POSTER = new URL('../../../../assets/figure-poster.jpg', impor
 const HERO_VIDEO_SEGMENT_SECONDS = 2;
 const HERO_VIDEO_START_SECONDS = 0.34;
 const HERO_VIDEO_END_EPSILON = 0.08;
+const HERO_PRELOAD_OPACITY = 0.001;
 
 export const HERO_COPY = [
   '同',
@@ -111,8 +113,8 @@ export function renderHeroProgress(root: HTMLElement | null, progress: number): 
   const clamped = Math.min(1, Math.max(0, progress));
   const eased = clamped * clamped * (3 - 2 * clamped);
   const backOpacity = 0.08 + eased * 0.78;
-  const middleOpacity = eased;
-  const figureOpacity = eased;
+  const middleOpacity = HERO_PRELOAD_OPACITY + eased * (1 - HERO_PRELOAD_OPACITY);
+  const figureOpacity = HERO_PRELOAD_OPACITY + eased * (1 - HERO_PRELOAD_OPACITY);
   const contentOpacity = Math.min(1, Math.max(0, (clamped - 0.42) / 0.58));
   const exitLift = (1 - eased) * 42;
 
@@ -130,13 +132,67 @@ export function renderHeroHold(root: HTMLElement | null): void {
   renderHeroProgress(root, 1);
 }
 
-function HeroScene({ hidden, registerHandle }: SceneComponentProps) {
+function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const introMode = presentation?.heroIntroMode ?? 'endpoint';
+  const reducedMotion = presentation?.reducedMotion ?? false;
+  const [titleActive, setTitleActive] = useState(
+    introMode === 'complete' || introMode === 'endpoint'
+  );
+
+  const renderIntroSample = useCallback((sample: HeroIntroSample) => {
+    const root = rootRef.current;
+    renderHeroProgress(root, sample.progress);
+    root?.setAttribute('data-hero-intro-state', sample.complete ? 'complete' : 'running');
+    root?.setAttribute('data-hero-title-active', String(sample.titleActive));
+  }, []);
+
+  const registerRoot = useCallback((element: HTMLElement | null) => {
+    rootRef.current = element;
+    if (!element || role !== 'current') {
+      return;
+    }
+    const pending = introMode === 'waiting' || introMode === 'running';
+    const sample = sampleHeroIntro(pending ? 0 : 1);
+    renderIntroSample(sample);
+    element.setAttribute('data-hero-intro-state', introMode);
+  }, [introMode, renderIntroSample, role]);
 
   useEffect(() => {
-    renderHeroProgress(rootRef.current, hidden ? 0 : 1);
-  }, [hidden]);
+    if (role !== 'current') {
+      return;
+    }
+    if (introMode === 'waiting') {
+      setTitleActive(false);
+      renderIntroSample(sampleHeroIntro(0));
+      rootRef.current?.setAttribute('data-hero-intro-state', 'waiting');
+      return;
+    }
+    if (introMode === 'running') {
+      setTitleActive(false);
+      return startHeroIntro({
+        reducedMotion,
+        render: renderIntroSample,
+        onTitleActive: () => setTitleActive(true),
+        ...(presentation?.onHeroIntroComplete
+          ? { onComplete: presentation.onHeroIntroComplete }
+          : {})
+      });
+    }
+    setTitleActive(true);
+    renderIntroSample(sampleHeroIntro(1));
+    rootRef.current?.setAttribute('data-hero-intro-state', introMode);
+  }, [introMode, presentation?.onHeroIntroComplete, reducedMotion, renderIntroSample, role]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const introSettled = introMode === 'complete' || introMode === 'endpoint';
+    if (!root || role !== 'current' || hidden || !introSettled || reducedMotion) {
+      return;
+    }
+    return attachHeroParallax(root);
+  }, [hidden, introMode, reducedMotion, role]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -148,7 +204,7 @@ function HeroScene({ hidden, registerHandle }: SceneComponentProps) {
   }, [hidden]);
 
   return (
-    <article ref={rootRef} className="r4-hero-scene" data-r4-scene="hero">
+    <article ref={registerRoot} className="r4-hero-scene" data-r4-scene="hero">
       <div ref={(element) => registerHandle?.('stage', element)} className="r4-hero-scene__stage">
         <img className="r4-hero-scene__back" src={HERO_BACK_IMAGE} alt="" aria-hidden="true" />
         <img className="r4-hero-scene__middle" src={HERO_MIDDLE_IMAGE} alt="" aria-hidden="true" />
@@ -159,6 +215,39 @@ function HeroScene({ hidden, registerHandle }: SceneComponentProps) {
           aria-hidden="true"
           style={{ WebkitMaskImage: `url(${HERO_MIDDLE_DEPTH_IMAGE})`, maskImage: `url(${HERO_MIDDLE_DEPTH_IMAGE})` }}
         />
+        <div ref={(element) => registerHandle?.('copy', element)} className="r4-hero-scene__content">
+          <TextReveal
+            active={titleActive && !hidden}
+            as="h1"
+            className="r4-hero-scene__title"
+            aria-label="同野观幂"
+            effects={['stagger', 'blur-to-clear', 'rise-up']}
+            variant="staggered"
+          >
+            <span aria-hidden="true">
+              <TextRevealItem index={0}>{HERO_COPY[0]}</TextRevealItem>
+              <TextRevealItem index={1}>{HERO_COPY[1]}</TextRevealItem>
+            </span>
+            <span aria-hidden="true">
+              <TextRevealItem index={2}>{HERO_COPY[2]}</TextRevealItem>
+              <TextRevealItem index={3}>{HERO_COPY[3]}</TextRevealItem>
+            </span>
+          </TextReveal>
+          <TextReveal
+            active={titleActive && !hidden}
+            as="p"
+            blurPx={6}
+            delayMs={420}
+            durationMs={2850}
+            effects={['stagger', 'blur-to-clear', 'rise-up']}
+            scaleX={1}
+            staggerMs={0}
+            variant="line"
+            yPx={14}
+          >
+            <TextRevealItem>{HERO_COPY[4]}</TextRevealItem>
+          </TextReveal>
+        </div>
         <video
           ref={(element) => {
             videoRef.current = element;
@@ -173,39 +262,6 @@ function HeroScene({ hidden, registerHandle }: SceneComponentProps) {
           preload="auto"
           aria-hidden="true"
         />
-      </div>
-      <div ref={(element) => registerHandle?.('copy', element)} className="r4-hero-scene__content">
-        <TextReveal
-          active={!hidden}
-          as="h1"
-          className="r4-hero-scene__title"
-          aria-label="同野观幂"
-          effects={['stagger', 'blur-to-clear', 'rise-up']}
-          variant="staggered"
-        >
-          <span aria-hidden="true">
-            <TextRevealItem index={0}>{HERO_COPY[0]}</TextRevealItem>
-            <TextRevealItem index={1}>{HERO_COPY[1]}</TextRevealItem>
-          </span>
-          <span aria-hidden="true">
-            <TextRevealItem index={2}>{HERO_COPY[2]}</TextRevealItem>
-            <TextRevealItem index={3}>{HERO_COPY[3]}</TextRevealItem>
-          </span>
-        </TextReveal>
-        <TextReveal
-          active={!hidden}
-          as="p"
-          blurPx={6}
-          delayMs={420}
-          durationMs={2850}
-          effects={['stagger', 'blur-to-clear', 'rise-up']}
-          scaleX={1}
-          staggerMs={0}
-          variant="line"
-          yPx={14}
-        >
-          <TextRevealItem>{HERO_COPY[4]}</TextRevealItem>
-        </TextReveal>
       </div>
       <div className="r4-hero-scene__vignette" aria-hidden="true" />
     </article>

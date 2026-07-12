@@ -46,10 +46,10 @@ export function createPatternStarMapTransition(options: { delayMs?: () => number
     renderSource: (root, mapped) => renderPatternProgress(root, mapped, {
       visible: true,
       copyProgress: 1,
-      rotationProgress: mapped,
-      freezeMotion: true
+      rotationProgress: mapped
     }),
     renderSourceProgress: collapseProgress,
+    motionScenes: ['from', 'to'],
     sample: (progress) => samplePatternThenStarMap(fieldProgress(progress)),
     stops: [PATTERN_COLLAPSE_STOP],
     transitionAttr: 'pattern-star-map-live-circle'

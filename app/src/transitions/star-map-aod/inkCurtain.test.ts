@@ -9,8 +9,10 @@ const boundaryRenderer = vi.hoisted(() => ({
   render: vi.fn()
 }));
 
-vi.mock('../shared/sceneInk', () => ({
-  createInkFieldRenderer: vi.fn(() => boundaryRenderer)
+const rendererFactory = vi.hoisted(() => vi.fn(() => boundaryRenderer));
+
+vi.mock('../../vendor/ink-scene-transition.js', () => ({
+  createInkBoundaryTransition: rendererFactory
 }));
 
 import { createStarMapAodTransition } from './index';
@@ -21,6 +23,7 @@ beforeEach(() => {
   boundaryRenderer.destroy.mockClear();
   boundaryRenderer.prewarm.mockClear();
   boundaryRenderer.render.mockClear();
+  rendererFactory.mockClear();
 });
 
 afterEach(() => {
@@ -46,7 +49,14 @@ describe('star-map AOD one-boundary integration', () => {
     const canvas = new FakeCanvas();
     const receiver = fixture.stage.children[1]!;
     receiver.connect('[data-aod-reveal-surface]', revealSurface);
-    receiver.connect('[data-aod-ink-canvas]', canvas);
+    const created: FakeCanvas[] = [];
+    vi.stubGlobal('document', {
+      createElement: () => {
+        const next = created.length === 0 ? canvas : new FakeCanvas();
+        created.push(next);
+        return next;
+      }
+    });
     const timeline = await createStarMapAodTransition().buildTimeline(fixture.context);
 
     timeline.progress(0.5);
@@ -59,10 +69,69 @@ describe('star-map AOD one-boundary integration', () => {
     expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkRenderer).toBe('field');
+    expect(canvas.dataset.r4InkGrade).toBe('edge-only');
+    expect(canvas.dataset.r4InkGeneration).toBe(
+      `${fixture.context.runId}:${fixture.context.prepareToken}`
+    );
+    expect(canvas.parentElement).toBe(fixture.stage);
 
     timeline.dispose();
     timeline.dispose();
 
     expect(boundaryRenderer.destroy).toHaveBeenCalledOnce();
+    expect(canvas.parentElement).toBeNull();
+  });
+
+  it('uses ten fresh renderers and canvases across alternating directions', async () => {
+    const fixture = createBackHalfDomContext('star-map-aod', 'star-map', 'aod-animation');
+    const revealSurface = new FakeElement();
+    const receiver = fixture.stage.children[1]!;
+    const created: FakeCanvas[] = [];
+    receiver.connect('[data-aod-reveal-surface]', revealSurface);
+    vi.stubGlobal('document', {
+      createElement: () => {
+        const canvas = new FakeCanvas();
+        created.push(canvas);
+        return canvas;
+      }
+    });
+
+    for (let index = 0; index < 10; index += 1) {
+      const runId = `star-map-aod:${index}` as const;
+      const timeline = await createStarMapAodTransition().buildTimeline({
+        ...fixture.context,
+        direction: index % 2 === 0 ? 1 : -1,
+        runId
+      });
+      timeline.progress(0.5);
+      const canvas = created[index];
+
+      expect(canvas?.parentElement).toBe(fixture.stage);
+      expect(canvas?.dataset.r4InkGeneration).toBe(`${runId}:${fixture.context.prepareToken}`);
+      expect(canvas?.dataset.r4InkRendererActive).toBe('true');
+      expect(canvas?.dataset.r4InkActive).toBe('true');
+      expect(canvas?.dataset.r4InkBoundaryKind).toBe('horizontal');
+      timeline.dispose();
+      expect(canvas?.parentElement).toBeNull();
+    }
+
+    expect(new Set(created).size).toBe(10);
+    expect(rendererFactory).toHaveBeenCalledTimes(10);
+    expect(boundaryRenderer.destroy).toHaveBeenCalledTimes(10);
+  });
+
+  it('keeps dark as an explicit harness-only grade', async () => {
+    const fixture = createBackHalfDomContext('star-map-aod', 'star-map', 'aod-animation');
+    const revealSurface = new FakeElement();
+    const canvas = new FakeCanvas();
+    fixture.stage.children[1]!.connect('[data-aod-reveal-surface]', revealSurface);
+    vi.stubGlobal('document', { createElement: () => canvas });
+
+    const timeline = await createStarMapAodTransition({ grade: 'dark' }).buildTimeline(fixture.context);
+    timeline.progress(0.5);
+
+    expect(canvas.dataset.r4InkGrade).toBe('dark');
+    expect(rendererFactory).toHaveBeenCalledWith(canvas, expect.objectContaining({ coverAlpha: 0.82 }));
+    timeline.dispose();
   });
 });

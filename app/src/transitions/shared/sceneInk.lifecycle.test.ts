@@ -19,13 +19,30 @@ vi.mock('../../vendor/ink-scene-transition.js', () => ({
 }));
 
 import { createInkFieldFrame } from './inkField';
-import { createInkFieldRenderer } from './sceneInk';
+import {
+  createInkFieldRenderer,
+  mountTransitionInkCanvas
+} from './sceneInk';
+import { FakeCanvas, FakeElement } from '../__fixtures__/back-half.fixture';
 
-function canvas(): HTMLCanvasElement {
-  return {
+function canvas() {
+  const listeners = new Map<string, EventListener>();
+  const surface = {
     dataset: {},
-    remove: vi.fn()
+    remove: vi.fn(),
+    addEventListener: vi.fn((type: string, listener: EventListener) => listeners.set(type, listener)),
+    removeEventListener: vi.fn((type: string, listener: EventListener) => {
+      if (listeners.get(type) === listener) {
+        listeners.delete(type);
+      }
+    })
   } as unknown as HTMLCanvasElement;
+  return {
+    surface,
+    dispatch(type: string, event: Pick<Event, 'preventDefault'>) {
+      listeners.get(type)?.(event as Event);
+    }
+  };
 }
 
 beforeEach(() => {
@@ -37,7 +54,7 @@ beforeEach(() => {
 
 describe('shared ink renderer lifecycle', () => {
   it('forwards one boundary frame and releases WebGL resources before removing its canvas', () => {
-    const surface = canvas();
+    const { surface } = canvas();
     const renderer = createInkFieldRenderer(surface);
     const frame = createInkFieldFrame(
       { kind: 'horizontal', direction: 'bottom-to-top', seed: 'shared-field-frame' },
@@ -56,10 +73,91 @@ describe('shared ink renderer lifecycle', () => {
     expect(surface.remove).toHaveBeenCalledOnce();
     expect(vendor.createBoundary).toHaveBeenCalledWith(surface, {
       colorLift: 0.92,
+      coverAlpha: 0,
+      fadeOutStart: 0.94,
+      fadeOutEnd: 0.995,
+      dprLimit: 1
+    });
+    expect(surface.dataset.r4InkGrade).toBe('edge-only');
+    expect(surface.dataset.r4InkRendererActive).toBe('false');
+  });
+
+  it('keeps dark as an explicit grade with the same renderer contract', () => {
+    const { surface } = canvas();
+    const renderer = createInkFieldRenderer(surface, { grade: 'dark', generation: 'dark-run:1' });
+
+    expect(vendor.createBoundary).toHaveBeenCalledWith(surface, {
+      colorLift: 0.92,
       coverAlpha: 0.82,
       fadeOutStart: 0.94,
       fadeOutEnd: 0.995,
       dprLimit: 1
     });
+    expect(surface.dataset.r4InkGrade).toBe('dark');
+    expect(surface.dataset.r4InkGeneration).toBe('dark-run:1');
+    expect(renderer?.isActive()).toBe(true);
+    renderer?.destroy();
+  });
+
+  it('invalidates only the matching run generation after context loss', () => {
+    const { surface, dispatch } = canvas();
+    const renderer = createInkFieldRenderer(surface, { generation: 'run:lost:1' });
+    const replacementCanvas = canvas();
+    const replacement = createInkFieldRenderer(replacementCanvas.surface, {
+      generation: 'run:replacement:2'
+    });
+    const frame = createInkFieldFrame(
+      { kind: 'horizontal', direction: 'bottom-to-top', seed: 'lost-generation' },
+      0.5,
+      { width: 1440, height: 900 }
+    );
+    const preventDefault = vi.fn();
+
+    dispatch('webglcontextlost', { preventDefault });
+    renderer?.render(frame);
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(renderer?.isActive()).toBe(false);
+    expect(surface.dataset.r4InkRendererStatus).toBe('context-lost');
+    expect(vendor.boundaryRender).not.toHaveBeenCalled();
+    dispatch('webglcontextlost', { preventDefault });
+    replacement?.render(frame);
+    expect(replacement?.isActive()).toBe(true);
+    expect(replacementCanvas.surface.dataset.r4InkRendererStatus).toBe('active');
+    expect(vendor.boundaryRender).toHaveBeenCalledOnce();
+    renderer?.destroy();
+    renderer?.destroy();
+    expect(vendor.boundaryDestroy).toHaveBeenCalledOnce();
+    replacement?.destroy();
+    expect(vendor.boundaryDestroy).toHaveBeenCalledTimes(2);
+  });
+
+  it('mounts a fresh Stage canvas for every run even with the same segment id', () => {
+    const host = new FakeElement();
+    const created: FakeCanvas[] = [];
+    vi.stubGlobal('document', {
+      createElement: () => {
+        const next = new FakeCanvas();
+        created.push(next);
+        return next;
+      }
+    });
+
+    const first = mountTransitionInkCanvas(host as unknown as HTMLElement, 'star-map-aod', {
+      renderer: 'field',
+      grade: 'edge-only',
+      generation: 'run:1'
+    });
+    const second = mountTransitionInkCanvas(host as unknown as HTMLElement, 'star-map-aod', {
+      renderer: 'field',
+      grade: 'edge-only',
+      generation: 'run:2'
+    });
+
+    expect(first).not.toBe(second);
+    expect(created).toHaveLength(2);
+    expect(host.children).toHaveLength(2);
+    expect(first?.dataset.r4InkGeneration).toBe('run:1');
+    expect(second?.dataset.r4InkGeneration).toBe('run:2');
   });
 });

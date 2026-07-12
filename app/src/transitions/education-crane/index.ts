@@ -12,7 +12,6 @@ export function createEducationCraneTransition(options: { delayMs?: () => number
       direction: 'bottom-to-top',
       seed: 'education-crane'
     },
-    positionFromReadingOnReverse: true,
     prepareEndpoints: ({ from, to }) => {
       renderEducationHold(from);
       renderCraneHold(to);

@@ -23,6 +23,7 @@ class FakeElement {
 }
 
 class FakeVideo {
+  readonly dataset: Record<string, string> = {};
   private time = 0;
   readonly seekWrites: number[] = [];
   duration = 2.417;
@@ -43,6 +44,8 @@ class FakeVideo {
   }
 
   addEventListener(): void {}
+
+  removeEventListener(): void {}
 
   pause(): void {
     this.paused = true;
@@ -184,16 +187,17 @@ describe('figure2-animation scene renderer', () => {
     expect(video.playbackRate).toBeLessThan(1);
   });
 
-  it('does not seek a natively playing Figure2 video between its endpoints', () => {
+  it('pre-seeks once, then leaves a natively playing Figure2 video uninterrupted', () => {
     const video = new FakeVideo();
     const root = new FakeVideoRoot([video]);
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0, { videoMode: 'native' });
-    video.seekWrites.length = 0;
-    video.setNaturalTime(0.3);
-
     renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.2, { videoMode: 'native' });
+    const initialSeekWrites = video.seekWrites.length;
+    video.setNaturalTime(0.6);
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.4, { videoMode: 'native' });
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.6, { videoMode: 'native' });
 
-    expect(video.seekWrites).toEqual([]);
+    expect(initialSeekWrites).toBe(1);
+    expect(video.seekWrites).toHaveLength(initialSeekWrites);
   });
 
   it('uses timeline frames after one rejected native play without retrying autoplay', async () => {

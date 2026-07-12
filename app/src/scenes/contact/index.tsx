@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { SiteFooter } from '../../components/SiteFooter';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const CONTACT_COPY = [
@@ -53,6 +54,7 @@ function ContactScene({ registerHandle }: SceneComponentProps) {
           <a className="text-link" href="#top">{CONTACT_COPY[4]}</a>
         </div>
       </div>
+      <SiteFooter />
     </article>
   );
 }

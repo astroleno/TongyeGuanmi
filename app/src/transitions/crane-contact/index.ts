@@ -1,6 +1,10 @@
 import { PilotProgressTimeline } from '../../pilot/progress-timeline';
 import { hiddenVisibility, holdVisibility, range01 } from '../../pilot/visibility';
-import { CRANE_FIGURE_MEDIA_KEY, CRANE_FLOCK_MEDIA_KEY, renderCraneAnimationProgress } from '../../scenes/crane-animation';
+import {
+  CRANE_FIGURE_MEDIA_KEY,
+  CRANE_FLOCK_MEDIA_KEY,
+  renderCraneAnimationProgress
+} from '../../scenes/crane-animation';
 import { renderContactProgress } from '../../scenes/contact';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 import type { Direction, LayerVisibilityState, SegmentTimelineHandle, TransitionContext, TransitionModule } from '../../story/types';
@@ -50,11 +54,13 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   private readonly elevation: TransitionLayerElevation;
   private readonly toElement: HTMLElement | null | undefined;
   private renderedProgress = 0;
+  private playbackDirection: Direction;
 
   constructor(context: TransitionContext) {
     this.elevation = createTransitionLayerElevation(context.to.element);
     this.toElement = context.to.element;
     this.renderedProgress = context.direction === 1 ? 0 : 1;
+    this.playbackDirection = context.direction;
     this.timeline = new PilotProgressTimeline({
       from: context.from,
       to: context.to,
@@ -64,15 +70,23 @@ class CraneContactTimeline implements SegmentTimelineHandle {
       copyCue: CRANE_CONTACT_COPY_CUE,
       sample: sampleCraneContact,
       render: (progress) => {
-        const movingForward = progress > this.renderedProgress
-          || (progress === this.renderedProgress && context.direction === 1);
+        if (progress > this.renderedProgress + 0.0001) {
+          this.playbackDirection = 1;
+        } else if (progress < this.renderedProgress - 0.0001) {
+          this.playbackDirection = -1;
+        }
         const craneProgress = range01(progress, 0, CRANE_MOTION_END);
-        const mediaOptions = movingForward ? { playback: true } : { reverseScrub: true };
         this.elevation.elevate();
         renderCraneAnimationProgress(
           rootFor(context.from.element, 'crane-animation'),
           craneProgress,
-          mediaOptions
+          {
+            mediaRun: {
+              runId: context.runId,
+              direction: this.playbackDirection,
+              reducedMotion: context.prefersReducedMotion
+            }
+          }
         );
         this.renderedProgress = progress;
         renderContactProgress(
@@ -87,6 +101,7 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   }
 
   play(): Promise<void> {
+    this.playbackDirection = 1;
     return this.timeline.play();
   }
 
@@ -95,10 +110,12 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   }
 
   reverse(): Promise<void> {
+    this.playbackDirection = -1;
     return this.timeline.reverse();
   }
 
   jumpToEnd(direction: Direction): void {
+    this.playbackDirection = direction;
     this.timeline.jumpToEnd(direction);
   }
 
@@ -140,7 +157,13 @@ export function createCraneContactTransition(options: { delayMs?: () => number }
     ],
     reducedMotionFallback: (context) => {
       const endpoint = context.direction === 1 ? 1 : 0;
-      renderCraneAnimationProgress(rootFor(context.from.element, 'crane-animation'), endpoint);
+      renderCraneAnimationProgress(rootFor(context.from.element, 'crane-animation'), endpoint, {
+        mediaRun: {
+          runId: context.runId,
+          direction: context.direction,
+          reducedMotion: true
+        }
+      });
       renderContactProgress(rootFor(context.to.element, 'contact'), endpoint);
       writeHandoffReceiver(context.to.element, endpoint);
       context.from.setVisibility(context.direction === 1 ? hiddenVisibility() : holdVisibility(true));

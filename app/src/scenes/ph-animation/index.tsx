@@ -1,3 +1,4 @@
+import { driveTimelineVideo } from '../../media/timeline-video-driver';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const PH_MEDIA_KEY = 'ph_figure-alpha-scrub';
@@ -15,7 +16,11 @@ export type PhRenderState = {
 };
 
 type PhRenderOptions = {
-  playback?: boolean;
+  mediaRun?: {
+    runId: string;
+    direction: 1 | -1;
+    reducedMotion?: boolean;
+  };
 };
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
@@ -28,48 +33,28 @@ export const phPlaybackProgress = (progress: number) => {
   return clamp(0.78 * p + 0.22 * p * p);
 };
 
-function seekVideo(video: HTMLVideoElement | null | undefined, progress: number): void {
-  if (!video) {
-    return;
-  }
-  video.loop = false;
-  video.pause();
-  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 76 / 30;
-  const targetTime = Math.max(0, Math.min(duration - 0.02, progress * duration));
-  if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.016) {
-    video.currentTime = targetTime;
-  }
-}
-
-function finishVideo(video: HTMLVideoElement | null | undefined, progress: number): void {
-  if (!video) {
-    return;
-  }
-  video.loop = false;
-  video.pause();
-  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 76 / 30;
-  const targetTime = Math.max(0, Math.min(duration - 0.02, progress * duration));
-  if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.016) {
-    video.currentTime = targetTime;
-  }
-}
-
-function drivePhPlayback(section: HTMLElement | null, progress: number, mediaProgress: number): void {
+function drivePhPlayback(
+  section: HTMLElement | null,
+  progress: number,
+  mediaProgress: number,
+  mediaRun: NonNullable<PhRenderOptions['mediaRun']>
+): void {
   const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
-  const previous = Number.parseFloat(section?.dataset.phRawProgress ?? `${progress}`);
-  const direction = progress >= previous ? 1 : -1;
-  section?.setAttribute('data-ph-playback-direction', String(direction));
+  section?.setAttribute('data-ph-playback-direction', String(mediaRun.direction));
+  section?.setAttribute('data-ph-playback-run', mediaRun.runId);
   section?.setAttribute('data-ph-raw-progress', progress.toFixed(4));
   section?.setAttribute('data-ph-playback-active', String(progress > 0.001 && progress < 0.999));
-  if (progress <= 0.001) {
-    finishVideo(video, 0);
-    return;
-  }
-  if (progress >= 0.999) {
-    finishVideo(video, 1);
-    return;
-  }
-  seekVideo(video, mediaProgress);
+  const snapshot = driveTimelineVideo(video, {
+    runId: mediaRun.runId,
+    direction: mediaRun.direction,
+    progress: mediaProgress,
+    durationFallbackSeconds: 76 / 30,
+    endEpsilonSeconds: 0.02,
+    timelineDurationMs: PH_PLAYBACK_MS,
+    mode: 'timeline',
+    ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {})
+  });
+  section?.setAttribute('data-ph-playback-fallback', String(snapshot?.nativeFallback ?? false));
 }
 
 export function renderPhAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number, options: PhRenderOptions = {}): PhRenderState {
@@ -88,11 +73,18 @@ export function renderPhAnimationProgress(root: HTMLElement | null | undefined, 
   section?.style.setProperty('--ph-front-parallax-y', `${frontY.toFixed(2)}px`);
   section?.style.setProperty('--ph-figure-parallax-y', `${figureY.toFixed(2)}px`);
   section?.setAttribute('data-ph-progress', progress.toFixed(4));
-  if (options.playback) {
-    drivePhPlayback(section, raw, progress);
+  if (options.mediaRun) {
+    drivePhPlayback(section, raw, progress, options.mediaRun);
   } else {
     section?.setAttribute('data-ph-playback-active', 'false');
-    seekVideo(section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]'), progress);
+    driveTimelineVideo(section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]'), {
+      runId: 'ph-hold',
+      direction: -1,
+      progress,
+      durationFallbackSeconds: 76 / 30,
+      endEpsilonSeconds: 0.02,
+      mode: 'timeline'
+    });
     section?.setAttribute('data-ph-raw-progress', raw.toFixed(4));
   }
 

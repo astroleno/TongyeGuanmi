@@ -25,6 +25,11 @@ describe('charge accumulator', () => {
     expect(second.state.value).toBe(0);
   });
 
+  it('tolerates cross-browser floating-point drift at 10svh without accepting 9.9svh', () => {
+    expect(applyChargeDelta(createChargeState(0), 0.1 - 1e-12, 0).fired).toBe(1);
+    expect(applyChargeDelta(createChargeState(0), 0.099, 0).fired).toBeNull();
+  });
+
   it('decays accumulated value at 0.001 per ms', () => {
     const charged = applyChargeDelta(createChargeState(0), 0.09, 0);
     const sampled = sampleCharge(charged.state, 20);

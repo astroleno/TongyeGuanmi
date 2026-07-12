@@ -12,7 +12,6 @@ export function createLabPhTransition(options: { delayMs?: () => number } = {}):
       direction: 'top-to-bottom',
       seed: 'lab-ph'
     },
-    positionFromReadingOnReverse: true,
     prepareEndpoints: ({ from, to }) => {
       renderLabHold(from);
       renderPhHold(to);

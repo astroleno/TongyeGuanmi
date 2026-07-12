@@ -85,7 +85,6 @@ test('TTG alpha pair plays the canonical forward and reverse assets on every dev
   await waitForHold(page, 'lab');
   await page.keyboard.press('PageUp');
   await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
-  await page.keyboard.press('PageUp');
   await page.waitForFunction(() => {
     const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
     return scene?.dataset.ttgPlaybackDirection === '-1';
@@ -95,6 +94,7 @@ test('TTG alpha pair plays the canonical forward and reverse assets on every dev
   expect(reverse.direction).toBe('-1');
   expect(reverse.reverse.active).toBe(true);
   expect(reverse.reverse.opacity).toBeGreaterThan(0.9);
+  await page.keyboard.press('PageUp');
   await waitForHold(page, 'ttg-animation');
   expect((await storySnapshot(page)).lastError).toBeUndefined();
 });

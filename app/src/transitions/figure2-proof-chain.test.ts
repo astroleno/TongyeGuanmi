@@ -61,6 +61,7 @@ class FakeElement {
   inert = false;
   className = '';
   private readonly selectors = new Map<string, FakeElement>();
+  private readonly selectorLists = new Map<string, FakeElement[]>();
 
   append(...children: FakeElement[]): void {
     for (const child of children) {
@@ -72,6 +73,10 @@ class FakeElement {
 
   connect(selector: string, element: FakeElement): void {
     this.selectors.set(selector, element);
+  }
+
+  connectAll(selector: string, elements: FakeElement[]): void {
+    this.selectorLists.set(selector, elements);
   }
 
   querySelector(selector: string): FakeElement | null {
@@ -92,8 +97,8 @@ class FakeElement {
     return null;
   }
 
-  querySelectorAll(): FakeElement[] {
-    return [];
+  querySelectorAll(selector: string): FakeElement[] {
+    return this.selectorLists.get(selector) ?? [];
   }
 
   matches(): boolean {
@@ -123,6 +128,39 @@ class FakeElement {
       this.parentElement.children.splice(index, 1);
     }
     this.parentElement = null;
+  }
+}
+
+class FakeVideo extends FakeElement {
+  duration = 5;
+  paused = true;
+  loop = false;
+  muted = false;
+  playsInline = false;
+  playbackRate = 1;
+  readonly currentTimeWrites: number[] = [];
+  private time = 0;
+
+  get currentTime(): number {
+    return this.time;
+  }
+
+  set currentTime(value: number) {
+    this.time = value;
+    this.currentTimeWrites.push(value);
+  }
+
+  addEventListener(): void {}
+
+  removeEventListener(): void {}
+
+  pause(): void {
+    this.paused = true;
+  }
+
+  play(): Promise<void> {
+    this.paused = false;
+    return Promise.resolve();
   }
 }
 
@@ -486,6 +524,7 @@ describe('figure2 proof chain transitions', () => {
       (child) => child.dataset.r4InkSegment === 'figure2-distance-expand'
     );
     expect(inkCanvas?.dataset.r4InkEffectOnly).toBe('true');
+    expect(inkCanvas?.dataset.r4InkGrade).toBe('edge-only');
     expect(inkCanvas?.dataset.r4InkBoundaryKind).toBe('depth');
     expect(inkCanvas?.dataset.r4InkSecondaryGateKind).toBeUndefined();
     expect(timeline.effectCanvases?.()).toEqual([inkCanvas]);
@@ -615,9 +654,52 @@ describe('figure2 proof chain transitions', () => {
     expect(figure2VideoModeForProofTransition(0, 1)).toBe('native');
     expect(figure2VideoModeForProofTransition(0.001, 1)).toBe('native');
     expect(figure2VideoModeForProofTransition(0.1, 1)).toBe('none');
-    expect(figure2VideoModeForProofTransition(0, -1)).toBe('none');
+    expect(figure2VideoModeForProofTransition(0, -1)).toBe('seek');
     expect(figure2VideoModeForProofTransition(0.5, -1)).toBe('none');
     expect(FIGURE2_INTRO_PLAYBACK_MS).toBe(2600);
+  });
+
+  it('drives multiple descending Figure2 frames on the reverse stage leg', async () => {
+    const document = new FakeDocument();
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    const fromRoot = new FakeElement();
+    const video = new FakeVideo();
+    stage.ownerDocument = document;
+    fromElement.ownerDocument = document;
+    toElement.ownerDocument = document;
+    fromRoot.ownerDocument = document;
+    video.ownerDocument = document;
+    stage.append(fromElement, toElement);
+    fromElement.connect(
+      '[data-r4-scene="figure2-animation"], [data-r3-scene="figure2-animation"]',
+      fromRoot
+    );
+    fromRoot.connectAll('[data-figure2-video]', [video]);
+    vi.stubGlobal('document', document);
+    const timeline = await createFigure2DistanceExpandTransition().buildTimeline(
+      context(
+        'figure2-distance-expand',
+        'figure2-animation',
+        'figure2-proof-opening',
+        false,
+        {
+          from: fromElement as unknown as HTMLElement,
+          to: toElement as unknown as HTMLElement
+        },
+        -1
+      )
+    );
+
+    timeline.progress(0.7);
+    timeline.progress(0.5);
+    timeline.progress(0.3);
+
+    expect(video.currentTimeWrites).toHaveLength(3);
+    expect(video.currentTimeWrites[0]).toBeGreaterThan(video.currentTimeWrites[1] ?? 0);
+    expect(video.currentTimeWrites[1]).toBeGreaterThan(video.currentTimeWrites[2] ?? 0);
+    expect(video.dataset.timelineVideoDirection).toBe('-1');
   });
 
   for (const item of cases) {

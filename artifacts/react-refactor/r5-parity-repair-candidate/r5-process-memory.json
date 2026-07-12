@@ -1,0 +1,5312 @@
+{
+  "schemaVersion": 1,
+  "environment": "macOS / Chrome hardware process-tree sample",
+  "sampleIntervalMs": 250,
+  "budgets": {
+    "peakBrowserTreeRssBytes": 1500000000,
+    "peakGpuProcessRssBytes": 536870912,
+    "peakRendererRssBytes": 1073741824,
+    "settledHeapFractionOfPeak": 0.9
+  },
+  "actual": {
+    "peakBrowserTreeRssBytes": 1461190656,
+    "peakGpuProcessRssBytes": 344408064,
+    "peakRendererRssBytes": 785072128,
+    "peakJsHeapBytes": 41857578,
+    "finalJsHeapBytes": 17873726,
+    "peakCanvasPixelBytes": 11657408,
+    "maxMountedLayers": 3,
+    "maxWebglCanvasesAtHold": 1
+  },
+  "pass": true,
+  "holds": [
+    {
+      "direction": "boot",
+      "phase": "hold",
+      "current": "hero",
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "virtualProgress": 0,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 1,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern"
+      ],
+      "loadedTransitions": [
+        "hero-pattern"
+      ],
+      "lifecycle": {
+        "mounted": 2,
+        "disposed": 0,
+        "releasedCanvases": 0,
+        "releasedVideos": 0
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 16143913,
+      "canvasPixelBytes": 5184000
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "pattern",
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "virtualProgress": 0.06447831184056271,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 2,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map"
+      ],
+      "lifecycle": {
+        "mounted": 3,
+        "disposed": 0,
+        "releasedCanvases": 0,
+        "releasedVideos": 0
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 32156351,
+      "canvasPixelBytes": 11477408
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "star-map",
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern",
+        "next": "aod-animation"
+      },
+      "virtualProgress": 0.16998827667057445,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 3,
+      "webglCanvases": 1,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod"
+      ],
+      "lifecycle": {
+        "mounted": 4,
+        "disposed": 1,
+        "releasedCanvases": 0,
+        "releasedVideos": 1
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 34780039,
+      "canvasPixelBytes": 11657408
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "aod-animation",
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "virtualProgress": 0.205158264947245,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 2,
+      "webglCanvases": 1,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top"
+      ],
+      "lifecycle": {
+        "mounted": 5,
+        "disposed": 2,
+        "releasedCanvases": 1,
+        "releasedVideos": 1
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 33239524,
+      "canvasPixelBytes": 6473408
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "method-top",
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "prev": "aod-animation",
+        "next": "figure2-animation"
+      },
+      "virtualProgress": 0.2813599062133646,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 1,
+      "webglCanvases": 1,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2"
+      ],
+      "lifecycle": {
+        "mounted": 6,
+        "disposed": 3,
+        "releasedCanvases": 2,
+        "releasedVideos": 1
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 36353211,
+      "canvasPixelBytes": 180000
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "figure2-animation",
+      "layerWindow": {
+        "current": "figure2-animation",
+        "retiring": [],
+        "prev": "method-top",
+        "next": "figure2-proof-opening"
+      },
+      "virtualProgress": 0.31652989449003516,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand"
+      ],
+      "lifecycle": {
+        "mounted": 7,
+        "disposed": 4,
+        "releasedCanvases": 3,
+        "releasedVideos": 2
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 37870304,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "figure2-proof-opening",
+      "layerWindow": {
+        "current": "figure2-proof-opening",
+        "retiring": [],
+        "prev": "figure2-animation",
+        "next": "figure2-proof-cards"
+      },
+      "virtualProgress": 0.43669402110199296,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards"
+      ],
+      "lifecycle": {
+        "mounted": 8,
+        "disposed": 5,
+        "releasedCanvases": 3,
+        "releasedVideos": 2
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 40858665,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "figure2-proof-cards",
+      "layerWindow": {
+        "current": "figure2-proof-cards",
+        "retiring": [],
+        "prev": "figure2-proof-opening",
+        "next": "figure2-proof-closing"
+      },
+      "virtualProgress": 0.4630715123094959,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 0,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing"
+      ],
+      "lifecycle": {
+        "mounted": 9,
+        "disposed": 6,
+        "releasedCanvases": 3,
+        "releasedVideos": 4
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 14608600,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "figure2-proof-closing",
+      "layerWindow": {
+        "current": "figure2-proof-closing",
+        "retiring": [],
+        "prev": "figure2-proof-cards",
+        "next": "brand"
+      },
+      "virtualProgress": 0.4894490035169988,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 0,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand"
+      ],
+      "lifecycle": {
+        "mounted": 10,
+        "disposed": 7,
+        "releasedCanvases": 3,
+        "releasedVideos": 4
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 15318896,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "brand",
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "prev": "figure2-proof-closing",
+        "next": "figure3-animation"
+      },
+      "virtualProgress": 0.5246189917936694,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3"
+      ],
+      "lifecycle": {
+        "mounted": 11,
+        "disposed": 8,
+        "releasedCanvases": 3,
+        "releasedVideos": 4
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 6888223,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "figure3-animation",
+      "layerWindow": {
+        "current": "figure3-animation",
+        "retiring": [],
+        "prev": "brand",
+        "next": "services"
+      },
+      "virtualProgress": 0.55978898007034,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services"
+      ],
+      "lifecycle": {
+        "mounted": 12,
+        "disposed": 9,
+        "releasedCanvases": 3,
+        "releasedVideos": 4
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 7946001,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "services",
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "prev": "figure3-animation",
+        "next": "ttg-animation"
+      },
+      "virtualProgress": 0.6184056271981243,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg"
+      ],
+      "lifecycle": {
+        "mounted": 13,
+        "disposed": 10,
+        "releasedCanvases": 3,
+        "releasedVideos": 4
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 9015009,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "ttg-animation",
+      "layerWindow": {
+        "current": "ttg-animation",
+        "retiring": [],
+        "prev": "services",
+        "next": "lab"
+      },
+      "virtualProgress": 0.6535756154747948,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab"
+      ],
+      "lifecycle": {
+        "mounted": 14,
+        "disposed": 11,
+        "releasedCanvases": 3,
+        "releasedVideos": 5
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 6342427,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "lab",
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation",
+        "next": "ph-animation"
+      },
+      "virtualProgress": 0.7620164126611958,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph"
+      ],
+      "lifecycle": {
+        "mounted": 15,
+        "disposed": 12,
+        "releasedCanvases": 3,
+        "releasedVideos": 5
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5476740,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "ph-animation",
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "virtualProgress": 0.7971864009378663,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education"
+      ],
+      "lifecycle": {
+        "mounted": 16,
+        "disposed": 13,
+        "releasedCanvases": 3,
+        "releasedVideos": 7
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5730137,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "education",
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation",
+        "next": "crane-animation"
+      },
+      "virtualProgress": 0.876905041031653,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane"
+      ],
+      "lifecycle": {
+        "mounted": 17,
+        "disposed": 14,
+        "releasedCanvases": 3,
+        "releasedVideos": 7
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5607019,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "crane-animation",
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "prev": "education",
+        "next": "contact"
+      },
+      "virtualProgress": 0.9120750293083235,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 18,
+        "disposed": 15,
+        "releasedCanvases": 3,
+        "releasedVideos": 8
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5862655,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward",
+      "phase": "hold",
+      "current": "contact",
+      "layerWindow": {
+        "current": "contact",
+        "retiring": [],
+        "prev": "crane-animation"
+      },
+      "virtualProgress": 1,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 18,
+        "disposed": 16,
+        "releasedCanvases": 3,
+        "releasedVideos": 8
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 6127282,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "forward-settled",
+      "phase": "hold",
+      "current": "contact",
+      "layerWindow": {
+        "current": "contact",
+        "retiring": [],
+        "prev": "crane-animation"
+      },
+      "virtualProgress": 1,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 18,
+        "disposed": 16,
+        "releasedCanvases": 3,
+        "releasedVideos": 8
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 6154090,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "crane-animation",
+      "layerWindow": {
+        "current": "crane-animation",
+        "retiring": [],
+        "prev": "education",
+        "next": "contact"
+      },
+      "virtualProgress": 0.9120750293083235,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 19,
+        "disposed": 16,
+        "releasedCanvases": 3,
+        "releasedVideos": 8
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 6318581,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "education",
+      "layerWindow": {
+        "current": "education",
+        "retiring": [],
+        "prev": "ph-animation",
+        "next": "crane-animation"
+      },
+      "virtualProgress": 0.876905041031653,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 20,
+        "disposed": 17,
+        "releasedCanvases": 3,
+        "releasedVideos": 8
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5775147,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "ph-animation",
+      "layerWindow": {
+        "current": "ph-animation",
+        "retiring": [],
+        "prev": "lab",
+        "next": "education"
+      },
+      "virtualProgress": 0.7971864009378663,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 21,
+        "disposed": 18,
+        "releasedCanvases": 3,
+        "releasedVideos": 10
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 6272779,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "lab",
+      "layerWindow": {
+        "current": "lab",
+        "retiring": [],
+        "prev": "ttg-animation",
+        "next": "ph-animation"
+      },
+      "virtualProgress": 0.7620164126611958,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 22,
+        "disposed": 19,
+        "releasedCanvases": 3,
+        "releasedVideos": 10
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5819813,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "ttg-animation",
+      "layerWindow": {
+        "current": "ttg-animation",
+        "retiring": [],
+        "prev": "services",
+        "next": "lab"
+      },
+      "virtualProgress": 0.6535756154747948,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 23,
+        "disposed": 20,
+        "releasedCanvases": 3,
+        "releasedVideos": 11
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 6022541,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "services",
+      "layerWindow": {
+        "current": "services",
+        "retiring": [],
+        "prev": "figure3-animation",
+        "next": "ttg-animation"
+      },
+      "virtualProgress": 0.6184056271981243,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 24,
+        "disposed": 21,
+        "releasedCanvases": 3,
+        "releasedVideos": 11
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5855393,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "figure3-animation",
+      "layerWindow": {
+        "current": "figure3-animation",
+        "retiring": [],
+        "prev": "brand",
+        "next": "services"
+      },
+      "virtualProgress": 0.55978898007034,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 25,
+        "disposed": 22,
+        "releasedCanvases": 3,
+        "releasedVideos": 13
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5933171,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "brand",
+      "layerWindow": {
+        "current": "brand",
+        "retiring": [],
+        "prev": "figure2-proof-closing",
+        "next": "figure3-animation"
+      },
+      "virtualProgress": 0.5246189917936694,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 26,
+        "disposed": 23,
+        "releasedCanvases": 3,
+        "releasedVideos": 13
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5872010,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "figure2-proof-closing",
+      "layerWindow": {
+        "current": "figure2-proof-closing",
+        "retiring": [],
+        "prev": "figure2-proof-cards",
+        "next": "brand"
+      },
+      "virtualProgress": 0.4894490035169988,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 0,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 27,
+        "disposed": 24,
+        "releasedCanvases": 3,
+        "releasedVideos": 14
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 6031044,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "figure2-proof-cards",
+      "layerWindow": {
+        "current": "figure2-proof-cards",
+        "retiring": [],
+        "prev": "figure2-proof-opening",
+        "next": "figure2-proof-closing"
+      },
+      "virtualProgress": 0.4630715123094959,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 0,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 28,
+        "disposed": 25,
+        "releasedCanvases": 3,
+        "releasedVideos": 14
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 6672248,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "figure2-proof-opening",
+      "layerWindow": {
+        "current": "figure2-proof-opening",
+        "retiring": [],
+        "prev": "figure2-animation",
+        "next": "figure2-proof-cards"
+      },
+      "virtualProgress": 0.43669402110199296,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 29,
+        "disposed": 26,
+        "releasedCanvases": 3,
+        "releasedVideos": 14
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5896852,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "figure2-animation",
+      "layerWindow": {
+        "current": "figure2-animation",
+        "retiring": [],
+        "prev": "method-top",
+        "next": "figure2-proof-opening"
+      },
+      "virtualProgress": 0.31652989449003516,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 0,
+      "webglCanvases": 0,
+      "videos": 2,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 30,
+        "disposed": 27,
+        "releasedCanvases": 3,
+        "releasedVideos": 14
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 6217144,
+      "canvasPixelBytes": 0
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "method-top",
+      "layerWindow": {
+        "current": "method-top",
+        "retiring": [],
+        "prev": "aod-animation",
+        "next": "figure2-animation"
+      },
+      "virtualProgress": 0.2813599062133646,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 1,
+      "webglCanvases": 1,
+      "videos": 3,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 31,
+        "disposed": 28,
+        "releasedCanvases": 3,
+        "releasedVideos": 14
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 5896697,
+      "canvasPixelBytes": 180000
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "aod-animation",
+      "layerWindow": {
+        "current": "aod-animation",
+        "retiring": [],
+        "prev": "star-map",
+        "next": "method-top"
+      },
+      "virtualProgress": 0.205158264947245,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 2,
+      "webglCanvases": 1,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 32,
+        "disposed": 29,
+        "releasedCanvases": 3,
+        "releasedVideos": 16
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 41857578,
+      "canvasPixelBytes": 6473408
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "star-map",
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern",
+        "next": "aod-animation"
+      },
+      "virtualProgress": 0.16998827667057445,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 3,
+      "webglCanvases": 1,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 33,
+        "disposed": 30,
+        "releasedCanvases": 3,
+        "releasedVideos": 16
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 13633076,
+      "canvasPixelBytes": 11657408
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "pattern",
+      "layerWindow": {
+        "current": "pattern",
+        "retiring": [],
+        "prev": "hero",
+        "next": "star-map"
+      },
+      "virtualProgress": 0.06447831184056271,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 3,
+      "canvases": 2,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 34,
+        "disposed": 31,
+        "releasedCanvases": 4,
+        "releasedVideos": 17
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 19828962,
+      "canvasPixelBytes": 11477408
+    },
+    {
+      "direction": "reverse",
+      "phase": "hold",
+      "current": "hero",
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "virtualProgress": 0,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 1,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 34,
+        "disposed": 32,
+        "releasedCanvases": 5,
+        "releasedVideos": 17
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 13827014,
+      "canvasPixelBytes": 5184000
+    },
+    {
+      "direction": "reverse-settled",
+      "phase": "hold",
+      "current": "hero",
+      "layerWindow": {
+        "current": "hero",
+        "retiring": [],
+        "next": "pattern"
+      },
+      "virtualProgress": 0,
+      "visibleLayers": 1,
+      "interactableLayers": 1,
+      "mountedLayers": 2,
+      "canvases": 1,
+      "webglCanvases": 0,
+      "videos": 1,
+      "playingVideos": 0,
+      "loadedScenes": [
+        "hero",
+        "pattern",
+        "star-map",
+        "aod-animation",
+        "method-top",
+        "figure2-animation",
+        "figure2-proof-opening",
+        "figure2-proof-cards",
+        "figure2-proof-closing",
+        "brand",
+        "figure3-animation",
+        "services",
+        "ttg-animation",
+        "lab",
+        "ph-animation",
+        "education",
+        "crane-animation",
+        "contact"
+      ],
+      "loadedTransitions": [
+        "hero-pattern",
+        "pattern-star-map",
+        "star-map-aod",
+        "aod-method-top",
+        "method-bottom-figure2",
+        "figure2-distance-expand",
+        "figure2-proof-opening-cards",
+        "figure2-proof-cards-closing",
+        "figure2-proof-brand",
+        "brand-figure3",
+        "figure3-services",
+        "services-ttg",
+        "ttg-lab",
+        "lab-ph",
+        "ph-education",
+        "education-crane",
+        "crane-contact"
+      ],
+      "lifecycle": {
+        "mounted": 34,
+        "disposed": 32,
+        "releasedCanvases": 5,
+        "releasedVideos": 17
+      },
+      "reducedMotion": false,
+      "loaderMode": "cold-hero",
+      "loaderStatus": "hidden",
+      "heroIntroMode": "complete",
+      "presentationReady": true,
+      "usedJsHeapBytes": 17873726,
+      "canvasPixelBytes": 5184000
+    }
+  ],
+  "processSamples": [
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 428605440,
+      "gpuRssBytes": 82509824,
+      "rendererRssBytes": 0,
+      "processCount": 5
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 949190656,
+      "gpuRssBytes": 196280320,
+      "rendererRssBytes": 394477568,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 1041776640,
+      "gpuRssBytes": 227131392,
+      "rendererRssBytes": 455294976,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 1044922368,
+      "gpuRssBytes": 227196928,
+      "rendererRssBytes": 455819264,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 1047248896,
+      "gpuRssBytes": 227459072,
+      "rendererRssBytes": 456376320,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 1047953408,
+      "gpuRssBytes": 227590144,
+      "rendererRssBytes": 456802304,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 1055064064,
+      "gpuRssBytes": 233996288,
+      "rendererRssBytes": 457506816,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 912392192,
+      "gpuRssBytes": 216825856,
+      "rendererRssBytes": 381190144,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 867958784,
+      "gpuRssBytes": 208551936,
+      "rendererRssBytes": 363085824,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 874446848,
+      "gpuRssBytes": 206569472,
+      "rendererRssBytes": 368590848,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 888422400,
+      "gpuRssBytes": 205881344,
+      "rendererRssBytes": 383254528,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 908886016,
+      "gpuRssBytes": 202375168,
+      "rendererRssBytes": 405012480,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 926269440,
+      "gpuRssBytes": 201064448,
+      "rendererRssBytes": 423346176,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 927252480,
+      "gpuRssBytes": 201064448,
+      "rendererRssBytes": 424312832,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 927236096,
+      "gpuRssBytes": 201064448,
+      "rendererRssBytes": 424296448,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 927465472,
+      "gpuRssBytes": 201064448,
+      "rendererRssBytes": 424525824,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 927809536,
+      "gpuRssBytes": 201064448,
+      "rendererRssBytes": 424738816,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 933429248,
+      "gpuRssBytes": 201080832,
+      "rendererRssBytes": 430292992,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 934330368,
+      "gpuRssBytes": 201097216,
+      "rendererRssBytes": 430866432,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 917782528,
+      "gpuRssBytes": 183975936,
+      "rendererRssBytes": 431341568,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 902365184,
+      "gpuRssBytes": 167723008,
+      "rendererRssBytes": 432177152,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 902529024,
+      "gpuRssBytes": 167772160,
+      "rendererRssBytes": 432291840,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 927776768,
+      "gpuRssBytes": 185466880,
+      "rendererRssBytes": 439812096,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 927989760,
+      "gpuRssBytes": 185499648,
+      "rendererRssBytes": 439992320,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 928219136,
+      "gpuRssBytes": 185499648,
+      "rendererRssBytes": 440221696,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 926269440,
+      "gpuRssBytes": 179306496,
+      "rendererRssBytes": 444071936,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 931627008,
+      "gpuRssBytes": 183795712,
+      "rendererRssBytes": 444907520,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 931954688,
+      "gpuRssBytes": 184025088,
+      "rendererRssBytes": 445005824,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 926072832,
+      "gpuRssBytes": 177930240,
+      "rendererRssBytes": 445202432,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 927645696,
+      "gpuRssBytes": 178159616,
+      "rendererRssBytes": 446496768,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 930168832,
+      "gpuRssBytes": 180174848,
+      "rendererRssBytes": 446971904,
+      "processCount": 6
+    },
+    {
+      "label": "launch",
+      "browserPid": 75679,
+      "totalRssBytes": 938737664,
+      "gpuRssBytes": 185532416,
+      "rendererRssBytes": 450183168,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 956694528,
+      "gpuRssBytes": 191283200,
+      "rendererRssBytes": 461815808,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 976519168,
+      "gpuRssBytes": 191578112,
+      "rendererRssBytes": 481345536,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1121304576,
+      "gpuRssBytes": 265863168,
+      "rendererRssBytes": 555270144,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1122353152,
+      "gpuRssBytes": 266944512,
+      "rendererRssBytes": 555237376,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1091223552,
+      "gpuRssBytes": 250036224,
+      "rendererRssBytes": 540426240,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1093861376,
+      "gpuRssBytes": 251019264,
+      "rendererRssBytes": 542081024,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1094303744,
+      "gpuRssBytes": 251002880,
+      "rendererRssBytes": 542556160,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1094811648,
+      "gpuRssBytes": 251199488,
+      "rendererRssBytes": 542867456,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1097187328,
+      "gpuRssBytes": 251199488,
+      "rendererRssBytes": 545046528,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1164951552,
+      "gpuRssBytes": 269697024,
+      "rendererRssBytes": 589086720,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1166180352,
+      "gpuRssBytes": 270598144,
+      "rendererRssBytes": 589430784,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1160757248,
+      "gpuRssBytes": 270696448,
+      "rendererRssBytes": 583892992,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1171537920,
+      "gpuRssBytes": 270761984,
+      "rendererRssBytes": 594608128,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1172570112,
+      "gpuRssBytes": 270794752,
+      "rendererRssBytes": 595607552,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1172357120,
+      "gpuRssBytes": 270827520,
+      "rendererRssBytes": 595361792,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1170915328,
+      "gpuRssBytes": 268976128,
+      "rendererRssBytes": 595918848,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1169473536,
+      "gpuRssBytes": 266436608,
+      "rendererRssBytes": 597098496,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1174831104,
+      "gpuRssBytes": 269926400,
+      "rendererRssBytes": 599048192,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1153384448,
+      "gpuRssBytes": 248217600,
+      "rendererRssBytes": 599310336,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1150648320,
+      "gpuRssBytes": 247873536,
+      "rendererRssBytes": 598294528,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1140768768,
+      "gpuRssBytes": 228786176,
+      "rendererRssBytes": 607502336,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1148469248,
+      "gpuRssBytes": 227983360,
+      "rendererRssBytes": 616005632,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1165819904,
+      "gpuRssBytes": 228098048,
+      "rendererRssBytes": 633241600,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1176125440,
+      "gpuRssBytes": 228016128,
+      "rendererRssBytes": 643629056,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1175552000,
+      "gpuRssBytes": 229163008,
+      "rendererRssBytes": 635846656,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1177501696,
+      "gpuRssBytes": 229244928,
+      "rendererRssBytes": 637714432,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1212989440,
+      "gpuRssBytes": 249282560,
+      "rendererRssBytes": 653148160,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1213874176,
+      "gpuRssBytes": 249364480,
+      "rendererRssBytes": 653950976,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1212841984,
+      "gpuRssBytes": 247922688,
+      "rendererRssBytes": 654360576,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1212661760,
+      "gpuRssBytes": 247824384,
+      "rendererRssBytes": 654278656,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1218494464,
+      "gpuRssBytes": 247857152,
+      "rendererRssBytes": 659996672,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1219493888,
+      "gpuRssBytes": 247857152,
+      "rendererRssBytes": 660996096,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1219690496,
+      "gpuRssBytes": 247857152,
+      "rendererRssBytes": 661176320,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1220198400,
+      "gpuRssBytes": 247906304,
+      "rendererRssBytes": 661536768,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1220919296,
+      "gpuRssBytes": 247906304,
+      "rendererRssBytes": 662257664,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1220476928,
+      "gpuRssBytes": 247087104,
+      "rendererRssBytes": 662667264,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1221869568,
+      "gpuRssBytes": 247070720,
+      "rendererRssBytes": 664043520,
+      "processCount": 6
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1239580672,
+      "gpuRssBytes": 247070720,
+      "rendererRssBytes": 664207360,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1239793664,
+      "gpuRssBytes": 247103488,
+      "rendererRssBytes": 664436736,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1240154112,
+      "gpuRssBytes": 247103488,
+      "rendererRssBytes": 664698880,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 1240186880,
+      "gpuRssBytes": 247087104,
+      "rendererRssBytes": 664748032,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1332232192,
+      "gpuRssBytes": 247300096,
+      "rendererRssBytes": 745209856,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1332592640,
+      "gpuRssBytes": 247414784,
+      "rendererRssBytes": 745455616,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1461190656,
+      "gpuRssBytes": 338722816,
+      "rendererRssBytes": 784629760,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1449345024,
+      "gpuRssBytes": 326516736,
+      "rendererRssBytes": 785072128,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1426653184,
+      "gpuRssBytes": 325681152,
+      "rendererRssBytes": 763232256,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1426505728,
+      "gpuRssBytes": 325599232,
+      "rendererRssBytes": 763166720,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1409941504,
+      "gpuRssBytes": 330776576,
+      "rendererRssBytes": 740212736,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1424130048,
+      "gpuRssBytes": 336117760,
+      "rendererRssBytes": 749060096,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1430421504,
+      "gpuRssBytes": 344408064,
+      "rendererRssBytes": 747061248,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1417183232,
+      "gpuRssBytes": 340082688,
+      "rendererRssBytes": 742834176,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1314422784,
+      "gpuRssBytes": 335691776,
+      "rendererRssBytes": 659341312,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1312686080,
+      "gpuRssBytes": 334839808,
+      "rendererRssBytes": 659111936,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1281212416,
+      "gpuRssBytes": 303890432,
+      "rendererRssBytes": 658767872,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1219018752,
+      "gpuRssBytes": 241369088,
+      "rendererRssBytes": 659013632,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1109164032,
+      "gpuRssBytes": 188596224,
+      "rendererRssBytes": 601931776,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1109245952,
+      "gpuRssBytes": 188612608,
+      "rendererRssBytes": 601964544,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1103659008,
+      "gpuRssBytes": 182304768,
+      "rendererRssBytes": 602669056,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1128120320,
+      "gpuRssBytes": 202194944,
+      "rendererRssBytes": 608370688,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1128497152,
+      "gpuRssBytes": 202407936,
+      "rendererRssBytes": 608534528,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1126498304,
+      "gpuRssBytes": 202096640,
+      "rendererRssBytes": 606879744,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1126891520,
+      "gpuRssBytes": 202276864,
+      "rendererRssBytes": 607092736,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1114210304,
+      "gpuRssBytes": 195919872,
+      "rendererRssBytes": 600768512,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1114685440,
+      "gpuRssBytes": 195903488,
+      "rendererRssBytes": 601178112,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-cards",
+      "browserPid": 75679,
+      "totalRssBytes": 1117028352,
+      "gpuRssBytes": 196018176,
+      "rendererRssBytes": 603324416,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-cards",
+      "browserPid": 75679,
+      "totalRssBytes": 1114357760,
+      "gpuRssBytes": 193282048,
+      "rendererRssBytes": 603389952,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-cards",
+      "browserPid": 75679,
+      "totalRssBytes": 1112424448,
+      "gpuRssBytes": 191201280,
+      "rendererRssBytes": 603537408,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-cards",
+      "browserPid": 75679,
+      "totalRssBytes": 1106493440,
+      "gpuRssBytes": 185270272,
+      "rendererRssBytes": 603537408,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 1074675712,
+      "gpuRssBytes": 184401920,
+      "rendererRssBytes": 572506112,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 1074675712,
+      "gpuRssBytes": 184401920,
+      "rendererRssBytes": 572506112,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 1074987008,
+      "gpuRssBytes": 184565760,
+      "rendererRssBytes": 572653568,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 1074970624,
+      "gpuRssBytes": 184549376,
+      "rendererRssBytes": 572653568,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 1074970624,
+      "gpuRssBytes": 184549376,
+      "rendererRssBytes": 572653568,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 1081294848,
+      "gpuRssBytes": 189595648,
+      "rendererRssBytes": 573898752,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 1085964288,
+      "gpuRssBytes": 193757184,
+      "rendererRssBytes": 574210048,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 1076985856,
+      "gpuRssBytes": 184205312,
+      "rendererRssBytes": 574242816,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 1077329920,
+      "gpuRssBytes": 184532992,
+      "rendererRssBytes": 574259200,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 1077067776,
+      "gpuRssBytes": 184418304,
+      "rendererRssBytes": 574177280,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 1077051392,
+      "gpuRssBytes": 184401920,
+      "rendererRssBytes": 574177280,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1109655552,
+      "gpuRssBytes": 184418304,
+      "rendererRssBytes": 605405184,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1141260288,
+      "gpuRssBytes": 200212480,
+      "rendererRssBytes": 621215744,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1140621312,
+      "gpuRssBytes": 199540736,
+      "rendererRssBytes": 621248512,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1140637696,
+      "gpuRssBytes": 199540736,
+      "rendererRssBytes": 621264896,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1136803840,
+      "gpuRssBytes": 195510272,
+      "rendererRssBytes": 621215744,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1135640576,
+      "gpuRssBytes": 194134016,
+      "rendererRssBytes": 621297664,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1065861120,
+      "gpuRssBytes": 173981696,
+      "rendererRssBytes": 586891264,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1060110336,
+      "gpuRssBytes": 174424064,
+      "rendererRssBytes": 581156864,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1053540352,
+      "gpuRssBytes": 170885120,
+      "rendererRssBytes": 577912832,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1048526848,
+      "gpuRssBytes": 166641664,
+      "rendererRssBytes": 577142784,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1036369920,
+      "gpuRssBytes": 168378368,
+      "rendererRssBytes": 563167232,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1020526592,
+      "gpuRssBytes": 167493632,
+      "rendererRssBytes": 548323328,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1020674048,
+      "gpuRssBytes": 167608320,
+      "rendererRssBytes": 548356096,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1020690432,
+      "gpuRssBytes": 167608320,
+      "rendererRssBytes": 548372480,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1109082112,
+      "gpuRssBytes": 167510016,
+      "rendererRssBytes": 622854144,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1101561856,
+      "gpuRssBytes": 167526400,
+      "rendererRssBytes": 622854144,
+      "processCount": 8
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1310441472,
+      "gpuRssBytes": 280100864,
+      "rendererRssBytes": 725630976,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1311866880,
+      "gpuRssBytes": 280805376,
+      "rendererRssBytes": 726351872,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1305985024,
+      "gpuRssBytes": 280723456,
+      "rendererRssBytes": 720896000,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1305804800,
+      "gpuRssBytes": 280625152,
+      "rendererRssBytes": 720814080,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1321238528,
+      "gpuRssBytes": 276103168,
+      "rendererRssBytes": 740573184,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1321123840,
+      "gpuRssBytes": 274874368,
+      "rendererRssBytes": 741687296,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1324302336,
+      "gpuRssBytes": 274726912,
+      "rendererRssBytes": 745013248,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1324367872,
+      "gpuRssBytes": 274726912,
+      "rendererRssBytes": 745078784,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1324515328,
+      "gpuRssBytes": 274726912,
+      "rendererRssBytes": 745226240,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1324498944,
+      "gpuRssBytes": 274661376,
+      "rendererRssBytes": 745340928,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1324646400,
+      "gpuRssBytes": 274661376,
+      "rendererRssBytes": 745488384,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1156710400,
+      "gpuRssBytes": 151158784,
+      "rendererRssBytes": 701054976,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1156890624,
+      "gpuRssBytes": 151158784,
+      "rendererRssBytes": 701235200,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1162330112,
+      "gpuRssBytes": 156041216,
+      "rendererRssBytes": 701808640,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1162493952,
+      "gpuRssBytes": 156073984,
+      "rendererRssBytes": 701890560,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1162559488,
+      "gpuRssBytes": 156106752,
+      "rendererRssBytes": 701906944,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1162756096,
+      "gpuRssBytes": 156188672,
+      "rendererRssBytes": 702021632,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1162690560,
+      "gpuRssBytes": 156090368,
+      "rendererRssBytes": 702054400,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 1162674176,
+      "gpuRssBytes": 156073984,
+      "rendererRssBytes": 702054400,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1180745728,
+      "gpuRssBytes": 156303360,
+      "rendererRssBytes": 714653696,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1263386624,
+      "gpuRssBytes": 199966720,
+      "rendererRssBytes": 753598464,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1263665152,
+      "gpuRssBytes": 200146944,
+      "rendererRssBytes": 753696768,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1263747072,
+      "gpuRssBytes": 200196096,
+      "rendererRssBytes": 753729536,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1264500736,
+      "gpuRssBytes": 200097792,
+      "rendererRssBytes": 754581504,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1222885376,
+      "gpuRssBytes": 200163328,
+      "rendererRssBytes": 712753152,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1223213056,
+      "gpuRssBytes": 200163328,
+      "rendererRssBytes": 713048064,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1220657152,
+      "gpuRssBytes": 197279744,
+      "rendererRssBytes": 713342976,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1213612032,
+      "gpuRssBytes": 197263360,
+      "rendererRssBytes": 706854912,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1135050752,
+      "gpuRssBytes": 148307968,
+      "rendererRssBytes": 677298176,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1137164288,
+      "gpuRssBytes": 150306816,
+      "rendererRssBytes": 677478400,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1103446016,
+      "gpuRssBytes": 154402816,
+      "rendererRssBytes": 639778816,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1019576320,
+      "gpuRssBytes": 154206208,
+      "rendererRssBytes": 563347456,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1013383168,
+      "gpuRssBytes": 154304512,
+      "rendererRssBytes": 556957696,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1013448704,
+      "gpuRssBytes": 154320896,
+      "rendererRssBytes": 557006848,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1013284864,
+      "gpuRssBytes": 154222592,
+      "rendererRssBytes": 556941312,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:education",
+      "browserPid": 75679,
+      "totalRssBytes": 1013268480,
+      "gpuRssBytes": 154206208,
+      "rendererRssBytes": 556941312,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1111621632,
+      "gpuRssBytes": 154763264,
+      "rendererRssBytes": 649281536,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1172291584,
+      "gpuRssBytes": 188923904,
+      "rendererRssBytes": 675774464,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1101660160,
+      "gpuRssBytes": 189087744,
+      "rendererRssBytes": 616120320,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 969523200,
+      "gpuRssBytes": 166838272,
+      "rendererRssBytes": 510984192,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 896450560,
+      "gpuRssBytes": 157843456,
+      "rendererRssBytes": 448462848,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 874954752,
+      "gpuRssBytes": 158056448,
+      "rendererRssBytes": 426311680,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 901824512,
+      "gpuRssBytes": 160301056,
+      "rendererRssBytes": 451051520,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 902004736,
+      "gpuRssBytes": 160317440,
+      "rendererRssBytes": 451215360,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 930217984,
+      "gpuRssBytes": 163430400,
+      "rendererRssBytes": 476315648,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 939982848,
+      "gpuRssBytes": 164823040,
+      "rendererRssBytes": 484687872,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 942260224,
+      "gpuRssBytes": 164823040,
+      "rendererRssBytes": 486866944,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 920911872,
+      "gpuRssBytes": 143392768,
+      "rendererRssBytes": 486948864,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 921288704,
+      "gpuRssBytes": 143392768,
+      "rendererRssBytes": 487325696,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 922353664,
+      "gpuRssBytes": 143409152,
+      "rendererRssBytes": 488292352,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 929169408,
+      "gpuRssBytes": 149225472,
+      "rendererRssBytes": 489291776,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 937099264,
+      "gpuRssBytes": 149225472,
+      "rendererRssBytes": 497221632,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 936853504,
+      "gpuRssBytes": 148914176,
+      "rendererRssBytes": 497287168,
+      "processCount": 7
+    },
+    {
+      "label": "transition:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 936919040,
+      "gpuRssBytes": 148897792,
+      "rendererRssBytes": 497287168,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 937230336,
+      "gpuRssBytes": 148996096,
+      "rendererRssBytes": 497369088,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 937230336,
+      "gpuRssBytes": 148979712,
+      "rendererRssBytes": 497369088,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 937213952,
+      "gpuRssBytes": 148963328,
+      "rendererRssBytes": 497369088,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 937213952,
+      "gpuRssBytes": 148963328,
+      "rendererRssBytes": 497369088,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 937164800,
+      "gpuRssBytes": 148963328,
+      "rendererRssBytes": 497369088,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 936935424,
+      "gpuRssBytes": 148733952,
+      "rendererRssBytes": 497369088,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 926089216,
+      "gpuRssBytes": 138100736,
+      "rendererRssBytes": 497221632,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 926072832,
+      "gpuRssBytes": 138084352,
+      "rendererRssBytes": 497221632,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 926072832,
+      "gpuRssBytes": 138084352,
+      "rendererRssBytes": 497221632,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 925237248,
+      "gpuRssBytes": 137248768,
+      "rendererRssBytes": 497221632,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 923254784,
+      "gpuRssBytes": 135299072,
+      "rendererRssBytes": 497205248,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 919322624,
+      "gpuRssBytes": 133480448,
+      "rendererRssBytes": 495239168,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 908558336,
+      "gpuRssBytes": 133169152,
+      "rendererRssBytes": 485883904,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 908427264,
+      "gpuRssBytes": 133152768,
+      "rendererRssBytes": 485752832,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 908427264,
+      "gpuRssBytes": 133152768,
+      "rendererRssBytes": 485752832,
+      "processCount": 7
+    },
+    {
+      "label": "settled:forward:contact",
+      "browserPid": 75679,
+      "totalRssBytes": 908427264,
+      "gpuRssBytes": 133152768,
+      "rendererRssBytes": 485752832,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 908525568,
+      "gpuRssBytes": 133152768,
+      "rendererRssBytes": 485752832,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 920289280,
+      "gpuRssBytes": 144670720,
+      "rendererRssBytes": 485998592,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 926220288,
+      "gpuRssBytes": 150372352,
+      "rendererRssBytes": 486227968,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 926613504,
+      "gpuRssBytes": 150388736,
+      "rendererRssBytes": 486604800,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 927203328,
+      "gpuRssBytes": 150405120,
+      "rendererRssBytes": 487096320,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 927285248,
+      "gpuRssBytes": 150405120,
+      "rendererRssBytes": 487178240,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 927350784,
+      "gpuRssBytes": 150421504,
+      "rendererRssBytes": 487227392,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 927776768,
+      "gpuRssBytes": 150716416,
+      "rendererRssBytes": 487358464,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 928088064,
+      "gpuRssBytes": 150749184,
+      "rendererRssBytes": 487636992,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 928382976,
+      "gpuRssBytes": 150765568,
+      "rendererRssBytes": 487915520,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 928727040,
+      "gpuRssBytes": 150765568,
+      "rendererRssBytes": 488259584,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 915718144,
+      "gpuRssBytes": 137740288,
+      "rendererRssBytes": 488259584,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:crane-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 921223168,
+      "gpuRssBytes": 138100736,
+      "rendererRssBytes": 488423424,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 75679,
+      "totalRssBytes": 883572736,
+      "gpuRssBytes": 144719872,
+      "rendererRssBytes": 443351040,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 75679,
+      "totalRssBytes": 883671040,
+      "gpuRssBytes": 144801792,
+      "rendererRssBytes": 443367424,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 75679,
+      "totalRssBytes": 883949568,
+      "gpuRssBytes": 144850944,
+      "rendererRssBytes": 443596800,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 75679,
+      "totalRssBytes": 884375552,
+      "gpuRssBytes": 144850944,
+      "rendererRssBytes": 443858944,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 75679,
+      "totalRssBytes": 884211712,
+      "gpuRssBytes": 144769024,
+      "rendererRssBytes": 443777024,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:education",
+      "browserPid": 75679,
+      "totalRssBytes": 921894912,
+      "gpuRssBytes": 144916480,
+      "rendererRssBytes": 476299264,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1028161536,
+      "gpuRssBytes": 188432384,
+      "rendererRssBytes": 538427392,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1031979008,
+      "gpuRssBytes": 188465152,
+      "rendererRssBytes": 541589504,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1031979008,
+      "gpuRssBytes": 188465152,
+      "rendererRssBytes": 541589504,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1032093696,
+      "gpuRssBytes": 188547072,
+      "rendererRssBytes": 541622272,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1011187712,
+      "gpuRssBytes": 167411712,
+      "rendererRssBytes": 541736960,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1011793920,
+      "gpuRssBytes": 167411712,
+      "rendererRssBytes": 542343168,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 973946880,
+      "gpuRssBytes": 148422656,
+      "rendererRssBytes": 523485184,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 974749696,
+      "gpuRssBytes": 148996096,
+      "rendererRssBytes": 523714560,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 974962688,
+      "gpuRssBytes": 148996096,
+      "rendererRssBytes": 523927552,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 974798848,
+      "gpuRssBytes": 148897792,
+      "rendererRssBytes": 523862016,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ph-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 974798848,
+      "gpuRssBytes": 148897792,
+      "rendererRssBytes": 523862016,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 933822464,
+      "gpuRssBytes": 153190400,
+      "rendererRssBytes": 478511104,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 932151296,
+      "gpuRssBytes": 152485888,
+      "rendererRssBytes": 477544448,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 930250752,
+      "gpuRssBytes": 152584192,
+      "rendererRssBytes": 475594752,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 922714112,
+      "gpuRssBytes": 151732224,
+      "rendererRssBytes": 469041152,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 914997248,
+      "gpuRssBytes": 149405696,
+      "rendererRssBytes": 464683008,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:lab",
+      "browserPid": 75679,
+      "totalRssBytes": 914980864,
+      "gpuRssBytes": 149389312,
+      "rendererRssBytes": 464683008,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1191444480,
+      "gpuRssBytes": 261308416,
+      "rendererRssBytes": 607256576,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1191755776,
+      "gpuRssBytes": 261734400,
+      "rendererRssBytes": 607289344,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1191886848,
+      "gpuRssBytes": 261783552,
+      "rendererRssBytes": 607354880,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1192017920,
+      "gpuRssBytes": 261914624,
+      "rendererRssBytes": 607354880,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1195425792,
+      "gpuRssBytes": 261718016,
+      "rendererRssBytes": 610942976,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1032781824,
+      "gpuRssBytes": 147668992,
+      "rendererRssBytes": 562413568,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1036288000,
+      "gpuRssBytes": 147783680,
+      "rendererRssBytes": 565805056,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1036304384,
+      "gpuRssBytes": 147783680,
+      "rendererRssBytes": 565821440,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1036419072,
+      "gpuRssBytes": 147783680,
+      "rendererRssBytes": 565936128,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1036500992,
+      "gpuRssBytes": 147783680,
+      "rendererRssBytes": 566018048,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1036533760,
+      "gpuRssBytes": 147783680,
+      "rendererRssBytes": 566050816,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1036664832,
+      "gpuRssBytes": 147783680,
+      "rendererRssBytes": 566116352,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1036779520,
+      "gpuRssBytes": 147783680,
+      "rendererRssBytes": 566214656,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1053409280,
+      "gpuRssBytes": 147881984,
+      "rendererRssBytes": 582483968,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:ttg-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1053409280,
+      "gpuRssBytes": 147865600,
+      "rendererRssBytes": 582500352,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1007403008,
+      "gpuRssBytes": 153370624,
+      "rendererRssBytes": 530776064,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1007370240,
+      "gpuRssBytes": 153370624,
+      "rendererRssBytes": 530792448,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1007419392,
+      "gpuRssBytes": 153387008,
+      "rendererRssBytes": 530808832,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1007337472,
+      "gpuRssBytes": 153337856,
+      "rendererRssBytes": 530776064,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:services",
+      "browserPid": 75679,
+      "totalRssBytes": 1007239168,
+      "gpuRssBytes": 153255936,
+      "rendererRssBytes": 530710528,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1044217856,
+      "gpuRssBytes": 153272320,
+      "rendererRssBytes": 561594368,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1044332544,
+      "gpuRssBytes": 153288704,
+      "rendererRssBytes": 561643520,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1047265280,
+      "gpuRssBytes": 156188672,
+      "rendererRssBytes": 561676288,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1047363584,
+      "gpuRssBytes": 156270592,
+      "rendererRssBytes": 561692672,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1048150016,
+      "gpuRssBytes": 156270592,
+      "rendererRssBytes": 562462720,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1048068096,
+      "gpuRssBytes": 156205056,
+      "rendererRssBytes": 562511872,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1048264704,
+      "gpuRssBytes": 156205056,
+      "rendererRssBytes": 562708480,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1037418496,
+      "gpuRssBytes": 145424384,
+      "rendererRssBytes": 562642944,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure3-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1037418496,
+      "gpuRssBytes": 145408000,
+      "rendererRssBytes": 562659328,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 1023803392,
+      "gpuRssBytes": 149913600,
+      "rendererRssBytes": 544342016,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 1021476864,
+      "gpuRssBytes": 147587072,
+      "rendererRssBytes": 544342016,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 1018511360,
+      "gpuRssBytes": 144605184,
+      "rendererRssBytes": 544342016,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 1004224512,
+      "gpuRssBytes": 143998976,
+      "rendererRssBytes": 532709376,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 983793664,
+      "gpuRssBytes": 143720448,
+      "rendererRssBytes": 512884736,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:brand",
+      "browserPid": 75679,
+      "totalRssBytes": 977108992,
+      "gpuRssBytes": 143540224,
+      "rendererRssBytes": 506150912,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 993280000,
+      "gpuRssBytes": 143687680,
+      "rendererRssBytes": 521043968,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 1028407296,
+      "gpuRssBytes": 145014784,
+      "rendererRssBytes": 554713088,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 1140883456,
+      "gpuRssBytes": 224215040,
+      "rendererRssBytes": 587956224,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 1141293056,
+      "gpuRssBytes": 224526336,
+      "rendererRssBytes": 588054528,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 1141850112,
+      "gpuRssBytes": 225083392,
+      "rendererRssBytes": 587988992,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-closing",
+      "browserPid": 75679,
+      "totalRssBytes": 1141555200,
+      "gpuRssBytes": 224935936,
+      "rendererRssBytes": 587907072,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-cards",
+      "browserPid": 75679,
+      "totalRssBytes": 1120649216,
+      "gpuRssBytes": 225181696,
+      "rendererRssBytes": 566607872,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-cards",
+      "browserPid": 75679,
+      "totalRssBytes": 1120845824,
+      "gpuRssBytes": 225230848,
+      "rendererRssBytes": 566738944,
+      "processCount": 7
+    },
+    {
+      "label": "transition:reverse:figure2-proof-cards",
+      "browserPid": 75679,
+      "totalRssBytes": 1120862208,
+      "gpuRssBytes": 225230848,
+      "rendererRssBytes": 566738944,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-proof-cards",
+      "browserPid": 75679,
+      "totalRssBytes": 1120878592,
+      "gpuRssBytes": 225230848,
+      "rendererRssBytes": 566755328,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-proof-cards",
+      "browserPid": 75679,
+      "totalRssBytes": 1120878592,
+      "gpuRssBytes": 225214464,
+      "rendererRssBytes": 566755328,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1121189888,
+      "gpuRssBytes": 225230848,
+      "rendererRssBytes": 566951936,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1121042432,
+      "gpuRssBytes": 225067008,
+      "rendererRssBytes": 566968320,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1121091584,
+      "gpuRssBytes": 225067008,
+      "rendererRssBytes": 567017472,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1121107968,
+      "gpuRssBytes": 225067008,
+      "rendererRssBytes": 567033856,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-proof-opening",
+      "browserPid": 75679,
+      "totalRssBytes": 1136312320,
+      "gpuRssBytes": 225067008,
+      "rendererRssBytes": 574029824,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1206075392,
+      "gpuRssBytes": 228229120,
+      "rendererRssBytes": 632700928,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1106460672,
+      "gpuRssBytes": 248643584,
+      "rendererRssBytes": 532332544,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1106935808,
+      "gpuRssBytes": 249561088,
+      "rendererRssBytes": 532185088,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1107722240,
+      "gpuRssBytes": 250068992,
+      "rendererRssBytes": 532463616,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1108312064,
+      "gpuRssBytes": 250593280,
+      "rendererRssBytes": 532611072,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1121812480,
+      "gpuRssBytes": 255131648,
+      "rendererRssBytes": 542261248,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1123975168,
+      "gpuRssBytes": 255180800,
+      "rendererRssBytes": 544391168,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1129136128,
+      "gpuRssBytes": 255246336,
+      "rendererRssBytes": 549470208,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1134231552,
+      "gpuRssBytes": 255246336,
+      "rendererRssBytes": 554565632,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1133445120,
+      "gpuRssBytes": 253952000,
+      "rendererRssBytes": 554811392,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 995082240,
+      "gpuRssBytes": 154730496,
+      "rendererRssBytes": 515670016,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 995180544,
+      "gpuRssBytes": 154730496,
+      "rendererRssBytes": 515768320,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 995065856,
+      "gpuRssBytes": 154566656,
+      "rendererRssBytes": 515817472,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 997392384,
+      "gpuRssBytes": 156778496,
+      "rendererRssBytes": 515932160,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 995672064,
+      "gpuRssBytes": 155041792,
+      "rendererRssBytes": 515948544,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:figure2-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 981893120,
+      "gpuRssBytes": 147177472,
+      "rendererRssBytes": 510033920,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 978255872,
+      "gpuRssBytes": 145522688,
+      "rendererRssBytes": 508231680,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 988020736,
+      "gpuRssBytes": 151060480,
+      "rendererRssBytes": 512475136,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 983203840,
+      "gpuRssBytes": 153812992,
+      "rendererRssBytes": 505249792,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 967213056,
+      "gpuRssBytes": 152862720,
+      "rendererRssBytes": 490487808,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 966508544,
+      "gpuRssBytes": 152944640,
+      "rendererRssBytes": 489586688,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:method-top",
+      "browserPid": 75679,
+      "totalRssBytes": 966672384,
+      "gpuRssBytes": 152911872,
+      "rendererRssBytes": 489783296,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1040171008,
+      "gpuRssBytes": 153010176,
+      "rendererRssBytes": 551403520,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1040629760,
+      "gpuRssBytes": 153010176,
+      "rendererRssBytes": 551829504,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1050673152,
+      "gpuRssBytes": 161939456,
+      "rendererRssBytes": 552894464,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1051328512,
+      "gpuRssBytes": 161939456,
+      "rendererRssBytes": 553549824,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1051639808,
+      "gpuRssBytes": 161955840,
+      "rendererRssBytes": 553795584,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1079902208,
+      "gpuRssBytes": 181239808,
+      "rendererRssBytes": 562839552,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1080475648,
+      "gpuRssBytes": 181239808,
+      "rendererRssBytes": 563412992,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1081376768,
+      "gpuRssBytes": 181256192,
+      "rendererRssBytes": 564297728,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1081884672,
+      "gpuRssBytes": 181256192,
+      "rendererRssBytes": 564772864,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1082245120,
+      "gpuRssBytes": 181305344,
+      "rendererRssBytes": 565002240,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1082621952,
+      "gpuRssBytes": 181387264,
+      "rendererRssBytes": 565149696,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:aod-animation",
+      "browserPid": 75679,
+      "totalRssBytes": 1071448064,
+      "gpuRssBytes": 179142656,
+      "rendererRssBytes": 557842432,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1126350848,
+      "gpuRssBytes": 188022784,
+      "rendererRssBytes": 603734016,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1133789184,
+      "gpuRssBytes": 191643648,
+      "rendererRssBytes": 607518720,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1132314624,
+      "gpuRssBytes": 190136320,
+      "rendererRssBytes": 607551488,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1132249088,
+      "gpuRssBytes": 190054400,
+      "rendererRssBytes": 607567872,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1132118016,
+      "gpuRssBytes": 189956096,
+      "rendererRssBytes": 607502336,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:star-map",
+      "browserPid": 75679,
+      "totalRssBytes": 1134084096,
+      "gpuRssBytes": 189956096,
+      "rendererRssBytes": 609468416,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1206452224,
+      "gpuRssBytes": 216825856,
+      "rendererRssBytes": 654868480,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1309556736,
+      "gpuRssBytes": 282099712,
+      "rendererRssBytes": 692813824,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1277526016,
+      "gpuRssBytes": 278872064,
+      "rendererRssBytes": 676593664,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1278689280,
+      "gpuRssBytes": 279609344,
+      "rendererRssBytes": 677658624,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1267367936,
+      "gpuRssBytes": 273399808,
+      "rendererRssBytes": 672612352,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1268580352,
+      "gpuRssBytes": 273416192,
+      "rendererRssBytes": 673808384,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1267974144,
+      "gpuRssBytes": 271663104,
+      "rendererRssBytes": 674955264,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1270317056,
+      "gpuRssBytes": 273154048,
+      "rendererRssBytes": 675790848,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1270530048,
+      "gpuRssBytes": 273186816,
+      "rendererRssBytes": 675971072,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1267154944,
+      "gpuRssBytes": 270073856,
+      "rendererRssBytes": 676020224,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1267236864,
+      "gpuRssBytes": 270090240,
+      "rendererRssBytes": 676085760,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1267318784,
+      "gpuRssBytes": 270123008,
+      "rendererRssBytes": 676134912,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1267695616,
+      "gpuRssBytes": 270319616,
+      "rendererRssBytes": 676233216,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1259634688,
+      "gpuRssBytes": 267927552,
+      "rendererRssBytes": 671612928,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:pattern",
+      "browserPid": 75679,
+      "totalRssBytes": 1181843456,
+      "gpuRssBytes": 267452416,
+      "rendererRssBytes": 600047616,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1222656000,
+      "gpuRssBytes": 261750784,
+      "rendererRssBytes": 635469824,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1246609408,
+      "gpuRssBytes": 290013184,
+      "rendererRssBytes": 635224064,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1250312192,
+      "gpuRssBytes": 289914880,
+      "rendererRssBytes": 639074304,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1172062208,
+      "gpuRssBytes": 245612544,
+      "rendererRssBytes": 618233856,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1172406272,
+      "gpuRssBytes": 245743616,
+      "rendererRssBytes": 618430464,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1172733952,
+      "gpuRssBytes": 245891072,
+      "rendererRssBytes": 618610688,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1172914176,
+      "gpuRssBytes": 245956608,
+      "rendererRssBytes": 618725376,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1173094400,
+      "gpuRssBytes": 245923840,
+      "rendererRssBytes": 619003904,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1173110784,
+      "gpuRssBytes": 245923840,
+      "rendererRssBytes": 619020288,
+      "processCount": 6
+    },
+    {
+      "label": "transition:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1173323776,
+      "gpuRssBytes": 245923840,
+      "rendererRssBytes": 619233280,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1190084608,
+      "gpuRssBytes": 246300672,
+      "rendererRssBytes": 634257408,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1206681600,
+      "gpuRssBytes": 246513664,
+      "rendererRssBytes": 650117120,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1229127680,
+      "gpuRssBytes": 246513664,
+      "rendererRssBytes": 672530432,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1230028800,
+      "gpuRssBytes": 246513664,
+      "rendererRssBytes": 673431552,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1229881344,
+      "gpuRssBytes": 246513664,
+      "rendererRssBytes": 673267712,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1230176256,
+      "gpuRssBytes": 246513664,
+      "rendererRssBytes": 673562624,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1230471168,
+      "gpuRssBytes": 246513664,
+      "rendererRssBytes": 673857536,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1230684160,
+      "gpuRssBytes": 246415360,
+      "rendererRssBytes": 674234368,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1230405632,
+      "gpuRssBytes": 246169600,
+      "rendererRssBytes": 674201600,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1210875904,
+      "gpuRssBytes": 226639872,
+      "rendererRssBytes": 674201600,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1211203584,
+      "gpuRssBytes": 226590720,
+      "rendererRssBytes": 674578432,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1209843712,
+      "gpuRssBytes": 225509376,
+      "rendererRssBytes": 674299904,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1209745408,
+      "gpuRssBytes": 225492992,
+      "rendererRssBytes": 674217984,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1213382656,
+      "gpuRssBytes": 225492992,
+      "rendererRssBytes": 677855232,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1213104128,
+      "gpuRssBytes": 225411072,
+      "rendererRssBytes": 677658624,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1213530112,
+      "gpuRssBytes": 225411072,
+      "rendererRssBytes": 678084608,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1213284352,
+      "gpuRssBytes": 225394688,
+      "rendererRssBytes": 677855232,
+      "processCount": 6
+    },
+    {
+      "label": "settled:reverse:hero",
+      "browserPid": 75679,
+      "totalRssBytes": 1212989440,
+      "gpuRssBytes": 225394688,
+      "rendererRssBytes": 677560320,
+      "processCount": 6
+    }
+  ]
+}

@@ -95,10 +95,10 @@ export function figure2VideoModeForProofTransition(
   transitionProgress: number,
   direction: Direction = 1
 ): 'native' | 'seek' | 'none' {
-  if (direction === -1) {
+  if (transitionProgress > 0.001) {
     return 'none';
   }
-  return transitionProgress > 0.001 ? 'none' : 'native';
+  return direction === 1 ? 'native' : 'seek';
 }
 
 class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
@@ -121,6 +121,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   private readonly inkRenderer: InkFieldRenderer | null;
 
   constructor(private readonly context: TransitionContext) {
+    const generation = `${context.runId}:${context.prepareToken}`;
     this.playbackDirection = context.direction;
     this.elevation = createTransitionLayerElevation(context.to.element);
     const fromRoot = sceneRoot(context.from.element, 'figure2-animation');
@@ -147,10 +148,14 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     });
     this.inkCanvas = mountTransitionInkCanvas(stage, 'figure2-distance-expand', {
       renderer: 'field',
-      preset: 'cinematic-color',
+      grade: 'edge-only',
+      generation,
       className: 'r4-figure2-proof-ink-canvas'
     });
-    this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.inkCanvas);
+    this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.inkCanvas, {
+      grade: 'edge-only',
+      generation
+    });
     this.inkRenderer?.prewarm(this.depthFrame(0.003, terminalTransform));
     renderProofOpeningHold(sceneRoot(context.to.element, 'figure2-proof-opening'));
     this.progress(context.direction === 1 ? 0 : 1);
@@ -187,7 +192,12 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof-opening');
     const figureState = renderFigure2AnimationProgress(fromRoot, intro, {
       proofProgress: 0,
-      videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection)
+      videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection),
+      mediaRun: {
+        runId: this.context.runId,
+        direction: this.playbackDirection,
+        reducedMotion: this.context.prefersReducedMotion
+      }
     });
     renderProofOpeningHold(toRoot);
     const depthOwnership = inkOwnershipGateProgress(reveal);
@@ -195,9 +205,14 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       ?? thresholdTables(depthOwnership);
     const inkFrame = this.depthFrame(reveal, figureState.depthTransform);
     if (this.inkCanvas) {
-      const active = reveal > 0.002 && reveal < 0.999;
-      if (active) {
-        this.inkCanvas.dataset.r4InkActive = 'true';
+      const fieldVisible = reveal > 0.002 && reveal < 0.999;
+      const active = fieldVisible && Boolean(this.inkRenderer?.isActive());
+      if (fieldVisible) {
+        if (active) {
+          this.inkCanvas.dataset.r4InkActive = 'true';
+        } else {
+          delete this.inkCanvas.dataset.r4InkActive;
+        }
         this.inkCanvas.dataset.r4InkProgress = reveal.toFixed(4);
         this.inkCanvas.dataset.r4InkBoundaryKind = 'depth';
         this.inkCanvas.dataset.r4InkBoundaryOrigin = '0.5000,0.5000';
@@ -266,6 +281,19 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     }
     this.inkRenderer?.destroy();
     this.inkCanvas?.remove();
+    renderFigure2AnimationProgress(
+      sceneRoot(this.context.from.element, 'figure2-animation'),
+      figure2IntroProgress(this.progressValue),
+      {
+        proofProgress: 0,
+        videoMode: 'seek',
+        mediaRun: {
+          runId: this.context.runId,
+          direction: this.playbackDirection,
+          reducedMotion: this.context.prefersReducedMotion
+        }
+      }
+    );
     if (this.progressValue > 0.001 && this.progressValue < 0.999) {
       applyLayerVisibility(this.context.from, holdVisibility(false));
       applyLayerVisibility(this.context.to, hiddenVisibility());

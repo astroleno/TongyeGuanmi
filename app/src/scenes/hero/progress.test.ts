@@ -71,6 +71,10 @@ describe('hero scene renderer', () => {
 
     expect(restored).toEqual(start);
     expect(replayed).toEqual(end);
+    expect(start.middleOpacity).toBeGreaterThan(0);
+    expect(start.figureOpacity).toBeGreaterThan(0);
+    expect(end.middleOpacity).toBe(1);
+    expect(end.figureOpacity).toBe(1);
     expect(root.style.values.get('--r4-hero-progress')).toBe('1.0000');
     expect(root.attributes.get('data-hero-progress')).toBe('1.0000');
   });
@@ -122,17 +126,21 @@ describe('hero scene renderer', () => {
     expect(markup.match(/data-text-reveal-effects="stagger blur-to-clear rise-up"/g)).toHaveLength(2);
   });
 
-  it('keeps the copy in a dedicated layer between the artwork and vignette', () => {
+  it('keeps copy inside the artwork stacking context below the center figure', () => {
     const markup = renderToStaticMarkup(createElement(heroScene.Component, {
       scene: 'hero',
       hidden: false
     }));
     const artworkIndex = markup.indexOf('r4-hero-scene__stage');
+    const artworkEndIndex = markup.indexOf('</div>', artworkIndex);
     const copyIndex = markup.indexOf('r4-hero-scene__content');
+    const figureIndex = markup.indexOf('r4-hero-scene__figure');
     const vignetteIndex = markup.indexOf('r4-hero-scene__vignette');
 
     expect(artworkIndex).toBeGreaterThanOrEqual(0);
     expect(copyIndex).toBeGreaterThan(artworkIndex);
-    expect(vignetteIndex).toBeGreaterThan(copyIndex);
+    expect(copyIndex).toBeLessThan(artworkEndIndex);
+    expect(figureIndex).toBeGreaterThan(copyIndex);
+    expect(vignetteIndex).toBeGreaterThan(figureIndex);
   });
 });

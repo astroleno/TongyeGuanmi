@@ -56,6 +56,7 @@ describe('pattern-star-map transition', () => {
     expect(markup.match(/data-pattern-rotor=/g)).toBeNull();
     expect(markup.match(/data-pattern-canvas/g)).toHaveLength(1);
     expect(transitionSource).toContain('rotationProgress: mapped');
+    expect(transitionSource).not.toContain('freezeMotion');
   });
 
   it('uses the live Star canvas with the canonical .92 grade and active Perlin owner', () => {
@@ -65,6 +66,7 @@ describe('pattern-star-map transition', () => {
     expect(starMapMotionEnabled(true, false)).toBe(false);
     expect(starMapMotionEnabled(false, true)).toBe(false);
     expect(starMapMotionEnabled(false, false, 'next')).toBe(false);
+    expect(starMapMotionEnabled(false, false, 'next', true)).toBe(true);
   });
 
   it('collapses Pattern at stage 0 while Star Map remains hidden', async () => {
@@ -79,6 +81,10 @@ describe('pattern-star-map transition', () => {
     expect(setup.fromLayer.visibility.visible).toBe(true);
     expect(setup.toLayer.visibility.visible).toBe(false);
     expect(setup.canvas.dataset.r4InkActive).toBeUndefined();
+    expect(setup.fromRoot.dataset.sceneMotionActive).toBe('true');
+    expect(setup.fromRoot.dataset.sceneMotionLeaseCount).toBe('1');
+    expect(setup.toRoot.dataset.sceneMotionActive).toBe('false');
+    expect(setup.toRoot.dataset.sceneMotionLeaseCount).toBe('0');
     expect(timeline.sample?.(PATTERN_COLLAPSE_STOP)).toMatchObject({
       from: { visible: true, opacity: 1 },
       to: { visible: false, opacity: 0 }
@@ -117,6 +123,29 @@ describe('pattern-star-map transition', () => {
     expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.2400,0.5500');
     expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
     expect(setup.canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(setup.fromRoot.dataset.sceneMotionActive).toBe('true');
+    expect(setup.toRoot.dataset.sceneMotionActive).toBe('true');
+    expect(setup.toRoot.dataset.sceneMotionLeaseCount).toBe('1');
+  });
+
+  it('transfers motion ownership across endpoints and releases both run leases on dispose', async () => {
+    const setup = fixture();
+    const timeline = await createPatternStarMapTransition().buildTimeline(setup.context);
+
+    timeline.progress(0.75);
+    expect(setup.fromRoot.dataset.sceneMotionActive).toBe('true');
+    expect(setup.toRoot.dataset.sceneMotionActive).toBe('true');
+
+    timeline.progress(1);
+    expect(setup.fromRoot.dataset.sceneMotionActive).toBe('false');
+    expect(setup.toRoot.dataset.sceneMotionActive).toBe('true');
+
+    timeline.dispose();
+    timeline.dispose();
+    expect(setup.fromRoot.dataset.sceneMotionActive).toBe('false');
+    expect(setup.toRoot.dataset.sceneMotionActive).toBe('false');
+    expect(setup.fromRoot.dataset.sceneMotionLeaseCount).toBe('0');
+    expect(setup.toRoot.dataset.sceneMotionLeaseCount).toBe('0');
   });
 
   it('uses two explicit 1800ms input phases and passes timeline verification', async () => {
