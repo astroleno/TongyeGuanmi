@@ -43,6 +43,7 @@ describe('star-map progress renderer', () => {
     expect(root.style.values.get('--r3-star-copy-opacity')).toBe('0.7500');
     expect(root.style.values.get('--r3-star-canvas-opacity')).toBe('0.6600');
     expect(root.attributes.get('data-star-map-progress')).toBe('0.7500');
+    expect(root.attributes.get('data-star-map-copy-opaque')).toBe('false');
   });
 
   it('keeps both the hold container and actual Star Map text fully opaque', () => {
@@ -51,6 +52,8 @@ describe('star-map progress renderer', () => {
     renderStarMapHold(root as unknown as HTMLElement);
 
     expect(root.style.getPropertyValue('--r3-star-copy-opacity')).toBe('1.0000');
+    expect(root.attributes.get('data-star-map-copy-opaque')).toBe('true');
+    expect(stylesheet).toMatch(/\.r3-star-map\s*\{[^}]*--r3-star-copy-opacity:\s*1/s);
     expect(stylesheet).toMatch(/\.r3-star-map \.large-copy--standalone\s*\{[^}]*color:\s*rgb\(247,\s*237,\s*215\)/s);
   });
 });

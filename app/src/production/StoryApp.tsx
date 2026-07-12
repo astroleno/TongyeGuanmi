@@ -174,6 +174,7 @@ export function StoryApp() {
     initialSceneRef.current === 'hero' && !initialReducedMotionRef.current ? 'waiting' : 'endpoint'
   );
   const [presentationReady, setPresentationReady] = useState(false);
+  const loaderHiddenReasonRef = useRef<StoryLoaderExitReason | undefined>(undefined);
 
   const runtime = useMemo(() => createDirectorRuntime({
     actorEpoch: 'production-story',
@@ -237,6 +238,10 @@ export function StoryApp() {
   }, []);
 
   const handleLoaderHidden = useCallback((reason: StoryLoaderExitReason) => {
+    if (loaderHiddenReasonRef.current) {
+      return;
+    }
+    loaderHiddenReasonRef.current = reason;
     setLoaderExitReason(reason);
     if (reason === 'error' || bootFailed) {
       setHeroIntroMode('endpoint');

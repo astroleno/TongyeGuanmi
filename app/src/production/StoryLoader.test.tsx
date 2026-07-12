@@ -54,6 +54,7 @@ describe('StoryLoader', () => {
     expect(markup).toContain('story-loader__ink-blur');
     expect(markup).toContain('story-loader__ink-clear');
     expect(markup).toContain('data-loader-ink-canvas="true"');
+    expect(markup).toContain('data-loader-ink-status="idle"');
     expect(markup.match(/<canvas/g)).toHaveLength(1);
     expect(markup).not.toContain('tabindex="0"');
   });
@@ -64,6 +65,7 @@ describe('StoryLoader', () => {
     const rootIndex = html.indexOf('id="root"');
     expect(loaderIndex).toBeGreaterThan(0);
     expect(loaderIndex).toBeLessThan(rootIndex);
+    expect(html).toContain('data-loader-ink-fallback="true"');
     expect(html).toContain('<noscript><style>#story-loader-static { display: none !important; }</style></noscript>');
   });
 });

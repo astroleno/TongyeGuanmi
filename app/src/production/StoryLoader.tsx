@@ -1,4 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  createLoaderInkReveal,
+  loaderInkSequenceDuration,
+  sampleLoaderInkSequence,
+  type LoaderInkPhase,
+  type LoaderInkStatus as LoaderInkCanvasStatus
+} from './loader-ink-reveal';
 
 export const LOADER_PHRASES = ['同人于野', '观象知幂'] as const;
 
@@ -15,13 +22,7 @@ export const STORY_LOADER_TIMINGS = {
 export type StoryLoaderMode = 'cold-hero' | 'direct' | 'reduced';
 export type StoryLoaderStatus = 'running' | 'exiting' | 'hidden';
 export type StoryLoaderExitReason = 'ready' | 'error' | 'safety';
-export type StoryLoaderPhrasePhase =
-  | 'waiting'
-  | 'revealing'
-  | 'holding'
-  | 'concealing'
-  | 'gap'
-  | 'complete';
+export type StoryLoaderPhrasePhase = LoaderInkPhase;
 
 export type StoryLoaderFrame = Readonly<{
   phrase: string;
@@ -57,7 +58,9 @@ const COLD_BOUNDARIES = [
 ] as const;
 
 export function loaderSequenceDuration(mode: StoryLoaderMode): number {
-  return mode === 'cold-hero' ? COLD_BOUNDARIES.at(-1) ?? 0 : 0;
+  return mode === 'cold-hero'
+    ? loaderInkSequenceDuration(LOADER_PHRASES, STORY_LOADER_TIMINGS)
+    : 0;
 }
 
 export function loaderFrameAt(elapsedMs: number, mode: StoryLoaderMode): StoryLoaderFrame {
@@ -70,33 +73,13 @@ export function loaderFrameAt(elapsedMs: number, mode: StoryLoaderMode): StoryLo
     };
   }
 
-  const elapsed = Math.max(0, elapsedMs);
-  const [start, firstHold, firstConceal, firstGap, secondReveal, secondHold, secondConceal, complete] = COLD_BOUNDARIES;
-  if (elapsed < start) {
-    return { phrase: LOADER_PHRASES[0], phraseIndex: 0, phase: 'waiting', sequenceComplete: false };
-  }
-  if (elapsed < firstHold) {
-    return { phrase: LOADER_PHRASES[0], phraseIndex: 0, phase: 'revealing', sequenceComplete: false };
-  }
-  if (elapsed < firstConceal) {
-    return { phrase: LOADER_PHRASES[0], phraseIndex: 0, phase: 'holding', sequenceComplete: false };
-  }
-  if (elapsed < firstGap) {
-    return { phrase: LOADER_PHRASES[0], phraseIndex: 0, phase: 'concealing', sequenceComplete: false };
-  }
-  if (elapsed < secondReveal) {
-    return { phrase: LOADER_PHRASES[0], phraseIndex: 0, phase: 'gap', sequenceComplete: false };
-  }
-  if (elapsed < secondHold) {
-    return { phrase: LOADER_PHRASES[1], phraseIndex: 1, phase: 'revealing', sequenceComplete: false };
-  }
-  if (elapsed < secondConceal) {
-    return { phrase: LOADER_PHRASES[1], phraseIndex: 1, phase: 'holding', sequenceComplete: false };
-  }
-  if (elapsed < complete) {
-    return { phrase: LOADER_PHRASES[1], phraseIndex: 1, phase: 'concealing', sequenceComplete: false };
-  }
-  return { phrase: LOADER_PHRASES[1], phraseIndex: 1, phase: 'complete', sequenceComplete: true };
+  const sample = sampleLoaderInkSequence(elapsedMs, LOADER_PHRASES, STORY_LOADER_TIMINGS);
+  return {
+    phrase: sample.phrase,
+    phraseIndex: sample.phraseIndex,
+    phase: sample.phase,
+    sequenceComplete: sample.sequenceComplete
+  };
 }
 
 export function StoryLoader({
@@ -108,8 +91,14 @@ export function StoryLoader({
   onStatusChange
 }: StoryLoaderProps) {
   const [frame, setFrame] = useState<StoryLoaderFrame>(() => loaderFrameAt(0, mode));
+  const [inkStatus, setInkStatus] = useState<LoaderInkCanvasStatus>(
+    mode === 'cold-hero' ? 'idle' : 'fallback'
+  );
   const [exitReason, setExitReason] = useState<StoryLoaderExitReason | undefined>(undefined);
   const [hidden, setHidden] = useState(false);
+  const wordRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const sequenceStartedAtRef = useRef(0);
   const exitNotifiedRef = useRef(false);
   const hiddenNotifiedRef = useRef(false);
   const status: StoryLoaderStatus = hidden ? 'hidden' : exitReason ? 'exiting' : 'running';
@@ -119,6 +108,10 @@ export function StoryLoader({
   }, []);
 
   useEffect(() => {
+    if (hidden) {
+      return;
+    }
+    sequenceStartedAtRef.current = performance.now();
     setFrame(loaderFrameAt(0, mode));
     if (mode !== 'cold-hero') {
       return;
@@ -131,7 +124,40 @@ export function StoryLoader({
         window.clearTimeout(timer);
       }
     };
-  }, [mode]);
+  }, [hidden, mode]);
+
+  useEffect(() => {
+    if (mode !== 'cold-hero') {
+      setInkStatus('fallback');
+      return;
+    }
+    if (hidden) {
+      return;
+    }
+    const canvas = canvasRef.current;
+    const host = wordRef.current;
+    if (!canvas || !host) {
+      setInkStatus('fallback');
+      return;
+    }
+
+    let current = true;
+    const controller = createLoaderInkReveal({
+      canvas,
+      host,
+      phrases: LOADER_PHRASES,
+      timings: STORY_LOADER_TIMINGS,
+      startedAt: sequenceStartedAtRef.current,
+      onStatusChange: (nextStatus) => {
+        if (current) setInkStatus(nextStatus);
+      }
+    });
+    void controller.start();
+    return () => {
+      current = false;
+      controller.dispose();
+    };
+  }, [hidden, mode]);
 
   useEffect(() => {
     if (failed) {
@@ -187,6 +213,7 @@ export function StoryLoader({
       data-story-loader="true"
       data-loader-mode={mode}
       data-loader-status={status}
+      data-loader-ink-status={inkStatus}
       data-loader-phrase={frame.phraseIndex}
       data-loader-phase={frame.phase}
       aria-hidden={hidden ? 'true' : undefined}
@@ -194,7 +221,13 @@ export function StoryLoader({
       hidden={hidden}
       style={style}
     >
-      <div className="story-loader__word loader-word" aria-hidden="true">
+      <div ref={wordRef} className="story-loader__word loader-word" aria-hidden="true">
+        <canvas
+          ref={canvasRef}
+          className="story-loader__ink-canvas"
+          data-loader-ink-canvas="true"
+          aria-hidden="true"
+        />
         <div key={`blur-${frame.phraseIndex}`} className="story-loader__ink-blur">
           <span>{frame.phrase}</span>
         </div>

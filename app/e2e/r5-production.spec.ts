@@ -52,15 +52,20 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
 
   await page.goto('/?presentation=cold', { waitUntil: 'domcontentloaded' });
   const loader = page.locator('[data-story-loader="true"]');
+  const loaderInk = loader.locator('[data-loader-ink-canvas="true"]');
   const hero = page.locator('[data-r4-scene="hero"]');
   await expect(loader).toBeVisible();
   await expect(loader).toHaveAttribute('data-loader-mode', 'cold-hero');
   await expect(loader.locator('[aria-live="polite"]')).toHaveCount(1);
+  await expect(loaderInk).toHaveCount(1);
+  await expect(loaderInk).toHaveAttribute('data-loader-ink-status', 'active', { timeout: 3_000 });
+  await expect(loaderInk).toHaveAttribute('data-loader-ink-active', 'true');
   await expect(loader).toHaveAttribute('data-loader-phrase', '1', { timeout: 6_000 });
   await expect(hero).toHaveAttribute('data-hero-intro-state', 'waiting');
   await expect(hero).toHaveAttribute('data-hero-progress', '0.0000');
 
   await expect(loader).toBeHidden({ timeout: 7_000 });
+  await expect(loaderInk).toHaveAttribute('data-loader-ink-status', 'disposed');
   await expect.poll(async () => hero.getAttribute('data-hero-intro-state'), { timeout: 2_000 })
     .toBe('running');
   await expect(hero).toHaveAttribute('data-hero-title-active', 'true', { timeout: 4_000 });
@@ -146,6 +151,12 @@ test('direct entries use the readiness cover and reduced motion renders the Hero
       heroIntroMode: 'endpoint',
       presentationReady: true
     });
+    const directLoader = page.locator('[data-story-loader="true"]');
+    await expect(directLoader).toHaveAttribute('data-loader-ink-status', 'fallback');
+    await expect(directLoader.locator('[data-loader-ink-canvas="true"]')).not.toHaveAttribute(
+      'data-loader-ink-active',
+      'true'
+    );
   }
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -158,6 +169,12 @@ test('direct entries use the readiness cover and reduced motion renders the Hero
     presentationReady: true,
     reducedMotion: true
   });
+  const reducedLoader = page.locator('[data-story-loader="true"]');
+  await expect(reducedLoader).toHaveAttribute('data-loader-ink-status', 'fallback');
+  await expect(reducedLoader.locator('[data-loader-ink-canvas="true"]')).not.toHaveAttribute(
+    'data-loader-ink-active',
+    'true'
+  );
   const hero = page.locator('[data-r4-scene="hero"]');
   await expect(hero).toHaveAttribute('data-hero-progress', '1.0000');
   await expect(hero).not.toHaveAttribute('data-hero-parallax-active', 'true');

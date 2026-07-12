@@ -40,6 +40,7 @@ export function renderStarMapProgress(root: HTMLElement | null, progress: number
   root?.style.setProperty('--r3-star-copy-opacity', copyOpacity.toFixed(4));
   root?.style.setProperty('--r3-star-canvas-opacity', canvasStrength.toFixed(4));
   root?.setAttribute('data-star-map-progress', clamped.toFixed(4));
+  root?.setAttribute('data-star-map-copy-opaque', String(copyOpacity === 1));
   return { progress: clamped, copyOpacity, canvasStrength };
 }
 

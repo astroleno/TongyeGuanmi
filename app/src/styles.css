@@ -239,6 +239,29 @@ html:not([data-story-hydrated="true"]) .story-app {
   pointer-events: none;
 }
 
+.story-loader__ink-canvas {
+  position: absolute;
+  inset: -.16em -.10em;
+  z-index: 3;
+  width: calc(100% + .20em);
+  height: calc(100% + .32em);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.story-loader[data-loader-ink-status="active"] .story-loader__ink-canvas,
+.story-loader[data-loader-ink-status="complete"] .story-loader__ink-canvas {
+  opacity: 1;
+  visibility: visible;
+}
+
+.story-loader[data-loader-ink-status="active"] :is(.story-loader__ink-blur, .story-loader__ink-clear),
+.story-loader[data-loader-ink-status="complete"] :is(.story-loader__ink-blur, .story-loader__ink-clear) {
+  opacity: 0;
+  visibility: hidden;
+}
+
 .story-loader__ink-blur {
   z-index: 1;
   color: rgba(247, 237, 215, .76);
@@ -262,11 +285,11 @@ html:not([data-story-hydrated="true"]) .story-app {
   opacity: 0;
 }
 
-.story-loader[data-loader-phase="revealing"] :is(.story-loader__ink-blur, .story-loader__ink-clear) span {
+.story-loader:not([data-loader-ink-status="active"]):not([data-loader-ink-status="complete"])[data-loader-phase="revealing"] :is(.story-loader__ink-blur, .story-loader__ink-clear) span {
   animation: story-loader-ink-reveal var(--story-loader-reveal-ms, 1150ms) cubic-bezier(.37, 0, .63, 1) both;
 }
 
-.story-loader[data-loader-phase="concealing"] :is(.story-loader__ink-blur, .story-loader__ink-clear) span {
+.story-loader:not([data-loader-ink-status="active"]):not([data-loader-ink-status="complete"])[data-loader-phase="concealing"] :is(.story-loader__ink-blur, .story-loader__ink-clear) span {
   animation: story-loader-ink-conceal var(--story-loader-reveal-ms, 1150ms) cubic-bezier(.37, 0, .63, 1) both;
 }
 
@@ -862,7 +885,7 @@ pre {
 
 .r3-star-map {
   --r3-star-scene-opacity: 1;
-  --r3-star-copy-opacity: .72;
+  --r3-star-copy-opacity: 1;
   --r3-star-canvas-opacity: .88;
   position: relative;
   width: 100%;
@@ -917,7 +940,7 @@ pre {
   width: min(1040px, 72vw);
   max-width: 16.8em;
   margin: 0;
-  color: rgba(247, 237, 215, .72);
+  color: rgb(247, 237, 215);
   font-size: clamp(30px, 3.25vw, 52px);
   line-height: 1.42;
   letter-spacing: 0;
