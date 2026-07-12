@@ -160,14 +160,19 @@ describe('story manifest contract', () => {
     )).toBe(false);
   });
 
-  it('separates TTG and PH media playback from their following Ink handoffs', () => {
+  it('separates TTG and PH media playback from their following opacity handoffs', () => {
     const byId = new Map(
       storyManifest.nodes.flatMap((node) => node.kind === 'segment' ? [[node.id, node] as const] : [])
     );
 
     expect(byId.get('ttg-lab')).toMatchObject({
-      policy: { kind: 'stagedSnap', stops: [0.676], playMs: [2500, 1200] },
-      virtualDuration: 3700,
+      policy: { kind: 'stagedSnap', stops: [2500 / 3100], playMs: [2500, 600] },
+      virtualDuration: 3100,
+      visual: {
+        type: 'media',
+        media: ['ttg_figure-alpha-scrub', 'ttg_figure-alpha-scrub-reverse'],
+        handoff: 'crossfade'
+      },
       mediaPlayback: [{
         forward: {
           mode: 'play',
@@ -182,8 +187,13 @@ describe('story manifest contract', () => {
       }]
     });
     expect(byId.get('ph-education')).toMatchObject({
-      policy: { kind: 'stagedSnap', stops: [1520 / 2720], playMs: [1520, 1200] },
-      virtualDuration: 2720,
+      policy: { kind: 'stagedSnap', stops: [1520 / 2120], playMs: [1520, 600] },
+      virtualDuration: 2120,
+      visual: {
+        type: 'media',
+        media: ['ph_figure-alpha-scrub'],
+        handoff: 'crossfade'
+      },
       mediaPlayback: [{ reverse: { mode: 'timeline', required: true } }]
     });
     expect(byId.get('crane-contact')).toMatchObject({

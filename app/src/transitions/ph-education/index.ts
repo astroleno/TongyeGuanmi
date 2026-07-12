@@ -1,44 +1,20 @@
 import { renderEducationHold } from '../../scenes/education';
-import { PH_PLAYBACK_MS, renderPhAnimationProgress } from '../../scenes/ph-animation';
-import { hiddenVisibility, holdVisibility, range01 } from '../../pilot/visibility';
-import { createInkSegmentTransition, type InkSample } from '../shared/ink';
+import { preparePhAnimationFrame, renderPhAnimationProgress } from '../../scenes/ph-animation';
+import { INTRA_CHAPTER_DISSOLVE_MS, PH_PLAYBACK_MS } from '../../story/timings';
+import { createStagedMediaHandoff } from '../shared/stagedMediaHandoff';
 import type { TransitionModule } from '../../story/types';
 import { mediaPlaybackFor, requiredMilestonesFor } from '../../story/manifest';
 
-export const PH_EDUCATION_INK_MS = 1200;
-export const PH_EDUCATION_ANIMATION_STOP = PH_PLAYBACK_MS / (PH_PLAYBACK_MS + PH_EDUCATION_INK_MS);
-
-function fieldProgress(progress: number): number {
-  return range01(progress, PH_EDUCATION_ANIMATION_STOP, 1);
-}
-
-function samplePhEducation(progress: number): InkSample {
-  const reveal = fieldProgress(progress);
-  if (reveal <= 0.001) {
-    return { from: holdVisibility(false), to: hiddenVisibility() };
-  }
-  if (reveal >= 0.999) {
-    return { from: hiddenVisibility(), to: holdVisibility(false) };
-  }
-  return { from: holdVisibility(false), to: holdVisibility(false) };
-}
+export const PH_EDUCATION_ANIMATION_STOP = PH_PLAYBACK_MS
+  / (PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS);
 
 export function createPhEducationTransition(options: { delayMs?: () => number } = {}): TransitionModule {
-  const transition = createInkSegmentTransition({
+  const transition = createStagedMediaHandoff({
     id: 'ph-education',
-    delayMs: options.delayMs,
-    field: {
-      kind: 'horizontal',
-      direction: 'top-to-bottom',
-      seed: 'ph-education'
-    },
-    fieldProgress,
+    ...(options.delayMs ? { delayMs: options.delayMs } : {}),
     prepareEndpoints: ({ to }) => renderEducationHold(to),
+    prepareSourceTerminal: (root, mediaRun) => preparePhAnimationFrame(root, 1, mediaRun),
     renderSource: (root, progress, mediaRun) => renderPhAnimationProgress(root, progress, { mediaRun }),
-    renderSourceProgress: (progress) => range01(progress, 0, PH_EDUCATION_ANIMATION_STOP),
-    sample: samplePhEducation,
-    stops: [PH_EDUCATION_ANIMATION_STOP],
-    transitionAttr: 'ph-education-top-ink'
   });
   return {
     ...transition,

@@ -208,49 +208,67 @@ test.describe('R4 group6 lab ph education harness', () => {
 
     await page.evaluate(() => {
       const evidenceWindow = window as Window & {
-        __phEducationInkEvidence?: {
-          segment: string;
-          renderer: string;
-          effectOnly: string;
-          mode: string;
-          clip: string;
-          mask: string;
-          transition: string;
-          revealProgress: string;
+        __phEducationDissolveEvidence?: {
+          sourceOpacity: number;
+          receiverOpacity: number;
+          sourceVisible: string;
+          receiverVisible: string;
+          sourceInert: boolean;
+          receiverInert: boolean;
+          sourcePointerEvents: string;
+          receiverPointerEvents: string;
+          sourceClip: string;
+          receiverClip: string;
+          sourceMask: string;
+          receiverMask: string;
+          sourceTransform: string;
+          receiverTransform: string;
+          sourceFilter: string;
+          receiverFilter: string;
+          inkCount: number;
           phProgress: string;
           playbackActive: string;
         };
       };
-      delete evidenceWindow.__phEducationInkEvidence;
-      const sampleInkFrame = () => {
-        const canvas = document.querySelector<HTMLCanvasElement>('[data-r4-ink-segment="ph-education"]');
-        const receiver = document.querySelector<HTMLElement>('[data-stage-layer="education"]');
+      delete evidenceWindow.__phEducationDissolveEvidence;
+      const sampleDissolveFrame = () => {
+        const source = document.querySelector<HTMLElement>(
+          '[data-stage-layer="ph-animation"][data-r4-handoff="dissolve"]'
+        );
+        const receiver = document.querySelector<HTMLElement>(
+          '[data-stage-layer="education"][data-r4-handoff="dissolve"]'
+        );
         const ph = document.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]');
-        const revealProgress = Number.parseFloat(receiver?.dataset.r4RevealProgress ?? '0');
-        if (
-          canvas?.dataset.r4InkActive === 'true'
-          && receiver?.dataset.r4RevealMode === 'ink-occluded-live-gate'
-          && revealProgress > 0
-          && revealProgress < 1
-        ) {
-          const style = window.getComputedStyle(receiver);
-          evidenceWindow.__phEducationInkEvidence = {
-            segment: canvas.dataset.r4InkSegment ?? '',
-            renderer: canvas.dataset.r4InkRenderer ?? '',
-            effectOnly: canvas.dataset.r4InkEffectOnly ?? '',
-            mode: receiver.dataset.r4RevealMode ?? '',
-            clip: style.clipPath,
-            mask: style.maskImage,
-            transition: receiver.dataset.r4Transition ?? '',
-            revealProgress: receiver.dataset.r4RevealProgress ?? '',
+        const progress = Number.parseFloat(receiver?.dataset.r4HandoffProgress ?? '0');
+        if (source && receiver && progress > 0 && progress < 1) {
+          const sourceStyle = window.getComputedStyle(source);
+          const receiverStyle = window.getComputedStyle(receiver);
+          evidenceWindow.__phEducationDissolveEvidence = {
+            sourceOpacity: Number.parseFloat(sourceStyle.opacity),
+            receiverOpacity: Number.parseFloat(receiverStyle.opacity),
+            sourceVisible: sourceStyle.visibility,
+            receiverVisible: receiverStyle.visibility,
+            sourceInert: source.inert,
+            receiverInert: receiver.inert,
+            sourcePointerEvents: sourceStyle.pointerEvents,
+            receiverPointerEvents: receiverStyle.pointerEvents,
+            sourceClip: source.style.clipPath,
+            receiverClip: receiver.style.clipPath,
+            sourceMask: source.style.maskImage,
+            receiverMask: receiver.style.maskImage,
+            sourceTransform: source.style.transform,
+            receiverTransform: receiver.style.transform,
+            sourceFilter: source.style.filter,
+            receiverFilter: receiver.style.filter,
+            inkCount: document.querySelectorAll('[data-r4-ink-segment="ph-education"]').length,
             phProgress: ph?.dataset.phProgress ?? '',
             playbackActive: ph?.dataset.phPlaybackActive ?? ''
           };
           return;
         }
-        window.requestAnimationFrame(sampleInkFrame);
+        window.requestAnimationFrame(sampleDissolveFrame);
       };
-      window.requestAnimationFrame(sampleInkFrame);
+      window.requestAnimationFrame(sampleDissolveFrame);
       void window.__r4Group6?.playForward();
     });
     for (let index = 0; index < 18; index += 1) {
@@ -258,23 +276,46 @@ test.describe('R4 group6 lab ph education harness', () => {
       frames.push(await snapshot(page));
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('education');
-    const phEducationInkEvidence = await page.evaluate(() => (
-      window as Window & { __phEducationInkEvidence?: Record<string, string> }
-    ).__phEducationInkEvidence);
-    expect(phEducationInkEvidence).toMatchObject({
-      segment: 'ph-education',
-      renderer: 'field',
-      effectOnly: 'true',
-      mode: 'ink-occluded-live-gate',
-      clip: expect.stringMatching(/^inset\(/),
-      mask: 'none',
-      transition: 'ph-education-top-ink',
+    const phEducationDissolveEvidence = await page.evaluate(() => (
+      window as Window & {
+        __phEducationDissolveEvidence?: {
+          sourceOpacity: number;
+          receiverOpacity: number;
+          [key: string]: string | number | boolean;
+        };
+      }
+    ).__phEducationDissolveEvidence);
+    expect(phEducationDissolveEvidence).toMatchObject({
+      sourceVisible: 'visible',
+      receiverVisible: 'visible',
+      sourceInert: true,
+      receiverInert: true,
+      sourcePointerEvents: 'none',
+      receiverPointerEvents: 'none',
+      sourceClip: '',
+      receiverClip: '',
+      sourceMask: '',
+      receiverMask: '',
+      sourceTransform: '',
+      receiverTransform: '',
+      sourceFilter: '',
+      receiverFilter: '',
+      inkCount: 0,
       phProgress: '1.0000',
       playbackActive: 'false'
     });
-    const phEducationRevealProgress = Number.parseFloat(phEducationInkEvidence?.revealProgress ?? '0');
-    expect(phEducationRevealProgress).toBeGreaterThan(0);
-    expect(phEducationRevealProgress).toBeLessThan(1);
+    expect(phEducationDissolveEvidence?.sourceOpacity).toBeGreaterThan(0);
+    expect(phEducationDissolveEvidence?.sourceOpacity).toBeLessThan(1);
+    expect(phEducationDissolveEvidence?.receiverOpacity).toBeGreaterThan(0);
+    expect(phEducationDissolveEvidence?.receiverOpacity).toBeLessThan(1);
+    expect(
+      (phEducationDissolveEvidence?.sourceOpacity ?? 0)
+        + (phEducationDissolveEvidence?.receiverOpacity ?? 0)
+    ).toBeCloseTo(1, 3);
+    await expect(page.evaluate(() => ({
+      ink: document.querySelectorAll('[data-r4-ink-segment="ph-education"]').length,
+      handoff: document.querySelectorAll('[data-r4-handoff-segment="ph-education"]').length
+    }))).resolves.toEqual({ ink: 0, handoff: 0 });
     const educationHold = await visualSnapshot(page);
     expect(educationHold.educationProgress).toBe(1);
     expect(educationHold.educationRows).toBe(4);
@@ -343,6 +384,10 @@ test.describe('R4 group6 lab ph education harness', () => {
     expect(frame.window.current).toBe('education');
     expect(frame.visibleCount).toBe(1);
     expect(frame.interactableCount).toBe(1);
+    await expect(page.evaluate(() => ({
+      ink: document.querySelectorAll('[data-r4-ink-segment="ph-education"]').length,
+      handoff: document.querySelectorAll('[data-r4-handoff-segment="ph-education"]').length
+    }))).resolves.toEqual({ ink: 0, handoff: 0 });
   });
 
   test('recovers from build timeout and supports seek', async ({ page }) => {

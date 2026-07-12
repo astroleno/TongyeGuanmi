@@ -6,9 +6,12 @@ import { parseInventoryManifestSeed, type InventoryManifestSeed } from './invent
 import {
   CRANE_CONTACT_DURATION_MS,
   FIGURE3_SERVICES_DURATION_MS,
+  INTRA_CHAPTER_DISSOLVE_MS,
   PATTERN_COLLAPSE_MS,
   PATTERN_COLLAPSE_STOP,
-  PATTERN_STAR_MAP_INK_MS
+  PATTERN_STAR_MAP_INK_MS,
+  PH_PLAYBACK_MS,
+  TTG_PLAYBACK_MS
 } from './timings';
 import type {
   MediaPlaybackContract,
@@ -94,10 +97,6 @@ function durationFromPlayMs(value: number | undefined): number {
   return value ?? fallbackDurations.snapMs;
 }
 
-function durationFromModulePlayMs(value: number | undefined): number {
-  return value ?? fallbackDurations.snapMs;
-}
-
 function durationFromStages(playMs: readonly number[] | undefined): number {
   return playMs?.reduce((sum, value) => sum + value, 0) ?? fallbackDurations.snapMs;
 }
@@ -122,8 +121,17 @@ function visualFor(segment: SegmentId): SegmentVisual | undefined {
     case 'lab-ph':
       return { type: 'ink', ink: 'horizontal', direction: 'top-to-bottom' };
     case 'ttg-lab':
+      return {
+        type: 'media',
+        media: ['ttg_figure-alpha-scrub', 'ttg_figure-alpha-scrub-reverse'],
+        handoff: 'crossfade'
+      };
     case 'ph-education':
-      return { type: 'ink', ink: 'horizontal', direction: 'top-to-bottom' };
+      return {
+        type: 'media',
+        media: ['ph_figure-alpha-scrub'],
+        handoff: 'crossfade'
+      };
     case 'aod-method-top':
       return { type: 'media', media: ['aod_figure-alpha-front-scrub'] };
     case 'figure2-distance-expand':
@@ -176,17 +184,20 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
       };
     case 'ttg-lab':
       return {
-        policy: stagedPolicy([0.676], [durationFromModulePlayMs(seedByLegacy.ttg.modulePlayMs), 1200]),
-        virtualDuration: durationFromModulePlayMs(seedByLegacy.ttg.modulePlayMs) + 1200
+        policy: stagedPolicy(
+          [leadingStageStop(TTG_PLAYBACK_MS, INTRA_CHAPTER_DISSOLVE_MS)],
+          [TTG_PLAYBACK_MS, INTRA_CHAPTER_DISSOLVE_MS]
+        ),
+        virtualDuration: TTG_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS
       };
-    case 'ph-education': {
-      const modulePlayMs = durationFromModulePlayMs(seedByLegacy.ph.modulePlayMs);
-      const inkPlayMs = 1200;
+    case 'ph-education':
       return {
-        policy: stagedPolicy([leadingStageStop(modulePlayMs, inkPlayMs)], [modulePlayMs, inkPlayMs]),
-        virtualDuration: modulePlayMs + inkPlayMs
+        policy: stagedPolicy(
+          [leadingStageStop(PH_PLAYBACK_MS, INTRA_CHAPTER_DISSOLVE_MS)],
+          [PH_PLAYBACK_MS, INTRA_CHAPTER_DISSOLVE_MS]
+        ),
+        virtualDuration: PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS
       };
-    }
     case 'crane-contact':
       return {
         policy: snapPolicy(segment),

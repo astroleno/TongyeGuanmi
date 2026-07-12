@@ -197,44 +197,67 @@ test.describe('R4 group5 services ttg lab harness', () => {
 
     await page.evaluate(() => {
       const evidenceWindow = window as Window & {
-        __ttgLabInkEvidence?: {
-          segment: string;
-          renderer: string;
-          effectOnly: string;
-          mode: string;
-          clip: string;
-          mask: string;
-          transition: string;
+        __ttgLabDissolveEvidence?: {
+          sourceOpacity: number;
+          receiverOpacity: number;
+          sourceVisible: string;
+          receiverVisible: string;
+          sourceInert: boolean;
+          receiverInert: boolean;
+          sourcePointerEvents: string;
+          receiverPointerEvents: string;
+          sourceClip: string;
+          receiverClip: string;
+          sourceMask: string;
+          receiverMask: string;
+          sourceTransform: string;
+          receiverTransform: string;
+          sourceFilter: string;
+          receiverFilter: string;
+          inkCount: number;
           ttgProgress: string;
           direction: string;
         };
       };
-      delete evidenceWindow.__ttgLabInkEvidence;
-      const sampleInkFrame = () => {
-        const canvas = document.querySelector<HTMLCanvasElement>('[data-r4-ink-segment="ttg-lab"]');
-        const receiver = document.querySelector<HTMLElement>('[data-stage-layer="lab"]');
+      delete evidenceWindow.__ttgLabDissolveEvidence;
+      const sampleDissolveFrame = () => {
+        const source = document.querySelector<HTMLElement>(
+          '[data-stage-layer="ttg-animation"][data-r4-handoff="dissolve"]'
+        );
+        const receiver = document.querySelector<HTMLElement>(
+          '[data-stage-layer="lab"][data-r4-handoff="dissolve"]'
+        );
         const ttg = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
-        if (
-          canvas?.dataset.r4InkActive === 'true'
-          && receiver?.dataset.r4RevealMode === 'ink-occluded-live-gate'
-        ) {
-          const style = window.getComputedStyle(receiver);
-          evidenceWindow.__ttgLabInkEvidence = {
-            segment: canvas.dataset.r4InkSegment ?? '',
-            renderer: canvas.dataset.r4InkRenderer ?? '',
-            effectOnly: canvas.dataset.r4InkEffectOnly ?? '',
-            mode: receiver.dataset.r4RevealMode ?? '',
-            clip: style.clipPath,
-            mask: style.maskImage,
-            transition: receiver.dataset.r4Transition ?? '',
+        const progress = Number.parseFloat(receiver?.dataset.r4HandoffProgress ?? '0');
+        if (source && receiver && progress > 0 && progress < 1) {
+          const sourceStyle = window.getComputedStyle(source);
+          const receiverStyle = window.getComputedStyle(receiver);
+          evidenceWindow.__ttgLabDissolveEvidence = {
+            sourceOpacity: Number.parseFloat(sourceStyle.opacity),
+            receiverOpacity: Number.parseFloat(receiverStyle.opacity),
+            sourceVisible: sourceStyle.visibility,
+            receiverVisible: receiverStyle.visibility,
+            sourceInert: source.inert,
+            receiverInert: receiver.inert,
+            sourcePointerEvents: sourceStyle.pointerEvents,
+            receiverPointerEvents: receiverStyle.pointerEvents,
+            sourceClip: source.style.clipPath,
+            receiverClip: receiver.style.clipPath,
+            sourceMask: source.style.maskImage,
+            receiverMask: receiver.style.maskImage,
+            sourceTransform: source.style.transform,
+            receiverTransform: receiver.style.transform,
+            sourceFilter: source.style.filter,
+            receiverFilter: receiver.style.filter,
+            inkCount: document.querySelectorAll('[data-r4-ink-segment="ttg-lab"]').length,
             ttgProgress: ttg?.dataset.ttgProgress ?? '',
             direction: ttg?.dataset.ttgPlaybackDirection ?? ''
           };
           return;
         }
-        window.requestAnimationFrame(sampleInkFrame);
+        window.requestAnimationFrame(sampleDissolveFrame);
       };
-      window.requestAnimationFrame(sampleInkFrame);
+      window.requestAnimationFrame(sampleDissolveFrame);
       void window.__r4Group5?.playForward();
     });
     for (let index = 0; index < 18; index += 1) {
@@ -242,20 +265,46 @@ test.describe('R4 group5 services ttg lab harness', () => {
       frames.push(await snapshot(page));
     }
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('lab');
-    const ttgLabInkEvidence = await page.evaluate(() => (
-      window as Window & { __ttgLabInkEvidence?: Record<string, string> }
-    ).__ttgLabInkEvidence);
-    expect(ttgLabInkEvidence).toEqual({
-      segment: 'ttg-lab',
-      renderer: 'field',
-      effectOnly: 'true',
-      mode: 'ink-occluded-live-gate',
-      clip: expect.stringMatching(/^inset\(/),
-      mask: 'none',
-      transition: 'ttg-lab-top-ink',
+    const ttgLabDissolveEvidence = await page.evaluate(() => (
+      window as Window & {
+        __ttgLabDissolveEvidence?: {
+          sourceOpacity: number;
+          receiverOpacity: number;
+          [key: string]: string | number | boolean;
+        };
+      }
+    ).__ttgLabDissolveEvidence);
+    expect(ttgLabDissolveEvidence).toMatchObject({
+      sourceVisible: 'visible',
+      receiverVisible: 'visible',
+      sourceInert: true,
+      receiverInert: true,
+      sourcePointerEvents: 'none',
+      receiverPointerEvents: 'none',
+      sourceClip: '',
+      receiverClip: '',
+      sourceMask: '',
+      receiverMask: '',
+      sourceTransform: '',
+      receiverTransform: '',
+      sourceFilter: '',
+      receiverFilter: '',
+      inkCount: 0,
       ttgProgress: '1.0000',
       direction: '1'
     });
+    expect(ttgLabDissolveEvidence?.sourceOpacity).toBeGreaterThan(0);
+    expect(ttgLabDissolveEvidence?.sourceOpacity).toBeLessThan(1);
+    expect(ttgLabDissolveEvidence?.receiverOpacity).toBeGreaterThan(0);
+    expect(ttgLabDissolveEvidence?.receiverOpacity).toBeLessThan(1);
+    expect(
+      (ttgLabDissolveEvidence?.sourceOpacity ?? 0)
+        + (ttgLabDissolveEvidence?.receiverOpacity ?? 0)
+    ).toBeCloseTo(1, 3);
+    await expect(page.evaluate(() => ({
+      ink: document.querySelectorAll('[data-r4-ink-segment="ttg-lab"]').length,
+      handoff: document.querySelectorAll('[data-r4-handoff-segment="ttg-lab"]').length
+    }))).resolves.toEqual({ ink: 0, handoff: 0 });
     const labHold = await visualSnapshot(page);
     expect(labHold.labProgress).toBe(1);
     expect(labHold.labRows).toBe(6);
@@ -338,6 +387,10 @@ test.describe('R4 group5 services ttg lab harness', () => {
     expect(frame.phase).toBe('hold');
     expect(frame.window.current).toBe('lab');
     expect(frame.visibleCount).toBe(1);
+    await expect(page.evaluate(() => ({
+      ink: document.querySelectorAll('[data-r4-ink-segment="ttg-lab"]').length,
+      handoff: document.querySelectorAll('[data-r4-handoff-segment="ttg-lab"]').length
+    }))).resolves.toEqual({ ink: 0, handoff: 0 });
     expect(frame.interactableCount).toBe(1);
   });
 

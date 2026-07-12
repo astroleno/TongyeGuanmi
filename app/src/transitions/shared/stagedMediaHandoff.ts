@@ -1,0 +1,373 @@
+import {
+  applyLayerVisibility,
+  fadeVisibility,
+  hiddenVisibility,
+  holdVisibility,
+  range01
+} from '../../pilot/visibility';
+import type {
+  Direction,
+  LayerVisibilityState,
+  SegmentId,
+  SegmentTimelineHandle,
+  TransitionContext,
+  TransitionModule
+} from '../../story/types';
+
+export type StagedMediaRenderContext = Readonly<{
+  runId: TransitionContext['runId'];
+  prepareToken: TransitionContext['prepareToken'];
+  direction: Direction;
+  prefersReducedMotion: boolean;
+}>;
+
+export type StagedMediaHandoffOptions = Readonly<{
+  id: SegmentId;
+  delayMs?: () => number;
+  rootSelector?: (scene: string) => string;
+  prepareEndpoints(roots: Readonly<{ from: HTMLElement | null; to: HTMLElement | null }>): void;
+  prepareSourceTerminal?: (
+    root: HTMLElement | null,
+    context: StagedMediaRenderContext
+  ) => Promise<void> | void;
+  renderSource(
+    root: HTMLElement | null,
+    progress: number,
+    context: StagedMediaRenderContext
+  ): void;
+}>;
+
+export type StagedMediaHandoffSample = Readonly<{
+  from: LayerVisibilityState;
+  to: LayerVisibilityState;
+}>;
+
+const MAX_FRAME_DELTA_MS = 64;
+
+function clamp(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function easeInOutCubic(value: number): number {
+  const progress = clamp(value);
+  return progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+}
+
+function defaultRootSelector(scene: string): string {
+  return `[data-r4-scene="${scene}"], [data-r3-scene="${scene}"]`;
+}
+
+function liveLayerElement(
+  layer: Pick<TransitionContext['from'], 'scene' | 'element'>
+): HTMLElement | null {
+  const element = layer.element ?? null;
+  if (element?.isConnected !== false) {
+    return element;
+  }
+  const documentRef = element?.ownerDocument ?? (typeof document === 'undefined' ? null : document);
+  return documentRef?.querySelector<HTMLElement>(`[data-stage-layer="${layer.scene}"]`) ?? element;
+}
+
+function sceneRoot(
+  element: HTMLElement | null,
+  scene: string,
+  selector = defaultRootSelector
+): HTMLElement | null {
+  return element?.querySelector<HTMLElement>(selector(scene)) ?? element;
+}
+
+function stagedStop(context: TransitionContext): number {
+  const policy = context.segment.policy;
+  if (policy.kind !== 'stagedSnap' || policy.stops.length !== 1 || policy.playMs.length !== 2) {
+    throw new Error(`${context.segment.id} staged media handoff requires exactly two stagedSnap legs`);
+  }
+  return policy.stops[0] ?? 0;
+}
+
+export function sampleStagedMediaHandoff(
+  progress: number,
+  stop: number
+): StagedMediaHandoffSample {
+  const clamped = clamp(progress);
+  const dissolve = range01(clamped, stop, 1);
+  if (dissolve <= 0.001) {
+    return { from: holdVisibility(false), to: hiddenVisibility() };
+  }
+  if (dissolve >= 0.999) {
+    return { from: hiddenVisibility(), to: holdVisibility(false) };
+  }
+  return {
+    from: fadeVisibility(1 - dissolve),
+    to: fadeVisibility(dissolve)
+  };
+}
+
+function applyVisibilityToElement(element: HTMLElement | null, state: LayerVisibilityState): void {
+  if (!element) {
+    return;
+  }
+  element.style.opacity = String(state.opacity);
+  element.style.visibility = state.visible ? 'visible' : 'hidden';
+  element.style.pointerEvents = state.pointerEvents;
+  element.inert = state.inert;
+  element.setAttribute('aria-hidden', state.inert ? 'true' : 'false');
+  element.dataset.visible = String(state.visible && state.opacity > 0.001);
+  element.dataset.interactable = String(!state.inert && state.pointerEvents === 'auto');
+}
+
+function clearHandoffAttrs(element: HTMLElement | null): void {
+  element?.removeAttribute('data-r4-handoff');
+  element?.removeAttribute('data-r4-handoff-segment');
+  element?.removeAttribute('data-r4-handoff-progress');
+}
+
+function applyHandoffAttrs(
+  element: HTMLElement | null,
+  id: SegmentId,
+  dissolve: number
+): void {
+  if (!element) {
+    return;
+  }
+  element.dataset.r4Handoff = 'dissolve';
+  element.dataset.r4HandoffSegment = id;
+  element.dataset.r4HandoffProgress = dissolve.toFixed(4);
+}
+
+function rootsFor(context: TransitionContext, options: StagedMediaHandoffOptions) {
+  const fromElement = liveLayerElement(context.from);
+  const toElement = liveLayerElement(context.to);
+  return {
+    fromElement,
+    toElement,
+    from: sceneRoot(fromElement, context.from.scene, options.rootSelector),
+    to: sceneRoot(toElement, context.to.scene, options.rootSelector)
+  };
+}
+
+function renderContext(context: TransitionContext, direction: Direction): StagedMediaRenderContext {
+  return {
+    runId: context.runId,
+    prepareToken: context.prepareToken,
+    direction,
+    prefersReducedMotion: context.prefersReducedMotion
+  };
+}
+
+function applyInitialVisibility(context: TransitionContext, options: StagedMediaHandoffOptions): void {
+  const stop = stagedStop(context);
+  const sample = sampleStagedMediaHandoff(context.direction === 1 ? 0 : 1, stop);
+  const roots = rootsFor(context, options);
+  applyLayerVisibility(context.from, sample.from);
+  applyLayerVisibility(context.to, sample.to);
+  applyVisibilityToElement(roots.fromElement, sample.from);
+  applyVisibilityToElement(roots.toElement, sample.to);
+  clearHandoffAttrs(roots.fromElement);
+  clearHandoffAttrs(roots.toElement);
+  options.prepareEndpoints({ from: roots.from, to: roots.to });
+}
+
+class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
+  readonly labels: Readonly<Record<string, number>>;
+  readonly pauses = ['stage:0'] as const;
+
+  private readonly stop: number;
+  private progressValue: number;
+  private playbackDirection: Direction;
+  private disposed = false;
+  private animationFrame = 0;
+  private preparedFromRoot: HTMLElement | null = null;
+  private preparedToRoot: HTMLElement | null = null;
+  private renderedSourceRoot: HTMLElement | null = null;
+  private renderedSourceProgress = Number.NaN;
+  private renderedSourceDirection: Direction | undefined;
+
+  constructor(
+    private readonly context: TransitionContext,
+    private readonly options: StagedMediaHandoffOptions
+  ) {
+    this.stop = stagedStop(context);
+    this.labels = {
+      start: 0,
+      media: 0,
+      'stage:0': this.stop,
+      dissolve: this.stop,
+      end: 1
+    };
+    this.progressValue = context.direction === 1 ? 0 : 1;
+    this.playbackDirection = context.direction;
+    this.progress(this.progressValue);
+  }
+
+  play(): Promise<void> {
+    this.playbackDirection = 1;
+    return this.animateTo(1);
+  }
+
+  reverse(): Promise<void> {
+    this.playbackDirection = -1;
+    return this.animateTo(0);
+  }
+
+  progress(value: number): void {
+    if (this.disposed) {
+      return;
+    }
+    const clamped = clamp(value);
+    if (clamped > this.progressValue + 0.0001) {
+      this.playbackDirection = 1;
+    } else if (clamped < this.progressValue - 0.0001) {
+      this.playbackDirection = -1;
+    }
+    this.progressValue = clamped;
+
+    const roots = rootsFor(this.context, this.options);
+    if (roots.from !== this.preparedFromRoot || roots.to !== this.preparedToRoot) {
+      this.options.prepareEndpoints({ from: roots.from, to: roots.to });
+      this.preparedFromRoot = roots.from;
+      this.preparedToRoot = roots.to;
+    }
+
+    const sample = sampleStagedMediaHandoff(clamped, this.stop);
+    applyLayerVisibility(this.context.from, sample.from);
+    applyLayerVisibility(this.context.to, sample.to);
+    applyVisibilityToElement(roots.fromElement, sample.from);
+    applyVisibilityToElement(roots.toElement, sample.to);
+
+    const sourceProgress = range01(clamped, 0, this.stop);
+    if (
+      roots.from !== this.renderedSourceRoot
+      || Math.abs(sourceProgress - this.renderedSourceProgress) > 0.0001
+      || this.renderedSourceDirection !== this.playbackDirection
+    ) {
+      this.options.renderSource(
+        roots.from,
+        sourceProgress,
+        renderContext(this.context, this.playbackDirection)
+      );
+      this.renderedSourceRoot = roots.from;
+      this.renderedSourceProgress = sourceProgress;
+      this.renderedSourceDirection = this.playbackDirection;
+    }
+
+    const dissolve = range01(clamped, this.stop, 1);
+    if (dissolve > 0.001 && dissolve < 0.999) {
+      applyHandoffAttrs(roots.fromElement, this.options.id, dissolve);
+      applyHandoffAttrs(roots.toElement, this.options.id, dissolve);
+    } else {
+      clearHandoffAttrs(roots.fromElement);
+      clearHandoffAttrs(roots.toElement);
+    }
+  }
+
+  jumpToEnd(direction: Direction): void {
+    this.playbackDirection = direction;
+    this.progress(direction === 1 ? 1 : 0);
+  }
+
+  sample(progress: number): StagedMediaHandoffSample {
+    return sampleStagedMediaHandoff(progress, this.stop);
+  }
+
+  rootIdentity() {
+    return {
+      from: liveLayerElement(this.context.from),
+      to: liveLayerElement(this.context.to)
+    };
+  }
+
+  effectCanvases(): readonly HTMLCanvasElement[] {
+    return [];
+  }
+
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = 0;
+    }
+    const roots = rootsFor(this.context, this.options);
+    clearHandoffAttrs(roots.fromElement);
+    clearHandoffAttrs(roots.toElement);
+    this.preparedFromRoot = null;
+    this.preparedToRoot = null;
+    this.renderedSourceRoot = null;
+  }
+
+  private animateTo(target: number): Promise<void> {
+    const start = this.progressValue;
+    const delta = target - start;
+    const durationMs = this.context.prefersReducedMotion
+      ? 0
+      : this.context.segment.virtualDuration * Math.abs(delta);
+    if (delta === 0 || durationMs <= 0) {
+      this.progress(target);
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      let elapsedMs = 0;
+      let lastFrameAt = performance.now();
+      const tick = (now: number) => {
+        if (this.disposed) {
+          resolve();
+          return;
+        }
+        const frameDelta = Math.max(0, now - lastFrameAt);
+        lastFrameAt = now;
+        elapsedMs += Math.min(frameDelta, MAX_FRAME_DELTA_MS);
+        const elapsedRatio = Math.min(1, elapsedMs / durationMs);
+        this.progress(start + delta * easeInOutCubic(elapsedRatio));
+        if (elapsedRatio >= 1) {
+          resolve();
+          return;
+        }
+        this.animationFrame = requestAnimationFrame(tick);
+      };
+      this.animationFrame = requestAnimationFrame(tick);
+    });
+  }
+}
+
+export function createStagedMediaHandoff(
+  options: StagedMediaHandoffOptions
+): TransitionModule {
+  return {
+    id: options.id,
+    requiredMilestones: ['targetReady', 'buildReady'],
+    reducedMotionFallback: async (context) => {
+      applyInitialVisibility(context, options);
+      const endpoint = context.direction === 1 ? 1 : 0;
+      const roots = rootsFor(context, options);
+      options.renderSource(
+        roots.from,
+        range01(endpoint, 0, stagedStop(context)),
+        renderContext(context, context.direction)
+      );
+      const sample = sampleStagedMediaHandoff(endpoint, stagedStop(context));
+      applyLayerVisibility(context.from, sample.from);
+      applyLayerVisibility(context.to, sample.to);
+      applyVisibilityToElement(roots.fromElement, sample.from);
+      applyVisibilityToElement(roots.toElement, sample.to);
+      clearHandoffAttrs(roots.fromElement);
+      clearHandoffAttrs(roots.toElement);
+    },
+    buildTimeline: async (context) => {
+      const delay = options.delayMs?.() ?? 0;
+      if (delay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+      applyInitialVisibility(context, options);
+      if (context.direction === -1 && options.prepareSourceTerminal) {
+        const roots = rootsFor(context, options);
+        await options.prepareSourceTerminal(roots.from, renderContext(context, -1));
+      }
+      return new StagedMediaHandoffTimeline(context, options);
+    }
+  };
+}

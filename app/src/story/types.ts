@@ -71,7 +71,7 @@ export type SegmentVisual =
       ink: 'center-expand' | 'left-rotate-expand' | 'horizontal';
       direction?: 'bottom-to-top' | 'top-to-bottom';
     }
-  | { type: 'media'; media: readonly MediaKey[] }
+  | { type: 'media'; media: readonly MediaKey[]; handoff?: 'crossfade' }
   | { type: 'internal'; milestone: string };
 
 export type CopyCue = {

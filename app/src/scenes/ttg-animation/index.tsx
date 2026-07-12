@@ -5,6 +5,7 @@ import {
   timelineVideoDriverFor,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
+import { TTG_PLAYBACK_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const TTG_MEDIA_KEY = 'ttg_figure-alpha-scrub';
@@ -18,7 +19,6 @@ export const TTG_FIGURE_VIDEO_SRC = new URL('../../../../assets/ttg_figure-alpha
 export const TTG_FIGURE_REVERSE_VIDEO_SRC = new URL('../../../../assets/ttg_figure-alpha-scrub-reverse.webm', import.meta.url).href;
 export const TTG_FIGURE_POSTER_SRC = new URL('../../../../assets/ttg_figure-alpha-scrub-poster.png', import.meta.url).href;
 export const TTG_HOLD_PROGRESS = 0;
-export const TTG_PLAYBACK_MS = 2500;
 
 export type TtgRenderState = {
   progress: number;
@@ -29,12 +29,14 @@ export type TtgRenderState = {
   figureY: number;
 };
 
+export type TtgMediaRun = {
+  runId: string;
+  direction: 1 | -1;
+  reducedMotion?: boolean;
+};
+
 type TtgRenderOptions = {
-  mediaRun?: {
-    runId: string;
-    direction: 1 | -1;
-    reducedMotion?: boolean;
-  };
+  mediaRun?: TtgMediaRun;
 };
 
 const TTG_CONFIG = {
@@ -68,6 +70,7 @@ type TtgSurfaceState = {
   direction: 1 | -1;
   pendingSurface?: TtgSurface;
   pendingProgress?: number;
+  pendingReady?: Promise<void>;
 };
 
 const surfaceStates = new WeakMap<HTMLElement, TtgSurfaceState>();
@@ -120,7 +123,7 @@ function prepareAndActivate(
   mediaRun: NonNullable<TtgRenderOptions['mediaRun']>,
   forwardVideo: HTMLVideoElement,
   reverseVideo: HTMLVideoElement
-): void {
+): Promise<void> {
   const target = surface === 'forward' ? forwardVideo : reverseVideo;
   const state = surfaceStates.get(section) ?? {
     token: 0,
@@ -134,7 +137,7 @@ function prepareAndActivate(
     && state.pendingProgress !== undefined
     && Math.abs(state.pendingProgress - progress) <= 0.001
   ) {
-    return;
+    return state.pendingReady ?? Promise.resolve();
   }
   state.token += 1;
   state.runId = mediaRun.runId;
@@ -166,14 +169,22 @@ function prepareAndActivate(
     parkSurface(inactive);
   };
   const ready = prepareTimelineVideoFrame(target, input);
-  if (timelineVideoDriverFor(target).snapshot().frameReady) {
-    activate();
-  }
-  void ready.then((result) => {
+  const pendingReady = (async () => {
+    if (timelineVideoDriverFor(target).snapshot().frameReady) {
+      activate();
+    }
+    const result = await ready;
     if (result?.status === 'ready') {
       activate();
     }
+  })();
+  state.pendingReady = pendingReady;
+  void pendingReady.finally(() => {
+    if (state.pendingReady === pendingReady) {
+      delete state.pendingReady;
+    }
   });
+  return pendingReady;
 }
 
 function driveFigurePlayback(
@@ -197,7 +208,7 @@ function driveFigurePlayback(
   const desiredIsActive = desiredVideo.classList.contains('is-active');
 
   if (!desiredIsActive) {
-    prepareAndActivate(
+    void prepareAndActivate(
       section,
       desiredSurface,
       mediaProgress,
@@ -217,8 +228,35 @@ function driveFigurePlayback(
   parkSurface(desiredSurface === 'forward' ? reverseVideo : forwardVideo);
 
   if (mediaRun.direction === -1 && progress <= 0.001) {
-    prepareAndActivate(section, 'forward', 0, mediaRun, forwardVideo, reverseVideo);
+    void prepareAndActivate(section, 'forward', 0, mediaRun, forwardVideo, reverseVideo);
   }
+}
+
+export function prepareTtgAnimationFrame(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  mediaRun: TtgMediaRun
+): Promise<void> {
+  renderTtgAnimationProgress(root, rawProgress, { mediaRun });
+  const section = root?.matches('[data-r4-scene="ttg-animation"]')
+    ? root
+    : root?.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]') ?? null;
+  const forwardVideo = section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
+  const reverseVideo = section?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
+  if (!section || !forwardVideo || !reverseVideo) {
+    return Promise.resolve();
+  }
+  const progress = stableProgress(rawProgress);
+  const surface: TtgSurface = mediaRun.direction === 1 ? 'forward' : 'reverse';
+  const mediaProgress = surface === 'forward' ? progress : 1 - progress;
+  return prepareAndActivate(
+    section,
+    surface,
+    mediaProgress,
+    mediaRun,
+    forwardVideo,
+    reverseVideo
+  );
 }
 
 export function renderTtgAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number, options: TtgRenderOptions = {}): TtgRenderState {

@@ -131,11 +131,11 @@ hero
 → services
 → services-ttg / 下到上水平墨滴
 → ttg-animation
-→ ttg-lab / 上到下水平墨滴
+→ ttg-lab / 2500ms 媒体播放 + 600ms 纯 opacity dissolve
 → lab
 → lab-ph / 单一上到下墨滴
 → ph-animation
-→ ph-education / 上到下水平墨滴
+→ ph-education / 1520ms 媒体播放 + 600ms 纯 opacity dissolve
 → education
 → education-crane / 下到上水平墨滴
 → crane-animation
@@ -177,7 +177,7 @@ contact
 | `method` | `method-top` 单一 reading hold（intro + 五步列表） | 右侧滚到底才交接 |
 | `method-proof-brand` | `method-top → figure2-animation → figure2-proof-opening → figure2-proof-cards → figure2-proof-closing → brand` | `method-bottom-figure2` 仅保留历史 segment id；R-1 从 DOM attribute + adapter 反推 staged/post-scroll 事实 |
 | `brand-services` | `brand → figure3-animation → services` | `copyCue.atProgress = 0.8` |
-| `services-lab` / `lab-education` | `services → ttg → lab`、`lab → ph → education` | 水平墨滴方向见 §3.1 |
+| `services-lab` / `lab-education` | `services → ttg → lab`、`lab → ph → education` | 章节入口 `services-ttg` / `lab-ph` 保留水平 Ink；章节内部 `ttg-lab` / `ph-education` 使用 staged media dissolve |
 | `philosophy-contact` / crane | `education → crane-animation → contact` | `copyCue.atProgress = 0.8` |
 
 规则：**旧 id 只能单向映射进 spine，不得反向污染新 manifest**。任何旧命名（`belief-star`、`method-proof-brand` 等）在 R0.0 一次性正名后即退役。
@@ -201,7 +201,7 @@ type SegmentPolicy =
 type SegmentVisual =
   | { type: 'ink'; ink: 'center-expand' | 'left-rotate-expand' | 'horizontal';
       direction?: 'bottom-to-top' | 'top-to-bottom' }
-  | { type: 'media'; media: MediaKey[] }
+  | { type: 'media'; media: MediaKey[]; handoff?: 'crossfade' }
   | { type: 'internal'; milestone: string };
 
 type CopyCue = {
@@ -282,6 +282,8 @@ interface MediaPlaybackContract {
 - `play(-1)` 只有在 media 支持可靠倒放或有 reverse asset 时才走真实反向；否则用 `terminal-state-fallback` 回到 from hold。
 - `jumpToEnd()` 必须能落到静态终态，不要求媒体播放完整结束。视频类实现必须显式同步 renderer terminal state；能 seek 的媒体要把 `currentTime` 拉到目标终态，不能只改 CSS。
 - `copyCue` 由 SegmentPlayer 按 progress 触发，scene/renderer 不得自己在视频回调里 present 目标文案。反向跨过 cue 阈值时，目标文案退出也必须由同一条 timeline 负责，禁止 scene 自淡出。
+
+`ttg-lab` 与 `ph-education` 是两段式 media segment：第一段只由 `timeline-video-driver` 驱动媒体，第二段由 `stagedMediaHandoff` 在 600ms 内做互补 opacity dissolve。TTG/PH 的方向、seek、presented-frame readiness、双 surface 切换与 stale generation 仍归 scene media driver；handoff helper 只拥有 staged progress、两层 visibility/opacity、pause label 和临时 `data-r4-handoff-*` 生命周期。正反向都保留两次输入，不创建 Ink canvas、clip、mask、transform、blur、scale 或粒子。
 
 ### 4.2 stagedSnap / proof 执行语义
 

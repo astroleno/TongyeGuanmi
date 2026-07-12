@@ -142,6 +142,13 @@ test.describe('R4 G4-G7 back-half integration harness', () => {
     expect(finalFrame.phase).toBe('hold');
     expect(finalFrame.window.current).toBe('services');
     expect(finalFrame.eventLog).toContain('PLAY:services-ttg:-1');
+    await expect(page.evaluate(() => ({
+      ttgInk: document.querySelectorAll('[data-r4-ink-segment="ttg-lab"]').length,
+      phInk: document.querySelectorAll('[data-r4-ink-segment="ph-education"]').length,
+      dissolveAttrs: document.querySelectorAll(
+        '[data-r4-handoff-segment="ttg-lab"], [data-r4-handoff-segment="ph-education"]'
+      ).length
+    }))).resolves.toEqual({ ttgInk: 0, phInk: 0, dissolveAttrs: 0 });
 
     for (const frame of frames) {
       await assertFrame(frame);
@@ -177,5 +184,12 @@ test.describe('R4 G4-G7 back-half integration harness', () => {
     expect(frame.window.current).toBe('contact');
     expect(frame.visibleCount).toBe(1);
     expect(frame.interactableCount).toBe(1);
+    await expect(page.evaluate(() => ({
+      ttgInk: document.querySelectorAll('[data-r4-ink-segment="ttg-lab"]').length,
+      phInk: document.querySelectorAll('[data-r4-ink-segment="ph-education"]').length,
+      dissolveAttrs: document.querySelectorAll(
+        '[data-r4-handoff-segment="ttg-lab"], [data-r4-handoff-segment="ph-education"]'
+      ).length
+    }))).resolves.toEqual({ ttgInk: 0, phInk: 0, dissolveAttrs: 0 });
   });
 });

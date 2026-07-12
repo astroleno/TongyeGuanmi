@@ -3,7 +3,7 @@ import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { createLabPhTransition } from './lab-ph';
 import { createPhEducationTransition, PH_EDUCATION_ANIMATION_STOP } from './ph-education';
-import { PH_PLAYBACK_MS } from '../scenes/ph-animation';
+import { PH_PLAYBACK_MS } from '../story/timings';
 import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/back-half.fixture';
 
@@ -104,7 +104,7 @@ describe('R4 group6 transitions', () => {
     expect(receiver.dataset.r4Transition).toBe('lab-ph-top-ink');
   });
 
-  it('plays PH to its terminal frame, pauses, then runs a motionless Ink reveal to Education', async () => {
+  it('plays PH to its terminal frame, pauses, then dissolves to Education without Ink', async () => {
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
     const video = new FakeVideo();
     video.duration = 76 / 30;
@@ -116,10 +116,10 @@ describe('R4 group6 transitions', () => {
     expect(phEducation.policy).toMatchObject({
       kind: 'stagedSnap',
       stops: [PH_EDUCATION_ANIMATION_STOP],
-      playMs: [1520, 1200]
+      playMs: [1520, 600]
     });
     expect(PH_PLAYBACK_MS).toBe(1520);
-    expect(PH_EDUCATION_ANIMATION_STOP).toBeCloseTo(1520 / 2720, 6);
+    expect(PH_EDUCATION_ANIMATION_STOP).toBeCloseTo(1520 / 2120, 6);
     expect(phEducation.mediaPlayback?.[0]?.reverse).toEqual({ mode: 'timeline', required: true });
     if (phEducation.policy.kind !== 'stagedSnap') {
       throw new Error('ph-education must be staged');
@@ -144,10 +144,19 @@ describe('R4 group6 transitions', () => {
     expect(fixture.fromRoot.dataset.phProgress).toBe('1.0000');
     expect(fixture.toRoot.dataset.educationProgress).toBe('1.0000');
     expect(fixture.toRoot.style.getPropertyValue('--r4-education-y')).toBe('0.00px');
-    expect(canvas.dataset.r4InkProgress).toBe('0.5000');
+    expect(fixture.fromLayer.visibility.opacity).toBeCloseTo(0.5, 4);
+    expect(fixture.toLayer.visibility.opacity).toBeCloseTo(0.5, 4);
+    expect(fixture.fromLayer.visibility.opacity + fixture.toLayer.visibility.opacity).toBeCloseTo(1, 6);
+    expect(fixture.stage.children[0]?.dataset.r4Handoff).toBe('dissolve');
+    expect(fixture.stage.children[1]?.dataset.r4Handoff).toBe('dissolve');
+    expect(canvas.parentElement).toBeNull();
+    expect(canvas.dataset.r4InkProgress).toBeUndefined();
     const receiver = fixture.stage.children[1]!;
-    expect(receiver.style.clipPath).toMatch(/^inset\(/);
-    expect(receiver.style.clipPath).not.toContain('polygon(');
+    expect(receiver.style.clipPath).toBe('');
+    expect(receiver.style.getPropertyValue('mask-image')).toBe('');
+    expect(receiver.style.getPropertyValue('transform')).toBe('');
+    expect(receiver.style.getPropertyValue('filter')).toBe('');
+    expect(receiver.dataset.r4InkBoundaryKind).toBeUndefined();
     expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
     expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
     for (const progress of [(stop + 2) / 3, (stop + 3) / 4]) {
@@ -167,6 +176,77 @@ describe('R4 group6 transitions', () => {
     expect(transition.requiredMilestones).toEqual(['targetReady', 'mediaReady', 'buildReady']);
     expect(transition.mediaPlayback).toEqual(manifestSegment.mediaPlayback);
     expect(transition.mediaPlayback?.[0]?.forward).toEqual({ mode: 'timeline', required: true });
+  });
+
+  it('keeps the PH source hidden until its reverse terminal frame is presented', async () => {
+    class DeferredFrameVideo extends FakeVideo {
+      seeking = false;
+      private frameCallback: (() => void) | undefined;
+      private readonly listeners = new Map<string, Set<() => void>>();
+
+      override get currentTime(): number {
+        return super.currentTime;
+      }
+
+      override set currentTime(value: number) {
+        super.currentTime = value;
+        this.seeking = true;
+      }
+
+      override addEventListener(type: string, listener: () => void): void {
+        const listeners = this.listeners.get(type) ?? new Set<() => void>();
+        listeners.add(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      override removeEventListener(type: string, listener: () => void): void {
+        this.listeners.get(type)?.delete(listener);
+      }
+
+      requestVideoFrameCallback(callback: () => void): number {
+        this.frameCallback = callback;
+        return 1;
+      }
+
+      cancelVideoFrameCallback(): void {
+        this.frameCallback = undefined;
+      }
+
+      presentRequestedFrame(): void {
+        this.seeking = false;
+        for (const listener of this.listeners.get('seeked') ?? []) {
+          listener();
+        }
+        const callback = this.frameCallback;
+        this.frameCallback = undefined;
+        callback?.();
+      }
+    }
+
+    const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
+    const video = new DeferredFrameVideo();
+    video.duration = 76 / 30;
+    fixture.fromRoot.connect('[data-ph-alpha-video]', video);
+    const build = Promise.resolve(createPhEducationTransition().buildTimeline({
+      ...fixture.context,
+      direction: -1,
+      runId: 'ph-terminal:1',
+      prepareToken: 'ph-terminal:prepare:1'
+    }));
+    let buildResolved = false;
+    void build.then(() => {
+      buildResolved = true;
+    });
+
+    await Promise.resolve();
+    expect(buildResolved).toBe(false);
+    expect(fixture.fromLayer.visibility.opacity).toBe(0);
+    expect(fixture.toLayer.visibility.opacity).toBe(1);
+
+    video.presentRequestedFrame();
+    const timeline = await build;
+    timeline.progress((PH_EDUCATION_ANIMATION_STOP + 1) / 2);
+    expect(fixture.fromLayer.visibility.opacity).toBeGreaterThan(0);
   });
 
   it('keeps PH re-entrant across twenty explicit alternating runs without reading stale DOM direction', async () => {

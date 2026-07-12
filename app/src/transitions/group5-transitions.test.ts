@@ -88,44 +88,25 @@ const cases: readonly {
 ];
 
 describe('R4 group5 transitions', () => {
-  it('shares organic horizontal boundaries for Services to TTG and TTG to Lab', async () => {
-    for (const item of [
-      {
-        id: 'services-ttg' as const,
-        from: 'services' as const,
-        to: 'ttg-animation' as const,
-        create: createServicesTtgTransition
-      },
-      {
-        id: 'ttg-lab' as const,
-        from: 'ttg-animation' as const,
-        to: 'lab' as const,
-        create: createTtgLabTransition
-      }
-    ]) {
-      const fixture = createBackHalfDomContext(item.id, item.from, item.to);
-      const canvas = new FakeCanvas();
-      vi.stubGlobal('document', { createElement: () => canvas });
-      const timeline = await item.create().buildTimeline(fixture.context);
-      const receiver = fixture.stage.children[1]!;
+  it('keeps the chapter-entry Ink on Services to TTG', async () => {
+    const fixture = createBackHalfDomContext('services-ttg', 'services', 'ttg-animation');
+    const canvas = new FakeCanvas();
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const timeline = await createServicesTtgTransition().buildTimeline(fixture.context);
+    const receiver = fixture.stage.children[1]!;
 
-      timeline.progress(item.id === 'ttg-lab' ? (TTG_LAB_ANIMATION_STOP + 1) / 2 : 0.5);
+    timeline.progress(0.5);
 
-      expect(receiver.style.clipPath).toMatch(/^inset\(/);
-      expect(receiver.style.clipPath).not.toContain('polygon(');
-      expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
-      expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
-      expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
-      timeline.dispose();
-      vi.unstubAllGlobals();
-    }
+    expect(receiver.style.clipPath).toMatch(/^inset\(/);
+    expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
+    timeline.dispose();
   });
 
   it('removes the TTG scene vignette instead of compensating for it in the transition', () => {
     expect(stylesheet).not.toContain('.r4-ttg-animation .ttg-field::after');
   });
 
-  it('plays TTG to its terminal frame, pauses, then runs a motionless Ink reveal to Lab', async () => {
+  it('plays TTG to its terminal frame, pauses, then dissolves to Lab without Ink', async () => {
     const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
     const forwardVideo = new FakeVideo();
     const reverseVideo = new FakeVideo();
@@ -137,8 +118,8 @@ describe('R4 group5 transitions', () => {
     const ttgLab = segment('ttg-lab');
     expect(ttgLab.policy).toMatchObject({
       kind: 'stagedSnap',
-      stops: [0.676],
-      playMs: [2500, 1200]
+      stops: [2500 / 3100],
+      playMs: [2500, 600]
     });
     expect(ttgLab.mediaPlayback?.[0]?.reverse).toMatchObject({ mode: 'play', required: true });
     if (ttgLab.policy.kind !== 'stagedSnap') {
@@ -164,12 +145,28 @@ describe('R4 group5 transitions', () => {
     expect(fixture.fromRoot.dataset.ttgProgress).toBe('1.0000');
     expect(fixture.toRoot.dataset.labProgress).toBe('1.0000');
     expect(fixture.toRoot.style.getPropertyValue('--r4-lab-y')).toBe('0.00px');
-    expect(canvas.dataset.r4InkProgress).toBe('0.5000');
+    expect(fixture.fromLayer.visibility.opacity).toBeCloseTo(0.5, 4);
+    expect(fixture.toLayer.visibility.opacity).toBeCloseTo(0.5, 4);
+    expect(fixture.fromLayer.visibility.opacity + fixture.toLayer.visibility.opacity).toBeCloseTo(1, 6);
+    expect(fixture.stage.children[0]?.dataset.r4Handoff).toBe('dissolve');
+    expect(fixture.stage.children[1]?.dataset.r4Handoff).toBe('dissolve');
+    expect(canvas.parentElement).toBeNull();
+    expect(canvas.dataset.r4InkProgress).toBeUndefined();
+    for (const layer of fixture.stage.children) {
+      expect(layer.style.clipPath).toBe('');
+      expect(layer.style.getPropertyValue('mask-image')).toBe('');
+      expect(layer.style.getPropertyValue('transform')).toBe('');
+      expect(layer.style.getPropertyValue('filter')).toBe('');
+    }
     for (const progress of [(stop + 2) / 3, (stop + 3) / 4]) {
       timeline.progress(progress);
     }
     expect(forwardVideo.currentTimeWrites).toBe(forwardWritesAtStop);
     expect(reverseVideo.currentTimeWrites).toBe(reverseWritesAtStop);
+
+    timeline.progress(1);
+    expect(fixture.stage.children[0]?.dataset.r4Handoff).toBeUndefined();
+    expect(fixture.stage.children[1]?.dataset.r4Handoff).toBeUndefined();
 
     timeline.progress(stop / 2);
     expect(fixture.fromRoot.dataset.ttgPlaybackDirection).toBe('-1');
@@ -279,20 +276,32 @@ describe('R4 group5 transitions', () => {
     fixture.fromRoot.connect('[data-ttg-figure-video]', forwardVideo);
     fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
     vi.stubGlobal('document', { createElement: () => canvas });
-    const timeline = await createTtgLabTransition().buildTimeline({
+    const build = Promise.resolve(createTtgLabTransition().buildTimeline({
       ...fixture.context,
       direction: -1,
       runId: 'ttg-atomic:1',
       prepareToken: 'ttg-atomic:prepare:1'
+    }));
+    let buildResolved = false;
+    void build.then(() => {
+      buildResolved = true;
     });
+
+    await Promise.resolve();
+    expect(buildResolved).toBe(false);
+    expect(fixture.fromLayer.visibility.opacity).toBe(0);
+    expect(fixture.toLayer.visibility.opacity).toBe(1);
 
     expect(forwardVideo.classList.contains('is-active')).toBe(true);
     expect(reverseVideo.classList.contains('is-active')).toBe(false);
 
     reverseVideo.presentRequestedFrame();
-    await Promise.resolve();
+    const timeline = await build;
     expect(reverseVideo.classList.contains('is-active')).toBe(true);
     expect(forwardVideo.classList.contains('is-active')).toBe(false);
+
+    timeline.progress((TTG_LAB_ANIMATION_STOP + 1) / 2);
+    expect(fixture.fromLayer.visibility.opacity).toBeGreaterThan(0);
 
     timeline.progress(0);
     expect(reverseVideo.classList.contains('is-active')).toBe(true);
