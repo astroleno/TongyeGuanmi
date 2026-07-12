@@ -55,14 +55,14 @@ describe('Stage reading layers', () => {
     const scrollport = {
       clientHeight: 600,
       scrollHeight: 1600,
-      scrollTop: 999
+      scrollTop: 998
     };
     const layer = {
       matches: () => false,
       querySelector: () => scrollport
     } as unknown as HTMLElement;
 
-    expect(readingScrollMetrics(layer)).toEqual({ scrollTop: 999, maxScrollTop: 1000 });
+    expect(readingScrollMetrics(layer)).toEqual({ scrollTop: 998, maxScrollTop: 1000 });
     expect(readingCanScroll(layer, 1)).toBe(true);
     expect(readingCanScroll(layer, -1)).toBe(true);
 

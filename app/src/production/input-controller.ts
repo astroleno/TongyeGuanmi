@@ -2,7 +2,8 @@ import { normalizeInputDelta, type RawInput } from '../runtime/input-normalizer'
 import { readingCanScroll } from '../stage/reading';
 import type { createDirectorRuntime } from '../runtime/director.actor';
 import type { Direction, SceneId } from '../story/types';
-import { createReadingHandoff } from './reading-handoff';
+import { createGestureIntentGate } from './gesture-intent-gate';
+import { consumeReadingPixels } from './reading-handoff';
 
 type Runtime = ReturnType<typeof createDirectorRuntime>;
 
@@ -35,10 +36,72 @@ function storyViewportHeight(): number {
   return storyHeight > 0 ? storyHeight : window.innerHeight;
 }
 
+function interactionScope(snapshot: ReturnType<Runtime['getState']>): string {
+  if (snapshot.state === 'hold' && snapshot.context.cursor.status === 'hold') {
+    return `hold:${snapshot.context.cursor.scene}`;
+  }
+  if (snapshot.state === 'staged-paused') {
+    return [
+      'stage',
+      snapshot.context.activeSegment ?? 'unknown',
+      snapshot.context.activeRunId ?? 'unknown',
+      snapshot.context.pausePoint?.stageIndex ?? 'unknown'
+    ].join(':');
+  }
+  return `${String(snapshot.state)}:${snapshot.context.activeRunId ?? 'idle'}`;
+}
+
+function shouldUsePhysicalCommitment(
+  snapshot: ReturnType<Runtime['getState']>,
+  direction: Direction
+): boolean {
+  if (snapshot.state === 'staged-paused') {
+    return true;
+  }
+  if (snapshot.state === 'playing' || snapshot.state === 'settling') {
+    return true;
+  }
+  const cursor = snapshot.context.cursor;
+  if (snapshot.state !== 'hold' || cursor.status !== 'hold') {
+    return false;
+  }
+  const nodes = snapshot.context.manifest?.nodes;
+  if (!nodes) {
+    return true;
+  }
+  const holdIndex = nodes.findIndex(
+    (node) => node.kind === 'hold' && node.scene === cursor.scene
+  );
+  const segment = nodes[holdIndex + direction];
+  return segment?.kind !== 'segment' || segment.policy.kind !== 'scrub';
+}
+
+function shouldForwardRawInput(
+  snapshot: ReturnType<Runtime['getState']>,
+  direction: Direction
+): boolean {
+  if (snapshot.state === 'scrubbing') {
+    return true;
+  }
+  const cursor = snapshot.context.cursor;
+  if (snapshot.state !== 'hold' || cursor.status !== 'hold') {
+    return false;
+  }
+  const nodes = snapshot.context.manifest?.nodes;
+  if (!nodes) {
+    return false;
+  }
+  const holdIndex = nodes.findIndex(
+    (node) => node.kind === 'hold' && node.scene === cursor.scene
+  );
+  const segment = nodes[holdIndex + direction];
+  return segment?.kind === 'segment' && segment.policy.kind === 'scrub';
+}
+
 export function attachStoryInput(options: StoryInputControllerOptions): () => void {
   let previousTouchY: number | undefined;
-  let observedScene = options.getCurrentScene();
-  const readingHandoff = createReadingHandoff();
+  const gestureGate = createGestureIntentGate();
+  let observedScope = interactionScope(options.runtime.getState());
 
   const dispatch = (raw: RawInput, event: Event) => {
     const normalized = normalizeInputDelta(raw);
@@ -54,32 +117,44 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
       && runtimeSnapshot.context.cursor.status === 'hold'
       && runtimeSnapshot.context.cursor.scene === currentScene
     );
-    if (ownsReadingInput && currentScene) {
-      const handoff = readingHandoff.consume({
-        scene: currentScene,
-        root: currentLayer,
-        pixels: normalized.pixels,
-        viewportHeight: normalized.viewportHeight,
-        now: Date.now()
-      });
-      if (handoff.owned) {
-        if (event.cancelable) {
-          event.preventDefault();
-        }
-        if (handoff.directorDelta === 0) {
-          return;
-        }
-        options.runtime.send({
-          type: 'INPUT_DELTA',
-          delta: handoff.directorDelta,
-          source: normalized.source,
-          now: Date.now()
-        });
-        return;
-      }
-    }
     if (event.cancelable) {
       event.preventDefault();
+    }
+    const nextDirection = direction(normalized.pixels);
+    if (shouldUsePhysicalCommitment(runtimeSnapshot, nextDirection)) {
+      const gateSnapshot = gestureGate.snapshot();
+      if (gateSnapshot.direction !== undefined && gateSnapshot.direction !== nextDirection) {
+        gestureGate.reset('direction-reversal');
+      }
+      const reading = ownsReadingInput
+        ? consumeReadingPixels({ root: currentLayer, pixels: normalized.pixels })
+        : {
+            owned: false,
+            direction: nextDirection,
+            contentPixels: 0,
+            residualPixels: normalized.pixels
+          };
+      if (reading.residualPixels === 0) {
+        return;
+      }
+      const intent = gestureGate.consume({
+        pixels: reading.residualPixels,
+        viewportHeight: normalized.viewportHeight,
+        now: Date.now(),
+        scope: interactionScope(runtimeSnapshot)
+      });
+      if (!intent.fired) {
+        return;
+      }
+      options.runtime.send({
+        type: 'CHARGE_FIRED',
+        direction: intent.direction,
+        now: Date.now()
+      });
+      return;
+    }
+    if (!shouldForwardRawInput(runtimeSnapshot, nextDirection)) {
+      return;
     }
     options.runtime.send({
       type: 'INPUT_DELTA',
@@ -120,7 +195,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
 
   const onTouchEnd = () => {
     previousTouchY = undefined;
-    readingHandoff.reset('gesture-idle');
+    gestureGate.reset('gesture-idle');
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -137,20 +212,21 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   window.addEventListener('touchcancel', onTouchEnd, { passive: true });
   window.addEventListener('keydown', onKeyDown);
 
-  const resetForViewport = () => readingHandoff.reset('viewport-change');
-  const resetForEntry = () => readingHandoff.reset('entry-position');
+  const resetForViewport = () => gestureGate.reset('viewport-change');
+  const resetForEntry = () => gestureGate.reset('entry-position');
   window.addEventListener('resize', resetForViewport);
   window.addEventListener('orientationchange', resetForViewport);
   window.addEventListener('story-reading-entry', resetForEntry);
   window.visualViewport?.addEventListener('resize', resetForViewport);
   const unsubscribeRuntime = options.runtime.subscribe(() => {
-    const next = options.getCurrentScene();
-    if (next !== observedScene) {
-      observedScene = next;
-      readingHandoff.reset('scene-change');
+    const snapshot = options.runtime.getState();
+    const nextScope = interactionScope(snapshot);
+    if (nextScope !== observedScope) {
+      observedScope = nextScope;
+      gestureGate.reset('scope-change');
     }
-    if (options.runtime.getState().state === 'seeking') {
-      readingHandoff.reset('seek');
+    if (snapshot.state === 'seeking') {
+      gestureGate.reset('seek');
     }
   });
 
@@ -166,6 +242,6 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
     window.removeEventListener('story-reading-entry', resetForEntry);
     window.visualViewport?.removeEventListener('resize', resetForViewport);
     unsubscribeRuntime();
-    readingHandoff.reset('dispose');
+    gestureGate.reset('dispose');
   };
 }

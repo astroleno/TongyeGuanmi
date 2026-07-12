@@ -848,7 +848,7 @@ describe('director runtime actor loop', () => {
     expect(dispose).toHaveBeenCalledOnce();
   });
 
-  it('leaves wheel input with a reading layer until it reaches the scroll edge', async () => {
+  it('does not re-query a reading edge after an explicit runtime intent is emitted', async () => {
     const scrollport = {
       scrollTop: 120,
       clientHeight: 720,
@@ -866,19 +866,12 @@ describe('director runtime actor loop', () => {
     await flush(0);
 
     runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 1 });
-    expect(runtime.getState()).toMatchObject({
-      state: 'hold',
-      context: { cursor: { status: 'hold', scene: 'lab' } }
-    });
-
-    scrollport.scrollTop = 720;
-    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 2 });
     expect(runtime.getState().state).toBe('preparing');
     await flush(0);
     runtime.stop();
   });
 
-  it('uses a scene-owned reading scrollport instead of scrolling the fixed stage layer', async () => {
+  it('keeps physical reading ownership outside Director even with a nested scrollport', async () => {
     const scrollport = {
       scrollTop: 120,
       clientHeight: 720,
@@ -900,13 +893,6 @@ describe('director runtime actor loop', () => {
     await flush(0);
 
     runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 1 });
-    expect(runtime.getState()).toMatchObject({
-      state: 'hold',
-      context: { cursor: { status: 'hold', scene: 'method-top' } }
-    });
-
-    scrollport.scrollTop = 720;
-    runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 2 });
     expect(runtime.getState().state).toBe('preparing');
     await flush(0);
     runtime.stop();

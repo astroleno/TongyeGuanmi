@@ -187,7 +187,7 @@ export function StoryApp() {
     useSyntheticTransitions: false,
     prefersReducedMotion: detectReducedMotion,
     readyGate: {
-      waitForTargetReady: async ({ targetScene, segment }) => {
+      waitForTargetReady: async ({ targetScene, segment, direction }) => {
         await ensureSceneRef.current?.(targetScene);
         const timeoutMs = segment.buildTimeoutMs ?? storyManifest.defaults.buildTimeoutMs;
         const startedAt = Date.now();
@@ -196,6 +196,12 @@ export function StoryApp() {
             throw new Error(`targetReady timed out for ${targetScene}`);
           }
           await wait(16);
+        }
+        const targetLayer = layerStore.getLayer(targetScene)?.element
+          ?? document.querySelector<HTMLElement>(`[data-stage-layer="${targetScene}"]`);
+        if (readingScrollport(targetLayer)) {
+          positionReadingAtEdge(targetLayer, direction === 1 ? 'top' : 'bottom');
+          window.dispatchEvent(new Event('story-reading-entry'));
         }
       },
       waitForMediaReady: ({ segment, prepareToken, direction }) =>

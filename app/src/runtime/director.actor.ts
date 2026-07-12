@@ -5,7 +5,6 @@ import { routeInput, type DirectorDiscreteState } from './input-router';
 import { storyManifest } from '../story/manifest';
 import { BuildTimeoutError, SegmentPlayer } from '../story/segment-player';
 import { StorySpine } from '../story/spine';
-import { readingCanScroll } from '../stage/reading';
 import { toError } from './recovery';
 import type {
   DirectorEvent,
@@ -127,29 +126,6 @@ function segmentForHoldDirection(manifest: StoryManifest, scene: SceneId, direct
   const index = manifest.nodes.findIndex((node) => node.kind === 'hold' && node.scene === scene);
   const candidate = manifest.nodes[index + direction];
   return candidate?.kind === 'segment' ? candidate : undefined;
-}
-
-function readingLayerCanScroll(
-  manifest: StoryManifest,
-  stage: StageHandle | undefined,
-  cursor: DirectorContext['cursor'],
-  direction: Direction
-): boolean {
-  if (cursor.status !== 'hold') {
-    return false;
-  }
-  const hold = manifest.nodes.find((node) => node.kind === 'hold' && node.scene === cursor.scene);
-  if (hold?.kind !== 'hold' || !hold.reading) {
-    return false;
-  }
-  const element = stage?.getLayer(cursor.scene)?.element
-    ?? (canUseDOM()
-      ? document.querySelector<HTMLElement>(`[data-stage-layer="${cursor.scene}"][data-reading="true"]`)
-      : null);
-  if (!element) {
-    return false;
-  }
-  return readingCanScroll(element, direction);
 }
 
 function targetScene(segment: SpineSegmentNode, direction: Direction): SceneId {
@@ -418,7 +394,6 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       state,
       cursor: context.cursor,
       delta: event.delta,
-      readingCanScroll: readingLayerCanScroll(context.manifest, options.stage, context.cursor, direction),
       ...(segment ? { segmentPolicy: segment.policy } : {})
     });
 

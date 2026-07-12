@@ -5,6 +5,8 @@ export type ReadingScrollMetrics = Readonly<{
   maxScrollTop: number;
 }>;
 
+export const READING_EDGE_TOLERANCE_PX = 1;
+
 export function isReadingLayer(root: HTMLElement | null | undefined): boolean {
   return Boolean(
     root
@@ -46,7 +48,7 @@ export function readingScrollMetrics(
 export function readingCanScroll(
   root: HTMLElement | null | undefined,
   direction: 1 | -1,
-  tolerancePx = 0.001
+  tolerancePx = READING_EDGE_TOLERANCE_PX
 ): boolean {
   const metrics = readingScrollMetrics(root);
   if (!metrics || metrics.maxScrollTop <= tolerancePx) {
