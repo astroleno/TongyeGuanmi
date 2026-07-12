@@ -5,6 +5,7 @@ import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import { createInkSegmentTransition, type InkSegmentOptions } from './ink';
 
 const inkSource = readFileSync(new URL('./ink.ts', import.meta.url), 'utf8');
+const inkFieldSource = readFileSync(new URL('./inkField.ts', import.meta.url), 'utf8');
 
 class FakeStyle {
   [key: string]: unknown;
@@ -366,8 +367,9 @@ describe('shared ink transition surface', () => {
 
   it('retains only one lightweight run contour without a mask or snapshot compositor', () => {
     expect(inkSource).toContain('createHorizontalInkContour');
-    expect(inkSource).toContain('frame.contour');
-    expect(inkSource).toContain('frame.revision');
+    expect(inkSource).toContain('markHorizontalInkDiagnostics');
+    expect(inkFieldSource).toContain('frame.contour');
+    expect(inkFieldSource).toContain('frame.revision');
     expect(inkSource).not.toContain('mask-image:');
     expect(inkSource).not.toContain('createElementNS');
     expect(inkSource).not.toContain('snapshotCapture');

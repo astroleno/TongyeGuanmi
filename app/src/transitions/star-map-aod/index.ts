@@ -2,7 +2,13 @@ import { PilotProgressTimeline } from '../../pilot/progress-timeline';
 import { fadeVisibility, smoothStep } from '../../pilot/visibility';
 import type { LayerVisibilityState, TransitionModule } from '../../story/types';
 import { applyRevealBoundary, clearBoundaryGeometry } from '../shared/ink';
-import { createInkFieldFrame, inkFieldOrigin, type InkFieldFrame } from '../shared/inkField';
+import {
+  clearHorizontalInkDiagnostics,
+  createInkFieldFrame,
+  inkFieldOrigin,
+  markHorizontalInkDiagnostics,
+  type InkFieldFrame
+} from '../shared/inkField';
 import {
   createInkFieldRenderer,
   mountTransitionInkCanvas,
@@ -80,13 +86,8 @@ function markAodFieldCanvas(
     delete canvas.dataset.r4InkBoundaryKind;
     delete canvas.dataset.r4InkBoundaryOrigin;
     delete canvas.dataset.r4InkBoundaryProgress;
-    delete canvas.dataset.r4InkBoundaryRevision;
     delete canvas.dataset.r4InkFieldSeed;
-    delete canvas.dataset.r4InkContourRevision;
-    delete canvas.dataset.r4InkContourThreshold;
-    delete canvas.dataset.r4InkContourSeed;
-    delete canvas.dataset.r4InkContourDirection;
-    delete canvas.dataset.r4InkContourSamples;
+    clearHorizontalInkDiagnostics(canvas);
     return;
   }
   if (active) {
@@ -102,19 +103,9 @@ function markAodFieldCanvas(
   canvas.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
   canvas.dataset.r4InkFieldSeed = String(frame.seed);
   if (frame.spec.kind === 'horizontal' && 'revision' in frame) {
-    canvas.dataset.r4InkBoundaryRevision = frame.revision;
-    canvas.dataset.r4InkContourRevision = frame.revision;
-    canvas.dataset.r4InkContourThreshold = frame.threshold.toFixed(6);
-    canvas.dataset.r4InkContourSeed = String(frame.contour.seed);
-    canvas.dataset.r4InkContourDirection = frame.spec.direction;
-    canvas.dataset.r4InkContourSamples = String(frame.contour.samples.length);
+    markHorizontalInkDiagnostics(canvas, frame);
   } else {
-    delete canvas.dataset.r4InkBoundaryRevision;
-    delete canvas.dataset.r4InkContourRevision;
-    delete canvas.dataset.r4InkContourThreshold;
-    delete canvas.dataset.r4InkContourSeed;
-    delete canvas.dataset.r4InkContourDirection;
-    delete canvas.dataset.r4InkContourSamples;
+    clearHorizontalInkDiagnostics(canvas);
   }
 }
 

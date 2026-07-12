@@ -3,7 +3,12 @@ import {
   type InkBoundaryTransition,
   type InkBoundaryTransitionOptions,
 } from '../../vendor/ink-scene-transition.js';
-import { inkFieldOrigin, type InkFieldFrame } from './inkField';
+import {
+  clearHorizontalInkDiagnostics,
+  inkFieldOrigin,
+  markHorizontalInkDiagnostics,
+  type InkFieldFrame
+} from './inkField';
 
 export type InkFieldRenderer = {
   render(frame: InkFieldFrame): void;
@@ -70,33 +75,18 @@ function markBoundaryFrame(canvas: HTMLCanvasElement, frame: InkFieldFrame): voi
   canvas.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
   canvas.dataset.r4InkFieldSeed = String(frame.seed);
   if (frame.spec.kind === 'horizontal' && 'revision' in frame) {
-    canvas.dataset.r4InkBoundaryRevision = frame.revision;
-    canvas.dataset.r4InkContourRevision = frame.revision;
-    canvas.dataset.r4InkContourThreshold = frame.threshold.toFixed(6);
-    canvas.dataset.r4InkContourSeed = String(frame.contour.seed);
-    canvas.dataset.r4InkContourDirection = frame.spec.direction;
-    canvas.dataset.r4InkContourSamples = String(frame.contour.samples.length);
+    markHorizontalInkDiagnostics(canvas, frame);
   } else {
-    delete canvas.dataset.r4InkBoundaryRevision;
-    clearContourFrameMark(canvas);
+    clearHorizontalInkDiagnostics(canvas);
   }
-}
-
-function clearContourFrameMark(canvas: HTMLCanvasElement): void {
-  delete canvas.dataset.r4InkContourRevision;
-  delete canvas.dataset.r4InkContourThreshold;
-  delete canvas.dataset.r4InkContourSeed;
-  delete canvas.dataset.r4InkContourDirection;
-  delete canvas.dataset.r4InkContourSamples;
 }
 
 function clearBoundaryFrameMark(canvas: HTMLCanvasElement): void {
   delete canvas.dataset.r4InkBoundaryKind;
   delete canvas.dataset.r4InkBoundaryOrigin;
   delete canvas.dataset.r4InkBoundaryProgress;
-  delete canvas.dataset.r4InkBoundaryRevision;
   delete canvas.dataset.r4InkFieldSeed;
-  clearContourFrameMark(canvas);
+  clearHorizontalInkDiagnostics(canvas);
 }
 
 /**

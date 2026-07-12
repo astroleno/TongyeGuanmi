@@ -1,3 +1,8 @@
+import {
+  clearHorizontalInkDiagnostics,
+  markHorizontalInkDiagnostics
+} from '../transitions/shared/inkField.ts';
+
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const smoothStep = (value) => value * value * (3 - 2 * value);
 
@@ -548,17 +553,9 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         canvas.dataset.r4InkBoundaryProgress = visibleProgress.toFixed(4);
         canvas.dataset.r4InkFieldSeed = String(frame.seed);
         if (spec.kind === 'horizontal' && frame.contour) {
-          canvas.dataset.r4InkBoundaryRevision = frame.contour.revision;
-          canvas.dataset.r4InkContourRevision = frame.contour.revision;
-          canvas.dataset.r4InkContourThreshold = frame.threshold.toFixed(6);
-          canvas.dataset.r4InkContourSeed = String(frame.contour.seed);
-          canvas.dataset.r4InkContourSamples = String(frame.contour.samples.length);
+          markHorizontalInkDiagnostics(canvas, frame);
         } else {
-          delete canvas.dataset.r4InkBoundaryRevision;
-          delete canvas.dataset.r4InkContourRevision;
-          delete canvas.dataset.r4InkContourThreshold;
-          delete canvas.dataset.r4InkContourSeed;
-          delete canvas.dataset.r4InkContourSamples;
+          clearHorizontalInkDiagnostics(canvas);
         }
       }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -587,10 +584,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       canvas.style.opacity = '0';
       if (canvas.dataset) {
         delete canvas.dataset.r4InkContourTextureUploads;
-        delete canvas.dataset.r4InkContourRevision;
-        delete canvas.dataset.r4InkContourThreshold;
-        delete canvas.dataset.r4InkContourSeed;
-        delete canvas.dataset.r4InkContourSamples;
+        clearHorizontalInkDiagnostics(canvas);
       }
     }
   };
