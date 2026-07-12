@@ -47,8 +47,8 @@ describe('R4 contract-driven media readiness gate', () => {
       'figure2-right-alpha'
     ]);
     expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual([
-      'figure2-left-alpha',
-      'figure2-right-alpha'
+      'figure2-left-alpha-reverse',
+      'figure2-right-alpha-reverse'
     ]);
     expect(requiredMediaKeys(segment('aod-method-top'), -1)).toEqual([
       'aod_figure-alpha-front-scrub'

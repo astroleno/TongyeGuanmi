@@ -1665,13 +1665,24 @@ pre {
   left: calc(50% + clamp(8px, 1.4vw, 26px));
 }
 
+.r4-figure2__media-stack {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 600 / 1066;
+}
+
 .r4-figure2__figure video {
-  position: relative;
+  grid-area: 1 / 1;
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   object-fit: contain;
+  opacity: 0;
   filter: brightness(1.03) contrast(1.16) saturate(1.10) drop-shadow(0 10px 8px rgba(40, 30, 20, .22));
+}
+
+.r4-figure2__figure video.is-active {
+  opacity: 1;
 }
 
 .r4-figure2__figure figcaption {

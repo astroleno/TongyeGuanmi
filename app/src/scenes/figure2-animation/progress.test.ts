@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { figure2AnimationScene, renderFigure2AnimationProgress, renderFigure2Hold, renderFigure2ProofTransitionProgress } from './index';
+import {
+  disposeFigure2Media,
+  figure2AnimationScene,
+  figure2DirectionalMediaSnapshot,
+  prepareFigure2MediaLeg,
+  renderFigure2AnimationProgress,
+  renderFigure2Hold,
+  renderFigure2ProofTransitionProgress
+} from './index';
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -14,6 +22,7 @@ class FakeStyle {
 class FakeElement {
   style = new FakeStyle();
   attributes = new Map<string, string>();
+  dataset: Record<string, string> = {};
   clientHeight = 900;
   clientWidth = 1440;
 
@@ -22,7 +31,18 @@ class FakeElement {
   }
 }
 
+class FakeClassList {
+  private readonly values = new Set<string>();
+
+  add(value: string): void { this.values.add(value); }
+  remove(value: string): void { this.values.delete(value); }
+  contains(value: string): boolean { return this.values.has(value); }
+}
+
+type Listener = () => void;
+
 class FakeVideo {
+  readonly classList = new FakeClassList();
   readonly dataset: Record<string, string> = {};
   private time = 0;
   readonly seekWrites: number[] = [];
@@ -33,6 +53,11 @@ class FakeVideo {
   playbackRate = 1;
   playCalls = 0;
   playsInline = false;
+  preload = 'metadata';
+  seeking = false;
+  loadCalls = 0;
+  private frameCallback: (() => void) | undefined;
+  private readonly listeners = new Map<string, Set<Listener>>();
 
   get currentTime(): number {
     return this.time;
@@ -41,11 +66,31 @@ class FakeVideo {
   set currentTime(value: number) {
     this.time = value;
     this.seekWrites.push(value);
+    this.seeking = true;
   }
 
-  addEventListener(): void {}
+  addEventListener(type: string, listener: Listener): void {
+    const listeners = this.listeners.get(type) ?? new Set<Listener>();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
 
-  removeEventListener(): void {}
+  removeEventListener(type: string, listener: Listener): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  requestVideoFrameCallback(callback: () => void): number {
+    this.frameCallback = callback;
+    return 1;
+  }
+
+  cancelVideoFrameCallback(): void {
+    this.frameCallback = undefined;
+  }
+
+  load(): void {
+    this.loadCalls += 1;
+  }
 
   pause(): void {
     this.paused = true;
@@ -59,6 +104,16 @@ class FakeVideo {
 
   setNaturalTime(value: number): void {
     this.time = value;
+  }
+
+  presentRequestedFrame(): void {
+    this.seeking = false;
+    for (const listener of this.listeners.get('seeked') ?? []) {
+      listener();
+    }
+    const callback = this.frameCallback;
+    this.frameCallback = undefined;
+    callback?.();
   }
 }
 
@@ -78,6 +133,26 @@ class FakeStageRoot extends FakeVideoRoot {
   closest(): { querySelector: () => FakeElement } {
     return { querySelector: () => this.retainedArch };
   }
+}
+
+function directionalVideos() {
+  const leftForward = new FakeVideo();
+  const rightForward = new FakeVideo();
+  const leftReverse = new FakeVideo();
+  const rightReverse = new FakeVideo();
+  leftForward.dataset.figure2Side = 'left';
+  leftForward.dataset.figure2Direction = 'forward';
+  rightForward.dataset.figure2Side = 'right';
+  rightForward.dataset.figure2Direction = 'forward';
+  leftReverse.dataset.figure2Side = 'left';
+  leftReverse.dataset.figure2Direction = 'reverse';
+  rightReverse.dataset.figure2Side = 'right';
+  rightReverse.dataset.figure2Direction = 'reverse';
+  leftForward.classList.add('is-active');
+  rightForward.classList.add('is-active');
+  leftReverse.duration = 5;
+  rightReverse.duration = 5;
+  return { leftForward, rightForward, leftReverse, rightReverse };
 }
 
 describe('figure2-animation scene renderer', () => {
@@ -162,7 +237,7 @@ describe('figure2-animation scene renderer', () => {
     expect(figure2AnimationScene.preload()).toEqual({ milestones: ['targetReady', 'mediaReady'] });
   });
 
-  it('restores the exact opening hold including media time and scene-owned variables', () => {
+  it('restores the exact opening hold without mutating media lifecycle from render code', () => {
     const video = new FakeVideo();
     const root = new FakeStageRoot([video]);
     renderFigure2AnimationProgress(root as unknown as HTMLElement, 1, { videoMode: 'seek' });
@@ -174,66 +249,93 @@ describe('figure2-animation scene renderer', () => {
     expect(root.style.values.get('--r4-figure2-figure-opacity')).toBe('1.0000');
     expect(root.style.values.get('--r4-figure2-camera-scale')).toBe('1.0120');
     expect(root.retainedArch.style.values.get('--r4-figure2-near-arch-blur')).toBe('0.00px');
-    expect(video.currentTime).toBe(0.001);
+    expect(video.seekWrites).toHaveLength(0);
   });
 
-  it('slows short Figure2 media to the 2.6 second intro instead of finishing early', () => {
-    const video = new FakeVideo();
-    const root = new FakeVideoRoot([video]);
+  it('keeps both forward surfaces visible until both reverse first frames are presented', async () => {
+    const videos = directionalVideos();
+    const root = new FakeVideoRoot(Object.values(videos));
+    const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, {
+      runId: 'figure2-pair:1',
+      direction: -1,
+      timelineDurationMs: 2600
+    });
 
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.2, { videoMode: 'native' });
+    expect(videos.leftForward.classList.contains('is-active')).toBe(true);
+    expect(videos.rightForward.classList.contains('is-active')).toBe(true);
+    expect(videos.leftReverse.classList.contains('is-active')).toBe(false);
+    expect(videos.rightReverse.classList.contains('is-active')).toBe(false);
 
-    expect(video.playbackRate).toBeGreaterThan(0.8);
-    expect(video.playbackRate).toBeLessThan(1);
-  });
-
-  it('pre-seeks once, then leaves a natively playing Figure2 video uninterrupted', () => {
-    const video = new FakeVideo();
-    const root = new FakeVideoRoot([video]);
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.2, { videoMode: 'native' });
-    const initialSeekWrites = video.seekWrites.length;
-    video.setNaturalTime(0.6);
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.4, { videoMode: 'native' });
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.6, { videoMode: 'native' });
-
-    expect(initialSeekWrites).toBe(1);
-    expect(video.seekWrites).toHaveLength(initialSeekWrites);
-  });
-
-  it('uses timeline frames after one rejected native play without retrying autoplay', async () => {
-    class RejectingVideo extends FakeVideo {
-      override play(): Promise<void> {
-        this.playCalls += 1;
-        this.paused = true;
-        return Promise.reject(new Error('autoplay denied'));
-      }
-    }
-    const video = new RejectingVideo();
-    const root = new FakeVideoRoot([video]);
-
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.2, { videoMode: 'native' });
+    videos.leftReverse.presentRequestedFrame();
     await Promise.resolve();
-    const firstFallbackTime = video.currentTime;
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.4, { videoMode: 'native' });
-    const secondFallbackTime = video.currentTime;
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.6, { videoMode: 'native' });
+    expect(videos.leftForward.classList.contains('is-active')).toBe(true);
+    expect(videos.rightForward.classList.contains('is-active')).toBe(true);
+    expect(videos.leftReverse.classList.contains('is-active')).toBe(false);
 
-    expect(video.playCalls).toBe(1);
-    expect(secondFallbackTime).toBeGreaterThan(firstFallbackTime);
-    expect(video.currentTime).toBeGreaterThan(secondFallbackTime);
+    videos.rightReverse.presentRequestedFrame();
+    await preparation;
+    expect(videos.leftForward.classList.contains('is-active')).toBe(false);
+    expect(videos.rightForward.classList.contains('is-active')).toBe(false);
+    expect(videos.leftReverse.classList.contains('is-active')).toBe(true);
+    expect(videos.rightReverse.classList.contains('is-active')).toBe(true);
+    expect(videos.leftReverse.playCalls).toBe(1);
+    expect(videos.rightReverse.playCalls).toBe(1);
+    expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toMatchObject({
+      activeDirection: 'reverse',
+      activeRunId: 'figure2-pair:1'
+    });
+    disposeFigure2Media(root as unknown as HTMLElement);
   });
 
-  it('seeks reverse Figure2 samples continuously through intermediate frames', () => {
-    const video = new FakeVideo();
-    const root = new FakeVideoRoot([video]);
+  it('derives native playback rates from each decoded asset and the 2.6 second leg', async () => {
+    const videos = directionalVideos();
+    const root = new FakeVideoRoot(Object.values(videos));
+    const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, {
+      runId: 'figure2-rate:1',
+      direction: 1,
+      timelineDurationMs: 2600
+    });
+    videos.leftForward.presentRequestedFrame();
+    videos.rightForward.presentRequestedFrame();
+    await preparation;
 
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.8, { videoMode: 'seek' });
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.5, { videoMode: 'seek' });
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.2, { videoMode: 'seek' });
+    expect(videos.leftForward.playbackRate).toBeGreaterThan(0.8);
+    expect(videos.leftForward.playbackRate).toBeLessThan(1);
+    expect(videos.rightForward.playbackRate).toBe(videos.leftForward.playbackRate);
+    disposeFigure2Media(root as unknown as HTMLElement);
+  });
 
-    expect(video.seekWrites).toHaveLength(3);
-    expect(video.seekWrites[0]).toBeGreaterThan(video.seekWrites[1] ?? 0);
-    expect(video.seekWrites[1]).toBeGreaterThan(video.seekWrites[2] ?? 0);
-    expect(video.seekWrites[2]).toBeGreaterThan(0);
+  it('plays reverse assets natively without a per-frame reverse seek storm', async () => {
+    const videos = directionalVideos();
+    const root = new FakeVideoRoot(Object.values(videos));
+    const mediaRun = {
+      runId: 'figure2-reverse-native:1',
+      direction: -1 as const
+    };
+    const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
+    videos.leftReverse.presentRequestedFrame();
+    videos.rightReverse.presentRequestedFrame();
+    await preparation;
+    const initialLeftSeeks = videos.leftReverse.seekWrites.length;
+    const initialRightSeeks = videos.rightReverse.seekWrites.length;
+    videos.leftReverse.setNaturalTime(1.1);
+    videos.rightReverse.setNaturalTime(1.1);
+
+    for (const progress of [0.7, 0.5, 0.3]) {
+      renderFigure2AnimationProgress(root as unknown as HTMLElement, progress, {
+        videoMode: 'native',
+        mediaRun
+      });
+    }
+
+    expect(initialLeftSeeks).toBeLessThanOrEqual(1);
+    expect(initialRightSeeks).toBeLessThanOrEqual(1);
+    expect(videos.leftReverse.seekWrites).toHaveLength(initialLeftSeeks);
+    expect(videos.rightReverse.seekWrites).toHaveLength(initialRightSeeks);
+    expect(videos.leftReverse.playCalls).toBe(1);
+    expect(videos.rightReverse.playCalls).toBe(1);
+    expect(videos.leftReverse.playbackRate).toBeGreaterThan(1.8);
+    expect(videos.leftReverse.playbackRate).toBeLessThan(2);
+    disposeFigure2Media(root as unknown as HTMLElement);
   });
 });

@@ -16,6 +16,17 @@ function segment(id: SpineSegmentNode['id']): SpineSegmentNode {
 }
 
 describe('production media readiness', () => {
+  it('requires only the Figure2 pair used by the active native direction', () => {
+    expect(requiredMediaKeys(segment('figure2-distance-expand'), 1)).toEqual([
+      'figure2-left-alpha',
+      'figure2-right-alpha'
+    ]);
+    expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual([
+      'figure2-left-alpha-reverse',
+      'figure2-right-alpha-reverse'
+    ]);
+  });
+
   it('requires only the TTG asset used by the active playback direction', () => {
     expect(requiredMediaKeys(segment('ttg-lab'), 1)).toEqual([
       'ttg_figure-alpha-scrub'
@@ -79,5 +90,29 @@ describe('production media readiness', () => {
     expect(reverseLoad).toHaveBeenCalledTimes(1);
     expect(forward.preload).toBe('metadata');
     expect(forwardLoad).not.toHaveBeenCalled();
+  });
+
+  it('leaves the parked Figure2 forward pair at metadata during reverse preparation', async () => {
+    const load = vi.fn();
+    const media = new Map<string, HTMLMediaElement>([
+      ['figure2-left-alpha', { readyState: 1, preload: 'metadata', load } as unknown as HTMLMediaElement],
+      ['figure2-right-alpha', { readyState: 1, preload: 'metadata', load } as unknown as HTMLMediaElement],
+      ['figure2-left-alpha-reverse', { readyState: 3, preload: 'metadata' } as HTMLMediaElement],
+      ['figure2-right-alpha-reverse', { readyState: 3, preload: 'metadata' } as HTMLMediaElement]
+    ]);
+
+    await expect(waitForRequiredMediaReady({
+      segment: segment('figure2-distance-expand'),
+      direction: -1,
+      prepareToken: 'media-ready:prepare:3',
+      registry: new HandleRegistry(),
+      getMediaElement: (key) => media.get(key) ?? null,
+      pollIntervalMs: 1,
+      timeoutMs: 8
+    })).resolves.toBeUndefined();
+
+    expect(media.get('figure2-left-alpha')?.preload).toBe('metadata');
+    expect(media.get('figure2-right-alpha')?.preload).toBe('metadata');
+    expect(load).not.toHaveBeenCalled();
   });
 });

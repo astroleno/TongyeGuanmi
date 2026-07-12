@@ -17,6 +17,9 @@ export type DepthThresholdTables = Readonly<{
 export type DepthThresholdMask = {
   readonly maskIds: Readonly<Record<DepthThresholdPolarity, string>>;
   readonly filterIds: Readonly<Record<DepthThresholdPolarity, string>>;
+  readonly ready: Promise<void>;
+  commit(): void;
+  committed(): boolean;
   render(progress: number, transform?: InkDepthTransform): DepthThresholdTables;
   dispose(): void;
 };
@@ -274,21 +277,118 @@ export function createDepthThresholdMask(options: {
 
   applyTransform(options.transform ?? defaultDepthTransform(host));
   svg.append(defs);
-  host.append(svg);
 
-  const attachedTargets = targets.map((target) => attachMask(
-    target,
-    `url("#${maskIds[target.polarity]}")`,
-    options.runId
-  ));
-
+  let attachedTargets: AttachedTarget[] = [];
   let disposed = false;
+  let isCommitted = false;
+  let resourceReady = false;
+  let resourceError: Error | undefined;
+  let lastProgress = 0;
+  let lastTables = thresholdTables(0, steps);
+  let resolveReady!: () => void;
+  let rejectReady!: (error: Error) => void;
+  let readinessSettled = false;
+  let readinessCompleting = false;
+  let probe: HTMLImageElement | undefined;
+  const ready = new Promise<void>((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
+  // The transition may not reach its depth leg before a resource failure. Keep
+  // the rejection observable to callers without creating an unhandled promise.
+  void ready.catch(() => undefined);
+
+  const settleReady = () => {
+    if (readinessSettled) {
+      return;
+    }
+    readinessSettled = true;
+    resourceReady = true;
+    resolveReady();
+  };
+  const settleError = (error: Error) => {
+    if (readinessSettled) {
+      return;
+    }
+    readinessSettled = true;
+    resourceError = error;
+    rejectReady(error);
+  };
+
+  if (typeof Image === 'undefined') {
+    settleReady();
+  } else {
+    probe = new Image();
+    probe.decoding = 'async';
+    const finishDecode = async () => {
+      if (readinessSettled || readinessCompleting) {
+        return;
+      }
+      readinessCompleting = true;
+      try {
+        await probe?.decode?.();
+        settleReady();
+      } catch (error) {
+        settleError(error instanceof Error
+          ? error
+          : new Error(`Depth image ${depthSrc} failed to decode`));
+      }
+    };
+    probe.onload = () => {
+      void finishDecode();
+    };
+    probe.onerror = () => {
+      settleError(new Error(`Depth image ${depthSrc} failed to load`));
+    };
+    probe.src = depthSrc;
+    if (probe.complete && probe.naturalWidth > 0) {
+      void finishDecode();
+    }
+  }
+
+  const applyTargetState = (progress: number, tables: DepthThresholdTables) => {
+    for (const target of attachedTargets) {
+      const table = tables[target.polarity];
+      const fullyVisible = (target.polarity === 'conceal' && progress === 0)
+        || (target.polarity === 'reveal' && progress === 1);
+      if (fullyVisible) restoreManagedMaskStyles(target);
+      else applyManagedMask(target);
+      target.element.setAttribute('data-r4-depth-mask-progress', progress.toFixed(4));
+      target.element.setAttribute('data-r4-depth-mask-values', [...new Set(table)].join(','));
+    }
+  };
+
   return {
     maskIds,
     filterIds,
+    ready,
+    commit() {
+      if (disposed || isCommitted) {
+        return;
+      }
+      if (resourceError) {
+        throw resourceError;
+      }
+      if (!resourceReady) {
+        throw new Error(`Depth image ${depthSrc} is not ready to commit`);
+      }
+      host.append(svg);
+      attachedTargets = targets.map((target) => attachMask(
+        target,
+        `url("#${maskIds[target.polarity]}")`,
+        options.runId
+      ));
+      isCommitted = true;
+      applyTargetState(lastProgress, lastTables);
+    },
+    committed() {
+      return isCommitted;
+    },
     render(progress, transform) {
       const clamped = clamp(progress);
       const tables = thresholdTables(clamped, steps);
+      lastProgress = clamped;
+      lastTables = tables;
       if (disposed) {
         return tables;
       }
@@ -301,14 +401,8 @@ export function createDepthThresholdMask(options: {
           fn.setAttribute('intercept', intercept);
         }
       }
-      for (const target of attachedTargets) {
-        const table = tables[target.polarity];
-        const fullyVisible = (target.polarity === 'conceal' && clamped === 0)
-          || (target.polarity === 'reveal' && clamped === 1);
-        if (fullyVisible) restoreManagedMaskStyles(target);
-        else applyManagedMask(target);
-        target.element.setAttribute('data-r4-depth-mask-progress', clamped.toFixed(4));
-        target.element.setAttribute('data-r4-depth-mask-values', [...new Set(table)].join(','));
+      if (isCommitted) {
+        applyTargetState(clamped, tables);
       }
       return tables;
     },
@@ -320,7 +414,18 @@ export function createDepthThresholdMask(options: {
       for (const target of attachedTargets) {
         restoreTarget(target);
       }
+      attachedTargets = [];
       svg.remove();
+      if (probe) {
+        probe.onload = null;
+        probe.onerror = null;
+        probe.src = '';
+        probe = undefined;
+      }
+      if (!readinessSettled) {
+        settleReady();
+      }
+      isCommitted = false;
     }
   };
 }

@@ -85,18 +85,23 @@ afterEach(() => {
 });
 
 describe('depth threshold mask', () => {
-  it('keeps every live target unmasked until the depth image is decoded', () => {
+  it('keeps every live target unmasked until the decoded resource is committed', async () => {
     class DeferredImage {
+      static latest: DeferredImage | undefined;
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
       src = '';
+
+      constructor() {
+        DeferredImage.latest = this;
+      }
     }
     vi.stubGlobal('Image', DeferredImage);
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const reveal = new FakeNode(document);
 
-    createDepthThresholdMask({
+    const mask = createDepthThresholdMask({
       host: host as unknown as HTMLElement,
       targets: [{ element: reveal as unknown as HTMLElement, polarity: 'reveal' }],
       depthSrc: '/delayed-depth.png',
@@ -105,6 +110,46 @@ describe('depth threshold mask', () => {
 
     expect(reveal.style.getPropertyValue('mask-image')).toBe('');
     expect(reveal.attributes.get('data-r4-depth-mask-run')).toBeUndefined();
+    expect(host.children).toHaveLength(0);
+
+    DeferredImage.latest?.onload?.();
+    await mask?.ready;
+    expect(reveal.style.getPropertyValue('mask-image')).toBe('');
+    expect(host.children).toHaveLength(0);
+
+    mask?.commit();
+    expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+    expect(reveal.attributes.get('data-r4-depth-mask-run')).toBe('depth-delayed:1');
+    expect(host.children).toHaveLength(1);
+  });
+
+  it('rejects a failed depth resource without attaching an empty mask', async () => {
+    class DeferredImage {
+      static latest: DeferredImage | undefined;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      src = '';
+
+      constructor() {
+        DeferredImage.latest = this;
+      }
+    }
+    vi.stubGlobal('Image', DeferredImage);
+    const document = new FakeDocument();
+    const host = new FakeNode(document);
+    const reveal = new FakeNode(document);
+    const mask = createDepthThresholdMask({
+      host: host as unknown as HTMLElement,
+      targets: [{ element: reveal as unknown as HTMLElement, polarity: 'reveal' }],
+      depthSrc: '/failed-depth.png',
+      runId: 'depth-failed:1'
+    });
+
+    DeferredImage.latest?.onerror?.();
+    await expect(mask?.ready).rejects.toThrow(/failed to load/i);
+    expect(() => mask?.commit()).toThrow(/failed to load/i);
+    expect(reveal.style.getPropertyValue('mask-image')).toBe('');
+    expect(host.children).toHaveLength(0);
   });
 
   it('produces complementary binary tables at every sampled direction point', () => {
@@ -117,7 +162,7 @@ describe('depth threshold mask', () => {
     }
   });
 
-  it('applies reveal and conceal masks to live targets without changing opacity', () => {
+  it('applies reveal and conceal masks to live targets without changing opacity', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const proof = new FakeNode(document);
@@ -134,6 +179,8 @@ describe('depth threshold mask', () => {
       depthSrc: '/depth.png',
       runId: 'epoch:7'
     });
+    await mask?.ready;
+    mask?.commit();
 
     const tables = mask?.render(0.37, depthTransform);
 
@@ -153,7 +200,7 @@ describe('depth threshold mask', () => {
     expect(host.children).toHaveLength(0);
   });
 
-  it('bypasses the dynamic mask at fully visible endpoints and restores it in between', () => {
+  it('bypasses the dynamic mask at fully visible endpoints and restores it in between', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const reveal = new FakeNode(document);
@@ -167,6 +214,8 @@ describe('depth threshold mask', () => {
       depthSrc: '/depth.png',
       runId: 'endpoint-contract:1'
     });
+    await mask?.ready;
+    mask?.commit();
 
     mask?.render(0, depthTransform);
     expect(conceal.style.getPropertyValue('mask-image')).toBe('');
@@ -191,13 +240,13 @@ describe('depth threshold mask', () => {
     expect(host.children).toHaveLength(0);
   });
 
-  it('creates two discrete alpha definitions independently of source alpha', () => {
+  it('creates two discrete alpha definitions independently of source alpha', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const reveal = new FakeNode(document);
     const conceal = new FakeNode(document);
 
-    createDepthThresholdMask({
+    const mask = createDepthThresholdMask({
       host: host as unknown as HTMLElement,
       targets: [
         { element: reveal as unknown as HTMLElement, polarity: 'reveal' },
@@ -206,6 +255,8 @@ describe('depth threshold mask', () => {
       depthSrc: '/depth-with-alpha.png',
       runId: 'alpha-contract:1'
     });
+    await mask?.ready;
+    mask?.commit();
 
     const nodes = descendants(host);
     const alphaFunctions = nodes.filter((node) => node.nodeName === 'feFuncA');
@@ -220,7 +271,7 @@ describe('depth threshold mask', () => {
     expect(masks.every((node) => node.attributes.get('mask-type') === 'alpha')).toBe(true);
   });
 
-  it('uses Stage coordinates and updates only constant-size threshold intercepts', () => {
+  it('uses Stage coordinates and updates only constant-size threshold intercepts', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const reveal = new FakeNode(document);
@@ -230,6 +281,8 @@ describe('depth threshold mask', () => {
       depthSrc: '/depth.png',
       runId: 'camera-contract:1'
     });
+    await mask?.ready;
+    mask?.commit();
 
     mask?.render(0.37, depthTransform);
     const nodes = descendants(host);

@@ -1,5 +1,8 @@
 import {
+  FIGURE2_INTRO_PLAYBACK_MS,
   figure2DepthTransformForProgress,
+  parkFigure2Media,
+  prepareFigure2MediaLeg,
   renderFigure2AnimationProgress,
   renderFigure2Hold
 } from '../../scenes/figure2-animation';
@@ -9,6 +12,7 @@ import type {
   Direction,
   LayerVisibilityState,
   SegmentTimelineHandle,
+  StagedLegPreparation,
   TransitionContext,
   TransitionModule
 } from '../../story/types';
@@ -98,7 +102,8 @@ export function figure2VideoModeForProofTransition(
   if (transitionProgress > 0.001) {
     return 'none';
   }
-  return direction === 1 ? 'native' : 'seek';
+  void direction;
+  return 'native';
 }
 
 class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
@@ -167,6 +172,32 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
 
   reverse(): Promise<void> {
     return this.animateTo(0);
+  }
+
+  async prepareLeg(leg: StagedLegPreparation): Promise<void> {
+    if (this.disposed) {
+      throw new Error('Figure2 timeline was disposed during leg preparation');
+    }
+    const lower = Math.min(leg.from, leg.to);
+    const upper = Math.max(leg.from, leg.to);
+    const epsilon = 0.001;
+    const isIntroLeg = upper <= FIGURE2_INTRO_END + epsilon;
+    const isDepthLeg = lower >= FIGURE2_INTRO_END - epsilon;
+
+    if (isDepthLeg) {
+      await this.armDepthMask();
+    }
+    if (isIntroLeg && !this.context.prefersReducedMotion) {
+      await prepareFigure2MediaLeg(
+        sceneRoot(this.context.from.element, 'figure2-animation'),
+        {
+          runId: leg.runId,
+          direction: leg.direction,
+          timelineDurationMs: leg.durationMs || FIGURE2_INTRO_PLAYBACK_MS,
+          reducedMotion: this.context.prefersReducedMotion
+        }
+      );
+    }
   }
 
   progress(value: number): void {
@@ -239,16 +270,6 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     toRoot?.setAttribute('data-figure2-proof-reveal-progress', reveal.toFixed(4));
     toRoot?.setAttribute('data-figure2-proof-mask-values', valueDomain);
 
-    if (!this.reportedTimelineReady && clamped >= 0.5) {
-      this.reportedTimelineReady = true;
-      this.context.reportMilestone({
-        key: 'timelineReady',
-        segment: this.context.segment.id,
-        runId: this.context.runId,
-        direction: this.context.direction,
-        progress: clamped
-      });
-    }
   }
 
   jumpToEnd(direction: Direction): void {
@@ -286,12 +307,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       figure2IntroProgress(this.progressValue),
       {
         proofProgress: 0,
-        videoMode: 'seek',
-        mediaRun: {
-          runId: this.context.runId,
-          direction: this.playbackDirection,
-          reducedMotion: this.context.prefersReducedMotion
-        }
+        videoMode: 'none'
       }
     );
     if (this.progressValue > 0.001 && this.progressValue < 0.999) {
@@ -299,6 +315,9 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       applyLayerVisibility(this.context.to, hiddenVisibility());
     }
     this.depthMask?.dispose();
+    if (this.progressValue >= 0.999) {
+      parkFigure2Media(sceneRoot(this.context.from.element, 'figure2-animation'));
+    }
     this.elevation.restore();
     clearTransitionAttrs(this.context.to.element);
     clearTransitionAttrs(sceneRoot(this.context.to.element, 'figure2-proof-opening'));
@@ -318,6 +337,26 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       progress,
       transform.viewport
     );
+  }
+
+  private async armDepthMask(): Promise<void> {
+    if (this.depthMask && !this.depthMask.committed()) {
+      await this.depthMask.ready;
+      if (this.disposed) {
+        throw new Error('Figure2 depth mask became stale before commit');
+      }
+      this.depthMask.commit();
+    }
+    if (!this.reportedTimelineReady) {
+      this.reportedTimelineReady = true;
+      this.context.reportMilestone({
+        key: 'timelineReady',
+        segment: this.context.segment.id,
+        runId: this.context.runId,
+        direction: this.context.direction,
+        progress: this.progressValue
+      });
+    }
   }
 
   private animateTo(target: number): Promise<void> {

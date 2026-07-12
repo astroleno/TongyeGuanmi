@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { figure2AnimationScene } from '../scenes/figure2-animation';
+import {
+  disposeFigure2Media,
+  figure2AnimationScene,
+  figure2DirectionalMediaSnapshot
+} from '../scenes/figure2-animation';
 import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import {
@@ -52,6 +56,14 @@ class FakeStyle {
   }
 }
 
+class FakeClassList {
+  private readonly values = new Set<string>();
+
+  add(value: string): void { this.values.add(value); }
+  remove(value: string): void { this.values.delete(value); }
+  contains(value: string): boolean { return this.values.has(value); }
+}
+
 class FakeElement {
   readonly children: FakeElement[] = [];
   readonly dataset: Record<string, string> = {};
@@ -60,6 +72,7 @@ class FakeElement {
   parentElement: FakeElement | null = null;
   inert = false;
   className = '';
+  readonly classList = new FakeClassList();
   private readonly selectors = new Map<string, FakeElement>();
   private readonly selectorLists = new Map<string, FakeElement[]>();
 
@@ -131,15 +144,23 @@ class FakeElement {
   }
 }
 
+type VideoListener = () => void;
+
 class FakeVideo extends FakeElement {
   duration = 5;
+  preload = 'metadata';
   paused = true;
+  seeking = false;
   loop = false;
   muted = false;
   playsInline = false;
   playbackRate = 1;
+  playCalls = 0;
+  loadCalls = 0;
   readonly currentTimeWrites: number[] = [];
   private time = 0;
+  private frameCallback: (() => void) | undefined;
+  private readonly listeners = new Map<string, Set<VideoListener>>();
 
   get currentTime(): number {
     return this.time;
@@ -148,19 +169,50 @@ class FakeVideo extends FakeElement {
   set currentTime(value: number) {
     this.time = value;
     this.currentTimeWrites.push(value);
+    this.seeking = true;
   }
 
-  addEventListener(): void {}
+  addEventListener(type: string, listener: VideoListener): void {
+    const listeners = this.listeners.get(type) ?? new Set<VideoListener>();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
 
-  removeEventListener(): void {}
+  removeEventListener(type: string, listener: VideoListener): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  requestVideoFrameCallback(callback: () => void): number {
+    this.frameCallback = callback;
+    return 1;
+  }
+
+  cancelVideoFrameCallback(): void {
+    this.frameCallback = undefined;
+  }
+
+  load(): void {
+    this.loadCalls += 1;
+  }
 
   pause(): void {
     this.paused = true;
   }
 
   play(): Promise<void> {
+    this.playCalls += 1;
     this.paused = false;
     return Promise.resolve();
+  }
+
+  presentRequestedFrame(): void {
+    this.seeking = false;
+    for (const listener of this.listeners.get('seeked') ?? []) {
+      listener();
+    }
+    const callback = this.frameCallback;
+    this.frameCallback = undefined;
+    callback?.();
   }
 }
 
@@ -294,7 +346,7 @@ const cases = [
 }[];
 
 describe('figure2 proof chain transitions', () => {
-  it('declares two keyed Figure2 video handles and a mediaReady preload milestone', async () => {
+  it('declares direction-specific Figure2 handles and the qualified native reverse pair', async () => {
     const markup = renderToStaticMarkup(createElement(figure2AnimationScene.Component, {
       scene: 'figure2-animation',
       hidden: false
@@ -315,6 +367,10 @@ describe('figure2 proof chain transitions', () => {
     expect(markup).toContain('data-media-key="figure2-right-alpha"');
     expect(markup).toContain('data-media-key="figure2-left-alpha-reverse"');
     expect(markup).toContain('data-media-key="figure2-right-alpha-reverse"');
+    expect(markup).toContain('figure2a-alpha.webm');
+    expect(markup).toContain('figure2b-alpha.webm');
+    expect(markup).not.toContain('figure2a-alpha-reverse-lite.webm');
+    expect(markup).not.toContain('figure2b-alpha-reverse-lite.webm');
   });
 
   it('keeps the Figure2 transition media and milestone contracts equal to the manifest', () => {
@@ -498,15 +554,38 @@ describe('figure2 proof chain transitions', () => {
     toElement.style.setProperty('opacity', '1');
     stage.append(proofGround, retainedArch, fromElement, toElement);
     vi.stubGlobal('document', document);
-    const timeline = await createFigure2DistanceExpandTransition().buildTimeline(
-      context('figure2-distance-expand', 'figure2-animation', 'figure2-proof-opening', false, {
+    const transitionContext = context(
+      'figure2-distance-expand',
+      'figure2-animation',
+      'figure2-proof-opening',
+      false,
+      {
         from: fromElement as unknown as HTMLElement,
         to: toElement as unknown as HTMLElement
-      })
+      }
     );
+    const reportMilestone = vi.fn();
+    transitionContext.reportMilestone = reportMilestone;
+    const timeline = await createFigure2DistanceExpandTransition().buildTimeline(transitionContext);
 
     timeline.progress(FIGURE2_INTRO_END);
     expect(depthField.style.getPropertyValue('mask-image')).toBe('');
+    expect(reportMilestone).not.toHaveBeenCalled();
+
+    await timeline.prepareLeg?.({
+      runId: transitionContext.runId,
+      segment: 'figure2-distance-expand',
+      direction: 1,
+      legIndex: 1,
+      from: FIGURE2_INTRO_END,
+      to: 1,
+      durationMs: 1000,
+      resumedStageIndex: 0
+    });
+    expect(reportMilestone).toHaveBeenCalledWith(expect.objectContaining({
+      key: 'timelineReady',
+      progress: FIGURE2_INTRO_END
+    }));
 
     timeline.progress(0.86);
 
@@ -664,47 +743,100 @@ describe('figure2 proof chain transitions', () => {
     expect(FIGURE2_INTRO_PLAYBACK_MS).toBe(2600);
   });
 
-  it('drives multiple descending Figure2 frames on the reverse stage leg', async () => {
+  it('arms and plays the native reverse pair at the reverse stage pause', async () => {
     const document = new FakeDocument();
     const stage = new FakeElement();
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
     const fromRoot = new FakeElement();
-    const video = new FakeVideo();
+    const leftForward = new FakeVideo();
+    const rightForward = new FakeVideo();
+    const leftReverse = new FakeVideo();
+    const rightReverse = new FakeVideo();
+    leftForward.dataset.figure2Side = 'left';
+    leftForward.dataset.figure2Direction = 'forward';
+    rightForward.dataset.figure2Side = 'right';
+    rightForward.dataset.figure2Direction = 'forward';
+    leftReverse.dataset.figure2Side = 'left';
+    leftReverse.dataset.figure2Direction = 'reverse';
+    rightReverse.dataset.figure2Side = 'right';
+    rightReverse.dataset.figure2Direction = 'reverse';
+    leftForward.classList.add('is-active');
+    rightForward.classList.add('is-active');
     stage.ownerDocument = document;
     fromElement.ownerDocument = document;
     toElement.ownerDocument = document;
     fromRoot.ownerDocument = document;
-    video.ownerDocument = document;
+    for (const video of [leftForward, rightForward, leftReverse, rightReverse]) {
+      video.ownerDocument = document;
+    }
     stage.append(fromElement, toElement);
     fromElement.connect(
       '[data-r4-scene="figure2-animation"], [data-r3-scene="figure2-animation"]',
       fromRoot
     );
-    fromRoot.connectAll('[data-figure2-video]', [video]);
+    fromRoot.connectAll('[data-figure2-video]', [
+      leftForward,
+      rightForward,
+      leftReverse,
+      rightReverse
+    ]);
     vi.stubGlobal('document', document);
-    const timeline = await createFigure2DistanceExpandTransition().buildTimeline(
-      context(
-        'figure2-distance-expand',
-        'figure2-animation',
-        'figure2-proof-opening',
-        false,
-        {
-          from: fromElement as unknown as HTMLElement,
-          to: toElement as unknown as HTMLElement
-        },
-        -1
-      )
+    const reverseContext = context(
+      'figure2-distance-expand',
+      'figure2-animation',
+      'figure2-proof-opening',
+      false,
+      {
+        from: fromElement as unknown as HTMLElement,
+        to: toElement as unknown as HTMLElement
+      },
+      -1
     );
+    const timeline = await createFigure2DistanceExpandTransition().buildTimeline(reverseContext);
+    const preparation = timeline.prepareLeg?.({
+      runId: reverseContext.runId,
+      segment: 'figure2-distance-expand',
+      direction: -1,
+      legIndex: 0,
+      from: FIGURE2_INTRO_END,
+      to: 0,
+      durationMs: FIGURE2_INTRO_PLAYBACK_MS,
+      resumedStageIndex: 0
+    });
+
+    expect(leftForward.classList.contains('is-active')).toBe(true);
+    expect(rightForward.classList.contains('is-active')).toBe(true);
+    leftReverse.presentRequestedFrame();
+    await Promise.resolve();
+    expect(leftForward.classList.contains('is-active')).toBe(true);
+    expect(rightForward.classList.contains('is-active')).toBe(true);
+
+    rightReverse.presentRequestedFrame();
+    await preparation;
+    expect(leftForward.classList.contains('is-active')).toBe(false);
+    expect(rightForward.classList.contains('is-active')).toBe(false);
+    expect(leftReverse.classList.contains('is-active')).toBe(true);
+    expect(rightReverse.classList.contains('is-active')).toBe(true);
+    const leftSeekCount = leftReverse.currentTimeWrites.length;
+    const rightSeekCount = rightReverse.currentTimeWrites.length;
 
     timeline.progress(0.7);
     timeline.progress(0.5);
     timeline.progress(0.3);
 
-    expect(video.currentTimeWrites).toHaveLength(3);
-    expect(video.currentTimeWrites[0]).toBeGreaterThan(video.currentTimeWrites[1] ?? 0);
-    expect(video.currentTimeWrites[1]).toBeGreaterThan(video.currentTimeWrites[2] ?? 0);
-    expect(video.dataset.timelineVideoDirection).toBe('-1');
+    expect(leftReverse.currentTimeWrites).toHaveLength(leftSeekCount);
+    expect(rightReverse.currentTimeWrites).toHaveLength(rightSeekCount);
+    expect(leftReverse.playCalls).toBe(1);
+    expect(rightReverse.playCalls).toBe(1);
+    expect(leftReverse.dataset.timelineVideoDirection).toBe('-1');
+    expect(rightReverse.dataset.timelineVideoDirection).toBe('-1');
+    expect(figure2DirectionalMediaSnapshot(fromRoot as unknown as HTMLElement)).toMatchObject({
+      activeDirection: 'reverse',
+      activeRunId: reverseContext.runId
+    });
+    timeline.dispose();
+    disposeFigure2Media(fromRoot as unknown as HTMLElement);
   });
 
   for (const item of cases) {

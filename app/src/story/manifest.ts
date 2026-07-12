@@ -302,11 +302,19 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'figure2-pair',
-          ['figure2-left-alpha', 'figure2-right-alpha'],
+          [
+            'figure2-left-alpha',
+            'figure2-right-alpha',
+            'figure2-left-alpha-reverse',
+            'figure2-right-alpha-reverse'
+          ],
           'figure2-proof-opening',
           {
-            reverseMode: 'timeline',
+            forwardMode: 'play',
+            reverseMode: 'play',
             reverseRequired: true,
+            forwardMedia: ['figure2-left-alpha', 'figure2-right-alpha'],
+            reverseMedia: ['figure2-left-alpha-reverse', 'figure2-right-alpha-reverse'],
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
           }
         )

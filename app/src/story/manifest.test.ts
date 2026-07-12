@@ -105,9 +105,22 @@ describe('story manifest contract', () => {
       mediaPlayback: [
         {
           id: 'figure2-pair',
-          media: ['figure2-left-alpha', 'figure2-right-alpha'],
-          forward: { mode: 'play', required: true },
-          reverse: { mode: 'timeline', required: true },
+          media: [
+            'figure2-left-alpha',
+            'figure2-right-alpha',
+            'figure2-left-alpha-reverse',
+            'figure2-right-alpha-reverse'
+          ],
+          forward: {
+            mode: 'play',
+            required: true,
+            media: ['figure2-left-alpha', 'figure2-right-alpha']
+          },
+          reverse: {
+            mode: 'play',
+            required: true,
+            media: ['figure2-left-alpha-reverse', 'figure2-right-alpha-reverse']
+          },
           readyMilestones: ['targetReady', 'mediaReady'],
           terminalFallbackScene: 'figure2-proof-opening',
           preparingTimeoutMs: 4000
