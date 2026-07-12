@@ -100,6 +100,10 @@ const stylesheetHrefs = (html.match(/<link\b[^>]*>/gi) ?? [])
   .map((tag) => attribute(tag, 'href'))
   .filter(Boolean);
 assert(stylesheetHrefs.length > 0, 'release build emitted no initial stylesheet');
+const initialScriptSrcs = (html.match(/<script\b[^>]*\bsrc=["'][^"']+["'][^>]*>/gi) ?? [])
+  .map((tag) => attribute(tag, 'src'))
+  .filter(Boolean);
+assert(initialScriptSrcs.length === 1, 'release build must emit exactly one initial JavaScript entry');
 
 const [faviconBytes, faviconSourceBytes, titleFontBytes, titleFontSourceBytes, ...stylesheets] = await Promise.all([
   readFile(distPathFromHref(faviconHref, 'release favicon')),
@@ -115,6 +119,14 @@ for (const token of ['@font-face', '--font-title:', '--font-sans:', '--font-trad
   assert(initialCss.includes(token), `initial stylesheet is missing ${token}`);
 }
 assert(!/font-family:\s*Inter\b/.test(initialCss), 'initial stylesheet restored Inter-first drift');
+assert(
+  /--r3-star-copy-opacity:\s*1(?:[;}])/.test(initialCss),
+  'Star Map production copy opacity must remain fully opaque'
+);
+assert(
+  /\.r3-star-map \.large-copy--standalone\{[^}]*color:(?:#f7edd7|rgb\(247(?:\s*,\s*|\s+)237(?:\s*,\s*|\s+)215\))/i.test(initialCss),
+  'Star Map production copy must retain the canonical opaque text color'
+);
 
 assert(html.includes('<title>同野观幂｜AI 转型与能力建设</title>'), 'release title is missing');
 assert(
@@ -123,6 +135,14 @@ assert(
 );
 assert(html.includes('<link rel="canonical" href="/">'), 'release canonical link is missing');
 assert(html.includes('<html lang="zh-CN">'), 'release language is missing');
+assert(
+  html.includes('data-loader-ink-fallback="true"'),
+  'release HTML is missing the loader Ink CSS fallback contract'
+);
+assert(
+  /<noscript>[\s\S]*?#story-loader-static[\s\S]*?<\/noscript>/i.test(html),
+  'release HTML is missing the no-JavaScript loader escape'
+);
 assert((html.match(/data-site-footer="true"/g) ?? []).length === 1, 'release static footer must render exactly once');
 for (const footerText of [
   '© 上海同野观幂科技有限公司',
@@ -161,7 +181,25 @@ for (const forbidden of [
 const distFiles = await filesBelow(distDir);
 const jsFiles = distFiles.filter((file) => file.endsWith('.js'));
 assert(jsFiles.length > 0, 'release build emitted no JavaScript');
-const jsText = (await Promise.all(jsFiles.map((file) => readFile(file, 'utf8')))).join('\n');
+const loaderInkChunks = jsFiles.filter((file) => /^loader-ink-reveal-[^.]+\.js$/.test(path.basename(file)));
+assert(loaderInkChunks.length === 1, 'release build must emit exactly one loader Ink lazy chunk');
+const initialScriptPath = distPathFromHref(initialScriptSrcs[0], 'release initial script');
+assert(
+  initialScriptPath !== loaderInkChunks[0],
+  'loader Ink renderer must not be the initial JavaScript entry'
+);
+const [initialJsText, loaderInkJsText, ...otherJsTexts] = await Promise.all([
+  readFile(initialScriptPath, 'utf8'),
+  readFile(loaderInkChunks[0], 'utf8'),
+  ...jsFiles
+    .filter((file) => file !== initialScriptPath && file !== loaderInkChunks[0])
+    .map((file) => readFile(file, 'utf8'))
+]);
+for (const marker of ['uTextMask', 'poreInk', 'blobDrop']) {
+  assert(loaderInkJsText.includes(marker), `loader Ink lazy chunk is missing ${marker}`);
+  assert(!initialJsText.includes(marker), `initial JavaScript eagerly contains loader Ink marker ${marker}`);
+}
+const jsText = [initialJsText, loaderInkJsText, ...otherJsTexts].join('\n');
 for (const forbidden of ['Group1Harness', '/harness/r4-g1', 'React R0 Scaffold']) {
   assert(!jsText.includes(forbidden), `production JavaScript contains harness/scaffold marker: ${forbidden}`);
 }
@@ -170,6 +208,10 @@ process.stdout.write(`${JSON.stringify({
   index: path.relative(repoDir, indexPath),
   checkedCopyItems,
   jsFiles: jsFiles.length,
+  loaderInkChunk: {
+    path: path.relative(repoDir, loaderInkChunks[0]),
+    bytes: Buffer.byteLength(loaderInkJsText)
+  },
   staticSections: copy.sections.filter((section) => !section.legacyOnly).length,
   assets: {
     favicon: {

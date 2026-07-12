@@ -9,9 +9,10 @@ const budgets = {
   initialJsRawBytes: 360 * KiB,
   initialJsGzipBytes: 112 * KiB,
   initialCssRawBytes: 75 * KiB,
-  totalJsRawBytes: 520 * KiB,
+  totalJsRawBytes: 568 * KiB,
   largestLazyJsRawBytes: 64 * KiB,
-  totalAssetBytes: 145 * MiB,
+  loaderInkLazyJsRawBytes: 16 * KiB,
+  totalAssetBytes: 156 * MiB,
   largestAssetBytes: 16 * MiB
 };
 
@@ -53,9 +54,18 @@ const initialCss = await readFile(resolveDistAsset(styleMatch[1]));
 const files = await filesBelow(path.join(distDir, 'assets'));
 const jsFiles = files.filter((file) => file.path.endsWith('.js'));
 const lazyJsFiles = jsFiles.filter((file) => file.path !== resolveDistAsset(scriptMatch[1]));
+const loaderInkLazyJsFiles = lazyJsFiles.filter((file) => (
+  /^loader-ink-reveal-[^.]+\.js$/.test(path.basename(file.path))
+));
+if (loaderInkLazyJsFiles.length !== 1) {
+  throw new Error(
+    `Expected exactly one lazy loader Ink chunk, found ${loaderInkLazyJsFiles.length}`
+  );
+}
 const totalJsRawBytes = jsFiles.reduce((sum, file) => sum + file.bytes, 0);
 const totalAssetBytes = files.reduce((sum, file) => sum + file.bytes, 0);
 const largestLazyJsRawBytes = Math.max(0, ...lazyJsFiles.map((file) => file.bytes));
+const loaderInkLazyJsRawBytes = loaderInkLazyJsFiles[0].bytes;
 const largestAssetBytes = Math.max(0, ...files.map((file) => file.bytes));
 
 const actual = {
@@ -64,6 +74,7 @@ const actual = {
   initialCssRawBytes: initialCss.byteLength,
   totalJsRawBytes,
   largestLazyJsRawBytes,
+  loaderInkLazyJsRawBytes,
   totalAssetBytes,
   largestAssetBytes
 };
@@ -73,9 +84,12 @@ for (const [name, budget] of Object.entries(budgets)) {
 }
 
 const report = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   budgets,
   actual,
+  chunks: {
+    loaderInk: path.relative(distDir, loaderInkLazyJsFiles[0].path).split(path.sep).join('/')
+  },
   pass: true
 };
 await writeFile(

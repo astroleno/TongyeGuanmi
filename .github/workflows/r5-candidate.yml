@@ -9,6 +9,7 @@ on:
     tags:
       - 'react-refactor-r5-candidate-v3'
       - 'react-refactor-r5-parity-repair-candidate'
+      - 'react-refactor-r5-parity-repair-candidate-v2'
 
 jobs:
   candidate:
@@ -42,14 +43,14 @@ jobs:
         run: pnpm -C app exec playwright test
 
       - name: Rebuild identity-bound deployable artifact
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate'
+        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2'
         env:
           R5_CANDIDATE_TAG: ${{ github.ref_name }}
           R5_SOURCE_COMMIT: ${{ github.sha }}
         run: pnpm run deploy:build
 
       - uses: actions/upload-artifact@v4
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate'
+        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2'
         with:
           name: r5-candidate-${{ github.ref_name }}-${{ github.sha }}
           path: dist/

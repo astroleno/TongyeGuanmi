@@ -1,79 +1,62 @@
 # R5 Production Parity Repair Candidate
 
-Status: **HITL rejected / requalification open at reviewed head `2501704`.** The immutable tag remains historical evidence for its tagged source, but neither that tag nor the later branch-only Generic Ink/media build is an acceptable current R5 candidate. No tag has been moved or created for the reviewed runtime.
+Status: **candidate-v2 requalification in progress.** The nine HITL regressions reported against `2501704d63dbd7c150861d21a31c2d39525c23e5` have implementation-level closure, but no new candidate is accepted until the complete gate is regenerated from one clean exact source.
 
-The current closure work must replace the provisional record below with evidence generated from one exact corrected source. Historical green automation does not override the reported navigation locks, missing loader Ink, reverse-media failures, stale receiver entry, flashes, or degraded horizontal Ink edge.
-
-## Identity
+## Candidate Identity Boundary
 
 | Item | Value |
 |---|---|
 | branch | `codex/react-refactor-r5-parity-cutover` |
 | repair base | `59065730712c6d9718928fd25cba23e33455395e` |
-| immutable corrected tag | `react-refactor-r5-parity-repair-candidate` (does not contain R21/R22) |
-| post-candidate review implementation | `14743aa5ef9e0399441863afcfd73599782721a3` |
-| review rollback build | plain build only; 98 files / 139,528,455B; manifest SHA-256 `2b91f5e3cd34883125a613a2a005ff3f3a4de4db8ef7c8a317f03297ce21742a` |
-| deployable directory | exact-tag `dist/` from identity-bound `pnpm run deploy:build` |
-| release manifest | exact-tag `dist/r5-release-manifest.json` |
-| immutable candidate source commit | `18490690992bffef6c9705cd47438b9cd17e756a` |
-| annotated tag object | `7f96b243d42efd3e7409ca8628109b0901900a9b` |
-| external manifest SHA-256 | `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
-| exact-tag artifact | 97 files / 139,518,637B; schema 2; `sourceDirty: false` |
+| rejected HITL head | `2501704d63dbd7c150861d21a31c2d39525c23e5` |
+| reserved new candidate | `react-refactor-r5-parity-repair-candidate-v2` |
+| source commit | resolved by `git rev-parse react-refactor-r5-parity-repair-candidate-v2^{commit}` after freeze |
+| annotated tag object | resolved by `git rev-parse refs/tags/react-refactor-r5-parity-repair-candidate-v2` after freeze |
+| deployable directory | identity-bound `dist/` from the clean exact tag only |
+| release manifest | `dist/r5-release-manifest.json`, schema 2, `sourceDirty: false` |
 
-The manifest digest is recorded outside the tagged source commit because the manifest contains the source commit identity. Embedding that digest into the same commit would be self-referential.
+The manifest digest is recorded outside the tagged source because the manifest contains the source commit identity. Embedding that digest in the same commit would be self-referential.
 
-## Superseded Immutable Candidates
+## Immutable Historical Candidates
 
-| Tag | Peeled commit | Repair status |
+| Tag | Peeled commit | Status |
 |---|---|---|
-| `react-refactor-r5-candidate` | `0de4972de64455a14d8c36262e58cc6af5c4875b` | Does not contain this parity repair. |
-| `react-refactor-r5-candidate-v2` | `a5bef3785b766dac0e5ecfc95e96d03cd5c51c90` | Does not contain this parity repair. |
-| `react-refactor-r5-candidate-v3` | `59065730712c6d9718928fd25cba23e33455395e` | Repair base only; does not contain the repaired runtime/shell contracts. |
+| `react-refactor-r5-candidate` | `0de4972de64455a14d8c36262e58cc6af5c4875b` | superseded; no parity repair |
+| `react-refactor-r5-candidate-v2` | `a5bef3785b766dac0e5ecfc95e96d03cd5c51c90` | superseded; no parity repair |
+| `react-refactor-r5-candidate-v3` | `59065730712c6d9718928fd25cba23e33455395e` | repair base only |
+| `react-refactor-r5-parity-repair-candidate` | `18490690992bffef6c9705cd47438b9cd17e756a` | superseded by the rejected HITL findings; predates this closure |
 
-None of these tags may be moved, repointed, or published as the corrected artifact.
+None may be moved, repointed, or published as candidate-v2.
 
-## Delivered Repair
+## Closure Delivered
 
-- Run-scoped Pattern/Star Map motion ownership with existing 24fps/12fps caps.
-- Fresh generation-bound ink contexts; AOD alpha compositing; production edge-only grade with harness-only dark comparison.
-- One explicit-direction video driver for Figure2, Crane, PH, and TTG, including coalesced seeks, decoded-frame surface swaps, stale-play rejection guards, unmount disposal, and a poster-backed TTG hold that keeps both directions metadata-only until playback preparation.
-- Content-first reading, one 10svh commitment band, residual carry-through, and one-token top/bottom entry positioning.
-- Segment-local recovery that cannot route Contact reverse through Hero.
-- Cold/direct/reduced loader behavior, 2.7s Hero intro, scoped pointer parallax, and committed-hold progressive navigation.
-- Shared interactive/static footer metadata, filing link, canonical favicon, canonical title font, and shared font tokens.
-- Per-invocation random 32-sample horizontal contours shared by live DOM ownership and a one-row WebGL texture; forward/reverse runs are independently correct without shape replay, SVG, snapshots, or scene compositing.
-- TTG → Lab and PH → Education now use separately revertible 600ms staged-media dissolves with no chapter-internal Ink.
-- No canonical-spine, scene-id, hash, copy, default-entry, or architecture split.
+- One cadence-independent physical gesture owner for reading edges and ordinary holds; 10svh emits exactly one Director intent and all lifecycle reset causes are explicit.
+- Presented-frame leg preparation shared by AOD, Figure2, TTG, and staged media; Figure2 uses native direction-specific surfaces and depth ownership waits for mask readiness.
+- TTG/PH same-run reversal and receiver-entry ownership are fixed without restoring chapter-internal Ink.
+- One lazy app-owned loader Ink controller owns font readiness, text masks, FBM/wet edge/droplets, context loss, fallback, and complete disposal; Hero intro starts once.
+- Star Map production copy is opaque while Perlin remains independently motion-leased.
+- Horizontal Generic Ink uses one per-run 128-sample contour for complementary DOM ownership and a 1×128 texture, with an aligned opaque core, one upload per revision, zero production cover alpha, and typed renderer failure.
+- The canonical 18 holds / 17 segments, ids, hashes, copy, Director/SegmentPlayer/Stage/LayerWindow architecture, lazy production/harness boundary, and no-JS shell are unchanged.
 
-Detailed reproduction/root-cause/file ownership for R1–R22 is in `../contract-diff/R5-production-parity-repair.md`.
+Detailed reproduction, root causes, ownership, and corrected contracts are in `../contract-diff/R5-production-parity-repair.md`.
 
-## Rejected Post-Candidate Review-Build Record
+## Qualification Gate
 
-| Gate | Recorded result |
-|---|---|
-| root `pnpm run verify:all` | pass for review runtime: lint, typecheck, 78 files / 504 tests, static-shell/release verification, build, and bundle budgets |
-| affected browser contracts | pass: staged TTG/PH handoffs 9/9; Ink ownership 3/3 |
-| default browser matrix | pass: 43/43 |
-| four-project release matrix | all 52 applicable gates have passing review-build evidence; 40 declared project skips. One host-jittered desktop performance sample was repeated alone and passed at p95 17.4ms / 0.24% long frames |
-| process memory | pass: RSS 1,333,116,928B; GPU 313,360,384B; renderer 724,254,720B; heap 42,139,577B → 13,983,694B; max 3 layers / 1 WebGL |
-| same-port rollback | pass: review `14743aa` → legacy `a78b064` → identical review, including root/footer/no-JS, manifest presence/absence, HTTP 206 media, and key forward/reverse smoke |
-| visual acceptance | **rejected at HITL; deterministic regression closure and a new immutable candidate are required** |
+The following evidence must come from the final source; historical pass counts are not carried forward:
 
-## Immutable Candidate Historical Gate Record
-
-| Gate | Required result | Recorded result |
+| Gate | Required result | Current record |
 |---|---|---|
-| root `pnpm run verify:all` | tests, lint, typecheck, build, release verifier, SEO and budgets pass | pass: 76 files / 493 tests; lint, typecheck, build, copy/assets, and bundle budgets pass |
-| production functional suite | all state/input/media/lifecycle cases pass | pass in release matrix on every applicable project |
-| historical harness | all historical cases pass | pass: 43 / 43 |
-| four-project release matrix | desktop/mobile Chromium/WebKit pass with only declared applicability skips | pass: 52 applicable / 40 declared skips |
-| repeated ink/media stress | Star Map ↔ AOD ≥10 alternating runs; PH/TTG ≥20 direction/interruption runs | pass in deterministic unit and browser cases |
-| performance/process memory | frozen LCP/frame/bundle/GPU/RSS/heap/disposal budgets pass | pass: 3 frame/LCP samples; RSS 1,461,190,656B, GPU 344,408,064B, renderer 785,072,128B, heap 41,857,578B → 17,873,726B |
-| exact-tag build and smokes | identity-bound clean build; root/no-JS/direct hash/key forward/reverse smokes pass | pass: identity-bound deploy build; 9/9 exact-tag smokes; restored TTG bidirectional smoke 1/1 |
-| same-port rollback | corrected candidate → legacy → corrected candidate passes | pass on port 4173; candidate manifest/range → legacy hash/range/no-manifest → identical candidate manifest/range |
+| root `pnpm run verify:all` | full tests, lint, typecheck, build, release/static checks, and budgets pass | pending final exact-source run |
+| default browser matrix | all historical/harness contracts pass | pending final run |
+| four-project release matrix | every applicable desktop/mobile Chromium/WebKit case passes; skips are declared only by project applicability | pending final run |
+| focused HITL closure | ordinary input, AOD/Figure2/TTG/PH direction changes, loader Ink, receiver uniqueness, and horizontal readback pass | pending final run |
+| frame pacing | focused first-decode and steady-playback samples stay inside the frozen budgets | pending final run |
+| process memory/disposal | all 18 holds forward/reverse; parked reverse surfaces and denser contour remain bounded | pending final run |
+| exact-tag build/smokes | annotated tag peels to clean source; identity-bound manifest and root/no-JS/hash/media smokes pass | pending candidate freeze |
+| same-port rollback | candidate-v2 → immutable legacy → identical candidate-v2 | pending candidate freeze |
 
-These exact-tag results certify commit `1849069`, not the later R21/R22 branch delta.
+## Freeze And Stop Boundary
 
-## Stop Boundary
+After every pre-freeze gate passes, create and push the new annotated tag `react-refactor-r5-parity-repair-candidate-v2`, build with explicit `R5_CANDIDATE_TAG` and `R5_SOURCE_COMMIT`, record the external manifest digest, run exact-tag smokes and rollback, then stop for user HITL.
 
-The historical tag stays frozen at `1849069`; the reviewed branch head is `2501704`. Work may create a new versioned immutable candidate only after the open regression closure passes from an exact clean source. It must then stop for HITL. Without explicit later approval: do not move an existing tag, merge or deploy `main`, create `react-refactor-r5-cutover`, or start R6 cleanup.
+This closure does not authorize moving any tag, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.

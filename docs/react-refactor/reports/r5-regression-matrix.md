@@ -1,54 +1,52 @@
 # R5 Production Regression Matrix
 
-Status: **OPEN / HITL rejected at reviewed head `2501704`.** The immutable candidate and post-candidate automation below are historical audit evidence only. They do not qualify the current runtime after the nine reported production regressions.
+Status: **candidate-v2 requalification in progress.** The automation recorded for earlier tags and `14743aa` is historical only; it does not qualify the source that closes the HITL findings.
 
-Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
+Date: 2026-07-13. Branch: `codex/react-refactor-r5-parity-cutover`. Intended immutable tag after all gates pass: `react-refactor-r5-parity-repair-candidate-v2`.
 
-The earlier complete browser/release results belong to immutable tags, including `react-refactor-r5-parity-repair-candidate`. None contains R21/R22, so those counts remain historical evidence only and are not carried forward as a current-branch pass claim.
+## Required Project Matrix
 
-## Immutable Candidate Historical Matrix
-
-| Project | Canonical traversal | Critical reverse | Input/navigation | Media/lifecycle | SEO/no-JS | Final result |
+| Project | Canonical traversal | Critical reverse | Input/navigation | Media/lifecycle | SEO/no-JS | Current record |
 |---|---|---|---|---|---|---|
-| desktop Chromium | all 18 holds | pilot, Figure2, PH/TTG, Contact recovery | wheel, touchpad deltas, PageUp/PageDown, menu, hash/history | normal/reduced, interruption, retry, disposal | required | pass: 20 applicable, 3 declared skips |
-| desktop WebKit | all 18 holds | pilot, Figure2, PH/TTG | wheel, touchpad deltas, keyboard, menu/history | normal/reduced, decoded-frame handoff | required | pass: 9 applicable, 14 declared skips |
-| Pixel 7 Chromium | all 18 holds | pilot, Figure2, PH/TTG | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | pass: 12 applicable, 11 declared skips |
-| iPhone 15 WebKit | all 18 holds | pilot, Figure2, PH/TTG | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | pass: 11 applicable, 12 declared skips |
+| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | required | pending final run |
+| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | required | pending final run |
+| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | pending final run |
+| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | pending final run |
 
-Layer invariants remain: visible layers ≤2 during transition, exactly one visible/interactable hold after settlement, bounded retiring layers, and no stale Hero layer during Contact reverse recovery.
+Layer invariants are unchanged: at most two visible layers during transition, exactly one visible/interactable settled hold, bounded retiring layers, one canonical receiver root, and no Hero current/visible fallback during Contact reverse.
 
-## Historical R1–R22 Coverage Map (invalidated for current qualification)
+## R1–R22 Deterministic Ownership
 
-| ID | Deterministic assertion owner | Required proof | Final result |
-|---|---|---|---|
-| R1 AOD alpha | `aod-animation/progress.test.ts`, `r5-production.spec.ts` | first third has transparent AOD backings, full layer opacity, one copy cue | pass |
-| R2 Crane 3000ms | `manifest.test.ts`, `group7-transitions.test.ts`, `group7-transitions` browser coverage | manifest/transition/renderer/media/copy use one 3000ms authority | pass |
-| R3 Hero ↔ Pattern motion | `scene-motion.test.ts`, `hero-pattern/index.test.ts`, `r4-g1.spec.ts` | visible Pattern revision grows in both directions; lease releases | pass |
-| R4 collapsed Pattern motion | `pattern-star-map/index.test.ts`, `r4-g1.spec.ts` | rotation grows during staged pause and ink stage | pass |
-| R5 Star Map Perlin | `pattern-star-map/index.test.ts`, `r4-g1.spec.ts` | visible Star Map revision grows forward/reverse; hidden/reduced stops | pass |
-| R6 ink reliability | `sceneInk.lifecycle.test.ts`, `star-map-aod/inkCurtain.test.ts`, `r3-pilot.spec.ts` | fresh generation/canvas/context and active ink body for ≥10 alternating runs | pass |
-| R7 loader/Hero | `StoryLoader.test.tsx`, `hero/motion.test.ts`, `r5-production.spec.ts`, `r5-performance.spec.ts` | two phrases, safety exit, 2.7s intro, stacking/parallax cleanup, LCP | pass |
-| R8 progressive nav | `StoryNav.test.tsx`, `r5-production.spec.ts` | exact sibling DOM, seven blur layers+tint, committed visibility/inert/tab order | pass |
-| R9 reading ownership | `reading-handoff.test.ts`, `input-controller.test.ts`, `r5-production.spec.ts` | content pixels are consumed to the physical edge for every input class | pass |
-| R10 10svh commitment | same as R9 plus `charge.test.ts` | 9.9svh cannot fire; one threshold+residual intent fires at 10svh; all reset causes | pass |
-| R11 footer/filing | `SiteFooter.test.tsx`, `static-shell.test.ts`, `r5-nojs.spec.ts`, build verifier | interactive/static exact shared footer and MIIT link | pass |
-| R12 favicon | `global-assets.test.ts`, build verifier | emitted SVG bytes equal `assets/favicon.svg`; no data URL | pass |
-| R13 Contact recovery | `recovery.test.ts`, Director machine/actor tests, `r5-production.spec.ts` | normal/timeout/endpoint-failure/menu-hash races never make Hero current/visible | pass |
-| R14 reading entry | Director tests, `Stage.reading.test.ts`, `r5-production.spec.ts` | forward/menu/hash top; reverse sequential exact bottom; one token only | pass |
-| R15 Figure2 reverse | `figure2-animation/progress.test.ts`, `figure2-proof-chain.test.ts`, production matrix | multiple decreasing intermediate media frames | pass |
-| R16 fonts | `global-assets.test.ts`, `static-shell.test.ts`, build verifier | emitted TTF identity, canonical tokens, no Inter-first/synthetic weight | pass |
-| R17 retained arch | `RetainedFigure2Arch.test.tsx`, `figure2-proof-chain.test.ts`, ink occlusion browser test | one arch, absent from masks, above Figure2 ink, exits under Proof → Brand | pass |
-| R18 PH/TTG reliability | timeline-driver tests, `media-ready.test.ts`, group5/group6 transition tests | ≥20 alternating/interrupted/re-entry runs; both directions and rejection/recovery | pass |
-| R19 TTG reverse endpoint | timeline-driver tests, `r5-ttg-alpha.spec.ts` | target frame presented before swap; no stale terminal/standing frame | pass |
-| R20 edge-only grade | `sceneInk.lifecycle.test.ts`, shared ink tests, pilot contract/browser test | production cover alpha zero; explicit dark harness preset shares geometry | pass |
-| R21 shared horizontal contour | contour/Ink field/vendor lifecycle tests, group4–group7 consumer tests, `r4-ink-occlusion.spec.ts` | one per-run 32-sample contour drives live polygons and the 1×32 texture; forward/reverse fresh runs align without SVG/snapshot compositor | pass: deterministic suites plus affected Chromium 3/3 |
-| R22 TTG/PH internal dissolve | `stagedMediaHandoff.test.ts`, group5/group6 transition tests and affected Chromium paths | 600ms two-surface dissolve in both directions; zero internal Ink canvas/mask/particles | pass: deterministic suites plus affected Chromium 9/9 |
+Every row has implementation-level coverage. Its qualification result remains pending until the exact final matrix is rerun.
 
-The full reproduction/root-cause/minimum-file record is `../contract-diff/R5-production-parity-repair.md`.
+| ID | Assertion owners | Required proof |
+|---|---|---|
+| R1 AOD alpha | AOD progress tests; production browser suite | first third clears all paper backings while layer opacity and the single copy cue remain correct |
+| R2 Crane 3000ms | manifest and group-7 tests | one 3000ms authority owns renderer, transition, media, and copy timing |
+| R3 Hero ↔ Pattern motion | scene-motion tests; group-1 browser suite | visible Pattern revision advances in both directions and releases when hidden |
+| R4 collapsed Pattern motion | Pattern → Star Map tests | wall-clock rotation remains live through staged pause/Ink and structural collapse stays deterministic |
+| R5 Star Map Perlin/copy | Star Map progress tests; production browser suite | visible Perlin revision advances; hidden/reduced stops; copy opacity and actual color are opaque |
+| R6 Ink lifecycle | shared/custom Ink lifecycle tests; pilot browser suite | fresh generation/context on repeated runs; context loss fails locally; no bare polygon continuation |
+| R7 loader/Hero | loader sequence/controller/StoryLoader tests; production/performance browser suites | one lazy live Ink controller covers both phrases; bounded fallback/disposal; Hero intro starts once |
+| R8 progressive nav | StoryNav tests; production browser suite | exact sibling DOM, seven blur layers+tint, committed visibility/inert/tab order |
+| R9 reading ownership | gesture gate, reading handoff, input controller, production browser suite | content consumes physical pixels first and one owner controls the edge gesture |
+| R10 10svh commitment | gesture gate/input tests; production browser suite | 9.9svh cannot fire; ordinary cadence crossing 10svh fires exactly once; all reset causes work |
+| R11 footer/filing | SiteFooter/static-shell tests; no-JS suite; build verifier | interactive/static footer and MIIT link share one source |
+| R12 favicon | global asset tests; build verifier | emitted SVG is byte-identical and never a data URL |
+| R13 Contact recovery | recovery and Director tests; production browser suite | normal/failure/menu/hash races never make Hero current or visible |
+| R14 reading entry | Director/Stage reading tests; production browser suite | forward/menu/hash top; reverse sequential exact bottom; one entry token |
+| R15 Figure2 reverse/depth | directional controller, Figure2 progress/proof-chain/depth-mask tests; release suite | native direction surface presents decreasing intermediates; no seek storm; depth waits for ready mask |
+| R16 fonts | global assets/static-shell tests; build verifier | emitted TTF identity, canonical tokens, no Inter-first or synthetic weight |
+| R17 retained arch | retained-arch/proof-chain tests; Ink occlusion suite | one foreground arch stays outside masks and above Figure2 Ink until its authored exit |
+| R18 PH/TTG reliability | directional controller, staged handoff, group-5/6 tests | same-run direction changes, delayed readiness, rejection, interruption, and stale callbacks remain generation-local |
+| R19 TTG reverse surface | directional controller/TTG tests; alpha browser suite | fixed first reverse frame is presented before activation; intermediate playback; atomic forward-start restore |
+| R20 edge-only grade | shared Ink tests; pilot/readback suites | production cover alpha is zero; dark remains explicit harness-only |
+| R21 shared horizontal contour | contour/field/Ink/vendor tests; all consumers; readback suite | one per-run 128-sample contour drives complementary polygons and 1×128 texture; opaque aligned core at every sample; one upload/revision |
+| R22 TTG/PH internal dissolve | staged handoff and group-5/6 tests; browser paths | 600ms two-surface dissolve in both directions; one receiver; zero internal Ink/mask/particles |
 
-## Requalification Commands
+The reproduction/root-cause/minimum-file record is `../contract-diff/R5-production-parity-repair.md`.
 
-Canonical commands retained by the repository:
+## Final Commands
 
 ```bash
 pnpm run verify:all
@@ -57,17 +55,8 @@ pnpm -C app exec playwright test --config playwright.release.config.ts
 pnpm -C app evidence:memory
 ```
 
-Historical review implementation `14743aa5ef9e0399441863afcfd73599782721a3`:
-
-- root lint/typecheck/build, static-shell/release verification, 78 test files / 504 tests, and all frozen bundle budgets passed;
-- default historical/functional browser matrix passed 43/43;
-- four-project release coverage passed all 52 applicable cases with 40 declared project skips. The first desktop Chromium hardware sample encountered host-load jitter; that single performance gate was repeated in isolation and passed without repeating the other 91 cases;
-- affected TTG/PH staged-handoff browser contracts passed 9/9 and Ink ownership passed 3/3;
-- process-memory traversed all 18 holds forward and reverse and passed RSS/GPU/renderer/heap/layer/WebGL budgets;
-- same-port clean-worktree review → immutable legacy → identical review rehearsal passed root/footer/no-JS/manifest/media-range and PageDown/PageUp smokes.
-
-These results remain audit evidence only. HITL showed that their models did not close gesture cadence, cold reverse presentation, same-run staged reversal, receiver-entry timing, loader Ink ownership, or horizontal core coverage. The final matrix must be regenerated from the corrected exact source rather than carrying these pass labels forward.
+The final run additionally records focused frame pacing for TTG first forward, same-run TTG reverse, Figure2 native reverse, AOD reverse, and active horizontal Ink. First-decode wait is reported separately from steady playback.
 
 ## Acceptance Boundary
 
-Deterministic closure does not perform aesthetic acceptance. After the corrected source passes the full gate and a new versioned immutable candidate is created, stop for user HITL. Do not merge or deploy by implication, and never move an existing tag.
+No screenshot baseline or aesthetic acceptance is inferred from these gates. After the complete branch gate, clean exact-tag build/smokes, and same-port rollback pass, stop for user HITL. Never move an old tag, merge/deploy by implication, create a cutover tag, or start R6.

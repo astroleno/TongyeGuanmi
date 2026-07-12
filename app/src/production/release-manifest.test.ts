@@ -222,6 +222,45 @@ it('accepts the separately named parity repair candidate without moving an old c
     .toBe(sourceCommit);
 });
 
+it('accepts a versioned parity repair candidate without moving either prior namespace', () => {
+  const { fixtureScript, repoDir, sourceCommit } = createFixture();
+  runGit(
+    repoDir,
+    'tag',
+    '-a',
+    'react-refactor-r5-parity-repair-candidate',
+    '-m',
+    'first parity repair candidate fixture'
+  );
+  runGit(
+    repoDir,
+    'tag',
+    '-a',
+    'react-refactor-r5-parity-repair-candidate-v2',
+    '-m',
+    'second parity repair candidate fixture'
+  );
+
+  runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-parity-repair-candidate-v2',
+    sourceCommit
+  );
+  const manifest = JSON.parse(
+    readFileSync(path.join(repoDir, 'dist/r5-release-manifest.json'), 'utf8')
+  );
+  expect(manifest).toMatchObject({
+    candidate: 'react-refactor-r5-parity-repair-candidate-v2',
+    sourceCommit,
+    sourceDirty: false
+  });
+  expect(runGit(repoDir, 'rev-parse', 'refs/tags/react-refactor-r5-candidate-v3^{commit}'))
+    .toBe(sourceCommit);
+  expect(runGit(repoDir, 'rev-parse', 'refs/tags/react-refactor-r5-parity-repair-candidate^{commit}'))
+    .toBe(sourceCommit);
+});
+
 it('routes deploy builds through the strict release identity gate', () => {
   expect(rootPackage.scripts['deploy:build']).toBe('pnpm -C app build:release');
   expect(appPackage.scripts['build:release']).toContain('R5_REQUIRE_RELEASE_IDENTITY=1');
@@ -239,6 +278,10 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate'");
   expect(candidateWorkflow).toContain(
     "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate'"
+  );
+  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v2'");
+  expect(candidateWorkflow).toContain(
+    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2'"
   );
 });
 

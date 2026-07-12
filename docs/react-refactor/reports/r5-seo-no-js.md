@@ -1,6 +1,6 @@
 # R5 SEO And No-JS Report
 
-Status: repaired artifact contract, final build/no-JS verification, and exact-tag identity smokes passed.
+Status: repaired artifact contract and current build verification pass; final four-project no-JS and exact candidate-v2 identity smokes are pending.
 
 ## Shared Source Contract
 
@@ -24,6 +24,7 @@ The generated `dist/index.html` must contain:
 ## Progressive Enhancement And Failure
 
 - A pre-hydration loader covers cold boot, but a `<noscript>` rule removes it immediately without JavaScript.
+- The enhanced loader marks its CSS fallback contract in static HTML; the production build must emit exactly one lazy loader Ink shader chunk and keep those shader markers out of the initial entry.
 - The static loader remains until the React loader commits, avoiding a blank handoff; non-production harness/404 routes remove it directly.
 - The static shell remains visible until StoryApp reaches a valid hold and sets `data-story-hydrated=true`.
 - Loader safety/error completion cannot hide the static shell indefinitely.
@@ -38,4 +39,6 @@ pnpm -C app exec playwright test --config playwright.release.config.ts --grep "n
 
 The build verifier normalizes visible copy, asserts exactly one static footer, validates metadata/anchors, rejects legacy/harness/default-runtime markers, compares favicon/font bytes, checks the initial CSS font tokens, and rejects Inter-first drift. JavaScript-disabled browser cases run on desktop/mobile Chromium/WebKit and assert visibility, scrollability, footer/link content, and absence of hidden/inert baseline copy.
 
-The final verifier checked 127 copy items, 8 static sections, and 44 JavaScript files. No-JS cases passed on desktop/mobile Chromium/WebKit and again from the exact tag. The emitted favicon SHA-256 is `4441a740a9cb105a5fa041fbb11cd497733a490581d100667d64aba3d38b256e`; the emitted title-font SHA-256 is `bf69d2fd62129c670b741b756d2defab495074a65696ff6fd7d234211e17636b`. Exact-tag results are recorded in `r5-parity-repair-candidate.md`. No earlier R5 candidate tag contains this repaired shell contract.
+The current build verifier checked 127 copy items, 8 static sections, and 47 JavaScript files. It also verified the no-JS loader escape, loader fallback marker, one 13,534B lazy loader Ink chunk, opaque Star Map production copy, and absence of loader shader markers from the initial entry. The emitted favicon SHA-256 is `4441a740a9cb105a5fa041fbb11cd497733a490581d100667d64aba3d38b256e`; the emitted title-font SHA-256 is `bf69d2fd62129c670b741b756d2defab495074a65696ff6fd7d234211e17636b`.
+
+Desktop/mobile Chromium/WebKit no-JS cases and the clean exact-tag identity smoke must be rerun before candidate-v2 is accepted. Results are recorded in `r5-parity-repair-candidate.md`; no earlier R5 tag contains this HITL regression closure.

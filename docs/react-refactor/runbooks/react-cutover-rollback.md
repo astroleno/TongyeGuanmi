@@ -1,6 +1,6 @@
 # React Cutover And Rollback Runbook
 
-Status: immutable parity-repair candidate remains preserved; the post-candidate review commit is verified separately and is not a deployable candidate until a new tag is explicitly authorized. Production cutover is not authorized.
+Status: candidate-v2 regression closure is in pre-freeze qualification. Production cutover is not authorized.
 
 ## Immutable Inputs
 
@@ -12,14 +12,15 @@ Status: immutable parity-repair candidate remains preserved; the post-candidate 
 | superseded R5 candidate | `react-refactor-r5-candidate` | `0de4972de64455a14d8c36262e58cc6af5c4875b` |
 | superseded R5 candidate | `react-refactor-r5-candidate-v2` | `a5bef3785b766dac0e5ecfc95e96d03cd5c51c90` |
 | parity-repair base / superseded candidate | `react-refactor-r5-candidate-v3` | `59065730712c6d9718928fd25cba23e33455395e` |
-| corrected candidate | `react-refactor-r5-parity-repair-candidate` | commit `18490690992bffef6c9705cd47438b9cd17e756a`; tag object `7f96b243d42efd3e7409ca8628109b0901900a9b` |
-| post-candidate review implementation | branch commit | `14743aa5ef9e0399441863afcfd73599782721a3` |
+| superseded parity-repair candidate | `react-refactor-r5-parity-repair-candidate` | commit `18490690992bffef6c9705cd47438b9cd17e756a`; tag object `7f96b243d42efd3e7409ca8628109b0901900a9b` |
+| rejected HITL head | branch commit | `2501704d63dbd7c150861d21a31c2d39525c23e5` |
+| intended corrected candidate | `react-refactor-r5-parity-repair-candidate-v2` | create only after the complete pre-freeze gate passes; record peel/tag object externally |
 | review rollback build | plain build manifest | 98 files / 139,528,455B; SHA-256 `2b91f5e3cd34883125a613a2a005ff3f3a4de4db8ef7c8a317f03297ce21742a` |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |
-| corrected release artifact | exact-tag `dist/r5-release-manifest.json` | schema 2; 97 files / 139,518,637B; SHA-256 `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
+| historical parity-repair artifact | exact old tag `dist/r5-release-manifest.json` | schema 2; 97 files / 139,518,637B; SHA-256 `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
 
-Always peel annotated tags with `git rev-parse <tag>^{}`. Never move or reuse an old candidate tag. The existing parity-repair candidate does not contain the later Generic Ink/media changes; a new annotated tag requires separate authorization.
+Always peel annotated tags with `git rev-parse <tag>^{commit}`. Never move or reuse an old candidate tag. Candidate-v2 creation is authorized only after the full gate in this runbook passes; it does not authorize cutover.
 
 ## Pre-Freeze Acceptance
 
@@ -32,7 +33,7 @@ pnpm -C app exec playwright test --config playwright.release.config.ts
 pnpm -C app evidence:memory
 ```
 
-Also run the historical harness and the hardware performance/process-memory profile required by `r5-regression-matrix.md` and `r5-performance-budget.md`. Do not capture screenshots or request manual visual acceptance for this gate.
+Also run the focused AOD/Figure2/TTG/PH/loader/Ink paths and the hardware frame/process-memory profile required by `r5-regression-matrix.md` and `r5-performance-budget.md`. Do not capture screenshots or infer manual visual acceptance from this gate.
 
 Any failure invalidates the freeze. Fix the owning implementation and use focused diagnostics while repairing; rerun the complete gate only when the branch is again ready for a final decision.
 
@@ -41,9 +42,10 @@ Any failure invalidates the freeze. Fix the owning implementation and use focuse
 Only after every pre-freeze gate passes and the worktree is clean:
 
 ```bash
-git tag -a react-refactor-r5-parity-repair-candidate \
-  -m "R5 production parity repair candidate"
-git rev-parse react-refactor-r5-parity-repair-candidate^{}
+git tag -a react-refactor-r5-parity-repair-candidate-v2 \
+  -m "R5 production parity repair candidate v2"
+git rev-parse react-refactor-r5-parity-repair-candidate-v2^{commit}
+git rev-parse refs/tags/react-refactor-r5-parity-repair-candidate-v2
 git status --short
 ```
 
@@ -54,11 +56,11 @@ Record the peeled commit and annotated tag-object id. The tag is immutable from 
 Use a detached, clean checkout of the exact tag with Node 22 and pnpm 8.15.1:
 
 ```bash
-git switch --detach react-refactor-r5-parity-repair-candidate
+git switch --detach react-refactor-r5-parity-repair-candidate-v2
 corepack enable
 corepack prepare pnpm@8.15.1 --activate
 pnpm install --frozen-lockfile
-R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate \
+R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v2 \
 R5_SOURCE_COMMIT="$(git rev-parse HEAD)" \
 pnpm run deploy:build
 shasum -a 256 dist/r5-release-manifest.json
@@ -94,7 +96,7 @@ Store the exact tag, peeled commit, tag object, manifest digest, emitted-file co
 
 Use separate clean corrected-candidate and legacy checkouts. Reuse one local port and switch the served directory in this order:
 
-For an authorized-but-untagged review build, substitute a clean detached checkout of the recorded review implementation commit for `corrected-candidate` in this rehearsal only. Its plain build is rollback evidence, not a publishable artifact; do not create, move, or imply a candidate tag.
+Before freeze, a clean detached checkout of the recorded branch commit may be used only to validate the rehearsal procedure. The final recorded rehearsal must use the exact annotated candidate-v2 and its identity-bound artifact.
 
 1. Corrected candidate: verify root, static footer, manifest presence, no-JS, direct hash, representative media range, and key forward/reverse smoke.
 2. Stop the candidate server completely.
@@ -113,7 +115,7 @@ test "$(shasum -a 256 index.html | awk '{print $1}')" = \
 
 Port reuse, process termination, and artifact identity must be recorded; two simultaneously running preview servers do not constitute a rollback rehearsal.
 
-Latest review rehearsal: passed on 2026-07-12 using detached clean worktrees. Port `4173` served review `14743aa`, then legacy `a78b064`, then the identical review build. Both review passes matched the manifest above and passed root/footer/static no-JS content, HTTP 206 media, and PageDown/PageUp Hero ↔ Pattern smoke. The legacy phase matched frozen `index.html` SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7`, returned HTTP 206 media, exposed the legacy bootstrap, and returned 404 for the review manifest. Each server was fully stopped before the next phase.
+The 2026-07-12 review → legacy → review rehearsal is historical and does not qualify candidate-v2. The final run must record that port `4173` served exact candidate-v2, then legacy `a78b064`, then the byte-identical candidate-v2 artifact; each server must be fully stopped before the next phase.
 
 ## Production Cutover — Only After Later Explicit HITL Approval
 
