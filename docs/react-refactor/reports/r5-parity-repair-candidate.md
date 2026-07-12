@@ -1,6 +1,8 @@
 # R5 Production Parity Repair Candidate
 
-Status: the corrected candidate remains immutable and fully verified for its tagged source. The later Generic Ink/media review build is branch-only; no tag was moved or created, and visual HITL remains pending.
+Status: **HITL rejected / requalification open at reviewed head `2501704`.** The immutable tag remains historical evidence for its tagged source, but neither that tag nor the later branch-only Generic Ink/media build is an acceptable current R5 candidate. No tag has been moved or created for the reviewed runtime.
+
+The current closure work must replace the provisional record below with evidence generated from one exact corrected source. Historical green automation does not override the reported navigation locks, missing loader Ink, reverse-media failures, stale receiver entry, flashes, or degraded horizontal Ink edge.
 
 ## Identity
 
@@ -45,7 +47,7 @@ None of these tags may be moved, repointed, or published as the corrected artifa
 
 Detailed reproduction/root-cause/file ownership for R1–R22 is in `../contract-diff/R5-production-parity-repair.md`.
 
-## Post-Candidate Review-Build Gate Record
+## Rejected Post-Candidate Review-Build Record
 
 | Gate | Recorded result |
 |---|---|
@@ -55,7 +57,7 @@ Detailed reproduction/root-cause/file ownership for R1–R22 is in `../contract-
 | four-project release matrix | all 52 applicable gates have passing review-build evidence; 40 declared project skips. One host-jittered desktop performance sample was repeated alone and passed at p95 17.4ms / 0.24% long frames |
 | process memory | pass: RSS 1,333,116,928B; GPU 313,360,384B; renderer 724,254,720B; heap 42,139,577B → 13,983,694B; max 3 layers / 1 WebGL |
 | same-port rollback | pass: review `14743aa` → legacy `a78b064` → identical review, including root/footer/no-JS, manifest presence/absence, HTTP 206 media, and key forward/reverse smoke |
-| visual acceptance | pending user HITL |
+| visual acceptance | **rejected at HITL; deterministic regression closure and a new immutable candidate are required** |
 
 ## Immutable Candidate Historical Gate Record
 
@@ -74,4 +76,4 @@ These exact-tag results certify commit `1849069`, not the later R21/R22 branch d
 
 ## Stop Boundary
 
-The corrected tag stays frozen at `1849069`; the branch review implementation is `14743aa`. Work stops for HITL after documentation closure. Without explicit later approval: do not move/create a candidate tag, merge or deploy `main`, create `react-refactor-r5-cutover`, or start R6 cleanup.
+The historical tag stays frozen at `1849069`; the reviewed branch head is `2501704`. Work may create a new versioned immutable candidate only after the open regression closure passes from an exact clean source. It must then stop for HITL. Without explicit later approval: do not move an existing tag, merge or deploy `main`, create `react-refactor-r5-cutover`, or start R6 cleanup.

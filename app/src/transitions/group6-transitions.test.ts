@@ -128,6 +128,8 @@ describe('R4 group6 transitions', () => {
     const stop = phEducation.policy.stops[0] ?? 0;
     const timeline = await createPhEducationTransition().buildTimeline(fixture.context);
 
+    expect((timeline as typeof timeline & { prepareLeg?: unknown }).prepareLeg).toBeTypeOf('function');
+
     timeline.progress(stop / 2);
     const forwardMidTime = video.currentTime;
     expect(Number(fixture.fromRoot.dataset.phProgress)).toBeGreaterThan(0);

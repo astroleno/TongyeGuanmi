@@ -208,6 +208,19 @@ describe('ink WebGL resource lifecycle', () => {
     );
   });
 
+  it('keeps the horizontal opaque core centered on the exact shared contour rank', () => {
+    const { canvas, gl } = webGlHarness();
+
+    createInkBoundaryTransition(canvas);
+
+    const fragmentSource = gl.shaderSource.mock.calls
+      .map(([, source]) => String(source))
+      .find((source) => source.includes('precision highp float')) ?? '';
+    expect(fragmentSource).toContain('float horizontalCoreOcclusion');
+    expect(fragmentSource).toMatch(/ownershipOcclusion\(\s*horizontal,\s*uOwnershipGateRank,[\s\S]*?1\.0\s*\)/);
+    expect(fragmentSource).not.toMatch(/horizontalCoreOcclusion[\s\S]*?\*\s*nonHorizontalMode/);
+  });
+
   it('uploads one depth image and reuses it across progress samples', () => {
     const loadedImages: Array<{ onload: (() => void) | null; src: string }> = [];
     class FakeImage {

@@ -27,6 +27,25 @@ function readingLayer(options: {
 }
 
 describe('reading handoff', () => {
+  it('returns post-edge pixels to the single production commitment owner', () => {
+    const handoff = createReadingHandoff();
+    const { root } = readingLayer({ scrollTop: 1000 });
+
+    expect(handoff.consume({
+      scene: 'method-top',
+      root,
+      pixels: 20,
+      viewportHeight: 1000,
+      now: 0
+    })).toMatchObject({
+      owned: true,
+      contentPixels: 0,
+      residualPixels: 20,
+      directorDelta: 0,
+      committed: false
+    });
+  });
+
   it('spends physical distance on the scene scrollport before commitment or Director intent', () => {
     const handoff = createReadingHandoff();
     const { root, scrollport } = readingLayer();

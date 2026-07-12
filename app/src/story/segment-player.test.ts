@@ -730,6 +730,47 @@ describe('SegmentPlayer', () => {
     expect(renderedProgress).toBe(0);
   });
 
+  it('keeps a staged leg clock frozen until asynchronous leg readiness resolves', async () => {
+    vi.useFakeTimers();
+    const legReady = deferred<void>();
+    const progress = vi.fn();
+    const timeline = {
+      play: () => Promise.resolve(),
+      progress,
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn(),
+      prepareLeg: vi.fn(() => legReady.promise)
+    } as SegmentTimelineHandle & {
+      prepareLeg(args: unknown): Promise<void>;
+    };
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged([0.5], [40, 60]),
+      transitions: { 'hero-pattern': transitionWithTimeline(timeline) },
+      actorEpoch: 'leg-readiness'
+    });
+
+    const result = player.play('hero-pattern', 1, { runId: 'leg-readiness:1' });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(80);
+
+    expect(timeline.prepareLeg).toHaveBeenCalledWith(expect.objectContaining({
+      direction: 1,
+      legIndex: 0,
+      from: 0,
+      to: 0.5
+    }));
+    expect(progress.mock.calls.at(-1)?.[0] ?? 0).toBe(0);
+    expect(player.snapshot()).toMatchObject({ progress: 0, pausedAt: undefined });
+
+    legReady.resolve();
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(40);
+    expect(player.snapshot()).toMatchObject({ progress: 0.5, pausedAt: 'stage:0' });
+    player.disposeAll();
+    await result;
+  });
+
   it('visits stagedSnap stops in reverse order during reverse playback', async () => {
     vi.useFakeTimers();
     const events: DirectorEvent[] = [];

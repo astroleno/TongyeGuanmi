@@ -1,11 +1,18 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { renderStarMapProgress, starMapMotionEnabled } from './index';
+import { renderStarMapHold, renderStarMapProgress, starMapMotionEnabled } from './index';
+
+const stylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
 class FakeStyle {
   values = new Map<string, string>();
 
   setProperty(name: string, value: string): void {
     this.values.set(name, value);
+  }
+
+  getPropertyValue(name: string): string {
+    return this.values.get(name) ?? '';
   }
 }
 
@@ -36,5 +43,14 @@ describe('star-map progress renderer', () => {
     expect(root.style.values.get('--r3-star-copy-opacity')).toBe('0.7500');
     expect(root.style.values.get('--r3-star-canvas-opacity')).toBe('0.6600');
     expect(root.attributes.get('data-star-map-progress')).toBe('0.7500');
+  });
+
+  it('keeps both the hold container and actual Star Map text fully opaque', () => {
+    const root = new FakeElement();
+
+    renderStarMapHold(root as unknown as HTMLElement);
+
+    expect(root.style.getPropertyValue('--r3-star-copy-opacity')).toBe('1.0000');
+    expect(stylesheet).toMatch(/\.r3-star-map \.large-copy--standalone\s*\{[^}]*color:\s*rgb\(247,\s*237,\s*215\)/s);
   });
 });

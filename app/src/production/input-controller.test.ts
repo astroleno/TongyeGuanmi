@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createDirectorRuntime } from '../runtime/director.actor';
 import { attachStoryInput, canScrollNatively } from './input-controller';
 
 function readingRoot(scrollTop: number) {
@@ -18,7 +19,55 @@ function readingRoot(scrollTop: number) {
 
 describe('production input reading handoff', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('routes one slow 10svh Contact gesture through the real Director without cadence loss', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const listeners = new Map<string, Set<(event: Event) => void>>();
+    vi.stubGlobal('window', {
+      innerHeight: 1000,
+      visualViewport: undefined,
+      addEventListener(type: string, listener: (event: Event) => void) {
+        const current = listeners.get(type) ?? new Set<(event: Event) => void>();
+        current.add(listener);
+        listeners.set(type, current);
+      },
+      removeEventListener(type: string, listener: (event: Event) => void) {
+        listeners.get(type)?.delete(listener);
+      }
+    });
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'input-contact-cadence',
+      initialScene: 'contact'
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    const detach = attachStoryInput({
+      runtime,
+      getCurrentScene: () => runtime.getState().context.layerWindow.current,
+      getLayerElement: () => null
+    });
+    const wheel = {
+      cancelable: true,
+      deltaMode: 0,
+      deltaY: -20,
+      preventDefault: vi.fn(),
+      target: null
+    } as unknown as WheelEvent;
+
+    for (let index = 0; index < 5; index += 1) {
+      for (const listener of listeners.get('wheel') ?? []) {
+        listener(wheel);
+      }
+      vi.advanceTimersByTime(16);
+    }
+
+    expect(runtime.getState().state).not.toBe('hold');
+    expect(runtime.getState().context.pendingDirection).toBe(-1);
+    detach();
+    runtime.stop();
   });
 
   it('leaves forward and reverse deltas with the native scrollport before its edges', () => {

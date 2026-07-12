@@ -60,4 +60,13 @@ describe('AOD alpha compositing', () => {
       /\[data-r3-transition="aod-method-top"\][^}]*\[data-aod-alpha-composite="true"\][^}]*opacity:\s*0\./s
     );
   });
+
+  it('keeps scene presentation pure and leaves media time to the presented-frame driver', () => {
+    const section = new FakeAodSection();
+    const video = { currentTime: 1.25, duration: 5.03 } as HTMLVideoElement;
+
+    renderAodTransitionProgress(section as unknown as HTMLElement, 0.7, { video });
+
+    expect(video.currentTime).toBe(1.25);
+  });
 });

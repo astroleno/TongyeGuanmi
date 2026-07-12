@@ -304,13 +304,17 @@ describe('figure2 proof chain transitions', () => {
       'stage',
       'figures',
       'left-video',
-      'right-video'
+      'right-video',
+      'left-video-reverse',
+      'right-video-reverse'
     ]);
     await expect(Promise.resolve(figure2AnimationScene.preload())).resolves.toMatchObject({
       milestones: ['targetReady', 'mediaReady']
     });
     expect(markup).toContain('data-media-key="figure2-left-alpha"');
     expect(markup).toContain('data-media-key="figure2-right-alpha"');
+    expect(markup).toContain('data-media-key="figure2-left-alpha-reverse"');
+    expect(markup).toContain('data-media-key="figure2-right-alpha-reverse"');
   });
 
   it('keeps the Figure2 transition media and milestone contracts equal to the manifest', () => {
@@ -655,7 +659,7 @@ describe('figure2 proof chain transitions', () => {
     expect(figure2VideoModeForProofTransition(0, 1)).toBe('native');
     expect(figure2VideoModeForProofTransition(0.001, 1)).toBe('native');
     expect(figure2VideoModeForProofTransition(0.1, 1)).toBe('none');
-    expect(figure2VideoModeForProofTransition(0, -1)).toBe('seek');
+    expect(figure2VideoModeForProofTransition(0, -1)).toBe('native');
     expect(figure2VideoModeForProofTransition(0.5, -1)).toBe('none');
     expect(FIGURE2_INTRO_PLAYBACK_MS).toBe(2600);
   });

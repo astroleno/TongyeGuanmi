@@ -53,6 +53,8 @@ describe('StoryLoader', () => {
     expect(markup.match(/aria-live=/g)).toHaveLength(1);
     expect(markup).toContain('story-loader__ink-blur');
     expect(markup).toContain('story-loader__ink-clear');
+    expect(markup).toContain('data-loader-ink-canvas="true"');
+    expect(markup.match(/<canvas/g)).toHaveLength(1);
     expect(markup).not.toContain('tabindex="0"');
   });
 

@@ -1,6 +1,6 @@
 # R5 Production Regression Matrix
 
-Status: post-candidate Generic Ink/media implementation and complete non-visual review matrix passed. The immutable candidate remains historical and was not reclassified or moved.
+Status: **OPEN / HITL rejected at reviewed head `2501704`.** The immutable candidate and post-candidate automation below are historical audit evidence only. They do not qualify the current runtime after the nine reported production regressions.
 
 Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 
@@ -17,7 +17,7 @@ The earlier complete browser/release results belong to immutable tags, including
 
 Layer invariants remain: visible layers ≤2 during transition, exactly one visible/interactable hold after settlement, bounded retiring layers, and no stale Hero layer during Contact reverse recovery.
 
-## R1–R22 Coverage Map
+## Historical R1–R22 Coverage Map (invalidated for current qualification)
 
 | ID | Deterministic assertion owner | Required proof | Final result |
 |---|---|---|---|
@@ -46,7 +46,7 @@ Layer invariants remain: visible layers ≤2 during transition, exactly one visi
 
 The full reproduction/root-cause/minimum-file record is `../contract-diff/R5-production-parity-repair.md`.
 
-## Final Commands
+## Requalification Commands
 
 Canonical commands retained by the repository:
 
@@ -57,7 +57,7 @@ pnpm -C app exec playwright test --config playwright.release.config.ts
 pnpm -C app evidence:memory
 ```
 
-Current review implementation `14743aa5ef9e0399441863afcfd73599782721a3`:
+Historical review implementation `14743aa5ef9e0399441863afcfd73599782721a3`:
 
 - root lint/typecheck/build, static-shell/release verification, 78 test files / 504 tests, and all frozen bundle budgets passed;
 - default historical/functional browser matrix passed 43/43;
@@ -66,8 +66,8 @@ Current review implementation `14743aa5ef9e0399441863afcfd73599782721a3`:
 - process-memory traversed all 18 holds forward and reverse and passed RSS/GPU/renderer/heap/layer/WebGL budgets;
 - same-port clean-worktree review → immutable legacy → identical review rehearsal passed root/footer/no-JS/manifest/media-range and PageDown/PageUp smokes.
 
-Historical immutable-candidate results remain audit evidence for `1849069`; the current-branch results above independently cover R21/R22 and do not move or reclassify that tag.
+These results remain audit evidence only. HITL showed that their models did not close gesture cadence, cold reverse presentation, same-run staged reversal, receiver-entry timing, loader Ink ownership, or horizontal core coverage. The final matrix must be regenerated from the corrected exact source rather than carrying these pass labels forward.
 
 ## Acceptance Boundary
 
-This delivery intentionally captures no screenshots and performs no automated visual acceptance. The remaining visual judgment is user HITL. Do not move/create a tag, merge, or deploy by implication.
+Deterministic closure does not perform aesthetic acceptance. After the corrected source passes the full gate and a new versioned immutable candidate is created, stop for user HITL. Do not merge or deploy by implication, and never move an existing tag.

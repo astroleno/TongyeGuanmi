@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { createDirectorRuntime } from '../runtime/director.actor';
 import { SegmentPlayer } from '../story/segment-player';
 import type { SegmentTimelineHandle, TransitionModule } from '../story/types';
+
+const storyAppSource = readFileSync(new URL('./StoryApp.tsx', import.meta.url), 'utf8');
 
 function timeline(): SegmentTimelineHandle {
   return {
@@ -14,6 +17,16 @@ function timeline(): SegmentTimelineHandle {
 }
 
 describe('production runtime assembly', () => {
+  it('positions destination reading content inside target readiness before any reveal can start', () => {
+    const gateStart = storyAppSource.indexOf('waitForTargetReady:');
+    const gateEnd = storyAppSource.indexOf('waitForMediaReady:', gateStart);
+    const targetGate = storyAppSource.slice(gateStart, gateEnd);
+
+    expect(gateStart).toBeGreaterThan(0);
+    expect(targetGate).toContain('positionReadingAtEdge');
+    expect(targetGate).toContain('targetScene');
+  });
+
   it('starts the Director and LayerWindow at a direct hash scene', () => {
     const runtime = createDirectorRuntime({
       actorEpoch: 'direct-hash',

@@ -113,6 +113,41 @@ afterEach(() => {
 });
 
 describe('shared ink transition surface', () => {
+  it('fails a browser run when WebGL cannot create the production Ink renderer', async () => {
+    vi.stubGlobal('WebGLRenderingContext', class WebGLRenderingContext {});
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    stage.append(fromElement);
+    stage.append(toElement);
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const to = layer('ttg-animation', 'next', toElement);
+
+    await expect(createInkSegmentTransition({
+      id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'webgl-required' },
+      prepareEndpoints: () => undefined
+    }).buildTimeline({
+      segment,
+      from: layer('services', 'current', fromElement),
+      to,
+      stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+      direction: 1,
+      runId: 'webgl-required:1',
+      prepareToken: 'webgl-required:prepare:1',
+      prefersReducedMotion: false,
+      reportMilestone() {}
+    })).rejects.toThrow(/Ink renderer/i);
+  });
+
   it('initializes a reverse build at the forward end and prepares endpoint holds only once', async () => {
     const stage = new FakeElement();
     const fromElement = new FakeElement();

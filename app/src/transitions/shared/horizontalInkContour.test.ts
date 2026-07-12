@@ -22,6 +22,7 @@ describe('horizontal Ink contour', () => {
     });
 
     expect(first.samples).toHaveLength(HORIZONTAL_INK_CONTOUR_SAMPLES);
+    expect(HORIZONTAL_INK_CONTOUR_SAMPLES).toBeGreaterThanOrEqual(128);
     expect(first.samples).toEqual(replay.samples);
     expect(first.revision).toBe(replay.revision);
     expect(first.seed).toBe(replay.seed);

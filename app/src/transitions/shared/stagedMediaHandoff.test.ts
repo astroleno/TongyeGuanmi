@@ -35,6 +35,8 @@ describe('staged media handoff', () => {
       ? fixture.context.segment.policy.stops[0] ?? 0
       : 0;
 
+    expect((timeline as typeof timeline & { prepareLeg?: unknown }).prepareLeg).toBeTypeOf('function');
+
     timeline.progress(stop);
     const renderCountAtStop = renders.length;
     timeline.progress((stop + 1) / 2);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createDepthThresholdMask,
   thresholdTable,
@@ -80,7 +80,33 @@ const depthTransform = {
   }
 } as const;
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('depth threshold mask', () => {
+  it('keeps every live target unmasked until the depth image is decoded', () => {
+    class DeferredImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      src = '';
+    }
+    vi.stubGlobal('Image', DeferredImage);
+    const document = new FakeDocument();
+    const host = new FakeNode(document);
+    const reveal = new FakeNode(document);
+
+    createDepthThresholdMask({
+      host: host as unknown as HTMLElement,
+      targets: [{ element: reveal as unknown as HTMLElement, polarity: 'reveal' }],
+      depthSrc: '/delayed-depth.png',
+      runId: 'depth-delayed:1'
+    });
+
+    expect(reveal.style.getPropertyValue('mask-image')).toBe('');
+    expect(reveal.attributes.get('data-r4-depth-mask-run')).toBeUndefined();
+  });
+
   it('produces complementary binary tables at every sampled direction point', () => {
     for (const progress of [0, 0.37, 0.73, 1, 0.37]) {
       const tables = thresholdTables(progress, 256);

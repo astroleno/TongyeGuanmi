@@ -131,6 +131,8 @@ describe('R4 group5 transitions', () => {
     const stop = ttgLab.policy.stops[0] ?? 0;
     const timeline = await createTtgLabTransition().buildTimeline(fixture.context);
 
+    expect((timeline as typeof timeline & { prepareLeg?: unknown }).prepareLeg).toBeTypeOf('function');
+
     timeline.progress(stop / 2);
     expect(Number(fixture.fromRoot.dataset.ttgProgress)).toBeGreaterThan(0);
     expect(Number(fixture.fromRoot.dataset.ttgProgress)).toBeLessThan(1);

@@ -68,5 +68,8 @@ describe('Stage reading layers', () => {
 
     scrollport.scrollTop = 1000;
     expect(readingCanScroll(layer, 1)).toBe(false);
+
+    scrollport.scrollTop = 999.5;
+    expect(readingCanScroll(layer, 1)).toBe(false);
   });
 });
