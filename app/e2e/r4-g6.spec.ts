@@ -56,6 +56,9 @@ type Group6VisualSnapshot = {
   phPlaybackDirection: string | undefined;
   educationProgress: number;
   educationRows: number;
+  educationRootCount: number;
+  educationLayerCount: number;
+  educationScrollTop: number;
   educationScheme: string;
   educationTop: number;
   educationWideTop: number;
@@ -103,6 +106,9 @@ async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
       phPlaybackDirection: phRoot?.dataset.phPlaybackDirection,
       educationProgress: Number.parseFloat(educationRoot?.dataset.educationProgress ?? '0'),
       educationRows: document.querySelectorAll('.r4-education__row').length,
+      educationRootCount: document.querySelectorAll('[data-r4-scene="education"]').length,
+      educationLayerCount: document.querySelectorAll('[data-stage-layer="education"]').length,
+      educationScrollTop: educationRoot?.scrollTop ?? Number.NaN,
       educationScheme: window.getComputedStyle(educationRoot ?? document.body).colorScheme,
       educationTop: educationRoot?.getBoundingClientRect().top ?? Number.NaN,
       educationWideTop: educationWide?.getBoundingClientRect().top ?? Number.NaN,
@@ -228,6 +234,9 @@ test.describe('R4 group6 lab ph education harness', () => {
           inkCount: number;
           phProgress: string;
           playbackActive: string;
+          educationRootCount: number;
+          educationLayerCount: number;
+          educationScrollTop: number;
         };
       };
       delete evidenceWindow.__phEducationDissolveEvidence;
@@ -262,7 +271,10 @@ test.describe('R4 group6 lab ph education harness', () => {
             receiverFilter: receiver.style.filter,
             inkCount: document.querySelectorAll('[data-r4-ink-segment="ph-education"]').length,
             phProgress: ph?.dataset.phProgress ?? '',
-            playbackActive: ph?.dataset.phPlaybackActive ?? ''
+            playbackActive: ph?.dataset.phPlaybackActive ?? '',
+            educationRootCount: document.querySelectorAll('[data-r4-scene="education"]').length,
+            educationLayerCount: document.querySelectorAll('[data-stage-layer="education"]').length,
+            educationScrollTop: document.querySelector<HTMLElement>('[data-r4-scene="education"]')?.scrollTop ?? Number.NaN
           };
           return;
         }
@@ -302,7 +314,10 @@ test.describe('R4 group6 lab ph education harness', () => {
       receiverFilter: '',
       inkCount: 0,
       phProgress: '1.0000',
-      playbackActive: 'false'
+      playbackActive: 'false',
+      educationRootCount: 1,
+      educationLayerCount: 1,
+      educationScrollTop: 0
     });
     expect(phEducationDissolveEvidence?.sourceOpacity).toBeGreaterThan(0);
     expect(phEducationDissolveEvidence?.sourceOpacity).toBeLessThan(1);
@@ -319,6 +334,9 @@ test.describe('R4 group6 lab ph education harness', () => {
     const educationHold = await visualSnapshot(page);
     expect(educationHold.educationProgress).toBe(1);
     expect(educationHold.educationRows).toBe(4);
+    expect(educationHold.educationRootCount).toBe(1);
+    expect(educationHold.educationLayerCount).toBe(1);
+    expect(educationHold.educationScrollTop).toBe(0);
     expect(educationHold.educationScheme).toContain('light');
     expect(Math.abs(educationHold.educationTop)).toBeLessThan(1);
     expect(educationHold.educationWideTop).toBeGreaterThanOrEqual(0);

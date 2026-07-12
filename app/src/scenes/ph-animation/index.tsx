@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import {
+  disposeTimelineVideoDriver,
   driveTimelineVideo,
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
@@ -10,6 +12,7 @@ export const PH_MEDIA_KEY = 'ph_figure-alpha-scrub';
 export const PH_BG_SRC = new URL('../../../../assets/ph_background.png', import.meta.url).href;
 export const PH_FRONT_SRC = new URL('../../../../assets/ph_front-alpha.png', import.meta.url).href;
 export const PH_FIGURE_VIDEO_SRC = new URL('../../../../assets/ph_figure-alpha-scrub.webm', import.meta.url).href;
+export const PH_FIGURE_POSTER_SRC = new URL('../../../../assets/ph_figure-alpha-poster.png', import.meta.url).href;
 export const PH_HOLD_PROGRESS = 0;
 
 export type PhRenderState = {
@@ -28,6 +31,12 @@ export type PhMediaRun = {
 type PhRenderOptions = {
   mediaRun?: PhMediaRun;
 };
+
+function phSection(root: HTMLElement | null | undefined): HTMLElement | null {
+  return root?.matches('[data-r4-scene="ph-animation"]')
+    ? root
+    : root?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]') ?? null;
+}
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 const smoothStep = (value: number) => {
@@ -75,21 +84,24 @@ export function preparePhAnimationFrame(
   rawProgress: number,
   mediaRun: PhMediaRun
 ): Promise<void> {
-  renderPhAnimationProgress(root, rawProgress, { mediaRun });
-  const section = root?.matches('[data-r4-scene="ph-animation"]')
-    ? root
-    : root?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]') ?? null;
+  renderPhAnimationProgress(root, rawProgress);
+  const section = phSection(root);
   const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
+  if (!section || !video) {
+    return Promise.reject(new Error('PH media surface is unavailable'));
+  }
   return prepareTimelineVideoFrame(
     video,
     phMediaInput(phPlaybackProgress(rawProgress), mediaRun)
-  ).then(() => undefined);
+  ).then((result) => {
+    if (result?.status !== 'ready') {
+      throw new Error('PH media frame preparation became stale');
+    }
+  });
 }
 
 export function renderPhAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number, options: PhRenderOptions = {}): PhRenderState {
-  const section = root?.matches('[data-r4-scene="ph-animation"]')
-    ? root
-    : root?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]') ?? null;
+  const section = phSection(root);
   const raw = clamp(rawProgress);
   const progress = phPlaybackProgress(raw);
   const eased = smoothStep(progress);
@@ -106,14 +118,6 @@ export function renderPhAnimationProgress(root: HTMLElement | null | undefined, 
     drivePhPlayback(section, raw, progress, options.mediaRun);
   } else {
     section?.setAttribute('data-ph-playback-active', 'false');
-    driveTimelineVideo(section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]'), {
-      runId: 'ph-hold',
-      direction: -1,
-      progress,
-      durationFallbackSeconds: 76 / 30,
-      endEpsilonSeconds: 0.02,
-      mode: 'timeline'
-    });
     section?.setAttribute('data-ph-raw-progress', raw.toFixed(4));
   }
 
@@ -124,10 +128,48 @@ export function renderPhHold(root: HTMLElement | null): void {
   renderPhAnimationProgress(root, PH_HOLD_PROGRESS);
 }
 
+export function parkPhMedia(root: HTMLElement | null | undefined): void {
+  const section = phSection(root);
+  const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
+  if (!video) {
+    return;
+  }
+  disposeTimelineVideoDriver(video);
+  video.pause();
+  if (video.preload !== 'metadata') {
+    video.preload = 'metadata';
+    video.load?.();
+  }
+}
+
 function PhAnimationScene({ registerHandle }: SceneComponentProps) {
+  const rootRef = useRef<HTMLElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const video = videoRef.current;
+    if (video) {
+      video.muted = true;
+      video.loop = false;
+      video.playsInline = true;
+      video.pause();
+    }
+    return () => {
+      if (video) {
+        disposeTimelineVideoDriver(video);
+        video.pause();
+      }
+      if (root) {
+        delete root.dataset.phPlaybackRun;
+      }
+    };
+  }, []);
+
   return (
     <article
       ref={(element) => {
+        rootRef.current = element;
         registerHandle?.('field', element);
       }}
       className="ph-page r4-ph-animation"
@@ -144,13 +186,17 @@ function PhAnimationScene({ registerHandle }: SceneComponentProps) {
             <div className="ph-layer-stack" aria-hidden="true">
               <img className="ph-layer ph-layer--front" src={PH_FRONT_SRC} alt="" />
               <video
-                ref={(element) => registerHandle?.('figure-video', element)}
+                ref={(element) => {
+                  videoRef.current = element;
+                  registerHandle?.('figure-video', element);
+                }}
                 className="ph-layer ph-layer--figure"
                 data-ph-alpha-video
                 data-media-key={PH_MEDIA_KEY}
                 src={PH_FIGURE_VIDEO_SRC}
+                poster={PH_FIGURE_POSTER_SRC}
                 muted
-                preload="auto"
+                preload="metadata"
                 playsInline
               />
             </div>

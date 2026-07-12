@@ -27,15 +27,21 @@ export type StagedMediaHandoffOptions = Readonly<{
   delayMs?: () => number;
   rootSelector?: (scene: string) => string;
   prepareEndpoints(roots: Readonly<{ from: HTMLElement | null; to: HTMLElement | null }>): void;
-  prepareSourceTerminal?: (
-    root: HTMLElement | null,
-    context: StagedMediaRenderContext
-  ) => Promise<void> | void;
   prepareLeg?: (
     root: HTMLElement | null,
     leg: StagedLegPreparation,
     context: StagedMediaRenderContext
   ) => Promise<void> | void;
+  commitLegEndpoint?: (
+    root: HTMLElement | null,
+    leg: StagedLegPreparation,
+    context: StagedMediaRenderContext
+  ) => void;
+  disposeSource?: (
+    root: HTMLElement | null,
+    progress: number,
+    context: StagedMediaRenderContext
+  ) => void;
   renderSource(
     root: HTMLElement | null,
     progress: number,
@@ -189,6 +195,8 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
   private renderedSourceRoot: HTMLElement | null = null;
   private renderedSourceProgress = Number.NaN;
   private renderedSourceDirection: Direction | undefined;
+  private preparationGeneration = 0;
+  private armedLeg: StagedLegPreparation | undefined;
 
   constructor(
     private readonly context: TransitionContext,
@@ -266,6 +274,16 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
       clearHandoffAttrs(roots.fromElement);
       clearHandoffAttrs(roots.toElement);
     }
+
+    const armedLeg = this.armedLeg;
+    if (armedLeg && Math.abs(clamped - armedLeg.to) <= 0.0001) {
+      this.armedLeg = undefined;
+      this.options.commitLegEndpoint?.(
+        roots.from,
+        armedLeg,
+        renderContext(this.context, armedLeg.direction)
+      );
+    }
   }
 
   jumpToEnd(direction: Direction): void {
@@ -275,11 +293,22 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
 
   prepareLeg(leg: StagedLegPreparation): Promise<void> | void {
     const roots = rootsFor(this.context, this.options);
-    return this.options.prepareLeg?.(
+    const generation = ++this.preparationGeneration;
+    const readiness = this.options.prepareLeg?.(
       roots.from,
       leg,
       renderContext(this.context, leg.direction)
     );
+    const arm = () => {
+      if (!this.disposed && this.preparationGeneration === generation) {
+        this.armedLeg = leg;
+      }
+    };
+    if (!readiness) {
+      arm();
+      return;
+    }
+    return Promise.resolve(readiness).then(arm);
   }
 
   sample(progress: number): StagedMediaHandoffSample {
@@ -302,11 +331,18 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
       return;
     }
     this.disposed = true;
+    this.preparationGeneration += 1;
+    this.armedLeg = undefined;
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
     }
     const roots = rootsFor(this.context, this.options);
+    this.options.disposeSource?.(
+      roots.from,
+      this.progressValue,
+      renderContext(this.context, this.playbackDirection)
+    );
     clearHandoffAttrs(roots.fromElement);
     clearHandoffAttrs(roots.toElement);
     this.preparedFromRoot = null;
@@ -378,10 +414,6 @@ export function createStagedMediaHandoff(
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
       applyInitialVisibility(context, options);
-      if (context.direction === -1 && options.prepareSourceTerminal) {
-        const roots = rootsFor(context, options);
-        await options.prepareSourceTerminal(roots.from, renderContext(context, -1));
-      }
       return new StagedMediaHandoffTimeline(context, options);
     }
   };

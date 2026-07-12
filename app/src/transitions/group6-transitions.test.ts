@@ -129,6 +129,20 @@ describe('R4 group6 transitions', () => {
     const timeline = await createPhEducationTransition().buildTimeline(fixture.context);
 
     expect((timeline as typeof timeline & { prepareLeg?: unknown }).prepareLeg).toBeTypeOf('function');
+    expect(timeline.rootIdentity?.()).toEqual({
+      from: fixture.stage.children[0],
+      to: fixture.stage.children[1]
+    });
+    expect(fixture.stage.children).toHaveLength(2);
+    await timeline.prepareLeg?.({
+      runId: fixture.context.runId,
+      segment: 'ph-education',
+      direction: 1,
+      legIndex: 0,
+      from: 0,
+      to: stop,
+      durationMs: PH_PLAYBACK_MS
+    });
 
     timeline.progress(stop / 2);
     const forwardMidTime = video.currentTime;
@@ -142,6 +156,17 @@ describe('R4 group6 transitions', () => {
     expect(canvas.dataset.r4InkProgress).toBeUndefined();
     expect(timeline.pauses).toEqual(['stage:0']);
     const writesAtStop = video.currentTimeWrites;
+
+    await timeline.prepareLeg?.({
+      runId: fixture.context.runId,
+      segment: 'ph-education',
+      direction: 1,
+      legIndex: 1,
+      from: stop,
+      to: 1,
+      durationMs: 600,
+      resumedStageIndex: 0
+    });
 
     timeline.progress((stop + 1) / 2);
     expect(fixture.fromRoot.dataset.phProgress).toBe('1.0000');
@@ -162,14 +187,60 @@ describe('R4 group6 transitions', () => {
     expect(receiver.dataset.r4InkBoundaryKind).toBeUndefined();
     expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
     expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(timeline.rootIdentity?.()).toEqual({
+      from: fixture.stage.children[0],
+      to: fixture.stage.children[1]
+    });
+    expect(fixture.stage.children).toHaveLength(2);
     for (const progress of [(stop + 2) / 3, (stop + 3) / 4]) {
       timeline.progress(progress);
     }
     expect(video.currentTimeWrites).toBe(writesAtStop);
 
-    timeline.progress(stop / 2);
-    expect(video.currentTime).toBeCloseTo(forwardMidTime, 3);
+    expect(video.currentTime).toBeGreaterThanOrEqual(forwardMidTime);
     expect(video.playCalls).toBe(0);
+    timeline.dispose();
+  });
+
+  it('reverses PH from its first pause with one fixed preparation and descending presented targets', async () => {
+    const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
+    const video = new FakeVideo();
+    video.duration = 76 / 30;
+    fixture.fromRoot.connect('[data-ph-alpha-video]', video);
+    const timeline = await createPhEducationTransition().buildTimeline(fixture.context);
+
+    await timeline.prepareLeg?.({
+      runId: fixture.context.runId,
+      segment: 'ph-education',
+      direction: 1,
+      legIndex: 0,
+      from: 0,
+      to: PH_EDUCATION_ANIMATION_STOP,
+      durationMs: PH_PLAYBACK_MS
+    });
+    timeline.progress(PH_EDUCATION_ANIMATION_STOP);
+    expect(video.currentTime).toBeCloseTo(video.duration - 0.02, 3);
+
+    await timeline.prepareLeg?.({
+      runId: fixture.context.runId,
+      segment: 'ph-education',
+      direction: -1,
+      legIndex: 0,
+      from: PH_EDUCATION_ANIMATION_STOP,
+      to: 0,
+      durationMs: PH_PLAYBACK_MS,
+      resumedStageIndex: 0
+    });
+    const samples: number[] = [];
+    for (const progress of [0.75, 0.5, 0.25].map((value) => value * PH_EDUCATION_ANIMATION_STOP)) {
+      timeline.progress(progress);
+      samples.push(video.currentTime);
+    }
+    expect(samples[0]).toBeGreaterThan(samples[1] ?? 0);
+    expect(samples[1]).toBeGreaterThan(samples[2] ?? 0);
+    expect(video.playCalls).toBe(0);
+    timeline.progress(0);
+    expect(video.currentTime).toBe(0);
   });
 
   it('keeps the PH media and milestone contracts equal to the manifest', () => {
@@ -230,24 +301,34 @@ describe('R4 group6 transitions', () => {
     const video = new DeferredFrameVideo();
     video.duration = 76 / 30;
     fixture.fromRoot.connect('[data-ph-alpha-video]', video);
-    const build = Promise.resolve(createPhEducationTransition().buildTimeline({
+    const reverseContext = {
       ...fixture.context,
       direction: -1,
       runId: 'ph-terminal:1',
       prepareToken: 'ph-terminal:prepare:1'
+    } as const;
+    const timeline = await createPhEducationTransition().buildTimeline(reverseContext);
+    const preparation = Promise.resolve(timeline.prepareLeg?.({
+      runId: reverseContext.runId,
+      segment: 'ph-education',
+      direction: -1,
+      legIndex: 1,
+      from: 1,
+      to: PH_EDUCATION_ANIMATION_STOP,
+      durationMs: 600
     }));
-    let buildResolved = false;
-    void build.then(() => {
-      buildResolved = true;
+    let frameReady = false;
+    void preparation.then(() => {
+      frameReady = true;
     });
 
     await Promise.resolve();
-    expect(buildResolved).toBe(false);
+    expect(frameReady).toBe(false);
     expect(fixture.fromLayer.visibility.opacity).toBe(0);
     expect(fixture.toLayer.visibility.opacity).toBe(1);
 
     video.presentRequestedFrame();
-    const timeline = await build;
+    await preparation;
     timeline.progress((PH_EDUCATION_ANIMATION_STOP + 1) / 2);
     expect(fixture.fromLayer.visibility.opacity).toBeGreaterThan(0);
   });
@@ -261,14 +342,36 @@ describe('R4 group6 transitions', () => {
 
     for (let index = 1; index <= 20; index += 1) {
       const direction: 1 | -1 = index % 2 === 1 ? 1 : -1;
-      const timeline = await createPhEducationTransition().buildTimeline({
+      const runContext = {
         ...fixture.context,
         direction,
         runId: `ph-runs:${index}`,
         prepareToken: `ph-runs:prepare:${index}`
-      });
-      fixture.fromRoot.dataset.phRawProgress = direction === 1 ? '1' : '0';
+      } as const;
+      const timeline = await createPhEducationTransition().buildTimeline(runContext);
 
+      if (direction === -1) {
+        await timeline.prepareLeg?.({
+          runId: runContext.runId,
+          segment: 'ph-education',
+          direction,
+          legIndex: 1,
+          from: 1,
+          to: PH_EDUCATION_ANIMATION_STOP,
+          durationMs: 600
+        });
+        timeline.progress(PH_EDUCATION_ANIMATION_STOP);
+      }
+      await timeline.prepareLeg?.({
+        runId: runContext.runId,
+        segment: 'ph-education',
+        direction,
+        legIndex: 0,
+        from: direction === 1 ? 0 : PH_EDUCATION_ANIMATION_STOP,
+        to: direction === 1 ? PH_EDUCATION_ANIMATION_STOP : 0,
+        durationMs: PH_PLAYBACK_MS,
+        ...(direction === -1 ? { resumedStageIndex: 0 } : {})
+      });
       timeline.progress(PH_EDUCATION_ANIMATION_STOP * 0.5);
 
       expect(fixture.fromRoot.dataset.phPlaybackDirection).toBe(String(direction));

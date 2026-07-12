@@ -367,6 +367,50 @@ test.describe('R4 group5 services ttg lab harness', () => {
     expect(finalFrame.interactableCount).toBe(1);
   });
 
+  test('reverses TTG at its first pause before Lab with one active surface', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto('/harness/r4-g5-ttg-lab');
+    await expect(page.getByTestId('r2-stage')).toBeVisible();
+
+    await page.evaluate(() => {
+      void window.__r4Group5?.playForward();
+    });
+    await expect.poll(
+      async () => (await snapshot(page)).phase,
+      { timeout: 10_000, intervals: [40, 80, 120] }
+    ).toBe('staged-paused');
+    const terminal = await visualSnapshot(page);
+    expect(terminal.ttgProgress).toBe(1);
+    expect(terminal.ttgVideos.filter((video) => video.active)).toHaveLength(1);
+    expect(terminal.ttgVideos[0]?.active).toBe(true);
+
+    await page.evaluate(() => {
+      void window.__r4Group5?.playReverse();
+    });
+    let sawNativeReverse = false;
+    for (let index = 0; index < 30; index += 1) {
+      await page.waitForTimeout(24);
+      const visual = await visualSnapshot(page);
+      expect(visual.ttgVideos.filter((video) => video.active)).toHaveLength(1);
+      sawNativeReverse ||= visual.ttgPlaybackDirection === '-1'
+        && visual.ttgProgress > 0
+        && visual.ttgProgress < 1
+        && visual.ttgVideos[1]?.active === true
+        && visual.ttgVideos[1]?.paused === false;
+    }
+    expect(sawNativeReverse).toBe(true);
+    await expect.poll(
+      async () => (await snapshot(page)).phase,
+      { timeout: 10_000, intervals: [40, 80, 120] }
+    ).toBe('hold');
+    const restored = await visualSnapshot(page);
+    expect(restored.ttgProgress).toBe(0);
+    expect(restored.ttgVideos.filter((video) => video.active)).toHaveLength(1);
+    expect(restored.ttgVideos[0]?.active).toBe(true);
+    expect(restored.ttgVideos[0]?.currentTime ?? 1).toBeLessThan(0.08);
+    expect(restored.ttgVideos[1]?.active).toBe(false);
+  });
+
   test('covers reduced motion and 0 to 1 to 0 to 1 replay', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/harness/r4-g5-ttg-lab');

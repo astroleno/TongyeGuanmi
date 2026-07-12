@@ -64,7 +64,7 @@ describe('staged media handoff', () => {
     expect(fixture.stage.children[1]?.dataset.r4Handoff).toBeUndefined();
   });
 
-  it('waits for reverse terminal readiness while keeping the source hidden', async () => {
+  it('waits for reverse terminal leg readiness while keeping the source hidden', async () => {
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
     let releaseTerminal: (() => void) | undefined;
     let preparedContext: StagedMediaRenderContext | undefined;
@@ -74,20 +74,33 @@ describe('staged media handoff', () => {
     const transition = createStagedMediaHandoff({
       id: 'ph-education',
       prepareEndpoints: () => undefined,
-      prepareSourceTerminal: (_root, context) => {
+      prepareLeg: (_root, _leg, context) => {
         preparedContext = context;
         return terminalReady;
       },
       renderSource: () => undefined
     });
-    const build = Promise.resolve(transition.buildTimeline({
+    const reverseContext = {
       ...fixture.context,
       direction: -1,
       runId: 'handoff-reverse:1',
       prepareToken: 'handoff-reverse:prepare:1'
+    } as const;
+    const timeline = await transition.buildTimeline(reverseContext);
+    const stop = reverseContext.segment.policy.kind === 'stagedSnap'
+      ? reverseContext.segment.policy.stops[0] ?? 0
+      : 0;
+    const preparation = Promise.resolve(timeline.prepareLeg?.({
+      runId: reverseContext.runId,
+      segment: 'ph-education',
+      direction: -1,
+      legIndex: 1,
+      from: 1,
+      to: stop,
+      durationMs: 600
     }));
     let resolved = false;
-    void build.then(() => {
+    void preparation.then(() => {
       resolved = true;
     });
 
@@ -101,6 +114,43 @@ describe('staged media handoff', () => {
     });
 
     releaseTerminal?.();
-    await expect(build).resolves.toBeDefined();
+    await expect(preparation).resolves.toBeUndefined();
+  });
+
+  it('commits a prepared leg endpoint once and delegates source disposal explicitly', async () => {
+    const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
+    const commits: number[] = [];
+    const disposals: number[] = [];
+    const transition = createStagedMediaHandoff({
+      id: 'ttg-lab',
+      prepareEndpoints: () => undefined,
+      prepareLeg: () => Promise.resolve(),
+      commitLegEndpoint: (_root, leg) => commits.push(leg.to),
+      disposeSource: (_root, progress) => disposals.push(progress),
+      renderSource: () => undefined
+    });
+    const timeline = await transition.buildTimeline(fixture.context);
+    const stop = fixture.context.segment.policy.kind === 'stagedSnap'
+      ? fixture.context.segment.policy.stops[0] ?? 0
+      : 0;
+
+    await timeline.prepareLeg?.({
+      runId: fixture.context.runId,
+      segment: 'ttg-lab',
+      direction: -1,
+      legIndex: 0,
+      from: stop,
+      to: 0,
+      durationMs: 2500,
+      resumedStageIndex: 0
+    });
+    timeline.progress(stop / 2);
+    expect(commits).toEqual([]);
+    timeline.progress(0);
+    timeline.progress(0);
+    expect(commits).toEqual([0]);
+
+    timeline.dispose();
+    expect(disposals).toEqual([0]);
   });
 });

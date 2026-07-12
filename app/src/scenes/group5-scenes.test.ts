@@ -53,7 +53,7 @@ describe('R4 group5 scenes', () => {
     expect(lab?.normalizedText).toEqual([...LAB_COPY]);
   });
 
-  it('does not rewrite terminal TTG media times on repeated endpoint renders', () => {
+  it('keeps TTG presentation renders free of surface preparation and parking', () => {
     class CountingVideo {
       private time = 0;
       currentTimeWrites = 0;
@@ -109,8 +109,11 @@ describe('R4 group5 scenes', () => {
     renderTtgAnimationProgress(root as unknown as HTMLElement, 1, { mediaRun });
 
     expect([forward.currentTimeWrites, reverse.currentTimeWrites]).toEqual(writes);
+    expect(forward.currentTimeWrites).toBe(0);
     expect(reverse.currentTimeWrites).toBe(0);
-    expect(reverse.preload).toBe('metadata');
-    expect(reverse.loadCalls).toBe(1);
+    expect(forward.preload).toBe('auto');
+    expect(reverse.preload).toBe('auto');
+    expect(forward.loadCalls).toBe(0);
+    expect(reverse.loadCalls).toBe(0);
   });
 });

@@ -1,6 +1,9 @@
 import { renderLabHold } from '../../scenes/lab';
 import {
-  prepareTtgAnimationFrame,
+  commitTtgForwardStart,
+  parkTtgMedia,
+  prepareTtgPlaybackLeg,
+  prepareTtgSourceTerminal,
   renderTtgAnimationProgress
 } from '../../scenes/ttg-animation';
 import { INTRA_CHAPTER_DISSOLVE_MS, TTG_PLAYBACK_MS } from '../../story/timings';
@@ -16,7 +19,24 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
     id: 'ttg-lab',
     ...(options.delayMs ? { delayMs: options.delayMs } : {}),
     prepareEndpoints: ({ to }) => renderLabHold(to),
-    prepareSourceTerminal: (root, mediaRun) => prepareTtgAnimationFrame(root, 1, mediaRun),
+    prepareLeg: (root, leg, mediaRun) => {
+      if (leg.legIndex === 0) {
+        return prepareTtgPlaybackLeg(root, mediaRun);
+      }
+      if (leg.direction === -1) {
+        return prepareTtgSourceTerminal(root, mediaRun);
+      }
+    },
+    commitLegEndpoint: (root, leg, mediaRun) => {
+      if (leg.direction === -1 && leg.legIndex === 0) {
+        commitTtgForwardStart(root, mediaRun);
+      }
+    },
+    disposeSource: (root, progress) => {
+      if (progress > 0.001) {
+        parkTtgMedia(root);
+      }
+    },
     renderSource: (root, progress, mediaRun) => renderTtgAnimationProgress(root, progress, { mediaRun }),
   });
   return {

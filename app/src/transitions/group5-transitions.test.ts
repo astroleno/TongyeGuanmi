@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ttgAnimationScene } from '../scenes/ttg-animation';
+import { ttgAnimationScene, ttgMediaSnapshot } from '../scenes/ttg-animation';
 import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { createServicesTtgTransition } from './services-ttg';
@@ -132,6 +132,15 @@ describe('R4 group5 transitions', () => {
     const timeline = await createTtgLabTransition().buildTimeline(fixture.context);
 
     expect((timeline as typeof timeline & { prepareLeg?: unknown }).prepareLeg).toBeTypeOf('function');
+    await timeline.prepareLeg?.({
+      runId: fixture.context.runId,
+      segment: 'ttg-lab',
+      direction: 1,
+      legIndex: 0,
+      from: 0,
+      to: stop,
+      durationMs: 2500
+    });
 
     timeline.progress(stop / 2);
     expect(Number(fixture.fromRoot.dataset.ttgProgress)).toBeGreaterThan(0);
@@ -145,6 +154,17 @@ describe('R4 group5 transitions', () => {
     expect(timeline.pauses).toEqual(['stage:0']);
     const forwardWritesAtStop = forwardVideo.currentTimeWrites;
     const reverseWritesAtStop = reverseVideo.currentTimeWrites;
+
+    await timeline.prepareLeg?.({
+      runId: fixture.context.runId,
+      segment: 'ttg-lab',
+      direction: 1,
+      legIndex: 1,
+      from: stop,
+      to: 1,
+      durationMs: 600,
+      resumedStageIndex: 0
+    });
 
     timeline.progress((stop + 1) / 2);
     expect(fixture.fromRoot.dataset.ttgProgress).toBe('1.0000');
@@ -172,13 +192,7 @@ describe('R4 group5 transitions', () => {
     timeline.progress(1);
     expect(fixture.stage.children[0]?.dataset.r4Handoff).toBeUndefined();
     expect(fixture.stage.children[1]?.dataset.r4Handoff).toBeUndefined();
-
-    timeline.progress(stop / 2);
-    expect(fixture.fromRoot.dataset.ttgPlaybackDirection).toBe('-1');
-    expect(reverseVideo.playCalls).toBeGreaterThan(0);
-    expect(reverseVideo.currentTime).toBeCloseTo((reverseVideo.duration - 0.02) * 0.5, 3);
-    expect(reverseVideo.playbackRate).toBeGreaterThan(0.95);
-    expect(reverseVideo.playbackRate).toBeLessThan(1.05);
+    timeline.dispose();
   });
 
   it('falls back to timeline-aligned TTG frames when native playback is rejected', async () => {
@@ -201,8 +215,18 @@ describe('R4 group5 transitions', () => {
       ? policy.stops[0] ?? 0
       : 0;
     const timeline = await createTtgLabTransition().buildTimeline(fixture.context);
+    await timeline.prepareLeg?.({
+      runId: fixture.context.runId,
+      segment: 'ttg-lab',
+      direction: 1,
+      legIndex: 0,
+      from: 0,
+      to: stop,
+      durationMs: 2500
+    });
 
     timeline.progress(stop * 0.2);
+    await Promise.resolve();
     await Promise.resolve();
     timeline.progress(stop * 0.4);
 
@@ -228,7 +252,7 @@ describe('R4 group5 transitions', () => {
     ]);
   });
 
-  it('switches TTG reverse and terminal forward surfaces only after their requested frame is presented', async () => {
+  it('prepares a cold reverse dissolve and same-run reverse leg without zero-active intervals', async () => {
     class DeferredFrameVideo extends FakeVideo {
       seeking = false;
       private frameCallback: (() => void) | undefined;
@@ -281,39 +305,124 @@ describe('R4 group5 transitions', () => {
     fixture.fromRoot.connect('[data-ttg-figure-video]', forwardVideo);
     fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
     vi.stubGlobal('document', { createElement: () => canvas });
-    const build = Promise.resolve(createTtgLabTransition().buildTimeline({
+    const reverseContext = {
       ...fixture.context,
       direction: -1,
       runId: 'ttg-atomic:1',
       prepareToken: 'ttg-atomic:prepare:1'
-    }));
-    let buildResolved = false;
-    void build.then(() => {
-      buildResolved = true;
-    });
-
-    await Promise.resolve();
-    expect(buildResolved).toBe(false);
+    } as const;
+    const timeline = await createTtgLabTransition().buildTimeline(reverseContext);
     expect(fixture.fromLayer.visibility.opacity).toBe(0);
     expect(fixture.toLayer.visibility.opacity).toBe(1);
-
     expect(forwardVideo.classList.contains('is-active')).toBe(true);
     expect(reverseVideo.classList.contains('is-active')).toBe(false);
 
-    reverseVideo.presentRequestedFrame();
-    const timeline = await build;
-    expect(reverseVideo.classList.contains('is-active')).toBe(true);
-    expect(forwardVideo.classList.contains('is-active')).toBe(false);
-
-    timeline.progress((TTG_LAB_ANIMATION_STOP + 1) / 2);
-    expect(fixture.fromLayer.visibility.opacity).toBeGreaterThan(0);
-
-    timeline.progress(0);
-    expect(reverseVideo.classList.contains('is-active')).toBe(true);
-    expect(forwardVideo.classList.contains('is-active')).toBe(false);
+    const terminalPreparation = Promise.resolve(timeline.prepareLeg?.({
+      runId: reverseContext.runId,
+      segment: 'ttg-lab',
+      direction: -1,
+      legIndex: 1,
+      from: 1,
+      to: TTG_LAB_ANIMATION_STOP,
+      durationMs: 600
+    }));
+    let terminalReady = false;
+    void terminalPreparation.then(() => {
+      terminalReady = true;
+    });
+    await Promise.resolve();
+    expect(terminalReady).toBe(false);
+    expect(forwardVideo.classList.contains('is-active')).toBe(true);
+    expect(reverseVideo.classList.contains('is-active')).toBe(false);
 
     forwardVideo.presentRequestedFrame();
-    await Promise.resolve();
+    await terminalPreparation;
+    expect(forwardVideo.classList.contains('is-active')).toBe(true);
+    expect(reverseVideo.classList.contains('is-active')).toBe(false);
+    timeline.progress((TTG_LAB_ANIMATION_STOP + 1) / 2);
+    expect(fixture.fromLayer.visibility.opacity).toBeGreaterThan(0);
+    timeline.progress(TTG_LAB_ANIMATION_STOP);
+
+    const reversePreparation = Promise.resolve(timeline.prepareLeg?.({
+      runId: reverseContext.runId,
+      segment: 'ttg-lab',
+      direction: -1,
+      legIndex: 0,
+      from: TTG_LAB_ANIMATION_STOP,
+      to: 0,
+      durationMs: 2500,
+      resumedStageIndex: 0
+    }));
+    reverseVideo.presentRequestedFrame();
+    for (let index = 0; index < 6; index += 1) {
+      await Promise.resolve();
+    }
+    expect(reverseVideo.classList.contains('is-active')).toBe(true);
+    expect(forwardVideo.classList.contains('is-active')).toBe(false);
+    expect(reverseVideo.playCalls).toBe(0);
+
+    forwardVideo.presentRequestedFrame();
+    await reversePreparation;
+    expect(reverseVideo.playCalls).toBe(1);
+    expect(ttgMediaSnapshot(fixture.fromRoot as unknown as HTMLElement)).toMatchObject({
+      activeSurface: 'reverse',
+      activeRunId: reverseContext.runId,
+      preparedForwardStart: true
+    });
+
+    timeline.progress(TTG_LAB_ANIMATION_STOP / 2);
+    expect(reverseVideo.classList.contains('is-active')).toBe(true);
+    expect(forwardVideo.classList.contains('is-active')).toBe(false);
+    timeline.progress(0);
+    expect(forwardVideo.classList.contains('is-active')).toBe(true);
+    expect(reverseVideo.classList.contains('is-active')).toBe(false);
+    expect(forwardVideo.currentTime).toBe(0);
+    expect(ttgMediaSnapshot(fixture.fromRoot as unknown as HTMLElement)).toMatchObject({
+      activeSurface: 'forward',
+      preparedForwardStart: false
+    });
+  });
+
+  it('reverses at the first TTG pause inside one active run before Lab is visited', async () => {
+    const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
+    const forwardVideo = new FakeVideo();
+    const reverseVideo = new FakeVideo();
+    forwardVideo.classList.add('is-active');
+    fixture.fromRoot.connect('[data-ttg-figure-video]', forwardVideo);
+    fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
+    const timeline = await createTtgLabTransition().buildTimeline(fixture.context);
+
+    await timeline.prepareLeg?.({
+      runId: fixture.context.runId,
+      segment: 'ttg-lab',
+      direction: 1,
+      legIndex: 0,
+      from: 0,
+      to: TTG_LAB_ANIMATION_STOP,
+      durationMs: 2500
+    });
+    timeline.progress(TTG_LAB_ANIMATION_STOP);
+    expect(forwardVideo.classList.contains('is-active')).toBe(true);
+    expect(reverseVideo.classList.contains('is-active')).toBe(false);
+
+    await timeline.prepareLeg?.({
+      runId: fixture.context.runId,
+      segment: 'ttg-lab',
+      direction: -1,
+      legIndex: 0,
+      from: TTG_LAB_ANIMATION_STOP,
+      to: 0,
+      durationMs: 2500,
+      resumedStageIndex: 0
+    });
+    expect(forwardVideo.classList.contains('is-active')).toBe(false);
+    expect(reverseVideo.classList.contains('is-active')).toBe(true);
+    expect(reverseVideo.playCalls).toBe(1);
+
+    timeline.progress(TTG_LAB_ANIMATION_STOP * 0.6);
+    timeline.progress(TTG_LAB_ANIMATION_STOP * 0.3);
+    expect(reverseVideo.classList.contains('is-active')).toBe(true);
+    timeline.progress(0);
     expect(forwardVideo.classList.contains('is-active')).toBe(true);
     expect(reverseVideo.classList.contains('is-active')).toBe(false);
     expect(forwardVideo.currentTime).toBe(0);
@@ -330,24 +439,64 @@ describe('R4 group5 transitions', () => {
 
     for (let index = 1; index <= 20; index += 1) {
       const direction: 1 | -1 = index % 2 === 1 ? 1 : -1;
-      const timeline = await createTtgLabTransition().buildTimeline({
+      const runContext = {
         ...fixture.context,
         direction,
         runId: `ttg-runs:${index}`,
         prepareToken: `ttg-runs:prepare:${index}`
-      });
-      fixture.fromRoot.dataset.ttgRawProgress = direction === 1 ? '1' : '0';
+      } as const;
+      const timeline = await createTtgLabTransition().buildTimeline(runContext);
 
-      timeline.progress(TTG_LAB_ANIMATION_STOP * 0.5);
-      await Promise.resolve();
+      if (direction === 1) {
+        await timeline.prepareLeg?.({
+          runId: runContext.runId,
+          segment: 'ttg-lab',
+          direction,
+          legIndex: 0,
+          from: 0,
+          to: TTG_LAB_ANIMATION_STOP,
+          durationMs: 2500
+        });
+        timeline.progress(TTG_LAB_ANIMATION_STOP * 0.5);
+        timeline.progress(TTG_LAB_ANIMATION_STOP);
+        await timeline.prepareLeg?.({
+          runId: runContext.runId,
+          segment: 'ttg-lab',
+          direction,
+          legIndex: 1,
+          from: TTG_LAB_ANIMATION_STOP,
+          to: 1,
+          durationMs: 600,
+          resumedStageIndex: 0
+        });
+        timeline.progress(1);
+      } else {
+        await timeline.prepareLeg?.({
+          runId: runContext.runId,
+          segment: 'ttg-lab',
+          direction,
+          legIndex: 1,
+          from: 1,
+          to: TTG_LAB_ANIMATION_STOP,
+          durationMs: 600
+        });
+        timeline.progress((1 + TTG_LAB_ANIMATION_STOP) / 2);
+        timeline.progress(TTG_LAB_ANIMATION_STOP);
+        await timeline.prepareLeg?.({
+          runId: runContext.runId,
+          segment: 'ttg-lab',
+          direction,
+          legIndex: 0,
+          from: TTG_LAB_ANIMATION_STOP,
+          to: 0,
+          durationMs: 2500,
+          resumedStageIndex: 0
+        });
+        timeline.progress(TTG_LAB_ANIMATION_STOP * 0.5);
+        timeline.progress(0);
+      }
 
       expect(fixture.fromRoot.dataset.ttgPlaybackDirection).toBe(String(direction));
-      expect(direction === 1
-        ? forwardVideo.classList.contains('is-active')
-        : reverseVideo.classList.contains('is-active')).toBe(true);
-
-      timeline.progress(direction === 1 ? TTG_LAB_ANIMATION_STOP : 0);
-      await Promise.resolve();
       expect(forwardVideo.classList.contains('is-active')).toBe(true);
       expect(reverseVideo.classList.contains('is-active')).toBe(false);
       expect(forwardVideo.currentTime).toBeCloseTo(

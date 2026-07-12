@@ -1,5 +1,9 @@
 import { renderEducationHold } from '../../scenes/education';
-import { preparePhAnimationFrame, renderPhAnimationProgress } from '../../scenes/ph-animation';
+import {
+  parkPhMedia,
+  preparePhAnimationFrame,
+  renderPhAnimationProgress
+} from '../../scenes/ph-animation';
 import { INTRA_CHAPTER_DISSOLVE_MS, PH_PLAYBACK_MS } from '../../story/timings';
 import { createStagedMediaHandoff } from '../shared/stagedMediaHandoff';
 import type { TransitionModule } from '../../story/types';
@@ -13,7 +17,19 @@ export function createPhEducationTransition(options: { delayMs?: () => number } 
     id: 'ph-education',
     ...(options.delayMs ? { delayMs: options.delayMs } : {}),
     prepareEndpoints: ({ to }) => renderEducationHold(to),
-    prepareSourceTerminal: (root, mediaRun) => preparePhAnimationFrame(root, 1, mediaRun),
+    prepareLeg: (root, leg, mediaRun) => {
+      if (leg.legIndex === 0) {
+        return preparePhAnimationFrame(root, leg.direction === 1 ? 0 : 1, mediaRun);
+      }
+      if (leg.direction === -1) {
+        return preparePhAnimationFrame(root, 1, mediaRun);
+      }
+    },
+    disposeSource: (root, progress) => {
+      if (progress > 0.001) {
+        parkPhMedia(root);
+      }
+    },
     renderSource: (root, progress, mediaRun) => renderPhAnimationProgress(root, progress, { mediaRun }),
   });
   return {
