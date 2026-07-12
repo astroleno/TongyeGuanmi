@@ -1,6 +1,6 @@
 # React Cutover And Rollback Runbook
 
-Status: parity-repair implementation and pre-freeze automated acceptance passed; corrected-candidate freeze, exact-tag smokes, and rollback rehearsal are pending. Production cutover is not authorized.
+Status: corrected candidate freeze, exact-tag smokes, and same-port rollback rehearsal passed. Production cutover is not authorized.
 
 ## Immutable Inputs
 
@@ -12,10 +12,10 @@ Status: parity-repair implementation and pre-freeze automated acceptance passed;
 | superseded R5 candidate | `react-refactor-r5-candidate` | `0de4972de64455a14d8c36262e58cc6af5c4875b` |
 | superseded R5 candidate | `react-refactor-r5-candidate-v2` | `a5bef3785b766dac0e5ecfc95e96d03cd5c51c90` |
 | parity-repair base / superseded candidate | `react-refactor-r5-candidate-v3` | `59065730712c6d9718928fd25cba23e33455395e` |
-| corrected candidate | `react-refactor-r5-parity-repair-candidate` | pending final gates and annotated-tag freeze |
+| corrected candidate | `react-refactor-r5-parity-repair-candidate` | commit `18490690992bffef6c9705cd47438b9cd17e756a`; tag object `7f96b243d42efd3e7409ca8628109b0901900a9b` |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |
-| corrected release artifact | exact-tag `dist/r5-release-manifest.json` | schema-2 identity and external manifest SHA-256; pending |
+| corrected release artifact | exact-tag `dist/r5-release-manifest.json` | schema 2; 97 files / 139,518,637B; SHA-256 `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
 
 Always peel annotated tags with `git rev-parse <tag>^{}`. Never move or reuse an old candidate tag. The three old R5 candidates do not contain the production parity repair.
 

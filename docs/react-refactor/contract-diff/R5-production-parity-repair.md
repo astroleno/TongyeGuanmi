@@ -1,6 +1,6 @@
 # R5 Production Parity Repair Contract Diff
 
-Status: implementation and pre-freeze automated acceptance complete; corrected-candidate freeze, exact-tag smokes, and rollback rehearsal are pending.
+Status: implementation, automated acceptance, corrected-candidate freeze, exact-tag smokes, and rollback rehearsal complete; stopped for HITL.
 
 Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 

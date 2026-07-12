@@ -1,6 +1,6 @@
 # R5 Production Regression Matrix
 
-Status: parity-repair implementation and the final pre-freeze automated acceptance passed. Exact-tag smokes and rollback rehearsal remain.
+Status: parity-repair implementation, final automated acceptance, exact-tag smokes, and rollback rehearsal passed.
 
 Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 

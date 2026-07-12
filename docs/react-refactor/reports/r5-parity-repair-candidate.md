@@ -1,6 +1,6 @@
 # R5 Production Parity Repair Candidate
 
-Status: implementation, documentation, and final pre-freeze automated acceptance passed. Immutable tag freeze, exact-tag rebuild/smoke, and rollback rehearsal are pending.
+Status: corrected candidate frozen and fully verified. Exact-tag build/smokes and same-port rollback rehearsal passed; stopped for HITL with no main merge or deployment.
 
 ## Identity
 
@@ -11,7 +11,10 @@ Status: implementation, documentation, and final pre-freeze automated acceptance
 | corrected annotated tag | `react-refactor-r5-parity-repair-candidate` (create only after every automated gate passes) |
 | deployable directory | exact-tag `dist/` from identity-bound `pnpm run deploy:build` |
 | release manifest | exact-tag `dist/r5-release-manifest.json` |
-| source commit / tag object / manifest SHA-256 | recorded by the freeze rehearsal; pending |
+| source commit | `18490690992bffef6c9705cd47438b9cd17e756a` |
+| annotated tag object | `7f96b243d42efd3e7409ca8628109b0901900a9b` |
+| external manifest SHA-256 | `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
+| exact-tag artifact | 97 files / 139,518,637B; schema 2; `sourceDirty: false` |
 
 The manifest digest is recorded outside the tagged source commit because the manifest contains the source commit identity. Embedding that digest into the same commit would be self-referential.
 
@@ -48,11 +51,11 @@ Detailed reproduction/root-cause/file ownership for R1–R20 is in `../contract-
 | four-project release matrix | desktop/mobile Chromium/WebKit pass with only declared applicability skips | pass: 52 applicable / 40 declared skips |
 | repeated ink/media stress | Star Map ↔ AOD ≥10 alternating runs; PH/TTG ≥20 direction/interruption runs | pass in deterministic unit and browser cases |
 | performance/process memory | frozen LCP/frame/bundle/GPU/RSS/heap/disposal budgets pass | pass: 3 frame/LCP samples; RSS 1,461,190,656B, GPU 344,408,064B, renderer 785,072,128B, heap 41,857,578B → 17,873,726B |
-| exact-tag build and smokes | identity-bound clean build; root/no-JS/direct hash/key forward/reverse smokes pass | pending |
-| same-port rollback | corrected candidate → legacy → corrected candidate passes | pending |
+| exact-tag build and smokes | identity-bound clean build; root/no-JS/direct hash/key forward/reverse smokes pass | pass: identity-bound deploy build; 9/9 exact-tag smokes; restored TTG bidirectional smoke 1/1 |
+| same-port rollback | corrected candidate → legacy → corrected candidate passes | pass on port 4173; candidate manifest/range → legacy hash/range/no-manifest → identical candidate manifest/range |
 
 No screenshots or manual visual acceptance are required by this gate.
 
 ## Stop Boundary
 
-After the final table is populated and the corrected tag is frozen, stop for HITL. Without explicit later approval: do not merge or deploy `main`, do not create `react-refactor-r5-cutover`, and do not start R6 cleanup.
+The corrected tag is frozen and pushed with branch `codex/react-refactor-r5-parity-cutover`. Work stops for HITL. Without explicit later approval: do not merge or deploy `main`, do not create `react-refactor-r5-cutover`, and do not start R6 cleanup.

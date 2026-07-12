@@ -1,6 +1,6 @@
 # R5 Performance Budget
 
-Status: frozen budgets passed on the final pre-freeze build and hardware runs. Exact-tag identity verification remains.
+Status: frozen budgets and exact-tag identity verification passed.
 
 Date: 2026-07-12. The values previously published for `react-refactor-r5-candidate-v3` are historical and cannot certify this repair because that tag does not contain the re-enabled transition motion, loader/Hero lifecycle, new media driver, or shell assets.
 

@@ -1,6 +1,6 @@
 # React Refactor
 
-状态：R5 production parity repair 的实现、必需文档和 pre-freeze 完整自动化验收已通过；尚未冻结 corrected candidate，也尚未完成 exact-tag smoke 与同端口 rollback。当前不允许合并、部署 `main`、创建 cutover tag 或开始 R6。
+状态：R5 production parity repair 的实现、自动化验收、corrected candidate 冻结、exact-tag smoke 与同端口 rollback 已全部通过，现已停止等待 HITL。当前不允许合并、部署 `main`、创建 cutover tag 或开始 R6。
 
 ## 当前事实
 
