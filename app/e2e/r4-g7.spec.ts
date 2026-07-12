@@ -158,7 +158,7 @@ test.describe('R4 group7 education crane contact harness', () => {
         && visual.revealProgress > 0
         && visual.revealProgress < 1
         && visual.revealMode === 'ink-occluded-live-gate'
-        && visual.revealClip.startsWith('inset(')
+        && visual.revealClip.startsWith('polygon(')
         && visual.revealMask === 'none'
         && visual.fieldInkSegments.includes('education-crane')
         && visual.craneProgress === 0

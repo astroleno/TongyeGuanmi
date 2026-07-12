@@ -113,13 +113,14 @@ describe('method-bottom-figure2 transition', () => {
 
     timeline.progress(0.5);
 
-    expect(receiver.style.clipPath).toMatch(/^inset\(/);
-    expect(receiver.style.clipPath).not.toContain('polygon(');
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('inset(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
-    expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(retainedArch.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(retainedArch.style.clipPath).toMatch(/^inset\(/);
+    expect(receiver.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v1-/);
+    expect(canvas.dataset.r4InkBoundaryRevision).toBe(receiver.dataset.r4InkBoundaryRevision);
+    expect(retainedArch.dataset.r4InkBoundaryRevision).toBe(receiver.dataset.r4InkBoundaryRevision);
+    expect(retainedArch.dataset.r4InkContourThreshold).toBe(receiver.dataset.r4InkContourThreshold);
+    expect(retainedArch.style.clipPath).toMatch(/^polygon\(/);
   });
 
   it('passes timeline verification and exposes reduced motion fallback', async () => {

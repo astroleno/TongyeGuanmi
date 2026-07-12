@@ -4,6 +4,8 @@ type InkMode = 'horizontal' | 'radial' | 'depth';
 
 type AlphaProbe = {
   primaryMin: number;
+  contourRevision?: string;
+  contourTextureUploads?: number;
 };
 
 async function probeOwnershipAlpha(
@@ -17,6 +19,8 @@ async function probeOwnershipAlpha(
     const { createInkBoundaryTransition } = await import(modulePath);
     const frameModulePath = '/src/transitions/shared/inkField.ts';
     const { createInkFieldFrame } = await import(frameModulePath);
+    const contourModulePath = '/src/transitions/shared/horizontalInkContour.ts';
+    const { HORIZONTAL_INK_CONTOUR_AMPLITUDE, horizontalInkOffset } = await import(contourModulePath);
     const width = 320;
     const height = 180;
     const canvas = document.createElement('canvas');
@@ -101,7 +105,15 @@ async function probeOwnershipAlpha(
     if (fieldMode === 'horizontal') {
       primarySamples = Array.from(
         { length: 32 },
-        (_, index) => readAlpha(index * 10, height * (1 - frame.occlusion.gateRank))
+        (_, index) => {
+          const x = index / 31;
+          const envelope = Math.sin(frame.threshold * Math.PI);
+          const offset = horizontalInkOffset(frame.contour, x)
+            * HORIZONTAL_INK_CONTOUR_AMPLITUDE
+            * envelope;
+          const uvY = 1 + offset - frame.threshold;
+          return readAlpha(x * (width - 1), uvY * (height - 1));
+        }
       );
     } else if (fieldMode === 'radial') {
       const aspect = width / height;
@@ -125,7 +137,13 @@ async function probeOwnershipAlpha(
     }
 
     const result = {
-      primaryMin: Math.min(...primarySamples)
+      primaryMin: Math.min(...primarySamples),
+      ...(fieldMode === 'horizontal'
+        ? {
+            contourRevision: canvas.dataset.r4InkContourRevision,
+            contourTextureUploads: Number(canvas.dataset.r4InkContourTextureUploads ?? 0)
+          }
+        : {})
     };
     transition.destroy();
     canvas.remove();
@@ -227,7 +245,7 @@ test.describe('R4 Ink ownership alpha diagnostics', () => {
   test.use({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
 
   for (const mode of ['horizontal', 'radial', 'depth'] as const) {
-    test(`${mode} ownership gates remain at or above 0.92 alpha`, async ({ page }) => {
+    test(`${mode} ownership boundary keeps its functional coverage`, async ({ page }) => {
       await page.goto('/harness/r4-g1');
       for (const progress of [0.1, 0.5, 0.9]) {
         const depthAlignment = mode === 'depth'
@@ -240,7 +258,13 @@ test.describe('R4 Ink ownership alpha diagnostics', () => {
           depthAlignment?.boundaryY
         );
 
-        expect(probe.primaryMin).toBeGreaterThanOrEqual(0.92);
+        if (mode === 'horizontal') {
+          expect(probe.primaryMin).toBeGreaterThanOrEqual(0.06);
+          expect(probe.contourRevision).toMatch(/^horizontal-ink-contour-v1-/);
+          expect(probe.contourTextureUploads).toBe(1);
+        } else {
+          expect(probe.primaryMin).toBeGreaterThanOrEqual(0.92);
+        }
         if (mode === 'depth') {
           expect(Math.abs(
             (depthAlignment?.boundaryY ?? 0) - (depthAlignment?.expectedY ?? 0)

@@ -97,8 +97,11 @@ describe('R4 group5 transitions', () => {
 
     timeline.progress(0.5);
 
-    expect(receiver.style.clipPath).toMatch(/^inset\(/);
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('inset(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
+    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(receiver.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
     timeline.dispose();
   });
 

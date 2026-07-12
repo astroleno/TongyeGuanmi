@@ -283,8 +283,8 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         expect(staticInkCopy.brandOpacity).toBe(1);
         expect(staticInkCopy.brandLayerMask).toBe('');
         expect(staticInkCopy.retainedArchMask).toBe('');
-        expect(staticInkCopy.brandLayerClip.startsWith('inset(')).toBe(true);
-        expect(staticInkCopy.retainedArchClip.startsWith('inset(')).toBe(true);
+        expect(staticInkCopy.brandLayerClip.startsWith('polygon(')).toBe(true);
+        expect(staticInkCopy.retainedArchClip.startsWith('polygon(')).toBe(true);
         expect(staticInkCopy.fieldInkSegments).toContain('figure2-proof-brand');
       }
       for (let index = 0; index < 18; index += 1) {

@@ -93,12 +93,13 @@ describe('R4 group6 transitions', () => {
     timeline.progress(0.5);
 
     expect(receiver.dataset.r4RevealMode).toBe('ink-occluded-live-gate');
-    expect(receiver.style.clipPath).toMatch(/^inset\(/);
-    expect(receiver.style.clipPath).not.toContain('polygon(');
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('inset(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.5000,0.0000');
-    expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(receiver.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v1-/);
+    expect(canvas.dataset.r4InkBoundaryRevision).toBe(receiver.dataset.r4InkBoundaryRevision);
+    expect(receiver.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
     expect(receiver.style.getPropertyValue('mask-image')).toBe('');
     expect(canvas.dataset.r4InkTargetReady).toBeUndefined();
     expect(receiver.dataset.r4Transition).toBe('lab-ph-top-ink');

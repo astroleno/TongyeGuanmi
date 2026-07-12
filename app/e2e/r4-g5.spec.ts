@@ -155,7 +155,7 @@ test.describe('R4 group5 services ttg lab harness', () => {
         && visual.revealProgress > 0
         && visual.revealProgress < 1
         && visual.revealMode === 'ink-occluded-live-gate'
-        && visual.revealClip.startsWith('inset(')
+        && visual.revealClip.startsWith('polygon(')
         && visual.revealMask === 'none'
         && visual.fieldInkSegments.includes('services-ttg')
         && visual.ttgProgress === 0;

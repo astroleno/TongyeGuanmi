@@ -191,7 +191,7 @@ test.describe('R4 group2 canonical spine harness', () => {
       const matches = visual.activeInkSegments.includes('method-bottom-figure2')
         && visual.fieldInkSegments.includes('method-bottom-figure2')
         && visual.figure2LayerRevealMode === 'ink-occluded-live-gate'
-        && visual.figure2LayerClipPath.startsWith('inset(')
+        && visual.figure2LayerClipPath.startsWith('polygon(')
         && visual.figure2Progress === 0;
       if (matches) methodFigureInk = visual;
       return matches;
@@ -200,7 +200,7 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(methodFigureInk.activeInkSegments).toContain('method-bottom-figure2');
     expect(methodFigureInk.figure2LayerElevated).toBe(true);
     expect(methodFigureInk.figure2LayerZ).toBeGreaterThan(methodFigureInk.methodLayerZ);
-    expect(methodFigureInk.figure2LayerClipPath.startsWith('inset(')).toBe(true);
+    expect(methodFigureInk.figure2LayerClipPath.startsWith('polygon(')).toBe(true);
     expect(methodFigureInk.figure2LayerRevealMode).toBe('ink-occluded-live-gate');
     expect(methodFigureInk.fieldInkSegments).toContain('method-bottom-figure2');
     expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);

@@ -151,7 +151,7 @@ test.describe('R4 group4 brand figure3 services harness', () => {
         && visual.revealProgress > 0
         && visual.revealProgress < 1
         && visual.revealMode === 'ink-occluded-live-gate'
-        && visual.revealClip.startsWith('inset(')
+        && visual.revealClip.startsWith('polygon(')
         && visual.revealMask === 'none';
     }, { timeout: 7_000, intervals: [20, 20, 40, 80] }).toBe(true);
     const staticBrandInk = await visualSnapshot(page);

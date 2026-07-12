@@ -280,7 +280,7 @@ describe('R3 pilot contract on real segments', () => {
     });
   });
 
-  it('uses one hidden inset ownership gate for the live AOD reveal surface', async () => {
+  it('uses one lightweight erosion contour for the live AOD reveal surface', async () => {
     const stage = new FakeElement();
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
@@ -297,11 +297,12 @@ describe('R3 pilot contract on real segments', () => {
 
     timeline.progress(0.5);
 
-    expect(revealSurface.style.clipPath).toMatch(/^inset\(/);
-    expect(revealSurface.style.clipPath).not.toContain('polygon(');
+    expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
+    expect(revealSurface.style.clipPath).not.toContain('inset(');
     expect(revealSurface.dataset.r4InkBoundaryKind).toBe('horizontal');
-    expect(revealSurface.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(revealSurface.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v1-/);
+    expect(canvas.dataset.r4InkBoundaryRevision).toBe(revealSurface.dataset.r4InkBoundaryRevision);
+    expect(revealSurface.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkRenderer).toBe('field');
     expect(canvas.dataset.r4InkGrade).toBe('edge-only');

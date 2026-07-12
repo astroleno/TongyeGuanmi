@@ -332,11 +332,12 @@ describe('R4 group7 transitions', () => {
     expect(craneProgress).toBe('0.0000');
     expect(fixture.toRoot.dataset.craneProgress).toBe(craneProgress);
     const receiver = fixture.stage.children[1]!;
-    expect(receiver.style.clipPath).toMatch(/^inset\(/);
-    expect(receiver.style.clipPath).not.toContain('polygon(');
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('inset(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
-    expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(receiver.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v1-/);
+    expect(canvas.dataset.r4InkBoundaryRevision).toBe(receiver.dataset.r4InkBoundaryRevision);
+    expect(receiver.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
   });
 
   it('advances every Crane frame on the shared timeline while Contact starts at the 80% cue', async () => {

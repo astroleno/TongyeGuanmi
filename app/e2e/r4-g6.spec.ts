@@ -161,7 +161,7 @@ test.describe('R4 group6 lab ph education harness', () => {
         && visual.revealProgress > 0
         && visual.revealProgress < 1
         && visual.revealMode === 'ink-occluded-live-gate'
-        && visual.revealClip.startsWith('inset(')
+        && visual.revealClip.startsWith('polygon(')
         && visual.revealMask === 'none'
         && visual.fieldInkSegments.includes('lab-ph')
         && visual.phProgress === 0;

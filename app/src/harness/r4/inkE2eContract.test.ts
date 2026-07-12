@@ -16,11 +16,11 @@ describe('R4 Ink browser regression source contract', () => {
     expect(source).not.toContain('patternRotorTransforms');
   });
 
-  it.each([2, 4, 5, 6, 7])('uses the hidden live inset gate in G%s', (group) => {
+  it.each([2, 4, 5, 6, 7])('uses the lightweight live erosion contour in G%s', (group) => {
     const source = e2eSource(group);
 
     expect(source).toContain("'ink-occluded-live-gate'");
-    expect(source).toContain("startsWith('inset(')");
+    expect(source).toContain("startsWith('polygon(')");
     expect(source).not.toContain("'ink-body'");
     expect(source).not.toContain("revealClip === 'none'");
   });
@@ -31,6 +31,8 @@ describe('R4 Ink browser regression source contract', () => {
     expect(source).toContain("r4InkRenderer === 'field'");
     expect(source).toContain("r4InkEffectOnly === 'true'");
     expect(source).toContain('data-figure2-figure-depth-surface');
+    expect(source).toContain("brandLayerClip.startsWith('polygon(')");
+    expect(source).toContain("retainedArchClip.startsWith('polygon(')");
     expect(source).not.toContain('r4InkSecondaryGateKind');
     expect(source).not.toContain('proofInkTarget');
     expect(source).not.toContain('proofInkTextureReady');

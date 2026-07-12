@@ -160,11 +160,15 @@ describe('R4 group4 transitions', () => {
 
     timeline.progress(0.5);
 
-    expect(receiver.style.clipPath).toMatch(/^inset\(/);
-    expect(receiver.style.clipPath).not.toContain('polygon(');
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('inset(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
-    expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();
-    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(receiver.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v1-/);
+    expect(canvas.dataset.r4InkBoundaryRevision).toBe(receiver.dataset.r4InkBoundaryRevision);
+    const forwardThreshold = Number(receiver.dataset.r4InkContourThreshold);
+    timeline.progress(0.25);
+    expect(Number(receiver.dataset.r4InkContourThreshold)).toBeLessThan(forwardThreshold);
+    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
   });
 
   it('builds reverse Figure3-to-Services directly at p=1', async () => {
