@@ -1,6 +1,6 @@
 # R5 Production Regression Matrix
 
-Status: post-candidate Generic Ink/media implementation and canonical root gate passed. Affected browser contracts passed; the immutable candidate's complete browser/release evidence remains historical and was not reclassified as this review build.
+Status: post-candidate Generic Ink/media implementation and complete non-visual review matrix passed. The immutable candidate remains historical and was not reclassified or moved.
 
 Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 
@@ -57,9 +57,16 @@ pnpm -C app exec playwright test --config playwright.release.config.ts
 pnpm -C app evidence:memory
 ```
 
-Current review implementation `0a8fe99bf392965aa1b8f99c8886df7ff2dfbe75`: root lint/typecheck/build, static-shell/release verification, 78 test files / 504 tests, and all bundle budgets passed. During implementation, affected browser runs passed 9/9 for the TTG/PH staged handoffs and 3/3 for Ink ownership. A later historical-harness invocation lost a reused external dev server after 24 passes; its clean restart was stopped at 22 passes on explicit instruction not to repeat already-covered E2E. It is therefore not claimed as a complete current-branch matrix. Release Playwright, process-memory, and same-port rollback were not repeated.
+Current review implementation `14743aa5ef9e0399441863afcfd73599782721a3`:
 
-Historical immutable-candidate evidence remains: default harness 43/43, four-project release matrix 52 applicable with 40 declared skips, three hardware samples, process-memory traversal, exact-tag smokes, and same-port rollback. Those results do not certify R21/R22.
+- root lint/typecheck/build, static-shell/release verification, 78 test files / 504 tests, and all frozen bundle budgets passed;
+- default historical/functional browser matrix passed 43/43;
+- four-project release coverage passed all 52 applicable cases with 40 declared project skips. The first desktop Chromium hardware sample encountered host-load jitter; that single performance gate was repeated in isolation and passed without repeating the other 91 cases;
+- affected TTG/PH staged-handoff browser contracts passed 9/9 and Ink ownership passed 3/3;
+- process-memory traversed all 18 holds forward and reverse and passed RSS/GPU/renderer/heap/layer/WebGL budgets;
+- same-port clean-worktree review → immutable legacy → identical review rehearsal passed root/footer/no-JS/manifest/media-range and PageDown/PageUp smokes.
+
+Historical immutable-candidate results remain audit evidence for `1849069`; the current-branch results above independently cover R21/R22 and do not move or reclassify that tag.
 
 ## Acceptance Boundary
 

@@ -1,6 +1,6 @@
 # R5 Production Parity Repair Contract Diff
 
-Status: post-candidate Generic Ink/media repair implemented on the review branch. Canonical root verification and affected browser contracts passed; no further browser-matrix repetition is authorized in this delivery. Visual acceptance remains HITL.
+Status: post-candidate Generic Ink/media repair and the complete non-visual review gate passed on the branch. Visual acceptance remains HITL.
 
 Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 
@@ -8,7 +8,7 @@ Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base:
 
 The immutable tags `react-refactor-r5-candidate`, `react-refactor-r5-candidate-v2`, `react-refactor-r5-candidate-v3`, and `react-refactor-r5-parity-repair-candidate` predate R21/R22 below. They remain audit records and must not be moved, reused, or described as containing this post-candidate review build.
 
-The review implementation identity is branch commit `0a8fe99bf392965aa1b8f99c8886df7ff2dfbe75`. Creating and pushing a new annotated candidate tag requires separate authorization; this work does not authorize moving the existing tag, a `main` merge, deployment, `react-refactor-r5-cutover`, or R6 cleanup.
+The review implementation identity is branch commit `14743aa5ef9e0399441863afcfd73599782721a3`. Creating and pushing a new annotated candidate tag requires separate authorization; this work does not authorize moving the existing tag, a `main` merge, deployment, `react-refactor-r5-cutover`, or R6 cleanup.
 
 ## Preserved Architecture
 
@@ -56,6 +56,6 @@ The review implementation identity is branch commit `0a8fe99bf392965aa1b8f99c888
 
 ## Acceptance Boundary
 
-The review build passed root tests/lint/typecheck/build, release/static-shell checks, and bundle budgets (78 test files / 504 tests), plus the affected staged-media and horizontal-Ink browser contracts already run during implementation. The historical full harness/release/memory/rollback records remain evidence for the immutable earlier tag and are not relabeled as current-branch results. No screenshot baseline or automated visual acceptance is part of this repair gate; exact-new-tag evidence remains pending separate tag authorization.
+The review build passed root tests/lint/typecheck/build, release/static-shell checks, and bundle budgets (78 test files / 504 tests); the default browser matrix passed 43/43; the release matrix has current-branch passing evidence for all 52 applicable cases with 40 declared project skips; process-memory traversed all 18 holds forward and reverse inside budget; and the same-port review → legacy → review rollback rehearsal passed. One desktop Chromium hardware sample was repeated in isolation after host-load jitter; the passing sample met the unchanged p95 and long-frame budgets. No screenshot baseline or automated visual acceptance is part of this repair gate; exact-new-tag evidence remains pending separate tag authorization.
 
 After those gates, work stops for HITL. HITL is not permission to tag, merge, or deploy by implication.

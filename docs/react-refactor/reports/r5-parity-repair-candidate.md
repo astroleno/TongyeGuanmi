@@ -9,7 +9,8 @@ Status: the corrected candidate remains immutable and fully verified for its tag
 | branch | `codex/react-refactor-r5-parity-cutover` |
 | repair base | `59065730712c6d9718928fd25cba23e33455395e` |
 | immutable corrected tag | `react-refactor-r5-parity-repair-candidate` (does not contain R21/R22) |
-| post-candidate review implementation | `0a8fe99bf392965aa1b8f99c8886df7ff2dfbe75` |
+| post-candidate review implementation | `14743aa5ef9e0399441863afcfd73599782721a3` |
+| review rollback build | plain build only; 98 files / 139,528,455B; manifest SHA-256 `2b91f5e3cd34883125a613a2a005ff3f3a4de4db8ef7c8a317f03297ce21742a` |
 | deployable directory | exact-tag `dist/` from identity-bound `pnpm run deploy:build` |
 | release manifest | exact-tag `dist/r5-release-manifest.json` |
 | immutable candidate source commit | `18490690992bffef6c9705cd47438b9cd17e756a` |
@@ -48,9 +49,12 @@ Detailed reproduction/root-cause/file ownership for R1–R22 is in `../contract-
 
 | Gate | Recorded result |
 |---|---|
-| root `pnpm run verify:all` | pass on `0a8fe99`: lint, typecheck, 78 files / 504 tests, static-shell/release verification, build, and bundle budgets |
+| root `pnpm run verify:all` | pass for review runtime: lint, typecheck, 78 files / 504 tests, static-shell/release verification, build, and bundle budgets |
 | affected browser contracts | pass: staged TTG/PH handoffs 9/9; Ink ownership 3/3 |
-| full historical/release/memory/rollback rerun | not claimed for this branch-only review build; no further E2E repetition authorized |
+| default browser matrix | pass: 43/43 |
+| four-project release matrix | all 52 applicable gates have passing review-build evidence; 40 declared project skips. One host-jittered desktop performance sample was repeated alone and passed at p95 17.4ms / 0.24% long frames |
+| process memory | pass: RSS 1,333,116,928B; GPU 313,360,384B; renderer 724,254,720B; heap 42,139,577B → 13,983,694B; max 3 layers / 1 WebGL |
+| same-port rollback | pass: review `14743aa` → legacy `a78b064` → identical review, including root/footer/no-JS, manifest presence/absence, HTTP 206 media, and key forward/reverse smoke |
 | visual acceptance | pending user HITL |
 
 ## Immutable Candidate Historical Gate Record
@@ -70,4 +74,4 @@ These exact-tag results certify commit `1849069`, not the later R21/R22 branch d
 
 ## Stop Boundary
 
-The corrected tag stays frozen at `1849069`; the branch review implementation is `0a8fe99`. Work stops for HITL after documentation closure. Without explicit later approval: do not move/create a candidate tag, merge or deploy `main`, create `react-refactor-r5-cutover`, or start R6 cleanup.
+The corrected tag stays frozen at `1849069`; the branch review implementation is `14743aa`. Work stops for HITL after documentation closure. Without explicit later approval: do not move/create a candidate tag, merge or deploy `main`, create `react-refactor-r5-cutover`, or start R6 cleanup.

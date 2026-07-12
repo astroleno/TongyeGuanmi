@@ -133,7 +133,7 @@ The old `0.92` ownership seam belt is removed from horizontal ownership. Any loc
 - Resize reuses normalized samples and updates only viewport-dependent geometry; it does not reseed.
 - Renderer destruction releases the one-row texture exactly once.
 - WebGL context loss follows the existing fresh run-owned renderer recovery path.
-- A renderer-unavailable build must not continue as a bare moving polygon with no Ink; it reports failure through the existing build/recovery contract.
+- Renderer unavailability keeps the existing generation-scoped diagnostics/recovery behavior; the contour adds no SVG, snapshot, or scene-texture fallback and does not change that pre-existing failure policy.
 - Reduced motion jumps between canonical endpoints and leaves no polygon, texture, or diagnostic residue.
 
 ## Diagnostics

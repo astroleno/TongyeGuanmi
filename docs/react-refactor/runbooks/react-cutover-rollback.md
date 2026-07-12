@@ -13,7 +13,8 @@ Status: immutable parity-repair candidate remains preserved; the post-candidate 
 | superseded R5 candidate | `react-refactor-r5-candidate-v2` | `a5bef3785b766dac0e5ecfc95e96d03cd5c51c90` |
 | parity-repair base / superseded candidate | `react-refactor-r5-candidate-v3` | `59065730712c6d9718928fd25cba23e33455395e` |
 | corrected candidate | `react-refactor-r5-parity-repair-candidate` | commit `18490690992bffef6c9705cd47438b9cd17e756a`; tag object `7f96b243d42efd3e7409ca8628109b0901900a9b` |
-| post-candidate review implementation | branch commit | `0a8fe99bf392965aa1b8f99c8886df7ff2dfbe75` |
+| post-candidate review implementation | branch commit | `14743aa5ef9e0399441863afcfd73599782721a3` |
+| review rollback build | plain build manifest | 98 files / 139,528,455B; SHA-256 `2b91f5e3cd34883125a613a2a005ff3f3a4de4db8ef7c8a317f03297ce21742a` |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |
 | corrected release artifact | exact-tag `dist/r5-release-manifest.json` | schema 2; 97 files / 139,518,637B; SHA-256 `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
@@ -111,6 +112,8 @@ test "$(shasum -a 256 index.html | awk '{print $1}')" = \
 ```
 
 Port reuse, process termination, and artifact identity must be recorded; two simultaneously running preview servers do not constitute a rollback rehearsal.
+
+Latest review rehearsal: passed on 2026-07-12 using detached clean worktrees. Port `4173` served review `14743aa`, then legacy `a78b064`, then the identical review build. Both review passes matched the manifest above and passed root/footer/static no-JS content, HTTP 206 media, and PageDown/PageUp Hero ↔ Pattern smoke. The legacy phase matched frozen `index.html` SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7`, returned HTTP 206 media, exposed the legacy bootstrap, and returned 404 for the review manifest. Each server was fully stopped before the next phase.
 
 ## Production Cutover — Only After Later Explicit HITL Approval
 

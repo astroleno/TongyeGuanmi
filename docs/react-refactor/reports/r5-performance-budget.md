@@ -1,6 +1,6 @@
 # R5 Performance Budget
 
-Status: post-candidate review build passes the frozen bundle budgets. Hardware/process-memory values below remain immutable-candidate history and were not rerun for R21/R22.
+Status: post-candidate review build passes the frozen bundle, hardware frame, process-memory, and disposal budgets.
 
 Date: 2026-07-12. The values previously published for `react-refactor-r5-candidate-v3` are historical and cannot certify this repair because that tag does not contain the re-enabled transition motion, loader/Hero lifecycle, new media driver, or shell assets.
 
@@ -22,14 +22,14 @@ Passing performance by permanently freezing required animation is not permitted.
 
 | Metric | Budget | Parity-repair result |
 |---|---:|---|
-| desktop LCP | ≤2.5s and no worse than the accepted legacy comparison gate | pass; worst 212ms |
-| mobile LCP | ≤4.0s | pass; 168ms |
-| production runtime ready | ≤2.5s desktop / ≤4.0s mobile | pass; desktop worst 166.5ms, mobile 153ms |
-| cold Hero presentation ready | loader + 2.7s intro completes within the accepted safety envelope | pass; desktop worst 8,588ms, mobile 8,594.1ms |
-| desktop playback p95 frame interval | ≤20ms | pass; 16.8ms |
+| desktop LCP | ≤2.5s and no worse than the accepted legacy comparison gate | pass; 204ms |
+| mobile LCP | ≤4.0s | pass; 212ms |
+| production runtime ready | ≤2.5s desktop / ≤4.0s mobile | pass; desktop 185.7ms, mobile 203.3ms |
+| cold Hero presentation ready | loader + 2.7s intro completes within the accepted safety envelope | pass; desktop 8,598.7ms, mobile 8,642.7ms |
+| desktop playback p95 frame interval | ≤20ms | pass; 17.4ms |
 | mobile playback p95 frame interval | ≤34ms | pass; 16.8ms |
-| frames >50ms | <1% | pass; 0 / 407–408 playback samples |
-| cold initial transferred resources | ≤40MiB | pass; worst 28,708,064B |
+| frames >50ms | <1% | pass; desktop 1 / 409 (0.24%), mobile 0 / 409 |
+| cold initial transferred resources | ≤40MiB | pass; worst 20,605,366B |
 
 LCP is measured independently from cinematic presentation readiness. Hero media remains a valid early LCP candidate under the loader overlay; the loader must not defer LCP until its 5.38s phrase sequence exits.
 
@@ -47,14 +47,14 @@ LCP is measured independently from cinematic presentation readiness. Hero media 
 
 The timeline-video driver remains reachable through lazy scene/transition chunks. SceneLayer unmount cleanup uses element-owned disposal without importing the driver into the initial production graph. The harness-only dark grade remains behind the existing lazy harness boundary.
 
-## Frozen GPU, Memory, And Disposal Budgets (Immutable Candidate History)
+## Frozen GPU, Memory, And Disposal Budgets
 
 | Metric | Budget | Parity-repair result |
 |---|---:|---|
-| browser process-tree peak RSS | ≤1,500,000,000B | pass; 1,461,190,656B |
-| GPU process peak RSS | ≤536,870,912B | pass; 344,408,064B |
-| renderer process peak RSS | ≤1,073,741,824B | pass; 785,072,128B |
-| JS heap | peak ≤192MiB; settled ≤90% of peak | pass; 41,857,578B → 17,873,726B (42.7%) |
+| browser process-tree peak RSS | ≤1,500,000,000B | pass; 1,333,116,928B |
+| GPU process peak RSS | ≤536,870,912B | pass; 313,360,384B |
+| renderer process peak RSS | ≤1,073,741,824B | pass; 724,254,720B |
+| JS heap | peak ≤192MiB; settled ≤90% of peak | pass; 42,139,577B → 13,983,694B (33.2%) |
 | mounted layers at settled holds | ≤3 | pass; max 3 |
 | WebGL contexts at settled holds | ≤1 | pass; max 1 |
 | disposed Contact snapshot | ≤3 layers, ≤1 WebGL, ≤4 paused videos | pass; 2 layers, 0 WebGL, 2 paused videos |
@@ -64,4 +64,4 @@ The stress sample must overlap Pattern, Star Map, and active ink, then traverse 
 
 ## Final Evidence
 
-The current review build regenerated and passed `dist/r5-performance-budget.json` at source commit `0a8fe99bf392965aa1b8f99c8886df7ff2dfbe75`. The hardware frame/LCP and process-memory values in this report were produced for the immutable earlier candidate and are retained as historical ceilings, not asserted as a fresh R21/R22 traversal. Trace, video, screenshots, and automated visual acceptance were not requested for the current review build.
+The review implementation `14743aa5ef9e0399441863afcfd73599782721a3` regenerated and passed `dist/r5-performance-budget.json`. Fresh desktop/mobile Chromium hardware samples cover LCP, readiness, frame pacing, disposal, and released resources; the process-memory run traversed every hold forward and reverse. The first desktop sample was invalidated by host-load jitter and repeated only for that gate; the passing values above are the accepted sample. Trace, video, screenshots, and automated visual acceptance were disabled.
