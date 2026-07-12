@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   createInkFieldFrame,
+  inkOwnershipGateProgress,
   type InkDepthTransform,
   type InkFieldSpec
 } from './inkField';
+import { createHorizontalInkContour } from './horizontalInkContour';
 
 const viewport = { width: 1440, height: 900 } as const;
 
@@ -33,12 +35,19 @@ describe('InkFieldFrame', () => {
       name: 'bottom-to-top',
       spec: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' }
     }
-  ] as const)('uses a hidden inset ownership gate for $name Ink', ({ spec }) => {
-    const frame = createInkFieldFrame(spec, 0.5, viewport);
+  ] as const)('uses one supplied erosion contour for $name ownership', ({ spec }) => {
+    const contour = createHorizontalInkContour({
+      authoredSeed: spec.seed,
+      variationKey: `epoch:${spec.direction}`
+    });
+    const frame = createInkFieldFrame(spec, 0.5, viewport, { contour });
 
-    expect(frame.ownership.revealClip).toMatch(/^inset\(/);
-    expect(frame.ownership.concealClip).toMatch(/^inset\(/);
-    expect(frame.ownership.revealClip).not.toContain('polygon(');
+    expect(frame.ownership.revealClip).toMatch(/^polygon\(/);
+    expect(frame.ownership.concealClip).toMatch(/^polygon\(/);
+    expect(frame.ownership.revealClip).not.toContain('inset(');
+    expect(frame.contour).toBe(contour);
+    expect(frame.revision).toBe(contour.revision);
+    expect(frame.threshold).toBe(inkOwnershipGateProgress(0.5));
     expect(frame.occlusion.gateRank).toBe(frame.ownership.edge);
     expect(frame.occlusion.gateRank).toBeGreaterThanOrEqual(frame.occlusion.coreMin);
     expect(frame.occlusion.gateRank).toBeLessThanOrEqual(frame.occlusion.coreMax);
@@ -132,5 +141,26 @@ describe('InkFieldFrame', () => {
     expect(createInkFieldFrame(spec, 0.63, viewport)).toEqual(
       createInkFieldFrame(spec, 0.63, viewport)
     );
+  });
+
+  it('keeps one contour identity while threshold moves in either playback direction', () => {
+    const spec = {
+      kind: 'horizontal',
+      direction: 'bottom-to-top',
+      seed: 'education-crane'
+    } satisfies InkFieldSpec;
+    const contour = createHorizontalInkContour({
+      authoredSeed: spec.seed,
+      variationKey: 'epoch:bidirectional'
+    });
+    const early = createInkFieldFrame(spec, 0.2, viewport, { contour });
+    const late = createInkFieldFrame(spec, 0.8, viewport, { contour });
+
+    expect(early.contour).toBe(contour);
+    expect(late.contour).toBe(contour);
+    expect(early.revision).toBe(late.revision);
+    expect(early.threshold).toBeLessThan(late.threshold);
+    expect(early.ownership.revealClip).not.toBe(late.ownership.revealClip);
+    expect(early.ownership.concealClip).not.toBe(late.ownership.concealClip);
   });
 });

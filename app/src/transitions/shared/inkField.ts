@@ -1,3 +1,9 @@
+import {
+  createHorizontalInkContour,
+  horizontalInkPolygon,
+  type HorizontalInkContour
+} from './horizontalInkContour';
+
 export type InkOrigin = Readonly<{ x: number; y: number }>;
 
 export type InkDepthTransform = Readonly<{
@@ -26,8 +32,11 @@ export type InkFieldSpec =
       transform: InkDepthTransform;
     }>;
 
-export type InkFieldFrame = Readonly<{
-  spec: InkFieldSpec;
+export type HorizontalInkFieldSpec = Extract<InkFieldSpec, { kind: 'horizontal' }>;
+export type NonHorizontalInkFieldSpec = Exclude<InkFieldSpec, { kind: 'horizontal' }>;
+
+type InkFieldFrameBase<Spec extends InkFieldSpec> = Readonly<{
+  spec: Spec;
   progress: number;
   seed: number;
   ownership: Readonly<{
@@ -36,6 +45,19 @@ export type InkFieldFrame = Readonly<{
     edge: number;
   }>;
   occlusion: InkOcclusionBand;
+}>;
+
+export type HorizontalInkFieldFrame = InkFieldFrameBase<HorizontalInkFieldSpec> & Readonly<{
+  contour: HorizontalInkContour;
+  revision: string;
+  threshold: number;
+}>;
+
+export type NonHorizontalInkFieldFrame = InkFieldFrameBase<NonHorizontalInkFieldSpec>;
+export type InkFieldFrame = HorizontalInkFieldFrame | NonHorizontalInkFieldFrame;
+
+export type InkFieldFrameOptions = Readonly<{
+  contour?: HorizontalInkContour;
 }>;
 
 export type InkOcclusionBand = Readonly<{
@@ -88,20 +110,13 @@ function occlusionBand(gateRank: number): InkOcclusionBand {
 }
 
 function horizontalOwnership(
-  spec: Extract<InkFieldSpec, { kind: 'horizontal' }>,
-  edge: number
+  spec: HorizontalInkFieldSpec,
+  edge: number,
+  contour: HorizontalInkContour
 ): Pick<InkFieldFrame['ownership'], 'revealClip' | 'concealClip'> {
-  const leading = percent(edge);
-  const trailing = percent(1 - edge);
-  if (spec.direction === 'bottom-to-top') {
-    return {
-      revealClip: `inset(${trailing} 0 0 0)`,
-      concealClip: `inset(0 0 ${leading} 0)`
-    };
-  }
   return {
-    revealClip: `inset(0 0 ${trailing} 0)`,
-    concealClip: `inset(${leading} 0 0 0)`
+    revealClip: horizontalInkPolygon(contour, spec.direction, edge, 'reveal'),
+    concealClip: horizontalInkPolygon(contour, spec.direction, edge, 'conceal')
   };
 }
 
@@ -139,17 +154,54 @@ export function inkFieldOrigin(spec: InkFieldSpec): InkOrigin {
 }
 
 export function createInkFieldFrame(
+  spec: HorizontalInkFieldSpec,
+  progress: number,
+  viewport: InkViewport,
+  options?: InkFieldFrameOptions
+): HorizontalInkFieldFrame;
+export function createInkFieldFrame(
+  spec: NonHorizontalInkFieldSpec,
+  progress: number,
+  viewport: InkViewport,
+  options?: InkFieldFrameOptions
+): NonHorizontalInkFieldFrame;
+export function createInkFieldFrame(
   spec: InkFieldSpec,
   progress: number,
-  viewport: InkViewport
+  viewport: InkViewport,
+  options?: InkFieldFrameOptions
+): InkFieldFrame;
+export function createInkFieldFrame(
+  spec: InkFieldSpec,
+  progress: number,
+  viewport: InkViewport,
+  options: InkFieldFrameOptions = {}
 ): InkFieldFrame {
   const clampedProgress = clamp(Number.isFinite(progress) ? progress : 0);
   const edge = inkOwnershipGateProgress(clampedProgress);
-  const clips = spec.kind === 'horizontal'
-    ? horizontalOwnership(spec, edge)
-    : spec.kind === 'radial'
-      ? radialOwnership(spec, edge, viewport)
-      : { revealClip: null, concealClip: null };
+  if (spec.kind === 'horizontal') {
+    const contour = options.contour ?? createHorizontalInkContour({
+      authoredSeed: spec.seed,
+      variationKey: 'static-frame'
+    });
+    return {
+      spec,
+      progress: clampedProgress,
+      seed: contour.seed,
+      contour,
+      revision: contour.revision,
+      threshold: edge,
+      ownership: {
+        ...horizontalOwnership(spec, edge, contour),
+        edge
+      },
+      occlusion: occlusionBand(edge)
+    };
+  }
+
+  const clips = spec.kind === 'radial'
+    ? radialOwnership(spec, edge, viewport)
+    : { revealClip: null, concealClip: null };
 
   return {
     spec,
