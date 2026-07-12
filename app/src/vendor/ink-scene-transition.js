@@ -1,3 +1,8 @@
+import {
+  clearHorizontalInkDiagnostics,
+  markHorizontalInkDiagnostics
+} from '../transitions/shared/inkField.ts';
+
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const smoothStep = (value) => value * value * (3 - 2 * value);
 
@@ -431,6 +436,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     contourTextureUploads += 1;
     if (canvas.dataset) {
       canvas.dataset.r4InkContourTextureUploads = String(contourTextureUploads);
+      canvas.dataset.r4InkContourRevision = contourRevision;
     }
     return true;
   };
@@ -546,8 +552,10 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
         canvas.dataset.r4InkBoundaryProgress = visibleProgress.toFixed(4);
         canvas.dataset.r4InkFieldSeed = String(frame.seed);
-        if (spec.kind !== 'horizontal') {
-          delete canvas.dataset.r4InkBoundaryRevision;
+        if (spec.kind === 'horizontal' && frame.contour) {
+          markHorizontalInkDiagnostics(canvas, frame);
+        } else {
+          clearHorizontalInkDiagnostics(canvas);
         }
       }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -576,6 +584,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       canvas.style.opacity = '0';
       if (canvas.dataset) {
         delete canvas.dataset.r4InkContourTextureUploads;
+        clearHorizontalInkDiagnostics(canvas);
       }
     }
   };
