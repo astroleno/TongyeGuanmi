@@ -1,11 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  createLoaderInkReveal,
   loaderInkSequenceDuration,
   sampleLoaderInkSequence,
-  type LoaderInkPhase,
-  type LoaderInkStatus as LoaderInkCanvasStatus
-} from './loader-ink-reveal';
+  type LoaderInkPhase
+} from './loader-ink-sequence';
+import type { LoaderInkStatus as LoaderInkCanvasStatus } from './loader-ink-reveal';
 
 export const LOADER_PHRASES = ['同人于野', '观象知幂'] as const;
 
@@ -142,20 +141,28 @@ export function StoryLoader({
     }
 
     let current = true;
-    const controller = createLoaderInkReveal({
-      canvas,
-      host,
-      phrases: LOADER_PHRASES,
-      timings: STORY_LOADER_TIMINGS,
-      startedAt: sequenceStartedAtRef.current,
-      onStatusChange: (nextStatus) => {
-        if (current) setInkStatus(nextStatus);
-      }
+    let controller: { dispose(): void } | null = null;
+    setInkStatus('idle');
+    void import('./loader-ink-reveal').then(({ createLoaderInkReveal }) => {
+      if (!current) return;
+      const nextController = createLoaderInkReveal({
+        canvas,
+        host,
+        phrases: LOADER_PHRASES,
+        timings: STORY_LOADER_TIMINGS,
+        startedAt: sequenceStartedAtRef.current,
+        onStatusChange: (nextStatus) => {
+          if (current) setInkStatus(nextStatus);
+        }
+      });
+      controller = nextController;
+      return nextController.start();
+    }).catch(() => {
+      if (current) setInkStatus('fallback');
     });
-    void controller.start();
     return () => {
       current = false;
-      controller.dispose();
+      controller?.dispose();
     };
   }, [hidden, mode]);
 
