@@ -10,6 +10,7 @@ import type {
   LayerVisibilityState,
   SegmentId,
   SegmentTimelineHandle,
+  StagedLegPreparation,
   TransitionContext,
   TransitionModule
 } from '../../story/types';
@@ -28,6 +29,11 @@ export type StagedMediaHandoffOptions = Readonly<{
   prepareEndpoints(roots: Readonly<{ from: HTMLElement | null; to: HTMLElement | null }>): void;
   prepareSourceTerminal?: (
     root: HTMLElement | null,
+    context: StagedMediaRenderContext
+  ) => Promise<void> | void;
+  prepareLeg?: (
+    root: HTMLElement | null,
+    leg: StagedLegPreparation,
     context: StagedMediaRenderContext
   ) => Promise<void> | void;
   renderSource(
@@ -265,6 +271,15 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
   jumpToEnd(direction: Direction): void {
     this.playbackDirection = direction;
     this.progress(direction === 1 ? 1 : 0);
+  }
+
+  prepareLeg(leg: StagedLegPreparation): Promise<void> | void {
+    const roots = rootsFor(this.context, this.options);
+    return this.options.prepareLeg?.(
+      roots.from,
+      leg,
+      renderContext(this.context, leg.direction)
+    );
   }
 
   sample(progress: number): StagedMediaHandoffSample {

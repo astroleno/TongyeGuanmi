@@ -203,6 +203,17 @@ export type SegmentSceneRootIdentity = {
   to: HTMLElement | null;
 };
 
+export type StagedLegPreparation = Readonly<{
+  runId: SegmentRunId;
+  segment: SegmentId;
+  direction: Direction;
+  legIndex: number;
+  from: number;
+  to: number;
+  durationMs: number;
+  resumedStageIndex?: number;
+}>;
+
 export type SegmentTimelineHandle = {
   play(direction: Direction): Promise<void>;
   progress(value: number): void;
@@ -218,6 +229,7 @@ export type SegmentTimelineHandle = {
   };
   rootIdentity?(): SegmentSceneRootIdentity;
   effectCanvases?(): readonly HTMLCanvasElement[];
+  prepareLeg?(leg: StagedLegPreparation): Promise<void> | void;
 };
 
 export type TransitionContext = {

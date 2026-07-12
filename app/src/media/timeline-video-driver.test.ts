@@ -83,6 +83,27 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it('starts native playback only after its requested initial frame is presented', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    driver.drive({
+      runId: 'media-presented-native:1',
+      direction: 1,
+      progress: 0.2,
+      durationFallbackSeconds: 10,
+      timelineDurationMs: 2_000,
+      mode: 'native-preferred'
+    });
+
+    expect(video.playCalls).toBe(0);
+    video.completeSeek();
+    expect(video.playCalls).toBe(0);
+    video.presentFrame();
+    await Promise.resolve();
+    expect(video.playCalls).toBe(1);
+  });
+
   it('uses the transition direction and coalesces unresolved seeks to the latest progress', () => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));
@@ -157,12 +178,16 @@ describe('timeline video driver', () => {
     };
 
     driver.drive({ ...base, runId: 'media-test:1' });
+    video.completeSeek();
+    video.presentFrame();
     await Promise.resolve();
 
     expect(driver.snapshot()).toMatchObject({ runId: 'media-test:1', nativeFallback: true });
     expect(video.playCalls).toBe(1);
 
     driver.drive({ ...base, runId: 'media-test:2' });
+    video.completeSeek();
+    video.presentFrame();
     await Promise.resolve();
 
     expect(video.playCalls).toBe(2);
@@ -191,7 +216,11 @@ describe('timeline video driver', () => {
     };
 
     driver.drive({ ...input, progress: 0.2 });
+    video.completeSeek();
+    video.presentFrame();
     driver.drive({ ...input, progress: 0.3 });
+    video.completeSeek();
+    video.presentFrame();
     pending[0]?.reject(new Error('stale autoplay rejection'));
     pending[1]?.resolve();
     await Promise.resolve();

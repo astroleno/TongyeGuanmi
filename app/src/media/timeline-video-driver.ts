@@ -107,6 +107,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private nativeFallback = false;
   private nativeStarted = false;
   private nativeAttempt = 0;
+  private pendingNative: Readonly<{
+    desired: DesiredFrame;
+    input: TimelineVideoDriveInput;
+  }> | undefined;
   private frameReadyGeneration = 0;
   private frameReadyTime = Number.NaN;
   private frameCallbackId: number | undefined;
@@ -142,12 +146,15 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.writeDiagnostics(desired);
     this.configureElement();
 
+    const nativeEligible = input.mode === 'native-preferred'
+      && (input.nativePlaybackDirection ?? input.direction) === 1
+      && !input.reducedMotion;
     const endpoint = desired.progress <= 0.001
       ? 'start'
       : desired.progress >= 0.999
         ? 'end'
         : undefined;
-    if (endpoint) {
+    if (endpoint && !(endpoint === 'start' && nativeEligible)) {
       this.stopNativePlayback();
       if ((input.endpointPolicy?.[endpoint] ?? 'seek') === 'seek') {
         this.scheduleSeek(desired);
@@ -155,9 +162,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return this.snapshot();
     }
 
-    const nativeEligible = input.mode === 'native-preferred'
-      && (input.nativePlaybackDirection ?? input.direction) === 1
-      && !input.reducedMotion;
     if (!nativeEligible || this.nativeFallback) {
       this.stopNativePlayback();
       this.scheduleSeek(desired);
@@ -246,6 +250,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       this.direction = input.direction;
       this.nativeFallback = false;
       this.nativeStarted = false;
+      this.pendingNative = undefined;
       this.nativeAttempt += 1;
       this.frameReadyGeneration = 0;
       this.frameReadyTime = Number.NaN;
@@ -287,8 +292,24 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     if (this.nativeStarted && !this.video.paused) {
       return;
     }
-    if (!this.nativeStarted) {
+    const frameReady = this.frameReadyGeneration === desired.generation
+      && Math.abs(this.frameReadyTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS;
+    if (!frameReady) {
+      this.pendingNative = { desired, input };
       this.scheduleSeek(desired);
+      return;
+    }
+    this.pendingNative = undefined;
+    this.startNativePlayback(desired, input);
+  }
+
+  private startNativePlayback(desired: DesiredFrame, input: TimelineVideoDriveInput): void {
+    if (
+      this.disposed
+      || desired.generation !== this.generation
+      || (this.nativeStarted && !this.video.paused)
+    ) {
+      return;
     }
     const duration = finiteDuration(this.video, input.durationFallbackSeconds);
     const end = Math.max(desired.targetTime, Math.min(duration, input.endSeconds ?? duration));
@@ -326,6 +347,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   private stopNativePlayback(): void {
     this.nativeAttempt += 1;
+    this.pendingNative = undefined;
     if (this.nativeStarted || !this.video.paused) {
       this.video.pause();
     }
@@ -434,6 +456,15 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         this.waiters.delete(waiter);
         waiter.resolve(frameResult(waiter, 'ready'));
       }
+    }
+    const pendingNative = this.pendingNative;
+    if (
+      pendingNative
+      && pendingNative.desired.generation === frame.generation
+      && Math.abs(pendingNative.desired.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+    ) {
+      this.pendingNative = undefined;
+      this.startNativePlayback(pendingNative.desired, pendingNative.input);
     }
   }
 

@@ -761,7 +761,8 @@ describe('SegmentPlayer', () => {
       to: 0.5
     }));
     expect(progress.mock.calls.at(-1)?.[0] ?? 0).toBe(0);
-    expect(player.snapshot()).toMatchObject({ progress: 0, pausedAt: undefined });
+    expect(player.snapshot()).toMatchObject({ progress: 0 });
+    expect(player.snapshot()?.pausedAt).toBeUndefined();
 
     legReady.resolve();
     await flushMicrotasks();
@@ -769,6 +770,35 @@ describe('SegmentPlayer', () => {
     expect(player.snapshot()).toMatchObject({ progress: 0.5, pausedAt: 'stage:0' });
     player.disposeAll();
     await result;
+  });
+
+  it('fails only the active staged run when leg preparation rejects', async () => {
+    vi.useFakeTimers();
+    const timeline = {
+      play: () => Promise.resolve(),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn(),
+      prepareLeg: vi.fn(() => Promise.reject(new Error('directional frame unavailable')))
+    } as SegmentTimelineHandle & {
+      prepareLeg(args: unknown): Promise<void>;
+    };
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged([], [40]),
+      transitions: { 'hero-pattern': transitionWithTimeline(timeline) },
+      actorEpoch: 'leg-failure'
+    });
+
+    const result = player.play('hero-pattern', 1, { runId: 'leg-failure:1' });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(80);
+
+    await expect(result).resolves.toMatchObject({
+      status: 'failed',
+      error: expect.objectContaining({ message: 'directional frame unavailable' })
+    });
+    expect(timeline.progress).not.toHaveBeenCalledWith(1);
   });
 
   it('visits stagedSnap stops in reverse order during reverse playback', async () => {

@@ -67,6 +67,8 @@ type ActiveRun = {
     playMs: readonly number[];
     legIndex: number;
     pausedStageIndex?: number;
+    pendingResumeStageIndex?: number;
+    preparationGeneration: number;
     frame?: ScheduledFrame;
   };
   scrub?: {
@@ -339,7 +341,8 @@ export class SegmentPlayer {
           run.staged = {
             boundaries: [0, ...segment.policy.stops, 1],
             playMs: segment.policy.playMs,
-            legIndex: direction === 1 ? 0 : segment.policy.playMs.length - 1
+            legIndex: direction === 1 ? 0 : segment.policy.playMs.length - 1,
+            preparationGeneration: 0
           };
           this.playStagedLeg(run, timeline);
           return;
@@ -391,14 +394,7 @@ export class SegmentPlayer {
     }
     delete staged.pausedStageIndex;
     delete run.pausedAt;
-    this.reportMilestone({
-      key: 'stageResumed',
-      segment: run.segmentId,
-      runId: run.runId,
-      direction: run.direction,
-      progress: run.progress,
-      stageIndex
-    });
+    staged.pendingResumeStageIndex = stageIndex;
     this.playStagedLeg(run, timeline);
     return true;
   }
@@ -608,45 +604,106 @@ export class SegmentPlayer {
     const durationMs = this.prefersReducedMotion() ? 0 : Math.max(0, staged.playMs[legIndex] ?? 0);
     run.progress = from;
     timeline.progress(from);
-    let elapsedMs = 0;
-    let lastFrameAt = Date.now();
+    const preparationGeneration = staged.preparationGeneration + 1;
+    staged.preparationGeneration = preparationGeneration;
+    const resumedStageIndex = staged.pendingResumeStageIndex;
 
-    const tick = () => {
-      delete staged.frame;
-      if (this.active?.runId !== run.runId || run.settled) {
+    const failPreparation = (error: unknown) => {
+      if (
+        this.active?.runId !== run.runId
+        || run.settled
+        || staged.preparationGeneration !== preparationGeneration
+      ) {
         return;
       }
-      const now = Date.now();
-      const frameDelta = Math.max(0, now - lastFrameAt);
-      lastFrameAt = now;
-      elapsedMs += Math.min(frameDelta, MAX_STAGED_FRAME_DELTA_MS);
-      const elapsedRatio = durationMs <= 0 ? 1 : Math.min(1, elapsedMs / durationMs);
-      const progress = from + (to - from) * elapsedRatio;
-      try {
-        run.progress = progress;
-        timeline.progress(progress);
-      } catch (error) {
-        this.settleRun(run, {
-          status: 'failed',
-          runId: run.runId,
-          segment: run.segmentId,
-          error: asError(error)
-        }, true);
-        return;
-      }
-
-      if (elapsedRatio >= 1) {
-        this.finishStagedLeg(run);
-        return;
-      }
-      staged.frame = scheduleFrame(tick, Math.min(16, Math.max(1, durationMs - elapsedMs)));
+      this.settleRun(run, {
+        status: 'failed',
+        runId: run.runId,
+        segment: run.segmentId,
+        error: asError(error)
+      }, true);
     };
 
-    if (durationMs <= 0) {
-      tick();
+    const startClock = () => {
+      if (
+        this.active?.runId !== run.runId
+        || run.settled
+        || staged.preparationGeneration !== preparationGeneration
+      ) {
+        return;
+      }
+      if (resumedStageIndex !== undefined && staged.pendingResumeStageIndex === resumedStageIndex) {
+        delete staged.pendingResumeStageIndex;
+        this.reportMilestone({
+          key: 'stageResumed',
+          segment: run.segmentId,
+          runId: run.runId,
+          direction: run.direction,
+          progress: run.progress,
+          stageIndex: resumedStageIndex
+        });
+      }
+      let elapsedMs = 0;
+      let lastFrameAt = Date.now();
+      const tick = () => {
+        delete staged.frame;
+        if (this.active?.runId !== run.runId || run.settled) {
+          return;
+        }
+        const now = Date.now();
+        const frameDelta = Math.max(0, now - lastFrameAt);
+        lastFrameAt = now;
+        elapsedMs += Math.min(frameDelta, MAX_STAGED_FRAME_DELTA_MS);
+        const elapsedRatio = durationMs <= 0 ? 1 : Math.min(1, elapsedMs / durationMs);
+        const progress = from + (to - from) * elapsedRatio;
+        try {
+          run.progress = progress;
+          timeline.progress(progress);
+        } catch (error) {
+          this.settleRun(run, {
+            status: 'failed',
+            runId: run.runId,
+            segment: run.segmentId,
+            error: asError(error)
+          }, true);
+          return;
+        }
+
+        if (elapsedRatio >= 1) {
+          this.finishStagedLeg(run);
+          return;
+        }
+        staged.frame = scheduleFrame(tick, Math.min(16, Math.max(1, durationMs - elapsedMs)));
+      };
+
+      if (durationMs <= 0) {
+        tick();
+        return;
+      }
+      staged.frame = scheduleFrame(tick, Math.min(16, durationMs));
+    };
+
+    let readiness: Promise<void> | void;
+    try {
+      readiness = timeline.prepareLeg?.({
+        runId: run.runId,
+        segment: run.segmentId,
+        direction: run.direction,
+        legIndex,
+        from,
+        to,
+        durationMs,
+        ...(resumedStageIndex !== undefined ? { resumedStageIndex } : {})
+      });
+    } catch (error) {
+      failPreparation(error);
       return;
     }
-    staged.frame = scheduleFrame(tick, Math.min(16, durationMs));
+    if (!readiness) {
+      startClock();
+      return;
+    }
+    void Promise.resolve(readiness).then(startClock, failPreparation);
   }
 
   private finishStagedLeg(run: ActiveRun): void {
