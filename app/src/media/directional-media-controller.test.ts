@@ -103,6 +103,7 @@ describe('directional media controller', () => {
     expect(forward.classList.contains('is-active')).toBe(true);
     expect(reverse.classList.contains('is-active')).toBe(false);
     expect(reverse.play).not.toHaveBeenCalled();
+    expect(reverse.load).not.toHaveBeenCalled();
 
     reverse.presentRequestedFrame();
     await expect(preparing).resolves.toMatchObject({ status: 'ready' });

@@ -180,7 +180,6 @@ export function createDirectionalMediaController(options: {
       record.video.pause();
       if (record.video.preload !== 'auto') {
         record.video.preload = 'auto';
-        record.video.load?.();
       }
 
       const pending = prepareTimelineVideoFrame(record.video, withoutSurface(input))
