@@ -238,4 +238,32 @@ describe('directional media controller', () => {
     });
     expect(() => controller.activate(request)).toThrow(/not ready/i);
   });
+
+  it('preserves a ready same-run sibling when activating the opposing surface', async () => {
+    const forward = new FakeVideo();
+    const reverse = new FakeVideo();
+    const controller = createDirectionalMediaController({
+      surfaces: { forward: element(forward), reverse: element(reverse) }
+    });
+    const reverseRequest = input('reverse', 'directional-pair:1', -1, 0);
+    const forwardRequest = input('forward', 'directional-pair:1', -1, 0);
+    const reversePreparation = controller.prepare(reverseRequest);
+    reverse.presentRequestedFrame();
+    await reversePreparation;
+    const forwardPreparation = controller.prepare(forwardRequest);
+    forward.presentRequestedFrame();
+    await forwardPreparation;
+
+    controller.activate(reverseRequest);
+
+    expect(controller.snapshot()).toMatchObject({
+      activeSurface: 'reverse',
+      surfaces: {
+        forward: { status: 'ready', runId: 'directional-pair:1', direction: -1 },
+        reverse: { status: 'active', runId: 'directional-pair:1', direction: -1 }
+      }
+    });
+    expect(forward.classList.contains('is-active')).toBe(false);
+    expect(reverse.classList.contains('is-active')).toBe(true);
+  });
 });

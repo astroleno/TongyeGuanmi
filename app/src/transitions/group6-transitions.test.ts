@@ -4,11 +4,19 @@ import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { createLabPhTransition } from './lab-ph';
 import { createPhEducationTransition, PH_EDUCATION_ANIMATION_STOP } from './ph-education';
 import { PH_PLAYBACK_MS } from '../story/timings';
-import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
+import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SegmentTimelineHandle, SpineSegmentNode, StagedLegPreparation, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/back-half.fixture';
 
 function preparationSignal(): AbortSignal {
   return new AbortController().signal;
+}
+
+async function prepareAndCommit(
+  timeline: SegmentTimelineHandle,
+  leg: StagedLegPreparation
+): Promise<void> {
+  await timeline.prepareLeg?.(leg);
+  timeline.commitLeg?.(leg);
 }
 
 afterEach(() => {
@@ -138,7 +146,7 @@ describe('R4 group6 transitions', () => {
       to: fixture.stage.children[1]
     });
     expect(fixture.stage.children).toHaveLength(2);
-    await timeline.prepareLeg?.({
+    await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
       segment: 'ph-education',
       direction: 1,
@@ -162,7 +170,7 @@ describe('R4 group6 transitions', () => {
     expect(timeline.pauses).toEqual(['stage:0']);
     const writesAtStop = video.currentTimeWrites;
 
-    await timeline.prepareLeg?.({
+    await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
       segment: 'ph-education',
       direction: 1,
@@ -215,7 +223,7 @@ describe('R4 group6 transitions', () => {
     fixture.fromRoot.connect('[data-ph-alpha-video]', video);
     const timeline = await createPhEducationTransition().buildTimeline(fixture.context);
 
-    await timeline.prepareLeg?.({
+    await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
       segment: 'ph-education',
       direction: 1,
@@ -228,7 +236,7 @@ describe('R4 group6 transitions', () => {
     timeline.progress(PH_EDUCATION_ANIMATION_STOP);
     expect(video.currentTime).toBeCloseTo(video.duration - 0.02, 3);
 
-    await timeline.prepareLeg?.({
+    await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
       segment: 'ph-education',
       direction: -1,
@@ -263,7 +271,7 @@ describe('R4 group6 transitions', () => {
   it('keeps the PH source hidden until its reverse terminal frame is presented', async () => {
     class DeferredFrameVideo extends FakeVideo {
       seeking = false;
-      private frameCallback: (() => void) | undefined;
+      private frameCallback: ((now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void) | undefined;
       private readonly listeners = new Map<string, Set<() => void>>();
 
       override get currentTime(): number {
@@ -285,7 +293,9 @@ describe('R4 group6 transitions', () => {
         this.listeners.get(type)?.delete(listener);
       }
 
-      requestVideoFrameCallback(callback: () => void): number {
+      override requestVideoFrameCallback(
+        callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
+      ): number {
         this.frameCallback = callback;
         return 1;
       }
@@ -301,7 +311,7 @@ describe('R4 group6 transitions', () => {
         }
         const callback = this.frameCallback;
         this.frameCallback = undefined;
-        callback?.();
+        callback?.(0, {} as VideoFrameCallbackMetadata);
       }
     }
 
@@ -316,16 +326,17 @@ describe('R4 group6 transitions', () => {
       prepareToken: 'ph-terminal:prepare:1'
     } as const;
     const timeline = await createPhEducationTransition().buildTimeline(reverseContext);
-    const preparation = Promise.resolve(timeline.prepareLeg?.({
+    const leg = {
       runId: reverseContext.runId,
-      segment: 'ph-education',
-      direction: -1,
+      segment: 'ph-education' as const,
+      direction: -1 as const,
       legIndex: 1,
       from: 1,
       to: PH_EDUCATION_ANIMATION_STOP,
       durationMs: 600,
       signal: preparationSignal()
-    }));
+    };
+    const preparation = Promise.resolve(timeline.prepareLeg?.(leg));
     let frameReady = false;
     void preparation.then(() => {
       frameReady = true;
@@ -338,6 +349,7 @@ describe('R4 group6 transitions', () => {
 
     video.presentRequestedFrame();
     await preparation;
+    timeline.commitLeg?.(leg);
     timeline.progress((PH_EDUCATION_ANIMATION_STOP + 1) / 2);
     expect(fixture.fromLayer.visibility.opacity).toBeGreaterThan(0);
   });
@@ -360,7 +372,7 @@ describe('R4 group6 transitions', () => {
       const timeline = await createPhEducationTransition().buildTimeline(runContext);
 
       if (direction === -1) {
-        await timeline.prepareLeg?.({
+        await prepareAndCommit(timeline, {
           runId: runContext.runId,
           segment: 'ph-education',
           direction,
@@ -372,7 +384,7 @@ describe('R4 group6 transitions', () => {
         });
         timeline.progress(PH_EDUCATION_ANIMATION_STOP);
       }
-      await timeline.prepareLeg?.({
+      await prepareAndCommit(timeline, {
         runId: runContext.runId,
         segment: 'ph-education',
         direction,

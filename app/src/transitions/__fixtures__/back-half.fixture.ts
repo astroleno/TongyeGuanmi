@@ -170,6 +170,17 @@ export class FakeVideo extends FakeElement {
     void listener;
   }
 
+  requestVideoFrameCallback(
+    callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
+  ): number {
+    callback(0, {} as VideoFrameCallbackMetadata);
+    return 1;
+  }
+
+  cancelVideoFrameCallback(): void {
+    // The default fixture presents synchronously, so there is nothing pending.
+  }
+
   play(): Promise<void> {
     this.playCalls += 1;
     this.paused = false;

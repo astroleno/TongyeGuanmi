@@ -26,6 +26,7 @@ export type PhMediaRun = {
   runId: string;
   direction: 1 | -1;
   reducedMotion?: boolean;
+  signal?: AbortSignal;
 };
 
 type PhRenderOptions = {
@@ -60,7 +61,8 @@ function phMediaInput(
     endEpsilonSeconds: 0.02,
     timelineDurationMs: PH_PLAYBACK_MS,
     mode: 'timeline',
-    ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {})
+    ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
+    ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
   };
 }
 

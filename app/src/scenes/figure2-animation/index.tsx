@@ -57,6 +57,12 @@ type Figure2MediaManager = {
   right: DirectionalMediaController;
   activeDirection?: Figure2MediaDirection;
   activeRunId?: string;
+  prepared?: {
+    surface: Figure2MediaDirection;
+    runId: string;
+    input: DirectionalMediaInput;
+    generation: number;
+  };
   generation: number;
 };
 
@@ -65,6 +71,7 @@ export type Figure2MediaPreparation = Readonly<{
   direction: 1 | -1;
   timelineDurationMs?: number;
   reducedMotion?: boolean;
+  signal?: AbortSignal;
 }>;
 
 export type Figure2DirectionalMediaSnapshot = Readonly<{
@@ -156,7 +163,8 @@ function mediaInput(
     nativePlaybackDirection: 1,
     ...(preparation.reducedMotion !== undefined
       ? { reducedMotion: preparation.reducedMotion }
-      : {})
+      : {}),
+    ...(preparation.signal ? { signal: preparation.signal } : {})
   };
 }
 
@@ -236,12 +244,48 @@ export async function prepareFigure2MediaLeg(
     throw new Error(`Figure2 ${surface} media pair is not atomically ready`);
   }
 
-  manager.left.activate(input);
-  manager.right.activate(input);
+  manager.prepared = {
+    surface,
+    runId: preparation.runId,
+    input,
+    generation
+  };
+  root.dataset.figure2PendingMediaDirection = surface;
+  root.dataset.figure2PendingMediaRun = preparation.runId;
+}
+
+export function commitFigure2MediaLeg(
+  root: HTMLElement | null,
+  preparation: Figure2MediaPreparation
+): void {
+  if (!root) {
+    throw new Error('Figure2 media root is unavailable');
+  }
+  const manager = managerFor(root);
+  const surface = surfaceForDirection(preparation.direction);
+  if (manager.activeDirection === surface && manager.activeRunId === preparation.runId) {
+    return;
+  }
+  const prepared = manager.prepared;
+  if (
+    !prepared
+    || prepared.surface !== surface
+    || prepared.runId !== preparation.runId
+    || prepared.generation !== manager.generation
+    || preparation.signal?.aborted
+  ) {
+    throw new Error(`Figure2 ${surface} media is not prepared for commit`);
+  }
+
+  manager.left.activate(prepared.input);
+  manager.right.activate(prepared.input);
   manager.activeDirection = surface;
   manager.activeRunId = preparation.runId;
+  delete manager.prepared;
   root.dataset.figure2MediaDirection = surface;
   root.dataset.figure2MediaRun = preparation.runId;
+  delete root.dataset.figure2PendingMediaDirection;
+  delete root.dataset.figure2PendingMediaRun;
 }
 
 export function driveFigure2MediaLeg(
@@ -278,6 +322,8 @@ export function parkFigure2Media(root: HTMLElement | null): void {
   if (!manager) {
     return;
   }
+  manager.generation += 1;
+  delete manager.prepared;
   for (const surface of ['forward', 'reverse'] as const) {
     manager.left.park(surface);
     manager.right.park(surface);
@@ -286,6 +332,8 @@ export function parkFigure2Media(root: HTMLElement | null): void {
   delete manager.activeRunId;
   delete root.dataset.figure2MediaDirection;
   delete root.dataset.figure2MediaRun;
+  delete root.dataset.figure2PendingMediaDirection;
+  delete root.dataset.figure2PendingMediaRun;
 }
 
 export function disposeFigure2Media(root: HTMLElement | null): void {
@@ -296,11 +344,15 @@ export function disposeFigure2Media(root: HTMLElement | null): void {
   if (!manager) {
     return;
   }
+  manager.generation += 1;
+  delete manager.prepared;
   manager.left.dispose();
   manager.right.dispose();
   mediaManagers.delete(root);
   delete root.dataset.figure2MediaDirection;
   delete root.dataset.figure2MediaRun;
+  delete root.dataset.figure2PendingMediaDirection;
+  delete root.dataset.figure2PendingMediaRun;
 }
 
 export function figure2DirectionalMediaSnapshot(

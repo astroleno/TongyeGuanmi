@@ -1,5 +1,6 @@
 import {
   FIGURE2_INTRO_PLAYBACK_MS,
+  commitFigure2MediaLeg,
   figure2DepthTransformForProgress,
   parkFigure2Media,
   prepareFigure2MediaLeg,
@@ -194,7 +195,24 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
           runId: leg.runId,
           direction: leg.direction,
           timelineDurationMs: leg.durationMs || FIGURE2_INTRO_PLAYBACK_MS,
-          reducedMotion: this.context.prefersReducedMotion
+          reducedMotion: this.context.prefersReducedMotion,
+          signal: leg.signal
+        }
+      );
+    }
+  }
+
+  commitLeg(leg: StagedLegPreparation): void {
+    const upper = Math.max(leg.from, leg.to);
+    if (upper <= FIGURE2_INTRO_END + 0.001 && !this.context.prefersReducedMotion) {
+      commitFigure2MediaLeg(
+        sceneRoot(this.context.from.element, 'figure2-animation'),
+        {
+          runId: leg.runId,
+          direction: leg.direction,
+          timelineDurationMs: leg.durationMs || FIGURE2_INTRO_PLAYBACK_MS,
+          reducedMotion: this.context.prefersReducedMotion,
+          signal: leg.signal
         }
       );
     }
@@ -315,9 +333,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       applyLayerVisibility(this.context.to, hiddenVisibility());
     }
     this.depthMask?.dispose();
-    if (this.progressValue >= 0.999) {
-      parkFigure2Media(sceneRoot(this.context.from.element, 'figure2-animation'));
-    }
+    parkFigure2Media(sceneRoot(this.context.from.element, 'figure2-animation'));
     this.elevation.restore();
     clearTransitionAttrs(this.context.to.element);
     clearTransitionAttrs(sceneRoot(this.context.to.element, 'figure2-proof-opening'));

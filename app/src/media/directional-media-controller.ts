@@ -249,7 +249,13 @@ export function createDirectionalMediaController(options: {
         );
       }
       for (const [surface, candidate] of surfaces) {
-        if (surface !== input.surface) {
+        if (surface === input.surface) {
+          continue;
+        }
+        const sameRunReadySibling = candidate.status === 'ready'
+          && candidate.runId === input.runId
+          && candidate.direction === input.direction;
+        if (!sameRunReadySibling) {
           parkRecord(surface, candidate);
         }
       }

@@ -7,13 +7,21 @@ import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { createServicesTtgTransition } from './services-ttg';
 import { createTtgLabTransition, TTG_LAB_ANIMATION_STOP } from './ttg-lab';
-import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
+import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SegmentTimelineHandle, SpineSegmentNode, StagedLegPreparation, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/back-half.fixture';
 
 const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 function preparationSignal(): AbortSignal {
   return new AbortController().signal;
+}
+
+async function prepareAndCommit(
+  timeline: SegmentTimelineHandle,
+  leg: StagedLegPreparation
+): Promise<void> {
+  await timeline.prepareLeg?.(leg);
+  timeline.commitLeg?.(leg);
 }
 
 afterEach(() => {
@@ -136,7 +144,7 @@ describe('R4 group5 transitions', () => {
     const timeline = await createTtgLabTransition().buildTimeline(fixture.context);
 
     expect((timeline as typeof timeline & { prepareLeg?: unknown }).prepareLeg).toBeTypeOf('function');
-    await timeline.prepareLeg?.({
+    await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
       segment: 'ttg-lab',
       direction: 1,
@@ -160,7 +168,7 @@ describe('R4 group5 transitions', () => {
     const forwardWritesAtStop = forwardVideo.currentTimeWrites;
     const reverseWritesAtStop = reverseVideo.currentTimeWrites;
 
-    await timeline.prepareLeg?.({
+    await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
       segment: 'ttg-lab',
       direction: 1,
@@ -221,7 +229,7 @@ describe('R4 group5 transitions', () => {
       ? policy.stops[0] ?? 0
       : 0;
     const timeline = await createTtgLabTransition().buildTimeline(fixture.context);
-    await timeline.prepareLeg?.({
+    await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
       segment: 'ttg-lab',
       direction: 1,
@@ -262,7 +270,7 @@ describe('R4 group5 transitions', () => {
   it('prepares a cold reverse dissolve and same-run reverse leg without zero-active intervals', async () => {
     class DeferredFrameVideo extends FakeVideo {
       seeking = false;
-      private frameCallback: (() => void) | undefined;
+      private frameCallback: ((now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void) | undefined;
       private readonly listeners = new Map<string, Set<() => void>>();
 
       override get currentTime(): number {
@@ -284,7 +292,9 @@ describe('R4 group5 transitions', () => {
         this.listeners.get(type)?.delete(listener);
       }
 
-      requestVideoFrameCallback(callback: () => void): number {
+      override requestVideoFrameCallback(
+        callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
+      ): number {
         this.frameCallback = callback;
         return 1;
       }
@@ -300,7 +310,7 @@ describe('R4 group5 transitions', () => {
         }
         const callback = this.frameCallback;
         this.frameCallback = undefined;
-        callback?.();
+        callback?.(0, {} as VideoFrameCallbackMetadata);
       }
     }
 
@@ -324,16 +334,17 @@ describe('R4 group5 transitions', () => {
     expect(forwardVideo.classList.contains('is-active')).toBe(true);
     expect(reverseVideo.classList.contains('is-active')).toBe(false);
 
-    const terminalPreparation = Promise.resolve(timeline.prepareLeg?.({
+    const terminalLeg = {
       runId: reverseContext.runId,
-      segment: 'ttg-lab',
-      direction: -1,
+      segment: 'ttg-lab' as const,
+      direction: -1 as const,
       legIndex: 1,
       from: 1,
       to: TTG_LAB_ANIMATION_STOP,
       durationMs: 600,
       signal: preparationSignal()
-    }));
+    };
+    const terminalPreparation = Promise.resolve(timeline.prepareLeg?.(terminalLeg));
     let terminalReady = false;
     void terminalPreparation.then(() => {
       terminalReady = true;
@@ -345,38 +356,40 @@ describe('R4 group5 transitions', () => {
 
     forwardVideo.presentRequestedFrame();
     await terminalPreparation;
+    timeline.commitLeg?.(terminalLeg);
     expect(forwardVideo.classList.contains('is-active')).toBe(true);
     expect(reverseVideo.classList.contains('is-active')).toBe(false);
     timeline.progress((TTG_LAB_ANIMATION_STOP + 1) / 2);
     expect(fixture.fromLayer.visibility.opacity).toBeGreaterThan(0);
     timeline.progress(TTG_LAB_ANIMATION_STOP);
 
-    const reversePreparation = Promise.resolve(timeline.prepareLeg?.({
+    const reverseLeg = {
       runId: reverseContext.runId,
-      segment: 'ttg-lab',
-      direction: -1,
+      segment: 'ttg-lab' as const,
+      direction: -1 as const,
       legIndex: 0,
       from: TTG_LAB_ANIMATION_STOP,
       to: 0,
       durationMs: 2500,
       resumedStageIndex: 0,
       signal: preparationSignal()
-    }));
+    };
+    const reversePreparation = Promise.resolve(timeline.prepareLeg?.(reverseLeg));
     reverseVideo.presentRequestedFrame();
     for (let index = 0; index < 6; index += 1) {
       await Promise.resolve();
     }
-    expect(reverseVideo.classList.contains('is-active')).toBe(true);
-    expect(forwardVideo.classList.contains('is-active')).toBe(false);
+    expect(reverseVideo.classList.contains('is-active')).toBe(false);
+    expect(forwardVideo.classList.contains('is-active')).toBe(true);
     expect(reverseVideo.playCalls).toBe(0);
 
-    forwardVideo.presentRequestedFrame();
     await reversePreparation;
+    timeline.commitLeg?.(reverseLeg);
     expect(reverseVideo.playCalls).toBe(1);
     expect(ttgMediaSnapshot(fixture.fromRoot as unknown as HTMLElement)).toMatchObject({
       activeSurface: 'reverse',
       activeRunId: reverseContext.runId,
-      preparedForwardStart: true
+      preparedForwardStart: false
     });
 
     timeline.progress(TTG_LAB_ANIMATION_STOP / 2);
@@ -387,7 +400,7 @@ describe('R4 group5 transitions', () => {
     expect(reverseVideo.classList.contains('is-active')).toBe(false);
     expect(forwardVideo.currentTime).toBe(0);
     expect(ttgMediaSnapshot(fixture.fromRoot as unknown as HTMLElement)).toMatchObject({
-      activeSurface: 'forward',
+      activeSurface: undefined,
       preparedForwardStart: false
     });
   });
@@ -401,7 +414,7 @@ describe('R4 group5 transitions', () => {
     fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
     const timeline = await createTtgLabTransition().buildTimeline(fixture.context);
 
-    await timeline.prepareLeg?.({
+    await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
       segment: 'ttg-lab',
       direction: 1,
@@ -415,7 +428,7 @@ describe('R4 group5 transitions', () => {
     expect(forwardVideo.classList.contains('is-active')).toBe(true);
     expect(reverseVideo.classList.contains('is-active')).toBe(false);
 
-    await timeline.prepareLeg?.({
+    await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
       segment: 'ttg-lab',
       direction: -1,
@@ -459,7 +472,7 @@ describe('R4 group5 transitions', () => {
       const timeline = await createTtgLabTransition().buildTimeline(runContext);
 
       if (direction === 1) {
-        await timeline.prepareLeg?.({
+        await prepareAndCommit(timeline, {
           runId: runContext.runId,
           segment: 'ttg-lab',
           direction,
@@ -471,7 +484,7 @@ describe('R4 group5 transitions', () => {
         });
         timeline.progress(TTG_LAB_ANIMATION_STOP * 0.5);
         timeline.progress(TTG_LAB_ANIMATION_STOP);
-        await timeline.prepareLeg?.({
+        await prepareAndCommit(timeline, {
           runId: runContext.runId,
           segment: 'ttg-lab',
           direction,
@@ -484,7 +497,7 @@ describe('R4 group5 transitions', () => {
         });
         timeline.progress(1);
       } else {
-        await timeline.prepareLeg?.({
+        await prepareAndCommit(timeline, {
           runId: runContext.runId,
           segment: 'ttg-lab',
           direction,
@@ -496,7 +509,7 @@ describe('R4 group5 transitions', () => {
         });
         timeline.progress((1 + TTG_LAB_ANIMATION_STOP) / 2);
         timeline.progress(TTG_LAB_ANIMATION_STOP);
-        await timeline.prepareLeg?.({
+        await prepareAndCommit(timeline, {
           runId: runContext.runId,
           segment: 'ttg-lab',
           direction,

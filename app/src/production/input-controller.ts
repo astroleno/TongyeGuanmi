@@ -80,7 +80,7 @@ function shouldForwardRawInput(
   snapshot: ReturnType<Runtime['getState']>,
   direction: Direction
 ): boolean {
-  if (snapshot.state === 'scrubbing') {
+  if (snapshot.state === 'preparing' || snapshot.state === 'scrubbing') {
     return true;
   }
   const cursor = snapshot.context.cursor;

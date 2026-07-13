@@ -14,6 +14,7 @@ import type {
   TransitionContext,
   TransitionModule
 } from '../../story/types';
+import { MediaPreparationError } from '../../media/media-preparation';
 
 export type StagedMediaRenderContext = Readonly<{
   runId: TransitionContext['runId'];
@@ -32,6 +33,11 @@ export type StagedMediaHandoffOptions = Readonly<{
     leg: StagedLegPreparation,
     context: StagedMediaRenderContext
   ) => Promise<void> | void;
+  commitLegStart?: (
+    root: HTMLElement | null,
+    leg: StagedLegPreparation,
+    context: StagedMediaRenderContext
+  ) => void;
   commitLegEndpoint?: (
     root: HTMLElement | null,
     leg: StagedLegPreparation,
@@ -196,6 +202,7 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
   private renderedSourceProgress = Number.NaN;
   private renderedSourceDirection: Direction | undefined;
   private preparationGeneration = 0;
+  private preparedLeg: StagedLegPreparation | undefined;
   private armedLeg: StagedLegPreparation | undefined;
 
   constructor(
@@ -294,21 +301,52 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
   prepareLeg(leg: StagedLegPreparation): Promise<void> | void {
     const roots = rootsFor(this.context, this.options);
     const generation = ++this.preparationGeneration;
+    this.preparedLeg = undefined;
     const readiness = this.options.prepareLeg?.(
       roots.from,
       leg,
       renderContext(this.context, leg.direction)
     );
-    const arm = () => {
-      if (!this.disposed && this.preparationGeneration === generation) {
-        this.armedLeg = leg;
+    const markPrepared = () => {
+      if (
+        this.disposed
+        || this.preparationGeneration !== generation
+        || leg.signal.aborted
+      ) {
+        const reason = leg.signal.reason;
+        if (reason instanceof MediaPreparationError) {
+          throw reason;
+        }
+        throw new MediaPreparationError(
+          'MEDIA_PREPARATION_ABORTED',
+          `staged media preparation became stale for ${leg.runId}`,
+          reason === undefined ? {} : { cause: reason }
+        );
       }
+      this.preparedLeg = leg;
     };
     if (!readiness) {
-      arm();
+      markPrepared();
       return;
     }
-    return Promise.resolve(readiness).then(arm);
+    return Promise.resolve(readiness).then(markPrepared);
+  }
+
+  commitLeg(leg: StagedLegPreparation): void {
+    if (this.disposed || this.preparedLeg !== leg || leg.signal.aborted) {
+      throw new MediaPreparationError(
+        'MEDIA_PREPARATION_ABORTED',
+        `staged media leg is not prepared for commit: ${leg.runId}`
+      );
+    }
+    const roots = rootsFor(this.context, this.options);
+    this.options.commitLegStart?.(
+      roots.from,
+      leg,
+      renderContext(this.context, leg.direction)
+    );
+    this.preparedLeg = undefined;
+    this.armedLeg = leg;
   }
 
   sample(progress: number): StagedMediaHandoffSample {
@@ -332,6 +370,7 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
     }
     this.disposed = true;
     this.preparationGeneration += 1;
+    this.preparedLeg = undefined;
     this.armedLeg = undefined;
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);

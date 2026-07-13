@@ -799,17 +799,18 @@ describe('figure2 proof chain transitions', () => {
       -1
     );
     const timeline = await createFigure2DistanceExpandTransition().buildTimeline(reverseContext);
-    const preparation = timeline.prepareLeg?.({
+    const leg = {
       runId: reverseContext.runId,
-      segment: 'figure2-distance-expand',
-      direction: -1,
+      segment: 'figure2-distance-expand' as const,
+      direction: -1 as const,
       legIndex: 0,
       from: FIGURE2_INTRO_END,
       to: 0,
       durationMs: FIGURE2_INTRO_PLAYBACK_MS,
       resumedStageIndex: 0,
       signal: preparationSignal()
-    });
+    };
+    const preparation = timeline.prepareLeg?.(leg);
 
     expect(leftForward.classList.contains('is-active')).toBe(true);
     expect(rightForward.classList.contains('is-active')).toBe(true);
@@ -820,6 +821,12 @@ describe('figure2 proof chain transitions', () => {
 
     rightReverse.presentRequestedFrame();
     await preparation;
+    expect(leftForward.classList.contains('is-active')).toBe(true);
+    expect(rightForward.classList.contains('is-active')).toBe(true);
+    expect(leftReverse.classList.contains('is-active')).toBe(false);
+    expect(rightReverse.classList.contains('is-active')).toBe(false);
+
+    timeline.commitLeg?.(leg);
     expect(leftForward.classList.contains('is-active')).toBe(false);
     expect(rightForward.classList.contains('is-active')).toBe(false);
     expect(leftReverse.classList.contains('is-active')).toBe(true);

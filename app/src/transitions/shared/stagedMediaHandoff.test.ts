@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createBackHalfDomContext } from '../__fixtures__/back-half.fixture';
 import {
   createStagedMediaHandoff,
@@ -11,6 +11,35 @@ function preparationSignal(): AbortSignal {
 }
 
 describe('staged media handoff', () => {
+  it('separates hidden preparation from the leg-start commit', async () => {
+    const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
+    const commitLegStart = vi.fn();
+    const transition = createStagedMediaHandoff({
+      id: 'ttg-lab',
+      prepareEndpoints: () => undefined,
+      prepareLeg: () => Promise.resolve(),
+      commitLegStart,
+      renderSource: () => undefined
+    });
+    const timeline = await transition.buildTimeline(fixture.context);
+    const leg = {
+      runId: 'handoff-commit:1' as const,
+      segment: 'ttg-lab' as const,
+      direction: 1 as const,
+      legIndex: 0,
+      from: 0,
+      to: 2500 / 3100,
+      durationMs: 2500,
+      signal: preparationSignal()
+    };
+
+    await timeline.prepareLeg?.(leg);
+    expect(commitLegStart).not.toHaveBeenCalled();
+
+    timeline.commitLeg?.(leg);
+    expect(commitLegStart).toHaveBeenCalledOnce();
+  });
+
   it('keeps source and receiver opacity complementary throughout the dissolve leg', () => {
     const stop = 2500 / 3100;
 
@@ -139,17 +168,19 @@ describe('staged media handoff', () => {
       ? fixture.context.segment.policy.stops[0] ?? 0
       : 0;
 
-    await timeline.prepareLeg?.({
+    const leg = {
       runId: fixture.context.runId,
-      segment: 'ttg-lab',
-      direction: -1,
+      segment: 'ttg-lab' as const,
+      direction: -1 as const,
       legIndex: 0,
       from: stop,
       to: 0,
       durationMs: 2500,
       resumedStageIndex: 0,
       signal: preparationSignal()
-    });
+    };
+    await timeline.prepareLeg?.(leg);
+    timeline.commitLeg?.(leg);
     timeline.progress(stop / 2);
     expect(commits).toEqual([]);
     timeline.progress(0);

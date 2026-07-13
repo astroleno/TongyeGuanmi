@@ -19,17 +19,17 @@ export function createPhEducationTransition(options: { delayMs?: () => number } 
     prepareEndpoints: ({ to }) => renderEducationHold(to),
     prepareLeg: (root, leg, mediaRun) => {
       if (leg.legIndex === 0) {
-        return preparePhAnimationFrame(root, leg.direction === 1 ? 0 : 1, mediaRun);
+        return preparePhAnimationFrame(
+          root,
+          leg.direction === 1 ? 0 : 1,
+          { ...mediaRun, signal: leg.signal }
+        );
       }
       if (leg.direction === -1) {
-        return preparePhAnimationFrame(root, 1, mediaRun);
+        return preparePhAnimationFrame(root, 1, { ...mediaRun, signal: leg.signal });
       }
     },
-    disposeSource: (root, progress) => {
-      if (progress > 0.001) {
-        parkPhMedia(root);
-      }
-    },
+    disposeSource: (root) => parkPhMedia(root),
     renderSource: (root, progress, mediaRun) => renderPhAnimationProgress(root, progress, { mediaRun }),
   });
   return {

@@ -196,6 +196,59 @@ describe('production input reading handoff', () => {
     detach();
   });
 
+  it('forwards opposing raw input while Director is preparing a staged leg', () => {
+    const listeners = new Map<string, Set<(event: Event) => void>>();
+    vi.stubGlobal('window', {
+      innerHeight: 1000,
+      visualViewport: undefined,
+      addEventListener(type: string, listener: (event: Event) => void) {
+        const current = listeners.get(type) ?? new Set<(event: Event) => void>();
+        current.add(listener);
+        listeners.set(type, current);
+      },
+      removeEventListener(type: string, listener: (event: Event) => void) {
+        listeners.get(type)?.delete(listener);
+      }
+    });
+    const send = vi.fn();
+    const runtime = {
+      getState: () => ({
+        state: 'preparing',
+        context: {
+          activeRunId: 'preparing-input:1',
+          cursor: { status: 'segment', segment: 'ttg-lab', progress: 0 },
+          pendingDirection: 1
+        }
+      }),
+      send,
+      subscribe: () => () => undefined
+    };
+    const detach = attachStoryInput({
+      runtime: runtime as unknown as Parameters<typeof attachStoryInput>[0]['runtime'],
+      getCurrentScene: () => 'ttg-animation',
+      getLayerElement: () => null
+    });
+    const wheel = {
+      cancelable: true,
+      deltaMode: 0,
+      deltaY: -20,
+      preventDefault: vi.fn(),
+      target: null
+    } as unknown as WheelEvent;
+
+    for (const listener of listeners.get('wheel') ?? []) {
+      listener(wheel);
+    }
+
+    expect(wheel.preventDefault).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'INPUT_DELTA',
+      delta: -0.02,
+      source: 'wheel'
+    }));
+    detach();
+  });
+
   it('uses one PageDown at the edge as one discrete 10svh commitment', () => {
     const listeners = new Map<string, Set<(event: Event) => void>>();
     const fakeWindow = {

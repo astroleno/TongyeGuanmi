@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
+  commitFigure2MediaLeg,
   disposeFigure2Media,
   figure2AnimationScene,
   figure2DirectionalMediaSnapshot,
@@ -274,6 +275,16 @@ describe('figure2-animation scene renderer', () => {
 
     videos.rightReverse.presentRequestedFrame();
     await preparation;
+    expect(videos.leftForward.classList.contains('is-active')).toBe(true);
+    expect(videos.rightForward.classList.contains('is-active')).toBe(true);
+    expect(videos.leftReverse.classList.contains('is-active')).toBe(false);
+    expect(videos.rightReverse.classList.contains('is-active')).toBe(false);
+
+    commitFigure2MediaLeg(root as unknown as HTMLElement, {
+      runId: 'figure2-pair:1',
+      direction: -1,
+      timelineDurationMs: 2600
+    });
     expect(videos.leftForward.classList.contains('is-active')).toBe(false);
     expect(videos.rightForward.classList.contains('is-active')).toBe(false);
     expect(videos.leftReverse.classList.contains('is-active')).toBe(true);
@@ -298,6 +309,11 @@ describe('figure2-animation scene renderer', () => {
     videos.leftForward.presentRequestedFrame();
     videos.rightForward.presentRequestedFrame();
     await preparation;
+    commitFigure2MediaLeg(root as unknown as HTMLElement, {
+      runId: 'figure2-rate:1',
+      direction: 1,
+      timelineDurationMs: 2600
+    });
 
     expect(videos.leftForward.playbackRate).toBeGreaterThan(0.8);
     expect(videos.leftForward.playbackRate).toBeLessThan(1);
@@ -316,6 +332,7 @@ describe('figure2-animation scene renderer', () => {
     videos.leftReverse.presentRequestedFrame();
     videos.rightReverse.presentRequestedFrame();
     await preparation;
+    commitFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
     const initialLeftSeeks = videos.leftReverse.seekWrites.length;
     const initialRightSeeks = videos.rightReverse.seekWrites.length;
     videos.leftReverse.setNaturalTime(1.1);
@@ -337,5 +354,27 @@ describe('figure2-animation scene renderer', () => {
     expect(videos.leftReverse.playbackRate).toBeGreaterThan(1.8);
     expect(videos.leftReverse.playbackRate).toBeLessThan(2);
     disposeFigure2Media(root as unknown as HTMLElement);
+  });
+
+  it('cannot activate a prepared surface after its run is aborted and disposed', async () => {
+    const videos = directionalVideos();
+    const root = new FakeVideoRoot(Object.values(videos));
+    const abortController = new AbortController();
+    const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, {
+      runId: 'figure2-dispose-prepare:1',
+      direction: -1,
+      timelineDurationMs: 2600,
+      signal: abortController.signal
+    });
+    videos.leftReverse.presentRequestedFrame();
+
+    abortController.abort();
+    disposeFigure2Media(root as unknown as HTMLElement);
+    videos.rightReverse.presentRequestedFrame();
+
+    await expect(preparation).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+    expect(videos.leftReverse.classList.contains('is-active')).toBe(false);
+    expect(videos.rightReverse.classList.contains('is-active')).toBe(false);
+    expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toBeNull();
   });
 });

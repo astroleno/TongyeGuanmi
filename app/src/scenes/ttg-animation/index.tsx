@@ -33,6 +33,7 @@ export type TtgMediaRun = {
   runId: string;
   direction: 1 | -1;
   reducedMotion?: boolean;
+  signal?: AbortSignal;
 };
 
 type TtgRenderOptions = {
@@ -69,6 +70,7 @@ type TtgMediaManager = {
   generation: number;
   activeSurface?: TtgSurface;
   activeRunId?: string;
+  preparedActivation?: DirectionalMediaInput;
   preparedForwardStart?: DirectionalMediaInput;
 };
 
@@ -103,7 +105,8 @@ function mediaInput(
     timelineDurationMs: TTG_PLAYBACK_MS,
     mode,
     nativePlaybackDirection: 1,
-    ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {})
+    ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
+    ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
   };
 }
 
@@ -223,7 +226,7 @@ export async function prepareTtgSourceTerminal(
   }
   const input = mediaInput('forward', mediaRun, 1, 'timeline');
   const manager = await prepareSurface(section, input);
-  activateSurface(section, manager, input);
+  manager.preparedActivation = input;
 }
 
 export async function prepareTtgPlaybackLeg(
@@ -238,7 +241,7 @@ export async function prepareTtgPlaybackLeg(
     renderTtgAnimationProgress(section, 0);
     const input = mediaInput('forward', mediaRun, 0, 'timeline');
     const manager = await prepareSurface(section, input);
-    activateSurface(section, manager, { ...input, mode: 'native-preferred' });
+    manager.preparedActivation = { ...input, mode: 'native-preferred' };
     delete manager.preparedForwardStart;
     return;
   }
@@ -246,11 +249,29 @@ export async function prepareTtgPlaybackLeg(
   renderTtgAnimationProgress(section, 1);
   const reverseInput = mediaInput('reverse', mediaRun, 0, 'timeline');
   const manager = await prepareSurface(section, reverseInput);
-  activateSurface(section, manager, reverseInput);
-  const forwardStart = mediaInput('forward', mediaRun, 0, 'timeline');
-  await prepareSurface(section, forwardStart);
-  manager.preparedForwardStart = forwardStart;
-  manager.controller.drive({ ...reverseInput, mode: 'native-preferred' });
+  manager.preparedActivation = { ...reverseInput, mode: 'native-preferred' };
+  delete manager.preparedForwardStart;
+}
+
+export function commitTtgPlaybackLeg(
+  root: HTMLElement | null | undefined,
+  mediaRun: TtgMediaRun
+): void {
+  const section = ttgSection(root);
+  const manager = section ? mediaManagers.get(section) : undefined;
+  const input = manager?.preparedActivation;
+  if (
+    !section
+    || !manager
+    || !input
+    || input.runId !== mediaRun.runId
+    || input.direction !== mediaRun.direction
+    || input.signal?.aborted
+  ) {
+    throw new Error('TTG playback surface is not ready for commit');
+  }
+  activateSurface(section, manager, input);
+  delete manager.preparedActivation;
 }
 
 export function commitTtgForwardStart(
@@ -259,18 +280,16 @@ export function commitTtgForwardStart(
 ): void {
   const section = ttgSection(root);
   const manager = section ? mediaManagers.get(section) : undefined;
-  const input = manager?.preparedForwardStart;
   if (
     !section
     || !manager
-    || !input
-    || input.runId !== mediaRun.runId
-    || input.direction !== mediaRun.direction
+    || manager.activeSurface !== 'reverse'
+    || manager.activeRunId !== mediaRun.runId
+    || mediaRun.direction !== -1
   ) {
     throw new Error('TTG canonical forward-start frame is not ready');
   }
-  activateSurface(section, manager, input);
-  delete manager.preparedForwardStart;
+  parkTtgMedia(section);
 }
 
 export function parkTtgMedia(root: HTMLElement | null | undefined): void {
@@ -279,14 +298,23 @@ export function parkTtgMedia(root: HTMLElement | null | undefined): void {
   if (!section || !manager) {
     return;
   }
+  manager.generation += 1;
   manager.controller.park('forward');
   manager.controller.park('reverse');
   const forward = section.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
   const reverse = section.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
+  if (forward) {
+    try {
+      forward.currentTime = 0;
+    } catch {
+      // The authored poster remains the canonical hold if the browser refuses the seek.
+    }
+  }
   forward?.classList.add('is-active');
   reverse?.classList.remove('is-active');
   delete manager.activeSurface;
   delete manager.activeRunId;
+  delete manager.preparedActivation;
   delete manager.preparedForwardStart;
   delete section.dataset.ttgActiveSurface;
   delete section.dataset.ttgPendingSurface;
@@ -299,6 +327,9 @@ export function disposeTtgMedia(root: HTMLElement | null | undefined): void {
   if (!section || !manager) {
     return;
   }
+  manager.generation += 1;
+  delete manager.preparedActivation;
+  delete manager.preparedForwardStart;
   manager.controller.dispose();
   mediaManagers.delete(section);
   delete section.dataset.ttgActiveSurface;

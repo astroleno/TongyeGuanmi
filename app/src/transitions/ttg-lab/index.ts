@@ -1,6 +1,7 @@
 import { renderLabHold } from '../../scenes/lab';
 import {
   commitTtgForwardStart,
+  commitTtgPlaybackLeg,
   parkTtgMedia,
   prepareTtgPlaybackLeg,
   prepareTtgSourceTerminal,
@@ -21,10 +22,15 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
     prepareEndpoints: ({ to }) => renderLabHold(to),
     prepareLeg: (root, leg, mediaRun) => {
       if (leg.legIndex === 0) {
-        return prepareTtgPlaybackLeg(root, mediaRun);
+        return prepareTtgPlaybackLeg(root, { ...mediaRun, signal: leg.signal });
       }
       if (leg.direction === -1) {
-        return prepareTtgSourceTerminal(root, mediaRun);
+        return prepareTtgSourceTerminal(root, { ...mediaRun, signal: leg.signal });
+      }
+    },
+    commitLegStart: (root, leg, mediaRun) => {
+      if (leg.legIndex === 0 || leg.direction === -1) {
+        commitTtgPlaybackLeg(root, mediaRun);
       }
     },
     commitLegEndpoint: (root, leg, mediaRun) => {
@@ -32,11 +38,7 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
         commitTtgForwardStart(root, mediaRun);
       }
     },
-    disposeSource: (root, progress) => {
-      if (progress > 0.001) {
-        parkTtgMedia(root);
-      }
-    },
+    disposeSource: (root) => parkTtgMedia(root),
     renderSource: (root, progress, mediaRun) => renderTtgAnimationProgress(root, progress, { mediaRun }),
   });
   return {
