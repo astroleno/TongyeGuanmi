@@ -182,4 +182,60 @@ describe('directional media controller', () => {
     expect(forward.classList.contains('is-active')).toBe(false);
     expect(controller.snapshot().disposed).toBe(true);
   });
+
+  it('parks an aborted pending surface without disturbing the active sibling', async () => {
+    const forward = new FakeVideo();
+    const reverse = new FakeVideo();
+    forward.classList.add('is-active');
+    const controller = createDirectionalMediaController({
+      surfaces: { forward: element(forward), reverse: element(reverse) }
+    });
+    const abortController = new AbortController();
+    const request = {
+      ...input('reverse', 'directional-abort:1', -1, 0),
+      signal: abortController.signal
+    };
+    const preparation = controller.prepare(request);
+
+    abortController.abort();
+
+    await expect(preparation).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+    expect(controller.snapshot()).toMatchObject({
+      activeSurface: 'forward',
+      surfaces: {
+        forward: { status: 'active' },
+        reverse: { status: 'parked' }
+      }
+    });
+    expect(forward.classList.contains('is-active')).toBe(true);
+    expect(reverse.classList.contains('is-active')).toBe(false);
+  });
+
+  it('invalidates a ready but uncommitted surface when its signal aborts', async () => {
+    const forward = new FakeVideo();
+    const reverse = new FakeVideo();
+    forward.classList.add('is-active');
+    const controller = createDirectionalMediaController({
+      surfaces: { forward: element(forward), reverse: element(reverse) }
+    });
+    const abortController = new AbortController();
+    const request = {
+      ...input('reverse', 'directional-ready-abort:1', -1, 0),
+      signal: abortController.signal
+    };
+    const preparation = controller.prepare(request);
+    reverse.presentRequestedFrame();
+    await expect(preparation).resolves.toMatchObject({ status: 'ready' });
+
+    abortController.abort();
+
+    expect(controller.snapshot()).toMatchObject({
+      activeSurface: 'forward',
+      surfaces: {
+        forward: { status: 'active' },
+        reverse: { status: 'parked' }
+      }
+    });
+    expect(() => controller.activate(request)).toThrow(/not ready/i);
+  });
 });

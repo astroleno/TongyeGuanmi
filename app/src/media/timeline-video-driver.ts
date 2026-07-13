@@ -1,4 +1,5 @@
 import type { Direction } from '../story/types';
+import { MediaPreparationError } from './media-preparation';
 
 export type TimelineVideoMode = 'timeline' | 'native-preferred';
 
@@ -20,6 +21,7 @@ export type TimelineVideoDriveInput = Readonly<{
   nativePlaybackDirection?: Direction;
   endpointPolicy?: TimelineVideoEndpointPolicy;
   reducedMotion?: boolean;
+  signal?: AbortSignal;
 }>;
 
 export type TimelineVideoFrameResult = Readonly<{
@@ -58,6 +60,9 @@ type DesiredFrame = Readonly<{
 
 type FrameWaiter = DesiredFrame & {
   resolve(result: TimelineVideoFrameResult): void;
+  reject(error: Error): void;
+  signal?: AbortSignal;
+  onAbort?: () => void;
 };
 
 type VideoWithFrameCallbacks = HTMLVideoElement & {
@@ -73,7 +78,6 @@ type TimelineManagedVideo = HTMLVideoElement & {
 
 const SEEK_TOLERANCE_SECONDS = 0.001;
 const DEFAULT_END_EPSILON_SECONDS = 0.02;
-const PRESENTED_FRAME_FALLBACK_MS = 80;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -115,7 +119,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private frameReadyTime = Number.NaN;
   private frameCallbackId: number | undefined;
   private presentingFrame: DesiredFrame | undefined;
-  private frameFallbackTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
 
   private readonly onSeeked = () => {
@@ -131,9 +134,23 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.scheduleSeek(refreshed);
   };
 
+  private readonly onMediaError = () => {
+    const message = this.video.error?.message || 'media element reported an error';
+    this.failAllWaiters(new MediaPreparationError('MEDIA_ELEMENT_ERROR', message));
+  };
+
+  private readonly onMediaAbort = () => {
+    this.failAllWaiters(new MediaPreparationError(
+      'MEDIA_PREPARATION_ABORTED',
+      'media element aborted frame preparation'
+    ));
+  };
+
   constructor(private readonly video: HTMLVideoElement) {
     video.addEventListener('seeked', this.onSeeked);
     video.addEventListener('loadedmetadata', this.onLoadedMetadata);
+    video.addEventListener('error', this.onMediaError);
+    video.addEventListener('abort', this.onMediaAbort);
   }
 
   drive(input: TimelineVideoDriveInput): TimelineVideoDriverSnapshot {
@@ -177,6 +194,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       const desired = this.desiredFrame(input.progress, input);
       return Promise.resolve(frameResult(desired, 'stale'));
     }
+    if (input.signal?.aborted) {
+      return Promise.reject(this.abortError(input.signal.reason, input.runId));
+    }
     const desired = this.activate({ ...input, mode: 'timeline' });
     this.latestInput = { ...input, mode: 'timeline' };
     this.latest = desired;
@@ -189,8 +209,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         waiter.generation === desired.generation
         && Math.abs(waiter.targetTime - desired.targetTime) > SEEK_TOLERANCE_SECONDS
       ) {
-        this.waiters.delete(waiter);
-        waiter.resolve(frameResult(waiter, 'stale'));
+        this.resolveWaiter(waiter, 'stale');
       }
     }
 
@@ -201,10 +220,26 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return Promise.resolve(frameResult(desired, 'ready'));
     }
 
-    const promise = new Promise<TimelineVideoFrameResult>((resolve) => {
-      this.waiters.add({ ...desired, resolve });
+    let waiter!: FrameWaiter;
+    const promise = new Promise<TimelineVideoFrameResult>((resolve, reject) => {
+      waiter = { ...desired, resolve, reject };
+      this.waiters.add(waiter);
+      if (input.signal) {
+        waiter.signal = input.signal;
+        waiter.onAbort = () => {
+          this.rejectWaiter(waiter, this.abortError(input.signal?.reason, input.runId));
+          this.cancelPresentationWhenUnused(waiter);
+        };
+        if (input.signal.aborted) {
+          waiter.onAbort();
+        } else {
+          input.signal.addEventListener('abort', waiter.onAbort, { once: true });
+        }
+      }
     });
-    this.scheduleSeek(desired);
+    if (this.waiters.has(waiter)) {
+      this.scheduleSeek(desired);
+    }
     return promise;
   }
 
@@ -237,6 +272,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.resolveAllWaitersAsStale();
     this.video.removeEventListener('seeked', this.onSeeked);
     this.video.removeEventListener('loadedmetadata', this.onLoadedMetadata);
+    this.video.removeEventListener('error', this.onMediaError);
+    this.video.removeEventListener('abort', this.onMediaAbort);
     this.queuedSeek = undefined;
     this.inFlightSeek = undefined;
     this.latest = undefined;
@@ -377,8 +414,13 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.inFlightSeek = desired;
     try {
       this.video.currentTime = desired.targetTime;
-    } catch {
+    } catch (cause) {
       this.inFlightSeek = undefined;
+      this.rejectWaitersForFrame(desired, new MediaPreparationError(
+        'MEDIA_SEEK_FAILED',
+        `failed to seek media for ${desired.runId} to ${desired.targetTime.toFixed(4)}s`,
+        { cause }
+      ));
       return;
     }
     if (!this.video.seeking) {
@@ -410,35 +452,32 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     const video = this.video as VideoWithFrameCallbacks;
     if (typeof video.requestVideoFrameCallback !== 'function') {
       this.presentingFrame = undefined;
-      this.markFrameReady(frame);
+      this.failFrame(frame, new MediaPreparationError(
+        'MEDIA_FRAME_CALLBACK_UNAVAILABLE',
+        `requestVideoFrameCallback is unavailable for ${frame.runId}`
+      ));
       return;
     }
     const generation = frame.generation;
     this.presentingFrame = frame;
-    this.frameCallbackId = video.requestVideoFrameCallback(() => {
-      if (this.frameFallbackTimer !== undefined) {
-        clearTimeout(this.frameFallbackTimer);
-        this.frameFallbackTimer = undefined;
-      }
+    try {
+      this.frameCallbackId = video.requestVideoFrameCallback(() => {
+        this.frameCallbackId = undefined;
+        this.presentingFrame = undefined;
+        if (this.disposed || generation !== this.generation) {
+          return;
+        }
+        this.markFrameReady(frame);
+      });
+    } catch (cause) {
       this.frameCallbackId = undefined;
       this.presentingFrame = undefined;
-      if (this.disposed || generation !== this.generation) {
-        return;
-      }
-      this.markFrameReady(frame);
-    });
-    this.frameFallbackTimer = setTimeout(() => {
-      this.frameFallbackTimer = undefined;
-      if (this.disposed || generation !== this.generation) {
-        return;
-      }
-      if (this.frameCallbackId !== undefined) {
-        video.cancelVideoFrameCallback?.(this.frameCallbackId);
-        this.frameCallbackId = undefined;
-      }
-      this.presentingFrame = undefined;
-      this.markFrameReady(frame);
-    }, PRESENTED_FRAME_FALLBACK_MS);
+      this.failFrame(frame, new MediaPreparationError(
+        'MEDIA_FRAME_CALLBACK_UNAVAILABLE',
+        `requestVideoFrameCallback failed for ${frame.runId}`,
+        { cause }
+      ));
+    }
   }
 
   private markFrameReady(frame: DesiredFrame): void {
@@ -453,8 +492,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         waiter.generation === frame.generation
         && Math.abs(waiter.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
       ) {
-        this.waiters.delete(waiter);
-        waiter.resolve(frameResult(waiter, 'ready'));
+        this.resolveWaiter(waiter, 'ready');
       }
     }
     const pendingNative = this.pendingNative;
@@ -469,10 +507,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   private cancelFrameCallback(): void {
-    if (this.frameFallbackTimer !== undefined) {
-      clearTimeout(this.frameFallbackTimer);
-      this.frameFallbackTimer = undefined;
-    }
     if (this.frameCallbackId === undefined) {
       this.presentingFrame = undefined;
       return;
@@ -484,10 +518,100 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   private resolveAllWaitersAsStale(): void {
-    for (const waiter of this.waiters) {
-      waiter.resolve(frameResult(waiter, 'stale'));
+    for (const waiter of [...this.waiters]) {
+      this.resolveWaiter(waiter, 'stale');
     }
-    this.waiters.clear();
+  }
+
+  private resolveWaiter(waiter: FrameWaiter, status: TimelineVideoFrameResult['status']): void {
+    if (!this.waiters.delete(waiter)) {
+      return;
+    }
+    if (waiter.signal && waiter.onAbort) {
+      waiter.signal.removeEventListener('abort', waiter.onAbort);
+    }
+    waiter.resolve(frameResult(waiter, status));
+  }
+
+  private rejectWaiter(waiter: FrameWaiter, error: Error): void {
+    if (!this.waiters.delete(waiter)) {
+      return;
+    }
+    if (waiter.signal && waiter.onAbort) {
+      waiter.signal.removeEventListener('abort', waiter.onAbort);
+    }
+    waiter.reject(error);
+  }
+
+  private rejectWaitersForFrame(frame: DesiredFrame, error: Error): void {
+    for (const waiter of [...this.waiters]) {
+      if (
+        waiter.generation === frame.generation
+        && Math.abs(waiter.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+      ) {
+        this.rejectWaiter(waiter, error);
+      }
+    }
+  }
+
+  private failFrame(frame: DesiredFrame, error: Error): void {
+    this.rejectWaitersForFrame(frame, error);
+    const pendingNative = this.pendingNative;
+    if (
+      pendingNative
+      && pendingNative.desired.generation === frame.generation
+      && Math.abs(pendingNative.desired.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+    ) {
+      this.pendingNative = undefined;
+      this.nativeFallback = true;
+      this.video.dataset.timelineVideoFallback = 'true';
+    }
+  }
+
+  private failAllWaiters(error: Error): void {
+    for (const waiter of [...this.waiters]) {
+      this.rejectWaiter(waiter, error);
+    }
+    this.queuedSeek = undefined;
+    this.inFlightSeek = undefined;
+    this.pendingNative = undefined;
+    this.cancelFrameCallback();
+  }
+
+  private cancelPresentationWhenUnused(frame: DesiredFrame): void {
+    if (
+      !this.presentingFrame
+      || this.presentingFrame.generation !== frame.generation
+      || Math.abs(this.presentingFrame.targetTime - frame.targetTime) > SEEK_TOLERANCE_SECONDS
+    ) {
+      return;
+    }
+    const stillWaiting = [...this.waiters].some((waiter) => (
+      waiter.generation === frame.generation
+      && Math.abs(waiter.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+    ));
+    const pendingNative = this.pendingNative?.desired;
+    if (
+      stillWaiting
+      || (
+        pendingNative?.generation === frame.generation
+        && Math.abs(pendingNative.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+      )
+    ) {
+      return;
+    }
+    this.cancelFrameCallback();
+  }
+
+  private abortError(reason: unknown, runId: string): Error {
+    if (reason instanceof MediaPreparationError) {
+      return reason;
+    }
+    return new MediaPreparationError(
+      'MEDIA_PREPARATION_ABORTED',
+      `media frame preparation aborted for ${runId}`,
+      reason === undefined ? {} : { cause: reason }
+    );
   }
 
   private writeDiagnostics(desired: DesiredFrame): void {

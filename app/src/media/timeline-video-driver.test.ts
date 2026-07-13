@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createTimelineVideoDriver, timelineVideoDriverFor } from './timeline-video-driver';
 
@@ -16,6 +16,7 @@ class FakeVideo {
   playbackRate = 1;
   playCalls = 0;
   rejectNextPlay = false;
+  throwOnCurrentTimeWrite = false;
   private time = 0;
   private frameCallback: ((now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void) | undefined;
   private readonly listeners = new Map<string, Set<Listener>>();
@@ -25,6 +26,9 @@ class FakeVideo {
   }
 
   set currentTime(value: number) {
+    if (this.throwOnCurrentTimeWrite) {
+      throw new Error('seek rejected');
+    }
     this.time = value;
     this.currentTimeWrites.push(value);
     this.seeking = true;
@@ -73,6 +77,12 @@ class FakeVideo {
     }
   }
 
+  dispatch(type: string): void {
+    for (const listener of this.listeners.get(type) ?? []) {
+      listener();
+    }
+  }
+
   presentFrame(): void {
     const callback = this.frameCallback;
     this.frameCallback = undefined;
@@ -83,6 +93,127 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it('does not claim frame readiness when the frame callback has not fired', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    let settled = false;
+
+    try {
+      const readiness = driver.prepareFrame({
+        runId: 'media-frame-strict:1',
+        direction: 1,
+        progress: 0.5,
+        durationFallbackSeconds: 10
+      });
+      void readiness.finally(() => {
+        settled = true;
+      });
+      video.completeSeek();
+
+      await vi.advanceTimersByTimeAsync(80);
+
+      expect(settled).toBe(false);
+      expect(driver.snapshot().frameReady).toBe(false);
+
+      video.presentFrame();
+      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+    } finally {
+      driver.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects preparation when the media seek setter throws', async () => {
+    const video = new FakeVideo();
+    video.throwOnCurrentTimeWrite = true;
+    const driver = createTimelineVideoDriver(videoElement(video));
+    let rejection: unknown;
+
+    const readiness = driver.prepareFrame({
+      runId: 'media-seek-error:1',
+      direction: 1,
+      progress: 0.5,
+      durationFallbackSeconds: 10
+    });
+    void readiness.catch((error: unknown) => {
+      rejection = error;
+    });
+    await Promise.resolve();
+
+    expect(rejection).toMatchObject({ code: 'MEDIA_SEEK_FAILED' });
+    driver.dispose();
+  });
+
+  it.each([
+    ['error', 'MEDIA_ELEMENT_ERROR'],
+    ['abort', 'MEDIA_PREPARATION_ABORTED']
+  ] as const)('rejects preparation on a media %s event', async (event, code) => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    let rejection: unknown;
+
+    const readiness = driver.prepareFrame({
+      runId: `media-${event}:1`,
+      direction: 1,
+      progress: 0.5,
+      durationFallbackSeconds: 10
+    });
+    void readiness.catch((error: unknown) => {
+      rejection = error;
+    });
+    video.dispatch(event);
+    await Promise.resolve();
+
+    expect(rejection).toMatchObject({ code });
+    driver.dispose();
+  });
+
+  it('rejects only the aborted preparation waiter through its AbortSignal', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const abortController = new AbortController();
+    let rejection: unknown;
+
+    const readiness = driver.prepareFrame({
+      runId: 'media-signal-abort:1',
+      direction: 1,
+      progress: 0.5,
+      durationFallbackSeconds: 10,
+      signal: abortController.signal
+    });
+    void readiness.catch((error: unknown) => {
+      rejection = error;
+    });
+    abortController.abort();
+    await Promise.resolve();
+
+    expect(rejection).toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+    driver.dispose();
+  });
+
+  it('rejects strict preparation when requestVideoFrameCallback is unavailable', async () => {
+    const video = new FakeVideo();
+    Object.defineProperty(video, 'requestVideoFrameCallback', { value: undefined });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    let rejection: unknown;
+
+    const readiness = driver.prepareFrame({
+      runId: 'media-frame-api:1',
+      direction: 1,
+      progress: 0.5,
+      durationFallbackSeconds: 10
+    });
+    void readiness.catch((error: unknown) => {
+      rejection = error;
+    });
+    video.completeSeek();
+    await Promise.resolve();
+
+    expect(rejection).toMatchObject({ code: 'MEDIA_FRAME_CALLBACK_UNAVAILABLE' });
+    driver.dispose();
+  });
+
   it('starts native playback only after its requested initial frame is presented', async () => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));

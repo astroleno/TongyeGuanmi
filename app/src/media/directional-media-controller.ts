@@ -52,6 +52,8 @@ type SurfaceRecord = {
   preparedProgress?: number;
   preparationKey?: string;
   pending?: Promise<TimelineVideoFrameResult>;
+  preparedSignal?: AbortSignal;
+  onPreparedAbort?: () => void;
 };
 
 export class DirectionalMediaStateError extends Error {
@@ -116,6 +118,14 @@ export function createDirectionalMediaController(options: {
     record.video.dataset.directionalMediaGeneration = String(record.generation);
   };
 
+  const clearPreparedAbort = (record: SurfaceRecord) => {
+    if (record.preparedSignal && record.onPreparedAbort) {
+      record.preparedSignal.removeEventListener('abort', record.onPreparedAbort);
+    }
+    delete record.preparedSignal;
+    delete record.onPreparedAbort;
+  };
+
   const parkRecord = (surface: string, record: SurfaceRecord) => {
     if (
       record.status === 'parked'
@@ -124,6 +134,7 @@ export function createDirectionalMediaController(options: {
     ) {
       return;
     }
+    clearPreparedAbort(record);
     record.generation += 1;
     disposeTimelineVideoDriver(record.video);
     record.video.pause();
@@ -159,6 +170,7 @@ export function createDirectionalMediaController(options: {
       }
 
       record.generation += 1;
+      clearPreparedAbort(record);
       const generation = record.generation;
       record.runId = input.runId;
       record.direction = input.direction;
@@ -182,7 +194,37 @@ export function createDirectionalMediaController(options: {
             return result ?? staleResult(input, generation);
           }
           markStatus(input.surface, record, 'ready');
+          const signal = input.signal;
+          if (signal) {
+            const onPreparedAbort = () => {
+              if (
+                !disposed
+                && record.generation === generation
+                && record.preparationKey === key
+                && record.status === 'ready'
+              ) {
+                parkRecord(input.surface, record);
+              }
+            };
+            record.preparedSignal = signal;
+            record.onPreparedAbort = onPreparedAbort;
+            if (signal.aborted) {
+              onPreparedAbort();
+            } else {
+              signal.addEventListener('abort', onPreparedAbort, { once: true });
+            }
+          }
           return result;
+        })
+        .catch((error: unknown) => {
+          if (
+            !disposed
+            && record.generation === generation
+            && record.preparationKey === key
+          ) {
+            parkRecord(input.surface, record);
+          }
+          throw error;
         })
         .finally(() => {
           if (record.generation === generation && record.pending === pending) {
@@ -211,6 +253,7 @@ export function createDirectionalMediaController(options: {
           parkRecord(surface, candidate);
         }
       }
+      clearPreparedAbort(record);
       record.video.classList.add(activeClassName);
       activeSurface = input.surface;
       markStatus(input.surface, record, 'active');
