@@ -4,6 +4,7 @@ import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { validateProcessMemoryQualification } from './r5-process-memory-contract.mjs';
 
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
@@ -172,8 +173,11 @@ if (phase === 'prepare') {
 
   const evidence = await readJson(memoryEvidencePath, 'process memory evidence');
   const report = evidence.value;
-  if (report.schemaVersion !== 2 || report.pass !== true) {
-    throw new Error('process memory evidence must use schema 2 and pass every budget');
+  const memoryValidation = validateProcessMemoryQualification(report);
+  if (!memoryValidation.valid) {
+    throw new Error(
+      `process memory evidence must contain two valid passing macOS runs: ${memoryValidation.reasons.join('; ')}`
+    );
   }
   const expectedMemoryIdentity = {
     candidate,
@@ -198,6 +202,8 @@ if (phase === 'prepare') {
         path: memoryEvidenceName,
         schemaVersion: report.schemaVersion,
         pass: report.pass,
+        runCount: report.completedRunCount,
+        environment: report.environment,
         sha256: sha256(evidence.output),
         identity: report.identity
       }

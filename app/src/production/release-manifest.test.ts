@@ -9,6 +9,9 @@ import { afterEach, expect, it } from 'vitest';
 const scriptPath = fileURLToPath(
   new URL('../../scripts/create-release-manifest.mjs', import.meta.url)
 );
+const memoryContractPath = fileURLToPath(
+  new URL('../../scripts/r5-process-memory-contract.mjs', import.meta.url)
+);
 const appPackage = JSON.parse(
   readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
 );
@@ -23,6 +26,10 @@ const memoryRunner = readFileSync(
   new URL('../../scripts/run-r5-process-memory.mjs', import.meta.url),
   'utf8'
 );
+const memoryProfiler = readFileSync(
+  new URL('../../scripts/profile-r5-process-memory.mjs', import.meta.url),
+  'utf8'
+);
 const temporaryDirectories: string[] = [];
 
 function runGit(repoDir: string, ...args: string[]) {
@@ -33,9 +40,14 @@ function createFixture() {
   const repoDir = mkdtempSync(path.join(tmpdir(), 'r5-release-manifest-'));
   temporaryDirectories.push(repoDir);
   const fixtureScript = path.join(repoDir, 'app/scripts/create-release-manifest.mjs');
+  const fixtureMemoryContract = path.join(
+    repoDir,
+    'app/scripts/r5-process-memory-contract.mjs'
+  );
   mkdirSync(path.dirname(fixtureScript), { recursive: true });
   mkdirSync(path.join(repoDir, 'dist'), { recursive: true });
   copyFileSync(scriptPath, fixtureScript);
+  copyFileSync(memoryContractPath, fixtureMemoryContract);
   writeFileSync(path.join(repoDir, 'dist/index.html'), '<!doctype html>\n', 'utf8');
   writeFileSync(
     path.join(repoDir, '.gitignore'),
@@ -64,6 +76,76 @@ function createFixture() {
   );
 
   return { candidateTagObject, fixtureScript, repoDir, sourceCommit };
+}
+
+type MemoryIdentity = {
+  candidate: string;
+  candidateTagObject: string;
+  sourceCommit: string;
+  artifactTreeSha256: string;
+  draftManifestSha256: string;
+};
+
+function validProcessSample() {
+  return {
+    browserPid: 101,
+    browserRootRssBytes: 100_000_000,
+    totalRssBytes: 1_000_000_000,
+    gpuRssBytes: 200_000_000,
+    rendererRssBytes: 700_000_000,
+    gpuProcessCount: 1,
+    rendererProcessCount: 1,
+    processCount: 3
+  };
+}
+
+function memoryEvidence(
+  identity: MemoryIdentity,
+  options: {
+    runCount?: number;
+    runPass?: boolean;
+    qualificationPass?: boolean;
+    processSamples?: readonly ReturnType<typeof validProcessSample>[];
+  } = {}
+) {
+  const environment = {
+    platform: 'darwin',
+    arch: 'arm64',
+    osRelease: '23.6.0',
+    browserChannel: 'chrome',
+    headless: true,
+    runnerClass: 'github-hosted-macos-14'
+  };
+  const runCount = options.runCount ?? 2;
+  const processSamples = options.processSamples ?? [validProcessSample()];
+  const runPass = options.runPass ?? true;
+  const runs = Array.from({ length: runCount }, (_, index) => ({
+    schemaVersion: 3,
+    kind: 'r5-process-memory-run',
+    runId: `run-${index + 1}`,
+    identity,
+    environment,
+    sampling: {
+      valid: processSamples.length > 0,
+      sampleCount: processSamples.length
+    },
+    budgets: { peakBrowserTreeRssBytes: 1_500_000_000 },
+    actual: { peakBrowserTreeRssBytes: 1_000_000_000 },
+    pass: runPass,
+    processSamples
+  }));
+  return {
+    schemaVersion: 3,
+    kind: 'r5-process-memory-qualification',
+    identity,
+    environment,
+    requiredRunCount: 2,
+    completedRunCount: runs.length,
+    budgets: runs[0]?.budgets,
+    actual: runs[0]?.actual,
+    pass: options.qualificationPass ?? runPass,
+    runs
+  };
 }
 
 function runManifest(
@@ -139,19 +221,13 @@ it('finalizes only passing memory evidence bound to the exact draft manifest ide
   const draft = JSON.parse(draftOutput);
   const draftManifestSha256 = createHash('sha256').update(draftOutput).digest('hex');
   const evidencePath = path.join(repoDir, 'dist/r5-process-memory.json');
-  const evidenceOutput = `${JSON.stringify({
-    schemaVersion: 2,
-    identity: {
-      candidate: draft.candidate,
-      candidateTagObject: draft.candidateTagObject,
-      sourceCommit: draft.sourceCommit,
-      artifactTreeSha256: draft.artifactTreeSha256,
-      draftManifestSha256
-    },
-    pass: true,
-    budgets: { peakBrowserTreeRssBytes: 1_500_000_000 },
-    actual: { peakBrowserTreeRssBytes: 1_000_000_000 }
-  }, null, 2)}\n`;
+  const evidenceOutput = `${JSON.stringify(memoryEvidence({
+    candidate: draft.candidate,
+    candidateTagObject: draft.candidateTagObject,
+    sourceCommit: draft.sourceCommit,
+    artifactTreeSha256: draft.artifactTreeSha256,
+    draftManifestSha256
+  }), null, 2)}\n`;
   writeFileSync(evidencePath, evidenceOutput, 'utf8');
 
   runManifest(
@@ -176,8 +252,13 @@ it('finalizes only passing memory evidence bound to the exact draft manifest ide
       status: 'qualified',
       memoryEvidence: {
         path: 'r5-process-memory.json',
-        schemaVersion: 2,
+        schemaVersion: 3,
         pass: true,
+        runCount: 2,
+        environment: {
+          platform: 'darwin',
+          runnerClass: 'github-hosted-macos-14'
+        },
         sha256: createHash('sha256').update(evidenceOutput).digest('hex')
       }
     }
@@ -208,17 +289,15 @@ it('rejects finalization when memory evidence is missing or identity-mismatched'
     }
   )).toThrow(/memory evidence/i);
 
-  writeFileSync(path.join(repoDir, 'dist/r5-process-memory.json'), `${JSON.stringify({
-    schemaVersion: 2,
-    identity: {
+  writeFileSync(path.join(repoDir, 'dist/r5-process-memory.json'), `${JSON.stringify(
+    memoryEvidence({
       candidate: 'react-refactor-r5-candidate-v3',
       candidateTagObject: 'mismatched-tag-object',
       sourceCommit,
       artifactTreeSha256: 'mismatched-artifact-tree',
       draftManifestSha256: 'mismatched-draft'
-    },
-    pass: true
-  })}\n`, 'utf8');
+    })
+  )}\n`, 'utf8');
 
   expect(() => runManifest(
     fixtureScript,
@@ -244,17 +323,18 @@ it('rejects exact-identity memory evidence when any RSS budget failed', () => {
   const manifestPath = path.join(repoDir, 'dist/r5-release-manifest.json');
   const draftOutput = readFileSync(manifestPath, 'utf8');
   const draft = JSON.parse(draftOutput);
-  writeFileSync(path.join(repoDir, 'dist/r5-process-memory.json'), `${JSON.stringify({
-    schemaVersion: 2,
-    identity: {
+  writeFileSync(path.join(repoDir, 'dist/r5-process-memory.json'), `${JSON.stringify(
+    memoryEvidence({
       candidate: draft.candidate,
       candidateTagObject: draft.candidateTagObject,
       sourceCommit: draft.sourceCommit,
       artifactTreeSha256: draft.artifactTreeSha256,
       draftManifestSha256: createHash('sha256').update(draftOutput).digest('hex')
-    },
-    pass: false
-  })}\n`, 'utf8');
+    }, {
+      runPass: false,
+      qualificationPass: false
+    })
+  )}\n`, 'utf8');
 
   expect(() => runManifest(
     fixtureScript,
@@ -265,9 +345,53 @@ it('rejects exact-identity memory evidence when any RSS budget failed', () => {
       R5_RELEASE_MANIFEST_PHASE: 'finalize',
       R5_REQUIRE_MEMORY_EVIDENCE: '1'
     }
-  )).toThrow(/pass every budget/i);
+  )).toThrow(/valid passing macOS runs/i);
   expect(JSON.parse(readFileSync(manifestPath, 'utf8')).qualification.status)
     .toBe('pending-memory');
+});
+
+it('rejects empty samples and a single claimed qualification run', () => {
+  const { fixtureScript, repoDir, sourceCommit } = createFixture();
+  runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    { R5_RELEASE_MANIFEST_PHASE: 'prepare' }
+  );
+  const manifestPath = path.join(repoDir, 'dist/r5-release-manifest.json');
+  const draftOutput = readFileSync(manifestPath, 'utf8');
+  const draft = JSON.parse(draftOutput);
+  const identity = {
+    candidate: draft.candidate,
+    candidateTagObject: draft.candidateTagObject,
+    sourceCommit: draft.sourceCommit,
+    artifactTreeSha256: draft.artifactTreeSha256,
+    draftManifestSha256: createHash('sha256').update(draftOutput).digest('hex')
+  };
+  const evidencePath = path.join(repoDir, 'dist/r5-process-memory.json');
+
+  writeFileSync(evidencePath, `${JSON.stringify(memoryEvidence(identity, {
+    processSamples: []
+  }))}\n`, 'utf8');
+  expect(() => runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    { R5_RELEASE_MANIFEST_PHASE: 'finalize' }
+  )).toThrow(/no browser process samples/i);
+
+  writeFileSync(evidencePath, `${JSON.stringify(memoryEvidence(identity, {
+    runCount: 1
+  }))}\n`, 'utf8');
+  expect(() => runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    { R5_RELEASE_MANIFEST_PHASE: 'finalize' }
+  )).toThrow(/contains 1 runs instead of 2/i);
 });
 
 it('rejects a candidate tag that does not peel to the supplied source commit', () => {
@@ -431,11 +555,16 @@ it('routes deploy builds through the strict release identity gate', () => {
   expect(rootPackage.scripts['deploy:build']).toContain('deploy:finalize');
   expect(appPackage.scripts['release:prepare']).toContain('R5_REQUIRE_RELEASE_IDENTITY=1');
   expect(appPackage.scripts['release:finalize']).toContain('R5_REQUIRE_MEMORY_EVIDENCE=1');
-  expect(memoryRunner).toContain("R5_MEMORY_OUTPUT_PATH: 'dist/r5-process-memory.json'");
+  expect(memoryRunner).toContain('index < R5_REQUIRED_MEMORY_RUNS');
+  expect(memoryRunner).toContain('validateProcessMemoryQualification');
+  expect(memoryRunner).toContain("path.join(repoDir, 'dist/r5-process-memory.json')");
   expect(memoryRunner).toContain("R5_MEMORY_ARCHIVE_PATH: ''");
   expect(memoryRunner).not.toContain(
     'artifacts/react-refactor/r5-parity-repair-candidate/r5-process-memory.json'
   );
+  expect(memoryProfiler).toContain('isBrowserRootCommand(row.command)');
+  expect(memoryProfiler).toContain('const pass = samplingSummary.valid');
+  expect(memoryProfiler).not.toContain('macOS / Chrome hardware process-tree sample');
 });
 
 it('only publishes a deployable CI artifact from an identity-bound candidate tag build', () => {
@@ -460,6 +589,7 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v5'");
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v6'");
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v7'");
+  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v8'");
   expect(candidateWorkflow).toContain(
     "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4'"
   );
@@ -471,6 +601,15 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   );
   expect(candidateWorkflow).toContain(
     "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v7'"
+  );
+  expect(candidateWorkflow).toContain(
+    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8'"
+  );
+  expect(candidateWorkflow).toContain(
+    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8' && 'macos-14'"
+  );
+  expect(candidateWorkflow).toContain(
+    'R5_MEMORY_RUNNER_CLASS: github-hosted-macos-14'
   );
   expect(candidateWorkflow).toContain('- name: Restore immutable annotated candidate tag');
   expect(candidateWorkflow).toContain('git fetch --force --no-tags origin');
@@ -487,6 +626,9 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   expect(candidateWorkflow).toContain('pnpm -C app run evidence:memory:release');
   expect(candidateWorkflow).toContain('pnpm run deploy:finalize');
   expect(candidateWorkflow.indexOf('pnpm run deploy:prepare')).toBeLessThan(
+    candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')
+  );
+  expect(candidateWorkflow.indexOf('- name: Install qualification Chrome on macOS')).toBeLessThan(
     candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')
   );
   expect(

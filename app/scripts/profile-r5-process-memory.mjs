@@ -1,11 +1,18 @@
 /* global document, window */
 import { chromium } from '@playwright/test';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { release as osRelease } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import {
+  isBrowserRootCommand,
+  R5_PROCESS_MEMORY_RUN_KIND,
+  R5_PROCESS_MEMORY_SCHEMA_VERSION,
+  summarizeProcessSamples
+} from './r5-process-memory-contract.mjs';
 
 const execFileAsync = promisify(execFile);
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -23,6 +30,17 @@ const releaseManifestPath = process.env.R5_RELEASE_MANIFEST_PATH
   ? path.resolve(repoDir, process.env.R5_RELEASE_MANIFEST_PATH)
   : path.join(repoDir, 'dist/r5-release-manifest.json');
 const baseUrl = process.env.R5_BASE_URL ?? 'http://127.0.0.1:4173';
+const headless = process.env.R5_MEMORY_HEADLESS !== '0';
+const runId = randomUUID();
+const startedAt = new Date().toISOString();
+const environment = {
+  platform: process.platform,
+  arch: process.arch,
+  osRelease: osRelease(),
+  browserChannel: 'chrome',
+  headless,
+  runnerClass: process.env.R5_MEMORY_RUNNER_CLASS?.trim() || null
+};
 const scenes = [
   'hero',
   'pattern',
@@ -125,9 +143,7 @@ function descendants(rows, rootPid) {
 async function readBrowserMemory() {
   const rows = await processRows();
   const owned = descendants(rows, process.pid);
-  const browserRoot = owned.find((row) => (
-    /Google Chrome/.test(row.command) && !row.command.includes('--type=')
-  ));
+  const browserRoot = owned.find((row) => isBrowserRootCommand(row.command));
   if (!browserRoot) {
     return undefined;
   }
@@ -135,14 +151,19 @@ async function readBrowserMemory() {
     browserRoot,
     ...descendants(rows, browserRoot.pid)
   ];
-  const sum = (matching) => browserRows
-    .filter(matching)
+  const matchingRows = (matching) => browserRows.filter(matching);
+  const sum = (matching) => matchingRows(matching)
     .reduce((total, row) => total + row.rssBytes, 0);
+  const gpuRows = matchingRows((row) => row.command.includes('--type=gpu-process'));
+  const rendererRows = matchingRows((row) => row.command.includes('--type=renderer'));
   return {
     browserPid: browserRoot.pid,
+    browserRootRssBytes: browserRoot.rssBytes,
     totalRssBytes: sum(() => true),
-    gpuRssBytes: sum((row) => row.command.includes('--type=gpu-process')),
-    rendererRssBytes: sum((row) => row.command.includes('--type=renderer')),
+    gpuRssBytes: gpuRows.reduce((total, row) => total + row.rssBytes, 0),
+    rendererRssBytes: rendererRows.reduce((total, row) => total + row.rssBytes, 0),
+    gpuProcessCount: gpuRows.length,
+    rendererProcessCount: rendererRows.length,
     processCount: browserRows.length
   };
 }
@@ -217,6 +238,7 @@ async function moveOneHold(page, direction) {
 await mkdir(path.dirname(outputPath), { recursive: true });
 const browser = await chromium.launch({
   channel: 'chrome',
+  headless,
   args: [
     '--autoplay-policy=no-user-gesture-required',
     '--disable-background-timer-throttling',
@@ -293,17 +315,24 @@ try {
     maxMountedLayers: Math.max(0, ...holds.map((hold) => hold.mountedLayers)),
     maxWebglCanvasesAtHold: Math.max(0, ...holds.map((hold) => hold.webglCanvases))
   };
-  const pass = actual.peakBrowserTreeRssBytes <= budgets.peakBrowserTreeRssBytes
+  const samplingSummary = summarizeProcessSamples(samples);
+  const pass = samplingSummary.valid
+    && actual.peakBrowserTreeRssBytes <= budgets.peakBrowserTreeRssBytes
     && actual.peakGpuProcessRssBytes <= budgets.peakGpuProcessRssBytes
     && actual.peakRendererRssBytes <= budgets.peakRendererRssBytes
     && actual.finalJsHeapBytes <= actual.peakJsHeapBytes * budgets.settledHeapFractionOfPeak
     && actual.maxMountedLayers <= 3
     && actual.maxWebglCanvasesAtHold <= 1;
   const report = {
-    schemaVersion: 2,
+    schemaVersion: R5_PROCESS_MEMORY_SCHEMA_VERSION,
+    kind: R5_PROCESS_MEMORY_RUN_KIND,
+    runId,
+    startedAt,
+    completedAt: new Date().toISOString(),
     identity,
-    environment: 'macOS / Chrome hardware process-tree sample',
+    environment,
     sampleIntervalMs: 250,
+    sampling: samplingSummary,
     budgets,
     actual,
     pass,
@@ -316,7 +345,16 @@ try {
     await mkdir(path.dirname(archivePath), { recursive: true });
     await writeFile(archivePath, reportOutput, 'utf8');
   }
-  process.stdout.write(`${JSON.stringify({ outputPath, archivePath, identity, actual, pass })}\n`);
+  process.stdout.write(`${JSON.stringify({
+    outputPath,
+    archivePath,
+    runId,
+    identity,
+    environment,
+    sampling: samplingSummary,
+    actual,
+    pass
+  })}\n`);
   if (!pass) process.exitCode = 1;
 } finally {
   sampling = false;
