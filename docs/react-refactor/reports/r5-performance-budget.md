@@ -1,6 +1,6 @@
 # R5 Performance Budget
 
-Status: candidate-v4 exact identity-bound memory and finalization passed, but the candidate remains unqualified after final default E2E failed 2/44. Candidate-v5 must repeat exact memory/finalization because the Figure2 disposal source and browser oracles changed at `6cde26d`.
+Status: candidate-v5 exact identity-bound memory and finalization passed at `1,475,641,344B`, but the candidate remains unqualified after the final release matrix failed 5/54 applicable cases. Candidate-v6 must repeat exact memory/finalization because its source identity includes the corrected release oracles and v6 workflow/docs at `5785ce5` and later.
 
 Date: 2026-07-13. Earlier values belong to superseded source and are audit history only.
 
@@ -47,7 +47,7 @@ The aggregate desktop sample contained 759 intervals at p95 17.5ms with two inte
 | Metric | Budget | Current clean branch build |
 |---|---:|---:|
 | initial JS raw | ≤368,640B | 361,700B |
-| initial JS gzip | ≤114,688B | 111,012B |
+| initial JS gzip | ≤114,688B | 111,007B |
 | initial CSS raw | ≤76,800B | 74,613B |
 | total JS raw | ≤581,632B | 575,104B |
 | largest lazy JS | ≤65,536B | 24,997B |
@@ -64,19 +64,19 @@ The initial JS/CSS, gzip, largest-lazy, and largest-asset caps are unchanged. Tw
 
 ## GPU, Memory, And Disposal Budgets
 
-| Metric | Budget | Exact candidate-v4 record |
+| Metric | Budget | Exact candidate-v5 record |
 |---|---:|---|
-| browser process-tree peak RSS | ≤1,500,000,000B | 1,423,048,704B |
-| GPU process peak RSS | ≤536,870,912B | 349,913,088B |
-| renderer process peak RSS | ≤1,073,741,824B | 756,924,416B |
-| JS heap | peak ≤192MiB; settled ≤90% of peak | 33,126,258B peak; 13,178,927B settled |
+| browser process-tree peak RSS | ≤1,500,000,000B | 1,475,641,344B |
+| GPU process peak RSS | ≤536,870,912B | 356,646,912B |
+| renderer process peak RSS | ≤1,073,741,824B | 823,099,392B |
+| JS heap | peak ≤192MiB; settled ≤90% of peak | 39,235,757B peak; 15,198,666B settled |
 | mounted layers at settled holds | ≤3 | 3 |
 | WebGL contexts at settled holds | ≤1 | 1 |
 | disposed Contact snapshot | ≤3 layers, ≤1 WebGL, ≤4 paused videos | 2 layers, 0 WebGL, 2 videos |
-| lifecycle release evidence | retired canvas and video; no managed callback/lease leak | 3 canvases and 2 videos released; pass |
+| lifecycle release evidence | retired canvas and video; no managed callback/lease leak | 3 canvases and 10 videos released at Contact; 5 canvases and 21 videos by final Hero; pass |
 
-Each memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour. Candidate-v2 exact-tag runs failed at `1,527,169,024B` and `1,575,190,528B`. Candidate-v3's identity-bound RSS passed without changing the budget, but its tracked archive write made the source dirty and the schema-3 finalizer rejected it. Candidate-v4 then passed the complete dist-only identity gate with evidence SHA-256 `b9880d7819adb9fcfeb9b2dda5b1721a40c31ed8b2712792cf4513833be7f6f1`; its later E2E failure still makes v4 unqualified.
+Each memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour. Candidate-v2 exact-tag runs failed at `1,527,169,024B` and `1,575,190,528B`. Candidate-v3's identity-bound RSS passed without changing the budget, but its tracked archive write made the source dirty and the schema-3 finalizer rejected it. Candidate-v4 passed the complete dist-only identity gate but later failed default E2E. Candidate-v5 then passed with evidence SHA-256 `340c23899669a6e48ebd3850f37b97b9f6a0b57c53498fad9574c746a8f25961`; its later release E2E failure still makes v5 unqualified.
 
 ## Evidence Rule
 
-Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The values above prove v4 RSS headroom, not v5 qualification. Exact-v5 identity, finalization, rollback, and browser evidence are attached to the external handoff; a prior pass cannot be carried forward and a failed gate cannot be waived.
+Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The values above prove v5 RSS headroom, not v6 qualification. Exact-v6 identity, finalization, rollback, and browser evidence are attached to the external handoff; a prior pass cannot be carried forward and a failed gate cannot be waived.

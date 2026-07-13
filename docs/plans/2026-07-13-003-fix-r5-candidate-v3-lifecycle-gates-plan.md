@@ -1,6 +1,6 @@
 # R5 Candidate v3 Lifecycle And Release Gates Implementation Plan
 
-Status: Tasks 0–6 are complete. Immutable v3 failed dirty-tree finalization. Immutable v4 passed exact identity-bound RSS/finalization, smokes, and rollback, then failed 2/44 final default E2E cases. Commit `6cde26d` fixes the Figure2 reverse-disposal hold and TTG terminal-still E2E oracle. Candidate-v5 now repeats the immutable identity, RSS, rollback, and E2E-last sequence.
+Status: Tasks 0–6 are complete. Immutable v3 failed dirty-tree finalization. Immutable v4 passed exact identity-bound RSS/finalization, smokes, and rollback, then failed 2/44 final default E2E cases. Immutable v5 passed exact identity/RSS/finalization, smokes, rollback, and 44/44 default E2E, then failed 5/54 applicable release cases because stale TTG/AOD oracles contradicted the implemented terminal-still and retryable-static-hold contracts. Commit `5785ce5` closes those assertions. Candidate-v6 now repeats the immutable identity, RSS, rollback, and E2E-last sequence.
 
 | Phase | Status | Commit(s) |
 |---|---|---|
@@ -17,9 +17,14 @@ Status: Tasks 0–6 are complete. Immutable v3 failed dirty-tree finalization. I
 | Task 7 v4 final default E2E | failed closed | 42/44; release matrix not run |
 | Task 7 v5 browser closure | complete | `6cde26d`; focused unit/integration 54/54 and browser 2/2 |
 | Task 7 v5 repeated nonbrowser gate | complete | `e491e01`; 83 Vitest files / 568 tests plus lint, typecheck, build, release/static, budgets |
-| Task 7 immutable v5/exact gates/E2E | pending | external post-freeze evidence |
+| Task 7 immutable v5 identity/RSS/rollback | complete | source `a97369d`; tag object `e3761e3`; RSS `1,475,641,344B`; manifest `40180fac`; rollback pass |
+| Task 7 v5 final default E2E | complete | 44/44 |
+| Task 7 v5 final release E2E | failed closed | 49/54 applicable pass; 42 declared skips; 5 stale-oracle failures |
+| Task 7 v6 release-oracle closure | complete | `5785ce5`; TTG 4/4 projects and AOD desktop recovery/retry case pass |
+| Task 7 v6 repeated nonbrowser gate | pending | rerun after workflow/docs closure |
+| Task 7 immutable v6/exact gates/E2E | pending | external post-freeze evidence |
 
-Candidate-v4 exposed a final endpoint ownership defect that the unit-only hold test did not cover: `Figure2DistanceExpandTimeline.dispose()` parked all media after reverse completion, undoing the canonical forward-poster hold. Its TTG failure was an obsolete assertion that required an active video during the staged pause even though the memory-qualified design intentionally shows one decoded terminal still until reverse media commits. The v5 closure restores Figure2 hold ownership whenever disposal leaves Figure2 current, counts terminal still and directional video as one TTG surface, and keeps full browser matrices as the final commands.
+Candidate-v4 exposed a final endpoint ownership defect that the unit-only hold test did not cover: `Figure2DistanceExpandTimeline.dispose()` parked all media after reverse completion, undoing the canonical forward-poster hold. Its TTG failure was an obsolete assertion that required an active video during the staged pause even though the memory-qualified design intentionally shows one decoded terminal still until reverse media commits. The v5 runtime closure restored Figure2 hold ownership and passed the default matrix. Its final release matrix then exposed two remaining oracle errors: `r5-ttg-alpha` still asserted parked-video metadata/activation instead of sampling each active playback surface plus the terminal still, and `r5-production` required Method even when both AOD preparation and endpoint reconstruction failed, contrary to the documented rule that this case stays on the current interactive static hold. The v6 closure strengthens those release assertions and keeps both full browser matrices as the final commands.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

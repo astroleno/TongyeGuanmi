@@ -1,7 +1,7 @@
 # Roadmap：Cinematic Story Runtime 重写
 
 入口文档：`README.md`。配套文档：`ARCHITECTURE.md`（目标架构与契约）、`MIGRATION.md`（复用与退役清单），阶段执行清单见 `goals/`。
-本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地，R5 candidate-v2 为 immutable `NEEDS WORK`，candidate-v3 与 candidate-v4 为 immutable unqualified。V4 通过 identity-bound RSS/finalization 与 rollback，但最终默认 E2E 仅 42/44；`6cde26d` 已关闭 Figure2 reverse-disposal hold 与 TTG terminal-still oracle。当前进入 candidate-v5 exact tag → identity-bound RSS/finalization → rollback → E2E-last 资格序列。旧站基线固定为 `react-refactor-legacy-static-baseline`；state-machine / scene-runtime 系列分支继续只作历史参考。
+本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地，R5 candidate-v2 为 immutable `NEEDS WORK`，candidate-v3/v4/v5 为 immutable unqualified。V5 通过 identity-bound RSS/finalization、rollback 与 44/44 默认 E2E，但最终 release matrix 为 49/54 applicable；`5785ce5` 已关闭 TTG terminal-still 与 AOD 本地恢复的旧 oracle。当前进入 candidate-v6 exact tag → identity-bound RSS/finalization → rollback → E2E-last 资格序列。旧站基线固定为 `react-refactor-legacy-static-baseline`；state-machine / scene-runtime 系列分支继续只作历史参考。
 
 ## 当前执行纪律
 
@@ -177,7 +177,7 @@ main
 
 **目标**：把 R4 scene/transition 组装成真正的 production StoryApp，整站替换旧静态站，并在任何破坏性清理前保留可执行 rollback。
 
-**状态**：candidate-v2 的身份冻结有效但为 `NEEDS WORK`；candidate-v3 与 candidate-v4 为 immutable unqualified。`docs/plans/2026-07-13-003-fix-r5-candidate-v3-lifecycle-gates-plan.md` 的运行期与 release gate 已完成；v4 在最后默认 E2E 暴露的收口缺口已于 `6cde26d` 修复。只在 candidate-v5 exact identity-bound RSS/finalization、rollback 和最终 E2E 全绿后，才交给 HITL。尚未合并/部署 `main`，也未建立 `react-refactor-r5-cutover`。
+**状态**：candidate-v2 的身份冻结有效但为 `NEEDS WORK`；candidate-v3、candidate-v4 与 candidate-v5 为 immutable unqualified。`docs/plans/2026-07-13-003-fix-r5-candidate-v3-lifecycle-gates-plan.md` 的运行期与 release gate 已完成；v5 在最后 release matrix 暴露的旧 oracle 已于 `5785ce5` 修正。只在 candidate-v6 exact identity-bound RSS/finalization、rollback 和最终 E2E 全绿后，才交给 HITL。尚未合并/部署 `main`，也未建立 `react-refactor-r5-cutover`。
 
 任务：
 
@@ -210,7 +210,7 @@ R6 只能从 HITL 批准后的 R5 cutover tag 开始，不能与 R5 合并：
 ## 关键依赖关系
 
 ```txt
-R-1 → R0 → R1 → R2 → R3 → R4 closeout → candidate-v2 (`NEEDS WORK`) → candidate-v3 (unqualified) → candidate-v4 (unqualified) → candidate-v5 qualification → HITL cutover → R6
+R-1 → R0 → R1 → R2 → R3 → R4 closeout → candidate-v2 (`NEEDS WORK`) → candidate-v3/v4/v5 (unqualified) → candidate-v6 qualification → HITL cutover → R6
                   ↑
          R2 未收口前禁止开始任何真实 scene 迁移（R3/R4）
          R4 各 story group 可并行分支，合并顺序按 canonical spine

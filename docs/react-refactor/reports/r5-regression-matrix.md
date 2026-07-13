@@ -1,23 +1,23 @@
 # R5 Production Regression Matrix
 
-Status: **candidate-v4 failed closed in the final default browser matrix; candidate-v5 is pending full qualification.** V4 passed RSS/finalization and rollback, then passed 42/44 default cases. Commit `6cde26d` restores the Figure2 canonical hold after reverse transition disposal and updates the TTG oracle to count the terminal still as the one active staged surface; both focused cases now pass. Both full v5 Playwright suites still run last from the immutable exact tag.
+Status: **candidate-v5 failed closed in the final release browser matrix; candidate-v6 is pending full qualification.** V5 passed RSS/finalization, rollback, and 44/44 default cases, then passed 49/54 applicable release cases with 42 declared project skips. The five failures were stale oracles: four TTG projects ignored the terminal still, and one AOD recovery case ignored the documented current-static-hold fallback when endpoint reconstruction also fails. Commit `5785ce5` closes those assertions; both full v6 Playwright suites still run last from the immutable exact tag.
 
-Date: 2026-07-13. Branch: `codex/react-refactor-r5-parity-cutover`. Intended immutable tag after all gates pass: `react-refactor-r5-parity-repair-candidate-v5`.
+Date: 2026-07-13. Branch: `codex/react-refactor-r5-parity-cutover`. Intended immutable tag after all gates pass: `react-refactor-r5-parity-repair-candidate-v6`.
 
 ## Required Project Matrix
 
 | Project | Canonical traversal | Critical reverse | Input/navigation | Media/lifecycle | SEO/no-JS | Current record |
 |---|---|---|---|---|---|---|
-| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | required | pending exact-v5 run |
-| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | required | pending exact-v5 run |
-| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | pending exact-v5 run |
-| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | pending exact-v5 run |
+| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | required | v5 release stale AOD + TTG oracles; focused v6 cases pass; exact-v6 pending |
+| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | required | v5 release 1 stale TTG oracle; focused v6 case passes; exact-v6 pending |
+| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | v5 release 1 stale TTG oracle; focused v6 case passes; exact-v6 pending |
+| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | v5 release 1 stale TTG oracle; focused v6 case passes; exact-v6 pending |
 
 Layer invariants are unchanged: at most two visible layers during transition, exactly one visible/interactable settled hold, bounded retiring layers, one canonical receiver root, and no Hero current/visible fallback during Contact reverse.
 
 ## R1–R22 Deterministic Ownership
 
-Every row has implementation-level coverage in the 83-file / 568-test nonbrowser suite at `e491e01`. Browser qualification is intentionally not inferred from candidate-v2 or the failed v4 run and is repeated only after v5 freeze.
+Every row has implementation-level coverage in the 83-file / 568-test nonbrowser suite at exact candidate-v5 source `a97369d`. Browser qualification is intentionally not inferred from any failed candidate and is repeated only after v6 freeze.
 
 | ID | Assertion owners | Required proof |
 |---|---|---|
@@ -52,11 +52,11 @@ The reproduction/root-cause/minimum-file record is `../contract-diff/R5-producti
 pnpm run verify:all
 pnpm -C app exec playwright test
 pnpm -C app exec playwright test --config playwright.release.config.ts
-R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v5 \
+R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v6 \
 R5_SOURCE_COMMIT="$(git rev-parse HEAD)" pnpm run deploy:build
 ```
 
-Candidate-v2 recorded 44 / 44 default cases and 54 applicable release cases with 42 declared project skips; those counts are baseline history. Candidate-v4 recorded 42 / 44 default cases and stopped before the release matrix. Neither qualifies v5. The final handoff records fresh exact-v5 counts and declared skips after both commands complete.
+Candidate-v2 recorded 44/44 default cases and 54 applicable release cases with 42 declared project skips; candidate-v4 recorded 42/44 default cases and stopped before release. Candidate-v5 recorded 44/44 default, then 49 pass / 42 skip / 5 fail in release. All are audit history and none qualifies v6. The final handoff records fresh exact-v6 counts and declared skips after both commands complete.
 
 ## Acceptance Boundary
 
