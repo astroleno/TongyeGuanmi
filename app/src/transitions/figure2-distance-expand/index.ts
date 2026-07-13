@@ -340,8 +340,9 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     }
     this.inkRenderer?.destroy();
     this.inkCanvas?.remove();
+    const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
     renderFigure2AnimationProgress(
-      sceneRoot(this.context.from.element, 'figure2-animation'),
+      fromRoot,
       figure2IntroProgress(this.progressValue),
       {
         proofProgress: 0,
@@ -353,7 +354,11 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       applyLayerVisibility(this.context.to, hiddenVisibility());
     }
     this.depthMask?.dispose();
-    parkFigure2Media(sceneRoot(this.context.from.element, 'figure2-animation'));
+    if (this.progressValue < 0.999) {
+      renderFigure2Hold(fromRoot);
+    } else {
+      parkFigure2Media(fromRoot);
+    }
     this.elevation.restore();
     clearTransitionAttrs(this.context.to.element);
     clearTransitionAttrs(sceneRoot(this.context.to.element, 'figure2-proof-opening'));

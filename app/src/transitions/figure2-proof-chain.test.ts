@@ -877,7 +877,13 @@ describe('figure2 proof chain transitions', () => {
       activeDirection: 'reverse',
       activeRunId: reverseContext.runId
     });
+    timeline.progress(0);
     timeline.dispose();
+    expect(fromRoot.dataset.figure2HoldPoster).toBe('true');
+    expect(leftForward.classList.contains('is-active')).toBe(true);
+    expect(rightForward.classList.contains('is-active')).toBe(true);
+    expect(leftReverse.classList.contains('is-active')).toBe(false);
+    expect(rightReverse.classList.contains('is-active')).toBe(false);
     disposeFigure2Media(fromRoot as unknown as HTMLElement);
   });
 

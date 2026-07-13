@@ -51,6 +51,8 @@ type Group5VisualSnapshot = {
   ttgBgTransform: string;
   ttgFigureTransform: string;
   ttgVideos: readonly { loop: boolean; paused: boolean; currentTime: number; active: boolean }[];
+  ttgTerminalActive: boolean;
+  ttgActiveSurface: string | undefined;
   ttgPlaybackDirection: string | undefined;
   labProgress: number;
   labRows: number;
@@ -70,6 +72,7 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
     const ttgRoot = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
     const bgLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--bg');
     const figureLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--figure.is-active');
+    const terminalLayer = document.querySelector<HTMLElement>('[data-ttg-figure-terminal]');
     const labRoot = document.querySelector<HTMLElement>('[data-r4-scene="lab"]');
     const labWide = document.querySelector<HTMLElement>('.r4-lab__wide');
     const labPortrait = document.querySelector<HTMLElement>('.r4-lab__portrait');
@@ -95,6 +98,8 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
         currentTime: video.currentTime,
         active: video.classList.contains('is-active')
       })),
+      ttgTerminalActive: terminalLayer?.classList.contains('is-active') ?? false,
+      ttgActiveSurface: ttgRoot?.dataset.ttgActiveSurface,
       ttgPlaybackDirection: ttgRoot?.dataset.ttgPlaybackDirection,
       labProgress: Number.parseFloat(labRoot?.dataset.labProgress ?? '0'),
       labRows: document.querySelectorAll('.r4-lab__row').length,
@@ -367,7 +372,7 @@ test.describe('R4 group5 services ttg lab harness', () => {
     expect(finalFrame.interactableCount).toBe(1);
   });
 
-  test('reverses TTG at its first pause before Lab with one active surface', async ({ page }) => {
+  test('reverses TTG from its terminal still before Lab with one active surface', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g5-ttg-lab');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
@@ -381,8 +386,9 @@ test.describe('R4 group5 services ttg lab harness', () => {
     ).toBe('staged-paused');
     const terminal = await visualSnapshot(page);
     expect(terminal.ttgProgress).toBe(1);
-    expect(terminal.ttgVideos.filter((video) => video.active)).toHaveLength(1);
-    expect(terminal.ttgVideos[0]?.active).toBe(true);
+    expect(terminal.ttgTerminalActive).toBe(true);
+    expect(terminal.ttgActiveSurface).toBe('terminal');
+    expect(terminal.ttgVideos.filter((video) => video.active)).toHaveLength(0);
 
     await page.evaluate(() => {
       void window.__r4Group5?.playReverse();
@@ -391,7 +397,10 @@ test.describe('R4 group5 services ttg lab harness', () => {
     for (let index = 0; index < 30; index += 1) {
       await page.waitForTimeout(24);
       const visual = await visualSnapshot(page);
-      expect(visual.ttgVideos.filter((video) => video.active)).toHaveLength(1);
+      expect(
+        visual.ttgVideos.filter((video) => video.active).length
+          + Number(visual.ttgTerminalActive)
+      ).toBe(1);
       sawNativeReverse ||= visual.ttgPlaybackDirection === '-1'
         && visual.ttgProgress > 0
         && visual.ttgProgress < 1

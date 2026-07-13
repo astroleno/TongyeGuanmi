@@ -84,6 +84,7 @@ type Group3VisualSnapshot = {
   retainedArchMask: string;
   brandLayerClip: string;
   retainedArchClip: string;
+  figure2HoldPoster: boolean;
   videos: readonly {
     side: string;
     direction: string;
@@ -171,6 +172,7 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       retainedArchMask: arch?.style.getPropertyValue('mask-image') ?? '',
       brandLayerClip: brandLayer?.style.clipPath ?? '',
       retainedArchClip: arch?.style.clipPath ?? '',
+      figure2HoldPoster: figureRoot?.dataset.figure2HoldPoster === 'true',
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
         side: video.dataset.figure2Side ?? '',
         direction: video.dataset.figure2Direction ?? '',
@@ -435,9 +437,15 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       expect(Math.max(...parkedForwardValues) - Math.min(...parkedForwardValues)).toBeLessThan(0.03);
     }
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 8_000 }).toBe('figure2-animation');
-    const reversedHold = (await visualSnapshot(page)).videos;
-    expect(reversedHold.filter((video) => video.direction === 'reverse' && video.active)).toHaveLength(2);
-    expect(reversedHold.filter((video) => video.direction === 'reverse').every((video) => video.paused && video.currentTime > 4.8)).toBe(true);
+    await expect.poll(async () => (await visualSnapshot(page)).figure2HoldPoster).toBe(true);
+    const reversedHold = await visualSnapshot(page);
+    expect(reversedHold.videos.filter((video) => video.direction === 'forward' && video.active)).toHaveLength(2);
+    expect(reversedHold.videos.filter((video) => video.direction === 'forward').every((video) => (
+      video.paused && video.currentTime < 0.08
+    ))).toBe(true);
+    expect(reversedHold.videos.filter((video) => video.direction === 'reverse').every((video) => (
+      !video.active && video.paused
+    ))).toBe(true);
   });
 
   test('covers reduced motion and 0 to 1 to 0 to 1 replay on the staged segment', async ({ page }) => {
