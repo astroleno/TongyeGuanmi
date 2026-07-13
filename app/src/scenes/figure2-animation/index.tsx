@@ -57,6 +57,7 @@ type Figure2MediaManager = {
   right: DirectionalMediaController;
   activeDirection?: Figure2MediaDirection;
   activeRunId?: string;
+  playbackEnabled: boolean;
   prepared?: {
     surface: Figure2MediaDirection;
     runId: string;
@@ -72,6 +73,7 @@ export type Figure2MediaPreparation = Readonly<{
   timelineDurationMs?: number;
   reducedMotion?: boolean;
   signal?: AbortSignal;
+  startPlayback?: boolean;
 }>;
 
 export type Figure2DirectionalMediaSnapshot = Readonly<{
@@ -197,6 +199,7 @@ function createFigure2MediaManager(root: HTMLElement): Figure2MediaManager {
       surfaces: { forward: rightForward, reverse: rightReverse },
       parkedPreload: 'metadata'
     }),
+    playbackEnabled: false,
     generation: 0
   };
 }
@@ -264,7 +267,16 @@ export function commitFigure2MediaLeg(
   }
   const manager = managerFor(root);
   const surface = surfaceForDirection(preparation.direction);
+  if (preparation.signal?.aborted) {
+    throw new Error(`Figure2 ${surface} media commit was aborted`);
+  }
   if (manager.activeDirection === surface && manager.activeRunId === preparation.runId) {
+    if (preparation.startPlayback !== false) {
+      manager.playbackEnabled = true;
+      const input = mediaInput(surface, preparation, 0);
+      manager.left.drive(input);
+      manager.right.drive(input);
+    }
     return;
   }
   const prepared = manager.prepared;
@@ -278,10 +290,14 @@ export function commitFigure2MediaLeg(
     throw new Error(`Figure2 ${surface} media is not prepared for commit`);
   }
 
-  manager.left.activate(prepared.input);
-  manager.right.activate(prepared.input);
+  const activationInput: DirectionalMediaInput = preparation.startPlayback === false
+    ? { ...prepared.input, mode: 'timeline' }
+    : prepared.input;
+  manager.left.activate(activationInput);
+  manager.right.activate(activationInput);
   manager.activeDirection = surface;
   manager.activeRunId = preparation.runId;
+  manager.playbackEnabled = preparation.startPlayback !== false;
   delete manager.prepared;
   root.dataset.figure2MediaDirection = surface;
   root.dataset.figure2MediaRun = preparation.runId;
@@ -304,6 +320,7 @@ export function driveFigure2MediaLeg(
     !manager
     || manager.activeDirection !== surface
     || manager.activeRunId !== preparation.runId
+    || !manager.playbackEnabled
   ) {
     return;
   }
@@ -332,6 +349,7 @@ export function parkFigure2Media(root: HTMLElement | null): void {
   }
   delete manager.activeDirection;
   delete manager.activeRunId;
+  manager.playbackEnabled = false;
   delete root.dataset.figure2MediaDirection;
   delete root.dataset.figure2MediaRun;
   delete root.dataset.figure2PendingMediaDirection;

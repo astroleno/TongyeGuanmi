@@ -777,7 +777,7 @@ describe('figure2 proof chain transitions', () => {
     expect(FIGURE2_INTRO_PLAYBACK_MS).toBe(2600);
   });
 
-  it('arms and plays the native reverse pair at the reverse stage pause', async () => {
+  it('holds the reverse terminal pair through reverse depth Ink and reuses it for intro playback', async () => {
     const document = new FakeDocument();
     const stage = new FakeElement();
     const fromElement = new FakeElement();
@@ -795,8 +795,6 @@ describe('figure2 proof chain transitions', () => {
     leftReverse.dataset.figure2Direction = 'reverse';
     rightReverse.dataset.figure2Side = 'right';
     rightReverse.dataset.figure2Direction = 'reverse';
-    leftForward.classList.add('is-active');
-    rightForward.classList.add('is-active');
     stage.ownerDocument = document;
     fromElement.ownerDocument = document;
     toElement.ownerDocument = document;
@@ -828,38 +826,62 @@ describe('figure2 proof chain transitions', () => {
       -1
     );
     const timeline = await createFigure2DistanceExpandTransition().buildTimeline(reverseContext);
-    const leg = {
+    const depthLeg = {
       runId: reverseContext.runId,
       segment: 'figure2-distance-expand' as const,
       direction: -1 as const,
       legIndex: 0,
-      from: FIGURE2_INTRO_END,
-      to: 0,
-      durationMs: FIGURE2_INTRO_PLAYBACK_MS,
+      from: 1,
+      to: FIGURE2_INTRO_END,
+      durationMs: 1500,
       resumedStageIndex: 0,
       signal: preparationSignal()
     };
-    const preparation = timeline.prepareLeg?.(leg);
+    const depthPreparation = timeline.prepareLeg?.(depthLeg);
+    await Promise.resolve();
+    await Promise.resolve();
 
-    expect(leftForward.classList.contains('is-active')).toBe(true);
-    expect(rightForward.classList.contains('is-active')).toBe(true);
+    expect(leftForward.classList.contains('is-active')).toBe(false);
+    expect(rightForward.classList.contains('is-active')).toBe(false);
     leftReverse.presentRequestedFrame();
     await Promise.resolve();
-    expect(leftForward.classList.contains('is-active')).toBe(true);
-    expect(rightForward.classList.contains('is-active')).toBe(true);
-
-    rightReverse.presentRequestedFrame();
-    await preparation;
-    expect(leftForward.classList.contains('is-active')).toBe(true);
-    expect(rightForward.classList.contains('is-active')).toBe(true);
     expect(leftReverse.classList.contains('is-active')).toBe(false);
     expect(rightReverse.classList.contains('is-active')).toBe(false);
 
-    timeline.commitLeg?.(leg);
+    rightReverse.presentRequestedFrame();
+    await depthPreparation;
+    expect(leftReverse.classList.contains('is-active')).toBe(false);
+    expect(rightReverse.classList.contains('is-active')).toBe(false);
+
+    timeline.commitLeg?.(depthLeg);
     expect(leftForward.classList.contains('is-active')).toBe(false);
     expect(rightForward.classList.contains('is-active')).toBe(false);
     expect(leftReverse.classList.contains('is-active')).toBe(true);
     expect(rightReverse.classList.contains('is-active')).toBe(true);
+    expect(leftReverse.paused).toBe(true);
+    expect(rightReverse.paused).toBe(true);
+    expect(leftReverse.playCalls).toBe(0);
+    expect(rightReverse.playCalls).toBe(0);
+    expect(leftReverse.currentTime).toBeLessThan(0.1);
+    expect(rightReverse.currentTime).toBeLessThan(0.1);
+
+    timeline.progress(0.9);
+    timeline.progress(0.8);
+    timeline.progress(FIGURE2_INTRO_END);
+    expect(leftReverse.classList.contains('is-active')).toBe(true);
+    expect(rightReverse.classList.contains('is-active')).toBe(true);
+    expect(leftReverse.paused).toBe(true);
+    expect(rightReverse.paused).toBe(true);
+
+    const introLeg = {
+      ...depthLeg,
+      legIndex: 1,
+      from: FIGURE2_INTRO_END,
+      to: 0,
+      durationMs: FIGURE2_INTRO_PLAYBACK_MS
+    };
+    await timeline.prepareLeg?.(introLeg);
+    timeline.commitLeg?.(introLeg);
     const leftSeekCount = leftReverse.currentTimeWrites.length;
     const rightSeekCount = rightReverse.currentTimeWrites.length;
 

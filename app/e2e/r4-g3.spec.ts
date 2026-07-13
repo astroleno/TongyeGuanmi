@@ -410,9 +410,19 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
     expect(inkLegSamples.length).toBeGreaterThan(2);
     expect(inkLegSamples.every((videos) => (
       videos.length === 4
-      && videos.every((video) => !video.active && video.paused && video.currentTime < 0.1)
+      && videos.filter((video) => video.direction === 'reverse').length === 2
+      && videos.filter((video) => video.direction === 'reverse').every((video) => (
+        video.active && video.paused && video.currentTime < 0.1
+      ))
+      && videos.filter((video) => video.direction === 'forward').every((video) => (
+        !video.active && video.paused
+      ))
     ))).toBe(true);
     await expect.poll(async () => (await snapshot(page)).phase, { timeout: 8_000 }).toBe('staged-paused');
+    const reversePause = (await visualSnapshot(page)).videos;
+    expect(reversePause.filter((video) => video.direction === 'reverse').every((video) => (
+      video.active && video.paused && video.currentTime < 0.1
+    ))).toBe(true);
 
     await page.evaluate(() => { void window.__r4Group3?.playReverse(); });
     const introLegSamples = await sampleReverseLeg();

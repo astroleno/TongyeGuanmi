@@ -203,11 +203,12 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const epsilon = 0.001;
     const isIntroLeg = upper <= FIGURE2_INTRO_END + epsilon;
     const isDepthLeg = lower >= FIGURE2_INTRO_END - epsilon;
+    const needsFigureMedia = isIntroLeg || (isDepthLeg && leg.direction === -1);
 
     if (isDepthLeg) {
       await this.armDepthMask();
     }
-    if (isIntroLeg && !this.context.prefersReducedMotion) {
+    if (needsFigureMedia && !this.context.prefersReducedMotion) {
       await prepareFigure2MediaLeg(
         sceneRoot(this.context.from.element, 'figure2-animation'),
         {
@@ -222,8 +223,13 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   }
 
   commitLeg(leg: StagedLegPreparation): void {
+    const lower = Math.min(leg.from, leg.to);
     const upper = Math.max(leg.from, leg.to);
-    if (upper <= FIGURE2_INTRO_END + 0.001 && !this.context.prefersReducedMotion) {
+    const epsilon = 0.001;
+    const isIntroLeg = upper <= FIGURE2_INTRO_END + epsilon;
+    const isDepthLeg = lower >= FIGURE2_INTRO_END - epsilon;
+    const needsFigureMedia = isIntroLeg || (isDepthLeg && leg.direction === -1);
+    if (needsFigureMedia && !this.context.prefersReducedMotion) {
       commitFigure2MediaLeg(
         sceneRoot(this.context.from.element, 'figure2-animation'),
         {
@@ -231,7 +237,8 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
           direction: leg.direction,
           timelineDurationMs: leg.durationMs || FIGURE2_INTRO_PLAYBACK_MS,
           reducedMotion: this.context.prefersReducedMotion,
-          signal: leg.signal
+          signal: leg.signal,
+          startPlayback: isIntroLeg
         }
       );
     }
