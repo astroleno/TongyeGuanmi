@@ -16,6 +16,7 @@ Status: Tasks 0–6 are complete. Immutable v3 failed dirty-tree finalization. I
 | Task 7 immutable v4 identity/RSS/rollback | complete | source `905a4ef`; tag object `e3b3863`; RSS `1,423,048,704B`; rollback pass |
 | Task 7 v4 final default E2E | failed closed | 42/44; release matrix not run |
 | Task 7 v5 browser closure | complete | `6cde26d`; focused unit/integration 54/54 and browser 2/2 |
+| Task 7 v5 repeated nonbrowser gate | complete | `e491e01`; 83 Vitest files / 568 tests plus lint, typecheck, build, release/static, budgets |
 | Task 7 immutable v5/exact gates/E2E | pending | external post-freeze evidence |
 
 Candidate-v4 exposed a final endpoint ownership defect that the unit-only hold test did not cover: `Figure2DistanceExpandTimeline.dispose()` parked all media after reverse completion, undoing the canonical forward-poster hold. Its TTG failure was an obsolete assertion that required an active video during the staged pause even though the memory-qualified design intentionally shows one decoded terminal still until reverse media commits. The v5 closure restores Figure2 hold ownership whenever disposal leaves Figure2 current, counts terminal still and directional video as one TTG surface, and keeps full browser matrices as the final commands.

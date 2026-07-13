@@ -10,7 +10,7 @@
 - 修复分支：`codex/react-refactor-r5-parity-cutover`；修复基点：`59065730712c6d9718928fd25cba23e33455395e`。
 - `react-refactor-r5-candidate`、`-v2`、`-v3` 与 `react-refactor-r5-parity-repair-candidate` 都不包含本轮 HITL regression closure，只保留为不可变审计记录，禁止移动或冒充新候选。
 - v2 只保留为不可变 `NEEDS WORK` 审计记录；v3 与 v4 只保留为不可变 unqualified 审计记录。唯一允许创建的新候选 tag 是 `react-refactor-r5-parity-repair-candidate-v5`。
-- v4 exact RSS 为 1,423,048,704B，manifest 与 rollback 均通过；最终默认 E2E 暴露的两个缺口已在 `6cde26d` 由 54 个 focused unit/integration tests 与 2/2 focused browser cases 验证。
+- v4 exact RSS 为 1,423,048,704B，manifest 与 rollback 均通过；最终默认 E2E 暴露的两个缺口已在 `6cde26d` 由 54 个 focused unit/integration tests 与 2/2 focused browser cases 验证。含 v5 workflow/docs 的 `e491e01` 已通过 83 files / 568 tests、lint、typecheck、build、release/static 与 bundle budgets。
 - 18 holds、17 segments、canonical 顺序、scene id、hash、copy、Director/SegmentPlayer/Stage/LayerWindow、production/harness lazy 边界和 no-JS shell 架构保持不变。
 - 本轮在既有 R1–R22 基础上关闭九项 HITL 回归：单一 10svh 物理手势所有权、AOD/Figure2/TTG/PH presented-frame gate、Figure2 原生反向与 depth readiness、TTG/PH same-run reversal/receiver 唯一性、app-owned loader Ink、Star Map 不透明文案，以及 128-sample 对齐的轻量 horizontal Ink core。
 - 此 Goal 的验收不新增 screenshot baseline，不要求人工视觉复核；完整自动化通过并完成 exact-tag/rollback 后停止等待 HITL。
