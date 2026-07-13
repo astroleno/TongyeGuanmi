@@ -1,6 +1,6 @@
 # React Cutover And Rollback Runbook
 
-Status: candidate-v2 regression closure passed pre-freeze automated qualification; corrected-candidate freeze is authorized. Exact-tag build/smoke, same-port rollback, final E2E, and user HITL remain required. Production cutover is not authorized.
+Status: candidate-v2 is immutable but `NEEDS WORK` after exact-tag RSS and lifecycle review. Candidate-v3 implementation/qualification is in progress. Production cutover is not authorized.
 
 ## Immutable Inputs
 
@@ -14,7 +14,8 @@ Status: candidate-v2 regression closure passed pre-freeze automated qualificatio
 | parity-repair base / superseded candidate | `react-refactor-r5-candidate-v3` | `59065730712c6d9718928fd25cba23e33455395e` |
 | superseded parity-repair candidate | `react-refactor-r5-parity-repair-candidate` | commit `18490690992bffef6c9705cd47438b9cd17e756a`; tag object `7f96b243d42efd3e7409ca8628109b0901900a9b` |
 | rejected HITL head | branch commit | `2501704d63dbd7c150861d21a31c2d39525c23e5` |
-| intended corrected candidate | `react-refactor-r5-parity-repair-candidate-v2` | pre-freeze gate passed; create immutable annotated tag and record peel/tag object externally |
+| rejected corrected candidate | `react-refactor-r5-parity-repair-candidate-v2` | commit `0dc2a87b69af39a9a3960488fda56f6af664b54d`; tag object `c31e464215bab4ea36e1884a59ded46e8a07ce63`; immutable `NEEDS WORK` |
+| intended lifecycle-closed candidate | `react-refactor-r5-parity-repair-candidate-v3` | create only after identity-bound RSS, full browser matrices, exact smokes, and rollback pass |
 | review rollback build | plain build manifest | 98 files / 139,528,455B; SHA-256 `2b91f5e3cd34883125a613a2a005ff3f3a4de4db8ef7c8a317f03297ce21742a` |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |

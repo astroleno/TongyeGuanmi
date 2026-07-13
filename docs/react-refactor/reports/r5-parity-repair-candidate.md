@@ -1,6 +1,6 @@
 # R5 Production Parity Repair Candidate
 
-Status: **pre-freeze automated qualification passed; candidate-v2 freeze authorized.** The nine HITL regressions reported against `2501704d63dbd7c150861d21a31c2d39525c23e5` have implementation and automated closure. Exact-tag identity, rollback, and the final E2E rerun are recorded in the external handoff because they can only be generated after the immutable tag exists. User HITL approval remains pending.
+Status: **candidate-v2 is immutable but `NEEDS WORK`; HITL rejected.** The exact tag/commit/manifest identity is valid, but exact-tag RSS repeated above the frozen aggregate budget and code review found five P1 lifecycle/release blockers. Candidate-v2 must not move or be published as qualified. The reserved successor is `react-refactor-r5-parity-repair-candidate-v3`, created only after the v3 closure plan passes in full.
 
 ## Candidate Identity Boundary
 
@@ -9,13 +9,25 @@ Status: **pre-freeze automated qualification passed; candidate-v2 freeze authori
 | branch | `codex/react-refactor-r5-parity-cutover` |
 | repair base | `59065730712c6d9718928fd25cba23e33455395e` |
 | rejected HITL head | `2501704d63dbd7c150861d21a31c2d39525c23e5` |
-| reserved new candidate | `react-refactor-r5-parity-repair-candidate-v2` |
-| source commit | resolved by `git rev-parse react-refactor-r5-parity-repair-candidate-v2^{commit}` after freeze |
-| annotated tag object | resolved by `git rev-parse refs/tags/react-refactor-r5-parity-repair-candidate-v2` after freeze |
+| rejected candidate | `react-refactor-r5-parity-repair-candidate-v2` |
+| source commit | `0dc2a87b69af39a9a3960488fda56f6af664b54d` |
+| annotated tag object | `c31e464215bab4ea36e1884a59ded46e8a07ce63` |
+| reserved successor | `react-refactor-r5-parity-repair-candidate-v3` |
 | deployable directory | identity-bound `dist/` from the clean exact tag only |
 | release manifest | `dist/r5-release-manifest.json`, schema 2, `sourceDirty: false` |
 
-The manifest digest is recorded outside the tagged source because the manifest contains the source commit identity. Embedding that digest in the same commit would be self-referential.
+Candidate-v2 source commit is `0dc2a87b69af39a9a3960488fda56f6af664b54d`, annotated tag object is `c31e464215bab4ea36e1884a59ded46e8a07ce63`, and manifest SHA-256 is `5b1f5815d6ac85a1291e4c6c7c7ba168620f590473569475a1c159b9c264f24e`. These identities remain audit records, not approval evidence.
+
+## Candidate-v2 Review Blockers
+
+- Candidate CI did not require RSS evidence, and the memory report/manifest did not bind commit, tag object, artifact digest, and memory pass into one upload gate.
+- Production input swallowed opposing wheel/key/touch input while Director was `preparing`.
+- Staged media preparation had no per-leg timeout, abort signal, or complete seek/error rejection path.
+- TTG/PH/Figure2 preparation could mutate or activate a stale surface after timeline disposal.
+- Figure2 park removed every active surface while `renderFigure2Hold()` did not restore the canonical forward posters.
+- The 80ms video-frame fallback could report readiness without a presented frame, and Figure2 depth Ink did not fail its segment on renderer invalidation.
+
+Exact-tag process-tree RSS samples were `1,527,169,024B` and `1,575,190,528B`, both above the `1,500,000,000B` budget. GPU, renderer, heap, layers, WebGL, and browser E2E budgets remained inside their component limits, but that does not waive the aggregate release gate.
 
 ## Immutable Historical Candidates
 
@@ -25,8 +37,9 @@ The manifest digest is recorded outside the tagged source because the manifest c
 | `react-refactor-r5-candidate-v2` | `a5bef3785b766dac0e5ecfc95e96d03cd5c51c90` | superseded; no parity repair |
 | `react-refactor-r5-candidate-v3` | `59065730712c6d9718928fd25cba23e33455395e` | repair base only |
 | `react-refactor-r5-parity-repair-candidate` | `18490690992bffef6c9705cd47438b9cd17e756a` | superseded by the rejected HITL findings; predates this closure |
+| `react-refactor-r5-parity-repair-candidate-v2` | `0dc2a87b69af39a9a3960488fda56f6af664b54d` | immutable `NEEDS WORK`; RSS/lifecycle gates failed |
 
-None may be moved, repointed, or published as candidate-v2.
+None may be moved or repointed. Candidate-v3 must be a new annotated tag on a newly qualified source commit.
 
 ## Closure Delivered
 
@@ -51,14 +64,15 @@ The following pre-freeze evidence was regenerated from the corrected branch sour
 | four-project release matrix | every applicable desktop/mobile Chromium/WebKit case passes; skips are declared only by project applicability | pass: 54 applicable / 54; 42 declared project skips |
 | focused HITL closure | ordinary input, AOD/Figure2/TTG/PH direction changes, loader Ink, receiver uniqueness, and horizontal readback pass | pass on desktop and mobile Chromium; first-decode/activation reported separately from steady playback |
 | frame pacing | focused first-decode and steady-playback samples stay inside the frozen budgets | pass: desktop aggregate p95 17.5ms, 2 / 759 over 50ms; mobile p95 18.2ms, 2 / 758 |
-| process memory/disposal | all 18 holds forward/reverse; parked reverse surfaces and denser contour remain bounded | pass on clean repeat: tree RSS 1,451,737,088B; GPU 351,125,504B; renderer 755,056,640B; heap 39,200,008B → 11,967,697B |
-| exact-tag build/smokes | annotated tag peels to clean source; identity-bound manifest and root/no-JS/hash/media smokes pass | post-freeze external record required |
-| same-port rollback | candidate-v2 → immutable legacy → identical candidate-v2 | post-freeze external record required |
+| process memory/disposal | all 18 holds forward/reverse; parked reverse surfaces and denser contour remain bounded | **fail:** exact-tag tree RSS 1,527,169,024B and 1,575,190,528B; historical branch repeat 1,451,737,088B does not override exact failures |
+| lifecycle code review | preparing input, timeout/abort/error, dispose generation, and hold re-entry are closed | **fail:** five P1 and two P2 blockers recorded above |
+| exact-tag build/smokes | annotated tag peels to clean source; identity-bound manifest and root/no-JS/hash/media smokes pass | pass for v2 identity; insufficient without RSS/lifecycle gates |
+| same-port rollback | candidate-v2 → immutable legacy → identical candidate-v2 | pass for v2 artifact; insufficient without RSS/lifecycle gates |
 
-The release matrix split is desktop Chromium 21 pass / 3 declared skips, desktop WebKit 9 / 15, Pixel 7 Chromium 13 / 11, and iPhone 15 WebKit 11 / 13. Four-project no-JS passed. The accepted process-memory repeat also recorded 3 maximum mounted layers, 1 maximum settled WebGL context, and a disposed Contact snapshot of 2 layers / 0 WebGL / 2 videos with 3 canvases and 2 videos released. One earlier host-contaminated tree-RSS sample of 1,537,753,088B was invalidated and repeated from a fresh browser boundary as permitted by the evidence rule.
+The release matrix split is desktop Chromium 21 pass / 3 declared skips, desktop WebKit 9 / 15, Pixel 7 Chromium 13 / 11, and iPhone 15 WebKit 11 / 13. Four-project no-JS passed. The historical qualifying memory repeat recorded 3 maximum mounted layers, 1 maximum settled WebGL context, and a disposed Contact snapshot of 2 layers / 0 WebGL / 2 videos with 3 canvases and 2 videos released; the later exact-tag aggregate RSS failures are authoritative for v2 release status.
 
 ## Freeze And Stop Boundary
 
-Create and push the new annotated tag `react-refactor-r5-parity-repair-candidate-v2`, build with explicit `R5_CANDIDATE_TAG` and `R5_SOURCE_COMMIT`, record the external source/tag/manifest identity, run exact-tag smokes, same-port rollback, and the final exact-tag E2E, then stop for user HITL.
+Implement `../../plans/2026-07-13-003-fix-r5-candidate-v3-lifecycle-gates-plan.md`, then create a new annotated `react-refactor-r5-parity-repair-candidate-v3` only if identity-bound memory, exact-tag smokes, same-port rollback, and final exact-tag E2E all pass.
 
 This closure does not authorize moving any tag, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.
