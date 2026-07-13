@@ -79,7 +79,7 @@ The following pre-freeze evidence was regenerated from the corrected branch sour
 
 | Gate | Required result | Current record |
 |---|---|---|
-| root `pnpm run verify:all` | full tests, lint, typecheck, build, release/static checks, and budgets pass | v5 passed at `a97369d`; v6 pre-freeze rerun pending after workflow/docs closure |
+| root `pnpm run verify:all` | full tests, lint, typecheck, build, release/static checks, and budgets pass | pass at `a5cc670`: 83 Vitest files / 568 tests plus lint, typecheck, build, release/static checks, and frozen budgets |
 | final default browser matrix | all historical/harness contracts pass on exact v6 | exact v5 passed 44/44; exact v6 rerun pending and last |
 | final four-project release matrix | every applicable desktop/mobile Chromium/WebKit case passes; skips are declared only by project applicability | v5 passed 49/54 applicable with 42 declared skips; 5 stale-oracle failures invalidate it; v6 pending and last |
 | focused HITL closure | ordinary input and AOD/Figure2/TTG/PH/Ink lifecycle contracts pass | TTG passes 4/4 projects and AOD failure/retry passes desktop Chromium at `5785ce5`; exact-tag rerun pending |

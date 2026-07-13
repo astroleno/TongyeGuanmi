@@ -21,7 +21,7 @@ Status: Tasks 0–6 are complete. Immutable v3 failed dirty-tree finalization. I
 | Task 7 v5 final default E2E | complete | 44/44 |
 | Task 7 v5 final release E2E | failed closed | 49/54 applicable pass; 42 declared skips; 5 stale-oracle failures |
 | Task 7 v6 release-oracle closure | complete | `5785ce5`; TTG 4/4 projects and AOD desktop recovery/retry case pass |
-| Task 7 v6 repeated nonbrowser gate | pending | rerun after workflow/docs closure |
+| Task 7 v6 repeated nonbrowser gate | complete | `a5cc670`; 83 Vitest files / 568 tests plus lint, typecheck, build, release/static, budgets |
 | Task 7 immutable v6/exact gates/E2E | pending | external post-freeze evidence |
 
 Candidate-v4 exposed a final endpoint ownership defect that the unit-only hold test did not cover: `Figure2DistanceExpandTimeline.dispose()` parked all media after reverse completion, undoing the canonical forward-poster hold. Its TTG failure was an obsolete assertion that required an active video during the staged pause even though the memory-qualified design intentionally shows one decoded terminal still until reverse media commits. The v5 runtime closure restored Figure2 hold ownership and passed the default matrix. Its final release matrix then exposed two remaining oracle errors: `r5-ttg-alpha` still asserted parked-video metadata/activation instead of sampling each active playback surface plus the terminal still, and `r5-production` required Method even when both AOD preparation and endpoint reconstruction failed, contrary to the documented rule that this case stays on the current interactive static hold. The v6 closure strengthens those release assertions and keeps both full browser matrices as the final commands.

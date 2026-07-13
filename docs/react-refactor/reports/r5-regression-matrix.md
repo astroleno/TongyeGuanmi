@@ -17,7 +17,7 @@ Layer invariants are unchanged: at most two visible layers during transition, ex
 
 ## R1–R22 Deterministic Ownership
 
-Every row has implementation-level coverage in the 83-file / 568-test nonbrowser suite at exact candidate-v5 source `a97369d`. Browser qualification is intentionally not inferred from any failed candidate and is repeated only after v6 freeze.
+Every row has implementation-level coverage in the fresh 83-file / 568-test pre-freeze nonbrowser suite at `a5cc670`. Browser qualification is intentionally not inferred from any failed candidate and is repeated only after v6 freeze.
 
 | ID | Assertion owners | Required proof |
 |---|---|---|
