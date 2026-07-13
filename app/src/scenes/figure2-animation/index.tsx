@@ -224,6 +224,7 @@ export async function prepareFigure2MediaLeg(
     return;
   }
   const generation = ++manager.generation;
+  delete root.dataset.figure2HoldPoster;
   const input = mediaInput(surface, preparation, 0);
   const [leftResult, rightResult] = await Promise.all([
     manager.left.prepare(input),
@@ -284,6 +285,7 @@ export function commitFigure2MediaLeg(
   delete manager.prepared;
   root.dataset.figure2MediaDirection = surface;
   root.dataset.figure2MediaRun = preparation.runId;
+  delete root.dataset.figure2HoldPoster;
   delete root.dataset.figure2PendingMediaDirection;
   delete root.dataset.figure2PendingMediaRun;
 }
@@ -443,6 +445,26 @@ export function renderFigure2Hold(root: HTMLElement | null): void {
   renderFigure2AnimationProgress(root, 0, {
     videoMode: 'none'
   });
+  if (!root) {
+    return;
+  }
+  parkFigure2Media(root);
+  const videos = [...root.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')];
+  for (const video of videos) {
+    const isForward = video.dataset.figure2Direction === 'forward';
+    video.pause();
+    if (isForward) {
+      video.classList.add('is-active');
+      try {
+        video.currentTime = 0;
+      } catch {
+        // The authored poster remains the canonical hold if the browser refuses the seek.
+      }
+    } else {
+      video.classList.remove('is-active');
+    }
+  }
+  root.dataset.figure2HoldPoster = 'true';
 }
 
 function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {

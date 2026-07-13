@@ -523,6 +523,33 @@ describe('figure2 proof chain transitions', () => {
     }
   });
 
+  it('fails the Figure2 run when the required depth Ink renderer is unavailable', async () => {
+    const document = new FakeDocument();
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    stage.ownerDocument = document;
+    fromElement.ownerDocument = document;
+    toElement.ownerDocument = document;
+    stage.append(fromElement, toElement);
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('WebGLRenderingContext', class WebGLRenderingContext {});
+
+    await expect(createFigure2DistanceExpandTransition().buildTimeline(context(
+      'figure2-distance-expand',
+      'figure2-animation',
+      'figure2-proof-opening',
+      false,
+      {
+        from: fromElement as unknown as HTMLElement,
+        to: toElement as unknown as HTMLElement
+      }
+    ))).rejects.toMatchObject({
+      code: 'INK_RENDERER_RUN_FAILED',
+      failure: { reason: 'unavailable' }
+    });
+  });
+
   it('applies complementary binary masks to live Figure2 and both live Proof surfaces', async () => {
     const document = new FakeDocument();
     const stage = new FakeElement();

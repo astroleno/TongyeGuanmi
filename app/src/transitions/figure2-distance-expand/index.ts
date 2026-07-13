@@ -31,7 +31,10 @@ import {
 } from '../shared/inkField';
 import {
   createInkFieldRenderer,
+  InkRendererRunError,
   mountTransitionInkCanvas,
+  productionInkRendererRequired,
+  type InkRendererFailure,
   type InkFieldRenderer
 } from '../shared/sceneInk';
 
@@ -125,9 +128,14 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   private readonly depthMask: DepthThresholdMask | null;
   private readonly inkCanvas: HTMLCanvasElement | null;
   private readonly inkRenderer: InkFieldRenderer | null;
+  private readonly inkGeneration: string;
+  private readonly inkRendererRequired: boolean;
+  private inkRendererFailure: InkRendererFailure | null = null;
 
   constructor(private readonly context: TransitionContext) {
     const generation = `${context.runId}:${context.prepareToken}`;
+    this.inkGeneration = generation;
+    this.inkRendererRequired = productionInkRendererRequired(context.prefersReducedMotion);
     this.playbackDirection = context.direction;
     this.elevation = createTransitionLayerElevation(context.to.element);
     const fromRoot = sceneRoot(context.from.element, 'figure2-animation');
@@ -160,8 +168,18 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     });
     this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.inkCanvas, {
       grade: 'edge-only',
-      generation
+      generation,
+      onInvalidated: (failure) => {
+        this.inkRendererFailure = failure;
+      }
     });
+    if (this.inkRendererRequired && !this.inkRenderer) {
+      this.depthMask?.dispose();
+      this.elevation.restore();
+      this.inkCanvas?.remove();
+      throw this.inkRendererError();
+    }
+    this.assertInkRendererReady();
     this.inkRenderer?.prewarm(this.depthFrame(0.003, terminalTransform));
     renderProofOpeningHold(sceneRoot(context.to.element, 'figure2-proof-opening'));
     this.progress(context.direction === 1 ? 0 : 1);
@@ -179,6 +197,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     if (this.disposed) {
       throw new Error('Figure2 timeline was disposed during leg preparation');
     }
+    this.assertInkRendererReady();
     const lower = Math.min(leg.from, leg.to);
     const upper = Math.max(leg.from, leg.to);
     const epsilon = 0.001;
@@ -222,6 +241,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     if (this.disposed) {
       return;
     }
+    this.assertInkRendererReady();
     const clamped = clamp(value);
     if (clamped > this.progressValue + 0.0001) {
       this.playbackDirection = 1;
@@ -361,6 +381,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       if (this.disposed) {
         throw new Error('Figure2 depth mask became stale before commit');
       }
+      this.assertInkRendererReady();
       this.depthMask.commit();
     }
     if (!this.reportedTimelineReady) {
@@ -372,6 +393,24 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
         direction: this.context.direction,
         progress: this.progressValue
       });
+    }
+  }
+
+  private inkRendererError(): InkRendererRunError {
+    return new InkRendererRunError('figure2-distance-expand', this.inkRendererFailure ?? {
+      generation: this.inkGeneration,
+      reason: 'unavailable'
+    });
+  }
+
+  private assertInkRendererReady(): void {
+    if (!this.inkRendererRequired) {
+      return;
+    }
+    const active = this.inkRenderer?.isActive() ?? false;
+    this.inkRendererFailure ??= this.inkRenderer?.getFailure() ?? null;
+    if (!active || this.inkRendererFailure) {
+      throw this.inkRendererError();
     }
   }
 

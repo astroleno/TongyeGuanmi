@@ -6,6 +6,7 @@ import {
   disposeFigure2Media,
   figure2AnimationScene,
   figure2DirectionalMediaSnapshot,
+  parkFigure2Media,
   prepareFigure2MediaLeg,
   renderFigure2AnimationProgress,
   renderFigure2Hold,
@@ -251,6 +252,32 @@ describe('figure2-animation scene renderer', () => {
     expect(root.style.values.get('--r4-figure2-camera-scale')).toBe('1.0120');
     expect(root.retainedArch.style.values.get('--r4-figure2-near-arch-blur')).toBe('0.00px');
     expect(video.seekWrites).toHaveLength(0);
+  });
+
+  it('restores both canonical forward posters after every media surface is parked', async () => {
+    const videos = directionalVideos();
+    const root = new FakeVideoRoot(Object.values(videos));
+    const mediaRun = {
+      runId: 'figure2-hold-restore:1',
+      direction: -1 as const
+    };
+    const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
+    videos.leftReverse.presentRequestedFrame();
+    videos.rightReverse.presentRequestedFrame();
+    await preparation;
+    commitFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
+    parkFigure2Media(root as unknown as HTMLElement);
+    expect(videos.leftForward.classList.contains('is-active')).toBe(false);
+    expect(videos.rightForward.classList.contains('is-active')).toBe(false);
+
+    renderFigure2Hold(root as unknown as HTMLElement);
+
+    expect(videos.leftForward.classList.contains('is-active')).toBe(true);
+    expect(videos.rightForward.classList.contains('is-active')).toBe(true);
+    expect(videos.leftReverse.classList.contains('is-active')).toBe(false);
+    expect(videos.rightReverse.classList.contains('is-active')).toBe(false);
+    expect(videos.leftForward.currentTime).toBe(0);
+    expect(videos.rightForward.currentTime).toBe(0);
   });
 
   it('keeps both forward surfaces visible until both reverse first frames are presented', async () => {
