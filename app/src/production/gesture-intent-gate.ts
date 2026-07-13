@@ -41,7 +41,11 @@ export type GestureIntentGate = Readonly<{
 }>;
 
 const DEFAULT_COMMITMENT_VIEWPORT_FRACTION = 0.1;
-const DEFAULT_IDLE_MS = 220;
+// A wheel/trackpad gesture can arrive in slow, discrete pulses. 220ms split an
+// ordinary physical gesture before it could consume the authored 10svh band.
+// Keep lifecycle/direction resets immediate, but only classify a wheel stream
+// as a new gesture after a genuine pause.
+export const DEFAULT_GESTURE_IDLE_MS = 1_200;
 
 function directionFor(pixels: number): Direction {
   return pixels >= 0 ? 1 : -1;
@@ -59,7 +63,7 @@ export function createGestureIntentGate(options: {
     0,
     options.commitmentViewportFraction ?? DEFAULT_COMMITMENT_VIEWPORT_FRACTION
   );
-  const idleMs = Math.max(0, options.idleMs ?? DEFAULT_IDLE_MS);
+  const idleMs = Math.max(0, options.idleMs ?? DEFAULT_GESTURE_IDLE_MS);
   let scope: string | undefined;
   let direction: Direction | undefined;
   let accumulatedPixels = 0;

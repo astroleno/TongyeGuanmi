@@ -64,7 +64,7 @@ describe('production input reading handoff', () => {
       for (const listener of listeners.get('wheel') ?? []) {
         listener(wheel);
       }
-      vi.advanceTimersByTime(16);
+      vi.advanceTimersByTime(400);
     }
 
     expect(runtime.getState().state).not.toBe('hold');

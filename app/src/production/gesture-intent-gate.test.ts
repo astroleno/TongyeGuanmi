@@ -7,7 +7,7 @@ describe('production gesture intent gate', () => {
     const samples = Array.from({ length: 5 }, (_, index) => slow.consume({
       pixels: 20,
       viewportHeight: 1000,
-      now: index * 16,
+      now: index * 400,
       scope: 'hold:contact'
     }));
 
@@ -16,7 +16,7 @@ describe('production gesture intent gate', () => {
     expect(slow.consume({
       pixels: 60,
       viewportHeight: 1000,
-      now: 96,
+      now: 2_000,
       scope: 'hold:contact'
     })).toMatchObject({ fired: false, committed: true });
 
@@ -27,6 +27,26 @@ describe('production gesture intent gate', () => {
       now: 0,
       scope: 'hold:contact'
     })).toMatchObject({ fired: true, committed: true, direction: -1 });
+  });
+
+  it('keeps ordinary slow wheel pulses in one physical commitment', () => {
+    const gate = createGestureIntentGate();
+
+    for (let index = 0; index < 4; index += 1) {
+      expect(gate.consume({
+        pixels: 20,
+        viewportHeight: 1000,
+        now: index * 600,
+        scope: 'hold:method-top'
+      })).toMatchObject({ fired: false, accumulatedPixels: (index + 1) * 20 });
+    }
+
+    expect(gate.consume({
+      pixels: 20,
+      viewportHeight: 1000,
+      now: 2_400,
+      scope: 'hold:method-top'
+    })).toMatchObject({ fired: true, committed: true, accumulatedPixels: 100 });
   });
 
   it('does not fire at 9.9svh and starts a fresh budget on direction reversal', () => {
