@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
+  FIGURE2_ENDPOINT_BLEND_FRACTION,
   commitFigure2MediaLeg,
+  commitFigure2TerminalPair,
   disposeFigure2Media,
   figure2AnimationScene,
   figure2DirectionalMediaSnapshot,
+  figure2MediaBlend,
   parkFigure2Media,
   prepareFigure2MediaLeg,
+  prepareFigure2TerminalPair,
   renderFigure2AnimationProgress,
   renderFigure2Hold,
   renderFigure2ProofTransitionProgress
@@ -121,13 +125,53 @@ class FakeVideo {
   }
 }
 
+class FakeBridge {
+  readonly classList = new FakeClassList();
+  readonly dataset: Record<string, string> = {};
+  width = 0;
+  height = 0;
+  drawCalls = 0;
+
+  constructor(private readonly failCapture = false) {}
+
+  getContext(): Pick<CanvasRenderingContext2D, 'clearRect' | 'drawImage'> {
+    return {
+      clearRect: () => undefined,
+      drawImage: () => {
+        if (this.failCapture) {
+          throw new Error('capture failed');
+        }
+        this.drawCalls += 1;
+      }
+    } as Pick<CanvasRenderingContext2D, 'clearRect' | 'drawImage'>;
+  }
+}
+
 class FakeVideoRoot extends FakeElement {
-  constructor(private readonly videos: readonly FakeVideo[]) {
+  constructor(
+    private readonly videos: readonly FakeVideo[],
+    private readonly bridges: Readonly<Record<'left' | 'right', FakeBridge>> | null = null
+  ) {
     super();
   }
 
-  querySelectorAll(): readonly FakeVideo[] {
-    return this.videos;
+  querySelectorAll(selector: string): readonly FakeVideo[] {
+    return selector === '[data-figure2-video]' ? this.videos : [];
+  }
+
+  querySelector(selector: string): FakeVideo | FakeBridge | null {
+    const side = selector.match(/data-figure2-side="(left|right)"/)?.[1] as 'left' | 'right' | undefined;
+    if (!side) {
+      return null;
+    }
+    if (selector.includes('data-figure2-bridge')) {
+      return this.bridges?.[side] ?? null;
+    }
+    const direction = selector.match(/data-figure2-direction="(forward|reverse)"/)?.[1];
+    return this.videos.find((video) => (
+      video.dataset.figure2Side === side
+      && video.dataset.figure2Direction === direction
+    )) ?? null;
   }
 }
 
@@ -152,14 +196,34 @@ function directionalVideos() {
   leftReverse.dataset.figure2Direction = 'reverse';
   rightReverse.dataset.figure2Side = 'right';
   rightReverse.dataset.figure2Direction = 'reverse';
-  leftForward.classList.add('is-active');
-  rightForward.classList.add('is-active');
   leftReverse.duration = 5;
   rightReverse.duration = 5;
   return { leftForward, rightForward, leftReverse, rightReverse };
 }
 
 describe('figure2-animation scene renderer', () => {
+  it('crossfades the captured terminal and stable posters across mismatched endpoints', () => {
+    expect(figure2MediaBlend(0, 1)).toEqual({
+      posterOpacity: 1,
+      videoOpacity: 1,
+      bridgeOpacity: 0
+    });
+    expect(figure2MediaBlend(1, -1)).toEqual({
+      posterOpacity: 0,
+      videoOpacity: 1,
+      bridgeOpacity: 1
+    });
+    expect(figure2MediaBlend(0, -1)).toEqual({
+      posterOpacity: 1,
+      videoOpacity: 1,
+      bridgeOpacity: 0
+    });
+    const openingBlend = figure2MediaBlend(1 - FIGURE2_ENDPOINT_BLEND_FRACTION / 2, -1);
+    expect(openingBlend.bridgeOpacity).toBeCloseTo(0.5, 4);
+    const closingBlend = figure2MediaBlend(FIGURE2_ENDPOINT_BLEND_FRACTION / 2, -1);
+    expect(closingBlend.posterOpacity).toBeCloseTo(0.5, 4);
+  });
+
   it('separates depth-ranked architecture from the binary figure group', () => {
     const markup = renderToStaticMarkup(createElement(figure2AnimationScene.Component, {
       scene: 'figure2-animation',
@@ -256,7 +320,7 @@ describe('figure2-animation scene renderer', () => {
     expect(video.seekWrites).toHaveLength(0);
   });
 
-  it('restores both canonical forward posters after every media surface is parked', async () => {
+  it('restores both canonical poster images after every media surface is parked', async () => {
     const videos = directionalVideos();
     const root = new FakeVideoRoot(Object.values(videos));
     const mediaRun = {
@@ -274,25 +338,40 @@ describe('figure2-animation scene renderer', () => {
 
     renderFigure2Hold(root as unknown as HTMLElement);
 
-    expect(videos.leftForward.classList.contains('is-active')).toBe(true);
-    expect(videos.rightForward.classList.contains('is-active')).toBe(true);
+    expect(videos.leftForward.classList.contains('is-active')).toBe(false);
+    expect(videos.rightForward.classList.contains('is-active')).toBe(false);
     expect(videos.leftReverse.classList.contains('is-active')).toBe(false);
     expect(videos.rightReverse.classList.contains('is-active')).toBe(false);
-    expect(videos.leftForward.currentTime).toBe(0);
-    expect(videos.rightForward.currentTime).toBe(0);
+    expect(root.style.values.get('--r4-figure2-poster-opacity')).toBe('1.0000');
+    expect(root.style.values.get('--r4-figure2-video-opacity')).toBe('0.0000');
   });
 
-  it('keeps both forward surfaces visible until both reverse first frames are presented', async () => {
+  it('holds exact forward terminal frames, then bridges into both reverse first frames', async () => {
     const videos = directionalVideos();
-    const root = new FakeVideoRoot(Object.values(videos));
-    const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, {
+    const bridges = { left: new FakeBridge(), right: new FakeBridge() };
+    const root = new FakeVideoRoot(Object.values(videos), bridges);
+    const mediaRun = {
       runId: 'figure2-pair:1',
-      direction: -1,
+      direction: -1 as const,
       timelineDurationMs: 2600
-    });
+    };
+    const terminalPreparation = prepareFigure2TerminalPair(
+      root as unknown as HTMLElement,
+      mediaRun
+    );
 
+    videos.leftForward.presentRequestedFrame();
+    videos.rightForward.presentRequestedFrame();
+    await terminalPreparation;
+    commitFigure2TerminalPair(root as unknown as HTMLElement, mediaRun);
     expect(videos.leftForward.classList.contains('is-active')).toBe(true);
     expect(videos.rightForward.classList.contains('is-active')).toBe(true);
+    expect(videos.leftForward.paused).toBe(true);
+    expect(videos.rightForward.paused).toBe(true);
+    expect(videos.leftForward.currentTime).toBeGreaterThan(2.3);
+    expect(videos.rightForward.currentTime).toBeGreaterThan(2.3);
+
+    const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
     expect(videos.leftReverse.classList.contains('is-active')).toBe(false);
     expect(videos.rightReverse.classList.contains('is-active')).toBe(false);
 
@@ -320,10 +399,54 @@ describe('figure2-animation scene renderer', () => {
     expect(videos.rightReverse.classList.contains('is-active')).toBe(true);
     expect(videos.leftReverse.playCalls).toBe(1);
     expect(videos.rightReverse.playCalls).toBe(1);
+    expect(bridges.left.drawCalls).toBe(1);
+    expect(bridges.right.drawCalls).toBe(1);
+    expect(bridges.left.classList.contains('is-active')).toBe(true);
+    expect(bridges.right.classList.contains('is-active')).toBe(true);
+    expect(root.style.values.get('--r4-figure2-bridge-opacity')).toBe('1.0000');
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.96, {
+      videoMode: 'native',
+      mediaRun
+    });
+    expect(Number(root.style.values.get('--r4-figure2-bridge-opacity'))).toBeGreaterThan(0);
+    expect(Number(root.style.values.get('--r4-figure2-bridge-opacity'))).toBeLessThan(1);
     expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toMatchObject({
       activeDirection: 'reverse',
       activeRunId: 'figure2-pair:1'
     });
+    disposeFigure2Media(root as unknown as HTMLElement);
+  });
+
+  it('fails the Figure2 bridge switch atomically when either side cannot be captured', async () => {
+    const videos = directionalVideos();
+    const bridges = { left: new FakeBridge(), right: new FakeBridge(true) };
+    const root = new FakeVideoRoot(Object.values(videos), bridges);
+    const mediaRun = {
+      runId: 'figure2-atomic-bridge:1',
+      direction: -1 as const,
+      timelineDurationMs: 2600
+    };
+
+    const terminalPreparation = prepareFigure2TerminalPair(root as unknown as HTMLElement, mediaRun);
+    videos.leftForward.presentRequestedFrame();
+    videos.rightForward.presentRequestedFrame();
+    await terminalPreparation;
+    commitFigure2TerminalPair(root as unknown as HTMLElement, mediaRun);
+
+    const reversePreparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
+    videos.leftReverse.presentRequestedFrame();
+    videos.rightReverse.presentRequestedFrame();
+    await reversePreparation;
+
+    expect(() => commitFigure2MediaLeg(root as unknown as HTMLElement, mediaRun))
+      .toThrow('Figure2 terminal bridge pair capture failed');
+    expect(videos.leftForward.classList.contains('is-active')).toBe(true);
+    expect(videos.rightForward.classList.contains('is-active')).toBe(true);
+    expect(videos.leftReverse.classList.contains('is-active')).toBe(false);
+    expect(videos.rightReverse.classList.contains('is-active')).toBe(false);
+    expect(bridges.left.classList.contains('is-active')).toBe(false);
+    expect(bridges.right.classList.contains('is-active')).toBe(false);
+    expect(root.dataset.figure2BridgeRun).toBeUndefined();
     disposeFigure2Media(root as unknown as HTMLElement);
   });
 

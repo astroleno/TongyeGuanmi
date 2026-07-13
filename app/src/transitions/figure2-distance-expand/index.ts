@@ -1,9 +1,11 @@
 import {
   FIGURE2_INTRO_PLAYBACK_MS,
   commitFigure2MediaLeg,
+  commitFigure2TerminalPair,
   figure2DepthTransformForProgress,
   parkFigure2Media,
   prepareFigure2MediaLeg,
+  prepareFigure2TerminalPair,
   renderFigure2AnimationProgress,
   renderFigure2Hold
 } from '../../scenes/figure2-animation';
@@ -203,12 +205,22 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const epsilon = 0.001;
     const isIntroLeg = upper <= FIGURE2_INTRO_END + epsilon;
     const isDepthLeg = lower >= FIGURE2_INTRO_END - epsilon;
-    const needsFigureMedia = isIntroLeg || (isDepthLeg && leg.direction === -1);
 
     if (isDepthLeg) {
       await this.armDepthMask();
     }
-    if (needsFigureMedia && !this.context.prefersReducedMotion) {
+    if (!this.context.prefersReducedMotion && isDepthLeg && leg.direction === -1) {
+      await prepareFigure2TerminalPair(
+        sceneRoot(this.context.from.element, 'figure2-animation'),
+        {
+          runId: leg.runId,
+          direction: leg.direction,
+          timelineDurationMs: leg.durationMs || FIGURE2_INTRO_PLAYBACK_MS,
+          reducedMotion: this.context.prefersReducedMotion,
+          signal: leg.signal
+        }
+      );
+    } else if (!this.context.prefersReducedMotion && isIntroLeg) {
       await prepareFigure2MediaLeg(
         sceneRoot(this.context.from.element, 'figure2-animation'),
         {
@@ -228,8 +240,19 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const epsilon = 0.001;
     const isIntroLeg = upper <= FIGURE2_INTRO_END + epsilon;
     const isDepthLeg = lower >= FIGURE2_INTRO_END - epsilon;
-    const needsFigureMedia = isIntroLeg || (isDepthLeg && leg.direction === -1);
-    if (needsFigureMedia && !this.context.prefersReducedMotion) {
+    if (!this.context.prefersReducedMotion && isDepthLeg && leg.direction === -1) {
+      commitFigure2TerminalPair(
+        sceneRoot(this.context.from.element, 'figure2-animation'),
+        {
+          runId: leg.runId,
+          direction: leg.direction,
+          timelineDurationMs: leg.durationMs || FIGURE2_INTRO_PLAYBACK_MS,
+          reducedMotion: this.context.prefersReducedMotion,
+          signal: leg.signal,
+          startPlayback: false
+        }
+      );
+    } else if (!this.context.prefersReducedMotion && isIntroLeg) {
       commitFigure2MediaLeg(
         sceneRoot(this.context.from.element, 'figure2-animation'),
         {

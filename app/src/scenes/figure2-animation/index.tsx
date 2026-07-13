@@ -52,6 +52,16 @@ type Figure2RenderOptions = {
 type Figure2MediaDirection = 'forward' | 'reverse';
 type Figure2MediaSide = 'left' | 'right';
 
+export const FIGURE2_ENDPOINT_BLEND_FRACTION = 0.08;
+const FIGURE2_BRIDGE_CAPTURE_ERROR = 'Figure2 terminal bridge pair capture failed';
+const FIGURE2_ROOT_ERROR = 'Figure2 root unavailable';
+
+export type Figure2MediaBlend = Readonly<{
+  posterOpacity: number;
+  videoOpacity: number;
+  bridgeOpacity: number;
+}>;
+
 type Figure2MediaManager = {
   left: DirectionalMediaController;
   right: DirectionalMediaController;
@@ -93,6 +103,30 @@ const FIGURE2_MIDDLE_ASPECT_RATIO = 16 / 9;
 function smoothStep(value: number): number {
   const clamped = Math.min(1, Math.max(0, value));
   return clamped * clamped * (3 - 2 * clamped);
+}
+
+export function figure2MediaBlend(
+  rawProgress: number,
+  direction: 1 | -1
+): Figure2MediaBlend {
+  const progress = Math.min(1, Math.max(0, rawProgress));
+  const elapsed = direction === 1 ? progress : 1 - progress;
+  const sourceOpacity = 1 - smoothStep(elapsed / FIGURE2_ENDPOINT_BLEND_FRACTION);
+  const destinationOpacity = smoothStep(
+    (elapsed - (1 - FIGURE2_ENDPOINT_BLEND_FRACTION)) / FIGURE2_ENDPOINT_BLEND_FRACTION
+  );
+  return direction === 1
+    ? { posterOpacity: sourceOpacity, videoOpacity: 1, bridgeOpacity: 0 }
+    : { posterOpacity: destinationOpacity, videoOpacity: 1, bridgeOpacity: sourceOpacity };
+}
+
+function applyFigure2MediaBlend(
+  root: HTMLElement,
+  blend: Figure2MediaBlend
+): void {
+  root.style.setProperty('--r4-figure2-poster-opacity', blend.posterOpacity.toFixed(4));
+  root.style.setProperty('--r4-figure2-video-opacity', blend.videoOpacity.toFixed(4));
+  root.style.setProperty('--r4-figure2-bridge-opacity', blend.bridgeOpacity.toFixed(4));
 }
 
 function figure2Viewport(root: HTMLElement | null): Readonly<{ width: number; height: number }> {
@@ -188,7 +222,7 @@ function createFigure2MediaManager(root: HTMLElement): Figure2MediaManager {
   const rightForward = videoFor(videos, 'right', 'forward');
   const rightReverse = videoFor(videos, 'right', 'reverse');
   if (!leftForward || !leftReverse || !rightForward || !rightReverse) {
-    throw new Error('Figure2 directional media requires forward and reverse surfaces for both figures');
+    throw new Error('Figure2 media unavailable');
   }
   return {
     left: createDirectionalMediaController({
@@ -214,21 +248,80 @@ function managerFor(root: HTMLElement): Figure2MediaManager {
   return manager;
 }
 
-export async function prepareFigure2MediaLeg(
-  root: HTMLElement | null,
-  preparation: Figure2MediaPreparation
-): Promise<void> {
-  if (!root) {
-    throw new Error('Figure2 media root is unavailable');
+function figure2Bridge(
+  root: HTMLElement,
+  side: Figure2MediaSide
+): HTMLCanvasElement | null {
+  return root.querySelector<HTMLCanvasElement>(
+    `[data-figure2-bridge][data-figure2-side="${side}"]`
+  );
+}
+
+function figure2ForwardVideo(
+  root: HTMLElement,
+  side: Figure2MediaSide
+): HTMLVideoElement | null {
+  return root.querySelector<HTMLVideoElement>(
+    `[data-figure2-video][data-figure2-side="${side}"][data-figure2-direction="forward"]`
+  );
+}
+
+function clearFigure2Bridges(root: HTMLElement): void {
+  for (const side of ['left', 'right'] as const) {
+    const bridge = figure2Bridge(root, side);
+    bridge?.classList.remove('is-active');
+    if (bridge) {
+      delete bridge.dataset.figure2BridgeRun;
+    }
   }
+  delete root.dataset.figure2BridgeRun;
+}
+
+function captureFigure2TerminalBridges(root: HTMLElement, runId: string): void {
+  clearFigure2Bridges(root);
+  const captured: HTMLCanvasElement[] = [];
+  for (const side of ['left', 'right'] as const) {
+    const video = figure2ForwardVideo(root, side);
+    const bridge = figure2Bridge(root, side);
+    if (!video || !bridge || !video.classList.contains('is-active')) {
+      throw new Error(FIGURE2_BRIDGE_CAPTURE_ERROR);
+    }
+    const context = bridge.getContext('2d');
+    if (!context) {
+      throw new Error(FIGURE2_BRIDGE_CAPTURE_ERROR);
+    }
+    const width = video.videoWidth || 600;
+    const height = video.videoHeight || 1066;
+    try {
+      bridge.width = width;
+      bridge.height = height;
+      context.clearRect(0, 0, width, height);
+      context.drawImage(video, 0, 0, width, height);
+      captured.push(bridge);
+    } catch {
+      throw new Error(FIGURE2_BRIDGE_CAPTURE_ERROR);
+    }
+  }
+  for (const bridge of captured) {
+    bridge.classList.add('is-active');
+    bridge.dataset.figure2BridgeRun = runId;
+  }
+  root.dataset.figure2BridgeRun = runId;
+}
+
+async function prepareFigure2Pair(
+  root: HTMLElement,
+  preparation: Figure2MediaPreparation,
+  surface: Figure2MediaDirection,
+  mediaProgress: number
+): Promise<void> {
   const manager = managerFor(root);
-  const surface = surfaceForDirection(preparation.direction);
   if (manager.activeDirection === surface && manager.activeRunId === preparation.runId) {
     return;
   }
   const generation = ++manager.generation;
   delete root.dataset.figure2HoldPoster;
-  const input = mediaInput(surface, preparation, 0);
+  const input = mediaInput(surface, preparation, mediaProgress);
   const [leftResult, rightResult] = await Promise.all([
     manager.left.prepare(input),
     manager.right.prepare(input)
@@ -238,14 +331,14 @@ export async function prepareFigure2MediaLeg(
     || leftResult.status !== 'ready'
     || rightResult.status !== 'ready'
   ) {
-    throw new Error(`Figure2 ${surface} media preparation became stale`);
+    throw new Error('Figure2 media stale');
   }
 
   const leftStatus = manager.left.snapshot().surfaces[surface]?.status;
   const rightStatus = manager.right.snapshot().surfaces[surface]?.status;
   const readyStatuses = new Set(['ready', 'active', 'terminal']);
   if (!leftStatus || !rightStatus || !readyStatuses.has(leftStatus) || !readyStatuses.has(rightStatus)) {
-    throw new Error(`Figure2 ${surface} media pair is not atomically ready`);
+    throw new Error('Figure2 media pair not ready');
   }
 
   manager.prepared = {
@@ -258,21 +351,47 @@ export async function prepareFigure2MediaLeg(
   root.dataset.figure2PendingMediaRun = preparation.runId;
 }
 
-export function commitFigure2MediaLeg(
+export async function prepareFigure2MediaLeg(
   root: HTMLElement | null,
   preparation: Figure2MediaPreparation
-): void {
+): Promise<void> {
   if (!root) {
-    throw new Error('Figure2 media root is unavailable');
+    throw new Error(FIGURE2_ROOT_ERROR);
   }
-  const manager = managerFor(root);
   const surface = surfaceForDirection(preparation.direction);
+  await prepareFigure2Pair(
+    root,
+    preparation,
+    surface,
+    0
+  );
+}
+
+export async function prepareFigure2TerminalPair(
+  root: HTMLElement | null,
+  preparation: Figure2MediaPreparation
+): Promise<void> {
+  if (!root) {
+    throw new Error(FIGURE2_ROOT_ERROR);
+  }
+  await prepareFigure2Pair(root, preparation, 'forward', 1);
+}
+
+function commitFigure2Pair(
+  root: HTMLElement,
+  preparation: Figure2MediaPreparation,
+  surface: Figure2MediaDirection,
+  sceneProgress: number,
+  startPlayback: boolean
+): void {
+  const manager = managerFor(root);
   if (preparation.signal?.aborted) {
-    throw new Error(`Figure2 ${surface} media commit was aborted`);
+    throw new Error('Figure2 media commit aborted');
   }
   if (manager.activeDirection === surface && manager.activeRunId === preparation.runId) {
-    if (preparation.startPlayback !== false) {
-      manager.playbackEnabled = true;
+    manager.playbackEnabled = startPlayback;
+    applyFigure2MediaBlend(root, figure2MediaBlend(sceneProgress, preparation.direction));
+    if (startPlayback) {
       const input = mediaInput(surface, preparation, 0);
       manager.left.drive(input);
       manager.right.drive(input);
@@ -287,23 +406,54 @@ export function commitFigure2MediaLeg(
     || prepared.generation !== manager.generation
     || preparation.signal?.aborted
   ) {
-    throw new Error(`Figure2 ${surface} media is not prepared for commit`);
+    throw new Error('Figure2 media not ready');
   }
 
-  const activationInput: DirectionalMediaInput = preparation.startPlayback === false
-    ? { ...prepared.input, mode: 'timeline' }
-    : prepared.input;
+  if (surface === 'reverse' && manager.activeDirection === 'forward') {
+    captureFigure2TerminalBridges(root, preparation.runId);
+  }
+  const activationInput: DirectionalMediaInput = startPlayback
+    ? prepared.input
+    : { ...prepared.input, mode: 'timeline' };
   manager.left.activate(activationInput);
   manager.right.activate(activationInput);
   manager.activeDirection = surface;
   manager.activeRunId = preparation.runId;
-  manager.playbackEnabled = preparation.startPlayback !== false;
+  manager.playbackEnabled = startPlayback;
   delete manager.prepared;
+  applyFigure2MediaBlend(root, figure2MediaBlend(sceneProgress, preparation.direction));
   root.dataset.figure2MediaDirection = surface;
   root.dataset.figure2MediaRun = preparation.runId;
   delete root.dataset.figure2HoldPoster;
   delete root.dataset.figure2PendingMediaDirection;
   delete root.dataset.figure2PendingMediaRun;
+}
+
+export function commitFigure2MediaLeg(
+  root: HTMLElement | null,
+  preparation: Figure2MediaPreparation
+): void {
+  if (!root) {
+    throw new Error(FIGURE2_ROOT_ERROR);
+  }
+  const surface = surfaceForDirection(preparation.direction);
+  commitFigure2Pair(
+    root,
+    preparation,
+    surface,
+    preparation.direction === 1 ? 0 : 1,
+    preparation.startPlayback !== false
+  );
+}
+
+export function commitFigure2TerminalPair(
+  root: HTMLElement | null,
+  preparation: Figure2MediaPreparation
+): void {
+  if (!root) {
+    throw new Error(FIGURE2_ROOT_ERROR);
+  }
+  commitFigure2Pair(root, preparation, 'forward', 1, false);
 }
 
 export function driveFigure2MediaLeg(
@@ -347,6 +497,7 @@ export function parkFigure2Media(root: HTMLElement | null): void {
     manager.left.park(surface);
     manager.right.park(surface);
   }
+  clearFigure2Bridges(root);
   delete manager.activeDirection;
   delete manager.activeRunId;
   manager.playbackEnabled = false;
@@ -368,6 +519,7 @@ export function disposeFigure2Media(root: HTMLElement | null): void {
   delete manager.prepared;
   manager.left.dispose();
   manager.right.dispose();
+  clearFigure2Bridges(root);
   mediaManagers.delete(root);
   delete root.dataset.figure2MediaDirection;
   delete root.dataset.figure2MediaRun;
@@ -441,6 +593,12 @@ export function renderFigure2AnimationProgress(
     (root as Figure2Root).__r4Figure2Progress = clamped;
   }
   const videoMode = options.videoMode ?? 'none';
+  if (root) {
+    applyFigure2MediaBlend(
+      root,
+      figure2MediaBlend(clamped, options.mediaRun?.direction ?? 1)
+    );
+  }
   if (videoMode === 'native' && options.mediaRun) {
     driveFigure2MediaLeg(root, clamped, options.mediaRun);
   }
@@ -467,21 +625,7 @@ export function renderFigure2Hold(root: HTMLElement | null): void {
     return;
   }
   parkFigure2Media(root);
-  const videos = [...root.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')];
-  for (const video of videos) {
-    const isForward = video.dataset.figure2Direction === 'forward';
-    video.pause();
-    if (isForward) {
-      video.classList.add('is-active');
-      try {
-        video.currentTime = 0;
-      } catch {
-        // The authored poster remains the canonical hold if the browser refuses the seek.
-      }
-    } else {
-      video.classList.remove('is-active');
-    }
-  }
+  applyFigure2MediaBlend(root, { posterOpacity: 1, videoOpacity: 0, bridgeOpacity: 0 });
   root.dataset.figure2HoldPoster = 'true';
 }
 
@@ -538,12 +682,21 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
             <div className="r4-figure2__people-contact-shadow" aria-hidden="true" />
             <figure className="r4-figure2__figure r4-figure2__figure--left">
               <div className="r4-figure2__media-stack">
+                <img
+                  className="r4-figure2__poster"
+                  data-figure2-poster
+                  data-figure2-side="left"
+                  src={LEFT_POSTER}
+                  alt=""
+                  aria-hidden="true"
+                  decoding="async"
+                />
                 <video
                   ref={(element) => {
                     leftVideoRef.current = element;
                     registerHandle?.('left-video', element);
                   }}
-                  className="r4-figure2__video is-active"
+                  className="r4-figure2__video"
                   data-figure2-video
                   data-figure2-side="left"
                   data-figure2-direction="forward"
@@ -553,6 +706,12 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
                   muted
                   playsInline
                   preload="metadata"
+                  aria-hidden="true"
+                />
+                <canvas
+                  className="r4-figure2__bridge"
+                  data-figure2-bridge
+                  data-figure2-side="left"
                   aria-hidden="true"
                 />
                 <video
@@ -577,12 +736,21 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
             </figure>
             <figure className="r4-figure2__figure r4-figure2__figure--right">
               <div className="r4-figure2__media-stack">
+                <img
+                  className="r4-figure2__poster"
+                  data-figure2-poster
+                  data-figure2-side="right"
+                  src={RIGHT_POSTER}
+                  alt=""
+                  aria-hidden="true"
+                  decoding="async"
+                />
                 <video
                   ref={(element) => {
                     rightVideoRef.current = element;
                     registerHandle?.('right-video', element);
                   }}
-                  className="r4-figure2__video is-active"
+                  className="r4-figure2__video"
                   data-figure2-video
                   data-figure2-side="right"
                   data-figure2-direction="forward"
@@ -592,6 +760,12 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
                   muted
                   playsInline
                   preload="metadata"
+                  aria-hidden="true"
+                />
+                <canvas
+                  className="r4-figure2__bridge"
+                  data-figure2-bridge
+                  data-figure2-side="right"
                   aria-hidden="true"
                 />
                 <video

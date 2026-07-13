@@ -202,8 +202,8 @@ test.describe('R4 group1 canonical spine harness', () => {
     const initialVisual = await visualSnapshot(page);
     expect(initialVisual.heroVideoLoop).toBe(false);
     expect(initialVisual.heroVideoAutoplay).toBe(false);
-    expect(initialVisual.heroVideoPaused).toBe(false);
-    expect(initialVisual.heroVideoCurrentTime ?? 0).toBeGreaterThanOrEqual(0.3);
+    expect(initialVisual.heroVideoPaused).toBe(true);
+    expect(initialVisual.heroVideoCurrentTime ?? 0).toBeGreaterThan(2.25);
 
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubHeroPattern(0.2);
@@ -387,6 +387,39 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(frame.window.current).toBe('pattern');
     expect(frame.visibleCount).toBe(1);
     expect(frame.interactableCount).toBe(1);
+  });
+
+  test('prepositions the hidden prev Hero terminal before Pattern reverses into it', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto('/harness/r4-g1-hero-pattern');
+    await expect(page.getByTestId('r2-stage')).toBeVisible();
+
+    await page.evaluate(() => { void window.__r4Group1?.playForward(); });
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('pattern');
+    const prepared = await page.evaluate(() => {
+      const layer = document.querySelector<HTMLElement>('[data-stage-layer="hero"]');
+      const video = layer?.querySelector<HTMLVideoElement>('[data-hero-figure-video]');
+      return {
+        role: layer?.dataset.role,
+        visible: layer?.dataset.visible,
+        paused: video?.paused,
+        currentTime: video?.currentTime ?? 0
+      };
+    });
+    expect(prepared).toMatchObject({ role: 'prev', visible: 'false', paused: true });
+    expect(prepared.currentTime).toBeGreaterThan(2.25);
+
+    await page.evaluate(() => { void window.__r4Group1?.playReverse(); });
+    for (let index = 0; index < 8; index += 1) {
+      await page.waitForTimeout(30);
+      const video = await visualSnapshot(page);
+      expect(video.heroVideoPaused).toBe(true);
+      expect(video.heroVideoCurrentTime ?? 0).toBeGreaterThan(2.25);
+    }
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('hero');
+    const landed = await visualSnapshot(page);
+    expect(landed.heroVideoPaused).toBe(true);
+    expect(landed.heroVideoCurrentTime ?? 0).toBeGreaterThan(2.25);
   });
 
   test('keeps Pattern and Star hold motion active and prevents overscroll pixel exposure', async ({ page }) => {

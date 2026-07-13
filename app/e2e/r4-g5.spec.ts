@@ -51,6 +51,7 @@ type Group5VisualSnapshot = {
   ttgBgTransform: string;
   ttgFigureTransform: string;
   ttgVideos: readonly { loop: boolean; paused: boolean; currentTime: number; active: boolean }[];
+  ttgStartActive: boolean;
   ttgTerminalActive: boolean;
   ttgActiveSurface: string | undefined;
   ttgPlaybackDirection: string | undefined;
@@ -72,6 +73,7 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
     const ttgRoot = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
     const bgLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--bg');
     const figureLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--figure.is-active');
+    const startLayer = document.querySelector<HTMLElement>('[data-ttg-figure-start]');
     const terminalLayer = document.querySelector<HTMLElement>('[data-ttg-figure-terminal]');
     const labRoot = document.querySelector<HTMLElement>('[data-r4-scene="lab"]');
     const labWide = document.querySelector<HTMLElement>('.r4-lab__wide');
@@ -98,6 +100,7 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
         currentTime: video.currentTime,
         active: video.classList.contains('is-active')
       })),
+      ttgStartActive: startLayer?.classList.contains('is-active') ?? false,
       ttgTerminalActive: terminalLayer?.classList.contains('is-active') ?? false,
       ttgActiveSurface: ttgRoot?.dataset.ttgActiveSurface,
       ttgPlaybackDirection: ttgRoot?.dataset.ttgPlaybackDirection,
@@ -399,6 +402,7 @@ test.describe('R4 group5 services ttg lab harness', () => {
       const visual = await visualSnapshot(page);
       expect(
         visual.ttgVideos.filter((video) => video.active).length
+          + Number(visual.ttgStartActive)
           + Number(visual.ttgTerminalActive)
       ).toBe(1);
       sawNativeReverse ||= visual.ttgPlaybackDirection === '-1'
@@ -414,10 +418,8 @@ test.describe('R4 group5 services ttg lab harness', () => {
     ).toBe('hold');
     const restored = await visualSnapshot(page);
     expect(restored.ttgProgress).toBe(0);
-    expect(restored.ttgVideos.filter((video) => video.active)).toHaveLength(1);
-    expect(restored.ttgVideos[0]?.active).toBe(true);
-    expect(restored.ttgVideos[0]?.currentTime ?? 1).toBeLessThan(0.08);
-    expect(restored.ttgVideos[1]?.active).toBe(false);
+    expect(restored.ttgStartActive).toBe(true);
+    expect(restored.ttgVideos.filter((video) => video.active)).toHaveLength(0);
   });
 
   test('covers reduced motion and 0 to 1 to 0 to 1 replay', async ({ page }) => {

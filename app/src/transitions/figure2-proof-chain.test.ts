@@ -239,6 +239,21 @@ class FakeCanvas extends FakeElement {
   }
 }
 
+class FakeBridgeCanvas extends FakeElement {
+  width = 0;
+  height = 0;
+  drawCalls = 0;
+
+  getContext(): Pick<CanvasRenderingContext2D, 'clearRect' | 'drawImage'> {
+    return {
+      clearRect: () => undefined,
+      drawImage: () => {
+        this.drawCalls += 1;
+      }
+    } as Pick<CanvasRenderingContext2D, 'clearRect' | 'drawImage'>;
+  }
+}
+
 class FakeDocument {
   createElement(): FakeCanvas {
     const canvas = new FakeCanvas();
@@ -375,6 +390,8 @@ describe('figure2 proof chain transitions', () => {
     expect(markup).toContain('data-media-key="figure2-right-alpha-reverse"');
     expect(markup).toContain('figure2a-alpha.webm');
     expect(markup).toContain('figure2b-alpha.webm');
+    expect(markup.match(/data-figure2-poster=/g)).toHaveLength(2);
+    expect(markup.match(/data-figure2-bridge=/g)).toHaveLength(2);
     expect(markup).not.toContain('figure2a-alpha-reverse-lite.webm');
     expect(markup).not.toContain('figure2b-alpha-reverse-lite.webm');
   });
@@ -425,7 +442,7 @@ describe('figure2 proof chain transitions', () => {
     expect(toElement.style.clipPath).not.toContain('inset(');
     const inkCanvas = stage.children.find((child) => child.dataset.r4InkSegment === 'figure2-proof-brand');
     expect(toElement.dataset.r4InkBoundaryKind).toBe('horizontal');
-    expect(toElement.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v1-/);
+    expect(toElement.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v2-/);
     expect(inkCanvas?.dataset.r4InkBoundaryRevision).toBe(toElement.dataset.r4InkBoundaryRevision);
     expect(retainedArch.dataset.r4InkBoundaryRevision).toBe(toElement.dataset.r4InkBoundaryRevision);
     expect(retainedArch.dataset.r4InkContourThreshold).toBe(toElement.dataset.r4InkContourThreshold);
@@ -777,7 +794,7 @@ describe('figure2 proof chain transitions', () => {
     expect(FIGURE2_INTRO_PLAYBACK_MS).toBe(2600);
   });
 
-  it('holds the reverse terminal pair through reverse depth Ink and reuses it for intro playback', async () => {
+  it('holds exact forward terminals through reverse depth Ink and bridges into reverse playback', async () => {
     const document = new FakeDocument();
     const stage = new FakeElement();
     const fromElement = new FakeElement();
@@ -787,6 +804,8 @@ describe('figure2 proof chain transitions', () => {
     const rightForward = new FakeVideo();
     const leftReverse = new FakeVideo();
     const rightReverse = new FakeVideo();
+    const leftBridge = new FakeBridgeCanvas();
+    const rightBridge = new FakeBridgeCanvas();
     leftForward.dataset.figure2Side = 'left';
     leftForward.dataset.figure2Direction = 'forward';
     rightForward.dataset.figure2Side = 'right';
@@ -802,6 +821,8 @@ describe('figure2 proof chain transitions', () => {
     for (const video of [leftForward, rightForward, leftReverse, rightReverse]) {
       video.ownerDocument = document;
     }
+    leftBridge.ownerDocument = document;
+    rightBridge.ownerDocument = document;
     stage.append(fromElement, toElement);
     fromElement.connect(
       '[data-r4-scene="figure2-animation"], [data-r3-scene="figure2-animation"]',
@@ -813,6 +834,22 @@ describe('figure2 proof chain transitions', () => {
       leftReverse,
       rightReverse
     ]);
+    fromRoot.connect(
+      '[data-figure2-video][data-figure2-side="left"][data-figure2-direction="forward"]',
+      leftForward
+    );
+    fromRoot.connect(
+      '[data-figure2-video][data-figure2-side="right"][data-figure2-direction="forward"]',
+      rightForward
+    );
+    fromRoot.connect(
+      '[data-figure2-bridge][data-figure2-side="left"]',
+      leftBridge
+    );
+    fromRoot.connect(
+      '[data-figure2-bridge][data-figure2-side="right"]',
+      rightBridge
+    );
     vi.stubGlobal('document', document);
     const reverseContext = context(
       'figure2-distance-expand',
@@ -843,35 +880,35 @@ describe('figure2 proof chain transitions', () => {
 
     expect(leftForward.classList.contains('is-active')).toBe(false);
     expect(rightForward.classList.contains('is-active')).toBe(false);
-    leftReverse.presentRequestedFrame();
+    leftForward.presentRequestedFrame();
     await Promise.resolve();
     expect(leftReverse.classList.contains('is-active')).toBe(false);
     expect(rightReverse.classList.contains('is-active')).toBe(false);
 
-    rightReverse.presentRequestedFrame();
+    rightForward.presentRequestedFrame();
     await depthPreparation;
     expect(leftReverse.classList.contains('is-active')).toBe(false);
     expect(rightReverse.classList.contains('is-active')).toBe(false);
 
     timeline.commitLeg?.(depthLeg);
-    expect(leftForward.classList.contains('is-active')).toBe(false);
-    expect(rightForward.classList.contains('is-active')).toBe(false);
-    expect(leftReverse.classList.contains('is-active')).toBe(true);
-    expect(rightReverse.classList.contains('is-active')).toBe(true);
-    expect(leftReverse.paused).toBe(true);
-    expect(rightReverse.paused).toBe(true);
-    expect(leftReverse.playCalls).toBe(0);
-    expect(rightReverse.playCalls).toBe(0);
-    expect(leftReverse.currentTime).toBeLessThan(0.1);
-    expect(rightReverse.currentTime).toBeLessThan(0.1);
+    expect(leftForward.classList.contains('is-active')).toBe(true);
+    expect(rightForward.classList.contains('is-active')).toBe(true);
+    expect(leftReverse.classList.contains('is-active')).toBe(false);
+    expect(rightReverse.classList.contains('is-active')).toBe(false);
+    expect(leftForward.paused).toBe(true);
+    expect(rightForward.paused).toBe(true);
+    expect(leftForward.playCalls).toBe(0);
+    expect(rightForward.playCalls).toBe(0);
+    expect(leftForward.currentTime).toBeGreaterThan(4.9);
+    expect(rightForward.currentTime).toBeGreaterThan(4.9);
 
     timeline.progress(0.9);
     timeline.progress(0.8);
     timeline.progress(FIGURE2_INTRO_END);
-    expect(leftReverse.classList.contains('is-active')).toBe(true);
-    expect(rightReverse.classList.contains('is-active')).toBe(true);
-    expect(leftReverse.paused).toBe(true);
-    expect(rightReverse.paused).toBe(true);
+    expect(leftForward.classList.contains('is-active')).toBe(true);
+    expect(rightForward.classList.contains('is-active')).toBe(true);
+    expect(leftForward.paused).toBe(true);
+    expect(rightForward.paused).toBe(true);
 
     const introLeg = {
       ...depthLeg,
@@ -880,8 +917,22 @@ describe('figure2 proof chain transitions', () => {
       to: 0,
       durationMs: FIGURE2_INTRO_PLAYBACK_MS
     };
-    await timeline.prepareLeg?.(introLeg);
+    const introPreparation = timeline.prepareLeg?.(introLeg);
+    leftReverse.presentRequestedFrame();
+    rightReverse.presentRequestedFrame();
+    await introPreparation;
+    expect(leftForward.classList.contains('is-active')).toBe(true);
+    expect(rightForward.classList.contains('is-active')).toBe(true);
     timeline.commitLeg?.(introLeg);
+    expect(leftForward.classList.contains('is-active')).toBe(false);
+    expect(rightForward.classList.contains('is-active')).toBe(false);
+    expect(leftReverse.classList.contains('is-active')).toBe(true);
+    expect(rightReverse.classList.contains('is-active')).toBe(true);
+    expect(leftBridge.drawCalls).toBe(1);
+    expect(rightBridge.drawCalls).toBe(1);
+    expect(leftBridge.classList.contains('is-active')).toBe(true);
+    expect(rightBridge.classList.contains('is-active')).toBe(true);
+    expect(fromRoot.style.getPropertyValue('--r4-figure2-bridge-opacity')).toBe('1.0000');
     const leftSeekCount = leftReverse.currentTimeWrites.length;
     const rightSeekCount = rightReverse.currentTimeWrites.length;
 
@@ -902,8 +953,9 @@ describe('figure2 proof chain transitions', () => {
     timeline.progress(0);
     timeline.dispose();
     expect(fromRoot.dataset.figure2HoldPoster).toBe('true');
-    expect(leftForward.classList.contains('is-active')).toBe(true);
-    expect(rightForward.classList.contains('is-active')).toBe(true);
+    expect(fromRoot.style.getPropertyValue('--r4-figure2-poster-opacity')).toBe('1.0000');
+    expect(leftForward.classList.contains('is-active')).toBe(false);
+    expect(rightForward.classList.contains('is-active')).toBe(false);
     expect(leftReverse.classList.contains('is-active')).toBe(false);
     expect(rightReverse.classList.contains('is-active')).toBe(false);
     disposeFigure2Media(fromRoot as unknown as HTMLElement);

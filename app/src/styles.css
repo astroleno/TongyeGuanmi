@@ -7,9 +7,9 @@
 }
 
 :root {
-  --font-title: "Tongye Title", "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  --font-sans: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
-  --font-traditional: ui-serif, "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+  --font-title: "Tongye Title", "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-sans: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-traditional: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
   color: #1d1b16;
   background: #f8f7f2;
   font-family: var(--font-sans);
@@ -966,11 +966,8 @@ pre {
 
 .r4-hero-scene {
   --r4-hero-progress: 1;
-  --r4-hero-back-opacity: .86;
-  --r4-hero-middle-opacity: 1;
-  --r4-hero-figure-opacity: 1;
-  --r4-hero-content-opacity: 1;
-  --r4-hero-exit-lift: 0px;
+  --r4-hero-middle-intro: 1;
+  --r4-hero-figure-intro: 1;
   --r4-hero-back-parallax-x: 0px;
   --r4-hero-back-parallax-y: 0px;
   --r4-hero-middle-parallax-x: 0px;
@@ -990,7 +987,8 @@ pre {
 .r4-hero-scene__stage,
 .r4-hero-scene__back,
 .r4-hero-scene__middle,
-.r4-hero-scene__figure {
+.r4-hero-scene__figure,
+.r4-hero-scene__intro-ink {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -1018,30 +1016,44 @@ pre {
   z-index: 0;
   width: 112%;
   height: 112%;
-  opacity: var(--r4-hero-back-opacity);
-  filter: blur(calc(10px * (1 - var(--r4-hero-progress)))) saturate(.94) contrast(.97) brightness(.58);
+  opacity: 1;
+  filter: blur(calc(1.15px + 6.2px * (1 - var(--r4-hero-progress)))) saturate(.99) contrast(.99) brightness(calc(.20 + .44 * var(--r4-hero-progress)));
   transform: translate3d(
     calc(-50% + var(--r4-hero-back-parallax-x)),
-    calc(-52% + var(--r4-hero-back-parallax-y) + var(--r4-hero-exit-lift) * -0.26),
+    calc(-50% + var(--r4-hero-back-parallax-y)),
     0
-  ) scale(calc(1.08 + var(--r4-hero-progress) * .08));
+  ) scale(1.10);
+}
+
+.r4-hero-scene__intro-ink {
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateZ(0);
+  will-change: opacity, filter;
+}
+
+.r4-hero-scene__intro-ink[data-hero-intro-ink-active="true"] {
+  opacity: 1;
+  visibility: visible;
 }
 
 .r4-hero-scene__middle {
-  z-index: 1;
+  z-index: 2;
   width: max(122vw, 168vh);
   height: auto;
-  opacity: var(--r4-hero-middle-opacity);
-  filter: blur(calc(18px * (1 - var(--r4-hero-progress)))) saturate(1.02) contrast(1.02) brightness(1.06);
+  opacity: 1;
+  filter: blur(calc(.15px + 18px * (1 - var(--r4-hero-middle-intro)))) saturate(1.02) contrast(1.02) brightness(1.06);
   transform: translate3d(
-    calc(-50% + var(--r4-hero-middle-parallax-x)),
-    calc(-50% + 8svh + var(--r4-hero-middle-parallax-y) + var(--r4-hero-exit-lift)),
+    calc(-50% + var(--r4-hero-middle-parallax-x) - 1.8vw * (1 - var(--r4-hero-middle-intro))),
+    calc(-50% + 1svh + var(--r4-hero-middle-parallax-y) + 54svh * (1 - var(--r4-hero-middle-intro))),
     0
-  ) scale(calc(.92 + var(--r4-hero-progress) * .16));
+  ) scale(calc(.98 + .135 * (1 - var(--r4-hero-middle-intro))));
 }
 
 .r4-hero-scene__middle--depth {
-  z-index: 2;
+  z-index: 3;
   opacity: calc(var(--r4-hero-progress) * .26);
   filter: blur(7px) saturate(1.06) contrast(1.03) brightness(1.12);
   -webkit-mask-size: 100% 100%;
@@ -1055,14 +1067,14 @@ pre {
   z-index: 4;
   width: auto;
   height: min(88svh, 980px);
-  opacity: var(--r4-hero-figure-opacity);
+  opacity: 1;
   object-fit: contain;
-  filter: blur(calc(20px * (1 - var(--r4-hero-progress)))) brightness(1.18) saturate(1.08) contrast(1.03);
+  filter: blur(calc(20px * (1 - var(--r4-hero-figure-intro)))) brightness(1.18) saturate(1.08) contrast(1.03);
   transform: translate3d(
-    calc(-50% + var(--r4-hero-figure-parallax-x)),
-    calc(-50% + 12svh + var(--r4-hero-figure-parallax-y) - var(--r4-hero-exit-lift) * .18),
+    calc(-50% + var(--r4-hero-figure-parallax-x) + 2.8vw * (1 - var(--r4-hero-figure-intro))),
+    calc(-50% + 12svh + var(--r4-hero-figure-parallax-y) + 64svh * (1 - var(--r4-hero-figure-intro))),
     0
-  ) scale(calc(.98 + var(--r4-hero-progress) * .05));
+  ) scale(calc(1 + .12 * (1 - var(--r4-hero-figure-intro))));
   -webkit-mask-image:
     linear-gradient(90deg, transparent 0, #000 2.4%, #000 97.6%, transparent 100%),
     linear-gradient(180deg, transparent 0, #000 1.6%, #000 98.4%, transparent 100%);
@@ -1087,14 +1099,14 @@ pre {
 .r4-hero-scene__content {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 1;
   display: grid;
   align-content: start;
   justify-items: center;
   width: 100%;
   padding: 17svh 7vw 0;
-  opacity: var(--r4-hero-content-opacity);
-  transform: translate3d(0, calc(var(--r4-hero-exit-lift) * .22), 0);
+  opacity: 1;
+  transform: translateZ(0);
   pointer-events: none;
 }
 
@@ -1694,18 +1706,38 @@ pre {
   aspect-ratio: 600 / 1066;
 }
 
-.r4-figure2__figure video {
+.r4-figure2__video,
+.r4-figure2__poster,
+.r4-figure2__bridge {
   grid-area: 1 / 1;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
-  opacity: 0;
+  pointer-events: none;
   filter: brightness(1.03) contrast(1.16) saturate(1.10) drop-shadow(0 10px 8px rgba(40, 30, 20, .22));
 }
 
-.r4-figure2__figure video.is-active {
-  opacity: 1;
+.r4-figure2__video {
+  opacity: 0;
+}
+
+.r4-figure2__video.is-active {
+  opacity: var(--r4-figure2-video-opacity, 1);
+}
+
+.r4-figure2__poster {
+  z-index: 3;
+  opacity: var(--r4-figure2-poster-opacity, 1);
+}
+
+.r4-figure2__bridge {
+  z-index: 2;
+  opacity: 0;
+}
+
+.r4-figure2__bridge.is-active {
+  opacity: var(--r4-figure2-bridge-opacity, 0);
 }
 
 .r4-figure2__figure figcaption {
@@ -2618,8 +2650,20 @@ pre {
   transform: translate3d(-50%, calc(-50% + var(--ttg-figure-y)), 0) scale(var(--ttg-figure-scale));
 }
 
-.r4-ttg-animation .ttg-layer--figure.is-active {
-  opacity: 1;
+.r4-ttg-animation video.ttg-layer--figure.is-active {
+  opacity: var(--ttg-figure-video-opacity, 1);
+}
+
+.r4-ttg-animation .ttg-layer--figure-terminal {
+  z-index: 5;
+  opacity: var(--ttg-figure-terminal-opacity, 0);
+  pointer-events: none;
+}
+
+.r4-ttg-animation .ttg-layer--figure-start {
+  z-index: 5;
+  opacity: var(--ttg-figure-start-opacity, 1);
+  pointer-events: none;
 }
 
 .r4-lab {

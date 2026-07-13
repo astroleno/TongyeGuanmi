@@ -1,6 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { TextReveal, TextRevealItem } from '../../components/TextReveal';
-import type { SceneComponentProps, SceneModule } from '../../story/types';
+import type {
+  HeroIntroMode,
+  SceneComponentProps,
+  SceneModule,
+  StageLayerRole
+} from '../../story/types';
+import { createInkFieldFrame } from '../../transitions/shared/inkField';
+import {
+  createInkFieldRenderer,
+  type InkFieldRenderer
+} from '../../transitions/shared/sceneInk';
 import { attachHeroParallax, sampleHeroIntro, startHeroIntro, type HeroIntroSample } from './motion';
 
 const HERO_BACK_IMAGE = new URL('../../../../assets/back1.png', import.meta.url).href;
@@ -11,7 +21,11 @@ const HERO_FIGURE_POSTER = new URL('../../../../assets/figure-poster.jpg', impor
 const HERO_VIDEO_SEGMENT_SECONDS = 2;
 const HERO_VIDEO_START_SECONDS = 0.34;
 const HERO_VIDEO_END_EPSILON = 0.08;
-const HERO_PRELOAD_OPACITY = 0.001;
+const HERO_INTRO_INK_SPEC = {
+  kind: 'radial' as const,
+  origin: { x: 0.5, y: 0.5 },
+  seed: 'hero-intro'
+};
 
 export const HERO_COPY = [
   '同',
@@ -23,19 +37,15 @@ export const HERO_COPY = [
 
 export type HeroRenderState = {
   progress: number;
-  backOpacity: number;
-  middleOpacity: number;
-  figureOpacity: number;
-  contentOpacity: number;
-  exitLift: number;
 };
 
 type HeroVideoElement = HTMLVideoElement & {
-  __r4HeroActive?: boolean;
-  __r4HeroBoundaryBound?: boolean;
+  __r4HeroEndpointHeld?: boolean;
   __r4HeroPendingTime?: number;
   __r4HeroMetadataBound?: boolean;
 };
+
+export type HeroVideoPlaybackState = 'inactive' | 'start' | 'terminal';
 
 function heroVideoBounds(video: HTMLVideoElement): { start: number; end: number } {
   const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 5.04;
@@ -59,9 +69,7 @@ function bindHeroMetadataResync(video: HeroVideoElement): void {
     } catch {
       // Browsers can reject a seek until the first seekable range is ready.
     }
-    if (video.__r4HeroActive) {
-      void video.play().catch(() => undefined);
-    }
+    video.pause();
   });
 }
 
@@ -73,59 +81,72 @@ function configureHeroVideo(video: HTMLVideoElement): void {
   video.playbackRate = 1;
 }
 
-function bindHeroPlaybackBoundary(video: HeroVideoElement): void {
-  if (video.__r4HeroBoundaryBound) {
-    return;
+function seekHeroVideo(video: HeroVideoElement, time: number): void {
+  video.__r4HeroPendingTime = time;
+  try {
+    video.currentTime = time;
+  } catch {
+    // loadedmetadata applies the pending time once the first seekable range exists.
   }
-  video.__r4HeroBoundaryBound = true;
-  video.addEventListener('timeupdate', () => {
-    const { end } = heroVideoBounds(video);
-    if (video.currentTime < end - 0.015) {
-      return;
-    }
-    video.currentTime = end;
-    video.pause();
-  });
 }
 
-export function setHeroPlaybackActive(element: HTMLVideoElement, active: boolean): void {
+export function setHeroVideoPlaybackState(
+  element: HTMLVideoElement,
+  state: HeroVideoPlaybackState
+): void {
   const video = element as HeroVideoElement;
   configureHeroVideo(video);
   bindHeroMetadataResync(video);
-  bindHeroPlaybackBoundary(video);
-  video.__r4HeroActive = active;
-  if (!active) {
-    video.pause();
+  video.pause();
+  const { start, end } = heroVideoBounds(video);
+
+  if (state === 'start') {
+    video.__r4HeroEndpointHeld = false;
+    seekHeroVideo(video, start);
     return;
   }
-
-  const { start } = heroVideoBounds(video);
-  video.__r4HeroPendingTime = start;
-  try {
-    video.currentTime = start;
-  } catch {
-    // loadedmetadata starts native playback once the first seekable range exists.
+  if (state === 'terminal') {
+    video.__r4HeroEndpointHeld = true;
+    seekHeroVideo(video, end);
   }
-  void video.play().catch(() => undefined);
+}
+
+export function heroVideoPlaybackStateForPresentation(options: Readonly<{
+  hidden: boolean;
+  role: StageLayerRole | undefined;
+  introMode: HeroIntroMode;
+  endpointHeld: boolean;
+}>): HeroVideoPlaybackState {
+  if (options.role === 'prev') {
+    return 'terminal';
+  }
+  if (options.hidden || (options.role !== undefined && options.role !== 'current')) {
+    return 'inactive';
+  }
+  if (options.introMode === 'waiting' || options.introMode === 'running') {
+    return 'start';
+  }
+  if (options.introMode === 'complete') {
+    return options.endpointHeld ? 'terminal' : 'start';
+  }
+  return 'terminal';
+}
+
+function range01(value: number, start: number, end: number): number {
+  return Math.min(1, Math.max(0, (value - start) / (end - start)));
 }
 
 export function renderHeroProgress(root: HTMLElement | null, progress: number): HeroRenderState {
   const clamped = Math.min(1, Math.max(0, progress));
-  const eased = clamped * clamped * (3 - 2 * clamped);
-  const backOpacity = 0.08 + eased * 0.78;
-  const middleOpacity = HERO_PRELOAD_OPACITY + eased * (1 - HERO_PRELOAD_OPACITY);
-  const figureOpacity = HERO_PRELOAD_OPACITY + eased * (1 - HERO_PRELOAD_OPACITY);
-  const contentOpacity = Math.min(1, Math.max(0, (clamped - 0.42) / 0.58));
-  const exitLift = (1 - eased) * 42;
+  const smoothStep = (value: number) => value * value * (3 - 2 * value);
+  const middleIntro = smoothStep(range01(clamped, 0, 0.92));
+  const figureIntro = smoothStep(range01(clamped, 0.02, 0.96));
 
   root?.style.setProperty('--r4-hero-progress', clamped.toFixed(4));
-  root?.style.setProperty('--r4-hero-back-opacity', backOpacity.toFixed(4));
-  root?.style.setProperty('--r4-hero-middle-opacity', middleOpacity.toFixed(4));
-  root?.style.setProperty('--r4-hero-figure-opacity', figureOpacity.toFixed(4));
-  root?.style.setProperty('--r4-hero-content-opacity', contentOpacity.toFixed(4));
-  root?.style.setProperty('--r4-hero-exit-lift', `${exitLift.toFixed(2)}px`);
+  root?.style.setProperty('--r4-hero-middle-intro', middleIntro.toFixed(4));
+  root?.style.setProperty('--r4-hero-figure-intro', figureIntro.toFixed(4));
   root?.setAttribute('data-hero-progress', clamped.toFixed(4));
-  return { progress: clamped, backOpacity, middleOpacity, figureOpacity, contentOpacity, exitLift };
+  return { progress: clamped };
 }
 
 export function renderHeroHold(root: HTMLElement | null): void {
@@ -134,7 +155,11 @@ export function renderHeroHold(root: HTMLElement | null): void {
 
 function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const backRef = useRef<HTMLImageElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const introInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const introInkRendererRef = useRef<InkFieldRenderer | null>(null);
+  const introProgressRef = useRef(1);
   const introMode = presentation?.heroIntroMode ?? 'endpoint';
   const reducedMotion = presentation?.reducedMotion ?? false;
   const [titleActive, setTitleActive] = useState(
@@ -143,7 +168,25 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
 
   const renderIntroSample = useCallback((sample: HeroIntroSample) => {
     const root = rootRef.current;
+    introProgressRef.current = sample.progress;
     renderHeroProgress(root, sample.progress);
+    const canvas = introInkCanvasRef.current;
+    const back = backRef.current;
+    if (root && canvas && back) {
+      const frame = createInkFieldFrame(HERO_INTRO_INK_SPEC, sample.progress, {
+        width: root.clientWidth || window.innerWidth,
+        height: root.clientHeight || window.innerHeight
+      });
+      introInkRendererRef.current?.render(frame);
+      if (frame.ownership.revealClip && sample.progress < 0.999) {
+        back.style.clipPath = frame.ownership.revealClip;
+        back.style.setProperty('-webkit-clip-path', frame.ownership.revealClip);
+      } else {
+        back.style.removeProperty('clip-path');
+        back.style.removeProperty('-webkit-clip-path');
+      }
+      canvas.dataset.heroIntroInkActive = String(sample.progress > 0.002 && sample.progress < 0.999);
+    }
     root?.setAttribute('data-hero-intro-state', sample.complete ? 'complete' : 'running');
     root?.setAttribute('data-hero-title-active', String(sample.titleActive));
   }, []);
@@ -158,6 +201,28 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
     renderIntroSample(sample);
     element.setAttribute('data-hero-intro-state', introMode);
   }, [introMode, renderIntroSample, role]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const canvas = introInkCanvasRef.current;
+    const back = backRef.current;
+    if (!root || !canvas || !back || reducedMotion) {
+      return;
+    }
+    const renderer = createInkFieldRenderer(canvas, {
+      grade: 'dark',
+      generation: 'hero-intro',
+      removeCanvasOnDestroy: false
+    });
+    introInkRendererRef.current = renderer;
+    renderIntroSample(sampleHeroIntro(introProgressRef.current));
+    return () => {
+      introInkRendererRef.current = null;
+      renderer?.destroy();
+      back.style.removeProperty('clip-path');
+      back.style.removeProperty('-webkit-clip-path');
+    };
+  }, [reducedMotion, renderIntroSample]);
 
   useEffect(() => {
     if (role !== 'current') {
@@ -194,19 +259,39 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
     return attachHeroParallax(root);
   }, [hidden, introMode, reducedMotion, role]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const video = videoRef.current;
     if (!video) {
       return;
     }
-    setHeroPlaybackActive(video, !hidden);
-    return () => setHeroPlaybackActive(video, false);
-  }, [hidden]);
+    const playbackState = heroVideoPlaybackStateForPresentation({
+      hidden,
+      role,
+      introMode,
+      endpointHeld: Boolean((video as HeroVideoElement).__r4HeroEndpointHeld)
+    });
+    setHeroVideoPlaybackState(video, playbackState);
+  }, [hidden, introMode, role]);
+
+  useEffect(() => () => {
+    if (videoRef.current) {
+      setHeroVideoPlaybackState(videoRef.current, 'inactive');
+    }
+  }, []);
 
   return (
     <article ref={registerRoot} className="r4-hero-scene" data-r4-scene="hero">
       <div ref={(element) => registerHandle?.('stage', element)} className="r4-hero-scene__stage">
-        <img className="r4-hero-scene__back" src={HERO_BACK_IMAGE} alt="" aria-hidden="true" />
+        <img ref={backRef} className="r4-hero-scene__back" src={HERO_BACK_IMAGE} alt="" aria-hidden="true" />
+        <canvas
+          ref={(element) => {
+            introInkCanvasRef.current = element;
+            registerHandle?.('intro-ink', element);
+          }}
+          className="r4-hero-scene__intro-ink"
+          data-hero-intro-ink-canvas
+          aria-hidden="true"
+        />
         <img className="r4-hero-scene__middle" src={HERO_MIDDLE_IMAGE} alt="" aria-hidden="true" />
         <img
           className="r4-hero-scene__middle r4-hero-scene__middle--depth"
@@ -272,7 +357,7 @@ export const heroScene: SceneModule = {
   id: 'hero',
   Component: HeroScene,
   renderHold: renderHeroHold,
-  requiredHandles: ['stage', 'figure', 'copy'],
+  requiredHandles: ['stage', 'intro-ink', 'figure', 'copy'],
   staticFallback: {
     sectionIds: ['home'],
     text: HERO_COPY

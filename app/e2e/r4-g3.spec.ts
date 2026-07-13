@@ -400,7 +400,12 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         if (frame.phase === 'hold') {
           break;
         }
-        samples.push((await visualSnapshot(page)).videos);
+        if (frame.phase === 'playing') {
+          const visual = await visualSnapshot(page);
+          if (visual.proofRevealProgress < 0.999) {
+            samples.push(visual.videos);
+          }
+        }
       }
       return samples;
     };
@@ -412,16 +417,19 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       videos.length === 4
       && videos.filter((video) => video.direction === 'reverse').length === 2
       && videos.filter((video) => video.direction === 'reverse').every((video) => (
-        video.active && video.paused && video.currentTime < 0.1
+        !video.active && video.paused
       ))
       && videos.filter((video) => video.direction === 'forward').every((video) => (
-        !video.active && video.paused
+        video.active && video.paused && video.currentTime > 2.3
       ))
     ))).toBe(true);
     await expect.poll(async () => (await snapshot(page)).phase, { timeout: 8_000 }).toBe('staged-paused');
     const reversePause = (await visualSnapshot(page)).videos;
+    expect(reversePause.filter((video) => video.direction === 'forward').every((video) => (
+      video.active && video.paused && video.currentTime > 2.3
+    ))).toBe(true);
     expect(reversePause.filter((video) => video.direction === 'reverse').every((video) => (
-      video.active && video.paused && video.currentTime < 0.1
+      !video.active && video.paused
     ))).toBe(true);
 
     await page.evaluate(() => { void window.__r4Group3?.playReverse(); });
@@ -432,6 +440,12 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       const reverse = videos.filter((video) => video.direction === 'reverse');
       return reverse.length === 2 && reverse.every((video) => video.active);
     });
+    expect(introLegSamples.every((videos) => {
+      const active = videos.filter((video) => video.active);
+      return active.length === 2
+        && new Set(active.map((video) => video.direction)).size === 1
+        && new Set(active.map((video) => video.side)).size === 2;
+    })).toBe(true);
     expect(activeReverseSamples.length).toBeGreaterThan(2);
     for (const side of ['left', 'right']) {
       const reverseValues = activeReverseSamples.map((videos) => (
@@ -441,18 +455,12 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
       expect(reverseValues.some((value, index) => index > 0 && value > (reverseValues[index - 1] ?? 0) + 0.01)).toBe(true);
       expect(reverseValues.at(-1) ?? 0).toBeGreaterThan((reverseValues[0] ?? 0) + 0.2);
 
-      const parkedForwardValues = introLegSamples.map((videos) => (
-        videos.find((video) => video.side === side && video.direction === 'forward')?.currentTime ?? 0
-      ));
-      expect(Math.max(...parkedForwardValues) - Math.min(...parkedForwardValues)).toBeLessThan(0.03);
     }
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 8_000 }).toBe('figure2-animation');
     await expect.poll(async () => (await visualSnapshot(page)).figure2HoldPoster).toBe(true);
     const reversedHold = await visualSnapshot(page);
-    expect(reversedHold.videos.filter((video) => video.direction === 'forward' && video.active)).toHaveLength(2);
-    expect(reversedHold.videos.filter((video) => video.direction === 'forward').every((video) => (
-      video.paused && video.currentTime < 0.08
-    ))).toBe(true);
+    expect(reversedHold.videos.filter((video) => video.active)).toHaveLength(0);
+    expect(reversedHold.videos.every((video) => video.paused)).toBe(true);
     expect(reversedHold.videos.filter((video) => video.direction === 'reverse').every((video) => (
       !video.active && video.paused
     ))).toBe(true);

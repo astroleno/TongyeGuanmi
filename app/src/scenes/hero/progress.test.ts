@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { HERO_COPY, heroScene, renderHeroProgress, setHeroPlaybackActive } from './index';
+import {
+  HERO_COPY,
+  heroScene,
+  heroVideoPlaybackStateForPresentation,
+  renderHeroProgress,
+  setHeroVideoPlaybackState
+} from './index';
 import { fixtureStaticFallbackText } from '../../story/copy-baseline';
 
 class FakeStyle {
@@ -71,41 +77,78 @@ describe('hero scene renderer', () => {
 
     expect(restored).toEqual(start);
     expect(replayed).toEqual(end);
-    expect(start.middleOpacity).toBeGreaterThan(0);
-    expect(start.figureOpacity).toBeGreaterThan(0);
-    expect(end.middleOpacity).toBe(1);
-    expect(end.figureOpacity).toBe(1);
+    expect(root.style.values.get('--r4-hero-middle-intro')).toBe('1.0000');
+    expect(root.style.values.get('--r4-hero-figure-intro')).toBe('1.0000');
     expect(root.style.values.get('--r4-hero-progress')).toBe('1.0000');
     expect(root.attributes.get('data-hero-progress')).toBe('1.0000');
   });
 
-  it('plays the hero video natively and never seeks it from visual progress frames', () => {
+  it('keeps the Hero figure paused at authored endpoints instead of playing it during intro', () => {
     const video = new FakeVideo();
     const root = new FakeHeroRoot(video);
 
-    setHeroPlaybackActive(video as unknown as HTMLVideoElement, true);
+    setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'start');
 
     expect(video.loop).toBe(false);
     expect(video.autoplay).toBe(false);
     expect(video.playbackRate).toBe(1);
-    expect(video.playCount).toBe(1);
-    expect(video.pauseCount).toBe(0);
+    expect(video.playCount).toBe(0);
+    expect(video.pauseCount).toBe(1);
     expect(video.currentTime).toBeCloseTo(0.34, 2);
 
     renderHeroProgress(root as unknown as HTMLElement, 1);
     renderHeroProgress(root as unknown as HTMLElement, 0);
 
-    expect(video.playCount).toBe(1);
-    expect(video.pauseCount).toBe(0);
+    expect(video.playCount).toBe(0);
+    expect(video.pauseCount).toBe(1);
     expect(video.currentTime).toBeCloseTo(0.34, 2);
 
-    video.currentTime = 2.5;
-    video.listeners.get('timeupdate')?.(new Event('timeupdate'));
-    expect(video.pauseCount).toBe(1);
+    setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'terminal');
+    expect(video.pauseCount).toBe(2);
     expect(video.currentTime).toBeCloseTo(2.34, 2);
 
-    setHeroPlaybackActive(video as unknown as HTMLVideoElement, false);
-    expect(video.pauseCount).toBe(2);
+    setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'inactive');
+    expect(video.pauseCount).toBe(3);
+  });
+
+  it('prepositions a hidden prev Hero at terminal and preserves that endpoint after reverse landing', () => {
+    expect(heroVideoPlaybackStateForPresentation({
+      hidden: true,
+      role: 'prev',
+      introMode: 'complete',
+      endpointHeld: false
+    })).toBe('terminal');
+    expect(heroVideoPlaybackStateForPresentation({
+      hidden: false,
+      role: 'current',
+      introMode: 'complete',
+      endpointHeld: true
+    })).toBe('terminal');
+    expect(heroVideoPlaybackStateForPresentation({
+      hidden: false,
+      role: 'current',
+      introMode: 'complete',
+      endpointHeld: false
+    })).toBe('start');
+  });
+
+  it('holds the figure at its authored start behind Loader and throughout Hero intro', () => {
+    const video = new FakeVideo();
+
+    setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'start');
+    expect(video.paused).toBe(true);
+    expect(video.currentTime).toBeCloseTo(0.34, 2);
+    expect(video.playCount).toBe(0);
+
+    video.currentTime = 1.8;
+    setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'start');
+    expect(video.currentTime).toBeCloseTo(0.34, 2);
+    expect(video.paused).toBe(true);
+    expect(video.playCount).toBe(0);
+
+    setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'terminal');
+    expect(video.paused).toBe(true);
+    expect(video.currentTime).toBeCloseTo(2.34, 2);
   });
 
   it('keeps static fallback copy aligned with R-1 baseline', () => {
@@ -134,13 +177,16 @@ describe('hero scene renderer', () => {
     const artworkIndex = markup.indexOf('r4-hero-scene__stage');
     const artworkEndIndex = markup.indexOf('</div>', artworkIndex);
     const copyIndex = markup.indexOf('r4-hero-scene__content');
+    const introInkIndex = markup.indexOf('data-hero-intro-ink-canvas');
     const figureIndex = markup.indexOf('r4-hero-scene__figure');
     const vignetteIndex = markup.indexOf('r4-hero-scene__vignette');
 
     expect(artworkIndex).toBeGreaterThanOrEqual(0);
+    expect(introInkIndex).toBeGreaterThan(artworkIndex);
     expect(copyIndex).toBeGreaterThan(artworkIndex);
     expect(copyIndex).toBeLessThan(artworkEndIndex);
     expect(figureIndex).toBeGreaterThan(copyIndex);
     expect(vignetteIndex).toBeGreaterThan(figureIndex);
+    expect(heroScene.requiredHandles).toContain('intro-ink');
   });
 });

@@ -5,6 +5,14 @@ type TtgMediaState = {
   activeSurface: string | undefined;
   direction: string | undefined;
   progress: string | undefined;
+  start: {
+    src: string;
+    complete: boolean;
+    width: number;
+    height: number;
+    active: boolean;
+    opacity: number;
+  };
   forward: {
     src: string;
     readyState: number;
@@ -42,8 +50,9 @@ async function ttgMediaState(page: import('@playwright/test').Page): Promise<Ttg
     const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
     const forward = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
     const reverse = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
+    const start = scene?.querySelector<HTMLImageElement>('[data-ttg-figure-start]');
     const terminal = scene?.querySelector<HTMLImageElement>('[data-ttg-figure-terminal]');
-    if (!scene || !forward || !reverse || !terminal) throw new Error('TTG media surfaces missing');
+    if (!scene || !forward || !reverse || !start || !terminal) throw new Error('TTG media surfaces missing');
     const describe = (video: HTMLVideoElement) => ({
       src: video.currentSrc || video.src,
       readyState: video.readyState,
@@ -59,6 +68,14 @@ async function ttgMediaState(page: import('@playwright/test').Page): Promise<Ttg
       activeSurface: scene.dataset.ttgActiveSurface,
       direction: scene.dataset.ttgPlaybackDirection,
       progress: scene.dataset.ttgRawProgress,
+      start: {
+        src: start.currentSrc || start.src,
+        complete: start.complete,
+        width: start.naturalWidth,
+        height: start.naturalHeight,
+        active: start.classList.contains('is-active'),
+        opacity: Number.parseFloat(getComputedStyle(start).opacity)
+      },
       forward: describe(forward),
       reverse: describe(reverse),
       terminal: {
@@ -74,7 +91,7 @@ async function ttgMediaState(page: import('@playwright/test').Page): Promise<Ttg
 }
 
 function activeSurfaceCount(state: TtgMediaState): number {
-  return Number(state.forward.active) + Number(state.reverse.active) + Number(state.terminal.active);
+  return Number(state.start.active) + Number(state.forward.active) + Number(state.reverse.active) + Number(state.terminal.active);
 }
 
 test('TTG alpha pair plays the canonical forward and reverse assets on every device class', async ({ page }) => {
@@ -85,7 +102,12 @@ test('TTG alpha pair plays the canonical forward and reverse assets on every dev
   expect(initial.forward.src).toMatch(/ttg_figure-alpha-scrub-[^/]+\.webm$/);
   expect(initial.reverse.src).toMatch(/ttg_figure-alpha-scrub-reverse-[^/]+\.webm$/);
   expect(initial.forward.currentTime).toBeLessThan(0.05);
-  expect(initial.forward.active).toBe(true);
+  expect(initial.start.src).toMatch(/ttg_figure-alpha-scrub-poster-[^/]+\.png$/);
+  expect(initial.start.complete).toBe(true);
+  expect(initial.start.active).toBe(true);
+  expect(initial.start.opacity).toBeGreaterThan(0.9);
+  expect(initial.forward.active).toBe(false);
+  expect(activeSurfaceCount(initial)).toBe(1);
   const [posterResponse, forwardResponse, reverseResponse] = await Promise.all([
     page.request.get(initial.forward.poster),
     page.request.get(initial.forward.src),
@@ -117,6 +139,7 @@ test('TTG alpha pair plays the canonical forward and reverse assets on every dev
   expect(forwardPlayback.forward.duration).toBeLessThan(2.6);
   expect(forwardPlayback.forward.active).toBe(true);
   expect(forwardPlayback.forward.opacity).toBeGreaterThan(0.9);
+  expect(forwardPlayback.start.active).toBe(false);
   expect(forwardPlayback.terminal.active).toBe(false);
   expect(activeSurfaceCount(forwardPlayback)).toBe(1);
   await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
@@ -179,8 +202,9 @@ test('TTG alpha pair plays the canonical forward and reverse assets on every dev
   await waitForHold(page, 'ttg-animation');
   const restored = await ttgMediaState(page);
   expect(restored.activeSurface).toBeUndefined();
-  expect(restored.forward.active).toBe(true);
-  expect(restored.forward.currentTime).toBeLessThan(0.05);
+  expect(restored.start.active).toBe(true);
+  expect(restored.start.opacity).toBeGreaterThan(0.9);
+  expect(restored.forward.active).toBe(false);
   expect(restored.reverse.active).toBe(false);
   expect(restored.terminal.active).toBe(false);
   expect(activeSurfaceCount(restored)).toBe(1);

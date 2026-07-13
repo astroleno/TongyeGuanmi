@@ -54,6 +54,8 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
   const loader = page.locator('[data-story-loader="true"]');
   const loaderInk = loader.locator('[data-loader-ink-canvas="true"]');
   const hero = page.locator('[data-r4-scene="hero"]');
+  const heroVideo = hero.locator('[data-hero-figure-video]');
+  const heroIntroInk = hero.locator('[data-hero-intro-ink-canvas]');
   await expect(loader).toBeVisible();
   await expect(loader).toHaveAttribute('data-loader-mode', 'cold-hero');
   await expect(loader.locator('[aria-live="polite"]')).toHaveCount(1);
@@ -63,11 +65,30 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
   await expect(loader).toHaveAttribute('data-loader-phrase', '1', { timeout: 6_000 });
   await expect(hero).toHaveAttribute('data-hero-intro-state', 'waiting');
   await expect(hero).toHaveAttribute('data-hero-progress', '0.0000');
+  await expect.poll(() => heroVideo.evaluate((video: HTMLVideoElement) => ({
+    paused: video.paused,
+    currentTime: video.currentTime
+  }))).toMatchObject({ paused: true, currentTime: expect.closeTo(0.34, 1) });
+  await expect(hero.evaluate((root) => {
+    const style = getComputedStyle(root);
+    return {
+      middleIntro: Number.parseFloat(style.getPropertyValue('--r4-hero-middle-intro')),
+      figureIntro: Number.parseFloat(style.getPropertyValue('--r4-hero-figure-intro'))
+    };
+  })).resolves.toEqual({ middleIntro: 0, figureIntro: 0 });
 
   await expect(loader).toBeHidden({ timeout: 7_000 });
   await expect(loaderInk).toHaveAttribute('data-loader-ink-status', 'disposed');
   await expect.poll(async () => hero.getAttribute('data-hero-intro-state'), { timeout: 2_000 })
     .toBe('running');
+  await expect.poll(() => heroIntroInk.getAttribute('data-hero-intro-ink-active'), { timeout: 2_000 })
+    .toBe('true');
+  await expect(heroIntroInk).toHaveAttribute('data-r4-ink-renderer-status', 'active');
+  await expect(heroIntroInk).toBeVisible();
+  await expect.poll(() => heroVideo.evaluate((video: HTMLVideoElement) => ({
+    paused: video.paused,
+    currentTime: video.currentTime
+  }))).toMatchObject({ paused: true, currentTime: expect.closeTo(0.34, 1) });
   await expect(hero).toHaveAttribute('data-hero-title-active', 'true', { timeout: 4_000 });
   await page.waitForFunction(() => window.__storyApp?.snapshot().presentationReady === true, undefined, {
     timeout: 5_000
@@ -78,6 +99,11 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
     presentationReady: true
   });
   await expect(hero).toHaveAttribute('data-hero-progress', '1.0000');
+  await expect(heroIntroInk).toHaveAttribute('data-hero-intro-ink-active', 'false');
+  await expect.poll(() => heroVideo.evaluate((video: HTMLVideoElement) => ({
+    paused: video.paused,
+    currentTime: video.currentTime
+  }))).toMatchObject({ paused: true, currentTime: expect.closeTo(0.34, 1) });
 
   const stacking = await hero.evaluate((root) => {
     const stage = root.querySelector<HTMLElement>('.r4-hero-scene__stage');
