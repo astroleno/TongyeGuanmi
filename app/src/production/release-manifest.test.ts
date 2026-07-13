@@ -459,6 +459,7 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v4'");
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v5'");
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v6'");
+  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v7'");
   expect(candidateWorkflow).toContain(
     "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4'"
   );
@@ -468,12 +469,29 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   expect(candidateWorkflow).toContain(
     "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v6'"
   );
+  expect(candidateWorkflow).toContain(
+    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v7'"
+  );
+  expect(candidateWorkflow).toContain('- name: Restore immutable annotated candidate tag');
+  expect(candidateWorkflow).toContain('git fetch --force --no-tags origin');
+  expect(candidateWorkflow).toContain(
+    '"refs/tags/${R5_CANDIDATE_TAG}:refs/tags/${R5_CANDIDATE_TAG}"'
+  );
+  expect(candidateWorkflow).toContain(
+    'git cat-file -t "refs/tags/${R5_CANDIDATE_TAG}"'
+  );
+  expect(candidateWorkflow).toContain(
+    'git rev-parse "refs/tags/${R5_CANDIDATE_TAG}^{commit}"'
+  );
   expect(candidateWorkflow).toContain('pnpm run deploy:prepare');
   expect(candidateWorkflow).toContain('pnpm -C app run evidence:memory:release');
   expect(candidateWorkflow).toContain('pnpm run deploy:finalize');
   expect(candidateWorkflow.indexOf('pnpm run deploy:prepare')).toBeLessThan(
     candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')
   );
+  expect(
+    candidateWorkflow.indexOf('- name: Restore immutable annotated candidate tag')
+  ).toBeLessThan(candidateWorkflow.indexOf('pnpm run deploy:prepare'));
   expect(candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')).toBeLessThan(
     candidateWorkflow.indexOf('pnpm run deploy:finalize')
   );
