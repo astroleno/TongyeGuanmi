@@ -108,8 +108,16 @@ describe('timeline video driver', () => {
     video.completeSeek();
     expect(video.currentTimeWrites.length).toBeGreaterThanOrEqual(2);
     expect(video.currentTimeWrites.at(-1)).toBe(0);
-    video.completeSeek();
+    let settled = false;
+    void readiness.then(() => {
+      settled = true;
+    });
     video.presentFrame();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    video.completeSeek();
+    await Promise.resolve();
+    expect(settled).toBe(true);
 
     await expect(readiness).resolves.toMatchObject({ status: 'ready' });
   });

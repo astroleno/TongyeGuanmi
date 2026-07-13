@@ -77,6 +77,7 @@ type TimelineManagedVideo = HTMLVideoElement & {
 };
 
 const SEEK_TOLERANCE_SECONDS = 0.001;
+const PRESENTATION_TOLERANCE_SECONDS = 0.05;
 const DEFAULT_END_EPSILON_SECONDS = 0.02;
 
 function clamp(value: number): number {
@@ -120,6 +121,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private frameReadyTime = Number.NaN;
   private frameCallbackId: number | undefined;
   private presentingFrame: DesiredFrame | undefined;
+  private presentedSeekFrame: DesiredFrame | undefined;
   private disposed = false;
 
   private readonly onSeeked = () => {
@@ -488,6 +490,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       ));
       return;
     }
+    this.presentFrame(desired);
     if (!this.video.seeking) {
       this.completeInFlightSeek();
     }
@@ -500,7 +503,22 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
     this.inFlightSeek = undefined;
     if (completed.generation === this.generation) {
-      this.presentFrame(completed);
+      const frameWasPresented = Boolean(
+        this.presentedSeekFrame
+        && this.presentedSeekFrame.generation === completed.generation
+        && Math.abs(this.presentedSeekFrame.targetTime - completed.targetTime) <= SEEK_TOLERANCE_SECONDS
+      );
+      if (frameWasPresented) {
+        this.presentedSeekFrame = undefined;
+        this.markFrameReady(completed);
+      } else {
+        const callbackPending = this.frameCallbackId !== undefined
+          && this.presentingFrame?.generation === completed.generation
+          && Math.abs(this.presentingFrame.targetTime - completed.targetTime) <= SEEK_TOLERANCE_SECONDS;
+        if (!callbackPending) {
+          this.presentFrame(completed);
+        }
+      }
     }
     this.flushQueuedSeek();
   }
@@ -526,10 +544,24 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     const generation = frame.generation;
     this.presentingFrame = frame;
     try {
-      this.frameCallbackId = video.requestVideoFrameCallback(() => {
+      this.frameCallbackId = video.requestVideoFrameCallback((_now, metadata) => {
         this.frameCallbackId = undefined;
         this.presentingFrame = undefined;
         if (this.disposed || generation !== this.generation) {
+          return;
+        }
+        if (
+          Number.isFinite(metadata?.mediaTime)
+          && Math.abs(metadata.mediaTime - frame.targetTime) > PRESENTATION_TOLERANCE_SECONDS
+        ) {
+          this.presentFrame(frame);
+          return;
+        }
+        if (
+          this.inFlightSeek?.generation === frame.generation
+          && Math.abs(this.inFlightSeek.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+        ) {
+          this.presentedSeekFrame = frame;
           return;
         }
         this.markFrameReady(frame);
@@ -572,6 +604,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   private cancelFrameCallback(): void {
+    this.presentedSeekFrame = undefined;
     if (this.frameCallbackId === undefined) {
       this.presentingFrame = undefined;
       return;
