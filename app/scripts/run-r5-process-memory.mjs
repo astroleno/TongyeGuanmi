@@ -166,6 +166,9 @@ try {
     if (result.signal) {
       throw new Error(`process memory profile was terminated by ${result.signal}`);
     }
+    if (result.code !== 0) {
+      throw new Error(`process memory profile exited with code ${result.code}`);
+    }
     runs.push(await readRunReport(runOutputPath));
   }
 

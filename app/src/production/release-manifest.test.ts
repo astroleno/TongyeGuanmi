@@ -567,6 +567,17 @@ it('routes deploy builds through the strict release identity gate', () => {
   expect(memoryProfiler).not.toContain('macOS / Chrome hardware process-tree sample');
 });
 
+it('rejects a failed memory profiler before reading its report', () => {
+  const exitGuard = 'if (result.code !== 0)';
+  const reportRead = 'runs.push(await readRunReport(runOutputPath))';
+
+  expect(memoryRunner).toContain(exitGuard);
+  expect(memoryRunner).toContain(
+    'process memory profile exited with code ${result.code}'
+  );
+  expect(memoryRunner.indexOf(exitGuard)).toBeLessThan(memoryRunner.indexOf(reportRead));
+});
+
 it('only publishes a deployable CI artifact from an identity-bound candidate tag build', () => {
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-candidate-v3'");
   expect(candidateWorkflow).not.toContain("- 'react-refactor-r5-candidate*'");
