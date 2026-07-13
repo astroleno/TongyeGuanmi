@@ -1,6 +1,6 @@
 # R5 SEO And No-JS Report
 
-Status: candidate-v4 artifact contract and build verification pass. Candidate-v3 failed before browser qualification. The four-project exact-v4 no-JS qualification runs last with the release matrix and remains an external post-freeze record.
+Status: candidate-v4 artifact/static-shell verification and exact HTTP no-JS smoke passed, but v4 failed the default E2E before the four-project release/no-JS matrix ran. The exact-v5 no-JS qualification runs last with the release matrix and remains an external post-freeze record.
 
 ## Shared Source Contract
 
@@ -41,4 +41,4 @@ The build verifier normalizes visible copy, asserts exactly one static footer, v
 
 The current build verifier checked 127 copy items, 8 static sections, and 47 JavaScript files. It also verified the no-JS loader escape, loader fallback marker, one 13,534B lazy loader Ink chunk, opaque Star Map production copy, and absence of loader shader markers from the initial entry. The emitted favicon SHA-256 is `4441a740a9cb105a5fa041fbb11cd497733a490581d100667d64aba3d38b256e`; the emitted title-font SHA-256 is `bf69d2fd62129c670b741b756d2defab495074a65696ff6fd7d234211e17636b`.
 
-Desktop/mobile Chromium/WebKit no-JS cases from candidate-v2 remain baseline history only. The clean exact-v4 identity smoke and final exact-tag no-JS rerun are recorded externally after freeze; no earlier qualified R5 tag contains the lifecycle/release closure.
+Desktop/mobile Chromium/WebKit no-JS cases from candidate-v2 remain baseline history only. Candidate-v4's clean exact-tag HTTP shell smoke passed, but its later E2E failure prevents carry-forward. The clean exact-v5 identity smoke and final exact-tag no-JS rerun are recorded externally after freeze; no earlier qualified R5 tag contains the complete lifecycle/release/browser closure.

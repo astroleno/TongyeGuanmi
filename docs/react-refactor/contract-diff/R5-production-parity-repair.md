@@ -1,14 +1,14 @@
 # R5 Production Parity Repair Contract Diff
 
-Status: regression and lifecycle closure are implemented. Candidate-v2 remains immutable `NEEDS WORK`; candidate-v3 is immutable and unqualified after a fail-closed dirty-tree finalization. The runner defect is fixed at `e71b970`; exact candidate-v4 identity-bound RSS, rollback, and final browser evidence are recorded externally after the new immutable tag exists. The prior HITL rejection remains authoritative until the user approves v4.
+Status: regression and lifecycle closure are implemented. Candidate-v2 remains immutable `NEEDS WORK`; candidate-v3 and candidate-v4 are immutable unqualified. V4 passed exact identity-bound RSS/finalization and rollback, then failed 2/44 final default browser cases. Commit `6cde26d` closes the Figure2 reverse-disposal hold defect and TTG terminal-still oracle; candidate-v5 repeats every exact gate. The prior HITL rejection remains authoritative until the user approves v5.
 
 Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 
 ## Release Identity Boundary
 
-The immutable tags `react-refactor-r5-candidate`, `react-refactor-r5-candidate-v2`, `react-refactor-r5-candidate-v3`, `react-refactor-r5-parity-repair-candidate`, rejected `react-refactor-r5-parity-repair-candidate-v2`, and unqualified `react-refactor-r5-parity-repair-candidate-v3` are audit records. They must not be moved, reused, or described as the qualified corrected runtime.
+The immutable tags `react-refactor-r5-candidate`, `react-refactor-r5-candidate-v2`, `react-refactor-r5-candidate-v3`, `react-refactor-r5-parity-repair-candidate`, rejected `react-refactor-r5-parity-repair-candidate-v2`, and unqualified `react-refactor-r5-parity-repair-candidate-v3` / `-v4` are audit records. They must not be moved, reused, or described as the qualified corrected runtime.
 
-The rejected review head is `2501704d63dbd7c150861d21a31c2d39525c23e5`; rejected candidate-v2 is fixed at `0dc2a87b69af39a9a3960488fda56f6af664b54d`; failed-closed candidate-v3 is fixed at `dee30b9275ecbd3b238b37dee0ea0c8cfd944427`. After the complete gate passes, this closure is authorized to create the new annotated tag `react-refactor-r5-parity-repair-candidate-v4`; it never authorizes moving an old tag, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.
+The rejected review head is `2501704d63dbd7c150861d21a31c2d39525c23e5`; rejected candidate-v2 is fixed at `0dc2a87b69af39a9a3960488fda56f6af664b54d`; failed-closed candidate-v3 is fixed at `dee30b9275ecbd3b238b37dee0ea0c8cfd944427`; failed-browser candidate-v4 is fixed at `905a4ef8f7c90cb64307587e00c6ff2ee4af4d99`. After the repeated complete gate passes, this closure is authorized to create the new annotated tag `react-refactor-r5-parity-repair-candidate-v5`; it never authorizes moving an old tag, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.
 
 ## Preserved Architecture
 
@@ -56,6 +56,6 @@ The rejected review head is `2501704d63dbd7c150861d21a31c2d39525c23e5`; rejected
 
 ## Acceptance Boundary
 
-Historical green results at `14743aa`, candidate-v2, candidate-v3, and the later HITL-rejected head are not qualification evidence for v4. At runner-fix head `e71b970`, root verification passed 83 files / 568 tests plus lint, typecheck, build, static/release checks, and frozen bundle budgets. Exact v3 RSS passed, but no qualified v3 manifest exists. Because the v4 tag object, identity-bound manifest digest, rollback, and final exact-tag E2E cannot exist inside the source they identify, those records must be attached to the external handoff after freeze.
+Historical green results at `14743aa`, candidate-v2, candidate-v3, candidate-v4, and the later HITL-rejected head are not qualification evidence for v5. V4 exact RSS/finalization and rollback passed, but its 42/44 final default E2E result invalidated the candidate. Because the v5 tag object, identity-bound manifest digest, rollback, and final exact-tag E2E cannot exist inside the source they identify, those records must be attached to the external handoff after freeze.
 
-The completed pre-freeze gate authorizes creation of `react-refactor-r5-parity-repair-candidate-v4`. Work then stops for user HITL after exact-tag qualification. Candidate creation is not permission to merge, deploy, create a cutover tag, or begin R6.
+The repeated pre-freeze gate authorizes creation of `react-refactor-r5-parity-repair-candidate-v5`. Work then stops for user HITL after exact-tag qualification. Candidate creation is not permission to merge, deploy, create a cutover tag, or begin R6.

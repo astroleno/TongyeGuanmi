@@ -457,8 +457,12 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   );
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v3'");
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v4'");
+  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v5'");
   expect(candidateWorkflow).toContain(
     "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4'"
+  );
+  expect(candidateWorkflow).toContain(
+    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v5'"
   );
   expect(candidateWorkflow).toContain('pnpm run deploy:prepare');
   expect(candidateWorkflow).toContain('pnpm -C app run evidence:memory:release');

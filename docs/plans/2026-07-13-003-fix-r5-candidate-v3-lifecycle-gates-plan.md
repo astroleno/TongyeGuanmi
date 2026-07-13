@@ -1,6 +1,6 @@
 # R5 Candidate v3 Lifecycle And Release Gates Implementation Plan
 
-Status: Tasks 0–6 and Task 7 nonbrowser verification completed. Immutable v3 passed exact RSS but failed manifest finalization because the release runner dirtied the source with an archive write. V3 is preserved unqualified. Commit `e71b970` fixes the runner/workflow; candidate-v4 repeats the immutable identity, RSS, rollback, and E2E-last sequence.
+Status: Tasks 0–6 are complete. Immutable v3 failed dirty-tree finalization. Immutable v4 passed exact identity-bound RSS/finalization, smokes, and rollback, then failed 2/44 final default E2E cases. Commit `6cde26d` fixes the Figure2 reverse-disposal hold and TTG terminal-still E2E oracle. Candidate-v5 now repeats the immutable identity, RSS, rollback, and E2E-last sequence.
 
 | Phase | Status | Commit(s) |
 |---|---|---|
@@ -13,7 +13,12 @@ Status: Tasks 0–6 and Task 7 nonbrowser verification completed. Immutable v3 p
 | Task 7 pre-freeze RSS headroom | complete | `00ceba1` |
 | Task 7 v3 exact attempt | failed closed | RSS pass; tracked archive made finalizer reject dirty source |
 | Task 7 release-runner closure | complete | `e71b970` |
-| Task 7 immutable v4/exact gates/E2E | pending | external post-freeze evidence |
+| Task 7 immutable v4 identity/RSS/rollback | complete | source `905a4ef`; tag object `e3b3863`; RSS `1,423,048,704B`; rollback pass |
+| Task 7 v4 final default E2E | failed closed | 42/44; release matrix not run |
+| Task 7 v5 browser closure | complete | `6cde26d`; focused unit/integration 54/54 and browser 2/2 |
+| Task 7 immutable v5/exact gates/E2E | pending | external post-freeze evidence |
+
+Candidate-v4 exposed a final endpoint ownership defect that the unit-only hold test did not cover: `Figure2DistanceExpandTimeline.dispose()` parked all media after reverse completion, undoing the canonical forward-poster hold. Its TTG failure was an obsolete assertion that required an active video during the staged pause even though the memory-qualified design intentionally shows one decoded terminal still until reverse media commits. The v5 closure restores Figure2 hold ownership whenever disposal leaves Figure2 current, counts terminal still and directional video as one TTG surface, and keeps full browser matrices as the final commands.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

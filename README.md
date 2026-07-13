@@ -1,6 +1,6 @@
 # Tongye Guanmi
 
-当前状态：`codex/react-refactor-r5-parity-cutover` 已把完整 React `StoryApp` 设为默认开发、构建、测试与部署产物，并在收紧 release identity 后重新冻结为 `react-refactor-r5-candidate-v3`。`react-refactor-r5-candidate` 与 `react-refactor-r5-candidate-v2` 保持不可变，但均已 superseded、不可批准或部署。v3 等待 HITL 批准；批准前禁止合并或部署 `main`，也不得建立 `react-refactor-r5-cutover`。
+当前状态：`codex/react-refactor-r5-parity-cutover` 已把完整 React `StoryApp` 设为默认开发、构建、测试与部署产物。Parity candidate-v2 为 immutable `NEEDS WORK`，candidate-v3 与 candidate-v4 为 immutable unqualified；v4 在通过 RSS/finalization/rollback 后最终默认 E2E 为 42/44。`6cde26d` 已关闭这两个 browser gate，下一步只允许冻结并完整验证 `react-refactor-r5-parity-repair-candidate-v5`。HITL 批准前禁止合并或部署 `main`，也不得建立 `react-refactor-r5-cutover`。
 
 ## 环境与安装
 
@@ -32,7 +32,7 @@ pnpm preview
 pnpm run verify:all
 pnpm run test:browser
 pnpm run test:release
-R5_CANDIDATE_TAG=react-refactor-r5-candidate-v3 \
+R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v5 \
 R5_SOURCE_COMMIT="$(git rev-parse HEAD)" \
 pnpm run deploy:build
 ```
@@ -51,7 +51,7 @@ pnpm run legacy:verify:all
 
 ## R5 证据与操作入口
 
-- [R5 candidate 报告](docs/react-refactor/reports/r5-candidate.md)
+- [R5 parity-repair candidate 报告](docs/react-refactor/reports/r5-parity-repair-candidate.md)
 - [全站回归矩阵](docs/react-refactor/reports/r5-regression-matrix.md)
 - [性能预算](docs/react-refactor/reports/r5-performance-budget.md)
 - [SEO/no-JS 报告](docs/react-refactor/reports/r5-seo-no-js.md)

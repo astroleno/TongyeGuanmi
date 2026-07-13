@@ -1,6 +1,6 @@
 # R5 Performance Budget
 
-Status: candidate-v4 pre-freeze build and process-memory profiles pass. Candidate-v3 exact RSS passed at `1,491,533,824B` but its manifest failed closed before qualification; exact v4 memory/finalization and final E2E remain external post-freeze evidence.
+Status: candidate-v4 exact identity-bound memory and finalization passed, but the candidate remains unqualified after final default E2E failed 2/44. Candidate-v5 must repeat exact memory/finalization because the Figure2 disposal source and browser oracles changed at `6cde26d`.
 
 Date: 2026-07-13. Earlier values belong to superseded source and are audit history only.
 
@@ -64,19 +64,19 @@ The initial JS/CSS, gzip, largest-lazy, and largest-asset caps are unchanged. Tw
 
 ## GPU, Memory, And Disposal Budgets
 
-| Metric | Budget | Candidate-v4 pre-freeze / v3 exact record |
+| Metric | Budget | Exact candidate-v4 record |
 |---|---:|---|
-| browser process-tree peak RSS | ≤1,500,000,000B | preflights 1,474,232,320B / 1,472,495,616B / 1,473,265,664B; exact v3 1,491,533,824B |
-| GPU process peak RSS | ≤536,870,912B | exact v3 355,581,952B |
-| renderer process peak RSS | ≤1,073,741,824B | exact v3 857,767,936B |
-| JS heap | peak ≤192MiB; settled ≤90% of peak | exact v3 42,903,321B peak; 13,266,744B settled |
+| browser process-tree peak RSS | ≤1,500,000,000B | 1,423,048,704B |
+| GPU process peak RSS | ≤536,870,912B | 349,913,088B |
+| renderer process peak RSS | ≤1,073,741,824B | 756,924,416B |
+| JS heap | peak ≤192MiB; settled ≤90% of peak | 33,126,258B peak; 13,178,927B settled |
 | mounted layers at settled holds | ≤3 | 3 |
 | WebGL contexts at settled holds | ≤1 | 1 |
 | disposed Contact snapshot | ≤3 layers, ≤1 WebGL, ≤4 paused videos | 2 layers, 0 WebGL, 2 videos |
 | lifecycle release evidence | retired canvas and video; no managed callback/lease leak | 3 canvases and 2 videos released; pass |
 
-Each memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour. Candidate-v2 exact-tag runs failed at `1,527,169,024B` and `1,575,190,528B`. Candidate-v3's identity-bound RSS passed without changing the budget, but its tracked archive write made the source dirty and the schema-3 finalizer rejected it. Candidate-v4 reruns the same gate with dist-only evidence; only that qualified result is authoritative.
+Each memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour. Candidate-v2 exact-tag runs failed at `1,527,169,024B` and `1,575,190,528B`. Candidate-v3's identity-bound RSS passed without changing the budget, but its tracked archive write made the source dirty and the schema-3 finalizer rejected it. Candidate-v4 then passed the complete dist-only identity gate with evidence SHA-256 `b9880d7819adb9fcfeb9b2dda5b1721a40c31ed8b2712792cf4513833be7f6f1`; its later E2E failure still makes v4 unqualified.
 
 ## Evidence Rule
 
-Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The values above prove RSS headroom, not a qualified candidate artifact. Exact-v4 identity, finalization, and browser evidence are attached to the external handoff; a failed RSS or clean-tree gate cannot be waived or uploaded.
+Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The values above prove v4 RSS headroom, not v5 qualification. Exact-v5 identity, finalization, rollback, and browser evidence are attached to the external handoff; a prior pass cannot be carried forward and a failed gate cannot be waived.
