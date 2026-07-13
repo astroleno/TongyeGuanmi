@@ -1,5 +1,6 @@
 import {
   clearHorizontalInkDiagnostics,
+  HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX,
   markHorizontalInkDiagnostics
 } from '../transitions/shared/inkField.ts';
 import { HORIZONTAL_INK_CONTOUR_AMPLITUDE } from '../transitions/shared/horizontalInkContour.ts';
@@ -106,13 +107,23 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       return direction < 0.5 ? 1.0 - uv.y : uv.y;
     }
 
-    float horizontalRank(vec2 uv) {
+    vec4 horizontalContourSample(vec2 uv) {
       float sampleCount = max(uContourSampleCount, 1.0);
       float contourU = (clamp(uv.x, 0.0, 1.0) * (sampleCount - 1.0) + 0.5) / sampleCount;
-      float signedContour = texture2D(uContourMap, vec2(contourU, 0.5)).r * 2.0 - 1.0;
+      return texture2D(uContourMap, vec2(contourU, 0.5));
+    }
+
+    float horizontalRank(vec2 uv) {
+      vec3 signedBands = horizontalContourSample(uv).rgb * 2.0 - 1.0;
+      float signedContour = dot(signedBands, vec3(0.50, 0.31, 0.19));
       float contourEnvelope = sin(clamp(uOwnershipThreshold, 0.0, 1.0) * 3.14159265);
       return horizontalRankForDirection(uv, uFieldDirection)
         + signedContour * ${HORIZONTAL_INK_CONTOUR_AMPLITUDE.toFixed(6)} * contourEnvelope * uContourReady;
+    }
+
+    float horizontalErosion(vec2 uv) {
+      vec4 signedBands = horizontalContourSample(uv) * 2.0 - 1.0;
+      return dot(signedBands, vec4(0.026, 0.016, 0.009, 0.007));
     }
 
     float radialRank(vec2 uv, float aspect) {
@@ -191,9 +202,11 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         + (pore - 0.5) * 0.024
         + mud * 0.10
         + ripple;
+      float multiscaleErosion = horizontalErosion(uv) * energy * uContourReady;
+      field += multiscaleErosion * (1.0 - nonHorizontalMode);
       field -= openingBreakup * edgeBand * 0.045;
-      float ownershipFieldScale = mix(0.28, 1.0, nonHorizontalMode);
-      float ownershipTendrilScale = mix(0.40, 1.0, nonHorizontalMode);
+      float ownershipFieldScale = mix(0.58, 1.0, nonHorizontalMode);
+      float ownershipTendrilScale = mix(0.64, 1.0, nonHorizontalMode);
       float edge = boundaryProgress
         + tendril * (0.058 + wet * 0.116) * ownershipTendrilScale
         - (baseRank + field * ownershipFieldScale);
@@ -218,6 +231,10 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         uOcclusionAlphaMin,
         1.0
       );
+      float horizontalCoreHalfWidth = max(max(uOwnershipGateRank - uOwnershipCore.x, uOwnershipCore.y - uOwnershipGateRank), 0.0001);
+      float horizontalSoftHalfWidth = max(horizontalCoreHalfWidth, ${HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX.toFixed(1)} / max(uResolution.y, 1.0));
+      float horizontalSoftOcclusion = (1.0 - smoothstep(horizontalCoreHalfWidth, horizontalSoftHalfWidth, abs(horizontal - uOwnershipGateRank))) * 0.46;
+      horizontalCoreOcclusion = max(horizontalCoreOcclusion, horizontalSoftOcclusion);
       float nonHorizontalCoreOcclusion = max(
         proceduralOcclusion,
         primaryOwnershipOcclusion
@@ -405,13 +422,13 @@ export function createInkBoundaryTransition(canvas, options = {}) {
   gl.texImage2D(
     gl.TEXTURE_2D,
     0,
-    gl.LUMINANCE,
+    gl.RGBA,
     1,
     1,
     0,
-    gl.LUMINANCE,
+    gl.RGBA,
     gl.UNSIGNED_BYTE,
-    new Uint8Array([128])
+    new Uint8Array([128, 128, 128, 128])
   );
 
   let width = 0;
@@ -481,13 +498,13 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.LUMINANCE,
+      gl.RGBA,
       frame.contour.samples.length,
       1,
       0,
-      gl.LUMINANCE,
+      gl.RGBA,
       gl.UNSIGNED_BYTE,
-      frame.contour.samples
+      frame.contour.texture
     );
     contourRevision = frame.contour.revision;
     contourTextureUploads += 1;

@@ -281,7 +281,7 @@ test.describe('R4 Ink ownership alpha diagnostics', () => {
 
         if (mode === 'horizontal') {
           expect(probe.primaryMin).toBeGreaterThanOrEqual(0.92);
-          expect(probe.contourRevision).toMatch(/^horizontal-ink-contour-v1-/);
+          expect(probe.contourRevision).toMatch(/^horizontal-ink-contour-v2-/);
           expect(probe.contourTextureUploads).toBe(1);
           expect(probe.contourSamples).toBeGreaterThanOrEqual(128);
           expect(probe.resizeStable).toBe(true);

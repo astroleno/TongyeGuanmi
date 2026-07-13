@@ -3,6 +3,7 @@ import {
   createInkFieldFrame,
   HORIZONTAL_INK_CORE_ALPHA_MIN,
   HORIZONTAL_INK_CORE_HALF_WIDTH_PX,
+  HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX,
   inkOwnershipGateProgress,
   type InkDepthTransform,
   type InkFieldSpec
@@ -56,6 +57,9 @@ describe('InkFieldFrame', () => {
     expect(frame.occlusion.alphaMin).toBe(HORIZONTAL_INK_CORE_ALPHA_MIN);
     expect(frame.occlusion.coreMax - frame.occlusion.coreMin)
       .toBeCloseTo(HORIZONTAL_INK_CORE_HALF_WIDTH_PX * 2 / viewport.height, 8);
+    expect(HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX).toBeGreaterThan(
+      HORIZONTAL_INK_CORE_HALF_WIDTH_PX
+    );
     expect(Object.keys(frame.occlusion).sort()).toEqual([
       'alphaMin',
       'coreMax',

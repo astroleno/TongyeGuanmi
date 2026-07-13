@@ -335,7 +335,7 @@ describe('R4 group7 transitions', () => {
     expect(receiver.style.clipPath).toMatch(/^polygon\(/);
     expect(receiver.style.clipPath).not.toContain('inset(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
-    expect(receiver.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v1-/);
+    expect(receiver.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v2-/);
     expect(canvas.dataset.r4InkBoundaryRevision).toBe(receiver.dataset.r4InkBoundaryRevision);
     expect(receiver.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
   });

@@ -1,5 +1,7 @@
-export const HORIZONTAL_INK_CONTOUR_SAMPLES = 128;
-export const HORIZONTAL_INK_CONTOUR_AMPLITUDE = 0.055;
+export const HORIZONTAL_INK_CONTOUR_SAMPLES = 256;
+export const HORIZONTAL_INK_CONTOUR_AMPLITUDE = 0.064;
+
+export type HorizontalInkContourBand = 'macro' | 'meso' | 'micro' | 'erosion';
 
 export type HorizontalInkDirection = 'bottom-to-top' | 'top-to-bottom';
 export type HorizontalInkOwnership = 'reveal' | 'conceal';
@@ -8,6 +10,7 @@ export type HorizontalInkContour = Readonly<{
   seed: number;
   revision: string;
   samples: Uint8Array;
+  texture: Uint8Array;
 }>;
 
 type HorizontalInkContourInput = Readonly<{
@@ -56,12 +59,10 @@ function valueNoise(seed: number, x: number, frequency: number): number {
   return from + (to - from) * blend;
 }
 
-function contourValues(seed: number): number[] {
+function normalizedBand(seed: number, frequency: number): number[] {
   const values = Array.from({ length: HORIZONTAL_INK_CONTOUR_SAMPLES }, (_, index) => {
     const x = index / Math.max(1, HORIZONTAL_INK_CONTOUR_SAMPLES - 1);
-    return valueNoise(seed, x, 2) * 0.56
-      + valueNoise(mixHash(seed, 17), x, 5) * 0.29
-      + valueNoise(mixHash(seed, 43), x, 9) * 0.15;
+    return valueNoise(seed, x, frequency);
   });
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   const centered = values.map((value) => value - mean);
@@ -69,25 +70,79 @@ function contourValues(seed: number): number[] {
   return centered.map((value) => clamp(value / maximum * 0.92, -1, 1));
 }
 
+function byteBand(values: readonly number[]): Uint8Array {
+  return Uint8Array.from(values, (value) => Math.round((value * 0.5 + 0.5) * 255));
+}
+
+function signedByte(value: number | undefined): number {
+  return ((value ?? 128) / 255) * 2 - 1;
+}
+
+function combinedSamples(
+  macro: Uint8Array,
+  meso: Uint8Array,
+  micro: Uint8Array
+): Uint8Array {
+  return Uint8Array.from(macro, (_, index) => {
+    const value = signedByte(macro[index]) * 0.5
+      + signedByte(meso[index]) * 0.31
+      + signedByte(micro[index]) * 0.19;
+    return Math.round((clamp(value, -1, 1) * 0.5 + 0.5) * 255);
+  });
+}
+
+function contourTexture(
+  bands: readonly Uint8Array[]
+): Uint8Array {
+  const texture = new Uint8Array(HORIZONTAL_INK_CONTOUR_SAMPLES * 4);
+  for (let index = 0; index < HORIZONTAL_INK_CONTOUR_SAMPLES; index += 1) {
+    const offset = index * 4;
+    for (let channel = 0; channel < 4; channel += 1) {
+      texture[offset + channel] = bands[channel]?.[index] ?? 128;
+    }
+  }
+  return texture;
+}
+
 function byteRevision(seed: number, samples: Uint8Array): string {
   let hash = seed;
   for (const sample of samples) {
     hash = mixHash(hash, sample);
   }
-  return `horizontal-ink-contour-v1-${seed.toString(16).padStart(8, '0')}-${hash.toString(16).padStart(8, '0')}`;
+  return `horizontal-ink-contour-v2-${seed.toString(16).padStart(8, '0')}-${hash.toString(16).padStart(8, '0')}`;
 }
 
 export function createHorizontalInkContour(input: HorizontalInkContourInput): HorizontalInkContour {
   const seed = hashString(`${input.authoredSeed}:${input.variationKey}`);
-  const samples = Uint8Array.from(
-    contourValues(seed),
-    (value) => Math.round((value * 0.5 + 0.5) * 255)
-  );
+  const bands = [
+    byteBand(normalizedBand(seed, 2)),
+    byteBand(normalizedBand(mixHash(seed, 17), 7)),
+    byteBand(normalizedBand(mixHash(seed, 43), 19)),
+    byteBand(normalizedBand(mixHash(seed, 79), 37))
+  ];
+  const samples = combinedSamples(bands[0]!, bands[1]!, bands[2]!);
+  const texture = contourTexture(bands);
   return Object.freeze({
     seed,
-    revision: byteRevision(seed, samples),
-    samples
+    revision: byteRevision(seed, texture),
+    samples,
+    texture
   });
+}
+
+export function horizontalInkBandOffset(
+  contour: HorizontalInkContour,
+  band: HorizontalInkContourBand,
+  x: number
+): number {
+  const channel = ['macro', 'meso', 'micro', 'erosion'].indexOf(band);
+  const position = clamp(Number.isFinite(x) ? x : 0) * Math.max(0, contour.samples.length - 1);
+  const leftIndex = Math.floor(position);
+  const rightIndex = Math.min(contour.samples.length - 1, leftIndex + 1);
+  const blend = position - leftIndex;
+  const left = signedByte(contour.texture[leftIndex * 4 + channel]);
+  const right = signedByte(contour.texture[rightIndex * 4 + channel]);
+  return clamp(left + (right - left) * blend, -1, 1);
 }
 
 export function horizontalInkOffset(contour: HorizontalInkContour, x: number): number {

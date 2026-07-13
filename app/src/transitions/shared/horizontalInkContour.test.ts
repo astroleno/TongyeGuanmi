@@ -3,6 +3,7 @@ import {
   HORIZONTAL_INK_CONTOUR_AMPLITUDE,
   HORIZONTAL_INK_CONTOUR_SAMPLES,
   createHorizontalInkContour,
+  horizontalInkBandOffset,
   horizontalInkOffset,
   horizontalInkPolygon
 } from './horizontalInkContour';
@@ -23,14 +24,43 @@ describe('horizontal Ink contour', () => {
     });
 
     expect(first.samples).toHaveLength(HORIZONTAL_INK_CONTOUR_SAMPLES);
-    expect(HORIZONTAL_INK_CONTOUR_SAMPLES).toBeGreaterThanOrEqual(128);
-    expect(HORIZONTAL_INK_CONTOUR_SAMPLES).toBeLessThanOrEqual(256);
+    expect(HORIZONTAL_INK_CONTOUR_SAMPLES).toBe(256);
+    expect(first.texture).toHaveLength(HORIZONTAL_INK_CONTOUR_SAMPLES * 4);
     expect(first.samples).toEqual(replay.samples);
     expect(first.revision).toBe(replay.revision);
     expect(first.seed).toBe(replay.seed);
     expect(nextRun.revision).not.toBe(first.revision);
     expect(nextRun.seed).not.toBe(first.seed);
     expect(nextRun.samples).not.toEqual(first.samples);
+  });
+
+  it('keeps independent macro, meso, micro, and erosion frequency bands', () => {
+    const contour = createHorizontalInkContour({
+      authoredSeed: 'multiscale-contour',
+      variationKey: 'epoch:7'
+    });
+    const transitions = (samples: Uint8Array) => samples.reduce((count, value, index) => (
+      index > 0 && (value >= 128) !== ((samples[index - 1] ?? 128) >= 128)
+        ? count + 1
+        : count
+    ), 0);
+    const bandSamples = (band: 'macro' | 'meso' | 'micro' | 'erosion') => {
+      const channel = ['macro', 'meso', 'micro', 'erosion'].indexOf(band);
+      return Uint8Array.from(contour.samples, (_, index) => contour.texture[index * 4 + channel] ?? 128);
+    };
+    const macro = bandSamples('macro');
+    const meso = bandSamples('meso');
+    const micro = bandSamples('micro');
+    const erosion = bandSamples('erosion');
+
+    expect(macro).not.toEqual(meso);
+    expect(meso).not.toEqual(micro);
+    expect(transitions(micro)).toBeGreaterThan(transitions(macro));
+    expect(transitions(erosion)).toBeGreaterThan(transitions(meso));
+    for (const band of ['macro', 'meso', 'micro', 'erosion'] as const) {
+      expect(horizontalInkBandOffset(contour, band, 0.5)).toBeGreaterThanOrEqual(-1);
+      expect(horizontalInkBandOffset(contour, band, 0.5)).toBeLessThanOrEqual(1);
+    }
   });
 
   it('interpolates bounded signed offsets from smoothed byte samples', () => {
@@ -77,11 +107,11 @@ describe('horizontal Ink contour', () => {
     expect(horizontalInkPolygon(contour, 'bottom-to-top', 0, 'reveal'))
       .toMatch(/^polygon\([^)]*% 100\.000%(?:, [^)]*% 100\.000%)*\)$/);
     expect(horizontalInkPolygon(contour, 'bottom-to-top', 1, 'reveal'))
-      .toContain('49.606% 0.000%');
+      .toContain('49.804% 0.000%');
     expect(horizontalInkPolygon(contour, 'top-to-bottom', 0, 'reveal'))
-      .toContain('49.606% 0.000%');
+      .toContain('49.804% 0.000%');
     expect(horizontalInkPolygon(contour, 'top-to-bottom', 1, 'reveal'))
-      .toContain('49.606% 100.000%');
+      .toContain('49.804% 100.000%');
   });
 
   it('places CSS vertices on the exact texture sample coordinates', () => {

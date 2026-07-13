@@ -28,21 +28,31 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toContain('float depthRank(');
   });
 
-  it('uses one lightweight contour texture for the horizontal macro edge', () => {
+  it('uses one packed multiscale contour texture for the horizontal eroded edge', () => {
     expect(shaderSource).not.toContain('uBoundaryProfile');
     expect(shaderSource).not.toContain('sampledBoundary');
     expect(shaderSource).not.toContain('frame.profile');
     expect(shaderSource).toContain('uniform sampler2D uContourMap');
     expect(shaderSource).toContain('uniform float uContourSampleCount');
     expect(shaderSource).toContain('uniform float uOwnershipThreshold');
-    expect(shaderSource).toContain('gl.LUMINANCE');
+    expect(shaderSource).toContain('gl.RGBA');
     expect(shaderSource).toContain('frame.contour.samples.length');
+    expect(shaderSource).toContain('frame.contour.texture');
+    expect(shaderSource).toContain('vec4 horizontalContourSample');
+    expect(shaderSource).toContain('float horizontalErosion');
+    expect(shaderSource).toContain('float multiscaleErosion');
     expect(shaderSource).toContain('float boundaryProgress = mix(uOwnershipThreshold, p, nonHorizontalMode)');
     expect(shaderSource).toContain('float field =');
     expect(shaderSource).toContain('openingBreakup');
     expect(shaderSource).toContain('tendril');
-    expect(shaderSource).toContain('float ownershipFieldScale = mix(0.28, 1.0, nonHorizontalMode)');
+    expect(shaderSource).toContain('float ownershipFieldScale = mix(0.58, 1.0, nonHorizontalMode)');
     expect(shaderSource).toMatch(/float edge = [^;]*field/);
+  });
+
+  it('covers the binary ownership clip with an opaque core and a wider soft edge', () => {
+    expect(shaderSource).toContain('float horizontalSoftHalfWidth');
+    expect(shaderSource).toContain('float horizontalSoftOcclusion');
+    expect(shaderSource).toContain('horizontalCoreOcclusion = max(horizontalCoreOcclusion, horizontalSoftOcclusion)');
   });
 
   it('keeps body erosion deterministic while allowing time only in effect particles', () => {

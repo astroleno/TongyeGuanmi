@@ -321,7 +321,7 @@ describe('R3 pilot contract on real segments', () => {
     expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
     expect(revealSurface.style.clipPath).not.toContain('inset(');
     expect(revealSurface.dataset.r4InkBoundaryKind).toBe('horizontal');
-    expect(revealSurface.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v1-/);
+    expect(revealSurface.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v2-/);
     expect(canvas.dataset.r4InkBoundaryRevision).toBe(revealSurface.dataset.r4InkBoundaryRevision);
     expect(revealSurface.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');

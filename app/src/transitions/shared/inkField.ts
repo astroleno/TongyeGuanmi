@@ -75,7 +75,8 @@ const GATE_START = 0.06;
 const GATE_END = 0.94;
 const CORE_HALF_WIDTH = 0.072;
 const OCCLUSION_ALPHA_MIN = 0.92;
-export const HORIZONTAL_INK_CORE_HALF_WIDTH_PX = 3;
+export const HORIZONTAL_INK_CORE_HALF_WIDTH_PX = 10;
+export const HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX = 28;
 export const HORIZONTAL_INK_CORE_ALPHA_MIN = 1;
 
 function clamp(value: number): number {

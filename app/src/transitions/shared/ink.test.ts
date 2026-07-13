@@ -604,7 +604,7 @@ describe('shared ink transition surface', () => {
     expect(toElement.dataset.r4RevealMode).toBe('ink-occluded-live-gate');
     expect(toElement.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(toElement.dataset.r4InkBoundaryProgress).toBe('0.7500');
-    expect(canvas.dataset.r4InkContourRevision).toMatch(/^horizontal-ink-contour-v1-/);
+    expect(canvas.dataset.r4InkContourRevision).toMatch(/^horizontal-ink-contour-v2-/);
     expect(toElement.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
     expect(fromElement.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
     expect(revealSurface.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
