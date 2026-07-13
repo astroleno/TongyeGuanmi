@@ -305,9 +305,11 @@ describe('R4 group6 transitions', () => {
       }
 
       presentRequestedFrame(): void {
-        this.seeking = false;
-        for (const listener of this.listeners.get('seeked') ?? []) {
-          listener();
+        for (let attempt = 0; attempt < 3 && this.seeking; attempt += 1) {
+          this.seeking = false;
+          for (const listener of this.listeners.get('seeked') ?? []) {
+            listener();
+          }
         }
         const callback = this.frameCallback;
         this.frameCallback = undefined;

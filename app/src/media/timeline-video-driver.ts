@@ -107,6 +107,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private latestInput: TimelineVideoDriveInput | undefined;
   private queuedSeek: DesiredFrame | undefined;
   private inFlightSeek: DesiredFrame | undefined;
+  private primingSeek: DesiredFrame | undefined;
   private readonly waiters = new Set<FrameWaiter>();
   private nativeFallback = false;
   private nativeStarted = false;
@@ -122,6 +123,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private disposed = false;
 
   private readonly onSeeked = () => {
+    if (this.primingSeek) {
+      this.completePrimingSeek();
+      return;
+    }
     this.completeInFlightSeek();
   };
 
@@ -238,10 +243,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       }
     });
     if (this.waiters.has(waiter)) {
-      const primeError = this.primeExactTargetSeek(desired);
-      if (primeError) {
-        this.rejectWaiter(waiter, primeError);
-      } else {
+      const priming = this.beginExactTargetSeek(desired);
+      if (priming.error) {
+        this.rejectWaiter(waiter, priming.error);
+      } else if (!priming.started) {
         this.scheduleSeek(desired);
       }
     }
@@ -260,7 +265,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       generation: this.generation,
       desiredProgress: this.latest?.progress,
       targetTime: this.latest?.targetTime,
-      seekPending: Boolean(this.inFlightSeek || this.queuedSeek),
+      seekPending: Boolean(this.primingSeek || this.inFlightSeek || this.queuedSeek),
       nativeFallback: this.nativeFallback,
       frameReady
     };
@@ -281,6 +286,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.video.removeEventListener('abort', this.onMediaAbort);
     this.queuedSeek = undefined;
     this.inFlightSeek = undefined;
+    this.primingSeek = undefined;
     this.latest = undefined;
     this.latestInput = undefined;
   }
@@ -297,6 +303,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       this.frameReadyGeneration = 0;
       this.frameReadyTime = Number.NaN;
       this.queuedSeek = undefined;
+      this.primingSeek = undefined;
       this.cancelFrameCallback();
       this.video.pause();
       this.resolveAllWaitersAsStale();
@@ -401,9 +408,16 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.flushQueuedSeek();
   }
 
-  private primeExactTargetSeek(desired: DesiredFrame): Error | undefined {
-    if (Math.abs(this.video.currentTime - desired.targetTime) > SEEK_TOLERANCE_SECONDS) {
-      return undefined;
+  private beginExactTargetSeek(desired: DesiredFrame): {
+    started: boolean;
+    error?: Error;
+  } {
+    if (
+      this.primingSeek
+      || this.inFlightSeek
+      || Math.abs(this.video.currentTime - desired.targetTime) > SEEK_TOLERANCE_SECONDS
+    ) {
+      return { started: false };
     }
     const duration = finiteDuration(this.video, desired.targetTime + 0.01);
     const offset = SEEK_TOLERANCE_SECONDS * 2;
@@ -411,18 +425,40 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       ? desired.targetTime + offset
       : Math.max(0, desired.targetTime - offset);
     if (Math.abs(nudgedTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS) {
-      return undefined;
+      return { started: false };
     }
     try {
+      this.primingSeek = desired;
       this.video.currentTime = nudgedTime;
-      return undefined;
+      if (!this.video.seeking) {
+        this.completePrimingSeek();
+      }
+      return { started: true };
     } catch (cause) {
-      return new MediaPreparationError(
-        'MEDIA_SEEK_FAILED',
-        `failed to prime media seek for ${desired.runId} at ${desired.targetTime.toFixed(4)}s`,
-        { cause }
-      );
+      this.primingSeek = undefined;
+      return {
+        started: false,
+        error: new MediaPreparationError(
+          'MEDIA_SEEK_FAILED',
+          `failed to prime media seek for ${desired.runId} at ${desired.targetTime.toFixed(4)}s`,
+          { cause }
+        )
+      };
     }
+  }
+
+  private completePrimingSeek(): void {
+    const primed = this.primingSeek;
+    if (!primed) {
+      return;
+    }
+    this.primingSeek = undefined;
+    if (this.disposed || primed.generation !== this.generation) {
+      return;
+    }
+    const next = this.queuedSeek ?? primed;
+    this.queuedSeek = undefined;
+    this.scheduleSeek(next);
   }
 
   private flushQueuedSeek(): void {
@@ -603,6 +639,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
     this.queuedSeek = undefined;
     this.inFlightSeek = undefined;
+    this.primingSeek = undefined;
     this.pendingNative = undefined;
     this.cancelFrameCallback();
   }

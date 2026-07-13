@@ -103,6 +103,9 @@ describe('timeline video driver', () => {
       durationFallbackSeconds: 10
     });
 
+    expect(video.currentTimeWrites).toHaveLength(1);
+    expect(video.currentTimeWrites[0]).toBeGreaterThan(0);
+    video.completeSeek();
     expect(video.currentTimeWrites.length).toBeGreaterThanOrEqual(2);
     expect(video.currentTimeWrites.at(-1)).toBe(0);
     video.completeSeek();
