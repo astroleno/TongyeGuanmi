@@ -23,6 +23,7 @@ class FakeVideo {
   playsInline = true;
   playbackRate = 1;
   load = vi.fn();
+  removeAttribute = vi.fn();
   play = vi.fn(async () => { this.paused = false; });
   pause = vi.fn(() => { this.paused = true; });
   private time = 0;
@@ -183,6 +184,8 @@ describe('directional media controller', () => {
 
     expect(forward.preload).toBe('metadata');
     expect(forward.classList.contains('is-active')).toBe(false);
+    expect(forward.removeAttribute).toHaveBeenCalledWith('src');
+    expect(forward.load).toHaveBeenCalledTimes(2);
     expect(controller.snapshot().disposed).toBe(true);
   });
 

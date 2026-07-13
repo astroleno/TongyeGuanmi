@@ -141,8 +141,10 @@ export function createDirectionalMediaController(options: {
     record.video.classList.remove(activeClassName);
     if (record.video.preload !== parkedPreload) {
       record.video.preload = parkedPreload;
-      record.video.load?.();
     }
+    // Reset the media pipeline even when preload was already metadata. This releases
+    // decoded frames from the inactive direction after the driver listeners are gone.
+    record.video.load?.();
     delete record.runId;
     delete record.direction;
     delete record.preparedProgress;
@@ -327,6 +329,10 @@ export function createDirectionalMediaController(options: {
       }
       for (const [surface, record] of surfaces) {
         parkRecord(surface, record);
+        // A disposed scene will not reuse its elements. Removing the source forces
+        // Chromium to release decoder surfaces instead of retaining them in cache.
+        record.video.removeAttribute?.('src');
+        record.video.load?.();
         delete record.video.dataset.directionalMediaSurface;
         delete record.video.dataset.directionalMediaStatus;
         delete record.video.dataset.directionalMediaGeneration;

@@ -2510,7 +2510,6 @@ pre {
   --ttg-scene-width: max(100vw, 178svh, 1180px);
   --ttg-bg-width: max(100vw, 184svh, 1180px);
   --ttg-front-width: 100vw;
-  --ttg-front-overlay-opacity: .2;
   --ttg-bg-y: 0px;
   --ttg-bg-scale: 1;
   --ttg-middle-y: 0px;
@@ -2592,27 +2591,17 @@ pre {
   transform-origin: 50% 0;
 }
 
-.r4-ttg-animation .ttg-layer--middle,
-.r4-ttg-animation .ttg-layer--middle-overlay {
+.r4-ttg-animation .ttg-layer--middle {
   z-index: 2;
   transform: translate3d(-50%, calc(-50% + var(--ttg-middle-y)), 0) scale(var(--ttg-middle-scale));
 }
 
-.r4-ttg-animation .ttg-layer--middle-overlay {
-  opacity: .2;
-}
-
-.r4-ttg-animation .ttg-layer--front,
-.r4-ttg-animation .ttg-layer--front-overlay {
+.r4-ttg-animation .ttg-layer--front {
   top: 100%;
   z-index: 3;
   width: var(--ttg-front-width);
   transform: translate3d(-50%, calc(-100% + var(--ttg-front-y)), 0) scale(1);
   transform-origin: 50% 100%;
-}
-
-.r4-ttg-animation .ttg-layer--front-overlay {
-  opacity: var(--ttg-front-overlay-opacity);
 }
 
 .r4-ttg-animation .ttg-layer--figure {

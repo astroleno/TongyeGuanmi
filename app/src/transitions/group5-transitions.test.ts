@@ -8,12 +8,25 @@ import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { createServicesTtgTransition } from './services-ttg';
 import { createTtgLabTransition, TTG_LAB_ANIMATION_STOP } from './ttg-lab';
 import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SegmentTimelineHandle, SpineSegmentNode, StagedLegPreparation, TransitionContext, TransitionModule } from '../story/types';
-import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/back-half.fixture';
+import { createBackHalfDomContext, FakeCanvas, FakeElement, FakeVideo } from './__fixtures__/back-half.fixture';
 
 const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 function preparationSignal(): AbortSignal {
   return new AbortController().signal;
+}
+
+function connectTtgMedia(
+  root: ReturnType<typeof createBackHalfDomContext>['fromRoot'],
+  forward: FakeVideo,
+  reverse: FakeVideo
+): FakeElement {
+  const terminal = new FakeElement();
+  Object.assign(terminal, { complete: true, naturalWidth: 720 });
+  root.connect('[data-ttg-figure-video]', forward);
+  root.connect('[data-ttg-figure-video-reverse]', reverse);
+  root.connect('[data-ttg-figure-terminal]', terminal);
+  return terminal;
 }
 
 async function prepareAndCommit(
@@ -126,8 +139,7 @@ describe('R4 group5 transitions', () => {
     const forwardVideo = new FakeVideo();
     const reverseVideo = new FakeVideo();
     const canvas = new FakeCanvas();
-    fixture.fromRoot.connect('[data-ttg-figure-video]', forwardVideo);
-    fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
+    connectTtgMedia(fixture.fromRoot, forwardVideo, reverseVideo);
     vi.stubGlobal('document', { createElement: () => canvas });
 
     const ttgLab = segment('ttg-lab');
@@ -221,8 +233,7 @@ describe('R4 group5 transitions', () => {
     const forwardVideo = new RejectingVideo();
     const reverseVideo = new RejectingVideo();
     const canvas = new FakeCanvas();
-    fixture.fromRoot.connect('[data-ttg-figure-video]', forwardVideo);
-    fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
+    connectTtgMedia(fixture.fromRoot, forwardVideo, reverseVideo);
     vi.stubGlobal('document', { createElement: () => canvas });
     const policy = segment('ttg-lab').policy;
     const stop = policy.kind === 'stagedSnap'
@@ -321,8 +332,7 @@ describe('R4 group5 transitions', () => {
     const reverseVideo = new DeferredFrameVideo();
     const canvas = new FakeCanvas();
     forwardVideo.classList.add('is-active');
-    fixture.fromRoot.connect('[data-ttg-figure-video]', forwardVideo);
-    fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
+    const terminal = connectTtgMedia(fixture.fromRoot, forwardVideo, reverseVideo);
     vi.stubGlobal('document', { createElement: () => canvas });
     const reverseContext = {
       ...fixture.context,
@@ -347,20 +357,15 @@ describe('R4 group5 transitions', () => {
       signal: preparationSignal()
     };
     const terminalPreparation = Promise.resolve(timeline.prepareLeg?.(terminalLeg));
-    let terminalReady = false;
-    void terminalPreparation.then(() => {
-      terminalReady = true;
-    });
-    await Promise.resolve();
-    expect(terminalReady).toBe(false);
-    expect(forwardVideo.classList.contains('is-active')).toBe(true);
-    expect(reverseVideo.classList.contains('is-active')).toBe(false);
-
-    forwardVideo.presentRequestedFrame();
     await terminalPreparation;
-    timeline.commitLeg?.(terminalLeg);
     expect(forwardVideo.classList.contains('is-active')).toBe(true);
     expect(reverseVideo.classList.contains('is-active')).toBe(false);
+    expect(terminal.classList.contains('is-active')).toBe(false);
+    timeline.commitLeg?.(terminalLeg);
+    expect(forwardVideo.classList.contains('is-active')).toBe(false);
+    expect(reverseVideo.classList.contains('is-active')).toBe(false);
+    expect(terminal.classList.contains('is-active')).toBe(true);
+    expect(forwardVideo.loadCalls).toBeGreaterThan(0);
     timeline.progress((TTG_LAB_ANIMATION_STOP + 1) / 2);
     expect(fixture.fromLayer.visibility.opacity).toBeGreaterThan(0);
     timeline.progress(TTG_LAB_ANIMATION_STOP);
@@ -382,12 +387,14 @@ describe('R4 group5 transitions', () => {
       await Promise.resolve();
     }
     expect(reverseVideo.classList.contains('is-active')).toBe(false);
-    expect(forwardVideo.classList.contains('is-active')).toBe(true);
+    expect(forwardVideo.classList.contains('is-active')).toBe(false);
+    expect(terminal.classList.contains('is-active')).toBe(true);
     expect(reverseVideo.playCalls).toBe(0);
 
     await reversePreparation;
     timeline.commitLeg?.(reverseLeg);
     expect(reverseVideo.playCalls).toBe(1);
+    expect(terminal.classList.contains('is-active')).toBe(false);
     expect(ttgMediaSnapshot(fixture.fromRoot as unknown as HTMLElement)).toMatchObject({
       activeSurface: 'reverse',
       activeRunId: reverseContext.runId,
@@ -412,8 +419,7 @@ describe('R4 group5 transitions', () => {
     const forwardVideo = new FakeVideo();
     const reverseVideo = new FakeVideo();
     forwardVideo.classList.add('is-active');
-    fixture.fromRoot.connect('[data-ttg-figure-video]', forwardVideo);
-    fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
+    const terminal = connectTtgMedia(fixture.fromRoot, forwardVideo, reverseVideo);
     const timeline = await createTtgLabTransition().buildTimeline(fixture.context);
 
     await prepareAndCommit(timeline, {
@@ -427,8 +433,9 @@ describe('R4 group5 transitions', () => {
       signal: preparationSignal()
     });
     timeline.progress(TTG_LAB_ANIMATION_STOP);
-    expect(forwardVideo.classList.contains('is-active')).toBe(true);
+    expect(forwardVideo.classList.contains('is-active')).toBe(false);
     expect(reverseVideo.classList.contains('is-active')).toBe(false);
+    expect(terminal.classList.contains('is-active')).toBe(true);
 
     await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
@@ -443,6 +450,7 @@ describe('R4 group5 transitions', () => {
     });
     expect(forwardVideo.classList.contains('is-active')).toBe(false);
     expect(reverseVideo.classList.contains('is-active')).toBe(true);
+    expect(terminal.classList.contains('is-active')).toBe(false);
     expect(reverseVideo.playCalls).toBe(1);
 
     timeline.progress(TTG_LAB_ANIMATION_STOP * 0.6);
@@ -459,8 +467,7 @@ describe('R4 group5 transitions', () => {
     const forwardVideo = new FakeVideo();
     const reverseVideo = new FakeVideo();
     forwardVideo.classList.add('is-active');
-    fixture.fromRoot.connect('[data-ttg-figure-video]', forwardVideo);
-    fixture.fromRoot.connect('[data-ttg-figure-video-reverse]', reverseVideo);
+    const terminal = connectTtgMedia(fixture.fromRoot, forwardVideo, reverseVideo);
     vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
 
     for (let index = 1; index <= 20; index += 1) {
@@ -527,8 +534,9 @@ describe('R4 group5 transitions', () => {
       }
 
       expect(fixture.fromRoot.dataset.ttgPlaybackDirection).toBe(String(direction));
-      expect(forwardVideo.classList.contains('is-active')).toBe(true);
+      expect(forwardVideo.classList.contains('is-active')).toBe(direction === -1);
       expect(reverseVideo.classList.contains('is-active')).toBe(false);
+      expect(terminal.classList.contains('is-active')).toBe(direction === 1);
       expect(forwardVideo.currentTime).toBeCloseTo(
         direction === 1 ? forwardVideo.duration - 0.02 : 0,
         2
@@ -543,7 +551,17 @@ describe('R4 group5 transitions', () => {
       hidden: false
     }));
 
-    expect(ttgAnimationScene.requiredHandles).toEqual(['field', 'figure-video', 'figure-video-reverse']);
+    expect(ttgAnimationScene.requiredHandles).toEqual([
+      'field',
+      'figure-terminal',
+      'figure-video',
+      'figure-video-reverse'
+    ]);
+    expect(markup).toContain('data-ttg-figure-terminal="true"');
+    expect(markup).toContain('ttg_middle-composite.png');
+    expect(markup).toContain('ttg_front-composite.png');
+    expect(markup).not.toContain('ttg-layer--middle-overlay');
+    expect(markup).not.toContain('ttg-layer--front-overlay');
     expect(markup).toContain('data-media-key="ttg_figure-alpha-scrub"');
     expect(markup).toContain('data-media-key="ttg_figure-alpha-scrub-reverse"');
     expect(markup).toMatch(/data-ttg-figure-video="true"[^>]*preload="metadata"/);

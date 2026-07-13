@@ -2,6 +2,7 @@ import { renderLabHold } from '../../scenes/lab';
 import {
   commitTtgForwardStart,
   commitTtgPlaybackLeg,
+  commitTtgTerminalFrame,
   parkTtgMedia,
   prepareTtgPlaybackLeg,
   prepareTtgSourceTerminal,
@@ -34,8 +35,13 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
       }
     },
     commitLegEndpoint: (root, leg, mediaRun) => {
-      if (leg.direction === -1 && leg.legIndex === 0) {
+      if (leg.legIndex !== 0) {
+        return;
+      }
+      if (leg.direction === -1) {
         commitTtgForwardStart(root, mediaRun);
+      } else {
+        commitTtgTerminalFrame(root, mediaRun);
       }
     },
     disposeSource: (root) => parkTtgMedia(root),
