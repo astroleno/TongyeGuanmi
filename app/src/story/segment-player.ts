@@ -1,4 +1,5 @@
 import { storyManifest } from './manifest';
+import { MediaPreparationError } from '../media/media-preparation';
 import type {
   Direction,
   DirectorEvent,
@@ -69,6 +70,10 @@ type ActiveRun = {
     pausedStageIndex?: number;
     pendingResumeStageIndex?: number;
     preparationGeneration: number;
+    preparation?: {
+      controller: AbortController;
+      generation: number;
+    };
     frame?: ScheduledFrame;
   };
   scrub?: {
@@ -444,6 +449,7 @@ export class SegmentPlayer {
     if (!run || run.settled) {
       return;
     }
+    this.cancelStagedPreparation(run, reason);
     if (run.timeline) {
       this.disposeCachedTimeline(run.segmentId, run.timeline);
     }
@@ -498,6 +504,7 @@ export class SegmentPlayer {
     if (run.settled) {
       return;
     }
+    this.cancelStagedPreparation(run, result.status === 'aborted' ? result.reason : result.status);
     if (run.staged?.frame) {
       cancelScheduledFrame(run.staged.frame);
       delete run.staged.frame;
@@ -604,34 +611,72 @@ export class SegmentPlayer {
     const durationMs = this.prefersReducedMotion() ? 0 : Math.max(0, staged.playMs[legIndex] ?? 0);
     run.progress = from;
     timeline.progress(from);
+    this.cancelStagedPreparation(run, 'superseded');
     const preparationGeneration = staged.preparationGeneration + 1;
     staged.preparationGeneration = preparationGeneration;
+    const preparationController = new AbortController();
+    staged.preparation = {
+      controller: preparationController,
+      generation: preparationGeneration
+    };
     const resumedStageIndex = staged.pendingResumeStageIndex;
+    const leg = {
+      runId: run.runId,
+      segment: run.segmentId,
+      direction: run.direction,
+      legIndex,
+      from,
+      to,
+      durationMs,
+      ...(resumedStageIndex !== undefined ? { resumedStageIndex } : {}),
+      signal: preparationController.signal
+    } as const;
+
+    const preparationIsCurrent = () => (
+      this.active?.runId === run.runId
+      && !run.settled
+      && staged.preparationGeneration === preparationGeneration
+      && staged.preparation?.generation === preparationGeneration
+      && staged.preparation.controller === preparationController
+    );
+
+    const releasePreparation = () => {
+      if (
+        staged.preparation?.generation === preparationGeneration
+        && staged.preparation.controller === preparationController
+      ) {
+        delete staged.preparation;
+      }
+    };
 
     const failPreparation = (error: unknown) => {
-      if (
-        this.active?.runId !== run.runId
-        || run.settled
-        || staged.preparationGeneration !== preparationGeneration
-      ) {
+      if (!preparationIsCurrent()) {
         return;
       }
+      const normalized = asError(error);
+      if (!preparationController.signal.aborted) {
+        preparationController.abort(normalized);
+      }
+      releasePreparation();
       this.settleRun(run, {
         status: 'failed',
         runId: run.runId,
         segment: run.segmentId,
-        error: asError(error)
+        error: normalized
       }, true);
     };
 
     const startClock = () => {
-      if (
-        this.active?.runId !== run.runId
-        || run.settled
-        || staged.preparationGeneration !== preparationGeneration
-      ) {
+      if (!preparationIsCurrent()) {
         return;
       }
+      try {
+        timeline.commitLeg?.(leg);
+      } catch (error) {
+        failPreparation(error);
+        return;
+      }
+      releasePreparation();
       if (resumedStageIndex !== undefined && staged.pendingResumeStageIndex === resumedStageIndex) {
         delete staged.pendingResumeStageIndex;
         this.reportMilestone({
@@ -685,16 +730,7 @@ export class SegmentPlayer {
 
     let readiness: Promise<void> | void;
     try {
-      readiness = timeline.prepareLeg?.({
-        runId: run.runId,
-        segment: run.segmentId,
-        direction: run.direction,
-        legIndex,
-        from,
-        to,
-        durationMs,
-        ...(resumedStageIndex !== undefined ? { resumedStageIndex } : {})
-      });
+      readiness = timeline.prepareLeg?.(leg);
     } catch (error) {
       failPreparation(error);
       return;
@@ -703,7 +739,61 @@ export class SegmentPlayer {
       startClock();
       return;
     }
-    void Promise.resolve(readiness).then(startClock, failPreparation);
+    const segment = this.findSegment(run.segmentId);
+    const mediaTimeouts = segment.mediaPlayback?.map((contract) => contract.preparingTimeoutMs) ?? [];
+    const timeoutMs = mediaTimeouts.length > 0
+      ? Math.max(...mediaTimeouts)
+      : segment.buildTimeoutMs ?? this.manifest.defaults.buildTimeoutMs;
+    const timeoutError = new MediaPreparationError(
+      'MEDIA_PREPARATION_TIMEOUT',
+      `staged leg preparation timed out for ${run.segmentId} after ${timeoutMs}ms`
+    );
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        if (!preparationController.signal.aborted) {
+          preparationController.abort(timeoutError);
+        }
+        reject(timeoutError);
+      }, timeoutMs);
+    });
+    let rejectOnAbort: (() => void) | undefined;
+    const abortPromise = new Promise<never>((_, reject) => {
+      rejectOnAbort = () => {
+        reject(asError(preparationController.signal.reason));
+      };
+      if (preparationController.signal.aborted) {
+        rejectOnAbort();
+      } else {
+        preparationController.signal.addEventListener('abort', rejectOnAbort, { once: true });
+      }
+    });
+    void Promise.race([Promise.resolve(readiness), timeoutPromise, abortPromise])
+      .then(startClock, failPreparation)
+      .finally(() => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        if (rejectOnAbort) {
+          preparationController.signal.removeEventListener('abort', rejectOnAbort);
+        }
+      });
+  }
+
+  private cancelStagedPreparation(run: ActiveRun, reason: string): void {
+    const staged = run.staged;
+    const preparation = staged?.preparation;
+    if (!staged || !preparation) {
+      return;
+    }
+    staged.preparationGeneration += 1;
+    delete staged.preparation;
+    if (!preparation.controller.signal.aborted) {
+      preparation.controller.abort(new MediaPreparationError(
+        'MEDIA_PREPARATION_ABORTED',
+        `staged leg preparation aborted for ${run.segmentId}: ${reason}`
+      ));
+    }
   }
 
   private finishStagedLeg(run: ActiveRun): void {

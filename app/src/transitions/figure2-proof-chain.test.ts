@@ -23,6 +23,10 @@ import { createFigure2ProofCardsClosingTransition } from './figure2-proof-cards-
 import { createFigure2ProofOpeningCardsTransition } from './figure2-proof-opening-cards';
 import type { Direction, LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
 
+function preparationSignal(): AbortSignal {
+  return new AbortController().signal;
+}
+
 class FakeStyle {
   [key: string]: unknown;
   private readonly values = new Map<string, string>();
@@ -580,7 +584,8 @@ describe('figure2 proof chain transitions', () => {
       from: FIGURE2_INTRO_END,
       to: 1,
       durationMs: 1000,
-      resumedStageIndex: 0
+      resumedStageIndex: 0,
+      signal: preparationSignal()
     });
     expect(reportMilestone).toHaveBeenCalledWith(expect.objectContaining({
       key: 'timelineReady',
@@ -802,7 +807,8 @@ describe('figure2 proof chain transitions', () => {
       from: FIGURE2_INTRO_END,
       to: 0,
       durationMs: FIGURE2_INTRO_PLAYBACK_MS,
-      resumedStageIndex: 0
+      resumedStageIndex: 0,
+      signal: preparationSignal()
     });
 
     expect(leftForward.classList.contains('is-active')).toBe(true);

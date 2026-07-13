@@ -25,7 +25,11 @@ function transitionWithTimeline(timeline: SegmentTimelineHandle): TransitionModu
   };
 }
 
-function withHeroPatternStaged(stops: readonly number[], playMs: readonly number[]): StoryManifest {
+function withHeroPatternStaged(
+  stops: readonly number[],
+  playMs: readonly number[],
+  preparingTimeoutMs?: number
+): StoryManifest {
   const manifest = structuredClone(storyManifest);
   const nodes = [...manifest.nodes];
   const index = nodes.findIndex((node) => node.kind === 'segment' && node.id === 'hero-pattern');
@@ -36,7 +40,20 @@ function withHeroPatternStaged(stops: readonly number[], playMs: readonly number
   nodes[index] = {
     ...segment,
     policy: { kind: 'stagedSnap', stops, playMs },
-    virtualDuration: playMs.reduce((sum, value) => sum + value, 0)
+    virtualDuration: playMs.reduce((sum, value) => sum + value, 0),
+    ...(preparingTimeoutMs !== undefined
+      ? {
+          mediaPlayback: [{
+            id: 'test-staged-media',
+            media: [],
+            forward: { mode: 'none' as const, required: false },
+            reverse: { mode: 'none' as const, required: false },
+            readyMilestones: [],
+            terminalFallbackScene: 'pattern' as const,
+            preparingTimeoutMs
+          }]
+        }
+      : {})
   };
   return { ...manifest, nodes };
 }
@@ -799,6 +816,96 @@ describe('SegmentPlayer', () => {
       error: expect.objectContaining({ message: 'directional frame unavailable' })
     });
     expect(timeline.progress).not.toHaveBeenCalledWith(1);
+  });
+
+  it('fails a staged leg that never resolves at the manifest media timeout', async () => {
+    vi.useFakeTimers();
+    const legReady = deferred<void>();
+    let preparationSignal: AbortSignal | undefined;
+    let settledResult: Awaited<ReturnType<SegmentPlayer['play']>> | undefined;
+    const commitLeg = vi.fn();
+    const timeline = {
+      play: () => Promise.resolve(),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn(),
+      prepareLeg: vi.fn((leg: { signal?: AbortSignal }) => {
+        preparationSignal = leg.signal;
+        return legReady.promise;
+      }),
+      commitLeg
+    } as unknown as SegmentTimelineHandle;
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged([], [40], 25),
+      transitions: { 'hero-pattern': transitionWithTimeline(timeline) },
+      actorEpoch: 'leg-timeout'
+    });
+    const result = player.play('hero-pattern', 1, { runId: 'leg-timeout:1' });
+    void result.then((value) => {
+      settledResult = value;
+    });
+
+    try {
+      for (let turn = 0; turn < 8; turn += 1) {
+        await flushMicrotasks();
+      }
+      await vi.advanceTimersByTimeAsync(25);
+      await flushMicrotasks();
+
+      expect(settledResult).toMatchObject({
+        status: 'failed',
+        error: expect.objectContaining({ code: 'MEDIA_PREPARATION_TIMEOUT' })
+      });
+      expect(preparationSignal?.aborted).toBe(true);
+      expect(commitLeg).not.toHaveBeenCalled();
+    } finally {
+      player.disposeAll();
+      legReady.resolve();
+      await result;
+    }
+  });
+
+  it('aborts staged preparation before disposing its timeline', async () => {
+    const legReady = deferred<void>();
+    let preparationSignal: AbortSignal | undefined;
+    let abortedAtDispose = false;
+    const commitLeg = vi.fn();
+    const progress = vi.fn();
+    const timeline = {
+      play: () => Promise.resolve(),
+      progress,
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn(() => {
+        abortedAtDispose = preparationSignal?.aborted ?? false;
+      }),
+      prepareLeg: vi.fn((leg: { signal?: AbortSignal }) => {
+        preparationSignal = leg.signal;
+        return legReady.promise;
+      }),
+      commitLeg
+    } as unknown as SegmentTimelineHandle;
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged([], [40], 1_000),
+      transitions: { 'hero-pattern': transitionWithTimeline(timeline) },
+      actorEpoch: 'leg-abort'
+    });
+    const result = player.play('hero-pattern', 1, { runId: 'leg-abort:1' });
+    await vi.waitFor(() => {
+      expect(preparationSignal).toBeDefined();
+    });
+    progress.mockClear();
+
+    player.abort('seek');
+    legReady.resolve();
+    await flushMicrotasks();
+
+    await expect(result).resolves.toMatchObject({ status: 'aborted', reason: 'seek' });
+    expect(preparationSignal?.aborted).toBe(true);
+    expect(abortedAtDispose).toBe(true);
+    expect(commitLeg).not.toHaveBeenCalled();
+    expect(progress).not.toHaveBeenCalled();
   });
 
   it('visits stagedSnap stops in reverse order during reverse playback', async () => {

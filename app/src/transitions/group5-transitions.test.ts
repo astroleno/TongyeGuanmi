@@ -12,6 +12,10 @@ import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/
 
 const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
+function preparationSignal(): AbortSignal {
+  return new AbortController().signal;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -139,7 +143,8 @@ describe('R4 group5 transitions', () => {
       legIndex: 0,
       from: 0,
       to: stop,
-      durationMs: 2500
+      durationMs: 2500,
+      signal: preparationSignal()
     });
 
     timeline.progress(stop / 2);
@@ -163,7 +168,8 @@ describe('R4 group5 transitions', () => {
       from: stop,
       to: 1,
       durationMs: 600,
-      resumedStageIndex: 0
+      resumedStageIndex: 0,
+      signal: preparationSignal()
     });
 
     timeline.progress((stop + 1) / 2);
@@ -222,7 +228,8 @@ describe('R4 group5 transitions', () => {
       legIndex: 0,
       from: 0,
       to: stop,
-      durationMs: 2500
+      durationMs: 2500,
+      signal: preparationSignal()
     });
 
     timeline.progress(stop * 0.2);
@@ -324,7 +331,8 @@ describe('R4 group5 transitions', () => {
       legIndex: 1,
       from: 1,
       to: TTG_LAB_ANIMATION_STOP,
-      durationMs: 600
+      durationMs: 600,
+      signal: preparationSignal()
     }));
     let terminalReady = false;
     void terminalPreparation.then(() => {
@@ -351,7 +359,8 @@ describe('R4 group5 transitions', () => {
       from: TTG_LAB_ANIMATION_STOP,
       to: 0,
       durationMs: 2500,
-      resumedStageIndex: 0
+      resumedStageIndex: 0,
+      signal: preparationSignal()
     }));
     reverseVideo.presentRequestedFrame();
     for (let index = 0; index < 6; index += 1) {
@@ -399,7 +408,8 @@ describe('R4 group5 transitions', () => {
       legIndex: 0,
       from: 0,
       to: TTG_LAB_ANIMATION_STOP,
-      durationMs: 2500
+      durationMs: 2500,
+      signal: preparationSignal()
     });
     timeline.progress(TTG_LAB_ANIMATION_STOP);
     expect(forwardVideo.classList.contains('is-active')).toBe(true);
@@ -413,7 +423,8 @@ describe('R4 group5 transitions', () => {
       from: TTG_LAB_ANIMATION_STOP,
       to: 0,
       durationMs: 2500,
-      resumedStageIndex: 0
+      resumedStageIndex: 0,
+      signal: preparationSignal()
     });
     expect(forwardVideo.classList.contains('is-active')).toBe(false);
     expect(reverseVideo.classList.contains('is-active')).toBe(true);
@@ -455,7 +466,8 @@ describe('R4 group5 transitions', () => {
           legIndex: 0,
           from: 0,
           to: TTG_LAB_ANIMATION_STOP,
-          durationMs: 2500
+          durationMs: 2500,
+          signal: preparationSignal()
         });
         timeline.progress(TTG_LAB_ANIMATION_STOP * 0.5);
         timeline.progress(TTG_LAB_ANIMATION_STOP);
@@ -467,7 +479,8 @@ describe('R4 group5 transitions', () => {
           from: TTG_LAB_ANIMATION_STOP,
           to: 1,
           durationMs: 600,
-          resumedStageIndex: 0
+          resumedStageIndex: 0,
+          signal: preparationSignal()
         });
         timeline.progress(1);
       } else {
@@ -478,7 +491,8 @@ describe('R4 group5 transitions', () => {
           legIndex: 1,
           from: 1,
           to: TTG_LAB_ANIMATION_STOP,
-          durationMs: 600
+          durationMs: 600,
+          signal: preparationSignal()
         });
         timeline.progress((1 + TTG_LAB_ANIMATION_STOP) / 2);
         timeline.progress(TTG_LAB_ANIMATION_STOP);
@@ -490,7 +504,8 @@ describe('R4 group5 transitions', () => {
           from: TTG_LAB_ANIMATION_STOP,
           to: 0,
           durationMs: 2500,
-          resumedStageIndex: 0
+          resumedStageIndex: 0,
+          signal: preparationSignal()
         });
         timeline.progress(TTG_LAB_ANIMATION_STOP * 0.5);
         timeline.progress(0);

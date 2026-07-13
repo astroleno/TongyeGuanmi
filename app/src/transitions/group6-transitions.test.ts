@@ -7,6 +7,10 @@ import { PH_PLAYBACK_MS } from '../story/timings';
 import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/back-half.fixture';
 
+function preparationSignal(): AbortSignal {
+  return new AbortController().signal;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -141,7 +145,8 @@ describe('R4 group6 transitions', () => {
       legIndex: 0,
       from: 0,
       to: stop,
-      durationMs: PH_PLAYBACK_MS
+      durationMs: PH_PLAYBACK_MS,
+      signal: preparationSignal()
     });
 
     timeline.progress(stop / 2);
@@ -165,7 +170,8 @@ describe('R4 group6 transitions', () => {
       from: stop,
       to: 1,
       durationMs: 600,
-      resumedStageIndex: 0
+      resumedStageIndex: 0,
+      signal: preparationSignal()
     });
 
     timeline.progress((stop + 1) / 2);
@@ -216,7 +222,8 @@ describe('R4 group6 transitions', () => {
       legIndex: 0,
       from: 0,
       to: PH_EDUCATION_ANIMATION_STOP,
-      durationMs: PH_PLAYBACK_MS
+      durationMs: PH_PLAYBACK_MS,
+      signal: preparationSignal()
     });
     timeline.progress(PH_EDUCATION_ANIMATION_STOP);
     expect(video.currentTime).toBeCloseTo(video.duration - 0.02, 3);
@@ -229,7 +236,8 @@ describe('R4 group6 transitions', () => {
       from: PH_EDUCATION_ANIMATION_STOP,
       to: 0,
       durationMs: PH_PLAYBACK_MS,
-      resumedStageIndex: 0
+      resumedStageIndex: 0,
+      signal: preparationSignal()
     });
     const samples: number[] = [];
     for (const progress of [0.75, 0.5, 0.25].map((value) => value * PH_EDUCATION_ANIMATION_STOP)) {
@@ -315,7 +323,8 @@ describe('R4 group6 transitions', () => {
       legIndex: 1,
       from: 1,
       to: PH_EDUCATION_ANIMATION_STOP,
-      durationMs: 600
+      durationMs: 600,
+      signal: preparationSignal()
     }));
     let frameReady = false;
     void preparation.then(() => {
@@ -358,7 +367,8 @@ describe('R4 group6 transitions', () => {
           legIndex: 1,
           from: 1,
           to: PH_EDUCATION_ANIMATION_STOP,
-          durationMs: 600
+          durationMs: 600,
+          signal: preparationSignal()
         });
         timeline.progress(PH_EDUCATION_ANIMATION_STOP);
       }
@@ -370,6 +380,7 @@ describe('R4 group6 transitions', () => {
         from: direction === 1 ? 0 : PH_EDUCATION_ANIMATION_STOP,
         to: direction === 1 ? PH_EDUCATION_ANIMATION_STOP : 0,
         durationMs: PH_PLAYBACK_MS,
+        signal: preparationSignal(),
         ...(direction === -1 ? { resumedStageIndex: 0 } : {})
       });
       timeline.progress(PH_EDUCATION_ANIMATION_STOP * 0.5);

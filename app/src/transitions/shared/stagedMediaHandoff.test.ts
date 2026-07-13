@@ -6,6 +6,10 @@ import {
   type StagedMediaRenderContext
 } from './stagedMediaHandoff';
 
+function preparationSignal(): AbortSignal {
+  return new AbortController().signal;
+}
+
 describe('staged media handoff', () => {
   it('keeps source and receiver opacity complementary throughout the dissolve leg', () => {
     const stop = 2500 / 3100;
@@ -97,7 +101,8 @@ describe('staged media handoff', () => {
       legIndex: 1,
       from: 1,
       to: stop,
-      durationMs: 600
+      durationMs: 600,
+      signal: preparationSignal()
     }));
     let resolved = false;
     void preparation.then(() => {
@@ -142,7 +147,8 @@ describe('staged media handoff', () => {
       from: stop,
       to: 0,
       durationMs: 2500,
-      resumedStageIndex: 0
+      resumedStageIndex: 0,
+      signal: preparationSignal()
     });
     timeline.progress(stop / 2);
     expect(commits).toEqual([]);

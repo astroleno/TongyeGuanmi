@@ -212,6 +212,7 @@ export type StagedLegPreparation = Readonly<{
   to: number;
   durationMs: number;
   resumedStageIndex?: number;
+  signal: AbortSignal;
 }>;
 
 export type SegmentTimelineHandle = {
@@ -230,6 +231,7 @@ export type SegmentTimelineHandle = {
   rootIdentity?(): SegmentSceneRootIdentity;
   effectCanvases?(): readonly HTMLCanvasElement[];
   prepareLeg?(leg: StagedLegPreparation): Promise<void> | void;
+  commitLeg?(leg: StagedLegPreparation): void;
 };
 
 export type TransitionContext = {
