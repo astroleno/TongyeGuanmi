@@ -1,6 +1,6 @@
 # R5 Candidate v3 Lifecycle And Release Gates Implementation Plan
 
-Status: Tasks 0–6 implemented and pushed in phase commits. Task 7 nonbrowser verification passed at `00ceba1`; pre-freeze evidence docs, immutable v3, exact identity-bound RSS, rollback, and final E2E are the remaining sequence.
+Status: Tasks 0–6 and Task 7 nonbrowser verification completed. Immutable v3 passed exact RSS but failed manifest finalization because the release runner dirtied the source with an archive write. V3 is preserved unqualified. Commit `e71b970` fixes the runner/workflow; candidate-v4 repeats the immutable identity, RSS, rollback, and E2E-last sequence.
 
 | Phase | Status | Commit(s) |
 |---|---|---|
@@ -11,7 +11,9 @@ Status: Tasks 0–6 implemented and pushed in phase commits. Task 7 nonbrowser v
 | Task 4 Figure2 hold/depth Ink | complete | `6d4f0fc` |
 | Task 6 schema-3 RSS upload gate | complete | `5fbed13` |
 | Task 7 pre-freeze RSS headroom | complete | `00ceba1` |
-| Task 7 immutable/exact gates/E2E | pending | external post-freeze evidence |
+| Task 7 v3 exact attempt | failed closed | RSS pass; tracked archive made finalizer reject dirty source |
+| Task 7 release-runner closure | complete | `e71b970` |
+| Task 7 immutable v4/exact gates/E2E | pending | external post-freeze evidence |
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

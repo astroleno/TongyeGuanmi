@@ -1,6 +1,6 @@
 # React Cutover And Rollback Runbook
 
-Status: candidate-v2 is immutable `NEEDS WORK`. Candidate-v3 implementation and nonbrowser pre-freeze verification pass; immutable identity-bound RSS, rollback, and final E2E remain. Production cutover is not authorized.
+Status: candidate-v2 is immutable `NEEDS WORK`; candidate-v3 is immutable unqualified after clean-tree finalization failed closed. The runner fix and nonbrowser pre-freeze verification pass at `e71b970`; candidate-v4 identity-bound RSS/finalization, rollback, and final E2E remain. Production cutover is not authorized.
 
 ## Immutable Inputs
 
@@ -15,13 +15,14 @@ Status: candidate-v2 is immutable `NEEDS WORK`. Candidate-v3 implementation and 
 | superseded parity-repair candidate | `react-refactor-r5-parity-repair-candidate` | commit `18490690992bffef6c9705cd47438b9cd17e756a`; tag object `7f96b243d42efd3e7409ca8628109b0901900a9b` |
 | rejected HITL head | branch commit | `2501704d63dbd7c150861d21a31c2d39525c23e5` |
 | rejected corrected candidate | `react-refactor-r5-parity-repair-candidate-v2` | commit `0dc2a87b69af39a9a3960488fda56f6af664b54d`; tag object `c31e464215bab4ea36e1884a59ded46e8a07ce63`; immutable `NEEDS WORK` |
-| intended lifecycle-closed candidate | `react-refactor-r5-parity-repair-candidate-v3` | freeze after pre-freeze gate; qualify only after identity-bound RSS, exact smokes, rollback, and final browser matrices |
+| failed-closed lifecycle candidate | `react-refactor-r5-parity-repair-candidate-v3` | commit `dee30b9275ecbd3b238b37dee0ea0c8cfd944427`; tag object `f08ca22736fb43bcb988b9b67404bc9fa165e422`; RSS pass, dirty-tree finalization reject |
+| intended lifecycle-closed candidate | `react-refactor-r5-parity-repair-candidate-v4` | freeze after pre-freeze gate; qualify only after identity-bound RSS, exact smokes, rollback, and final browser matrices |
 | review rollback build | plain build manifest | 98 files / 139,528,455B; SHA-256 `2b91f5e3cd34883125a613a2a005ff3f3a4de4db8ef7c8a317f03297ce21742a` |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |
 | historical parity-repair artifact | exact old tag `dist/r5-release-manifest.json` | schema 2; 97 files / 139,518,637B; SHA-256 `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
 
-Always peel annotated tags with `git rev-parse <tag>^{commit}`. Never move or reuse an old candidate tag. Candidate-v3 creation is authorized only after the pre-freeze gate in this runbook passes; it does not authorize cutover.
+Always peel annotated tags with `git rev-parse <tag>^{commit}`. Never move or reuse an old candidate tag. Candidate-v4 creation is authorized only after the pre-freeze gate in this runbook passes; it does not authorize cutover.
 
 ## Pre-Freeze Acceptance
 
@@ -36,17 +37,17 @@ Also run the focused AOD/Figure2/TTG/PH/loader/Ink paths and the hardware frame/
 
 Any failure invalidates the freeze. Fix the owning implementation and use focused diagnostics while repairing; rerun the complete gate only when the branch is again ready for a final decision.
 
-Candidate-v3 pre-freeze record: root verification passed 83 Vitest files / 568 tests plus lint, typecheck, build, release/static checks, and budgets. Three fresh-browser RSS preflights passed at `1,474,232,320B`, `1,472,495,616B`, and `1,473,265,664B`. Browser matrices are intentionally deferred until the last step on the exact tag. The immutable source, tag object, qualified manifest digest, rollback result, and final exact-tag E2E are recorded outside the tagged source.
+Candidate-v4 pre-freeze record: runner-fix head `e71b970` passed 83 Vitest files / 568 tests plus lint, typecheck, build, release/static checks, and budgets. Three fresh-browser preflights and exact v3 RSS passed; v3 then failed clean-tree finalization. Browser matrices are intentionally deferred until the last step on exact v4. The v4 source, tag object, qualified manifest digest, rollback result, and final exact-tag E2E are recorded outside the tagged source.
 
 ## Corrected Candidate Freeze
 
 Only after every pre-freeze gate passes and the worktree is clean:
 
 ```bash
-git tag -a react-refactor-r5-parity-repair-candidate-v3 \
-  -m "R5 production parity repair candidate v3"
-git rev-parse react-refactor-r5-parity-repair-candidate-v3^{commit}
-git rev-parse refs/tags/react-refactor-r5-parity-repair-candidate-v3
+git tag -a react-refactor-r5-parity-repair-candidate-v4 \
+  -m "R5 production parity repair candidate v4"
+git rev-parse react-refactor-r5-parity-repair-candidate-v4^{commit}
+git rev-parse refs/tags/react-refactor-r5-parity-repair-candidate-v4
 git status --short
 ```
 
@@ -57,11 +58,11 @@ Record the peeled commit and annotated tag-object id. The tag is immutable from 
 Use a detached, clean checkout of the exact tag with Node 22 and pnpm 8.15.1:
 
 ```bash
-git switch --detach react-refactor-r5-parity-repair-candidate-v3
+git switch --detach react-refactor-r5-parity-repair-candidate-v4
 corepack enable
 corepack prepare pnpm@8.15.1 --activate
 pnpm install --frozen-lockfile
-R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v3 \
+R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v4 \
 R5_SOURCE_COMMIT="$(git rev-parse HEAD)" \
 pnpm run deploy:build
 shasum -a 256 dist/r5-release-manifest.json
@@ -97,7 +98,7 @@ Store the exact tag, peeled commit, tag object, manifest digest, emitted-file co
 
 Use separate clean corrected-candidate and legacy checkouts. Reuse one local port and switch the served directory in this order:
 
-Before freeze, a clean detached checkout of the recorded branch commit may be used only to validate the rehearsal procedure. The final recorded rehearsal must use the exact annotated candidate-v3 and its identity-bound artifact.
+Before freeze, a clean detached checkout of the recorded branch commit may be used only to validate the rehearsal procedure. The final recorded rehearsal must use the exact annotated candidate-v4 and its identity-bound artifact.
 
 1. Corrected candidate: verify root, static footer, manifest presence, no-JS, direct hash, representative media range, and key forward/reverse smoke.
 2. Stop the candidate server completely.
@@ -116,7 +117,7 @@ test "$(shasum -a 256 index.html | awk '{print $1}')" = \
 
 Port reuse, process termination, and artifact identity must be recorded; two simultaneously running preview servers do not constitute a rollback rehearsal.
 
-The 2026-07-12 review → legacy → review rehearsal is historical and does not qualify candidate-v3. The final run must record that port `4173` served exact candidate-v3, then legacy `a78b064`, then the byte-identical candidate-v3 artifact; each server must be fully stopped before the next phase.
+The 2026-07-12 review → legacy → review rehearsal is historical and does not qualify candidate-v4. The final run must record that port `4173` served exact candidate-v4, then legacy `a78b064`, then the byte-identical candidate-v4 artifact; each server must be fully stopped before the next phase.
 
 ## Final E2E — Run Last
 

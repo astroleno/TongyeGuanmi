@@ -1,23 +1,23 @@
 # R5 Production Regression Matrix
 
-Status: **candidate-v3 deterministic contracts and nonbrowser gate pass; final browser qualification is pending.** Browser counts from candidate-v2 and earlier heads remain historical only. Both v3 Playwright suites run last from the immutable exact tag.
+Status: **candidate-v4 deterministic contracts and nonbrowser gate pass; final browser qualification is pending.** Candidate-v3 failed closed before E2E because manifest finalization rejected a dirty tree. Browser counts from candidate-v2 and earlier heads remain historical only. Both v4 Playwright suites run last from the immutable exact tag.
 
-Date: 2026-07-13. Branch: `codex/react-refactor-r5-parity-cutover`. Intended immutable tag after all gates pass: `react-refactor-r5-parity-repair-candidate-v3`.
+Date: 2026-07-13. Branch: `codex/react-refactor-r5-parity-cutover`. Intended immutable tag after all gates pass: `react-refactor-r5-parity-repair-candidate-v4`.
 
 ## Required Project Matrix
 
 | Project | Canonical traversal | Critical reverse | Input/navigation | Media/lifecycle | SEO/no-JS | Current record |
 |---|---|---|---|---|---|---|
-| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | required | pending exact-v3 run |
-| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | required | pending exact-v3 run |
-| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | pending exact-v3 run |
-| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | pending exact-v3 run |
+| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | required | pending exact-v4 run |
+| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | required | pending exact-v4 run |
+| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | pending exact-v4 run |
+| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | pending exact-v4 run |
 
 Layer invariants are unchanged: at most two visible layers during transition, exactly one visible/interactable settled hold, bounded retiring layers, one canonical receiver root, and no Hero current/visible fallback during Contact reverse.
 
 ## R1–R22 Deterministic Ownership
 
-Every row has implementation-level coverage in the 83-file / 568-test nonbrowser suite. Browser qualification is intentionally not inferred from candidate-v2 and is repeated only after v3 freeze.
+Every row has implementation-level coverage in the 83-file / 568-test nonbrowser suite. Browser qualification is intentionally not inferred from candidate-v2 and is repeated only after v4 freeze.
 
 | ID | Assertion owners | Required proof |
 |---|---|---|
@@ -52,11 +52,11 @@ The reproduction/root-cause/minimum-file record is `../contract-diff/R5-producti
 pnpm run verify:all
 pnpm -C app exec playwright test
 pnpm -C app exec playwright test --config playwright.release.config.ts
-R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v3 \
+R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v4 \
 R5_SOURCE_COMMIT="$(git rev-parse HEAD)" pnpm run deploy:build
 ```
 
-Candidate-v2 recorded 44 / 44 default cases and 54 applicable release cases with 42 declared project skips; those counts are baseline history, not v3 evidence. The final handoff records fresh exact-v3 counts and declared skips after both commands complete.
+Candidate-v2 recorded 44 / 44 default cases and 54 applicable release cases with 42 declared project skips; those counts are baseline history, not v4 evidence. The final handoff records fresh exact-v4 counts and declared skips after both commands complete.
 
 ## Acceptance Boundary
 

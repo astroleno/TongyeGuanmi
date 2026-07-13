@@ -14,7 +14,7 @@ origin_plan: docs/plans/2026-07-12-001-fix-production-story-parity-plan.md
 
 The regression architecture in Units 0–7 is implemented on `codex/react-refactor-r5-parity-cutover`. Candidate-v2 remains immutable and rejected. The follow-up lifecycle/release blockers are implemented under `2026-07-13-003-fix-r5-candidate-v3-lifecycle-gates-plan.md`: cancellable timed preparation, presented-frame-only readiness, two-phase surface commit, Figure2 hold/depth-Ink restoration, preparing reversal input, schema-3 identity-bound RSS qualification, and TTG decoder-memory closure.
 
-At pre-freeze head `00ceba1`, `pnpm run verify:all` passed 83 files / 568 tests plus lint, typecheck, build, static/release checks, and frozen bundle budgets. Three fresh-browser RSS preflights passed at `1,474,232,320B`, `1,472,495,616B`, and `1,473,265,664B`. These are pre-freeze stability evidence only; exact v3 identity, qualified manifest, rollback, and final E2E remain the last gate and are recorded outside the immutable source after tagging.
+At pre-freeze head `00ceba1`, `pnpm run verify:all` passed 83 files / 568 tests plus lint, typecheck, build, static/release checks, and frozen bundle budgets. Three fresh-browser RSS preflights passed at `1,474,232,320B`, `1,472,495,616B`, and `1,473,265,664B`. Exact candidate-v3 RSS also passed at `1,491,533,824B`, but finalization correctly rejected the now-dirty tree because the release runner had archived evidence into a tracked path. Candidate-v3 remains immutable and unqualified; `e71b970` removes that write and reserves a new candidate-v4 for the repeated exact gates.
 
 ## Overview
 
