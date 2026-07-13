@@ -93,6 +93,24 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it('forces an exact-target seek before waiting for a paused endpoint frame', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const readiness = driver.prepareFrame({
+      runId: 'media-endpoint-frame:1',
+      direction: 1,
+      progress: 0,
+      durationFallbackSeconds: 10
+    });
+
+    expect(video.currentTimeWrites.length).toBeGreaterThanOrEqual(2);
+    expect(video.currentTimeWrites.at(-1)).toBe(0);
+    video.completeSeek();
+    video.presentFrame();
+
+    await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+  });
+
   it('does not claim frame readiness when the frame callback has not fired', async () => {
     vi.useFakeTimers();
     const video = new FakeVideo();

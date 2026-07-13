@@ -238,7 +238,12 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       }
     });
     if (this.waiters.has(waiter)) {
-      this.scheduleSeek(desired);
+      const primeError = this.primeExactTargetSeek(desired);
+      if (primeError) {
+        this.rejectWaiter(waiter, primeError);
+      } else {
+        this.scheduleSeek(desired);
+      }
     }
     return promise;
   }
@@ -394,6 +399,30 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private scheduleSeek(desired: DesiredFrame): void {
     this.queuedSeek = desired;
     this.flushQueuedSeek();
+  }
+
+  private primeExactTargetSeek(desired: DesiredFrame): Error | undefined {
+    if (Math.abs(this.video.currentTime - desired.targetTime) > SEEK_TOLERANCE_SECONDS) {
+      return undefined;
+    }
+    const duration = finiteDuration(this.video, desired.targetTime + 0.01);
+    const offset = SEEK_TOLERANCE_SECONDS * 2;
+    const nudgedTime = desired.targetTime + offset <= duration
+      ? desired.targetTime + offset
+      : Math.max(0, desired.targetTime - offset);
+    if (Math.abs(nudgedTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS) {
+      return undefined;
+    }
+    try {
+      this.video.currentTime = nudgedTime;
+      return undefined;
+    } catch (cause) {
+      return new MediaPreparationError(
+        'MEDIA_SEEK_FAILED',
+        `failed to prime media seek for ${desired.runId} at ${desired.targetTime.toFixed(4)}s`,
+        { cause }
+      );
+    }
   }
 
   private flushQueuedSeek(): void {
