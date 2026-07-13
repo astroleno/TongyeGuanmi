@@ -1,6 +1,6 @@
 # React Cutover And Rollback Runbook
 
-Status: candidate-v2 is immutable but `NEEDS WORK` after exact-tag RSS and lifecycle review. Candidate-v3 implementation/qualification is in progress. Production cutover is not authorized.
+Status: candidate-v2 is immutable `NEEDS WORK`. Candidate-v3 implementation and nonbrowser pre-freeze verification pass; immutable identity-bound RSS, rollback, and final E2E remain. Production cutover is not authorized.
 
 ## Immutable Inputs
 
@@ -15,13 +15,13 @@ Status: candidate-v2 is immutable but `NEEDS WORK` after exact-tag RSS and lifec
 | superseded parity-repair candidate | `react-refactor-r5-parity-repair-candidate` | commit `18490690992bffef6c9705cd47438b9cd17e756a`; tag object `7f96b243d42efd3e7409ca8628109b0901900a9b` |
 | rejected HITL head | branch commit | `2501704d63dbd7c150861d21a31c2d39525c23e5` |
 | rejected corrected candidate | `react-refactor-r5-parity-repair-candidate-v2` | commit `0dc2a87b69af39a9a3960488fda56f6af664b54d`; tag object `c31e464215bab4ea36e1884a59ded46e8a07ce63`; immutable `NEEDS WORK` |
-| intended lifecycle-closed candidate | `react-refactor-r5-parity-repair-candidate-v3` | create only after identity-bound RSS, full browser matrices, exact smokes, and rollback pass |
+| intended lifecycle-closed candidate | `react-refactor-r5-parity-repair-candidate-v3` | freeze after pre-freeze gate; qualify only after identity-bound RSS, exact smokes, rollback, and final browser matrices |
 | review rollback build | plain build manifest | 98 files / 139,528,455B; SHA-256 `2b91f5e3cd34883125a613a2a005ff3f3a4de4db8ef7c8a317f03297ce21742a` |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |
 | historical parity-repair artifact | exact old tag `dist/r5-release-manifest.json` | schema 2; 97 files / 139,518,637B; SHA-256 `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
 
-Always peel annotated tags with `git rev-parse <tag>^{commit}`. Never move or reuse an old candidate tag. Candidate-v2 creation is authorized only after the full gate in this runbook passes; it does not authorize cutover.
+Always peel annotated tags with `git rev-parse <tag>^{commit}`. Never move or reuse an old candidate tag. Candidate-v3 creation is authorized only after the pre-freeze gate in this runbook passes; it does not authorize cutover.
 
 ## Pre-Freeze Acceptance
 
@@ -29,26 +29,24 @@ From the completed implementation branch, run the full automated gate once:
 
 ```bash
 pnpm run verify:all
-pnpm -C app exec playwright test
-pnpm -C app exec playwright test --config playwright.release.config.ts
-pnpm -C app evidence:memory
+R5_BASE_URL=http://127.0.0.1:4173 pnpm -C app evidence:memory
 ```
 
 Also run the focused AOD/Figure2/TTG/PH/loader/Ink paths and the hardware frame/process-memory profile required by `r5-regression-matrix.md` and `r5-performance-budget.md`. Do not capture screenshots or infer manual visual acceptance from this gate.
 
 Any failure invalidates the freeze. Fix the owning implementation and use focused diagnostics while repairing; rerun the complete gate only when the branch is again ready for a final decision.
 
-Candidate-v2 pre-freeze record: root verification passed 82 Vitest files / 545 tests plus lint, typecheck, builds, release/static checks, and budgets; default browser matrix passed 44 / 44; the four-project release matrix passed 54 applicable cases with 42 declared project skips; four-project no-JS, focused direction/Ink pacing, and the clean repeated process-memory/disposal gate passed. The immutable source, tag object, manifest digest, rollback result, and final exact-tag E2E are intentionally recorded outside the tagged source.
+Candidate-v3 pre-freeze record: root verification passed 83 Vitest files / 568 tests plus lint, typecheck, build, release/static checks, and budgets. Three fresh-browser RSS preflights passed at `1,474,232,320B`, `1,472,495,616B`, and `1,473,265,664B`. Browser matrices are intentionally deferred until the last step on the exact tag. The immutable source, tag object, qualified manifest digest, rollback result, and final exact-tag E2E are recorded outside the tagged source.
 
 ## Corrected Candidate Freeze
 
 Only after every pre-freeze gate passes and the worktree is clean:
 
 ```bash
-git tag -a react-refactor-r5-parity-repair-candidate-v2 \
-  -m "R5 production parity repair candidate v2"
-git rev-parse react-refactor-r5-parity-repair-candidate-v2^{commit}
-git rev-parse refs/tags/react-refactor-r5-parity-repair-candidate-v2
+git tag -a react-refactor-r5-parity-repair-candidate-v3 \
+  -m "R5 production parity repair candidate v3"
+git rev-parse react-refactor-r5-parity-repair-candidate-v3^{commit}
+git rev-parse refs/tags/react-refactor-r5-parity-repair-candidate-v3
 git status --short
 ```
 
@@ -59,11 +57,11 @@ Record the peeled commit and annotated tag-object id. The tag is immutable from 
 Use a detached, clean checkout of the exact tag with Node 22 and pnpm 8.15.1:
 
 ```bash
-git switch --detach react-refactor-r5-parity-repair-candidate-v2
+git switch --detach react-refactor-r5-parity-repair-candidate-v3
 corepack enable
 corepack prepare pnpm@8.15.1 --activate
 pnpm install --frozen-lockfile
-R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v2 \
+R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v3 \
 R5_SOURCE_COMMIT="$(git rev-parse HEAD)" \
 pnpm run deploy:build
 shasum -a 256 dist/r5-release-manifest.json
@@ -99,7 +97,7 @@ Store the exact tag, peeled commit, tag object, manifest digest, emitted-file co
 
 Use separate clean corrected-candidate and legacy checkouts. Reuse one local port and switch the served directory in this order:
 
-Before freeze, a clean detached checkout of the recorded branch commit may be used only to validate the rehearsal procedure. The final recorded rehearsal must use the exact annotated candidate-v2 and its identity-bound artifact.
+Before freeze, a clean detached checkout of the recorded branch commit may be used only to validate the rehearsal procedure. The final recorded rehearsal must use the exact annotated candidate-v3 and its identity-bound artifact.
 
 1. Corrected candidate: verify root, static footer, manifest presence, no-JS, direct hash, representative media range, and key forward/reverse smoke.
 2. Stop the candidate server completely.
@@ -118,7 +116,18 @@ test "$(shasum -a 256 index.html | awk '{print $1}')" = \
 
 Port reuse, process termination, and artifact identity must be recorded; two simultaneously running preview servers do not constitute a rollback rehearsal.
 
-The 2026-07-12 review → legacy → review rehearsal is historical and does not qualify candidate-v2. The final run must record that port `4173` served exact candidate-v2, then legacy `a78b064`, then the byte-identical candidate-v2 artifact; each server must be fully stopped before the next phase.
+The 2026-07-12 review → legacy → review rehearsal is historical and does not qualify candidate-v3. The final run must record that port `4173` served exact candidate-v3, then legacy `a78b064`, then the byte-identical candidate-v3 artifact; each server must be fully stopped before the next phase.
+
+## Final E2E — Run Last
+
+Only after exact identity-bound memory, smokes, and same-port rollback pass:
+
+```bash
+pnpm -C app exec playwright test
+pnpm -C app exec playwright test --config playwright.release.config.ts
+```
+
+Record pass counts and project-declared skips in the external handoff. Do not edit source or release docs after these commands; any required change invalidates the frozen candidate and starts a new candidate identity.
 
 ## Production Cutover — Only After Later Explicit HITL Approval
 

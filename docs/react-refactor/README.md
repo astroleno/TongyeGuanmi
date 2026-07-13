@@ -1,6 +1,6 @@
 # React Refactor
 
-状态：`react-refactor-r5-parity-repair-candidate-v2` 身份冻结正确，但代码 review 判定 `NEEDS WORK`，未通过 HITL。exact-tag aggregate RSS 两次超限，同时存在 preparing 输入、媒体准备取消/超时、dispose 竞态、Figure2 hold 重入和 evidence identity gate 阻断。现按 v3 lifecycle closure 计划修复；v2 禁止移动，当前仍不允许合并/部署 `main`、创建 cutover tag 或开始 R6。
+状态：candidate-v3 生命周期与发布门禁实现完成，非浏览器 pre-freeze gate 已通过；v2 继续作为不可变 `NEEDS WORK` 审计记录。下一步只允许冻结新的 `react-refactor-r5-parity-repair-candidate-v3`，完成 exact identity-bound RSS、同端口 rollback，并最后运行两套 E2E 后交给 HITL。当前仍不允许合并/部署 `main`、创建 cutover tag 或开始 R6。
 
 ## 当前事实
 
@@ -10,6 +10,7 @@
 - 修复分支：`codex/react-refactor-r5-parity-cutover`；修复基点：`59065730712c6d9718928fd25cba23e33455395e`。
 - `react-refactor-r5-candidate`、`-v2`、`-v3` 与 `react-refactor-r5-parity-repair-candidate` 都不包含本轮 HITL regression closure，只保留为不可变审计记录，禁止移动或冒充新候选。
 - v2 只保留为不可变 `NEEDS WORK` 审计记录。修复和完整 gate 通过后，唯一允许创建的新候选 tag 是 `react-refactor-r5-parity-repair-candidate-v3`。
+- v3 pre-freeze code head `00ceba1` 已通过 83 files / 568 tests、lint、typecheck、build、release/static 与 bundle budgets；三次 fresh-browser RSS preflight 均低于未修改的 1.5GB 上限。exact tag 证据尚未在源码内预写。
 - 18 holds、17 segments、canonical 顺序、scene id、hash、copy、Director/SegmentPlayer/Stage/LayerWindow、production/harness lazy 边界和 no-JS shell 架构保持不变。
 - 本轮在既有 R1–R22 基础上关闭九项 HITL 回归：单一 10svh 物理手势所有权、AOD/Figure2/TTG/PH presented-frame gate、Figure2 原生反向与 depth readiness、TTG/PH same-run reversal/receiver 唯一性、app-owned loader Ink、Star Map 不透明文案，以及 128-sample 对齐的轻量 horizontal Ink core。
 - 此 Goal 的验收不新增 screenshot baseline，不要求人工视觉复核；完整自动化通过并完成 exact-tag/rollback 后停止等待 HITL。
@@ -34,10 +35,11 @@ react-refactor-legacy-static-baseline
                               └─ react-refactor-r5-candidate / v2 / v3
                                    (superseded, immutable, unrepaired)
                                    └─ codex/react-refactor-r5-parity-cutover
-                                        └─ pre-freeze automated acceptance (passed)
-                                             └─ react-refactor-r5-parity-repair-candidate-v2
-                                                  └─ exact-tag build/smoke + rollback rehearsal
-                                                       └─ stop for HITL
+                                        └─ candidate-v2 (immutable NEEDS WORK)
+                                             └─ v3 lifecycle closure + pre-freeze gate
+                                                  └─ react-refactor-r5-parity-repair-candidate-v3
+                                                       └─ exact RSS + rollback + E2E last
+                                                            └─ stop for HITL
 ```
 
 `react-refactor-r5-cutover` 只能在后续 HITL 明确批准并完成 main cutover 后建立；R6 不得从 candidate、未批准的 main 或本轮工作分支开始。

@@ -1,5 +1,18 @@
 # R5 Candidate v3 Lifecycle And Release Gates Implementation Plan
 
+Status: Tasks 0–6 implemented and pushed in phase commits. Task 7 nonbrowser verification passed at `00ceba1`; pre-freeze evidence docs, immutable v3, exact identity-bound RSS, rollback, and final E2E are the remaining sequence.
+
+| Phase | Status | Commit(s) |
+|---|---|---|
+| Task 0 scope/rejection | complete | `a2467a2` |
+| Task 1 timed abortable legs | complete | `02e367f` |
+| Task 2 presented-frame contract | complete | `4aad428`, `eda0a2b`, `a125204`, `2d5296b`, `a71f491`, `35b26e0` |
+| Tasks 3/5 two-phase commit and preparing reversal | complete | `72fb84a` |
+| Task 4 Figure2 hold/depth Ink | complete | `6d4f0fc` |
+| Task 6 schema-3 RSS upload gate | complete | `5fbed13` |
+| Task 7 pre-freeze RSS headroom | complete | `00ceba1` |
+| Task 7 immutable/exact gates/E2E | pending | external post-freeze evidence |
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close the candidate-v2 review blockers with one cancellable media-preparation lifecycle, reversible Figure2 hold ownership, and identity-bound RSS evidence before creating an immutable candidate-v3.

@@ -1,7 +1,7 @@
 # Roadmap：Cinematic Story Runtime 重写
 
 入口文档：`README.md`。配套文档：`ARCHITECTURE.md`（目标架构与契约）、`MIGRATION.md`（复用与退役清单），阶段执行清单见 `goals/`。
-本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地，R5 candidate-v2 已冻结但 review 判定 `NEEDS WORK`。当前执行 candidate-v3 lifecycle/evidence closure，v2 仅保留为不可变审计记录。旧站基线固定为 `react-refactor-legacy-static-baseline`；state-machine / scene-runtime 系列分支继续只作历史参考。
+本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地，R5 candidate-v2 已冻结但 review 判定 `NEEDS WORK`。Candidate-v3 lifecycle/evidence 实现和非浏览器 pre-freeze gate 已完成，正进入 exact tag → identity-bound RSS → rollback → E2E-last 资格序列；v2 仅保留为不可变审计记录。旧站基线固定为 `react-refactor-legacy-static-baseline`；state-machine / scene-runtime 系列分支继续只作历史参考。
 
 ## 当前执行纪律
 
@@ -177,7 +177,7 @@ main
 
 **目标**：把 R4 scene/transition 组装成真正的 production StoryApp，整站替换旧静态站，并在任何破坏性清理前保留可执行 rollback。
 
-**状态**：candidate-v2 的身份冻结有效，但 exact-tag RSS 与媒体准备生命周期 review 未闭环，判定 `NEEDS WORK`。当前按 `docs/plans/2026-07-13-003-fix-r5-candidate-v3-lifecycle-gates-plan.md` 修复；全部 gate 通过后只创建新的 `react-refactor-r5-parity-repair-candidate-v3` 并停止等待 HITL。尚未合并/部署 `main`，也未建立 `react-refactor-r5-cutover`。
+**状态**：candidate-v2 的身份冻结有效但为 `NEEDS WORK`。`docs/plans/2026-07-13-003-fix-r5-candidate-v3-lifecycle-gates-plan.md` 的实现与非浏览器 pre-freeze gate 已完成；只在 exact identity-bound RSS、rollback 和最终 E2E 全绿后，才把新的 `react-refactor-r5-parity-repair-candidate-v3` 交给 HITL。尚未合并/部署 `main`，也未建立 `react-refactor-r5-cutover`。
 
 任务：
 
@@ -210,7 +210,7 @@ R6 只能从 HITL 批准后的 R5 cutover tag 开始，不能与 R5 合并：
 ## 关键依赖关系
 
 ```txt
-R-1 → R0 → R1 → R2 → R3 → R4 closeout → R5 candidate-v2 → HITL cutover → R6
+R-1 → R0 → R1 → R2 → R3 → R4 closeout → R5 candidate-v2 (`NEEDS WORK`) → candidate-v3 qualification → HITL cutover → R6
                   ↑
          R2 未收口前禁止开始任何真实 scene 迁移（R3/R4）
          R4 各 story group 可并行分支，合并顺序按 canonical spine

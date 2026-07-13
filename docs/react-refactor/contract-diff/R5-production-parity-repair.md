@@ -1,14 +1,14 @@
 # R5 Production Parity Repair Contract Diff
 
-Status: regression closure implemented and the pre-freeze automated qualification passed on the branch. Candidate-v2 freeze is authorized; exact-tag identity, rollback, and final browser evidence are recorded externally after the immutable tag exists. The prior HITL rejection remains authoritative until the user approves the corrected candidate.
+Status: regression and candidate-v3 lifecycle closure are implemented. The final nonbrowser pre-freeze gate passed; candidate-v2 remains immutable `NEEDS WORK`. Exact v3 identity-bound RSS, rollback, and final browser evidence are recorded externally after the new immutable tag exists. The prior HITL rejection remains authoritative until the user approves v3.
 
 Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 
 ## Release Identity Boundary
 
-The immutable tags `react-refactor-r5-candidate`, `react-refactor-r5-candidate-v2`, `react-refactor-r5-candidate-v3`, and `react-refactor-r5-parity-repair-candidate` predate this HITL regression closure. They remain audit records and must not be moved, reused, or described as containing the corrected runtime.
+The immutable tags `react-refactor-r5-candidate`, `react-refactor-r5-candidate-v2`, `react-refactor-r5-candidate-v3`, `react-refactor-r5-parity-repair-candidate`, and rejected `react-refactor-r5-parity-repair-candidate-v2` predate the candidate-v3 lifecycle closure. They remain audit records and must not be moved, reused, or described as containing the corrected runtime.
 
-The rejected review head is `2501704d63dbd7c150861d21a31c2d39525c23e5`. After the complete gate passes, this closure is authorized to create the new annotated tag `react-refactor-r5-parity-repair-candidate-v2`; it never authorizes moving an old tag, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.
+The rejected review head is `2501704d63dbd7c150861d21a31c2d39525c23e5`; rejected candidate-v2 is fixed at `0dc2a87b69af39a9a3960488fda56f6af664b54d`. After the complete gate passes, this closure is authorized to create the new annotated tag `react-refactor-r5-parity-repair-candidate-v3`; it never authorizes moving an old tag, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.
 
 ## Preserved Architecture
 
@@ -56,6 +56,6 @@ The rejected review head is `2501704d63dbd7c150861d21a31c2d39525c23e5`. After th
 
 ## Acceptance Boundary
 
-Historical green results at `14743aa` and the later HITL-rejected head are not qualification evidence for this closure. The branch qualification regenerated root verification, both browser matrices, focused direction/media/Ink paths, frame pacing, and process memory/disposal from the corrected source. Because tag object, identity-bound manifest digest, rollback, and final exact-tag E2E cannot exist inside the source they identify, those records must be attached to the external handoff after freeze.
+Historical green results at `14743aa`, candidate-v2, and the later HITL-rejected head are not qualification evidence for v3. At pre-freeze head `00ceba1`, root verification passed 83 files / 568 tests plus lint, typecheck, build, static/release checks, and frozen bundle budgets. Three fresh-browser process-memory preflights passed below the unchanged aggregate budget. Because the v3 tag object, identity-bound manifest digest, rollback, and final exact-tag E2E cannot exist inside the source they identify, those records must be attached to the external handoff after freeze.
 
-The pre-freeze gate authorizes creation of `react-refactor-r5-parity-repair-candidate-v2`. Work then stops for user HITL after exact-tag qualification. Candidate creation is not permission to merge, deploy, create a cutover tag, or begin R6.
+The completed pre-freeze gate authorizes creation of `react-refactor-r5-parity-repair-candidate-v3`. Work then stops for user HITL after exact-tag qualification. Candidate creation is not permission to merge, deploy, create a cutover tag, or begin R6.

@@ -1,6 +1,6 @@
 # R5 Performance Budget
 
-Status: pre-freeze build, hardware frame, transfer, process-memory, and disposal budgets pass. Exact-candidate identity and final exact-tag E2E remain external post-freeze evidence.
+Status: candidate-v3 pre-freeze build and three fresh-browser process-memory profiles pass. Exact identity-bound memory and final exact-tag E2E remain external post-freeze evidence.
 
 Date: 2026-07-13. Earlier values belong to superseded source and are audit history only.
 
@@ -17,7 +17,7 @@ Passing performance by freezing required animation, skipping presented-frame rea
 
 ## User-Visible Budgets
 
-| Metric | Budget | Candidate-v2 record |
+| Metric | Budget | Historical candidate-v2 record |
 |---|---:|---|
 | desktop LCP | ≤2.5s and no worse than the accepted comparison gate | 188ms |
 | mobile LCP | ≤4.0s | 184ms |
@@ -46,14 +46,14 @@ The aggregate desktop sample contained 759 intervals at p95 17.5ms with two inte
 
 | Metric | Budget | Current clean branch build |
 |---|---:|---:|
-| initial JS raw | ≤368,640B | 360,219B |
-| initial JS gzip | ≤114,688B | 110,570B |
-| initial CSS raw | ≤76,800B | 74,875B |
-| total JS raw | ≤581,632B | 564,097B |
+| initial JS raw | ≤368,640B | 361,700B |
+| initial JS gzip | ≤114,688B | 111,012B |
+| initial CSS raw | ≤76,800B | 74,613B |
+| total JS raw | ≤581,632B | 575,104B |
 | largest lazy JS | ≤65,536B | 24,997B |
 | loader Ink lazy JS | ≤16,384B | 13,534B |
 | largest emitted asset | ≤16,777,216B | 15,302,466B |
-| total asset tree | ≤163,577,856B | 159,599,730B |
+| total asset tree | ≤163,577,856B | 159,670,645B |
 
 The initial JS/CSS, gzip, largest-lazy, and largest-asset caps are unchanged. Two narrow rebaselines are explicit:
 
@@ -64,19 +64,19 @@ The initial JS/CSS, gzip, largest-lazy, and largest-asset caps are unchanged. Tw
 
 ## GPU, Memory, And Disposal Budgets
 
-| Metric | Budget | Candidate-v2 record |
+| Metric | Budget | Candidate-v3 pre-freeze record |
 |---|---:|---|
-| browser process-tree peak RSS | ≤1,500,000,000B | 1,451,737,088B |
-| GPU process peak RSS | ≤536,870,912B | 351,125,504B |
-| renderer process peak RSS | ≤1,073,741,824B | 755,056,640B |
-| JS heap | peak ≤192MiB; settled ≤90% of peak | 39,200,008B peak; 11,967,697B settled |
+| browser process-tree peak RSS | ≤1,500,000,000B | three passes: 1,474,232,320B; 1,472,495,616B; 1,473,265,664B |
+| GPU process peak RSS | ≤536,870,912B | 355,254,272B latest |
+| renderer process peak RSS | ≤1,073,741,824B | 827,064,320B latest |
+| JS heap | peak ≤192MiB; settled ≤90% of peak | 31,534,286B peak; 13,335,043B settled latest |
 | mounted layers at settled holds | ≤3 | 3 |
 | WebGL contexts at settled holds | ≤1 | 1 |
 | disposed Contact snapshot | ≤3 layers, ≤1 WebGL, ≤4 paused videos | 2 layers, 0 WebGL, 2 videos |
 | lifecycle release evidence | retired canvas and video; no managed callback/lease leak | 3 canvases and 2 videos released; pass |
 
-The memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour, then waited at both endpoints before recording process and Stage disposal diagnostics. One first sample reported a host-contaminated process-tree RSS of 1,537,753,088B while GPU, renderer, heap, layers, and WebGL remained inside budget. It was invalidated under the evidence rule and repeated from a fresh browser boundary; the clean repeat above passed.
+Each memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour. Candidate-v2 exact-tag runs failed at `1,527,169,024B` and `1,575,190,528B`. Candidate-v3 adds exact TTG terminal ownership, precomposited static layers, inactive decoder reset, and disposed-source release; three consecutive fresh-browser preflights now pass without changing the budget. The final authoritative value is regenerated with exact v3 tag/commit/artifact identity.
 
 ## Evidence Rule
 
-Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The pre-freeze values above were generated from the corrected source. Exact-tag identity and final browser evidence are attached to the external handoff; a host-jittered sample may be invalidated only with the reason recorded and that exact gate repeated.
+Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The pre-freeze values above are stability evidence, not a substitute for the schema-3 exact-tag run. Exact-tag identity and final browser evidence are attached to the external handoff; a failed RSS gate cannot be waived or uploaded.

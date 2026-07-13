@@ -1,6 +1,6 @@
 # R5 Production Parity Repair Candidate
 
-Status: **candidate-v2 is immutable but `NEEDS WORK`; HITL rejected.** The exact tag/commit/manifest identity is valid, but exact-tag RSS repeated above the frozen aggregate budget and code review found five P1 lifecycle/release blockers. Candidate-v2 must not move or be published as qualified. The reserved successor is `react-refactor-r5-parity-repair-candidate-v3`, created only after the v3 closure plan passes in full.
+Status: **candidate-v3 implementation and nonbrowser pre-freeze gates pass; immutable qualification is pending.** Candidate-v2 remains immutable `NEEDS WORK` and must not move. The only allowed successor is `react-refactor-r5-parity-repair-candidate-v3`; it is created from the final clean docs commit, then must pass exact identity-bound RSS, rollback, and E2E before HITL review.
 
 ## Candidate Identity Boundary
 
@@ -10,11 +10,11 @@ Status: **candidate-v2 is immutable but `NEEDS WORK`; HITL rejected.** The exact
 | repair base | `59065730712c6d9718928fd25cba23e33455395e` |
 | rejected HITL head | `2501704d63dbd7c150861d21a31c2d39525c23e5` |
 | rejected candidate | `react-refactor-r5-parity-repair-candidate-v2` |
-| source commit | `0dc2a87b69af39a9a3960488fda56f6af664b54d` |
-| annotated tag object | `c31e464215bab4ea36e1884a59ded46e8a07ce63` |
+| rejected v2 source / tag object | `0dc2a87b69af39a9a3960488fda56f6af664b54d` / `c31e464215bab4ea36e1884a59ded46e8a07ce63` |
+| v3 pre-freeze code head | `00ceba11bb6732e22c42b7a8289e53404e299301` |
 | reserved successor | `react-refactor-r5-parity-repair-candidate-v3` |
 | deployable directory | identity-bound `dist/` from the clean exact tag only |
-| release manifest | `dist/r5-release-manifest.json`, schema 2, `sourceDirty: false` |
+| release manifest | `dist/r5-release-manifest.json`, schema 3; final status must be `qualified` |
 
 Candidate-v2 source commit is `0dc2a87b69af39a9a3960488fda56f6af664b54d`, annotated tag object is `c31e464215bab4ea36e1884a59ded46e8a07ce63`, and manifest SHA-256 is `5b1f5815d6ac85a1291e4c6c7c7ba168620f590473569475a1c159b9c264f24e`. These identities remain audit records, not approval evidence.
 
@@ -50,6 +50,10 @@ None may be moved or repointed. Candidate-v3 must be a new annotated tag on a ne
 - Star Map production copy is opaque while Perlin remains independently motion-leased.
 - Horizontal Generic Ink uses one per-run 128-sample contour for complementary DOM ownership and a 1×128 texture, with an aligned opaque core, one upload per revision, zero production cover alpha, and typed renderer failure.
 - The canonical 18 holds / 17 segments, ids, hashes, copy, Director/SegmentPlayer/Stage/LayerWindow architecture, lazy production/harness boundary, and no-JS shell are unchanged.
+- SegmentPlayer now owns a timeout and abort signal for every staged leg; strict frame readiness rejects seek, media, abort, and missing-frame-callback failures.
+- Preparation is invisible until a synchronous commit. Stale/disposed Figure2, TTG, and PH work cannot reactivate old surfaces; Figure2 hold and depth Ink restore/fail deterministically.
+- Opposing production input reaches the Director during `preparing`; candidate workflow upload is gated by exact commit/tag/artifact/draft-manifest memory identity.
+- TTG uses an exact decoded terminal still plus visually precomposited foreground layers, and inactive/disposed directional decoders are reset. Three fresh-browser preflights pass the unchanged `1,500,000,000B` RSS ceiling.
 
 Detailed reproduction, root causes, ownership, and corrected contracts are in `../contract-diff/R5-production-parity-repair.md`.
 
@@ -59,20 +63,20 @@ The following pre-freeze evidence was regenerated from the corrected branch sour
 
 | Gate | Required result | Current record |
 |---|---|---|
-| root `pnpm run verify:all` | full tests, lint, typecheck, build, release/static checks, and budgets pass | pass: 82 Vitest files / 545 tests, lint, typecheck, builds, release/static checks, and frozen budgets |
-| default browser matrix | all historical/harness contracts pass | pass: 44 / 44 |
-| four-project release matrix | every applicable desktop/mobile Chromium/WebKit case passes; skips are declared only by project applicability | pass: 54 applicable / 54; 42 declared project skips |
-| focused HITL closure | ordinary input, AOD/Figure2/TTG/PH direction changes, loader Ink, receiver uniqueness, and horizontal readback pass | pass on desktop and mobile Chromium; first-decode/activation reported separately from steady playback |
-| frame pacing | focused first-decode and steady-playback samples stay inside the frozen budgets | pass: desktop aggregate p95 17.5ms, 2 / 759 over 50ms; mobile p95 18.2ms, 2 / 758 |
-| process memory/disposal | all 18 holds forward/reverse; parked reverse surfaces and denser contour remain bounded | **fail:** exact-tag tree RSS 1,527,169,024B and 1,575,190,528B; historical branch repeat 1,451,737,088B does not override exact failures |
-| lifecycle code review | preparing input, timeout/abort/error, dispose generation, and hold re-entry are closed | **fail:** five P1 and two P2 blockers recorded above |
-| exact-tag build/smokes | annotated tag peels to clean source; identity-bound manifest and root/no-JS/hash/media smokes pass | pass for v2 identity; insufficient without RSS/lifecycle gates |
-| same-port rollback | candidate-v2 → immutable legacy → identical candidate-v2 | pass for v2 artifact; insufficient without RSS/lifecycle gates |
+| root `pnpm run verify:all` | full tests, lint, typecheck, build, release/static checks, and budgets pass | pass at `00ceba1`: 83 Vitest files / 568 tests plus lint, typecheck, build, release/static checks, and frozen budgets |
+| final default browser matrix | all historical/harness contracts pass on exact v3 | pending; run last after tag |
+| final four-project release matrix | every applicable desktop/mobile Chromium/WebKit case passes; skips are declared only by project applicability | pending; run last after tag |
+| focused HITL closure | ordinary input and AOD/Figure2/TTG/PH/Ink lifecycle contracts pass | unit/integration contracts pass; exact-tag browser rerun pending |
+| process memory/disposal | all 18 holds forward/reverse remain below `1,500,000,000B` | preflight pass: `1,474,232,320B`, `1,472,495,616B`, `1,473,265,664B`; exact identity-bound v3 run pending |
+| lifecycle code review | preparing input, timeout/abort/error, dispose generation, hold re-entry, presented frame, and depth Ink are closed | pass by code and 568-test suite |
+| release upload gate | memory evidence is mandatory and bound to exact tag/source/artifact/draft manifest | pass by schema-3 tests and workflow contract; exact finalization pending |
+| exact-tag build/smokes | annotated tag peels to clean source; manifest qualification and root/no-JS/hash/media smokes pass | pending v3 freeze |
+| same-port rollback | exact v3 → immutable legacy → byte-identical exact v3 | pending v3 freeze |
 
-The release matrix split is desktop Chromium 21 pass / 3 declared skips, desktop WebKit 9 / 15, Pixel 7 Chromium 13 / 11, and iPhone 15 WebKit 11 / 13. Four-project no-JS passed. The historical qualifying memory repeat recorded 3 maximum mounted layers, 1 maximum settled WebGL context, and a disposed Contact snapshot of 2 layers / 0 WebGL / 2 videos with 3 canvases and 2 videos released; the later exact-tag aggregate RSS failures are authoritative for v2 release status.
+The earlier matrix split (desktop Chromium 21 / 3 declared skips, desktop WebKit 9 / 15, Pixel 7 Chromium 13 / 11, iPhone 15 WebKit 11 / 13) is historical candidate-v2 evidence only. It is not carried forward as v3 qualification; both browser suites run last from exact v3. The preflight memory profiles retained 3 maximum mounted layers and 1 maximum settled WebGL context.
 
 ## Freeze And Stop Boundary
 
-Implement `../../plans/2026-07-13-003-fix-r5-candidate-v3-lifecycle-gates-plan.md`, then create a new annotated `react-refactor-r5-parity-repair-candidate-v3` only if identity-bound memory, exact-tag smokes, same-port rollback, and final exact-tag E2E all pass.
+Commit and push this pre-freeze record, create the new annotated `react-refactor-r5-parity-repair-candidate-v3`, then require identity-bound memory, exact-tag smokes, same-port rollback, and final exact-tag E2E. Any failure leaves v3 unqualified and forbids a passed handoff.
 
 This closure does not authorize moving any tag, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.

@@ -1,7 +1,7 @@
 ---
 title: R5 HITL Regression Closure and Candidate Requalification Plan
 type: fix
-status: active
+status: implemented-awaiting-final-qualification
 date: 2026-07-12
 reviewed_branch: codex/react-refactor-r5-parity-cutover
 reviewed_head: 2501704d63dbd7c150861d21a31c2d39525c23e5
@@ -9,6 +9,12 @@ origin_plan: docs/plans/2026-07-12-001-fix-production-story-parity-plan.md
 ---
 
 # R5 HITL Regression Closure and Candidate Requalification Plan
+
+## 2026-07-13 Execution Update
+
+The regression architecture in Units 0–7 is implemented on `codex/react-refactor-r5-parity-cutover`. Candidate-v2 remains immutable and rejected. The follow-up lifecycle/release blockers are implemented under `2026-07-13-003-fix-r5-candidate-v3-lifecycle-gates-plan.md`: cancellable timed preparation, presented-frame-only readiness, two-phase surface commit, Figure2 hold/depth-Ink restoration, preparing reversal input, schema-3 identity-bound RSS qualification, and TTG decoder-memory closure.
+
+At pre-freeze head `00ceba1`, `pnpm run verify:all` passed 83 files / 568 tests plus lint, typecheck, build, static/release checks, and frozen bundle budgets. Three fresh-browser RSS preflights passed at `1,474,232,320B`, `1,472,495,616B`, and `1,473,265,664B`. These are pre-freeze stability evidence only; exact v3 identity, qualified manifest, rollback, and final E2E remain the last gate and are recorded outside the immutable source after tagging.
 
 ## Overview
 
