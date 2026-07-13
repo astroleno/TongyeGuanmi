@@ -1,6 +1,6 @@
 # R5 Performance Budget
 
-Status: candidate-v5 exact identity-bound memory and finalization passed at `1,475,641,344B`, but the candidate remains unqualified after the final release matrix failed 5/54 applicable cases. Candidate-v6 must repeat exact memory/finalization because its source identity includes the corrected release oracles and v6 workflow/docs at `5785ce5` and later.
+Status: candidate-v6 exact identity-bound memory and local finalization passed at `1,495,842,816B`; its default and release browser performance cases also passed. The candidate remains unqualified because the remote tag workflow lost the annotated ref before `deploy:prepare`. Candidate-v7 must repeat exact memory/finalization because its source identity includes the CI tag-ref restoration at `6b4b238` and later.
 
 Date: 2026-07-13. Earlier values belong to superseded source and are audit history only.
 
@@ -62,21 +62,23 @@ The initial JS/CSS, gzip, largest-lazy, and largest-asset caps are unchanged. Tw
 
 `verify-performance-budgets.mjs` now requires exactly one `loader-ink-reveal-*.js` lazy chunk and enforces its dedicated 16KiB cap. `verify-release-build.mjs` verifies shader markers are in that lazy chunk and absent from the initial entry.
 
+Candidate-v6's final browser run also passed the user-visible budgets: desktop LCP `184ms`, runtime ready `177.3ms`, presentation ready `8,593.9ms`, full-traversal p95 `16.8ms`, and focused aggregate p95 `16.8ms` with 2 / 758 intervals over 50ms; mobile LCP `176ms`, runtime ready `166.5ms`, presentation ready `8,602.6ms`, full-traversal p95 `17.6ms`, and focused aggregate p95 `17.4ms` with 1 / 762 intervals over 50ms. These are audit evidence for v6, not transferable qualification for v7.
+
 ## GPU, Memory, And Disposal Budgets
 
-| Metric | Budget | Exact candidate-v5 record |
+| Metric | Budget | Exact candidate-v6 local record |
 |---|---:|---|
-| browser process-tree peak RSS | ≤1,500,000,000B | 1,475,641,344B |
-| GPU process peak RSS | ≤536,870,912B | 356,646,912B |
-| renderer process peak RSS | ≤1,073,741,824B | 823,099,392B |
-| JS heap | peak ≤192MiB; settled ≤90% of peak | 39,235,757B peak; 15,198,666B settled |
+| browser process-tree peak RSS | ≤1,500,000,000B | 1,495,842,816B |
+| GPU process peak RSS | ≤536,870,912B | 349,093,888B |
+| renderer process peak RSS | ≤1,073,741,824B | 843,776,000B |
+| JS heap | peak ≤192MiB; settled ≤90% of peak | 39,458,674B peak; 12,687,293B settled |
 | mounted layers at settled holds | ≤3 | 3 |
 | WebGL contexts at settled holds | ≤1 | 1 |
 | disposed Contact snapshot | ≤3 layers, ≤1 WebGL, ≤4 paused videos | 2 layers, 0 WebGL, 2 videos |
 | lifecycle release evidence | retired canvas and video; no managed callback/lease leak | 3 canvases and 10 videos released at Contact; 5 canvases and 21 videos by final Hero; pass |
 
-Each memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour. Candidate-v2 exact-tag runs failed at `1,527,169,024B` and `1,575,190,528B`. Candidate-v3's identity-bound RSS passed without changing the budget, but its tracked archive write made the source dirty and the schema-3 finalizer rejected it. Candidate-v4 passed the complete dist-only identity gate but later failed default E2E. Candidate-v5 then passed with evidence SHA-256 `340c23899669a6e48ebd3850f37b97b9f6a0b57c53498fad9574c746a8f25961`; its later release E2E failure still makes v5 unqualified.
+Each memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour. Candidate-v2 exact-tag runs failed at `1,527,169,024B` and `1,575,190,528B`. Candidate-v3's identity-bound RSS passed without changing the budget, but its tracked archive write made the source dirty and the schema-3 finalizer rejected it. Candidate-v4 passed the complete dist-only identity gate but later failed default E2E. Candidate-v5 passed memory before its release E2E failure. Candidate-v6 passed locally with evidence SHA-256 `c238b7be6e3f104197c899f3e2fb03986e68b389e1afc438a6be60f3aa3e2231`; its remote workflow failure still makes v6 unqualified.
 
 ## Evidence Rule
 
-Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The values above prove v5 RSS headroom, not v6 qualification. Exact-v6 identity, finalization, rollback, and browser evidence are attached to the external handoff; a prior pass cannot be carried forward and a failed gate cannot be waived.
+Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The values above prove v6 local RSS headroom, not v7 qualification. Exact-v7 identity, finalization, rollback, remote workflow, and browser evidence are attached to the external handoff; a prior pass cannot be carried forward and a failed gate cannot be waived.

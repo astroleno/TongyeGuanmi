@@ -1,23 +1,23 @@
 # R5 Production Regression Matrix
 
-Status: **candidate-v5 failed closed in the final release browser matrix; candidate-v6 is pending full qualification.** V5 passed RSS/finalization, rollback, and 44/44 default cases, then passed 49/54 applicable release cases with 42 declared project skips. The five failures were stale oracles: four TTG projects ignored the terminal still, and one AOD recovery case ignored the documented current-static-hold fallback when endpoint reconstruction also fails. Commit `5785ce5` closes those assertions; both full v6 Playwright suites still run last from the immutable exact tag.
+Status: **candidate-v6 passed both local exact-tag browser matrices but failed closed in the remote annotated-tag identity setup; candidate-v7 is pending full qualification.** V6 passed 44/44 default cases and 54/54 applicable release cases with 42 declared project skips. GitHub Actions run `29227154713` then failed before `deploy:prepare` because checkout replaced the local annotated tag ref with the peeled commit. Commit `6b4b238` restores and verifies that ref; both full v7 Playwright suites still run last from the immutable exact tag.
 
-Date: 2026-07-13. Branch: `codex/react-refactor-r5-parity-cutover`. Intended immutable tag after all gates pass: `react-refactor-r5-parity-repair-candidate-v6`.
+Date: 2026-07-13. Branch: `codex/react-refactor-r5-parity-cutover`. Intended immutable tag after all gates pass: `react-refactor-r5-parity-repair-candidate-v7`.
 
 ## Required Project Matrix
 
 | Project | Canonical traversal | Critical reverse | Input/navigation | Media/lifecycle | SEO/no-JS | Current record |
 |---|---|---|---|---|---|---|
-| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | required | v5 release stale AOD + TTG oracles; focused v6 cases pass; exact-v6 pending |
-| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | required | v5 release 1 stale TTG oracle; focused v6 case passes; exact-v6 pending |
-| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | v5 release 1 stale TTG oracle; focused v6 case passes; exact-v6 pending |
-| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | v5 release 1 stale TTG oracle; focused v6 case passes; exact-v6 pending |
+| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | required | exact v6 22 pass / 2 declared skips; exact v7 pending |
+| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | required | exact v6 9 pass / 15 declared skips; exact v7 pending |
+| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | exact v6 13 pass / 11 declared skips; exact v7 pending |
+| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | exact v6 10 pass / 14 declared skips; exact v7 pending |
 
 Layer invariants are unchanged: at most two visible layers during transition, exactly one visible/interactable settled hold, bounded retiring layers, one canonical receiver root, and no Hero current/visible fallback during Contact reverse.
 
 ## R1–R22 Deterministic Ownership
 
-Every row has implementation-level coverage in the fresh 83-file / 568-test pre-freeze nonbrowser suite at `a5cc670`. Browser qualification is intentionally not inferred from any failed candidate and is repeated only after v6 freeze.
+Every row has implementation-level coverage in the 83-file / 568-test exact-v6 nonbrowser suite at `04e5c98`. Browser qualification is intentionally not carried across source identities and is repeated only after v7 freeze.
 
 | ID | Assertion owners | Required proof |
 |---|---|---|
@@ -50,13 +50,13 @@ The reproduction/root-cause/minimum-file record is `../contract-diff/R5-producti
 
 ```bash
 pnpm run verify:all
+R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v7 \
+R5_SOURCE_COMMIT="$(git rev-parse HEAD)" pnpm run deploy:build
 pnpm -C app exec playwright test
 pnpm -C app exec playwright test --config playwright.release.config.ts
-R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v6 \
-R5_SOURCE_COMMIT="$(git rev-parse HEAD)" pnpm run deploy:build
 ```
 
-Candidate-v2 recorded 44/44 default cases and 54 applicable release cases with 42 declared project skips; candidate-v4 recorded 42/44 default cases and stopped before release. Candidate-v5 recorded 44/44 default, then 49 pass / 42 skip / 5 fail in release. All are audit history and none qualifies v6. The final handoff records fresh exact-v6 counts and declared skips after both commands complete.
+Candidate-v2 recorded 44/44 default cases and 54 applicable release cases with 42 declared project skips; candidate-v4 recorded 42/44 default cases and stopped before release; candidate-v5 recorded 44/44 default, then 49 pass / 42 skip / 5 fail in release; candidate-v6 recorded 44/44 default and 54 pass / 42 skip in release but failed its remote identity setup. All are audit history and none qualifies v7. The final handoff records fresh exact-v7 counts and declared skips after both commands complete.
 
 ## Acceptance Boundary
 
