@@ -19,6 +19,10 @@ const candidateWorkflow = readFileSync(
   new URL('../../../.github/workflows/r5-candidate.yml', import.meta.url),
   'utf8'
 );
+const memoryRunner = readFileSync(
+  new URL('../../scripts/run-r5-process-memory.mjs', import.meta.url),
+  'utf8'
+);
 const temporaryDirectories: string[] = [];
 
 function runGit(repoDir: string, ...args: string[]) {
@@ -427,6 +431,11 @@ it('routes deploy builds through the strict release identity gate', () => {
   expect(rootPackage.scripts['deploy:build']).toContain('deploy:finalize');
   expect(appPackage.scripts['release:prepare']).toContain('R5_REQUIRE_RELEASE_IDENTITY=1');
   expect(appPackage.scripts['release:finalize']).toContain('R5_REQUIRE_MEMORY_EVIDENCE=1');
+  expect(memoryRunner).toContain("R5_MEMORY_OUTPUT_PATH: 'dist/r5-process-memory.json'");
+  expect(memoryRunner).toContain("R5_MEMORY_ARCHIVE_PATH: ''");
+  expect(memoryRunner).not.toContain(
+    'artifacts/react-refactor/r5-parity-repair-candidate/r5-process-memory.json'
+  );
 });
 
 it('only publishes a deployable CI artifact from an identity-bound candidate tag build', () => {
@@ -447,6 +456,10 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
     "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2'"
   );
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v3'");
+  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v4'");
+  expect(candidateWorkflow).toContain(
+    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4'"
+  );
   expect(candidateWorkflow).toContain('pnpm run deploy:prepare');
   expect(candidateWorkflow).toContain('pnpm -C app run evidence:memory:release');
   expect(candidateWorkflow).toContain('pnpm run deploy:finalize');
@@ -457,6 +470,12 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
     candidateWorkflow.indexOf('pnpm run deploy:finalize')
   );
   expect(candidateWorkflow.indexOf('pnpm run deploy:finalize')).toBeLessThan(
+    candidateWorkflow.indexOf('- name: Production browser matrix')
+  );
+  expect(candidateWorkflow.indexOf('- name: Production browser matrix')).toBeLessThan(
+    candidateWorkflow.indexOf('- name: Harness contract regression')
+  );
+  expect(candidateWorkflow.indexOf('- name: Harness contract regression')).toBeLessThan(
     candidateWorkflow.indexOf('uses: actions/upload-artifact@v4')
   );
 });

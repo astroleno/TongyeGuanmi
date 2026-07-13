@@ -106,7 +106,8 @@ try {
       ...process.env,
       R5_BASE_URL: baseUrl,
       R5_MEMORY_OUTPUT_PATH: 'dist/r5-process-memory.json',
-      R5_MEMORY_ARCHIVE_PATH: 'artifacts/react-refactor/r5-parity-repair-candidate/r5-process-memory.json',
+      // Release qualification must leave the immutable source tree clean for finalization.
+      R5_MEMORY_ARCHIVE_PATH: '',
       R5_RELEASE_MANIFEST_PATH: 'dist/r5-release-manifest.json',
       R5_REQUIRE_MEMORY_IDENTITY: '1'
     }
