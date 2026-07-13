@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/verify-release-build.mjs && node scripts/verify-performance-budgets.mjs && node scripts/create-release-manifest.mjs",
-    "build:release": "R5_REQUIRE_RELEASE_IDENTITY=1 pnpm run build",
+    "build:release": "pnpm run release:prepare && pnpm run evidence:memory:release && pnpm run release:finalize",
+    "release:prepare": "R5_REQUIRE_RELEASE_IDENTITY=1 R5_RELEASE_MANIFEST_PHASE=prepare pnpm run build",
+    "release:finalize": "R5_REQUIRE_RELEASE_IDENTITY=1 R5_REQUIRE_MEMORY_EVIDENCE=1 R5_RELEASE_MANIFEST_PHASE=finalize node scripts/create-release-manifest.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
@@ -16,7 +18,8 @@
     "test:e2e": "playwright test",
     "test:release": "pnpm build && playwright test --config playwright.release.config.ts",
     "evidence:visual": "node scripts/capture-r5-visual-evidence.mjs",
-    "evidence:memory": "node scripts/profile-r5-process-memory.mjs"
+    "evidence:memory": "node scripts/profile-r5-process-memory.mjs",
+    "evidence:memory:release": "node scripts/run-r5-process-memory.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

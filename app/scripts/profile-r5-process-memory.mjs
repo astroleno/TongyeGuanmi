@@ -1,7 +1,8 @@
 /* global document, window */
 import { chromium } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -9,10 +10,18 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
-const outputPath = path.join(
-  repoDir,
-  'artifacts/react-refactor/r5-parity-repair-candidate/r5-process-memory.json'
-);
+const outputPath = process.env.R5_MEMORY_OUTPUT_PATH
+  ? path.resolve(repoDir, process.env.R5_MEMORY_OUTPUT_PATH)
+  : path.join(
+      repoDir,
+      'artifacts/react-refactor/r5-parity-repair-candidate/r5-process-memory.json'
+    );
+const archivePath = process.env.R5_MEMORY_ARCHIVE_PATH
+  ? path.resolve(repoDir, process.env.R5_MEMORY_ARCHIVE_PATH)
+  : null;
+const releaseManifestPath = process.env.R5_RELEASE_MANIFEST_PATH
+  ? path.resolve(repoDir, process.env.R5_RELEASE_MANIFEST_PATH)
+  : path.join(repoDir, 'dist/r5-release-manifest.json');
 const baseUrl = process.env.R5_BASE_URL ?? 'http://127.0.0.1:4173';
 const scenes = [
   'hero',
@@ -40,6 +49,44 @@ const budgets = {
   peakRendererRssBytes: 1024 * 1024 * 1024,
   settledHeapFractionOfPeak: 0.9
 };
+
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+async function memoryIdentity() {
+  let draftOutput;
+  try {
+    draftOutput = await readFile(releaseManifestPath, 'utf8');
+  } catch (error) {
+    if (process.env.R5_REQUIRE_MEMORY_IDENTITY === '1') {
+      throw new Error(`release manifest is required at ${releaseManifestPath}`, { cause: error });
+    }
+    return null;
+  }
+  const draft = JSON.parse(draftOutput);
+  if (
+    draft.schemaVersion !== 3
+    || draft.qualification?.status !== 'pending-memory'
+  ) {
+    throw new Error('process memory profiling requires a schema 3 pending-memory manifest');
+  }
+  if (
+    process.env.R5_REQUIRE_MEMORY_IDENTITY === '1'
+    && (!draft.candidate || !draft.candidateTagObject || !draft.sourceCommit)
+  ) {
+    throw new Error('process memory profiling requires an immutable candidate identity');
+  }
+  return {
+    candidate: draft.candidate,
+    candidateTagObject: draft.candidateTagObject,
+    sourceCommit: draft.sourceCommit,
+    artifactTreeSha256: draft.artifactTreeSha256,
+    draftManifestSha256: sha256(draftOutput)
+  };
+}
+
+const identity = await memoryIdentity();
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -253,7 +300,8 @@ try {
     && actual.maxMountedLayers <= 3
     && actual.maxWebglCanvasesAtHold <= 1;
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    identity,
     environment: 'macOS / Chrome hardware process-tree sample',
     sampleIntervalMs: 250,
     budgets,
@@ -262,8 +310,13 @@ try {
     holds,
     processSamples: samples
   };
-  await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-  process.stdout.write(`${JSON.stringify({ outputPath, actual, pass })}\n`);
+  const reportOutput = `${JSON.stringify(report, null, 2)}\n`;
+  await writeFile(outputPath, reportOutput, 'utf8');
+  if (archivePath && archivePath !== outputPath) {
+    await mkdir(path.dirname(archivePath), { recursive: true });
+    await writeFile(archivePath, reportOutput, 'utf8');
+  }
+  process.stdout.write(`${JSON.stringify({ outputPath, archivePath, identity, actual, pass })}\n`);
   if (!pass) process.exitCode = 1;
 } finally {
   sampling = false;

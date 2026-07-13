@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -32,6 +33,11 @@ function createFixture() {
   mkdirSync(path.join(repoDir, 'dist'), { recursive: true });
   copyFileSync(scriptPath, fixtureScript);
   writeFileSync(path.join(repoDir, 'dist/index.html'), '<!doctype html>\n', 'utf8');
+  writeFileSync(
+    path.join(repoDir, '.gitignore'),
+    'dist/r5-release-manifest.json\ndist/r5-process-memory.json\n',
+    'utf8'
+  );
 
   runGit(repoDir, 'init', '--quiet');
   runGit(repoDir, 'config', 'user.name', 'R5 Test');
@@ -60,7 +66,8 @@ function runManifest(
   fixtureScript: string,
   repoDir: string,
   candidate: string,
-  sourceCommit: string
+  sourceCommit: string,
+  extraEnv: NodeJS.ProcessEnv = {}
 ) {
   return execFileSync(process.execPath, [fixtureScript], {
     cwd: repoDir,
@@ -70,7 +77,8 @@ function runManifest(
       ...process.env,
       R5_CANDIDATE_TAG: candidate,
       R5_SOURCE_COMMIT: sourceCommit,
-      R5_REQUIRE_RELEASE_IDENTITY: '1'
+      R5_REQUIRE_RELEASE_IDENTITY: '1',
+      ...extraEnv
     }
   });
 }
@@ -95,17 +103,167 @@ it('binds a release manifest to the explicitly supplied annotated candidate and 
     readFileSync(path.join(repoDir, 'dist/r5-release-manifest.json'), 'utf8')
   );
   expect(manifest).toMatchObject({
-    schemaVersion: 2,
+    schemaVersion: 3,
     candidate: 'react-refactor-r5-candidate-v3',
     candidateTagObject,
     sourceCommit,
-    sourceDirty: false
+    sourceDirty: false,
+    artifactTreeSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    qualification: {
+      status: 'pending-memory',
+      memoryEvidence: null
+    }
   });
   expect(JSON.parse(output.trim())).toMatchObject({
     candidate: 'react-refactor-r5-candidate-v3',
     candidateTagObject,
     sourceCommit
   });
+});
+
+it('finalizes only passing memory evidence bound to the exact draft manifest identity', () => {
+  const { candidateTagObject, fixtureScript, repoDir, sourceCommit } = createFixture();
+  runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    { R5_RELEASE_MANIFEST_PHASE: 'prepare' }
+  );
+  const manifestPath = path.join(repoDir, 'dist/r5-release-manifest.json');
+  const draftOutput = readFileSync(manifestPath, 'utf8');
+  const draft = JSON.parse(draftOutput);
+  const draftManifestSha256 = createHash('sha256').update(draftOutput).digest('hex');
+  const evidencePath = path.join(repoDir, 'dist/r5-process-memory.json');
+  const evidenceOutput = `${JSON.stringify({
+    schemaVersion: 2,
+    identity: {
+      candidate: draft.candidate,
+      candidateTagObject: draft.candidateTagObject,
+      sourceCommit: draft.sourceCommit,
+      artifactTreeSha256: draft.artifactTreeSha256,
+      draftManifestSha256
+    },
+    pass: true,
+    budgets: { peakBrowserTreeRssBytes: 1_500_000_000 },
+    actual: { peakBrowserTreeRssBytes: 1_000_000_000 }
+  }, null, 2)}\n`;
+  writeFileSync(evidencePath, evidenceOutput, 'utf8');
+
+  runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    {
+      R5_RELEASE_MANIFEST_PHASE: 'finalize',
+      R5_REQUIRE_MEMORY_EVIDENCE: '1'
+    }
+  );
+
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  expect(manifest).toMatchObject({
+    schemaVersion: 3,
+    candidate: 'react-refactor-r5-candidate-v3',
+    candidateTagObject,
+    sourceCommit,
+    artifactTreeSha256: draft.artifactTreeSha256,
+    qualification: {
+      status: 'qualified',
+      memoryEvidence: {
+        path: 'r5-process-memory.json',
+        schemaVersion: 2,
+        pass: true,
+        sha256: createHash('sha256').update(evidenceOutput).digest('hex')
+      }
+    }
+  });
+  expect(manifest.files.map((entry: { path: string }) => entry.path)).not.toContain(
+    'r5-process-memory.json'
+  );
+});
+
+it('rejects finalization when memory evidence is missing or identity-mismatched', () => {
+  const { fixtureScript, repoDir, sourceCommit } = createFixture();
+  runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    { R5_RELEASE_MANIFEST_PHASE: 'prepare' }
+  );
+
+  expect(() => runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    {
+      R5_RELEASE_MANIFEST_PHASE: 'finalize',
+      R5_REQUIRE_MEMORY_EVIDENCE: '1'
+    }
+  )).toThrow(/memory evidence/i);
+
+  writeFileSync(path.join(repoDir, 'dist/r5-process-memory.json'), `${JSON.stringify({
+    schemaVersion: 2,
+    identity: {
+      candidate: 'react-refactor-r5-candidate-v3',
+      candidateTagObject: 'mismatched-tag-object',
+      sourceCommit,
+      artifactTreeSha256: 'mismatched-artifact-tree',
+      draftManifestSha256: 'mismatched-draft'
+    },
+    pass: true
+  })}\n`, 'utf8');
+
+  expect(() => runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    {
+      R5_RELEASE_MANIFEST_PHASE: 'finalize',
+      R5_REQUIRE_MEMORY_EVIDENCE: '1'
+    }
+  )).toThrow(/identity/i);
+});
+
+it('rejects exact-identity memory evidence when any RSS budget failed', () => {
+  const { fixtureScript, repoDir, sourceCommit } = createFixture();
+  runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    { R5_RELEASE_MANIFEST_PHASE: 'prepare' }
+  );
+  const manifestPath = path.join(repoDir, 'dist/r5-release-manifest.json');
+  const draftOutput = readFileSync(manifestPath, 'utf8');
+  const draft = JSON.parse(draftOutput);
+  writeFileSync(path.join(repoDir, 'dist/r5-process-memory.json'), `${JSON.stringify({
+    schemaVersion: 2,
+    identity: {
+      candidate: draft.candidate,
+      candidateTagObject: draft.candidateTagObject,
+      sourceCommit: draft.sourceCommit,
+      artifactTreeSha256: draft.artifactTreeSha256,
+      draftManifestSha256: createHash('sha256').update(draftOutput).digest('hex')
+    },
+    pass: false
+  })}\n`, 'utf8');
+
+  expect(() => runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    {
+      R5_RELEASE_MANIFEST_PHASE: 'finalize',
+      R5_REQUIRE_MEMORY_EVIDENCE: '1'
+    }
+  )).toThrow(/pass every budget/i);
+  expect(JSON.parse(readFileSync(manifestPath, 'utf8')).qualification.status)
+    .toBe('pending-memory');
 });
 
 it('rejects a candidate tag that does not peel to the supplied source commit', () => {
@@ -262,8 +420,13 @@ it('accepts a versioned parity repair candidate without moving either prior name
 });
 
 it('routes deploy builds through the strict release identity gate', () => {
-  expect(rootPackage.scripts['deploy:build']).toBe('pnpm -C app build:release');
-  expect(appPackage.scripts['build:release']).toContain('R5_REQUIRE_RELEASE_IDENTITY=1');
+  expect(rootPackage.scripts['deploy:prepare']).toContain('release:prepare');
+  expect(rootPackage.scripts['deploy:finalize']).toContain('release:finalize');
+  expect(rootPackage.scripts['deploy:build']).toContain('deploy:prepare');
+  expect(rootPackage.scripts['deploy:build']).toContain('evidence:memory:release');
+  expect(rootPackage.scripts['deploy:build']).toContain('deploy:finalize');
+  expect(appPackage.scripts['release:prepare']).toContain('R5_REQUIRE_RELEASE_IDENTITY=1');
+  expect(appPackage.scripts['release:finalize']).toContain('R5_REQUIRE_MEMORY_EVIDENCE=1');
 });
 
 it('only publishes a deployable CI artifact from an identity-bound candidate tag build', () => {
@@ -282,6 +445,19 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v2'");
   expect(candidateWorkflow).toContain(
     "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2'"
+  );
+  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v3'");
+  expect(candidateWorkflow).toContain('pnpm run deploy:prepare');
+  expect(candidateWorkflow).toContain('pnpm -C app run evidence:memory:release');
+  expect(candidateWorkflow).toContain('pnpm run deploy:finalize');
+  expect(candidateWorkflow.indexOf('pnpm run deploy:prepare')).toBeLessThan(
+    candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')
+  );
+  expect(candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')).toBeLessThan(
+    candidateWorkflow.indexOf('pnpm run deploy:finalize')
+  );
+  expect(candidateWorkflow.indexOf('pnpm run deploy:finalize')).toBeLessThan(
+    candidateWorkflow.indexOf('uses: actions/upload-artifact@v4')
   );
 });
 
