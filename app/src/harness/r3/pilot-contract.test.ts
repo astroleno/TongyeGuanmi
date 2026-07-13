@@ -104,6 +104,15 @@ class FakeVideo extends FakeElement {
   removeEventListener(): void {}
   load(): void {}
 
+  requestVideoFrameCallback(
+    callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
+  ): number {
+    callback(0, {} as VideoFrameCallbackMetadata);
+    return 1;
+  }
+
+  cancelVideoFrameCallback(): void {}
+
   pause(): void {
     this.paused = true;
   }
