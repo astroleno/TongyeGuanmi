@@ -456,7 +456,7 @@ test('critical reverse chains return through hero, pilot, and figure2 proof hold
   expect(Math.abs(methodEntry.scrollTop - methodEntry.maxScrollTop)).toBeLessThan(1);
 });
 
-test('slow media succeeds before timeout and failed media recovers to a directional endpoint', async ({ page }, testInfo) => {
+test('slow media succeeds before timeout and failed endpoint recovery leaves an interactive static hold', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'network recovery runs once');
   test.setTimeout(120_000);
 
@@ -472,14 +472,31 @@ test('slow media succeeds before timeout and failed media recovers to a directio
   await page.unroute('**/*aod_figure-alpha-front-scrub*.webm');
   await page.route('**/*aod_figure-alpha-front-scrub*.webm', (route) => route.abort('failed'));
   await bootStory(page, '/?media=failed#aod-animation');
+  const timeoutCountBeforeFailure = (await eventTypes(page))
+    .filter((type) => type === 'PREPARE_TIMEOUT').length;
   await page.keyboard.press('PageDown');
-  await waitForHold(page, 'method-top');
-  expect(await eventTypes(page)).toContain('PREPARE_TIMEOUT');
-
-  expect((await moveOneHold(page, -1)).current).toBe('aod-animation');
+  await expect.poll(async () => (await eventTypes(page))
+    .filter((type) => type === 'PREPARE_TIMEOUT').length).toBeGreaterThan(timeoutCountBeforeFailure);
+  await expect.poll(async () => (await storySnapshot(page)).recovery?.status, { timeout: 30_000 })
+    .toBe('failed');
+  const failedMedia = await waitForHold(page, 'aod-animation');
+  expect(failedMedia.recovery).toMatchObject({
+    scope: 'segment',
+    status: 'failed',
+    segment: 'aod-method-top',
+    direction: 1,
+    endpoint: 'method-top'
+  });
   await expectLayerInvariants(page);
 
   await page.unroute('**/*aod_figure-alpha-front-scrub*.webm');
+  await page.evaluate(() => {
+    const video = document.querySelector<HTMLVideoElement>(
+      '[data-stage-layer="aod-animation"] [data-media-key="aod_figure-alpha-front-scrub"]'
+    );
+    if (!video) throw new Error('AOD media missing before route retry');
+    video.load();
+  });
   await page.keyboard.press('PageDown');
   await waitForHold(page, 'method-top');
   await expectLayerInvariants(page);
@@ -499,16 +516,30 @@ test('slow media succeeds before timeout and failed media recovers to a directio
       video.load();
     });
     await page.keyboard.press('PageDown');
-    await waitForHold(page, 'method-top');
-    const timeoutCountAfterOffline = (await eventTypes(page))
-      .filter((type) => type === 'PREPARE_TIMEOUT').length;
-    expect(timeoutCountAfterOffline).toBeGreaterThan(timeoutCountBeforeOffline);
+    await expect.poll(async () => (await eventTypes(page))
+      .filter((type) => type === 'PREPARE_TIMEOUT').length).toBeGreaterThan(timeoutCountBeforeOffline);
+    await expect.poll(async () => (await storySnapshot(page)).recovery?.status, { timeout: 30_000 })
+      .toBe('failed');
+    const offlineFailure = await waitForHold(page, 'aod-animation');
+    expect(offlineFailure.recovery).toMatchObject({
+      scope: 'segment',
+      status: 'failed',
+      segment: 'aod-method-top',
+      direction: 1,
+      endpoint: 'method-top'
+    });
     await expectLayerInvariants(page);
   } finally {
     await page.context().setOffline(false);
   }
 
-  expect((await moveOneHold(page, -1)).current).toBe('aod-animation');
+  await page.evaluate(() => {
+    const video = document.querySelector<HTMLVideoElement>(
+      '[data-stage-layer="aod-animation"] [data-media-key="aod_figure-alpha-front-scrub"]'
+    );
+    if (!video) throw new Error('AOD media missing before online retry');
+    video.load();
+  });
   await page.keyboard.press('PageDown');
   await waitForHold(page, 'method-top');
   await expectLayerInvariants(page);
