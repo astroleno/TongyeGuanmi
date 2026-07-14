@@ -59,11 +59,11 @@ export function patternFramePhases(
 export const PATTERN_BACKGROUND_IMAGE = new URL('../../../../assets/pattern-background.webp', import.meta.url).href;
 
 export const PATTERN_SOURCE_ART = {
-  '02': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-02.png', import.meta.url).href,
-  '03': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-03.png', import.meta.url).href,
-  '04': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-04.png', import.meta.url).href,
-  '05': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-05.png', import.meta.url).href,
-  '06': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-06.png', import.meta.url).href
+  '02': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-02.webp', import.meta.url).href,
+  '03': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-03.webp', import.meta.url).href,
+  '04': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-04.webp', import.meta.url).href,
+  '05': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-05.webp', import.meta.url).href,
+  '06': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-06.webp', import.meta.url).href
 } as const;
 
 type PatternLayerId = keyof typeof PATTERN_SOURCE_ART;

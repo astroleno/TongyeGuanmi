@@ -4,8 +4,8 @@ import { renderAodTransitionProgress } from './progress';
 
 export { renderAodTransitionProgress } from './progress';
 
-export const AOD_CLOUD_SRC = new URL('../../../../assets/aod_cloud-alpha.png', import.meta.url).href;
-export const AOD_SUN_SRC = new URL('../../../../assets/aod_sun-alpha.png', import.meta.url).href;
+export const AOD_CLOUD_SRC = new URL('../../../../assets/aod_cloud-alpha.webp', import.meta.url).href;
+export const AOD_SUN_SRC = new URL('../../../../assets/aod_sun-alpha.webp', import.meta.url).href;
 export const AOD_FIGURE_VIDEO_SRC = new URL('../../../../assets/aod-figure-motion.webm', import.meta.url).href;
 export const AOD_FIGURE_END_SECONDS = 2.567;
 

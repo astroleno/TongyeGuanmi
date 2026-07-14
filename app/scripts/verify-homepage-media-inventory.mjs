@@ -30,6 +30,26 @@ const adoptedWebpSources = [
   'assets/crane-paper.webp'
 ];
 
+const losslessWebpSources = [
+  'assets/middle1_depth.webp',
+  'assets/back2.webp',
+  'assets/figure2-middle-depth.webp',
+  'assets/figure2-middle-window-mask.webp',
+  'assets/aod_cloud-alpha.webp',
+  'assets/aod_sun-alpha.webp',
+  'assets/ph_background.webp',
+  'assets/ph_front-alpha.webp',
+  'assets/crane1_cloud2-alpha.webp',
+  'assets/crane1_arch-alpha.webp',
+  'assets/crane1_cloud1-alpha.webp',
+  'assets/crane1_cloud-front2-alpha.webp',
+  'assets/patterns/alpha-layers/pattern-layer-alpha-02.webp',
+  'assets/patterns/alpha-layers/pattern-layer-alpha-03.webp',
+  'assets/patterns/alpha-layers/pattern-layer-alpha-04.webp',
+  'assets/patterns/alpha-layers/pattern-layer-alpha-05.webp',
+  'assets/patterns/alpha-layers/pattern-layer-alpha-06.webp'
+];
+
 const animationWebmSources = [
   'assets/figure1.webm',
   'assets/figure2-left-motion.webm',
@@ -43,30 +63,13 @@ const animationWebmSources = [
 ];
 
 const retainedImageSources = [
-  'assets/figure-poster.jpg',
-  'assets/middle1_depth.png',
-  'assets/back2.png',
-  'assets/figure2-middle-depth.png',
-  'assets/figure2-middle-window-mask.png',
-  'assets/aod_cloud-alpha.png',
-  'assets/aod_sun-alpha.png',
-  'assets/ph_background.png',
-  'assets/ph_front-alpha.png',
-  'assets/crane1_cloud2-alpha.png',
-  'assets/crane1_arch-alpha.png',
-  'assets/crane1_cloud1-alpha.png',
-  'assets/crane1_cloud-front2-alpha.png',
-  'assets/patterns/alpha-layers/pattern-layer-alpha-02.png',
-  'assets/patterns/alpha-layers/pattern-layer-alpha-03.png',
-  'assets/patterns/alpha-layers/pattern-layer-alpha-04.png',
-  'assets/patterns/alpha-layers/pattern-layer-alpha-05.png',
-  'assets/patterns/alpha-layers/pattern-layer-alpha-06.png'
+  'assets/figure-poster.jpg'
 ];
 
 const heroPreScrollSources = new Set([
   'assets/hero-back.webp',
   'assets/hero-middle.webp',
-  'assets/middle1_depth.png',
+  'assets/middle1_depth.webp',
   'assets/figure-poster.jpg'
 ]);
 
@@ -180,10 +183,12 @@ async function inspectCanonicalVideo(contract) {
 const inventorySources = [
   ...animationWebmSources.map((source) => ({ source, category: source === 'assets/figure1.webm' ? 'hero-animation' : 'animation-webm' })),
   ...adoptedWebpSources.map((source) => ({ source, category: 'adopted-webp' })),
+  ...losslessWebpSources.map((source) => ({ source, category: 'lossless-webp' })),
   ...retainedImageSources.map((source) => ({ source, category: 'retained-image' }))
 ];
 assert(inventorySources.length === 38, `expected 38 homepage source entries, found ${inventorySources.length}`);
 assert(adoptedWebpSources.length === 11, `expected 11 adopted WebP sources, found ${adoptedWebpSources.length}`);
+assert(losslessWebpSources.length === 17, `expected 17 lossless WebP sources, found ${losslessWebpSources.length}`);
 assert(animationWebmSources.length === 9, `expected 9 animation WebM sources, found ${animationWebmSources.length}`);
 
 const [sourceEntries, emittedFiles, canonicalVideos] = await Promise.all([
@@ -223,9 +228,13 @@ const mediaExtensions = new Set(['.png', '.jpg', '.webp', '.webm']);
 const emittedMedia = emittedEntries.filter((entry) => mediaExtensions.has(mediaExtension(entry.path)));
 const emittedWebm = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.webm');
 const emittedWebp = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.webp');
+const emittedJpg = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.jpg');
+const emittedPng = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.png');
 assert(emittedMedia.length === 38, `expected exactly 38 emitted homepage media files, found ${emittedMedia.length}`);
 assert(emittedWebm.length === 9, `expected exactly 9 emitted animation WebM files, found ${emittedWebm.length}`);
-assert(emittedWebp.length === 11, `expected exactly 11 adopted WebP files, found ${emittedWebp.length}`);
+assert(emittedWebp.length === 28, `expected exactly 28 emitted WebP files, found ${emittedWebp.length}`);
+assert(emittedJpg.length === 1, `expected exactly 1 emitted JPG file, found ${emittedJpg.length}`);
+assert(emittedPng.length === 0, `production PNG emit is forbidden, found ${emittedPng.length}`);
 for (const entry of emittedEntries) {
   assert(
     !forbiddenEmittedNames.some((pattern) => pattern.test(path.basename(entry.path))),
@@ -257,7 +266,9 @@ const report = {
     heroBeforeFirstScrollBytes,
     inventoryFileCount: inventory.length,
     animationWebmCount: emittedWebm.length,
-    adoptedWebpCount: emittedWebp.length
+    webpCount: emittedWebp.length,
+    jpgCount: emittedJpg.length,
+    pngCount: emittedPng.length
   },
   canonicalVideos,
   heroPreScrollInventory,
@@ -270,6 +281,8 @@ process.stdout.write(`${JSON.stringify({
   homepageRuntimeMediaBytes: homepageRuntimeBytes,
   heroBeforeFirstScrollBytes,
   animationWebm: emittedWebm.length,
-  adoptedWebp: emittedWebp.length,
+  webp: emittedWebp.length,
+  jpg: emittedJpg.length,
+  png: emittedPng.length,
   pass: true
 })}\n`);

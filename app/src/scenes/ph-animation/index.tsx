@@ -9,8 +9,8 @@ import { PH_PLAYBACK_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const PH_MEDIA_KEY = 'ph-figure-motion';
-export const PH_BG_SRC = new URL('../../../../assets/ph_background.png', import.meta.url).href;
-export const PH_FRONT_SRC = new URL('../../../../assets/ph_front-alpha.png', import.meta.url).href;
+export const PH_BG_SRC = new URL('../../../../assets/ph_background.webp', import.meta.url).href;
+export const PH_FRONT_SRC = new URL('../../../../assets/ph_front-alpha.webp', import.meta.url).href;
 export const PH_FIGURE_VIDEO_SRC = new URL('../../../../assets/ph-figure-motion.webm', import.meta.url).href;
 export const PH_FIGURE_END_SECONDS = 1.5;
 export const PH_HOLD_PROGRESS = 0;

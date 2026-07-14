@@ -276,7 +276,7 @@ test('slow next-scene assets do not block the current production hold', async ({
   const patternGate = new Promise<void>((resolve) => {
     releasePatternRequest = resolve;
   });
-  await page.route('**/*pattern-layer-alpha-06*.png', async (route) => {
+  await page.route('**/*pattern-layer-alpha-06*.webp', async (route) => {
     patternRequestStarted = true;
     await patternGate;
     await route.continue();

@@ -12,7 +12,7 @@ import type { InkDepthTransform } from '../../transitions/shared/inkField';
 const CLOUD_IMAGE = new URL('../../../../assets/figure2-cloud.webp', import.meta.url).href;
 const FAR_ARCH_IMAGE = new URL('../../../../assets/figure2-far-arch.webp', import.meta.url).href;
 const MIDDLE_IMAGE = new URL('../../../../assets/figure2-middle-building.webp', import.meta.url).href;
-const MIDDLE_MASK_IMAGE = new URL('../../../../assets/figure2-middle-window-mask.png', import.meta.url).href;
+const MIDDLE_MASK_IMAGE = new URL('../../../../assets/figure2-middle-window-mask.webp', import.meta.url).href;
 const LEFT_VIDEO = new URL('../../../../assets/figure2-left-motion.webm', import.meta.url).href;
 const RIGHT_VIDEO = new URL('../../../../assets/figure2-right-motion.webm', import.meta.url).href;
 
