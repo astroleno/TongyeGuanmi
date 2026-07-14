@@ -18,10 +18,15 @@ const appPackage = JSON.parse(
 const rootPackage = JSON.parse(
   readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')
 );
-const candidateWorkflow = readFileSync(
+const candidateWorkflowSource = readFileSync(
   new URL('../../../.github/workflows/r5-candidate.yml', import.meta.url),
   'utf8'
 );
+const candidateWorkflow = candidateWorkflowSource
+  .split('\n')
+  .filter((line) => !line.trimStart().startsWith('#'))
+  .map((line) => line.replace(/\s+#.*$/, ''))
+  .join('\n');
 const memoryRunner = readFileSync(
   new URL('../../scripts/run-r5-process-memory.mjs', import.meta.url),
   'utf8'
@@ -591,37 +596,34 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   expect(candidateWorkflow).toContain(
     "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate'"
   );
-  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v2'");
-  expect(candidateWorkflow).toContain(
-    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2'"
+  expect(candidateWorkflow).toMatch(
+    /^ {6}- 'react-refactor-r5-parity-repair-candidate-v\*'$/m
   );
-  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v3'");
-  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v4'");
-  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v5'");
-  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v6'");
-  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v7'");
-  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate-v8'");
-  expect(candidateWorkflow).toContain(
-    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4'"
+  expect(candidateWorkflow).not.toMatch(
+    /^ {6}- 'react-refactor-r5-parity-repair-candidate-v\d+'$/m
   );
   expect(candidateWorkflow).toContain(
-    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v5'"
+    "runs-on: ${{ startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v') && 'macos-14' || 'ubuntu-latest' }}"
   );
-  expect(candidateWorkflow).toContain(
-    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v6'"
-  );
-  expect(candidateWorkflow).toContain(
-    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v7'"
-  );
-  expect(candidateWorkflow).toContain(
-    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8'"
-  );
-  expect(candidateWorkflow).toContain(
-    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8' && 'macos-14'"
-  );
+  expect(
+    candidateWorkflow.split(
+      "startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')"
+    )
+  ).toHaveLength(8);
   expect(candidateWorkflow).toContain(
     'R5_MEMORY_RUNNER_CLASS: github-hosted-macos-14'
   );
+  expect(candidateWorkflow).toContain('- name: Install FFmpeg on Linux');
+  expect(candidateWorkflow).toContain("if: runner.os == 'Linux'");
+  expect(candidateWorkflow).toContain('sudo apt-get install --yes ffmpeg');
+  expect(candidateWorkflow).toContain('- name: Install FFmpeg on macOS');
+  expect(candidateWorkflow).toContain("if: runner.os == 'macOS'");
+  expect(candidateWorkflow).toContain(
+    'command -v ffprobe >/dev/null 2>&1 || brew install ffmpeg'
+  );
+  expect(candidateWorkflow).toContain('- name: Verify FFmpeg tools');
+  expect(candidateWorkflow).toContain('ffmpeg -version');
+  expect(candidateWorkflow).toContain('ffprobe -version');
   expect(candidateWorkflow).toContain('- name: Restore immutable annotated candidate tag');
   expect(candidateWorkflow).toContain('git fetch --force --no-tags origin');
   expect(candidateWorkflow).toContain(
@@ -638,6 +640,9 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   expect(candidateWorkflow).toContain('pnpm run deploy:finalize');
   expect(candidateWorkflow.indexOf('pnpm run deploy:prepare')).toBeLessThan(
     candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')
+  );
+  expect(candidateWorkflow.indexOf('- name: Verify FFmpeg tools')).toBeLessThan(
+    candidateWorkflow.indexOf('- name: Root quality and production build')
   );
   expect(candidateWorkflow.indexOf('- name: Install qualification Chrome on macOS')).toBeLessThan(
     candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')

@@ -5,8 +5,8 @@
 - 当前唯一阶段分支为 `codex/react-refactor-r5-parity-cutover`，状态是 **pre-visual、untagged、unqualified**。
 - Batch A generation provenance 由远端 `codex/homepage-asset-slimming-generation` 精确保存于 `3f16dd0b3f136e699cb3cbd88c1241b4875d9393`。它是独立来源链，不是 Batch B/C 的 Git 祖先，也未为制造线性历史合入 R5。
 - Batch B 以 `c273726b1a26ddfea557774d590214782ff7e74b` → `f5a497909683e8771a4e2944b5e2d8e0dfa0433d` → `be119daba32577c5a44dc100aa3bd357cacdaa1d` → `b23dd80d13bea685fd4fdd58caa49c11032ecb11` 接入 R5；Batch C 以 `767d3927119fb7e06b09939858912d5da3f4c04d` → `b62ba647cbf5402299cd0a5eef46fff152c48524` 通过非 squash merge 接入。
-- 当前 R5 的 `app/` 与 `assets/` 内容和 `b62ba647cbf5402299cd0a5eef46fff152c48524` 完全一致。最终合同是 **38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG**；runtime media **60,830,949 bytes**；Hero pre-scroll **1,131,048 bytes**；`dist/assets` 不得包含 PNG。
-- Batch C 的自动浏览器证据属于上述相同 application tree，但不等于最终人工视觉验收或 release qualification。最终视觉尚未执行；当前 HEAD 没有 candidate tag，也未运行当前身份的 RSS、rollback 或 exact-tag matrix。
+- 当前 R5 的 `assets/` 与除 `app/src/production/release-manifest.test.ts` 外的 `app/` 内容和 `b62ba647cbf5402299cd0a5eef46fff152c48524` 完全一致；该测试只锁定 release workflow 合同，不进入 production/runtime payload。最终合同是 **38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG**；runtime media **60,830,949 bytes**；Hero pre-scroll **1,131,048 bytes**；`dist/assets` 不得包含 PNG。
+- Batch C 的自动浏览器证据属于上述相同 runtime/assets tree，但不等于最终人工视觉验收或 release qualification。最终视觉尚未执行；当前 HEAD 没有 candidate tag，也未运行当前身份的 RSS、rollback 或 exact-tag matrix。
 - Candidate-v2 至 candidate-v8 均为 immutable historical/unqualified，禁止移动或复用。新 candidate 只能在最终视觉通过及 pre-freeze gate 完成后创建一次。
 - `main` 仍在 `a78b064d65f024a301a3b179c62a458a1445bbf6`，未合并、未部署；`react-refactor-r5-cutover` 未创建；R6 blocked。
 

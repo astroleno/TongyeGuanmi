@@ -1,6 +1,6 @@
 # R5 Production Parity Repair Candidate
 
-Status: **current R5 is pre-visual, untagged, and unqualified.** Candidate-v2 through candidate-v8 remain immutable historical/unqualified records; the detailed v2–v6 facts below are retained without being rewritten as passes for any later source. Batch B/C are now integrated into the sole R5 stage branch, Batch A provenance remains on its independent remote branch, and the current `app/`/`assets/` tree equals `b62ba647cbf5402299cd0a5eef46fff152c48524`. Final manual visual review has not run. No new candidate, current-HEAD RSS/finalization, rollback, exact-tag matrix, production cutover, or deployment is claimed.
+Status: **current R5 is pre-visual, untagged, and unqualified.** Candidate-v2 through candidate-v8 remain immutable historical/unqualified records; the detailed v2–v6 facts below are retained without being rewritten as passes for any later source. Batch B/C are now integrated into the sole R5 stage branch, Batch A provenance remains on its independent remote branch, and current `assets/` plus `app/` excluding `app/src/production/release-manifest.test.ts` equal `b62ba647cbf5402299cd0a5eef46fff152c48524`; the excluded release workflow contract test is not production/runtime payload. Final manual visual review has not run. No new candidate, current-HEAD RSS/finalization, rollback, exact-tag matrix, production cutover, or deployment is claimed.
 
 ## Candidate Identity Boundary
 
@@ -26,7 +26,7 @@ Status: **current R5 is pre-visual, untagged, and unqualified.** Candidate-v2 th
 | unqualified v7 source / tag object | `d0daed5adb83fbeff7c61e0e351673fc4dea4ff5` / `2f8049a3e83b393de0056287cdc16e8d79986ddf` |
 | unqualified v8 source / tag object | `9a602e9fab2199ff2aa8753d46a25e0fc0f9d9c1` / `a8a8a86adb3a8dc63220e0d045115814ad18cd7e` |
 | current R5 state | pre-visual / untagged / unqualified |
-| current application tree | identical to Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524` |
+| current runtime/assets tree | `assets/` and `app/` excluding `app/src/production/release-manifest.test.ts` are identical to Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524`; the excluded file only tests release CI |
 | next candidate | none created; one new immutable tag only after visual acceptance and pre-freeze gate |
 | deployable directory | identity-bound `dist/` from the clean exact tag only |
 | release manifest | future candidate only: `dist/r5-release-manifest.json`, schema 3; final status must be `qualified` |
@@ -97,8 +97,8 @@ The current handoff deliberately stops before visual review and candidate freeze
 | Gate | Required result | Current record |
 |---|---|---|
 | final pre-visual nonbrowser gate | full tests, lint, typecheck, build, release/static checks, inventory, references, and budgets pass | required on final untagged HEAD; final handoff records the result |
-| application tree identity | no `app/` or `assets/` difference from Batch C terminal | required: exact equality with `b62ba647cbf5402299cd0a5eef46fff152c48524` |
-| final manual visual | user reviews the unchanged Batch C application tree | not run; next action |
+| runtime/assets identity | no `assets/` or production `app/` difference from Batch C terminal | required: exact equality with `b62ba647cbf5402299cd0a5eef46fff152c48524`, excluding only `app/src/production/release-manifest.test.ts` |
+| final manual visual | user reviews the unchanged Batch C production/runtime tree | not run; next action |
 | new candidate freeze | one fresh annotated tag after visual acceptance and pre-freeze gate | not created |
 | process memory/disposal | all 18 holds forward/reverse remain below `1,500,000,000B` | not run for current HEAD; historical results do not qualify it |
 | exact-tag browser matrices | every applicable desktop/mobile Chromium/WebKit case passes | not run because no current candidate exists |
