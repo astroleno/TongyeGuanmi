@@ -153,6 +153,34 @@ describe('timeline video driver', () => {
     }
   });
 
+  it('reuses an acceptable presented endpoint at an exact playhead across a direction generation', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const first = driver.prepareFrame({
+      runId: 'endpoint-reuse:1',
+      direction: 1,
+      progress: 0.996,
+      durationFallbackSeconds: 10
+    });
+    video.completeSeek();
+    video.presentFrame();
+    await expect(first).resolves.toMatchObject({ status: 'ready' });
+    video.currentTime = 9.98;
+    video.completeSeek();
+    const seekWrites = video.currentTimeWrites.length;
+    const nextInput = {
+      runId: 'endpoint-reuse:2',
+      direction: -1 as const,
+      progress: 1,
+      durationFallbackSeconds: 10
+    };
+    driver.drive(nextInput);
+
+    await expect(driver.prepareFrame(nextInput)).resolves.toMatchObject({ status: 'ready', direction: -1 });
+    expect(video.currentTimeWrites).toHaveLength(seekWrites);
+    driver.dispose();
+  });
+
   it('rejects preparation when the media seek setter throws', async () => {
     const video = new FakeVideo();
     video.throwOnCurrentTimeWrite = true;
@@ -171,6 +199,42 @@ describe('timeline video driver', () => {
     await Promise.resolve();
 
     expect(rejection).toMatchObject({ code: 'MEDIA_SEEK_FAILED' });
+    expect(video.paused).toBe(true);
+    expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
+    expect(video.dataset.timelineVideoStaticFallback).toBe('true');
+    driver.dispose();
+  });
+
+  it('hides a previously ready frame after a seek failure and clears fallback after recovery', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const input = {
+      runId: 'media-ready-then-seek-error:1',
+      direction: -1 as const,
+      durationFallbackSeconds: 10,
+      mode: 'timeline' as const
+    };
+    const initial = driver.prepareFrame({ ...input, progress: 0.5 });
+    video.completeSeek();
+    video.presentFrame();
+    await expect(initial).resolves.toMatchObject({ status: 'ready' });
+    expect(video.dataset.timelineVideoFrameReady).toBe('true');
+
+    video.throwOnCurrentTimeWrite = true;
+    await expect(driver.prepareFrame({ ...input, progress: 0.6 })).rejects.toMatchObject({
+      code: 'MEDIA_SEEK_FAILED'
+    });
+    expect(video.paused).toBe(true);
+    expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
+    expect(video.dataset.timelineVideoStaticFallback).toBe('true');
+
+    video.throwOnCurrentTimeWrite = false;
+    const recovered = driver.prepareFrame({ ...input, progress: 0.7 });
+    video.completeSeek();
+    video.presentFrame();
+    await expect(recovered).resolves.toMatchObject({ status: 'ready' });
+    expect(video.dataset.timelineVideoFrameReady).toBe('true');
+    expect(video.dataset.timelineVideoStaticFallback).toBeUndefined();
     driver.dispose();
   });
 
@@ -195,6 +259,7 @@ describe('timeline video driver', () => {
     await Promise.resolve();
 
     expect(rejection).toMatchObject({ code });
+    expect(video.dataset.timelineVideoStaticFallback).toBe('true');
     driver.dispose();
   });
 
@@ -243,18 +308,18 @@ describe('timeline video driver', () => {
     driver.dispose();
   });
 
-  it('starts native playback only after its requested initial frame is presented', async () => {
+  it('starts native only after its initial frame and preserves its presented terminal', async () => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));
-
-    driver.drive({
+    const input = {
       runId: 'media-presented-native:1',
-      direction: 1,
-      progress: 0.2,
+      direction: 1 as const,
       durationFallbackSeconds: 10,
       timelineDurationMs: 2_000,
-      mode: 'native-preferred'
-    });
+      mode: 'native-preferred' as const
+    };
+
+    driver.drive({ ...input, progress: 0.2 });
 
     expect(video.playCalls).toBe(0);
     video.completeSeek();
@@ -262,6 +327,16 @@ describe('timeline video driver', () => {
     video.presentFrame();
     await Promise.resolve();
     expect(video.playCalls).toBe(1);
+
+    video.currentTime = 9.98;
+    video.completeSeek();
+    driver.drive({ ...input, progress: 1 });
+    await expect(driver.prepareFrame({
+      ...input,
+      runId: 'media-presented-native:2',
+      direction: -1,
+      progress: 1
+    })).resolves.toMatchObject({ status: 'ready', direction: -1 });
   });
 
   it('uses the transition direction and coalesces unresolved seeks to the latest progress', () => {

@@ -43,25 +43,25 @@ describe('R4 contract-driven media readiness gate', () => {
 
   it('derives required keys from the active playback direction', () => {
     expect(requiredMediaKeys(segment('figure2-distance-expand'), 1)).toEqual([
-      'figure2-left-alpha',
-      'figure2-right-alpha'
+      'figure2-left-motion',
+      'figure2-right-motion'
     ]);
     expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual([
-      'figure2-left-alpha-reverse',
-      'figure2-right-alpha-reverse'
+      'figure2-left-motion',
+      'figure2-right-motion'
     ]);
     expect(requiredMediaKeys(segment('aod-method-top'), -1)).toEqual([
-      'aod_figure-alpha-front-scrub'
+      'aod-figure-motion'
     ]);
   });
 
   it('does not resolve until every required video has decoded future data', async () => {
     const registry = new HandleRegistry();
-    const left = fakeMedia('figure2-left-alpha');
-    const right = fakeMedia('figure2-right-alpha');
+    const left = fakeMedia('figure2-left-motion');
+    const right = fakeMedia('figure2-right-motion');
     const byKey = new Map([
-      ['figure2-left-alpha', left],
-      ['figure2-right-alpha', right]
+      ['figure2-left-motion', left],
+      ['figure2-right-motion', right]
     ]);
     let settled = false;
     const ready = waitForRequiredMediaReady({
@@ -85,19 +85,19 @@ describe('R4 contract-driven media readiness gate', () => {
     await ready;
 
     expect(registry.snapshot().mediaReady).toEqual([
-      'figure2-left-alpha:r4-media:prepare:1:-',
-      'figure2-right-alpha:r4-media:prepare:1:-'
+      'figure2-left-motion:r4-media:prepare:1:-',
+      'figure2-right-motion:r4-media:prepare:1:-'
     ]);
   });
 
   it('finds a media element by its declared key without interpolating selectors', () => {
-    const expected = fakeMedia('ph_figure-alpha-scrub', 3);
+    const expected = fakeMedia('ph-figure-motion', 3);
     const other = fakeMedia('other', 3);
     const root = {
       querySelectorAll: () => [other, expected]
     } as unknown as HTMLElement;
 
-    expect(findMediaElementByKey([root], 'ph_figure-alpha-scrub')).toBe(expected);
+    expect(findMediaElementByKey([root], 'ph-figure-motion')).toBe(expected);
   });
 
   it('fails closed when a required media element never becomes ready', async () => {
@@ -109,6 +109,6 @@ describe('R4 contract-driven media readiness gate', () => {
       getMediaElement: () => null,
       pollIntervalMs: 1,
       timeoutMs: 8
-    })).rejects.toThrow(/ph_figure-alpha-scrub.*timed out/);
+    })).rejects.toThrow(/ph-figure-motion.*timed out/);
   });
 });

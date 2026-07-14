@@ -161,7 +161,7 @@ export function createFigure3ServicesTransition(options: { delayMs?: () => numbe
       {
         id: 'figure3-alpha',
         media: [FIGURE3_MEDIA_KEY],
-        forward: { mode: 'timeline', required: true },
+        forward: { mode: 'play', required: true },
         reverse: { mode: 'timeline', required: true },
         readyMilestones: ['targetReady', 'mediaReady'],
         terminalFallbackScene: 'services',

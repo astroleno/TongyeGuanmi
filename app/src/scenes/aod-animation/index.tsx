@@ -6,7 +6,8 @@ export { renderAodTransitionProgress } from './progress';
 
 export const AOD_CLOUD_SRC = new URL('../../../../assets/aod_cloud-alpha.png', import.meta.url).href;
 export const AOD_SUN_SRC = new URL('../../../../assets/aod_sun-alpha.png', import.meta.url).href;
-export const AOD_FIGURE_VIDEO_SRC = new URL('../../../../assets/aod_figure-alpha-front-scrub.webm', import.meta.url).href;
+export const AOD_FIGURE_VIDEO_SRC = new URL('../../../../assets/aod-figure-motion.webm', import.meta.url).href;
+export const AOD_FIGURE_END_SECONDS = 2.567;
 
 export function renderAodAnimationHold(root: HTMLElement | null): void {
   renderAodTransitionProgress(root, 0);
@@ -20,7 +21,7 @@ function AodAnimationScene({ registerHandle }: SceneComponentProps) {
       data-aod-transition
       data-aod-duration="2"
       data-aod-scroll-vh="20"
-      data-aod-video-duration="5.03"
+      data-aod-video-duration="2.6"
       data-aod-fullscreen-start="0"
       data-aod-fullscreen-end="0.85"
       data-aod-backdrop-exit-start="0.18"

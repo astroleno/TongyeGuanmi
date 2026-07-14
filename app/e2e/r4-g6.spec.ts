@@ -51,7 +51,7 @@ type Group6VisualSnapshot = {
   phBgTransform: string;
   phFrontTransform: string;
   phFigureTransform: string;
-  phVideos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
+  phVideos: readonly { loop: boolean; paused: boolean; currentTime: number; playbackRate: number }[];
   phPlaybackActive: string | undefined;
   phPlaybackDirection: string | undefined;
   educationProgress: number;
@@ -100,7 +100,8 @@ async function visualSnapshot(page: Page): Promise<Group6VisualSnapshot> {
       phVideos: [...document.querySelectorAll<HTMLVideoElement>('[data-ph-alpha-video]')].map((video) => ({
         loop: video.loop,
         paused: video.paused,
-        currentTime: video.currentTime
+        currentTime: video.currentTime,
+        playbackRate: video.playbackRate
       })),
       phPlaybackActive: phRoot?.dataset.phPlaybackActive,
       phPlaybackDirection: phRoot?.dataset.phPlaybackDirection,
@@ -194,7 +195,12 @@ test.describe('R4 group6 lab ph education harness', () => {
         && visual.phProgress > 0
         && visual.phProgress < 1
         && visual.phPlaybackActive === 'true'
-        && visual.phVideos.some((video) => video.paused && video.currentTime > 0.02);
+        && visual.phVideos.some((video) => (
+          !video.paused
+          && video.currentTime > 0.02
+          && video.playbackRate > 0.95
+          && video.playbackRate < 1.05
+        ));
     }
     if (!sawPhTimelinePlayback) {
       await expect.poll(async () => {
@@ -202,7 +208,12 @@ test.describe('R4 group6 lab ph education harness', () => {
         return visual.phPlaybackActive === 'true'
           && visual.phProgress > 0
           && visual.phProgress < 1
-          && visual.phVideos.some((video) => video.paused && video.currentTime > 0.02);
+          && visual.phVideos.some((video) => (
+            !video.paused
+            && video.currentTime > 0.02
+            && video.playbackRate > 0.95
+            && video.playbackRate < 1.05
+          ));
       }, { timeout: 5_000, intervals: [20] }).toBe(true);
       sawPhTimelinePlayback = true;
     }

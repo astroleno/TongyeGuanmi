@@ -486,7 +486,7 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
   test.skip(testInfo.project.name !== 'desktop-chromium', 'network recovery runs once');
   test.setTimeout(120_000);
 
-  await page.route('**/*aod_figure-alpha-front-scrub*.webm', async (route) => {
+  await page.route('**/*aod-figure-motion*.webm', async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 700));
     await route.continue();
   });
@@ -495,8 +495,8 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
   await waitForHold(page, 'method-top');
   expect(await eventTypes(page)).not.toContain('PREPARE_TIMEOUT');
 
-  await page.unroute('**/*aod_figure-alpha-front-scrub*.webm');
-  await page.route('**/*aod_figure-alpha-front-scrub*.webm', (route) => route.abort('failed'));
+  await page.unroute('**/*aod-figure-motion*.webm');
+  await page.route('**/*aod-figure-motion*.webm', (route) => route.abort('failed'));
   await bootStory(page, '/?media=failed#aod-animation');
   const timeoutCountBeforeFailure = (await eventTypes(page))
     .filter((type) => type === 'PREPARE_TIMEOUT').length;
@@ -515,10 +515,10 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
   });
   await expectLayerInvariants(page);
 
-  await page.unroute('**/*aod_figure-alpha-front-scrub*.webm');
+  await page.unroute('**/*aod-figure-motion*.webm');
   await page.evaluate(() => {
     const video = document.querySelector<HTMLVideoElement>(
-      '[data-stage-layer="aod-animation"] [data-media-key="aod_figure-alpha-front-scrub"]'
+      '[data-stage-layer="aod-animation"] [data-media-key="aod-figure-motion"]'
     );
     if (!video) throw new Error('AOD media missing before route retry');
     video.load();
@@ -534,7 +534,7 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
   try {
     await page.evaluate(() => {
       const video = document.querySelector<HTMLVideoElement>(
-        '[data-stage-layer="aod-animation"] [data-media-key="aod_figure-alpha-front-scrub"]'
+        '[data-stage-layer="aod-animation"] [data-media-key="aod-figure-motion"]'
       );
       if (!video) throw new Error('AOD media missing before offline probe');
       const source = video.currentSrc || video.src;
@@ -561,7 +561,7 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
 
   await page.evaluate(() => {
     const video = document.querySelector<HTMLVideoElement>(
-      '[data-stage-layer="aod-animation"] [data-media-key="aod_figure-alpha-front-scrub"]'
+      '[data-stage-layer="aod-animation"] [data-media-key="aod-figure-motion"]'
     );
     if (!video) throw new Error('AOD media missing before online retry');
     video.load();
@@ -575,7 +575,7 @@ test('Contact reverse recovery stays local while only its explicit link may retu
   test.skip(testInfo.project.name !== 'desktop-chromium', 'network recovery runs once');
   test.setTimeout(120_000);
 
-  const craneMedia = /crane-figure[12]-transition[^/]*\.webm(?:\?.*)?$/;
+  const craneMedia = /crane-(?:figure|flock)-motion[^/]*\.webm(?:\?.*)?$/;
   let delayedRequests = 0;
   let pendingDelayedRequests = 0;
   let releaseDelayedRequests: () => void = () => undefined;

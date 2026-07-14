@@ -15,8 +15,8 @@ import {
 } from '../../media/timeline-video-driver';
 import { attachHeroParallax, sampleHeroIntro, startHeroIntro, type HeroIntroSample } from './motion';
 
-const HERO_BACK_IMAGE = new URL('../../../../assets/back1.png', import.meta.url).href;
-const HERO_MIDDLE_IMAGE = new URL('../../../../assets/middle1.png', import.meta.url).href;
+const HERO_BACK_IMAGE = new URL('../../../../assets/hero-back.webp', import.meta.url).href;
+const HERO_MIDDLE_IMAGE = new URL('../../../../assets/hero-middle.webp', import.meta.url).href;
 const HERO_MIDDLE_DEPTH_IMAGE = new URL('../../../../assets/middle1_depth.png', import.meta.url).href;
 const HERO_FIGURE_VIDEO = new URL('../../../../assets/figure1.webm', import.meta.url).href;
 const HERO_FIGURE_POSTER = new URL('../../../../assets/figure-poster.jpg', import.meta.url).href;
@@ -94,6 +94,12 @@ function configureHeroVideo(video: HTMLVideoElement): void {
 
 function seekHeroVideo(video: HeroVideoElement, time: number): void {
   video.__r4HeroPendingTime = time;
+  // Do not make a cold Hero preload choose or seek the full source. The
+  // Hero→Pattern transition promotes this element through TimelineVideoDriver
+  // only after the segment has been accepted.
+  if (video.preload === 'none') {
+    return;
+  }
   try {
     video.currentTime = time;
   } catch {
@@ -393,7 +399,7 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
           poster={HERO_FIGURE_POSTER}
           muted
           playsInline
-          preload="auto"
+          preload="none"
           aria-hidden="true"
         />
       </div>

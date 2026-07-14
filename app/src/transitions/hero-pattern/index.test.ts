@@ -35,6 +35,31 @@ class FakeElement {
   }
 }
 
+class DeferredFrameVideo extends FakeVideo {
+  private frameCallback: ((now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void) | undefined;
+
+  override requestVideoFrameCallback(
+    callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
+  ): number {
+    this.frameCallback = callback;
+    return 1;
+  }
+
+  override cancelVideoFrameCallback(): void {
+    this.frameCallback = undefined;
+  }
+
+  presentFrame(): void {
+    const callback = this.frameCallback;
+    this.frameCallback = undefined;
+    callback?.(0, {} as VideoFrameCallbackMetadata);
+  }
+
+  hasPendingFrame(): boolean {
+    return this.frameCallback !== undefined;
+  }
+}
+
 function layer(scene: 'hero' | 'pattern', role: 'current' | 'next'): LayerHandle {
   let visibility: LayerVisibilityState = {
     mounted: true,
@@ -138,6 +163,9 @@ describe('hero-pattern transition', () => {
       const canvas = new FakeCanvas();
       const video = new FakeVideo();
       fixture.fromRoot.connect('[data-hero-figure-video]', video);
+      if (direction === -1 && fixture.context.from.element) {
+        fixture.context.from.element.style.visibility = 'hidden';
+      }
       vi.stubGlobal('document', { createElement: () => canvas });
 
       const timeline = await createHeroPatternTransition().buildTimeline({
@@ -149,9 +177,35 @@ describe('hero-pattern transition', () => {
       // play/reverse call may advance Hero media.
       expect(video.playCalls).toBe(0);
       expect(video.paused).toBe(true);
+      expect(fixture.context.from.element?.style.visibility).toBe(direction === -1 ? 'hidden' : '');
       timeline.dispose();
     }
   );
+
+  it('waits for the reverse Hero endpoint after timeline construction resets its surfaces', async () => {
+    const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
+    const canvas = new FakeCanvas();
+    const video = new DeferredFrameVideo();
+    fixture.fromRoot.connect('[data-hero-figure-video]', video);
+    if (fixture.context.from.element) {
+      fixture.context.from.element.style.visibility = 'hidden';
+    }
+    vi.stubGlobal('document', { createElement: () => canvas });
+
+    const build = createHeroPatternTransition().buildTimeline({
+      ...fixture.context,
+      direction: -1
+    });
+    await Promise.resolve();
+
+    expect(video.hasPendingFrame()).toBe(true);
+    video.presentFrame();
+    const timeline = await build;
+    expect(video.hasPendingFrame()).toBe(false);
+    expect(video.currentTime).toBeCloseTo(2.34);
+    expect(fixture.context.from.element?.style.visibility).toBe('hidden');
+    timeline.dispose();
+  });
 
   it('leases both Hero and Pattern motion only while the Ink handoff is visible', async () => {
     const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');

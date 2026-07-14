@@ -1,7 +1,7 @@
 import { PilotProgressTimeline } from '../../pilot/progress-timeline';
 import { fadeVisibility, range01, smoothStep } from '../../pilot/visibility';
 import { AOD_MEDIA_KEY } from './media';
-import { renderAodTransitionProgress } from '../../scenes/aod-animation';
+import { AOD_FIGURE_END_SECONDS, renderAodTransitionProgress } from '../../scenes/aod-animation';
 import {
   disposeTimelineVideoDriver,
   driveTimelineVideo,
@@ -116,10 +116,12 @@ function aodMediaInput(
     runId: context.runId,
     direction,
     progress,
-    durationFallbackSeconds: 5.03,
-    endEpsilonSeconds: 0.02,
+    durationFallbackSeconds: 2.6,
+    startSeconds: 0,
+    endSeconds: AOD_FIGURE_END_SECONDS,
     timelineDurationMs: AOD_METHOD_TOP_DURATION_MS,
-    mode: 'timeline',
+    mode: direction === 1 ? 'native-preferred' : 'timeline',
+    nativePlaybackDirection: 1,
     reducedMotion: context.prefersReducedMotion
   };
 }
@@ -136,7 +138,7 @@ export function createAodMethodTopTransition(options: {
       {
         id: 'aod-front-figure',
         media: [AOD_MEDIA_KEY],
-        forward: { mode: 'timeline', required: true },
+        forward: { mode: 'play', required: true },
         reverse: { mode: 'timeline', required: true },
         readyMilestones: ['targetReady', 'mediaReady'],
         terminalFallbackScene: 'method-top',

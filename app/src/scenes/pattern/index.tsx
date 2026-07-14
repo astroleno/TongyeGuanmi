@@ -131,6 +131,7 @@ function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
       renderer.setRenderActive(active, active && !reducedMotion);
     });
     motionBindingRef.current = motionBinding;
+    motionBinding.setBaseActive(!hidden && !reducedMotion && role === 'current');
     let disposed = false;
     void renderer.start().then(() => renderer.prepareStaticFrame()).then(() => {
       if (!disposed) {

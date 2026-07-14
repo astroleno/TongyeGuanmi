@@ -37,6 +37,7 @@ class FakeVideo {
   loop = true;
   autoplay = true;
   playsInline = false;
+  preload = 'auto';
   currentTime = 0;
   duration = 5.04;
   paused = true;
@@ -114,6 +115,19 @@ describe('hero scene renderer', () => {
 
     setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'inactive');
     expect(video.pauseCount).toBe(3);
+  });
+
+  it('defers the Hero source seek while cold preload is disabled, then restores the authored endpoint on metadata', () => {
+    const video = new FakeVideo();
+    video.preload = 'none';
+
+    setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'terminal');
+
+    expect(video.currentTime).toBe(0);
+    expect(video.playCount).toBe(0);
+    video.listeners.get('loadedmetadata')?.(new Event('loadedmetadata'));
+    expect(video.currentTime).toBeCloseTo(2.34, 2);
+    expect(video.paused).toBe(true);
   });
 
   it('prepositions a hidden prev Hero at terminal but restores its authored start after reverse landing', () => {
@@ -210,6 +224,10 @@ describe('hero scene renderer', () => {
     expect(markup).toContain('data-text-reveal-item="3"');
     expect(markup).toContain('data-text-reveal="line"');
     expect(markup.match(/data-text-reveal-effects="stagger blur-to-clear rise-up"/g)).toHaveLength(2);
+    expect(markup).toContain('preload="none"');
+    expect(markup).toContain('figure1.webm');
+    expect(markup).toContain('figure-poster.jpg');
+    expect(markup).not.toContain('hero-figure-scrub');
   });
 
   it('keeps copy inside the artwork stacking context below the center figure', () => {

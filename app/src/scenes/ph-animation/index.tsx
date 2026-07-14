@@ -8,11 +8,11 @@ import {
 import { PH_PLAYBACK_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
-export const PH_MEDIA_KEY = 'ph_figure-alpha-scrub';
+export const PH_MEDIA_KEY = 'ph-figure-motion';
 export const PH_BG_SRC = new URL('../../../../assets/ph_background.png', import.meta.url).href;
 export const PH_FRONT_SRC = new URL('../../../../assets/ph_front-alpha.png', import.meta.url).href;
-export const PH_FIGURE_VIDEO_SRC = new URL('../../../../assets/ph_figure-alpha-scrub.webm', import.meta.url).href;
-export const PH_FIGURE_POSTER_SRC = new URL('../../../../assets/ph_figure-alpha-poster.png', import.meta.url).href;
+export const PH_FIGURE_VIDEO_SRC = new URL('../../../../assets/ph-figure-motion.webm', import.meta.url).href;
+export const PH_FIGURE_END_SECONDS = 1.5;
 export const PH_HOLD_PROGRESS = 0;
 
 export type PhRenderState = {
@@ -57,10 +57,12 @@ function phMediaInput(
     runId: mediaRun.runId,
     direction: mediaRun.direction,
     progress: mediaProgress,
-    durationFallbackSeconds: 76 / 30,
-    endEpsilonSeconds: 0.02,
+    durationFallbackSeconds: 1.533,
+    startSeconds: 0,
+    endSeconds: PH_FIGURE_END_SECONDS,
     timelineDurationMs: PH_PLAYBACK_MS,
-    mode: 'timeline',
+    mode: mediaRun.direction === 1 ? 'native-preferred' : 'timeline',
+    nativePlaybackDirection: 1,
     ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
   };
@@ -201,7 +203,6 @@ function PhAnimationScene({ registerHandle }: SceneComponentProps) {
                 data-ph-alpha-video
                 data-media-key={PH_MEDIA_KEY}
                 src={PH_FIGURE_VIDEO_SRC}
-                poster={PH_FIGURE_POSTER_SRC}
                 muted
                 preload="auto"
                 playsInline

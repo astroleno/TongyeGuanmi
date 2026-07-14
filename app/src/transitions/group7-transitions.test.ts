@@ -4,6 +4,7 @@ import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { CRANE_CONTACT_COPY_CUE, createCraneContactTransition } from './crane-contact';
 import { createEducationCraneTransition } from './education-crane';
 import {
+  CRANE_MEDIA_PLAYBACK_MS,
   CRANE_PLAYBACK_MS,
   CRANE_TIMELINE_DURATION_SECONDS,
   renderCraneAnimationProgress
@@ -88,13 +89,26 @@ class FakeElement {
 
 class FakeVideo extends FakeElement {
   duration = 2.5;
-  currentTime = 0;
   paused = true;
+  seeking = false;
   loop = false;
   muted = false;
   playsInline = false;
   playbackRate = 1;
   playCalls = 0;
+  private time = 0;
+  private frameId = 0;
+  private readonly frameCallbacks = new Map<number, (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void>();
+  private readonly listeners = new Map<string, Set<() => void>>();
+
+  get currentTime(): number {
+    return this.time;
+  }
+
+  set currentTime(value: number) {
+    this.time = value;
+    this.seeking = false;
+  }
 
   get ended(): boolean {
     return this.currentTime >= this.duration - 0.001;
@@ -104,14 +118,43 @@ class FakeVideo extends FakeElement {
     this.paused = true;
   }
 
-  addEventListener(): void {}
+  addEventListener(type: string, listener: () => void): void {
+    const listeners = this.listeners.get(type) ?? new Set<() => void>();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
 
-  removeEventListener(): void {}
+  removeEventListener(type: string, listener: () => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
 
   play(): Promise<void> {
     this.playCalls += 1;
     this.paused = false;
     return Promise.resolve();
+  }
+
+  requestVideoFrameCallback(
+    callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
+  ): number {
+    const id = ++this.frameId;
+    this.frameCallbacks.set(id, callback);
+    queueMicrotask(() => {
+      const pending = this.frameCallbacks.get(id);
+      if (!pending) {
+        return;
+      }
+      this.frameCallbacks.delete(id);
+      pending(0, {
+        mediaTime: this.currentTime,
+        presentedFrames: id
+      } as VideoFrameCallbackMetadata);
+    });
+    return id;
+  }
+
+  cancelVideoFrameCallback(id: number): void {
+    this.frameCallbacks.delete(id);
   }
 }
 
@@ -294,8 +337,8 @@ describe('R4 group7 transitions', () => {
     expect(fixture.context.to.visibility).toMatchObject({ visible: true, opacity: 1 });
     expect(fromVisibilityWrites.some((state) => state.visible)).toBe(false);
     expect(toVisibilityWrites.some((state) => !state.visible)).toBe(false);
-    expect(fixture.figureVideo.currentTime).toBeCloseTo(2.499, 3);
-    expect(fixture.flockVideo.currentTime).toBeCloseTo(2.499, 3);
+    expect(fixture.figureVideo.currentTime).toBeCloseTo(2.467, 3);
+    expect(fixture.flockVideo.currentTime).toBeCloseTo(2.467, 3);
   });
 
   it('settles reverse Crane-to-Contact reduced motion at the forward start', async () => {
@@ -347,6 +390,7 @@ describe('R4 group7 transitions', () => {
     const timeline = await transition.buildTimeline(fixture.context);
 
     expect(CRANE_PLAYBACK_MS).toBe(3000);
+    expect(CRANE_MEDIA_PLAYBACK_MS).toBe(2500);
     expect(CRANE_TIMELINE_DURATION_SECONDS).toBe(3);
     expect(craneSegment.virtualDuration).toBe(CRANE_PLAYBACK_MS);
     timeline.progress(0.25);
@@ -355,8 +399,8 @@ describe('R4 group7 transitions', () => {
     expect(fixture.figureVideo.playCalls).toBe(0);
     expect(fixture.flockVideo.playCalls).toBe(0);
     expect(fixture.craneRoot.dataset.cranePlaybackActive).toBe('true');
-    expect(transition.mediaPlayback?.[0]?.forward.mode).toBe('timeline');
-    expect(craneSegment.mediaPlayback?.[0]?.forward.mode).toBe('timeline');
+    expect(transition.mediaPlayback?.[0]?.forward.mode).toBe('play');
+    expect(craneSegment.mediaPlayback?.[0]?.forward.mode).toBe('play');
     expect(transition.mediaPlayback?.[0]?.reverse).toEqual({ mode: 'timeline', required: true });
     expect(craneSegment.mediaPlayback?.[0]?.reverse).toEqual({ mode: 'timeline', required: true });
 
@@ -373,10 +417,40 @@ describe('R4 group7 transitions', () => {
     });
 
     timeline.progress(1);
-    expect(fixture.figureVideo.currentTime).toBeCloseTo(2.499, 3);
-    expect(fixture.flockVideo.currentTime).toBeCloseTo(2.499, 3);
+    expect(fixture.figureVideo.currentTime).toBeCloseTo(2.467, 3);
+    expect(fixture.flockVideo.currentTime).toBeCloseTo(2.467, 3);
     expect(fixture.figureVideo.paused).toBe(true);
     expect(fixture.flockVideo.paused).toBe(true);
+  });
+
+  it('prepares both Crane endpoints before playback and honors the 0s/0.5s native starts', async () => {
+    let nextFrame: FrameRequestCallback | undefined;
+    vi.stubGlobal('performance', { now: () => 0 });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      nextFrame = callback;
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+    const fixture = craneContactDomContext();
+    const timeline = await createCraneContactTransition().buildTimeline(fixture.context);
+
+    expect(fixture.figureVideo.dataset.timelineVideoFrameReady).toBe('true');
+    expect(fixture.flockVideo.dataset.timelineVideoFrameReady).toBe('true');
+    expect(fixture.figureVideo.playCalls).toBe(0);
+    expect(fixture.flockVideo.playCalls).toBe(0);
+
+    const playback = timeline.play(1);
+    nextFrame?.(100);
+    await vi.waitFor(() => expect(fixture.flockVideo.playCalls).toBe(1));
+    expect(fixture.figureVideo.playCalls).toBe(0);
+    expect(fixture.flockVideo.playbackRate).toBeCloseTo(2.467 / 2.5, 3);
+
+    nextFrame?.(600);
+    await vi.waitFor(() => expect(fixture.figureVideo.playCalls).toBe(1));
+    expect(fixture.figureVideo.playbackRate).toBeCloseTo(2.467 / 2.5, 3);
+
+    nextFrame?.(3000);
+    await playback;
   });
 
   it('keeps Contact hidden until 80%, then reveals complete copy over a linear background ramp', async () => {

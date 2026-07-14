@@ -49,6 +49,16 @@ async function stopFrameSampling(page: Page): Promise<number[]> {
   return page.evaluate(() => (window as PerformanceWindow).__r5StopFrames?.() ?? []);
 }
 
+async function pressFromCurrentHold(page: Page, key: 'PageDown' | 'PageUp'): Promise<void> {
+  const before = await storySnapshot(page);
+  await page.keyboard.press(key);
+  await page.waitForTimeout(80);
+  const after = await storySnapshot(page);
+  if (after.phase === 'hold' && after.current === before.current) {
+    await page.keyboard.press(key);
+  }
+}
+
 test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budgets', async ({ page }, testInfo) => {
   test.skip(
     !['desktop-chromium', 'mobile-chromium'].includes(testInfo.project.name),
@@ -123,7 +133,7 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   const idlePlayback = summarizeFrames(idleFrameIntervals);
 
   await startFrameSampling(page);
-  await page.keyboard.press('PageDown');
+  await pressFromCurrentHold(page, 'PageDown');
   await waitForHold(page, 'pattern');
   const heroPatternIntervals = await stopFrameSampling(page);
 
@@ -205,12 +215,12 @@ test('focused media and horizontal Ink paths separate first decode from steady f
 
   await bootStory(page, '/#ttg-animation');
   let startedAt = Date.now();
-  await page.keyboard.press('PageDown');
+  await pressFromCurrentHold(page, 'PageDown');
   await page.waitForFunction(() => {
     const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
     const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
-    return scene?.dataset.ttgActiveSurface === 'forward'
-      && video?.classList.contains('is-active')
+    return scene?.dataset.ttgPlaybackDirection === '1'
+      && video?.dataset.timelineVideoFrameReady === 'true'
       && !video.paused
       && video.currentTime > 0.05;
   });
@@ -220,13 +230,12 @@ test('focused media and horizontal Ink paths separate first decode from steady f
   const ttgForwardFrames = await stopFrameSampling(page);
 
   startedAt = Date.now();
-  await page.keyboard.press('PageUp');
+  await pressFromCurrentHold(page, 'PageUp');
   await page.waitForFunction(() => {
     const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
-    const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
-    return scene?.dataset.ttgActiveSurface === 'reverse'
-      && video?.classList.contains('is-active')
-      && !video.paused
+    const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
+    return scene?.dataset.ttgPlaybackDirection === '-1'
+      && video?.dataset.timelineVideoFrameReady === 'true'
       && video.currentTime > 0.05;
   });
   const ttgSameRunReverseFirstDecodeMs = Date.now() - startedAt;
@@ -235,16 +244,14 @@ test('focused media and horizontal Ink paths separate first decode from steady f
   const ttgSameRunReverseFrames = await stopFrameSampling(page);
 
   await bootStory(page, '/#figure2-proof-opening');
-  await page.keyboard.press('PageUp');
+  await pressFromCurrentHold(page, 'PageUp');
   await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
   startedAt = Date.now();
-  await page.keyboard.press('PageUp');
+  await pressFromCurrentHold(page, 'PageUp');
   await page.waitForFunction(() => {
-    const reverse = [...document.querySelectorAll<HTMLVideoElement>(
-      '[data-figure2-video][data-figure2-direction="reverse"]'
-    )];
+    const reverse = [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')];
     return reverse.length === 2
-      && reverse.every((video) => video.classList.contains('is-active') && !video.paused)
+      && reverse.every((video) => video.dataset.timelineVideoFrameReady === 'true')
       && reverse.every((video) => video.currentTime > 0.05);
   });
   const figure2ReverseFirstDecodeMs = Date.now() - startedAt;
@@ -254,7 +261,7 @@ test('focused media and horizontal Ink paths separate first decode from steady f
 
   await bootStory(page, '/#method');
   startedAt = Date.now();
-  await page.keyboard.press('PageUp');
+  await pressFromCurrentHold(page, 'PageUp');
   await page.waitForFunction(() => {
     const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
     return window.__storyApp?.snapshot().phase === 'playing'
@@ -279,7 +286,7 @@ test('focused media and horizontal Ink paths separate first decode from steady f
     window.dispatchEvent(new Event('story-reading-entry'));
   });
   startedAt = Date.now();
-  await page.keyboard.press('PageDown');
+  await pressFromCurrentHold(page, 'PageDown');
   await page.waitForFunction(() => Boolean(document.querySelector(
     '[data-r4-ink-boundary-kind="horizontal"][data-r4-ink-active="true"]'
   )));
@@ -297,7 +304,7 @@ test('focused media and horizontal Ink paths separate first decode from steady f
       firstDecodeMs: ttgSameRunReverseFirstDecodeMs,
       steady: summarizeFrames(ttgSameRunReverseFrames)
     },
-    figure2NativeReverse: {
+    figure2TimelineReverse: {
       firstDecodeMs: figure2ReverseFirstDecodeMs,
       steady: summarizeFrames(figure2ReverseFrames)
     },
@@ -333,6 +340,8 @@ test('focused media and horizontal Ink paths separate first decode from steady f
     expect(sample.steady.samples, `${name} steady sample count`).toBeGreaterThan(15);
     expect(sample.steady.p95FrameIntervalMs, `${name} steady p95`).toBeLessThanOrEqual(p95BudgetMs);
   }
-  expect(report.aggregate.longFrameRatio, 'focused aggregate long-frame ratio').toBeLessThan(0.01);
+  expect(report.aggregate.longFrameRatio, 'focused aggregate long-frame ratio').toBeLessThan(
+    0.01
+  );
   expect((await storySnapshot(page)).lastError).toBeUndefined();
 });

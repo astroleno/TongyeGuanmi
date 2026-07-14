@@ -89,10 +89,10 @@ function reverseContext(): TransitionContext {
 }
 
 describe('AOD Method transition media contract', () => {
-  it('requires presented timeline media in both directions', () => {
+  it('uses native-preferred forward media and presented timeline reverse media', () => {
     const contract = createAodMethodTopTransition().mediaPlayback?.[0];
 
-    expect(contract?.forward).toMatchObject({ mode: 'timeline', required: true });
+    expect(contract?.forward).toMatchObject({ mode: 'play', required: true });
     expect(contract?.reverse).toMatchObject({ mode: 'timeline', required: true });
   });
 

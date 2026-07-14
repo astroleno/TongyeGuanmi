@@ -137,7 +137,7 @@ describe('R4 group6 transitions', () => {
   it('plays PH to its terminal frame, pauses, then dissolves to Education without Ink', async () => {
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
     const video = new FakeVideo();
-    video.duration = 76 / 30;
+    video.duration = 1.533;
     const canvas = new FakeCanvas();
     fixture.fromRoot.connect('[data-ph-alpha-video]', video);
     vi.stubGlobal('document', { createElement: () => canvas });
@@ -229,14 +229,14 @@ describe('R4 group6 transitions', () => {
     expect(video.currentTimeWrites).toBe(writesAtStop);
 
     expect(video.currentTime).toBeGreaterThanOrEqual(forwardMidTime);
-    expect(video.playCalls).toBe(0);
+    expect(video.playCalls).toBeGreaterThan(0);
     timeline.dispose();
   });
 
   it('reverses PH from its first pause with one fixed preparation and descending presented targets', async () => {
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
     const video = new FakeVideo();
-    video.duration = 76 / 30;
+    video.duration = 1.533;
     fixture.fromRoot.connect('[data-ph-alpha-video]', video);
     const timeline = await createPhEducationTransition().buildTimeline(fixture.context);
 
@@ -251,7 +251,8 @@ describe('R4 group6 transitions', () => {
       signal: preparationSignal()
     });
     timeline.progress(PH_EDUCATION_ANIMATION_STOP);
-    expect(video.currentTime).toBeCloseTo(video.duration - 0.02, 3);
+    expect(video.currentTime).toBeCloseTo(1.5, 3);
+    const forwardPlayCalls = video.playCalls;
 
     await prepareAndCommit(timeline, {
       runId: fixture.context.runId,
@@ -271,7 +272,7 @@ describe('R4 group6 transitions', () => {
     }
     expect(samples[0]).toBeGreaterThan(samples[1] ?? 0);
     expect(samples[1]).toBeGreaterThan(samples[2] ?? 0);
-    expect(video.playCalls).toBe(0);
+    expect(video.playCalls).toBe(forwardPlayCalls);
     timeline.progress(0);
     expect(video.currentTime).toBe(0);
   });
@@ -282,7 +283,7 @@ describe('R4 group6 transitions', () => {
 
     expect(transition.requiredMilestones).toEqual(['targetReady', 'mediaReady', 'buildReady']);
     expect(transition.mediaPlayback).toEqual(manifestSegment.mediaPlayback);
-    expect(transition.mediaPlayback?.[0]?.forward).toEqual({ mode: 'timeline', required: true });
+    expect(transition.mediaPlayback?.[0]?.forward).toEqual({ mode: 'play', required: true });
   });
 
   it('keeps the PH source hidden until its reverse terminal frame is presented', async () => {
@@ -336,7 +337,7 @@ describe('R4 group6 transitions', () => {
 
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
     const video = new DeferredFrameVideo();
-    video.duration = 76 / 30;
+    video.duration = 1.533;
     fixture.fromRoot.connect('[data-ph-alpha-video]', video);
     const reverseContext = {
       ...fixture.context,
@@ -421,7 +422,7 @@ describe('R4 group6 transitions', () => {
       expect(video.currentTime).toBeLessThan(video.duration);
 
       timeline.progress(direction === 1 ? PH_EDUCATION_ANIMATION_STOP : 0);
-      expect(video.currentTime).toBeCloseTo(direction === 1 ? video.duration - 0.02 : 0, 2);
+      expect(video.currentTime).toBeCloseTo(direction === 1 ? 1.5 : 0, 2);
       timeline.dispose();
     }
   });

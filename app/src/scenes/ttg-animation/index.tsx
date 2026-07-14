@@ -1,25 +1,21 @@
 import { useEffect, useRef } from 'react';
 import {
-  createDirectionalMediaController,
-  type DirectionalMediaController,
-  type DirectionalMediaControllerSnapshot,
-  type DirectionalMediaInput
-} from '../../media/directional-media-controller';
-import { MediaPreparationError } from '../../media/media-preparation';
+  disposeTimelineVideoDriver,
+  driveTimelineVideo,
+  prepareTimelineVideoFrame,
+  type TimelineVideoDriveInput,
+  type TimelineVideoDriverSnapshot
+} from '../../media/timeline-video-driver';
 import { TTG_PLAYBACK_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
-export const TTG_MEDIA_KEY = 'ttg_figure-alpha-scrub';
-export const TTG_REVERSE_MEDIA_KEY = 'ttg_figure-alpha-scrub-reverse';
-export const TTG_BG_SRC = new URL('../../../../assets/ttg_bg.png', import.meta.url).href;
-export const TTG_MIDDLE_SRC = new URL('../../../../assets/ttg_middle-composite.png', import.meta.url).href;
-export const TTG_FRONT_SRC = new URL('../../../../assets/ttg_front-composite.png', import.meta.url).href;
-export const TTG_FIGURE_VIDEO_SRC = new URL('../../../../assets/ttg_figure-alpha-scrub.webm', import.meta.url).href;
-export const TTG_FIGURE_REVERSE_VIDEO_SRC = new URL('../../../../assets/ttg_figure-alpha-scrub-reverse.webm', import.meta.url).href;
-export const TTG_FIGURE_POSTER_SRC = new URL('../../../../assets/ttg_figure-alpha-scrub-poster.png', import.meta.url).href;
-export const TTG_FIGURE_TERMINAL_SRC = new URL('../../../../assets/ttg_figure-terminal.png', import.meta.url).href;
+export const TTG_MEDIA_KEY = 'ttg-figure-motion';
+export const TTG_BG_SRC = new URL('../../../../assets/ttg-background.webp', import.meta.url).href;
+export const TTG_MIDDLE_SRC = new URL('../../../../assets/ttg-middle.webp', import.meta.url).href;
+export const TTG_FRONT_SRC = new URL('../../../../assets/ttg-foreground.webp', import.meta.url).href;
+export const TTG_FIGURE_VIDEO_SRC = new URL('../../../../assets/ttg-figure-motion.webm', import.meta.url).href;
+export const TTG_FIGURE_END_SECONDS = 2.467;
 export const TTG_HOLD_PROGRESS = 0;
-export const TTG_ENDPOINT_BLEND_FRACTION = 0.08;
 
 export type TtgRenderState = {
   progress: number;
@@ -37,18 +33,35 @@ export type TtgMediaRun = {
   signal?: AbortSignal;
 };
 
-export type TtgMediaBlend = Readonly<{
-  startOpacity: number;
-  videoOpacity: number;
-  terminalOpacity: number;
-}>;
-
 type TtgRenderOptions = {
   mediaRun?: TtgMediaRun;
 };
 
+type TtgSection = HTMLElement & {
+  __r4TtgProgress?: number;
+};
+
+type TtgMediaManager = {
+  video: HTMLVideoElement;
+  generation: number;
+  activeRunId?: string;
+  activeDirection?: 1 | -1;
+  prepared?: {
+    runId: string;
+    direction: 1 | -1;
+    progress: number;
+    generation: number;
+  };
+  snapshot?: TimelineVideoDriverSnapshot | undefined;
+};
+
+export type TtgMediaSnapshot = Readonly<{
+  activeRunId: string | undefined;
+  activeDirection: 1 | -1 | undefined;
+  video: TimelineVideoDriverSnapshot | undefined;
+}>;
+
 const TTG_CONFIG = {
-  videoDurationFallback: 2.459,
   bgTravelVh: 14.3,
   middleTravelVh: 23.5,
   frontYVh: 29.2,
@@ -58,56 +71,18 @@ const TTG_CONFIG = {
   figureTravelVh: 16.5
 } as const;
 
+const mediaManagers = new WeakMap<HTMLElement, TtgMediaManager>();
+
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 const stableProgress = (value: number) => (value < 0.002 ? 0 : value > 0.998 ? 1 : clamp(value));
-const smoothstep = (value: number) => {
-  const progress = clamp(value);
-  return progress * progress * (3 - 2 * progress);
-};
 const acceleratedProgress = (progress: number) => {
   const p = stableProgress(progress);
   return clamp(0.78 * p + 0.22 * p * p);
 };
 
-export function ttgMediaBlend(
-  rawProgress: number,
-  direction: 1 | -1
-): TtgMediaBlend {
-  const progress = stableProgress(rawProgress);
-  const elapsed = direction === 1 ? progress : 1 - progress;
-  const sourceOpacity = 1 - smoothstep(elapsed / TTG_ENDPOINT_BLEND_FRACTION);
-  const destinationOpacity = smoothstep(
-    (elapsed - (1 - TTG_ENDPOINT_BLEND_FRACTION)) / TTG_ENDPOINT_BLEND_FRACTION
-  );
-  return direction === 1
-    ? { startOpacity: sourceOpacity, videoOpacity: 1, terminalOpacity: destinationOpacity }
-    : { startOpacity: destinationOpacity, videoOpacity: 1, terminalOpacity: sourceOpacity };
-}
-
 function viewportHeight(): number {
   return typeof window === 'undefined' ? 800 : window.innerHeight;
 }
-
-type TtgSurface = 'forward' | 'reverse';
-
-type TtgMediaManager = {
-  controller: DirectionalMediaController;
-  generation: number;
-  activeSurface?: TtgSurface;
-  activeRunId?: string;
-  preparedActivation?: DirectionalMediaInput;
-  preparedTerminalActivation?: Pick<TtgMediaRun, 'runId' | 'direction'>;
-  terminalReadyRunId?: string;
-  startReadyRunId?: string;
-};
-
-export type TtgMediaSnapshot = Readonly<{
-  activeSurface: TtgSurface | undefined;
-  activeRunId: string | undefined;
-  controller: DirectionalMediaControllerSnapshot;
-}>;
-
-const mediaManagers = new WeakMap<HTMLElement, TtgMediaManager>();
 
 function ttgSection(root: HTMLElement | null | undefined): HTMLElement | null {
   return root?.matches('[data-r4-scene="ttg-animation"]')
@@ -115,19 +90,32 @@ function ttgSection(root: HTMLElement | null | undefined): HTMLElement | null {
     : root?.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]') ?? null;
 }
 
+function managerFor(section: HTMLElement): TtgMediaManager {
+  const existing = mediaManagers.get(section);
+  if (existing) {
+    return existing;
+  }
+  const video = section.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
+  if (!video) {
+    throw new Error('TTG media unavailable');
+  }
+  const manager: TtgMediaManager = { video, generation: 0 };
+  mediaManagers.set(section, manager);
+  return manager;
+}
+
 function mediaInput(
-  surface: TtgSurface,
-  mediaRun: NonNullable<TtgRenderOptions['mediaRun']>,
+  mediaRun: TtgMediaRun,
   progress: number,
-  mode: NonNullable<DirectionalMediaInput['mode']>
-): DirectionalMediaInput {
+  mode: TimelineVideoDriveInput['mode'] = mediaRun.direction === 1 ? 'native-preferred' : 'timeline'
+): TimelineVideoDriveInput {
   return {
-    surface,
     runId: mediaRun.runId,
     direction: mediaRun.direction,
-    progress,
-    durationFallbackSeconds: TTG_CONFIG.videoDurationFallback,
-    endEpsilonSeconds: 0.02,
+    progress: stableProgress(progress),
+    durationFallbackSeconds: 2.5,
+    startSeconds: 0,
+    endSeconds: TTG_FIGURE_END_SECONDS,
     timelineDurationMs: TTG_PLAYBACK_MS,
     mode,
     nativePlaybackDirection: 1,
@@ -136,162 +124,79 @@ function mediaInput(
   };
 }
 
-function managerFor(section: HTMLElement): TtgMediaManager {
-  const existing = mediaManagers.get(section);
-  if (existing) {
-    return existing;
-  }
-  const forward = section.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
-  const reverse = section.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
-  if (!forward || !reverse) {
-    throw new Error('TTG media unavailable');
-  }
-  const manager: TtgMediaManager = {
-    controller: createDirectionalMediaController({
-      surfaces: { forward, reverse },
-      parkedPreload: 'metadata'
-    }),
-    generation: 0
-  };
-  mediaManagers.set(section, manager);
-  return manager;
+function heldProgress(section: HTMLElement, direction: 1 | -1): number {
+  const current = (section as TtgSection).__r4TtgProgress;
+  return current !== undefined && current > 0.001 && current < 0.999
+    ? current
+    : direction === 1 ? 0 : 1;
 }
 
-function terminalSurface(section: HTMLElement): HTMLImageElement {
-  const terminal = section.querySelector<HTMLImageElement>('[data-ttg-figure-terminal]');
-  if (!terminal) {
-    throw new Error('TTG terminal unavailable');
-  }
-  return terminal;
-}
-
-function startSurface(section: HTMLElement): HTMLImageElement {
-  const start = section.querySelector<HTMLImageElement>('[data-ttg-figure-start]');
-  if (!start) {
-    throw new Error('TTG start unavailable');
-  }
-  return start;
-}
-
-function applyMediaBlend(section: HTMLElement, blend: TtgMediaBlend): void {
-  section.style.setProperty('--ttg-figure-start-opacity', blend.startOpacity.toFixed(4));
-  section.style.setProperty('--ttg-figure-video-opacity', blend.videoOpacity.toFixed(4));
-  section.style.setProperty('--ttg-figure-terminal-opacity', blend.terminalOpacity.toFixed(4));
-}
-
-function showStartSurface(section: HTMLElement): void {
-  startSurface(section).classList.add('is-active');
-  terminalSurface(section).classList.remove('is-active');
-  applyMediaBlend(section, { startOpacity: 1, videoOpacity: 0, terminalOpacity: 0 });
-}
-
-function abortError(signal: AbortSignal | undefined, runId: string): MediaPreparationError {
-  return new MediaPreparationError(
-    'MEDIA_PREPARATION_ABORTED',
-    `TTG frame aborted: ${runId}`,
-    signal?.reason === undefined ? {} : { cause: signal.reason }
-  );
-}
-
-async function prepareStableSurface(
-  surface: HTMLImageElement,
-  label: 'start' | 'terminal',
-  mediaRun: TtgMediaRun
+async function prepareMedia(
+  section: HTMLElement,
+  mediaRun: TtgMediaRun,
+  progress: number
 ): Promise<void> {
   if (mediaRun.signal?.aborted) {
-    throw abortError(mediaRun.signal, mediaRun.runId);
+    throw new Error(`TTG frame aborted: ${mediaRun.runId}`);
   }
-  if (typeof surface.decode !== 'function') {
-    if (surface.complete && surface.naturalWidth > 0) {
-      return;
-    }
-    throw new MediaPreparationError(
-      'MEDIA_ELEMENT_ERROR',
-      `TTG ${label} unavailable`
-    );
-  }
-  try {
-    await surface.decode();
-  } catch (cause) {
-    if (mediaRun.signal?.aborted) {
-      throw abortError(mediaRun.signal, mediaRun.runId);
-    }
-    throw new MediaPreparationError(
-      'MEDIA_ELEMENT_ERROR',
-      `TTG ${label} decode failed`,
-      { cause }
-    );
-  }
-  if (mediaRun.signal?.aborted) {
-    throw abortError(mediaRun.signal, mediaRun.runId);
-  }
-}
-
-function hideTerminalSurface(section: HTMLElement): void {
-  terminalSurface(section).classList.remove('is-active');
-}
-
-function showTerminalSurface(section: HTMLElement, manager: TtgMediaManager): void {
-  manager.generation += 1;
-  manager.controller.park('forward');
-  manager.controller.park('reverse');
-  startSurface(section).classList.remove('is-active');
-  terminalSurface(section).classList.add('is-active');
-  applyMediaBlend(section, { startOpacity: 0, videoOpacity: 0, terminalOpacity: 1 });
-  delete manager.activeSurface;
-  delete manager.activeRunId;
-  delete manager.preparedActivation;
-  delete manager.preparedTerminalActivation;
-  delete section.dataset.ttgPendingSurface;
-  section.dataset.ttgActiveSurface = 'terminal';
-  section.dataset.ttgHoldPoster = 'terminal';
-}
-
-function markActive(
-  section: HTMLElement,
-  manager: TtgMediaManager,
-  input: DirectionalMediaInput
-): void {
-  manager.activeSurface = input.surface as TtgSurface;
-  manager.activeRunId = input.runId;
-  startSurface(section).classList.remove('is-active');
-  hideTerminalSurface(section);
-  const sceneProgress = input.surface === 'forward' ? input.progress : 1 - input.progress;
-  applyMediaBlend(section, ttgMediaBlend(sceneProgress, input.direction));
-  section.dataset.ttgActiveSurface = input.surface;
-  section.dataset.ttgPlaybackRun = input.runId;
-  section.dataset.ttgPlaybackDirection = String(input.direction);
-  delete section.dataset.ttgPendingSurface;
-  delete section.dataset.ttgHoldPoster;
-}
-
-async function prepareSurface(
-  section: HTMLElement,
-  input: DirectionalMediaInput
-): Promise<TtgMediaManager> {
   const manager = managerFor(section);
   const generation = ++manager.generation;
-  section.dataset.ttgPendingSurface = input.surface;
-  const result = await manager.controller.prepare(input);
-  if (manager.generation !== generation || result.status !== 'ready') {
-    throw new Error('TTG media stale');
+  try {
+    const result = await prepareTimelineVideoFrame(
+      manager.video,
+      mediaInput(mediaRun, progress, 'timeline')
+    );
+    if (
+      mediaRun.signal?.aborted
+      || manager.generation !== generation
+      || result?.status !== 'ready'
+    ) {
+      throw new Error('TTG media stale');
+    }
+  } catch (error) {
+    section.dataset.ttgStaticMediaFallback = 'true';
+    throw error;
   }
-  return manager;
+  manager.prepared = {
+    runId: mediaRun.runId,
+    direction: mediaRun.direction,
+    progress: stableProgress(progress),
+    generation
+  };
+  section.dataset.ttgPendingMediaRun = mediaRun.runId;
+  section.dataset.ttgPendingMediaDirection = String(mediaRun.direction);
+  delete section.dataset.ttgStaticMediaFallback;
 }
 
-function activateSurface(
-  section: HTMLElement,
-  manager: TtgMediaManager,
-  input: DirectionalMediaInput
-): void {
-  manager.controller.activate(input);
-  markActive(section, manager, input);
+function commitPreparedMedia(section: HTMLElement, mediaRun: TtgMediaRun): void {
+  const manager = managerFor(section);
+  const prepared = manager.prepared;
+  if (
+    mediaRun.signal?.aborted
+    || !prepared
+    || prepared.runId !== mediaRun.runId
+    || prepared.direction !== mediaRun.direction
+    || prepared.generation !== manager.generation
+  ) {
+    throw new Error('TTG playback not ready');
+  }
+  const mode = mediaRun.direction === 1 && prepared.progress <= 0.001 ? 'timeline' : undefined;
+  manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, prepared.progress, mode));
+  manager.activeRunId = mediaRun.runId;
+  manager.activeDirection = mediaRun.direction;
+  delete manager.prepared;
+  section.style.setProperty('--ttg-figure-video-opacity', '1');
+  section.dataset.ttgPlaybackRun = mediaRun.runId;
+  section.dataset.ttgPlaybackDirection = String(mediaRun.direction);
+  delete section.dataset.ttgPendingMediaRun;
+  delete section.dataset.ttgPendingMediaDirection;
+  delete section.dataset.ttgStaticMediaFallback;
 }
 
 function driveFigurePlayback(
   section: HTMLElement | null,
   progress: number,
-  mediaRun: NonNullable<TtgRenderOptions['mediaRun']>
+  mediaRun: TtgMediaRun
 ): void {
   section?.setAttribute('data-ttg-playback-direction', String(mediaRun.direction));
   section?.setAttribute('data-ttg-playback-run', mediaRun.runId);
@@ -301,22 +206,18 @@ function driveFigurePlayback(
     return;
   }
   const manager = mediaManagers.get(section);
-  const surface: TtgSurface = mediaRun.direction === 1 ? 'forward' : 'reverse';
   if (
     !manager
-    || manager.activeSurface !== surface
     || manager.activeRunId !== mediaRun.runId
+    || manager.activeDirection !== mediaRun.direction
   ) {
     return;
   }
-  const mediaProgress = surface === 'forward' ? progress : 1 - progress;
-  const snapshot = manager.controller.drive(
-    mediaInput(surface, mediaRun, mediaProgress, 'native-preferred')
-  );
-  section.dataset.ttgPlaybackFallback = String(snapshot?.nativeFallback ?? false);
+  manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, progress));
+  section.dataset.ttgPlaybackFallback = String(manager.snapshot?.nativeFallback ?? false);
 }
 
-export function prepareTtgAnimationFrame(
+export async function prepareTtgAnimationFrame(
   root: HTMLElement | null | undefined,
   rawProgress: number,
   mediaRun: TtgMediaRun
@@ -324,37 +225,21 @@ export function prepareTtgAnimationFrame(
   renderTtgAnimationProgress(root, rawProgress);
   const section = ttgSection(root);
   if (!section) {
-    return Promise.reject(new Error('TTG scene unavailable'));
+    throw new Error('TTG scene unavailable');
   }
-  const progress = stableProgress(rawProgress);
-  const surface: TtgSurface = mediaRun.direction === 1 ? 'forward' : 'reverse';
-  const mediaProgress = surface === 'forward' ? progress : 1 - progress;
-  const timelineInput = mediaInput(surface, mediaRun, mediaProgress, 'timeline');
-  return prepareSurface(section, timelineInput).then((manager) => {
-    activateSurface(section, manager, { ...timelineInput, mode: 'native-preferred' });
-  });
+  await prepareMedia(section, mediaRun, stableProgress(rawProgress));
 }
 
 export async function prepareTtgSourceTerminal(
   root: HTMLElement | null | undefined,
   mediaRun: TtgMediaRun
 ): Promise<void> {
-  renderTtgAnimationProgress(root, 1);
   const section = ttgSection(root);
   if (!section) {
     throw new Error('TTG scene unavailable');
   }
-  const manager = managerFor(section);
-  const generation = ++manager.generation;
-  await prepareStableSurface(terminalSurface(section), 'terminal', mediaRun);
-  if (manager.generation !== generation || mediaRun.signal?.aborted) {
-    throw abortError(mediaRun.signal, mediaRun.runId);
-  }
-  manager.terminalReadyRunId = mediaRun.runId;
-  manager.preparedTerminalActivation = {
-    runId: mediaRun.runId,
-    direction: mediaRun.direction
-  };
+  renderTtgAnimationProgress(section, 1);
+  await prepareMedia(section, mediaRun, 1);
 }
 
 export async function prepareTtgPlaybackLeg(
@@ -365,27 +250,9 @@ export async function prepareTtgPlaybackLeg(
   if (!section) {
     throw new Error('TTG scene unavailable');
   }
-  if (mediaRun.direction === 1) {
-    renderTtgAnimationProgress(section, 0);
-    const input = mediaInput('forward', mediaRun, 0, 'timeline');
-    const [manager] = await Promise.all([
-      prepareSurface(section, input),
-      prepareStableSurface(startSurface(section), 'start', mediaRun),
-      prepareStableSurface(terminalSurface(section), 'terminal', mediaRun)
-    ]);
-    manager.preparedActivation = { ...input, mode: 'native-preferred' };
-    manager.terminalReadyRunId = mediaRun.runId;
-    return;
-  }
-
-  renderTtgAnimationProgress(section, 1);
-  const reverseInput = mediaInput('reverse', mediaRun, 0, 'timeline');
-  const [manager] = await Promise.all([
-    prepareSurface(section, reverseInput),
-    prepareStableSurface(startSurface(section), 'start', mediaRun)
-  ]);
-  manager.preparedActivation = { ...reverseInput, mode: 'native-preferred' };
-  manager.startReadyRunId = mediaRun.runId;
+  const progress = heldProgress(section, mediaRun.direction);
+  renderTtgAnimationProgress(section, progress);
+  await prepareMedia(section, mediaRun, progress);
 }
 
 export function commitTtgPlaybackLeg(
@@ -393,31 +260,10 @@ export function commitTtgPlaybackLeg(
   mediaRun: TtgMediaRun
 ): void {
   const section = ttgSection(root);
-  const manager = section ? mediaManagers.get(section) : undefined;
-  const input = manager?.preparedActivation;
-  const terminalInput = manager?.preparedTerminalActivation;
-  if (
-    section
-    && manager
-    && terminalInput?.runId === mediaRun.runId
-    && terminalInput.direction === mediaRun.direction
-    && !mediaRun.signal?.aborted
-  ) {
-    showTerminalSurface(section, manager);
-    return;
+  if (!section) {
+    throw new Error('TTG scene unavailable');
   }
-  if (
-    !section
-    || !manager
-    || !input
-    || input.runId !== mediaRun.runId
-    || input.direction !== mediaRun.direction
-    || input.signal?.aborted
-  ) {
-    throw new Error('TTG playback not ready');
-  }
-  activateSurface(section, manager, input);
-  delete manager.preparedActivation;
+  commitPreparedMedia(section, mediaRun);
 }
 
 export function commitTtgTerminalFrame(
@@ -426,15 +272,10 @@ export function commitTtgTerminalFrame(
 ): void {
   const section = ttgSection(root);
   const manager = section ? mediaManagers.get(section) : undefined;
-  if (
-    !section
-    || !manager
-    || manager.terminalReadyRunId !== mediaRun.runId
-    || mediaRun.signal?.aborted
-  ) {
+  if (!section || !manager || manager.activeRunId !== mediaRun.runId) {
     throw new Error('TTG terminal not ready');
   }
-  showTerminalSurface(section, manager);
+  manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, 1, 'timeline'));
 }
 
 export function commitTtgForwardStart(
@@ -443,17 +284,10 @@ export function commitTtgForwardStart(
 ): void {
   const section = ttgSection(root);
   const manager = section ? mediaManagers.get(section) : undefined;
-  if (
-    !section
-    || !manager
-    || manager.activeSurface !== 'reverse'
-    || manager.activeRunId !== mediaRun.runId
-    || mediaRun.direction !== -1
-    || manager.startReadyRunId !== mediaRun.runId
-  ) {
+  if (!section || !manager || manager.activeRunId !== mediaRun.runId) {
     throw new Error('TTG start not ready');
   }
-  parkTtgMedia(section);
+  manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, 0, 'timeline'));
 }
 
 export function parkTtgMedia(root: HTMLElement | null | undefined): void {
@@ -463,36 +297,17 @@ export function parkTtgMedia(root: HTMLElement | null | undefined): void {
     return;
   }
   manager.generation += 1;
-  manager.controller.park('forward');
-  manager.controller.park('reverse');
-  showStartSurface(section);
-  delete manager.activeSurface;
-  delete manager.activeRunId;
-  delete manager.preparedActivation;
-  delete manager.preparedTerminalActivation;
-  delete manager.terminalReadyRunId;
-  delete manager.startReadyRunId;
-  delete section.dataset.ttgActiveSurface;
-  delete section.dataset.ttgPendingSurface;
-  section.dataset.ttgHoldPoster = 'true';
+  manager.video.pause();
+  disposeTimelineVideoDriver(manager.video);
+  mediaManagers.delete(section);
+  delete section.dataset.ttgPlaybackRun;
+  delete section.dataset.ttgPlaybackDirection;
+  delete section.dataset.ttgPendingMediaRun;
+  delete section.dataset.ttgPendingMediaDirection;
 }
 
 export function disposeTtgMedia(root: HTMLElement | null | undefined): void {
-  const section = ttgSection(root);
-  const manager = section ? mediaManagers.get(section) : undefined;
-  if (!section || !manager) {
-    return;
-  }
-  manager.generation += 1;
-  delete manager.preparedActivation;
-  delete manager.preparedTerminalActivation;
-  delete manager.terminalReadyRunId;
-  delete manager.startReadyRunId;
-  hideTerminalSurface(section);
-  manager.controller.dispose();
-  mediaManagers.delete(section);
-  delete section.dataset.ttgActiveSurface;
-  delete section.dataset.ttgPendingSurface;
+  parkTtgMedia(root);
 }
 
 export function ttgMediaSnapshot(root: HTMLElement | null | undefined): TtgMediaSnapshot | null {
@@ -500,9 +315,9 @@ export function ttgMediaSnapshot(root: HTMLElement | null | undefined): TtgMedia
   const manager = section ? mediaManagers.get(section) : undefined;
   return manager
     ? {
-        activeSurface: manager.activeSurface,
         activeRunId: manager.activeRunId,
-        controller: manager.controller.snapshot()
+        activeDirection: manager.activeDirection,
+        video: manager.snapshot
       }
     : null;
 }
@@ -526,17 +341,15 @@ export function renderTtgAnimationProgress(root: HTMLElement | null | undefined,
   section?.style.setProperty('--ttg-front-y', `${frontY.toFixed(2)}px`);
   section?.style.setProperty('--ttg-figure-y', `${figureY.toFixed(2)}px`);
   section?.style.setProperty('--ttg-figure-scale', TTG_CONFIG.figureScale.toFixed(4));
+  section?.style.setProperty('--ttg-figure-video-opacity', '1');
   section?.setAttribute('data-ttg-progress', visualProgress.toFixed(4));
+  if (section) {
+    (section as TtgSection).__r4TtgProgress = progress;
+  }
 
   if (options.mediaRun) {
-    if (section) {
-      applyMediaBlend(section, ttgMediaBlend(progress, options.mediaRun.direction));
-    }
     driveFigurePlayback(section, progress, options.mediaRun);
   } else {
-    if (section) {
-      applyMediaBlend(section, ttgMediaBlend(progress, 1));
-    }
     section?.setAttribute('data-ttg-playback-active', 'false');
     section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));
   }
@@ -550,21 +363,34 @@ export function renderTtgHold(root: HTMLElement | null): void {
 
 function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
-  const forwardVideoRef = useRef<HTMLVideoElement | null>(null);
-  const reverseVideoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     const root = rootRef.current;
-    for (const video of [forwardVideoRef.current, reverseVideoRef.current]) {
-      if (!video) {
-        continue;
-      }
+    const video = videoRef.current;
+    const controller = new AbortController();
+    if (video) {
       video.muted = true;
       video.loop = false;
       video.playsInline = true;
       video.pause();
     }
-    return () => disposeTtgMedia(root);
+    if (root) {
+      const mediaRun: TtgMediaRun = {
+        runId: 'ttg-hold-frame',
+        direction: 1,
+        signal: controller.signal
+      };
+      void prepareTtgPlaybackLeg(root, mediaRun)
+        .then(() => commitTtgPlaybackLeg(root, mediaRun))
+        .catch(() => {
+          root.dataset.ttgStaticMediaFallback = 'true';
+        });
+    }
+    return () => {
+      controller.abort();
+      disposeTtgMedia(root);
+    };
   }, []);
 
   return (
@@ -579,7 +405,7 @@ function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
       data-ttg-stage
       data-ttg-duration="2.5"
       data-ttg-scroll-vh="153"
-      data-ttg-video-duration="2.459"
+      data-ttg-video-duration="2.5"
       data-ttg-bg-travel-vh="14.3"
       data-ttg-middle-travel-vh="23.5"
       data-ttg-front-y-vh="29.2"
@@ -598,54 +424,18 @@ function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
               <img className="ttg-layer ttg-layer--front" src={TTG_FRONT_SRC} alt="" />
               <video
                 ref={(element) => {
-                  forwardVideoRef.current = element;
+                  videoRef.current = element;
                   registerHandle?.('figure-video', element);
                 }}
                 className="ttg-layer ttg-layer--figure"
                 data-ttg-figure-video
                 data-media-key={TTG_MEDIA_KEY}
                 src={TTG_FIGURE_VIDEO_SRC}
-                poster={TTG_FIGURE_POSTER_SRC}
                 width="720"
                 height="1280"
                 muted
                 preload="metadata"
                 playsInline
-              />
-              <video
-                ref={(element) => {
-                  reverseVideoRef.current = element;
-                  registerHandle?.('figure-video-reverse', element);
-                }}
-                className="ttg-layer ttg-layer--figure"
-                data-ttg-figure-video-reverse
-                data-media-key={TTG_REVERSE_MEDIA_KEY}
-                src={TTG_FIGURE_REVERSE_VIDEO_SRC}
-                width="720"
-                height="1280"
-                muted
-                preload="metadata"
-                playsInline
-              />
-              <img
-                ref={(element) => registerHandle?.('figure-terminal', element)}
-                className="ttg-layer ttg-layer--figure ttg-layer--figure-terminal"
-                data-ttg-figure-terminal
-                src={TTG_FIGURE_TERMINAL_SRC}
-                alt=""
-                width="720"
-                height="1280"
-                decoding="async"
-              />
-              <img
-                ref={(element) => registerHandle?.('figure-start', element)}
-                className="ttg-layer ttg-layer--figure ttg-layer--figure-start is-active"
-                data-ttg-figure-start
-                src={TTG_FIGURE_POSTER_SRC}
-                alt=""
-                width="720"
-                height="1280"
-                decoding="async"
               />
             </div>
             <div className="ttg-progress" aria-hidden="true"><span /></div>
@@ -660,6 +450,6 @@ export const ttgAnimationScene: SceneModule = {
   id: 'ttg-animation',
   Component: TtgAnimationScene,
   renderHold: renderTtgHold,
-  requiredHandles: ['field', 'figure-terminal', 'figure-start', 'figure-video', 'figure-video-reverse'],
+  requiredHandles: ['field', 'figure-video'],
   preload: () => ({ milestones: ['targetReady', 'mediaReady'] })
 };

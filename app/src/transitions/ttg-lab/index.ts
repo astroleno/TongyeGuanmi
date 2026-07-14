@@ -44,7 +44,12 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
         commitTtgTerminalFrame(root, mediaRun);
       }
     },
-    disposeSource: (root) => parkTtgMedia(root),
+    disposeSource: (root, progress, mediaRun) => {
+      if (mediaRun.direction === -1 && progress <= 0.001) {
+        return;
+      }
+      parkTtgMedia(root);
+    },
     renderSource: (root, progress, mediaRun) => renderTtgAnimationProgress(root, progress, { mediaRun }),
   });
   return {

@@ -1,212 +1,236 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { hostname } from 'node:os';
 import { bootStory, storySnapshot, waitForHold } from './r5-helpers';
 
-type TtgMediaState = {
-  activeSurface: string | undefined;
+type TtgMediaState = Readonly<{
+  videoCount: number;
+  reverseSurfaceCount: number;
+  terminalSurfaceCount: number;
+  mediaKey: string | undefined;
+  source: string;
+  poster: string;
   direction: string | undefined;
-  progress: string | undefined;
-  start: {
-    src: string;
-    complete: boolean;
-    width: number;
-    height: number;
-    active: boolean;
-    opacity: number;
-  };
-  forward: {
-    src: string;
-    readyState: number;
-    width: number;
-    height: number;
-    duration: number;
-    currentTime: number;
-    poster: string;
-    active: boolean;
-    opacity: number;
-  };
-  reverse: {
-    src: string;
-    readyState: number;
-    width: number;
-    height: number;
-    duration: number;
-    currentTime: number;
-    poster: string;
-    active: boolean;
-    opacity: number;
-  };
-  terminal: {
-    src: string;
-    complete: boolean;
-    width: number;
-    height: number;
-    active: boolean;
-    opacity: number;
-  };
-};
+  progress: number;
+  currentTime: number;
+  paused: boolean;
+  frameReady: boolean;
+  staticFallback: boolean;
+  opacity: number;
+}>;
 
-async function ttgMediaState(page: import('@playwright/test').Page): Promise<TtgMediaState> {
+type PresentedFrameReport = Readonly<{
+  samples: number;
+  presentedFrames: number;
+  elapsedMs: number;
+  fps: number;
+  descendingSteps: number;
+}>;
+
+async function ttgMediaState(page: Page): Promise<TtgMediaState> {
   return page.evaluate(() => {
     const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
-    const forward = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
-    const reverse = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
-    const start = scene?.querySelector<HTMLImageElement>('[data-ttg-figure-start]');
-    const terminal = scene?.querySelector<HTMLImageElement>('[data-ttg-figure-terminal]');
-    if (!scene || !forward || !reverse || !start || !terminal) throw new Error('TTG media surfaces missing');
-    const describe = (video: HTMLVideoElement) => ({
-      src: video.currentSrc || video.src,
-      readyState: video.readyState,
-      width: video.videoWidth,
-      height: video.videoHeight,
-      duration: video.duration,
-      currentTime: video.currentTime,
-      poster: video.poster,
-      active: video.classList.contains('is-active'),
-      opacity: Number.parseFloat(getComputedStyle(video).opacity)
-    });
+    const videos = [...(scene?.querySelectorAll<HTMLVideoElement>('[data-ttg-figure-video]') ?? [])];
+    const video = videos[0];
+    if (!scene || !video) {
+      throw new Error('TTG canonical media surface is missing');
+    }
     return {
-      activeSurface: scene.dataset.ttgActiveSurface,
+      videoCount: videos.length,
+      reverseSurfaceCount: scene.querySelectorAll('[data-ttg-figure-video-reverse]').length,
+      terminalSurfaceCount: scene.querySelectorAll('[data-ttg-figure-terminal], [data-ttg-figure-start]').length,
+      mediaKey: video.dataset.mediaKey,
+      source: video.currentSrc || video.src,
+      poster: video.poster,
       direction: scene.dataset.ttgPlaybackDirection,
-      progress: scene.dataset.ttgRawProgress,
-      start: {
-        src: start.currentSrc || start.src,
-        complete: start.complete,
-        width: start.naturalWidth,
-        height: start.naturalHeight,
-        active: start.classList.contains('is-active'),
-        opacity: Number.parseFloat(getComputedStyle(start).opacity)
-      },
-      forward: describe(forward),
-      reverse: describe(reverse),
-      terminal: {
-        src: terminal.currentSrc || terminal.src,
-        complete: terminal.complete,
-        width: terminal.naturalWidth,
-        height: terminal.naturalHeight,
-        active: terminal.classList.contains('is-active'),
-        opacity: Number.parseFloat(getComputedStyle(terminal).opacity)
-      }
+      progress: Number.parseFloat(scene.dataset.ttgRawProgress ?? '0'),
+      currentTime: video.currentTime,
+      paused: video.paused,
+      frameReady: video.dataset.timelineVideoFrameReady === 'true',
+      staticFallback: video.dataset.timelineVideoStaticFallback === 'true',
+      opacity: Number.parseFloat(getComputedStyle(video).opacity)
     };
   });
 }
 
-function activeSurfaceCount(state: TtgMediaState): number {
-  return Number(state.start.active) + Number(state.forward.active) + Number(state.reverse.active) + Number(state.terminal.active);
+async function sampleReversePresentedFrames(page: Page, durationMs: number): Promise<PresentedFrameReport> {
+  const samples = await page.evaluate(async (duration) => {
+    const video = document.querySelector<HTMLVideoElement>(
+      '[data-r4-scene="ttg-animation"] [data-ttg-figure-video]'
+    );
+    if (!video || typeof video.requestVideoFrameCallback !== 'function') {
+      throw new Error('requestVideoFrameCallback is unavailable for TTG');
+    }
+    return new Promise<Array<{ now: number; mediaTime: number; presentedFrames: number }>>((resolve) => {
+      const frames: Array<{ now: number; mediaTime: number; presentedFrames: number }> = [];
+      let settled = false;
+      const finish = () => {
+        if (!settled) {
+          settled = true;
+          resolve(frames);
+        }
+      };
+      const collect = (now: number, metadata: VideoFrameCallbackMetadata) => {
+        frames.push({
+          now,
+          mediaTime: metadata.mediaTime,
+          presentedFrames: metadata.presentedFrames
+        });
+        if (!settled) {
+          video.requestVideoFrameCallback(collect);
+        }
+      };
+      video.requestVideoFrameCallback(collect);
+      window.setTimeout(finish, duration);
+    });
+  }, durationMs);
+  expect(samples.length).toBeGreaterThanOrEqual(10);
+  const first = samples[0]!;
+  const last = samples.at(-1)!;
+  const elapsedMs = last.now - first.now;
+  const presentedFrames = last.presentedFrames - first.presentedFrames;
+  return {
+    samples: samples.length,
+    presentedFrames,
+    elapsedMs,
+    fps: presentedFrames / (elapsedMs / 1000),
+    descendingSteps: samples.slice(1).filter((sample, index) => (
+      sample.mediaTime < samples[index]!.mediaTime - 0.0005
+    )).length
+  };
 }
 
-test('TTG alpha pair plays the canonical forward and reverse assets on every device class', async ({ page }) => {
+test('TTG uses one canonical media surface for native forward and same-file timeline reverse', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'Batch B cadence gate uses mobile Chromium');
   test.setTimeout(60_000);
   await bootStory(page, '/#ttg-animation');
+  await page.waitForFunction(() => document
+    .querySelector<HTMLVideoElement>('[data-r4-scene="ttg-animation"] [data-ttg-figure-video]')
+    ?.dataset.timelineVideoFrameReady === 'true');
+
   const initial = await ttgMediaState(page);
-  expect(initial.forward.poster).toMatch(/ttg_figure-alpha-scrub-poster-[^/]+\.png$/);
-  expect(initial.forward.src).toMatch(/ttg_figure-alpha-scrub-[^/]+\.webm$/);
-  expect(initial.reverse.src).toMatch(/ttg_figure-alpha-scrub-reverse-[^/]+\.webm$/);
-  expect(initial.forward.currentTime).toBeLessThan(0.05);
-  expect(initial.start.src).toMatch(/ttg_figure-alpha-scrub-poster-[^/]+\.png$/);
-  expect(initial.start.complete).toBe(true);
-  expect(initial.start.active).toBe(true);
-  expect(initial.start.opacity).toBeGreaterThan(0.9);
-  expect(initial.forward.active).toBe(false);
-  expect(activeSurfaceCount(initial)).toBe(1);
-  const [posterResponse, forwardResponse, reverseResponse] = await Promise.all([
-    page.request.get(initial.forward.poster),
-    page.request.get(initial.forward.src),
-    page.request.get(initial.reverse.src)
-  ]);
-  expect(posterResponse.ok()).toBe(true);
-  expect(posterResponse.headers()['content-type']).toContain('image/png');
-  expect(forwardResponse.ok()).toBe(true);
-  expect(forwardResponse.headers()['content-type']).toContain('video/webm');
-  expect(reverseResponse.ok()).toBe(true);
-  expect(reverseResponse.headers()['content-type']).toContain('video/webm');
+  expect(initial).toMatchObject({
+    videoCount: 1,
+    reverseSurfaceCount: 0,
+    terminalSurfaceCount: 0,
+    mediaKey: 'ttg-figure-motion',
+    poster: '',
+    frameReady: true
+  });
+  expect(initial.source).toMatch(/ttg-figure-motion-[^/]+\.webm$/);
+  expect(initial.currentTime).toBeLessThan(0.05);
+  const response = await page.request.get(initial.source);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()['content-type']).toContain('video/webm');
 
   await page.keyboard.press('PageDown');
   await page.waitForFunction(() => {
     const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
     const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
-    return scene?.dataset.ttgActiveSurface === 'forward'
-      && video?.classList.contains('is-active')
-      && (video.currentTime ?? 0) > 0.05
-      && (video.currentTime ?? 0) < 2.4;
+    return scene?.dataset.ttgPlaybackDirection === '1'
+      && video?.dataset.timelineVideoFrameReady === 'true'
+      && video.currentTime > 0.05
+      && video.currentTime < 2.4
+      && !video.paused;
   });
-  const forwardPlayback = await ttgMediaState(page);
-  expect(forwardPlayback.direction).toBe('1');
-  expect(forwardPlayback.activeSurface).toBe('forward');
-  expect(forwardPlayback.forward.readyState).toBeGreaterThanOrEqual(1);
-  expect(forwardPlayback.forward.width).toBe(720);
-  expect(forwardPlayback.forward.height).toBe(1280);
-  expect(forwardPlayback.forward.duration).toBeGreaterThan(2.4);
-  expect(forwardPlayback.forward.duration).toBeLessThan(2.6);
-  expect(forwardPlayback.forward.active).toBe(true);
-  expect(forwardPlayback.forward.opacity).toBeGreaterThan(0.9);
-  expect(forwardPlayback.start.active).toBe(false);
-  expect(forwardPlayback.terminal.active).toBe(false);
-  expect(activeSurfaceCount(forwardPlayback)).toBe(1);
-  await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
-
   const forward = await ttgMediaState(page);
-  expect(forward.direction).toBe('1');
-  expect(Number(forward.progress)).toBeGreaterThan(0.99);
-  expect(forward.activeSurface).toBe('terminal');
-  expect(forward.terminal.src).toMatch(/ttg_figure-terminal-[^/]+\.png$/);
-  expect(forward.terminal.complete).toBe(true);
-  expect(forward.terminal.width).toBe(720);
-  expect(forward.terminal.height).toBe(1280);
-  expect(forward.terminal.active).toBe(true);
-  expect(forward.terminal.opacity).toBeGreaterThan(0.9);
-  expect(forward.forward.active).toBe(false);
-  expect(forward.reverse.active).toBe(false);
-  expect(activeSurfaceCount(forward)).toBe(1);
+  expect(forward).toMatchObject({ direction: '1', videoCount: 1, frameReady: true, staticFallback: false });
+  expect(forward.currentTime).toBeGreaterThan(0.05);
+  expect(forward.opacity).toBeGreaterThan(0.9);
+  await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
 
   await page.keyboard.press('PageDown');
   await waitForHold(page, 'lab');
+  await page.evaluate(() => {
+    const layer = document.querySelector<HTMLElement>('[data-stage-layer="lab"]');
+    const scrollport = layer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
+      ?? (layer?.matches('[data-reading="true"]') ? layer : null);
+    if (scrollport) {
+      scrollport.scrollTop = 0;
+    }
+    window.dispatchEvent(new Event('story-reading-entry'));
+  });
+  await page.keyboard.press('PageUp');
   await page.keyboard.press('PageUp');
   await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
   await page.waitForFunction(() => {
     const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
-    return scene?.dataset.ttgPlaybackDirection === '-1';
+    const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
+    return scene?.dataset.ttgPlaybackDirection === '-1'
+      && video?.dataset.timelineVideoFrameReady === 'true'
+      && video.currentTime > 2.4;
   });
-
-  const reverse = await ttgMediaState(page);
-  expect(reverse.direction).toBe('-1');
-  expect(reverse.activeSurface).toBe('terminal');
-  expect(reverse.terminal.active).toBe(true);
-  expect(reverse.terminal.opacity).toBeGreaterThan(0.9);
-  expect(reverse.forward.active).toBe(false);
-  expect(reverse.reverse.active).toBe(false);
-  expect(activeSurfaceCount(reverse)).toBe(1);
+  const reverseStart = await ttgMediaState(page);
 
   await page.keyboard.press('PageUp');
   await page.waitForFunction(() => {
     const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
-    const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video-reverse]');
-    return scene?.dataset.ttgActiveSurface === 'reverse'
-      && video?.classList.contains('is-active')
-      && (video.currentTime ?? 0) > 0.05
-      && (video.currentTime ?? 0) < 2.4;
+    const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
+    return scene?.dataset.ttgPlaybackDirection === '-1'
+      && video?.dataset.timelineVideoFrameReady === 'true'
+      && video.currentTime > 0.05
+      && video.currentTime < 2.4;
   });
-  const reversePlayback = await ttgMediaState(page);
-  expect(reversePlayback.activeSurface).toBe('reverse');
-  expect(reversePlayback.reverse.readyState).toBeGreaterThanOrEqual(1);
-  expect(reversePlayback.reverse.width).toBe(720);
-  expect(reversePlayback.reverse.height).toBe(1280);
-  expect(reversePlayback.reverse.duration).toBeGreaterThan(2.4);
-  expect(reversePlayback.reverse.duration).toBeLessThan(2.6);
-  expect(reversePlayback.reverse.active).toBe(true);
-  expect(reversePlayback.reverse.opacity).toBeGreaterThan(0.9);
-  expect(reversePlayback.terminal.active).toBe(false);
-  expect(activeSurfaceCount(reversePlayback)).toBe(1);
-  const reverseTime = reversePlayback.reverse.currentTime;
-  await expect.poll(async () => (await ttgMediaState(page)).reverse.currentTime).toBeGreaterThan(reverseTime + 0.05);
+  const reverse = await ttgMediaState(page);
+  expect(reverse).toMatchObject({ direction: '-1', videoCount: 1, frameReady: true, staticFallback: false });
+  expect(reverse.currentTime).toBeLessThan(reverseStart.currentTime - 0.05);
+  expect(reverse.paused).toBe(true);
+
+  const presentation = await sampleReversePresentedFrames(page, 750);
+  const cadence = {
+    project: testInfo.project.name,
+    host: hostname(),
+    browserVersion: page.context().browser()?.version() ?? 'unknown',
+    userAgent: await page.evaluate(() => navigator.userAgent),
+    ...presentation
+  };
+  console.log(`BATCH_B_REVERSE_PRESENTED_CADENCE ${JSON.stringify(cadence)}`);
+  await testInfo.attach('batch-b-reverse-presented-cadence.json', {
+    body: Buffer.from(JSON.stringify(cadence, null, 2)),
+    contentType: 'application/json'
+  });
+  expect(presentation.presentedFrames).toBeGreaterThanOrEqual(12);
+  expect(presentation.descendingSteps).toBeGreaterThanOrEqual(10);
+  expect(presentation.fps).toBeGreaterThanOrEqual(20);
 
   await waitForHold(page, 'ttg-animation');
   const restored = await ttgMediaState(page);
-  expect(restored.activeSurface).toBeUndefined();
-  expect(restored.start.active).toBe(true);
-  expect(restored.start.opacity).toBeGreaterThan(0.9);
-  expect(restored.forward.active).toBe(false);
-  expect(restored.reverse.active).toBe(false);
-  expect(restored.terminal.active).toBe(false);
-  expect(activeSurfaceCount(restored)).toBe(1);
+  expect(restored).toMatchObject({ videoCount: 1, reverseSurfaceCount: 0, terminalSurfaceCount: 0, frameReady: true });
+  expect(restored.currentTime).toBeLessThan(0.05);
   expect((await storySnapshot(page)).lastError).toBeUndefined();
+});
+
+test('TTG decode failure hides the video surface and retains its static composition', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'Batch B fallback gate uses mobile Chromium');
+  await bootStory(page, '/#ttg-animation');
+  await page.waitForFunction(() => document
+    .querySelector<HTMLVideoElement>('[data-r4-scene="ttg-animation"] [data-ttg-figure-video]')
+    ?.dataset.timelineVideoFrameReady === 'true');
+
+  const fallback = await page.evaluate(() => {
+    const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
+    const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
+    if (!scene || !video) {
+      throw new Error('TTG canonical media surface is missing');
+    }
+    video.dispatchEvent(new Event('error'));
+    const visibleLayers = [...scene.querySelectorAll<HTMLImageElement>('.ttg-layer-stack img')]
+      .filter((image) => image.naturalWidth > 0)
+      .filter((image) => {
+        const style = getComputedStyle(image);
+        return style.visibility !== 'hidden' && Number.parseFloat(style.opacity) > 0;
+      });
+    return {
+      frameReady: video.dataset.timelineVideoFrameReady === 'true',
+      staticFallback: video.dataset.timelineVideoStaticFallback === 'true',
+      videoOpacity: Number.parseFloat(getComputedStyle(video).opacity),
+      visibleLayers: visibleLayers.length
+    };
+  });
+
+  expect(fallback).toEqual({
+    frameReady: false,
+    staticFallback: true,
+    videoOpacity: 0,
+    visibleLayers: 3
+  });
 });

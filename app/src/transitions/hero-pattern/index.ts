@@ -47,14 +47,28 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
         ?? context.from.element
         ?? null;
       const video = root?.querySelector<HTMLVideoElement>('[data-hero-figure-video]');
-      if (video) {
-        await prepareHeroPatternFrame(root, context.direction === 1 ? 0 : 1, {
-          runId: context.runId,
-          direction: context.direction,
-          reducedMotion: context.prefersReducedMotion
-        });
+      const sourceLayer = context.direction === -1 ? context.from.element : null;
+      const sourceVisibility = sourceLayer?.style.visibility;
+      if (sourceLayer) {
+        // A visibility:hidden video may not receive rVFC while its reverse
+        // endpoint is prepared. Opacity remains zero, so this cannot flash.
+        sourceLayer.style.visibility = 'visible';
       }
-      return transition.buildTimeline(context);
+      try {
+        const timeline = await transition.buildTimeline(context);
+        if (video) {
+          await prepareHeroPatternFrame(root, context.direction === 1 ? 0 : 1, {
+            runId: context.runId,
+            direction: context.direction,
+            reducedMotion: context.prefersReducedMotion
+          });
+        }
+        return timeline;
+      } finally {
+        if (sourceLayer) {
+          sourceLayer.style.visibility = sourceVisibility ?? '';
+        }
+      }
     }
   };
 }

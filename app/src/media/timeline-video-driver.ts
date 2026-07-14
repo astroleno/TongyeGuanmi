@@ -118,7 +118,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     input: TimelineVideoDriveInput;
   }> | undefined;
   private frameReadyGeneration = 0;
-  private frameReadyTime = Number.NaN;
+  private readyTime = Number.NaN;
   private frameCallbackId: number | undefined;
   private presentingFrame: DesiredFrame | undefined;
   private presentedSeekFrame: DesiredFrame | undefined;
@@ -142,14 +142,14 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   };
 
   private readonly onMediaError = () => {
-    const message = this.video.error?.message || 'media element reported an error';
+    const message = this.video.error?.message || 'media error';
     this.failAllWaiters(new MediaPreparationError('MEDIA_ELEMENT_ERROR', message));
   };
 
   private readonly onMediaAbort = () => {
     this.failAllWaiters(new MediaPreparationError(
       'MEDIA_PREPARATION_ABORTED',
-      'media element aborted frame preparation'
+      'media aborted'
     ));
   };
 
@@ -211,6 +211,13 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.configureElement();
     this.stopNativePlayback();
 
+    // Reuse only when the last presented frame and physical playhead together
+    // remain within the same accepted presentation window as the new target.
+    if (Math.abs(this.readyTime - desired.targetTime)
+      + Math.abs(this.video.currentTime - desired.targetTime) <= PRESENTATION_TOLERANCE_SECONDS) {
+      this.markFrameReady(desired);
+    }
+
     for (const waiter of [...this.waiters]) {
       if (
         waiter.generation === desired.generation
@@ -222,7 +229,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
     if (
       this.frameReadyGeneration === desired.generation
-      && Math.abs(this.frameReadyTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS
+      && Math.abs(this.readyTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS
     ) {
       return Promise.resolve(frameResult(desired, 'ready'));
     }
@@ -259,7 +266,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     const frameReady = Boolean(
       this.latest
       && this.frameReadyGeneration === this.latest.generation
-      && Math.abs(this.frameReadyTime - this.latest.targetTime) <= SEEK_TOLERANCE_SECONDS
+      && Math.abs(this.readyTime - this.latest.targetTime) <= SEEK_TOLERANCE_SECONDS
     );
     return {
       runId: this.runId,
@@ -303,7 +310,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       this.pendingNative = undefined;
       this.nativeAttempt += 1;
       this.frameReadyGeneration = 0;
-      this.frameReadyTime = Number.NaN;
+      // The generation identity is stale, but its last presented media time is
+      // still useful evidence if the next generation targets the same frame.
       this.queuedSeek = undefined;
       this.primingSeek = undefined;
       this.cancelFrameCallback();
@@ -343,7 +351,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return;
     }
     const frameReady = this.frameReadyGeneration === desired.generation
-      && Math.abs(this.frameReadyTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS;
+      && Math.abs(this.readyTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS;
     if (!frameReady) {
       this.pendingNative = { desired, input };
       this.scheduleSeek(desired);
@@ -399,6 +407,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.nativeAttempt += 1;
     this.pendingNative = undefined;
     if (this.nativeStarted || !this.video.paused) {
+      // Native playback has already presented this playhead; preserve it before
+      // pausing so a reverse generation can reuse the terminal frame.
+      this.readyTime = this.video.currentTime;
       this.video.pause();
     }
     this.nativeStarted = false;
@@ -437,13 +448,15 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return { started: true };
     } catch (cause) {
       this.primingSeek = undefined;
+      const error = new MediaPreparationError(
+        'MEDIA_SEEK_FAILED',
+        'prime seek failed',
+        { cause }
+      );
+      this.failFrame(desired, error);
       return {
         started: false,
-        error: new MediaPreparationError(
-          'MEDIA_SEEK_FAILED',
-          `failed to prime media seek for ${desired.runId} at ${desired.targetTime.toFixed(4)}s`,
-          { cause }
-        )
+        error
       };
     }
   }
@@ -482,9 +495,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       this.video.currentTime = desired.targetTime;
     } catch (cause) {
       this.inFlightSeek = undefined;
-      this.rejectWaitersForFrame(desired, new MediaPreparationError(
+      this.failFrame(desired, new MediaPreparationError(
         'MEDIA_SEEK_FAILED',
-        `failed to seek media for ${desired.runId} to ${desired.targetTime.toFixed(4)}s`,
+        'media seek failed',
         { cause }
       ));
       return;
@@ -536,7 +549,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       this.presentingFrame = undefined;
       this.failFrame(frame, new MediaPreparationError(
         'MEDIA_FRAME_CALLBACK_UNAVAILABLE',
-        `requestVideoFrameCallback is unavailable for ${frame.runId}`
+        'frame callback unavailable'
       ));
       return;
     }
@@ -570,7 +583,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       this.presentingFrame = undefined;
       this.failFrame(frame, new MediaPreparationError(
         'MEDIA_FRAME_CALLBACK_UNAVAILABLE',
-        `requestVideoFrameCallback failed for ${frame.runId}`,
+        'frame callback failed',
         { cause }
       ));
     }
@@ -581,8 +594,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return;
     }
     this.frameReadyGeneration = frame.generation;
-    this.frameReadyTime = frame.targetTime;
+    this.readyTime = frame.targetTime;
     this.video.dataset.timelineVideoFrameReady = 'true';
+    delete this.video.dataset.timelineVideoStaticFallback;
     for (const waiter of [...this.waiters]) {
       if (
         waiter.generation === frame.generation
@@ -652,28 +666,15 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   private failFrame(frame: DesiredFrame, error: Error): void {
+    this.markStaticFallback();
     this.rejectWaitersForFrame(frame, error);
-    const pendingNative = this.pendingNative;
-    if (
-      pendingNative
-      && pendingNative.desired.generation === frame.generation
-      && Math.abs(pendingNative.desired.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
-    ) {
-      this.pendingNative = undefined;
-      this.nativeFallback = true;
-      this.video.dataset.timelineVideoFallback = 'true';
-    }
   }
 
   private failAllWaiters(error: Error): void {
+    this.markStaticFallback();
     for (const waiter of [...this.waiters]) {
       this.rejectWaiter(waiter, error);
     }
-    this.queuedSeek = undefined;
-    this.inFlightSeek = undefined;
-    this.primingSeek = undefined;
-    this.pendingNative = undefined;
-    this.cancelFrameCallback();
   }
 
   private cancelPresentationWhenUnused(frame: DesiredFrame): void {
@@ -719,7 +720,20 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.video.dataset.timelineVideoProgress = desired.progress.toFixed(4);
     this.video.dataset.timelineVideoTarget = desired.targetTime.toFixed(4);
     this.video.dataset.timelineVideoFallback = String(this.nativeFallback);
+  }
+
+  private markStaticFallback(): void {
+    this.stopNativePlayback();
+    this.nativeFallback = true;
+    this.frameReadyGeneration = 0;
+    this.readyTime = Number.NaN;
+    this.queuedSeek = undefined;
+    this.inFlightSeek = undefined;
+    this.primingSeek = undefined;
+    this.cancelFrameCallback();
     delete this.video.dataset.timelineVideoFrameReady;
+    this.video.dataset.timelineVideoFallback = 'true';
+    this.video.dataset.timelineVideoStaticFallback = 'true';
   }
 }
 

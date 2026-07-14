@@ -84,11 +84,12 @@ type Group3VisualSnapshot = {
   retainedArchMask: string;
   brandLayerClip: string;
   retainedArchClip: string;
-  figure2HoldPoster: boolean;
+  posterCount: number;
   videos: readonly {
     side: string;
+    mediaKey: string;
     direction: string;
-    active: boolean;
+    frameReady: boolean;
     loop: boolean;
     paused: boolean;
     currentTime: number;
@@ -172,11 +173,12 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       retainedArchMask: arch?.style.getPropertyValue('mask-image') ?? '',
       brandLayerClip: brandLayer?.style.clipPath ?? '',
       retainedArchClip: arch?.style.clipPath ?? '',
-      figure2HoldPoster: figureRoot?.dataset.figure2HoldPoster === 'true',
+      posterCount: figureRoot?.querySelectorAll('[data-figure2-poster]').length ?? 0,
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
         side: video.dataset.figure2Side ?? '',
-        direction: video.dataset.figure2Direction ?? '',
-        active: video.classList.contains('is-active'),
+        mediaKey: video.dataset.mediaKey ?? '',
+        direction: video.dataset.timelineVideoDirection ?? '',
+        frameReady: video.dataset.timelineVideoFrameReady === 'true',
         loop: video.loop,
         paused: video.paused,
         currentTime: video.currentTime,
@@ -224,8 +226,8 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         await expect.poll(async () => {
           const visual = await visualSnapshot(page);
           return visual.videos.some((video) => (
-            video.direction === 'forward'
-            && video.active
+            video.direction === '1'
+            && video.frameReady
             && !video.paused
             && video.currentTime > 0.05
             && video.currentTime < 2.4
@@ -233,13 +235,20 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
         }, { timeout: 3_000 }).toBe(true);
         await expect.poll(async () => (await snapshot(page)).phase, { timeout: 7_000 }).toBe('staged-paused');
         const stagedFigure = await visualSnapshot(page);
-        const stagedForward = stagedFigure.videos.filter((video) => video.direction === 'forward');
-        const stagedReverse = stagedFigure.videos.filter((video) => video.direction === 'reverse');
-        expect(stagedFigure.videos).toHaveLength(4);
-        expect(stagedForward).toHaveLength(2);
-        expect(stagedReverse).toHaveLength(2);
-        expect(stagedForward.every((video) => video.active && video.loop === false && video.paused && video.currentTime > 2)).toBe(true);
-        expect(stagedReverse.every((video) => !video.active && video.paused && video.currentTime < 0.1 && video.preload === 'metadata')).toBe(true);
+        expect(stagedFigure.videos).toHaveLength(2);
+        expect(new Set(stagedFigure.videos.map((video) => video.mediaKey))).toEqual(new Set([
+          'figure2-left-motion',
+          'figure2-right-motion'
+        ]));
+        expect(stagedFigure.posterCount).toBe(0);
+        expect(stagedFigure.videos.every((video) => (
+          video.direction === '1'
+          && video.frameReady
+          && video.loop === false
+          && video.paused
+          && video.currentTime > 2
+          && video.preload === 'auto'
+        ))).toBe(true);
         expect(stagedFigure.depthFieldMask).toBe('none');
         expect(stagedFigure.figureDepthSurfaceMask).toBe('none');
         expect(stagedFigure.figureClip).toBe('none');
@@ -389,8 +398,10 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 8_000 }).toBe('figure2-proof-opening');
 
     const parkedAtProof = (await visualSnapshot(page)).videos;
-    expect(parkedAtProof).toHaveLength(4);
-    expect(parkedAtProof.every((video) => !video.active && video.paused && video.currentTime < 0.1 && video.preload === 'metadata')).toBe(true);
+    expect(parkedAtProof).toHaveLength(2);
+    expect(parkedAtProof.every((video) => (
+      video.direction === '1' && video.frameReady && video.paused && video.currentTime > 2
+    ))).toBe(true);
 
     const sampleReverseLeg = async () => {
       const samples: Group3VisualSnapshot['videos'][] = [];
@@ -414,55 +425,46 @@ test.describe('R4 group3 figure2 proof merge-train harness', () => {
     const inkLegSamples = await sampleReverseLeg();
     expect(inkLegSamples.length).toBeGreaterThan(2);
     expect(inkLegSamples.every((videos) => (
-      videos.length === 4
-      && videos.filter((video) => video.direction === 'reverse').length === 2
-      && videos.filter((video) => video.direction === 'reverse').every((video) => (
-        !video.active && video.paused
-      ))
-      && videos.filter((video) => video.direction === 'forward').every((video) => (
-        video.active && video.paused && video.currentTime > 2.3
+      videos.length === 2
+      && videos.every((video) => (
+        video.direction === '-1' && video.frameReady && video.paused && video.currentTime > 2.3
       ))
     ))).toBe(true);
     await expect.poll(async () => (await snapshot(page)).phase, { timeout: 8_000 }).toBe('staged-paused');
     const reversePause = (await visualSnapshot(page)).videos;
-    expect(reversePause.filter((video) => video.direction === 'forward').every((video) => (
-      video.active && video.paused && video.currentTime > 2.3
-    ))).toBe(true);
-    expect(reversePause.filter((video) => video.direction === 'reverse').every((video) => (
-      !video.active && video.paused
+    expect(reversePause).toHaveLength(2);
+    expect(reversePause.every((video) => (
+      video.direction === '-1' && video.frameReady && video.paused && video.currentTime > 2.3
     ))).toBe(true);
 
     await page.evaluate(() => { void window.__r4Group3?.playReverse(); });
     const introLegSamples = await sampleReverseLeg();
     expect(introLegSamples.length).toBeGreaterThan(2);
 
-    const activeReverseSamples = introLegSamples.filter((videos) => {
-      const reverse = videos.filter((video) => video.direction === 'reverse');
-      return reverse.length === 2 && reverse.every((video) => video.active);
-    });
     expect(introLegSamples.every((videos) => {
-      const active = videos.filter((video) => video.active);
-      return active.length === 2
-        && new Set(active.map((video) => video.direction)).size === 1
-        && new Set(active.map((video) => video.side)).size === 2;
+      return videos.length === 2
+        && videos.every((video) => video.direction === '-1' && video.paused)
+        && new Set(videos.map((video) => video.side)).size === 2;
     })).toBe(true);
-    expect(activeReverseSamples.length).toBeGreaterThan(2);
     for (const side of ['left', 'right']) {
-      const reverseValues = activeReverseSamples.map((videos) => (
-        videos.find((video) => video.side === side && video.direction === 'reverse')?.currentTime ?? 0
+      const reverseValues = introLegSamples.map((videos) => (
+        videos.find((video) => video.side === side)?.currentTime ?? 0
       ));
       expect(Math.max(...reverseValues) - Math.min(...reverseValues)).toBeGreaterThan(0.2);
-      expect(reverseValues.some((value, index) => index > 0 && value > (reverseValues[index - 1] ?? 0) + 0.01)).toBe(true);
-      expect(reverseValues.at(-1) ?? 0).toBeGreaterThan((reverseValues[0] ?? 0) + 0.2);
+      expect(reverseValues.some((value, index) => index > 0 && value < (reverseValues[index - 1] ?? 0) - 0.01)).toBe(true);
+      expect(reverseValues.at(-1) ?? 0).toBeLessThan((reverseValues[0] ?? 0) - 0.2);
 
     }
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 8_000 }).toBe('figure2-animation');
-    await expect.poll(async () => (await visualSnapshot(page)).figure2HoldPoster).toBe(true);
+    await expect.poll(async () => (await visualSnapshot(page)).videos.every((video) => (
+      video.frameReady && video.currentTime < 0.1
+    ))).toBe(true);
     const reversedHold = await visualSnapshot(page);
-    expect(reversedHold.videos.filter((video) => video.active)).toHaveLength(0);
+    expect(reversedHold.posterCount).toBe(0);
+    expect(reversedHold.videos).toHaveLength(2);
     expect(reversedHold.videos.every((video) => video.paused)).toBe(true);
-    expect(reversedHold.videos.filter((video) => video.direction === 'reverse').every((video) => (
-      !video.active && video.paused
+    expect(reversedHold.videos.every((video) => (
+      video.direction === '-1' && video.frameReady && video.paused && video.currentTime < 0.1
     ))).toBe(true);
   });
 

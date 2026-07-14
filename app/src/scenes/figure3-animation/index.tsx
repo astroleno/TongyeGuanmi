@@ -8,9 +8,9 @@ import {
 import { FIGURE3_SERVICES_DURATION_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
-export const FIGURE3_MEDIA_KEY = 'figure3-alpha-scrub';
-export const FIGURE3_VIDEO_SRC = new URL('../../../../assets/figure3-alpha-scrub.webm', import.meta.url).href;
-export const FIGURE3_POSTER_SRC = new URL('../../../../assets/figure3-alpha-poster.png', import.meta.url).href;
+export const FIGURE3_MEDIA_KEY = 'figure3-motion';
+export const FIGURE3_VIDEO_SRC = new URL('../../../../assets/figure3-motion.webm', import.meta.url).href;
+export const FIGURE3_END_SECONDS = 2.567;
 
 export type Figure3RenderState = {
   progress: number;
@@ -53,10 +53,12 @@ function figure3MediaInput(progress: number, mediaRun: Figure3MediaRun): Timelin
     runId: mediaRun.runId,
     direction: mediaRun.direction,
     progress,
-    durationFallbackSeconds: 5.04,
-    endEpsilonSeconds: 0.02,
+    durationFallbackSeconds: 2.6,
+    startSeconds: 0,
+    endSeconds: FIGURE3_END_SECONDS,
     timelineDurationMs: FIGURE3_SERVICES_DURATION_MS,
-    mode: 'timeline',
+    mode: mediaRun.direction === 1 ? 'native-preferred' : 'timeline',
+    nativePlaybackDirection: 1,
     reducedMotion: Boolean(mediaRun.reducedMotion)
   };
 }
@@ -128,7 +130,7 @@ function Figure3AnimationScene({ registerHandle }: SceneComponentProps) {
       data-figure3-transition
       data-figure3-duration="2"
       data-figure3-scroll-vh="20"
-      data-figure3-video-duration="5.04"
+      data-figure3-video-duration="2.6"
       aria-label="Figure 3 fabric visual scene"
     >
       <div className="figure3-transition__sticky">
@@ -143,7 +145,6 @@ function Figure3AnimationScene({ registerHandle }: SceneComponentProps) {
             data-figure3-alpha-video
             data-media-key={FIGURE3_MEDIA_KEY}
             src={FIGURE3_VIDEO_SRC}
-            poster={FIGURE3_POSTER_SRC}
             muted
             preload="auto"
             playsInline

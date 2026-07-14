@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/verify-release-build.mjs && node scripts/verify-performance-budgets.mjs && node scripts/create-release-manifest.mjs",
+    "build": "tsc -b && vite build && node scripts/verify-homepage-media-inventory.mjs && node scripts/verify-release-build.mjs && node scripts/verify-performance-budgets.mjs && node scripts/create-release-manifest.mjs",
     "build:release": "pnpm run release:prepare && pnpm run evidence:memory:release && pnpm run release:finalize",
     "release:prepare": "R5_REQUIRE_RELEASE_IDENTITY=1 R5_RELEASE_MANIFEST_PHASE=prepare pnpm run build",
     "release:finalize": "R5_REQUIRE_RELEASE_IDENTITY=1 R5_REQUIRE_MEMORY_EVIDENCE=1 R5_RELEASE_MANIFEST_PHASE=finalize node scripts/create-release-manifest.mjs",

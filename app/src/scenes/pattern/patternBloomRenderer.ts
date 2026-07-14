@@ -56,7 +56,7 @@ export function patternFramePhases(
   };
 }
 
-export const PATTERN_BACKGROUND_IMAGE = new URL('../../../../assets/patterns/backgrounds/aged-mottled-background-16x9-4k.png', import.meta.url).href;
+export const PATTERN_BACKGROUND_IMAGE = new URL('../../../../assets/pattern-background.webp', import.meta.url).href;
 
 export const PATTERN_SOURCE_ART = {
   '02': new URL('../../../../assets/patterns/alpha-layers/pattern-layer-alpha-02.png', import.meta.url).href,

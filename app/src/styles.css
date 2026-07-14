@@ -1608,23 +1608,7 @@ pre {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  mix-blend-mode: multiply;
-}
-
-.r4-figure2__far-arcade-white {
-  opacity: .42;
-  filter: sepia(.12) saturate(.62) contrast(1.02) brightness(1.08);
-}
-
-.r4-figure2__far-arcade-color {
-  opacity: .74;
-  filter: saturate(.88) contrast(.94) brightness(1.02) sepia(.03);
-}
-
-.r4-figure2__far-arcade-relief {
-  opacity: .16;
-  mix-blend-mode: soft-light;
-  filter: saturate(0) contrast(1.34) brightness(1.04);
+  mix-blend-mode: normal;
 }
 
 .r4-figure2__middle {
@@ -1695,9 +1679,7 @@ pre {
   aspect-ratio: 600 / 1066;
 }
 
-.r4-figure2__video,
-.r4-figure2__poster,
-.r4-figure2__bridge {
+.r4-figure2__video {
   grid-area: 1 / 1;
   display: block;
   width: 100%;
@@ -1711,22 +1693,8 @@ pre {
   opacity: 0;
 }
 
-.r4-figure2__video.is-active {
+.r4-figure2__video[data-timeline-video-frame-ready="true"] {
   opacity: var(--r4-figure2-video-opacity, 1);
-}
-
-.r4-figure2__poster {
-  z-index: 3;
-  opacity: var(--r4-figure2-poster-opacity, 1);
-}
-
-.r4-figure2__bridge {
-  z-index: 2;
-  opacity: 0;
-}
-
-.r4-figure2__bridge.is-active {
-  opacity: var(--r4-figure2-bridge-opacity, 0);
 }
 
 .r4-figure2__figure figcaption {
@@ -1740,16 +1708,6 @@ pre {
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
-}
-
-.r4-figure2__figure-mask-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
 }
 
 @media (max-width: 860px) {
@@ -2312,10 +2270,14 @@ pre {
   max-width: none;
   object-fit: cover;
   object-position: 24% center;
-  opacity: var(--figure3-video-opacity);
+  opacity: 0;
   filter: saturate(.94) contrast(1.02) brightness(.98);
   transform: translateZ(0) scale(var(--figure3-video-scale));
   will-change: opacity, transform;
+}
+
+.figure3-transition__video[data-timeline-video-frame-ready="true"] {
+  opacity: var(--figure3-video-opacity);
 }
 
 .figure3-transition__fill {
@@ -2639,20 +2601,8 @@ pre {
   transform: translate3d(-50%, calc(-50% + var(--ttg-figure-y)), 0) scale(var(--ttg-figure-scale));
 }
 
-.r4-ttg-animation video.ttg-layer--figure.is-active {
+.r4-ttg-animation video.ttg-layer--figure[data-timeline-video-frame-ready="true"] {
   opacity: var(--ttg-figure-video-opacity, 1);
-}
-
-.r4-ttg-animation .ttg-layer--figure-terminal {
-  z-index: 5;
-  opacity: var(--ttg-figure-terminal-opacity, 0);
-  pointer-events: none;
-}
-
-.r4-ttg-animation .ttg-layer--figure-start {
-  z-index: 5;
-  opacity: var(--ttg-figure-start-opacity, 1);
-  pointer-events: none;
 }
 
 .r4-lab {
@@ -3048,9 +2998,13 @@ pre {
   z-index: 3;
   bottom: clamp(-104px, -9.1dvh, -56px);
   width: max(122vw, 1260px);
-  opacity: var(--ph-video-opacity, 1);
+  opacity: 0;
   filter: drop-shadow(0 17px 24px rgba(61, 45, 35, .12));
   transform: translate3d(-50%, calc(var(--ph-figure-base-y) + var(--ph-figure-parallax-y)), 0);
+}
+
+.r4-ph-animation .ph-layer--figure[data-timeline-video-frame-ready="true"] {
+  opacity: var(--ph-video-opacity, 1);
 }
 
 .r4-ph-animation .ph-edge-light {
@@ -3522,12 +3476,16 @@ pre {
   max-width: none;
   object-fit: cover;
   object-position: 50% 50%;
-  opacity: var(--crane-video-opacity);
+  opacity: 0;
   mix-blend-mode: normal;
   transform: translateZ(0);
   transform-origin: 50% 50%;
   will-change: opacity;
   filter: none;
+}
+
+.r4-crane-animation .crane-figure-video[data-timeline-video-frame-ready="true"] {
+  opacity: var(--crane-video-opacity);
 }
 
 .r4-crane-animation .crane-video-transition--front {
@@ -3537,7 +3495,7 @@ pre {
 }
 
 .r4-crane-animation .crane-figure-video--front {
-  opacity: var(--crane-flock-opacity);
+  opacity: 0;
   mix-blend-mode: normal;
   object-fit: cover;
   object-position: 50% 44%;
@@ -3548,6 +3506,10 @@ pre {
     )
     scale(var(--crane-flock-scale));
   filter: saturate(1.06) contrast(1.1) brightness(.98);
+}
+
+.r4-crane-animation .crane-figure-video--front[data-timeline-video-frame-ready="true"] {
+  opacity: var(--crane-flock-opacity);
 }
 
 .r4-crane-animation .crane-layer {
@@ -3994,7 +3956,7 @@ pre {
   width: 100%;
   height: 100%;
   max-width: none;
-  opacity: 1;
+  opacity: 0;
   object-fit: cover;
   object-position: center center;
   user-select: none;
@@ -4006,6 +3968,10 @@ pre {
   transform-origin: 50% 50%;
   will-change: transform;
   backface-visibility: hidden;
+}
+
+.aod-transition__figure-video[data-timeline-video-frame-ready="true"] {
+  opacity: 1;
 }
 
 .aod-transition__paper-solid {

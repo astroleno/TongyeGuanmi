@@ -50,10 +50,7 @@ type Group5VisualSnapshot = {
   ttgProgress: number;
   ttgBgTransform: string;
   ttgFigureTransform: string;
-  ttgVideos: readonly { loop: boolean; paused: boolean; currentTime: number; active: boolean }[];
-  ttgStartActive: boolean;
-  ttgTerminalActive: boolean;
-  ttgActiveSurface: string | undefined;
+  ttgVideos: readonly { loop: boolean; paused: boolean; currentTime: number; frameReady: boolean }[];
   ttgPlaybackDirection: string | undefined;
   labProgress: number;
   labRows: number;
@@ -72,9 +69,7 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
   return page.evaluate(() => {
     const ttgRoot = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
     const bgLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--bg');
-    const figureLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--figure.is-active');
-    const startLayer = document.querySelector<HTMLElement>('[data-ttg-figure-start]');
-    const terminalLayer = document.querySelector<HTMLElement>('[data-ttg-figure-terminal]');
+    const figureLayer = document.querySelector<HTMLElement>('.r4-ttg-animation .ttg-layer--figure');
     const labRoot = document.querySelector<HTMLElement>('[data-r4-scene="lab"]');
     const labWide = document.querySelector<HTMLElement>('.r4-lab__wide');
     const labPortrait = document.querySelector<HTMLElement>('.r4-lab__portrait');
@@ -94,15 +89,12 @@ async function visualSnapshot(page: Page): Promise<Group5VisualSnapshot> {
       ttgProgress: Number.parseFloat(ttgRoot?.dataset.ttgProgress ?? '0'),
       ttgBgTransform: window.getComputedStyle(bgLayer ?? document.body).transform,
       ttgFigureTransform: window.getComputedStyle(figureLayer ?? document.body).transform,
-      ttgVideos: [...document.querySelectorAll<HTMLVideoElement>('[data-ttg-figure-video], [data-ttg-figure-video-reverse]')].map((video) => ({
+      ttgVideos: [...document.querySelectorAll<HTMLVideoElement>('[data-ttg-figure-video]')].map((video) => ({
         loop: video.loop,
         paused: video.paused,
         currentTime: video.currentTime,
-        active: video.classList.contains('is-active')
+        frameReady: video.dataset.timelineVideoFrameReady === 'true'
       })),
-      ttgStartActive: startLayer?.classList.contains('is-active') ?? false,
-      ttgTerminalActive: terminalLayer?.classList.contains('is-active') ?? false,
-      ttgActiveSurface: ttgRoot?.dataset.ttgActiveSurface,
       ttgPlaybackDirection: ttgRoot?.dataset.ttgPlaybackDirection,
       labProgress: Number.parseFloat(labRoot?.dataset.labProgress ?? '0'),
       labRows: document.querySelectorAll('.r4-lab__row').length,
@@ -175,7 +167,7 @@ test.describe('R4 group5 services ttg lab harness', () => {
     ).toBe('ttg-animation');
     const ttgHold = await visualSnapshot(page);
     expect(ttgHold.ttgProgress).toBe(0);
-    expect(ttgHold.ttgVideos).toHaveLength(2);
+    expect(ttgHold.ttgVideos).toHaveLength(1);
     expect(ttgHold.ttgVideos.every((video) => video.loop === false && video.paused)).toBe(true);
     expect(ttgHold.ttgBgTransform).not.toBe('none');
     expect(ttgHold.ttgFigureTransform).not.toBe('none');
@@ -192,7 +184,7 @@ test.describe('R4 group5 services ttg lab harness', () => {
       sawTtgNativePlayback ||= visual.activeInkSegments.includes('ttg-lab') === false
         && visual.ttgProgress > 0
         && visual.ttgProgress < 1
-        && visual.ttgVideos[0]?.active === true
+        && visual.ttgVideos[0]?.frameReady === true
         && (visual.ttgVideos.some((video) => !video.paused)
           || (visual.ttgVideos[0]?.currentTime ?? 0) > previousForwardTime + 0.01);
       previousForwardTime = visual.ttgVideos[0]?.currentTime ?? previousForwardTime;
@@ -335,7 +327,7 @@ test.describe('R4 group5 services ttg lab harness', () => {
       void window.__r4Group5?.playReverse();
     });
     let sawTtgReversePlayback = false;
-    let previousReverseTime = 0;
+    let previousReverseTime: number | undefined;
     const reverseEvidence: Array<{
       direction: string | undefined;
       progress: number;
@@ -353,10 +345,10 @@ test.describe('R4 group5 services ttg lab harness', () => {
       sawTtgReversePlayback ||= visual.ttgPlaybackDirection === '-1'
         && visual.ttgProgress > 0
         && visual.ttgProgress < 1
-        && visual.ttgVideos[1]?.active === true
-        && (visual.ttgVideos.some((video) => !video.paused)
-          || (visual.ttgVideos[1]?.currentTime ?? 0) > previousReverseTime + 0.01);
-      previousReverseTime = visual.ttgVideos[1]?.currentTime ?? previousReverseTime;
+        && visual.ttgVideos[0]?.frameReady === true
+        && previousReverseTime !== undefined
+        && (visual.ttgVideos[0]?.currentTime ?? 0) < previousReverseTime - 0.01;
+      previousReverseTime = visual.ttgVideos[0]?.currentTime ?? previousReverseTime;
     }
     expect(sawTtgReversePlayback, JSON.stringify(reverseEvidence)).toBe(true);
     await expect.poll(
@@ -375,7 +367,7 @@ test.describe('R4 group5 services ttg lab harness', () => {
     expect(finalFrame.interactableCount).toBe(1);
   });
 
-  test('reverses TTG from its terminal still before Lab with one active surface', async ({ page }) => {
+  test('reverses TTG from its canonical terminal frame before Lab with one prepared surface', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g5-ttg-lab');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
@@ -389,9 +381,9 @@ test.describe('R4 group5 services ttg lab harness', () => {
     ).toBe('staged-paused');
     const terminal = await visualSnapshot(page);
     expect(terminal.ttgProgress).toBe(1);
-    expect(terminal.ttgTerminalActive).toBe(true);
-    expect(terminal.ttgActiveSurface).toBe('terminal');
-    expect(terminal.ttgVideos.filter((video) => video.active)).toHaveLength(0);
+    expect(terminal.ttgVideos).toHaveLength(1);
+    expect(terminal.ttgVideos[0]).toMatchObject({ frameReady: true });
+    expect(terminal.ttgVideos[0]?.currentTime).toBeGreaterThan(2.4);
 
     await page.evaluate(() => {
       void window.__r4Group5?.playReverse();
@@ -400,16 +392,12 @@ test.describe('R4 group5 services ttg lab harness', () => {
     for (let index = 0; index < 30; index += 1) {
       await page.waitForTimeout(24);
       const visual = await visualSnapshot(page);
-      expect(
-        visual.ttgVideos.filter((video) => video.active).length
-          + Number(visual.ttgStartActive)
-          + Number(visual.ttgTerminalActive)
-      ).toBe(1);
+      expect(visual.ttgVideos.filter((video) => video.frameReady)).toHaveLength(1);
       sawNativeReverse ||= visual.ttgPlaybackDirection === '-1'
         && visual.ttgProgress > 0
         && visual.ttgProgress < 1
-        && visual.ttgVideos[1]?.active === true
-        && visual.ttgVideos[1]?.paused === false;
+        && visual.ttgVideos[0]?.frameReady === true
+        && (visual.ttgVideos[0]?.currentTime ?? 2.467) < 2.4;
     }
     expect(sawNativeReverse).toBe(true);
     await expect.poll(
@@ -418,8 +406,9 @@ test.describe('R4 group5 services ttg lab harness', () => {
     ).toBe('hold');
     const restored = await visualSnapshot(page);
     expect(restored.ttgProgress).toBe(0);
-    expect(restored.ttgStartActive).toBe(true);
-    expect(restored.ttgVideos.filter((video) => video.active)).toHaveLength(0);
+    expect(restored.ttgVideos).toHaveLength(1);
+    expect(restored.ttgVideos[0]).toMatchObject({ frameReady: true });
+    expect(restored.ttgVideos[0]?.currentTime).toBeLessThan(0.05);
   });
 
   test('covers reduced motion and 0 to 1 to 0 to 1 replay', async ({ page }) => {

@@ -123,23 +123,23 @@ function visualFor(segment: SegmentId): SegmentVisual | undefined {
     case 'ttg-lab':
       return {
         type: 'media',
-        media: ['ttg_figure-alpha-scrub', 'ttg_figure-alpha-scrub-reverse'],
+        media: ['ttg-figure-motion'],
         handoff: 'crossfade'
       };
     case 'ph-education':
       return {
         type: 'media',
-        media: ['ph_figure-alpha-scrub'],
+        media: ['ph-figure-motion'],
         handoff: 'crossfade'
       };
     case 'aod-method-top':
-      return { type: 'media', media: ['aod_figure-alpha-front-scrub'] };
+      return { type: 'media', media: ['aod-figure-motion'] };
     case 'figure2-distance-expand':
       return { type: 'internal', milestone: 'figure2-distance-expand' };
     case 'figure3-services':
-      return { type: 'media', media: ['figure3-alpha-scrub'] };
+      return { type: 'media', media: ['figure3-motion'] };
     case 'crane-contact':
-      return { type: 'media', media: ['crane-figure-transition'] };
+      return { type: 'media', media: ['crane-figure-motion', 'crane-flock-motion'] };
     case 'figure2-proof-opening-cards':
     case 'figure2-proof-cards-closing':
       return undefined;
@@ -280,10 +280,10 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'aod-front-figure',
-          ['aod_figure-alpha-front-scrub'],
+          ['aod-figure-motion'],
           'method-top',
           {
-            forwardMode: 'timeline',
+            forwardMode: 'play',
             reverseMode: 'timeline',
             reverseRequired: true
           }
@@ -293,10 +293,10 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'figure3-alpha',
-          ['figure3-alpha-scrub'],
+          ['figure3-motion'],
           'services',
           {
-            forwardMode: 'timeline',
+            forwardMode: 'play',
             reverseMode: 'timeline',
             reverseRequired: true
           }
@@ -307,18 +307,16 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
         mediaPlaybackContract(
           'figure2-pair',
           [
-            'figure2-left-alpha',
-            'figure2-right-alpha',
-            'figure2-left-alpha-reverse',
-            'figure2-right-alpha-reverse'
+            'figure2-left-motion',
+            'figure2-right-motion'
           ],
           'figure2-proof-opening',
           {
             forwardMode: 'play',
-            reverseMode: 'play',
+            reverseMode: 'timeline',
             reverseRequired: true,
-            forwardMedia: ['figure2-left-alpha', 'figure2-right-alpha'],
-            reverseMedia: ['figure2-left-alpha-reverse', 'figure2-right-alpha-reverse'],
+            forwardMedia: ['figure2-left-motion', 'figure2-right-motion'],
+            reverseMedia: ['figure2-left-motion', 'figure2-right-motion'],
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
           }
         )
@@ -327,13 +325,13 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'ttg-alpha',
-          ['ttg_figure-alpha-scrub', 'ttg_figure-alpha-scrub-reverse'],
+          ['ttg-figure-motion'],
           'lab',
           {
-            reverseMode: 'play',
+            reverseMode: 'timeline',
             reverseRequired: true,
-            forwardMedia: ['ttg_figure-alpha-scrub'],
-            reverseMedia: ['ttg_figure-alpha-scrub-reverse'],
+            forwardMedia: ['ttg-figure-motion'],
+            reverseMedia: ['ttg-figure-motion'],
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
           }
         )
@@ -342,10 +340,10 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'ph-alpha',
-          ['ph_figure-alpha-scrub'],
+          ['ph-figure-motion'],
           'education',
           {
-            forwardMode: 'timeline',
+            forwardMode: 'play',
             reverseMode: 'timeline',
             reverseRequired: true,
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
@@ -356,9 +354,9 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'crane-transition',
-          ['crane-figure1-transition', 'crane-figure2-transition'],
+          ['crane-figure-motion', 'crane-flock-motion'],
           'contact',
-          { forwardMode: 'timeline', reverseMode: 'timeline', reverseRequired: true }
+          { forwardMode: 'play', reverseMode: 'timeline', reverseRequired: true }
         )
       ];
     default:

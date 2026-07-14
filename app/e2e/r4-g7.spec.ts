@@ -50,7 +50,17 @@ type Group7VisualSnapshot = {
   craneProgress: number;
   craneArchTransform: string;
   craneFrontTransform: string;
-  craneVideos: readonly { loop: boolean; paused: boolean; currentTime: number; duration: number }[];
+  craneVideos: readonly {
+    role: 'figure' | 'flock';
+    mediaKey: string;
+    loop: boolean;
+    paused: boolean;
+    ended: boolean;
+    currentTime: number;
+    duration: number;
+    playbackRate: number;
+    frameReady: boolean;
+  }[];
   cranePlaybackActive: string | undefined;
   cranePlaybackDirection: string | undefined;
   contactProgress: number;
@@ -91,10 +101,15 @@ async function visualSnapshot(page: Page): Promise<Group7VisualSnapshot> {
       craneArchTransform: window.getComputedStyle(archLayer ?? document.body).transform,
       craneFrontTransform: window.getComputedStyle(frontLayer ?? document.body).transform,
       craneVideos: [...document.querySelectorAll<HTMLVideoElement>('[data-crane-figure-video], [data-crane-figure-front-video]')].map((video) => ({
+        role: video.hasAttribute('data-crane-figure-front-video') ? 'flock' as const : 'figure' as const,
+        mediaKey: video.dataset.mediaKey ?? '',
         loop: video.loop,
         paused: video.paused,
+        ended: video.ended,
         currentTime: video.currentTime,
-        duration: video.duration
+        duration: video.duration,
+        playbackRate: video.playbackRate,
+        frameReady: video.dataset.timelineVideoFrameReady === 'true'
       })),
       cranePlaybackActive: craneRoot?.dataset.cranePlaybackActive,
       cranePlaybackDirection: craneRoot?.dataset.cranePlaybackDirection,
@@ -169,15 +184,43 @@ test.describe('R4 group7 education crane contact harness', () => {
     const craneHold = await visualSnapshot(page);
     expect(craneHold.craneProgress).toBe(0);
     expect(craneHold.craneVideos).toHaveLength(2);
+    expect(new Set(craneHold.craneVideos.map((video) => video.mediaKey))).toEqual(new Set([
+      'crane-figure-motion',
+      'crane-flock-motion'
+    ]));
     expect(craneHold.craneVideos.every((video) => video.loop === false && video.paused)).toBe(true);
+    expect(craneHold.craneVideos.every((video) => video.currentTime < 0.05)).toBe(true);
     expect(craneHold.craneArchTransform).not.toBe('none');
     expect(craneHold.craneFrontTransform).not.toBe('none');
 
     await page.evaluate(() => {
+      const evidenceWindow = window as Window & {
+        __craneActivationEvidence?: { flockLead: boolean; dualNative: boolean };
+      };
+      evidenceWindow.__craneActivationEvidence = { flockLead: false, dualNative: false };
+      const sample = () => {
+        const figure = document.querySelector<HTMLVideoElement>('[data-crane-figure-video]');
+        const flock = document.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]');
+        if (figure && flock) {
+          evidenceWindow.__craneActivationEvidence!.flockLead ||= !flock.paused
+            && flock.playbackRate > 0.95
+            && flock.playbackRate < 1.05
+            && figure.paused
+            && figure.currentTime < 0.05;
+          evidenceWindow.__craneActivationEvidence!.dualNative ||= [figure, flock].every((video) => (
+            !video.paused && video.playbackRate > 0.95 && video.playbackRate < 1.05
+          ));
+        }
+        if (!evidenceWindow.__craneActivationEvidence?.dualNative) {
+          window.requestAnimationFrame(sample);
+        }
+      };
+      window.requestAnimationFrame(sample);
       void window.__r4Group7?.playForward();
     });
     let sawContactHandoff = false;
-    let sawCraneTimelinePlayback = false;
+    let sawFlockLead = false;
+    let sawCraneNativePlayback = false;
     let sawCraneTransitionAttrs = false;
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
@@ -185,8 +228,16 @@ test.describe('R4 group7 education crane contact harness', () => {
       const visual = await visualSnapshot(page);
       sawCraneTransitionAttrs ||= visual.transitions.includes('crane-contact-media')
         && visual.transitions.includes('crane-contact-copy-cue');
-      sawCraneTimelinePlayback ||= visual.cranePlaybackActive === 'true'
-        && visual.craneVideos.some((video) => video.paused && video.currentTime > 0.02);
+      const figure = visual.craneVideos.find((video) => video.role === 'figure');
+      const flock = visual.craneVideos.find((video) => video.role === 'flock');
+      sawFlockLead ||= visual.cranePlaybackActive === 'true'
+        && Boolean(flock && !flock.paused && flock.playbackRate > 0.95 && flock.playbackRate < 1.05)
+        && Boolean(figure && figure.paused && figure.currentTime < 0.05);
+      sawCraneNativePlayback ||= visual.cranePlaybackActive === 'true'
+        && visual.craneVideos.length === 2
+        && visual.craneVideos.every((video) => (
+          !video.paused && video.playbackRate > 0.95 && video.playbackRate < 1.05
+        ));
       sawContactHandoff ||= visual.contactHandoffProgress > 0 && visual.contactElevated;
     }
     if (!sawCraneTransitionAttrs) {
@@ -197,18 +248,29 @@ test.describe('R4 group7 education crane contact harness', () => {
       }, { timeout: 5_000, intervals: [20] }).toBe(true);
       sawCraneTransitionAttrs = true;
     }
-    if (!sawCraneTimelinePlayback) {
+    if (!sawCraneNativePlayback) {
       await expect.poll(async () => {
         const visual = await visualSnapshot(page);
         return visual.cranePlaybackActive === 'true'
           && visual.craneProgress > 0
           && visual.craneProgress < 1
-          && visual.craneVideos.some((video) => video.paused && video.currentTime > 0.02);
+          && visual.craneVideos.length === 2
+          && visual.craneVideos.every((video) => (
+            !video.paused && video.playbackRate > 0.95 && video.playbackRate < 1.05
+          ));
       }, { timeout: 5_000, intervals: [20] }).toBe(true);
-      sawCraneTimelinePlayback = true;
+      sawCraneNativePlayback = true;
     }
+    const activationEvidence = await page.evaluate(() => (
+      window as Window & {
+        __craneActivationEvidence?: { flockLead: boolean; dualNative: boolean };
+      }
+    ).__craneActivationEvidence);
+    sawFlockLead ||= activationEvidence?.flockLead ?? false;
+    sawCraneNativePlayback ||= activationEvidence?.dualNative ?? false;
     expect(sawCraneTransitionAttrs).toBe(true);
-    expect(sawCraneTimelinePlayback).toBe(true);
+    expect(sawFlockLead).toBe(true);
+    expect(sawCraneNativePlayback).toBe(true);
     if (!sawContactHandoff) {
       await expect.poll(async () => {
         const visual = await visualSnapshot(page);
@@ -226,11 +288,13 @@ test.describe('R4 group7 education crane contact harness', () => {
       const visual = await visualSnapshot(page);
       const backgroundIsLinear = Math.abs(visual.contactPaperAlpha - visual.contactHandoffProgress) < 0.002
         && Math.abs(visual.contactWashAlpha - visual.contactHandoffProgress) < 0.002;
+      const figure = visual.craneVideos.find((video) => video.role === 'figure');
+      const flock = visual.craneVideos.find((video) => video.role === 'flock');
       const craneStillPlaying = visual.cranePlaybackActive === 'true'
         && visual.craneProgress < 0.999
         && visual.craneVideos.length === 2
-        && visual.craneVideos.every((video) => video.paused)
-        && (visual.craneVideos[0]?.currentTime ?? 0) < (visual.craneVideos[0]?.duration ?? 0) - 0.03;
+        && Boolean(figure && !figure.paused && figure.playbackRate > 0.95 && figure.playbackRate < 1.05)
+        && Boolean(flock && flock.paused && flock.currentTime >= flock.duration - 0.05);
       return visual.contactCopyCue === 'true'
         && visual.contactHandoffProgress >= 0.23
         && visual.contactHandoffProgress < 0.45
@@ -242,7 +306,9 @@ test.describe('R4 group7 education crane contact harness', () => {
     expect(contactHold.contactProgress).toBe(1);
     expect(contactHold.contactCopyCue).toBe('true');
     expect(contactHold.contactScheme).toContain('light');
-    expect(contactHold.craneVideos.every((video) => video.paused && video.currentTime >= video.duration - 0.03)).toBe(true);
+    expect(contactHold.craneVideos.every((video) => (
+      video.paused && video.currentTime >= video.duration - 0.05
+    ))).toBe(true);
 
     await page.evaluate(() => {
       void window.__r4Group7?.playReverse();

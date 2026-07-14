@@ -82,12 +82,9 @@ describe('story manifest contract', () => {
       'crane-contact'
     ]);
     for (const segment of mediaSegments) {
-      const reverse = segment.id === 'crane-contact' || segment.id === 'aod-method-top' || segment.id === 'figure3-services'
-        ? { mode: 'timeline', required: true }
-        : { mode: 'static-fallback', required: false };
       expect(segment.mediaPlayback?.[0]).toMatchObject({
-        forward: { mode: 'timeline', required: true },
-        reverse,
+        forward: { mode: 'play', required: true },
+        reverse: { mode: 'timeline', required: true },
         readyMilestones: ['targetReady', 'mediaReady']
       });
       expect(segment.mediaPlayback?.[0]?.media.length).toBeGreaterThan(0);
@@ -106,20 +103,18 @@ describe('story manifest contract', () => {
         {
           id: 'figure2-pair',
           media: [
-            'figure2-left-alpha',
-            'figure2-right-alpha',
-            'figure2-left-alpha-reverse',
-            'figure2-right-alpha-reverse'
+            'figure2-left-motion',
+            'figure2-right-motion'
           ],
           forward: {
             mode: 'play',
             required: true,
-            media: ['figure2-left-alpha', 'figure2-right-alpha']
+            media: ['figure2-left-motion', 'figure2-right-motion']
           },
           reverse: {
-            mode: 'play',
+            mode: 'timeline',
             required: true,
-            media: ['figure2-left-alpha-reverse', 'figure2-right-alpha-reverse']
+            media: ['figure2-left-motion', 'figure2-right-motion']
           },
           readyMilestones: ['targetReady', 'mediaReady'],
           terminalFallbackScene: 'figure2-proof-opening',
@@ -183,19 +178,19 @@ describe('story manifest contract', () => {
       virtualDuration: 3100,
       visual: {
         type: 'media',
-        media: ['ttg_figure-alpha-scrub', 'ttg_figure-alpha-scrub-reverse'],
+        media: ['ttg-figure-motion'],
         handoff: 'crossfade'
       },
       mediaPlayback: [{
         forward: {
           mode: 'play',
           required: true,
-          media: ['ttg_figure-alpha-scrub']
+          media: ['ttg-figure-motion']
         },
         reverse: {
-          mode: 'play',
+          mode: 'timeline',
           required: true,
-          media: ['ttg_figure-alpha-scrub-reverse']
+          media: ['ttg-figure-motion']
         }
       }]
     });
@@ -204,10 +199,13 @@ describe('story manifest contract', () => {
       virtualDuration: 2120,
       visual: {
         type: 'media',
-        media: ['ph_figure-alpha-scrub'],
+        media: ['ph-figure-motion'],
         handoff: 'crossfade'
       },
-      mediaPlayback: [{ reverse: { mode: 'timeline', required: true } }]
+      mediaPlayback: [{
+        forward: { mode: 'play', required: true },
+        reverse: { mode: 'timeline', required: true }
+      }]
     });
     expect(byId.get('crane-contact')).toMatchObject({
       virtualDuration: 3000,
@@ -216,12 +214,12 @@ describe('story manifest contract', () => {
     });
   });
 
-  it('settles Figure3 to Services in one 2000ms snap with an 80% copy cue', () => {
+  it('settles Figure3 to Services in one 2600ms snap with an 80% copy cue', () => {
     const segment = storyManifest.nodes.find((node) => node.kind === 'segment' && node.id === 'figure3-services');
 
     expect(segment).toMatchObject({
       policy: { kind: 'snap' },
-      virtualDuration: 2000,
+      virtualDuration: 2600,
       copyCue: { targetScene: 'services', atProgress: 0.8 }
     });
   });

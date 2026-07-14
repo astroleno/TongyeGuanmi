@@ -16,68 +16,56 @@ function segment(id: SpineSegmentNode['id']): SpineSegmentNode {
 }
 
 describe('production media readiness', () => {
-  it('requires only the Figure2 pair used by the active native direction', () => {
-    expect(requiredMediaKeys(segment('figure2-distance-expand'), 1)).toEqual([
-      'figure2-left-alpha',
-      'figure2-right-alpha'
-    ]);
-    expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual([
-      'figure2-left-alpha-reverse',
-      'figure2-right-alpha-reverse'
-    ]);
+  it('requires the same canonical Figure2 pair in both directions', () => {
+    const expected = ['figure2-left-motion', 'figure2-right-motion'];
+
+    expect(requiredMediaKeys(segment('figure2-distance-expand'), 1)).toEqual(expected);
+    expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual(expected);
   });
 
-  it('requires only the TTG asset used by the active playback direction', () => {
-    expect(requiredMediaKeys(segment('ttg-lab'), 1)).toEqual([
-      'ttg_figure-alpha-scrub'
-    ]);
-    expect(requiredMediaKeys(segment('ttg-lab'), -1)).toEqual([
-      'ttg_figure-alpha-scrub-reverse'
-    ]);
+  it('requires the one TTG surface in both directions', () => {
+    expect(requiredMediaKeys(segment('ttg-lab'), 1)).toEqual(['ttg-figure-motion']);
+    expect(requiredMediaKeys(segment('ttg-lab'), -1)).toEqual(['ttg-figure-motion']);
   });
 
-  it('does not block forward preparation on the unused reverse surface', async () => {
-    const forward = { readyState: 3 } as HTMLMediaElement;
-    const reverse = { readyState: 0 } as HTMLMediaElement;
-    const media = new Map([
-      ['ttg_figure-alpha-scrub', forward],
-      ['ttg_figure-alpha-scrub-reverse', reverse]
-    ]);
+  it('does not wait for a removed directional surface during a canonical TTG prepare', async () => {
+    const video = { readyState: 3, preload: 'metadata', load: vi.fn() } as unknown as HTMLMediaElement;
 
     await expect(waitForRequiredMediaReady({
       segment: segment('ttg-lab'),
-      direction: 1,
+      direction: -1,
       prepareToken: 'media-ready:prepare:1',
       registry: new HandleRegistry(),
-      getMediaElement: (key) => media.get(key) ?? null,
+      getMediaElement: (key) => key === 'ttg-figure-motion' ? video : null,
       pollIntervalMs: 1,
       timeoutMs: 8
     })).resolves.toBeUndefined();
+
+    expect(video.load).not.toHaveBeenCalled();
   });
 
-  it('promotes only the required parked direction to decoded readiness', async () => {
-    let reverseReadyState = 1;
-    const forwardLoad = vi.fn();
-    const reverseLoad = vi.fn(() => {
-      reverseReadyState = 3;
-    });
-    const forward = {
-      readyState: 1,
+  it('promotes each required canonical Figure2 surface exactly once', async () => {
+    let leftReadyState = 1;
+    let rightReadyState = 1;
+    const leftLoad = vi.fn(() => { leftReadyState = 3; });
+    const rightLoad = vi.fn(() => { rightReadyState = 3; });
+    const left = {
+      get readyState() { return leftReadyState; },
       preload: 'metadata',
-      load: forwardLoad
+      load: leftLoad
     } as unknown as HTMLMediaElement;
-    const reverse = {
-      get readyState() { return reverseReadyState; },
+    const right = {
+      get readyState() { return rightReadyState; },
       preload: 'metadata',
-      load: reverseLoad
+      load: rightLoad
     } as unknown as HTMLMediaElement;
     const media = new Map([
-      ['ttg_figure-alpha-scrub', forward],
-      ['ttg_figure-alpha-scrub-reverse', reverse]
+      ['figure2-left-motion', left],
+      ['figure2-right-motion', right]
     ]);
 
     await expect(waitForRequiredMediaReady({
-      segment: segment('ttg-lab'),
+      segment: segment('figure2-distance-expand'),
       direction: -1,
       prepareToken: 'media-ready:prepare:2',
       registry: new HandleRegistry(),
@@ -86,33 +74,9 @@ describe('production media readiness', () => {
       timeoutMs: 20
     })).resolves.toBeUndefined();
 
-    expect(reverse.preload).toBe('auto');
-    expect(reverseLoad).toHaveBeenCalledTimes(1);
-    expect(forward.preload).toBe('metadata');
-    expect(forwardLoad).not.toHaveBeenCalled();
-  });
-
-  it('leaves the parked Figure2 forward pair at metadata during reverse preparation', async () => {
-    const load = vi.fn();
-    const media = new Map<string, HTMLMediaElement>([
-      ['figure2-left-alpha', { readyState: 1, preload: 'metadata', load } as unknown as HTMLMediaElement],
-      ['figure2-right-alpha', { readyState: 1, preload: 'metadata', load } as unknown as HTMLMediaElement],
-      ['figure2-left-alpha-reverse', { readyState: 3, preload: 'metadata' } as HTMLMediaElement],
-      ['figure2-right-alpha-reverse', { readyState: 3, preload: 'metadata' } as HTMLMediaElement]
-    ]);
-
-    await expect(waitForRequiredMediaReady({
-      segment: segment('figure2-distance-expand'),
-      direction: -1,
-      prepareToken: 'media-ready:prepare:3',
-      registry: new HandleRegistry(),
-      getMediaElement: (key) => media.get(key) ?? null,
-      pollIntervalMs: 1,
-      timeoutMs: 8
-    })).resolves.toBeUndefined();
-
-    expect(media.get('figure2-left-alpha')?.preload).toBe('metadata');
-    expect(media.get('figure2-right-alpha')?.preload).toBe('metadata');
-    expect(load).not.toHaveBeenCalled();
+    expect(left.preload).toBe('auto');
+    expect(right.preload).toBe('auto');
+    expect(leftLoad).toHaveBeenCalledOnce();
+    expect(rightLoad).toHaveBeenCalledOnce();
   });
 });

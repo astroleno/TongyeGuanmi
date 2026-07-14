@@ -7,7 +7,8 @@ import {
   prepareFigure2MediaLeg,
   prepareFigure2TerminalPair,
   renderFigure2AnimationProgress,
-  renderFigure2Hold
+  renderFigure2Hold,
+  type Figure2MediaPreparation
 } from '../../scenes/figure2-animation';
 import { renderProofOpeningHold } from '../../scenes/figure2-proof-opening';
 import { applyLayerVisibility, hiddenVisibility, holdVisibility, range01, smoothStep } from '../../pilot/visibility';
@@ -133,6 +134,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   private readonly inkGeneration: string;
   private readonly inkRendererRequired: boolean;
   private inkRendererFailure: InkRendererFailure | null = null;
+  private mediaRun: Figure2MediaPreparation | undefined;
 
   constructor(private readonly context: TransitionContext) {
     const generation = `${context.runId}:${context.prepareToken}`;
@@ -240,15 +242,18 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const epsilon = 0.001;
     const isIntroLeg = upper <= FIGURE2_INTRO_END + epsilon;
     const isDepthLeg = lower >= FIGURE2_INTRO_END - epsilon;
+    const mediaRun: Figure2MediaPreparation = {
+      runId: leg.runId,
+      direction: leg.direction,
+      timelineDurationMs: leg.durationMs || FIGURE2_INTRO_PLAYBACK_MS,
+      reducedMotion: this.context.prefersReducedMotion,
+      signal: leg.signal
+    };
     if (!this.context.prefersReducedMotion && isDepthLeg && leg.direction === -1) {
       commitFigure2TerminalPair(
         sceneRoot(this.context.from.element, 'figure2-animation'),
         {
-          runId: leg.runId,
-          direction: leg.direction,
-          timelineDurationMs: leg.durationMs || FIGURE2_INTRO_PLAYBACK_MS,
-          reducedMotion: this.context.prefersReducedMotion,
-          signal: leg.signal,
+          ...mediaRun,
           startPlayback: false
         }
       );
@@ -256,15 +261,12 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       commitFigure2MediaLeg(
         sceneRoot(this.context.from.element, 'figure2-animation'),
         {
-          runId: leg.runId,
-          direction: leg.direction,
-          timelineDurationMs: leg.durationMs || FIGURE2_INTRO_PLAYBACK_MS,
-          reducedMotion: this.context.prefersReducedMotion,
-          signal: leg.signal,
+          ...mediaRun,
           startPlayback: isIntroLeg
         }
       );
     }
+    this.mediaRun = mediaRun;
   }
 
   progress(value: number): void {
@@ -293,7 +295,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       proofProgress: 0,
       videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection),
       mediaRun: {
-        runId: this.context.runId,
+        ...(this.mediaRun ?? { runId: this.context.runId }),
         direction: this.playbackDirection,
         reducedMotion: this.context.prefersReducedMotion
       }

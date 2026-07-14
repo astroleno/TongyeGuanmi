@@ -203,7 +203,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(initialVisual.heroVideoLoop).toBe(false);
     expect(initialVisual.heroVideoAutoplay).toBe(false);
     expect(initialVisual.heroVideoPaused).toBe(true);
-    expect(initialVisual.heroVideoCurrentTime ?? 0).toBeGreaterThan(2.25);
+    expect(initialVisual.heroVideoCurrentTime ?? 0).toBeLessThan(0.5);
 
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubHeroPattern(0.2);
@@ -396,6 +396,7 @@ test.describe('R4 group1 canonical spine harness', () => {
 
     await page.evaluate(() => { void window.__r4Group1?.playForward(); });
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('pattern');
+    await expect.poll(async () => (await snapshot(page)).phase, { timeout: 10_000 }).toBe('hold');
     const prepared = await page.evaluate(() => {
       const layer = document.querySelector<HTMLElement>('[data-stage-layer="hero"]');
       const video = layer?.querySelector<HTMLVideoElement>('[data-hero-figure-video]');
@@ -409,17 +410,26 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(prepared).toMatchObject({ role: 'prev', visible: 'false', paused: true });
     expect(prepared.currentTime).toBeGreaterThan(2.25);
 
-    await page.evaluate(() => { void window.__r4Group1?.playReverse(); });
+    await page.evaluate(() => {
+      const playbackWindow = window as Window & { __r4HeroReversePlayback?: Promise<void> };
+      playbackWindow.__r4HeroReversePlayback = window.__r4Group1?.playReverse();
+    });
     for (let index = 0; index < 8; index += 1) {
       await page.waitForTimeout(30);
       const video = await visualSnapshot(page);
       expect(video.heroVideoPaused).toBe(true);
       expect(video.heroVideoCurrentTime ?? 0).toBeGreaterThan(2.25);
     }
-    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('hero');
+    await page.evaluate(async () => {
+      const playbackWindow = window as Window & { __r4HeroReversePlayback?: Promise<void> };
+      await playbackWindow.__r4HeroReversePlayback;
+      delete playbackWindow.__r4HeroReversePlayback;
+    });
+    expect((await snapshot(page)).window.current).toBe('hero');
     const landed = await visualSnapshot(page);
     expect(landed.heroVideoPaused).toBe(true);
-    expect(landed.heroVideoCurrentTime ?? 0).toBeGreaterThan(2.25);
+    expect(landed.heroVideoCurrentTime ?? 0).toBeGreaterThanOrEqual(0.3);
+    expect(landed.heroVideoCurrentTime ?? 0).toBeLessThan(0.5);
   });
 
   test('keeps Pattern and Star hold motion active and prevents overscroll pixel exposure', async ({ page }) => {

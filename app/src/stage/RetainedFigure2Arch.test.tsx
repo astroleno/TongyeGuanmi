@@ -9,6 +9,7 @@ import { figure2ProofOpeningScene } from '../scenes/figure2-proof-opening';
 import { HandleRegistry } from '../story/registry';
 import { Stage } from './Stage';
 import {
+  FIGURE2_NEAR_ARCH_SRC,
   RetainedFigure2Arch,
   retainedFigure2ArchState
 } from './RetainedFigure2Arch';
@@ -91,6 +92,8 @@ describe('RetainedFigure2Arch', () => {
 
     expect(markup).toContain('data-stage-retained-figure2-arch="true"');
     expect(markup).toContain('data-visible="true"');
+    expect(FIGURE2_NEAR_ARCH_SRC).toMatch(/figure2-near-arch\.webp$/);
+    expect(markup).toContain('figure2-near-arch.webp');
     expect(stylesheet).toMatch(/\.stage-proof-retained-arch\s*\{[^}]*--r4-figure2-near-arch-brightness:\s*1;/s);
     expect(stylesheet).toMatch(/\.stage-proof-retained-arch\s*\{[^}]*--r4-figure2-near-arch-scale:\s*1\.135;/s);
     expect(stylesheet).toMatch(/\.stage-proof-retained-arch\s*\{[^}]*--r4-figure2-near-arch-blur:\s*3\.6px;/s);

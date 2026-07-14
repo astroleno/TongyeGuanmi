@@ -1,6 +1,6 @@
 import type { LayerVisibilityState, SceneId } from '../story/types';
 
-export const FIGURE2_NEAR_ARCH_SRC = new URL('../../../assets/arch2d-alpha.png', import.meta.url).href;
+export const FIGURE2_NEAR_ARCH_SRC = new URL('../../../assets/figure2-near-arch.webp', import.meta.url).href;
 
 export const RETAINED_FIGURE2_ARCH_SCENES = new Set<SceneId>([
   'figure2-animation',

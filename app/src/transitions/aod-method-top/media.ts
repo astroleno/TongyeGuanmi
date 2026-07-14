@@ -1,6 +1,6 @@
 import type { PrepareToken, SegmentRunId } from '../../story/types';
 
-export const AOD_MEDIA_KEY = 'aod_figure-alpha-front-scrub';
+export const AOD_MEDIA_KEY = 'aod-figure-motion';
 
 export type AodVideoMilestone = 'loadedmetadata' | 'canplay' | 'ended' | 'timeout';
 

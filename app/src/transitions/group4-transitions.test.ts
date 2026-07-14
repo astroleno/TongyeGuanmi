@@ -222,15 +222,15 @@ describe('R4 group4 transitions', () => {
     expect(overlay).not.toContain('linear-gradient(90deg');
   });
 
-  it('crossfades into Services from 80% through the final frame of one 2000ms snap', async () => {
+  it('crossfades into Services from 80% through the final frame of one 2600ms snap', async () => {
     const policy = segment('figure3-services').policy;
     const timeline = await createFigure3ServicesTransition().buildTimeline(
       context('figure3-services', 'figure3-animation', 'services')
     );
 
-    expect(FIGURE3_SERVICES_DURATION_MS).toBe(2000);
+    expect(FIGURE3_SERVICES_DURATION_MS).toBe(2600);
     expect(policy).toMatchObject({ kind: 'snap' });
-    expect(segment('figure3-services').virtualDuration).toBe(2000);
+    expect(segment('figure3-services').virtualDuration).toBe(2600);
     expect(timeline.pauses).toEqual([]);
     expect(timeline.labels).not.toHaveProperty('stage:0');
 
