@@ -1,6 +1,6 @@
 # React Refactor
 
-状态：**R5 pre-visual、untagged、unqualified**。唯一阶段分支 `codex/react-refactor-r5-parity-cutover` 已收敛 Batch B 与 Batch C；独立的 Batch A generation provenance 继续由远端分支保存，不为制造线性历史合入 R5。当前 `assets/` 与除 `app/src/production/release-manifest.test.ts` 外的 `app/` 内容均与 `b62ba647cbf5402299cd0a5eef46fff152c48524` 一致；该测试只锁定 release workflow 合同，不进入 production/runtime payload。最终人工视觉检查尚未执行，因此不得创建新 candidate、运行 RSS/rollback/exact-tag qualification、合并或部署 `main`、创建 cutover tag，或开始 R6。
+状态：**R5 pre-visual、untagged、unqualified**。唯一阶段分支 `codex/react-refactor-r5-parity-cutover` 已收敛 Batch B 与 Batch C；独立的 Batch A generation provenance 继续由远端分支保存，不为制造线性历史合入 R5。当前 `assets/` 与 `app/src/` 中的 production runtime 实现（排除测试）仍与 `b62ba647cbf5402299cd0a5eef46fff152c48524` 一致；release-control workflow、合同测试、媒体校验工具和 package scripts 可独立修正，不属于浏览器 runtime payload。最终人工视觉检查尚未执行，因此不得创建新 candidate、运行 RSS/rollback/exact-tag qualification、合并或部署 `main`、创建 cutover tag，或开始 R6。
 
 ## 当前事实
 

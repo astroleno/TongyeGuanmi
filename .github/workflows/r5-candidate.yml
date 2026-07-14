@@ -35,21 +35,6 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install FFmpeg on Linux
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes ffmpeg
-
-      - name: Install FFmpeg on macOS
-        if: runner.os == 'macOS'
-        run: command -v ffprobe >/dev/null 2>&1 || brew install ffmpeg
-
-      - name: Verify FFmpeg tools
-        run: |
-          ffmpeg -version
-          ffprobe -version
-
       - name: Install workspace
         run: |
           corepack enable

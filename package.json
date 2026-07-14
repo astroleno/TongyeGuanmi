@@ -14,6 +14,8 @@
     "typecheck": "pnpm -C app typecheck",
     "test:browser": "pnpm -C app test:e2e",
     "test:release": "pnpm -C app test:release",
+    "verify:media": "pnpm -C app run verify:media",
+    "verify:media:deep": "pnpm -C app run verify:media:deep",
     "verify:all": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "ci": "pnpm run verify:all && pnpm run test:release",
     "deploy:prepare": "pnpm -C app run release:prepare",

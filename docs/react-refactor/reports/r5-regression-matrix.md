@@ -1,6 +1,6 @@
 # R5 Production Regression Matrix
 
-Status: **pre-visual, untagged, unqualified.** Candidate-v2 through candidate-v8 are immutable historical/unqualified records. The current R5 `assets/` and `app/` excluding the non-runtime release CI contract test `app/src/production/release-manifest.test.ts` are identical to Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524`, but final manual visual review has not run and no current candidate exists. This matrix is therefore a future qualification contract, not a claim that current-HEAD exact-tag browser, RSS, or rollback gates passed.
+Status: **pre-visual, untagged, unqualified.** Candidate-v2 through candidate-v8 are immutable historical/unqualified records. The current R5 `assets/` and production runtime implementation under `app/src/` excluding tests are identical to Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524`; release-control workflow/tests/tooling are outside that identity boundary. Final manual visual review has not run and no current candidate exists. This matrix is therefore a future qualification contract, not a claim that current-HEAD exact-tag browser, RSS, or rollback gates passed.
 
 Updated: 2026-07-14. Branch: `codex/react-refactor-r5-parity-cutover`. A new immutable candidate may be named and created once only after visual acceptance and the pre-freeze gate.
 

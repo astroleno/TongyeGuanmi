@@ -1,7 +1,7 @@
 # Roadmap：Cinematic Story Runtime 重写
 
 入口文档：`README.md`。配套文档：`ARCHITECTURE.md`（目标架构与契约）、`MIGRATION.md`（复用与退役清单），阶段执行清单见 `goals/`。
-本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地。R5 当前处于 **pre-visual、untagged、unqualified**：唯一阶段分支已集成 Batch B/C，独立 Batch A provenance 由远端分支保存；`assets/` 与除 release workflow 合同测试 `app/src/production/release-manifest.test.ts` 外的 `app/` 内容均与 `b62ba647cbf5402299cd0a5eef46fff152c48524` 一致，production/runtime payload 未变化。Candidate-v2 至 candidate-v8 均为 immutable historical/unqualified；当前 HEAD 尚未执行最终人工视觉、RSS、rollback 或 exact-tag qualification。旧站基线固定为 `react-refactor-legacy-static-baseline`；state-machine / scene-runtime 系列分支继续只作历史参考。
+本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地。R5 当前处于 **pre-visual、untagged、unqualified**：唯一阶段分支已集成 Batch B/C，独立 Batch A provenance 由远端分支保存；`assets/` 与 `app/src/` 中排除测试的 production runtime 实现仍与 `b62ba647cbf5402299cd0a5eef46fff152c48524` 一致。Release-control workflow、合同测试、媒体校验工具和 package scripts 的修正不改变浏览器 runtime payload。Candidate-v2 至 candidate-v8 均为 immutable historical/unqualified；当前 HEAD 尚未执行最终人工视觉、RSS、rollback 或 exact-tag qualification。旧站基线固定为 `react-refactor-legacy-static-baseline`；state-machine / scene-runtime 系列分支继续只作历史参考。
 
 ## 当前执行纪律
 

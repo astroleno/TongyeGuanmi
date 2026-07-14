@@ -6,6 +6,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it } from 'vitest';
 
+function executableWorkflow(source: string) {
+  return source
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .map((line) => line.replace(/\s+#.*$/, ''))
+    .join('\n');
+}
+
 const scriptPath = fileURLToPath(
   new URL('../../scripts/create-release-manifest.mjs', import.meta.url)
 );
@@ -18,15 +26,22 @@ const appPackage = JSON.parse(
 const rootPackage = JSON.parse(
   readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')
 );
-const candidateWorkflowSource = readFileSync(
+const candidateWorkflow = executableWorkflow(readFileSync(
   new URL('../../../.github/workflows/r5-candidate.yml', import.meta.url),
   'utf8'
+));
+const mediaAssetWorkflow = executableWorkflow(readFileSync(
+  new URL('../../../.github/workflows/r5-media-assets.yml', import.meta.url),
+  'utf8'
+));
+const staticMediaVerifier = readFileSync(
+  new URL('../../scripts/verify-homepage-media-inventory.mjs', import.meta.url),
+  'utf8'
 );
-const candidateWorkflow = candidateWorkflowSource
-  .split('\n')
-  .filter((line) => !line.trimStart().startsWith('#'))
-  .map((line) => line.replace(/\s+#.*$/, ''))
-  .join('\n');
+const deepMediaVerifier = readFileSync(
+  new URL('../../scripts/verify-homepage-media-deep.mjs', import.meta.url),
+  'utf8'
+);
 const memoryRunner = readFileSync(
   new URL('../../scripts/run-r5-process-memory.mjs', import.meta.url),
   'utf8'
@@ -613,17 +628,8 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   expect(candidateWorkflow).toContain(
     'R5_MEMORY_RUNNER_CLASS: github-hosted-macos-14'
   );
-  expect(candidateWorkflow).toContain('- name: Install FFmpeg on Linux');
-  expect(candidateWorkflow).toContain("if: runner.os == 'Linux'");
-  expect(candidateWorkflow).toContain('sudo apt-get install --yes ffmpeg');
-  expect(candidateWorkflow).toContain('- name: Install FFmpeg on macOS');
-  expect(candidateWorkflow).toContain("if: runner.os == 'macOS'");
-  expect(candidateWorkflow).toContain(
-    'command -v ffprobe >/dev/null 2>&1 || brew install ffmpeg'
-  );
-  expect(candidateWorkflow).toContain('- name: Verify FFmpeg tools');
-  expect(candidateWorkflow).toContain('ffmpeg -version');
-  expect(candidateWorkflow).toContain('ffprobe -version');
+  expect(candidateWorkflow).not.toMatch(/\bff(?:mpeg|probe)\b/i);
+  expect(candidateWorkflow).not.toContain('verify:media:deep');
   expect(candidateWorkflow).toContain('- name: Restore immutable annotated candidate tag');
   expect(candidateWorkflow).toContain('git fetch --force --no-tags origin');
   expect(candidateWorkflow).toContain(
@@ -640,9 +646,6 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   expect(candidateWorkflow).toContain('pnpm run deploy:finalize');
   expect(candidateWorkflow.indexOf('pnpm run deploy:prepare')).toBeLessThan(
     candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')
-  );
-  expect(candidateWorkflow.indexOf('- name: Verify FFmpeg tools')).toBeLessThan(
-    candidateWorkflow.indexOf('- name: Root quality and production build')
   );
   expect(candidateWorkflow.indexOf('- name: Install qualification Chrome on macOS')).toBeLessThan(
     candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')
@@ -661,6 +664,48 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   );
   expect(candidateWorkflow.indexOf('- name: Harness contract regression')).toBeLessThan(
     candidateWorkflow.indexOf('uses: actions/upload-artifact@v4')
+  );
+});
+
+it('runs deep WebM qualification only in the path-filtered media workflow', () => {
+  expect(rootPackage.scripts['verify:media']).toBe('pnpm -C app run verify:media');
+  expect(rootPackage.scripts['verify:media:deep']).toBe(
+    'pnpm -C app run verify:media:deep'
+  );
+  expect(rootPackage.scripts['verify:all']).not.toContain('verify:media:deep');
+  expect(appPackage.scripts.build).toContain('pnpm run verify:media');
+  expect(appPackage.scripts.build).not.toContain('verify:media:deep');
+  expect(appPackage.scripts['verify:media']).toBe(
+    'node scripts/verify-homepage-media-inventory.mjs'
+  );
+  expect(appPackage.scripts['verify:media:deep']).toBe(
+    'node scripts/verify-homepage-media-deep.mjs'
+  );
+  expect(staticMediaVerifier).not.toContain('ffprobe');
+  expect(deepMediaVerifier).toContain("execFileAsync('ffprobe'");
+  expect(deepMediaVerifier).toContain("'-c:v', 'libvpx-vp9'");
+  expect(deepMediaVerifier).toContain('keyframeIndexes');
+  expect(deepMediaVerifier).toContain('expectedFrameStep');
+
+  expect(mediaAssetWorkflow).toContain('workflow_dispatch:');
+  expect(mediaAssetWorkflow).toContain("branches:\n      - '**'");
+  expect(mediaAssetWorkflow).not.toContain('tags:');
+  expect(mediaAssetWorkflow.split("- 'assets/*.webm'")).toHaveLength(3);
+  expect(mediaAssetWorkflow.split("- 'assets/**/*.webm'")).toHaveLength(3);
+  expect(
+    mediaAssetWorkflow.split("- 'app/scripts/homepage-media-contract.mjs'")
+  ).toHaveLength(3);
+  expect(
+    mediaAssetWorkflow.split("- 'app/scripts/verify-homepage-media-deep.mjs'")
+  ).toHaveLength(3);
+  expect(mediaAssetWorkflow).toContain('asset-qualification:');
+  expect(mediaAssetWorkflow).toContain('- name: Install FFmpeg');
+  expect(mediaAssetWorkflow).toContain('sudo apt-get install --yes ffmpeg');
+  expect(mediaAssetWorkflow).toContain('ffprobe -version');
+  expect(mediaAssetWorkflow).not.toContain('pnpm install');
+  expect(mediaAssetWorkflow).toContain('pnpm run verify:media:deep');
+  expect(mediaAssetWorkflow.indexOf('- name: Install FFmpeg')).toBeLessThan(
+    mediaAssetWorkflow.indexOf('- name: Deep media qualification')
   );
 });
 

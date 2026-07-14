@@ -1,15 +1,13 @@
 import { createHash } from 'node:crypto';
-import { execFile } from 'node:child_process';
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { promisify } from 'node:util';
+import { animationWebmSources } from './homepage-media-contract.mjs';
 
 const KiB = 1024;
 const MiB = KiB * KiB;
 const HOMEPAGE_RUNTIME_MEDIA_BYTES_MAX = 80 * MiB;
 const HERO_BEFORE_FIRST_SCROLL_TRANSFER_MAX = 4 * MiB;
-const execFileAsync = promisify(execFile);
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
 const distDir = path.join(repoDir, 'dist');
@@ -50,18 +48,6 @@ const losslessWebpSources = [
   'assets/patterns/alpha-layers/pattern-layer-alpha-06.webp'
 ];
 
-const animationWebmSources = [
-  'assets/figure1.webm',
-  'assets/figure2-left-motion.webm',
-  'assets/figure2-right-motion.webm',
-  'assets/ph-figure-motion.webm',
-  'assets/ttg-figure-motion.webm',
-  'assets/crane-figure-motion.webm',
-  'assets/crane-flock-motion.webm',
-  'assets/aod-figure-motion.webm',
-  'assets/figure3-motion.webm'
-];
-
 const retainedImageSources = [
   'assets/figure-poster.jpg'
 ];
@@ -72,17 +58,6 @@ const heroPreScrollSources = new Set([
   'assets/middle1_depth.webp',
   'assets/figure-poster.jpg'
 ]);
-
-const canonicalVideoContracts = [
-  { source: 'assets/figure2-left-motion.webm', frames: 78, lastPts: 2.567 },
-  { source: 'assets/figure2-right-motion.webm', frames: 78, lastPts: 2.567 },
-  { source: 'assets/ph-figure-motion.webm', frames: 46, lastPts: 1.5 },
-  { source: 'assets/ttg-figure-motion.webm', frames: 75, lastPts: 2.467 },
-  { source: 'assets/crane-figure-motion.webm', frames: 75, lastPts: 2.467 },
-  { source: 'assets/crane-flock-motion.webm', frames: 75, lastPts: 2.467 },
-  { source: 'assets/aod-figure-motion.webm', frames: 78, lastPts: 2.567 },
-  { source: 'assets/figure3-motion.webm', frames: 78, lastPts: 2.567 }
-];
 
 const forbiddenEmittedNames = [
   /hero-figure-scrub/i,
@@ -116,6 +91,27 @@ function mediaExtension(file) {
   return path.extname(file).toLowerCase();
 }
 
+function assertMediaSignature(file, bytes) {
+  const extension = mediaExtension(file);
+  if (extension === '.webp') {
+    assert(
+      bytes.subarray(0, 4).toString('ascii') === 'RIFF'
+        && bytes.subarray(8, 12).toString('ascii') === 'WEBP',
+      `${file} is not a WebP file`
+    );
+  } else if (extension === '.webm') {
+    assert(
+      bytes.subarray(0, 4).toString('hex') === '1a45dfa3',
+      `${file} is not a WebM file`
+    );
+  } else if (extension === '.jpg') {
+    assert(
+      bytes.subarray(0, 3).toString('hex') === 'ffd8ff',
+      `${file} is not a JPG file`
+    );
+  }
+}
+
 async function filesBelow(directory) {
   const entries = await readdir(directory);
   const files = [];
@@ -134,49 +130,12 @@ async function filesBelow(directory) {
 async function sourceEntry(source, category) {
   const sourcePath = path.join(repoDir, source);
   const bytes = await readFile(sourcePath);
+  assertMediaSignature(source, bytes);
   return {
     source,
     category,
     bytes: bytes.byteLength,
     sha256: sha256(bytes)
-  };
-}
-
-async function inspectCanonicalVideo(contract) {
-  const sourcePath = path.join(repoDir, contract.source);
-  let parsed;
-  try {
-    const { stdout } = await execFileAsync('ffprobe', [
-      '-v', 'error',
-      '-count_frames',
-      '-select_streams', 'v:0',
-      '-show_entries', 'stream=avg_frame_rate,nb_read_frames:frame=best_effort_timestamp_time',
-      '-of', 'json',
-      sourcePath
-    ], { encoding: 'utf8' });
-    parsed = JSON.parse(stdout);
-  } catch (error) {
-    throw new Error(`ffprobe failed for ${contract.source}`, { cause: error });
-  }
-  const stream = parsed.streams?.[0];
-  const frames = parsed.frames ?? [];
-  const firstPts = Number(frames[0]?.best_effort_timestamp_time);
-  const lastPts = Number(frames.at(-1)?.best_effort_timestamp_time);
-  const decodedFrames = Number(stream?.nb_read_frames);
-  assert(stream?.avg_frame_rate === '30/1', `${contract.source} must be 30fps`);
-  assert(decodedFrames === contract.frames, `${contract.source} frame count ${decodedFrames} != ${contract.frames}`);
-  assert(frames.length === contract.frames, `${contract.source} PTS sample count ${frames.length} != ${contract.frames}`);
-  assert(Math.abs(firstPts) < 0.0005, `${contract.source} first PTS ${firstPts} is not 0`);
-  assert(
-    Math.abs(lastPts - contract.lastPts) < 0.0005,
-    `${contract.source} last PTS ${lastPts} != ${contract.lastPts}`
-  );
-  return {
-    source: contract.source,
-    fps: stream.avg_frame_rate,
-    frames: decodedFrames,
-    firstPts,
-    lastPts
   };
 }
 
@@ -191,13 +150,13 @@ assert(adoptedWebpSources.length === 11, `expected 11 adopted WebP sources, foun
 assert(losslessWebpSources.length === 17, `expected 17 lossless WebP sources, found ${losslessWebpSources.length}`);
 assert(animationWebmSources.length === 9, `expected 9 animation WebM sources, found ${animationWebmSources.length}`);
 
-const [sourceEntries, emittedFiles, canonicalVideos] = await Promise.all([
+const [sourceEntries, emittedFiles] = await Promise.all([
   Promise.all(inventorySources.map(({ source, category }) => sourceEntry(source, category))),
-  filesBelow(assetsDir),
-  Promise.all(canonicalVideoContracts.map(inspectCanonicalVideo))
+  filesBelow(assetsDir)
 ]);
 const emittedEntries = await Promise.all(emittedFiles.map(async (file) => {
   const bytes = await readFile(file);
+  assertMediaSignature(file, bytes);
   return {
     file,
     path: relativePath(file),
@@ -255,8 +214,9 @@ assert(
 );
 
 const report = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   pass: true,
+  verificationScope: 'static-build',
   budgets: {
     homepageRuntimeMediaBytesMax: HOMEPAGE_RUNTIME_MEDIA_BYTES_MAX,
     heroBeforeFirstScrollTransferMax: HERO_BEFORE_FIRST_SCROLL_TRANSFER_MAX
@@ -270,7 +230,6 @@ const report = {
     jpgCount: emittedJpg.length,
     pngCount: emittedPng.length
   },
-  canonicalVideos,
   heroPreScrollInventory,
   inventory
 };

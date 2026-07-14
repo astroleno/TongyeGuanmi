@@ -1,6 +1,6 @@
 # React Cutover And Rollback Runbook
 
-Status: **R5 is pre-visual, untagged, and unqualified.** Candidate-v2 through candidate-v8 are immutable historical/unqualified records. Batch B/C are integrated; current `assets/` and `app/` excluding the non-runtime release CI contract test `app/src/production/release-manifest.test.ts` equal Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524`, but final manual visual review has not run. This runbook describes future freeze/qualification only; current-HEAD RSS, exact-tag smokes, rollback, browser matrices, production cutover, and deployment are not authorized or claimed.
+Status: **R5 is pre-visual, untagged, and unqualified.** Candidate-v2 through candidate-v8 are immutable historical/unqualified records. Batch B/C are integrated; current `assets/` and production runtime implementation under `app/src/` excluding tests equal Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524`, while release-control workflow/tests/tooling are outside that identity boundary. Final manual visual review has not run. This runbook describes future freeze/qualification only; current-HEAD RSS, exact-tag smokes, rollback, browser matrices, production cutover, and deployment are not authorized or claimed.
 
 ## Immutable Inputs
 
