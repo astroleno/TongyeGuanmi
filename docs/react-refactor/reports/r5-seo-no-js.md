@@ -1,6 +1,6 @@
 # R5 SEO And No-JS Report
 
-Status: candidate-v6 artifact/static-shell verification, exact HTTP no-JS smoke, and every applicable release no-JS case passed, but v6 remains unqualified because its remote workflow lost the annotated tag ref before `deploy:prepare`. The exact-v7 no-JS qualification runs last with the release matrix and remains an external post-freeze record.
+Status: candidate-v6 artifact/static-shell verification, exact HTTP no-JS smoke, and every applicable release no-JS case passed, but v6 remains unqualified under the then-current remote-release policy because its remote workflow lost the annotated tag ref before `deploy:prepare`. Future exact-tag no-JS qualification runs locally with the release matrix and remains an external post-freeze record; GitHub Node CI is not its gate.
 
 ## Shared Source Contract
 

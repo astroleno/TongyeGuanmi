@@ -29,6 +29,10 @@ Status: **R5 is pre-visual, untagged, and unqualified.** Candidate-v2 through ca
 
 Always peel annotated tags with `git rev-parse <tag>^{commit}`. Never move or reuse an old candidate tag. One new candidate may be created only after final manual visual acceptance and the repeated pre-freeze gate in this runbook; candidate creation does not authorize cutover.
 
+## Execution Boundary
+
+GitHub preserves commits, branches, and immutable tags. Its R5 workflow is branch/PR-only Node CI for lint, typecheck, unit tests, and a normal production build. It does not run tag qualification, FFmpeg, Playwright, RSS/GPU/frame profiling, rollback, or HITL; a green GitHub run is neither required nor sufficient for R5 qualification. Every gate below runs from a clean local exact checkout of the relevant branch or annotated tag.
+
 ## Pre-Freeze Acceptance
 
 This section is a future gate. Run it once from the completed implementation branch only after final manual visual acceptance; the current pre-visual goal does not run RSS qualification:
@@ -60,7 +64,7 @@ git push origin "refs/tags/$NEW_CANDIDATE_TAG"
 
 Record the peeled commit and annotated tag-object id. The tag is immutable from this point.
 
-After pushing the tag, record the GitHub Actions run URL and require `Restore immutable annotated candidate tag` to pass before `deploy:prepare`. The restored local ref must be an annotated tag peeling to `github.sha`; the full identity/RSS/browser/upload workflow must finish successfully. Any remote failure invalidates the candidate even when local exact-tag evidence is green.
+After pushing the tag, re-read the remote tag object and peeled commit with `git ls-remote origin "refs/tags/$NEW_CANDIDATE_TAG" "refs/tags/$NEW_CANDIDATE_TAG^{}"`, then continue locally. There is no GitHub candidate workflow to await or treat as qualification; the local exact checkout below is the source of identity, RSS, browser, rollback, performance, and visual evidence.
 
 ## Exact-Tag Build And Smokes
 

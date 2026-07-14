@@ -9,6 +9,7 @@
 - 不得从浮动 `main`、`codex/state-machine-refactor-roadmap` 或 scene-runtime 实验分支重新组装 R5。
 - 包管理器先定 pnpm workspace：R0 在根 `package.json` 增加精确 `packageManager: "pnpm@<version>"`，提交 `pnpm-workspace.yaml`，沿用并更新 `pnpm-lock.yaml`，CI 使用 `corepack enable && pnpm install --frozen-lockfile`；阶段验收命令统一为 `pnpm -C app test`。除非先补 ADR，否则不得临时改 npm/yarn workspace。
 - 一个任务一个 commit；commit 前跑该任务验收命令 + `pnpm -C app test`（Vitest 全量）。
+- R5 的 GitHub Actions 只保留 branch/PR 轻量 Node CI（lint、typecheck、unit tests、production build），不承担 candidate/tag、浏览器、RSS、rollback、性能或 HITL qualification；这些全部在本地 exact checkout 与后续 runbook 中执行，远端绿灯不构成 release 条件。
 - 每个阶段收口跑 Playwright 回归 + 手工检查三大历史症状：**无重复入场、无交接空白、无黑闪**。
 - 旧静态站从 R0 起冻结（只允许 hotfix），作为 R5 平价验收的对照 baseline。
 - R3 只允许为还原旧站而修正搬运误差；新的审美调参、节奏改写、视觉数值偏好调整只允许发生在 R4。

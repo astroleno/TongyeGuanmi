@@ -7,6 +7,7 @@
 - Batch B 以 `c273726b1a26ddfea557774d590214782ff7e74b` → `f5a497909683e8771a4e2944b5e2d8e0dfa0433d` → `be119daba32577c5a44dc100aa3bd357cacdaa1d` → `b23dd80d13bea685fd4fdd58caa49c11032ecb11` 接入 R5；Batch C 以 `767d3927119fb7e06b09939858912d5da3f4c04d` → `b62ba647cbf5402299cd0a5eef46fff152c48524` 通过非 squash merge 接入。
 - 当前 R5 的 `assets/` 与 `app/src/` 中排除测试的 production runtime 实现和 `b62ba647cbf5402299cd0a5eef46fff152c48524` 完全一致；release-control workflow、合同测试、媒体校验工具和 package scripts 不进入浏览器 runtime payload。最终合同是 **38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG**；runtime media **60,830,949 bytes**；Hero pre-scroll **1,131,048 bytes**；`dist/assets` 不得包含 PNG。
 - Batch C 的自动浏览器证据属于上述相同 runtime/assets tree，但不等于最终人工视觉验收或 release qualification。最终视觉尚未执行；当前 HEAD 没有 candidate tag，也未运行当前身份的 RSS、rollback 或 exact-tag matrix。
+- GitHub 只运行 branch/PR Node 静态门禁（`verify:all`），用于仓库健康；不运行 FFmpeg、媒体深检、Playwright、RSS、rollback 或 HITL，Actions 绿灯不是 R5 qualification 条件。
 - Candidate-v2 至 candidate-v8 均为 immutable historical/unqualified，禁止移动或复用。新 candidate 只能在最终视觉通过及 pre-freeze gate 完成后创建一次。
 - `main` 仍在 `a78b064d65f024a301a3b179c62a458a1445bbf6`，未合并、未部署；`react-refactor-r5-cutover` 未创建；R6 blocked。
 
@@ -643,7 +644,7 @@ Crane flock 使用 `-lossless 1` 的原因仅是让允许的 terminal hold 在�
 本节是 Batch B terminal 的历史快照；其中保留 PNG 的 inventory 和体积已由后续 Batch C 最终 totals 取代，不应作为当前 R5 inventory。
 
 - 运行时切换提交：`f5a497909683e8771a4e2944b5e2d8e0dfa0433d`（`refactor(media): use canonical directional videos`）。
-- Batch B terminal 当时的构建期清单校验同时断言 source→emit 身份、数量/预算和八个 canonical non-Hero WebM 的 30fps/PTS 合同。当前 R5 已把这两类职责拆开：普通 `pnpm run verify:all` 通过 `app/scripts/verify-homepage-media-inventory.mjs` 仅校验冻结媒体合同中的 SHA-256/字节数、source→emit 身份、38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG、runtime 引用存在以及 80 MiB / 4 MiB 媒体预算，不调用 `ffprobe`。
+- Batch B terminal 当时的构建期清单校验同时断言 source→emit 身份、数量/预算和八个 canonical non-Hero WebM 的 30fps/PTS 合同。当前 R5 已把这两类职责拆开：普通 `pnpm run verify:all` 通过 `app/scripts/verify-homepage-media-inventory.mjs` 仅校验冻结媒体合同中的 SHA-256/字节数、source→emit 身份、38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG、runtime 引用存在以及 80 MiB / 4 MiB 媒体预算，不调用 `ffprobe`。GitHub Node CI 只运行这一普通静态门禁，不能作为 release qualification。
 - 独立的本地 `pnpm run verify:media:deep` 通过 `app/scripts/verify-homepage-media-deep.mjs` 与 `app/scripts/homepage-media-contract.mjs` 校验八个 canonical non-Hero WebM 的 fps、帧数、容器 duration、PTS cadence、alpha tag 和 GOP。它不属于 `verify:all` 或 GitHub workflow；仅在新增/替换 WebM、更新媒体合同或 Batch A 重建时由本地显式运行。GitHub 不安装 FFmpeg，也不调用深度媒体检查。
 - Hero 仍使用 `assets/figure1.webm`、`assets/figure-poster.jpg`、`assets/middle1_depth.png`，保留 0.34–2.34s 双向 timeline seek。仅背景/中景替换为 WebP；冷启动 `preload="none"`，在 Hero→Pattern 段被接受后才由既有 driver 提升为 `auto`。
 - Figure2、TTG 均已消除 reverse/poster/terminal 运行时 surface；正向 native-preferred，逆向在同一物理文件上以 timeline descending seek 运行。AOD、PH、Figure3、Crane 同样只使用八个 canonical non-Hero key；没有新增媒体框架或状态机。

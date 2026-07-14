@@ -1,4 +1,4 @@
-name: R5 React Production Candidate
+name: R5 Node CI
 
 on:
   pull_request:
@@ -6,30 +6,16 @@ on:
     branches:
       - main
       - codex/react-refactor-r5-parity-cutover
-    tags:
-      - 'react-refactor-r5-candidate-v3'
-      - 'react-refactor-r5-parity-repair-candidate'
-      - 'react-refactor-r5-parity-repair-candidate-v*'
+
+permissions:
+  contents: read
 
 jobs:
-  candidate:
-    runs-on: ${{ startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v') && 'macos-14' || 'ubuntu-latest' }}
-    timeout-minutes: 75
+  node-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Restore immutable annotated candidate tag
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
-        env:
-          R5_CANDIDATE_TAG: ${{ github.ref_name }}
-          R5_SOURCE_COMMIT: ${{ github.sha }}
-        run: |
-          git fetch --force --no-tags origin \
-            "refs/tags/${R5_CANDIDATE_TAG}:refs/tags/${R5_CANDIDATE_TAG}"
-          test "$(git cat-file -t "refs/tags/${R5_CANDIDATE_TAG}")" = tag
-          test "$(git rev-parse "refs/tags/${R5_CANDIDATE_TAG}^{commit}")" = "${R5_SOURCE_COMMIT}"
 
       - uses: actions/setup-node@v4
         with:
@@ -41,51 +27,5 @@ jobs:
           corepack prepare pnpm@8.15.1 --activate
           pnpm install --frozen-lockfile
 
-      - name: Root quality and production build
+      - name: Lint, typecheck, unit tests, and production build
         run: pnpm run verify:all
-
-      - name: Install qualification Chrome on macOS
-        if: startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
-        run: pnpm -C app exec playwright install chrome
-
-      - name: Prepare identity-bound deployable artifact
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
-        env:
-          R5_CANDIDATE_TAG: ${{ github.ref_name }}
-          R5_SOURCE_COMMIT: ${{ github.sha }}
-        run: pnpm run deploy:prepare
-
-      - name: Qualify exact candidate process memory
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
-        env:
-          R5_MEMORY_RUNNER_CLASS: github-hosted-macos-14
-        run: pnpm -C app run evidence:memory:release
-
-      - name: Finalize identity-bound deployable artifact
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
-        env:
-          R5_CANDIDATE_TAG: ${{ github.ref_name }}
-          R5_SOURCE_COMMIT: ${{ github.sha }}
-        run: pnpm run deploy:finalize
-
-      - name: Install release browsers with Linux dependencies
-        if: runner.os == 'Linux'
-        run: pnpm -C app exec playwright install --with-deps chrome webkit
-
-      - name: Install release browsers on macOS
-        if: runner.os == 'macOS'
-        run: pnpm -C app exec playwright install webkit
-
-      - name: Production browser matrix
-        run: pnpm -C app exec playwright test --config playwright.release.config.ts
-
-      - name: Harness contract regression
-        run: pnpm -C app exec playwright test
-
-      - uses: actions/upload-artifact@v4
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
-        with:
-          name: r5-candidate-${{ github.ref_name }}-${{ github.sha }}
-          path: dist/
-          if-no-files-found: error
-          retention-days: 14

@@ -1,6 +1,6 @@
 # R5 Performance Budget
 
-Status: candidate-v6 exact identity-bound memory and local finalization passed at `1,495,842,816B`; its default and release browser performance cases also passed. The candidate remains unqualified because the remote tag workflow lost the annotated ref before `deploy:prepare`. Candidate-v7 must repeat exact memory/finalization because its source identity includes the CI tag-ref restoration at `6b4b238` and later.
+Status: candidate-v6 exact identity-bound memory and local finalization passed at `1,495,842,816B`; its default and release browser performance cases also passed. Under the then-current remote-release policy, v6 remains unqualified because its remote tag workflow lost the annotated ref before `deploy:prepare`. Future R5 candidates repeat exact memory/finalization, browser performance, rollback, and HITL locally from an exact checkout; GitHub Node CI is not a performance or release gate.
 
 Date: 2026-07-13. Earlier values belong to superseded source and are audit history only.
 
@@ -77,8 +77,8 @@ Candidate-v6's final browser run also passed the user-visible budgets: desktop L
 | disposed Contact snapshot | ≤3 layers, ≤1 WebGL, ≤4 paused videos | 2 layers, 0 WebGL, 2 videos |
 | lifecycle release evidence | retired canvas and video; no managed callback/lease leak | 3 canvases and 10 videos released at Contact; 5 canvases and 21 videos by final Hero; pass |
 
-Each memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour. Candidate-v2 exact-tag runs failed at `1,527,169,024B` and `1,575,190,528B`. Candidate-v3's identity-bound RSS passed without changing the budget, but its tracked archive write made the source dirty and the schema-3 finalizer rejected it. Candidate-v4 passed the complete dist-only identity gate but later failed default E2E. Candidate-v5 passed memory before its release E2E failure. Candidate-v6 passed locally with evidence SHA-256 `c238b7be6e3f104197c899f3e2fb03986e68b389e1afc438a6be60f3aa3e2231`; its remote workflow failure still makes v6 unqualified.
+Each memory run traversed all 18 holds forward and reverse with parked Figure2 reverse surfaces, TTG/PH direction changes, and the 128-sample Ink contour. Candidate-v2 exact-tag runs failed at `1,527,169,024B` and `1,575,190,528B`. Candidate-v3's identity-bound RSS passed without changing the budget, but its tracked archive write made the source dirty and the schema-3 finalizer rejected it. Candidate-v4 passed the complete dist-only identity gate but later failed default E2E. Candidate-v5 passed memory before its release E2E failure. Candidate-v6 passed locally with evidence SHA-256 `c238b7be6e3f104197c899f3e2fb03986e68b389e1afc438a6be60f3aa3e2231`; its remote workflow failure made it unqualified under the historical policy only.
 
 ## Evidence Rule
 
-Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The values above prove v6 local RSS headroom, not v7 qualification. Exact-v7 identity, finalization, rollback, remote workflow, and browser evidence are attached to the external handoff; a prior pass cannot be carried forward and a failed gate cannot be waived.
+Trace, video, screenshots, and automated aesthetic acceptance remain disabled. The values above prove v6 local RSS headroom, not a later source's qualification. Future exact-tag identity, finalization, rollback, browser, performance, and visual evidence are local exact-checkout records in the external handoff; a prior pass cannot be carried forward and a failed local gate cannot be waived.

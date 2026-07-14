@@ -12,6 +12,7 @@
 - `react-refactor-r5-parity-repair-candidate-v2` 至 `-v8` 均为 immutable historical/unqualified 记录。旧结果只说明各自 source 的历史事实，不得移动、复用或当作当前 pre-visual HEAD 的资格证据。
 - 当前 HEAD 没有 candidate tag。新 candidate 只能在最终人工视觉通过且 pre-freeze gate 完成后创建一次；本阶段不预先冻结或复用任何 candidate 名称。
 - 当前 HEAD 尚未执行或通过 identity-bound RSS、same-port rollback、exact-tag browser matrix、production cutover 或部署；历史 candidate 的相关结果不得外推。
+- GitHub 仅保存提交、分支与 immutable tags，并在 branch/PR 上运行轻量 Node CI（lint、typecheck、unit tests、production build）。它不运行 tag qualification、FFmpeg、Playwright、RSS、rollback 或人工视觉；Actions 绿灯不是 R5 qualification 条件。
 - `react-refactor-r5-cutover` 未创建，R6 继续 blocked。
 
 ## 阅读顺序

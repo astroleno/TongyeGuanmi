@@ -34,7 +34,7 @@ const appPackage = JSON.parse(
 const rootPackage = JSON.parse(
   readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')
 );
-const candidateWorkflow = executableWorkflow(readFileSync(
+const nodeCiWorkflow = executableWorkflow(readFileSync(
   new URL('../../../.github/workflows/r5-candidate.yml', import.meta.url),
   'utf8'
 ));
@@ -609,73 +609,31 @@ it('rejects a failed memory profiler before reading its report', () => {
   expect(memoryRunner.indexOf(exitGuard)).toBeLessThan(memoryRunner.indexOf(reportRead));
 });
 
-it('only publishes a deployable CI artifact from an identity-bound candidate tag build', () => {
-  expect(candidateWorkflow).toContain("- 'react-refactor-r5-candidate-v3'");
-  expect(candidateWorkflow).not.toContain("- 'react-refactor-r5-candidate*'");
-  expect(candidateWorkflow).toContain('fetch-depth: 0');
-  expect(candidateWorkflow).toContain('R5_CANDIDATE_TAG: ${{ github.ref_name }}');
-  expect(candidateWorkflow).toContain('R5_SOURCE_COMMIT: ${{ github.sha }}');
-  expect(candidateWorkflow).toContain(
-    "github.ref == 'refs/tags/react-refactor-r5-candidate-v3'"
-  );
-  expect(candidateWorkflow).toContain("- 'react-refactor-r5-parity-repair-candidate'");
-  expect(candidateWorkflow).toContain(
-    "github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate'"
-  );
-  expect(candidateWorkflow).toMatch(
-    /^ {6}- 'react-refactor-r5-parity-repair-candidate-v\*'$/m
-  );
-  expect(candidateWorkflow).not.toMatch(
-    /^ {6}- 'react-refactor-r5-parity-repair-candidate-v\d+'$/m
-  );
-  expect(candidateWorkflow).toContain(
-    "runs-on: ${{ startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v') && 'macos-14' || 'ubuntu-latest' }}"
-  );
-  expect(
-    candidateWorkflow.split(
-      "startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')"
-    )
-  ).toHaveLength(8);
-  expect(candidateWorkflow).toContain(
-    'R5_MEMORY_RUNNER_CLASS: github-hosted-macos-14'
-  );
-  expect(candidateWorkflow).not.toMatch(/\bff(?:mpeg|probe)\b/i);
-  expect(candidateWorkflow).not.toContain('verify:media:deep');
-  expect(candidateWorkflow).toContain('- name: Restore immutable annotated candidate tag');
-  expect(candidateWorkflow).toContain('git fetch --force --no-tags origin');
-  expect(candidateWorkflow).toContain(
-    '"refs/tags/${R5_CANDIDATE_TAG}:refs/tags/${R5_CANDIDATE_TAG}"'
-  );
-  expect(candidateWorkflow).toContain(
-    'git cat-file -t "refs/tags/${R5_CANDIDATE_TAG}"'
-  );
-  expect(candidateWorkflow).toContain(
-    'git rev-parse "refs/tags/${R5_CANDIDATE_TAG}^{commit}"'
-  );
-  expect(candidateWorkflow).toContain('pnpm run deploy:prepare');
-  expect(candidateWorkflow).toContain('pnpm -C app run evidence:memory:release');
-  expect(candidateWorkflow).toContain('pnpm run deploy:finalize');
-  expect(candidateWorkflow.indexOf('pnpm run deploy:prepare')).toBeLessThan(
-    candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')
-  );
-  expect(candidateWorkflow.indexOf('- name: Install qualification Chrome on macOS')).toBeLessThan(
-    candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')
-  );
-  expect(
-    candidateWorkflow.indexOf('- name: Restore immutable annotated candidate tag')
-  ).toBeLessThan(candidateWorkflow.indexOf('pnpm run deploy:prepare'));
-  expect(candidateWorkflow.indexOf('pnpm -C app run evidence:memory:release')).toBeLessThan(
-    candidateWorkflow.indexOf('pnpm run deploy:finalize')
-  );
-  expect(candidateWorkflow.indexOf('pnpm run deploy:finalize')).toBeLessThan(
-    candidateWorkflow.indexOf('- name: Production browser matrix')
-  );
-  expect(candidateWorkflow.indexOf('- name: Production browser matrix')).toBeLessThan(
-    candidateWorkflow.indexOf('- name: Harness contract regression')
-  );
-  expect(candidateWorkflow.indexOf('- name: Harness contract regression')).toBeLessThan(
-    candidateWorkflow.indexOf('uses: actions/upload-artifact@v4')
-  );
+it('keeps GitHub Actions to a lightweight Node quality gate', () => {
+  expect(nodeCiWorkflow).toContain('name: R5 Node CI');
+  expect(nodeCiWorkflow).toContain('pull_request:');
+  expect(nodeCiWorkflow).toContain('branches:');
+  expect(nodeCiWorkflow).toContain('- main');
+  expect(nodeCiWorkflow).toContain('- codex/react-refactor-r5-parity-cutover');
+  expect(nodeCiWorkflow).not.toContain('tags:');
+  expect(nodeCiWorkflow).toContain('permissions:\n  contents: read');
+  expect(nodeCiWorkflow).toContain('node-quality:');
+  expect(nodeCiWorkflow).toContain('runs-on: ubuntu-latest');
+  expect(nodeCiWorkflow).toContain('timeout-minutes: 25');
+  expect(nodeCiWorkflow).toContain('node-version: 22');
+  expect(nodeCiWorkflow).toContain('pnpm install --frozen-lockfile');
+  expect(nodeCiWorkflow).toContain('pnpm run verify:all');
+  expect(nodeCiWorkflow).not.toMatch(/\bff(?:mpeg|probe)\b/i);
+  expect(nodeCiWorkflow).not.toMatch(/\bplaywright\b/i);
+  expect(nodeCiWorkflow).not.toContain('verify:media:deep');
+  expect(nodeCiWorkflow).not.toContain('evidence:memory:release');
+  expect(nodeCiWorkflow).not.toContain('deploy:prepare');
+  expect(nodeCiWorkflow).not.toContain('deploy:finalize');
+  expect(nodeCiWorkflow).not.toContain('R5_MEMORY_');
+  expect(nodeCiWorkflow).not.toContain('R5_CANDIDATE_');
+  expect(nodeCiWorkflow).not.toContain('startsWith(github.ref');
+  expect(nodeCiWorkflow).not.toContain('macos-');
+  expect(nodeCiWorkflow).not.toContain('upload-artifact');
 });
 
 it('keeps deep WebM qualification local and out of GitHub workflows', () => {
@@ -701,6 +659,8 @@ it('keeps deep WebM qualification local and out of GitHub workflows', () => {
   expect(deepMediaVerifier).toContain('expectedFrameStep');
   expect(workflowSources).not.toMatch(/\bff(?:mpeg|probe)\b/i);
   expect(workflowSources).not.toContain('verify:media:deep');
+  expect(workflowSources).not.toMatch(/\bplaywright\b/i);
+  expect(workflowSources).not.toContain('evidence:memory:release');
 });
 
 it('marks an ordinary dirty build as unbound instead of naming a release candidate', () => {

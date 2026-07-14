@@ -1,6 +1,6 @@
 # R5 Production Parity Repair Candidate
 
-Status: **current R5 is pre-visual, untagged, and unqualified.** Candidate-v2 through candidate-v8 remain immutable historical/unqualified records; the detailed v2–v6 facts below are retained without being rewritten as passes for any later source. Batch B/C are now integrated into the sole R5 stage branch, Batch A provenance remains on its independent remote branch, and current `assets/` plus production runtime implementation under `app/src/` excluding tests equal `b62ba647cbf5402299cd0a5eef46fff152c48524`. Release-control workflow/tests/tooling changes are outside the browser runtime payload. Final manual visual review has not run. No new candidate, current-HEAD RSS/finalization, rollback, exact-tag matrix, production cutover, or deployment is claimed.
+Status: **current R5 is pre-visual, untagged, and unqualified.** Candidate-v2 through candidate-v8 remain immutable historical/unqualified records; the detailed v2–v6 facts below are retained without being rewritten as passes for any later source. Batch B/C are now integrated into the sole R5 stage branch, Batch A provenance remains on its independent remote branch, and current `assets/` plus production runtime implementation under `app/src/` excluding tests equal `b62ba647cbf5402299cd0a5eef46fff152c48524`. Release-control workflow/tests/tooling changes are outside the browser runtime payload. GitHub branch/PR Node CI is repository health only, not candidate qualification; all exact-tag browser, RSS, rollback, performance, and HITL gates run locally. Final manual visual review has not run. No new candidate, current-HEAD RSS/finalization, rollback, exact-tag matrix, production cutover, or deployment is claimed.
 
 ## Candidate Identity Boundary
 
@@ -28,6 +28,7 @@ Status: **current R5 is pre-visual, untagged, and unqualified.** Candidate-v2 th
 | current R5 state | pre-visual / untagged / unqualified |
 | current runtime/assets tree | `assets/` and production runtime implementation under `app/src/` excluding tests are identical to Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524`; release-control workflow/tests/tooling are outside this identity boundary |
 | next candidate | none created; one new immutable tag only after visual acceptance and pre-freeze gate |
+| GitHub Actions | branch/PR Node CI only; no tag qualification and no release-gate authority |
 | deployable directory | identity-bound `dist/` from the clean exact tag only |
 | release manifest | future candidate only: `dist/r5-release-manifest.json`, schema 3; final status must be `qualified` |
 
@@ -39,7 +40,7 @@ Candidate-v4 qualified its schema-3 artifact and memory evidence (`1,423,048,704
 
 Candidate-v5 qualified the corrected runtime at `1,475,641,344B` browser-tree peak RSS, finalized the schema-3 artifact, passed exact root/footer/no-JS/direct-hash/old-URL/media-range smokes, and passed exact-v5 → legacy → byte-identical exact-v5 rollback on port `4173`. The final default matrix passed 44/44. The four-project release matrix then passed 49 applicable cases, declared 42 project skips, and failed 5 cases: the TTG terminal-still assertion in all four projects and the AOD endpoint-reconstruction assertion in desktop Chromium. Because any final matrix failure is fail-closed, v5 remains immutable and unqualified even though the runtime behavior matched the documented contracts.
 
-Candidate-v6 qualified the corrected release oracles locally at `1,495,842,816B` browser-tree peak RSS, finalized the schema-3 artifact, passed exact root/footer/no-JS/direct-hash/old-URL/media-range smokes, and passed exact-v6 → legacy → byte-identical exact-v6 rollback on port `4173`. Its final default matrix passed 44/44; the four-project release matrix passed all 54 applicable cases with 42 declared skips. The tag-triggered GitHub Actions run nevertheless failed before `deploy:prepare`: checkout fetched the correct annotated object and then overwrote `refs/tags/react-refactor-r5-parity-repair-candidate-v6` with its peeled commit. Because remote workflow qualification and upload are mandatory, local green evidence cannot waive that failure; v6 remains immutable and unqualified.
+Candidate-v6 qualified the corrected release oracles locally at `1,495,842,816B` browser-tree peak RSS, finalized the schema-3 artifact, passed exact root/footer/no-JS/direct-hash/old-URL/media-range smokes, and passed exact-v6 → legacy → byte-identical exact-v6 rollback on port `4173`. Its final default matrix passed 44/44; the four-project release matrix passed all 54 applicable cases with 42 declared skips. Under the then-current remote-release policy, the tag-triggered GitHub Actions run also had to pass; it failed before `deploy:prepare` after checkout overwrote `refs/tags/react-refactor-r5-parity-repair-candidate-v6` with its peeled commit, so v6 remains immutable and unqualified. Future candidates use the local exact-checkout policy described in the current runbook.
 
 Candidate-v7 is fixed at `d0daed5adb83fbeff7c61e0e351673fc4dea4ff5`. Follow-up review found that reverse Figure2 depth Ink had no active person surfaces and that empty Ubuntu RSS samples could incorrectly pass; later commits closed those issues. Candidate-v7 therefore remains immutable and unqualified.
 
@@ -102,13 +103,13 @@ The current handoff deliberately stops before visual review and candidate freeze
 | new candidate freeze | one fresh annotated tag after visual acceptance and pre-freeze gate | not created |
 | process memory/disposal | all 18 holds forward/reverse remain below `1,500,000,000B` | not run for current HEAD; historical results do not qualify it |
 | exact-tag browser matrices | every applicable desktop/mobile Chromium/WebKit case passes | not run because no current candidate exists |
-| exact-tag build/smokes and upload | annotated tag, source, artifact, memory, and manifest identities agree | not run because no current candidate exists |
+| exact-tag build/smokes and local artifact record | annotated tag, source, artifact, memory, and manifest identities agree | not run because no current candidate exists |
 | same-port rollback | exact candidate → immutable legacy → byte-identical exact candidate | not run because no current candidate exists |
 
 The earlier matrix split (desktop Chromium 21 / 3 declared skips, desktop WebKit 9 / 15, Pixel 7 Chromium 13 / 11, iPhone 15 WebKit 11 / 13) is historical candidate-v2 evidence only. V5's 49 pass / 42 skip / 5 fail and v6's local 54 pass / 42 skip records remain audit history, not current qualification. The v6 memory profile retained 3 maximum mounted layers and 1 maximum settled WebGL context; its GPU process peaked at `349,093,888B`, renderer at `843,776,000B`, heap at `39,458,674B`, and canvas ownership at `11,657,408` pixels.
 
 ## Freeze And Stop Boundary
 
-Commit and push the pre-visual R5 branch without creating a tag, then stop at the final manual visual entry. If visual review passes, rerun the pre-freeze gate and create exactly one new annotated candidate; only that future identity may enter CI, identity-bound memory, exact-tag smokes, same-port rollback, and final exact-tag E2E.
+Commit and push the pre-visual R5 branch without creating a tag, then stop at the final manual visual entry. If visual review passes, rerun the local pre-freeze gate and create exactly one new annotated candidate; only that future identity may enter the local exact-checkout identity-bound memory, exact-tag smokes, same-port rollback, and final exact-tag E2E sequence.
 
 This handoff does not authorize moving any tag, running qualification early, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.
