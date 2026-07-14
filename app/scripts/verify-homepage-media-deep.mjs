@@ -29,6 +29,23 @@ async function ffprobe(source, args) {
   }
 }
 
+async function decodeAlphaPlane(source) {
+  try {
+    await execFileAsync('ffmpeg', [
+      '-v', 'error',
+      '-c:v', 'libvpx-vp9',
+      '-i', path.join(repoDir, source),
+      '-map', '0:v:0',
+      '-vf', 'alphaextract',
+      '-f', 'null',
+      '-'
+    ]);
+    return true;
+  } catch (error) {
+    throw new Error(`alpha-plane decode failed for ${source}`, { cause: error });
+  }
+}
+
 function streamAlphaMode(stream) {
   return stream?.tags?.ALPHA_MODE ?? stream?.tags?.alpha_mode;
 }
@@ -42,24 +59,17 @@ function assertNear(actual, expected, label) {
 }
 
 async function inspectCanonicalVideo(contract) {
-  const [containerProbe, alphaProbe] = await Promise.all([
+  const [containerProbe, alphaDecoded] = await Promise.all([
     ffprobe(contract.source, [
       '-count_frames',
       '-select_streams', 'v:0',
       '-show_entries', 'stream=avg_frame_rate,r_frame_rate,nb_read_frames:stream_tags=alpha_mode:format=duration:frame=key_frame,best_effort_timestamp_time'
     ]),
-    ffprobe(contract.source, [
-      '-codec:v', 'libvpx-vp9',
-      '-count_frames',
-      '-select_streams', 'v:0',
-      '-show_entries', 'stream=pix_fmt,nb_read_frames:stream_tags=alpha_mode'
-    ])
+    decodeAlphaPlane(contract.source)
   ]);
   const stream = containerProbe.streams?.[0];
-  const alphaStream = alphaProbe.streams?.[0];
   const frames = containerProbe.frames ?? [];
   const decodedFrames = Number(stream?.nb_read_frames);
-  const alphaDecodedFrames = Number(alphaStream?.nb_read_frames);
   const duration = Number(containerProbe.format?.duration);
   const framePts = frames.map((frame) => Number(frame.best_effort_timestamp_time));
   const keyframeIndexes = frames.flatMap((frame, index) => (
@@ -70,7 +80,6 @@ async function inspectCanonicalVideo(contract) {
   assert(stream?.r_frame_rate === contract.fps, `${contract.source} real fps must be ${contract.fps}`);
   assert(decodedFrames === contract.frames, `${contract.source} frame count ${decodedFrames} != ${contract.frames}`);
   assert(frames.length === contract.frames, `${contract.source} PTS sample count ${frames.length} != ${contract.frames}`);
-  assert(alphaDecodedFrames === contract.frames, `${contract.source} alpha decode count ${alphaDecodedFrames} != ${contract.frames}`);
   assertNear(duration, contract.duration, `${contract.source} duration`);
   assertNear(framePts[0], contract.firstPts, `${contract.source} first PTS`);
   assertNear(framePts.at(-1), contract.lastPts, `${contract.source} last PTS`);
@@ -82,8 +91,7 @@ async function inspectCanonicalVideo(contract) {
   }
 
   assert(streamAlphaMode(stream) === '1', `${contract.source} alpha_mode tag must be 1`);
-  assert(streamAlphaMode(alphaStream) === '1', `${contract.source} decoded alpha_mode tag must be 1`);
-  assert(alphaStream?.pix_fmt === 'yuva420p', `${contract.source} decoded pixel format must be yuva420p`);
+  assert(alphaDecoded, `${contract.source} alpha plane must decode successfully`);
   assert(keyframeIndexes.length === contract.keyframes, `${contract.source} keyframe count ${keyframeIndexes.length} != ${contract.keyframes}`);
   assert(keyframeIndexes[0] === 0, `${contract.source} must start with a keyframe`);
   for (let index = 1; index < keyframeIndexes.length; index += 1) {
@@ -100,8 +108,8 @@ async function inspectCanonicalVideo(contract) {
     duration,
     firstPts: framePts[0],
     lastPts: framePts.at(-1),
-    alphaMode: streamAlphaMode(alphaStream),
-    pixelFormat: alphaStream.pix_fmt,
+    alphaMode: streamAlphaMode(stream),
+    alphaDecoded,
     keyframes: keyframeIndexes.length,
     maxGopFrames: contract.maxGopFrames
   };

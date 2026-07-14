@@ -644,7 +644,7 @@ Crane flock 使用 `-lossless 1` 的原因仅是让允许的 terminal hold 在�
 
 - 运行时切换提交：`f5a497909683e8771a4e2944b5e2d8e0dfa0433d`（`refactor(media): use canonical directional videos`）。
 - Batch B terminal 当时的构建期清单校验同时断言 source→emit 身份、数量/预算和八个 canonical non-Hero WebM 的 30fps/PTS 合同。当前 R5 已把这两类职责拆开：普通 `pnpm run verify:all` 通过 `app/scripts/verify-homepage-media-inventory.mjs` 仅校验 source→emit SHA-256/字节数、38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG、runtime 引用存在以及 80 MiB / 4 MiB 媒体预算，不调用 `ffprobe`。
-- 独立 `pnpm run verify:media:deep` 通过 `app/scripts/verify-homepage-media-deep.mjs` 与 `app/scripts/homepage-media-contract.mjs` 校验八个 canonical non-Hero WebM 的 fps、帧数、容器 duration、PTS cadence、alpha tag/强制 `libvpx-vp9` 解码像素格式和 GOP。`.github/workflows/r5-media-assets.yml` 只在 branch/PR 改动 `assets/*.webm`、深度媒体合同/校验器或该 workflow 自身时安装 FFmpeg 并运行该命令；普通 R5 branch/candidate workflow 不安装 FFmpeg。Batch A 重建可用 `workflow_dispatch` 显式触发同一 job。
+- 独立 `pnpm run verify:media:deep` 通过 `app/scripts/verify-homepage-media-deep.mjs` 与 `app/scripts/homepage-media-contract.mjs` 校验八个 canonical non-Hero WebM 的 fps、帧数、容器 duration、PTS cadence、alpha tag/强制 `libvpx-vp9` alpha-plane 解码和 GOP。`.github/workflows/r5-media-assets.yml` 只在 branch/PR 改动 `assets/*.webm`、深度媒体合同/校验器或该 workflow 自身时安装 FFmpeg 并运行该命令；普通 R5 branch/candidate workflow 不安装 FFmpeg。Batch A 重建可用 `workflow_dispatch` 显式触发同一 job。
 - Hero 仍使用 `assets/figure1.webm`、`assets/figure-poster.jpg`、`assets/middle1_depth.png`，保留 0.34–2.34s 双向 timeline seek。仅背景/中景替换为 WebP；冷启动 `preload="none"`，在 Hero→Pattern 段被接受后才由既有 driver 提升为 `auto`。
 - Figure2、TTG 均已消除 reverse/poster/terminal 运行时 surface；正向 native-preferred，逆向在同一物理文件上以 timeline descending seek 运行。AOD、PH、Figure3、Crane 同样只使用八个 canonical non-Hero key；没有新增媒体框架或状态机。
 
