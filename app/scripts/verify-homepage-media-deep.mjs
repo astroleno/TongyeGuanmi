@@ -49,7 +49,7 @@ async function inspectCanonicalVideo(contract) {
       '-show_entries', 'stream=avg_frame_rate,r_frame_rate,nb_read_frames:stream_tags=alpha_mode:format=duration:frame=key_frame,best_effort_timestamp_time'
     ]),
     ffprobe(contract.source, [
-      '-c:v', 'libvpx-vp9',
+      '-codec:v', 'libvpx-vp9',
       '-count_frames',
       '-select_streams', 'v:0',
       '-show_entries', 'stream=pix_fmt,nb_read_frames:stream_tags=alpha_mode'

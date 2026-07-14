@@ -683,7 +683,7 @@ it('runs deep WebM qualification only in the path-filtered media workflow', () =
   );
   expect(staticMediaVerifier).not.toContain('ffprobe');
   expect(deepMediaVerifier).toContain("execFileAsync('ffprobe'");
-  expect(deepMediaVerifier).toContain("'-c:v', 'libvpx-vp9'");
+  expect(deepMediaVerifier).toContain("'-codec:v', 'libvpx-vp9'");
   expect(deepMediaVerifier).toContain('keyframeIndexes');
   expect(deepMediaVerifier).toContain('expectedFrameStep');
 
