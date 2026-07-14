@@ -117,6 +117,23 @@ describe('R4 group6 transitions', () => {
     expect(receiver.dataset.r4Transition).toBe('lab-ph-top-ink');
   });
 
+  it('prewarms PH frame zero before the Lab handoff without unloading its media surface', async () => {
+    const fixture = createBackHalfDomContext('lab-ph', 'lab', 'ph-animation');
+    const video = new FakeVideo();
+    fixture.toRoot.connect('[data-ph-alpha-video]', video);
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+
+    const transition = createLabPhTransition();
+    const timeline = await transition.buildTimeline(fixture.context);
+
+    expect(transition.requiredMilestones).toEqual(['targetReady', 'mediaReady', 'buildReady']);
+    expect(video.preload).toBe('auto');
+    expect(video.currentTimeWrites).toBeGreaterThan(0);
+    expect(video.currentTime).toBe(0);
+    expect(video.loadCalls).toBe(0);
+    timeline.dispose();
+  });
+
   it('plays PH to its terminal frame, pauses, then dissolves to Education without Ink', async () => {
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
     const video = new FakeVideo();

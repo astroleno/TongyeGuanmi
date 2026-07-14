@@ -23,6 +23,7 @@ export function releaseInkWebGlResources(gl, { buffer = null, program = null, sh
 export function createInkBoundaryTransition(canvas, options = {}) {
   if (!canvas) return null;
   const colorLift = clamp(options.colorLift ?? 0.32, 0, 1);
+  const particleGain = clamp(options.particleGain ?? 1, 0, 2);
   const coverAlpha = clamp(options.coverAlpha ?? 0, 0, 1);
   const fadeOutStart = clamp(options.fadeOutStart ?? 0.94, 0, 0.98);
   const fadeOutEnd = Math.max(fadeOutStart + 0.01, clamp(options.fadeOutEnd ?? 0.995, 0.01, 1));
@@ -55,6 +56,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     uniform float uTime;
     uniform float uSeed;
     uniform float uColorLift;
+    uniform float uParticleGain;
     uniform float uCoverAlpha;
     uniform float uFieldMode;
     uniform float uFieldDirection;
@@ -274,7 +276,8 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       float particles = particleDot
         * smoothstep(0.860, 0.975, particleSeed)
         * particleWindow
-        * (0.40 + energy * 0.66);
+        * (0.40 + energy * 0.66)
+        * uParticleGain;
       float particleCore = particles * smoothstep(0.55, 0.98, particleDot);
       float late = smoothstep(0.94, 1.0, p);
 
@@ -358,6 +361,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
     time: gl.getUniformLocation(program, 'uTime'),
     seed: gl.getUniformLocation(program, 'uSeed'),
     colorLift: gl.getUniformLocation(program, 'uColorLift'),
+    particleGain: gl.getUniformLocation(program, 'uParticleGain'),
     coverAlpha: gl.getUniformLocation(program, 'uCoverAlpha'),
     fieldMode: gl.getUniformLocation(program, 'uFieldMode'),
     fieldDirection: gl.getUniformLocation(program, 'uFieldDirection'),
@@ -580,6 +584,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       gl.uniform1f(uniforms.time, performance.now() * 0.001);
       gl.uniform1f(uniforms.seed, frame.seed / 0xffffffff);
       gl.uniform1f(uniforms.colorLift, colorLift);
+      gl.uniform1f(uniforms.particleGain, particleGain);
       gl.uniform1f(uniforms.coverAlpha, coverAlpha);
       gl.uniform1f(uniforms.fieldMode, spec.kind === 'radial' ? 1 : spec.kind === 'depth' ? 2 : 0);
       gl.uniform1f(

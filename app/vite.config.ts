@@ -47,6 +47,24 @@ export default defineConfig({
     emptyOutDir: true,
     assetsInlineLimit: 0,
     cssCodeSplit: true,
-    chunkSizeWarningLimit: 420
+    chunkSizeWarningLimit: 420,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if ([
+            '/src/transitions/shared/ink.ts',
+            '/src/transitions/shared/inkOwnership.ts',
+            '/src/transitions/shared/sceneInk.ts',
+            '/src/media/timeline-video-driver.ts',
+            '/src/transitions/shared/stagedMediaHandoff.ts',
+            '/src/pilot/progress-timeline.ts',
+            '/src/transitions/shared/sectionHandoff.ts'
+          ].some((moduleId) => id.includes(moduleId))) {
+            return 'story-runtime';
+          }
+          return undefined;
+        }
+      }
+    }
   }
 });

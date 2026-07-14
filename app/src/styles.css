@@ -10,6 +10,12 @@
   --font-title: "Tongye Title", "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-sans: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-traditional: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  --diagnosis-cta-border: rgba(37, 39, 25, .22);
+  --diagnosis-cta-border-active: rgba(37, 39, 25, .48);
+  --diagnosis-cta-bg: rgba(255, 252, 244, .42);
+  --diagnosis-cta-fg: rgba(37, 39, 25, .94);
+  --diagnosis-cta-radius: 6px;
+  --diagnosis-cta-weight: 760;
   color: #1d1b16;
   background: #f8f7f2;
   font-family: var(--font-sans);
@@ -301,25 +307,6 @@ html:not([data-story-hydrated="true"]) .story-app {
 @keyframes story-loader-ink-conceal {
   from { clip-path: inset(0 0 0 0); opacity: 1; }
   to { clip-path: inset(0 0 0 100%); opacity: 0; }
-}
-
-.story-progress {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 300;
-  height: 3px;
-  overflow: hidden;
-  background: rgba(248, 247, 242, .12);
-}
-
-.story-progress span {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, #2a7b69, #d7b44f);
-  transform-origin: 0 50%;
 }
 
 .story-status {
@@ -968,6 +955,8 @@ pre {
   --r4-hero-progress: 1;
   --r4-hero-middle-intro: 1;
   --r4-hero-figure-intro: 1;
+  --r4-hero-pattern-middle-progress: 0;
+  --r4-hero-pattern-figure-progress: 0;
   --r4-hero-back-parallax-x: 0px;
   --r4-hero-back-parallax-y: 0px;
   --r4-hero-middle-parallax-x: 0px;
@@ -1047,7 +1036,7 @@ pre {
   filter: blur(calc(.15px + 18px * (1 - var(--r4-hero-middle-intro)))) saturate(1.02) contrast(1.02) brightness(1.06);
   transform: translate3d(
     calc(-50% + var(--r4-hero-middle-parallax-x) - 1.8vw * (1 - var(--r4-hero-middle-intro))),
-    calc(-50% + 1svh + var(--r4-hero-middle-parallax-y) + 54svh * (1 - var(--r4-hero-middle-intro))),
+    calc(-50% + 1svh + var(--r4-hero-middle-parallax-y) + 54svh * (1 - var(--r4-hero-middle-intro)) + 58svh * var(--r4-hero-pattern-middle-progress)),
     0
   ) scale(calc(.98 + .135 * (1 - var(--r4-hero-middle-intro))));
 }
@@ -1072,7 +1061,7 @@ pre {
   filter: blur(calc(20px * (1 - var(--r4-hero-figure-intro)))) brightness(1.18) saturate(1.08) contrast(1.03);
   transform: translate3d(
     calc(-50% + var(--r4-hero-figure-parallax-x) + 2.8vw * (1 - var(--r4-hero-figure-intro))),
-    calc(-50% + 12svh + var(--r4-hero-figure-parallax-y) + 64svh * (1 - var(--r4-hero-figure-intro))),
+    calc(-50% + 12svh + var(--r4-hero-figure-parallax-y) + 64svh * (1 - var(--r4-hero-figure-intro)) + 70svh * var(--r4-hero-pattern-figure-progress)),
     0
   ) scale(calc(1 + .12 * (1 - var(--r4-hero-figure-intro))));
   -webkit-mask-image:
@@ -3712,9 +3701,17 @@ pre {
 
 .r4-contact .btn {
   padding: 0 18px;
-  border: 1px solid rgba(37, 39, 25, .22);
-  border-radius: 6px;
-  background: rgba(255, 252, 244, .42);
+  border: 1px solid var(--diagnosis-cta-border);
+  border-radius: var(--diagnosis-cta-radius);
+  background: var(--diagnosis-cta-bg);
+  color: var(--diagnosis-cta-fg);
+  font-weight: var(--diagnosis-cta-weight);
+  transition: transform .22s ease, border-color .22s ease;
+}
+
+.r4-contact .btn:is(:hover, :focus-visible) {
+  border-color: var(--diagnosis-cta-border-active);
+  transform: translateY(-1px);
 }
 
 .r4-contact .text-link {

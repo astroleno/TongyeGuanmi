@@ -31,10 +31,15 @@ afterEach(() => {
 });
 
 describe('star-map AOD one-boundary integration', () => {
-  it('uses the shared boundary frame instead of a local clip or vendor alias', () => {
-    expect(transitionSource).toContain('createInkFieldFrame');
-    expect(transitionSource).toContain('createInkFieldRenderer');
-    expect(transitionSource).toContain('createHorizontalInkContour');
+  it('uses the generic Ink lifecycle with an inner AOD ownership surface', () => {
+    expect(transitionSource).toContain('createInkSegmentTransition');
+    expect(transitionSource).toContain("canvasHost: 'stage'");
+    expect(transitionSource).toContain('includeToSurface: false');
+    expect(transitionSource).toContain('ownershipSurfaces');
+    expect(transitionSource).toContain('aodRevealSurface');
+    expect(transitionSource).not.toContain('createInkFieldFrame');
+    expect(transitionSource).not.toContain('createInkFieldRenderer');
+    expect(transitionSource).not.toContain('createHorizontalInkContour');
     expect(transitionSource).not.toContain('renderLiveRevealClip');
     expect(transitionSource).not.toContain("from './inkCurtain'");
     expect(transitionSource).not.toContain('sourceCanvas');
@@ -48,8 +53,7 @@ describe('star-map AOD one-boundary integration', () => {
     const fixture = createBackHalfDomContext('star-map-aod', 'star-map', 'aod-animation');
     const revealSurface = new FakeElement();
     const canvas = new FakeCanvas();
-    const receiver = fixture.stage.children[1]!;
-    receiver.connect('[data-aod-reveal-surface]', revealSurface);
+    fixture.toRoot.connect('[data-aod-reveal-surface]', revealSurface);
     const created: FakeCanvas[] = [];
     vi.stubGlobal('document', {
       createElement: () => {
@@ -78,7 +82,8 @@ describe('star-map AOD one-boundary integration', () => {
     expect(source.style.clipPath).not.toBe(revealSurface.style.clipPath);
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkRenderer).toBe('field');
-    expect(canvas.dataset.r4InkGrade).toBe('edge-only');
+    expect(canvas.dataset.r4InkGrade).toBe('edge-bright');
+    expect(rendererFactory).toHaveBeenCalledWith(canvas, expect.objectContaining({ particleGain: 1.25 }));
     expect(canvas.dataset.r4InkGeneration).toBe(
       `${fixture.context.runId}:${fixture.context.prepareToken}`
     );
@@ -96,9 +101,8 @@ describe('star-map AOD one-boundary integration', () => {
   it('uses ten fresh renderers and canvases across alternating directions', async () => {
     const fixture = createBackHalfDomContext('star-map-aod', 'star-map', 'aod-animation');
     const revealSurface = new FakeElement();
-    const receiver = fixture.stage.children[1]!;
     const created: FakeCanvas[] = [];
-    receiver.connect('[data-aod-reveal-surface]', revealSurface);
+    fixture.toRoot.connect('[data-aod-reveal-surface]', revealSurface);
     vi.stubGlobal('document', {
       createElement: () => {
         const canvas = new FakeCanvas();
@@ -140,7 +144,7 @@ describe('star-map AOD one-boundary integration', () => {
     const fixture = createBackHalfDomContext('star-map-aod', 'star-map', 'aod-animation');
     const revealSurface = new FakeElement();
     const canvas = new FakeCanvas();
-    fixture.stage.children[1]!.connect('[data-aod-reveal-surface]', revealSurface);
+    fixture.toRoot.connect('[data-aod-reveal-surface]', revealSurface);
     vi.stubGlobal('document', { createElement: () => canvas });
 
     const timeline = await createStarMapAodTransition({ grade: 'dark' }).buildTimeline(fixture.context);
@@ -156,7 +160,7 @@ describe('star-map AOD one-boundary integration', () => {
     const fixture = createBackHalfDomContext('star-map-aod', 'star-map', 'aod-animation');
     const revealSurface = new FakeElement();
     const canvas = new FakeCanvas();
-    fixture.stage.children[1]!.connect('[data-aod-reveal-surface]', revealSurface);
+    fixture.toRoot.connect('[data-aod-reveal-surface]', revealSurface);
     vi.stubGlobal('document', { createElement: () => canvas });
     rendererFactory.mockImplementationOnce(() => null as never);
 
@@ -178,7 +182,7 @@ describe('star-map AOD one-boundary integration', () => {
         if (listeners.get(type) === listener) listeners.delete(type);
       }
     });
-    fixture.stage.children[1]!.connect('[data-aod-reveal-surface]', revealSurface);
+    fixture.toRoot.connect('[data-aod-reveal-surface]', revealSurface);
     vi.stubGlobal('document', { createElement: () => canvas });
     const timeline = await createStarMapAodTransition().buildTimeline(fixture.context);
     const preventDefault = vi.fn();

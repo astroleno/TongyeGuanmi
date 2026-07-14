@@ -551,7 +551,19 @@ export function StoryApp() {
     };
   }, [navigate, readSnapshot, runtime]);
 
-  const navVisible = presentationReady && !bootFailed && currentScene !== 'hero';
+  const navigationSegment = runtimeSnapshot.context.activeSegment
+    ?? runtimeSnapshot.context.pendingSegment
+    ?? runtimeSnapshot.context.settlingSegment;
+  const navigationDirection = runtimeSnapshot.context.activeDirection
+    ?? runtimeSnapshot.context.pendingDirection
+    ?? (runtimeSnapshot.context.settlingTarget === 'star-map' ? 1 : undefined)
+    ?? (runtimeSnapshot.context.settlingTarget === 'pattern' ? -1 : undefined);
+  const navVisible = presentationReady
+    && !bootFailed
+    && navigationSegment !== 'hero-pattern'
+    && (navigationSegment === 'pattern-star-map'
+      ? runtimeSnapshot.state !== 'preparing' && navigationDirection === 1
+      : currentScene !== 'hero' && currentScene !== 'pattern');
 
   useEffect(() => {
     if (!navVisible) {
@@ -607,16 +619,6 @@ export function StoryApp() {
         />
       </Suspense>
 
-      <div
-        className="story-progress"
-        role="progressbar"
-        aria-label="故事进度"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(runtimeSnapshot.virtualProgress * 100)}
-      >
-        <span style={{ transform: `scaleX(${runtimeSnapshot.virtualProgress})` }} />
-      </div>
       <p className="story-status" aria-live="polite">
         {bootError
           ? `媒体恢复：${bootError}`

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 import { bindSceneMotion, type SceneMotionBinding } from '../../stage/scene-motion';
 import { STAR_MAP_COPY } from '../star-map';
@@ -152,7 +152,7 @@ function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
     };
   }, [registerHandle]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     motionBindingRef.current?.setBaseActive(!hidden && !reduceMotion && role === 'current');
   }, [hidden, role]);

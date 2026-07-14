@@ -4,8 +4,6 @@
   --nav-fg: rgba(247, 237, 215, .82);
   --nav-fg-strong: rgba(247, 237, 215, .96);
   --nav-fg-muted: rgba(247, 237, 215, .56);
-  --nav-cta-bg: rgba(247, 237, 215, .92);
-  --nav-cta-fg: #06100d;
   position: fixed;
   top: 0;
   left: 0;
@@ -43,8 +41,6 @@
   --nav-fg: rgba(6, 16, 13, .72);
   --nav-fg-strong: rgba(6, 16, 13, .94);
   --nav-fg-muted: rgba(6, 16, 13, .56);
-  --nav-cta-bg: #06100d;
-  --nav-cta-fg: #f7edd7;
 }
 
 .site-nav[data-tone="light"]::before {
@@ -137,18 +133,22 @@
   align-items: center;
   justify-content: center;
   min-width: 92px;
-  min-height: 32px;
+  min-height: 34px;
   padding: 0 15px;
-  border-radius: 999px;
-  background: var(--nav-cta-bg);
-  color: var(--nav-cta-fg);
+  border: 1px solid var(--diagnosis-cta-border);
+  border-radius: var(--diagnosis-cta-radius);
+  background: var(--diagnosis-cta-bg);
+  color: var(--diagnosis-cta-fg);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--diagnosis-cta-weight);
   letter-spacing: .08em;
-  transition: transform .22s ease;
+  transition: transform .22s ease, border-color .22s ease;
 }
 
-.site-nav .nav-cta:is(:hover, :focus-visible) { transform: translateY(-1px); }
+.site-nav .nav-cta:is(:hover, :focus-visible) {
+  border-color: var(--diagnosis-cta-border-active);
+  transform: translateY(-1px);
+}
 
 .site-nav__toggle {
   display: none;

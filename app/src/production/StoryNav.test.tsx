@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { StoryNav, chromeForScene } from './StoryNav';
 
 describe('StoryNav', () => {
-  it('is hidden and inert on Hero with the exact blur sibling structure', () => {
+  it('is hidden and inert on Hero without mounting expensive blur layers', () => {
     const markup = renderToStaticMarkup(createElement(StoryNav, {
       currentScene: 'hero',
       visible: false,
@@ -18,9 +18,8 @@ describe('StoryNav', () => {
     expect(markup).toContain('aria-hidden="true"');
     expect(markup).toContain('inert=""');
     expect(markup).toContain('tabindex="-1"');
-    expect(markup).toMatch(/<\/nav><div class="scroll-edge-blur"/);
-    expect(markup.match(/class="scroll-edge-blur__layer"/g)).toHaveLength(7);
-    expect(markup.match(/class="scroll-edge-blur__tint"/g)).toHaveLength(1);
+    expect(markup).not.toContain('class="scroll-edge-blur"');
+    expect(markup).not.toContain('class="scroll-edge-blur__layer"');
   });
 
   it('uses committed scene chrome metadata and exposes the active destination', () => {
@@ -38,5 +37,7 @@ describe('StoryNav', () => {
     expect(markup).toContain('data-tone="light"');
     expect(markup).toContain('href="#services" aria-current="page"');
     expect(markup).not.toContain('inert=""');
+    expect(markup.match(/class="scroll-edge-blur__layer"/g)).toHaveLength(7);
+    expect(markup.match(/class="scroll-edge-blur__tint"/g)).toHaveLength(1);
   });
 });

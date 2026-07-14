@@ -326,7 +326,7 @@ describe('R3 pilot contract on real segments', () => {
     expect(revealSurface.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkRenderer).toBe('field');
-    expect(canvas.dataset.r4InkGrade).toBe('edge-only');
+    expect(canvas.dataset.r4InkGrade).toBe('edge-bright');
     expect(canvas.parentElement).toBe(stage);
   });
 

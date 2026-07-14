@@ -33,7 +33,8 @@ describe('reading handoff', () => {
       owned: true,
       direction: 1,
       contentPixels: 0,
-      residualPixels: 20
+      residualPixels: 20,
+      atEdge: true
     });
   });
 
@@ -47,7 +48,8 @@ describe('reading handoff', () => {
       owned: true,
       direction: 1,
       contentPixels: 420,
-      residualPixels: 0
+      residualPixels: 0,
+      atEdge: false
     });
   });
 
@@ -57,7 +59,11 @@ describe('reading handoff', () => {
     const result = consumeReadingPixels({ root, pixels: 200 });
 
     expect(scrollport.scrollTop).toBe(1000);
-    expect(result).toMatchObject({ contentPixels: 50, residualPixels: 150 });
+    expect(result).toMatchObject({
+      contentPixels: 50,
+      residualPixels: 150,
+      atEdge: true
+    });
   });
 
   it('clamps fractional edge metrics before returning the complete residual', () => {
@@ -99,7 +105,8 @@ describe('reading handoff', () => {
       owned: false,
       direction: 1,
       contentPixels: 0,
-      residualPixels: 80
+      residualPixels: 80,
+      atEdge: false
     });
   });
 });

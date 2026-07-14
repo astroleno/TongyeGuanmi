@@ -10,6 +10,7 @@ export function releaseInkWebGlResources(
 
 export type InkBoundaryTransitionOptions = {
   colorLift?: number;
+  particleGain?: number;
   dprLimit?: number;
   coverAlpha?: number;
   fadeOutStart?: number;

@@ -1,10 +1,10 @@
 import { renderLabHold } from '../../scenes/lab';
-import { renderPhHold } from '../../scenes/ph-animation';
+import { preparePhAnimationFrame, renderPhHold } from '../../scenes/ph-animation';
 import { createInkSegmentTransition } from '../shared/ink';
 import type { TransitionModule } from '../../story/types';
 
 export function createLabPhTransition(options: { delayMs?: () => number } = {}): TransitionModule {
-  return createInkSegmentTransition({
+  const transition = createInkSegmentTransition({
     id: 'lab-ph',
     delayMs: options.delayMs,
     field: {
@@ -18,6 +18,24 @@ export function createLabPhTransition(options: { delayMs?: () => number } = {}):
     },
     transitionAttr: 'lab-ph-top-ink'
   });
+  return {
+    ...transition,
+    requiredMilestones: ['targetReady', 'mediaReady', 'buildReady'],
+    buildTimeline: async (context) => {
+      const root = context.to.element?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]')
+        ?? context.to.element
+        ?? null;
+      const video = root?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
+      if (video) {
+        await preparePhAnimationFrame(root, 0, {
+          runId: `${context.runId}:entry`,
+          direction: 1,
+          reducedMotion: context.prefersReducedMotion
+        });
+      }
+      return transition.buildTimeline(context);
+    }
+  };
 }
 
 export const labPhTransition = createLabPhTransition();

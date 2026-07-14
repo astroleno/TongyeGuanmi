@@ -79,13 +79,16 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).not.toContain('uSceneDim');
   });
 
-  it('uses the Main particle radius, gate, and intensity without an enhancement control', () => {
-    expect(shaderSource).not.toContain('uParticleStrength');
+  it('keeps the Main particle geometry and applies the configured gain in the shader', () => {
+    expect(shaderSource).toContain('const particleGain = clamp(options.particleGain ?? 1, 0, 2);');
+    expect(shaderSource).toContain('uniform float uParticleGain');
+    expect(shaderSource).toContain("particleGain: gl.getUniformLocation(program, 'uParticleGain')");
+    expect(shaderSource).toContain('gl.uniform1f(uniforms.particleGain, particleGain)');
     expect(shaderSource).not.toContain('particleGateLow');
     expect(shaderSource).not.toContain('particleGateHigh');
     expect(shaderSource).toMatch(/float particleRadius = mix\(0\.075, 0\.190,[^;]+\);/);
     expect(shaderSource).toContain('smoothstep(0.860, 0.975, particleSeed)');
-    expect(shaderSource).not.toMatch(/particles[^;]*mix\(0\.78, 1\.25/);
+    expect(shaderSource).toMatch(/float particles = [\s\S]*?\* uParticleGain;/);
   });
 
   it('allows edge-only grade to remove scene-wide body wash without changing the boundary', () => {

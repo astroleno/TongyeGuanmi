@@ -3,6 +3,7 @@ import { readingCanScroll } from '../stage/reading';
 import type { createDirectorRuntime } from '../runtime/director.actor';
 import type { Direction, SceneId } from '../story/types';
 import { createGestureIntentGate } from './gesture-intent-gate';
+import { createReadingEdgeLatch } from './reading-edge-latch';
 import { consumeReadingPixels } from './reading-handoff';
 
 type Runtime = ReturnType<typeof createDirectorRuntime>;
@@ -100,7 +101,9 @@ function shouldForwardRawInput(
 
 export function attachStoryInput(options: StoryInputControllerOptions): () => void {
   let previousTouchY: number | undefined;
+  let touchStartsNewReadingGesture = false;
   const gestureGate = createGestureIntentGate();
+  const readingEdgeLatch = createReadingEdgeLatch();
   let observedScope = interactionScope(options.runtime.getState());
 
   const dispatch = (raw: RawInput, event: Event) => {
@@ -132,8 +135,30 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
             owned: false,
             direction: nextDirection,
             contentPixels: 0,
-            residualPixels: normalized.pixels
+            residualPixels: normalized.pixels,
+            atEdge: false
           };
+      if (reading.owned) {
+        const edge = readingEdgeLatch.consume({
+          scope: `reading:${currentScene}:${nextDirection === 1 ? 'bottom' : 'top'}`,
+          pixels: normalized.pixels,
+          now: Date.now(),
+          atEdge: reading.atEdge,
+          forceNewGesture: normalized.source === 'key' || (normalized.source === 'touch' && touchStartsNewReadingGesture)
+        });
+        touchStartsNewReadingGesture = false;
+        if (edge.armed) {
+          gestureGate.reset('entry-position');
+          if (edge.fired) {
+            options.runtime.send({
+              type: 'CHARGE_FIRED',
+              direction: nextDirection,
+              now: Date.now()
+            });
+          }
+          return;
+        }
+      }
       if (reading.residualPixels === 0) {
         return;
       }
@@ -175,6 +200,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
 
   const onTouchStart = (event: TouchEvent) => {
     previousTouchY = event.touches[0]?.clientY;
+    touchStartsNewReadingGesture = true;
   };
 
   const onTouchMove = (event: TouchEvent) => {
@@ -196,6 +222,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   const onTouchEnd = () => {
     previousTouchY = undefined;
     gestureGate.reset('gesture-idle');
+    readingEdgeLatch.endGesture();
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -212,8 +239,14 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   window.addEventListener('touchcancel', onTouchEnd, { passive: true });
   window.addEventListener('keydown', onKeyDown);
 
-  const resetForViewport = () => gestureGate.reset('viewport-change');
-  const resetForEntry = () => gestureGate.reset('entry-position');
+  const resetForViewport = () => {
+    gestureGate.reset('viewport-change');
+    readingEdgeLatch.reset();
+  };
+  const resetForEntry = () => {
+    gestureGate.reset('entry-position');
+    readingEdgeLatch.reset();
+  };
   window.addEventListener('resize', resetForViewport);
   window.addEventListener('orientationchange', resetForViewport);
   window.addEventListener('story-reading-entry', resetForEntry);
@@ -224,9 +257,11 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
     if (nextScope !== observedScope) {
       observedScope = nextScope;
       gestureGate.reset('scope-change');
+      readingEdgeLatch.reset();
     }
     if (snapshot.state === 'seeking') {
       gestureGate.reset('seek');
+      readingEdgeLatch.reset();
     }
   });
 
@@ -243,5 +278,6 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
     window.visualViewport?.removeEventListener('resize', resetForViewport);
     unsubscribeRuntime();
     gestureGate.reset('dispose');
+    readingEdgeLatch.reset();
   };
 }

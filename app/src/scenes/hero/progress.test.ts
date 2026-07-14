@@ -5,10 +5,15 @@ import {
   HERO_COPY,
   heroScene,
   heroVideoPlaybackStateForPresentation,
+  renderHeroPatternProgress,
   renderHeroProgress,
   setHeroVideoPlaybackState
 } from './index';
 import { fixtureStaticFallbackText } from '../../story/copy-baseline';
+import {
+  FakeElement as TimelineRoot,
+  FakeVideo as TimelineVideo
+} from '../../transitions/__fixtures__/back-half.fixture';
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -111,25 +116,63 @@ describe('hero scene renderer', () => {
     expect(video.pauseCount).toBe(3);
   });
 
-  it('prepositions a hidden prev Hero at terminal and preserves that endpoint after reverse landing', () => {
+  it('prepositions a hidden prev Hero at terminal but restores its authored start after reverse landing', () => {
     expect(heroVideoPlaybackStateForPresentation({
       hidden: true,
       role: 'prev',
-      introMode: 'complete',
-      endpointHeld: false
+      introMode: 'complete'
     })).toBe('terminal');
     expect(heroVideoPlaybackStateForPresentation({
       hidden: false,
       role: 'current',
-      introMode: 'complete',
-      endpointHeld: true
-    })).toBe('terminal');
-    expect(heroVideoPlaybackStateForPresentation({
-      hidden: false,
-      role: 'current',
-      introMode: 'complete',
-      endpointHeld: false
+      introMode: 'complete'
     })).toBe('start');
+    expect(heroVideoPlaybackStateForPresentation({
+      hidden: false,
+      role: 'current',
+      introMode: 'complete'
+    })).toBe('start');
+  });
+
+  it('moves the middle and figure down through the dedicated Hero to Pattern handoff', () => {
+    const root = new FakeElement();
+
+    renderHeroPatternProgress(root as unknown as HTMLElement, 0);
+    expect(root.style.values.get('--r4-hero-pattern-middle-progress')).toBe('0.0000');
+    expect(root.style.values.get('--r4-hero-pattern-figure-progress')).toBe('0.0000');
+
+    renderHeroPatternProgress(root as unknown as HTMLElement, 0.5);
+    expect(root.style.values.get('--r4-hero-pattern-middle-progress')).toBe('0.5000');
+    expect(root.style.values.get('--r4-hero-pattern-figure-progress')).toBe('0.5000');
+
+    renderHeroPatternProgress(root as unknown as HTMLElement, 1);
+    expect(root.style.values.get('--r4-hero-pattern-middle-progress')).toBe('1.0000');
+    expect(root.style.values.get('--r4-hero-pattern-figure-progress')).toBe('1.0000');
+  });
+
+  it('keeps Hero media run ownership deterministic through forward, reverse, and forward replacement', () => {
+    const root = new TimelineRoot();
+    const video = new TimelineVideo();
+    root.connect('[data-hero-figure-video]', video);
+
+    renderHeroPatternProgress(root as unknown as HTMLElement, 0.25, {
+      mediaRun: { runId: 'hero-pattern-media:1', direction: 1 }
+    });
+    expect(video.dataset.timelineVideoRun).toBe('hero-pattern-media:1');
+    expect(video.dataset.timelineVideoDirection).toBe('1');
+
+    renderHeroPatternProgress(root as unknown as HTMLElement, 0.75, {
+      mediaRun: { runId: 'hero-pattern-media:2', direction: -1 }
+    });
+    expect(video.dataset.timelineVideoRun).toBe('hero-pattern-media:2');
+    expect(video.dataset.timelineVideoDirection).toBe('-1');
+
+    renderHeroPatternProgress(root as unknown as HTMLElement, 0.5, {
+      mediaRun: { runId: 'hero-pattern-media:3', direction: 1 }
+    });
+    expect(video.dataset.timelineVideoRun).toBe('hero-pattern-media:3');
+    expect(video.dataset.timelineVideoDirection).toBe('1');
+    expect(video.currentTimeWrites).toBeGreaterThan(0);
   });
 
   it('holds the figure at its authored start behind Loader and throughout Hero intro', () => {

@@ -295,7 +295,11 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           'figure3-alpha',
           ['figure3-alpha-scrub'],
           'services',
-          { forwardMode: 'timeline' }
+          {
+            forwardMode: 'timeline',
+            reverseMode: 'timeline',
+            reverseRequired: true
+          }
         )
       ];
     case 'figure2-distance-expand':

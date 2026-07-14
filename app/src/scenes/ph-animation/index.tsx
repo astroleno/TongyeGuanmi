@@ -138,10 +138,6 @@ export function parkPhMedia(root: HTMLElement | null | undefined): void {
   }
   disposeTimelineVideoDriver(video);
   video.pause();
-  if (video.preload !== 'metadata') {
-    video.preload = 'metadata';
-    video.load?.();
-  }
 }
 
 function PhAnimationScene({ registerHandle }: SceneComponentProps) {
@@ -157,7 +153,16 @@ function PhAnimationScene({ registerHandle }: SceneComponentProps) {
       video.playsInline = true;
       video.pause();
     }
+    const controller = root && video ? new AbortController() : null;
+    if (root && video && controller) {
+      void preparePhAnimationFrame(root, 0, {
+        runId: 'ph-prewarm',
+        direction: 1,
+        signal: controller.signal
+      }).catch(() => undefined);
+    }
     return () => {
+      controller?.abort();
       if (video) {
         disposeTimelineVideoDriver(video);
         video.pause();
@@ -198,7 +203,7 @@ function PhAnimationScene({ registerHandle }: SceneComponentProps) {
                 src={PH_FIGURE_VIDEO_SRC}
                 poster={PH_FIGURE_POSTER_SRC}
                 muted
-                preload="metadata"
+                preload="auto"
                 playsInline
               />
             </div>

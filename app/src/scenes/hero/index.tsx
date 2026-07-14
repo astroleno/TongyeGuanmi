@@ -6,11 +6,13 @@ import type {
   SceneModule,
   StageLayerRole
 } from '../../story/types';
-import { createInkFieldFrame } from '../../transitions/shared/inkField';
+import { createRadialInkIntroController, type RadialInkIntroController } from '../../transitions/shared/radialInkIntro';
 import {
-  createInkFieldRenderer,
-  type InkFieldRenderer
-} from '../../transitions/shared/sceneInk';
+  disposeTimelineVideoDriver,
+  driveTimelineVideo,
+  prepareTimelineVideoFrame,
+  type TimelineVideoDriveInput
+} from '../../media/timeline-video-driver';
 import { attachHeroParallax, sampleHeroIntro, startHeroIntro, type HeroIntroSample } from './motion';
 
 const HERO_BACK_IMAGE = new URL('../../../../assets/back1.png', import.meta.url).href;
@@ -18,13 +20,13 @@ const HERO_MIDDLE_IMAGE = new URL('../../../../assets/middle1.png', import.meta.
 const HERO_MIDDLE_DEPTH_IMAGE = new URL('../../../../assets/middle1_depth.png', import.meta.url).href;
 const HERO_FIGURE_VIDEO = new URL('../../../../assets/figure1.webm', import.meta.url).href;
 const HERO_FIGURE_POSTER = new URL('../../../../assets/figure-poster.jpg', import.meta.url).href;
-const HERO_VIDEO_SEGMENT_SECONDS = 2;
 const HERO_VIDEO_START_SECONDS = 0.34;
 const HERO_VIDEO_END_EPSILON = 0.08;
-const HERO_INTRO_INK_SPEC = {
+const HERO_VIDEO_END_SECONDS = 2.34;
+export const HERO_RADIAL_INK_FIELD = {
   kind: 'radial' as const,
   origin: { x: 0.5, y: 0.5 },
-  seed: 'hero-intro'
+  seed: 'hero-pattern'
 };
 
 export const HERO_COPY = [
@@ -40,18 +42,27 @@ export type HeroRenderState = {
 };
 
 type HeroVideoElement = HTMLVideoElement & {
-  __r4HeroEndpointHeld?: boolean;
   __r4HeroPendingTime?: number;
   __r4HeroMetadataBound?: boolean;
 };
 
 export type HeroVideoPlaybackState = 'inactive' | 'start' | 'terminal';
 
-function heroVideoBounds(video: HTMLVideoElement): { start: number; end: number } {
-  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 5.04;
-  const start = Math.min(HERO_VIDEO_START_SECONDS, Math.max(0, duration * 0.08));
-  const end = Math.min(duration - HERO_VIDEO_END_EPSILON, start + Math.min(HERO_VIDEO_SEGMENT_SECONDS, duration * 0.55));
-  return { start, end: Math.max(start, end) };
+export type HeroPatternMediaRun = Readonly<{
+  runId: string;
+  direction: 1 | -1;
+  reducedMotion?: boolean;
+}>;
+
+export type HeroPatternRenderOptions = Readonly<{
+  mediaRun?: HeroPatternMediaRun;
+}>;
+
+function heroFigureVideo(root: HTMLElement | null | undefined): HTMLVideoElement | null {
+  const candidate = root as (HTMLElement & {
+    querySelector?: <Element extends HTMLElement = HTMLElement>(selector: string) => Element | null;
+  }) | null | undefined;
+  return candidate?.querySelector?.<HTMLVideoElement>('[data-hero-figure-video]') ?? null;
 }
 
 function bindHeroMetadataResync(video: HeroVideoElement): void {
@@ -98,16 +109,13 @@ export function setHeroVideoPlaybackState(
   configureHeroVideo(video);
   bindHeroMetadataResync(video);
   video.pause();
-  const { start, end } = heroVideoBounds(video);
 
   if (state === 'start') {
-    video.__r4HeroEndpointHeld = false;
-    seekHeroVideo(video, start);
+    seekHeroVideo(video, HERO_VIDEO_START_SECONDS);
     return;
   }
   if (state === 'terminal') {
-    video.__r4HeroEndpointHeld = true;
-    seekHeroVideo(video, end);
+    seekHeroVideo(video, HERO_VIDEO_END_SECONDS);
   }
 }
 
@@ -115,7 +123,6 @@ export function heroVideoPlaybackStateForPresentation(options: Readonly<{
   hidden: boolean;
   role: StageLayerRole | undefined;
   introMode: HeroIntroMode;
-  endpointHeld: boolean;
 }>): HeroVideoPlaybackState {
   if (options.role === 'prev') {
     return 'terminal';
@@ -123,13 +130,9 @@ export function heroVideoPlaybackStateForPresentation(options: Readonly<{
   if (options.hidden || (options.role !== undefined && options.role !== 'current')) {
     return 'inactive';
   }
-  if (options.introMode === 'waiting' || options.introMode === 'running') {
-    return 'start';
-  }
-  if (options.introMode === 'complete') {
-    return options.endpointHeld ? 'terminal' : 'start';
-  }
-  return 'terminal';
+  // The current Hero is always the authored first frame. The terminal frame is
+  // only a preposition for the previous layer while Pattern reverses back.
+  return 'start';
 }
 
 function range01(value: number, start: number, end: number): number {
@@ -145,6 +148,8 @@ export function renderHeroProgress(root: HTMLElement | null, progress: number): 
   root?.style.setProperty('--r4-hero-progress', clamped.toFixed(4));
   root?.style.setProperty('--r4-hero-middle-intro', middleIntro.toFixed(4));
   root?.style.setProperty('--r4-hero-figure-intro', figureIntro.toFixed(4));
+  root?.style.setProperty('--r4-hero-pattern-middle-progress', '0.0000');
+  root?.style.setProperty('--r4-hero-pattern-figure-progress', '0.0000');
   root?.setAttribute('data-hero-progress', clamped.toFixed(4));
   return { progress: clamped };
 }
@@ -153,12 +158,66 @@ export function renderHeroHold(root: HTMLElement | null): void {
   renderHeroProgress(root, 1);
 }
 
+function heroPatternMediaInput(progress: number, mediaRun: HeroPatternMediaRun): TimelineVideoDriveInput {
+  return {
+    runId: mediaRun.runId,
+    direction: mediaRun.direction,
+    progress,
+    durationFallbackSeconds: 5.04,
+    startSeconds: HERO_VIDEO_START_SECONDS,
+    endSeconds: HERO_VIDEO_END_SECONDS,
+    endEpsilonSeconds: HERO_VIDEO_END_EPSILON,
+    timelineDurationMs: 2_200,
+    // Timeline construction renders progress(0|1) before SegmentPlayer starts
+    // playback. Keep both directions seek-driven so that initial render cannot
+    // turn a prepared Hero frame into native playback.
+    mode: 'timeline',
+    reducedMotion: Boolean(mediaRun.reducedMotion)
+  };
+}
+
+export function renderHeroPatternProgress(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  options: HeroPatternRenderOptions = {}
+): HeroRenderState {
+  const progress = Math.min(1, Math.max(0, rawProgress));
+  const eased = progress * progress * (3 - 2 * progress);
+  renderHeroProgress(root ?? null, 1);
+  root?.style.setProperty('--r4-hero-pattern-middle-progress', eased.toFixed(4));
+  root?.style.setProperty('--r4-hero-pattern-figure-progress', eased.toFixed(4));
+  const video = heroFigureVideo(root);
+  if (video && options.mediaRun) {
+    driveTimelineVideo(video, heroPatternMediaInput(progress, options.mediaRun));
+  } else if (video) {
+    setHeroVideoPlaybackState(video, progress >= 0.999 ? 'terminal' : 'start');
+  }
+  return { progress };
+}
+
+export function prepareHeroPatternFrame(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  mediaRun: HeroPatternMediaRun
+): Promise<void> {
+  renderHeroPatternProgress(root, rawProgress);
+  const video = heroFigureVideo(root);
+  if (!video) {
+    return Promise.reject(new Error('hero media unavailable'));
+  }
+  return prepareTimelineVideoFrame(video, heroPatternMediaInput(rawProgress, mediaRun)).then((result) => {
+    if (result?.status !== 'ready') {
+      throw new Error('hero frame stale');
+    }
+  });
+}
+
 function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const backRef = useRef<HTMLImageElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const introInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const introInkRendererRef = useRef<InkFieldRenderer | null>(null);
+  const introInkControllerRef = useRef<RadialInkIntroController | null>(null);
   const introProgressRef = useRef(1);
   const introMode = presentation?.heroIntroMode ?? 'endpoint';
   const reducedMotion = presentation?.reducedMotion ?? false;
@@ -170,23 +229,7 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
     const root = rootRef.current;
     introProgressRef.current = sample.progress;
     renderHeroProgress(root, sample.progress);
-    const canvas = introInkCanvasRef.current;
-    const back = backRef.current;
-    if (root && canvas && back) {
-      const frame = createInkFieldFrame(HERO_INTRO_INK_SPEC, sample.progress, {
-        width: root.clientWidth || window.innerWidth,
-        height: root.clientHeight || window.innerHeight
-      });
-      introInkRendererRef.current?.render(frame);
-      if (frame.ownership.revealClip && sample.progress < 0.999) {
-        back.style.clipPath = frame.ownership.revealClip;
-        back.style.setProperty('-webkit-clip-path', frame.ownership.revealClip);
-      } else {
-        back.style.removeProperty('clip-path');
-        back.style.removeProperty('-webkit-clip-path');
-      }
-      canvas.dataset.heroIntroInkActive = String(sample.progress > 0.002 && sample.progress < 0.999);
-    }
+    introInkControllerRef.current?.render(sample.progress);
     root?.setAttribute('data-hero-intro-state', sample.complete ? 'complete' : 'running');
     root?.setAttribute('data-hero-title-active', String(sample.titleActive));
   }, []);
@@ -204,23 +247,29 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
 
   useEffect(() => {
     const root = rootRef.current;
-    const canvas = introInkCanvasRef.current;
     const back = backRef.current;
+    const canvas = introInkCanvasRef.current;
     if (!root || !canvas || !back || reducedMotion) {
       return;
     }
-    const renderer = createInkFieldRenderer(canvas, {
-      grade: 'dark',
+    const controller = createRadialInkIntroController({
+      canvas,
+      revealSurface: back,
+      field: HERO_RADIAL_INK_FIELD,
       generation: 'hero-intro',
-      removeCanvasOnDestroy: false
+      viewport: () => ({
+        width: root.clientWidth || window.innerWidth,
+        height: root.clientHeight || window.innerHeight
+      })
     });
-    introInkRendererRef.current = renderer;
+    introInkControllerRef.current = controller;
+    controller.prewarm();
     renderIntroSample(sampleHeroIntro(introProgressRef.current));
     return () => {
-      introInkRendererRef.current = null;
-      renderer?.destroy();
-      back.style.removeProperty('clip-path');
-      back.style.removeProperty('-webkit-clip-path');
+      if (introInkControllerRef.current === controller) {
+        introInkControllerRef.current = null;
+      }
+      controller.dispose();
     };
   }, [reducedMotion, renderIntroSample]);
 
@@ -267,14 +316,14 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
     const playbackState = heroVideoPlaybackStateForPresentation({
       hidden,
       role,
-      introMode,
-      endpointHeld: Boolean((video as HeroVideoElement).__r4HeroEndpointHeld)
+      introMode
     });
     setHeroVideoPlaybackState(video, playbackState);
   }, [hidden, introMode, role]);
 
   useEffect(() => () => {
     if (videoRef.current) {
+      disposeTimelineVideoDriver(videoRef.current);
       setHeroVideoPlaybackState(videoRef.current, 'inactive');
     }
   }, []);

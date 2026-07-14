@@ -104,6 +104,21 @@ function webGlHarness() {
 }
 
 describe('ink WebGL resource lifecycle', () => {
+  it('uploads the configured particle gain to the field shader', () => {
+    const { canvas, gl } = webGlHarness();
+    const transition = createInkBoundaryTransition(canvas, { particleGain: 1.25 });
+    const frame = createInkFieldFrame(
+      { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'particle-gain' },
+      0.5,
+      { width: 320, height: 180 }
+    );
+
+    transition?.render(frame);
+
+    expect(gl.uniform1f).toHaveBeenCalledWith('uParticleGain', 1.25);
+    transition?.destroy();
+  });
+
   it('releases partial resources when renderer initialization fails', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { canvas, gl, loseContext } = webGlHarness();

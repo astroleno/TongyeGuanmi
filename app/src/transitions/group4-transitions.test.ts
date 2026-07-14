@@ -108,8 +108,12 @@ function context(
   to: SceneId,
   prefersReducedMotion = false,
   elements: { from?: HTMLElement; to?: HTMLElement } = {},
-  direction: Direction = 1
+  direction: Direction = 1,
+  runId: TransitionContext['runId'] = 'r4-g4-test:1'
 ): TransitionContext {
+  const separator = runId.lastIndexOf(':');
+  const actorEpoch = runId.slice(0, separator);
+  const runSerial = runId.slice(separator + 1);
   return {
     segment: segment(segmentId),
     from: layer(from, direction === 1 ? 'current' : 'next', elements.from ?? null),
@@ -121,8 +125,8 @@ function context(
       snapshot: () => []
     },
     direction,
-    runId: 'r4-g4-test:1',
-    prepareToken: 'r4-g4-test:prepare:1',
+    runId,
+    prepareToken: `${actorEpoch}:prepare:${runSerial}` as TransitionContext['prepareToken'],
     prefersReducedMotion,
     reportMilestone: () => undefined
   };
@@ -218,7 +222,7 @@ describe('R4 group4 transitions', () => {
     expect(overlay).not.toContain('linear-gradient(90deg');
   });
 
-  it('reveals completed Services copy at 80% and settles in one 2000ms snap', async () => {
+  it('crossfades into Services from 80% through the final frame of one 2000ms snap', async () => {
     const policy = segment('figure3-services').policy;
     const timeline = await createFigure3ServicesTransition().buildTimeline(
       context('figure3-services', 'figure3-animation', 'services')
@@ -231,17 +235,21 @@ describe('R4 group4 transitions', () => {
     expect(timeline.labels).not.toHaveProperty('stage:0');
 
     expect(FIGURE3_SERVICES_COPY_CUE.atProgress).toBe(0.8);
-    expect(timeline.sample?.(0.799)).toMatchObject({
+    expect(timeline.sample?.(0.79)).toMatchObject({
       from: { visible: true, opacity: 1 },
       to: { visible: false, opacity: 0 }
     });
     expect(timeline.sample?.(0.8)).toMatchObject({
       from: { visible: true, opacity: 1 },
-      to: { visible: true, opacity: 1 }
+      to: { visible: false, opacity: 0 }
+    });
+    expect(timeline.sample?.(0.81)).toMatchObject({
+      from: { visible: true },
+      to: { visible: true }
     });
     expect(timeline.sample?.(0.999)).toMatchObject({
-      from: { visible: true, opacity: 1 },
-      to: { visible: true, opacity: 1 }
+      from: { visible: false },
+      to: { visible: true, opacity: expect.closeTo(1, 3) }
     });
     expect(timeline.sample?.(1)).toMatchObject({
       from: { visible: false, opacity: 0 },
@@ -249,7 +257,7 @@ describe('R4 group4 transitions', () => {
     });
   });
 
-  it('keeps Figure3 behind the receiver until paper and wash are fully opaque in forward and reverse', async () => {
+  it("crossfades Figure3 and Services with the receiver's paper and wash in forward and reverse", async () => {
     const policy = segment('figure3-services').policy;
     expect(policy.kind).toBe('snap');
     const fromElement = new FakeElement();
@@ -271,10 +279,10 @@ describe('R4 group4 transitions', () => {
 
     timeline.progress(0.8);
     expect(transitionContext.from.visibility.visible).toBe(true);
-    expect(transitionContext.to.visibility.visible).toBe(true);
+    expect(transitionContext.to.visibility.visible).toBe(false);
     expect(toElement.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
-    expect(toElement.style.getPropertyValue('--r4-services-opacity')).toBe('1.0000');
-    expect(toElement.style.getPropertyValue('--r4-services-y')).toBe('0.00px');
+    expect(toElement.style.getPropertyValue('--r4-services-opacity')).toBe('0.0000');
+    expect(toElement.style.getPropertyValue('--r4-services-y')).toBe('28.00px');
 
     timeline.progress(midpoint);
     expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-handoff-paper-alpha'))).toBeCloseTo(0.5, 3);
@@ -295,6 +303,38 @@ describe('R4 group4 transitions', () => {
     expect(transitionContext.to.visibility.visible).toBe(false);
 
     timeline.dispose();
+  });
+
+  it('does not let an older Figure3 run clear a newer receiver bridge during rapid forward/reverse replacement', async () => {
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    const transition = createFigure3ServicesTransition();
+    const older = await transition.buildTimeline(context(
+      'figure3-services',
+      'figure3-animation',
+      'services',
+      false,
+      { from: fromElement as unknown as HTMLElement, to: toElement as unknown as HTMLElement },
+      1,
+      'figure3-race:1'
+    ));
+    const newer = await transition.buildTimeline(context(
+      'figure3-services',
+      'figure3-animation',
+      'services',
+      false,
+      { from: fromElement as unknown as HTMLElement, to: toElement as unknown as HTMLElement },
+      -1,
+      'figure3-race:2'
+    ));
+
+    newer.progress(0.9);
+    const receiverAlpha = toElement.style.getPropertyValue('--r4-handoff-paper-alpha');
+
+    older.dispose();
+
+    expect(toElement.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe(receiverAlpha);
+    newer.dispose();
   });
 
   it('preserves Figure3 and Services presentation when disposing independently at both endpoints', async () => {
@@ -333,12 +373,14 @@ describe('R4 group4 transitions', () => {
       const timeline = await transition.buildTimeline(context(item.id, item.from, item.to));
 
       expect(transition.reducedMotionFallback).toBeTypeOf('function');
-      expect(verifySegmentTimeline(timeline, {
+      const verification = verifySegmentTimeline(timeline, {
         policy: segment(item.id).policy,
         ...(item.copyCueAtProgress !== undefined ? { copyCueAtProgress: item.copyCueAtProgress } : {})
-      })).toMatchObject({
-        maxVisibleLayers: 2
       });
+      expect(verification.maxVisibleLayers).toBeLessThanOrEqual(2);
+      if (item.id === 'brand-figure3') {
+        expect(verification.maxVisibleLayers).toBe(2);
+      }
     });
 
     it(`keeps ${item.id} idempotent across 0 to 1 to 0 to 1`, async () => {

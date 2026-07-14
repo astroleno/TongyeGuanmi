@@ -45,7 +45,7 @@ export function productionInkRendererRequired(prefersReducedMotion: boolean): bo
     && (browserCanvasRuntime || typeof WebGLRenderingContext !== 'undefined');
 }
 
-export type InkGradePreset = 'edge-only' | 'dark';
+export type InkGradePreset = 'edge-only' | 'edge-bright' | 'dark';
 
 export type InkFieldRendererLifecycleOptions = Readonly<{
   removeCanvasOnDestroy?: boolean;
@@ -64,6 +64,14 @@ export type TransitionInkCanvasOptions = {
 const INK_GRADE_PRESETS = Object.freeze({
   'edge-only': Object.freeze({
     colorLift: 0.92,
+    coverAlpha: 0,
+    fadeOutStart: 0.94,
+    fadeOutEnd: 0.995,
+    dprLimit: 1
+  }),
+  'edge-bright': Object.freeze({
+    colorLift: 1,
+    particleGain: 1.25,
     coverAlpha: 0,
     fadeOutStart: 0.94,
     fadeOutEnd: 0.995,
@@ -89,7 +97,6 @@ function markGradePreset(
   canvas.dataset.r4InkGrade = grade;
   canvas.dataset.r4InkPresetApplied = 'true';
   canvas.dataset.r4InkParticleProfile = 'jade-gold';
-  delete canvas.dataset.r4InkParticleStrength;
   canvas.dataset.r4InkRenderer = renderer;
   canvas.dataset.r4InkColorLift = (options.colorLift ?? 0).toFixed(3);
   canvas.dataset.r4InkCoverAlpha = (options.coverAlpha ?? 0).toFixed(3);

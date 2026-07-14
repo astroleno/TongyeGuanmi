@@ -82,7 +82,7 @@ describe('story manifest contract', () => {
       'crane-contact'
     ]);
     for (const segment of mediaSegments) {
-      const reverse = segment.id === 'crane-contact' || segment.id === 'aod-method-top'
+      const reverse = segment.id === 'crane-contact' || segment.id === 'aod-method-top' || segment.id === 'figure3-services'
         ? { mode: 'timeline', required: true }
         : { mode: 'static-fallback', required: false };
       expect(segment.mediaPlayback?.[0]).toMatchObject({

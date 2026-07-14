@@ -9,7 +9,7 @@ import {
   renderPatternForHeroPattern
 } from './index';
 import { patternCenterForViewport } from '../../scenes/pattern';
-import { createBackHalfDomContext, FakeCanvas } from '../__fixtures__/back-half.fixture';
+import { createBackHalfDomContext, FakeCanvas, FakeVideo } from '../__fixtures__/back-half.fixture';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
 
 const transitionSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
@@ -131,7 +131,29 @@ describe('hero-pattern transition', () => {
     expect(fixture.toRoot.dataset.patternProgress).toBe('0.0000');
   });
 
-  it('leases Pattern motion only while Pattern is visible and releases it idempotently', async () => {
+  it.each([1, -1] as const)(
+    'prepares Hero media with timeline seeks before %s playback starts',
+    async (direction) => {
+      const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
+      const canvas = new FakeCanvas();
+      const video = new FakeVideo();
+      fixture.fromRoot.connect('[data-hero-figure-video]', video);
+      vi.stubGlobal('document', { createElement: () => canvas });
+
+      const timeline = await createHeroPatternTransition().buildTimeline({
+        ...fixture.context,
+        direction
+      });
+
+      // buildTimeline primes the exact endpoint, but only SegmentPlayer's
+      // play/reverse call may advance Hero media.
+      expect(video.playCalls).toBe(0);
+      expect(video.paused).toBe(true);
+      timeline.dispose();
+    }
+  );
+
+  it('leases both Hero and Pattern motion only while the Ink handoff is visible', async () => {
     const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
     const canvas = new FakeCanvas();
     vi.stubGlobal('document', { createElement: () => canvas });
@@ -139,20 +161,27 @@ describe('hero-pattern transition', () => {
 
     expect(fixture.toRoot.dataset.sceneMotionActive).toBe('false');
     expect(fixture.toRoot.dataset.sceneMotionLeaseCount).toBe('0');
+    expect(fixture.fromRoot.dataset.sceneMotionActive).toBe('true');
+    expect(fixture.fromRoot.dataset.sceneMotionLeaseCount).toBe('1');
 
     timeline.progress(0.5);
     expect(fixture.toRoot.dataset.sceneMotionActive).toBe('true');
     expect(fixture.toRoot.dataset.sceneMotionLeaseCount).toBe('1');
+    expect(fixture.fromRoot.dataset.sceneMotionActive).toBe('true');
+    expect(fixture.fromRoot.dataset.sceneMotionLeaseCount).toBe('1');
 
     timeline.progress(0);
     expect(fixture.toRoot.dataset.sceneMotionActive).toBe('false');
     expect(fixture.toRoot.dataset.sceneMotionLeaseCount).toBe('0');
+    expect(fixture.fromRoot.dataset.sceneMotionActive).toBe('true');
+    expect(fixture.fromRoot.dataset.sceneMotionLeaseCount).toBe('1');
 
     timeline.progress(0.5);
     timeline.dispose();
     timeline.dispose();
     expect(fixture.toRoot.dataset.sceneMotionActive).toBe('false');
     expect(fixture.toRoot.dataset.sceneMotionLeaseCount).toBe('0');
+    expect(fixture.fromRoot.dataset.sceneMotionActive).toBe('false');
   });
 
   it('keeps exactly Hero → Pattern and Pattern → Star Map as radial consumers', () => {

@@ -17,6 +17,7 @@ export type ReadingHandoffResult = Readonly<{
   direction: Direction;
   contentPixels: number;
   residualPixels: number;
+  atEdge: boolean;
 }>;
 
 function directionFor(pixels: number): Direction {
@@ -38,7 +39,8 @@ export function consumeReadingPixels(input: ReadingHandoffInput): ReadingHandoff
     owned: false,
     direction,
     contentPixels: 0,
-    residualPixels: input.pixels
+    residualPixels: input.pixels,
+    atEdge: false
   });
   if (input.pixels === 0 || !isReadingLayer(input.root)) {
     return unowned();
@@ -54,6 +56,8 @@ export function consumeReadingPixels(input: ReadingHandoffInput): ReadingHandoff
     ? Math.max(0, metrics.maxScrollTop - metrics.scrollTop)
     : Math.max(0, metrics.scrollTop);
   const availableContent = rawAvailable <= tolerance ? 0 : rawAvailable;
+  const startedAtEdge = availableContent === 0;
+  let reachedEdgeDuringInput = false;
   if (availableContent === 0) {
     scrollport.scrollTop = direction === 1 ? metrics.maxScrollTop : 0;
   }
@@ -65,6 +69,7 @@ export function consumeReadingPixels(input: ReadingHandoffInput): ReadingHandoff
     const remaining = direction === 1
       ? metrics.maxScrollTop - target
       : target;
+    reachedEdgeDuringInput = remaining <= tolerance;
     scrollport.scrollTop = remaining <= tolerance
       ? direction === 1 ? metrics.maxScrollTop : 0
       : target;
@@ -75,6 +80,7 @@ export function consumeReadingPixels(input: ReadingHandoffInput): ReadingHandoff
     owned: true,
     direction,
     contentPixels,
-    residualPixels
+    residualPixels,
+    atEdge: startedAtEdge || reachedEdgeDuringInput
   };
 }

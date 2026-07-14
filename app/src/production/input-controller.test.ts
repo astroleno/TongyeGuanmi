@@ -249,7 +249,7 @@ describe('production input reading handoff', () => {
     detach();
   });
 
-  it('uses one PageDown at the edge as one discrete 10svh commitment', () => {
+  it('arms the reading edge on one PageDown and commits on the next discrete key gesture', () => {
     const listeners = new Map<string, Set<(event: Event) => void>>();
     const fakeWindow = {
       innerHeight: 1000,
@@ -299,6 +299,134 @@ describe('production input reading handoff', () => {
     };
 
     expect(emitPageDown().preventDefault).toHaveBeenCalledOnce();
+    expect(send).not.toHaveBeenCalled();
+    expect(emitPageDown().preventDefault).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'CHARGE_FIRED',
+      direction: 1
+    }));
+    detach();
+  });
+
+  it('requires a second 16px wheel gesture at both reading edges before leaving the scene', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const listeners = new Map<string, Set<(event: Event) => void>>();
+    vi.stubGlobal('window', {
+      innerHeight: 1000,
+      visualViewport: undefined,
+      addEventListener(type: string, listener: (event: Event) => void) {
+        const current = listeners.get(type) ?? new Set<(event: Event) => void>();
+        current.add(listener);
+        listeners.set(type, current);
+      },
+      removeEventListener(type: string, listener: (event: Event) => void) {
+        listeners.get(type)?.delete(listener);
+      }
+    });
+    const { root, scrollport } = readingRoot(1000);
+    const send = vi.fn();
+    const runtime = {
+      getState: () => ({
+        state: 'hold',
+        context: { cursor: { status: 'hold', scene: 'method-top' } }
+      }),
+      send,
+      subscribe: () => () => undefined
+    };
+    const detach = attachStoryInput({
+      runtime: runtime as unknown as Parameters<typeof attachStoryInput>[0]['runtime'],
+      getCurrentScene: () => 'method-top',
+      getLayerElement: () => root
+    });
+    const emit = (deltaY: number) => {
+      const event = {
+        cancelable: true,
+        deltaMode: 0,
+        deltaY,
+        preventDefault: vi.fn(),
+        target: null
+      } as unknown as WheelEvent;
+      for (const listener of listeners.get('wheel') ?? []) {
+        listener(event);
+      }
+      return event;
+    };
+
+    emit(24);
+    expect(send).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(221);
+    emit(15);
+    expect(send).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(16);
+    emit(1);
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({
+      type: 'CHARGE_FIRED',
+      direction: 1
+    }));
+
+    scrollport.scrollTop = 0;
+    vi.advanceTimersByTime(221);
+    emit(-24);
+    expect(send).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(221);
+    emit(-16);
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({
+      type: 'CHARGE_FIRED',
+      direction: -1
+    }));
+    detach();
+  });
+
+  it('treats each touchstart/touchend pair as an independent reading-edge gesture', () => {
+    const listeners = new Map<string, Set<(event: Event) => void>>();
+    vi.stubGlobal('window', {
+      innerHeight: 1000,
+      visualViewport: undefined,
+      addEventListener(type: string, listener: (event: Event) => void) {
+        const current = listeners.get(type) ?? new Set<(event: Event) => void>();
+        current.add(listener);
+        listeners.set(type, current);
+      },
+      removeEventListener(type: string, listener: (event: Event) => void) {
+        listeners.get(type)?.delete(listener);
+      }
+    });
+    const { root } = readingRoot(1000);
+    const send = vi.fn();
+    const runtime = {
+      getState: () => ({
+        state: 'hold',
+        context: { cursor: { status: 'hold', scene: 'method-top' } }
+      }),
+      send,
+      subscribe: () => () => undefined
+    };
+    const detach = attachStoryInput({
+      runtime: runtime as unknown as Parameters<typeof attachStoryInput>[0]['runtime'],
+      getCurrentScene: () => 'method-top',
+      getLayerElement: () => root
+    });
+    const emit = (type: 'touchstart' | 'touchmove' | 'touchend', y?: number) => {
+      const event = {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: y === undefined ? [] : [{ clientY: y }]
+      } as unknown as TouchEvent;
+      for (const listener of listeners.get(type) ?? []) {
+        listener(event);
+      }
+    };
+
+    emit('touchstart', 200);
+    emit('touchmove', 176);
+    emit('touchend');
+    expect(send).not.toHaveBeenCalled();
+
+    emit('touchstart', 200);
+    emit('touchmove', 185);
+    expect(send).not.toHaveBeenCalled();
+    emit('touchmove', 184);
     expect(send).toHaveBeenCalledWith(expect.objectContaining({
       type: 'CHARGE_FIRED',
       direction: 1

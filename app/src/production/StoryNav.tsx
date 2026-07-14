@@ -109,17 +109,19 @@ export function StoryNav({
           </a>
         </div>
       </nav>
-      <div
-        className="scroll-edge-blur"
-        aria-hidden="true"
-        data-visible={String(visible)}
-        data-tone={chrome.tone}
-      >
-        {Array.from({ length: 7 }, (_, index) => (
-          <span key={index} className="scroll-edge-blur__layer" />
-        ))}
-        <span className="scroll-edge-blur__tint" />
-      </div>
+      {visible ? (
+        <div
+          className="scroll-edge-blur"
+          aria-hidden="true"
+          data-visible="true"
+          data-tone={chrome.tone}
+        >
+          {Array.from({ length: 7 }, (_, index) => (
+            <span key={index} className="scroll-edge-blur__layer" />
+          ))}
+          <span className="scroll-edge-blur__tint" />
+        </div>
+      ) : null}
     </>
   );
 }

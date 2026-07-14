@@ -1,3 +1,11 @@
+import { useEffect, useRef } from 'react';
+import {
+  disposeTimelineVideoDriver,
+  driveTimelineVideo,
+  prepareTimelineVideoFrame,
+  type TimelineVideoDriveInput
+} from '../../media/timeline-video-driver';
+import { FIGURE3_SERVICES_DURATION_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const FIGURE3_MEDIA_KEY = 'figure3-alpha-scrub';
@@ -10,6 +18,16 @@ export type Figure3RenderState = {
   videoOpacity: number;
   videoScale: number;
 };
+
+export type Figure3MediaRun = Readonly<{
+  runId: string;
+  direction: 1 | -1;
+  reducedMotion?: boolean;
+}>;
+
+type Figure3RenderOptions = Readonly<{
+  mediaRun?: Figure3MediaRun;
+}>;
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 const smoothStep = (value: number) => {
@@ -24,23 +42,31 @@ const acceleratedProgress = (progress: number) => {
 
 export const FIGURE3_HOLD_PROGRESS = 0;
 
-function seekVideo(video: HTMLVideoElement | null | undefined, progress: number): void {
-  if (!video) {
-    return;
-  }
-  video.loop = false;
-  video.pause();
-  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 5.04;
-  const targetTime = Math.max(0, Math.min(duration - 0.02, progress * duration));
-  if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.016) {
-    video.currentTime = targetTime;
-  }
-}
-
-export function renderFigure3AnimationProgress(root: HTMLElement | null | undefined, rawProgress: number): Figure3RenderState {
-  const section = root?.matches('[data-r4-scene="figure3-animation"]')
+function figure3Section(root: HTMLElement | null | undefined): HTMLElement | null {
+  return root?.matches('[data-r4-scene="figure3-animation"]')
     ? root
     : root?.querySelector<HTMLElement>('[data-r4-scene="figure3-animation"]') ?? null;
+}
+
+function figure3MediaInput(progress: number, mediaRun: Figure3MediaRun): TimelineVideoDriveInput {
+  return {
+    runId: mediaRun.runId,
+    direction: mediaRun.direction,
+    progress,
+    durationFallbackSeconds: 5.04,
+    endEpsilonSeconds: 0.02,
+    timelineDurationMs: FIGURE3_SERVICES_DURATION_MS,
+    mode: 'timeline',
+    reducedMotion: Boolean(mediaRun.reducedMotion)
+  };
+}
+
+export function renderFigure3AnimationProgress(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  options: Figure3RenderOptions = {}
+): Figure3RenderState {
+  const section = figure3Section(root);
   const progress = acceleratedProgress(rawProgress);
   const fillOpacity = smoothStep(range01(progress, 0.86, 0.995));
   const videoOpacity = 1 - smoothStep(range01(progress, 0.93, 1));
@@ -54,7 +80,10 @@ export function renderFigure3AnimationProgress(root: HTMLElement | null | undefi
   section?.style.setProperty('--figure3-backdrop-scale', (1.06 + backdropSettle * 0.08).toFixed(4));
   section?.style.setProperty('--figure3-video-scale', videoScale.toFixed(4));
   section?.setAttribute('data-figure3-progress', progress.toFixed(4));
-  seekVideo(section?.querySelector<HTMLVideoElement>('[data-figure3-alpha-video]'), progress);
+  if (options.mediaRun) {
+    const video = section?.querySelector<HTMLVideoElement>('[data-figure3-alpha-video]');
+    driveTimelineVideo(video, figure3MediaInput(progress, options.mediaRun));
+  }
 
   return { progress, fillOpacity, videoOpacity, videoScale };
 }
@@ -63,7 +92,32 @@ export function renderFigure3Hold(root: HTMLElement | null): void {
   renderFigure3AnimationProgress(root, FIGURE3_HOLD_PROGRESS);
 }
 
+export function prepareFigure3AnimationFrame(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  mediaRun: Figure3MediaRun
+): Promise<void> {
+  const video = figure3Section(root)?.querySelector<HTMLVideoElement>('[data-figure3-alpha-video]');
+  if (!video) {
+    return Promise.reject(new Error('figure3 media unavailable'));
+  }
+  return prepareTimelineVideoFrame(video, figure3MediaInput(acceleratedProgress(rawProgress), mediaRun)).then((result) => {
+    if (result?.status !== 'ready') {
+      throw new Error('figure3 frame stale');
+    }
+  });
+}
+
 function Figure3AnimationScene({ registerHandle }: SceneComponentProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => () => {
+    if (videoRef.current) {
+      disposeTimelineVideoDriver(videoRef.current);
+      videoRef.current.pause();
+    }
+  }, []);
+
   return (
     <article
       ref={(element) => {
@@ -81,7 +135,10 @@ function Figure3AnimationScene({ registerHandle }: SceneComponentProps) {
         <div className="figure3-transition__backdrop" aria-hidden="true" />
         <div className="figure3-transition__stage" aria-hidden="true">
           <video
-            ref={(element) => registerHandle?.('figure3-video', element)}
+            ref={(element) => {
+              videoRef.current = element;
+              registerHandle?.('figure3-video', element);
+            }}
             className="figure3-transition__video"
             data-figure3-alpha-video
             data-media-key={FIGURE3_MEDIA_KEY}

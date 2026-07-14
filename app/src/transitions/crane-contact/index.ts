@@ -30,14 +30,12 @@ function sampleCraneContact(progress: number): { from: LayerVisibilityState; to:
 function writeHandoffReceiver(element: HTMLElement | null | undefined, progress: number): void {
   const receiverProgress = range01(progress, CONTACT_RECEIVER_START, CONTACT_RECEIVER_END);
   const paperProgress = receiverProgress;
-  element?.setAttribute('data-r4-handoff-receiver-active', String(receiverProgress > 0.001 && receiverProgress < 0.999));
   element?.setAttribute('data-r4-handoff-receiver-progress', receiverProgress.toFixed(4));
   element?.style.setProperty('--r4-handoff-paper-alpha', paperProgress.toFixed(4));
   element?.style.setProperty('--r4-handoff-wash-alpha', paperProgress.toFixed(4));
 }
 
 function clearHandoffReceiver(element: HTMLElement | null | undefined): void {
-  element?.removeAttribute('data-r4-handoff-receiver-active');
   element?.removeAttribute('data-r4-handoff-receiver-progress');
   element?.style.removeProperty('--r4-handoff-paper-alpha');
   element?.style.removeProperty('--r4-handoff-wash-alpha');
