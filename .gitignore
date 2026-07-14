@@ -12,3 +12,19 @@ assets/*.pre-*
 assets/*.bad-*
 assets/*.tmp.*
 assets/*.original.*
+
+# Local code-graph output
+/graphify-out/
+/app/graphify-out/
+
+# Local visual verification captures
+/artifacts/react-refactor/r3-pilot/visual/
+/artifacts/pattern-scene-harness/
+/artifacts/pattern-scene-player-adapter/
+/artifacts/pattern-scene-provider/
+/artifacts/pattern-scene-provider-v2/
+/artifacts/starmap-scene-harness/
+
+# Python-generated files
+__pycache__/
+*.py[cod]
