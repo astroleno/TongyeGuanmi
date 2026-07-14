@@ -625,3 +625,90 @@ Batch B 未启动；没有 candidate/cutover tag，也没有删除动作。
 | `assets/crane-flock-motion.webm` | `147625e4002f422ffa6eef619f4d1973368d652b1badf786f6311fa046fe2516` |
 | `assets/aod-figure-motion.webm` | `76e7a21f941a2d40e051bd72cb92e8fb1264e21a6765fbac7f8773d2849d8c9c` |
 | `assets/figure3-motion.webm` | `610786ba0492be27e30690d321b8cf07c185413de95adccf0b64b964a0dcbaf7` |
+
+## Batch B：运行时切换、验证与删除
+
+- 运行时切换提交：`f5a497909683e8771a4e2944b5e2d8e0dfa0433d`（`refactor(media): use canonical directional videos`）。
+- 构建期清单校验：`app/scripts/verify-homepage-media-inventory.mjs`；它在每次 `pnpm run build` 中对 source SHA-256、最终 emit、38 文件数、9 个 WebM、11 个 WebP、80 MiB 和 4 MiB 门槛，以及八个 canonical non-Hero WebM 的 30fps/PTS 合同同时断言。
+- Hero 仍使用 `assets/figure1.webm`、`assets/figure-poster.jpg`、`assets/middle1_depth.png`，保留 0.34–2.34s 双向 timeline seek。仅背景/中景替换为 WebP；冷启动 `preload="none"`，在 Hero→Pattern 段被接受后才由既有 driver 提升为 `auto`。
+- Figure2、TTG 均已消除 reverse/poster/terminal 运行时 surface；正向 native-preferred，逆向在同一物理文件上以 timeline descending seek 运行。AOD、PH、Figure3、Crane 同样只使用八个 canonical non-Hero key；没有新增媒体框架或状态机。
+
+### 阻断性验证结果
+
+- `pnpm run verify:all`：**PASS**（lint、typecheck、87 个测试文件 / 555 个 Vitest、build）。默认 Harness contract regression：**45/45 PASS**。
+- mobile Chromium 的 canonical TTG 连续性、同文件反向、decode failure 静态 composition、Hero 冷启动 transfer 和八个 non-Hero key 检查：**PASS**。
+- mobile Chromium reverse presented-frame cadence：`app/e2e/r5-crane-media.spec.ts` 同时采样 Crane figure / flock 两个 canonical surface，要求每路至少 10 个 presented frames、8 个下降 media-time steps且 `fps >= REVERSE_PRESENTED_FPS_MIN = 20`；**PASS**。该测试以唯一的 `BATCH_B_CRANE_REVERSE_PRESENTED_CADENCE` 记录最终 `r5-release-manifest.json.sourceCommit`、host、浏览器版本、UA 和两路实测值，避免报告与交付文本保存两份不同 HEAD 的数值证据。
+- focused mobile Chromium frame pacing：Figure2 timeline reverse、TTG forward/reverse、AOD reverse 和 horizontal Ink 均 PASS；aggregate long-frame ratio 低于固定 1% 门槛，桌面与移动端验收标准未放宽。动态实测值只由最终同 HEAD 的浏览器日志记录，不在报告中复制第二份。
+- `dist/assets` 总量 68,496,831 bytes（低于既有 156 MiB 上限）；最大 lazy JS 65,505 bytes（不提高 64 KiB 预算）。
+
+### Batch B 复审闭环
+
+- Crane figure 与 flock 分别使用 2,500ms 媒体窗口；flock 在 segment 0s 启动，figure 在 0.5s 启动，并在 build 阶段并行准备当前方向的两路端点后才允许正向 native playback。
+- TimelineVideoDriver 的 seek、decode、frame callback 和 media element 终态错误统一暂停媒体、清除 `timelineVideoFrameReady` 并写入 `timelineVideoStaticFallback`；后续成功呈现新帧时清除该标记。暂停 native playback 前保留其已经呈现的当前 playhead；方向 generation 切换只失效 readiness 身份，不丢弃最近呈现时间。若最近呈现帧与物理 playhead 到新目标的合计误差仍在既有 50ms 呈现容差内，则复用该帧，不再等待一个不会到来的额外 rVFC；TTG 同轮反向重复 5 次均未复现端点卡顿。
+- Figure2 默认 Harness 只接受两个 canonical surface，并覆盖同文件反向 `currentTime` 下降；PH 与 Crane 默认 Harness 断言正向 native playback，Crane 另覆盖 flock 先行、figure 延迟 0.5s 和双路约 1× 播放。
+- Hero 反向 build 先构造底层 timeline，再准备其最终媒体端点，避免 endpoint 初始化覆盖已经准备的 Hero 终帧；prepare 期间在 opacity 仍为 0 的 prev layer 上短暂恢复 `visibility`，结束后恢复原值，因此不改变 Hero 图层关系或产生闪帧。该顺序另以延迟 rVFC 单测和 10/10 浏览器压力回归固化。
+- 仓库根目录的旧 standalone HTML/CSS/JS 不进入当前 React `dist`，其中残留的旧资产引用仅视为 legacy archive 边界，不属于本次 production runtime；若这些 standalone 页面仍需独立运行，应另立任务定义迁移或归档范围。精确 immutable archive ref 与恢复路径不受影响。
+
+### 最终 emitted 首页媒体 inventory
+
+构建生成的机器可读记录为 `dist/homepage-media-inventory.json`。以下是该记录的 38 个 source→emit 映射（bytes 为原始 emit bytes）：
+
+| Source | Emit | Bytes |
+| --- | --- | ---: |
+| `assets/figure1.webm` | `assets/figure1-Chc1RWuX.webm` | 10,639,235 |
+| `assets/figure2-left-motion.webm` | `assets/figure2-left-motion-JJmz6Fs0.webm` | 4,063,470 |
+| `assets/figure2-right-motion.webm` | `assets/figure2-right-motion-DMHkgmJh.webm` | 3,578,198 |
+| `assets/ph-figure-motion.webm` | `assets/ph-figure-motion-DQ400V_V.webm` | 2,646,001 |
+| `assets/ttg-figure-motion.webm` | `assets/ttg-figure-motion-fAGAr69N.webm` | 2,669,734 |
+| `assets/crane-figure-motion.webm` | `assets/crane-figure-motion-DrVxttkT.webm` | 3,523,046 |
+| `assets/crane-flock-motion.webm` | `assets/crane-flock-motion-CgghftYn.webm` | 9,696,197 |
+| `assets/aod-figure-motion.webm` | `assets/aod-figure-motion-Da7P6KQ3.webm` | 1,558,857 |
+| `assets/figure3-motion.webm` | `assets/figure3-motion-D8txjQ6Z.webm` | 1,187,579 |
+| `assets/hero-back.webp` | `assets/hero-back-D9rf9Ivf.webp` | 437,030 |
+| `assets/hero-middle.webp` | `assets/hero-middle-CxRnxlwB.webp` | 179,718 |
+| `assets/figure2-far-arch.webp` | `assets/figure2-far-arch-DT5EEAya.webp` | 181,708 |
+| `assets/figure2-middle-building.webp` | `assets/figure2-middle-building-lkd1T3Ik.webp` | 1,539,882 |
+| `assets/figure2-cloud.webp` | `assets/figure2-cloud-BaDKZfI1.webp` | 236,812 |
+| `assets/figure2-near-arch.webp` | `assets/figure2-near-arch-C0_lyyDn.webp` | 1,185,246 |
+| `assets/ttg-background.webp` | `assets/ttg-background-DSPwg2z4.webp` | 449,918 |
+| `assets/ttg-middle.webp` | `assets/ttg-middle-sdQS0GTa.webp` | 146,618 |
+| `assets/ttg-foreground.webp` | `assets/ttg-foreground-C_kIpIHy.webp` | 678,066 |
+| `assets/pattern-background.webp` | `assets/pattern-background-Bf_oA-Dc.webp` | 69,168 |
+| `assets/crane-paper.webp` | `assets/crane-paper-BIRxr82R.webp` | 337,126 |
+| `assets/figure-poster.jpg` | `assets/figure-poster-XHkaEP0c.jpg` | 88,634 |
+| `assets/middle1_depth.png` | `assets/middle1_depth-CUuYFALn.png` | 663,805 |
+| `assets/back2.png` | `assets/back2-tsrlG6bj.png` | 3,052,022 |
+| `assets/figure2-middle-depth.png` | `assets/figure2-middle-depth-DxiFJcLJ.png` | 1,116,044 |
+| `assets/figure2-middle-window-mask.png` | `assets/figure2-middle-window-mask-BYKQYcI5.png` | 40,056 |
+| `assets/aod_cloud-alpha.png` | `assets/aod_cloud-alpha-CdL74Qqw.png` | 2,208,068 |
+| `assets/aod_sun-alpha.png` | `assets/aod_sun-alpha-DDJpoQ64.png` | 2,067,192 |
+| `assets/ph_background.png` | `assets/ph_background-B8AFbTc0.png` | 3,192,753 |
+| `assets/ph_front-alpha.png` | `assets/ph_front-alpha-ZP06u6f5.png` | 1,759,632 |
+| `assets/crane1_cloud2-alpha.png` | `assets/crane1_cloud2-alpha-R6cgcOWU.png` | 607,050 |
+| `assets/crane1_arch-alpha.png` | `assets/crane1_arch-alpha-q-8m4czR.png` | 734,734 |
+| `assets/crane1_cloud1-alpha.png` | `assets/crane1_cloud1-alpha-BCXHGheM.png` | 810,398 |
+| `assets/crane1_cloud-front2-alpha.png` | `assets/crane1_cloud-front2-alpha-X9NNNaiv.png` | 641,724 |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-02.png` | `assets/pattern-layer-alpha-02-s2xzqJ_f.png` | 996,262 |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-03.png` | `assets/pattern-layer-alpha-03-DyzahhpB.png` | 1,246,471 |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-04.png` | `assets/pattern-layer-alpha-04-j49CX8bI.png` | 1,937,385 |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-05.png` | `assets/pattern-layer-alpha-05-C1VaWwk4.png` | 705,441 |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-06.png` | `assets/pattern-layer-alpha-06-D3QiB1Yf.png` | 956,204 |
+
+其中首页 runtime media 为 **67,827,484 bytes（64.69 MiB）**，低于 `HOMEPAGE_RUNTIME_MEDIA_BYTES_MAX = 80 MiB`；Hero 首次滚动前的图片/poster transfer 为 **1,369,187 bytes（1.31 MiB）**，低于 `HERO_BEFORE_FIRST_SCROLL_TRANSFER_MAX = 4 MiB`。清单严格为原 Hero WebM + 8 canonical non-Hero WebM（9 个）以及 11 个 adopted WebP；dist 中没有未采用 Hero 候选、dedicated reverse、non-Hero poster 或 TTG terminal PNG。
+
+### Canonical non-Hero WebM PTS 合同
+
+| Source | FPS | Frames | First PTS | Last PTS |
+| --- | --- | ---: | ---: | ---: |
+| `assets/figure2-left-motion.webm` | 30/1 | 78 | 0.000 | 2.567 |
+| `assets/figure2-right-motion.webm` | 30/1 | 78 | 0.000 | 2.567 |
+| `assets/ph-figure-motion.webm` | 30/1 | 46 | 0.000 | 1.500 |
+| `assets/ttg-figure-motion.webm` | 30/1 | 75 | 0.000 | 2.467 |
+| `assets/crane-figure-motion.webm` | 30/1 | 75 | 0.000 | 2.467 |
+| `assets/crane-flock-motion.webm` | 30/1 | 75 | 0.000 | 2.467 |
+| `assets/aod-figure-motion.webm` | 30/1 | 78 | 0.000 | 2.567 |
+| `assets/figure3-motion.webm` | 30/1 | 78 | 0.000 | 2.567 |
+
+### 删除结果
+
+在上述门槛和浏览器 gates 全部通过后，已删除“删除记录与恢复演练”表中除 Hero 两个保留项外的 35 个被替代 source（包括 Figure2 dedicated reverse/poster、TTG forward/reverse/poster/terminal、旧 AOD/Crane/Figure3 视频和 construction source）。所有删除文件仍可由该表的 `d4cab484e8f2d8656cf7c7cd0e19c015c7332702:<path>` immutable archive ref 恢复；`assets/figure1.webm`、`assets/figure-poster.jpg` 和 `assets/middle1_depth.png` 未删除。
