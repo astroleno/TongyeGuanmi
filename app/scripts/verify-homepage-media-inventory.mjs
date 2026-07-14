@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { animationWebmSources } from './homepage-media-contract.mjs';
+import {
+  animationWebmSources,
+  frozenHomepageMedia
+} from './homepage-media-contract.mjs';
 
 const KiB = 1024;
 const MiB = KiB * KiB;
@@ -128,14 +131,26 @@ async function filesBelow(directory) {
 }
 
 async function sourceEntry(source, category) {
+  const expected = frozenMediaBySource.get(source);
+  assert(expected, `${source} is missing from the frozen homepage media contract`);
+  assert(expected.category === category, `${source} category must be ${expected.category}`);
   const sourcePath = path.join(repoDir, source);
   const bytes = await readFile(sourcePath);
   assertMediaSignature(source, bytes);
+  const sourceSha256 = sha256(bytes);
+  assert(
+    bytes.byteLength === expected.bytes,
+    `${source} bytes ${bytes.byteLength} != frozen ${expected.bytes}`
+  );
+  assert(
+    sourceSha256 === expected.sha256,
+    `${source} SHA-256 ${sourceSha256} != frozen ${expected.sha256}`
+  );
   return {
     source,
     category,
     bytes: bytes.byteLength,
-    sha256: sha256(bytes)
+    sha256: sourceSha256
   };
 }
 
@@ -145,7 +160,13 @@ const inventorySources = [
   ...losslessWebpSources.map((source) => ({ source, category: 'lossless-webp' })),
   ...retainedImageSources.map((source) => ({ source, category: 'retained-image' }))
 ];
+const frozenMediaBySource = new Map(
+  frozenHomepageMedia.map((entry) => [entry.source, entry])
+);
 assert(inventorySources.length === 38, `expected 38 homepage source entries, found ${inventorySources.length}`);
+assert(frozenHomepageMedia.length === 38, `expected 38 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
+assert(frozenMediaBySource.size === frozenHomepageMedia.length, 'frozen homepage media sources must be unique');
+assert(frozenMediaBySource.size === inventorySources.length, 'frozen homepage media contract must cover the full inventory');
 assert(adoptedWebpSources.length === 11, `expected 11 adopted WebP sources, found ${adoptedWebpSources.length}`);
 assert(losslessWebpSources.length === 17, `expected 17 lossless WebP sources, found ${losslessWebpSources.length}`);
 assert(animationWebmSources.length === 9, `expected 9 animation WebM sources, found ${animationWebmSources.length}`);
@@ -214,9 +235,9 @@ assert(
 );
 
 const report = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   pass: true,
-  verificationScope: 'static-build',
+  verificationScope: 'static-frozen-build',
   budgets: {
     homepageRuntimeMediaBytesMax: HOMEPAGE_RUNTIME_MEDIA_BYTES_MAX,
     heroBeforeFirstScrollTransferMax: HERO_BEFORE_FIRST_SCROLL_TRANSFER_MAX

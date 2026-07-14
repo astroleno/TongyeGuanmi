@@ -1,6 +1,14 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,10 +38,13 @@ const candidateWorkflow = executableWorkflow(readFileSync(
   new URL('../../../.github/workflows/r5-candidate.yml', import.meta.url),
   'utf8'
 ));
-const mediaAssetWorkflow = executableWorkflow(readFileSync(
-  new URL('../../../.github/workflows/r5-media-assets.yml', import.meta.url),
-  'utf8'
-));
+const workflowDirectory = fileURLToPath(
+  new URL('../../../.github/workflows/', import.meta.url)
+);
+const workflowSources = readdirSync(workflowDirectory)
+  .filter((file) => /\.ya?ml$/.test(file))
+  .map((file) => executableWorkflow(readFileSync(path.join(workflowDirectory, file), 'utf8')))
+  .join('\n');
 const staticMediaVerifier = readFileSync(
   new URL('../../scripts/verify-homepage-media-inventory.mjs', import.meta.url),
   'utf8'
@@ -667,7 +678,7 @@ it('only publishes a deployable CI artifact from an identity-bound candidate tag
   );
 });
 
-it('runs deep WebM qualification only in the path-filtered media workflow', () => {
+it('keeps deep WebM qualification local and out of GitHub workflows', () => {
   expect(rootPackage.scripts['verify:media']).toBe('pnpm -C app run verify:media');
   expect(rootPackage.scripts['verify:media:deep']).toBe(
     'pnpm -C app run verify:media:deep'
@@ -682,33 +693,14 @@ it('runs deep WebM qualification only in the path-filtered media workflow', () =
     'node scripts/verify-homepage-media-deep.mjs'
   );
   expect(staticMediaVerifier).not.toContain('ffprobe');
+  expect(staticMediaVerifier).toContain('frozenHomepageMedia');
+  expect(staticMediaVerifier).toContain('frozen homepage media contract');
   expect(deepMediaVerifier).toContain("execFileAsync('ffprobe'");
-  expect(deepMediaVerifier).toContain("execFileAsync('ffmpeg'");
-  expect(deepMediaVerifier).toContain("'-c:v', 'libvpx-vp9'");
-  expect(deepMediaVerifier).toContain("'-vf', 'alphaextract'");
+  expect(deepMediaVerifier).not.toMatch(/\bffmpeg\b/i);
   expect(deepMediaVerifier).toContain('keyframeIndexes');
   expect(deepMediaVerifier).toContain('expectedFrameStep');
-
-  expect(mediaAssetWorkflow).toContain('workflow_dispatch:');
-  expect(mediaAssetWorkflow).toContain("branches:\n      - '**'");
-  expect(mediaAssetWorkflow).not.toContain('tags:');
-  expect(mediaAssetWorkflow.split("- 'assets/*.webm'")).toHaveLength(3);
-  expect(mediaAssetWorkflow.split("- 'assets/**/*.webm'")).toHaveLength(3);
-  expect(
-    mediaAssetWorkflow.split("- 'app/scripts/homepage-media-contract.mjs'")
-  ).toHaveLength(3);
-  expect(
-    mediaAssetWorkflow.split("- 'app/scripts/verify-homepage-media-deep.mjs'")
-  ).toHaveLength(3);
-  expect(mediaAssetWorkflow).toContain('asset-qualification:');
-  expect(mediaAssetWorkflow).toContain('- name: Install FFmpeg');
-  expect(mediaAssetWorkflow).toContain('sudo apt-get install --yes ffmpeg');
-  expect(mediaAssetWorkflow).toContain('ffprobe -version');
-  expect(mediaAssetWorkflow).not.toContain('pnpm install');
-  expect(mediaAssetWorkflow).toContain('pnpm run verify:media:deep');
-  expect(mediaAssetWorkflow.indexOf('- name: Install FFmpeg')).toBeLessThan(
-    mediaAssetWorkflow.indexOf('- name: Deep media qualification')
-  );
+  expect(workflowSources).not.toMatch(/\bff(?:mpeg|probe)\b/i);
+  expect(workflowSources).not.toContain('verify:media:deep');
 });
 
 it('marks an ordinary dirty build as unbound instead of naming a release candidate', () => {

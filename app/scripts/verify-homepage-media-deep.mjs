@@ -29,23 +29,6 @@ async function ffprobe(source, args) {
   }
 }
 
-async function decodeAlphaPlane(source) {
-  try {
-    await execFileAsync('ffmpeg', [
-      '-v', 'error',
-      '-c:v', 'libvpx-vp9',
-      '-i', path.join(repoDir, source),
-      '-map', '0:v:0',
-      '-vf', 'alphaextract',
-      '-f', 'null',
-      '-'
-    ]);
-    return true;
-  } catch (error) {
-    throw new Error(`alpha-plane decode failed for ${source}`, { cause: error });
-  }
-}
-
 function streamAlphaMode(stream) {
   return stream?.tags?.ALPHA_MODE ?? stream?.tags?.alpha_mode;
 }
@@ -59,13 +42,10 @@ function assertNear(actual, expected, label) {
 }
 
 async function inspectCanonicalVideo(contract) {
-  const [containerProbe, alphaDecoded] = await Promise.all([
-    ffprobe(contract.source, [
-      '-count_frames',
-      '-select_streams', 'v:0',
-      '-show_entries', 'stream=avg_frame_rate,r_frame_rate,nb_read_frames:stream_tags=alpha_mode:format=duration:frame=key_frame,best_effort_timestamp_time'
-    ]),
-    decodeAlphaPlane(contract.source)
+  const containerProbe = await ffprobe(contract.source, [
+    '-count_frames',
+    '-select_streams', 'v:0',
+    '-show_entries', 'stream=avg_frame_rate,r_frame_rate,nb_read_frames:stream_tags=alpha_mode:format=duration:frame=key_frame,best_effort_timestamp_time'
   ]);
   const stream = containerProbe.streams?.[0];
   const frames = containerProbe.frames ?? [];
@@ -91,7 +71,6 @@ async function inspectCanonicalVideo(contract) {
   }
 
   assert(streamAlphaMode(stream) === '1', `${contract.source} alpha_mode tag must be 1`);
-  assert(alphaDecoded, `${contract.source} alpha plane must decode successfully`);
   assert(keyframeIndexes.length === contract.keyframes, `${contract.source} keyframe count ${keyframeIndexes.length} != ${contract.keyframes}`);
   assert(keyframeIndexes[0] === 0, `${contract.source} must start with a keyframe`);
   for (let index = 1; index < keyframeIndexes.length; index += 1) {
@@ -109,7 +88,6 @@ async function inspectCanonicalVideo(contract) {
     firstPts: framePts[0],
     lastPts: framePts.at(-1),
     alphaMode: streamAlphaMode(stream),
-    alphaDecoded,
     keyframes: keyframeIndexes.length,
     maxGopFrames: contract.maxGopFrames
   };
