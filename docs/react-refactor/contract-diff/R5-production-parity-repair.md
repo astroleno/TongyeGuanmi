@@ -1,14 +1,14 @@
 # R5 Production Parity Repair Contract Diff
 
-Status: regression and lifecycle closure are implemented. Candidate-v2 remains immutable `NEEDS WORK`; candidate-v3/v4/v5/v6 are immutable unqualified. V6 passed local exact identity-bound RSS/finalization, rollback, 44/44 default browser cases, and 54/54 applicable release cases, then failed its remote tag workflow because checkout replaced the annotated tag ref with the peeled commit before `deploy:prepare`. Commit `6b4b238` restores and verifies that ref; candidate-v7 repeats every exact gate. The prior HITL rejection remains authoritative until the user approves v7.
+Status: the R1–R22 regression/lifecycle closure below is a historical repair contract. The current R5 release state is **pre-visual, untagged, unqualified** after Batch B/C integration; Batch A provenance remains on its independent remote source branch. Candidate-v2 through candidate-v8 are immutable historical/unqualified records. Final manual visual review has not run, so no new candidate, RSS/rollback/exact-tag qualification, cutover, or deployment is authorized.
 
-Date: 2026-07-12. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
+Original repair record: 2026-07-12. Pre-visual update: 2026-07-14. Branch: `codex/react-refactor-r5-parity-cutover`. Repair base: `59065730712c6d9718928fd25cba23e33455395e`.
 
 ## Release Identity Boundary
 
-The immutable tags `react-refactor-r5-candidate`, `react-refactor-r5-candidate-v2`, `react-refactor-r5-candidate-v3`, `react-refactor-r5-parity-repair-candidate`, rejected `react-refactor-r5-parity-repair-candidate-v2`, and unqualified `react-refactor-r5-parity-repair-candidate-v3` / `-v4` / `-v5` / `-v6` are audit records. They must not be moved, reused, or described as the qualified corrected runtime.
+The immutable tags `react-refactor-r5-candidate`, `react-refactor-r5-candidate-v2`, `react-refactor-r5-candidate-v3`, `react-refactor-r5-parity-repair-candidate`, and `react-refactor-r5-parity-repair-candidate-v2` through `-v8` are audit records. They must not be moved, reused, or described as qualification for the current pre-visual runtime.
 
-The rejected review head is `2501704d63dbd7c150861d21a31c2d39525c23e5`; rejected candidate-v2 is fixed at `0dc2a87b69af39a9a3960488fda56f6af664b54d`; failed-closed candidate-v3 is fixed at `dee30b9275ecbd3b238b37dee0ea0c8cfd944427`; failed-browser candidate-v4 is fixed at `905a4ef8f7c90cb64307587e00c6ff2ee4af4d99`; failed-release candidate-v5 is fixed at `a97369d1cfccff3f2e57b568714a01b42984affc`; failed-CI candidate-v6 is fixed at `04e5c98172c90ec13a12024c5b5808bdff45e17a`. After the repeated complete gate passes, this closure is authorized to create the new annotated tag `react-refactor-r5-parity-repair-candidate-v7`; it never authorizes moving an old tag, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.
+The rejected review head is `2501704d63dbd7c150861d21a31c2d39525c23e5`; candidate-v2 is fixed at `0dc2a87b69af39a9a3960488fda56f6af664b54d`; candidate-v3 at `dee30b9275ecbd3b238b37dee0ea0c8cfd944427`; candidate-v4 at `905a4ef8f7c90cb64307587e00c6ff2ee4af4d99`; candidate-v5 at `a97369d1cfccff3f2e57b568714a01b42984affc`; candidate-v6 at `04e5c98172c90ec13a12024c5b5808bdff45e17a`; candidate-v7 at `d0daed5adb83fbeff7c61e0e351673fc4dea4ff5`; and candidate-v8 at `9a602e9fab2199ff2aa8753d46a25e0fc0f9d9c1`. Only after final visual acceptance and a fresh pre-freeze gate may one new annotated candidate be created. That future step never implies permission to merge/deploy `main`, create `react-refactor-r5-cutover`, or start R6.
 
 ## Preserved Architecture
 
@@ -56,6 +56,6 @@ The rejected review head is `2501704d63dbd7c150861d21a31c2d39525c23e5`; rejected
 
 ## Acceptance Boundary
 
-Historical green results at `14743aa`, candidate-v2, candidate-v3, candidate-v4, candidate-v5, candidate-v6, and the later HITL-rejected head are not qualification evidence for v7. V6 local exact RSS/finalization, rollback, and both browser matrices passed, but its remote annotated-tag setup failure invalidated the candidate. Because the v7 tag object, identity-bound manifest digest, rollback, workflow result, and final exact-tag E2E cannot exist inside the source they identify, those records must be attached to the external handoff after freeze.
+Historical results at `14743aa`, candidate-v2 through candidate-v8, and later branch heads are not qualification evidence for the current pre-visual HEAD. Their recorded pass/fail facts remain unchanged; none can waive a gate for a new source identity. The current `app/` and `assets/` trees are byte-for-byte identical to Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524`, so its automated browser evidence remains relevant to that unchanged application tree, but it is not final manual visual acceptance or candidate qualification.
 
-The repeated pre-freeze gate authorizes creation of `react-refactor-r5-parity-repair-candidate-v7`. Work then stops for user HITL after exact-tag qualification. Candidate creation is not permission to merge, deploy, create a cutover tag, or begin R6.
+The next action is final manual visual inspection, followed—only if accepted—by a fresh pre-freeze gate. A single new candidate may then be created and subjected to identity-bound RSS/finalization, exact-tag browser matrices, and same-port rollback. No such current-HEAD result is claimed here. `main` remains unmerged and undeployed; no cutover tag exists; R6 remains blocked.

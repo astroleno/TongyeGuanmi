@@ -1,7 +1,7 @@
 # Roadmap：Cinematic Story Runtime 重写
 
 入口文档：`README.md`。配套文档：`ARCHITECTURE.md`（目标架构与契约）、`MIGRATION.md`（复用与退役清单），阶段执行清单见 `goals/`。
-本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地，R5 candidate-v2 为 immutable `NEEDS WORK`，candidate-v3/v4/v5/v6 为 immutable unqualified。V6 的本地 identity-bound RSS/finalization、rollback、44/44 默认 E2E 与 54/54 applicable release E2E 均通过，但远端 tag workflow 因 checkout 把 annotated ref 覆盖为 peeled commit 而 fail-closed。`6b4b238` 关闭该 CI 身份缺口；当前进入 candidate-v7 exact tag → identity-bound RSS/finalization → rollback → E2E-last 资格序列。旧站基线固定为 `react-refactor-legacy-static-baseline`；state-machine / scene-runtime 系列分支继续只作历史参考。
+本 roadmap 最初作为替代性总体规划创建；R0-R4 已落地。R5 当前处于 **pre-visual、untagged、unqualified**：唯一阶段分支已集成 Batch B/C，独立 Batch A provenance 由远端分支保存，application/runtime tree 与 `b62ba647cbf5402299cd0a5eef46fff152c48524` 一致。Candidate-v2 至 candidate-v8 均为 immutable historical/unqualified；当前 HEAD 尚未执行最终人工视觉、RSS、rollback 或 exact-tag qualification。旧站基线固定为 `react-refactor-legacy-static-baseline`；state-machine / scene-runtime 系列分支继续只作历史参考。
 
 ## 当前执行纪律
 
@@ -177,7 +177,7 @@ main
 
 **目标**：把 R4 scene/transition 组装成真正的 production StoryApp，整站替换旧静态站，并在任何破坏性清理前保留可执行 rollback。
 
-**状态**：candidate-v2 的身份冻结有效但为 `NEEDS WORK`；candidate-v3、candidate-v4、candidate-v5 与 candidate-v6 为 immutable unqualified。`docs/plans/2026-07-13-003-fix-r5-candidate-v3-lifecycle-gates-plan.md` 的运行期与 release gate 已完成；v6 通过本地 exact gates 后，在远端 tag workflow 暴露 annotated tag ref 被 checkout 覆盖的问题，已由 `6b4b238` 修正。只在 candidate-v7 exact identity-bound RSS/finalization、rollback、远端 workflow 和最终 E2E 全绿后，才交给 HITL。尚未合并/部署 `main`，也未建立 `react-refactor-r5-cutover`。
+**状态**：pre-visual、untagged、unqualified。R5 已从 `3b3ce381` 接入 Batch B `c273726` → `f5a4979` → `be119da` → `b23dd80`，并以非 squash merge 接入 Batch C `767d392` → `b62ba64`；Batch A generation provenance `3f16dd0` 独立保存在远端。Candidate-v2 至 candidate-v8 均为 immutable historical/unqualified，不移动、不复用。最终人工视觉检查尚未执行；通过视觉与 pre-freeze gate 后才允许创建一次新的 candidate。当前不得宣称 RSS、rollback、exact-tag matrix 或 production cutover 已通过；`main` 未合并、未部署，`react-refactor-r5-cutover` 未创建，R6 blocked。
 
 任务：
 
@@ -190,7 +190,7 @@ main
 - T5.6 cutover/rollback runbook：切换、恢复、archive/assets、触发条件和干净环境演练。
 - T5.7 输出 release candidate 和默认 runtime ADR，停止等待 HITL；批准后才合并/部署并建立 R5 cutover tag。
 
-**验收**：候选新入口可上线；完整回归、SEO/no-JS、性能预算通过；rollback 演练成功；旧 runtime 默认路径不可达；HITL 明确批准后才算 cutover。
+**验收**：当前 pre-visual 收敛只证明非视觉 gate、资产 inventory 与 application-tree identity；不等于 release qualification。最终人工视觉通过及 pre-freeze gate 完成后，才可冻结一次新 candidate 并执行 identity-bound RSS、exact-tag browser matrix 与 rollback。完整资格序列和后续 HITL 明确批准前均不得 cutover。
 
 完整执行契约见 `goals/R5-parity-cutover.md`。
 
@@ -210,7 +210,10 @@ R6 只能从 HITL 批准后的 R5 cutover tag 开始，不能与 R5 合并：
 ## 关键依赖关系
 
 ```txt
-R-1 → R0 → R1 → R2 → R3 → R4 closeout → candidate-v2 (`NEEDS WORK`) → candidate-v3/v4/v5/v6 (unqualified) → candidate-v7 qualification → HITL cutover → R6
+R-1 → R0 → R1 → R2 → R3 → R4 closeout → candidate-v2…v8 (immutable, unqualified)
+                                                → Batch A/B/C pre-visual integration
+                                                → final manual visual check
+                                                → pre-freeze gate → one new candidate → qualification → HITL cutover → R6
                   ↑
          R2 未收口前禁止开始任何真实 scene 迁移（R3/R4）
          R4 各 story group 可并行分支，合并顺序按 canonical spine

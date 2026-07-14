@@ -1,6 +1,6 @@
 # React Cutover And Rollback Runbook
 
-Status: candidate-v2 is immutable `NEEDS WORK`; candidate-v3/v4/v5/v6 are immutable unqualified. V6 passed local identity-bound RSS/finalization, exact smokes, rollback, 44/44 default E2E, and 54/54 applicable release E2E, then failed its remote workflow before `deploy:prepare` because checkout replaced the annotated tag ref with the peeled commit. Commit `6b4b238` restores and verifies that ref; candidate-v7 must repeat every exact gate. Production cutover is not authorized.
+Status: **R5 is pre-visual, untagged, and unqualified.** Candidate-v2 through candidate-v8 are immutable historical/unqualified records. Batch B/C are integrated and the current application tree equals Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524`, but final manual visual review has not run. This runbook describes future freeze/qualification only; current-HEAD RSS, exact-tag smokes, rollback, browser matrices, production cutover, and deployment are not authorized or claimed.
 
 ## Immutable Inputs
 
@@ -19,17 +19,19 @@ Status: candidate-v2 is immutable `NEEDS WORK`; candidate-v3/v4/v5/v6 are immuta
 | failed-closed browser candidate | `react-refactor-r5-parity-repair-candidate-v4` | commit `905a4ef8f7c90cb64307587e00c6ff2ee4af4d99`; tag object `e3b38639e214d0d9f07bc07595bf18a5c28faba5`; RSS/finalization/rollback pass, default E2E 42/44 |
 | failed-closed release candidate | `react-refactor-r5-parity-repair-candidate-v5` | commit `a97369d1cfccff3f2e57b568714a01b42984affc`; tag object `e3761e369697802482d22394b3cd970d8851f603`; RSS/finalization/rollback/default E2E pass, release E2E 49/54 applicable |
 | failed-closed CI candidate | `react-refactor-r5-parity-repair-candidate-v6` | commit `04e5c98172c90ec13a12024c5b5808bdff45e17a`; tag object `07fa7f185efcf03540e1a866a8f37794f1b849d0`; all local gates pass, remote annotated-ref setup failed |
-| intended lifecycle-closed candidate | `react-refactor-r5-parity-repair-candidate-v7` | freeze after repeated pre-freeze gate; qualify only after remote tag identity, identity-bound RSS, exact smokes, rollback, and final browser matrices |
+| failed-closed review candidate | `react-refactor-r5-parity-repair-candidate-v7` | commit `d0daed5adb83fbeff7c61e0e351673fc4dea4ff5`; tag object `2f8049a3e83b393de0056287cdc16e8d79986ddf`; later review found Figure2 depth-surface and RSS sampling gaps |
+| superseded parity candidate | `react-refactor-r5-parity-repair-candidate-v8` | commit `9a602e9fab2199ff2aa8753d46a25e0fc0f9d9c1`; tag object `a8a8a86adb3a8dc63220e0d045115814ad18cd7e`; later parity fixes and Batch B/C created a new source identity |
+| current R5 handoff | no tag | pre-visual, untagged, unqualified; final manual visual review pending |
 | review rollback build | plain build manifest | 98 files / 139,528,455B; SHA-256 `2b91f5e3cd34883125a613a2a005ff3f3a4de4db8ef7c8a317f03297ce21742a` |
 | legacy built `index.html` | baseline build | SHA-256 `d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7` |
 | legacy `assets+css+js` manifest | sorted per-file hashes | SHA-256 `c25907b67fb92f5aa2a4e85e7b2473331ffa6a5ed7a5f036a7ea240440a72e30` |
 | historical parity-repair artifact | exact old tag `dist/r5-release-manifest.json` | schema 2; 97 files / 139,518,637B; SHA-256 `215b9beacb1932ad1194de1f8daa3d769165f33e98a11487cc185d186b1e1988` |
 
-Always peel annotated tags with `git rev-parse <tag>^{commit}`. Never move or reuse an old candidate tag. Candidate-v7 creation is authorized only after the repeated pre-freeze gate in this runbook passes; it does not authorize cutover.
+Always peel annotated tags with `git rev-parse <tag>^{commit}`. Never move or reuse an old candidate tag. One new candidate may be created only after final manual visual acceptance and the repeated pre-freeze gate in this runbook; candidate creation does not authorize cutover.
 
 ## Pre-Freeze Acceptance
 
-From the completed implementation branch, run the full automated gate once:
+This section is a future gate. Run it once from the completed implementation branch only after final manual visual acceptance; the current pre-visual goal does not run RSS qualification:
 
 ```bash
 pnpm run verify:all
@@ -40,19 +42,20 @@ Also run the focused AOD/Figure2/TTG/PH/loader/Ink paths and the hardware frame/
 
 Any failure invalidates the freeze. Fix the owning implementation and use focused diagnostics while repairing; rerun the complete gate only when the branch is again ready for a final decision.
 
-Candidate-v6 exact local record: source `04e5c98172c90ec13a12024c5b5808bdff45e17a`, tag object `07fa7f185efcf03540e1a866a8f37794f1b849d0`, manifest SHA-256 `095096255a98efabfc0fb00a2efe0892fbfba689102403cc31fdf2f65a291069`, memory evidence SHA-256 `c238b7be6e3f104197c899f3e2fb03986e68b389e1afc438a6be60f3aa3e2231`, and browser-tree RSS `1,495,842,816B`. Exact smokes, same-port v6 → legacy → byte-identical v6, final default E2E 44/44, and release E2E 54/54 applicable with 42 declared skips passed. Remote workflow `29227154713` then failed closed before prepare because checkout rewrote the annotated tag ref to the peeled commit, so v6 remains unqualified. Candidate-v7 repeats the entire sequence after `6b4b238`; no v6 evidence is carried forward as qualification.
+Candidate-v6 exact local record: source `04e5c98172c90ec13a12024c5b5808bdff45e17a`, tag object `07fa7f185efcf03540e1a866a8f37794f1b849d0`, manifest SHA-256 `095096255a98efabfc0fb00a2efe0892fbfba689102403cc31fdf2f65a291069`, memory evidence SHA-256 `c238b7be6e3f104197c899f3e2fb03986e68b389e1afc438a6be60f3aa3e2231`, and browser-tree RSS `1,495,842,816B`. Exact smokes, same-port v6 → legacy → byte-identical v6, final default E2E 44/44, and release E2E 54/54 applicable with 42 declared skips passed. Remote workflow `29227154713` then failed closed before prepare because checkout rewrote the annotated tag ref to the peeled commit, so v6 remains unqualified. This remains historical evidence only; a future candidate repeats the entire sequence and carries no v2–v8 qualification forward.
 
 ## Corrected Candidate Freeze
 
-Only after every pre-freeze gate passes and the worktree is clean:
+Only after final visual acceptance, every pre-freeze gate passes, and the worktree is clean, select one new unused versioned candidate name and create it once:
 
 ```bash
-git tag -a react-refactor-r5-parity-repair-candidate-v7 \
-  -m "R5 production parity repair candidate v7"
-git rev-parse react-refactor-r5-parity-repair-candidate-v7^{commit}
-git rev-parse refs/tags/react-refactor-r5-parity-repair-candidate-v7
+NEW_CANDIDATE_TAG='<new-unused-react-refactor-r5-parity-repair-candidate-vN>'
+git tag -a "$NEW_CANDIDATE_TAG" \
+  -m "R5 production parity repair candidate"
+git rev-parse "${NEW_CANDIDATE_TAG}^{commit}"
+git rev-parse "refs/tags/$NEW_CANDIDATE_TAG"
 git status --short
-git push origin refs/tags/react-refactor-r5-parity-repair-candidate-v7
+git push origin "refs/tags/$NEW_CANDIDATE_TAG"
 ```
 
 Record the peeled commit and annotated tag-object id. The tag is immutable from this point.
@@ -61,14 +64,14 @@ After pushing the tag, record the GitHub Actions run URL and require `Restore im
 
 ## Exact-Tag Build And Smokes
 
-Use a detached, clean checkout of the exact tag with Node 22 and pnpm 8.15.1:
+Use a detached, clean checkout of that exact new tag with Node 22 and pnpm 8.15.1:
 
 ```bash
-git switch --detach react-refactor-r5-parity-repair-candidate-v7
+git switch --detach "$NEW_CANDIDATE_TAG"
 corepack enable
 corepack prepare pnpm@8.15.1 --activate
 pnpm install --frozen-lockfile
-R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v7 \
+R5_CANDIDATE_TAG="$NEW_CANDIDATE_TAG" \
 R5_SOURCE_COMMIT="$(git rev-parse HEAD)" \
 pnpm run deploy:build
 shasum -a 256 dist/r5-release-manifest.json
@@ -104,7 +107,7 @@ Store the exact tag, peeled commit, tag object, manifest digest, emitted-file co
 
 Use separate clean corrected-candidate and legacy checkouts. Reuse one local port and switch the served directory in this order:
 
-Before freeze, a clean detached checkout of the recorded branch commit may be used only to validate the rehearsal procedure. The final recorded rehearsal must use the exact annotated candidate-v7 and its identity-bound artifact.
+Before freeze, a clean detached checkout of the recorded branch commit may be used only to validate the rehearsal procedure. The final recorded rehearsal must use the exact new annotated candidate and its identity-bound artifact.
 
 1. Corrected candidate: verify root, static footer, manifest presence, no-JS, direct hash, representative media range, and key forward/reverse smoke.
 2. Stop the candidate server completely.
@@ -123,7 +126,7 @@ test "$(shasum -a 256 index.html | awk '{print $1}')" = \
 
 Port reuse, process termination, and artifact identity must be recorded; two simultaneously running preview servers do not constitute a rollback rehearsal.
 
-The 2026-07-12 review rehearsal is historical. Candidate-v6's 2026-07-13 exact-v6 → legacy → byte-identical exact-v6 rehearsal passed but cannot qualify v7 after the source changed. The final run must record that port `4173` served exact candidate-v7, then legacy `a78b064`, then the byte-identical candidate-v7 artifact; each server must be fully stopped before the next phase.
+The 2026-07-12 review rehearsal is historical. Candidate-v6's 2026-07-13 exact-v6 → legacy → byte-identical exact-v6 rehearsal passed but cannot qualify any later source. The final run must record that port `4173` served the exact new candidate, then legacy `a78b064`, then the byte-identical new-candidate artifact; each server must be fully stopped before the next phase.
 
 ## Final E2E — Run Last
 

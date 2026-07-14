@@ -1,6 +1,6 @@
 # R5 Production Parity Repair Candidate
 
-Status: **candidate-v6 is immutable and unqualified after its remote tag workflow failed the annotated-tag identity setup.** Candidate-v2 remains immutable `NEEDS WORK`; candidate-v3/v4/v5 remain immutable and unqualified. V6 locally passed identity-bound RSS/finalization, exact HTTP smokes, same-port rollback, 44/44 default E2E, and 54/54 applicable release E2E with 42 project-declared skips. GitHub Actions run `29227154713` then showed that `actions/checkout@v4` first fetched tag object `07fa7f1`, but subsequently forced peeled commit `04e5c98` into the local tag ref; `deploy:prepare` correctly rejected that lightweight ref before memory, E2E, or upload. Commit `6b4b238` explicitly restores the remote annotated ref and verifies its type and peeled source, reserving `react-refactor-r5-parity-repair-candidate-v7` for a complete repeat before HITL review.
+Status: **current R5 is pre-visual, untagged, and unqualified.** Candidate-v2 through candidate-v8 remain immutable historical/unqualified records; the detailed v2–v6 facts below are retained without being rewritten as passes for any later source. Batch B/C are now integrated into the sole R5 stage branch, Batch A provenance remains on its independent remote branch, and the current `app/`/`assets/` tree equals `b62ba647cbf5402299cd0a5eef46fff152c48524`. Final manual visual review has not run. No new candidate, current-HEAD RSS/finalization, rollback, exact-tag matrix, production cutover, or deployment is claimed.
 
 ## Candidate Identity Boundary
 
@@ -23,10 +23,13 @@ Status: **candidate-v6 is immutable and unqualified after its remote tag workflo
 | v6 artifact tree / dist fingerprint | `ffbecc3a25d576a4196549889bd1d6fcd1ab709018531da0da140f3b6372a1e9` / `5b2bb07662e8ce16bdc4b926df154cb8190296bf6a6405eed759792027c7a204` |
 | v6 manifest files / bytes | 102 / 159,680,911 |
 | v6 failed workflow | `29227154713`; annotated ref overwritten before `deploy:prepare` |
-| v7 CI identity closure head | `6b4b238` |
-| reserved successor | `react-refactor-r5-parity-repair-candidate-v7` |
+| unqualified v7 source / tag object | `d0daed5adb83fbeff7c61e0e351673fc4dea4ff5` / `2f8049a3e83b393de0056287cdc16e8d79986ddf` |
+| unqualified v8 source / tag object | `9a602e9fab2199ff2aa8753d46a25e0fc0f9d9c1` / `a8a8a86adb3a8dc63220e0d045115814ad18cd7e` |
+| current R5 state | pre-visual / untagged / unqualified |
+| current application tree | identical to Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524` |
+| next candidate | none created; one new immutable tag only after visual acceptance and pre-freeze gate |
 | deployable directory | identity-bound `dist/` from the clean exact tag only |
-| release manifest | `dist/r5-release-manifest.json`, schema 3; final status must be `qualified` |
+| release manifest | future candidate only: `dist/r5-release-manifest.json`, schema 3; final status must be `qualified` |
 
 Candidate-v2 source commit is `0dc2a87b69af39a9a3960488fda56f6af664b54d`, annotated tag object is `c31e464215bab4ea36e1884a59ded46e8a07ce63`, and manifest SHA-256 is `5b1f5815d6ac85a1291e4c6c7c7ba168620f590473569475a1c159b9c264f24e`. These identities remain audit records, not approval evidence.
 
@@ -37,6 +40,10 @@ Candidate-v4 qualified its schema-3 artifact and memory evidence (`1,423,048,704
 Candidate-v5 qualified the corrected runtime at `1,475,641,344B` browser-tree peak RSS, finalized the schema-3 artifact, passed exact root/footer/no-JS/direct-hash/old-URL/media-range smokes, and passed exact-v5 → legacy → byte-identical exact-v5 rollback on port `4173`. The final default matrix passed 44/44. The four-project release matrix then passed 49 applicable cases, declared 42 project skips, and failed 5 cases: the TTG terminal-still assertion in all four projects and the AOD endpoint-reconstruction assertion in desktop Chromium. Because any final matrix failure is fail-closed, v5 remains immutable and unqualified even though the runtime behavior matched the documented contracts.
 
 Candidate-v6 qualified the corrected release oracles locally at `1,495,842,816B` browser-tree peak RSS, finalized the schema-3 artifact, passed exact root/footer/no-JS/direct-hash/old-URL/media-range smokes, and passed exact-v6 → legacy → byte-identical exact-v6 rollback on port `4173`. Its final default matrix passed 44/44; the four-project release matrix passed all 54 applicable cases with 42 declared skips. The tag-triggered GitHub Actions run nevertheless failed before `deploy:prepare`: checkout fetched the correct annotated object and then overwrote `refs/tags/react-refactor-r5-parity-repair-candidate-v6` with its peeled commit. Because remote workflow qualification and upload are mandatory, local green evidence cannot waive that failure; v6 remains immutable and unqualified.
+
+Candidate-v7 is fixed at `d0daed5adb83fbeff7c61e0e351673fc4dea4ff5`. Follow-up review found that reverse Figure2 depth Ink had no active person surfaces and that empty Ubuntu RSS samples could incorrectly pass; later commits closed those issues. Candidate-v7 therefore remains immutable and unqualified.
+
+Candidate-v8 is fixed at `9a602e9fab2199ff2aa8753d46a25e0fc0f9d9c1`. The R5 branch subsequently added slow-gesture, Hero/media continuity, multiscale Ink, and transition-regression fixes before the Batch B/C asset chain. No v8 evidence is carried forward to that later source identity, so v8 remains immutable and unqualified.
 
 ## Candidate-v2 Review Blockers
 
@@ -62,8 +69,10 @@ Exact-tag process-tree RSS samples were `1,527,169,024B` and `1,575,190,528B`, b
 | `react-refactor-r5-parity-repair-candidate-v4` | `905a4ef8f7c90cb64307587e00c6ff2ee4af4d99` | immutable unqualified; RSS/finalization/rollback passed, final default E2E failed 2/44 |
 | `react-refactor-r5-parity-repair-candidate-v5` | `a97369d1cfccff3f2e57b568714a01b42984affc` | immutable unqualified; RSS/finalization/rollback/default E2E passed, release E2E failed 5/54 applicable cases |
 | `react-refactor-r5-parity-repair-candidate-v6` | `04e5c98172c90ec13a12024c5b5808bdff45e17a` | immutable unqualified; all local exact gates passed, remote workflow lost annotated tag identity before prepare |
+| `react-refactor-r5-parity-repair-candidate-v7` | `d0daed5adb83fbeff7c61e0e351673fc4dea4ff5` | immutable unqualified; follow-up review found Figure2 depth-surface and RSS fail-closed gaps |
+| `react-refactor-r5-parity-repair-candidate-v8` | `9a602e9fab2199ff2aa8753d46a25e0fc0f9d9c1` | immutable unqualified; superseded by later parity fixes and the Batch B/C source identity |
 
-None may be moved or repointed. Candidate-v7 must be a new annotated tag on a newly qualified source commit.
+None may be moved or repointed. The next candidate must use one new annotated tag created once, only after final visual acceptance and the fresh pre-freeze gate.
 
 ## Closure Delivered
 
@@ -83,24 +92,23 @@ Detailed reproduction, root causes, ownership, and corrected contracts are in `.
 
 ## Qualification Gate
 
-The following pre-freeze evidence was regenerated from the corrected branch source; historical pass counts were not carried forward:
+The current handoff deliberately stops before visual review and candidate freeze. Historical pass counts are not carried forward:
 
 | Gate | Required result | Current record |
 |---|---|---|
-| root `pnpm run verify:all` | full tests, lint, typecheck, build, release/static checks, and budgets pass | pass at v7 pre-freeze head `6dde31f`: 83 Vitest files / 568 tests plus lint, typecheck, build, release/static checks, and frozen budgets |
-| final default browser matrix | all historical/harness contracts pass on exact v7 | exact v6 passed 44/44; v7 rerun pending and last |
-| final four-project release matrix | every applicable desktop/mobile Chromium/WebKit case passes; skips are declared only by project applicability | exact v6 passed 54/54 applicable with 42 declared skips; v7 pending and last |
-| focused HITL closure | ordinary input and AOD/Figure2/TTG/PH/Ink lifecycle contracts pass | exact v6 passed all default/release cases; v7 exact-tag rerun pending |
-| process memory/disposal | all 18 holds forward/reverse remain below `1,500,000,000B` | exact v6 passed `1,495,842,816B`; v7 rerun required because source changed |
-| lifecycle code review | preparing input, timeout/abort/error, dispose generation, hold re-entry, presented frame, and depth Ink are closed | pass by code and 568-test suite |
-| release upload gate | checkout restores the remote annotated object; memory evidence is mandatory and bound to exact tag/source/artifact/draft manifest | v6 failed remote setup; `6b4b238` contract test and clobbered-ref simulation pass; v7 workflow pending |
-| exact-tag build/smokes | annotated tag peels to clean source; manifest qualification and root/no-JS/hash/media smokes pass | local v6 passed; pending v7 freeze and remote workflow |
-| same-port rollback | exact v7 → immutable legacy → byte-identical exact v7 | v6 passed; pending v7 repeat |
+| final pre-visual nonbrowser gate | full tests, lint, typecheck, build, release/static checks, inventory, references, and budgets pass | required on final untagged HEAD; final handoff records the result |
+| application tree identity | no `app/` or `assets/` difference from Batch C terminal | required: exact equality with `b62ba647cbf5402299cd0a5eef46fff152c48524` |
+| final manual visual | user reviews the unchanged Batch C application tree | not run; next action |
+| new candidate freeze | one fresh annotated tag after visual acceptance and pre-freeze gate | not created |
+| process memory/disposal | all 18 holds forward/reverse remain below `1,500,000,000B` | not run for current HEAD; historical results do not qualify it |
+| exact-tag browser matrices | every applicable desktop/mobile Chromium/WebKit case passes | not run because no current candidate exists |
+| exact-tag build/smokes and upload | annotated tag, source, artifact, memory, and manifest identities agree | not run because no current candidate exists |
+| same-port rollback | exact candidate → immutable legacy → byte-identical exact candidate | not run because no current candidate exists |
 
-The earlier matrix split (desktop Chromium 21 / 3 declared skips, desktop WebKit 9 / 15, Pixel 7 Chromium 13 / 11, iPhone 15 WebKit 11 / 13) is historical candidate-v2 evidence only. V5's 49 pass / 42 skip / 5 fail and v6's local 54 pass / 42 skip records are audit history, not v7 qualification; both browser suites run last from exact v7. The v6 memory profile retained 3 maximum mounted layers and 1 maximum settled WebGL context; its GPU process peaked at `349,093,888B`, renderer at `843,776,000B`, heap at `39,458,674B`, and canvas ownership at `11,657,408` pixels.
+The earlier matrix split (desktop Chromium 21 / 3 declared skips, desktop WebKit 9 / 15, Pixel 7 Chromium 13 / 11, iPhone 15 WebKit 11 / 13) is historical candidate-v2 evidence only. V5's 49 pass / 42 skip / 5 fail and v6's local 54 pass / 42 skip records remain audit history, not current qualification. The v6 memory profile retained 3 maximum mounted layers and 1 maximum settled WebGL context; its GPU process peaked at `349,093,888B`, renderer at `843,776,000B`, heap at `39,458,674B`, and canvas ownership at `11,657,408` pixels.
 
 ## Freeze And Stop Boundary
 
-Commit and push this fail-closed/pre-freeze record, create the new annotated `react-refactor-r5-parity-repair-candidate-v7`, then require restored annotated-tag identity in CI, identity-bound memory, exact-tag smokes, same-port rollback, and final exact-tag E2E. Any failure leaves v7 unqualified and forbids a passed handoff.
+Commit and push the pre-visual R5 branch without creating a tag, then stop at the final manual visual entry. If visual review passes, rerun the pre-freeze gate and create exactly one new annotated candidate; only that future identity may enter CI, identity-bound memory, exact-tag smokes, same-port rollback, and final exact-tag E2E.
 
-This closure does not authorize moving any tag, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.
+This handoff does not authorize moving any tag, running qualification early, merging or deploying `main`, creating `react-refactor-r5-cutover`, or starting R6 cleanup.

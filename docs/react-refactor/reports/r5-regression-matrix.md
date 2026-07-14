@@ -1,23 +1,23 @@
 # R5 Production Regression Matrix
 
-Status: **candidate-v6 passed both local exact-tag browser matrices but failed closed in the remote annotated-tag identity setup; candidate-v7 is pending full qualification.** V6 passed 44/44 default cases and 54/54 applicable release cases with 42 declared project skips. GitHub Actions run `29227154713` then failed before `deploy:prepare` because checkout replaced the local annotated tag ref with the peeled commit. Commit `6b4b238` restores and verifies that ref; both full v7 Playwright suites still run last from the immutable exact tag.
+Status: **pre-visual, untagged, unqualified.** Candidate-v2 through candidate-v8 are immutable historical/unqualified records. The current R5 `app/`/`assets/` tree is identical to Batch C terminal `b62ba647cbf5402299cd0a5eef46fff152c48524`, but final manual visual review has not run and no current candidate exists. This matrix is therefore a future qualification contract, not a claim that current-HEAD exact-tag browser, RSS, or rollback gates passed.
 
-Date: 2026-07-13. Branch: `codex/react-refactor-r5-parity-cutover`. Intended immutable tag after all gates pass: `react-refactor-r5-parity-repair-candidate-v7`.
+Updated: 2026-07-14. Branch: `codex/react-refactor-r5-parity-cutover`. A new immutable candidate may be named and created once only after visual acceptance and the pre-freeze gate.
 
 ## Required Project Matrix
 
 | Project | Canonical traversal | Critical reverse | Input/navigation | Media/lifecycle | SEO/no-JS | Current record |
 |---|---|---|---|---|---|---|
-| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | required | exact v6 22 pass / 2 declared skips; exact v7 pending |
-| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | required | exact v6 9 pass / 15 declared skips; exact v7 pending |
-| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | exact v6 13 pass / 11 declared skips; exact v7 pending |
-| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | exact v6 10 pass / 14 declared skips; exact v7 pending |
+| desktop Chromium | all 18 holds | AOD, Figure2, TTG/PH, Contact | wheel/touchpad, keyboard, menu, hash/history | normal/reduced, same-run reversal, retry, disposal | required | historical exact-v6: 22 pass / 2 declared skips; current candidate: none |
+| desktop WebKit | all applicable holds | AOD, Figure2, TTG/PH | wheel/touchpad, keyboard, menu/history | decoded-frame handoff and depth readiness | required | historical exact-v6: 9 pass / 15 declared skips; current candidate: none |
+| Pixel 7 Chromium | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, disposal | required | historical exact-v6: 13 pass / 11 declared skips; current candidate: none |
+| iPhone 15 WebKit | all applicable holds | Figure2, TTG/PH | touch drag, keyboard contract, touch menu | portrait/landscape/dynamic viewport, decoded-frame handoff | required | historical exact-v6: 10 pass / 14 declared skips; current candidate: none |
 
 Layer invariants are unchanged: at most two visible layers during transition, exactly one visible/interactable settled hold, bounded retiring layers, one canonical receiver root, and no Hero current/visible fallback during Contact reverse.
 
 ## R1–R22 Deterministic Ownership
 
-Every row has implementation-level coverage in the 83-file / 568-test v7 pre-freeze nonbrowser suite at `6dde31f`. Browser qualification is intentionally not carried across source identities and is repeated only after v7 freeze.
+The R1–R22 rows retain their implementation-level owners. Browser qualification is intentionally not carried across source identities; after final visual acceptance and a fresh pre-freeze gate, every applicable row must run again from the one newly frozen exact tag.
 
 | ID | Assertion owners | Required proof |
 |---|---|---|
@@ -50,14 +50,14 @@ The reproduction/root-cause/minimum-file record is `../contract-diff/R5-producti
 
 ```bash
 pnpm run verify:all
-R5_CANDIDATE_TAG=react-refactor-r5-parity-repair-candidate-v7 \
+R5_CANDIDATE_TAG=<new-candidate-tag> \
 R5_SOURCE_COMMIT="$(git rev-parse HEAD)" pnpm run deploy:build
 pnpm -C app exec playwright test
 pnpm -C app exec playwright test --config playwright.release.config.ts
 ```
 
-Candidate-v2 recorded 44/44 default cases and 54 applicable release cases with 42 declared project skips; candidate-v4 recorded 42/44 default cases and stopped before release; candidate-v5 recorded 44/44 default, then 49 pass / 42 skip / 5 fail in release; candidate-v6 recorded 44/44 default and 54 pass / 42 skip in release but failed its remote identity setup. All are audit history and none qualifies v7. The final handoff records fresh exact-v7 counts and declared skips after both commands complete.
+Candidate-v2 recorded 44/44 default cases and 54 applicable release cases with 42 declared project skips; candidate-v4 recorded 42/44 default cases and stopped before release; candidate-v5 recorded 44/44 default, then 49 pass / 42 skip / 5 fail in release; candidate-v6 recorded 44/44 default and 54 pass / 42 skip in release but failed its remote identity setup. Candidate-v7 and candidate-v8 were later superseded by additional fail-closed/parity fixes. All v2–v8 records are immutable and unqualified; none qualifies the current pre-visual HEAD. A future candidate handoff must record fresh exact-tag counts and declared skips.
 
 ## Acceptance Boundary
 
-No screenshot baseline or aesthetic acceptance is inferred from these gates. After the complete branch gate, clean exact-tag build/smokes, and same-port rollback pass, stop for user HITL. Never move an old tag, merge/deploy by implication, create a cutover tag, or start R6.
+No screenshot baseline or aesthetic acceptance is inferred from nonvisual gates. The current goal stops before final manual visual review and does not run this exact-tag matrix. Never move an old tag, create a candidate before visual/pre-freeze acceptance, merge/deploy by implication, create a cutover tag, or start R6.

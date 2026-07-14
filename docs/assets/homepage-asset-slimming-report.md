@@ -1,4 +1,16 @@
-# 首页媒体瘦身：Batch A.1 资产报告
+# 首页媒体瘦身：Batch A/B/C 资产与 R5 Pre-Visual 集成报告
+
+## R5 Pre-Visual 集成状态（2026-07-14）
+
+- 当前唯一阶段分支为 `codex/react-refactor-r5-parity-cutover`，状态是 **pre-visual、untagged、unqualified**。
+- Batch A generation provenance 由远端 `codex/homepage-asset-slimming-generation` 精确保存于 `3f16dd0b3f136e699cb3cbd88c1241b4875d9393`。它是独立来源链，不是 Batch B/C 的 Git 祖先，也未为制造线性历史合入 R5。
+- Batch B 以 `c273726b1a26ddfea557774d590214782ff7e74b` → `f5a497909683e8771a4e2944b5e2d8e0dfa0433d` → `be119daba32577c5a44dc100aa3bd357cacdaa1d` → `b23dd80d13bea685fd4fdd58caa49c11032ecb11` 接入 R5；Batch C 以 `767d3927119fb7e06b09939858912d5da3f4c04d` → `b62ba647cbf5402299cd0a5eef46fff152c48524` 通过非 squash merge 接入。
+- 当前 R5 的 `app/` 与 `assets/` 内容和 `b62ba647cbf5402299cd0a5eef46fff152c48524` 完全一致。最终合同是 **38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG**；runtime media **60,830,949 bytes**；Hero pre-scroll **1,131,048 bytes**；`dist/assets` 不得包含 PNG。
+- Batch C 的自动浏览器证据属于上述相同 application tree，但不等于最终人工视觉验收或 release qualification。最终视觉尚未执行；当前 HEAD 没有 candidate tag，也未运行当前身份的 RSS、rollback 或 exact-tag matrix。
+- Candidate-v2 至 candidate-v8 均为 immutable historical/unqualified，禁止移动或复用。新 candidate 只能在最终视觉通过及 pre-freeze gate 完成后创建一次。
+- `main` 仍在 `a78b064d65f024a301a3b179c62a458a1445bbf6`，未合并、未部署；`react-refactor-r5-cutover` 未创建；R6 blocked。
+
+以下 Batch A.1、Batch B 与 Batch C 小节保留各阶段原始生成、验证、删除与恢复事实；较早阶段的 totals 不覆盖文末 Batch C 最终 totals。
 
 生成日期：2026-07-14
 工作分支：`codex/homepage-asset-slimming-generation`
@@ -593,7 +605,7 @@ Crane flock 使用 `-lossless 1` 的原因仅是让允许的 terminal hold 在�
 
 八个规范化 non-Hero 文件已通过 cadence、alpha、GOP、端点和 RGBA 身份检查；恢复演练为 37/37 PASS。旧资产依旧完整，应用运行时未接入候选文件，Hero 与两项未采纳 Hero 实验输出均未改变。本报告随唯一的 Batch A.1 提交交付；`BATCH_A_FINAL_SHA` 在该提交创建后由交付记录锁定，避免为了把自引用 SHA 写回报告而产生第二个提交。
 
-Batch B 未启动；没有 candidate/cutover tag，也没有删除动作。
+在 Batch A.1 冻结时，Batch B 尚未启动；当时没有 candidate/cutover tag，也没有删除动作。
 
 ## Batch B 提交 1：冻结集成输入
 
@@ -627,6 +639,8 @@ Batch B 未启动；没有 candidate/cutover tag，也没有删除动作。
 | `assets/figure3-motion.webm` | `610786ba0492be27e30690d321b8cf07c185413de95adccf0b64b964a0dcbaf7` |
 
 ## Batch B：运行时切换、验证与删除
+
+本节是 Batch B terminal 的历史快照；其中保留 PNG 的 inventory 和体积已由后续 Batch C 最终 totals 取代，不应作为当前 R5 inventory。
 
 - 运行时切换提交：`f5a497909683e8771a4e2944b5e2d8e0dfa0433d`（`refactor(media): use canonical directional videos`）。
 - 构建期清单校验：`app/scripts/verify-homepage-media-inventory.mjs`；它在每次 `pnpm run build` 中对 source SHA-256、最终 emit、38 文件数、9 个 WebM、11 个 WebP、80 MiB 和 4 MiB 门槛，以及八个 canonical non-Hero WebM 的 30fps/PTS 合同同时断言。
