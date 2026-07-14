@@ -41,7 +41,7 @@ import {
   type InkFieldRenderer
 } from '../shared/sceneInk';
 
-const FIGURE2_DEPTH_IMAGE = new URL('../../../../assets/figure2-middle-depth.png', import.meta.url).href;
+const FIGURE2_DEPTH_IMAGE = new URL('../../../../assets/figure2-middle-depth.webp', import.meta.url).href;
 export const FIGURE2_INTRO_END = 0.72;
 export const FIGURE2_PROOF_REVEAL_START = FIGURE2_INTRO_END;
 

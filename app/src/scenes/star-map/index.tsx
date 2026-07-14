@@ -3,7 +3,7 @@ import type { SceneComponentProps, SceneModule } from '../../story/types';
 import { bindSceneMotion, type SceneMotionBinding } from '../../stage/scene-motion';
 import { initStarFieldReveal } from './starFieldReveal';
 
-const STAR_MAP_IMAGE = new URL('../../../../assets/back2.png', import.meta.url).href;
+const STAR_MAP_IMAGE = new URL('../../../../assets/back2.webp', import.meta.url).href;
 const STAR_MAP_FRAME_INTERVAL_MS = 1000 / 12;
 
 export const STAR_MAP_COPY =

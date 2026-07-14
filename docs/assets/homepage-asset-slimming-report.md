@@ -712,3 +712,89 @@ Batch B 未启动；没有 candidate/cutover tag，也没有删除动作。
 ### 删除结果
 
 在上述门槛和浏览器 gates 全部通过后，已删除“删除记录与恢复演练”表中除 Hero 两个保留项外的 35 个被替代 source（包括 Figure2 dedicated reverse/poster、TTG forward/reverse/poster/terminal、旧 AOD/Crane/Figure3 视频和 construction source）。所有删除文件仍可由该表的 `d4cab484e8f2d8656cf7c7cd0e19c015c7332702:<path>` immutable archive ref 恢复；`assets/figure1.webm`、`assets/figure-poster.jpg` 和 `assets/middle1_depth.png` 未删除。
+
+## Batch C：Homepage PNG → Lossless WebP
+
+### 基线、边界与编码
+
+- `BASE_SHA`：`be119daba32577c5a44dc100aa3bd357cacdaa1d`。
+- Batch C 只替换 production runtime 当前使用的 17 个 PNG，basename 不变；场景结构、动画、转场、时长、视频、Director、80 MiB/4 MiB 媒体预算和既有 JS budgets 均未改动。
+- 编码器：`cwebp 1.6.0`；没有有损 WebP、AVIF、fallback 或 `v2/v3` 候选。
+- 每项使用同一条命令：
+
+```bash
+cwebp -quiet -mt -lossless -z 9 -exact "$source" -o "$output"
+```
+
+- 每项随后使用 `dwebp -quiet "$output" -o "$decoded"` 解码为 PNG，并将原图与解码图统一为 RGBA 后比较 width、height、alpha extrema 和全部像素字节。下表 17 项均满足尺寸不变、alpha 范围不变、RGBA 逐字节相等，且 WebP 严格小于对应 PNG。
+
+### 17 项 source → output 证据
+
+| Source → output | Dimensions | Alpha | RGBA | Source bytes | WebP bytes | Source SHA-256 | Output SHA-256 |
+| --- | ---: | ---: | :---: | ---: | ---: | --- | --- |
+| `assets/middle1_depth.png` → `assets/middle1_depth.webp` | 1672×941 | 255–255 | PASS | 663,805 | 425,666 | `fe2f7adaa7178f1196b720b0458ef4eaabc6764c1627d6d5d57d7b5132075e3b` | `fc63bd5bd01af038defbb9aa4e894b4a7b77a71a858ad01d81a3f2d2ebdf39a7` |
+| `assets/back2.png` → `assets/back2.webp` | 1672×941 | 255–255 | PASS | 3,052,022 | 2,264,544 | `6543e25f1e90256ba9cddc9ad14ae6961222133495f9b975d876a9dd681e5509` | `6689995f21cdd1cc2165e4b5b2f23d851c8ddff0a2f96caaf1adf2fe9f8c01e7` |
+| `assets/figure2-middle-depth.png` → `assets/figure2-middle-depth.webp` | 1672×941 | 255–255 | PASS | 1,116,044 | 791,940 | `2dc41f5adb15b5fcdaf8e2f6a61d0227eef1e04183bcf227d03b5aec5d9ed519` | `2a836e5139184d3f54bb095d8bcb4761092f277477856caf02e80378ec2c5c20` |
+| `assets/figure2-middle-window-mask.png` → `assets/figure2-middle-window-mask.webp` | 3840×2160 | 0–255 | PASS | 40,056 | 1,560 | `7f5671b46f5200ab7eeaedd6730a83106174913839abe40b1e76ebd0782c38c9` | `a582c9650c9ab3b2c8fa994e3f10057215896d4af950a97d0b3fd2553151be02` |
+| `assets/aod_cloud-alpha.png` → `assets/aod_cloud-alpha.webp` | 1672×941 | 0–255 | PASS | 2,208,068 | 1,541,418 | `a682cbdd075359283afd760f7909246f4d62a03fe02af2c32c1b4063eda4cca0` | `c3028a045131af107cc9576ac326fc470a88c4fb2e5d3896120ad901d9509e20` |
+| `assets/aod_sun-alpha.png` → `assets/aod_sun-alpha.webp` | 1672×941 | 0–255 | PASS | 2,067,192 | 1,452,854 | `660fcdfc1c8f794e7518a5673dc426a2e38f27a34c498cc40822baaa23f36065` | `676d24ccaa0bdaafe29638d73230b4059409909fa32fd4a2650616b1869c823f` |
+| `assets/ph_background.png` → `assets/ph_background.webp` | 2048×1152 | 255–255 | PASS | 3,192,753 | 2,305,060 | `6efecca81a1c04d5ba7074e0772ac10de5b1b3dc55c8b242d533d3d9d9c39ed9` | `0ea983a861a30f82b76ad8584ed8999846313c4f85620b84d9eed9640a646c6d` |
+| `assets/ph_front-alpha.png` → `assets/ph_front-alpha.webp` | 2048×1152 | 0–255 | PASS | 1,759,632 | 1,240,376 | `cb47f8774acf32c575bb98c88bc6da0683437ea4b476b0345451787c8e32c060` | `9ad9c64f92e6389d9a0b7505be0d34704ed3492937e25589e67afaa9357d8c16` |
+| `assets/crane1_cloud2-alpha.png` → `assets/crane1_cloud2-alpha.webp` | 1672×291 | 0–255 | PASS | 607,050 | 421,534 | `20573657ea116989cf1ea50bf3c60c7df1973cee2493168a3896e88db7c3c347` | `f7d9d1147aea5651559f9f042cb4f1caa0d7b1cf0b54f10c0b2ee98bd0182b64` |
+| `assets/crane1_arch-alpha.png` → `assets/crane1_arch-alpha.webp` | 1672×373 | 0–255 | PASS | 734,734 | 467,798 | `704d3e104d5ef3c7b843328886965b9d3acd287fe2adf5a3a8ae6bac6b7a66e3` | `cb3e0bb348bb7c33e1b5dbd11184fa5415c64765c0d0f8bcb0adcce099ffeda2` |
+| `assets/crane1_cloud1-alpha.png` → `assets/crane1_cloud1-alpha.webp` | 1672×373 | 0–255 | PASS | 810,398 | 557,270 | `e655c6ba45797a477d417b42983e940a7fab40370fd94db49733af67d5b303b8` | `606a225a301fd51673b43ed81fbe314ea460ee10bc8f4cf9e4fd0a139dfb8432` |
+| `assets/crane1_cloud-front2-alpha.png` → `assets/crane1_cloud-front2-alpha.webp` | 1672×332 | 0–255 | PASS | 641,724 | 437,396 | `cb83a9aaed940059162c4e26f61821c2634e939ba13b079584efe37bc79b98a5` | `8bc4ec9467f3ca0fa5806dd7d4d7ee870dd3211759d8c8b431d9d0c89e553462` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-02.png` → `assets/patterns/alpha-layers/pattern-layer-alpha-02.webp` | 1672×941 | 0–255 | PASS | 996,262 | 627,728 | `2551374e969b31720ad17fe8a07748479fbed85e547abb5fda5e33fa8ebe7031` | `cf73b8e2dc523c17b5c6b19fe4d5d45cc09ca6ae766ecf8be2f3202a8c8f2575` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-03.png` → `assets/patterns/alpha-layers/pattern-layer-alpha-03.webp` | 1672×941 | 0–255 | PASS | 1,246,471 | 798,910 | `962e97e7164a647a523b96434949ee4f5c4e825c7799290bbf07b5edd15ac0af` | `495fa3702a952356da1de6f4ecec7869375208605d10dde91acad992478df02b` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-04.png` → `assets/patterns/alpha-layers/pattern-layer-alpha-04.webp` | 1672×941 | 0–255 | PASS | 1,937,385 | 1,219,762 | `4470a02af055cef0afc54dcc168dafdbf350fda1ff3db60892271bb3c322b033` | `fd43a74d726c42d360c3c831609ae150eb9095ca5b173f586779741c87fc18d7` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-05.png` → `assets/patterns/alpha-layers/pattern-layer-alpha-05.webp` | 1136×935 | 0–255 | PASS | 705,441 | 489,920 | `fa4e46542c1354cf01a24e1e6ed1834e44030a8d89f01387bb5191025e24a73d` | `c26f5115d925e86fc9ba8e450df9a04a6a75f52766dfe987a7053e252e1d0ad9` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-06.png` → `assets/patterns/alpha-layers/pattern-layer-alpha-06.webp` | 1278×941 | 0–255 | PASS | 956,204 | 694,970 | `377aabc6457a60b180b4ade3e6e72f0ae4405356f2134dae513567af8f61dd1d` | `d50ddd8702d4ee90cecd8bf6d9f76a7ca74238c507101d195b58be6f568ebf06` |
+
+合计：PNG 为 **22,735,241 bytes**，lossless WebP 为 **15,738,706 bytes**，减少 **6,996,535 bytes（30.8%）**。每个 source 的 immutable 恢复位置均为 `be119daba32577c5a44dc100aa3bd357cacdaa1d:<source path>`。
+
+### 提交 1 的 runtime inventory 与浏览器门禁
+
+- `dist/homepage-media-inventory.json`：**38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG**；inventory verifier 明确拒绝任意 production PNG emit。
+- Homepage runtime media：**60,830,949 bytes（58.01 MiB）**；Hero pre-scroll：**1,131,048 bytes（1.08 MiB）**。两者分别低于未提高的 80 MiB 与 4 MiB 上限；既有 JS budgets 同样未改动并通过。
+- focused desktop Chromium gate：使用 `createImageBitmap(..., { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })` 将同时存在的 PNG/WebP 解码后绘入 Canvas，17/17 RGBA 字节完全相等；17 个 emitted WebP 均 `naturalWidth > 0`。
+- 同一 gate 验证 Figure2 CSS mask 为 alpha mode 且 3840×2160 WebP 正常解码；Hero luminance depth 与 Figure2 transition depth 均成功请求/解码；Pattern 02–06 五层均返回 200，renderer 写入 ready/revision 且没有 page error；全部场景探测期间没有 runtime `.png` 请求。
+- `pnpm run test`：87/87 test files、555/555 tests PASS；默认 Harness：45/45 PASS。没有执行人工视觉复核、RSS/memory qualification、cadence/performance profile 或 CDN 流程。
+
+提交 1 `767d3927119fb7e06b09939858912d5da3f4c04d` 仍保留上述 17 个 PNG，仅 production runtime 已切换到 WebP；浏览器门禁通过后才进入删除步骤。
+
+### 提交 2：PNG 删除与恢复演练
+
+提交 2 删除且只删除上述 17 个已替换 PNG。每项使用以下形式从 Batch B immutable base 实际恢复到独立临时目录，再对恢复文件核对记录中的 source bytes 与 SHA-256；临时目录在核对后删除，没有把恢复副本重新写回工作树。
+
+```bash
+git show "be119daba32577c5a44dc100aa3bd357cacdaa1d:$source" > "$tmpdir/$source"
+```
+
+| Deleted source | Immutable recovery ref | Drill |
+| --- | --- | :---: |
+| `assets/middle1_depth.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/middle1_depth.png` | PASS |
+| `assets/back2.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/back2.png` | PASS |
+| `assets/figure2-middle-depth.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/figure2-middle-depth.png` | PASS |
+| `assets/figure2-middle-window-mask.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/figure2-middle-window-mask.png` | PASS |
+| `assets/aod_cloud-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/aod_cloud-alpha.png` | PASS |
+| `assets/aod_sun-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/aod_sun-alpha.png` | PASS |
+| `assets/ph_background.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/ph_background.png` | PASS |
+| `assets/ph_front-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/ph_front-alpha.png` | PASS |
+| `assets/crane1_cloud2-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/crane1_cloud2-alpha.png` | PASS |
+| `assets/crane1_arch-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/crane1_arch-alpha.png` | PASS |
+| `assets/crane1_cloud1-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/crane1_cloud1-alpha.png` | PASS |
+| `assets/crane1_cloud-front2-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/crane1_cloud-front2-alpha.png` | PASS |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-02.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/patterns/alpha-layers/pattern-layer-alpha-02.png` | PASS |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-03.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/patterns/alpha-layers/pattern-layer-alpha-03.png` | PASS |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-04.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/patterns/alpha-layers/pattern-layer-alpha-04.png` | PASS |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-05.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/patterns/alpha-layers/pattern-layer-alpha-05.png` | PASS |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-06.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/patterns/alpha-layers/pattern-layer-alpha-06.png` | PASS |
+
+恢复演练结果：**17/17 PASS**。
+
+### Batch C 最终 totals
+
+- 已删除 PNG：17 files / **22,735,241 bytes**；保留的 lossless WebP：17 files / **15,738,706 bytes**；净减少 **6,996,535 bytes（30.8%）**。
+- 最终 `dist/homepage-media-inventory.json`：**38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG**；`dist/assets` 中没有 PNG。
+- 最终 Homepage runtime media：**60,830,949 bytes（58.01 MiB）**；Hero pre-scroll：**1,131,048 bytes（1.08 MiB）**。
+- 80 MiB、4 MiB 与所有既有 JS budgets 均保持原值，没有提高任何预算。

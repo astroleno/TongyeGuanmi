@@ -9,10 +9,10 @@ import type { SceneComponentProps, SceneModule } from '../../story/types';
 export const CRANE_FIGURE_MEDIA_KEY = 'crane-figure-motion';
 export const CRANE_FLOCK_MEDIA_KEY = 'crane-flock-motion';
 export const CRANE_PAPER_SRC = new URL('../../../../assets/crane-paper.webp', import.meta.url).href;
-export const CRANE_CLOUD_BACK_SRC = new URL('../../../../assets/crane1_cloud2-alpha.png', import.meta.url).href;
-export const CRANE_ARCH_SRC = new URL('../../../../assets/crane1_arch-alpha.png', import.meta.url).href;
-export const CRANE_CLOUD_FRONT_SRC = new URL('../../../../assets/crane1_cloud1-alpha.png', import.meta.url).href;
-export const CRANE_CLOUD_FRONT_SECOND_SRC = new URL('../../../../assets/crane1_cloud-front2-alpha.png', import.meta.url).href;
+export const CRANE_CLOUD_BACK_SRC = new URL('../../../../assets/crane1_cloud2-alpha.webp', import.meta.url).href;
+export const CRANE_ARCH_SRC = new URL('../../../../assets/crane1_arch-alpha.webp', import.meta.url).href;
+export const CRANE_CLOUD_FRONT_SRC = new URL('../../../../assets/crane1_cloud1-alpha.webp', import.meta.url).href;
+export const CRANE_CLOUD_FRONT_SECOND_SRC = new URL('../../../../assets/crane1_cloud-front2-alpha.webp', import.meta.url).href;
 export const CRANE_FIGURE_VIDEO_SRC = new URL('../../../../assets/crane-figure-motion.webm', import.meta.url).href;
 export const CRANE_FLOCK_VIDEO_SRC = new URL('../../../../assets/crane-flock-motion.webm', import.meta.url).href;
 
