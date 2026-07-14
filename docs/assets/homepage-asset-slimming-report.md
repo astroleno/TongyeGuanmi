@@ -760,4 +760,41 @@ cwebp -quiet -mt -lossless -z 9 -exact "$source" -o "$output"
 - 同一 gate 验证 Figure2 CSS mask 为 alpha mode 且 3840×2160 WebP 正常解码；Hero luminance depth 与 Figure2 transition depth 均成功请求/解码；Pattern 02–06 五层均返回 200，renderer 写入 ready/revision 且没有 page error；全部场景探测期间没有 runtime `.png` 请求。
 - `pnpm run test`：87/87 test files、555/555 tests PASS；默认 Harness：45/45 PASS。没有执行人工视觉复核、RSS/memory qualification、cadence/performance profile 或 CDN 流程。
 
-提交 1 仍保留上述 17 个 PNG，仅 production runtime 已切换到 WebP。PNG 删除、最终 totals 复核和 17/17 恢复演练在 Batch C 提交 2 完成。
+提交 1 `767d3927119fb7e06b09939858912d5da3f4c04d` 仍保留上述 17 个 PNG，仅 production runtime 已切换到 WebP；浏览器门禁通过后才进入删除步骤。
+
+### 提交 2：PNG 删除与恢复演练
+
+提交 2 删除且只删除上述 17 个已替换 PNG。每项使用以下形式从 Batch B immutable base 实际恢复到独立临时目录，再对恢复文件核对记录中的 source bytes 与 SHA-256；临时目录在核对后删除，没有把恢复副本重新写回工作树。
+
+```bash
+git show "be119daba32577c5a44dc100aa3bd357cacdaa1d:$source" > "$tmpdir/$source"
+```
+
+| Deleted source | Immutable recovery ref | Drill |
+| --- | --- | :---: |
+| `assets/middle1_depth.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/middle1_depth.png` | PASS |
+| `assets/back2.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/back2.png` | PASS |
+| `assets/figure2-middle-depth.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/figure2-middle-depth.png` | PASS |
+| `assets/figure2-middle-window-mask.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/figure2-middle-window-mask.png` | PASS |
+| `assets/aod_cloud-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/aod_cloud-alpha.png` | PASS |
+| `assets/aod_sun-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/aod_sun-alpha.png` | PASS |
+| `assets/ph_background.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/ph_background.png` | PASS |
+| `assets/ph_front-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/ph_front-alpha.png` | PASS |
+| `assets/crane1_cloud2-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/crane1_cloud2-alpha.png` | PASS |
+| `assets/crane1_arch-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/crane1_arch-alpha.png` | PASS |
+| `assets/crane1_cloud1-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/crane1_cloud1-alpha.png` | PASS |
+| `assets/crane1_cloud-front2-alpha.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/crane1_cloud-front2-alpha.png` | PASS |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-02.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/patterns/alpha-layers/pattern-layer-alpha-02.png` | PASS |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-03.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/patterns/alpha-layers/pattern-layer-alpha-03.png` | PASS |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-04.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/patterns/alpha-layers/pattern-layer-alpha-04.png` | PASS |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-05.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/patterns/alpha-layers/pattern-layer-alpha-05.png` | PASS |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-06.png` | `be119daba32577c5a44dc100aa3bd357cacdaa1d:assets/patterns/alpha-layers/pattern-layer-alpha-06.png` | PASS |
+
+恢复演练结果：**17/17 PASS**。
+
+### Batch C 最终 totals
+
+- 已删除 PNG：17 files / **22,735,241 bytes**；保留的 lossless WebP：17 files / **15,738,706 bytes**；净减少 **6,996,535 bytes（30.8%）**。
+- 最终 `dist/homepage-media-inventory.json`：**38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG**；`dist/assets` 中没有 PNG。
+- 最终 Homepage runtime media：**60,830,949 bytes（58.01 MiB）**；Hero pre-scroll：**1,131,048 bytes（1.08 MiB）**。
+- 80 MiB、4 MiB 与所有既有 JS budgets 均保持原值，没有提高任何预算。
