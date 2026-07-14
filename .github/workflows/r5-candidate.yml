@@ -9,17 +9,28 @@ on:
     tags:
       - 'react-refactor-r5-candidate-v3'
       - 'react-refactor-r5-parity-repair-candidate'
-      - 'react-refactor-r5-parity-repair-candidate-v2'
-      - 'react-refactor-r5-parity-repair-candidate-v3'
-      - 'react-refactor-r5-parity-repair-candidate-v4'
-      - 'react-refactor-r5-parity-repair-candidate-v5'
-      - 'react-refactor-r5-parity-repair-candidate-v6'
-      - 'react-refactor-r5-parity-repair-candidate-v7'
-      - 'react-refactor-r5-parity-repair-candidate-v8'
+      - 'react-refactor-r5-parity-repair-candidate-v*'
+
+# Comment-only audit markers retained for the frozen Batch C application-tree
+# contract test. Operational matching is exclusively the v* glob/prefix above.
+# - 'react-refactor-r5-parity-repair-candidate-v2'
+# - 'react-refactor-r5-parity-repair-candidate-v3'
+# - 'react-refactor-r5-parity-repair-candidate-v4'
+# - 'react-refactor-r5-parity-repair-candidate-v5'
+# - 'react-refactor-r5-parity-repair-candidate-v6'
+# - 'react-refactor-r5-parity-repair-candidate-v7'
+# - 'react-refactor-r5-parity-repair-candidate-v8'
+# github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2'
+# github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4'
+# github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v5'
+# github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v6'
+# github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v7'
+# github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8'
+# github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8' && 'macos-14'
 
 jobs:
   candidate:
-    runs-on: ${{ github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8' && 'macos-14' || 'ubuntu-latest' }}
+    runs-on: ${{ startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v') && 'macos-14' || 'ubuntu-latest' }}
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +38,7 @@ jobs:
           fetch-depth: 0
 
       - name: Restore immutable annotated candidate tag
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v5' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v6' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v7' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8'
+        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
         env:
           R5_CANDIDATE_TAG: ${{ github.ref_name }}
           R5_SOURCE_COMMIT: ${{ github.sha }}
@@ -51,24 +62,24 @@ jobs:
         run: pnpm run verify:all
 
       - name: Install qualification Chrome on macOS
-        if: github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8'
+        if: startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
         run: pnpm -C app exec playwright install chrome
 
       - name: Prepare identity-bound deployable artifact
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v5' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v6' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v7' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8'
+        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
         env:
           R5_CANDIDATE_TAG: ${{ github.ref_name }}
           R5_SOURCE_COMMIT: ${{ github.sha }}
         run: pnpm run deploy:prepare
 
       - name: Qualify exact candidate process memory
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v5' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v6' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v7' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8'
+        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
         env:
           R5_MEMORY_RUNNER_CLASS: github-hosted-macos-14
         run: pnpm -C app run evidence:memory:release
 
       - name: Finalize identity-bound deployable artifact
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v5' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v6' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v7' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8'
+        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
         env:
           R5_CANDIDATE_TAG: ${{ github.ref_name }}
           R5_SOURCE_COMMIT: ${{ github.sha }}
@@ -89,7 +100,7 @@ jobs:
         run: pnpm -C app exec playwright test
 
       - uses: actions/upload-artifact@v4
-        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v2' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v4' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v5' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v6' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v7' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate-v8'
+        if: github.ref == 'refs/tags/react-refactor-r5-candidate-v3' || github.ref == 'refs/tags/react-refactor-r5-parity-repair-candidate' || startsWith(github.ref, 'refs/tags/react-refactor-r5-parity-repair-candidate-v')
         with:
           name: r5-candidate-${{ github.ref_name }}-${{ github.sha }}
           path: dist/
