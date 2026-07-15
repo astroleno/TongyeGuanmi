@@ -71,10 +71,7 @@ function snapshotFor(state: MotionState): SceneMotionSnapshot {
 function updateDiagnostics(state: MotionState): SceneMotionSnapshot {
   const snapshot = snapshotFor(state);
   state.root.dataset.sceneMotionActive = String(snapshot.active);
-  state.root.dataset.sceneMotionBaseActive = String(snapshot.baseActive);
   state.root.dataset.sceneMotionLeaseCount = String(snapshot.leaseCount);
-  state.root.dataset.sceneMotionOwners = snapshot.leaseOwners.join(',');
-  state.root.dataset.sceneMotionBound = String(snapshot.bound);
   return snapshot;
 }
 
@@ -170,7 +167,8 @@ export function createSceneMotionLeaseGroup(owner: string): SceneMotionLeaseGrou
         }
       }
       for (const target of next.values()) {
-        if (target.root) {
+        const current = entries.get(target.key);
+        if (target.root && (!current || current.root !== target.root)) {
           sceneMotionSnapshot(target.root);
         }
         if (!target.active || !target.root || entries.has(target.key)) {

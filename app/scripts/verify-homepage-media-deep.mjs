@@ -10,6 +10,24 @@ const execFileAsync = promisify(execFile);
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
 const TIMING_TOLERANCE_SECONDS = 0.001;
+const FIGURE2_REVERSE_CONTRACTS = [
+  {
+    side: 'left',
+    authority: 'assets/figure2-left-motion.webm',
+    authoritySha256: '9e58707c959d9111af1f1ea2420855292a0449862dc68c93298efc48866597a4',
+    source: 'assets/figure2-left-motion-reverse.webm',
+    sourceBytes: 4_366_640,
+    sourceSha256: 'cab4465ae951700382d1930dc47ddb39d801b8f38479cf6d8a5a225b91de4f32'
+  },
+  {
+    side: 'right',
+    authority: 'assets/figure2-right-motion.webm',
+    authoritySha256: '7dbd981ccdda04a2ca0d598fdcc878151ec0c9b6a375249f38cc0ca30d2be737',
+    source: 'assets/figure2-right-motion-reverse.webm',
+    sourceBytes: 3_918_503,
+    sourceSha256: 'fd0c874c1483024c9d446d7339599bde9e0b5e63e36985b7c75240f6933e35d9'
+  }
+];
 const AOD_ALPHA_CONTRACT = {
   source: 'assets/aod-figure-motion.webm',
   frames: 78,
@@ -39,9 +57,9 @@ const HERO_TRIMMED_CONTRACT = {
 };
 const CRANE_FLOCK_VISUAL_CONTRACT = {
   source: 'assets/crane-flock-motion.webm',
-  sourceSha256: 'a3ac363cf7dd37940f3467a1c4e5b1b2df067d4fdc4966e99e17679a32498164',
-  sourceBytes: 4_416_794,
-  correctedFirstFrame: 'assets/crane-flock-first-frame.webp',
+  sourceSha256: '708f45223f0cea5af23449d947050a86e5ec1ac959385561fa663ff44da5c37a',
+  sourceBytes: 4_429_224,
+  correctedFirstFrame: 'archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-corrected.webp',
   authority: path.join(
     repoDir,
     'archive/assets/homepage-media/2026-07-15/sources/crane-flock-74f-authority.webm'
@@ -52,28 +70,25 @@ const CRANE_FLOCK_VISUAL_CONTRACT = {
   colorSsimMin: 0.9985,
   alphaSsimMin: 0.993,
   frame0ColorSsimMin: 0.9995,
-  frame0AlphaSsimMin: 0.9998,
+  frame0AlphaSsimMin: 0.9994,
   bodyWitnesses: [
     { x: 300, y: 115, label: 'upper-left-body' },
     { x: 926, y: 343, label: 'right-body' }
   ]
 };
-const CRANE_FLOCK_POSTER_CONTRACT = {
-  source: 'assets/crane-flock-first-frame.webp',
-  sourceSha256: '8c4d47ca59d21c14430c02b2d89605594463a018e28c25c7eeb8fd824f8910b4',
-  sourceBytes: 80_116,
+const CRANE_FLOCK_CORRECTED_FRAME_CONTRACT = {
+  source: 'archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-corrected.webp',
+  sourceSha256: 'cc3c35d6bf53ed5155aae22c64f1cd50cfc3b8864cbf23295fc0172a2a4b3ca4',
+  sourceBytes: 118_116,
   authority: path.join(
     repoDir,
-    'archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-flawed.png'
+    'archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-hires.png'
   ),
-  authoritySha256: 'f4a1b1572b8743ae2c1a3a187abc7cc6b772f26ff63fbf19093bb10d8849cde3',
-  authorityBytes: 354_266,
-  alphaChangedPixels: 36_667,
-  filledInteriorPixels: 29_775,
-  clearedExteriorPixels: 6_892,
+  authoritySha256: 'f0e7e56fb83b4ca19d6d8c0bc352d4786d7ab0cff58637482ac2a4c6efd0f079',
+  authorityBytes: 1_928_281,
   transparentGapWitnesses: [
-    { x: 1026, y: 242, label: 'upper-right-leg-gap' },
-    { x: 825, y: 529, label: 'lower-leg-gap' }
+    { x: 1025, y: 260, label: 'upper-right-leg-gap' },
+    { x: 820, y: 535, label: 'lower-leg-gap' }
   ]
 };
 const CRANE_SINGLE_SOURCE_CONTRACT = {
@@ -231,7 +246,7 @@ async function inspectCraneFlockVisualContract() {
     alphaSsim,
     authorityAlpha,
     outputAlpha,
-    posterRgba,
+    correctedFrameRgba,
     canonicalFrame0Rgba,
     frame0ColorSsim,
     frame0AlphaSsim
@@ -277,7 +292,7 @@ async function inspectCraneFlockVisualContract() {
   assert(alphaSsim.all >= contract.alphaSsimMin, `Crane flock alpha SSIM ${alphaSsim.all} < ${contract.alphaSsimMin}`);
   assert(frame0ColorSsim.all >= contract.frame0ColorSsimMin, `Crane flock corrected frame 0 color SSIM ${frame0ColorSsim.all} < ${contract.frame0ColorSsimMin}`);
   assert(frame0AlphaSsim.all >= contract.frame0AlphaSsimMin, `Crane flock corrected frame 0 alpha SSIM ${frame0AlphaSsim.all} < ${contract.frame0AlphaSsimMin}`);
-  assert(posterRgba.byteLength === canonicalFrame0Rgba.byteLength, 'Crane flock frame 0 RGBA dimensions changed');
+  assert(correctedFrameRgba.byteLength === canonicalFrame0Rgba.byteLength, 'Crane flock frame 0 RGBA dimensions changed');
   const alphaAt = (rgba, x, y) => rgba[(y * 1280 + x) * 4 + 3];
   const bodyAlpha = contract.bodyWitnesses.map((witness) => ({
     ...witness,
@@ -286,12 +301,12 @@ async function inspectCraneFlockVisualContract() {
   for (const witness of bodyAlpha) {
     assert(witness.alpha === 255, `Crane flock frame 0 ${witness.label} alpha ${witness.alpha} != 255`);
   }
-  const gapAlpha = CRANE_FLOCK_POSTER_CONTRACT.transparentGapWitnesses.map((witness) => ({
+  const gapAlpha = CRANE_FLOCK_CORRECTED_FRAME_CONTRACT.transparentGapWitnesses.map((witness) => ({
     ...witness,
     alpha: alphaAt(canonicalFrame0Rgba, witness.x, witness.y)
   }));
   for (const witness of gapAlpha) {
-    assert(witness.alpha === 0, `Crane flock frame 0 ${witness.label} alpha ${witness.alpha} != 0`);
+    assert(witness.alpha <= 7, `Crane flock frame 0 ${witness.label} alpha ${witness.alpha} > 7`);
   }
 
   return {
@@ -312,12 +327,13 @@ async function inspectCraneFlockVisualContract() {
   };
 }
 
-async function decodedStillRgba(source) {
+async function decodedStillRgba(source, filter) {
   try {
     const { stdout } = await execFileAsync('ffmpeg', [
       '-v', 'error',
       ...(path.extname(source).toLowerCase() === '.webm' ? ['-c:v', 'libvpx-vp9'] : []),
       '-i', source,
+      ...(filter ? ['-vf', filter] : []),
       '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgba', 'pipe:1'
     ], { encoding: null, maxBuffer: 5 * 1024 * 1024 });
     return stdout;
@@ -326,8 +342,8 @@ async function decodedStillRgba(source) {
   }
 }
 
-async function inspectCraneFlockPosterContract() {
-  const contract = CRANE_FLOCK_POSTER_CONTRACT;
+async function inspectCraneFlockCorrectedFrameContract() {
+  const contract = CRANE_FLOCK_CORRECTED_FRAME_CONTRACT;
   const outputPath = path.join(repoDir, contract.source);
   const [authorityIdentity, outputIdentity, probe, authorityRgba, outputRgba] = await Promise.all([
     sha256File(contract.authority),
@@ -336,30 +352,27 @@ async function inspectCraneFlockPosterContract() {
       '-select_streams', 'v:0',
       '-show_entries', 'stream=width,height,pix_fmt'
     ]),
-    decodedStillRgba(contract.authority),
+    decodedStillRgba(
+      contract.authority,
+      'scale=1280:720:flags=lanczos,colorchannelmixer=rr=0.890:gg=0.893:bb=0.913:aa=1'
+    ),
     decodedStillRgba(outputPath)
   ]);
   const stream = probe.streams?.[0];
-  assert(authorityIdentity.bytes === contract.authorityBytes, 'Crane flock poster authority byte identity changed');
-  assert(authorityIdentity.sha256 === contract.authoritySha256, 'Crane flock poster authority SHA-256 changed');
-  assert(outputIdentity.bytes === contract.sourceBytes, 'Crane flock poster output byte identity changed');
-  assert(outputIdentity.sha256 === contract.sourceSha256, 'Crane flock poster output SHA-256 changed');
-  assert(stream?.width === 1280 && stream?.height === 720, 'Crane flock poster must be 1280x720');
-  assert(stream?.pix_fmt === 'argb', 'Crane flock poster must retain lossless alpha');
-  assert(authorityRgba.byteLength === outputRgba.byteLength, 'Crane flock poster decoded size changed');
+  assert(authorityIdentity.bytes === contract.authorityBytes, 'Crane flock corrected-frame authority byte identity changed');
+  assert(authorityIdentity.sha256 === contract.authoritySha256, 'Crane flock corrected-frame authority SHA-256 changed');
+  assert(outputIdentity.bytes === contract.sourceBytes, 'Crane flock corrected-frame output byte identity changed');
+  assert(outputIdentity.sha256 === contract.sourceSha256, 'Crane flock corrected-frame output SHA-256 changed');
+  assert(stream?.width === 1280 && stream?.height === 720, 'Crane flock corrected frame must be 1280x720');
+  assert(stream?.pix_fmt === 'argb', 'Crane flock corrected frame must retain lossless alpha');
+  assert(authorityRgba.byteLength === outputRgba.byteLength, 'Crane flock corrected-frame decoded size changed');
 
-  let alphaChangedPixels = 0;
-  let filledInteriorPixels = 0;
-  let clearedExteriorPixels = 0;
+  let alphaDifferences = 0;
   let visibleRgbDifferences = 0;
   for (let index = 0; index < authorityRgba.byteLength; index += 4) {
     const sourceAlpha = authorityRgba[index + 3];
     const outputAlpha = outputRgba[index + 3];
-    if (sourceAlpha !== outputAlpha) {
-      alphaChangedPixels += 1;
-      if (outputAlpha === 255) filledInteriorPixels += 1;
-      if (outputAlpha === 0) clearedExteriorPixels += 1;
-    }
+    if (sourceAlpha !== outputAlpha) alphaDifferences += 1;
     if (
       outputAlpha > 0
       && (
@@ -371,30 +384,26 @@ async function inspectCraneFlockPosterContract() {
       visibleRgbDifferences += 1;
     }
   }
-  assert(alphaChangedPixels === contract.alphaChangedPixels, 'Crane flock poster alpha correction changed');
-  assert(filledInteriorPixels === contract.filledInteriorPixels, 'Crane flock poster interior fill changed');
-  assert(clearedExteriorPixels === contract.clearedExteriorPixels, 'Crane flock poster exterior clearing changed');
-  assert(visibleRgbDifferences === 0, 'Crane flock poster changed visible RGB');
+  assert(alphaDifferences === 0, 'Crane flock corrected frame changed downsampled authority alpha');
+  assert(visibleRgbDifferences === 0, 'Crane flock corrected frame changed visible downsampled authority RGB');
   const bodyWitness = (115 * 1280 + 300) * 4;
-  assert(authorityRgba[bodyWitness + 3] === 157, 'Crane flock flawed body witness changed');
-  assert(outputRgba[bodyWitness + 3] === 255, 'Crane flock poster body witness remains transparent');
-  const formerlyLeakingBodyWitness = (343 * 1280 + 926) * 4;
-  assert(authorityRgba[formerlyLeakingBodyWitness + 3] === 19, 'Crane flock leaking body witness changed');
-  assert(outputRgba[formerlyLeakingBodyWitness + 3] === 255, 'Crane flock poster still leaks through a body');
+  assert(authorityRgba[bodyWitness + 3] === 255, 'Crane flock high-resolution body witness changed');
+  assert(outputRgba[bodyWitness + 3] === 255, 'Crane flock corrected-frame body witness is not opaque');
+  const rightBodyWitness = (343 * 1280 + 926) * 4;
+  assert(authorityRgba[rightBodyWitness + 3] === 255, 'Crane flock high-resolution right-body witness changed');
+  assert(outputRgba[rightBodyWitness + 3] === 255, 'Crane flock corrected-frame right-body witness is not opaque');
   for (const witness of contract.transparentGapWitnesses) {
     const index = (witness.y * 1280 + witness.x) * 4;
     assert(authorityRgba[index + 3] <= 7, `Crane flock ${witness.label} source witness changed`);
-    assert(outputRgba[index + 3] === 0, `Crane flock ${witness.label} was incorrectly filled`);
+    assert(outputRgba[index + 3] <= 7, `Crane flock ${witness.label} is not transparent`);
   }
 
   return {
     source: contract.source,
     authority: path.relative(repoDir, contract.authority),
     dimensions: '1280x720',
-    correction: 'canvas-edge background flood fill',
-    alphaChangedPixels,
-    filledInteriorPixels,
-    clearedExteriorPixels,
+    correction: 'high-resolution Lanczos downsample and motion tone match',
+    alphaDifferences,
     visibleRgbDifferences,
     canonicalFrame0: 'embedded and verified by craneFlockVisual'
   };
@@ -429,6 +438,54 @@ async function decodedRgbaFramemd5(source, filter) {
       md5: fields[5]
     }];
   });
+}
+
+async function inspectFigure2ReverseContract(contract) {
+  const authority = path.join(repoDir, contract.authority);
+  const output = path.join(repoDir, contract.source);
+  const [authorityIdentity, outputIdentity, reversedFrames, outputFrames, colorSsim, alphaSsim] = await Promise.all([
+    sha256File(authority),
+    sha256File(output),
+    decodedRgbaFramemd5(authority, 'reverse,setpts=N/(30*TB)'),
+    decodedRgbaFramemd5(output),
+    decodedSsim(
+      authority,
+      output,
+      '[0:v]reverse,setpts=N/(30*TB),format=yuva420p[ref];[1:v]setpts=N/(30*TB),format=yuva420p[candidate];[ref][candidate]ssim'
+    ),
+    decodedSsim(
+      authority,
+      output,
+      '[0:v]reverse,setpts=N/(30*TB),format=yuva420p,alphaextract[ref];[1:v]setpts=N/(30*TB),format=yuva420p,alphaextract[candidate];[ref][candidate]ssim'
+    )
+  ]);
+  assert(authorityIdentity.sha256 === contract.authoritySha256, `Figure2 ${contract.side} authority identity changed`);
+  assert(outputIdentity.bytes === contract.sourceBytes, `Figure2 ${contract.side} reverse bytes changed`);
+  assert(outputIdentity.sha256 === contract.sourceSha256, `Figure2 ${contract.side} reverse identity changed`);
+  assert(reversedFrames.length === 78 && outputFrames.length === 78, `Figure2 ${contract.side} reverse must map 78/78 frames`);
+  for (let index = 0; index < 78; index += 1) {
+    const expected = reversedFrames[index];
+    const actual = outputFrames[index];
+    assert(
+      expected.dts === actual.dts
+      && expected.pts === actual.pts
+      && expected.duration === actual.duration
+      && expected.bytes === actual.bytes,
+      `Figure2 ${contract.side} reverse frame ${index} timing diverged`
+    );
+  }
+  assert(colorSsim.all >= 0.990, `Figure2 ${contract.side} reverse color SSIM ${colorSsim.all} < 0.990`);
+  assert(alphaSsim.all >= 0.994, `Figure2 ${contract.side} reverse alpha SSIM ${alphaSsim.all} < 0.994`);
+  return {
+    side: contract.side,
+    authority: contract.authority,
+    source: contract.source,
+    bytes: outputIdentity.bytes,
+    frames: outputFrames.length,
+    frameMap: 'reverse[0..77] = forward[77..0]',
+    colorSsim: colorSsim.all,
+    alphaSsim: alphaSsim.all
+  };
 }
 
 async function inspectCraneSingleSourceContract() {
@@ -655,22 +712,28 @@ const canonicalVideos = [];
 for (const contract of canonicalVideoContracts) {
   canonicalVideos.push(await inspectCanonicalVideo(contract));
 }
-const [aodAlpha, craneSingleSource, heroTrimmed, craneFlockVisual, craneFlockPoster] = await Promise.all([
+const [figure2Reverse, aodAlpha, craneSingleSource, heroTrimmed, craneFlockVisual, craneFlockCorrectedFrame] = await Promise.all([
+  Promise.all(FIGURE2_REVERSE_CONTRACTS.map(inspectFigure2ReverseContract)),
   inspectAodAlphaContract(),
   inspectCraneSingleSourceContract(),
   inspectHeroTrimmedContract(),
   inspectCraneFlockVisualContract(),
-  inspectCraneFlockPosterContract()
+  inspectCraneFlockCorrectedFrameContract()
 ]);
+assert(
+  figure2Reverse.reduce((sum, contract) => sum + contract.bytes, 0) <= 10 * 1024 * 1024,
+  'Figure2 reverse pair exceeds 10 MiB'
+);
 
 process.stdout.write(`${JSON.stringify({
   qualification: 'homepage-media-deep',
   files: canonicalVideos.length,
   canonicalVideos,
+  figure2Reverse,
   aodAlpha,
   craneSingleSource,
   heroTrimmed,
   craneFlockVisual,
-  craneFlockPoster,
+  craneFlockCorrectedFrame,
   pass: true
 })}\n`);

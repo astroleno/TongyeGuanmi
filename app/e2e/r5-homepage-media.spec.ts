@@ -107,14 +107,16 @@ test('Hero keeps the original figure deferred until the Hero to Pattern transiti
   await waitForHold(page, 'pattern');
 });
 
-test('direct non-Hero entries expose exactly the eight canonical physical video keys', async ({ page }, testInfo) => {
+test('direct non-Hero entries expose exactly the ten canonical physical video keys', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Batch B media gate uses mobile Chromium');
   const cases = [
     {
       scene: 'figure2-animation',
       media: [
         ['figure2-left-motion', 'figure2-left-motion'],
-        ['figure2-right-motion', 'figure2-right-motion']
+        ['figure2-left-motion-reverse', 'figure2-left-motion-reverse'],
+        ['figure2-right-motion', 'figure2-right-motion'],
+        ['figure2-right-motion-reverse', 'figure2-right-motion-reverse']
       ]
     },
     { scene: 'ttg-animation', media: [['ttg-figure-motion', 'ttg-figure-motion']] },
@@ -144,11 +146,7 @@ test('direct non-Hero entries expose exactly the eight canonical physical video 
     expect(videos.map((video) => video.key)).toEqual(entry.media.map(([key]) => key));
     for (const [index, [, filename]] of entry.media.entries()) {
       expect(videos[index]?.source).toMatch(new RegExp(`${filename}-[^/]+\\.webm$`));
-      if (filename === 'crane-flock-motion') {
-        expect(videos[index]?.poster).toMatch(/crane-flock-first-frame-[^/]+\.webp$/);
-      } else {
-        expect(videos[index]?.poster).toBe('');
-      }
+      expect(videos[index]?.poster).toBe('');
       expect(videos[index]?.playbackRate).toBeGreaterThan(0);
     }
   }

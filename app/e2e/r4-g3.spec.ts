@@ -109,14 +109,16 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       figureDepthSurfaceCount: document.querySelectorAll('[data-figure2-figure-depth-surface]').length,
       brandLayerClip: brandLayer?.style.clipPath ?? '',
       retainedArchClip: retainedArch?.style.clipPath ?? '',
-      videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
+      videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')]
+        .filter((video) => video.dataset.figure2Inactive !== 'true')
+        .map((video) => ({
         side: video.dataset.figure2Side ?? '',
         mediaKey: video.dataset.mediaKey ?? '',
         direction: video.dataset.timelineVideoDirection ?? '',
         frameReady: video.dataset.timelineVideoFrameReady === 'true',
         paused: video.paused,
         currentTime: video.currentTime
-      }))
+        }))
     };
   });
 }
@@ -255,7 +257,12 @@ test.describe('R4 group3 canonical Figure2 and compound Proof harness', () => {
     await expect.poll(async () => {
       const visual = await visualSnapshot(page);
       return visual.transitions.includes('figure2-proof-binary-depth')
-        && visual.videos.every((video) => video.direction === '-1' && video.currentTime > 2.3);
+        && visual.videos.every((video) => (
+          video.direction === '-1'
+          && !video.paused
+          && video.currentTime > 0.05
+          && video.currentTime < 2.3
+        ));
     }, { timeout: 5_000, intervals: [20] }).toBe(true);
 
     const samples: Record<string, number[]> = { left: [], right: [] };
@@ -268,7 +275,7 @@ test.describe('R4 group3 canonical Figure2 and compound Proof harness', () => {
       const values = samples[side] ?? [];
       expect(values.length).toBeGreaterThan(4);
       expect(Math.max(...values) - Math.min(...values)).toBeGreaterThan(0.2);
-      expect(values.some((value, index) => index > 0 && value < (values[index - 1] ?? 0) - 0.01)).toBe(true);
+      expect(values.some((value, index) => index > 0 && value > (values[index - 1] ?? 0) + 0.01)).toBe(true);
     }
     expect((await snapshot(page)).window.current).toBe('figure2-animation');
     expect((await snapshot(page)).eventLog).not.toContain('STAGE_PAUSED');

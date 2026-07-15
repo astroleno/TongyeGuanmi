@@ -671,13 +671,11 @@ describe('shared ink transition surface', () => {
     expect(toElement.dataset.r4RevealMode).toBe('ink-occluded-live-gate');
     expect(toElement.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(toElement.dataset.r4InkBoundaryProgress).toBe('0.7500');
-    expect(canvas.dataset.r4InkContourRevision).toMatch(/^horizontal-ink-contour-v2-/);
-    expect(toElement.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
-    expect(fromElement.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
-    expect(revealSurface.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
-    expect(concealSurface.dataset.r4InkContourRevision).toBe(canvas.dataset.r4InkContourRevision);
-    expect(toElement.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
-    expect(fromElement.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
+    expect(toElement.dataset.r4InkContourRevision).toMatch(/^horizontal-ink-contour-v2-/);
+    expect(fromElement.dataset.r4InkContourRevision).toBe(toElement.dataset.r4InkContourRevision);
+    expect(revealSurface.dataset.r4InkContourRevision).toBe(toElement.dataset.r4InkContourRevision);
+    expect(concealSurface.dataset.r4InkContourRevision).toBe(toElement.dataset.r4InkContourRevision);
+    expect(fromElement.dataset.r4InkContourThreshold).toBe(toElement.dataset.r4InkContourThreshold);
     expect(toElement.dataset.r4InkOwnership).toBe('reveal');
     expect(fromElement.dataset.r4InkOwnership).toBe('conceal');
     expect(revealSurface.style.clipPath).toMatch(/^polygon\(/);
@@ -715,7 +713,6 @@ describe('shared ink transition surface', () => {
 
   it('retains only one lightweight run contour without a mask or snapshot compositor', () => {
     expect(inkSource).toContain('createHorizontalInkContour');
-    expect(inkSource).toContain('markHorizontalInkDiagnostics');
     expect(inkFieldSource).toContain('frame.contour');
     expect(inkFieldSource).toContain('frame.revision');
     expect(inkSource).not.toContain('mask-image:');
@@ -833,7 +830,7 @@ describe('shared ink transition surface', () => {
     main.dispose();
   });
 
-  it('keeps automatic ink playback inside the transition after one long browser frame', async () => {
+  it('uses monotonic wall time instead of stretching playback after one long browser frame', async () => {
     const stage = new FakeElement();
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
@@ -881,7 +878,7 @@ describe('shared ink transition surface', () => {
     callbacks.shift()?.(5_000);
 
     expect(renderedProgress.at(-1)).toBeGreaterThan(0);
-    expect(renderedProgress.at(-1)).toBeLessThan(1);
+    expect(renderedProgress.at(-1)).toBe(1);
     timeline.dispose();
     callbacks.shift()?.(5_016);
     await playback;

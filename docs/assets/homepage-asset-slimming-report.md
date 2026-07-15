@@ -5,7 +5,7 @@
 - 当前唯一阶段分支为 `codex/react-refactor-r5-parity-cutover`，状态是 **pre-visual、untagged、unqualified**。
 - Batch A generation provenance 由远端 `codex/homepage-asset-slimming-generation` 精确保存于 `3f16dd0b3f136e699cb3cbd88c1241b4875d9393`。它是独立来源链，不是 Batch B/C 的 Git 祖先，也未为制造线性历史合入 R5。
 - Batch B 以 `c273726b1a26ddfea557774d590214782ff7e74b` → `f5a497909683e8771a4e2944b5e2d8e0dfa0433d` → `be119daba32577c5a44dc100aa3bd357cacdaa1d` → `b23dd80d13bea685fd4fdd58caa49c11032ecb11` 接入 R5；Batch C 以 `767d3927119fb7e06b09939858912d5da3f4c04d` → `b62ba647cbf5402299cd0a5eef46fff152c48524` 通过非 squash merge 接入。
-- 当前 R5 已在 Batch B/C 基线上接入 2026-07-15 parity 修复与本轮 Hero/Flock/Crane figure 瘦身：Hero 使用 lossless RGBA poster 和裁切后的 720×1280 alpha WebM；Crane figure 由单一 RGBA authority 重采样后使用 CRF 26 canonical；Crane flock 保留 74 帧，以外部 flood-fill 修正版 WebP 替换 canonical frame 0，frames 1–73 继续来自冻结 authority，并由 runtime 持有作者末帧；同一 WebP 只在视频解码前作为 poster，不创建覆盖层。当前 source 冻结合同是 **39 files / 30 WebP / 9 WebM / 0 JPG / 0 PNG**；runtime media **47,180,901 bytes**；Hero pre-scroll **1,604,092 bytes**；最大单文件为 **4,416,794 bytes**；`dist/assets` 不得包含 PNG/JPG。
+- 当前 R5 已在 Batch B/C 基线上接入 2026-07-15 parity 修复与本轮 Hero/Flock/Crane figure 瘦身：Hero 使用 lossless RGBA poster 和裁切后的 720×1280 alpha WebM；Crane figure 由单一 RGBA authority 重采样后使用 CRF 26 canonical；Crane flock 保留 74 帧，以 archive 中的高分辨率 RGBA 静帧经 Lanczos 下采样并匹配开场运动帧色调后替换 canonical frame 0，frames 1–73 继续来自冻结 authority，并由 runtime 持有作者末帧。修正版 WebP 只作为可复现重建输入，runtime 不再挂 poster 或静帧 surface。Figure2 另从两个当前 forward authority 确定性生成 direction-specific reverse WebM，由 runtime 原生正播呈现逆向。当前 source 冻结合同是 **40 files / 29 WebP / 11 WebM / 0 JPG / 0 PNG**；runtime media **55,398,358 bytes**；Hero pre-scroll **1,604,092 bytes**；最大单文件为 **4,429,224 bytes**；`dist/assets` 不得包含 PNG/JPG。
 - Batch C 的自动浏览器证据属于上述相同 runtime/assets tree，但不等于最终人工视觉验收或 release qualification。最终视觉尚未执行；当前 HEAD 没有 candidate tag，也未运行当前身份的 RSS、rollback 或 exact-tag matrix。
 - GitHub 只运行 branch/PR Node 静态门禁（`verify:all`），用于仓库健康；不运行 FFmpeg、媒体深检、Playwright、RSS、rollback 或 HITL，Actions 绿灯不是 R5 qualification 条件。
 - Candidate-v2 至 candidate-v8 均为 immutable historical/unqualified，禁止移动或复用。新 candidate 只能在最终视觉通过及 pre-freeze gate 完成后创建一次。
@@ -20,8 +20,10 @@
 | 输出 | 冻结输入 | 新合同 | bytes / SHA-256 | 质量与透明度证据 |
 | --- | --- | --- | --- | --- |
 | `assets/figure1.webm` | 旧 1080×1920 文件的作者帧 8–56（含两端） | 720×1280；24fps；49 帧；2.042s；last PTS 2.000s；7 keyframes；GOP ≤ 8；runtime 0.000–2.000s | 2,019,536 / `a472e2f9f62c9cdd447fe78664020e3dad7e0ce37900bb1c4b4e7fb1db379d70` | 对裁切、缩放后的 authority：color SSIM 0.994344；alpha SSIM 0.993994；alpha 仍为 0–255。较旧文件减少 8,619,699 bytes（81.02%）。 |
-| `assets/crane-flock-motion.webm` | frame 0 使用下行修正版 WebP；frames 1–73 使用 `ac46a868e13ca286ea3a6cdfad71c5b6e0ca37b1:assets/crane-figure2-transition.webm` | 1280×720；30fps；**74 帧，无复制帧**；2.466s；last PTS 2.433s；10 keyframes；GOP ≤ 8；runtime 在 2.433s 暂停持有末帧 | 4,416,794 / `a3ac363cf7dd37940f3467a1c4e5b1b2df067d4fdc4966e99e17679a32498164` | frame 0 对 corrected WebP：color SSIM 0.999755、alpha SSIM 0.999982，两个 body witnesses=255、两个 gap witnesses=0；frames 1–73 对 authority：color SSIM 0.998872、alpha SSIM 0.994012、73/73 alpha min/max 一致。较 lossless 输出减少 5,279,403 bytes（54.45%）。 |
-| `assets/crane-flock-first-frame.webp` | 历史 `crane-figure2-first-frame.png` 静帧 | 1280×720；lossless WebP；作为 canonical frame 0 的重建输入，并在视频解码前作为 poster | 80,116 / `8c4d47ca59d21c14430c02b2d89605594463a018e28c25c7eeb8fd824f8910b4` | 从画布四边仅 flood fill neutral/background-like 连通像素；29,775 个体内像素补实、6,892 个外部像素归零；可见 RGB 0 差异；两处腿间 gap 保持透明。poster rebuild 本身只处理静帧；独立 canonical rebuild 把它写入 WebM frame 0。 |
+| `assets/crane-flock-motion.webm` | frame 0 使用高分辨率 RGBA authority 的 lossless 下采样与运动帧色调匹配；frames 1–73 使用 `ac46a868e13ca286ea3a6cdfad71c5b6e0ca37b1:assets/crane-figure2-transition.webm` | 1280×720；30fps；**74 帧，无复制帧**；2.466s；last PTS 2.433s；10 keyframes；GOP ≤ 8；runtime 在 2.433s 暂停持有末帧 | 4,429,224 / `708f45223f0cea5af23449d947050a86e5ec1ac959385561fa663ff44da5c37a` | 首帧实色鹤体平均亮度 214.25，后续三帧为 215.91 / 213.44 / 212.90；frame 0 对 corrected WebP：color SSIM 0.999600、alpha SSIM 0.999496；frames 1–73 对 authority：color SSIM 0.998870、alpha SSIM 0.993970。 |
+| `archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-corrected.webp` | 3184×1792 RGBA 静帧 authority | 1280×720；Lanczos 下采样；RGB 乘数 0.890 / 0.893 / 0.913；lossless WebP；只作为 canonical frame 0 的重建输入，不进入 runtime inventory、不绑定 poster | 118,116 / `cc3c35d6bf53ed5155aae22c64f1cd50cfc3b8864cbf23295fc0172a2a4b3ca4` | Alpha 完整保留，高清线条不变；色调匹配后与首三个运动帧亮度连续。独立 canonical rebuild 把它写入 WebM frame 0。 |
+| `assets/figure2-left-motion-reverse.webm` | `assets/figure2-left-motion.webm` | 600×1066；30fps；78 帧；2.600s；VP9 alpha；GOP ≤ 8；reverse frame 0→forward frame 77 | 4,366,640 / `cab4465ae951700382d1930dc47ddb39d801b8f38479cf6d8a5a225b91de4f32` | 78/78 PTS/帧序映射；对 reversed authority：color SSIM 0.996999、alpha SSIM 0.995032。 |
+| `assets/figure2-right-motion-reverse.webm` | `assets/figure2-right-motion.webm` | 600×1066；30fps；78 帧；2.600s；VP9 alpha；GOP ≤ 8；reverse frame 0→forward frame 77 | 3,918,503 / `fd0c874c1483024c9d446d7339599bde9e0b5e63e36985b7c75240f6933e35d9` | 78/78 PTS/帧序映射；对 reversed authority：color SSIM 0.995997、alpha SSIM 0.994332。 |
 
 两项均由 FFmpeg 8.1 / libvpx-vp9 编码，保留 `alpha_mode=1`，禁止通过默认 VP9 decoder 丢弃 alpha。可复现核心命令如下；输入均已放入本轮仓库内 archive：
 
@@ -35,9 +37,10 @@ ffmpeg -c:v libvpx-vp9 -i archive/assets/homepage-media/2026-07-15/replaced/figu
 
 pnpm run rebuild:media:crane-flock-poster
 pnpm run rebuild:media:crane-flock
+pnpm run rebuild:media:figure2-reverse
 ```
 
-`pnpm run verify:media:deep` 现在同时冻结 Hero 裁切/尺寸/帧数/PTS/GOP/alpha/SSIM、Crane flock authority 与 corrected WebP identity、canonical frame 0 的 color/alpha SSIM 和 body/gap witnesses、frames 1–73 的 alpha extrema parity 与 color/alpha SSIM，以及无复制帧合同。Flock 容器的最后呈现 PTS 为 2.433s；既有 timeline driver 会按实际 2.466s 容器时长钳制 seek，暂停后持续呈现作者末帧，不再向文件追加 terminal hold。WebM 容器 UID 由两项输入 SHA 派生，重复重建输出同一 bytes/SHA。
+`pnpm run verify:media:deep` 现在同时冻结 Hero 裁切/尺寸/帧数/PTS/GOP/alpha/SSIM、Crane flock authority 与 corrected WebP identity、canonical frame 0 的 color/alpha SSIM 和 body/gap witnesses、frames 1–73 的 alpha extrema parity 与 color/alpha SSIM、无复制帧合同，以及 Figure2 reverse pair 的 78/78 帧序/PTS、alpha/composite SSIM。Flock 容器的最后呈现 PTS 为 2.433s；既有 timeline driver 会按实际 2.466s 容器时长钳制 seek，暂停后持续呈现作者末帧，不再向文件追加 terminal hold。WebM 容器 UID 由冻结 authority SHA 派生，重复重建输出同一 bytes/SHA。
 
 本轮还把冻结清单之外、且在 `app/`、`src/`、`scripts/`、`index.html`、`package.json` 中均无引用的 62 个 authoring/debug/legacy 文件（362,441,690 bytes）从 `assets/` 移到 `archive/assets/homepage-media/2026-07-15/legacy/assets/**`。旧 Hero、旧 lossless flock、被 frame-zero 修复替换的 4,437,203-byte flock canonical 和 74-frame flock authority 分别保存在同一 archive 的 `replaced/` 与 `sources/`；恢复规则见该目录 `README.md`。
 

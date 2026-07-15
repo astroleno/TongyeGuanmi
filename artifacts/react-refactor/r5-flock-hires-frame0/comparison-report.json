@@ -1,0 +1,47 @@
+{
+  "authority": {
+    "path": "archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-hires.png",
+    "dimensions": "3184x1792",
+    "bytes": 1928281,
+    "sha256": "f0e7e56fb83b4ca19d6d8c0bc352d4786d7ab0cff58637482ac2a4c6efd0f079"
+  },
+  "canonicalBefore": {
+    "path": "archive/assets/homepage-media/2026-07-15/replaced/crane-flock-motion-74f-crf18-flood-fill-frame0.webm",
+    "bytes": 4416794,
+    "sha256": "a3ac363cf7dd37940f3467a1c4e5b1b2df067d4fdc4966e99e17679a32498164"
+  },
+  "canonicalAfter": {
+    "path": "assets/crane-flock-motion.webm",
+    "dimensions": "1280x720",
+    "fps": 30,
+    "frames": 74,
+    "bytes": 4429224,
+    "sha256": "708f45223f0cea5af23449d947050a86e5ec1ac959385561fa663ff44da5c37a"
+  },
+  "sizeDelta": {
+    "bytes": 12430,
+    "percent": 0.28143
+  },
+  "visualQualification": {
+    "frame0ColorSsim": 0.9996,
+    "frame0AlphaSsim": 0.999496,
+    "motionFrames1To73ColorSsim": 0.99887,
+    "motionFrames1To73AlphaSsim": 0.99397,
+    "downsampledAuthorityAlphaDifferences": 0,
+    "downsampledAuthorityVisibleRgbDifferences": 0,
+    "bodyWitnessAlpha": [255, 255],
+    "gapWitnessAlpha": [0, 1],
+    "solidBodyLuma": {
+      "frame0": 214.2507,
+      "frame1": 215.9097,
+      "frame2": 213.4409,
+      "frame3": 212.9012
+    },
+    "result": "pass"
+  },
+  "evidence": {
+    "beforeAfterPaper": "artifacts/react-refactor/r5-flock-hires-frame0/crane-frame0-before-after-paper.png",
+    "blackBackground": "artifacts/react-refactor/r5-flock-hires-frame0/crane-flock-first-frame-black.png",
+    "actualSceneFrame0": "artifacts/react-refactor/r5-flock-hires-frame0/crane-scene-canonical-frame0.png"
+  }
+}

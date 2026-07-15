@@ -484,7 +484,7 @@ describe('director runtime actor loop', () => {
     expect(renderedProgress).toBe(1);
   });
 
-  it('requires a fresh charge at both real Pattern checkpoints', async () => {
+  it('requires one fresh charge at the compact Pattern checkpoint', async () => {
     const runtime = createDirectorRuntime({
       actorEpoch: 'pattern-two-inputs',
       manifest: storyManifest,
@@ -506,13 +506,6 @@ describe('director runtime actor loop', () => {
     });
     expect(runtime.getState().context.cursor).not.toEqual({ status: 'hold', scene: 'star-map' });
     runtime.send({ type: 'CHARGE_FIRED', direction: 1, now: 1801 });
-
-    await flush(700);
-    expect(runtime.getState()).toMatchObject({
-      state: 'staged-paused',
-      context: { pausePoint: { segmentId: 'pattern-star-map', stageIndex: 1 } }
-    });
-    runtime.send({ type: 'CHARGE_FIRED', direction: 1, now: 2502 });
 
     await flush(1800);
     expect(runtime.getState().state).toBe('settling');

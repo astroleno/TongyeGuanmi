@@ -84,7 +84,7 @@
   ],
   "trace": [
     {
-      "at": 1784105045713,
+      "at": 1784120001610,
       "event": {
         "type": "BOOT_READY"
       },
@@ -101,7 +101,7 @@
       "id": 1
     },
     {
-      "at": 1784105045714,
+      "at": 1784120001611,
       "event": {
         "type": "BOOT_READY"
       },
@@ -118,7 +118,7 @@
       "id": 2
     },
     {
-      "at": 1784105046192,
+      "at": 1784120002070,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -137,7 +137,7 @@
       "id": 3
     },
     {
-      "at": 1784105046211,
+      "at": 1784120002085,
       "event": {
         "type": "TARGET_READY",
         "scene": "ttg-animation",
@@ -159,7 +159,7 @@
       "id": 4
     },
     {
-      "at": 1784105047391,
+      "at": 1784120003293,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:1"
@@ -180,7 +180,7 @@
       "id": 5
     },
     {
-      "at": 1784105048559,
+      "at": 1784120004426,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -200,7 +200,7 @@
       "id": 6
     },
     {
-      "at": 1784105048565,
+      "at": 1784120004434,
       "event": {
         "type": "TARGET_READY",
         "scene": "lab",
@@ -223,7 +223,7 @@
       "id": 7
     },
     {
-      "at": 1784105052690,
+      "at": 1784120008564,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:2"
@@ -245,7 +245,7 @@
       "id": 8
     },
     {
-      "at": 1784105053123,
+      "at": 1784120008998,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -263,7 +263,7 @@
       "id": 9
     },
     {
-      "at": 1784105053933,
+      "at": 1784120009794,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -283,7 +283,7 @@
       "id": 10
     },
     {
-      "at": 1784105053945,
+      "at": 1784120009813,
       "event": {
         "type": "TARGET_READY",
         "scene": "ph-animation",
@@ -306,7 +306,7 @@
       "id": 11
     },
     {
-      "at": 1784105055123,
+      "at": 1784120011027,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:3"
@@ -328,7 +328,7 @@
       "id": 12
     },
     {
-      "at": 1784105055556,
+      "at": 1784120011460,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -346,7 +346,7 @@
       "id": 13
     },
     {
-      "at": 1784105056301,
+      "at": 1784120012166,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -366,7 +366,7 @@
       "id": 14
     },
     {
-      "at": 1784105056304,
+      "at": 1784120012170,
       "event": {
         "type": "TARGET_READY",
         "scene": "education",
@@ -389,7 +389,7 @@
       "id": 15
     },
     {
-      "at": 1784105059456,
+      "at": 1784120015311,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:4"
@@ -411,7 +411,7 @@
       "id": 16
     },
     {
-      "at": 1784105059887,
+      "at": 1784120015746,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -429,7 +429,7 @@
       "id": 17
     },
     {
-      "at": 1784105060697,
+      "at": 1784120016511,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -449,7 +449,7 @@
       "id": 18
     },
     {
-      "at": 1784105060766,
+      "at": 1784120016576,
       "event": {
         "type": "TARGET_READY",
         "scene": "crane-animation",
@@ -472,7 +472,7 @@
       "id": 19
     },
     {
-      "at": 1784105061957,
+      "at": 1784120017794,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:5"
@@ -494,7 +494,7 @@
       "id": 20
     },
     {
-      "at": 1784105062382,
+      "at": 1784120018222,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -512,7 +512,7 @@
       "id": 21
     },
     {
-      "at": 1784105063057,
+      "at": 1784120018841,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -532,7 +532,7 @@
       "id": 22
     },
     {
-      "at": 1784105063060,
+      "at": 1784120018844,
       "event": {
         "type": "TARGET_READY",
         "scene": "contact",
@@ -555,7 +555,7 @@
       "id": 23
     },
     {
-      "at": 1784105066078,
+      "at": 1784120021861,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:6"
@@ -577,7 +577,7 @@
       "id": 24
     },
     {
-      "at": 1784105066506,
+      "at": 1784120022286,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -594,7 +594,7 @@
       "id": 25
     },
     {
-      "at": 1784105067456,
+      "at": 1784120023217,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -613,7 +613,7 @@
       "id": 26
     },
     {
-      "at": 1784105067457,
+      "at": 1784120023219,
       "event": {
         "type": "TARGET_READY",
         "scene": "crane-animation",
@@ -635,7 +635,7 @@
       "id": 27
     },
     {
-      "at": 1784105070471,
+      "at": 1784120026225,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:7"
@@ -656,7 +656,7 @@
       "id": 28
     },
     {
-      "at": 1784105071876,
+      "at": 1784120027603,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -676,7 +676,7 @@
       "id": 29
     },
     {
-      "at": 1784105071887,
+      "at": 1784120027615,
       "event": {
         "type": "TARGET_READY",
         "scene": "education",
@@ -699,7 +699,7 @@
       "id": 30
     },
     {
-      "at": 1784105073074,
+      "at": 1784120028827,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:8"
@@ -721,7 +721,7 @@
       "id": 31
     },
     {
-      "at": 1784105073504,
+      "at": 1784120029252,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -739,7 +739,7 @@
       "id": 32
     },
     {
-      "at": 1784105074289,
+      "at": 1784120030005,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -759,7 +759,7 @@
       "id": 33
     },
     {
-      "at": 1784105074291,
+      "at": 1784120030009,
       "event": {
         "type": "TARGET_READY",
         "scene": "ph-animation",
@@ -782,7 +782,7 @@
       "id": 34
     },
     {
-      "at": 1784105077454,
+      "at": 1784120033192,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:9"
@@ -804,7 +804,7 @@
       "id": 35
     },
     {
-      "at": 1784105077887,
+      "at": 1784120033622,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -822,7 +822,7 @@
       "id": 36
     },
     {
-      "at": 1784105078693,
+      "at": 1784120034438,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -842,7 +842,7 @@
       "id": 37
     },
     {
-      "at": 1784105078716,
+      "at": 1784120034486,
       "event": {
         "type": "TARGET_READY",
         "scene": "lab",
@@ -865,7 +865,7 @@
       "id": 38
     },
     {
-      "at": 1784105079924,
+      "at": 1784120035695,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:10"
@@ -887,7 +887,7 @@
       "id": 39
     },
     {
-      "at": 1784105080355,
+      "at": 1784120036129,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -905,7 +905,7 @@
       "id": 40
     },
     {
-      "at": 1784105081103,
+      "at": 1784120036813,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -925,7 +925,7 @@
       "id": 41
     },
     {
-      "at": 1784105081105,
+      "at": 1784120036815,
       "event": {
         "type": "TARGET_READY",
         "scene": "ttg-animation",
@@ -948,7 +948,7 @@
       "id": 42
     },
     {
-      "at": 1784105085254,
+      "at": 1784120040942,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:11"
@@ -970,7 +970,7 @@
       "id": 43
     },
     {
-      "at": 1784105085686,
+      "at": 1784120041378,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -988,7 +988,7 @@
       "id": 44
     },
     {
-      "at": 1784105086539,
+      "at": 1784120042251,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -1008,7 +1008,7 @@
       "id": 45
     },
     {
-      "at": 1784105086550,
+      "at": 1784120042265,
       "event": {
         "type": "TARGET_READY",
         "scene": "services",
@@ -1031,7 +1031,7 @@
       "id": 46
     },
     {
-      "at": 1784105087757,
+      "at": 1784120043479,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:12"
@@ -1053,7 +1053,7 @@
       "id": 47
     },
     {
-      "at": 1784105088186,
+      "at": 1784120043911,
       "event": {
         "type": "RETIRING_RELEASED"
       },

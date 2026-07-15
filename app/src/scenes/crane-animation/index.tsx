@@ -15,7 +15,6 @@ export const CRANE_CLOUD_FRONT_SRC = new URL('../../../../assets/crane1_cloud1-a
 export const CRANE_CLOUD_FRONT_SECOND_SRC = new URL('../../../../assets/crane1_cloud-front2-alpha.webp', import.meta.url).href;
 export const CRANE_FIGURE_VIDEO_SRC = new URL('../../../../assets/crane-figure-motion.webm', import.meta.url).href;
 export const CRANE_FLOCK_VIDEO_SRC = new URL('../../../../assets/crane-flock-motion.webm', import.meta.url).href;
-export const CRANE_FLOCK_POSTER_SRC = new URL('../../../../assets/crane-flock-first-frame.webp', import.meta.url).href;
 
 const VIDEO_DURATION_FALLBACK = 2.5;
 export const CRANE_VIDEO_END_SECONDS = 2.467;
@@ -255,7 +254,6 @@ function CraneAnimationScene({ registerHandle }: SceneComponentProps) {
                   data-crane-figure-front-video
                   data-media-key={CRANE_FLOCK_MEDIA_KEY}
                   src={CRANE_FLOCK_VIDEO_SRC}
-                  poster={CRANE_FLOCK_POSTER_SRC}
                   muted
                   preload="auto"
                   playsInline

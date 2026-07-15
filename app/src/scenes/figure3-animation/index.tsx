@@ -74,17 +74,24 @@ export function renderFigure3AnimationProgress(
   const videoOpacity = progress < 1 ? 1 : 0;
   const backdropSettle = smoothStep(range01(progress, 0.06, 0.84));
   const videoScale = 1.004 + progress * 0.052;
+  const progressValue = progress.toFixed(4);
 
-  section?.style.setProperty('--figure3-progress', progress.toFixed(4));
+  section?.style.setProperty('--figure3-progress', progressValue);
   section?.style.setProperty('--figure3-fill-opacity', fillOpacity.toFixed(4));
   section?.style.setProperty('--figure3-video-opacity', videoOpacity.toFixed(4));
   section?.style.setProperty('--figure3-backdrop-opacity', (1 - backdropSettle * 0.46).toFixed(4));
   section?.style.setProperty('--figure3-backdrop-scale', (1.06 + backdropSettle * 0.08).toFixed(4));
   section?.style.setProperty('--figure3-video-scale', videoScale.toFixed(4));
-  section?.setAttribute('data-figure3-progress', progress.toFixed(4));
+  section?.setAttribute('data-figure3-progress', progressValue);
   if (options.mediaRun) {
     const video = section?.querySelector<HTMLVideoElement>('[data-figure3-alpha-video]');
-    driveTimelineVideo(video, figure3MediaInput(progress, options.mediaRun));
+    if (video && (
+      video.dataset.timelineVideoRun !== options.mediaRun.runId
+      || video.dataset.timelineVideoDirection !== String(options.mediaRun.direction)
+      || video.dataset.timelineVideoProgress !== progressValue
+    )) {
+      driveTimelineVideo(video, figure3MediaInput(progress, options.mediaRun));
+    }
   }
 
   return { progress, fillOpacity, videoOpacity, videoScale };

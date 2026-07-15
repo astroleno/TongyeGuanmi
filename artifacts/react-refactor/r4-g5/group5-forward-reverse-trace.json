@@ -27,13 +27,14 @@
     "PLAY:services-ttg:1",
     "BUILD_READY:ttg-lab",
     "PLAY:ttg-lab:1",
-    "BUILD_READY:ttg-lab"
+    "BUILD_READY:ttg-lab",
+    "PLAY:ttg-lab:-1"
   ],
   "recoveryCount": 0,
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1784105379870,
+      "at": 1784120142752,
       "event": {
         "type": "BOOT_READY"
       },
@@ -50,7 +51,7 @@
       "id": 1
     },
     {
-      "at": 1784105379871,
+      "at": 1784120142754,
       "event": {
         "type": "BOOT_READY"
       },
@@ -67,7 +68,7 @@
       "id": 2
     },
     {
-      "at": 1784105380359,
+      "at": 1784120143226,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -86,7 +87,7 @@
       "id": 3
     },
     {
-      "at": 1784105380380,
+      "at": 1784120143256,
       "event": {
         "type": "TARGET_READY",
         "scene": "ttg-animation",
@@ -108,7 +109,7 @@
       "id": 4
     },
     {
-      "at": 1784105381561,
+      "at": 1784120144464,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g5-group5:1"
@@ -129,7 +130,7 @@
       "id": 5
     },
     {
-      "at": 1784105382367,
+      "at": 1784120145273,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -149,7 +150,7 @@
       "id": 6
     },
     {
-      "at": 1784105382372,
+      "at": 1784120145281,
       "event": {
         "type": "TARGET_READY",
         "scene": "lab",
@@ -172,7 +173,7 @@
       "id": 7
     },
     {
-      "at": 1784105386509,
+      "at": 1784120149413,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g5-group5:2"
@@ -194,7 +195,7 @@
       "id": 8
     },
     {
-      "at": 1784105386938,
+      "at": 1784120149845,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -211,7 +212,7 @@
       "id": 9
     },
     {
-      "at": 1784105387825,
+      "at": 1784120150713,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -230,7 +231,7 @@
       "id": 10
     },
     {
-      "at": 1784105387827,
+      "at": 1784120150717,
       "event": {
         "type": "TARGET_READY",
         "scene": "ttg-animation",
@@ -252,7 +253,7 @@
       "id": 11
     },
     {
-      "at": 1784105391973,
+      "at": 1784120154859,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g5-group5:3"

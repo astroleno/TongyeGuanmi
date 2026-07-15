@@ -62,7 +62,7 @@ export function sampleHeroScroll(progress: number, mobile = false): HeroScrollSa
     backScale: clamped === 1 ? 1.2 : 1.10 + 0.10 * clamped,
     middleYVh: 1 + (mobile ? 14 : 18) * clamped,
     middleScale: 0.98 + 0.32 * clamped,
-    figureYVh: 12 - 15 * clamped,
+    figureYVh: 12 - 12 * clamped,
     figureScale: 1 + 0.065 * figureScaleProgress
   };
 }

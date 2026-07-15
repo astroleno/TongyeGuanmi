@@ -16,11 +16,13 @@ function segment(id: SpineSegmentNode['id']): SpineSegmentNode {
 }
 
 describe('production media readiness', () => {
-  it('requires the same canonical Figure2 pair in both directions', () => {
-    const expected = ['figure2-left-motion', 'figure2-right-motion'];
-
-    expect(requiredMediaKeys(segment('figure2-distance-expand'), 1)).toEqual(expected);
-    expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual(expected);
+  it('requires only the canonical Figure2 pair for the active direction', () => {
+    expect(requiredMediaKeys(segment('figure2-distance-expand'), 1)).toEqual([
+      'figure2-left-motion', 'figure2-right-motion'
+    ]);
+    expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual([
+      'figure2-left-motion-reverse', 'figure2-right-motion-reverse'
+    ]);
   });
 
   it('requires the one TTG surface in both directions', () => {
@@ -60,8 +62,8 @@ describe('production media readiness', () => {
       load: rightLoad
     } as unknown as HTMLMediaElement;
     const media = new Map([
-      ['figure2-left-motion', left],
-      ['figure2-right-motion', right]
+      ['figure2-left-motion-reverse', left],
+      ['figure2-right-motion-reverse', right]
     ]);
 
     await expect(waitForRequiredMediaReady({

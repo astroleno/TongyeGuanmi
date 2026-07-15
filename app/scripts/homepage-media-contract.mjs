@@ -2,6 +2,8 @@ export const animationWebmSources = [
   'assets/figure1.webm',
   'assets/figure2-left-motion.webm',
   'assets/figure2-right-motion.webm',
+  'assets/figure2-left-motion-reverse.webm',
+  'assets/figure2-right-motion-reverse.webm',
   'assets/ph-figure-motion.webm',
   'assets/ttg-figure-motion.webm',
   'assets/crane-figure-motion.webm',
@@ -30,6 +32,18 @@ export const frozenHomepageMedia = [
     sha256: '7dbd981ccdda04a2ca0d598fdcc878151ec0c9b6a375249f38cc0ca30d2be737'
   },
   {
+    source: 'assets/figure2-left-motion-reverse.webm',
+    category: 'animation-webm',
+    bytes: 4366640,
+    sha256: 'cab4465ae951700382d1930dc47ddb39d801b8f38479cf6d8a5a225b91de4f32'
+  },
+  {
+    source: 'assets/figure2-right-motion-reverse.webm',
+    category: 'animation-webm',
+    bytes: 3918503,
+    sha256: 'fd0c874c1483024c9d446d7339599bde9e0b5e63e36985b7c75240f6933e35d9'
+  },
+  {
     source: 'assets/ph-figure-motion.webm',
     category: 'animation-webm',
     bytes: 2646001,
@@ -50,14 +64,8 @@ export const frozenHomepageMedia = [
   {
     source: 'assets/crane-flock-motion.webm',
     category: 'animation-webm',
-    bytes: 4416794,
-    sha256: 'a3ac363cf7dd37940f3467a1c4e5b1b2df067d4fdc4966e99e17679a32498164'
-  },
-  {
-    source: 'assets/crane-flock-first-frame.webp',
-    category: 'lossless-webp',
-    bytes: 80116,
-    sha256: '8c4d47ca59d21c14430c02b2d89605594463a018e28c25c7eeb8fd824f8910b4'
+    bytes: 4429224,
+    sha256: '708f45223f0cea5af23449d947050a86e5ec1ac959385561fa663ff44da5c37a'
   },
   {
     source: 'assets/aod-figure-motion.webm',
@@ -154,6 +162,12 @@ export const frozenHomepageMedia = [
     category: 'lossless-webp',
     bytes: 791940,
     sha256: '2a836e5139184d3f54bb095d8bcb4761092f277477856caf02e80378ec2c5c20'
+  },
+  {
+    source: 'assets/figure2-depth-mask-atlas.webp',
+    category: 'lossless-webp',
+    bytes: 11184,
+    sha256: '96a25cac86ba680719051a308415696d7eae26d4361bfdafbab3c1179cf493ab'
   },
   {
     source: 'assets/figure2-middle-window-mask.webp',
@@ -260,6 +274,26 @@ export const canonicalVideoContracts = [
   },
   {
     source: 'assets/figure2-right-motion.webm',
+    fps: '30/1',
+    frames: 78,
+    duration: 2.6,
+    firstPts: 0,
+    lastPts: 2.567,
+    keyframes: 10,
+    maxGopFrames: 8
+  },
+  {
+    source: 'assets/figure2-left-motion-reverse.webm',
+    fps: '30/1',
+    frames: 78,
+    duration: 2.6,
+    firstPts: 0,
+    lastPts: 2.567,
+    keyframes: 10,
+    maxGopFrames: 8
+  },
+  {
+    source: 'assets/figure2-right-motion-reverse.webm',
     fps: '30/1',
     frames: 78,
     duration: 2.6,

@@ -1,0 +1,37 @@
+{
+  "source": {
+    "path": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-hires.png",
+    "bytes": 1928281,
+    "sha256": "f0e7e56fb83b4ca19d6d8c0bc352d4786d7ab0cff58637482ac2a4c6efd0f079",
+    "dimensions": "3184x1792"
+  },
+  "output": {
+    "path": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-corrected.webp",
+    "bytes": 118116,
+    "sha256": "cc3c35d6bf53ed5155aae22c64f1cd50cfc3b8864cbf23295fc0172a2a4b3ca4",
+    "dimensions": "1280x720"
+  },
+  "conversion": {
+    "kind": "high-resolution-lanczos-downsample-and-motion-tone-match",
+    "rgbScale": {
+      "red": 0.89,
+      "green": 0.893,
+      "blue": 0.913
+    },
+    "alpha": "source RGBA retained exactly after lossless WebP encode",
+    "runtimeSurface": false
+  },
+  "contactSheets": {
+    "transparent": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/artifacts/react-refactor/r5-flock-hires-frame0/crane-flock-first-frame-transparent.png",
+    "paper": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/artifacts/react-refactor/r5-flock-hires-frame0/crane-flock-first-frame-paper.png",
+    "black": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/artifacts/react-refactor/r5-flock-hires-frame0/crane-flock-first-frame-black.png"
+  },
+  "downstreamCanonicalContract": {
+    "script": "app/scripts/rebuild-crane-flock-media.mjs",
+    "operation": "replace-frame-0-with-corrected-still",
+    "frames": 74,
+    "appendedFrames": 0,
+    "outputBytes": 4429224,
+    "outputSha256": "708f45223f0cea5af23449d947050a86e5ec1ac959385561fa663ff44da5c37a"
+  }
+}

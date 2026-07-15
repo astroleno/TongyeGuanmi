@@ -3,8 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const HERO_PATTERN_MOTION_STOP = 1 / 3;
-const PATTERN_COLLAPSE_STOP = 1800 / 4300;
-const PATTERN_COPY_STOP = 2500 / 4300;
+const PATTERN_COLLAPSE_STOP = 1800 / 3600;
 
 type Group1Snapshot = {
   phase: 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
@@ -279,19 +278,11 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(compactPattern.patternFieldRotationDegrees).toBeCloseTo(0, 3);
     expect(compactPattern.largestRingScale).toBeCloseTo(0.08, 3);
     expect(compactPattern.compactRingScale).toBeCloseTo(0.28, 3);
-    expect(compactPattern.patternCopyOpacity).toBe(0);
+    expect(compactPattern.patternCopyOpacity).toBeCloseTo(0.96, 3);
     expect(compactPattern.starMapLayerVisible).toBe(false);
     await page.waitForTimeout(180);
     const compactPatternLater = await visualSnapshot(page);
     expect(compactPatternLater.patternCanvasRevision).toBeGreaterThan(compactPattern.patternCanvasRevision);
-
-    await page.evaluate(async (stop) => {
-      await window.__r4Group1?.scrubPatternStarMap(stop);
-    }, PATTERN_COPY_STOP);
-    const patternWithCopy = await visualSnapshot(page);
-    expect(patternWithCopy.patternProgress).toBe(1);
-    expect(patternWithCopy.patternCopyOpacity).toBeCloseTo(0.96, 3);
-    expect(patternWithCopy.starMapLayerVisible).toBe(false);
 
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubPatternStarMap(0.96);
@@ -313,15 +304,8 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect((await snapshot(page)).phase).toBe('staged-paused');
     const forwardP1 = await visualSnapshot(page);
     expect(forwardP1.patternProgress).toBe(1);
-    expect(forwardP1.patternCopyOpacity).toBe(0);
+    expect(forwardP1.patternCopyOpacity).toBeCloseTo(0.96, 3);
     expect(forwardP1.starMapLayerVisible).toBe(false);
-
-    await page.evaluate(async () => { await window.__r4Group1?.step(1); });
-    expect((await snapshot(page)).phase).toBe('staged-paused');
-    const forwardP2 = await visualSnapshot(page);
-    expect(forwardP2.patternProgress).toBe(1);
-    expect(forwardP2.patternCopyOpacity).toBeCloseTo(0.96, 3);
-    expect(forwardP2.starMapLayerVisible).toBe(false);
 
     await page.evaluate(() => { void window.__r4Group1?.step(1); });
     let patternStarMapInk: Group1VisualSnapshot | undefined;
@@ -379,15 +363,9 @@ test.describe('R4 group1 canonical spine harness', () => {
       reversePatternStarMapInk?.starMapCanvasRevision ?? 0
     );
     await expect.poll(async () => (await snapshot(page)).phase, { timeout: 12_000 }).toBe('staged-paused');
-    const reverseP2 = await visualSnapshot(page);
-    expect(reverseP2.patternProgress).toBe(1);
-    expect(reverseP2.patternCopyOpacity).toBeCloseTo(0.96, 3);
-
-    await page.evaluate(async () => { await window.__r4Group1?.step(-1); });
-    expect((await snapshot(page)).phase).toBe('staged-paused');
     const reverseP1 = await visualSnapshot(page);
     expect(reverseP1.patternProgress).toBe(1);
-    expect(reverseP1.patternCopyOpacity).toBe(0);
+    expect(reverseP1.patternCopyOpacity).toBeCloseTo(0.96, 3);
 
     const reverseFrames: Group1Snapshot[] = [];
     await page.evaluate(() => { void window.__r4Group1?.step(-1); });

@@ -49,6 +49,7 @@ export type InkGradePreset = 'edge-only' | 'edge-bright' | 'dark';
 
 export type InkFieldRendererLifecycleOptions = Readonly<{
   removeCanvasOnDestroy?: boolean;
+  fieldKind?: InkFieldFrame['spec']['kind'];
   grade?: InkGradePreset;
   generation?: string;
   onInvalidated?: (failure: InkRendererFailure) => void;
@@ -174,7 +175,9 @@ export function createInkFieldRenderer(
   }
   let transition: InkBoundaryTransition | null = null;
   try {
-    transition = createInkBoundaryTransition(canvas, resolvedOptions);
+    transition = createInkBoundaryTransition(canvas, lifecycle.fieldKind
+      ? { ...resolvedOptions, fieldKind: lifecycle.fieldKind }
+      : resolvedOptions);
   } catch {
     transition = null;
   }

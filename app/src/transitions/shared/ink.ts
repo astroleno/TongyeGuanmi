@@ -18,10 +18,7 @@ import {
   productionInkRendererRequired
 } from './sceneInk';
 import {
-  clearHorizontalInkDiagnostics,
   createInkFieldFrame,
-  inkFieldOrigin,
-  markHorizontalInkDiagnostics,
   type HorizontalInkFieldFrame,
   type InkFieldFrame,
   type InkFieldSpec
@@ -60,6 +57,17 @@ export type InkTargetPresentationContext = InkSourceRenderContext & Readonly<{
   target: 'from' | 'to';
 }>;
 
+export type InkPlaybackPhase = Readonly<{
+  from: number;
+  to: number;
+  durationMs: number;
+}>;
+
+export type InkPhaseBoundaryContext = InkSourceRenderContext & Readonly<{
+  progress: number;
+  roots: InkEndpointRoots;
+}>;
+
 export type InkSegmentOptions = {
   id: SegmentId;
   field: InkFieldSpec | ((roots: InkFieldRoots) => InkFieldSpec);
@@ -67,6 +75,8 @@ export type InkSegmentOptions = {
   ownershipSurfaces?: (roots: InkFieldRoots) => InkOwnershipSurfaces;
   includeToSurface?: boolean;
   delayMs?: (() => number) | undefined;
+  playbackPhases?: readonly InkPlaybackPhase[];
+  presentPhaseBoundary?: (context: InkPhaseBoundaryContext) => Promise<void> | void;
   canvasHost?: 'from' | 'to' | 'stage';
   elevateTarget?: boolean;
   sample?: (progress: number) => InkSample;
@@ -98,8 +108,6 @@ export type InkSample = {
   from: LayerVisibilityState;
   to: LayerVisibilityState;
 };
-
-const MAX_INK_FRAME_DELTA_MS = 64;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -251,6 +259,12 @@ class InkEndpointRunOwnership {
     for (const element of [toElement, roots.to]) {
       if (element) next.set(element, toRole);
     }
+    if (
+      next.size === this.elements.size
+      && [...next].every(([element, role]) => this.elements.get(element) === role)
+    ) {
+      return;
+    }
     for (const element of this.elements.keys()) {
       if (!next.has(element)) {
         this.release(element);
@@ -309,6 +323,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private readonly elevation: TransitionLayerElevation | null;
   private readonly attrsElement: HTMLElement | null;
   private readonly surfaceHost: HTMLElement | null;
+  private viewport: Readonly<{ width: number; height: number }>;
+  private readonly resizeObserver: ResizeObserver | null;
   private readonly motionLeases: SceneMotionLeaseGroup;
   private readonly generation: string;
   private rendererFailure: InkRendererFailure | null = null;
@@ -351,6 +367,19 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       : [];
     const surfaceHost = canvasHost(context, options.canvasHost);
     this.surfaceHost = surfaceHost;
+    this.viewport = viewportFor(surfaceHost);
+    this.resizeObserver = typeof ResizeObserver === 'undefined' || !surfaceHost
+      ? null
+      : new ResizeObserver(([entry]) => {
+          const width = entry?.contentRect.width || surfaceHost.clientWidth;
+          const height = entry?.contentRect.height || surfaceHost.clientHeight;
+          if (width > 0 && height > 0) {
+            this.viewport = { width, height };
+          }
+        });
+    if (this.resizeObserver && surfaceHost) {
+      this.resizeObserver.observe(surfaceHost);
+    }
     this.attrsElement = options.canvasHost === 'from'
       ? context.from.element
       : options.canvasHost === 'stage'
@@ -377,6 +406,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         })
       : null;
     this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.canvas, {
+      fieldKind: this.fieldSpec.kind,
       grade: options.grade ?? 'edge-only',
       generation,
       onInvalidated: (failure) => {
@@ -395,7 +425,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       createInkFieldFrame(
         this.fieldSpec,
         0.003,
-        viewportFor(surfaceHost),
+        this.viewport,
         this.horizontalContour ? { contour: this.horizontalContour } : {}
       )
     );
@@ -492,7 +522,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     const frame = createInkFieldFrame(
       this.fieldSpec,
       fieldProgress,
-      viewportFor(activeSurfaceHost),
+      this.viewport,
       this.horizontalContour ? { contour: this.horizontalContour } : {}
     );
     const roots = this.fieldRoots(fromRoot, toRoot, activeSurfaceHost);
@@ -558,25 +588,10 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
           delete this.canvas.dataset.r4InkBodyVisible;
         }
         this.canvas.dataset.r4InkProgress = fieldProgress.toFixed(4);
-        const origin = inkFieldOrigin(frame.spec);
-        this.canvas.dataset.r4InkBoundaryKind = frame.spec.kind;
-        this.canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
-        this.canvas.dataset.r4InkBoundaryProgress = fieldProgress.toFixed(4);
-        this.canvas.dataset.r4InkFieldSeed = String(frame.seed);
-        if (isHorizontalFrame(frame)) {
-          markHorizontalInkDiagnostics(this.canvas, frame);
-        } else {
-          clearHorizontalInkDiagnostics(this.canvas);
-        }
       } else {
         delete this.canvas.dataset.r4InkActive;
         delete this.canvas.dataset.r4InkBodyVisible;
         delete this.canvas.dataset.r4InkProgress;
-        delete this.canvas.dataset.r4InkBoundaryKind;
-        delete this.canvas.dataset.r4InkBoundaryOrigin;
-        delete this.canvas.dataset.r4InkBoundaryProgress;
-        delete this.canvas.dataset.r4InkFieldSeed;
-        clearHorizontalInkDiagnostics(this.canvas);
       }
     }
     this.inkRenderer?.render(frame);
@@ -617,6 +632,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       return;
     }
     this.disposed = true;
+    this.resizeObserver?.disconnect();
     this.motionLeases.dispose();
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
@@ -735,31 +751,43 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     }
   }
 
-  private animateTo(target: number): Promise<void> {
+  private async animateTo(target: number): Promise<void> {
     const start = this.progressValue;
     const delta = target - start;
     const durationMs = this.context.prefersReducedMotion ? 0 : this.context.segment.virtualDuration;
     if (delta === 0 || durationMs <= 0) {
-      try {
-        this.progress(target);
-        return Promise.resolve();
-      } catch (error) {
-        return Promise.reject(error);
-      }
+      this.progress(target);
+      return;
     }
 
+    const ranges = this.phaseRanges(start, target);
+    for (let index = 0; index < ranges.length; index += 1) {
+      const range = ranges[index]!;
+      await this.animateRange(range.target, range.durationMs);
+      if (index + 1 < ranges.length && this.options.presentPhaseBoundary) {
+        await this.options.presentPhaseBoundary({
+          ...this.sourceRenderContext(),
+          progress: range.target,
+          roots: {
+            from: sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.options.rootSelector),
+            to: sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.options.rootSelector)
+          }
+        });
+      }
+    }
+  }
+
+  private animateRange(target: number, durationMs: number): Promise<void> {
+    const start = this.progressValue;
+    const delta = target - start;
     return new Promise((resolve, reject) => {
-      let elapsedMs = 0;
-      let lastFrameAt = performance.now();
+      const startedAt = performance.now();
       const tick = (now: number) => {
         if (this.disposed) {
           resolve();
           return;
         }
-        const frameDelta = Math.max(0, now - lastFrameAt);
-        lastFrameAt = now;
-        elapsedMs += Math.min(frameDelta, MAX_INK_FRAME_DELTA_MS);
-        const progress = Math.min(1, elapsedMs / durationMs);
+        const progress = Math.min(1, Math.max(0, now - startedAt) / durationMs);
         try {
           this.progress(start + delta * easeInOutCubic(progress));
         } catch (error) {
@@ -767,6 +795,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
           return;
         }
         if (progress >= 1) {
+          this.animationFrame = 0;
           resolve();
           return;
         }
@@ -774,6 +803,37 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       };
       this.animationFrame = requestAnimationFrame(tick);
     });
+  }
+
+  private phaseRanges(start: number, target: number): readonly { target: number; durationMs: number }[] {
+    const phases = this.options.playbackPhases;
+    if (!phases?.length) {
+      return [{ target, durationMs: this.context.segment.virtualDuration }];
+    }
+    const direction = target > start ? 1 : -1;
+    const ordered = direction === 1 ? phases : [...phases].reverse();
+    const ranges: { target: number; durationMs: number }[] = [];
+    let cursor = start;
+    for (const phase of ordered) {
+      const lower = clamp(Math.min(phase.from, phase.to));
+      const upper = clamp(Math.max(phase.from, phase.to));
+      const overlapStart = Math.max(lower, Math.min(upper, cursor));
+      const overlapEnd = direction === 1
+        ? Math.min(upper, target)
+        : Math.max(lower, target);
+      if ((direction === 1 && overlapEnd <= overlapStart) || (direction === -1 && overlapEnd >= overlapStart)) {
+        continue;
+      }
+      const span = Math.max(0.0001, upper - lower);
+      const phaseTarget = overlapEnd;
+      ranges.push({
+        target: phaseTarget,
+        durationMs: phase.durationMs * Math.abs(phaseTarget - overlapStart) / span
+      });
+      cursor = phaseTarget;
+      if (Math.abs(cursor - target) <= 0.0001) break;
+    }
+    return ranges.length ? ranges : [{ target, durationMs: this.context.segment.virtualDuration }];
   }
 }
 

@@ -7,11 +7,13 @@ import {
 
 class FakeStyle {
   readonly values = new Map<string, string>();
+  readonly writes: { name: string; value: string }[] = [];
   position = '';
   pointerEvents = '';
 
   setProperty(name: string, value: string): void {
     this.values.set(name, value);
+    this.writes.push({ name, value });
   }
 
   getPropertyValue(name: string): string {
@@ -104,7 +106,7 @@ describe('depth threshold mask', () => {
     const mask = createDepthThresholdMask({
       host: host as unknown as HTMLElement,
       targets: [{ element: reveal as unknown as HTMLElement, polarity: 'reveal' }],
-      depthSrc: '/delayed-depth.png',
+      atlasSrc: '/delayed-depth-atlas.webp',
       runId: 'depth-delayed:1'
     });
 
@@ -141,7 +143,7 @@ describe('depth threshold mask', () => {
     const mask = createDepthThresholdMask({
       host: host as unknown as HTMLElement,
       targets: [{ element: reveal as unknown as HTMLElement, polarity: 'reveal' }],
-      depthSrc: '/failed-depth.png',
+      atlasSrc: '/failed-depth-atlas.webp',
       runId: 'depth-failed:1'
     });
 
@@ -176,7 +178,7 @@ describe('depth threshold mask', () => {
         { element: ground as unknown as HTMLElement, polarity: 'reveal' },
         { element: depthField as unknown as HTMLElement, polarity: 'conceal' }
       ],
-      depthSrc: '/depth.png',
+      atlasSrc: '/depth-atlas.webp',
       runId: 'epoch:7'
     });
     await mask?.ready;
@@ -200,7 +202,7 @@ describe('depth threshold mask', () => {
     expect(host.children).toHaveLength(0);
   });
 
-  it('bypasses the dynamic mask at fully visible endpoints and restores it in between', async () => {
+  it('does not attach then remove the fully visible endpoint mask during commit', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const reveal = new FakeNode(document);
@@ -211,14 +213,16 @@ describe('depth threshold mask', () => {
         { element: reveal as unknown as HTMLElement, polarity: 'reveal' },
         { element: conceal as unknown as HTMLElement, polarity: 'conceal' }
       ],
-      depthSrc: '/depth.png',
+      atlasSrc: '/depth-atlas.webp',
       runId: 'endpoint-contract:1'
     });
     await mask?.ready;
     mask?.commit();
 
-    mask?.render(0, depthTransform);
     expect(conceal.style.getPropertyValue('mask-image')).toBe('');
+    expect(conceal.style.writes.filter(({ name, value }) => (
+      name === 'mask-image' && value.includes('depth-threshold-conceal-mask')
+    ))).toHaveLength(0);
     expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
 
     mask?.render(0.37, depthTransform);
@@ -240,7 +244,7 @@ describe('depth threshold mask', () => {
     expect(host.children).toHaveLength(0);
   });
 
-  it('creates two discrete alpha definitions independently of source alpha', async () => {
+  it('uses one pre-baked atlas image per requested polarity and only a static conceal inversion', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const reveal = new FakeNode(document);
@@ -252,7 +256,7 @@ describe('depth threshold mask', () => {
         { element: reveal as unknown as HTMLElement, polarity: 'reveal' },
         { element: conceal as unknown as HTMLElement, polarity: 'conceal' }
       ],
-      depthSrc: '/depth-with-alpha.png',
+      atlasSrc: '/depth-atlas.webp',
       runId: 'alpha-contract:1'
     });
     await mask?.ready;
@@ -260,25 +264,26 @@ describe('depth threshold mask', () => {
 
     const nodes = descendants(host);
     const alphaFunctions = nodes.filter((node) => node.nodeName === 'feFuncA');
-    const binaryAlpha = nodes.filter((node) => node.attributes.get('result')?.endsWith('binary-alpha'));
     const masks = nodes.filter((node) => node.nodeName === 'mask');
-    expect(alphaFunctions).toHaveLength(2);
-    expect(alphaFunctions.every((node) => node.attributes.get('type') === 'discrete')).toBe(true);
-    expect(alphaFunctions.every((node) => node.attributes.get('tableValues') === '1 1')).toBe(true);
-    expect(binaryAlpha).toHaveLength(2);
-    expect(binaryAlpha.every((node) => node.attributes.get('values')?.includes('1 0 0 0 0'))).toBe(true);
+    const images = nodes.filter((node) => node.nodeName === 'image');
+    expect(alphaFunctions).toHaveLength(1);
+    expect(alphaFunctions[0]?.attributes.get('type')).toBe('table');
+    expect(alphaFunctions[0]?.attributes.get('tableValues')).toBe('1 0');
     expect(masks).toHaveLength(2);
+    expect(images).toHaveLength(2);
+    expect(images.every((node) => node.attributes.get('href') === '/depth-atlas.webp')).toBe(true);
     expect(masks.every((node) => node.attributes.get('mask-type') === 'alpha')).toBe(true);
+    expect(nodes.some((node) => node.nodeName === 'feColorMatrix')).toBe(false);
   });
 
-  it('uses Stage coordinates and updates only constant-size threshold intercepts', async () => {
+  it('uses Stage coordinates and advances atlas tiles without mutable threshold filters', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const reveal = new FakeNode(document);
     const mask = createDepthThresholdMask({
       host: host as unknown as HTMLElement,
       targets: [{ element: reveal as unknown as HTMLElement, polarity: 'reveal' }],
-      depthSrc: '/depth.png',
+      atlasSrc: '/depth-atlas.webp',
       runId: 'camera-contract:1'
     });
     await mask?.ready;
@@ -289,24 +294,23 @@ describe('depth threshold mask', () => {
     const masks = nodes.filter((node) => node.nodeName === 'mask');
     const filters = nodes.filter((node) => node.nodeName === 'filter');
     const images = nodes.filter((node) => node.nodeName === 'image');
-    const linearFunctions = nodes.filter((node) => node.attributes.get('type') === 'linear');
-    const discreteFunctions = nodes.filter(
-      (node) => node.nodeName !== 'feFuncA' && node.attributes.get('type') === 'discrete'
-    );
-    const firstIntercepts = linearFunctions.map((node) => node.attributes.get('intercept'));
+    const viewports = nodes.filter((node) => node.nodeName === 'svg' && node.attributes.has('viewBox'));
+    const cameras = nodes.filter((node) => node.nodeName === 'g');
+    const firstViewBoxes = viewports.map((node) => node.attributes.get('viewBox'));
 
     mask?.render(0.73, depthTransform);
 
     expect(masks.every((node) => node.attributes.get('maskUnits') === 'userSpaceOnUse')).toBe(true);
     expect(masks.every((node) => node.attributes.get('maskContentUnits') === 'userSpaceOnUse')).toBe(true);
-    expect(filters.every((node) => node.attributes.get('filterUnits') === 'userSpaceOnUse')).toBe(true);
-    expect(images.every((node) => node.attributes.get('x') === '-80')).toBe(true);
-    expect(images.every((node) => node.attributes.get('width') === '1600')).toBe(true);
-    expect(images.every((node) => node.attributes.get('transform')?.includes('scale(1.142)'))).toBe(true);
-    expect(images.every((node) => node.attributes.get('transform')?.includes('translate(0 -34)'))).toBe(true);
-    expect(linearFunctions).toHaveLength(6);
-    expect(linearFunctions.map((node) => node.attributes.get('intercept'))).not.toEqual(firstIntercepts);
-    expect(discreteFunctions).toHaveLength(6);
-    expect(discreteFunctions.every((node) => (node.attributes.get('tableValues')?.length ?? 0) <= 3)).toBe(true);
+    expect(filters).toHaveLength(0);
+    expect(images.every((node) => node.attributes.get('x') === '0')).toBe(true);
+    expect(images.every((node) => node.attributes.get('width') === '3072')).toBe(true);
+    expect(viewports.every((node) => node.attributes.get('x') === '-80')).toBe(true);
+    expect(viewports.every((node) => node.attributes.get('width') === '1600')).toBe(true);
+    expect(viewports.map((node) => node.attributes.get('viewBox'))).not.toEqual(firstViewBoxes);
+    expect(viewports.every((node) => node.attributes.get('viewBox') === '2304 1080 384 216')).toBe(true);
+    expect(cameras.every((node) => node.attributes.get('transform')?.includes('scale(1.142)'))).toBe(true);
+    expect(cameras.every((node) => node.attributes.get('transform')?.includes('translate(0 -34)'))).toBe(true);
+    expect(nodes.some((node) => node.attributes.get('type') === 'linear')).toBe(false);
   });
 });

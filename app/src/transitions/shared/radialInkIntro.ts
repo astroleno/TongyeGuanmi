@@ -33,6 +33,7 @@ export function createRadialInkIntroController(
   options: CreateRadialInkIntroControllerOptions
 ): RadialInkIntroController {
   let renderer: InkFieldRenderer | null = createInkFieldRenderer(options.canvas, {
+    fieldKind: 'radial',
     grade: 'edge-only',
     generation: options.generation,
     removeCanvasOnDestroy: false

@@ -73,6 +73,7 @@ async function probeOwnershipAlpha(
       { width, height }
     );
     const transition = createInkBoundaryTransition(canvas, {
+      fieldKind: fieldMode,
       colorLift: 0.92,
       coverAlpha: 0,
       fadeOutStart: 0.94,

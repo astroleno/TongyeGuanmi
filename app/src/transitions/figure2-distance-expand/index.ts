@@ -25,7 +25,6 @@ import { mediaPlaybackFor, requiredMilestonesFor } from '../../story/manifest';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 import {
   createDepthThresholdMask,
-  thresholdTables,
   type DepthThresholdMask
 } from '../shared/depthThresholdMask';
 import {
@@ -43,6 +42,10 @@ import {
 } from '../shared/sceneInk';
 
 const FIGURE2_DEPTH_IMAGE = new URL('../../../../assets/figure2-middle-depth.webp', import.meta.url).href;
+const FIGURE2_DEPTH_MASK_ATLAS = new URL(
+  '../../../../assets/figure2-depth-mask-atlas.webp',
+  import.meta.url
+).href;
 export const FIGURE2_INTRO_END = 0.72;
 export const FIGURE2_PROOF_REVEAL_START = FIGURE2_INTRO_END;
 
@@ -72,6 +75,11 @@ function sampleFigure2Proof(progress: number): Figure2ProofSample {
 }
 
 function sharedStageHost(context: TransitionContext): HTMLElement | null {
+  const fromStage = context.from.element?.closest<HTMLElement>('[data-testid="r2-stage"]') ?? null;
+  const toStage = context.to.element?.closest<HTMLElement>('[data-testid="r2-stage"]') ?? null;
+  if (fromStage && fromStage === toStage) {
+    return fromStage;
+  }
   const fromParent = context.from.element?.parentElement ?? null;
   const toParent = context.to.element?.parentElement ?? null;
   return fromParent && fromParent === toParent
@@ -146,26 +154,19 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       : [];
     this.inkRendererRequired = productionInkRendererRequired(context.prefersReducedMotion);
     this.playbackDirection = context.direction;
-    this.elevation = createTransitionLayerElevation(context.to.element);
     const fromRoot = sceneRoot(context.from.element, 'figure2-animation');
     const stage = sharedStageHost(context);
-    const depthField = fromRoot?.querySelector<HTMLElement>('[data-figure2-depth-ranked-field="true"]') ?? null;
-    const figureDepthSurface = fromRoot?.querySelector<HTMLElement>(
-      '[data-figure2-figure-depth-surface="true"]'
-    ) ?? null;
-    const proofGround = stage?.querySelector<HTMLElement>('[data-figure2-retained-ground="true"]') ?? null;
+    const proofOwnershipSurface = stage?.querySelector<HTMLElement>(
+      '[data-figure2-proof-ownership-surface="true"]'
+    ) ?? context.to.element;
+    this.elevation = createTransitionLayerElevation(proofOwnershipSurface);
     const terminalTransform = figure2DepthTransformForProgress(fromRoot, 1);
     this.depthMask = createDepthThresholdMask({
       host: stage,
-      targets: [
-        ...(depthField ? [{ element: depthField, polarity: 'conceal' as const }] : []),
-        ...(figureDepthSurface
-          ? [{ element: figureDepthSurface, polarity: 'conceal' as const }]
-          : []),
-        ...(proofGround ? [{ element: proofGround, polarity: 'reveal' as const }] : []),
-        ...(context.to.element ? [{ element: context.to.element, polarity: 'reveal' as const }] : [])
-      ],
-      depthSrc: FIGURE2_DEPTH_IMAGE,
+      targets: proofOwnershipSurface
+        ? [{ element: proofOwnershipSurface, polarity: 'reveal' as const }]
+        : [],
+      atlasSrc: FIGURE2_DEPTH_MASK_ATLAS,
       runId: context.runId,
       transform: terminalTransform
     });
@@ -176,6 +177,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       className: 'r4-figure2-proof-ink-canvas'
     });
     this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.inkCanvas, {
+      fieldKind: 'depth',
       grade: 'edge-only',
       generation,
       onInvalidated: (failure) => {
@@ -305,13 +307,11 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
         reducedMotion: this.context.prefersReducedMotion
       }
     });
-    renderProofOpeningHold(figure2ProofPanelElement(toRoot, 'opening'));
     const depthOwnership = inkOwnershipGateProgress(reveal);
-    const binaryTables = this.depthMask?.render(depthOwnership, figureState.depthTransform)
-      ?? thresholdTables(depthOwnership);
+    const fieldVisible = reveal > 0.002 && reveal < 0.999;
+    this.depthMask?.render(depthOwnership, figureState.depthTransform);
     const inkFrame = this.depthFrame(reveal, figureState.depthTransform);
     if (this.inkCanvas) {
-      const fieldVisible = reveal > 0.002 && reveal < 0.999;
       const active = fieldVisible && Boolean(this.inkRenderer?.isActive());
       if (fieldVisible) {
         if (active) {
@@ -334,7 +334,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       }
     }
     this.inkRenderer?.render(inkFrame);
-    const valueDomain = [...new Set(binaryTables.reveal)].join(',');
+    const valueDomain = depthOwnership <= 0 ? '0' : depthOwnership >= 1 ? '1' : '1,0';
 
     this.context.to.element?.setAttribute('data-r4-transition', 'figure2-proof-binary-depth');
     this.context.to.element?.setAttribute('data-figure2-intro-progress', intro.toFixed(4));

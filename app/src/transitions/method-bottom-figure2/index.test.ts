@@ -117,7 +117,8 @@ describe('method-bottom-figure2 transition', () => {
     expect(receiver.style.clipPath).not.toContain('inset(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(receiver.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v2-/);
-    expect(canvas.dataset.r4InkBoundaryRevision).toBe(receiver.dataset.r4InkBoundaryRevision);
+    expect(canvas.dataset.r4InkBoundaryRevision).toBeUndefined();
+    expect(canvas.dataset.r4InkContourThreshold).toBeUndefined();
     expect(retainedArch.dataset.r4InkBoundaryRevision).toBe(receiver.dataset.r4InkBoundaryRevision);
     expect(retainedArch.dataset.r4InkContourThreshold).toBe(receiver.dataset.r4InkContourThreshold);
     expect(retainedArch.style.clipPath).toMatch(/^polygon\(/);

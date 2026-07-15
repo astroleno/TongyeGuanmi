@@ -11,13 +11,13 @@ const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
 const AUTHORITY_SHA256 = 'b96e13b85f85a70c0e71d2f9c11ac64aca1830fa6af3c1ee3b7272133cf09457';
 const AUTHORITY_BYTES = 2_651_324;
-const POSTER_SHA256 = '8c4d47ca59d21c14430c02b2d89605594463a018e28c25c7eeb8fd824f8910b4';
-const POSTER_BYTES = 80_116;
-const OUTPUT_SHA256 = 'a3ac363cf7dd37940f3467a1c4e5b1b2df067d4fdc4966e99e17679a32498164';
-const OUTPUT_BYTES = 4_416_794;
+const CORRECTED_FRAME_SHA256 = 'cc3c35d6bf53ed5155aae22c64f1cd50cfc3b8864cbf23295fc0172a2a4b3ca4';
+const CORRECTED_FRAME_BYTES = 118_116;
+const OUTPUT_SHA256 = '708f45223f0cea5af23449d947050a86e5ec1ac959385561fa663ff44da5c37a';
+const OUTPUT_BYTES = 4_429_224;
 const FRAME_COUNT = 74;
 const FIXED_TRACK_UID = createHash('sha256')
-  .update(`${AUTHORITY_SHA256}:${POSTER_SHA256}`)
+  .update(`${AUTHORITY_SHA256}:${CORRECTED_FRAME_SHA256}`)
   .digest()
   .subarray(0, 8);
 
@@ -68,10 +68,18 @@ const authority = argument(
   '--authority',
   path.join(repoDir, 'archive/assets/homepage-media/2026-07-15/sources/crane-flock-74f-authority.webm')
 );
-const poster = argument('--poster', path.join(repoDir, 'assets/crane-flock-first-frame.webp'));
+const correctedFrame = argument(
+  '--corrected-frame',
+  path.join(repoDir, 'archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-corrected.webp')
+);
 const output = argument('--output', path.join(repoDir, 'assets/crane-flock-motion.webm'));
 assertFrozenFile(await readFile(authority), AUTHORITY_BYTES, AUTHORITY_SHA256, 'Crane flock authority');
-assertFrozenFile(await readFile(poster), POSTER_BYTES, POSTER_SHA256, 'Crane flock corrected first frame');
+assertFrozenFile(
+  await readFile(correctedFrame),
+  CORRECTED_FRAME_BYTES,
+  CORRECTED_FRAME_SHA256,
+  'Crane flock corrected first frame'
+);
 
 const { stdout: ffmpegVersion } = await run('ffmpeg', ['-version'], { encoding: 'utf8' });
 if (!/^ffmpeg version 8\.1(?:\s|$)/.test(ffmpegVersion)) {
@@ -94,7 +102,7 @@ try {
     throw new Error(`Crane flock authority decoded ${decodedFrames.length} frames`);
   }
   await run('ffmpeg', [
-    '-y', '-v', 'error', '-i', poster, '-frames:v', '1', '-pix_fmt', 'rgba', firstFrame
+    '-y', '-v', 'error', '-i', correctedFrame, '-frames:v', '1', '-pix_fmt', 'rgba', firstFrame
   ]);
   await run('ffmpeg', [
     '-y', '-v', 'error', '-fflags', '+bitexact', '-flags:v', '+bitexact',
@@ -121,8 +129,8 @@ try {
 process.stdout.write(`${JSON.stringify({
   authority,
   authoritySha256: AUTHORITY_SHA256,
-  correctedFirstFrame: poster,
-  correctedFirstFrameSha256: POSTER_SHA256,
+  correctedFirstFrame: correctedFrame,
+  correctedFirstFrameSha256: CORRECTED_FRAME_SHA256,
   output,
   outputBytes: OUTPUT_BYTES,
   outputSha256: OUTPUT_SHA256,

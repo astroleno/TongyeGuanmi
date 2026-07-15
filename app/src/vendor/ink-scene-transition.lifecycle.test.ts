@@ -29,6 +29,7 @@ function webGlHarness() {
     STATIC_DRAW: 15,
     TEXTURE0: 16,
     TEXTURE1: 17,
+    TEXTURE2: 28,
     TEXTURE_2D: 18,
     TEXTURE_MAG_FILTER: 19,
     TEXTURE_MIN_FILTER: 20,
@@ -39,6 +40,7 @@ function webGlHarness() {
     UNPACK_FLIP_Y_WEBGL: 25,
     UNSIGNED_BYTE: 26,
     VERTEX_SHADER: 27,
+    REPEAT: 29,
     activeTexture: vi.fn(),
     attachShader: vi.fn(),
     bindBuffer: vi.fn(),
@@ -115,7 +117,7 @@ describe('ink WebGL resource lifecycle', () => {
 
     transition?.render(frame);
 
-    expect(gl.uniform1f).toHaveBeenCalledWith('uParticleGain', 1.25);
+    expect(gl.uniform1f).toHaveBeenCalledWith('G', 1.25);
     transition?.destroy();
   });
 
@@ -126,7 +128,7 @@ describe('ink WebGL resource lifecycle', () => {
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(false);
 
-    const transition = createInkBoundaryTransition(canvas);
+    const transition = createInkBoundaryTransition(canvas, { fieldKind: 'horizontal' });
 
     expect(transition).toBeNull();
     expect(gl.deleteShader).toHaveBeenCalledTimes(2);
@@ -159,7 +161,7 @@ describe('ink WebGL resource lifecycle', () => {
 
   it('uploads one horizontal contour texture per revision and never per progress frame', () => {
     const { canvas, gl, setSize, texture } = webGlHarness();
-    const transition = createInkBoundaryTransition(canvas);
+    const transition = createInkBoundaryTransition(canvas, { fieldKind: 'horizontal' });
     const initializationUploads = gl.texImage2D.mock.calls.length;
     const firstContour = createHorizontalInkContour({
       authoredSeed: 'horizontal-lifecycle',
@@ -178,8 +180,8 @@ describe('ink WebGL resource lifecycle', () => {
     expect(gl.texImage2D).toHaveBeenCalledTimes(initializationUploads + 1);
     expect(canvas.dataset.r4InkContourTextureUploads).toBe('1');
     expect(canvas.dataset.r4InkContourRevision).toBe(firstContour.revision);
-    expect(gl.uniform1f).toHaveBeenCalledWith('uContourSampleCount', firstContour.samples.length);
-    expect(gl.uniform1f).toHaveBeenCalledWith('uOcclusionAlphaMin', 1);
+    expect(gl.uniform1f).toHaveBeenCalledWith('K', firstContour.samples.length);
+    expect(gl.uniform1f).toHaveBeenCalledWith('I', 1);
 
     setSize(640, 360);
     transition?.render(createInkFieldFrame(
@@ -227,7 +229,7 @@ describe('ink WebGL resource lifecycle', () => {
 
   it('uploads one primary ownership occlusion contract', () => {
     const { canvas, gl } = webGlHarness();
-    const transition = createInkBoundaryTransition(canvas);
+    const transition = createInkBoundaryTransition(canvas, { fieldKind: 'depth' });
     const frame = createInkFieldFrame(
       {
         kind: 'depth',
@@ -245,13 +247,13 @@ describe('ink WebGL resource lifecycle', () => {
 
     transition?.render(frame);
 
-    expect(gl.uniform1f).toHaveBeenCalledWith('uOwnershipGateRank', frame.occlusion.gateRank);
+    expect(gl.uniform1f).toHaveBeenCalledWith('B', frame.occlusion.gateRank);
     expect(gl.uniform2f).toHaveBeenCalledWith(
-      'uOwnershipCore',
+      'E',
       frame.occlusion.coreMin,
       frame.occlusion.coreMax
     );
-    expect(gl.uniform1f).toHaveBeenCalledWith('uOcclusionAlphaMin', 0.92);
+    expect(gl.uniform1f).toHaveBeenCalledWith('I', 0.92);
     const uniformNames = gl.getUniformLocation.mock.calls.map(([, name]) => name);
     expect(uniformNames).not.toContain('uSecondaryHorizontalGate');
     expect(uniformNames).not.toContain('uSecondaryHorizontalCore');
@@ -267,16 +269,15 @@ describe('ink WebGL resource lifecycle', () => {
   it('keeps the horizontal opaque core centered on the exact shared contour rank', () => {
     const { canvas, gl } = webGlHarness();
 
-    createInkBoundaryTransition(canvas);
+    createInkBoundaryTransition(canvas, { fieldKind: 'horizontal' });
 
     const fragmentSource = gl.shaderSource.mock.calls
       .map(([, source]) => String(source))
       .find((source) => source.includes('precision highp float')) ?? '';
-    expect(fragmentSource).toContain('float horizontalCoreOcclusion');
-    expect(fragmentSource).toContain('float contourU');
-    expect(fragmentSource).toContain('(sampleCount - 1.0) + 0.5');
-    expect(fragmentSource).toMatch(/ownershipOcclusion\(\s*horizontal,\s*uOwnershipGateRank,[\s\S]*?1\.0\s*\)/);
-    expect(fragmentSource).not.toMatch(/horizontalCoreOcclusion[\s\S]*?\*\s*nonHorizontalMode/);
+    expect(fragmentSource).toContain('float ho=oo(br,B,E,I,1.0)');
+    expect(fragmentSource).toContain('float cu=');
+    expect(fragmentSource).toContain('(sc-1.0)+0.5');
+    expect(fragmentSource).not.toMatch(/ho[\s\S]*?\*\s*nonHorizontalMode/);
   });
 
   it('uploads one depth image and reuses it across progress samples', () => {
@@ -293,7 +294,7 @@ describe('ink WebGL resource lifecycle', () => {
     }
     vi.stubGlobal('Image', FakeImage);
     const { canvas, gl } = webGlHarness();
-    const transition = createInkBoundaryTransition(canvas);
+    const transition = createInkBoundaryTransition(canvas, { fieldKind: 'depth' });
     const initializationUploads = gl.texImage2D.mock.calls.length;
     const transform = {
       viewport: { width: 320, height: 180 },

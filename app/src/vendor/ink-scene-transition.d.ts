@@ -9,6 +9,7 @@ export function releaseInkWebGlResources(
 ): void;
 
 export type InkBoundaryTransitionOptions = {
+  fieldKind?: InkFieldFrame['spec']['kind'];
   colorLift?: number;
   particleGain?: number;
   dprLimit?: number;

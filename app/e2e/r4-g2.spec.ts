@@ -138,7 +138,9 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
       figure2LayerElevated: figure2Layer?.dataset.r4TransitionElevated === 'true',
       visiblePosterCount: [...document.querySelectorAll<HTMLElement>('[data-figure2-poster]')]
         .filter((poster) => Number.parseFloat(getComputedStyle(poster).opacity) > 0.99).length,
-      videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
+      videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')]
+        .filter((video) => video.dataset.figure2Inactive !== 'true')
+        .map((video) => ({
         side: video.dataset.figure2Side ?? '',
         mediaKey: video.dataset.mediaKey ?? '',
         direction: video.dataset.timelineVideoDirection ?? '',
@@ -147,7 +149,7 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
         paused: video.paused,
         currentTime: video.currentTime,
         preload: video.preload
-      }))
+        }))
     };
   });
 }

@@ -85,6 +85,8 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
   assertLayerWindowInvariants(window);
   const members = useMemo(() => membersForWindow(window), [window]);
   const proofGround = proofGroundState(members, visibilityByScene);
+  const proofMember = members.find((member) => PROOF_SCENES.has(member.scene));
+  const proofModule = proofMember ? modules[proofMember.scene] : undefined;
   const retainedArch = retainedFigure2ArchState(
     members.map((member) => ({ scene: member.scene, current: member.role === 'current' })),
     visibilityByScene
@@ -100,16 +102,44 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
       aria-hidden={interactive ? undefined : 'true'}
       inert={interactive ? undefined : true}
     >
-      {proofGround.mounted ? (
+      {proofMember ? (
         <div
-          className="stage-proof-retained-ground"
-          aria-hidden="true"
-          data-figure2-retained-ground="true"
-          data-visible={String(proofGround.visible)}
-        />
+          className="stage-proof-ownership-surface"
+          data-figure2-proof-ownership-surface="true"
+          style={{ zIndex: zIndexFor(proofMember.role) }}
+        >
+          {proofGround.mounted ? (
+            <div
+              className="stage-proof-retained-ground"
+              aria-hidden="true"
+              data-figure2-retained-ground="true"
+              data-visible={String(proofGround.visible)}
+            />
+          ) : null}
+          {proofModule ? (
+            <SceneLayer
+              module={proofModule}
+              role={proofMember.role}
+              registry={registry}
+              visibility={visibilityByScene[proofMember.scene]}
+              reading={READING_SCENES.has(proofMember.scene)}
+              copyCueActive={copyCueScene === proofMember.scene}
+              {...(presentationByScene[proofMember.scene]
+                ? { presentation: presentationByScene[proofMember.scene] }
+                : {})}
+              zIndex={10}
+              onElement={onLayerElement}
+              onMount={onSceneMount}
+              onDispose={onSceneDispose}
+            />
+          ) : null}
+        </div>
       ) : null}
       <RetainedFigure2Arch mounted={retainedArch.mounted} visible={retainedArch.visible} />
       {members.map((member) => {
+        if (PROOF_SCENES.has(member.scene)) {
+          return null;
+        }
         const module = modules[member.scene];
         if (!module) {
           return null;

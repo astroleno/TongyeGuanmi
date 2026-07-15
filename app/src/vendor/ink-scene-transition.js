@@ -1,12 +1,24 @@
-import {
-  clearHorizontalInkDiagnostics,
-  HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX,
-  markHorizontalInkDiagnostics
-} from '../transitions/shared/inkField.ts';
+import { HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX } from '../transitions/shared/inkField.ts';
 import { HORIZONTAL_INK_CONTOUR_AMPLITUDE } from '../transitions/shared/horizontalInkContour.ts';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const smoothStep = (value) => value * value * (3 - 2 * value);
+const NOISE_ATLAS_SIZE = 256;
+let deterministicNoiseAtlas = null;
+
+function noiseAtlas() {
+  if (deterministicNoiseAtlas) return deterministicNoiseAtlas;
+  const pixels = new Uint8Array(NOISE_ATLAS_SIZE * NOISE_ATLAS_SIZE * 4);
+  let state = 0x6d2b79f5;
+  for (let index = 0; index < pixels.length; index += 1) {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    pixels[index] = state & 0xff;
+  }
+  deterministicNoiseAtlas = pixels;
+  return pixels;
+}
 
 export function releaseInkWebGlResources(gl, { buffer = null, program = null, shaders = [], textures = [] } = {}) {
   textures.forEach((texture) => {
@@ -22,6 +34,9 @@ export function releaseInkWebGlResources(gl, { buffer = null, program = null, sh
 
 export function createInkBoundaryTransition(canvas, options = {}) {
   if (!canvas) return null;
+  const fieldKind = ['horizontal', 'radial', 'depth'].includes(options.fieldKind)
+    ? options.fieldKind
+    : 'radial';
   const colorLift = clamp(options.colorLift ?? 0.32, 0, 1);
   const particleGain = clamp(options.particleGain ?? 1, 0, 2);
   const coverAlpha = clamp(options.coverAlpha ?? 0, 0, 1);
@@ -38,274 +53,50 @@ export function createInkBoundaryTransition(canvas, options = {}) {
   });
   if (!gl) return null;
 
-  const vertexSource = `
-    attribute vec2 aPosition;
-    varying vec2 vUv;
-
-    void main() {
-      vUv = aPosition * 0.5 + 0.5;
-      gl_Position = vec4(aPosition, 0.0, 1.0);
-    }
-  `;
-  const fragmentSource = `
-    precision highp float;
-
-    varying vec2 vUv;
-    uniform vec2 uResolution;
-    uniform float uProgress;
-    uniform float uTime;
-    uniform float uSeed;
-    uniform float uColorLift;
-    uniform float uParticleGain;
-    uniform float uCoverAlpha;
-    uniform float uFieldMode;
-    uniform float uFieldDirection;
-    uniform vec2 uFieldOrigin;
-    uniform float uFieldRadiusScale;
-    uniform sampler2D uContourMap;
-    uniform float uContourReady;
-    uniform float uContourSampleCount;
-    uniform float uOwnershipThreshold;
-    uniform sampler2D uDepthMap;
-    uniform float uDepthReady;
-    uniform vec2 uDepthViewport;
-    uniform vec4 uDepthCover;
-    uniform vec4 uDepthCamera;
-    uniform vec2 uDepthOrigin;
-    uniform float uOwnershipGateRank;
-    uniform vec2 uOwnershipCore;
-    uniform float uOcclusionAlphaMin;
-
-    float hash(vec2 p) {
-      p = fract(p * vec2(127.1, 311.7));
-      p += dot(p, p + 34.37);
-      return fract(p.x * p.y);
-    }
-
-    float noise(vec2 p) {
-      vec2 i = floor(p);
-      vec2 f = fract(p);
-      vec2 u = f * f * (3.0 - 2.0 * f);
-      return mix(
-        mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
-        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
-        u.y
-      );
-    }
-
-    float fbm(vec2 p) {
-      float value = 0.0;
-      float amplitude = 0.5;
-      mat2 rotate = mat2(0.82, 0.57, -0.57, 0.82);
-      for (int i = 0; i < 4; i++) {
-        value += noise(p) * amplitude;
-        p = rotate * p * 2.04 + 5.73;
-        amplitude *= 0.5;
-      }
-      return value;
-    }
-
-    float horizontalRankForDirection(vec2 uv, float direction) {
-      return direction < 0.5 ? 1.0 - uv.y : uv.y;
-    }
-
-    vec4 horizontalContourSample(vec2 uv) {
-      float sampleCount = max(uContourSampleCount, 1.0);
-      float contourU = (clamp(uv.x, 0.0, 1.0) * (sampleCount - 1.0) + 0.5) / sampleCount;
-      return texture2D(uContourMap, vec2(contourU, 0.5));
-    }
-
-    float horizontalRank(vec2 uv) {
-      vec3 signedBands = horizontalContourSample(uv).rgb * 2.0 - 1.0;
-      float signedContour = dot(signedBands, vec3(0.50, 0.31, 0.19));
-      float contourEnvelope = sin(clamp(uOwnershipThreshold, 0.0, 1.0) * 3.14159265);
-      return horizontalRankForDirection(uv, uFieldDirection)
-        + signedContour * ${HORIZONTAL_INK_CONTOUR_AMPLITUDE.toFixed(6)} * contourEnvelope * uContourReady;
-    }
-
-    float horizontalErosion(vec2 uv) {
-      vec4 signedBands = horizontalContourSample(uv) * 2.0 - 1.0;
-      return dot(signedBands, vec4(0.026, 0.016, 0.009, 0.007));
-    }
-
-    float radialRank(vec2 uv, float aspect) {
-      vec2 delta = (uv - uFieldOrigin) * vec2(aspect, 1.0);
-      return length(delta) / max(uFieldRadiusScale, 0.0001);
-    }
-
-    float depthRank(vec2 uv) {
-      vec2 viewport = max(uDepthViewport, vec2(1.0));
-      vec2 screenPx = vec2(uv.x * viewport.x, (1.0 - uv.y) * viewport.y);
-      vec2 coverSize = max(uDepthCover.zw, vec2(1.0));
-      vec2 cameraOrigin = uDepthCover.xy + uDepthOrigin * coverSize;
-      float cameraScale = max(uDepthCamera.x, 0.0001);
-      vec2 sourcePx = cameraOrigin
-        + (screenPx - uDepthCamera.yz - cameraOrigin) / cameraScale;
-      vec2 depthUv = (sourcePx - uDepthCover.xy) / coverSize;
-      float inside = step(0.0, depthUv.x) * step(depthUv.x, 1.0)
-        * step(0.0, depthUv.y) * step(depthUv.y, 1.0);
-      float sampledDepth = texture2D(uDepthMap, vec2(depthUv.x, 1.0 - depthUv.y)).r;
-      return mix(1.0, sampledDepth, inside * uDepthReady);
-    }
-
-    float ownershipOcclusion(
-      float rank,
-      float gateRank,
-      vec2 core,
-      float alphaMin,
-      float warp
-    ) {
-      float halfWidth = max(max(gateRank - core.x, core.y - gateRank), 0.0001);
-      float normalizedDistance = abs(rank - gateRank) / halfWidth * warp;
-      float envelope = 1.0 - smoothstep(0.18, 1.0, normalizedDistance);
-      return clamp(alphaMin, 0.0, 1.0) * envelope;
-    }
-
-    void main() {
-      float p = clamp(uProgress, 0.0, 1.0);
-      float energy = sin(p * 3.14159265);
-      float aspect = uResolution.x / max(uResolution.y, 1.0);
-      vec2 uv = vUv;
-      vec2 aspectUv = vec2(uv.x * aspect, uv.y);
-      float horizontal = horizontalRank(uv);
-      float radial = radialRank(uv, aspect);
-      float depth = depthRank(uv);
-      float baseRank = mix(horizontal, radial, step(0.5, uFieldMode));
-      baseRank = mix(baseRank, depth, step(1.5, uFieldMode));
-      float nonHorizontalMode = step(0.5, uFieldMode);
-      float boundaryProgress = mix(uOwnershipThreshold, p, nonHorizontalMode);
-
-      vec2 bodyPhase = vec2(uSeed * 19.17 + 3.4, uSeed * 37.11 + 8.7);
-      vec2 warpUv = aspectUv * 2.35 + bodyPhase;
-      vec2 warp = vec2(
-        fbm(warpUv + vec2(1.7, 4.1)),
-        fbm(warpUv + vec2(8.3, 2.2))
-      ) - 0.5;
-      float broad = fbm(aspectUv * 2.10 + warp * 0.72 + bodyPhase * 0.31);
-      float wet = fbm(aspectUv * 7.25 + warp * 1.65 + vec2(broad * 1.7, 0.0) - bodyPhase * 0.17);
-      float pore = fbm(aspectUv * 25.0 - warp * 2.55 + vec2(bodyPhase.y * 0.11, broad * 1.35));
-      float column = fbm(vec2(uv.x * 4.65 + bodyPhase.x * 0.13, broad * 0.72 + bodyPhase.y * 0.09));
-      float rankEdge = boundaryProgress - baseRank;
-      float edgeBand = 1.0 - smoothstep(0.02, 0.34, abs(rankEdge));
-      float upwardRun = smoothstep(-0.30, -0.02, rankEdge)
-        * (1.0 - smoothstep(-0.02, 0.04, rankEdge));
-      float tendril = smoothstep(0.56, 0.92, column + wet * 0.30)
-        * (edgeBand * 0.62 + upwardRun * 0.72)
-        * smoothstep(0.08, 0.82, p);
-      float mud = fbm(aspectUv * 4.5 + warp * 1.65 + bodyPhase * 0.19) * 0.30;
-      mud += fbm(aspectUv * 13.5 - warp * 2.6 - bodyPhase * 0.23) * 0.105;
-      mud += fbm(aspectUv * 31.0 + warp * 3.2 + bodyPhase * 0.29) * 0.035;
-      float ripple = sin((baseRank * 9.5 + aspectUv.x * 3.2 + broad * 2.2 + uSeed * 6.2831853) * 8.0)
-        * 0.006 * energy;
-      float openingBreakup = smoothstep(0.30, 0.72, fbm(aspectUv * 8.4 + warp * 2.6 + bodyPhase * 0.27));
-      openingBreakup *= smoothstep(0.22, 0.62, fbm(aspectUv * 23.0 - warp * 3.4 - bodyPhase * 0.21));
-      float field = (broad - 0.5) * 0.118
-        + (wet - 0.5) * 0.078
-        + (pore - 0.5) * 0.024
-        + mud * 0.10
-        + ripple;
-      float multiscaleErosion = horizontalErosion(uv) * energy * uContourReady;
-      field += multiscaleErosion * (1.0 - nonHorizontalMode);
-      field -= openingBreakup * edgeBand * 0.045;
-      float ownershipFieldScale = mix(0.58, 1.0, nonHorizontalMode);
-      float ownershipTendrilScale = mix(0.64, 1.0, nonHorizontalMode);
-      float edge = boundaryProgress
-        + tendril * (0.058 + wet * 0.116) * ownershipTendrilScale
-        - (baseRank + field * ownershipFieldScale);
-
-      float body = smoothstep(-0.040, 0.085, edge);
-      float feather = 1.0 - smoothstep(0.0, 0.132, abs(edge));
-      float hot = 1.0 - smoothstep(0.0, 0.034, abs(edge));
-      float seamBelt = 1.0 - smoothstep(0.034, 0.112, abs(edge));
-      float proceduralOcclusion = seamBelt * uOcclusionAlphaMin;
-      float ownershipWarp = clamp(1.0 + field * 2.4 + (wet - 0.5) * 0.35, 0.62, 1.38);
-      float primaryOwnershipOcclusion = ownershipOcclusion(
-        baseRank,
-        uOwnershipGateRank,
-        uOwnershipCore,
-        uOcclusionAlphaMin,
-        ownershipWarp
-      );
-      float horizontalCoreOcclusion = ownershipOcclusion(
-        horizontal,
-        uOwnershipGateRank,
-        uOwnershipCore,
-        uOcclusionAlphaMin,
-        1.0
-      );
-      float horizontalCoreHalfWidth = max(max(uOwnershipGateRank - uOwnershipCore.x, uOwnershipCore.y - uOwnershipGateRank), 0.0001);
-      float horizontalSoftHalfWidth = max(horizontalCoreHalfWidth, ${HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX.toFixed(1)} / max(uResolution.y, 1.0));
-      float horizontalSoftOcclusion = (1.0 - smoothstep(horizontalCoreHalfWidth, horizontalSoftHalfWidth, abs(horizontal - uOwnershipGateRank))) * 0.46;
-      horizontalCoreOcclusion = max(horizontalCoreOcclusion, horizontalSoftOcclusion);
-      float nonHorizontalCoreOcclusion = max(
-        proceduralOcclusion,
-        primaryOwnershipOcclusion
-      );
-      float seamOcclusion = mix(
-        horizontalCoreOcclusion,
-        nonHorizontalCoreOcclusion,
-        nonHorizontalMode
-      );
-      float veins = smoothstep(0.66, 0.97, wet + pore * 0.34) * feather;
-      float openingSpatter = smoothstep(
-        0.70,
-        0.985,
-        hash(floor((aspectUv + warp * 0.68) * uResolution.y * 0.052 + uTime * 4.4))
-      );
-      float ember = feather * openingSpatter * (0.12 + energy * 0.46);
-      vec2 particleUv = aspectUv * vec2(42.0, 48.0) + warp * 1.35 + vec2(0.0, -uTime * 0.12);
-      vec2 particleCell = floor(particleUv);
-      vec2 particleLocal = fract(particleUv) - 0.5;
-      float particleSeed = hash(particleCell + bodyPhase);
-      vec2 particleJitter = vec2(
-        hash(particleCell + vec2(17.3, 5.1) + bodyPhase),
-        hash(particleCell + vec2(43.7, 9.8) - bodyPhase)
-      ) - 0.5;
-      float particleRadius = mix(0.075, 0.190, hash(particleCell + vec2(2.6, 11.9)));
-      float particleDot = 1.0 - smoothstep(
-        particleRadius * 0.28,
-        particleRadius,
-        length(particleLocal - particleJitter * 0.38)
-      );
-      float particleWindow = (1.0 - smoothstep(0.026, 0.290, abs(edge)))
-        * smoothstep(0.06, 0.94, p);
-      float sprayWindow = smoothstep(-0.240, -0.030, edge)
-        * (1.0 - smoothstep(-0.030, 0.130, edge))
-        * smoothstep(0.08, 0.86, p);
-      particleWindow = max(particleWindow * 0.72, sprayWindow);
-      float particles = particleDot
-        * smoothstep(0.860, 0.975, particleSeed)
-        * particleWindow
-        * (0.40 + energy * 0.66)
-        * uParticleGain;
-      float particleCore = particles * smoothstep(0.55, 0.98, particleDot);
-      float late = smoothstep(0.94, 1.0, p);
-
-      vec3 ink = mix(vec3(0.006, 0.012, 0.010), vec3(0.016, 0.032, 0.026), broad * 0.56);
-      vec3 jade = vec3(0.24, 0.66, 0.56);
-      vec3 gold = vec3(0.88, 0.72, 0.38);
-      vec3 edgeColor = mix(jade, gold, smoothstep(0.24, 0.94, broad + pore * 0.24));
-      vec3 color = ink;
-      color += edgeColor
-        * (feather * 0.24 + hot * 0.22 + veins * 0.082 + ember * 0.32 + particles * 0.88)
-        * mix(0.24, 0.86, uColorLift);
-      color += mix(jade, gold, particleSeed) * particles * mix(0.16, 0.58, uColorLift);
-      color += mix(vec3(0.28, 0.78, 0.66), vec3(0.96, 0.80, 0.42), particleSeed)
-        * particleCore * mix(0.22, 0.74, uColorLift);
-      color += vec3(0.025, 0.075, 0.060)
-        * openingBreakup * feather * mix(0.08, 0.34, uColorLift);
-      color += edgeColor * tendril * mud * 0.08 * mix(0.20, 0.72, uColorLift);
-      color = mix(color, vec3(0.004, 0.008, 0.007), late * 0.35);
-
-      float coreWash = body * uCoverAlpha * (0.89 + late * 0.12);
-      float alpha = coreWash;
-      alpha += feather * 0.18 + hot * 0.13 + veins * 0.05
-        + ember * 0.28 + particles * 0.76 + particleCore * 0.36;
-      alpha = max(alpha, seamOcclusion);
-      alpha = clamp(alpha, 0.0, 1.0);
-
-      gl_FragColor = vec4(color, alpha);
-    }
+  const vertexSource = 'attribute vec2 a;varying vec2 v;void main(){v=a*.5+.5;gl_Position=vec4(a,0.,1.);}';
+  const fieldDefine = `#define F${fieldKind[0].toUpperCase()} 1`;
+  const fragmentSource = `${fieldDefine}
+precision highp float;varying vec2 v;uniform vec2 R;uniform float P;uniform float T;uniform float S;uniform float C;uniform float G;uniform float A;uniform sampler2D N;
+#if defined(FH)
+uniform float D;uniform sampler2D M;uniform float Q;uniform float K;uniform float H;
+#elif defined(FR)
+uniform vec2 O;uniform float Z;
+#elif defined(FD)
+uniform sampler2D X;uniform float Y;uniform vec2 V;uniform vec4 W;uniform vec4 J;uniform vec2 L;
+#endif
+uniform float B;uniform vec2 E;uniform float I;vec2 nu(vec2 p){vec2 so=vec2(S*73.17,S*151.31);return fract((p+so)/${NOISE_ATLAS_SIZE.toFixed(1)});}float ah(vec2 p){return texture2D(N,nu(p)).r;}float f(vec2 p){vec4 pa4=texture2D(N,nu(p));return dot(pa4,vec4(0.533333,0.266667,0.133333,0.066667));}
+#if defined(FH)
+float hd(vec2 u,float d){return d<0.5?1.0-u.y:u.y;}vec4 hc(vec2 u){float sc=max(K,1.0);float cu=(clamp(u.x,0.0,1.0)*(sc-1.0)+0.5)/sc;return texture2D(M,vec2(cu,0.5));}float hr(vec2 u){vec3 sb=hc(u).rgb*2.0-1.0;float st=dot(sb,vec3(0.50,0.31,0.19));float ce=sin(clamp(H,0.0,1.0)*3.14159265);return hd(u,D)+st*${HORIZONTAL_INK_CONTOUR_AMPLITUDE.toFixed(6)}*ce*Q;}float he(vec2 u){vec4 sb=hc(u)*2.0-1.0;return dot(sb,vec4(0.026,0.016,0.009,0.007));}
+#elif defined(FR)
+float rr(vec2 u,float as){vec2 d=(u-O)*vec2(as,1.0);return length(d)/max(Z,0.0001);}
+#elif defined(FD)
+float dr(vec2 u){vec2 vp=max(V,vec2(1.0));vec2 sp=vec2(u.x*vp.x,(1.0-u.y)*vp.y);vec2 cs=max(W.zw,vec2(1.0));vec2 co=W.xy+L*cs;float ca=max(J.x,0.0001);vec2 sx=co+(sp-J.yz-co)/ca;vec2 du=(sx-W.xy)/cs;float ii=step(0.0,du.x)*step(du.x,1.0)*step(0.0,du.y)*step(du.y,1.0);float sd=texture2D(X,vec2(du.x,1.0-du.y)).r;return mix(1.0,sd,ii*Y);}
+#endif
+float oo(float r,float gr,vec2 c,float am,float w){float hw=max(max(gr-c.x,c.y-gr),0.0001);float nd=abs(r-gr)/hw*w;float ev=1.0-smoothstep(0.18,1.0,nd);return clamp(am,0.0,1.0)*ev;}void main(){float p=clamp(P,0.0,1.0);float en=sin(p*3.14159265);float as=R.x/max(R.y,1.0);vec2 u=v;vec2 av=vec2(u.x*as,u.y);
+#if defined(FH)
+float br=hr(u);float bp=H;
+#elif defined(FR)
+float br=rr(u,as);float bp=p;
+#else
+float br=dr(u);float bp=p;
+#endif
+vec2 ph=vec2(S*19.17+3.4,S*37.11+8.7);vec2 wu=av*2.35+ph;vec2 w=vec2(f(wu+vec2(1.7,4.1)),f(wu+vec2(8.3,2.2)))-0.5;float bd=f(av*2.10+w*0.72+ph*0.31);float wt=f(av*7.25+w*1.65+vec2(bd*1.7,0.0)-ph*0.17);float po=f(av*25.0-w*2.55+vec2(ph.y*0.11,bd*1.35));float cl=f(vec2(u.x*4.65+ph.x*0.13,bd*0.72+ph.y*0.09));float re=bp-br;float eb=1.0-smoothstep(0.02,0.34,abs(re));float ur=smoothstep(-0.30,-0.02,re)*(1.0-smoothstep(-0.02,0.04,re));float tn=smoothstep(0.56,0.92,cl+wt*0.30)*(eb*0.62+ur*0.72)*smoothstep(0.08,0.82,p);float md=f(av*4.5+w*1.65+ph*0.19)*0.30;md+=f(av*13.5-w*2.6-ph*0.23)*0.105;md+=f(av*31.0+w*3.2+ph*0.29)*0.035;float rp=sin((br*9.5+av.x*3.2+bd*2.2+S*6.2831853)*8.0)*0.006*en;float ob=smoothstep(0.30,0.72,f(av*8.4+w*2.6+ph*0.27));ob*=smoothstep(0.22,0.62,f(av*23.0-w*3.4-ph*0.21));float fi=(bd-0.5)*0.118+(wt-0.5)*0.078+(po-0.5)*0.024+md*0.10+rp;
+#if defined(FH)
+float me=he(u)*en*Q;fi+=me;
+#endif
+fi-=ob*eb*0.045;
+#if defined(FH)
+float fs=0.58;float ts=0.64;
+#else
+float fs=1.0;float ts=1.0;
+#endif
+float e=bp+tn*(0.058+wt*0.116)*ts-(br+fi*fs);float b=smoothstep(-0.040,0.085,e);float ft=1.0-smoothstep(0.0,0.132,abs(e));float h=1.0-smoothstep(0.0,0.034,abs(e));float sb=1.0-smoothstep(0.034,0.112,abs(e));float pc=sb*I;float ow=clamp(1.0+fi*2.4+(wt-0.5)*0.35,0.62,1.38);float py=oo(br,B,E,I,ow);
+#if defined(FH)
+float ho=oo(br,B,E,I,1.0);float hh=max(max(B-E.x,E.y-B),0.0001);float sh=max(hh,${HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX.toFixed(1)}/max(R.y,1.0));float so=(1.0-smoothstep(hh,sh,abs(br-B)))*0.46;ho=max(ho,so);float se=ho;
+#else
+float se=max(pc,py);
+#endif
+float vn=smoothstep(0.66,0.97,wt+po*0.34)*ft;float os=smoothstep(0.70,0.985,ah(floor((av+w*0.68)*R.y*0.052+T*4.4)));float em=ft*os*(0.12+en*0.46);vec2 pu=av*vec2(42.0,48.0)+w*1.35+vec2(0.0,-T*0.12);vec2 pi=floor(pu);vec2 pl=fract(pu)-0.5;float ps=ah(pi+ph);vec2 pj=vec2(ah(pi+vec2(17.3,5.1)+ph),ah(pi+vec2(43.7,9.8)-ph))-0.5;float pr=mix(0.075,0.190,ah(pi+vec2(2.6,11.9)));float pd=1.0-smoothstep(pr*0.28,pr,length(pl-pj*0.38));float pw=(1.0-smoothstep(0.026,0.290,abs(e)))*smoothstep(0.06,0.94,p);float sw=smoothstep(-0.240,-0.030,e)*(1.0-smoothstep(-0.030,0.130,e))*smoothstep(0.08,0.86,p);pw=max(pw*0.72,sw);float pa=pd*smoothstep(0.860,0.975,ps)*pw*(0.40+en*0.66)*G;float pk=pa*smoothstep(0.55,0.98,pd);float l=smoothstep(0.94,1.0,p);vec3 i=mix(vec3(0.006,0.012,0.010),vec3(0.016,0.032,0.026),bd*0.56);vec3 j=vec3(0.24,0.66,0.56);vec3 g=vec3(0.88,0.72,0.38);vec3 ec=mix(j,g,smoothstep(0.24,0.94,bd+po*0.24));vec3 c=i;c+=ec*(ft*0.24+h*0.22+vn*0.082+em*0.32+pa*0.88)*mix(0.24,0.86,C);c+=mix(j,g,ps)*pa*mix(0.16,0.58,C);c+=mix(vec3(0.28,0.78,0.66),vec3(0.96,0.80,0.42),ps)*pk*mix(0.22,0.74,C);c+=vec3(0.025,0.075,0.060)*ob*ft*mix(0.08,0.34,C);c+=ec*tn*md*0.08*mix(0.20,0.72,C);c=mix(c,vec3(0.004,0.008,0.007),l*0.35);float cw=b*A*(0.89+l*0.12);float a=cw;a+=ft*0.18+h*0.13+vn*0.05+em*0.28+pa*0.76+pk*0.36;a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
   `;
 
   const compileShader = (type, source) => {
@@ -350,90 +141,80 @@ export function createInkBoundaryTransition(canvas, options = {}) {
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
 
-  const positionLocation = gl.getAttribLocation(program, 'aPosition');
+  const positionLocation = gl.getAttribLocation(program, 'a');
   if (positionLocation < 0) {
     releaseInkWebGlResources(gl, { buffer, program, shaders: [vertexShader, fragmentShader] });
     return null;
   }
   const uniforms = {
-    resolution: gl.getUniformLocation(program, 'uResolution'),
-    progress: gl.getUniformLocation(program, 'uProgress'),
-    time: gl.getUniformLocation(program, 'uTime'),
-    seed: gl.getUniformLocation(program, 'uSeed'),
-    colorLift: gl.getUniformLocation(program, 'uColorLift'),
-    particleGain: gl.getUniformLocation(program, 'uParticleGain'),
-    coverAlpha: gl.getUniformLocation(program, 'uCoverAlpha'),
-    fieldMode: gl.getUniformLocation(program, 'uFieldMode'),
-    fieldDirection: gl.getUniformLocation(program, 'uFieldDirection'),
-    fieldOrigin: gl.getUniformLocation(program, 'uFieldOrigin'),
-    fieldRadiusScale: gl.getUniformLocation(program, 'uFieldRadiusScale'),
-    contourMap: gl.getUniformLocation(program, 'uContourMap'),
-    contourReady: gl.getUniformLocation(program, 'uContourReady'),
-    contourSampleCount: gl.getUniformLocation(program, 'uContourSampleCount'),
-    ownershipThreshold: gl.getUniformLocation(program, 'uOwnershipThreshold'),
-    depthMap: gl.getUniformLocation(program, 'uDepthMap'),
-    depthReady: gl.getUniformLocation(program, 'uDepthReady'),
-    depthViewport: gl.getUniformLocation(program, 'uDepthViewport'),
-    depthCover: gl.getUniformLocation(program, 'uDepthCover'),
-    depthCamera: gl.getUniformLocation(program, 'uDepthCamera'),
-    depthOrigin: gl.getUniformLocation(program, 'uDepthOrigin'),
-    ownershipGateRank: gl.getUniformLocation(program, 'uOwnershipGateRank'),
-    ownershipCore: gl.getUniformLocation(program, 'uOwnershipCore'),
-    occlusionAlphaMin: gl.getUniformLocation(program, 'uOcclusionAlphaMin')
+    resolution: gl.getUniformLocation(program, 'R'),
+    progress: gl.getUniformLocation(program, 'P'),
+    time: gl.getUniformLocation(program, 'T'),
+    seed: gl.getUniformLocation(program, 'S'),
+    colorLift: gl.getUniformLocation(program, 'C'),
+    particleGain: gl.getUniformLocation(program, 'G'),
+    coverAlpha: gl.getUniformLocation(program, 'A'),
+    noiseAtlas: gl.getUniformLocation(program, 'N'),
+    fieldDirection: gl.getUniformLocation(program, 'D'),
+    fieldOrigin: gl.getUniformLocation(program, 'O'),
+    fieldRadiusScale: gl.getUniformLocation(program, 'Z'),
+    contourMap: gl.getUniformLocation(program, 'M'),
+    contourReady: gl.getUniformLocation(program, 'Q'),
+    contourSampleCount: gl.getUniformLocation(program, 'K'),
+    ownershipThreshold: gl.getUniformLocation(program, 'H'),
+    depthMap: gl.getUniformLocation(program, 'X'),
+    depthReady: gl.getUniformLocation(program, 'Y'),
+    depthViewport: gl.getUniformLocation(program, 'V'),
+    depthCover: gl.getUniformLocation(program, 'W'),
+    depthCamera: gl.getUniformLocation(program, 'J'),
+    depthOrigin: gl.getUniformLocation(program, 'L'),
+    ownershipGateRank: gl.getUniformLocation(program, 'B'),
+    ownershipCore: gl.getUniformLocation(program, 'E'),
+    occlusionAlphaMin: gl.getUniformLocation(program, 'I')
   };
 
-  const depthTexture = gl.createTexture();
-  if (!depthTexture) {
-    releaseInkWebGlResources(gl, { buffer, program, shaders: [vertexShader, fragmentShader] });
+  const textures = [];
+  const createTexture = (unit, wrap, width, height, pixels) => {
+    const texture = gl.createTexture();
+    if (!texture) return null;
+    textures.push(texture);
+    gl.activeTexture(unit);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      width,
+      height,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      pixels
+    );
+    return texture;
+  };
+  const depthTexture = fieldKind === 'depth'
+    ? createTexture(gl.TEXTURE0, gl.CLAMP_TO_EDGE, 1, 1, new Uint8Array([255, 255, 255, 255]))
+    : null;
+  const contourTexture = fieldKind === 'horizontal'
+    ? createTexture(gl.TEXTURE1, gl.CLAMP_TO_EDGE, 1, 1, new Uint8Array([128, 128, 128, 128]))
+    : null;
+  const noiseTexture = createTexture(
+    gl.TEXTURE2,
+    gl.REPEAT,
+    NOISE_ATLAS_SIZE,
+    NOISE_ATLAS_SIZE,
+    noiseAtlas()
+  );
+  if ((fieldKind === 'depth' && !depthTexture) || (fieldKind === 'horizontal' && !contourTexture) || !noiseTexture) {
+    releaseInkWebGlResources(gl, { buffer, program, shaders: [vertexShader, fragmentShader], textures });
     return null;
   }
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, depthTexture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    1,
-    1,
-    0,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    new Uint8Array([255, 255, 255, 255])
-  );
-
-  const contourTexture = gl.createTexture();
-  if (!contourTexture) {
-    releaseInkWebGlResources(gl, {
-      buffer,
-      program,
-      shaders: [vertexShader, fragmentShader],
-      textures: [depthTexture]
-    });
-    return null;
-  }
-  gl.activeTexture(gl.TEXTURE1);
-  gl.bindTexture(gl.TEXTURE_2D, contourTexture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    1,
-    1,
-    0,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    new Uint8Array([128, 128, 128, 128])
-  );
 
   let width = 0;
   let height = 0;
@@ -444,11 +225,12 @@ export function createInkBoundaryTransition(canvas, options = {}) {
   let contourRevision = '';
   let contourTextureUploads = 0;
 
-  const resize = () => {
-    const rect = canvas.getBoundingClientRect();
+  const resize = (frame) => {
+    const cssWidth = frame?.viewport?.width ?? canvas.clientWidth ?? window.innerWidth;
+    const cssHeight = frame?.viewport?.height ?? canvas.clientHeight ?? window.innerHeight;
     const ratio = Math.min(window.devicePixelRatio || 1, dprLimit);
-    const nextWidth = Math.max(1, Math.round(rect.width * ratio));
-    const nextHeight = Math.max(1, Math.round(rect.height * ratio));
+    const nextWidth = Math.max(1, Math.round(cssWidth * ratio));
+    const nextHeight = Math.max(1, Math.round(cssHeight * ratio));
     if (nextWidth !== width || nextHeight !== height) {
       width = nextWidth;
       height = nextHeight;
@@ -456,11 +238,11 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       canvas.height = height;
       gl.viewport(0, 0, width, height);
     }
-    return rect.width > 0 && rect.height > 0;
+    return cssWidth > 0 && cssHeight > 0;
   };
 
   const ensureDepthMap = (frame) => {
-    if (frame?.spec?.kind !== 'depth' || frame.spec.depthSrc === depthSource) {
+    if (!depthTexture || frame?.spec?.kind !== 'depth' || frame.spec.depthSrc === depthSource) {
       return;
     }
     depthSource = frame.spec.depthSrc;
@@ -490,7 +272,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
   };
 
   const ensureHorizontalContour = (frame) => {
-    if (frame?.spec?.kind !== 'horizontal' || !frame.contour) {
+    if (!contourTexture || frame?.spec?.kind !== 'horizontal' || !frame.contour) {
       return false;
     }
     if (frame.contour.revision === contourRevision) {
@@ -545,7 +327,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       canvas.style.opacity = active ? canvasOpacity.toFixed(4) : '0';
       ensureDepthMap(frame);
       const contourReady = ensureHorizontalContour(frame);
-      if (!resize()) return;
+      if (!resize(frame)) return;
 
       gl.clear(gl.COLOR_BUFFER_BIT);
       if (!active) return;
@@ -575,10 +357,16 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       };
 
       gl.useProgram(program);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, depthTexture);
-      gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, contourTexture);
+      if (depthTexture) {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, depthTexture);
+      }
+      if (contourTexture) {
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, contourTexture);
+      }
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, noiseTexture);
       gl.uniform2f(uniforms.resolution, width, height);
       gl.uniform1f(uniforms.progress, visibleProgress);
       gl.uniform1f(uniforms.time, performance.now() * 0.001);
@@ -586,43 +374,26 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       gl.uniform1f(uniforms.colorLift, colorLift);
       gl.uniform1f(uniforms.particleGain, particleGain);
       gl.uniform1f(uniforms.coverAlpha, coverAlpha);
-      gl.uniform1f(uniforms.fieldMode, spec.kind === 'radial' ? 1 : spec.kind === 'depth' ? 2 : 0);
-      gl.uniform1f(
-        uniforms.fieldDirection,
-        spec.kind === 'horizontal' && spec.direction === 'bottom-to-top' ? 1 : 0
-      );
-      gl.uniform2f(uniforms.fieldOrigin, origin.x, 1 - origin.y);
-      gl.uniform1f(uniforms.fieldRadiusScale, radiusScale);
-      gl.uniform1i(uniforms.contourMap, 1);
-      gl.uniform1f(uniforms.contourReady, spec.kind === 'horizontal' && contourReady ? 1 : 0);
-      gl.uniform1f(
-        uniforms.contourSampleCount,
-        spec.kind === 'horizontal' && frame.contour ? frame.contour.samples.length : 1
-      );
-      gl.uniform1f(
-        uniforms.ownershipThreshold,
-        spec.kind === 'horizontal' && typeof frame.threshold === 'number'
+      gl.uniform1i(uniforms.noiseAtlas, 2);
+      if (spec.kind === 'horizontal') {
+        gl.uniform1f(uniforms.fieldDirection, spec.direction === 'bottom-to-top' ? 1 : 0);
+        gl.uniform1i(uniforms.contourMap, 1);
+        gl.uniform1f(uniforms.contourReady, contourReady ? 1 : 0);
+        gl.uniform1f(uniforms.contourSampleCount, frame.contour ? frame.contour.samples.length : 1);
+        gl.uniform1f(uniforms.ownershipThreshold, typeof frame.threshold === 'number'
           ? frame.threshold
-          : frame.occlusion.gateRank
-      );
-      gl.uniform1i(uniforms.depthMap, 0);
-      gl.uniform1f(uniforms.depthReady, spec.kind === 'depth' && depthReady ? 1 : 0);
-      gl.uniform2f(uniforms.depthViewport, depthViewport.width, depthViewport.height);
-      gl.uniform4f(
-        uniforms.depthCover,
-        depthCover.x,
-        depthCover.y,
-        depthCover.width,
-        depthCover.height
-      );
-      gl.uniform4f(
-        uniforms.depthCamera,
-        depthCamera.scale,
-        depthCamera.translateX,
-        depthCamera.translateY,
-        0
-      );
-      gl.uniform2f(uniforms.depthOrigin, depthCamera.originX, depthCamera.originY);
+          : frame.occlusion.gateRank);
+      } else if (spec.kind === 'radial') {
+        gl.uniform2f(uniforms.fieldOrigin, origin.x, 1 - origin.y);
+        gl.uniform1f(uniforms.fieldRadiusScale, radiusScale);
+      } else {
+        gl.uniform1i(uniforms.depthMap, 0);
+        gl.uniform1f(uniforms.depthReady, depthReady ? 1 : 0);
+        gl.uniform2f(uniforms.depthViewport, depthViewport.width, depthViewport.height);
+        gl.uniform4f(uniforms.depthCover, depthCover.x, depthCover.y, depthCover.width, depthCover.height);
+        gl.uniform4f(uniforms.depthCamera, depthCamera.scale, depthCamera.translateX, depthCamera.translateY, 0);
+        gl.uniform2f(uniforms.depthOrigin, depthCamera.originX, depthCamera.originY);
+      }
       gl.uniform1f(uniforms.ownershipGateRank, frame.occlusion.gateRank);
       gl.uniform2f(
         uniforms.ownershipCore,
@@ -630,17 +401,6 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         frame.occlusion.coreMax
       );
       gl.uniform1f(uniforms.occlusionAlphaMin, frame.occlusion.alphaMin);
-      if (canvas.dataset) {
-        canvas.dataset.r4InkBoundaryKind = spec.kind;
-        canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
-        canvas.dataset.r4InkBoundaryProgress = visibleProgress.toFixed(4);
-        canvas.dataset.r4InkFieldSeed = String(frame.seed);
-        if (spec.kind === 'horizontal' && frame.contour) {
-          markHorizontalInkDiagnostics(canvas, frame);
-        } else {
-          clearHorizontalInkDiagnostics(canvas);
-        }
-      }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },
     prewarm(frame) {
@@ -659,7 +419,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
         buffer,
         program,
         shaders: [vertexShader, fragmentShader],
-        textures: [depthTexture, contourTexture]
+        textures
       });
       canvas.width = 0;
       canvas.height = 0;
@@ -667,7 +427,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
       canvas.style.opacity = '0';
       if (canvas.dataset) {
         delete canvas.dataset.r4InkContourTextureUploads;
-        clearHorizontalInkDiagnostics(canvas);
+        delete canvas.dataset.r4InkContourRevision;
       }
     }
   };

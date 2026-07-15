@@ -45,4 +45,18 @@ describe('Figure3 media timeline ownership', () => {
       videoOpacity: 0
     });
   });
+
+  it('does not resubmit an unchanged terminal frame during the stable endpoint tail', () => {
+    const root = new TimelineRoot();
+    const video = new TimelineVideo();
+    root.dataset.r4Scene = 'figure3-animation';
+    root.connect('[data-figure3-alpha-video]', video);
+    const mediaRun = { runId: 'figure3-terminal:1', direction: 1 as const };
+
+    renderFigure3AnimationProgress(root as unknown as HTMLElement, 1, { mediaRun });
+    const writes = video.currentTimeWrites;
+    renderFigure3AnimationProgress(root as unknown as HTMLElement, 1, { mediaRun });
+
+    expect(video.currentTimeWrites).toBe(writes);
+  });
 });

@@ -27,6 +27,7 @@ function rootFor(element: HTMLElement | null | undefined, scene: string): HTMLEl
 
 export type Figure3ServicesChannels = Readonly<{
   progress: number;
+  mediaProgress: number;
   sourceVisibility: number;
   copyProgress: number;
   paperAlpha: number;
@@ -36,9 +37,10 @@ export function sampleFigure3ServicesChannels(progress: number): Figure3Services
   const clamped = Math.min(1, Math.max(0, progress));
   return {
     progress: clamped,
-    sourceVisibility: clamped < 1 ? 1 : 0,
+    mediaProgress: smoothStep(range01(clamped, 0, 0.96)),
+    sourceVisibility: 1 - smoothStep(range01(clamped, 0.9, 0.98)),
     copyProgress: smoothStep(range01(clamped, FIGURE3_SERVICES_COPY_CUE.atProgress, 0.94)),
-    paperAlpha: smoothStep(range01(clamped, FIGURE3_SERVICES_COPY_CUE.atProgress, 1))
+    paperAlpha: smoothStep(range01(clamped, FIGURE3_SERVICES_COPY_CUE.atProgress, 0.96))
   };
 }
 
@@ -48,7 +50,9 @@ function sampleFigure3Services(
   const channels = sampleFigure3ServicesChannels(progress);
   const copyCueActive = channels.progress >= FIGURE3_SERVICES_COPY_CUE.atProgress;
   return {
-    from: channels.sourceVisibility > 0 ? holdVisibility(false) : hiddenVisibility(),
+    from: channels.progress < 1
+      ? { ...holdVisibility(false), opacity: channels.sourceVisibility }
+      : hiddenVisibility(),
     to: copyCueActive ? holdVisibility(false) : hiddenVisibility(),
     copyCueActive
   };
@@ -92,7 +96,7 @@ class Figure3ServicesTimeline implements SegmentTimelineHandle {
         this.elevation.elevate();
         renderFigure3AnimationProgress(
           rootFor(context.from.element, 'figure3-animation'),
-          progress,
+          channels.mediaProgress,
           { mediaRun: this.mediaRun }
         );
         renderServicesEntrance(

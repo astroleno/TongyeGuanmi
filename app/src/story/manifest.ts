@@ -10,8 +10,6 @@ import {
   INTRA_CHAPTER_DISSOLVE_MS,
   PATTERN_COLLAPSE_MS,
   PATTERN_COLLAPSE_STOP,
-  PATTERN_COPY_REVEAL_MS,
-  PATTERN_COPY_STOP,
   PATTERN_STAR_MAP_INK_MS,
   PATTERN_TOTAL_MS,
   PH_PLAYBACK_MS,
@@ -214,9 +212,9 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
     case 'pattern-star-map':
       return {
         policy: stagedPolicy(
-          [PATTERN_COLLAPSE_STOP, PATTERN_COPY_STOP],
-          [PATTERN_COLLAPSE_MS, PATTERN_COPY_REVEAL_MS, PATTERN_STAR_MAP_INK_MS],
-          [{ kind: 'gesture' }, { kind: 'gesture' }]
+          [PATTERN_COLLAPSE_STOP],
+          [PATTERN_COLLAPSE_MS, PATTERN_STAR_MAP_INK_MS],
+          [{ kind: 'gesture' }]
         ),
         virtualDuration: PATTERN_TOTAL_MS
       };
@@ -312,15 +310,17 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           'figure2-pair',
           [
             'figure2-left-motion',
-            'figure2-right-motion'
+            'figure2-right-motion',
+            'figure2-left-motion-reverse',
+            'figure2-right-motion-reverse'
           ],
           'figure2-proof',
           {
             forwardMode: 'play',
-            reverseMode: 'timeline',
+            reverseMode: 'play',
             reverseRequired: true,
             forwardMedia: ['figure2-left-motion', 'figure2-right-motion'],
-            reverseMedia: ['figure2-left-motion', 'figure2-right-motion'],
+            reverseMedia: ['figure2-left-motion-reverse', 'figure2-right-motion-reverse'],
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
           }
         )

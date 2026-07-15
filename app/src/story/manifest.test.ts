@@ -4,8 +4,6 @@ import {
   HERO_PATTERN_TOTAL_MS,
   PATTERN_COLLAPSE_MS,
   PATTERN_COLLAPSE_STOP,
-  PATTERN_COPY_REVEAL_MS,
-  PATTERN_COPY_STOP,
   PATTERN_STAR_MAP_INK_MS,
   PATTERN_TOTAL_MS,
   TERMINAL_DWELL_MS
@@ -174,7 +172,9 @@ describe('story manifest contract', () => {
           id: 'figure2-pair',
           media: [
             'figure2-left-motion',
-            'figure2-right-motion'
+            'figure2-right-motion',
+            'figure2-left-motion-reverse',
+            'figure2-right-motion-reverse'
           ],
           forward: {
             mode: 'play',
@@ -182,9 +182,9 @@ describe('story manifest contract', () => {
             media: ['figure2-left-motion', 'figure2-right-motion']
           },
           reverse: {
-            mode: 'timeline',
+            mode: 'play',
             required: true,
-            media: ['figure2-left-motion', 'figure2-right-motion']
+            media: ['figure2-left-motion-reverse', 'figure2-right-motion-reverse']
           },
           readyMilestones: ['targetReady', 'mediaReady'],
           terminalFallbackScene: 'figure2-proof',
@@ -340,7 +340,7 @@ describe('story manifest contract', () => {
     });
   });
 
-  it('models Pattern collapse and copy as gesture checkpoints before Star Map Ink', () => {
+  it('models Pattern collapse and copy as one gesture checkpoint before Star Map Ink', () => {
     const segment = storyManifest.nodes.find(
       (node) => node.kind === 'segment' && node.id === 'pattern-star-map'
     );
@@ -349,9 +349,9 @@ describe('story manifest contract', () => {
       kind: 'segment',
       policy: {
         kind: 'stagedSnap',
-        stops: [PATTERN_COLLAPSE_STOP, PATTERN_COPY_STOP],
-        playMs: [PATTERN_COLLAPSE_MS, PATTERN_COPY_REVEAL_MS, PATTERN_STAR_MAP_INK_MS],
-        advance: [{ kind: 'gesture' }, { kind: 'gesture' }]
+        stops: [PATTERN_COLLAPSE_STOP],
+        playMs: [PATTERN_COLLAPSE_MS, PATTERN_STAR_MAP_INK_MS],
+        advance: [{ kind: 'gesture' }]
       },
       virtualDuration: PATTERN_TOTAL_MS
     });

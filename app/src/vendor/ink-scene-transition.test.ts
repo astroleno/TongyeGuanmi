@@ -16,84 +16,92 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).not.toContain('targetElement');
   });
 
-  it('renders horizontal, radial, and depth rank modes through one procedural field', () => {
+  it('specializes the shared field shader by rank kind before compilation', () => {
     expect(shaderSource).toContain('createInkBoundaryTransition');
     expect(shaderSource).not.toContain('createInkCurtainTransition');
-    expect(shaderSource).toContain('uniform float uFieldMode');
-    expect(shaderSource).toContain('uniform float uFieldDirection');
-    expect(shaderSource).toContain('uniform vec2 uFieldOrigin');
-    expect(shaderSource).toContain('uniform sampler2D uDepthMap');
-    expect(shaderSource).toContain('float horizontalRank(');
-    expect(shaderSource).toContain('float radialRank(');
-    expect(shaderSource).toContain('float depthRank(');
+    expect(shaderSource).toContain('fieldKind');
+    expect(shaderSource).toContain('#define F${fieldKind[0].toUpperCase()}');
+    expect(shaderSource).not.toContain('uniform float uFieldMode');
+    expect(shaderSource).toContain('fieldDirection: gl.getUniformLocation(program, \'D\')');
+    expect(shaderSource).toContain('fieldOrigin: gl.getUniformLocation(program, \'O\')');
+    expect(shaderSource).toContain('depthMap: gl.getUniformLocation(program, \'X\')');
+    expect(shaderSource).toContain('float hr(');
+    expect(shaderSource).toContain('float rr(');
+    expect(shaderSource).toContain('float dr(');
   });
 
   it('uses one packed multiscale contour texture for the horizontal eroded edge', () => {
     expect(shaderSource).not.toContain('uBoundaryProfile');
     expect(shaderSource).not.toContain('sampledBoundary');
     expect(shaderSource).not.toContain('frame.profile');
-    expect(shaderSource).toContain('uniform sampler2D uContourMap');
-    expect(shaderSource).toContain('uniform float uContourSampleCount');
-    expect(shaderSource).toContain('uniform float uOwnershipThreshold');
+    expect(shaderSource).toContain('contourMap: gl.getUniformLocation(program, \'M\')');
+    expect(shaderSource).toContain('contourSampleCount: gl.getUniformLocation(program, \'K\')');
+    expect(shaderSource).toContain('ownershipThreshold: gl.getUniformLocation(program, \'H\')');
     expect(shaderSource).toContain('gl.RGBA');
     expect(shaderSource).toContain('frame.contour.samples.length');
     expect(shaderSource).toContain('frame.contour.texture');
-    expect(shaderSource).toContain('vec4 horizontalContourSample');
-    expect(shaderSource).toContain('float horizontalErosion');
-    expect(shaderSource).toContain('float multiscaleErosion');
-    expect(shaderSource).toContain('float boundaryProgress = mix(uOwnershipThreshold, p, nonHorizontalMode)');
-    expect(shaderSource).toContain('float field =');
-    expect(shaderSource).toContain('openingBreakup');
-    expect(shaderSource).toContain('tendril');
-    expect(shaderSource).toContain('float ownershipFieldScale = mix(0.58, 1.0, nonHorizontalMode)');
-    expect(shaderSource).toMatch(/float edge = [^;]*field/);
+    expect(shaderSource).toContain('vec4 hc(');
+    expect(shaderSource).toContain('float he(');
+    expect(shaderSource).toContain('float me=he(u)*en*Q');
+    expect(shaderSource).toContain('float br=hr(u);float bp=H');
+    expect(shaderSource).toContain('float fi=');
+    expect(shaderSource).toContain('float ob=');
+    expect(shaderSource).toContain('float tn=');
+    expect(shaderSource).toContain('float fs=0.58');
+    expect(shaderSource).toMatch(/float e=[^;]*fi/);
   });
 
   it('covers the binary ownership clip with an opaque core and a wider soft edge', () => {
-    expect(shaderSource).toContain('float horizontalSoftHalfWidth');
-    expect(shaderSource).toContain('float horizontalSoftOcclusion');
-    expect(shaderSource).toContain('horizontalCoreOcclusion = max(horizontalCoreOcclusion, horizontalSoftOcclusion)');
+    expect(shaderSource).toContain('float sh=max(hh,');
+    expect(shaderSource).toContain('float so=(1.0-smoothstep(hh,sh,abs(br-B)))*0.46');
+    expect(shaderSource).toContain('ho=max(ho,so)');
   });
 
   it('keeps body erosion deterministic while allowing time only in effect particles', () => {
-    expect(shaderSource).toContain('uniform float uSeed');
-    expect(shaderSource).toContain('vec2 bodyPhase');
-    expect(shaderSource).not.toMatch(/bodyPhase[^;]*uTime/);
-    expect(shaderSource).toMatch(/particleUv[^;]*uTime/);
+    expect(shaderSource).toContain('seed: gl.getUniformLocation(program, \'S\')');
+    expect(shaderSource).toContain('vec2 ph=');
+    expect(shaderSource).not.toMatch(/vec2 ph=[^;]*T/);
+    expect(shaderSource).toMatch(/vec2 pu=[^;]*T/);
+  });
+
+  it('moves procedural FBM and hash work into one deterministic prewarmed noise atlas', () => {
+    expect(shaderSource).toContain('NOISE_ATLAS_SIZE = 256');
+    expect(shaderSource).toContain('noiseAtlas: gl.getUniformLocation(program, \'N\')');
+    expect(shaderSource).toContain('texture2D(N,');
+    expect(shaderSource).not.toContain('for (int i = 0; i < 4; i++)');
+    expect(shaderSource).not.toContain('p += dot(p, p + 34.37)');
   });
 
   it('consumes the live ownership gate and guarantees its minimum alpha', () => {
-    expect(shaderSource).toContain('uniform float uOwnershipGateRank');
-    expect(shaderSource).toContain('uniform vec2 uOwnershipCore');
-    expect(shaderSource).toContain('uniform float uOcclusionAlphaMin');
+    expect(shaderSource).toContain('ownershipGateRank: gl.getUniformLocation(program, \'B\')');
+    expect(shaderSource).toContain('ownershipCore: gl.getUniformLocation(program, \'E\')');
+    expect(shaderSource).toContain('occlusionAlphaMin: gl.getUniformLocation(program, \'I\')');
     expect(shaderSource).not.toContain('uSecondaryHorizontalGate');
     expect(shaderSource).not.toContain('secondaryOwnershipOcclusion');
-    expect(shaderSource).toContain('float ownershipOcclusion(');
-    expect(shaderSource).toContain('float ownershipWarp = clamp(');
-    expect(shaderSource).toMatch(/ownershipOcclusion\([^)]*ownershipWarp/s);
-    expect(shaderSource).toMatch(/float horizontalCoreOcclusion = ownershipOcclusion\(\s*horizontal,/s);
-    expect(shaderSource).toContain('max(alpha, seamOcclusion)');
-    expect(shaderSource).toMatch(/alpha\s*=\s*max\(alpha,\s*seamOcclusion\)/);
-    expect(shaderSource).toMatch(/float seamOcclusion = mix\(\s*horizontalCoreOcclusion,/s);
-    expect(shaderSource).not.toMatch(/horizontalCoreOcclusion[\s\S]*?\*\s*nonHorizontalMode/);
+    expect(shaderSource).toContain('float oo(');
+    expect(shaderSource).toContain('float ow=clamp(');
+    expect(shaderSource).toContain('float py=oo(br,B,E,I,ow)');
+    expect(shaderSource).toContain('float ho=oo(br,B,E,I,1.0)');
+    expect(shaderSource).toContain('a=max(a,se)');
+    expect(shaderSource).toContain('float se=ho');
+    expect(shaderSource).not.toMatch(/ho[\s\S]*?\*\s*nonHorizontalMode/);
     expect(shaderSource).not.toContain('uSceneDim');
   });
 
   it('keeps the Main particle geometry and applies the configured gain in the shader', () => {
     expect(shaderSource).toContain('const particleGain = clamp(options.particleGain ?? 1, 0, 2);');
-    expect(shaderSource).toContain('uniform float uParticleGain');
-    expect(shaderSource).toContain("particleGain: gl.getUniformLocation(program, 'uParticleGain')");
+    expect(shaderSource).toContain("particleGain: gl.getUniformLocation(program, 'G')");
     expect(shaderSource).toContain('gl.uniform1f(uniforms.particleGain, particleGain)');
     expect(shaderSource).not.toContain('particleGateLow');
     expect(shaderSource).not.toContain('particleGateHigh');
-    expect(shaderSource).toMatch(/float particleRadius = mix\(0\.075, 0\.190,[^;]+\);/);
-    expect(shaderSource).toContain('smoothstep(0.860, 0.975, particleSeed)');
-    expect(shaderSource).toMatch(/float particles = [\s\S]*?\* uParticleGain;/);
+    expect(shaderSource).toMatch(/float pr=mix\(0\.075,0\.190,[^;]+\);/);
+    expect(shaderSource).toContain('smoothstep(0.860,0.975,ps)');
+    expect(shaderSource).toMatch(/float pa=[^;]+\*G;/);
   });
 
   it('allows edge-only grade to remove scene-wide body wash without changing the boundary', () => {
-    expect(shaderSource).toMatch(/float coreWash = body \* uCoverAlpha/);
+    expect(shaderSource).toMatch(/float cw=b\*A/);
     expect(shaderSource).not.toContain('0.14 + uCoverAlpha');
-    expect(shaderSource).toContain('alpha = max(alpha, seamOcclusion)');
+    expect(shaderSource).toContain('a=max(a,se)');
   });
 });

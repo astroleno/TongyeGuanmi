@@ -57,7 +57,7 @@ describe('Hero motion', () => {
       backScale: 1.2,
       middleYVh: 19,
       middleScale: 1.3,
-      figureYVh: -3,
+      figureYVh: 0,
       figureScale: 1.065
     });
     expect(sampleHeroScroll(1, true).middleYVh).toBe(15);

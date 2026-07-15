@@ -598,7 +598,7 @@ describe('SegmentPlayer', () => {
     expect(renderedProgress).toBe(1);
   });
 
-  it('pauses the real Pattern lifecycle at compact and copy checkpoints', async () => {
+  it('pauses the real Pattern lifecycle once after compact and copy finish together', async () => {
     vi.useFakeTimers();
     const events: DirectorEvent[] = [];
     let renderedProgress = 0;
@@ -625,19 +625,14 @@ describe('SegmentPlayer', () => {
     const result = player.play('pattern-star-map', 1, { runId: 'pattern-stage:1' });
     await flushMicrotasks();
     await vi.advanceTimersByTimeAsync(1800);
-    expect(player.snapshot()).toMatchObject({ progress: 1800 / 4300, pausedAt: 'stage:0' });
-    expect(player.resumeStaged('pattern-stage:1')).toBe(true);
-
-    await vi.advanceTimersByTimeAsync(700);
-    expect(player.snapshot()).toMatchObject({ progress: 2500 / 4300, pausedAt: 'stage:1' });
+    expect(player.snapshot()).toMatchObject({ progress: 0.5, pausedAt: 'stage:0' });
     expect(player.resumeStaged('pattern-stage:1')).toBe(true);
 
     await vi.advanceTimersByTimeAsync(1800);
     await expect(result).resolves.toMatchObject({ status: 'completed', direction: 1 });
     expect(renderedProgress).toBe(1);
     expect(events.filter((event) => event.type === 'STAGE_PAUSED')).toEqual([
-      expect.objectContaining({ stageIndex: 0 }),
-      expect.objectContaining({ stageIndex: 1 })
+      expect.objectContaining({ stageIndex: 0 })
     ]);
     expect(events.filter((event) => event.type === 'PLAYBACK_DONE')).toHaveLength(1);
   });

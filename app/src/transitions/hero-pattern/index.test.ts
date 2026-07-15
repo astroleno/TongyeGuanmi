@@ -303,6 +303,72 @@ describe('hero-pattern transition', () => {
     });
   });
 
+  it('uses independent 900ms/1800ms wall clocks in both directions', async () => {
+    const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
+    const canvas = new FakeCanvas();
+    const video = new FakeVideo();
+    const frames: Array<(time: number) => void> = [];
+    let now = 0;
+    vi.stubGlobal('document', { createElement: () => canvas });
+    vi.stubGlobal('performance', { now: () => now });
+    vi.stubGlobal('requestAnimationFrame', (callback: (time: number) => void) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    fixture.fromRoot.connect('[data-hero-figure-video]', video);
+
+    const timeline = await createHeroPatternTransition().buildTimeline(fixture.context);
+    const flushMicrotasks = async () => {
+      for (let index = 0; index < 20; index += 1) await Promise.resolve();
+    };
+    const present = async (time: number) => {
+      now = time;
+      const callback = frames.shift();
+      expect(callback, `missing animation frame at ${time}ms`).toBeTypeOf('function');
+      callback?.(time);
+      await flushMicrotasks();
+    };
+
+    let forwardDone = false;
+    void timeline.play(1).then(() => { forwardDone = true; });
+    await present(899);
+    expect(forwardDone).toBe(false);
+    expect(canvas.dataset.r4InkProgress).toBeUndefined();
+    await present(900);
+    expect(forwardDone).toBe(false);
+    expect(fixture.fromRoot.style.getPropertyValue('--r4-hero-pattern-figure-progress')).toBe('1.0000');
+    expect(canvas.dataset.r4InkProgress).toBeUndefined();
+
+    // The committed phase boundary is a bounded double-rAF, not part of either clock.
+    await present(901);
+    await present(902);
+    await present(2_701);
+    expect(forwardDone).toBe(false);
+    expect(fixture.fromRoot.style.getPropertyValue('--r4-hero-pattern-figure-progress')).toBe('1.0000');
+    await present(2_703);
+    expect(forwardDone).toBe(true);
+
+    let reverseDone = false;
+    void timeline.reverse().then(() => { reverseDone = true; });
+    await present(4_502);
+    expect(reverseDone).toBe(false);
+    expect(fixture.fromRoot.style.getPropertyValue('--r4-hero-pattern-figure-progress')).toBe('1.0000');
+    await present(4_504);
+    expect(reverseDone).toBe(false);
+    await present(4_505);
+    await present(4_506);
+    await present(5_405);
+    expect(reverseDone).toBe(false);
+    await present(5_407);
+    expect({
+      reverseDone,
+      sourceProgress: fixture.fromRoot.style.getPropertyValue('--r4-hero-pattern-figure-progress'),
+      queuedFrames: frames.length
+    }).toEqual({ reverseDone: true, sourceProgress: '0.0000', queuedFrames: 0 });
+    timeline.dispose();
+  });
+
   it('is idempotent in both directions and collapses reduced motion to the endpoint', async () => {
     const transition = createHeroPatternTransition();
     const timeline = await transition.buildTimeline(context(true));

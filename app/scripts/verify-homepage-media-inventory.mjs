@@ -41,6 +41,7 @@ const losslessWebpSources = [
   'assets/middle1_depth.webp',
   'assets/back2.webp',
   'assets/figure2-middle-depth.webp',
+  'assets/figure2-depth-mask-atlas.webp',
   'assets/figure2-middle-window-mask.webp',
   'assets/aod_cloud-alpha.webp',
   'assets/aod_sun-alpha.webp',
@@ -50,7 +51,6 @@ const losslessWebpSources = [
   'assets/crane1_arch-alpha.webp',
   'assets/crane1_cloud1-alpha.webp',
   'assets/crane1_cloud-front2-alpha.webp',
-  'assets/crane-flock-first-frame.webp',
   'assets/patterns/alpha-layers/pattern-layer-alpha-02.webp',
   'assets/patterns/alpha-layers/pattern-layer-alpha-03.webp',
   'assets/patterns/alpha-layers/pattern-layer-alpha-04.webp',
@@ -169,13 +169,13 @@ const inventorySources = [
 const frozenMediaBySource = new Map(
   frozenHomepageMedia.map((entry) => [entry.source, entry])
 );
-assert(inventorySources.length === 39, `expected 39 homepage source entries, found ${inventorySources.length}`);
-assert(frozenHomepageMedia.length === 39, `expected 39 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
+assert(inventorySources.length === 41, `expected 41 homepage source entries, found ${inventorySources.length}`);
+assert(frozenHomepageMedia.length === 41, `expected 41 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
 assert(frozenMediaBySource.size === frozenHomepageMedia.length, 'frozen homepage media sources must be unique');
 assert(frozenMediaBySource.size === inventorySources.length, 'frozen homepage media contract must cover the full inventory');
 assert(adoptedWebpSources.length === 11, `expected 11 adopted WebP sources, found ${adoptedWebpSources.length}`);
 assert(losslessWebpSources.length === 19, `expected 19 lossless WebP sources, found ${losslessWebpSources.length}`);
-assert(animationWebmSources.length === 9, `expected 9 animation WebM sources, found ${animationWebmSources.length}`);
+assert(animationWebmSources.length === 11, `expected 11 animation WebM sources, found ${animationWebmSources.length}`);
 
 const [sourceEntries, emittedFiles, sourceAssetFiles] = await Promise.all([
   Promise.all(inventorySources.map(({ source, category }) => sourceEntry(source, category))),
@@ -232,8 +232,8 @@ const emittedWebm = emittedEntries.filter((entry) => mediaExtension(entry.path) 
 const emittedWebp = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.webp');
 const emittedJpg = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.jpg');
 const emittedPng = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.png');
-assert(emittedMedia.length === 39, `expected exactly 39 emitted homepage media files, found ${emittedMedia.length}`);
-assert(emittedWebm.length === 9, `expected exactly 9 emitted animation WebM files, found ${emittedWebm.length}`);
+assert(emittedMedia.length === 41, `expected exactly 41 emitted homepage media files, found ${emittedMedia.length}`);
+assert(emittedWebm.length === 11, `expected exactly 11 emitted animation WebM files, found ${emittedWebm.length}`);
 assert(emittedWebp.length === 30, `expected exactly 30 emitted WebP files, found ${emittedWebp.length}`);
 assert(emittedJpg.length === 0, `production JPG emit is forbidden, found ${emittedJpg.length}`);
 assert(emittedPng.length === 0, `production PNG emit is forbidden, found ${emittedPng.length}`);

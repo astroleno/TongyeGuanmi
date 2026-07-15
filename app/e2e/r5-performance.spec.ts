@@ -33,15 +33,25 @@ function summarizeFrames(frameIntervals: number[]) {
   };
 }
 
-async function startFrameSampling(page: Page): Promise<void> {
-  await page.evaluate(() => {
+async function startFrameSampling(page: Page, mode: 'all' | 'figure3-tail' = 'all'): Promise<void> {
+  await page.evaluate((sampleMode) => {
     const intervals: number[] = [];
     let active = true;
-    let previous = performance.now();
+    let previous: number | undefined = performance.now();
     const tick = (now: number) => {
       if (!active) return;
-      intervals.push(now - previous);
-      previous = now;
+      const shouldSample = sampleMode === 'all' || (() => {
+        const source = document.querySelector<HTMLElement>('[data-r4-scene="figure3-animation"]');
+        const layer = source?.closest<HTMLElement>('[data-stage-layer]');
+        return layer?.dataset.r4Transition === 'figure3-services-media'
+          && Number(source?.dataset.figure3Progress ?? 0) >= 0.9;
+      })();
+      if (shouldSample) {
+        if (previous !== undefined) intervals.push(now - previous);
+        previous = now;
+      } else {
+        previous = undefined;
+      }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -49,7 +59,7 @@ async function startFrameSampling(page: Page): Promise<void> {
       active = false;
       return intervals;
     };
-  });
+  }, mode);
 }
 
 async function stopFrameSampling(page: Page): Promise<number[]> {
@@ -143,6 +153,12 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   const frameIntervals = [...heroPatternIntervals, ...patternStarMapIntervals];
   const playback = summarizeFrames(frameIntervals);
 
+  await navigateStory(page, 'figure3-animation');
+  await startFrameSampling(page, 'figure3-tail');
+  expect((await moveOneHold(page, 1)).current).toBe('services');
+  const figure3TailIntervals = await stopFrameSampling(page);
+  const figure3Tail = summarizeFrames(figure3TailIntervals);
+
   await navigateStory(page, 'contact');
   await page.waitForTimeout(250);
   const disposed = await storySnapshot(page);
@@ -157,7 +173,8 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
     playback,
     playbackSegments: {
       heroPattern: summarizeFrames(heroPatternIntervals),
-      patternStarMap: summarizeFrames(patternStarMapIntervals)
+      patternStarMap: summarizeFrames(patternStarMapIntervals),
+      figure3Tail
     },
     dispose: disposed,
     finalHeapBytes: finalHeap
@@ -183,10 +200,24 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   const softwareRenderer = /swiftshader|llvmpipe|software/i.test(bootMetrics.gpuRenderer);
   const hardwareP95BudgetMs = testInfo.project.name.startsWith('mobile-') ? 34 : 20;
   expect(frameIntervals.length).toBeGreaterThan(30);
-  expect(playback.p95FrameIntervalMs).toBeLessThanOrEqual(
-    softwareRenderer ? 300 : hardwareP95BudgetMs
-  );
-  expect(playback.longFrameRatio).toBeLessThan(softwareRenderer ? 0.25 : 0.01);
+  for (const [name, intervals] of Object.entries({
+    heroPattern: heroPatternIntervals,
+    patternStarMap: patternStarMapIntervals,
+    figure3Tail: figure3TailIntervals
+  })) {
+    const sample = summarizeFrames(intervals);
+    expect(sample.samples, `${name} sample count`).toBeGreaterThan(15);
+    expect(sample.p95FrameIntervalMs, `${name} p95`).toBeLessThanOrEqual(
+      softwareRenderer ? 300 : hardwareP95BudgetMs
+    );
+    expect(sample.longFrameRatio, `${name} long-frame ratio`).toBeLessThan(
+      softwareRenderer ? 0.25 : 0.01
+    );
+    expect(
+      sample.longFrameIndices.some((index) => sample.longFrameIndices.includes(index + 1)),
+      `${name} consecutive long frames`
+    ).toBe(false);
+  }
   expect(disposed.mountedLayers).toBeLessThanOrEqual(3);
   expect(disposed.webglCanvases).toBeLessThanOrEqual(1);
   expect(disposed.videos).toBeLessThanOrEqual(4);
@@ -238,7 +269,11 @@ test('focused media and horizontal Ink paths separate first decode from steady f
   startedAt = Date.now();
   await pressFromCurrentHold(page, 'PageUp');
   await page.waitForFunction(() => {
-    const reverse = [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')];
+    const reverse = [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')]
+      .filter((video) => (
+        video.dataset.figure2Direction === '-1'
+        && video.dataset.figure2Inactive !== 'true'
+      ));
     return reverse.length === 2
       && reverse.every((video) => video.dataset.timelineVideoFrameReady === 'true')
       && reverse.every((video) => video.currentTime > 0.05);

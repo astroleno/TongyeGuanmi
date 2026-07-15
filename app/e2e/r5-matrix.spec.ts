@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { bootStory, moveOneHold, storySnapshot, waitForHold } from './r5-helpers';
 
-test('desktop wheel requires fresh touchpad bursts at both Pattern checkpoints and reverses', async ({ page }, testInfo) => {
+test('desktop wheel requires a fresh touchpad burst at the Pattern compact checkpoint and reverses', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith('desktop-'), 'desktop pointer matrix');
   await bootStory(page);
 
@@ -35,10 +35,6 @@ test('desktop wheel requires fresh touchpad bursts at both Pattern checkpoints a
 
   await trackpadBurst();
   await waitForPatternCheckpoint(0);
-  expect((await storySnapshot(page)).current).toBe('pattern');
-
-  await trackpadBurst();
-  await waitForPatternCheckpoint(1);
   expect((await storySnapshot(page)).current).toBe('pattern');
 
   await trackpadBurst();

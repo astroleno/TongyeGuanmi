@@ -5,8 +5,6 @@ import {
   HERO_PATTERN_TOTAL_MS,
   PATTERN_COLLAPSE_MS,
   PATTERN_COLLAPSE_STOP,
-  PATTERN_COPY_REVEAL_MS,
-  PATTERN_COPY_STOP,
   PATTERN_STAR_MAP_INK_MS,
   PATTERN_TOTAL_MS
 } from '../../story/timings';
@@ -16,7 +14,7 @@ const group1HarnessSource = readFileSync(new URL('./Group1Harness.tsx', import.m
 const group1ManifestSource = readFileSync(new URL('./group1Manifest.ts', import.meta.url), 'utf8');
 
 describe('R4 group1 harness manifest', () => {
-  it('keeps Hero motion before Ink and exposes both Pattern gesture checkpoints', () => {
+  it('keeps Hero motion before Ink and exposes one compact-copy checkpoint', () => {
     const manifest = createR4Group1Manifest('group1');
     const segments = manifest.nodes.filter((node) => node.kind === 'segment');
 
@@ -29,9 +27,9 @@ describe('R4 group1 harness manifest', () => {
       id: 'pattern-star-map',
       policy: {
         kind: 'stagedSnap',
-        stops: [PATTERN_COLLAPSE_STOP, PATTERN_COPY_STOP],
-        playMs: [PATTERN_COLLAPSE_MS, PATTERN_COPY_REVEAL_MS, PATTERN_STAR_MAP_INK_MS],
-        advance: [{ kind: 'gesture' }, { kind: 'gesture' }]
+        stops: [PATTERN_COLLAPSE_STOP],
+        playMs: [PATTERN_COLLAPSE_MS, PATTERN_STAR_MAP_INK_MS],
+        advance: [{ kind: 'gesture' }]
       },
       virtualDuration: PATTERN_TOTAL_MS
     });

@@ -37,6 +37,7 @@ export type NonHorizontalInkFieldSpec = Exclude<InkFieldSpec, { kind: 'horizonta
 
 type InkFieldFrameBase<Spec extends InkFieldSpec> = Readonly<{
   spec: Spec;
+  viewport: InkViewport;
   progress: number;
   seed: number;
   ownership: Readonly<{
@@ -217,6 +218,7 @@ export function createInkFieldFrame(
     });
     return {
       spec,
+      viewport,
       progress: clampedProgress,
       seed: contour.seed,
       contour,
@@ -240,6 +242,7 @@ export function createInkFieldFrame(
 
   return {
     spec,
+    viewport,
     progress: clampedProgress,
     seed: hashString(spec.seed),
     ownership: {

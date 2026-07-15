@@ -603,6 +603,12 @@ h1 {
   overflow: hidden;
 }
 
+.stage-proof-ownership-surface {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+}
+
 .stage-proof-retained-ground {
   position: absolute;
   inset: 0;
@@ -1729,6 +1735,10 @@ pre {
   opacity: var(--r4-figure2-video-opacity, 1);
 }
 
+.r4-figure2__video[data-figure2-inactive="true"] {
+  opacity: 0;
+}
+
 .r4-figure2__figure figcaption {
   position: absolute;
   width: 1px;
@@ -1784,6 +1794,7 @@ pre {
   .r4-figure2__figure {
     width: min(54vw, 360px);
   }
+
 }
 
 .r4-proof,
@@ -2350,19 +2361,42 @@ pre {
   --r4-services-y: 0px;
   --r4-services-paper-alpha: 1;
   --r4-services-wash-alpha: 1;
+  position: relative;
+  isolation: isolate;
   width: 100%;
   min-height: 100svh;
   padding: clamp(68px, 8.4svh, 108px) clamp(26px, 7vw, 132px);
   color: rgba(37, 39, 25, .94);
-  background:
-    radial-gradient(circle at 16% 10%, rgba(232, 213, 154, calc(var(--r4-services-wash-alpha) * .20)), transparent 32vw),
-    radial-gradient(circle at 86% 18%, rgba(61, 116, 104, calc(var(--r4-services-wash-alpha) * .10)), transparent 34vw),
-    linear-gradient(180deg, rgba(237, 228, 210, calc(var(--r4-services-paper-alpha) * .40)), rgba(237, 228, 210, 0)),
-    rgba(237, 228, 210, var(--r4-services-paper-alpha));
   color-scheme: light;
 }
 
+.r4-services::before,
+.r4-services::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.r4-services::before {
+  opacity: var(--r4-services-paper-alpha);
+  background:
+    linear-gradient(180deg, rgba(237, 228, 210, .4), rgba(237, 228, 210, 0)),
+    #ede4d2;
+}
+
+.r4-services::after {
+  opacity: var(--r4-services-wash-alpha);
+  background:
+    radial-gradient(circle at 16% 10%, rgba(232, 213, 154, .2), transparent 32vw),
+    radial-gradient(circle at 86% 18%, rgba(61, 116, 104, .1), transparent 34vw);
+}
+
 .r4-services__layout {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(280px, .86fr) minmax(0, 1.42fr);
   gap: clamp(48px, 8vw, 128px);

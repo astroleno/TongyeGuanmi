@@ -21,16 +21,10 @@
     "STAGE_PAUSED",
     "CHARGE_FIRED",
     "STAGE_RESUMED",
-    "STAGE_PAUSED",
-    "CHARGE_FIRED",
-    "STAGE_RESUMED",
     "PLAYBACK_DONE",
     "RETIRING_RELEASED",
     "CHARGE_FIRED",
     "TARGET_READY",
-    "STAGE_PAUSED",
-    "CHARGE_FIRED",
-    "STAGE_RESUMED",
     "STAGE_PAUSED",
     "CHARGE_FIRED",
     "STAGE_RESUMED",
@@ -44,7 +38,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1784105455037,
+      "at": 1784120052133,
       "event": {
         "type": "BOOT_READY"
       },
@@ -61,7 +55,7 @@
       "id": 1
     },
     {
-      "at": 1784105455054,
+      "at": 1784120052158,
       "event": {
         "type": "BOOT_READY"
       },
@@ -78,7 +72,7 @@
       "id": 2
     },
     {
-      "at": 1784105455631,
+      "at": 1784120052646,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -97,7 +91,7 @@
       "id": 3
     },
     {
-      "at": 1784105455631,
+      "at": 1784120052646,
       "event": {
         "type": "TARGET_READY",
         "scene": "pattern",
@@ -119,7 +113,7 @@
       "id": 4
     },
     {
-      "at": 1784105458344,
+      "at": 1784120055414,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-group1:1"
@@ -140,7 +134,7 @@
       "id": 5
     },
     {
-      "at": 1784105459571,
+      "at": 1784120056572,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -160,7 +154,7 @@
       "id": 6
     },
     {
-      "at": 1784105459571,
+      "at": 1784120056572,
       "event": {
         "type": "TARGET_READY",
         "scene": "star-map",
@@ -183,7 +177,7 @@
       "id": 7
     },
     {
-      "at": 1784105461374,
+      "at": 1784120058377,
       "event": {
         "type": "STAGE_PAUSED",
         "runId": "r4-g1-group1:2",
@@ -212,7 +206,7 @@
       "id": 8
     },
     {
-      "at": 1784105461401,
+      "at": 1784120058407,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -234,7 +228,7 @@
       "id": 9
     },
     {
-      "at": 1784105461401,
+      "at": 1784120058407,
       "event": {
         "type": "STAGE_RESUMED",
         "runId": "r4-g1-group1:2",
@@ -259,83 +253,7 @@
       "id": 10
     },
     {
-      "at": 1784105462106,
-      "event": {
-        "type": "STAGE_PAUSED",
-        "runId": "r4-g1-group1:2",
-        "segment": "pattern-star-map",
-        "stageIndex": 1
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:2",
-      "pausePoint": {
-        "segmentId": "pattern-star-map",
-        "stageIndex": 1
-      },
-      "cursor": {
-        "status": "segment",
-        "segment": "pattern-star-map",
-        "from": "pattern",
-        "to": "star-map"
-      },
-      "layerWindow": {
-        "current": "pattern",
-        "retiring": [],
-        "prev": "hero",
-        "next": "star-map"
-      },
-      "milestone": "stagePaused",
-      "id": 11
-    },
-    {
-      "at": 1784105462134,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": 1
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:2",
-      "cursor": {
-        "status": "segment",
-        "segment": "pattern-star-map",
-        "from": "pattern",
-        "to": "star-map"
-      },
-      "layerWindow": {
-        "current": "pattern",
-        "retiring": [],
-        "prev": "hero",
-        "next": "star-map"
-      },
-      "id": 12
-    },
-    {
-      "at": 1784105462134,
-      "event": {
-        "type": "STAGE_RESUMED",
-        "runId": "r4-g1-group1:2",
-        "segment": "pattern-star-map",
-        "stageIndex": 1
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:2",
-      "cursor": {
-        "status": "segment",
-        "segment": "pattern-star-map",
-        "from": "pattern",
-        "to": "star-map"
-      },
-      "layerWindow": {
-        "current": "pattern",
-        "retiring": [],
-        "prev": "hero",
-        "next": "star-map"
-      },
-      "milestone": "stageResumed",
-      "id": 13
-    },
-    {
-      "at": 1784105463964,
+      "at": 1784120060211,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-group1:2"
@@ -354,10 +272,10 @@
         "prev": "hero",
         "next": "star-map"
       },
-      "id": 14
+      "id": 11
     },
     {
-      "at": 1784105464394,
+      "at": 1784120060644,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -371,10 +289,10 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 15
+      "id": 12
     },
     {
-      "at": 1784105464926,
+      "at": 1784120061239,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -390,10 +308,10 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 16
+      "id": 13
     },
     {
-      "at": 1784105464935,
+      "at": 1784120061252,
       "event": {
         "type": "TARGET_READY",
         "scene": "pattern",
@@ -412,156 +330,83 @@
         "retiring": [],
         "prev": "pattern"
       },
+      "id": 14
+    },
+    {
+      "at": 1784120063067,
+      "event": {
+        "type": "STAGE_PAUSED",
+        "runId": "r4-g1-group1:3",
+        "segment": "pattern-star-map",
+        "stageIndex": 0
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "pausePoint": {
+        "segmentId": "pattern-star-map",
+        "stageIndex": 0
+      },
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "milestone": "stagePaused",
+      "id": 15
+    },
+    {
+      "at": 1784120063371,
+      "event": {
+        "type": "CHARGE_FIRED",
+        "direction": -1
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "id": 16
+    },
+    {
+      "at": 1784120063371,
+      "event": {
+        "type": "STAGE_RESUMED",
+        "runId": "r4-g1-group1:3",
+        "segment": "pattern-star-map",
+        "stageIndex": 0
+      },
+      "actorEpoch": "r4-g1-group1",
+      "activeRunId": "r4-g1-group1:3",
+      "cursor": {
+        "status": "segment",
+        "segment": "pattern-star-map",
+        "from": "pattern",
+        "to": "star-map"
+      },
+      "layerWindow": {
+        "current": "star-map",
+        "retiring": [],
+        "prev": "pattern"
+      },
+      "milestone": "stageResumed",
       "id": 17
     },
     {
-      "at": 1784105466764,
-      "event": {
-        "type": "STAGE_PAUSED",
-        "runId": "r4-g1-group1:3",
-        "segment": "pattern-star-map",
-        "stageIndex": 1
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:3",
-      "pausePoint": {
-        "segmentId": "pattern-star-map",
-        "stageIndex": 1
-      },
-      "cursor": {
-        "status": "segment",
-        "segment": "pattern-star-map",
-        "from": "pattern",
-        "to": "star-map"
-      },
-      "layerWindow": {
-        "current": "star-map",
-        "retiring": [],
-        "prev": "pattern"
-      },
-      "milestone": "stagePaused",
-      "id": 18
-    },
-    {
-      "at": 1784105467071,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": -1
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:3",
-      "cursor": {
-        "status": "segment",
-        "segment": "pattern-star-map",
-        "from": "pattern",
-        "to": "star-map"
-      },
-      "layerWindow": {
-        "current": "star-map",
-        "retiring": [],
-        "prev": "pattern"
-      },
-      "id": 19
-    },
-    {
-      "at": 1784105467071,
-      "event": {
-        "type": "STAGE_RESUMED",
-        "runId": "r4-g1-group1:3",
-        "segment": "pattern-star-map",
-        "stageIndex": 1
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:3",
-      "cursor": {
-        "status": "segment",
-        "segment": "pattern-star-map",
-        "from": "pattern",
-        "to": "star-map"
-      },
-      "layerWindow": {
-        "current": "star-map",
-        "retiring": [],
-        "prev": "pattern"
-      },
-      "milestone": "stageResumed",
-      "id": 20
-    },
-    {
-      "at": 1784105467773,
-      "event": {
-        "type": "STAGE_PAUSED",
-        "runId": "r4-g1-group1:3",
-        "segment": "pattern-star-map",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:3",
-      "pausePoint": {
-        "segmentId": "pattern-star-map",
-        "stageIndex": 0
-      },
-      "cursor": {
-        "status": "segment",
-        "segment": "pattern-star-map",
-        "from": "pattern",
-        "to": "star-map"
-      },
-      "layerWindow": {
-        "current": "star-map",
-        "retiring": [],
-        "prev": "pattern"
-      },
-      "milestone": "stagePaused",
-      "id": 21
-    },
-    {
-      "at": 1784105467793,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": -1
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:3",
-      "cursor": {
-        "status": "segment",
-        "segment": "pattern-star-map",
-        "from": "pattern",
-        "to": "star-map"
-      },
-      "layerWindow": {
-        "current": "star-map",
-        "retiring": [],
-        "prev": "pattern"
-      },
-      "id": 22
-    },
-    {
-      "at": 1784105467793,
-      "event": {
-        "type": "STAGE_RESUMED",
-        "runId": "r4-g1-group1:3",
-        "segment": "pattern-star-map",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g1-group1",
-      "activeRunId": "r4-g1-group1:3",
-      "cursor": {
-        "status": "segment",
-        "segment": "pattern-star-map",
-        "from": "pattern",
-        "to": "star-map"
-      },
-      "layerWindow": {
-        "current": "star-map",
-        "retiring": [],
-        "prev": "pattern"
-      },
-      "milestone": "stageResumed",
-      "id": 23
-    },
-    {
-      "at": 1784105469609,
+      "at": 1784120065177,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g1-group1:3"
@@ -579,7 +424,7 @@
         "retiring": [],
         "prev": "pattern"
       },
-      "id": 24
+      "id": 18
     }
   ],
   "layers": [

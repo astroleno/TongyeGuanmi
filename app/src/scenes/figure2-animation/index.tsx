@@ -15,9 +15,13 @@ const MIDDLE_IMAGE = new URL('../../../../assets/figure2-middle-building.webp', 
 const MIDDLE_MASK_IMAGE = new URL('../../../../assets/figure2-middle-window-mask.webp', import.meta.url).href;
 const LEFT_VIDEO = new URL('../../../../assets/figure2-left-motion.webm', import.meta.url).href;
 const RIGHT_VIDEO = new URL('../../../../assets/figure2-right-motion.webm', import.meta.url).href;
+const LEFT_REVERSE_VIDEO = new URL('../../../../assets/figure2-left-motion-reverse.webm', import.meta.url).href;
+const RIGHT_REVERSE_VIDEO = new URL('../../../../assets/figure2-right-motion-reverse.webm', import.meta.url).href;
 
 export const FIGURE2_LEFT_MEDIA_KEY = 'figure2-left-motion';
 export const FIGURE2_RIGHT_MEDIA_KEY = 'figure2-right-motion';
+export const FIGURE2_LEFT_REVERSE_MEDIA_KEY = 'figure2-left-motion-reverse';
+export const FIGURE2_RIGHT_REVERSE_MEDIA_KEY = 'figure2-right-motion-reverse';
 export const FIGURE2_VIDEO_END_SECONDS = 2.567;
 export const FIGURE2_INTRO_PLAYBACK_MS = 2600;
 
@@ -46,10 +50,11 @@ type Figure2RenderOptions = {
 };
 
 type Figure2MediaSide = 'left' | 'right';
+type Figure2MediaPair = readonly [HTMLVideoElement, HTMLVideoElement];
 
 type Figure2MediaManager = {
-  left: HTMLVideoElement;
-  right: HTMLVideoElement;
+  forward: Figure2MediaPair;
+  reverse: Figure2MediaPair;
   generation: number;
   activeDirection?: 1 | -1;
   activeRunId?: string;
@@ -135,9 +140,17 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function videoFor(root: HTMLElement, side: Figure2MediaSide): HTMLVideoElement | undefined {
+function videoFor(root: HTMLElement, side: Figure2MediaSide, direction: 1 | -1): HTMLVideoElement | undefined {
   return [...root.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')]
-    .find((video) => video.dataset.figure2Side === side);
+    .find((video) => video.dataset.figure2Side === side && Number(video.dataset.figure2Direction) === direction);
+}
+
+function pairFor(manager: Figure2MediaManager, direction: 1 | -1): Figure2MediaPair {
+  return direction === 1 ? manager.forward : manager.reverse;
+}
+
+function mediaProgress(direction: 1 | -1, progress: number): number {
+  return direction === 1 ? clamp(progress) : 1 - clamp(progress);
 }
 
 function managerFor(root: HTMLElement): Figure2MediaManager {
@@ -145,14 +158,14 @@ function managerFor(root: HTMLElement): Figure2MediaManager {
   if (existing) {
     return existing;
   }
-  const left = videoFor(root, 'left');
-  const right = videoFor(root, 'right');
-  if (!left || !right) {
+  const forward = [videoFor(root, 'left', 1), videoFor(root, 'right', 1)] as const;
+  const reverse = [videoFor(root, 'left', -1), videoFor(root, 'right', -1)] as const;
+  if (forward.some((video) => !video) || reverse.some((video) => !video)) {
     throw new Error('Figure2 media missing');
   }
   const manager: Figure2MediaManager = {
-    left,
-    right,
+    forward: forward as Figure2MediaPair,
+    reverse: reverse as Figure2MediaPair,
     generation: 0,
     playbackEnabled: false
   };
@@ -163,7 +176,7 @@ function managerFor(root: HTMLElement): Figure2MediaManager {
 function mediaInput(
   preparation: Figure2MediaPreparation,
   progress: number,
-  mode: TimelineVideoDriveInput['mode'] = preparation.direction === 1 ? 'native-preferred' : 'timeline'
+  mode: TimelineVideoDriveInput['mode'] = 'native-preferred'
 ): TimelineVideoDriveInput {
   return {
     runId: preparation.runId,
@@ -196,12 +209,13 @@ async function prepareFigure2Pair(
     throw new Error('Figure2 prepare aborted');
   }
   const manager = managerFor(root);
+  const pair = pairFor(manager, preparation.direction);
   const generation = ++manager.generation;
-  const input = mediaInput(preparation, progress, 'timeline');
+  const input = mediaInput(preparation, mediaProgress(preparation.direction, progress), 'timeline');
   try {
     const [left, right] = await Promise.all([
-      prepareTimelineVideoFrame(manager.left, input),
-      prepareTimelineVideoFrame(manager.right, input)
+      prepareTimelineVideoFrame(pair[0], input),
+      prepareTimelineVideoFrame(pair[1], input)
     ]);
     if (
       preparation.signal?.aborted
@@ -253,6 +267,7 @@ function commitFigure2Pair(
   startPlayback: boolean
 ): void {
   const manager = managerFor(root);
+  const pair = pairFor(manager, preparation.direction);
   const prepared = manager.prepared;
   if (
     preparation.signal?.aborted
@@ -265,11 +280,18 @@ function commitFigure2Pair(
   }
   const input = mediaInput(
     preparation,
-    progress,
+    mediaProgress(preparation.direction, progress),
     startPlayback ? undefined : 'timeline'
   );
-  manager.leftSnapshot = driveTimelineVideo(manager.left, input);
-  manager.rightSnapshot = driveTimelineVideo(manager.right, input);
+  manager.leftSnapshot = driveTimelineVideo(pair[0], input);
+  manager.rightSnapshot = driveTimelineVideo(pair[1], input);
+  for (const video of pairFor(manager, preparation.direction === 1 ? -1 : 1)) {
+    video.pause();
+    video.dataset.figure2Inactive = 'true';
+  }
+  for (const video of pair) {
+    delete video.dataset.figure2Inactive;
+  }
   manager.activeRunId = preparation.runId;
   manager.activeDirection = preparation.direction;
   manager.playbackEnabled = startPlayback;
@@ -323,9 +345,10 @@ export function driveFigure2MediaLeg(
   ) {
     return;
   }
-  const input = mediaInput(preparation, progress);
-  manager.leftSnapshot = driveTimelineVideo(manager.left, input);
-  manager.rightSnapshot = driveTimelineVideo(manager.right, input);
+  const input = mediaInput(preparation, mediaProgress(preparation.direction, progress));
+  const pair = pairFor(manager, preparation.direction);
+  manager.leftSnapshot = driveTimelineVideo(pair[0], input);
+  manager.rightSnapshot = driveTimelineVideo(pair[1], input);
 }
 
 export function parkFigure2Media(root: HTMLElement | null): void {
@@ -337,10 +360,10 @@ export function parkFigure2Media(root: HTMLElement | null): void {
     return;
   }
   manager.generation += 1;
-  manager.left.pause();
-  manager.right.pause();
-  disposeTimelineVideoDriver(manager.left);
-  disposeTimelineVideoDriver(manager.right);
+  for (const video of [...manager.forward, ...manager.reverse]) {
+    video.pause();
+    disposeTimelineVideoDriver(video);
+  }
   mediaManagers.delete(root);
   delete root.dataset.figure2MediaRun;
   delete root.dataset.figure2MediaDirection;
@@ -442,16 +465,11 @@ export function renderFigure2Hold(root: HTMLElement | null): void {
 
 function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
-  const leftVideoRef = useRef<HTMLVideoElement | null>(null);
-  const rightVideoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     const root = rootRef.current;
     const controller = new AbortController();
-    for (const video of [leftVideoRef.current, rightVideoRef.current]) {
-      if (!video) {
-        continue;
-      }
+    for (const video of root?.querySelectorAll<HTMLVideoElement>('[data-figure2-video]') ?? []) {
       video.muted = true;
       video.loop = false;
       video.playsInline = true;
@@ -478,7 +496,11 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
 
   return (
     <article ref={rootRef} className="r4-figure2" data-r4-scene="figure2-animation">
-      <div ref={(element) => registerHandle?.('stage', element)} className="r4-figure2__field">
+      <div
+        ref={(element) => registerHandle?.('stage', element)}
+        className="r4-figure2__field"
+        data-figure2-ownership-surface="true"
+      >
         <div className="r4-figure2__depth-field" data-figure2-depth-ranked-field="true">
           <div className="r4-figure2__middle-camera">
             <div className="r4-figure2__window-mask" style={{ WebkitMaskImage: `url(${MIDDLE_MASK_IMAGE})`, maskImage: `url(${MIDDLE_MASK_IMAGE})` }}>
@@ -502,17 +524,30 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
               <div className="r4-figure2__media-stack">
                 <video
                   ref={(element) => {
-                    leftVideoRef.current = element;
                     registerHandle?.('left-video', element);
                   }}
                   className="r4-figure2__video"
                   data-figure2-video
                   data-figure2-side="left"
+                  data-figure2-direction="1"
                   data-media-key={FIGURE2_LEFT_MEDIA_KEY}
                   src={LEFT_VIDEO}
                   muted
                   playsInline
                   preload="metadata"
+                  aria-hidden="true"
+                />
+                <video
+                  className="r4-figure2__video"
+                  data-figure2-video
+                  data-figure2-side="left"
+                  data-figure2-direction="-1"
+                  data-figure2-inactive="true"
+                  data-media-key={FIGURE2_LEFT_REVERSE_MEDIA_KEY}
+                  src={LEFT_REVERSE_VIDEO}
+                  muted
+                  playsInline
+                  preload="none"
                   aria-hidden="true"
                 />
               </div>
@@ -522,17 +557,30 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
               <div className="r4-figure2__media-stack">
                 <video
                   ref={(element) => {
-                    rightVideoRef.current = element;
                     registerHandle?.('right-video', element);
                   }}
                   className="r4-figure2__video"
                   data-figure2-video
                   data-figure2-side="right"
+                  data-figure2-direction="1"
                   data-media-key={FIGURE2_RIGHT_MEDIA_KEY}
                   src={RIGHT_VIDEO}
                   muted
                   playsInline
                   preload="metadata"
+                  aria-hidden="true"
+                />
+                <video
+                  className="r4-figure2__video"
+                  data-figure2-video
+                  data-figure2-side="right"
+                  data-figure2-direction="-1"
+                  data-figure2-inactive="true"
+                  data-media-key={FIGURE2_RIGHT_REVERSE_MEDIA_KEY}
+                  src={RIGHT_REVERSE_VIDEO}
+                  muted
+                  playsInline
+                  preload="none"
                   aria-hidden="true"
                 />
               </div>

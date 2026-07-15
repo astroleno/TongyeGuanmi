@@ -6,6 +6,8 @@ import {
 import { renderPatternHold } from '../../scenes/pattern';
 import { hiddenVisibility, holdVisibility, range01 } from '../../pilot/visibility';
 import {
+  HERO_PATTERN_INK_MS,
+  HERO_PATTERN_MOTION_MS,
   HERO_PATTERN_MOTION_STOP
 } from '../../story/timings';
 import { createInkSegmentTransition } from '../shared/ink';
@@ -29,6 +31,15 @@ export function renderPatternForHeroPattern(root: HTMLElement | null): void {
   renderPatternHold(root);
 }
 
+function waitForCommittedFrame(): Promise<void> {
+  if (typeof requestAnimationFrame === 'undefined') {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
+
 export function createHeroPatternTransition(options: { delayMs?: () => number } = {}): TransitionModule {
   const transition = createInkSegmentTransition({
     id: 'hero-pattern',
@@ -39,6 +50,18 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
       seed: 'hero-pattern'
     },
     fieldProgress: heroPatternInkProgress,
+    playbackPhases: [
+      { from: 0, to: HERO_PATTERN_MOTION_STOP, durationMs: HERO_PATTERN_MOTION_MS },
+      { from: HERO_PATTERN_MOTION_STOP, to: 1, durationMs: HERO_PATTERN_INK_MS }
+    ],
+    presentPhaseBoundary: async ({ roots, runId, direction, prefersReducedMotion }) => {
+      await prepareHeroPatternFrame(roots.from, 1, {
+        runId,
+        direction,
+        reducedMotion: prefersReducedMotion
+      });
+      await waitForCommittedFrame();
+    },
     prepareEndpoints: ({ from, to }) => {
       renderHeroForHeroPattern(from);
       renderPatternForHeroPattern(to);

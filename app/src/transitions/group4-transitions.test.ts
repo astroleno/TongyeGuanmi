@@ -189,11 +189,10 @@ describe('R4 group4 transitions', () => {
     expect(receiver.style.clipPath).not.toContain('inset(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('horizontal');
     expect(receiver.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v2-/);
-    expect(canvas.dataset.r4InkBoundaryRevision).toBe(receiver.dataset.r4InkBoundaryRevision);
     const forwardThreshold = Number(receiver.dataset.r4InkContourThreshold);
     timeline.progress(0.25);
     expect(Number(receiver.dataset.r4InkContourThreshold)).toBeLessThan(forwardThreshold);
-    expect(receiver.dataset.r4InkBoundaryRevision).toBe(canvas.dataset.r4InkBoundaryRevision);
+    expect(receiver.dataset.r4InkBoundaryRevision).toMatch(/^horizontal-ink-contour-v2-/);
   });
 
   it('builds reverse Figure3-to-Services directly at p=1', async () => {
@@ -269,7 +268,7 @@ describe('R4 group4 transitions', () => {
       to: { visible: true }
     });
     expect(timeline.sample?.(0.999)).toMatchObject({
-      from: { visible: true, opacity: 1 },
+      from: { visible: true, opacity: 0 },
       to: { visible: true, opacity: 1 }
     });
     expect(timeline.sample?.(1)).toMatchObject({
@@ -279,7 +278,7 @@ describe('R4 group4 transitions', () => {
   });
 
   it('matches the authored source/copy/paper channel table in forward and reverse', () => {
-    const points = [0.79, 0.8, 0.9, 0.99, 1] as const;
+    const points = [0.79, 0.8, 0.9, 0.94, 0.96, 0.98, 1] as const;
     const forward = points.map(sampleFigure3ServicesChannels);
     const reverse = [...points].reverse().map(sampleFigure3ServicesChannels);
 
@@ -287,11 +286,16 @@ describe('R4 group4 transitions', () => {
     expect(forward[1]).toMatchObject({ sourceVisibility: 1, copyProgress: 0, paperAlpha: 0 });
     expect(forward[2]!.sourceVisibility).toBe(1);
     expect(forward[2]!.copyProgress).toBeGreaterThan(forward[2]!.paperAlpha);
-    expect(forward[2]!.paperAlpha).toBeCloseTo(0.5, 6);
-    expect(forward[3]!.sourceVisibility).toBe(1);
+    expect(forward[2]!.paperAlpha).toBeCloseTo(0.68359375, 6);
     expect(forward[3]!.copyProgress).toBe(1);
-    expect(forward[3]!.paperAlpha).toBeGreaterThan(0.99);
-    expect(forward[4]).toMatchObject({ sourceVisibility: 0, copyProgress: 1, paperAlpha: 1 });
+    expect(forward[4]).toMatchObject({ mediaProgress: 1, copyProgress: 1, paperAlpha: 1 });
+    expect(forward[5]).toMatchObject({ mediaProgress: 1, sourceVisibility: 0, copyProgress: 1, paperAlpha: 1 });
+    expect(forward[6]).toMatchObject({
+      mediaProgress: forward[5]!.mediaProgress,
+      sourceVisibility: forward[5]!.sourceVisibility,
+      copyProgress: forward[5]!.copyProgress,
+      paperAlpha: forward[5]!.paperAlpha
+    });
     expect(reverse).toEqual([...forward].reverse());
   });
 
@@ -323,8 +327,8 @@ describe('R4 group4 transitions', () => {
     expect(toElement.style.getPropertyValue('--r4-services-y')).toBe('28.00px');
 
     timeline.progress(midpoint);
-    expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-services-paper-alpha'))).toBeCloseTo(0.5, 3);
-    expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-services-wash-alpha'))).toBeCloseTo(0.5, 3);
+    expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-services-paper-alpha'))).toBeCloseTo(0.6836, 3);
+    expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-services-wash-alpha'))).toBeCloseTo(0.6836, 3);
     expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-services-opacity'))).toBeGreaterThan(0.8);
     expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-services-y'))).toBeLessThan(6);
     expect(transitionContext.from.visibility.visible).toBe(true);
