@@ -24,9 +24,7 @@ export const canonicalSceneIds = [
   'aod-animation',
   'method-top',
   'figure2-animation',
-  'figure2-proof-opening',
-  'figure2-proof-cards',
-  'figure2-proof-closing',
+  'figure2-proof',
   'brand',
   'figure3-animation',
   'services',
@@ -44,10 +42,8 @@ export const canonicalSegments = [
   { id: 'star-map-aod', from: 'star-map', to: 'aod-animation' },
   { id: 'aod-method-top', from: 'aod-animation', to: 'method-top' },
   { id: 'method-bottom-figure2', from: 'method-top', to: 'figure2-animation' },
-  { id: 'figure2-distance-expand', from: 'figure2-animation', to: 'figure2-proof-opening' },
-  { id: 'figure2-proof-opening-cards', from: 'figure2-proof-opening', to: 'figure2-proof-cards' },
-  { id: 'figure2-proof-cards-closing', from: 'figure2-proof-cards', to: 'figure2-proof-closing' },
-  { id: 'figure2-proof-brand', from: 'figure2-proof-closing', to: 'brand' },
+  { id: 'figure2-distance-expand', from: 'figure2-animation', to: 'figure2-proof' },
+  { id: 'figure2-proof-brand', from: 'figure2-proof', to: 'brand' },
   { id: 'brand-figure3', from: 'brand', to: 'figure3-animation' },
   { id: 'figure3-services', from: 'figure3-animation', to: 'services' },
   { id: 'services-ttg', from: 'services', to: 'ttg-animation' },
@@ -60,9 +56,7 @@ export const canonicalSegments = [
 
 const readingSceneIds = new Set<SceneId>([
   'method-top',
-  'figure2-proof-opening',
-  'figure2-proof-cards',
-  'figure2-proof-closing',
+  'figure2-proof',
   'services',
   'lab',
   'education'
@@ -71,9 +65,7 @@ const readingSceneIds = new Set<SceneId>([
 const staticFallbackSceneIds = new Set<SceneId>([
   'hero',
   'method-top',
-  'figure2-proof-opening',
-  'figure2-proof-cards',
-  'figure2-proof-closing',
+  'figure2-proof',
   'brand',
   'services',
   'lab',
@@ -82,7 +74,12 @@ const staticFallbackSceneIds = new Set<SceneId>([
 ]);
 
 const freshInputSceneIds = new Set<SceneId>([
-  'figure2-animation'
+  'aod-animation',
+  'figure2-animation',
+  'figure3-animation',
+  'ttg-animation',
+  'ph-animation',
+  'crane-animation'
 ]);
 
 export const canonicalSpine = canonicalSceneIds.flatMap((scene, index) => {

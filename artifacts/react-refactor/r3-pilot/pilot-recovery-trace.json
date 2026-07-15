@@ -3,16 +3,16 @@
   "mode": "aod-method-top",
   "phase": "hold",
   "window": {
-    "current": "method-top",
+    "current": "aod-animation",
     "retiring": [],
-    "prev": "aod-animation"
+    "next": "method-top"
   },
   "eventLog": [
     "BOOT_READY",
     "BOOT_READY",
     "CHARGE_FIRED",
+    "RECOVERY_CANCELLED",
     "PREPARE_TIMEOUT",
-    "SEEK",
     "DUPLICATE_MEDIA_READY:duplicate",
     "STALE_MEDIA_READY:stale",
     "MEDIA_timeout:timeout",
@@ -21,7 +21,7 @@
   "mediaMilestones": [
     {
       "milestone": "timeout",
-      "key": "aod_figure-alpha-front-scrub",
+      "key": "aod-figure-motion",
       "prepareToken": "r3-pilot:prepare:1",
       "accepted": false,
       "reason": "timeout"
@@ -30,7 +30,7 @@
   "trace": [
     {
       "id": 1,
-      "at": 1783880652740,
+      "at": 1784105044437,
       "event": {
         "type": "BOOT_READY"
       },
@@ -52,7 +52,7 @@
     },
     {
       "id": 2,
-      "at": 1783880652741,
+      "at": 1784105044438,
       "event": {
         "type": "BOOT_READY"
       },
@@ -74,7 +74,7 @@
     },
     {
       "id": 3,
-      "at": 1783880653214,
+      "at": 1784105044918,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -97,11 +97,9 @@
     },
     {
       "id": 4,
-      "at": 1783880653436,
+      "at": 1784105045143,
       "event": {
-        "type": "PREPARE_TIMEOUT",
-        "segment": "aod-method-top",
-        "prepareToken": "r3-pilot:prepare:1"
+        "type": "RECOVERY_CANCELLED"
       },
       "actorEpoch": "r3-pilot",
       "activeRunId": null,
@@ -121,25 +119,25 @@
     },
     {
       "id": 5,
-      "at": 1783880653520,
+      "at": 1784105045143,
       "event": {
-        "type": "SEEK",
-        "label": "scene:method-top",
-        "source": "recovery"
+        "type": "PREPARE_TIMEOUT",
+        "segment": "aod-method-top",
+        "prepareToken": "r3-pilot:prepare:1"
       },
       "actorEpoch": "r3-pilot",
-      "activeRunId": "r3-pilot:1",
+      "activeRunId": null,
       "prepareToken": null,
       "queuedIntent": null,
       "pausePoint": null,
       "cursor": {
         "status": "hold",
-        "scene": "method-top"
+        "scene": "aod-animation"
       },
       "layerWindow": {
-        "current": "method-top",
+        "current": "aod-animation",
         "retiring": [],
-        "prev": "aod-animation"
+        "next": "method-top"
       },
       "milestone": null
     }

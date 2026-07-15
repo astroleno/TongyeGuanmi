@@ -120,9 +120,7 @@ hero
 → method-bottom-figure2 / 右侧滚到底后，下到上水平墨滴（segment id 保留历史命名）
 → figure2-animation
 → figure2-distance-expand / figure2 内部远景扩散（segment，不是 scene）
-→ figure2-proof-opening / 保留前景模糊横拱 + “我们见过太多用不上”整屏
-→ figure2-proof-cards / 保留前景模糊横拱 + 三卡
-→ figure2-proof-closing / 保留横拱 + “同野观幂做第四种...”整屏
+→ figure2-proof / 单一 reading hold + 300svh scrollport；opening/cards/closing 是三个内部 panel
 → figure2-proof-brand / 横拱和文案一起下到上水平墨滴
 → brand
 → brand-figure3 / 下到上水平墨滴
@@ -152,9 +150,7 @@ star-map
 aod-animation
 method-top
 figure2-animation
-figure2-proof-opening
-figure2-proof-cards
-figure2-proof-closing
+figure2-proof
 brand
 figure3-animation
 services
@@ -166,7 +162,7 @@ crane-animation
 contact
 ```
 
-`figure2-distance-expand` 固定为 `SegmentId`，不是 `SceneModule`。它从 `figure2-animation` 的终态推进到 `figure2-proof-opening` 的首屏状态，由 `transitions/figure2-distance-expand/` 拥有 segment harness；不得在实现期临时升格为 scene，除非先补 ADR 并更新 canonical spine。
+`figure2-distance-expand` 固定为 `SegmentId`，不是 `SceneModule`。它从 `figure2-animation` 的终态推进到 `figure2-proof` 的首屏状态。`figure2-proof-opening`、`figure2-proof-cards`、`figure2-proof-closing` 只作为 URL/hash redirect alias 与内部 panel anchor；它们不是 canonical hold，不经过 Director、SegmentPlayer 或 reading latch。
 
 旧 `main` 的粗粒度 join 到 canonical spine 的展开映射（R0.0 的正名依据，完整字段见 MIGRATION §1.2.1）：
 
@@ -175,7 +171,7 @@ contact
 | `home-belief` | `hero → pattern → star-map` | 中心扩散 + 左侧旋转扩散 |
 | `belief-method` | `star-map → aod-animation → method-top` | `copyCue.atProgress = 0.8` |
 | `method` | `method-top` 单一 reading hold（intro + 五步列表） | 右侧滚到底才交接 |
-| `method-proof-brand` | `method-top → figure2-animation → figure2-proof-opening → figure2-proof-cards → figure2-proof-closing → brand` | `method-bottom-figure2` 仅保留历史 segment id；R-1 从 DOM attribute + adapter 反推 staged/post-scroll 事实 |
+| `method-proof-brand` | `method-top → figure2-animation → figure2-proof → brand` | `method-bottom-figure2` 仅保留历史 segment id；Proof 内部三屏共用一个 scrollport |
 | `brand-services` | `brand → figure3-animation → services` | `copyCue.atProgress = 0.8` |
 | `services-lab` / `lab-education` | `services → ttg → lab`、`lab → ph → education` | 章节入口 `services-ttg` / `lab-ph` 保留水平 Ink；章节内部 `ttg-lab` / `ph-education` 使用 staged media dissolve |
 | `philosophy-contact` / crane | `education → crane-animation → contact` | `copyCue.atProgress = 0.8` |
@@ -195,14 +191,19 @@ type SpineNode =
 type SegmentPolicy =
   | { kind: 'snap'; chargeThreshold: number; interruptible?: boolean } // 默认 false；true 需要 R2/R3 明确测试
   | { kind: 'scrub'; snapAfterIdleMs: number }
-  | { kind: 'stagedSnap'; stops: number[]; playMs: number[]; postScrollVh?: number }
+  | { kind: 'stagedSnap'; stops: number[]; playMs: number[];
+      advance: StagedBoundaryAdvance[]; postScrollVh?: number }
   | { kind: 'reading'; anchor: SceneId; edgeArm?: 'bottom' | 'top' };
+
+type StagedBoundaryAdvance =
+  | { kind: 'immediate' }
+  | { kind: 'gesture' }
+  | { kind: 'delay'; ms: number };
 
 type SegmentVisual =
   | { type: 'ink'; ink: 'center-expand' | 'left-rotate-expand' | 'horizontal';
       direction?: 'bottom-to-top' | 'top-to-bottom' }
-  | { type: 'media'; media: MediaKey[]; handoff?: 'crossfade' }
-  | { type: 'internal'; milestone: string };
+  | { type: 'disappear'; media?: MediaKey[] };
 
 type CopyCue = {
   targetScene: SceneId;
@@ -213,15 +214,19 @@ type CopyCue = {
 - **虚拟时间**：每个 segment 的 `virtualDuration` 来自 manifest，spine 由此提供全局进度（HUD、进度指示、菜单定位），无需真实 timeline 常驻。
 - **label 寻址**：`spine.labelOf('scene:star-map')` / `spine.cursor`。所有导航（蓄力、菜单、hash、seek）都以 label 为单位，等价贴文的 `master.tweenTo(label)`。
 - **游标不变量**：cursor 要么停在 hold，要么在恰好一个 active segment 内。绝无两个 segment 同时活跃。
-- **reading hold / 内部滚动**：`method-top`、`lab`、`education` 各自拥有 scene-owned reading scrollport。Director 在未到边缘时把输入留给原生滚动，到达对应边缘后下一次输入才进入相邻 segment。Stage、document 与纸张背景始终固定；不得把同一连续长页拆成额外 scene handoff。
-- **stagedSnap segment**：用于需要离散 stop 的分段播放与 post-scroll 保留。`stops/playMs/postScrollVh` 必须在 manifest 明示，TransitionModule 不能私藏 stage state。R-1 必须从 `data-transition-stage-stops`、`data-transition-stage-play-ms`、adapter progress 区间和 DOM anchor 反推，不得用文档里的口头“几段”代替事实。
+- **reading hold / 内部滚动**：`method-top`、`figure2-proof`、`services`、`lab`、`education` 各自拥有 scene-owned reading scrollport。Director 在未到边缘时把输入留给原生滚动；自然到边只吸收当前手势尾流，从 transition 挂载到已知边缘则直接进入 steady，下一次清晰同向手势即可提交。
+- **stagedSnap segment**：`stops/playMs/advance` 必须在 manifest 明示且 `advance.length === stops.length`。`immediate` 直接进入下一 leg，`gesture` 进入 `staged-paused` 等待新手势，`delay` 在同一 playing run 内执行可取消定时 dwell；三者都不创建新 scene 或中间 settle。
+- **transition lifecycle**：所有相邻 canonical holds 只允许 `ink | disappear` 两类视觉转场。AOD、Figure2、Figure3、TTG、PH、Crane 全部保留 semantic hold；一个 run 可含多个自动时间阶段，但只在末端 settle 一次。settle 只提交 runtime 状态，transition endpoint 与 hold 第一帧在 DOM、文字布局、背景、样式和 reading `scrollTop` 上必须完全一致。
+- **presentation ownership**：source scene 定义 hold endpoint 与 scene-specific exit（包括视频、人物、alpha 和图层采样）；target scene 定义最终 hold DOM/layout/background 及明确声明的 entrance channels；shared Ink 只拥有 mask/canvas/contour；segment 只编排 direction、readiness、progress、reverse/abort 与 settle。
+- **禁止第三套 presentation**：transition 不得 clone source/target、复制文案、创建临时 scene root、维护第二套 layout，或在 settle 时替换 canonical root。Disappear 直接调用 source scene exit + target scene entrance；Ink 只能在两个既有 root 之间增加共享 effect surface。
 - **interruptible 默认 false**：R-1 产出 `interruptible-candidates` 清单，默认空。只有从旧站 scrub / 可往返章节事实反推出来、并在 R2/R3 有专项测试的 segment，R0 manifest 才能设 `interruptible: true`。
 
 ### 3.3 身份判定
 
 - `pattern`、`star-map`、`aod-animation`、`figure2-animation`、`figure3-animation`、`ttg-animation`、`ph-animation`、`crane-animation` 都是 `SceneModule`，因为它们有可停驻/可回放/可直达的 renderer 状态。
-- 墨滴、水平擦除、太阳点放射、80% 文案提前入场是 `TransitionModule` 的职责，不是 scene 自己的副作用。
-- `aod-method-top`、`figure3-services`、`crane-contact` 是 media segment：媒体播放由 segment 驱动，`copyCue.atProgress = 0.8` 时让目标文案层提前进入。
+- `TransitionModule` 是相邻 scene 的 runtime edge，不是第三个视觉 scene。它只组合 scene-owned hooks 与 shared effect；copy、background、media surface 和最终 layout 始终归对应 scene。
+- Ink 的共享 owner 只负责 mask/canvas、边界和 reveal visibility。Pattern collapse、Star Map/AOD/Crane 首帧等 presentation 仍由各自 scene hook 提供。
+- `aod-method-top`、`figure3-services`、`crane-contact` 是 media segment：source scene 驱动自身媒体/exit，target scene 在 `copyCue.atProgress = 0.8` 接收自己的 entrance progress；segment 只同步同一 playhead。
 
 ## 4. SegmentPlayer：按需构建，幂等销毁
 
@@ -268,38 +273,40 @@ interface SegmentPlayer {
 
 ```ts
 interface MediaPlaybackContract {
+  id: string;
   media: MediaKey[];
-  forward: 'play' | 'scrub';
-  reverse: 'reverse-media' | 'terminal-state-fallback';
+  forward: { mode: 'play' | 'scrub' | 'timeline' | 'static-fallback' | 'none';
+             required: boolean; media?: MediaKey[] };
+  reverse: { mode: 'play' | 'scrub' | 'timeline' | 'static-fallback' | 'none';
+             required: boolean; media?: MediaKey[] };
   readyMilestones: MilestoneKey[];       // loadedmetadata / canplay / textureReady 等
-  preparingTimeoutMs?: number;
-  terminalFallbackScene?: SceneId;       // reverse 或 recovery 无法倒放时的静态落点
+  preparingTimeoutMs: number;
+  terminalFallbackScene: SceneId;
 }
 ```
 
 规则：
 
-- `play(-1)` 只有在 media 支持可靠倒放或有 reverse asset 时才走真实反向；否则用 `terminal-state-fallback` 回到 from hold。
+- `play(-1)` 只有在同一 canonical media surface 能通过 timeline seek 或批准的 reverse asset 可靠呈现时才声明 required；失败回到最后已提交 scene，不制造另一个 scene completion。
 - `jumpToEnd()` 必须能落到静态终态，不要求媒体播放完整结束。视频类实现必须显式同步 renderer terminal state；能 seek 的媒体要把 `currentTime` 拉到目标终态，不能只改 CSS。
-- `copyCue` 由 SegmentPlayer 按 progress 触发，scene/renderer 不得自己在视频回调里 present 目标文案。反向跨过 cue 阈值时，目标文案退出也必须由同一条 timeline 负责，禁止 scene 自淡出。
+- `copyCue` 由 SegmentPlayer 按 progress 触发，但视觉通道由 target scene 的 entrance renderer 实现；scene 不得从独立视频回调启动第二条时间线。反向跨过阈值时调用同一 scene hook 的逆向采样。
 
-`ttg-lab` 与 `ph-education` 是两段式 media segment：第一段只由 `timeline-video-driver` 驱动媒体，第二段由 `stagedMediaHandoff` 在 600ms 内做互补 opacity dissolve。TTG/PH 的方向、seek、presented-frame readiness、双 surface 切换与 stale generation 仍归 scene media driver；handoff helper 只拥有 staged progress、两层 visibility/opacity、pause label 和临时 `data-r4-handoff-*` 生命周期。正反向都保留两次输入，不创建 Ink canvas、clip、mask、transform、blur、scale 或粒子。
+`ttg-lab` 与 `ph-education` 是保留 animation semantic hold 后的相邻 `disappear` media segment：TTG/PH scene lifecycle 驱动自己的媒体与 exit，`stagedMediaHandoff` 只协调 source exit、Lab/Education final hold surface 与 600ms 互补 opacity dissolve。媒体 terminal 与 dissolve 之间使用 `{ kind:'delay', ms:1000 }`，正反向对称；这段 dwell 不进入 `staged-paused`、不等待用户输入。Lab/Education 在第一次可见前已经位于最终 entry edge；p=.99、p=1 与 dispose/settle 后的文案位置、换行、样式、背景及 `scrollTop` 必须连续。
 
-### 4.2 stagedSnap / proof 执行语义
+### 4.2 staged boundary / compound Proof 执行语义
 
-figure2 / proof 不能再沿用旧 `method-proof-brand` 粗粒度口径直接实现。当前 `main` 的事实是：`figure2-proof-opening`、`figure2-proof-cards`、`figure2-proof-closing` 是真实 DOM anchor / 文案停驻点；`figure2-distance-expand` 是进入 proof opening 的 segment。R-1 负责把旧 `stageStops/stagePlayMs/stageHoldVh/postScrollVh` 与 adapter progress 区间反推为新 manifest，R0 只消费该事实。
+`figure2-proof` 是一个 canonical reading hold：一个 article、一个 scrollport、三个 `min-height: 100svh` panel。内部 opening/cards/closing 只改变同一个 `scrollTop`，不启动 transition run，也不派发 `CHARGE_FIRED`。`figure2-distance-expand` 只负责进入 Proof opening endpoint；`figure2-proof-brand` 从 closing/bottom 离开。
 
-对确认为 stagedSnap 的 segment，SegmentPlayer 把 `{ stops, playMs, postScrollVh }` 编译成**一条带 pause 的 timeline**，stage 状态归 timeline，不进 machine context：
+SegmentPlayer 按 `{ stops, playMs, advance }` 切分 authored time ranges，并在每个 boundary 执行对应 advance contract：
 
-- `stops[i]`（0..1 的 progress 断点）之间是一段自动播放的子转场；到达 `stops[i]` 时 timeline `addPause('stage:i')`。
-- `playMs[i]` 是第 i 段的播放时长（映射子区间的 timeScale），来自 manifest，TransitionModule 不得私设。
-- 每次蓄力满 = resume 到下一个 `stops`；反向蓄力 = `reverse()` 到上一个 `stops`。stage 间是离散的，用户不能停在两个 stop 之间。
-- `postScrollVh`（可选）：最后一个 stop 之后允许一段内部滚动缓冲（proof 三卡/整屏阅读），到达 `postScrollVh` 边缘才把 cursor 推进到下一个 hold。等价旧站 `snap-playback-post-scroll` 语义，但落在单 Stage 内。
-- `verifySegmentTimeline()` 对 stagedSnap 额外断言：`stops.length === playMs.length`、每个 `stage:i` pause 存在、末段终态把 to 层钉满（不留空白帧）。
-- 每次进入 / 离开 `stage:i` 必须发 `STAGE_PAUSED` / `STAGE_RESUMED` 事件给 Director、HUD 和测试。Director 可以保存离散的 `pausePoint: { segmentId, stageIndex }`，但仍不得保存 progress/opacity/transform。该 pausePoint 只用于 charge resume / reverse 判定和测试断言。
-- stagedSnap 是**分段单时钟**：每个 stop-to-stop 子段只有一个 GSAP progress 来源；pause 期间没有连续时间推进，下一次 resume 开启下一个子段。它不违反单一时钟原则，但必须通过 `STAGE_PAUSED/RESUMED` 暴露离散边界。
+- `playMs[i]` 只决定对应区间时长，TransitionModule 不私设第二个时钟；
+- `gesture` boundary 暴露对应 `stage:i` pause，派发 `STAGE_PAUSED`；只有新的合格手势可以 `RESUME`；
+- `delay` boundary 保持 Director 为 `playing`，timer 到期自动推进；abort/dispose/recovery 必须清理 timer；
+- `immediate` boundary 同一 tick 进入下一 leg；
+- forward/reverse 采样同一条 timeline，任一中间 stop 都不是 hold 或 settle；
+- `verifySegmentTimeline()` 只要求 gesture boundary 对应 pause label；delay/immediate 不冒充用户 pause，所有终点都不得出现 blank frame。
 
-`jumpToEnd(id, +1)` 对 stagedSnap = 直接 `progress(1)`（跳过所有 stage），recovery / seek 用；反向 `jumpToEnd(id, -1)` = `progress(0)`。
+当前 canonical 配置：Pattern 两个 boundary 均为 `gesture`；Figure2、TTG、PH 的媒体 terminal boundary 均为 `delay(1000ms)`。`jumpToEnd(id, +1/-1)` 仍直接落到 p=1/p=0，仅供 recovery / seek。
 
 ## 5. Director 状态机与输入路由
 
@@ -308,7 +315,7 @@ figure2 / proof 不能再沿用旧 `method-proof-brand` 粗粒度口径直接实
 ```txt
 booting → hold ⇄ scrubbing
              ↓ CHARGE_FIRED
-          preparing → playing → settling(420ms) → hold
+          preparing → playing ⇄ staged-paused → settling(420ms) → hold
              ↓ 资产失败/超时
           recovering → hold
           seeking（任意状态可入）→ hold
@@ -321,7 +328,7 @@ booting → hold ⇄ scrubbing
 | preparing | none | target/media 短暂等待窗口。超过 manifest 阈值才 recovery，避免慢网下蓄力后立刻跳过动画 |
 | scrubbing | **scrub**（delta 累积映射 segment progress） | 仅 scrub 章节；停手后 snap 到最近 hold（tweenTo 补完/回退） |
 | playing | **intentBuffer**（不打断 snap segment；记录方向与阈值） | SegmentPlayer.play() 中。scrub 段可 reverse，snap 段不允许中途停在转场内 |
-| staged-paused | **chargeResume** | stagedSnap 暂停在合法 stop。蓄力满 resume 下一段；反向蓄力 reverse 到上一 stop |
+| staged-paused | **chargeResume** | Pattern 的 compact/no-copy 与 compact/copy checkpoint；只接受新物理手势，同一惯性尾流不得跨站。 |
 | settling | **intentBuffer** | 落位冷却，更新 cursor、URL、层窗口；完成成员资格校验后再 flush queued intent |
 | recovering | none → 尽快回 hold | `jumpToEnd` + 静态终态。**永不因资产失败吞输入** |
 | seeking | none | §8 |

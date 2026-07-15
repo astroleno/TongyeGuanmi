@@ -100,18 +100,18 @@ describe('hero scene renderer', () => {
     expect(video.playbackRate).toBe(1);
     expect(video.playCount).toBe(0);
     expect(video.pauseCount).toBe(1);
-    expect(video.currentTime).toBeCloseTo(0.34, 2);
+    expect(video.currentTime).toBe(0);
 
     renderHeroProgress(root as unknown as HTMLElement, 1);
     renderHeroProgress(root as unknown as HTMLElement, 0);
 
     expect(video.playCount).toBe(0);
     expect(video.pauseCount).toBe(1);
-    expect(video.currentTime).toBeCloseTo(0.34, 2);
+    expect(video.currentTime).toBe(0);
 
     setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'terminal');
     expect(video.pauseCount).toBe(2);
-    expect(video.currentTime).toBeCloseTo(2.34, 2);
+    expect(video.currentTime).toBeCloseTo(0.9, 2);
 
     setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'inactive');
     expect(video.pauseCount).toBe(3);
@@ -126,7 +126,7 @@ describe('hero scene renderer', () => {
     expect(video.currentTime).toBe(0);
     expect(video.playCount).toBe(0);
     video.listeners.get('loadedmetadata')?.(new Event('loadedmetadata'));
-    expect(video.currentTime).toBeCloseTo(2.34, 2);
+    expect(video.currentTime).toBeCloseTo(0.9, 2);
     expect(video.paused).toBe(true);
   });
 
@@ -194,18 +194,18 @@ describe('hero scene renderer', () => {
 
     setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'start');
     expect(video.paused).toBe(true);
-    expect(video.currentTime).toBeCloseTo(0.34, 2);
+    expect(video.currentTime).toBe(0);
     expect(video.playCount).toBe(0);
 
     video.currentTime = 1.8;
     setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'start');
-    expect(video.currentTime).toBeCloseTo(0.34, 2);
+    expect(video.currentTime).toBe(0);
     expect(video.paused).toBe(true);
     expect(video.playCount).toBe(0);
 
     setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'terminal');
     expect(video.paused).toBe(true);
-    expect(video.currentTime).toBeCloseTo(2.34, 2);
+    expect(video.currentTime).toBeCloseTo(0.9, 2);
   });
 
   it('keeps static fallback copy aligned with R-1 baseline', () => {
@@ -226,7 +226,7 @@ describe('hero scene renderer', () => {
     expect(markup.match(/data-text-reveal-effects="stagger blur-to-clear rise-up"/g)).toHaveLength(2);
     expect(markup).toContain('preload="none"');
     expect(markup).toContain('figure1.webm');
-    expect(markup).toContain('figure-poster.jpg');
+    expect(markup).toContain('hero-figure-poster.webp');
     expect(markup).not.toContain('hero-figure-scrub');
   });
 

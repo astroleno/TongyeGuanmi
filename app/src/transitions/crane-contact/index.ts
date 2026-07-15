@@ -6,7 +6,10 @@ import {
   prepareCraneAnimationFrame,
   renderCraneAnimationProgress
 } from '../../scenes/crane-animation';
-import { renderContactProgress } from '../../scenes/contact';
+import {
+  releaseContactEntrance,
+  renderContactEntrance
+} from '../../scenes/contact';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 import type { Direction, LayerVisibilityState, SegmentTimelineHandle, TransitionContext, TransitionModule } from '../../story/types';
 
@@ -14,6 +17,7 @@ export const CRANE_CONTACT_COPY_CUE = { targetScene: 'contact', atProgress: 0.8 
 const CRANE_MOTION_END = 1;
 const CONTACT_RECEIVER_START = CRANE_CONTACT_COPY_CUE.atProgress;
 const CONTACT_RECEIVER_END = 1;
+const transitionRunByElement = new WeakMap<HTMLElement, string>();
 
 function rootFor(element: HTMLElement | null | undefined, scene: string): HTMLElement | null {
   return element?.querySelector<HTMLElement>(`[data-r4-scene="${scene}"]`) ?? element ?? null;
@@ -28,18 +32,40 @@ function sampleCraneContact(progress: number): { from: LayerVisibilityState; to:
   };
 }
 
-function writeHandoffReceiver(element: HTMLElement | null | undefined, progress: number): void {
+function renderContactSceneEntrance(
+  root: HTMLElement | null | undefined,
+  progress: number,
+  runId: string
+): void {
   const receiverProgress = range01(progress, CONTACT_RECEIVER_START, CONTACT_RECEIVER_END);
-  const paperProgress = receiverProgress;
-  element?.setAttribute('data-r4-handoff-receiver-progress', receiverProgress.toFixed(4));
-  element?.style.setProperty('--r4-handoff-paper-alpha', paperProgress.toFixed(4));
-  element?.style.setProperty('--r4-handoff-wash-alpha', paperProgress.toFixed(4));
+  renderContactEntrance(
+    rootFor(root, 'contact'),
+    progress >= CRANE_CONTACT_COPY_CUE.atProgress ? 1 : 0,
+    receiverProgress,
+    runId
+  );
 }
 
-function clearHandoffReceiver(element: HTMLElement | null | undefined): void {
-  element?.removeAttribute('data-r4-handoff-receiver-progress');
-  element?.style.removeProperty('--r4-handoff-paper-alpha');
-  element?.style.removeProperty('--r4-handoff-wash-alpha');
+function writeTransitionRun(
+  element: HTMLElement | null | undefined,
+  name: string,
+  runId: string
+): void {
+  if (!element) {
+    return;
+  }
+  transitionRunByElement.set(element, runId);
+  element.dataset.r4Transition = name;
+  element.dataset.r4TransitionRun = runId;
+}
+
+function clearTransitionRun(element: HTMLElement | null | undefined, runId: string): void {
+  if (!element || transitionRunByElement.get(element) !== runId) {
+    return;
+  }
+  transitionRunByElement.delete(element);
+  delete element.dataset.r4Transition;
+  delete element.dataset.r4TransitionRun;
 }
 
 class CraneContactTimeline implements SegmentTimelineHandle {
@@ -52,6 +78,8 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   private readonly timeline: PilotProgressTimeline;
   private readonly elevation: TransitionLayerElevation;
   private readonly toElement: HTMLElement | null | undefined;
+  private readonly fromElement: HTMLElement | null | undefined;
+  private readonly runId: string;
   private renderedProgress = 0;
   private playbackDirection: Direction;
   private nativePlayback = false;
@@ -59,6 +87,8 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   constructor(context: TransitionContext) {
     this.elevation = createTransitionLayerElevation(context.to.element);
     this.toElement = context.to.element;
+    this.fromElement = context.from.element;
+    this.runId = context.runId;
     this.renderedProgress = context.direction === 1 ? 0 : 1;
     this.playbackDirection = context.direction;
     this.timeline = new PilotProgressTimeline({
@@ -90,13 +120,9 @@ class CraneContactTimeline implements SegmentTimelineHandle {
           }
         );
         this.renderedProgress = progress;
-        renderContactProgress(
-          rootFor(context.to.element, 'contact'),
-          progress >= CRANE_CONTACT_COPY_CUE.atProgress ? 1 : 0
-        );
-        writeHandoffReceiver(context.to.element, progress);
-        context.from.element?.setAttribute('data-r4-transition', 'crane-contact-media');
-        context.to.element?.setAttribute('data-r4-transition', 'crane-contact-copy-cue');
+        renderContactSceneEntrance(context.to.element, progress, context.runId);
+        writeTransitionRun(context.from.element, 'crane-contact-media', context.runId);
+        writeTransitionRun(context.to.element, 'crane-contact-copy-cue', context.runId);
       }
     });
   }
@@ -129,11 +155,15 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   dispose(): void {
     const progress = this.timeline.snapshot.progress;
     this.elevation.restore();
-    if (progress >= 0.999) {
-      writeHandoffReceiver(this.toElement, 1);
-    } else {
-      clearHandoffReceiver(this.toElement);
+    if (progress >= 0.999 || progress <= 0.001) {
+      releaseContactEntrance(
+        rootFor(this.toElement, 'contact'),
+        this.runId,
+        progress
+      );
     }
+    clearTransitionRun(this.fromElement, this.runId);
+    clearTransitionRun(this.toElement, this.runId);
     this.timeline.dispose();
   }
 
@@ -144,6 +174,7 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   rootIdentity() {
     return this.timeline.rootIdentity();
   }
+
 }
 
 export function createCraneContactTransition(options: { delayMs?: () => number } = {}): TransitionModule {
@@ -171,8 +202,8 @@ export function createCraneContactTransition(options: { delayMs?: () => number }
           reducedMotion: true
         }
       });
-      renderContactProgress(rootFor(context.to.element, 'contact'), endpoint);
-      writeHandoffReceiver(context.to.element, endpoint);
+      renderContactSceneEntrance(context.to.element, endpoint, context.runId);
+      releaseContactEntrance(rootFor(context.to.element, 'contact'), context.runId, endpoint);
       context.from.setVisibility(context.direction === 1 ? hiddenVisibility() : holdVisibility(true));
       context.to.setVisibility(context.direction === 1 ? holdVisibility(true) : hiddenVisibility());
     },

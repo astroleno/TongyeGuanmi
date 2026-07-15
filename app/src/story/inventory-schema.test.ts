@@ -37,7 +37,8 @@ describe('R-1 inventory schema bridge', () => {
 
     expect(parseFigure2ProofSequenceMarkdown(markdown)).toEqual({
       segmentId: 'figure2-distance-expand',
-      proofScenes: ['figure2-proof-opening', 'figure2-proof-cards', 'figure2-proof-closing'],
+      proofScene: 'figure2-proof',
+      panelAnchors: ['opening', 'cards', 'closing'],
       stageStops: [0.72],
       stagePlayMs: [2600, 1500],
       postScrollVh: 56

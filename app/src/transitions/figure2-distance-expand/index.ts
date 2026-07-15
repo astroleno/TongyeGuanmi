@@ -11,6 +11,7 @@ import {
   type Figure2MediaPreparation
 } from '../../scenes/figure2-animation';
 import { renderProofOpeningHold } from '../../scenes/figure2-proof-opening';
+import { figure2ProofPanelElement } from '../../scenes/figure2-proof';
 import { applyLayerVisibility, hiddenVisibility, holdVisibility, range01, smoothStep } from '../../pilot/visibility';
 import type {
   Direction,
@@ -120,7 +121,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     reveal: FIGURE2_PROOF_REVEAL_START,
     end: 1
   };
-  readonly pauses: readonly string[] = ['stage:0'];
+  readonly pauses: readonly string[];
 
   private progressValue = 0;
   private playbackDirection: Direction;
@@ -139,6 +140,10 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   constructor(private readonly context: TransitionContext) {
     const generation = `${context.runId}:${context.prepareToken}`;
     this.inkGeneration = generation;
+    this.pauses = context.segment.policy.kind === 'stagedSnap'
+      && context.segment.policy.advance[0]?.kind === 'gesture'
+      ? ['stage:0']
+      : [];
     this.inkRendererRequired = productionInkRendererRequired(context.prefersReducedMotion);
     this.playbackDirection = context.direction;
     this.elevation = createTransitionLayerElevation(context.to.element);
@@ -185,7 +190,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     }
     this.assertInkRendererReady();
     this.inkRenderer?.prewarm(this.depthFrame(0.003, terminalTransform));
-    renderProofOpeningHold(sceneRoot(context.to.element, 'figure2-proof-opening'));
+    renderProofOpeningHold(figure2ProofPanelElement(sceneRoot(context.to.element, 'figure2-proof'), 'opening'));
     this.progress(context.direction === 1 ? 0 : 1);
   }
 
@@ -290,7 +295,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     this.elevation.elevate();
 
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
-    const toRoot = sceneRoot(this.context.to.element, 'figure2-proof-opening');
+    const toRoot = sceneRoot(this.context.to.element, 'figure2-proof');
     const figureState = renderFigure2AnimationProgress(fromRoot, intro, {
       proofProgress: 0,
       videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection),
@@ -300,7 +305,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
         reducedMotion: this.context.prefersReducedMotion
       }
     });
-    renderProofOpeningHold(toRoot);
+    renderProofOpeningHold(figure2ProofPanelElement(toRoot, 'opening'));
     const depthOwnership = inkOwnershipGateProgress(reveal);
     const binaryTables = this.depthMask?.render(depthOwnership, figureState.depthTransform)
       ?? thresholdTables(depthOwnership);
@@ -393,7 +398,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     }
     this.elevation.restore();
     clearTransitionAttrs(this.context.to.element);
-    clearTransitionAttrs(sceneRoot(this.context.to.element, 'figure2-proof-opening'));
+    clearTransitionAttrs(sceneRoot(this.context.to.element, 'figure2-proof'));
   }
 
   private depthFrame(
@@ -547,7 +552,9 @@ export function createFigure2DistanceExpandTransition(options: { delayMs?: () =>
           videoMode: 'none'
         });
       }
-      renderProofOpeningHold(sceneRoot(context.to.element, 'figure2-proof-opening'));
+      renderProofOpeningHold(
+        figure2ProofPanelElement(sceneRoot(context.to.element, 'figure2-proof'), 'opening')
+      );
       context.reportMilestone({
         key: 'timelineReady',
         segment: context.segment.id,

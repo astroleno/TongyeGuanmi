@@ -169,6 +169,6 @@ assertIncludes(revealJs, "const sections = ['method', 'services', 'education', '
 assertNoStaleTransitionIds(indexHtml, 'index.html');
 assertNoStaleTransitionIds(templateHtml, 'src/index.template.html');
 assert.doesNotMatch(canvasCss, /enterprise-scenario|education-contact/, 'canvas-stage.css must not contain stale transition selectors');
-assert.equal(packageJson.scripts['verify:section-transitions'], 'node scripts/check-section-transition-contract.mjs');
+assert.equal(packageJson.scripts['legacy:verify:section-transitions'], 'node scripts/check-section-transition-contract.mjs');
 
 console.log('Section transition contract looks good.');

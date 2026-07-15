@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fromSyntheticVisibility, isVisuallyVisible } from './visibility-predicate';
 import { BuildTimeoutError, SegmentPlayer } from './segment-player';
 import { storyManifest } from './manifest';
-import type { DirectorEvent, SegmentTimelineHandle, StoryManifest, TransitionModule } from './types';
+import type {
+  DirectorEvent,
+  SegmentTimelineHandle,
+  StagedBoundaryAdvance,
+  StoryManifest,
+  TransitionModule
+} from './types';
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -28,7 +34,8 @@ function transitionWithTimeline(timeline: SegmentTimelineHandle): TransitionModu
 function withHeroPatternStaged(
   stops: readonly number[],
   playMs: readonly number[],
-  preparingTimeoutMs?: number
+  preparingTimeoutMs?: number,
+  advance: readonly StagedBoundaryAdvance[] = stops.map(() => ({ kind: 'gesture' as const }))
 ): StoryManifest {
   const manifest = structuredClone(storyManifest);
   const nodes = [...manifest.nodes];
@@ -39,7 +46,7 @@ function withHeroPatternStaged(
   }
   nodes[index] = {
     ...segment,
-    policy: { kind: 'stagedSnap', stops, playMs },
+    policy: { kind: 'stagedSnap', stops, playMs, advance },
     virtualDuration: playMs.reduce((sum, value) => sum + value, 0),
     ...(preparingTimeoutMs !== undefined
       ? {
@@ -591,8 +598,9 @@ describe('SegmentPlayer', () => {
     expect(renderedProgress).toBe(1);
   });
 
-  it('uses the real Pattern-to-Star Map stop as a separate runtime input boundary', async () => {
+  it('pauses the real Pattern lifecycle at compact and copy checkpoints', async () => {
     vi.useFakeTimers();
+    const events: DirectorEvent[] = [];
     let renderedProgress = 0;
     const player = new SegmentPlayer({
       manifest: storyManifest,
@@ -610,24 +618,135 @@ describe('SegmentPlayer', () => {
           })
         }
       },
-      actorEpoch: 'pattern-stage'
+      actorEpoch: 'pattern-stage',
+      mailbox: { send: (event) => events.push(event) }
     });
 
     const result = player.play('pattern-star-map', 1, { runId: 'pattern-stage:1' });
     await flushMicrotasks();
     await vi.advanceTimersByTimeAsync(1800);
-
-    expect(renderedProgress).toBe(0.5);
-    expect(player.snapshot()).toMatchObject({
-      segmentId: 'pattern-star-map',
-      progress: 0.5,
-      pausedAt: 'stage:0'
-    });
-
+    expect(player.snapshot()).toMatchObject({ progress: 1800 / 4300, pausedAt: 'stage:0' });
     expect(player.resumeStaged('pattern-stage:1')).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(700);
+    expect(player.snapshot()).toMatchObject({ progress: 2500 / 4300, pausedAt: 'stage:1' });
+    expect(player.resumeStaged('pattern-stage:1')).toBe(true);
+
     await vi.advanceTimersByTimeAsync(1800);
     await expect(result).resolves.toMatchObject({ status: 'completed', direction: 1 });
     expect(renderedProgress).toBe(1);
+    expect(events.filter((event) => event.type === 'STAGE_PAUSED')).toEqual([
+      expect.objectContaining({ stageIndex: 0 }),
+      expect.objectContaining({ stageIndex: 1 })
+    ]);
+    expect(events.filter((event) => event.type === 'PLAYBACK_DONE')).toHaveLength(1);
+  });
+
+  it('automatically advances a delay boundary only after its cancellable dwell', async () => {
+    vi.useFakeTimers();
+    const events: DirectorEvent[] = [];
+    let renderedProgress = 0;
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged(
+        [0.5],
+        [40, 60],
+        undefined,
+        [{ kind: 'delay', ms: 1000 }]
+      ),
+      transitions: {
+        'hero-pattern': transitionWithTimeline({
+          play: () => Promise.resolve(),
+          progress: (value) => { renderedProgress = value; },
+          reverse: () => Promise.resolve(),
+          jumpToEnd: vi.fn(),
+          dispose: vi.fn()
+        })
+      },
+      mailbox: { send: (event) => events.push(event) },
+      actorEpoch: 'delay-boundary'
+    });
+
+    const result = player.play('hero-pattern', 1, { runId: 'delay-boundary:1' });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(40);
+    expect(renderedProgress).toBe(0.5);
+    expect(player.snapshot()?.pausedAt).toBeUndefined();
+    expect(events.some((event) => event.type === 'STAGE_PAUSED')).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(renderedProgress).toBe(0.5);
+    await vi.advanceTimersByTimeAsync(61);
+    await expect(result).resolves.toMatchObject({ status: 'completed', direction: 1 });
+    expect(renderedProgress).toBe(1);
+  });
+
+  it('applies the same cancellable boundary dwell while reversing', async () => {
+    vi.useFakeTimers();
+    const events: DirectorEvent[] = [];
+    let renderedProgress = 1;
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged(
+        [0.5],
+        [40, 60],
+        undefined,
+        [{ kind: 'delay', ms: 1000 }]
+      ),
+      transitions: {
+        'hero-pattern': transitionWithTimeline({
+          play: () => Promise.resolve(),
+          progress: (value) => { renderedProgress = value; },
+          reverse: () => Promise.resolve(),
+          jumpToEnd: vi.fn(),
+          dispose: vi.fn()
+        })
+      },
+      mailbox: { send: (event) => events.push(event) },
+      actorEpoch: 'reverse-delay-boundary'
+    });
+
+    const result = player.play('hero-pattern', -1, { runId: 'reverse-delay-boundary:1' });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(60);
+    expect(renderedProgress).toBe(0.5);
+    expect(events.some((event) => event.type === 'STAGE_PAUSED')).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(renderedProgress).toBe(0.5);
+    await vi.advanceTimersByTimeAsync(41);
+    await expect(result).resolves.toMatchObject({ status: 'completed', direction: -1 });
+    expect(renderedProgress).toBe(0);
+  });
+
+  it('clears a pending staged dwell when the run is aborted', async () => {
+    vi.useFakeTimers();
+    let renderedProgress = 0;
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternStaged(
+        [0.5],
+        [40, 60],
+        undefined,
+        [{ kind: 'delay', ms: 1000 }]
+      ),
+      transitions: {
+        'hero-pattern': transitionWithTimeline({
+          play: () => Promise.resolve(),
+          progress: (value) => { renderedProgress = value; },
+          reverse: () => Promise.resolve(),
+          jumpToEnd: vi.fn(),
+          dispose: vi.fn()
+        })
+      },
+      actorEpoch: 'delay-abort'
+    });
+
+    const result = player.play('hero-pattern', 1, { runId: 'delay-abort:1' });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(40);
+    player.abort('seek');
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await expect(result).resolves.toMatchObject({ status: 'aborted', reason: 'seek' });
+    expect(renderedProgress).toBe(0.5);
   });
 
   it('drives stagedSnap playback on animation frames when the browser scheduler is available', async () => {

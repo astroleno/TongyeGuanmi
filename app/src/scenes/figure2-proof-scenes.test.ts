@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { inventoryManifestSeed } from '../story/manifest';
 import { BRAND_COPY, brandScene, renderBrandProgress } from './brand';
 import { FIGURE2_PROOF_CARDS_COPY, figure2ProofCardsScene, renderProofCardsProgress } from './figure2-proof-cards';
 import { FIGURE2_PROOF_CLOSING_COPY, figure2ProofClosingScene, renderProofClosingProgress } from './figure2-proof-closing';
 import { FIGURE2_PROOF_OPENING_COPY, figure2ProofOpeningScene, renderProofOpeningProgress } from './figure2-proof-opening';
+import { FIGURE2_PROOF_COPY, figure2ProofScene } from './figure2-proof';
 
 const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
@@ -65,10 +68,25 @@ describe('figure2 proof and brand scene renderers', () => {
     expect(figure2ProofOpeningScene.staticFallback?.text).toEqual(FIGURE2_PROOF_OPENING_COPY);
     expect(figure2ProofCardsScene.staticFallback?.text).toEqual(FIGURE2_PROOF_CARDS_COPY);
     expect(figure2ProofClosingScene.staticFallback?.text).toEqual(FIGURE2_PROOF_CLOSING_COPY);
+    expect(figure2ProofScene.staticFallback?.text).toEqual(FIGURE2_PROOF_COPY);
     expect(brandScene.staticFallback?.text).toEqual(BRAND_COPY);
     expect(method?.normalizedText.slice(23, 23 + FIGURE2_PROOF_OPENING_COPY.length)).toEqual([...FIGURE2_PROOF_OPENING_COPY]);
     expect(method?.normalizedText.slice(26, 26 + FIGURE2_PROOF_CLOSING_COPY.length)).toEqual([...FIGURE2_PROOF_CLOSING_COPY]);
     expect(method?.normalizedText.slice(27, 27 + FIGURE2_PROOF_CARDS_COPY.length)).toEqual([...FIGURE2_PROOF_CARDS_COPY]);
     expect(brand?.normalizedText).toEqual([...BRAND_COPY]);
+  });
+
+  it('uses one explicit scene-owned scrollport with three 100svh semantic panels and no snap', () => {
+    const markup = renderToStaticMarkup(createElement(figure2ProofScene.Component, {
+      scene: 'figure2-proof',
+      hidden: false
+    }));
+
+    expect(figure2ProofScene.id).toBe('figure2-proof');
+    expect(markup.match(/data-reading-scrollport="true"/g)).toHaveLength(1);
+    expect(stylesheet).toMatch(/\.stage-layer\[data-stage-layer="figure2-proof"\]\[data-reading="true"\]\s*\{[^}]*overflow:\s*hidden/s);
+    expect(stylesheet).toMatch(/\.r4-proof-compound\s*\{[^}]*height:\s*100svh[^}]*overflow-y:\s*auto/s);
+    expect(stylesheet).toMatch(/\.r4-proof-panel\s*\{[^}]*min-height:\s*100svh/s);
+    expect(stylesheet).not.toMatch(/\.r4-proof-(?:compound|panel)\s*\{[^}]*scroll-snap/s);
   });
 });

@@ -9,6 +9,7 @@ import {
   renderTtgAnimationProgress
 } from '../../scenes/ttg-animation';
 import { INTRA_CHAPTER_DISSOLVE_MS, TTG_PLAYBACK_MS } from '../../story/timings';
+import { positionReadingAtEdge } from '../../stage/reading';
 import { createStagedMediaHandoff } from '../shared/stagedMediaHandoff';
 import type { TransitionModule } from '../../story/types';
 import { mediaPlaybackFor, requiredMilestonesFor } from '../../story/manifest';
@@ -20,37 +21,44 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
   const transition = createStagedMediaHandoff({
     id: 'ttg-lab',
     ...(options.delayMs ? { delayMs: options.delayMs } : {}),
-    prepareEndpoints: ({ to }) => renderLabHold(to),
-    prepareLeg: (root, leg, mediaRun) => {
-      if (leg.legIndex === 0) {
-        return prepareTtgPlaybackLeg(root, { ...mediaRun, signal: leg.signal });
-      }
-      if (leg.direction === -1) {
-        return prepareTtgSourceTerminal(root, { ...mediaRun, signal: leg.signal });
+    target: {
+      prepareFinalHold: (root) => {
+        renderLabHold(root);
+        positionReadingAtEdge(root, 'top');
       }
     },
-    commitLegStart: (root, leg, mediaRun) => {
-      if (leg.legIndex === 0 || leg.direction === -1) {
-        commitTtgPlaybackLeg(root, mediaRun);
-      }
-    },
-    commitLegEndpoint: (root, leg, mediaRun) => {
-      if (leg.legIndex !== 0) {
-        return;
-      }
-      if (leg.direction === -1) {
-        commitTtgForwardStart(root, mediaRun);
-      } else {
-        commitTtgTerminalFrame(root, mediaRun);
-      }
-    },
-    disposeSource: (root, progress, mediaRun) => {
-      if (mediaRun.direction === -1 && progress <= 0.001) {
-        return;
-      }
-      parkTtgMedia(root);
-    },
-    renderSource: (root, progress, mediaRun) => renderTtgAnimationProgress(root, progress, { mediaRun }),
+    source: {
+      prepareLeg: (root, leg, mediaRun) => {
+        if (leg.legIndex === 0) {
+          return prepareTtgPlaybackLeg(root, { ...mediaRun, signal: leg.signal });
+        }
+        if (leg.direction === -1) {
+          return prepareTtgSourceTerminal(root, { ...mediaRun, signal: leg.signal });
+        }
+      },
+      commitLegStart: (root, leg, mediaRun) => {
+        if (leg.legIndex === 0 || leg.direction === -1) {
+          commitTtgPlaybackLeg(root, mediaRun);
+        }
+      },
+      commitLegEndpoint: (root, leg, mediaRun) => {
+        if (leg.legIndex !== 0) {
+          return;
+        }
+        if (leg.direction === -1) {
+          commitTtgForwardStart(root, mediaRun);
+        } else {
+          commitTtgTerminalFrame(root, mediaRun);
+        }
+      },
+      dispose: (root, progress, mediaRun) => {
+        if (mediaRun.direction === -1 && progress <= 0.001) {
+          return;
+        }
+        parkTtgMedia(root);
+      },
+      renderExit: (root, progress, mediaRun) => renderTtgAnimationProgress(root, progress, { mediaRun })
+    }
   });
   return {
     ...transition,

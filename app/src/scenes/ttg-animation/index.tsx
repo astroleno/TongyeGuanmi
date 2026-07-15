@@ -97,7 +97,7 @@ function managerFor(section: HTMLElement): TtgMediaManager {
   }
   const video = section.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
   if (!video) {
-    throw new Error('TTG media unavailable');
+    throw new Error('TTG media missing');
   }
   const manager: TtgMediaManager = { video, generation: 0 };
   mediaManagers.set(section, manager);
@@ -137,7 +137,7 @@ async function prepareMedia(
   progress: number
 ): Promise<void> {
   if (mediaRun.signal?.aborted) {
-    throw new Error(`TTG frame aborted: ${mediaRun.runId}`);
+    throw new Error(`TTG aborted: ${mediaRun.runId}`);
   }
   const manager = managerFor(section);
   const generation = ++manager.generation;
@@ -178,7 +178,7 @@ function commitPreparedMedia(section: HTMLElement, mediaRun: TtgMediaRun): void 
     || prepared.direction !== mediaRun.direction
     || prepared.generation !== manager.generation
   ) {
-    throw new Error('TTG playback not ready');
+    throw new Error('TTG not ready');
   }
   const mode = mediaRun.direction === 1 && prepared.progress <= 0.001 ? 'timeline' : undefined;
   manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, prepared.progress, mode));
@@ -225,7 +225,7 @@ export async function prepareTtgAnimationFrame(
   renderTtgAnimationProgress(root, rawProgress);
   const section = ttgSection(root);
   if (!section) {
-    throw new Error('TTG scene unavailable');
+    throw new Error('TTG unavailable');
   }
   await prepareMedia(section, mediaRun, stableProgress(rawProgress));
 }
@@ -236,7 +236,7 @@ export async function prepareTtgSourceTerminal(
 ): Promise<void> {
   const section = ttgSection(root);
   if (!section) {
-    throw new Error('TTG scene unavailable');
+    throw new Error('TTG unavailable');
   }
   renderTtgAnimationProgress(section, 1);
   await prepareMedia(section, mediaRun, 1);
@@ -248,7 +248,7 @@ export async function prepareTtgPlaybackLeg(
 ): Promise<void> {
   const section = ttgSection(root);
   if (!section) {
-    throw new Error('TTG scene unavailable');
+    throw new Error('TTG unavailable');
   }
   const progress = heldProgress(section, mediaRun.direction);
   renderTtgAnimationProgress(section, progress);
@@ -261,7 +261,7 @@ export function commitTtgPlaybackLeg(
 ): void {
   const section = ttgSection(root);
   if (!section) {
-    throw new Error('TTG scene unavailable');
+    throw new Error('TTG unavailable');
   }
   commitPreparedMedia(section, mediaRun);
 }
@@ -273,7 +273,7 @@ export function commitTtgTerminalFrame(
   const section = ttgSection(root);
   const manager = section ? mediaManagers.get(section) : undefined;
   if (!section || !manager || manager.activeRunId !== mediaRun.runId) {
-    throw new Error('TTG terminal not ready');
+    throw new Error('TTG end stale');
   }
   manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, 1, 'timeline'));
 }
@@ -285,7 +285,7 @@ export function commitTtgForwardStart(
   const section = ttgSection(root);
   const manager = section ? mediaManagers.get(section) : undefined;
   if (!section || !manager || manager.activeRunId !== mediaRun.runId) {
-    throw new Error('TTG start not ready');
+    throw new Error('TTG start stale');
   }
   manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, 0, 'timeline'));
 }

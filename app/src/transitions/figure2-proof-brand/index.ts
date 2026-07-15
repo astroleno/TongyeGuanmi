@@ -1,5 +1,6 @@
 import { renderBrandHold } from '../../scenes/brand';
 import { renderProofClosingHold } from '../../scenes/figure2-proof-closing';
+import { figure2ProofPanelElement } from '../../scenes/figure2-proof';
 import { createInkSegmentTransition } from '../shared/ink';
 import type { TransitionModule } from '../../story/types';
 
@@ -18,7 +19,8 @@ export function createFigure2ProofBrandTransition(options: { delayMs?: () => num
       ].filter((element): element is HTMLElement => Boolean(element))
     }),
     prepareEndpoints: ({ from, to }) => {
-      renderProofClosingHold(from);
+      const proofRoot = from?.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]') ?? from;
+      renderProofClosingHold(figure2ProofPanelElement(proofRoot, 'closing'));
       renderBrandHold(to);
     },
     transitionAttr: 'figure2-proof-brand-live-clip'

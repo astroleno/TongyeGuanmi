@@ -4,8 +4,6 @@ import type { SceneId, SegmentId, SpineHoldNode, SpineNode, SpineSegmentNode, St
 export type R4Group3HarnessMode =
   | 'group3'
   | 'figure2-distance-expand'
-  | 'figure2-proof-opening-cards'
-  | 'figure2-proof-cards-closing'
   | 'figure2-proof-brand';
 
 function hold(scene: SceneId): SpineHoldNode {
@@ -37,23 +35,11 @@ export function createR4Group3Manifest(mode: R4Group3HarnessMode): StoryManifest
       return manifest([
         hold('figure2-animation'),
         segment('figure2-distance-expand'),
-        hold('figure2-proof-opening')
-      ]);
-    case 'figure2-proof-opening-cards':
-      return manifest([
-        hold('figure2-proof-opening'),
-        segment('figure2-proof-opening-cards'),
-        hold('figure2-proof-cards')
-      ]);
-    case 'figure2-proof-cards-closing':
-      return manifest([
-        hold('figure2-proof-cards'),
-        segment('figure2-proof-cards-closing'),
-        hold('figure2-proof-closing')
+        hold('figure2-proof')
       ]);
     case 'figure2-proof-brand':
       return manifest([
-        hold('figure2-proof-closing'),
+        hold('figure2-proof'),
         segment('figure2-proof-brand'),
         hold('brand')
       ]);
@@ -61,11 +47,7 @@ export function createR4Group3Manifest(mode: R4Group3HarnessMode): StoryManifest
       return manifest([
         hold('figure2-animation'),
         segment('figure2-distance-expand'),
-        hold('figure2-proof-opening'),
-        segment('figure2-proof-opening-cards'),
-        hold('figure2-proof-cards'),
-        segment('figure2-proof-cards-closing'),
-        hold('figure2-proof-closing'),
+        hold('figure2-proof'),
         segment('figure2-proof-brand'),
         hold('brand')
       ]);

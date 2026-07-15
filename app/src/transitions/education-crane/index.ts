@@ -1,5 +1,8 @@
 import { renderEducationHold } from '../../scenes/education';
-import { renderCraneHold } from '../../scenes/crane-animation';
+import {
+  prepareCraneAnimationFrame,
+  renderCraneHold
+} from '../../scenes/crane-animation';
 import { createInkSegmentTransition } from '../shared/ink';
 import type { TransitionModule } from '../../story/types';
 
@@ -15,6 +18,16 @@ export function createEducationCraneTransition(options: { delayMs?: () => number
     prepareEndpoints: ({ from, to }) => {
       renderEducationHold(from);
       renderCraneHold(to);
+    },
+    prepareTargetPresentation: ({ to }, context) => {
+      if (context.direction === -1 || context.prefersReducedMotion) {
+        return;
+      }
+      return prepareCraneAnimationFrame(to, 0, {
+        runId: context.runId,
+        direction: 1,
+        reducedMotion: context.prefersReducedMotion
+      });
     },
     transitionAttr: 'education-crane-bottom-ink'
   });

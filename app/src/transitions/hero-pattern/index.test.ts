@@ -4,10 +4,16 @@ import { storyManifest } from '../../story/manifest';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import {
   createHeroPatternTransition,
+  heroPatternInkProgress,
+  heroPatternMotionProgress,
   HERO_PATTERN_INK_ORIGIN,
+  HERO_PATTERN_INK_MS,
+  HERO_PATTERN_MOTION_MS,
+  HERO_PATTERN_MOTION_STOP,
   renderHeroForHeroPattern,
   renderPatternForHeroPattern
 } from './index';
+import { HERO_PATTERN_VIDEO_END_SECONDS } from '../../scenes/hero';
 import { patternCenterForViewport } from '../../scenes/pattern';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from '../__fixtures__/back-half.fixture';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
@@ -177,7 +183,7 @@ describe('hero-pattern transition', () => {
       // play/reverse call may advance Hero media.
       expect(video.playCalls).toBe(0);
       expect(video.paused).toBe(true);
-      expect(fixture.context.from.element?.style.visibility).toBe(direction === -1 ? 'hidden' : '');
+      expect(fixture.context.from.element?.style.visibility).toBe(direction === -1 ? 'hidden' : 'visible');
       timeline.dispose();
     }
   );
@@ -202,8 +208,24 @@ describe('hero-pattern transition', () => {
     video.presentFrame();
     const timeline = await build;
     expect(video.hasPendingFrame()).toBe(false);
-    expect(video.currentTime).toBeCloseTo(2.34);
+    expect(video.currentTime).toBeCloseTo(HERO_PATTERN_VIDEO_END_SECONDS);
     expect(fixture.context.from.element?.style.visibility).toBe('hidden');
+    timeline.dispose();
+  });
+
+  it('reactivates a stale hidden Hero layer before a forward replay', async () => {
+    const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
+    const canvas = new FakeCanvas();
+    const video = new FakeVideo();
+    fixture.fromRoot.connect('[data-hero-figure-video]', video);
+    if (fixture.context.from.element) {
+      fixture.context.from.element.style.visibility = 'hidden';
+    }
+    vi.stubGlobal('document', { createElement: () => canvas });
+
+    const timeline = await createHeroPatternTransition().buildTimeline(fixture.context);
+
+    expect(fixture.context.from.element?.style.visibility).toBe('visible');
     timeline.dispose();
   });
 
@@ -256,15 +278,25 @@ describe('hero-pattern transition', () => {
     expect(radialConsumers).toEqual(['hero-pattern', 'pattern-star-map']);
   });
 
-  it('uses one 2200ms snap and passes timeline verification', async () => {
+  it('finishes 900ms of Hero motion before starting the complete 1800ms Ink handoff', async () => {
     const transition = createHeroPatternTransition();
     const timeline = await transition.buildTimeline(context());
 
+    expect(HERO_PATTERN_MOTION_MS).toBe(900);
+    expect(HERO_PATTERN_INK_MS).toBe(1800);
+    expect(heroPatternMotionProgress(HERO_PATTERN_MOTION_STOP)).toBe(1);
+    expect(heroPatternMotionProgress(1)).toBe(1);
+    expect(heroPatternInkProgress(HERO_PATTERN_MOTION_STOP)).toBe(0);
+    expect(heroPatternInkProgress(1)).toBe(1);
     expect(segment()).toMatchObject({
       policy: { kind: 'snap' },
-      virtualDuration: 2200
+      virtualDuration: HERO_PATTERN_MOTION_MS + HERO_PATTERN_INK_MS
     });
     expect(verifySegmentTimeline(timeline, { policy: segment().policy })).toMatchObject({ maxVisibleLayers: 2 });
+    expect(timeline.sample?.(HERO_PATTERN_MOTION_STOP / 2)).toMatchObject({
+      from: { visible: true, opacity: 1 },
+      to: { visible: false, opacity: 0 }
+    });
     expect(timeline.sample?.(0.5)).toMatchObject({
       from: { visible: true, opacity: 1 },
       to: { visible: true, opacity: 1 }

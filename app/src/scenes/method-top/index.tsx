@@ -39,9 +39,26 @@ const METHOD_STEPS = [
   { index: METHOD_STEPS_COPY[12], title: METHOD_STEPS_COPY[13], body: METHOD_STEPS_COPY[14] }
 ] as const;
 
+function methodRoot(root: HTMLElement | null | undefined): HTMLElement | null {
+  return root?.matches('[data-r4-scene="method-top"]')
+    ? root
+    : root?.querySelector<HTMLElement>('[data-r4-scene="method-top"]') ?? null;
+}
+
+export function renderMethodTopEntrance(
+  root: HTMLElement | null | undefined,
+  progress: number
+): void {
+  const method = methodRoot(root);
+  const clamped = Math.min(1, Math.max(0, progress));
+  method?.style.setProperty('--r4-method-entrance-opacity', clamped.toFixed(4));
+  method?.setAttribute('data-method-entrance-visible', String(clamped > 0.999));
+}
+
 export function renderMethodTopHold(root: HTMLElement | null): void {
-  // Method owns a user-controlled reading scroll position; settling must preserve it.
-  void root;
+  // Method owns a user-controlled reading scroll position; settling normalizes only
+  // its declared entrance channel and never touches scrollTop.
+  renderMethodTopEntrance(root, 1);
 }
 
 function MethodScene({ copyCueActive = false, registerHandle }: SceneComponentProps) {

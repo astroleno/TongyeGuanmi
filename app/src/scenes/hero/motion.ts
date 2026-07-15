@@ -34,8 +34,37 @@ export type HeroParallaxOptions = {
   cancelFrame?: (frameId: number) => void;
 };
 
+export type HeroScrollSample = Readonly<{
+  progress: number;
+  backYVh: number;
+  backScale: number;
+  middleYVh: number;
+  middleScale: number;
+  figureYVh: number;
+  figureScale: number;
+}>;
+
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function smoothStep(value: number): number {
+  const clamped = clamp01(value);
+  return clamped * clamped * (3 - 2 * clamped);
+}
+
+export function sampleHeroScroll(progress: number, mobile = false): HeroScrollSample {
+  const clamped = clamp01(progress);
+  const figureScaleProgress = smoothStep((clamped - 0.16) / (0.92 - 0.16));
+  return {
+    progress: clamped,
+    backYVh: clamped === 0 ? 0 : -5 * clamped,
+    backScale: clamped === 1 ? 1.2 : 1.10 + 0.10 * clamped,
+    middleYVh: 1 + (mobile ? 14 : 18) * clamped,
+    middleScale: 0.98 + 0.32 * clamped,
+    figureYVh: 12 - 15 * clamped,
+    figureScale: 1 + 0.065 * figureScaleProgress
+  };
 }
 
 export function sampleHeroIntro(progress: number): HeroIntroSample {

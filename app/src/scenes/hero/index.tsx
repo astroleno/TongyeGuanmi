@@ -13,16 +13,23 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
-import { attachHeroParallax, sampleHeroIntro, startHeroIntro, type HeroIntroSample } from './motion';
+import {
+  attachHeroParallax,
+  sampleHeroIntro,
+  sampleHeroScroll,
+  startHeroIntro,
+  type HeroIntroSample
+} from './motion';
+import { HERO_PATTERN_MOTION_MS } from '../../story/timings';
 
 const HERO_BACK_IMAGE = new URL('../../../../assets/hero-back.webp', import.meta.url).href;
 const HERO_MIDDLE_IMAGE = new URL('../../../../assets/hero-middle.webp', import.meta.url).href;
 const HERO_MIDDLE_DEPTH_IMAGE = new URL('../../../../assets/middle1_depth.webp', import.meta.url).href;
 const HERO_FIGURE_VIDEO = new URL('../../../../assets/figure1.webm', import.meta.url).href;
-const HERO_FIGURE_POSTER = new URL('../../../../assets/figure-poster.jpg', import.meta.url).href;
-const HERO_VIDEO_START_SECONDS = 0.34;
-const HERO_VIDEO_END_EPSILON = 0.08;
-const HERO_VIDEO_END_SECONDS = 2.34;
+const HERO_FIGURE_POSTER = new URL('../../../../assets/hero-figure-poster.webp', import.meta.url).href;
+const HERO_VIDEO_START_SECONDS = 0;
+const HERO_VIDEO_END_EPSILON = 0.02;
+export const HERO_PATTERN_VIDEO_END_SECONDS = 0.9;
 export const HERO_RADIAL_INK_FIELD = {
   kind: 'radial' as const,
   origin: { x: 0.5, y: 0.5 },
@@ -121,7 +128,7 @@ export function setHeroVideoPlaybackState(
     return;
   }
   if (state === 'terminal') {
-    seekHeroVideo(video, HERO_VIDEO_END_SECONDS);
+    seekHeroVideo(video, HERO_PATTERN_VIDEO_END_SECONDS);
   }
 }
 
@@ -169,11 +176,11 @@ function heroPatternMediaInput(progress: number, mediaRun: HeroPatternMediaRun):
     runId: mediaRun.runId,
     direction: mediaRun.direction,
     progress,
-    durationFallbackSeconds: 5.04,
+    durationFallbackSeconds: 2.042,
     startSeconds: HERO_VIDEO_START_SECONDS,
-    endSeconds: HERO_VIDEO_END_SECONDS,
+    endSeconds: HERO_PATTERN_VIDEO_END_SECONDS,
     endEpsilonSeconds: HERO_VIDEO_END_EPSILON,
-    timelineDurationMs: 2_200,
+    timelineDurationMs: HERO_PATTERN_MOTION_MS,
     // Timeline construction renders progress(0|1) before SegmentPlayer starts
     // playback. Keep both directions seek-driven so that initial render cannot
     // turn a prepared Hero frame into native playback.
@@ -188,10 +195,17 @@ export function renderHeroPatternProgress(
   options: HeroPatternRenderOptions = {}
 ): HeroRenderState {
   const progress = Math.min(1, Math.max(0, rawProgress));
-  const eased = progress * progress * (3 - 2 * progress);
+  const mobile = (root?.clientWidth ?? 1440) < 600;
+  const scroll = sampleHeroScroll(progress, mobile);
   renderHeroProgress(root ?? null, 1);
-  root?.style.setProperty('--r4-hero-pattern-middle-progress', eased.toFixed(4));
-  root?.style.setProperty('--r4-hero-pattern-figure-progress', eased.toFixed(4));
+  root?.style.setProperty('--r4-hero-scroll-back-y', `${scroll.backYVh.toFixed(4)}svh`);
+  root?.style.setProperty('--r4-hero-scroll-back-scale', scroll.backScale.toFixed(4));
+  root?.style.setProperty('--r4-hero-scroll-middle-y', `${scroll.middleYVh.toFixed(4)}svh`);
+  root?.style.setProperty('--r4-hero-scroll-middle-scale', scroll.middleScale.toFixed(4));
+  root?.style.setProperty('--r4-hero-scroll-figure-y', `${scroll.figureYVh.toFixed(4)}svh`);
+  root?.style.setProperty('--r4-hero-scroll-figure-scale', scroll.figureScale.toFixed(4));
+  root?.style.setProperty('--r4-hero-pattern-middle-progress', progress.toFixed(4));
+  root?.style.setProperty('--r4-hero-pattern-figure-progress', progress.toFixed(4));
   const video = heroFigureVideo(root);
   if (video && options.mediaRun) {
     driveTimelineVideo(video, heroPatternMediaInput(progress, options.mediaRun));

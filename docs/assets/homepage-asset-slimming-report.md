@@ -1,17 +1,85 @@
 # 首页媒体瘦身：Batch A/B/C 资产与 R5 Pre-Visual 集成报告
 
-## R5 Pre-Visual 集成状态（2026-07-14）
+## R5 Pre-Visual 集成状态（2026-07-15）
 
 - 当前唯一阶段分支为 `codex/react-refactor-r5-parity-cutover`，状态是 **pre-visual、untagged、unqualified**。
 - Batch A generation provenance 由远端 `codex/homepage-asset-slimming-generation` 精确保存于 `3f16dd0b3f136e699cb3cbd88c1241b4875d9393`。它是独立来源链，不是 Batch B/C 的 Git 祖先，也未为制造线性历史合入 R5。
 - Batch B 以 `c273726b1a26ddfea557774d590214782ff7e74b` → `f5a497909683e8771a4e2944b5e2d8e0dfa0433d` → `be119daba32577c5a44dc100aa3bd357cacdaa1d` → `b23dd80d13bea685fd4fdd58caa49c11032ecb11` 接入 R5；Batch C 以 `767d3927119fb7e06b09939858912d5da3f4c04d` → `b62ba647cbf5402299cd0a5eef46fff152c48524` 通过非 squash merge 接入。
-- 当前 R5 的 `assets/` 与 `app/src/` 中排除测试的 production runtime 实现和 `b62ba647cbf5402299cd0a5eef46fff152c48524` 完全一致；release-control workflow、合同测试、媒体校验工具和 package scripts 不进入浏览器 runtime payload。最终合同是 **38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG**；runtime media **60,830,949 bytes**；Hero pre-scroll **1,131,048 bytes**；`dist/assets` 不得包含 PNG。
+- 当前 R5 已在 Batch B/C 基线上接入 2026-07-15 parity 修复与本轮 Hero/Flock/Crane figure 瘦身：Hero 使用 lossless RGBA poster 和裁切后的 720×1280 alpha WebM；Crane figure 由单一 RGBA authority 重采样后使用 CRF 26 canonical；Crane flock 保留 74 帧，以外部 flood-fill 修正版 WebP 替换 canonical frame 0，frames 1–73 继续来自冻结 authority，并由 runtime 持有作者末帧；同一 WebP 只在视频解码前作为 poster，不创建覆盖层。当前 source 冻结合同是 **39 files / 30 WebP / 9 WebM / 0 JPG / 0 PNG**；runtime media **47,180,901 bytes**；Hero pre-scroll **1,604,092 bytes**；最大单文件为 **4,416,794 bytes**；`dist/assets` 不得包含 PNG/JPG。
 - Batch C 的自动浏览器证据属于上述相同 runtime/assets tree，但不等于最终人工视觉验收或 release qualification。最终视觉尚未执行；当前 HEAD 没有 candidate tag，也未运行当前身份的 RSS、rollback 或 exact-tag matrix。
 - GitHub 只运行 branch/PR Node 静态门禁（`verify:all`），用于仓库健康；不运行 FFmpeg、媒体深检、Playwright、RSS、rollback 或 HITL，Actions 绿灯不是 R5 qualification 条件。
 - Candidate-v2 至 candidate-v8 均为 immutable historical/unqualified，禁止移动或复用。新 candidate 只能在最终视觉通过及 pre-freeze gate 完成后创建一次。
 - `main` 仍在 `a78b064d65f024a301a3b179c62a458a1445bbf6`，未合并、未部署；`react-refactor-r5-cutover` 未创建；R6 blocked。
 
-以下 Batch A.1、Batch B 与 Batch C 小节保留各阶段原始生成、验证、删除与恢复事实；较早阶段的 totals 不覆盖文末 Batch C 最终 totals。
+以下 Batch A.1、Batch B 与 Batch C 小节保留各阶段原始生成、验证、删除与恢复事实；其中所有历史 totals（包括文末 Batch C totals）都不覆盖上方 2026-07-15 R5 当前冻结合同。
+
+## R5 Hero / Crane flock 二次瘦身（2026-07-15）
+
+复核结论：两个 finding 均成立。旧 `figure1.webm` 是 1080×1920、5.042s、10,639,235 bytes，而 runtime 只映射作者区间 0.34–2.34s；旧 `crane-flock-motion.webm` 为了让重复的第 75 帧与第 74 个作者帧解码 RGBA 完全一致而使用 lossless VP9，达到 9,696,197 bytes，是 2,651,324-byte authority 的 3.66 倍。逐字节终点相同不是视觉或 runtime 必需条件。
+
+| 输出 | 冻结输入 | 新合同 | bytes / SHA-256 | 质量与透明度证据 |
+| --- | --- | --- | --- | --- |
+| `assets/figure1.webm` | 旧 1080×1920 文件的作者帧 8–56（含两端） | 720×1280；24fps；49 帧；2.042s；last PTS 2.000s；7 keyframes；GOP ≤ 8；runtime 0.000–2.000s | 2,019,536 / `a472e2f9f62c9cdd447fe78664020e3dad7e0ce37900bb1c4b4e7fb1db379d70` | 对裁切、缩放后的 authority：color SSIM 0.994344；alpha SSIM 0.993994；alpha 仍为 0–255。较旧文件减少 8,619,699 bytes（81.02%）。 |
+| `assets/crane-flock-motion.webm` | frame 0 使用下行修正版 WebP；frames 1–73 使用 `ac46a868e13ca286ea3a6cdfad71c5b6e0ca37b1:assets/crane-figure2-transition.webm` | 1280×720；30fps；**74 帧，无复制帧**；2.466s；last PTS 2.433s；10 keyframes；GOP ≤ 8；runtime 在 2.433s 暂停持有末帧 | 4,416,794 / `a3ac363cf7dd37940f3467a1c4e5b1b2df067d4fdc4966e99e17679a32498164` | frame 0 对 corrected WebP：color SSIM 0.999755、alpha SSIM 0.999982，两个 body witnesses=255、两个 gap witnesses=0；frames 1–73 对 authority：color SSIM 0.998872、alpha SSIM 0.994012、73/73 alpha min/max 一致。较 lossless 输出减少 5,279,403 bytes（54.45%）。 |
+| `assets/crane-flock-first-frame.webp` | 历史 `crane-figure2-first-frame.png` 静帧 | 1280×720；lossless WebP；作为 canonical frame 0 的重建输入，并在视频解码前作为 poster | 80,116 / `8c4d47ca59d21c14430c02b2d89605594463a018e28c25c7eeb8fd824f8910b4` | 从画布四边仅 flood fill neutral/background-like 连通像素；29,775 个体内像素补实、6,892 个外部像素归零；可见 RGB 0 差异；两处腿间 gap 保持透明。poster rebuild 本身只处理静帧；独立 canonical rebuild 把它写入 WebM frame 0。 |
+
+两项均由 FFmpeg 8.1 / libvpx-vp9 编码，保留 `alpha_mode=1`，禁止通过默认 VP9 decoder 丢弃 alpha。可复现核心命令如下；输入均已放入本轮仓库内 archive：
+
+```sh
+ffmpeg -c:v libvpx-vp9 -i archive/assets/homepage-media/2026-07-15/replaced/figure1-1080x1920-full-5.042s.webm \
+  -vf "trim=start_frame=8:end_frame=57,setpts=PTS-STARTPTS,scale=720:1280:flags=lanczos" \
+  -an -r 24 -frames:v 49 -c:v libvpx-vp9 -crf 27 -b:v 0 -pix_fmt yuva420p \
+  -metadata:s:v:0 alpha_mode=1 -g 8 -keyint_min 8 -row-mt 1 -tile-columns 2 \
+  -frame-parallel 1 -auto-alt-ref 0 -lag-in-frames 0 -deadline good -cpu-used 2 \
+  -map_metadata -1 assets/figure1.webm
+
+pnpm run rebuild:media:crane-flock-poster
+pnpm run rebuild:media:crane-flock
+```
+
+`pnpm run verify:media:deep` 现在同时冻结 Hero 裁切/尺寸/帧数/PTS/GOP/alpha/SSIM、Crane flock authority 与 corrected WebP identity、canonical frame 0 的 color/alpha SSIM 和 body/gap witnesses、frames 1–73 的 alpha extrema parity 与 color/alpha SSIM，以及无复制帧合同。Flock 容器的最后呈现 PTS 为 2.433s；既有 timeline driver 会按实际 2.466s 容器时长钳制 seek，暂停后持续呈现作者末帧，不再向文件追加 terminal hold。WebM 容器 UID 由两项输入 SHA 派生，重复重建输出同一 bytes/SHA。
+
+本轮还把冻结清单之外、且在 `app/`、`src/`、`scripts/`、`index.html`、`package.json` 中均无引用的 62 个 authoring/debug/legacy 文件（362,441,690 bytes）从 `assets/` 移到 `archive/assets/homepage-media/2026-07-15/legacy/assets/**`。旧 Hero、旧 lossless flock、被 frame-zero 修复替换的 4,437,203-byte flock canonical 和 74-frame flock authority 分别保存在同一 archive 的 `replaced/` 与 `sources/`；恢复规则见该目录 `README.md`。
+
+本轮同一工作树的统一验证已通过：lint、TypeScript、91 个 Vitest 文件 / 588 tests、production build、39-file source/emit media inventory、媒体深检、legacy ownership/runtime 与 `git diff --check`。最终 build 的 runtime media 为 47,180,901 bytes，`dist/assets` 总量为 47,857,760 bytes；total JS raw 为 577,089 / 581,632 bytes，仍有 4,543 bytes headroom，没有提高任何预算。默认 Chromium harness 的 46 个 runnable cases 均已验证；release 全量矩阵先得到 58 passed / 66 expected skipped / 4 failed，随后将四条旧 continuous-input 路径更新为 Pattern 两个 fresh-gesture checkpoints，并在 desktop Chromium/WebKit 与 desktop/mobile Chromium 上 4/4 复测通过。按用户要求没有重复整套矩阵，本次 frame-zero 修复也未另跑 Playwright。真实 macOS 触控板、最终视觉 HITL、immutable candidate、process RSS、rollback 与 exact-tag matrix 仍 pending，因此这些自动化结果不构成 release qualification。
+
+## R5 Crane 单源 parity 与 canonical 压缩（2026-07-15）
+
+Finding 19 的旧 canonical `assets/crane-figure-motion.webm` 将高帧率 MP4 的 RGB 与另一条 WebM 的 alpha 分开重采样后 `alphamerge`，因此只保住了 matte/端点，不能保证人物和翅膀在全轨迹逐帧对齐。本轮冻结以下只读 authority，并废止该跨源路径：
+
+| 项目 | 冻结值 |
+|---|---|
+| RGBA authority | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/assets/crane-figure1-transition.webm` |
+| authority SHA-256 / bytes | `995c0737bda965643175ac4a83aa2fa92cdcffddfa7c69a0c59b884fefabbdec` / 5,637,648 |
+| authority stream | VP9 alpha；1440×810；24fps；60 帧；2.500s |
+| canonical output | `assets/crane-figure-motion.webm` |
+| output SHA-256 / bytes | `a66a6778bda2a6c2e3fb5241a69ba4f1e4422a1638608f6cc5eba57e8f53c2b9` / 3,218,940 |
+| output stream | VP9 alpha；1440×810；30fps；75 帧；2.500s；10 keyframes；GOP ≤ 8 |
+| 工具链 | FFmpeg 8.1 / libvpx-vp9 1.16.0；`-crf 26 -b:v 0 -tune ssim` |
+| archived lossless output | `archive/assets/homepage-media/2026-07-15/replaced/crane-figure-motion-75f-lossless-single-source.webm`；13,554,565 bytes；SHA-256 `b96e527dd4a61fecca4ef26a5892dac76147ab38a66724cc36043ab9b8d681e4` |
+
+重建入口：
+
+```sh
+pnpm run rebuild:media:crane
+```
+
+`app/scripts/rebuild-crane-figure-media.mjs` 先校验 authority SHA/bytes，再以 `fps=30,setpts=N/(30*TB)` 对完整 RGBA frame 统一重采样；命令中没有第二路 RGB/matte、`alphaextract` 或 `alphamerge`。输出使用 VP9 CRF 26，并把 FFmpeg 随机生成的 WebM TrackUID 及其 tag target 归一到 authority SHA 前 8 bytes；相同冻结输入与 FFmpeg 8.1 工具链会生成上述 byte-identical SHA。与归档 lossless canonical 相比减少 10,335,625 bytes（76.25%）。
+
+`pnpm run verify:media:deep` 同时强制 libvpx alpha decode authority 与 canonical：authority 先按相同 30fps 规则形成 75 帧，随后核对 75/75 帧 PTS、duration、RGBA byte dimensions、color SSIM 与 alpha SSIM。逐帧 RGBA8 核对报告位于 `artifacts/react-refactor/r5-crane-figure-compression/`：color SSIM 0.993934、alpha SSIM 0.995633；alpha MAE 0.093/255；黑底与暖纸合成 MAE 分别为 0.577/255 和 0.544/255。0/20/40/60/80/100% 的 canonical 解码 witness 如下：
+
+| progress | frame | decoded RGBA MD5 |
+|---:|---:|---|
+| 0% | 0 | `ba246302862e2b4839e5f6b041e32ee1` |
+| 20% | 15 | `1db538d981d7345250d76a8431c9320f` |
+| 40% | 30 | `523d591b6696a560f5e7ab4f3c39fbc1` |
+| 60% | 44 | `7fcee8ab9a13abbe2cf51994ebf37d4a` |
+| 80% | 59 | `701196fe93c328e26ad125cde075c8c9` |
+| 100% | 74 | `e1055d359645ca69b4d6fe938b5bda21` |
+
+本次替换已通过 deterministic rebuild byte identity、75/75 PTS 与 duration 对齐、完整逐帧 RGBA 报告以及 `verify:media:deep`。现有 `dist/` 仍属于替换前 build，因此 emit inventory 留到下一次统一 production build 验证；本节不复用替换前的 build/Playwright 结果冒充当前 candidate 资格。
+
+下面的 Batch A.1 表格和脚本继续作为旧资产生成史保留；其中 Crane RGB/matte `alphamerge`、旧 SHA 和旧 bytes 不再是当前 R5 canonical contract。
 
 生成日期：2026-07-14
 工作分支：`codex/homepage-asset-slimming-generation`

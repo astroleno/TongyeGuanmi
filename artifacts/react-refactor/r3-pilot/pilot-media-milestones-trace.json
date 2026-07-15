@@ -18,21 +18,21 @@
   "mediaMilestones": [
     {
       "milestone": "loadedmetadata",
-      "key": "aod_figure-alpha-front-scrub",
+      "key": "aod-figure-motion",
       "prepareToken": "r3-probe:prepare:1",
       "accepted": true,
       "readyState": 4
     },
     {
       "milestone": "canplay",
-      "key": "aod_figure-alpha-front-scrub",
+      "key": "aod-figure-motion",
       "prepareToken": "r3-probe:prepare:1",
       "accepted": true,
       "readyState": 4
     },
     {
       "milestone": "ended",
-      "key": "aod_figure-alpha-front-scrub",
+      "key": "aod-figure-motion",
       "runId": "r3-probe:1",
       "accepted": true,
       "readyState": 4
@@ -41,7 +41,7 @@
   "trace": [
     {
       "id": 1,
-      "at": 1783880651657,
+      "at": 1784105043167,
       "event": {
         "type": "BOOT_READY"
       },
@@ -63,7 +63,7 @@
     },
     {
       "id": 2,
-      "at": 1783880651658,
+      "at": 1784105043168,
       "event": {
         "type": "BOOT_READY"
       },

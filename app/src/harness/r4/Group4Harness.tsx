@@ -86,7 +86,7 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
   for (let attempt = 0; attempt < 180; attempt += 1) {
     const state = String(runtime.getState().state);
-    if (state === 'hold' || state === 'staged-paused') {
+    if (state === 'hold') {
       return;
     }
     await wait(25);

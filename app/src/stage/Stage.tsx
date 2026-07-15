@@ -12,7 +12,9 @@ import type {
 import { canonicalSpine } from '../story/canonical-spine';
 import { RetainedFigure2Arch, retainedFigure2ArchState } from './RetainedFigure2Arch';
 
-const PROOF_SCENES = new Set<SceneId>(['figure2-proof-opening', 'figure2-proof-cards', 'figure2-proof-closing']);
+const PROOF_SCENES = new Set<SceneId>([
+  'figure2-proof'
+]);
 const READING_SCENES = new Set(
   canonicalSpine.flatMap((node) => node.kind === 'hold' && node.reading ? [node.scene] : [])
 );

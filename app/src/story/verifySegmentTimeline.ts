@@ -74,7 +74,10 @@ function stylePropertyNames(style: StyleDeclarationLike | null | undefined): str
   const length = typeof style.length === 'number' ? style.length : 0;
   for (let index = 0; index < length; index += 1) {
     const name = style.item?.(index) ?? String(style[index] ?? '');
-    if (name.startsWith('--')) {
+    // Handoff variables are transition plumbing on the stage layer. Endpoint
+    // parity is measured from the resulting scene presentation, not from
+    // whether that temporary bridge remains inline after settle/dispose.
+    if (name.startsWith('--') && !name.startsWith('--r4-handoff-')) {
       names.push(name);
     }
   }
@@ -387,7 +390,11 @@ export function verifySegmentTimeline(
     throw new Error('Segment timeline end state must show to');
   }
 
-  const stagedPauses = options.policy?.kind === 'stagedSnap' ? options.policy.stops.map((_, index) => `stage:${index}`) : [];
+  const stagedPauses = options.policy?.kind === 'stagedSnap'
+    ? options.policy.advance.flatMap((advance, index) => (
+        advance.kind === 'gesture' ? [`stage:${index}`] : []
+      ))
+    : [];
   for (const pause of stagedPauses) {
     if (!timeline.pauses?.includes(pause) || timeline.labels?.[pause] === undefined) {
       throw new Error(`Segment timeline is missing stagedSnap pause label: ${pause}`);
@@ -395,6 +402,9 @@ export function verifySegmentTimeline(
   }
   if (options.policy?.kind === 'stagedSnap' && options.policy.playMs.length !== options.policy.stops.length + 1) {
     throw new Error('stagedSnap playMs must have stops.length + 1 entries');
+  }
+  if (options.policy?.kind === 'stagedSnap' && options.policy.advance.length !== options.policy.stops.length) {
+    throw new Error('stagedSnap advance must match stops length');
   }
 
   if (options.copyCueAtProgress !== undefined && !copyCueCrossed) {

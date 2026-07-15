@@ -151,7 +151,15 @@ for (const footerText of [
 ]) {
   assert(text.split(footerText).length === 2, `release static footer must contain ${footerText} exactly once`);
 }
+assert(
+  (html.match(/>沪公网安备 31011502406697号<\/a>/g) ?? []).length === 1,
+  'release static footer must contain the visible public security filing exactly once'
+);
 assert(html.includes('href="https://beian.miit.gov.cn/"'), 'release filing link is missing');
+assert(
+  html.includes('href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=31011502406697"'),
+  'release public security filing link is missing'
+);
 for (const anchor of ['home', 'method', 'services', 'education', 'contact']) {
   assert(html.includes(`href="#${anchor}"`), `static navigation is missing #${anchor}`);
   assert(html.includes(`id="${anchor}"`), `static content is missing #${anchor}`);

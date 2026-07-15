@@ -1,79 +1,82 @@
 # Figure2 Proof Sequence
 
-R-1 finding: `figure2-distance-expand` is a segment, and the proof copy is one legacy DOM source that must be split into `figure2-proof-opening`, `figure2-proof-cards`, and `figure2-proof-closing` in the React runtime. The split is inferred from DOM content roles plus adapter progress/post-scroll behavior; it is not encoded as three old DOM nodes.
+R-1 established that `figure2-distance-expand` is a segment and that all Proof copy comes from one legacy `.method-proof` DOM owner. R5 freezes the resulting canonical model: one `figure2-proof` semantic hold owns a single article, a single reading scrollport, and three internal viewport panels. The former `figure2-proof-opening`, `figure2-proof-cards`, and `figure2-proof-closing` IDs survive only as URL/hash aliases and panel anchors.
 
-## Primary Evidence
+## Frozen R5 structure
+
+```txt
+figure2-animation hold
+  -> figure2-distance-expand run
+  -> figure2-proof hold / one 300svh scrollport
+       ├── #opening / min-height: 100svh
+       ├── #cards   / min-height: 100svh
+       └── #closing / min-height: 100svh
+  -> figure2-proof-brand run
+  -> brand hold
+```
+
+Internal panel scrolling never starts SegmentPlayer, never emits `CHARGE_FIRED`, and never settles an intermediate SceneId. Only the Proof top and bottom are scene boundaries. Entering from Figure2 positions opening/top; reverse entry from Brand positions closing/bottom.
+
+## Primary evidence
 
 | Evidence | Fact |
 |---|---|
-| `src/sections/method.html` | Internal transition host is `data-transition-id="method-tooling__method-proof"`, `from="method-tooling"`, `to="method-proof"`, `module="figure2"`. |
-| `src/sections/method.html` | Host declares `data-transition-stage-stops="0.72"`, `data-transition-stage-play-ms="2600,1500"`, `data-transition-stage-hold-vh="30"`, `data-transition-post-scroll-vh="56"`. |
-| `src/sections/method.html` | Proof DOM is `.homepage-scene--method-proof[data-scene-id="method-proof"][data-transition-source-only="true"]`. |
-| `index.html` | Build output preserves the same transition attrs and hidden source-only proof DOM. |
-| `js/transitions/homepage/figure2-homepage-adapter.js` | Adapter moves `.method-proof` into `.figure2-proof-scroll` overlay marked `data-transition-ghost="method-proof-bridge"`. |
-| `js/transitions/homepage/figure2-homepage-adapter.js` | Adapter computes `introProgress = range01(progress, 0, 0.72)` and `transitionProgress = range01(progress, 0.72, 1)`. |
-| `js/transitions/homepage/figure2-homepage-adapter.js` | `postProgress` is read only after `transitionProgress >= 0.998`; overlay scroll uses `--figure2-proof-scroll-y = -maxScroll() * postProgress`. |
-| `js/transitions/homepage/figure2-homepage-adapter.js` | Brand handoff adopts `.brand-definition-grid` through `createHandoffReceiver`, range `{ start: 0.58, end: 0.96, liftPx: 22 }`. |
-| `js/components/figure2-transition.js` | `renderStaticState({ introProgress, transitionProgress })` writes camera/ink state from the two progress streams. |
+| `src/sections/method.html` | The old transition host is `method-tooling__method-proof`; Proof copy has one `.method-proof` DOM owner. |
+| `src/sections/method.html` | The host records `stageStops="0.72"`, `stagePlayMs="2600,1500"`, `stageHoldVh="30"`, and `postScrollVh="56"`. |
+| `js/transitions/homepage/figure2-homepage-adapter.js` | Legacy code moved the same Proof DOM into an overlay and derived intro/transition/post-scroll progress. |
+| `js/components/figure2-transition.js` | Figure2 camera/media presentation is progress-driven and can remain owned by `figure2-animation`. |
+| R5 D2 | Three old Proof IDs are redirect aliases/internal anchors, not canonical holds. |
+| R5 D3 | The segment may coordinate the existing Figure2 and Proof roots plus shared mask/canvas, but may not create a Proof clone or temporary scene root. |
 
-## Legacy DOM Copy Roles
+## Copy and anchor mapping
 
-| DOM source | Canonical scene | Text role | Evidence |
+| Legacy copy source | Canonical owner | Internal anchor | Role |
 |---|---|---|---|
-| `.method-proof__lead .section-index` | `figure2-proof-opening` support copy | "用不上，不算落地" | Same lead block as opening heading |
-| `.method-proof__lead h2.method-proof__closing` | `figure2-proof-opening` main copy | "我们见过太多" / "“用不上”。" | Canonical opening full-screen copy |
-| `.method-proof__list .method-proof__row` | `figure2-proof-cards` | "只培训" / "只上软件" / "只交方案" with explanations | Three list items in a single ordered list |
-| `.method-proof__lead p` | `figure2-proof-closing` | "同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。" | Closing statement is in the lead DOM but should become its own canonical proof closing scene |
-| `.brand-definition-grid` | `brand` during `figure2-proof-brand` | Brand definition copy | Adopted by handoff receiver from native `#brand` section |
+| `.method-proof__lead .section-index` + heading | `figure2-proof` | `opening` | Opening viewport |
+| `.method-proof__list .method-proof__row` | `figure2-proof` | `cards` | Three proof cards |
+| `.method-proof__lead p` | `figure2-proof` | `closing` | Closing viewport |
+| `.brand-definition-grid` | `brand` | n/a | Target scene of `figure2-proof-brand` |
 
-## Segment And Stage Ownership
-
-| Canonical id | Kind | Owner | Legacy evidence | R0/R4 implementation note |
-|---|---|---|---|---|
-| `method-bottom-figure2` | SegmentId | TransitionModule | Legacy host starts at `from="method-tooling"` and uses figure2 module | Carries method-bottom hold into figure2 renderer. |
-| `figure2-animation` | SceneId | SceneModule | Figure2 adapter media/camera assets and `introProgress` range `0..0.72` | Renderer state must be directly seekable and idempotent. |
-| `figure2-distance-expand` | SegmentId | TransitionModule | Adapter `transitionProgress = range01(progress, 0.72, 1)` and Figure2 ink/camera transition | Not a scene; owns distance/ink expansion from `figure2-animation` terminal state into proof-paper state. |
-| `figure2-proof-opening` | SceneId | SceneModule | `.method-proof__lead h2` and section index | First proof hold; no separate old DOM anchor. |
-| `figure2-proof-cards` | SceneId | SceneModule | `.method-proof__list` with three rows | Cards hold; split from same source overlay. |
-| `figure2-proof-closing` | SceneId | SceneModule | `.method-proof__lead p` plus overlay post-scroll | Closing hold; split from same source overlay. |
-| `figure2-proof-brand` | SegmentId | TransitionModule | `handoffTarget="#brand"`, `handoffPhase="post-scroll"`, receiver `.brand-definition-grid` | Owns transition to `brand` and restores native brand DOM. |
-| `brand` | SceneId | SceneModule | `src/sections/brand.html`, build `#brand` | Native copy source, not painted into Figure2 texture. |
-
-## Progress Reconstruction
-
-Legacy host progress is a single playhead in `homepage-transition-runtime.js`.
+Alias resolution is one-way:
 
 ```txt
-0.00 -> 0.72  introProgress        figure2 video/camera intro
-0.72 -> 1.00  transitionProgress   ink/distance expansion into paper/proof overlay
-1.00 + postScrollVh=56             proof overlay post-scroll and brand handoff progress
+#figure2-proof-opening -> scene=figure2-proof, panel=opening
+#figure2-proof-cards   -> scene=figure2-proof, panel=cards
+#figure2-proof-closing -> scene=figure2-proof, panel=closing
 ```
 
-Runtime parameters:
+Navigation, history, HUD, analytics, Director cursor, and SegmentPlayer use only `figure2-proof`. The aliases must not reappear in the canonical spine or manifest nodes.
 
-| Parameter | Legacy value | Source | Canonical use |
-|---|---:|---|---|
-| `stageStops` | `[0.72]` | `data-transition-stage-stops` | staged snap stop after figure2 intro |
-| `stagePlayMs` | `[2600, 1500]` | `data-transition-stage-play-ms` | first and second autoplay durations |
-| `stageHoldVh` | `30` | `data-transition-stage-hold-vh` | viewport hold before continuing second stage |
-| `postScrollVh` | `56` | `data-transition-post-scroll-vh` | proof copy post-scroll before brand handoff completes |
-| `transitionRevealProgress` | `smoothStep(range01(transitionProgress, 0.10, 0.94))` | figure2 homepage adapter | reveals the proof overlay during second stage |
-| `handoffFade` | `1 - smoothStep(range01(handoffProgress, 0.58, 0.90))` | figure2 homepage adapter | fades proof overlay during brand handoff |
-| `brandReceiver` | `{ start: 0.58, end: 0.96, liftPx: 22 }` | figure2 homepage adapter | adopts/restores `.brand-definition-grid` |
+## Ownership
 
-## Inference Boundaries
+| ID | Kind | Visual owner |
+|---|---|---|
+| `method-bottom-figure2` | SegmentId | Coordinates Method exit and the canonical Figure2 root; no copied Method layout. |
+| `figure2-animation` | SceneId | Owns Figure2 media, camera, depth transform, and hold/exit sampling. |
+| `figure2-distance-expand` | SegmentId | Coordinates Figure2 exit, shared depth mask/canvas, and the existing Proof opening surface. It owns no Proof copy or layout. |
+| `figure2-proof` | SceneId | Owns the warm paper, all Proof copy, one scrollport, and all three panels. |
+| `figure2-proof-brand` | SegmentId | Coordinates the existing Proof closing and Brand roots through shared Ink. |
+| `brand` | SceneId | Owns Brand copy, layout, and hold surface. |
 
-Confirmed facts:
+## Progress interpretation
 
-- `figure2-distance-expand` is backed by adapter `transitionProgress`, not by a legacy section or hash.
-- The proof copy has one old DOM owner: `.method-proof`.
-- The brand copy has one old DOM owner: `.brand-definition-grid`; Figure2 does not paint brand text into canvas.
-- Legacy stage facts are `[0.72]`, `[2600,1500]`, `30vh`, and `56vh`.
+Legacy timing remains evidence for the authored Figure2 run, not for extra Proof scenes:
 
-Inferences requiring HITL confirmation before R0:
+```txt
+0.00 -> 0.72  Figure2 scene-owned intro/media exit
+boundary         hold terminal presented frame for 1000ms (same playing run)
+0.72 -> 1.00  shared depth/Ink reveal into Proof opening
+settle          state commit only; Proof opening does not change visually
+hold            native scrollTop moves through opening/cards/closing
+```
 
-- `figure2-proof-opening` should use the section index plus h2 opening copy.
-- `figure2-proof-cards` should use the three list rows.
-- `figure2-proof-closing` should split the lead paragraph into its own full-screen hold even though it is in the same old `.method-proof__lead` block.
-- No fourth old proof stage exists; any R0 staged policy must be newly modeled from the above facts.
+`stageStops=[0.72]`、`stagePlayMs=[2600,1500]` 与 `advance=[{kind:'delay',ms:1000}]` 定义同一 run 的两段 authored time 和一个自动 terminal dwell。它不创建 `stagePaused`、第三个 scene 或用户输入 checkpoint。`stageHoldVh` 与 `postScrollVh` 只保留为 legacy evidence；R5 Proof panels 使用 canonical reading scrollport。
 
+## Acceptance invariants
+
+- The canonical spine contains exactly one `figure2-proof` hold.
+- The Proof article contains exactly one reading scrollport and three `min-height: 100svh` panels.
+- Panel-to-panel movement changes only that scrollport's `scrollTop`.
+- `figure2-distance-expand` and `figure2-proof-brand` preserve the same canonical roots forward and reverse.
+- Shared Ink/depth code may allocate only its effect canvas/mask; it may not clone copy, append a temporary Proof root, or replace the root at settle.
+- `p=1`, timeline disposal, and the settled Proof hold have the same opening layout and paper presentation.

@@ -6,11 +6,16 @@ import { parseInventoryManifestSeed, type InventoryManifestSeed } from './invent
 import {
   CRANE_CONTACT_DURATION_MS,
   FIGURE3_SERVICES_DURATION_MS,
+  HERO_PATTERN_TOTAL_MS,
   INTRA_CHAPTER_DISSOLVE_MS,
   PATTERN_COLLAPSE_MS,
   PATTERN_COLLAPSE_STOP,
+  PATTERN_COPY_REVEAL_MS,
+  PATTERN_COPY_STOP,
   PATTERN_STAR_MAP_INK_MS,
+  PATTERN_TOTAL_MS,
   PH_PLAYBACK_MS,
+  TERMINAL_DWELL_MS,
   TTG_PLAYBACK_MS
 } from './timings';
 import type {
@@ -20,6 +25,7 @@ import type {
   SegmentId,
   SegmentPolicy,
   SegmentVisual,
+  StagedBoundaryAdvance,
   SpineHoldNode,
   SpineNode,
   SpineSegmentNode,
@@ -76,6 +82,7 @@ function snapPolicy(segment: SegmentId): SegmentPolicy {
 function stagedPolicy(
   stageStops: readonly number[] | undefined,
   stagePlayMs: readonly number[] | undefined,
+  advance: readonly StagedBoundaryAdvance[],
   postScrollVh?: number
 ): SegmentPolicy {
   if (!stageStops || !stagePlayMs) {
@@ -85,6 +92,7 @@ function stagedPolicy(
     kind: 'stagedSnap',
     stops: stageStops,
     playMs: stagePlayMs,
+    advance,
     ...(postScrollVh !== undefined ? { postScrollVh } : {})
   };
 }
@@ -121,25 +129,17 @@ function visualFor(segment: SegmentId): SegmentVisual | undefined {
     case 'lab-ph':
       return { type: 'ink', ink: 'horizontal', direction: 'top-to-bottom' };
     case 'ttg-lab':
-      return {
-        type: 'media',
-        media: ['ttg-figure-motion'],
-        handoff: 'crossfade'
-      };
+      return { type: 'disappear', media: ['ttg-figure-motion'] };
     case 'ph-education':
-      return {
-        type: 'media',
-        media: ['ph-figure-motion'],
-        handoff: 'crossfade'
-      };
+      return { type: 'disappear', media: ['ph-figure-motion'] };
     case 'aod-method-top':
-      return { type: 'media', media: ['aod-figure-motion'] };
+      return { type: 'disappear', media: ['aod-figure-motion'] };
     case 'figure2-distance-expand':
-      return { type: 'internal', milestone: 'figure2-distance-expand' };
+      return { type: 'disappear', media: ['figure2-left-motion', 'figure2-right-motion'] };
     case 'figure3-services':
-      return { type: 'media', media: ['figure3-motion'] };
+      return { type: 'disappear', media: ['figure3-motion'] };
     case 'crane-contact':
-      return { type: 'media', media: ['crane-figure-motion', 'crane-flock-motion'] };
+      return { type: 'disappear', media: ['crane-figure-motion', 'crane-flock-motion'] };
     case 'figure2-proof-opening-cards':
     case 'figure2-proof-cards-closing':
       return undefined;
@@ -163,6 +163,7 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
         policy: stagedPolicy(
           seedByLegacy.figure2.stageStops,
           seedByLegacy.figure2.stagePlayMs,
+          [{ kind: 'delay', ms: TERMINAL_DWELL_MS }],
           seedByLegacy.figure2.postScrollVh
         ),
         virtualDuration: durationFromStages(seedByLegacy.figure2.stagePlayMs)
@@ -186,7 +187,8 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
       return {
         policy: stagedPolicy(
           [leadingStageStop(TTG_PLAYBACK_MS, INTRA_CHAPTER_DISSOLVE_MS)],
-          [TTG_PLAYBACK_MS, INTRA_CHAPTER_DISSOLVE_MS]
+          [TTG_PLAYBACK_MS, INTRA_CHAPTER_DISSOLVE_MS],
+          [{ kind: 'delay', ms: TERMINAL_DWELL_MS }]
         ),
         virtualDuration: TTG_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS
       };
@@ -194,7 +196,8 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
       return {
         policy: stagedPolicy(
           [leadingStageStop(PH_PLAYBACK_MS, INTRA_CHAPTER_DISSOLVE_MS)],
-          [PH_PLAYBACK_MS, INTRA_CHAPTER_DISSOLVE_MS]
+          [PH_PLAYBACK_MS, INTRA_CHAPTER_DISSOLVE_MS],
+          [{ kind: 'delay', ms: TERMINAL_DWELL_MS }]
         ),
         virtualDuration: PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS
       };
@@ -206,15 +209,16 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
     case 'hero-pattern':
       return {
         policy: snapPolicy(segment),
-        virtualDuration: 2200
+        virtualDuration: HERO_PATTERN_TOTAL_MS
       };
     case 'pattern-star-map':
       return {
         policy: stagedPolicy(
-          [PATTERN_COLLAPSE_STOP],
-          [PATTERN_COLLAPSE_MS, PATTERN_STAR_MAP_INK_MS]
+          [PATTERN_COLLAPSE_STOP, PATTERN_COPY_STOP],
+          [PATTERN_COLLAPSE_MS, PATTERN_COPY_REVEAL_MS, PATTERN_STAR_MAP_INK_MS],
+          [{ kind: 'gesture' }, { kind: 'gesture' }]
         ),
-        virtualDuration: PATTERN_COLLAPSE_MS + PATTERN_STAR_MAP_INK_MS
+        virtualDuration: PATTERN_TOTAL_MS
       };
     case 'star-map-aod':
     case 'figure2-proof-brand':
@@ -283,7 +287,7 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           ['aod-figure-motion'],
           'method-top',
           {
-            forwardMode: 'play',
+            forwardMode: 'timeline',
             reverseMode: 'timeline',
             reverseRequired: true
           }
@@ -310,7 +314,7 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
             'figure2-left-motion',
             'figure2-right-motion'
           ],
-          'figure2-proof-opening',
+          'figure2-proof',
           {
             forwardMode: 'play',
             reverseMode: 'timeline',
@@ -480,8 +484,8 @@ export function validateStoryManifest(
       }
     }
 
-    if (segment.visual?.type === 'media' && !segment.mediaPlayback?.length) {
-      throw new Error(`segment ${segment.id} media visual requires mediaPlayback seed`);
+    if (segment.visual?.type === 'disappear' && segment.visual.media?.length && !segment.mediaPlayback?.length) {
+      throw new Error(`segment ${segment.id} disappear media requires mediaPlayback seed`);
     }
 
     const requiresMedia = segment.mediaPlayback?.some(
@@ -525,14 +529,26 @@ export function validateStoryManifest(
 
     if (segment.policy.kind === 'stagedSnap') {
       const stops = segment.policy.stops;
-      const sorted = [...stops].sort((left, right) => left - right);
       const allInsideRange = stops.every((stop) => stop > 0 && stop < 1);
-      const strictlySorted = stops.every((stop, stopIndex) => stop === sorted[stopIndex]);
-      if (!allInsideRange || !strictlySorted) {
-        throw new Error(`segment ${segment.id} stagedSnap stops must be sorted and inside 0..1`);
+      const strictlyIncreasing = stops.every((stop, stopIndex) =>
+        stopIndex === 0 || stop > (stops[stopIndex - 1] ?? 0)
+      );
+      if (!allInsideRange || !strictlyIncreasing) {
+        throw new Error(`segment ${segment.id} stagedSnap stops must be strictly increasing and inside 0..1`);
       }
       if (segment.policy.playMs.length !== stops.length + 1) {
         throw new Error(`segment ${segment.id} stagedSnap playMs must have stops.length + 1 entries`);
+      }
+      if (segment.policy.advance.length !== stops.length) {
+        throw new Error(`segment ${segment.id} stagedSnap advance must match stops length`);
+      }
+      for (const boundary of segment.policy.advance) {
+        if (!['immediate', 'gesture', 'delay'].includes(boundary.kind)) {
+          throw new Error(`segment ${segment.id} stagedSnap advance has unknown kind`);
+        }
+        if (boundary.kind === 'delay' && (!Number.isFinite(boundary.ms) || boundary.ms < 0)) {
+          throw new Error(`segment ${segment.id} stagedSnap delay must be non-negative`);
+        }
       }
     }
 

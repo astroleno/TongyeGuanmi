@@ -10,6 +10,8 @@ import {
   createPatternStarMapTransition,
   PATTERN_COLLAPSE_MS,
   PATTERN_COLLAPSE_STOP,
+  PATTERN_COPY_REVEAL_MS,
+  PATTERN_COPY_STOP,
   PATTERN_STAR_MAP_INK_MS
 } from './index';
 import { createBackHalfDomContext, FakeCanvas } from '../__fixtures__/back-half.fixture';
@@ -55,7 +57,8 @@ describe('pattern-star-map transition', () => {
     expect(transitionSource).not.toContain('pauseStarMapTransitionMotion');
     expect(markup.match(/data-pattern-rotor=/g)).toBeNull();
     expect(markup.match(/data-pattern-canvas/g)).toHaveLength(1);
-    expect(transitionSource).toContain('rotationProgress: mapped');
+    expect(transitionSource).toContain('copyProgress: copyProgress(progress)');
+    expect(transitionSource).toContain('rotationProgress: collapseProgress(progress)');
     expect(transitionSource).not.toContain('freezeMotion');
   });
 
@@ -75,9 +78,9 @@ describe('pattern-star-map transition', () => {
 
     timeline.progress(PATTERN_COLLAPSE_STOP);
 
-    expect(PATTERN_COLLAPSE_STOP).toBe(0.5);
-    expect(timeline.pauses).toEqual(['stage:0']);
+    expect(timeline.pauses).toEqual(['stage:0', 'stage:1']);
     expect(setup.fromRoot.dataset.patternProgress).toBe('1.0000');
+    expect(setup.fromRoot.style.getPropertyValue('--r4-pattern-copy-opacity')).toBe('0.0000');
     expect(setup.fromLayer.visibility.visible).toBe(true);
     expect(setup.toLayer.visibility.visible).toBe(false);
     expect(setup.canvas.dataset.r4InkActive).toBeUndefined();
@@ -108,7 +111,20 @@ describe('pattern-star-map transition', () => {
     expect(setup.fromRoot.style.getPropertyValue('--r4-pattern-field-rotation')).toBe(incomingHoldRotation);
   });
 
-  it('starts radial Ink only in the second stage and shares the Pattern origin', async () => {
+  it('reveals copy at the second checkpoint while Star Map remains hidden', async () => {
+    const setup = fixture();
+    const timeline = await createPatternStarMapTransition().buildTimeline(setup.context);
+
+    timeline.progress(PATTERN_COPY_STOP);
+
+    expect(setup.fromRoot.dataset.patternProgress).toBe('1.0000');
+    expect(setup.fromRoot.style.getPropertyValue('--r4-pattern-copy-opacity')).toBe('0.9600');
+    expect(setup.fromLayer.visibility.visible).toBe(true);
+    expect(setup.toLayer.visibility.visible).toBe(false);
+    expect(setup.canvas.dataset.r4InkActive).toBeUndefined();
+  });
+
+  it('starts radial Ink only in the third stage and shares the Pattern origin', async () => {
     const setup = fixture();
     const timeline = await createPatternStarMapTransition().buildTimeline(setup.context);
     const receiver = setup.stage.children[1]!;
@@ -148,20 +164,22 @@ describe('pattern-star-map transition', () => {
     expect(setup.toRoot.dataset.sceneMotionLeaseCount).toBe('0');
   });
 
-  it('uses two explicit 1800ms input phases and passes timeline verification', async () => {
+  it('uses collapse, copy, and Ink legs separated by two gesture checkpoints', async () => {
     const setup = fixture();
     const transition = createPatternStarMapTransition();
     const timeline = await transition.buildTimeline(setup.context);
 
     expect(PATTERN_COLLAPSE_MS).toBe(1800);
+    expect(PATTERN_COPY_REVEAL_MS).toBe(700);
     expect(PATTERN_STAR_MAP_INK_MS).toBe(1800);
     expect(segment()).toMatchObject({
       policy: {
         kind: 'stagedSnap',
-        stops: [PATTERN_COLLAPSE_STOP],
-        playMs: [PATTERN_COLLAPSE_MS, PATTERN_STAR_MAP_INK_MS]
+        stops: [PATTERN_COLLAPSE_STOP, PATTERN_COPY_STOP],
+        playMs: [PATTERN_COLLAPSE_MS, PATTERN_COPY_REVEAL_MS, PATTERN_STAR_MAP_INK_MS],
+        advance: [{ kind: 'gesture' }, { kind: 'gesture' }]
       },
-      virtualDuration: PATTERN_COLLAPSE_MS + PATTERN_STAR_MAP_INK_MS
+      virtualDuration: PATTERN_COLLAPSE_MS + PATTERN_COPY_REVEAL_MS + PATTERN_STAR_MAP_INK_MS
     });
     expect(verifySegmentTimeline(timeline, { policy: segment().policy })).toMatchObject({
       maxVisibleLayers: 2,
@@ -174,8 +192,15 @@ describe('pattern-star-map transition', () => {
     const timeline = await createPatternStarMapTransition().buildTimeline(setup.context);
 
     timeline.progress(1);
+    timeline.progress(PATTERN_COPY_STOP);
+    expect(setup.fromRoot.dataset.patternProgress).toBe('1.0000');
+    expect(setup.fromRoot.style.getPropertyValue('--r4-pattern-copy-opacity')).toBe('0.9600');
+    expect(setup.fromLayer.visibility.visible).toBe(true);
+    expect(setup.toLayer.visibility.visible).toBe(false);
+
     timeline.progress(PATTERN_COLLAPSE_STOP);
     expect(setup.fromRoot.dataset.patternProgress).toBe('1.0000');
+    expect(setup.fromRoot.style.getPropertyValue('--r4-pattern-copy-opacity')).toBe('0.0000');
     expect(setup.fromLayer.visibility.visible).toBe(true);
     expect(setup.toLayer.visibility.visible).toBe(false);
 

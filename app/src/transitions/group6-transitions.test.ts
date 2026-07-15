@@ -1,11 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { createLabPhTransition } from './lab-ph';
 import { createPhEducationTransition, PH_EDUCATION_ANIMATION_STOP } from './ph-education';
-import { PH_PLAYBACK_MS } from '../story/timings';
+import { PH_PLAYBACK_MS, TERMINAL_DWELL_MS } from '../story/timings';
+import { renderEducationHold } from '../scenes/education';
 import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SegmentTimelineHandle, SpineSegmentNode, StagedLegPreparation, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/back-half.fixture';
+
+const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 function preparationSignal(): AbortSignal {
   return new AbortController().signal;
@@ -134,7 +138,7 @@ describe('R4 group6 transitions', () => {
     timeline.dispose();
   });
 
-  it('plays PH to its terminal frame, pauses, then dissolves to Education without Ink', async () => {
+  it('plays PH to its terminal frame, dwells one second, then dissolves to Education without Ink', async () => {
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
     const video = new FakeVideo();
     video.duration = 1.533;
@@ -146,7 +150,8 @@ describe('R4 group6 transitions', () => {
     expect(phEducation.policy).toMatchObject({
       kind: 'stagedSnap',
       stops: [PH_EDUCATION_ANIMATION_STOP],
-      playMs: [1520, 600]
+      playMs: [1520, 600],
+      advance: [{ kind: 'delay', ms: TERMINAL_DWELL_MS }]
     });
     expect(PH_PLAYBACK_MS).toBe(1520);
     expect(PH_EDUCATION_ANIMATION_STOP).toBeCloseTo(1520 / 2120, 6);
@@ -184,7 +189,7 @@ describe('R4 group6 transitions', () => {
     timeline.progress(stop);
     expect(fixture.fromRoot.dataset.phProgress).toBe('1.0000');
     expect(canvas.dataset.r4InkProgress).toBeUndefined();
-    expect(timeline.pauses).toEqual(['stage:0']);
+    expect(timeline.pauses).toEqual([]);
     const writesAtStop = video.currentTimeWrites;
 
     await prepareAndCommit(timeline, {
@@ -231,6 +236,44 @@ describe('R4 group6 transitions', () => {
     expect(video.currentTime).toBeGreaterThanOrEqual(forwardMidTime);
     expect(video.playCalls).toBeGreaterThan(0);
     timeline.dispose();
+  });
+
+  it('keeps the Education receiver at its final layout and top edge through p=.99, p=1 and dispose', async () => {
+    const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
+    const video = new FakeVideo();
+    fixture.fromRoot.connect('[data-ph-alpha-video]', video);
+    fixture.toRoot.scrollTop = 360;
+    const timeline = await createPhEducationTransition().buildTimeline(fixture.context);
+    const targetLayer = fixture.stage.children[1]!;
+    const snapshot = () => ({
+      progress: fixture.toRoot.dataset.educationProgress,
+      copyOpacity: fixture.toRoot.style.getPropertyValue('--r4-education-opacity'),
+      copyY: fixture.toRoot.style.getPropertyValue('--r4-education-y'),
+      scrollTop: fixture.toRoot.scrollTop,
+      edge: fixture.toRoot.dataset.readingEdge,
+      backgroundOwner: /\.r4-education\s*\{[^}]*#ede4d2;/s.test(stylesheet)
+    });
+
+    timeline.progress(0.99);
+    const nearEnd = snapshot();
+    timeline.progress(1);
+    const endpoint = snapshot();
+    expect(targetLayer.dataset.r4Handoff).toBeUndefined();
+    timeline.dispose();
+    renderEducationHold(fixture.toRoot as unknown as HTMLElement);
+    const settled = snapshot();
+
+    expect(nearEnd).toEqual(endpoint);
+    expect(settled).toEqual(endpoint);
+    expect(endpoint).toEqual({
+      progress: '1.0000',
+      copyOpacity: '1.0000',
+      copyY: '0.00px',
+      scrollTop: 0,
+      edge: 'top',
+      backgroundOwner: true
+    });
+    expect(fixture.toLayer.visibility.opacity).toBe(1);
   });
 
   it('reverses PH from its first pause with one fixed preparation and descending presented targets', async () => {

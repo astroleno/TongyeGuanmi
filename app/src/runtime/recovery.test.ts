@@ -23,7 +23,7 @@ describe('recovery', () => {
     });
   });
 
-  it('maps Contact reverse failures to the Crane endpoint without a global fallback', () => {
+  it('keeps segment failures at the last committed endpoint without a global fallback', () => {
     const segment = storyManifest.nodes.find(
       (node) => node.kind === 'segment' && node.id === 'crane-contact'
     );
@@ -39,7 +39,7 @@ describe('recovery', () => {
       committedScene: 'contact',
       segment: 'crane-contact',
       direction: -1,
-      endpoint: 'crane-animation',
+      endpoint: 'contact',
       reason: 'playback-failed',
       error: new Error('media timeout')
     });

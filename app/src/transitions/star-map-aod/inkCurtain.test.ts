@@ -18,6 +18,7 @@ vi.mock('../../vendor/ink-scene-transition.js', () => ({
 import { createStarMapAodTransition } from './index';
 
 const transitionSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+const stylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
 beforeEach(() => {
   boundaryRenderer.destroy.mockClear();
@@ -47,6 +48,8 @@ describe('star-map AOD one-boundary integration', () => {
     expect(transitionSource).not.toContain('targetElement:');
     expect(transitionSource).not.toContain('colorLift:');
     expect(transitionSource).not.toContain('coverAlpha:');
+    expect(stylesheet).toMatch(/\.aod-transition\[data-r4-endpoint-run\][^{]*\{[^}]*background:\s*transparent;/s);
+    expect(stylesheet).not.toContain('[data-r3-transition="star-map-aod"] .aod-transition');
   });
 
   it('applies one hidden ownership gate to the live AOD surface, then destroys once', async () => {
@@ -63,6 +66,11 @@ describe('star-map AOD one-boundary integration', () => {
       }
     });
     const timeline = await createStarMapAodTransition().buildTimeline(fixture.context);
+
+    expect(fixture.toRoot.dataset.r4EndpointReady).toBe(
+      `${fixture.context.runId}:${fixture.context.prepareToken}`
+    );
+    expect(fixture.toRoot.querySelector('[data-aod-figure-video]')?.dataset.timelineVideoFrameReady).toBe('true');
 
     timeline.progress(0.5);
 
@@ -82,8 +90,11 @@ describe('star-map AOD one-boundary integration', () => {
     expect(source.style.clipPath).not.toBe(revealSurface.style.clipPath);
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkRenderer).toBe('field');
-    expect(canvas.dataset.r4InkGrade).toBe('edge-bright');
-    expect(rendererFactory).toHaveBeenCalledWith(canvas, expect.objectContaining({ particleGain: 1.25 }));
+    expect(canvas.dataset.r4InkGrade).toBe('edge-only');
+    expect(rendererFactory).toHaveBeenCalledWith(canvas, expect.objectContaining({
+      colorLift: 0.92,
+      coverAlpha: 0
+    }));
     expect(canvas.dataset.r4InkGeneration).toBe(
       `${fixture.context.runId}:${fixture.context.prepareToken}`
     );
@@ -96,6 +107,7 @@ describe('star-map AOD one-boundary integration', () => {
     expect(canvas.parentElement).toBeNull();
     expect(revealSurface.dataset.r4InkContourRevision).toBeUndefined();
     expect(source.dataset.r4InkContourRevision).toBeUndefined();
+    expect(fixture.toRoot.dataset.r4EndpointRun).toBeUndefined();
   });
 
   it('uses ten fresh renderers and canvases across alternating directions', async () => {

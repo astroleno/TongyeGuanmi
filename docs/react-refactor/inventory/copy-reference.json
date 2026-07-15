@@ -13,7 +13,7 @@
       "sectionId": "home",
       "canonicalScenes": ["hero"],
       "sourcePath": "src/sections/hero.html",
-      "sourceSha256": "7577969bf58b9523de19caf7a8f7cfbaf552b3ae7526ca14bb3bf49599cbdfd8",
+      "sourceSha256": "c77390686d9d2bf222216717541460f79289b2baa2faf8680aee7ae67659e807",
       "buildSelector": "#home",
       "normalizedText": [
         "同",
@@ -27,15 +27,18 @@
       "sectionId": "belief",
       "canonicalScenes": ["pattern", "star-map"],
       "sourcePath": "src/sections/belief.html",
-      "sourceSha256": "a2a4a4f78d698c593a0d5ae12d4663b77e7cc80111e9779005d08abc178470ab",
+      "sourceSha256": "18eea58effc859dacb3059bd8830d8664f44b4cd1bb5ee1142c044d630c40ea7",
       "buildSelector": "#belief",
       "normalizedText": [
+        "一句话讲清我们干什么",
+        "让 AI 从一场培训，变成账上的数字。",
+        "我们不卖课、不卖软件，而是进到你的业务现场，把 AI 做成团队天天在用、月底对得上账的东西。",
         "AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。它决定了未来三年你是领跑还是追赶。"
       ]
     },
     {
       "sectionId": "method",
-      "canonicalScenes": ["method-top", "method-bottom", "figure2-proof-opening", "figure2-proof-cards", "figure2-proof-closing"],
+      "canonicalScenes": ["method-top", "figure2-proof"],
       "sourcePath": "src/sections/method.html",
       "sourceSha256": "3b3f7e2c1ee08535b5a906b6fed2b19ac81dcf036eef652abaca7b26a966e442",
       "buildSelector": "#method",
@@ -80,22 +83,21 @@
       "canonicalSplitHints": [
         {
           "scene": "method-top",
-          "textRange": ["先识场，再立法", "什么能问，哪些能信，哪些数据碰不得。"]
+          "textRange": ["先识场，再立法", "交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。"]
         },
         {
-          "scene": "method-bottom",
-          "textRange": ["01", "交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。"]
-        },
-        {
-          "scene": "figure2-proof-opening",
+          "scene": "figure2-proof",
+          "panel": "opening",
           "textRange": ["用不上，不算落地", "“用不上”。"]
         },
         {
-          "scene": "figure2-proof-cards",
+          "scene": "figure2-proof",
+          "panel": "cards",
           "textRange": ["只培训", "装订精美，锁进抽屉。"]
         },
         {
-          "scene": "figure2-proof-closing",
+          "scene": "figure2-proof",
+          "panel": "closing",
           "textRange": ["同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。"]
         }
       ]
@@ -248,7 +250,7 @@
       ]
     }
   ],
-  "footerText": ["© 上海同野观幂科技有限公司", "AI Transformation & Capability Building"],
+  "footerText": ["© 上海同野观幂科技有限公司", "AI Transformation & Capability Building", "服务备案号 沪ICP备2024086119号-3", "沪公网安备 31011502406697号"],
   "navText": ["同野观幂", "方法", "场景", "留学", "联系", "预约诊断"],
   "repeatabilityChecks": [
     "Run npm run build:page before extraction.",

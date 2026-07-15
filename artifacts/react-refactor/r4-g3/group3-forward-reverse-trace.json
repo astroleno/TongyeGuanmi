@@ -2,9 +2,9 @@
   "phase": "hold",
   "mode": "group3",
   "window": {
-    "current": "figure2-proof-closing",
+    "current": "figure2-proof",
     "retiring": [],
-    "prev": "figure2-proof-cards",
+    "prev": "figure2-animation",
     "next": "brand"
   },
   "visibleCount": 1,
@@ -15,18 +15,7 @@
     "BOOT_READY",
     "CHARGE_FIRED",
     "TARGET_READY",
-    "STAGE_PAUSED",
-    "CHARGE_FIRED",
-    "STAGE_RESUMED",
     "PLAYBACK_DONE",
-    "CHARGE_FIRED",
-    "TARGET_READY",
-    "PLAYBACK_DONE",
-    "RETIRING_RELEASED",
-    "CHARGE_FIRED",
-    "TARGET_READY",
-    "PLAYBACK_DONE",
-    "RETIRING_RELEASED",
     "CHARGE_FIRED",
     "TARGET_READY",
     "PLAYBACK_DONE",
@@ -36,11 +25,6 @@
     "PLAYBACK_DONE",
     "BUILD_READY:figure2-distance-expand",
     "PLAY:figure2-distance-expand:1",
-    "PLAY:none:1",
-    "BUILD_READY:figure2-proof-opening-cards",
-    "PLAY:figure2-proof-opening-cards:1",
-    "BUILD_READY:figure2-proof-cards-closing",
-    "PLAY:figure2-proof-cards-closing:1",
     "BUILD_READY:figure2-proof-brand",
     "PLAY:figure2-proof-brand:1",
     "BUILD_READY:figure2-proof-brand",
@@ -50,7 +34,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783880732674,
+      "at": 1784105425654,
       "event": {
         "type": "BOOT_READY"
       },
@@ -62,12 +46,12 @@
       "layerWindow": {
         "current": "figure2-animation",
         "retiring": [],
-        "next": "figure2-proof-opening"
+        "next": "figure2-proof"
       },
       "id": 1
     },
     {
-      "at": 1783880732675,
+      "at": 1784105425656,
       "event": {
         "type": "BOOT_READY"
       },
@@ -79,12 +63,12 @@
       "layerWindow": {
         "current": "figure2-animation",
         "retiring": [],
-        "next": "figure2-proof-opening"
+        "next": "figure2-proof"
       },
       "id": 2
     },
     {
-      "at": 1783880733144,
+      "at": 1784105426142,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -98,15 +82,15 @@
       "layerWindow": {
         "current": "figure2-animation",
         "retiring": [],
-        "next": "figure2-proof-opening"
+        "next": "figure2-proof"
       },
       "id": 3
     },
     {
-      "at": 1783880733174,
+      "at": 1784105426163,
       "event": {
         "type": "TARGET_READY",
-        "scene": "figure2-proof-opening",
+        "scene": "figure2-proof",
         "prepareToken": "r4-g3-group3:prepare:1"
       },
       "actorEpoch": "r4-g3-group3",
@@ -115,90 +99,17 @@
         "status": "segment",
         "segment": "figure2-distance-expand",
         "from": "figure2-animation",
-        "to": "figure2-proof-opening"
+        "to": "figure2-proof"
       },
       "layerWindow": {
         "current": "figure2-animation",
         "retiring": [],
-        "next": "figure2-proof-opening"
+        "next": "figure2-proof"
       },
       "id": 4
     },
     {
-      "at": 1783880735842,
-      "event": {
-        "type": "STAGE_PAUSED",
-        "runId": "r4-g3-group3:1",
-        "segment": "figure2-distance-expand",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g3-group3",
-      "activeRunId": "r4-g3-group3:1",
-      "pausePoint": {
-        "segmentId": "figure2-distance-expand",
-        "stageIndex": 0
-      },
-      "cursor": {
-        "status": "segment",
-        "segment": "figure2-distance-expand",
-        "from": "figure2-animation",
-        "to": "figure2-proof-opening"
-      },
-      "layerWindow": {
-        "current": "figure2-animation",
-        "retiring": [],
-        "next": "figure2-proof-opening"
-      },
-      "milestone": "stagePaused",
-      "id": 5
-    },
-    {
-      "at": 1783880736188,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": 1
-      },
-      "actorEpoch": "r4-g3-group3",
-      "activeRunId": "r4-g3-group3:1",
-      "cursor": {
-        "status": "segment",
-        "segment": "figure2-distance-expand",
-        "from": "figure2-animation",
-        "to": "figure2-proof-opening"
-      },
-      "layerWindow": {
-        "current": "figure2-animation",
-        "retiring": [],
-        "next": "figure2-proof-opening"
-      },
-      "id": 6
-    },
-    {
-      "at": 1783880736189,
-      "event": {
-        "type": "STAGE_RESUMED",
-        "runId": "r4-g3-group3:1",
-        "segment": "figure2-distance-expand",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-g3-group3",
-      "activeRunId": "r4-g3-group3:1",
-      "cursor": {
-        "status": "segment",
-        "segment": "figure2-distance-expand",
-        "from": "figure2-animation",
-        "to": "figure2-proof-opening"
-      },
-      "layerWindow": {
-        "current": "figure2-animation",
-        "retiring": [],
-        "next": "figure2-proof-opening"
-      },
-      "milestone": "stageResumed",
-      "id": 7
-    },
-    {
-      "at": 1783880737699,
+      "at": 1784105431292,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:1"
@@ -208,18 +119,18 @@
         "status": "settling",
         "segment": "figure2-distance-expand",
         "from": "figure2-animation",
-        "to": "figure2-proof-opening",
-        "target": "figure2-proof-opening"
+        "to": "figure2-proof",
+        "target": "figure2-proof"
       },
       "layerWindow": {
         "current": "figure2-animation",
         "retiring": [],
-        "next": "figure2-proof-opening"
+        "next": "figure2-proof"
       },
-      "id": 8
+      "id": 5
     },
     {
-      "at": 1783880738956,
+      "at": 1784105432070,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -228,41 +139,41 @@
       "prepareToken": "r4-g3-group3:prepare:2",
       "cursor": {
         "status": "hold",
-        "scene": "figure2-proof-opening"
+        "scene": "figure2-proof"
       },
       "layerWindow": {
-        "current": "figure2-proof-opening",
+        "current": "figure2-proof",
         "retiring": [],
         "prev": "figure2-animation",
-        "next": "figure2-proof-cards"
+        "next": "brand"
       },
-      "id": 9
+      "id": 6
     },
     {
-      "at": 1783880738963,
+      "at": 1784105432084,
       "event": {
         "type": "TARGET_READY",
-        "scene": "figure2-proof-cards",
+        "scene": "brand",
         "prepareToken": "r4-g3-group3:prepare:2"
       },
       "actorEpoch": "r4-g3-group3",
       "activeRunId": "r4-g3-group3:2",
       "cursor": {
         "status": "segment",
-        "segment": "figure2-proof-opening-cards",
-        "from": "figure2-proof-opening",
-        "to": "figure2-proof-cards"
+        "segment": "figure2-proof-brand",
+        "from": "figure2-proof",
+        "to": "brand"
       },
       "layerWindow": {
-        "current": "figure2-proof-opening",
+        "current": "figure2-proof",
         "retiring": [],
         "prev": "figure2-animation",
-        "next": "figure2-proof-cards"
+        "next": "brand"
       },
-      "id": 10
+      "id": 7
     },
     {
-      "at": 1783880739877,
+      "at": 1784105433292,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:2"
@@ -270,82 +181,79 @@
       "actorEpoch": "r4-g3-group3",
       "cursor": {
         "status": "settling",
-        "segment": "figure2-proof-opening-cards",
-        "from": "figure2-proof-opening",
-        "to": "figure2-proof-cards",
-        "target": "figure2-proof-cards"
+        "segment": "figure2-proof-brand",
+        "from": "figure2-proof",
+        "to": "brand",
+        "target": "brand"
       },
       "layerWindow": {
-        "current": "figure2-proof-opening",
+        "current": "figure2-proof",
         "retiring": [],
         "prev": "figure2-animation",
-        "next": "figure2-proof-cards"
+        "next": "brand"
       },
-      "id": 11
+      "id": 8
     },
     {
-      "at": 1783880740308,
+      "at": 1784105433724,
       "event": {
         "type": "RETIRING_RELEASED"
       },
       "actorEpoch": "r4-g3-group3",
       "cursor": {
         "status": "hold",
-        "scene": "figure2-proof-cards"
+        "scene": "brand"
       },
       "layerWindow": {
-        "current": "figure2-proof-cards",
+        "current": "brand",
         "retiring": [],
-        "prev": "figure2-proof-opening",
-        "next": "figure2-proof-closing"
+        "prev": "figure2-proof"
       },
-      "id": 12
+      "id": 9
     },
     {
-      "at": 1783880740421,
+      "at": 1784105434051,
       "event": {
         "type": "CHARGE_FIRED",
-        "direction": 1
+        "direction": -1
       },
       "actorEpoch": "r4-g3-group3",
       "prepareToken": "r4-g3-group3:prepare:3",
       "cursor": {
         "status": "hold",
-        "scene": "figure2-proof-cards"
+        "scene": "brand"
       },
       "layerWindow": {
-        "current": "figure2-proof-cards",
+        "current": "brand",
         "retiring": [],
-        "prev": "figure2-proof-opening",
-        "next": "figure2-proof-closing"
+        "prev": "figure2-proof"
       },
-      "id": 13
+      "id": 10
     },
     {
-      "at": 1783880740426,
+      "at": 1784105434061,
       "event": {
         "type": "TARGET_READY",
-        "scene": "figure2-proof-closing",
+        "scene": "figure2-proof",
         "prepareToken": "r4-g3-group3:prepare:3"
       },
       "actorEpoch": "r4-g3-group3",
       "activeRunId": "r4-g3-group3:3",
       "cursor": {
         "status": "segment",
-        "segment": "figure2-proof-cards-closing",
-        "from": "figure2-proof-cards",
-        "to": "figure2-proof-closing"
+        "segment": "figure2-proof-brand",
+        "from": "figure2-proof",
+        "to": "brand"
       },
       "layerWindow": {
-        "current": "figure2-proof-cards",
+        "current": "brand",
         "retiring": [],
-        "prev": "figure2-proof-opening",
-        "next": "figure2-proof-closing"
+        "prev": "figure2-proof"
       },
-      "id": 14
+      "id": 11
     },
     {
-      "at": 1783880741342,
+      "at": 1784105435276,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:3"
@@ -353,192 +261,29 @@
       "actorEpoch": "r4-g3-group3",
       "cursor": {
         "status": "settling",
-        "segment": "figure2-proof-cards-closing",
-        "from": "figure2-proof-cards",
-        "to": "figure2-proof-closing",
-        "target": "figure2-proof-closing"
-      },
-      "layerWindow": {
-        "current": "figure2-proof-cards",
-        "retiring": [],
-        "prev": "figure2-proof-opening",
-        "next": "figure2-proof-closing"
-      },
-      "id": 15
-    },
-    {
-      "at": 1783880741768,
-      "event": {
-        "type": "RETIRING_RELEASED"
-      },
-      "actorEpoch": "r4-g3-group3",
-      "cursor": {
-        "status": "hold",
-        "scene": "figure2-proof-closing"
-      },
-      "layerWindow": {
-        "current": "figure2-proof-closing",
-        "retiring": [],
-        "prev": "figure2-proof-cards",
-        "next": "brand"
-      },
-      "id": 16
-    },
-    {
-      "at": 1783880741900,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": 1
-      },
-      "actorEpoch": "r4-g3-group3",
-      "prepareToken": "r4-g3-group3:prepare:4",
-      "cursor": {
-        "status": "hold",
-        "scene": "figure2-proof-closing"
-      },
-      "layerWindow": {
-        "current": "figure2-proof-closing",
-        "retiring": [],
-        "prev": "figure2-proof-cards",
-        "next": "brand"
-      },
-      "id": 17
-    },
-    {
-      "at": 1783880741924,
-      "event": {
-        "type": "TARGET_READY",
-        "scene": "brand",
-        "prepareToken": "r4-g3-group3:prepare:4"
-      },
-      "actorEpoch": "r4-g3-group3",
-      "activeRunId": "r4-g3-group3:4",
-      "cursor": {
-        "status": "segment",
         "segment": "figure2-proof-brand",
-        "from": "figure2-proof-closing",
-        "to": "brand"
-      },
-      "layerWindow": {
-        "current": "figure2-proof-closing",
-        "retiring": [],
-        "prev": "figure2-proof-cards",
-        "next": "brand"
-      },
-      "id": 18
-    },
-    {
-      "at": 1783880743111,
-      "event": {
-        "type": "PLAYBACK_DONE",
-        "runId": "r4-g3-group3:4"
-      },
-      "actorEpoch": "r4-g3-group3",
-      "cursor": {
-        "status": "settling",
-        "segment": "figure2-proof-brand",
-        "from": "figure2-proof-closing",
+        "from": "figure2-proof",
         "to": "brand",
-        "target": "brand"
-      },
-      "layerWindow": {
-        "current": "figure2-proof-closing",
-        "retiring": [],
-        "prev": "figure2-proof-cards",
-        "next": "brand"
-      },
-      "id": 19
-    },
-    {
-      "at": 1783880743540,
-      "event": {
-        "type": "RETIRING_RELEASED"
-      },
-      "actorEpoch": "r4-g3-group3",
-      "cursor": {
-        "status": "hold",
-        "scene": "brand"
+        "target": "figure2-proof"
       },
       "layerWindow": {
         "current": "brand",
         "retiring": [],
-        "prev": "figure2-proof-closing"
+        "prev": "figure2-proof"
       },
-      "id": 20
-    },
-    {
-      "at": 1783880744520,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": -1
-      },
-      "actorEpoch": "r4-g3-group3",
-      "prepareToken": "r4-g3-group3:prepare:5",
-      "cursor": {
-        "status": "hold",
-        "scene": "brand"
-      },
-      "layerWindow": {
-        "current": "brand",
-        "retiring": [],
-        "prev": "figure2-proof-closing"
-      },
-      "id": 21
-    },
-    {
-      "at": 1783880744541,
-      "event": {
-        "type": "TARGET_READY",
-        "scene": "figure2-proof-closing",
-        "prepareToken": "r4-g3-group3:prepare:5"
-      },
-      "actorEpoch": "r4-g3-group3",
-      "activeRunId": "r4-g3-group3:5",
-      "cursor": {
-        "status": "segment",
-        "segment": "figure2-proof-brand",
-        "from": "figure2-proof-closing",
-        "to": "brand"
-      },
-      "layerWindow": {
-        "current": "brand",
-        "retiring": [],
-        "prev": "figure2-proof-closing"
-      },
-      "id": 22
-    },
-    {
-      "at": 1783880745729,
-      "event": {
-        "type": "PLAYBACK_DONE",
-        "runId": "r4-g3-group3:5"
-      },
-      "actorEpoch": "r4-g3-group3",
-      "cursor": {
-        "status": "settling",
-        "segment": "figure2-proof-brand",
-        "from": "figure2-proof-closing",
-        "to": "brand",
-        "target": "figure2-proof-closing"
-      },
-      "layerWindow": {
-        "current": "brand",
-        "retiring": [],
-        "prev": "figure2-proof-closing"
-      },
-      "id": 23
+      "id": 12
     }
   ],
   "layers": [
     {
-      "scene": "figure2-proof-cards",
+      "scene": "figure2-animation",
       "role": "prev",
       "visible": false,
       "interactable": false,
       "opacity": 0
     },
     {
-      "scene": "figure2-proof-closing",
+      "scene": "figure2-proof",
       "role": "current",
       "visible": true,
       "interactable": true,

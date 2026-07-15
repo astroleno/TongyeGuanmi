@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const port = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? '4173', 10);
+const baseURL = `http://127.0.0.1:${port}`;
+
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/r5-*.spec.ts',
@@ -10,14 +13,14 @@ export default defineConfig({
     timeout: 15_000
   },
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'off',
     video: 'off'
   },
   webServer: {
-    command: 'pnpm preview --host 127.0.0.1 --port 4173',
-    url: 'http://127.0.0.1:4173',
+    command: `pnpm preview --host 127.0.0.1 --port ${port}`,
+    url: baseURL,
     reuseExistingServer: false,
     timeout: 60_000
   },

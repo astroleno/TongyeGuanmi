@@ -14,8 +14,8 @@ export const frozenHomepageMedia = [
   {
     source: 'assets/figure1.webm',
     category: 'hero-animation',
-    bytes: 10639235,
-    sha256: '14d881a16c0bef8f12526100aca1d014e0b8d38d8d09510e3c2aa43bb0030c35'
+    bytes: 2019536,
+    sha256: 'a472e2f9f62c9cdd447fe78664020e3dad7e0ce37900bb1c4b4e7fb1db379d70'
   },
   {
     source: 'assets/figure2-left-motion.webm',
@@ -44,14 +44,20 @@ export const frozenHomepageMedia = [
   {
     source: 'assets/crane-figure-motion.webm',
     category: 'animation-webm',
-    bytes: 3523046,
-    sha256: '82bca38a5f2a543c0571a4f1fe9a433b0fafc6a5fc6ce7782da8851a1515c026'
+    bytes: 3218940,
+    sha256: 'a66a6778bda2a6c2e3fb5241a69ba4f1e4422a1638608f6cc5eba57e8f53c2b9'
   },
   {
     source: 'assets/crane-flock-motion.webm',
     category: 'animation-webm',
-    bytes: 9696197,
-    sha256: '147625e4002f422ffa6eef619f4d1973368d652b1badf786f6311fa046fe2516'
+    bytes: 4416794,
+    sha256: 'a3ac363cf7dd37940f3467a1c4e5b1b2df067d4fdc4966e99e17679a32498164'
+  },
+  {
+    source: 'assets/crane-flock-first-frame.webp',
+    category: 'lossless-webp',
+    bytes: 80116,
+    sha256: '8c4d47ca59d21c14430c02b2d89605594463a018e28c25c7eeb8fd824f8910b4'
   },
   {
     source: 'assets/aod-figure-motion.webm',
@@ -234,10 +240,10 @@ export const frozenHomepageMedia = [
     sha256: 'd50ddd8702d4ee90cecd8bf6d9f76a7ca74238c507101d195b58be6f568ebf06'
   },
   {
-    source: 'assets/figure-poster.jpg',
-    category: 'retained-image',
-    bytes: 88634,
-    sha256: '973cc3bbb71140fc50ff72aef45ba9d10fc276b0adf94cb96c5d2a5ee4ccdc87'
+    source: 'assets/hero-figure-poster.webp',
+    category: 'lossless-webp',
+    bytes: 561678,
+    sha256: '3fd1ceb4011892932a941c05f0d2d04c2859898256f0f97c8523046258c183df'
   }
 ];
 
@@ -295,10 +301,10 @@ export const canonicalVideoContracts = [
   {
     source: 'assets/crane-flock-motion.webm',
     fps: '30/1',
-    frames: 75,
-    duration: 2.5,
+    frames: 74,
+    duration: 2.466,
     firstPts: 0,
-    lastPts: 2.467,
+    lastPts: 2.433,
     keyframes: 10,
     maxGopFrames: 8
   },

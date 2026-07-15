@@ -31,4 +31,18 @@ describe('Figure3 media timeline ownership', () => {
     expect(video.dataset.timelineVideoDirection).toBe('1');
     expect(video.currentTimeWrites).toBeGreaterThan(0);
   });
+
+  it('keeps the alpha video visible and disables the competing solid fill until p=1', () => {
+    const root = new TimelineRoot();
+    root.dataset.r4Scene = 'figure3-animation';
+
+    expect(renderFigure3AnimationProgress(root as unknown as HTMLElement, 0.99)).toMatchObject({
+      fillOpacity: 0,
+      videoOpacity: 1
+    });
+    expect(renderFigure3AnimationProgress(root as unknown as HTMLElement, 1)).toMatchObject({
+      fillOpacity: 0,
+      videoOpacity: 0
+    });
+  });
 });

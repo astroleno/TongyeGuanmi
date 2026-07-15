@@ -138,7 +138,11 @@ export class SyntheticSegmentTimeline implements SegmentTimelineHandle {
       end: 1,
       ...Object.fromEntries(stops.map((stop, index) => [`stage:${index}`, stop]))
     };
-    this.pauses = stops.map((_, index) => `stage:${index}`);
+    this.pauses = context.segment.policy.kind === 'stagedSnap'
+      ? context.segment.policy.advance.flatMap((advance, index) => (
+          advance.kind === 'gesture' ? [`stage:${index}`] : []
+        ))
+      : [];
     this.progress(0);
   }
 

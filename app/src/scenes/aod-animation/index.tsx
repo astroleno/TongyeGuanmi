@@ -1,13 +1,139 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
-import { AOD_MEDIA_KEY } from '../../transitions/aod-method-top/media';
-import { renderAodTransitionProgress } from './progress';
+import {
+  disposeTimelineVideoDriver,
+  driveTimelineVideo,
+  prepareTimelineVideoFrame,
+  type TimelineVideoDriveInput
+} from '../../media/timeline-video-driver';
+import { mapAodTimelineToMediaProgress, renderAodTransitionProgress } from './progress';
 
 export { renderAodTransitionProgress } from './progress';
 
 export const AOD_CLOUD_SRC = new URL('../../../../assets/aod_cloud-alpha.webp', import.meta.url).href;
 export const AOD_SUN_SRC = new URL('../../../../assets/aod_sun-alpha.webp', import.meta.url).href;
 export const AOD_FIGURE_VIDEO_SRC = new URL('../../../../assets/aod-figure-motion.webm', import.meta.url).href;
+export const AOD_MEDIA_KEY = 'aod-figure-motion';
 export const AOD_FIGURE_END_SECONDS = 2.567;
+
+export type AodMediaRun = Readonly<{
+  runId: string;
+  direction: 1 | -1;
+  reducedMotion?: boolean;
+  signal?: AbortSignal;
+  timelineDurationMs?: number;
+  video?: HTMLVideoElement | null;
+}>;
+
+const mediaRunByVideo = new WeakMap<HTMLVideoElement, string>();
+
+function aodSection(root: HTMLElement | null | undefined): HTMLElement | null {
+  return root?.matches('[data-aod-transition]')
+    ? root
+    : root?.querySelector<HTMLElement>('[data-aod-transition]') ?? null;
+}
+
+function aodVideo(
+  root: HTMLElement | null | undefined,
+  override?: HTMLVideoElement | null
+): HTMLVideoElement | null {
+  return override
+    ?? root?.querySelector<HTMLVideoElement>('[data-aod-figure-video]')
+    ?? aodSection(root)?.querySelector<HTMLVideoElement>('[data-aod-figure-video]')
+    ?? null;
+}
+
+function aodMediaInput(
+  progress: number,
+  mediaRun: AodMediaRun,
+  mode: TimelineVideoDriveInput['mode'] = 'timeline'
+): TimelineVideoDriveInput {
+  return {
+    runId: mediaRun.runId,
+    direction: mediaRun.direction,
+    progress: mapAodTimelineToMediaProgress(progress),
+    durationFallbackSeconds: 2.6,
+    startSeconds: 0,
+    endSeconds: AOD_FIGURE_END_SECONDS,
+    timelineDurationMs: mediaRun.timelineDurationMs ?? 2600,
+    mode,
+    nativePlaybackDirection: 1,
+    reducedMotion: Boolean(mediaRun.reducedMotion),
+    ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
+  };
+}
+
+export async function prepareAodAnimationFrame(
+  root: HTMLElement | null | undefined,
+  progress: number,
+  mediaRun: AodMediaRun
+): Promise<void> {
+  const section = aodSection(root) ?? root ?? null;
+  const video = aodVideo(root, mediaRun.video);
+  if (!video) {
+    throw new Error('AOD media unavailable');
+  }
+  try {
+    const frame = await prepareTimelineVideoFrame(video, aodMediaInput(progress, mediaRun, 'timeline'));
+    if (frame?.status !== 'ready') {
+      throw new Error('AOD frame stale');
+    }
+    mediaRunByVideo.set(video, mediaRun.runId);
+    if (section) {
+      delete section.dataset.aodStaticMediaFallback;
+    }
+  } catch (error) {
+    if (section) {
+      section.dataset.aodStaticMediaFallback = 'true';
+    }
+    throw error;
+  }
+}
+
+export function renderAodExitProgress(
+  root: HTMLElement | null | undefined,
+  progress: number,
+  mediaRun: AodMediaRun
+): void {
+  const section = aodSection(root);
+  renderAodTransitionProgress(section ?? root, progress);
+  section?.setAttribute('data-aod-exit-active', 'true');
+  const video = aodVideo(root, mediaRun.video);
+  if (!video) {
+    return;
+  }
+  mediaRunByVideo.set(video, mediaRun.runId);
+  driveTimelineVideo(video, aodMediaInput(progress, mediaRun));
+}
+
+export function beginAodExitMedia(
+  root: HTMLElement | null | undefined,
+  runId: string,
+  videoOverride?: HTMLVideoElement | null
+): void {
+  const video = aodVideo(root, videoOverride);
+  if (!video) {
+    return;
+  }
+  mediaRunByVideo.set(video, runId);
+  video.pause();
+  video.playbackRate = 1;
+}
+
+export function disposeAodExitMedia(
+  root: HTMLElement | null | undefined,
+  runId: string,
+  videoOverride?: HTMLVideoElement | null
+): void {
+  const section = aodSection(root);
+  section?.removeAttribute('data-aod-exit-active');
+  section?.removeAttribute('data-aod-alpha-composite');
+  const video = aodVideo(root, videoOverride);
+  if (!video || mediaRunByVideo.get(video) !== runId) {
+    return;
+  }
+  mediaRunByVideo.delete(video);
+  disposeTimelineVideoDriver(video);
+}
 
 export function renderAodAnimationHold(root: HTMLElement | null): void {
   renderAodTransitionProgress(root, 0);

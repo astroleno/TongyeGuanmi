@@ -1,8 +1,6 @@
 # Canonical Naming Inventory
 
-R-1 conclusion: keep `ARCHITECTURE.md` section 3.1 as the canonical story spine. No `canonical-spine-correction.md` was generated because the old DOM/build output can be mapped one-way into the planned spine without adding a new canonical node.
-
-Manual confirmation still required before R0: canonical naming table, figure2/proof split, SEO/no-JS ADR, and empty interruptible list.
+R-1 conclusion: keep `ARCHITECTURE.md` section 3.1 as the canonical story spine. R5 subsequently froze D1–D3: all animation scenes remain semantic holds, Proof becomes one `figure2-proof` reading hold, and transitions remain runtime edges rather than presentation owners.
 
 ## Evidence Base
 
@@ -26,11 +24,8 @@ pattern
 star-map
 aod-animation
 method-top
-method-bottom
 figure2-animation
-figure2-proof-opening
-figure2-proof-cards
-figure2-proof-closing
+figure2-proof
 brand
 figure3-animation
 services
@@ -42,7 +37,7 @@ crane-animation
 contact
 ```
 
-`figure2-distance-expand` remains a `SegmentId`, not a `SceneId`.
+`figure2-distance-expand` remains a `SegmentId`, not a `SceneId`. `figure2-proof-opening`, `figure2-proof-cards`, and `figure2-proof-closing` are redirect aliases and internal panel anchors only; they are not canonical SceneIds.
 
 ## Legacy Section Mapping
 
@@ -51,8 +46,8 @@ contact
 | `#home` / `src/sections/hero.html` | `hero` | `index.html#home`, hero title/subtitle and media before module script | The hero scene owns first viewport copy and base media. |
 | `#belief` / `src/sections/belief.html` | `pattern`, `star-map` | `canvas.belief-star-field`, `home-belief` pattern-bloom adapter | Legacy `belief` is not a canonical name; split visual renderer identity into `pattern` and `star-map`. |
 | `#method` first screen | `method-top` | `.method-edition-layout--after-handoff`, `data-scene-id="method-field-law"` | Old `method-field-law` is renamed away. |
-| `#method` process list | `method-bottom` | `data-scene-id="method-cocreation"`, `data-scene-id="method-tooling"`, single 01-05 list | Old cocreation/tooling anchors are reading anchors, not canonical scenes. |
-| `.method-proof` | `figure2-proof-opening`, `figure2-proof-cards`, `figure2-proof-closing` | `data-scene-id="method-proof" data-transition-source-only="true"` | Canonical split is by copy role plus overlay scroll, not by separate legacy DOM anchors. |
+| `#method` process list | `method-top` internal reading content | `data-scene-id="method-cocreation"`, `data-scene-id="method-tooling"`, single 01-05 list | Old cocreation/tooling anchors are not canonical scenes. |
+| `.method-proof` | `figure2-proof` with opening/cards/closing panels | `data-scene-id="method-proof" data-transition-source-only="true"` | One canonical article and scrollport own all three copy roles. |
 | `#brand` | `brand` | `.brand-definition-grid`; figure2 handoff target selector | Native DOM is adopted during handoff; copy source remains `src/sections/brand.html`. |
 | `#services` | `services` | `src/sections/services.html`, nav hash `#services` | Figure3 adapter is visual-only; Services copy stays native. |
 | `#lab` | `lab` | `src/sections/lab.html` | Old label "scenario" becomes canonical `lab`. |
@@ -66,8 +61,8 @@ contact
 |---|---|---|---|---|
 | `home-belief` | `hero -> hero-pattern -> pattern -> pattern-star-map -> star-map` | `pattern-bloom` | `data-transition-drive="scroll"`; adapter ranges `0..0.46`, `0.42..0.70`, `0.58..0.985` | DOM/build/adapter aligned |
 | `belief-method` | `star-map -> star-map-aod -> aod-animation -> aod-method-top -> method-top` | `aod` | `data-transition-play-ms="2600"`; `handoffPhase=after-playback`; receiver `.method-edition-layout--after-handoff` | DOM/build/adapter aligned |
-| `method` reading | `method-top -> method-top-method-bottom -> method-bottom` | no transition adapter | Native reading/scroll section; old anchors `method-field-law`, `method-cocreation`, `method-tooling` | DOM fact only |
-| `method-tooling__method-proof` + handoff `method-proof-brand` | `method-bottom -> method-bottom-figure2 -> figure2-animation -> figure2-distance-expand -> figure2-proof-opening -> figure2-proof-cards -> figure2-proof-closing -> figure2-proof-brand -> brand` | `figure2` | `stageStops=[0.72]`, `stagePlayMs=[2600,1500]`, `stageHoldVh=30`, `postScrollVh=56`, `handoffPhase=post-scroll` | Requires HITL confirmation of proof split |
+| `method` reading | `method-top` | no transition adapter | Native reading/scroll section; old anchors `method-field-law`, `method-cocreation`, `method-tooling` | R5 canonicalized as one reading hold |
+| `method-tooling__method-proof` + handoff `method-proof-brand` | `method-top -> method-bottom-figure2 -> figure2-animation -> figure2-distance-expand -> figure2-proof -> figure2-proof-brand -> brand` | `figure2` | `stageStops=[0.72]`, `stagePlayMs=[2600,1500]`; Proof panels use one `300svh` scrollport | D2 frozen; three old Proof IDs are aliases only |
 | `method-brand` | covered by `figure2-proof-brand` | `soft-divider` | Legacy divider; continuity CSS collapses it in homepage path | Retire in R0 manifest |
 | `brand-services` | `brand -> brand-figure3 -> figure3-animation -> figure3-services -> services` | `figure3-transition` | `stageStops=[0.997]`, `stagePlayMs=[2000,620]`; adapter has no Services copy | DOM/build/adapter aligned |
 | `services-lab` | `services -> services-ttg -> ttg-animation -> ttg-lab -> lab` | `ttg` | runtime `MODULE_PLAY_MS.ttg=2500`; adapter `data-ttg-duration=2.5` | DOM/build/adapter aligned |
@@ -105,4 +100,4 @@ Facts that look different from the canonical spine but do not require correction
 |---|---|
 | Legacy build output has `#philosophy` between `#education` and `#contact`. | `philosophy` repeats brand concept copy and has only a `soft-breath` join; architecture already maps the crane path into `education -> crane-animation -> contact`. |
 | Legacy build output has `method-brand` after `.method-proof`. | The actual Figure2 post-scroll handoff is `method-tooling__method-proof` with handoff id `method-proof-brand`; `method-brand` is a collapsed soft divider. |
-| Legacy `.method-proof` has one DOM block, not three scene blocks. | The canonical proof opening/cards/closing split is a required R0/R4 scene split inferred from text roles and overlay scroll; it is not a legacy DOM fact. |
+| Legacy `.method-proof` has one DOM block. | R5 keeps that ownership model: one canonical `figure2-proof` article owns three internal viewport panels; no three-scene split remains. |

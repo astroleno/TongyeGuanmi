@@ -305,12 +305,24 @@ const cases: readonly {
   }
 ];
 
+function contextForCase(
+  item: (typeof cases)[number],
+  prefersReducedMotion = false
+): TransitionContext {
+  if (item.id === 'education-crane') {
+    const fixture = createBackHalfDomContext(item.id, item.from, item.to);
+    return { ...fixture.context, prefersReducedMotion };
+  }
+  return context(item.id, item.from, item.to, prefersReducedMotion);
+}
+
 describe('R4 group7 transitions', () => {
   it('lets the main Crane video natural alpha own transparency while active', () => {
     const root = new FakeElement();
     root.dataset.r4Scene = 'crane-animation';
 
-    expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0).videoOpacity).toBe(0);
+    const hold = renderCraneAnimationProgress(root as unknown as HTMLElement, 0);
+    expect(hold.videoOpacity).toBe(0);
     expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0.22).videoOpacity).toBe(1);
     expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0.4).videoOpacity).toBe(1);
     expect(renderCraneAnimationProgress(root as unknown as HTMLElement, 0.8).videoOpacity).toBe(1);
@@ -363,6 +375,12 @@ describe('R4 group7 transitions', () => {
     }
     vi.stubGlobal('document', { createElement: () => canvas });
     const timeline = await createEducationCraneTransition().buildTimeline(fixture.context);
+
+    expect(fixture.toRoot.dataset.r4EndpointReady).toBe(
+      `${fixture.context.runId}:${fixture.context.prepareToken}`
+    );
+    expect(fixture.toRoot.querySelector('[data-crane-figure-video]')?.dataset.timelineVideoFrameReady).toBe('true');
+    expect(fixture.toRoot.querySelector('[data-crane-figure-front-video]')?.dataset.timelineVideoFrameReady).toBe('true');
 
     timeline.progress(0.25);
     const educationY = fixture.fromRoot.style.getPropertyValue('--r4-education-y');
@@ -459,27 +477,27 @@ describe('R4 group7 transitions', () => {
 
     timeline.progress(0.72);
     expect(fixture.contactLayer.visibility.visible).toBe(false);
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('0.0000');
 
     timeline.progress(0.74);
     expect(fixture.contactLayer.visibility.visible).toBe(false);
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('0.0000');
     expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-opacity')).toBe('0.0000');
 
     timeline.progress(0.8);
     expect(fixture.contactLayer.visibility.visible).toBe(true);
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('0.0000');
     expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-opacity')).toBe('1.0000');
     expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-y')).toBe('0.00px');
     expect(fixture.contactLayer.element?.dataset.copyCueActive).toBe('true');
 
     timeline.progress(0.9);
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.5000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('0.5000');
 
     timeline.progress(1);
     expect(fixture.craneLayer.visibility.visible).toBe(false);
     expect(fixture.contactLayer.visibility.visible).toBe(true);
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('1.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('1.0000');
     expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-opacity')).toBe('1.0000');
   });
 
@@ -500,21 +518,21 @@ describe('R4 group7 transitions', () => {
 
     nextFrame?.(1_850);
     expect(fixture.contactLayer.element?.dataset.copyCueActive).toBe('false');
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('0.0000');
 
     nextFrame?.(2_310);
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-wash-alpha')).toBe('0.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('0.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-wash-alpha')).toBe('0.0000');
     expect(fixture.contactLayer.element?.dataset.copyCueActive).toBe('false');
 
     nextFrame?.(2_400);
     expect(fixture.contactLayer.element?.dataset.copyCueActive).toBe('true');
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('0.0000');
     expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-opacity')).toBe('1.0000');
 
     nextFrame?.(2_700);
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.5000');
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-wash-alpha')).toBe('0.5000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('0.5000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-wash-alpha')).toBe('0.5000');
 
     nextFrame?.(3_000);
     await playback;
@@ -536,17 +554,17 @@ describe('R4 group7 transitions', () => {
     const figurePlayCalls = fixture.figureVideo.playCalls;
     const flockPlayCalls = fixture.flockVideo.playCalls;
     expect(fixture.contactLayer.visibility.visible).toBe(true);
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('1.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('1.0000');
     expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-opacity')).toBe('1.0000');
 
     timeline.progress(0.8);
     expect(fixture.contactLayer.visibility.visible).toBe(true);
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('0.0000');
     expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-opacity')).toBe('1.0000');
 
     timeline.progress(0.74);
     expect(fixture.contactLayer.visibility.visible).toBe(false);
-    expect(fixture.contactLayer.element?.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
+    expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-paper-alpha')).toBe('0.0000');
     expect(fixture.contactRoot.style.getPropertyValue('--r4-contact-opacity')).toBe('0.0000');
 
     timeline.progress(0.72);
@@ -592,7 +610,7 @@ describe('R4 group7 transitions', () => {
   for (const item of cases) {
     it(`verifies ${item.id} timeline and reduced-motion fallback`, async () => {
       const transition = item.create();
-      const timeline = await transition.buildTimeline(context(item.id, item.from, item.to));
+      const timeline = await transition.buildTimeline(contextForCase(item));
       const options = item.copyCueAtProgress === undefined
         ? { policy: segment(item.id).policy }
         : { policy: segment(item.id).policy, copyCueAtProgress: item.copyCueAtProgress };
@@ -604,7 +622,7 @@ describe('R4 group7 transitions', () => {
     });
 
     it(`keeps ${item.id} idempotent across 0 to 1 to 0 to 1`, async () => {
-      const timeline = await item.create().buildTimeline(context(item.id, item.from, item.to));
+      const timeline = await item.create().buildTimeline(contextForCase(item));
 
       timeline.progress(0);
       const start = timeline.sample?.(0);
@@ -617,7 +635,7 @@ describe('R4 group7 transitions', () => {
     });
 
     it(`collapses ${item.id} duration in reduced motion`, async () => {
-      const timeline = await item.create().buildTimeline(context(item.id, item.from, item.to, true));
+      const timeline = await item.create().buildTimeline(contextForCase(item, true));
 
       await expect(timeline.play(1)).resolves.toBeUndefined();
       expect(timeline.sample?.(1).to.visible).toBe(true);

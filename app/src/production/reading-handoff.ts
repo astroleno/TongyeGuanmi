@@ -17,6 +17,8 @@ export type ReadingHandoffResult = Readonly<{
   direction: Direction;
   contentPixels: number;
   residualPixels: number;
+  startedAtEdge: boolean;
+  reachedEdgeDuringInput: boolean;
   atEdge: boolean;
 }>;
 
@@ -40,6 +42,8 @@ export function consumeReadingPixels(input: ReadingHandoffInput): ReadingHandoff
     direction,
     contentPixels: 0,
     residualPixels: input.pixels,
+    startedAtEdge: false,
+    reachedEdgeDuringInput: false,
     atEdge: false
   });
   if (input.pixels === 0 || !isReadingLayer(input.root)) {
@@ -81,6 +85,8 @@ export function consumeReadingPixels(input: ReadingHandoffInput): ReadingHandoff
     direction,
     contentPixels,
     residualPixels,
+    startedAtEdge,
+    reachedEdgeDuringInput,
     atEdge: startedAtEdge || reachedEdgeDuringInput
   };
 }

@@ -4,9 +4,22 @@ import {
   renderHeroPatternProgress
 } from '../../scenes/hero';
 import { renderPatternHold } from '../../scenes/pattern';
+import { hiddenVisibility, holdVisibility, range01 } from '../../pilot/visibility';
+import {
+  HERO_PATTERN_MOTION_STOP
+} from '../../story/timings';
 import { createInkSegmentTransition } from '../shared/ink';
 
 export const HERO_PATTERN_INK_ORIGIN = Object.freeze({ x: 0.5, y: 0.5 });
+export { HERO_PATTERN_INK_MS, HERO_PATTERN_MOTION_MS, HERO_PATTERN_MOTION_STOP } from '../../story/timings';
+
+export function heroPatternMotionProgress(progress: number): number {
+  return range01(progress, 0, HERO_PATTERN_MOTION_STOP);
+}
+
+export function heroPatternInkProgress(progress: number): number {
+  return range01(progress, HERO_PATTERN_MOTION_STOP, 1);
+}
 
 export function renderHeroForHeroPattern(root: HTMLElement | null): void {
   renderHeroPatternProgress(root, 0);
@@ -25,6 +38,7 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
       origin: HERO_PATTERN_INK_ORIGIN,
       seed: 'hero-pattern'
     },
+    fieldProgress: heroPatternInkProgress,
     prepareEndpoints: ({ from, to }) => {
       renderHeroForHeroPattern(from);
       renderPatternForHeroPattern(to);
@@ -36,8 +50,14 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
         reducedMotion: mediaRun.prefersReducedMotion
       }
     }),
-    renderSourceProgress: 'forward',
+    renderSourceProgress: heroPatternMotionProgress,
     motionScenes: ['from', 'to'],
+    sample: (progress) => {
+      const ink = heroPatternInkProgress(progress);
+      if (ink <= 0.001) return { from: holdVisibility(false), to: hiddenVisibility() };
+      if (ink >= 0.999) return { from: hiddenVisibility(), to: holdVisibility(false) };
+      return { from: holdVisibility(false), to: holdVisibility(false) };
+    },
     transitionAttr: 'hero-pattern-live-circle'
   });
   return {
@@ -47,11 +67,13 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
         ?? context.from.element
         ?? null;
       const video = root?.querySelector<HTMLVideoElement>('[data-hero-figure-video]');
-      const sourceLayer = context.direction === -1 ? context.from.element : null;
-      const sourceVisibility = sourceLayer?.style.visibility;
+      const sourceLayer = context.from.element;
+      const restoreHidden = context.direction < 0 && sourceLayer?.style.visibility === 'hidden';
       if (sourceLayer) {
-        // A visibility:hidden video may not receive rVFC while its reverse
-        // endpoint is prepared. Opacity remains zero, so this cannot flash.
+        // A visibility:hidden video may not receive rVFC while an endpoint is
+        // prepared. Forward replay can begin before React has committed the
+        // post-reverse role, so cover both directions. Opacity remains owned by
+        // the stage and prevents a hidden endpoint from flashing.
         sourceLayer.style.visibility = 'visible';
       }
       try {
@@ -65,8 +87,8 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
         }
         return timeline;
       } finally {
-        if (sourceLayer) {
-          sourceLayer.style.visibility = sourceVisibility ?? '';
+        if (restoreHidden) {
+          sourceLayer.style.visibility = 'hidden';
         }
       }
     }

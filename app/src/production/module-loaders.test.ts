@@ -26,4 +26,11 @@ describe('production lazy module registry', () => {
     await expect(secondAttempt).rejects.toThrow('retired');
     expect(loadedProductionModules().scenes).not.toContain('method-bottom');
   });
+
+  it('keeps retired Proof ids as URL aliases without loading compatibility runtime', async () => {
+    await expect(loadSceneModule('figure2-proof-opening')).rejects.toThrow('retired');
+    await expect(loadTransitionModule('figure2-proof-opening-cards')).rejects.toThrow('retired');
+    expect(loadedProductionModules().scenes).not.toContain('figure2-proof-opening');
+    expect(loadedProductionModules().transitions).not.toContain('figure2-proof-opening-cards');
+  });
 });

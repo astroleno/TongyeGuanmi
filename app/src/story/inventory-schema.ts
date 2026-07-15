@@ -33,7 +33,8 @@ export type InventorySources = {
 
 export type Figure2ProofEvidence = {
   segmentId: 'figure2-distance-expand';
-  proofScenes: readonly ['figure2-proof-opening', 'figure2-proof-cards', 'figure2-proof-closing'];
+  proofScene: 'figure2-proof';
+  panelAnchors: readonly ['opening', 'cards', 'closing'];
   stageStops: readonly [0.72];
   stagePlayMs: readonly [2600, 1500];
   postScrollVh: 56;
@@ -228,7 +229,7 @@ export function parseFigure2ProofSequenceMarkdown(markdown: string): Figure2Proo
     'figure2-proof-closing',
     'stageStops',
     '[0.72]',
-    '[2600, 1500]',
+    'stagePlayMs=[2600,1500]',
     'postScrollVh',
     '56'
   ];
@@ -241,7 +242,8 @@ export function parseFigure2ProofSequenceMarkdown(markdown: string): Figure2Proo
 
   return {
     segmentId: 'figure2-distance-expand',
-    proofScenes: ['figure2-proof-opening', 'figure2-proof-cards', 'figure2-proof-closing'],
+    proofScene: 'figure2-proof',
+    panelAnchors: ['opening', 'cards', 'closing'],
     stageStops: [0.72],
     stagePlayMs: [2600, 1500],
     postScrollVh: 56

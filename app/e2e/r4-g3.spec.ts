@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 type Group3Snapshot = {
-  phase: 'hold' | 'preparing' | 'playing' | 'staged-paused' | 'recovering';
+  phase: 'hold' | 'preparing' | 'playing' | 'recovering';
   mode: string;
   window: { current: string; retiring: readonly string[] };
   visibleCount: number;
@@ -11,14 +11,6 @@ type Group3Snapshot = {
   mountedCount: number;
   eventLog: readonly string[];
   recoveryCount: number;
-  staleCompletionIgnored: number;
-  layers: readonly {
-    scene: string;
-    role: string;
-    visible: boolean;
-    interactable: boolean;
-    opacity: number;
-  }[];
 };
 
 declare global {
@@ -26,7 +18,7 @@ declare global {
     __r4Group3?: {
       playForward(options?: { buildTimeout?: boolean }): Promise<void>;
       playReverse(options?: { buildTimeout?: boolean }): Promise<void>;
-      seek(scene: 'figure2-animation' | 'figure2-proof-opening' | 'figure2-proof-cards' | 'figure2-proof-closing' | 'brand'): void;
+      seek(scene: 'figure2-animation' | 'figure2-proof' | 'brand'): void;
       idempotentCycle(): Promise<void>;
       snapshot(): Group3Snapshot;
     };
@@ -35,11 +27,8 @@ declare global {
 
 async function snapshot(page: Page): Promise<Group3Snapshot> {
   return page.evaluate(() => {
-    const api = window.__r4Group3;
-    if (!api) {
-      throw new Error('R4 group3 harness API is not installed');
-    }
-    return api.snapshot();
+    if (!window.__r4Group3) throw new Error('R4 group3 harness API is not installed');
+    return window.__r4Group3.snapshot();
   });
 }
 
@@ -47,142 +36,86 @@ type Group3VisualSnapshot = {
   activeInkSegments: readonly string[];
   fieldInkSegments: readonly string[];
   transitions: readonly string[];
-  proofOpeningProgress: number;
+  proofRootCount: number;
+  proofPanelCount: number;
+  proofScrollportCount: number;
+  proofScrollTop: number;
+  proofMaxScrollTop: number;
   proofRevealProgress: number;
-  proofInkCanvasOpacity: number;
-  proofArchArea: number;
-  proofArchCount: number;
-  proofArchOpacity: number;
-  proofArchBlurPx: number;
-  figure2ProofProgress: number;
-  figure2BackgroundOpacity: number;
-  figure2FigureOpacity: number;
-  figure2NearArchOpacity: number;
-  retainedArchCount: number;
-  figure2LayerZ: number;
-  proofLayerZ: number;
-  proofLayerClipPath: string;
-  proofLayerMask: string;
-  proofLayerElevated: boolean;
-  proofInkRenderer: string | null;
-  proofInkEffectOnly: boolean;
-  proofInkBoundaryKind: string | null;
-  proofInkVisible: boolean;
-  depthFieldMask: string;
-  figureDepthSurfaceMask: string;
-  figureClip: string;
-  depthMaskValues: string;
-  proofBackgroundImage: string;
-  proofGroundBackgroundImage: string;
+  proofOpeningProgress: number;
   proofOpeningY: number;
-  proofClosingY: number;
   proofClosingOpacity: number;
-  proofClosingLayerOpacity: number;
-  brandY: number;
-  brandOpacity: number;
-  brandLayerMask: string;
-  retainedArchMask: string;
+  retainedArchCount: number;
+  proofArchCount: number;
+  proofLayerElevated: boolean;
+  proofLayerMask: string;
+  proofBackground: string;
+  proofGroundBackground: string;
+  figureDepthSurfaceCount: number;
   brandLayerClip: string;
   retainedArchClip: string;
-  posterCount: number;
   videos: readonly {
     side: string;
     mediaKey: string;
     direction: string;
     frameReady: boolean;
-    loop: boolean;
     paused: boolean;
     currentTime: number;
-    preload: string;
   }[];
 };
 
 async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
   return page.evaluate(() => {
-    const proofRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-proof-opening"]');
+    const proofRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]');
     const proofLayer = proofRoot?.closest<HTMLElement>('[data-stage-layer]');
-    const arch = document.querySelector<HTMLElement>('.stage-proof-retained-arch');
-    const archRect = arch?.getBoundingClientRect();
-    const archStyle = arch ? window.getComputedStyle(arch) : undefined;
-    const proofStyle = proofRoot ? window.getComputedStyle(proofRoot) : undefined;
-    const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
-    const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
-    const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
-    const depthField = figureRoot?.querySelector<HTMLElement>('[data-figure2-depth-ranked-field="true"]');
-    const figureDepthSurface = figureRoot?.querySelector<HTMLElement>(
-      '[data-figure2-figure-depth-surface="true"]'
-    );
-    const figureField = figureRoot?.querySelector<HTMLElement>('[data-figure2-figure-field="true"]');
-    const proofInkCanvas = document.querySelector<HTMLCanvasElement>('[data-r4-ink-segment="figure2-distance-expand"]');
+    const proofOpening = proofRoot?.querySelector<HTMLElement>('[data-r4-proof-panel="opening"]');
+    const proofClosing = proofRoot?.querySelector<HTMLElement>('[data-r4-proof-panel="closing"]');
+    const proofScrollport = proofLayer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
+      ?? (proofLayer?.dataset.reading === 'true' ? proofLayer : null);
+    const retainedArch = document.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]');
     const proofGround = document.querySelector<HTMLElement>('[data-figure2-retained-ground="true"]');
-    const proofGroundStyle = proofGround ? window.getComputedStyle(proofGround) : undefined;
-    const proofClosing = document.querySelector<HTMLElement>('[data-r4-scene="figure2-proof-closing"]');
-    const brand = document.querySelector<HTMLElement>('[data-r4-scene="brand"]');
-    const proofClosingStyle = proofClosing ? window.getComputedStyle(proofClosing) : undefined;
-    const proofClosingLayer = proofClosing?.closest<HTMLElement>('[data-stage-layer]');
-    const brandStyle = brand ? window.getComputedStyle(brand) : undefined;
-    const brandLayer = brand?.closest<HTMLElement>('[data-stage-layer]');
-    const inkCanvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
+    const brandLayer = document.querySelector<HTMLElement>('[data-stage-layer="brand"]');
+    const canvases = [...document.querySelectorAll<HTMLCanvasElement>('[data-r4-ink-segment]')];
     return {
-      activeInkSegments: inkCanvases
+      activeInkSegments: canvases
         .filter((canvas) => canvas.dataset.r4InkActive === 'true' || canvas.parentElement?.dataset.r4InkActive === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
-      fieldInkSegments: inkCanvases
+      fieldInkSegments: canvases
         .filter((canvas) => canvas.dataset.r4InkRenderer === 'field' && canvas.dataset.r4InkEffectOnly === 'true')
         .map((canvas) => canvas.dataset.r4InkSegment ?? ''),
       transitions: [...document.querySelectorAll<HTMLElement>('[data-r4-transition]')]
         .map((element) => element.dataset.r4Transition ?? ''),
-      proofOpeningProgress: Number.parseFloat(proofRoot?.dataset.proofOpeningProgress ?? '0'),
+      proofRootCount: document.querySelectorAll('[data-r4-scene="figure2-proof"]').length,
+      proofPanelCount: proofRoot?.querySelectorAll('[data-r4-proof-panel]').length ?? 0,
+      proofScrollportCount: proofScrollport ? 1 : 0,
+      proofScrollTop: proofScrollport?.scrollTop ?? Number.NaN,
+      proofMaxScrollTop: proofScrollport
+        ? proofScrollport.scrollHeight - proofScrollport.clientHeight
+        : Number.NaN,
       proofRevealProgress: Number.parseFloat(proofRoot?.dataset.figure2ProofRevealProgress ?? '0'),
-      proofInkCanvasOpacity: Number.parseFloat(proofInkCanvas ? window.getComputedStyle(proofInkCanvas).opacity : '0'),
-      proofArchArea: (archRect?.width ?? 0) * (archRect?.height ?? 0),
-      proofArchCount: document.querySelectorAll('.stage-proof-retained-arch').length,
-      proofArchOpacity: Number.parseFloat(archStyle?.opacity ?? '0'),
-      proofArchBlurPx: Number.parseFloat((archStyle?.filter.match(/blur\(([^p]+)px\)/)?.[1]) ?? '0'),
-      figure2ProofProgress: Number.parseFloat(figureRoot?.dataset.figure2ProofProgress ?? '0'),
-      figure2BackgroundOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-background-opacity') ?? '1'),
-      figure2FigureOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-figure-opacity') ?? '1'),
-      figure2NearArchOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--r4-figure2-near-arch-opacity') ?? '0'),
+      proofOpeningProgress: Number.parseFloat(proofOpening?.dataset.proofOpeningProgress ?? '0'),
+      proofOpeningY: Number.parseFloat(
+        proofOpening ? getComputedStyle(proofOpening).getPropertyValue('--r4-proof-opening-y') : '0'
+      ),
+      proofClosingOpacity: Number.parseFloat(
+        proofClosing ? getComputedStyle(proofClosing).getPropertyValue('--r4-proof-closing-opacity') : '0'
+      ),
       retainedArchCount: document.querySelectorAll('[data-stage-retained-figure2-arch="true"]').length,
-      figure2LayerZ: Number.parseInt(window.getComputedStyle(figure2Layer ?? document.body).zIndex || '0', 10),
-      proofLayerZ: Number.parseInt(window.getComputedStyle(proofLayer ?? document.body).zIndex || '0', 10),
-      proofLayerClipPath: window.getComputedStyle(proofLayer ?? document.body).clipPath,
-      proofLayerMask: proofLayer ? window.getComputedStyle(proofLayer).maskImage : 'none',
+      proofArchCount: document.querySelectorAll('.stage-proof-retained-arch').length,
       proofLayerElevated: proofLayer?.dataset.r4TransitionElevated === 'true',
-      proofInkRenderer: proofInkCanvas?.dataset.r4InkRenderer ?? null,
-      proofInkEffectOnly: proofInkCanvas?.dataset.r4InkEffectOnly === 'true',
-      proofInkBoundaryKind: proofInkCanvas?.dataset.r4InkBoundaryKind ?? null,
-      proofInkVisible: proofInkCanvas ? window.getComputedStyle(proofInkCanvas).visibility !== 'hidden' : false,
-      depthFieldMask: depthField ? window.getComputedStyle(depthField).maskImage : 'none',
-      figureDepthSurfaceMask: figureDepthSurface
-        ? window.getComputedStyle(figureDepthSurface).maskImage
-        : 'none',
-      figureClip: figureField
-        ? window.getComputedStyle(figureField).clipPath
-        : 'none',
-      depthMaskValues: proofLayer?.dataset.r4DepthMaskValues ?? '',
-      proofBackgroundImage: proofStyle?.backgroundImage ?? '',
-      proofGroundBackgroundImage: proofGroundStyle?.backgroundImage ?? '',
-      proofOpeningY: Number.parseFloat(proofStyle?.getPropertyValue('--r4-proof-opening-y') ?? '0'),
-      proofClosingY: Number.parseFloat(proofClosingStyle?.getPropertyValue('--r4-proof-closing-y') ?? '0'),
-      proofClosingOpacity: Number.parseFloat(proofClosingStyle?.getPropertyValue('--r4-proof-closing-opacity') ?? '0'),
-      proofClosingLayerOpacity: Number.parseFloat(proofClosingLayer ? window.getComputedStyle(proofClosingLayer).opacity : '0'),
-      brandY: Number.parseFloat(brandStyle?.getPropertyValue('--r4-brand-y') ?? '0'),
-      brandOpacity: Number.parseFloat(brandStyle?.getPropertyValue('--r4-brand-opacity') ?? '0'),
-      brandLayerMask: brandLayer?.style.getPropertyValue('mask-image') ?? '',
-      retainedArchMask: arch?.style.getPropertyValue('mask-image') ?? '',
+      proofLayerMask: proofLayer ? getComputedStyle(proofLayer).maskImage : 'none',
+      proofBackground: proofRoot ? getComputedStyle(proofRoot).backgroundImage : '',
+      proofGroundBackground: proofGround ? getComputedStyle(proofGround).backgroundImage : '',
+      figureDepthSurfaceCount: document.querySelectorAll('[data-figure2-figure-depth-surface]').length,
       brandLayerClip: brandLayer?.style.clipPath ?? '',
-      retainedArchClip: arch?.style.clipPath ?? '',
-      posterCount: figureRoot?.querySelectorAll('[data-figure2-poster]').length ?? 0,
+      retainedArchClip: retainedArch?.style.clipPath ?? '',
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')].map((video) => ({
         side: video.dataset.figure2Side ?? '',
         mediaKey: video.dataset.mediaKey ?? '',
         direction: video.dataset.timelineVideoDirection ?? '',
         frameReady: video.dataset.timelineVideoFrameReady === 'true',
-        loop: video.loop,
         paused: video.paused,
-        currentTime: video.currentTime,
-        preload: video.preload
+        currentTime: video.currentTime
       }))
     };
   });
@@ -192,12 +125,8 @@ async function assertFrame(frame: Group3Snapshot): Promise<void> {
   expect(frame.visibleCount).toBeGreaterThan(0);
   expect(frame.visibleCount).toBeLessThanOrEqual(2);
   expect(frame.interactableCount).toBeLessThanOrEqual(1);
-  if (frame.phase === 'playing') {
-    expect(frame.interactableCount).toBe(0);
-  }
-  if (frame.phase === 'hold') {
-    expect(frame.interactableCount).toBe(1);
-  }
+  if (frame.phase === 'playing') expect(frame.interactableCount).toBe(0);
+  if (frame.phase === 'hold') expect(frame.interactableCount).toBe(1);
 }
 
 function writeTrace(name: string, frame: Group3Snapshot): void {
@@ -206,294 +135,160 @@ function writeTrace(name: string, frame: Group3Snapshot): void {
   writeFileSync(resolve(artifactDir, name), `${JSON.stringify(frame, null, 2)}\n`);
 }
 
-test.describe('R4 group3 figure2 proof merge-train harness', () => {
-  test.use({
-    viewport: { width: 1280, height: 720 },
-    deviceScaleFactor: 1
-  });
+test.describe('R4 group3 canonical Figure2 and compound Proof harness', () => {
+  test.use({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
 
-  test('runs the figure2 proof chain forward and reverse with nonblank sampled frames', async ({ page }) => {
+  test('runs Figure2 media, holds its terminal frame for one second, then reveals the compound Proof hold', async ({ page }) => {
+    test.setTimeout(60_000);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g3');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
 
-    const frames: Group3Snapshot[] = [];
-    for (const target of ['figure2-proof-opening', 'figure2-proof-cards', 'figure2-proof-closing', 'brand']) {
-      await page.evaluate(() => {
-        void window.__r4Group3?.playForward();
-      });
-      if (target === 'figure2-proof-opening') {
-        await expect.poll(async () => {
-          const visual = await visualSnapshot(page);
-          return visual.videos.some((video) => (
-            video.direction === '1'
-            && video.frameReady
-            && !video.paused
-            && video.currentTime > 0.05
-            && video.currentTime < 2.4
-          ));
-        }, { timeout: 3_000 }).toBe(true);
-        await expect.poll(async () => (await snapshot(page)).phase, { timeout: 7_000 }).toBe('staged-paused');
-        const stagedFigure = await visualSnapshot(page);
-        expect(stagedFigure.videos).toHaveLength(2);
-        expect(new Set(stagedFigure.videos.map((video) => video.mediaKey))).toEqual(new Set([
-          'figure2-left-motion',
-          'figure2-right-motion'
-        ]));
-        expect(stagedFigure.posterCount).toBe(0);
-        expect(stagedFigure.videos.every((video) => (
-          video.direction === '1'
-          && video.frameReady
-          && video.loop === false
-          && video.paused
-          && video.currentTime > 2
-          && video.preload === 'auto'
-        ))).toBe(true);
-        expect(stagedFigure.depthFieldMask).toBe('none');
-        expect(stagedFigure.figureDepthSurfaceMask).toBe('none');
-        expect(stagedFigure.figureClip).toBe('none');
-        expect(stagedFigure.activeInkSegments).not.toContain('figure2-distance-expand');
-        await page.evaluate(() => {
-          void window.__r4Group3?.playForward();
-        });
-        let proofTransitionVisual: Group3VisualSnapshot | undefined;
-        let proofTransitionSeen = false;
-        const deadline = Date.now() + 12_000;
-        while (Date.now() < deadline && !proofTransitionSeen) {
-          const visual = await visualSnapshot(page);
-          const hasDepthInk = visual.activeInkSegments.includes('figure2-distance-expand')
-            && visual.fieldInkSegments.includes('figure2-distance-expand')
-            && visual.transitions.includes('figure2-proof-binary-depth')
-            && visual.proofLayerElevated
-            && visual.proofInkRenderer === 'field'
-            && visual.proofInkEffectOnly
-            && visual.proofInkBoundaryKind === 'depth'
-            && visual.proofBackgroundImage === 'none'
-            && visual.proofRevealProgress > 0
-            && visual.proofRevealProgress < 1
-            && visual.proofLayerMask !== 'none'
-            && visual.depthFieldMask !== 'none'
-            && visual.figureDepthSurfaceMask !== 'none'
-            && visual.figureClip === 'none'
-            && visual.depthMaskValues === '1,0';
-          if (hasDepthInk) {
-            proofTransitionVisual = visual;
-            proofTransitionSeen = true;
-          } else {
-            await page.waitForTimeout(20);
-          }
-        }
-        expect(proofTransitionSeen).toBe(true);
-        expect(proofTransitionVisual?.transitions).toContain('figure2-proof-binary-depth');
-        expect(proofTransitionVisual?.proofLayerElevated).toBe(true);
-        expect((proofTransitionVisual?.proofLayerZ ?? 0)).toBeGreaterThan(proofTransitionVisual?.figure2LayerZ ?? 0);
-        expect(proofTransitionVisual?.proofLayerClipPath).toBe('none');
-        expect(proofTransitionVisual?.proofInkRenderer).toBe('field');
-        expect(proofTransitionVisual?.proofInkEffectOnly).toBe(true);
-        expect(proofTransitionVisual?.proofInkBoundaryKind).toBe('depth');
-        expect(proofTransitionVisual?.proofLayerMask).not.toBe('none');
-        expect(proofTransitionVisual?.depthFieldMask).not.toBe('none');
-        expect(proofTransitionVisual?.figureDepthSurfaceMask).not.toBe('none');
-        expect(proofTransitionVisual?.figureClip).toBe('none');
-        expect(proofTransitionVisual?.depthMaskValues).toBe('1,0');
-        expect(proofTransitionVisual?.proofBackgroundImage).toBe('none');
-        expect(proofTransitionVisual?.proofRevealProgress).toBeGreaterThan(0);
-        expect(proofTransitionVisual?.proofOpeningProgress).toBe(1);
-        expect(proofTransitionVisual?.proofOpeningY).toBe(0);
-        expect(proofTransitionVisual?.figure2BackgroundOpacity).toBe(1);
-        expect(proofTransitionVisual?.figure2FigureOpacity).toBe(1);
-        expect(proofTransitionVisual?.proofInkCanvasOpacity ?? 0).toBeGreaterThan(0);
-        expect(proofTransitionVisual?.proofArchArea).toBeGreaterThan(100_000);
-      }
-      if (target === 'brand') {
-        await expect.poll(async () => {
-          const visual = await visualSnapshot(page);
-          return visual.transitions.includes('figure2-proof-brand-live-clip');
-        }, { timeout: 3_000 }).toBe(true);
-        const staticInkCopy = await visualSnapshot(page);
-        expect(staticInkCopy.proofClosingY).toBe(0);
-        expect(staticInkCopy.proofClosingOpacity).toBe(1);
-        expect(staticInkCopy.brandY).toBe(0);
-        expect(staticInkCopy.brandOpacity).toBe(1);
-        expect(staticInkCopy.brandLayerMask).toBe('');
-        expect(staticInkCopy.retainedArchMask).toBe('');
-        expect(staticInkCopy.brandLayerClip.startsWith('polygon(')).toBe(true);
-        expect(staticInkCopy.retainedArchClip.startsWith('polygon(')).toBe(true);
-        expect(staticInkCopy.fieldInkSegments).toContain('figure2-proof-brand');
-      }
-      for (let index = 0; index < 18; index += 1) {
-        await page.waitForTimeout(24);
-        const frame = await snapshot(page);
-        frames.push(frame);
-        if (index === 5 && target === 'figure2-proof-cards') {
-          expect(frame.visibleCount).toBe(2);
-          const visual = await visualSnapshot(page);
-          expect(visual.proofArchCount).toBe(1);
-          expect(visual.retainedArchCount).toBe(1);
-        }
-        if (index === 5 && target === 'figure2-proof-closing') {
-          expect(frame.visibleCount).toBe(2);
-          const visual = await visualSnapshot(page);
-          expect(visual.proofArchCount).toBe(1);
-          expect(visual.retainedArchCount).toBe(1);
-        }
-        if (index === 5 && target === 'brand') {
-          expect(frame.visibleCount).toBeLessThanOrEqual(2);
-        }
-      }
-      await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 7_000 }).toBe(target);
-      if (target === 'figure2-proof-opening') {
-        const visual = await visualSnapshot(page);
-        expect(visual.proofOpeningProgress).toBe(1);
-        expect(visual.proofOpeningY).toBe(0);
-        expect(visual.proofInkCanvasOpacity).toBe(0);
-        expect(visual.proofInkVisible).toBe(false);
-        expect(visual.proofBackgroundImage).toBe('none');
-        expect(visual.proofGroundBackgroundImage).not.toBe('none');
-        expect(visual.proofArchArea).toBeGreaterThan(100_000);
-        expect(visual.proofArchOpacity).toBeGreaterThan(0.8);
-        expect(visual.proofArchBlurPx).toBeGreaterThan(3);
-      }
-      if (target === 'figure2-proof-cards' || target === 'figure2-proof-closing') {
-        expect((await visualSnapshot(page)).proofArchCount).toBe(1);
-      }
-      if (target === 'brand') {
-        const terminal = await visualSnapshot(page);
-        expect(terminal.proofClosingLayerOpacity).toBe(0);
-        expect(terminal.brandLayerMask).toBe('');
-        expect(terminal.brandLayerClip).toBe('');
-      }
-    }
+    await page.evaluate(() => { void window.__r4Group3?.playForward(); });
+    await expect.poll(async () => (await visualSnapshot(page)).videos.some((video) => (
+      video.direction === '1' && video.frameReady && !video.paused && video.currentTime > 0.05
+    )), { timeout: 12_000, intervals: [20] }).toBe(true);
 
-    await page.evaluate(() => {
-      void window.__r4Group3?.playReverse();
-    });
-    const reverseFrames: Group3Snapshot[] = [];
-    for (let index = 0; index < 18; index += 1) {
+    await expect.poll(async () => {
+      const frame = await snapshot(page);
+      const visual = await visualSnapshot(page);
+      return frame.phase === 'playing'
+        && visual.videos.length === 2
+        && visual.videos.every((video) => video.frameReady && video.paused && video.currentTime > 2)
+        && !visual.activeInkSegments.includes('figure2-distance-expand')
+        && visual.proofRevealProgress === 0;
+    }, { timeout: 8_000, intervals: [20] }).toBe(true);
+    const dwellStartedAt = Date.now();
+    const terminalVideos = (await visualSnapshot(page)).videos;
+    await page.waitForTimeout(650);
+    const dwellFrame = await visualSnapshot(page);
+    expect((await snapshot(page)).phase).toBe('playing');
+    expect(dwellFrame.activeInkSegments).not.toContain('figure2-distance-expand');
+    expect(dwellFrame.proofRevealProgress).toBe(0);
+    expect(dwellFrame.videos.every((video, index) => (
+      video.paused && Math.abs(video.currentTime - (terminalVideos[index]?.currentTime ?? 0)) < 0.03
+    ))).toBe(true);
+
+    await expect.poll(async () => {
+      const visual = await visualSnapshot(page);
+      return visual.transitions.includes('figure2-proof-binary-depth')
+        && visual.activeInkSegments.includes('figure2-distance-expand')
+        && visual.proofLayerElevated
+        && visual.proofRevealProgress > 0
+        && visual.proofRevealProgress < 1;
+    }, { timeout: 8_000, intervals: [20] }).toBe(true);
+    expect(Date.now() - dwellStartedAt).toBeGreaterThanOrEqual(850);
+    const depthFrame = await visualSnapshot(page);
+    expect(depthFrame.proofLayerMask).not.toBe('none');
+    expect(depthFrame.fieldInkSegments).toContain('figure2-distance-expand');
+    expect(depthFrame.figureDepthSurfaceCount).toBe(1);
+    expect(depthFrame.proofRootCount).toBe(1);
+    expect(depthFrame.proofPanelCount).toBe(3);
+    expect(depthFrame.proofOpeningProgress).toBe(1);
+    expect(depthFrame.proofOpeningY).toBe(0);
+
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('figure2-proof');
+    const proofHold = await visualSnapshot(page);
+    expect(proofHold.proofRootCount).toBe(1);
+    expect(proofHold.proofPanelCount).toBe(3);
+    expect(proofHold.proofScrollportCount).toBe(1);
+    expect(proofHold.proofScrollTop).toBeLessThan(1);
+    expect(proofHold.proofMaxScrollTop).toBeGreaterThan(1_000);
+    expect(proofHold.retainedArchCount).toBe(1);
+    expect(proofHold.proofArchCount).toBe(1);
+    expect(proofHold.proofGroundBackground).not.toBe('none');
+    expect((await snapshot(page)).eventLog).not.toEqual(expect.arrayContaining([
+      'STAGE_PAUSED',
+      'PLAY:figure2-proof-opening-cards:1',
+      'PLAY:figure2-proof-cards-closing:1'
+    ]));
+
+    await expect.poll(async () => (await snapshot(page)).eventLog.includes(
+      'PLAY:figure2-distance-expand:1'
+    )).toBe(true);
+    const beforeInternalScroll = (await snapshot(page)).eventLog.length;
+    const proofScrollport = page.locator(
+      '[data-stage-layer="figure2-proof"] [data-reading-scrollport="true"]'
+    );
+    await proofScrollport.hover();
+    for (let index = 0; index < 4; index += 1) {
+      await page.mouse.wheel(0, 120);
       await page.waitForTimeout(24);
-      reverseFrames.push(await snapshot(page));
     }
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure2-proof-closing');
+    expect((await snapshot(page)).window.current).toBe('figure2-proof');
+    expect((await visualSnapshot(page)).proofScrollTop).toBeGreaterThan(100);
+    expect((await snapshot(page)).eventLog.length).toBe(beforeInternalScroll);
 
-    for (const frame of [...frames, ...reverseFrames]) {
-      await assertFrame(frame);
-    }
+    await page.evaluate(() => { void window.__r4Group3?.playForward(); });
+    await expect.poll(async () => {
+      const visual = await visualSnapshot(page);
+      return visual.activeInkSegments.includes('figure2-proof-brand')
+        && visual.transitions.includes('figure2-proof-brand-live-clip');
+    }, { timeout: 4_000, intervals: [20] }).toBe(true);
+    const brandInk = await visualSnapshot(page);
+    expect(brandInk.proofClosingOpacity).toBe(1);
+    expect(brandInk.brandLayerClip.startsWith('polygon(')).toBe(true);
+    expect(brandInk.retainedArchClip.startsWith('polygon(')).toBe(true);
+    await expect.poll(async () => (await snapshot(page)).window.current).toBe('brand');
 
-    const finalFrame = await snapshot(page);
-    writeTrace('group3-forward-reverse-trace.json', finalFrame);
-    expect(finalFrame.phase).toBe('hold');
-    expect(finalFrame.visibleCount).toBe(1);
-    expect(finalFrame.interactableCount).toBe(1);
+    await page.evaluate(() => { void window.__r4Group3?.playReverse(); });
+    await expect.poll(async () => (await snapshot(page)).window.current).toBe('figure2-proof');
+    const reverseProof = await visualSnapshot(page);
+    expect(reverseProof.proofRootCount).toBe(1);
+    expect(reverseProof.proofPanelCount).toBe(3);
+    await assertFrame(await snapshot(page));
+    writeTrace('group3-forward-reverse-trace.json', await snapshot(page));
   });
 
-  test('holds Figure2 through reverse Ink, then animates every reverse intro frame', async ({ page }) => {
+  test('reverses the same depth and media lifecycle across the symmetric timed boundary', async ({ page }) => {
     test.setTimeout(45_000);
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g3-figure2-distance-expand');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
 
     await page.evaluate(() => { void window.__r4Group3?.playForward(); });
-    await expect.poll(async () => (await snapshot(page)).phase, { timeout: 8_000 }).toBe('staged-paused');
-    await page.evaluate(() => { void window.__r4Group3?.playForward(); });
-    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 8_000 }).toBe('figure2-proof-opening');
-
-    const parkedAtProof = (await visualSnapshot(page)).videos;
-    expect(parkedAtProof).toHaveLength(2);
-    expect(parkedAtProof.every((video) => (
-      video.direction === '1' && video.frameReady && video.paused && video.currentTime > 2
-    ))).toBe(true);
-
-    const sampleReverseLeg = async () => {
-      const samples: Group3VisualSnapshot['videos'][] = [];
-      for (let index = 0; index < 18; index += 1) {
-        await page.waitForTimeout(50);
-        const frame = await snapshot(page);
-        if (frame.phase === 'hold') {
-          break;
-        }
-        if (frame.phase === 'playing') {
-          const visual = await visualSnapshot(page);
-          if (visual.proofRevealProgress < 0.999) {
-            samples.push(visual.videos);
-          }
-        }
-      }
-      return samples;
-    };
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('figure2-proof');
+    const parked = (await visualSnapshot(page)).videos;
+    expect(parked).toHaveLength(2);
+    expect(parked.every((video) => video.frameReady && video.paused && video.currentTime > 2)).toBe(true);
 
     await page.evaluate(() => { void window.__r4Group3?.playReverse(); });
-    const inkLegSamples = await sampleReverseLeg();
-    expect(inkLegSamples.length).toBeGreaterThan(2);
-    expect(inkLegSamples.every((videos) => (
-      videos.length === 2
-      && videos.every((video) => (
-        video.direction === '-1' && video.frameReady && video.paused && video.currentTime > 2.3
-      ))
-    ))).toBe(true);
-    await expect.poll(async () => (await snapshot(page)).phase, { timeout: 8_000 }).toBe('staged-paused');
-    const reversePause = (await visualSnapshot(page)).videos;
-    expect(reversePause).toHaveLength(2);
-    expect(reversePause.every((video) => (
-      video.direction === '-1' && video.frameReady && video.paused && video.currentTime > 2.3
-    ))).toBe(true);
+    await expect.poll(async () => {
+      const visual = await visualSnapshot(page);
+      return visual.transitions.includes('figure2-proof-binary-depth')
+        && visual.videos.every((video) => video.direction === '-1' && video.currentTime > 2.3);
+    }, { timeout: 5_000, intervals: [20] }).toBe(true);
 
-    await page.evaluate(() => { void window.__r4Group3?.playReverse(); });
-    const introLegSamples = await sampleReverseLeg();
-    expect(introLegSamples.length).toBeGreaterThan(2);
-
-    expect(introLegSamples.every((videos) => {
-      return videos.length === 2
-        && videos.every((video) => video.direction === '-1' && video.paused)
-        && new Set(videos.map((video) => video.side)).size === 2;
-    })).toBe(true);
-    for (const side of ['left', 'right']) {
-      const reverseValues = introLegSamples.map((videos) => (
-        videos.find((video) => video.side === side)?.currentTime ?? 0
-      ));
-      expect(Math.max(...reverseValues) - Math.min(...reverseValues)).toBeGreaterThan(0.2);
-      expect(reverseValues.some((value, index) => index > 0 && value < (reverseValues[index - 1] ?? 0) - 0.01)).toBe(true);
-      expect(reverseValues.at(-1) ?? 0).toBeLessThan((reverseValues[0] ?? 0) - 0.2);
-
+    const samples: Record<string, number[]> = { left: [], right: [] };
+    while ((await snapshot(page)).phase !== 'hold') {
+      const visual = await visualSnapshot(page);
+      for (const video of visual.videos) samples[video.side]?.push(video.currentTime);
+      await page.waitForTimeout(40);
     }
-    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 8_000 }).toBe('figure2-animation');
-    await expect.poll(async () => (await visualSnapshot(page)).videos.every((video) => (
-      video.frameReady && video.currentTime < 0.1
-    ))).toBe(true);
-    const reversedHold = await visualSnapshot(page);
-    expect(reversedHold.posterCount).toBe(0);
-    expect(reversedHold.videos).toHaveLength(2);
-    expect(reversedHold.videos.every((video) => video.paused)).toBe(true);
-    expect(reversedHold.videos.every((video) => (
-      video.direction === '-1' && video.frameReady && video.paused && video.currentTime < 0.1
-    ))).toBe(true);
+    for (const side of ['left', 'right']) {
+      const values = samples[side] ?? [];
+      expect(values.length).toBeGreaterThan(4);
+      expect(Math.max(...values) - Math.min(...values)).toBeGreaterThan(0.2);
+      expect(values.some((value, index) => index > 0 && value < (values[index - 1] ?? 0) - 0.01)).toBe(true);
+    }
+    expect((await snapshot(page)).window.current).toBe('figure2-animation');
+    expect((await snapshot(page)).eventLog).not.toContain('STAGE_PAUSED');
   });
 
-  test('covers reduced motion and 0 to 1 to 0 to 1 replay on the staged segment', async ({ page }) => {
+  test('covers reduced motion and 0 to 1 to 0 to 1 replay on the canonical segment', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/harness/r4-g3-figure2-distance-expand');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
-    await expect(page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)).resolves.toBe(true);
-
-    await page.evaluate(async () => {
-      await window.__r4Group3?.idempotentCycle();
-    });
-
+    await page.evaluate(async () => { await window.__r4Group3?.idempotentCycle(); });
     const frame = await snapshot(page);
-    writeTrace('group3-reduced-motion-trace.json', frame);
     expect(frame.phase).toBe('hold');
-    expect(frame.window.current).toBe('figure2-proof-opening');
-    expect(frame.visibleCount).toBe(1);
-    expect(frame.interactableCount).toBe(1);
+    expect(frame.window.current).toBe('figure2-proof');
+    expect((await visualSnapshot(page)).proofPanelCount).toBe(3);
   });
 
   test('keeps the committed hold when endpoint reconstruction also times out', async ({ page }) => {
     await page.goto('/harness/r4-g3');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
-
-    await page.evaluate(async () => {
-      await window.__r4Group3?.playForward({ buildTimeout: true });
-    });
-
+    await page.evaluate(async () => { await window.__r4Group3?.playForward({ buildTimeout: true }); });
     const frame = await snapshot(page);
     expect(frame.phase).toBe('hold');
     expect(frame.window.current).toBe('figure2-animation');

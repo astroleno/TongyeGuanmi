@@ -5,6 +5,7 @@ import {
   attachHeroParallax,
   heroParallaxSample,
   sampleHeroIntro,
+  sampleHeroScroll,
   startHeroIntro
 } from './motion';
 
@@ -42,6 +43,28 @@ class FakeEventTarget {
 }
 
 describe('Hero motion', () => {
+  it('samples the Main Hero layers independently at authored endpoints', () => {
+    expect(sampleHeroScroll(0)).toMatchObject({
+      backYVh: 0,
+      backScale: 1.1,
+      middleYVh: 1,
+      middleScale: 0.98,
+      figureYVh: 12,
+      figureScale: 1
+    });
+    expect(sampleHeroScroll(1)).toMatchObject({
+      backYVh: -5,
+      backScale: 1.2,
+      middleYVh: 19,
+      middleScale: 1.3,
+      figureYVh: -3,
+      figureScale: 1.065
+    });
+    expect(sampleHeroScroll(1, true).middleYVh).toBe(15);
+    expect(sampleHeroScroll(0.16).figureScale).toBe(1);
+    expect(sampleHeroScroll(0.92).figureScale).toBe(1.065);
+  });
+
   it('uses the legacy 2.7s intro and title threshold', () => {
     expect(HERO_INTRO_DURATION_MS).toBe(2_700);
     expect(HERO_TITLE_START_PROGRESS).toBe(0.78);

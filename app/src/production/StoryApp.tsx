@@ -44,10 +44,12 @@ import {
   loadedProductionModules
 } from './module-loaders';
 import {
+  figure2ProofPanelFromHash,
   hashForScene,
   sceneFromHash,
   sceneLabel
 } from './navigation';
+import { positionCurrentProofHistoryAlias, positionProofAlias } from './proof-alias-navigation';
 
 const StoryNav = lazy(() => import('./StoryNav').then(({ StoryNav: Component }) => ({ default: Component })));
 
@@ -202,7 +204,6 @@ export function StoryApp() {
           ?? document.querySelector<HTMLElement>(`[data-stage-layer="${targetScene}"]`);
         if (readingScrollport(targetLayer)) {
           positionReadingAtEdge(targetLayer, direction === 1 ? 'top' : 'bottom');
-          window.dispatchEvent(new Event('story-reading-entry'));
         }
       },
       waitForMediaReady: ({ segment, prepareToken, direction }) =>
@@ -419,9 +420,18 @@ export function StoryApp() {
       appliedReadingEntryTokenRef.current = entry.token;
       return;
     }
-    positionReadingAtEdge(layer, entry.edge);
+    const proofPanel = scene === 'figure2-proof'
+      ? figure2ProofPanelFromHash(window.location.hash)
+      : undefined;
+    const mountedEdge = proofPanel
+      ? positionProofAlias(layer, proofPanel)
+      : (positionReadingAtEdge(layer, entry.edge), entry.edge);
     appliedReadingEntryTokenRef.current = entry.token;
-    window.dispatchEvent(new Event('story-reading-entry'));
+    window.dispatchEvent(mountedEdge
+      ? new CustomEvent('story-reading-entry', {
+          detail: { ...entry, edge: mountedEdge }
+        })
+      : new Event('story-reading-entry'));
   }, [layerStore, runtimeSnapshot]);
 
   useEffect(() => {
@@ -444,6 +454,17 @@ export function StoryApp() {
       }
       const current = runtime.getState();
       if (current.state === 'hold' && current.context.layerWindow.current === scene) {
+        const layer = layerStore.getLayer(scene)?.element
+          ?? document.querySelector<HTMLElement>(`[data-stage-layer="${scene}"]`);
+        const alias = positionCurrentProofHistoryAlias(layer, scene, window.location.hash);
+        if (alias) {
+          const entry = current.context.holdEntry;
+          window.dispatchEvent(alias.edge
+            ? new CustomEvent('story-reading-entry', {
+                detail: { ...entry, edge: alias.edge, source: 'history' }
+              })
+            : new Event('story-reading-entry'));
+        }
         return;
       }
       pendingHistorySceneRef.current = scene;
@@ -459,7 +480,7 @@ export function StoryApp() {
       window.removeEventListener('popstate', onHistoryNavigation);
       window.removeEventListener('hashchange', onHistoryNavigation);
     };
-  }, [navigate, runtime]);
+  }, [layerStore, navigate, runtime]);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');

@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { createBrandFigure3Transition } from './brand-figure3';
-import { createFigure3ServicesTransition, FIGURE3_SERVICES_COPY_CUE, FIGURE3_SERVICES_DURATION_MS } from './figure3-services';
+import {
+  createFigure3ServicesTransition,
+  FIGURE3_SERVICES_COPY_CUE,
+  FIGURE3_SERVICES_DURATION_MS,
+  sampleFigure3ServicesChannels
+} from './figure3-services';
 import type { Direction, LayerHandle, LayerVisibilityState, SceneId, SegmentId, SpineSegmentNode, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas } from './__fixtures__/back-half.fixture';
 
@@ -154,6 +159,17 @@ const cases: readonly {
   }
 ];
 
+function contextForCase(
+  item: (typeof cases)[number],
+  prefersReducedMotion = false
+): TransitionContext {
+  if (item.id === 'brand-figure3') {
+    const fixture = createBackHalfDomContext(item.id, item.from, item.to);
+    return { ...fixture.context, prefersReducedMotion };
+  }
+  return context(item.id, item.from, item.to, prefersReducedMotion);
+}
+
 describe('R4 group4 transitions', () => {
   it('shares one organic bottom-to-top boundary for Brand to Figure3', async () => {
     const fixture = createBackHalfDomContext('brand-figure3', 'brand', 'figure3-animation');
@@ -161,6 +177,11 @@ describe('R4 group4 transitions', () => {
     vi.stubGlobal('document', { createElement: () => canvas });
     const timeline = await createBrandFigure3Transition().buildTimeline(fixture.context);
     const receiver = fixture.stage.children[1]!;
+
+    expect(fixture.toRoot.dataset.r4EndpointReady).toBe(
+      `${fixture.context.runId}:${fixture.context.prepareToken}`
+    );
+    expect(fixture.toRoot.querySelector('[data-figure3-alpha-video]')?.dataset.timelineVideoFrameReady).toBe('true');
 
     timeline.progress(0.5);
 
@@ -205,7 +226,7 @@ describe('R4 group4 transitions', () => {
     expect(reverseContext.to.visibility).toMatchObject({ visible: true, opacity: 1 });
     expect(fromVisibilityWrites.some((state) => state.visible)).toBe(false);
     expect(toVisibilityWrites.some((state) => !state.visible)).toBe(false);
-    expect(toElement.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('1.0000');
+    expect(toElement.style.getPropertyValue('--r4-services-paper-alpha')).toBe('1.0000');
   });
 
   it('settles reverse Figure3-to-Services reduced motion at the forward start', async () => {
@@ -222,7 +243,7 @@ describe('R4 group4 transitions', () => {
     expect(overlay).not.toContain('linear-gradient(90deg');
   });
 
-  it('crossfades into Services from 80% through the final frame of one 2600ms snap', async () => {
+  it('uses one 2600ms single-owner handoff with Figure3 visible until the endpoint', async () => {
     const policy = segment('figure3-services').policy;
     const timeline = await createFigure3ServicesTransition().buildTimeline(
       context('figure3-services', 'figure3-animation', 'services')
@@ -241,15 +262,15 @@ describe('R4 group4 transitions', () => {
     });
     expect(timeline.sample?.(0.8)).toMatchObject({
       from: { visible: true, opacity: 1 },
-      to: { visible: false, opacity: 0 }
+      to: { visible: true, opacity: 1 }
     });
     expect(timeline.sample?.(0.81)).toMatchObject({
       from: { visible: true },
       to: { visible: true }
     });
     expect(timeline.sample?.(0.999)).toMatchObject({
-      from: { visible: false },
-      to: { visible: true, opacity: expect.closeTo(1, 3) }
+      from: { visible: true, opacity: 1 },
+      to: { visible: true, opacity: 1 }
     });
     expect(timeline.sample?.(1)).toMatchObject({
       from: { visible: false, opacity: 0 },
@@ -257,7 +278,24 @@ describe('R4 group4 transitions', () => {
     });
   });
 
-  it("crossfades Figure3 and Services with the receiver's paper and wash in forward and reverse", async () => {
+  it('matches the authored source/copy/paper channel table in forward and reverse', () => {
+    const points = [0.79, 0.8, 0.9, 0.99, 1] as const;
+    const forward = points.map(sampleFigure3ServicesChannels);
+    const reverse = [...points].reverse().map(sampleFigure3ServicesChannels);
+
+    expect(forward[0]).toMatchObject({ sourceVisibility: 1, copyProgress: 0, paperAlpha: 0 });
+    expect(forward[1]).toMatchObject({ sourceVisibility: 1, copyProgress: 0, paperAlpha: 0 });
+    expect(forward[2]!.sourceVisibility).toBe(1);
+    expect(forward[2]!.copyProgress).toBeGreaterThan(forward[2]!.paperAlpha);
+    expect(forward[2]!.paperAlpha).toBeCloseTo(0.5, 6);
+    expect(forward[3]!.sourceVisibility).toBe(1);
+    expect(forward[3]!.copyProgress).toBe(1);
+    expect(forward[3]!.paperAlpha).toBeGreaterThan(0.99);
+    expect(forward[4]).toMatchObject({ sourceVisibility: 0, copyProgress: 1, paperAlpha: 1 });
+    expect(reverse).toEqual([...forward].reverse());
+  });
+
+  it("keeps Figure3 as source while Services' copy and paper enter independently", async () => {
     const policy = segment('figure3-services').policy;
     expect(policy.kind).toBe('snap');
     const fromElement = new FakeElement();
@@ -279,20 +317,22 @@ describe('R4 group4 transitions', () => {
 
     timeline.progress(0.8);
     expect(transitionContext.from.visibility.visible).toBe(true);
-    expect(transitionContext.to.visibility.visible).toBe(false);
-    expect(toElement.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('0.0000');
+    expect(transitionContext.to.visibility.visible).toBe(true);
+    expect(toElement.style.getPropertyValue('--r4-services-paper-alpha')).toBe('0.0000');
     expect(toElement.style.getPropertyValue('--r4-services-opacity')).toBe('0.0000');
     expect(toElement.style.getPropertyValue('--r4-services-y')).toBe('28.00px');
 
     timeline.progress(midpoint);
-    expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-handoff-paper-alpha'))).toBeCloseTo(0.5, 3);
-    expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-handoff-wash-alpha'))).toBeCloseTo(0.5, 3);
+    expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-services-paper-alpha'))).toBeCloseTo(0.5, 3);
+    expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-services-wash-alpha'))).toBeCloseTo(0.5, 3);
+    expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-services-opacity'))).toBeGreaterThan(0.8);
+    expect(Number.parseFloat(toElement.style.getPropertyValue('--r4-services-y'))).toBeLessThan(6);
     expect(transitionContext.from.visibility.visible).toBe(true);
     expect(transitionContext.to.visibility.visible).toBe(true);
 
     timeline.progress(1);
-    expect(toElement.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe('1.0000');
-    expect(toElement.style.getPropertyValue('--r4-handoff-wash-alpha')).toBe('1.0000');
+    expect(toElement.style.getPropertyValue('--r4-services-paper-alpha')).toBe('1.0000');
+    expect(toElement.style.getPropertyValue('--r4-services-wash-alpha')).toBe('1.0000');
     expect(transitionContext.from.visibility.visible).toBe(false);
 
     timeline.progress(midpoint);
@@ -305,7 +345,35 @@ describe('R4 group4 transitions', () => {
     timeline.dispose();
   });
 
-  it('does not let an older Figure3 run clear a newer receiver bridge during rapid forward/reverse replacement', async () => {
+  it('releases only the Services-owned entrance lease at settle without changing endpoint channels', async () => {
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    const timeline = await createFigure3ServicesTransition().buildTimeline(context(
+      'figure3-services',
+      'figure3-animation',
+      'services',
+      false,
+      { from: fromElement as unknown as HTMLElement, to: toElement as unknown as HTMLElement }
+    ));
+
+    timeline.progress(1);
+    expect(toElement.style.getPropertyValue('--r4-services-opacity')).toBe('1.0000');
+    expect(toElement.style.getPropertyValue('--r4-services-y')).toBe('0.00px');
+    expect(toElement.style.getPropertyValue('--r4-services-paper-alpha')).toBe('1.0000');
+
+    timeline.dispose();
+
+    expect(toElement.style.getPropertyValue('--r4-services-opacity')).toBe('1.0000');
+    expect(toElement.style.getPropertyValue('--r4-services-y')).toBe('0.00px');
+    expect(toElement.style.getPropertyValue('--r4-services-paper-alpha')).toBe('1.0000');
+    expect(toElement.style.getPropertyValue('--r4-services-wash-alpha')).toBe('1.0000');
+    expect(toElement.dataset.r4ServicesEntranceRun).toBeUndefined();
+    expect(toElement.dataset.r4ServicesEntranceProgress).toBeUndefined();
+    expect(fromElement.dataset.r4Transition).toBeUndefined();
+    expect(toElement.dataset.r4Transition).toBeUndefined();
+  });
+
+  it('does not let an older Figure3 run clear a newer Services entrance lease', async () => {
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
     const transition = createFigure3ServicesTransition();
@@ -329,11 +397,11 @@ describe('R4 group4 transitions', () => {
     ));
 
     newer.progress(0.9);
-    const receiverAlpha = toElement.style.getPropertyValue('--r4-handoff-paper-alpha');
+    const receiverAlpha = toElement.style.getPropertyValue('--r4-services-paper-alpha');
 
     older.dispose();
 
-    expect(toElement.style.getPropertyValue('--r4-handoff-paper-alpha')).toBe(receiverAlpha);
+    expect(toElement.style.getPropertyValue('--r4-services-paper-alpha')).toBe(receiverAlpha);
     newer.dispose();
   });
 
@@ -370,7 +438,7 @@ describe('R4 group4 transitions', () => {
   for (const item of cases) {
     it(`verifies ${item.id} timeline and reduced-motion fallback`, async () => {
       const transition = item.create();
-      const timeline = await transition.buildTimeline(context(item.id, item.from, item.to));
+      const timeline = await transition.buildTimeline(contextForCase(item));
 
       expect(transition.reducedMotionFallback).toBeTypeOf('function');
       const verification = verifySegmentTimeline(timeline, {
@@ -384,7 +452,7 @@ describe('R4 group4 transitions', () => {
     });
 
     it(`keeps ${item.id} idempotent across 0 to 1 to 0 to 1`, async () => {
-      const timeline = await item.create().buildTimeline(context(item.id, item.from, item.to));
+      const timeline = await item.create().buildTimeline(contextForCase(item));
 
       timeline.progress(0);
       const start = timeline.sample?.(0);
@@ -397,7 +465,7 @@ describe('R4 group4 transitions', () => {
     });
 
     it(`collapses ${item.id} duration in reduced motion`, async () => {
-      const timeline = await item.create().buildTimeline(context(item.id, item.from, item.to, true));
+      const timeline = await item.create().buildTimeline(contextForCase(item, true));
 
       await expect(timeline.play(1)).resolves.toBeUndefined();
       expect(timeline.sample?.(1).to.visible).toBe(true);

@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { bootStory, navigateStory, storySnapshot, waitForHold } from './r5-helpers';
+import {
+  bootStory,
+  moveOneHold,
+  navigateStory,
+  reachReadingEdge,
+  storySnapshot,
+  waitForHold
+} from './r5-helpers';
 
 test.use({ video: 'off', trace: 'off', screenshot: 'off' });
 
@@ -50,13 +57,7 @@ async function stopFrameSampling(page: Page): Promise<number[]> {
 }
 
 async function pressFromCurrentHold(page: Page, key: 'PageDown' | 'PageUp'): Promise<void> {
-  const before = await storySnapshot(page);
   await page.keyboard.press(key);
-  await page.waitForTimeout(80);
-  const after = await storySnapshot(page);
-  if (after.phase === 'hold' && after.current === before.current) {
-    await page.keyboard.press(key);
-  }
 }
 
 test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budgets', async ({ page }, testInfo) => {
@@ -133,20 +134,12 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   const idlePlayback = summarizeFrames(idleFrameIntervals);
 
   await startFrameSampling(page);
-  await pressFromCurrentHold(page, 'PageDown');
-  await waitForHold(page, 'pattern');
+  expect((await moveOneHold(page, 1)).current).toBe('pattern');
   const heroPatternIntervals = await stopFrameSampling(page);
 
   await startFrameSampling(page);
-  await page.keyboard.press('PageDown');
-  await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
-  const patternCollapseIntervals = await stopFrameSampling(page);
-
-  await startFrameSampling(page);
-  await page.keyboard.press('PageDown');
-  await waitForHold(page, 'star-map');
-  const patternInkIntervals = await stopFrameSampling(page);
-  const patternStarMapIntervals = [...patternCollapseIntervals, ...patternInkIntervals];
+  expect((await moveOneHold(page, 1)).current).toBe('star-map');
+  const patternStarMapIntervals = await stopFrameSampling(page);
   const frameIntervals = [...heroPatternIntervals, ...patternStarMapIntervals];
   const playback = summarizeFrames(frameIntervals);
 
@@ -164,9 +157,7 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
     playback,
     playbackSegments: {
       heroPattern: summarizeFrames(heroPatternIntervals),
-      patternStarMap: summarizeFrames(patternStarMapIntervals),
-      patternCollapse: summarizeFrames(patternCollapseIntervals),
-      patternInk: summarizeFrames(patternInkIntervals)
+      patternStarMap: summarizeFrames(patternStarMapIntervals)
     },
     dispose: disposed,
     finalHeapBytes: finalHeap
@@ -226,7 +217,7 @@ test('focused media and horizontal Ink paths separate first decode from steady f
   });
   const ttgForwardFirstDecodeMs = Date.now() - startedAt;
   await startFrameSampling(page);
-  await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
+  await waitForHold(page, 'lab');
   const ttgForwardFrames = await stopFrameSampling(page);
 
   startedAt = Date.now();
@@ -244,8 +235,6 @@ test('focused media and horizontal Ink paths separate first decode from steady f
   const ttgSameRunReverseFrames = await stopFrameSampling(page);
 
   await bootStory(page, '/#figure2-proof-opening');
-  await pressFromCurrentHold(page, 'PageUp');
-  await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
   startedAt = Date.now();
   await pressFromCurrentHold(page, 'PageUp');
   await page.waitForFunction(() => {
@@ -276,15 +265,7 @@ test('focused media and horizontal Ink paths separate first decode from steady f
   const aodReverseFrames = await stopFrameSampling(page);
 
   await bootStory(page, '/#services');
-  await page.evaluate(() => {
-    const layer = document.querySelector<HTMLElement>('[data-stage-layer="services"]');
-    const scrollport = layer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
-      ?? (layer?.matches('[data-reading="true"]') ? layer : null);
-    if (scrollport) {
-      scrollport.scrollTop = Math.max(0, scrollport.scrollHeight - scrollport.clientHeight);
-    }
-    window.dispatchEvent(new Event('story-reading-entry'));
-  });
+  await reachReadingEdge(page, 1);
   startedAt = Date.now();
   await pressFromCurrentHold(page, 'PageDown');
   await page.waitForFunction(() => Boolean(document.querySelector(

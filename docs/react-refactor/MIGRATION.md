@@ -77,11 +77,8 @@ pattern
 star-map
 aod-animation
 method-top
-method-bottom
 figure2-animation
-figure2-proof-opening
-figure2-proof-cards
-figure2-proof-closing
+figure2-proof
 brand
 figure3-animation
 services
@@ -98,8 +95,9 @@ contact
 - `home-belief` 不再等价于一个 segment；它展开为 `hero → pattern → star-map`。
 - `belief-method` 展开为 `star-map → aod-animation → method-top`，并保留 `copyCue.atProgress = 0.8`。
 - `method` 收敛为一个 `method-top` reading hold：intro 与五步列表同属一个 scene，左侧锁定，右侧原生滚动；不再创建 `method-top-method-bottom` handoff。
-- `method-proof-brand` 展开为 `method-top → figure2-animation → figure2-proof-opening → figure2-proof-cards → figure2-proof-closing → brand`；`method-bottom-figure2` 仅保留历史 segment id。
-- `figure2-distance-expand` 固定为 `figure2-animation → figure2-proof-opening` 的 segment，不是 scene；它由 R-1 从旧 adapter progress 区间和 `method-proof` DOM anchor 反推。
+- `method-proof-brand` 展开为 `method-top → figure2-animation → figure2-proof → brand`；`method-bottom-figure2` 仅保留历史 segment id。
+- `figure2-distance-expand` 固定为 `figure2-animation → figure2-proof` 的 segment，不是 scene；Proof opening/cards/closing 是同一 reading hold 的内部 panels。
+- `figure2-proof-opening`、`figure2-proof-cards`、`figure2-proof-closing` 仅保留为 redirect alias 与内部 anchor；本轮不迁移任何 animation SceneId。
 - 旧数据里的 `stageStops/stagePlayMs/stageHoldVh/postScrollVh` 必须从 `src/sections/method.html` 与 figure2 adapter 事实提取；不得把“stagedSnap 4 段”当作现成数据事实。
 - `brand-services`、`crane-contact` 均保留“动画 80% 目标文案提前入场”的 copy cue。
 - `ttg-lab`、`lab-ph`、`ph-education` 都由上到下推进；`lab-ph` 不再叠加太阳点径向扩散。
@@ -112,7 +110,8 @@ contact
 
 | 旧站教训 | 新站承接方式 |
 |---|---|
-| 文案二次入场 | R0 先用 fixture + review checklist + Stage 可见性测试约束 mount 自淡入；R2 Stage 契约稳定后再升 ESLint error。可见性只归 transition timeline（ARCHITECTURE §6.2） |
+| 文案二次入场 | Timeline 只同步 target scene 明确声明的 entrance progress；copy/layout/background 由同一个 canonical scene root 和 scene-owned renderer 提供。settle 不得切换到第二套 presentation。 |
+| transition 变成第三个 scene | Ownership tests 禁止 clone、临时 scene root、transition-owned copy/layout 和 adapter 直接分配 endpoint DOM；shared Ink 只允许分配 effect canvas/mask。 |
 | 交接空白帧 / 黑闪 | Playwright settling 前后逐帧断言（§8.1 不变量） |
 | Ink 边界出现直线/双轮廓 | `to` 帧直接进入既有 curtain shader，`body` 是唯一 mask；禁止 CSS clip/mask 与自绘 polygon；连续 Stage 额外验证 canvas live remount |
 | progress 幂等渲染（Phase 4 遗产） | 每个 cinematic scene `0→1→0→1` 快照进 harness |

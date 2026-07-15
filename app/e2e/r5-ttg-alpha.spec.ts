@@ -136,22 +136,8 @@ test('TTG uses one canonical media surface for native forward and same-file time
   expect(forward).toMatchObject({ direction: '1', videoCount: 1, frameReady: true, staticFallback: false });
   expect(forward.currentTime).toBeGreaterThan(0.05);
   expect(forward.opacity).toBeGreaterThan(0.9);
-  await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
-
-  await page.keyboard.press('PageDown');
   await waitForHold(page, 'lab');
-  await page.evaluate(() => {
-    const layer = document.querySelector<HTMLElement>('[data-stage-layer="lab"]');
-    const scrollport = layer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
-      ?? (layer?.matches('[data-reading="true"]') ? layer : null);
-    if (scrollport) {
-      scrollport.scrollTop = 0;
-    }
-    window.dispatchEvent(new Event('story-reading-entry'));
-  });
   await page.keyboard.press('PageUp');
-  await page.keyboard.press('PageUp');
-  await page.waitForFunction(() => window.__storyApp?.snapshot().phase === 'staged-paused');
   await page.waitForFunction(() => {
     const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
     const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');
@@ -161,7 +147,6 @@ test('TTG uses one canonical media surface for native forward and same-file time
   });
   const reverseStart = await ttgMediaState(page);
 
-  await page.keyboard.press('PageUp');
   await page.waitForFunction(() => {
     const scene = document.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
     const video = scene?.querySelector<HTMLVideoElement>('[data-ttg-figure-video]');

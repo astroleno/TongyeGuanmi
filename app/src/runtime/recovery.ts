@@ -83,7 +83,7 @@ export function createSegmentRecoveryPlan(
     committedScene,
     segment: segment.id,
     direction,
-    endpoint: direction === 1 ? segment.to : segment.from,
+    endpoint: committedScene,
     reason,
     ...(normalized ? { error: normalized } : {})
   };

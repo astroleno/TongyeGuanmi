@@ -1,6 +1,11 @@
 import { useRef } from 'react';
 import { SiteFooter } from '../../components/SiteFooter';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
+import {
+  createPaperEntranceLifecycle,
+  type PaperEntranceRenderState,
+  type PaperEntranceState
+} from '../shared/paperEntrance';
 
 export const CONTACT_COPY = [
   'START FROM THE FIELD',
@@ -10,26 +15,14 @@ export const CONTACT_COPY = [
   '回到首屏'
 ] as const;
 
-export type ContactRenderState = {
-  progress: number;
-  opacity: number;
-  y: number;
-};
+export type ContactRenderState = PaperEntranceRenderState;
+export type ContactEntranceState = PaperEntranceState;
 
-export function renderContactProgress(root: HTMLElement | null | undefined, progress: number): ContactRenderState {
-  const clamped = Math.min(1, Math.max(0, progress));
-  const opacity = clamped;
-  const y = (1 - clamped) * 20;
-  root?.style.setProperty('--r4-contact-progress', clamped.toFixed(4));
-  root?.style.setProperty('--r4-contact-opacity', opacity.toFixed(4));
-  root?.style.setProperty('--r4-contact-y', `${y.toFixed(2)}px`);
-  root?.setAttribute('data-contact-progress', clamped.toFixed(4));
-  return { progress: clamped, opacity, y };
-}
-
-export function renderContactHold(root: HTMLElement | null): void {
-  renderContactProgress(root, 1);
-}
+const contactEntrance = createPaperEntranceLifecycle('contact', 20);
+export const renderContactProgress = contactEntrance.renderProgress;
+export const renderContactEntrance = contactEntrance.renderEntrance;
+export const releaseContactEntrance = contactEntrance.release;
+export const renderContactHold = contactEntrance.renderHold;
 
 function ContactScene({ registerHandle }: SceneComponentProps) {
   const initializedRef = useRef(false);

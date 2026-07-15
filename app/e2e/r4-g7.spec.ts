@@ -66,7 +66,7 @@ type Group7VisualSnapshot = {
   contactProgress: number;
   contactCopyCue: string | undefined;
   contactScheme: string;
-  contactHandoffProgress: number;
+  contactEntranceProgress: number;
   contactPaperAlpha: number;
   contactWashAlpha: number;
   contactElevated: boolean;
@@ -116,9 +116,9 @@ async function visualSnapshot(page: Page): Promise<Group7VisualSnapshot> {
       contactProgress: Number.parseFloat(contactRoot?.dataset.contactProgress ?? '0'),
       contactCopyCue: contactLayer?.dataset.copyCueActive,
       contactScheme: window.getComputedStyle(contactRoot ?? document.body).colorScheme,
-      contactHandoffProgress: Number.parseFloat(contactLayer?.dataset.r4HandoffReceiverProgress ?? '0'),
-      contactPaperAlpha: Number.parseFloat(contactLayer?.style.getPropertyValue('--r4-handoff-paper-alpha') || '0'),
-      contactWashAlpha: Number.parseFloat(contactLayer?.style.getPropertyValue('--r4-handoff-wash-alpha') || '0'),
+      contactEntranceProgress: Number.parseFloat(contactRoot?.style.getPropertyValue('--r4-contact-paper-alpha') || '0'),
+      contactPaperAlpha: Number.parseFloat(contactRoot?.style.getPropertyValue('--r4-contact-paper-alpha') || '0'),
+      contactWashAlpha: Number.parseFloat(contactRoot?.style.getPropertyValue('--r4-contact-wash-alpha') || '0'),
       contactElevated: contactLayer?.dataset.r4TransitionElevated === 'true',
       educationReference: document.querySelector<HTMLElement>('[data-r4-reference-scene="true"]') !== null,
       revealProgress: Number.parseFloat(revealLayer?.dataset.r4RevealProgress ?? '0'),
@@ -238,7 +238,7 @@ test.describe('R4 group7 education crane contact harness', () => {
         && visual.craneVideos.every((video) => (
           !video.paused && video.playbackRate > 0.95 && video.playbackRate < 1.05
         ));
-      sawContactHandoff ||= visual.contactHandoffProgress > 0 && visual.contactElevated;
+      sawContactHandoff ||= visual.contactEntranceProgress > 0 && visual.contactElevated;
     }
     if (!sawCraneTransitionAttrs) {
       await expect.poll(async () => {
@@ -274,7 +274,7 @@ test.describe('R4 group7 education crane contact harness', () => {
     if (!sawContactHandoff) {
       await expect.poll(async () => {
         const visual = await visualSnapshot(page);
-        const fading = visual.contactHandoffProgress > 0 && visual.contactHandoffProgress < 1;
+        const fading = visual.contactEntranceProgress > 0 && visual.contactEntranceProgress < 1;
         const backgroundFading = visual.contactPaperAlpha > 0
           && visual.contactPaperAlpha < 1
           && visual.contactWashAlpha > 0
@@ -286,8 +286,8 @@ test.describe('R4 group7 education crane contact harness', () => {
     expect(sawContactHandoff).toBe(true);
     await expect.poll(async () => {
       const visual = await visualSnapshot(page);
-      const backgroundIsLinear = Math.abs(visual.contactPaperAlpha - visual.contactHandoffProgress) < 0.002
-        && Math.abs(visual.contactWashAlpha - visual.contactHandoffProgress) < 0.002;
+      const backgroundIsLinear = Math.abs(visual.contactPaperAlpha - visual.contactEntranceProgress) < 0.002
+        && Math.abs(visual.contactWashAlpha - visual.contactEntranceProgress) < 0.002;
       const figure = visual.craneVideos.find((video) => video.role === 'figure');
       const flock = visual.craneVideos.find((video) => video.role === 'flock');
       const craneStillPlaying = visual.cranePlaybackActive === 'true'
@@ -296,8 +296,8 @@ test.describe('R4 group7 education crane contact harness', () => {
         && Boolean(figure && !figure.paused && figure.playbackRate > 0.95 && figure.playbackRate < 1.05)
         && Boolean(flock && flock.paused && flock.currentTime >= flock.duration - 0.05);
       return visual.contactCopyCue === 'true'
-        && visual.contactHandoffProgress >= 0.23
-        && visual.contactHandoffProgress < 0.45
+        && visual.contactEntranceProgress >= 0.23
+        && visual.contactEntranceProgress < 0.45
         && backgroundIsLinear
         && craneStillPlaying;
     }, { timeout: 5_000, intervals: [20] }).toBe(true);
@@ -306,6 +306,8 @@ test.describe('R4 group7 education crane contact harness', () => {
     expect(contactHold.contactProgress).toBe(1);
     expect(contactHold.contactCopyCue).toBe('true');
     expect(contactHold.contactScheme).toContain('light');
+    expect(contactHold.contactElevated).toBe(false);
+    expect(contactHold.transitions).not.toContain('crane-contact-copy-cue');
     expect(contactHold.craneVideos.every((video) => (
       video.paused && video.currentTime >= video.duration - 0.05
     ))).toBe(true);

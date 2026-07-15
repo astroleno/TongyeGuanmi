@@ -1,4 +1,8 @@
 import { fadeVisibility, smoothStep } from '../../pilot/visibility';
+import {
+  prepareAodAnimationFrame,
+  renderAodAnimationHold
+} from '../../scenes/aod-animation';
 import type { LayerVisibilityState, TransitionModule } from '../../story/types';
 import { createInkSegmentTransition } from '../shared/ink';
 import type { InkGradePreset } from '../shared/sceneInk';
@@ -33,7 +37,7 @@ export function createStarMapAodTransition(options: {
   delayMs?: () => number;
   grade?: InkGradePreset | (() => InkGradePreset);
 } = {}): TransitionModule {
-  const grade = typeof options.grade === 'function' ? options.grade() : options.grade ?? 'edge-bright';
+  const grade = typeof options.grade === 'function' ? options.grade() : options.grade ?? 'edge-only';
   return createInkSegmentTransition({
     id: 'star-map-aod',
     ...(options.delayMs ? { delayMs: options.delayMs } : {}),
@@ -43,7 +47,17 @@ export function createStarMapAodTransition(options: {
     includeToSurface: false,
     ownershipSurfaces: ({ to }) => ({ reveal: aodRevealSurface(to) }),
     sample: sampleStarMapAod,
-    prepareEndpoints: () => undefined,
+    prepareEndpoints: ({ to }) => renderAodAnimationHold(to),
+    prepareTargetPresentation: ({ to }, context) => {
+      if (context.direction === -1 || context.prefersReducedMotion) {
+        return;
+      }
+      return prepareAodAnimationFrame(to, 0, {
+        runId: context.runId,
+        direction: 1,
+        reducedMotion: context.prefersReducedMotion
+      });
+    },
     transitionAttr: 'star-map-aod-live-ink'
   });
 }

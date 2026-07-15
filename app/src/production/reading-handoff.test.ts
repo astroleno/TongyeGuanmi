@@ -34,6 +34,8 @@ describe('reading handoff', () => {
       direction: 1,
       contentPixels: 0,
       residualPixels: 20,
+      startedAtEdge: true,
+      reachedEdgeDuringInput: false,
       atEdge: true
     });
   });
@@ -49,6 +51,8 @@ describe('reading handoff', () => {
       direction: 1,
       contentPixels: 420,
       residualPixels: 0,
+      startedAtEdge: false,
+      reachedEdgeDuringInput: false,
       atEdge: false
     });
   });
@@ -106,6 +110,8 @@ describe('reading handoff', () => {
       direction: 1,
       contentPixels: 0,
       residualPixels: 80,
+      startedAtEdge: false,
+      reachedEdgeDuringInput: false,
       atEdge: false
     });
   });

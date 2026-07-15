@@ -54,6 +54,9 @@ export class FakeElement {
   parentElement: FakeElement | null = null;
   inert = false;
   className = '';
+  scrollTop = 0;
+  scrollHeight = 1440;
+  clientHeight = 720;
   private readonly selectors = new Map<string, FakeElement>();
 
   append(child: FakeElement): void {
@@ -66,6 +69,12 @@ export class FakeElement {
   }
 
   matches(selector: string): boolean {
+    if (selector === '[data-reading-scrollport="true"]') {
+      return this.dataset.readingScrollport === 'true';
+    }
+    if (selector === '[data-reading="true"]') {
+      return this.dataset.reading === 'true';
+    }
     const scene = selector.match(/\[data-r4-scene="([^"]+)"\]/)?.[1];
     return scene !== undefined && this.dataset.r4Scene === scene;
   }
@@ -245,6 +254,21 @@ export function createBackHalfDomContext(
   const toRoot = new FakeElement();
   fromRoot.dataset.r4Scene = from;
   toRoot.dataset.r4Scene = to;
+  for (const [scene, root] of [[from, fromRoot], [to, toRoot]] as const) {
+    if (['method-top', 'figure2-proof', 'services', 'lab', 'education'].includes(scene)) {
+      root.dataset.readingScrollport = 'true';
+    }
+    if (scene === 'aod-animation') {
+      root.connect('[data-aod-figure-video]', new FakeVideo());
+    }
+    if (scene === 'figure3-animation') {
+      root.connect('[data-figure3-alpha-video]', new FakeVideo());
+    }
+    if (scene === 'crane-animation') {
+      root.connect('[data-crane-figure-video]', new FakeVideo());
+      root.connect('[data-crane-figure-front-video]', new FakeVideo());
+    }
+  }
   fromElement.connect(`[data-r4-scene="${from}"]`, fromRoot);
   toElement.connect(`[data-r4-scene="${to}"]`, toRoot);
   stage.append(fromElement);

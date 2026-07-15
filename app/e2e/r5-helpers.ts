@@ -55,9 +55,7 @@ export const canonicalScenes = [
   'aod-animation',
   'method-top',
   'figure2-animation',
-  'figure2-proof-opening',
-  'figure2-proof-cards',
-  'figure2-proof-closing',
+  'figure2-proof',
   'brand',
   'figure3-animation',
   'services',
@@ -118,57 +116,100 @@ export async function navigateStory(page: Page, scene: string): Promise<BrowserS
   return waitForHold(page, scene);
 }
 
-async function positionReadingAtDirectionEdge(page: Page, direction: 1 | -1): Promise<void> {
-  await page.evaluate((value) => {
+export async function reachReadingEdge(page: Page, direction: 1 | -1): Promise<void> {
+  const initial = await page.evaluate((value) => {
     const current = (window as StoryWindow).__storyApp?.snapshot().current;
     const layer = current
       ? document.querySelector<HTMLElement>(`[data-stage-layer="${current}"]`)
       : null;
     const scrollport = layer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
       ?? (layer?.matches('[data-reading="true"]') ? layer : null);
-    if (!scrollport) {
+    if (!scrollport || layer?.dataset.reading !== 'true') {
+      return null;
+    }
+    const maxScrollTop = Math.max(0, scrollport.scrollHeight - scrollport.clientHeight);
+    const remaining = value === 1 ? maxScrollTop - scrollport.scrollTop : scrollport.scrollTop;
+    const stepPixels = Math.max(120, window.innerHeight * 0.9);
+    return {
+      scene: current,
+      stepPixels,
+      maxInputs: Math.ceil(Math.max(0, remaining) / stepPixels) + 4
+    };
+  }, direction);
+  if (!initial) {
+    return;
+  }
+
+  for (let index = 0; index < initial.maxInputs; index += 1) {
+    const state = await page.evaluate(({ scene, direction: value }) => {
+      const snapshot = (window as StoryWindow).__storyApp?.snapshot();
+      const layer = document.querySelector<HTMLElement>(`[data-stage-layer="${scene}"]`);
+      const scrollport = layer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
+        ?? (layer?.matches('[data-reading="true"]') ? layer : null);
+      if (snapshot?.phase !== 'hold' || snapshot.current !== scene || !scrollport) {
+        return { left: true, atEdge: false, remaining: 0 };
+      }
+      const maxScrollTop = Math.max(0, scrollport.scrollHeight - scrollport.clientHeight);
+      const remaining = value === 1 ? maxScrollTop - scrollport.scrollTop : scrollport.scrollTop;
+      return {
+        left: false,
+        remaining,
+        atEdge: value === 1
+          ? scrollport.scrollTop >= maxScrollTop - 1
+          : scrollport.scrollTop <= 1
+      };
+    }, { scene: initial.scene, direction });
+    if (state.left || state.atEdge) {
       return;
     }
-    scrollport.scrollTop = value === 1
-      ? Math.max(0, scrollport.scrollHeight - scrollport.clientHeight)
-      : 0;
-    window.dispatchEvent(new Event('story-reading-entry'));
-  }, direction);
+    const pixels = state.remaining <= initial.stepPixels * 1.25
+      ? state.remaining
+      : initial.stepPixels;
+    await page.evaluate(({ direction: value, pixels: distance }) => {
+      const target = document.querySelector<HTMLElement>('.story-app');
+      if (!target) throw new Error('story app missing');
+      const dispatchTouch = (type: string, clientY: number | undefined) => {
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'touches', {
+          value: clientY === undefined ? [] : [{ clientX: 32, clientY }]
+        });
+        target.dispatchEvent(event);
+      };
+      const startY = value === 1 ? distance + 32 : 32;
+      dispatchTouch('touchstart', startY);
+      dispatchTouch('touchmove', startY - value * distance);
+      dispatchTouch('touchend', undefined);
+    }, { direction, pixels });
+  }
+  throw new Error(`Reading scene ${initial.scene} did not reach its ${direction === 1 ? 'bottom' : 'top'} edge`);
 }
 
 export async function moveOneHold(page: Page, direction: 1 | -1): Promise<BrowserStorySnapshot> {
   const start = (await storySnapshot(page)).current;
-  await positionReadingAtDirectionEdge(page, direction);
   const key = direction === 1 ? 'PageDown' : 'PageUp';
-  const reading = await page.evaluate(() => {
-    const current = (window as StoryWindow).__storyApp?.snapshot().current;
-    return current
-      ? document.querySelector<HTMLElement>(`[data-stage-layer="${current}"]`)?.dataset.reading === 'true'
-      : false;
-  });
-  if (reading) {
-    await page.keyboard.press(key);
-  }
-
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const before = await storySnapshot(page);
-    if (before.current !== start && before.phase === 'hold') {
-      return before;
-    }
-    if (before.phase !== 'hold' && before.phase !== 'staged-paused') {
+  await reachReadingEdge(page, direction);
+  try {
+    for (let gesture = 0; gesture < 4; gesture += 1) {
+      await page.keyboard.press(key);
       await page.waitForFunction((scene) => {
         const snapshot = (window as StoryWindow).__storyApp?.snapshot();
         return snapshot?.phase === 'staged-paused'
           || (snapshot?.phase === 'hold' && snapshot.current !== scene);
-      }, start, { timeout: 20_000 });
-      continue;
+      }, start, { timeout: 30_000 });
+      const snapshot = await storySnapshot(page);
+      if (snapshot.phase === 'hold' && snapshot.current !== start) {
+        return snapshot;
+      }
     }
-    await page.keyboard.press(key);
-    await page.waitForTimeout(60);
+    throw new Error(`Hold ${start} exceeded the staged gesture budget`);
+  } catch (error) {
+    const debug = await page.evaluate(() => ({
+      snapshot: (window as StoryWindow).__storyApp?.snapshot(),
+      events: (window as StoryWindow).__story?.getState().eventLog.slice(-16)
+        .map(({ event }) => event.type) ?? []
+    }));
+    throw new Error(`Hold ${start} did not leave after ${key}: ${JSON.stringify(debug)}`, { cause: error });
   }
-
-  const final = await storySnapshot(page);
-  throw new Error(`Story did not leave ${start}; phase=${final.phase}`);
 }
 
 export async function expectLayerInvariants(page: Page): Promise<void> {

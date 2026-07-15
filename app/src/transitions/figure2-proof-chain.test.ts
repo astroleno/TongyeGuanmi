@@ -12,8 +12,6 @@ import {
   figure2VideoModeForProofTransition
 } from './figure2-distance-expand';
 import { createFigure2ProofBrandTransition } from './figure2-proof-brand';
-import { createFigure2ProofCardsClosingTransition } from './figure2-proof-cards-closing';
-import { createFigure2ProofOpeningCardsTransition } from './figure2-proof-opening-cards';
 import { createBackHalfDomContext } from './__fixtures__/back-half.fixture';
 
 function segment(id: SegmentId): SpineSegmentNode {
@@ -33,20 +31,8 @@ const cases: readonly {
   create: () => TransitionModule;
 }[] = [
   {
-    id: 'figure2-proof-opening-cards',
-    from: 'figure2-proof-opening',
-    to: 'figure2-proof-cards',
-    create: createFigure2ProofOpeningCardsTransition
-  },
-  {
-    id: 'figure2-proof-cards-closing',
-    from: 'figure2-proof-cards',
-    to: 'figure2-proof-closing',
-    create: createFigure2ProofCardsClosingTransition
-  },
-  {
     id: 'figure2-proof-brand',
-    from: 'figure2-proof-closing',
+    from: 'figure2-proof',
     to: 'brand',
     create: createFigure2ProofBrandTransition
   }

@@ -16,9 +16,6 @@
     "PLAYBACK_DONE",
     "CHARGE_FIRED",
     "TARGET_READY",
-    "STAGE_PAUSED",
-    "CHARGE_FIRED",
-    "STAGE_RESUMED",
     "PLAYBACK_DONE",
     "RETIRING_RELEASED",
     "CHARGE_FIRED",
@@ -27,11 +24,7 @@
     "RETIRING_RELEASED",
     "CHARGE_FIRED",
     "TARGET_READY",
-    "STAGE_PAUSED",
-    "CHARGE_FIRED",
-    "STAGE_RESUMED",
     "PLAYBACK_DONE",
-    "RETIRING_RELEASED",
     "CHARGE_FIRED",
     "TARGET_READY",
     "PLAYBACK_DONE",
@@ -44,12 +37,10 @@
     "PLAY:services-ttg:1",
     "BUILD_READY:ttg-lab",
     "PLAY:ttg-lab:1",
-    "PLAY:none:1",
     "BUILD_READY:lab-ph",
     "PLAY:lab-ph:1",
     "BUILD_READY:ph-education",
     "PLAY:ph-education:1",
-    "PLAY:none:1",
     "BUILD_READY:education-crane",
     "PLAY:education-crane:1",
     "BUILD_READY:crane-contact",
@@ -57,7 +48,7 @@
   ],
   "trace": [
     {
-      "at": 1783880695678,
+      "at": 1784105090611,
       "event": {
         "type": "BOOT_READY"
       },
@@ -74,7 +65,7 @@
       "id": 1
     },
     {
-      "at": 1783880695679,
+      "at": 1784105090612,
       "event": {
         "type": "BOOT_READY"
       },
@@ -91,7 +82,7 @@
       "id": 2
     },
     {
-      "at": 1783880696145,
+      "at": 1784105091087,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -110,7 +101,7 @@
       "id": 3
     },
     {
-      "at": 1783880696156,
+      "at": 1784105091098,
       "event": {
         "type": "TARGET_READY",
         "scene": "ttg-animation",
@@ -132,7 +123,7 @@
       "id": 4
     },
     {
-      "at": 1783880696162,
+      "at": 1784105091101,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:1"
@@ -153,7 +144,7 @@
       "id": 5
     },
     {
-      "at": 1783880696608,
+      "at": 1784105091541,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -173,7 +164,7 @@
       "id": 6
     },
     {
-      "at": 1783880696615,
+      "at": 1784105091545,
       "event": {
         "type": "TARGET_READY",
         "scene": "lab",
@@ -196,83 +187,7 @@
       "id": 7
     },
     {
-      "at": 1783880696643,
-      "event": {
-        "type": "STAGE_PAUSED",
-        "runId": "r4-back-half:2",
-        "segment": "ttg-lab",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-back-half",
-      "activeRunId": "r4-back-half:2",
-      "pausePoint": {
-        "segmentId": "ttg-lab",
-        "stageIndex": 0
-      },
-      "cursor": {
-        "status": "segment",
-        "segment": "ttg-lab",
-        "from": "ttg-animation",
-        "to": "lab"
-      },
-      "layerWindow": {
-        "current": "ttg-animation",
-        "retiring": [],
-        "prev": "services",
-        "next": "lab"
-      },
-      "milestone": "stagePaused",
-      "id": 8
-    },
-    {
-      "at": 1783880696660,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": 1
-      },
-      "actorEpoch": "r4-back-half",
-      "activeRunId": "r4-back-half:2",
-      "cursor": {
-        "status": "segment",
-        "segment": "ttg-lab",
-        "from": "ttg-animation",
-        "to": "lab"
-      },
-      "layerWindow": {
-        "current": "ttg-animation",
-        "retiring": [],
-        "prev": "services",
-        "next": "lab"
-      },
-      "id": 9
-    },
-    {
-      "at": 1783880696663,
-      "event": {
-        "type": "STAGE_RESUMED",
-        "runId": "r4-back-half:2",
-        "segment": "ttg-lab",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-back-half",
-      "activeRunId": "r4-back-half:2",
-      "cursor": {
-        "status": "segment",
-        "segment": "ttg-lab",
-        "from": "ttg-animation",
-        "to": "lab"
-      },
-      "layerWindow": {
-        "current": "ttg-animation",
-        "retiring": [],
-        "prev": "services",
-        "next": "lab"
-      },
-      "milestone": "stageResumed",
-      "id": 10
-    },
-    {
-      "at": 1783880696663,
+      "at": 1784105092555,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:2"
@@ -291,10 +206,10 @@
         "prev": "services",
         "next": "lab"
       },
-      "id": 11
+      "id": 8
     },
     {
-      "at": 1783880697098,
+      "at": 1784105092987,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -309,10 +224,10 @@
         "prev": "ttg-animation",
         "next": "ph-animation"
       },
-      "id": 12
+      "id": 9
     },
     {
-      "at": 1783880697112,
+      "at": 1784105093004,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -329,10 +244,10 @@
         "prev": "ttg-animation",
         "next": "ph-animation"
       },
-      "id": 13
+      "id": 10
     },
     {
-      "at": 1783880697118,
+      "at": 1784105093045,
       "event": {
         "type": "TARGET_READY",
         "scene": "ph-animation",
@@ -352,10 +267,10 @@
         "prev": "ttg-animation",
         "next": "ph-animation"
       },
-      "id": 14
+      "id": 11
     },
     {
-      "at": 1783880697122,
+      "at": 1784105093051,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:3"
@@ -374,10 +289,10 @@
         "prev": "ttg-animation",
         "next": "ph-animation"
       },
-      "id": 15
+      "id": 12
     },
     {
-      "at": 1783880697553,
+      "at": 1784105093481,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -392,10 +307,10 @@
         "prev": "lab",
         "next": "education"
       },
-      "id": 16
+      "id": 13
     },
     {
-      "at": 1783880697569,
+      "at": 1784105093495,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -412,10 +327,10 @@
         "prev": "lab",
         "next": "education"
       },
-      "id": 17
+      "id": 14
     },
     {
-      "at": 1783880697575,
+      "at": 1784105093499,
       "event": {
         "type": "TARGET_READY",
         "scene": "education",
@@ -435,86 +350,10 @@
         "prev": "lab",
         "next": "education"
       },
-      "id": 18
+      "id": 15
     },
     {
-      "at": 1783880697610,
-      "event": {
-        "type": "STAGE_PAUSED",
-        "runId": "r4-back-half:4",
-        "segment": "ph-education",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-back-half",
-      "activeRunId": "r4-back-half:4",
-      "pausePoint": {
-        "segmentId": "ph-education",
-        "stageIndex": 0
-      },
-      "cursor": {
-        "status": "segment",
-        "segment": "ph-education",
-        "from": "ph-animation",
-        "to": "education"
-      },
-      "layerWindow": {
-        "current": "ph-animation",
-        "retiring": [],
-        "prev": "lab",
-        "next": "education"
-      },
-      "milestone": "stagePaused",
-      "id": 19
-    },
-    {
-      "at": 1783880697620,
-      "event": {
-        "type": "CHARGE_FIRED",
-        "direction": 1
-      },
-      "actorEpoch": "r4-back-half",
-      "activeRunId": "r4-back-half:4",
-      "cursor": {
-        "status": "segment",
-        "segment": "ph-education",
-        "from": "ph-animation",
-        "to": "education"
-      },
-      "layerWindow": {
-        "current": "ph-animation",
-        "retiring": [],
-        "prev": "lab",
-        "next": "education"
-      },
-      "id": 20
-    },
-    {
-      "at": 1783880697623,
-      "event": {
-        "type": "STAGE_RESUMED",
-        "runId": "r4-back-half:4",
-        "segment": "ph-education",
-        "stageIndex": 0
-      },
-      "actorEpoch": "r4-back-half",
-      "activeRunId": "r4-back-half:4",
-      "cursor": {
-        "status": "segment",
-        "segment": "ph-education",
-        "from": "ph-animation",
-        "to": "education"
-      },
-      "layerWindow": {
-        "current": "ph-animation",
-        "retiring": [],
-        "prev": "lab",
-        "next": "education"
-      },
-      "milestone": "stageResumed",
-      "id": 21
-    },
-    {
-      "at": 1783880697623,
+      "at": 1784105094515,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:4"
@@ -533,28 +372,10 @@
         "prev": "lab",
         "next": "education"
       },
-      "id": 22
+      "id": 16
     },
     {
-      "at": 1783880698062,
-      "event": {
-        "type": "RETIRING_RELEASED"
-      },
-      "actorEpoch": "r4-back-half",
-      "cursor": {
-        "status": "hold",
-        "scene": "education"
-      },
-      "layerWindow": {
-        "current": "education",
-        "retiring": [],
-        "prev": "ph-animation",
-        "next": "crane-animation"
-      },
-      "id": 23
-    },
-    {
-      "at": 1783880698079,
+      "at": 1784105094951,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -571,10 +392,10 @@
         "prev": "ph-animation",
         "next": "crane-animation"
       },
-      "id": 24
+      "id": 17
     },
     {
-      "at": 1783880698085,
+      "at": 1784105094958,
       "event": {
         "type": "TARGET_READY",
         "scene": "crane-animation",
@@ -594,10 +415,10 @@
         "prev": "ph-animation",
         "next": "crane-animation"
       },
-      "id": 25
+      "id": 18
     },
     {
-      "at": 1783880698089,
+      "at": 1784105094961,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:5"
@@ -616,10 +437,10 @@
         "prev": "ph-animation",
         "next": "crane-animation"
       },
-      "id": 26
+      "id": 19
     },
     {
-      "at": 1783880698520,
+      "at": 1784105095393,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -634,10 +455,10 @@
         "prev": "education",
         "next": "contact"
       },
-      "id": 27
+      "id": 20
     },
     {
-      "at": 1783880698539,
+      "at": 1784105095402,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -654,10 +475,10 @@
         "prev": "education",
         "next": "contact"
       },
-      "id": 28
+      "id": 21
     },
     {
-      "at": 1783880698545,
+      "at": 1784105095405,
       "event": {
         "type": "TARGET_READY",
         "scene": "contact",
@@ -677,10 +498,10 @@
         "prev": "education",
         "next": "contact"
       },
-      "id": 29
+      "id": 22
     },
     {
-      "at": 1783880698549,
+      "at": 1784105095407,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-back-half:6"
@@ -699,10 +520,10 @@
         "prev": "education",
         "next": "contact"
       },
-      "id": 30
+      "id": 23
     },
     {
-      "at": 1783880698977,
+      "at": 1784105095837,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -716,7 +537,7 @@
         "retiring": [],
         "prev": "crane-animation"
       },
-      "id": 31
+      "id": 24
     }
   ],
   "layers": [

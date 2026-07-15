@@ -1,7 +1,7 @@
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { bootStory, storySnapshot, waitForHold } from './r5-helpers';
+import { bootStory, waitForHold } from './r5-helpers';
 
 const repoDir = resolve(process.cwd(), '..');
 const inventoryPath = resolve(repoDir, 'dist', 'homepage-media-inventory.json');
@@ -76,13 +76,7 @@ async function decodedMask(page: Page, selector: string): Promise<Readonly<{
 }
 
 async function pressFromCurrentHold(page: Page, key: 'PageDown' | 'PageUp'): Promise<void> {
-  const before = await storySnapshot(page);
   await page.keyboard.press(key);
-  await page.waitForTimeout(80);
-  const after = await storySnapshot(page);
-  if (after.phase === 'hold' && after.current === before.current) {
-    await page.keyboard.press(key);
-  }
 }
 
 test('Hero keeps the original figure deferred until the Hero to Pattern transition is accepted', async ({ page }, testInfo) => {
@@ -102,7 +96,7 @@ test('Hero keeps the original figure deferred until the Hero to Pattern transiti
   }));
   expect(initial).toMatchObject({ preload: 'none' });
   expect(initial.source).toMatch(/figure1-[^/]+\.webm$/);
-  expect(initial.poster).toMatch(/figure-poster-[^/]+\.jpg$/);
+  expect(initial.poster).toMatch(/hero-figure-poster-[^/]+\.webp$/);
   expect(initial.source).not.toContain('hero-figure-scrub');
   expect(requests.some((url) => /figure1-[^/]+\.webm$/.test(url))).toBe(false);
 
@@ -150,7 +144,11 @@ test('direct non-Hero entries expose exactly the eight canonical physical video 
     expect(videos.map((video) => video.key)).toEqual(entry.media.map(([key]) => key));
     for (const [index, [, filename]] of entry.media.entries()) {
       expect(videos[index]?.source).toMatch(new RegExp(`${filename}-[^/]+\\.webm$`));
-      expect(videos[index]?.poster).toBe('');
+      if (filename === 'crane-flock-motion') {
+        expect(videos[index]?.poster).toMatch(/crane-flock-first-frame-[^/]+\.webp$/);
+      } else {
+        expect(videos[index]?.poster).toBe('');
+      }
       expect(videos[index]?.playbackRate).toBeGreaterThan(0);
     }
   }
@@ -303,6 +301,10 @@ test('Batch C runtime loads WebP depth, mask, and Pattern layers without PNG req
 
   for (const scene of ['star-map', 'aod-animation', 'ph-animation', 'crane-animation'] as const) {
     await bootStory(page, `/?presentation=direct#${scene}`);
+    const sceneImages = page.locator(`[data-r4-scene="${scene}"] img`);
+    await expect.poll(async () => sceneImages.evaluateAll((images) => images.every((image) => (
+      (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0
+    )))).toBe(true);
   }
   await bootStory(page, '/?presentation=direct#figure2-animation');
   const figure2Mask = await decodedMask(page, '.r4-figure2__window-mask');

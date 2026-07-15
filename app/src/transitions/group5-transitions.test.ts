@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ttgAnimationScene, ttgMediaSnapshot } from '../scenes/ttg-animation';
+import { renderLabHold } from '../scenes/lab';
 import { storyManifest } from '../story/manifest';
+import { TERMINAL_DWELL_MS } from '../story/timings';
 import type { SegmentId, SegmentTimelineHandle, SpineSegmentNode, StagedLegPreparation } from '../story/types';
 import { createBackHalfDomContext, FakeVideo } from './__fixtures__/back-half.fixture';
 import { createTtgLabTransition, TTG_LAB_ANIMATION_STOP } from './ttg-lab';
@@ -136,7 +138,7 @@ describe('TTG canonical directional media', () => {
     timeline.dispose();
   });
 
-  it('keeps the staged TTG dissolve and reduced-motion endpoint contracts intact', async () => {
+  it('holds the TTG terminal frame for one second before the dissolve leg', async () => {
     const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
     const video = new FakeVideo();
     connectTtgMedia(fixture.fromRoot, video);
@@ -144,10 +146,52 @@ describe('TTG canonical directional media', () => {
     const timeline = await transition.buildTimeline(fixture.context);
 
     expect(transition.requiredMilestones).toEqual(['targetReady', 'mediaReady', 'buildReady']);
-    expect(timeline.pauses).toEqual(['stage:0']);
+    expect(segment('ttg-lab').policy).toMatchObject({
+      kind: 'stagedSnap',
+      advance: [{ kind: 'delay', ms: TERMINAL_DWELL_MS }]
+    });
+    expect(timeline.pauses).toEqual([]);
     timeline.progress((TTG_LAB_ANIMATION_STOP + 1) / 2);
     expect(fixture.fromLayer.visibility.opacity + fixture.toLayer.visibility.opacity).toBeCloseTo(1, 6);
     expect(transition.reducedMotionFallback).toBeTypeOf('function');
     timeline.dispose();
+  });
+
+  it('keeps the Lab receiver at its final layout and top edge through p=.99, p=1 and dispose', async () => {
+    const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
+    const video = new FakeVideo();
+    connectTtgMedia(fixture.fromRoot, video);
+    fixture.toRoot.scrollTop = 420;
+    const timeline = await createTtgLabTransition().buildTimeline(fixture.context);
+    const targetLayer = fixture.stage.children[1]!;
+    const snapshot = () => ({
+      progress: fixture.toRoot.dataset.labProgress,
+      copyOpacity: fixture.toRoot.style.getPropertyValue('--r4-lab-opacity'),
+      copyY: fixture.toRoot.style.getPropertyValue('--r4-lab-y'),
+      scrollTop: fixture.toRoot.scrollTop,
+      edge: fixture.toRoot.dataset.readingEdge,
+      backgroundOwner: /\.r4-lab\s*\{[^}]*#ede4d2;/s.test(stylesheet)
+    });
+
+    timeline.progress(0.99);
+    const nearEnd = snapshot();
+    timeline.progress(1);
+    const endpoint = snapshot();
+    expect(targetLayer.dataset.r4Handoff).toBeUndefined();
+    timeline.dispose();
+    renderLabHold(fixture.toRoot as unknown as HTMLElement);
+    const settled = snapshot();
+
+    expect(nearEnd).toEqual(endpoint);
+    expect(settled).toEqual(endpoint);
+    expect(endpoint).toEqual({
+      progress: '1.0000',
+      copyOpacity: '1.0000',
+      copyY: '0.00px',
+      scrollTop: 0,
+      edge: 'top',
+      backgroundOwner: true
+    });
+    expect(fixture.toLayer.visibility.opacity).toBe(1);
   });
 });

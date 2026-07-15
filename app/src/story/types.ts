@@ -8,6 +8,7 @@ export const SCENE_IDS = [
   'method-top',
   'method-bottom',
   'figure2-animation',
+  'figure2-proof',
   'figure2-proof-opening',
   'figure2-proof-cards',
   'figure2-proof-closing',
@@ -60,8 +61,19 @@ export type MilestoneKey =
 export type SegmentPolicy =
   | { kind: 'snap'; chargeThreshold: number; interruptible?: boolean }
   | { kind: 'scrub'; snapAfterIdleMs: number }
-  | { kind: 'stagedSnap'; stops: readonly number[]; playMs: readonly number[]; postScrollVh?: number }
+  | {
+      kind: 'stagedSnap';
+      stops: readonly number[];
+      playMs: readonly number[];
+      advance: readonly StagedBoundaryAdvance[];
+      postScrollVh?: number;
+    }
   | { kind: 'reading'; anchor: SceneId; edgeArm?: 'bottom' | 'top' };
+
+export type StagedBoundaryAdvance =
+  | { kind: 'immediate' }
+  | { kind: 'gesture' }
+  | { kind: 'delay'; ms: number };
 
 export type MediaKey = string;
 
@@ -71,8 +83,7 @@ export type SegmentVisual =
       ink: 'center-expand' | 'left-rotate-expand' | 'horizontal';
       direction?: 'bottom-to-top' | 'top-to-bottom';
     }
-  | { type: 'media'; media: readonly MediaKey[]; handoff?: 'crossfade' }
-  | { type: 'internal'; milestone: string };
+  | { type: 'disappear'; media?: readonly MediaKey[] };
 
 export type CopyCue = {
   targetScene: SceneId;
@@ -286,6 +297,8 @@ export type ReadingEntryIntent = Readonly<{
   source: ReadingEntrySource;
   token: number;
 }>;
+
+export type Figure2ProofPanel = 'opening' | 'cards' | 'closing';
 
 export type StoryCursor =
   | { status: 'hold'; scene: SceneId }

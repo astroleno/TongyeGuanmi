@@ -16,6 +16,7 @@
     "test:release": "pnpm -C app test:release",
     "verify:media": "pnpm -C app run verify:media",
     "verify:media:deep": "pnpm -C app run verify:media:deep",
+    "rebuild:media:crane": "pnpm -C app run rebuild:media:crane",
     "verify:all": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "ci": "pnpm run verify:all && pnpm run test:release",
     "deploy:prepare": "pnpm -C app run release:prepare",

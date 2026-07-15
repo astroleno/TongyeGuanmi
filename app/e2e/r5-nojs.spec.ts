@@ -25,6 +25,8 @@ test('no-JS HTML exposes core正文, metadata, navigation, and scrollable anchor
   await expect(footer.getByText('AI Transformation & Capability Building', { exact: true })).toHaveCount(1);
   await expect(footer.getByRole('link', { name: '服务备案号 沪ICP备2024086119号-3', exact: true }))
     .toHaveAttribute('href', 'https://beian.miit.gov.cn/');
+  await expect(footer.getByRole('link', { name: '沪公网安备 31011502406697号（新窗口打开）', exact: true }))
+    .toHaveAttribute('href', 'https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=31011502406697');
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', /\/assets\/favicon-[^/]+\.svg$/);
   await expect(page.locator('link[rel="preload"][as="font"]')).toHaveAttribute(
     'href',

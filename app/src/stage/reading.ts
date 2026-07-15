@@ -70,7 +70,9 @@ export function positionReadingAtEdge(
   const target = edge === 'bottom'
     ? Math.max(0, scrollport.scrollHeight - scrollport.clientHeight)
     : 0;
-  scrollport.scrollTop = target;
+  if (Math.abs(scrollport.scrollTop - target) > READING_EDGE_TOLERANCE_PX) {
+    scrollport.scrollTop = target;
+  }
   scrollport.dataset.readingEdge = edge;
   return target;
 }

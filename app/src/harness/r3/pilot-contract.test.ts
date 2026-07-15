@@ -192,10 +192,18 @@ function context(
   elements: { from?: HTMLElement; to?: HTMLElement } = {}
 ): TransitionContext {
   const node = segment(id);
+  const fromElement = elements.from ?? null;
+  const toElement = elements.to ?? (id === 'star-map-aod'
+    ? new FakeElement() as unknown as HTMLElement
+    : null);
+  if (id === 'star-map-aod' && toElement) {
+    const target = toElement as unknown as FakeElement;
+    target.connect('[data-aod-figure-video]', new FakeVideo());
+  }
   return {
     segment: node,
-    from: layer(node.from, direction === 1 ? 'current' : 'next', elements.from ?? null),
-    to: layer(node.to, direction === 1 ? 'next' : 'current', elements.to ?? null),
+    from: layer(node.from, direction === 1 ? 'current' : 'next', fromElement),
+    to: layer(node.to, direction === 1 ? 'next' : 'current', toElement),
     stage: {
       getLayer: () => undefined,
       ensureLayer: (scene, role) => layer(scene, role),
@@ -327,7 +335,7 @@ describe('R3 pilot contract on real segments', () => {
     expect(revealSurface.dataset.r4InkContourThreshold).toBe(canvas.dataset.r4InkContourThreshold);
     expect(canvas.dataset.r4InkEffectOnly).toBe('true');
     expect(canvas.dataset.r4InkRenderer).toBe('field');
-    expect(canvas.dataset.r4InkGrade).toBe('edge-bright');
+    expect(canvas.dataset.r4InkGrade).toBe('edge-only');
     expect(canvas.parentElement).toBe(stage);
   });
 

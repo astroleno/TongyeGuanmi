@@ -16,6 +16,12 @@ const repoDir = path.dirname(appDir);
 const distDir = path.join(repoDir, 'dist');
 const assetsDir = path.join(distDir, 'assets');
 const inventoryPath = path.join(distDir, 'homepage-media-inventory.json');
+const sourceAssetsDir = path.join(repoDir, 'assets');
+const nonHomepageAssetSources = new Set([
+  'assets/favicon.svg',
+  'assets/fonts/OFL-QIJI.txt',
+  'assets/fonts/qiji-title-subset.ttf'
+]);
 
 const adoptedWebpSources = [
   'assets/hero-back.webp',
@@ -44,22 +50,22 @@ const losslessWebpSources = [
   'assets/crane1_arch-alpha.webp',
   'assets/crane1_cloud1-alpha.webp',
   'assets/crane1_cloud-front2-alpha.webp',
+  'assets/crane-flock-first-frame.webp',
   'assets/patterns/alpha-layers/pattern-layer-alpha-02.webp',
   'assets/patterns/alpha-layers/pattern-layer-alpha-03.webp',
   'assets/patterns/alpha-layers/pattern-layer-alpha-04.webp',
   'assets/patterns/alpha-layers/pattern-layer-alpha-05.webp',
-  'assets/patterns/alpha-layers/pattern-layer-alpha-06.webp'
+  'assets/patterns/alpha-layers/pattern-layer-alpha-06.webp',
+  'assets/hero-figure-poster.webp'
 ];
 
-const retainedImageSources = [
-  'assets/figure-poster.jpg'
-];
+const retainedImageSources = [];
 
 const heroPreScrollSources = new Set([
   'assets/hero-back.webp',
   'assets/hero-middle.webp',
   'assets/middle1_depth.webp',
-  'assets/figure-poster.jpg'
+  'assets/hero-figure-poster.webp'
 ]);
 
 const forbiddenEmittedNames = [
@@ -163,18 +169,34 @@ const inventorySources = [
 const frozenMediaBySource = new Map(
   frozenHomepageMedia.map((entry) => [entry.source, entry])
 );
-assert(inventorySources.length === 38, `expected 38 homepage source entries, found ${inventorySources.length}`);
-assert(frozenHomepageMedia.length === 38, `expected 38 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
+assert(inventorySources.length === 39, `expected 39 homepage source entries, found ${inventorySources.length}`);
+assert(frozenHomepageMedia.length === 39, `expected 39 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
 assert(frozenMediaBySource.size === frozenHomepageMedia.length, 'frozen homepage media sources must be unique');
 assert(frozenMediaBySource.size === inventorySources.length, 'frozen homepage media contract must cover the full inventory');
 assert(adoptedWebpSources.length === 11, `expected 11 adopted WebP sources, found ${adoptedWebpSources.length}`);
-assert(losslessWebpSources.length === 17, `expected 17 lossless WebP sources, found ${losslessWebpSources.length}`);
+assert(losslessWebpSources.length === 19, `expected 19 lossless WebP sources, found ${losslessWebpSources.length}`);
 assert(animationWebmSources.length === 9, `expected 9 animation WebM sources, found ${animationWebmSources.length}`);
 
-const [sourceEntries, emittedFiles] = await Promise.all([
+const [sourceEntries, emittedFiles, sourceAssetFiles] = await Promise.all([
   Promise.all(inventorySources.map(({ source, category }) => sourceEntry(source, category))),
-  filesBelow(assetsDir)
+  filesBelow(assetsDir),
+  filesBelow(sourceAssetsDir)
 ]);
+const allowedSourceAssets = new Set([
+  ...inventorySources.map(({ source }) => source),
+  ...nonHomepageAssetSources
+]);
+const unexpectedSourceAssets = sourceAssetFiles
+  .map((file) => path.relative(repoDir, file).split(path.sep).join('/'))
+  .filter((source) => !allowedSourceAssets.has(source));
+assert(
+  unexpectedSourceAssets.length === 0,
+  `unowned files remain in production assets/: ${unexpectedSourceAssets.join(', ')}`
+);
+assert(
+  sourceAssetFiles.length === allowedSourceAssets.size,
+  `expected ${allowedSourceAssets.size} owned source assets, found ${sourceAssetFiles.length}`
+);
 const emittedEntries = await Promise.all(emittedFiles.map(async (file) => {
   const bytes = await readFile(file);
   assertMediaSignature(file, bytes);
@@ -210,10 +232,10 @@ const emittedWebm = emittedEntries.filter((entry) => mediaExtension(entry.path) 
 const emittedWebp = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.webp');
 const emittedJpg = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.jpg');
 const emittedPng = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.png');
-assert(emittedMedia.length === 38, `expected exactly 38 emitted homepage media files, found ${emittedMedia.length}`);
+assert(emittedMedia.length === 39, `expected exactly 39 emitted homepage media files, found ${emittedMedia.length}`);
 assert(emittedWebm.length === 9, `expected exactly 9 emitted animation WebM files, found ${emittedWebm.length}`);
-assert(emittedWebp.length === 28, `expected exactly 28 emitted WebP files, found ${emittedWebp.length}`);
-assert(emittedJpg.length === 1, `expected exactly 1 emitted JPG file, found ${emittedJpg.length}`);
+assert(emittedWebp.length === 30, `expected exactly 30 emitted WebP files, found ${emittedWebp.length}`);
+assert(emittedJpg.length === 0, `production JPG emit is forbidden, found ${emittedJpg.length}`);
 assert(emittedPng.length === 0, `production PNG emit is forbidden, found ${emittedPng.length}`);
 for (const entry of emittedEntries) {
   assert(
@@ -249,7 +271,8 @@ const report = {
     animationWebmCount: emittedWebm.length,
     webpCount: emittedWebp.length,
     jpgCount: emittedJpg.length,
-    pngCount: emittedPng.length
+    pngCount: emittedPng.length,
+    sourceAssetFileCount: sourceAssetFiles.length
   },
   heroPreScrollInventory,
   inventory
@@ -264,5 +287,6 @@ process.stdout.write(`${JSON.stringify({
   webp: emittedWebp.length,
   jpg: emittedJpg.length,
   png: emittedPng.length,
+  sourceAssets: sourceAssetFiles.length,
   pass: true
 })}\n`);

@@ -148,7 +148,7 @@ function managerFor(root: HTMLElement): Figure2MediaManager {
   const left = videoFor(root, 'left');
   const right = videoFor(root, 'right');
   if (!left || !right) {
-    throw new Error('Figure2 media unavailable');
+    throw new Error('Figure2 media missing');
   }
   const manager: Figure2MediaManager = {
     left,
@@ -193,7 +193,7 @@ async function prepareFigure2Pair(
   progress: number
 ): Promise<void> {
   if (preparation.signal?.aborted) {
-    throw new Error('Figure2 media preparation aborted');
+    throw new Error('Figure2 prepare aborted');
   }
   const manager = managerFor(root);
   const generation = ++manager.generation;
@@ -231,7 +231,7 @@ export async function prepareFigure2MediaLeg(
   preparation: Figure2MediaPreparation
 ): Promise<void> {
   if (!root) {
-    throw new Error('Figure2 root unavailable');
+    throw new Error('Figure2 unavailable');
   }
   await prepareFigure2Pair(root, preparation, heldProgress(root, preparation.direction));
 }
@@ -241,7 +241,7 @@ export async function prepareFigure2TerminalPair(
   preparation: Figure2MediaPreparation
 ): Promise<void> {
   if (!root) {
-    throw new Error('Figure2 root unavailable');
+    throw new Error('Figure2 unavailable');
   }
   await prepareFigure2Pair(root, preparation, 1);
 }
@@ -261,7 +261,7 @@ function commitFigure2Pair(
     || prepared.direction !== preparation.direction
     || prepared.generation !== manager.generation
   ) {
-    throw new Error('Figure2 media not ready');
+    throw new Error('Figure2 not ready');
   }
   const input = mediaInput(
     preparation,
@@ -286,7 +286,7 @@ export function commitFigure2MediaLeg(
   preparation: Figure2MediaPreparation
 ): void {
   if (!root) {
-    throw new Error('Figure2 root unavailable');
+    throw new Error('Figure2 unavailable');
   }
   commitFigure2Pair(
     root,
@@ -301,7 +301,7 @@ export function commitFigure2TerminalPair(
   preparation: Figure2MediaPreparation
 ): void {
   if (!root) {
-    throw new Error('Figure2 root unavailable');
+    throw new Error('Figure2 unavailable');
   }
   commitFigure2Pair(root, preparation, 1, false);
 }

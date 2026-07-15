@@ -237,7 +237,7 @@ test.describe('R3 pilot harness', () => {
           const figure = root?.querySelector<HTMLElement>('[data-aod-figure-video]');
           const methodCopy = methodLayer?.querySelector<HTMLElement>('.r4-method__layout');
           const next = {
-            progress: Number.parseFloat(methodLayer?.dataset.aodMethodTransitionProgress ?? '-1'),
+            progress: Number.parseFloat(root?.style.getPropertyValue('--aod-transition-progress') || '-1'),
             aodLayerOpacity: aodLayer ? getComputedStyle(aodLayer).opacity : '',
             methodLayerOpacity: methodLayer ? getComputedStyle(methodLayer).opacity : '',
             copyCueActive: methodLayer?.dataset.copyCueActive ?? '',
@@ -250,7 +250,7 @@ test.describe('R3 pilot harness', () => {
             paperSolidOpacity: paperSolid ? getComputedStyle(paperSolid).opacity : '',
             figureOpacity: figure ? getComputedStyle(figure).opacity : ''
           };
-          if (next.progress >= 0.18 && next.progress <= 0.3) {
+          if (next.alphaComposite === 'true' && next.progress > 0.02) {
             window.clearTimeout(timeout);
             resolve(next);
             return;
@@ -483,7 +483,7 @@ test.describe('R3 pilot harness', () => {
     writeTrace('pilot-recovery-trace.json', frame);
 
     expect(frame.phase).toBe('hold');
-    expect(frame.window.current).toBe('method-top');
+    expect(frame.window.current).toBe('aod-animation');
     expect(frame.interactableCount).toBe(1);
     expect(frame.recoveryCount).toBe(1);
     expect(frame.duplicateMediaReadyIgnored).toBe(1);

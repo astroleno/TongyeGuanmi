@@ -1,19 +1,20 @@
 import { PilotProgressTimeline } from '../../pilot/progress-timeline';
-import { fadeVisibility, range01, smoothStep } from '../../pilot/visibility';
-import { AOD_MEDIA_KEY } from './media';
-import { AOD_FIGURE_END_SECONDS, renderAodTransitionProgress } from '../../scenes/aod-animation';
+import { fadeVisibility, hiddenVisibility, range01, smoothStep } from '../../pilot/visibility';
 import {
-  disposeTimelineVideoDriver,
-  driveTimelineVideo,
-  prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput
-} from '../../media/timeline-video-driver';
+  AOD_MEDIA_KEY,
+  beginAodExitMedia,
+  disposeAodExitMedia,
+  prepareAodAnimationFrame,
+  renderAodExitProgress
+} from '../../scenes/aod-animation';
+import { renderMethodTopEntrance } from '../../scenes/method-top';
 import type {
   Direction,
   LayerVisibilityState,
   TransitionContext,
   TransitionModule
 } from '../../story/types';
+import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 
 export const AOD_METHOD_TOP_DURATION_MS = 2600;
 export const AOD_METHOD_COPY_CUE = { targetScene: 'method-top', atProgress: 0.8 } as const;
@@ -27,7 +28,7 @@ function sampleAodMethodTop(progress: number): { from: LayerVisibilityState; to:
   const aodOpacity = 1 - smoothStep(range01(progress, 0.70, 1));
   return {
     from: fadeVisibility(aodOpacity),
-    to: fadeVisibility(1),
+    to: progress === 0 ? hiddenVisibility() : fadeVisibility(1),
     copyCueActive
   };
 }
@@ -36,6 +37,7 @@ class AodMethodTopTimeline extends PilotProgressTimeline {
   private readonly context: TransitionContext;
   private readonly getVideo: (() => HTMLVideoElement | null) | undefined;
   private readonly mediaDirection: { current: Direction };
+  private readonly sourceElevation: TransitionLayerElevation | null;
 
   constructor(
     context: TransitionContext,
@@ -53,26 +55,32 @@ class AodMethodTopTimeline extends PilotProgressTimeline {
       copyCue: AOD_METHOD_COPY_CUE,
       sample: sampleAodMethodTop,
       render: (progress) => {
-        renderAodTransitionProgress(context.from.element, progress);
-        const video = options.getVideo?.() ?? videoIn(context.from.element);
-        driveTimelineVideo(video, aodMediaInput(context, mediaDirection.current, progress));
-        context.from.element?.setAttribute('data-r3-transition', 'aod-method-top');
-        context.to.element?.setAttribute('data-r3-transition', 'aod-method-top');
-        context.to.element?.setAttribute('data-aod-method-transition-progress', progress.toFixed(4));
+        renderAodExitProgress(context.from.element, progress, {
+          runId: context.runId,
+          direction: mediaDirection.current,
+          reducedMotion: context.prefersReducedMotion,
+          timelineDurationMs: AOD_METHOD_TOP_DURATION_MS,
+          video: options.getVideo?.() ?? videoIn(context.from.element)
+        });
+        renderMethodTopEntrance(context.to.element, progress >= AOD_METHOD_COPY_CUE.atProgress ? 1 : 0);
       }
     });
     this.context = context;
     this.getVideo = options.getVideo;
     this.mediaDirection = mediaDirection;
+    this.sourceElevation = context.direction === -1
+      ? createTransitionLayerElevation(context.from.element)
+      : null;
+    this.sourceElevation?.elevate();
   }
 
   override async play(): Promise<void> {
     this.mediaDirection.current = 1;
-    const video = this.getVideo?.() ?? videoIn(this.context.from.element);
-    video?.pause();
-    if (video) {
-      video.playbackRate = 1;
-    }
+    beginAodExitMedia(
+      this.context.from.element,
+      this.context.runId,
+      this.getVideo?.() ?? videoIn(this.context.from.element)
+    );
     await super.play();
   }
 
@@ -83,47 +91,20 @@ class AodMethodTopTimeline extends PilotProgressTimeline {
 
   override async reverse(): Promise<void> {
     this.mediaDirection.current = -1;
-    const video = this.getVideo?.() ?? videoIn(this.context.from.element);
-    video?.pause();
-    if (video) {
-      video.playbackRate = 1;
-    }
+    beginAodExitMedia(
+      this.context.from.element,
+      this.context.runId,
+      this.getVideo?.() ?? videoIn(this.context.from.element)
+    );
     await super.reverse();
   }
 
   override dispose(): void {
     super.dispose();
-    this.context.from.element?.removeAttribute('data-r3-transition');
-    this.context.to.element?.removeAttribute('data-r3-transition');
-    this.context.to.element?.removeAttribute('data-aod-method-transition-progress');
-    const aodSection = this.context.from.element?.matches('[data-aod-transition]')
-      ? this.context.from.element
-      : this.context.from.element?.querySelector<HTMLElement>('[data-aod-transition]');
-    aodSection?.removeAttribute('data-aod-alpha-composite');
+    this.sourceElevation?.restore();
     const video = this.getVideo?.() ?? videoIn(this.context.from.element);
-    if (video) {
-      disposeTimelineVideoDriver(video);
-    }
+    disposeAodExitMedia(this.context.from.element, this.context.runId, video);
   }
-}
-
-function aodMediaInput(
-  context: TransitionContext,
-  direction: Direction,
-  progress: number
-): TimelineVideoDriveInput {
-  return {
-    runId: context.runId,
-    direction,
-    progress,
-    durationFallbackSeconds: 2.6,
-    startSeconds: 0,
-    endSeconds: AOD_FIGURE_END_SECONDS,
-    timelineDurationMs: AOD_METHOD_TOP_DURATION_MS,
-    mode: direction === 1 ? 'native-preferred' : 'timeline',
-    nativePlaybackDirection: 1,
-    reducedMotion: context.prefersReducedMotion
-  };
 }
 
 export function createAodMethodTopTransition(options: {
@@ -138,7 +119,7 @@ export function createAodMethodTopTransition(options: {
       {
         id: 'aod-front-figure',
         media: [AOD_MEDIA_KEY],
-        forward: { mode: 'play', required: true },
+        forward: { mode: 'timeline', required: true },
         reverse: { mode: 'timeline', required: true },
         readyMilestones: ['targetReady', 'mediaReady'],
         terminalFallbackScene: 'method-top',
@@ -154,13 +135,17 @@ export function createAodMethodTopTransition(options: {
         ?? (() => videoIn(context.from.element));
       const video = getVideo();
       if (video && !context.prefersReducedMotion) {
-        const frame = await prepareTimelineVideoFrame(
-          video,
-          aodMediaInput(context, context.direction, context.direction === 1 ? 0 : 1)
+        await prepareAodAnimationFrame(
+          context.from.element,
+          context.direction === 1 ? 0 : 1,
+          {
+            runId: context.runId,
+            direction: context.direction,
+            reducedMotion: context.prefersReducedMotion,
+            timelineDurationMs: AOD_METHOD_TOP_DURATION_MS,
+            video
+          }
         );
-        if (frame?.status !== 'ready') {
-          throw new Error(`AOD ${context.direction === 1 ? 'forward' : 'reverse'} frame preparation became stale`);
-        }
       }
       return new AodMethodTopTimeline(context, {
         durationMs: context.prefersReducedMotion ? 0 : AOD_METHOD_TOP_DURATION_MS,

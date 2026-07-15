@@ -32,7 +32,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1783880831112,
+      "at": 1784105248423,
       "event": {
         "type": "BOOT_READY"
       },
@@ -49,7 +49,7 @@
       "id": 1
     },
     {
-      "at": 1783880831113,
+      "at": 1784105248424,
       "event": {
         "type": "BOOT_READY"
       },
@@ -66,7 +66,7 @@
       "id": 2
     },
     {
-      "at": 1783880831594,
+      "at": 1784105248905,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -85,7 +85,7 @@
       "id": 3
     },
     {
-      "at": 1783880831601,
+      "at": 1784105248963,
       "event": {
         "type": "TARGET_READY",
         "scene": "contact",
@@ -107,7 +107,7 @@
       "id": 4
     },
     {
-      "at": 1783880831607,
+      "at": 1784105248968,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g7-crane-contact:1"
@@ -128,7 +128,7 @@
       "id": 5
     },
     {
-      "at": 1783880832056,
+      "at": 1784105249400,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -147,7 +147,7 @@
       "id": 6
     },
     {
-      "at": 1783880832061,
+      "at": 1784105249426,
       "event": {
         "type": "TARGET_READY",
         "scene": "crane-animation",
@@ -169,7 +169,7 @@
       "id": 7
     },
     {
-      "at": 1783880832066,
+      "at": 1784105249429,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g7-crane-contact:2"
@@ -190,7 +190,7 @@
       "id": 8
     },
     {
-      "at": 1783880832511,
+      "at": 1784105249874,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -209,7 +209,7 @@
       "id": 9
     },
     {
-      "at": 1783880832516,
+      "at": 1784105249879,
       "event": {
         "type": "TARGET_READY",
         "scene": "contact",
@@ -231,7 +231,7 @@
       "id": 10
     },
     {
-      "at": 1783880832520,
+      "at": 1784105249883,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g7-crane-contact:3"

@@ -59,8 +59,7 @@ type Group4VisualSnapshot = {
   revealClip: string;
   revealMask: string;
   revealMode: string | undefined;
-  handoffProgress: number;
-  handoffPaperAlpha: number;
+  servicesPaperAlpha: number;
   servicesElevated: boolean;
   brandY: number;
   brandOpacity: number;
@@ -103,8 +102,7 @@ async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
       revealClip: revealStyle?.clipPath ?? 'none',
       revealMask: revealStyle?.getPropertyValue('-webkit-mask-image') || revealStyle?.getPropertyValue('mask-image') || 'none',
       revealMode: revealLayer?.dataset.r4RevealMode,
-      handoffProgress: Number.parseFloat(servicesLayer?.dataset.r4HandoffReceiverProgress ?? '0'),
-      handoffPaperAlpha: Number.parseFloat(servicesLayer?.style.getPropertyValue('--r4-handoff-paper-alpha') ?? '0'),
+      servicesPaperAlpha: Number.parseFloat(servicesRoot?.style.getPropertyValue('--r4-services-paper-alpha') || '0'),
       servicesElevated: servicesLayer?.dataset.r4TransitionElevated === 'true',
       brandY: Number.parseFloat(brandStyle?.getPropertyValue('--r4-brand-y') ?? '0'),
       brandOpacity: Number.parseFloat(brandStyle?.getPropertyValue('--r4-brand-opacity') ?? '0')
@@ -179,8 +177,9 @@ test.describe('R4 group4 brand figure3 services harness', () => {
     const figureTerminal = await visualSnapshot(page);
     expect(figureTerminal.servicesProgress).toBe(1);
     expect(figureTerminal.copyCueActive).toBe(true);
-    expect(figureTerminal.handoffProgress).toBe(1);
-    expect(figureTerminal.handoffPaperAlpha).toBe(1);
+    expect(figureTerminal.servicesPaperAlpha).toBe(1);
+    expect(figureTerminal.servicesElevated).toBe(false);
+    expect(figureTerminal.transitions).not.toContain('figure3-services-copy-cue');
     expect(figureTerminal.figure3VideoOpacity).toBeLessThan(0.05);
     const servicesHold = await visualSnapshot(page);
     expect(servicesHold.servicesProgress).toBe(1);

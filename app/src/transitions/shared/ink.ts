@@ -55,6 +55,11 @@ export type InkSourceRenderContext = Readonly<{
   prefersReducedMotion: boolean;
 }>;
 
+export type InkTargetPresentationContext = InkSourceRenderContext & Readonly<{
+  generation: string;
+  target: 'from' | 'to';
+}>;
+
 export type InkSegmentOptions = {
   id: SegmentId;
   field: InkFieldSpec | ((roots: InkFieldRoots) => InkFieldSpec);
@@ -66,6 +71,10 @@ export type InkSegmentOptions = {
   elevateTarget?: boolean;
   sample?: (progress: number) => InkSample;
   prepareEndpoints(roots: InkEndpointRoots): void;
+  prepareTargetPresentation?: (
+    roots: InkEndpointRoots,
+    context: InkTargetPresentationContext
+  ) => Promise<void> | void;
   renderSource?: (
     root: HTMLElement | null,
     progress: number,
@@ -217,6 +226,75 @@ function isHorizontalFrame(frame: InkFieldFrame): frame is HorizontalInkFieldFra
 
 export { applyConcealBoundary, applyRevealBoundary, clearBoundaryGeometry } from './inkOwnership';
 
+type InkEndpointRole = 'source' | 'target';
+
+class InkEndpointRunOwnership {
+  private readonly elements = new Map<HTMLElement, InkEndpointRole>();
+  private ready = false;
+
+  constructor(
+    private readonly generation: string,
+    private readonly direction: Direction
+  ) {}
+
+  sync(
+    fromElement: HTMLElement | null,
+    toElement: HTMLElement | null,
+    roots: InkEndpointRoots
+  ): void {
+    const next = new Map<HTMLElement, InkEndpointRole>();
+    const fromRole: InkEndpointRole = this.direction === 1 ? 'source' : 'target';
+    const toRole: InkEndpointRole = this.direction === 1 ? 'target' : 'source';
+    for (const element of [fromElement, roots.from]) {
+      if (element) next.set(element, fromRole);
+    }
+    for (const element of [toElement, roots.to]) {
+      if (element) next.set(element, toRole);
+    }
+    for (const element of this.elements.keys()) {
+      if (!next.has(element)) {
+        this.release(element);
+      }
+    }
+    this.elements.clear();
+    for (const [element, role] of next) {
+      this.elements.set(element, role);
+      element.setAttribute('data-r4-endpoint-run', this.generation);
+      element.setAttribute('data-r4-endpoint-role', role);
+      if (role === 'target' && this.ready) {
+        element.setAttribute('data-r4-endpoint-ready', this.generation);
+      } else if (element.dataset.r4EndpointRun === this.generation) {
+        element.removeAttribute('data-r4-endpoint-ready');
+      }
+    }
+  }
+
+  markReady(): void {
+    this.ready = true;
+    for (const [element, role] of this.elements) {
+      if (role === 'target' && element.dataset.r4EndpointRun === this.generation) {
+        element.setAttribute('data-r4-endpoint-ready', this.generation);
+      }
+    }
+  }
+
+  dispose(): void {
+    for (const element of this.elements.keys()) {
+      this.release(element);
+    }
+    this.elements.clear();
+  }
+
+  private release(element: HTMLElement): void {
+    if (element.dataset.r4EndpointRun !== this.generation) {
+      return;
+    }
+    element.removeAttribute('data-r4-endpoint-run');
+    element.removeAttribute('data-r4-endpoint-role');
+    element.removeAttribute('data-r4-endpoint-ready');
+  }
+}
+
 class InkSegmentTimeline implements SegmentTimelineHandle {
   readonly labels: Readonly<Record<string, number>>;
   readonly pauses: readonly string[];
@@ -247,12 +325,17 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
 
   constructor(
     private readonly context: TransitionContext,
-    private readonly options: InkSegmentOptions
+    private readonly options: InkSegmentOptions,
+    private readonly endpointOwnership: InkEndpointRunOwnership,
+    preparedRoots: InkEndpointRoots
   ) {
     const generation = `${context.runId}:${context.prepareToken}`;
     this.generation = generation;
     this.playbackDirection = context.direction;
     this.progressValue = context.direction === 1 ? 0 : 1;
+    this.preparedFromRoot = preparedRoots.from;
+    this.preparedToRoot = preparedRoots.to;
+    this.endpointsPrepared = true;
     this.motionLeases = createSceneMotionLeaseGroup(`${context.runId}:${options.id}`);
     const stops = options.stops ?? [];
     this.labels = Object.fromEntries([
@@ -261,7 +344,11 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       ...stops.map((stop, index) => [`stage:${index}`, stop] as const),
       ['end', 1]
     ]);
-    this.pauses = stops.map((_, index) => `stage:${index}`);
+    this.pauses = context.segment.policy.kind === 'stagedSnap'
+      ? context.segment.policy.advance.flatMap((advance, index) => (
+          advance.kind === 'gesture' ? [`stage:${index}`] : []
+        ))
+      : [];
     const surfaceHost = canvasHost(context, options.canvasHost);
     this.surfaceHost = surfaceHost;
     this.attrsElement = options.canvasHost === 'from'
@@ -355,6 +442,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     const liveToElement = liveLayerElement(this.context.to);
     const fromRoot = sceneRoot(liveFromElement, this.context.from.scene, this.options.rootSelector);
     const toRoot = sceneRoot(liveToElement, this.context.to.scene, this.options.rootSelector);
+    this.endpointOwnership.sync(liveFromElement, liveToElement, { from: fromRoot, to: toRoot });
     this.ensureEndpointsPrepared(fromRoot, toRoot);
     const motionScenes = this.options.motionScenes ?? [];
     this.motionLeases.sync([
@@ -576,6 +664,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       element?.removeAttribute('data-r4-ink-active');
       element?.removeAttribute('data-r4-ink-progress');
     }
+    this.endpointOwnership.dispose();
   }
 
   private sourceRenderContext(): InkSourceRenderContext {
@@ -692,33 +781,72 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
   return {
     id: options.id,
     requiredMilestones: ['targetReady', 'buildReady'],
-    reducedMotionFallback: (context) => {
+    reducedMotionFallback: async (context) => {
       const endpoint = context.direction === 1 ? 1 : 0;
+      const generation = `${context.runId}:${context.prepareToken}`;
       const roots = {
         from: sceneRoot(liveLayerElement(context.from), context.from.scene, options.rootSelector),
         to: sceneRoot(liveLayerElement(context.to), context.to.scene, options.rootSelector)
       };
-      options.prepareEndpoints(roots);
-      options.renderSource?.(
-        roots.from,
-        mappedProgress(options.renderSourceProgress, endpoint, 'static'),
-        {
+      const ownership = new InkEndpointRunOwnership(generation, context.direction);
+      ownership.sync(liveLayerElement(context.from), liveLayerElement(context.to), roots);
+      applyLayerVisibility(context.direction === 1 ? context.to : context.from, hiddenVisibility());
+      try {
+        options.prepareEndpoints(roots);
+        await options.prepareTargetPresentation?.(roots, {
           runId: context.runId,
           prepareToken: context.prepareToken,
           direction: context.direction,
-          prefersReducedMotion: context.prefersReducedMotion
-        }
-      );
-      applyLayerVisibility(context.from, context.direction === 1 ? hiddenVisibility() : holdVisibility(true));
-      applyLayerVisibility(context.to, context.direction === 1 ? holdVisibility(true) : hiddenVisibility());
+          prefersReducedMotion: context.prefersReducedMotion,
+          generation,
+          target: context.direction === 1 ? 'to' : 'from'
+        });
+        ownership.markReady();
+        options.renderSource?.(
+          roots.from,
+          mappedProgress(options.renderSourceProgress, endpoint, 'static'),
+          {
+            runId: context.runId,
+            prepareToken: context.prepareToken,
+            direction: context.direction,
+            prefersReducedMotion: context.prefersReducedMotion
+          }
+        );
+        applyLayerVisibility(context.from, context.direction === 1 ? hiddenVisibility() : holdVisibility(true));
+        applyLayerVisibility(context.to, context.direction === 1 ? holdVisibility(true) : hiddenVisibility());
+      } finally {
+        ownership.dispose();
+      }
     },
     buildTimeline: async (context) => {
       const delay = options.delayMs?.() ?? 0;
       if (delay > 0) {
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
-      const timeline = new InkSegmentTimeline(context, options);
-      return timeline;
+      const generation = `${context.runId}:${context.prepareToken}`;
+      const roots = {
+        from: sceneRoot(liveLayerElement(context.from), context.from.scene, options.rootSelector),
+        to: sceneRoot(liveLayerElement(context.to), context.to.scene, options.rootSelector)
+      };
+      const ownership = new InkEndpointRunOwnership(generation, context.direction);
+      ownership.sync(liveLayerElement(context.from), liveLayerElement(context.to), roots);
+      applyLayerVisibility(context.direction === 1 ? context.to : context.from, hiddenVisibility());
+      try {
+        options.prepareEndpoints(roots);
+        await options.prepareTargetPresentation?.(roots, {
+          runId: context.runId,
+          prepareToken: context.prepareToken,
+          direction: context.direction,
+          prefersReducedMotion: context.prefersReducedMotion,
+          generation,
+          target: context.direction === 1 ? 'to' : 'from'
+        });
+        ownership.markReady();
+        return new InkSegmentTimeline(context, options, ownership, roots);
+      } catch (error) {
+        ownership.dispose();
+        throw error;
+      }
     }
   };
 }

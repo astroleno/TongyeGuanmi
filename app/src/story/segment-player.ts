@@ -75,6 +75,7 @@ type ActiveRun = {
       generation: number;
     };
     frame?: ScheduledFrame;
+    boundaryTimer?: ReturnType<typeof setTimeout>;
   };
   scrub?: {
     generation: number;
@@ -509,6 +510,10 @@ export class SegmentPlayer {
       cancelScheduledFrame(run.staged.frame);
       delete run.staged.frame;
     }
+    if (run.staged?.boundaryTimer) {
+      clearTimeout(run.staged.boundaryTimer);
+      delete run.staged.boundaryTimer;
+    }
     this.cancelScrubSnap(run);
     run.settled = true;
     if (this.active?.runId === run.runId) {
@@ -815,7 +820,37 @@ export class SegmentPlayer {
       return;
     }
 
+    const segment = this.findSegment(run.segmentId);
+    if (segment.policy.kind !== 'stagedSnap') {
+      return;
+    }
     const stageIndex = boundaryIndex - 1;
+    const advance = segment.policy.advance[stageIndex];
+    if (!advance) {
+      this.settleRun(run, {
+        status: 'failed',
+        runId: run.runId,
+        segment: run.segmentId,
+        error: new Error(`Missing stagedSnap boundary ${stageIndex} for ${run.segmentId}`)
+      }, true);
+      return;
+    }
+    if (advance.kind === 'immediate') {
+      staged.legIndex += run.direction;
+      this.playStagedLeg(run, run.timeline!);
+      return;
+    }
+    if (advance.kind === 'delay') {
+      staged.boundaryTimer = setTimeout(() => {
+        delete staged.boundaryTimer;
+        if (this.active?.runId !== run.runId || run.settled) {
+          return;
+        }
+        staged.legIndex += run.direction;
+        this.playStagedLeg(run, run.timeline!);
+      }, advance.ms);
+      return;
+    }
     staged.legIndex += run.direction;
     staged.pausedStageIndex = stageIndex;
     run.pausedAt = `stage:${stageIndex}`;

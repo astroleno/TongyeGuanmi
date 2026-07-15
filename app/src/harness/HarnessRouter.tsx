@@ -17,8 +17,6 @@ const routeLoaders: Readonly<Record<string, () => Promise<{ default: HarnessRout
   '/harness/r4-g2-method-bottom-figure2': () => import('./r4/Group2Harness').then(({ Group2Harness }) => ({ default: () => <Group2Harness mode="method-bottom-figure2" /> })),
   '/harness/r4-g3': () => import('./r4/Group3Harness').then(({ Group3Harness }) => ({ default: () => <Group3Harness mode="group3" /> })),
   '/harness/r4-g3-figure2-distance-expand': () => import('./r4/Group3Harness').then(({ Group3Harness }) => ({ default: () => <Group3Harness mode="figure2-distance-expand" /> })),
-  '/harness/r4-g3-figure2-proof-opening-cards': () => import('./r4/Group3Harness').then(({ Group3Harness }) => ({ default: () => <Group3Harness mode="figure2-proof-opening-cards" /> })),
-  '/harness/r4-g3-figure2-proof-cards-closing': () => import('./r4/Group3Harness').then(({ Group3Harness }) => ({ default: () => <Group3Harness mode="figure2-proof-cards-closing" /> })),
   '/harness/r4-g3-figure2-proof-brand': () => import('./r4/Group3Harness').then(({ Group3Harness }) => ({ default: () => <Group3Harness mode="figure2-proof-brand" /> })),
   '/harness/r4-g4': () => import('./r4/Group4Harness').then(({ Group4Harness }) => ({ default: () => <Group4Harness mode="group4" /> })),
   '/harness/r4-g4-brand-figure3': () => import('./r4/Group4Harness').then(({ Group4Harness }) => ({ default: () => <Group4Harness mode="brand-figure3" /> })),

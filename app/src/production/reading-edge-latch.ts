@@ -1,76 +1,105 @@
-export const DEFAULT_READING_EDGE_IDLE_MS = 220;
 export const DEFAULT_READING_EDGE_CONFIRMATION_PX = 16;
+
+export type ReadingEdgeLatchState = 'free' | 'armed' | 'steady' | 'fired';
 
 export type ReadingEdgeLatchInput = Readonly<{
   scope: string;
   pixels: number;
-  now: number;
-  atEdge: boolean;
-  forceNewGesture?: boolean;
+  startedAtEdge: boolean;
+  reachedEdgeDuringInput: boolean;
+  newGesture: boolean;
 }>;
 
 export type ReadingEdgeLatch = Readonly<{
-  consume(input: ReadingEdgeLatchInput): Readonly<{ armed: boolean; fired: boolean }>;
+  consume(input: ReadingEdgeLatchInput): Readonly<{
+    state: ReadingEdgeLatchState;
+    armed: boolean;
+    fired: boolean;
+  }>;
+  mountAtEdge(scope: string): void;
   endGesture(): void;
   reset(): void;
 }>;
 
 /**
- * A reading-edge gesture only arms the handoff. The next independent physical
- * gesture must cross 16px before it can leave the current reading scene.
+ * Reaching an edge during content scroll arms the handoff and absorbs the rest
+ * of that physical gesture. A scene mounted at an edge starts steady, so its
+ * first clear outward gesture can commit immediately.
  */
 export function createReadingEdgeLatch(): ReadingEdgeLatch {
   let scope = '';
-  let lastAt = -1;
-  let armed = false;
-  let ignoreCurrentGesture = false;
+  let state: ReadingEdgeLatchState = 'free';
   let confirmation = 0;
-  let fired = false;
+  let confirming = false;
 
   const reset = () => {
     scope = '';
-    lastAt = -1;
-    armed = false;
-    ignoreCurrentGesture = false;
+    state = 'free';
     confirmation = 0;
-    fired = false;
+    confirming = false;
   };
+
+  const result = (didFire = false) => ({
+    state,
+    armed: state !== 'free',
+    fired: didFire
+  });
 
   return {
     consume(input) {
-      const newGesture = input.forceNewGesture
-        || scope !== input.scope
-        || lastAt < 0
-        || input.now - lastAt > DEFAULT_READING_EDGE_IDLE_MS;
       if (scope && scope !== input.scope) {
         reset();
       }
       scope = input.scope;
-      lastAt = input.now;
 
-      if (!armed) {
-        if (input.atEdge) {
-          armed = true;
-          ignoreCurrentGesture = true;
+      if (state === 'free' && !(input.startedAtEdge && input.newGesture)) {
+        if (input.startedAtEdge || input.reachedEdgeDuringInput) {
+          state = 'armed';
         }
-        return { armed, fired: false };
+        return result();
       }
-      if (fired) {
-        return { armed: true, fired: false };
+      if (state === 'free') {
+        state = 'steady';
       }
-      if (ignoreCurrentGesture) {
-        if (!newGesture) {
-          return { armed: true, fired: false };
+      if (state === 'fired') {
+        return result();
+      }
+
+      if (state === 'armed') {
+        if (!input.newGesture) {
+          return result();
         }
-        ignoreCurrentGesture = false;
+        state = 'steady';
+        confirmation = 0;
+        confirming = true;
+      } else if (input.newGesture) {
+        confirmation = 0;
+        confirming = true;
       }
-      confirmation = newGesture ? 0 : confirmation;
+
+      if (!confirming) {
+        return result();
+      }
       confirmation += Math.abs(input.pixels);
-      fired = confirmation >= DEFAULT_READING_EDGE_CONFIRMATION_PX;
-      return { armed: true, fired };
+      if (confirmation >= DEFAULT_READING_EDGE_CONFIRMATION_PX) {
+        state = 'fired';
+        confirming = false;
+        return result(true);
+      }
+      return result();
+    },
+    mountAtEdge(nextScope) {
+      scope = nextScope;
+      state = 'steady';
+      confirmation = 0;
+      confirming = false;
     },
     endGesture() {
-      lastAt = -1;
+      if (state === 'armed') {
+        state = 'steady';
+      }
+      confirmation = 0;
+      confirming = false;
     },
     reset
   };

@@ -31,7 +31,7 @@ d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7
 |---|---|---|---|---|
 | `#home` | `src/sections/hero.html` | `hero` | `src/sections/hero.html` | Build output contains title/subtitle and hero media before `js/main.js`. |
 | `#belief` | `src/sections/belief.html` | `pattern`, `star-map` | `src/sections/belief.html` | Legacy name retires; star canvas and belief copy seed `star-map`. |
-| `#method` | `src/sections/method.html` | `method-top`, `method-bottom`, `figure2-proof-*` | `src/sections/method.html` | Old anchors are `method-field-law`, `method-cocreation`, `method-tooling`, `method-proof`. |
+| `#method` | `src/sections/method.html` | `method-top`, `figure2-proof` | `src/sections/method.html` | Intro + five-step list share the `method-top` reading hold; the three old Proof SceneIds are aliases/internal panel anchors only. |
 | `#brand` | `src/sections/brand.html` | `brand` | `src/sections/brand.html` | `.brand-definition-grid` is the Figure2 handoff target. |
 | `#services` | `src/sections/services.html` | `services` | `src/sections/services.html` | Figure3 adapter is visual-only. |
 | `#lab` | `src/sections/lab.html` | `lab` | `src/sections/lab.html` | Old `scenario` styling/name maps to canonical `lab`. |
@@ -45,7 +45,7 @@ d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7
 |---|---|---|---|---|
 | `home-belief` / `home-belief` | `pattern-bloom` | `hero -> hero-pattern -> pattern -> pattern-star-map -> star-map` | `drive=scroll`; adapter ranges `REVEAL_END=0.46`, `BLOOM_START=0.42`, `BLOOM_END=0.70`, `SECOND_REVEAL_START=0.58`, `SECOND_REVEAL_END=0.985` | Hero/belief copy from sections; pattern assets and `assets/back2.png`. |
 | `belief-method` / `belief-method` | `aod` | `star-map -> star-map-aod -> aod-animation -> aod-method-top -> method-top` | `playMs=2600`, `handoffTarget=#method`, `handoffPhase=after-playback`, receiver `.method-edition-layout--after-handoff` | AOD cloud/sun/figure video; method top copy remains native DOM. |
-| `method-tooling__method-proof` / `method-proof-brand` | `figure2` | `method-bottom -> method-bottom-figure2 -> figure2-animation -> figure2-distance-expand -> figure2-proof-opening -> figure2-proof-cards -> figure2-proof-closing -> figure2-proof-brand -> brand` | `stageStops=[0.72]`, `stagePlayMs=[2600,1500]`, `stageHoldVh=30`, `postScrollVh=56`, `handoffPhase=post-scroll` | Proof copy from `.method-proof`; brand grid adopted from native section; details in `figure2-proof-sequence.md`. |
+| `method-tooling__method-proof` / `method-proof-brand` | `figure2` | `method-top -> method-bottom-figure2 -> figure2-animation -> figure2-distance-expand -> figure2-proof -> figure2-proof-brand -> brand` | Figure2 media terminal auto-dwells 1000ms in the same run before depth Ink; Proof owns one three-panel reading scrollport; `handoffPhase=post-scroll` | Proof copy from `.method-proof`; brand grid adopted from native section; three legacy Proof IDs redirect to internal panels. |
 | `method-brand` / none | `soft-divider` | covered by `figure2-proof-brand` | Collapsed in homepage continuity path | Retire in R0 manifest; no adapter. |
 | `brand-services` / none | `figure3-transition` | `brand -> brand-figure3 -> figure3-animation -> figure3-services -> services` | `stageStops=[0.997]`, `stagePlayMs=[2000,620]` | Figure3 video assets; Services copy native only. |
 | `services-lab` / none | `ttg` | `services -> services-ttg -> ttg-animation -> ttg-lab -> lab` | runtime `MODULE_PLAY_MS.ttg=2500`; adapter `data-ttg-duration=2.5` | TTG layered images and forward/reverse videos. |
@@ -55,6 +55,8 @@ d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7
 
 ## Adapter Assets
 
+The paths below are R-1 source evidence, not the current production inventory. Superseded files remain recoverable from the immutable refs in `docs/assets/homepage-asset-slimming-report.md`; files still present on the 2026-07-15 branch but absent from the frozen runtime contract were moved under `archive/assets/homepage-media/2026-07-15/legacy/`.
+
 | Adapter | Primary assets |
 |---|---|
 | `pattern-bloom` | `assets/back2.png`, `assets/patterns/**` |
@@ -63,7 +65,7 @@ d9502a9b5c7c17ce146098e2a3080de7c20e287f91b26fe307dbcabbf161afc7
 | `figure3-transition` | `assets/figure3-alpha-scrub.webm`, `assets/figure3-alpha-poster.png` |
 | `ttg` | `assets/ttg_bg.png`, `assets/ttg_middle-alpha.png`, `assets/ttg_front-alpha.png`, `assets/ttg_figure-alpha-scrub.webm`, `assets/ttg_figure-alpha-scrub-reverse.webm` |
 | `ph` | `assets/ph_background.png`, `assets/ph_front-alpha.png`, `assets/ph_figure-alpha-scrub.webm` |
-| `crane` | `assets/crane1_cloud2-alpha.png`, `assets/crane1_arch-alpha.png`, `assets/crane1_cloud-front2-alpha.png`, `assets/crane1_cloud1-alpha.png`, `assets/crane-figure1-transition.webm`, `assets/crane-figure2-transition.webm` |
+| `crane` | `assets/crane1_cloud2-alpha.webp`, `assets/crane1_arch-alpha.webp`, `assets/crane1_cloud-front2-alpha.webp`, `assets/crane1_cloud1-alpha.webp`, `assets/crane-figure-motion.webm`, `assets/crane-flock-motion.webm`, `assets/crane-flock-first-frame.webp`; figure canonical is a 75-frame whole-RGBA rebuild from the frozen `995c0737…` authority；flock canonical 保留 74 帧，以 flood-fill 修正版 WebP 替换 frame 0、frames 1–73 继续来自冻结 authority，runtime 在 2.433s 持有作者末帧；同一 WebP 仅在视频解码前作为 poster，不创建 runtime overlay。 |
 
 ## Root Preview Pages
 

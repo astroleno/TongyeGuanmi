@@ -85,9 +85,11 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 }
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
-  for (let attempt = 0; attempt < 160; attempt += 1) {
+  // TTG playback + the frozen terminal dwell + handoff is longer than the
+  // previous 4s harness ceiling.
+  for (let attempt = 0; attempt < 480; attempt += 1) {
     const state = String(runtime.getState().state);
-    if (state === 'hold' || state === 'staged-paused') {
+    if (state === 'hold') {
       return;
     }
     await wait(25);

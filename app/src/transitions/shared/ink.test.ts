@@ -486,6 +486,73 @@ describe('shared ink transition surface', () => {
     expect(toProgress).toEqual([1]);
   });
 
+  it('keeps the incoming endpoint hidden until async presentation is ready and cleans markers by generation', async () => {
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    stage.append(fromElement);
+    stage.append(toElement);
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+    let release: (() => void) | undefined;
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const from = layer('services', 'current', fromElement);
+    const to = layer('ttg-animation', 'next', toElement);
+    const context: TransitionContext = {
+      segment,
+      from,
+      to,
+      stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+      direction: 1,
+      runId: 'ink-ready-test:1',
+      prepareToken: 'ink-ready-test:prepare:1',
+      prefersReducedMotion: false,
+      reportMilestone() {}
+    };
+    const transition = createInkSegmentTransition({
+      id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' },
+      prepareEndpoints: () => undefined,
+      prepareTargetPresentation: () => ready
+    });
+
+    const building = transition.buildTimeline(context);
+    await Promise.resolve();
+
+    expect(to.visibility.opacity).toBe(0);
+    expect(toElement.dataset).toMatchObject({
+      r4EndpointRun: 'ink-ready-test:1:ink-ready-test:prepare:1',
+      r4EndpointRole: 'target'
+    });
+    expect(toElement.dataset.r4EndpointReady).toBeUndefined();
+
+    release?.();
+    const firstTimeline = await building;
+    expect(toElement.dataset.r4EndpointReady).toBe('ink-ready-test:1:ink-ready-test:prepare:1');
+
+    const secondTimeline = await transition.buildTimeline({
+      ...context,
+      runId: 'ink-ready-test:2',
+      prepareToken: 'ink-ready-test:prepare:2'
+    });
+    expect(toElement.dataset.r4EndpointRun).toBe('ink-ready-test:2:ink-ready-test:prepare:2');
+
+    firstTimeline.dispose();
+    expect(toElement.dataset.r4EndpointRun).toBe('ink-ready-test:2:ink-ready-test:prepare:2');
+    secondTimeline.dispose();
+    expect(toElement.dataset.r4EndpointRun).toBeUndefined();
+    expect(toElement.dataset.r4EndpointReady).toBeUndefined();
+  });
+
   it('renders a staged source only when its root or mapped progress changes', async () => {
     const fromElement = new FakeElement();
     const toElement = new FakeElement();

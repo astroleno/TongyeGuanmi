@@ -93,7 +93,7 @@ assert.match(
 );
 assertIncludes(figure2RouteEntryHtml, 'data-figure2-route-stage', 'figure2 route-entry html declares the route stage');
 assertIncludes(figure2RouteEntryHtml, 'data-figure2-transition', 'figure2 route-entry html declares component hook');
-assert.equal(packageJson.scripts['verify:transition-runtime'], 'node scripts/check-transition-runtime.mjs');
+assert.equal(packageJson.scripts['legacy:verify:transition-runtime'], 'node scripts/check-transition-runtime.mjs');
 
 assertIncludes(aodTransitionComponent, "from '../transitions/load-libraries.js'", 'aod component can load shared transition libraries for component mounting');
 assertIncludes(aodTransitionComponent, "from '../transitions/scroll-scene.js'", 'aod component imports shared scroll helpers');

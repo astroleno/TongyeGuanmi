@@ -22,6 +22,23 @@ const HOMEPAGE_AOD_CONFIG: AodTransitionConfig = {
   figureStartYVh: 10.5
 };
 
+export const AOD_ALPHA_FRAME_COUNT = 78;
+export const AOD_FIRST_FULL_ALPHA_FRAME = 16;
+export const AOD_SOURCE_ALPHA_END = AOD_FIRST_FULL_ALPHA_FRAME / (AOD_ALPHA_FRAME_COUNT - 1);
+export const AOD_TIMELINE_ALPHA_END = 0.36;
+export const AOD_FIRST_FULL_ALPHA_PROGRESS = AOD_TIMELINE_ALPHA_END;
+export const AOD_BACKDROP_ALPHA_EXIT_START_PROGRESS = AOD_TIMELINE_ALPHA_END * (12 / AOD_FIRST_FULL_ALPHA_FRAME);
+
+export function mapAodTimelineToMediaProgress(rawProgress: number): number {
+  const progress = Math.min(1, Math.max(0, rawProgress));
+  if (progress <= AOD_TIMELINE_ALPHA_END) {
+    return (progress / AOD_TIMELINE_ALPHA_END) * AOD_SOURCE_ALPHA_END;
+  }
+  return AOD_SOURCE_ALPHA_END
+    + ((progress - AOD_TIMELINE_ALPHA_END) / (1 - AOD_TIMELINE_ALPHA_END))
+      * (1 - AOD_SOURCE_ALPHA_END);
+}
+
 function viewportHeight(): number {
   return typeof window === 'undefined' ? 800 : window.innerHeight;
 }
@@ -57,8 +74,10 @@ export function renderAodTransitionProgress(
     return;
   }
 
-  const p = acceleratedProgress(rawProgress);
-  const alphaComposite = rawProgress <= 1 / 3;
+  const raw = Math.min(1, Math.max(0, rawProgress));
+  const p = acceleratedProgress(raw);
+  const mediaProgress = mapAodTimelineToMediaProgress(raw);
+  const alphaComposite = raw < AOD_TIMELINE_ALPHA_END;
   const config = HOMEPAGE_AOD_CONFIG;
   const backdropExit = smoothStep(secondsRange(
     p,
@@ -73,7 +92,12 @@ export function renderAodTransitionProgress(
     config.durationSeconds
   ));
   const upExitY = viewportHeight() * -1.08;
-  const backgroundFade = 1 - backdropExit;
+  const alphaBackdropFade = 1 - smoothStep(range01(
+    raw,
+    AOD_BACKDROP_ALPHA_EXIT_START_PROGRESS,
+    AOD_FIRST_FULL_ALPHA_PROGRESS
+  ));
+  const backgroundFade = Math.min(1 - backdropExit, alphaBackdropFade);
   const paperWash = alphaComposite ? 0 : smoothStep(range01(p, 0.42, 0.86));
   const bottomMist = alphaComposite ? 0 : smoothStep(range01(p, 0.56, 1));
   const paperSolid = alphaComposite ? 0 : smoothStep(range01(p, 0.70, 1));
@@ -82,6 +106,7 @@ export function renderAodTransitionProgress(
   const figureY = (1 - fullscreen) * viewportHeight() * (config.figureStartYVh / 100);
 
   section.style.setProperty('--aod-transition-progress', p.toFixed(4));
+  section.setAttribute('data-aod-media-progress', mediaProgress.toFixed(4));
   section.setAttribute('data-aod-alpha-composite', String(alphaComposite));
   section.style.setProperty('--aod-transition-sun-x', '0px');
   section.style.setProperty('--aod-transition-sun-y', formatPx(backdropExit * upExitY * 1.02));

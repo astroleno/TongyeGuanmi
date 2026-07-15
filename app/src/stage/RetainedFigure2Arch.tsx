@@ -4,9 +4,7 @@ export const FIGURE2_NEAR_ARCH_SRC = new URL('../../../assets/figure2-near-arch.
 
 export const RETAINED_FIGURE2_ARCH_SCENES = new Set<SceneId>([
   'figure2-animation',
-  'figure2-proof-opening',
-  'figure2-proof-cards',
-  'figure2-proof-closing'
+  'figure2-proof'
 ]);
 
 export type RetainedFigure2ArchMember = Readonly<{

@@ -51,12 +51,14 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('/src/transitions/shared/stagedMediaHandoff.ts')) {
+            return 'staged-media-runtime';
+          }
           if ([
             '/src/transitions/shared/ink.ts',
             '/src/transitions/shared/inkOwnership.ts',
             '/src/transitions/shared/sceneInk.ts',
             '/src/media/timeline-video-driver.ts',
-            '/src/transitions/shared/stagedMediaHandoff.ts',
             '/src/pilot/progress-timeline.ts',
             '/src/transitions/shared/sectionHandoff.ts'
           ].some((moduleId) => id.includes(moduleId))) {

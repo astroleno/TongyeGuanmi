@@ -1,0 +1,60 @@
+{
+  "source": {
+    "path": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-flawed.png",
+    "bytes": 354266,
+    "sha256": "f4a1b1572b8743ae2c1a3a187abc7cc6b772f26ff63fbf19093bb10d8849cde3"
+  },
+  "output": {
+    "path": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/assets/crane-flock-first-frame.webp",
+    "bytes": 80116,
+    "sha256": "8c4d47ca59d21c14430c02b2d89605594463a018e28c25c7eeb8fd824f8910b4"
+  },
+  "correction": {
+    "kind": "exterior-flood-fill",
+    "alphaThreshold": 7,
+    "rgbFloor": 225,
+    "rgbChromaMax": 8,
+    "exteriorPixels": 871167,
+    "filledInterior": 29775,
+    "preservedBoundary": 12984,
+    "restoredTransparentComponents": [
+      {
+        "x": 1026,
+        "y": 242,
+        "label": "upper-right-leg-gap",
+        "pixels": 211,
+        "bbox": [
+          1011,
+          230,
+          1042,
+          254
+        ]
+      },
+      {
+        "x": 825,
+        "y": 529,
+        "label": "lower-leg-gap",
+        "pixels": 122,
+        "bbox": [
+          822,
+          512,
+          829,
+          546
+        ]
+      }
+    ]
+  },
+  "contactSheets": {
+    "transparent": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/artifacts/react-refactor/r5-flock-poster/crane-flock-first-frame-transparent.png",
+    "paper": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/artifacts/react-refactor/r5-flock-poster/crane-flock-first-frame-paper.png",
+    "black": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/artifacts/react-refactor/r5-flock-poster/crane-flock-first-frame-black.png"
+  },
+  "downstreamCanonicalContract": {
+    "script": "app/scripts/rebuild-crane-flock-media.mjs",
+    "operation": "replace-frame-0-with-corrected-poster",
+    "frames": 74,
+    "appendedFrames": 0,
+    "outputBytes": 4416794,
+    "outputSha256": "a3ac363cf7dd37940f3467a1c4e5b1b2df067d4fdc4966e99e17679a32498164"
+  }
+}

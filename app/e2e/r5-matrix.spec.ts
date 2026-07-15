@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { bootStory, moveOneHold, storySnapshot, waitForHold } from './r5-helpers';
 
-test('desktop mouse wheel and touchpad-sized deltas traverse and reverse', async ({ page }, testInfo) => {
+test('desktop wheel requires fresh touchpad bursts at both Pattern checkpoints and reverses', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith('desktop-'), 'desktop pointer matrix');
   await bootStory(page);
 
@@ -20,12 +20,27 @@ test('desktop mouse wheel and touchpad-sized deltas traverse and reverse', async
       }));
     }
   });
+  const waitForPatternCheckpoint = (stageIndex: number) => page.waitForFunction((expected) => {
+    const runtime = (window as Window & {
+      __story?: {
+        getState(): {
+          state: unknown;
+          context: { pausePoint?: { stageIndex?: number } };
+        };
+      };
+    }).__story?.getState();
+    return runtime?.state === 'staged-paused'
+      && runtime.context.pausePoint?.stageIndex === expected;
+  }, stageIndex);
+
   await trackpadBurst();
-  await page.waitForFunction(
-    () => window.__storyApp?.snapshot().phase === 'staged-paused',
-    undefined,
-    { timeout: 15_000 }
-  );
+  await waitForPatternCheckpoint(0);
+  expect((await storySnapshot(page)).current).toBe('pattern');
+
+  await trackpadBurst();
+  await waitForPatternCheckpoint(1);
+  expect((await storySnapshot(page)).current).toBe('pattern');
+
   await trackpadBurst();
   await waitForHold(page, 'star-map');
 
@@ -59,6 +74,7 @@ test('mobile menu remains touch reachable and closes after navigation', async ({
   test.skip(!testInfo.project.name.startsWith('mobile-'), 'mobile navigation matrix');
   await bootStory(page);
   expect((await moveOneHold(page, 1)).current).toBe('pattern');
+  expect((await moveOneHold(page, 1)).current).toBe('star-map');
   await expect(page.locator('.site-nav')).toBeVisible();
   await page.getByRole('button', { name: '菜单' }).tap();
   await expect(page.locator('.site-nav')).toHaveAttribute('data-menu-open', 'true');

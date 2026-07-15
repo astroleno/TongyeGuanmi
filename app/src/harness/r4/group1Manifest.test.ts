@@ -1,31 +1,45 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createR4Group1Manifest } from './group1Manifest';
+import {
+  HERO_PATTERN_TOTAL_MS,
+  PATTERN_COLLAPSE_MS,
+  PATTERN_COLLAPSE_STOP,
+  PATTERN_COPY_REVEAL_MS,
+  PATTERN_COPY_STOP,
+  PATTERN_STAR_MAP_INK_MS,
+  PATTERN_TOTAL_MS
+} from '../../story/timings';
 
 const group1E2eSource = readFileSync(new URL('../../../e2e/r4-g1.spec.ts', import.meta.url), 'utf8');
 const group1HarnessSource = readFileSync(new URL('./Group1Harness.tsx', import.meta.url), 'utf8');
 const group1ManifestSource = readFileSync(new URL('./group1Manifest.ts', import.meta.url), 'utf8');
 
 describe('R4 group1 harness manifest', () => {
-  it('keeps Hero-to-Pattern as one reveal and Pattern-to-Star Map as two staged inputs', () => {
+  it('keeps Hero motion before Ink and exposes both Pattern gesture checkpoints', () => {
     const manifest = createR4Group1Manifest('group1');
     const segments = manifest.nodes.filter((node) => node.kind === 'segment');
 
     expect(segments[0]).toMatchObject({
       id: 'hero-pattern',
       policy: { kind: 'snap' },
-      virtualDuration: 2200
+      virtualDuration: HERO_PATTERN_TOTAL_MS
     });
     expect(segments[1]).toMatchObject({
       id: 'pattern-star-map',
-      policy: { kind: 'stagedSnap', stops: [0.5], playMs: [1800, 1800] },
-      virtualDuration: 3600
+      policy: {
+        kind: 'stagedSnap',
+        stops: [PATTERN_COLLAPSE_STOP, PATTERN_COPY_STOP],
+        playMs: [PATTERN_COLLAPSE_MS, PATTERN_COPY_REVEAL_MS, PATTERN_STAR_MAP_INK_MS],
+        advance: [{ kind: 'gesture' }, { kind: 'gesture' }]
+      },
+      virtualDuration: PATTERN_TOTAL_MS
     });
   });
 
-  it('does not override Pattern-to-Star Map back to scrub mode in the harness', () => {
+  it('keeps production checkpoints and only auto-advances them inside the whole-segment harness API', () => {
     expect(group1ManifestSource).not.toContain("policy: { kind: 'scrub'");
-    expect(group1HarnessSource).toContain("before.state === 'staged-paused'");
+    expect(group1HarnessSource).toContain("state === 'staged-paused'");
     expect(group1HarnessSource).toContain("runtime.send({ type: 'CHARGE_FIRED', direction })");
   });
 
@@ -50,7 +64,7 @@ describe('R4 group1 harness manifest', () => {
     expect(group1E2eSource).not.toContain('[data-pattern-rotor]');
     expect(group1E2eSource).not.toContain('patternRotorTransforms');
     expect(group1E2eSource).toContain('patternFieldRotationDegrees).toBeCloseTo(120');
-    expect(group1E2eSource).toContain('patternCopyOpacity).toBeCloseTo(0.96');
+    expect(group1E2eSource).toContain('patternCopyOpacity).toBe(0)');
     expect(group1E2eSource).toContain("starMapCanvasFilter).toContain('brightness(0.92)')");
     expect(group1E2eSource).toContain("transitions).toContain('pattern-star-map-live-circle')");
   });

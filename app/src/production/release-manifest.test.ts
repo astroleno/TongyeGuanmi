@@ -654,7 +654,11 @@ it('keeps deep WebM qualification local and out of GitHub workflows', () => {
   expect(staticMediaVerifier).toContain('frozenHomepageMedia');
   expect(staticMediaVerifier).toContain('frozen homepage media contract');
   expect(deepMediaVerifier).toContain("execFileAsync('ffprobe'");
-  expect(deepMediaVerifier).not.toMatch(/\bffmpeg\b/i);
+  expect(deepMediaVerifier).toContain("execFileAsync('ffmpeg'");
+  expect(deepMediaVerifier).toContain('decodedRgbaFramemd5');
+  expect(deepMediaVerifier).toContain("rgbaFrameParity: '75/75 timing-aligned visual equivalence'");
+  expect(deepMediaVerifier).toContain('colorSsimMin: 0.9938');
+  expect(deepMediaVerifier).toContain('alphaSsimMin: 0.9955');
   expect(deepMediaVerifier).toContain('keyframeIndexes');
   expect(deepMediaVerifier).toContain('expectedFrameStep');
   expect(workflowSources).not.toMatch(/\bff(?:mpeg|probe)\b/i);

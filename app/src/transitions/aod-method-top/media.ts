@@ -1,6 +1,7 @@
 import type { PrepareToken, SegmentRunId } from '../../story/types';
+import { AOD_MEDIA_KEY } from '../../scenes/aod-animation';
 
-export const AOD_MEDIA_KEY = 'aod-figure-motion';
+export { AOD_MEDIA_KEY } from '../../scenes/aod-animation';
 
 export type AodVideoMilestone = 'loadedmetadata' | 'canplay' | 'ended' | 'timeout';
 

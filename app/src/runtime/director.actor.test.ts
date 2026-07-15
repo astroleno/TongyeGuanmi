@@ -5,7 +5,6 @@ import type {
   LayerHandle,
   LayerVisibilityState,
   SceneId,
-  SegmentTimelineHandle,
   StageHandle,
   StoryManifest
 } from '../story/types';
@@ -53,7 +52,12 @@ function withFirstSegmentStaged(): StoryManifest {
       nodes[0]!,
       {
         ...firstSegment,
-        policy: { kind: 'stagedSnap', stops: [0.5], playMs: [40, 60] },
+        policy: {
+          kind: 'stagedSnap',
+          stops: [0.5],
+          playMs: [40, 60],
+          advance: [{ kind: 'gesture' }]
+        },
         virtualDuration: 100
       },
       ...nodes.slice(2)
@@ -480,7 +484,7 @@ describe('director runtime actor loop', () => {
     expect(renderedProgress).toBe(1);
   });
 
-  it('requires a second Forward input after the real Pattern collapse stage', async () => {
+  it('requires a fresh charge at both real Pattern checkpoints', async () => {
     const runtime = createDirectorRuntime({
       actorEpoch: 'pattern-two-inputs',
       manifest: storyManifest,
@@ -501,8 +505,15 @@ describe('director runtime actor loop', () => {
       }
     });
     expect(runtime.getState().context.cursor).not.toEqual({ status: 'hold', scene: 'star-map' });
-
     runtime.send({ type: 'CHARGE_FIRED', direction: 1, now: 1801 });
+
+    await flush(700);
+    expect(runtime.getState()).toMatchObject({
+      state: 'staged-paused',
+      context: { pausePoint: { segmentId: 'pattern-star-map', stageIndex: 1 } }
+    });
+    runtime.send({ type: 'CHARGE_FIRED', direction: 1, now: 2502 });
+
     await flush(1800);
     expect(runtime.getState().state).toBe('settling');
     await flush(420);
@@ -632,21 +643,12 @@ describe('director runtime actor loop', () => {
     });
   });
 
-  it('recovers a failed Contact reverse run to Crane without exposing Hero', async () => {
+  it('keeps a failed Contact reverse run at the last committed Contact hold', async () => {
     let buildCount = 0;
     let rejectPlayback!: (error: Error) => void;
     const playback = new Promise<void>((_resolve, reject) => {
       rejectPlayback = reject;
     });
-    const endpointBuild = deferred<SegmentTimelineHandle>();
-    const jumpToEnd = vi.fn();
-    const endpointTimeline: SegmentTimelineHandle = {
-      play: () => Promise.resolve(),
-      progress: vi.fn(),
-      reverse: () => Promise.resolve(),
-      jumpToEnd,
-      dispose: vi.fn()
-    };
     const runtime = createDirectorRuntime({
       actorEpoch: 'contact-local-recovery',
       transitions: {
@@ -663,7 +665,7 @@ describe('director runtime actor loop', () => {
                 dispose: vi.fn()
               };
             }
-            return endpointBuild.promise;
+            throw new Error('recovery must not rebuild the failed segment');
           }
         }
       }
@@ -683,17 +685,12 @@ describe('director runtime actor loop', () => {
     await flush(0);
     await flush(0);
 
-    expect(buildCount).toBe(2);
+    expect(buildCount).toBe(1);
     expect(runtime.getState().context).toMatchObject({
       cursor: { status: 'hold', scene: 'contact' },
       layerWindow: { current: 'contact' },
-      recovery: {
-        scope: 'segment',
-        status: 'recovering',
-        segment: 'crane-contact',
-        direction: -1,
-        endpoint: 'crane-animation'
-      }
+      recovery: undefined,
+      lastError: new Error('crane reverse media timeout')
     });
 
     runtime.send({
@@ -701,11 +698,7 @@ describe('director runtime actor loop', () => {
       runId,
       error: new Error('duplicate crane reverse failure')
     });
-    expect(buildCount).toBe(2);
-
-    endpointBuild.resolve(endpointTimeline);
-    await flush(0);
-    await flush(0);
+    expect(buildCount).toBe(1);
 
     const recovered = runtime.getState();
     const failureIndex = recovered.eventLog.findIndex((record) => record.event.type === 'PLAYBACK_FAILED');
@@ -713,14 +706,51 @@ describe('director runtime actor loop', () => {
     runtime.stop();
     expect(recovered).toMatchObject({
       state: 'hold',
-      context: { cursor: { status: 'hold', scene: 'crane-animation' } }
+      context: { cursor: { status: 'hold', scene: 'contact' } }
     });
-    expect(jumpToEnd).toHaveBeenCalledOnce();
-    expect(jumpToEnd).toHaveBeenCalledWith(-1);
+    expect(recoveryWindows).not.toContain('crane-animation');
     expect(recoveryWindows).not.toContain('hero');
   });
 
-  it('keeps Contact usable when endpoint reconstruction also fails', async () => {
+  it('keeps Method committed when reverse AOD frame preparation fails', async () => {
+    let buildCount = 0;
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'aod-reverse-prepare-failure',
+      transitions: {
+        'aod-method-top': {
+          id: 'aod-method-top',
+          buildTimeline: () => {
+            buildCount += 1;
+            throw new Error('AOD reverse presented frame failed');
+          }
+        }
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'SEEK', label: 'scene:method-top', source: 'menu' });
+    await flush(0);
+    runtime.send({ type: 'CHARGE_FIRED', direction: -1 });
+    await flush(30);
+
+    const recovered = runtime.getState();
+    const prepareFailureIndex = recovered.eventLog.findIndex((record) => record.event.type === 'PREPARE_TIMEOUT');
+    const recoveryWindows = recovered.eventLog.slice(prepareFailureIndex).map((record) => record.layerWindow.current);
+    runtime.stop();
+
+    expect(buildCount).toBe(1);
+    expect(recovered).toMatchObject({
+      state: 'hold',
+      context: {
+        cursor: { status: 'hold', scene: 'method-top' },
+        layerWindow: { current: 'method-top' },
+        recovery: undefined
+      }
+    });
+    expect(recoveryWindows).not.toContain('aod-animation');
+    expect(recoveryWindows).not.toContain('hero');
+  });
+
+  it('keeps Contact usable for an explicit retry after local rollback', async () => {
     let buildCount = 0;
     let rejectPlayback!: (error: Error) => void;
     const playback = new Promise<void>((_resolve, reject) => {
@@ -741,9 +771,6 @@ describe('director runtime actor loop', () => {
                 jumpToEnd: vi.fn(),
                 dispose: vi.fn()
               };
-            }
-            if (buildCount === 2) {
-              throw new Error('endpoint reconstruction failed');
             }
             return {
               play: () => Promise.resolve(),
@@ -770,11 +797,12 @@ describe('director runtime actor loop', () => {
       context: {
         cursor: { status: 'hold', scene: 'contact' },
         layerWindow: { current: 'contact' },
-        recovery: { scope: 'segment', status: 'failed' },
-        lastError: new Error('endpoint reconstruction failed')
+        recovery: undefined,
+        lastError: new Error('crane reverse media timeout')
       }
     });
-    expect(runtime.getState().eventLog.map((record) => record.event.type)).toContain('RECOVERY_FAILED');
+    expect(buildCount).toBe(1);
+    expect(runtime.getState().eventLog.map((record) => record.event.type)).not.toContain('RECOVERY_FAILED');
 
     runtime.send({ type: 'CHARGE_FIRED', direction: -1 });
     expect(runtime.getState()).toMatchObject({
@@ -782,18 +810,16 @@ describe('director runtime actor loop', () => {
       context: { pendingSegment: 'crane-contact', recovery: undefined }
     });
     await flush(0);
+    expect(buildCount).toBe(2);
     runtime.stop();
   });
 
-  it('cannot let stale Contact recovery overwrite an explicit menu seek', async () => {
+  it('cannot let a rolled-back Contact failure overwrite an explicit menu seek', async () => {
     let buildCount = 0;
     let rejectPlayback!: (error: Error) => void;
     const playback = new Promise<void>((_resolve, reject) => {
       rejectPlayback = reject;
     });
-    const endpointBuild = deferred<SegmentTimelineHandle>();
-    const jumpToEnd = vi.fn();
-    const dispose = vi.fn();
     const runtime = createDirectorRuntime({
       actorEpoch: 'contact-stale-recovery',
       transitions: {
@@ -810,7 +836,7 @@ describe('director runtime actor loop', () => {
                 dispose: vi.fn()
               };
             }
-            return endpointBuild.promise;
+            throw new Error('rollback must not rebuild without explicit input');
           }
         }
       }
@@ -823,18 +849,9 @@ describe('director runtime actor loop', () => {
     rejectPlayback(new Error('crane reverse media timeout'));
     await flush(0);
     await flush(0);
-    expect(buildCount).toBe(2);
+    expect(buildCount).toBe(1);
 
     runtime.send({ type: 'SEEK', label: 'scene:services', source: 'menu' });
-    await flush(0);
-    endpointBuild.resolve({
-      play: () => Promise.resolve(),
-      progress: vi.fn(),
-      reverse: () => Promise.resolve(),
-      jumpToEnd,
-      dispose
-    });
-    await flush(0);
     await flush(0);
 
     const settled = runtime.getState();
@@ -843,9 +860,7 @@ describe('director runtime actor loop', () => {
       state: 'hold',
       context: { cursor: { status: 'hold', scene: 'services' }, recovery: undefined }
     });
-    expect(jumpToEnd).not.toHaveBeenCalled();
     expect(settled.eventLog.map((record) => record.event.type)).not.toContain('RECOVERY_FAILED');
-    expect(dispose).toHaveBeenCalledOnce();
   });
 
   it('does not re-query a reading edge after an explicit runtime intent is emitted', async () => {

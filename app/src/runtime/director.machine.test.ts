@@ -498,7 +498,7 @@ describe('Director machine', () => {
         committedScene: 'contact',
         segment: 'crane-contact',
         direction: -1,
-        endpoint: 'crane-animation'
+        endpoint: 'contact'
       }
     });
     expect(Object.values(context(actor).layerWindow)).not.toContain('hero');

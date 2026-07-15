@@ -70,8 +70,8 @@ export function renderFigure3AnimationProgress(
 ): Figure3RenderState {
   const section = figure3Section(root);
   const progress = acceleratedProgress(rawProgress);
-  const fillOpacity = smoothStep(range01(progress, 0.86, 0.995));
-  const videoOpacity = 1 - smoothStep(range01(progress, 0.93, 1));
+  const fillOpacity = 0;
+  const videoOpacity = progress < 1 ? 1 : 0;
   const backdropSettle = smoothStep(range01(progress, 0.06, 0.84));
   const videoScale = 1.004 + progress * 0.052;
 

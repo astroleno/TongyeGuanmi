@@ -1,5 +1,8 @@
 import { renderBrandHold } from '../../scenes/brand';
-import { renderFigure3Hold } from '../../scenes/figure3-animation';
+import {
+  prepareFigure3AnimationFrame,
+  renderFigure3Hold
+} from '../../scenes/figure3-animation';
 import { createInkSegmentTransition } from '../shared/ink';
 import type { TransitionModule } from '../../story/types';
 
@@ -15,6 +18,16 @@ export function createBrandFigure3Transition(options: { delayMs?: () => number }
     prepareEndpoints: ({ from, to }) => {
       renderBrandHold(from);
       renderFigure3Hold(to);
+    },
+    prepareTargetPresentation: ({ to }, context) => {
+      if (context.direction === -1 || context.prefersReducedMotion) {
+        return;
+      }
+      return prepareFigure3AnimationFrame(to, 0, {
+        runId: context.runId,
+        direction: 1,
+        reducedMotion: context.prefersReducedMotion
+      });
     },
     transitionAttr: 'brand-figure3-bottom-ink'
   });

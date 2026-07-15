@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { figure2AnimationScene } from '../scenes/figure2-animation';
-import { figure2ProofOpeningScene } from '../scenes/figure2-proof-opening';
+import { figure2ProofScene } from '../scenes/figure2-proof';
 import { HandleRegistry } from '../story/registry';
 import { hiddenVisibility, holdVisibility } from '../pilot/visibility';
 import { Stage } from './Stage';
@@ -12,17 +12,17 @@ describe('Stage retained Proof surfaces', () => {
     const markup = renderToStaticMarkup(createElement(Stage, {
       window: {
         current: 'figure2-animation',
-        next: 'figure2-proof-opening',
+        next: 'figure2-proof',
         retiring: []
       },
       modules: {
         'figure2-animation': figure2AnimationScene,
-        'figure2-proof-opening': figure2ProofOpeningScene
+        'figure2-proof': figure2ProofScene
       },
       registry: new HandleRegistry(),
       visibilityByScene: {
         'figure2-animation': holdVisibility(false),
-        'figure2-proof-opening': hiddenVisibility()
+        'figure2-proof': hiddenVisibility()
       }
     }));
 
@@ -35,12 +35,12 @@ describe('Stage retained Proof surfaces', () => {
     const markup = renderToStaticMarkup(createElement(Stage, {
       window: {
         prev: 'figure2-animation',
-        current: 'figure2-proof-opening',
+        current: 'figure2-proof',
         retiring: []
       },
       modules: {
         'figure2-animation': figure2AnimationScene,
-        'figure2-proof-opening': figure2ProofOpeningScene
+        'figure2-proof': figure2ProofScene
       },
       registry: new HandleRegistry()
     }));

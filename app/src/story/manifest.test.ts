@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { storyManifest, validateStoryManifest } from './manifest';
+import {
+  HERO_PATTERN_TOTAL_MS,
+  PATTERN_COLLAPSE_MS,
+  PATTERN_COLLAPSE_STOP,
+  PATTERN_COPY_REVEAL_MS,
+  PATTERN_COPY_STOP,
+  PATTERN_STAR_MAP_INK_MS,
+  PATTERN_TOTAL_MS,
+  TERMINAL_DWELL_MS
+} from './timings';
 import type { SceneId, SpineNode, StoryManifest } from './types';
 
 type MutableManifest = Omit<StoryManifest, 'nodes'> & {
@@ -54,6 +64,59 @@ describe('story manifest contract', () => {
     expect(() => validateStoryManifest(manifest)).toThrow(/stagedSnap stops/);
   });
 
+  it('rejects duplicate stagedSnap stops', () => {
+    const manifest = mutableManifest();
+    const index = manifest.nodes.findIndex(
+      (node) => node.kind === 'segment' && node.policy.kind === 'stagedSnap'
+    );
+    const segment = manifest.nodes[index];
+    if (segment?.kind !== 'segment' || segment.policy.kind !== 'stagedSnap') {
+      throw new Error('test fixture missing staged segment');
+    }
+    const duplicate = segment.policy.stops[0] ?? 0.5;
+    manifest.nodes[index] = {
+      ...segment,
+      policy: { ...segment.policy, stops: [duplicate, duplicate] }
+    };
+
+    expect(() => validateStoryManifest(manifest)).toThrow(/strictly increasing/);
+  });
+
+  it('rejects missing, unknown, and negative staged boundary contracts', () => {
+    const source = mutableManifest();
+    const index = source.nodes.findIndex(
+      (node) => node.kind === 'segment' && node.policy.kind === 'stagedSnap'
+    );
+    const segment = source.nodes[index];
+    if (segment?.kind !== 'segment' || segment.policy.kind !== 'stagedSnap') {
+      throw new Error('test fixture missing staged segment');
+    }
+
+    const missing = mutableManifest();
+    missing.nodes[index] = { ...segment, policy: { ...segment.policy, advance: [] } };
+    expect(() => validateStoryManifest(missing)).toThrow(/advance must match stops length/);
+
+    const unknown = mutableManifest();
+    unknown.nodes[index] = {
+      ...segment,
+      policy: {
+        ...segment.policy,
+        advance: [{ kind: 'automatic' } as never, ...segment.policy.advance.slice(1)]
+      }
+    };
+    expect(() => validateStoryManifest(unknown)).toThrow(/unknown kind/);
+
+    const negative = mutableManifest();
+    negative.nodes[index] = {
+      ...segment,
+      policy: {
+        ...segment.policy,
+        advance: [{ kind: 'delay', ms: -1 }, ...segment.policy.advance.slice(1)]
+      }
+    };
+    expect(() => validateStoryManifest(negative)).toThrow(/non-negative/);
+  });
+
   it('rejects missing copyCue targets', () => {
     const manifest = mutableManifest();
     const index = manifest.nodes.findIndex((node) => node.kind === 'segment' && Boolean(node.copyCue));
@@ -83,7 +146,10 @@ describe('story manifest contract', () => {
     ]);
     for (const segment of mediaSegments) {
       expect(segment.mediaPlayback?.[0]).toMatchObject({
-        forward: { mode: 'play', required: true },
+        forward: {
+          mode: segment.id === 'aod-method-top' ? 'timeline' : 'play',
+          required: true
+        },
         reverse: { mode: 'timeline', required: true },
         readyMilestones: ['targetReady', 'mediaReady']
       });
@@ -98,6 +164,10 @@ describe('story manifest contract', () => {
 
     expect(segment).toMatchObject({
       kind: 'segment',
+      policy: {
+        kind: 'stagedSnap',
+        advance: [{ kind: 'delay', ms: TERMINAL_DWELL_MS }]
+      },
       requiredMilestones: ['targetReady', 'mediaReady', 'buildReady', 'timelineReady'],
       mediaPlayback: [
         {
@@ -117,7 +187,7 @@ describe('story manifest contract', () => {
             media: ['figure2-left-motion', 'figure2-right-motion']
           },
           readyMilestones: ['targetReady', 'mediaReady'],
-          terminalFallbackScene: 'figure2-proof-opening',
+          terminalFallbackScene: 'figure2-proof',
           preparingTimeoutMs: 4000
         }
       ]
@@ -168,18 +238,48 @@ describe('story manifest contract', () => {
     )).toBe(false);
   });
 
-  it('separates TTG and PH media playback from their following opacity handoffs', () => {
+  it('models Proof as one compound reading hold with no internal Director segments', () => {
+    const proofNodes = storyManifest.nodes.filter((node) =>
+      node.kind === 'hold'
+        ? String(node.scene).startsWith('figure2-proof')
+        : String(node.id).startsWith('figure2-proof')
+    );
+
+    expect(proofNodes).toEqual([
+      expect.objectContaining({
+        kind: 'hold',
+        scene: 'figure2-proof',
+        reading: true
+      }),
+      expect.objectContaining({
+        kind: 'segment',
+        id: 'figure2-proof-brand',
+        from: 'figure2-proof',
+        to: 'brand'
+      })
+    ]);
+    expect(storyManifest.nodes.some((node) =>
+      node.kind === 'segment'
+      && ['figure2-proof-opening-cards', 'figure2-proof-cards-closing'].includes(node.id)
+    )).toBe(false);
+  });
+
+  it('holds TTG and PH terminal media for one second before their disappear legs', () => {
     const byId = new Map(
       storyManifest.nodes.flatMap((node) => node.kind === 'segment' ? [[node.id, node] as const] : [])
     );
 
     expect(byId.get('ttg-lab')).toMatchObject({
-      policy: { kind: 'stagedSnap', stops: [2500 / 3100], playMs: [2500, 600] },
+      policy: {
+        kind: 'stagedSnap',
+        stops: [2500 / 3100],
+        playMs: [2500, 600],
+        advance: [{ kind: 'delay', ms: TERMINAL_DWELL_MS }]
+      },
       virtualDuration: 3100,
       visual: {
-        type: 'media',
-        media: ['ttg-figure-motion'],
-        handoff: 'crossfade'
+        type: 'disappear',
+        media: ['ttg-figure-motion']
       },
       mediaPlayback: [{
         forward: {
@@ -195,12 +295,16 @@ describe('story manifest contract', () => {
       }]
     });
     expect(byId.get('ph-education')).toMatchObject({
-      policy: { kind: 'stagedSnap', stops: [1520 / 2120], playMs: [1520, 600] },
+      policy: {
+        kind: 'stagedSnap',
+        stops: [1520 / 2120],
+        playMs: [1520, 600],
+        advance: [{ kind: 'delay', ms: TERMINAL_DWELL_MS }]
+      },
       virtualDuration: 2120,
       visual: {
-        type: 'media',
-        media: ['ph-figure-motion'],
-        handoff: 'crossfade'
+        type: 'disappear',
+        media: ['ph-figure-motion']
       },
       mediaPlayback: [{
         forward: { mode: 'play', required: true },
@@ -224,7 +328,7 @@ describe('story manifest contract', () => {
     });
   });
 
-  it('models Hero to Pattern as one live-scene reveal', () => {
+  it('separates Hero motion from the following full Ink reveal in one run', () => {
     const segment = storyManifest.nodes.find((node) => node.kind === 'segment' && node.id === 'hero-pattern');
 
     expect(segment).toMatchObject({
@@ -232,11 +336,11 @@ describe('story manifest contract', () => {
       policy: {
         kind: 'snap'
       },
-      virtualDuration: 2200
+      virtualDuration: HERO_PATTERN_TOTAL_MS
     });
   });
 
-  it('models Pattern collapse and radial Star Map entry as separate input phases', () => {
+  it('models Pattern collapse and copy as gesture checkpoints before Star Map Ink', () => {
     const segment = storyManifest.nodes.find(
       (node) => node.kind === 'segment' && node.id === 'pattern-star-map'
     );
@@ -245,26 +349,59 @@ describe('story manifest contract', () => {
       kind: 'segment',
       policy: {
         kind: 'stagedSnap',
-        stops: [0.5],
-        playMs: [1800, 1800]
+        stops: [PATTERN_COLLAPSE_STOP, PATTERN_COPY_STOP],
+        playMs: [PATTERN_COLLAPSE_MS, PATTERN_COPY_REVEAL_MS, PATTERN_STAR_MAP_INK_MS],
+        advance: [{ kind: 'gesture' }, { kind: 'gesture' }]
       },
-      virtualDuration: 3600
+      virtualDuration: PATTERN_TOTAL_MS
     });
   });
 
-  it('marks the figure2 animation hold as a fresh-input boundary', () => {
-    const hold = storyManifest.nodes.find((node) => node.kind === 'hold' && node.scene === 'figure2-animation');
-
-    expect(hold).toMatchObject({
-      kind: 'hold',
-      scene: 'figure2-animation',
-      freshInput: true
-    });
+  it('marks every semantic animation hold as a fresh-input boundary', () => {
+    for (const scene of [
+      'aod-animation',
+      'figure2-animation',
+      'figure3-animation',
+      'ttg-animation',
+      'ph-animation',
+      'crane-animation'
+    ] as const) {
+      expect(storyManifest.nodes.find((node) => node.kind === 'hold' && node.scene === scene)).toMatchObject({
+        kind: 'hold',
+        scene,
+        freshInput: true
+      });
+    }
   });
 
-  it('rejects media visual segments without mediaPlayback seed', () => {
+  it('allows only ink and disappear transition kinds', () => {
+    const kinds = storyManifest.nodes.flatMap((node) => node.kind === 'segment' && node.visual
+      ? [node.visual.type]
+      : []);
+
+    expect(new Set(kinds)).toEqual(new Set(['ink', 'disappear']));
+  });
+
+  it('retains every animation scene as a canonical semantic hold', () => {
+    const holds = new Set(storyManifest.nodes.flatMap((node) => node.kind === 'hold' ? [node.scene] : []));
+
+    for (const scene of [
+      'aod-animation',
+      'figure2-animation',
+      'figure3-animation',
+      'ttg-animation',
+      'ph-animation',
+      'crane-animation'
+    ] as const) {
+      expect(holds.has(scene), `${scene} must remain a semantic hold`).toBe(true);
+    }
+  });
+
+  it('rejects disappear media segments without mediaPlayback seed', () => {
     const manifest = mutableManifest();
-    const index = manifest.nodes.findIndex((node) => node.kind === 'segment' && node.visual?.type === 'media');
+    const index = manifest.nodes.findIndex((node) =>
+      node.kind === 'segment' && node.visual?.type === 'disappear' && Boolean(node.visual.media?.length)
+    );
     const segment = manifest.nodes[index];
     if (segment?.kind !== 'segment') {
       throw new Error('test fixture missing media segment');

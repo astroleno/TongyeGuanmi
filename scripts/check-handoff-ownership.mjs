@@ -31,7 +31,7 @@ assert.ok(Array.isArray(handoffs), 'section-manifest.mjs must export handoffs');
 assert.ok(handoffs.length >= 4, 'handoffs must cover home-belief, belief-method, method-proof-brand, and philosophy-contact');
 assert.ok(sectionEntryPolicies && typeof sectionEntryPolicies === 'object', 'section-manifest.mjs must export sectionEntryPolicies');
 assert.equal(
-  packageJson.scripts['verify:handoff-ownership'],
+  packageJson.scripts['legacy:verify:handoff-ownership'],
   'node scripts/check-handoff-ownership.mjs',
   'package.json must expose verify:handoff-ownership'
 );

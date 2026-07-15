@@ -15,9 +15,7 @@ function importScene(id: SceneId): Promise<SceneModule> {
     case 'aod-animation': return import('../scenes/aod-animation').then(({ aodAnimationScene }) => aodAnimationScene);
     case 'method-top': return import('../scenes/method-top').then(({ methodTopScene }) => methodTopScene);
     case 'figure2-animation': return import('../scenes/figure2-animation').then(({ figure2AnimationScene }) => figure2AnimationScene);
-    case 'figure2-proof-opening': return import('../scenes/figure2-proof-opening').then(({ figure2ProofOpeningScene }) => figure2ProofOpeningScene);
-    case 'figure2-proof-cards': return import('../scenes/figure2-proof-cards').then(({ figure2ProofCardsScene }) => figure2ProofCardsScene);
-    case 'figure2-proof-closing': return import('../scenes/figure2-proof-closing').then(({ figure2ProofClosingScene }) => figure2ProofClosingScene);
+    case 'figure2-proof': return import('../scenes/figure2-proof').then(({ figure2ProofScene }) => figure2ProofScene);
     case 'brand': return import('../scenes/brand').then(({ brandScene }) => brandScene);
     case 'figure3-animation': return import('../scenes/figure3-animation').then(({ figure3AnimationScene }) => figure3AnimationScene);
     case 'services': return import('../scenes/services').then(({ servicesScene }) => servicesScene);
@@ -27,7 +25,11 @@ function importScene(id: SceneId): Promise<SceneModule> {
     case 'education': return import('../scenes/education').then(({ educationScene }) => educationScene);
     case 'crane-animation': return import('../scenes/crane-animation').then(({ craneAnimationScene }) => craneAnimationScene);
     case 'contact': return import('../scenes/contact').then(({ contactScene }) => contactScene);
-    case 'method-bottom': return Promise.reject(new Error('method-bottom is retired and not a canonical production scene'));
+    case 'method-bottom':
+    case 'figure2-proof-opening':
+    case 'figure2-proof-cards':
+    case 'figure2-proof-closing':
+      return Promise.reject(new Error(`${id} retired`));
   }
 }
 
@@ -39,8 +41,6 @@ function importTransition(id: SegmentId): Promise<TransitionModule> {
     case 'aod-method-top': return import('../transitions/aod-method-top').then(({ createAodMethodTopTransition }) => createAodMethodTopTransition());
     case 'method-bottom-figure2': return import('../transitions/method-bottom-figure2').then(({ createMethodBottomFigure2Transition }) => createMethodBottomFigure2Transition());
     case 'figure2-distance-expand': return import('../transitions/figure2-distance-expand').then(({ createFigure2DistanceExpandTransition }) => createFigure2DistanceExpandTransition());
-    case 'figure2-proof-opening-cards': return import('../transitions/figure2-proof-opening-cards').then(({ createFigure2ProofOpeningCardsTransition }) => createFigure2ProofOpeningCardsTransition());
-    case 'figure2-proof-cards-closing': return import('../transitions/figure2-proof-cards-closing').then(({ createFigure2ProofCardsClosingTransition }) => createFigure2ProofCardsClosingTransition());
     case 'figure2-proof-brand': return import('../transitions/figure2-proof-brand').then(({ createFigure2ProofBrandTransition }) => createFigure2ProofBrandTransition());
     case 'brand-figure3': return import('../transitions/brand-figure3').then(({ createBrandFigure3Transition }) => createBrandFigure3Transition());
     case 'figure3-services': return import('../transitions/figure3-services').then(({ createFigure3ServicesTransition }) => createFigure3ServicesTransition());
@@ -50,6 +50,9 @@ function importTransition(id: SegmentId): Promise<TransitionModule> {
     case 'ph-education': return import('../transitions/ph-education').then(({ createPhEducationTransition }) => createPhEducationTransition());
     case 'education-crane': return import('../transitions/education-crane').then(({ createEducationCraneTransition }) => createEducationCraneTransition());
     case 'crane-contact': return import('../transitions/crane-contact').then(({ createCraneContactTransition }) => createCraneContactTransition());
+    case 'figure2-proof-opening-cards':
+    case 'figure2-proof-cards-closing':
+      return Promise.reject(new Error(`${id} retired`));
   }
 }
 

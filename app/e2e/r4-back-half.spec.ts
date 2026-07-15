@@ -74,7 +74,7 @@ async function playInput(page: Page, direction: 1 | -1): Promise<BackHalfSnapsho
     await page.waitForTimeout(28);
     frames.push(await snapshot(page));
   }
-  await expect.poll(async () => (await snapshot(page)).phase, { timeout: 8_000 }).toMatch(/^(hold|staged-paused)$/);
+  await expect.poll(async () => (await snapshot(page)).phase, { timeout: 8_000 }).toBe('hold');
   frames.push(await snapshot(page));
   return frames;
 }

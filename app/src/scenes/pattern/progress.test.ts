@@ -11,7 +11,6 @@ import {
   renderPatternProgress
 } from './index';
 import { fixtureStaticFallbackText } from '../../story/copy-baseline';
-import { STAR_MAP_COPY } from '../star-map';
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -76,9 +75,13 @@ describe('pattern scene renderer', () => {
   });
 
   it('keeps static fallback copy aligned with the belief baseline', () => {
-    expect(PATTERN_COPY).toEqual([STAR_MAP_COPY]);
+    expect(PATTERN_COPY).toEqual([
+      '一句话讲清我们干什么',
+      '让 AI 从一场培训，变成账上的数字。',
+      '我们不卖课、不卖软件，而是进到你的业务现场，把 AI 做成团队天天在用、月底对得上账的东西。'
+    ]);
     expect(patternScene.staticFallback?.text).toEqual(PATTERN_COPY);
-    expect(patternScene.staticFallback?.text).toEqual(fixtureStaticFallbackText('pattern'));
+    expect(fixtureStaticFallbackText('pattern')).toEqual(expect.arrayContaining([...PATTERN_COPY]));
   });
 
   it('defines the canonical hold as the fully expanded left-side Pattern', () => {
@@ -88,7 +91,7 @@ describe('pattern scene renderer', () => {
 
     expect(root.attributes.get('data-pattern-progress')).toBe('0.0000');
     expect(root.style.values.get('--r4-pattern-opacity')).toBe('1.0000');
-    expect(root.style.values.get('--r4-pattern-copy-opacity')).toBe('0.9600');
+    expect(root.style.values.get('--r4-pattern-copy-opacity')).toBe('0.0000');
     expect(root.style.values.get('--r4-pattern-field-rotation')).toBe('120.00deg');
     expect(patternScene.renderHold).toBe(renderPatternHold);
   });

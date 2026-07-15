@@ -590,6 +590,11 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
     }
     activeRecoveries.add(key);
     try {
+      if (runtime.getState().context.layerWindow.current === endpoint.scene) {
+        runtime.segmentPlayer.dispose(endpoint.segment);
+        runtime.send({ type: 'RECOVERY_CANCELLED' });
+        return;
+      }
       const segment = findSegment(manifest, endpoint.segment);
       await runtime.segmentPlayer.ensureBuilt(endpoint.segment, {
         direction: endpoint.direction,

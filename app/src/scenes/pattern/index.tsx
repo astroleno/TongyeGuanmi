@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 import { bindSceneMotion, type SceneMotionBinding } from '../../stage/scene-motion';
-import { STAR_MAP_COPY } from '../star-map';
 import {
   PATTERN_BACKGROUND_IMAGE,
   PatternBloomRenderer,
@@ -12,7 +11,11 @@ import {
 
 export { patternCenterForViewport } from './patternBloomRenderer';
 
-export const PATTERN_COPY = [STAR_MAP_COPY] as const;
+export const PATTERN_COPY = [
+  '一句话讲清我们干什么',
+  '让 AI 从一场培训，变成账上的数字。',
+  '我们不卖课、不卖软件，而是进到你的业务现场，把 AI 做成团队天天在用、月底对得上账的东西。'
+] as const;
 
 export type PatternRenderState = {
   progress: number;
@@ -108,7 +111,7 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
 export function renderPatternHold(root: HTMLElement | null): PatternRenderState {
   return renderPatternProgress(root, 0, {
     visible: true,
-    copyProgress: 1,
+    copyProgress: 0,
     rotationProgress: 0
   });
 }
@@ -170,7 +173,9 @@ function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
       <div className="r4-pattern-scene__wash" aria-hidden="true" />
       <div className="r4-pattern-scene__copy">
         <section ref={(element) => registerHandle?.('copy', element)} className="r4-pattern-scene__statement">
-          <p className="large-copy large-copy--standalone">{PATTERN_COPY[0]}</p>
+          <span className="card-label">{PATTERN_COPY[0]}</span>
+          <h3>{PATTERN_COPY[1]}</h3>
+          <p>{PATTERN_COPY[2]}</p>
         </section>
       </div>
     </article>

@@ -53,7 +53,7 @@ describe('production runtime assembly', () => {
     expect(loader).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps Contact committed until reverse recovery reaches the directional Crane endpoint', async () => {
+  it('keeps Contact committed and never manufactures a reverse Crane endpoint after readiness failure', async () => {
     const jumpToEnd = vi.fn();
     let resolveEndpoint!: (value: SegmentTimelineHandle) => void;
     const endpoint = new Promise<SegmentTimelineHandle>((resolve) => {
@@ -80,23 +80,17 @@ describe('production runtime assembly', () => {
       context: {
         cursor: { status: 'hold', scene: 'contact' },
         layerWindow: { current: 'contact' },
-        recovery: {
-          scope: 'segment',
-          status: 'recovering',
-          segment: 'crane-contact',
-          direction: -1,
-          endpoint: 'crane-animation'
-        }
+        recovery: undefined
       }
     });
 
     resolveEndpoint({ ...timeline(), jumpToEnd });
     await new Promise((resolve) => setTimeout(resolve, 30));
 
-    expect(jumpToEnd).toHaveBeenCalledWith(-1);
+    expect(jumpToEnd).not.toHaveBeenCalled();
     expect(runtime.getState()).toMatchObject({
       state: 'hold',
-      context: { cursor: { status: 'hold', scene: 'crane-animation' } }
+      context: { cursor: { status: 'hold', scene: 'contact' } }
     });
     runtime.stop();
   });

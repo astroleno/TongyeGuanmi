@@ -2,6 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+const HERO_PATTERN_MOTION_STOP = 1 / 3;
+const PATTERN_COLLAPSE_STOP = 1800 / 4300;
+const PATTERN_COPY_STOP = 2500 / 4300;
+
 type Group1Snapshot = {
   phase: 'hold' | 'preparing' | 'playing' | 'scrubbing' | 'staged-paused' | 'settling' | 'recovering' | 'seeking';
   mode: string;
@@ -26,6 +30,7 @@ declare global {
     __r4Group1?: {
       playForward(options?: { buildTimeout?: boolean }): Promise<void>;
       playReverse(options?: { buildTimeout?: boolean }): Promise<void>;
+      step(direction: 1 | -1): Promise<void>;
       seek(scene: 'hero' | 'pattern' | 'star-map'): void;
       scrubHeroPattern(progress: number): Promise<void>;
       scrubPatternStarMap(progress: number): Promise<void>;
@@ -73,12 +78,14 @@ type Group1VisualSnapshot = {
   starMapTransitionPaused: boolean;
   starMapInkCount: number;
   heroProgress: number;
+  heroMotionProgress: number;
   heroLayerZ: number;
   patternLayerZ: number;
   starMapLayerZ: number;
   patternLayerClipPath: string;
   starMapLayerClipPath: string;
   patternLayerElevated: boolean;
+  patternLayerVisible: boolean;
   starMapLayerElevated: boolean;
   starMapLayerVisible: boolean;
   heroVideoLoop: boolean | null;
@@ -154,12 +161,16 @@ async function visualSnapshot(page: Page): Promise<Group1VisualSnapshot> {
       starMapTransitionPaused: starMapRoot?.dataset.starMapTransitionMotion === 'paused',
       starMapInkCount: inkCanvases.filter((canvas) => canvas.dataset.r4InkSegment === 'pattern-star-map').length,
       heroProgress: Number.parseFloat(heroRoot?.dataset.heroProgress ?? '0'),
+      heroMotionProgress: Number.parseFloat(
+        heroRoot?.style.getPropertyValue('--r4-hero-pattern-middle-progress') ?? '0'
+      ),
       heroLayerZ: Number.parseInt(window.getComputedStyle(heroLayer ?? document.body).zIndex || '0', 10),
       patternLayerZ: Number.parseInt(window.getComputedStyle(patternLayer ?? document.body).zIndex || '0', 10),
       starMapLayerZ: Number.parseInt(window.getComputedStyle(starMapLayer ?? document.body).zIndex || '0', 10),
       patternLayerClipPath: window.getComputedStyle(patternLayer ?? document.body).clipPath,
       starMapLayerClipPath: window.getComputedStyle(starMapLayer ?? document.body).clipPath,
       patternLayerElevated: patternLayer?.dataset.r4TransitionElevated === 'true',
+      patternLayerVisible: patternLayer?.dataset.visible === 'true',
       starMapLayerElevated: starMapLayer?.dataset.r4TransitionElevated === 'true',
       starMapLayerVisible: starMapLayer?.dataset.visible === 'true',
       heroVideoLoop: heroVideo?.loop ?? null,
@@ -209,24 +220,31 @@ test.describe('R4 group1 canonical spine harness', () => {
       await window.__r4Group1?.scrubHeroPattern(0.2);
     });
     const earlyHeroPattern = await visualSnapshot(page);
-    expect(earlyHeroPattern.transitions).toContain('hero-pattern-live-circle');
+    expect(earlyHeroPattern.transitions).not.toContain('hero-pattern-live-circle');
+    expect(earlyHeroPattern.activeInkSegments).not.toContain('hero-pattern');
     expect(earlyHeroPattern.patternLayerElevated).toBe(true);
     expect(earlyHeroPattern.patternLayerZ).toBeGreaterThan(earlyHeroPattern.heroLayerZ);
     expect(earlyHeroPattern.patternLayerClipPath).toContain('circle(');
     expect(earlyHeroPattern.heroProgress).toBe(1);
     expect(earlyHeroPattern.patternProgress).toBe(0);
     expect(earlyHeroPattern.patternCanvasOpacity).toBe(1);
-    expect(earlyHeroPattern.patternClipProgress).toBeCloseTo(0.2, 2);
-    await expect.poll(
-      async () => (await visualSnapshot(page)).patternCanvasRevision,
-      { timeout: 2_000 }
-    ).toBeGreaterThan(earlyHeroPattern.patternCanvasRevision);
+    expect(earlyHeroPattern.heroMotionProgress).toBeCloseTo(0.6, 2);
+    expect(earlyHeroPattern.patternClipProgress).toBe(0);
+    expect(earlyHeroPattern.patternInkProgress).toBe(0);
+    expect(earlyHeroPattern.patternLayerVisible).toBe(false);
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubHeroPattern(0.79);
     });
     const revealedBloomingPattern = await visualSnapshot(page);
-    expect(revealedBloomingPattern.patternClipProgress).toBeCloseTo(0.79, 2);
-    expect(revealedBloomingPattern.patternInkProgress).toBeCloseTo(0.79, 2);
+    expect(revealedBloomingPattern.heroMotionProgress).toBe(1);
+    expect(revealedBloomingPattern.patternClipProgress).toBeCloseTo(
+      (0.79 - HERO_PATTERN_MOTION_STOP) / (1 - HERO_PATTERN_MOTION_STOP),
+      2
+    );
+    expect(revealedBloomingPattern.patternInkProgress).toBeCloseTo(
+      (0.79 - HERO_PATTERN_MOTION_STOP) / (1 - HERO_PATTERN_MOTION_STOP),
+      2
+    );
     expect(revealedBloomingPattern.patternProgress).toBe(0);
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubHeroPattern(0);
@@ -240,7 +258,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect((await snapshot(page)).window.current).toBe('pattern');
     const canonicalPattern = await visualSnapshot(page);
     expect(canonicalPattern.patternProgress).toBe(0);
-    expect(canonicalPattern.patternCopyOpacity).toBeCloseTo(0.96, 2);
+    expect(canonicalPattern.patternCopyOpacity).toBe(0);
     expect(canonicalPattern.patternFieldRotationDegrees).toBeCloseTo(120, 3);
     expect(canonicalPattern.largestRingScale).toBeGreaterThan(4);
     expect(canonicalPattern.compactRingScale).toBeGreaterThan(1);
@@ -253,20 +271,27 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(animatedPattern.patternCanvasRevision - canonicalPatternRevision).toBeLessThanOrEqual(6);
     expect(animatedPattern.patternCanvasTransform).toBe('none');
 
-    await page.evaluate(async () => {
-      await window.__r4Group1?.playForward();
-    });
-    const collapsePause = await snapshot(page);
-    expect(collapsePause.phase).toBe('staged-paused');
+    await page.evaluate(async (stop) => {
+      await window.__r4Group1?.scrubPatternStarMap(stop);
+    }, PATTERN_COLLAPSE_STOP);
     const compactPattern = await visualSnapshot(page);
     expect(compactPattern.patternProgress).toBe(1);
     expect(compactPattern.patternFieldRotationDegrees).toBeCloseTo(0, 3);
     expect(compactPattern.largestRingScale).toBeCloseTo(0.08, 3);
     expect(compactPattern.compactRingScale).toBeCloseTo(0.28, 3);
+    expect(compactPattern.patternCopyOpacity).toBe(0);
     expect(compactPattern.starMapLayerVisible).toBe(false);
     await page.waitForTimeout(180);
     const compactPatternLater = await visualSnapshot(page);
     expect(compactPatternLater.patternCanvasRevision).toBeGreaterThan(compactPattern.patternCanvasRevision);
+
+    await page.evaluate(async (stop) => {
+      await window.__r4Group1?.scrubPatternStarMap(stop);
+    }, PATTERN_COPY_STOP);
+    const patternWithCopy = await visualSnapshot(page);
+    expect(patternWithCopy.patternProgress).toBe(1);
+    expect(patternWithCopy.patternCopyOpacity).toBeCloseTo(0.96, 3);
+    expect(patternWithCopy.starMapLayerVisible).toBe(false);
 
     await page.evaluate(async () => {
       await window.__r4Group1?.scrubPatternStarMap(0.96);
@@ -284,9 +309,21 @@ test.describe('R4 group1 canonical spine harness', () => {
       await window.__r4Group1?.scrubPatternStarMap(0);
     });
 
-    await page.evaluate(() => {
-      void window.__r4Group1?.playForward();
-    });
+    await page.evaluate(async () => { await window.__r4Group1?.step(1); });
+    expect((await snapshot(page)).phase).toBe('staged-paused');
+    const forwardP1 = await visualSnapshot(page);
+    expect(forwardP1.patternProgress).toBe(1);
+    expect(forwardP1.patternCopyOpacity).toBe(0);
+    expect(forwardP1.starMapLayerVisible).toBe(false);
+
+    await page.evaluate(async () => { await window.__r4Group1?.step(1); });
+    expect((await snapshot(page)).phase).toBe('staged-paused');
+    const forwardP2 = await visualSnapshot(page);
+    expect(forwardP2.patternProgress).toBe(1);
+    expect(forwardP2.patternCopyOpacity).toBeCloseTo(0.96, 3);
+    expect(forwardP2.starMapLayerVisible).toBe(false);
+
+    await page.evaluate(() => { void window.__r4Group1?.step(1); });
     let patternStarMapInk: Group1VisualSnapshot | undefined;
     const starMapInkDeadline = Date.now() + 12_000;
     while (Date.now() < starMapInkDeadline && !patternStarMapInk) {
@@ -324,9 +361,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect(starHoldLater.starMapCanvasRevision).toBeGreaterThan(starHold.starMapCanvasRevision);
     expect(starHoldLater.starMapCanvasMotionActive).toBe(true);
 
-    await page.evaluate(() => {
-      void window.__r4Group1?.playReverse();
-    });
+    await page.evaluate(() => { void window.__r4Group1?.step(-1); });
     let reversePatternStarMapInk: Group1VisualSnapshot | undefined;
     const reverseInkDeadline = Date.now() + 12_000;
     while (Date.now() < reverseInkDeadline && !reversePatternStarMapInk) {
@@ -344,21 +379,25 @@ test.describe('R4 group1 canonical spine harness', () => {
       reversePatternStarMapInk?.starMapCanvasRevision ?? 0
     );
     await expect.poll(async () => (await snapshot(page)).phase, { timeout: 12_000 }).toBe('staged-paused');
-    const reversePause = await snapshot(page);
-    expect(reversePause.phase).toBe('staged-paused');
-    const reverseCompactPattern = await visualSnapshot(page);
-    expect(reverseCompactPattern.patternProgress).toBe(1);
+    const reverseP2 = await visualSnapshot(page);
+    expect(reverseP2.patternProgress).toBe(1);
+    expect(reverseP2.patternCopyOpacity).toBeCloseTo(0.96, 3);
 
-    await page.evaluate(() => {
-      void window.__r4Group1?.playReverse();
-    });
+    await page.evaluate(async () => { await window.__r4Group1?.step(-1); });
+    expect((await snapshot(page)).phase).toBe('staged-paused');
+    const reverseP1 = await visualSnapshot(page);
+    expect(reverseP1.patternProgress).toBe(1);
+    expect(reverseP1.patternCopyOpacity).toBe(0);
+
     const reverseFrames: Group1Snapshot[] = [];
+    await page.evaluate(() => { void window.__r4Group1?.step(-1); });
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
     }
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 12_000 }).toBe('pattern');
     expect((await visualSnapshot(page)).patternProgress).toBe(0);
+    expect((await snapshot(page)).eventLog).toContain('STAGE_PAUSED');
 
     for (const frame of [...forwardFrames, ...reverseFrames]) {
       await assertFrame(frame);
@@ -408,7 +447,8 @@ test.describe('R4 group1 canonical spine harness', () => {
       };
     });
     expect(prepared).toMatchObject({ role: 'prev', visible: 'false', paused: true });
-    expect(prepared.currentTime).toBeGreaterThan(2.25);
+    expect(prepared.currentTime).toBeGreaterThan(0.85);
+    expect(prepared.currentTime).toBeLessThan(0.95);
 
     await page.evaluate(() => {
       const playbackWindow = window as Window & { __r4HeroReversePlayback?: Promise<void> };
@@ -418,7 +458,8 @@ test.describe('R4 group1 canonical spine harness', () => {
       await page.waitForTimeout(30);
       const video = await visualSnapshot(page);
       expect(video.heroVideoPaused).toBe(true);
-      expect(video.heroVideoCurrentTime ?? 0).toBeGreaterThan(2.25);
+      expect(video.heroVideoCurrentTime ?? 0).toBeGreaterThan(0.85);
+      expect(video.heroVideoCurrentTime ?? 0).toBeLessThan(0.95);
     }
     await page.evaluate(async () => {
       const playbackWindow = window as Window & { __r4HeroReversePlayback?: Promise<void> };
@@ -428,8 +469,7 @@ test.describe('R4 group1 canonical spine harness', () => {
     expect((await snapshot(page)).window.current).toBe('hero');
     const landed = await visualSnapshot(page);
     expect(landed.heroVideoPaused).toBe(true);
-    expect(landed.heroVideoCurrentTime ?? 0).toBeGreaterThanOrEqual(0.3);
-    expect(landed.heroVideoCurrentTime ?? 0).toBeLessThan(0.5);
+    expect(landed.heroVideoCurrentTime ?? 1).toBeLessThan(0.1);
   });
 
   test('keeps Pattern and Star hold motion active and prevents overscroll pixel exposure', async ({ page }) => {

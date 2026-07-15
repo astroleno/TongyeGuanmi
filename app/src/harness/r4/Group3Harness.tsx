@@ -12,13 +12,9 @@ import type {
 } from '../../story/types';
 import { brandScene } from '../../scenes/brand';
 import { figure2AnimationScene } from '../../scenes/figure2-animation';
-import { figure2ProofCardsScene } from '../../scenes/figure2-proof-cards';
-import { figure2ProofClosingScene } from '../../scenes/figure2-proof-closing';
-import { figure2ProofOpeningScene } from '../../scenes/figure2-proof-opening';
+import { figure2ProofScene } from '../../scenes/figure2-proof';
 import { createFigure2DistanceExpandTransition } from '../../transitions/figure2-distance-expand';
 import { createFigure2ProofBrandTransition } from '../../transitions/figure2-proof-brand';
-import { createFigure2ProofCardsClosingTransition } from '../../transitions/figure2-proof-cards-closing';
-import { createFigure2ProofOpeningCardsTransition } from '../../transitions/figure2-proof-opening-cards';
 import { hiddenVisibility, holdVisibility } from '../../pilot/visibility';
 import { createR4Group3Manifest, type R4Group3HarnessMode } from './group3Manifest';
 import { findMediaElementByKey, prepareTimeoutForManifest, waitForRequiredMediaReady } from './mediaGate';
@@ -58,30 +54,24 @@ export type Group3Snapshot = {
 type Group3HarnessApi = {
   playForward(options?: PlayOptions): Promise<void>;
   playReverse(options?: PlayOptions): Promise<void>;
-  seek(scene: 'figure2-animation' | 'figure2-proof-opening' | 'figure2-proof-cards' | 'figure2-proof-closing' | 'brand'): void;
+  seek(scene: 'figure2-animation' | 'figure2-proof' | 'brand'): void;
   idempotentCycle(): Promise<void>;
   snapshot(): Group3Snapshot;
 };
 
 const modules = {
   'figure2-animation': figure2AnimationScene,
-  'figure2-proof-opening': figure2ProofOpeningScene,
-  'figure2-proof-cards': figure2ProofCardsScene,
-  'figure2-proof-closing': figure2ProofClosingScene,
+  'figure2-proof': figure2ProofScene,
   brand: brandScene
 };
 
 const GROUP_SCENES: SceneId[] = [
   'figure2-animation',
-  'figure2-proof-opening',
-  'figure2-proof-cards',
-  'figure2-proof-closing',
+  'figure2-proof',
   'brand'
 ];
 const GROUP_SEGMENTS: SegmentId[] = [
   'figure2-distance-expand',
-  'figure2-proof-opening-cards',
-  'figure2-proof-cards-closing',
   'figure2-proof-brand'
 ];
 
@@ -101,9 +91,11 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 }
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
-  for (let attempt = 0; attempt < 180; attempt += 1) {
+  // Figure2 playback + the terminal dwell + depth handoff intentionally
+  // exceeds the old 4.5s harness ceiling.
+  for (let attempt = 0; attempt < 480; attempt += 1) {
     const state = String(runtime.getState().state);
-    if (state === 'hold' || state === 'staged-paused') {
+    if (state === 'hold') {
       return;
     }
     await wait(25);
@@ -196,8 +188,6 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
         stage: stageHandle,
         transitions: {
           'figure2-distance-expand': createFigure2DistanceExpandTransition({ delayMs: () => buildDelayMs.current }),
-          'figure2-proof-opening-cards': createFigure2ProofOpeningCardsTransition({ delayMs: () => buildDelayMs.current }),
-          'figure2-proof-cards-closing': createFigure2ProofCardsClosingTransition({ delayMs: () => buildDelayMs.current }),
           'figure2-proof-brand': createFigure2ProofBrandTransition({ delayMs: () => buildDelayMs.current })
         },
         readyGate: {
@@ -292,7 +282,7 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
     buildDelayMs.current = 0;
   };
 
-  const seek = (scene: 'figure2-animation' | 'figure2-proof-opening' | 'figure2-proof-cards' | 'figure2-proof-closing' | 'brand') => {
+  const seek = (scene: 'figure2-animation' | 'figure2-proof' | 'brand') => {
     const activeRunId = runtime.getState().context.activeRunId;
     runtime.send({ type: 'SEEK', label: `scene:${scene}`, source: 'menu' });
     if (activeRunId) {
@@ -303,18 +293,9 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
   };
 
   const idempotentCycle = async () => {
-    const playThroughStages = async (direction: Direction) => {
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        await play(direction);
-        const state = runtime.getState();
-        if (state.state !== 'staged-paused' || state.context.activeDirection !== direction) {
-          return;
-        }
-      }
-    };
-    await playThroughStages(1);
-    await playThroughStages(-1);
-    await playThroughStages(1);
+    await play(1);
+    await play(-1);
+    await play(1);
   };
 
   useEffect(() => {
@@ -367,9 +348,7 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
           <button type="button" onClick={() => void play(-1)}>Reverse</button>
           <button type="button" onClick={() => void play(1, { buildTimeout: true })}>Build Timeout</button>
           <button type="button" onClick={() => seek('figure2-animation')}>Seek Figure2</button>
-          <button type="button" onClick={() => seek('figure2-proof-opening')}>Seek Opening</button>
-          <button type="button" onClick={() => seek('figure2-proof-cards')}>Seek Cards</button>
-          <button type="button" onClick={() => seek('figure2-proof-closing')}>Seek Closing</button>
+          <button type="button" onClick={() => seek('figure2-proof')}>Seek Proof</button>
           <button type="button" onClick={() => seek('brand')}>Seek Brand</button>
           <button type="button" onClick={() => void idempotentCycle()}>0-1-0-1</button>
         </div>

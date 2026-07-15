@@ -53,6 +53,7 @@ export type Group1Snapshot = {
 type Group1HarnessApi = {
   playForward(options?: PlayOptions): Promise<void>;
   playReverse(options?: PlayOptions): Promise<void>;
+  step(direction: Direction): Promise<void>;
   seek(scene: 'hero' | 'pattern' | 'star-map'): void;
   scrubHeroPattern(progress: number): Promise<void>;
   scrubPatternStarMap(progress: number): Promise<void>;
@@ -84,7 +85,26 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
   return next;
 }
 
-async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
+async function waitForRuntimeIdle(
+  runtime: ReturnType<typeof createDirectorRuntime>,
+  direction: Direction
+): Promise<void> {
+  for (let attempt = 0; attempt < 140; attempt += 1) {
+    const state = String(runtime.getState().state);
+    if (state === 'hold') {
+      return;
+    }
+    if (state === 'staged-paused') {
+      // Harness APIs traverse a whole segment for deterministic e2e setup;
+      // production input still requires a distinct physical gesture per stop.
+      runtime.send({ type: 'CHARGE_FIRED', direction });
+    }
+    await wait(25);
+  }
+  throw new Error(`R4 group1 harness did not return to hold; current state: ${String(runtime.getState().state)}`);
+}
+
+async function waitForRuntimeBoundary(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
   for (let attempt = 0; attempt < 140; attempt += 1) {
     const state = String(runtime.getState().state);
     if (state === 'hold' || state === 'staged-paused') {
@@ -92,7 +112,7 @@ async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRunti
     }
     await wait(25);
   }
-  throw new Error(`R4 group1 harness did not return to hold; current state: ${String(runtime.getState().state)}`);
+  throw new Error(`R4 group1 harness did not reach a boundary; current state: ${String(runtime.getState().state)}`);
 }
 
 function eventTypes(snapshot: StoryDebugSnapshot): string[] {
@@ -249,17 +269,10 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
         runtime.segmentPlayer.dispose(segment);
       }
     }
-    const before = runtime.getState();
-    let segment = before.state === 'staged-paused'
-      ? before.context.activeSegment
-      : segmentForCurrentHold(direction);
-    for (let attempt = 0; !segment && before.state !== 'staged-paused' && attempt < 24; attempt += 1) {
-      await wait(16);
-      segment = segmentForCurrentHold(direction);
-    }
+    const segment = segmentForCurrentHold(direction);
     const recoveryBefore = runtime.getState().context.lastError;
     runtime.send({ type: 'CHARGE_FIRED', direction });
-    await waitForRuntimeIdle(runtime);
+    await waitForRuntimeIdle(runtime, direction);
     const next = runtime.getState();
     runtimeSnapshotRef.current = next;
     if (next.state === 'hold') {
@@ -271,6 +284,11 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
     }
     pushLocalEvent(`PLAY:${segment ?? 'none'}:${direction}`);
     buildDelayMs.current = 0;
+  };
+
+  const step = async (direction: Direction) => {
+    runtime.send({ type: 'CHARGE_FIRED', direction });
+    await waitForRuntimeBoundary(runtime);
   };
 
   const seek = (scene: 'hero' | 'pattern' | 'star-map') => {
@@ -300,24 +318,16 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
   };
 
   const idempotentCycle = async () => {
-    const playThroughStages = async (direction: Direction) => {
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        await play(direction);
-        const state = runtime.getState();
-        if (state.state !== 'staged-paused' || state.context.activeDirection !== direction) {
-          return;
-        }
-      }
-    };
-    await playThroughStages(1);
-    await playThroughStages(-1);
-    await playThroughStages(1);
+    await play(1);
+    await play(-1);
+    await play(1);
   };
 
   useEffect(() => {
     const api: Group1HarnessApi = {
       playForward: (options) => play(1, options),
       playReverse: (options) => play(-1, options),
+      step,
       seek,
       scrubHeroPattern,
       scrubPatternStarMap,

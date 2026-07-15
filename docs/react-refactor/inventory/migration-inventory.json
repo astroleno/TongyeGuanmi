@@ -41,8 +41,8 @@
       "buildOutput": "index.html#home",
       "canonicalScenes": ["hero"],
       "copySource": "src/sections/hero.html",
-      "mediaAssets": ["assets/back1.png", "assets/middle1.png", "assets/figure1.webm", "assets/figure-poster.jpg"],
-      "notes": "Hero title and subtitle are present in build output before js/main.js."
+      "mediaAssets": ["assets/back1.png", "assets/middle1.png", "assets/figure1.webm", "assets/hero-figure-poster.webp"],
+      "notes": "Hero title and subtitle are present in build output before js/main.js. The canonical lossless RGBA poster and the trimmed 720x1280 video both start at the former authored frame 8 (PTS 0.333s); runtime progress now maps the retained motion to 0.000–2.000s."
     },
     {
       "sectionId": "belief",
@@ -59,11 +59,11 @@
       "hashId": "method",
       "source": "src/sections/method.html",
       "buildOutput": "index.html#method",
-      "canonicalScenes": ["method-top", "method-bottom", "figure2-proof-opening", "figure2-proof-cards", "figure2-proof-closing"],
+      "canonicalScenes": ["method-top", "figure2-proof"],
       "legacySceneAnchors": ["method-field-law", "method-cocreation", "method-tooling", "method-proof"],
       "copySource": "src/sections/method.html",
       "mediaAssets": ["assets/figure2-*.png", "assets/figure2a-*", "assets/figure2b-*", "assets/arch2d-alpha.png"],
-      "notes": "Method top/bottom and proof copy are one section in the legacy DOM. R0 must split by canonical naming, not by legacy anchor names."
+      "notes": "Method intro and five-step list remain one method-top reading hold. Proof copy becomes one figure2-proof hold with three internal panels; legacy anchors are not canonical scenes."
     },
     {
       "sectionId": "brand",
@@ -122,8 +122,15 @@
       "buildOutput": "index.html#contact",
       "canonicalScenes": ["contact"],
       "copySource": "src/sections/contact.html",
-      "mediaAssets": ["assets/crane-figure1-transition.webm", "assets/crane-figure2-transition.webm", "assets/crane1_*.png"],
-      "notes": "Contact endpoint is adopted by Crane handoff receiver using .contact-endpoint."
+      "mediaAssets": ["assets/crane-figure-motion.webm", "assets/crane-flock-motion.webm", "assets/crane1_*.webp"],
+      "mediaProvenance": {
+        "figureAuthority": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/assets/crane-figure1-transition.webm",
+        "figureAuthoritySha256": "995c0737bda965643175ac4a83aa2fa92cdcffddfa7c69a0c59b884fefabbdec",
+        "figureCanonicalSha256": "b96e527dd4a61fecca4ef26a5892dac76147ab38a66724cc36043ab9b8d681e4",
+        "figureCanonicalBytes": 13554565,
+        "resampling": "75 whole RGBA frames at 30fps; no cross-source alphamerge"
+      },
+      "notes": "Contact endpoint is adopted by Crane handoff receiver using .contact-endpoint. Crane figure canonical media is rebuilt from one frozen RGBA authority."
     }
   ],
   "transitions": [
@@ -189,7 +196,7 @@
       "to": "method-proof",
       "adapterModule": "figure2",
       "adapterPath": "js/transitions/homepage/figure2-homepage-adapter.js",
-      "canonicalExpansion": ["method-bottom", "method-bottom-figure2", "figure2-animation", "figure2-distance-expand", "figure2-proof-opening", "figure2-proof-cards", "figure2-proof-closing", "figure2-proof-brand", "brand"],
+      "canonicalExpansion": ["method-top", "method-bottom-figure2", "figure2-animation", "figure2-distance-expand", "figure2-proof", "figure2-proof-brand", "brand"],
       "policySeed": {
         "stageStops": [0.72],
         "stagePlayMs": [2600, 1500],
@@ -338,7 +345,7 @@
         "receiverRange": { "start": 0.58, "end": 0.94, "liftPx": 20 }
       },
       "copySource": ["src/sections/contact.html"],
-      "mediaAssets": ["assets/crane1_cloud2-alpha.png", "assets/crane1_arch-alpha.png", "assets/crane1_cloud-front2-alpha.png", "assets/crane1_cloud1-alpha.png", "assets/crane-figure1-transition.webm", "assets/crane-figure2-transition.webm"],
+      "mediaAssets": ["assets/crane1_cloud2-alpha.webp", "assets/crane1_arch-alpha.webp", "assets/crane1_cloud-front2-alpha.webp", "assets/crane1_cloud1-alpha.webp", "assets/crane-figure-motion.webm", "assets/crane-flock-motion.webm"],
       "evidence": ["src/section-manifest.mjs", "index.html build host", "js/transitions/homepage/crane-homepage-adapter.js"]
     }
   ],

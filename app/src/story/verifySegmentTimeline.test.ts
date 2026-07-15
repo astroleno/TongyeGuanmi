@@ -202,7 +202,12 @@ describe('verifySegmentTimeline', () => {
   });
 
   it('verifies stagedSnap pause labels', () => {
-    const policy = { kind: 'stagedSnap', stops: [0.5], playMs: [80, 80] } as const;
+    const policy = {
+      kind: 'stagedSnap',
+      stops: [0.5],
+      playMs: [80, 80],
+      advance: [{ kind: 'gesture' }]
+    } as const;
     const timeline = new SyntheticSegmentTimeline(context(policy), { stagedStops: policy.stops });
 
     expect(verifySegmentTimeline(timeline, { policy, copyCueAtProgress: syntheticCopyCue.atProgress }).stagedPauses).toEqual([

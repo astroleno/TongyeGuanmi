@@ -1,0 +1,49 @@
+{
+  "canonical": {
+    "path": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/assets/crane-flock-motion.webm",
+    "bytes": 4416794,
+    "sha256": "a3ac363cf7dd37940f3467a1c4e5b1b2df067d4fdc4966e99e17679a32498164",
+    "frames": 74,
+    "fps": 30,
+    "durationSeconds": 2.466,
+    "lastPtsSeconds": 2.433,
+    "replacedFrame": 0,
+    "appendedFrames": 0
+  },
+  "correctedFrame0": {
+    "source": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/assets/crane-flock-first-frame.webp",
+    "bytes": 80116,
+    "sha256": "8c4d47ca59d21c14430c02b2d89605594463a018e28c25c7eeb8fd824f8910b4",
+    "colorSsim": 0.999755,
+    "alphaSsim": 0.999982,
+    "bodyAlpha": [
+      { "x": 300, "y": 115, "label": "upper-left-body", "alpha": 255 },
+      { "x": 926, "y": 343, "label": "right-body", "alpha": 255 }
+    ],
+    "gapAlpha": [
+      { "x": 1026, "y": 242, "label": "upper-right-leg-gap", "alpha": 0 },
+      { "x": 825, "y": 529, "label": "lower-leg-gap", "alpha": 0 }
+    ]
+  },
+  "unchangedMotionFrames": {
+    "authority": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/archive/assets/homepage-media/2026-07-15/sources/crane-flock-74f-authority.webm",
+    "authoritySha256": "b96e13b85f85a70c0e71d2f9c11ac64aca1830fa6af3c1ee3b7272133cf09457",
+    "range": "1-73",
+    "colorSsim": 0.998872,
+    "alphaSsim": 0.994012,
+    "alphaExtremaParity": "73/73"
+  },
+  "archivedPriorCanonical": {
+    "path": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/archive/assets/homepage-media/2026-07-15/replaced/crane-flock-motion-74f-crf18-flawed-first-frame.webm",
+    "bytes": 4437203,
+    "sha256": "f7ea022c4fa6f2417e7bda8e2a8f3fe69688ddb872f7bd5ffd626b6805c8989c"
+  },
+  "evidence": {
+    "transparent": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/artifacts/react-refactor/r5-flock-poster/crane-flock-canonical-frame0-transparent.png",
+    "paper": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/artifacts/react-refactor/r5-flock-poster/crane-flock-canonical-frame0-paper.png",
+    "black": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/artifacts/react-refactor/r5-flock-poster/crane-flock-canonical-frame0-black.png",
+    "firstThreeFramesOnPaper": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-parity-cutover/artifacts/react-refactor/r5-flock-poster/crane-flock-canonical-first3-paper.png"
+  },
+  "runtimeOverlay": false,
+  "pass": true
+}

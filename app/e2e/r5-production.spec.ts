@@ -67,8 +67,15 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
   await expect(hero).toHaveAttribute('data-hero-progress', '0.0000');
   await expect.poll(() => heroVideo.evaluate((video: HTMLVideoElement) => ({
     paused: video.paused,
-    currentTime: video.currentTime
-  }))).toMatchObject({ paused: true, currentTime: expect.closeTo(0.34, 1) });
+    currentTime: video.currentTime,
+    poster: new URL(video.poster).pathname,
+    preload: video.preload
+  }))).toMatchObject({
+    paused: true,
+    currentTime: expect.closeTo(0, 2),
+    poster: expect.stringMatching(/\/hero-figure-poster-[^/]+\.webp$/),
+    preload: 'none'
+  });
   await expect(hero.evaluate((root) => {
     const style = getComputedStyle(root);
     return {
@@ -88,7 +95,7 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
   await expect.poll(() => heroVideo.evaluate((video: HTMLVideoElement) => ({
     paused: video.paused,
     currentTime: video.currentTime
-  }))).toMatchObject({ paused: true, currentTime: expect.closeTo(0.34, 1) });
+  }))).toMatchObject({ paused: true, currentTime: expect.closeTo(0, 2) });
   await expect(hero).toHaveAttribute('data-hero-title-active', 'true', { timeout: 4_000 });
   await page.waitForFunction(() => window.__storyApp?.snapshot().presentationReady === true, undefined, {
     timeout: 5_000
@@ -103,7 +110,7 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
   await expect.poll(() => heroVideo.evaluate((video: HTMLVideoElement) => ({
     paused: video.paused,
     currentTime: video.currentTime
-  }))).toMatchObject({ paused: true, currentTime: expect.closeTo(0.34, 1) });
+  }))).toMatchObject({ paused: true, currentTime: expect.closeTo(0, 2) });
 
   const stacking = await hero.evaluate((root) => {
     const stage = root.querySelector<HTMLElement>('.r4-hero-scene__stage');
@@ -147,16 +154,22 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
   const blur = page.locator('.scroll-edge-blur');
   await expect(nav).toBeHidden();
   expect(await nav.getAttribute('inert')).not.toBeNull();
-  expect(await nav.evaluate((element) => element.nextElementSibling?.classList.contains('scroll-edge-blur'))).toBe(true);
+  await expect(blur).toHaveCount(0);
   expect(await nav.locator('a').first().evaluate((link) => {
     link.focus();
     return document.activeElement === link;
   })).toBe(false);
 
   expect((await moveOneHold(page, 1)).current).toBe('pattern');
+  await expect(nav).toBeHidden();
+  await expect(blur).toBeHidden();
+  expect((await moveOneHold(page, 1)).current).toBe('star-map');
   await expect(nav).toBeVisible();
   await expect(blur).toBeVisible();
   expect(await blur.locator('.scroll-edge-blur__layer').count()).toBe(7);
+  expect((await moveOneHold(page, -1)).current).toBe('pattern');
+  await expect(nav).toBeHidden();
+  await expect(blur).toBeHidden();
   expect((await moveOneHold(page, -1)).current).toBe('hero');
   await expect(nav).toBeHidden();
   await expect(blur).toBeHidden();
@@ -217,6 +230,8 @@ test('Contact renders the canonical filing footer once in the interactive story'
   await expect(footer.getByText('AI Transformation & Capability Building', { exact: true })).toHaveCount(1);
   await expect(footer.getByRole('link', { name: '服务备案号 沪ICP备2024086119号-3', exact: true }))
     .toHaveAttribute('href', 'https://beian.miit.gov.cn/');
+  await expect(footer.getByRole('link', { name: '沪公网安备 31011502406697号（新窗口打开）', exact: true }))
+    .toHaveAttribute('href', 'https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=31011502406697');
   await expect(page.locator('.static-content [data-site-footer="true"]')).toBeHidden();
 
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', /\/assets\/favicon-[^/]+\.svg$/);
@@ -299,6 +314,7 @@ test('slow next-scene assets do not block the current production hold', async ({
 test('menu navigation pushes history and browser history restores the prior hold', async ({ page }) => {
   await bootStory(page);
   expect((await moveOneHold(page, 1)).current).toBe('pattern');
+  expect((await moveOneHold(page, 1)).current).toBe('star-map');
   await expect(page.locator('.site-nav')).toBeVisible();
   const openMobileMenu = async () => {
     const toggle = page.getByRole('button', { name: '菜单' });
@@ -355,6 +371,9 @@ test('every canonical hash boots directly and public aliases remain supported', 
   for (const [hash, scene] of [
     ['home', 'hero'],
     ['method', 'method-top'],
+    ['figure2-proof-opening', 'figure2-proof'],
+    ['figure2-proof-cards', 'figure2-proof'],
+    ['figure2-proof-closing', 'figure2-proof'],
     ['services', 'services'],
     ['education', 'education'],
     ['contact', 'contact']
@@ -379,7 +398,7 @@ test('reduced motion keeps the same contract and settles without cinematic delay
   await expectLayerInvariants(page);
 });
 
-test('reading input is content-first, then 10svh commitment, with deterministic entry edges', async ({ page }) => {
+test('reading input absorbs the gesture that reaches an edge, then accepts one clear outward gesture', async ({ page }) => {
   await bootStory(page, '/#method');
   const scrollport = page.locator('[data-stage-layer="method-top"] [data-reading-scrollport="true"]');
   await expect(scrollport).toBeVisible();
@@ -402,31 +421,26 @@ test('reading input is content-first, then 10svh commitment, with deterministic 
   await page.waitForTimeout(50);
   expect(await scrollport.evaluate((element) => element.scrollTop)).toBe(preservedScrollTop);
 
-  await scrollport.evaluate((element) => {
-    element.scrollTop = element.scrollHeight - element.clientHeight;
-  });
-  await page.evaluate(() => window.dispatchEvent(new Event('story-reading-entry')));
   const beforeCommit = await page.evaluate(() => {
     const lead = document.querySelector<HTMLElement>('[data-stage-layer="method-top"] .r4-method__lead');
-    const height = window.innerHeight;
+    const scrollport = document.querySelector<HTMLElement>(
+      '[data-stage-layer="method-top"] [data-reading-scrollport="true"]'
+    );
     lead?.dispatchEvent(new WheelEvent('wheel', {
       bubbles: true,
       cancelable: true,
       deltaMode: 0,
-      deltaY: height * 0.099
+      deltaY: (scrollport?.scrollHeight ?? 0) + window.innerHeight
     }));
-    const before = window.__storyApp?.snapshot();
-    lead?.dispatchEvent(new WheelEvent('wheel', {
-      bubbles: true,
-      cancelable: true,
-      deltaMode: 0,
-      deltaY: height * 0.001
-    }));
-    return before;
+    return window.__storyApp?.snapshot();
   });
   expect(beforeCommit?.current).toBe('method-top');
   expect(beforeCommit?.phase).toBe('hold');
+  await expect.poll(() => scrollport.evaluate((element) => (
+    Math.abs(element.scrollTop + element.clientHeight - element.scrollHeight)
+  ))).toBeLessThan(1);
 
+  await page.keyboard.press('PageDown');
   await waitForHold(page, 'figure2-animation');
   await expectLayerInvariants(page);
 
@@ -435,6 +449,124 @@ test('reading input is content-first, then 10svh commitment, with deterministic 
   await expect.poll(async () => scrollport.evaluate((element) => (
     element.scrollTop + element.clientHeight >= element.scrollHeight - 1
   ))).toBe(true);
+  await expectLayerInvariants(page);
+
+  await page.keyboard.press('PageDown');
+  await waitForHold(page, 'figure2-animation');
+  await expectLayerInvariants(page);
+});
+
+test('Figure2 Proof owns one snap-free scrollport and accepts incremental wheel input across its panels', async ({ page }) => {
+  await bootStory(page, '/#figure2-proof');
+  const layer = page.locator('[data-stage-layer="figure2-proof"]');
+  const scrollport = layer.locator('[data-reading-scrollport="true"]');
+  await expect(scrollport).toBeVisible();
+
+  const initial = await layer.evaluate((root) => {
+    const scroller = root.querySelector<HTMLElement>('[data-reading-scrollport="true"]');
+    if (!scroller) throw new Error('Figure2 Proof scrollport missing');
+    return {
+      explicitScrollports: root.querySelectorAll('[data-reading-scrollport="true"]').length,
+      panels: scroller.querySelectorAll('[data-r4-proof-panel]').length,
+      layerScrollTop: root.scrollTop,
+      layerOverflowY: getComputedStyle(root).overflowY,
+      scrollTop: scroller.scrollTop,
+      clientHeight: scroller.clientHeight,
+      scrollHeight: scroller.scrollHeight,
+      viewportHeight: window.innerHeight,
+      overflowY: getComputedStyle(scroller).overflowY,
+      snapType: getComputedStyle(scroller).scrollSnapType
+    };
+  });
+  expect(initial).toMatchObject({
+    explicitScrollports: 1,
+    panels: 3,
+    layerScrollTop: 0,
+    layerOverflowY: 'hidden',
+    scrollTop: 0,
+    overflowY: 'auto',
+    snapType: 'none'
+  });
+  expect(Math.abs(initial.clientHeight - initial.viewportHeight)).toBeLessThan(2);
+  expect(initial.scrollHeight).toBeGreaterThan(initial.clientHeight * 2.9);
+
+  const samples: number[] = [];
+  for (let index = 0; index < 7; index += 1) {
+    await scrollport.dispatchEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaMode: 0,
+      deltaY: 80
+    });
+    samples.push(await scrollport.evaluate((element) => element.scrollTop));
+    await page.waitForTimeout(24);
+  }
+  expect(samples.every((value, index) => index === 0 || value > samples[index - 1]!)).toBe(true);
+  expect(samples.at(-1)).toBeGreaterThan(500);
+  expect(samples.every((value) => Math.abs(value - 720) > 20)).toBe(true);
+  expect((await storySnapshot(page))).toMatchObject({ phase: 'hold', current: 'figure2-proof' });
+  expect(await layer.evaluate((element) => element.scrollTop)).toBe(0);
+  await expectLayerInvariants(page);
+});
+
+test('Method reverse presents descending AOD frames and rejects the arriving wheel tail until a fresh gesture', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'presented-frame and physical wheel envelope run once');
+  test.setTimeout(45_000);
+  await bootStory(page, '/#method-top');
+
+  const dispatchReverseWheel = (deltaY: number) => page.evaluate((delta) => {
+    window.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaMode: 0,
+      deltaY: delta
+    }));
+  }, deltaY);
+  await dispatchReverseWheel(-64);
+  const samples: number[] = [];
+  for (let index = 0; index < 120; index += 1) {
+    await page.waitForTimeout(35);
+    await dispatchReverseWheel(-24);
+    const frame = await page.evaluate(() => {
+      const snapshot = window.__storyApp?.snapshot();
+      const layer = document.querySelector<HTMLElement>('[data-stage-layer="aod-animation"]');
+      const video = layer?.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+      return {
+        phase: snapshot?.phase,
+        current: snapshot?.current,
+        visible: layer?.dataset.visible === 'true',
+        frameReady: video?.dataset.timelineVideoFrameReady === 'true',
+        direction: video?.dataset.timelineVideoDirection,
+        currentTime: video?.currentTime
+      };
+    });
+    if (
+      frame.visible
+      && frame.frameReady
+      && frame.direction === '-1'
+      && Number.isFinite(frame.currentTime)
+    ) {
+      samples.push(frame.currentTime!);
+    }
+    if (frame.phase === 'hold' && frame.current === 'aod-animation') break;
+  }
+  await waitForHold(page, 'aod-animation');
+  const descendingSteps = samples.filter((value, index) => (
+    index > 0 && value < samples[index - 1]! - 0.01
+  )).length;
+  expect(samples.length).toBeGreaterThanOrEqual(8);
+  expect(descendingSteps).toBeGreaterThanOrEqual(8);
+  expect(Math.max(...samples) - Math.min(...samples)).toBeGreaterThan(1.5);
+
+  for (let index = 0; index < 3; index += 1) {
+    await dispatchReverseWheel(-20);
+    await page.waitForTimeout(35);
+  }
+  expect((await storySnapshot(page))).toMatchObject({ phase: 'hold', current: 'aod-animation' });
+
+  await page.waitForTimeout(260);
+  await dispatchReverseWheel(-240);
+  await waitForHold(page, 'star-map');
   await expectLayerInvariants(page);
 });
 
@@ -463,16 +595,22 @@ test('critical reverse chains return through hero, pilot, and figure2 proof hold
   expect((await moveOneHold(page, -1)).current).toBe('star-map');
 
   await navigateStory(page, 'brand');
-  for (const expected of [
-    'figure2-proof-closing',
-    'figure2-proof-cards',
-    'figure2-proof-opening',
-    'figure2-animation',
-    'method-top'
-  ]) {
-    expect((await moveOneHold(page, -1)).current).toBe(expected);
-    await expectLayerInvariants(page);
-  }
+  expect((await moveOneHold(page, -1)).current).toBe('figure2-proof');
+  const proofEntry = await page.locator(
+    '[data-stage-layer="figure2-proof"] [data-reading-scrollport="true"]'
+  ).evaluate((element) => ({
+    scrollTop: element.scrollTop,
+    maxScrollTop: element.scrollHeight - element.clientHeight,
+    panels: element.querySelectorAll('[data-r4-proof-panel]').length
+  }));
+  expect(proofEntry.panels).toBe(3);
+  expect(Math.abs(proofEntry.scrollTop - proofEntry.maxScrollTop)).toBeLessThan(1);
+  await expectLayerInvariants(page);
+
+  expect((await moveOneHold(page, -1)).current).toBe('figure2-animation');
+  await expectLayerInvariants(page);
+  expect((await moveOneHold(page, -1)).current).toBe('method-top');
+  await expectLayerInvariants(page);
   const methodEntry = await page.locator(
     '[data-stage-layer="method-top"] [data-reading-scrollport="true"]'
   ).evaluate((element) => ({
@@ -503,16 +641,9 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
   await page.keyboard.press('PageDown');
   await expect.poll(async () => (await eventTypes(page))
     .filter((type) => type === 'PREPARE_TIMEOUT').length).toBeGreaterThan(timeoutCountBeforeFailure);
-  await expect.poll(async () => (await storySnapshot(page)).recovery?.status, { timeout: 30_000 })
-    .toBe('failed');
   const failedMedia = await waitForHold(page, 'aod-animation');
-  expect(failedMedia.recovery).toMatchObject({
-    scope: 'segment',
-    status: 'failed',
-    segment: 'aod-method-top',
-    direction: 1,
-    endpoint: 'method-top'
-  });
+  expect(failedMedia.recovery).toBeUndefined();
+  expect(await eventTypes(page)).toContain('RECOVERY_CANCELLED');
   await expectLayerInvariants(page);
 
   await page.unroute('**/*aod-figure-motion*.webm');
@@ -544,16 +675,9 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
     await page.keyboard.press('PageDown');
     await expect.poll(async () => (await eventTypes(page))
       .filter((type) => type === 'PREPARE_TIMEOUT').length).toBeGreaterThan(timeoutCountBeforeOffline);
-    await expect.poll(async () => (await storySnapshot(page)).recovery?.status, { timeout: 30_000 })
-      .toBe('failed');
     const offlineFailure = await waitForHold(page, 'aod-animation');
-    expect(offlineFailure.recovery).toMatchObject({
-      scope: 'segment',
-      status: 'failed',
-      segment: 'aod-method-top',
-      direction: 1,
-      endpoint: 'method-top'
-    });
+    expect(offlineFailure.recovery).toBeUndefined();
+    expect(await eventTypes(page)).toContain('RECOVERY_CANCELLED');
     await expectLayerInvariants(page);
   } finally {
     await page.context().setOffline(false);
@@ -620,7 +744,7 @@ test('Contact reverse recovery stays local while only its explicit link may retu
   } finally {
     releaseDelayedRequests();
   }
-  await waitForHold(page, 'crane-animation');
+  await waitForHold(page, 'contact');
 
   const recoveryEvidence = await page.evaluate(() => {
     type RecoveryRecord = {
@@ -641,20 +765,24 @@ test('Contact reverse recovery stays local while only its explicit link may retu
     const probe = window as RecoveryProbe;
     const records = probe.__story?.getState().eventLog ?? [];
     const timeout = [...records].reverse().find((record) => record.event.type === 'PREPARE_TIMEOUT');
+    const recovery = [...records].reverse().find((record) => record.recovery?.status === 'recovering');
     return {
       timeout,
+      recovery,
       currents: probe.__r5RecoveryCurrents ?? []
     };
   });
   expect(delayedRequests).toBeGreaterThan(0);
   expect(recoveryEvidence.timeout).toMatchObject({
-    layerWindow: { current: 'contact' },
+    layerWindow: { current: 'contact' }
+  });
+  expect(recoveryEvidence.recovery).toMatchObject({
     recovery: {
       scope: 'segment',
       status: 'recovering',
       segment: 'crane-contact',
       direction: -1,
-      endpoint: 'crane-animation'
+      endpoint: 'contact'
     }
   });
   expect(recoveryEvidence.currents).not.toContain('hero');
@@ -662,7 +790,6 @@ test('Contact reverse recovery stays local while only its explicit link may retu
   await expectLayerInvariants(page);
   await expect.poll(() => pendingDelayedRequests).toBe(0);
 
-  await navigateStory(page, 'contact');
   await page.getByRole('link', { name: '回到首屏', exact: true }).click();
   await waitForHold(page, 'hero');
   const latestSeekSource = await page.evaluate(() => {

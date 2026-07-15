@@ -9,7 +9,9 @@ function holdIndex(manifest: StoryManifest, scene: SceneId): number {
 }
 
 function inputLegs(segment: SpineSegmentNode): number {
-  return segment.policy.kind === 'stagedSnap' ? segment.policy.playMs.length : 1;
+  return segment.policy.kind === 'stagedSnap'
+    ? 1 + segment.policy.advance.filter((boundary) => boundary.kind === 'gesture').length
+    : 1;
 }
 
 export function adjacentHoldScene(

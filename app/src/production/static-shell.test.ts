@@ -35,6 +35,9 @@ describe('crawlable static story shell', () => {
     expect(html.match(/© 上海同野观幂科技有限公司/g)).toHaveLength(1);
     expect(html.match(/AI Transformation &amp; Capability Building/g)).toHaveLength(1);
     expect(html.match(/服务备案号 沪ICP备2024086119号-3/g)).toHaveLength(1);
+    expect(html.match(/沪公网安备 31011502406697号/g)).toHaveLength(2);
     expect(html).toContain('href="https://beian.miit.gov.cn/"');
+    expect(html).toContain('href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=31011502406697"');
+    expect(html).toContain('aria-label="沪公网安备 31011502406697号（新窗口打开）"');
   });
 });

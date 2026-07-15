@@ -1,4 +1,9 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
+import {
+  createPaperEntranceLifecycle,
+  type PaperEntranceRenderState,
+  type PaperEntranceState
+} from '../shared/paperEntrance';
 
 export const SERVICES_COPY = [
   '先小做，再扩',
@@ -30,26 +35,14 @@ const SERVICE_ROWS = [
   { index: SERVICES_COPY[16], title: SERVICES_COPY[17], body: SERVICES_COPY[18], detail: SERVICES_COPY[19] }
 ] as const;
 
-export type ServicesRenderState = {
-  progress: number;
-  opacity: number;
-  y: number;
-};
+export type ServicesRenderState = PaperEntranceRenderState;
+export type ServicesEntranceState = PaperEntranceState;
 
-export function renderServicesProgress(root: HTMLElement | null | undefined, progress: number): ServicesRenderState {
-  const clamped = Math.min(1, Math.max(0, progress));
-  const opacity = clamped;
-  const y = (1 - clamped) * 28;
-  root?.style.setProperty('--r4-services-progress', clamped.toFixed(4));
-  root?.style.setProperty('--r4-services-opacity', opacity.toFixed(4));
-  root?.style.setProperty('--r4-services-y', `${y.toFixed(2)}px`);
-  root?.setAttribute('data-services-progress', clamped.toFixed(4));
-  return { progress: clamped, opacity, y };
-}
-
-export function renderServicesHold(root: HTMLElement | null): void {
-  renderServicesProgress(root, 1);
-}
+const servicesEntrance = createPaperEntranceLifecycle('services', 28);
+export const renderServicesProgress = servicesEntrance.renderProgress;
+export const renderServicesEntrance = servicesEntrance.renderEntrance;
+export const releaseServicesEntrance = servicesEntrance.release;
+export const renderServicesHold = servicesEntrance.renderHold;
 
 function ServicesScene({ registerHandle }: SceneComponentProps) {
   return (

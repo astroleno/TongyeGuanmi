@@ -23,11 +23,7 @@ export type StagedMediaRenderContext = Readonly<{
   prefersReducedMotion: boolean;
 }>;
 
-export type StagedMediaHandoffOptions = Readonly<{
-  id: SegmentId;
-  delayMs?: () => number;
-  rootSelector?: (scene: string) => string;
-  prepareEndpoints(roots: Readonly<{ from: HTMLElement | null; to: HTMLElement | null }>): void;
+export type StagedMediaSourceExitLifecycle = Readonly<{
   prepareLeg?: (
     root: HTMLElement | null,
     leg: StagedLegPreparation,
@@ -43,16 +39,28 @@ export type StagedMediaHandoffOptions = Readonly<{
     leg: StagedLegPreparation,
     context: StagedMediaRenderContext
   ) => void;
-  disposeSource?: (
+  dispose?: (
     root: HTMLElement | null,
     progress: number,
     context: StagedMediaRenderContext
   ) => void;
-  renderSource(
+  renderExit(
     root: HTMLElement | null,
     progress: number,
     context: StagedMediaRenderContext
   ): void;
+}>;
+
+export type StagedMediaTargetHoldLifecycle = Readonly<{
+  prepareFinalHold(root: HTMLElement | null): void;
+}>;
+
+export type StagedMediaHandoffOptions = Readonly<{
+  id: SegmentId;
+  delayMs?: () => number;
+  rootSelector?: (scene: string) => string;
+  source: StagedMediaSourceExitLifecycle;
+  target: StagedMediaTargetHoldLifecycle;
 }>;
 
 export type StagedMediaHandoffSample = Readonly<{
@@ -99,7 +107,7 @@ function sceneRoot(
 function stagedStop(context: TransitionContext): number {
   const policy = context.segment.policy;
   if (policy.kind !== 'stagedSnap' || policy.stops.length !== 1 || policy.playMs.length !== 2) {
-    throw new Error(`${context.segment.id} staged media handoff requires exactly two stagedSnap legs`);
+    throw new Error(`Invalid staged handoff: ${context.segment.id}`);
   }
   return policy.stops[0] ?? 0;
 }
@@ -184,12 +192,12 @@ function applyInitialVisibility(context: TransitionContext, options: StagedMedia
   applyVisibilityToElement(roots.toElement, sample.to);
   clearHandoffAttrs(roots.fromElement);
   clearHandoffAttrs(roots.toElement);
-  options.prepareEndpoints({ from: roots.from, to: roots.to });
+  options.target.prepareFinalHold(roots.to);
 }
 
 class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
   readonly labels: Readonly<Record<string, number>>;
-  readonly pauses = ['stage:0'] as const;
+  readonly pauses: readonly string[];
 
   private readonly stop: number;
   private progressValue: number;
@@ -210,6 +218,10 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
     private readonly options: StagedMediaHandoffOptions
   ) {
     this.stop = stagedStop(context);
+    this.pauses = context.segment.policy.kind === 'stagedSnap'
+      && context.segment.policy.advance[0]?.kind === 'gesture'
+      ? ['stage:0']
+      : [];
     this.labels = {
       start: 0,
       media: 0,
@@ -246,7 +258,7 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
 
     const roots = rootsFor(this.context, this.options);
     if (roots.from !== this.preparedFromRoot || roots.to !== this.preparedToRoot) {
-      this.options.prepareEndpoints({ from: roots.from, to: roots.to });
+      this.options.target.prepareFinalHold(roots.to);
       this.preparedFromRoot = roots.from;
       this.preparedToRoot = roots.to;
     }
@@ -263,7 +275,7 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
       || Math.abs(sourceProgress - this.renderedSourceProgress) > 0.0001
       || this.renderedSourceDirection !== this.playbackDirection
     ) {
-      this.options.renderSource(
+      this.options.source.renderExit(
         roots.from,
         sourceProgress,
         renderContext(this.context, this.playbackDirection)
@@ -285,7 +297,7 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
     const armedLeg = this.armedLeg;
     if (armedLeg && Math.abs(clamped - armedLeg.to) <= 0.0001) {
       this.armedLeg = undefined;
-      this.options.commitLegEndpoint?.(
+      this.options.source.commitLegEndpoint?.(
         roots.from,
         armedLeg,
         renderContext(this.context, armedLeg.direction)
@@ -302,7 +314,7 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
     const roots = rootsFor(this.context, this.options);
     const generation = ++this.preparationGeneration;
     this.preparedLeg = undefined;
-    const readiness = this.options.prepareLeg?.(
+    const readiness = this.options.source.prepareLeg?.(
       roots.from,
       leg,
       renderContext(this.context, leg.direction)
@@ -319,7 +331,7 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
         }
         throw new MediaPreparationError(
           'MEDIA_PREPARATION_ABORTED',
-          `staged media preparation became stale for ${leg.runId}`,
+          `Stale staged prepare: ${leg.runId}`,
           reason === undefined ? {} : { cause: reason }
         );
       }
@@ -336,11 +348,11 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
     if (this.disposed || this.preparedLeg !== leg || leg.signal.aborted) {
       throw new MediaPreparationError(
         'MEDIA_PREPARATION_ABORTED',
-        `staged media leg is not prepared for commit: ${leg.runId}`
+        `Unprepared staged leg: ${leg.runId}`
       );
     }
     const roots = rootsFor(this.context, this.options);
-    this.options.commitLegStart?.(
+    this.options.source.commitLegStart?.(
       roots.from,
       leg,
       renderContext(this.context, leg.direction)
@@ -377,7 +389,7 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
       this.animationFrame = 0;
     }
     const roots = rootsFor(this.context, this.options);
-    this.options.disposeSource?.(
+    this.options.source.dispose?.(
       roots.from,
       this.progressValue,
       renderContext(this.context, this.playbackDirection)
@@ -434,7 +446,7 @@ export function createStagedMediaHandoff(
       applyInitialVisibility(context, options);
       const endpoint = context.direction === 1 ? 1 : 0;
       const roots = rootsFor(context, options);
-      options.renderSource(
+      options.source.renderExit(
         roots.from,
         range01(endpoint, 0, stagedStop(context)),
         renderContext(context, context.direction)

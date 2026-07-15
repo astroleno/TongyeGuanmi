@@ -16,10 +16,12 @@ describe('staged media handoff', () => {
     const commitLegStart = vi.fn();
     const transition = createStagedMediaHandoff({
       id: 'ttg-lab',
-      prepareEndpoints: () => undefined,
-      prepareLeg: () => Promise.resolve(),
-      commitLegStart,
-      renderSource: () => undefined
+      target: { prepareFinalHold: () => undefined },
+      source: {
+        prepareLeg: () => Promise.resolve(),
+        commitLegStart,
+        renderExit: () => undefined
+      }
     });
     const timeline = await transition.buildTimeline(fixture.context);
     const leg = {
@@ -58,9 +60,11 @@ describe('staged media handoff', () => {
     const renders: Array<{ progress: number; direction: number; runId: string }> = [];
     const transition = createStagedMediaHandoff({
       id: 'ttg-lab',
-      prepareEndpoints: () => undefined,
-      renderSource: (_root, progress, context) => {
-        renders.push({ progress, direction: context.direction, runId: context.runId });
+      target: { prepareFinalHold: () => undefined },
+      source: {
+        renderExit: (_root, progress, context) => {
+          renders.push({ progress, direction: context.direction, runId: context.runId });
+        }
       }
     });
     const timeline = await transition.buildTimeline(fixture.context);
@@ -106,12 +110,14 @@ describe('staged media handoff', () => {
     });
     const transition = createStagedMediaHandoff({
       id: 'ph-education',
-      prepareEndpoints: () => undefined,
-      prepareLeg: (_root, _leg, context) => {
-        preparedContext = context;
-        return terminalReady;
-      },
-      renderSource: () => undefined
+      target: { prepareFinalHold: () => undefined },
+      source: {
+        prepareLeg: (_root, _leg, context) => {
+          preparedContext = context;
+          return terminalReady;
+        },
+        renderExit: () => undefined
+      }
     });
     const reverseContext = {
       ...fixture.context,
@@ -157,11 +163,13 @@ describe('staged media handoff', () => {
     const disposals: number[] = [];
     const transition = createStagedMediaHandoff({
       id: 'ttg-lab',
-      prepareEndpoints: () => undefined,
-      prepareLeg: () => Promise.resolve(),
-      commitLegEndpoint: (_root, leg) => commits.push(leg.to),
-      disposeSource: (_root, progress) => disposals.push(progress),
-      renderSource: () => undefined
+      target: { prepareFinalHold: () => undefined },
+      source: {
+        prepareLeg: () => Promise.resolve(),
+        commitLegEndpoint: (_root, leg) => commits.push(leg.to),
+        dispose: (_root, progress) => disposals.push(progress),
+        renderExit: () => undefined
+      }
     });
     const timeline = await transition.buildTimeline(fixture.context);
     const stop = fixture.context.segment.policy.kind === 'stagedSnap'
