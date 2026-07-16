@@ -11,6 +11,14 @@ const copyPath = path.join(repoDir, 'docs/react-refactor/inventory/copy-referenc
 const staticCopyOmissionsPath = path.join(appDir, 'build/static-copy-omissions.json');
 const faviconSourcePath = path.join(repoDir, 'assets/favicon.svg');
 const titleFontSourcePath = path.join(repoDir, 'assets/fonts/qiji-title-subset.ttf');
+const releaseId = process.env.R5_RELEASE_ID?.trim() ?? '';
+const requireCdn = process.env.R5_REQUIRE_CDN === '1';
+const assetCdnOrigin = new URL(
+  process.env.R5_ASSET_CDN_BASE?.trim() || 'https://assets.tongye.me'
+).origin;
+const mediaCdnOrigin = new URL(
+  process.env.R5_MEDIA_CDN_BASE?.trim() || 'https://media.tongye.me'
+).origin;
 
 function assert(condition, message) {
   if (!condition) {
@@ -55,7 +63,19 @@ function releaseLinkHref(html, predicate, label) {
 
 function distPathFromHref(href, label) {
   assert(!href.startsWith('data:'), `${label} must not be an inline data URL`);
-  const pathname = new URL(href, 'https://release.invalid/').pathname;
+  const url = new URL(href, 'https://release.invalid/');
+  let pathname = url.pathname;
+  if (url.origin === assetCdnOrigin || url.origin === mediaCdnOrigin) {
+    assert(releaseId, `${label} uses CDN without R5_RELEASE_ID`);
+    const releasePrefix = `/releases/${releaseId}/`;
+    assert(pathname.startsWith(releasePrefix), `${label} uses the wrong CDN release path`);
+    pathname = pathname.slice(releasePrefix.length);
+  } else {
+    assert(
+      url.origin === 'https://release.invalid',
+      `${label} uses unexpected external origin ${url.origin}`
+    );
+  }
   const relativePath = decodeURIComponent(pathname).replace(/^\/+/, '');
   const target = path.resolve(distDir, relativePath);
   assert(target.startsWith(`${distDir}${path.sep}`), `${label} resolves outside dist`);
@@ -98,6 +118,16 @@ const titleFontHref = releaseLinkHref(
   (tag) => attribute(tag, 'rel') === 'preload' && attribute(tag, 'as') === 'font',
   'release title font preload'
 );
+if (requireCdn) {
+  assert(
+    new URL(faviconHref).origin === assetCdnOrigin,
+    'release favicon must use the assets CDN'
+  );
+  assert(
+    new URL(titleFontHref).origin === assetCdnOrigin,
+    'release title font preload must use the assets CDN'
+  );
+}
 const stylesheetHrefs = (html.match(/<link\b[^>]*>/gi) ?? [])
   .filter((tag) => attribute(tag, 'rel') === 'stylesheet')
   .map((tag) => attribute(tag, 'href'))

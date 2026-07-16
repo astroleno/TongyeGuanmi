@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "assetExtensions": [
+    ".avif",
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".svg",
+    ".ttf",
+    ".webp",
+    ".woff",
+    ".woff2"
+  ],
+  "mediaExtensions": [
+    ".m4v",
+    ".mp4",
+    ".vtt",
+    ".webm"
+  ]
+}

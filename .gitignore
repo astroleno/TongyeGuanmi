@@ -2,6 +2,7 @@
 node_modules/
 dist/
 output/
+.release/
 playwright-report/
 test-results/
 .review-*.png
