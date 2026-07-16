@@ -558,6 +558,93 @@ test('Figure2 Proof owns one snap-free scrollport and accepts incremental wheel 
   await expectLayerInvariants(page);
 });
 
+test('Proof, Lab, Services, and Education share burst, tail, fresh-input, and reverse-entry reading contracts', async ({ page }) => {
+  test.setTimeout(120_000);
+  const cases = [
+    { scene: 'figure2-proof', reverseFrom: 'brand' },
+    { scene: 'services', reverseFrom: 'ttg-animation' },
+    { scene: 'lab', reverseFrom: 'ph-animation' },
+    { scene: 'education', reverseFrom: 'crane-animation' }
+  ] as const;
+  const readingMetrics = (scene: string) => page.evaluate((currentScene) => {
+    const layer = document.querySelector<HTMLElement>(`[data-stage-layer="${currentScene}"]`);
+    const scrollport = layer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
+      ?? (layer?.dataset.reading === 'true' ? layer : null);
+    if (!layer || !scrollport) {
+      throw new Error(`Reading scrollport missing for ${currentScene}`);
+    }
+    return {
+      scrollportIsLayer: scrollport === layer,
+      scrollTop: scrollport.scrollTop,
+      maxScrollTop: Math.max(0, scrollport.scrollHeight - scrollport.clientHeight),
+      viewportHeight: window.innerHeight,
+      reading: layer.dataset.reading,
+      current: window.__storyApp?.snapshot().current,
+      phase: window.__storyApp?.snapshot().phase
+    };
+  }, scene);
+  const wheel = (scene: string, deltaY: number) => page.evaluate(({ currentScene, delta }) => {
+    const layer = document.querySelector<HTMLElement>(`[data-stage-layer="${currentScene}"]`);
+    const scrollport = layer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
+      ?? (layer?.dataset.reading === 'true' ? layer : null);
+    if (!scrollport) throw new Error(`Reading scrollport missing for ${currentScene}`);
+    scrollport.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+      deltaY: delta
+    }));
+    return scrollport.scrollTop;
+  }, { currentScene: scene, delta: deltaY });
+
+  for (const scenario of cases) {
+    await bootStory(page, `/#${scenario.scene}`);
+    const initial = await readingMetrics(scenario.scene);
+    expect(initial).toMatchObject({
+      reading: 'true',
+      current: scenario.scene,
+      phase: 'hold'
+    });
+    expect(initial.maxScrollTop, `${scenario.scene} scroll range`).toBeGreaterThan(initial.viewportHeight * 0.7);
+
+    const burstSamples: number[] = [];
+    for (let index = 0; index < 7; index += 1) {
+      burstSamples.push(await wheel(scenario.scene, 80));
+      await page.waitForTimeout(24);
+    }
+    expect(
+      burstSamples.every((value, index) => index === 0 || value > burstSamples[index - 1]!),
+      `${scenario.scene} burst must advance monotonically`
+    ).toBe(true);
+    const burstDisplacement = (burstSamples.at(-1) ?? 0) - initial.scrollTop;
+    expect(burstDisplacement, `${scenario.scene} burst displacement`).toBeGreaterThan(initial.viewportHeight * 0.35);
+    expect(burstDisplacement, `${scenario.scene} burst displacement`).toBeLessThan(initial.viewportHeight * 0.65);
+
+    const budgetExhaustedScrollTop = await wheel(scenario.scene, 500);
+    const absorbedTailScrollTop = await wheel(scenario.scene, 500);
+    expect(absorbedTailScrollTop, `${scenario.scene} tail must be absorbed`).toBeCloseTo(budgetExhaustedScrollTop, 0);
+    expect(absorbedTailScrollTop, `${scenario.scene} tail must remain inside the gesture budget`)
+      .toBeLessThanOrEqual(initial.viewportHeight * 0.65 + 1);
+
+    await page.waitForTimeout(260);
+    const freshGestureScrollTop = await wheel(scenario.scene, 80);
+    expect(freshGestureScrollTop, `${scenario.scene} fresh gesture must resume reading`)
+      .toBeGreaterThan(absorbedTailScrollTop);
+    const reverseGestureScrollTop = await wheel(scenario.scene, -80);
+    expect(reverseGestureScrollTop, `${scenario.scene} reverse gesture must remain owned by reading`)
+      .toBeLessThan(freshGestureScrollTop);
+    expect(await storySnapshot(page)).toMatchObject({ phase: 'hold', current: scenario.scene });
+    await expectLayerInvariants(page);
+
+    await bootStory(page, `/#${scenario.reverseFrom}`);
+    expect((await moveOneHold(page, -1)).current).toBe(scenario.scene);
+    const reverseEntry = await readingMetrics(scenario.scene);
+    expect(reverseEntry.scrollTop, `${scenario.scene} reverse entry must begin at its reading end`)
+      .toBeCloseTo(reverseEntry.maxScrollTop, 0);
+    await expectLayerInvariants(page);
+  }
+});
+
 test('long reading scenes have no residual horizontal rules and Lab omits retired copy', async ({ page }) => {
   const cases = [
     {
@@ -661,6 +748,117 @@ test('Method split keeps an opaque receiver paper beneath the outgoing layout', 
   expect(handoff.every((sample) => sample.receiverOpacity === 1 && sample.receiverVisible)).toBe(true);
   expect(handoff.every((sample) => sample.receiverPaper !== 'rgba(0, 0, 0, 0)')).toBe(true);
   await waitForHold(page, 'method-bottom');
+  await expectLayerInvariants(page);
+});
+
+test('AOD first presented alpha frame stays composited over Method paper from p=0', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'presented alpha-frame readback runs once');
+  test.setTimeout(45_000);
+  await bootStory(page, '/#aod-animation');
+
+  const firstPresentedFrame = page.evaluate(() => new Promise<{
+    progress: number;
+    sourceOpacity: number;
+    receiverOpacity: number;
+    receiverPaper: string;
+    frameReady: boolean;
+    presentedFrames: number;
+    visiblePixels: number;
+    transparentPixels: number;
+    videoMeanLuminance: number;
+    compositedMeanLuminance: number;
+  }>((resolve, reject) => {
+    let animationFrame = 0;
+    const timeout = window.setTimeout(() => {
+      cancelAnimationFrame(animationFrame);
+      reject(new Error('AOD first presented-frame witness timed out'));
+    }, 15_000);
+    const sample = () => {
+      const aodLayer = document.querySelector<HTMLElement>('[data-stage-layer="aod-animation"]');
+      const receiverLayer = document.querySelector<HTMLElement>('[data-stage-layer="method-top"]');
+      const root = aodLayer?.querySelector<HTMLElement>('[data-aod-transition]');
+      const receiver = receiverLayer?.querySelector<HTMLElement>('[data-r4-scene="method-top"]');
+      const video = root?.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+      const progress = Number.parseFloat(root?.style.getPropertyValue('--aod-transition-progress') ?? 'NaN');
+      const frameReady = video?.dataset.timelineVideoFrameReady === 'true';
+      if (
+        root?.dataset.aodExitActive !== 'true'
+        || root.dataset.aodAlphaComposite !== 'true'
+        || !Number.isFinite(progress)
+        || progress < 0
+        || progress > 0.02
+        || !frameReady
+        || !video
+        || !receiver
+      ) {
+        animationFrame = requestAnimationFrame(sample);
+        return;
+      }
+      const receiverPaper = getComputedStyle(receiver).backgroundColor;
+      const paperChannels = receiverPaper.match(/\d+(?:\.\d+)?/g)?.slice(0, 3).map(Number) ?? [237, 228, 210];
+      const paperLuminance = 0.2126 * (paperChannels[0] ?? 237)
+        + 0.7152 * (paperChannels[1] ?? 228)
+        + 0.0722 * (paperChannels[2] ?? 210);
+      const sampleCanvas = document.createElement('canvas');
+      sampleCanvas.width = 48;
+      sampleCanvas.height = 48;
+      const context = sampleCanvas.getContext('2d', { willReadFrequently: true });
+      if (!context || video.videoWidth <= 0 || video.videoHeight <= 0) {
+        animationFrame = requestAnimationFrame(sample);
+        return;
+      }
+      context.drawImage(video, 0, 0, sampleCanvas.width, sampleCanvas.height);
+      const pixels = context.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
+      let visiblePixels = 0;
+      let transparentPixels = 0;
+      let videoLuminanceTotal = 0;
+      let compositedLuminanceTotal = 0;
+      for (let offset = 0; offset < pixels.length; offset += 4) {
+        const alpha = (pixels[offset + 3] ?? 0) / 255;
+        const luminance = 0.2126 * (pixels[offset] ?? 0)
+          + 0.7152 * (pixels[offset + 1] ?? 0)
+          + 0.0722 * (pixels[offset + 2] ?? 0);
+        if (alpha > 0.03) visiblePixels += 1;
+        if (alpha < 0.97) transparentPixels += 1;
+        videoLuminanceTotal += luminance;
+        compositedLuminanceTotal += luminance * alpha + paperLuminance * (1 - alpha);
+      }
+      window.clearTimeout(timeout);
+      resolve({
+        progress,
+        sourceOpacity: Number.parseFloat(getComputedStyle(aodLayer).opacity),
+        receiverOpacity: Number.parseFloat(getComputedStyle(receiverLayer).opacity),
+        receiverPaper,
+        frameReady,
+        presentedFrames: video.getVideoPlaybackQuality?.().totalVideoFrames ?? 0,
+        visiblePixels,
+        transparentPixels,
+        videoMeanLuminance: videoLuminanceTotal / (sampleCanvas.width * sampleCanvas.height),
+        compositedMeanLuminance: compositedLuminanceTotal / (sampleCanvas.width * sampleCanvas.height)
+      });
+    };
+    animationFrame = requestAnimationFrame(sample);
+  }));
+
+  await page.keyboard.press('PageDown');
+  const witness = await firstPresentedFrame;
+  expect(witness.progress).toBeGreaterThanOrEqual(0);
+  expect(witness.progress).toBeLessThanOrEqual(0.02);
+  expect(witness.sourceOpacity).toBe(1);
+  expect(witness.receiverOpacity).toBe(1);
+  expect(witness.receiverPaper).not.toBe('rgba(0, 0, 0, 0)');
+  expect(witness.frameReady).toBe(true);
+  expect(witness.presentedFrames).toBeGreaterThan(0);
+  expect(witness.visiblePixels).toBeGreaterThan(0);
+  expect(witness.transparentPixels).toBeGreaterThan(0);
+  expect(witness.videoMeanLuminance).toBeGreaterThan(0);
+  expect(witness.compositedMeanLuminance).toBeGreaterThan(80);
+  console.info(`R5 AOD first-presented-frame witness ${JSON.stringify(witness)}`);
+  await testInfo.attach('r5-aod-first-presented-frame.json', {
+    body: JSON.stringify(witness, null, 2),
+    contentType: 'application/json'
+  });
+  await waitForHold(page, 'method-top');
   await expectLayerInvariants(page);
 });
 

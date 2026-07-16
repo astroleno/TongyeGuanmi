@@ -220,6 +220,14 @@ test.describe('R3 pilot harness', () => {
         revealBackgroundColor: string;
         paperSolidOpacity: string;
         figureOpacity: string;
+        aodExitActive: string;
+        videoFrameReady: boolean;
+        presentedFrames: number;
+        videoVisiblePixels: number;
+        videoTransparentPixels: number;
+        videoMeanLuminance: number;
+        compositedMeanLuminance: number;
+        receiverPaperColor: string;
       } | null>((resolve) => {
         let animationFrame = 0;
         const timeout = window.setTimeout(() => {
@@ -236,6 +244,39 @@ test.describe('R3 pilot harness', () => {
           const paperSolid = root?.querySelector<HTMLElement>('.aod-transition__paper-solid');
           const figure = root?.querySelector<HTMLElement>('[data-aod-figure-video]');
           const methodCopy = methodLayer?.querySelector<HTMLElement>('.r4-method__layout');
+          const methodPaper = methodLayer?.querySelector<HTMLElement>('[data-r4-scene="method-top"]');
+          const receiverPaperColor = methodPaper ? getComputedStyle(methodPaper).backgroundColor : '';
+          const paperChannels = receiverPaperColor.match(/\d+(?:\.\d+)?/g)
+            ?.slice(0, 3)
+            .map(Number) ?? [237, 228, 210];
+          const paperLuminance = 0.2126 * (paperChannels[0] ?? 237)
+            + 0.7152 * (paperChannels[1] ?? 228)
+            + 0.0722 * (paperChannels[2] ?? 210);
+          let videoVisiblePixels = 0;
+          let videoTransparentPixels = 0;
+          let videoLuminanceTotal = 0;
+          let compositedLuminanceTotal = 0;
+          if (figure instanceof HTMLVideoElement && figure.videoWidth > 0 && figure.videoHeight > 0) {
+            const sampleCanvas = document.createElement('canvas');
+            sampleCanvas.width = 48;
+            sampleCanvas.height = 48;
+            const context = sampleCanvas.getContext('2d', { willReadFrequently: true });
+            if (context) {
+              context.drawImage(figure, 0, 0, sampleCanvas.width, sampleCanvas.height);
+              const pixels = context.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
+              for (let offset = 0; offset < pixels.length; offset += 4) {
+                const alpha = (pixels[offset + 3] ?? 0) / 255;
+                const luminance = 0.2126 * (pixels[offset] ?? 0)
+                  + 0.7152 * (pixels[offset + 1] ?? 0)
+                  + 0.0722 * (pixels[offset + 2] ?? 0);
+                if (alpha > 0.03) videoVisiblePixels += 1;
+                if (alpha < 0.97) videoTransparentPixels += 1;
+                videoLuminanceTotal += luminance;
+                compositedLuminanceTotal += luminance * alpha + paperLuminance * (1 - alpha);
+              }
+            }
+          }
+          const sampledPixels = 48 * 48;
           const next = {
             progress: Number.parseFloat(root?.style.getPropertyValue('--aod-transition-progress') || '-1'),
             aodLayerOpacity: aodLayer ? getComputedStyle(aodLayer).opacity : '',
@@ -248,9 +289,26 @@ test.describe('R3 pilot harness', () => {
             fieldBackgroundColor: field ? getComputedStyle(field).backgroundColor : '',
             revealBackgroundColor: reveal ? getComputedStyle(reveal).backgroundColor : '',
             paperSolidOpacity: paperSolid ? getComputedStyle(paperSolid).opacity : '',
-            figureOpacity: figure ? getComputedStyle(figure).opacity : ''
+            figureOpacity: figure ? getComputedStyle(figure).opacity : '',
+            aodExitActive: root?.dataset.aodExitActive ?? '',
+            videoFrameReady: figure instanceof HTMLVideoElement
+              && figure.dataset.timelineVideoFrameReady === 'true',
+            presentedFrames: figure instanceof HTMLVideoElement
+              ? figure.getVideoPlaybackQuality?.().totalVideoFrames ?? 0
+              : 0,
+            videoVisiblePixels,
+            videoTransparentPixels,
+            videoMeanLuminance: videoLuminanceTotal / sampledPixels,
+            compositedMeanLuminance: compositedLuminanceTotal / sampledPixels,
+            receiverPaperColor
           };
-          if (next.alphaComposite === 'true' && next.progress > 0.02) {
+          if (
+            next.alphaComposite === 'true'
+            && next.aodExitActive === 'true'
+            && next.progress >= 0
+            && next.progress <= 0.02
+            && next.videoFrameReady
+          ) {
             window.clearTimeout(timeout);
             resolve(next);
             return;
@@ -280,6 +338,15 @@ test.describe('R3 pilot harness', () => {
       paperSolidOpacity: '0',
       figureOpacity: '1'
     });
+    expect(forward?.progress).toBeLessThanOrEqual(0.02);
+    expect(forward?.aodExitActive).toBe('true');
+    expect(forward?.videoFrameReady).toBe(true);
+    expect(forward?.presentedFrames).toBeGreaterThan(0);
+    expect(forward?.videoVisiblePixels).toBeGreaterThan(0);
+    expect(forward?.videoTransparentPixels).toBeGreaterThan(0);
+    expect(forward?.videoMeanLuminance).toBeGreaterThan(0);
+    expect(forward?.compositedMeanLuminance).toBeGreaterThan(80);
+    expect(forward?.receiverPaperColor).not.toBe('rgba(0, 0, 0, 0)');
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 15_000 })
       .toBe('method-top');
 
@@ -298,6 +365,15 @@ test.describe('R3 pilot harness', () => {
       paperSolidOpacity: '0',
       figureOpacity: '1'
     });
+    expect(reverse?.progress).toBeLessThanOrEqual(0.02);
+    expect(reverse?.aodExitActive).toBe('true');
+    expect(reverse?.videoFrameReady).toBe(true);
+    expect(reverse?.presentedFrames).toBeGreaterThan(0);
+    expect(reverse?.videoVisiblePixels).toBeGreaterThan(0);
+    expect(reverse?.videoTransparentPixels).toBeGreaterThan(0);
+    expect(reverse?.videoMeanLuminance).toBeGreaterThan(0);
+    expect(reverse?.compositedMeanLuminance).toBeGreaterThan(80);
+    expect(reverse?.receiverPaperColor).toBe(forward?.receiverPaperColor);
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 15_000 })
       .toBe('aod-animation');
   });

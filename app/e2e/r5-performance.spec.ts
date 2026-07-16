@@ -44,6 +44,8 @@ type InkPixelWitness = Readonly<{
   opaquePixels: number;
   brightPixels: number;
   sparseBrightPixels: number;
+  compactSquareSpatterComponents?: number;
+  compactSquareSpatterPixels?: number;
   maxAlpha: number;
   maxLuminance: number;
   doubleEdgeColumns?: number;
@@ -118,9 +120,10 @@ async function waitForLiveInk(
 async function readInkPixels(
   page: Page,
   segment: string,
-  includeHorizontalDoubleEdge = false
+  includeHorizontalDoubleEdge = false,
+  includeParticleMorphology = false
 ): Promise<InkPixelWitness> {
-  return page.evaluate(async ({ expectedSegment, inspectDoubleEdge }) => {
+  return page.evaluate(async ({ expectedSegment, inspectDoubleEdge, inspectParticles }) => {
     const canvas = document.querySelector<HTMLCanvasElement>(
       `canvas[data-r4-ink-segment="${expectedSegment}"]`
     );
@@ -141,6 +144,7 @@ async function readInkPixels(
     let sparseBrightPixels = 0;
     let maxAlpha = 0;
     let maxLuminance = 0;
+    const particleMask = inspectParticles ? new Uint8Array(width * height) : null;
     const brightnessAt = (offset: number) => Math.max(
       pixels[offset] ?? 0,
       pixels[offset + 1] ?? 0,
@@ -171,8 +175,66 @@ async function readInkPixels(
             if (brightNeighbors <= 2) sparseBrightPixels += 1;
           }
         }
+        if (particleMask && alpha > 18 && brightness > 96) {
+          particleMask[y * width + x] = 1;
+        }
       }
     }
+
+    const particleMorphology = particleMask ? (() => {
+      const visited = new Uint8Array(width * height);
+      const queue = new Int32Array(width * height);
+      let compactSquareSpatterComponents = 0;
+      let compactSquareSpatterPixels = 0;
+      for (let start = 0; start < particleMask.length; start += 1) {
+        if (particleMask[start] === 0 || visited[start] !== 0) continue;
+        let head = 0;
+        let tail = 0;
+        let area = 0;
+        let minX = width;
+        let maxX = 0;
+        let minY = height;
+        let maxY = 0;
+        queue[tail++] = start;
+        visited[start] = 1;
+        while (head < tail) {
+          const pixel = queue[head++]!;
+          const x = pixel % width;
+          const y = (pixel - x) / width;
+          area += 1;
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
+          const enqueue = (neighbor: number) => {
+            if (particleMask[neighbor] === 0 || visited[neighbor] !== 0) return;
+            visited[neighbor] = 1;
+            queue[tail++] = neighbor;
+          };
+          if (x > 0) enqueue(pixel - 1);
+          if (x < width - 1) enqueue(pixel + 1);
+          if (y > 0) enqueue(pixel - width);
+          if (y < height - 1) enqueue(pixel + width);
+        }
+        const componentWidth = maxX - minX + 1;
+        const componentHeight = maxY - minY + 1;
+        const shorterSide = Math.max(1, Math.min(componentWidth, componentHeight));
+        const aspectRatio = Math.max(componentWidth, componentHeight) / shorterSide;
+        const fillRatio = area / (componentWidth * componentHeight);
+        if (
+          area >= 4
+          && area <= 1024
+          && componentWidth >= 2
+          && componentHeight >= 2
+          && aspectRatio <= 1.8
+          && fillRatio >= 0.42
+        ) {
+          compactSquareSpatterComponents += 1;
+          compactSquareSpatterPixels += area;
+        }
+      }
+      return { compactSquareSpatterComponents, compactSquareSpatterPixels };
+    })() : {};
 
     const horizontal = inspectDoubleEdge ? (() => {
       let doubleEdgeColumns = 0;
@@ -230,9 +292,14 @@ async function readInkPixels(
       sparseBrightPixels,
       maxAlpha,
       maxLuminance,
+      ...particleMorphology,
       ...horizontal
     };
-  }, { expectedSegment: segment, inspectDoubleEdge: includeHorizontalDoubleEdge });
+  }, {
+    expectedSegment: segment,
+    inspectDoubleEdge: includeHorizontalDoubleEdge,
+    inspectParticles: includeParticleMorphology
+  });
 }
 
 async function readHeroTargetTextureOrientation(page: Page): Promise<HeroTextureOrientationWitness> {
@@ -456,7 +523,7 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
 
   await pressFromCurrentHold(page, 'PageDown');
   const heroPatternWitness = await waitForLiveInk(page, 'hero-pattern', { min: 0.46, max: 0.56 });
-  const heroPatternPixels = await readInkPixels(page, 'hero-pattern');
+  const heroPatternPixels = await readInkPixels(page, 'hero-pattern', false, true);
   await startFrameSampling(page, 'hero-pattern');
   await waitForHold(page, 'pattern');
   const heroPatternIntervals = await stopFrameSampling(page);
@@ -543,6 +610,18 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
     heroPatternPixels.sparseBrightPixels / (heroPatternPixels.width * heroPatternPixels.height),
     'hero particle-density pixels'
   ).toBeGreaterThan(0.000_01);
+  expect(
+    heroPatternPixels.brightPixels / (heroPatternPixels.width * heroPatternPixels.height),
+    'hero particle-density ceiling'
+  ).toBeLessThan(0.04);
+  expect(
+    heroPatternPixels.compactSquareSpatterComponents,
+    'hero compact square-spatter components'
+  ).toBeGreaterThanOrEqual(4);
+  expect(
+    heroPatternPixels.compactSquareSpatterPixels,
+    'hero compact square-spatter pixels'
+  ).toBeGreaterThanOrEqual(16);
   if (bootMetrics.usedJsHeapBytes !== undefined) {
     expect(bootMetrics.usedJsHeapBytes).toBeLessThanOrEqual(160 * 1024 * 1024);
   }
@@ -618,14 +697,11 @@ test('focused media and horizontal Ink paths separate first decode from steady f
   startedAt = Date.now();
   await pressFromCurrentHold(page, 'PageUp');
   await page.waitForFunction(() => {
-    const reverse = [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')]
-      .filter((video) => (
-        video.dataset.figure2Direction === '-1'
-        && video.dataset.figure2Inactive !== 'true'
-      ));
-    return reverse.length === 2
-      && reverse.every((video) => video.dataset.timelineVideoFrameReady === 'true')
-      && reverse.every((video) => video.currentTime > 0.05);
+    const reverse = document.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
+    return reverse?.dataset.timelineVideoDirection === '-1'
+      && reverse.dataset.timelineVideoFrameReady === 'true'
+      && reverse.currentTime >= 2.6
+      && reverse.currentTime <= 5.2;
   });
   const figure2ReverseFirstDecodeMs = Date.now() - startedAt;
   await waitForHold(page, 'figure2-animation');

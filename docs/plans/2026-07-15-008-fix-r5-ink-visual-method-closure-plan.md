@@ -22,7 +22,14 @@ plan_depth: deep
 
 Figure2 Proof reverse 白闪已由 `1d62d2e` 的单一 Proof ownership surface、retained warm ground/arch 与原生 reverse media 闭环，且用户视觉复核通过；本计划删除该修复项，不再安排 `depthThresholdMask` 或 Figure2 ownership 重构。共享 Ink 的 Figure2 depth 性能仍作为防回退门禁，不代表白闪问题重新打开。
 
-本计划继续更新 008，不回写 006/007 的实施记录。当前工作树最后一次已知 total JS raw 为 `581,600 / 581,632 bytes`，只有 32 bytes 余量；实施必须先获得可用 headroom，禁止提高预算后再补功能。
+本计划继续更新 008，不回写 006/007 的实施记录。当前实施验证的 total JS raw 为 `575,430 / 581,632 bytes`，相对最终目标 `577,536 bytes` 仍有 `2,106 bytes`，相对硬上限有 `6,202 bytes` 余量；禁止提高预算后再补功能。
+
+## 2026-07-16 实施记录
+
+- 隔离实现分支为 `codex/r5-ink-visual-method-closure`；核心视觉、交接、reading 与 lifecycle 闭环已提交为 `24eb89c`。
+- 复核要求整体迁入的媒体提交已按顺序落地：`3a6ff95`（PH green-screen edge spill）与 `7b34eb8`（Figure2 单一双向媒体、PTS/GOP、manifest、runtime ownership、测试和归档）。这不是孤立复制 WebM。
+- U0–U6 的源码和自动化合同已经完成；U7 的 desktop Chromium 自动证据已补齐 AOD 的 `p=0` 首个 presented alpha frame、四个 reading 场景的 burst/tail/fresh/reverse-entry，以及 Hero 粒子形态/密度上限与 Figure2 单媒体 reverse 路径。
+- 计划仍保持 `active`：immutable candidate、完整 default/release matrix、process-memory/disposal qualification、rollback manifest、macOS 触控板与关键视觉 HITL 尚未完成，不能冻结或 cutover。
 
 ## Problem Frame
 
@@ -63,7 +70,7 @@ Figure2 Proof reverse 白闪已由 `1d62d2e` 的单一 Proof ownership surface�
 
 ## Scope Boundaries
 
-- 不修改或重新压缩任何 WebM/WebP；保留现有 Figure2 reverse 与 Crane flock 资产。
+- 除 2026-07-16 依复核整体迁入 `3a6ff95` 与 `7b34eb8` 的 PH / Figure2 媒体变更外，不独立修改或重新压缩 WebM/WebP；保留 Crane flock 资产。
 - 不改变已经确认的 Hero 900/1800ms、Pattern collapse+copy 同相、AOD alpha 36%、AOD reverse、Proof 三屏滚动和 Figure2/TTG/PH 1000ms dwell。
 - 不添加 DOM 粒子、2D canvas 粒子循环、第二 Ink canvas、第二 noise atlas、WebCodecs bridge 或 poster fallback。
 - 不把 Main 的完整重型 shader 原样搬回；Main 只作为视觉和粒子分布 authority。
@@ -72,7 +79,7 @@ Figure2 Proof reverse 白闪已由 `1d62d2e` 的单一 Proof ownership surface�
 - 只移除 Lab/Services/Education 的内部水平规则；Proof、Method、导航、CTA、focus outline 与其他章节边界不在本轮清理范围。
 - `FIELD CHECK` / `06 SCENES` 从 React、static fallback、copy baseline 与 no-JS shell 一并删除；immutable legacy tag/source 不回写。
 - Figure2 白闪修复在 `1d62d2e` 已关闭；本轮不修改其 retained surface、reverse media 或 depth-mask ownership。若共享 Ink 改动造成回归，只回滚共享改动，不重新设计 Figure2。
-- 不提高 JS、initial transfer、媒体、LCP、heap、GPU surface 或 memory budget。
+- 不提高 JS、initial transfer、运行时媒体总量、LCP、heap、GPU surface 或 memory budget；上述已批准媒体迁入后 runtime media 总量必须仍低于迁入前基线。
 
 ## Context & Research
 
@@ -150,7 +157,7 @@ flowchart TB
 
 ## Implementation Units
 
-- [ ] **U0 — Characterization、错误合同替换与预算基线**
+- [x] **U0 — Characterization、错误合同替换与预算基线**
 
 **Goal:** 在改变 production 行为前，把当前 Ink、Method、AOD、reading、长页版式与未关闭 lifecycle 问题变成会失败的可观测合同，并冻结 fresh build 预算。
 
@@ -204,7 +211,7 @@ flowchart TB
 
 **Verification:** 当前错误必须能被 deterministic unit/static witness 捕获；性能报告必须拒绝 renderer unavailable 的假样本。
 
-- [ ] **U1 — 恢复轻量径向、水平双层和方块粒子**
+- [x] **U1 — 恢复轻量径向、水平双层和方块粒子**
 
 **Goal:** 在单 atlas、单 canvas、单 draw call 架构内恢复 Ink 视觉语言，同时修复 Hero dev/StrictMode context 生命周期，并净回收 JS headroom。
 
@@ -267,7 +274,7 @@ flowchart TB
 
 U1 后 fresh production build 的 total JS raw 必须 `≤573,440 bytes`，即在固定 581,632-byte 上限下至少保留 8 KiB。未达到时停止进入新增 runtime 的 U2–U5，继续从重复 diagnostics、shader helper 和已废弃兼容 runtime 回收；净删除代码的 U6 可先落地并计入 headroom。禁止提高预算、删粒子、取消 Method 两屏或跳过 reading/AOD 修复。
 
-- [ ] **U2 — Method 引导与 1–5 拆成两个 canonical holds**
+- [x] **U2 — Method 引导与 1–5 拆成两个 canonical holds**
 
 **Goal:** 恢复 `method-upper` / `method-lower` 两屏信息架构，并保持正反向、阅读滚动和导航一致。
 
@@ -328,7 +335,7 @@ U1 后 fresh production build 的 total JS raw 必须 `≤573,440 bytes`，即�
 
 **Verification:** forward/reverse 都必须完整经过两个 hold；r4-g2 不再依赖错误的 `method-top` 内嵌 list scrollport。
 
-- [ ] **U3 — AOD→Method 启动 backing handoff 零闪帧**
+- [x] **U3 — AOD→Method 启动 backing handoff 零闪帧**
 
 **Goal:** 关闭 AOD 动画启动时的单帧 backing 空窗，同时保留 36% alpha 时长、正反向媒体映射与 0.8 Method copy cue。
 
@@ -366,7 +373,7 @@ U1 后 fresh production build 的 total JS raw 必须 `≤573,440 bytes`，即�
 
 **Verification:** AOD 启动闪帧由 deterministic ownership contract 与 focused pixel witness 同时关闭，且 alpha/reverse 既有测试保持不变。
 
-- [ ] **U4 — Figure3 terminal handoff 与 Hero 有界 phase barrier**
+- [x] **U4 — Figure3 terminal handoff 与 Hero 有界 phase barrier**
 
 **Goal:** 删除 Figure3 尾段二值 video opacity，并让 Hero motion/Ink phase boundary 在 WebKit、后台和 abort 场景下不会无限等待。
 
@@ -405,7 +412,7 @@ U1 后 fresh production build 的 total JS raw 必须 `≤573,440 bytes`，即�
 
 **Verification:** Figure3 endpoint/settle 与 reverse 首帧无闪断；Hero phase boundary 有明确最大等待时间与 recovery 结果。
 
-- [ ] **U5 — Reading-only motion governor 与边缘交接**
+- [x] **U5 — Reading-only motion governor 与边缘交接**
 
 **Goal:** 降低 Proof、Lab、Services、Education 的页内滚动位移，阻止一个 trackpad 衰减尾流跨多屏或直接离场，同时保持持续输入、touch、键盘和 reverse reading entry 可用。
 
@@ -453,7 +460,7 @@ U1 后 fresh production build 的 total JS raw 必须 `≤573,440 bytes`，即�
 
 **Verification:** Proof 不再“一划三屏”，三类长页手感一致；reading edge 与 non-reading transition 输入合同不回退。
 
-- [ ] **U6 — Lab/Services/Education horizontal rules 与 Lab header 清理**
+- [x] **U6 — Lab/Services/Education horizontal rules 与 Lab header 清理**
 
 **Goal:** 删除三类长阅读页内部的屏幕/条目分割线，并从所有生产 copy surfaces 删除 Lab 的 `FIELD CHECK / 06 SCENES` 块。
 
@@ -539,7 +546,7 @@ U1 后 fresh production build 的 total JS raw 必须 `≤573,440 bytes`，即�
 - active Ink RAF：1 draw call、0 compile、0 texture create/upload、0 per-frame Set/particle object allocation；reading hold 不新增持续 RAF。
 - AOD first-frame backing witness、reading gesture displacement witness 与 long-page border/copy witness全部有效，不能以跳过、reduced-only 或 synthetic endpoint 冒充。
 - final total JS raw `≤577,536 bytes`，至少保留 4 KiB headroom；硬上限仍为 581,632 bytes。
-- runtime media、initial transfer、LCP、heap、GPU surface 与既有 budget 不上升；本轮不新增生产媒体。
+- runtime media、initial transfer、LCP、heap、GPU surface 与既有 budget 不上升；媒体仅允许本计划实施记录列出的整体迁入，且总量必须低于迁入前基线。
 - default/release matrix、关键 HITL、immutable candidate、memory qualification 与 rollback manifest 指向同一 clean source commit后，008 才能标记 complete。
 
 ## System-Wide Impact
@@ -609,7 +616,7 @@ U1 后 fresh production build 的 total JS raw 必须 `≤573,440 bytes`，即�
 - Proof轻划不再跨三屏；Lab/Services/Education使用同一受控reading手感，同一衰减tail不能直接离场。
 - Lab/Services/Education内部无horizontal rules；Lab header节点、两条copy、fallback与no-JS输出全部不存在。
 - Figure3 terminal和Hero phase boundary通过endpoint/lifecycle门禁。
-- total JS raw ≤577,536 bytes，其他预算不提高，也不新增生产媒体。
+- total JS raw ≤577,536 bytes，其他预算不提高；允许实施记录列出的 PH / Figure2 整体媒体迁入，但 runtime media 总量不得增长。
 - 自动化、真实硬件Chromium性能、WebKit功能、macOS触控板和关键视觉HITL全部通过。
 - immutable candidate、memory qualification、rollback manifest完成且引用同一clean source commit。
 

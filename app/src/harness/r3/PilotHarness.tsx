@@ -259,6 +259,20 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
       ...visibilityRef.current,
       [scene]: visibility
     };
+    // The production LayerStore writes visibility to the bound surface before
+    // React observes the new snapshot. Mirror that ordering in the harness so
+    // an alpha source cannot expose the Stage while its paper receiver waits
+    // for a React commit.
+    const element = layerElements.current.get(scene);
+    if (element) {
+      element.style.opacity = String(visibility.opacity);
+      element.style.visibility = visibility.visible ? 'visible' : 'hidden';
+      element.style.pointerEvents = visibility.pointerEvents;
+      element.inert = visibility.inert;
+      element.setAttribute('aria-hidden', visibility.inert ? 'true' : 'false');
+      element.dataset.visible = String(visibility.visible && visibility.opacity > 0.001);
+      element.dataset.interactable = String(!visibility.inert && visibility.pointerEvents === 'auto');
+    }
     setVisibilityByScene(visibilityRef.current);
   };
 

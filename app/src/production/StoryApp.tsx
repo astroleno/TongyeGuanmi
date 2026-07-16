@@ -243,6 +243,11 @@ export function StoryApp() {
       return;
     }
     loaderHiddenReasonRef.current = reason;
+    // StoryLoader marks its own `hidden` state and invokes this callback in
+    // the same timer turn. Mirror that terminal state before publishing
+    // presentation readiness so snapshots cannot expose an interactive story
+    // while still reporting the previous `exiting` loader status.
+    setLoaderStatus('hidden');
     setLoaderExitReason(reason);
     if (reason === 'error' || bootFailed) {
       setHeroIntroMode('endpoint');
