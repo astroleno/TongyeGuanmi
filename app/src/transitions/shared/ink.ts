@@ -66,6 +66,7 @@ export type InkPlaybackPhase = Readonly<{
 export type InkPhaseBoundaryContext = InkSourceRenderContext & Readonly<{
   progress: number;
   roots: InkEndpointRoots;
+  signal: AbortSignal;
 }>;
 
 export type InkSegmentOptions = {
@@ -338,6 +339,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private playbackDirection: Direction;
   private readonly revealSurfaces = new Set<HTMLElement>();
   private readonly concealSurfaces = new Set<HTMLElement>();
+  private readonly phaseController = new AbortController();
 
   constructor(
     private readonly context: TransitionContext,
@@ -632,6 +634,9 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       return;
     }
     this.disposed = true;
+    if (!this.phaseController.signal.aborted) {
+      this.phaseController.abort(new Error(`Ink timeline ${this.options.id} disposed`));
+    }
     this.resizeObserver?.disconnect();
     this.motionLeases.dispose();
     if (this.animationFrame) {
@@ -765,14 +770,25 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       const range = ranges[index]!;
       await this.animateRange(range.target, range.durationMs);
       if (index + 1 < ranges.length && this.options.presentPhaseBoundary) {
+        if (this.phaseController.signal.aborted) {
+          throw this.phaseController.signal.reason instanceof Error
+            ? this.phaseController.signal.reason
+            : new Error(`Ink phase boundary aborted for ${this.options.id}`);
+        }
         await this.options.presentPhaseBoundary({
           ...this.sourceRenderContext(),
           progress: range.target,
+          signal: this.phaseController.signal,
           roots: {
             from: sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.options.rootSelector),
             to: sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.options.rootSelector)
           }
         });
+        if (this.phaseController.signal.aborted) {
+          throw this.phaseController.signal.reason instanceof Error
+            ? this.phaseController.signal.reason
+            : new Error(`Ink phase boundary aborted for ${this.options.id}`);
+        }
       }
     }
   }

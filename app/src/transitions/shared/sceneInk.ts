@@ -52,6 +52,7 @@ export type InkFieldRendererLifecycleOptions = Readonly<{
   fieldKind?: InkFieldFrame['spec']['kind'];
   grade?: InkGradePreset;
   generation?: string;
+  targetImage?: HTMLImageElement | null;
   onInvalidated?: (failure: InkRendererFailure) => void;
 }>;
 
@@ -87,30 +88,28 @@ const INK_GRADE_PRESETS = Object.freeze({
   })
 }) satisfies Readonly<Record<InkGradePreset, InkBoundaryTransitionOptions>>;
 
+const INK_DIAGNOSTICS = import.meta.env.DEV;
+
 function markGradePreset(
   canvas: HTMLCanvasElement,
-  renderer: TransitionInkCanvasOptions['renderer'],
   grade: InkGradePreset,
-  options: InkBoundaryTransitionOptions,
   generation: string
 ): void {
-  canvas.dataset.r4InkPreset = grade;
-  canvas.dataset.r4InkGrade = grade;
-  canvas.dataset.r4InkPresetApplied = 'true';
-  canvas.dataset.r4InkParticleProfile = 'jade-gold';
-  canvas.dataset.r4InkRenderer = renderer;
-  canvas.dataset.r4InkColorLift = (options.colorLift ?? 0).toFixed(3);
-  canvas.dataset.r4InkCoverAlpha = (options.coverAlpha ?? 0).toFixed(3);
-  canvas.dataset.r4InkDprLimit = (options.dprLimit ?? 1).toFixed(2);
   canvas.dataset.r4InkGeneration = generation;
+  if (!INK_DIAGNOSTICS) {
+    return;
+  }
+  canvas.dataset.r4InkGrade = grade;
 }
 
 function markBoundaryFrame(canvas: HTMLCanvasElement, frame: InkFieldFrame): void {
-  const origin = inkFieldOrigin(frame.spec);
   canvas.dataset.r4InkBoundaryKind = frame.spec.kind;
+  if (!INK_DIAGNOSTICS) {
+    return;
+  }
+  const origin = inkFieldOrigin(frame.spec);
   canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
   canvas.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
-  canvas.dataset.r4InkFieldSeed = String(frame.seed);
   if (frame.spec.kind === 'horizontal' && 'revision' in frame) {
     markHorizontalInkDiagnostics(canvas, frame);
   } else {
@@ -120,9 +119,11 @@ function markBoundaryFrame(canvas: HTMLCanvasElement, frame: InkFieldFrame): voi
 
 function clearBoundaryFrameMark(canvas: HTMLCanvasElement): void {
   delete canvas.dataset.r4InkBoundaryKind;
+  if (!INK_DIAGNOSTICS) {
+    return;
+  }
   delete canvas.dataset.r4InkBoundaryOrigin;
   delete canvas.dataset.r4InkBoundaryProgress;
-  delete canvas.dataset.r4InkFieldSeed;
   clearHorizontalInkDiagnostics(canvas);
 }
 
@@ -154,10 +155,11 @@ export function mountTransitionInkCanvas(
     .join(' ');
   canvas.dataset.r4InkSegment = segmentId;
   canvas.dataset.r4InkEffectOnly = 'true';
-  canvas.dataset.r4InkRenderer = options.renderer;
-  canvas.dataset.r4InkPreset = grade;
-  canvas.dataset.r4InkGrade = grade;
   canvas.dataset.r4InkGeneration = options.generation ?? 'unscoped';
+  if (INK_DIAGNOSTICS) {
+    canvas.dataset.r4InkRenderer = options.renderer;
+    canvas.dataset.r4InkGrade = grade;
+  }
   canvas.setAttribute('aria-hidden', 'true');
   host.append(canvas);
   return canvas;
@@ -171,13 +173,15 @@ export function createInkFieldRenderer(
   const resolvedOptions = INK_GRADE_PRESETS[grade] ?? INK_GRADE_PRESETS['edge-only'];
   const generation = lifecycle.generation ?? canvas?.dataset.r4InkGeneration ?? 'unscoped';
   if (canvas) {
-    markGradePreset(canvas, 'field', grade, resolvedOptions, generation);
+    markGradePreset(canvas, grade, generation);
   }
   let transition: InkBoundaryTransition | null = null;
   try {
-    transition = createInkBoundaryTransition(canvas, lifecycle.fieldKind
-      ? { ...resolvedOptions, fieldKind: lifecycle.fieldKind }
-      : resolvedOptions);
+    transition = createInkBoundaryTransition(canvas, {
+      ...resolvedOptions,
+      ...(lifecycle.fieldKind ? { fieldKind: lifecycle.fieldKind } : {}),
+      ...(lifecycle.targetImage ? { targetImage: lifecycle.targetImage } : {})
+    });
   } catch {
     transition = null;
   }

@@ -228,7 +228,7 @@ async function measureSvgDepthBoundary(page: Page, progress: number): Promise<{
     const mask = createDepthThresholdMask({
       host,
       targets: [{ element: target, polarity: 'reveal' as const }],
-      depthSrc,
+      atlasSrc: depthSrc,
       runId: `depth-mask-alignment-${fieldProgress}`,
       transform
     });
@@ -241,18 +241,21 @@ async function measureSvgDepthBoundary(page: Page, progress: number): Promise<{
       / tables.reveal.length * height;
     const progressAttribute = target.getAttribute('data-r4-depth-mask-progress');
     const maskImage = target.style.getPropertyValue('mask-image');
-    const thresholdFunction = host.querySelector<SVGComponentTransferFunctionElement>(
-      `#${mask.filterIds.reveal} feFuncR[type="linear"]`
+    const atlasViewport = host.querySelector<SVGSVGElement>(
+      `#${mask.maskIds.reveal} svg[viewBox]`
     );
-    const intercept = Number(thresholdFunction?.getAttribute('intercept'));
+    const atlasFrame = Math.round(gateRank * 63);
+    const atlasColumn = atlasFrame % 8;
+    const atlasRow = Math.floor(atlasFrame / 8);
+    const expectedViewBox = `${atlasColumn * 384} ${atlasRow * 216} 384 216`;
     if (progressAttribute !== gateRank.toFixed(4)) {
       throw new Error('SVG depth mask progress diagnostic is stale');
     }
     if (!maskImage.includes(mask.maskIds.reveal)) {
       throw new Error('SVG depth mask target lost its run-scoped mask');
     }
-    if (Math.abs(intercept - (0.5001 - gateRank * 1.0002)) > 0.0001) {
-      throw new Error('SVG depth threshold filter is misaligned');
+    if (atlasViewport?.getAttribute('viewBox') !== expectedViewBox) {
+      throw new Error('SVG depth atlas frame is misaligned');
     }
     mask.dispose();
     host.remove();

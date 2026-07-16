@@ -43,7 +43,8 @@ export const publicMenuItems = [
 
 const preferredPublicHashes: Partial<Record<SceneId, `#${string}`>> = {
   hero: '#home',
-  'method-top': '#method'
+  'method-top': '#method',
+  'method-bottom': '#method'
 };
 
 export function sceneFromHash(hash: string): SceneId | undefined {
@@ -54,6 +55,9 @@ export function sceneFromHash(hash: string): SceneId | undefined {
   const alias = publicAliases[value];
   if (alias) {
     return alias;
+  }
+  if (value === 'method-bottom') {
+    return undefined;
   }
   return canonicalScenes.has(value) ? value as SceneId : undefined;
 }

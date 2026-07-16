@@ -34,7 +34,7 @@
   "staleCompletionIgnored": 0,
   "trace": [
     {
-      "at": 1784120287781,
+      "at": 1784135971103,
       "event": {
         "type": "BOOT_READY"
       },
@@ -51,7 +51,7 @@
       "id": 1
     },
     {
-      "at": 1784120287782,
+      "at": 1784135971106,
       "event": {
         "type": "BOOT_READY"
       },
@@ -68,7 +68,7 @@
       "id": 2
     },
     {
-      "at": 1784120288256,
+      "at": 1784135971576,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -87,7 +87,7 @@
       "id": 3
     },
     {
-      "at": 1784120288295,
+      "at": 1784135971623,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-proof",
@@ -109,7 +109,7 @@
       "id": 4
     },
     {
-      "at": 1784120293433,
+      "at": 1784135976768,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:1"
@@ -130,7 +130,7 @@
       "id": 5
     },
     {
-      "at": 1784120294224,
+      "at": 1784135977563,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": 1
@@ -150,7 +150,7 @@
       "id": 6
     },
     {
-      "at": 1784120294239,
+      "at": 1784135977581,
       "event": {
         "type": "TARGET_READY",
         "scene": "brand",
@@ -173,7 +173,7 @@
       "id": 7
     },
     {
-      "at": 1784120295445,
+      "at": 1784135978798,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:2"
@@ -195,7 +195,7 @@
       "id": 8
     },
     {
-      "at": 1784120295884,
+      "at": 1784135979223,
       "event": {
         "type": "RETIRING_RELEASED"
       },
@@ -212,7 +212,7 @@
       "id": 9
     },
     {
-      "at": 1784120296240,
+      "at": 1784135979575,
       "event": {
         "type": "CHARGE_FIRED",
         "direction": -1
@@ -231,7 +231,7 @@
       "id": 10
     },
     {
-      "at": 1784120296260,
+      "at": 1784135979584,
       "event": {
         "type": "TARGET_READY",
         "scene": "figure2-proof",
@@ -253,7 +253,7 @@
       "id": 11
     },
     {
-      "at": 1784120297477,
+      "at": 1784135980801,
       "event": {
         "type": "PLAYBACK_DONE",
         "runId": "r4-g3-group3:3"
@@ -276,18 +276,18 @@
   ],
   "layers": [
     {
-      "scene": "figure2-animation",
-      "role": "prev",
-      "visible": false,
-      "interactable": false,
-      "opacity": 0
-    },
-    {
       "scene": "figure2-proof",
       "role": "current",
       "visible": true,
       "interactable": true,
       "opacity": 1
+    },
+    {
+      "scene": "figure2-animation",
+      "role": "prev",
+      "visible": false,
+      "interactable": false,
+      "opacity": 0
     },
     {
       "scene": "brand",

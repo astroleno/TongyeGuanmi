@@ -14,6 +14,7 @@ function importScene(id: SceneId): Promise<SceneModule> {
     case 'star-map': return import('../scenes/star-map').then(({ starMapScene }) => starMapScene);
     case 'aod-animation': return import('../scenes/aod-animation').then(({ aodAnimationScene }) => aodAnimationScene);
     case 'method-top': return import('../scenes/method-top').then(({ methodTopScene }) => methodTopScene);
+    case 'method-bottom': return import('../scenes/method-bottom').then(({ methodBottomScene }) => methodBottomScene);
     case 'figure2-animation': return import('../scenes/figure2-animation').then(({ figure2AnimationScene }) => figure2AnimationScene);
     case 'figure2-proof': return import('../scenes/figure2-proof').then(({ figure2ProofScene }) => figure2ProofScene);
     case 'brand': return import('../scenes/brand').then(({ brandScene }) => brandScene);
@@ -25,7 +26,6 @@ function importScene(id: SceneId): Promise<SceneModule> {
     case 'education': return import('../scenes/education').then(({ educationScene }) => educationScene);
     case 'crane-animation': return import('../scenes/crane-animation').then(({ craneAnimationScene }) => craneAnimationScene);
     case 'contact': return import('../scenes/contact').then(({ contactScene }) => contactScene);
-    case 'method-bottom':
     case 'figure2-proof-opening':
     case 'figure2-proof-cards':
     case 'figure2-proof-closing':
@@ -39,6 +39,7 @@ function importTransition(id: SegmentId): Promise<TransitionModule> {
     case 'pattern-star-map': return import('../transitions/pattern-star-map').then(({ createPatternStarMapTransition }) => createPatternStarMapTransition());
     case 'star-map-aod': return import('../transitions/star-map-aod').then(({ createStarMapAodTransition }) => createStarMapAodTransition());
     case 'aod-method-top': return import('../transitions/aod-method-top').then(({ createAodMethodTopTransition }) => createAodMethodTopTransition());
+    case 'method-top-method-bottom': return import('../transitions/method-top-method-bottom').then(({ createMethodTopMethodBottomTransition }) => createMethodTopMethodBottomTransition());
     case 'method-bottom-figure2': return import('../transitions/method-bottom-figure2').then(({ createMethodBottomFigure2Transition }) => createMethodBottomFigure2Transition());
     case 'figure2-distance-expand': return import('../transitions/figure2-distance-expand').then(({ createFigure2DistanceExpandTransition }) => createFigure2DistanceExpandTransition());
     case 'figure2-proof-brand': return import('../transitions/figure2-proof-brand').then(({ createFigure2ProofBrandTransition }) => createFigure2ProofBrandTransition());

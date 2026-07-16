@@ -36,6 +36,20 @@ export const inventoryManifestSeed = parseInventoryManifestSeed({
   copyReference
 });
 
+const methodCopySection = inventoryManifestSeed.copySections.find(
+  (section) => section.sectionId === 'method'
+);
+
+if (!methodCopySection) {
+  throw new Error('R-1 method copy seed is missing');
+}
+
+// The inventory is also the no-JS copy authority. Keep the production Method
+// holds on those same strings instead of duplicating them across lazy chunks.
+export const METHOD_TOP_COPY = methodCopySection.normalizedText.slice(0, 8);
+export const METHOD_STEPS_COPY = methodCopySection.normalizedText.slice(8, 23);
+export const METHOD_COPY = [...METHOD_TOP_COPY, ...METHOD_STEPS_COPY] as const;
+
 const defaults = {
   buildTimeoutMs: 1800,
   chargeThreshold: 0.1,
@@ -150,6 +164,11 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
       return {
         policy: snapPolicy(segment),
         virtualDuration: durationFromPlayMs(seedByLegacy.beliefMethod.playMs)
+      };
+    case 'method-top-method-bottom':
+      return {
+        policy: snapPolicy(segment),
+        virtualDuration: 600
       };
     case 'method-bottom-figure2':
       return {

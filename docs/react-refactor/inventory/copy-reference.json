@@ -38,7 +38,7 @@
     },
     {
       "sectionId": "method",
-      "canonicalScenes": ["method-top", "figure2-proof"],
+      "canonicalScenes": ["method-top", "method-bottom", "figure2-proof"],
       "sourcePath": "src/sections/method.html",
       "sourceSha256": "3b3f7e2c1ee08535b5a906b6fed2b19ac81dcf036eef652abaca7b26a966e442",
       "buildSelector": "#method",
@@ -83,7 +83,11 @@
       "canonicalSplitHints": [
         {
           "scene": "method-top",
-          "textRange": ["先识场，再立法", "交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。"]
+          "textRange": ["先识场，再立法", "什么能问，哪些能信，哪些数据碰不得。"]
+        },
+        {
+          "scene": "method-bottom",
+          "textRange": ["01", "交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。"]
         },
         {
           "scene": "figure2-proof",
@@ -165,8 +169,6 @@
         "先看账，",
         "再定工具。",
         "我们把场景拆成可判断的小题，不听概念，先看钱、单、人、货和流程。",
-        "FIELD CHECK",
-        "06 SCENES",
         "01",
         "选型与决策",
         "报价、方案、招人，分不清谁靠谱？我们陪你把账算清，你只管拍板。",

@@ -66,7 +66,7 @@ function releaseLayerResources(root: HTMLElement | null): { canvases: number; vi
     video.load();
   }
   for (const canvas of canvases) {
-    if (canvas.matches('[data-r4-ink-renderer], [data-aod-ink-canvas]')) {
+    if (canvas.matches('[data-r4-ink-renderer-status], [data-aod-ink-canvas]')) {
       const context = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
       context?.getExtension('WEBGL_lose_context')?.loseContext();
     }

@@ -608,7 +608,7 @@ describe('director runtime actor loop', () => {
       syntheticPlayMs: 20
     });
     runtime.send({ type: 'BOOT_READY' });
-    runtime.send({ type: 'SEEK', label: 'scene:method-top', source: 'menu' });
+    runtime.send({ type: 'SEEK', label: 'scene:method-bottom', source: 'menu' });
     await flush(0);
 
     runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 1 });

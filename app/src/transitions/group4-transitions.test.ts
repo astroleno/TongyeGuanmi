@@ -261,12 +261,14 @@ describe('R4 group4 transitions', () => {
     });
     expect(timeline.sample?.(0.8)).toMatchObject({
       from: { visible: true, opacity: 1 },
-      to: { visible: true, opacity: 1 }
+      to: { visible: true, opacity: 0 }
     });
-    expect(timeline.sample?.(0.81)).toMatchObject({
+    const afterCue = timeline.sample?.(0.81);
+    expect(afterCue).toMatchObject({
       from: { visible: true },
       to: { visible: true }
     });
+    expect(afterCue?.to.opacity).toBeGreaterThan(0);
     expect(timeline.sample?.(0.999)).toMatchObject({
       from: { visible: true, opacity: 0 },
       to: { visible: true, opacity: 1 }

@@ -54,6 +54,7 @@ export const canonicalScenes = [
   'star-map',
   'aod-animation',
   'method-top',
+  'method-bottom',
   'figure2-animation',
   'figure2-proof',
   'brand',

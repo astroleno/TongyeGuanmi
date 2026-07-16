@@ -11,7 +11,8 @@ import {
   HERO_PATTERN_MOTION_MS,
   HERO_PATTERN_MOTION_STOP,
   renderHeroForHeroPattern,
-  renderPatternForHeroPattern
+  renderPatternForHeroPattern,
+  waitForHeroPatternCommittedFrame
 } from './index';
 import { HERO_PATTERN_VIDEO_END_SECONDS } from '../../scenes/hero';
 import { patternCenterForViewport } from '../../scenes/pattern';
@@ -21,6 +22,7 @@ import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionCon
 const transitionSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -118,6 +120,23 @@ function context(prefersReducedMotion = false): TransitionContext {
 }
 
 describe('hero-pattern transition', () => {
+  it('bounds and cancels phase-boundary presentation confirmation', async () => {
+    vi.useFakeTimers();
+    const requestFrame = vi.fn(() => 1);
+    vi.stubGlobal('requestAnimationFrame', requestFrame);
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const controller = new AbortController();
+    const aborted = waitForHeroPatternCommittedFrame(controller.signal, 20);
+    controller.abort(new Error('superseded'));
+    await expect(aborted).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+
+    const timeout = waitForHeroPatternCommittedFrame(undefined, 20);
+    const timeoutExpectation = expect(timeout).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_TIMEOUT' });
+    await vi.advanceTimersByTimeAsync(20);
+    await timeoutExpectation;
+    expect(requestFrame).toHaveBeenCalledTimes(2);
+  });
+
   it('reveals the canonical expanded Pattern at its authored left-side center', () => {
     const patternRoot = new FakeElement();
     const heroRoot = new FakeElement();

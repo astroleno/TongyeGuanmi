@@ -6,6 +6,7 @@ import { createGestureIntentGate } from './gesture-intent-gate';
 import { createPhysicalGestureTracker } from './physical-gesture-tracker';
 import { createReadingEdgeLatch } from './reading-edge-latch';
 import { consumeReadingPixels } from './reading-handoff';
+import { createReadingMotionGovernor } from './reading-motion-governor';
 
 type Runtime = ReturnType<typeof createDirectorRuntime>;
 
@@ -123,6 +124,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   const gestureGate = createGestureIntentGate();
   const physicalGesture = createPhysicalGestureTracker();
   const readingEdgeLatch = createReadingEdgeLatch();
+  const readingMotionGovernor = createReadingMotionGovernor();
   let observedScope = interactionScope(options.runtime.getState());
   let admittedPhysicalScope: string | undefined;
 
@@ -167,8 +169,21 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
       if (gateSnapshot.direction !== undefined && gateSnapshot.direction !== nextDirection) {
         gestureGate.reset('direction-reversal');
       }
+      const hasReadingScrollport = ownsReadingInput && Boolean(readingScrollport(currentLayer));
+      const governedReading = hasReadingScrollport
+        ? readingMotionGovernor.consume({
+            scope: `reading:${currentScene}`,
+            source: normalized.source,
+            pixels: normalized.pixels,
+            viewportHeight: normalized.viewportHeight,
+            newGesture: gesture.newGesture
+          })
+        : { pixels: normalized.pixels, absorbed: false };
+      if (governedReading.absorbed) {
+        return;
+      }
       const reading = ownsReadingInput
-        ? consumeReadingPixels({ root: currentLayer, pixels: normalized.pixels })
+        ? consumeReadingPixels({ root: currentLayer, pixels: governedReading.pixels })
         : {
             owned: false,
             direction: nextDirection,
@@ -181,7 +196,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
       if (reading.owned) {
         const edge = readingEdgeLatch.consume({
           scope: `reading:${currentScene}:${nextDirection === 1 ? 'bottom' : 'top'}`,
-          pixels: normalized.pixels,
+          pixels: governedReading.pixels,
           startedAtEdge: reading.startedAtEdge,
           reachedEdgeDuringInput: reading.reachedEdgeDuringInput,
           newGesture: gesture.newGesture
@@ -263,6 +278,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
     gestureGate.reset('gesture-idle');
     readingEdgeLatch.endGesture();
     physicalGesture.end();
+    readingMotionGovernor.reset();
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -283,11 +299,13 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
     gestureGate.reset('viewport-change');
     readingEdgeLatch.reset();
     physicalGesture.reset();
+    readingMotionGovernor.reset();
   };
   const applyReadingEntry = (entry: ReadingEntryIntent | undefined) => {
     gestureGate.reset('entry-position');
     readingEdgeLatch.reset();
     physicalGesture.reset();
+    readingMotionGovernor.reset();
     if (!entry) {
       return;
     }
@@ -314,11 +332,13 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
       admittedPhysicalScope = undefined;
       gestureGate.reset('scope-change');
       readingEdgeLatch.reset();
+      readingMotionGovernor.reset();
     }
     if (snapshot.state === 'seeking') {
       gestureGate.reset('seek');
       readingEdgeLatch.reset();
       physicalGesture.reset();
+      readingMotionGovernor.reset();
     }
   });
 
@@ -342,5 +362,6 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
     gestureGate.reset('dispose');
     readingEdgeLatch.reset();
     physicalGesture.reset();
+    readingMotionGovernor.reset();
   };
 }

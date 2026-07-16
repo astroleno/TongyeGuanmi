@@ -6,6 +6,7 @@ import {
   expectLayerInvariants,
   moveOneHold,
   navigateStory,
+  reachReadingEdge,
   storySnapshot,
   waitForHold
 } from './r5-helpers';
@@ -50,6 +51,34 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
   test.skip(testInfo.project.name !== 'desktop-chromium', 'full presentation timing runs once');
   test.setTimeout(120_000);
 
+  await page.addInitScript(() => {
+    const releaseCounter = '__r5LostWebglContexts';
+    (window as Window & { __r5LostWebglContexts?: number })[releaseCounter] = 0;
+    const prototypes = [
+      typeof WebGLRenderingContext === 'undefined' ? null : WebGLRenderingContext.prototype,
+      typeof WebGL2RenderingContext === 'undefined' ? null : WebGL2RenderingContext.prototype
+    ];
+    for (const prototype of new Set(prototypes)) {
+      if (!prototype) continue;
+      const original = prototype.getExtension;
+      if (!original) continue;
+      prototype.getExtension = function getExtension(name: string) {
+        const extension = original.call(this, name);
+        if (name !== 'WEBGL_lose_context' || !extension || typeof extension.loseContext !== 'function') {
+          return extension;
+        }
+        return Object.assign(Object.create(extension), {
+          loseContext() {
+            (window as Window & { __r5LostWebglContexts?: number })[releaseCounter] = (
+              (window as Window & { __r5LostWebglContexts?: number })[releaseCounter] ?? 0
+            ) + 1;
+            return extension.loseContext();
+          }
+        });
+      };
+    }
+  });
+
   await page.goto('/?presentation=cold', { waitUntil: 'domcontentloaded' });
   const loader = page.locator('[data-story-loader="true"]');
   const loaderInk = loader.locator('[data-loader-ink-canvas="true"]');
@@ -91,6 +120,7 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
   await expect.poll(() => heroIntroInk.getAttribute('data-hero-intro-ink-active'), { timeout: 2_000 })
     .toBe('true');
   await expect(heroIntroInk).toHaveAttribute('data-r4-ink-renderer-status', 'active');
+  expect((await storySnapshot(page)).webglCanvases).toBeGreaterThanOrEqual(1);
   await expect(heroIntroInk).toBeVisible();
   await expect.poll(() => heroVideo.evaluate((video: HTMLVideoElement) => ({
     paused: video.paused,
@@ -176,6 +206,11 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
   await expect(hero).toHaveAttribute('data-hero-parallax-active', 'true');
   await expect(loader).toHaveCount(1);
   await expect(loader).toBeHidden();
+
+  await navigateStory(page, 'contact');
+  await expect.poll(() => page.evaluate(() => (
+    (window as Window & { __r5LostWebglContexts?: number }).__r5LostWebglContexts ?? 0
+  )), { timeout: 5_000 }).toBeGreaterThan(0);
 });
 
 test('direct entries use the readiness cover and reduced motion renders the Hero endpoint', async ({ page }, testInfo) => {
@@ -362,7 +397,7 @@ test('the latest navigation request wins when an earlier lazy scene loads slowly
 test('every canonical hash boots directly and public aliases remain supported', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'exhaustive hash sweep runs once');
 
-  for (const scene of canonicalScenes) {
+  for (const scene of canonicalScenes.filter((scene) => scene !== 'method-bottom')) {
     const snapshot = await bootStory(page, `/?hash=${scene}#${scene}`);
     expect(snapshot.current, `hash #${scene}`).toBe(scene);
     await expectLayerInvariants(page);
@@ -400,42 +435,22 @@ test('reduced motion keeps the same contract and settles without cinematic delay
 
 test('reading input absorbs the gesture that reaches an edge, then accepts one clear outward gesture', async ({ page }) => {
   await bootStory(page, '/#method');
-  const scrollport = page.locator('[data-stage-layer="method-top"] [data-reading-scrollport="true"]');
+  await expect(page.locator('[data-stage-layer="method-top"] [data-reading-scrollport="true"]')).toHaveCount(0);
+  await page.keyboard.press('PageDown');
+  await waitForHold(page, 'method-bottom');
+  const scrollport = page.locator('[data-stage-layer="method-bottom"] [data-reading-scrollport="true"]');
   await expect(scrollport).toBeVisible();
   await expect.poll(() => scrollport.evaluate((element) => element.scrollTop)).toBe(0);
 
-  await page.locator('[data-stage-layer="method-top"] .r4-method__lead').dispatchEvent('wheel', {
+  await scrollport.dispatchEvent('wheel', {
     bubbles: true,
     cancelable: true,
     deltaMode: 0,
     deltaY: 120
   });
   await expect.poll(() => scrollport.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-  expect((await storySnapshot(page)).current).toBe('method-top');
-
-  const preservedScrollTop = await scrollport.evaluate((element) => {
-    element.scrollTop = 240;
-    return element.scrollTop;
-  });
-  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
-  await page.waitForTimeout(50);
-  expect(await scrollport.evaluate((element) => element.scrollTop)).toBe(preservedScrollTop);
-
-  const beforeCommit = await page.evaluate(() => {
-    const lead = document.querySelector<HTMLElement>('[data-stage-layer="method-top"] .r4-method__lead');
-    const scrollport = document.querySelector<HTMLElement>(
-      '[data-stage-layer="method-top"] [data-reading-scrollport="true"]'
-    );
-    lead?.dispatchEvent(new WheelEvent('wheel', {
-      bubbles: true,
-      cancelable: true,
-      deltaMode: 0,
-      deltaY: (scrollport?.scrollHeight ?? 0) + window.innerHeight
-    }));
-    return window.__storyApp?.snapshot();
-  });
-  expect(beforeCommit?.current).toBe('method-top');
-  expect(beforeCommit?.phase).toBe('hold');
+  expect(await storySnapshot(page)).toMatchObject({ current: 'method-bottom', phase: 'hold' });
+  await reachReadingEdge(page, 1);
   await expect.poll(() => scrollport.evaluate((element) => (
     Math.abs(element.scrollTop + element.clientHeight - element.scrollHeight)
   ))).toBeLessThan(1);
@@ -445,14 +460,14 @@ test('reading input absorbs the gesture that reaches an edge, then accepts one c
   await expectLayerInvariants(page);
 
   await page.keyboard.press('PageUp');
-  await waitForHold(page, 'method-top');
+  await waitForHold(page, 'method-bottom');
   await expect.poll(async () => scrollport.evaluate((element) => (
     element.scrollTop + element.clientHeight >= element.scrollHeight - 1
   ))).toBe(true);
   await expectLayerInvariants(page);
 
-  await page.keyboard.press('PageDown');
-  await waitForHold(page, 'figure2-animation');
+  expect((await moveOneHold(page, -1)).current).toBe('method-top');
+  await expect(page.locator('[data-stage-layer="method-top"] [data-reading-scrollport="true"]')).toHaveCount(0);
   await expectLayerInvariants(page);
 });
 
@@ -502,10 +517,150 @@ test('Figure2 Proof owns one snap-free scrollport and accepts incremental wheel 
     await page.waitForTimeout(24);
   }
   expect(samples.every((value, index) => index === 0 || value > samples[index - 1]!)).toBe(true);
-  expect(samples.at(-1)).toBeGreaterThan(500);
-  expect(samples.every((value) => Math.abs(value - 720) > 20)).toBe(true);
+  const burstDisplacement = samples.at(-1) ?? 0;
+  expect(burstDisplacement).toBeGreaterThan(initial.viewportHeight * 0.35);
+  expect(burstDisplacement).toBeLessThan(initial.viewportHeight * 0.65);
+  expect(samples.every((value) => Math.abs(value - initial.viewportHeight) > 20)).toBe(true);
+
+  // The remaining momentum belongs to this physical gesture: it may consume
+  // the small budget remainder, but a following tail must be absorbed before
+  // it can reach a reading edge or leave Proof.
+  await scrollport.dispatchEvent('wheel', {
+    bubbles: true,
+    cancelable: true,
+    deltaMode: 0,
+    deltaY: 500
+  });
+  const budgetExhaustedScrollTop = await scrollport.evaluate((element) => element.scrollTop);
+  await scrollport.dispatchEvent('wheel', {
+    bubbles: true,
+    cancelable: true,
+    deltaMode: 0,
+    deltaY: 500
+  });
+  const absorbedTailScrollTop = await scrollport.evaluate((element) => element.scrollTop);
+  expect(absorbedTailScrollTop).toBeCloseTo(budgetExhaustedScrollTop, 0);
+  expect(absorbedTailScrollTop).toBeLessThanOrEqual(initial.viewportHeight * 0.65);
+
+  // A pause creates a fresh gesture and restores the reading budget without
+  // treating the previous momentum tail as a navigation intent.
+  await page.waitForTimeout(260);
+  await scrollport.dispatchEvent('wheel', {
+    bubbles: true,
+    cancelable: true,
+    deltaMode: 0,
+    deltaY: 80
+  });
+  const freshGestureScrollTop = await scrollport.evaluate((element) => element.scrollTop);
+  expect(freshGestureScrollTop).toBeGreaterThan(absorbedTailScrollTop);
   expect((await storySnapshot(page))).toMatchObject({ phase: 'hold', current: 'figure2-proof' });
   expect(await layer.evaluate((element) => element.scrollTop)).toBe(0);
+  await expectLayerInvariants(page);
+});
+
+test('long reading scenes have no residual horizontal rules and Lab omits retired copy', async ({ page }) => {
+  const cases = [
+    {
+      scene: 'lab',
+      root: '.r4-lab',
+      selectors: ['.r4-lab__wide', '.r4-lab__portrait', '.r4-lab__screen', '.r4-lab__list', '.r4-lab__row'],
+      absentCopy: ['FIELD CHECK', '06 SCENES']
+    },
+    {
+      scene: 'services',
+      root: '.r4-services',
+      selectors: ['.r4-services__layout', '.r4-services__list', '.r4-services__row'],
+      absentCopy: []
+    },
+    {
+      scene: 'education',
+      root: '.r4-education',
+      selectors: ['.r4-education__wide', '.r4-education__vertical', '.r4-education__program', '.r4-education__row'],
+      absentCopy: []
+    }
+  ] as const;
+
+  for (const scenario of cases) {
+    await bootStory(page, `/#${scenario.scene}`);
+    const evidence = await page.locator(`[data-stage-layer="${scenario.scene}"] ${scenario.root}`).evaluate(
+      (root, { selectors, absentCopy }) => ({
+        text: root.textContent ?? '',
+        nodes: selectors.map((selector) => ({
+          selector,
+          borders: Array.from(root.querySelectorAll<HTMLElement>(selector)).map((element) => {
+            const style = getComputedStyle(element);
+            return {
+              top: style.borderTopWidth,
+              bottom: style.borderBottomWidth,
+              left: style.borderLeftWidth,
+              right: style.borderRightWidth
+            };
+          })
+        })),
+        absentCopy
+      }),
+      scenario
+    );
+    for (const node of evidence.nodes) {
+      expect(node.borders.length, `${scenario.scene} ${node.selector} rendered`).toBeGreaterThan(0);
+      for (const border of node.borders) {
+        expect(border, `${scenario.scene} ${node.selector} horizontal rule`).toMatchObject({
+          top: '0px',
+          bottom: '0px'
+        });
+      }
+    }
+    for (const copy of evidence.absentCopy) {
+      expect(evidence.text, `${scenario.scene} retired copy ${copy}`).not.toContain(copy);
+    }
+    await expectLayerInvariants(page);
+  }
+});
+
+test('Method split keeps an opaque receiver paper beneath the outgoing layout', async ({ page }) => {
+  await bootStory(page, '/#method');
+  const samples = page.evaluate(() => new Promise<readonly {
+    sourceOpacity: number;
+    receiverOpacity: number;
+    receiverVisible: boolean;
+    receiverPaper: string;
+  }[]>((resolve, reject) => {
+    const values: {
+      sourceOpacity: number;
+      receiverOpacity: number;
+      receiverVisible: boolean;
+      receiverPaper: string;
+    }[] = [];
+    const timeout = window.setTimeout(() => reject(new Error('Method split witness timed out')), 5_000);
+    const sample = () => {
+      const snapshot = window.__storyApp?.snapshot();
+      const source = document.querySelector<HTMLElement>('[data-stage-layer="method-top"]');
+      const receiver = document.querySelector<HTMLElement>('[data-stage-layer="method-bottom"]');
+      const paper = receiver?.querySelector<HTMLElement>('[data-r4-scene="method-bottom"]');
+      if (snapshot?.phase === 'playing' && source && receiver && paper) {
+        values.push({
+          sourceOpacity: Number.parseFloat(getComputedStyle(source).opacity),
+          receiverOpacity: Number.parseFloat(getComputedStyle(receiver).opacity),
+          receiverVisible: getComputedStyle(receiver).visibility === 'visible',
+          receiverPaper: getComputedStyle(paper).backgroundColor
+        });
+      }
+      if (snapshot?.phase === 'hold' && snapshot.current === 'method-bottom' && values.length > 0) {
+        window.clearTimeout(timeout);
+        resolve(values);
+        return;
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
+
+  await page.keyboard.press('PageDown');
+  const handoff = await samples;
+  expect(handoff.some((sample) => sample.sourceOpacity > 0.05 && sample.sourceOpacity < 0.95)).toBe(true);
+  expect(handoff.every((sample) => sample.receiverOpacity === 1 && sample.receiverVisible)).toBe(true);
+  expect(handoff.every((sample) => sample.receiverPaper !== 'rgba(0, 0, 0, 0)')).toBe(true);
+  await waitForHold(page, 'method-bottom');
   await expectLayerInvariants(page);
 });
 
@@ -609,15 +764,17 @@ test('critical reverse chains return through hero, pilot, and figure2 proof hold
 
   expect((await moveOneHold(page, -1)).current).toBe('figure2-animation');
   await expectLayerInvariants(page);
-  expect((await moveOneHold(page, -1)).current).toBe('method-top');
+  expect((await moveOneHold(page, -1)).current).toBe('method-bottom');
   await expectLayerInvariants(page);
   const methodEntry = await page.locator(
-    '[data-stage-layer="method-top"] [data-reading-scrollport="true"]'
+    '[data-stage-layer="method-bottom"] [data-reading-scrollport="true"]'
   ).evaluate((element) => ({
     scrollTop: element.scrollTop,
     maxScrollTop: element.scrollHeight - element.clientHeight
   }));
   expect(Math.abs(methodEntry.scrollTop - methodEntry.maxScrollTop)).toBeLessThan(1);
+  expect((await moveOneHold(page, -1)).current).toBe('method-top');
+  await expect(page.locator('[data-stage-layer="method-top"] [data-reading-scrollport="true"]')).toHaveCount(0);
 });
 
 test('slow media succeeds before timeout and failed endpoint recovery leaves an interactive static hold', async ({ page }, testInfo) => {

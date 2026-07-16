@@ -511,7 +511,7 @@ export function StoryApp() {
       interactableLayers: layers.filter((layer) => layer.dataset.interactable === 'true').length,
       mountedLayers: layers.length,
       canvases: canvases.length,
-      webglCanvases: canvases.filter((canvas) => canvas.matches('[data-r4-ink-renderer], [data-aod-ink-canvas]')).length,
+      webglCanvases: canvases.filter((canvas) => canvas.matches('[data-r4-ink-renderer-status], [data-aod-ink-canvas]')).length,
       videos: videos.length,
       playingVideos: videos.filter((video) => !video.paused).length,
       loadedScenes: loaded.scenes,

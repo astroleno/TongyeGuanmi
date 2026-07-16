@@ -5,11 +5,13 @@ import path from 'node:path';
 
 const KiB = 1024;
 const MiB = 1024 * KiB;
+const totalJsHardCapBytes = 568 * KiB;
+const requiredTotalJsHeadroomBytes = 4 * KiB;
 const budgets = {
   initialJsRawBytes: 360 * KiB,
   initialJsGzipBytes: 112 * KiB,
   initialCssRawBytes: 75 * KiB,
-  totalJsRawBytes: 568 * KiB,
+  totalJsRawBytes: totalJsHardCapBytes,
   largestLazyJsRawBytes: 64 * KiB,
   loaderInkLazyJsRawBytes: 16 * KiB,
   totalAssetBytes: 156 * MiB,
@@ -24,6 +26,12 @@ const indexHtml = await readFile(path.join(distDir, 'index.html'), 'utf8');
 function assertBudget(name, actual, budget) {
   if (actual > budget) {
     throw new Error(`${name} exceeded: ${actual} > ${budget}`);
+  }
+}
+
+function assertHeadroom(name, actual, required) {
+  if (actual < required) {
+    throw new Error(`${name} below required headroom: ${actual} < ${required}`);
   }
 }
 
@@ -83,9 +91,17 @@ for (const [name, budget] of Object.entries(budgets)) {
   assertBudget(name, actual[name], budget);
 }
 
+const totalJsHeadroomBytes = totalJsHardCapBytes - actual.totalJsRawBytes;
+assertHeadroom('totalJsHeadroomBytes', totalJsHeadroomBytes, requiredTotalJsHeadroomBytes);
+
 const report = {
   schemaVersion: 2,
   budgets,
+  headroom: {
+    totalJsHardCapBytes,
+    requiredTotalJsHeadroomBytes,
+    totalJsHeadroomBytes
+  },
   actual,
   chunks: {
     loaderInk: path.relative(distDir, loaderInkLazyJsFiles[0].path).split(path.sep).join('/')

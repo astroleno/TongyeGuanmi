@@ -1,4 +1,4 @@
-import { applyRevealBoundary, clearBoundaryGeometry } from './inkOwnership';
+import { clearBoundaryGeometry } from './inkOwnership';
 import { createInkFieldFrame, type InkFieldSpec } from './inkField';
 import {
   createInkFieldRenderer,
@@ -16,6 +16,7 @@ export type RadialInkIntroController = Readonly<{
 export type CreateRadialInkIntroControllerOptions = Readonly<{
   canvas: HTMLCanvasElement;
   revealSurface: HTMLElement;
+  targetImage?: HTMLImageElement | null;
   field: RadialInkField;
   generation: string;
   viewport(): Readonly<{ width: number; height: number }>;
@@ -26,42 +27,89 @@ function clamp(progress: number): number {
 }
 
 /**
- * Reuses the same field frame, edge-only renderer and ownership boundary as
- * radial scene handoffs while keeping an intro's reveal surface local.
+ * Reuses the radial field renderer for the Hero's actual background texture.
+ * The canvas owns the irregular reveal until its terminal frame, then the DOM
+ * image takes over.  The DOM surface deliberately never receives a CSS circle
+ * ownership clip.
  */
 export function createRadialInkIntroController(
   options: CreateRadialInkIntroControllerOptions
 ): RadialInkIntroController {
-  let renderer: InkFieldRenderer | null = createInkFieldRenderer(options.canvas, {
-    fieldKind: 'radial',
-    grade: 'edge-only',
-    generation: options.generation,
-    removeCanvasOnDestroy: false
-  });
+  let renderer: InkFieldRenderer | null = null;
   let disposed = false;
+  let latestProgress = 1;
+
+  const targetReady = () => !options.targetImage || (
+    options.targetImage.complete
+    && options.targetImage.naturalWidth > 0
+    && options.targetImage.naturalHeight > 0
+  );
+  const ensureRenderer = () => {
+    if (disposed || renderer || !targetReady()) {
+      return renderer;
+    }
+    renderer = createInkFieldRenderer(options.canvas, {
+      fieldKind: 'radial',
+      grade: 'edge-only',
+      generation: options.generation,
+      ...(options.targetImage ? { targetImage: options.targetImage } : {}),
+      removeCanvasOnDestroy: false
+    });
+    return renderer;
+  };
+  const applySurfaceHandoff = (progress: number) => {
+    if (!options.targetImage) {
+      return;
+    }
+    const canvasOwnsTarget = Boolean(renderer?.isActive());
+    if (!canvasOwnsTarget) {
+      options.revealSurface.style.removeProperty('--r4-hero-back-ink-opacity');
+      return;
+    }
+    // The target-texture renderer retains canvas ownership through 0.995;
+    // this surface reaches full opacity before that terminal fade begins.
+    const settle = clamp((progress - 0.94) / 0.055);
+    const eased = settle * settle * (3 - 2 * settle);
+    options.revealSurface.style.setProperty('--r4-hero-back-ink-opacity', eased.toFixed(4));
+  };
+  const onTargetLoad = () => {
+    ensureRenderer();
+    if (renderer) {
+      const frame = frameFor(latestProgress);
+      renderer.render(frame);
+      applySurfaceHandoff(frame.progress);
+    }
+  };
 
   const frameFor = (progress: number) => createInkFieldFrame(
     options.field,
     clamp(progress),
     options.viewport()
   );
+  options.targetImage?.addEventListener('load', onTargetLoad);
+  clearBoundaryGeometry(options.revealSurface);
   return {
     prewarm() {
       if (disposed) {
         return;
       }
-      renderer?.prewarm(frameFor(0.003));
+      ensureRenderer()?.prewarm(frameFor(0.003));
     },
     render(progress) {
       if (disposed) {
         return;
       }
+      latestProgress = progress;
       const frame = frameFor(progress);
-      renderer?.render(frame);
-      applyRevealBoundary(options.revealSurface, frame);
+      ensureRenderer()?.render(frame);
+      applySurfaceHandoff(frame.progress);
       options.canvas.setAttribute(
         'data-hero-intro-ink-active',
-        String(frame.progress > 0.002 && frame.progress < 0.999)
+        String(
+          frame.progress > 0.002
+          && frame.progress < 0.999
+          && Boolean(renderer?.isActive())
+        )
       );
     },
     dispose() {
@@ -69,9 +117,11 @@ export function createRadialInkIntroController(
         return;
       }
       disposed = true;
+      options.targetImage?.removeEventListener('load', onTargetLoad);
       renderer?.destroy();
       renderer = null;
       options.canvas.removeAttribute('data-hero-intro-ink-active');
+      options.revealSurface.style.removeProperty('--r4-hero-back-ink-opacity');
       clearBoundaryGeometry(options.revealSurface);
     }
   };

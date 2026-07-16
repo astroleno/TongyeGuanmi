@@ -48,7 +48,7 @@ function segment(): SpineSegmentNode {
 function context(prefersReducedMotion = false, methodElement: HTMLElement | null = null): TransitionContext {
   return {
     segment: segment(),
-    from: layer('method-top', 'current', methodElement),
+    from: layer('method-bottom', 'current', methodElement),
     to: layer('figure2-animation', 'next'),
     stage: {
       getLayer: () => undefined,
@@ -65,9 +65,9 @@ function context(prefersReducedMotion = false, methodElement: HTMLElement | null
 }
 
 describe('method-bottom-figure2 transition', () => {
-  it('uses the single Method reading scene as its source', () => {
+  it('uses the dedicated Method steps reading scene as its source', () => {
     expect(segment()).toMatchObject({
-      from: 'method-top',
+      from: 'method-bottom',
       to: 'figure2-animation'
     });
   });
@@ -82,7 +82,7 @@ describe('method-bottom-figure2 transition', () => {
   it('uses the existing posters during ink and defers dual-video seeking until the settled hold', async () => {
     const fixture = createBackHalfDomContext(
       'method-bottom-figure2',
-      'method-top',
+      'method-bottom',
       'figure2-animation'
     );
     const left = new FakeVideo();
@@ -100,7 +100,7 @@ describe('method-bottom-figure2 transition', () => {
   it('shares one organic bottom-to-top boundary between Figure2 and the effect canvas', async () => {
     const fixture = createBackHalfDomContext(
       'method-bottom-figure2',
-      'method-top',
+      'method-bottom',
       'figure2-animation'
     );
     const canvas = new FakeCanvas();

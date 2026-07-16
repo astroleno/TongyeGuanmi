@@ -26,7 +26,7 @@ declare global {
     __r4Group2?: {
       playForward(options?: { buildTimeout?: boolean }): Promise<void>;
       playReverse(options?: { buildTimeout?: boolean }): Promise<void>;
-      seek(scene: 'method-top' | 'figure2-animation'): void;
+      seek(scene: 'method-top' | 'method-bottom' | 'figure2-animation'): void;
       idempotentCycle(): Promise<void>;
       snapshot(): Group2Snapshot;
     };
@@ -87,7 +87,12 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
   return page.evaluate(() => {
     const figureRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
     const retainedArch = document.querySelector<HTMLElement>('.stage-proof-retained-arch');
-    const methodLayer = document.querySelector<HTMLElement>('[data-stage-layer="method-top"]');
+    const methodLayers = [...document.querySelectorAll<HTMLElement>(
+      '[data-stage-layer="method-top"], [data-stage-layer="method-bottom"]'
+    )];
+    const methodLayer = methodLayers.find((layer) => layer.dataset.visible === 'true')
+      ?? methodLayers.find((layer) => layer.dataset.stageLayer === 'method-top')
+      ?? null;
     const methodScrollport = methodLayer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]');
     const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
@@ -119,7 +124,7 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
       cloudCount: document.querySelectorAll('.r4-figure2__cloud').length,
       methodSceneCount: document.querySelectorAll('[data-r4-scene="method-top"]').length,
       methodLeadCount: document.querySelectorAll('.r4-method__lead').length,
-      methodRowCount: document.querySelectorAll('.r4-method__row').length,
+      methodRowCount: methodLayer?.querySelectorAll('[data-r4-scene="method-bottom"] .r4-method__row').length ?? 0,
       methodLayerScrollHeight: methodLayer?.scrollHeight ?? 0,
       methodLayerClientHeight: methodLayer?.clientHeight ?? 0,
       methodScrollTop: methodScrollport?.scrollTop ?? 0,
@@ -188,12 +193,20 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect((await snapshot(page)).window.current).toBe('method-top');
     expect(methodHold.methodSceneCount).toBe(1);
     expect(methodHold.methodLeadCount).toBe(1);
-    expect(methodHold.methodRowCount).toBe(5);
+    expect(methodHold.methodRowCount).toBe(0);
     expect(methodHold.methodLayerScrollHeight).toBe(methodHold.methodLayerClientHeight);
-    expect(methodHold.methodScrollHeight).toBeGreaterThan(methodHold.methodScrollClientHeight);
-    expect(await page.locator('[data-stage-layer="method-bottom"]').count()).toBe(0);
+    expect(methodHold.methodScrollHeight).toBe(0);
+    expect(await page.locator('[data-stage-layer="method-bottom"][data-visible="true"]').count()).toBe(0);
+
     await page.evaluate(() => {
-      const scrollport = document.querySelector<HTMLElement>('[data-stage-layer="method-top"] [data-reading-scrollport="true"]');
+      void window.__r4Group2?.playForward();
+    });
+    await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-bottom');
+    const methodStepsHold = await visualSnapshot(page);
+    expect(methodStepsHold.methodRowCount).toBe(5);
+    expect(methodStepsHold.methodScrollHeight).toBeGreaterThan(methodStepsHold.methodScrollClientHeight);
+    await page.evaluate(() => {
+      const scrollport = document.querySelector<HTMLElement>('[data-stage-layer="method-bottom"] [data-reading-scrollport="true"]');
       if (scrollport) scrollport.scrollTop = scrollport.scrollHeight;
     });
     await expect.poll(async () => {
@@ -272,11 +285,15 @@ test.describe('R4 group2 canonical spine harness', () => {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
     }
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-top');
+    await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-bottom');
     const reversedMethod = await visualSnapshot(page);
     expect(reversedMethod.methodScrollTop + reversedMethod.methodScrollClientHeight).toBeGreaterThanOrEqual(
       reversedMethod.methodScrollHeight - 1
     );
+    await page.evaluate(() => {
+      void window.__r4Group2?.playReverse();
+    });
+    await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-top');
 
     for (const frame of [...forwardFrames, ...reverseFrames]) {
       await assertFrame(frame);
@@ -320,6 +337,6 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(frame.window.current).toBe('method-top');
     expect(frame.interactableCount).toBe(1);
     expect(frame.recoveryCount).toBe(1);
-    expect(frame.eventLog).toContain('BUILD_TIMEOUT:method-bottom-figure2');
+    expect(frame.eventLog).toContain('BUILD_TIMEOUT:method-top-method-bottom');
   });
 });
