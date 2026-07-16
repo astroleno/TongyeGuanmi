@@ -227,7 +227,7 @@ describe('hero scene renderer', () => {
     expect(markup).toContain('data-text-reveal-item="3"');
     expect(markup).toContain('data-text-reveal="line"');
     expect(markup.match(/data-text-reveal-effects="stagger blur-to-clear rise-up"/g)).toHaveLength(2);
-    expect(markup).toContain('class="r4-hero-scene__tagline-line"');
+    expect(markup).toContain('r4-hero-scene__tagline-line');
     expect(markup).toContain('r4-hero-scene__tagline-line--figure-clearance');
     expect(markup).toContain(HERO_COPY[4]);
     expect(markup).toContain('preload="none"');
@@ -236,18 +236,41 @@ describe('hero scene renderer', () => {
     expect(markup).not.toContain('hero-figure-scrub');
   });
 
-  it('moves only the second subtitle phrase clear of the figure and preserves the landscape spacing', () => {
+  it('centers the figure in the subtitle clearance and preserves the landscape spacing', () => {
     expect(stylesheet).toMatch(
-      /\.r4-hero-scene__content p\s*\{[^}]*margin:\s*20px\s+0\s+0/s
+      /\.r4-hero-scene__content p\s*\{[^}]*margin:\s*12px\s+0\s+0/s
     );
     expect(stylesheet).toMatch(
-      /\.r4-hero-scene__tagline-line--figure-clearance\s*\{[^}]*position:\s*relative;[^}]*left:\s*3em/s
+      /\.r4-hero-scene__tagline-line--figure-anchor\s*\{[^}]*position:\s*relative;[^}]*left:\s*1\.2em/s
+    );
+    expect(stylesheet).toMatch(
+      /\.r4-hero-scene__tagline-line--figure-clearance\s*\{[^}]*position:\s*relative;[^}]*left:\s*3\.8em/s
     );
     expect(stylesheet).not.toMatch(
       /\.r4-hero-scene__tagline-line--figure-clearance\s*\{[^}]*margin-left:/s
     );
     expect(stylesheet).toMatch(
       /@media \(orientation: landscape\)[\s\S]*?\.r4-hero-scene__content p\s*\{[^}]*margin-top:\s*14px/s
+    );
+  });
+
+  it('removes the visible comma from the left subtitle phrase', () => {
+    const markup = renderToStaticMarkup(createElement(heroScene.Component, {
+      scene: 'hero',
+      hidden: false
+    }));
+
+    expect(markup).toContain(
+      'r4-hero-scene__tagline-line--figure-anchor">你的同行不是更聪明</span>'
+    );
+    expect(markup).not.toContain(
+      'r4-hero-scene__tagline-line--figure-anchor">你的同行不是更聪明，</span>'
+    );
+    expect(markup).toContain(
+      'r4-hero-scene__tagline-line--figure-clearance">只是更早把 AI 用进了生意里</span>'
+    );
+    expect(markup).not.toContain(
+      'r4-hero-scene__tagline-line--figure-clearance">只是更早把 AI 用进了生意里。</span>'
     );
   });
 

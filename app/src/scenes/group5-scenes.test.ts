@@ -1,3 +1,5 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { inventoryManifestSeed } from '../story/manifest';
 import { LAB_COPY, labScene, renderLabProgress } from './lab';
@@ -46,11 +48,22 @@ describe('R4 group5 scenes', () => {
     expectIdempotent(renderLabProgress, 'data-lab-progress');
   });
 
-  it('ports lab copy from the R-1 baseline verbatim', () => {
+  it('keeps lab copy while omitting its retired sectional prefix', () => {
     const lab = inventoryManifestSeed.copySections.find((section) => section.sectionId === 'lab');
+    const prefix = 'Scenario / 03';
 
     expect(labScene.staticFallback?.text).toEqual(LAB_COPY);
-    expect(lab?.normalizedText).toEqual([...LAB_COPY]);
+    expect(LAB_COPY).toEqual(lab?.normalizedText.filter((item) => item !== prefix));
+    expect(LAB_COPY).not.toContain(prefix);
+
+    const markup = renderToStaticMarkup(createElement(labScene.Component, {
+      scene: 'lab',
+      hidden: false,
+      role: 'current'
+    }));
+
+    expect(markup).not.toContain(prefix);
+    expect(markup).toContain('落到现场');
   });
 
   it('keeps TTG presentation renders free of surface preparation and parking', () => {

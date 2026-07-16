@@ -1,4 +1,5 @@
 import { SITE_META } from '../src/content/site-meta';
+import staticCopyOmissions from './static-copy-omissions.json';
 
 export type StaticCopySection = {
   sectionId: string;
@@ -10,6 +11,8 @@ export type StaticCopyReference = {
   sections: readonly StaticCopySection[];
   footerText: readonly string[];
 };
+
+export const STATIC_COPY_OMISSIONS = new Set(staticCopyOmissions);
 
 function escapeHtml(value: string): string {
   return value
@@ -31,7 +34,12 @@ function renderSection(section: StaticCopySection, headingTag: 'h1' | 'h2'): str
 }
 
 export function renderStaticStoryShell(copy: StaticCopyReference): string {
-  const sections = copy.sections.filter((section) => !section.legacyOnly);
+  const sections = copy.sections
+    .filter((section) => !section.legacyOnly)
+    .map((section) => ({
+      ...section,
+      normalizedText: section.normalizedText.filter((text) => !STATIC_COPY_OMISSIONS.has(text))
+    }));
   return [
     '<div class="static-content" data-static-story-content="true">',
     '<header class="static-content__header">',

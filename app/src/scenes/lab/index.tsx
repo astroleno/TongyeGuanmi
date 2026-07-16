@@ -1,7 +1,6 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const LAB_COPY = [
-  'Scenario / 03',
   '同样一件事，有人报三万有人报三千万。我们帮你看真生意里的',
   'AI',
   '——投流怎么花、店怎么卖、车间怎么排。',
@@ -34,12 +33,12 @@ export const LAB_COPY = [
 ] as const;
 
 const LAB_ROWS = [
-  { index: LAB_COPY[12], title: LAB_COPY[13], body: LAB_COPY[14] },
-  { index: LAB_COPY[15], title: LAB_COPY[16], body: LAB_COPY[17] },
-  { index: LAB_COPY[18], title: LAB_COPY[19], body: LAB_COPY[20] },
-  { index: LAB_COPY[21], title: LAB_COPY[22], body: LAB_COPY[23] },
-  { index: LAB_COPY[24], title: LAB_COPY[25], body: LAB_COPY[26] },
-  { index: LAB_COPY[27], title: LAB_COPY[28], body: LAB_COPY[29] }
+  { index: LAB_COPY[11], title: LAB_COPY[12], body: LAB_COPY[13] },
+  { index: LAB_COPY[14], title: LAB_COPY[15], body: LAB_COPY[16] },
+  { index: LAB_COPY[17], title: LAB_COPY[18], body: LAB_COPY[19] },
+  { index: LAB_COPY[20], title: LAB_COPY[21], body: LAB_COPY[22] },
+  { index: LAB_COPY[23], title: LAB_COPY[24], body: LAB_COPY[25] },
+  { index: LAB_COPY[26], title: LAB_COPY[27], body: LAB_COPY[28] }
 ] as const;
 
 export type LabRenderState = {
@@ -75,24 +74,23 @@ function LabScene({ registerHandle }: SceneComponentProps) {
     >
       <div className="r4-lab__wide" aria-label="AI 场景判断横屏">
         <div className="r4-lab__wide-copy">
-          <span className="section-index">{LAB_COPY[0]}</span>
-          <h2>{LAB_COPY[1]} <span>{LAB_COPY[2]}</span>{LAB_COPY[3]}</h2>
+          <h2>{LAB_COPY[0]} <span>{LAB_COPY[1]}</span>{LAB_COPY[2]}</h2>
         </div>
         <div className="r4-lab__signals" aria-hidden="true">
-          <span>{LAB_COPY[4]}</span>
-          <b>{LAB_COPY[5]}</b>
-          <span>{LAB_COPY[6]}</span>
-          <b>{LAB_COPY[7]}</b>
+          <span>{LAB_COPY[3]}</span>
+          <b>{LAB_COPY[4]}</b>
+          <span>{LAB_COPY[5]}</span>
+          <b>{LAB_COPY[6]}</b>
         </div>
       </div>
       <div className="r4-lab__portrait">
         <div className="r4-lab__lead">
-          <span className="section-index">{LAB_COPY[8]}</span>
+          <span className="section-index">{LAB_COPY[7]}</span>
           <h2>
+            <span>{LAB_COPY[8]}</span>
             <span>{LAB_COPY[9]}</span>
-            <span>{LAB_COPY[10]}</span>
           </h2>
-          <p>{LAB_COPY[11]}</p>
+          <p>{LAB_COPY[10]}</p>
         </div>
         <section className="r4-lab__screen" aria-label="AI 落地场景竖屏">
           <div className="r4-lab__list" aria-label="AI 落地场景">

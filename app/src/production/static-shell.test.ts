@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import copyReference from '../../../docs/react-refactor/inventory/copy-reference.json';
-import { renderStaticStoryShell } from '../../build/static-shell';
+import { renderStaticStoryShell, STATIC_COPY_OMISSIONS } from '../../build/static-shell';
 
 describe('crawlable static story shell', () => {
   const html = renderStaticStoryShell(copyReference);
@@ -11,8 +11,17 @@ describe('crawlable static story shell', () => {
         continue;
       }
       for (const item of section.normalizedText) {
+        if (STATIC_COPY_OMISSIONS.has(item)) {
+          continue;
+        }
         expect(html).toContain(item);
       }
+    }
+  });
+
+  it('omits the retired sectional prefixes from the static fallback', () => {
+    for (const item of STATIC_COPY_OMISSIONS) {
+      expect(html).not.toContain(item);
     }
   });
 

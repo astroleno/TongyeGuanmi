@@ -56,12 +56,10 @@ function ServicesScene({ registerHandle }: SceneComponentProps) {
     >
       <section className="r4-services__wide" aria-label="企业服务总览">
         <div className="r4-services__wide-copy">
-          <span className="section-index">{SERVICES_COPY[0]}</span>
           <h2>
             <span>{SERVICES_COPY[1]}</span>
             <span>{SERVICES_COPY[2]}</span>
           </h2>
-          <p>{SERVICES_COPY[3]}</p>
         </div>
         <div className="r4-services__signals" aria-hidden="true">
           {SERVICE_ROWS.map((row) => <span key={row.index}>{row.title}</span>)}
@@ -69,7 +67,9 @@ function ServicesScene({ registerHandle }: SceneComponentProps) {
       </section>
       <section className="r4-services__vertical" aria-label="企业服务能力">
         <aside className="r4-services__capability-lead">
+          <span className="section-index">{SERVICES_COPY[0]}</span>
           <h2>企业服务能力</h2>
+          <p>{SERVICES_COPY[3]}</p>
         </aside>
         <ol className="r4-services__list" aria-label="企业服务能力">
           {SERVICE_ROWS.map((row) => (

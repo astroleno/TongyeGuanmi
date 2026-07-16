@@ -1,3 +1,5 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { inventoryManifestSeed } from '../story/manifest';
 import { EDUCATION_COPY, educationScene, renderEducationProgress } from './education';
@@ -46,11 +48,22 @@ describe('R4 group6 scenes', () => {
     expectIdempotent(renderEducationProgress, 'data-education-progress');
   });
 
-  it('ports education copy from the R-1 baseline verbatim', () => {
+  it('keeps education copy while omitting its retired sectional prefix', () => {
     const education = inventoryManifestSeed.copySections.find((section) => section.sectionId === 'education');
+    const prefix = 'Education / 04';
 
     expect(educationScene.staticFallback?.text).toEqual(EDUCATION_COPY);
-    expect(education?.normalizedText).toEqual([...EDUCATION_COPY]);
+    expect(EDUCATION_COPY).toEqual(education?.normalizedText.filter((item) => item !== prefix));
+    expect(EDUCATION_COPY).not.toContain(prefix);
+
+    const markup = renderToStaticMarkup(createElement(educationScene.Component, {
+      scene: 'education',
+      hidden: false,
+      role: 'current'
+    }));
+
+    expect(markup).not.toContain(prefix);
+    expect(markup).toContain('给企业家的延伸服务');
   });
 
   it('does not rewrite terminal PH media time on repeated endpoint renders', () => {

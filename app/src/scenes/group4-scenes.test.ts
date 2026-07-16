@@ -71,6 +71,8 @@ describe('R4 group4 scenes', () => {
     expect(markup).toContain('class="r4-services__vertical"');
     expect(markup).toContain('class="r4-services__capability-lead"');
     expect(markup).toContain('企业服务能力');
+    expect(markup).toContain('先小做，再扩');
+    expect(markup).toContain(SERVICES_COPY[3]);
     expect(markup).not.toContain('01—04');
     expect(markup).toContain('<span>01</span>');
     expect(markup.match(/class="r4-services__row"/g)).toHaveLength(4);

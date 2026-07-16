@@ -8,6 +8,7 @@ const repoDir = path.dirname(appDir);
 const distDir = path.join(repoDir, 'dist');
 const indexPath = path.join(distDir, 'index.html');
 const copyPath = path.join(repoDir, 'docs/react-refactor/inventory/copy-reference.json');
+const staticCopyOmissionsPath = path.join(appDir, 'build/static-copy-omissions.json');
 const faviconSourcePath = path.join(repoDir, 'assets/favicon.svg');
 const titleFontSourcePath = path.join(repoDir, 'assets/fonts/qiji-title-subset.ttf');
 
@@ -80,11 +81,13 @@ async function filesBelow(directory) {
   return files;
 }
 
-const [html, copy] = await Promise.all([
+const [html, copy, staticCopyOmissions] = await Promise.all([
   readFile(indexPath, 'utf8'),
-  readFile(copyPath, 'utf8').then(JSON.parse)
+  readFile(copyPath, 'utf8').then(JSON.parse),
+  readFile(staticCopyOmissionsPath, 'utf8').then(JSON.parse)
 ]);
 const text = visibleText(html);
+const staticCopyOmissionSet = new Set(staticCopyOmissions);
 const faviconHref = releaseLinkHref(
   html,
   (tag) => attribute(tag, 'rel') === 'icon',
@@ -171,6 +174,10 @@ for (const section of copy.sections) {
     continue;
   }
   for (const item of section.normalizedText) {
+    if (staticCopyOmissionSet.has(item)) {
+      assert(!text.includes(item.replace(/\s+/g, ' ')), `static HTML retained omitted copy: ${item}`);
+      continue;
+    }
     assert(text.includes(item.replace(/\s+/g, ' ')), `static HTML lost copy: ${item}`);
     checkedCopyItems += 1;
   }

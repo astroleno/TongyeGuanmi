@@ -1,7 +1,6 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const EDUCATION_COPY = [
-  'Education / 04',
   '你为生意请的这套 AI 打法，也能用在孩子身上。',
   '先会用',
   '资料 · 研究 · 表达',
@@ -26,10 +25,10 @@ export const EDUCATION_COPY = [
 ] as const;
 
 const EDUCATION_ROWS = [
-  { index: EDUCATION_COPY[10], title: EDUCATION_COPY[11], body: EDUCATION_COPY[12] },
-  { index: EDUCATION_COPY[13], title: EDUCATION_COPY[14], body: EDUCATION_COPY[15] },
-  { index: EDUCATION_COPY[16], title: EDUCATION_COPY[17], body: EDUCATION_COPY[18] },
-  { index: EDUCATION_COPY[19], title: EDUCATION_COPY[20], body: EDUCATION_COPY[21] }
+  { index: EDUCATION_COPY[9], title: EDUCATION_COPY[10], body: EDUCATION_COPY[11] },
+  { index: EDUCATION_COPY[12], title: EDUCATION_COPY[13], body: EDUCATION_COPY[14] },
+  { index: EDUCATION_COPY[15], title: EDUCATION_COPY[16], body: EDUCATION_COPY[17] },
+  { index: EDUCATION_COPY[18], title: EDUCATION_COPY[19], body: EDUCATION_COPY[20] }
 ] as const;
 
 export type EducationRenderState = {
@@ -65,24 +64,23 @@ function EducationScene({ registerHandle }: SceneComponentProps) {
     >
       <div className="r4-education__wide" aria-label="留学 AI 能力横屏">
         <div className="r4-education__wide-copy">
-          <span className="section-index">{EDUCATION_COPY[0]}</span>
-          <h2>{EDUCATION_COPY[1]}</h2>
+          <h2>{EDUCATION_COPY[0]}</h2>
         </div>
         <div className="r4-education__signals" aria-hidden="true">
-          <span>{EDUCATION_COPY[2]}</span>
-          <b>{EDUCATION_COPY[3]}</b>
-          <span>{EDUCATION_COPY[4]}</span>
-          <b>{EDUCATION_COPY[5]}</b>
+          <span>{EDUCATION_COPY[1]}</span>
+          <b>{EDUCATION_COPY[2]}</b>
+          <span>{EDUCATION_COPY[3]}</span>
+          <b>{EDUCATION_COPY[4]}</b>
         </div>
       </div>
       <div className="r4-education__vertical">
         <div className="r4-education__lead">
-          <span className="section-index">{EDUCATION_COPY[6]}</span>
+          <span className="section-index">{EDUCATION_COPY[5]}</span>
           <h2>
+            <span>{EDUCATION_COPY[6]}</span>
             <span>{EDUCATION_COPY[7]}</span>
-            <span>{EDUCATION_COPY[8]}</span>
           </h2>
-          <p>{EDUCATION_COPY[9]}</p>
+          <p>{EDUCATION_COPY[8]}</p>
         </div>
         <div className="r4-education__program" aria-label="教育服务目录">
           {EDUCATION_ROWS.map((row) => (
