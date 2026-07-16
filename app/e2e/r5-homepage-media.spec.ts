@@ -107,17 +107,12 @@ test('Hero keeps the original figure deferred until the Hero to Pattern transiti
   await waitForHold(page, 'pattern');
 });
 
-test('direct non-Hero entries expose exactly the ten canonical physical video keys', async ({ page }, testInfo) => {
+test('direct non-Hero entries expose exactly the seven canonical physical video keys', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Batch B media gate uses mobile Chromium');
   const cases = [
     {
       scene: 'figure2-animation',
-      media: [
-        ['figure2-left-motion', 'figure2-left-motion'],
-        ['figure2-left-motion-reverse', 'figure2-left-motion-reverse'],
-        ['figure2-right-motion', 'figure2-right-motion'],
-        ['figure2-right-motion-reverse', 'figure2-right-motion-reverse']
-      ]
+      media: [['figure2-pair-motion', 'figure2-pair-motion']]
     },
     { scene: 'ttg-animation', media: [['ttg-figure-motion', 'ttg-figure-motion']] },
     { scene: 'ph-animation', media: [['ph-figure-motion', 'ph-figure-motion']] },

@@ -43,25 +43,21 @@ describe('R4 contract-driven media readiness gate', () => {
 
   it('derives required keys from the active playback direction', () => {
     expect(requiredMediaKeys(segment('figure2-distance-expand'), 1)).toEqual([
-      'figure2-left-motion',
-      'figure2-right-motion'
+      'figure2-pair-motion'
     ]);
     expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual([
-      'figure2-left-motion-reverse',
-      'figure2-right-motion-reverse'
+      'figure2-pair-motion'
     ]);
     expect(requiredMediaKeys(segment('aod-method-top'), -1)).toEqual([
       'aod-figure-motion'
     ]);
   });
 
-  it('does not resolve until every required video has decoded future data', async () => {
+  it('does not resolve until the required video has decoded future data', async () => {
     const registry = new HandleRegistry();
-    const left = fakeMedia('figure2-left-motion');
-    const right = fakeMedia('figure2-right-motion');
+    const video = fakeMedia('figure2-pair-motion');
     const byKey = new Map([
-      ['figure2-left-motion', left],
-      ['figure2-right-motion', right]
+      ['figure2-pair-motion', video]
     ]);
     let settled = false;
     const ready = waitForRequiredMediaReady({
@@ -78,15 +74,11 @@ describe('R4 contract-driven media readiness gate', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 4));
     expect(settled).toBe(false);
-    left.readyState = 3;
-    await new Promise((resolve) => setTimeout(resolve, 4));
-    expect(settled).toBe(false);
-    right.readyState = 3;
+    video.readyState = 3;
     await ready;
 
     expect(registry.snapshot().mediaReady).toEqual([
-      'figure2-left-motion:r4-media:prepare:1:-',
-      'figure2-right-motion:r4-media:prepare:1:-'
+      'figure2-pair-motion:r4-media:prepare:1:-'
     ]);
   });
 

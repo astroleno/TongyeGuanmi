@@ -26,7 +26,7 @@ class FakeStyle {
 class FakeVideo {
   readonly dataset: Record<string, string>;
   readonly seekWrites: number[] = [];
-  duration = 2.6;
+  duration = 5.2;
   loop = false;
   muted = false;
   paused = true;
@@ -39,12 +39,8 @@ class FakeVideo {
   private frameCallback: ((now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void) | undefined;
   private readonly listeners = new Map<string, Set<Listener>>();
 
-  constructor(side: 'left' | 'right', direction: 1 | -1) {
-    this.dataset = {
-      figure2Side: side,
-      figure2Direction: String(direction),
-      ...(direction === -1 ? { figure2Inactive: 'true' } : {})
-    };
+  constructor() {
+    this.dataset = {};
   }
 
   get currentTime(): number {
@@ -114,6 +110,10 @@ class FakeRoot {
 
   constructor(readonly videos: readonly FakeVideo[] = []) {}
 
+  querySelector(selector: string): FakeVideo | null {
+    return selector === '[data-figure2-combined-video]' ? this.videos[0] ?? null : null;
+  }
+
   querySelectorAll(selector: string): readonly FakeVideo[] {
     return selector === '[data-figure2-video]' ? this.videos : [];
   }
@@ -124,35 +124,24 @@ class FakeRoot {
 }
 
 function mediaRoot() {
-  const left = new FakeVideo('left', 1);
-  const right = new FakeVideo('right', 1);
-  const reverseLeft = new FakeVideo('left', -1);
-  const reverseRight = new FakeVideo('right', -1);
+  const video = new FakeVideo();
   return {
-    root: new FakeRoot([left, right, reverseLeft, reverseRight]),
-    left,
-    right,
-    reverseLeft,
-    reverseRight
+    root: new FakeRoot([video]),
+    video
   };
 }
 
 describe('Figure2 canonical media', () => {
-  it('renders one canonical pair per direction with no poster or bridge surface', () => {
+  it('renders one bidirectional canonical surface with no poster or bridge surface', () => {
     const markup = renderToStaticMarkup(createElement(figure2AnimationScene.Component, {
       scene: 'figure2-animation',
       hidden: false
     }));
 
-    expect(markup.match(/data-figure2-video=/g)).toHaveLength(4);
-    expect(markup).toContain('data-media-key="figure2-left-motion"');
-    expect(markup).toContain('data-media-key="figure2-right-motion"');
-    expect(markup).toContain('figure2-left-motion.webm');
-    expect(markup).toContain('figure2-right-motion.webm');
-    expect(markup).toContain('data-media-key="figure2-left-motion-reverse"');
-    expect(markup).toContain('data-media-key="figure2-right-motion-reverse"');
-    expect(markup).toContain('figure2-left-motion-reverse.webm');
-    expect(markup).toContain('figure2-right-motion-reverse.webm');
+    expect(markup.match(/data-figure2-video=/g)).toHaveLength(1);
+    expect(markup).toContain('data-figure2-combined-video="true"');
+    expect(markup).toContain('data-media-key="figure2-pair-motion"');
+    expect(markup).toContain('figure2-pair-motion.webm');
     expect(markup).not.toContain('poster');
     expect(markup).not.toContain('bridge');
   });
@@ -174,58 +163,42 @@ describe('Figure2 canonical media', () => {
     expect(root.style.values.get('--r4-figure2-video-opacity')).toBe('1');
   });
 
-  it('prepare-firsts both videos before native-preferred forward playback', async () => {
-    const { root, left, right } = mediaRoot();
+  it('prepare-firsts the combined video before native-preferred forward playback', async () => {
+    const { root, video } = mediaRoot();
     const mediaRun = { runId: 'figure2-forward:1', direction: 1 as const, timelineDurationMs: FIGURE2_INTRO_PLAYBACK_MS };
     const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
 
-    left.presentRequestedFrame();
-    right.presentRequestedFrame();
+    video.presentRequestedFrame();
     await preparation;
-    expect(left.dataset.timelineVideoFrameReady).toBe('true');
-    expect(right.dataset.timelineVideoFrameReady).toBe('true');
+    expect(video.dataset.timelineVideoFrameReady).toBe('true');
 
     commitFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
     await Promise.resolve();
-    expect(left.playCalls).toBe(1);
-    expect(right.playCalls).toBe(1);
+    expect(video.playCalls).toBe(1);
     expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toMatchObject({
       activeDirection: 1,
       activeRunId: 'figure2-forward:1',
-      left: { frameReady: true },
-      right: { frameReady: true }
+      media: { frameReady: true }
     });
     disposeFigure2Media(root as unknown as HTMLElement);
   });
 
-  it('plays the dedicated reverse pair natively without per-progress seeks', async () => {
-    const { root, left, right, reverseLeft, reverseRight } = mediaRoot();
+  it('plays the second half natively for reverse without per-progress seeks', async () => {
+    const { root, video } = mediaRoot();
     renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.62);
     const reverse = { runId: 'figure2-reverse:2', direction: -1 as const, timelineDurationMs: FIGURE2_INTRO_PLAYBACK_MS };
     const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, reverse);
 
-    reverseLeft.presentRequestedFrame();
-    reverseRight.presentRequestedFrame();
+    video.presentRequestedFrame();
     await preparation;
-    const leftSeekWrites = reverseLeft.seekWrites.length;
-    const rightSeekWrites = reverseRight.seekWrites.length;
+    const seekWrites = video.seekWrites.length;
     commitFigure2MediaLeg(root as unknown as HTMLElement, reverse);
     renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.43, { videoMode: 'native', mediaRun: reverse });
 
-    expect(reverseLeft.playCalls).toBe(1);
-    expect(reverseRight.playCalls).toBe(1);
-    expect(reverseLeft.seekWrites).toHaveLength(leftSeekWrites);
-    expect(reverseRight.seekWrites).toHaveLength(rightSeekWrites);
-    expect(reverseLeft.dataset.timelineVideoProgress).toBe('0.5700');
-    expect(reverseRight.dataset.timelineVideoProgress).toBe('0.5700');
-    expect(left.playCalls).toBe(0);
-    expect(right.playCalls).toBe(0);
-    expect(left.dataset.figure2Inactive).toBe('true');
-    expect(right.dataset.figure2Inactive).toBe('true');
-    expect(reverseLeft.dataset.figure2Inactive).toBeUndefined();
-    expect(reverseRight.dataset.figure2Inactive).toBeUndefined();
-    expect(reverseLeft.dataset.timelineVideoDirection).toBe('-1');
-    expect(reverseRight.dataset.timelineVideoDirection).toBe('-1');
+    expect(video.playCalls).toBe(1);
+    expect(video.seekWrites).toHaveLength(seekWrites);
+    expect(video.dataset.timelineVideoProgress).toBe('0.5700');
+    expect(video.dataset.timelineVideoDirection).toBe('-1');
     expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toMatchObject({
       activeDirection: -1,
       activeRunId: 'figure2-reverse:2'
@@ -234,13 +207,13 @@ describe('Figure2 canonical media', () => {
   });
 
   it('keeps the static scene composition visible when either canonical decode fails', async () => {
-    const { root, left } = mediaRoot();
+    const { root, video } = mediaRoot();
     const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, {
       runId: 'figure2-decode-failure:1',
       direction: 1
     });
 
-    left.dispatch('error');
+    video.dispatch('error');
     await expect(preparation).rejects.toThrow(/media error/);
     expect(root.dataset.figure2StaticMediaFallback).toBe('true');
     disposeFigure2Media(root as unknown as HTMLElement);

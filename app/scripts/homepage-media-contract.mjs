@@ -1,9 +1,6 @@
 export const animationWebmSources = [
   'assets/figure1.webm',
-  'assets/figure2-left-motion.webm',
-  'assets/figure2-right-motion.webm',
-  'assets/figure2-left-motion-reverse.webm',
-  'assets/figure2-right-motion-reverse.webm',
+  'assets/figure2-pair-motion.webm',
   'assets/ph-figure-motion.webm',
   'assets/ttg-figure-motion.webm',
   'assets/crane-figure-motion.webm',
@@ -20,28 +17,10 @@ export const frozenHomepageMedia = [
     sha256: 'a472e2f9f62c9cdd447fe78664020e3dad7e0ce37900bb1c4b4e7fb1db379d70'
   },
   {
-    source: 'assets/figure2-left-motion.webm',
+    source: 'assets/figure2-pair-motion.webm',
     category: 'animation-webm',
-    bytes: 4063470,
-    sha256: '9e58707c959d9111af1f1ea2420855292a0449862dc68c93298efc48866597a4'
-  },
-  {
-    source: 'assets/figure2-right-motion.webm',
-    category: 'animation-webm',
-    bytes: 3578198,
-    sha256: '7dbd981ccdda04a2ca0d598fdcc878151ec0c9b6a375249f38cc0ca30d2be737'
-  },
-  {
-    source: 'assets/figure2-left-motion-reverse.webm',
-    category: 'animation-webm',
-    bytes: 4366640,
-    sha256: 'cab4465ae951700382d1930dc47ddb39d801b8f38479cf6d8a5a225b91de4f32'
-  },
-  {
-    source: 'assets/figure2-right-motion-reverse.webm',
-    category: 'animation-webm',
-    bytes: 3918503,
-    sha256: 'fd0c874c1483024c9d446d7339599bde9e0b5e63e36985b7c75240f6933e35d9'
+    bytes: 4940268,
+    sha256: 'a87db407fd39f6977aa0b663ffd16e54929259e6651728997f7c072a33ffaa80'
   },
   {
     source: 'assets/ph-figure-motion.webm',
@@ -263,44 +242,14 @@ export const frozenHomepageMedia = [
 
 export const canonicalVideoContracts = [
   {
-    source: 'assets/figure2-left-motion.webm',
+    source: 'assets/figure2-pair-motion.webm',
     fps: '30/1',
-    frames: 78,
-    duration: 2.6,
+    frames: 156,
+    duration: 5.2,
     firstPts: 0,
-    lastPts: 2.567,
-    keyframes: 10,
-    maxGopFrames: 8
-  },
-  {
-    source: 'assets/figure2-right-motion.webm',
-    fps: '30/1',
-    frames: 78,
-    duration: 2.6,
-    firstPts: 0,
-    lastPts: 2.567,
-    keyframes: 10,
-    maxGopFrames: 8
-  },
-  {
-    source: 'assets/figure2-left-motion-reverse.webm',
-    fps: '30/1',
-    frames: 78,
-    duration: 2.6,
-    firstPts: 0,
-    lastPts: 2.567,
-    keyframes: 10,
-    maxGopFrames: 8
-  },
-  {
-    source: 'assets/figure2-right-motion-reverse.webm',
-    fps: '30/1',
-    frames: 78,
-    duration: 2.6,
-    firstPts: 0,
-    lastPts: 2.567,
-    keyframes: 10,
-    maxGopFrames: 8
+    lastPts: 5.167,
+    keyframes: 13,
+    maxGopFrames: 13
   },
   {
     source: 'assets/ph-figure-motion.webm',

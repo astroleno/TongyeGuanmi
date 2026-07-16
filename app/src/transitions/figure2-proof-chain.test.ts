@@ -39,34 +39,26 @@ const cases: readonly {
 ];
 
 describe('Figure2 proof chain transitions', () => {
-  it('declares one canonical Figure2 pair per direction and preserves the staged media gate', () => {
+  it('declares one bidirectional Figure2 surface and preserves the staged media gate', () => {
     const markup = renderToStaticMarkup(createElement(figure2AnimationScene.Component, {
       scene: 'figure2-animation',
       hidden: false
     }));
     const playback = segment('figure2-distance-expand').mediaPlayback?.[0];
 
-    expect(figure2AnimationScene.requiredHandles).toEqual(['stage', 'figures', 'left-video', 'right-video']);
+    expect(figure2AnimationScene.requiredHandles).toEqual(['stage', 'figures', 'combined-video']);
     expect(figure2AnimationScene.preload()).toEqual({ milestones: ['targetReady', 'mediaReady'] });
-    expect(markup).toContain('data-media-key="figure2-left-motion"');
-    expect(markup).toContain('data-media-key="figure2-right-motion"');
-    expect(markup).toContain('data-media-key="figure2-left-motion-reverse"');
-    expect(markup).toContain('data-media-key="figure2-right-motion-reverse"');
+    expect(markup).toContain('data-media-key="figure2-pair-motion"');
     expect(markup).toContain('data-figure2-ownership-surface="true"');
     expect(markup).not.toContain('poster');
     expect(markup).not.toContain('bridge');
     expect(playback).toMatchObject({
-      media: [
-        'figure2-left-motion',
-        'figure2-right-motion',
-        'figure2-left-motion-reverse',
-        'figure2-right-motion-reverse'
-      ],
-      forward: { mode: 'play', required: true, media: ['figure2-left-motion', 'figure2-right-motion'] },
+      media: ['figure2-pair-motion'],
+      forward: { mode: 'play', required: true, media: ['figure2-pair-motion'] },
       reverse: {
         mode: 'play',
         required: true,
-        media: ['figure2-left-motion-reverse', 'figure2-right-motion-reverse']
+        media: ['figure2-pair-motion']
       },
       preparingTimeoutMs: 4000
     });

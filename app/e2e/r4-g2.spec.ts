@@ -212,7 +212,7 @@ test.describe('R4 group2 canonical spine harness', () => {
         && visual.figure2LayerRevealMode === 'ink-occluded-live-gate'
         && visual.figure2LayerClipPath.startsWith('polygon(')
         && visual.figure2Progress === 0
-        && visual.videos.length === 2
+        && visual.videos.length === 1
         && visual.videos.every((video) => video.frameReady);
       if (matches) methodFigureInk = visual;
       return matches;
@@ -227,11 +227,8 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
     expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1, 2);
     expect(methodFigureInk.figure2Progress).toBe(0);
-    expect(methodFigureInk.videos).toHaveLength(2);
-    expect(new Set(methodFigureInk.videos.map((video) => video.mediaKey))).toEqual(new Set([
-      'figure2-left-motion',
-      'figure2-right-motion'
-    ]));
+    expect(methodFigureInk.videos).toHaveLength(1);
+    expect(methodFigureInk.videos[0]?.mediaKey).toBe('figure2-pair-motion');
     expect(methodFigureInk.visiblePosterCount).toBe(0);
     expect(methodFigureInk.videos.every((video) => video.loop === false)).toBe(true);
     expect(methodFigureInk.videos.every((video) => (
@@ -255,10 +252,10 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(figure2Hold.farArcadeScale).toBe(1);
     expect(figure2Hold.nearArchBlurPx).toBe(0);
     expect(figure2Hold.figureScale).toBe(1);
-    expect(figure2Hold.figureWidth).toBeGreaterThan(153);
-    expect(figure2Hold.figureWidth).toBeLessThan(261);
+    expect(figure2Hold.figureWidth).toBeGreaterThan(328);
+    expect(figure2Hold.figureWidth).toBeLessThan(556);
     expect(figure2Hold.visibleCaptionCount).toBe(0);
-    expect(figure2Hold.videos).toHaveLength(2);
+    expect(figure2Hold.videos).toHaveLength(1);
     expect(figure2Hold.visiblePosterCount).toBe(0);
     expect(figure2Hold.videos.every((video) => (
       video.loop === false && video.frameReady && video.paused && video.currentTime < 0.1

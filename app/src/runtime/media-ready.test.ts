@@ -16,13 +16,9 @@ function segment(id: SpineSegmentNode['id']): SpineSegmentNode {
 }
 
 describe('production media readiness', () => {
-  it('requires only the canonical Figure2 pair for the active direction', () => {
-    expect(requiredMediaKeys(segment('figure2-distance-expand'), 1)).toEqual([
-      'figure2-left-motion', 'figure2-right-motion'
-    ]);
-    expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual([
-      'figure2-left-motion-reverse', 'figure2-right-motion-reverse'
-    ]);
+  it('requires the same canonical Figure2 surface in both directions', () => {
+    expect(requiredMediaKeys(segment('figure2-distance-expand'), 1)).toEqual(['figure2-pair-motion']);
+    expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual(['figure2-pair-motion']);
   });
 
   it('requires the one TTG surface in both directions', () => {
@@ -46,39 +42,26 @@ describe('production media readiness', () => {
     expect(video.load).not.toHaveBeenCalled();
   });
 
-  it('promotes each required canonical Figure2 surface exactly once', async () => {
-    let leftReadyState = 1;
-    let rightReadyState = 1;
-    const leftLoad = vi.fn(() => { leftReadyState = 3; });
-    const rightLoad = vi.fn(() => { rightReadyState = 3; });
-    const left = {
-      get readyState() { return leftReadyState; },
+  it('promotes the canonical Figure2 surface exactly once', async () => {
+    let readyState = 1;
+    const load = vi.fn(() => { readyState = 3; });
+    const video = {
+      get readyState() { return readyState; },
       preload: 'metadata',
-      load: leftLoad
+      load
     } as unknown as HTMLMediaElement;
-    const right = {
-      get readyState() { return rightReadyState; },
-      preload: 'metadata',
-      load: rightLoad
-    } as unknown as HTMLMediaElement;
-    const media = new Map([
-      ['figure2-left-motion-reverse', left],
-      ['figure2-right-motion-reverse', right]
-    ]);
 
     await expect(waitForRequiredMediaReady({
       segment: segment('figure2-distance-expand'),
       direction: -1,
       prepareToken: 'media-ready:prepare:2',
       registry: new HandleRegistry(),
-      getMediaElement: (key) => media.get(key) ?? null,
+      getMediaElement: (key) => key === 'figure2-pair-motion' ? video : null,
       pollIntervalMs: 1,
       timeoutMs: 20
     })).resolves.toBeUndefined();
 
-    expect(left.preload).toBe('auto');
-    expect(right.preload).toBe('auto');
-    expect(leftLoad).toHaveBeenCalledOnce();
-    expect(rightLoad).toHaveBeenCalledOnce();
+    expect(video.preload).toBe('auto');
+    expect(load).toHaveBeenCalledOnce();
   });
 });
