@@ -18,11 +18,10 @@ describe('production lazy module registry', () => {
     expect(modules.map(({ id }) => id)).toEqual(productionSegmentIds);
   });
 
-  it('loads Method steps as a canonical, lazy reading scene', async () => {
-    const module = await loadSceneModule('method-bottom');
-
-    expect(module.id).toBe('method-bottom');
-    expect(loadedProductionModules().scenes).toContain('method-bottom');
+  it('keeps the retired Method subscene outside the production lazy registry', async () => {
+    expect(productionSceneIds).not.toContain('method-bottom');
+    await expect(loadSceneModule('method-bottom')).rejects.toThrow('retired');
+    expect(loadedProductionModules().scenes).not.toContain('method-bottom');
   });
 
   it('exposes idle prewarm only for the two cold-start transitions', async () => {
@@ -33,6 +32,7 @@ describe('production lazy module registry', () => {
   it('keeps retired Proof ids as URL aliases without loading compatibility runtime', async () => {
     await expect(loadSceneModule('figure2-proof-opening')).rejects.toThrow('retired');
     await expect(loadTransitionModule('figure2-proof-opening-cards')).rejects.toThrow('retired');
+    await expect(loadTransitionModule('method-top-method-bottom')).rejects.toThrow('retired');
     expect(loadedProductionModules().scenes).not.toContain('figure2-proof-opening');
     expect(loadedProductionModules().transitions).not.toContain('figure2-proof-opening-cards');
   });

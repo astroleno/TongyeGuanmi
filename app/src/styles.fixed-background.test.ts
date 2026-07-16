@@ -75,28 +75,27 @@ describe('viewport background contract', () => {
     }
   });
 
-  it('keeps Method reading inside its scene-owned bottom scrollport', () => {
-    const bottom = rule('.r4-method--bottom');
-
-    expect(bottom).toContain('overflow-y: auto');
-    expect(bottom).toContain('overscroll-behavior-y: contain');
+  it('keeps Method reading inside its scene-owned combined scrollport', () => {
+    expect(stylesheet).toMatch(
+      /\.r4-method,[\s\S]*?\.r4-education\s*\{[^}]*overflow-y:\s*auto[^}]*overscroll-behavior:\s*contain/s
+    );
     expect(rule('.r4-method__vertical')).toContain('min-height: 100%');
   });
 
   it('uses padded, divider-free Method rows rather than a fixed-height rail', () => {
     expect(rule('.r4-method__list')).not.toContain('height: 100%');
-    expect(rule('.r4-method__row')).toContain('padding: clamp(22px, 2.6vw, 34px) 0');
+    expect(stylesheet).toMatch(
+      /\.r4-method__row,[\s\S]*?\.r4-education__row\s*\{[^}]*padding:\s*clamp\(22px, 2\.6vw, 34px\) 0/s
+    );
     expect(rule('.r4-method__row')).not.toMatch(/min-height|border-(?:top|bottom)/);
-    expect(rule('.r4-method')).toContain('overflow: hidden');
+    expect(stylesheet).toMatch(
+      /\.r4-method,[\s\S]*?\.r4-education\s*\{[^}]*padding:\s*clamp\(52px, 7svh, 86px\) clamp\(24px, 6vw, 96px\)/s
+    );
   });
 
   it('keeps Lab and Education continuous copy inside viewport-owned scrollports', () => {
-    for (const selector of ['.r4-lab', '.r4-education']) {
-      const sceneRule = rule(selector);
-      expect(sceneRule).toContain('height: 100%');
-      expect(sceneRule).toContain('min-height: 0');
-      expect(sceneRule).toContain('overflow-y: auto');
-      expect(sceneRule).toContain('overscroll-behavior: contain');
-    }
+    expect(stylesheet).toMatch(
+      /\.r4-method,[\s\S]*?\.r4-education\s*\{[^}]*height:\s*100%[^}]*min-height:\s*0[^}]*overflow-y:\s*auto/s
+    );
   });
 });

@@ -226,7 +226,7 @@
   .scroll-edge-blur { display: none; }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 720px), (orientation: landscape) and (max-height: 500px) and (hover: none) and (pointer: coarse) {
   :root { --nav-h: 58px; }
   .site-nav-track { min-height: var(--nav-h); height: auto; padding: 9px 14px; gap: 10px; flex-wrap: wrap; }
   .site-nav .brand-mark { width: 28px; height: 28px; border-radius: 5px; }

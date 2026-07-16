@@ -59,13 +59,16 @@ describe('StoryLoader', () => {
     expect(markup).not.toContain('tabindex="0"');
   });
 
-  it('provides a pre-hydration loader shell with a no-JS escape before the React root', () => {
+  it('provides pre-hydration loader and mobile-entry shells with a no-JS escape before the React root', () => {
     const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
     const loaderIndex = html.indexOf('data-story-loader-static="true"');
+    const mobileEntryIndex = html.indexOf('id="mobile-landscape-entry-static"');
     const rootIndex = html.indexOf('id="root"');
     expect(loaderIndex).toBeGreaterThan(0);
     expect(loaderIndex).toBeLessThan(rootIndex);
+    expect(mobileEntryIndex).toBeGreaterThan(loaderIndex);
+    expect(mobileEntryIndex).toBeLessThan(rootIndex);
     expect(html).toContain('data-loader-ink-fallback="true"');
-    expect(html).toContain('<noscript><style>#story-loader-static { display: none !important; }</style></noscript>');
+    expect(html).toContain('#story-loader-static, #mobile-landscape-entry-static { display: none !important; }');
   });
 });

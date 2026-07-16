@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   PATTERN_COPY,
   type PatternRenderState,
   patternCenterForViewport,
+  patternMotionEnabled,
   patternScene,
   readPatternCenter,
   renderPatternHold,
   renderPatternProgress
 } from './index';
 import { fixtureStaticFallbackText } from '../../story/copy-baseline';
+
+const stylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -96,6 +100,12 @@ describe('pattern scene renderer', () => {
     expect(patternScene.renderHold).toBe(renderPatternHold);
   });
 
+  it('keeps its renderer active for every visible Stage layer until Pattern is hidden', () => {
+    expect(patternMotionEnabled(false, false)).toBe(true);
+    expect(patternMotionEnabled(true, false)).toBe(false);
+    expect(patternMotionEnabled(false, true)).toBe(false);
+  });
+
   it('couples collapse and rotation progress in the authored Pattern frame', () => {
     const root = new FakeElement();
     const collapseFrame = renderPatternProgress(root as unknown as HTMLElement, 0.42, {
@@ -115,5 +125,11 @@ describe('pattern scene renderer', () => {
 
     expect(markup.match(/data-pattern-rotor=/g)).toBeNull();
     expect(markup.match(/data-pattern-canvas/g)).toHaveLength(1);
+  });
+
+  it('moves the contracted desktop statement five viewport-width units to the right', () => {
+    expect(stylesheet).toMatch(
+      /\.r4-pattern-scene__statement\s*\{[^}]*transform:\s*translate3d\(5vw,\s*0,\s*0\)/s
+    );
   });
 });

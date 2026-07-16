@@ -23,7 +23,6 @@ export const canonicalSceneIds = [
   'star-map',
   'aod-animation',
   'method-top',
-  'method-bottom',
   'figure2-animation',
   'figure2-proof',
   'brand',
@@ -42,8 +41,7 @@ export const canonicalSegments = [
   { id: 'pattern-star-map', from: 'pattern', to: 'star-map' },
   { id: 'star-map-aod', from: 'star-map', to: 'aod-animation' },
   { id: 'aod-method-top', from: 'aod-animation', to: 'method-top' },
-  { id: 'method-top-method-bottom', from: 'method-top', to: 'method-bottom' },
-  { id: 'method-bottom-figure2', from: 'method-bottom', to: 'figure2-animation' },
+  { id: 'method-bottom-figure2', from: 'method-top', to: 'figure2-animation' },
   { id: 'figure2-distance-expand', from: 'figure2-animation', to: 'figure2-proof' },
   { id: 'figure2-proof-brand', from: 'figure2-proof', to: 'brand' },
   { id: 'brand-figure3', from: 'brand', to: 'figure3-animation' },
@@ -57,7 +55,7 @@ export const canonicalSegments = [
 ] as const satisfies readonly Omit<CanonicalSegmentSeed, 'kind'>[];
 
 const readingSceneIds = new Set<SceneId>([
-  'method-bottom',
+  'method-top',
   'figure2-proof',
   'services',
   'lab',
@@ -67,7 +65,6 @@ const readingSceneIds = new Set<SceneId>([
 const staticFallbackSceneIds = new Set<SceneId>([
   'hero',
   'method-top',
-  'method-bottom',
   'figure2-proof',
   'brand',
   'services',
@@ -79,7 +76,6 @@ const staticFallbackSceneIds = new Set<SceneId>([
 const freshInputSceneIds = new Set<SceneId>([
   'aod-animation',
   'method-top',
-  'method-bottom',
   'figure2-animation',
   'figure3-animation',
   'ttg-animation',

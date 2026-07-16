@@ -69,7 +69,6 @@ function ServicesScene({ registerHandle }: SceneComponentProps) {
       </section>
       <section className="r4-services__vertical" aria-label="企业服务能力">
         <aside className="r4-services__capability-lead">
-          <span className="section-index">01—04</span>
           <h2>企业服务能力</h2>
         </aside>
         <ol className="r4-services__list" aria-label="企业服务能力">

@@ -116,7 +116,11 @@ export function renderPatternHold(root: HTMLElement | null): PatternRenderState 
   });
 }
 
-function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
+export function patternMotionEnabled(hidden: boolean, reducedMotion: boolean): boolean {
+  return !hidden && !reducedMotion;
+}
+
+function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const motionBindingRef = useRef<SceneMotionBinding | null>(null);
@@ -134,7 +138,7 @@ function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
       renderer.setRenderActive(active, active && !reducedMotion);
     });
     motionBindingRef.current = motionBinding;
-    motionBinding.setBaseActive(!hidden && !reducedMotion && role === 'current');
+    motionBinding.setBaseActive(patternMotionEnabled(hidden, reducedMotion));
     let disposed = false;
     void renderer.start().then(() => renderer.prepareStaticFrame()).then(() => {
       if (!disposed) {
@@ -158,8 +162,8 @@ function PatternScene({ hidden, role, registerHandle }: SceneComponentProps) {
 
   useLayoutEffect(() => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    motionBindingRef.current?.setBaseActive(!hidden && !reduceMotion && role === 'current');
-  }, [hidden, role]);
+    motionBindingRef.current?.setBaseActive(patternMotionEnabled(hidden, reduceMotion));
+  }, [hidden]);
 
   return (
     <article ref={rootRef} className="r4-pattern-scene" data-r4-scene="pattern">

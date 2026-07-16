@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   createReadingMotionGovernor,
+  READING_WHEEL_DAMPING,
+  READING_WHEEL_EVENT_CAP_VIEWPORT,
   READING_WHEEL_GESTURE_BUDGET_VIEWPORT
 } from './reading-motion-governor';
 
@@ -21,7 +23,7 @@ describe('reading motion governor', () => {
     expect(displacement).toBeGreaterThan(viewportHeight * 0.35);
     expect(displacement).toBeLessThan(viewportHeight * 0.65);
 
-    const tail = [500, 500, 40].map((pixels) => governor.consume({
+    const tail = [500, 500, 500, 40, 40].map((pixels) => governor.consume({
       scope: 'reading:figure2-proof',
       source: 'wheel',
       pixels,
@@ -32,6 +34,12 @@ describe('reading motion governor', () => {
       viewportHeight * READING_WHEEL_GESTURE_BUDGET_VIEWPORT
     );
     expect(tail.at(-1)).toMatchObject({ pixels: 0, absorbed: true, remainingPixels: 0 });
+  });
+
+  it('uses the one-viewport reading budget without raising the per-event cap', () => {
+    expect(READING_WHEEL_GESTURE_BUDGET_VIEWPORT).toBe(1.05);
+    expect(READING_WHEEL_DAMPING).toBe(0.88);
+    expect(READING_WHEEL_EVENT_CAP_VIEWPORT).toBe(0.18);
   });
 
   it('resets the wheel budget for a new physical gesture or direction, without touching touch and key input', () => {
@@ -50,7 +58,7 @@ describe('reading motion governor', () => {
     });
 
     expect(first.pixels).toBe(180);
-    expect(reverse).toMatchObject({ pixels: -75, absorbed: false, remainingPixels: 565 });
+    expect(reverse).toMatchObject({ pixels: -88, absorbed: false, remainingPixels: 962 });
     expect(touch).toMatchObject({ pixels: 100, absorbed: false });
     expect(key).toMatchObject({ pixels: 100, absorbed: false });
   });

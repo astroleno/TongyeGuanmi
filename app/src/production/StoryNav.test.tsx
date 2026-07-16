@@ -42,7 +42,7 @@ describe('StoryNav', () => {
     expect(markup).toContain('class="site-nav__action site-nav__toggle"');
     expect(markup).toContain('class="site-nav__action nav-cta"');
     expect(stylesheet).toMatch(
-      /@media \(max-width: 720px\)[\s\S]*\.site-nav__action\s*\{[^}]*min-height:\s*34px[^}]*border-radius:\s*6px/s
+      /@media \(max-width: 720px\),[\s\S]*\.site-nav__action\s*\{[^}]*min-height:\s*34px[^}]*border-radius:\s*6px/s
     );
     expect(markup).not.toContain('inert=""');
     expect(markup.match(/class="scroll-edge-blur__layer"/g)).toHaveLength(7);

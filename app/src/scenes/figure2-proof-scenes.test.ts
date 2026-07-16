@@ -95,4 +95,19 @@ describe('figure2 proof and brand scene renderers', () => {
     expect(stylesheet).toMatch(/\.r4-proof-panel\s*\{[^}]*min-height:\s*100svh/s);
     expect(stylesheet).not.toMatch(/\.r4-proof-(?:compound|panel)\s*\{[^}]*scroll-snap/s);
   });
+
+  it('breaks the closing proof sentence immediately after the fourth approach label', () => {
+    const markup = renderToStaticMarkup(createElement(figure2ProofScene.Component, {
+      scene: 'figure2-proof',
+      hidden: false
+    }));
+    const compatibilityMarkup = renderToStaticMarkup(createElement(figure2ProofClosingScene.Component, {
+      scene: 'figure2-proof-closing',
+      hidden: false
+    }));
+
+    for (const rendered of [markup, compatibilityMarkup]) {
+      expect(rendered).toContain('同野观幂做第四种：</span><br/><span>先进现场，再定章法，陪你跑到账上有数。');
+    }
+  });
 });

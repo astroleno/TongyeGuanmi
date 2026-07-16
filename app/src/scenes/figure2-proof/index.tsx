@@ -8,6 +8,7 @@ import {
   renderProofCardsHold
 } from '../figure2-proof-cards';
 import {
+  Figure2ProofClosingCopy,
   FIGURE2_PROOF_CLOSING_COPY,
   renderProofClosingHold
 } from '../figure2-proof-closing';
@@ -100,7 +101,7 @@ function Figure2ProofScene({ registerHandle }: SceneComponentProps) {
       >
         <div className="r4-proof-scroll__content r4-proof-scroll__content--closing">
           <p className="r4-proof-closing__copy">
-            {FIGURE2_PROOF_CLOSING_COPY[0]}
+            <Figure2ProofClosingCopy />
           </p>
         </div>
       </section>

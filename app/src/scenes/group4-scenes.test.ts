@@ -71,6 +71,8 @@ describe('R4 group4 scenes', () => {
     expect(markup).toContain('class="r4-services__vertical"');
     expect(markup).toContain('class="r4-services__capability-lead"');
     expect(markup).toContain('企业服务能力');
+    expect(markup).not.toContain('01—04');
+    expect(markup).toContain('<span>01</span>');
     expect(markup.match(/class="r4-services__row"/g)).toHaveLength(4);
     expect(stylesheet).not.toMatch(
       /\.r4-services__row\s*\{[^}]*min-height:\s*39svh/s
@@ -80,6 +82,9 @@ describe('R4 group4 scenes', () => {
     );
     expect(stylesheet).toMatch(
       /\.r4-services\s*\{[^}]*background:\s*#ede4d2/s
+    );
+    expect(stylesheet).not.toMatch(
+      /\.r4-services__capability-lead h2\s*\{[^}]*max-width:\s*5em/s
     );
   });
 });

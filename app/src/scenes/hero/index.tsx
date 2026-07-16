@@ -416,7 +416,12 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
             variant="line"
             yPx={14}
           >
-            <TextRevealItem>{HERO_COPY[4]}</TextRevealItem>
+            <TextRevealItem aria-label={HERO_COPY[4]}>
+              <span className="r4-hero-scene__tagline-line">你的同行不是更聪明，</span>
+              <span className="r4-hero-scene__tagline-line r4-hero-scene__tagline-line--figure-clearance">
+                只是更早把 AI 用进了生意里。
+              </span>
+            </TextRevealItem>
           </TextReveal>
         </div>
         <video

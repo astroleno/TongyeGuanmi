@@ -47,6 +47,7 @@ export default defineConfig({
     emptyOutDir: true,
     assetsInlineLimit: 0,
     cssCodeSplit: true,
+    modulePreload: false,
     chunkSizeWarningLimit: 420,
     rollupOptions: {
       output: {

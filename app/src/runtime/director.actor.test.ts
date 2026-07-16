@@ -602,13 +602,13 @@ describe('director runtime actor loop', () => {
     expect(renderedProgress).toBe(0);
   });
 
-  it('requires fresh input at the figure2-animation hold after method-bottom-figure2', async () => {
+  it('requires fresh input at the figure2-animation hold after the Method reading transition', async () => {
     const runtime = createDirectorRuntime({
       actorEpoch: 'figure2-fresh-input',
       syntheticPlayMs: 20
     });
     runtime.send({ type: 'BOOT_READY' });
-    runtime.send({ type: 'SEEK', label: 'scene:method-bottom', source: 'menu' });
+    runtime.send({ type: 'SEEK', label: 'scene:method-top', source: 'menu' });
     await flush(0);
 
     runtime.send({ type: 'INPUT_DELTA', source: 'wheel', delta: 0.11, now: 1 });

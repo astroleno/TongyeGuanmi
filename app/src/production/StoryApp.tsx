@@ -31,7 +31,6 @@ import type {
   SceneModule,
   SegmentId
 } from '../story/types';
-import { attachStoryInput } from './input-controller';
 import {
   StoryLoader,
   type StoryLoaderExitReason,
@@ -51,6 +50,9 @@ import {
 } from './navigation';
 import { positionCurrentProofHistoryAlias, positionProofAlias } from './proof-alias-navigation';
 import { scheduleAdjacentPrewarm } from './adjacent-prewarm';
+import { loadInputController, prewarmInputController } from './input-controller-loader';
+import { MobileLandscapeGate, useMobileLandscapeEntry } from './MobileLandscapeGate';
+import type { MobileLandscapeEntryState } from './mobile-landscape-entry';
 
 const StoryNav = lazy(() => import('./StoryNav').then(({ StoryNav: Component }) => ({ default: Component })));
 
@@ -81,6 +83,8 @@ export type StoryAppSnapshot = {
   loaderStatus: StoryLoaderStatus;
   heroIntroMode: HeroIntroMode;
   presentationReady: boolean;
+  mobileLandscapeState: MobileLandscapeEntryState;
+  experienceInteractive: boolean;
   recovery?: {
     scope: 'boot' | 'segment';
     status: 'fallback' | 'recovering' | 'failed';
@@ -178,6 +182,12 @@ export function StoryApp() {
   );
   const [presentationReady, setPresentationReady] = useState(false);
   const loaderHiddenReasonRef = useRef<StoryLoaderExitReason | undefined>(undefined);
+  const mobileLandscape = useMobileLandscapeEntry();
+  const landscapeGateStarted = mobileLandscape.started;
+  const experienceInteractive = presentationReady
+    && landscapeGateStarted
+    && mobileLandscape.landscapeCurrentlyAllowed
+    && !bootFailed;
 
   const runtime = useMemo(() => createDirectorRuntime({
     actorEpoch: 'production-story',
@@ -299,6 +309,9 @@ export function StoryApp() {
     source: DirectorSeekSource = 'menu',
     historyMode: 'push' | 'none' = 'push'
   ) => {
+    if (!experienceInteractive) {
+      return;
+    }
     const request = ++navigationRequestRef.current;
     try {
       await ensureWindow(createLayerWindow(scene));
@@ -318,7 +331,7 @@ export function StoryApp() {
     }
     runtime.send({ type: 'SEEK', label: sceneLabel(scene), source });
     setMenuOpen(false);
-  }, [ensureWindow, runtime]);
+  }, [ensureWindow, experienceInteractive, runtime]);
 
   useEffect(() => {
     runtime.start();
@@ -378,7 +391,7 @@ export function StoryApp() {
     if (next?.kind === 'segment') {
       const modulePromise = loadTransitionModule(next.id);
       void modulePromise.catch(() => undefined);
-      if (presentationReady && !bootFailed) {
+      if (experienceInteractive) {
         return scheduleAdjacentPrewarm(async () => {
           const module = await modulePromise;
           // Holds mount their DOM before SegmentPlayer has any reason to make
@@ -401,7 +414,7 @@ export function StoryApp() {
         });
       }
     }
-  }, [bootFailed, ensureWindow, layerStore, presentationReady, reducedMotion, runtime, runtimeSnapshot]);
+  }, [ensureWindow, experienceInteractive, layerStore, reducedMotion, runtime, runtimeSnapshot]);
 
   useEffect(() => {
     if (
@@ -419,8 +432,7 @@ export function StoryApp() {
 
   useEffect(() => {
     if (
-      !presentationReady
-      || bootFailed
+      !experienceInteractive
       || runtimeSnapshot.state !== 'hold'
       || runtimeSnapshot.context.cursor.status !== 'hold'
       || lastFocusedSceneRef.current === currentScene
@@ -429,7 +441,7 @@ export function StoryApp() {
     }
     lastFocusedSceneRef.current = currentScene;
     focusSceneHeading(currentScene);
-  }, [bootFailed, currentScene, presentationReady, runtimeSnapshot]);
+  }, [currentScene, experienceInteractive, runtimeSnapshot]);
 
   useLayoutEffect(() => {
     if (runtimeSnapshot.state !== 'hold' || runtimeSnapshot.context.cursor.status !== 'hold') {
@@ -464,16 +476,41 @@ export function StoryApp() {
   }, [layerStore, runtimeSnapshot]);
 
   useEffect(() => {
-    if (!presentationReady || bootFailed) {
+    if (bootFailed || experienceInteractive) {
       return;
     }
-    return attachStoryInput({
-      runtime,
-      getCurrentScene: () => runtime.getState().context.layerWindow.current,
-      getLayerElement: (scene) => layerStore.getLayer(scene)?.element
-        ?? document.querySelector<HTMLElement>(`[data-stage-layer="${scene}"]`)
+    // Fetch during the Loader or the phone landscape gate. The separate
+    // interaction effect below remains the sole place that attaches listeners.
+    prewarmInputController();
+  }, [bootFailed, experienceInteractive]);
+
+  useEffect(() => {
+    if (!experienceInteractive) {
+      return;
+    }
+    let active = true;
+    let detach: (() => void) | undefined;
+    void loadInputController().then(({ attachStoryInput }) => {
+      if (!active) {
+        return;
+      }
+      detach = attachStoryInput({
+        runtime,
+        getCurrentScene: () => runtime.getState().context.layerWindow.current,
+        getLayerElement: (scene) => layerStore.getLayer(scene)?.element
+          ?? document.querySelector<HTMLElement>(`[data-stage-layer="${scene}"]`)
+      });
+    }).catch((error: unknown) => {
+      if (active) {
+        const normalized = error instanceof Error ? error : new Error(String(error));
+        setBootError(`Unable to attach story input: ${normalized.message}`);
+      }
     });
-  }, [bootFailed, layerStore, presentationReady, runtime]);
+    return () => {
+      active = false;
+      detach?.();
+    };
+  }, [experienceInteractive, layerStore, runtime]);
 
   useEffect(() => {
     const onHistoryNavigation = () => {
@@ -551,6 +588,8 @@ export function StoryApp() {
       loaderStatus,
       heroIntroMode,
       presentationReady,
+      mobileLandscapeState: mobileLandscape.state,
+      experienceInteractive,
       ...(recovery
         ? {
             recovery: {
@@ -568,7 +607,16 @@ export function StoryApp() {
         : {}),
       ...(lastError ? { lastError: lastError.message } : {})
     };
-  }, [bootError, heroIntroMode, loaderMode, loaderStatus, presentationReady, runtime]);
+  }, [
+    bootError,
+    experienceInteractive,
+    heroIntroMode,
+    loaderMode,
+    loaderStatus,
+    mobileLandscape.state,
+    presentationReady,
+    runtime
+  ]);
 
   const handleLayerElement = useCallback((scene: SceneId, element: HTMLElement | null) => {
     layerStore.bindElement(scene, element);
@@ -608,8 +656,7 @@ export function StoryApp() {
     ?? runtimeSnapshot.context.pendingDirection
     ?? (runtimeSnapshot.context.settlingTarget === 'star-map' ? 1 : undefined)
     ?? (runtimeSnapshot.context.settlingTarget === 'pattern' ? -1 : undefined);
-  const navVisible = presentationReady
-    && !bootFailed
+  const navVisible = experienceInteractive
     && navigationSegment !== 'hero-pattern'
     && (navigationSegment === 'pattern-star-map'
       ? runtimeSnapshot.state !== 'preparing' && navigationDirection === 1
@@ -630,6 +677,8 @@ export function StoryApp() {
       data-loader-status={loaderStatus}
       data-hero-intro={heroIntroMode}
       data-presentation-ready={String(presentationReady)}
+      data-mobile-landscape-state={mobileLandscape.state}
+      data-experience-interactive={String(experienceInteractive)}
       data-recovery-scope={runtimeSnapshot.context.recovery?.scope}
       data-recovery-status={runtimeSnapshot.context.recovery?.status}
       data-recovery-segment={runtimeSnapshot.context.recovery?.scope === 'segment'
@@ -643,9 +692,11 @@ export function StoryApp() {
         mode={loaderMode}
         ready={loaderReady}
         failed={bootFailed}
+        release={landscapeGateStarted}
         onStatusChange={setLoaderStatus}
         onHidden={handleLoaderHidden}
       />
+      <MobileLandscapeGate state={mobileLandscape.state} onStart={mobileLandscape.start} />
       <Stage
         window={runtimeSnapshot.context.layerWindow}
         modules={modules}
@@ -653,7 +704,7 @@ export function StoryApp() {
         visibilityByScene={layerSnapshot.visibilityByScene}
         copyCueScene={copyCueScene}
         presentationByScene={presentationByScene}
-        interactive={presentationReady && !bootFailed}
+        interactive={experienceInteractive}
         onLayerElement={handleLayerElement}
         onSceneMount={handleSceneMount}
         onSceneDispose={handleSceneDispose}

@@ -1,8 +1,20 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
+export const FIGURE2_PROOF_CLOSING_LEAD = '同野观幂做第四种：';
+export const FIGURE2_PROOF_CLOSING_TAIL = '先进现场，再定章法，陪你跑到账上有数。';
 export const FIGURE2_PROOF_CLOSING_COPY = [
-  '同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。'
+  `${FIGURE2_PROOF_CLOSING_LEAD}${FIGURE2_PROOF_CLOSING_TAIL}`
 ] as const;
+
+export function Figure2ProofClosingCopy() {
+  return (
+    <>
+      <span>{FIGURE2_PROOF_CLOSING_LEAD}</span>
+      <br />
+      <span>{FIGURE2_PROOF_CLOSING_TAIL}</span>
+    </>
+  );
+}
 
 export type ProofClosingRenderState = {
   progress: number;
@@ -41,7 +53,7 @@ function Figure2ProofClosingScene({ registerHandle }: SceneComponentProps) {
       data-r4-proof-overlay="closing"
     >
       <div className="r4-proof-scroll__content r4-proof-scroll__content--closing">
-        <p className="r4-proof-closing__copy">{FIGURE2_PROOF_CLOSING_COPY[0]}</p>
+        <p className="r4-proof-closing__copy"><Figure2ProofClosingCopy /></p>
       </div>
     </article>
   );

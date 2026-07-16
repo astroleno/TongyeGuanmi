@@ -34,6 +34,7 @@ export type StoryLoaderProps = {
   mode: StoryLoaderMode;
   ready: boolean;
   failed: boolean;
+  release?: boolean;
   onExitStart?: (reason: StoryLoaderExitReason) => void;
   onHidden?: (reason: StoryLoaderExitReason) => void;
   onStatusChange?: (status: StoryLoaderStatus) => void;
@@ -85,6 +86,7 @@ export function StoryLoader({
   mode,
   ready,
   failed,
+  release = true,
   onExitStart,
   onHidden,
   onStatusChange
@@ -167,6 +169,9 @@ export function StoryLoader({
   }, [hidden, mode]);
 
   useEffect(() => {
+    if (!release) {
+      return;
+    }
     if (failed) {
       setExitReason((current) => current ?? 'error');
       return;
@@ -174,15 +179,15 @@ export function StoryLoader({
     if (ready && frame.sequenceComplete) {
       setExitReason((current) => current ?? 'ready');
     }
-  }, [failed, frame.sequenceComplete, ready]);
+  }, [failed, frame.sequenceComplete, ready, release]);
 
   useEffect(() => {
-    if (exitReason || hidden) {
+    if (!release || exitReason || hidden) {
       return;
     }
     const timer = window.setTimeout(() => setExitReason('safety'), STORY_LOADER_TIMINGS.safetyMs);
     return () => window.clearTimeout(timer);
-  }, [exitReason, hidden]);
+  }, [exitReason, hidden, release]);
 
   useEffect(() => {
     onStatusChange?.(status);

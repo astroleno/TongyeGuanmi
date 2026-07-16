@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   HERO_COPY,
@@ -14,6 +15,8 @@ import {
   FakeElement as TimelineRoot,
   FakeVideo as TimelineVideo
 } from '../../transitions/__fixtures__/back-half.fixture';
+
+const stylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -224,10 +227,28 @@ describe('hero scene renderer', () => {
     expect(markup).toContain('data-text-reveal-item="3"');
     expect(markup).toContain('data-text-reveal="line"');
     expect(markup.match(/data-text-reveal-effects="stagger blur-to-clear rise-up"/g)).toHaveLength(2);
+    expect(markup).toContain('class="r4-hero-scene__tagline-line"');
+    expect(markup).toContain('r4-hero-scene__tagline-line--figure-clearance');
+    expect(markup).toContain(HERO_COPY[4]);
     expect(markup).toContain('preload="none"');
     expect(markup).toContain('figure1.webm');
     expect(markup).toContain('hero-figure-poster.webp');
     expect(markup).not.toContain('hero-figure-scrub');
+  });
+
+  it('moves only the second subtitle phrase clear of the figure and preserves the landscape spacing', () => {
+    expect(stylesheet).toMatch(
+      /\.r4-hero-scene__content p\s*\{[^}]*margin:\s*20px\s+0\s+0/s
+    );
+    expect(stylesheet).toMatch(
+      /\.r4-hero-scene__tagline-line--figure-clearance\s*\{[^}]*position:\s*relative;[^}]*left:\s*3em/s
+    );
+    expect(stylesheet).not.toMatch(
+      /\.r4-hero-scene__tagline-line--figure-clearance\s*\{[^}]*margin-left:/s
+    );
+    expect(stylesheet).toMatch(
+      /@media \(orientation: landscape\)[\s\S]*?\.r4-hero-scene__content p\s*\{[^}]*margin-top:\s*14px/s
+    );
   });
 
   it('keeps copy inside the artwork stacking context below the center figure', () => {

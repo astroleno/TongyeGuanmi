@@ -1,7 +1,7 @@
 import type { Direction, DirectorInputSource } from '../story/types';
 
-export const READING_WHEEL_GESTURE_BUDGET_VIEWPORT = 0.64;
-export const READING_WHEEL_DAMPING = 0.75;
+export const READING_WHEEL_GESTURE_BUDGET_VIEWPORT = 1.05;
+export const READING_WHEEL_DAMPING = 0.88;
 export const READING_WHEEL_EVENT_CAP_VIEWPORT = 0.18;
 export const READING_WHEEL_EDGE_CONFIRMATION_PX = 16;
 
