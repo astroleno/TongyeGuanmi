@@ -15,6 +15,7 @@
 | 生产 Ink lifecycle marker 被移除 | `SceneLayer` 的显式 `loseContext()` 与 `StoryApp.webglCanvases` 改用生产恒定的 `data-r4-ink-renderer-status`，不再依赖 DEV-only diagnostics。 | release Chromium cold Hero 路径验证 active status 与 GPU surface 计数，并在离场 Contact 时记录 `WEBGL_lose_context`。 |
 | Figure2 combined media 令 reverse probe 超时 | `r5-performance` 改为等待唯一的 `[data-figure2-combined-video]`、`timelineVideoDirection === '-1'`、ready frame 与 `2.6–5.2s` reverse leg。 | 迁入后的单媒体反向段已在 release desktop performance probe 实际通过。 |
 | direct-entry 的 loader status 与 interactive 状态不同步 | `StoryLoader` hidden timer 与 parent 的 `onHidden` 会在同一 turn 触发；`StoryApp` 现在先同步镜像 `loaderStatus: 'hidden'`，再发布 `presentationReady`。 | full release 的 direct `method-top` / `contact` 与 reduced Hero 路径要求 visible story 时 snapshot 已是 `loaderStatus: 'hidden'`。 |
+| Crane 深检依赖同名兄弟工作树 | 深检从当前 checkout 可达的冻结 Git object `d4cab484…:assets/crane-figure1-transition.webm` 恢复到唯一临时目录，并先锁定 bytes/SHA；不再读取任意 sibling worktree。 | `verify:media:deep` 输出 authority 为 `git:d4cab484…:assets/crane-figure1-transition.webm`，临时文件在检查结束后删除。 |
 
 ## P2 自动化证据
 
@@ -24,12 +25,14 @@
 | 固定进度读回 | performance gate 使用实际 `pixelWitness.progress`，而非读回前的 transition sample。 |
 | Hero spatter 形态与上限 | `readPixels` 同时断言可见方形/紧凑 spatter 的连通域、像素数与亮像素密度上限。最后一次 desktop witness：128 个 compact-square components、2,659 pixels、34,056 bright pixels；亮像素占比约 `2.63%`，低于 `4%` ceiling。 |
 | 长阅读交互 | Proof、Lab、Services、Education 共用 release 合同：7×80px burst 位移为 `0.35–0.65` viewport；同一 gesture 的第二个 500px tail 被吸收；暂停 260ms 的 fresh input 恢复内容位移；reverse input 与从相邻场景反向进入仍由 reading owner 持有。 |
+| PH edge-spill replacement | 深检锁定生产文件与归档原文件的 bytes/SHA，整轨 alpha SSIM `0.998376`、暖纸合成 SSIM `0.997629`。采样帧 `0/23/45` 的不透明暖色人物 composite MAE 为 `2.08043`；紧邻不透明人物的透明 fringe green-excess 从 `47.59587` 降至 `8.84959`（减少 `38.74628`）。 |
 
 ## Figure2 / PH 媒体集成
 
 - 两笔媒体提交按依赖顺序整体迁入，不是仅复制资产；包括 SHA、PTS/GOP、manifest、runtime ownership、测试和 archive。
 - `assets/figure2-pair-motion.webm` 为唯一的 Figure2 双向媒体：792×660、156 frames、5.2s、alpha，forward `0–2.567s`、reverse `2.6–5.167s`，source SHA `a87db407fd39…`。
-- `verify:media:deep` 通过；runtime media 为 `44,601,932 B`、38 个 runtime assets、8 个 WebM。相对旧四视频 Figure2 方案，迁入后总量净减少。
+- `verify:media:deep` 现在把每个方向的两条 archive authority 重新按原 `1280×1066 + 80px` 中缝构图、缩放，并分别与 combined half 比较：forward alpha/暖纸 SSIM `0.971733 / 0.973679`，reverse `0.972476 / 0.974194`（门槛均为 `0.970000`）。既有 candidate 自反向 seam/direction 检查继续保留，但不再作为 authority fidelity 的替代。
+- runtime media 为 `44,601,932 B`、38 个 runtime assets、8 个 WebM。相对旧四视频 Figure2 方案，迁入后总量净减少。
 - 最后一次 desktop release probe 记录 Figure2 reverse first decode `83ms`、steady p95 `17.4ms`。
 
 ## 当前 build / budget

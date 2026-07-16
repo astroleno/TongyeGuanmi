@@ -29,6 +29,7 @@ Figure2 Proof reverse 白闪已由 `1d62d2e` 的单一 Proof ownership surface�
 - 隔离实现分支为 `codex/r5-ink-visual-method-closure`；核心视觉、交接、reading 与 lifecycle 闭环已提交为 `24eb89c`。
 - 复核要求整体迁入的媒体提交已按顺序落地：`3a6ff95`（PH green-screen edge spill）与 `7b34eb8`（Figure2 单一双向媒体、PTS/GOP、manifest、runtime ownership、测试和归档）。这不是孤立复制 WebM。
 - U0–U6 的源码和自动化合同已经完成；U7 的 desktop Chromium 自动证据已补齐 AOD 的 `p=0` 首个 presented alpha frame、四个 reading 场景的 burst/tail/fresh/reverse-entry，以及 Hero 粒子形态/密度上限与 Figure2 单媒体 reverse 路径。
+- 资格复核补充的三个媒体合同已经落地：Crane authority 从冻结 Git ref `d4cab484…` 临时 materialize，不再依赖 sibling worktree；PH 对 archive 原文件锁定 SHA，并要求整轨 alpha/暖纸 SSIM、暖色人物 composite 与透明 fringe 去绿 witness；Figure2 对四条 archive authority 按原左右构图复合，分别比较 forward/reverse half 的 alpha 与暖纸 SSIM。candidate 状态不因此改变。
 - 计划仍保持 `active`：immutable candidate、完整 default/release matrix、process-memory/disposal qualification、rollback manifest、macOS 触控板与关键视觉 HITL 尚未完成，不能冻结或 cutover。
 
 ## Problem Frame
