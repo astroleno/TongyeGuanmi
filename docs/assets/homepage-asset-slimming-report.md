@@ -5,11 +5,28 @@
 - 当前唯一阶段分支为 `codex/react-refactor-r5-parity-cutover`，状态是 **pre-visual、untagged、unqualified**。
 - Batch A generation provenance 由远端 `codex/homepage-asset-slimming-generation` 精确保存于 `3f16dd0b3f136e699cb3cbd88c1241b4875d9393`。它是独立来源链，不是 Batch B/C 的 Git 祖先，也未为制造线性历史合入 R5。
 - Batch B 以 `c273726b1a26ddfea557774d590214782ff7e74b` → `f5a497909683e8771a4e2944b5e2d8e0dfa0433d` → `be119daba32577c5a44dc100aa3bd357cacdaa1d` → `b23dd80d13bea685fd4fdd58caa49c11032ecb11` 接入 R5；Batch C 以 `767d3927119fb7e06b09939858912d5da3f4c04d` → `b62ba647cbf5402299cd0a5eef46fff152c48524` 通过非 squash merge 接入。
-- 当前 R5 已在 Batch B/C 基线上接入 2026-07-15 parity 修复与本轮 Hero/Flock/Crane figure 瘦身：Hero 使用 lossless RGBA poster 和裁切后的 720×1280 alpha WebM；Crane figure 由单一 RGBA authority 重采样后使用 CRF 26 canonical；Crane flock 保留 74 帧，以 archive 中的高分辨率 RGBA 静帧经 Lanczos 下采样并匹配开场运动帧色调后替换 canonical frame 0，frames 1–73 继续来自冻结 authority，并由 runtime 持有作者末帧。修正版 WebP 只作为可复现重建输入，runtime 不再挂 poster 或静帧 surface。Figure2 另从两个当前 forward authority 确定性生成 direction-specific reverse WebM，由 runtime 原生正播呈现逆向。当前 source 冻结合同是 **40 files / 29 WebP / 11 WebM / 0 JPG / 0 PNG**；runtime media **55,398,358 bytes**；Hero pre-scroll **1,604,092 bytes**；最大单文件为 **4,429,224 bytes**；`dist/assets` 不得包含 PNG/JPG。
+- 当前 R5 已在 Batch B/C 基线上接入 2026-07-15 parity 修复与本轮 Hero/Flock/Crane figure 瘦身：Hero 使用 lossless RGBA poster 和裁切后的 720×1280 alpha WebM；Crane figure 由单一 RGBA authority 重采样后使用 CRF 26 canonical；Crane flock 保留 74 帧，以 archive 中的高分辨率 RGBA 静帧经 Lanczos 下采样并匹配开场运动帧色调后替换 canonical frame 0，frames 1–73 继续来自冻结 authority，并由 runtime 持有作者末帧。修正版 WebP 只作为可复现重建输入，runtime 不再挂 poster 或静帧 surface。Figure2 已把左右人物与正反方向合并为一条 792×660、156 帧的 bidirectional alpha WebM，两个方向均由浏览器原生正向解码。当前 source 冻结合同是 **38 files / 30 WebP / 8 WebM / 0 JPG / 0 PNG**；runtime media **44,601,932 bytes**；Hero pre-scroll **1,604,092 bytes**；最大单文件为 **4,940,268 bytes**；`dist/assets` 不得包含 PNG/JPG。
 - Batch C 的自动浏览器证据属于上述相同 runtime/assets tree，但不等于最终人工视觉验收或 release qualification。最终视觉尚未执行；当前 HEAD 没有 candidate tag，也未运行当前身份的 RSS、rollback 或 exact-tag matrix。
 - GitHub 只运行 branch/PR Node 静态门禁（`verify:all`），用于仓库健康；不运行 FFmpeg、媒体深检、Playwright、RSS、rollback 或 HITL，Actions 绿灯不是 R5 qualification 条件。
 - Candidate-v2 至 candidate-v8 均为 immutable historical/unqualified，禁止移动或复用。新 candidate 只能在最终视觉通过及 pre-freeze gate 完成后创建一次。
 - `main` 仍在 `a78b064d65f024a301a3b179c62a458a1445bbf6`，未合并、未部署；`react-refactor-r5-cutover` 未创建；R6 blocked。
+
+## R5 Figure2 单媒体合并（2026-07-16）
+
+Figure2 从四个同时挂载的方向专用 surface 收敛为 `assets/figure2-pair-motion.webm` 一个 surface。左右人物以原 1280×1066 构图和 80px 中缝合成，再缩放到 792×660；frames 0–77 是正序，frames 78–155 是倒序。runtime 正向播放 0–2.6s，逆向播放 2.6–5.2s，两个方向都保持 `playbackRate=1`，不再为 reverse 同时 mount 第二套 video。
+
+| 项目 | 冻结值 |
+| --- | --- |
+| canonical | `assets/figure2-pair-motion.webm` |
+| bytes / SHA-256 | 4,940,268 / `a87db407fd39f6977aa0b663ffd16e54929259e6651728997f7c072a33ffaa80` |
+| stream | VP9 alpha；792×660；30fps；156 帧；5.2s；13 keyframes；GOP ≤13 |
+| seam | frames 77/78 分别位于 2.567s / 2.600s，均为 keyframe，解码 RGBA 完全一致 |
+| 对缩放 authority 的质量 | forward alpha SSIM 0.988557、暖纸 0.988303；reverse alpha 0.987890、暖纸 0.987898 |
+| 定向浏览器性能 | 390×844 SwiftShader：forward/reverse rAF p95 均 33.4ms，dropped 均为 1，CPU 3.10s / 3.05s |
+
+被替换的 `figure2-left-motion.webm`、`figure2-right-motion.webm` 及两条 `-reverse` 文件共 15,926,811 bytes，完整保存在 `archive/assets/homepage-media/2026-07-16/replaced/`，文件名与 SHA 见该目录 README；生产体积减少 10,986,543 bytes（68.98%）。用户已在完整 scroll lifecycle 中人工确认正向、逆向和 Proof 边界无异常。候选阶段只做了一次定向性能/视觉检查，没有运行 Playwright 套件或浏览器矩阵。
+
+正式接入后一次性通过 5 个相关 Vitest 文件 / 45 tests、TypeScript、定向 ESLint、production build、38-file media inventory、深度媒体合同与 `git diff --check`。build 结果：runtime media 44,601,932 bytes，全部 emitted assets 45,273,009 bytes；total JS raw 570,887 / 581,632 bytes，保留 10,745 bytes。没有重复运行全量 unit，也没有运行 Playwright。
 
 以下 Batch A.1、Batch B 与 Batch C 小节保留各阶段原始生成、验证、删除与恢复事实；其中所有历史 totals（包括文末 Batch C totals）都不覆盖上方 2026-07-15 R5 当前冻结合同。
 
@@ -37,10 +54,11 @@ ffmpeg -c:v libvpx-vp9 -i archive/assets/homepage-media/2026-07-15/replaced/figu
 
 pnpm run rebuild:media:crane-flock-poster
 pnpm run rebuild:media:crane-flock
-pnpm run rebuild:media:figure2-reverse
+# Figure2 reverse rebuild was retired on 2026-07-16 after the single-media cutover.
+# Its four frozen inputs now live under archive/assets/homepage-media/2026-07-16/replaced/.
 ```
 
-`pnpm run verify:media:deep` 现在同时冻结 Hero 裁切/尺寸/帧数/PTS/GOP/alpha/SSIM、Crane flock authority 与 corrected WebP identity、canonical frame 0 的 color/alpha SSIM 和 body/gap witnesses、frames 1–73 的 alpha extrema parity 与 color/alpha SSIM、无复制帧合同，以及 Figure2 reverse pair 的 78/78 帧序/PTS、alpha/composite SSIM。Flock 容器的最后呈现 PTS 为 2.433s；既有 timeline driver 会按实际 2.466s 容器时长钳制 seek，暂停后持续呈现作者末帧，不再向文件追加 terminal hold。WebM 容器 UID 由冻结 authority SHA 派生，重复重建输出同一 bytes/SHA。
+`pnpm run verify:media:deep` 现在同时冻结 Hero 裁切/尺寸/帧数/PTS/GOP/alpha/SSIM、Crane flock authority 与 corrected WebP identity、canonical frame 0 的 color/alpha SSIM 和 body/gap witnesses、frames 1–73 的 alpha extrema parity 与 color/alpha SSIM、无复制帧合同，以及 Figure2 combined 的 156 帧、双 seam keyframe、RGBA seam identity、正反 direction SSIM 和四个归档 authority 身份。Flock 容器的最后呈现 PTS 为 2.433s；既有 timeline driver 会按实际 2.466s 容器时长钳制 seek，暂停后持续呈现作者末帧，不再向文件追加 terminal hold。WebM 容器 UID 由冻结 authority SHA 派生，重复重建输出同一 bytes/SHA。
 
 本轮还把冻结清单之外、且在 `app/`、`src/`、`scripts/`、`index.html`、`package.json` 中均无引用的 62 个 authoring/debug/legacy 文件（362,441,690 bytes）从 `assets/` 移到 `archive/assets/homepage-media/2026-07-15/legacy/assets/**`。旧 Hero、旧 lossless flock、被 frame-zero 修复替换的 4,437,203-byte flock canonical 和 74-frame flock authority 分别保存在同一 archive 的 `replaced/` 与 `sources/`；恢复规则见该目录 `README.md`。
 

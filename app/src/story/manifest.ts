@@ -147,7 +147,7 @@ function visualFor(segment: SegmentId): SegmentVisual | undefined {
     case 'aod-method-top':
       return { type: 'disappear', media: ['aod-figure-motion'] };
     case 'figure2-distance-expand':
-      return { type: 'disappear', media: ['figure2-left-motion', 'figure2-right-motion'] };
+      return { type: 'disappear', media: ['figure2-pair-motion'] };
     case 'figure3-services':
       return { type: 'disappear', media: ['figure3-motion'] };
     case 'crane-contact':
@@ -327,19 +327,14 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'figure2-pair',
-          [
-            'figure2-left-motion',
-            'figure2-right-motion',
-            'figure2-left-motion-reverse',
-            'figure2-right-motion-reverse'
-          ],
+          ['figure2-pair-motion'],
           'figure2-proof',
           {
             forwardMode: 'play',
             reverseMode: 'play',
             reverseRequired: true,
-            forwardMedia: ['figure2-left-motion', 'figure2-right-motion'],
-            reverseMedia: ['figure2-left-motion-reverse', 'figure2-right-motion-reverse'],
+            forwardMedia: ['figure2-pair-motion'],
+            reverseMedia: ['figure2-pair-motion'],
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
           }
         )

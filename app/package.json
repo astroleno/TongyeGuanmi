@@ -22,7 +22,6 @@
     "rebuild:media:crane": "node scripts/rebuild-crane-figure-media.mjs",
     "rebuild:media:crane-flock": "node scripts/rebuild-crane-flock-media.mjs",
     "rebuild:media:crane-flock-poster": "node scripts/rebuild-crane-flock-poster.mjs",
-    "rebuild:media:figure2-reverse": "node scripts/rebuild-figure2-reverse-media.mjs",
     "rebuild:media:figure2-depth-mask": "node scripts/rebuild-figure2-depth-mask-atlas.mjs",
     "evidence:visual": "node scripts/capture-r5-visual-evidence.mjs",
     "evidence:memory": "node scripts/profile-r5-process-memory.mjs",

@@ -73,6 +73,7 @@ const forbiddenEmittedNames = [
   /(?:back1|middle1|arch2[bd]-alpha)\.[a-z0-9]+$/i,
   /figure2(?:a|b)-alpha/i,
   /figure2-duel-alpha/i,
+  /figure2-(?:left|right)-motion/i,
   /figure2-(?:cloud-source|front-(?:white|color)-source|middle-fresco)/i,
   /ph_figure-alpha/i,
   /ttg_(?:bg|middle-composite|front(?:-alpha|-composite)?|figure-alpha)/i,
@@ -169,13 +170,13 @@ const inventorySources = [
 const frozenMediaBySource = new Map(
   frozenHomepageMedia.map((entry) => [entry.source, entry])
 );
-assert(inventorySources.length === 41, `expected 41 homepage source entries, found ${inventorySources.length}`);
-assert(frozenHomepageMedia.length === 41, `expected 41 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
+assert(inventorySources.length === 38, `expected 38 homepage source entries, found ${inventorySources.length}`);
+assert(frozenHomepageMedia.length === 38, `expected 38 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
 assert(frozenMediaBySource.size === frozenHomepageMedia.length, 'frozen homepage media sources must be unique');
 assert(frozenMediaBySource.size === inventorySources.length, 'frozen homepage media contract must cover the full inventory');
 assert(adoptedWebpSources.length === 11, `expected 11 adopted WebP sources, found ${adoptedWebpSources.length}`);
 assert(losslessWebpSources.length === 19, `expected 19 lossless WebP sources, found ${losslessWebpSources.length}`);
-assert(animationWebmSources.length === 11, `expected 11 animation WebM sources, found ${animationWebmSources.length}`);
+assert(animationWebmSources.length === 8, `expected 8 animation WebM sources, found ${animationWebmSources.length}`);
 
 const [sourceEntries, emittedFiles, sourceAssetFiles] = await Promise.all([
   Promise.all(inventorySources.map(({ source, category }) => sourceEntry(source, category))),
@@ -232,8 +233,8 @@ const emittedWebm = emittedEntries.filter((entry) => mediaExtension(entry.path) 
 const emittedWebp = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.webp');
 const emittedJpg = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.jpg');
 const emittedPng = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.png');
-assert(emittedMedia.length === 41, `expected exactly 41 emitted homepage media files, found ${emittedMedia.length}`);
-assert(emittedWebm.length === 11, `expected exactly 11 emitted animation WebM files, found ${emittedWebm.length}`);
+assert(emittedMedia.length === 38, `expected exactly 38 emitted homepage media files, found ${emittedMedia.length}`);
+assert(emittedWebm.length === 8, `expected exactly 8 emitted animation WebM files, found ${emittedWebm.length}`);
 assert(emittedWebp.length === 30, `expected exactly 30 emitted WebP files, found ${emittedWebp.length}`);
 assert(emittedJpg.length === 0, `production JPG emit is forbidden, found ${emittedJpg.length}`);
 assert(emittedPng.length === 0, `production PNG emit is forbidden, found ${emittedPng.length}`);

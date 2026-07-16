@@ -10,24 +10,36 @@ const execFileAsync = promisify(execFile);
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
 const TIMING_TOLERANCE_SECONDS = 0.001;
-const FIGURE2_REVERSE_CONTRACTS = [
-  {
-    side: 'left',
-    authority: 'assets/figure2-left-motion.webm',
-    authoritySha256: '9e58707c959d9111af1f1ea2420855292a0449862dc68c93298efc48866597a4',
-    source: 'assets/figure2-left-motion-reverse.webm',
-    sourceBytes: 4_366_640,
-    sourceSha256: 'cab4465ae951700382d1930dc47ddb39d801b8f38479cf6d8a5a225b91de4f32'
-  },
-  {
-    side: 'right',
-    authority: 'assets/figure2-right-motion.webm',
-    authoritySha256: '7dbd981ccdda04a2ca0d598fdcc878151ec0c9b6a375249f38cc0ca30d2be737',
-    source: 'assets/figure2-right-motion-reverse.webm',
-    sourceBytes: 3_918_503,
-    sourceSha256: 'fd0c874c1483024c9d446d7339599bde9e0b5e63e36985b7c75240f6933e35d9'
-  }
-];
+const FIGURE2_COMBINED_CONTRACT = {
+  source: 'assets/figure2-pair-motion.webm',
+  sourceBytes: 4_940_268,
+  sourceSha256: 'a87db407fd39f6977aa0b663ffd16e54929259e6651728997f7c072a33ffaa80',
+  frames: 156,
+  seamFrames: [77, 78],
+  archivedBytes: 15_926_811,
+  authorities: [
+    {
+      source: 'archive/assets/homepage-media/2026-07-16/replaced/figure2-left-motion.webm',
+      bytes: 4_063_470,
+      sha256: '9e58707c959d9111af1f1ea2420855292a0449862dc68c93298efc48866597a4'
+    },
+    {
+      source: 'archive/assets/homepage-media/2026-07-16/replaced/figure2-right-motion.webm',
+      bytes: 3_578_198,
+      sha256: '7dbd981ccdda04a2ca0d598fdcc878151ec0c9b6a375249f38cc0ca30d2be737'
+    },
+    {
+      source: 'archive/assets/homepage-media/2026-07-16/replaced/figure2-left-motion-reverse.webm',
+      bytes: 4_366_640,
+      sha256: 'cab4465ae951700382d1930dc47ddb39d801b8f38479cf6d8a5a225b91de4f32'
+    },
+    {
+      source: 'archive/assets/homepage-media/2026-07-16/replaced/figure2-right-motion-reverse.webm',
+      bytes: 3_918_503,
+      sha256: 'fd0c874c1483024c9d446d7339599bde9e0b5e63e36985b7c75240f6933e35d9'
+    }
+  ]
+};
 const AOD_ALPHA_CONTRACT = {
   source: 'assets/aod-figure-motion.webm',
   frames: 78,
@@ -440,51 +452,69 @@ async function decodedRgbaFramemd5(source, filter) {
   });
 }
 
-async function inspectFigure2ReverseContract(contract) {
-  const authority = path.join(repoDir, contract.authority);
+async function inspectFigure2CombinedContract() {
+  const contract = FIGURE2_COMBINED_CONTRACT;
   const output = path.join(repoDir, contract.source);
-  const [authorityIdentity, outputIdentity, reversedFrames, outputFrames, colorSsim, alphaSsim] = await Promise.all([
-    sha256File(authority),
+  const [outputIdentity, authorityIdentities, probe, outputFrames, alphaFrames, directionColorSsim, directionAlphaSsim] = await Promise.all([
     sha256File(output),
-    decodedRgbaFramemd5(authority, 'reverse,setpts=N/(30*TB)'),
+    Promise.all(contract.authorities.map(async (authority) => ({
+      ...authority,
+      identity: await sha256File(path.join(repoDir, authority.source))
+    }))),
+    ffprobe(contract.source, [
+      '-count_frames',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height,avg_frame_rate,nb_read_frames:stream_tags=alpha_mode:format=duration:frame=key_frame,best_effort_timestamp_time'
+    ]),
     decodedRgbaFramemd5(output),
+    decodedAlphaStats(contract.source),
     decodedSsim(
-      authority,
       output,
-      '[0:v]reverse,setpts=N/(30*TB),format=yuva420p[ref];[1:v]setpts=N/(30*TB),format=yuva420p[candidate];[ref][candidate]ssim'
+      output,
+      '[0:v]trim=start_frame=0:end_frame=78,setpts=N/(30*TB),format=yuva420p[forward];[1:v]trim=start_frame=78:end_frame=156,reverse,setpts=N/(30*TB),format=yuva420p[reverse];[forward][reverse]ssim'
     ),
     decodedSsim(
-      authority,
       output,
-      '[0:v]reverse,setpts=N/(30*TB),format=yuva420p,alphaextract[ref];[1:v]setpts=N/(30*TB),format=yuva420p,alphaextract[candidate];[ref][candidate]ssim'
+      output,
+      '[0:v]trim=start_frame=0:end_frame=78,setpts=N/(30*TB),format=yuva420p,alphaextract[forward];[1:v]trim=start_frame=78:end_frame=156,reverse,setpts=N/(30*TB),format=yuva420p,alphaextract[reverse];[forward][reverse]ssim'
     )
   ]);
-  assert(authorityIdentity.sha256 === contract.authoritySha256, `Figure2 ${contract.side} authority identity changed`);
-  assert(outputIdentity.bytes === contract.sourceBytes, `Figure2 ${contract.side} reverse bytes changed`);
-  assert(outputIdentity.sha256 === contract.sourceSha256, `Figure2 ${contract.side} reverse identity changed`);
-  assert(reversedFrames.length === 78 && outputFrames.length === 78, `Figure2 ${contract.side} reverse must map 78/78 frames`);
-  for (let index = 0; index < 78; index += 1) {
-    const expected = reversedFrames[index];
-    const actual = outputFrames[index];
-    assert(
-      expected.dts === actual.dts
-      && expected.pts === actual.pts
-      && expected.duration === actual.duration
-      && expected.bytes === actual.bytes,
-      `Figure2 ${contract.side} reverse frame ${index} timing diverged`
-    );
+  const stream = probe.streams?.[0];
+  const frames = probe.frames ?? [];
+  const keyframes = frames.flatMap((frame, index) => Number(frame.key_frame) === 1 ? [index] : []);
+
+  assert(outputIdentity.bytes === contract.sourceBytes, 'Figure2 combined output bytes changed');
+  assert(outputIdentity.sha256 === contract.sourceSha256, 'Figure2 combined output identity changed');
+  assert(outputIdentity.bytes < 5_000_000, 'Figure2 combined output must remain below 5 MB');
+  assert(stream?.width === 792 && stream?.height === 660, 'Figure2 combined output must be 792x660');
+  assert(Number(stream?.nb_read_frames) === contract.frames, 'Figure2 combined output must expose 156 frames');
+  assert(outputFrames.length === contract.frames && alphaFrames.length === contract.frames, 'Figure2 combined decode must expose 156 RGBA/alpha frames');
+  assert(streamAlphaMode(stream) === '1', 'Figure2 combined output must retain alpha_mode=1');
+  assert(keyframes.includes(contract.seamFrames[0]) && keyframes.includes(contract.seamFrames[1]), 'Figure2 combined seam frames must both be keyframes');
+  assert(outputFrames[77]?.md5 === outputFrames[78]?.md5, 'Figure2 combined seam frames must be decoded RGBA-identical');
+  assert(outputFrames[77]?.bytes === outputFrames[78]?.bytes, 'Figure2 combined seam frame dimensions changed');
+  assert(alphaFrames.every((frame) => frame.ymin === 0 && frame.ymax === 255), 'Figure2 combined frames must retain authored 0..255 alpha');
+  assert(directionColorSsim.all >= 0.98, `Figure2 combined direction color SSIM ${directionColorSsim.all} < 0.98`);
+  assert(directionAlphaSsim.all >= 0.98, `Figure2 combined direction alpha SSIM ${directionAlphaSsim.all} < 0.98`);
+  assert(authorityIdentities.reduce((sum, authority) => sum + authority.identity.bytes, 0) === contract.archivedBytes, 'Figure2 archived authority byte total changed');
+  for (const authority of authorityIdentities) {
+    assert(authority.identity.bytes === authority.bytes, `${authority.source} bytes changed`);
+    assert(authority.identity.sha256 === authority.sha256, `${authority.source} identity changed`);
   }
-  assert(colorSsim.all >= 0.990, `Figure2 ${contract.side} reverse color SSIM ${colorSsim.all} < 0.990`);
-  assert(alphaSsim.all >= 0.994, `Figure2 ${contract.side} reverse alpha SSIM ${alphaSsim.all} < 0.994`);
+
   return {
-    side: contract.side,
-    authority: contract.authority,
     source: contract.source,
-    bytes: outputIdentity.bytes,
-    frames: outputFrames.length,
-    frameMap: 'reverse[0..77] = forward[77..0]',
-    colorSsim: colorSsim.all,
-    alphaSsim: alphaSsim.all
+    sourceBytes: outputIdentity.bytes,
+    sourceSha256: outputIdentity.sha256,
+    dimensions: '792x660',
+    frames: contract.frames,
+    forwardRange: 'frames 0..77 / 0.000..2.567s',
+    reverseRange: 'frames 78..155 / 2.600..5.167s',
+    seamFrames: contract.seamFrames,
+    seamRgbaMd5: outputFrames[77].md5,
+    directionColorSsim: directionColorSsim.all,
+    directionAlphaSsim: directionAlphaSsim.all,
+    archivedAuthorities: authorityIdentities.map(({ source, bytes, sha256 }) => ({ source, bytes, sha256 }))
   };
 }
 
@@ -712,24 +742,19 @@ const canonicalVideos = [];
 for (const contract of canonicalVideoContracts) {
   canonicalVideos.push(await inspectCanonicalVideo(contract));
 }
-const [figure2Reverse, aodAlpha, craneSingleSource, heroTrimmed, craneFlockVisual, craneFlockCorrectedFrame] = await Promise.all([
-  Promise.all(FIGURE2_REVERSE_CONTRACTS.map(inspectFigure2ReverseContract)),
+const [figure2Combined, aodAlpha, craneSingleSource, heroTrimmed, craneFlockVisual, craneFlockCorrectedFrame] = await Promise.all([
+  inspectFigure2CombinedContract(),
   inspectAodAlphaContract(),
   inspectCraneSingleSourceContract(),
   inspectHeroTrimmedContract(),
   inspectCraneFlockVisualContract(),
   inspectCraneFlockCorrectedFrameContract()
 ]);
-assert(
-  figure2Reverse.reduce((sum, contract) => sum + contract.bytes, 0) <= 10 * 1024 * 1024,
-  'Figure2 reverse pair exceeds 10 MiB'
-);
-
 process.stdout.write(`${JSON.stringify({
   qualification: 'homepage-media-deep',
   files: canonicalVideos.length,
   canonicalVideos,
-  figure2Reverse,
+  figure2Combined,
   aodAlpha,
   craneSingleSource,
   heroTrimmed,

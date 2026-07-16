@@ -155,7 +155,7 @@ describe('story manifest contract', () => {
     }
   });
 
-  it('gates both Figure2 videos before the staged distance playback can start', () => {
+  it('gates the bidirectional Figure2 video before staged distance playback can start', () => {
     const segment = storyManifest.nodes.find(
       (node) => node.kind === 'segment' && node.id === 'figure2-distance-expand'
     );
@@ -170,21 +170,16 @@ describe('story manifest contract', () => {
       mediaPlayback: [
         {
           id: 'figure2-pair',
-          media: [
-            'figure2-left-motion',
-            'figure2-right-motion',
-            'figure2-left-motion-reverse',
-            'figure2-right-motion-reverse'
-          ],
+          media: ['figure2-pair-motion'],
           forward: {
             mode: 'play',
             required: true,
-            media: ['figure2-left-motion', 'figure2-right-motion']
+            media: ['figure2-pair-motion']
           },
           reverse: {
             mode: 'play',
             required: true,
-            media: ['figure2-left-motion-reverse', 'figure2-right-motion-reverse']
+            media: ['figure2-pair-motion']
           },
           readyMilestones: ['targetReady', 'mediaReady'],
           terminalFallbackScene: 'figure2-proof',
