@@ -46,8 +46,8 @@ export const frozenHomepageMedia = [
   {
     source: 'assets/ph-figure-motion.webm',
     category: 'animation-webm',
-    bytes: 2646001,
-    sha256: '49e23297a26fa0d6cc3862d6c4123e8090c521bafb3fe718de2ca4fc130169d6'
+    bytes: 2824934,
+    sha256: '678f76a40ccffe6cc2f337bfaa6fa66d4af4f6c70b2860695491cc5003147ab1'
   },
   {
     source: 'assets/ttg-figure-motion.webm',
