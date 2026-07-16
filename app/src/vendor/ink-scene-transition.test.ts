@@ -25,9 +25,16 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toContain('fieldDirection: gl.getUniformLocation(program, \'D\')');
     expect(shaderSource).toContain('fieldOrigin: gl.getUniformLocation(program, \'O\')');
     expect(shaderSource).toContain('depthMap: gl.getUniformLocation(program, \'X\')');
-    expect(shaderSource).toContain('float hr(');
+    expect(shaderSource).toContain('vec4 hq=hc(u)');
     expect(shaderSource).toContain('float rr(');
     expect(shaderSource).toContain('float dr(');
+  });
+
+  it('adds the Hero target sampler only to the target-bearing radial program', () => {
+    expect(shaderSource).toContain('#define FT ${targetImage ? 1 : 0}');
+    expect(shaderSource).toContain('#if defined(FR) && FT');
+    expect(shaderSource).toContain("const targetUniforms = targetImage ? {");
+    expect(shaderSource).toContain("if (targetTexture && targetImage) {");
   });
 
   it('uses one packed multiscale contour texture for the horizontal eroded edge', () => {
@@ -41,9 +48,9 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toContain('frame.contour.samples.length');
     expect(shaderSource).toContain('frame.contour.texture');
     expect(shaderSource).toContain('vec4 hc(');
-    expect(shaderSource).toContain('float he(');
-    expect(shaderSource).toContain('float me=he(u)*en*Q');
-    expect(shaderSource).toContain('float br=hr(u);float bp=H');
+    expect(shaderSource).toContain('float br2=br+');
+    expect(shaderSource).toContain('float me=dot(hs');
+    expect(shaderSource).toContain('float br=hd(u,D)+hmain');
     expect(shaderSource).toContain('float fi=');
     expect(shaderSource).toContain('float ob=');
     expect(shaderSource).toContain('float tn=');
@@ -54,7 +61,8 @@ describe('ink boundary shader contract', () => {
   it('covers the binary ownership clip with an opaque core and a wider soft edge', () => {
     expect(shaderSource).toContain('float sh=max(hh,');
     expect(shaderSource).toContain('float so=(1.0-smoothstep(hh,sh,abs(br-B)))*0.46');
-    expect(shaderSource).toContain('ho=max(ho,so)');
+    expect(shaderSource).toContain('float s2=');
+    expect(shaderSource).toContain('ho=max(ho,max(so,s2))');
   });
 
   it('keeps body erosion deterministic while allowing time only in effect particles', () => {
@@ -83,7 +91,7 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toContain('float py=oo(br,B,E,I,ow)');
     expect(shaderSource).toContain('float ho=oo(br,B,E,I,1.0)');
     expect(shaderSource).toContain('a=max(a,se)');
-    expect(shaderSource).toContain('float se=ho');
+    expect(shaderSource).toContain('float se=max(ho,hb)');
     expect(shaderSource).not.toMatch(/ho[\s\S]*?\*\s*nonHorizontalMode/);
     expect(shaderSource).not.toContain('uSceneDim');
   });
@@ -94,8 +102,11 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toContain('gl.uniform1f(uniforms.particleGain, particleGain)');
     expect(shaderSource).not.toContain('particleGateLow');
     expect(shaderSource).not.toContain('particleGateHigh');
-    expect(shaderSource).toMatch(/float pr=mix\(0\.075,0\.190,[^;]+\);/);
-    expect(shaderSource).toContain('smoothstep(0.860,0.975,ps)');
+    expect(shaderSource).toContain('float pr=mix(.075,.19,pv.a)');
+    expect(shaderSource).toContain('vec4 ad(vec2 p)');
+    expect(shaderSource).toContain('vec4 pv=pw>.0?ad(pi+ph):vec4(0.)');
+    expect(shaderSource.indexOf('float pw=')).toBeLessThan(shaderSource.indexOf('vec4 pv=pw>.0?ad(pi+ph):vec4(0.)'));
+    expect(shaderSource).toContain('smoothstep(.79,.93,ps)');
     expect(shaderSource).toMatch(/float pa=[^;]+\*G;/);
   });
 

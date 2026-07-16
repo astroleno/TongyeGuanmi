@@ -167,11 +167,14 @@ describe('AOD Method transition media contract', () => {
     const timeline = await createAodMethodTopTransition().buildTimeline(context);
 
     await timeline.reverse();
-    expect(visibleScenes(context)).toEqual(['aod-animation']);
+    expect(visibleScenes(context)).toEqual(['aod-animation', 'method-top']);
+    expect(context.to.visibility).toMatchObject({ visible: true, inert: true, opacity: 1 });
+    expect(context.from.element?.dataset.aodExitActive).toBe('true');
+    expect(context.from.element?.dataset.aodAlphaComposite).toBe('true');
 
     timeline.dispose();
     expect(context.from.element?.style.zIndex).toBe('');
-    expect(visibleScenes(context)).toEqual(['aod-animation']);
+    expect(visibleScenes(context)).toEqual(['aod-animation', 'method-top']);
 
     context.from.setVisibility(holdVisibility());
     context.to.setVisibility(hiddenVisibility());

@@ -29,9 +29,16 @@ function manifest(nodes: readonly SpineNode[]): StoryManifest {
 export function createR4Group2Manifest(mode: R4Group2HarnessMode): StoryManifest {
   switch (mode) {
     case 'method-bottom-figure2':
+      return manifest([
+        hold('method-bottom'),
+        segment('method-bottom-figure2'),
+        hold('figure2-animation')
+      ]);
     case 'group2':
       return manifest([
         hold('method-top'),
+        segment('method-top-method-bottom'),
+        hold('method-bottom'),
         segment('method-bottom-figure2'),
         hold('figure2-animation')
       ]);

@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -17,6 +18,15 @@ const FIGURE2_COMBINED_CONTRACT = {
   frames: 156,
   seamFrames: [77, 78],
   archivedBytes: 15_926_811,
+  authorityCanvas: {
+    width: 1280,
+    height: 1066,
+    leftWidth: 600,
+    centerGutter: 80,
+    outputWidth: 792,
+    outputHeight: 660,
+    paperColor: '0xede4d2'
+  },
   authorities: [
     {
       source: 'archive/assets/homepage-media/2026-07-16/replaced/figure2-left-motion.webm',
@@ -38,7 +48,47 @@ const FIGURE2_COMBINED_CONTRACT = {
       bytes: 3_918_503,
       sha256: 'fd0c874c1483024c9d446d7339599bde9e0b5e63e36985b7c75240f6933e35d9'
     }
+  ],
+  directions: [
+    {
+      label: 'forward',
+      candidateStartFrame: 0,
+      candidateEndFrame: 78,
+      leftAuthority: 'archive/assets/homepage-media/2026-07-16/replaced/figure2-left-motion.webm',
+      rightAuthority: 'archive/assets/homepage-media/2026-07-16/replaced/figure2-right-motion.webm',
+      alphaSsimMin: 0.97,
+      paperCompositeSsimMin: 0.97
+    },
+    {
+      label: 'reverse',
+      candidateStartFrame: 78,
+      candidateEndFrame: 156,
+      leftAuthority: 'archive/assets/homepage-media/2026-07-16/replaced/figure2-left-motion-reverse.webm',
+      rightAuthority: 'archive/assets/homepage-media/2026-07-16/replaced/figure2-right-motion-reverse.webm',
+      alphaSsimMin: 0.97,
+      paperCompositeSsimMin: 0.97
+    }
   ]
+};
+const PH_EDGE_SPILL_CONTRACT = {
+  source: 'assets/ph-figure-motion.webm',
+  sourceBytes: 2_824_934,
+  sourceSha256: '678f76a40ccffe6cc2f337bfaa6fa66d4af4f6c70b2860695491cc5003147ab1',
+  authority: 'archive/assets/homepage-media/2026-07-16/replaced/ph-figure-motion-original.webm',
+  authorityBytes: 2_646_001,
+  authoritySha256: '49e23297a26fa0d6cc3862d6c4123e8090c521bafb3fe718de2ca4fc130169d6',
+  width: 1672,
+  height: 942,
+  frames: [0, 23, 45],
+  paperColor: [237, 228, 210],
+  paperColorHex: '0xede4d2',
+  alphaSsimMin: 0.998,
+  paperCompositeSsimMin: 0.997,
+  bodyAlphaMin: 224,
+  spillAlphaMax: 24,
+  bodyCompositeMaeMax: 4,
+  edgeGreenExcessReductionMin: 30,
+  edgeWitnessMinPixels: 1_000
 };
 const AOD_ALPHA_CONTRACT = {
   source: 'assets/aod-figure-motion.webm',
@@ -107,7 +157,8 @@ const CRANE_SINGLE_SOURCE_CONTRACT = {
   source: 'assets/crane-figure-motion.webm',
   sourceSha256: 'a66a6778bda2a6c2e3fb5241a69ba4f1e4422a1638608f6cc5eba57e8f53c2b9',
   sourceBytes: 3_218_940,
-  authority: path.resolve(repoDir, '..', 'TongyeGuanmi', 'assets/crane-figure1-transition.webm'),
+  authorityRef: 'd4cab484e8f2d8656cf7c7cd0e19c015c7332702',
+  authoritySource: 'assets/crane-figure1-transition.webm',
   authoritySha256: '995c0737bda965643175ac4a83aa2fa92cdcffddfa7c69a0c59b884fefabbdec',
   authorityBytes: 5_637_648,
   authorityFrames: 60,
@@ -142,12 +193,16 @@ async function ffprobe(source, args) {
       '-v', 'error',
       ...args,
       '-of', 'json',
-      path.join(repoDir, source)
+      repoPath(source)
     ], { encoding: 'utf8' });
     return JSON.parse(stdout);
   } catch (error) {
     throw new Error(`ffprobe failed for ${source}`, { cause: error });
   }
+}
+
+function repoPath(source) {
+  return path.isAbsolute(source) ? source : path.join(repoDir, source);
 }
 
 async function sha256File(source) {
@@ -158,17 +213,48 @@ async function sha256File(source) {
   };
 }
 
-async function decodedSsim(reference, candidate, filterComplex) {
-  let stderr;
-  const decoderArgs = (source) => path.extname(source).toLowerCase() === '.webm'
+async function materializeFrozenGitAuthority({ ref, source, bytes, sha256 }) {
+  const directory = await mkdtemp(path.join(tmpdir(), 'tongye-crane-authority-'));
+  const output = path.join(directory, path.basename(source));
+  const label = `git:${ref}:${source}`;
+  try {
+    const { stdout } = await execFileAsync('git', [
+      '-C', repoDir,
+      'show',
+      `${ref}:${source}`
+    ], {
+      encoding: 'buffer',
+      maxBuffer: bytes + 1024 * 1024
+    });
+    await writeFile(output, stdout);
+    const identity = await sha256File(output);
+    assert(identity.bytes === bytes, `${label} bytes ${identity.bytes} != ${bytes}`);
+    assert(identity.sha256 === sha256, `${label} SHA-256 changed`);
+    return {
+      path: output,
+      label,
+      dispose: () => rm(directory, { recursive: true, force: true })
+    };
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true });
+    throw new Error(`Unable to materialize frozen Crane authority ${label}`, { cause: error });
+  }
+}
+
+function mediaDecoderArgs(source) {
+  return path.extname(source).toLowerCase() === '.webm'
     ? ['-c:v', 'libvpx-vp9']
     : [];
+}
+
+async function decodedSsim(reference, candidate, filterComplex) {
+  let stderr;
   try {
     ({ stderr } = await execFileAsync('ffmpeg', [
       '-v', 'info',
-      ...decoderArgs(reference),
+      ...mediaDecoderArgs(reference),
       '-i', reference,
-      ...decoderArgs(candidate),
+      ...mediaDecoderArgs(candidate),
       '-i', candidate,
       '-filter_complex', filterComplex,
       '-an',
@@ -184,6 +270,199 @@ async function decodedSsim(reference, candidate, filterComplex) {
     throw new Error(`ffmpeg SSIM summary missing for ${candidate}`);
   }
   return { y: Number(match[1]), all: Number(match[2]) };
+}
+
+async function decodedSsimInputs(inputs, filterComplex, label) {
+  let stderr;
+  try {
+    const args = ['-v', 'info'];
+    for (const source of inputs) {
+      const resolved = repoPath(source);
+      args.push(...mediaDecoderArgs(resolved), '-i', resolved);
+    }
+    args.push('-filter_complex', filterComplex, '-an', '-f', 'null', '-');
+    ({ stderr } = await execFileAsync('ffmpeg', args, {
+      encoding: 'utf8',
+      maxBuffer: 4 * 1024 * 1024
+    }));
+  } catch (error) {
+    throw new Error(`ffmpeg SSIM failed for ${label}`, { cause: error });
+  }
+  const summary = stderr.split(/\r?\n/).findLast((line) => line.includes('SSIM '));
+  const match = summary?.match(/All:([\d.]+)/);
+  if (!match) {
+    throw new Error(`ffmpeg SSIM summary missing for ${label}`);
+  }
+  return Number(match[1]);
+}
+
+async function decodedSelectedRgbaFrames(source, frames, width, height) {
+  const selection = frames.map((frame) => `eq(n\\,${frame})`).join('+');
+  let stdout;
+  try {
+    ({ stdout } = await execFileAsync('ffmpeg', [
+      '-v', 'error',
+      ...mediaDecoderArgs(source),
+      '-i', repoPath(source),
+      '-vf', `select='${selection}',setpts=N/(30*TB)`,
+      '-map', '0:v:0',
+      '-frames:v', String(frames.length),
+      '-f', 'rawvideo',
+      '-pix_fmt', 'rgba',
+      'pipe:1'
+    ], {
+      encoding: null,
+      maxBuffer: frames.length * width * height * 4 + 1024 * 1024
+    }));
+  } catch (error) {
+    throw new Error(`ffmpeg RGBA witness decode failed for ${source}`, { cause: error });
+  }
+  const frameBytes = width * height * 4;
+  assert(stdout.byteLength === frames.length * frameBytes, `${source} sampled RGBA frame bytes changed`);
+  return frames.map((frame, index) => ({
+    frame,
+    rgba: stdout.subarray(index * frameBytes, (index + 1) * frameBytes)
+  }));
+}
+
+function phSsimFilter(contract, kind) {
+  const common = [
+    '[0:v]settb=1/30,setpts=N,format=rgba[authority]',
+    '[1:v]settb=1/30,setpts=N,format=rgba[candidate]'
+  ];
+  if (kind === 'alpha') {
+    return [
+      ...common,
+      '[authority]alphaextract[referenceAlpha]',
+      '[candidate]alphaextract[candidateAlpha]',
+      '[referenceAlpha][candidateAlpha]ssim=shortest=1'
+    ].join(';');
+  }
+  return [
+    ...common,
+    `color=c=${contract.paperColorHex}:s=${contract.width}x${contract.height}:r=30,format=rgba[paperAuthority]`,
+    `color=c=${contract.paperColorHex}:s=${contract.width}x${contract.height}:r=30,format=rgba[paperCandidate]`,
+    '[paperAuthority][authority]overlay=shortest=1:format=auto[authorityComposite]',
+    '[paperCandidate][candidate]overlay=shortest=1:format=auto[candidateComposite]',
+    '[authorityComposite][candidateComposite]ssim=shortest=1'
+  ].join(';');
+}
+
+function compositeRgb(rgba, index, paperColor) {
+  const alpha = rgba[index + 3] / 255;
+  return [0, 1, 2].map((channel) => (
+    rgba[index + channel] * alpha + paperColor[channel] * (1 - alpha)
+  ));
+}
+
+function greenExcess(rgb) {
+  return Math.max(0, rgb[1] - Math.max(rgb[0], rgb[2]));
+}
+
+function inspectPhPixelWitness(contract, authorityFrames, candidateFrames) {
+  let bodyPixels = 0;
+  let bodyCompositeAbsoluteError = 0;
+  let edgePixels = 0;
+  let edgeGreenExcessAuthority = 0;
+  let edgeGreenExcessCandidate = 0;
+  for (let frameIndex = 0; frameIndex < authorityFrames.length; frameIndex += 1) {
+    const authority = authorityFrames[frameIndex];
+    const candidate = candidateFrames[frameIndex];
+    assert(authority.frame === candidate.frame, 'PH sampled witness frames diverged');
+    for (let y = 0; y < contract.height; y += 1) {
+      for (let x = 0; x < contract.width; x += 1) {
+        const index = (y * contract.width + x) * 4;
+        const authorityAlpha = authority.rgba[index + 3];
+        if (authorityAlpha >= contract.bodyAlphaMin) {
+          const authorityComposite = compositeRgb(authority.rgba, index, contract.paperColor);
+          const candidateComposite = compositeRgb(candidate.rgba, index, contract.paperColor);
+          for (let channel = 0; channel < 3; channel += 1) {
+            bodyCompositeAbsoluteError += Math.abs(authorityComposite[channel] - candidateComposite[channel]);
+          }
+          bodyPixels += 1;
+        }
+        if (
+          authorityAlpha <= contract.spillAlphaMax
+          && x > 0
+          && x < contract.width - 1
+          && y > 0
+          && y < contract.height - 1
+        ) {
+          const opaqueNeighbour = [index - 4, index + 4, index - contract.width * 4, index + contract.width * 4]
+            .some((neighbour) => authority.rgba[neighbour + 3] >= contract.bodyAlphaMin);
+          const authorityGreenExcess = greenExcess(authority.rgba.subarray(index, index + 3));
+          if (opaqueNeighbour && authorityGreenExcess > 0) {
+            edgeGreenExcessAuthority += authorityGreenExcess;
+            edgeGreenExcessCandidate += greenExcess(candidate.rgba.subarray(index, index + 3));
+            edgePixels += 1;
+          }
+        }
+      }
+    }
+  }
+  assert(bodyPixels > 0, 'PH body witness has no opaque authority pixels');
+  assert(edgePixels >= contract.edgeWitnessMinPixels, `PH edge witness only found ${edgePixels} green-edge pixels`);
+  const bodyCompositeMae = bodyCompositeAbsoluteError / (bodyPixels * 3);
+  const averageAuthorityGreenExcess = edgeGreenExcessAuthority / edgePixels;
+  const averageCandidateGreenExcess = edgeGreenExcessCandidate / edgePixels;
+  return {
+    sampledFrames: contract.frames,
+    bodyPixels,
+    bodyCompositeMae,
+    edgePixels,
+    edgeSpillGreenExcessAuthority: averageAuthorityGreenExcess,
+    edgeSpillGreenExcessCandidate: averageCandidateGreenExcess,
+    edgeGreenExcessReduction: averageAuthorityGreenExcess - averageCandidateGreenExcess
+  };
+}
+
+async function inspectPhEdgeSpillContract() {
+  const contract = PH_EDGE_SPILL_CONTRACT;
+  const [sourceIdentity, authorityIdentity, alphaSsim, paperCompositeSsim, authorityFrames, candidateFrames] = await Promise.all([
+    sha256File(repoPath(contract.source)),
+    sha256File(repoPath(contract.authority)),
+    decodedSsimInputs(
+      [contract.authority, contract.source],
+      phSsimFilter(contract, 'alpha'),
+      'PH alpha authority'
+    ),
+    decodedSsimInputs(
+      [contract.authority, contract.source],
+      phSsimFilter(contract, 'paper'),
+      'PH warm-paper authority'
+    ),
+    decodedSelectedRgbaFrames(contract.authority, contract.frames, contract.width, contract.height),
+    decodedSelectedRgbaFrames(contract.source, contract.frames, contract.width, contract.height)
+  ]);
+  assert(sourceIdentity.bytes === contract.sourceBytes, `PH output bytes ${sourceIdentity.bytes} != ${contract.sourceBytes}`);
+  assert(sourceIdentity.sha256 === contract.sourceSha256, 'PH output SHA-256 changed');
+  assert(authorityIdentity.bytes === contract.authorityBytes, `PH archived authority bytes ${authorityIdentity.bytes} != ${contract.authorityBytes}`);
+  assert(authorityIdentity.sha256 === contract.authoritySha256, 'PH archived authority SHA-256 changed');
+  assert(alphaSsim >= contract.alphaSsimMin, `PH alpha SSIM ${alphaSsim} < ${contract.alphaSsimMin}`);
+  assert(
+    paperCompositeSsim >= contract.paperCompositeSsimMin,
+    `PH warm-paper composite SSIM ${paperCompositeSsim} < ${contract.paperCompositeSsimMin}`
+  );
+  const pixelWitness = inspectPhPixelWitness(contract, authorityFrames, candidateFrames);
+  assert(
+    pixelWitness.bodyCompositeMae <= contract.bodyCompositeMaeMax,
+    `PH warm-body composite MAE ${pixelWitness.bodyCompositeMae} > ${contract.bodyCompositeMaeMax}`
+  );
+  assert(
+    pixelWitness.edgeGreenExcessReduction >= contract.edgeGreenExcessReductionMin,
+    `PH green-edge reduction ${pixelWitness.edgeGreenExcessReduction} < ${contract.edgeGreenExcessReductionMin}`
+  );
+  return {
+    source: contract.source,
+    sourceBytes: sourceIdentity.bytes,
+    sourceSha256: sourceIdentity.sha256,
+    archivedAuthority: contract.authority,
+    archivedAuthorityBytes: authorityIdentity.bytes,
+    archivedAuthoritySha256: authorityIdentity.sha256,
+    alphaSsim,
+    paperCompositeSsim,
+    pixelWitness
+  };
 }
 
 async function inspectHeroTrimmedContract() {
@@ -452,6 +731,59 @@ async function decodedRgbaFramemd5(source, filter) {
   });
 }
 
+function figure2AuthoritySsimFilter(contract, direction, kind) {
+  const canvas = contract.authorityCanvas;
+  const halfGutter = canvas.centerGutter / 2;
+  assert(Number.isInteger(halfGutter), 'Figure2 authority center gutter must be even');
+  const leftSurfaceWidth = canvas.leftWidth + halfGutter;
+  const common = [
+    `[1:v]trim=start_frame=0:end_frame=78,settb=1/30,setpts=N,format=yuva420p,pad=${leftSurfaceWidth}:${canvas.height}:0:0:color=black@0[left]`,
+    `[2:v]trim=start_frame=0:end_frame=78,settb=1/30,setpts=N,format=yuva420p,pad=${leftSurfaceWidth}:${canvas.height}:${halfGutter}:0:color=black@0[right]`,
+    `[left][right]hstack=inputs=2,trim=start_frame=0:end_frame=78,settb=1/30,setpts=N,scale=${canvas.outputWidth}:${canvas.outputHeight}:flags=lanczos,format=rgba[authority]`,
+    `[0:v]trim=start_frame=${direction.candidateStartFrame}:end_frame=${direction.candidateEndFrame},settb=1/30,setpts=N,format=rgba[candidate]`
+  ];
+  if (kind === 'alpha') {
+    return [
+      ...common,
+      '[authority]alphaextract[referenceAlpha]',
+      '[candidate]alphaextract[candidateAlpha]',
+      '[referenceAlpha][candidateAlpha]ssim=shortest=1'
+    ].join(';');
+  }
+  return [
+    ...common,
+    `color=c=${canvas.paperColor}:s=${canvas.outputWidth}x${canvas.outputHeight}:r=30,format=rgba[paperReference]`,
+    `color=c=${canvas.paperColor}:s=${canvas.outputWidth}x${canvas.outputHeight}:r=30,format=rgba[paperCandidate]`,
+    '[paperReference][authority]overlay=shortest=1:format=auto[referenceComposite]',
+    '[paperCandidate][candidate]overlay=shortest=1:format=auto[candidateComposite]',
+    '[referenceComposite][candidateComposite]ssim=shortest=1'
+  ].join(';');
+}
+
+async function inspectFigure2AuthorityDirection(contract, outputPath, direction) {
+  const inputs = [
+    outputPath,
+    path.join(repoDir, direction.leftAuthority),
+    path.join(repoDir, direction.rightAuthority)
+  ];
+  const [alphaSsim, paperCompositeSsim] = await Promise.all([
+    decodedSsimInputs(inputs, figure2AuthoritySsimFilter(contract, direction, 'alpha'), `Figure2 ${direction.label} alpha authority`),
+    decodedSsimInputs(inputs, figure2AuthoritySsimFilter(contract, direction, 'paper'), `Figure2 ${direction.label} paper authority`)
+  ]);
+  assert(alphaSsim >= direction.alphaSsimMin, `Figure2 ${direction.label} authority alpha SSIM ${alphaSsim} < ${direction.alphaSsimMin}`);
+  assert(
+    paperCompositeSsim >= direction.paperCompositeSsimMin,
+    `Figure2 ${direction.label} authority paper SSIM ${paperCompositeSsim} < ${direction.paperCompositeSsimMin}`
+  );
+  return {
+    direction: direction.label,
+    alphaSsim,
+    paperCompositeSsim,
+    authorityLayout: `${contract.authorityCanvas.width}x${contract.authorityCanvas.height} with ${contract.authorityCanvas.centerGutter}px center gutter`,
+    authorities: [direction.leftAuthority, direction.rightAuthority]
+  };
+}
+
 async function inspectFigure2CombinedContract() {
   const contract = FIGURE2_COMBINED_CONTRACT;
   const output = path.join(repoDir, contract.source);
@@ -501,6 +833,10 @@ async function inspectFigure2CombinedContract() {
     assert(authority.identity.bytes === authority.bytes, `${authority.source} bytes changed`);
     assert(authority.identity.sha256 === authority.sha256, `${authority.source} identity changed`);
   }
+  const authorityQuality = [];
+  for (const direction of contract.directions) {
+    authorityQuality.push(await inspectFigure2AuthorityDirection(contract, output, direction));
+  }
 
   return {
     source: contract.source,
@@ -514,6 +850,7 @@ async function inspectFigure2CombinedContract() {
     seamRgbaMd5: outputFrames[77].md5,
     directionColorSsim: directionColorSsim.all,
     directionAlphaSsim: directionAlphaSsim.all,
+    archivedAuthorityQuality: authorityQuality,
     archivedAuthorities: authorityIdentities.map(({ source, bytes, sha256 }) => ({ source, bytes, sha256 }))
   };
 }
@@ -521,98 +858,108 @@ async function inspectFigure2CombinedContract() {
 async function inspectCraneSingleSourceContract() {
   const contract = CRANE_SINGLE_SOURCE_CONTRACT;
   const outputPath = path.join(repoDir, contract.source);
-  const [
-    authorityIdentity,
-    outputIdentity,
-    authorityProbe,
-    authorityFrames,
-    losslessReferenceIdentity,
-    losslessReferenceFrames,
-    outputFrames,
-    colorSsim,
-    alphaSsim
-  ] = await Promise.all([
-    sha256File(contract.authority),
-    sha256File(outputPath),
-    ffprobe(path.relative(repoDir, contract.authority), [
-      '-count_frames',
-      '-select_streams', 'v:0',
-      '-show_entries', 'stream=width,height,avg_frame_rate,r_frame_rate,nb_read_frames:stream_tags=alpha_mode:format=duration,size'
-    ]),
-    decodedRgbaFramemd5(contract.authority, 'fps=30,setpts=N/(30*TB)'),
-    sha256File(contract.losslessReference),
-    decodedRgbaFramemd5(contract.losslessReference),
-    decodedRgbaFramemd5(outputPath),
-    decodedSsim(
-      contract.losslessReference,
-      outputPath,
-      '[0:v]format=yuva420p[ref];[1:v]format=yuva420p[candidate];[ref][candidate]ssim'
-    ),
-    decodedSsim(
-      contract.losslessReference,
-      outputPath,
-      '[0:v]format=yuva420p,alphaextract[ref];[1:v]format=yuva420p,alphaextract[candidate];[ref][candidate]ssim'
-    )
-  ]);
-  const authorityStream = authorityProbe.streams?.[0];
-  const authorityFormat = authorityProbe.format;
+  const authority = await materializeFrozenGitAuthority({
+    ref: contract.authorityRef,
+    source: contract.authoritySource,
+    bytes: contract.authorityBytes,
+    sha256: contract.authoritySha256
+  });
+  try {
+    const [
+      authorityIdentity,
+      outputIdentity,
+      authorityProbe,
+      authorityFrames,
+      losslessReferenceIdentity,
+      losslessReferenceFrames,
+      outputFrames,
+      colorSsim,
+      alphaSsim
+    ] = await Promise.all([
+      sha256File(authority.path),
+      sha256File(outputPath),
+      ffprobe(authority.path, [
+        '-count_frames',
+        '-select_streams', 'v:0',
+        '-show_entries', 'stream=width,height,avg_frame_rate,r_frame_rate,nb_read_frames:stream_tags=alpha_mode:format=duration,size'
+      ]),
+      decodedRgbaFramemd5(authority.path, 'fps=30,setpts=N/(30*TB)'),
+      sha256File(contract.losslessReference),
+      decodedRgbaFramemd5(contract.losslessReference),
+      decodedRgbaFramemd5(outputPath),
+      decodedSsim(
+        contract.losslessReference,
+        outputPath,
+        '[0:v]format=yuva420p[ref];[1:v]format=yuva420p[candidate];[ref][candidate]ssim'
+      ),
+      decodedSsim(
+        contract.losslessReference,
+        outputPath,
+        '[0:v]format=yuva420p,alphaextract[ref];[1:v]format=yuva420p,alphaextract[candidate];[ref][candidate]ssim'
+      )
+    ]);
+    const authorityStream = authorityProbe.streams?.[0];
+    const authorityFormat = authorityProbe.format;
 
-  assert(authorityIdentity.bytes === contract.authorityBytes, `Crane authority bytes ${authorityIdentity.bytes} != ${contract.authorityBytes}`);
-  assert(authorityIdentity.sha256 === contract.authoritySha256, `Crane authority SHA-256 ${authorityIdentity.sha256} != ${contract.authoritySha256}`);
-  assert(outputIdentity.bytes === contract.sourceBytes, `Crane output bytes ${outputIdentity.bytes} != ${contract.sourceBytes}`);
-  assert(outputIdentity.sha256 === contract.sourceSha256, `Crane output SHA-256 ${outputIdentity.sha256} != ${contract.sourceSha256}`);
-  assert(authorityStream?.width === 1440 && authorityStream?.height === 810, 'Crane authority dimensions must be 1440x810');
-  assert(authorityStream?.avg_frame_rate === '24/1' && authorityStream?.r_frame_rate === '24/1', 'Crane authority fps must be 24/1');
-  assert(Number(authorityStream?.nb_read_frames) === contract.authorityFrames, `Crane authority frames ${authorityStream?.nb_read_frames} != ${contract.authorityFrames}`);
-  assertNear(Number(authorityFormat?.duration), 2.5, 'Crane authority duration');
-  assert(Number(authorityFormat?.size) === contract.authorityBytes, 'Crane authority probed size mismatch');
-  assert(streamAlphaMode(authorityStream) === '1', 'Crane authority alpha_mode tag must be 1');
-  assert(authorityFrames.length === contract.outputFrames, `Crane resampled authority frames ${authorityFrames.length} != ${contract.outputFrames}`);
-  assert(losslessReferenceIdentity.bytes === contract.losslessReferenceBytes, 'Crane lossless reference bytes changed');
-  assert(losslessReferenceIdentity.sha256 === contract.losslessReferenceSha256, 'Crane lossless reference SHA-256 changed');
-  assert(losslessReferenceFrames.length === contract.outputFrames, `Crane lossless reference frames ${losslessReferenceFrames.length} != ${contract.outputFrames}`);
-  assert(outputFrames.length === contract.outputFrames, `Crane canonical RGBA frames ${outputFrames.length} != ${contract.outputFrames}`);
+    assert(authorityIdentity.bytes === contract.authorityBytes, `Crane authority bytes ${authorityIdentity.bytes} != ${contract.authorityBytes}`);
+    assert(authorityIdentity.sha256 === contract.authoritySha256, `Crane authority SHA-256 ${authorityIdentity.sha256} != ${contract.authoritySha256}`);
+    assert(outputIdentity.bytes === contract.sourceBytes, `Crane output bytes ${outputIdentity.bytes} != ${contract.sourceBytes}`);
+    assert(outputIdentity.sha256 === contract.sourceSha256, `Crane output SHA-256 ${outputIdentity.sha256} != ${contract.sourceSha256}`);
+    assert(authorityStream?.width === 1440 && authorityStream?.height === 810, 'Crane authority dimensions must be 1440x810');
+    assert(authorityStream?.avg_frame_rate === '24/1' && authorityStream?.r_frame_rate === '24/1', 'Crane authority fps must be 24/1');
+    assert(Number(authorityStream?.nb_read_frames) === contract.authorityFrames, `Crane authority frames ${authorityStream?.nb_read_frames} != ${contract.authorityFrames}`);
+    assertNear(Number(authorityFormat?.duration), 2.5, 'Crane authority duration');
+    assert(Number(authorityFormat?.size) === contract.authorityBytes, 'Crane authority probed size mismatch');
+    assert(streamAlphaMode(authorityStream) === '1', 'Crane authority alpha_mode tag must be 1');
+    assert(authorityFrames.length === contract.outputFrames, `Crane resampled authority frames ${authorityFrames.length} != ${contract.outputFrames}`);
+    assert(losslessReferenceIdentity.bytes === contract.losslessReferenceBytes, 'Crane lossless reference bytes changed');
+    assert(losslessReferenceIdentity.sha256 === contract.losslessReferenceSha256, 'Crane lossless reference SHA-256 changed');
+    assert(losslessReferenceFrames.length === contract.outputFrames, `Crane lossless reference frames ${losslessReferenceFrames.length} != ${contract.outputFrames}`);
+    assert(outputFrames.length === contract.outputFrames, `Crane canonical RGBA frames ${outputFrames.length} != ${contract.outputFrames}`);
 
-  for (let index = 0; index < contract.outputFrames; index += 1) {
-    const authorityFrame = authorityFrames[index];
-    const losslessReferenceFrame = losslessReferenceFrames[index];
-    const outputFrame = outputFrames[index];
-    assert(
-      JSON.stringify(losslessReferenceFrame) === JSON.stringify(authorityFrame),
-      `Crane lossless reference frame ${index} diverges from the whole-frame authority resample`
-    );
-    assert(
-      authorityFrame.dts === outputFrame.dts
-      && authorityFrame.pts === outputFrame.pts
-      && authorityFrame.duration === outputFrame.duration
-      && authorityFrame.bytes === outputFrame.bytes,
-      `Crane canonical RGBA frame ${index} timing or dimensions diverge from the whole-frame authority resample`
-    );
+    for (let index = 0; index < contract.outputFrames; index += 1) {
+      const authorityFrame = authorityFrames[index];
+      const losslessReferenceFrame = losslessReferenceFrames[index];
+      const outputFrame = outputFrames[index];
+      assert(
+        JSON.stringify(losslessReferenceFrame) === JSON.stringify(authorityFrame),
+        `Crane lossless reference frame ${index} diverges from the whole-frame authority resample`
+      );
+      assert(
+        authorityFrame.dts === outputFrame.dts
+        && authorityFrame.pts === outputFrame.pts
+        && authorityFrame.duration === outputFrame.duration
+        && authorityFrame.bytes === outputFrame.bytes,
+        `Crane canonical RGBA frame ${index} timing or dimensions diverge from the whole-frame authority resample`
+      );
+    }
+    assert(colorSsim.all >= contract.colorSsimMin, `Crane color SSIM ${colorSsim.all} < ${contract.colorSsimMin}`);
+    assert(alphaSsim.all >= contract.alphaSsimMin, `Crane alpha SSIM ${alphaSsim.all} < ${contract.alphaSsimMin}`);
+    for (const [index, expectedMd5] of contract.contactWitnesses) {
+      assert(outputFrames[index]?.md5 === expectedMd5, `Crane contact witness frame ${index} ${outputFrames[index]?.md5} != ${expectedMd5}`);
+    }
+
+    return {
+      source: contract.source,
+      sourceSha256: outputIdentity.sha256,
+      sourceBytes: outputIdentity.bytes,
+      authority: authority.label,
+      authoritySha256: authorityIdentity.sha256,
+      authorityBytes: authorityIdentity.bytes,
+      authorityFrames: contract.authorityFrames,
+      losslessReference: path.relative(repoDir, contract.losslessReference),
+      losslessReferenceSha256: losslessReferenceIdentity.sha256,
+      outputFrames: outputFrames.length,
+      fps: '30/1',
+      rgbaFrameParity: '75/75 timing-aligned visual equivalence',
+      colorSsim: colorSsim.all,
+      alphaSsim: alphaSsim.all,
+      alphaMerge: false,
+      contactWitnesses: [...contract.contactWitnesses].map(([index]) => ({ index, md5: outputFrames[index].md5 }))
+    };
+  } finally {
+    await authority.dispose();
   }
-  assert(colorSsim.all >= contract.colorSsimMin, `Crane color SSIM ${colorSsim.all} < ${contract.colorSsimMin}`);
-  assert(alphaSsim.all >= contract.alphaSsimMin, `Crane alpha SSIM ${alphaSsim.all} < ${contract.alphaSsimMin}`);
-  for (const [index, expectedMd5] of contract.contactWitnesses) {
-    assert(outputFrames[index]?.md5 === expectedMd5, `Crane contact witness frame ${index} ${outputFrames[index]?.md5} != ${expectedMd5}`);
-  }
-
-  return {
-    source: contract.source,
-    sourceSha256: outputIdentity.sha256,
-    sourceBytes: outputIdentity.bytes,
-    authority: contract.authority,
-    authoritySha256: authorityIdentity.sha256,
-    authorityBytes: authorityIdentity.bytes,
-    authorityFrames: contract.authorityFrames,
-    losslessReference: path.relative(repoDir, contract.losslessReference),
-    losslessReferenceSha256: losslessReferenceIdentity.sha256,
-    outputFrames: outputFrames.length,
-    fps: '30/1',
-    rgbaFrameParity: '75/75 timing-aligned visual equivalence',
-    colorSsim: colorSsim.all,
-    alphaSsim: alphaSsim.all,
-    alphaMerge: false,
-    contactWitnesses: [...contract.contactWitnesses].map(([index]) => ({ index, md5: outputFrames[index].md5 }))
-  };
 }
 
 async function decodedAlphaStats(source) {
@@ -621,7 +968,7 @@ async function decodedAlphaStats(source) {
     ({ stdout } = await execFileAsync('ffmpeg', [
       '-v', 'error',
       '-c:v', 'libvpx-vp9',
-      '-i', path.join(repoDir, source),
+      '-i', repoPath(source),
       '-vf', 'alphaextract,signalstats,metadata=print:file=-',
       '-f', 'null',
       '-'
@@ -742,8 +1089,9 @@ const canonicalVideos = [];
 for (const contract of canonicalVideoContracts) {
   canonicalVideos.push(await inspectCanonicalVideo(contract));
 }
-const [figure2Combined, aodAlpha, craneSingleSource, heroTrimmed, craneFlockVisual, craneFlockCorrectedFrame] = await Promise.all([
+const [figure2Combined, phEdgeSpill, aodAlpha, craneSingleSource, heroTrimmed, craneFlockVisual, craneFlockCorrectedFrame] = await Promise.all([
   inspectFigure2CombinedContract(),
+  inspectPhEdgeSpillContract(),
   inspectAodAlphaContract(),
   inspectCraneSingleSourceContract(),
   inspectHeroTrimmedContract(),
@@ -755,6 +1103,7 @@ process.stdout.write(`${JSON.stringify({
   files: canonicalVideos.length,
   canonicalVideos,
   figure2Combined,
+  phEdgeSpill,
   aodAlpha,
   craneSingleSource,
   heroTrimmed,

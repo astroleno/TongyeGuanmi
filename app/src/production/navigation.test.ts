@@ -9,7 +9,7 @@ import {
 
 describe('production navigation', () => {
   it('resolves every canonical scene hash', () => {
-    for (const scene of canonicalSceneIds) {
+    for (const scene of canonicalSceneIds.filter((scene) => scene !== 'method-bottom')) {
       expect(sceneFromHash(hashForScene(scene))).toBe(scene);
     }
   });
@@ -34,6 +34,7 @@ describe('production navigation', () => {
     ]);
     expect(hashForScene('hero')).toBe('#home');
     expect(hashForScene('method-top')).toBe('#method');
+    expect(hashForScene('method-bottom')).toBe('#method');
   });
 
   it('rejects retired and malformed hashes', () => {

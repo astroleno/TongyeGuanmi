@@ -5,6 +5,7 @@ export function releaseInkWebGlResources(
     program?: WebGLProgram | null;
     shaders?: readonly (WebGLShader | null)[];
     textures?: readonly (WebGLTexture | null)[];
+    loseContext?: boolean;
   }
 ): void;
 
@@ -16,6 +17,7 @@ export type InkBoundaryTransitionOptions = {
   coverAlpha?: number;
   fadeOutStart?: number;
   fadeOutEnd?: number;
+  targetImage?: HTMLImageElement | null;
 };
 
 export type InkBoundaryTransition = {

@@ -1,5 +1,5 @@
 import { PilotProgressTimeline } from '../../pilot/progress-timeline';
-import { fadeVisibility, hiddenVisibility, range01, smoothStep } from '../../pilot/visibility';
+import { fadeVisibility, range01, smoothStep } from '../../pilot/visibility';
 import {
   AOD_MEDIA_KEY,
   beginAodExitMedia,
@@ -28,7 +28,10 @@ function sampleAodMethodTop(progress: number): { from: LayerVisibilityState; to:
   const aodOpacity = 1 - smoothStep(range01(progress, 0.70, 1));
   return {
     from: fadeVisibility(aodOpacity),
-    to: progress === 0 ? hiddenVisibility() : fadeVisibility(1),
+    // Method's paper must already own the receiver backing before the AOD
+    // source makes its alpha-composited root transparent at progress zero.
+    // Its copy remains independently gated by the 0.8 cue below.
+    to: fadeVisibility(1),
     copyCueActive
   };
 }
@@ -68,9 +71,7 @@ class AodMethodTopTimeline extends PilotProgressTimeline {
     this.context = context;
     this.getVideo = options.getVideo;
     this.mediaDirection = mediaDirection;
-    this.sourceElevation = context.direction === -1
-      ? createTransitionLayerElevation(context.from.element)
-      : null;
+    this.sourceElevation = createTransitionLayerElevation(context.from.element);
     this.sourceElevation?.elevate();
   }
 

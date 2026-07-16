@@ -12,7 +12,9 @@ import type {
   SegmentId
 } from '../../story/types';
 import { methodTopScene } from '../../scenes/method-top';
+import { methodBottomScene } from '../../scenes/method-bottom';
 import { figure2AnimationScene } from '../../scenes/figure2-animation';
+import { createMethodTopMethodBottomTransition } from '../../transitions/method-top-method-bottom';
 import { createMethodBottomFigure2Transition } from '../../transitions/method-bottom-figure2';
 import { hiddenVisibility, holdVisibility } from '../../pilot/visibility';
 import { createR4Group2Manifest, type R4Group2HarnessMode } from './group2Manifest';
@@ -52,18 +54,19 @@ export type Group2Snapshot = {
 type Group2HarnessApi = {
   playForward(options?: PlayOptions): Promise<void>;
   playReverse(options?: PlayOptions): Promise<void>;
-  seek(scene: 'method-top' | 'figure2-animation'): void;
+  seek(scene: 'method-top' | 'method-bottom' | 'figure2-animation'): void;
   idempotentCycle(): Promise<void>;
   snapshot(): Group2Snapshot;
 };
 
 const modules = {
   'method-top': methodTopScene,
+  'method-bottom': methodBottomScene,
   'figure2-animation': figure2AnimationScene
 };
 
-const GROUP_SCENES: SceneId[] = ['method-top', 'figure2-animation'];
-const GROUP_SEGMENTS: SegmentId[] = ['method-bottom-figure2'];
+const GROUP_SCENES: SceneId[] = ['method-top', 'method-bottom', 'figure2-animation'];
+const GROUP_SEGMENTS: SegmentId[] = ['method-top-method-bottom', 'method-bottom-figure2'];
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -174,6 +177,7 @@ export function Group2Harness({ mode }: { mode: R4Group2HarnessMode }) {
         manifest,
         stage: stageHandle,
         transitions: {
+          'method-top-method-bottom': createMethodTopMethodBottomTransition({ delayMs: () => buildDelayMs.current }),
           'method-bottom-figure2': createMethodBottomFigure2Transition({ delayMs: () => buildDelayMs.current })
         },
         readyGate: {
@@ -269,7 +273,7 @@ export function Group2Harness({ mode }: { mode: R4Group2HarnessMode }) {
     buildDelayMs.current = 0;
   };
 
-  const seek = (scene: 'method-top' | 'figure2-animation') => {
+  const seek = (scene: 'method-top' | 'method-bottom' | 'figure2-animation') => {
     const activeRunId = runtime.getState().context.activeRunId;
     runtime.send({ type: 'SEEK', label: `scene:${scene}`, source: 'menu' });
     if (activeRunId) {
@@ -368,6 +372,7 @@ export function Group2Harness({ mode }: { mode: R4Group2HarnessMode }) {
           <button type="button" onClick={() => void play(-1)}>Reverse</button>
           <button type="button" onClick={() => void play(1, { buildTimeout: true })}>Build Timeout</button>
           <button type="button" onClick={() => seek('method-top')}>Seek Method</button>
+          <button type="button" onClick={() => seek('method-bottom')}>Seek Steps</button>
           <button type="button" onClick={() => seek('figure2-animation')}>Seek Figure2</button>
           <button type="button" onClick={() => void idempotentCycle()}>0-1-0-1</button>
         </div>

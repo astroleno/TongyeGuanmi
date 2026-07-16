@@ -28,6 +28,7 @@ export const SEGMENT_IDS = [
   'pattern-star-map',
   'star-map-aod',
   'aod-method-top',
+  'method-top-method-bottom',
   'method-bottom-figure2',
   'figure2-distance-expand',
   'figure2-proof-opening-cards',

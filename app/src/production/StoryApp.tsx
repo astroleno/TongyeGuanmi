@@ -243,6 +243,11 @@ export function StoryApp() {
       return;
     }
     loaderHiddenReasonRef.current = reason;
+    // StoryLoader marks its own `hidden` state and invokes this callback in
+    // the same timer turn. Mirror that terminal state before publishing
+    // presentation readiness so snapshots cannot expose an interactive story
+    // while still reporting the previous `exiting` loader status.
+    setLoaderStatus('hidden');
     setLoaderExitReason(reason);
     if (reason === 'error' || bootFailed) {
       setHeroIntroMode('endpoint');
@@ -511,7 +516,7 @@ export function StoryApp() {
       interactableLayers: layers.filter((layer) => layer.dataset.interactable === 'true').length,
       mountedLayers: layers.length,
       canvases: canvases.length,
-      webglCanvases: canvases.filter((canvas) => canvas.matches('[data-r4-ink-renderer], [data-aod-ink-canvas]')).length,
+      webglCanvases: canvases.filter((canvas) => canvas.matches('[data-r4-ink-renderer-status], [data-aod-ink-canvas]')).length,
       videos: videos.length,
       playingVideos: videos.filter((video) => !video.paused).length,
       loadedScenes: loaded.scenes,

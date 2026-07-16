@@ -68,6 +68,9 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
   return page.evaluate(() => {
     const proofRoot = document.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]');
     const proofLayer = proofRoot?.closest<HTMLElement>('[data-stage-layer]');
+    const proofOwnershipSurface = document.querySelector<HTMLElement>(
+      '[data-figure2-proof-ownership-surface="true"]'
+    );
     const proofOpening = proofRoot?.querySelector<HTMLElement>('[data-r4-proof-panel="opening"]');
     const proofClosing = proofRoot?.querySelector<HTMLElement>('[data-r4-proof-panel="closing"]');
     const proofScrollport = proofLayer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]')
@@ -102,8 +105,8 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       ),
       retainedArchCount: document.querySelectorAll('[data-stage-retained-figure2-arch="true"]').length,
       proofArchCount: document.querySelectorAll('.stage-proof-retained-arch').length,
-      proofLayerElevated: proofLayer?.dataset.r4TransitionElevated === 'true',
-      proofLayerMask: proofLayer ? getComputedStyle(proofLayer).maskImage : 'none',
+      proofLayerElevated: proofOwnershipSurface?.dataset.r4TransitionElevated === 'true',
+      proofLayerMask: proofOwnershipSurface ? getComputedStyle(proofOwnershipSurface).maskImage : 'none',
       proofBackground: proofRoot ? getComputedStyle(proofRoot).backgroundImage : '',
       proofGroundBackground: proofGround ? getComputedStyle(proofGround).backgroundImage : '',
       figureDepthSurfaceCount: document.querySelectorAll('[data-figure2-figure-depth-surface]').length,

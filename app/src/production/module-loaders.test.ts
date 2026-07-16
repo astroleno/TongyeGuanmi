@@ -18,13 +18,11 @@ describe('production lazy module registry', () => {
     expect(modules.map(({ id }) => id)).toEqual(productionSegmentIds);
   });
 
-  it('evicts a rejected scene import instead of serving a stale rejection', async () => {
-    const firstAttempt = loadSceneModule('method-bottom');
-    await expect(firstAttempt).rejects.toThrow('retired');
-    const secondAttempt = loadSceneModule('method-bottom');
-    expect(secondAttempt).not.toBe(firstAttempt);
-    await expect(secondAttempt).rejects.toThrow('retired');
-    expect(loadedProductionModules().scenes).not.toContain('method-bottom');
+  it('loads Method steps as a canonical, lazy reading scene', async () => {
+    const module = await loadSceneModule('method-bottom');
+
+    expect(module.id).toBe('method-bottom');
+    expect(loadedProductionModules().scenes).toContain('method-bottom');
   });
 
   it('keeps retired Proof ids as URL aliases without loading compatibility runtime', async () => {

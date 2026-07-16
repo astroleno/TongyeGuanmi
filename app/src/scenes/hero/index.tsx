@@ -59,6 +59,7 @@ export type HeroPatternMediaRun = Readonly<{
   runId: string;
   direction: 1 | -1;
   reducedMotion?: boolean;
+  signal?: AbortSignal;
 }>;
 
 export type HeroPatternRenderOptions = Readonly<{
@@ -185,7 +186,8 @@ function heroPatternMediaInput(progress: number, mediaRun: HeroPatternMediaRun):
     // playback. Keep both directions seek-driven so that initial render cannot
     // turn a prepared Hero frame into native playback.
     mode: 'timeline',
-    reducedMotion: Boolean(mediaRun.reducedMotion)
+    reducedMotion: Boolean(mediaRun.reducedMotion),
+    ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
   };
 }
 
@@ -275,6 +277,7 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
     const controller = createRadialInkIntroController({
       canvas,
       revealSurface: back,
+      targetImage: back,
       field: HERO_RADIAL_INK_FIELD,
       generation: 'hero-intro',
       viewport: () => ({

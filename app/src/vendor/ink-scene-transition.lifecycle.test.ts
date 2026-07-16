@@ -106,6 +106,87 @@ function webGlHarness() {
 }
 
 describe('ink WebGL resource lifecycle', () => {
+  it('recreates an active renderer on the same canvas after StrictMode-style cleanup', () => {
+    const { canvas, gl, loseContext } = webGlHarness();
+    const frame = createInkFieldFrame(
+      { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'strict-remount' },
+      0.5,
+      { width: 320, height: 180 }
+    );
+    const first = createInkBoundaryTransition(canvas, { fieldKind: 'radial' });
+    first?.render(frame);
+    first?.destroy();
+    const second = createInkBoundaryTransition(canvas, { fieldKind: 'radial' });
+    second?.render(frame);
+
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(gl.drawArrays).toHaveBeenCalledTimes(2);
+    expect(loseContext).not.toHaveBeenCalled();
+    second?.destroy();
+  });
+
+  it('uploads a decoded Hero target texture during setup and reuses it for radial frames', () => {
+    const { canvas, gl } = webGlHarness();
+    const targetImage = {
+      complete: true,
+      naturalWidth: 1600,
+      naturalHeight: 900
+    } as HTMLImageElement;
+    const transition = createInkBoundaryTransition(canvas, {
+      fieldKind: 'radial',
+      targetImage
+    });
+    const frame = createInkFieldFrame(
+      { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'hero-target' },
+      0.5,
+      { width: 320, height: 180 }
+    );
+    const targetUploadsAtSetup = gl.texImage2D.mock.calls.filter(
+      (call) => call.at(-1) === targetImage
+    ).length;
+
+    transition?.prewarm(frame);
+    const uploadsAfterPrewarm = gl.texImage2D.mock.calls.length;
+    transition?.render(frame);
+
+    expect(targetUploadsAtSetup).toBe(1);
+    expect(gl.pixelStorei).toHaveBeenCalledWith(gl.UNPACK_FLIP_Y_WEBGL, true);
+    expect(gl.texImage2D).toHaveBeenCalledTimes(uploadsAfterPrewarm);
+    expect(gl.uniform2f).toHaveBeenCalledWith('J', 1600, 900);
+    expect(gl.uniform1f).toHaveBeenCalledWith('X', 1);
+    transition?.destroy();
+  });
+
+  it('keeps a target-bearing radial canvas opaque until the DOM terminal handoff', () => {
+    const { canvas } = webGlHarness();
+    const targetImage = {
+      complete: true,
+      naturalWidth: 1600,
+      naturalHeight: 900
+    } as HTMLImageElement;
+    const transition = createInkBoundaryTransition(canvas, {
+      fieldKind: 'radial',
+      targetImage
+    });
+    const opacityAt = (progress: number) => {
+      transition?.render(createInkFieldFrame(
+        { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'hero-terminal' },
+        progress,
+        { width: 320, height: 180 }
+      ));
+      return canvas.style.opacity;
+    };
+
+    expect([0.94, 0.9675, 0.995, 1].map(opacityAt)).toEqual([
+      '1.0000',
+      '1.0000',
+      '1.0000',
+      '0'
+    ]);
+    transition?.destroy();
+  });
+
   it('uploads the configured particle gain to the field shader', () => {
     const { canvas, gl } = webGlHarness();
     const transition = createInkBoundaryTransition(canvas, { particleGain: 1.25 });
@@ -121,7 +202,7 @@ describe('ink WebGL resource lifecycle', () => {
     transition?.destroy();
   });
 
-  it('releases partial resources when renderer initialization fails', () => {
+  it('releases partial resources when renderer initialization fails without losing a reusable context', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { canvas, gl, loseContext } = webGlHarness();
     gl.getShaderParameter
@@ -132,10 +213,10 @@ describe('ink WebGL resource lifecycle', () => {
 
     expect(transition).toBeNull();
     expect(gl.deleteShader).toHaveBeenCalledTimes(2);
-    expect(loseContext).toHaveBeenCalledOnce();
+    expect(loseContext).not.toHaveBeenCalled();
   });
 
-  it('deletes every owned resource and explicitly releases the context', () => {
+  it('deletes every owned resource without invalidating a reusable canvas context', () => {
     const loseContext = vi.fn();
     const gl = {
       deleteTexture: vi.fn(),
@@ -155,8 +236,8 @@ describe('ink WebGL resource lifecycle', () => {
     expect(gl.deleteBuffer).toHaveBeenCalledWith(buffer);
     expect(gl.deleteProgram).toHaveBeenCalledWith(program);
     expect(gl.deleteShader).toHaveBeenCalledTimes(2);
-    expect(gl.getExtension).toHaveBeenCalledWith('WEBGL_lose_context');
-    expect(loseContext).toHaveBeenCalledOnce();
+    expect(gl.getExtension).not.toHaveBeenCalled();
+    expect(loseContext).not.toHaveBeenCalled();
   });
 
   it('uploads one horizontal contour texture per revision and never per progress frame', () => {

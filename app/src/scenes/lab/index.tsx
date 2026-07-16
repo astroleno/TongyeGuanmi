@@ -13,8 +13,6 @@ export const LAB_COPY = [
   '先看账，',
   '再定工具。',
   '我们把场景拆成可判断的小题，不听概念，先看钱、单、人、货和流程。',
-  'FIELD CHECK',
-  '06 SCENES',
   '01',
   '选型与决策',
   '报价、方案、招人，分不清谁靠谱？我们陪你把账算清，你只管拍板。',
@@ -36,12 +34,12 @@ export const LAB_COPY = [
 ] as const;
 
 const LAB_ROWS = [
-  { index: LAB_COPY[14], title: LAB_COPY[15], body: LAB_COPY[16] },
-  { index: LAB_COPY[17], title: LAB_COPY[18], body: LAB_COPY[19] },
-  { index: LAB_COPY[20], title: LAB_COPY[21], body: LAB_COPY[22] },
-  { index: LAB_COPY[23], title: LAB_COPY[24], body: LAB_COPY[25] },
-  { index: LAB_COPY[26], title: LAB_COPY[27], body: LAB_COPY[28] },
-  { index: LAB_COPY[29], title: LAB_COPY[30], body: LAB_COPY[31] }
+  { index: LAB_COPY[12], title: LAB_COPY[13], body: LAB_COPY[14] },
+  { index: LAB_COPY[15], title: LAB_COPY[16], body: LAB_COPY[17] },
+  { index: LAB_COPY[18], title: LAB_COPY[19], body: LAB_COPY[20] },
+  { index: LAB_COPY[21], title: LAB_COPY[22], body: LAB_COPY[23] },
+  { index: LAB_COPY[24], title: LAB_COPY[25], body: LAB_COPY[26] },
+  { index: LAB_COPY[27], title: LAB_COPY[28], body: LAB_COPY[29] }
 ] as const;
 
 export type LabRenderState = {
@@ -97,10 +95,6 @@ function LabScene({ registerHandle }: SceneComponentProps) {
           <p>{LAB_COPY[11]}</p>
         </div>
         <section className="r4-lab__screen" aria-label="AI 落地场景竖屏">
-          <div className="r4-lab__screen-head" aria-hidden="true">
-            <span>{LAB_COPY[12]}</span>
-            <span>{LAB_COPY[13]}</span>
-          </div>
           <div className="r4-lab__list" aria-label="AI 落地场景">
             {LAB_ROWS.map((row) => (
               <article key={row.index} className="r4-lab__row">

@@ -51,6 +51,30 @@ describe('viewport background contract', () => {
     expect(rule('[data-text-reveal-item]')).toContain('display: inline-block');
   });
 
+  it('matches the Hero target canvas geometry and grade to the DOM handoff surface', () => {
+    const back = rule('.r4-hero-scene__back');
+    const introInk = rule('.r4-hero-scene__intro-ink');
+
+    for (const token of ['left: 50%', 'top: 50%']) {
+      expect(introInk).toContain(token);
+    }
+    for (const token of [
+      'width: 112%',
+      'height: 112%',
+      'blur(calc(1.15px + 6.2px * (1 - var(--r4-hero-progress))))',
+      'saturate(.99)',
+      'contrast(.99)',
+      'brightness(calc(.20 + .44 * var(--r4-hero-progress)))',
+      'var(--r4-hero-back-parallax-x)',
+      'var(--r4-hero-back-parallax-y)',
+      'var(--r4-hero-scroll-back-y)',
+      'scale(var(--r4-hero-scroll-back-scale))'
+    ]) {
+      expect(back).toContain(token);
+      expect(introInk).toContain(token);
+    }
+  });
+
   it('keeps the mobile Method list inside the fixed viewport as its own scrollport', () => {
     expect(stylesheet).toContain('grid-template-rows: auto minmax(0, 1fr)');
     expect(stylesheet).toContain('height: 100%');

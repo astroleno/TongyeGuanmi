@@ -32,7 +32,7 @@ describe('Figure3 media timeline ownership', () => {
     expect(video.currentTimeWrites).toBeGreaterThan(0);
   });
 
-  it('keeps the alpha video visible and disables the competing solid fill until p=1', () => {
+  it('keeps the alpha video visible while the source layer owns terminal fade-out', () => {
     const root = new TimelineRoot();
     root.dataset.r4Scene = 'figure3-animation';
 
@@ -42,7 +42,7 @@ describe('Figure3 media timeline ownership', () => {
     });
     expect(renderFigure3AnimationProgress(root as unknown as HTMLElement, 1)).toMatchObject({
       fillOpacity: 0,
-      videoOpacity: 0
+      videoOpacity: 1
     });
   });
 

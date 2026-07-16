@@ -53,7 +53,9 @@ function sampleFigure3Services(
     from: channels.progress < 1
       ? { ...holdVisibility(false), opacity: channels.sourceVisibility }
       : hiddenVisibility(),
-    to: copyCueActive ? holdVisibility(false) : hiddenVisibility(),
+    to: copyCueActive
+      ? { ...holdVisibility(false), opacity: channels.paperAlpha }
+      : hiddenVisibility(),
     copyCueActive
   };
 }

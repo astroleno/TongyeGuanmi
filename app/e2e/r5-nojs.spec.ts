@@ -18,6 +18,9 @@ test('no-JS HTML exposes core正文, metadata, navigation, and scrollable anchor
   await expect(page.locator('#contact')).toContainText('约一次 AI 现场诊断');
   await expect(page.locator('a[href="#method"]')).toBeVisible();
   await expect(page.locator('a[href="#contact"]')).toBeVisible();
+  const staticText = await page.locator('[data-static-story-content="true"]').innerText();
+  expect(staticText).not.toContain('FIELD CHECK');
+  expect(staticText).not.toContain('06 SCENES');
   const footer = page.locator('[data-site-footer="true"]');
   await expect(footer).toBeVisible();
   await expect(footer).toHaveCount(1);

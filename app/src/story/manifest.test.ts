@@ -208,29 +208,40 @@ describe('story manifest contract', () => {
     expect(readingByScene.get('education')).toBe(true);
   });
 
-  it('models Method as one native reading hold without a scene-to-scene handoff', () => {
+  it('models Method intro and five steps as separate semantic holds', () => {
     const methodNodes = storyManifest.nodes.filter((node) =>
       node.kind === 'hold'
         ? node.scene === 'method-top' || node.scene === 'method-bottom'
-        : node.id === 'method-bottom-figure2'
+        : node.id === 'method-top-method-bottom' || node.id === 'method-bottom-figure2'
     );
 
     expect(methodNodes).toEqual([
       expect.objectContaining({
         kind: 'hold',
         scene: 'method-top',
-        reading: true
+        reading: false,
+        freshInput: true
+      }),
+      expect.objectContaining({
+        kind: 'segment',
+        id: 'method-top-method-bottom',
+        from: 'method-top',
+        to: 'method-bottom',
+        virtualDuration: 600
+      }),
+      expect.objectContaining({
+        kind: 'hold',
+        scene: 'method-bottom',
+        reading: true,
+        freshInput: true
       }),
       expect.objectContaining({
         kind: 'segment',
         id: 'method-bottom-figure2',
-        from: 'method-top',
+        from: 'method-bottom',
         to: 'figure2-animation'
       })
     ]);
-    expect(storyManifest.nodes.some((node) =>
-      node.kind === 'segment' && String(node.id) === 'method-top-method-bottom'
-    )).toBe(false);
   });
 
   it('models Proof as one compound reading hold with no internal Director segments', () => {

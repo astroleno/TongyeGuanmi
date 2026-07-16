@@ -84,7 +84,7 @@ describe('production input reading handoff', () => {
     expect(canScrollNatively(readingRoot(0).root, -0.05)).toBe(false);
   });
 
-  it('captures wheel input over Method sticky copy and scrolls its nested list first', () => {
+  it('captures wheel input over Method steps and scrolls its reading root first', () => {
     const listeners = new Map<string, Set<(event: Event) => void>>();
     const fakeWindow = {
       innerHeight: 1000,
@@ -104,14 +104,14 @@ describe('production input reading handoff', () => {
     const runtime = {
       getState: () => ({
         state: 'hold',
-        context: { cursor: { status: 'hold', scene: 'method-top' } }
+        context: { cursor: { status: 'hold', scene: 'method-bottom' } }
       }),
       send,
       subscribe: () => () => undefined
     };
     const detach = attachStoryInput({
       runtime: runtime as unknown as Parameters<typeof attachStoryInput>[0]['runtime'],
-      getCurrentScene: () => 'method-top',
+      getCurrentScene: () => 'method-bottom',
       getLayerElement: () => root
     });
     const preventDefault = vi.fn();
@@ -127,7 +127,7 @@ describe('production input reading handoff', () => {
       listener(wheel);
     }
 
-    expect(scrollport.scrollTop).toBe(120);
+    expect(scrollport.scrollTop).toBe(90);
     expect(preventDefault).toHaveBeenCalledOnce();
     expect(send).not.toHaveBeenCalled();
     detach();
@@ -351,7 +351,7 @@ describe('production input reading handoff', () => {
       return event;
     };
 
-    emit(24);
+    emit(28);
     expect(send).not.toHaveBeenCalled();
     vi.advanceTimersByTime(221);
     emit(15);
@@ -365,7 +365,7 @@ describe('production input reading handoff', () => {
 
     scrollport.scrollTop = 20;
     vi.advanceTimersByTime(221);
-    emit(-24);
+    emit(-28);
     expect(send).toHaveBeenCalledTimes(1);
     vi.advanceTimersByTime(221);
     emit(-16);

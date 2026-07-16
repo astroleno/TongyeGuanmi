@@ -21,14 +21,28 @@ Figure2 从四个同时挂载的方向专用 surface 收敛为 `assets/figure2-p
 | bytes / SHA-256 | 4,940,268 / `a87db407fd39f6977aa0b663ffd16e54929259e6651728997f7c072a33ffaa80` |
 | stream | VP9 alpha；792×660；30fps；156 帧；5.2s；13 keyframes；GOP ≤13 |
 | seam | frames 77/78 分别位于 2.567s / 2.600s，均为 keyframe，解码 RGBA 完全一致 |
-| 对缩放 authority 的质量 | forward alpha SSIM 0.988557、暖纸 0.988303；reverse alpha 0.987890、暖纸 0.987898 |
+| 对缩放 archive authority 的质量（当前 deep gate） | forward alpha SSIM 0.971733、暖纸 0.973679；reverse alpha 0.972476、暖纸 0.974194；四项门槛均为 0.970000 |
 | 定向浏览器性能 | 390×844 SwiftShader：forward/reverse rAF p95 均 33.4ms，dropped 均为 1，CPU 3.10s / 3.05s |
 
-被替换的 `figure2-left-motion.webm`、`figure2-right-motion.webm` 及两条 `-reverse` 文件共 15,926,811 bytes，完整保存在 `archive/assets/homepage-media/2026-07-16/replaced/`，文件名与 SHA 见该目录 README；生产体积减少 10,986,543 bytes（68.98%）。用户已在完整 scroll lifecycle 中人工确认正向、逆向和 Proof 边界无异常。候选阶段只做了一次定向性能/视觉检查，没有运行 Playwright 套件或浏览器矩阵。
+被替换的 `figure2-left-motion.webm`、`figure2-right-motion.webm` 及两条 `-reverse` 文件共 15,926,811 bytes，完整保存在 `archive/assets/homepage-media/2026-07-16/replaced/`，文件名与 SHA 见该目录 README；生产体积减少 10,986,543 bytes（68.98%）。`verify:media:deep` 会重建这四条 archive authority 的原左右构图和 80px 中缝，再分别比对 combined forward/reverse half 的 alpha 与暖纸合成；它与 candidate 自身 forward/reverse 对称性与 seam 检查是两项独立证据。用户已在完整 scroll lifecycle 中人工确认正向、逆向和 Proof 边界无异常。候选阶段只做了一次定向性能/视觉检查，没有运行 Playwright 套件或浏览器矩阵。
 
 正式接入后一次性通过 5 个相关 Vitest 文件 / 45 tests、TypeScript、定向 ESLint、production build、38-file media inventory、深度媒体合同与 `git diff --check`。build 结果：runtime media 44,601,932 bytes，全部 emitted assets 45,273,009 bytes；total JS raw 570,887 / 581,632 bytes，保留 10,745 bytes。没有重复运行全量 unit，也没有运行 Playwright。
 
 以下 Batch A.1、Batch B 与 Batch C 小节保留各阶段原始生成、验证、删除与恢复事实；其中所有历史 totals（包括文末 Batch C totals）都不覆盖上方 2026-07-15 R5 当前冻结合同。
+
+## R5 PH edge-spill 资格合同（2026-07-16）
+
+`assets/ph-figure-motion.webm` 的替换不是只更新容器身份：深检同时冻结当前 production 文件和 archive 内的替换前原文件，随后以显式 VP9 alpha decode 比较整轨 alpha、暖纸合成与人物边缘 witness。
+
+| 项目 | 当前 deep gate |
+| --- | --- |
+| production identity | 2,824,934 bytes；`678f76a40ccffe6cc2f337bfaa6fa66d4af4f6c70b2860695491cc5003147ab1` |
+| archived original identity | `archive/assets/homepage-media/2026-07-16/replaced/ph-figure-motion-original.webm`；2,646,001 bytes；`49e23297a26fa0d6cc3862d6c4123e8090c521bafb3fe718de2ca4fc130169d6` |
+| whole-track alpha / warm-paper SSIM | `0.998376 / 0.997629`；门槛为 `0.998000 / 0.997000` |
+| warm-body witness | frames `0/23/45`、authority alpha ≥224 的 1,143,913 pixels；暖纸 composite RGB MAE `2.08043`，上限 `4.0` |
+| green-fringe witness | 相同帧中紧邻 authority 不透明人物的透明 fringe 22,139 pixels；green-excess `47.59587 → 8.84959`，减少 `38.74628`（门槛 `30.0`） |
+
+这组门禁让 alpha 保留、暖色人物未被重染以及 transparent fringe 去绿同时成为可复现合同；普通 fps/PTS/GOP/`alpha_mode` 校验仍由 canonical media contract 继续执行。
 
 ## R5 Hero / Crane flock 二次瘦身（2026-07-15）
 
@@ -58,7 +72,7 @@ pnpm run rebuild:media:crane-flock
 # Its four frozen inputs now live under archive/assets/homepage-media/2026-07-16/replaced/.
 ```
 
-`pnpm run verify:media:deep` 现在同时冻结 Hero 裁切/尺寸/帧数/PTS/GOP/alpha/SSIM、Crane flock authority 与 corrected WebP identity、canonical frame 0 的 color/alpha SSIM 和 body/gap witnesses、frames 1–73 的 alpha extrema parity 与 color/alpha SSIM、无复制帧合同，以及 Figure2 combined 的 156 帧、双 seam keyframe、RGBA seam identity、正反 direction SSIM 和四个归档 authority 身份。Flock 容器的最后呈现 PTS 为 2.433s；既有 timeline driver 会按实际 2.466s 容器时长钳制 seek，暂停后持续呈现作者末帧，不再向文件追加 terminal hold。WebM 容器 UID 由冻结 authority SHA 派生，重复重建输出同一 bytes/SHA。
+`pnpm run verify:media:deep` 现在同时冻结 Hero 裁切/尺寸/帧数/PTS/GOP/alpha/SSIM、Crane flock authority 与 corrected WebP identity、canonical frame 0 的 color/alpha SSIM 和 body/gap witnesses、frames 1–73 的 alpha extrema parity 与 color/alpha SSIM、无复制帧合同，以及 Figure2 combined 的 156 帧、双 seam keyframe、RGBA seam identity、candidate 自反向 direction SSIM 和四个归档 authority 身份。Figure2 额外以 archive 左右 source 复原原构图，分别断言两个 combined half 的 alpha/暖纸 SSIM，不把自反向对称性冒充为 source fidelity。Flock 容器的最后呈现 PTS 为 2.433s；既有 timeline driver 会按实际 2.466s 容器时长钳制 seek，暂停后持续呈现作者末帧，不再向文件追加 terminal hold。WebM 容器 UID 由冻结 authority SHA 派生，重复重建输出同一 bytes/SHA。
 
 本轮还把冻结清单之外、且在 `app/`、`src/`、`scripts/`、`index.html`、`package.json` 中均无引用的 62 个 authoring/debug/legacy 文件（362,441,690 bytes）从 `assets/` 移到 `archive/assets/homepage-media/2026-07-15/legacy/assets/**`。旧 Hero、旧 lossless flock、被 frame-zero 修复替换的 4,437,203-byte flock canonical 和 74-frame flock authority 分别保存在同一 archive 的 `replaced/` 与 `sources/`；恢复规则见该目录 `README.md`。
 
@@ -70,7 +84,7 @@ Finding 19 的旧 canonical `assets/crane-figure-motion.webm` 将高帧率 MP4 �
 
 | 项目 | 冻结值 |
 |---|---|
-| RGBA authority | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/assets/crane-figure1-transition.webm` |
+| RGBA authority | `d4cab484e8f2d8656cf7c7cd0e19c015c7332702:assets/crane-figure1-transition.webm`；深检在唯一临时目录 materialize，不读取 sibling worktree |
 | authority SHA-256 / bytes | `995c0737bda965643175ac4a83aa2fa92cdcffddfa7c69a0c59b884fefabbdec` / 5,637,648 |
 | authority stream | VP9 alpha；1440×810；24fps；60 帧；2.500s |
 | canonical output | `assets/crane-figure-motion.webm` |

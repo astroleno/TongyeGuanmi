@@ -320,7 +320,7 @@ describe('Director machine', () => {
     expect(context(actor).cursor).toEqual({ status: 'hold', scene: 'pattern' });
   });
 
-  it('carries top and bottom reading entry intent through sequential settlement', async () => {
+  it('carries Method entry intent through the intro, steps, and Figure2 boundaries', async () => {
     const actor = startDirector();
     bootToHold(actor);
     actor.send({ type: 'SEEK', label: 'scene:method-top', source: 'menu' });
@@ -336,16 +336,28 @@ describe('Director machine', () => {
     if (!forwardRun) throw new Error('missing forward run');
     actor.send({ type: 'PLAYBACK_DONE', runId: forwardRun });
     actor.send({ type: 'SETTLING_DONE', now: 1 });
+    expect(context(actor).cursor).toEqual({ status: 'hold', scene: 'method-bottom' });
+    expect(context(actor).holdEntry).toMatchObject({
+      scene: 'method-bottom',
+      edge: 'top',
+      source: 'sequential'
+    });
+
+    enterPlaying(actor, 1);
+    const figure2Run = context(actor).activeRunId;
+    if (!figure2Run) throw new Error('missing Figure2 run');
+    actor.send({ type: 'PLAYBACK_DONE', runId: figure2Run });
+    actor.send({ type: 'SETTLING_DONE', now: 2 });
     expect(context(actor).cursor).toEqual({ status: 'hold', scene: 'figure2-animation' });
 
     enterPlaying(actor, -1);
     const reverseRun = context(actor).activeRunId;
     if (!reverseRun) throw new Error('missing reverse run');
     actor.send({ type: 'PLAYBACK_DONE', runId: reverseRun });
-    actor.send({ type: 'SETTLING_DONE', now: 2 });
+    actor.send({ type: 'SETTLING_DONE', now: 3 });
 
     expect(context(actor).holdEntry).toMatchObject({
-      scene: 'method-top',
+      scene: 'method-bottom',
       edge: 'bottom',
       source: 'sequential'
     });

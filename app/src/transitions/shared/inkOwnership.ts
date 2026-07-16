@@ -6,6 +6,8 @@ import {
   type InkFieldFrame
 } from './inkField';
 
+const INK_DIAGNOSTICS = import.meta.env.DEV;
+
 export function clearBoundaryGeometry(element: HTMLElement | null | undefined): void {
   if (!element) {
     return;
@@ -16,10 +18,13 @@ export function clearBoundaryGeometry(element: HTMLElement | null | undefined): 
   element.removeAttribute('data-r4-reveal-progress');
   element.removeAttribute('data-r4-reveal-mode');
   element.removeAttribute('data-r4-ink-boundary-kind');
+  element.removeAttribute('data-r4-ink-ownership');
+  if (!INK_DIAGNOSTICS) {
+    return;
+  }
   element.removeAttribute('data-r4-ink-boundary-origin');
   element.removeAttribute('data-r4-ink-boundary-progress');
   element.removeAttribute('data-r4-ink-field-seed');
-  element.removeAttribute('data-r4-ink-ownership');
   clearHorizontalInkDiagnostics(element);
 }
 
@@ -33,14 +38,17 @@ function applyBoundaryGeometry(
   clipPath: string,
   ownership: 'reveal' | 'conceal'
 ): void {
-  const origin = inkFieldOrigin(frame.spec);
   element.style.clipPath = clipPath;
   element.style.setProperty('-webkit-clip-path', clipPath);
   element.dataset.r4InkBoundaryKind = frame.spec.kind;
+  element.dataset.r4InkOwnership = ownership;
+  if (!INK_DIAGNOSTICS) {
+    return;
+  }
+  const origin = inkFieldOrigin(frame.spec);
   element.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
   element.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
   element.dataset.r4InkFieldSeed = String(frame.seed);
-  element.dataset.r4InkOwnership = ownership;
   if (isHorizontalFrame(frame)) {
     markHorizontalInkDiagnostics(element, frame);
   } else {

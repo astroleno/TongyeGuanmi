@@ -71,7 +71,9 @@ export function renderFigure3AnimationProgress(
   const section = figure3Section(root);
   const progress = acceleratedProgress(rawProgress);
   const fillOpacity = 0;
-  const videoOpacity = progress < 1 ? 1 : 0;
+  // The segment layer owns the Figure3 fade. Keeping the presented video
+  // opaque through its terminal frame avoids a second binary fade at settle.
+  const videoOpacity = 1;
   const backdropSettle = smoothStep(range01(progress, 0.06, 0.84));
   const videoScale = 1.004 + progress * 0.052;
   const progressValue = progress.toFixed(4);

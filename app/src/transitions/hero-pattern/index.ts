@@ -11,8 +11,10 @@ import {
   HERO_PATTERN_MOTION_STOP
 } from '../../story/timings';
 import { createInkSegmentTransition } from '../shared/ink';
+import { createLinkedAbortController, MediaPreparationError } from '../../media/media-preparation';
 
 export const HERO_PATTERN_INK_ORIGIN = Object.freeze({ x: 0.5, y: 0.5 });
+export const HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS = 1800;
 export { HERO_PATTERN_INK_MS, HERO_PATTERN_MOTION_MS, HERO_PATTERN_MOTION_STOP } from '../../story/timings';
 
 export function heroPatternMotionProgress(progress: number): number {
@@ -31,13 +33,84 @@ export function renderPatternForHeroPattern(root: HTMLElement | null): void {
   renderPatternHold(root);
 }
 
-function waitForCommittedFrame(): Promise<void> {
+function abortedFrameError(reason?: unknown): MediaPreparationError {
+  return new MediaPreparationError(
+    'MEDIA_PREPARATION_ABORTED',
+    'Hero terminal frame preparation aborted',
+    reason === undefined ? {} : { cause: reason }
+  );
+}
+
+export function waitForHeroPatternCommittedFrame(
+  signal?: AbortSignal,
+  timeoutMs = HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS
+): Promise<void> {
+  if (signal?.aborted) {
+    return Promise.reject(abortedFrameError(signal.reason));
+  }
   if (typeof requestAnimationFrame === 'undefined') {
     return Promise.resolve();
   }
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  return new Promise((resolve, reject) => {
+    let firstFrame = 0;
+    let secondFrame = 0;
+    const timer: [ReturnType<typeof setTimeout>?] = [];
+    const cleanup = () => {
+      if (firstFrame && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(firstFrame);
+      if (secondFrame && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(secondFrame);
+      if (timer[0]) clearTimeout(timer[0]);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    const onAbort = () => {
+      cleanup();
+      reject(abortedFrameError(signal?.reason));
+    };
+    const onTimeout = () => {
+      cleanup();
+      reject(new MediaPreparationError(
+        'MEDIA_PREPARATION_TIMEOUT',
+        `Hero terminal frame confirmation exceeded ${timeoutMs}ms`
+      ));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    timer[0] = setTimeout(onTimeout, timeoutMs);
+    firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        cleanup();
+        resolve();
+      });
+    });
   });
+}
+
+export async function prepareHeroPatternBoundary(
+  root: HTMLElement | null | undefined,
+  progress: number,
+  mediaRun: Parameters<typeof prepareHeroPatternFrame>[2]
+): Promise<void> {
+  const linked = createLinkedAbortController(mediaRun.signal);
+  const timer: [ReturnType<typeof setTimeout>?] = [];
+  const timeout = new Promise<never>((_, reject) => {
+    timer[0] = setTimeout(() => {
+      const error = new MediaPreparationError(
+        'MEDIA_PREPARATION_TIMEOUT',
+        `Hero terminal frame preparation exceeded ${HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS}ms`
+      );
+      if (!linked.controller.signal.aborted) {
+        linked.controller.abort(error);
+      }
+      reject(error);
+    }, HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS);
+  });
+  try {
+    await Promise.race([
+      prepareHeroPatternFrame(root, progress, { ...mediaRun, signal: linked.controller.signal }),
+      timeout
+    ]);
+  } finally {
+    if (timer[0]) clearTimeout(timer[0]);
+    linked.dispose();
+  }
 }
 
 export function createHeroPatternTransition(options: { delayMs?: () => number } = {}): TransitionModule {
@@ -54,13 +127,14 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
       { from: 0, to: HERO_PATTERN_MOTION_STOP, durationMs: HERO_PATTERN_MOTION_MS },
       { from: HERO_PATTERN_MOTION_STOP, to: 1, durationMs: HERO_PATTERN_INK_MS }
     ],
-    presentPhaseBoundary: async ({ roots, runId, direction, prefersReducedMotion }) => {
-      await prepareHeroPatternFrame(roots.from, 1, {
+    presentPhaseBoundary: async ({ roots, runId, direction, prefersReducedMotion, signal }) => {
+      await prepareHeroPatternBoundary(roots.from, 1, {
         runId,
         direction,
-        reducedMotion: prefersReducedMotion
+        reducedMotion: prefersReducedMotion,
+        signal
       });
-      await waitForCommittedFrame();
+      await waitForHeroPatternCommittedFrame(signal);
     },
     prepareEndpoints: ({ from, to }) => {
       renderHeroForHeroPattern(from);
@@ -102,7 +176,7 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
       try {
         const timeline = await transition.buildTimeline(context);
         if (video) {
-          await prepareHeroPatternFrame(root, context.direction === 1 ? 0 : 1, {
+          await prepareHeroPatternBoundary(root, context.direction === 1 ? 0 : 1, {
             runId: context.runId,
             direction: context.direction,
             reducedMotion: context.prefersReducedMotion

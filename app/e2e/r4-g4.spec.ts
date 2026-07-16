@@ -180,7 +180,7 @@ test.describe('R4 group4 brand figure3 services harness', () => {
     expect(figureTerminal.servicesPaperAlpha).toBe(1);
     expect(figureTerminal.servicesElevated).toBe(false);
     expect(figureTerminal.transitions).not.toContain('figure3-services-copy-cue');
-    expect(figureTerminal.figure3VideoOpacity).toBeLessThan(0.05);
+    expect(figureTerminal.figure3VideoOpacity).toBeGreaterThan(0.95);
     const servicesHold = await visualSnapshot(page);
     expect(servicesHold.servicesProgress).toBe(1);
     expect(servicesHold.servicesRows).toBe(4);

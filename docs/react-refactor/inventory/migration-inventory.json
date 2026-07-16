@@ -59,11 +59,11 @@
       "hashId": "method",
       "source": "src/sections/method.html",
       "buildOutput": "index.html#method",
-      "canonicalScenes": ["method-top", "figure2-proof"],
+      "canonicalScenes": ["method-top", "method-bottom", "figure2-proof"],
       "legacySceneAnchors": ["method-field-law", "method-cocreation", "method-tooling", "method-proof"],
       "copySource": "src/sections/method.html",
       "mediaAssets": ["assets/figure2-*.png", "assets/figure2a-*", "assets/figure2b-*", "assets/arch2d-alpha.png"],
-      "notes": "Method intro and five-step list remain one method-top reading hold. Proof copy becomes one figure2-proof hold with three internal panels; legacy anchors are not canonical scenes."
+      "notes": "Method intro and the five-step list are separate canonical holds: method-top is an introduction, method-bottom owns the reading scrollport. Proof copy becomes one figure2-proof hold with three internal panels; legacy anchors are not canonical scenes."
     },
     {
       "sectionId": "brand",
@@ -170,7 +170,7 @@
       "to": "method-field-law",
       "adapterModule": "aod",
       "adapterPath": "js/transitions/homepage/aod-homepage-adapter.js",
-      "canonicalExpansion": ["star-map", "star-map-aod", "aod-animation", "aod-method-top", "method-top"],
+      "canonicalExpansion": ["star-map", "star-map-aod", "aod-animation", "aod-method-top", "method-top", "method-top-method-bottom", "method-bottom"],
       "policySeed": {
         "playMs": 2600,
         "handoffTarget": "#method",
@@ -196,7 +196,7 @@
       "to": "method-proof",
       "adapterModule": "figure2",
       "adapterPath": "js/transitions/homepage/figure2-homepage-adapter.js",
-      "canonicalExpansion": ["method-top", "method-bottom-figure2", "figure2-animation", "figure2-distance-expand", "figure2-proof", "figure2-proof-brand", "brand"],
+      "canonicalExpansion": ["method-bottom", "method-bottom-figure2", "figure2-animation", "figure2-distance-expand", "figure2-proof", "figure2-proof-brand", "brand"],
       "policySeed": {
         "stageStops": [0.72],
         "stagePlayMs": [2600, 1500],

@@ -1038,7 +1038,7 @@ pre {
   z-index: 0;
   width: 112%;
   height: 112%;
-  opacity: 1;
+  opacity: var(--r4-hero-back-ink-opacity, 1);
   filter: blur(calc(1.15px + 6.2px * (1 - var(--r4-hero-progress)))) saturate(.99) contrast(.99) brightness(calc(.20 + .44 * var(--r4-hero-progress)));
   transform: translate3d(
     calc(-50% + var(--r4-hero-back-parallax-x)),
@@ -1049,11 +1049,21 @@ pre {
 
 .r4-hero-scene__intro-ink {
   z-index: 1;
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: 112%;
+  height: 112%;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transform: translateZ(0);
-  will-change: opacity, filter;
+  filter: blur(calc(1.15px + 6.2px * (1 - var(--r4-hero-progress)))) saturate(.99) contrast(.99) brightness(calc(.20 + .44 * var(--r4-hero-progress)));
+  transform: translate3d(
+    calc(-50% + var(--r4-hero-back-parallax-x)),
+    calc(-50% + var(--r4-hero-back-parallax-y) + var(--r4-hero-scroll-back-y)),
+    0
+  ) scale(var(--r4-hero-scroll-back-scale));
+  will-change: transform, opacity, filter;
 }
 
 .r4-hero-scene__intro-ink[data-hero-intro-ink-active="true"] {
@@ -1376,6 +1386,40 @@ pre {
   height: 100%;
   margin: 0 auto;
   opacity: var(--r4-method-entrance-opacity);
+}
+
+.r4-method--top .r4-method__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 720px);
+  align-content: center;
+}
+
+.r4-method--top .r4-method__lead {
+  position: relative;
+  top: auto;
+}
+
+.r4-method--bottom {
+  --r4-method-bottom-y: 0px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.r4-method--bottom::-webkit-scrollbar {
+  display: none;
+}
+
+.r4-method--bottom .r4-method__layout {
+  display: block;
+  height: auto;
+  min-height: 100%;
+  transform: translate3d(0, var(--r4-method-bottom-y), 0);
+}
+
+.r4-method--bottom .r4-method__list {
+  height: auto;
+  max-height: none;
 }
 
 .r4-method[data-method-entrance-visible="false"] .r4-method__layout {
@@ -1767,6 +1811,18 @@ pre {
     grid-template-rows: auto minmax(0, 1fr);
     gap: clamp(20px, 4svh, 32px);
     min-height: 0;
+  }
+
+  .r4-method--top .r4-method__layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    align-content: center;
+  }
+
+  .r4-method--bottom .r4-method__layout {
+    display: block;
+    min-height: 100%;
   }
 
   .r4-method__lead {
@@ -2457,7 +2513,6 @@ pre {
   width: 100%;
   margin: 0;
   padding: 0;
-  border-top: 1px solid rgba(37, 39, 25, .16);
   list-style: none;
 }
 
@@ -2466,8 +2521,9 @@ pre {
   grid-template-columns: 56px minmax(180px, .9fr) minmax(0, 2.8fr);
   gap: clamp(24px, 3vw, 52px);
   align-items: baseline;
+  align-content: center;
+  min-height: 39svh;
   padding: clamp(28px, 3.1vw, 44px) 0;
-  border-bottom: 1px solid rgba(37, 39, 25, .14);
 }
 
 .r4-services__row span {
@@ -2741,8 +2797,6 @@ pre {
   align-content: center;
   align-items: end;
   padding-bottom: clamp(34px, 5svh, 58px);
-  border-top: 1px solid rgba(37, 39, 25, .14);
-  border-bottom: 1px solid rgba(37, 39, 25, .14);
 }
 
 .r4-lab__wide-copy .section-index,
@@ -2821,20 +2875,8 @@ pre {
 }
 
 .r4-lab__screen {
-  border-top: 1px solid rgba(37, 39, 25, .16);
   background: transparent;
   overflow: visible;
-}
-
-.r4-lab__screen-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 14px 0;
-  color: rgba(120, 99, 41, .78);
-  border-bottom: 1px solid rgba(37, 39, 25, .12);
-  font-size: 12px;
-  font-weight: 760;
 }
 
 .r4-lab__list {
@@ -2847,11 +2889,6 @@ pre {
   gap: clamp(18px, 2.4vw, 34px);
   align-items: baseline;
   padding: clamp(22px, 2.6vw, 34px) 0;
-  border-bottom: 1px solid rgba(37, 39, 25, .10);
-}
-
-.r4-lab__row:last-child {
-  border-bottom: 0;
 }
 
 .r4-lab__row span {
@@ -3186,8 +3223,6 @@ pre {
   align-content: center;
   align-items: end;
   padding-bottom: clamp(34px, 5svh, 58px);
-  border-top: 1px solid var(--paper-rule);
-  border-bottom: 1px solid var(--paper-rule);
 }
 
 .r4-education .section-index {
@@ -3275,7 +3310,6 @@ pre {
 .r4-education__program {
   display: grid;
   min-width: 0;
-  border-top: 1px solid var(--paper-rule);
 }
 
 .r4-education__row {
@@ -3286,7 +3320,6 @@ pre {
   min-height: 0;
   margin: 0;
   padding: clamp(26px, 3vw, 42px) 0;
-  border-bottom: 1px solid var(--paper-rule);
 }
 
 .r4-education__row span {
