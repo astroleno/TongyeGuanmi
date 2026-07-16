@@ -59,7 +59,7 @@ export type HeroPatternMediaRun = Readonly<{
   runId: string;
   direction: 1 | -1;
   reducedMotion?: boolean;
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
 }>;
 
 export type HeroPatternRenderOptions = Readonly<{
@@ -109,6 +109,9 @@ function seekHeroVideo(video: HeroVideoElement, time: number): void {
     return;
   }
   try {
+    if (Math.abs(video.currentTime - time) <= 0.001) {
+      return;
+    }
     video.currentTime = time;
   } catch {
     // loadedmetadata applies the pending time once the first seekable range exists.
@@ -187,7 +190,7 @@ function heroPatternMediaInput(progress: number, mediaRun: HeroPatternMediaRun):
     // turn a prepared Hero frame into native playback.
     mode: 'timeline',
     reducedMotion: Boolean(mediaRun.reducedMotion),
-    ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
+    signal: mediaRun.signal
   };
 }
 
@@ -231,6 +234,17 @@ export function prepareHeroPatternFrame(
     if (result?.status !== 'ready') {
       throw new Error('hero frame stale');
     }
+  });
+}
+
+export function prepareHeroPatternStartFrame(
+  root: HTMLElement | null | undefined,
+  signal?: AbortSignal
+): Promise<void> {
+  return prepareHeroPatternFrame(root, 0, {
+    runId: 'hero-pattern-prewarm',
+    direction: 1,
+    signal
   });
 }
 

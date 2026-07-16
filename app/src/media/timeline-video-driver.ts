@@ -20,8 +20,8 @@ export type TimelineVideoDriveInput = Readonly<{
   mode?: TimelineVideoMode;
   nativePlaybackDirection?: Direction;
   endpointPolicy?: TimelineVideoEndpointPolicy;
-  reducedMotion?: boolean;
-  signal?: AbortSignal;
+  reducedMotion?: boolean | undefined;
+  signal?: AbortSignal | undefined;
 }>;
 
 export type TimelineVideoFrameResult = Readonly<{

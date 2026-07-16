@@ -79,8 +79,20 @@ async function pressFromCurrentHold(page: Page, key: 'PageDown' | 'PageUp'): Pro
   await page.keyboard.press(key);
 }
 
-test('Hero keeps the original figure deferred until the Hero to Pattern transition is accepted', async ({ page }, testInfo) => {
+test('Hero leaves the initial figure deferred and promotes it only from idle adjacent warmup', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Batch B transfer gate uses mobile Chromium');
+  await page.addInitScript(() => {
+    const callbacks: Array<() => void> = [];
+    const scope = window as typeof window & { __r5DeferredIdleCallbacks?: Array<() => void> };
+    scope.__r5DeferredIdleCallbacks = callbacks;
+    Object.defineProperty(window, 'requestIdleCallback', {
+      configurable: true,
+      value: (callback: (deadline: { didTimeout: boolean; timeRemaining(): number }) => void) => {
+        callbacks.push(() => callback({ didTimeout: false, timeRemaining: () => 50 }));
+        return callbacks.length;
+      }
+    });
+  });
   const requests: string[] = [];
   page.on('request', (request) => {
     if (request.resourceType() === 'video') {
@@ -100,10 +112,24 @@ test('Hero keeps the original figure deferred until the Hero to Pattern transiti
   expect(initial.source).not.toContain('hero-figure-scrub');
   expect(requests.some((url) => /figure1-[^/]+\.webm$/.test(url))).toBe(false);
 
+  await page.waitForFunction(() => {
+    const scope = window as typeof window & { __r5DeferredIdleCallbacks?: Array<() => void> };
+    return (scope.__r5DeferredIdleCallbacks?.length ?? 0) > 0;
+  });
+  await page.evaluate(() => {
+    const scope = window as typeof window & { __r5DeferredIdleCallbacks?: Array<() => void> };
+    const callback = scope.__r5DeferredIdleCallbacks?.shift();
+    if (!callback) throw new Error('Hero idle warmup was not scheduled');
+    callback();
+  });
+  await page.waitForFunction(() => {
+    const video = document.querySelector<HTMLVideoElement>('[data-r4-scene="hero"] [data-hero-figure-video]');
+    return video?.preload === 'auto'
+      && video.dataset.timelineVideoFrameReady === 'true'
+      && video.paused;
+  });
+
   await pressFromCurrentHold(page, 'PageDown');
-  await page.waitForFunction(() => document
-    .querySelector<HTMLVideoElement>('[data-r4-scene="hero"] [data-hero-figure-video]')
-    ?.preload === 'auto');
   await waitForHold(page, 'pattern');
 });
 

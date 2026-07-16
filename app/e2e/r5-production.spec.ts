@@ -441,6 +441,8 @@ test('reading input absorbs the gesture that reaches an edge, then accepts one c
   const scrollport = page.locator('[data-stage-layer="method-bottom"] [data-reading-scrollport="true"]');
   await expect(scrollport).toBeVisible();
   await expect.poll(() => scrollport.evaluate((element) => element.scrollTop)).toBe(0);
+  const methodReadingRange = await scrollport.evaluate((element) => element.scrollHeight - element.clientHeight);
+  expect(methodReadingRange, 'Method vertical panel keeps a scene-owned reading range').toBeGreaterThan(0);
 
   await scrollport.dispatchEvent('wheel', {
     bubbles: true,
@@ -656,7 +658,12 @@ test('long reading scenes have no residual horizontal rules and Lab omits retire
     {
       scene: 'services',
       root: '.r4-services',
-      selectors: ['.r4-services__layout', '.r4-services__list', '.r4-services__row'],
+      selectors: [
+        '.r4-services__wide',
+        '.r4-services__vertical',
+        '.r4-services__list',
+        '.r4-services__row'
+      ],
       absentCopy: []
     },
     {

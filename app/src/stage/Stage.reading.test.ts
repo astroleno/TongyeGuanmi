@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { educationScene } from '../scenes/education';
 import { labScene } from '../scenes/lab';
+import { servicesScene } from '../scenes/services';
 import { HandleRegistry } from '../story/registry';
 import { Stage } from './Stage';
 import { positionReadingAtEdge, readingCanScroll, readingScrollMetrics } from './reading';
@@ -20,7 +21,7 @@ describe('Stage reading layers', () => {
     expect(markup).toContain('tabindex="0"');
   });
 
-  it('gives both continuous two-screen scenes an explicit native scrollport', () => {
+  it('gives continuous reading scenes an explicit native scrollport', () => {
     const labMarkup = renderToStaticMarkup(createElement(Stage, {
       window: { current: 'lab', retiring: [] },
       modules: { lab: labScene },
@@ -31,9 +32,15 @@ describe('Stage reading layers', () => {
       modules: { education: educationScene },
       registry: new HandleRegistry()
     }));
+    const servicesMarkup = renderToStaticMarkup(createElement(Stage, {
+      window: { current: 'services', retiring: [] },
+      modules: { services: servicesScene },
+      registry: new HandleRegistry()
+    }));
 
     expect(labMarkup).toContain('data-reading-scrollport="true"');
     expect(educationMarkup).toContain('data-reading-scrollport="true"');
+    expect(servicesMarkup).toContain('data-reading-scrollport="true"');
   });
 
   it('restores a reverse-entered reading layer at its bottom edge', () => {

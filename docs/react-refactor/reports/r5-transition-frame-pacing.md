@@ -1,6 +1,6 @@
 # R5 Transition Frame Pacing and Visual Closure
 
-状态：P1 生产问题、Figure2 媒体集成阻断和已知 P2 自动化缺口均已处理；candidate 仍未冻结。
+状态：P1 生产问题、Figure2 媒体集成阻断、已知 P2 自动化缺口与 Plan 009 的阅读布局 / 首次交互卡顿均已处理；candidate 仍未冻结。
 日期：2026-07-16。
 基线：`1d62d2e3dc6f2c684fa21a1cdc12d51333e4d496`（`fix(r5): stabilize transition pacing and media handoffs`）。
 实现：`24eb89c`（核心闭环）、`3a6ff95`（PH edge spill）、`7b34eb8`（Figure2 combined bidirectional media）。
@@ -35,19 +35,37 @@
 - runtime media 为 `44,601,932 B`、38 个 runtime assets、8 个 WebM。相对旧四视频 Figure2 方案，迁入后总量净减少。
 - 最后一次 desktop release probe 记录 Figure2 reverse first decode `83ms`、steady p95 `17.4ms`。
 
+## Plan 009 阅读布局与冷启动闭环
+
+- Method 现为宽屏首面与左右阅读次面；次面保持场景自有 scrollport、左侧 sticky 结构导轨和五条既有步骤。列表和面板尾部保留实际可滚动余量，确保桌面阅读手势先由内容消费。
+- Services 现为宽屏介绍面接左右能力面，纸面底色延展至整个 scene-owned scrollport；移动端仍按单列阅读，不会露出底层深色舞台。
+- Hero→Pattern 与 Method→Figure2 在 presentation-ready 后的 idle 期间准备相邻转场：Hero 的首帧、Figure2 的视频首帧与静态 opening 图像 decode、以及一个 detached Ink GPU surface。准备阶段不改变可见性、不播放视频，也不附加可见 canvas；真实 timeline 复用 prepared surface。
+- Hero 初始 HTML 仍为 `preload="none"`；回归用例冻结了“仅在 idle adjacent warmup 后升为 `auto`”的行为。移动端菜单与预约动作采用相同的 `34px` 几何与排版。
+
+最终 `test:release`（2026-07-16，Apple M4 / ANGLE Metal）冷路径证据：
+
+| 路径 | desktop first visual | desktop max frame | mobile first visual | mobile max frame |
+|---|---:|---:|---:|---:|
+| Hero → Pattern | 44 ms | 50.0 ms（无 >50ms 帧） | 43 ms | 50.0 ms（无 >50ms 帧） |
+| Method → Figure2 | 63 ms | 17.6 ms（无 >50ms 帧） | 70 ms | 17.7 ms（无 >50ms 帧） |
+
+桌面与移动的 Method→Figure2 steady p95 分别为 `17.1ms`、`16.9ms`。完整 release matrix 为 `75 passed / 69 skipped / 0 failed`；跳过项由浏览器项目能力条件决定。
+
 ## 当前 build / budget
 
 | 测量 | 当前值 | 门禁 | 结果 |
 |---|---:|---:|---|
-| total JS raw | 575,430 B | ≤581,632 B | pass |
-| hard-cap headroom | 6,202 B | ≥4,096 B | pass |
-| final target margin | 2,106 B | total ≤577,536 B | pass |
-| initial JS raw | 367,607 B | ≤368,640 B | pass |
-| initial CSS raw | 76,699 B | ≤76,800 B | pass |
+| total JS raw | 577,528 B | ≤581,632 B | pass |
+| hard-cap headroom | 4,104 B | ≥4,096 B | pass |
+| final target margin | 8 B | total ≤577,536 B | pass |
+| initial JS raw | 368,098 B | ≤368,640 B | pass |
+| initial CSS raw | 76,581 B | ≤76,800 B | pass |
 | largest lazy JS raw | 53,277 B | ≤65,536 B | pass |
 | total runtime media | 44,601,932 B | 不高于迁入前总量 | pass |
 
 `pnpm --dir app build` 同时通过 TypeScript、Vite、media inventory、release static shell、性能预算和 prepare-phase release manifest。manifest 仍为 `qualification: pending-memory`、`candidate: null`。
+
+Plan 009 开始落地前于 `c410ef4` 复测：initial JS `367,607 B`、initial CSS `76,699 B`、total JS `575,430 B`、headroom `6,202 B`。后续 warmup 改动必须保持 total JS 不高于 `577,536 B`，并至少保留 `4,096 B` headroom。
 
 ## 实际像素与性能证据
 
@@ -68,13 +86,14 @@ desktop Chromium 使用 `ANGLE Metal Renderer: Apple M4`，不是 software rende
 
 - `pnpm --dir app lint` — pass。
 - `pnpm --dir app typecheck` — pass。
-- `pnpm --dir app test` — 93 files / 603 tests pass。
+- `pnpm --dir app test` — 94 files / 617 tests pass。
 - `pnpm --dir app build` — pass；同时通过 release static shell、媒体 inventory、performance budgets 和 prepare-phase manifest。
 - `pnpm --dir app run verify:media:deep` — pass。
 - Figure2 `progress.test.ts` 与 `manifest.test.ts` — 31 tests pass。
 - `r3-pilot.spec.ts` AOD alpha-composite forward/reverse（含 `p≤0.02` 路径）— pass。
-- `r5-performance.spec.ts` release desktop Chromium — 2 passed。
+- `r5-performance.spec.ts` release desktop / mobile Chromium — cold-start、frame pacing、GPU surfaces 与 dispose 门禁均 pass。
 - `r5-production.spec.ts` release desktop Chromium — 22 passed，包含 direct/reduced loader、AOD first-presented-frame、四场景 reading contract、正反向 canonical spine、media recovery 和 release URL isolation。
+- `pnpm test:release` — 75 passed / 69 skipped / 0 failed（desktop/mobile Chromium 与 WebKit 项目）。
 - `git diff --check` — pass。
 
 ## 尚未关闭的资格项

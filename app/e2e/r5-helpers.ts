@@ -75,6 +75,17 @@ export async function bootStory(page: Page, path = '/'): Promise<BrowserStorySna
     const snapshot = story?.snapshot();
     return snapshot?.phase === 'hold' && snapshot.presentationReady === true;
   }, undefined, { timeout: 30_000 });
+  await page.waitForFunction(async () => {
+    const story = (window as StoryWindow).__storyApp;
+    const first = story?.snapshot();
+    if (first?.phase !== 'hold' || first.presentationReady !== true) {
+      return false;
+    }
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const settled = story?.snapshot();
+    return settled?.phase === 'hold' && settled.presentationReady === true;
+  }, undefined, { timeout: 30_000 });
   return storySnapshot(page);
 }
 

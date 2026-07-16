@@ -123,7 +123,7 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
       farArcadeImageCount: document.querySelectorAll('.r4-figure2__far-arcade img').length,
       cloudCount: document.querySelectorAll('.r4-figure2__cloud').length,
       methodSceneCount: document.querySelectorAll('[data-r4-scene="method-top"]').length,
-      methodLeadCount: document.querySelectorAll('.r4-method__lead').length,
+      methodLeadCount: document.querySelectorAll('.r4-method__wide-copy').length,
       methodRowCount: methodLayer?.querySelectorAll('[data-r4-scene="method-bottom"] .r4-method__row').length ?? 0,
       methodLayerScrollHeight: methodLayer?.scrollHeight ?? 0,
       methodLayerClientHeight: methodLayer?.clientHeight ?? 0,

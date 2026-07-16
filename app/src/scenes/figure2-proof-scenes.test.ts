@@ -56,9 +56,15 @@ describe('figure2 proof and brand scene renderers', () => {
     expect(root.style.values.get('--r4-proof-opening-y')).toBe('0.00px');
   });
 
-  it('uses one Main-derived title token for Proof Opening', () => {
-    expect(stylesheet).toContain('--r4-proof-opening-title-size: clamp(28px, 2.3vw, 42px)');
-    expect(stylesheet).toMatch(/\.r4-proof-page \.r4-proof-scroll__content--opening \.method-proof__closing\s*\{[^}]*font-size: var\(--r4-proof-opening-title-size\)/s);
+  it('uses the shared reading-part typography tokens for Proof', () => {
+    expect(stylesheet).toContain('--r4-part-wide-title-size: clamp(32px, 3.8vw, 68px)');
+    expect(stylesheet).toMatch(
+      /\.r4-proof-opening__title\s*\{[^}]*font-size:\s*var\(--r4-part-wide-title-size\)/s
+    );
+    expect(stylesheet).not.toContain('method-proof__');
+    expect(stylesheet).not.toMatch(
+      /\.r4-proof-cards__row\s*\{[^}]*border-(?:top|bottom)/s
+    );
   });
 
   it('uses the R-1 proof split and brand baseline verbatim', () => {

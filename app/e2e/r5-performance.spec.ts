@@ -412,17 +412,20 @@ async function startFrameSampling(page: Page, mode: InkSamplingMode = 'all'): Pr
           && canvas.width > 0
           && canvas.height > 0;
       };
+      // Cold-path samplers start immediately before their first gesture so the
+      // first compositor interval is part of the evidence, not a blind spot
+      // before the Ink canvas becomes active.
       const shouldSample = sampleMode === 'all'
+        || sampleMode === 'hero-pattern'
         || (sampleMode === 'figure3-tail' && (() => {
           const source = document.querySelector<HTMLElement>('[data-r4-scene="figure3-animation"]');
           const layer = source?.closest<HTMLElement>('[data-stage-layer]');
           return layer?.dataset.r4Transition === 'figure3-services-media'
             && Number(source?.dataset.figure3Progress ?? 0) >= 0.9;
         })())
-        || (sampleMode === 'hero-pattern' && activeInk('hero-pattern'))
         || (sampleMode === 'pattern-star-map' && activeInk('pattern-star-map'))
         || (sampleMode === 'figure2-depth' && activeInk('figure2-distance-expand'))
-        || (sampleMode === 'horizontal-ink' && activeInk('services-ttg'));
+        || sampleMode === 'horizontal-ink';
       if (shouldSample) {
         if (previous !== undefined) intervals.push(now - previous);
         previous = now;
@@ -521,10 +524,18 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   }));
   const idlePlayback = summarizeFrames(idleFrameIntervals);
 
+  await startFrameSampling(page, 'hero-pattern');
+  const heroStartedAt = Date.now();
   await pressFromCurrentHold(page, 'PageDown');
+  await page.waitForFunction(() => {
+    const hero = document.querySelector<HTMLElement>('[data-r4-scene="hero"]');
+    return Number.parseFloat(
+      hero?.style.getPropertyValue('--r4-hero-pattern-figure-progress') ?? '0'
+    ) > 0.01;
+  });
+  const heroFirstVisualMs = Date.now() - heroStartedAt;
   const heroPatternWitness = await waitForLiveInk(page, 'hero-pattern', { min: 0.46, max: 0.56 });
   const heroPatternPixels = await readInkPixels(page, 'hero-pattern', false, true);
-  await startFrameSampling(page, 'hero-pattern');
   await waitForHold(page, 'pattern');
   const heroPatternIntervals = await stopFrameSampling(page);
 
@@ -548,6 +559,20 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   const figure3TailIntervals = await stopFrameSampling(page);
   const figure3Tail = summarizeFrames(figure3TailIntervals);
 
+  await bootStory(page, '/#method');
+  await pressFromCurrentHold(page, 'PageDown');
+  await waitForHold(page, 'method-bottom');
+  await reachReadingEdge(page, 1);
+  const figure2OpeningFrame = page.locator('[data-r4-scene="figure2-animation"]');
+  await expect(figure2OpeningFrame).toHaveAttribute('data-figure2-hold-frame-ready', 'true');
+  await startFrameSampling(page, 'horizontal-ink');
+  const methodStartedAt = Date.now();
+  await pressFromCurrentHold(page, 'PageDown');
+  const methodFigure2Witness = await waitForLiveInk(page, 'method-bottom-figure2', { min: 0.03, max: 0.20 });
+  const methodFirstVisualMs = Date.now() - methodStartedAt;
+  await waitForHold(page, 'figure2-animation');
+  const methodFigure2Intervals = await stopFrameSampling(page);
+
   await navigateStory(page, 'contact');
   await page.waitForTimeout(250);
   const disposed = await storySnapshot(page);
@@ -565,7 +590,20 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
       patternStarMap: summarizeFrames(patternStarMapIntervals),
       figure3Tail
     },
+    coldStart: {
+      heroPattern: {
+        firstVisualMs: heroFirstVisualMs,
+        frames: summarizeFrames(heroPatternIntervals)
+      },
+      methodFigure2: {
+        firstVisualMs: methodFirstVisualMs,
+        frames: summarizeFrames(methodFigure2Intervals)
+      }
+    },
     inkWitnesses,
+    coldStartWitnesses: {
+      methodFigure2: methodFigure2Witness
+    },
     visualPixels: {
       heroTextureOrientation,
       heroPatternParticles: heroPatternPixels
@@ -627,6 +665,7 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   }
   const softwareRenderer = /swiftshader|llvmpipe|software/i.test(bootMetrics.gpuRenderer);
   const hardwareP95BudgetMs = testInfo.project.name.startsWith('mobile-') ? 34 : 20;
+  const coldFirstVisualBudgetMs = testInfo.project.name.startsWith('mobile-') ? 120 : 80;
   expect(frameIntervals.length).toBeGreaterThan(30);
   for (const [name, intervals] of Object.entries({
     heroPattern: heroPatternIntervals,
@@ -646,6 +685,21 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
       `${name} consecutive long frames`
     ).toBe(false);
   }
+  for (const [name, path] of Object.entries(report.coldStart)) {
+    expect(path.frames.samples, `${name} cold sample count`).toBeGreaterThan(15);
+    if (!softwareRenderer) {
+      expect(path.firstVisualMs, `${name} cold first visual`).toBeLessThanOrEqual(coldFirstVisualBudgetMs);
+      expect(path.frames.longFrameRatio, `${name} cold long-frame ratio`).toBeLessThan(0.01);
+      expect(
+        path.frames.longFrameIndices.some((index) => path.frames.longFrameIndices.includes(index + 1)),
+        `${name} cold consecutive long frames`
+      ).toBe(false);
+    }
+  }
+  expect(methodFigure2Witness.rendererStatus, 'method Figure2 cold renderer').toBe('active');
+  expect(methodFigure2Witness.visible, 'method Figure2 cold Ink visibility').toBe(true);
+  expect(methodFigure2Witness.progress, 'method Figure2 cold Ink progress').toBeGreaterThanOrEqual(0.03);
+  expect(methodFigure2Witness.progress, 'method Figure2 cold Ink progress').toBeLessThanOrEqual(0.20);
   expect(disposed.mountedLayers).toBeLessThanOrEqual(3);
   expect(disposed.webglCanvases).toBeLessThanOrEqual(1);
   expect(disposed.videos).toBeLessThanOrEqual(4);
@@ -654,6 +708,7 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   if (finalHeap !== undefined) {
     expect(finalHeap).toBeLessThanOrEqual(192 * 1024 * 1024);
   }
+  expect(disposed.lastError).toBeUndefined();
 });
 
 test('focused media and horizontal Ink paths separate first decode from steady frame pacing', async ({ page }, testInfo) => {

@@ -41,7 +41,7 @@ function Figure2ProofClosingScene({ registerHandle }: SceneComponentProps) {
       data-r4-proof-overlay="closing"
     >
       <div className="r4-proof-scroll__content r4-proof-scroll__content--closing">
-        <p className="method-proof__closing r4-proof-closing__copy">{FIGURE2_PROOF_CLOSING_COPY[0]}</p>
+        <p className="r4-proof-closing__copy">{FIGURE2_PROOF_CLOSING_COPY[0]}</p>
       </div>
     </article>
   );

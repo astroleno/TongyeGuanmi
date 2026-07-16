@@ -120,7 +120,7 @@ describe('production input reading handoff', () => {
       deltaMode: 0,
       deltaY: 120,
       preventDefault,
-      target: { className: 'r4-method__lead' }
+      target: { className: 'r4-method__steps-lead' }
     } as unknown as WheelEvent;
 
     for (const listener of listeners.get('wheel') ?? []) {

@@ -63,9 +63,9 @@ function Figure2ProofScene({ registerHandle }: SceneComponentProps) {
         data-r4-proof-overlay="opening"
       >
         <div className="r4-proof-scroll__content r4-proof-scroll__content--opening">
-          <div className="method-proof__lead r4-proof__lead">
+          <div className="r4-proof-opening__lead">
             <span>{FIGURE2_PROOF_OPENING_COPY[0]}</span>
-            <h2 className="method-proof__closing">
+            <h2 className="r4-proof-opening__title">
               <span>{FIGURE2_PROOF_OPENING_COPY[1]}</span>
               <span>{FIGURE2_PROOF_OPENING_COPY[2]}</span>
             </h2>
@@ -80,9 +80,9 @@ function Figure2ProofScene({ registerHandle }: SceneComponentProps) {
         data-r4-proof-overlay="cards"
       >
         <div className="r4-proof-scroll__content r4-proof-scroll__content--cards">
-          <ol className="method-proof__list r4-proof-cards__list" aria-label="常见 AI 落地失败方式">
+          <ol className="r4-proof-cards__list" aria-label="常见 AI 落地失败方式">
             {PROOF_CARDS.map((card) => (
-              <li key={card.index} className="method-proof__row r4-proof-cards__row">
+              <li key={card.index} className="r4-proof-cards__row">
                 <span>{card.index}</span>
                 <strong>{card.title}</strong>
                 <p>{card.body}</p>
@@ -99,7 +99,7 @@ function Figure2ProofScene({ registerHandle }: SceneComponentProps) {
         data-r4-proof-overlay="closing"
       >
         <div className="r4-proof-scroll__content r4-proof-scroll__content--closing">
-          <p className="method-proof__closing r4-proof-closing__copy">
+          <p className="r4-proof-closing__copy">
             {FIGURE2_PROOF_CLOSING_COPY[0]}
           </p>
         </div>

@@ -210,6 +210,20 @@ describe('shared ink renderer lifecycle', () => {
     expect(vendor.boundaryDestroy).toHaveBeenCalledOnce();
   });
 
+  it('adopts a prepared renderer generation until its context is invalidated', () => {
+    const { surface, dispatch } = canvas();
+    const renderer = createInkFieldRenderer(surface, { generation: 'prewarm:shared' });
+    const preventDefault = vi.fn();
+
+    expect(renderer?.rebindGeneration('live:run:1')).toBe(true);
+    expect(surface.dataset.r4InkGeneration).toBe('live:run:1');
+    dispatch('webglcontextlost', { preventDefault });
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(renderer?.getFailure()).toEqual({ generation: 'live:run:1', reason: 'context-lost' });
+    expect(renderer?.rebindGeneration('live:run:2')).toBe(false);
+  });
+
   it('mounts a fresh Stage canvas for every run even with the same segment id', () => {
     const host = new FakeElement();
     const created: FakeCanvas[] = [];

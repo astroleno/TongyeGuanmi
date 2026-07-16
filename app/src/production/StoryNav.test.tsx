@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { StoryNav, chromeForScene } from './StoryNav';
+
+const stylesheet = readFileSync(new URL('./StoryNav.css', import.meta.url), 'utf8');
 
 describe('StoryNav', () => {
   it('is hidden and inert on Hero without mounting expensive blur layers', () => {
@@ -36,6 +39,11 @@ describe('StoryNav', () => {
     expect(markup).toContain('data-visible="true"');
     expect(markup).toContain('data-tone="light"');
     expect(markup).toContain('href="#services" aria-current="page"');
+    expect(markup).toContain('class="site-nav__action site-nav__toggle"');
+    expect(markup).toContain('class="site-nav__action nav-cta"');
+    expect(stylesheet).toMatch(
+      /@media \(max-width: 720px\)[\s\S]*\.site-nav__action\s*\{[^}]*min-height:\s*34px[^}]*border-radius:\s*6px/s
+    );
     expect(markup).not.toContain('inert=""');
     expect(markup.match(/class="scroll-edge-blur__layer"/g)).toHaveLength(7);
     expect(markup.match(/class="scroll-edge-blur__tint"/g)).toHaveLength(1);

@@ -46,8 +46,13 @@ describe('Figure2 proof chain transitions', () => {
     }));
     const playback = segment('figure2-distance-expand').mediaPlayback?.[0];
 
-    expect(figure2AnimationScene.requiredHandles).toEqual(['stage', 'figures', 'combined-video']);
-    expect(figure2AnimationScene.preload()).toEqual({ milestones: ['targetReady', 'mediaReady'] });
+    expect(figure2AnimationScene.requiredHandles).toEqual([
+      'stage',
+      'figures',
+      'combined-video',
+      'opening-frame'
+    ]);
+    expect(figure2AnimationScene.preload()).toEqual({ milestones: ['targetReady'] });
     expect(markup).toContain('data-media-key="figure2-pair-motion"');
     expect(markup).toContain('data-figure2-ownership-surface="true"');
     expect(markup).not.toContain('poster');

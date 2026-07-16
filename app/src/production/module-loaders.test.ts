@@ -25,6 +25,11 @@ describe('production lazy module registry', () => {
     expect(loadedProductionModules().scenes).toContain('method-bottom');
   });
 
+  it('exposes idle prewarm only for the two cold-start transitions', async () => {
+    expect((await loadTransitionModule('hero-pattern')).prewarm).toBeTypeOf('function');
+    expect((await loadTransitionModule('method-bottom-figure2')).prewarm).toBeTypeOf('function');
+  });
+
   it('keeps retired Proof ids as URL aliases without loading compatibility runtime', async () => {
     await expect(loadSceneModule('figure2-proof-opening')).rejects.toThrow('retired');
     await expect(loadTransitionModule('figure2-proof-opening-cards')).rejects.toThrow('retired');

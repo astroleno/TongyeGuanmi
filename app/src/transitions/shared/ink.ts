@@ -5,6 +5,7 @@ import type {
   SegmentId,
   SegmentTimelineHandle,
   TransitionContext,
+  TransitionPrewarmContext,
   TransitionModule
 } from '../../story/types';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from './layerElevation';
@@ -33,6 +34,13 @@ import {
   createHorizontalInkContour,
   type HorizontalInkContour
 } from './horizontalInkContour';
+
+const ENDPOINT_RUN_ATTRIBUTE = 'data-r4-endpoint-run';
+const ENDPOINT_ROLE_ATTRIBUTE = 'data-r4-endpoint-role';
+const ENDPOINT_READY_ATTRIBUTE = 'data-r4-endpoint-ready';
+const TRANSITION_ATTRIBUTE = 'data-r4-transition';
+const INK_ACTIVE_ATTRIBUTE = 'data-r4-ink-active';
+const INK_PROGRESS_ATTRIBUTE = 'data-r4-ink-progress';
 
 export type InkFieldRoots = Readonly<{
   from: HTMLElement | null;
@@ -98,6 +106,11 @@ export type InkSegmentOptions = {
   reportTimelineReadyAt?: number;
   motionScenes?: readonly ('from' | 'to')[];
   grade?: InkGradePreset;
+  // The default remains the established cubic curve. A lower symmetric power
+  // gives a prewarmed, input-driven path visible feedback before its first
+  // full Ink frame without changing any field or renderer parameter.
+  ease?: number;
+  warm?: (context: TransitionPrewarmContext) => Promise<void> | void;
 };
 
 export type InkEndpointRoots = Readonly<{
@@ -114,9 +127,11 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function easeInOutCubic(value: number): number {
+function easeInOutPower(value: number, exponent = 3): number {
   const p = clamp(value);
-  return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+  return p < 0.5
+    ? Math.pow(2 * p, exponent) / 2
+    : 1 - Math.pow(2 * (1 - p), exponent) / 2;
 }
 
 function defaultRootSelector(scene: string): string {
@@ -162,7 +177,9 @@ function mappedProgress(
   return resolved === 'forward' ? progress : 1 - progress;
 }
 
-function sharedStageHost(context: TransitionContext): HTMLElement | null {
+type InkLayerContext = Pick<TransitionContext, 'from' | 'to'>;
+
+function sharedStageHost(context: InkLayerContext): HTMLElement | null {
   const fromParent = context.from.element?.parentElement ?? null;
   const toParent = context.to.element?.parentElement ?? null;
   return fromParent && fromParent === toParent ? fromParent : toParent ?? fromParent;
@@ -205,7 +222,7 @@ function applyVisibilityToElement(element: HTMLElement | null, state: LayerVisib
   element.dataset.interactable = String(!state.inert && state.pointerEvents === 'auto');
 }
 
-function canvasHost(context: TransitionContext, host: InkSegmentOptions['canvasHost']): HTMLElement | null {
+function canvasHost(context: InkLayerContext, host: InkSegmentOptions['canvasHost']): HTMLElement | null {
   if (host === 'from') {
     return context.from.element ?? null;
   }
@@ -231,6 +248,21 @@ function visibleForMotion(state: LayerVisibilityState): boolean {
 
 function isHorizontalFrame(frame: InkFieldFrame): frame is HorizontalInkFieldFrame {
   return frame.spec.kind === 'horizontal';
+}
+
+type PreparedInkSurface = readonly [HTMLCanvasElement, InkFieldRenderer, number, number];
+
+function preparedSurfaceMatches(
+  surface: PreparedInkSurface,
+  viewport: Readonly<{ width: number; height: number }>
+): boolean {
+  return Math.abs(surface[2] - viewport.width) <= 8
+    && Math.abs(surface[3] - viewport.height) <= 8
+    && surface[1].isActive();
+}
+
+function disposePreparedSurface(surface: PreparedInkSurface | undefined): void {
+  surface?.[1].destroy();
 }
 
 export { applyConcealBoundary, applyRevealBoundary, clearBoundaryGeometry } from './inkOwnership';
@@ -274,12 +306,12 @@ class InkEndpointRunOwnership {
     this.elements.clear();
     for (const [element, role] of next) {
       this.elements.set(element, role);
-      element.setAttribute('data-r4-endpoint-run', this.generation);
-      element.setAttribute('data-r4-endpoint-role', role);
+      element.setAttribute(ENDPOINT_RUN_ATTRIBUTE, this.generation);
+      element.setAttribute(ENDPOINT_ROLE_ATTRIBUTE, role);
       if (role === 'target' && this.ready) {
-        element.setAttribute('data-r4-endpoint-ready', this.generation);
+        element.setAttribute(ENDPOINT_READY_ATTRIBUTE, this.generation);
       } else if (element.dataset.r4EndpointRun === this.generation) {
-        element.removeAttribute('data-r4-endpoint-ready');
+        element.removeAttribute(ENDPOINT_READY_ATTRIBUTE);
       }
     }
   }
@@ -288,7 +320,7 @@ class InkEndpointRunOwnership {
     this.ready = true;
     for (const [element, role] of this.elements) {
       if (role === 'target' && element.dataset.r4EndpointRun === this.generation) {
-        element.setAttribute('data-r4-endpoint-ready', this.generation);
+        element.setAttribute(ENDPOINT_READY_ATTRIBUTE, this.generation);
       }
     }
   }
@@ -304,9 +336,9 @@ class InkEndpointRunOwnership {
     if (element.dataset.r4EndpointRun !== this.generation) {
       return;
     }
-    element.removeAttribute('data-r4-endpoint-run');
-    element.removeAttribute('data-r4-endpoint-role');
-    element.removeAttribute('data-r4-endpoint-ready');
+    element.removeAttribute(ENDPOINT_RUN_ATTRIBUTE);
+    element.removeAttribute(ENDPOINT_ROLE_ATTRIBUTE);
+    element.removeAttribute(ENDPOINT_READY_ATTRIBUTE);
   }
 }
 
@@ -314,11 +346,11 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   readonly labels: Readonly<Record<string, number>>;
   readonly pauses: readonly string[];
 
-  private progressValue = 0;
-  private disposed = false;
-  private animationFrame = 0;
-  private canvas: HTMLCanvasElement | null;
-  private inkRenderer: InkFieldRenderer | null;
+  private progressValue!: number;
+  private disposed?: boolean;
+  private animationFrame?: number;
+  private canvas!: HTMLCanvasElement | null;
+  private inkRenderer!: InkFieldRenderer | null;
   private readonly fieldSpec: InkFieldSpec;
   private readonly horizontalContour: HorizontalInkContour | null;
   private readonly elevation: TransitionLayerElevation | null;
@@ -328,12 +360,16 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private readonly resizeObserver: ResizeObserver | null;
   private readonly motionLeases: SceneMotionLeaseGroup;
   private readonly generation: string;
-  private rendererFailure: InkRendererFailure | null = null;
-  private liveElevation: TransitionLayerElevation | null = null;
-  private liveElevationElement: HTMLElement | null = null;
-  private endpointsPrepared = false;
-  private preparedFromRoot: HTMLElement | null = null;
-  private preparedToRoot: HTMLElement | null = null;
+  private readonly id: SegmentId;
+  private readonly rootSelector: InkSegmentOptions['rootSelector'];
+  private readonly reducedMotion: boolean;
+  private readonly host: InkSegmentOptions['canvasHost'];
+  private rendererFailure?: InkRendererFailure;
+  private liveElevation?: TransitionLayerElevation;
+  private liveElevationElement?: HTMLElement;
+  private endpointsPrepared!: boolean;
+  private preparedFromRoot!: HTMLElement | null;
+  private preparedToRoot!: HTMLElement | null;
   private renderedSourceRoot: HTMLElement | null = null;
   private renderedSourceProgress = Number.NaN;
   private playbackDirection: Direction;
@@ -345,16 +381,21 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     private readonly context: TransitionContext,
     private readonly options: InkSegmentOptions,
     private readonly endpointOwnership: InkEndpointRunOwnership,
-    preparedRoots: InkEndpointRoots
+    preparedRoots: InkEndpointRoots,
+    preparedSurface?: PreparedInkSurface
   ) {
     const generation = `${context.runId}:${context.prepareToken}`;
     this.generation = generation;
+    this.id = options.id;
+    this.rootSelector = options.rootSelector;
+    this.reducedMotion = context.prefersReducedMotion;
+    this.host = options.canvasHost;
     this.playbackDirection = context.direction;
     this.progressValue = context.direction === 1 ? 0 : 1;
     this.preparedFromRoot = preparedRoots.from;
     this.preparedToRoot = preparedRoots.to;
     this.endpointsPrepared = true;
-    this.motionLeases = createSceneMotionLeaseGroup(`${context.runId}:${options.id}`);
+    this.motionLeases = createSceneMotionLeaseGroup(`${context.runId}:${this.id}`);
     const stops = options.stops ?? [];
     this.labels = Object.fromEntries([
       ['start', 0],
@@ -367,7 +408,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
           advance.kind === 'gesture' ? [`stage:${index}`] : []
         ))
       : [];
-    const surfaceHost = canvasHost(context, options.canvasHost);
+    const surfaceHost = canvasHost(context, this.host);
     this.surfaceHost = surfaceHost;
     this.viewport = viewportFor(surfaceHost);
     this.resizeObserver = typeof ResizeObserver === 'undefined' || !surfaceHost
@@ -382,20 +423,11 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     if (this.resizeObserver && surfaceHost) {
       this.resizeObserver.observe(surfaceHost);
     }
-    this.attrsElement = options.canvasHost === 'from'
+    this.attrsElement = this.host === 'from'
       ? context.from.element
-      : options.canvasHost === 'stage'
+      : this.host === 'stage'
         ? surfaceHost
         : context.to.element;
-    this.canvas = context.prefersReducedMotion ? null : mountTransitionInkCanvas(
-      surfaceHost,
-      options.id,
-      {
-        renderer: 'field',
-        grade: options.grade ?? 'edge-only',
-        generation
-      }
-    );
     this.elevation = options.elevateTarget === false ? null : createTransitionLayerElevation(context.to.element);
     const roots = this.fieldRoots();
     this.fieldSpec = typeof options.field === 'function'
@@ -407,14 +439,29 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
           variationKey: context.runId
         })
       : null;
-    this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.canvas, {
-      fieldKind: this.fieldSpec.kind,
-      grade: options.grade ?? 'edge-only',
-      generation,
-      onInvalidated: (failure) => {
-        this.rendererFailure = failure;
-      }
-    });
+    const grade = options.grade;
+    const reusableSurface = (
+      !context.prefersReducedMotion
+      && surfaceHost
+      && preparedSurface
+      && preparedSurfaceMatches(preparedSurface, this.viewport)
+      && preparedSurface[1].rebindGeneration(generation)
+    ) ? preparedSurface : undefined;
+    if (!reusableSurface) {
+      disposePreparedSurface(preparedSurface);
+    }
+    this.canvas = context.prefersReducedMotion ? null : mountTransitionInkCanvas(
+      surfaceHost,
+      options.id,
+      { renderer: 'field', grade, generation },
+      reusableSurface?.[0]
+    );
+    this.inkRenderer = context.prefersReducedMotion ? null : reusableSurface?.[1]
+      ?? createInkFieldRenderer(this.canvas, {
+        fieldKind: this.fieldSpec.kind,
+        grade,
+        generation
+      });
     if (productionInkRendererRequired(context.prefersReducedMotion) && !this.inkRenderer) {
       this.motionLeases.dispose();
       this.elevation?.restore();
@@ -472,8 +519,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     applyLayerVisibility(this.context.to, sample.to);
     const liveFromElement = liveLayerElement(this.context.from);
     const liveToElement = liveLayerElement(this.context.to);
-    const fromRoot = sceneRoot(liveFromElement, this.context.from.scene, this.options.rootSelector);
-    const toRoot = sceneRoot(liveToElement, this.context.to.scene, this.options.rootSelector);
+    const fromRoot = sceneRoot(liveFromElement, this.context.from.scene, this.rootSelector);
+    const toRoot = sceneRoot(liveToElement, this.context.to.scene, this.rootSelector);
     this.endpointOwnership.sync(liveFromElement, liveToElement, { from: fromRoot, to: toRoot });
     this.ensureEndpointsPrepared(fromRoot, toRoot);
     const motionScenes = this.options.motionScenes ?? [];
@@ -481,14 +528,14 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       {
         key: 'from',
         root: fromRoot,
-        active: !this.context.prefersReducedMotion
+        active: !this.reducedMotion
           && motionScenes.includes('from')
           && visibleForMotion(sample.from)
       },
       {
         key: 'to',
         root: toRoot,
-        active: !this.context.prefersReducedMotion
+        active: !this.reducedMotion
           && motionScenes.includes('to')
           && visibleForMotion(sample.to)
       }
@@ -560,25 +607,25 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     for (const element of concealSurfaces) {
       applyConcealBoundary(element, frame);
     }
-    const liveAttrsElement = this.options.canvasHost === 'from'
+    const liveAttrsElement = this.host === 'from'
       ? liveFromElement
-      : this.options.canvasHost === 'stage'
+      : this.host === 'stage'
         ? activeSurfaceHost
          : liveToElement;
     const fieldVisible = fieldProgress > 0.002 && fieldProgress < 0.999;
     const inkActive = fieldVisible && Boolean(this.inkRenderer?.isActive());
     if (fieldVisible) {
-      liveAttrsElement?.setAttribute('data-r4-transition', this.options.transitionAttr ?? this.options.id);
-      liveAttrsElement?.setAttribute('data-r4-ink-progress', fieldProgress.toFixed(4));
+      liveAttrsElement?.setAttribute(TRANSITION_ATTRIBUTE, this.options.transitionAttr ?? this.id);
+      liveAttrsElement?.setAttribute(INK_PROGRESS_ATTRIBUTE, fieldProgress.toFixed(4));
       if (inkActive) {
-        liveAttrsElement?.setAttribute('data-r4-ink-active', 'true');
+        liveAttrsElement?.setAttribute(INK_ACTIVE_ATTRIBUTE, 'true');
       } else {
-        liveAttrsElement?.removeAttribute('data-r4-ink-active');
+        liveAttrsElement?.removeAttribute(INK_ACTIVE_ATTRIBUTE);
       }
     } else {
-      liveAttrsElement?.removeAttribute('data-r4-transition');
-      liveAttrsElement?.removeAttribute('data-r4-ink-active');
-      liveAttrsElement?.removeAttribute('data-r4-ink-progress');
+      liveAttrsElement?.removeAttribute(TRANSITION_ATTRIBUTE);
+      liveAttrsElement?.removeAttribute(INK_ACTIVE_ATTRIBUTE);
+      liveAttrsElement?.removeAttribute(INK_PROGRESS_ATTRIBUTE);
     }
     if (this.canvas) {
       if (fieldVisible) {
@@ -635,7 +682,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     }
     this.disposed = true;
     if (!this.phaseController.signal.aborted) {
-      this.phaseController.abort(new Error(`Ink timeline ${this.options.id} disposed`));
+      this.phaseController.abort(new Error(`Ink timeline ${this.id} disposed`));
     }
     this.resizeObserver?.disconnect();
     this.motionLeases.dispose();
@@ -670,20 +717,18 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.preparedFromRoot = null;
     this.preparedToRoot = null;
     this.renderedSourceRoot = null;
-    this.liveElevation = null;
-    this.liveElevationElement = null;
     clearBoundaryGeometry(this.context.to.element);
     clearBoundaryGeometry(liveToElement);
-    const liveAttrsElement = this.options.canvasHost === 'from'
+    const liveAttrsElement = this.host === 'from'
       ? liveFromElement
-      : this.options.canvasHost === 'stage'
+      : this.host === 'stage'
         ? activeSurfaceHost
         : liveToElement;
     for (const element of new Set([this.attrsElement, liveAttrsElement])) {
       clearBoundaryGeometry(element);
-      element?.removeAttribute('data-r4-transition');
-      element?.removeAttribute('data-r4-ink-active');
-      element?.removeAttribute('data-r4-ink-progress');
+      element?.removeAttribute(TRANSITION_ATTRIBUTE);
+      element?.removeAttribute(INK_ACTIVE_ATTRIBUTE);
+      element?.removeAttribute(INK_PROGRESS_ATTRIBUTE);
     }
     this.endpointOwnership.dispose();
   }
@@ -693,31 +738,34 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       runId: this.context.runId,
       prepareToken: this.context.prepareToken,
       direction: this.playbackDirection,
-      prefersReducedMotion: this.context.prefersReducedMotion
+      prefersReducedMotion: this.reducedMotion
     };
   }
 
   private rendererError(): InkRendererRunError {
-    return new InkRendererRunError(this.options.id, this.rendererFailure ?? {
+    return new InkRendererRunError(this.id, this.rendererFailure ?? {
       generation: this.generation,
       reason: 'unavailable'
     });
   }
 
   private assertRendererReady(): void {
-    if (!productionInkRendererRequired(this.context.prefersReducedMotion)) {
+    if (!productionInkRendererRequired(this.reducedMotion)) {
       return;
     }
     const active = this.inkRenderer?.isActive() ?? false;
-    this.rendererFailure ??= this.inkRenderer?.getFailure() ?? null;
+    const failure = this.inkRenderer?.getFailure();
+    if (failure) {
+      this.rendererFailure = failure;
+    }
     if (!active || this.rendererFailure) {
       throw this.rendererError();
     }
   }
 
   private ensureEndpointsPrepared(
-    fromRoot = sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.options.rootSelector),
-    toRoot = sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.options.rootSelector)
+    fromRoot = sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.rootSelector),
+    toRoot = sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.rootSelector)
   ): void {
     if (
       this.endpointsPrepared
@@ -733,8 +781,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   }
 
   private fieldRoots(
-    from = sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.options.rootSelector),
-    to = sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.options.rootSelector),
+    from = sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.rootSelector),
+    to = sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.rootSelector),
     stage = liveStageHost(this.context, this.surfaceHost)
   ): InkFieldRoots {
     return { from, to, stage };
@@ -759,7 +807,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private async animateTo(target: number): Promise<void> {
     const start = this.progressValue;
     const delta = target - start;
-    const durationMs = this.context.prefersReducedMotion ? 0 : this.context.segment.virtualDuration;
+    const durationMs = this.reducedMotion ? 0 : this.context.segment.virtualDuration;
     if (delta === 0 || durationMs <= 0) {
       this.progress(target);
       return;
@@ -773,21 +821,21 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         if (this.phaseController.signal.aborted) {
           throw this.phaseController.signal.reason instanceof Error
             ? this.phaseController.signal.reason
-            : new Error(`Ink phase boundary aborted for ${this.options.id}`);
+            : new Error(`Ink phase boundary aborted for ${this.id}`);
         }
         await this.options.presentPhaseBoundary({
           ...this.sourceRenderContext(),
           progress: range.target,
           signal: this.phaseController.signal,
           roots: {
-            from: sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.options.rootSelector),
-            to: sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.options.rootSelector)
+            from: sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.rootSelector),
+            to: sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.rootSelector)
           }
         });
         if (this.phaseController.signal.aborted) {
           throw this.phaseController.signal.reason instanceof Error
             ? this.phaseController.signal.reason
-            : new Error(`Ink phase boundary aborted for ${this.options.id}`);
+            : new Error(`Ink phase boundary aborted for ${this.id}`);
         }
       }
     }
@@ -805,7 +853,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         }
         const progress = Math.min(1, Math.max(0, now - startedAt) / durationMs);
         try {
-          this.progress(start + delta * easeInOutCubic(progress));
+          this.progress(start + delta * easeInOutPower(progress, this.options.ease));
         } catch (error) {
           reject(error);
           return;
@@ -854,9 +902,40 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
 }
 
 export function createInkSegmentTransition(options: InkSegmentOptions): TransitionModule {
+  let preparedSurface: PreparedInkSurface | undefined;
+
+  const prewarm = (context: TransitionPrewarmContext): Promise<void> | void => {
+    const field = options.field;
+    if (!context.prefersReducedMotion && typeof field !== 'function') {
+      const grade = options.grade;
+      const viewport = viewportFor(canvasHost(context, options.canvasHost));
+      if (!preparedSurface || !preparedSurfaceMatches(preparedSurface, viewport)) {
+        disposePreparedSurface(preparedSurface);
+        preparedSurface = undefined;
+        const canvas = (context.to.element?.ownerDocument ?? globalThis.document)
+          ?.createElement?.('canvas');
+        if (canvas) {
+          const renderer = createInkFieldRenderer(canvas, {
+            fieldKind: field.kind,
+            grade,
+            generation: `prewarm:${options.id}`
+          });
+          if (renderer) {
+            renderer.prewarm(createInkFieldFrame(field, 0.003, viewport));
+            preparedSurface = [canvas, renderer, viewport.width, viewport.height];
+          } else {
+            canvas.remove();
+          }
+        }
+      }
+    }
+    return options.warm?.(context);
+  };
+
   return {
     id: options.id,
     requiredMilestones: ['targetReady', 'buildReady'],
+    prewarm,
     reducedMotionFallback: async (context) => {
       const endpoint = context.direction === 1 ? 1 : 0;
       const generation = `${context.runId}:${context.prepareToken}`;
@@ -907,6 +986,8 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
       const ownership = new InkEndpointRunOwnership(generation, context.direction);
       ownership.sync(liveLayerElement(context.from), liveLayerElement(context.to), roots);
       applyLayerVisibility(context.direction === 1 ? context.to : context.from, hiddenVisibility());
+      const prepared = preparedSurface;
+      preparedSurface = undefined;
       try {
         options.prepareEndpoints(roots);
         await options.prepareTargetPresentation?.(roots, {
@@ -918,11 +999,16 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
           target: context.direction === 1 ? 'to' : 'from'
         });
         ownership.markReady();
-        return new InkSegmentTimeline(context, options, ownership, roots);
+        return new InkSegmentTimeline(context, options, ownership, roots, prepared);
       } catch (error) {
+        disposePreparedSurface(prepared);
         ownership.dispose();
         throw error;
       }
+    },
+    dispose() {
+      disposePreparedSurface(preparedSurface);
+      preparedSurface = undefined;
     }
   };
 }

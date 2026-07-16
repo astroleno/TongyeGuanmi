@@ -19,6 +19,10 @@ export const FIGURE2_MEDIA_KEY = 'figure2-pair-motion';
 export const FIGURE2_INTRO_PLAYBACK_MS = 2600;
 const FIGURE2_REVERSE_START_SECONDS = 2.6;
 const FIGURE2_VIDEO_DURATION_SECONDS = 5.2;
+const FIGURE2_COMBINED_VIDEO_SELECTOR = '[data-figure2-combined-video]';
+const FIGURE2_OPENING_FRAME_HANDLE = 'opening-frame';
+const FIGURE2_UNAVAILABLE = 'Figure2 unavailable';
+const FIGURE2_PREPARE_ABORTED = 'Figure2 prepare aborted';
 
 export type Figure2AnimationRenderState = {
   progress: number;
@@ -64,7 +68,7 @@ export type Figure2MediaPreparation = Readonly<{
   direction: 1 | -1;
   timelineDurationMs?: number;
   reducedMotion?: boolean;
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
   startPlayback?: boolean;
 }>;
 
@@ -75,6 +79,7 @@ export type Figure2DirectionalMediaSnapshot = Readonly<{
 }>;
 
 const mediaManagers = new WeakMap<HTMLElement, Figure2MediaManager>();
+const holdFramePreparations = new WeakMap<HTMLElement, Promise<void>>();
 const FIGURE2_MIDDLE_ASPECT_RATIO = 16 / 9;
 
 function smoothStep(value: number): number {
@@ -138,7 +143,7 @@ function managerFor(root: HTMLElement): Figure2MediaManager {
   if (existing) {
     return existing;
   }
-  const video = root.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
+  const video = root.querySelector<HTMLVideoElement>(FIGURE2_COMBINED_VIDEO_SELECTOR);
   if (!video) {
     throw new Error('Figure2 media missing');
   }
@@ -149,6 +154,11 @@ function managerFor(root: HTMLElement): Figure2MediaManager {
   };
   mediaManagers.set(root, manager);
   return manager;
+}
+
+function retainedFigure2Arch(root: HTMLElement | null | undefined): HTMLImageElement | null | undefined {
+  return root?.closest?.('[data-testid="r2-stage"]')
+    ?.querySelector<HTMLImageElement>('[data-stage-retained-figure2-arch="true"]');
 }
 
 function mediaInput(
@@ -168,8 +178,8 @@ function mediaInput(
     timelineDurationMs: preparation.timelineDurationMs ?? FIGURE2_INTRO_PLAYBACK_MS,
     mode,
     nativePlaybackDirection: 1,
-    ...(preparation.reducedMotion !== undefined ? { reducedMotion: preparation.reducedMotion } : {}),
-    ...(preparation.signal ? { signal: preparation.signal } : {})
+    reducedMotion: preparation.reducedMotion,
+    signal: preparation.signal
   };
 }
 
@@ -186,7 +196,7 @@ async function prepareFigure2Pair(
   progress: number
 ): Promise<void> {
   if (preparation.signal?.aborted) {
-    throw new Error('Figure2 prepare aborted');
+    throw new Error(FIGURE2_PREPARE_ABORTED);
   }
   const manager = managerFor(root);
   const generation = ++manager.generation;
@@ -220,9 +230,48 @@ export async function prepareFigure2MediaLeg(
   preparation: Figure2MediaPreparation
 ): Promise<void> {
   if (!root) {
-    throw new Error('Figure2 unavailable');
+    throw new Error(FIGURE2_UNAVAILABLE);
   }
   await prepareFigure2Pair(root, preparation, heldProgress(root, preparation.direction));
+}
+
+export function ensureFigure2HoldFrame(
+  root: HTMLElement,
+  signal?: AbortSignal
+): Promise<void> {
+  const existing = holdFramePreparations.get(root);
+  if (existing) {
+    return existing;
+  }
+  const preparation: Figure2MediaPreparation = {
+    runId: 'figure2-hold-frame',
+    direction: 1,
+    startPlayback: false,
+    signal
+  };
+  const retainedArch = retainedFigure2Arch(root);
+  const imagePreparation = Promise.all([
+    ...root.querySelectorAll<HTMLImageElement>('img'),
+    retainedArch
+  ].map((image) => image?.decode?.()));
+  const promise = Promise.all([
+    prepareFigure2MediaLeg(root, preparation)
+      .then(() => commitFigure2MediaLeg(root, preparation)),
+    imagePreparation
+  ])
+    .then(() => {
+      if (signal?.aborted) {
+        throw new Error(FIGURE2_PREPARE_ABORTED);
+      }
+      root.dataset.figure2HoldFrameReady = 'true';
+    });
+  holdFramePreparations.set(root, promise);
+  void promise.catch(() => {
+    if (holdFramePreparations.get(root) === promise) {
+      holdFramePreparations.delete(root);
+    }
+  });
+  return promise;
 }
 
 export async function prepareFigure2TerminalPair(
@@ -230,7 +279,7 @@ export async function prepareFigure2TerminalPair(
   preparation: Figure2MediaPreparation
 ): Promise<void> {
   if (!root) {
-    throw new Error('Figure2 unavailable');
+    throw new Error(FIGURE2_UNAVAILABLE);
   }
   await prepareFigure2Pair(root, preparation, 1);
 }
@@ -274,7 +323,7 @@ export function commitFigure2MediaLeg(
   preparation: Figure2MediaPreparation
 ): void {
   if (!root) {
-    throw new Error('Figure2 unavailable');
+    throw new Error(FIGURE2_UNAVAILABLE);
   }
   commitFigure2Pair(
     root,
@@ -289,7 +338,7 @@ export function commitFigure2TerminalPair(
   preparation: Figure2MediaPreparation
 ): void {
   if (!root) {
-    throw new Error('Figure2 unavailable');
+    throw new Error(FIGURE2_UNAVAILABLE);
   }
   commitFigure2Pair(root, preparation, 1, false);
 }
@@ -335,6 +384,10 @@ export function parkFigure2Media(root: HTMLElement | null): void {
 
 export function disposeFigure2Media(root: HTMLElement | null): void {
   parkFigure2Media(root);
+  if (root) {
+    holdFramePreparations.delete(root);
+    delete root.dataset.figure2HoldFrameReady;
+  }
 }
 
 export function figure2DirectionalMediaSnapshot(
@@ -387,11 +440,7 @@ export function renderFigure2AnimationProgress(
   root?.style.setProperty('--r4-figure2-far-arcade-y', `${farArcadeY.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-far-arcade-scale', farArcadeScale.toFixed(4));
   root?.style.setProperty('--r4-figure2-middle-y', `${middleY.toFixed(2)}px`);
-  const retainedArch = typeof root?.closest === 'function'
-    ? root
-        .closest<HTMLElement>('[data-testid="r2-stage"]')
-        ?.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]')
-    : null;
+  const retainedArch = retainedFigure2Arch(root);
   retainedArch?.style.setProperty('--r4-figure2-near-arch-scale', nearArchScale.toFixed(4));
   retainedArch?.style.setProperty('--r4-figure2-near-arch-blur', `${nearArchBlur.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-figure-y', `${figureY.toFixed(2)}px`);
@@ -437,23 +486,18 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
       video.pause();
     }
     if (root) {
-      const preparation: Figure2MediaPreparation = {
-        runId: 'figure2-hold-frame',
-        direction: 1,
-        signal: controller.signal,
-        startPlayback: false
-      };
-      void prepareFigure2MediaLeg(root, preparation)
-        .then(() => commitFigure2MediaLeg(root, preparation))
-        .catch(() => {
-          root.dataset.figure2StaticMediaFallback = 'true';
-        });
+      void ensureFigure2HoldFrame(root, controller.signal)
+        .then(() => {
+          registerHandle?.(FIGURE2_OPENING_FRAME_HANDLE, root.querySelector(FIGURE2_COMBINED_VIDEO_SELECTOR));
+        })
+        .catch(() => undefined);
     }
     return () => {
       controller.abort();
+      registerHandle?.(FIGURE2_OPENING_FRAME_HANDLE, null);
       disposeFigure2Media(root);
     };
-  }, []);
+  }, [registerHandle]);
 
   return (
     <article ref={rootRef} className="r4-figure2" data-r4-scene="figure2-animation">
@@ -511,6 +555,6 @@ export const figure2AnimationScene: SceneModule = {
   id: 'figure2-animation',
   Component: Figure2AnimationScene,
   renderHold: renderFigure2Hold,
-  requiredHandles: ['stage', 'figures', 'combined-video'],
-  preload: () => ({ milestones: ['targetReady', 'mediaReady'] })
+  requiredHandles: ['stage', 'figures', 'combined-video', FIGURE2_OPENING_FRAME_HANDLE],
+  preload: () => ({ milestones: ['targetReady'] })
 };

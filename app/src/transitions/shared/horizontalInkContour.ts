@@ -174,8 +174,8 @@ export function horizontalInkPolygon(
       ? 1 - normalizedThreshold + offset
       : normalizedThreshold - offset;
     return `${percent(x)} ${percent(y)}`;
-  });
+  }).join(', ');
   const ownsBottom = (direction === 'bottom-to-top') === (ownership === 'reveal');
   const outerY = ownsBottom ? '100.000%' : '0.000%';
-  return `polygon(0.000% ${outerY}, ${boundary.join(', ')}, 100.000% ${outerY})`;
+  return `polygon(0.000% ${outerY}, ${boundary}, 100.000% ${outerY})`;
 }

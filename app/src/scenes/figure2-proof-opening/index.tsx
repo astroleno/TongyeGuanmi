@@ -43,9 +43,9 @@ function Figure2ProofOpeningScene({ registerHandle }: SceneComponentProps) {
       data-r4-proof-overlay="opening"
     >
       <div className="r4-proof-scroll__content r4-proof-scroll__content--opening">
-        <div className="method-proof__lead r4-proof__lead">
+        <div className="r4-proof-opening__lead">
           <span>{FIGURE2_PROOF_OPENING_COPY[0]}</span>
-          <h2 className="method-proof__closing">
+          <h2 className="r4-proof-opening__title">
             <span>{FIGURE2_PROOF_OPENING_COPY[1]}</span>
             <span>{FIGURE2_PROOF_OPENING_COPY[2]}</span>
           </h2>

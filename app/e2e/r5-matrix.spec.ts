@@ -72,6 +72,24 @@ test('mobile menu remains touch reachable and closes after navigation', async ({
   expect((await moveOneHold(page, 1)).current).toBe('pattern');
   expect((await moveOneHold(page, 1)).current).toBe('star-map');
   await expect(page.locator('.site-nav')).toBeVisible();
+  const actionStyles = await page.evaluate(() => {
+    const menu = document.querySelector<HTMLElement>('.site-nav__toggle');
+    const cta = document.querySelector<HTMLElement>('.nav-cta');
+    if (!menu || !cta) throw new Error('mobile actions missing');
+    const pick = (element: HTMLElement) => {
+      const style = getComputedStyle(element);
+      return {
+        height: style.minHeight,
+        radius: style.borderRadius,
+        border: style.borderTopWidth,
+        background: style.backgroundColor,
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight
+      };
+    };
+    return { menu: pick(menu), cta: pick(cta) };
+  });
+  expect(actionStyles.menu).toEqual(actionStyles.cta);
   await page.getByRole('button', { name: '菜单' }).tap();
   await expect(page.locator('.site-nav')).toHaveAttribute('data-menu-open', 'true');
   await page.getByRole('link', { name: '联系' }).tap();

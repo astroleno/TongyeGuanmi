@@ -207,6 +207,34 @@ describe('hero-pattern transition', () => {
     }
   );
 
+  it('warms Hero media and Ink before input, then reuses the presented start frame', async () => {
+    const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
+    const canvas = new FakeCanvas();
+    const video = new FakeVideo();
+    fixture.fromRoot.connect('[data-hero-figure-video]', video);
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const transition = createHeroPatternTransition();
+    const stageChildrenBeforePrewarm = fixture.stage.children.length;
+
+    if (!transition.prewarm) {
+      throw new Error('hero-pattern prewarm is required');
+    }
+    await transition.prewarm(fixture.context);
+
+    expect(fixture.stage.children).toHaveLength(stageChildrenBeforePrewarm);
+    expect(video.preload).toBe('auto');
+    expect(video.dataset.timelineVideoFrameReady).toBe('true');
+    expect(video.currentTime).toBe(0);
+    expect(video.playCalls).toBe(0);
+
+    const warmSeekWrites = video.currentTimeWrites;
+    const timeline = await transition.buildTimeline(fixture.context);
+
+    expect(video.currentTimeWrites).toBe(warmSeekWrites);
+    expect(fixture.stage.children).toHaveLength(stageChildrenBeforePrewarm + 1);
+    timeline.dispose();
+  });
+
   it('waits for the reverse Hero endpoint after timeline construction resets its surfaces', async () => {
     const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
     const canvas = new FakeCanvas();

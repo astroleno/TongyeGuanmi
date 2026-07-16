@@ -68,7 +68,7 @@ export function StoryNav({
             <span className="brand-text">同野观幂</span>
           </a>
           <button
-            className="site-nav__toggle"
+            className="site-nav__action site-nav__toggle"
             type="button"
             aria-expanded={menuOpen}
             aria-controls="story-menu"
@@ -95,7 +95,7 @@ export function StoryNav({
             ))}
           </div>
           <a
-            className="nav-cta"
+            className="site-nav__action nav-cta"
             href="#contact"
             tabIndex={linkTabIndex}
             onClick={(event) => {

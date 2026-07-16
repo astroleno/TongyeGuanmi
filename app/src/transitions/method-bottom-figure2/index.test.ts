@@ -5,7 +5,11 @@ import {
   createMethodBottomFigure2Transition,
   figure2InkProgressForMethodBottom
 } from './index';
-import { figure2AnimationScene, renderFigure2Hold } from '../../scenes/figure2-animation';
+import {
+  disposeFigure2Media,
+  figure2AnimationScene,
+  renderFigure2Hold
+} from '../../scenes/figure2-animation';
 import type { LayerHandle, LayerVisibilityState, SceneId, SpineSegmentNode, TransitionContext } from '../../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeElement, FakeVideo } from '../__fixtures__/back-half.fixture';
 
@@ -79,22 +83,37 @@ describe('method-bottom-figure2 transition', () => {
     expect(figure2AnimationScene.renderHold).toBe(renderFigure2Hold);
   });
 
-  it('uses the existing posters during ink and defers dual-video seeking until the settled hold', async () => {
+  it('holds the prepared combined opening frame throughout the ink reveal', async () => {
     const fixture = createBackHalfDomContext(
       'method-bottom-figure2',
       'method-bottom',
       'figure2-animation'
     );
-    const left = new FakeVideo();
-    const right = new FakeVideo();
-    vi.spyOn(fixture.toRoot, 'querySelectorAll').mockReturnValue([left, right]);
-    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+    const canvas = new FakeCanvas();
+    const video = new FakeVideo();
+    fixture.toRoot.connect('[data-figure2-combined-video]', video);
+    vi.stubGlobal('document', { createElement: () => canvas });
+    const transition = createMethodBottomFigure2Transition();
+    const stageChildrenBeforePrewarm = fixture.stage.children.length;
 
-    const timeline = await createMethodBottomFigure2Transition().buildTimeline(fixture.context);
+    if (!transition.prewarm) {
+      throw new Error('method-bottom-figure2 prewarm is required');
+    }
+    await transition.prewarm(fixture.context);
 
-    expect(left.currentTimeWrites).toBe(0);
-    expect(right.currentTimeWrites).toBe(0);
+    expect(fixture.stage.children).toHaveLength(stageChildrenBeforePrewarm);
+    expect(video.playCalls).toBe(0);
+    expect(video.dataset.timelineVideoFrameReady).toBe('true');
+
+    const warmSeekWrites = video.currentTimeWrites;
+    const timeline = await transition.buildTimeline(fixture.context);
+    timeline.progress(0.5);
+
+    expect(fixture.stage.children).toHaveLength(stageChildrenBeforePrewarm + 1);
+    expect(video.currentTimeWrites).toBe(warmSeekWrites);
+    expect(video.playCalls).toBe(0);
     timeline.dispose();
+    disposeFigure2Media(fixture.toRoot as unknown as HTMLElement);
   });
 
   it('shares one organic bottom-to-top boundary between Figure2 and the effect canvas', async () => {
@@ -104,12 +123,13 @@ describe('method-bottom-figure2 transition', () => {
       'figure2-animation'
     );
     const canvas = new FakeCanvas();
+    const receiver = new FakeElement();
     const retainedArch = new FakeElement();
+    fixture.toRoot.connect('.r4-figure2__field', receiver);
     retainedArch.dataset.stageRetainedFigure2Arch = 'true';
     fixture.stage.append(retainedArch);
     vi.stubGlobal('document', { createElement: () => canvas });
     const timeline = await createMethodBottomFigure2Transition().buildTimeline(fixture.context);
-    const receiver = fixture.stage.children[1]!;
 
     timeline.progress(0.5);
 

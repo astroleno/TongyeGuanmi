@@ -40,7 +40,11 @@ function MethodBottomScene({ registerHandle }: SceneComponentProps) {
       data-r4-scene="method-bottom"
       data-reading-scrollport="true"
     >
-      <div className="r4-method__layout">
+      <div className="r4-method__vertical">
+        <aside className="r4-method__steps-lead">
+          <span className="section-index">01—05</span>
+          <h2>AI 落地五步</h2>
+        </aside>
         <ol className="r4-method__list" tabIndex={0} aria-label="同野观幂 AI 落地五步">
           {METHOD_STEPS.map((step) => (
             <li key={step.index} className="r4-method__row">

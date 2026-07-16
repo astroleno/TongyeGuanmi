@@ -33,18 +33,18 @@ function MethodScene({ copyCueActive = false, registerHandle }: SceneComponentPr
       data-copy-cue={String(copyCueActive)}
     >
       <div className="homepage-scene homepage-scene--method-field-law method-handoff-anchor" aria-hidden="true" />
-      <div className="r4-method__layout">
-        <div className="r4-method__lead" aria-label="方法重点">
+      <div className="r4-method__wide">
+        <div className="r4-method__wide-copy">
           <span className="section-index">{METHOD_TOP_COPY[0]}</span>
           <h2>
             <span>{METHOD_TOP_COPY[1]}</span>
             <span>{METHOD_TOP_COPY[2]}</span>
           </h2>
           <p>{METHOD_TOP_COPY[3]}</p>
-          <div className="r4-method__brief" aria-label="方法首屏重点">
-            <span><b>{METHOD_TOP_COPY[4]}</b>{METHOD_TOP_COPY[5]}</span>
-            <span><b>{METHOD_TOP_COPY[6]}</b>{METHOD_TOP_COPY[7]}</span>
-          </div>
+        </div>
+        <div className="r4-method__signals" aria-label="方法首屏重点">
+          <p><b>{METHOD_TOP_COPY[4]}</b><span>{METHOD_TOP_COPY[5]}</span></p>
+          <p><b>{METHOD_TOP_COPY[6]}</b><span>{METHOD_TOP_COPY[7]}</span></p>
         </div>
       </div>
     </article>

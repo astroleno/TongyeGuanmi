@@ -1,5 +1,6 @@
 import type { TransitionModule } from '../../story/types';
 import {
+  prepareHeroPatternStartFrame,
   prepareHeroPatternFrame,
   renderHeroPatternProgress
 } from '../../scenes/hero';
@@ -16,6 +17,7 @@ import { createLinkedAbortController, MediaPreparationError } from '../../media/
 export const HERO_PATTERN_INK_ORIGIN = Object.freeze({ x: 0.5, y: 0.5 });
 export const HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS = 1800;
 export { HERO_PATTERN_INK_MS, HERO_PATTERN_MOTION_MS, HERO_PATTERN_MOTION_STOP } from '../../story/timings';
+const HERO_SCENE_SELECTOR = '[data-r4-scene="hero"]';
 
 export function heroPatternMotionProgress(progress: number): number {
   return range01(progress, 0, HERO_PATTERN_MOTION_STOP);
@@ -149,6 +151,11 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
     }),
     renderSourceProgress: heroPatternMotionProgress,
     motionScenes: ['from', 'to'],
+    ease: 1.25,
+    warm: (context) => prepareHeroPatternStartFrame(
+      context.from.element!.querySelector<HTMLElement>(HERO_SCENE_SELECTOR)
+        ?? context.from.element!
+    ),
     sample: (progress) => {
       const ink = heroPatternInkProgress(progress);
       if (ink <= 0.001) return { from: holdVisibility(false), to: hiddenVisibility() };
@@ -160,7 +167,7 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
   return {
     ...transition,
     buildTimeline: async (context) => {
-      const root = context.from.element?.querySelector<HTMLElement>('[data-r4-scene="hero"]')
+      const root = context.from.element?.querySelector<HTMLElement>(HERO_SCENE_SELECTOR)
         ?? context.from.element
         ?? null;
       const video = root?.querySelector<HTMLVideoElement>('[data-hero-figure-video]');

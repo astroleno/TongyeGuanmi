@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   FIGURE2_INTRO_PLAYBACK_MS,
   commitFigure2MediaLeg,
   disposeFigure2Media,
+  ensureFigure2HoldFrame,
   figure2AnimationScene,
   figure2DepthTransformForProgress,
   figure2DirectionalMediaSnapshot,
@@ -101,6 +102,23 @@ class FakeVideo {
   }
 }
 
+class FakeImage {
+  decodeCalls = 0;
+
+  decode(): Promise<void> {
+    this.decodeCalls += 1;
+    return Promise.resolve();
+  }
+}
+
+class FakeStage {
+  constructor(private readonly retainedArch: FakeImage | null = null) {}
+
+  querySelector(selector: string): FakeImage | null {
+    return selector === '[data-stage-retained-figure2-arch="true"]' ? this.retainedArch : null;
+  }
+}
+
 class FakeRoot {
   readonly style = new FakeStyle();
   readonly attributes = new Map<string, string>();
@@ -108,14 +126,25 @@ class FakeRoot {
   clientWidth = 1440;
   clientHeight = 900;
 
-  constructor(readonly videos: readonly FakeVideo[] = []) {}
+  constructor(
+    readonly videos: readonly FakeVideo[] = [],
+    readonly images: readonly FakeImage[] = [],
+    private readonly stage: FakeStage | null = null
+  ) {}
 
   querySelector(selector: string): FakeVideo | null {
     return selector === '[data-figure2-combined-video]' ? this.videos[0] ?? null : null;
   }
 
-  querySelectorAll(selector: string): readonly FakeVideo[] {
-    return selector === '[data-figure2-video]' ? this.videos : [];
+  querySelectorAll(selector: string): readonly (FakeVideo | FakeImage)[] {
+    if (selector === '[data-figure2-video]') {
+      return this.videos;
+    }
+    return selector === 'img' ? this.images : [];
+  }
+
+  closest(selector: string): FakeStage | null {
+    return selector === '[data-testid="r2-stage"]' ? this.stage : null;
   }
 
   setAttribute(name: string, value: string): void {
@@ -123,10 +152,10 @@ class FakeRoot {
   }
 }
 
-function mediaRoot() {
+function mediaRoot(images: readonly FakeImage[] = [], retainedArch: FakeImage | null = null) {
   const video = new FakeVideo();
   return {
-    root: new FakeRoot([video]),
+    root: new FakeRoot([video], images, new FakeStage(retainedArch)),
     video
   };
 }
@@ -161,6 +190,82 @@ describe('Figure2 canonical media', () => {
     renderFigure2Hold(root as unknown as HTMLElement);
     expect(root.attributes.get('data-figure2-progress')).toBe('0.0000');
     expect(root.style.values.get('--r4-figure2-video-opacity')).toBe('1');
+  });
+
+  it('requires a presented combined opening frame before target readiness', () => {
+    expect(figure2AnimationScene.requiredHandles).toEqual([
+      'stage',
+      'figures',
+      'combined-video',
+      'opening-frame'
+    ]);
+    expect(figure2AnimationScene.preload()).toEqual({ milestones: ['targetReady'] });
+  });
+
+  it('shares a hold-frame preparation and registers only after presentation', async () => {
+    const { root, video } = mediaRoot();
+    const registerHandle = vi.fn();
+    const first = ensureFigure2HoldFrame(root as unknown as HTMLElement);
+    const second = ensureFigure2HoldFrame(root as unknown as HTMLElement);
+    const registerOpeningFrame = first.then(() => {
+      registerHandle('opening-frame', video);
+    });
+
+    expect(first).toBe(second);
+    expect(root.dataset.figure2HoldFrameReady).toBeUndefined();
+    expect(registerHandle).not.toHaveBeenCalled();
+
+    video.presentRequestedFrame();
+    await first;
+    await registerOpeningFrame;
+
+    expect(root.dataset.figure2HoldFrameReady).toBe('true');
+    expect(registerHandle).toHaveBeenCalledWith('opening-frame', video);
+    expect(video.playCalls).toBe(0);
+
+    disposeFigure2Media(root as unknown as HTMLElement);
+    expect(root.dataset.figure2HoldFrameReady).toBeUndefined();
+  });
+
+  it('decodes static Figure2 opening imagery before marking the hold frame ready', async () => {
+    const images = [new FakeImage(), new FakeImage(), new FakeImage()];
+    const retainedArch = new FakeImage();
+    const { root, video } = mediaRoot(images, retainedArch);
+    const preparation = ensureFigure2HoldFrame(root as unknown as HTMLElement);
+
+    expect(images.map((image) => image.decodeCalls)).toEqual([1, 1, 1]);
+    expect(retainedArch.decodeCalls).toBe(1);
+    expect(root.dataset.figure2HoldFrameReady).toBeUndefined();
+
+    video.presentRequestedFrame();
+    await preparation;
+
+    expect(root.dataset.figure2HoldFrameReady).toBe('true');
+    expect(video.playCalls).toBe(0);
+    disposeFigure2Media(root as unknown as HTMLElement);
+  });
+
+  it('does not register a failed opening frame and creates a fresh preparation for retry', async () => {
+    const { root, video } = mediaRoot();
+    const registerHandle = vi.fn();
+    const first = ensureFigure2HoldFrame(root as unknown as HTMLElement);
+    const registerOpeningFrame = first.then(() => {
+      registerHandle('opening-frame', video);
+    });
+
+    video.dispatch('error');
+    await expect(first).rejects.toThrow(/media error/);
+    await expect(registerOpeningFrame).rejects.toThrow(/media error/);
+    expect(registerHandle).not.toHaveBeenCalled();
+    expect(root.dataset.figure2HoldFrameReady).toBeUndefined();
+
+    const retry = ensureFigure2HoldFrame(root as unknown as HTMLElement);
+    expect(retry).not.toBe(first);
+    video.presentRequestedFrame();
+    await retry;
+    expect(root.dataset.figure2HoldFrameReady).toBe('true');
+
+    disposeFigure2Media(root as unknown as HTMLElement);
   });
 
   it('prepare-firsts the combined video before native-preferred forward playback', async () => {

@@ -52,9 +52,10 @@ function ServicesScene({ registerHandle }: SceneComponentProps) {
       }}
       className="r4-services"
       data-r4-scene="services"
+      data-reading-scrollport="true"
     >
-      <div className="r4-services__layout">
-        <div className="r4-services__lead">
+      <section className="r4-services__wide" aria-label="企业服务总览">
+        <div className="r4-services__wide-copy">
           <span className="section-index">{SERVICES_COPY[0]}</span>
           <h2>
             <span>{SERVICES_COPY[1]}</span>
@@ -62,6 +63,15 @@ function ServicesScene({ registerHandle }: SceneComponentProps) {
           </h2>
           <p>{SERVICES_COPY[3]}</p>
         </div>
+        <div className="r4-services__signals" aria-hidden="true">
+          {SERVICE_ROWS.map((row) => <span key={row.index}>{row.title}</span>)}
+        </div>
+      </section>
+      <section className="r4-services__vertical" aria-label="企业服务能力">
+        <aside className="r4-services__capability-lead">
+          <span className="section-index">01—04</span>
+          <h2>企业服务能力</h2>
+        </aside>
         <ol className="r4-services__list" aria-label="企业服务能力">
           {SERVICE_ROWS.map((row) => (
             <li key={row.index} className="r4-services__row">
@@ -71,7 +81,7 @@ function ServicesScene({ registerHandle }: SceneComponentProps) {
             </li>
           ))}
         </ol>
-      </div>
+      </section>
     </article>
   );
 }

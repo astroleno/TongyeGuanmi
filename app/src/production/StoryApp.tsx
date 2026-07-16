@@ -50,6 +50,7 @@ import {
   sceneLabel
 } from './navigation';
 import { positionCurrentProofHistoryAlias, positionProofAlias } from './proof-alias-navigation';
+import { scheduleAdjacentPrewarm } from './adjacent-prewarm';
 
 const StoryNav = lazy(() => import('./StoryNav').then(({ StoryNav: Component }) => ({ default: Component })));
 
@@ -375,9 +376,32 @@ export function StoryApp() {
     );
     const next = storyManifest.nodes[sceneIndex + 1];
     if (next?.kind === 'segment') {
-      void loadTransitionModule(next.id).catch(() => undefined);
+      const modulePromise = loadTransitionModule(next.id);
+      void modulePromise.catch(() => undefined);
+      if (presentationReady && !bootFailed) {
+        return scheduleAdjacentPrewarm(async () => {
+          const module = await modulePromise;
+          // Holds mount their DOM before SegmentPlayer has any reason to make
+          // layer handles. Resolving those passive handles here gives idle
+          // warmup the live endpoints without changing their visibility or
+          // acquiring a transition run.
+          const from = layerStore.ensureLayer(next.from, 'current');
+          const to = layerStore.ensureLayer(next.to, 'next');
+          if (!from.element || !to.element) {
+            return;
+          }
+          await module.prewarm?.({
+            segment: next,
+            stage: layerStore,
+            from,
+            to,
+            direction: 1,
+            prefersReducedMotion: reducedMotion
+          });
+        });
+      }
     }
-  }, [bootFailed, ensureWindow, layerStore, runtime, runtimeSnapshot]);
+  }, [bootFailed, ensureWindow, layerStore, presentationReady, reducedMotion, runtime, runtimeSnapshot]);
 
   useEffect(() => {
     if (

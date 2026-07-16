@@ -258,12 +258,22 @@ export type TransitionContext = {
   reportMilestone(milestone: MilestoneReport): void;
 };
 
+export type TransitionPrewarmContext = {
+  segment: SpineSegmentNode;
+  stage: StageHandle;
+  from: LayerHandle;
+  to: LayerHandle;
+  direction: Direction;
+  prefersReducedMotion: boolean;
+};
+
 export type TransitionModule = {
   id: SegmentId;
   requiredMilestones?: readonly MilestoneKey[];
   copyCue?: CopyCue;
   mediaPlayback?: readonly MediaPlaybackContract[];
   buildTimeline(context: TransitionContext): Promise<SegmentTimelineHandle> | SegmentTimelineHandle;
+  prewarm?(context: TransitionPrewarmContext): Promise<void> | void;
   reducedMotionFallback?(context: TransitionContext): Promise<void> | void;
   dispose?(): void;
 };

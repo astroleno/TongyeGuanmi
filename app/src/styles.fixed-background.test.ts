@@ -75,15 +75,18 @@ describe('viewport background contract', () => {
     }
   });
 
-  it('keeps the mobile Method list inside the fixed viewport as its own scrollport', () => {
-    expect(stylesheet).toContain('grid-template-rows: auto minmax(0, 1fr)');
-    expect(stylesheet).toContain('height: 100%');
-    expect(stylesheet).toContain('min-height: 0');
+  it('keeps Method reading inside its scene-owned bottom scrollport', () => {
+    const bottom = rule('.r4-method--bottom');
+
+    expect(bottom).toContain('overflow-y: auto');
+    expect(bottom).toContain('overscroll-behavior-y: contain');
+    expect(rule('.r4-method__vertical')).toContain('min-height: 100%');
   });
 
-  it('gives the Method reading rail exactly two viewportfuls while its field stays fixed', () => {
-    expect(rule('.r4-method__list')).toContain('height: 100%');
-    expect(rule('.r4-method__row')).toContain('min-height: 40%');
+  it('uses padded, divider-free Method rows rather than a fixed-height rail', () => {
+    expect(rule('.r4-method__list')).not.toContain('height: 100%');
+    expect(rule('.r4-method__row')).toContain('padding: clamp(22px, 2.6vw, 34px) 0');
+    expect(rule('.r4-method__row')).not.toMatch(/min-height|border-(?:top|bottom)/);
     expect(rule('.r4-method')).toContain('overflow: hidden');
   });
 

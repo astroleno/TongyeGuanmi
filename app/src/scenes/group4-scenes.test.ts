@@ -1,7 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { inventoryManifestSeed } from '../story/manifest';
 import { renderFigure3AnimationProgress } from './figure3-animation';
 import { SERVICES_COPY, renderServicesProgress, servicesScene } from './services';
+
+const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -51,5 +56,30 @@ describe('R4 group4 scenes', () => {
 
     expect(servicesScene.staticFallback?.text).toEqual(SERVICES_COPY);
     expect(services?.normalizedText).toEqual([...SERVICES_COPY]);
+  });
+
+  it('keeps Services as a two-panel scene-owned reading composition', () => {
+    const markup = renderToStaticMarkup(createElement(servicesScene.Component, {
+      scene: 'services',
+      hidden: false,
+      role: 'current'
+    }));
+
+    expect(markup.match(/data-reading-scrollport="true"/g)).toHaveLength(1);
+    expect(markup).toContain('class="r4-services__wide"');
+    expect(markup).toContain('class="r4-services__signals"');
+    expect(markup).toContain('class="r4-services__vertical"');
+    expect(markup).toContain('class="r4-services__capability-lead"');
+    expect(markup).toContain('企业服务能力');
+    expect(markup.match(/class="r4-services__row"/g)).toHaveLength(4);
+    expect(stylesheet).not.toMatch(
+      /\.r4-services__row\s*\{[^}]*min-height:\s*39svh/s
+    );
+    expect(stylesheet).not.toMatch(
+      /\.r4-services__row\s*\{[^}]*border-(?:top|bottom)/s
+    );
+    expect(stylesheet).toMatch(
+      /\.r4-services\s*\{[^}]*background:\s*#ede4d2/s
+    );
   });
 });

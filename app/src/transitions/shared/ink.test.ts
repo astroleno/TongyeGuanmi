@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
+import type {
+  LayerHandle,
+  LayerVisibilityState,
+  SpineSegmentNode,
+  TransitionContext,
+  TransitionPrewarmContext
+} from '../../story/types';
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import { createInkSegmentTransition, type InkSegmentOptions } from './ink';
 import { InkRendererRunError } from './sceneInk';
@@ -441,6 +447,157 @@ describe('shared ink transition surface', () => {
     expect(toElement.style.clipPath).toBe('');
     expect(fromElement.style.clipPath).toBe('');
     timeline.dispose();
+  });
+
+  it('reuses one detached prewarmed renderer for the next live timeline', async () => {
+    vi.stubGlobal('WebGLRenderingContext', class WebGLRenderingContext {});
+    vi.stubGlobal('window', { devicePixelRatio: 1, innerHeight: 180, innerWidth: 320 });
+    const browserCanvas = browserInkCanvas();
+    vi.stubGlobal('document', { createElement: () => browserCanvas.surface });
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    fromElement.parentElement = stage;
+    toElement.parentElement = stage;
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const from = layer('services', 'current', fromElement);
+    const to = layer('ttg-animation', 'next', toElement);
+    const stageHandle = {
+      getLayer: () => undefined,
+      ensureLayer: () => to,
+      releaseLayer() {},
+      snapshot: () => []
+    };
+    const context: TransitionContext = {
+      segment,
+      from,
+      to,
+      stage: stageHandle,
+      direction: 1,
+      runId: 'ink-prewarm:1',
+      prepareToken: 'ink-prewarm:prepare:1',
+      prefersReducedMotion: false,
+      reportMilestone() {}
+    };
+    const prewarmContext: TransitionPrewarmContext = {
+      segment,
+      stage: stageHandle,
+      from,
+      to,
+      direction: 1,
+      prefersReducedMotion: false
+    };
+    const transition = createInkSegmentTransition({
+      id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'idle-prepared' },
+      prepareEndpoints: () => undefined
+    });
+
+    await transition.prewarm?.(prewarmContext);
+    await transition.prewarm?.(prewarmContext);
+
+    expect(stage.children).toHaveLength(0);
+    expect(browserCanvas.gl.createProgram).toHaveBeenCalledTimes(1);
+
+    const timeline = await transition.buildTimeline(context);
+
+    expect(stage.children).toHaveLength(1);
+    expect(browserCanvas.gl.createProgram).toHaveBeenCalledTimes(1);
+    timeline.dispose();
+    expect(stage.children).toHaveLength(0);
+    expect(browserCanvas.gl.deleteProgram).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards an incompatible prepared surface and leaves reduced or dynamic fields cold', async () => {
+    vi.stubGlobal('WebGLRenderingContext', class WebGLRenderingContext {});
+    const first = browserInkCanvas();
+    const second = browserInkCanvas();
+    let createCount = 0;
+    const viewport = { width: 320, height: 180 };
+    vi.stubGlobal('window', {
+      devicePixelRatio: 1,
+      get innerHeight() { return viewport.height; },
+      get innerWidth() { return viewport.width; }
+    });
+    vi.stubGlobal('document', {
+      createElement: () => (createCount++ === 0 ? first.surface : second.surface)
+    });
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    fromElement.parentElement = stage;
+    toElement.parentElement = stage;
+    const segment = {
+      kind: 'segment',
+      id: 'services-ttg',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const from = layer('services', 'current', fromElement);
+    const to = layer('ttg-animation', 'next', toElement);
+    const stageHandle = {
+      getLayer: () => undefined,
+      ensureLayer: () => to,
+      releaseLayer() {},
+      snapshot: () => []
+    };
+    const prewarmContext: TransitionPrewarmContext = {
+      segment,
+      stage: stageHandle,
+      from,
+      to,
+      direction: 1,
+      prefersReducedMotion: false
+    };
+    const transition = createInkSegmentTransition({
+      id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'viewport-mismatch' },
+      prepareEndpoints: () => undefined
+    });
+
+    await transition.prewarm?.(prewarmContext);
+    viewport.width = 340;
+    const timeline = await transition.buildTimeline({
+      segment,
+      from,
+      to,
+      stage: stageHandle,
+      direction: 1,
+      runId: 'ink-prewarm-mismatch:1',
+      prepareToken: 'ink-prewarm-mismatch:prepare:1',
+      prefersReducedMotion: false,
+      reportMilestone() {}
+    });
+
+    expect(first.gl.deleteProgram).toHaveBeenCalledTimes(1);
+    expect(second.gl.createProgram).toHaveBeenCalledTimes(1);
+    timeline.dispose();
+
+    const createElement = vi.fn(() => new FakeCanvas());
+    vi.stubGlobal('document', { createElement });
+    const reduced = createInkSegmentTransition({
+      id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'reduced-prewarm' },
+      prepareEndpoints: () => undefined
+    });
+    await reduced.prewarm?.({ ...prewarmContext, prefersReducedMotion: true });
+    const dynamic = createInkSegmentTransition({
+      id: 'services-ttg',
+      field: () => ({ kind: 'horizontal', direction: 'bottom-to-top', seed: 'dynamic-prewarm' }),
+      prepareEndpoints: () => undefined
+    });
+    await dynamic.prewarm?.(prewarmContext);
+
+    expect(createElement).not.toHaveBeenCalled();
   });
 
   it('prepares source and receiver holds once instead of rerendering the target per frame', async () => {

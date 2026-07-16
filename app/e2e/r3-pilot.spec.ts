@@ -243,7 +243,7 @@ test.describe('R3 pilot harness', () => {
           const reveal = root?.querySelector<HTMLElement>('.aod-transition__reveal-surface');
           const paperSolid = root?.querySelector<HTMLElement>('.aod-transition__paper-solid');
           const figure = root?.querySelector<HTMLElement>('[data-aod-figure-video]');
-          const methodCopy = methodLayer?.querySelector<HTMLElement>('.r4-method__layout');
+          const methodCopy = methodLayer?.querySelector<HTMLElement>('.r4-method__wide-copy');
           const methodPaper = methodLayer?.querySelector<HTMLElement>('[data-r4-scene="method-top"]');
           const receiverPaperColor = methodPaper ? getComputedStyle(methodPaper).backgroundColor : '';
           const paperChannels = receiverPaperColor.match(/\d+(?:\.\d+)?/g)
