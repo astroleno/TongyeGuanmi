@@ -62,7 +62,7 @@ const fallbackDurations = {
   readingMs: 900
 } as const;
 
-const stagedMediaPreparingTimeoutMs = 4000;
+const stagedMediaPreparingTimeoutMs = 8000;
 
 function transitionSeed(legacyTransitionId: string, seed: InventoryManifestSeed) {
   const found = seed.transitions.find((transition) => transition.legacyTransitionId === legacyTransitionId);
@@ -295,13 +295,54 @@ function mediaPlaybackContract(
   };
 }
 
+const aodAnimationMedia = ['aod-figure-motion'] as const;
+const figure2AnimationMedia = ['figure2-pair-motion'] as const;
+const figure3AnimationMedia = ['figure3-motion'] as const;
+const ttgAnimationMedia = ['ttg-figure-motion'] as const;
+const phAnimationMedia = ['ph-figure-motion'] as const;
+const craneAnimationMedia = ['crane-figure-motion', 'crane-flock-motion'] as const;
+
+const animationMediaByScene = {
+  'aod-animation': aodAnimationMedia,
+  'figure2-animation': figure2AnimationMedia,
+  'figure3-animation': figure3AnimationMedia,
+  'ttg-animation': ttgAnimationMedia,
+  'ph-animation': phAnimationMedia,
+  'crane-animation': craneAnimationMedia
+} as const;
+
+type AnimationMediaScene = keyof typeof animationMediaByScene;
+
+function incomingAnimationMediaPlayback(
+  segment: SegmentId,
+  targetScene: SceneId
+): readonly MediaPlaybackContract[] | undefined {
+  const media = animationMediaByScene[targetScene as AnimationMediaScene];
+  if (!media) {
+    return undefined;
+  }
+  const reverseRequired = segment === 'method-bottom-figure2' || segment === 'lab-ph';
+  return [
+    mediaPlaybackContract(
+      segment,
+      media,
+      targetScene,
+      {
+        forwardMode: 'timeline',
+        ...(reverseRequired ? { reverseMode: 'timeline' as const, reverseRequired: true } : {}),
+        preparingTimeoutMs: stagedMediaPreparingTimeoutMs
+      }
+    )
+  ];
+}
+
 export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackContract[] | undefined {
   switch (segment) {
     case 'aod-method-top':
       return [
         mediaPlaybackContract(
           'aod-front-figure',
-          ['aod-figure-motion'],
+          aodAnimationMedia,
           'method-top',
           {
             forwardMode: 'timeline',
@@ -314,7 +355,7 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'figure3-alpha',
-          ['figure3-motion'],
+          figure3AnimationMedia,
           'services',
           {
             forwardMode: 'play',
@@ -327,14 +368,14 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'figure2-pair',
-          ['figure2-pair-motion'],
+          figure2AnimationMedia,
           'figure2-proof',
           {
             forwardMode: 'play',
             reverseMode: 'play',
             reverseRequired: true,
-            forwardMedia: ['figure2-pair-motion'],
-            reverseMedia: ['figure2-pair-motion'],
+            forwardMedia: figure2AnimationMedia,
+            reverseMedia: figure2AnimationMedia,
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
           }
         )
@@ -343,13 +384,13 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'ttg-alpha',
-          ['ttg-figure-motion'],
+          ttgAnimationMedia,
           'lab',
           {
             reverseMode: 'timeline',
             reverseRequired: true,
-            forwardMedia: ['ttg-figure-motion'],
-            reverseMedia: ['ttg-figure-motion'],
+            forwardMedia: ttgAnimationMedia,
+            reverseMedia: ttgAnimationMedia,
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
           }
         )
@@ -358,7 +399,7 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'ph-alpha',
-          ['ph-figure-motion'],
+          phAnimationMedia,
           'education',
           {
             forwardMode: 'play',
@@ -372,7 +413,7 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
       return [
         mediaPlaybackContract(
           'crane-transition',
-          ['crane-figure-motion', 'crane-flock-motion'],
+          craneAnimationMedia,
           'contact',
           { forwardMode: 'play', reverseMode: 'timeline', reverseRequired: true }
         )
@@ -382,9 +423,12 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
   }
 }
 
-export function requiredMilestonesFor(segment: SegmentId): readonly MilestoneKey[] {
+export function requiredMilestonesFor(
+  segment: SegmentId,
+  mediaPlayback = mediaPlaybackFor(segment)
+): readonly MilestoneKey[] {
   const milestones: MilestoneKey[] = ['targetReady'];
-  if (mediaPlaybackFor(segment)?.some((contract) => contract.forward.required || contract.reverse.required)) {
+  if (mediaPlayback?.length) {
     milestones.push('mediaReady');
   }
   milestones.push('buildReady');
@@ -410,8 +454,9 @@ function buildNodes(): readonly SpineNode[] {
     const policy = policyAndDuration(node.id);
     const visual = visualFor(node.id);
     const copyCue = copyCueFor(node.id);
-    const mediaPlayback = mediaPlaybackFor(node.id);
-    const requiredMilestones = requiredMilestonesFor(node.id);
+    const incomingMediaPlayback = incomingAnimationMediaPlayback(node.id, node.to);
+    const mediaPlayback = incomingMediaPlayback ?? mediaPlaybackFor(node.id);
+    const requiredMilestones = requiredMilestonesFor(node.id, mediaPlayback);
     return {
       kind: 'segment',
       id: node.id,
@@ -420,7 +465,9 @@ function buildNodes(): readonly SpineNode[] {
       policy: policy.policy,
       virtualDuration: policy.virtualDuration,
       requiredMilestones,
-      buildTimeoutMs: defaults.buildTimeoutMs,
+      buildTimeoutMs: incomingMediaPlayback || node.id === 'hero-pattern'
+        ? stagedMediaPreparingTimeoutMs
+        : defaults.buildTimeoutMs,
       ...(visual ? { visual } : {}),
       ...(copyCue ? { copyCue } : {}),
       ...(mediaPlayback ? { mediaPlayback } : {})

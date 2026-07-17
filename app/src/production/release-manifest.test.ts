@@ -599,6 +599,13 @@ it('routes deploy builds through the strict release identity gate', () => {
   expect(memoryProfiler).not.toContain("'figure2-proof-opening',");
   expect(memoryProfiler).not.toContain("'figure2-proof-cards',");
   expect(memoryProfiler).not.toContain("'figure2-proof-closing',");
+  expect(memoryProfiler).toContain("await devtools.send('HeapProfiler.collectGarbage');");
+  expect(memoryProfiler).toContain(
+    "direction: 'forward-settled', ...(await settledStorySnapshot(page))"
+  );
+  expect(memoryProfiler).toContain(
+    "direction: 'reverse-settled', ...(await settledStorySnapshot(page))"
+  );
   expect(memoryProfiler).not.toContain('macOS / Chrome hardware process-tree sample');
 });
 

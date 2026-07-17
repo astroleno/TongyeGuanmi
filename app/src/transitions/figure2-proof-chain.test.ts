@@ -65,7 +65,7 @@ describe('Figure2 proof chain transitions', () => {
         required: true,
         media: ['figure2-pair-motion']
       },
-      preparingTimeoutMs: 4000
+      preparingTimeoutMs: 8000
     });
   });
 

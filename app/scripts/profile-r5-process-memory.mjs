@@ -65,6 +65,10 @@ const budgets = {
   peakRendererRssBytes: 1024 * 1024 * 1024,
   settledHeapFractionOfPeak: 0.9
 };
+const settling = {
+  idleMs: 5_000,
+  heapMeasurement: 'devtools-heap-profiler-collect-garbage'
+};
 
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -183,6 +187,17 @@ async function storySnapshot(page) {
   });
 }
 
+async function settledStorySnapshot(page) {
+  await sleep(settling.idleMs);
+  const devtools = await page.context().newCDPSession(page);
+  try {
+    await devtools.send('HeapProfiler.collectGarbage');
+  } finally {
+    await devtools.detach();
+  }
+  return storySnapshot(page);
+}
+
 async function waitForHold(page, scene) {
   await page.waitForFunction((expected) => {
     const snapshot = window.__storyApp?.snapshot();
@@ -278,8 +293,7 @@ try {
     holds.push({ direction: 'forward', ...snapshot });
   }
   sampleLabel = 'settled:forward:contact';
-  await sleep(5_000);
-  holds.push({ direction: 'forward-settled', ...(await storySnapshot(page)) });
+  holds.push({ direction: 'forward-settled', ...(await settledStorySnapshot(page)) });
 
   for (const expected of [...scenes].reverse().slice(1)) {
     sampleLabel = `transition:reverse:${expected}`;
@@ -292,8 +306,7 @@ try {
     holds.push({ direction: 'reverse', ...snapshot });
   }
   sampleLabel = 'settled:reverse:hero';
-  await sleep(5_000);
-  holds.push({ direction: 'reverse-settled', ...(await storySnapshot(page)) });
+  holds.push({ direction: 'reverse-settled', ...(await settledStorySnapshot(page)) });
 
   sampling = false;
   await samplingPromise;
@@ -332,6 +345,7 @@ try {
     sampleIntervalMs: 250,
     sampling: samplingSummary,
     budgets,
+    settling,
     actual,
     pass,
     holds,

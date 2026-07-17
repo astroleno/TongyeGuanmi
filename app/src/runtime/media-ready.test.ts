@@ -16,9 +16,31 @@ function segment(id: SpineSegmentNode['id']): SpineSegmentNode {
 }
 
 describe('production media readiness', () => {
-  it('requires the same canonical Figure2 surface in both directions', () => {
+  it('declares every CDN animation surface needed by an incoming visual hold', () => {
+    const expected = new Map<SpineSegmentNode['id'], readonly string[]>([
+      ['star-map-aod', ['aod-figure-motion']],
+      ['method-bottom-figure2', ['figure2-pair-motion']],
+      ['brand-figure3', ['figure3-motion']],
+      ['services-ttg', ['ttg-figure-motion']],
+      ['lab-ph', ['ph-figure-motion']],
+      ['education-crane', ['crane-figure-motion', 'crane-flock-motion']]
+    ]);
+
+    for (const [id, media] of expected) {
+      expect(requiredMediaKeys(segment(id), 1), id).toEqual(media);
+    }
+  });
+
+  it('requires the same canonical Figure2 surface for entry and distance in both directions', () => {
+    expect(requiredMediaKeys(segment('method-bottom-figure2'), 1)).toEqual(['figure2-pair-motion']);
+    expect(requiredMediaKeys(segment('method-bottom-figure2'), -1)).toEqual(['figure2-pair-motion']);
     expect(requiredMediaKeys(segment('figure2-distance-expand'), 1)).toEqual(['figure2-pair-motion']);
     expect(requiredMediaKeys(segment('figure2-distance-expand'), -1)).toEqual(['figure2-pair-motion']);
+  });
+
+  it('keeps the PH opening frame ready while building either handoff direction', () => {
+    expect(requiredMediaKeys(segment('lab-ph'), 1)).toEqual(['ph-figure-motion']);
+    expect(requiredMediaKeys(segment('lab-ph'), -1)).toEqual(['ph-figure-motion']);
   });
 
   it('requires the one TTG surface in both directions', () => {

@@ -183,10 +183,39 @@ describe('story manifest contract', () => {
           },
           readyMilestones: ['targetReady', 'mediaReady'],
           terminalFallbackScene: 'figure2-proof',
-          preparingTimeoutMs: 4000
+          preparingTimeoutMs: 8000
         }
       ]
     });
+  });
+
+  it('gates every incoming animation hold on its declared CDN media', () => {
+    const expected = new Map([
+      ['star-map-aod', ['aod-figure-motion']],
+      ['method-bottom-figure2', ['figure2-pair-motion']],
+      ['brand-figure3', ['figure3-motion']],
+      ['services-ttg', ['ttg-figure-motion']],
+      ['lab-ph', ['ph-figure-motion']],
+      ['education-crane', ['crane-figure-motion', 'crane-flock-motion']]
+    ]);
+
+    for (const [id, media] of expected) {
+      const segment = storyManifest.nodes.find(
+        (node) => node.kind === 'segment' && node.id === id
+      );
+      expect(segment, id).toMatchObject({
+        kind: 'segment',
+        buildTimeoutMs: 8000,
+        requiredMilestones: ['targetReady', 'mediaReady', 'buildReady'],
+        mediaPlayback: [
+          expect.objectContaining({
+            media,
+            forward: expect.objectContaining({ mode: 'timeline', required: true }),
+            preparingTimeoutMs: 8000
+          })
+        ]
+      });
+    }
   });
 
   it('uses one top-down Ink reveal for Lab to PH', () => {
@@ -226,7 +255,19 @@ describe('story manifest contract', () => {
         kind: 'segment',
         id: 'method-bottom-figure2',
         from: 'method-top',
-        to: 'figure2-animation'
+        to: 'figure2-animation',
+        buildTimeoutMs: 8000,
+        requiredMilestones: ['targetReady', 'mediaReady', 'buildReady'],
+        mediaPlayback: [
+          expect.objectContaining({
+            id: 'method-bottom-figure2',
+            media: ['figure2-pair-motion'],
+            forward: { mode: 'timeline', required: true },
+            reverse: { mode: 'timeline', required: true },
+            terminalFallbackScene: 'figure2-animation',
+            preparingTimeoutMs: 8000
+          })
+        ]
       })
     ]);
   });
@@ -326,6 +367,7 @@ describe('story manifest contract', () => {
 
     expect(segment).toMatchObject({
       kind: 'segment',
+      buildTimeoutMs: 8000,
       policy: {
         kind: 'snap'
       },
