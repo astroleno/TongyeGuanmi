@@ -6,7 +6,7 @@ import {
   type TimelineVideoDriveInput,
   type TimelineVideoDriverSnapshot
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
 import { TTG_PLAYBACK_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
@@ -121,6 +121,7 @@ function mediaInput(
     timelineDurationMs: TTG_PLAYBACK_MS,
     mode,
     nativePlaybackDirection: 1,
+    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
   };

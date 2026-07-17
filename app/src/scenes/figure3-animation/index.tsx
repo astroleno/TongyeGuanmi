@@ -5,7 +5,7 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
 import { FIGURE3_SERVICES_DURATION_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
@@ -61,7 +61,8 @@ function figure3MediaInput(progress: number, mediaRun: Figure3MediaRun): Timelin
     timelineDurationMs: FIGURE3_SERVICES_DURATION_MS,
     mode: mediaRun.direction === 1 ? 'native-preferred' : 'timeline',
     nativePlaybackDirection: 1,
-    reducedMotion: Boolean(mediaRun.reducedMotion)
+    reducedMotion: Boolean(mediaRun.reducedMotion),
+    allowSeekedFrameFallback: browserPrefersHevcAlpha()
   };
 }
 

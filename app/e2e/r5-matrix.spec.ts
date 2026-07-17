@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { bootStory, moveOneHold, storySnapshot, waitForHold } from './r5-helpers';
+import {
+  bootStory,
+  canonicalScenes,
+  eventTypes,
+  expectLayerInvariants,
+  moveOneHold,
+  storySnapshot,
+  waitForHold
+} from './r5-helpers';
 
 test('desktop wheel requires a fresh touchpad burst at the Pattern compact checkpoint and reverses', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith('desktop-'), 'desktop pointer matrix');
@@ -153,6 +161,38 @@ test('iPhone landscape entry and a later touch unlock staged video inside real u
 
   expect((await moveOneHold(page, 1)).current).toBe('aod-animation');
   expect((await storySnapshot(page)).recovery).toBeUndefined();
+});
+
+test('iPhone WebKit completes the full touch spine in both directions without media timeouts', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-webkit', 'iPhone WebKit stability gate runs once');
+  test.setTimeout(240_000);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      configurable: true,
+      get: () => 5
+    });
+  });
+
+  await bootStory(page);
+  for (const expectedScene of canonicalScenes.slice(1)) {
+    const snapshot = await moveOneHold(page, 1);
+    expect(snapshot.current).toBe(expectedScene);
+    expect(snapshot.recovery).toBeUndefined();
+    expect(snapshot.lastError).toBeUndefined();
+    await expectLayerInvariants(page);
+  }
+
+  for (const expectedScene of [...canonicalScenes].slice(0, -1).reverse()) {
+    const snapshot = await moveOneHold(page, -1);
+    expect(snapshot.current).toBe(expectedScene);
+    expect(snapshot.recovery).toBeUndefined();
+    expect(snapshot.lastError).toBeUndefined();
+    await expectLayerInvariants(page);
+  }
+
+  const events = await eventTypes(page);
+  expect(events).not.toContain('PREPARE_TIMEOUT');
+  expect(events).not.toContain('PLAYBACK_FAILED');
 });
 
 test('mobile menu remains touch reachable and closes after navigation', async ({ page }, testInfo) => {

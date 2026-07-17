@@ -13,7 +13,7 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
 import {
   attachHeroParallax,
   sampleHeroIntro,
@@ -192,6 +192,7 @@ function heroPatternMediaInput(progress: number, mediaRun: HeroPatternMediaRun):
     // turn a prepared Hero frame into native playback.
     mode: 'timeline',
     reducedMotion: Boolean(mediaRun.reducedMotion),
+    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     signal: mediaRun.signal
   };
 }

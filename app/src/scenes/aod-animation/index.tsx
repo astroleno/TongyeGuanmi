@@ -5,7 +5,7 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
 import { mapAodTimelineToMediaProgress, renderAodTransitionProgress } from './progress';
 
 export { renderAodTransitionProgress } from './progress';
@@ -60,6 +60,7 @@ function aodMediaInput(
     mode,
     nativePlaybackDirection: 1,
     reducedMotion: Boolean(mediaRun.reducedMotion),
+    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
   };
 }

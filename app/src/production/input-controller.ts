@@ -261,6 +261,10 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   };
 
   const onTouchMove = (event: TouchEvent) => {
+    // A transition can mount its next video after touchstart. Retrying inside
+    // the still-active physical gesture lets iOS grant playback activation to
+    // that newly mounted media before WebKit starts preparing its first frame.
+    (options.unlockMedia ?? unlockStoryMedia)();
     const currentY = event.touches[0]?.clientY;
     if (currentY === undefined || previousTouchY === undefined) {
       previousTouchY = currentY;

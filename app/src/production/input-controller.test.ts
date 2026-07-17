@@ -486,7 +486,7 @@ describe('production input reading handoff', () => {
     detach();
   });
 
-  it('unlocks mounted story media synchronously from every touchstart gesture', () => {
+  it('retries story-media unlock on touchmove for videos mounted after touchstart', () => {
     const listeners = new Map<string, Set<(event: Event) => void>>();
     vi.stubGlobal('window', {
       innerHeight: 1000,
@@ -518,15 +518,22 @@ describe('production input reading handoff', () => {
       getLayerElement: () => null,
       unlockMedia
     });
-    const event = {
+    const touchStart = {
       touches: [{ clientY: 200 }]
+    } as unknown as TouchEvent;
+    const touchMove = {
+      touches: [{ clientY: 180 }]
     } as unknown as TouchEvent;
 
     for (const listener of listeners.get('touchstart') ?? []) {
-      listener(event);
+      listener(touchStart);
     }
 
     expect(unlockMedia).toHaveBeenCalledOnce();
+    for (const listener of listeners.get('touchmove') ?? []) {
+      listener(touchMove);
+    }
+    expect(unlockMedia).toHaveBeenCalledTimes(2);
     detach();
   });
 

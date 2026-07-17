@@ -6,7 +6,7 @@ import {
   type TimelineVideoDriveInput,
   type TimelineVideoDriverSnapshot
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 import type { InkDepthTransform } from '../../transitions/shared/inkField';
 
@@ -181,6 +181,7 @@ function mediaInput(
     mode,
     nativePlaybackDirection: 1,
     reducedMotion: preparation.reducedMotion,
+    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     signal: preparation.signal
   };
 }

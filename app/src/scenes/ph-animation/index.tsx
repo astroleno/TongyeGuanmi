@@ -5,7 +5,7 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
 import { PH_PLAYBACK_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
@@ -65,6 +65,7 @@ function phMediaInput(
     timelineDurationMs: PH_PLAYBACK_MS,
     mode: mediaRun.direction === 1 ? 'native-preferred' : 'timeline',
     nativePlaybackDirection: 1,
+    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
   };
