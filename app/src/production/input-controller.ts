@@ -7,6 +7,7 @@ import { createPhysicalGestureTracker } from './physical-gesture-tracker';
 import { createReadingEdgeLatch } from './reading-edge-latch';
 import { consumeReadingPixels } from './reading-handoff';
 import { createReadingMotionGovernor } from './reading-motion-governor';
+import { unlockStoryMedia } from './mobile-media-unlock';
 
 type Runtime = ReturnType<typeof createDirectorRuntime>;
 
@@ -14,6 +15,7 @@ export type StoryInputControllerOptions = {
   runtime: Runtime;
   getCurrentScene(): SceneId | undefined;
   getLayerElement(scene: SceneId): HTMLElement | null;
+  unlockMedia?(): void;
 };
 
 function direction(delta: number): Direction {
@@ -253,6 +255,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   };
 
   const onTouchStart = (event: TouchEvent) => {
+    (options.unlockMedia ?? unlockStoryMedia)();
     previousTouchY = event.touches[0]?.clientY;
     touchStartsNewReadingGesture = true;
   };

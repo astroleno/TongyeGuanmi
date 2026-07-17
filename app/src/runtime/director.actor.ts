@@ -80,6 +80,7 @@ type RecoveryEndpoint = {
   segment: SegmentId;
   direction: Direction;
   scene: SceneId;
+  seek: boolean;
 };
 
 class EventRingBuffer {
@@ -140,7 +141,8 @@ function recoveryEndpoint(context: DirectorContext): RecoveryEndpoint | undefine
   return {
     segment: recovery.segment,
     direction: recovery.direction,
-    scene: recovery.endpoint
+    scene: recovery.endpoint,
+    seek: recovery.endpoint !== recovery.committedScene
   };
 }
 
@@ -613,6 +615,14 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
     } catch (error) {
       if (isStarted && interactionGeneration === generation) {
         runtime.segmentPlayer.dispose(endpoint.segment);
+        if (endpoint.seek) {
+          runtime.send({
+            type: 'SEEK',
+            label: `scene:${endpoint.scene}`,
+            source: 'recovery'
+          });
+          return;
+        }
         runtime.send({
           type: 'RECOVERY_FAILED',
           segment: endpoint.segment,

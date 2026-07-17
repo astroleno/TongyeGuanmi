@@ -44,4 +44,28 @@ describe('recovery', () => {
       error: new Error('media timeout')
     });
   });
+
+  it.each(['prepare-timeout', 'playback-failed'] as const)(
+    'uses the declared forward media fallback scene after %s',
+    (reason) => {
+      const segment = storyManifest.nodes.find(
+        (node) => node.kind === 'segment' && node.id === 'star-map-aod'
+      );
+      if (segment?.kind !== 'segment') {
+        throw new Error('missing star-map-aod segment');
+      }
+
+      expect(
+        createSegmentRecoveryPlan(reason, 'star-map', segment, 1, 'media blocked')
+      ).toMatchObject({
+        scope: 'segment',
+        status: 'recovering',
+        committedScene: 'star-map',
+        segment: 'star-map-aod',
+        direction: 1,
+        endpoint: 'aod-animation',
+        reason
+      });
+    }
+  );
 });

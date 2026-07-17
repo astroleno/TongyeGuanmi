@@ -50,6 +50,7 @@ import {
 } from './navigation';
 import { positionCurrentProofHistoryAlias, positionProofAlias } from './proof-alias-navigation';
 import { scheduleAdjacentPrewarm } from './adjacent-prewarm';
+import { unlockStoryMedia } from './mobile-media-unlock';
 import { loadInputController, prewarmInputController } from './input-controller-loader';
 import { MobileLandscapeGate, useMobileLandscapeEntry } from './MobileLandscapeGate';
 import type { MobileLandscapeEntryState } from './mobile-landscape-entry';
@@ -184,6 +185,10 @@ export function StoryApp() {
   const loaderHiddenReasonRef = useRef<StoryLoaderExitReason | undefined>(undefined);
   const mobileLandscape = useMobileLandscapeEntry();
   const landscapeGateStarted = mobileLandscape.started;
+  const startMobileLandscapeExperience = () => {
+    unlockStoryMedia();
+    mobileLandscape.start();
+  };
   const experienceInteractive = presentationReady
     && landscapeGateStarted
     && mobileLandscape.landscapeCurrentlyAllowed
@@ -696,7 +701,7 @@ export function StoryApp() {
         onStatusChange={setLoaderStatus}
         onHidden={handleLoaderHidden}
       />
-      <MobileLandscapeGate state={mobileLandscape.state} onStart={mobileLandscape.start} />
+      <MobileLandscapeGate state={mobileLandscape.state} onStart={startMobileLandscapeExperience} />
       <Stage
         window={runtimeSnapshot.context.layerWindow}
         modules={modules}

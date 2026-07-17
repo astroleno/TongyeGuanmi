@@ -456,7 +456,8 @@ describe('production input reading handoff', () => {
     const detach = attachStoryInput({
       runtime: runtime as unknown as Parameters<typeof attachStoryInput>[0]['runtime'],
       getCurrentScene: () => 'method-top',
-      getLayerElement: () => root
+      getLayerElement: () => root,
+      unlockMedia: vi.fn()
     });
     const emit = (type: 'touchstart' | 'touchmove' | 'touchend', y?: number) => {
       const event = {
@@ -482,6 +483,50 @@ describe('production input reading handoff', () => {
       type: 'CHARGE_FIRED',
       direction: 1
     }));
+    detach();
+  });
+
+  it('unlocks mounted story media synchronously from every touchstart gesture', () => {
+    const listeners = new Map<string, Set<(event: Event) => void>>();
+    vi.stubGlobal('window', {
+      innerHeight: 1000,
+      visualViewport: undefined,
+      addEventListener(type: string, listener: (event: Event) => void) {
+        const current = listeners.get(type) ?? new Set<(event: Event) => void>();
+        current.add(listener);
+        listeners.set(type, current);
+      },
+      removeEventListener(type: string, listener: (event: Event) => void) {
+        listeners.get(type)?.delete(listener);
+      }
+    });
+    const unlockMedia = vi.fn();
+    const runtime = {
+      getState: () => ({
+        state: 'hold',
+        context: {
+          cursor: { status: 'hold', scene: 'star-map' },
+          holdEntry: { scene: 'star-map', edge: 'top', source: 'sequential', token: 3 }
+        }
+      }),
+      send: vi.fn(),
+      subscribe: () => () => undefined
+    };
+    const detach = attachStoryInput({
+      runtime: runtime as unknown as Parameters<typeof attachStoryInput>[0]['runtime'],
+      getCurrentScene: () => 'star-map',
+      getLayerElement: () => null,
+      unlockMedia
+    });
+    const event = {
+      touches: [{ clientY: 200 }]
+    } as unknown as TouchEvent;
+
+    for (const listener of listeners.get('touchstart') ?? []) {
+      listener(event);
+    }
+
+    expect(unlockMedia).toHaveBeenCalledOnce();
     detach();
   });
 

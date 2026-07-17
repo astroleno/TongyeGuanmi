@@ -743,6 +743,45 @@ describe('director runtime actor loop', () => {
     expect(recoveryWindows).not.toContain('hero');
   });
 
+  it('enters the declared static AOD hold when forward media preparation cannot start', async () => {
+    let buildCount = 0;
+    const runtime = createDirectorRuntime({
+      actorEpoch: 'aod-forward-static-fallback',
+      initialScene: 'star-map',
+      readyGate: {
+        waitForTargetReady: () => undefined,
+        waitForMediaReady: () => Promise.reject(new Error('cellular media preload blocked'))
+      },
+      transitions: {
+        'star-map-aod': {
+          id: 'star-map-aod',
+          buildTimeline: () => {
+            buildCount += 1;
+            throw new Error('media-backed transition unavailable');
+          }
+        }
+      }
+    });
+    runtime.send({ type: 'BOOT_READY' });
+    runtime.send({ type: 'CHARGE_FIRED', direction: 1 });
+    await flush(0);
+    await flush(0);
+
+    const recovered = runtime.getState();
+    runtime.stop();
+
+    expect(buildCount).toBe(1);
+    expect(recovered).toMatchObject({
+      state: 'hold',
+      context: {
+        cursor: { status: 'hold', scene: 'aod-animation' },
+        layerWindow: { current: 'aod-animation' },
+        recovery: undefined
+      }
+    });
+    expect(recovered.eventLog.map((record) => record.event.type)).toContain('PREPARE_TIMEOUT');
+  });
+
   it('keeps Contact usable for an explicit retry after local rollback', async () => {
     let buildCount = 0;
     let rejectPlayback!: (error: Error) => void;

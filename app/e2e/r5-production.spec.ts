@@ -397,7 +397,7 @@ test('the latest navigation request wins when an earlier lazy scene loads slowly
 test('every canonical hash boots directly and public aliases remain supported', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'exhaustive hash sweep runs once');
 
-  for (const scene of canonicalScenes.filter((scene) => scene !== 'method-bottom')) {
+  for (const scene of canonicalScenes) {
     const snapshot = await bootStory(page, `/?hash=${scene}#${scene}`);
     expect(snapshot.current, `hash #${scene}`).toBe(scene);
     await expectLayerInvariants(page);
@@ -969,17 +969,15 @@ test('critical reverse chains return through hero, pilot, and figure2 proof hold
 
   expect((await moveOneHold(page, -1)).current).toBe('figure2-animation');
   await expectLayerInvariants(page);
-  expect((await moveOneHold(page, -1)).current).toBe('method-bottom');
+  expect((await moveOneHold(page, -1)).current).toBe('method-top');
   await expectLayerInvariants(page);
   const methodEntry = await page.locator(
-    '[data-stage-layer="method-bottom"] [data-reading-scrollport="true"]'
+    '[data-stage-layer="method-top"] [data-reading-scrollport="true"]'
   ).evaluate((element) => ({
     scrollTop: element.scrollTop,
     maxScrollTop: element.scrollHeight - element.clientHeight
   }));
   expect(Math.abs(methodEntry.scrollTop - methodEntry.maxScrollTop)).toBeLessThan(1);
-  expect((await moveOneHold(page, -1)).current).toBe('method-top');
-  await expect(page.locator('[data-stage-layer="method-top"] [data-reading-scrollport="true"]')).toHaveCount(0);
 });
 
 test('slow media succeeds before timeout and failed endpoint recovery leaves an interactive static hold', async ({ page }, testInfo) => {
@@ -1003,9 +1001,9 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
   await page.keyboard.press('PageDown');
   await expect.poll(async () => (await eventTypes(page))
     .filter((type) => type === 'PREPARE_TIMEOUT').length).toBeGreaterThan(timeoutCountBeforeFailure);
-  const failedMedia = await waitForHold(page, 'aod-animation');
+  const failedMedia = await waitForHold(page, 'method-top');
   expect(failedMedia.recovery).toBeUndefined();
-  expect(await eventTypes(page)).toContain('RECOVERY_CANCELLED');
+  expect(await eventTypes(page)).toContain('SEEK');
   await expectLayerInvariants(page);
 
   await page.unroute('**/*aod-figure-motion*.webm');
@@ -1016,6 +1014,7 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
     if (!video) throw new Error('AOD media missing before route retry');
     video.load();
   });
+  expect((await moveOneHold(page, -1)).current).toBe('aod-animation');
   await page.keyboard.press('PageDown');
   await waitForHold(page, 'method-top');
   await expectLayerInvariants(page);
@@ -1037,9 +1036,9 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
     await page.keyboard.press('PageDown');
     await expect.poll(async () => (await eventTypes(page))
       .filter((type) => type === 'PREPARE_TIMEOUT').length).toBeGreaterThan(timeoutCountBeforeOffline);
-    const offlineFailure = await waitForHold(page, 'aod-animation');
+    const offlineFailure = await waitForHold(page, 'method-top');
     expect(offlineFailure.recovery).toBeUndefined();
-    expect(await eventTypes(page)).toContain('RECOVERY_CANCELLED');
+    expect(await eventTypes(page)).toContain('SEEK');
     await expectLayerInvariants(page);
   } finally {
     await page.context().setOffline(false);
@@ -1052,8 +1051,27 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
     if (!video) throw new Error('AOD media missing before online retry');
     video.load();
   });
+  expect((await moveOneHold(page, -1)).current).toBe('aod-animation');
   await page.keyboard.press('PageDown');
   await waitForHold(page, 'method-top');
+  await expectLayerInvariants(page);
+});
+
+test('failed incoming AOD media skips the blocked transition and lands on its static AOD hold', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'network recovery runs once');
+  test.setTimeout(60_000);
+
+  await page.route('**/*aod-figure-motion*.webm', (route) => route.abort('failed'));
+  await bootStory(page, '/?media=failed#star-map');
+  const timeoutCount = (await eventTypes(page))
+    .filter((type) => type === 'PREPARE_TIMEOUT').length;
+  await page.keyboard.press('PageDown');
+  await expect.poll(async () => (await eventTypes(page))
+    .filter((type) => type === 'PREPARE_TIMEOUT').length).toBeGreaterThan(timeoutCount);
+
+  const fallback = await waitForHold(page, 'aod-animation');
+  expect(fallback.recovery).toBeUndefined();
+  expect(fallback.lastError).toBe('PREPARE_TIMEOUT');
   await expectLayerInvariants(page);
 });
 

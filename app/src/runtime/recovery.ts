@@ -77,13 +77,17 @@ export function createSegmentRecoveryPlan(
   error?: unknown
 ): SegmentRecoveryPlan {
   const normalized = error === undefined ? undefined : toError(error);
+  const forwardMediaFallback = direction === 1
+    && reason !== 'segment-aborted'
+    ? segment.mediaPlayback?.find((contract) => contract.forward.required)?.terminalFallbackScene
+    : undefined;
   return {
     scope: 'segment',
     status: 'recovering',
     committedScene,
     segment: segment.id,
     direction,
-    endpoint: committedScene,
+    endpoint: forwardMediaFallback ?? committedScene,
     reason,
     ...(normalized ? { error: normalized } : {})
   };

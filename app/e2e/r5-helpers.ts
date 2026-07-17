@@ -25,6 +25,13 @@ export type BrowserStorySnapshot = {
   loaderStatus: 'running' | 'exiting' | 'hidden';
   heroIntroMode: 'waiting' | 'running' | 'complete' | 'endpoint';
   presentationReady: boolean;
+  mobileLandscapeState:
+    | 'bypass'
+    | 'portrait-blocked'
+    | 'landscape-ready'
+    | 'started'
+    | 'portrait-warning';
+  experienceInteractive: boolean;
   recovery?: {
     scope: 'boot' | 'segment';
     status: 'fallback' | 'recovering' | 'failed';
@@ -54,7 +61,6 @@ export const canonicalScenes = [
   'star-map',
   'aod-animation',
   'method-top',
-  'method-bottom',
   'figure2-animation',
   'figure2-proof',
   'brand',
@@ -70,6 +76,14 @@ export const canonicalScenes = [
 
 export async function bootStory(page: Page, path = '/'): Promise<BrowserStorySnapshot> {
   await page.goto(path, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => {
+    const state = document.querySelector<HTMLElement>('.story-app')?.dataset.mobileLandscapeState;
+    return state === 'bypass' || state === 'landscape-ready';
+  }, undefined, { timeout: 5_000 });
+  const entryState = await page.locator('.story-app').getAttribute('data-mobile-landscape-state');
+  if (entryState === 'landscape-ready') {
+    await page.getByRole('button', { name: '开始浏览' }).tap();
+  }
   await page.waitForFunction(() => {
     const story = (window as StoryWindow).__storyApp;
     const snapshot = story?.snapshot();
@@ -199,10 +213,39 @@ export async function reachReadingEdge(page: Page, direction: 1 | -1): Promise<v
 export async function moveOneHold(page: Page, direction: 1 | -1): Promise<BrowserStorySnapshot> {
   const start = (await storySnapshot(page)).current;
   const key = direction === 1 ? 'PageDown' : 'PageUp';
+  const touchInput = await page.evaluate(() => (
+    navigator.maxTouchPoints > 0
+    && window.matchMedia('(pointer: coarse)').matches
+  ));
+  if (touchInput) {
+    const viewport = page.viewportSize();
+    await page.touchscreen.tap(24, Math.max(24, Math.round((viewport?.height ?? 343) / 2)));
+  }
   await reachReadingEdge(page, direction);
   try {
     for (let gesture = 0; gesture < 4; gesture += 1) {
-      await page.keyboard.press(key);
+      if (touchInput) {
+        const viewport = page.viewportSize();
+        await page.touchscreen.tap(24, Math.max(24, Math.round((viewport?.height ?? 343) / 2)));
+        await page.evaluate((value) => {
+          const target = document.querySelector<HTMLElement>('.story-app');
+          if (!target) throw new Error('story app missing');
+          const dispatchTouch = (type: string, clientY: number | undefined) => {
+            const event = new Event(type, { bubbles: true, cancelable: true });
+            Object.defineProperty(event, 'touches', {
+              value: clientY === undefined ? [] : [{ clientX: 24, clientY }]
+            });
+            target.dispatchEvent(event);
+          };
+          const distance = Math.max(96, Math.min(240, window.innerHeight * 0.55));
+          const startY = value === 1 ? window.innerHeight * 0.75 : window.innerHeight * 0.25;
+          dispatchTouch('touchstart', startY);
+          dispatchTouch('touchmove', startY - value * distance);
+          dispatchTouch('touchend', undefined);
+        }, direction);
+      } else {
+        await page.keyboard.press(key);
+      }
       await page.waitForFunction((scene) => {
         const snapshot = (window as StoryWindow).__storyApp?.snapshot();
         return snapshot?.phase === 'staged-paused'
@@ -220,7 +263,10 @@ export async function moveOneHold(page: Page, direction: 1 | -1): Promise<Browse
       events: (window as StoryWindow).__story?.getState().eventLog.slice(-16)
         .map(({ event }) => event.type) ?? []
     }));
-    throw new Error(`Hold ${start} did not leave after ${key}: ${JSON.stringify(debug)}`, { cause: error });
+    throw new Error(
+      `Hold ${start} did not leave after ${touchInput ? 'touch swipe' : key}: ${JSON.stringify(debug)}`,
+      { cause: error }
+    );
   }
 }
 

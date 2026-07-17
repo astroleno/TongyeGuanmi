@@ -35,11 +35,11 @@ export default defineConfig({
     },
     {
       name: 'mobile-chromium',
-      use: { ...devices['Pixel 7'], channel: 'chrome' }
+      use: { ...devices['Pixel 7 landscape'], channel: 'chrome' }
     },
     {
       name: 'mobile-webkit',
-      use: { ...devices['iPhone 15'], browserName: 'webkit' }
+      use: { ...devices['iPhone 15 landscape'], browserName: 'webkit' }
     }
   ]
 });
