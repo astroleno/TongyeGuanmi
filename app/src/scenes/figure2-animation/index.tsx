@@ -6,6 +6,7 @@ import {
   type TimelineVideoDriveInput,
   type TimelineVideoDriverSnapshot
 } from '../../media/timeline-video-driver';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 import type { InkDepthTransform } from '../../transitions/shared/inkField';
 
@@ -14,6 +15,7 @@ const FAR_ARCH_IMAGE = new URL('../../../../assets/figure2-far-arch.webp', impor
 const MIDDLE_IMAGE = new URL('../../../../assets/figure2-middle-building.webp', import.meta.url).href;
 const MIDDLE_MASK_IMAGE = new URL('../../../../assets/figure2-middle-window-mask.webp', import.meta.url).href;
 const FIGURE2_VIDEO = new URL('../../../../assets/figure2-pair-motion.webm', import.meta.url).href;
+const FIGURE2_HEVC_ALPHA_VIDEO = new URL('../../../../assets/figure2-pair-motion-hevc-alpha.mp4', import.meta.url).href;
 
 export const FIGURE2_MEDIA_KEY = 'figure2-pair-motion';
 export const FIGURE2_INTRO_PLAYBACK_MS = 2600;
@@ -535,12 +537,16 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
                   data-figure2-video
                   data-figure2-combined-video
                   data-media-key={FIGURE2_MEDIA_KEY}
-                  src={FIGURE2_VIDEO}
                   muted
                   playsInline
                   preload="metadata"
                   aria-hidden="true"
-                />
+                >
+                  <AlphaVideoSources
+                    webm={FIGURE2_VIDEO}
+                    hevc={FIGURE2_HEVC_ALPHA_VIDEO}
+                  />
+                </video>
               </div>
               <figcaption>子问老子</figcaption>
             </figure>

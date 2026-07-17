@@ -6,6 +6,7 @@ import {
   type TimelineVideoDriveInput,
   type TimelineVideoDriverSnapshot
 } from '../../media/timeline-video-driver';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
 import { TTG_PLAYBACK_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
@@ -14,6 +15,7 @@ export const TTG_BG_SRC = new URL('../../../../assets/ttg-background.webp', impo
 export const TTG_MIDDLE_SRC = new URL('../../../../assets/ttg-middle.webp', import.meta.url).href;
 export const TTG_FRONT_SRC = new URL('../../../../assets/ttg-foreground.webp', import.meta.url).href;
 export const TTG_FIGURE_VIDEO_SRC = new URL('../../../../assets/ttg-figure-motion.webm', import.meta.url).href;
+export const TTG_FIGURE_HEVC_ALPHA_SRC = new URL('../../../../assets/ttg-figure-motion-hevc-alpha.mp4', import.meta.url).href;
 export const TTG_FIGURE_END_SECONDS = 2.467;
 export const TTG_HOLD_PROGRESS = 0;
 
@@ -430,13 +432,17 @@ function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
                 className="ttg-layer ttg-layer--figure"
                 data-ttg-figure-video
                 data-media-key={TTG_MEDIA_KEY}
-                src={TTG_FIGURE_VIDEO_SRC}
                 width="720"
                 height="1280"
                 muted
                 preload="metadata"
                 playsInline
-              />
+              >
+                <AlphaVideoSources
+                  webm={TTG_FIGURE_VIDEO_SRC}
+                  hevc={TTG_FIGURE_HEVC_ALPHA_SRC}
+                />
+              </video>
             </div>
             <div className="ttg-progress" aria-hidden="true"><span /></div>
           </div>

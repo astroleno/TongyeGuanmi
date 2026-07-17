@@ -13,6 +13,7 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
 import {
   attachHeroParallax,
   sampleHeroIntro,
@@ -26,6 +27,7 @@ const HERO_BACK_IMAGE = new URL('../../../../assets/hero-back.webp', import.meta
 const HERO_MIDDLE_IMAGE = new URL('../../../../assets/hero-middle.webp', import.meta.url).href;
 const HERO_MIDDLE_DEPTH_IMAGE = new URL('../../../../assets/middle1_depth.webp', import.meta.url).href;
 const HERO_FIGURE_VIDEO = new URL('../../../../assets/figure1.webm', import.meta.url).href;
+const HERO_FIGURE_HEVC_ALPHA_VIDEO = new URL('../../../../assets/figure1-hevc-alpha.mp4', import.meta.url).href;
 const HERO_FIGURE_POSTER = new URL('../../../../assets/hero-figure-poster.webp', import.meta.url).href;
 const HERO_VIDEO_START_SECONDS = 0;
 const HERO_VIDEO_END_EPSILON = 0.02;
@@ -433,13 +435,17 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
           }}
           className="r4-hero-scene__figure"
           data-hero-figure-video
-          src={HERO_FIGURE_VIDEO}
           poster={HERO_FIGURE_POSTER}
           muted
           playsInline
           preload="none"
           aria-hidden="true"
-        />
+        >
+          <AlphaVideoSources
+            webm={HERO_FIGURE_VIDEO}
+            hevc={HERO_FIGURE_HEVC_ALPHA_VIDEO}
+          />
+        </video>
       </div>
       <div className="r4-hero-scene__vignette" aria-hidden="true" />
     </article>

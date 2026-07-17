@@ -65,6 +65,7 @@ describe('TTG canonical directional media', () => {
     expect(markup.match(/data-ttg-figure-video=/g)).toHaveLength(1);
     expect(markup).toContain('data-media-key="ttg-figure-motion"');
     expect(markup).toContain('ttg-figure-motion.webm');
+    expect(markup).toContain('ttg-figure-motion-hevc-alpha.mp4');
     expect(markup).toContain('ttg-background.webp');
     expect(markup).toContain('ttg-middle.webp');
     expect(markup).toContain('ttg-foreground.webp');

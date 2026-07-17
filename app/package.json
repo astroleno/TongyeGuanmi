@@ -21,6 +21,7 @@
     "test:release": "pnpm build && playwright test --config playwright.release.config.ts",
     "verify:media": "node scripts/verify-homepage-media-inventory.mjs",
     "verify:media:deep": "node scripts/verify-homepage-media-deep.mjs",
+    "rebuild:media:hevc-alpha": "node scripts/rebuild-hevc-alpha-media.mjs",
     "rebuild:media:crane": "node scripts/rebuild-crane-figure-media.mjs",
     "rebuild:media:crane-flock": "node scripts/rebuild-crane-flock-media.mjs",
     "rebuild:media:crane-flock-poster": "node scripts/rebuild-crane-flock-poster.mjs",

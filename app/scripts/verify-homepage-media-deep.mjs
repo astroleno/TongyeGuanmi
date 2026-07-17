@@ -5,12 +5,29 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { canonicalVideoContracts } from './homepage-media-contract.mjs';
+import {
+  alphaVideoSourcePairs,
+  canonicalVideoContracts
+} from './homepage-media-contract.mjs';
 
 const execFileAsync = promisify(execFile);
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
 const TIMING_TOLERANCE_SECONDS = 0.001;
+const HEVC_TIMING_TOLERANCE_SECONDS = 0.002;
+const HEVC_MAX_GOP_FRAMES = 8;
+const SWIFT_ALPHA_CHECK = [
+  'import AVFoundation',
+  'import Foundation',
+  'for path in CommandLine.arguments.dropFirst() {',
+  '  let asset = AVURLAsset(url: URL(fileURLWithPath: path))',
+  '  guard let track = asset.tracks(withMediaType: .video).first else {',
+  '    print("\\(path)\\tmissing")',
+  '    continue',
+  '  }',
+  '  print("\\(path)\\t\\(track.hasMediaCharacteristic(.containsAlphaChannel))")',
+  '}'
+].join('\n');
 const FIGURE2_COMBINED_CONTRACT = {
   source: 'assets/figure2-pair-motion.webm',
   sourceBytes: 4_940_268,
@@ -1033,6 +1050,91 @@ function assertNear(actual, expected, label) {
   );
 }
 
+async function inspectHevcAlphaCharacteristics() {
+  assert(process.platform === 'darwin', 'HEVC alpha qualification requires macOS AVFoundation');
+  const sources = alphaVideoSourcePairs.map(({ hevc }) => repoPath(hevc));
+  const { stdout } = await execFileAsync('xcrun', [
+    'swift',
+    '-e',
+    SWIFT_ALPHA_CHECK,
+    ...sources
+  ], { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+  const results = new Map(stdout.trim().split(/\r?\n/).map((line) => {
+    const [source, result] = line.split('\t');
+    return [source, result];
+  }));
+  for (const source of sources) {
+    assert(results.get(source) === 'true', `${source} lacks AVFoundation alpha metadata`);
+  }
+  return new Set(sources);
+}
+
+async function inspectHevcAlphaPair(pair, alphaSources) {
+  const [webmProbe, hevcProbe] = await Promise.all([
+    ffprobe(pair.webm, [
+      '-count_frames',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height,sample_aspect_ratio,r_frame_rate,nb_read_frames:format=duration'
+    ]),
+    ffprobe(pair.hevc, [
+      '-count_frames',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=codec_name,codec_tag_string,width,height,sample_aspect_ratio,r_frame_rate,nb_read_frames:format=duration:frame=key_frame'
+    ])
+  ]);
+  const webm = webmProbe.streams?.[0];
+  const hevc = hevcProbe.streams?.[0];
+  const frames = hevcProbe.frames ?? [];
+  const keyframeIndexes = frames.flatMap((frame, index) => (
+    Number(frame.key_frame) === 1 ? [index] : []
+  ));
+  const expectedWidth = Number(webm?.width) + (Number(webm?.width) % 2);
+  const expectedHeight = Number(webm?.height) + (Number(webm?.height) % 2);
+  const webmDuration = Number(webmProbe.format?.duration);
+  const hevcDuration = Number(hevcProbe.format?.duration);
+
+  assert(hevc?.codec_name === 'hevc', `${pair.hevc} codec must be HEVC`);
+  assert(hevc?.codec_tag_string === 'hvc1', `${pair.hevc} codec tag must be hvc1`);
+  assert(hevc?.width === expectedWidth, `${pair.hevc} width ${hevc?.width} != ${expectedWidth}`);
+  assert(hevc?.height === expectedHeight, `${pair.hevc} height ${hevc?.height} != ${expectedHeight}`);
+  assert(hevc?.sample_aspect_ratio === webm?.sample_aspect_ratio, `${pair.hevc} sample aspect ratio changed`);
+  assert(hevc?.r_frame_rate === webm?.r_frame_rate, `${pair.hevc} frame rate changed`);
+  assert(hevc?.nb_read_frames === webm?.nb_read_frames, `${pair.hevc} frame count changed`);
+  assert(
+    Math.abs(hevcDuration - webmDuration) <= HEVC_TIMING_TOLERANCE_SECONDS,
+    `${pair.hevc} duration ${hevcDuration} != ${webmDuration}`
+  );
+  assert(frames.length === Number(hevc?.nb_read_frames), `${pair.hevc} frame samples changed`);
+  assert(keyframeIndexes[0] === 0, `${pair.hevc} must start with a keyframe`);
+  for (let index = 1; index < keyframeIndexes.length; index += 1) {
+    assert(
+      keyframeIndexes[index] - keyframeIndexes[index - 1] <= HEVC_MAX_GOP_FRAMES,
+      `${pair.hevc} GOP exceeds ${HEVC_MAX_GOP_FRAMES} frames`
+    );
+  }
+  assert(
+    frames.length - keyframeIndexes.at(-1) <= HEVC_MAX_GOP_FRAMES,
+    `${pair.hevc} trailing GOP exceeds ${HEVC_MAX_GOP_FRAMES} frames`
+  );
+  assert(alphaSources.has(repoPath(pair.hevc)), `${pair.hevc} AVFoundation alpha check missing`);
+
+  return {
+    webm: pair.webm,
+    source: pair.hevc,
+    codec: hevc.codec_name,
+    codecTag: hevc.codec_tag_string,
+    width: hevc.width,
+    height: hevc.height,
+    sampleAspectRatio: hevc.sample_aspect_ratio,
+    fps: hevc.r_frame_rate,
+    frames: Number(hevc.nb_read_frames),
+    duration: hevcDuration,
+    keyframes: keyframeIndexes.length,
+    maxGopFrames: HEVC_MAX_GOP_FRAMES,
+    avFoundationAlpha: true
+  };
+}
+
 async function inspectCanonicalVideo(contract) {
   const containerProbe = await ffprobe(contract.source, [
     '-count_frames',
@@ -1089,6 +1191,11 @@ const canonicalVideos = [];
 for (const contract of canonicalVideoContracts) {
   canonicalVideos.push(await inspectCanonicalVideo(contract));
 }
+const alphaSources = await inspectHevcAlphaCharacteristics();
+const hevcAlphaVideos = [];
+for (const pair of alphaVideoSourcePairs) {
+  hevcAlphaVideos.push(await inspectHevcAlphaPair(pair, alphaSources));
+}
 const [figure2Combined, phEdgeSpill, aodAlpha, craneSingleSource, heroTrimmed, craneFlockVisual, craneFlockCorrectedFrame] = await Promise.all([
   inspectFigure2CombinedContract(),
   inspectPhEdgeSpillContract(),
@@ -1100,8 +1207,9 @@ const [figure2Combined, phEdgeSpill, aodAlpha, craneSingleSource, heroTrimmed, c
 ]);
 process.stdout.write(`${JSON.stringify({
   qualification: 'homepage-media-deep',
-  files: canonicalVideos.length,
+  files: canonicalVideos.length + hevcAlphaVideos.length,
   canonicalVideos,
+  hevcAlphaVideos,
   figure2Combined,
   phEdgeSpill,
   aodAlpha,

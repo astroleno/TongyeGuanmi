@@ -5,11 +5,13 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
 import { FIGURE3_SERVICES_DURATION_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const FIGURE3_MEDIA_KEY = 'figure3-motion';
 export const FIGURE3_VIDEO_SRC = new URL('../../../../assets/figure3-motion.webm', import.meta.url).href;
+export const FIGURE3_HEVC_ALPHA_SRC = new URL('../../../../assets/figure3-motion-hevc-alpha.mp4', import.meta.url).href;
 export const FIGURE3_END_SECONDS = 2.567;
 
 export type Figure3RenderState = {
@@ -153,11 +155,15 @@ function Figure3AnimationScene({ registerHandle }: SceneComponentProps) {
             className="figure3-transition__video"
             data-figure3-alpha-video
             data-media-key={FIGURE3_MEDIA_KEY}
-            src={FIGURE3_VIDEO_SRC}
             muted
             preload="auto"
             playsInline
-          />
+          >
+            <AlphaVideoSources
+              webm={FIGURE3_VIDEO_SRC}
+              hevc={FIGURE3_HEVC_ALPHA_SRC}
+            />
+          </video>
           <div className="figure3-transition__fill" data-figure3-fill aria-hidden="true" />
         </div>
       </div>

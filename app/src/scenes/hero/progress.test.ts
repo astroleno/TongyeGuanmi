@@ -232,6 +232,8 @@ describe('hero scene renderer', () => {
     expect(markup).toContain(HERO_COPY[4]);
     expect(markup).toContain('preload="none"');
     expect(markup).toContain('figure1.webm');
+    expect(markup).toContain('figure1-hevc-alpha.mp4');
+    expect(markup.indexOf('figure1.webm')).toBeLessThan(markup.indexOf('figure1-hevc-alpha.mp4'));
     expect(markup).toContain('hero-figure-poster.webp');
     expect(markup).not.toContain('hero-figure-scrub');
   });

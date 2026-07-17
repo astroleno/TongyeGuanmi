@@ -171,6 +171,7 @@ describe('Figure2 canonical media', () => {
     expect(markup).toContain('data-figure2-combined-video="true"');
     expect(markup).toContain('data-media-key="figure2-pair-motion"');
     expect(markup).toContain('figure2-pair-motion.webm');
+    expect(markup).toContain('figure2-pair-motion-hevc-alpha.mp4');
     expect(markup).not.toContain('poster');
     expect(markup).not.toContain('bridge');
   });

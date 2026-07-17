@@ -1,13 +1,40 @@
-export const animationWebmSources = [
-  'assets/figure1.webm',
-  'assets/figure2-pair-motion.webm',
-  'assets/ph-figure-motion.webm',
-  'assets/ttg-figure-motion.webm',
-  'assets/crane-figure-motion.webm',
-  'assets/crane-flock-motion.webm',
-  'assets/aod-figure-motion.webm',
-  'assets/figure3-motion.webm'
+export const alphaVideoSourcePairs = [
+  {
+    webm: 'assets/figure1.webm',
+    hevc: 'assets/figure1-hevc-alpha.mp4'
+  },
+  {
+    webm: 'assets/figure2-pair-motion.webm',
+    hevc: 'assets/figure2-pair-motion-hevc-alpha.mp4'
+  },
+  {
+    webm: 'assets/ph-figure-motion.webm',
+    hevc: 'assets/ph-figure-motion-hevc-alpha.mp4'
+  },
+  {
+    webm: 'assets/ttg-figure-motion.webm',
+    hevc: 'assets/ttg-figure-motion-hevc-alpha.mp4'
+  },
+  {
+    webm: 'assets/crane-figure-motion.webm',
+    hevc: 'assets/crane-figure-motion-hevc-alpha.mp4'
+  },
+  {
+    webm: 'assets/crane-flock-motion.webm',
+    hevc: 'assets/crane-flock-motion-hevc-alpha.mp4'
+  },
+  {
+    webm: 'assets/aod-figure-motion.webm',
+    hevc: 'assets/aod-figure-motion-hevc-alpha.mp4'
+  },
+  {
+    webm: 'assets/figure3-motion.webm',
+    hevc: 'assets/figure3-motion-hevc-alpha.mp4'
+  }
 ];
+
+export const animationWebmSources = alphaVideoSourcePairs.map(({ webm }) => webm);
+export const animationHevcAlphaSources = alphaVideoSourcePairs.map(({ hevc }) => hevc);
 
 export const frozenHomepageMedia = [
   {
@@ -57,6 +84,54 @@ export const frozenHomepageMedia = [
     category: 'animation-webm',
     bytes: 1187579,
     sha256: '610786ba0492be27e30690d321b8cf07c185413de95adccf0b64b964a0dcbaf7'
+  },
+  {
+    source: 'assets/figure1-hevc-alpha.mp4',
+    category: 'hero-animation-hevc',
+    bytes: 2699618,
+    sha256: 'b16d04113a8b0a94c0157e7bd72eedec8c38017c42ace7ca4194da0985de2e3e'
+  },
+  {
+    source: 'assets/figure2-pair-motion-hevc-alpha.mp4',
+    category: 'animation-hevc-alpha',
+    bytes: 11002083,
+    sha256: '334db166dca9295c149c6e37379960cb01f848686e8f747931da5268477a54e8'
+  },
+  {
+    source: 'assets/ph-figure-motion-hevc-alpha.mp4',
+    category: 'animation-hevc-alpha',
+    bytes: 3353930,
+    sha256: '70dee9eb0bf02a98ea4982978026ea3e0f21ef2c10d9d6b6493876fc87083160'
+  },
+  {
+    source: 'assets/ttg-figure-motion-hevc-alpha.mp4',
+    category: 'animation-hevc-alpha',
+    bytes: 2954659,
+    sha256: '9dbf4b0b6774d5c6e35f3c89d49a2c250d677b474993db9d7703bdacabc37f82'
+  },
+  {
+    source: 'assets/crane-figure-motion-hevc-alpha.mp4',
+    category: 'animation-hevc-alpha',
+    bytes: 4007599,
+    sha256: '935480ecb5840d0e8eae4e2eb722e5731499c9d5d4857a759f0f40e623795386'
+  },
+  {
+    source: 'assets/crane-flock-motion-hevc-alpha.mp4',
+    category: 'animation-hevc-alpha',
+    bytes: 5386412,
+    sha256: 'cb225ebced83d05b7b412fd59026f3839273019b340d922f302d3491d67acd4e'
+  },
+  {
+    source: 'assets/aod-figure-motion-hevc-alpha.mp4',
+    category: 'animation-hevc-alpha',
+    bytes: 2337183,
+    sha256: '5a79e6fa139a487fd1576c11d9fba440cbdb5b457856ab6e5071ec3fd3e7a782'
+  },
+  {
+    source: 'assets/figure3-motion-hevc-alpha.mp4',
+    category: 'animation-hevc-alpha',
+    bytes: 1737343,
+    sha256: '18b4f5856063f2308d450a94a88d74d8fb1af5abf0966ad123c942987b550d7c'
   },
   {
     source: 'assets/hero-back.webp',

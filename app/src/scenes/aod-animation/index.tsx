@@ -5,6 +5,7 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
 import { mapAodTimelineToMediaProgress, renderAodTransitionProgress } from './progress';
 
 export { renderAodTransitionProgress } from './progress';
@@ -12,6 +13,7 @@ export { renderAodTransitionProgress } from './progress';
 export const AOD_CLOUD_SRC = new URL('../../../../assets/aod_cloud-alpha.webp', import.meta.url).href;
 export const AOD_SUN_SRC = new URL('../../../../assets/aod_sun-alpha.webp', import.meta.url).href;
 export const AOD_FIGURE_VIDEO_SRC = new URL('../../../../assets/aod-figure-motion.webm', import.meta.url).href;
+export const AOD_FIGURE_HEVC_ALPHA_SRC = new URL('../../../../assets/aod-figure-motion-hevc-alpha.mp4', import.meta.url).href;
 export const AOD_MEDIA_KEY = 'aod-figure-motion';
 export const AOD_FIGURE_END_SECONDS = 2.567;
 
@@ -181,11 +183,15 @@ function AodAnimationScene({ registerHandle }: SceneComponentProps) {
               className="aod-transition__figure-video"
               data-aod-figure-video
               data-media-key={AOD_MEDIA_KEY}
-              src={AOD_FIGURE_VIDEO_SRC}
               muted
               preload="auto"
               playsInline
-            />
+            >
+              <AlphaVideoSources
+                webm={AOD_FIGURE_VIDEO_SRC}
+                hevc={AOD_FIGURE_HEVC_ALPHA_SRC}
+              />
+            </video>
             <div className="aod-transition__paper-solid" aria-hidden="true" />
             <div className="aod-transition__progress" aria-hidden="true"><span /></div>
           </div>

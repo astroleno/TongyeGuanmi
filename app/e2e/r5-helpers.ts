@@ -78,7 +78,7 @@ export async function bootStory(page: Page, path = '/'): Promise<BrowserStorySna
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => {
     const state = document.querySelector<HTMLElement>('.story-app')?.dataset.mobileLandscapeState;
-    return state === 'bypass' || state === 'landscape-ready';
+    return state === 'bypass' || state === 'landscape-ready' || state === 'started';
   }, undefined, { timeout: 5_000 });
   const entryState = await page.locator('.story-app').getAttribute('data-mobile-landscape-state');
   if (entryState === 'landscape-ready') {

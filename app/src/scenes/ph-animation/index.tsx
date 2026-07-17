@@ -5,6 +5,7 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
 import { PH_PLAYBACK_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
@@ -12,6 +13,7 @@ export const PH_MEDIA_KEY = 'ph-figure-motion';
 export const PH_BG_SRC = new URL('../../../../assets/ph_background.webp', import.meta.url).href;
 export const PH_FRONT_SRC = new URL('../../../../assets/ph_front-alpha.webp', import.meta.url).href;
 export const PH_FIGURE_VIDEO_SRC = new URL('../../../../assets/ph-figure-motion.webm', import.meta.url).href;
+export const PH_FIGURE_HEVC_ALPHA_SRC = new URL('../../../../assets/ph-figure-motion-hevc-alpha.mp4', import.meta.url).href;
 export const PH_FIGURE_END_SECONDS = 1.5;
 export const PH_HOLD_PROGRESS = 0;
 
@@ -202,11 +204,15 @@ function PhAnimationScene({ registerHandle }: SceneComponentProps) {
                 className="ph-layer ph-layer--figure"
                 data-ph-alpha-video
                 data-media-key={PH_MEDIA_KEY}
-                src={PH_FIGURE_VIDEO_SRC}
                 muted
                 preload="auto"
                 playsInline
-              />
+              >
+                <AlphaVideoSources
+                  webm={PH_FIGURE_VIDEO_SRC}
+                  hevc={PH_FIGURE_HEVC_ALPHA_SRC}
+                />
+              </video>
             </div>
             <div className="ph-edge-light" aria-hidden="true" />
             <div className="ph-texture" aria-hidden="true" />

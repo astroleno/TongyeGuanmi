@@ -173,6 +173,139 @@ test('direct non-Hero entries expose exactly the seven canonical physical video 
   }
 });
 
+test('iPhone and iPad WebKit select HEVC alpha while retaining WebM fallback', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-webkit', 'HEVC alpha selection is an iOS WebKit contract');
+  const cases = [
+    { scene: 'hero', path: '/?presentation=direct', media: ['figure1'] },
+    {
+      scene: 'figure2-animation',
+      path: '/?presentation=direct#figure2-animation',
+      media: ['figure2-pair-motion']
+    },
+    {
+      scene: 'ttg-animation',
+      path: '/?presentation=direct#ttg-animation',
+      media: ['ttg-figure-motion']
+    },
+    {
+      scene: 'ph-animation',
+      path: '/?presentation=direct#ph-animation',
+      media: ['ph-figure-motion']
+    },
+    {
+      scene: 'aod-animation',
+      path: '/?presentation=direct#aod-animation',
+      media: ['aod-figure-motion']
+    },
+    {
+      scene: 'figure3-animation',
+      path: '/?presentation=direct#figure3-animation',
+      media: ['figure3-motion']
+    },
+    {
+      scene: 'crane-animation',
+      path: '/?presentation=direct#crane-animation',
+      media: ['crane-figure-motion', 'crane-flock-motion']
+    }
+  ] as const;
+
+  for (const entry of cases) {
+    await bootStory(page, entry.path);
+    const videos = page.locator(`[data-stage-layer="${entry.scene}"] video`);
+    await expect(videos).toHaveCount(entry.media.length);
+    for (const [index, filename] of entry.media.entries()) {
+      const video = videos.nth(index);
+      const sources = await video.locator('source').evaluateAll((elements) => elements.map((element) => ({
+        format: element.getAttribute('data-alpha-video-format'),
+        source: (element as HTMLSourceElement).src,
+        type: element.getAttribute('type')
+      })));
+      expect(sources.map(({ format }) => format)).toEqual(['hevc', 'webm']);
+      expect(sources[0]).toMatchObject({
+        format: 'hevc',
+        type: 'video/mp4; codecs="hvc1"'
+      });
+      expect(sources[0]?.source).toMatch(new RegExp(`${filename}-hevc-alpha-[^/]+\\.mp4$`));
+      expect(sources[1]).toMatchObject({
+        format: 'webm',
+        type: 'video/webm; codecs="vp9"'
+      });
+      expect(sources[1]?.source).toMatch(new RegExp(`${filename}-[^/]+\\.webm$`));
+      await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.currentSrc))
+        .toMatch(new RegExp(`${filename}-hevc-alpha-[^/]+\\.mp4$`));
+    }
+  }
+});
+
+test('iPhone WebKit decodes the HEVC Hero frame with a live alpha plane', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-webkit', 'HEVC alpha decode is an iOS WebKit contract');
+  await bootStory(page, '/?presentation=direct');
+  const result = await page.locator('[data-stage-layer="hero"] [data-hero-figure-video]')
+    .evaluate(async (video: HTMLVideoElement) => {
+      const waitFor = (event: keyof HTMLMediaElementEventMap, timeoutMs = 15_000) => new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          video.removeEventListener(event, onEvent);
+          reject(new Error(`video ${event} timed out`));
+        }, timeoutMs);
+        const onEvent = () => {
+          window.clearTimeout(timeout);
+          resolve();
+        };
+        video.addEventListener(event, onEvent, { once: true });
+      });
+
+      video.preload = 'auto';
+      video.load();
+      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        await waitFor('loadeddata');
+      }
+      const targetTime = Math.min(0.5, Math.max(0, video.duration - 0.05));
+      if (Math.abs(video.currentTime - targetTime) > 0.001) {
+        video.currentTime = targetTime;
+        await waitFor('seeked');
+      }
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 180;
+      canvas.height = 320;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) {
+        throw new Error('2D canvas unavailable');
+      }
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      let minAlpha = 255;
+      let maxAlpha = 0;
+      let transparentPixels = 0;
+      let partialPixels = 0;
+      for (let offset = 3; offset < pixels.length; offset += 4) {
+        const alpha = pixels[offset] ?? 0;
+        minAlpha = Math.min(minAlpha, alpha);
+        maxAlpha = Math.max(maxAlpha, alpha);
+        if (alpha <= 16) transparentPixels += 1;
+        if (alpha > 16 && alpha < 240) partialPixels += 1;
+      }
+      const totalPixels = canvas.width * canvas.height;
+      return {
+        currentSrc: video.currentSrc,
+        readyState: video.readyState,
+        minAlpha,
+        maxAlpha,
+        transparentRatio: transparentPixels / totalPixels,
+        partialRatio: partialPixels / totalPixels
+      };
+    });
+
+  expect(result.currentSrc).toMatch(/figure1-hevc-alpha-[^/]+\.mp4$/);
+  expect(result.readyState).toBeGreaterThanOrEqual(2);
+  expect(result.minAlpha).toBeLessThanOrEqual(16);
+  expect(result.maxAlpha).toBeGreaterThanOrEqual(240);
+  expect(result.transparentRatio).toBeGreaterThan(0.05);
+  expect(result.partialRatio).toBeGreaterThan(0);
+});
+
 test('Batch C WebP browser decode matches retained PNG pixels before source removal', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Batch C lossless gate runs once in desktop Chromium');
   const sourcePresence = await Promise.all(batchCLosslessPairs.map(([source]) => fileExists(resolve(repoDir, source))));

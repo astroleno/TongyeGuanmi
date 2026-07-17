@@ -3,6 +3,7 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
 import { CRANE_CONTACT_DURATION_MS } from '../../story/timings';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
@@ -14,7 +15,9 @@ export const CRANE_ARCH_SRC = new URL('../../../../assets/crane1_arch-alpha.webp
 export const CRANE_CLOUD_FRONT_SRC = new URL('../../../../assets/crane1_cloud1-alpha.webp', import.meta.url).href;
 export const CRANE_CLOUD_FRONT_SECOND_SRC = new URL('../../../../assets/crane1_cloud-front2-alpha.webp', import.meta.url).href;
 export const CRANE_FIGURE_VIDEO_SRC = new URL('../../../../assets/crane-figure-motion.webm', import.meta.url).href;
+export const CRANE_FIGURE_HEVC_ALPHA_SRC = new URL('../../../../assets/crane-figure-motion-hevc-alpha.mp4', import.meta.url).href;
 export const CRANE_FLOCK_VIDEO_SRC = new URL('../../../../assets/crane-flock-motion.webm', import.meta.url).href;
+export const CRANE_FLOCK_HEVC_ALPHA_SRC = new URL('../../../../assets/crane-flock-motion-hevc-alpha.mp4', import.meta.url).href;
 
 const VIDEO_DURATION_FALLBACK = 2.5;
 export const CRANE_VIDEO_END_SECONDS = 2.467;
@@ -238,11 +241,15 @@ function CraneAnimationScene({ registerHandle }: SceneComponentProps) {
                   className="crane-figure-video"
                   data-crane-figure-video
                   data-media-key={CRANE_FIGURE_MEDIA_KEY}
-                  src={CRANE_FIGURE_VIDEO_SRC}
                   muted
                   preload="auto"
                   playsInline
-                />
+                >
+                  <AlphaVideoSources
+                    webm={CRANE_FIGURE_VIDEO_SRC}
+                    hevc={CRANE_FIGURE_HEVC_ALPHA_SRC}
+                  />
+                </video>
               </div>
               <img className="crane-layer crane-layer--arch" src={CRANE_ARCH_SRC} alt="" />
               <img className="crane-layer crane-layer--cloud-front" src={CRANE_CLOUD_FRONT_SRC} alt="" />
@@ -253,11 +260,15 @@ function CraneAnimationScene({ registerHandle }: SceneComponentProps) {
                   className="crane-figure-video crane-figure-video--front"
                   data-crane-figure-front-video
                   data-media-key={CRANE_FLOCK_MEDIA_KEY}
-                  src={CRANE_FLOCK_VIDEO_SRC}
                   muted
                   preload="auto"
                   playsInline
-                />
+                >
+                  <AlphaVideoSources
+                    webm={CRANE_FLOCK_VIDEO_SRC}
+                    hevc={CRANE_FLOCK_HEVC_ALPHA_SRC}
+                  />
+                </video>
               </div>
             </div>
             <div className="crane-warmth" aria-hidden="true" />

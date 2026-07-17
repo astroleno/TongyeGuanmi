@@ -3,6 +3,7 @@ import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import {
+  animationHevcAlphaSources,
   animationWebmSources,
   frozenHomepageMedia
 } from './homepage-media-contract.mjs';
@@ -114,6 +115,11 @@ function assertMediaSignature(file, bytes) {
       bytes.subarray(0, 4).toString('hex') === '1a45dfa3',
       `${file} is not a WebM file`
     );
+  } else if (extension === '.mp4') {
+    assert(
+      bytes.subarray(4, 8).toString('ascii') === 'ftyp',
+      `${file} is not an MP4 file`
+    );
   } else if (extension === '.jpg') {
     assert(
       bytes.subarray(0, 3).toString('hex') === 'ffd8ff',
@@ -163,6 +169,7 @@ async function sourceEntry(source, category) {
 
 const inventorySources = [
   ...animationWebmSources.map((source) => ({ source, category: source === 'assets/figure1.webm' ? 'hero-animation' : 'animation-webm' })),
+  ...animationHevcAlphaSources.map((source) => ({ source, category: source === 'assets/figure1-hevc-alpha.mp4' ? 'hero-animation-hevc' : 'animation-hevc-alpha' })),
   ...adoptedWebpSources.map((source) => ({ source, category: 'adopted-webp' })),
   ...losslessWebpSources.map((source) => ({ source, category: 'lossless-webp' })),
   ...retainedImageSources.map((source) => ({ source, category: 'retained-image' }))
@@ -170,13 +177,14 @@ const inventorySources = [
 const frozenMediaBySource = new Map(
   frozenHomepageMedia.map((entry) => [entry.source, entry])
 );
-assert(inventorySources.length === 38, `expected 38 homepage source entries, found ${inventorySources.length}`);
-assert(frozenHomepageMedia.length === 38, `expected 38 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
+assert(inventorySources.length === 46, `expected 46 homepage source entries, found ${inventorySources.length}`);
+assert(frozenHomepageMedia.length === 46, `expected 46 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
 assert(frozenMediaBySource.size === frozenHomepageMedia.length, 'frozen homepage media sources must be unique');
 assert(frozenMediaBySource.size === inventorySources.length, 'frozen homepage media contract must cover the full inventory');
 assert(adoptedWebpSources.length === 11, `expected 11 adopted WebP sources, found ${adoptedWebpSources.length}`);
 assert(losslessWebpSources.length === 19, `expected 19 lossless WebP sources, found ${losslessWebpSources.length}`);
 assert(animationWebmSources.length === 8, `expected 8 animation WebM sources, found ${animationWebmSources.length}`);
+assert(animationHevcAlphaSources.length === 8, `expected 8 animation HEVC alpha sources, found ${animationHevcAlphaSources.length}`);
 
 const [sourceEntries, emittedFiles, sourceAssetFiles] = await Promise.all([
   Promise.all(inventorySources.map(({ source, category }) => sourceEntry(source, category))),
@@ -227,14 +235,16 @@ const inventory = sourceEntries.map((entry) => {
   };
 });
 
-const mediaExtensions = new Set(['.png', '.jpg', '.webp', '.webm']);
+const mediaExtensions = new Set(['.png', '.jpg', '.webp', '.webm', '.mp4']);
 const emittedMedia = emittedEntries.filter((entry) => mediaExtensions.has(mediaExtension(entry.path)));
 const emittedWebm = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.webm');
+const emittedMp4 = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.mp4');
 const emittedWebp = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.webp');
 const emittedJpg = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.jpg');
 const emittedPng = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.png');
-assert(emittedMedia.length === 38, `expected exactly 38 emitted homepage media files, found ${emittedMedia.length}`);
+assert(emittedMedia.length === 46, `expected exactly 46 emitted homepage media files, found ${emittedMedia.length}`);
 assert(emittedWebm.length === 8, `expected exactly 8 emitted animation WebM files, found ${emittedWebm.length}`);
+assert(emittedMp4.length === 8, `expected exactly 8 emitted animation HEVC alpha MP4 files, found ${emittedMp4.length}`);
 assert(emittedWebp.length === 30, `expected exactly 30 emitted WebP files, found ${emittedWebp.length}`);
 assert(emittedJpg.length === 0, `production JPG emit is forbidden, found ${emittedJpg.length}`);
 assert(emittedPng.length === 0, `production PNG emit is forbidden, found ${emittedPng.length}`);
@@ -270,6 +280,7 @@ const report = {
     heroBeforeFirstScrollBytes,
     inventoryFileCount: inventory.length,
     animationWebmCount: emittedWebm.length,
+    animationHevcAlphaCount: emittedMp4.length,
     webpCount: emittedWebp.length,
     jpgCount: emittedJpg.length,
     pngCount: emittedPng.length,
@@ -285,6 +296,7 @@ process.stdout.write(`${JSON.stringify({
   homepageRuntimeMediaBytes: homepageRuntimeBytes,
   heroBeforeFirstScrollBytes,
   animationWebm: emittedWebm.length,
+  animationHevcAlpha: emittedMp4.length,
   webp: emittedWebp.length,
   jpg: emittedJpg.length,
   png: emittedPng.length,
