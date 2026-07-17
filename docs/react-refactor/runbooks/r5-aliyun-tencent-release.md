@@ -7,6 +7,17 @@ The production boundary is fixed:
 - `media.tongye.me` serves versioned video through Tencent CDN backed by COS.
 - The Tencent CVM does not host the Tongye website.
 
+## Current production state
+
+- Active release: `r5-7900333`.
+- Source commit: `7900333af2358b4938e335fbb125c59992f45870`.
+- Candidate tag: `react-refactor-r5-parity-repair-candidate-v13`.
+- Alibaba symlink: `/www/wwwroot/tongye.me/current -> /www/wwwroot/tongye.me/releases/r5-7900333`.
+- Tencent CDN inventory: 40 objects and 44,619,863 bytes.
+- Both CDN domains set `Access-Control-Allow-Origin: *` at the edge. These are public, uncredentialed, content-hashed objects; the edge override prevents cached origin-header variants from tainting Canvas.
+- Public HTTPS, CDN CORS/cache/MIME/Range, two-run memory evidence, and the Hero → Pattern → Star Map browser path passed.
+- Alibaba still intercepts public HTTP with `403 Server: Beaver / Non-compliance ICP Filing`, and may reset public TLS 1.2 before Nginx. Local origin checks pass HTTP redirect plus TLS 1.2/1.3, so Alibaba access filing for `tongye.me` is the remaining external checkpoint.
+
 ## Release flow
 
 1. Freeze a clean, annotated R5 candidate tag.
@@ -33,3 +44,5 @@ Required server configuration:
 ```
 
 The Tencent credential must have the minimum object permissions for the two configured bucket prefixes. Certificate-only permission is insufficient.
+
+After a release, remove temporary broad COS/CDN policies and retain only the object-prefix, domain-read/update, and certificate-deployment permissions required by the automation.
