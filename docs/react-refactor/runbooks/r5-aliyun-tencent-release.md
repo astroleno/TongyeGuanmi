@@ -9,13 +9,13 @@ The production boundary is fixed:
 
 ## Current production state
 
-- Active release: `r5-7900333`.
-- Source commit: `7900333af2358b4938e335fbb125c59992f45870`.
-- Candidate tag: `react-refactor-r5-parity-repair-candidate-v13`.
-- Alibaba symlink: `/www/wwwroot/tongye.me/current -> /www/wwwroot/tongye.me/releases/r5-7900333`.
+- Active release: `r5-22ea938`.
+- Source commit: `22ea938be33b8031918b188204a1ecf4571616e3`.
+- Candidate tag: `react-refactor-r5-parity-repair-candidate-v15`.
+- Alibaba symlink: `/www/wwwroot/tongye.me/current -> /www/wwwroot/tongye.me/releases/r5-22ea938`.
 - Tencent CDN inventory: 40 objects and 44,619,863 bytes.
 - Both CDN domains set `Access-Control-Allow-Origin: *` at the edge. These are public, uncredentialed, content-hashed objects; the edge override prevents cached origin-header variants from tainting Canvas.
-- Public HTTPS, CDN CORS/cache/MIME/Range, two-run memory evidence, and the Hero → Pattern → Star Map browser path passed.
+- Public HTTPS over TLS 1.3, CDN CORS/cache/MIME/Range, two-run memory evidence, candidate-local iPhone WebKit media-unlock/full-touch traversal, and the public mobile Chromium Hero → Contact path passed.
 - Alibaba still intercepts public HTTP with `403 Server: Beaver / Non-compliance ICP Filing`, and may reset public TLS 1.2 before Nginx. Local origin checks pass HTTP redirect plus TLS 1.2/1.3, so Alibaba access filing for `tongye.me` is the remaining external checkpoint.
 
 ## Release flow
