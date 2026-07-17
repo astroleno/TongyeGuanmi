@@ -162,6 +162,7 @@ describe('story manifest contract', () => {
 
     expect(segment).toMatchObject({
       kind: 'segment',
+      buildTimeoutMs: 8000,
       policy: {
         kind: 'stagedSnap',
         advance: [{ kind: 'delay', ms: TERMINAL_DWELL_MS }]

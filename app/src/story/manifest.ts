@@ -457,6 +457,10 @@ function buildNodes(): readonly SpineNode[] {
     const incomingMediaPlayback = incomingAnimationMediaPlayback(node.id, node.to);
     const mediaPlayback = incomingMediaPlayback ?? mediaPlaybackFor(node.id);
     const requiredMilestones = requiredMilestonesFor(node.id, mediaPlayback);
+    const mediaPreparingTimeoutMs = Math.max(
+      defaults.buildTimeoutMs,
+      ...(mediaPlayback ?? []).map((contract) => contract.preparingTimeoutMs)
+    );
     return {
       kind: 'segment',
       id: node.id,
@@ -465,9 +469,9 @@ function buildNodes(): readonly SpineNode[] {
       policy: policy.policy,
       virtualDuration: policy.virtualDuration,
       requiredMilestones,
-      buildTimeoutMs: incomingMediaPlayback || node.id === 'hero-pattern'
+      buildTimeoutMs: node.id === 'hero-pattern'
         ? stagedMediaPreparingTimeoutMs
-        : defaults.buildTimeoutMs,
+        : mediaPreparingTimeoutMs,
       ...(visual ? { visual } : {}),
       ...(copyCue ? { copyCue } : {}),
       ...(mediaPlayback ? { mediaPlayback } : {})
