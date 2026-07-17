@@ -595,6 +595,10 @@ it('routes deploy builds through the strict release identity gate', () => {
   );
   expect(memoryProfiler).toContain('isBrowserRootCommand(row.command)');
   expect(memoryProfiler).toContain('const pass = samplingSummary.valid');
+  expect(memoryProfiler).toContain("'figure2-proof',");
+  expect(memoryProfiler).not.toContain("'figure2-proof-opening',");
+  expect(memoryProfiler).not.toContain("'figure2-proof-cards',");
+  expect(memoryProfiler).not.toContain("'figure2-proof-closing',");
   expect(memoryProfiler).not.toContain('macOS / Chrome hardware process-tree sample');
 });
 
