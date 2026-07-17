@@ -116,7 +116,7 @@ export class StarFieldReveal {
 
   private loadImage(): void {
     const image = new Image();
-    image.decoding = 'async';
+    image.crossOrigin = 'anonymous';
     image.addEventListener('load', () => {
       this.image = image;
       this.prepareSource();

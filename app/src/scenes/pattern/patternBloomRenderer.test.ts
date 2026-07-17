@@ -69,11 +69,17 @@ class FakeCanvas {
 }
 
 class FakeImage {
+  static readonly instances: FakeImage[] = [];
+  crossOrigin = '';
   decoding: 'async' | 'auto' | 'sync' = 'auto';
   naturalHeight = 900;
   naturalWidth = 1600;
   onerror: (() => void) | null = null;
   onload: (() => void) | null = null;
+
+  constructor() {
+    FakeImage.instances.push(this);
+  }
 
   set src(_value: string) {
     queueMicrotask(() => this.onload?.());
@@ -81,6 +87,7 @@ class FakeImage {
 }
 
 function installRendererDom(devicePixelRatio = 1) {
+  FakeImage.instances.length = 0;
   const rafCallbacks: FrameRequestCallback[] = [];
   const canvas = new FakeCanvas();
   const createElement = vi.fn(() => new FakeCanvas());
@@ -147,6 +154,17 @@ describe('PatternBloomRenderer', () => {
       ringStructuralPhase: 4.2,
       liveMotionPhase: 2
     });
+  });
+
+  it('loads every canvas texture with anonymous CORS enabled', async () => {
+    const harness = installRendererDom();
+    const renderer = new PatternBloomRenderer(harness.canvas);
+
+    await renderer.start();
+
+    expect(FakeImage.instances.length).toBeGreaterThan(0);
+    expect(FakeImage.instances.every((image) => image.crossOrigin === 'anonymous')).toBe(true);
+    renderer.destroy();
   });
 
   it('prewarms ring textures while hidden without redrawing the scene during the transition', async () => {
