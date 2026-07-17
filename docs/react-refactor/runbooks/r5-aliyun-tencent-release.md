@@ -9,17 +9,18 @@ The production boundary is fixed:
 
 ## Current production state
 
-- Active release: `r5-06f6e3c`.
-- Source commit: `06f6e3cd433fb6817575c79393011fc6ae24eb0f`.
-- Candidate tag: `react-refactor-r5-parity-repair-candidate-v16`; annotated tag object: `19d1031ecd51ade10ab03a1c1787e91567fb33d0`.
-- Qualified release manifest SHA-256: `24a130c16c188ec2136c414626f46a26cba2bd8a0b540d1837303ac7df314a5b`; artifact tree SHA-256: `f38a19a1c0b0281daf49705000517bf12862af76b0bc8b642380c1ce38feaf09`.
-- Alibaba symlink: `/www/wwwroot/tongye.me/current -> /www/wwwroot/tongye.me/releases/r5-06f6e3c`.
+- Active release: `r5-bf355cf`.
+- Source commit: `bf355cf06e459cb7da307f87aba8fcd12c189df8`.
+- Candidate tag: `react-refactor-r5-parity-repair-candidate-v18`; annotated tag object: `edd4dc24ef23d0a3a05d7f6b4b1a5f7c17feaa71`.
+- Qualified release manifest SHA-256: `23857c52e807c725a511008a4c006c734435d1a8e5bc384a696bd046f0363418`; artifact tree SHA-256: `8111681d0263f34100da5b0b86b289818b37388704f7fe501eab30dd8764e1a7`.
+- Alibaba symlink: `/www/wwwroot/tongye.me/current -> /www/wwwroot/tongye.me/releases/r5-bf355cf`.
 - Tencent CDN inventory: 48 objects and 78,098,690 bytes.
 - The eight transparent animations have paired immutable sources: VP9 Alpha WebM remains first on desktop and Android, while iPhone/iPad put `hvc1` HEVC-with-alpha MP4 first and retain WebM as fallback.
 - Both CDN domains set `Access-Control-Allow-Origin: *` at the edge. These are public, uncredentialed, content-hashed objects; the edge override prevents cached origin-header variants from tainting Canvas.
 - All eight MP4s report `AVMediaCharacteristic.containsAlphaChannel`, preserve at most eight-frame GOPs, and pass the frozen media inventory/deep verifier. The CDN Hero MP4 decoded in iPhone WebKit with alpha extrema `0..255`, 79% fully transparent sampled pixels, and live partial-alpha pixels.
-- CDN CORS/cache/MIME/Range, iPhone WebKit source selection and alpha decode, two-run memory evidence, and the public Chrome Hero → Contact → Hero traversal passed. Qualification peaks were 1,329,790,976 bytes for the browser process tree, 343,752,704 bytes for GPU, and 649,117,696 bytes for renderer RSS.
-- Alibaba still intercepts public HTTP with `403 Server: Beaver / Non-compliance ICP Filing`, and may reset public TLS 1.2 before Nginx. Local origin checks pass HTTP redirect plus TLS 1.2/1.3, so Alibaba access filing for `tongye.me` is the remaining external checkpoint.
+- CDN CORS/cache/MIME/Range, iPhone WebKit source selection and alpha decode, and two-run memory evidence passed. Qualification peaks were 1,365,901,312 bytes for the browser process tree, 341,278,720 bytes for GPU, and 655,867,904 bytes for renderer RSS.
+- v18 aligns each segment's target/build readiness budget with its declared media preparation timeout. The public iPhone WebKit Brand → Proof → Figure2 reverse stress path passed 8/8 cold contexts, and the public Hero → Contact → Hero touch spine passed 3/3 cold contexts without `PREPARE_TIMEOUT` or recovery.
+- Public `https://tongye.me/`, the qualified release identity, and the `www` redirect pass after the Alibaba atomic switch. A physical iPhone Safari/Chrome pass remains the manual real-device checkpoint; Playwright WebKit is engine-level coverage rather than a claim about a specific handset.
 
 ## Release flow
 
