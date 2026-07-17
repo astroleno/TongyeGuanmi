@@ -41,6 +41,9 @@ const LAB_ROWS = [
   { index: LAB_COPY[26], title: LAB_COPY[27], body: LAB_COPY[28] }
 ] as const;
 
+const LAB_PROTECTED_PHRASE = '店怎么卖';
+const LAB_PROTECTED_PHRASE_INDEX = LAB_COPY[2].indexOf(LAB_PROTECTED_PHRASE);
+
 export type LabRenderState = {
   progress: number;
   opacity: number;
@@ -74,7 +77,16 @@ function LabScene({ registerHandle }: SceneComponentProps) {
     >
       <div className="r4-lab__wide" aria-label="AI 场景判断横屏">
         <div className="r4-lab__wide-copy">
-          <h2>{LAB_COPY[0]} <span>{LAB_COPY[1]}</span>{LAB_COPY[2]}</h2>
+          <h2>
+            {LAB_COPY[0]} <span className="r4-lab__accent">{LAB_COPY[1]}</span>
+            {LAB_COPY[2].slice(0, LAB_PROTECTED_PHRASE_INDEX)}
+            <span
+              className="r4-authored-phrase"
+            >
+              {LAB_PROTECTED_PHRASE}
+            </span>
+            {LAB_COPY[2].slice(LAB_PROTECTED_PHRASE_INDEX + LAB_PROTECTED_PHRASE.length)}
+          </h2>
         </div>
         <div className="r4-lab__signals" aria-hidden="true">
           <span>{LAB_COPY[3]}</span>

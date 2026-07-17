@@ -5,6 +5,7 @@ import {
   eventTypes,
   expectLayerInvariants,
   moveOneHold,
+  navigateStory,
   storySnapshot,
   waitForHold
 } from './r5-helpers';
@@ -74,7 +75,18 @@ test('touchscreen swipe drives the same normalized input contract', async ({ pag
   expect((await storySnapshot(page)).visibleLayers).toBe(1);
 });
 
-test('iPhone landscape entry and a later touch unlock staged video inside real user gestures', async ({ page }, testInfo) => {
+test('portrait phones enter the story without an orientation prompt', async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith('mobile-'), 'mobile orientation policy');
+  await page.setViewportSize({ width: 390, height: 844 });
+  const snapshot = await bootStory(page, '/#brand');
+
+  expect(snapshot.current).toBe('brand');
+  expect(snapshot.mobileLandscapeState).toBe('bypass');
+  expect(snapshot.experienceInteractive).toBe(true);
+  await expect(page.locator('[data-mobile-landscape-gate]')).toHaveCount(0);
+});
+
+test('iPhone bypasses the orientation prompt and touch still unlocks staged video', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-webkit', 'iPhone WebKit media activation runs once');
   test.setTimeout(120_000);
 
@@ -116,12 +128,10 @@ test('iPhone landscape entry and a later touch unlock staged video inside real u
   await page.setViewportSize({ width: 734, height: 343 });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('video[data-hero-figure-video]')).toHaveCount(1);
-  const start = page.getByRole('button', { name: '开始浏览' });
-  await expect(start).toBeVisible();
-  await start.tap();
+  await expect(page.locator('[data-mobile-landscape-gate="true"]')).toHaveCount(0);
   await page.waitForFunction(() => {
     const root = document.querySelector<HTMLElement>('.story-app');
-    return root?.dataset.mobileLandscapeState === 'started'
+    return root?.dataset.mobileLandscapeState === 'bypass'
       && root.dataset.experienceInteractive === 'true';
   }, undefined, { timeout: 30_000 });
   const startCalls = await page.evaluate(() => {
@@ -133,7 +143,7 @@ test('iPhone landscape entry and a later touch unlock staged video inside real u
     }).__r5MediaUnlockCalls ?? [];
     return calls;
   });
-  expect(startCalls).toContainEqual({
+  expect(startCalls).not.toContainEqual({
     key: 'hero-figure',
     gesture: 'click'
   });
@@ -240,4 +250,173 @@ test('mobile rotation and dynamic viewport height keep the active scene stable',
   expect((await storySnapshot(page)).current).toBe('services');
   await expect(page.locator('[data-stage-layer="services"]')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('desktop typography roles and Proof content fit hold at both audit viewports', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'desktop typography geometry runs once');
+  test.setTimeout(120_000);
+
+  await bootStory(page, '/#method-top');
+  const readingScenes = [
+    { scene: 'method-top', root: 'method-top', row: '.r4-method__row', body: 'p' },
+    { scene: 'services', root: 'services', row: '.r4-services__row', body: 'p' },
+    { scene: 'lab', root: 'lab', row: '.r4-lab__row', body: 'p' },
+    { scene: 'education', root: 'education', row: '.r4-education__row', body: 'em' }
+  ] as const;
+
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(viewport);
+    for (const scene of readingScenes) {
+      await navigateStory(page, scene.scene);
+      const metrics = await page.evaluate(({ rootName, rowSelector, bodySelector }) => {
+        const root = document.querySelector<HTMLElement>(`[data-r4-scene="${rootName}"]`);
+        const row = root?.querySelector<HTMLElement>(rowSelector);
+        const body = row?.querySelector<HTMLElement>(bodySelector);
+        if (!root || !row || !body) throw new Error(`missing desktop geometry for ${rootName}`);
+        return {
+          bodyFontSize: Number.parseFloat(getComputedStyle(body).fontSize),
+          rootOverflow: root.scrollWidth - root.clientWidth
+        };
+      }, { rootName: scene.root, rowSelector: scene.row, bodySelector: scene.body });
+
+      expect(metrics.bodyFontSize).toBeGreaterThanOrEqual(16);
+      expect(metrics.bodyFontSize).toBeLessThanOrEqual(17);
+      expect(metrics.rootOverflow, `${scene.scene} at ${viewport.width}×${viewport.height}`).toBeLessThanOrEqual(1);
+    }
+
+    await navigateStory(page, 'education');
+    await expect(page.locator('.site-nav')).toHaveAttribute('data-tone', 'light');
+
+    await navigateStory(page, 'figure2-proof');
+    const proofFit = await page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]');
+      const cards = root?.querySelector<HTMLElement>('[data-r4-proof-panel="cards"]');
+      const closing = root?.querySelector<HTMLElement>('[data-r4-proof-panel="closing"]');
+      if (!root || !cards || !closing) throw new Error('proof geometry missing');
+      root.scrollTop = cards.offsetTop;
+      const rows = [...cards.querySelectorAll<HTMLElement>('.r4-proof-cards__row')];
+      const cardsRect = cards.getBoundingClientRect();
+      const closingRect = closing.getBoundingClientRect();
+      return {
+        firstTop: rows[0]?.getBoundingClientRect().top ?? Number.NaN,
+        lastBottom: rows.at(-1)?.getBoundingClientRect().bottom ?? Number.NaN,
+        panelTop: cardsRect.top,
+        panelBottom: cardsRect.bottom,
+        closingTop: closingRect.top
+      };
+    });
+
+    expect(proofFit.firstTop).toBeGreaterThanOrEqual(proofFit.panelTop - 1);
+    expect(proofFit.lastBottom).toBeLessThanOrEqual(proofFit.panelBottom + 1);
+    expect(proofFit.lastBottom).toBeLessThanOrEqual(proofFit.closingTop + 1);
+  }
+});
+
+test('compact phone landscape keeps reading rows, Brand, and Proof inside their contracts', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-chromium', 'compact landscape geometry runs once');
+  test.setTimeout(120_000);
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  await bootStory(page, '/#method-top');
+  const readingScenes = [
+    { scene: 'method-top', root: 'method-top', row: '.r4-method__row', body: 'p' },
+    { scene: 'services', root: 'services', row: '.r4-services__row', body: 'p' },
+    { scene: 'lab', root: 'lab', row: '.r4-lab__row', body: 'p' },
+    { scene: 'education', root: 'education', row: '.r4-education__row', body: 'em' }
+  ] as const;
+
+  for (const viewport of [{ width: 844, height: 390 }, { width: 915, height: 412 }]) {
+    await page.setViewportSize(viewport);
+    for (const scene of readingScenes) {
+      await navigateStory(page, scene.scene);
+      const metrics = await page.evaluate(({ rootName, rowSelector, bodySelector }) => {
+        const root = document.querySelector<HTMLElement>(`[data-r4-scene="${rootName}"]`);
+        const nav = document.querySelector<HTMLElement>('.site-nav');
+        const row = root?.querySelector<HTMLElement>(rowSelector);
+        const title = row?.children[1] as HTMLElement | undefined;
+        const body = row?.querySelector<HTMLElement>(bodySelector);
+        if (!root || !nav || !row || !title || !body) {
+          throw new Error(`missing compact geometry for ${rootName}`);
+        }
+        const titleRect = title.getBoundingClientRect();
+        const bodyRect = body.getBoundingClientRect();
+        return {
+          compact: window.matchMedia('(orientation: landscape) and (max-height: 500px) and (hover: none) and (pointer: coarse)').matches,
+          paddingTop: Number.parseFloat(getComputedStyle(root).paddingTop),
+          navBottom: nav.getBoundingClientRect().bottom,
+          titleLeft: titleRect.left,
+          titleBottom: titleRect.bottom,
+          bodyLeft: bodyRect.left,
+          bodyTop: bodyRect.top,
+          bodyWidth: bodyRect.width,
+          bodyFontSize: Number.parseFloat(getComputedStyle(body).fontSize),
+          rootOverflow: root.scrollWidth - root.clientWidth
+        };
+      }, { rootName: scene.root, rowSelector: scene.row, bodySelector: scene.body });
+
+      expect(metrics.compact).toBe(true);
+      expect(metrics.paddingTop).toBeGreaterThanOrEqual(metrics.navBottom);
+      expect(Math.abs(metrics.titleLeft - metrics.bodyLeft)).toBeLessThanOrEqual(1);
+      expect(metrics.bodyTop).toBeGreaterThanOrEqual(metrics.titleBottom - 1);
+      expect(metrics.bodyWidth).toBeGreaterThanOrEqual(280);
+      expect(metrics.bodyFontSize).toBeGreaterThanOrEqual(15);
+      expect(metrics.rootOverflow).toBeLessThanOrEqual(1);
+    }
+
+    await navigateStory(page, 'brand');
+    const brandFit = await page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>('[data-r4-scene="brand"]');
+      const nav = document.querySelector<HTMLElement>('.site-nav');
+      const definitions = [...(root?.querySelectorAll<HTMLElement>('.r4-brand__definition') ?? [])];
+      if (!root || !nav || definitions.length !== 2) throw new Error('brand geometry missing');
+      const [left, right] = definitions.map((definition) => definition.getBoundingClientRect());
+      return {
+        navBottom: nav.getBoundingClientRect().bottom,
+        leftTop: left?.top ?? Number.NaN,
+        leftBottom: left?.bottom ?? Number.NaN,
+        leftRight: left?.right ?? Number.NaN,
+        rightTop: right?.top ?? Number.NaN,
+        rightBottom: right?.bottom ?? Number.NaN,
+        rightLeft: right?.left ?? Number.NaN,
+        viewportBottom: window.innerHeight,
+        scrollOverflow: root.scrollHeight - root.clientHeight
+      };
+    });
+
+    expect(brandFit.leftTop).toBeGreaterThanOrEqual(brandFit.navBottom - 1);
+    expect(brandFit.rightTop).toBeGreaterThanOrEqual(brandFit.navBottom - 1);
+    expect(brandFit.leftBottom).toBeLessThanOrEqual(brandFit.viewportBottom + 1);
+    expect(brandFit.rightBottom).toBeLessThanOrEqual(brandFit.viewportBottom + 1);
+    expect(brandFit.rightLeft).toBeGreaterThan(brandFit.leftRight);
+    expect(brandFit.scrollOverflow).toBeLessThanOrEqual(1);
+
+    await navigateStory(page, 'figure2-proof');
+    const proofFit = await page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]');
+      const nav = document.querySelector<HTMLElement>('.site-nav');
+      const cards = root?.querySelector<HTMLElement>('[data-r4-proof-panel="cards"]');
+      const closing = root?.querySelector<HTMLElement>('[data-r4-proof-panel="closing"]');
+      if (!root || !nav || !cards || !closing) throw new Error('compact proof geometry missing');
+      root.scrollTop = cards.offsetTop;
+      const rows = [...cards.querySelectorAll<HTMLElement>('.r4-proof-cards__row')];
+      const body = rows[0]?.querySelector<HTMLElement>('p');
+      const cardsRect = cards.getBoundingClientRect();
+      const closingRect = closing.getBoundingClientRect();
+      return {
+        navBottom: nav.getBoundingClientRect().bottom,
+        firstTop: rows[0]?.getBoundingClientRect().top ?? Number.NaN,
+        lastBottom: rows.at(-1)?.getBoundingClientRect().bottom ?? Number.NaN,
+        panelBottom: cardsRect.bottom,
+        closingTop: closingRect.top,
+        bodyFontSize: Number.parseFloat(body ? getComputedStyle(body).fontSize : '0'),
+        semanticHeight: root.scrollHeight / root.clientHeight
+      };
+    });
+
+    expect(proofFit.firstTop).toBeGreaterThanOrEqual(proofFit.navBottom - 1);
+    expect(proofFit.lastBottom).toBeLessThanOrEqual(proofFit.panelBottom + 1);
+    expect(proofFit.lastBottom).toBeLessThanOrEqual(proofFit.closingTop + 1);
+    expect(proofFit.bodyFontSize).toBeGreaterThanOrEqual(15);
+    expect(proofFit.semanticHeight).toBeCloseTo(3, 1);
+  }
 });

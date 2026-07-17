@@ -1,9 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { inventoryManifestSeed } from '../story/manifest';
 import { EDUCATION_COPY, educationScene, renderEducationProgress } from './education';
 import { renderPhAnimationProgress } from './ph-animation';
+
+const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -64,6 +67,9 @@ describe('R4 group6 scenes', () => {
 
     expect(markup).not.toContain(prefix);
     expect(markup).toContain('给企业家的延伸服务');
+    expect(stylesheet).toMatch(
+      /\.r4-education__row em\s*\{[^}]*color:\s*var\(--ink-body\)[^}]*font-size:\s*var\(--type-body-size\)/s
+    );
   });
 
   it('does not rewrite terminal PH media time on repeated endpoint renders', () => {

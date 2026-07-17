@@ -28,6 +28,7 @@ export const MOBILE_LANDSCAPE_MIN_HEIGHT_PX = 300;
 export const MOBILE_LANDSCAPE_MIN_WIDTH_DELTA_PX = 48;
 export const MOBILE_LANDSCAPE_MAX_DRIFT_PX = 2;
 export const MOBILE_LANDSCAPE_QUIET_MS = 180;
+export const MOBILE_LANDSCAPE_GATE_ENABLED = false;
 
 type ViewportWindow = Pick<Window, 'innerHeight' | 'innerWidth' | 'visualViewport'>;
 type MediaWindow = Pick<Window, 'matchMedia'>;

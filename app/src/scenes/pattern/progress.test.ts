@@ -127,6 +127,17 @@ describe('pattern scene renderer', () => {
     expect(markup.match(/data-pattern-canvas/g)).toHaveLength(1);
   });
 
+  it('protects the authored Chinese phrases without changing the canonical sentence', () => {
+    const markup = renderToStaticMarkup(createElement(patternScene.Component, {
+      scene: 'pattern',
+      hidden: false
+    }));
+
+    expect(markup).toContain('class="r4-authored-phrase">一场培训</span>');
+    expect(markup).toContain('class="r4-authored-phrase">账上的数字</span>');
+    expect(markup.replace(/<[^>]+>/g, '')).toContain(PATTERN_COPY[1]);
+  });
+
   it('moves the contracted desktop statement five viewport-width units to the right', () => {
     expect(stylesheet).toMatch(
       /\.r4-pattern-scene__statement\s*\{[^}]*transform:\s*translate3d\(5vw,\s*0,\s*0\)/s

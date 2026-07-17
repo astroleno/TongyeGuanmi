@@ -6,7 +6,10 @@ import { inventoryManifestSeed } from '../story/manifest';
 import { CONTACT_COPY, contactScene, renderContactProgress } from './contact';
 import { craneAnimationScene, renderCraneAnimationProgress } from './crane-animation';
 
-const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+const stylesheet = [
+  readFileSync(new URL('../styles.css', import.meta.url), 'utf8'),
+  readFileSync(new URL('../production/editorial-layout.css', import.meta.url), 'utf8')
+].join('\n');
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -57,6 +60,13 @@ describe('R4 group7 scenes', () => {
 
     expect(contactScene.staticFallback?.text).toEqual(CONTACT_COPY);
     expect(contact?.normalizedText).toEqual([...CONTACT_COPY]);
+    expect(stylesheet).toMatch(
+      /\.r4-contact p\s*\{[^}]*color:\s*var\(--ink-body\)[^}]*font-size:\s*var\(--type-body-large-size\)/s
+    );
+    expect(stylesheet).toMatch(
+      /\.r4-contact \.site-footer\s*\{[^}]*color:\s*var\(--ink-muted\)/s
+    );
+    expect(stylesheet).not.toMatch(/\.r4-contact \.site-footer\s*\{[^}]*font-size:\s*10px/s);
   });
 
   it('uses native alpha with the figure between the back cloud and foreground landscape', () => {

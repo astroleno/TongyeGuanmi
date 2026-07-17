@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { MobileLandscapeEntryState } from './mobile-landscape-entry';
+import {
+  MOBILE_LANDSCAPE_GATE_ENABLED,
+  type MobileLandscapeEntryState
+} from './mobile-landscape-entry';
 
 type MobileLandscapeSample = Readonly<{
   gatedPhone: boolean;
@@ -52,7 +55,8 @@ function observeMobileLandscape(): MobileLandscapeSample {
   const viewport = window.visualViewport;
   const width = Math.max(0, viewport?.width ?? window.innerWidth);
   const height = Math.max(0, viewport?.height ?? window.innerHeight);
-  const gatedPhone = window.matchMedia('(pointer: coarse)').matches
+  const gatedPhone = MOBILE_LANDSCAPE_GATE_ENABLED
+    && window.matchMedia('(pointer: coarse)').matches
     && window.matchMedia('(hover: none)').matches
     && Math.min(width, height) <= MAX_PHONE_EDGE_PX;
   return {

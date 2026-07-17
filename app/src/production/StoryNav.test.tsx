@@ -35,6 +35,7 @@ describe('StoryNav', () => {
     }));
 
     expect(chromeForScene('services')).toEqual({ tone: 'light' });
+    expect(chromeForScene('education')).toEqual({ tone: 'light' });
     expect(chromeForScene('star-map')).toEqual({ tone: 'dark' });
     expect(markup).toContain('data-visible="true"');
     expect(markup).toContain('data-tone="light"');
@@ -43,6 +44,11 @@ describe('StoryNav', () => {
     expect(markup).toContain('class="site-nav__action nav-cta"');
     expect(stylesheet).toMatch(
       /@media \(max-width: 720px\),[\s\S]*\.site-nav__action\s*\{[^}]*min-height:\s*34px[^}]*border-radius:\s*6px/s
+    );
+    expect(stylesheet).not.toMatch(/font-size:\s*11px/);
+    expect(stylesheet).not.toMatch(/font-weight:\s*(?:720|760)/);
+    expect(stylesheet).toMatch(
+      /\.site-nav \.nav-links a\s*\{[^}]*font-size:\s*var\(--type-navigation-size\)[^}]*font-weight:\s*var\(--font-weight-strong\)/s
     );
     expect(markup).not.toContain('inert=""');
     expect(markup.match(/class="scroll-edge-blur__layer"/g)).toHaveLength(7);

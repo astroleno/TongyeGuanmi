@@ -89,7 +89,7 @@ describe('viewport background contract', () => {
     );
     expect(rule('.r4-method__row')).not.toMatch(/min-height|border-(?:top|bottom)/);
     expect(stylesheet).toMatch(
-      /\.r4-method,[\s\S]*?\.r4-education\s*\{[^}]*padding:\s*clamp\(52px, 7svh, 86px\) clamp\(24px, 6vw, 96px\)/s
+      /\.r4-method,[\s\S]*?\.r4-education\s*\{[^}]*padding:\s*clamp\(52px, 7svh, 86px\) max\(24px, 5vw\)/s
     );
   });
 

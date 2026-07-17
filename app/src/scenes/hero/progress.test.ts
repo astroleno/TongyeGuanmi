@@ -16,7 +16,10 @@ import {
   FakeVideo as TimelineVideo
 } from '../../transitions/__fixtures__/back-half.fixture';
 
-const stylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
+const stylesheet = [
+  readFileSync(new URL('../../styles.css', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../production/editorial-layout.css', import.meta.url), 'utf8')
+].join('\n');
 
 class FakeStyle {
   values = new Map<string, string>();

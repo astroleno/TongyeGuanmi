@@ -88,5 +88,8 @@ describe('R4 group4 scenes', () => {
     expect(stylesheet).not.toMatch(
       /\.r4-services__capability-lead h2\s*\{[^}]*max-width:\s*5em/s
     );
+    expect(stylesheet).toMatch(
+      /\.r4-services__capability-lead > p\s*\{[^}]*color:\s*var\(--ink-body\)[^}]*font-size:\s*var\(--type-body-large-size\)/s
+    );
   });
 });

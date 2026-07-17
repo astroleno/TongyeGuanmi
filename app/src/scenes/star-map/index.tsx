@@ -9,6 +9,9 @@ const STAR_MAP_FRAME_INTERVAL_MS = 1000 / 12;
 export const STAR_MAP_COPY =
   'AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。它决定了未来三年你是领跑还是追赶。';
 
+const STAR_MAP_PROTECTED_PHRASE = '未来三年';
+const STAR_MAP_PROTECTED_PHRASE_INDEX = STAR_MAP_COPY.lastIndexOf(STAR_MAP_PROTECTED_PHRASE);
+
 export type StarMapRenderState = {
   progress: number;
   copyOpacity: number;
@@ -188,7 +191,13 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
       <div className="belief-star-wash r3-star-map__wash" aria-hidden="true" />
       <div className="belief-copy-wrap r3-star-map__copy">
         <p ref={(element) => registerHandle?.('copy', element)} className="large-copy large-copy--standalone">
-          {STAR_MAP_COPY}
+          {STAR_MAP_COPY.slice(0, STAR_MAP_PROTECTED_PHRASE_INDEX)}
+          <span
+            className="r4-authored-phrase"
+          >
+            {STAR_MAP_PROTECTED_PHRASE}
+          </span>
+          {STAR_MAP_COPY.slice(STAR_MAP_PROTECTED_PHRASE_INDEX + STAR_MAP_PROTECTED_PHRASE.length)}
         </p>
       </div>
     </article>

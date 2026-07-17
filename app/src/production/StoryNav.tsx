@@ -15,6 +15,7 @@ const LIGHT_SCENES = new Set<SceneId>([
   'services',
   'lab',
   'ph-animation',
+  'education',
   'crane-animation',
   'contact'
 ]);

@@ -4,11 +4,16 @@ import {
   isGatedPhone,
   isPhoneLandscapeReady,
   isViewportDriftWithin,
+  MOBILE_LANDSCAPE_GATE_ENABLED,
   mobileLandscapeEntryState,
   mobileLandscapeViewport
 } from './mobile-landscape-entry';
 
 describe('mobile landscape entry policy', () => {
+  it('keeps the production orientation gate disabled', () => {
+    expect(MOBILE_LANDSCAPE_GATE_ENABLED).toBe(false);
+  });
+
   it('prefers visualViewport dimensions while retaining an inner-window fallback', () => {
     expect(mobileLandscapeViewport({
       innerWidth: 390,

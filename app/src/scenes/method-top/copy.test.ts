@@ -5,7 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { inventoryManifestSeed } from '../../story/manifest';
 import { METHOD_COPY, METHOD_STEPS_COPY, METHOD_TOP_COPY, methodTopScene } from './index';
 
-const stylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
+const stylesheet = [
+  readFileSync(new URL('../../styles.css', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../production/editorial-layout.css', import.meta.url), 'utf8')
+].join('\n');
 
 describe('method-top copy baseline', () => {
   it('uses the R-1 method top split verbatim', () => {
@@ -41,7 +44,7 @@ describe('method-top copy baseline', () => {
       /\.r4-method__row\s*\{[^}]*border-(?:top|bottom)/s
     );
     expect(stylesheet).toMatch(
-      /\.r4-method__steps-lead h2,\s*\.r4-services__capability-lead h2\s*\{[^}]*font-size:\s*clamp\(36px,\s*3\.8vw,\s*64px\);[^}]*white-space:\s*nowrap/s
+      /\.r4-method__steps-lead h2,\s*\.r4-services__capability-lead h2\s*\{[^}]*font-size:\s*var\(--type-display-lead-size\);[^}]*white-space:\s*nowrap/s
     );
     expect(stylesheet).not.toMatch(
       /\.r4-method__steps-lead h2\s*\{[^}]*max-width:\s*5em/s
@@ -49,5 +52,11 @@ describe('method-top copy baseline', () => {
     expect(methodTopScene.staticFallback?.text).toEqual(METHOD_COPY);
     expect(METHOD_COPY).toEqual([...METHOD_TOP_COPY, ...METHOD_STEPS_COPY]);
     expect(METHOD_STEPS_COPY).toHaveLength(15);
+    expect(stylesheet).toMatch(
+      /@media \(orientation: landscape\)[\s\S]*?\.r4-method__row,[\s\S]*?grid-template-columns:\s*38px minmax\(0, 1fr\)/s
+    );
+    expect(stylesheet).toMatch(
+      /@media[\s\S]*?\(orientation: portrait\)[\s\S]*?\.r4-method__vertical\s*\{[^}]*padding-top:\s*96px/s
+    );
   });
 });

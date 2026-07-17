@@ -178,7 +178,13 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
       <div className="r4-pattern-scene__copy">
         <section ref={(element) => registerHandle?.('copy', element)} className="r4-pattern-scene__statement">
           <span className="card-label">{PATTERN_COPY[0]}</span>
-          <h3>{PATTERN_COPY[1]}</h3>
+          <h3>
+            <span>让 AI 从</span>
+            <span className="r4-authored-phrase">一场培训</span>
+            <span>，变成</span>
+            <span className="r4-authored-phrase">账上的数字</span>
+            <span>。</span>
+          </h3>
           <p>{PATTERN_COPY[2]}</p>
         </section>
       </div>

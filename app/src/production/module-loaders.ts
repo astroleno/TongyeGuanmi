@@ -62,7 +62,7 @@ export function loadSceneModule(id: SceneId): Promise<SceneModule> {
   if (cached) {
     return cached;
   }
-  const promise = importScene(id).then((module) => {
+  const promise = Promise.all([import('./editorial-layout.css'), importScene(id)]).then(([, module]) => {
     if (module.id !== id) {
       throw new Error(`Scene loader returned ${module.id} for ${id}`);
     }

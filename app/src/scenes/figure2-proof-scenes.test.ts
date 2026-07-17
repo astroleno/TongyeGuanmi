@@ -9,7 +9,10 @@ import { FIGURE2_PROOF_CLOSING_COPY, figure2ProofClosingScene, renderProofClosin
 import { FIGURE2_PROOF_OPENING_COPY, figure2ProofOpeningScene, renderProofOpeningProgress } from './figure2-proof-opening';
 import { FIGURE2_PROOF_COPY, figure2ProofScene } from './figure2-proof';
 
-const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+const stylesheet = [
+  readFileSync(new URL('../styles.css', import.meta.url), 'utf8'),
+  readFileSync(new URL('../production/editorial-layout.css', import.meta.url), 'utf8')
+].join('\n');
 
 class FakeStyle {
   values = new Map<string, string>();
@@ -57,9 +60,12 @@ describe('figure2 proof and brand scene renderers', () => {
   });
 
   it('uses the shared reading-part typography tokens for Proof', () => {
-    expect(stylesheet).toContain('--r4-part-wide-title-size: clamp(32px, 3.8vw, 68px)');
+    expect(stylesheet).toContain('--type-display-wide-size: clamp(32px, 3.8vw, 68px)');
     expect(stylesheet).toMatch(
-      /\.r4-proof-opening__title\s*\{[^}]*font-size:\s*var\(--r4-part-wide-title-size\)/s
+      /\.r4-proof-opening__title\s*\{[^}]*font-size:\s*var\(--type-display-wide-size\)/s
+    );
+    expect(stylesheet).toMatch(
+      /\.r4-proof-cards__row p\s*\{[^}]*color:\s*var\(--ink-body\)[^}]*font-size:\s*var\(--type-body-size\)/s
     );
     expect(stylesheet).not.toContain('method-proof__');
     expect(stylesheet).not.toMatch(
@@ -94,6 +100,12 @@ describe('figure2 proof and brand scene renderers', () => {
     expect(stylesheet).toMatch(/\.r4-proof-compound\s*\{[^}]*height:\s*100svh[^}]*overflow-y:\s*auto/s);
     expect(stylesheet).toMatch(/\.r4-proof-panel\s*\{[^}]*min-height:\s*100svh/s);
     expect(stylesheet).not.toMatch(/\.r4-proof-(?:compound|panel)\s*\{[^}]*scroll-snap/s);
+    expect(stylesheet).toMatch(
+      /\.r4-proof-scroll__content--cards\s*\{[^}]*top:\s*50%[^}]*translate3d\(0, calc\(-50% \+ var\(--r4-proof-scroll-y\)\), 0\)/s
+    );
+    expect(stylesheet).toMatch(
+      /@media[\s\S]*?\(orientation: portrait\)[\s\S]*?\.r4-proof-scroll__content--opening,\s*\.r4-proof-scroll__content--cards\s*\{[^}]*top:\s*50%/s
+    );
   });
 
   it('breaks the closing proof sentence immediately after the fourth approach label', () => {

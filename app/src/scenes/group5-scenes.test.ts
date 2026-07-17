@@ -64,6 +64,8 @@ describe('R4 group5 scenes', () => {
 
     expect(markup).not.toContain(prefix);
     expect(markup).toContain('落到现场');
+    expect(markup).toContain('class="r4-authored-phrase">店怎么卖</span>');
+    expect(markup.replace(/<[^>]+>/g, '')).toContain(`${LAB_COPY[0]} ${LAB_COPY[1]}${LAB_COPY[2]}`);
   });
 
   it('keeps TTG presentation renders free of surface preparation and parking', () => {

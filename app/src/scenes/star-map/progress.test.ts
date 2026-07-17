@@ -1,6 +1,14 @@
 import { readFileSync } from 'node:fs';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { renderStarMapHold, renderStarMapProgress, starMapMotionEnabled } from './index';
+import {
+  STAR_MAP_COPY,
+  renderStarMapHold,
+  renderStarMapProgress,
+  starMapMotionEnabled,
+  starMapScene
+} from './index';
 
 const stylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
@@ -55,5 +63,15 @@ describe('star-map progress renderer', () => {
     expect(root.attributes.get('data-star-map-copy-opaque')).toBe('true');
     expect(stylesheet).toMatch(/\.r3-star-map\s*\{[^}]*--r3-star-copy-opacity:\s*1/s);
     expect(stylesheet).toMatch(/\.r3-star-map \.large-copy--standalone\s*\{[^}]*color:\s*rgb\(247,\s*237,\s*215\)/s);
+  });
+
+  it('keeps the final sentence accessible while protecting 未来三年 from browser splitting', () => {
+    const markup = renderToStaticMarkup(createElement(starMapScene.Component, {
+      scene: 'star-map',
+      hidden: false
+    }));
+
+    expect(markup).toContain('class="r4-authored-phrase">未来三年</span>');
+    expect(markup.replace(/<[^>]+>/g, '')).toContain(STAR_MAP_COPY);
   });
 });
