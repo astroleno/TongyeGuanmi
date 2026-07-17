@@ -8,6 +8,7 @@ import {
   heroPatternMotionProgress,
   HERO_PATTERN_INK_ORIGIN,
   HERO_PATTERN_INK_MS,
+  HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS,
   HERO_PATTERN_MOTION_MS,
   HERO_PATTERN_MOTION_STOP,
   renderHeroForHeroPattern,
@@ -120,6 +121,11 @@ function context(prefersReducedMotion = false): TransitionContext {
 }
 
 describe('hero-pattern transition', () => {
+  it('shares the release-safe frame preparation timeout with the Hero build gate', () => {
+    expect(HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS).toBe(8000);
+    expect(segment().buildTimeoutMs).toBe(HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS);
+  });
+
   it('bounds and cancels phase-boundary presentation confirmation', async () => {
     vi.useFakeTimers();
     const requestFrame = vi.fn(() => 1);

@@ -15,7 +15,7 @@ import { createInkSegmentTransition } from '../shared/ink';
 import { createLinkedAbortController, MediaPreparationError } from '../../media/media-preparation';
 
 export const HERO_PATTERN_INK_ORIGIN = Object.freeze({ x: 0.5, y: 0.5 });
-export const HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS = 1800;
+export const HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS = 8000;
 export { HERO_PATTERN_INK_MS, HERO_PATTERN_MOTION_MS, HERO_PATTERN_MOTION_STOP } from '../../story/timings';
 const HERO_SCENE_SELECTOR = '[data-r4-scene="hero"]';
 
