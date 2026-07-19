@@ -131,6 +131,10 @@ describe('PortraitScrollSpike two-surface timeline', () => {
       'calc(-50% + var(--aod-transition-figure-y) + var(--portrait-aod-figure-shift-y))'
     );
     expect(source).toContain('portraitAodPresentation(progress)');
+    expect(source).toContain('portraitAodBackdropPresentation(progress)');
+    expect(source).toContain("'--aod-transition-sun-y'");
+    expect(source).toContain("'--aod-transition-cloud-y'");
+    expect(source).toContain('portraitAodBackdropProgress = progress.toFixed(4)');
     expect(stylesheet).not.toMatch(
       /scene--aod\[data-portrait-aod-alpha="transparent"\][^}]*background:\s*transparent/s
     );

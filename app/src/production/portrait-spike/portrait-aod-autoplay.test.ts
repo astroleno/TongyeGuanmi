@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createPortraitAodAutoplay,
+  portraitAodBackdropPresentation,
   portraitAodMethodProgress,
   portraitAodPresentation
 } from './portrait-aod-autoplay';
@@ -128,6 +129,27 @@ describe('portrait AOD autoplay', () => {
       figureScale: 1.46,
       figureShiftYVh: 9,
       bottomMistOpacity: 0.96
+    });
+  });
+
+  it('starts the cloud and sun with AOD playback and gives the near cloud a faster exit', () => {
+    const start = portraitAodBackdropPresentation(0);
+    expect(start.sunYVh).toBeCloseTo(0);
+    expect(start.cloudYVh).toBeCloseTo(0);
+
+    const firstPositiveFrame = portraitAodBackdropPresentation(0.01);
+    expect(firstPositiveFrame.sunYVh).toBeLessThan(0);
+    expect(firstPositiveFrame.cloudYVh).toBeLessThan(0);
+
+    const early = portraitAodBackdropPresentation(0.2);
+    expect(Math.abs(early.cloudYVh) / 124).toBeGreaterThan(
+      Math.abs(early.sunYVh) / 108
+    );
+    expect(early.cloudYVh).toBeLessThan(early.sunYVh);
+
+    expect(portraitAodBackdropPresentation(1)).toEqual({
+      sunYVh: -108,
+      cloudYVh: -124
     });
   });
 });

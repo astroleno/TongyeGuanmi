@@ -16,6 +16,11 @@ export type PortraitAodPresentation = Readonly<{
   bottomMistOpacity: number;
 }>;
 
+export type PortraitAodBackdropPresentation = Readonly<{
+  sunYVh: number;
+  cloudYVh: number;
+}>;
+
 type PortraitAodAutoplayOptions = Readonly<{
   durationSeconds: number;
   forwardSourceUrl?: string;
@@ -70,6 +75,25 @@ export function portraitAodPresentation(
     // overscan for the lower browser edge while scale alone creates motion.
     figureShiftYVh: 9,
     bottomMistOpacity: mistProgress * 0.96
+  };
+}
+
+/**
+ * The near cloud leaves faster and travels farther than the sun. Both tracks
+ * start at AOD progress zero, so their parallax begins on the same native
+ * playback frame as the packed-alpha figure and reverses through the same
+ * canonical progress.
+ */
+export function portraitAodBackdropPresentation(
+  rawProgress: number
+): PortraitAodBackdropPresentation {
+  const progress = clamp(rawProgress);
+  const cloudProgress = smoothstep(progress / 0.38);
+  const sunProgress = smoothstep(progress / 0.47);
+
+  return {
+    sunYVh: -108 * sunProgress,
+    cloudYVh: -124 * cloudProgress
   };
 }
 

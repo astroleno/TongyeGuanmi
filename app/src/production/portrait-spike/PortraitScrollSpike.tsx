@@ -46,6 +46,7 @@ import {
 } from './portrait-ink';
 import {
   createPortraitAodAutoplay,
+  portraitAodBackdropPresentation,
   portraitAodMethodProgress,
   portraitAodPresentation,
   type PortraitAodPlaybackDirection,
@@ -889,6 +890,16 @@ export function PortraitScrollSpike() {
       lastAodProgress = progress;
       renderAodTransitionProgress(aodScene, progress);
       const presentation = portraitAodPresentation(progress);
+      const backdropPresentation = portraitAodBackdropPresentation(progress);
+      aodTransition.style.setProperty(
+        '--aod-transition-sun-y',
+        `${backdropPresentation.sunYVh.toFixed(2)}dvh`
+      );
+      aodTransition.style.setProperty(
+        '--aod-transition-cloud-y',
+        `${backdropPresentation.cloudYVh.toFixed(2)}dvh`
+      );
+      aodTransition.dataset.portraitAodBackdropProgress = progress.toFixed(4);
       const canonicalMistOpacity = Number.parseFloat(
         aodTransition.style.getPropertyValue('--aod-transition-bottom-mist-opacity')
       ) || 0;
@@ -1343,6 +1354,7 @@ export function PortraitScrollSpike() {
       delete root.dataset.portraitHeroEntrance;
       delete root.dataset.portraitEdgeSurface;
       delete aodScene.dataset.portraitAodAlpha;
+      delete aodTransition.dataset.portraitAodBackdropProgress;
       root.style.removeProperty('--portrait-edge-surface');
       if (previousDocumentSurface) {
         documentElement.style.setProperty('--portrait-document-surface', previousDocumentSurface);
