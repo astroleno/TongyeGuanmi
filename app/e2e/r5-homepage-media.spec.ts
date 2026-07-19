@@ -5,24 +5,24 @@ import { bootStory, waitForHold } from './r5-helpers';
 
 const repoDir = resolve(process.cwd(), '..');
 const inventoryPath = resolve(repoDir, 'dist', 'homepage-media-inventory.json');
-const batchCLosslessPairs = [
-  ['assets/middle1_depth.png', 'assets/middle1_depth.webp'],
-  ['assets/back2.png', 'assets/back2.webp'],
-  ['assets/figure2-middle-depth.png', 'assets/figure2-middle-depth.webp'],
-  ['assets/figure2-middle-window-mask.png', 'assets/figure2-middle-window-mask.webp'],
-  ['assets/aod_cloud-alpha.png', 'assets/aod_cloud-alpha.webp'],
-  ['assets/aod_sun-alpha.png', 'assets/aod_sun-alpha.webp'],
-  ['assets/ph_background.png', 'assets/ph_background.webp'],
-  ['assets/ph_front-alpha.png', 'assets/ph_front-alpha.webp'],
-  ['assets/crane1_cloud2-alpha.png', 'assets/crane1_cloud2-alpha.webp'],
-  ['assets/crane1_arch-alpha.png', 'assets/crane1_arch-alpha.webp'],
-  ['assets/crane1_cloud1-alpha.png', 'assets/crane1_cloud1-alpha.webp'],
-  ['assets/crane1_cloud-front2-alpha.png', 'assets/crane1_cloud-front2-alpha.webp'],
-  ['assets/patterns/alpha-layers/pattern-layer-alpha-02.png', 'assets/patterns/alpha-layers/pattern-layer-alpha-02.webp'],
-  ['assets/patterns/alpha-layers/pattern-layer-alpha-03.png', 'assets/patterns/alpha-layers/pattern-layer-alpha-03.webp'],
-  ['assets/patterns/alpha-layers/pattern-layer-alpha-04.png', 'assets/patterns/alpha-layers/pattern-layer-alpha-04.webp'],
-  ['assets/patterns/alpha-layers/pattern-layer-alpha-05.png', 'assets/patterns/alpha-layers/pattern-layer-alpha-05.webp'],
-  ['assets/patterns/alpha-layers/pattern-layer-alpha-06.png', 'assets/patterns/alpha-layers/pattern-layer-alpha-06.webp']
+const batchCWebpPairs = [
+  ['assets/middle1_depth.png', 'assets/middle1_depth.webp', 'semantic'],
+  ['assets/back2.png', 'assets/back2.webp', 'presentation'],
+  ['assets/figure2-middle-depth.png', 'assets/figure2-middle-depth.webp', 'semantic'],
+  ['assets/figure2-middle-window-mask.png', 'assets/figure2-middle-window-mask.webp', 'semantic'],
+  ['assets/aod_cloud-alpha.png', 'assets/aod_cloud-alpha.webp', 'presentation'],
+  ['assets/aod_sun-alpha.png', 'assets/aod_sun-alpha.webp', 'presentation'],
+  ['assets/ph_background.png', 'assets/ph_background.webp', 'presentation'],
+  ['assets/ph_front-alpha.png', 'assets/ph_front-alpha.webp', 'presentation'],
+  ['assets/crane1_cloud2-alpha.png', 'assets/crane1_cloud2-alpha.webp', 'presentation'],
+  ['assets/crane1_arch-alpha.png', 'assets/crane1_arch-alpha.webp', 'presentation'],
+  ['assets/crane1_cloud1-alpha.png', 'assets/crane1_cloud1-alpha.webp', 'presentation'],
+  ['assets/crane1_cloud-front2-alpha.png', 'assets/crane1_cloud-front2-alpha.webp', 'presentation'],
+  ['assets/patterns/alpha-layers/pattern-layer-alpha-02.png', 'assets/patterns/alpha-layers/pattern-layer-alpha-02.webp', 'presentation'],
+  ['assets/patterns/alpha-layers/pattern-layer-alpha-03.png', 'assets/patterns/alpha-layers/pattern-layer-alpha-03.webp', 'presentation'],
+  ['assets/patterns/alpha-layers/pattern-layer-alpha-04.png', 'assets/patterns/alpha-layers/pattern-layer-alpha-04.webp', 'presentation'],
+  ['assets/patterns/alpha-layers/pattern-layer-alpha-05.png', 'assets/patterns/alpha-layers/pattern-layer-alpha-05.webp', 'presentation'],
+  ['assets/patterns/alpha-layers/pattern-layer-alpha-06.png', 'assets/patterns/alpha-layers/pattern-layer-alpha-06.webp', 'presentation']
 ] as const;
 
 type HomepageMediaInventory = Readonly<{
@@ -41,10 +41,10 @@ async function fileExists(file: string): Promise<boolean> {
   }
 }
 
-async function losslessEmittedPaths(): Promise<ReadonlyMap<string, string>> {
+async function webpEmittedPaths(): Promise<ReadonlyMap<string, string>> {
   const inventory = JSON.parse(await readFile(inventoryPath, 'utf8')) as HomepageMediaInventory;
   return new Map(inventory.inventory
-    .filter(({ source }) => batchCLosslessPairs.some(([, output]) => output === source))
+    .filter(({ source }) => batchCWebpPairs.some(([, output]) => output === source))
     .map(({ source, emittedPath }) => [source, emittedPath]));
 }
 
@@ -306,17 +306,17 @@ test('iPhone WebKit decodes the HEVC Hero frame with a live alpha plane', async 
   expect(result.partialRatio).toBeGreaterThan(0);
 });
 
-test('Batch C WebP browser decode matches retained PNG pixels before source removal', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'Batch C lossless gate runs once in desktop Chromium');
-  const sourcePresence = await Promise.all(batchCLosslessPairs.map(([source]) => fileExists(resolve(repoDir, source))));
+test('Batch C WebP browser decode remains valid after presentation recompression', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Batch C WebP gate runs once in desktop Chromium');
+  const sourcePresence = await Promise.all(batchCWebpPairs.map(([source]) => fileExists(resolve(repoDir, source))));
   const retainedPngsPresent = sourcePresence.every(Boolean);
   expect(sourcePresence.every(Boolean) || sourcePresence.every((present) => !present)).toBe(true);
 
-  await page.route('**/__batch-c-lossless/**', async (route) => {
-    const match = new URL(route.request().url()).pathname.match(/\/__batch-c-lossless\/(png|webp)\/(\d+)$/);
+  await page.route('**/__batch-c-webp/**', async (route) => {
+    const match = new URL(route.request().url()).pathname.match(/\/__batch-c-webp\/(png|webp)\/(\d+)$/);
     const kind = match?.[1];
     const index = Number(match?.[2]);
-    const pair = batchCLosslessPairs[index];
+    const pair = batchCWebpPairs[index];
     if (!pair || (kind !== 'png' && kind !== 'webp')) {
       await route.abort('failed');
       return;
@@ -330,7 +330,7 @@ test('Batch C WebP browser decode matches retained PNG pixels before source remo
   });
   await page.goto('/?presentation=direct', { waitUntil: 'domcontentloaded' });
 
-  for (const [index, [source, output]] of batchCLosslessPairs.entries()) {
+  for (const [index, [source, output, fidelity]] of batchCWebpPairs.entries()) {
     const result = await page.evaluate(async ({ sourceUrl, outputUrl }) => {
       const decodeElement = async (url: string) => {
         const image = new Image();
@@ -348,7 +348,9 @@ test('Batch C WebP browser decode matches retained PNG pixels before source remo
           naturalWidth: outputImage.naturalWidth,
           naturalHeight: outputImage.naturalHeight,
           rgbaEqual: null,
-          mismatchIndex: -1
+          rgbaMismatchIndex: -1,
+          alphaEqual: null,
+          alphaMismatchIndex: -1
         };
       }
       const [sourceImage, outputBitmap] = await Promise.all([
@@ -365,7 +367,9 @@ test('Batch C WebP browser decode matches retained PNG pixels before source remo
           naturalWidth: outputImage.naturalWidth,
           naturalHeight: outputImage.naturalHeight,
           rgbaEqual: false,
-          mismatchIndex: -1
+          rgbaMismatchIndex: -1,
+          alphaEqual: false,
+          alphaMismatchIndex: -1
         };
       }
       const canvas = document.createElement('canvas');
@@ -380,10 +384,17 @@ test('Batch C WebP browser decode matches retained PNG pixels before source remo
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.drawImage(outputBitmap, 0, 0);
       const outputPixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-      let mismatchIndex = -1;
+      let rgbaMismatchIndex = -1;
       for (let offset = 0; offset < sourcePixels.length; offset += 1) {
         if (sourcePixels[offset] !== outputPixels[offset]) {
-          mismatchIndex = offset;
+          rgbaMismatchIndex = offset;
+          break;
+        }
+      }
+      let alphaMismatchIndex = -1;
+      for (let offset = 3; offset < sourcePixels.length; offset += 4) {
+        if (sourcePixels[offset] !== outputPixels[offset]) {
+          alphaMismatchIndex = offset;
           break;
         }
       }
@@ -392,28 +403,40 @@ test('Batch C WebP browser decode matches retained PNG pixels before source remo
       return {
         naturalWidth: outputImage.naturalWidth,
         naturalHeight: outputImage.naturalHeight,
-        rgbaEqual: mismatchIndex === -1,
-        mismatchIndex
+        rgbaEqual: rgbaMismatchIndex === -1,
+        rgbaMismatchIndex,
+        alphaEqual: alphaMismatchIndex === -1,
+        alphaMismatchIndex
       };
     }, {
-      sourceUrl: retainedPngsPresent ? `/__batch-c-lossless/png/${index}` : '',
-      outputUrl: `/__batch-c-lossless/webp/${index}`
+      sourceUrl: retainedPngsPresent ? `/__batch-c-webp/png/${index}` : '',
+      outputUrl: `/__batch-c-webp/webp/${index}`
     });
     expect(result.naturalWidth, output).toBeGreaterThan(0);
     expect(result.naturalHeight, output).toBeGreaterThan(0);
     if (retainedPngsPresent) {
-      expect(result.rgbaEqual, `${source} -> ${output}; mismatch byte ${result.mismatchIndex}`).toBe(true);
+      if (fidelity === 'semantic') {
+        expect(
+          result.rgbaEqual,
+          `${source} -> ${output}; RGBA mismatch byte ${result.rgbaMismatchIndex}`
+        ).toBe(true);
+      } else {
+        expect(
+          result.alphaEqual,
+          `${source} -> ${output}; Alpha mismatch byte ${result.alphaMismatchIndex}`
+        ).toBe(true);
+      }
     }
   }
 
-  const emittedBySource = await losslessEmittedPaths();
-  expect(emittedBySource.size).toBe(batchCLosslessPairs.length);
+  const emittedBySource = await webpEmittedPaths();
+  expect(emittedBySource.size).toBe(batchCWebpPairs.length);
   const emittedDecode = await page.evaluate(async (urls) => Promise.all(urls.map(async (url) => {
     const image = new Image();
     image.src = url;
     await image.decode();
     return { url, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight };
-  })), batchCLosslessPairs.map(([, output]) => `/${emittedBySource.get(output) ?? ''}`));
+  })), batchCWebpPairs.map(([, output]) => `/${emittedBySource.get(output) ?? ''}`));
   for (const decoded of emittedDecode) {
     expect(decoded.naturalWidth, decoded.url).toBeGreaterThan(0);
     expect(decoded.naturalHeight, decoded.url).toBeGreaterThan(0);
@@ -422,8 +445,8 @@ test('Batch C WebP browser decode matches retained PNG pixels before source remo
 
 test('Batch C runtime loads WebP depth, mask, and Pattern layers without PNG requests', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Batch C runtime gate runs once in desktop Chromium');
-  const emittedBySource = await losslessEmittedPaths();
-  expect(emittedBySource.size).toBe(batchCLosslessPairs.length);
+  const emittedBySource = await webpEmittedPaths();
+  expect(emittedBySource.size).toBe(batchCWebpPairs.length);
   const expectedPaths = new Set([...emittedBySource.values()].map((entry) => `/${entry}`));
   const requestedPaths: string[] = [];
   const responseStatuses = new Map<string, number>();

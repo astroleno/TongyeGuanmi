@@ -201,117 +201,117 @@ export const frozenHomepageMedia = [
   },
   {
     source: 'assets/middle1_depth.webp',
-    category: 'lossless-webp',
+    category: 'semantic-lossless-webp',
     bytes: 425666,
     sha256: 'fc63bd5bd01af038defbb9aa4e894b4a7b77a71a858ad01d81a3f2d2ebdf39a7'
   },
   {
     source: 'assets/back2.webp',
-    category: 'lossless-webp',
-    bytes: 2264544,
-    sha256: '6689995f21cdd1cc2165e4b5b2f23d851c8ddff0a2f96caaf1adf2fe9f8c01e7'
+    category: 'presentation-webp',
+    bytes: 784596,
+    sha256: 'fdfd4fbda1abb39c2384b467c8160151e7a47871e7fd4b5c98574c38519f6403'
   },
   {
     source: 'assets/figure2-middle-depth.webp',
-    category: 'lossless-webp',
+    category: 'semantic-lossless-webp',
     bytes: 791940,
     sha256: '2a836e5139184d3f54bb095d8bcb4761092f277477856caf02e80378ec2c5c20'
   },
   {
     source: 'assets/figure2-depth-mask-atlas.webp',
-    category: 'lossless-webp',
+    category: 'semantic-lossless-webp',
     bytes: 11184,
     sha256: '96a25cac86ba680719051a308415696d7eae26d4361bfdafbab3c1179cf493ab'
   },
   {
     source: 'assets/figure2-middle-window-mask.webp',
-    category: 'lossless-webp',
+    category: 'semantic-lossless-webp',
     bytes: 1560,
     sha256: 'a582c9650c9ab3b2c8fa994e3f10057215896d4af950a97d0b3fd2553151be02'
   },
   {
     source: 'assets/aod_cloud-alpha.webp',
-    category: 'lossless-webp',
-    bytes: 1541418,
-    sha256: 'c3028a045131af107cc9576ac326fc470a88c4fb2e5d3896120ad901d9509e20'
+    category: 'presentation-webp',
+    bytes: 406046,
+    sha256: 'f2bfb1ea3fcfd0ee28e077ee7e14fb8fdeb0ac5d8641c1e11936faedd5fee57b'
   },
   {
     source: 'assets/aod_sun-alpha.webp',
-    category: 'lossless-webp',
-    bytes: 1452854,
-    sha256: '676d24ccaa0bdaafe29638d73230b4059409909fa32fd4a2650616b1869c823f'
+    category: 'presentation-webp',
+    bytes: 428132,
+    sha256: '73f9e3264cc014289608430c8846341d67c6141bff89e9d51702e5942e43a32d'
   },
   {
     source: 'assets/ph_background.webp',
-    category: 'lossless-webp',
-    bytes: 2305060,
-    sha256: '0ea983a861a30f82b76ad8584ed8999846313c4f85620b84d9eed9640a646c6d'
+    category: 'presentation-webp',
+    bytes: 525038,
+    sha256: '3495ef864eba9851c6e08afaa78f777bad1698a77867ae7bd7f56961092ec004'
   },
   {
     source: 'assets/ph_front-alpha.webp',
-    category: 'lossless-webp',
-    bytes: 1240376,
-    sha256: '9ad9c64f92e6389d9a0b7505be0d34704ed3492937e25589e67afaa9357d8c16'
+    category: 'presentation-webp',
+    bytes: 484606,
+    sha256: '48b3cdade0bdf056ad1fa1fc0843d779138b2c50460947150bb3a8354fef3881'
   },
   {
     source: 'assets/crane1_cloud2-alpha.webp',
-    category: 'lossless-webp',
-    bytes: 421534,
-    sha256: 'f7d9d1147aea5651559f9f042cb4f1caa0d7b1cf0b54f10c0b2ee98bd0182b64'
+    category: 'presentation-webp',
+    bytes: 90482,
+    sha256: '2322aa7f37955143d03a174d86427893c665fda036098e2e3a0fa3a6d57220fe'
   },
   {
     source: 'assets/crane1_arch-alpha.webp',
-    category: 'lossless-webp',
-    bytes: 467798,
-    sha256: 'cb3e0bb348bb7c33e1b5dbd11184fa5415c64765c0d0f8bcb0adcce099ffeda2'
+    category: 'presentation-webp',
+    bytes: 124118,
+    sha256: '3a7704cd259387522ec8b214ba0769b15e5534bebaf8b2832f1b2af2966af506'
   },
   {
     source: 'assets/crane1_cloud1-alpha.webp',
-    category: 'lossless-webp',
-    bytes: 557270,
-    sha256: '606a225a301fd51673b43ed81fbe314ea460ee10bc8f4cf9e4fd0a139dfb8432'
+    category: 'presentation-webp',
+    bytes: 130682,
+    sha256: '69d19155e25b505282a7365b679cb80c05112e8d0c0942e4d8761a58d9876e43'
   },
   {
     source: 'assets/crane1_cloud-front2-alpha.webp',
-    category: 'lossless-webp',
-    bytes: 437396,
-    sha256: '8bc4ec9467f3ca0fa5806dd7d4d7ee870dd3211759d8c8b431d9d0c89e553462'
+    category: 'presentation-webp',
+    bytes: 91568,
+    sha256: '1808401807194ad530b1fcfb9ad13f79cc969b6dc771f46d25232f58cdfc35ac'
   },
   {
     source: 'assets/patterns/alpha-layers/pattern-layer-alpha-02.webp',
-    category: 'lossless-webp',
-    bytes: 627728,
-    sha256: 'cf73b8e2dc523c17b5c6b19fe4d5d45cc09ca6ae766ecf8be2f3202a8c8f2575'
+    category: 'presentation-webp',
+    bytes: 69422,
+    sha256: 'f7b501e71a57c0020d81ceeb3378640f9cc8e9a53192338bd97cbb542bd8b835'
   },
   {
     source: 'assets/patterns/alpha-layers/pattern-layer-alpha-03.webp',
-    category: 'lossless-webp',
-    bytes: 798910,
-    sha256: '495fa3702a952356da1de6f4ecec7869375208605d10dde91acad992478df02b'
+    category: 'presentation-webp',
+    bytes: 139074,
+    sha256: '6bba6fee43d98ee5c57d79acb57f1d59d4856c2290910c469f3bc2fc0adc856e'
   },
   {
     source: 'assets/patterns/alpha-layers/pattern-layer-alpha-04.webp',
-    category: 'lossless-webp',
-    bytes: 1219762,
-    sha256: 'fd43a74d726c42d360c3c831609ae150eb9095ca5b173f586779741c87fc18d7'
+    category: 'presentation-webp',
+    bytes: 194858,
+    sha256: '15a2ad1b19761b39f97a31a7a1ad60786d807bc2456f82725f3d480e2a4df699'
   },
   {
     source: 'assets/patterns/alpha-layers/pattern-layer-alpha-05.webp',
-    category: 'lossless-webp',
-    bytes: 489920,
-    sha256: 'c26f5115d925e86fc9ba8e450df9a04a6a75f52766dfe987a7053e252e1d0ad9'
+    category: 'presentation-webp',
+    bytes: 131830,
+    sha256: 'efac96a95f6dbba3f1fcbe39d205c9a795180cbd341d0bb047ec4ece3319c6f8'
   },
   {
     source: 'assets/patterns/alpha-layers/pattern-layer-alpha-06.webp',
-    category: 'lossless-webp',
-    bytes: 694970,
-    sha256: 'd50ddd8702d4ee90cecd8bf6d9f76a7ca74238c507101d195b58be6f568ebf06'
+    category: 'presentation-webp',
+    bytes: 207136,
+    sha256: '5779ebc5d3fec78c4e994db1317e71c33cb75732a347c6afed6b3e844b7d2458'
   },
   {
     source: 'assets/hero-figure-poster.webp',
-    category: 'lossless-webp',
-    bytes: 561678,
-    sha256: '3fd1ceb4011892932a941c05f0d2d04c2859898256f0f97c8523046258c183df'
+    category: 'presentation-webp',
+    bytes: 213550,
+    sha256: '0998cbc66e989767ce2238d6d962c82907bd8f3d74e9eb4bfabe76506c324453'
   }
 ];
 
