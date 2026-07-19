@@ -6,6 +6,7 @@ import type {
   SceneModule,
   StageLayerRole
 } from '../../story/types';
+import { HOME_COPY } from '../../story/copy';
 import { createRadialInkIntroController, type RadialInkIntroController } from '../../transitions/shared/radialInkIntro';
 import {
   disposeTimelineVideoDriver,
@@ -39,13 +40,7 @@ const HERO_FIGURE_POSTER = new URL('../../../../assets/hero-figure-poster.webp',
 const HERO_VIDEO_START_SECONDS = 0;
 const HERO_VIDEO_END_EPSILON = 0.02;
 export const HERO_PATTERN_VIDEO_END_SECONDS = 0.9;
-export const HERO_COPY = [
-  '同',
-  '野',
-  '观',
-  '幂',
-  '你的同行不是更聪明，只是更早把 AI 用进了生意里。'
-] as const;
+export const HERO_COPY = HOME_COPY;
 
 type HeroVideoElement = HTMLVideoElement & {
   __r4HeroPendingTime?: number;

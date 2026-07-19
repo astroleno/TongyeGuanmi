@@ -300,6 +300,7 @@ export function PhoneStoryShell({ validationMode }: PhoneStoryShellProps = {}) {
       data-phone-story-shell="true"
       data-phone-validation-mode={validationMode}
       data-phone-motion={reducedMotion ? 'reduce' : 'force'}
+      data-phone-checkpoint={loaderHidden ? undefined : 'loader'}
     >
       {!loaderHidden && (
         <StoryLoader

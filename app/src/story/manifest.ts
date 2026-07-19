@@ -2,6 +2,7 @@ import migrationInventory from '../../../docs/react-refactor/inventory/migration
 import interruptibleCandidates from '../../../docs/react-refactor/inventory/interruptible-candidates.json';
 import copyReference from '../../../docs/react-refactor/inventory/copy-reference.json';
 import { canonicalSpine } from './canonical-spine';
+import { METHOD_COPY as sharedMethodCopy } from './copy';
 import { parseInventoryManifestSeed, type InventoryManifestSeed } from './inventory-schema';
 import {
   CRANE_CONTACT_DURATION_MS,
@@ -36,19 +37,11 @@ export const inventoryManifestSeed = parseInventoryManifestSeed({
   copyReference
 });
 
-const methodCopySection = inventoryManifestSeed.copySections.find(
-  (section) => section.sectionId === 'method'
-);
-
-if (!methodCopySection) {
-  throw new Error('R-1 method copy seed is missing');
-}
-
 // The inventory is also the no-JS copy authority. Keep the production Method
 // holds on those same strings instead of duplicating them across lazy chunks.
-export const METHOD_TOP_COPY = methodCopySection.normalizedText.slice(0, 8);
-export const METHOD_STEPS_COPY = methodCopySection.normalizedText.slice(8, 23);
-export const METHOD_COPY = [...METHOD_TOP_COPY, ...METHOD_STEPS_COPY] as const;
+export const METHOD_COPY = sharedMethodCopy.slice(0, 23);
+export const METHOD_TOP_COPY = METHOD_COPY.slice(0, 8);
+export const METHOD_STEPS_COPY = METHOD_COPY.slice(8, 23);
 
 const defaults = {
   buildTimeoutMs: 1800,

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { FRONT_HALF_CHECKPOINT_IDS } from '../../story/semantic-checkpoints';
-import { PHONE_STAGE_STOPS, frontHalfCheckpointIndex, phoneStageFrame } from './phone-stage-timeline';
+import {
+  PHONE_STAGE_STOPS,
+  frontHalfCheckpointIndex,
+  phoneAodCheckpointForMethodProgress,
+  phoneAodCompletionCheckpoint,
+  phoneStageFrame
+} from './phone-stage-timeline';
 
 describe('phone stage timeline', () => {
   it('maps the accepted forward Route B stops to named checkpoints', () => {
@@ -45,5 +51,30 @@ describe('phone stage timeline', () => {
       checkpoint: 'aod-stage',
       ownership: { visible: ['aod-animation'] }
     });
+  });
+
+  it('publishes AOD media-clock and Method checkpoints outside the scroll rail', () => {
+    expect(phoneAodCheckpointForMethodProgress(0)).toBe('aod-autoplay');
+    expect(phoneAodCheckpointForMethodProgress(0.001)).toBe('aod-autoplay');
+    expect(phoneAodCheckpointForMethodProgress(0.002)).toBe('aod-to-method');
+    expect(phoneAodCompletionCheckpoint(1)).toBe('method-intro');
+    expect(phoneAodCompletionCheckpoint(-1)).toBe('aod-stage');
+  });
+
+  it('completes the full named front-half trace without relying on scroll after AOD starts', () => {
+    const trace = [
+      'loader',
+      phoneStageFrame(0).checkpoint,
+      phoneStageFrame(PHONE_STAGE_STOPS.heroMotionEnd + 0.01).checkpoint,
+      phoneStageFrame(PHONE_STAGE_STOPS.heroPatternEnd + 0.01).checkpoint,
+      phoneStageFrame(PHONE_STAGE_STOPS.patternStarStart + 0.01).checkpoint,
+      phoneStageFrame(PHONE_STAGE_STOPS.patternStarEnd + 0.01).checkpoint,
+      phoneStageFrame(PHONE_STAGE_STOPS.starAodStart + 0.01).checkpoint,
+      phoneStageFrame(PHONE_STAGE_STOPS.starAodEnd + 0.01).checkpoint,
+      phoneStageFrame(1).checkpoint,
+      phoneAodCheckpointForMethodProgress(0.5),
+      phoneAodCompletionCheckpoint(1)
+    ];
+    expect(trace).toEqual(FRONT_HALF_CHECKPOINT_IDS);
   });
 });

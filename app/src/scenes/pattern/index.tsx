@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
+import { BELIEF_COPY } from '../../story/copy';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 import { bindSceneMotion, type SceneMotionBinding } from '../../stage/scene-motion';
 import {
@@ -11,11 +12,7 @@ import {
 
 export { patternCenterForViewport } from './patternBloomRenderer';
 
-export const PATTERN_COPY = [
-  '一句话讲清我们干什么',
-  '让 AI 从一场培训，变成账上的数字。',
-  '我们不卖课、不卖软件，而是进到你的业务现场，把 AI 做成团队天天在用、月底对得上账的东西。'
-] as const;
+export const PATTERN_COPY = BELIEF_COPY.slice(0, 3);
 
 export type PatternRenderState = {
   progress: number;

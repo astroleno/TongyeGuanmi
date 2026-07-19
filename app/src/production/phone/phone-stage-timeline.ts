@@ -160,3 +160,16 @@ export function phoneStageFrame(rawProgress: number, reducedMotion = false): Pho
 export function frontHalfCheckpointIndex(id: FrontHalfCheckpointId): number {
   return FRONT_HALF_CHECKPOINT_IDS.indexOf(id);
 }
+
+/**
+ * AOD owns its media clock after the rail reaches the autoplay trigger.
+ * Method becomes a semantic handoff only once its adapter has a non-zero
+ * entrance value, keeping this timeline independent of AOD-local timing.
+ */
+export function phoneAodCheckpointForMethodProgress(methodProgress: number): FrontHalfCheckpointId {
+  return clamp(methodProgress) > 0.001 ? 'aod-to-method' : 'aod-autoplay';
+}
+
+export function phoneAodCompletionCheckpoint(direction: 1 | -1): FrontHalfCheckpointId {
+  return direction === 1 ? 'method-intro' : 'aod-stage';
+}

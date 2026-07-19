@@ -63,7 +63,7 @@ so rotation cannot swap an already selected presentation family.
 The production budget verifier now measures each mutually exclusive selected
 presentation shell, while retaining all emitted assets in its audit report and
 enforcing the loader-ink cap separately. No budget threshold was increased.
-The latest production build reports 10,135 bytes of JavaScript headroom (above
+The latest production build reports 10,488 bytes of JavaScript headroom (above
 the required 4,096 bytes). No media asset was replaced, re-encoded, or added.
 `PortraitScrollSpike.css` was removed early because the thin wrapper no longer
 imports it; remaining spike aliases stay only for characterization through the
@@ -72,9 +72,19 @@ physical acceptance gate.
 Validation completed for this implementation:
 
 - `pnpm -C app typecheck`
-- `pnpm -C app test` — 114 files, 709 tests
+- `pnpm -C app test` — 115 files, 712 tests
 - `pnpm -C app lint`
 - `pnpm -C app build` — module-boundary, media, release, and performance gates pass
+
+Follow-up architecture audit on 2026-07-20 tightened three Route B contracts:
+
+- desktop Hero, Pattern, and Method now derive their front-half copy from the
+  same canonical inventory consumed by phone adapters;
+- AOD's media-owned interval now publishes `aod-to-method` and
+  `method-intro` checkpoints instead of leaving the rail at `aod-autoplay`;
+- the temporary AOD input lock is scoped to the phone shell and attaches only
+  while media owns time, so native reading has no global non-passive
+  `touchmove` listener.
 
 The only outstanding acceptance evidence is a physical iPhone Safari run of the
 extracted formal phone shell. It must capture the named checkpoint trace,

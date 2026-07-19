@@ -3,7 +3,13 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
 import { createPhoneScrollSnapLock, type PhoneScrollSnapLock } from './phone-scroll-snap-lock';
-import { phoneStageFrame, type PhoneStageFrame } from './phone-stage-timeline';
+import {
+  PHONE_STAGE_STOPS,
+  phoneAodCheckpointForMethodProgress,
+  phoneAodCompletionCheckpoint,
+  phoneStageFrame,
+  type PhoneStageFrame
+} from './phone-stage-timeline';
 import type {
   PhoneAodAdapterHandle,
   PhoneSceneAdapterHandle,
@@ -55,6 +61,17 @@ function setSceneVisibility(element: HTMLElement | null, visible: boolean, zInde
   element.setAttribute('aria-hidden', visible ? 'false' : 'true');
 }
 
+function aodReverseStartTolerance(start: number, end: number): number {
+  // The media lock is intentionally just before the rail endpoint. Accept a
+  // real reverse gesture from that anchor, but ignore a small toolbar-only
+  // ScrollTrigger normalization delta.
+  return Math.max(32, Math.abs(end - start) * 0.02);
+}
+
+function phoneRailAnchor(start: number, end: number, progress: number): number {
+  return start + (end - start) * progress;
+}
+
 /**
  * Owns native rail sampling and generic adapter lifecycle calls. It has no
  * scene markup or asset URL knowledge; individual adapters remain the media
@@ -95,6 +112,17 @@ export function usePhoneStageRuntime(options: PhoneStageRuntimeOptions): PhoneSt
     setStageActive(next);
   }, []);
 
+  const publishCheckpoint = useCallback((checkpoint: FrontHalfCheckpointId) => {
+    const current = optionsRef.current;
+    const root = current.rootRef.current;
+    if (!root) return;
+    root.dataset.phoneCheckpoint = checkpoint;
+    if (checkpointRef.current !== checkpoint) {
+      checkpointRef.current = checkpoint;
+      current.onCheckpoint?.(checkpoint);
+    }
+  }, []);
+
   const applyFrame = useCallback((frame: PhoneStageFrame) => {
     const current = optionsRef.current;
     const root = current.rootRef.current;
@@ -116,7 +144,9 @@ export function usePhoneStageRuntime(options: PhoneStageRuntimeOptions): PhoneSt
       root.dataset.phoneStageOwner = ownership.key;
     }
     root.dataset.phoneStageProgress = frame.progress.toFixed(4);
-    root.dataset.phoneCheckpoint = frame.checkpoint;
+    // Once AOD has completed, document-flow Method owns the semantic position.
+    // A rail refresh at its endpoint must not overwrite it with AOD autoplay.
+    if (aodRunRef.current === 'idle') publishCheckpoint(frame.checkpoint);
     root.dataset.phoneDocumentSurface = frame.navigationScene;
     document.documentElement.dataset.phoneDocumentSurface = frame.navigationScene;
     current.sceneRefs.hero.current?.update(frame.heroProgress);
@@ -128,11 +158,7 @@ export function usePhoneStageRuntime(options: PhoneStageRuntimeOptions): PhoneSt
     current.transitionRefs.heroPattern.current?.render(frame.heroPatternProgress);
     current.transitionRefs.patternStarMap.current?.render(frame.patternStarProgress);
     current.transitionRefs.starMapAod.current?.render(frame.starAodProgress);
-    if (checkpointRef.current !== frame.checkpoint) {
-      checkpointRef.current = frame.checkpoint;
-      current.onCheckpoint?.(frame.checkpoint);
-    }
-  }, []);
+  }, [publishCheckpoint]);
 
   const beginAodForward = useCallback(() => {
     const current = optionsRef.current;
@@ -142,7 +168,11 @@ export function usePhoneStageRuntime(options: PhoneStageRuntimeOptions): PhoneSt
     current.methodRef.current?.update(0);
     setAodRunState('forward');
     publishStageActive(true);
-    const anchor = stageStartRef.current + (stageEndRef.current - stageStartRef.current) * 0.985;
+    const anchor = phoneRailAnchor(
+      stageStartRef.current,
+      stageEndRef.current,
+      PHONE_STAGE_STOPS.aodAutoplayStart
+    );
     snapLockRef.current?.lock(anchor);
     aod.startAutoplay(1);
   }, [publishStageActive, setAodRunState]);
@@ -154,17 +184,22 @@ export function usePhoneStageRuntime(options: PhoneStageRuntimeOptions): PhoneSt
     if (!aod) return;
     setAodRunState('reverse');
     publishStageActive(true);
+    publishCheckpoint(phoneAodCheckpointForMethodProgress(1));
     snapLockRef.current?.lock(anchor);
     aod.startAutoplay(-1);
-  }, [publishStageActive, setAodRunState]);
+  }, [publishCheckpoint, publishStageActive, setAodRunState]);
 
   const onAodProgress = useCallback((progress: number) => {
     const current = optionsRef.current;
     aodProgressRef.current = Math.min(1, Math.max(0, progress));
-    current.methodRef.current?.update(current.mapAodToMethod(aodProgressRef.current));
+    const methodProgress = current.mapAodToMethod(aodProgressRef.current);
+    current.methodRef.current?.update(methodProgress);
     const root = current.rootRef.current;
-    if (root) root.dataset.phoneAodMethodVisible = String(aodProgressRef.current > 0.8);
-  }, []);
+    if (root) root.dataset.phoneAodMethodVisible = String(methodProgress > 0.001);
+    if (aodRunRef.current === 'forward' || aodRunRef.current === 'reverse') {
+      publishCheckpoint(phoneAodCheckpointForMethodProgress(methodProgress));
+    }
+  }, [publishCheckpoint]);
 
   const onAodComplete = useCallback((direction: 1 | -1) => {
     if (direction === 1) {
@@ -173,9 +208,15 @@ export function usePhoneStageRuntime(options: PhoneStageRuntimeOptions): PhoneSt
     } else {
       setAodRunState('idle');
       optionsRef.current.methodRef.current?.update(0);
+      snapLockRef.current?.lock(phoneRailAnchor(
+        stageStartRef.current,
+        stageEndRef.current,
+        PHONE_STAGE_STOPS.starAodEnd
+      ));
     }
+    publishCheckpoint(phoneAodCompletionCheckpoint(direction));
     snapLockRef.current?.release();
-  }, [publishStageActive, setAodRunState]);
+  }, [publishCheckpoint, publishStageActive, setAodRunState]);
 
   useEffect(() => {
     const root = options.rootRef.current;
@@ -219,7 +260,8 @@ export function usePhoneStageRuntime(options: PhoneStageRuntimeOptions): PhoneSt
         event.pointerType === 'touch'
         && !interactive
         && aodRunRef.current === 'complete'
-        && Math.abs(window.scrollY - stageEndRef.current) <= 32
+        && Math.abs(window.scrollY - stageEndRef.current)
+          <= aodReverseStartTolerance(stageStartRef.current, stageEndRef.current)
       ) {
         reversePointer = event.pointerId;
         reverseStartY = event.clientY;
@@ -263,16 +305,25 @@ export function usePhoneStageRuntime(options: PhoneStageRuntimeOptions): PhoneSt
           !optionsRef.current.reducedMotion
           && self.direction < 0
           && aodRunRef.current === 'complete'
+          && window.scrollY < stageEndRef.current
+            - aodReverseStartTolerance(stageStartRef.current, stageEndRef.current)
         ) beginAodReverse();
       },
       onRefresh: (self) => {
         stageStartRef.current = self.start;
         stageEndRef.current = self.end;
         applyFrame(phoneStageFrame(self.progress, optionsRef.current.reducedMotion));
-        publishStageActive(self.progress < 1 || aodRunRef.current === 'forward' || aodRunRef.current === 'reverse');
+        publishStageActive(
+          aodRunRef.current !== 'complete'
+            && (self.progress < 1 || aodRunRef.current === 'forward' || aodRunRef.current === 'reverse')
+        );
       },
-      onEnter: () => publishStageActive(true),
-      onEnterBack: () => publishStageActive(true),
+      onEnter: () => {
+        if (aodRunRef.current !== 'complete') publishStageActive(true);
+      },
+      onEnterBack: () => {
+        if (aodRunRef.current !== 'complete') publishStageActive(true);
+      },
       onLeave: () => publishStageActive(false)
     });
     applyFrame(phoneStageFrame(trigger.progress, options.reducedMotion));
