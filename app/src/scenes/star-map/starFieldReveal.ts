@@ -3,6 +3,12 @@ type StarFieldRevealOptions = {
   sourceUrl: string;
   autoplay?: boolean;
   config?: Partial<StarFieldRevealConfig>;
+  /**
+   * Optional presentation viewport. The source and Perlin layers are both
+   * cover-fitted into this exact pixel box, avoiding a CSS-stretched source
+   * with a separately-scaled dynamic overlay on portrait screens.
+   */
+  viewport?: () => Readonly<{ width: number; height: number }> | null | undefined;
 };
 
 type StarFieldRevealConfig = {
@@ -14,7 +20,18 @@ type StarFieldRevealConfig = {
     gamma: number;
     softness: number;
   };
+  glow: {
+    wideBlur: number;
+    mediumBlur: number;
+    coreBlur: number;
+    screenBlur: number;
+    wideAlpha: number;
+    mediumAlpha: number;
+    coreAlpha: number;
+    screenAlpha: number;
+  };
   noise: {
+    profile: 'gradient-fbm' | 'desktop-r5';
     seed: number;
     scale: number;
     warpScale: number;
@@ -24,38 +41,122 @@ type StarFieldRevealConfig = {
     driftY: number;
     warpSpeedX: number;
     warpSpeedY: number;
+    octaves: number;
+    lacunarity: number;
+    gain: number;
+    ridgeMix: number;
     thresholdLow: number;
     thresholdHigh: number;
   };
 };
 
+export type StarFieldCamera = Readonly<{
+  /** Clockwise degrees applied to both the source map and its Perlin layer. */
+  rotationDegrees: number;
+  /** Uniform camera zoom. A non-uniform scale is never permitted here. */
+  zoom: number;
+}>;
+
+export type StarFieldCoverTransform = Readonly<{
+  rotationRadians: number;
+  scale: number;
+  rotatedWidth: number;
+  rotatedHeight: number;
+}>;
+
 type RenderBackgroundOptions = {
   timeSeconds?: number;
   strength?: number;
   noiseFloor?: number;
+  camera?: Partial<StarFieldCamera>;
+  drawSource?: boolean;
+  sourceOpacity?: number;
 };
+
+const DEFAULT_CAMERA: StarFieldCamera = Object.freeze({
+  rotationDegrees: 0,
+  zoom: 1
+});
+const HIGHLIGHT_OUTPUT_SCALE = 1;
+const OCTAVE_ROTATIONS = Object.freeze([
+  Object.freeze({ cosine: 1, sine: 0 }),
+  Object.freeze({ cosine: .7314, sine: .6820 }),
+  Object.freeze({ cosine: -.2181, sine: .9759 }),
+  Object.freeze({ cosine: -.9239, sine: .3827 }),
+  Object.freeze({ cosine: -.5736, sine: -.8192 })
+]);
+
+/**
+ * Derives one uniform cover transform for every raster that belongs to the
+ * Star Map. This is deliberately shared by the static map and the generated
+ * Perlin highlight so a portrait camera can rotate the horizontal source
+ * without introducing stretch or layer drift.
+ */
+export function starFieldCoverTransform(
+  sourceWidth: number,
+  sourceHeight: number,
+  outputWidth: number,
+  outputHeight: number,
+  camera: Partial<StarFieldCamera> = {}
+): StarFieldCoverTransform {
+  const width = Math.max(1, sourceWidth);
+  const height = Math.max(1, sourceHeight);
+  const viewportWidth = Math.max(1, outputWidth);
+  const viewportHeight = Math.max(1, outputHeight);
+  const rotationDegrees = Number.isFinite(camera.rotationDegrees)
+    ? camera.rotationDegrees ?? DEFAULT_CAMERA.rotationDegrees
+    : DEFAULT_CAMERA.rotationDegrees;
+  const zoom = Math.max(.01, Number.isFinite(camera.zoom) ? camera.zoom ?? DEFAULT_CAMERA.zoom : DEFAULT_CAMERA.zoom);
+  const rotationRadians = rotationDegrees * Math.PI / 180;
+  const cosine = Math.abs(Math.cos(rotationRadians));
+  const sine = Math.abs(Math.sin(rotationRadians));
+  const rotatedWidth = width * cosine + height * sine;
+  const rotatedHeight = width * sine + height * cosine;
+
+  return {
+    rotationRadians,
+    scale: Math.max(viewportWidth / rotatedWidth, viewportHeight / rotatedHeight) * zoom,
+    rotatedWidth,
+    rotatedHeight
+  };
+}
 
 const DEFAULT_CONFIG: StarFieldRevealConfig = {
   revealDurationMs: 3600,
   loopTransitionMs: 1400,
-  noiseMaskWidth: 420,
+  noiseMaskWidth: 192,
   highlight: {
     threshold: 120,
     gamma: 3.05,
     softness: 23
   },
+  glow: {
+    wideBlur: 72,
+    mediumBlur: 26,
+    coreBlur: 4,
+    screenBlur: 0,
+    wideAlpha: 1.08,
+    mediumAlpha: .92,
+    coreAlpha: .62,
+    screenAlpha: .52
+  },
   noise: {
+    profile: 'gradient-fbm',
     seed: 42.7,
-    scale: 3.8,
-    warpScale: 2.1,
-    warpAmount: .42,
+    scale: 2.72,
+    warpScale: 1.34,
+    warpAmount: .86,
     phaseSpeed: .46,
-    driftX: .06,
-    driftY: .34,
-    warpSpeedX: .09,
-    warpSpeedY: .08,
-    thresholdLow: .45,
-    thresholdHigh: .55
+    driftX: .028,
+    driftY: .052,
+    warpSpeedX: .031,
+    warpSpeedY: .026,
+    octaves: 4,
+    lacunarity: 2.07,
+    gain: .51,
+    ridgeMix: .17,
+    thresholdLow: .41,
+    thresholdHigh: .64
   }
 };
 
@@ -71,12 +172,14 @@ export class StarFieldReveal {
   readonly sourceUrl: string;
   readonly config: StarFieldRevealConfig;
   readonly autoplay: boolean;
+  readonly viewport: StarFieldRevealOptions['viewport'];
 
   image: HTMLImageElement | null = null;
   sourceCanvas: HTMLCanvasElement | null = null;
   sourceData: ImageData | null = null;
   highlightCanvas: HTMLCanvasElement | null = null;
   dynamicHighlightCanvas: HTMLCanvasElement | null = null;
+  cameraHighlightCanvas: HTMLCanvasElement | null = null;
   noiseMaskCanvas: HTMLCanvasElement | null = null;
   rafId = 0;
   ready = false;
@@ -87,6 +190,7 @@ export class StarFieldReveal {
     this.sourceUrl = options.sourceUrl;
     this.config = mergeConfig(DEFAULT_CONFIG, options.config ?? {});
     this.autoplay = options.autoplay ?? true;
+    this.viewport = options.viewport;
   }
 
   init(): void {
@@ -108,10 +212,16 @@ export class StarFieldReveal {
     const timeSeconds = options.timeSeconds ?? performance.now() / 1000;
     const strength = options.strength ?? 1;
     const noiseFloor = options.noiseFloor ?? 0;
+    const camera = options.camera ?? DEFAULT_CAMERA;
 
+    this.resizeOutput();
     this.clear();
-    this.ctx.drawImage(this.sourceCanvas, 0, 0);
-    this.renderNoiseOverlay(timeSeconds, strength, { noiseFloor });
+    if (options.drawSource !== false) {
+      this.ctx.globalAlpha = clamp(options.sourceOpacity ?? 1, 0, 1);
+      this.drawCoveredCanvas(this.sourceCanvas, camera);
+      this.ctx.globalAlpha = 1;
+    }
+    this.renderNoiseOverlay(timeSeconds, strength, { noiseFloor }, camera);
   }
 
   private loadImage(): void {
@@ -132,9 +242,6 @@ export class StarFieldReveal {
     if (!this.image) {
       return;
     }
-    this.canvas.width = this.image.naturalWidth;
-    this.canvas.height = this.image.naturalHeight;
-
     this.sourceCanvas = createCanvas(this.image.naturalWidth, this.image.naturalHeight);
     const sourceCtx = this.sourceCanvas.getContext('2d', { willReadFrequently: true });
     if (!sourceCtx) {
@@ -147,45 +254,48 @@ export class StarFieldReveal {
     this.buildHighlightSource();
 
     this.dynamicHighlightCanvas = createCanvas(this.image.naturalWidth, this.image.naturalHeight);
+    this.cameraHighlightCanvas = createCanvas(1, 1);
     this.noiseMaskCanvas = createCanvas(
       this.config.noiseMaskWidth,
       Math.round(this.config.noiseMaskWidth * this.image.naturalHeight / this.image.naturalWidth)
     );
+    this.resizeOutput();
   }
 
-  private renderNoiseOverlay(timeSeconds: number, strength: number, options: { noiseFloor?: number } = {}): void {
-    if (!this.ctx || !this.dynamicHighlightCanvas) {
+  private renderNoiseOverlay(
+    timeSeconds: number,
+    strength: number,
+    options: { noiseFloor?: number } = {},
+    camera: Partial<StarFieldCamera> = DEFAULT_CAMERA
+  ): void {
+    if (
+      !this.ctx
+      || !this.dynamicHighlightCanvas
+      || !this.cameraHighlightCanvas
+    ) {
       return;
     }
     this.buildDynamicHighlight(timeSeconds, options);
+    this.renderCameraOverlays(camera);
 
     const passes = Math.max(1, Math.ceil(strength));
     const passStrength = strength / passes;
+    const glow = this.config.glow;
 
     for (let index = 0; index < passes; index += 1) {
+      // Match the horizontal production treatment: Perlin only gates the
+      // extracted bright pixels. The source plate itself never participates
+      // in the noise field, so dark map regions remain stable and crisp.
       this.ctx.globalCompositeOperation = 'lighter';
-      this.drawCanvasLayer(this.dynamicHighlightCanvas, {
-        blur: 72,
-        scale: 1.012,
-        alpha: 1.08 * passStrength
-      });
-      this.drawCanvasLayer(this.dynamicHighlightCanvas, {
-        blur: 26,
-        scale: 1.004,
-        alpha: .92 * passStrength
-      });
-      this.drawCanvasLayer(this.dynamicHighlightCanvas, {
-        blur: 4,
-        scale: 1,
-        alpha: .62 * passStrength
-      });
-
+      this.drawOutputGlow(this.cameraHighlightCanvas, glow.wideBlur, glow.wideAlpha * passStrength);
+      this.drawOutputGlow(this.cameraHighlightCanvas, glow.mediumBlur, glow.mediumAlpha * passStrength);
+      this.drawOutputGlow(this.cameraHighlightCanvas, glow.coreBlur, glow.coreAlpha * passStrength);
       this.ctx.globalCompositeOperation = 'screen';
-      this.drawCanvasLayer(this.dynamicHighlightCanvas, {
-        blur: 0,
-        scale: 1,
-        alpha: .52 * passStrength
-      });
+      this.drawOutputGlow(
+        this.cameraHighlightCanvas,
+        glow.screenBlur,
+        glow.screenAlpha * passStrength
+      );
     }
     this.resetContext();
   }
@@ -246,11 +356,13 @@ export class StarFieldReveal {
       for (let x = 0; x < width; x += 1) {
         const nx = x / width;
         const ny = y / height;
-        const field = this.animatedNoiseField(nx, ny, timeSeconds);
+        const field = this.animatedNoiseField(nx, ny, timeSeconds, width / height);
         const maskValue = smoothstep(thresholdLow, thresholdHigh, field);
         const maskAlpha = lerp(options.noiseFloor ?? 0, 1, maskValue);
         const index = (y * width + x) * 4;
 
+        // destination-in reads the mask alpha only. Keep RGB neutral so the
+        // mask can never tint the highlight on browser canvas fallbacks.
         data[index] = 255;
         data[index + 1] = 255;
         data[index + 2] = 255;
@@ -269,43 +381,199 @@ export class StarFieldReveal {
     dynamicCtx.globalCompositeOperation = 'source-over';
   }
 
-  private animatedNoiseField(nx: number, ny: number, timeSeconds: number): number {
+  private animatedNoiseField(
+    nx: number,
+    ny: number,
+    timeSeconds: number,
+    aspectRatio: number
+  ): number {
     const noise = this.config.noise;
-    const warpX = noise2D(
-      nx * noise.warpScale + timeSeconds * noise.warpSpeedX,
-      ny * noise.warpScale - timeSeconds * noise.warpSpeedY,
-      8.3
-    ) - .5;
-    const warpY = noise2D(
-      nx * noise.warpScale - timeSeconds * noise.warpSpeedY,
-      ny * noise.warpScale + timeSeconds * noise.warpSpeedX,
-      14.9
-    ) - .5;
-    const phase = timeSeconds * noise.phaseSpeed;
-    const seedIndex = Math.floor(phase);
-    const seedMix = smoother(phase - seedIndex);
-    const x = nx * noise.scale + warpX * noise.warpAmount + timeSeconds * noise.driftX;
-    const y = ny * noise.scale + warpY * noise.warpAmount + timeSeconds * noise.driftY;
-    const a = noise2D(x, y, noise.seed + seedIndex * 19.31);
-    const b = noise2D(x, y, noise.seed + (seedIndex + 1) * 19.31);
+    if (noise.profile === 'desktop-r5') {
+      // Preserve the exact R5 desktop mask motion before the shared camera
+      // rotates both source and highlight into the portrait viewport.
+      const warpX = desktopNoise2D(
+        nx * noise.warpScale + timeSeconds * noise.warpSpeedX,
+        ny * noise.warpScale - timeSeconds * noise.warpSpeedY,
+        8.3
+      ) - .5;
+      const warpY = desktopNoise2D(
+        nx * noise.warpScale - timeSeconds * noise.warpSpeedY,
+        ny * noise.warpScale + timeSeconds * noise.warpSpeedX,
+        14.9
+      ) - .5;
+      const phase = timeSeconds * noise.phaseSpeed;
+      const seedIndex = Math.floor(phase);
+      const seedMix = smoother(phase - seedIndex);
+      const x = nx * noise.scale + warpX * noise.warpAmount + timeSeconds * noise.driftX;
+      const y = ny * noise.scale + warpY * noise.warpAmount + timeSeconds * noise.driftY;
+      const a = desktopNoise2D(x, y, noise.seed + seedIndex * 19.31);
+      const b = desktopNoise2D(x, y, noise.seed + (seedIndex + 1) * 19.31);
 
-    return lerp(a, b, seedMix);
+      return lerp(a, b, seedMix);
+    }
+
+    // Noise coordinates are source-pixel isotropic before the shared camera
+    // rotates them. Normalized x/y alone made the field look like a regular
+    // stretched grid on a 16:9 map.
+    const px = nx * Math.max(.01, aspectRatio);
+    const py = ny;
+    const warpX = fractalPerlin2D(
+      px * noise.warpScale + timeSeconds * noise.warpSpeedX,
+      py * noise.warpScale - timeSeconds * noise.warpSpeedY,
+      noise.seed + 17.3,
+      2,
+      2.03,
+      .54
+    ) - .5;
+    const warpY = fractalPerlin2D(
+      px * noise.warpScale - timeSeconds * noise.warpSpeedY,
+      py * noise.warpScale + timeSeconds * noise.warpSpeedX,
+      noise.seed + 61.7,
+      2,
+      2.11,
+      .52
+    ) - .5;
+    const x = px * noise.scale + warpX * noise.warpAmount + timeSeconds * noise.driftX;
+    const y = py * noise.scale + warpY * noise.warpAmount + timeSeconds * noise.driftY;
+    const base = fractalPerlin2D(
+      x,
+      y,
+      noise.seed,
+      noise.octaves,
+      noise.lacunarity,
+      noise.gain
+    );
+    const broad = fractalPerlin2D(
+      x * .43 - timeSeconds * .011,
+      y * .43 + timeSeconds * .014,
+      noise.seed + 101.9,
+      3,
+      1.97,
+      .56
+    );
+    const ridgeSource = fractalPerlin2D(
+      x * 1.31 + warpY * .38,
+      y * 1.31 - warpX * .38,
+      noise.seed + 233.1,
+      2,
+      2.17,
+      .48
+    );
+    const ridge = 1 - Math.abs(ridgeSource * 2 - 1);
+
+    return clamp(
+      base * (1 - noise.ridgeMix - .24)
+        + broad * .24
+        + ridge * noise.ridgeMix,
+      0,
+      1
+    );
   }
 
-  private drawCanvasLayer(layerCanvas: HTMLCanvasElement, { blur, scale, alpha }: { blur: number; scale: number; alpha: number }): void {
+  private renderCameraOverlays(camera: Partial<StarFieldCamera>): void {
+    if (
+      !this.cameraHighlightCanvas
+      || !this.dynamicHighlightCanvas
+    ) {
+      return;
+    }
+    const outputWidth = Math.max(1, Math.round(this.canvas.width * HIGHLIGHT_OUTPUT_SCALE));
+    const outputHeight = Math.max(1, Math.round(this.canvas.height * HIGHLIGHT_OUTPUT_SCALE));
+    resizeCanvas(
+      this.cameraHighlightCanvas,
+      outputWidth,
+      outputHeight
+    );
+    const highlightCtx = this.cameraHighlightCanvas.getContext('2d');
+    if (!highlightCtx) {
+      return;
+    }
+    highlightCtx.clearRect(0, 0, this.cameraHighlightCanvas.width, this.cameraHighlightCanvas.height);
+    this.drawCameraCanvasTo(
+      highlightCtx,
+      this.dynamicHighlightCanvas,
+      this.cameraHighlightCanvas.width,
+      this.cameraHighlightCanvas.height,
+      camera
+    );
+  }
+
+  private drawOutputGlow(layerCanvas: HTMLCanvasElement, blur: number, alpha: number): void {
     if (!this.ctx || alpha <= .002) {
       return;
     }
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    const drawWidth = width * scale;
-    const drawHeight = height * scale;
-    const x = (width - drawWidth) / 2;
-    const y = (height - drawHeight) / 2;
 
+    this.ctx.save();
     this.ctx.globalAlpha = clamp(alpha, 0, 1);
+    // Keep the desktop R5 luminance response. Portrait-specific softness is
+    // expressed through the configured blur radii, not a global plate filter.
     this.ctx.filter = `blur(${Math.max(0, blur)}px) brightness(1.18)`;
-    this.ctx.drawImage(layerCanvas, x, y, drawWidth, drawHeight);
+    this.ctx.drawImage(layerCanvas, 0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.restore();
+  }
+
+  private drawCoveredCanvas(layerCanvas: HTMLCanvasElement, camera: Partial<StarFieldCamera>): void {
+    if (!this.ctx) {
+      return;
+    }
+    this.drawCameraCanvas(layerCanvas, camera);
+  }
+
+  private drawCameraCanvas(layerCanvas: HTMLCanvasElement, camera: Partial<StarFieldCamera>): void {
+    if (!this.ctx) {
+      return;
+    }
+    this.drawCameraCanvasTo(
+      this.ctx,
+      layerCanvas,
+      this.canvas.width,
+      this.canvas.height,
+      camera
+    );
+  }
+
+  private drawCameraCanvasTo(
+    target: CanvasRenderingContext2D,
+    layerCanvas: HTMLCanvasElement,
+    outputWidth: number,
+    outputHeight: number,
+    camera: Partial<StarFieldCamera>
+  ): void {
+    const transform = starFieldCoverTransform(
+      layerCanvas.width,
+      layerCanvas.height,
+      outputWidth,
+      outputHeight,
+      camera
+    );
+    target.save();
+    target.imageSmoothingEnabled = true;
+    target.imageSmoothingQuality = 'high';
+    target.translate(outputWidth / 2, outputHeight / 2);
+    target.rotate(transform.rotationRadians);
+    // One scalar is shared by x and y. Overflow is clipped by the output
+    // canvas; the source is never resized non-uniformly to fit portrait.
+    target.scale(transform.scale, transform.scale);
+    target.drawImage(layerCanvas, -layerCanvas.width / 2, -layerCanvas.height / 2);
+    target.restore();
+  }
+
+  private resizeOutput(): void {
+    const requested = this.viewport?.() ?? null;
+    const width = Math.max(
+      1,
+      Math.round(requested?.width || this.image?.naturalWidth || this.canvas.clientWidth || 1)
+    );
+    const height = Math.max(
+      1,
+      Math.round(requested?.height || this.image?.naturalHeight || this.canvas.clientHeight || 1)
+    );
+    if (this.canvas.width !== width) {
+      this.canvas.width = width;
+    }
+    if (this.canvas.height !== height) {
+      this.canvas.height = height;
+    }
   }
 
   private clear(): void {
@@ -329,11 +597,21 @@ function createCanvas(width: number, height: number): HTMLCanvasElement {
   return canvas;
 }
 
+function resizeCanvas(canvas: HTMLCanvasElement, width: number, height: number): void {
+  if (canvas.width !== width) {
+    canvas.width = width;
+  }
+  if (canvas.height !== height) {
+    canvas.height = height;
+  }
+}
+
 function mergeConfig(base: StarFieldRevealConfig, override: Partial<StarFieldRevealConfig>): StarFieldRevealConfig {
   return {
     ...base,
     ...override,
     highlight: { ...base.highlight, ...(override.highlight ?? {}) },
+    glow: { ...base.glow, ...(override.glow ?? {}) },
     noise: { ...base.noise, ...(override.noise ?? {}) }
   };
 }
@@ -343,24 +621,100 @@ function smoothstep(edge0: number, edge1: number, value: number): number {
   return x * x * (3 - 2 * x);
 }
 
-function noise2D(x: number, y: number, seed: number): number {
+function desktopNoise2D(x: number, y: number, seed: number): number {
   const xi = Math.floor(x);
   const yi = Math.floor(y);
   const xf = x - xi;
   const yf = y - yi;
   const u = smoother(xf);
   const v = smoother(yf);
-  const a = hash2(xi, yi, seed);
-  const b = hash2(xi + 1, yi, seed);
-  const c = hash2(xi, yi + 1, seed);
-  const d = hash2(xi + 1, yi + 1, seed);
+  const a = desktopHash2(xi, yi, seed);
+  const b = desktopHash2(xi + 1, yi, seed);
+  const c = desktopHash2(xi, yi + 1, seed);
+  const d = desktopHash2(xi + 1, yi + 1, seed);
 
   return lerp(lerp(a, b, u), lerp(c, d, u), v);
 }
 
-function hash2(x: number, y: number, seed: number): number {
-  const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
-  return n - Math.floor(n);
+function desktopHash2(x: number, y: number, seed: number): number {
+  const value = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+  return value - Math.floor(value);
+}
+
+function perlin2D(x: number, y: number, seed: number): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const u = smoother(xf);
+  const v = smoother(yf);
+  const top = lerp(
+    gradientDot(xi, yi, xf, yf, seed),
+    gradientDot(xi + 1, yi, xf - 1, yf, seed),
+    u
+  );
+  const bottom = lerp(
+    gradientDot(xi, yi + 1, xf, yf - 1, seed),
+    gradientDot(xi + 1, yi + 1, xf - 1, yf - 1, seed),
+    u
+  );
+  return clamp(.5 + lerp(top, bottom, v) * .72, 0, 1);
+}
+
+function gradientDot(
+  gridX: number,
+  gridY: number,
+  offsetX: number,
+  offsetY: number,
+  seed: number
+): number {
+  const gradient = hashIndex(gridX, gridY, seed) & 7;
+  switch (gradient) {
+    case 0: return offsetX;
+    case 1: return -offsetX;
+    case 2: return offsetY;
+    case 3: return -offsetY;
+    case 4: return (offsetX + offsetY) * .7071;
+    case 5: return (-offsetX + offsetY) * .7071;
+    case 6: return (offsetX - offsetY) * .7071;
+    default: return (-offsetX - offsetY) * .7071;
+  }
+}
+
+function fractalPerlin2D(
+  x: number,
+  y: number,
+  seed: number,
+  octaves: number,
+  lacunarity: number,
+  gain: number
+): number {
+  let frequency = 1;
+  let amplitude = 1;
+  let sum = 0;
+  let normalization = 0;
+  const count = Math.max(1, Math.round(octaves));
+
+  for (let octave = 0; octave < count; octave += 1) {
+    const rotation = OCTAVE_ROTATIONS[octave % OCTAVE_ROTATIONS.length]!;
+    const rotatedX = (x * rotation.cosine - y * rotation.sine) * frequency;
+    const rotatedY = (x * rotation.sine + y * rotation.cosine) * frequency;
+    sum += perlin2D(rotatedX, rotatedY, seed + octave * 47.17) * amplitude;
+    normalization += amplitude;
+    frequency *= lacunarity;
+    amplitude *= gain;
+  }
+
+  return normalization > 0 ? sum / normalization : .5;
+}
+
+function hashIndex(x: number, y: number, seed: number): number {
+  const seedInt = Math.floor(seed * 4096);
+  let hash = Math.imul(x, 374_761_393)
+    ^ Math.imul(y, 668_265_263)
+    ^ Math.imul(seedInt, 1_442_695_041);
+  hash = Math.imul(hash ^ (hash >>> 13), 1_274_126_177);
+  return (hash ^ (hash >>> 16)) >>> 0;
 }
 
 function smoother(t: number): number {

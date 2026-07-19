@@ -9,6 +9,8 @@ import { consumeReadingPixels } from './reading-handoff';
 import { createReadingMotionGovernor } from './reading-motion-governor';
 import { unlockStoryMedia } from './mobile-media-unlock';
 
+const portraitSpikeEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PORTRAIT_SPIKE === '1';
+
 type Runtime = ReturnType<typeof createDirectorRuntime>;
 
 export type StoryInputControllerOptions = {
@@ -16,6 +18,8 @@ export type StoryInputControllerOptions = {
   getCurrentScene(): SceneId | undefined;
   getLayerElement(scene: SceneId): HTMLElement | null;
   unlockMedia?(): void;
+  /** Route A spike only: leave in-bounds portrait reading to the browser. */
+  portraitNativeReading?: boolean;
 };
 
 function direction(delta: number): Direction {
@@ -144,8 +148,23 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
       && runtimeSnapshot.context.cursor.status === 'hold'
       && runtimeSnapshot.context.cursor.scene === currentScene
     );
+    const allowNativePortraitReading = portraitSpikeEnabled
+      && options.portraitNativeReading
+      && normalized.source === 'touch'
+      && ownsReadingInput
+      && Boolean(readingScrollport(currentLayer))
+      && readingCanScroll(currentLayer, direction(normalized.pixels));
+    if (allowNativePortraitReading) {
+      if (currentLayer) {
+        currentLayer.dataset.portraitSpikeInputOwner = 'native-reading';
+      }
+      return;
+    }
     if (event.cancelable) {
       event.preventDefault();
+    }
+    if (portraitSpikeEnabled && options.portraitNativeReading && normalized.source === 'touch' && currentLayer) {
+      currentLayer.dataset.portraitSpikeInputOwner = 'cinematic';
     }
     const nextDirection = direction(normalized.pixels);
     if (shouldUsePhysicalCommitment(runtimeSnapshot, nextDirection)) {

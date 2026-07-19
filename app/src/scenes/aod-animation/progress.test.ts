@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  AOD_ALPHA_BACKGROUND_HOLD_PROGRESS,
   AOD_FIRST_FULL_ALPHA_PROGRESS,
   AOD_SOURCE_ALPHA_END,
   AOD_TIMELINE_ALPHA_END,
+  aodPlaybackRateForMediaProgress,
+  mapAodMediaToTimelineProgress,
   mapAodTimelineToMediaProgress,
   renderAodTransitionProgress
 } from './progress';
@@ -43,8 +46,9 @@ class FakeAodSection {
 const stylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
 describe('AOD alpha compositing', () => {
-  it('holds source alpha frames through 36% of the reversible timeline', () => {
-    expect(AOD_TIMELINE_ALPHA_END).toBe(0.36);
+  it('holds every AOD background layer through the first third and source alpha through 48%', () => {
+    expect(AOD_ALPHA_BACKGROUND_HOLD_PROGRESS).toBeCloseTo(1 / 3);
+    expect(AOD_TIMELINE_ALPHA_END).toBe(0.48);
     expect(mapAodTimelineToMediaProgress(0)).toBe(0);
     expect(mapAodTimelineToMediaProgress(AOD_TIMELINE_ALPHA_END)).toBeCloseTo(AOD_SOURCE_ALPHA_END, 8);
     expect(mapAodTimelineToMediaProgress(1 / 3)).toBeLessThan(AOD_SOURCE_ALPHA_END);
@@ -56,6 +60,21 @@ describe('AOD alpha compositing', () => {
       expect(forward[index]).toBeGreaterThan(forward[index - 1] ?? -1);
     }
     expect([...forward].reverse()).toEqual([...forward].sort((a, b) => b - a));
+
+    for (const timelineProgress of [0, 0.1, 0.2, 1 / 3, 0.36, 0.5, 0.75, 1]) {
+      expect(
+        mapAodMediaToTimelineProgress(mapAodTimelineToMediaProgress(timelineProgress))
+      ).toBeCloseTo(timelineProgress, 8);
+    }
+
+    const alphaRate = aodPlaybackRateForMediaProgress(AOD_SOURCE_ALPHA_END - 0.0001);
+    const opaqueRate = aodPlaybackRateForMediaProgress(AOD_SOURCE_ALPHA_END + 0.0001);
+    expect(alphaRate).toBeLessThan(1);
+    expect(opaqueRate).toBeGreaterThan(1);
+    expect(
+      AOD_TIMELINE_ALPHA_END * alphaRate
+        + (1 - AOD_TIMELINE_ALPHA_END) * opaqueRate
+    ).toBeCloseTo(1, 8);
   });
 
   it('aligns paper and backdrop ownership to the decoded first-full-alpha frame', () => {
@@ -66,6 +85,15 @@ describe('AOD alpha compositing', () => {
     expect(section.style.getPropertyValue('--aod-transition-paper-wash-opacity')).toBe('0.0000');
     expect(section.style.getPropertyValue('--aod-transition-bottom-mist-opacity')).toBe('0.0000');
     expect(section.style.getPropertyValue('--aod-transition-paper-solid-opacity')).toBe('0.0000');
+    expect(section.style.getPropertyValue('--aod-transition-cloud-opacity')).toBe('0.9800');
+    expect(section.style.getPropertyValue('--aod-transition-sun-opacity')).toBe('0.9600');
+
+    renderAodTransitionProgress(
+      section as unknown as HTMLElement,
+      AOD_ALPHA_BACKGROUND_HOLD_PROGRESS
+    );
+    expect(section.style.getPropertyValue('--aod-transition-cloud-opacity')).toBe('0.9800');
+    expect(section.style.getPropertyValue('--aod-transition-sun-opacity')).toBe('0.9600');
 
     renderAodTransitionProgress(section as unknown as HTMLElement, AOD_FIRST_FULL_ALPHA_PROGRESS - 0.0001);
     expect(section.dataset.aodAlphaComposite).toBe('true');

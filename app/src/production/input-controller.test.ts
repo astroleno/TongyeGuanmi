@@ -85,6 +85,61 @@ describe('production input reading handoff', () => {
     expect(canScrollNatively(readingRoot(0).root, -0.05)).toBe(false);
   });
 
+  it('leaves in-bounds portrait spike reading to the browser without cancellation', () => {
+    const listeners = new Map<string, Set<(event: Event) => void>>();
+    vi.stubGlobal('window', {
+      innerHeight: 1000,
+      visualViewport: undefined,
+      addEventListener(type: string, listener: (event: Event) => void) {
+        const current = listeners.get(type) ?? new Set<(event: Event) => void>();
+        current.add(listener);
+        listeners.set(type, current);
+      },
+      removeEventListener(type: string, listener: (event: Event) => void) {
+        listeners.get(type)?.delete(listener);
+      }
+    });
+    const { root } = readingRoot(500);
+    const send = vi.fn();
+    const runtime = {
+      getState: () => ({
+        state: 'hold',
+        context: { cursor: { status: 'hold', scene: 'method-top' } }
+      }),
+      send,
+      subscribe: () => () => undefined
+    };
+    const unlockMedia = vi.fn();
+    const detach = attachStoryInput({
+      runtime: runtime as unknown as Parameters<typeof attachStoryInput>[0]['runtime'],
+      getCurrentScene: () => 'method-top',
+      getLayerElement: () => root,
+      portraitNativeReading: true,
+      unlockMedia
+    });
+    const touchStart = {
+      touches: [{ clientY: 700 }]
+    } as unknown as TouchEvent;
+    const touchMove = {
+      cancelable: true,
+      touches: [{ clientY: 580 }],
+      preventDefault: vi.fn()
+    } as unknown as TouchEvent;
+
+    for (const listener of listeners.get('touchstart') ?? []) {
+      listener(touchStart);
+    }
+    for (const listener of listeners.get('touchmove') ?? []) {
+      listener(touchMove);
+    }
+
+    expect(unlockMedia).toHaveBeenCalled();
+    expect(touchMove.preventDefault).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+    expect(root.dataset.portraitSpikeInputOwner).toBe('native-reading');
+    detach();
+  });
+
   it('captures wheel input over Method steps and scrolls its reading root first', () => {
     const listeners = new Map<string, Set<(event: Event) => void>>();
     const fakeWindow = {

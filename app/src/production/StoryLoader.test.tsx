@@ -68,5 +68,10 @@ describe('StoryLoader', () => {
     expect(html).toContain('data-loader-ink-fallback="true"');
     expect(html).not.toContain('mobile-landscape-entry-static');
     expect(html).toContain('#story-loader-static { display: none !important; }');
+    expect(html).toContain('sessionStorage');
+    expect(html).toContain('portraitLoaderResume');
+    expect(html).toContain('hidden-at');
+    expect(html).toContain("navigation?.type === 'reload'");
+    expect(html).toContain('manuallyReloaded');
   });
 });

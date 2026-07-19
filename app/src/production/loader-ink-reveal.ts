@@ -200,7 +200,8 @@ const FRAGMENT_SOURCE = `
     vec3 color = mix(baseColor, accentWash, accentStrength);
     color += edgeColor * dropField * 0.08;
 
-    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
+    float outputAlpha = clamp(alpha, 0.0, 1.0);
+    gl_FragColor = vec4(color * outputAlpha, outputAlpha);
   }
 `;
 
@@ -266,7 +267,7 @@ function createRenderer(
     antialias: false,
     depth: false,
     stencil: false,
-    premultipliedAlpha: false,
+    premultipliedAlpha: true,
     powerPreference: 'high-performance'
   });
   if (!gl) {
@@ -383,26 +384,15 @@ function createRenderer(
       (sum, character) => sum + textContext.measureText(character).width,
       0
     );
-    const spread = Math.max(2, Math.min(12, fontPx * 0.055));
     let cursorX = width / 2 - fullWidth / 2;
     for (const [index, character] of chars.entries()) {
       const charWidth = textContext.measureText(character).width;
       const encoded = Math.round(((index + 0.5) / Math.max(chars.length, 1)) * 255);
       charContext.fillStyle = `rgb(${encoded}, 0, 0)`;
-      const offsets: Array<readonly [number, number]> = [
-        [0, 0],
-        [spread, 0],
-        [-spread, 0],
-        [0, spread],
-        [0, -spread],
-        [spread * 0.64, spread * 0.64],
-        [-spread * 0.64, spread * 0.64],
-        [spread * 0.64, -spread * 0.64],
-        [-spread * 0.64, -spread * 0.64]
-      ];
-      for (const [offsetX, offsetY] of offsets) {
-        charContext.fillText(character, cursorX + offsetX, baseline + offsetY);
-      }
+      // Character ownership must match the glyph mask exactly. Expanding this
+      // index texture made the smaller iPhone title look like a second,
+      // spatially offset copy while the desktop size largely hid the error.
+      charContext.fillText(character, cursorX, baseline);
       cursorX += charWidth;
     }
 
@@ -576,7 +566,6 @@ export function createLoaderInkReveal(options: CreateLoaderInkRevealOptions): Lo
       return startPromise;
     }
 
-    startedAt ??= environment.now();
     setStatus('waiting-font');
     let fontPromise: Promise<void>;
     try {
@@ -596,6 +585,7 @@ export function createLoaderInkReveal(options: CreateLoaderInkRevealOptions): Lo
           listenersAttached = true;
           environment.addResizeListener(onResize);
           canvas.addEventListener('webglcontextlost', onContextLost);
+          startedAt ??= environment.now();
           setStatus('active');
           tick(environment.now());
         } catch {

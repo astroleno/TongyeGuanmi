@@ -1,0 +1,394 @@
+import { gsap } from 'gsap';
+import { browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
+import {
+  disposeTimelineVideoDriver,
+  driveTimelineVideo
+} from '../../media/timeline-video-driver';
+import { setPackedAlphaVideoSource } from '../../media/packed-alpha-video';
+
+export const PORTRAIT_FIGURE_DURATION_SECONDS = 2.042;
+/**
+ * Figure 1 belongs to the finger until this point. Crossing it hands the
+ * already-presented frame to native playback, so the ending can breathe
+ * without fighting ScrollTrigger for the playhead.
+ */
+export const PORTRAIT_FIGURE_AUTOPLAY_START_PROGRESS = 0.62;
+const PORTRAIT_FIGURE_END_EPSILON_SECONDS = 0.03;
+const PORTRAIT_FIGURE_RUN_ID = 'portrait-spike-hero-figure';
+const HAVE_CURRENT_DATA = 2;
+
+export type PortraitFigureSources = Readonly<{
+  webm: string;
+  hevc: string;
+  packed?: string;
+}>;
+
+export type PortraitFigureSource = Readonly<{
+  format: 'hevc' | 'webm' | 'packed';
+  src: string;
+}>;
+
+export type PortraitFigurePlayback = Readonly<{
+  setActive(active: boolean): void;
+  scrub(progress: number): void;
+  settle(): void;
+  unlockFromGesture(): void;
+  dispose(): void;
+}>;
+
+export type PortraitParallaxTarget = Readonly<{
+  element: HTMLElement;
+  x: number;
+  y: number;
+}>;
+
+export type PortraitDeviceParallax = Readonly<{
+  requestPermission(): void;
+  dispose(): void;
+}>;
+
+type DeviceOrientationPermissionConstructor = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<'granted' | 'denied'>;
+};
+
+type OrientationBaseline = Readonly<{
+  beta: number;
+  gamma: number;
+}>;
+
+type PortraitDeviceParallaxOptions = Readonly<{
+  root: HTMLElement;
+  targets: readonly PortraitParallaxTarget[];
+  eventTarget?: Window;
+}>;
+
+function clamp(value: number, min = 0, max = 1): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function finite(value: number | null): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function orientationConstructor(): DeviceOrientationPermissionConstructor | undefined {
+  if (typeof DeviceOrientationEvent === 'undefined') {
+    return undefined;
+  }
+  return DeviceOrientationEvent as DeviceOrientationPermissionConstructor;
+}
+
+/** Keep the iPhone HEVC path deterministic instead of relying on source-sniffing. */
+export function portraitFigureSourceFor(
+  sources: PortraitFigureSources,
+  preferHevc = browserPrefersHevcAlpha()
+): PortraitFigureSource {
+  if (sources.packed) {
+    return { format: 'packed', src: sources.packed };
+  }
+  return preferHevc
+    ? { format: 'hevc', src: sources.hevc }
+    : { format: 'webm', src: sources.webm };
+}
+
+export function portraitFigureFallbackSourceFor(
+  sources: PortraitFigureSources,
+  selected: PortraitFigureSource
+): PortraitFigureSource {
+  if (selected.format === 'packed') {
+    return portraitFigureSourceFor(
+      { webm: sources.webm, hevc: sources.hevc },
+      browserPrefersHevcAlpha()
+    );
+  }
+  return selected.format === 'hevc'
+    ? { format: 'webm', src: sources.webm }
+    : { format: 'hevc', src: sources.hevc };
+}
+
+/**
+ * A single owner arbitrates the Figure video. Scroll reclaims the playhead
+ * through TimelineVideoDriver; once ScrollTrigger settles, native playback is
+ * allowed to breathe again from that presented frame.
+ */
+export function createPortraitFigurePlayback(
+  video: HTMLVideoElement,
+  packedSourceUrl: string
+): PortraitFigurePlayback {
+  let active = false;
+  let disposed = false;
+  let lastProgress = 0;
+  let playAttempt = 0;
+
+  const canAutoplay = () => active && lastProgress >= PORTRAIT_FIGURE_AUTOPLAY_START_PROGRESS;
+
+  const playAmbient = () => {
+    if (disposed || !canAutoplay()) {
+      return;
+    }
+    if (
+      video.dataset.portraitFigurePlayback === 'autoplay'
+      || video.dataset.portraitFigurePlayback === 'starting-autoplay'
+    ) {
+      return;
+    }
+    if (video.readyState < HAVE_CURRENT_DATA) {
+      video.dataset.portraitFigurePlayback = 'waiting';
+      return;
+    }
+    const attempt = ++playAttempt;
+    video.loop = true;
+    video.playbackRate = 0.82;
+    video.dataset.portraitFigurePlayback = 'starting-autoplay';
+    void video.play().then(
+      () => {
+        if (!disposed && active && attempt === playAttempt) {
+          video.dataset.portraitFigurePlayback = 'autoplay';
+        }
+      },
+      () => {
+        if (!disposed && active && attempt === playAttempt) {
+          video.dataset.portraitFigurePlayback = 'blocked';
+        }
+      }
+    );
+  };
+
+  const onLoadedData = () => {
+    video.dataset.portraitFigureFrame = 'ready';
+    video.parentElement?.setAttribute('data-portrait-figure-frame', 'ready');
+    if (canAutoplay()) {
+      playAmbient();
+    } else {
+      video.dataset.portraitFigurePlayback = 'scrub-ready';
+    }
+  };
+
+  const onError = () => {
+    if (!disposed) {
+      video.dataset.portraitFigurePlayback = 'failed';
+    }
+  };
+
+  video.addEventListener('loadeddata', onLoadedData);
+  video.addEventListener('error', onError);
+  video.setAttribute?.('x-webkit-airplay', 'deny');
+  video.dataset.portraitFigureSource = 'packed';
+  video.dataset.portraitFigurePlayback = 'loading';
+  video.dataset.portraitFigureAlpha = 'probing';
+  video.parentElement?.setAttribute('data-portrait-figure-alpha', 'probing');
+  setPackedAlphaVideoSource(video, packedSourceUrl);
+
+  return {
+    setActive(nextActive) {
+      active = nextActive;
+      if (!active) {
+        playAttempt += 1;
+        video.pause();
+        video.dataset.portraitFigurePlayback = 'paused';
+        return;
+      }
+      if (lastProgress >= PORTRAIT_FIGURE_AUTOPLAY_START_PROGRESS) {
+        playAmbient();
+      } else {
+        video.dataset.portraitFigurePlayback = 'scrub-ready';
+      }
+    },
+    scrub(rawProgress) {
+      if (disposed || !active) {
+        return;
+      }
+      const progress = clamp(rawProgress);
+      const direction = progress >= lastProgress ? 1 : -1;
+      lastProgress = progress;
+
+      if (progress >= PORTRAIT_FIGURE_AUTOPLAY_START_PROGRESS) {
+        // Seek once at the handoff boundary, then release the playhead. This
+        // is intentionally not a scroll-linked fade or a repeatedly-seeked
+        // video while the native outro is playing.
+        const alreadyPlayingAmbient = video.dataset.portraitFigurePlayback === 'autoplay'
+          || video.dataset.portraitFigurePlayback === 'starting-autoplay';
+        if (!alreadyPlayingAmbient) {
+          video.pause();
+          video.loop = false;
+          video.playbackRate = 1;
+          driveTimelineVideo(video, {
+            runId: PORTRAIT_FIGURE_RUN_ID,
+            direction,
+            progress: PORTRAIT_FIGURE_AUTOPLAY_START_PROGRESS,
+            durationFallbackSeconds: PORTRAIT_FIGURE_DURATION_SECONDS,
+            startSeconds: 0,
+            endSeconds: PORTRAIT_FIGURE_DURATION_SECONDS - PORTRAIT_FIGURE_END_EPSILON_SECONDS,
+            mode: 'timeline',
+            allowSeekedFrameFallback: true
+          });
+          playAmbient();
+        }
+        return;
+      }
+
+      playAttempt += 1;
+      video.pause();
+      video.loop = false;
+      video.playbackRate = 1;
+      video.dataset.portraitFigurePlayback = 'scrubbing';
+      driveTimelineVideo(video, {
+        runId: PORTRAIT_FIGURE_RUN_ID,
+        direction,
+        progress,
+        durationFallbackSeconds: PORTRAIT_FIGURE_DURATION_SECONDS,
+        startSeconds: 0,
+        endSeconds: PORTRAIT_FIGURE_DURATION_SECONDS - PORTRAIT_FIGURE_END_EPSILON_SECONDS,
+        mode: 'timeline',
+        allowSeekedFrameFallback: true
+      });
+    },
+    settle() {
+      if (lastProgress >= PORTRAIT_FIGURE_AUTOPLAY_START_PROGRESS) {
+        playAmbient();
+      }
+    },
+    unlockFromGesture() {
+      if (lastProgress >= PORTRAIT_FIGURE_AUTOPLAY_START_PROGRESS) {
+        playAmbient();
+      }
+    },
+    dispose() {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      playAttempt += 1;
+      video.pause();
+      video.removeEventListener('loadeddata', onLoadedData);
+      video.removeEventListener('error', onError);
+      disposeTimelineVideoDriver(video);
+      delete video.dataset.portraitFigurePlayback;
+      delete video.dataset.portraitFigureFrame;
+      delete video.dataset.portraitFigureSource;
+      delete video.dataset.portraitFigureAlpha;
+      delete video.parentElement?.dataset.portraitFigureFrame;
+      delete video.parentElement?.dataset.portraitFigureAlpha;
+    }
+  };
+}
+
+export function portraitDeviceParallaxSample(
+  beta: number,
+  gamma: number,
+  baseline: OrientationBaseline
+): Readonly<{ x: number; y: number }> {
+  return {
+    x: clamp((gamma - baseline.gamma) / 20, -1, 1),
+    y: clamp((beta - baseline.beta) / 24, -1, 1)
+  };
+}
+
+/**
+ * iOS permits device orientation only from a user activation. Android and
+ * browsers without that gate start listening immediately; iOS exposes the
+ * same parallax after the first touch without competing with vertical scroll.
+ */
+export function attachPortraitDeviceParallax(
+  options: PortraitDeviceParallaxOptions
+): PortraitDeviceParallax {
+  const eventTarget = options.eventTarget ?? window;
+  const targets = options.targets.filter((target) => Boolean(target.element));
+  const root = options.root;
+  const source = orientationConstructor();
+  const permissionRequired = typeof source?.requestPermission === 'function';
+  let disposed = false;
+  let listening = false;
+  let requesting = false;
+  let baseline: OrientationBaseline | undefined;
+
+  const setters = targets.map((target) => ({
+    ...target,
+    xTo: gsap.quickTo(target.element, 'x', { duration: 0.58, ease: 'power3.out' }),
+    yTo: gsap.quickTo(target.element, 'y', { duration: 0.58, ease: 'power3.out' })
+  }));
+
+  const reset = () => {
+    for (const target of setters) {
+      target.xTo(0);
+      target.yTo(0);
+    }
+  };
+
+  const onOrientation = (event: Event) => {
+    const orientation = event as DeviceOrientationEvent;
+    if (!finite(orientation.beta) || !finite(orientation.gamma)) {
+      return;
+    }
+    if (!baseline) {
+      baseline = { beta: orientation.beta, gamma: orientation.gamma };
+      root.dataset.portraitHeroParallax = 'calibrated';
+      return;
+    }
+    const sample = portraitDeviceParallaxSample(orientation.beta, orientation.gamma, baseline);
+    for (const target of setters) {
+      target.xTo(sample.x * target.x);
+      target.yTo(sample.y * target.y);
+    }
+  };
+
+  const beginListening = () => {
+    if (disposed || listening) {
+      return;
+    }
+    listening = true;
+    root.dataset.portraitHeroParallax = 'active';
+    eventTarget.addEventListener('deviceorientation', onOrientation, { passive: true });
+  };
+
+  if (!source) {
+    root.dataset.portraitHeroParallax = 'unavailable';
+  } else if (permissionRequired) {
+    root.dataset.portraitHeroParallax = 'gesture-required';
+  } else {
+    beginListening();
+  }
+
+  return {
+    requestPermission() {
+      if (disposed || listening || requesting || !source) {
+        return;
+      }
+      if (!permissionRequired) {
+        beginListening();
+        return;
+      }
+      requesting = true;
+      root.dataset.portraitHeroParallax = 'requesting';
+      void source.requestPermission?.().then(
+        (state) => {
+          requesting = false;
+          if (disposed) {
+            return;
+          }
+          if (state === 'granted') {
+            beginListening();
+            return;
+          }
+          root.dataset.portraitHeroParallax = 'denied';
+        },
+        () => {
+          requesting = false;
+          if (!disposed) {
+            root.dataset.portraitHeroParallax = 'denied';
+          }
+        }
+      );
+    },
+    dispose() {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      if (listening) {
+        eventTarget.removeEventListener('deviceorientation', onOrientation);
+      }
+      reset();
+      delete root.dataset.portraitHeroParallax;
+    }
+  };
+}

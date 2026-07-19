@@ -214,6 +214,11 @@ describe('loader Ink sequence', () => {
     expect(harness.canvas.dataset.loaderInkPhase).toBe('revealing');
     expect(harness.canvas.dataset.loaderInkProgress).toBe('0.5000');
     expect(harness.gl.drawArrays).toHaveBeenCalledOnce();
+    expect(harness.context2d.fillText).toHaveBeenCalledTimes(5);
+    expect(harness.canvas.getContext).toHaveBeenCalledWith(
+      'webgl',
+      expect.objectContaining({ premultipliedAlpha: true })
+    );
     expect(harness.environment.requestFrame).toHaveBeenCalledOnce();
     const fragmentSource = harness.gl.shaderSource.mock.calls
       .map(([, source]) => String(source))
@@ -222,6 +227,7 @@ describe('loader Ink sequence', () => {
     expect(fragmentSource).toContain('float fbm');
     expect(fragmentSource).toContain('poreInk');
     expect(fragmentSource).toContain('blobDrop');
+    expect(fragmentSource).toContain('color * outputAlpha');
 
     const firstFrame = harness.requestedFrames.entries().next().value as [number, FrameRequestCallback];
     harness.requestedFrames.delete(firstFrame[0]);

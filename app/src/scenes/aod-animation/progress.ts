@@ -25,9 +25,10 @@ const HOMEPAGE_AOD_CONFIG: AodTransitionConfig = {
 export const AOD_ALPHA_FRAME_COUNT = 78;
 export const AOD_FIRST_FULL_ALPHA_FRAME = 16;
 export const AOD_SOURCE_ALPHA_END = AOD_FIRST_FULL_ALPHA_FRAME / (AOD_ALPHA_FRAME_COUNT - 1);
-export const AOD_TIMELINE_ALPHA_END = 0.36;
+export const AOD_ALPHA_BACKGROUND_HOLD_PROGRESS = 1 / 3;
+export const AOD_TIMELINE_ALPHA_END = 0.48;
 export const AOD_FIRST_FULL_ALPHA_PROGRESS = AOD_TIMELINE_ALPHA_END;
-export const AOD_BACKDROP_ALPHA_EXIT_START_PROGRESS = AOD_TIMELINE_ALPHA_END * (12 / AOD_FIRST_FULL_ALPHA_FRAME);
+export const AOD_BACKDROP_ALPHA_EXIT_START_PROGRESS = AOD_ALPHA_BACKGROUND_HOLD_PROGRESS;
 
 export function mapAodTimelineToMediaProgress(rawProgress: number): number {
   const progress = Math.min(1, Math.max(0, rawProgress));
@@ -37,6 +38,28 @@ export function mapAodTimelineToMediaProgress(rawProgress: number): number {
   return AOD_SOURCE_ALPHA_END
     + ((progress - AOD_TIMELINE_ALPHA_END) / (1 - AOD_TIMELINE_ALPHA_END))
       * (1 - AOD_SOURCE_ALPHA_END);
+}
+
+export function mapAodMediaToTimelineProgress(rawMediaProgress: number): number {
+  const mediaProgress = Math.min(1, Math.max(0, rawMediaProgress));
+  if (mediaProgress <= AOD_SOURCE_ALPHA_END) {
+    return (mediaProgress / AOD_SOURCE_ALPHA_END) * AOD_TIMELINE_ALPHA_END;
+  }
+  return AOD_TIMELINE_ALPHA_END
+    + ((mediaProgress - AOD_SOURCE_ALPHA_END) / (1 - AOD_SOURCE_ALPHA_END))
+      * (1 - AOD_TIMELINE_ALPHA_END);
+}
+
+/**
+ * Native playback keeps the authored alpha portion through 48% of the
+ * reversible AOD timeline. The first source segment is slowed down; the
+ * opaque segment then catches up without changing the total duration.
+ */
+export function aodPlaybackRateForMediaProgress(rawMediaProgress: number): number {
+  const mediaProgress = Math.min(1, Math.max(0, rawMediaProgress));
+  return mediaProgress <= AOD_SOURCE_ALPHA_END
+    ? AOD_SOURCE_ALPHA_END / AOD_TIMELINE_ALPHA_END
+    : (1 - AOD_SOURCE_ALPHA_END) / (1 - AOD_TIMELINE_ALPHA_END);
 }
 
 function viewportHeight(): number {
@@ -79,11 +102,10 @@ export function renderAodTransitionProgress(
   const mediaProgress = mapAodTimelineToMediaProgress(raw);
   const alphaComposite = raw < AOD_TIMELINE_ALPHA_END;
   const config = HOMEPAGE_AOD_CONFIG;
-  const backdropExit = smoothStep(secondsRange(
-    p,
-    config.backdropExitStartSeconds,
-    config.backdropExitEndSeconds,
-    config.durationSeconds
+  const backdropExit = smoothStep(range01(
+    raw,
+    AOD_ALPHA_BACKGROUND_HOLD_PROGRESS,
+    config.backdropExitEndSeconds / config.durationSeconds
   ));
   const fullscreen = smoothStep(secondsRange(
     p,

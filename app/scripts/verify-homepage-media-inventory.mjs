@@ -5,13 +5,17 @@ import path from 'node:path';
 import {
   animationHevcAlphaSources,
   animationWebmSources,
-  frozenHomepageMedia
+  frozenHomepageMedia,
+  packedAlphaVideoSources
 } from './homepage-media-contract.mjs';
 
 const KiB = 1024;
 const MiB = KiB * KiB;
 const HOMEPAGE_RUNTIME_MEDIA_BYTES_MAX = 80 * MiB;
 const HERO_BEFORE_FIRST_SCROLL_TRANSFER_MAX = 4 * MiB;
+const PRESENTATION_WEBP_BYTES_MAX = 4 * MiB;
+const ALL_WEBP_BYTES_MAX = 11 * MiB;
+const DESKTOP_STATIC_PATH_BYTES_MAX = 32 * MiB;
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
 const distDir = path.join(repoDir, 'dist');
@@ -38,12 +42,15 @@ const adoptedWebpSources = [
   'assets/crane-paper.webp'
 ];
 
-const losslessWebpSources = [
+const semanticLosslessWebpSources = [
   'assets/middle1_depth.webp',
-  'assets/back2.webp',
   'assets/figure2-middle-depth.webp',
   'assets/figure2-depth-mask-atlas.webp',
-  'assets/figure2-middle-window-mask.webp',
+  'assets/figure2-middle-window-mask.webp'
+];
+
+const presentationWebpSources = [
+  'assets/back2.webp',
   'assets/aod_cloud-alpha.webp',
   'assets/aod_sun-alpha.webp',
   'assets/ph_background.webp',
@@ -170,21 +177,25 @@ async function sourceEntry(source, category) {
 const inventorySources = [
   ...animationWebmSources.map((source) => ({ source, category: source === 'assets/figure1.webm' ? 'hero-animation' : 'animation-webm' })),
   ...animationHevcAlphaSources.map((source) => ({ source, category: source === 'assets/figure1-hevc-alpha.mp4' ? 'hero-animation-hevc' : 'animation-hevc-alpha' })),
+  ...packedAlphaVideoSources.map((source) => ({ source, category: 'portrait-packed-alpha' })),
   ...adoptedWebpSources.map((source) => ({ source, category: 'adopted-webp' })),
-  ...losslessWebpSources.map((source) => ({ source, category: 'lossless-webp' })),
+  ...semanticLosslessWebpSources.map((source) => ({ source, category: 'semantic-lossless-webp' })),
+  ...presentationWebpSources.map((source) => ({ source, category: 'presentation-webp' })),
   ...retainedImageSources.map((source) => ({ source, category: 'retained-image' }))
 ];
 const frozenMediaBySource = new Map(
   frozenHomepageMedia.map((entry) => [entry.source, entry])
 );
-assert(inventorySources.length === 46, `expected 46 homepage source entries, found ${inventorySources.length}`);
-assert(frozenHomepageMedia.length === 46, `expected 46 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
+assert(inventorySources.length === 49, `expected 49 homepage source entries, found ${inventorySources.length}`);
+assert(frozenHomepageMedia.length === 49, `expected 49 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
 assert(frozenMediaBySource.size === frozenHomepageMedia.length, 'frozen homepage media sources must be unique');
 assert(frozenMediaBySource.size === inventorySources.length, 'frozen homepage media contract must cover the full inventory');
 assert(adoptedWebpSources.length === 11, `expected 11 adopted WebP sources, found ${adoptedWebpSources.length}`);
-assert(losslessWebpSources.length === 19, `expected 19 lossless WebP sources, found ${losslessWebpSources.length}`);
+assert(semanticLosslessWebpSources.length === 4, `expected 4 semantic lossless WebP sources, found ${semanticLosslessWebpSources.length}`);
+assert(presentationWebpSources.length === 15, `expected 15 presentation WebP sources, found ${presentationWebpSources.length}`);
 assert(animationWebmSources.length === 8, `expected 8 animation WebM sources, found ${animationWebmSources.length}`);
 assert(animationHevcAlphaSources.length === 8, `expected 8 animation HEVC alpha sources, found ${animationHevcAlphaSources.length}`);
+assert(packedAlphaVideoSources.length === 3, `expected 3 packed alpha H.264 sources, found ${packedAlphaVideoSources.length}`);
 
 const [sourceEntries, emittedFiles, sourceAssetFiles] = await Promise.all([
   Promise.all(inventorySources.map(({ source, category }) => sourceEntry(source, category))),
@@ -242,9 +253,9 @@ const emittedMp4 = emittedEntries.filter((entry) => mediaExtension(entry.path) =
 const emittedWebp = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.webp');
 const emittedJpg = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.jpg');
 const emittedPng = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.png');
-assert(emittedMedia.length === 46, `expected exactly 46 emitted homepage media files, found ${emittedMedia.length}`);
+assert(emittedMedia.length === 49, `expected exactly 49 emitted homepage media files, found ${emittedMedia.length}`);
 assert(emittedWebm.length === 8, `expected exactly 8 emitted animation WebM files, found ${emittedWebm.length}`);
-assert(emittedMp4.length === 8, `expected exactly 8 emitted animation HEVC alpha MP4 files, found ${emittedMp4.length}`);
+assert(emittedMp4.length === 11, `expected exactly 11 emitted animation MP4 files, found ${emittedMp4.length}`);
 assert(emittedWebp.length === 30, `expected exactly 30 emitted WebP files, found ${emittedWebp.length}`);
 assert(emittedJpg.length === 0, `production JPG emit is forbidden, found ${emittedJpg.length}`);
 assert(emittedPng.length === 0, `production PNG emit is forbidden, found ${emittedPng.length}`);
@@ -256,6 +267,20 @@ for (const entry of emittedEntries) {
 }
 
 const homepageRuntimeBytes = inventory.reduce((sum, entry) => sum + entry.bytes, 0);
+const webpInventory = inventory.filter(({ source }) => mediaExtension(source) === '.webp');
+const webmInventory = inventory.filter(({ source }) => mediaExtension(source) === '.webm');
+const hevcInventory = inventory.filter(({ source }) => animationHevcAlphaSources.includes(source));
+const packedAlphaVideoInventory = inventory.filter(({ category }) => category === 'portrait-packed-alpha');
+const presentationWebpInventory = inventory.filter(({ category }) => category === 'presentation-webp');
+const webpBytes = webpInventory.reduce((sum, entry) => sum + entry.bytes, 0);
+const webmBytes = webmInventory.reduce((sum, entry) => sum + entry.bytes, 0);
+const hevcBytes = hevcInventory.reduce((sum, entry) => sum + entry.bytes, 0);
+const packedAlphaVideoBytes = packedAlphaVideoInventory.reduce((sum, entry) => sum + entry.bytes, 0);
+const presentationWebpBytes = presentationWebpInventory.reduce((sum, entry) => sum + entry.bytes, 0);
+const desktopStaticPathBytes = webpBytes + webmBytes;
+const iosStaticPathBytes = webpBytes + hevcBytes;
+const portraitPackedAlphaStaticPathBytes = webpBytes + packedAlphaVideoBytes;
+const largestHomepageMediaBytes = Math.max(...inventory.map(({ bytes }) => bytes));
 const heroPreScrollInventory = inventory.filter((entry) => heroPreScrollSources.has(entry.source));
 const heroBeforeFirstScrollBytes = heroPreScrollInventory.reduce((sum, entry) => sum + entry.bytes, 0);
 assert(
@@ -266,6 +291,18 @@ assert(
   heroBeforeFirstScrollBytes <= HERO_BEFORE_FIRST_SCROLL_TRANSFER_MAX,
   `Hero pre-scroll media exceeded: ${heroBeforeFirstScrollBytes} > ${HERO_BEFORE_FIRST_SCROLL_TRANSFER_MAX}`
 );
+assert(
+  presentationWebpBytes <= PRESENTATION_WEBP_BYTES_MAX,
+  `presentation WebP bytes exceeded: ${presentationWebpBytes} > ${PRESENTATION_WEBP_BYTES_MAX}`
+);
+assert(
+  webpBytes <= ALL_WEBP_BYTES_MAX,
+  `all WebP bytes exceeded: ${webpBytes} > ${ALL_WEBP_BYTES_MAX}`
+);
+assert(
+  desktopStaticPathBytes <= DESKTOP_STATIC_PATH_BYTES_MAX,
+  `desktop static media path exceeded: ${desktopStaticPathBytes} > ${DESKTOP_STATIC_PATH_BYTES_MAX}`
+);
 
 const report = {
   schemaVersion: 3,
@@ -273,14 +310,28 @@ const report = {
   verificationScope: 'static-frozen-build',
   budgets: {
     homepageRuntimeMediaBytesMax: HOMEPAGE_RUNTIME_MEDIA_BYTES_MAX,
-    heroBeforeFirstScrollTransferMax: HERO_BEFORE_FIRST_SCROLL_TRANSFER_MAX
+    heroBeforeFirstScrollTransferMax: HERO_BEFORE_FIRST_SCROLL_TRANSFER_MAX,
+    presentationWebpBytesMax: PRESENTATION_WEBP_BYTES_MAX,
+    allWebpBytesMax: ALL_WEBP_BYTES_MAX,
+    desktopStaticPathBytesMax: DESKTOP_STATIC_PATH_BYTES_MAX
   },
   actual: {
     homepageRuntimeMediaBytes: homepageRuntimeBytes,
     heroBeforeFirstScrollBytes,
+    presentationWebpBytes,
+    webpBytes,
+    webmBytes,
+    hevcBytes,
+    packedAlphaVideoBytes,
+    desktopStaticPathBytes,
+    iosStaticPathBytes,
+    portraitPackedAlphaStaticPathBytes,
+    largestHomepageMediaBytes,
     inventoryFileCount: inventory.length,
     animationWebmCount: emittedWebm.length,
-    animationHevcAlphaCount: emittedMp4.length,
+    animationHevcAlphaCount: hevcInventory.length,
+    portraitPackedAlphaCount: packedAlphaVideoInventory.length,
+    mp4Count: emittedMp4.length,
     webpCount: emittedWebp.length,
     jpgCount: emittedJpg.length,
     pngCount: emittedPng.length,
@@ -295,8 +346,19 @@ process.stdout.write(`${JSON.stringify({
   files: inventory.length,
   homepageRuntimeMediaBytes: homepageRuntimeBytes,
   heroBeforeFirstScrollBytes,
+  presentationWebpBytes,
+  webpBytes,
+  webmBytes,
+  hevcBytes,
+  packedAlphaVideoBytes,
+  desktopStaticPathBytes,
+  iosStaticPathBytes,
+  portraitPackedAlphaStaticPathBytes,
+  largestHomepageMediaBytes,
   animationWebm: emittedWebm.length,
-  animationHevcAlpha: emittedMp4.length,
+  animationHevcAlpha: hevcInventory.length,
+  portraitPackedAlpha: packedAlphaVideoInventory.length,
+  mp4: emittedMp4.length,
   webp: emittedWebp.length,
   jpg: emittedJpg.length,
   png: emittedPng.length,

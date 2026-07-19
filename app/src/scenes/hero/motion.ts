@@ -1,5 +1,10 @@
 export const HERO_INTRO_DURATION_MS = 2_700;
 export const HERO_TITLE_START_PROGRESS = 0.78;
+export const HERO_RADIAL_INK_FIELD = {
+  kind: 'radial' as const,
+  origin: { x: 0.5, y: 0.5 },
+  seed: 'hero-pattern'
+};
 
 export type HeroIntroSample = Readonly<{
   progress: number;
@@ -44,6 +49,10 @@ export type HeroScrollSample = Readonly<{
   figureScale: number;
 }>;
 
+export type HeroRenderState = {
+  progress: number;
+};
+
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
@@ -74,6 +83,20 @@ export function sampleHeroIntro(progress: number): HeroIntroSample {
     titleActive: clamped >= HERO_TITLE_START_PROGRESS,
     complete: clamped >= 1
   };
+}
+
+export function renderHeroProgress(root: HTMLElement | null, progress: number): HeroRenderState {
+  const clamped = clamp01(progress);
+  const middleIntro = smoothStep(clamped / 0.92);
+  const figureIntro = smoothStep((clamped - 0.02) / (0.96 - 0.02));
+
+  root?.style.setProperty('--r4-hero-progress', clamped.toFixed(4));
+  root?.style.setProperty('--r4-hero-middle-intro', middleIntro.toFixed(4));
+  root?.style.setProperty('--r4-hero-figure-intro', figureIntro.toFixed(4));
+  root?.style.setProperty('--r4-hero-pattern-middle-progress', '0.0000');
+  root?.style.setProperty('--r4-hero-pattern-figure-progress', '0.0000');
+  root?.setAttribute('data-hero-progress', clamped.toFixed(4));
+  return { progress: clamped };
 }
 
 export function startHeroIntro(options: HeroIntroOptions): () => void {

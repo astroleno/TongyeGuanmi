@@ -56,6 +56,7 @@ import { MobileLandscapeGate, useMobileLandscapeEntry } from './MobileLandscapeG
 import type { MobileLandscapeEntryState } from './mobile-landscape-entry';
 
 const StoryNav = lazy(() => import('./StoryNav').then(({ StoryNav: Component }) => ({ default: Component })));
+const portraitSpikeEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PORTRAIT_SPIKE === '1';
 
 type LifecycleMetrics = {
   mounted: number;
@@ -100,6 +101,11 @@ export type StoryAppApi = {
   navigate(scene: SceneId, source?: DirectorSeekSource): Promise<void>;
   snapshot(): StoryAppSnapshot;
 };
+
+export type StoryAppProps = Readonly<{
+  /** Query-gated physical-device spike. It is not used by the production route. */
+  spikeRoute?: 'a';
+}>;
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -150,7 +156,8 @@ function focusSceneHeading(scene: SceneId): void {
   });
 }
 
-export function StoryApp() {
+export function StoryApp({ spikeRoute }: StoryAppProps = {}) {
+  const stageSpike = portraitSpikeEnabled && spikeRoute === 'a';
   const initialSceneRef = useRef<SceneId>(initialScene());
   const initialReducedMotionRef = useRef(detectReducedMotion());
   const registry = useMemo(() => new HandleRegistry(), []);
@@ -179,7 +186,9 @@ export function StoryApp() {
   const [loaderStatus, setLoaderStatus] = useState<StoryLoaderStatus>('running');
   const [loaderExitReason, setLoaderExitReason] = useState<StoryLoaderExitReason>();
   const [heroIntroMode, setHeroIntroMode] = useState<HeroIntroMode>(
-    initialSceneRef.current === 'hero' && !initialReducedMotionRef.current ? 'waiting' : 'endpoint'
+    !stageSpike && initialSceneRef.current === 'hero' && !initialReducedMotionRef.current
+      ? 'waiting'
+      : 'endpoint'
   );
   const [presentationReady, setPresentationReady] = useState(false);
   const loaderHiddenReasonRef = useRef<StoryLoaderExitReason | undefined>(undefined);
@@ -244,6 +253,8 @@ export function StoryApp() {
   const currentScene = runtimeSnapshot.context.layerWindow.current;
   const loaderMode: StoryLoaderMode = reducedMotion
     ? 'reduced'
+    : stageSpike
+      ? 'direct'
     : initialSceneRef.current === 'hero'
       ? 'cold-hero'
       : 'direct';
@@ -272,13 +283,13 @@ export function StoryApp() {
     if (runtime.getState().state !== 'hold') {
       return;
     }
-    if (initialSceneRef.current === 'hero' && !reducedMotion && reason === 'ready') {
+    if (!stageSpike && initialSceneRef.current === 'hero' && !reducedMotion && reason === 'ready') {
       setHeroIntroMode('running');
       return;
     }
     setHeroIntroMode('endpoint');
     setPresentationReady(true);
-  }, [bootFailed, reducedMotion, runtime]);
+  }, [bootFailed, reducedMotion, runtime, stageSpike]);
 
   const presentationByScene = useMemo(() => ({
     hero: {
@@ -503,7 +514,8 @@ export function StoryApp() {
         runtime,
         getCurrentScene: () => runtime.getState().context.layerWindow.current,
         getLayerElement: (scene) => layerStore.getLayer(scene)?.element
-          ?? document.querySelector<HTMLElement>(`[data-stage-layer="${scene}"]`)
+          ?? document.querySelector<HTMLElement>(`[data-stage-layer="${scene}"]`),
+        portraitNativeReading: stageSpike
       });
     }).catch((error: unknown) => {
       if (active) {
@@ -515,7 +527,7 @@ export function StoryApp() {
       active = false;
       detach?.();
     };
-  }, [experienceInteractive, layerStore, runtime]);
+  }, [experienceInteractive, layerStore, runtime, stageSpike]);
 
   useEffect(() => {
     const onHistoryNavigation = () => {
@@ -684,6 +696,7 @@ export function StoryApp() {
       data-presentation-ready={String(presentationReady)}
       data-mobile-landscape-state={mobileLandscape.state}
       data-experience-interactive={String(experienceInteractive)}
+      data-portrait-spike-route={spikeRoute}
       data-recovery-scope={runtimeSnapshot.context.recovery?.scope}
       data-recovery-status={runtimeSnapshot.context.recovery?.status}
       data-recovery-segment={runtimeSnapshot.context.recovery?.scope === 'segment'

@@ -917,3 +917,78 @@ git show "be119daba32577c5a44dc100aa3bd357cacdaa1d:$source" > "$tmpdir/$source"
 - 最终 `dist/homepage-media-inventory.json`：**38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG**；`dist/assets` 中没有 PNG。
 - 最终 Homepage runtime media：**60,830,949 bytes（58.01 MiB）**；Hero pre-scroll：**1,131,048 bytes（1.08 MiB）**。
 - 80 MiB、4 MiB 与所有既有 JS budgets 均保持原值，没有提高任何预算。
+
+## 2026-07-19：手机迁移版同步 Presentation WebP Q95
+
+### 范围与来源
+
+- 本次只把 `codex/react-refactor-r5-parity-cutover` 中已经验收并提交的
+  `f861812` WebP 结果同步到手机迁移版；没有重新编码或替换任何
+  `.webm`、HEVC Alpha `.mp4` 或竖屏 packed-alpha `.mp4`。
+- 编码结果沿用 `cwebp 1.6.0` 的 `-preset picture -q 95 -alpha_q 100
+  -m 6 -sharp_yuv` 配置。
+- 替换前原文件按生产相对路径保存在
+  `archive/assets/homepage-media/2026-07-19/pre-compression-r5/assets/**`；
+  README 记录原始 bytes、SHA-256 与逐文件恢复命令。
+- 手机迁移版额外使用的 `figure1-rgb-alpha.mp4`、
+  `aod-figure-motion-rgb-alpha.mp4` 和
+  `aod-figure-motion-rgb-alpha-reverse.mp4` 保持原 bytes/SHA，并继续作为
+  `portrait-packed-alpha` 独立分类。
+
+### 15 个生产 WebP
+
+| Production path | Baseline bytes | Selected bytes | Selected SHA-256 |
+| --- | ---: | ---: | --- |
+| `assets/hero-figure-poster.webp` | 561,678 | 213,550 | `0998cbc66e989767ce2238d6d962c82907bd8f3d74e9eb4bfabe76506c324453` |
+| `assets/back2.webp` | 2,264,544 | 784,596 | `fdfd4fbda1abb39c2384b467c8160151e7a47871e7fd4b5c98574c38519f6403` |
+| `assets/ph_background.webp` | 2,305,060 | 525,038 | `3495ef864eba9851c6e08afaa78f777bad1698a77867ae7bd7f56961092ec004` |
+| `assets/ph_front-alpha.webp` | 1,240,376 | 484,606 | `48b3cdade0bdf056ad1fa1fc0843d779138b2c50460947150bb3a8354fef3881` |
+| `assets/aod_cloud-alpha.webp` | 1,541,418 | 406,046 | `f2bfb1ea3fcfd0ee28e077ee7e14fb8fdeb0ac5d8641c1e11936faedd5fee57b` |
+| `assets/aod_sun-alpha.webp` | 1,452,854 | 428,132 | `73f9e3264cc014289608430c8846341d67c6141bff89e9d51702e5942e43a32d` |
+| `assets/crane1_arch-alpha.webp` | 467,798 | 124,118 | `3a7704cd259387522ec8b214ba0769b15e5534bebaf8b2832f1b2af2966af506` |
+| `assets/crane1_cloud-front2-alpha.webp` | 437,396 | 91,568 | `1808401807194ad530b1fcfb9ad13f79cc969b6dc771f46d25232f58cdfc35ac` |
+| `assets/crane1_cloud1-alpha.webp` | 557,270 | 130,682 | `69d19155e25b505282a7365b679cb80c05112e8d0c0942e4d8761a58d9876e43` |
+| `assets/crane1_cloud2-alpha.webp` | 421,534 | 90,482 | `2322aa7f37955143d03a174d86427893c665fda036098e2e3a0fa3a6d57220fe` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-02.webp` | 627,728 | 69,422 | `f7b501e71a57c0020d81ceeb3378640f9cc8e9a53192338bd97cbb542bd8b835` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-03.webp` | 798,910 | 139,074 | `6bba6fee43d98ee5c57d79acb57f1d59d4856c2290910c469f3bc2fc0adc856e` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-04.webp` | 1,219,762 | 194,858 | `15a2ad1b19761b39f97a31a7a1ad60786d807bc2456f82725f3d480e2a4df699` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-05.webp` | 489,920 | 131,830 | `efac96a95f6dbba3f1fcbe39d205c9a795180cbd341d0bb047ec4ece3319c6f8` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-06.webp` | 694,970 | 207,136 | `5779ebc5d3fec78c4e994db1317e71c33cb75732a347c6afed6b3e844b7d2458` |
+
+合计从 **15,081,218 bytes** 降到 **4,021,138 bytes**，减少
+**11,060,080 bytes（73.34%）**。
+
+### 手机迁移版媒体清单
+
+- 49 个 emitted 首页媒体：30 WebP、8 WebM、11 MP4、0 JPG、0 PNG。
+- 所有 WebP：**10,692,780 bytes（10.20 MiB）**。
+- WebM：**22,849,072 bytes（21.79 MiB）**，未修改。
+- 8 个 HEVC Alpha：**33,478,827 bytes（31.93 MiB）**，未修改。
+- 3 个竖屏 packed-alpha MP4：**5,471,104 bytes（5.22 MiB）**，未修改。
+- 全部冻结媒体：**72,491,783 bytes（69.13 MiB）**。
+- Desktop/Android static path：**33,541,852 bytes（31.99 MiB）**。
+- canonical iOS static path：**44,171,607 bytes（42.13 MiB）**。
+- portrait packed-alpha static path：**16,163,884 bytes（15.42 MiB）**。
+- Hero pre-scroll 图片/poster：**1,255,964 bytes（1.20 MiB）**。
+
+### 验证
+
+- 15/15 生产文件与 parity-cutover 已验收输出逐字节一致。
+- 15/15 宽高不变；解码 Alpha 平面逐字节一致。
+- `#ede4d2` 暖纸合成 RGB MAE 范围为 **0.153–1.825/255**，15/15
+  低于 2/255。
+- 替换前后所有 8 个 WebM、8 个 HEVC Alpha MP4 和 3 个竖屏
+  packed-alpha MP4 的 SHA-256 一致。
+- `pnpm -C app typecheck`：PASS。
+- `pnpm -C app lint`：PASS。
+- `pnpm -C app test`：**107 files / 693 tests PASS**。
+- `pnpm -C app build`：Vite production build、49-file frozen media inventory
+  和 release-build 检查 PASS；随后停在既有 v=16
+  `totalJsHeadroomBytes` 门禁（实际 1,196 bytes，要求至少 4,096
+  bytes）。WebP cutover 没有修改任何 bundled runtime JS/TS/CSS 或预算。
+- focused desktop Chromium Batch C gate：**2/2 PASS**；WebP 均可解码，
+  Hero/Pattern/depth/mask runtime 不产生 PNG 请求。
+- iPhone 15 portrait 模拟视口检查 `/?v=16`：Hero、Pattern、Star Map、
+  AOD 四段均正常显示；Hero packed-alpha 状态为 `verified`，合成 Canvas
+  已呈现帧；没有 page error 或 console error。实体 iPhone 仍由后续真机验收
+  覆盖。

@@ -1,0 +1,706 @@
+html[data-portrait-spike="b"] {
+  width: 100%;
+  min-height: 100%;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-y: none;
+  background: var(--portrait-document-surface, #07110e);
+}
+
+html[data-portrait-spike="b"][data-portrait-spike-loader="active"] {
+  overflow-y: hidden;
+}
+
+html[data-portrait-spike="b"] body,
+html[data-portrait-spike="b"] #root {
+  width: 100%;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+  background: var(--portrait-document-surface, #07110e);
+}
+
+html[data-portrait-spike="b"] .static-content {
+  display: none;
+}
+
+.portrait-scroll-spike {
+  --portrait-live-height: 100dvh;
+  --portrait-live-width: 100vw;
+  --portrait-stage-height: max(var(--portrait-live-height), 100lvh);
+  --portrait-stage-rail-height: 480dvh;
+  --portrait-edge-surface: #07110e;
+  width: 100%;
+  min-height: var(--portrait-live-height);
+  overflow: visible;
+  background: var(--portrait-edge-surface);
+  color: rgba(247, 237, 215, .92);
+  touch-action: pan-y;
+}
+
+.portrait-scroll-spike[data-portrait-aod-snap="locked"] {
+  overscroll-behavior-y: none;
+  touch-action: none;
+}
+
+/*
+ * The rail owns distance while the visual stage is a fixed viewport plane.
+ * ScrollTrigger reads progress but never creates a transformed pin/spacer.
+ */
+.portrait-scroll-spike__stage-rail {
+  position: relative;
+  width: 100%;
+  height: var(--portrait-stage-rail-height);
+  overflow: visible;
+}
+
+.portrait-scroll-spike__stage {
+  position: fixed;
+  z-index: 10;
+  inset: 0;
+  width: 100%;
+  height: var(--portrait-stage-height);
+  min-height: var(--portrait-stage-height);
+  overflow: clip;
+  isolation: isolate;
+  background: #07110e;
+}
+
+.portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__stage {
+  display: none;
+  pointer-events: none;
+}
+
+.portrait-scroll-spike[data-portrait-loader-ready="false"] .portrait-scroll-spike__stage {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.portrait-scroll-spike__scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: clip;
+  isolation: isolate;
+  visibility: hidden;
+  pointer-events: none;
+  contain: layout paint;
+}
+
+.portrait-scroll-spike__scene--hero {
+  --r4-hero-progress: 1;
+  --r4-hero-middle-intro: 1;
+  --r4-hero-figure-intro: 1;
+  z-index: 2;
+  visibility: visible;
+  background: #07110e;
+}
+
+.portrait-scroll-spike__scene--pattern {
+  background: #d9c08f;
+  color: #211713;
+}
+
+.portrait-scroll-spike__scene--star {
+  background:
+    radial-gradient(circle at 16% 22%, rgba(56, 166, 154, .12), transparent 32vw),
+    radial-gradient(circle at 84% 74%, rgba(183, 91, 52, .10), transparent 34vw),
+    linear-gradient(180deg, rgba(7, 17, 14, .96), #07110e),
+    #07110e;
+}
+
+.portrait-scroll-spike__scene--aod {
+  background: #ede4d2;
+  color: #292919;
+}
+
+.portrait-scroll-spike__scene--aod .aod-transition {
+  /*
+   * The horizontal composition authors Cloud at 72vw and Sun at 62vw.
+   * On its 16:9 stage those equal 1.28h and 1.10h respectively. Expressing
+   * the portrait crop from height preserves that authored scene height.
+   */
+  --aod-transition-scene-width: calc(var(--portrait-stage-height) * 1.16);
+  --aod-transition-sun-width: calc(var(--portrait-stage-height) * 1.00);
+  --aod-transition-cloud-width: calc(var(--portrait-stage-height) * 1.16);
+  --portrait-aod-figure-cover-scale: 1;
+  --portrait-aod-figure-shift-y: 9dvh;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* The packed H.264 source is decoder-only; WebGL owns the visible alpha. */
+.portrait-scroll-spike__scene--aod .aod-transition__figure-video {
+  filter: none;
+  opacity: 0 !important;
+}
+
+.portrait-scroll-spike__scene--aod .aod-transition__figure-canvas {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  /* Keep the packed 16:9 plate, but frame it at 82% of the live height. */
+  width: max(100%, calc(var(--portrait-stage-height) * 1.45546));
+  height: auto;
+  filter: none;
+  transform:
+    translate3d(
+      -50%,
+      calc(-50% + var(--portrait-aod-figure-shift-y)),
+      0
+    )
+    scale(var(--portrait-aod-figure-cover-scale));
+}
+
+.portrait-scroll-spike__scene--aod .aod-transition__reveal-surface::after {
+  height: clamp(250px, 38dvh, 430px);
+}
+
+.portrait-scroll-spike__hero-back-motion,
+.portrait-scroll-spike__hero-middle-motion,
+.portrait-scroll-spike__hero-figure-motion,
+.portrait-scroll-spike__pattern-motion,
+.portrait-scroll-spike__star-motion {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__hero-back-parallax,
+.portrait-scroll-spike__hero-middle-parallax,
+.portrait-scroll-spike__hero-figure-parallax {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.portrait-scroll-spike__hero-back-intro,
+.portrait-scroll-spike__hero-middle-intro,
+.portrait-scroll-spike__hero-figure-intro {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  will-change: transform, filter;
+}
+
+.portrait-scroll-spike__hero-middle-intro {
+  filter: blur(calc(.15px + 18px * (1 - var(--r4-hero-middle-intro))));
+  transform:
+    translate3d(
+      calc(-1.8vw * (1 - var(--r4-hero-middle-intro))),
+      calc(54dvh * (1 - var(--r4-hero-middle-intro))),
+      0
+    )
+    scale(calc(1 + .135 * (1 - var(--r4-hero-middle-intro))));
+}
+
+.portrait-scroll-spike__hero-figure-intro {
+  filter: blur(calc(20px * (1 - var(--r4-hero-figure-intro))));
+  transform:
+    translate3d(
+      calc(2.8vw * (1 - var(--r4-hero-figure-intro))),
+      calc(64dvh * (1 - var(--r4-hero-figure-intro))),
+      0
+    )
+    scale(calc(1 + .12 * (1 - var(--r4-hero-figure-intro))));
+}
+
+.portrait-scroll-spike__hero-back-motion {
+  z-index: 0;
+  transform: scale(1.04);
+}
+
+.portrait-scroll-spike__hero-middle-motion {
+  z-index: 1;
+}
+
+.portrait-scroll-spike__hero-figure-motion {
+  z-index: 2;
+}
+
+.portrait-scroll-spike__hero-back,
+.portrait-scroll-spike__hero-middle,
+.portrait-scroll-spike__hero-figure,
+.portrait-scroll-spike__hero-figure-poster,
+.portrait-scroll-spike__pattern-image {
+  position: absolute;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+.portrait-scroll-spike__hero-back {
+  z-index: 0;
+  width: 132%;
+  height: 132%;
+  left: -16%;
+  top: -16%;
+  opacity: var(--r4-hero-back-ink-opacity, 1);
+  object-fit: cover;
+  filter:
+    blur(calc(1.15px + 6.2px * (1 - var(--r4-hero-progress))))
+    brightness(calc(.20 + .38 * var(--r4-hero-progress)))
+    saturate(.92);
+}
+
+.portrait-scroll-spike__hero-intro-ink {
+  position: absolute;
+  z-index: 1;
+  left: -16%;
+  top: -16%;
+  display: block;
+  width: 132%;
+  height: 132%;
+  opacity: 0;
+  visibility: hidden;
+  filter:
+    blur(calc(1.15px + 6.2px * (1 - var(--r4-hero-progress))))
+    brightness(calc(.20 + .38 * var(--r4-hero-progress)))
+    saturate(.92);
+  pointer-events: none;
+}
+
+.portrait-scroll-spike__hero-intro-ink[data-hero-intro-ink-active="true"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.portrait-scroll-spike__hero-middle {
+  width: max(142vw, 176dvh);
+  height: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate3d(-50%, -50%, 0);
+}
+
+.portrait-scroll-spike__hero-figure,
+.portrait-scroll-spike__hero-figure-poster {
+  width: auto;
+  height: min(82dvh, 790px);
+  left: 50%;
+  top: 50%;
+  object-fit: contain;
+  transform: translate(-50%, calc(-50% + 8dvh));
+}
+
+.portrait-scroll-spike__hero-figure-poster {
+  z-index: 0;
+  filter: brightness(1.16) saturate(1.05) contrast(1.02);
+}
+
+.portrait-scroll-spike__hero-figure {
+  z-index: 1;
+  background: transparent;
+  visibility: hidden;
+  opacity: 1;
+}
+
+.portrait-scroll-spike__hero-figure-source {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  height: 2px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.portrait-scroll-spike__hero-figure-parallax[data-portrait-figure-frame="ready"][data-portrait-figure-alpha="verified"] .portrait-scroll-spike__hero-figure[data-packed-alpha-frame-ready="true"] {
+  visibility: visible;
+}
+
+.portrait-scroll-spike__hero-figure-parallax[data-portrait-figure-alpha="verified"] .portrait-scroll-spike__hero-figure-poster {
+  visibility: hidden;
+}
+
+.portrait-scroll-spike__hero-vignette,
+.portrait-scroll-spike__pattern-wash,
+.portrait-scroll-spike__star-wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.portrait-scroll-spike__hero-vignette {
+  z-index: 3;
+  background:
+    linear-gradient(180deg, rgba(4, 8, 7, .28), transparent 34%, rgba(4, 8, 7, .84) 100%),
+    linear-gradient(90deg, rgba(4, 8, 7, .50), transparent 48%, rgba(4, 8, 7, .36));
+}
+
+.portrait-scroll-spike__hero-copy {
+  position: absolute;
+  z-index: 4;
+  inset: max(26px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) auto max(22px, env(safe-area-inset-left));
+  display: grid;
+  justify-items: center;
+  padding-top: 11dvh;
+  text-align: center;
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__hero-copy h1 {
+  display: flex;
+  justify-content: center;
+  gap: .08em;
+  margin: 0;
+  color: rgba(247, 237, 215, .92);
+  font-family: var(--font-title);
+  font-size: clamp(54px, 17vw, 86px);
+  font-weight: 400;
+  line-height: .9;
+  letter-spacing: 0;
+}
+
+/* The figure layer is z=2; the subtitle deliberately sits below it. */
+.portrait-scroll-spike__hero-subtitle {
+  position: absolute;
+  z-index: 1;
+  top: calc(max(26px, env(safe-area-inset-top)) + 11dvh + clamp(64px, 17vw, 86px));
+  left: max(22px, env(safe-area-inset-left));
+  right: max(22px, env(safe-area-inset-right));
+  display: grid;
+  gap: .08em;
+  width: min(22em, 84vw);
+  margin: 0 auto;
+  color: rgba(247, 237, 215, .82);
+  font-family: var(--font-traditional);
+  font-size: clamp(15px, 4vw, 18px);
+  line-height: 1.5;
+  letter-spacing: .035em;
+  text-align: center;
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__hero-subtitle p,
+.portrait-scroll-spike__hero-subtitle [data-text-reveal-item] {
+  display: grid;
+  gap: .08em;
+  margin: 0;
+}
+
+.portrait-scroll-spike__gyro-permission {
+  position: absolute;
+  z-index: 5;
+  top: max(26px, calc(env(safe-area-inset-top) + 4px));
+  left: 50%;
+  padding: 8px 12px;
+  border: 1px solid rgba(247, 237, 215, .38);
+  border-radius: 999px;
+  background: rgba(7, 17, 14, .42);
+  color: rgba(247, 237, 215, .82);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: .08em;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.portrait-scroll-spike[data-portrait-hero-parallax="gesture-required"] .portrait-scroll-spike__gyro-permission,
+.portrait-scroll-spike[data-portrait-hero-parallax="denied"] .portrait-scroll-spike__gyro-permission {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.portrait-scroll-spike__scroll-cue {
+  position: absolute;
+  z-index: 4;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  color: rgba(247, 237, 215, .68);
+  font-size: 13px;
+  letter-spacing: .16em;
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__pattern-motion {
+  z-index: 0;
+  /* The background is the camera. Only the renderer's flower geometry turns. */
+  transform: none;
+}
+
+.portrait-scroll-spike__pattern-image {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portrait-scroll-spike__pattern-wash {
+  z-index: 3;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
+    linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
+}
+
+.portrait-scroll-spike__pattern-bloom {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.portrait-scroll-spike__stage > .r4-ink-transition-canvas.portrait-scroll-spike__ink {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.portrait-scroll-spike__pattern-copy {
+  position: absolute;
+  z-index: 4;
+  left: max(24px, env(safe-area-inset-left));
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(48px, calc(env(safe-area-inset-bottom) + 30px));
+  text-shadow: 0 1px 0 rgba(247, 232, 190, .42);
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__pattern-copy p:first-child,
+.portrait-scroll-spike__method-bridge-content > span {
+  margin: 0 0 12px;
+  color: #715b2e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .14em;
+}
+
+.portrait-scroll-spike__pattern-copy h2,
+.portrait-scroll-spike__star-copy h2,
+.portrait-scroll-spike__reading-intro h2 {
+  margin: 0;
+  font-family: var(--font-traditional);
+  font-weight: 600;
+}
+
+.portrait-scroll-spike__pattern-copy h2 {
+  max-width: 10em;
+  font-size: clamp(34px, 9vw, 48px);
+  line-height: 1.17;
+}
+
+.portrait-scroll-spike__pattern-copy p:last-child {
+  width: min(31em, 88vw);
+  margin: 18px 0 0;
+  color: rgba(33, 23, 19, .82);
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.portrait-scroll-spike__star-motion {
+  z-index: 0;
+  transform: none;
+}
+
+.portrait-scroll-spike__star-perlin {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  opacity: .88;
+  filter: saturate(.98) contrast(1.04) brightness(.92);
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__star-wash {
+  z-index: 1;
+  background:
+    linear-gradient(90deg, rgba(5, 8, 7, .40) 0%, rgba(5, 8, 7, .12) 42%, rgba(5, 8, 7, .38) 100%),
+    linear-gradient(180deg, rgba(5, 8, 7, .12) 0%, rgba(5, 8, 7, .04) 46%, rgba(5, 8, 7, .54) 100%);
+}
+
+.portrait-scroll-spike__star-copy {
+  position: absolute;
+  z-index: 3;
+  left: max(24px, env(safe-area-inset-left));
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(52px, calc(env(safe-area-inset-bottom) + 30px));
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__star-copy h2 {
+  color: rgba(247, 237, 215, .92);
+  font-size: clamp(33px, 9vw, 46px);
+  line-height: 1.16;
+}
+
+.portrait-scroll-spike__star-copy p {
+  width: min(31em, 88vw);
+  margin: 18px 0 0;
+  color: rgba(247, 237, 215, .76);
+  font-size: 16px;
+  line-height: 1.78;
+}
+
+.portrait-scroll-spike__reading {
+  position: relative;
+  padding: 0 0 max(72px, calc(env(safe-area-inset-bottom) + 44px));
+  background: #ede4d2;
+  color: #1e211c;
+}
+
+.portrait-scroll-spike__method-bridge-content,
+.portrait-scroll-spike__steps {
+  width: min(640px, 100%);
+  margin-inline: auto;
+}
+
+.portrait-scroll-spike__reading-intro {
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__method-bridge {
+  position: relative;
+  z-index: 1;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--portrait-live-height);
+  margin: 0;
+  padding:
+    max(76px, calc(env(safe-area-inset-top) + 48px))
+    max(24px, env(safe-area-inset-right))
+    max(68px, calc(env(safe-area-inset-bottom) + 36px))
+    max(24px, env(safe-area-inset-left));
+  color: #1e211c;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  filter: blur(8px);
+  transform: translate3d(0, 30px, 0);
+  will-change: transform, opacity, filter;
+}
+
+.portrait-scroll-spike[data-portrait-stage-active="true"] .portrait-scroll-spike__method-bridge {
+  position: fixed;
+  z-index: 17;
+  inset: 0;
+}
+
+.portrait-scroll-spike[data-portrait-aod-method-visible="false"] .portrait-scroll-spike__method-bridge {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.portrait-scroll-spike__method-bridge-content > span {
+  display: block;
+}
+
+.portrait-scroll-spike__reading-intro h2 {
+  display: grid;
+  gap: .22em;
+  color: #20251f;
+  font-size: clamp(38px, 10.5vw, 56px);
+  line-height: 1.08;
+}
+
+.portrait-scroll-spike__reading-intro p {
+  margin: 22px 0 0;
+  color: rgba(30, 33, 28, .76);
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.portrait-scroll-spike__steps {
+  display: grid;
+  gap: 0;
+  width: min(640px, calc(100% - 48px));
+  margin-top: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * The progressive blur and its solid fallback must own the iOS top inset.
+ * Padding moves the controls below the sensor housing while the surface
+ * itself still begins at y=0, so no unpainted strip appears above the bar.
+ */
+html[data-portrait-spike="b"] .site-nav {
+  min-height: calc(var(--nav-h) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+html[data-portrait-spike="b"] .site-nav.has-scroll-edge-blur::before {
+  display: block;
+  height: calc(var(--nav-h) + env(safe-area-inset-top, 0px) + 32px);
+  opacity: .42;
+}
+
+html[data-portrait-spike="b"] .site-nav-track {
+  padding-right: max(14px, env(safe-area-inset-right, 0px));
+  padding-left: max(14px, env(safe-area-inset-left, 0px));
+}
+
+.portrait-scroll-spike__steps li {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 24px 0;
+  border-top: 1px solid rgba(30, 33, 28, .15);
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__steps li > span {
+  grid-row: span 2;
+  color: #776735;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.portrait-scroll-spike__steps h3 {
+  margin: 0;
+  font-family: var(--font-traditional);
+  font-size: 25px;
+  line-height: 1.2;
+}
+
+.portrait-scroll-spike__steps p {
+  margin: 8px 0 0;
+  color: rgba(30, 33, 28, .74);
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__hero-back-motion,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__hero-middle-motion,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__hero-figure-motion,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__pattern-motion,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__star-motion,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__hero-copy,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__scroll-cue,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__pattern-copy,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__star-copy,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__reading-intro,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__steps li {
+    transform: none !important;
+    opacity: 1 !important;
+    visibility: inherit !important;
+  }
+}

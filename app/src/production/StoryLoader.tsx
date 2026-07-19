@@ -95,6 +95,7 @@ export function StoryLoader({
   const [inkStatus, setInkStatus] = useState<LoaderInkCanvasStatus>(
     mode === 'cold-hero' ? 'idle' : 'fallback'
   );
+  const [sequenceReady, setSequenceReady] = useState(mode !== 'cold-hero');
   const [exitReason, setExitReason] = useState<StoryLoaderExitReason | undefined>(undefined);
   const [hidden, setHidden] = useState(false);
   const wordRef = useRef<HTMLDivElement | null>(null);
@@ -112,6 +113,10 @@ export function StoryLoader({
     if (hidden) {
       return;
     }
+    if (mode === 'cold-hero' && !sequenceReady) {
+      setFrame(loaderFrameAt(0, mode));
+      return;
+    }
     sequenceStartedAtRef.current = performance.now();
     setFrame(loaderFrameAt(0, mode));
     if (mode !== 'cold-hero') {
@@ -125,11 +130,12 @@ export function StoryLoader({
         window.clearTimeout(timer);
       }
     };
-  }, [hidden, mode]);
+  }, [hidden, mode, sequenceReady]);
 
   useEffect(() => {
     if (mode !== 'cold-hero') {
       setInkStatus('fallback');
+      setSequenceReady(true);
       return;
     }
     if (hidden) {
@@ -152,15 +158,23 @@ export function StoryLoader({
         host,
         phrases: LOADER_PHRASES,
         timings: STORY_LOADER_TIMINGS,
-        startedAt: sequenceStartedAtRef.current,
         onStatusChange: (nextStatus) => {
-          if (current) setInkStatus(nextStatus);
+          if (!current) {
+            return;
+          }
+          setInkStatus(nextStatus);
+          if (nextStatus === 'active' || nextStatus === 'fallback') {
+            setSequenceReady(true);
+          }
         }
       });
       controller = nextController;
       return nextController.start();
     }).catch(() => {
-      if (current) setInkStatus('fallback');
+      if (current) {
+        setInkStatus('fallback');
+        setSequenceReady(true);
+      }
     });
     return () => {
       current = false;

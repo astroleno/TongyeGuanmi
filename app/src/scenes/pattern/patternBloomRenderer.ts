@@ -21,6 +21,11 @@ export function patternCenterForViewport(viewportWidth: number): Readonly<{ x: n
     : DESKTOP_PATTERN_CENTER;
 }
 
+export type PatternCenter = Readonly<{
+  x: number;
+  y: number;
+}>;
+
 export type PatternObjectMetrics = Readonly<{
   size: number;
   centerX: number;
@@ -31,9 +36,17 @@ export function patternObjectMetricsForViewport(
   width: number,
   height: number
 ): PatternObjectMetrics {
+  return patternObjectMetricsForCenter(width, height, patternCenterForViewport(width));
+}
+
+/** A route may choose a portrait camera without changing the canonical scene. */
+export function patternObjectMetricsForCenter(
+  width: number,
+  height: number,
+  center: PatternCenter
+): PatternObjectMetrics {
   const safeWidth = Math.max(1, width);
   const safeHeight = Math.max(1, height);
-  const center = patternCenterForViewport(safeWidth);
   const mobile = safeWidth <= PATTERN_MOBILE_MAX_WIDTH;
   const vmin = Math.min(safeWidth, safeHeight);
   const size = mobile
@@ -121,6 +134,10 @@ export type PatternBloomSnapshot = {
   largestRingScale: number;
   compactRingScale: number;
 };
+
+export type PatternBloomRendererOptions = Readonly<{
+  centerForViewport?: (width: number, height: number) => PatternCenter;
+}>;
 
 const layerConfigs: readonly LayerConfig[] = [
   {
@@ -351,7 +368,10 @@ export class PatternBloomRenderer {
   private readyPromise: Promise<void> | undefined;
   private resolveReady: (() => void) | undefined;
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    private readonly options: PatternBloomRendererOptions = {}
+  ) {
     this.context = canvas.getContext('2d', { alpha: true });
     this.petalCanvas.dataset.patternTextureRole = 'petal-source';
     this.flowerCanvas.dataset.patternTextureRole = 'source-flower';
@@ -531,10 +551,15 @@ export class PatternBloomRenderer {
   }
 
   private getObjectMetrics(): ObjectMetrics {
-    const cssMetrics = patternObjectMetricsForViewport(
-      this.width / this.dpr,
-      this.height / this.dpr
-    );
+    const cssWidth = this.width / this.dpr;
+    const cssHeight = this.height / this.dpr;
+    const cssMetrics = this.options.centerForViewport
+      ? patternObjectMetricsForCenter(
+        cssWidth,
+        cssHeight,
+        this.options.centerForViewport(cssWidth, cssHeight)
+      )
+      : patternObjectMetricsForViewport(cssWidth, cssHeight);
     return {
       size: cssMetrics.size * this.dpr,
       centerX: cssMetrics.centerX * this.dpr,
@@ -803,29 +828,22 @@ export class PatternBloomRenderer {
     const endpointMix = smoothstep(0.02, 1, progress);
     for (const ring of this.buildRingCache(progress, rotationProgress, metrics)) {
       const rotation = ring.rotationBase + phase * 0.028 * ring.spin;
+      // The zoom is a geometry change, not a dissolve. Drawing one opaque
+      // structural texture avoids the semi-transparent petals created by a
+      // conventional start/end crossfade while size and rotation stay
+      // continuously scroll-driven.
+      const texture = endpointMix < 0.5 ? ring.startCanvas : ring.endCanvas;
       context.save();
       context.translate(metrics.centerX, metrics.centerY);
       context.rotate(rotation);
-      if (endpointMix < 0.999) {
-        context.globalAlpha = 1 - endpointMix;
-        context.drawImage(
-          ring.startCanvas,
-          -ring.drawSize / 2,
-          -ring.drawSize / 2,
-          ring.drawSize,
-          ring.drawSize
-        );
-      }
-      if (endpointMix > 0.001) {
-        context.globalAlpha = endpointMix;
-        context.drawImage(
-          ring.endCanvas,
-          -ring.drawSize / 2,
-          -ring.drawSize / 2,
-          ring.drawSize,
-          ring.drawSize
-        );
-      }
+      context.globalAlpha = 1;
+      context.drawImage(
+        texture,
+        -ring.drawSize / 2,
+        -ring.drawSize / 2,
+        ring.drawSize,
+        ring.drawSize
+      );
       context.restore();
     }
   }

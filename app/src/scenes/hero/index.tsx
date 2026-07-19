@@ -16,10 +16,17 @@ import {
 import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
 import {
   attachHeroParallax,
+  HERO_RADIAL_INK_FIELD,
+  renderHeroProgress,
   sampleHeroIntro,
   sampleHeroScroll,
   startHeroIntro,
-  type HeroIntroSample
+  type HeroIntroSample,
+  type HeroRenderState
+} from './motion';
+export {
+  HERO_RADIAL_INK_FIELD,
+  renderHeroProgress
 } from './motion';
 import { HERO_PATTERN_MOTION_MS } from '../../story/timings';
 
@@ -32,12 +39,6 @@ const HERO_FIGURE_POSTER = new URL('../../../../assets/hero-figure-poster.webp',
 const HERO_VIDEO_START_SECONDS = 0;
 const HERO_VIDEO_END_EPSILON = 0.02;
 export const HERO_PATTERN_VIDEO_END_SECONDS = 0.9;
-export const HERO_RADIAL_INK_FIELD = {
-  kind: 'radial' as const,
-  origin: { x: 0.5, y: 0.5 },
-  seed: 'hero-pattern'
-};
-
 export const HERO_COPY = [
   '同',
   '野',
@@ -45,10 +46,6 @@ export const HERO_COPY = [
   '幂',
   '你的同行不是更聪明，只是更早把 AI 用进了生意里。'
 ] as const;
-
-export type HeroRenderState = {
-  progress: number;
-};
 
 type HeroVideoElement = HTMLVideoElement & {
   __r4HeroPendingTime?: number;
@@ -152,25 +149,6 @@ export function heroVideoPlaybackStateForPresentation(options: Readonly<{
   // The current Hero is always the authored first frame. The terminal frame is
   // only a preposition for the previous layer while Pattern reverses back.
   return 'start';
-}
-
-function range01(value: number, start: number, end: number): number {
-  return Math.min(1, Math.max(0, (value - start) / (end - start)));
-}
-
-export function renderHeroProgress(root: HTMLElement | null, progress: number): HeroRenderState {
-  const clamped = Math.min(1, Math.max(0, progress));
-  const smoothStep = (value: number) => value * value * (3 - 2 * value);
-  const middleIntro = smoothStep(range01(clamped, 0, 0.92));
-  const figureIntro = smoothStep(range01(clamped, 0.02, 0.96));
-
-  root?.style.setProperty('--r4-hero-progress', clamped.toFixed(4));
-  root?.style.setProperty('--r4-hero-middle-intro', middleIntro.toFixed(4));
-  root?.style.setProperty('--r4-hero-figure-intro', figureIntro.toFixed(4));
-  root?.style.setProperty('--r4-hero-pattern-middle-progress', '0.0000');
-  root?.style.setProperty('--r4-hero-pattern-figure-progress', '0.0000');
-  root?.setAttribute('data-hero-progress', clamped.toFixed(4));
-  return { progress: clamped };
 }
 
 export function renderHeroHold(root: HTMLElement | null): void {

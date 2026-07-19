@@ -8,7 +8,10 @@ import {
 import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
 import { mapAodTimelineToMediaProgress, renderAodTransitionProgress } from './progress';
 
-export { renderAodTransitionProgress } from './progress';
+export {
+  AOD_TIMELINE_ALPHA_END,
+  renderAodTransitionProgress
+} from './progress';
 
 export const AOD_CLOUD_SRC = new URL('../../../../assets/aod_cloud-alpha.webp', import.meta.url).href;
 export const AOD_SUN_SRC = new URL('../../../../assets/aod_sun-alpha.webp', import.meta.url).href;
@@ -193,6 +196,11 @@ function AodAnimationScene({ registerHandle }: SceneComponentProps) {
                 hevc={AOD_FIGURE_HEVC_ALPHA_SRC}
               />
             </video>
+            <canvas
+              className="aod-transition__figure-canvas"
+              data-aod-figure-canvas
+              aria-hidden="true"
+            />
             <div className="aod-transition__paper-solid" aria-hidden="true" />
             <div className="aod-transition__progress" aria-hidden="true"><span /></div>
           </div>

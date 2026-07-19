@@ -4,6 +4,7 @@ import {
   patternFramePhases,
   patternLayerDirections,
   patternLayerIds,
+  patternObjectMetricsForCenter,
   patternObjectMetricsForViewport,
   patternSourceFlowerScale
 } from './patternBloomRenderer';
@@ -147,6 +148,14 @@ describe('PatternBloomRenderer', () => {
     expect(mobile.centerX).toBeCloseTo(195, 4);
     expect(mobile.centerY).toBeCloseTo(489.52, 4);
     expect(mobile.size).toBeCloseTo(436.8, 4);
+  });
+
+  it('allows a presentation shell to move only its Pattern focal point', () => {
+    const portrait = patternObjectMetricsForCenter(390, 844, { x: 0.5, y: 0.36 });
+
+    expect(portrait.centerX).toBeCloseTo(195, 4);
+    expect(portrait.centerY).toBeCloseTo(303.84, 4);
+    expect(portrait.size).toBeCloseTo(436.8, 4);
   });
 
   it('does not add collapse phase to decor or source-flower motion', () => {
