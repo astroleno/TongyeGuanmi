@@ -5,6 +5,7 @@ output/
 .release/
 playwright-report/
 test-results/
+/.playwright-cli/
 .review-*.png
 .worktrees/
 tmp/
