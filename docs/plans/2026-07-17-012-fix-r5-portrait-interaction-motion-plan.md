@@ -1,12 +1,14 @@
 ---
 title: Complete R5 Portrait Interaction and Motion
 type: fix
-status: planned
+status: in_progress
 date: 2026-07-17
 branch: codex/react-refactor-r5-parity-cutover
 baseline_commit: 1942f6a
 visual_baseline: docs/plans/2026-07-17-011-refine-r5-typography-responsive-layout-plan.md
 architecture_gate: required
+selected_route: route-b-native-scroll
+successor_plan: docs/plans/2026-07-19-013-refactor-r5-responsive-story-architecture-plan.md
 ---
 
 # R5 Portrait Interaction and Motion Closure Plan
@@ -161,6 +163,42 @@ Continue with a route only if:
 Reject Route A if native reading, edge handoff, or snap intent preview requires competing input/DOM owners. Reject Route B if it cannot share canonical content/media ownership or requires two accessible story trees.
 
 Record the decision and rejected-route evidence in this plan before Unit 1 begins. If neither route passes, stop and create a revised architecture plan; do not continue into implementation units.
+
+### Spike 0 decision — Route B selected
+
+**Decision date:** 2026-07-19
+
+**Validated preview:** `?v=16` on the `codex/r5-portrait-spike` branch
+
+**Decision:** continue with Route B: one native phone scroll owner, a fixed visual
+stage for cinematic chapters, and document-flow reading sections.
+
+Route A was rejected because repairing Stage/Director boundaries did not produce
+acceptable phone hand feel: valid swipes could appear inert, media could collapse
+to endpoints, and reading momentum still competed with cinematic ownership. Route
+B produced continuous touch response and made the Hero, Pattern, Star Map, AOD,
+and Method vertical slice observable on the physical iPhone.
+
+The selected route remains conditional on one final physical-device acceptance of
+the current visual corrections. That acceptance gates bulk scene implementation,
+but it no longer reopens the Route A/Route B architecture decision.
+
+The spike also proved that Route B must not be expanded in place.
+`app/src/production/portrait-spike/PortraitScrollSpike.tsx` is already over 1,500
+lines and mixes shell orchestration, scene markup, media control, transitions,
+navigation, viewport behavior, and evidence state. Production migration therefore
+starts with the extraction plan in
+`docs/plans/2026-07-19-013-refactor-r5-responsive-story-architecture-plan.md`.
+
+The production target is:
+
+- one canonical product core for spine, copy, navigation aliases, media contracts,
+  progress semantics, and fallbacks;
+- a desktop presentation shell that preserves Stage/Director;
+- a phone presentation shell that preserves native scroll and the fixed-stage
+  Route B behavior;
+- presentation adapters per scene/transition, loaded on demand;
+- exactly one mounted accessible story and one active media owner.
 
 ## Confirmed Product and Interaction Contracts
 
