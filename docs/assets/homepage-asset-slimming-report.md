@@ -917,3 +917,84 @@ git show "be119daba32577c5a44dc100aa3bd357cacdaa1d:$source" > "$tmpdir/$source"
 - 最终 `dist/homepage-media-inventory.json`：**38 files / 28 WebP / 9 WebM / 1 JPG / 0 PNG**；`dist/assets` 中没有 PNG。
 - 最终 Homepage runtime media：**60,830,949 bytes（58.01 MiB）**；Hero pre-scroll：**1,131,048 bytes（1.08 MiB）**。
 - 80 MiB、4 MiB 与所有既有 JS budgets 均保持原值，没有提高任何预算。
+
+## 2026-07-19：Presentation WebP Q95 replacement
+
+### Scope and decision
+
+- Replaced only the 15 presentation WebPs listed below.
+- The four semantic depth/mask WebPs remain byte-identical and lossless.
+- All eight VP9 Alpha WebMs and all eight iOS HEVC Alpha MP4s remain
+  byte-identical. Mobile-video optimization is explicitly deferred to a
+  separate workstream.
+- The accepted candidate profile is `cwebp 1.6.0`, preset `picture`, quality
+  95, Alpha quality 100, method 6, and `sharp_yuv`.
+- All 15 decoded Alpha planes are byte-identical to the archived lossless
+  baseline. Warm-paper composite RGB MAE ranges from 0.153 to 1.825 out of
+  255. Full-size contact sheets and live Hero, Pattern, AOD, PH, Crane, and
+  Star Map review were accepted.
+- The Figure2 dual-person animation observation is outside this replacement:
+  desktop continues to use the unchanged WebM, and iOS continues to use the
+  unchanged HEVC file.
+
+### Physical pre-replacement archive
+
+Before any canonical path was overwritten, all 15 current files were copied to
+`archive/assets/homepage-media/2026-07-19/pre-compression-r5/assets/**`.
+Production-relative paths were preserved, and 15/15 source/archive pairs passed
+byte-for-byte `cmp`. The archive README records the baseline commit, asset-tree
+identity, bytes, SHA-256, and restore procedure.
+
+After replacement, a second restore drill copied the full archive into a fresh
+isolated temporary directory and compared every restored file with
+`f3da79b5d788772bab53def8a0164c6b121ae3a3:<production-path>`. Result:
+**15/15 files PASS, 15,081,218 bytes, 0 SHA-256 mismatches**. The drill did not
+write archived bytes back into production `assets/`.
+
+### Selected output identities
+
+| Production path | Baseline bytes | Selected bytes | Selected SHA-256 |
+| --- | ---: | ---: | --- |
+| `assets/hero-figure-poster.webp` | 561,678 | 213,550 | `0998cbc66e989767ce2238d6d962c82907bd8f3d74e9eb4bfabe76506c324453` |
+| `assets/back2.webp` | 2,264,544 | 784,596 | `fdfd4fbda1abb39c2384b467c8160151e7a47871e7fd4b5c98574c38519f6403` |
+| `assets/ph_background.webp` | 2,305,060 | 525,038 | `3495ef864eba9851c6e08afaa78f777bad1698a77867ae7bd7f56961092ec004` |
+| `assets/ph_front-alpha.webp` | 1,240,376 | 484,606 | `48b3cdade0bdf056ad1fa1fc0843d779138b2c50460947150bb3a8354fef3881` |
+| `assets/aod_cloud-alpha.webp` | 1,541,418 | 406,046 | `f2bfb1ea3fcfd0ee28e077ee7e14fb8fdeb0ac5d8641c1e11936faedd5fee57b` |
+| `assets/aod_sun-alpha.webp` | 1,452,854 | 428,132 | `73f9e3264cc014289608430c8846341d67c6141bff89e9d51702e5942e43a32d` |
+| `assets/crane1_arch-alpha.webp` | 467,798 | 124,118 | `3a7704cd259387522ec8b214ba0769b15e5534bebaf8b2832f1b2af2966af506` |
+| `assets/crane1_cloud-front2-alpha.webp` | 437,396 | 91,568 | `1808401807194ad530b1fcfb9ad13f79cc969b6dc771f46d25232f58cdfc35ac` |
+| `assets/crane1_cloud1-alpha.webp` | 557,270 | 130,682 | `69d19155e25b505282a7365b679cb80c05112e8d0c0942e4d8761a58d9876e43` |
+| `assets/crane1_cloud2-alpha.webp` | 421,534 | 90,482 | `2322aa7f37955143d03a174d86427893c665fda036098e2e3a0fa3a6d57220fe` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-02.webp` | 627,728 | 69,422 | `f7b501e71a57c0020d81ceeb3378640f9cc8e9a53192338bd97cbb542bd8b835` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-03.webp` | 798,910 | 139,074 | `6bba6fee43d98ee5c57d79acb57f1d59d4856c2290910c469f3bc2fc0adc856e` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-04.webp` | 1,219,762 | 194,858 | `15a2ad1b19761b39f97a31a7a1ad60786d807bc2456f82725f3d480e2a4df699` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-05.webp` | 489,920 | 131,830 | `efac96a95f6dbba3f1fcbe39d205c9a795180cbd341d0bb047ec4ece3319c6f8` |
+| `assets/patterns/alpha-layers/pattern-layer-alpha-06.webp` | 694,970 | 207,136 | `5779ebc5d3fec78c4e994db1317e71c33cb75732a347c6afed6b3e844b7d2458` |
+
+The selected presentation set is **4,021,138 bytes**, down from
+**15,081,218 bytes**: a reduction of **11,060,080 bytes (73.34%)**.
+
+### Resulting static inventory
+
+- All WebP: **10,692,780 bytes (10.20 MiB)**.
+- WebM, unchanged: **22,849,072 bytes (21.79 MiB)**.
+- HEVC Alpha, unchanged: **33,478,827 bytes (31.93 MiB)**.
+- Desktop/Android static path: **33,541,852 bytes (31.99 MiB)**.
+- iOS static path, pending the separate mobile-video workstream:
+  **44,171,607 bytes (42.13 MiB)**.
+- Both codec families plus WebP: **67,020,679 bytes (63.92 MiB)**.
+- Hero pre-scroll image/poster media: **1,255,964 bytes (1.20 MiB)**.
+
+### Cutover verification
+
+- Decoded production-versus-archive Alpha comparison: **15/15 PASS**.
+- `pnpm -C app typecheck`: PASS.
+- `pnpm -C app lint`: PASS.
+- `pnpm -C app test`: **100 files / 662 tests PASS**.
+- `pnpm -C app build`: PASS, including frozen media inventory, release-build,
+  performance-budget, CDN-manifest, and release-manifest generation.
+- Canonical `/` Browser review: Hero, Pattern, AOD/Method, and Crane rendered
+  correctly; every inspected image/video decoded, desktop selected unchanged
+  WebM sources, and no console warnings or errors were recorded.
+- Temporary `/compression-preview` routing and candidate remapping were
+  removed after approval.
