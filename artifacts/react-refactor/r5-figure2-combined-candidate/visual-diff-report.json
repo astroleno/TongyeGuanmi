@@ -1,0 +1,70 @@
+{
+  "desktop": {
+    "crop": [
+      430,
+      300,
+      1010,
+      850
+    ],
+    "frames": {
+      "00": {
+        "mae_rgb": 0.5894,
+        "rmse_rgb": 2.6092,
+        "psnr_db": 39.801,
+        "pixels_delta_gt_2_pct": 8.4041,
+        "pixels_delta_gt_8_pct": 2.8429,
+        "max_channel_delta": 48
+      },
+      "39": {
+        "mae_rgb": 0.7681,
+        "rmse_rgb": 3.0737,
+        "psnr_db": 38.378,
+        "pixels_delta_gt_2_pct": 10.7091,
+        "pixels_delta_gt_8_pct": 5.0066,
+        "max_channel_delta": 71
+      },
+      "77": {
+        "mae_rgb": 0.6714,
+        "rmse_rgb": 2.8242,
+        "psnr_db": 39.113,
+        "pixels_delta_gt_2_pct": 9.452,
+        "pixels_delta_gt_8_pct": 3.5865,
+        "max_channel_delta": 52
+      }
+    }
+  },
+  "mobile": {
+    "crop": [
+      0,
+      260,
+      390,
+      760
+    ],
+    "frames": {
+      "00": {
+        "mae_rgb": 6.851,
+        "rmse_rgb": 21.7816,
+        "psnr_db": 21.369,
+        "pixels_delta_gt_2_pct": 19.5697,
+        "pixels_delta_gt_8_pct": 17.0359,
+        "max_channel_delta": 247
+      },
+      "39": {
+        "mae_rgb": 7.2213,
+        "rmse_rgb": 22.6786,
+        "psnr_db": 21.018,
+        "pixels_delta_gt_2_pct": 20.4328,
+        "pixels_delta_gt_8_pct": 17.7041,
+        "max_channel_delta": 246
+      },
+      "77": {
+        "mae_rgb": 7.2851,
+        "rmse_rgb": 22.3615,
+        "psnr_db": 21.141,
+        "pixels_delta_gt_2_pct": 20.2185,
+        "pixels_delta_gt_8_pct": 17.7744,
+        "max_channel_delta": 231
+      }
+    }
+  }
+}
