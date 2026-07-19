@@ -134,7 +134,11 @@ export default defineConfig({
   build: {
     outDir: '../dist',
     emptyOutDir: true,
+    manifest: true,
     minify: 'terser',
+    terserOptions: {
+      compress: { passes: 2 }
+    },
     assetsInlineLimit: 0,
     cssCodeSplit: true,
     modulePreload: false,

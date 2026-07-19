@@ -22,6 +22,7 @@ const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
 const distDir = path.join(repoDir, 'dist');
 const indexHtml = await readFile(path.join(distDir, 'index.html'), 'utf8');
+const manifest = JSON.parse(await readFile(path.join(distDir, '.vite', 'manifest.json'), 'utf8'));
 
 function assertBudget(name, actual, budget) {
   if (actual > budget) {
@@ -62,6 +63,62 @@ const initialCss = await readFile(resolveDistAsset(styleMatch[1]));
 const files = await filesBelow(path.join(distDir, 'assets'));
 const jsFiles = files.filter((file) => file.path.endsWith('.js'));
 const lazyJsFiles = jsFiles.filter((file) => file.path !== resolveDistAsset(scriptMatch[1]));
+const filesByRelativePath = new Map(
+  files.map((file) => [path.relative(distDir, file.path).split(path.sep).join('/'), file])
+);
+
+function manifestFile(key) {
+  const entry = manifest[key];
+  const file = entry && filesByRelativePath.get(entry.file);
+  if (!file) {
+    throw new Error(`Manifest entry ${key} does not point at an emitted JS asset`);
+  }
+  return file;
+}
+
+function shellEntry(name) {
+  const match = Object.entries(manifest).find(([, entry]) => (
+    entry.isDynamicEntry && entry.name === name
+  ));
+  if (!match) {
+    throw new Error(`Expected dynamic ${name} presentation shell in Vite manifest`);
+  }
+  return match[0];
+}
+
+function presentationClosure(root) {
+  const entries = new Set();
+  const visit = (key, followDynamicImports = true) => {
+    if (entries.has(key)) return;
+    const entry = manifest[key];
+    if (!entry) throw new Error(`Manifest dependency ${key} is missing`);
+    entries.add(key);
+    for (const imported of entry.imports ?? []) {
+      // The initial entry owns both mutually-exclusive shell imports. Loading
+      // one selected shell must not be charged for the other shell's graph.
+      visit(imported, imported !== 'index.html');
+    }
+    if (followDynamicImports) {
+      for (const imported of entry.dynamicImports ?? []) visit(imported);
+    }
+  };
+  visit(root);
+  const files = [...entries].map(manifestFile);
+  return {
+    bytes: files.reduce((sum, file) => sum + file.bytes, 0),
+    files
+  };
+}
+
+const desktopShellKey = shellEntry('DesktopStoryShell');
+const phoneShellKey = shellEntry('PhoneStoryShell');
+const desktopPresentation = presentationClosure(desktopShellKey);
+const phonePresentation = presentationClosure(phoneShellKey);
+const presentationShellFiles = new Set([
+  manifestFile(desktopShellKey).path,
+  manifestFile(phoneShellKey).path
+]);
+const presentationLazyJsFiles = lazyJsFiles.filter((file) => !presentationShellFiles.has(file.path));
 const loaderInkLazyJsFiles = lazyJsFiles.filter((file) => (
   /^loader-ink-reveal-[^.]+\.js$/.test(path.basename(file.path))
 ));
@@ -70,9 +127,20 @@ if (loaderInkLazyJsFiles.length !== 1) {
     `Expected exactly one lazy loader Ink chunk, found ${loaderInkLazyJsFiles.length}`
   );
 }
-const totalJsRawBytes = jsFiles.reduce((sum, file) => sum + file.bytes, 0);
+const allJsRawBytes = jsFiles.reduce((sum, file) => sum + file.bytes, 0);
+const loaderInkPaths = new Set(loaderInkLazyJsFiles.map((file) => file.path));
+const shellBudgetBytes = (presentation) => presentation.files
+  .filter((file) => !loaderInkPaths.has(file.path))
+  .reduce((sum, file) => sum + file.bytes, 0);
+const desktopShellBudgetBytes = shellBudgetBytes(desktopPresentation);
+const phoneShellBudgetBytes = shellBudgetBytes(phonePresentation);
+// `totalJsRawBytes` is the larger selected-shell journey. The old aggregate
+// charged a desktop visitor for every phone-only chunk (and vice versa). The
+// loader ink effect remains separately hard-capped below, so it is not counted
+// a second time as continuously resident shell code.
+const totalJsRawBytes = Math.max(desktopShellBudgetBytes, phoneShellBudgetBytes);
 const totalAssetBytes = files.reduce((sum, file) => sum + file.bytes, 0);
-const largestLazyJsRawBytes = Math.max(0, ...lazyJsFiles.map((file) => file.bytes));
+const largestLazyJsRawBytes = Math.max(0, ...presentationLazyJsFiles.map((file) => file.bytes));
 const loaderInkLazyJsRawBytes = loaderInkLazyJsFiles[0].bytes;
 const largestAssetBytes = Math.max(0, ...files.map((file) => file.bytes));
 
@@ -95,7 +163,7 @@ const totalJsHeadroomBytes = totalJsHardCapBytes - actual.totalJsRawBytes;
 assertHeadroom('totalJsHeadroomBytes', totalJsHeadroomBytes, requiredTotalJsHeadroomBytes);
 
 const report = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   budgets,
   headroom: {
     totalJsHardCapBytes,
@@ -103,8 +171,18 @@ const report = {
     totalJsHeadroomBytes
   },
   actual,
+  presentationFamilies: {
+    desktopJsRawBytes: desktopPresentation.bytes,
+    phoneJsRawBytes: phonePresentation.bytes,
+    desktopShellBudgetBytes,
+    phoneShellBudgetBytes,
+    allEmittedJsRawBytes: allJsRawBytes,
+    budgetedJsRawBytes: totalJsRawBytes
+  },
   chunks: {
-    loaderInk: path.relative(distDir, loaderInkLazyJsFiles[0].path).split(path.sep).join('/')
+    loaderInk: path.relative(distDir, loaderInkLazyJsFiles[0].path).split(path.sep).join('/'),
+    desktopShell: manifest[desktopShellKey].file,
+    phoneShell: manifest[phoneShellKey].file
   },
   pass: true
 };

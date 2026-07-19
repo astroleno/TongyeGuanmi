@@ -87,7 +87,7 @@ describe('portrait motion ownership', () => {
     );
 
     expect(video.src).toBe('/figure-rgb-alpha.mp4');
-    expect(video.dataset.portraitFigureSource).toBe('packed');
+    expect(video.dataset.phoneFigureSource).toBe('packed');
     expect(video.load).toHaveBeenCalledOnce();
 
     playback.setActive(true);
@@ -101,7 +101,7 @@ describe('portrait motion ownership', () => {
     expect(timeline.drive).toHaveBeenCalledWith(
       video,
       expect.objectContaining({
-        runId: 'portrait-spike-hero-figure',
+        runId: 'phone-story-hero-figure',
         direction: 1,
         progress: 0.6,
         mode: 'timeline'

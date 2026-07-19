@@ -1,0 +1,49 @@
+import type { SceneId } from './types';
+
+export type ProductMediaKind = 'image' | 'video';
+
+export type ProductMediaSpec = Readonly<{
+  id: string;
+  owner: SceneId;
+  asset: string;
+  kind: ProductMediaKind;
+}>;
+
+/**
+ * Identity and ownership live in the product layer. Presentation adapters may
+ * choose an appropriate URL resolver and compositor, but cannot claim another
+ * scene's media surface.
+ */
+export const frontHalfProductMedia = [
+  { id: 'hero-back', owner: 'hero', asset: 'hero-back.webp', kind: 'image' },
+  { id: 'hero-middle', owner: 'hero', asset: 'hero-middle.webp', kind: 'image' },
+  { id: 'hero-figure-poster', owner: 'hero', asset: 'hero-figure-poster.webp', kind: 'image' },
+  { id: 'hero-figure-packed', owner: 'hero', asset: 'figure1-rgb-alpha.mp4', kind: 'video' },
+  { id: 'pattern-background', owner: 'pattern', asset: 'pattern-background.webp', kind: 'image' },
+  { id: 'star-map-source', owner: 'star-map', asset: 'back2.webp', kind: 'image' },
+  { id: 'aod-figure-packed-forward', owner: 'aod-animation', asset: 'aod-figure-motion-rgb-alpha.mp4', kind: 'video' },
+  { id: 'aod-figure-packed-reverse', owner: 'aod-animation', asset: 'aod-figure-motion-rgb-alpha-reverse.mp4', kind: 'video' }
+] as const satisfies readonly ProductMediaSpec[];
+
+export type FrontHalfProductMediaId = (typeof frontHalfProductMedia)[number]['id'];
+
+const frontHalfMediaById = new Map(
+  frontHalfProductMedia.map((media) => [media.id, media])
+);
+
+export function frontHalfProductMediaFor(id: FrontHalfProductMediaId): (typeof frontHalfProductMedia)[number] {
+  const media = frontHalfMediaById.get(id);
+  if (!media) throw new Error(`Unknown front-half media: ${id}`);
+  return media;
+}
+
+export function assertFrontHalfMediaOwner(
+  id: FrontHalfProductMediaId,
+  owner: SceneId
+): (typeof frontHalfProductMedia)[number] {
+  const media = frontHalfProductMediaFor(id);
+  if (media.owner !== owner) {
+    throw new Error(`${owner} cannot own ${id}; canonical owner is ${media.owner}`);
+  }
+  return media;
+}

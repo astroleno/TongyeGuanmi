@@ -37,6 +37,50 @@ boundary this plan is intended to prevent:
 | `app/src/production/portrait-spike/PortraitScrollSpike.css` | 706 lines | shell geometry plus four scene compositions |
 | `app/src/production/StoryApp.tsx` | 759 lines | desktop assembly, readiness, navigation, runtime, recovery |
 
+## Execution Status — 2026-07-19
+
+This section records the implemented migration state; the file-size table above
+is the pre-extraction baseline.
+
+| Unit | Status | Implemented evidence |
+| --- | --- | --- |
+| Unit 0 | Automated characterization complete; physical acceptance pending | `portrait-checkpoints.ts` names the front-half trace and tests forward, reverse, normal refresh, and lock recovery. Plan 012 records the remaining device gate. |
+| Unit 1 | Complete in code | Shared presentation contracts, semantic checkpoints, copy, and media ownership now live in `app/src/story/presentation.ts`, `semantic-checkpoints.ts`, `copy.ts`, and `media.ts`. |
+| Unit 2 | Complete in code | `DesktopStoryShell` and `PhoneStoryShell` are separately lazy-loaded; `presentation-profile.ts`, loader registries, rail geometry, and the import-boundary verifier enforce selected-shell ownership. |
+| Unit 3 | Complete in code; physical acceptance pending | The production phone adapters cover Loader, Hero, Pattern, Star Map, AOD, and Method top, with named transitions and a phone stage timeline. `PortraitScrollSpike` is a thin compatibility wrapper. |
+| Units 4–7 | Not started | The required current-build physical-iPhone checkpoint has not been run, so no back-half migration or cutover work begins. |
+
+The Unit 3 adapters are deliberately located under
+`app/src/production/phone/scenes/` and `app/src/production/phone/transitions/`
+rather than the illustrative `src/scenes/*/phone` paths in the unit file list.
+That keeps phone-only rendering dependencies below the presentation boundary and
+prevents scene engines from acquiring phone-shell ownership.
+
+`?v=16` is retained as a thin formal-shell comparison harness. Regular phone
+activation remains guarded by `VITE_ENABLE_PHONE_STORY=1` until Unit 7 cutover,
+so rotation cannot swap an already selected presentation family.
+
+The production budget verifier now measures each mutually exclusive selected
+presentation shell, while retaining all emitted assets in its audit report and
+enforcing the loader-ink cap separately. No budget threshold was increased.
+The latest production build reports 10,135 bytes of JavaScript headroom (above
+the required 4,096 bytes). No media asset was replaced, re-encoded, or added.
+`PortraitScrollSpike.css` was removed early because the thin wrapper no longer
+imports it; remaining spike aliases stay only for characterization through the
+physical acceptance gate.
+
+Validation completed for this implementation:
+
+- `pnpm -C app typecheck`
+- `pnpm -C app test` — 114 files, 709 tests
+- `pnpm -C app lint`
+- `pnpm -C app build` — module-boundary, media, release, and performance gates pass
+
+The only outstanding acceptance evidence is a physical iPhone Safari run of the
+extracted formal phone shell. It must capture the named checkpoint trace,
+reverse behavior, toolbar/orientation recovery, and single media/input-owner
+state before Unit 4 starts.
+
 ## Problem Frame
 
 Plan 012 selected Route B after the native-scroll/fixed-stage vertical slice

@@ -200,6 +200,22 @@ The production target is:
 - presentation adapters per scene/transition, loaded on demand;
 - exactly one mounted accessible story and one active media owner.
 
+### Route B extraction status — 2026-07-19
+
+The deterministic Route B characterization has been recorded in
+`app/src/production/portrait-spike/portrait-checkpoints.ts` and its tests. It
+covers the named front-half checkpoints, forward/reverse progression, normal
+refresh, and lock-recovery behavior. The former spike entry is now a thin
+compatibility wrapper around the formal
+`app/src/production/phone/PhoneStoryShell.tsx`; `?v=16` therefore exercises the
+production phone shell rather than retaining a second scene implementation.
+
+Current-build physical-iPhone acceptance is **pending**. This workspace has no
+device model, iOS/Safari version, or captured motion evidence for the extracted
+shell, so the historical Route B selection must not be read as acceptance of
+this migration checkpoint. The required mid-migration physical-device run gates
+Unit 4 and every later scene batch.
+
 ## Confirmed Product and Interaction Contracts
 
 ### 1. Mobile browsing efficiency outranks authored waiting

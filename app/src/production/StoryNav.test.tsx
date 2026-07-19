@@ -54,4 +54,24 @@ describe('StoryNav', () => {
     expect(markup.match(/class="scroll-edge-blur__layer"/g)).toHaveLength(7);
     expect(markup.match(/class="scroll-edge-blur__tint"/g)).toHaveLength(1);
   });
+
+  it('lets a partial shell omit destinations it cannot render', () => {
+    const markup = renderToStaticMarkup(createElement(StoryNav, {
+      currentScene: 'method-top',
+      visible: true,
+      menuOpen: true,
+      menuItems: [
+        { label: '首页', hash: '#home', scene: 'hero' },
+        { label: '方法', hash: '#method', scene: 'method-top' }
+      ],
+      showCta: false,
+      onToggleMenu: vi.fn(),
+      onNavigate: vi.fn()
+    }));
+
+    expect(markup).toContain('href="#method" aria-current="page"');
+    expect(markup).not.toContain('href="#services"');
+    expect(markup).not.toContain('href="#contact"');
+    expect(markup).not.toContain('class="site-nav__action nav-cta"');
+  });
 });

@@ -1,0 +1,15 @@
+.phone-method { position: relative; padding: 0 0 max(72px, calc(env(safe-area-inset-bottom) + 44px)); background: #ede4d2; color: #1e211c; }
+.phone-method__bridge { position: relative; z-index: 1; display: none; flex-direction: column; justify-content: center; width: 100%; min-height: var(--phone-live-height); margin: 0; padding: max(76px, calc(env(safe-area-inset-top) + 48px)) max(24px, env(safe-area-inset-right)) max(68px, calc(env(safe-area-inset-bottom) + 36px)) max(24px, env(safe-area-inset-left)); color: #1e211c; pointer-events: none; will-change: transform, opacity, filter; }
+.phone-story-shell[data-phone-stage-active="true"] .phone-method__bridge { position: fixed; z-index: 17; inset: 0; }
+.phone-story-shell[data-phone-aod-method-visible="false"] .phone-method__bridge { display: none !important; opacity: 0 !important; visibility: hidden !important; }
+.phone-method__bridge-content,
+.phone-method__steps { width: min(640px, 100%); margin-inline: auto; }
+.phone-method__bridge-content > span { display: block; margin: 0 0 12px; color: #715b2e; font-size: 12px; font-weight: 700; letter-spacing: .14em; }
+.phone-method__bridge h2 { display: grid; gap: .22em; margin: 0; color: #20251f; font-family: var(--font-traditional); font-size: clamp(38px, 10.5vw, 56px); font-weight: 600; line-height: 1.08; }
+.phone-method__bridge p { margin: 22px 0 0; color: rgba(30, 33, 28, .76); font-size: 17px; line-height: 1.8; }
+.phone-method__steps { display: grid; gap: 0; width: min(640px, calc(100% - 48px)); margin-top: 0; padding: 0; list-style: none; }
+.phone-method__steps li { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 4px 16px; padding: 24px 0; border-top: 1px solid rgba(30, 33, 28, .15); }
+.phone-method__steps li > span { grid-row: span 2; color: #776735; font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+.phone-method__steps h3 { margin: 0; font-family: var(--font-traditional); font-size: 25px; line-height: 1.2; }
+.phone-method__steps p { margin: 8px 0 0; color: rgba(30, 33, 28, .74); font-size: 16px; line-height: 1.75; }
+.phone-method__ready { display: none; }

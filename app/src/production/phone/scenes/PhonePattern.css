@@ -1,0 +1,8 @@
+.phone-pattern__motion { position: absolute; z-index: 0; inset: 0; pointer-events: none; }
+.phone-pattern__image { position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-width: none; object-fit: cover; }
+.phone-pattern__bloom { position: absolute; z-index: 2; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
+.phone-pattern__wash { position: absolute; z-index: 3; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%), linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18)); }
+.phone-pattern__copy { position: absolute; z-index: 4; left: max(24px, env(safe-area-inset-left)); right: max(24px, env(safe-area-inset-right)); bottom: max(48px, calc(env(safe-area-inset-bottom) + 30px)); text-shadow: 0 1px 0 rgba(247, 232, 190, .42); will-change: transform, opacity; }
+.phone-pattern__copy p:first-child { margin: 0 0 12px; color: #715b2e; font-size: 12px; font-weight: 700; letter-spacing: .14em; }
+.phone-pattern__copy h2 { max-width: 10em; margin: 0; font-family: var(--font-traditional); font-size: clamp(34px, 9vw, 48px); font-weight: 600; line-height: 1.17; }
+.phone-pattern__copy p:last-child { width: min(31em, 88vw); margin: 18px 0 0; color: rgba(33, 23, 19, .82); font-size: 16px; line-height: 1.75; }

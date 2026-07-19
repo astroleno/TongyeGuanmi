@@ -1,221 +1,79 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { PHONE_STAGE_STOPS, phoneStageFrame } from '../phone/phone-stage-timeline';
 
-const source = readFileSync(new URL('./PortraitScrollSpike.tsx', import.meta.url), 'utf8');
-const stylesheet = readFileSync(new URL('./PortraitScrollSpike.css', import.meta.url), 'utf8');
-const inkSource = readFileSync(new URL('./portrait-ink.ts', import.meta.url), 'utf8');
-const globalStylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
+const spikeSource = readFileSync(new URL('./PortraitScrollSpike.tsx', import.meta.url), 'utf8');
+const shellSource = readFileSync(new URL('../phone/PhoneStoryShell.tsx', import.meta.url), 'utf8');
+const shellCss = readFileSync(new URL('../phone/PhoneStoryShell.css', import.meta.url), 'utf8');
+const methodCss = readFileSync(new URL('../phone/scenes/PhoneMethodTop.css', import.meta.url), 'utf8');
+const heroSource = readFileSync(new URL('../phone/scenes/PhoneHero.tsx', import.meta.url), 'utf8');
+const starSource = readFileSync(new URL('../phone/scenes/PhoneStarMap.tsx', import.meta.url), 'utf8');
+const aodSource = readFileSync(new URL('../phone/scenes/PhoneAod.tsx', import.meta.url), 'utf8');
+const aodRuntimeSource = readFileSync(new URL('../phone/aod-autoplay.ts', import.meta.url), 'utf8');
+const phoneMediaSource = readFileSync(new URL('../phone/phone-media.ts', import.meta.url), 'utf8');
+const productMediaSource = readFileSync(new URL('../../story/media.ts', import.meta.url), 'utf8');
+const heroPatternSource = readFileSync(new URL('../phone/transitions/hero-pattern.tsx', import.meta.url), 'utf8');
+const patternStarSource = readFileSync(new URL('../phone/transitions/pattern-star-map.tsx', import.meta.url), 'utf8');
 
-function constant(name: string): number {
-  const match = source.match(new RegExp(`const ${name} = ([0-9.]+);`));
-  if (!match?.[1]) {
-    throw new Error(`Missing portrait timeline constant: ${name}`);
-  }
-  return Number(match[1]);
-}
-
-describe('PortraitScrollSpike two-surface timeline', () => {
-  it('keeps every internal motion and from/to handoff in a strictly exclusive interval', () => {
-    const stops = [
-      constant('HERO_MOTION_END'),
-      constant('HERO_PATTERN_END'),
-      constant('PATTERN_MOTION_START'),
-      constant('PATTERN_MOTION_END'),
-      constant('PATTERN_STAR_START'),
-      constant('PATTERN_STAR_END'),
-      constant('STAR_AOD_START'),
-      constant('STAR_AOD_END'),
-      constant('AOD_AUTOPLAY_START')
-    ];
-
-    expect(stops).toEqual([...stops].sort((a, b) => a - b));
-    expect(new Set(stops).size).toBe(stops.length);
-    expect(source).not.toMatch(/const HERO_PATTERN_START\s*=/);
-    expect(source).not.toMatch(/const PATTERN_END\s*=/);
-    expect(source).not.toMatch(/const STAR_END\s*=/);
+describe('Route B production extraction contract', () => {
+  it('keeps v16 as a thin verification entry with no scene or media ownership', () => {
+    expect(spikeSource).toContain('<PhoneStoryShell validationMode="v16" />');
+    expect(spikeSource).not.toContain('createPackedAlphaVideoCompositor');
+    expect(spikeSource).not.toContain('ScrollTrigger');
+    expect(shellSource).not.toContain("portrait-spike/");
   });
 
-  it('uses authored radial ownership for Hero and Pattern and presents Star copy with its target', () => {
-    expect(source).toContain("origin: PORTRAIT_HERO_FIGURE_CENTER");
-    expect(source).toContain("origin: PORTRAIT_PATTERN_CENTER");
-    expect(source).toContain(
-      'const starPresentationProgress = progress >= PATTERN_STAR_START ? 1 : 0'
-    );
-    expect(source).toContain('const copyProgress = range01(progress, 0, 0.78)');
-    expect(source).toContain(
-      "setOwnership('handoff-pattern-star', ['pattern', 'star'], ['star', 'pattern'])"
-    );
-    expect(inkSource).toContain("spec.kind === 'radial'");
-    expect(inkSource).not.toContain("options.to.style.visibility = 'visible'");
+  it('keeps the accepted two-surface stops strictly ordered', () => {
+    const stops = Object.values(PHONE_STAGE_STOPS);
+    expect(stops).toEqual([...stops].sort((left, right) => left - right));
+    expect(phoneStageFrame(0.18)).toMatchObject({ checkpoint: 'hero-to-pattern' });
+    expect(phoneStageFrame(0.54)).toMatchObject({ checkpoint: 'pattern-to-star-map' });
+    expect(phoneStageFrame(0.74)).toMatchObject({ checkpoint: 'star-map-to-aod' });
+    expect(phoneStageFrame(1)).toMatchObject({ checkpoint: 'aod-autoplay' });
   });
 
-  it('keeps Hero hidden and scrolling locked until the Loader has fully exited', () => {
-    expect(source).toContain('<StoryLoader');
-    expect(source).toContain('data-portrait-loader-ready={String(loaderHidden)}');
-    expect(source).toContain('portraitLoaderCompletedInDocument');
-    expect(source).toContain('markPortraitLoaderCompletedInDocument');
-    expect(source).toContain('if (!loaderHidden)');
-    expect(source).toContain('dependencies: [loaderHidden, motionEnabled]');
-    expect(source).toContain("root.dataset.portraitHeroEntrance = 'playing'");
-    expect(source).toContain('startHeroIntro');
-    expect(source).toContain('createRadialInkIntroController');
-    expect(source).toContain('HERO_RADIAL_INK_FIELD');
-    expect(source).not.toContain('heroIntro = gsap.timeline');
-    expect(source).not.toContain('sessionStorage');
-    expect(stylesheet).toMatch(
-      /data-portrait-spike-loader="active"[^}]*overflow-y:\s*hidden/s
-    );
-    expect(stylesheet).toMatch(
-      /data-portrait-loader-ready="false"[^}]*visibility:\s*hidden/s
-    );
-    expect(globalStylesheet).toMatch(
-      /data-loader-ink-status="active"[^}]*story-loader__ink-clear[^}]*visibility:\s*hidden/s
-    );
-    expect(globalStylesheet).toMatch(
-      /story-loader__ink-blur\s*\{[^}]*display:\s*none/s
-    );
+  it('keeps radial Hero and Pattern ownership in named transition adapters', () => {
+    expect(heroPatternSource).toContain('origin: { x: 0.5, y: 0.44 }');
+    expect(patternStarSource).toContain('origin: { x: 0.5, y: 0.28 }');
+    expect(heroPatternSource).toContain("grade: 'dark'");
+    expect(patternStarSource).toContain("grade: 'dark'");
   });
 
-  it('renders Figure 1 and AOD through packed alpha canvases instead of transparent video layers', () => {
-    expect(source).toContain('figure1-rgb-alpha.mp4');
-    expect(source).toContain('aod-figure-motion-rgb-alpha.mp4');
-    expect(source).toContain('aod-figure-motion-rgb-alpha-reverse.mp4');
-    expect(source).toContain('createPackedAlphaVideoCompositor');
-    expect(source).toContain('data-portrait-figure-canvas');
-    expect(stylesheet).toMatch(
-      /aod-transition__figure-video[^}]*opacity:\s*0\s*!important/s
-    );
+  it('keeps Loader, fixed rail, and one document-scroll owner in the shell', () => {
+    expect(shellSource).toContain('<StoryLoader');
+    expect(shellSource).toContain('attachPhoneLoaderVisibilityLifecycle');
+    expect(shellSource).toContain('<PhoneStageRail');
+    expect(shellCss).toMatch(/phone-story-shell__stage\s*\{[^}]*position:\s*fixed/s);
+    expect(shellCss).toMatch(/phone-story-shell__stage-rail\s*\{[^}]*height:\s*var\(--phone-stage-rail-height\)/s);
+    expect(shellCss).toMatch(/data-phone-stage-active="false"[^}]*display:\s*none/s);
   });
 
-  it('gives AOD reversible native time ownership and brings Method in over its final twenty percent', () => {
-    expect(source).toContain('createPortraitAodAutoplay');
-    expect(source).toContain('portraitAodMethodProgress(progress)');
-    expect(source).toContain('durationSeconds: AOD_FIGURE_END_SECONDS');
-    expect(source).not.toContain('renderAodExitProgress');
-    expect(source).not.toContain("id: 'portrait-spike-reading-intro'");
-    expect(stylesheet).toMatch(
-      /portrait-scroll-spike__method-bridge\s*\{[^}]*position:\s*relative[^}]*min-height:\s*var\(--portrait-live-height\)/s
-    );
-    expect(stylesheet).toMatch(
-      /data-portrait-stage-active="true"[^}]*portrait-scroll-spike__method-bridge\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*17/s
-    );
-    expect(source).toContain('beginAodForward');
-    expect(source).toContain('beginAodReverse');
-    expect(source).toContain('aodAutoplay?.start(1)');
-    expect(source).toContain('aodAutoplay?.start(-1)');
-    expect(source).not.toContain('AOD_REVERSE_ARM_START');
-    expect(source).toContain('renderMethodBridge(methodProgress)');
-    expect(source).toContain('renderMethodBridge(0)');
-    expect(source).toContain("root.dataset.portraitAodMethodVisible = String(visible)");
-    expect(stylesheet).toMatch(
-      /data-portrait-aod-method-visible="false"[^}]*method-bridge[^}]*display:\s*none\s*!important/s
-    );
-    expect(source).toContain("root.dataset.portraitStageBoundary = 'held-by-aod'");
-    expect(source).toContain('createPortraitScrollSnapLock');
-    expect(source).toContain('aodScrollSnap.lock(anchorY)');
-    expect(source).toContain('beginAodReverse(Math.max(stageScrollStart, stageScrollEnd - 1))');
-    expect(source).toContain("root.addEventListener('pointermove', onHeroPointerMove");
-    expect(source).toContain('onComplete: completeAodRun');
-    expect(source).toContain('aodScrollSnap.release()');
-    expect(source).toContain("['aod'], ['aod']");
-    expect(source).not.toContain("['aod', 'star']");
-    expect(constant('AOD_AUTOPLAY_START')).toBe(0.985);
-    expect(stylesheet).toContain(
-      '--aod-transition-scene-width: calc(var(--portrait-stage-height) * 1.16)'
-    );
-    expect(stylesheet).toContain(
-      'width: max(100%, calc(var(--portrait-stage-height) * 1.45546))'
-    );
-    expect(stylesheet).toContain('scale(var(--portrait-aod-figure-cover-scale))');
-    expect(stylesheet).not.toContain(
-      'calc(-50% + var(--aod-transition-figure-y) + var(--portrait-aod-figure-shift-y))'
-    );
-    expect(source).toContain('portraitAodPresentation(progress)');
-    expect(source).toContain('portraitAodBackdropPresentation(progress)');
-    expect(source).toContain("'--aod-transition-sun-y'");
-    expect(source).toContain("'--aod-transition-cloud-y'");
-    expect(source).toContain('portraitAodBackdropProgress = progress.toFixed(4)');
-    expect(stylesheet).not.toMatch(
-      /scene--aod\[data-portrait-aod-alpha="transparent"\][^}]*background:\s*transparent/s
-    );
+  it('keeps Figure 1 and AOD as their adapters’ packed-alpha media owners', () => {
+    expect(heroSource).toContain("phoneMediaUrlFor('hero-figure-packed', 'hero')");
+    expect(heroSource).toContain('createPackedAlphaVideoCompositor');
+    expect(heroSource).toContain('data-phone-figure-canvas');
+    expect(aodSource).toContain("phoneMediaUrlFor('aod-figure-packed-forward', 'aod-animation')");
+    expect(aodSource).toContain("phoneMediaUrlFor('aod-figure-packed-reverse', 'aod-animation')");
+    expect(phoneMediaSource).toContain('figure1-rgb-alpha.mp4');
+    expect(phoneMediaSource).toContain('aod-figure-motion-rgb-alpha-reverse.mp4');
+    expect(productMediaSource).toContain("owner: 'hero'");
+    expect(productMediaSource).toContain("owner: 'aod-animation'");
+    expect(aodSource).toContain('createPhoneAodAutoplay');
+    expect(aodRuntimeSource).toContain("video.dataset.phoneAodAutoplay = 'suspended'");
   });
 
-  it('ends the fixed stage with Method reading already aligned at the viewport top', () => {
-    expect(source).toContain('ref={stageRailRef}');
-    expect(source).toContain('trigger: stageRail');
-    expect(source).toContain("end: 'bottom top'");
-    expect(source).toContain('height * STAGE_SCROLL_VIEWPORTS');
-    expect(source).not.toContain('height * (STAGE_SCROLL_VIEWPORTS + 1)');
-    expect(source).toContain("root.dataset.portraitStagePin = 'native-fixed'");
-    expect(source).toContain('setStageActive(self.progress < 1)');
-    expect(source).not.toMatch(/pin:\s*true/);
-    expect(stylesheet).toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed[^}]*inset:\s*0/s
-    );
-    expect(stylesheet).toMatch(
-      /data-portrait-stage-active="false"[^}]*portrait-scroll-spike__stage[^}]*display:\s*none/s
-    );
-    expect(source.indexOf('<section id="method"')).toBeLessThan(
-      source.indexOf('ref={readingIntroRef}')
-    );
-    expect(source.indexOf('ref={readingIntroRef}')).toBeLessThan(
-      source.indexOf('ref={readingStepsRef}')
-    );
+  it('keeps Star Map source, Perlin, and camera together in one phone adapter', () => {
+    expect(starSource).toContain('window.devicePixelRatio');
+    expect(starSource).toContain('rotationDegrees: -90');
+    expect(starSource).toContain('drawSource: true');
+    expect(starSource).toContain('noiseMaskWidth: 420');
+    expect(starSource).toContain('wideBlur: 120');
   });
 
-  it('paints the ratio-preserving Star map and aligned Perlin field into one screen canvas', () => {
-    expect(source).not.toContain('portrait-scroll-spike__star-map-image');
-    expect(source).toContain('window.devicePixelRatio');
-    expect(source).toContain('drawSource: true');
-    expect(source).toContain('noiseFloor: motionEnabled ? 0.028 : 0.02');
-    expect(source).not.toContain('sourceOpacity:');
-    expect(source).toContain("profile: 'desktop-r5'");
-    expect(source).toContain('noiseMaskWidth: 420');
-    expect(source).toContain('driftX: 0.06');
-    expect(source).toContain('driftY: 0.34');
-    expect(source).toContain('wideBlur: 120');
-    expect(source).toContain('mediumBlur: 44');
-    expect(source).toContain('coreBlur: 10');
-    expect(source).toContain('screenBlur: 3');
-    expect(source).toContain('screenAlpha: 0.52');
-    expect(source).toContain('zoom: 1');
-    expect(stylesheet).toMatch(
-      /portrait-scroll-spike__star-perlin\s*\{[^}]*inset:\s*0[^}]*width:\s*100%[^}]*height:\s*100%/s
-    );
-  });
-
-  it('uses the corrected Hero composition and higher radial origin', () => {
-    expect(source).toContain('PORTRAIT_HERO_FIGURE_CENTER = Object.freeze({ x: 0.5, y: 0.44 })');
-    expect(source).toContain('HERO_SUBTITLE_LINES.map');
-    expect(source).toContain('<TextReveal');
-    expect(source).not.toContain('portrait-scroll-spike__brand');
-    expect(stylesheet).toMatch(
-      /portrait-scroll-spike__hero-subtitle\s*\{[^}]*top:\s*calc\(max\(26px,\s*env\(safe-area-inset-top\)\)\s*\+\s*11dvh/s
-    );
-    expect(source).toContain("gsap.set(heroBackMotion, { scale: 1.08, yPercent: 0 })");
-    expect(stylesheet).toContain('--portrait-stage-height: max(var(--portrait-live-height), 100lvh)');
-    expect(source).toContain('root.dataset.portraitTransientViewport = nextViewport');
-  });
-
-  it('fills the browser edge and carries the final AOD paper into Method', () => {
-    expect(source).toContain("meta[name=\"theme-color\"]");
-    expect(source).toContain('PORTRAIT_SURFACE_PAPER');
-    expect(stylesheet).toMatch(
-      /html\[data-portrait-spike="b"\][^{]*\{[^}]*background:\s*var\(--portrait-document-surface/s
-    );
-    expect(stylesheet).toMatch(
-      /portrait-scroll-spike__reading\s*\{[^}]*#ede4d2/s
-    );
-    expect(stylesheet).toMatch(
-      /data-portrait-spike="b"[^}]*site-nav\s*\{[^}]*padding-top:\s*env\(safe-area-inset-top/s
-    );
-  });
-
-  it('restores the production progressive-blur navigation after the Pattern handoff', () => {
-    expect(source).toContain("import { StoryNav } from '../StoryNav'");
-    expect(source).toContain('<StoryNav');
-    expect(source).toContain("navigationScene !== 'hero'");
-    expect(source).toContain("navigationScene !== 'pattern'");
-    expect(source).toContain("setCurrentNavigationScene('method-top')");
+  it('preserves AOD-to-Method time ownership and a fixed Method bridge', () => {
+    expect(shellSource).toContain('mapAodToMethod');
+    expect(aodRuntimeSource).toContain('PHONE_AOD_METHOD_START_PROGRESS = 0.8');
+    expect(methodCss).toMatch(/phone-method__bridge\s*\{[^}]*position:\s*relative[^}]*min-height:\s*var\(--phone-live-height\)/s);
+    expect(methodCss).toMatch(/data-phone-stage-active="true"[^}]*phone-method__bridge\s*\{[^}]*position:\s*fixed/s);
   });
 });

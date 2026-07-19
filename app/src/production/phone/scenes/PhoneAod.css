@@ -1,0 +1,11 @@
+.phone-scene--aod .aod-transition {
+  --aod-transition-scene-width: calc(var(--phone-stage-height) * 1.16);
+  --aod-transition-sun-width: calc(var(--phone-stage-height) * 1.00);
+  --aod-transition-cloud-width: calc(var(--phone-stage-height) * 1.16);
+  --phone-aod-figure-cover-scale: 1;
+  --phone-aod-figure-shift-y: 9dvh;
+  width: 100%; height: 100%; min-height: 0;
+}
+.phone-scene--aod .aod-transition__figure-video { filter: none; opacity: 0 !important; }
+.phone-scene--aod .aod-transition__figure-canvas { inset: auto; left: 50%; top: 50%; width: max(100%, calc(var(--phone-stage-height) * 1.45546)); height: auto; filter: none; transform: translate3d(-50%, calc(-50% + var(--phone-aod-figure-shift-y)), 0) scale(var(--phone-aod-figure-cover-scale)); }
+.phone-scene--aod .aod-transition__reveal-surface::after { height: clamp(250px, 38dvh, 430px); }

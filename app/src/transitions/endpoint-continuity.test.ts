@@ -41,7 +41,7 @@ const HOLD_SCENES: readonly SceneModule[] = [
   contactScene
 ];
 
-const sceneTypesSource = readFileSync(new URL('../story/types.ts', import.meta.url), 'utf8');
+const sceneTypesSource = readFileSync(new URL('../story/presentation.ts', import.meta.url), 'utf8');
 
 describe('R4 transition endpoint continuity', () => {
   it.each(HOLD_SCENES.map((scene) => [scene.id, scene] as const))(

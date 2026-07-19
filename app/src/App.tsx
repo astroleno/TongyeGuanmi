@@ -1,20 +1,24 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { canUseDOM } from './runtime/browser-guard';
-import { StoryApp } from './production/StoryApp';
-import { portraitSpikeRouteForSearch } from './production/portrait-spike/route';
+import { initialPresentationFamily, type PresentationFamily } from './production/presentation-profile';
 import './styles.css';
 
 const harnessEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_HARNESS === '1';
 const HarnessRouter = harnessEnabled
   ? lazy(() => import('./harness/HarnessRouter').then(({ HarnessRouter: Router }) => ({ default: Router })))
   : null;
-const portraitSpikeEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PORTRAIT_SPIKE === '1';
-const PortraitStageSpike = portraitSpikeEnabled
-  ? lazy(() => import('./production/portrait-spike/PortraitStageSpike').then(({ PortraitStageSpike: Component }) => ({ default: Component })))
-  : null;
-const PortraitScrollSpike = portraitSpikeEnabled
-  ? lazy(() => import('./production/portrait-spike/PortraitScrollSpike').then(({ PortraitScrollSpike: Component }) => ({ default: Component })))
-  : null;
+const DesktopStoryShell = lazy(() => import('./production/desktop/DesktopStoryShell').then(({ DesktopStoryShell: Component }) => ({ default: Component })));
+const PhoneStoryShell = lazy(() => import('./production/phone/PhoneStoryShell').then(({ PhoneStoryShell: Component }) => ({ default: Component })));
+const phoneShellEnabled = import.meta.env.VITE_ENABLE_PHONE_STORY === '1';
+
+function initialShellFamily(): PresentationFamily {
+  if (!canUseDOM()) return 'desktop';
+  const search = new URLSearchParams(window.location.search);
+  // Unit 0–6 use this thin verification entry. Unit 7 removes the gate after
+  // physical-device acceptance; an explicit release flag permits staged QA.
+  if (search.get('v') === '16') return 'phone';
+  return phoneShellEnabled && initialPresentationFamily() === 'phone' ? 'phone' : 'desktop';
+}
 
 function NotFound() {
   return (
@@ -28,9 +32,9 @@ function NotFound() {
 
 export function App() {
   const path = canUseDOM() ? window.location.pathname : '/';
-  const portraitSpikeRoute = portraitSpikeEnabled && canUseDOM()
-    ? portraitSpikeRouteForSearch(window.location.search)
-    : undefined;
+  // This state intentionally freezes the selected renderer. Rotating a phone
+  // updates PhoneStoryShell geometry in place instead of remounting desktop.
+  const [shellFamily] = useState(initialShellFamily);
   if (path.startsWith('/harness/')) {
     if (!HarnessRouter) {
       return <NotFound />;
@@ -44,19 +48,13 @@ export function App() {
   if (path !== '/' && path !== '/index.html') {
     return <NotFound />;
   }
-  if (portraitSpikeRoute === 'a' && PortraitStageSpike) {
-    return (
-      <Suspense fallback={<main className="route-loading">Loading portrait spike…</main>}>
-        <PortraitStageSpike />
-      </Suspense>
-    );
-  }
-  if (portraitSpikeRoute === 'b' && PortraitScrollSpike) {
-    return (
-      <Suspense fallback={<main className="route-loading">Loading portrait spike…</main>}>
-        <PortraitScrollSpike />
-      </Suspense>
-    );
-  }
-  return <StoryApp />;
+  return (
+    <Suspense fallback={<main className="route-loading">正在加载故事…</main>}>
+      {shellFamily === 'phone'
+        ? (canUseDOM() && new URLSearchParams(window.location.search).get('v') === '16'
+            ? <PhoneStoryShell validationMode="v16" />
+            : <PhoneStoryShell />)
+        : <DesktopStoryShell />}
+    </Suspense>
+  );
 }

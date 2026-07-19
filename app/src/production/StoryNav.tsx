@@ -28,6 +28,9 @@ export type StoryNavProps = {
   currentScene: SceneId;
   visible: boolean;
   menuOpen: boolean;
+  /** A partial shell must only expose destinations it can actually render. */
+  menuItems?: readonly { label: string; hash: string; scene: SceneId }[];
+  showCta?: boolean;
   onToggleMenu(): void;
   onNavigate(scene: SceneId): void;
 };
@@ -36,12 +39,14 @@ export function StoryNav({
   currentScene,
   visible,
   menuOpen,
+  menuItems = publicMenuItems,
+  showCta = true,
   onToggleMenu,
   onNavigate
 }: StoryNavProps) {
   const chrome = chromeForScene(currentScene);
   const linkTabIndex = visible ? undefined : -1;
-  const items = publicMenuItems.filter((item) => item.scene !== 'hero');
+  const items = menuItems.filter((item) => item.scene !== 'hero');
 
   return (
     <>
@@ -95,17 +100,19 @@ export function StoryNav({
               </a>
             ))}
           </div>
-          <a
-            className="site-nav__action nav-cta"
-            href="#contact"
-            tabIndex={linkTabIndex}
-            onClick={(event) => {
-              event.preventDefault();
-              onNavigate('contact');
-            }}
-          >
-            预约诊断
-          </a>
+          {showCta ? (
+            <a
+              className="site-nav__action nav-cta"
+              href="#contact"
+              tabIndex={linkTabIndex}
+              onClick={(event) => {
+                event.preventDefault();
+                onNavigate('contact');
+              }}
+            >
+              预约诊断
+            </a>
+          ) : null}
         </div>
       </nav>
       {visible ? (

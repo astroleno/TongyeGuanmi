@@ -20,7 +20,7 @@ describe('portrait AOD scroll snap lock', () => {
 
     lock.lock(420);
     expect(lock.locked).toBe(true);
-    expect(root.dataset.portraitAodSnap).toBe('locked');
+    expect(root.dataset.phoneAodSnap).toBe('locked');
     expect(scrollTo).toHaveBeenLastCalledWith(420);
 
     scrollY = 510;
@@ -35,10 +35,10 @@ describe('portrait AOD scroll snap lock', () => {
     scrollY = 620;
     scroll.dispatchEvent(new Event('scroll'));
     expect(lock.locked).toBe(false);
-    expect(root.dataset.portraitAodSnap).toBe('released');
+    expect(root.dataset.phoneAodSnap).toBe('released');
     expect(scrollTo).toHaveBeenCalledTimes(2);
 
     lock.dispose();
-    expect(root.dataset.portraitAodSnap).toBeUndefined();
+    expect(root.dataset.phoneAodSnap).toBeUndefined();
   });
 });

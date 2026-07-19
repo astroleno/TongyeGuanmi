@@ -4,7 +4,7 @@ import { createDirectorRuntime } from '../runtime/director.actor';
 import { SegmentPlayer } from '../story/segment-player';
 import type { SegmentTimelineHandle, TransitionModule } from '../story/types';
 
-const storyAppSource = readFileSync(new URL('./StoryApp.tsx', import.meta.url), 'utf8');
+const storyAppSource = readFileSync(new URL('./desktop/DesktopStoryShell.tsx', import.meta.url), 'utf8');
 
 function timeline(): SegmentTimelineHandle {
   return {

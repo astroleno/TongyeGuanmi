@@ -69,7 +69,7 @@ describe('portrait AOD autoplay', () => {
     visibility.hidden = true;
     visibility.dispatchEvent(new Event('visibilitychange'));
     expect(video.pause).toHaveBeenCalled();
-    expect(video.dataset.portraitAodAutoplay).toBe('suspended');
+    expect(video.dataset.phoneAodAutoplay).toBe('suspended');
 
     visibility.hidden = false;
     visibility.dispatchEvent(new Event('visibilitychange'));
@@ -87,7 +87,7 @@ describe('portrait AOD autoplay', () => {
     await Promise.resolve();
     expect(video.play).toHaveBeenCalledOnce();
     expect(progress.at(-1)).toBe(1);
-    expect(video.dataset.portraitAodAutoplayDirection).toBe('reverse');
+    expect(video.dataset.phoneAodAutoplayDirection).toBe('reverse');
     expect(video.playbackRate).toBeGreaterThan(1);
 
     video.currentTime = (1 - AOD_SOURCE_ALPHA_END) * 2.5;
