@@ -6,6 +6,7 @@ import {
   portraitAodPresentation
 } from './portrait-aod-autoplay';
 import {
+  AOD_PHONE_TIMELINE_ALPHA_END,
   AOD_SOURCE_ALPHA_END,
   AOD_TIMELINE_ALPHA_END
 } from '../../scenes/aod-animation/progress';
@@ -113,6 +114,29 @@ describe('portrait AOD autoplay', () => {
     expect(portraitAodMethodProgress(1)).toBe(1);
   });
 
+  it('maps the first full-alpha source frame to the phone 55% timeline point', async () => {
+    const video = new FakeVideo();
+    const progress: number[] = [];
+    const controller = createPortraitAodAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 2.5,
+        alphaEndProgress: AOD_PHONE_TIMELINE_ALPHA_END,
+        onProgress: (value) => progress.push(value),
+        requestFrame: () => 1,
+        cancelFrame: vi.fn()
+      }
+    );
+
+    controller.start();
+    await Promise.resolve();
+    video.currentTime = AOD_SOURCE_ALPHA_END * 2.5;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(progress.at(-1)).toBeCloseTo(AOD_PHONE_TIMELINE_ALPHA_END);
+
+    controller.dispose();
+  });
+
   it('keeps a lower fixed camera and uses scale alone to cover the portrait edge', () => {
     expect(portraitAodPresentation(0)).toEqual({
       figureScale: 1,
@@ -130,6 +154,10 @@ describe('portrait AOD autoplay', () => {
       figureShiftYVh: 9,
       bottomMistOpacity: 0.96
     });
+
+    expect(portraitAodPresentation(AOD_TIMELINE_ALPHA_END).bottomMistOpacity).toBe(0);
+    expect(portraitAodPresentation(0.51).bottomMistOpacity).toBeGreaterThan(0);
+    expect(portraitAodPresentation(0.68).bottomMistOpacity).toBe(0.96);
   });
 
   it('starts the cloud and sun with AOD playback and gives the near cloud a faster exit', () => {

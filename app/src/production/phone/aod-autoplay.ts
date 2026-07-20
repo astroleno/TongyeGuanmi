@@ -1,5 +1,6 @@
 import { setPackedAlphaVideoSource } from '../../media/packed-alpha-video';
 import {
+  AOD_TIMELINE_ALPHA_END,
   aodPlaybackRateForMediaProgress,
   mapAodMediaToTimelineProgress
 } from '../../scenes/aod-animation/progress';
@@ -23,6 +24,7 @@ export type PhoneAodBackdropPresentation = Readonly<{
 
 type PhoneAodAutoplayOptions = Readonly<{
   durationSeconds: number;
+  alphaEndProgress?: number;
   forwardSourceUrl?: string;
   reverseSourceUrl?: string;
   onProgress(progress: number, direction: PhoneAodPlaybackDirection): void;
@@ -66,7 +68,9 @@ export function phoneAodPresentation(
 ): PhoneAodPresentation {
   const progress = clamp(rawProgress);
   const coverProgress = smoothstep(progress / 0.72);
-  const mistProgress = smoothstep((progress - 0.48) / (0.68 - 0.48));
+  const mistProgress = smoothstep(
+    (progress - AOD_TIMELINE_ALPHA_END) / (0.68 - AOD_TIMELINE_ALPHA_END)
+  );
 
   return {
     figureScale: 1 + coverProgress * 0.46,
@@ -115,6 +119,7 @@ export function createPhoneAodAutoplay(
   const cancelFrame = options.cancelFrame
     ?? ((frame: number) => window.cancelAnimationFrame(frame));
   const duration = Math.max(0.001, options.durationSeconds);
+  const alphaEnd = options.alphaEndProgress ?? AOD_TIMELINE_ALPHA_END;
   let active = false;
   let disposed = false;
   let playPending = false;
@@ -136,14 +141,14 @@ export function createPhoneAodAutoplay(
     const sourceProgress = direction === 1
       ? mediaProgress()
       : 1 - mediaProgress();
-    return mapAodMediaToTimelineProgress(sourceProgress);
+    return mapAodMediaToTimelineProgress(sourceProgress, alphaEnd);
   };
 
   const applyPlaybackRate = () => {
     const sourceProgress = direction === 1
       ? mediaProgress()
       : 1 - mediaProgress();
-    const playbackRate = aodPlaybackRateForMediaProgress(sourceProgress);
+    const playbackRate = aodPlaybackRateForMediaProgress(sourceProgress, alphaEnd);
     if (Math.abs(video.playbackRate - playbackRate) > 0.001) {
       video.playbackRate = playbackRate;
     }

@@ -27,39 +27,57 @@ export const AOD_FIRST_FULL_ALPHA_FRAME = 16;
 export const AOD_SOURCE_ALPHA_END = AOD_FIRST_FULL_ALPHA_FRAME / (AOD_ALPHA_FRAME_COUNT - 1);
 export const AOD_ALPHA_BACKGROUND_HOLD_PROGRESS = 1 / 3;
 export const AOD_TIMELINE_ALPHA_END = 0.48;
+export const AOD_PHONE_TIMELINE_ALPHA_END = 0.55;
 export const AOD_FIRST_FULL_ALPHA_PROGRESS = AOD_TIMELINE_ALPHA_END;
 export const AOD_BACKDROP_ALPHA_EXIT_START_PROGRESS = AOD_ALPHA_BACKGROUND_HOLD_PROGRESS;
 
-export function mapAodTimelineToMediaProgress(rawProgress: number): number {
+function alphaEndProgress(rawProgress: number): number {
+  return Math.min(0.999, Math.max(0.001, rawProgress));
+}
+
+export function mapAodTimelineToMediaProgress(
+  rawProgress: number,
+  rawAlphaEndProgress = AOD_TIMELINE_ALPHA_END
+): number {
   const progress = Math.min(1, Math.max(0, rawProgress));
-  if (progress <= AOD_TIMELINE_ALPHA_END) {
-    return (progress / AOD_TIMELINE_ALPHA_END) * AOD_SOURCE_ALPHA_END;
+  const alphaEnd = alphaEndProgress(rawAlphaEndProgress);
+  if (progress <= alphaEnd) {
+    return (progress / alphaEnd) * AOD_SOURCE_ALPHA_END;
   }
   return AOD_SOURCE_ALPHA_END
-    + ((progress - AOD_TIMELINE_ALPHA_END) / (1 - AOD_TIMELINE_ALPHA_END))
+    + ((progress - alphaEnd) / (1 - alphaEnd))
       * (1 - AOD_SOURCE_ALPHA_END);
 }
 
-export function mapAodMediaToTimelineProgress(rawMediaProgress: number): number {
+export function mapAodMediaToTimelineProgress(
+  rawMediaProgress: number,
+  rawAlphaEndProgress = AOD_TIMELINE_ALPHA_END
+): number {
   const mediaProgress = Math.min(1, Math.max(0, rawMediaProgress));
+  const alphaEnd = alphaEndProgress(rawAlphaEndProgress);
   if (mediaProgress <= AOD_SOURCE_ALPHA_END) {
-    return (mediaProgress / AOD_SOURCE_ALPHA_END) * AOD_TIMELINE_ALPHA_END;
+    return (mediaProgress / AOD_SOURCE_ALPHA_END) * alphaEnd;
   }
-  return AOD_TIMELINE_ALPHA_END
+  return alphaEnd
     + ((mediaProgress - AOD_SOURCE_ALPHA_END) / (1 - AOD_SOURCE_ALPHA_END))
-      * (1 - AOD_TIMELINE_ALPHA_END);
+      * (1 - alphaEnd);
 }
 
 /**
- * Native playback keeps the authored alpha portion through 48% of the
- * reversible AOD timeline. The first source segment is slowed down; the
- * opaque segment then catches up without changing the total duration.
+ * Native playback keeps the authored alpha portion through the selected point
+ * of the reversible AOD timeline (48% by default, 55% on phone). The first
+ * source segment slows down and the opaque segment catches up without
+ * changing the total duration.
  */
-export function aodPlaybackRateForMediaProgress(rawMediaProgress: number): number {
+export function aodPlaybackRateForMediaProgress(
+  rawMediaProgress: number,
+  rawAlphaEndProgress = AOD_TIMELINE_ALPHA_END
+): number {
   const mediaProgress = Math.min(1, Math.max(0, rawMediaProgress));
+  const alphaEnd = alphaEndProgress(rawAlphaEndProgress);
   return mediaProgress <= AOD_SOURCE_ALPHA_END
-    ? AOD_SOURCE_ALPHA_END / AOD_TIMELINE_ALPHA_END
-    : (1 - AOD_SOURCE_ALPHA_END) / (1 - AOD_TIMELINE_ALPHA_END);
+    ? AOD_SOURCE_ALPHA_END / alphaEnd
+    : (1 - AOD_SOURCE_ALPHA_END) / (1 - alphaEnd);
 }
 
 function viewportHeight(): number {
@@ -90,7 +108,8 @@ function aodSection(root: HTMLElement | null | undefined): HTMLElement | null {
 
 export function renderAodTransitionProgress(
   root: HTMLElement | null | undefined,
-  rawProgress: number
+  rawProgress: number,
+  rawAlphaEndProgress = AOD_TIMELINE_ALPHA_END
 ): void {
   const section = aodSection(root);
   if (!section) {
@@ -98,9 +117,16 @@ export function renderAodTransitionProgress(
   }
 
   const raw = Math.min(1, Math.max(0, rawProgress));
+  const alphaEnd = alphaEndProgress(rawAlphaEndProgress);
   const p = acceleratedProgress(raw);
-  const mediaProgress = mapAodTimelineToMediaProgress(raw);
-  const alphaComposite = raw < AOD_TIMELINE_ALPHA_END;
+  const mediaProgress = mapAodTimelineToMediaProgress(raw, alphaEnd);
+  const alphaComposite = raw < alphaEnd;
+  /*
+   * Extending the phone figure's decoded alpha to 55% must not retime the
+   * paper/mist handoff below it. Those authored surface tracks still begin at
+   * the original 48% boundary.
+   */
+  const surfaceReveal = raw >= AOD_TIMELINE_ALPHA_END;
   const config = HOMEPAGE_AOD_CONFIG;
   const backdropExit = smoothStep(range01(
     raw,
@@ -117,12 +143,12 @@ export function renderAodTransitionProgress(
   const alphaBackdropFade = 1 - smoothStep(range01(
     raw,
     AOD_BACKDROP_ALPHA_EXIT_START_PROGRESS,
-    AOD_FIRST_FULL_ALPHA_PROGRESS
+    alphaEnd
   ));
   const backgroundFade = Math.min(1 - backdropExit, alphaBackdropFade);
-  const paperWash = alphaComposite ? 0 : smoothStep(range01(p, 0.42, 0.86));
-  const bottomMist = alphaComposite ? 0 : smoothStep(range01(p, 0.56, 1));
-  const paperSolid = alphaComposite ? 0 : smoothStep(range01(p, 0.70, 1));
+  const paperWash = surfaceReveal ? smoothStep(range01(p, 0.42, 0.86)) : 0;
+  const bottomMist = surfaceReveal ? smoothStep(range01(p, 0.56, 1)) : 0;
+  const paperSolid = surfaceReveal ? smoothStep(range01(p, 0.70, 1)) : 0;
   const methodEnter = smoothStep(range01(p, 0.44, 0.86));
   const figureScale = config.figureStartScale + fullscreen * (1 - config.figureStartScale);
   const figureY = (1 - fullscreen) * viewportHeight() * (config.figureStartYVh / 100);

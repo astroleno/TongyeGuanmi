@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AOD_ALPHA_BACKGROUND_HOLD_PROGRESS,
   AOD_FIRST_FULL_ALPHA_PROGRESS,
+  AOD_PHONE_TIMELINE_ALPHA_END,
   AOD_SOURCE_ALPHA_END,
   AOD_TIMELINE_ALPHA_END,
   aodPlaybackRateForMediaProgress,
@@ -102,6 +103,52 @@ describe('AOD alpha compositing', () => {
     expect(Number(section.dataset.aodMediaProgress)).toBeCloseTo(AOD_SOURCE_ALPHA_END, 4);
     expect(section.style.getPropertyValue('--aod-transition-cloud-opacity')).toBe('0.0000');
     expect(section.style.getPropertyValue('--aod-transition-sun-opacity')).toBe('0.0000');
+  });
+
+  it('extends phone alpha continuously from the old 48% cut through 55%', () => {
+    expect(AOD_TIMELINE_ALPHA_END).toBe(0.48);
+    expect(AOD_PHONE_TIMELINE_ALPHA_END).toBe(0.55);
+    expect(
+      mapAodTimelineToMediaProgress(
+        AOD_TIMELINE_ALPHA_END,
+        AOD_PHONE_TIMELINE_ALPHA_END
+      )
+    ).toBeLessThan(AOD_SOURCE_ALPHA_END);
+    expect(
+      mapAodTimelineToMediaProgress(
+        AOD_PHONE_TIMELINE_ALPHA_END,
+        AOD_PHONE_TIMELINE_ALPHA_END
+      )
+    ).toBeCloseTo(AOD_SOURCE_ALPHA_END, 8);
+
+    for (const timelineProgress of [0, 0.2, 0.48, 0.51, 0.55, 0.8, 1]) {
+      expect(
+        mapAodMediaToTimelineProgress(
+          mapAodTimelineToMediaProgress(
+            timelineProgress,
+            AOD_PHONE_TIMELINE_ALPHA_END
+          ),
+          AOD_PHONE_TIMELINE_ALPHA_END
+        )
+      ).toBeCloseTo(timelineProgress, 8);
+    }
+
+    const section = new FakeAodSection();
+    renderAodTransitionProgress(
+      section as unknown as HTMLElement,
+      AOD_TIMELINE_ALPHA_END,
+      AOD_PHONE_TIMELINE_ALPHA_END
+    );
+    expect(section.dataset.aodAlphaComposite).toBe('true');
+    expect(
+      Number(section.style.getPropertyValue('--aod-transition-paper-wash-opacity'))
+    ).toBeGreaterThan(0);
+    renderAodTransitionProgress(
+      section as unknown as HTMLElement,
+      AOD_PHONE_TIMELINE_ALPHA_END,
+      AOD_PHONE_TIMELINE_ALPHA_END
+    );
+    expect(section.dataset.aodAlphaComposite).toBe('false');
   });
 
   it('makes root, sticky, field, and reveal backings transparent without fading the whole layer', () => {

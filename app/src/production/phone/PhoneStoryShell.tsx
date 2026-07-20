@@ -4,7 +4,7 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import {
   AOD_FIGURE_END_SECONDS,
-  AOD_TIMELINE_ALPHA_END,
+  AOD_PHONE_TIMELINE_ALPHA_END,
   aodAnimationScene,
   renderAodTransitionProgress
 } from '../../scenes/aod-animation';
@@ -183,8 +183,8 @@ function portraitSpikeMotionEnabled(): boolean {
  * The sole input lock is the authored AOD snap while its time-owned media runs.
  */
 export type PhoneStoryShellProps = Readonly<{
-  /** Retained while the v=16 route remains the physical-device comparison entry. */
-  validationMode?: 'v16';
+  /** Retained while versioned routes remain physical-device comparison entries. */
+  validationMode?: 'v16' | 'v17';
 }>;
 
 /**
@@ -194,6 +194,7 @@ export type PhoneStoryShellProps = Readonly<{
  */
 export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const motionEnabled = portraitSpikeMotionEnabled();
+  const aodAlphaEndProgress = AOD_PHONE_TIMELINE_ALPHA_END;
   const [loaderHidden, setLoaderHidden] = useState(phoneLoaderCompletedInDocument);
   // Do not let a resume marker render the text in its completed state before
   // the Hero controller has a chance to re-arm it. The stage can skip Loader
@@ -791,7 +792,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     };
 
     const setAodHoldOwnership = (progress: number, phase: string) => {
-      const alphaTransparent = progress < AOD_TIMELINE_ALPHA_END;
+      const alphaTransparent = progress < aodAlphaEndProgress;
       aodScene.dataset.portraitAodAlpha = alphaTransparent ? 'transparent' : 'opaque';
       // Alpha belongs to the AOD figure only. Its transparent pixels reveal
       // AOD's own paper/cloud/sun stack, never the outgoing Star scene.
@@ -931,7 +932,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       aodProgress = progress;
       const methodProgress = phoneAodMethodProgress(progress);
       renderMethodBridge(methodProgress);
-      const alphaTransparent = progress < AOD_TIMELINE_ALPHA_END;
+      const alphaTransparent = progress < aodAlphaEndProgress;
       aodScene.dataset.portraitAodAlpha = alphaTransparent ? 'transparent' : 'opaque';
       if (
         aodRunState !== 'idle'
@@ -944,7 +945,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         return;
       }
       lastAodProgress = progress;
-      renderAodTransitionProgress(aodScene, progress);
+      renderAodTransitionProgress(aodScene, progress, aodAlphaEndProgress);
       const presentation = phoneAodPresentation(progress);
       const backdropPresentation = phoneAodBackdropPresentation(progress);
       aodTransition.style.setProperty(
@@ -1096,6 +1097,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       });
       aodAutoplay = createPhoneAodAutoplay(aodFigureVideo, {
         durationSeconds: AOD_FIGURE_END_SECONDS,
+        alphaEndProgress: aodAlphaEndProgress,
         forwardSourceUrl: AOD_FIGURE_PACKED_ALPHA_VIDEO,
         reverseSourceUrl: AOD_FIGURE_PACKED_ALPHA_REVERSE_VIDEO,
         onProgress: renderAodFrame,
@@ -1435,7 +1437,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       }
       ScrollTrigger.config({ ignoreMobileResize: false });
     };
-  }, { scope: rootRef, dependencies: [loaderHidden, motionEnabled], revertOnUpdate: true });
+  }, {
+    scope: rootRef,
+    dependencies: [aodAlphaEndProgress, loaderHidden, motionEnabled],
+    revertOnUpdate: true
+  });
 
   return (
     <main
@@ -1447,6 +1453,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-portrait-spike-motion={motionEnabled ? 'force' : 'reduce'}
       data-portrait-loader-ready={String(loaderHidden)}
       data-phone-validation-mode={props.validationMode}
+      data-phone-aod-alpha-end={aodAlphaEndProgress.toFixed(2)}
     >
       {!loaderHidden && (
         <StoryLoader

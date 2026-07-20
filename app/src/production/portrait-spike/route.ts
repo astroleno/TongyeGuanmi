@@ -1,6 +1,7 @@
 export const PORTRAIT_SPIKE_QUERY = 'portrait-spike';
 export const PORTRAIT_PREVIEW_VERSION_QUERY = 'v';
 export const PORTRAIT_PREVIEW_VERSION = '16';
+export const PORTRAIT_CURRENT_VERSION = '17';
 
 /**
  * These routes are intentionally query-gated experiments. They let a physical
@@ -11,7 +12,11 @@ export type PortraitSpikeRoute = 'a' | 'b';
 
 export function portraitSpikeRouteForSearch(search: string): PortraitSpikeRoute | undefined {
   const searchParams = new URLSearchParams(search);
-  if (searchParams.get(PORTRAIT_PREVIEW_VERSION_QUERY) === PORTRAIT_PREVIEW_VERSION) {
+  const previewVersion = searchParams.get(PORTRAIT_PREVIEW_VERSION_QUERY);
+  if (
+    previewVersion === PORTRAIT_PREVIEW_VERSION
+    || previewVersion === PORTRAIT_CURRENT_VERSION
+  ) {
     return 'b';
   }
   const value = searchParams.get(PORTRAIT_SPIKE_QUERY);

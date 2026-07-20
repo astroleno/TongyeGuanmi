@@ -12,7 +12,8 @@
     <title>__SITE_TITLE__</title>
     <script>
       try {
-        if (new URLSearchParams(location.search).get('v') === '16') {
+        const validationVersion = new URLSearchParams(location.search).get('v');
+        if (validationVersion === '16' || validationVersion === '17') {
           // Hide the static document before React resolves the phone shell.
           // Without this synchronous route marker, the static brand can flash
           // between the preload cover and the authored eight-character Loader.

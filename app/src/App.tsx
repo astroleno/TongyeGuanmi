@@ -11,12 +11,19 @@ const DesktopStoryShell = lazy(() => import('./production/desktop/DesktopStorySh
 const PhoneStoryShell = lazy(() => import('./production/phone/PhoneStoryShell').then(({ PhoneStoryShell: Component }) => ({ default: Component })));
 const phoneShellEnabled = import.meta.env.VITE_ENABLE_PHONE_STORY === '1';
 
+type PhoneValidationMode = 'v16' | 'v17';
+
+function requestedPhoneValidationMode(): PhoneValidationMode | undefined {
+  if (!canUseDOM()) return undefined;
+  const version = new URLSearchParams(window.location.search).get('v');
+  return version === '16' || version === '17' ? `v${version}` : undefined;
+}
+
 function initialShellFamily(): PresentationFamily {
   if (!canUseDOM()) return 'desktop';
-  const search = new URLSearchParams(window.location.search);
   // Unit 0–6 use this thin verification entry. Unit 7 removes the gate after
   // physical-device acceptance; an explicit release flag permits staged QA.
-  if (search.get('v') === '16') return 'phone';
+  if (requestedPhoneValidationMode()) return 'phone';
   return phoneShellEnabled && initialPresentationFamily() === 'phone' ? 'phone' : 'desktop';
 }
 
@@ -32,6 +39,7 @@ function NotFound() {
 
 export function App() {
   const path = canUseDOM() ? window.location.pathname : '/';
+  const phoneValidationMode = requestedPhoneValidationMode();
   // This state intentionally freezes the selected renderer. Rotating a phone
   // updates PhoneStoryShell geometry in place instead of remounting desktop.
   const [shellFamily] = useState(initialShellFamily);
@@ -51,9 +59,7 @@ export function App() {
   return (
     <Suspense fallback={<main className="route-loading">正在加载故事…</main>}>
       {shellFamily === 'phone'
-        ? (canUseDOM() && new URLSearchParams(window.location.search).get('v') === '16'
-            ? <PhoneStoryShell validationMode="v16" />
-            : <PhoneStoryShell />)
+        ? <PhoneStoryShell {...(phoneValidationMode ? { validationMode: phoneValidationMode } : {})} />
         : <DesktopStoryShell />}
     </Suspense>
   );

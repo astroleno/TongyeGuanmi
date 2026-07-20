@@ -73,6 +73,8 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).toContain("phoneMediaUrlFor('hero-figure-packed', 'hero')");
     expect(shellSource).toContain("phoneMediaUrlFor('aod-figure-packed-forward', 'aod-animation')");
     expect(shellSource).toContain("phoneMediaUrlFor('aod-figure-packed-reverse', 'aod-animation')");
+    expect(shellSource).toContain('AOD_PHONE_TIMELINE_ALPHA_END');
+    expect(shellSource).toContain('data-phone-aod-alpha-end={aodAlphaEndProgress.toFixed(2)}');
     expect(phoneMediaSource).toContain('figure1-rgb-alpha.mp4');
     expect(phoneMediaSource).toContain('aod-figure-motion-rgb-alpha.mp4');
     expect(phoneMediaSource).toContain('aod-figure-motion-rgb-alpha-reverse.mp4');

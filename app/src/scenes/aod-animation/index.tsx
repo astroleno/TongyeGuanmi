@@ -9,6 +9,7 @@ import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-vi
 import { mapAodTimelineToMediaProgress, renderAodTransitionProgress } from './progress';
 
 export {
+  AOD_PHONE_TIMELINE_ALPHA_END,
   AOD_TIMELINE_ALPHA_END,
   renderAodTransitionProgress
 } from './progress';

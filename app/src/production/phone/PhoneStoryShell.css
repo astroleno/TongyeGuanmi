@@ -111,9 +111,24 @@ html[data-portrait-spike="b"] .static-content {
   background: var(--portrait-edge-surface);
 }
 
-.portrait-scroll-spike[data-portrait-edge-scene="pattern"],
-.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__stage-rail {
+.portrait-scroll-spike[data-portrait-edge-scene="pattern"] {
   background: transparent;
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__stage-rail {
+  background-color: #d9c08f;
+  background-image: var(--portrait-pattern-edge-backdrop);
+  background-position: center top;
+  background-repeat: repeat-y;
+  background-size: auto var(--portrait-stage-height);
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="aod"] .portrait-scroll-spike__stage-rail {
+  background-color: #ede4d2;
+  background-image: var(--portrait-aod-paper-solid-background);
+  background-position: center top;
+  background-repeat: repeat-y;
+  background-size: 100% var(--portrait-stage-height);
 }
 
 .portrait-scroll-spike__stage {
@@ -564,12 +579,7 @@ html[data-portrait-spike="b"] .static-content {
 
 .portrait-scroll-spike__toolbar-edge--aod {
   z-index: 6;
-  background: linear-gradient(
-    180deg,
-    rgba(237, 228, 210, 0) 0,
-    #ede4d2 var(--portrait-toolbar-feather-height),
-    #ede4d2 100%
-  );
+  background: var(--portrait-aod-bottom-mist-background);
 }
 
 .portrait-scroll-spike__pattern-bloom {
