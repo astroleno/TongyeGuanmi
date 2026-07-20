@@ -46,15 +46,18 @@ is the pre-extraction baseline.
 | --- | --- | --- |
 | Unit 0 | Automated characterization complete; physical review started, not accepted | `portrait-checkpoints.ts` names the front-half trace and tests forward, reverse, normal refresh, and lock recovery. The 2026-07-20 device report records unresolved Route B presentation regressions. |
 | Unit 1 | Complete in code | Shared presentation contracts, semantic checkpoints, copy, and media ownership now live in `app/src/story/presentation.ts`, `semantic-checkpoints.ts`, `copy.ts`, and `media.ts`. |
-| Unit 2 | Code correction implemented; physical fixed-stage acceptance pending re-run | `DesktopStoryShell` and `PhoneStoryShell` are separately lazy-loaded; `presentation-profile.ts`, loader registries, rail geometry, and the import-boundary verifier enforce selected-shell ownership. The shell now also constrains horizontal overscroll with a local, single-touch horizontal-pan guard; real-device confirmation remains required. |
-| Unit 3 | Late transition correction verified in Chromium; physical acceptance pending re-run | The production phone adapters cover Loader, Hero, Pattern, Star Map, AOD, and Method top, with named transitions and a phone stage timeline. Dynamic adapter bindings now publish a re-render before their named transition is created, and runtime cleanup no longer disposes a mounted transition canvas. Figure 1 remains a true-device failure until separately evidenced. |
+| Unit 2 | Adapter-shell experiment retained, not the active formal route | `DesktopStoryShell` and phone adapter infrastructure remain available for the later incremental extraction, but the experimental split is not allowed to replace an already-proven visual chain before parity is demonstrated. |
+| Unit 3 | Proven front-half baseline migrated into the production phone shell; physical acceptance pending | `PhoneStoryShell` now directly owns the complete Loader → Hero → Pattern → Star Map → AOD → Method slice restored from the validated spike, while consuming production phone helpers and canonical copy/media contracts. |
 | Units 4–7 | Not started | The current-build physical-iPhone checkpoint is not accepted, so no back-half migration or cutover work begins. |
 
-The Unit 3 adapters are deliberately located under
-`app/src/production/phone/scenes/` and `app/src/production/phone/transitions/`
-rather than the illustrative `src/scenes/*/phone` paths in the unit file list.
-That keeps phone-only rendering dependencies below the presentation boundary and
-prevents scene engines from acquiring phone-shell ownership.
+On 2026-07-20, the user correctly required the already-working spike chain to
+be treated as the executable migration baseline rather than a loose source of
+checkpoint names. Its full front half now lives in
+`app/src/production/phone/PhoneStoryShell.tsx` and
+`PhoneStoryShell.css`; `PortraitScrollSpike.tsx` remains the thin `?v=16`
+comparison entry. The shell imports the canonical copy/media contracts and the
+production phone helper modules directly, so the restored result is a
+migration, not a second legacy route.
 
 `?v=16` is retained as a thin formal-shell comparison harness. Regular phone
 activation remains guarded by `VITE_ENABLE_PHONE_STORY=1` until Unit 7 cutover,
@@ -63,11 +66,10 @@ so rotation cannot swap an already selected presentation family.
 The production budget verifier now measures each mutually exclusive selected
 presentation shell, while retaining all emitted assets in its audit report and
 enforcing the loader-ink cap separately. No budget threshold was increased.
-The latest production build reports 10,488 bytes of JavaScript headroom (above
+The latest production build reports 11,223 bytes of JavaScript headroom (above
 the required 4,096 bytes). No media asset was replaced, re-encoded, or added.
-`PortraitScrollSpike.css` was removed early because the thin wrapper no longer
-imports it; remaining spike aliases stay only for characterization through the
-physical acceptance gate.
+The presentation CSS moved with the complete production phone shell; the thin
+spike wrapper owns no scene markup, media, or scroll state.
 
 ### Current physical review record — 2026-07-20
 
@@ -75,35 +77,31 @@ This review is a Unit 0–3 acceptance record, not authorization to start Unit 4
 It is **not accepted** until the items below have true-device evidence and the
 user confirms the checkpoint.
 
-- **Unit 2 fixed-stage contract — correction awaiting device re-run:** native
-  vertical scrolling was smooth, but the page could move sideways during a
-  swipe and reveal the dark underlay. The shell now uses `touch-action: pan-y`,
-  horizontal overscroll containment, and a local non-passive guard that only
-  cancels a decisively horizontal single-touch pan. The required Route B
-  invariant still needs real-iPhone confirmation: the fixed stage must not
-  follow horizontal overscroll or expose a second background.
-- **Unit 3 transition lifecycle — correction verified in Chromium:** at the
-  Hero → Pattern handoff, the `phone-hero-pattern-ink` canvas mounted and was
-  active, while the later named adapters were registered without matching
-  canvases. Dynamic bindings now schedule the transition only after endpoints
-  publish, and runtime cleanup leaves React-owned transition canvases to their
-  mounted adapter. At Pattern → Star Map, two ink canvases are present with the
-  late transition active; at Star Map → AOD, all three are present with the
-  last transition active. This fixes the reproducible browser regression but
-  still needs a real-device motion re-run.
+- **Unit 2 fixed-stage contract — real-device confirmation still required:**
+  the modular adapter-shell experiment caused horizontal sway and dark-underlay
+  exposure. It is no longer the active formal route. The restored spike
+  baseline retains its native fixed-stage geometry and `touch-action: pan-y`;
+  a real iPhone must still confirm the original no-sway hand feel.
+- **Unit 3 transition lifecycle — complete chain restored and verified in
+  Chromium:** the production shell again executes all three original handoffs
+  as one chain. At a 390×844 viewport, Pattern → Star Map has an active
+  `pattern-star` ink canvas at scroll progress 0.5554, Star Map → AOD has an
+  active `star-aod` canvas at 0.7529, and AOD completion exposes the fixed
+  Method bridge. This is browser evidence only; a real-device motion re-run is
+  still required.
 - **Unit 3 Figure 1 alpha presentation — failed on device:** the real-device
   report says Figure 1 has reverted to a white background. Chromium's iPhone
   viewport reports the packed-alpha canvas ready and visible without console
   errors, so that result is only a non-reproduction; it cannot replace a
   Safari capture or clear the device failure.
 
-The current scoped evidence is green: the focused Unit 0/2/3 suites pass (17
-tests), typecheck and lint pass, the homepage module-boundary verifier passes,
-and the production build retains 10,488 bytes of JavaScript headroom. Chromium
-phone-viewport inspection and a visual capture confirm the restored Star
-Map → AOD ink handoff. This is still insufficient for acceptance because it
-does not exercise iOS horizontal rubber-banding or establish Figure 1's actual
-Safari alpha presentation.
+The current scoped evidence is green: the complete test suite passes, typecheck
+and lint pass, the homepage module-boundary verifier passes, and the production
+build retains 11,223 bytes of JavaScript headroom. Chromium phone-viewport
+inspection confirms the restored Hero, Pattern → Star Map, Star Map → AOD, and
+AOD → Method sequence without console errors. This is still insufficient for
+acceptance because it does not exercise iOS horizontal rubber-banding or
+establish Figure 1's actual Safari alpha presentation.
 
 **Gate:** keep Units 4–7 frozen. The next acceptance item is a renewed
 real-iPhone review with device, iOS/Safari, toolbar state, and visual/motion
@@ -112,7 +110,7 @@ evidence recorded.
 Validation completed for this implementation:
 
 - `pnpm -C app typecheck`
-- `pnpm -C app test` — 117 files, 717 tests
+- `pnpm -C app test` — 117 files, 715 tests
 - `pnpm -C app lint`
 - `pnpm -C app build` — module-boundary, media, release, and performance gates pass
 
