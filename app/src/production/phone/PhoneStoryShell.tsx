@@ -195,12 +195,13 @@ export type PhoneStoryShellProps = Readonly<{
 export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const motionEnabled = portraitSpikeMotionEnabled();
   const [loaderHidden, setLoaderHidden] = useState(phoneLoaderCompletedInDocument);
-  const [heroTitleActive, setHeroTitleActive] = useState(
-    () => phoneLoaderCompletedInDocument() || !motionEnabled
-  );
+  // Do not let a resume marker render the text in its completed state before
+  // the Hero controller has a chance to re-arm it. The stage can skip Loader
+  // during a short lock-screen recovery, but a top-of-story Hero must still
+  // get its authored text entrance.
+  const [heroTitleActive, setHeroTitleActive] = useState(() => !motionEnabled);
   const [navigationScene, setNavigationScene] = useState<SceneId>('hero');
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
-  const loaderCompletedOnMountRef = useRef(loaderHidden);
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
@@ -846,7 +847,12 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       patternProgressRef.current = { collapse: progress, rotation: progress };
       patternRendererRef.current?.setFrameProgress(progress, progress);
       const copyProgress = range01(progress, 0, 0.78);
-      gsap.set(patternWash, { opacity: 0.54 + progress * 0.4 });
+      // Keep the expanded bloom visually continuous at the lower edge while
+      // it enters. Without this owned ground, the large blurred ring fades
+      // into the paper plate and reads as a dark feathered leak below Pattern.
+      const entryGroundOpacity = 1 - range01(progress, 0.3, 0.72);
+      patternScene.style.setProperty('--portrait-pattern-entry-ground-opacity', entryGroundOpacity.toFixed(4));
+      gsap.set(patternWash, { opacity: 0.36 + progress * 0.28 });
       gsap.set(patternCopy, { y: 44 * (1 - copyProgress), opacity: copyProgress });
     };
 
@@ -1307,7 +1313,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     if (
       motionEnabled
       && stageTrigger.progress <= 0.003
-      && !loaderCompletedOnMountRef.current
     ) {
       setHeroTitleActive(false);
       root.dataset.portraitHeroEntrance = 'playing';

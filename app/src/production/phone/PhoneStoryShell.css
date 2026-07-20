@@ -98,8 +98,28 @@ html[data-portrait-spike="b"] .static-content {
 }
 
 .portrait-scroll-spike__scene--pattern {
+  --portrait-pattern-entry-ground-opacity: 1;
   background: #d9c08f;
   color: #211713;
+}
+
+/*
+ * The canvas bloom deliberately begins above the lower safe area. Give its
+ * blurred outer rings a warm, opaque continuation while it is expanded so
+ * the paper plate cannot flash through as a dark feathered seam.
+ */
+.portrait-scroll-spike__scene--pattern::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  background:
+    radial-gradient(ellipse 98% 72% at 50% 28%, rgba(195, 101, 62, 0) 38%, rgba(177, 79, 48, .26) 68%, rgba(164, 67, 43, .72) 100%),
+    linear-gradient(180deg, rgba(176, 79, 49, 0) 38%, rgba(183, 88, 53, .18) 60%, rgba(175, 78, 48, .76) 100%);
+  content: '';
+  opacity: var(--portrait-pattern-entry-ground-opacity);
+  pointer-events: none;
+  transition: opacity 120ms linear;
 }
 
 .portrait-scroll-spike__scene--star {
@@ -439,8 +459,8 @@ html[data-portrait-spike="b"] .static-content {
 .portrait-scroll-spike__pattern-wash {
   z-index: 3;
   background:
-    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
-    linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
+    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .08), rgba(217, 192, 143, .12) 42%, rgba(118, 54, 35, .18) 100%),
+    linear-gradient(180deg, rgba(246, 229, 188, .1), rgba(119, 57, 36, .08));
 }
 
 .portrait-scroll-spike__pattern-bloom {

@@ -4,8 +4,11 @@ type PhoneVisibilityDocument = Pick<Document, 'addEventListener' | 'hidden' | 'r
 
 const currentDocumentState: PhoneLoaderDocumentState = { completed: false };
 
-export const PHONE_LOADER_COMPLETE_KEY = 'tongye:phone-story:loader-complete';
-export const PHONE_LOADER_HIDDEN_AT_KEY = 'tongye:phone-story:hidden-at';
+// The HTML recovery gate remains the v16 gate while the complete spike is
+// moved into the production phone shell. Keep this identity aligned so a
+// lock-screen recovery does not produce a contradictory Loader/Hero state.
+export const PHONE_LOADER_COMPLETE_KEY = 'tongye:portrait-spike:v16:loader-complete';
+export const PHONE_LOADER_HIDDEN_AT_KEY = 'tongye:portrait-spike:v16:hidden-at';
 
 function browserStore(): PhoneLoaderStore | undefined {
   if (typeof window === 'undefined') return undefined;
@@ -14,7 +17,8 @@ function browserStore(): PhoneLoaderStore | undefined {
 
 export function phoneLoaderCompletedInDocument(
   state: PhoneLoaderDocumentState = currentDocumentState,
-  resumeMarked = typeof document !== 'undefined' && document.documentElement.dataset.phoneLoaderResume === 'skip'
+  resumeMarked = typeof document !== 'undefined'
+    && document.documentElement.dataset.portraitLoaderResume === 'skip'
 ): boolean {
   if (resumeMarked) state.completed = true;
   return state.completed;

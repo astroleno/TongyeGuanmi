@@ -36,6 +36,13 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).toContain("'handoff-star-aod'");
   });
 
+  it('re-arms the Hero title and protects the expanded Pattern lower edge', () => {
+    expect(shellSource).toContain('const [heroTitleActive, setHeroTitleActive] = useState(() => !motionEnabled);');
+    expect(shellSource).not.toContain('loaderCompletedOnMountRef');
+    expect(shellSource).toContain("'--portrait-pattern-entry-ground-opacity'");
+    expect(shellCss).toContain('.portrait-scroll-spike__scene--pattern::before');
+  });
+
   it('keeps Figure 1 and AOD packed-alpha media in the proven ownership path', () => {
     expect(shellSource).toContain('createPackedAlphaVideoCompositor');
     expect(shellSource).toContain("phoneMediaUrlFor('hero-figure-packed', 'hero')");
