@@ -67,6 +67,27 @@ export type ScenePresentationState = Readonly<{
   onHeroIntroComplete?: () => void;
 }>;
 
+/**
+ * Renderer-neutral lifecycle shared by presentation adapters. Desktop
+ * Stage/Director modules and native-scroll phone adapters may expose different
+ * build APIs, but their mounted visual owners use the same teardown semantics.
+ */
+export type PresentationAdapterLifecycle = {
+  enter?(): void;
+  leave?(): void;
+  reverse?(): void;
+  dispose?(): void;
+};
+
+export type ScenePresentationAdapterHandle = PresentationAdapterLifecycle & {
+  root(): HTMLElement | null;
+  update(progress: number): void;
+};
+
+export type TransitionPresentationAdapterHandle = PresentationAdapterLifecycle & {
+  render(progress: number): void;
+};
+
 export type SceneComponentProps = {
   scene: SceneId;
   hidden: boolean;

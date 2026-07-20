@@ -1,4 +1,8 @@
 import type { ForwardRefExoticComponent, RefAttributes } from 'react';
+import type {
+  ScenePresentationAdapterHandle,
+  TransitionPresentationAdapterHandle
+} from '../../story/presentation';
 import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
 
 export type PhoneStageSceneId = 'hero' | 'pattern' | 'star-map' | 'aod-animation';
@@ -9,14 +13,7 @@ export type PhoneTransitionAdapterId =
   | 'star-map-aod'
   | 'aod-method-top';
 
-export type PhoneSceneAdapterHandle = {
-  root(): HTMLElement | null;
-  update(progress: number): void;
-  enter?(): void;
-  leave?(): void;
-  reverse?(): void;
-  dispose?(): void;
-};
+export type PhoneSceneAdapterHandle = ScenePresentationAdapterHandle;
 
 export type PhoneAodAdapterHandle = PhoneSceneAdapterHandle & {
   startAutoplay(direction: 1 | -1): void;
@@ -39,13 +36,7 @@ export type PhoneAodAdapterComponent = ForwardRefExoticComponent<
   PhoneSceneAdapterProps & RefAttributes<PhoneAodAdapterHandle>
 >;
 
-export type PhoneTransitionAdapterHandle = {
-  render(progress: number): void;
-  enter?(): void;
-  leave?(): void;
-  reverse?(): void;
-  dispose?(): void;
-};
+export type PhoneTransitionAdapterHandle = TransitionPresentationAdapterHandle;
 
 export type PhoneTransitionAdapterProps = Readonly<{
   host: HTMLElement | null;

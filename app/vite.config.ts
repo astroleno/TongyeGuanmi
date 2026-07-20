@@ -129,7 +129,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.{ts,tsx}', 'eslint-rules/**/*.test.mjs']
+    include: [
+      'src/**/*.test.{ts,tsx}',
+      'eslint-rules/**/*.test.mjs',
+      'scripts/**/*.test.mjs'
+    ]
   },
   build: {
     outDir: '../dist',

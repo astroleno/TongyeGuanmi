@@ -6,10 +6,96 @@ const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const sourceDir = path.join(appDir, 'src');
 const productionDir = path.join(sourceDir, 'production');
 const phoneDir = path.join(productionDir, 'phone');
+const phoneSceneAdapterDir = path.join(phoneDir, 'scenes');
+const phoneTransitionAdapterDir = path.join(phoneDir, 'transitions');
 const desktopDir = path.join(productionDir, 'desktop');
 const portraitSpikeDir = path.join(productionDir, 'portrait-spike');
 const storyDir = path.join(sourceDir, 'story');
 const sourceExtensions = new Set(['.ts', '.tsx']);
+const phoneShellPath = path.join(phoneDir, 'PhoneStoryShell.tsx');
+const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
+
+/**
+ * The restored Route B baseline still carries these known Unit 3 ownership
+ * debts. This is a ratchet, not a permanent allow-list: remove each entry in
+ * the same commit that moves its responsibility into an adapter. New entries
+ * are architecture regressions and must never be added to make a build pass.
+ */
+export const phoneShellDebt = Object.freeze({
+  maxLines: 1696,
+  sceneImports: new Set([
+    '../../scenes/aod-animation',
+    '../../scenes/hero/motion',
+    '../../scenes/pattern/patternBloomRenderer',
+    '../../scenes/star-map/starFieldReveal'
+  ]),
+  transitionImports: new Set([
+    '../../transitions/shared/inkOwnership',
+    '../../transitions/shared/radialInkIntro'
+  ]),
+  mediaImports: new Set([
+    '../../media/packed-alpha-video'
+  ]),
+  shellZoneImports: new Set([
+    'PhoneStoryShell.tsx::../../media/packed-alpha-video',
+    'PhoneStoryShell.tsx::../../scenes/aod-animation',
+    'PhoneStoryShell.tsx::../../scenes/hero/motion',
+    'PhoneStoryShell.tsx::../../scenes/pattern/patternBloomRenderer',
+    'PhoneStoryShell.tsx::../../scenes/star-map/starFieldReveal',
+    'PhoneStoryShell.tsx::../../transitions/shared/inkOwnership',
+    'PhoneStoryShell.tsx::../../transitions/shared/radialInkIntro',
+    'aod-autoplay.ts::../../media/packed-alpha-video',
+    'aod-autoplay.ts::../../scenes/aod-animation/progress',
+    'hero-motion.ts::../../media/alpha-video-sources',
+    'hero-motion.ts::../../media/packed-alpha-video',
+    'hero-motion.ts::../../media/timeline-video-driver',
+    'phone-ink.ts::../../transitions/shared/inkField',
+    'phone-ink.ts::../../transitions/shared/inkOwnership',
+    'phone-ink.ts::../../transitions/shared/sceneInk'
+  ]),
+  sceneRoots: new Set(['hero', 'pattern', 'star', 'aod']),
+  mediaKeys: new Set([
+    'aod-figure-packed-forward',
+    'aod-figure-packed-reverse',
+    'hero-back',
+    'hero-figure-packed',
+    'hero-figure-poster',
+    'hero-middle',
+    'star-map-source'
+  ]),
+  progressConstants: new Set([
+    'AOD_AUTOPLAY_START',
+    'HERO_MOTION_END',
+    'HERO_PATTERN_END',
+    'PATTERN_MOTION_END',
+    'PATTERN_MOTION_START',
+    'PATTERN_STAR_END',
+    'PATTERN_STAR_START',
+    'STAR_AOD_END',
+    'STAR_AOD_START',
+    'STAGE_SCROLL_VIEWPORTS'
+  ])
+});
+
+export const phoneShellCssDebt = Object.freeze({
+  maxLines: 893,
+  assetUrls: new Set(['../../../../assets/pattern-background.webp']),
+  sceneRoots: new Set(['hero', 'pattern', 'star', 'aod']),
+  ownerTokens: new Set([
+    'gyro',
+    'hero',
+    'ink',
+    'method',
+    'pattern',
+    'reading',
+    'scene',
+    'scroll',
+    'stage',
+    'star',
+    'steps',
+    'toolbar'
+  ])
+});
 
 function isWithin(target, directory) {
   return target === directory || target.startsWith(`${directory}${path.sep}`);
@@ -51,19 +137,156 @@ function display(file) {
   return path.relative(appDir, file).split(path.sep).join('/');
 }
 
+function capturedValues(source, expression, group = 1) {
+  return [...source.matchAll(expression)].map((match) => match[group]);
+}
+
+function sourceLineCount(source) {
+  const content = source.endsWith('\n') ? source.slice(0, -1) : source;
+  return content.length === 0 ? 0 : content.split(/\r?\n/).length;
+}
+
+export function scanPhoneShellDebt(source) {
+  const imports = importSpecifiers(source);
+  const mediaKeys = capturedValues(
+    source,
+    /phoneMediaUrlFor\((['"])([^'"]+)\1/g,
+    2
+  );
+  return {
+    lines: sourceLineCount(source),
+    sceneImports: imports.filter((specifier) => specifier.startsWith('../../scenes/')),
+    transitionImports: imports.filter((specifier) => specifier.startsWith('../../transitions/')),
+    mediaImports: imports.filter((specifier) => specifier.startsWith('../../media/')),
+    sceneRoots: capturedValues(source, /portrait-scroll-spike__scene--([a-z0-9-]+)/g),
+    methodRoots: capturedValues(source, /\bid="(method)"/g),
+    mediaKeys,
+    mediaCallCount: [...source.matchAll(/\bphoneMediaUrlFor\s*\(/g)].length,
+    progressConstants: capturedValues(
+      source,
+      /const\s+([A-Z][A-Z0-9_]*(?:_START|_END|_VIEWPORTS))\s*=/g
+    )
+  };
+}
+
+export function phoneShellDebtViolations(snapshot, debt = phoneShellDebt) {
+  const found = [];
+  const rejectUnknown = (values, allowed, label) => {
+    const unknown = [...new Set(values)].filter((value) => !allowed.has(value));
+    for (const value of unknown) {
+      found.push(`new shell-owned ${label} is forbidden (${value})`);
+    }
+  };
+
+  if (snapshot.lines > debt.maxLines) {
+    found.push(`Unit 3 shell debt grew to ${snapshot.lines} lines (ratchet ${debt.maxLines})`);
+  }
+  rejectUnknown(snapshot.sceneImports, debt.sceneImports, 'scene import');
+  rejectUnknown(snapshot.transitionImports, debt.transitionImports, 'transition import');
+  rejectUnknown(snapshot.mediaImports, debt.mediaImports, 'media import');
+  rejectUnknown(snapshot.sceneRoots, debt.sceneRoots, 'scene root');
+  rejectUnknown(snapshot.mediaKeys, debt.mediaKeys, 'media key');
+  rejectUnknown(snapshot.progressConstants, debt.progressConstants, 'progress constant');
+
+  if (snapshot.sceneRoots.length > debt.sceneRoots.size) {
+    found.push(
+      `shell owns ${snapshot.sceneRoots.length} scene roots (ratchet ${debt.sceneRoots.size})`
+    );
+  }
+  if (snapshot.methodRoots.length > 1) {
+    found.push('shell may not add another Method content root');
+  }
+  if (snapshot.mediaCallCount !== snapshot.mediaKeys.length) {
+    found.push('shell media ownership calls must use literal product media IDs');
+  }
+  if (snapshot.mediaKeys.length > debt.mediaKeys.size) {
+    found.push(
+      `shell owns ${snapshot.mediaKeys.length} media keys (ratchet ${debt.mediaKeys.size})`
+    );
+  }
+  if (snapshot.progressConstants.length > debt.progressConstants.size) {
+    found.push(
+      `shell owns ${snapshot.progressConstants.length} progress constants `
+        + `(ratchet ${debt.progressConstants.size})`
+    );
+  }
+  return found;
+}
+
+export function scanPhoneShellCssDebt(source) {
+  return {
+    lines: sourceLineCount(source),
+    assetUrls: capturedValues(source, /url\((['"]?)([^)'"]+)\1\)/g, 2),
+    sceneRoots: capturedValues(
+      source,
+      /portrait-scroll-spike__scene--([a-z0-9-]+)/g
+    ),
+    ownerTokens: capturedValues(
+      source,
+      /portrait-scroll-spike__([a-z0-9]+)(?:[-_:])/g
+    )
+  };
+}
+
+export function phoneShellCssDebtViolations(snapshot, debt = phoneShellCssDebt) {
+  const found = [];
+  const rejectUnknown = (values, allowed, label) => {
+    const unknown = [...new Set(values)].filter((value) => !allowed.has(value));
+    for (const value of unknown) {
+      found.push(`new shell-owned CSS ${label} is forbidden (${value})`);
+    }
+  };
+  if (snapshot.lines > debt.maxLines) {
+    found.push(`Unit 3 shell CSS debt grew to ${snapshot.lines} lines (ratchet ${debt.maxLines})`);
+  }
+  rejectUnknown(snapshot.assetUrls, debt.assetUrls, 'asset URL');
+  rejectUnknown(snapshot.sceneRoots, debt.sceneRoots, 'scene root');
+  rejectUnknown(snapshot.ownerTokens, debt.ownerTokens, 'owner token');
+  return found;
+}
+
+export function shellZoneRendererImportViolations(
+  relativeFile,
+  specifier,
+  debt = phoneShellDebt
+) {
+  const signature = `${relativeFile.split(path.sep).join('/')}::${specifier}`;
+  return debt.shellZoneImports.has(signature)
+    ? []
+    : [`new shell-zone renderer import is forbidden (${relativeFile} -> ${specifier})`];
+}
+
 const violations = [];
 
 for (const file of await filesBelow(productionDir)) {
   const source = await readFile(file, 'utf8');
-  const targets = importSpecifiers(source)
-    .map((specifier) => relativeTarget(file, specifier))
-    .filter(Boolean);
+  const specifiers = importSpecifiers(source);
+  const imports = specifiers
+    .map((specifier) => ({ specifier, target: relativeTarget(file, specifier) }))
+    .filter((entry) => Boolean(entry.target));
+  const targets = imports.map(({ target }) => target);
   if (isWithin(file, phoneDir)) {
     if (targets.some((target) => isWithin(target, portraitSpikeDir))) {
       violations.push(`${display(file)}: phone code must not import portrait-spike`);
     }
     if (targets.some((target) => isWithin(target, desktopDir))) {
       violations.push(`${display(file)}: phone code must not import desktop`);
+    }
+    const shellZone = !isWithin(file, phoneSceneAdapterDir)
+      && !isWithin(file, phoneTransitionAdapterDir);
+    if (shellZone) {
+      for (const { specifier, target } of imports) {
+        const sharedRendererImport = isWithin(target, path.join(sourceDir, 'scenes'))
+          || isWithin(target, path.join(sourceDir, 'transitions'))
+          || isWithin(target, path.join(sourceDir, 'media'));
+        if (!sharedRendererImport) continue;
+        for (const violation of shellZoneRendererImportViolations(
+          path.relative(phoneDir, file),
+          specifier
+        )) {
+          violations.push(`${display(file)}: ${violation}`);
+        }
+      }
     }
   }
   if (isWithin(file, desktopDir) && targets.some((target) => isWithin(target, phoneDir))) {
@@ -82,7 +305,7 @@ for (const file of await filesBelow(storyDir)) {
 }
 
 for (const file of [
-  path.join(phoneDir, 'PhoneStoryShell.tsx'),
+  phoneShellPath,
   path.join(phoneDir, 'PhoneStageRail.tsx'),
   path.join(desktopDir, 'DesktopStoryShell.tsx')
 ]) {
@@ -90,6 +313,18 @@ for (const file of [
   if (/new\s+URL\s*\(/.test(source)) {
     violations.push(`${display(file)}: shell layers must not own asset URLs`);
   }
+}
+
+const phoneShellSource = await readFile(phoneShellPath, 'utf8');
+const phoneShellSnapshot = scanPhoneShellDebt(phoneShellSource);
+for (const violation of phoneShellDebtViolations(phoneShellSnapshot)) {
+  violations.push(`${display(phoneShellPath)}: ${violation}`);
+}
+
+const phoneShellCssSource = await readFile(phoneShellCssPath, 'utf8');
+const phoneShellCssSnapshot = scanPhoneShellCssDebt(phoneShellCssSource);
+for (const violation of phoneShellCssDebtViolations(phoneShellCssSnapshot)) {
+  violations.push(`${display(phoneShellCssPath)}: ${violation}`);
 }
 
 for (const file of await filesBelow(path.join(phoneDir, 'scenes'))) {
@@ -103,4 +338,11 @@ if (violations.length > 0) {
   throw new Error(`Homepage module boundary violations:\n${violations.map((violation) => `- ${violation}`).join('\n')}`);
 }
 
-process.stdout.write('Homepage module boundaries verified.\n');
+process.stdout.write(
+  `Homepage module boundaries verified; Unit 3 phone-shell debt ratchet: `
+    + `${phoneShellSnapshot.sceneRoots.length} scene roots, `
+    + `${phoneShellSnapshot.mediaKeys.length} media keys, `
+    + `${phoneShellSnapshot.progressConstants.length} progress constants, `
+    + `${phoneShellSnapshot.lines} TSX lines, `
+    + `${phoneShellCssSnapshot.lines} CSS lines.\n`
+);

@@ -136,6 +136,8 @@ export type {
   LayerVisibilityState,
   MediaPlaybackHandle,
   MilestoneReport,
+  PresentationAdapterLifecycle,
+  ScenePresentationAdapterHandle,
   SceneComponentProps,
   SceneModule,
   ScenePresentationState,
@@ -147,6 +149,7 @@ export type {
   StagedLegPreparation,
   StaticFallbackContract,
   TransitionContext,
+  TransitionPresentationAdapterHandle,
   TransitionModule,
   TransitionPrewarmContext,
   VisibilityPredicate

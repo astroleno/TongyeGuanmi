@@ -45,7 +45,7 @@ is the pre-extraction baseline.
 | Unit | Status | Implemented evidence |
 | --- | --- | --- |
 | Unit 0 | Active-route characterization connected; physical evidence incomplete | The formal phone shell now publishes the shared Loader → Method checkpoint trace, including the AOD media clock, and `r5-phone-story.spec.ts` verifies the live `?v=18` route forward and backward. Real Safari toolbar/orientation/lock evidence and device metadata still gate Unit 4. |
-| Unit 1 | Shared product layer landed; adapter enforcement incomplete | Shared presentation contracts, semantic checkpoints, copy, and media ownership live in `app/src/story/presentation.ts`, `semantic-checkpoints.ts`, `copy.ts`, and `media.ts`. The boundary gate still needs to reject scene JSX/progress ownership in a shell and converge the phone-only adapter types with the shared presentation contract. |
+| Unit 1 | Complete in code; Unit 3 debt ratcheted | Shared presentation contracts, semantic checkpoints, copy, media ownership, and renderer-neutral adapter lifecycles live in `app/src/story/`. Phone adapters alias the shared lifecycle instead of redeclaring it. The module-boundary verifier rejects new shell-owned scene imports/roots, media keys, progress constants, or line growth while the explicit Unit 3 debt list shrinks with each extraction. |
 | Unit 2 | Lazy shell split landed; phone adapter cutover pending | `App.tsx` loads exactly one frozen desktop/phone family and `DesktopStoryShell` preserves Stage/Director. The active phone route still bypasses `PhoneStageRail`, `usePhoneStageRuntime`, and the phone adapter loaders. |
 | Unit 3 | Front-half behavior restored; adapter extraction pending | The formal phone route owns the proven Loader → Hero → Pattern → Star Map → AOD → Method behavior, but `PhoneStoryShell.tsx` is still a 1,600-line scene/runtime owner. Existing scene and transition adapters remain disconnected and must be reintroduced one reviewed slice at a time. |
 | Units 4–7 | Not started | The current-build physical-iPhone checkpoint is not accepted, so no back-half migration or cutover work begins. |
@@ -120,7 +120,7 @@ evidence recorded.
 Validation completed for the active checkpoint instrumentation:
 
 - `pnpm -C app typecheck`
-- `pnpm -C app test` — 118 files, 722 tests
+- `pnpm -C app test` — 120 files, 732 tests
 - `pnpm -C app lint`
 - `pnpm -C app build` — module-boundary, media, release, and performance gates pass
 - `PLAYWRIGHT_PORT=4174 pnpm -C app exec playwright test e2e/r5-phone-story.spec.ts --config playwright.release.config.ts --project desktop-chromium`
@@ -134,6 +134,9 @@ Follow-up architecture audit on 2026-07-20 tightened three Route B contracts:
 - the temporary AOD input lock is scoped to the phone shell and attaches only
   while media owns time, so native reading has no global non-passive
   `touchmove` listener.
+- phone scene and transition handles now consume the shared presentation
+  lifecycle contract, and the build records a one-way Unit 3 debt ratchet for
+  the still-monolithic formal phone shell.
 
 The remaining Unit 0–3 work is the physical iPhone Safari evidence plus the
 active-route adapter cutover. The device run must capture the named checkpoint
