@@ -179,7 +179,7 @@ function portraitSpikeMotionEnabled(): boolean {
 }
 
 /**
- * Route B has one scroll owner: the document. A rail-sticky stage stays
+ * Route B has one scroll owner: the document. A viewport-fixed stage stays
  * visually stationary while ScrollTrigger only maps rail position to local progress.
  * The sole input lock is the authored AOD snap while its time-owned media runs.
  */
@@ -739,7 +739,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     let currentDocumentSurface = '';
     let currentNavigationScene: SceneId = 'hero';
     root.dataset.portraitSpikeMotionState = motionEnabled ? 'running' : 'reduced';
-    root.dataset.portraitStagePin = 'native-sticky';
+    root.dataset.portraitStagePin = 'native-fixed-composite';
     root.dataset.portraitStageActive = 'true';
     root.dataset.portraitAodRun = aodRunState;
     root.dataset.portraitAodMethodVisible = 'false';
@@ -959,9 +959,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       patternProgressRef.current = { collapse: progress, rotation: progress };
       patternRendererRef.current?.setFrameProgress(progress, progress);
       const copyProgress = range01(progress, 0, 0.78);
-      const washOpacity = 0.54 + progress * 0.4;
-      root.style.setProperty('--portrait-pattern-wash-opacity', washOpacity.toFixed(4));
-      gsap.set(patternWash, { opacity: washOpacity });
+      gsap.set(patternWash, { opacity: 0.54 + progress * 0.4 });
       gsap.set(patternCopy, { y: 44 * (1 - copyProgress), opacity: copyProgress });
     };
 
@@ -1495,7 +1493,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       delete aodScene.dataset.portraitAodAlpha;
       delete aodTransition.dataset.portraitAodBackdropProgress;
       root.style.removeProperty('--portrait-edge-surface');
-      root.style.removeProperty('--portrait-pattern-wash-opacity');
       railBackdrop.style.removeProperty('transform');
       if (previousDocumentSurface) {
         documentElement.style.setProperty('--portrait-document-surface', previousDocumentSurface);
@@ -1538,7 +1535,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             src={PATTERN_BACKGROUND_IMAGE}
             alt=""
           />
-          <div className="portrait-scroll-spike__rail-backdrop-pattern-wash" />
         </div>
         <section ref={stageRef} className="portrait-scroll-spike__stage" aria-label="同野观幂移动端视觉叙事">
         <section ref={heroSceneRef} className="portrait-scroll-spike__scene portrait-scroll-spike__scene--hero" aria-labelledby="portrait-spike-home">

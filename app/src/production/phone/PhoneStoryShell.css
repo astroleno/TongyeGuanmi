@@ -54,10 +54,10 @@ html[data-portrait-spike="b"] .static-content {
 }
 
 /*
- * The rail owns distance while its sticky child is the visual viewport plane.
- * Unlike position: fixed, this stays tied to Safari's scrolling layout when
- * the address bar collapses. ScrollTrigger still reads progress only and
- * never creates a transformed pin/spacer.
+ * The rail owns distance while the visual stage is a fixed compositor plane.
+ * The document-layer backdrop below it owns Safari's toolbar exclusion area;
+ * the authored wash/mist therefore never rides a sticky edge during a swipe.
+ * ScrollTrigger reads progress only and creates no transformed pin/spacer.
  */
 .portrait-scroll-spike__stage-rail {
   position: relative;
@@ -89,8 +89,7 @@ html[data-portrait-spike="b"] .static-content {
   will-change: transform;
 }
 
-.portrait-scroll-spike__rail-backdrop-pattern,
-.portrait-scroll-spike__rail-backdrop-pattern-wash {
+.portrait-scroll-spike__rail-backdrop-pattern {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -106,18 +105,8 @@ html[data-portrait-spike="b"] .static-content {
   user-select: none;
 }
 
-.portrait-scroll-spike__rail-backdrop-pattern-wash {
-  background:
-    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
-    linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
-}
-
 .portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__rail-backdrop-pattern {
   opacity: 1;
-}
-
-.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__rail-backdrop-pattern-wash {
-  opacity: var(--portrait-pattern-wash-opacity, .54);
 }
 
 .portrait-scroll-spike[data-portrait-edge-scene="star"] .portrait-scroll-spike__rail-backdrop {
@@ -129,7 +118,7 @@ html[data-portrait-spike="b"] .static-content {
 }
 
 .portrait-scroll-spike__stage {
-  position: sticky;
+  position: fixed;
   z-index: 10;
   top: 0;
   right: 0;
@@ -141,6 +130,8 @@ html[data-portrait-spike="b"] .static-content {
   overflow: clip;
   isolation: isolate;
   background: #07110e;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
 .portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__stage {

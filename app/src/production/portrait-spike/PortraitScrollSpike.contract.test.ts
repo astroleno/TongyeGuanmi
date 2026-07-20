@@ -18,11 +18,12 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).toContain('id="method"');
   });
 
-  it('preserves the spike as one document-scroll owner with a sticky visual stage', () => {
+  it('preserves the spike as one document-scroll owner with a fixed composite visual stage', () => {
     expect(shellSource).toContain("id: 'portrait-spike-stage'");
-    expect(shellSource).toContain("root.dataset.portraitStagePin = 'native-sticky'");
+    expect(shellSource).toContain("root.dataset.portraitStagePin = 'native-fixed-composite'");
     expect(shellSource).toContain('stageRail.offsetHeight - stage.offsetHeight');
-    expect(shellCss).toMatch(/portrait-scroll-spike__stage\s*\{[^}]*position:\s*sticky/s);
+    expect(shellCss).toMatch(/portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed/s);
+    expect(shellCss).toMatch(/portrait-scroll-spike__stage\s*\{[^}]*transform:\s*translate3d\(0,\s*0,\s*0\)/s);
     expect(shellCss).toMatch(/portrait-scroll-spike__stage-rail\s*\{[^}]*height:\s*var\(--portrait-stage-rail-height\)/s);
     expect(shellCss).toMatch(/portrait-scroll-spike__stage-rail\s*\{[^}]*margin-bottom:\s*calc\(-1 \* var\(--portrait-stage-height\)\)/s);
     expect(shellSource).toContain('portrait-scroll-spike__rail-backdrop');
