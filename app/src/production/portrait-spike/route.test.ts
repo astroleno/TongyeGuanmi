@@ -5,6 +5,7 @@ describe('portrait spike route helpers', () => {
   it('mounts the current mobile preview from its short version route', () => {
     expect(portraitSpikeRouteForSearch('?v=16')).toBe('b');
     expect(portraitSpikeRouteForSearch('?v=17')).toBe('b');
+    expect(portraitSpikeRouteForSearch('?v=18')).toBe('b');
     expect(portraitSpikeRouteForSearch('?v=15')).toBeUndefined();
   });
 

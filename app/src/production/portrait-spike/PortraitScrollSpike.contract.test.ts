@@ -42,6 +42,15 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellCss).toMatch(/touch-action:\s*pan-y/);
   });
 
+  it('publishes shared semantic checkpoints from the active phone timeline', () => {
+    expect(shellSource).toContain("from './phone-stage-timeline'");
+    expect(shellSource).toContain('phoneStageFrame(progress, !motionEnabled).checkpoint');
+    expect(shellSource).toContain('phoneAodCheckpointForMethodProgress');
+    expect(shellSource).toContain('phoneAodCompletionCheckpoint');
+    expect(shellSource).toContain('root.dataset.portraitCheckpoint = checkpoint');
+    expect(shellSource).toContain('root.dataset.portraitCheckpointTrace = trace');
+  });
+
   it('keeps all three authored ink handoffs as one coherent front-half chain', () => {
     expect(shellSource).toContain('createPhoneInkTransition');
     expect(shellSource).toContain('data-portrait-ink="hero-pattern"');

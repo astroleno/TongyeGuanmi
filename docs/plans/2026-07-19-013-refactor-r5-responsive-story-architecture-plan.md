@@ -44,29 +44,32 @@ is the pre-extraction baseline.
 
 | Unit | Status | Implemented evidence |
 | --- | --- | --- |
-| Unit 0 | Automated characterization complete; physical review started, not accepted | `portrait-checkpoints.ts` names the front-half trace and tests forward, reverse, normal refresh, and lock recovery. The 2026-07-20 device report records unresolved Route B presentation regressions. |
-| Unit 1 | Complete in code | Shared presentation contracts, semantic checkpoints, copy, and media ownership now live in `app/src/story/presentation.ts`, `semantic-checkpoints.ts`, `copy.ts`, and `media.ts`. |
-| Unit 2 | Adapter-shell experiment retained, not the active formal route | `DesktopStoryShell` and phone adapter infrastructure remain available for the later incremental extraction, but the experimental split is not allowed to replace an already-proven visual chain before parity is demonstrated. |
-| Unit 3 | Proven front-half baseline migrated into the production phone shell; physical acceptance pending | `PhoneStoryShell` now directly owns the complete Loader → Hero → Pattern → Star Map → AOD → Method slice restored from the validated spike, while consuming production phone helpers and canonical copy/media contracts. |
+| Unit 0 | Active-route characterization connected; physical evidence incomplete | The formal phone shell now publishes the shared Loader → Method checkpoint trace, including the AOD media clock, and `r5-phone-story.spec.ts` verifies the live `?v=18` route forward and backward. Real Safari toolbar/orientation/lock evidence and device metadata still gate Unit 4. |
+| Unit 1 | Shared product layer landed; adapter enforcement incomplete | Shared presentation contracts, semantic checkpoints, copy, and media ownership live in `app/src/story/presentation.ts`, `semantic-checkpoints.ts`, `copy.ts`, and `media.ts`. The boundary gate still needs to reject scene JSX/progress ownership in a shell and converge the phone-only adapter types with the shared presentation contract. |
+| Unit 2 | Lazy shell split landed; phone adapter cutover pending | `App.tsx` loads exactly one frozen desktop/phone family and `DesktopStoryShell` preserves Stage/Director. The active phone route still bypasses `PhoneStageRail`, `usePhoneStageRuntime`, and the phone adapter loaders. |
+| Unit 3 | Front-half behavior restored; adapter extraction pending | The formal phone route owns the proven Loader → Hero → Pattern → Star Map → AOD → Method behavior, but `PhoneStoryShell.tsx` is still a 1,600-line scene/runtime owner. Existing scene and transition adapters remain disconnected and must be reintroduced one reviewed slice at a time. |
 | Units 4–7 | Not started | The current-build physical-iPhone checkpoint is not accepted, so no back-half migration or cutover work begins. |
 
 On 2026-07-20, the user correctly required the already-working spike chain to
 be treated as the executable migration baseline rather than a loose source of
-checkpoint names. Its full front half now lives in
+checkpoint names. Its full front-half behavior now lives in
 `app/src/production/phone/PhoneStoryShell.tsx` and
 `PhoneStoryShell.css`; `PortraitScrollSpike.tsx` remains the thin `?v=16`
-comparison entry. The shell imports the canonical copy/media contracts and the
-production phone helper modules directly, so the restored result is a
-migration, not a second legacy route.
+entry. The shell imports canonical copy/media contracts and production phone
+helpers, so there is no second product implementation; however, restoring the
+behavioral baseline did not complete the required scene/transition adapter
+extraction.
 
-`?v=16` is retained as a thin formal-shell comparison harness. Regular phone
-activation remains guarded by `VITE_ENABLE_PHONE_STORY=1` until Unit 7 cutover,
-so rotation cannot swap an already selected presentation family.
+`?v=18` is the current short physical-device route. `?v=16` and `?v=17` remain
+accepted aliases, but all three resolve the current formal phone shell and are
+not immutable historical builds. Regular phone activation remains guarded by
+`VITE_ENABLE_PHONE_STORY=1` until Unit 7 cutover, so rotation cannot swap an
+already selected presentation family.
 
 The production budget verifier now measures each mutually exclusive selected
 presentation shell, while retaining all emitted assets in its audit report and
 enforcing the loader-ink cap separately. No budget threshold was increased.
-The latest production build reports 11,223 bytes of JavaScript headroom (above
+The latest production build reports 11,043 bytes of JavaScript headroom (above
 the required 4,096 bytes). No media asset was replaced, re-encoded, or added.
 The presentation CSS moved with the complete production phone shell; the thin
 spike wrapper owns no scene markup, media, or scroll state.
@@ -76,6 +79,13 @@ spike wrapper owns no scene markup, media, or scroll state.
 This review is a Unit 0–3 acceptance record, not authorization to start Unit 4.
 It is **not accepted** until the items below have true-device evidence and the
 user confirms the checkpoint.
+
+The user subsequently reported that the current `?v=17` presentation was
+"差不多可行了" and authorized Plan 013 to continue. That is sufficient to resume
+the non-visual Unit 0–3 extraction work from this baseline, but it is not
+recorded as an unconditional Unit 4 gate pass because device model, iOS/Safari
+version, toolbar/orientation trace, and captured motion evidence are still
+missing. New Plan 013 verification builds use the short `?v=18` route.
 
 - **Unit 2 fixed-stage contract — real-device confirmation still required:**
   the modular adapter-shell experiment caused horizontal sway and dark-underlay
@@ -107,12 +117,13 @@ establish Figure 1's actual Safari alpha presentation.
 real-iPhone review with device, iOS/Safari, toolbar state, and visual/motion
 evidence recorded.
 
-Validation completed for this implementation:
+Validation completed for the active checkpoint instrumentation:
 
 - `pnpm -C app typecheck`
-- `pnpm -C app test` — 117 files, 715 tests
+- `pnpm -C app test` — 118 files, 722 tests
 - `pnpm -C app lint`
 - `pnpm -C app build` — module-boundary, media, release, and performance gates pass
+- `PLAYWRIGHT_PORT=4174 pnpm -C app exec playwright test e2e/r5-phone-story.spec.ts --config playwright.release.config.ts --project desktop-chromium`
 
 Follow-up architecture audit on 2026-07-20 tightened three Route B contracts:
 
@@ -124,10 +135,12 @@ Follow-up architecture audit on 2026-07-20 tightened three Route B contracts:
   while media owns time, so native reading has no global non-passive
   `touchmove` listener.
 
-The only outstanding acceptance evidence is a physical iPhone Safari run of the
-extracted formal phone shell. It must capture the named checkpoint trace,
-reverse behavior, toolbar/orientation recovery, and single media/input-owner
-state before Unit 4 starts.
+The remaining Unit 0–3 work is the physical iPhone Safari evidence plus the
+active-route adapter cutover. The device run must capture the named checkpoint
+trace, reverse behavior, toolbar/orientation recovery, and single
+media/input-owner state. The code cutover must remove scene JSX, media ownership,
+and scene progress math from `PhoneStoryShell` without changing that trace.
+Both remain mandatory before Unit 4 starts.
 
 ## Problem Frame
 

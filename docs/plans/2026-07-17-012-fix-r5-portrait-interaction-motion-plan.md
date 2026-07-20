@@ -210,11 +210,18 @@ compatibility wrapper around the formal
 `app/src/production/phone/PhoneStoryShell.tsx`; `?v=16` therefore exercises the
 production phone shell rather than retaining a second scene implementation.
 
-Current-build physical-iPhone acceptance is **pending**. This workspace has no
-device model, iOS/Safari version, or captured motion evidence for the extracted
-shell, so the historical Route B selection must not be read as acceptance of
-this migration checkpoint. The required mid-migration physical-device run gates
-Unit 4 and every later scene batch.
+The active formal shell now publishes those shared semantic checkpoints and the
+`?v=18` browser characterization exercises its full forward/reverse rail plus
+the AOD media-clock handoff. `?v=16` and `?v=17` remain short aliases to the
+current shell, not immutable archived implementations.
+
+The user reported the latest `?v=17` device presentation was "差不多可行了" and
+authorized Plan 013 to proceed. Current-build physical-iPhone acceptance is
+still **pending as the Unit 4 gate** because this workspace has no recorded
+device model, iOS/Safari version, toolbar/orientation trace, or captured motion
+evidence for the formal shell. Unit 0–3 contract/extraction work may continue;
+Unit 4 and every later scene batch remain frozen until that evidence is
+recorded and explicitly accepted.
 
 ## Confirmed Product and Interaction Contracts
 

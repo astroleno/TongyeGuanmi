@@ -30,6 +30,7 @@ import {
 } from '../../scenes/hero/motion';
 import { TextReveal, TextRevealItem } from '../../components/TextReveal';
 import { BELIEF_COPY, HOME_COPY, METHOD_COPY } from '../../story/copy';
+import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
 import {
   attachPhoneDeviceParallax,
@@ -55,6 +56,11 @@ import {
 } from './phone-loader-lifecycle';
 import { phoneMediaUrlFor } from './phone-media';
 import { createPhoneScrollSnapLock } from './phone-scroll-snap-lock';
+import {
+  phoneAodCheckpointForMethodProgress,
+  phoneAodCompletionCheckpoint,
+  phoneStageFrame
+} from './phone-stage-timeline';
 import { StoryLoader } from '../StoryLoader';
 import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
@@ -184,7 +190,7 @@ function portraitSpikeMotionEnabled(): boolean {
  */
 export type PhoneStoryShellProps = Readonly<{
   /** Retained while versioned routes remain physical-device comparison entries. */
-  validationMode?: 'v16' | 'v17';
+  validationMode?: 'v16' | 'v17' | 'v18';
 }>;
 
 /**
@@ -204,6 +210,12 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [navigationScene, setNavigationScene] = useState<SceneId>('hero');
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
+  const checkpointRef = useRef<FrontHalfCheckpointId>(
+    loaderHidden ? 'hero-entered' : 'loader'
+  );
+  const checkpointTraceRef = useRef<FrontHalfCheckpointId[]>([
+    checkpointRef.current
+  ]);
   const stageRailRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
   const heroSceneRef = useRef<HTMLElement | null>(null);
@@ -246,6 +258,24 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const starInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const readingIntroRef = useRef<HTMLDivElement | null>(null);
   const readingStepsRef = useRef<HTMLOListElement | null>(null);
+
+  const publishCheckpoint = useCallback((checkpoint: FrontHalfCheckpointId) => {
+    const root = rootRef.current;
+    if (!root) {
+      return;
+    }
+    if (checkpointRef.current !== checkpoint) {
+      checkpointRef.current = checkpoint;
+      checkpointTraceRef.current = [
+        ...checkpointTraceRef.current.slice(-63),
+        checkpoint
+      ];
+    }
+    const trace = checkpointTraceRef.current.join('>');
+    root.dataset.portraitCheckpoint = checkpoint;
+    root.dataset.portraitCheckpointTrace = trace;
+    document.documentElement.dataset.portraitCheckpoint = checkpoint;
+  }, []);
 
   useLayoutEffect(() => {
     const documentElement = document.documentElement;
@@ -341,8 +371,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       delete root.dataset.portraitLiveViewport;
       delete root.dataset.portraitStageCoverage;
       delete root.dataset.portraitTransientViewport;
+      delete root.dataset.portraitCheckpoint;
+      delete root.dataset.portraitCheckpointTrace;
       delete documentElement.dataset.portraitSpike;
       delete documentElement.dataset.portraitSpikeMotion;
+      delete documentElement.dataset.portraitCheckpoint;
     };
   }, [motionEnabled]);
 
@@ -351,6 +384,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   useEffect(() => {
     const documentElement = document.documentElement;
     documentElement.dataset.portraitSpikeLoader = loaderHidden ? 'ready' : 'active';
+    publishCheckpoint(loaderHidden ? 'hero-entered' : 'loader');
     if (!loaderHidden) {
       window.scrollTo(0, 0);
       return () => {
@@ -362,7 +396,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       window.cancelAnimationFrame(refreshFrame);
       delete documentElement.dataset.portraitSpikeLoader;
     };
-  }, [loaderHidden]);
+  }, [loaderHidden, publishCheckpoint]);
 
   const navigationVisible = loaderHidden
     && navigationScene !== 'hero'
@@ -932,6 +966,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       aodProgress = progress;
       const methodProgress = phoneAodMethodProgress(progress);
       renderMethodBridge(methodProgress);
+      if (aodRunState === 'forward' || aodRunState === 'reverse') {
+        publishCheckpoint(phoneAodCheckpointForMethodProgress(methodProgress));
+      }
       const alphaTransparent = progress < aodAlphaEndProgress;
       aodScene.dataset.portraitAodAlpha = alphaTransparent ? 'transparent' : 'opaque';
       if (
@@ -984,6 +1021,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       renderMethodBridge(0);
       aodRunState = 'forward';
       root.dataset.portraitAodRun = aodRunState;
+      publishCheckpoint('aod-autoplay');
       setStageActive(true);
       const anchorY = stageScrollStart
         + (stageScrollEnd - stageScrollStart) * AOD_AUTOPLAY_START;
@@ -997,6 +1035,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       }
       aodRunState = 'reverse';
       root.dataset.portraitAodRun = aodRunState;
+      publishCheckpoint(phoneAodCheckpointForMethodProgress(
+        phoneAodMethodProgress(aodProgress)
+      ));
       // A touch reversal can arrive while Method still owns the document
       // surface. Re-enable the fixed stage before snapping to its last pixel,
       // then keep that exact boundary locked until the reverse asset ends.
@@ -1008,6 +1049,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     const completeAodRun = (direction: PhoneAodPlaybackDirection) => {
       aodRunState = direction === 1 ? 'complete' : 'idle';
       root.dataset.portraitAodRun = aodRunState;
+      publishCheckpoint(phoneAodCompletionCheckpoint(direction));
       aodScrollSnap.release();
       if (direction === 1 && !reverseWarmupStarted) {
         reverseWarmupStarted = true;
@@ -1219,6 +1261,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       }
 
       root.dataset.portraitStageProgress = progress.toFixed(4);
+      if (aodRunState === 'idle') {
+        publishCheckpoint(phoneStageFrame(progress, !motionEnabled).checkpoint);
+      }
       if (progress < HERO_PATTERN_END) {
         setDocumentSurface(PORTRAIT_SURFACE_DARK);
       } else if (progress < PATTERN_STAR_END) {
@@ -1439,7 +1484,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     };
   }, {
     scope: rootRef,
-    dependencies: [aodAlphaEndProgress, loaderHidden, motionEnabled],
+    dependencies: [aodAlphaEndProgress, loaderHidden, motionEnabled, publishCheckpoint],
     revertOnUpdate: true
   });
 
@@ -1454,6 +1499,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-portrait-loader-ready={String(loaderHidden)}
       data-phone-validation-mode={props.validationMode}
       data-phone-aod-alpha-end={aodAlphaEndProgress.toFixed(2)}
+      data-portrait-checkpoint={checkpointRef.current}
+      data-portrait-checkpoint-trace={checkpointTraceRef.current.join('>')}
     >
       {!loaderHidden && (
         <StoryLoader
