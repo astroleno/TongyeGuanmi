@@ -959,7 +959,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       patternProgressRef.current = { collapse: progress, rotation: progress };
       patternRendererRef.current?.setFrameProgress(progress, progress);
       const copyProgress = range01(progress, 0, 0.78);
-      gsap.set(patternWash, { opacity: 0.54 + progress * 0.4 });
+      const washOpacity = 0.54 + progress * 0.4;
+      root.style.setProperty('--portrait-pattern-wash-opacity', washOpacity.toFixed(4));
+      gsap.set(patternWash, { opacity: washOpacity });
       gsap.set(patternCopy, { y: 44 * (1 - copyProgress), opacity: copyProgress });
     };
 
@@ -1034,6 +1036,22 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       aodTransition.style.setProperty(
         '--aod-transition-bottom-mist-opacity',
         Math.max(canonicalMistOpacity, presentation.bottomMistOpacity).toFixed(4)
+      );
+      root.style.setProperty(
+        '--portrait-aod-paper-wash-opacity',
+        aodTransition.style.getPropertyValue('--aod-transition-paper-wash-opacity') || '0'
+      );
+      root.style.setProperty(
+        '--portrait-aod-bottom-mist-opacity',
+        aodTransition.style.getPropertyValue('--aod-transition-bottom-mist-opacity') || '0'
+      );
+      root.style.setProperty(
+        '--portrait-aod-bottom-mist-y',
+        aodTransition.style.getPropertyValue('--aod-transition-bottom-mist-y') || '18px'
+      );
+      root.style.setProperty(
+        '--portrait-aod-paper-solid-opacity',
+        aodTransition.style.getPropertyValue('--aod-transition-paper-solid-opacity') || '0'
       );
       aodTransition.setAttribute('data-aod-exit-active', 'true');
     };
@@ -1493,6 +1511,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       delete aodScene.dataset.portraitAodAlpha;
       delete aodTransition.dataset.portraitAodBackdropProgress;
       root.style.removeProperty('--portrait-edge-surface');
+      root.style.removeProperty('--portrait-pattern-wash-opacity');
+      root.style.removeProperty('--portrait-aod-paper-wash-opacity');
+      root.style.removeProperty('--portrait-aod-bottom-mist-opacity');
+      root.style.removeProperty('--portrait-aod-bottom-mist-y');
+      root.style.removeProperty('--portrait-aod-paper-solid-opacity');
       railBackdrop.style.removeProperty('transform');
       if (previousDocumentSurface) {
         documentElement.style.setProperty('--portrait-document-surface', previousDocumentSurface);
@@ -1535,6 +1558,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             src={PATTERN_BACKGROUND_IMAGE}
             alt=""
           />
+          <div className="portrait-scroll-spike__rail-backdrop-pattern-wash" />
+          <div className="portrait-scroll-spike__rail-backdrop-aod-paper-wash" />
+          <div className="portrait-scroll-spike__rail-backdrop-aod-bottom-mist" />
+          <div className="portrait-scroll-spike__rail-backdrop-aod-paper-solid" />
         </div>
         <section ref={stageRef} className="portrait-scroll-spike__stage" aria-label="同野观幂移动端视觉叙事">
         <section ref={heroSceneRef} className="portrait-scroll-spike__scene portrait-scroll-spike__scene--hero" aria-labelledby="portrait-spike-home">
