@@ -337,9 +337,10 @@ export function usePhoneStageRuntime(options: PhoneStageRuntimeOptions): PhoneSt
       root.removeEventListener('pointercancel', clearPointer);
       for (const scene of STAGE_SCENES) options.sceneRefs[scene].current?.leave?.();
       options.aodRef.current?.resetAutoplay();
-      options.transitionRefs.heroPattern.current?.dispose?.();
-      options.transitionRefs.patternStarMap.current?.dispose?.();
-      options.transitionRefs.starMapAod.current?.dispose?.();
+      // Transition canvases are owned by their mounted React adapters. This
+      // runtime intentionally restarts while lazy scene bindings arrive; if it
+      // disposed those adapters here, a still-mounted transition would retain
+      // its imperative handle after its canvas had been removed.
       ScrollTrigger.config({ ignoreMobileResize: false });
     };
   }, [

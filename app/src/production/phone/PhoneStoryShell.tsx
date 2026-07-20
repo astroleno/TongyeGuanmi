@@ -16,6 +16,8 @@ import {
   markPhoneLoaderCompletedInDocument,
   phoneLoaderCompletedInDocument
 } from './phone-loader-lifecycle';
+import { attachPhoneHorizontalPanGuard } from './phone-horizontal-pan-guard';
+import { usePhoneAdapterHandleRef } from './phone-adapter-binding';
 import {
   loadPhoneSceneAdapter,
   loadPhoneTransitionAdapter,
@@ -69,20 +71,22 @@ export function PhoneStoryShell({ validationMode }: PhoneStoryShellProps = {}) {
   const [sceneAdapters, setSceneAdapters] = useState<SceneAdapterMap>({});
   const [transitionAdapters, setTransitionAdapters] = useState<TransitionAdapterMap>({});
   const [adapterRevision, setAdapterRevision] = useState(0);
+  const [adapterBindingRevision, setAdapterBindingRevision] = useState(0);
   const [heroReady, setHeroReady] = useState(false);
   const [navigationScene, setNavigationScene] = useState<SceneId>('hero');
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
   const railRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
-  const heroRef = useRef<PhoneHeroAdapterHandle | null>(null);
-  const patternRef = useRef<PhoneSceneAdapterHandle | null>(null);
-  const starMapRef = useRef<PhoneSceneAdapterHandle | null>(null);
-  const aodRef = useRef<PhoneAodAdapterHandle | null>(null);
-  const methodRef = useRef<PhoneSceneAdapterHandle | null>(null);
-  const heroPatternRef = useRef<PhoneTransitionAdapterHandle | null>(null);
-  const patternStarMapRef = useRef<PhoneTransitionAdapterHandle | null>(null);
-  const starMapAodRef = useRef<PhoneTransitionAdapterHandle | null>(null);
+  const publishAdapterBinding = useCallback(() => setAdapterBindingRevision((revision) => revision + 1), []);
+  const [heroRef, bindHeroRef] = usePhoneAdapterHandleRef<PhoneHeroAdapterHandle>(publishAdapterBinding);
+  const [patternRef, bindPatternRef] = usePhoneAdapterHandleRef<PhoneSceneAdapterHandle>(publishAdapterBinding);
+  const [starMapRef, bindStarMapRef] = usePhoneAdapterHandleRef<PhoneSceneAdapterHandle>(publishAdapterBinding);
+  const [aodRef, bindAodRef] = usePhoneAdapterHandleRef<PhoneAodAdapterHandle>(publishAdapterBinding);
+  const [methodRef, bindMethodRef] = usePhoneAdapterHandleRef<PhoneSceneAdapterHandle>(publishAdapterBinding);
+  const [heroPatternRef, bindHeroPatternRef] = usePhoneAdapterHandleRef<PhoneTransitionAdapterHandle>(publishAdapterBinding);
+  const [patternStarMapRef, bindPatternStarMapRef] = usePhoneAdapterHandleRef<PhoneTransitionAdapterHandle>(publishAdapterBinding);
+  const [starMapAodRef, bindStarMapAodRef] = usePhoneAdapterHandleRef<PhoneTransitionAdapterHandle>(publishAdapterBinding);
   const scenePendingRef = useRef(new Map<PhoneSceneAdapterId, Promise<PhoneSceneAdapterModule>>());
   const transitionPendingRef = useRef(new Map<PhoneTransitionAdapterId, Promise<PhoneTransitionAdapterModule>>());
 
@@ -127,6 +131,12 @@ export function PhoneStoryShell({ validationMode }: PhoneStoryShellProps = {}) {
   }, [ensureScene, ensureTransition]);
 
   useEffect(() => attachPhoneLoaderVisibilityLifecycle(), []);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    return attachPhoneHorizontalPanGuard(root);
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -226,7 +236,7 @@ export function PhoneStoryShell({ validationMode }: PhoneStoryShellProps = {}) {
     },
     enabled: loaderHidden && Boolean(sceneAdapters.hero),
     reducedMotion,
-    adapterRevision,
+    adapterRevision: adapterRevision + adapterBindingRevision,
     mapAodToMethod,
     onCheckpoint
   });
@@ -314,15 +324,15 @@ export function PhoneStoryShell({ validationMode }: PhoneStoryShellProps = {}) {
         />
       )}
       <PhoneStageRail railRef={railRef} stageRef={stageRef} stageActive={runtime.stageActive}>
-        {Hero && <Hero ref={heroRef} active={false} reducedMotion={reducedMotion} onReady={markHeroReady} />}
-        {Pattern && <Pattern ref={patternRef} active={false} reducedMotion={reducedMotion} />}
-        {StarMap && <StarMap ref={starMapRef} active={false} reducedMotion={reducedMotion} />}
-        {Aod && <Aod ref={aodRef} active={false} reducedMotion={reducedMotion} onAodProgress={runtime.onAodProgress} onAodComplete={runtime.onAodComplete} />}
-        {HeroPattern && <HeroPattern ref={heroPatternRef} host={stageRef.current} from={heroRef.current?.root() ?? null} to={patternRef.current?.root() ?? null} reducedMotion={reducedMotion} />}
-        {PatternStarMap && <PatternStarMap ref={patternStarMapRef} host={stageRef.current} from={patternRef.current?.root() ?? null} to={starMapRef.current?.root() ?? null} reducedMotion={reducedMotion} />}
-        {StarMapAod && <StarMapAod ref={starMapAodRef} host={stageRef.current} from={starMapRef.current?.root() ?? null} to={aodRef.current?.root() ?? null} reducedMotion={reducedMotion} />}
+        {Hero && <Hero ref={bindHeroRef} active={false} reducedMotion={reducedMotion} onReady={markHeroReady} />}
+        {Pattern && <Pattern ref={bindPatternRef} active={false} reducedMotion={reducedMotion} />}
+        {StarMap && <StarMap ref={bindStarMapRef} active={false} reducedMotion={reducedMotion} />}
+        {Aod && <Aod ref={bindAodRef} active={false} reducedMotion={reducedMotion} onAodProgress={runtime.onAodProgress} onAodComplete={runtime.onAodComplete} />}
+        {HeroPattern && <HeroPattern ref={bindHeroPatternRef} host={stageRef.current} from={heroRef.current?.root() ?? null} to={patternRef.current?.root() ?? null} reducedMotion={reducedMotion} />}
+        {PatternStarMap && <PatternStarMap ref={bindPatternStarMapRef} host={stageRef.current} from={patternRef.current?.root() ?? null} to={starMapRef.current?.root() ?? null} reducedMotion={reducedMotion} />}
+        {StarMapAod && <StarMapAod ref={bindStarMapAodRef} host={stageRef.current} from={starMapRef.current?.root() ?? null} to={aodRef.current?.root() ?? null} reducedMotion={reducedMotion} />}
       </PhoneStageRail>
-      {Method && <Method ref={methodRef} active={true} reducedMotion={reducedMotion} />}
+      {Method && <Method ref={bindMethodRef} active={true} reducedMotion={reducedMotion} />}
       <Suspense fallback={null}>
         <StoryNav
           currentScene={navigationScene}

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import type { InkFieldSpec } from '../../../transitions/shared/inkField';
 import type { InkGradePreset } from '../../../transitions/shared/sceneInk';
 import { createPhoneInkTransition, type PhoneInkTransition } from '../phone-ink';
@@ -18,7 +18,7 @@ export function createPhoneInkAdapter(options: Readonly<{
     forwardedRef
   ) {
     const transitionRef = useRef<PhoneInkTransition | undefined>(undefined);
-    useEffect(() => {
+    useLayoutEffect(() => {
       if (!host || !from || !to) return;
       const transition = createPhoneInkTransition({
         host,

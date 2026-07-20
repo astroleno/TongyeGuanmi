@@ -44,11 +44,11 @@ is the pre-extraction baseline.
 
 | Unit | Status | Implemented evidence |
 | --- | --- | --- |
-| Unit 0 | Automated characterization complete; physical acceptance pending | `portrait-checkpoints.ts` names the front-half trace and tests forward, reverse, normal refresh, and lock recovery. Plan 012 records the remaining device gate. |
+| Unit 0 | Automated characterization complete; physical review started, not accepted | `portrait-checkpoints.ts` names the front-half trace and tests forward, reverse, normal refresh, and lock recovery. The 2026-07-20 device report records unresolved Route B presentation regressions. |
 | Unit 1 | Complete in code | Shared presentation contracts, semantic checkpoints, copy, and media ownership now live in `app/src/story/presentation.ts`, `semantic-checkpoints.ts`, `copy.ts`, and `media.ts`. |
-| Unit 2 | Complete in code | `DesktopStoryShell` and `PhoneStoryShell` are separately lazy-loaded; `presentation-profile.ts`, loader registries, rail geometry, and the import-boundary verifier enforce selected-shell ownership. |
-| Unit 3 | Complete in code; physical acceptance pending | The production phone adapters cover Loader, Hero, Pattern, Star Map, AOD, and Method top, with named transitions and a phone stage timeline. `PortraitScrollSpike` is a thin compatibility wrapper. |
-| Units 4–7 | Not started | The required current-build physical-iPhone checkpoint has not been run, so no back-half migration or cutover work begins. |
+| Unit 2 | Code correction implemented; physical fixed-stage acceptance pending re-run | `DesktopStoryShell` and `PhoneStoryShell` are separately lazy-loaded; `presentation-profile.ts`, loader registries, rail geometry, and the import-boundary verifier enforce selected-shell ownership. The shell now also constrains horizontal overscroll with a local, single-touch horizontal-pan guard; real-device confirmation remains required. |
+| Unit 3 | Late transition correction verified in Chromium; physical acceptance pending re-run | The production phone adapters cover Loader, Hero, Pattern, Star Map, AOD, and Method top, with named transitions and a phone stage timeline. Dynamic adapter bindings now publish a re-render before their named transition is created, and runtime cleanup no longer disposes a mounted transition canvas. Figure 1 remains a true-device failure until separately evidenced. |
+| Units 4–7 | Not started | The current-build physical-iPhone checkpoint is not accepted, so no back-half migration or cutover work begins. |
 
 The Unit 3 adapters are deliberately located under
 `app/src/production/phone/scenes/` and `app/src/production/phone/transitions/`
@@ -69,10 +69,50 @@ the required 4,096 bytes). No media asset was replaced, re-encoded, or added.
 imports it; remaining spike aliases stay only for characterization through the
 physical acceptance gate.
 
+### Current physical review record — 2026-07-20
+
+This review is a Unit 0–3 acceptance record, not authorization to start Unit 4.
+It is **not accepted** until the items below have true-device evidence and the
+user confirms the checkpoint.
+
+- **Unit 2 fixed-stage contract — correction awaiting device re-run:** native
+  vertical scrolling was smooth, but the page could move sideways during a
+  swipe and reveal the dark underlay. The shell now uses `touch-action: pan-y`,
+  horizontal overscroll containment, and a local non-passive guard that only
+  cancels a decisively horizontal single-touch pan. The required Route B
+  invariant still needs real-iPhone confirmation: the fixed stage must not
+  follow horizontal overscroll or expose a second background.
+- **Unit 3 transition lifecycle — correction verified in Chromium:** at the
+  Hero → Pattern handoff, the `phone-hero-pattern-ink` canvas mounted and was
+  active, while the later named adapters were registered without matching
+  canvases. Dynamic bindings now schedule the transition only after endpoints
+  publish, and runtime cleanup leaves React-owned transition canvases to their
+  mounted adapter. At Pattern → Star Map, two ink canvases are present with the
+  late transition active; at Star Map → AOD, all three are present with the
+  last transition active. This fixes the reproducible browser regression but
+  still needs a real-device motion re-run.
+- **Unit 3 Figure 1 alpha presentation — failed on device:** the real-device
+  report says Figure 1 has reverted to a white background. Chromium's iPhone
+  viewport reports the packed-alpha canvas ready and visible without console
+  errors, so that result is only a non-reproduction; it cannot replace a
+  Safari capture or clear the device failure.
+
+The current scoped evidence is green: the focused Unit 0/2/3 suites pass (17
+tests), typecheck and lint pass, the homepage module-boundary verifier passes,
+and the production build retains 10,488 bytes of JavaScript headroom. Chromium
+phone-viewport inspection and a visual capture confirm the restored Star
+Map → AOD ink handoff. This is still insufficient for acceptance because it
+does not exercise iOS horizontal rubber-banding or establish Figure 1's actual
+Safari alpha presentation.
+
+**Gate:** keep Units 4–7 frozen. The next acceptance item is a renewed
+real-iPhone review with device, iOS/Safari, toolbar state, and visual/motion
+evidence recorded.
+
 Validation completed for this implementation:
 
 - `pnpm -C app typecheck`
-- `pnpm -C app test` — 115 files, 712 tests
+- `pnpm -C app test` — 117 files, 717 tests
 - `pnpm -C app lint`
 - `pnpm -C app build` — module-boundary, media, release, and performance gates pass
 

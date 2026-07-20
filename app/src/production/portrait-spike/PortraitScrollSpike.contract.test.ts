@@ -14,6 +14,10 @@ const phoneMediaSource = readFileSync(new URL('../phone/phone-media.ts', import.
 const productMediaSource = readFileSync(new URL('../../story/media.ts', import.meta.url), 'utf8');
 const heroPatternSource = readFileSync(new URL('../phone/transitions/hero-pattern.tsx', import.meta.url), 'utf8');
 const patternStarSource = readFileSync(new URL('../phone/transitions/pattern-star-map.tsx', import.meta.url), 'utf8');
+const transitionRuntimeSource = readFileSync(new URL('../phone/transitions/PhoneInkTransition.tsx', import.meta.url), 'utf8');
+const stageRuntimeSource = readFileSync(new URL('../phone/usePhoneStageRuntime.ts', import.meta.url), 'utf8');
+const adapterBindingSource = readFileSync(new URL('../phone/phone-adapter-binding.ts', import.meta.url), 'utf8');
+const horizontalPanGuardSource = readFileSync(new URL('../phone/phone-horizontal-pan-guard.ts', import.meta.url), 'utf8');
 
 describe('Route B production extraction contract', () => {
   it('keeps v16 as a thin verification entry with no scene or media ownership', () => {
@@ -46,6 +50,19 @@ describe('Route B production extraction contract', () => {
     expect(shellCss).toMatch(/phone-story-shell__stage\s*\{[^}]*position:\s*fixed/s);
     expect(shellCss).toMatch(/phone-story-shell__stage-rail\s*\{[^}]*height:\s*var\(--phone-stage-rail-height\)/s);
     expect(shellCss).toMatch(/data-phone-stage-active="false"[^}]*display:\s*none/s);
+    expect(shellCss).toMatch(/overscroll-behavior-x:\s*none/);
+    expect(shellSource).toContain('attachPhoneHorizontalPanGuard');
+    expect(horizontalPanGuardSource).toContain("direction === 'horizontal'");
+  });
+
+  it('rerenders dynamic scene roots before their named transition draws', () => {
+    expect(shellSource).toContain('usePhoneAdapterHandleRef');
+    expect(shellSource).toMatch(/adapterRevision:\s*adapterRevision \+ adapterBindingRevision/);
+    expect(adapterBindingSource).toContain('if (next) onBound()');
+    expect(transitionRuntimeSource).toContain('useLayoutEffect');
+    expect(stageRuntimeSource).not.toContain('transitionRefs.heroPattern.current?.dispose');
+    expect(stageRuntimeSource).not.toContain('transitionRefs.patternStarMap.current?.dispose');
+    expect(stageRuntimeSource).not.toContain('transitionRefs.starMapAod.current?.dispose');
   });
 
   it('keeps Figure 1 and AOD as their adapters’ packed-alpha media owners', () => {

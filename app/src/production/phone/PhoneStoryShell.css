@@ -1,8 +1,10 @@
 html[data-phone-story-shell="true"] {
   width: 100%;
+  max-width: 100%;
   min-height: 100%;
   overflow-x: clip;
   overflow-y: auto;
+  overscroll-behavior-x: none;
   overscroll-behavior-y: none;
   background: #07110e;
 }
@@ -13,9 +15,11 @@ html[data-phone-story-shell="true"][data-phone-document-surface="aod-animation"]
 html[data-phone-story-shell="true"] body,
 html[data-phone-story-shell="true"] #root {
   width: 100%;
+  max-width: 100%;
   min-height: 100%;
   height: auto;
   overflow: visible;
+  overscroll-behavior-x: none;
   background: inherit;
 }
 html[data-phone-story-shell="true"] .static-content { display: none; }
@@ -26,8 +30,10 @@ html[data-phone-story-shell="true"] .static-content { display: none; }
   --phone-stage-height: max(var(--phone-live-height), 100lvh);
   --phone-stage-rail-height: 480dvh;
   width: 100%;
+  max-width: 100%;
   min-height: var(--phone-live-height);
   overflow: visible;
+  overscroll-behavior-x: none;
   color: rgba(247, 237, 215, .92);
   background: #07110e;
   touch-action: pan-y;
@@ -36,7 +42,7 @@ html[data-phone-story-shell="true"] .static-content { display: none; }
 .phone-story-shell[data-phone-document-surface="star-map"] { background: #06100d; }
 .phone-story-shell[data-phone-document-surface="aod-animation"] { background: #ede4d2; }
 .phone-story-shell[data-phone-aod-snap="locked"] { overscroll-behavior-y: none; touch-action: none; }
-.phone-story-shell__stage-rail { position: relative; width: 100%; height: var(--phone-stage-rail-height); overflow: visible; }
+.phone-story-shell__stage-rail { position: relative; width: 100%; max-width: 100%; height: var(--phone-stage-rail-height); overflow: visible; }
 .phone-story-shell__stage {
   position: fixed;
   z-index: 10;
