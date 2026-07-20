@@ -26,10 +26,16 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellCss).toMatch(/portrait-scroll-spike__stage\s*\{[^}]*transform:\s*translate3d\(0,\s*0,\s*0\)/s);
     expect(shellCss).toMatch(/portrait-scroll-spike__stage-rail\s*\{[^}]*height:\s*var\(--portrait-stage-rail-height\)/s);
     expect(shellCss).toMatch(/portrait-scroll-spike__stage-rail\s*\{[^}]*margin-bottom:\s*calc\(-1 \* var\(--portrait-stage-height\)\)/s);
-    expect(shellSource).toContain('portrait-scroll-spike__rail-backdrop');
-    expect(shellSource).toContain('viewport?.pageTop');
-    expect(shellSource).toContain("'--portrait-aod-bottom-mist-opacity'");
-    expect(shellCss).toMatch(/portrait-scroll-spike__rail-backdrop\s*\{[^}]*position:\s*absolute/s);
+    expect(shellSource).not.toContain('portrait-scroll-spike__rail-backdrop');
+    expect(shellSource).not.toContain('viewport?.pageTop');
+    expect(shellSource).not.toContain("'--portrait-aod-bottom-mist-opacity'");
+    expect(shellSource).toContain('portrait-scroll-spike__toolbar-edge--pattern');
+    expect(shellSource).toContain('portrait-scroll-spike__toolbar-edge--aod');
+    expect(shellSource).toContain('documentElement.dataset.portraitEdgeScene = edgeScene');
+    expect(shellCss).toContain('--portrait-toolbar-solid-height');
+    expect(shellCss).toContain('--portrait-pattern-edge-backdrop');
+    expect(shellCss).toMatch(/data-portrait-edge-scene="pattern"[^}]*background-attachment:\s*fixed/s);
+    expect(shellCss).toMatch(/portrait-scroll-spike__toolbar-edge\s*\{[^}]*bottom:\s*-1px/s);
     expect(shellCss).toContain('--portrait-pattern-wash-background');
     expect(shellCss).toContain('--portrait-aod-bottom-mist-background');
     expect(shellCss).toMatch(/data-portrait-stage-active="true"[^}]*portrait-scroll-spike__reading::before\s*\{[^}]*height:\s*var\(--portrait-stage-height\)/s);
@@ -46,16 +52,18 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).toContain("'handoff-star-aod'");
   });
 
-  it('re-arms the Hero title and retains stage coverage through toolbar changes', () => {
+  it('re-arms the Hero title and keeps toolbar travel out of visual-layer geometry', () => {
     expect(shellSource).toContain('const [heroTitleActive, setHeroTitleActive] = useState(() => !motionEnabled);');
     expect(shellSource).not.toContain('loaderCompletedOnMountRef');
     expect(shellSource).toContain('const playHeroTextEntrance = () => {');
     expect(shellSource).toContain("root.dataset.portraitHeroTextEntrance = 'playing'");
     expect(shellSource).toContain("'--portrait-stage-coverage-height'");
-    expect(shellSource).toContain("window.visualViewport?.addEventListener('scroll', scheduleStageCoverage)");
-    expect(shellSource).toContain("window.addEventListener('scroll', scheduleStageCoverage, { passive: true })");
+    expect(shellSource).not.toContain('scheduleStageCoverage');
+    expect(shellSource).not.toContain("window.visualViewport?.addEventListener('scroll'");
     expect(shellCss).toContain('--portrait-stage-coverage-height');
+    expect(shellCss).toContain('calc(100lvh - 100svh');
     expect(shellCss).toMatch(/portrait-scroll-spike__stage\s*\{[^}]*bottom:\s*auto/s);
+    expect(shellCss).toMatch(/site-nav\.has-scroll-edge-blur::before\s*\{[^}]*backdrop-filter:\s*blur\(20px\)/s);
     expect(shellCss).toContain('html[data-portrait-spike-motion="force"] .portrait-scroll-spike [data-text-reveal-item]');
     expect(shellCss).toContain('r4-text-reveal-enter');
   });

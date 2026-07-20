@@ -55,7 +55,6 @@ import {
 } from './phone-loader-lifecycle';
 import { phoneMediaUrlFor } from './phone-media';
 import { createPhoneScrollSnapLock } from './phone-scroll-snap-lock';
-import { phoneStageCoverageHeight } from './phone-viewport';
 import { StoryLoader } from '../StoryLoader';
 import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
@@ -205,7 +204,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
-  const railBackdropRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
   const heroSceneRef = useRef<HTMLElement | null>(null);
   const patternSceneRef = useRef<HTMLElement | null>(null);
@@ -266,9 +264,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     let viewportTimer: number | undefined;
     let lastViewport = '';
     let lastViewportWidth = 0;
-    let stageCoverageHeight = 0;
     let forceNextViewportSync = false;
-    let coverageFrame: number | undefined;
     const readViewport = () => {
       const viewport = window.visualViewport;
       return {
@@ -276,34 +272,21 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         width: Math.max(1, Math.round(viewport?.width || window.innerWidth || 1))
       };
     };
-    const syncStageCoverage = (height: number, width: number, reset = false) => {
-      const widthChanged = lastViewportWidth === 0 || Math.abs(width - lastViewportWidth) > 1;
-      const nextCoverageHeight = phoneStageCoverageHeight(
-        stageCoverageHeight,
-        height,
-        reset || widthChanged
-      );
-      if (nextCoverageHeight !== stageCoverageHeight) {
-        stageCoverageHeight = nextCoverageHeight;
-        root.style.setProperty('--portrait-stage-coverage-height', `${stageCoverageHeight}px`);
-        root.dataset.portraitStageCoverage = `${stageCoverageHeight}px`;
-      }
-      return widthChanged;
-    };
     const syncViewport = (forceHeight = false) => {
       const { height, width } = readViewport();
       const nextViewport = `${width}x${height}`;
       if (nextViewport === lastViewport) {
+        delete root.dataset.portraitTransientViewport;
         return;
       }
-      const widthChanged = syncStageCoverage(height, width, forceHeight);
+      const widthChanged = lastViewportWidth === 0 || Math.abs(width - lastViewportWidth) > 1;
       if (
         !forceHeight
         && !widthChanged
       ) {
-        // Preserve ScrollTrigger geometry while the iOS toolbar travels, but
-        // expand the fixed presentation plane above so its bottom can never
-        // expose the browser/document surface.
+        // Safari's toolbar travel is asynchronous. Never resize a visual
+        // layer from these transient height samples: doing so makes the
+        // authored feather race the browser-owned solid surface.
         root.dataset.portraitTransientViewport = nextViewport;
         return;
       }
@@ -312,6 +295,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       delete root.dataset.portraitTransientViewport;
       root.style.setProperty('--portrait-live-height', `${height}px`);
       root.style.setProperty('--portrait-live-width', `${width}px`);
+      root.style.setProperty('--portrait-stage-coverage-height', `${height}px`);
+      root.dataset.portraitStageCoverage = `${height}px`;
       root.style.setProperty(
         '--portrait-stage-scroll-distance',
         `${Math.round(height * STAGE_SCROLL_VIEWPORTS)}px`
@@ -333,28 +318,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       forceNextViewportSync = true;
       scheduleViewportSync();
     };
-    const coverVisualViewportImmediately = () => {
-      const { height, width } = readViewport();
-      syncStageCoverage(height, width);
-    };
-    const scheduleStageCoverage = () => {
-      if (coverageFrame !== undefined) {
-        return;
-      }
-      // Some Safari toolbar transitions report their final visual-viewport
-      // height during scroll rather than through a standalone resize event.
-      // This path only expands paint coverage; it never reflows the rail.
-      coverageFrame = window.requestAnimationFrame(() => {
-        coverageFrame = undefined;
-        coverVisualViewportImmediately();
-      });
-    };
 
     syncViewport(true);
-    window.visualViewport?.addEventListener('resize', coverVisualViewportImmediately);
-    window.visualViewport?.addEventListener('scroll', scheduleStageCoverage);
     window.visualViewport?.addEventListener('resize', scheduleViewportSync);
-    window.addEventListener('scroll', scheduleStageCoverage, { passive: true });
     window.addEventListener('resize', scheduleViewportSync);
     window.addEventListener('orientationchange', scheduleForcedViewportSync);
     document.addEventListener('fullscreenchange', scheduleForcedViewportSync);
@@ -363,13 +329,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       if (viewportTimer) {
         window.clearTimeout(viewportTimer);
       }
-      if (coverageFrame !== undefined) {
-        window.cancelAnimationFrame(coverageFrame);
-      }
-      window.visualViewport?.removeEventListener('resize', coverVisualViewportImmediately);
-      window.visualViewport?.removeEventListener('scroll', scheduleStageCoverage);
       window.visualViewport?.removeEventListener('resize', scheduleViewportSync);
-      window.removeEventListener('scroll', scheduleStageCoverage);
       window.removeEventListener('resize', scheduleViewportSync);
       window.removeEventListener('orientationchange', scheduleForcedViewportSync);
       document.removeEventListener('fullscreenchange', scheduleForcedViewportSync);
@@ -649,7 +609,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     }
     const root = rootRef.current;
     const stageRail = stageRailRef.current;
-    const railBackdrop = railBackdropRef.current;
     const stage = stageRef.current;
     const heroScene = heroSceneRef.current;
     const patternScene = patternSceneRef.current;
@@ -686,7 +645,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     const aodFigureVideo = aodScene?.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
     const aodFigureCanvas = aodScene?.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
 
-    if (!root || !stageRail || !railBackdrop || !stage || !heroScene || !patternScene || !starScene || !aodScene
+    if (!root || !stageRail || !stage || !heroScene || !patternScene || !starScene || !aodScene
       || !heroBackMotion || !heroBackParallax || !heroMiddleMotion || !heroMiddleParallax
       || !heroBackIntro || !heroBackImage || !heroIntroInkCanvas || !heroMiddleIntro
       || !heroFigureMotion || !heroFigureParallax || !heroFigureIntro || !heroFigureVideo || !heroFigureCanvas
@@ -726,7 +685,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     let reverseGesturePointerId: number | null = null;
     let reverseGestureStartY = 0;
     let reverseWarmupStarted = false;
-    let railBackdropFrame: number | undefined;
     const aodScrollSnap = createPhoneScrollSnapLock({
       root,
       getScrollY: () => window.scrollY,
@@ -735,6 +693,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     const documentElement = document.documentElement;
     const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const previousDocumentSurface = documentElement.style.getPropertyValue('--portrait-document-surface');
+    const previousDocumentEdgeScene = documentElement.dataset.portraitEdgeScene;
     const previousThemeColor = themeColorMeta?.content;
     let currentDocumentSurface = '';
     let currentNavigationScene: SceneId = 'hero';
@@ -753,42 +712,18 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       documentElement.style.setProperty('--portrait-document-surface', surface);
       root.style.setProperty('--portrait-edge-surface', surface);
       root.dataset.portraitEdgeSurface = surface;
-      root.dataset.portraitEdgeScene = surface === PORTRAIT_SURFACE_PATTERN
+      const edgeScene = surface === PORTRAIT_SURFACE_PATTERN
         ? 'pattern'
         : surface === PORTRAIT_SURFACE_STAR
           ? 'star'
           : surface === PORTRAIT_SURFACE_PAPER
             ? 'aod'
             : 'hero';
+      root.dataset.portraitEdgeScene = edgeScene;
+      documentElement.dataset.portraitEdgeScene = edgeScene;
       if (themeColorMeta) {
         themeColorMeta.content = surface;
       }
-    };
-
-    /*
-     * iOS 26 deliberately clips fixed/sticky content above its floating
-     * controls. Keep a normal document-layer backdrop directly beneath the
-     * sticky stage and track the visual viewport as an absolutely positioned
-     * compositor. Safari can reveal this document layer below the controls
-     * without exposing the next section.
-     */
-    const syncRailBackdrop = () => {
-      const viewport = window.visualViewport;
-      const pageTop = viewport?.pageTop
-        ?? (window.scrollY + (viewport?.offsetTop ?? 0));
-      const maxOffset = Math.max(0, stageRail.offsetHeight - railBackdrop.offsetHeight);
-      const offset = Math.min(maxOffset, Math.max(0, pageTop - stageScrollStart));
-      railBackdrop.style.transform = `translate3d(0, ${offset.toFixed(2)}px, 0)`;
-      root.dataset.portraitRailBackdropOffset = `${offset.toFixed(2)}px`;
-    };
-    const scheduleRailBackdrop = () => {
-      if (railBackdropFrame !== undefined) {
-        return;
-      }
-      railBackdropFrame = window.requestAnimationFrame(() => {
-        railBackdropFrame = undefined;
-        syncRailBackdrop();
-      });
     };
 
     const setCurrentNavigationScene = (scene: SceneId) => {
@@ -960,7 +895,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       patternRendererRef.current?.setFrameProgress(progress, progress);
       const copyProgress = range01(progress, 0, 0.78);
       const washOpacity = 0.54 + progress * 0.4;
-      root.style.setProperty('--portrait-pattern-wash-opacity', washOpacity.toFixed(4));
       gsap.set(patternWash, { opacity: washOpacity });
       gsap.set(patternCopy, { y: 44 * (1 - copyProgress), opacity: copyProgress });
     };
@@ -1036,22 +970,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       aodTransition.style.setProperty(
         '--aod-transition-bottom-mist-opacity',
         Math.max(canonicalMistOpacity, presentation.bottomMistOpacity).toFixed(4)
-      );
-      root.style.setProperty(
-        '--portrait-aod-paper-wash-opacity',
-        aodTransition.style.getPropertyValue('--aod-transition-paper-wash-opacity') || '0'
-      );
-      root.style.setProperty(
-        '--portrait-aod-bottom-mist-opacity',
-        aodTransition.style.getPropertyValue('--aod-transition-bottom-mist-opacity') || '0'
-      );
-      root.style.setProperty(
-        '--portrait-aod-bottom-mist-y',
-        aodTransition.style.getPropertyValue('--aod-transition-bottom-mist-y') || '18px'
-      );
-      root.style.setProperty(
-        '--portrait-aod-paper-solid-opacity',
-        aodTransition.style.getPropertyValue('--aod-transition-paper-solid-opacity') || '0'
       );
       aodTransition.setAttribute('data-aod-exit-active', 'true');
     };
@@ -1400,7 +1318,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     const updateStageFromTrigger = (self: ScrollTrigger) => {
       stageScrollStart = self.start;
       stageScrollEnd = self.end;
-      syncRailBackdrop();
       renderStage(self.progress, self.direction);
     };
     const stageTrigger = ScrollTrigger.create({
@@ -1422,8 +1339,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       onEnterBack: () => setStageActive(true),
       onLeave: () => setStageActive(false)
     });
-    window.visualViewport?.addEventListener('scroll', scheduleRailBackdrop);
-    window.visualViewport?.addEventListener('resize', scheduleRailBackdrop);
 
     const steps = Array.from(readingSteps.querySelectorAll<HTMLElement>('li'));
     gsap.fromTo(steps, { y: 34, opacity: 0 }, {
@@ -1469,11 +1384,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       disposeHeroIntro?.();
       window.cancelAnimationFrame(refreshFrame);
       window.removeEventListener('load', refresh);
-      window.visualViewport?.removeEventListener('scroll', scheduleRailBackdrop);
-      window.visualViewport?.removeEventListener('resize', scheduleRailBackdrop);
-      if (railBackdropFrame !== undefined) {
-        window.cancelAnimationFrame(railBackdropFrame);
-      }
       root.removeEventListener('pointerdown', onHeroPointerDown);
       root.removeEventListener('pointermove', onHeroPointerMove);
       root.removeEventListener('pointerup', clearReverseGesture);
@@ -1507,20 +1417,18 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       delete root.dataset.portraitHeroTextEntrance;
       delete root.dataset.portraitEdgeSurface;
       delete root.dataset.portraitEdgeScene;
-      delete root.dataset.portraitRailBackdropOffset;
       delete aodScene.dataset.portraitAodAlpha;
       delete aodTransition.dataset.portraitAodBackdropProgress;
       root.style.removeProperty('--portrait-edge-surface');
-      root.style.removeProperty('--portrait-pattern-wash-opacity');
-      root.style.removeProperty('--portrait-aod-paper-wash-opacity');
-      root.style.removeProperty('--portrait-aod-bottom-mist-opacity');
-      root.style.removeProperty('--portrait-aod-bottom-mist-y');
-      root.style.removeProperty('--portrait-aod-paper-solid-opacity');
-      railBackdrop.style.removeProperty('transform');
       if (previousDocumentSurface) {
         documentElement.style.setProperty('--portrait-document-surface', previousDocumentSurface);
       } else {
         documentElement.style.removeProperty('--portrait-document-surface');
+      }
+      if (previousDocumentEdgeScene) {
+        documentElement.dataset.portraitEdgeScene = previousDocumentEdgeScene;
+      } else {
+        delete documentElement.dataset.portraitEdgeScene;
       }
       if (themeColorMeta && previousThemeColor) {
         themeColorMeta.content = previousThemeColor;
@@ -1552,17 +1460,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         />
       )}
       <section ref={stageRailRef} className="portrait-scroll-spike__stage-rail">
-        <div ref={railBackdropRef} className="portrait-scroll-spike__rail-backdrop" aria-hidden="true">
-          <img
-            className="portrait-scroll-spike__rail-backdrop-pattern"
-            src={PATTERN_BACKGROUND_IMAGE}
-            alt=""
-          />
-          <div className="portrait-scroll-spike__rail-backdrop-pattern-wash" />
-          <div className="portrait-scroll-spike__rail-backdrop-aod-paper-wash" />
-          <div className="portrait-scroll-spike__rail-backdrop-aod-bottom-mist" />
-          <div className="portrait-scroll-spike__rail-backdrop-aod-paper-solid" />
-        </div>
         <section ref={stageRef} className="portrait-scroll-spike__stage" aria-label="同野观幂移动端视觉叙事">
         <section ref={heroSceneRef} className="portrait-scroll-spike__scene portrait-scroll-spike__scene--hero" aria-labelledby="portrait-spike-home">
           <div ref={heroBackMotionRef} className="portrait-scroll-spike__hero-back-motion" aria-hidden="true">
@@ -1670,6 +1567,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             aria-hidden="true"
           />
           <div ref={patternWashRef} className="portrait-scroll-spike__pattern-wash" aria-hidden="true" />
+          <div
+            className="portrait-scroll-spike__toolbar-edge portrait-scroll-spike__toolbar-edge--pattern"
+            aria-hidden="true"
+          />
           <div ref={patternCopyRef} className="portrait-scroll-spike__pattern-copy">
             <p>{PATTERN_COPY[0]}</p>
             <h2 id="portrait-spike-pattern-title">{PATTERN_COPY[1]}</h2>
@@ -1695,6 +1596,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
 
         <div ref={aodSceneRef} className="portrait-scroll-spike__scene portrait-scroll-spike__scene--aod" aria-hidden="true">
           <PortraitAodScene scene="aod-animation" hidden={false} />
+          <div
+            className="portrait-scroll-spike__toolbar-edge portrait-scroll-spike__toolbar-edge--aod"
+            aria-hidden="true"
+          />
         </div>
 
         <canvas ref={heroInkCanvasRef} className="portrait-scroll-spike__ink" data-portrait-ink="hero-pattern" aria-hidden="true" />

@@ -1,4 +1,8 @@
 html[data-portrait-spike="b"] {
+  --portrait-pattern-edge-backdrop:
+    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .07), rgba(217, 192, 143, .12) 35%, rgba(35, 24, 20, .26) 100%),
+    linear-gradient(180deg, rgba(246, 229, 188, .10), rgba(31, 21, 17, .13)),
+    url("../../../../assets/pattern-background.webp");
   width: 100%;
   min-height: 100%;
   overflow-x: clip;
@@ -20,6 +24,22 @@ html[data-portrait-spike="b"] #root {
   background: var(--portrait-document-surface, #07110e);
 }
 
+/*
+ * The root canvas is the only layer Safari can expose while its own toolbar
+ * moves asynchronously. Pattern therefore uses a native, viewport-fixed
+ * replica here instead of a JS-following DOM mirror.
+ */
+html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"],
+html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] body,
+html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] #root {
+  background-color: #d9c08f;
+  background-image: var(--portrait-pattern-edge-backdrop);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
 html[data-portrait-spike="b"] .static-content {
   display: none;
 }
@@ -38,15 +58,24 @@ html[data-portrait-spike="b"] .static-content {
   --portrait-aod-paper-solid-background:
     radial-gradient(76% 54% at 50% 12%, rgba(247, 237, 215, .30), transparent 72%),
     linear-gradient(180deg, rgba(237, 228, 210, .88) 0%, #ede4d2 56%, #ede4d2 100%);
-  --portrait-aod-bottom-mist-height: clamp(250px, 38dvh, 430px);
+  --portrait-aod-bottom-mist-height: clamp(250px, 38svh, 430px);
+  /*
+   * This band is derived only from stable viewport units. Its solid portion
+   * spans Safari's complete toolbar travel; the authored feather ends above
+   * that band and therefore cannot race the browser-owned bottom surface.
+   */
+  --portrait-toolbar-solid-height: max(
+    104px,
+    calc(100lvh - 100svh + env(safe-area-inset-bottom, 0px) + 12px)
+  );
+  --portrait-toolbar-feather-height: clamp(56px, 8svh, 76px);
   --portrait-live-height: 100dvh;
   --portrait-live-width: 100vw;
   --portrait-stage-coverage-height: var(--portrait-live-height);
   --portrait-stage-height: max(
     var(--portrait-live-height),
     var(--portrait-stage-coverage-height),
-    100lvh,
-    calc(100dvh + env(safe-area-inset-bottom, 0px))
+    100lvh
   );
   /* Scroll distance and sticky containment are deliberately separate. */
   --portrait-stage-scroll-distance: 480dvh;
@@ -69,9 +98,9 @@ html[data-portrait-spike="b"] .static-content {
 
 /*
  * The rail owns distance while the visual stage is a fixed compositor plane.
- * The document-layer backdrop below it owns Safari's toolbar exclusion area;
- * the authored wash/mist therefore never rides a sticky edge during a swipe.
- * ScrollTrigger reads progress only and creates no transformed pin/spacer.
+ * The rail itself is one flat scene-coloured surface; no JS-following copy of
+ * a feather is allowed here because native scrolling can outrun main-thread
+ * visualViewport updates. ScrollTrigger only reads progress.
  */
 .portrait-scroll-spike__stage-rail {
   position: relative;
@@ -82,93 +111,9 @@ html[data-portrait-spike="b"] .static-content {
   background: var(--portrait-edge-surface);
 }
 
-/*
- * Safari 26 keeps sticky/fixed planes above its floating bottom controls.
- * This ordinary document-layer plane mirrors the active scene underneath the
- * sticky stage, so the browser exclusion area never falls through to Method.
- * It remains neither sticky nor fixed; transform keeps its scroll update on
- * the compositor instead of relaying out the page.
- */
-.portrait-scroll-spike__rail-backdrop {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  right: 0;
-  left: 0;
-  width: 100%;
-  height: var(--portrait-stage-height);
-  overflow: hidden;
-  background: var(--portrait-edge-surface);
-  pointer-events: none;
-  will-change: transform;
-}
-
-.portrait-scroll-spike__rail-backdrop-pattern,
-.portrait-scroll-spike__rail-backdrop-pattern-wash,
-.portrait-scroll-spike__rail-backdrop-aod-paper-wash,
-.portrait-scroll-spike__rail-backdrop-aod-bottom-mist,
-.portrait-scroll-spike__rail-backdrop-aod-paper-solid {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.portrait-scroll-spike__rail-backdrop-pattern {
-  display: block;
-  max-width: none;
-  object-fit: cover;
-  user-select: none;
-}
-
-.portrait-scroll-spike__rail-backdrop-pattern-wash {
-  background: var(--portrait-pattern-wash-background);
-}
-
-.portrait-scroll-spike__rail-backdrop-aod-paper-wash {
-  background: var(--portrait-aod-paper-wash-background);
-}
-
-.portrait-scroll-spike__rail-backdrop-aod-bottom-mist {
-  top: auto;
-  bottom: -1px;
-  height: var(--portrait-aod-bottom-mist-height);
-  background: var(--portrait-aod-bottom-mist-background);
-  transform: translate3d(0, var(--portrait-aod-bottom-mist-y, 18px), 0);
-}
-
-.portrait-scroll-spike__rail-backdrop-aod-paper-solid {
-  background: var(--portrait-aod-paper-solid-background);
-}
-
-.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__rail-backdrop-pattern {
-  opacity: 1;
-}
-
-.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__rail-backdrop-pattern-wash {
-  opacity: var(--portrait-pattern-wash-opacity, .54);
-}
-
-.portrait-scroll-spike[data-portrait-edge-scene="aod"] .portrait-scroll-spike__rail-backdrop-aod-paper-wash {
-  opacity: var(--portrait-aod-paper-wash-opacity, 0);
-}
-
-.portrait-scroll-spike[data-portrait-edge-scene="aod"] .portrait-scroll-spike__rail-backdrop-aod-bottom-mist {
-  opacity: var(--portrait-aod-bottom-mist-opacity, 0);
-}
-
-.portrait-scroll-spike[data-portrait-edge-scene="aod"] .portrait-scroll-spike__rail-backdrop-aod-paper-solid {
-  opacity: var(--portrait-aod-paper-solid-opacity, 0);
-}
-
-.portrait-scroll-spike[data-portrait-edge-scene="star"] .portrait-scroll-spike__rail-backdrop {
-  background:
-    radial-gradient(circle at 16% 22%, rgba(56, 166, 154, .12), transparent 32vw),
-    radial-gradient(circle at 84% 74%, rgba(183, 91, 52, .10), transparent 34vw),
-    linear-gradient(180deg, rgba(7, 17, 14, .96), #07110e),
-    #07110e;
+.portrait-scroll-spike[data-portrait-edge-scene="pattern"],
+.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__stage-rail {
+  background: transparent;
 }
 
 .portrait-scroll-spike__stage {
@@ -572,6 +517,61 @@ html[data-portrait-spike="b"] .static-content {
   background: var(--portrait-pattern-wash-background);
 }
 
+.portrait-scroll-spike__toolbar-edge {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: calc(
+    var(--portrait-toolbar-solid-height) + var(--portrait-toolbar-feather-height) + 1px
+  );
+  pointer-events: none;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.portrait-scroll-spike__toolbar-edge--pattern {
+  z-index: 3;
+  overflow: hidden;
+  background: transparent;
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 var(--portrait-toolbar-feather-height),
+    #000 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 var(--portrait-toolbar-feather-height),
+    #000 100%
+  );
+}
+
+.portrait-scroll-spike__toolbar-edge--pattern::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--portrait-stage-height);
+  background-color: #d9c08f;
+  background-image: var(--portrait-pattern-edge-backdrop);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.portrait-scroll-spike__toolbar-edge--aod {
+  z-index: 6;
+  background: linear-gradient(
+    180deg,
+    rgba(237, 228, 210, 0) 0,
+    #ede4d2 var(--portrait-toolbar-feather-height),
+    #ede4d2 100%
+  );
+}
+
 .portrait-scroll-spike__pattern-bloom {
   position: absolute;
   z-index: 2;
@@ -794,7 +794,11 @@ html[data-portrait-spike="b"] .site-nav {
 html[data-portrait-spike="b"] .site-nav.has-scroll-edge-blur::before {
   display: block;
   height: calc(var(--nav-h) + env(safe-area-inset-top, 0px) + 32px);
-  opacity: .42;
+  opacity: .82;
+  backdrop-filter: blur(20px) saturate(1.1);
+  -webkit-backdrop-filter: blur(20px) saturate(1.1);
+  mask-image: linear-gradient(#000 0 62%, rgba(0, 0, 0, .72) 78%, transparent 100%);
+  -webkit-mask-image: linear-gradient(#000 0 62%, rgba(0, 0, 0, .72) 78%, transparent 100%);
 }
 
 html[data-portrait-spike="b"] .site-nav-track {
