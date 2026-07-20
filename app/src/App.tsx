@@ -1,14 +1,18 @@
 import { lazy, Suspense, useState } from 'react';
 import { canUseDOM } from './runtime/browser-guard';
 import { initialPresentationFamily, type PresentationFamily } from './production/presentation-profile';
+import {
+  loadDesktopStoryShell,
+  loadPhoneStoryShell
+} from './production/presentation-shell-loaders';
 import './styles.css';
 
 const harnessEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_HARNESS === '1';
 const HarnessRouter = harnessEnabled
   ? lazy(() => import('./harness/HarnessRouter').then(({ HarnessRouter: Router }) => ({ default: Router })))
   : null;
-const DesktopStoryShell = lazy(() => import('./production/desktop/DesktopStoryShell').then(({ DesktopStoryShell: Component }) => ({ default: Component })));
-const PhoneStoryShell = lazy(() => import('./production/phone/PhoneStoryShell').then(({ PhoneStoryShell: Component }) => ({ default: Component })));
+const DesktopStoryShell = lazy(loadDesktopStoryShell);
+const PhoneStoryShell = lazy(loadPhoneStoryShell);
 const phoneShellEnabled = import.meta.env.VITE_ENABLE_PHONE_STORY === '1';
 
 type PhoneValidationMode = 'v16' | 'v17' | 'v18' | 'v19';

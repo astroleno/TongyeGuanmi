@@ -1,10 +1,10 @@
-import { gsap } from 'gsap';
 import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
 import {
   disposeTimelineVideoDriver,
   driveTimelineVideo
 } from '../../../media/timeline-video-driver';
 import { setPackedAlphaVideoSource } from '../../../media/packed-alpha-video';
+import type { PhoneHeroMotionDriver } from '../types';
 
 export const PHONE_FIGURE_DURATION_SECONDS = 2.042;
 /**
@@ -59,6 +59,7 @@ type OrientationBaseline = Readonly<{
 type PhoneDeviceParallaxOptions = Readonly<{
   root: HTMLElement;
   targets: readonly PhoneParallaxTarget[];
+  motionDriver: PhoneHeroMotionDriver;
   eventTarget?: Window;
 }>;
 
@@ -294,6 +295,7 @@ export function attachPhoneDeviceParallax(
   const eventTarget = options.eventTarget ?? window;
   const targets = options.targets.filter((target) => Boolean(target.element));
   const root = options.root;
+  const motionDriver = options.motionDriver;
   const source = orientationConstructor();
   const permissionRequired = typeof source?.requestPermission === 'function';
   let disposed = false;
@@ -303,8 +305,8 @@ export function attachPhoneDeviceParallax(
 
   const setters = targets.map((target) => ({
     ...target,
-    xTo: gsap.quickTo(target.element, 'x', { duration: 0.58, ease: 'power3.out' }),
-    yTo: gsap.quickTo(target.element, 'y', { duration: 0.58, ease: 'power3.out' })
+    xTo: motionDriver.quickTo(target.element, 'x', { duration: 0.58, ease: 'power3.out' }),
+    yTo: motionDriver.quickTo(target.element, 'y', { duration: 0.58, ease: 'power3.out' })
   }));
 
   const reset = () => {

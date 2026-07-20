@@ -2,10 +2,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { PhoneHero } from './PhoneHero';
 
+const motionDriver = {
+  set: () => undefined,
+  quickTo: () => () => undefined
+};
+
 describe('PhoneHero Route B adapter', () => {
   it('preserves the accepted Hero DOM and transparent Figure 1 surface', () => {
     const markup = renderToStaticMarkup(
-      <PhoneHero active reducedMotion={false} />
+      <PhoneHero active reducedMotion={false} motionDriver={motionDriver} />
     );
 
     expect(markup).toContain(

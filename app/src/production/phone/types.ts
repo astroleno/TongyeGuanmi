@@ -15,6 +15,22 @@ export type PhoneTransitionAdapterId =
 
 export type PhoneSceneAdapterHandle = ScenePresentationAdapterHandle;
 
+export type PhoneHeroMotionDriver = Readonly<{
+  set(target: HTMLElement, vars: Readonly<Record<string, string | number>>): void;
+  quickTo(
+    target: HTMLElement,
+    property: 'x' | 'y',
+    vars: Readonly<{ duration: number; ease: string }>
+  ): (value: number) => void;
+}>;
+
+export type PhoneHeroAdapterHandle = PhoneSceneAdapterHandle & {
+  startEntrance(): void;
+  completeEntrance(): void;
+  cancelEntrance(): void;
+  unlockFromGesture(): void;
+};
+
 export type PhoneAodAdapterHandle = PhoneSceneAdapterHandle & {
   startAutoplay(direction: 1 | -1): void;
   resetAutoplay(): void;
@@ -28,8 +44,16 @@ export type PhoneSceneAdapterProps = Readonly<{
   onAodComplete?: (direction: 1 | -1) => void;
 }>;
 
+export type PhoneHeroAdapterProps = PhoneSceneAdapterProps & Readonly<{
+  motionDriver: PhoneHeroMotionDriver;
+}>;
+
 export type PhoneSceneAdapterComponent = ForwardRefExoticComponent<
   PhoneSceneAdapterProps & RefAttributes<PhoneSceneAdapterHandle>
+>;
+
+export type PhoneHeroAdapterComponent = ForwardRefExoticComponent<
+  PhoneHeroAdapterProps & RefAttributes<PhoneHeroAdapterHandle>
 >;
 
 export type PhoneAodAdapterComponent = ForwardRefExoticComponent<

@@ -14,7 +14,8 @@ describe('Route B proven front-half migration contract', () => {
     expect(spikeSource).toContain('<PhoneStoryShell validationMode="v16" />');
     expect(shellSource).toContain('export function PhoneStoryShell');
     expect(shellSource).toContain('<StoryLoader');
-    expect(shellSource).toContain('<PhoneHero');
+    expect(shellSource).toContain('usePhoneInitialAdapter');
+    expect(shellSource).toContain('{Hero && <Hero');
     expect(heroSource).toContain('portrait-scroll-spike__scene--hero');
     expect(shellSource).toContain('portrait-scroll-spike__scene--pattern');
     expect(shellSource).toContain('portrait-scroll-spike__scene--star');

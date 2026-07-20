@@ -22,7 +22,7 @@ const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
  * are architecture regressions and must never be added to make a build pass.
  */
 export const phoneShellDebt = Object.freeze({
-  maxLines: 1421,
+  maxLines: 1416,
   sceneImports: new Set([
     '../../scenes/aod-animation',
     '../../scenes/pattern/patternBloomRenderer',

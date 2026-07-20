@@ -6,7 +6,6 @@ import {
   useRef,
   useState
 } from 'react';
-import { gsap } from 'gsap';
 import { TextReveal, TextRevealItem } from '../../../components/TextReveal';
 import {
   createPackedAlphaVideoCompositor,
@@ -30,7 +29,10 @@ import {
   type PhoneFigurePlayback
 } from './PhoneHero.motion';
 import { phoneMediaUrlFor } from '../phone-media';
-import type { PhoneSceneAdapterHandle, PhoneSceneAdapterProps } from '../types';
+import type {
+  PhoneHeroAdapterHandle,
+  PhoneHeroAdapterProps
+} from '../types';
 import './PhoneHero.css';
 const HERO_BACK_IMAGE = phoneMediaUrlFor('hero-back', 'hero');
 const HERO_MIDDLE_IMAGE = phoneMediaUrlFor('hero-middle', 'hero');
@@ -42,12 +44,6 @@ const HERO_SUBTITLE_LINES = subtitleBreak > 0
   ? [HERO_SUBTITLE.slice(0, subtitleBreak), HERO_SUBTITLE.slice(subtitleBreak)]
   : [HERO_SUBTITLE];
 
-export type PhoneHeroAdapterHandle = PhoneSceneAdapterHandle & {
-  startEntrance(): void;
-  completeEntrance(): void;
-  cancelEntrance(): void;
-  unlockFromGesture(): void;
-};
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
@@ -56,8 +52,8 @@ function range01(value: number, start: number, end: number): number {
   return end <= start ? Number(value >= end) : clamp((value - start) / (end - start));
 }
 /** Owns Hero markup/media/local rendering; the fixed-stage parent owns timing. */
-export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneSceneAdapterProps>(
-  function PhoneHero({ active, reducedMotion, onReady }, forwardedRef) {
+export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProps>(
+  function PhoneHero({ active, reducedMotion, motionDriver, onReady }, forwardedRef) {
     const rootRef = useRef<HTMLElement | null>(null);
     const backMotionRef = useRef<HTMLDivElement | null>(null);
     const backParallaxRef = useRef<HTMLDivElement | null>(null);
@@ -111,11 +107,11 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneSceneAdapterPro
         }
       }
       root.dataset.portraitHeroTitleActive = String(sample.titleActive);
-      gsap.set(cue, { opacity: sample.titleActive ? 1 : 0 });
+      motionDriver.set(cue, { opacity: sample.titleActive ? 1 : 0 });
       if (sample.titleActive) {
         setTitleActive(true);
       }
-    }, [storyRoot]);
+    }, [motionDriver, storyRoot]);
     const completeEntrance = useCallback(() => {
       cancelEntrance();
       renderEntrance(1);
@@ -194,6 +190,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneSceneAdapterPro
       );
       const parallax = attachPhoneDeviceParallax({
         root: owner,
+        motionDriver,
         targets: [
           { element: backParallax, x: 7, y: 5 },
           { element: middleParallax, x: 14, y: 10 },
@@ -232,7 +229,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneSceneAdapterPro
         if (compositorRef.current === compositor) compositorRef.current = undefined;
         if (introInkRef.current === introInk) introInkRef.current = undefined;
       };
-    }, [cancelEntrance, onReady, reducedMotion, storyRoot]);
+    }, [cancelEntrance, motionDriver, onReady, reducedMotion, storyRoot]);
 
     useLayoutEffect(() => {
       sceneActiveRef.current = active;
@@ -253,17 +250,17 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneSceneAdapterPro
         const cue = cueRef.current;
         const vignette = vignetteRef.current;
         if (!back || !middle || !figure || !copy || !subtitle || !cue || !vignette) return;
-        gsap.set(back, { scale: 1.08, yPercent: 0 });
-        gsap.set(middle, { scale: 1 + progress * 0.18, yPercent: progress * 12 });
-        gsap.set(figure, {
+        motionDriver.set(back, { scale: 1.08, yPercent: 0 });
+        motionDriver.set(middle, { scale: 1 + progress * 0.18, yPercent: progress * 12 });
+        motionDriver.set(figure, {
           scale: 1 + progress * 0.11,
           yPercent: -15 * range01(progress, 0.12, 1)
         });
         const copyProgress = range01(progress, 0.18, 1);
-        gsap.set(copy, { y: -58 * copyProgress, opacity: 1 - copyProgress });
-        gsap.set(subtitle, { y: -38 * copyProgress, opacity: 1 - copyProgress });
-        gsap.set(cue, { y: -18 * progress, opacity: 1 - progress });
-        gsap.set(vignette, { opacity: 1 - progress * 0.54 });
+        motionDriver.set(copy, { y: -58 * copyProgress, opacity: 1 - copyProgress });
+        motionDriver.set(subtitle, { y: -38 * copyProgress, opacity: 1 - copyProgress });
+        motionDriver.set(cue, { y: -18 * progress, opacity: 1 - progress });
+        motionDriver.set(vignette, { opacity: 1 - progress * 0.54 });
         playbackRef.current?.scrub(progress);
       },
       enter() {
@@ -292,7 +289,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneSceneAdapterPro
         sceneActiveRef.current = false;
         playbackRef.current?.setActive(false);
       }
-    }), [cancelEntrance, completeEntrance, reducedMotion, startEntrance]);
+    }), [cancelEntrance, completeEntrance, motionDriver, reducedMotion, startEntrance]);
 
     return (
       <section

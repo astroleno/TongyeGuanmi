@@ -12,6 +12,7 @@ import type {
 } from './types';
 
 const sceneCache = new Map<PhoneSceneAdapterId, Promise<PhoneSceneAdapterModule>>();
+const resolvedSceneCache = new Map<PhoneSceneAdapterId, PhoneSceneAdapterModule>();
 const transitionCache = new Map<PhoneTransitionAdapterId, Promise<PhoneTransitionAdapterModule>>();
 
 export const phoneSceneAdapterIds = frontHalfPhoneSceneIds;
@@ -65,6 +66,7 @@ export function loadPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSce
   if (cached) return cached;
   const promise = importPhoneSceneAdapter(id).then((adapter) => {
     if (adapter.id !== id) throw new Error(`Phone scene adapter returned ${adapter.id} for ${id}`);
+    resolvedSceneCache.set(id, adapter);
     return adapter;
   });
   sceneCache.set(id, promise);
@@ -72,6 +74,12 @@ export function loadPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSce
     if (sceneCache.get(id) === promise) sceneCache.delete(id);
   });
   return promise;
+}
+
+export function resolvedPhoneSceneAdapter(
+  id: PhoneSceneAdapterId
+): PhoneSceneAdapterModule | undefined {
+  return resolvedSceneCache.get(id);
 }
 
 export function loadPhoneTransitionAdapter(id: PhoneTransitionAdapterId): Promise<PhoneTransitionAdapterModule> {

@@ -35,27 +35,24 @@ import {
 } from './aod-autoplay';
 import {
   attachPhoneLoaderVisibilityLifecycle,
-  markPhoneLoaderCompletedInDocument,
   phoneLoaderCompletedInDocument
 } from './phone-loader-lifecycle';
 import { phoneMediaUrlFor } from './phone-media';
+import { phoneHeroMotionDriver } from './phone-gsap-driver';
 import { createPhoneScrollSnapLock } from './phone-scroll-snap-lock';
 import {
   phoneAodCheckpointForMethodProgress,
   phoneAodCompletionCheckpoint,
   phoneStageFrame
 } from './phone-stage-timeline';
+import { usePhoneInitialAdapter } from './usePhoneInitialAdapter';
+import type { PhoneHeroAdapterHandle } from './types';
 import './PhoneStoryShell.css';
-import {
-  PhoneHero,
-  type PhoneHeroAdapterHandle
-} from './scenes/PhoneHero';
 import { StoryLoader } from '../StoryLoader';
 import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
-
 const AOD_FIGURE_PACKED_ALPHA_VIDEO = phoneMediaUrlFor('aod-figure-packed-forward', 'aod-animation');
 const AOD_FIGURE_PACKED_ALPHA_REVERSE_VIDEO = phoneMediaUrlFor('aod-figure-packed-reverse', 'aod-animation');
 const STAR_MAP_IMAGE = phoneMediaUrlFor('star-map-source', 'star-map');
@@ -177,6 +174,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const motionEnabled = portraitSpikeMotionEnabled();
   const aodAlphaEndProgress = AOD_PHONE_TIMELINE_ALPHA_END;
   const [loaderHidden, setLoaderHidden] = useState(phoneLoaderCompletedInDocument);
+  const initialAdapter = usePhoneInitialAdapter(loaderHidden, setLoaderHidden);
+  const { Hero, ready: heroReady, failed: heroFailed, staticFallback, markReady: markHeroReady, finishLoader } = initialAdapter;
   const [navigationScene, setNavigationScene] = useState<SceneId>('hero');
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
@@ -591,7 +590,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   }, [motionEnabled]);
 
   useGSAP(() => {
-    if (!loaderHidden) {
+    if (!loaderHidden || !heroReady) {
       return;
     }
     const root = rootRef.current;
@@ -1300,7 +1299,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     };
   }, {
     scope: rootRef,
-    dependencies: [aodAlphaEndProgress, loaderHidden, motionEnabled, publishCheckpoint],
+    dependencies: [aodAlphaEndProgress, heroReady, loaderHidden, motionEnabled, publishCheckpoint],
     revertOnUpdate: true
   });
 
@@ -1317,23 +1316,19 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-phone-aod-alpha-end={aodAlphaEndProgress.toFixed(2)}
       data-portrait-checkpoint={checkpointRef.current}
       data-portrait-checkpoint-trace={checkpointTraceRef.current.join('>')}
+      hidden={staticFallback}
     >
       {!loaderHidden && (
         <StoryLoader
           mode={motionEnabled ? 'cold-hero' : 'reduced'}
-          ready
-          failed={false}
-          onHidden={() => {
-            markPhoneLoaderCompletedInDocument();
-            setLoaderHidden(true);
-          }}
+          ready={heroReady}
+          failed={heroFailed}
+          onHidden={finishLoader}
         />
       )}
       <section ref={stageRailRef} className="portrait-scroll-spike__stage-rail">
         <section ref={stageRef} className="portrait-scroll-spike__stage" aria-label="同野观幂移动端视觉叙事">
-        {loaderHidden && (
-          <PhoneHero ref={heroAdapterRef} active reducedMotion={!motionEnabled} />
-        )}
+        {Hero && <Hero ref={heroAdapterRef} active={loaderHidden} reducedMotion={!motionEnabled} motionDriver={phoneHeroMotionDriver} onReady={markHeroReady} />}
 
         <section ref={patternSceneRef} className="portrait-scroll-spike__scene portrait-scroll-spike__scene--pattern" aria-labelledby="portrait-spike-pattern-title">
           <div className="portrait-scroll-spike__pattern-motion" aria-hidden="true">

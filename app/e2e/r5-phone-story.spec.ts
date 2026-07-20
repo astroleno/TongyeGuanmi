@@ -24,6 +24,13 @@ test('v19 Route B publishes the active phone checkpoint trace in both directions
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
   test.setTimeout(45_000);
 
+  const presentationRequests: string[] = [];
+  page.on('response', (response) => {
+    const path = new URL(response.url()).pathname;
+    if (/\/(?:DesktopStoryShell|Phone(?:StoryShell|Hero|Pattern|StarMap|Aod|MethodTop))-/.test(path)) {
+      presentationRequests.push(path);
+    }
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?v=19', { waitUntil: 'domcontentloaded' });
 
@@ -100,4 +107,10 @@ test('v19 Route B publishes the active phone checkpoint trace in both directions
     traceIndex = trace.indexOf(checkpoint, traceIndex + 1);
     expect(traceIndex, `missing ${checkpoint} after trace index ${traceIndex}`).toBeGreaterThan(-1);
   }
+  expect(presentationRequests.some((path) => path.includes('/PhoneStoryShell-'))).toBe(true);
+  expect(presentationRequests.some((path) => path.includes('/PhoneHero-'))).toBe(true);
+  expect(presentationRequests).not.toEqual(expect.arrayContaining([
+    expect.stringMatching(/\/DesktopStoryShell-/),
+    expect.stringMatching(/\/Phone(?:Pattern|StarMap|Aod|MethodTop)-/)
+  ]));
 });
