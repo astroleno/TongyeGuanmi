@@ -5,20 +5,22 @@ import {
 } from './presentation-shell-loaders';
 import {
   loadedPhoneAdapters,
-  resolvedPhoneSceneAdapter
+  resolvedPhoneSceneAdapter,
+  resolvedPhoneTransitionAdapter
 } from './phone/module-loaders';
 
 describe('presentation shell loaders', () => {
   it('loads the desktop family without selecting the phone adapter family', async () => {
-    const before = loadedPhoneAdapters().scenes;
+    const before = loadedPhoneAdapters();
     const shell = await loadDesktopStoryShell();
     expect(shell.default).toBeTypeOf('function');
-    expect(loadedPhoneAdapters().scenes).toEqual(before);
+    expect(loadedPhoneAdapters()).toEqual(before);
   });
 
-  it('preloads the phone Hero adapter before publishing the phone shell', async () => {
+  it('preloads Hero and its adjacent handoff before publishing the phone shell', async () => {
     const shell = await loadPhoneStoryShell();
     expect(shell.default).toBeTypeOf('function');
     expect(resolvedPhoneSceneAdapter('hero')?.id).toBe('hero');
+    expect(resolvedPhoneTransitionAdapter('hero-pattern')?.id).toBe('hero-pattern');
   });
 });

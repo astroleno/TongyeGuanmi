@@ -4,7 +4,8 @@ import {
   loadPhoneTransitionAdapter,
   phoneSceneAdapterIds,
   phoneTransitionAdapterIds,
-  resolvedPhoneSceneAdapter
+  resolvedPhoneSceneAdapter,
+  resolvedPhoneTransitionAdapter
 } from './module-loaders';
 
 describe('phone presentation adapter registry', () => {
@@ -21,6 +22,9 @@ describe('phone presentation adapter registry', () => {
       phoneTransitionAdapterIds.map(loadPhoneTransitionAdapter)
     );
     expect(modules.map(({ id }) => id)).toEqual(phoneTransitionAdapterIds);
+    for (const id of phoneTransitionAdapterIds) {
+      expect(resolvedPhoneTransitionAdapter(id)?.id).toBe(id);
+    }
   });
 
   it('returns the cached Hero module for adjacent prewarm and shell handoff', async () => {

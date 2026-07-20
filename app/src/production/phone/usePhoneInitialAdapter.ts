@@ -8,17 +8,29 @@ import {
 import type { StoryLoaderExitReason } from '../StoryLoader';
 import {
   loadPhoneSceneAdapter,
-  resolvedPhoneSceneAdapter
+  loadPhoneTransitionAdapter,
+  resolvedPhoneSceneAdapter,
+  resolvedPhoneTransitionAdapter
 } from './module-loaders';
 import { markPhoneLoaderCompletedInDocument } from './phone-loader-lifecycle';
 import type {
   PhoneHeroAdapterComponent,
-  PhoneSceneAdapterModule
+  PhoneSceneAdapterModule,
+  PhoneTransitionAdapterComponent,
+  PhoneTransitionAdapterModule
 } from './types';
 
 type PhoneHeroAdapterModule = Omit<PhoneSceneAdapterModule, 'id' | 'Component'> & {
   id: 'hero';
   Component: PhoneHeroAdapterComponent;
+};
+
+type PhoneHeroPatternAdapterModule = Omit<
+  PhoneTransitionAdapterModule,
+  'id' | 'Component'
+> & {
+  id: 'hero-pattern';
+  Component: PhoneTransitionAdapterComponent;
 };
 
 function asHeroAdapter(
@@ -29,12 +41,22 @@ function asHeroAdapter(
     : undefined;
 }
 
+function asHeroPatternAdapter(
+  adapter: PhoneTransitionAdapterModule | undefined
+): PhoneHeroPatternAdapterModule | undefined {
+  return adapter?.id === 'hero-pattern' && adapter.Component
+    ? adapter as PhoneHeroPatternAdapterModule
+    : undefined;
+}
+
 export type PhoneInitialAdapterState = Readonly<{
   Hero: PhoneHeroAdapterComponent | undefined;
+  HeroPatternTransition: PhoneTransitionAdapterComponent | undefined;
   ready: boolean;
   failed: boolean;
   staticFallback: boolean;
-  markReady(): void;
+  markHeroReady(): void;
+  markHeroPatternReady(): void;
   finishLoader(reason: StoryLoaderExitReason): void;
 }>;
 
@@ -46,36 +68,68 @@ export function phoneInitialAdapterNeedsStaticFallback(
   return (reason !== undefined && reason !== 'ready') || (loaderHidden && failed);
 }
 
+export function phoneInitialAdaptersReady(
+  heroReady: boolean,
+  heroPatternReady: boolean
+): boolean {
+  return heroReady && heroPatternReady;
+}
+
 /**
- * Own the initial adapter load and Loader failure handoff outside the shell.
- * A cached preload is synchronous; direct imports retain the same recovery.
+ * Own the initial scene plus adjacent handoff load and Loader failure recovery.
+ * Cached preloads are synchronous; direct imports retain the same recovery.
  */
 export function usePhoneInitialAdapter(
   loaderHidden: boolean,
   setLoaderHidden: Dispatch<SetStateAction<boolean>>
 ): PhoneInitialAdapterState {
-  const [adapter, setAdapter] = useState<PhoneHeroAdapterModule | undefined>(
+  const [heroAdapter, setHeroAdapter] = useState<PhoneHeroAdapterModule | undefined>(
     () => asHeroAdapter(resolvedPhoneSceneAdapter('hero'))
   );
-  const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [heroPatternAdapter, setHeroPatternAdapter] = useState<
+    PhoneHeroPatternAdapterModule | undefined
+  >(
+    () => asHeroPatternAdapter(resolvedPhoneTransitionAdapter('hero-pattern'))
+  );
+  const [heroReady, setHeroReady] = useState(false);
+  const [heroPatternReady, setHeroPatternReady] = useState(false);
+  const [heroFailed, setHeroFailed] = useState(false);
+  const [heroPatternFailed, setHeroPatternFailed] = useState(false);
   const [staticFallback, setStaticFallback] = useState(false);
+  const failed = heroFailed || heroPatternFailed;
+  const ready = phoneInitialAdaptersReady(heroReady, heroPatternReady);
 
   useEffect(() => {
-    if (adapter) return;
+    if (heroAdapter) return;
     let current = true;
     void loadPhoneSceneAdapter('hero').then(
       (next) => {
-        if (current) setAdapter(asHeroAdapter(next));
+        if (current) setHeroAdapter(asHeroAdapter(next));
       },
       () => {
-        if (current) setFailed(true);
+        if (current) setHeroFailed(true);
       }
     );
     return () => {
       current = false;
     };
-  }, [adapter]);
+  }, [heroAdapter]);
+
+  useEffect(() => {
+    if (heroPatternAdapter) return;
+    let current = true;
+    void loadPhoneTransitionAdapter('hero-pattern').then(
+      (next) => {
+        if (current) setHeroPatternAdapter(asHeroPatternAdapter(next));
+      },
+      () => {
+        if (current) setHeroPatternFailed(true);
+      }
+    );
+    return () => {
+      current = false;
+    };
+  }, [heroPatternAdapter]);
 
   useEffect(() => {
     if (phoneInitialAdapterNeedsStaticFallback(undefined, loaderHidden, failed)) {
@@ -94,7 +148,8 @@ export function usePhoneInitialAdapter(
     };
   }, [staticFallback]);
 
-  const markReady = useCallback(() => setReady(true), []);
+  const markHeroReady = useCallback(() => setHeroReady(true), []);
+  const markHeroPatternReady = useCallback(() => setHeroPatternReady(true), []);
   const finishLoader = useCallback((reason: StoryLoaderExitReason) => {
     if (phoneInitialAdapterNeedsStaticFallback(reason, loaderHidden, failed)) {
       setStaticFallback(true);
@@ -106,11 +161,13 @@ export function usePhoneInitialAdapter(
   }, [failed, loaderHidden, setLoaderHidden]);
 
   return {
-    Hero: adapter?.Component,
+    Hero: heroAdapter?.Component,
+    HeroPatternTransition: heroPatternAdapter?.Component,
     ready,
     failed,
     staticFallback,
-    markReady,
+    markHeroReady,
+    markHeroPatternReady,
     finishLoader
   };
 }

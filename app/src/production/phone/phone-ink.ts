@@ -55,11 +55,12 @@ export function createPhoneInkTransition(
   options: PhoneInkTransitionOptions
 ): PhoneInkTransition {
   const host = options.host;
+  const canvasClassName = options.canvas?.className || 'phone-story-shell__ink';
   const surface = mountTransitionInkCanvas(host, options.id, {
     renderer: 'field',
     grade: options.grade ?? 'dark',
     generation: `phone-story:${options.id}`,
-    className: 'phone-story-shell__ink'
+    className: canvasClassName
   }, options.canvas ?? undefined);
 
   if (!surface || !host) {

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const PHONE_SHELL = '[data-phone-validation-mode="v19"]';
+const PHONE_SHELL = '[data-phone-validation-mode="v20"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -18,7 +18,7 @@ async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   }, progress);
 }
 
-test('v19 Route B publishes the active phone checkpoint trace in both directions', async ({
+test('v20 Route B publishes the active phone checkpoint trace in both directions', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -27,12 +27,12 @@ test('v19 Route B publishes the active phone checkpoint trace in both directions
   const presentationRequests: string[] = [];
   page.on('response', (response) => {
     const path = new URL(response.url()).pathname;
-    if (/\/(?:DesktopStoryShell|Phone(?:StoryShell|Hero|Pattern|StarMap|Aod|MethodTop))-/.test(path)) {
+    if (/\/(?:DesktopStoryShell|Phone(?:StoryShell|Hero|Pattern|StarMap|Aod|MethodTop)|hero-pattern|pattern-star-map|star-map-aod|aod-method-top)-/.test(path)) {
       presentationRequests.push(path);
     }
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=19', { waitUntil: 'domcontentloaded' });
+  await page.goto('/?v=20', { waitUntil: 'domcontentloaded' });
 
   const shell = page.locator(PHONE_SHELL);
   const loader = page.locator('[data-story-loader="true"]');
@@ -60,9 +60,20 @@ test('v19 Route B publishes the active phone checkpoint trace in both directions
     [0.74, 'star-map-to-aod'],
     [0.82, 'aod-stage']
   ] as const;
+  const heroPatternInk = page.locator('[data-portrait-ink="hero-pattern"]');
   for (const [progress, checkpoint] of forward) {
     await scrollPhoneStageTo(page, progress);
     await expect(shell).toHaveAttribute('data-portrait-checkpoint', checkpoint);
+    if (checkpoint === 'hero-to-pattern') {
+      await expect(heroPatternInk).toHaveAttribute(
+        'data-r4-ink-segment',
+        'portrait-hero-pattern-ink'
+      );
+      await expect(heroPatternInk).toHaveAttribute(
+        'data-phone-ink-progress',
+        /^0\.(?!0000)\d{4}$/
+      );
+    }
   }
 
   await scrollPhoneStageTo(page, 0.99);
@@ -87,6 +98,12 @@ test('v19 Route B publishes the active phone checkpoint trace in both directions
   for (const [progress, checkpoint] of reverse) {
     await scrollPhoneStageTo(page, progress);
     await expect(shell).toHaveAttribute('data-portrait-checkpoint', checkpoint);
+    if (checkpoint === 'hero-to-pattern') {
+      await expect(heroPatternInk).toHaveAttribute(
+        'data-phone-ink-progress',
+        /^0\.(?!0000)\d{4}$/
+      );
+    }
   }
 
   const trace = (await shell.getAttribute('data-portrait-checkpoint-trace'))?.split('>') ?? [];
@@ -109,8 +126,10 @@ test('v19 Route B publishes the active phone checkpoint trace in both directions
   }
   expect(presentationRequests.some((path) => path.includes('/PhoneStoryShell-'))).toBe(true);
   expect(presentationRequests.some((path) => path.includes('/PhoneHero-'))).toBe(true);
+  expect(presentationRequests.some((path) => path.includes('/hero-pattern-'))).toBe(true);
   expect(presentationRequests).not.toEqual(expect.arrayContaining([
     expect.stringMatching(/\/DesktopStoryShell-/),
-    expect.stringMatching(/\/Phone(?:Pattern|StarMap|Aod|MethodTop)-/)
+    expect.stringMatching(/\/Phone(?:Pattern|StarMap|Aod|MethodTop)-/),
+    expect.stringMatching(/\/(?:pattern-star-map|star-map-aod|aod-method-top)-/)
   ]));
 });

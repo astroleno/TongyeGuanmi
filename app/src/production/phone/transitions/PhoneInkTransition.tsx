@@ -12,17 +12,21 @@ export function createPhoneInkAdapter(options: Readonly<{
   id: string;
   field: InkFieldSpec;
   grade?: InkGradePreset;
+  canvasClassName?: string;
+  portraitInk?: string;
 }>): PhoneTransitionAdapterComponent {
   return forwardRef<PhoneTransitionAdapterHandle, PhoneTransitionAdapterProps>(function PhoneInkTransition(
-    { host, from, to, reducedMotion },
+    { host, from, to, reducedMotion, onReady },
     forwardedRef
   ) {
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const transitionRef = useRef<PhoneInkTransition | undefined>(undefined);
     useLayoutEffect(() => {
-      if (!host || !from || !to) return;
+      const canvas = canvasRef.current;
+      if (!host || !from || !to || !canvas) return;
       const transition = createPhoneInkTransition({
         host,
-        canvas: null,
+        canvas,
         id: options.id,
         from,
         to,
@@ -31,18 +35,29 @@ export function createPhoneInkAdapter(options: Readonly<{
       });
       transitionRef.current = transition;
       transition.render(reducedMotion ? 1 : 0);
+      onReady?.();
       return () => {
         transition.dispose();
         if (transitionRef.current === transition) transitionRef.current = undefined;
       };
-    }, [from, host, reducedMotion, to]);
+    }, [from, host, onReady, reducedMotion, to]);
     useImperativeHandle(forwardedRef, () => ({
       render(progress) { transitionRef.current?.render(reducedMotion ? 1 : progress); },
-      enter() {},
-      leave() {},
-      reverse() {},
-      dispose() { transitionRef.current?.dispose(); }
+      enter() { transitionRef.current?.render(reducedMotion ? 1 : 0); },
+      leave() { transitionRef.current?.render(1); },
+      reverse() { transitionRef.current?.render(reducedMotion ? 1 : 0); },
+      dispose() {
+        transitionRef.current?.dispose();
+        transitionRef.current = undefined;
+      }
     }), [reducedMotion]);
-    return null;
+    return (
+      <canvas
+        ref={canvasRef}
+        className={options.canvasClassName ?? 'phone-story-shell__ink'}
+        data-portrait-ink={options.portraitInk}
+        aria-hidden="true"
+      />
+    );
   });
 }

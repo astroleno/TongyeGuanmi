@@ -67,6 +67,7 @@ export type PhoneTransitionAdapterProps = Readonly<{
   from: HTMLElement | null;
   to: HTMLElement | null;
   reducedMotion: boolean;
+  onReady?: () => void;
 }>;
 
 export type PhoneTransitionAdapterComponent = ForwardRefExoticComponent<

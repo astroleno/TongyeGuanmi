@@ -6,6 +6,10 @@ const shellSource = readFileSync(new URL('../phone/PhoneStoryShell.tsx', import.
 const heroSource = readFileSync(new URL('../phone/scenes/PhoneHero.tsx', import.meta.url), 'utf8');
 const heroMotionSource = readFileSync(new URL('../phone/scenes/PhoneHero.motion.ts', import.meta.url), 'utf8');
 const heroCss = readFileSync(new URL('../phone/scenes/PhoneHero.css', import.meta.url), 'utf8');
+const heroPatternTransitionSource = readFileSync(
+  new URL('../phone/transitions/hero-pattern.tsx', import.meta.url),
+  'utf8'
+);
 const shellCss = readFileSync(new URL('../phone/PhoneStoryShell.css', import.meta.url), 'utf8');
 const phoneMediaSource = readFileSync(new URL('../phone/phone-media.ts', import.meta.url), 'utf8');
 
@@ -58,7 +62,10 @@ describe('Route B proven front-half migration contract', () => {
 
   it('keeps all three authored ink handoffs as one coherent front-half chain', () => {
     expect(shellSource).toContain('createPhoneInkTransition');
-    expect(shellSource).toContain('data-portrait-ink="hero-pattern"');
+    expect(shellSource).toContain('<HeroPatternTransition');
+    expect(heroPatternTransitionSource).toContain("id: 'portrait-hero-pattern-ink'");
+    expect(heroPatternTransitionSource).toContain("seed: 'portrait-hero-pattern-r5'");
+    expect(heroPatternTransitionSource).toContain("portraitInk: 'hero-pattern'");
     expect(shellSource).toContain('data-portrait-ink="pattern-star"');
     expect(shellSource).toContain('data-portrait-ink="star-aod"');
     expect(shellSource).toContain("'handoff-hero-pattern'");

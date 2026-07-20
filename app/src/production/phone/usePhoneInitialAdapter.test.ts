@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { phoneInitialAdapterNeedsStaticFallback } from './usePhoneInitialAdapter';
+import {
+  phoneInitialAdapterNeedsStaticFallback,
+  phoneInitialAdaptersReady
+} from './usePhoneInitialAdapter';
 
 describe('phone initial adapter recovery', () => {
+  it('holds Loader until both Hero and the adjacent transition are ready', () => {
+    expect(phoneInitialAdaptersReady(true, true)).toBe(true);
+    expect(phoneInitialAdaptersReady(true, false)).toBe(false);
+    expect(phoneInitialAdaptersReady(false, true)).toBe(false);
+  });
+
   it('publishes the story only after a ready Loader exit', () => {
     expect(phoneInitialAdapterNeedsStaticFallback('ready', false, false)).toBe(false);
   });

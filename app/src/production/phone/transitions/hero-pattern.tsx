@@ -1,8 +1,10 @@
 import { createPhoneInkAdapter } from './PhoneInkTransition';
 
 export const PhoneHeroPatternTransition = createPhoneInkAdapter({
-  id: 'phone-hero-pattern-ink',
-  field: { kind: 'radial', origin: { x: 0.5, y: 0.44 }, seed: 'phone-hero-pattern-r5' },
+  id: 'portrait-hero-pattern-ink',
+  field: { kind: 'radial', origin: { x: 0.5, y: 0.44 }, seed: 'portrait-hero-pattern-r5' },
+  canvasClassName: 'portrait-scroll-spike__ink',
+  portraitInk: 'hero-pattern',
   grade: 'dark'
 });
 

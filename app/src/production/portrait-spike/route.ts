@@ -2,8 +2,9 @@ export const PORTRAIT_SPIKE_QUERY = 'portrait-spike';
 export const PORTRAIT_PREVIEW_VERSION_QUERY = 'v';
 export const PORTRAIT_PREVIEW_VERSION = '16';
 export const PORTRAIT_COMPAT_VERSION = '17';
-export const PORTRAIT_PREVIOUS_VERSION = '18';
-export const PORTRAIT_CURRENT_VERSION = '19';
+export const PORTRAIT_LEGACY_VERSION = '18';
+export const PORTRAIT_PREVIOUS_VERSION = '19';
+export const PORTRAIT_CURRENT_VERSION = '20';
 
 /**
  * These routes are intentionally query-gated experiments. They let a physical
@@ -18,6 +19,7 @@ export function portraitSpikeRouteForSearch(search: string): PortraitSpikeRoute 
   if (
     previewVersion === PORTRAIT_PREVIEW_VERSION
     || previewVersion === PORTRAIT_COMPAT_VERSION
+    || previewVersion === PORTRAIT_LEGACY_VERSION
     || previewVersion === PORTRAIT_PREVIOUS_VERSION
     || previewVersion === PORTRAIT_CURRENT_VERSION
   ) {

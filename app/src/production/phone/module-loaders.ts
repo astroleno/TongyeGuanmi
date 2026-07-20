@@ -14,6 +14,10 @@ import type {
 const sceneCache = new Map<PhoneSceneAdapterId, Promise<PhoneSceneAdapterModule>>();
 const resolvedSceneCache = new Map<PhoneSceneAdapterId, PhoneSceneAdapterModule>();
 const transitionCache = new Map<PhoneTransitionAdapterId, Promise<PhoneTransitionAdapterModule>>();
+const resolvedTransitionCache = new Map<
+  PhoneTransitionAdapterId,
+  PhoneTransitionAdapterModule
+>();
 
 export const phoneSceneAdapterIds = frontHalfPhoneSceneIds;
 export const phoneTransitionAdapterIds = frontHalfPhoneTransitionIds;
@@ -87,6 +91,7 @@ export function loadPhoneTransitionAdapter(id: PhoneTransitionAdapterId): Promis
   if (cached) return cached;
   const promise = importPhoneTransitionAdapter(id).then((adapter) => {
     if (adapter.id !== id) throw new Error(`Phone transition adapter returned ${adapter.id} for ${id}`);
+    resolvedTransitionCache.set(id, adapter);
     return adapter;
   });
   transitionCache.set(id, promise);
@@ -94,6 +99,12 @@ export function loadPhoneTransitionAdapter(id: PhoneTransitionAdapterId): Promis
     if (transitionCache.get(id) === promise) transitionCache.delete(id);
   });
   return promise;
+}
+
+export function resolvedPhoneTransitionAdapter(
+  id: PhoneTransitionAdapterId
+): PhoneTransitionAdapterModule | undefined {
+  return resolvedTransitionCache.get(id);
 }
 
 export function loadedPhoneAdapters(): Readonly<{

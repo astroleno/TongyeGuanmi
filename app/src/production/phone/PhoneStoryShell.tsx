@@ -46,7 +46,7 @@ import {
   phoneStageFrame
 } from './phone-stage-timeline';
 import { usePhoneInitialAdapter } from './usePhoneInitialAdapter';
-import type { PhoneHeroAdapterHandle } from './types';
+import type { PhoneHeroAdapterHandle, PhoneTransitionAdapterHandle } from './types';
 import './PhoneStoryShell.css';
 import { StoryLoader } from '../StoryLoader';
 import { StoryNav } from '../StoryNav';
@@ -58,7 +58,6 @@ const AOD_FIGURE_PACKED_ALPHA_REVERSE_VIDEO = phoneMediaUrlFor('aod-figure-packe
 const STAR_MAP_IMAGE = phoneMediaUrlFor('star-map-source', 'star-map');
 const STAR_MAP_FRAME_INTERVAL_MS = 1000 / 12;
 const PORTRAIT_PATTERN_CENTER = Object.freeze({ x: 0.5, y: 0.28 });
-const PORTRAIT_HERO_FIGURE_CENTER = Object.freeze({ x: 0.5, y: 0.44 });
 const PORTRAIT_STAR_CAMERA: StarFieldCamera = Object.freeze({
   // The authored map is landscape. On portrait we rotate the source itself,
   // not its CSS box, then paint the Perlin layer through this same matrix.
@@ -162,7 +161,7 @@ function portraitSpikeMotionEnabled(): boolean {
  */
 export type PhoneStoryShellProps = Readonly<{
   /** Retained while versioned routes remain physical-device comparison entries. */
-  validationMode?: 'v16' | 'v17' | 'v18' | 'v19';
+  validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20';
 }>;
 
 /**
@@ -175,7 +174,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const aodAlphaEndProgress = AOD_PHONE_TIMELINE_ALPHA_END;
   const [loaderHidden, setLoaderHidden] = useState(phoneLoaderCompletedInDocument);
   const initialAdapter = usePhoneInitialAdapter(loaderHidden, setLoaderHidden);
-  const { Hero, ready: heroReady, failed: heroFailed, staticFallback, markReady: markHeroReady, finishLoader } = initialAdapter;
+  const {
+    Hero, HeroPatternTransition, ready: initialAdaptersReady,
+    failed: initialAdaptersFailed, staticFallback,
+    markHeroReady, markHeroPatternReady, finishLoader
+  } = initialAdapter;
   const [navigationScene, setNavigationScene] = useState<SceneId>('hero');
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
@@ -191,7 +194,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const patternSceneRef = useRef<HTMLElement | null>(null);
   const starSceneRef = useRef<HTMLElement | null>(null);
   const aodSceneRef = useRef<HTMLDivElement | null>(null);
-  const heroInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const heroPatternAdapterRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const patternCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const patternRendererRef = useRef<PatternBloomRenderer | null>(null);
   const patternActiveRef = useRef(false);
@@ -590,7 +593,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   }, [motionEnabled]);
 
   useGSAP(() => {
-    if (!loaderHidden || !heroReady) {
+    if (!loaderHidden || !initialAdaptersReady) {
       return;
     }
     const root = rootRef.current;
@@ -598,10 +601,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     const stage = stageRef.current;
     const heroAdapter = heroAdapterRef.current;
     const heroScene = heroAdapter?.root();
+    const heroPatternAdapter = heroPatternAdapterRef.current;
     const patternScene = patternSceneRef.current;
     const starScene = starSceneRef.current;
     const aodScene = aodSceneRef.current;
-    const heroInkCanvas = heroInkCanvasRef.current;
     const patternCopy = patternCopyRef.current;
     const patternWash = patternWashRef.current;
     const patternInkCanvas = patternInkCanvasRef.current;
@@ -615,9 +618,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     const aodFigureVideo = aodScene?.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
     const aodFigureCanvas = aodScene?.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
 
-    if (!root || !stageRail || !stage || !heroAdapter || !heroScene
+    if (!root || !stageRail || !stage || !heroAdapter || !heroScene || !heroPatternAdapter
       || !patternScene || !starScene || !aodScene
-      || !heroInkCanvas || !patternCopy || !patternWash || !patternInkCanvas
+      || !patternCopy || !patternWash || !patternInkCanvas
       || !starMotion || !starWash || !starCopy || !starInkCanvas || !readingIntro || !readingSteps
       || !aodTransition || !aodFigureVideo || !aodFigureCanvas) {
       return;
@@ -626,7 +629,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     let active = true;
     let aodCompositor: PackedAlphaVideoCompositor | undefined;
     let aodAutoplay: PhoneAodAutoplay | undefined;
-    let heroInk: PhoneInkTransition | undefined;
     let patternInk: PhoneInkTransition | undefined;
     let starInk: PhoneInkTransition | undefined;
     let lastPatternProgress = Number.NaN;
@@ -997,19 +999,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         onComplete: completeAodRun
       });
       aodAutoplay.reset();
-      heroInk = createPhoneInkTransition({
-        host: stage,
-        canvas: heroInkCanvas,
-        id: 'portrait-hero-pattern-ink',
-        from: heroScene,
-        to: patternScene,
-        field: {
-          kind: 'radial',
-          origin: PORTRAIT_HERO_FIGURE_CENTER,
-          seed: 'portrait-hero-pattern-r5'
-        },
-        grade: 'dark'
-      });
       patternInk = createPhoneInkTransition({
         host: stage,
         canvas: patternInkCanvas,
@@ -1135,7 +1124,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       }
 
       if (aodRunState === 'forward' || aodRunState === 'reverse') {
-        heroInk?.render(1);
+        heroPatternAdapter.render(1);
         patternInk?.render(1);
         starInk?.render(1);
         setAodHoldOwnership(aodProgress, aodRunState);
@@ -1143,7 +1132,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       }
 
       if (progress < HERO_MOTION_END) {
-        heroInk?.render(0);
+        heroPatternAdapter.render(0);
         patternInk?.render(0);
         starInk?.render(0);
         setOwnership('hold-hero', ['hero'], ['hero']);
@@ -1151,34 +1140,34 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         patternInk?.render(0);
         starInk?.render(0);
         setOwnership('handoff-hero-pattern', ['hero', 'pattern'], ['pattern', 'hero']);
-        heroInk?.render(heroPatternProgress);
+        heroPatternAdapter.render(heroPatternProgress);
       } else if (progress < PATTERN_STAR_START) {
-        heroInk?.render(1);
+        heroPatternAdapter.render(1);
         patternInk?.render(0);
         starInk?.render(0);
         setOwnership('hold-pattern', ['pattern'], ['pattern']);
       } else if (progress < PATTERN_STAR_END) {
-        heroInk?.render(1);
+        heroPatternAdapter.render(1);
         starInk?.render(0);
         setOwnership('handoff-pattern-star', ['pattern', 'star'], ['star', 'pattern']);
         patternInk?.render(patternStarProgress);
       } else if (progress < STAR_AOD_START) {
-        heroInk?.render(1);
+        heroPatternAdapter.render(1);
         patternInk?.render(1);
         starInk?.render(0);
         setOwnership('hold-star', ['star'], ['star']);
       } else if (progress < STAR_AOD_END) {
-        heroInk?.render(1);
+        heroPatternAdapter.render(1);
         patternInk?.render(1);
         setOwnership('handoff-star-aod', ['star', 'aod'], ['star', 'aod']);
         starInk?.render(starAodProgress);
       } else if (progress < AOD_AUTOPLAY_START) {
-        heroInk?.render(1);
+        heroPatternAdapter.render(1);
         patternInk?.render(1);
         starInk?.render(1);
         setAodHoldOwnership(aodProgress, 'ready');
       } else {
-        heroInk?.render(1);
+        heroPatternAdapter.render(1);
         patternInk?.render(1);
         starInk?.render(1);
         setAodHoldOwnership(aodProgress, aodRunState);
@@ -1263,7 +1252,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       aodScrollSnap.dispose();
       aodAutoplay?.dispose();
       aodCompositor?.dispose();
-      heroInk?.dispose();
       patternInk?.dispose();
       starInk?.dispose();
       delete root.dataset.portraitSpikeMotionState;
@@ -1299,7 +1287,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     };
   }, {
     scope: rootRef,
-    dependencies: [aodAlphaEndProgress, heroReady, loaderHidden, motionEnabled, publishCheckpoint],
+    dependencies: [aodAlphaEndProgress, initialAdaptersReady, loaderHidden, motionEnabled, publishCheckpoint],
     revertOnUpdate: true
   });
 
@@ -1321,8 +1309,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       {!loaderHidden && (
         <StoryLoader
           mode={motionEnabled ? 'cold-hero' : 'reduced'}
-          ready={heroReady}
-          failed={heroFailed}
+          ready={initialAdaptersReady}
+          failed={initialAdaptersFailed}
           onHidden={finishLoader}
         />
       )}
@@ -1376,7 +1364,16 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           />
         </div>
 
-        <canvas ref={heroInkCanvasRef} className="portrait-scroll-spike__ink" data-portrait-ink="hero-pattern" aria-hidden="true" />
+        {HeroPatternTransition && (
+          <HeroPatternTransition
+            ref={heroPatternAdapterRef}
+            host={stageRef.current}
+            from={heroAdapterRef.current?.root() ?? null}
+            to={patternSceneRef.current}
+            reducedMotion={!motionEnabled}
+            onReady={markHeroPatternReady}
+          />
+        )}
         <canvas ref={patternInkCanvasRef} className="portrait-scroll-spike__ink" data-portrait-ink="pattern-star" aria-hidden="true" />
         <canvas ref={starInkCanvasRef} className="portrait-scroll-spike__ink" data-portrait-ink="star-aod" aria-hidden="true" />
         </section>
