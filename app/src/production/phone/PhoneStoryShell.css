@@ -1,8 +1,4 @@
 html[data-portrait-spike="b"] {
-  --portrait-pattern-edge-backdrop:
-    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .07), rgba(217, 192, 143, .12) 35%, rgba(35, 24, 20, .26) 100%),
-    linear-gradient(180deg, rgba(246, 229, 188, .10), rgba(31, 21, 17, .13)),
-    url("../../../../assets/pattern-background.webp");
   width: 100%;
   min-height: 100%;
   overflow-x: clip;
@@ -24,41 +20,11 @@ html[data-portrait-spike="b"] #root {
   background: var(--portrait-document-surface, #07110e);
 }
 
-/*
- * The root canvas is the only layer Safari can expose while its own toolbar
- * moves asynchronously. Pattern therefore uses a native, viewport-fixed
- * replica here instead of a JS-following DOM mirror.
- */
-html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"],
-html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] body,
-html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] #root {
-  background-color: #d9c08f;
-  background-image: var(--portrait-pattern-edge-backdrop);
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-attachment: fixed;
-}
-
 html[data-portrait-spike="b"] .static-content {
   display: none;
 }
 
 .portrait-scroll-spike {
-  --portrait-pattern-wash-background:
-    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
-    linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
-  --portrait-aod-paper-wash-background:
-    radial-gradient(72% 42% at 50% 72%, rgba(247, 237, 215, .26), transparent 70%),
-    radial-gradient(54% 42% at 22% 88%, rgba(120, 99, 41, .12), transparent 72%),
-    linear-gradient(180deg, rgba(237, 228, 210, 0) 0 46%, rgba(237, 228, 210, .44) 76%, rgba(237, 228, 210, .92) 100%);
-  --portrait-aod-bottom-mist-background:
-    linear-gradient(180deg, rgba(237, 228, 210, 0) 0%, rgba(237, 228, 210, .76) 58%, #ede4d2 100%),
-    radial-gradient(78% 84% at 50% 100%, rgba(232, 213, 154, .22), transparent 72%);
-  --portrait-aod-paper-solid-background:
-    radial-gradient(76% 54% at 50% 12%, rgba(247, 237, 215, .30), transparent 72%),
-    linear-gradient(180deg, rgba(237, 228, 210, .88) 0%, #ede4d2 56%, #ede4d2 100%);
-  --portrait-aod-bottom-mist-height: clamp(250px, 38svh, 430px);
   /*
    * This band is derived only from stable viewport units. Its solid portion
    * spans Safari's complete toolbar travel; the authored feather ends above
@@ -111,26 +77,6 @@ html[data-portrait-spike="b"] .static-content {
   background: var(--portrait-edge-surface);
 }
 
-.portrait-scroll-spike[data-portrait-edge-scene="pattern"] {
-  background: transparent;
-}
-
-.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__stage-rail {
-  background-color: #d9c08f;
-  background-image: var(--portrait-pattern-edge-backdrop);
-  background-position: center top;
-  background-repeat: repeat-y;
-  background-size: auto var(--portrait-stage-height);
-}
-
-.portrait-scroll-spike[data-portrait-edge-scene="aod"] .portrait-scroll-spike__stage-rail {
-  background-color: #ede4d2;
-  background-image: var(--portrait-aod-paper-solid-background);
-  background-position: center top;
-  background-repeat: repeat-y;
-  background-size: 100% var(--portrait-stage-height);
-}
-
 .portrait-scroll-spike__stage {
   position: fixed;
   z-index: 10;
@@ -170,120 +116,6 @@ html[data-portrait-spike="b"] .static-content {
   contain: layout paint;
 }
 
-.portrait-scroll-spike__scene--pattern {
-  background: #d9c08f;
-  color: #211713;
-}
-
-.portrait-scroll-spike__scene--star {
-  background:
-    radial-gradient(circle at 16% 22%, rgba(56, 166, 154, .12), transparent 32vw),
-    radial-gradient(circle at 84% 74%, rgba(183, 91, 52, .10), transparent 34vw),
-    linear-gradient(180deg, rgba(7, 17, 14, .96), #07110e),
-    #07110e;
-}
-
-.portrait-scroll-spike__scene--aod {
-  background: #ede4d2;
-  color: #292919;
-}
-
-.portrait-scroll-spike__scene--aod .aod-transition {
-  /*
-   * The horizontal composition authors Cloud at 72vw and Sun at 62vw.
-   * On its 16:9 stage those equal 1.28h and 1.10h respectively. Expressing
-   * the portrait crop from height preserves that authored scene height.
-   */
-  --aod-transition-scene-width: calc(var(--portrait-stage-height) * 1.16);
-  --aod-transition-sun-width: calc(var(--portrait-stage-height) * 1.00);
-  --aod-transition-cloud-width: calc(var(--portrait-stage-height) * 1.16);
-  --portrait-aod-figure-cover-scale: 1;
-  --portrait-aod-figure-shift-y: 9dvh;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
-
-/* The packed H.264 source is decoder-only; WebGL owns the visible alpha. */
-.portrait-scroll-spike__scene--aod .aod-transition__figure-video {
-  filter: none;
-  opacity: 0 !important;
-}
-
-.portrait-scroll-spike__scene--aod .aod-transition__figure-canvas {
-  inset: auto;
-  left: 50%;
-  top: 50%;
-  /* Keep the packed 16:9 plate, but frame it at 82% of the live height. */
-  width: max(100%, calc(var(--portrait-stage-height) * 1.45546));
-  height: auto;
-  filter: none;
-  transform:
-    translate3d(
-      -50%,
-      calc(-50% + var(--portrait-aod-figure-shift-y)),
-      0
-    )
-    scale(var(--portrait-aod-figure-cover-scale));
-}
-
-.portrait-scroll-spike__scene--aod .aod-transition__reveal-surface::before {
-  background: var(--portrait-aod-paper-wash-background);
-}
-
-.portrait-scroll-spike__scene--aod .aod-transition__reveal-surface::after {
-  height: var(--portrait-aod-bottom-mist-height);
-  background: var(--portrait-aod-bottom-mist-background);
-}
-
-.portrait-scroll-spike__scene--aod .aod-transition__paper-solid {
-  background: var(--portrait-aod-paper-solid-background);
-}
-
-.portrait-scroll-spike__pattern-motion,
-.portrait-scroll-spike__star-motion {
-  position: absolute;
-  inset: 0;
-  display: block;
-  pointer-events: none;
-  user-select: none;
-  will-change: transform, opacity;
-}
-
-.portrait-scroll-spike__pattern-image {
-  position: absolute;
-  display: block;
-  max-width: none;
-  pointer-events: none;
-  user-select: none;
-}
-
-.portrait-scroll-spike__pattern-wash,
-.portrait-scroll-spike__star-wash {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  will-change: opacity;
-}
-
-.portrait-scroll-spike__pattern-motion {
-  z-index: 0;
-  /* The background is the camera. Only the renderer's flower geometry turns. */
-  transform: none;
-}
-
-.portrait-scroll-spike__pattern-image {
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.portrait-scroll-spike__pattern-wash {
-  z-index: 3;
-  background: var(--portrait-pattern-wash-background);
-}
-
 .portrait-scroll-spike__toolbar-edge {
   position: absolute;
   right: 0;
@@ -297,54 +129,6 @@ html[data-portrait-spike="b"] .static-content {
   backface-visibility: hidden;
 }
 
-.portrait-scroll-spike__toolbar-edge--pattern {
-  z-index: 3;
-  overflow: hidden;
-  background: transparent;
-  mask-image: linear-gradient(
-    180deg,
-    transparent 0,
-    #000 var(--portrait-toolbar-feather-height),
-    #000 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    180deg,
-    transparent 0,
-    #000 var(--portrait-toolbar-feather-height),
-    #000 100%
-  );
-}
-
-.portrait-scroll-spike__toolbar-edge--pattern::before {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: var(--portrait-stage-height);
-  background-color: #d9c08f;
-  background-image: var(--portrait-pattern-edge-backdrop);
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-}
-
-.portrait-scroll-spike__toolbar-edge--aod {
-  z-index: 6;
-  background: var(--portrait-aod-bottom-mist-background);
-}
-
-.portrait-scroll-spike__pattern-bloom {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  user-select: none;
-}
-
 .portrait-scroll-spike__stage > .r4-ink-transition-canvas.portrait-scroll-spike__ink {
   position: absolute;
   z-index: 8;
@@ -355,192 +139,6 @@ html[data-portrait-spike="b"] .static-content {
   visibility: visible;
   opacity: 1;
   pointer-events: none;
-}
-
-.portrait-scroll-spike__pattern-copy {
-  position: absolute;
-  z-index: 4;
-  left: max(24px, env(safe-area-inset-left));
-  right: max(24px, env(safe-area-inset-right));
-  bottom: max(48px, calc(env(safe-area-inset-bottom) + 30px));
-  text-shadow: 0 1px 0 rgba(247, 232, 190, .42);
-  will-change: transform, opacity;
-}
-
-.portrait-scroll-spike__pattern-copy p:first-child,
-.portrait-scroll-spike__method-bridge-content > span {
-  margin: 0 0 12px;
-  color: #715b2e;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .14em;
-}
-
-.portrait-scroll-spike__pattern-copy h2,
-.portrait-scroll-spike__star-copy h2,
-.portrait-scroll-spike__reading-intro h2 {
-  margin: 0;
-  font-family: var(--font-traditional);
-  font-weight: 600;
-}
-
-.portrait-scroll-spike__pattern-copy h2 {
-  max-width: 10em;
-  font-size: clamp(34px, 9vw, 48px);
-  line-height: 1.17;
-}
-
-.portrait-scroll-spike__pattern-copy p:last-child {
-  width: min(31em, 88vw);
-  margin: 18px 0 0;
-  color: rgba(33, 23, 19, .82);
-  font-size: 16px;
-  line-height: 1.75;
-}
-
-.portrait-scroll-spike__star-motion {
-  z-index: 0;
-  transform: none;
-}
-
-.portrait-scroll-spike__star-perlin {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  transform: none;
-  opacity: .88;
-  filter: saturate(.98) contrast(1.04) brightness(.92);
-  will-change: transform, opacity;
-}
-
-.portrait-scroll-spike__star-wash {
-  z-index: 1;
-  background:
-    linear-gradient(90deg, rgba(5, 8, 7, .40) 0%, rgba(5, 8, 7, .12) 42%, rgba(5, 8, 7, .38) 100%),
-    linear-gradient(180deg, rgba(5, 8, 7, .12) 0%, rgba(5, 8, 7, .04) 46%, rgba(5, 8, 7, .54) 100%);
-}
-
-.portrait-scroll-spike__star-copy {
-  position: absolute;
-  z-index: 3;
-  left: max(24px, env(safe-area-inset-left));
-  right: max(24px, env(safe-area-inset-right));
-  bottom: max(52px, calc(env(safe-area-inset-bottom) + 30px));
-  will-change: transform, opacity;
-}
-
-.portrait-scroll-spike__star-copy h2 {
-  color: rgba(247, 237, 215, .92);
-  font-size: clamp(33px, 9vw, 46px);
-  line-height: 1.16;
-}
-
-.portrait-scroll-spike__star-copy p {
-  width: min(31em, 88vw);
-  margin: 18px 0 0;
-  color: rgba(247, 237, 215, .76);
-  font-size: 16px;
-  line-height: 1.78;
-}
-
-.portrait-scroll-spike__reading {
-  position: relative;
-  padding: 0 0 max(72px, calc(env(safe-area-inset-bottom) + 44px));
-  background: #ede4d2;
-  color: #1e211c;
-}
-
-/*
- * The fixed Method bridge leaves normal flow while AOD owns the stage.
- * Reserve its eventual viewport-height slot so Method steps cannot sit under
- * the Safari toolbar exclusion area and leak through the AOD surface.
- */
-.portrait-scroll-spike__reading::before {
-  content: "";
-  display: block;
-  width: 100%;
-  height: 0;
-  background: #ede4d2;
-}
-
-.portrait-scroll-spike[data-portrait-stage-active="true"] .portrait-scroll-spike__reading::before {
-  height: var(--portrait-stage-height);
-}
-
-.portrait-scroll-spike__method-bridge-content,
-.portrait-scroll-spike__steps {
-  width: min(640px, 100%);
-  margin-inline: auto;
-}
-
-.portrait-scroll-spike__reading-intro {
-  will-change: transform, opacity;
-}
-
-.portrait-scroll-spike__method-bridge {
-  position: relative;
-  z-index: 1;
-  display: none;
-  flex-direction: column;
-  justify-content: center;
-  width: 100%;
-  min-height: var(--portrait-live-height);
-  margin: 0;
-  padding:
-    max(76px, calc(env(safe-area-inset-top) + 48px))
-    max(24px, env(safe-area-inset-right))
-    max(68px, calc(env(safe-area-inset-bottom) + 36px))
-    max(24px, env(safe-area-inset-left));
-  color: #1e211c;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  filter: blur(8px);
-  transform: translate3d(0, 30px, 0);
-  will-change: transform, opacity, filter;
-}
-
-.portrait-scroll-spike[data-portrait-stage-active="true"] .portrait-scroll-spike__method-bridge {
-  position: fixed;
-  z-index: 17;
-  inset: 0;
-}
-
-.portrait-scroll-spike[data-portrait-aod-method-visible="false"] .portrait-scroll-spike__method-bridge {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-}
-
-.portrait-scroll-spike__method-bridge-content > span {
-  display: block;
-}
-
-.portrait-scroll-spike__reading-intro h2 {
-  display: grid;
-  gap: .22em;
-  color: #20251f;
-  font-size: clamp(38px, 10.5vw, 56px);
-  line-height: 1.08;
-}
-
-.portrait-scroll-spike__reading-intro p {
-  margin: 22px 0 0;
-  color: rgba(30, 33, 28, .76);
-  font-size: 17px;
-  line-height: 1.8;
-}
-
-.portrait-scroll-spike__steps {
-  display: grid;
-  gap: 0;
-  width: min(640px, calc(100% - 48px));
-  margin-top: 0;
-  padding: 0;
-  list-style: none;
 }
 
 /*
@@ -566,48 +164,4 @@ html[data-portrait-spike="b"] .site-nav.has-scroll-edge-blur::before {
 html[data-portrait-spike="b"] .site-nav-track {
   padding-right: max(14px, env(safe-area-inset-right, 0px));
   padding-left: max(14px, env(safe-area-inset-left, 0px));
-}
-
-.portrait-scroll-spike__steps li {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  gap: 4px 16px;
-  padding: 24px 0;
-  border-top: 1px solid rgba(30, 33, 28, .15);
-  will-change: transform, opacity;
-}
-
-.portrait-scroll-spike__steps li > span {
-  grid-row: span 2;
-  color: #776735;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: .08em;
-}
-
-.portrait-scroll-spike__steps h3 {
-  margin: 0;
-  font-family: var(--font-traditional);
-  font-size: 25px;
-  line-height: 1.2;
-}
-
-.portrait-scroll-spike__steps p {
-  margin: 8px 0 0;
-  color: rgba(30, 33, 28, .74);
-  font-size: 16px;
-  line-height: 1.75;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__pattern-motion,
-  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__star-motion,
-  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__pattern-copy,
-  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__star-copy,
-  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__reading-intro,
-  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__steps li {
-    transform: none !important;
-    opacity: 1 !important;
-    visibility: inherit !important;
-  }
 }

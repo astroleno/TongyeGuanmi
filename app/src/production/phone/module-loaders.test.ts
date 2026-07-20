@@ -1,14 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
+  loadPhoneLoaderAdapter,
   loadPhoneSceneAdapter,
   loadPhoneTransitionAdapter,
   phoneSceneAdapterIds,
   phoneTransitionAdapterIds,
+  resolvedPhoneLoaderAdapter,
   resolvedPhoneSceneAdapter,
   resolvedPhoneTransitionAdapter
 } from './module-loaders';
 
 describe('phone presentation adapter registry', () => {
+  it('loads Loader as the first formal front-half presentation adapter', async () => {
+    const loader = await loadPhoneLoaderAdapter();
+    expect(loader.id).toBe('loader');
+    expect(resolvedPhoneLoaderAdapter()).toBe(loader);
+  });
+
   it('loads and resolves every registered scene with matching identity', async () => {
     const modules = await Promise.all(phoneSceneAdapterIds.map(loadPhoneSceneAdapter));
     expect(modules.map(({ id }) => id)).toEqual(phoneSceneAdapterIds);

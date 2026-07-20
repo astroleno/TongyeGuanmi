@@ -6,17 +6,24 @@ export function loadDesktopStoryShell() {
 }
 
 /**
- * Start the initial Hero and its adjacent handoff beside the phone shell. The
- * shell import still resolves if either adapter chunk fails, so its Loader can
- * reveal the static document fallback instead of leaving Suspense pending.
+ * Load the selected phone front-half adapter group beside its thin shell.
+ * These chunks remain absent from desktop startup. The shell still resolves
+ * after an adapter failure so Loader can release the static document fallback.
  */
 export async function loadPhoneStoryShell() {
   const [shell] = await Promise.all([
     import('./phone/PhoneStoryShell'),
     import('./phone/module-loaders')
-      .then(({ loadPhoneSceneAdapter, loadPhoneTransitionAdapter }) => Promise.all([
-        loadPhoneSceneAdapter('hero'),
-        loadPhoneTransitionAdapter('hero-pattern')
+      .then(({
+        loadPhoneLoaderAdapter,
+        loadPhoneSceneAdapter,
+        loadPhoneTransitionAdapter,
+        phoneSceneAdapterIds,
+        phoneTransitionAdapterIds
+      }) => Promise.all([
+        loadPhoneLoaderAdapter(),
+        ...phoneSceneAdapterIds.map(loadPhoneSceneAdapter),
+        ...phoneTransitionAdapterIds.map(loadPhoneTransitionAdapter)
       ]))
       .catch(() => undefined)
   ]);

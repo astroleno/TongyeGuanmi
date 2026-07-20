@@ -4,13 +4,18 @@ import {
 } from './adapter-groups/front-half';
 import type {
   PhoneAodAdapterComponent,
+  PhoneLoaderAdapterModule,
+  PhoneMethodAdapterComponent,
   PhoneSceneAdapterId,
   PhoneSceneAdapterComponent,
   PhoneSceneAdapterModule,
+  PhoneStarMapAdapterComponent,
   PhoneTransitionAdapterId,
   PhoneTransitionAdapterModule
 } from './types';
 
+let loaderCache: Promise<PhoneLoaderAdapterModule> | undefined;
+let resolvedLoaderCache: PhoneLoaderAdapterModule | undefined;
 const sceneCache = new Map<PhoneSceneAdapterId, Promise<PhoneSceneAdapterModule>>();
 const resolvedSceneCache = new Map<PhoneSceneAdapterId, PhoneSceneAdapterModule>();
 const transitionCache = new Map<PhoneTransitionAdapterId, Promise<PhoneTransitionAdapterModule>>();
@@ -21,6 +26,13 @@ const resolvedTransitionCache = new Map<
 
 export const phoneSceneAdapterIds = frontHalfPhoneSceneIds;
 export const phoneTransitionAdapterIds = frontHalfPhoneTransitionIds;
+
+function importPhoneLoaderAdapter(): Promise<PhoneLoaderAdapterModule> {
+  return import('./scenes/PhoneLoader').then(({ PhoneLoader: Component }) => ({
+    id: 'loader',
+    Component
+  }));
+}
 
 function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAdapterModule> {
   switch (id) {
@@ -37,17 +49,21 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
     case 'star-map':
       return import('./scenes/PhoneStarMap').then(({ PhoneStarMap: Component }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: Component as unknown as PhoneStarMapAdapterComponent
       }));
     case 'aod-animation':
-      return import('./scenes/PhoneAod').then(({ PhoneAod: Component }) => ({
+      return import('./scenes/PhoneAod').then(({
+        PhoneAod: Component,
+        PHONE_AOD_ALPHA_END_PROGRESS: aodAlphaEndProgress
+      }) => ({
         id,
-        Component: Component as unknown as PhoneAodAdapterComponent
+        Component: Component as unknown as PhoneAodAdapterComponent,
+        aodAlphaEndProgress
       }));
     case 'method-top':
       return import('./scenes/PhoneMethodTop').then(({ PhoneMethodTop: Component }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: Component as unknown as PhoneMethodAdapterComponent
       }));
   }
 }
@@ -80,6 +96,23 @@ export function loadPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSce
   return promise;
 }
 
+export function loadPhoneLoaderAdapter(): Promise<PhoneLoaderAdapterModule> {
+  if (loaderCache) return loaderCache;
+  const promise = importPhoneLoaderAdapter().then((adapter) => {
+    resolvedLoaderCache = adapter;
+    return adapter;
+  });
+  loaderCache = promise;
+  void promise.catch(() => {
+    if (loaderCache === promise) loaderCache = undefined;
+  });
+  return promise;
+}
+
+export function resolvedPhoneLoaderAdapter(): PhoneLoaderAdapterModule | undefined {
+  return resolvedLoaderCache;
+}
+
 export function resolvedPhoneSceneAdapter(
   id: PhoneSceneAdapterId
 ): PhoneSceneAdapterModule | undefined {
@@ -108,8 +141,13 @@ export function resolvedPhoneTransitionAdapter(
 }
 
 export function loadedPhoneAdapters(): Readonly<{
+  loader: boolean;
   scenes: readonly PhoneSceneAdapterId[];
   transitions: readonly PhoneTransitionAdapterId[];
 }> {
-  return { scenes: [...sceneCache.keys()], transitions: [...transitionCache.keys()] };
+  return {
+    loader: Boolean(loaderCache),
+    scenes: [...sceneCache.keys()],
+    transitions: [...transitionCache.keys()]
+  };
 }

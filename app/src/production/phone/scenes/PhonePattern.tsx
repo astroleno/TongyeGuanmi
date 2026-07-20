@@ -1,10 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import {
-  PatternBloomRenderer
-} from '../../../scenes/pattern/patternBloomRenderer';
+import { PatternBloomRenderer } from '../../../scenes/pattern/patternBloomRenderer';
 import { BELIEF_COPY } from '../../../story/copy';
 import { phoneMediaUrlFor } from '../phone-media';
-import type { PhoneSceneAdapterHandle, PhoneSceneAdapterProps } from '../types';
+import type {
+  PhonePatternAdapterProps,
+  PhoneSceneAdapterHandle
+} from '../types';
 import './PhonePattern.css';
 
 const PATTERN_CENTER = Object.freeze({ x: 0.5, y: 0.28 });
@@ -14,8 +15,24 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-export const PhonePattern = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProps>(function PhonePattern(
-  { active, reducedMotion, onReady },
+export function phonePatternFrame(rawProgress: number): Readonly<{
+  progress: number;
+  copyProgress: number;
+  copyY: number;
+  washOpacity: number;
+}> {
+  const progress = clamp(rawProgress);
+  const copyProgress = clamp(progress / 0.78);
+  return {
+    progress,
+    copyProgress,
+    copyY: 44 * (1 - copyProgress),
+    washOpacity: 0.54 + progress * 0.4
+  };
+}
+
+export const PhonePattern = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdapterProps>(function PhonePattern(
+  { active, reducedMotion, motionDriver, onReady },
   forwardedRef
 ) {
   const rootRef = useRef<HTMLElement | null>(null);
@@ -39,58 +56,95 @@ export const PhonePattern = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapte
       centerForViewport: () => PATTERN_CENTER
     });
     rendererRef.current = renderer;
-    canvas.dataset.phonePatternRenderer = 'loading';
-    canvas.dataset.phonePatternCenter = '50%,28%';
+    canvas.dataset.portraitPatternRenderer = 'loading';
+    canvas.dataset.portraitPatternCenter = '50%,28%';
     void renderer.start().then(async () => {
       if (disposed) return;
       renderer.setFrameProgress(progressRef.current, progressRef.current);
       renderer.setRenderActive(activeRef.current && !reducedMotion, activeRef.current && !reducedMotion);
       await renderer.prepareStaticFrame();
       if (!disposed) {
-        canvas.dataset.phonePatternRenderer = 'ready';
+        canvas.dataset.portraitPatternRenderer = 'ready';
         onReady?.();
       }
     }).catch(() => {
-      if (!disposed) canvas.dataset.phonePatternRenderer = 'failed';
+      if (!disposed) canvas.dataset.portraitPatternRenderer = 'failed';
     });
     return () => {
       disposed = true;
       renderer.destroy();
       if (rendererRef.current === renderer) rendererRef.current = undefined;
-      delete canvas.dataset.phonePatternRenderer;
-      delete canvas.dataset.phonePatternCenter;
+      delete canvas.dataset.portraitPatternRenderer;
+      delete canvas.dataset.portraitPatternCenter;
     };
   }, [onReady, reducedMotion]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
     update(rawProgress) {
-      const progress = clamp(rawProgress);
+      const frame = phonePatternFrame(rawProgress);
+      const { progress } = frame;
       progressRef.current = progress;
       rendererRef.current?.setFrameProgress(progress, progress);
-      const copyProgress = clamp(progress / 0.78);
       if (copyRef.current) {
-        copyRef.current.style.transform = `translate3d(0, ${(44 * (1 - copyProgress)).toFixed(2)}px, 0)`;
-        copyRef.current.style.opacity = String(copyProgress);
+        motionDriver.set(copyRef.current, {
+          y: frame.copyY,
+          opacity: frame.copyProgress
+        });
       }
-      if (washRef.current) washRef.current.style.opacity = String(0.54 + progress * 0.4);
+      if (washRef.current) {
+        motionDriver.set(washRef.current, { opacity: frame.washOpacity });
+      }
     },
-    enter() { rendererRef.current?.setRenderActive(!reducedMotion, !reducedMotion); },
-    leave() { rendererRef.current?.setRenderActive(false, false); },
-    reverse() { rendererRef.current?.setRenderActive(!reducedMotion, !reducedMotion); },
-    dispose() { rendererRef.current?.destroy(); }
-  }), [reducedMotion]);
+    enter() {
+      activeRef.current = true;
+      rendererRef.current?.setRenderActive(!reducedMotion, !reducedMotion);
+    },
+    leave() {
+      activeRef.current = false;
+      rendererRef.current?.setRenderActive(false, false);
+    },
+    reverse() {
+      activeRef.current = true;
+      rendererRef.current?.setRenderActive(!reducedMotion, !reducedMotion);
+    },
+    dispose() {
+      activeRef.current = false;
+      rendererRef.current?.destroy();
+    }
+  }), [motionDriver, reducedMotion]);
 
   return (
-    <section ref={rootRef} className="phone-scene phone-scene--pattern" aria-labelledby="phone-pattern-title">
-      <div className="phone-pattern__motion" aria-hidden="true">
-        <img className="phone-pattern__image" src={PATTERN_BACKGROUND_IMAGE} alt="" />
+    <section
+      ref={rootRef}
+      className="portrait-scroll-spike__scene portrait-scroll-spike__scene--pattern"
+      aria-labelledby="portrait-spike-pattern-title"
+    >
+      <div className="portrait-scroll-spike__pattern-motion" aria-hidden="true">
+        <img
+          className="portrait-scroll-spike__pattern-image"
+          src={PATTERN_BACKGROUND_IMAGE}
+          alt=""
+        />
       </div>
-      <canvas ref={canvasRef} className="phone-pattern__bloom" aria-hidden="true" />
-      <div ref={washRef} className="phone-pattern__wash" aria-hidden="true" />
-      <div ref={copyRef} className="phone-pattern__copy">
+      <canvas
+        ref={canvasRef}
+        className="portrait-scroll-spike__pattern-bloom"
+        data-portrait-pattern-bloom
+        aria-hidden="true"
+      />
+      <div
+        ref={washRef}
+        className="portrait-scroll-spike__pattern-wash"
+        aria-hidden="true"
+      />
+      <div
+        className="portrait-scroll-spike__toolbar-edge portrait-scroll-spike__toolbar-edge--pattern"
+        aria-hidden="true"
+      />
+      <div ref={copyRef} className="portrait-scroll-spike__pattern-copy">
         <p>{BELIEF_COPY[0]}</p>
-        <h2 id="phone-pattern-title">{BELIEF_COPY[1]}</h2>
+        <h2 id="portrait-spike-pattern-title">{BELIEF_COPY[1]}</h2>
         <p>{BELIEF_COPY[2]}</p>
       </div>
     </section>

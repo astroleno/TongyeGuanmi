@@ -1,8 +1,164 @@
-.phone-pattern__motion { position: absolute; z-index: 0; inset: 0; pointer-events: none; }
-.phone-pattern__image { position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-width: none; object-fit: cover; }
-.phone-pattern__bloom { position: absolute; z-index: 2; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
-.phone-pattern__wash { position: absolute; z-index: 3; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%), linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18)); }
-.phone-pattern__copy { position: absolute; z-index: 4; left: max(24px, env(safe-area-inset-left)); right: max(24px, env(safe-area-inset-right)); bottom: max(48px, calc(env(safe-area-inset-bottom) + 30px)); text-shadow: 0 1px 0 rgba(247, 232, 190, .42); will-change: transform, opacity; }
-.phone-pattern__copy p:first-child { margin: 0 0 12px; color: #715b2e; font-size: 12px; font-weight: 700; letter-spacing: .14em; }
-.phone-pattern__copy h2 { max-width: 10em; margin: 0; font-family: var(--font-traditional); font-size: clamp(34px, 9vw, 48px); font-weight: 600; line-height: 1.17; }
-.phone-pattern__copy p:last-child { width: min(31em, 88vw); margin: 18px 0 0; color: rgba(33, 23, 19, .82); font-size: 16px; line-height: 1.75; }
+html[data-portrait-spike="b"] {
+  --portrait-pattern-edge-backdrop:
+    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .07), rgba(217, 192, 143, .12) 35%, rgba(35, 24, 20, .26) 100%),
+    linear-gradient(180deg, rgba(246, 229, 188, .10), rgba(31, 21, 17, .13)),
+    url("../../../../../assets/pattern-background.webp");
+}
+
+/*
+ * The root canvas is the only layer Safari can expose while its own toolbar
+ * moves asynchronously. Pattern therefore uses a native, viewport-fixed
+ * replica here instead of a JS-following DOM mirror.
+ */
+html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"],
+html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] body,
+html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] #root {
+  background-color: #d9c08f;
+  background-image: var(--portrait-pattern-edge-backdrop);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+.portrait-scroll-spike {
+  --portrait-pattern-wash-background:
+    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
+    linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="pattern"] {
+  background: transparent;
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__stage-rail {
+  background-color: #d9c08f;
+  background-image: var(--portrait-pattern-edge-backdrop);
+  background-position: center top;
+  background-repeat: repeat-y;
+  background-size: auto var(--portrait-stage-height);
+}
+
+.portrait-scroll-spike__scene--pattern {
+  background: #d9c08f;
+  color: #211713;
+}
+
+.portrait-scroll-spike__pattern-motion {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  transform: none;
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__pattern-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+
+.portrait-scroll-spike__pattern-wash {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  background: var(--portrait-pattern-wash-background);
+  will-change: opacity;
+}
+
+.portrait-scroll-spike__toolbar-edge--pattern {
+  z-index: 3;
+  overflow: hidden;
+  background: transparent;
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 var(--portrait-toolbar-feather-height),
+    #000 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    #000 var(--portrait-toolbar-feather-height),
+    #000 100%
+  );
+}
+
+.portrait-scroll-spike__toolbar-edge--pattern::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--portrait-stage-height);
+  background-color: #d9c08f;
+  background-image: var(--portrait-pattern-edge-backdrop);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.portrait-scroll-spike__pattern-bloom {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.portrait-scroll-spike__pattern-copy {
+  position: absolute;
+  z-index: 4;
+  left: max(24px, env(safe-area-inset-left));
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(48px, calc(env(safe-area-inset-bottom) + 30px));
+  text-shadow: 0 1px 0 rgba(247, 232, 190, .42);
+  will-change: transform, opacity;
+}
+
+.portrait-scroll-spike__pattern-copy p:first-child {
+  margin: 0 0 12px;
+  color: #715b2e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .14em;
+}
+
+.portrait-scroll-spike__pattern-copy h2 {
+  max-width: 10em;
+  margin: 0;
+  font-family: var(--font-traditional);
+  font-size: clamp(34px, 9vw, 48px);
+  font-weight: 600;
+  line-height: 1.17;
+}
+
+.portrait-scroll-spike__pattern-copy p:last-child {
+  width: min(31em, 88vw);
+  margin: 18px 0 0;
+  color: rgba(33, 23, 19, .82);
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__pattern-motion,
+  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__pattern-copy {
+    transform: none !important;
+    opacity: 1 !important;
+    visibility: inherit !important;
+  }
+}

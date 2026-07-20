@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const PHONE_SHELL = '[data-phone-validation-mode="v20"]';
+const PHONE_SHELL = '[data-phone-validation-mode="v21"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -18,7 +18,7 @@ async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   }, progress);
 }
 
-test('v20 Route B publishes the active phone checkpoint trace in both directions', async ({
+test('v21 Route B publishes the active phone checkpoint trace in both directions', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -27,18 +27,26 @@ test('v20 Route B publishes the active phone checkpoint trace in both directions
   const presentationRequests: string[] = [];
   page.on('response', (response) => {
     const path = new URL(response.url()).pathname;
-    if (/\/(?:DesktopStoryShell|Phone(?:StoryShell|Hero|Pattern|StarMap|Aod|MethodTop)|hero-pattern|pattern-star-map|star-map-aod|aod-method-top)-/.test(path)) {
+    if (/\/(?:DesktopStoryShell|Phone(?:StoryShell|Loader|Hero|Pattern|StarMap|Aod|MethodTop)|hero-pattern|pattern-star-map|star-map-aod|aod-method-top)-/.test(path)) {
       presentationRequests.push(path);
     }
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=20', { waitUntil: 'domcontentloaded' });
+  await page.goto('/?v=21', { waitUntil: 'domcontentloaded' });
 
   const shell = page.locator(PHONE_SHELL);
   const loader = page.locator('[data-story-loader="true"]');
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'loader');
   await expect(loader).toBeHidden({ timeout: 10_000 });
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'hero-entered');
+  await expect(shell).toHaveAttribute('data-phone-aod-alpha-end', '0.55');
+  await expect(page.locator('.portrait-scroll-spike__scene--hero')).toHaveCount(1);
+  await expect(page.locator('.portrait-scroll-spike__scene--pattern')).toHaveCount(1);
+  await expect(page.locator('.portrait-scroll-spike__scene--star')).toHaveCount(1);
+  await expect(page.locator('.portrait-scroll-spike__scene--aod')).toHaveCount(1);
+  await expect(page.locator('#method.portrait-scroll-spike__reading')).toHaveCount(1);
+  await expect(page.locator('[data-aod-figure-video]')).toHaveCount(1);
+  await expect(page.locator('[data-aod-figure-canvas]')).toHaveCount(1);
   const hero = page.locator('.portrait-scroll-spike__scene--hero');
   await expect(hero).toHaveAttribute('data-portrait-hero-title-active', 'true', {
     timeout: 5_000
@@ -49,6 +57,11 @@ test('v20 Route B publishes the active phone checkpoint trace in both directions
   await expect(page.locator('[data-portrait-figure-canvas]')).toHaveAttribute(
     'data-packed-alpha-frame-ready',
     'true',
+    { timeout: 10_000 }
+  );
+  await expect(page.locator('[data-portrait-pattern-bloom]')).toHaveAttribute(
+    'data-portrait-pattern-renderer',
+    'ready',
     { timeout: 10_000 }
   );
 
@@ -72,6 +85,21 @@ test('v20 Route B publishes the active phone checkpoint trace in both directions
       await expect(heroPatternInk).toHaveAttribute(
         'data-phone-ink-progress',
         /^0\.(?!0000)\d{4}$/
+      );
+    } else if (checkpoint === 'pattern-to-star-map') {
+      await expect(page.locator('[data-portrait-ink="pattern-star"]')).toHaveAttribute(
+        'data-r4-ink-segment',
+        'portrait-pattern-star-ink'
+      );
+    } else if (checkpoint === 'star-map-reading') {
+      await expect(page.locator('[data-portrait-star-perlin]')).toHaveAttribute(
+        'data-portrait-star-perlin',
+        'ready'
+      );
+    } else if (checkpoint === 'star-map-to-aod') {
+      await expect(page.locator('[data-portrait-ink="star-aod"]')).toHaveAttribute(
+        'data-r4-ink-segment',
+        'portrait-star-aod-ink'
       );
     }
   }
@@ -124,12 +152,25 @@ test('v20 Route B publishes the active phone checkpoint trace in both directions
     traceIndex = trace.indexOf(checkpoint, traceIndex + 1);
     expect(traceIndex, `missing ${checkpoint} after trace index ${traceIndex}`).toBeGreaterThan(-1);
   }
-  expect(presentationRequests.some((path) => path.includes('/PhoneStoryShell-'))).toBe(true);
-  expect(presentationRequests.some((path) => path.includes('/PhoneHero-'))).toBe(true);
-  expect(presentationRequests.some((path) => path.includes('/hero-pattern-'))).toBe(true);
-  expect(presentationRequests).not.toEqual(expect.arrayContaining([
-    expect.stringMatching(/\/DesktopStoryShell-/),
-    expect.stringMatching(/\/Phone(?:Pattern|StarMap|Aod|MethodTop)-/),
-    expect.stringMatching(/\/(?:pattern-star-map|star-map-aod|aod-method-top)-/)
-  ]));
+  for (const chunk of [
+    'PhoneStoryShell',
+    'PhoneLoader',
+    'PhoneHero',
+    'PhonePattern',
+    'PhoneStarMap',
+    'PhoneAod',
+    'PhoneMethodTop',
+    'hero-pattern',
+    'pattern-star-map',
+    'star-map-aod',
+    'aod-method-top'
+  ]) {
+    expect(
+      presentationRequests.some((path) => path.includes(`/${chunk}-`)),
+      `missing selected phone chunk ${chunk}`
+    ).toBe(true);
+  }
+  expect(
+    presentationRequests.some((path) => path.includes('/DesktopStoryShell-'))
+  ).toBe(false);
 });

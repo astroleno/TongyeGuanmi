@@ -15,69 +15,32 @@ const sourceExtensions = new Set(['.ts', '.tsx']);
 const phoneShellPath = path.join(phoneDir, 'PhoneStoryShell.tsx');
 const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
 
-/**
- * The restored Route B baseline still carries these known Unit 3 ownership
- * debts. This is a ratchet, not a permanent allow-list: remove each entry in
- * the same commit that moves its responsibility into an adapter. New entries
- * are architecture regressions and must never be added to make a build pass.
- */
+/** Unit 3 final boundary: the shell owns geometry, never scene presentation. */
 export const phoneShellDebt = Object.freeze({
-  maxLines: 1413,
-  sceneImports: new Set([
-    '../../scenes/aod-animation',
-    '../../scenes/pattern/patternBloomRenderer',
-    '../../scenes/star-map/starFieldReveal'
-  ]),
-  transitionImports: new Set([
-    '../../transitions/shared/inkOwnership',
-    '../../transitions/shared/radialInkIntro'
-  ]),
-  mediaImports: new Set([
-    '../../media/packed-alpha-video'
-  ]),
+  maxLines: 413,
+  sceneImports: new Set(),
+  transitionImports: new Set(),
+  mediaImports: new Set(),
   shellZoneImports: new Set([
-    'PhoneStoryShell.tsx::../../media/packed-alpha-video',
-    'PhoneStoryShell.tsx::../../scenes/aod-animation',
-    'PhoneStoryShell.tsx::../../scenes/pattern/patternBloomRenderer',
-    'PhoneStoryShell.tsx::../../scenes/star-map/starFieldReveal',
-    'PhoneStoryShell.tsx::../../transitions/shared/inkOwnership',
     'aod-autoplay.ts::../../media/packed-alpha-video',
     'aod-autoplay.ts::../../scenes/aod-animation/progress',
     'phone-ink.ts::../../transitions/shared/inkField',
     'phone-ink.ts::../../transitions/shared/inkOwnership',
     'phone-ink.ts::../../transitions/shared/sceneInk'
   ]),
-  sceneRoots: new Set(['pattern', 'star', 'aod']),
-  mediaKeys: new Set([
-    'aod-figure-packed-forward',
-    'aod-figure-packed-reverse',
-    'star-map-source'
-  ]),
+  sceneRoots: new Set(),
+  mediaKeys: new Set(),
   progressConstants: new Set([
-    'AOD_AUTOPLAY_START',
-    'HERO_MOTION_END',
-    'HERO_PATTERN_END',
-    'PATTERN_MOTION_END',
-    'PATTERN_MOTION_START',
-    'PATTERN_STAR_END',
-    'PATTERN_STAR_START',
-    'STAR_AOD_END',
-    'STAR_AOD_START',
     'STAGE_SCROLL_VIEWPORTS'
   ])
 });
 
 export const phoneShellCssDebt = Object.freeze({
-  maxLines: 613,
-  assetUrls: new Set(['../../../../assets/pattern-background.webp']),
-  sceneRoots: new Set(['pattern', 'star', 'aod']),
+  maxLines: 167,
+  assetUrls: new Set(),
+  sceneRoots: new Set(),
   ownerTokens: new Set([
-    'method',
-    'pattern',
-    'reading',
-    'scene',
     'stage',
-    'star',
     'toolbar'
   ])
 });

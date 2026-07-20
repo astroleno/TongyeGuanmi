@@ -1,362 +1,639 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useRef, type RefObject } from 'react';
+import { useGSAP } from '@gsap/react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
-import { createPhoneScrollSnapLock, type PhoneScrollSnapLock } from './phone-scroll-snap-lock';
+import type { SceneId } from '../../story/types';
+import { clearPhoneInkBoundary } from './phone-ink';
+import { createPhoneScrollSnapLock } from './phone-scroll-snap-lock';
 import {
   PHONE_STAGE_STOPS,
   phoneAodCheckpointForMethodProgress,
   phoneAodCompletionCheckpoint,
-  phoneStageFrame,
-  type PhoneStageFrame
+  phoneStageFrame
 } from './phone-stage-timeline';
 import type {
   PhoneAodAdapterHandle,
+  PhoneHeroAdapterHandle,
   PhoneSceneAdapterHandle,
-  PhoneStageSceneId,
   PhoneTransitionAdapterHandle
 } from './types';
 
-const STAGE_SCENES: readonly PhoneStageSceneId[] = ['hero', 'pattern', 'star-map', 'aod-animation'];
-
-gsap.registerPlugin(ScrollTrigger);
+gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 export function refreshPhoneScrollStage(): void {
   ScrollTrigger.refresh();
 }
 
-type SceneAdapterRefs = Readonly<Record<PhoneStageSceneId, RefObject<PhoneSceneAdapterHandle | null>>>;
-type TransitionAdapterRefs = Readonly<{
-  heroPattern: RefObject<PhoneTransitionAdapterHandle | null>;
-  patternStarMap: RefObject<PhoneTransitionAdapterHandle | null>;
-  starMapAod: RefObject<PhoneTransitionAdapterHandle | null>;
-}>;
+const PORTRAIT_SURFACE_DARK = '#07110e';
+const PORTRAIT_SURFACE_PATTERN = '#d9c08f';
+const PORTRAIT_SURFACE_STAR = '#06100d';
+const PORTRAIT_SURFACE_PAPER = '#ede4d2';
+
+type PortraitStageScene = 'hero' | 'pattern' | 'star' | 'aod';
+type PortraitAodRunState = 'idle' | 'forward' | 'complete' | 'reverse';
+
+type FullscreenElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
+
+function requestPortraitFullscreen(root: HTMLElement): void {
+  const target = root as FullscreenElement;
+  const request = target.requestFullscreen?.bind(target)
+    ?? target.webkitRequestFullscreen?.bind(target);
+  if (!request) {
+    root.dataset.portraitFullscreen = 'unavailable';
+    return;
+  }
+  root.dataset.portraitFullscreen = 'requesting';
+  void Promise.resolve(request()).then(
+    () => {
+      root.dataset.portraitFullscreen = 'active';
+    },
+    () => {
+      root.dataset.portraitFullscreen = 'unavailable';
+    }
+  );
+}
 
 export type PhoneStageRuntimeOptions = Readonly<{
   rootRef: RefObject<HTMLElement | null>;
   railRef: RefObject<HTMLElement | null>;
   stageRef: RefObject<HTMLElement | null>;
-  sceneRefs: SceneAdapterRefs;
+  heroRef: RefObject<PhoneHeroAdapterHandle | null>;
+  patternRef: RefObject<PhoneSceneAdapterHandle | null>;
+  starMapRef: RefObject<PhoneSceneAdapterHandle | null>;
   aodRef: RefObject<PhoneAodAdapterHandle | null>;
   methodRef: RefObject<PhoneSceneAdapterHandle | null>;
-  transitionRefs: TransitionAdapterRefs;
+  heroPatternRef: RefObject<PhoneTransitionAdapterHandle | null>;
+  patternStarMapRef: RefObject<PhoneTransitionAdapterHandle | null>;
+  starMapAodRef: RefObject<PhoneTransitionAdapterHandle | null>;
   enabled: boolean;
   reducedMotion: boolean;
   adapterRevision: number;
-  mapAodToMethod: (progress: number) => number;
-  onCheckpoint?(checkpoint: FrontHalfCheckpointId): void;
+  aodAlphaEndProgress: number;
+  mapAodToMethod(progress: number): number;
+  onCheckpoint(checkpoint: FrontHalfCheckpointId): void;
+  onNavigationScene(scene: SceneId): void;
 }>;
 
 export type PhoneStageRuntime = Readonly<{
-  stageActive: boolean;
-  aodRun: 'idle' | 'forward' | 'complete' | 'reverse';
   onAodProgress(progress: number, direction: 1 | -1): void;
   onAodComplete(direction: 1 | -1): void;
 }>;
 
-function setSceneVisibility(element: HTMLElement | null, visible: boolean, zIndex: number): void {
-  if (!element) return;
-  element.style.visibility = visible ? 'visible' : 'hidden';
-  element.style.zIndex = String(zIndex);
-  element.setAttribute('aria-hidden', visible ? 'false' : 'true');
-}
-
-function aodReverseStartTolerance(start: number, end: number): number {
-  // The media lock is intentionally just before the rail endpoint. Accept a
-  // real reverse gesture from that anchor, but ignore a small toolbar-only
-  // ScrollTrigger normalization delta.
-  return Math.max(32, Math.abs(end - start) * 0.02);
-}
-
-function phoneRailAnchor(start: number, end: number, progress: number): number {
-  return start + (end - start) * progress;
-}
-
 /**
- * Owns native rail sampling and generic adapter lifecycle calls. It has no
- * scene markup or asset URL knowledge; individual adapters remain the media
- * and canvas owners.
+ * Exact Route B coordinator moved out of the shell. It owns rail sampling,
+ * scene stacking, document surfaces, and AOD snap semantics while every
+ * visual/media mutation is delegated to its mounted adapter owner.
  */
-export function usePhoneStageRuntime(options: PhoneStageRuntimeOptions): PhoneStageRuntime {
-  const [stageActive, setStageActive] = useState(true);
-  const [aodRun, setAodRun] = useState<'idle' | 'forward' | 'complete' | 'reverse'>('idle');
-  const aodRunRef = useRef(aodRun);
-  const aodProgressRef = useRef(0);
-  const stageStartRef = useRef(0);
-  const stageEndRef = useRef(1);
-  const ownershipRef = useRef('');
-  const activeScenesRef = useRef(new Set<PhoneStageSceneId>());
-  const snapLockRef = useRef<PhoneScrollSnapLock | undefined>(undefined);
-  const lastFrameProgressRef = useRef(Number.NaN);
-  const checkpointRef = useRef<FrontHalfCheckpointId | undefined>(undefined);
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+export function usePhoneStageRuntime(
+  options: PhoneStageRuntimeOptions
+): PhoneStageRuntime {
+  const progressHandlerRef = useRef<
+    ((progress: number, direction: 1 | -1) => void) | undefined
+  >(undefined);
+  const completeHandlerRef = useRef<
+    ((direction: 1 | -1) => void) | undefined
+  >(undefined);
 
-  const setAodRunState = useCallback((next: 'idle' | 'forward' | 'complete' | 'reverse') => {
-    aodRunRef.current = next;
-    setAodRun(next);
-    const root = optionsRef.current.rootRef.current;
-    if (root) root.dataset.phoneAodRun = next;
+  const onAodProgress = useCallback((progress: number, direction: 1 | -1) => {
+    progressHandlerRef.current?.(progress, direction);
+  }, []);
+  const onAodComplete = useCallback((direction: 1 | -1) => {
+    completeHandlerRef.current?.(direction);
   }, []);
 
-  const publishStageActive = useCallback((next: boolean) => {
-    const root = optionsRef.current.rootRef.current;
-    if (!root) return;
-    if (!next && (aodRunRef.current === 'forward' || aodRunRef.current === 'reverse')) {
-      root.dataset.phoneStageBoundary = 'held-by-aod';
-      root.dataset.phoneStageActive = 'true';
+  useGSAP(() => {
+    if (!options.enabled) return;
+    const root = options.rootRef.current;
+    const stageRail = options.railRef.current;
+    const stage = options.stageRef.current;
+    const heroAdapter = options.heroRef.current;
+    const patternAdapter = options.patternRef.current;
+    const starAdapter = options.starMapRef.current;
+    const aodAdapter = options.aodRef.current;
+    const methodAdapter = options.methodRef.current;
+    const heroPatternAdapter = options.heroPatternRef.current;
+    const patternStarAdapter = options.patternStarMapRef.current;
+    const starAodAdapter = options.starMapAodRef.current;
+    const heroScene = heroAdapter?.root();
+    const patternScene = patternAdapter?.root();
+    const starScene = starAdapter?.root();
+    const aodScene = aodAdapter?.root();
+    if (
+      !root
+      || !stageRail
+      || !stage
+      || !heroAdapter
+      || !patternAdapter
+      || !starAdapter
+      || !aodAdapter
+      || !methodAdapter
+      || !heroPatternAdapter
+      || !patternStarAdapter
+      || !starAodAdapter
+      || !heroScene
+      || !patternScene
+      || !starScene
+      || !aodScene
+    ) {
       return;
     }
-    delete root.dataset.phoneStageBoundary;
-    root.dataset.phoneStageActive = String(next);
-    setStageActive(next);
-  }, []);
 
-  const publishCheckpoint = useCallback((checkpoint: FrontHalfCheckpointId) => {
-    const current = optionsRef.current;
-    const root = current.rootRef.current;
-    if (!root) return;
-    root.dataset.phoneCheckpoint = checkpoint;
-    if (checkpointRef.current !== checkpoint) {
-      checkpointRef.current = checkpoint;
-      current.onCheckpoint?.(checkpoint);
-    }
-  }, []);
-
-  const applyFrame = useCallback((frame: PhoneStageFrame) => {
-    const current = optionsRef.current;
-    const root = current.rootRef.current;
-    if (!root) return;
-    const ownership = frame.ownership;
-    const changed = ownershipRef.current !== ownership.key;
-    ownershipRef.current = ownership.key;
-    const visible = new Set(ownership.visible);
-    for (const scene of STAGE_SCENES) {
-      const adapter = current.sceneRefs[scene].current;
-      const isVisible = visible.has(scene);
-      const stackIndex = ownership.stack.indexOf(scene);
-      setSceneVisibility(adapter?.root() ?? null, isVisible, stackIndex >= 0 ? ownership.stack.length + 1 - stackIndex : 0);
-      if (changed && isVisible && !activeScenesRef.current.has(scene)) adapter?.enter?.();
-      if (changed && !isVisible && activeScenesRef.current.has(scene)) adapter?.leave?.();
-    }
-    if (changed) {
-      activeScenesRef.current = visible;
-      root.dataset.phoneStageOwner = ownership.key;
-    }
-    root.dataset.phoneStageProgress = frame.progress.toFixed(4);
-    // Once AOD has completed, document-flow Method owns the semantic position.
-    // A rail refresh at its endpoint must not overwrite it with AOD autoplay.
-    if (aodRunRef.current === 'idle') publishCheckpoint(frame.checkpoint);
-    root.dataset.phoneDocumentSurface = frame.navigationScene;
-    document.documentElement.dataset.phoneDocumentSurface = frame.navigationScene;
-    current.sceneRefs.hero.current?.update(frame.heroProgress);
-    current.sceneRefs.pattern.current?.update(frame.patternProgress);
-    current.sceneRefs['star-map'].current?.update(frame.starProgress);
-    if (aodRunRef.current === 'idle' || aodRunRef.current === 'complete') {
-      current.aodRef.current?.update(aodProgressRef.current);
-    }
-    current.transitionRefs.heroPattern.current?.render(frame.heroPatternProgress);
-    current.transitionRefs.patternStarMap.current?.render(frame.patternStarProgress);
-    current.transitionRefs.starMapAod.current?.render(frame.starAodProgress);
-  }, [publishCheckpoint]);
-
-  const beginAodForward = useCallback(() => {
-    const current = optionsRef.current;
-    if (aodRunRef.current !== 'idle') return;
-    const aod = current.aodRef.current;
-    if (!aod) return;
-    current.methodRef.current?.update(0);
-    setAodRunState('forward');
-    publishStageActive(true);
-    const anchor = phoneRailAnchor(
-      stageStartRef.current,
-      stageEndRef.current,
-      PHONE_STAGE_STOPS.aodAutoplayStart
-    );
-    snapLockRef.current?.lock(anchor);
-    aod.startAutoplay(1);
-  }, [publishStageActive, setAodRunState]);
-
-  const beginAodReverse = useCallback((anchor = window.scrollY) => {
-    const current = optionsRef.current;
-    if (aodRunRef.current !== 'complete') return;
-    const aod = current.aodRef.current;
-    if (!aod) return;
-    setAodRunState('reverse');
-    publishStageActive(true);
-    publishCheckpoint(phoneAodCheckpointForMethodProgress(1));
-    snapLockRef.current?.lock(anchor);
-    aod.startAutoplay(-1);
-  }, [publishCheckpoint, publishStageActive, setAodRunState]);
-
-  const onAodProgress = useCallback((progress: number) => {
-    const current = optionsRef.current;
-    aodProgressRef.current = Math.min(1, Math.max(0, progress));
-    const methodProgress = current.mapAodToMethod(aodProgressRef.current);
-    current.methodRef.current?.update(methodProgress);
-    const root = current.rootRef.current;
-    if (root) root.dataset.phoneAodMethodVisible = String(methodProgress > 0.001);
-    if (aodRunRef.current === 'forward' || aodRunRef.current === 'reverse') {
-      publishCheckpoint(phoneAodCheckpointForMethodProgress(methodProgress));
-    }
-  }, [publishCheckpoint]);
-
-  const onAodComplete = useCallback((direction: 1 | -1) => {
-    if (direction === 1) {
-      setAodRunState('complete');
-      publishStageActive(false);
-    } else {
-      setAodRunState('idle');
-      optionsRef.current.methodRef.current?.update(0);
-      snapLockRef.current?.lock(phoneRailAnchor(
-        stageStartRef.current,
-        stageEndRef.current,
-        PHONE_STAGE_STOPS.starAodEnd
-      ));
-    }
-    publishCheckpoint(phoneAodCompletionCheckpoint(direction));
-    snapLockRef.current?.release();
-  }, [publishCheckpoint, publishStageActive, setAodRunState]);
-
-  useEffect(() => {
-    const root = options.rootRef.current;
-    if (!root || !options.enabled) return;
-    const lock = createPhoneScrollSnapLock({
+    const motionEnabled = !options.reducedMotion;
+    let active = true;
+    let currentOwnership = '';
+    let heroActive = false;
+    let patternActive = false;
+    let starActive = false;
+    let aodRunState: PortraitAodRunState = 'idle';
+    let aodProgress = 0;
+    let lastStageProgress = Number.NaN;
+    let stageScrollStart = 0;
+    let stageScrollEnd = 1;
+    let reverseGesturePointerId: number | null = null;
+    let reverseGestureStartY = 0;
+    const aodScrollSnap = createPhoneScrollSnapLock({
       root,
       getScrollY: () => window.scrollY,
-      scrollTo: (top) => window.scrollTo({ top, left: 0, behavior: 'auto' })
+      scrollTo: (y) => window.scrollTo({ top: y, left: 0, behavior: 'auto' })
     });
-    snapLockRef.current = lock;
-    root.dataset.phoneStagePin = 'native-fixed';
-    root.dataset.phoneStageActive = 'true';
-    root.dataset.phoneAodRun = 'idle';
-    root.dataset.phoneAodMethodVisible = 'false';
-    return () => {
-      lock.dispose();
-      if (snapLockRef.current === lock) snapLockRef.current = undefined;
-      delete root.dataset.phoneStagePin;
-      delete root.dataset.phoneStageActive;
-      delete root.dataset.phoneStageOwner;
-      delete root.dataset.phoneStageProgress;
-      delete root.dataset.phoneCheckpoint;
-      delete root.dataset.phoneAodRun;
-      delete root.dataset.phoneAodMethodVisible;
-      delete root.dataset.phoneStageBoundary;
-      delete root.dataset.phoneDocumentSurface;
-      delete document.documentElement.dataset.phoneDocumentSurface;
-    };
-  }, [options.enabled, options.rootRef]);
+    const documentElement = document.documentElement;
+    const themeColorMeta = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]'
+    );
+    const previousDocumentSurface = documentElement.style.getPropertyValue(
+      '--portrait-document-surface'
+    );
+    const previousDocumentEdgeScene = documentElement.dataset.portraitEdgeScene;
+    const previousThemeColor = themeColorMeta?.content;
+    let currentDocumentSurface = '';
+    let currentNavigationScene: SceneId = 'hero';
 
-  useEffect(() => {
-    const root = options.rootRef.current;
-    const rail = options.railRef.current;
-    if (!root || !rail || !options.enabled) return;
-    let reversePointer: number | null = null;
-    let reverseStartY = 0;
-    const onPointerDown = (event: PointerEvent) => {
-      const interactive = event.target instanceof Element
-        && Boolean(event.target.closest('a, button, input, select, textarea, [role="button"]'));
+    root.dataset.portraitSpikeMotionState = motionEnabled ? 'running' : 'reduced';
+    root.dataset.portraitStagePin = 'native-fixed-composite';
+    root.dataset.portraitStageActive = 'true';
+    root.dataset.portraitAodRun = aodRunState;
+    root.dataset.portraitAodMethodVisible = 'false';
+    ScrollTrigger.config({ ignoreMobileResize: true });
+
+    const setDocumentSurface = (surface: string) => {
+      if (currentDocumentSurface === surface) return;
+      currentDocumentSurface = surface;
+      documentElement.style.setProperty('--portrait-document-surface', surface);
+      root.style.setProperty('--portrait-edge-surface', surface);
+      root.dataset.portraitEdgeSurface = surface;
+      const edgeScene = surface === PORTRAIT_SURFACE_PATTERN
+        ? 'pattern'
+        : surface === PORTRAIT_SURFACE_STAR
+          ? 'star'
+          : surface === PORTRAIT_SURFACE_PAPER
+            ? 'aod'
+            : 'hero';
+      root.dataset.portraitEdgeScene = edgeScene;
+      documentElement.dataset.portraitEdgeScene = edgeScene;
+      if (themeColorMeta) themeColorMeta.content = surface;
+    };
+
+    const setCurrentNavigationScene = (scene: SceneId) => {
+      if (currentNavigationScene === scene) return;
+      currentNavigationScene = scene;
+      options.onNavigationScene(scene);
+    };
+
+    const setStageActive = (stageActive: boolean) => {
       if (
-        event.pointerType === 'touch'
-        && !interactive
-        && aodRunRef.current === 'complete'
-        && Math.abs(window.scrollY - stageEndRef.current)
-          <= aodReverseStartTolerance(stageStartRef.current, stageEndRef.current)
+        !stageActive
+        && (aodRunState === 'forward' || aodRunState === 'reverse')
       ) {
-        reversePointer = event.pointerId;
-        reverseStartY = event.clientY;
+        root.dataset.portraitStageActive = 'true';
+        root.dataset.portraitStageBoundary = 'held-by-aod';
+        return;
+      }
+      delete root.dataset.portraitStageBoundary;
+      root.dataset.portraitStageActive = String(stageActive);
+      if (!stageActive) setCurrentNavigationScene('method-top');
+    };
+
+    const scenes: Record<PortraitStageScene, HTMLElement> = {
+      hero: heroScene,
+      pattern: patternScene,
+      star: starScene,
+      aod: aodScene
+    };
+    const sceneEntries = Object.entries(scenes) as [
+      PortraitStageScene,
+      HTMLElement
+    ][];
+
+    const setSceneVisibility = (
+      scene: PortraitStageScene,
+      visible: boolean,
+      zIndex: number
+    ) => {
+      const element = scenes[scene];
+      clearPhoneInkBoundary(element);
+      element.style.visibility = visible ? 'visible' : 'hidden';
+      element.style.zIndex = String(zIndex);
+      element.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    };
+
+    const setOwnership = (
+      key: string,
+      visible: readonly PortraitStageScene[],
+      stack: readonly PortraitStageScene[]
+    ) => {
+      const ownershipChanged = currentOwnership !== key;
+      currentOwnership = key;
+      const visibleSet = new Set(visible);
+      for (const [scene] of sceneEntries) {
+        const stackIndex = stack.indexOf(scene);
+        setSceneVisibility(
+          scene,
+          visibleSet.has(scene),
+          stackIndex >= 0 ? stack.length + 1 - stackIndex : 0
+        );
+      }
+      if (ownershipChanged) root.dataset.portraitStageOwner = key;
+    };
+
+    const setAodHoldOwnership = (progress: number, phase: string) => {
+      const alphaTransparent = progress < options.aodAlphaEndProgress;
+      aodScene.dataset.portraitAodAlpha = alphaTransparent
+        ? 'transparent'
+        : 'opaque';
+      setOwnership(
+        `hold-aod-${phase}-${alphaTransparent ? 'alpha' : 'opaque'}`,
+        ['aod'],
+        ['aod']
+      );
+    };
+
+    const setHeroFigureActive = (nextActive: boolean) => {
+      if (heroActive === nextActive) return;
+      heroActive = nextActive;
+      if (nextActive) heroAdapter.enter?.();
+      else heroAdapter.leave?.();
+    };
+    const setPatternActive = (nextActive: boolean) => {
+      if (patternActive === nextActive) return;
+      patternActive = nextActive;
+      if (nextActive) patternAdapter.enter?.();
+      else patternAdapter.leave?.();
+    };
+    const setStarVisible = (nextVisible: boolean) => {
+      if (starActive === nextVisible) return;
+      starActive = nextVisible;
+      if (nextVisible) starAdapter.enter?.();
+      else starAdapter.leave?.();
+    };
+
+    const renderMethodBridge = (progress: number) => {
+      methodAdapter.update(progress);
+    };
+
+    const renderAodFrame = (rawProgress: number) => {
+      const progress = Math.min(1, Math.max(0, rawProgress));
+      aodProgress = progress;
+      const methodProgress = options.mapAodToMethod(progress);
+      renderMethodBridge(methodProgress);
+      if (aodRunState === 'forward' || aodRunState === 'reverse') {
+        options.onCheckpoint(
+          phoneAodCheckpointForMethodProgress(methodProgress)
+        );
+      }
+      if (
+        aodRunState !== 'idle'
+        || (Number.isFinite(lastStageProgress)
+          && lastStageProgress >= PHONE_STAGE_STOPS.starAodEnd)
+      ) {
+        setDocumentSurface(PORTRAIT_SURFACE_PAPER);
+        setAodHoldOwnership(progress, aodRunState);
       }
     };
-    const onPointerMove = (event: PointerEvent) => {
-      if (reversePointer !== event.pointerId || event.clientY - reverseStartY < 10) return;
-      reversePointer = null;
-      beginAodReverse(Math.max(stageStartRef.current, stageEndRef.current - 1));
+    progressHandlerRef.current = renderAodFrame;
+
+    const beginAodForward = () => {
+      if (aodRunState !== 'idle') return;
+      renderMethodBridge(0);
+      aodRunState = 'forward';
+      root.dataset.portraitAodRun = aodRunState;
+      options.onCheckpoint('aod-autoplay');
+      setStageActive(true);
+      const anchorY = stageScrollStart
+        + (stageScrollEnd - stageScrollStart)
+          * PHONE_STAGE_STOPS.aodAutoplayStart;
+      aodScrollSnap.lock(anchorY);
+      aodAdapter.startAutoplay(1);
     };
-    const clearPointer = (event: PointerEvent) => {
-      if (reversePointer === event.pointerId) reversePointer = null;
+
+    const beginAodReverse = (anchorY = window.scrollY) => {
+      if (aodRunState !== 'complete') return;
+      aodRunState = 'reverse';
+      root.dataset.portraitAodRun = aodRunState;
+      options.onCheckpoint(phoneAodCheckpointForMethodProgress(
+        options.mapAodToMethod(aodProgress)
+      ));
+      setStageActive(true);
+      aodScrollSnap.lock(anchorY);
+      aodAdapter.startAutoplay(-1);
     };
-    root.addEventListener('pointerdown', onPointerDown, { passive: true });
-    root.addEventListener('pointermove', onPointerMove, { passive: true });
-    root.addEventListener('pointerup', clearPointer, { passive: true });
-    root.addEventListener('pointercancel', clearPointer, { passive: true });
-    ScrollTrigger.config({ ignoreMobileResize: true });
-    const trigger = ScrollTrigger.create({
-      id: 'phone-story-stage',
-      trigger: rail,
-      start: 'top top',
-      end: 'bottom top',
-      invalidateOnRefresh: true,
-      onUpdate: (self) => {
-        stageStartRef.current = self.start;
-        stageEndRef.current = self.end;
-        const frame = phoneStageFrame(self.progress, optionsRef.current.reducedMotion);
-        const previous = lastFrameProgressRef.current;
-        lastFrameProgressRef.current = frame.progress;
-        applyFrame(frame);
-        if (
-          !optionsRef.current.reducedMotion
-          && self.direction > 0
-          && previous < 0.985
-          && frame.shouldStartAodAutoplay
-        ) {
-          beginAodForward();
-        }
-        if (
-          !optionsRef.current.reducedMotion
-          && self.direction < 0
-          && aodRunRef.current === 'complete'
-          && window.scrollY < stageEndRef.current
-            - aodReverseStartTolerance(stageStartRef.current, stageEndRef.current)
-        ) beginAodReverse();
-      },
-      onRefresh: (self) => {
-        stageStartRef.current = self.start;
-        stageEndRef.current = self.end;
-        applyFrame(phoneStageFrame(self.progress, optionsRef.current.reducedMotion));
-        publishStageActive(
-          aodRunRef.current !== 'complete'
-            && (self.progress < 1 || aodRunRef.current === 'forward' || aodRunRef.current === 'reverse')
+
+    const completeAodRun = (direction: 1 | -1) => {
+      aodRunState = direction === 1 ? 'complete' : 'idle';
+      root.dataset.portraitAodRun = aodRunState;
+      options.onCheckpoint(phoneAodCompletionCheckpoint(direction));
+      aodScrollSnap.release();
+    };
+    completeHandlerRef.current = completeAodRun;
+
+    const retryHeroFigureFromGesture = () => {
+      heroAdapter.unlockFromGesture();
+      if (aodRunState === 'forward' || aodRunState === 'reverse') {
+        aodAdapter.startAutoplay(aodRunState === 'forward' ? 1 : -1);
+      }
+    };
+    const pointerTargetIsPermissionButton = (event: Event) => (
+      event.target instanceof Element
+      && Boolean(event.target.closest('[data-portrait-gyro-permission]'))
+    );
+    const pointerTargetIsInteractive = (event: Event) => (
+      event.target instanceof Element
+      && Boolean(event.target.closest(
+        'a, button, input, select, textarea, [role="button"]'
+      ))
+    );
+    const onHeroPointerDown = (event: PointerEvent) => {
+      if (!pointerTargetIsPermissionButton(event)) {
+        retryHeroFigureFromGesture();
+      }
+      if (
+        event.pointerType === 'touch'
+        && aodRunState === 'complete'
+        && !pointerTargetIsInteractive(event)
+        && Math.abs(window.scrollY - stageScrollEnd) <= 32
+      ) {
+        reverseGesturePointerId = event.pointerId;
+        reverseGestureStartY = event.clientY;
+      } else {
+        reverseGesturePointerId = null;
+      }
+    };
+    const onHeroPointerMove = (event: PointerEvent) => {
+      if (
+        reverseGesturePointerId !== event.pointerId
+        || event.clientY - reverseGestureStartY < 10
+      ) {
+        return;
+      }
+      reverseGesturePointerId = null;
+      beginAodReverse(Math.max(stageScrollStart, stageScrollEnd - 1));
+    };
+    const clearReverseGesture = (event: PointerEvent) => {
+      if (reverseGesturePointerId === event.pointerId) {
+        reverseGesturePointerId = null;
+      }
+    };
+    const onHeroClick = (event: Event) => {
+      retryHeroFigureFromGesture();
+      if (pointerTargetIsPermissionButton(event)) {
+        requestPortraitFullscreen(root);
+      }
+    };
+    root.addEventListener('pointerdown', onHeroPointerDown, { passive: true });
+    root.addEventListener('pointermove', onHeroPointerMove, { passive: true });
+    root.addEventListener('pointerup', clearReverseGesture, { passive: true });
+    root.addEventListener('pointercancel', clearReverseGesture, { passive: true });
+    root.addEventListener('click', onHeroClick);
+
+    if (motionEnabled) aodAdapter.resetAutoplay();
+
+    const renderStage = (rawProgress: number, triggerDirection = 0) => {
+      const progress = Math.min(1, Math.max(0, rawProgress));
+      const previousStageProgress = lastStageProgress;
+      const movingBackward = triggerDirection < 0
+        || (Number.isFinite(previousStageProgress)
+          && progress < previousStageProgress);
+      const movingForward = triggerDirection > 0
+        || (Number.isFinite(previousStageProgress)
+          && progress > previousStageProgress);
+      lastStageProgress = progress;
+      if (
+        progress > 0.003
+        && root.dataset.portraitHeroEntrance !== 'complete'
+      ) {
+        heroAdapter.completeEntrance();
+      }
+      const frame = phoneStageFrame(progress, options.reducedMotion);
+      setCurrentNavigationScene(frame.navigationScene);
+
+      if (motionEnabled && movingBackward && aodRunState === 'complete') {
+        beginAodReverse();
+      } else if (
+        motionEnabled
+        && movingForward
+        && aodRunState === 'idle'
+        && frame.shouldStartAodAutoplay
+      ) {
+        beginAodForward();
+      }
+      if (
+        motionEnabled
+        && movingBackward
+        && aodRunState === 'idle'
+        && previousStageProgress >= PHONE_STAGE_STOPS.starAodEnd
+        && progress < PHONE_STAGE_STOPS.starAodEnd
+      ) {
+        aodAdapter.resetAutoplay();
+      }
+
+      root.dataset.portraitStageProgress = progress.toFixed(4);
+      if (aodRunState === 'idle') options.onCheckpoint(frame.checkpoint);
+      if (progress < PHONE_STAGE_STOPS.heroPatternEnd) {
+        setDocumentSurface(PORTRAIT_SURFACE_DARK);
+      } else if (progress < PHONE_STAGE_STOPS.patternStarEnd) {
+        setDocumentSurface(PORTRAIT_SURFACE_PATTERN);
+      } else if (progress < PHONE_STAGE_STOPS.starAodEnd) {
+        setDocumentSurface(PORTRAIT_SURFACE_STAR);
+      } else {
+        setDocumentSurface(PORTRAIT_SURFACE_PAPER);
+      }
+      setHeroFigureActive(
+        motionEnabled && progress < PHONE_STAGE_STOPS.heroPatternEnd
+      );
+      setPatternActive(
+        motionEnabled
+        && progress >= PHONE_STAGE_STOPS.heroMotionEnd - 0.015
+        && progress < PHONE_STAGE_STOPS.patternStarEnd + 0.015
+      );
+      setStarVisible(
+        motionEnabled
+        && progress >= PHONE_STAGE_STOPS.patternStarStart - 0.015
+        && progress < PHONE_STAGE_STOPS.starAodEnd + 0.015
+      );
+      heroAdapter.update(frame.heroProgress);
+      patternAdapter.update(frame.patternProgress);
+      starAdapter.update(frame.starProgress);
+
+      if (!motionEnabled) {
+        setOwnership(
+          frame.ownership.key,
+          frame.ownership.visible.map((scene) => (
+            scene === 'star-map'
+              ? 'star'
+              : scene === 'aod-animation'
+                ? 'aod'
+                : scene
+          )),
+          frame.ownership.stack.map((scene) => (
+            scene === 'star-map'
+              ? 'star'
+              : scene === 'aod-animation'
+                ? 'aod'
+                : scene
+          ))
         );
+        if (progress >= PHONE_STAGE_STOPS.starAodEnd) aodAdapter.update(1);
+        return;
+      }
+
+      if (aodRunState === 'forward' || aodRunState === 'reverse') {
+        heroPatternAdapter.render(1);
+        patternStarAdapter.render(1);
+        starAodAdapter.render(1);
+        setAodHoldOwnership(aodProgress, aodRunState);
+        return;
+      }
+
+      const visible = frame.ownership.visible.map((scene) => (
+        scene === 'star-map'
+          ? 'star'
+          : scene === 'aod-animation'
+            ? 'aod'
+            : scene
+      ));
+      const stack = frame.ownership.stack.map((scene) => (
+        scene === 'star-map'
+          ? 'star'
+          : scene === 'aod-animation'
+            ? 'aod'
+            : scene
+      ));
+      setOwnership(frame.ownership.key, visible, stack);
+      heroPatternAdapter.render(frame.heroPatternProgress);
+      patternStarAdapter.render(frame.patternStarProgress);
+      starAodAdapter.render(frame.starAodProgress);
+      if (progress >= PHONE_STAGE_STOPS.starAodEnd) {
+        setAodHoldOwnership(aodProgress, aodRunState);
+      }
+    };
+
+    const refresh = () => {
+      if (active) ScrollTrigger.refresh();
+    };
+    const refreshFrame = window.requestAnimationFrame(refresh);
+    void document.fonts?.ready.then(refresh).catch(() => undefined);
+    window.addEventListener('load', refresh, { once: true });
+
+    const updateStageFromTrigger = (self: ScrollTrigger) => {
+      stageScrollStart = self.start;
+      stageScrollEnd = self.end;
+      renderStage(self.progress, self.direction);
+    };
+    const stageTrigger = ScrollTrigger.create({
+      id: 'portrait-spike-stage',
+      trigger: stageRail,
+      start: 'top top',
+      end: () => `+=${Math.max(
+        1,
+        stageRail.offsetHeight - stage.offsetHeight
+      )}`,
+      invalidateOnRefresh: true,
+      onUpdate: updateStageFromTrigger,
+      onRefresh: (self) => {
+        updateStageFromTrigger(self);
+        setStageActive(self.progress < 1);
       },
-      onEnter: () => {
-        if (aodRunRef.current !== 'complete') publishStageActive(true);
-      },
-      onEnterBack: () => {
-        if (aodRunRef.current !== 'complete') publishStageActive(true);
-      },
-      onLeave: () => publishStageActive(false)
+      onEnter: () => setStageActive(true),
+      onEnterBack: () => setStageActive(true),
+      onLeave: () => setStageActive(false)
     });
-    applyFrame(phoneStageFrame(trigger.progress, options.reducedMotion));
-    const refresh = window.requestAnimationFrame(() => ScrollTrigger.refresh());
+
+    renderStage(stageTrigger.progress);
+    if (motionEnabled && stageTrigger.progress <= 0.003) {
+      heroAdapter.startEntrance();
+    } else {
+      heroAdapter.completeEntrance();
+    }
+
     return () => {
-      window.cancelAnimationFrame(refresh);
-      trigger.kill();
-      root.removeEventListener('pointerdown', onPointerDown);
-      root.removeEventListener('pointermove', onPointerMove);
-      root.removeEventListener('pointerup', clearPointer);
-      root.removeEventListener('pointercancel', clearPointer);
-      for (const scene of STAGE_SCENES) options.sceneRefs[scene].current?.leave?.();
-      options.aodRef.current?.resetAutoplay();
-      // Transition canvases are owned by their mounted React adapters. This
-      // runtime intentionally restarts while lazy scene bindings arrive; if it
-      // disposed those adapters here, a still-mounted transition would retain
-      // its imperative handle after its canvas had been removed.
+      active = false;
+      if (progressHandlerRef.current === renderAodFrame) {
+        progressHandlerRef.current = undefined;
+      }
+      if (completeHandlerRef.current === completeAodRun) {
+        completeHandlerRef.current = undefined;
+      }
+      heroAdapter.cancelEntrance();
+      window.cancelAnimationFrame(refreshFrame);
+      window.removeEventListener('load', refresh);
+      root.removeEventListener('pointerdown', onHeroPointerDown);
+      root.removeEventListener('pointermove', onHeroPointerMove);
+      root.removeEventListener('pointerup', clearReverseGesture);
+      root.removeEventListener('pointercancel', clearReverseGesture);
+      root.removeEventListener('click', onHeroClick);
+      stageTrigger.kill();
+      setHeroFigureActive(false);
+      setPatternActive(false);
+      setStarVisible(false);
+      aodRunState = 'idle';
+      aodScrollSnap.dispose();
+      aodAdapter.resetAutoplay();
+      delete root.dataset.portraitSpikeMotionState;
+      delete root.dataset.portraitStagePin;
+      delete root.dataset.portraitStageActive;
+      delete root.dataset.portraitStageOwner;
+      delete root.dataset.portraitStageProgress;
+      delete root.dataset.portraitMethodEntrance;
+      delete root.dataset.portraitAodRun;
+      delete root.dataset.portraitAodMethodVisible;
+      delete root.dataset.portraitStageBoundary;
+      delete root.dataset.portraitHeroEntrance;
+      delete root.dataset.portraitHeroTextEntrance;
+      delete root.dataset.portraitEdgeSurface;
+      delete root.dataset.portraitEdgeScene;
+      delete aodScene.dataset.portraitAodAlpha;
+      root.style.removeProperty('--portrait-edge-surface');
+      if (previousDocumentSurface) {
+        documentElement.style.setProperty(
+          '--portrait-document-surface',
+          previousDocumentSurface
+        );
+      } else {
+        documentElement.style.removeProperty('--portrait-document-surface');
+      }
+      if (previousDocumentEdgeScene) {
+        documentElement.dataset.portraitEdgeScene = previousDocumentEdgeScene;
+      } else {
+        delete documentElement.dataset.portraitEdgeScene;
+      }
+      if (themeColorMeta && previousThemeColor) {
+        themeColorMeta.content = previousThemeColor;
+      }
       ScrollTrigger.config({ ignoreMobileResize: false });
     };
-  }, [
-    applyFrame,
-    beginAodForward,
-    beginAodReverse,
-    options.adapterRevision,
-    options.aodRef,
-    options.enabled,
-    options.railRef,
-    options.reducedMotion,
-    options.rootRef,
-    options.sceneRefs,
-    options.transitionRefs,
-    publishStageActive
-  ]);
+  }, {
+    scope: options.rootRef,
+    dependencies: [
+      options.adapterRevision,
+      options.aodAlphaEndProgress,
+      options.enabled,
+      options.mapAodToMethod,
+      options.reducedMotion
+    ],
+    revertOnUpdate: true
+  });
 
-  return { stageActive, aodRun, onAodProgress, onAodComplete };
+  return { onAodProgress, onAodComplete };
 }

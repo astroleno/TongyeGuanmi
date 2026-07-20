@@ -1,4 +1,12 @@
-import type { ForwardRefExoticComponent, RefAttributes } from 'react';
+import type {
+  ComponentType,
+  ForwardRefExoticComponent,
+  RefAttributes
+} from 'react';
+import type {
+  StoryLoaderExitReason,
+  StoryLoaderMode
+} from '../StoryLoader';
 import type {
   ScenePresentationAdapterHandle,
   TransitionPresentationAdapterHandle
@@ -15,13 +23,14 @@ export type PhoneTransitionAdapterId =
 
 export type PhoneSceneAdapterHandle = ScenePresentationAdapterHandle;
 
-export type PhoneHeroMotionDriver = Readonly<{
+export type PhoneMotionDriver = Readonly<{
   set(target: HTMLElement, vars: Readonly<Record<string, string | number>>): void;
   quickTo(
     target: HTMLElement,
     property: 'x' | 'y',
     vars: Readonly<{ duration: number; ease: string }>
   ): (value: number) => void;
+  revealReadingSteps(target: HTMLOListElement): () => void;
 }>;
 
 export type PhoneHeroAdapterHandle = PhoneSceneAdapterHandle & {
@@ -45,7 +54,11 @@ export type PhoneSceneAdapterProps = Readonly<{
 }>;
 
 export type PhoneHeroAdapterProps = PhoneSceneAdapterProps & Readonly<{
-  motionDriver: PhoneHeroMotionDriver;
+  motionDriver: PhoneMotionDriver;
+}>;
+
+export type PhonePatternAdapterProps = PhoneSceneAdapterProps & Readonly<{
+  motionDriver: PhoneMotionDriver;
 }>;
 
 export type PhoneSceneAdapterComponent = ForwardRefExoticComponent<
@@ -55,6 +68,13 @@ export type PhoneSceneAdapterComponent = ForwardRefExoticComponent<
 export type PhoneHeroAdapterComponent = ForwardRefExoticComponent<
   PhoneHeroAdapterProps & RefAttributes<PhoneHeroAdapterHandle>
 >;
+
+export type PhonePatternAdapterComponent = ForwardRefExoticComponent<
+  PhonePatternAdapterProps & RefAttributes<PhoneSceneAdapterHandle>
+>;
+
+export type PhoneStarMapAdapterComponent = PhonePatternAdapterComponent;
+export type PhoneMethodAdapterComponent = PhonePatternAdapterComponent;
 
 export type PhoneAodAdapterComponent = ForwardRefExoticComponent<
   PhoneSceneAdapterProps & RefAttributes<PhoneAodAdapterHandle>
@@ -74,9 +94,28 @@ export type PhoneTransitionAdapterComponent = ForwardRefExoticComponent<
   PhoneTransitionAdapterProps & RefAttributes<PhoneTransitionAdapterHandle>
 >;
 
+export type PhoneLoaderAdapterProps = Readonly<{
+  mode: StoryLoaderMode;
+  ready: boolean;
+  failed: boolean;
+  onHidden(reason: StoryLoaderExitReason): void;
+}>;
+
+export type PhoneLoaderAdapterComponent = ComponentType<PhoneLoaderAdapterProps>;
+
+export type PhoneLoaderAdapterModule = Readonly<{
+  id: 'loader';
+  Component: PhoneLoaderAdapterComponent;
+}>;
+
 export type PhoneSceneAdapterModule = Readonly<{
   id: PhoneSceneAdapterId;
-  Component: PhoneSceneAdapterComponent | PhoneAodAdapterComponent;
+  Component:
+    | PhoneSceneAdapterComponent
+    | PhoneAodAdapterComponent
+    | PhoneStarMapAdapterComponent
+    | PhoneMethodAdapterComponent;
+  aodAlphaEndProgress?: number;
 }>;
 
 export type PhoneTransitionAdapterModule = Readonly<{

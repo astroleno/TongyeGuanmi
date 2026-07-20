@@ -2,7 +2,10 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { initStarFieldReveal, type StarFieldCamera } from '../../../scenes/star-map/starFieldReveal';
 import { BELIEF_COPY, STAR_MAP_TITLE } from '../../../story/copy';
 import { phoneMediaUrlFor } from '../phone-media';
-import type { PhoneSceneAdapterHandle, PhoneSceneAdapterProps } from '../types';
+import type {
+  PhonePatternAdapterProps,
+  PhoneSceneAdapterHandle
+} from '../types';
 import './PhoneStarMap.css';
 
 const STAR_MAP_IMAGE = phoneMediaUrlFor('star-map-source', 'star-map');
@@ -13,8 +16,8 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProps>(function PhoneStarMap(
-  { active, reducedMotion, onReady },
+export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdapterProps>(function PhoneStarMap(
+  { active, reducedMotion, motionDriver, onReady },
   forwardedRef
 ) {
   const rootRef = useRef<HTMLElement | null>(null);
@@ -79,9 +82,9 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapte
       firstFramePainted = true;
       lastPaintedAt = now;
       revision += 1;
-      canvas.dataset.phoneStarPerlin = 'ready';
-      canvas.dataset.phoneStarCamera = 'rotate(-90deg) cover';
-      canvas.dataset.phoneStarPerlinRevision = String(revision);
+      canvas.dataset.portraitStarPerlin = 'ready';
+      canvas.dataset.portraitStarCamera = 'rotate(-90deg) cover';
+      canvas.dataset.portraitStarPerlinRevision = String(revision);
       return true;
     };
     const tick = (time: number) => {
@@ -110,7 +113,7 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapte
     const root = rootRef.current;
     const updateActive = (next: boolean) => {
       motionActive = next && !reducedMotion;
-      canvas.dataset.phoneStarPerlinActive = String(motionActive);
+      canvas.dataset.portraitStarPerlinActive = String(motionActive);
       if (!motionActive) {
         window.cancelAnimationFrame(liveFrame);
         liveFrame = 0;
@@ -119,7 +122,6 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapte
       }
     };
     if (root) {
-      root.dataset.phoneStarMotionActive = String(motionActive);
       (root as HTMLElement & { __phoneStarActive?: (next: boolean) => void }).__phoneStarActive = updateActive;
     }
     return () => {
@@ -127,10 +129,11 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapte
       window.cancelAnimationFrame(readyFrame);
       window.cancelAnimationFrame(liveFrame);
       reveal.dispose();
-      delete canvas.dataset.phoneStarPerlin;
-      delete canvas.dataset.phoneStarCamera;
-      delete canvas.dataset.phoneStarPerlinActive;
-      delete canvas.dataset.phoneStarPerlinRevision;
+      delete canvas.dataset.portraitStarPerlin;
+      delete canvas.dataset.portraitStarCamera;
+      delete canvas.dataset.portraitStarPerlinActive;
+      delete canvas.dataset.portraitStarPerlinRevision;
+      delete canvas.dataset.portraitStarPerlinProgress;
       if (root) delete (root as HTMLElement & { __phoneStarActive?: unknown }).__phoneStarActive;
     };
   }, [onReady, reducedMotion]);
@@ -145,10 +148,19 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapte
       update(rawProgress) {
         const progress = clamp(rawProgress);
         progressRef.current = progress;
-        if (washRef.current) washRef.current.style.opacity = String(progress);
+        if (canvasRef.current) {
+          canvasRef.current.dataset.portraitStarPerlinProgress = progress.toFixed(4);
+        }
+        const motion = rootRef.current?.querySelector<HTMLElement>(
+          '.portrait-scroll-spike__star-motion'
+        );
+        if (motion) motionDriver.set(motion, { scale: 1, yPercent: 0 });
+        if (washRef.current) motionDriver.set(washRef.current, { opacity: progress });
         if (copyRef.current) {
-          copyRef.current.style.transform = `translate3d(0, ${(18 * (1 - progress)).toFixed(2)}px, 0)`;
-          copyRef.current.style.opacity = String(progress);
+          motionDriver.set(copyRef.current, {
+            y: 18 * (1 - progress),
+            opacity: progress
+          });
         }
       },
       enter() { setActive(!reducedMotion); },
@@ -156,16 +168,25 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapte
       reverse() { setActive(!reducedMotion); },
       dispose() { setActive(false); }
     };
-  }, [reducedMotion]);
+  }, [motionDriver, reducedMotion]);
 
   return (
-    <section ref={rootRef} className="phone-scene phone-scene--star-map" aria-labelledby="phone-star-map-title">
-      <div className="phone-star-map__motion" aria-hidden="true">
-        <canvas ref={canvasRef} className="phone-star-map__perlin" aria-hidden="true" />
+    <section
+      ref={rootRef}
+      className="portrait-scroll-spike__scene portrait-scroll-spike__scene--star"
+      aria-labelledby="portrait-spike-star-title"
+    >
+      <div className="portrait-scroll-spike__star-motion" aria-hidden="true">
+        <canvas
+          ref={canvasRef}
+          className="portrait-scroll-spike__star-perlin"
+          data-portrait-star-perlin
+          aria-hidden="true"
+        />
       </div>
-      <div ref={washRef} className="phone-star-map__wash" aria-hidden="true" />
-      <div ref={copyRef} className="phone-star-map__copy">
-        <h2 id="phone-star-map-title">{STAR_MAP_TITLE}</h2>
+      <div ref={washRef} className="portrait-scroll-spike__star-wash" aria-hidden="true" />
+      <div ref={copyRef} className="portrait-scroll-spike__star-copy">
+        <h2 id="portrait-spike-star-title">{STAR_MAP_TITLE}</h2>
         <p>{BELIEF_COPY[3]}</p>
       </div>
     </section>

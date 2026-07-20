@@ -68,8 +68,8 @@ describe('homepage phone-shell debt ratchet', () => {
     expect(added).toContain('new shell-owned scene root is forbidden (figure2)');
 
     const migrated = shellSource.replace(
-      'portrait-scroll-spike__scene--pattern',
-      'phone-scene--pattern'
+      'portrait-scroll-spike__scene--star',
+      'phone-scene--star'
     );
     expect(violationsFor(migrated)).toEqual([]);
   });
@@ -91,10 +91,7 @@ describe('homepage phone-shell debt ratchet', () => {
         + `(ratchet ${phoneShellCssDebt.maxLines})`
     ]));
     expect(cssViolationsFor(
-      shellCssSource.replace(
-        'url("../../../../assets/pattern-background.webp")',
-        'url("../../../../assets/new-scene.webp")'
-      )
+      `${shellCssSource}\n.extra { background: url("../../../../assets/new-scene.webp"); }\n`
     )).toContain(
       'new shell-owned CSS asset URL is forbidden (../../../../assets/new-scene.webp)'
     );

@@ -4,7 +4,7 @@ import {
   driveTimelineVideo
 } from '../../../media/timeline-video-driver';
 import { setPackedAlphaVideoSource } from '../../../media/packed-alpha-video';
-import type { PhoneHeroMotionDriver } from '../types';
+import type { PhoneMotionDriver } from '../types';
 
 export const PHONE_FIGURE_DURATION_SECONDS = 2.042;
 /**
@@ -59,7 +59,7 @@ type OrientationBaseline = Readonly<{
 type PhoneDeviceParallaxOptions = Readonly<{
   root: HTMLElement;
   targets: readonly PhoneParallaxTarget[];
-  motionDriver: PhoneHeroMotionDriver;
+  motionDriver: PhoneMotionDriver;
   eventTarget?: Window;
 }>;
 

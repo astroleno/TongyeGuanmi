@@ -1,11 +1,82 @@
-.phone-scene--aod .aod-transition {
-  --aod-transition-scene-width: calc(var(--phone-stage-height) * 1.16);
-  --aod-transition-sun-width: calc(var(--phone-stage-height) * 1.00);
-  --aod-transition-cloud-width: calc(var(--phone-stage-height) * 1.16);
-  --phone-aod-figure-cover-scale: 1;
-  --phone-aod-figure-shift-y: 9dvh;
-  width: 100%; height: 100%; min-height: 0;
+.portrait-scroll-spike {
+  --portrait-aod-paper-wash-background:
+    radial-gradient(72% 42% at 50% 72%, rgba(247, 237, 215, .26), transparent 70%),
+    radial-gradient(54% 42% at 22% 88%, rgba(120, 99, 41, .12), transparent 72%),
+    linear-gradient(180deg, rgba(237, 228, 210, 0) 0 46%, rgba(237, 228, 210, .44) 76%, rgba(237, 228, 210, .92) 100%);
+  --portrait-aod-bottom-mist-background:
+    linear-gradient(180deg, rgba(237, 228, 210, 0) 0%, rgba(237, 228, 210, .76) 58%, #ede4d2 100%),
+    radial-gradient(78% 84% at 50% 100%, rgba(232, 213, 154, .22), transparent 72%);
+  --portrait-aod-paper-solid-background:
+    radial-gradient(76% 54% at 50% 12%, rgba(247, 237, 215, .30), transparent 72%),
+    linear-gradient(180deg, rgba(237, 228, 210, .88) 0%, #ede4d2 56%, #ede4d2 100%);
+  --portrait-aod-bottom-mist-height: clamp(250px, 38svh, 430px);
 }
-.phone-scene--aod .aod-transition__figure-video { filter: none; opacity: 0 !important; }
-.phone-scene--aod .aod-transition__figure-canvas { inset: auto; left: 50%; top: 50%; width: max(100%, calc(var(--phone-stage-height) * 1.45546)); height: auto; filter: none; transform: translate3d(-50%, calc(-50% + var(--phone-aod-figure-shift-y)), 0) scale(var(--phone-aod-figure-cover-scale)); }
-.phone-scene--aod .aod-transition__reveal-surface::after { height: clamp(250px, 38dvh, 430px); }
+
+.portrait-scroll-spike[data-portrait-edge-scene="aod"] .portrait-scroll-spike__stage-rail {
+  background-color: #ede4d2;
+  background-image: var(--portrait-aod-paper-solid-background);
+  background-position: center top;
+  background-repeat: repeat-y;
+  background-size: 100% var(--portrait-stage-height);
+}
+
+.portrait-scroll-spike__scene--aod {
+  background: #ede4d2;
+  color: #292919;
+}
+
+.portrait-scroll-spike__scene--aod .aod-transition {
+  /*
+   * The horizontal composition authors Cloud at 72vw and Sun at 62vw.
+   * On its 16:9 stage those equal 1.28h and 1.10h respectively. Expressing
+   * the portrait crop from height preserves that authored scene height.
+   */
+  --aod-transition-scene-width: calc(var(--portrait-stage-height) * 1.16);
+  --aod-transition-sun-width: calc(var(--portrait-stage-height) * 1.00);
+  --aod-transition-cloud-width: calc(var(--portrait-stage-height) * 1.16);
+  --portrait-aod-figure-cover-scale: 1;
+  --portrait-aod-figure-shift-y: 9dvh;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* The packed H.264 source is decoder-only; WebGL owns the visible alpha. */
+.portrait-scroll-spike__scene--aod .aod-transition__figure-video {
+  filter: none;
+  opacity: 0 !important;
+}
+
+.portrait-scroll-spike__scene--aod .aod-transition__figure-canvas {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: max(100%, calc(var(--portrait-stage-height) * 1.45546));
+  height: auto;
+  filter: none;
+  transform:
+    translate3d(
+      -50%,
+      calc(-50% + var(--portrait-aod-figure-shift-y)),
+      0
+    )
+    scale(var(--portrait-aod-figure-cover-scale));
+}
+
+.portrait-scroll-spike__scene--aod .aod-transition__reveal-surface::before {
+  background: var(--portrait-aod-paper-wash-background);
+}
+
+.portrait-scroll-spike__scene--aod .aod-transition__reveal-surface::after {
+  height: var(--portrait-aod-bottom-mist-height);
+  background: var(--portrait-aod-bottom-mist-background);
+}
+
+.portrait-scroll-spike__scene--aod .aod-transition__paper-solid {
+  background: var(--portrait-aod-paper-solid-background);
+}
+
+.portrait-scroll-spike__toolbar-edge--aod {
+  z-index: 6;
+  background: var(--portrait-aod-bottom-mist-background);
+}

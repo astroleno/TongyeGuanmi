@@ -5,6 +5,9 @@ import {
 } from './presentation-shell-loaders';
 import {
   loadedPhoneAdapters,
+  phoneSceneAdapterIds,
+  phoneTransitionAdapterIds,
+  resolvedPhoneLoaderAdapter,
   resolvedPhoneSceneAdapter,
   resolvedPhoneTransitionAdapter
 } from './phone/module-loaders';
@@ -17,10 +20,15 @@ describe('presentation shell loaders', () => {
     expect(loadedPhoneAdapters()).toEqual(before);
   });
 
-  it('preloads Hero and its adjacent handoff before publishing the phone shell', async () => {
+  it('preloads the complete Loader → Method adapter group before publishing the phone shell', async () => {
     const shell = await loadPhoneStoryShell();
     expect(shell.default).toBeTypeOf('function');
-    expect(resolvedPhoneSceneAdapter('hero')?.id).toBe('hero');
-    expect(resolvedPhoneTransitionAdapter('hero-pattern')?.id).toBe('hero-pattern');
+    expect(resolvedPhoneLoaderAdapter()?.id).toBe('loader');
+    for (const id of phoneSceneAdapterIds) {
+      expect(resolvedPhoneSceneAdapter(id)?.id).toBe(id);
+    }
+    for (const id of phoneTransitionAdapterIds) {
+      expect(resolvedPhoneTransitionAdapter(id)?.id).toBe(id);
+    }
   });
 });

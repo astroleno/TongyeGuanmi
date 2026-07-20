@@ -83,7 +83,7 @@ export function phoneStageFrame(rawProgress: number, reducedMotion = false): Pho
         progress, checkpoint: 'star-map-reading', navigationScene: 'star-map', heroProgress: 1,
         patternProgress: 1, starProgress: 1, heroPatternProgress: 1, patternStarProgress: 1,
         starAodProgress: 0, shouldStartAodAutoplay: false,
-        ownership: { key: 'hold-star-map', visible: ['star-map'], stack: ['star-map'] }
+        ownership: { key: 'hold-star', visible: ['star-map'], stack: ['star-map'] }
       };
     }
     return {
@@ -123,7 +123,7 @@ export function phoneStageFrame(rawProgress: number, reducedMotion = false): Pho
       progress, checkpoint: 'pattern-to-star-map', navigationScene: 'pattern', heroProgress: 1,
       patternProgress: 1, starProgress, heroPatternProgress: 1, patternStarProgress, starAodProgress: 0,
       shouldStartAodAutoplay: false,
-      ownership: { key: 'handoff-pattern-star-map', visible: ['pattern', 'star-map'], stack: ['star-map', 'pattern'] }
+      ownership: { key: 'handoff-pattern-star', visible: ['pattern', 'star-map'], stack: ['star-map', 'pattern'] }
     };
   }
   if (progress < stops.starAodStart) {
@@ -131,7 +131,7 @@ export function phoneStageFrame(rawProgress: number, reducedMotion = false): Pho
       progress, checkpoint: 'star-map-reading', navigationScene: 'star-map', heroProgress: 1,
       patternProgress: 1, starProgress, heroPatternProgress: 1, patternStarProgress: 1, starAodProgress: 0,
       shouldStartAodAutoplay: false,
-      ownership: { key: 'hold-star-map', visible: ['star-map'], stack: ['star-map'] }
+      ownership: { key: 'hold-star', visible: ['star-map'], stack: ['star-map'] }
     };
   }
   if (progress < stops.starAodEnd) {
@@ -139,7 +139,7 @@ export function phoneStageFrame(rawProgress: number, reducedMotion = false): Pho
       progress, checkpoint: 'star-map-to-aod', navigationScene: 'star-map', heroProgress: 1,
       patternProgress: 1, starProgress, heroPatternProgress: 1, patternStarProgress: 1, starAodProgress,
       shouldStartAodAutoplay: false,
-      ownership: { key: 'handoff-star-map-aod', visible: ['star-map', 'aod-animation'], stack: ['star-map', 'aod-animation'] }
+      ownership: { key: 'handoff-star-aod', visible: ['star-map', 'aod-animation'], stack: ['star-map', 'aod-animation'] }
     };
   }
   return {

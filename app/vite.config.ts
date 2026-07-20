@@ -150,8 +150,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         assetFileNames: 'assets/[name]-[hash:6][extname]',
-        chunkFileNames: 'assets/[name]-[hash:6].js',
-        entryFileNames: 'assets/[name]-[hash:6].js',
+        chunkFileNames: 'assets/[name]-[hash:7].js',
+        entryFileNames: 'assets/[name]-[hash:7].js',
         manualChunks(id) {
           if (id.includes('/src/transitions/shared/stagedMediaHandoff.ts')) {
             return 'staged-media-runtime';

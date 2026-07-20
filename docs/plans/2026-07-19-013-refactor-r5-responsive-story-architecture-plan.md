@@ -37,124 +37,81 @@ boundary this plan is intended to prevent:
 | `app/src/production/portrait-spike/PortraitScrollSpike.css` | 706 lines | shell geometry plus four scene compositions |
 | `app/src/production/StoryApp.tsx` | 759 lines | desktop assembly, readiness, navigation, runtime, recovery |
 
-## Execution Status — 2026-07-19
+## Execution Status — 2026-07-21
 
 This section records the implemented migration state; the file-size table above
 is the pre-extraction baseline.
 
+The frozen visual source is commit `95d519b` (`?v=17`), which contains the
+accepted Safari edge stabilization and the phone-only AOD alpha extension from
+timeline progress `0.48` to `0.55`. The current short verification route is
+`?v=21`; `?v=16` through `?v=20` remain aliases to the same formal phone shell,
+not immutable historical deployments.
+
 | Unit | Status | Implemented evidence |
 | --- | --- | --- |
-| Unit 0 | Active-route characterization connected; physical evidence incomplete | The formal phone shell now publishes the shared Loader → Method checkpoint trace, including the AOD media clock, and `r5-phone-story.spec.ts` verifies the live `?v=20` route forward and backward. Real Safari toolbar/orientation/lock evidence and device metadata still gate Unit 4. |
-| Unit 1 | Complete in code; Unit 3 debt ratcheted | Shared presentation contracts, semantic checkpoints, copy, media ownership, and renderer-neutral adapter lifecycles live in `app/src/story/`. Phone adapters alias the shared lifecycle instead of redeclaring it. The module-boundary verifier rejects new shell-owned scene imports/roots, media keys, progress constants, or line growth while the explicit Unit 3 debt list shrinks with each extraction. |
-| Unit 2 | Initial phone adapter pair loading connected; remaining slots pending | `App.tsx` loads exactly one frozen desktop/phone family and preloads only Hero plus its adjacent Hero → Pattern handoff beside the selected phone shell. Loader release waits for both adapter lifecycles, failures reveal the static document, and v20 network characterization rejects desktop and unselected phone adapter chunks. Pattern → Method still use the restored shell path until their reviewed slices land. |
-| Unit 3 | Hero and Hero → Pattern adapters connected; remaining front half pending | Hero markup, packed-alpha Figure 1 media, entrance, parallax, and local progress live in `PhoneHero`. The exact “人物中心扩散” radial field, canvas, boundary ownership, forward scrub, reverse scrub, and disposal now live in `PhoneHeroPatternTransition`; the shell only supplies semantic progress. Pattern → Method and the other named transition adapters remain to be connected one reviewed slice at a time. |
-| Units 4–7 | Not started | The current-build physical-iPhone checkpoint is not accepted, so no back-half migration or cutover work begins. |
+| Unit 0 | Code complete; physical evidence pending | Shared Loader → Method checkpoints and exact progress stops are frozen in tests. The v21 production route publishes the complete trace through rail-owned and AOD-media-owned time; the critical E2E verifies forward and reverse traversal, the 0.55 alpha endpoint, all three ink handoffs, and single scene/media instances. |
+| Unit 1 | Complete | Canonical copy, media IDs, navigation, semantic checkpoints, and renderer-neutral lifecycle contracts remain shared. The boundary verifier rejects shared-to-presentation imports, cross-shell imports, phone-to-spike imports, new shell scene roots, media keys, asset URLs, and scene renderer imports. |
+| Unit 2 | Code complete; physical fixed-stage evidence pending | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
+| Unit 3 | Code complete; physical visual acceptance pending | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
+| Units 4–7 | Not started | The new v21 adapter build still requires entity-iPhone acceptance. No Method back-half, Figure 2, Proof, Brand, Figure 3, Services, or later migration starts before that gate. |
 
-On 2026-07-20, the user correctly required the already-working spike chain to
-be treated as the executable migration baseline rather than a loose source of
-checkpoint names. Its full front-half behavior now lives in
-`app/src/production/phone/PhoneStoryShell.tsx` and
-`PhoneStoryShell.css`; `PortraitScrollSpike.tsx` remains the thin `?v=16`
-entry. The shell imports canonical copy/media contracts and production phone
-helpers, so there is no second product implementation; however, restoring the
-behavioral baseline did not complete the required scene/transition adapter
-extraction.
+### Unit 0–3 cutover record
 
-`?v=20` is the current short physical-device route. `?v=16` through `?v=19`
-remain accepted aliases, but all five resolve the current formal phone shell and are
-not immutable historical builds. Regular phone activation remains guarded by
-`VITE_ENABLE_PHONE_STORY=1` until Unit 7 cutover, so rotation cannot swap an
-already selected presentation family.
+`PhoneStoryShell.tsx` is now a 413-line coordination shell and
+`PhoneStoryShell.css` is a 167-line geometry/chrome stylesheet. Scene DOM,
+scene CSS, canvas/video construction, local motion, and transition fields live
+under `app/src/production/phone/scenes/` and
+`app/src/production/phone/transitions/`. The exact Route B coordinator moved to
+`usePhoneStageRuntime`; rail markup moved to `PhoneStageRail`.
 
-The production budget verifier now measures each mutually exclusive selected
-presentation shell, while retaining all emitted assets in its audit report and
-enforcing the loader-ink cap separately. No budget threshold was increased.
-The latest production build reports 9,993 bytes of JavaScript headroom (above
-the required 4,096 bytes). No media asset was replaced, re-encoded, or added.
-The presentation CSS moved with the complete production phone shell; the thin
-spike wrapper owns no scene markup, media, or scroll state.
+The full phone front-half group is loaded only after the phone presentation
+family is selected. Loader keeps the accepted two-phrase sequence and the same
+Hero/Hero → Pattern/Pattern visual readiness gates. The other adapters prepare
+behind that sequence, matching the former monolithic shell's ownership timing.
+No media asset was replaced, re-encoded, or added.
 
-### Current physical review record — 2026-07-20
+The current production build reports:
 
-This review is a Unit 0–3 acceptance record, not authorization to start Unit 4.
-It is **not accepted** until the items below have true-device evidence and the
-user confirms the checkpoint.
+- `totalJsHeadroomBytes: 8,841` (required minimum: 4,096);
+- `phoneShellBudgetBytes: 480,090`;
+- `largestLazyJsRawBytes: 55,259` (cap: 65,536);
+- zero shell-owned scene roots and media keys.
 
-The user subsequently reported that the current `?v=17` presentation was
-"差不多可行了" and authorized Plan 013 to continue. That is sufficient to resume
-the non-visual Unit 0–3 extraction work from this baseline, but it is not
-recorded as an unconditional Unit 4 gate pass because device model, iOS/Safari
-version, toolbar/orientation trace, and captured motion evidence are still
-missing. New Plan 013 verification builds use the short `?v=20` route.
+Validation completed for the v21 cutover:
 
-- **Unit 2 fixed-stage contract — real-device confirmation still required:**
-  the modular adapter-shell experiment caused horizontal sway and dark-underlay
-  exposure. It is no longer the active formal route. The restored spike
-  baseline retains its native fixed-stage geometry and `touch-action: pan-y`;
-  a real iPhone must still confirm the original no-sway hand feel.
-- **Unit 3 transition lifecycle — complete chain restored and verified in
-  Chromium:** the production shell again executes all three original handoffs
-  as one chain. At a 390×844 viewport, Pattern → Star Map has an active
-  `pattern-star` ink canvas at scroll progress 0.5554, Star Map → AOD has an
-  active `star-aod` canvas at 0.7529, and AOD completion exposes the fixed
-  Method bridge. This is browser evidence only; a real-device motion re-run is
-  still required.
-- **Unit 3 Figure 1 alpha presentation — failed on device:** the real-device
-  report says Figure 1 has reverted to a white background. Chromium's iPhone
-  viewport reports the packed-alpha canvas ready and visible without console
-  errors, so that result is only a non-reproduction; it cannot replace a
-  Safari capture or clear the device failure.
+- `pnpm -C app typecheck`;
+- `pnpm -C app lint`;
+- `pnpm -C app test` — 126 files, 746 tests;
+- `pnpm -C app build` — module-boundary, media, release, and performance gates pass;
+- `PLAYWRIGHT_PORT=4174 pnpm -C app exec playwright test --config playwright.release.config.ts e2e/r5-phone-story.spec.ts --project=desktop-chromium` — forward/reverse chain passes.
 
-The current scoped evidence is green: the complete test suite passes, typecheck
-and lint pass, the homepage module-boundary verifier passes, and the production
-build retains 9,993 bytes of JavaScript headroom. Chromium phone-viewport
-inspection confirms the extracted Hero → Pattern handoff plus the restored
-Pattern → Star Map, Star Map → AOD, and AOD → Method sequence without console
-errors. This is still insufficient for
-acceptance because it does not exercise iOS horizontal rubber-banding or
-establish Figure 1's actual Safari alpha presentation.
+The complete desktop production E2E run passes 19 of 23 checks. The four
+Reading/Figure2 input-throttle checks also fail identically on the untouched
+pre-migration commit `051e495` (including the same `652 → 814` wheel result and
+Method witness timeout), so they are recorded as pre-existing test debt rather
+than a phone-migration regression. No desktop runtime, scene, transition, or
+CSS source changed in this cutover.
 
-**Gate:** keep Units 4–7 frozen. The next acceptance item is a renewed
-real-iPhone review with device, iOS/Safari, toolbar state, and visual/motion
-evidence recorded.
+### Current physical review gate
 
-Validation completed for the active checkpoint instrumentation:
+Unit 0–3 is **not physically accepted yet**. The v21 build must be reviewed on
+an actual iPhone Safari with the address bar expanded and collapsed. The review
+must confirm:
 
-- `pnpm -C app typecheck`
-- `pnpm -C app test` — 125 files, 742 tests
-- `pnpm -C app lint`
-- `pnpm -C app build` — module-boundary, media, release, and performance gates pass
-- `PLAYWRIGHT_PORT=4174 pnpm -C app exec playwright test e2e/r5-phone-story.spec.ts --config playwright.release.config.ts --project desktop-chromium`
+- Loading shows only the two accepted four-character phrases;
+- Hero title/subtitle entrance and transparent Figure 1 remain unchanged;
+- vertical drag has no horizontal sway;
+- Pattern and AOD feather/surface layers remain attached with no white or dark
+  strip during toolbar collapse;
+- Pattern → Star Map → AOD retains all three accepted handoffs;
+- AOD uses the `0.48`–`0.55` alpha interval, autoplay owns time, reverse drag
+  reverses the media, and Method enters as one continuous reading section;
+- top navigation blur covers the complete safe-area inset;
+- orientation and lock/unlock do not remount the shell or replay Loader.
 
-Follow-up architecture audit on 2026-07-20 tightened three Route B contracts:
-
-- desktop Hero, Pattern, and Method now derive their front-half copy from the
-  same canonical inventory consumed by phone adapters;
-- AOD's media-owned interval now publishes `aod-to-method` and
-  `method-intro` checkpoints instead of leaving the rail at `aod-autoplay`;
-- the temporary AOD input lock is scoped to the phone shell and attaches only
-  while media owns time, so native reading has no global non-passive
-  `touchmove` listener.
-- phone scene and transition handles now consume the shared presentation
-  lifecycle contract, and the build records a one-way Unit 3 debt ratchet for
-  the still-monolithic formal phone shell.
-- the v19 Hero slice preserves the accepted Route B selectors while moving
-  Hero markup, CSS, packed-alpha playback, parallax, entrance, and progress
-  rendering into `PhoneHero`.
-- the v20 Hero → Pattern slice preserves the accepted `0.5/0.44` radial
-  origin, seed, dark grade, canvas selector, endpoint masks, and both scroll
-  directions while moving that ownership into `PhoneHeroPatternTransition`;
-  the shell ratchet is now 1,413 TSX lines and 613 CSS lines.
-- the profile-aware shell loader starts Hero plus its adjacent transition,
-  waits for both lifecycles before Loader release, and keeps the desktop shell,
-  Pattern/AOD/Method, and later-transition chunks off the v20 request path.
-
-The remaining Unit 0–3 work is the physical iPhone Safari evidence plus the
-active-route adapter cutover. The device run must capture the named checkpoint
-trace, reverse behavior, toolbar/orientation recovery, and single
-media/input-owner state. The code cutover must remove scene JSX, media ownership,
-and scene progress math from `PhoneStoryShell` without changing that trace.
-Both remain mandatory before Unit 4 starts.
+**Gate:** keep Units 4–7 frozen until the user accepts this v21 physical
+checkpoint and the device/iOS/Safari evidence is recorded.
 
 ## Problem Frame
 

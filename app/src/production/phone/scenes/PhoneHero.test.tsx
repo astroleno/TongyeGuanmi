@@ -4,7 +4,8 @@ import { PhoneHero } from './PhoneHero';
 
 const motionDriver = {
   set: () => undefined,
-  quickTo: () => () => undefined
+  quickTo: () => () => undefined,
+  revealReadingSteps: () => () => undefined
 };
 
 describe('PhoneHero Route B adapter', () => {

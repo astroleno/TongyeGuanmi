@@ -19,6 +19,11 @@ export type PhoneInkTransition = Readonly<{
   dispose(): void;
 }>;
 
+/** Clear transition-owned clip/mask state before the runtime changes owners. */
+export function clearPhoneInkBoundary(element: HTMLElement): void {
+  clearBoundaryGeometry(element);
+}
+
 type PhoneInkTransitionOptions = Readonly<{
   host: HTMLElement | null;
   canvas: HTMLCanvasElement | null;
