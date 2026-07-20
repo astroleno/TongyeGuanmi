@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const PHONE_SHELL = '[data-phone-validation-mode="v18"]';
+const PHONE_SHELL = '[data-phone-validation-mode="v19"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -18,20 +18,32 @@ async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   }, progress);
 }
 
-test('v18 Route B publishes the active phone checkpoint trace in both directions', async ({
+test('v19 Route B publishes the active phone checkpoint trace in both directions', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
   test.setTimeout(45_000);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=18', { waitUntil: 'domcontentloaded' });
+  await page.goto('/?v=19', { waitUntil: 'domcontentloaded' });
 
   const shell = page.locator(PHONE_SHELL);
   const loader = page.locator('[data-story-loader="true"]');
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'loader');
   await expect(loader).toBeHidden({ timeout: 10_000 });
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'hero-entered');
+  const hero = page.locator('.portrait-scroll-spike__scene--hero');
+  await expect(hero).toHaveAttribute('data-portrait-hero-title-active', 'true', {
+    timeout: 5_000
+  });
+  await expect(shell).toHaveAttribute('data-portrait-hero-text-entrance', 'complete', {
+    timeout: 5_000
+  });
+  await expect(page.locator('[data-portrait-figure-canvas]')).toHaveAttribute(
+    'data-packed-alpha-frame-ready',
+    'true',
+    { timeout: 10_000 }
+  );
 
   const forward = [
     [0.18, 'hero-to-pattern'],

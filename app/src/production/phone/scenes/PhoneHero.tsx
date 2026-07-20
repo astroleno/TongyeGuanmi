@@ -1,10 +1,12 @@
 import {
   forwardRef,
-  useEffect,
+  useCallback,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState
 } from 'react';
+import { gsap } from 'gsap';
 import { TextReveal, TextRevealItem } from '../../../components/TextReveal';
 import {
   createPackedAlphaVideoCompositor,
@@ -13,6 +15,7 @@ import {
 import {
   HERO_RADIAL_INK_FIELD,
   renderHeroProgress,
+  sampleHeroIntro,
   startHeroIntro
 } from '../../../scenes/hero/motion';
 import { HOME_COPY } from '../../../story/copy';
@@ -20,37 +23,31 @@ import {
   createRadialInkIntroController,
   type RadialInkIntroController
 } from '../../../transitions/shared/radialInkIntro';
-import { phoneMediaUrlFor } from '../phone-media';
 import {
   attachPhoneDeviceParallax,
   createPhoneFigurePlayback,
   type PhoneDeviceParallax,
   type PhoneFigurePlayback
-} from '../hero-motion';
+} from './PhoneHero.motion';
+import { phoneMediaUrlFor } from '../phone-media';
 import type { PhoneSceneAdapterHandle, PhoneSceneAdapterProps } from '../types';
 import './PhoneHero.css';
-
 const HERO_BACK_IMAGE = phoneMediaUrlFor('hero-back', 'hero');
 const HERO_MIDDLE_IMAGE = phoneMediaUrlFor('hero-middle', 'hero');
 const HERO_FIGURE_POSTER = phoneMediaUrlFor('hero-figure-poster', 'hero');
 const HERO_FIGURE_PACKED_ALPHA_VIDEO = phoneMediaUrlFor('hero-figure-packed', 'hero');
-
 const HERO_SUBTITLE = HOME_COPY[4]!;
 const subtitleBreak = HERO_SUBTITLE.indexOf('，') + 1;
 const HERO_SUBTITLE_LINES = subtitleBreak > 0
   ? [HERO_SUBTITLE.slice(0, subtitleBreak), HERO_SUBTITLE.slice(subtitleBreak)]
   : [HERO_SUBTITLE];
 
-type FullscreenElement = HTMLElement & {
-  webkitRequestFullscreen?: () => Promise<void> | void;
-};
-
 export type PhoneHeroAdapterHandle = PhoneSceneAdapterHandle & {
   startEntrance(): void;
   completeEntrance(): void;
+  cancelEntrance(): void;
   unlockFromGesture(): void;
 };
-
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
@@ -58,126 +55,196 @@ function clamp(value: number): number {
 function range01(value: number, start: number, end: number): number {
   return end <= start ? Number(value >= end) : clamp((value - start) / (end - start));
 }
-
-export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneSceneAdapterProps>(function PhoneHero(
-  { active, reducedMotion, onReady },
-  forwardedRef
-) {
-  const rootRef = useRef<HTMLElement | null>(null);
-  const backMotionRef = useRef<HTMLDivElement | null>(null);
-  const backParallaxRef = useRef<HTMLDivElement | null>(null);
-  const backImageRef = useRef<HTMLImageElement | null>(null);
-  const introInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const middleMotionRef = useRef<HTMLDivElement | null>(null);
-  const middleParallaxRef = useRef<HTMLDivElement | null>(null);
-  const figureMotionRef = useRef<HTMLDivElement | null>(null);
-  const figureParallaxRef = useRef<HTMLDivElement | null>(null);
-  const figureVideoRef = useRef<HTMLVideoElement | null>(null);
-  const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const copyRef = useRef<HTMLDivElement | null>(null);
-  const subtitleRef = useRef<HTMLDivElement | null>(null);
-  const cueRef = useRef<HTMLSpanElement | null>(null);
-  const vignetteRef = useRef<HTMLDivElement | null>(null);
-  const playbackRef = useRef<PhoneFigurePlayback | undefined>(undefined);
-  const compositorRef = useRef<PackedAlphaVideoCompositor | undefined>(undefined);
-  const parallaxRef = useRef<PhoneDeviceParallax | undefined>(undefined);
-  const introInkRef = useRef<RadialInkIntroController | undefined>(undefined);
-  const disposeEntranceRef = useRef<(() => void) | undefined>(undefined);
-  const activeRef = useRef(active);
-  const [titleActive, setTitleActive] = useState(reducedMotion);
-
-  useEffect(() => {
-    activeRef.current = active;
-    playbackRef.current?.setActive(active && !reducedMotion);
-  }, [active, reducedMotion]);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    const back = backImageRef.current;
-    const canvas = introInkCanvasRef.current;
-    if (!root || !back || !canvas || reducedMotion) return;
-    const controller = createRadialInkIntroController({
-      canvas,
-      revealSurface: back,
-      targetImage: back,
-      field: HERO_RADIAL_INK_FIELD,
-      generation: 'phone-story:hero-intro',
-      viewport: () => ({
-        width: root.clientWidth || window.innerWidth,
-        height: root.clientHeight || window.innerHeight
-      })
-    });
-    introInkRef.current = controller;
-    controller.prewarm();
-    controller.render(0);
-    return () => {
-      controller.dispose();
-      if (introInkRef.current === controller) introInkRef.current = undefined;
-    };
-  }, [reducedMotion]);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    const video = figureVideoRef.current;
-    const canvas = figureCanvasRef.current;
-    const backParallax = backParallaxRef.current;
-    const middleParallax = middleParallaxRef.current;
-    const figureParallax = figureParallaxRef.current;
-    if (!root || !video || !canvas || !backParallax || !middleParallax || !figureParallax) {
-      return;
-    }
-
-    const compositor = createPackedAlphaVideoCompositor({
-      video,
-      canvas,
-      onFrame: () => {
-        figureParallax.dataset.phoneFigureAlpha = 'verified';
-        figureParallax.dataset.phoneFigureFrame = 'ready';
-      }
-    });
-    const playback = createPhoneFigurePlayback(video, HERO_FIGURE_PACKED_ALPHA_VIDEO);
-    const parallax = attachPhoneDeviceParallax({
-      root,
-      targets: [
-        { element: backParallax, x: 7, y: 5 },
-        { element: middleParallax, x: 14, y: 10 },
-        { element: figureParallax, x: 22, y: 16 }
-      ]
-    });
-    compositorRef.current = compositor;
-    playbackRef.current = playback;
-    parallaxRef.current = parallax;
-    playback.setActive(activeRef.current && !reducedMotion);
-    onReady?.();
-
-    return () => {
+/** Owns Hero markup/media/local rendering; the fixed-stage parent owns timing. */
+export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneSceneAdapterProps>(
+  function PhoneHero({ active, reducedMotion, onReady }, forwardedRef) {
+    const rootRef = useRef<HTMLElement | null>(null);
+    const backMotionRef = useRef<HTMLDivElement | null>(null);
+    const backParallaxRef = useRef<HTMLDivElement | null>(null);
+    const backImageRef = useRef<HTMLImageElement | null>(null);
+    const introInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const middleMotionRef = useRef<HTMLDivElement | null>(null);
+    const middleParallaxRef = useRef<HTMLDivElement | null>(null);
+    const figureMotionRef = useRef<HTMLDivElement | null>(null);
+    const figureParallaxRef = useRef<HTMLDivElement | null>(null);
+    const figureVideoRef = useRef<HTMLVideoElement | null>(null);
+    const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const copyRef = useRef<HTMLDivElement | null>(null);
+    const subtitleRef = useRef<HTMLDivElement | null>(null);
+    const cueRef = useRef<HTMLSpanElement | null>(null);
+    const vignetteRef = useRef<HTMLDivElement | null>(null);
+    const playbackRef = useRef<PhoneFigurePlayback | undefined>(undefined);
+    const compositorRef = useRef<PackedAlphaVideoCompositor | undefined>(undefined);
+    const parallaxRef = useRef<PhoneDeviceParallax | undefined>(undefined);
+    const introInkRef = useRef<RadialInkIntroController | undefined>(undefined);
+    const disposeEntranceRef = useRef<(() => void) | undefined>(undefined);
+    const textRevealFrameRef = useRef<number | undefined>(undefined);
+    const sceneActiveRef = useRef(false);
+    const adapterReadyRef = useRef(false);
+    const lastProgressRef = useRef(Number.NaN);
+    const [titleActive, setTitleActive] = useState(reducedMotion);
+    const storyRoot = useCallback(() => (
+      rootRef.current?.closest<HTMLElement>('.portrait-scroll-spike') ?? rootRef.current
+    ), []);
+    const cancelTextRevealFrame = useCallback(() => {
+      if (textRevealFrameRef.current === undefined) return;
+      window.cancelAnimationFrame(textRevealFrameRef.current);
+      textRevealFrameRef.current = undefined;
+    }, []);
+    const cancelEntrance = useCallback(() => {
+      cancelTextRevealFrame();
       disposeEntranceRef.current?.();
       disposeEntranceRef.current = undefined;
-      parallax.dispose();
-      playback.dispose();
-      compositor.dispose();
-      if (parallaxRef.current === parallax) parallaxRef.current = undefined;
-      if (playbackRef.current === playback) playbackRef.current = undefined;
-      if (compositorRef.current === compositor) compositorRef.current = undefined;
-    };
-  }, [onReady, reducedMotion]);
-
-  useImperativeHandle(forwardedRef, () => {
-    const completeEntrance = () => {
-      disposeEntranceRef.current?.();
-      disposeEntranceRef.current = undefined;
+    }, [cancelTextRevealFrame]);
+    const renderEntrance = useCallback((rawProgress: number) => {
       const root = rootRef.current;
-      if (!root) return;
-      renderHeroProgress(root, 1);
-      introInkRef.current?.render(1);
-      root.dataset.phoneHeroEntrance = 'complete';
-      root.dataset.phoneHeroTitleActive = 'true';
-      setTitleActive(true);
-    };
-    return {
+      const cue = cueRef.current;
+      if (!root || !cue) return;
+      const sample = sampleHeroIntro(rawProgress);
+      const owner = storyRoot();
+      renderHeroProgress(root, sample.progress);
+      introInkRef.current?.render(sample.progress);
+      if (owner) {
+        owner.dataset.portraitHeroEntrance = sample.complete ? 'complete' : 'playing';
+        if (sample.complete) {
+          owner.dataset.portraitHeroTextEntrance = 'complete';
+        }
+      }
+      root.dataset.portraitHeroTitleActive = String(sample.titleActive);
+      gsap.set(cue, { opacity: sample.titleActive ? 1 : 0 });
+      if (sample.titleActive) {
+        setTitleActive(true);
+      }
+    }, [storyRoot]);
+    const completeEntrance = useCallback(() => {
+      cancelEntrance();
+      renderEntrance(1);
+    }, [cancelEntrance, renderEntrance]);
+    const startEntrance = useCallback(() => {
+      if (reducedMotion) {
+        completeEntrance();
+        return;
+      }
+      const owner = storyRoot();
+      if (!owner || !rootRef.current) return;
+      cancelEntrance();
+      setTitleActive(false);
+      owner.dataset.portraitHeroTextEntrance = 'queued';
+      textRevealFrameRef.current = window.requestAnimationFrame(() => {
+        textRevealFrameRef.current = undefined;
+        if (!adapterReadyRef.current) return;
+        owner.dataset.portraitHeroTextEntrance = 'playing';
+        setTitleActive(true);
+      });
+      owner.dataset.portraitHeroEntrance = 'playing';
+      renderEntrance(0);
+      disposeEntranceRef.current = startHeroIntro({
+        render: (sample) => renderEntrance(sample.progress),
+        onTitleActive: () => setTitleActive(true),
+        onComplete: () => {
+          disposeEntranceRef.current = undefined;
+          owner.dataset.portraitHeroEntrance = 'complete';
+        }
+      });
+    }, [cancelEntrance, completeEntrance, reducedMotion, renderEntrance, storyRoot]);
+
+    useLayoutEffect(() => {
+      const root = rootRef.current;
+      const backImage = backImageRef.current;
+      const introInkCanvas = introInkCanvasRef.current;
+      const backParallax = backParallaxRef.current;
+      const middleParallax = middleParallaxRef.current;
+      const figureParallax = figureParallaxRef.current;
+      const figureVideo = figureVideoRef.current;
+      const figureCanvas = figureCanvasRef.current;
+      if (
+        !root
+        || !backImage
+        || !introInkCanvas
+        || !backParallax
+        || !middleParallax
+        || !figureParallax
+        || !figureVideo
+        || !figureCanvas
+      ) {
+        return;
+      }
+      adapterReadyRef.current = true;
+      if (reducedMotion) {
+        onReady?.();
+        return () => {
+          adapterReadyRef.current = false;
+          cancelEntrance();
+        };
+      }
+
+      const owner = storyRoot() ?? root;
+      const compositor = createPackedAlphaVideoCompositor({
+        video: figureVideo,
+        canvas: figureCanvas,
+        onFrame: () => {
+          figureVideo.dataset.portraitFigureAlpha = 'verified';
+          figureParallax.dataset.portraitFigureAlpha = 'verified';
+          figureParallax.dataset.portraitFigureFrame = 'ready';
+        }
+      });
+      const playback = createPhoneFigurePlayback(
+        figureVideo,
+        HERO_FIGURE_PACKED_ALPHA_VIDEO
+      );
+      const parallax = attachPhoneDeviceParallax({
+        root: owner,
+        targets: [
+          { element: backParallax, x: 7, y: 5 },
+          { element: middleParallax, x: 14, y: 10 },
+          { element: figureParallax, x: 22, y: 16 }
+        ]
+      });
+      const introInk = createRadialInkIntroController({
+        canvas: introInkCanvas,
+        revealSurface: backImage,
+        targetImage: backImage,
+        field: HERO_RADIAL_INK_FIELD,
+        generation: 'portrait-spike:hero-intro',
+        viewport: () => ({
+          width: root.clientWidth || window.innerWidth,
+          height: root.clientHeight || window.innerHeight
+        })
+      });
+
+      compositorRef.current = compositor;
+      playbackRef.current = playback;
+      parallaxRef.current = parallax;
+      introInkRef.current = introInk;
+      introInk.prewarm();
+      onReady?.();
+
+      return () => {
+        adapterReadyRef.current = false;
+        cancelEntrance();
+        sceneActiveRef.current = false;
+        parallax.dispose();
+        playback.dispose();
+        compositor.dispose();
+        introInk.dispose();
+        if (parallaxRef.current === parallax) parallaxRef.current = undefined;
+        if (playbackRef.current === playback) playbackRef.current = undefined;
+        if (compositorRef.current === compositor) compositorRef.current = undefined;
+        if (introInkRef.current === introInk) introInkRef.current = undefined;
+      };
+    }, [cancelEntrance, onReady, reducedMotion, storyRoot]);
+
+    useLayoutEffect(() => {
+      sceneActiveRef.current = active;
+      playbackRef.current?.setActive(active && !reducedMotion);
+    }, [active, reducedMotion]);
+
+    useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
       update(rawProgress) {
         const progress = clamp(rawProgress);
+        if (Math.abs(progress - lastProgressRef.current) < 0.003) return;
+        lastProgressRef.current = progress;
         const back = backMotionRef.current;
         const middle = middleMotionRef.current;
         const figure = figureMotionRef.current;
@@ -186,123 +253,148 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneSceneAdapterPro
         const cue = cueRef.current;
         const vignette = vignetteRef.current;
         if (!back || !middle || !figure || !copy || !subtitle || !cue || !vignette) return;
-        back.style.transform = 'scale(1.08)';
-        middle.style.transform = `scale(${(1 + progress * 0.18).toFixed(4)}) translate3d(0, ${(progress * 12).toFixed(2)}%, 0)`;
-        figure.style.transform = `scale(${(1 + progress * 0.11).toFixed(4)}) translate3d(0, ${(-15 * range01(progress, 0.12, 1)).toFixed(2)}%, 0)`;
+        gsap.set(back, { scale: 1.08, yPercent: 0 });
+        gsap.set(middle, { scale: 1 + progress * 0.18, yPercent: progress * 12 });
+        gsap.set(figure, {
+          scale: 1 + progress * 0.11,
+          yPercent: -15 * range01(progress, 0.12, 1)
+        });
         const copyProgress = range01(progress, 0.18, 1);
-        copy.style.transform = `translate3d(0, ${(-58 * copyProgress).toFixed(2)}px, 0)`;
-        copy.style.opacity = String(1 - copyProgress);
-        subtitle.style.transform = `translate3d(0, ${(-38 * copyProgress).toFixed(2)}px, 0)`;
-        subtitle.style.opacity = String(1 - copyProgress);
-        cue.style.transform = `translate3d(0, ${(-18 * progress).toFixed(2)}px, 0)`;
-        cue.style.opacity = String(1 - progress);
-        vignette.style.opacity = String(1 - progress * 0.54);
+        gsap.set(copy, { y: -58 * copyProgress, opacity: 1 - copyProgress });
+        gsap.set(subtitle, { y: -38 * copyProgress, opacity: 1 - copyProgress });
+        gsap.set(cue, { y: -18 * progress, opacity: 1 - progress });
+        gsap.set(vignette, { opacity: 1 - progress * 0.54 });
         playbackRef.current?.scrub(progress);
       },
       enter() {
+        sceneActiveRef.current = true;
         playbackRef.current?.setActive(!reducedMotion);
       },
       leave() {
+        sceneActiveRef.current = false;
         playbackRef.current?.setActive(false);
       },
       reverse() {
+        sceneActiveRef.current = true;
         playbackRef.current?.setActive(!reducedMotion);
       },
-      startEntrance() {
-        if (reducedMotion || disposeEntranceRef.current) {
-          completeEntrance();
-          return;
-        }
-        const root = rootRef.current;
-        if (!root) return;
-        setTitleActive(false);
-        root.dataset.phoneHeroEntrance = 'playing';
-        renderHeroProgress(root, 0);
-        introInkRef.current?.render(0);
-        disposeEntranceRef.current = startHeroIntro({
-          render: (sample) => {
-            renderHeroProgress(root, sample.progress);
-            introInkRef.current?.render(sample.progress);
-            root.dataset.phoneHeroEntrance = sample.complete ? 'complete' : 'playing';
-            root.dataset.phoneHeroTitleActive = String(sample.titleActive);
-            if (sample.titleActive) setTitleActive(true);
-          },
-          onTitleActive: () => setTitleActive(true),
-          onComplete: () => {
-            disposeEntranceRef.current = undefined;
-            root.dataset.phoneHeroEntrance = 'complete';
-          }
-        });
-      },
+      startEntrance,
       completeEntrance,
+      cancelEntrance,
       unlockFromGesture() {
-        playbackRef.current?.unlockFromGesture();
+        if (sceneActiveRef.current) {
+          playbackRef.current?.unlockFromGesture();
+        }
         parallaxRef.current?.requestPermission();
       },
       dispose() {
-        disposeEntranceRef.current?.();
-        disposeEntranceRef.current = undefined;
+        cancelEntrance();
+        sceneActiveRef.current = false;
+        playbackRef.current?.setActive(false);
       }
-    };
-  }, [reducedMotion]);
+    }), [cancelEntrance, completeEntrance, reducedMotion, startEntrance]);
 
-  const requestImmersivePermission = () => {
-    const root = rootRef.current as FullscreenElement | null;
-    if (!root) return;
-    parallaxRef.current?.requestPermission();
-    const request = typeof root.requestFullscreen === 'function'
-      ? root.requestFullscreen.bind(root)
-      : root.webkitRequestFullscreen?.bind(root);
-    if (!request) {
-      root.dataset.phoneFullscreen = 'unavailable';
-      return;
-    }
-    root.dataset.phoneFullscreen = 'requesting';
-    void Promise.resolve(request()).then(
-      () => { root.dataset.phoneFullscreen = 'active'; },
-      () => { root.dataset.phoneFullscreen = 'unavailable'; }
+    return (
+      <section
+        ref={rootRef}
+        className="portrait-scroll-spike__scene portrait-scroll-spike__scene--hero"
+        aria-labelledby="portrait-spike-home"
+      >
+        <div ref={backMotionRef} className="portrait-scroll-spike__hero-back-motion" aria-hidden="true">
+          <div ref={backParallaxRef} className="portrait-scroll-spike__hero-back-parallax">
+            <div className="portrait-scroll-spike__hero-back-intro">
+              <img
+                ref={backImageRef}
+                className="portrait-scroll-spike__hero-back"
+                src={HERO_BACK_IMAGE}
+                alt=""
+              />
+              <canvas
+                ref={introInkCanvasRef}
+                className="portrait-scroll-spike__hero-intro-ink"
+                data-portrait-hero-intro-ink
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+        </div>
+        <div ref={middleMotionRef} className="portrait-scroll-spike__hero-middle-motion" aria-hidden="true">
+          <div ref={middleParallaxRef} className="portrait-scroll-spike__hero-middle-parallax">
+            <div className="portrait-scroll-spike__hero-middle-intro">
+              <img className="portrait-scroll-spike__hero-middle" src={HERO_MIDDLE_IMAGE} alt="" />
+            </div>
+          </div>
+        </div>
+        <div ref={figureMotionRef} className="portrait-scroll-spike__hero-figure-motion" aria-hidden="true">
+          <div ref={figureParallaxRef} className="portrait-scroll-spike__hero-figure-parallax">
+            <div className="portrait-scroll-spike__hero-figure-intro">
+              <img
+                className="portrait-scroll-spike__hero-figure-poster"
+                data-portrait-figure-poster
+                src={HERO_FIGURE_POSTER}
+                alt=""
+              />
+              <canvas
+                ref={figureCanvasRef}
+                className="portrait-scroll-spike__hero-figure"
+                data-portrait-figure-canvas
+                aria-hidden="true"
+              />
+              <video
+                ref={figureVideoRef}
+                className="portrait-scroll-spike__hero-figure-source"
+                data-portrait-figure-video
+                muted
+                playsInline
+                preload="auto"
+              />
+            </div>
+          </div>
+        </div>
+        <div ref={vignetteRef} className="portrait-scroll-spike__hero-vignette" aria-hidden="true" />
+        <div ref={copyRef} className="portrait-scroll-spike__hero-copy">
+          <TextReveal
+            active={titleActive && active}
+            as="h1"
+            id="portrait-spike-home"
+            aria-label="同野观幂"
+            effects={['stagger', 'blur-to-clear', 'rise-up']}
+            variant="staggered"
+          >
+            {HOME_COPY.slice(0, 4).map((character, index) => (
+              <TextRevealItem key={character} index={index} aria-hidden="true">
+                {character}
+              </TextRevealItem>
+            ))}
+          </TextReveal>
+        </div>
+        <div ref={subtitleRef} className="portrait-scroll-spike__hero-subtitle">
+          <TextReveal
+            active={titleActive && active}
+            as="p"
+            blurPx={6}
+            delayMs={420}
+            durationMs={2850}
+            effects={['stagger', 'blur-to-clear', 'rise-up']}
+            scaleX={1}
+            staggerMs={0}
+            variant="line"
+            yPx={14}
+          >
+            <TextRevealItem aria-label={HERO_SUBTITLE}>
+              {HERO_SUBTITLE_LINES.map((line) => <span key={line}>{line}</span>)}
+            </TextRevealItem>
+          </TextReveal>
+        </div>
+        <button
+          className="portrait-scroll-spike__gyro-permission"
+          data-portrait-gyro-permission
+          type="button"
+        >轻触开启体感与全屏</button>
+        <span ref={cueRef} className="portrait-scroll-spike__scroll-cue" aria-hidden="true">向上滑动</span>
+      </section>
     );
-  };
-
-  return (
-    <section ref={rootRef} className="phone-scene phone-scene--hero" aria-labelledby="phone-home">
-      <div ref={backMotionRef} className="phone-hero__back-motion" aria-hidden="true">
-        <div ref={backParallaxRef} className="phone-hero__back-parallax">
-          <img ref={backImageRef} className="phone-hero__back" src={HERO_BACK_IMAGE} alt="" />
-          <canvas ref={introInkCanvasRef} className="phone-hero__intro-ink" data-phone-hero-intro-ink-canvas aria-hidden="true" />
-        </div>
-      </div>
-      <div ref={middleMotionRef} className="phone-hero__middle-motion" aria-hidden="true">
-        <div ref={middleParallaxRef} className="phone-hero__middle-parallax">
-          <img className="phone-hero__middle" src={HERO_MIDDLE_IMAGE} alt="" />
-        </div>
-      </div>
-      <div ref={figureMotionRef} className="phone-hero__figure-motion" aria-hidden="true">
-        <div ref={figureParallaxRef} className="phone-hero__figure-parallax">
-          <img className="phone-hero__figure-poster" src={HERO_FIGURE_POSTER} alt="" />
-          <canvas ref={figureCanvasRef} className="phone-hero__figure" data-phone-figure-canvas aria-hidden="true" />
-          <video ref={figureVideoRef} className="phone-hero__figure-source" muted playsInline preload="auto" />
-        </div>
-      </div>
-      <div ref={vignetteRef} className="phone-hero__vignette" aria-hidden="true" />
-      <div ref={copyRef} className="phone-hero__copy">
-        <TextReveal active={titleActive} as="h1" id="phone-home" aria-label="同野观幂" effects={['stagger', 'blur-to-clear', 'rise-up']} variant="staggered">
-          {HOME_COPY.slice(0, 4).map((character, index) => (
-            <TextRevealItem key={`${character}-${index}`} index={index} aria-hidden="true">{character}</TextRevealItem>
-          ))}
-        </TextReveal>
-      </div>
-      <div ref={subtitleRef} className="phone-hero__subtitle">
-        <TextReveal active={titleActive} as="p" blurPx={6} delayMs={420} durationMs={2850} effects={['stagger', 'blur-to-clear', 'rise-up']} scaleX={1} staggerMs={0} variant="line" yPx={14}>
-          <TextRevealItem aria-label={HERO_SUBTITLE}>
-            {HERO_SUBTITLE_LINES.map((line) => <span key={line}>{line}</span>)}
-          </TextRevealItem>
-        </TextReveal>
-      </div>
-      <button className="phone-hero__gyro-permission" type="button" onClick={requestImmersivePermission}>轻触开启体感与全屏</button>
-      <span ref={cueRef} className="phone-hero__scroll-cue" aria-hidden="true">向上滑动</span>
-    </section>
-  );
-});
+  }
+);
 
 export default PhoneHero;

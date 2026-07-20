@@ -22,10 +22,9 @@ const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
  * are architecture regressions and must never be added to make a build pass.
  */
 export const phoneShellDebt = Object.freeze({
-  maxLines: 1696,
+  maxLines: 1421,
   sceneImports: new Set([
     '../../scenes/aod-animation',
-    '../../scenes/hero/motion',
     '../../scenes/pattern/patternBloomRenderer',
     '../../scenes/star-map/starFieldReveal'
   ]),
@@ -39,28 +38,19 @@ export const phoneShellDebt = Object.freeze({
   shellZoneImports: new Set([
     'PhoneStoryShell.tsx::../../media/packed-alpha-video',
     'PhoneStoryShell.tsx::../../scenes/aod-animation',
-    'PhoneStoryShell.tsx::../../scenes/hero/motion',
     'PhoneStoryShell.tsx::../../scenes/pattern/patternBloomRenderer',
     'PhoneStoryShell.tsx::../../scenes/star-map/starFieldReveal',
     'PhoneStoryShell.tsx::../../transitions/shared/inkOwnership',
-    'PhoneStoryShell.tsx::../../transitions/shared/radialInkIntro',
     'aod-autoplay.ts::../../media/packed-alpha-video',
     'aod-autoplay.ts::../../scenes/aod-animation/progress',
-    'hero-motion.ts::../../media/alpha-video-sources',
-    'hero-motion.ts::../../media/packed-alpha-video',
-    'hero-motion.ts::../../media/timeline-video-driver',
     'phone-ink.ts::../../transitions/shared/inkField',
     'phone-ink.ts::../../transitions/shared/inkOwnership',
     'phone-ink.ts::../../transitions/shared/sceneInk'
   ]),
-  sceneRoots: new Set(['hero', 'pattern', 'star', 'aod']),
+  sceneRoots: new Set(['pattern', 'star', 'aod']),
   mediaKeys: new Set([
     'aod-figure-packed-forward',
     'aod-figure-packed-reverse',
-    'hero-back',
-    'hero-figure-packed',
-    'hero-figure-poster',
-    'hero-middle',
     'star-map-source'
   ]),
   progressConstants: new Set([
@@ -78,21 +68,16 @@ export const phoneShellDebt = Object.freeze({
 });
 
 export const phoneShellCssDebt = Object.freeze({
-  maxLines: 893,
+  maxLines: 613,
   assetUrls: new Set(['../../../../assets/pattern-background.webp']),
-  sceneRoots: new Set(['hero', 'pattern', 'star', 'aod']),
+  sceneRoots: new Set(['pattern', 'star', 'aod']),
   ownerTokens: new Set([
-    'gyro',
-    'hero',
-    'ink',
     'method',
     'pattern',
     'reading',
     'scene',
-    'scroll',
     'stage',
     'star',
-    'steps',
     'toolbar'
   ])
 });

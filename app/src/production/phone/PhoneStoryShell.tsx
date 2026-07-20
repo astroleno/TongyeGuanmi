@@ -18,25 +18,9 @@ import {
 } from '../../scenes/pattern/patternBloomRenderer';
 import { initStarFieldReveal, type StarFieldCamera } from '../../scenes/star-map/starFieldReveal';
 import { clearBoundaryGeometry } from '../../transitions/shared/inkOwnership';
-import {
-  createRadialInkIntroController,
-  type RadialInkIntroController
-} from '../../transitions/shared/radialInkIntro';
-import {
-  HERO_RADIAL_INK_FIELD,
-  renderHeroProgress,
-  sampleHeroIntro,
-  startHeroIntro
-} from '../../scenes/hero/motion';
-import { TextReveal, TextRevealItem } from '../../components/TextReveal';
-import { BELIEF_COPY, HOME_COPY, METHOD_COPY } from '../../story/copy';
+import { BELIEF_COPY, METHOD_COPY } from '../../story/copy';
 import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
-import {
-  attachPhoneDeviceParallax,
-  createPhoneFigurePlayback,
-  type PhoneFigurePlayback
-} from './hero-motion';
 import {
   createPhoneInkTransition,
   type PhoneInkTransition
@@ -61,17 +45,17 @@ import {
   phoneAodCompletionCheckpoint,
   phoneStageFrame
 } from './phone-stage-timeline';
+import './PhoneStoryShell.css';
+import {
+  PhoneHero,
+  type PhoneHeroAdapterHandle
+} from './scenes/PhoneHero';
 import { StoryLoader } from '../StoryLoader';
 import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
-import './PhoneStoryShell.css';
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
-const HERO_BACK_IMAGE = phoneMediaUrlFor('hero-back', 'hero');
-const HERO_MIDDLE_IMAGE = phoneMediaUrlFor('hero-middle', 'hero');
-const HERO_FIGURE_POSTER = phoneMediaUrlFor('hero-figure-poster', 'hero');
-const HERO_FIGURE_PACKED_ALPHA_VIDEO = phoneMediaUrlFor('hero-figure-packed', 'hero');
 const AOD_FIGURE_PACKED_ALPHA_VIDEO = phoneMediaUrlFor('aod-figure-packed-forward', 'aod-animation');
 const AOD_FIGURE_PACKED_ALPHA_REVERSE_VIDEO = phoneMediaUrlFor('aod-figure-packed-reverse', 'aod-animation');
 const STAR_MAP_IMAGE = phoneMediaUrlFor('star-map-source', 'star-map');
@@ -105,15 +89,6 @@ const PORTRAIT_SURFACE_PATTERN = '#d9c08f';
 const PORTRAIT_SURFACE_STAR = '#06100d';
 const PORTRAIT_SURFACE_PAPER = '#ede4d2';
 
-const HERO_COPY = HOME_COPY;
-const HERO_SUBTITLE = HERO_COPY[4]!;
-const HERO_SUBTITLE_BREAK = HERO_SUBTITLE.indexOf('，') + 1;
-const HERO_SUBTITLE_LINES = HERO_SUBTITLE_BREAK > 0
-  ? [
-      HERO_SUBTITLE.slice(0, HERO_SUBTITLE_BREAK),
-      HERO_SUBTITLE.slice(HERO_SUBTITLE_BREAK)
-    ]
-  : [HERO_SUBTITLE];
 const PATTERN_COPY = BELIEF_COPY.slice(0, 3);
 const STAR_MAP_COPY = BELIEF_COPY[3]!;
 const METHOD_TOP_COPY = METHOD_COPY.slice(0, 8);
@@ -190,7 +165,7 @@ function portraitSpikeMotionEnabled(): boolean {
  */
 export type PhoneStoryShellProps = Readonly<{
   /** Retained while versioned routes remain physical-device comparison entries. */
-  validationMode?: 'v16' | 'v17' | 'v18';
+  validationMode?: 'v16' | 'v17' | 'v18' | 'v19';
 }>;
 
 /**
@@ -202,11 +177,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const motionEnabled = portraitSpikeMotionEnabled();
   const aodAlphaEndProgress = AOD_PHONE_TIMELINE_ALPHA_END;
   const [loaderHidden, setLoaderHidden] = useState(phoneLoaderCompletedInDocument);
-  // Do not let a resume marker render the text in its completed state before
-  // the Hero controller has a chance to re-arm it. The stage can skip Loader
-  // during a short lock-screen recovery, but a top-of-story Hero must still
-  // get its authored text entrance.
-  const [heroTitleActive, setHeroTitleActive] = useState(() => !motionEnabled);
   const [navigationScene, setNavigationScene] = useState<SceneId>('hero');
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
@@ -218,28 +188,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   ]);
   const stageRailRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
-  const heroSceneRef = useRef<HTMLElement | null>(null);
+  const heroAdapterRef = useRef<PhoneHeroAdapterHandle | null>(null);
   const patternSceneRef = useRef<HTMLElement | null>(null);
   const starSceneRef = useRef<HTMLElement | null>(null);
   const aodSceneRef = useRef<HTMLDivElement | null>(null);
-  const heroBackMotionRef = useRef<HTMLDivElement | null>(null);
-  const heroBackParallaxRef = useRef<HTMLDivElement | null>(null);
-  const heroBackIntroRef = useRef<HTMLDivElement | null>(null);
-  const heroBackImageRef = useRef<HTMLImageElement | null>(null);
-  const heroIntroInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const heroMiddleMotionRef = useRef<HTMLDivElement | null>(null);
-  const heroMiddleParallaxRef = useRef<HTMLDivElement | null>(null);
-  const heroMiddleIntroRef = useRef<HTMLDivElement | null>(null);
-  const heroFigureMotionRef = useRef<HTMLDivElement | null>(null);
-  const heroFigureParallaxRef = useRef<HTMLDivElement | null>(null);
-  const heroFigureIntroRef = useRef<HTMLDivElement | null>(null);
-  const heroFigureVideoRef = useRef<HTMLVideoElement | null>(null);
-  const heroFigureCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const heroFigureActiveRef = useRef(false);
-  const heroCopyRef = useRef<HTMLDivElement | null>(null);
-  const heroSubtitleRef = useRef<HTMLParagraphElement | null>(null);
-  const heroCueRef = useRef<HTMLSpanElement | null>(null);
-  const heroVignetteRef = useRef<HTMLDivElement | null>(null);
   const heroInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const patternCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const patternRendererRef = useRef<PatternBloomRenderer | null>(null);
@@ -645,27 +597,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     const root = rootRef.current;
     const stageRail = stageRailRef.current;
     const stage = stageRef.current;
-    const heroScene = heroSceneRef.current;
+    const heroAdapter = heroAdapterRef.current;
+    const heroScene = heroAdapter?.root();
     const patternScene = patternSceneRef.current;
     const starScene = starSceneRef.current;
     const aodScene = aodSceneRef.current;
-    const heroBackMotion = heroBackMotionRef.current;
-    const heroBackParallax = heroBackParallaxRef.current;
-    const heroBackIntro = heroBackIntroRef.current;
-    const heroBackImage = heroBackImageRef.current;
-    const heroIntroInkCanvas = heroIntroInkCanvasRef.current;
-    const heroMiddleMotion = heroMiddleMotionRef.current;
-    const heroMiddleParallax = heroMiddleParallaxRef.current;
-    const heroMiddleIntro = heroMiddleIntroRef.current;
-    const heroFigureMotion = heroFigureMotionRef.current;
-    const heroFigureParallax = heroFigureParallaxRef.current;
-    const heroFigureIntro = heroFigureIntroRef.current;
-    const heroFigureVideo = heroFigureVideoRef.current;
-    const heroFigureCanvas = heroFigureCanvasRef.current;
-    const heroCopy = heroCopyRef.current;
-    const heroSubtitle = heroSubtitleRef.current;
-    const heroCue = heroCueRef.current;
-    const heroVignette = heroVignetteRef.current;
     const heroInkCanvas = heroInkCanvasRef.current;
     const patternCopy = patternCopyRef.current;
     const patternWash = patternWashRef.current;
@@ -680,31 +616,20 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     const aodFigureVideo = aodScene?.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
     const aodFigureCanvas = aodScene?.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
 
-    if (!root || !stageRail || !stage || !heroScene || !patternScene || !starScene || !aodScene
-      || !heroBackMotion || !heroBackParallax || !heroMiddleMotion || !heroMiddleParallax
-      || !heroBackIntro || !heroBackImage || !heroIntroInkCanvas || !heroMiddleIntro
-      || !heroFigureMotion || !heroFigureParallax || !heroFigureIntro || !heroFigureVideo || !heroFigureCanvas
-      || !heroCopy || !heroSubtitle
-      || !heroCue || !heroVignette || !heroInkCanvas || !patternCopy || !patternWash || !patternInkCanvas
+    if (!root || !stageRail || !stage || !heroAdapter || !heroScene
+      || !patternScene || !starScene || !aodScene
+      || !heroInkCanvas || !patternCopy || !patternWash || !patternInkCanvas
       || !starMotion || !starWash || !starCopy || !starInkCanvas || !readingIntro || !readingSteps
       || !aodTransition || !aodFigureVideo || !aodFigureCanvas) {
       return;
     }
 
     let active = true;
-    let figurePlayback: PhoneFigurePlayback | undefined;
-    let figureCompositor: PackedAlphaVideoCompositor | undefined;
     let aodCompositor: PackedAlphaVideoCompositor | undefined;
     let aodAutoplay: PhoneAodAutoplay | undefined;
     let heroInk: PhoneInkTransition | undefined;
     let patternInk: PhoneInkTransition | undefined;
     let starInk: PhoneInkTransition | undefined;
-    let heroIntroInk: RadialInkIntroController | undefined;
-    let disposeHeroIntro: (() => void) | undefined;
-    let heroTextRevealFrame: number | undefined;
-    let requestParallaxPermission: (() => void) | undefined;
-    let disposeParallax: (() => void) | undefined;
-    let lastHeroProgress = Number.NaN;
     let lastPatternProgress = Number.NaN;
     let lastStarProgress = Number.NaN;
     let lastAodProgress = Number.NaN;
@@ -838,8 +763,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         return;
       }
       heroActive = nextActive;
-      heroFigureActiveRef.current = nextActive;
-      figurePlayback?.setActive(nextActive);
+      if (nextActive) {
+        heroAdapter.enter?.();
+      } else {
+        heroAdapter.leave?.();
+      }
     };
 
     const setPatternActive = (nextActive: boolean) => {
@@ -858,66 +786,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       starActive = nextVisible;
       starVisibleRef.current = nextVisible;
       starPainterRef.current?.setVisible(nextVisible);
-    };
-
-    const playHeroTextEntrance = () => {
-      if (heroTextRevealFrame !== undefined) {
-        window.cancelAnimationFrame(heroTextRevealFrame);
-      }
-      // TextReveal is CSS-driven. Force a committed false -> true transition
-      // after Loader has released the stage, instead of relying on the late
-      // Hero visual-progress threshold that a first swipe can skip entirely.
-      setHeroTitleActive(false);
-      root.dataset.portraitHeroTextEntrance = 'queued';
-      heroTextRevealFrame = window.requestAnimationFrame(() => {
-        heroTextRevealFrame = undefined;
-        if (!active) {
-          return;
-        }
-        root.dataset.portraitHeroTextEntrance = 'playing';
-        setHeroTitleActive(true);
-      });
-    };
-
-    const renderHeroEntrance = (progress: number) => {
-      const sample = sampleHeroIntro(progress);
-      renderHeroProgress(heroScene, sample.progress);
-      heroIntroInk?.render(sample.progress);
-      root.dataset.portraitHeroEntrance = sample.complete ? 'complete' : 'playing';
-      heroScene.dataset.portraitHeroTitleActive = String(sample.titleActive);
-      gsap.set(heroCue, { opacity: sample.titleActive ? 1 : 0 });
-      if (sample.titleActive) {
-        setHeroTitleActive(true);
-      }
-      if (sample.complete) {
-        root.dataset.portraitHeroTextEntrance = 'complete';
-      }
-    };
-
-    const completeHeroEntrance = () => {
-      if (heroTextRevealFrame !== undefined) {
-        window.cancelAnimationFrame(heroTextRevealFrame);
-        heroTextRevealFrame = undefined;
-      }
-      disposeHeroIntro?.();
-      disposeHeroIntro = undefined;
-      renderHeroEntrance(1);
-    };
-
-    const renderHeroFrame = (rawProgress: number) => {
-      const progress = clamp(rawProgress);
-      if (Math.abs(progress - lastHeroProgress) < 0.003) {
-        return;
-      }
-      lastHeroProgress = progress;
-      gsap.set(heroBackMotion, { scale: 1.08, yPercent: 0 });
-      gsap.set(heroMiddleMotion, { scale: 1 + progress * 0.18, yPercent: progress * 12 });
-      gsap.set(heroFigureMotion, { scale: 1 + progress * 0.11, yPercent: -15 * range01(progress, 0.12, 1) });
-      gsap.set(heroCopy, { y: -58 * range01(progress, 0.18, 1), opacity: 1 - range01(progress, 0.18, 1) });
-      gsap.set(heroSubtitle, { y: -38 * range01(progress, 0.18, 1), opacity: 1 - range01(progress, 0.18, 1) });
-      gsap.set(heroCue, { y: -18 * progress, opacity: 1 - progress });
-      gsap.set(heroVignette, { opacity: 1 - progress * 0.54 });
-      figurePlayback?.scrub(progress);
     };
 
     const renderPatternFrame = (rawProgress: number) => {
@@ -1060,13 +928,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     };
 
     const retryHeroFigureFromGesture = () => {
-      if (heroFigureActiveRef.current) {
-        figurePlayback?.unlockFromGesture();
-      }
+      heroAdapter.unlockFromGesture();
       if (aodRunState === 'forward' || aodRunState === 'reverse') {
         aodAutoplay?.start(aodRunState === 'forward' ? 1 : -1);
       }
-      requestParallaxPermission?.();
     };
     const pointerTargetIsPermissionButton = (event: Event) => (
       event.target instanceof Element
@@ -1120,19 +985,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     root.addEventListener('click', onHeroClick);
 
     if (motionEnabled) {
-      figureCompositor = createPackedAlphaVideoCompositor({
-        video: heroFigureVideo,
-        canvas: heroFigureCanvas,
-        onFrame: () => {
-          heroFigureVideo.dataset.portraitFigureAlpha = 'verified';
-          heroFigureParallax.dataset.portraitFigureAlpha = 'verified';
-          heroFigureParallax.dataset.portraitFigureFrame = 'ready';
-        }
-      });
-      figurePlayback = createPhoneFigurePlayback(
-        heroFigureVideo,
-        HERO_FIGURE_PACKED_ALPHA_VIDEO
-      );
       aodCompositor = createPackedAlphaVideoCompositor({
         video: aodFigureVideo,
         canvas: aodFigureCanvas
@@ -1146,28 +998,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         onComplete: completeAodRun
       });
       aodAutoplay.reset();
-      const deviceParallax = attachPhoneDeviceParallax({
-        root,
-        targets: [
-          { element: heroBackParallax, x: 7, y: 5 },
-          { element: heroMiddleParallax, x: 14, y: 10 },
-          { element: heroFigureParallax, x: 22, y: 16 }
-        ]
-      });
-      requestParallaxPermission = deviceParallax.requestPermission;
-      disposeParallax = deviceParallax.dispose;
-      heroIntroInk = createRadialInkIntroController({
-        canvas: heroIntroInkCanvas,
-        revealSurface: heroBackImage,
-        targetImage: heroBackImage,
-        field: HERO_RADIAL_INK_FIELD,
-        generation: 'portrait-spike:hero-intro',
-        viewport: () => ({
-          width: stage.clientWidth || window.innerWidth,
-          height: stage.clientHeight || window.innerHeight
-        })
-      });
-      heroIntroInk.prewarm();
       heroInk = createPhoneInkTransition({
         host: stage,
         canvas: heroInkCanvas,
@@ -1217,8 +1047,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       const movingForward = triggerDirection > 0
         || (Number.isFinite(previousStageProgress) && progress > previousStageProgress);
       lastStageProgress = progress;
-      if (disposeHeroIntro && progress > 0.003) {
-        completeHeroEntrance();
+      if (
+        progress > 0.003
+        && root.dataset.portraitHeroEntrance !== 'complete'
+      ) {
+        heroAdapter.completeEntrance();
       }
       const heroProgress = range01(progress, 0, HERO_MOTION_END);
       const heroPatternProgress = range01(progress, HERO_MOTION_END, HERO_PATTERN_END);
@@ -1284,7 +1117,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         && progress >= PATTERN_STAR_START - 0.015
         && progress < STAR_AOD_END + 0.015
       );
-      renderHeroFrame(heroProgress);
+      heroAdapter.update(heroProgress);
       renderPatternFrame(patternProgress);
       renderStarFrame(starPresentationProgress);
 
@@ -1408,27 +1241,14 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       motionEnabled
       && stageTrigger.progress <= 0.003
     ) {
-      playHeroTextEntrance();
-      root.dataset.portraitHeroEntrance = 'playing';
-      renderHeroEntrance(0);
-      disposeHeroIntro = startHeroIntro({
-        render: (sample) => renderHeroEntrance(sample.progress),
-        onTitleActive: () => setHeroTitleActive(true),
-        onComplete: () => {
-          disposeHeroIntro = undefined;
-          root.dataset.portraitHeroEntrance = 'complete';
-        }
-      });
+      heroAdapter.startEntrance();
     } else {
-      completeHeroEntrance();
+      heroAdapter.completeEntrance();
     }
 
     return () => {
       active = false;
-      if (heroTextRevealFrame !== undefined) {
-        window.cancelAnimationFrame(heroTextRevealFrame);
-      }
-      disposeHeroIntro?.();
+      heroAdapter.cancelEntrance();
       window.cancelAnimationFrame(refreshFrame);
       window.removeEventListener('load', refresh);
       root.removeEventListener('pointerdown', onHeroPointerDown);
@@ -1442,12 +1262,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       setStarVisible(false);
       aodRunState = 'idle';
       aodScrollSnap.dispose();
-      disposeParallax?.();
-      figurePlayback?.dispose();
-      figureCompositor?.dispose();
       aodAutoplay?.dispose();
       aodCompositor?.dispose();
-      heroIntroInk?.dispose();
       heroInk?.dispose();
       patternInk?.dispose();
       starInk?.dispose();
@@ -1515,100 +1331,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       )}
       <section ref={stageRailRef} className="portrait-scroll-spike__stage-rail">
         <section ref={stageRef} className="portrait-scroll-spike__stage" aria-label="同野观幂移动端视觉叙事">
-        <section ref={heroSceneRef} className="portrait-scroll-spike__scene portrait-scroll-spike__scene--hero" aria-labelledby="portrait-spike-home">
-          <div ref={heroBackMotionRef} className="portrait-scroll-spike__hero-back-motion" aria-hidden="true">
-            <div ref={heroBackParallaxRef} className="portrait-scroll-spike__hero-back-parallax">
-              <div ref={heroBackIntroRef} className="portrait-scroll-spike__hero-back-intro">
-                <img
-                  ref={heroBackImageRef}
-                  className="portrait-scroll-spike__hero-back"
-                  src={HERO_BACK_IMAGE}
-                  alt=""
-                />
-                <canvas
-                  ref={heroIntroInkCanvasRef}
-                  className="portrait-scroll-spike__hero-intro-ink"
-                  data-portrait-hero-intro-ink
-                  aria-hidden="true"
-                />
-              </div>
-            </div>
-          </div>
-          <div ref={heroMiddleMotionRef} className="portrait-scroll-spike__hero-middle-motion" aria-hidden="true">
-            <div ref={heroMiddleParallaxRef} className="portrait-scroll-spike__hero-middle-parallax">
-              <div ref={heroMiddleIntroRef} className="portrait-scroll-spike__hero-middle-intro">
-                <img className="portrait-scroll-spike__hero-middle" src={HERO_MIDDLE_IMAGE} alt="" />
-              </div>
-            </div>
-          </div>
-          <div ref={heroFigureMotionRef} className="portrait-scroll-spike__hero-figure-motion" aria-hidden="true">
-            <div ref={heroFigureParallaxRef} className="portrait-scroll-spike__hero-figure-parallax">
-              <div ref={heroFigureIntroRef} className="portrait-scroll-spike__hero-figure-intro">
-                <img
-                  className="portrait-scroll-spike__hero-figure-poster"
-                  data-portrait-figure-poster
-                  src={HERO_FIGURE_POSTER}
-                  alt=""
-                />
-                <canvas
-                  ref={heroFigureCanvasRef}
-                  className="portrait-scroll-spike__hero-figure"
-                  data-portrait-figure-canvas
-                  aria-hidden="true"
-                />
-                <video
-                  ref={heroFigureVideoRef}
-                  className="portrait-scroll-spike__hero-figure-source"
-                  data-portrait-figure-video
-                  muted
-                  playsInline
-                  preload="auto"
-                />
-              </div>
-            </div>
-          </div>
-          <div ref={heroVignetteRef} className="portrait-scroll-spike__hero-vignette" aria-hidden="true" />
-          <div ref={heroCopyRef} className="portrait-scroll-spike__hero-copy">
-            <TextReveal
-              active={heroTitleActive && loaderHidden}
-              as="h1"
-              id="portrait-spike-home"
-              aria-label="同野观幂"
-              effects={['stagger', 'blur-to-clear', 'rise-up']}
-              variant="staggered"
-            >
-              {HERO_COPY.slice(0, 4).map((character, index) => (
-                <TextRevealItem key={character} index={index} aria-hidden="true">
-                  {character}
-                </TextRevealItem>
-              ))}
-            </TextReveal>
-          </div>
-          <div ref={heroSubtitleRef} className="portrait-scroll-spike__hero-subtitle">
-            <TextReveal
-              active={heroTitleActive && loaderHidden}
-              as="p"
-              blurPx={6}
-              delayMs={420}
-              durationMs={2850}
-              effects={['stagger', 'blur-to-clear', 'rise-up']}
-              scaleX={1}
-              staggerMs={0}
-              variant="line"
-              yPx={14}
-            >
-              <TextRevealItem aria-label={HERO_SUBTITLE}>
-                {HERO_SUBTITLE_LINES.map((line) => <span key={line}>{line}</span>)}
-              </TextRevealItem>
-            </TextReveal>
-          </div>
-          <button
-            className="portrait-scroll-spike__gyro-permission"
-            data-portrait-gyro-permission
-            type="button"
-          >轻触开启体感与全屏</button>
-          <span ref={heroCueRef} className="portrait-scroll-spike__scroll-cue" aria-hidden="true">向上滑动</span>
-        </section>
+        {loaderHidden && (
+          <PhoneHero ref={heroAdapterRef} active reducedMotion={!motionEnabled} />
+        )}
 
         <section ref={patternSceneRef} className="portrait-scroll-spike__scene portrait-scroll-spike__scene--pattern" aria-labelledby="portrait-spike-pattern-title">
           <div className="portrait-scroll-spike__pattern-motion" aria-hidden="true">

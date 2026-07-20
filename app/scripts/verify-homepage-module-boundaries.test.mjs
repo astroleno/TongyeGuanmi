@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  phoneShellDebt,
+  phoneShellCssDebt,
   phoneShellCssDebtViolations,
   phoneShellDebtViolations,
   scanPhoneShellCssDebt,
@@ -66,15 +68,16 @@ describe('homepage phone-shell debt ratchet', () => {
     expect(added).toContain('new shell-owned scene root is forbidden (figure2)');
 
     const migrated = shellSource.replace(
-      'portrait-scroll-spike__scene--hero',
-      'phone-scene--hero'
+      'portrait-scroll-spike__scene--pattern',
+      'phone-scene--pattern'
     );
     expect(violationsFor(migrated)).toEqual([]);
   });
 
   it('rejects shell growth even when a new line avoids the named debt patterns', () => {
     expect(violationsFor(`${shellSource.trimEnd()}\nvoid 0;\n`)).toContain(
-      'Unit 3 shell debt grew to 1697 lines (ratchet 1696)'
+      `Unit 3 shell debt grew to ${phoneShellDebt.maxLines + 1} lines `
+        + `(ratchet ${phoneShellDebt.maxLines})`
     );
   });
 
@@ -84,7 +87,8 @@ describe('homepage phone-shell debt ratchet', () => {
       `${shellCssSource.trimEnd()}\n.portrait-scroll-spike__scene--figure2 {}\n`
     )).toEqual(expect.arrayContaining([
       'new shell-owned CSS scene root is forbidden (figure2)',
-      'Unit 3 shell CSS debt grew to 894 lines (ratchet 893)'
+      `Unit 3 shell CSS debt grew to ${phoneShellCssDebt.maxLines + 1} lines `
+        + `(ratchet ${phoneShellCssDebt.maxLines})`
     ]));
     expect(cssViolationsFor(
       shellCssSource.replace(
@@ -107,6 +111,13 @@ describe('homepage phone-shell debt ratchet', () => {
     expect(shellZoneRendererImportViolations(
       'hero-motion.ts',
       '../../media/packed-alpha-video'
+    )).toContain(
+      'new shell-zone renderer import is forbidden '
+        + '(hero-motion.ts -> ../../media/packed-alpha-video)'
+    );
+    expect(shellZoneRendererImportViolations(
+      'phone-ink.ts',
+      '../../transitions/shared/sceneInk'
     )).toEqual([]);
   });
 });
