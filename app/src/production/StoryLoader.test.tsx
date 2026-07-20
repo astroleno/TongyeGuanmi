@@ -73,5 +73,9 @@ describe('StoryLoader', () => {
     expect(html).toContain('hidden-at');
     expect(html).toContain("navigation?.type === 'reload'");
     expect(html).toContain('manuallyReloaded');
+    const prebootPhoneRouteIndex = html.indexOf("document.documentElement.dataset.portraitSpike = 'b'");
+    expect(prebootPhoneRouteIndex).toBeGreaterThan(0);
+    expect(prebootPhoneRouteIndex).toBeLessThan(loaderIndex);
+    expect(html).toContain('html[data-portrait-spike="b"] .static-content { display: none !important; }');
   });
 });

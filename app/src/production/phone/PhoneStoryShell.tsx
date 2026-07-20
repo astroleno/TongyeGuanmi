@@ -179,7 +179,7 @@ function portraitSpikeMotionEnabled(): boolean {
 }
 
 /**
- * Route B has one scroll owner: the document. A viewport-fixed stage stays
+ * Route B has one scroll owner: the document. A rail-sticky stage stays
  * visually stationary while ScrollTrigger only maps rail position to local progress.
  * The sole input lock is the authored AOD snap while its time-owned media runs.
  */
@@ -267,6 +267,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     let lastViewportWidth = 0;
     let stageCoverageHeight = 0;
     let forceNextViewportSync = false;
+    let coverageFrame: number | undefined;
     const readViewport = () => {
       const viewport = window.visualViewport;
       return {
@@ -311,7 +312,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       root.style.setProperty('--portrait-live-height', `${height}px`);
       root.style.setProperty('--portrait-live-width', `${width}px`);
       root.style.setProperty(
-        '--portrait-stage-rail-height',
+        '--portrait-stage-scroll-distance',
         `${Math.round(height * STAGE_SCROLL_VIEWPORTS)}px`
       );
       root.dataset.portraitLiveViewport = nextViewport;
@@ -335,10 +336,24 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       const { height, width } = readViewport();
       syncStageCoverage(height, width);
     };
+    const scheduleStageCoverage = () => {
+      if (coverageFrame !== undefined) {
+        return;
+      }
+      // Some Safari toolbar transitions report their final visual-viewport
+      // height during scroll rather than through a standalone resize event.
+      // This path only expands paint coverage; it never reflows the rail.
+      coverageFrame = window.requestAnimationFrame(() => {
+        coverageFrame = undefined;
+        coverVisualViewportImmediately();
+      });
+    };
 
     syncViewport(true);
     window.visualViewport?.addEventListener('resize', coverVisualViewportImmediately);
+    window.visualViewport?.addEventListener('scroll', scheduleStageCoverage);
     window.visualViewport?.addEventListener('resize', scheduleViewportSync);
+    window.addEventListener('scroll', scheduleStageCoverage, { passive: true });
     window.addEventListener('resize', scheduleViewportSync);
     window.addEventListener('orientationchange', scheduleForcedViewportSync);
     document.addEventListener('fullscreenchange', scheduleForcedViewportSync);
@@ -347,14 +362,19 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       if (viewportTimer) {
         window.clearTimeout(viewportTimer);
       }
+      if (coverageFrame !== undefined) {
+        window.cancelAnimationFrame(coverageFrame);
+      }
       window.visualViewport?.removeEventListener('resize', coverVisualViewportImmediately);
+      window.visualViewport?.removeEventListener('scroll', scheduleStageCoverage);
       window.visualViewport?.removeEventListener('resize', scheduleViewportSync);
+      window.removeEventListener('scroll', scheduleStageCoverage);
       window.removeEventListener('resize', scheduleViewportSync);
       window.removeEventListener('orientationchange', scheduleForcedViewportSync);
       document.removeEventListener('fullscreenchange', scheduleForcedViewportSync);
       root.style.removeProperty('--portrait-live-height');
       root.style.removeProperty('--portrait-live-width');
-      root.style.removeProperty('--portrait-stage-rail-height');
+      root.style.removeProperty('--portrait-stage-scroll-distance');
       root.style.removeProperty('--portrait-stage-coverage-height');
       delete root.dataset.portraitLiveViewport;
       delete root.dataset.portraitStageCoverage;
@@ -716,7 +736,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     let currentDocumentSurface = '';
     let currentNavigationScene: SceneId = 'hero';
     root.dataset.portraitSpikeMotionState = motionEnabled ? 'running' : 'reduced';
-    root.dataset.portraitStagePin = 'native-fixed';
+    root.dataset.portraitStagePin = 'native-sticky';
     root.dataset.portraitStageActive = 'true';
     root.dataset.portraitAodRun = aodRunState;
     root.dataset.portraitAodMethodVisible = 'false';
@@ -1332,7 +1352,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       id: 'portrait-spike-stage',
       trigger: stageRail,
       start: 'top top',
-      end: 'bottom top',
+      // The rail includes one stage-height of sticky containment, then gives
+      // that height back with a negative flow margin. Progress therefore keeps
+      // its original document distance even when the browser toolbar grows or
+      // shrinks the presentation plane.
+      end: () => `+=${Math.max(1, stageRail.offsetHeight - stage.offsetHeight)}`,
       invalidateOnRefresh: true,
       onUpdate: updateStageFromTrigger,
       onRefresh: (self) => {

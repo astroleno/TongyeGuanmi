@@ -18,11 +18,13 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).toContain('id="method"');
   });
 
-  it('preserves the spike as one document-scroll owner with a fixed visual stage', () => {
+  it('preserves the spike as one document-scroll owner with a sticky visual stage', () => {
     expect(shellSource).toContain("id: 'portrait-spike-stage'");
-    expect(shellSource).toContain("root.dataset.portraitStagePin = 'native-fixed'");
-    expect(shellCss).toMatch(/portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed/s);
+    expect(shellSource).toContain("root.dataset.portraitStagePin = 'native-sticky'");
+    expect(shellSource).toContain('stageRail.offsetHeight - stage.offsetHeight');
+    expect(shellCss).toMatch(/portrait-scroll-spike__stage\s*\{[^}]*position:\s*sticky/s);
     expect(shellCss).toMatch(/portrait-scroll-spike__stage-rail\s*\{[^}]*height:\s*var\(--portrait-stage-rail-height\)/s);
+    expect(shellCss).toMatch(/portrait-scroll-spike__stage-rail\s*\{[^}]*margin-bottom:\s*calc\(-1 \* var\(--portrait-stage-height\)\)/s);
     expect(shellCss).toMatch(/touch-action:\s*pan-y/);
   });
 
@@ -42,6 +44,8 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).toContain('const playHeroTextEntrance = () => {');
     expect(shellSource).toContain("root.dataset.portraitHeroTextEntrance = 'playing'");
     expect(shellSource).toContain("'--portrait-stage-coverage-height'");
+    expect(shellSource).toContain("window.visualViewport?.addEventListener('scroll', scheduleStageCoverage)");
+    expect(shellSource).toContain("window.addEventListener('scroll', scheduleStageCoverage, { passive: true })");
     expect(shellCss).toContain('--portrait-stage-coverage-height');
     expect(shellCss).toMatch(/portrait-scroll-spike__stage\s*\{[^}]*bottom:\s*auto/s);
     expect(shellCss).toContain('html[data-portrait-spike-motion="force"] .portrait-scroll-spike [data-text-reveal-item]');

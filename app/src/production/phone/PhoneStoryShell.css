@@ -34,7 +34,11 @@ html[data-portrait-spike="b"] .static-content {
     100lvh,
     calc(100dvh + env(safe-area-inset-bottom, 0px))
   );
-  --portrait-stage-rail-height: 480dvh;
+  /* Scroll distance and sticky containment are deliberately separate. */
+  --portrait-stage-scroll-distance: 480dvh;
+  --portrait-stage-rail-height: calc(
+    var(--portrait-stage-scroll-distance) + var(--portrait-stage-height)
+  );
   --portrait-edge-surface: #07110e;
   width: 100%;
   min-height: var(--portrait-live-height);
@@ -50,18 +54,21 @@ html[data-portrait-spike="b"] .static-content {
 }
 
 /*
- * The rail owns distance while the visual stage is a fixed viewport plane.
- * ScrollTrigger reads progress but never creates a transformed pin/spacer.
+ * The rail owns distance while its sticky child is the visual viewport plane.
+ * Unlike position: fixed, this stays tied to Safari's scrolling layout when
+ * the address bar collapses. ScrollTrigger still reads progress only and
+ * never creates a transformed pin/spacer.
  */
 .portrait-scroll-spike__stage-rail {
   position: relative;
   width: 100%;
   height: var(--portrait-stage-rail-height);
+  margin-bottom: calc(-1 * var(--portrait-stage-height));
   overflow: visible;
 }
 
 .portrait-scroll-spike__stage {
-  position: fixed;
+  position: sticky;
   z-index: 10;
   top: 0;
   right: 0;
