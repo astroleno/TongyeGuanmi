@@ -205,6 +205,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
+  const railBackdropRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
   const heroSceneRef = useRef<HTMLElement | null>(null);
   const patternSceneRef = useRef<HTMLElement | null>(null);
@@ -648,6 +649,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     }
     const root = rootRef.current;
     const stageRail = stageRailRef.current;
+    const railBackdrop = railBackdropRef.current;
     const stage = stageRef.current;
     const heroScene = heroSceneRef.current;
     const patternScene = patternSceneRef.current;
@@ -684,7 +686,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     const aodFigureVideo = aodScene?.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
     const aodFigureCanvas = aodScene?.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
 
-    if (!root || !stageRail || !stage || !heroScene || !patternScene || !starScene || !aodScene
+    if (!root || !stageRail || !railBackdrop || !stage || !heroScene || !patternScene || !starScene || !aodScene
       || !heroBackMotion || !heroBackParallax || !heroMiddleMotion || !heroMiddleParallax
       || !heroBackIntro || !heroBackImage || !heroIntroInkCanvas || !heroMiddleIntro
       || !heroFigureMotion || !heroFigureParallax || !heroFigureIntro || !heroFigureVideo || !heroFigureCanvas
@@ -724,6 +726,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     let reverseGesturePointerId: number | null = null;
     let reverseGestureStartY = 0;
     let reverseWarmupStarted = false;
+    let railBackdropFrame: number | undefined;
     const aodScrollSnap = createPhoneScrollSnapLock({
       root,
       getScrollY: () => window.scrollY,
@@ -750,9 +753,42 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       documentElement.style.setProperty('--portrait-document-surface', surface);
       root.style.setProperty('--portrait-edge-surface', surface);
       root.dataset.portraitEdgeSurface = surface;
+      root.dataset.portraitEdgeScene = surface === PORTRAIT_SURFACE_PATTERN
+        ? 'pattern'
+        : surface === PORTRAIT_SURFACE_STAR
+          ? 'star'
+          : surface === PORTRAIT_SURFACE_PAPER
+            ? 'aod'
+            : 'hero';
       if (themeColorMeta) {
         themeColorMeta.content = surface;
       }
+    };
+
+    /*
+     * iOS 26 deliberately clips fixed/sticky content above its floating
+     * controls. Keep a normal document-layer backdrop directly beneath the
+     * sticky stage and track the visual viewport as an absolutely positioned
+     * compositor. Safari can reveal this document layer below the controls
+     * without exposing the next section.
+     */
+    const syncRailBackdrop = () => {
+      const viewport = window.visualViewport;
+      const pageTop = viewport?.pageTop
+        ?? (window.scrollY + (viewport?.offsetTop ?? 0));
+      const maxOffset = Math.max(0, stageRail.offsetHeight - railBackdrop.offsetHeight);
+      const offset = Math.min(maxOffset, Math.max(0, pageTop - stageScrollStart));
+      railBackdrop.style.transform = `translate3d(0, ${offset.toFixed(2)}px, 0)`;
+      root.dataset.portraitRailBackdropOffset = `${offset.toFixed(2)}px`;
+    };
+    const scheduleRailBackdrop = () => {
+      if (railBackdropFrame !== undefined) {
+        return;
+      }
+      railBackdropFrame = window.requestAnimationFrame(() => {
+        railBackdropFrame = undefined;
+        syncRailBackdrop();
+      });
     };
 
     const setCurrentNavigationScene = (scene: SceneId) => {
@@ -923,7 +959,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       patternProgressRef.current = { collapse: progress, rotation: progress };
       patternRendererRef.current?.setFrameProgress(progress, progress);
       const copyProgress = range01(progress, 0, 0.78);
-      gsap.set(patternWash, { opacity: 0.54 + progress * 0.4 });
+      const washOpacity = 0.54 + progress * 0.4;
+      root.style.setProperty('--portrait-pattern-wash-opacity', washOpacity.toFixed(4));
+      gsap.set(patternWash, { opacity: washOpacity });
       gsap.set(patternCopy, { y: 44 * (1 - copyProgress), opacity: copyProgress });
     };
 
@@ -1346,6 +1384,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     const updateStageFromTrigger = (self: ScrollTrigger) => {
       stageScrollStart = self.start;
       stageScrollEnd = self.end;
+      syncRailBackdrop();
       renderStage(self.progress, self.direction);
     };
     const stageTrigger = ScrollTrigger.create({
@@ -1367,6 +1406,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       onEnterBack: () => setStageActive(true),
       onLeave: () => setStageActive(false)
     });
+    window.visualViewport?.addEventListener('scroll', scheduleRailBackdrop);
+    window.visualViewport?.addEventListener('resize', scheduleRailBackdrop);
 
     const steps = Array.from(readingSteps.querySelectorAll<HTMLElement>('li'));
     gsap.fromTo(steps, { y: 34, opacity: 0 }, {
@@ -1412,6 +1453,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       disposeHeroIntro?.();
       window.cancelAnimationFrame(refreshFrame);
       window.removeEventListener('load', refresh);
+      window.visualViewport?.removeEventListener('scroll', scheduleRailBackdrop);
+      window.visualViewport?.removeEventListener('resize', scheduleRailBackdrop);
+      if (railBackdropFrame !== undefined) {
+        window.cancelAnimationFrame(railBackdropFrame);
+      }
       root.removeEventListener('pointerdown', onHeroPointerDown);
       root.removeEventListener('pointermove', onHeroPointerMove);
       root.removeEventListener('pointerup', clearReverseGesture);
@@ -1444,9 +1490,13 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       delete root.dataset.portraitHeroEntrance;
       delete root.dataset.portraitHeroTextEntrance;
       delete root.dataset.portraitEdgeSurface;
+      delete root.dataset.portraitEdgeScene;
+      delete root.dataset.portraitRailBackdropOffset;
       delete aodScene.dataset.portraitAodAlpha;
       delete aodTransition.dataset.portraitAodBackdropProgress;
       root.style.removeProperty('--portrait-edge-surface');
+      root.style.removeProperty('--portrait-pattern-wash-opacity');
+      railBackdrop.style.removeProperty('transform');
       if (previousDocumentSurface) {
         documentElement.style.setProperty('--portrait-document-surface', previousDocumentSurface);
       } else {
@@ -1482,6 +1532,14 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         />
       )}
       <section ref={stageRailRef} className="portrait-scroll-spike__stage-rail">
+        <div ref={railBackdropRef} className="portrait-scroll-spike__rail-backdrop" aria-hidden="true">
+          <img
+            className="portrait-scroll-spike__rail-backdrop-pattern"
+            src={PATTERN_BACKGROUND_IMAGE}
+            alt=""
+          />
+          <div className="portrait-scroll-spike__rail-backdrop-pattern-wash" />
+        </div>
         <section ref={stageRef} className="portrait-scroll-spike__stage" aria-label="同野观幂移动端视觉叙事">
         <section ref={heroSceneRef} className="portrait-scroll-spike__scene portrait-scroll-spike__scene--hero" aria-labelledby="portrait-spike-home">
           <div ref={heroBackMotionRef} className="portrait-scroll-spike__hero-back-motion" aria-hidden="true">

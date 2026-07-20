@@ -65,6 +65,67 @@ html[data-portrait-spike="b"] .static-content {
   height: var(--portrait-stage-rail-height);
   margin-bottom: calc(-1 * var(--portrait-stage-height));
   overflow: visible;
+  background: var(--portrait-edge-surface);
+}
+
+/*
+ * Safari 26 keeps sticky/fixed planes above its floating bottom controls.
+ * This ordinary document-layer plane mirrors the active scene underneath the
+ * sticky stage, so the browser exclusion area never falls through to Method.
+ * It remains neither sticky nor fixed; transform keeps its scroll update on
+ * the compositor instead of relaying out the page.
+ */
+.portrait-scroll-spike__rail-backdrop {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  left: 0;
+  width: 100%;
+  height: var(--portrait-stage-height);
+  overflow: hidden;
+  background: var(--portrait-edge-surface);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.portrait-scroll-spike__rail-backdrop-pattern,
+.portrait-scroll-spike__rail-backdrop-pattern-wash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.portrait-scroll-spike__rail-backdrop-pattern {
+  display: block;
+  max-width: none;
+  object-fit: cover;
+  user-select: none;
+}
+
+.portrait-scroll-spike__rail-backdrop-pattern-wash {
+  background:
+    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
+    linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__rail-backdrop-pattern {
+  opacity: 1;
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__rail-backdrop-pattern-wash {
+  opacity: var(--portrait-pattern-wash-opacity, .54);
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="star"] .portrait-scroll-spike__rail-backdrop {
+  background:
+    radial-gradient(circle at 16% 22%, rgba(56, 166, 154, .12), transparent 32vw),
+    radial-gradient(circle at 84% 74%, rgba(183, 91, 52, .10), transparent 34vw),
+    linear-gradient(180deg, rgba(7, 17, 14, .96), #07110e),
+    #07110e;
 }
 
 .portrait-scroll-spike__stage {
@@ -576,6 +637,23 @@ html[data-portrait-spike="b"] .static-content {
   padding: 0 0 max(72px, calc(env(safe-area-inset-bottom) + 44px));
   background: #ede4d2;
   color: #1e211c;
+}
+
+/*
+ * The fixed Method bridge leaves normal flow while AOD owns the stage.
+ * Reserve its eventual viewport-height slot so Method steps cannot sit under
+ * the Safari toolbar exclusion area and leak through the AOD surface.
+ */
+.portrait-scroll-spike__reading::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 0;
+  background: #ede4d2;
+}
+
+.portrait-scroll-spike[data-portrait-stage-active="true"] .portrait-scroll-spike__reading::before {
+  height: var(--portrait-stage-height);
 }
 
 .portrait-scroll-spike__method-bridge-content,

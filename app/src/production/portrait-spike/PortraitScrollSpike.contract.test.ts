@@ -25,6 +25,10 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellCss).toMatch(/portrait-scroll-spike__stage\s*\{[^}]*position:\s*sticky/s);
     expect(shellCss).toMatch(/portrait-scroll-spike__stage-rail\s*\{[^}]*height:\s*var\(--portrait-stage-rail-height\)/s);
     expect(shellCss).toMatch(/portrait-scroll-spike__stage-rail\s*\{[^}]*margin-bottom:\s*calc\(-1 \* var\(--portrait-stage-height\)\)/s);
+    expect(shellSource).toContain('portrait-scroll-spike__rail-backdrop');
+    expect(shellSource).toContain('viewport?.pageTop');
+    expect(shellCss).toMatch(/portrait-scroll-spike__rail-backdrop\s*\{[^}]*position:\s*absolute/s);
+    expect(shellCss).toMatch(/data-portrait-stage-active="true"[^}]*portrait-scroll-spike__reading::before\s*\{[^}]*height:\s*var\(--portrait-stage-height\)/s);
     expect(shellCss).toMatch(/touch-action:\s*pan-y/);
   });
 
