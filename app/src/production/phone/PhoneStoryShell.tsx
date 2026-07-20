@@ -55,6 +55,7 @@ import {
 } from './phone-loader-lifecycle';
 import { phoneMediaUrlFor } from './phone-media';
 import { createPhoneScrollSnapLock } from './phone-scroll-snap-lock';
+import { phoneStageCoverageHeight } from './phone-viewport';
 import { StoryLoader } from '../StoryLoader';
 import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
@@ -264,23 +265,43 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     let viewportTimer: number | undefined;
     let lastViewport = '';
     let lastViewportWidth = 0;
+    let stageCoverageHeight = 0;
     let forceNextViewportSync = false;
-    const syncViewport = (forceHeight = false) => {
+    const readViewport = () => {
       const viewport = window.visualViewport;
-      const height = Math.max(1, Math.round(viewport?.height || window.innerHeight || 1));
-      const width = Math.max(1, Math.round(viewport?.width || window.innerWidth || 1));
+      return {
+        height: Math.max(1, Math.round(viewport?.height || window.innerHeight || 1)),
+        width: Math.max(1, Math.round(viewport?.width || window.innerWidth || 1))
+      };
+    };
+    const syncStageCoverage = (height: number, width: number, reset = false) => {
+      const widthChanged = lastViewportWidth === 0 || Math.abs(width - lastViewportWidth) > 1;
+      const nextCoverageHeight = phoneStageCoverageHeight(
+        stageCoverageHeight,
+        height,
+        reset || widthChanged
+      );
+      if (nextCoverageHeight !== stageCoverageHeight) {
+        stageCoverageHeight = nextCoverageHeight;
+        root.style.setProperty('--portrait-stage-coverage-height', `${stageCoverageHeight}px`);
+        root.dataset.portraitStageCoverage = `${stageCoverageHeight}px`;
+      }
+      return widthChanged;
+    };
+    const syncViewport = (forceHeight = false) => {
+      const { height, width } = readViewport();
       const nextViewport = `${width}x${height}`;
       if (nextViewport === lastViewport) {
         return;
       }
+      const widthChanged = syncStageCoverage(height, width, forceHeight);
       if (
         !forceHeight
-        && lastViewportWidth > 0
-        && Math.abs(width - lastViewportWidth) <= 1
+        && !widthChanged
       ) {
-        // iOS continuously changes visualViewport.height while its toolbar
-        // travels. Resizing the scene and refreshing ScrollTrigger here pulls
-        // the entire fixed Hero with the browser chrome and exposes its base.
+        // Preserve ScrollTrigger geometry while the iOS toolbar travels, but
+        // expand the fixed presentation plane above so its bottom can never
+        // expose the browser/document surface.
         root.dataset.portraitTransientViewport = nextViewport;
         return;
       }
@@ -310,8 +331,13 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       forceNextViewportSync = true;
       scheduleViewportSync();
     };
+    const coverVisualViewportImmediately = () => {
+      const { height, width } = readViewport();
+      syncStageCoverage(height, width);
+    };
 
     syncViewport(true);
+    window.visualViewport?.addEventListener('resize', coverVisualViewportImmediately);
     window.visualViewport?.addEventListener('resize', scheduleViewportSync);
     window.addEventListener('resize', scheduleViewportSync);
     window.addEventListener('orientationchange', scheduleForcedViewportSync);
@@ -321,6 +347,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       if (viewportTimer) {
         window.clearTimeout(viewportTimer);
       }
+      window.visualViewport?.removeEventListener('resize', coverVisualViewportImmediately);
       window.visualViewport?.removeEventListener('resize', scheduleViewportSync);
       window.removeEventListener('resize', scheduleViewportSync);
       window.removeEventListener('orientationchange', scheduleForcedViewportSync);
@@ -328,7 +355,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       root.style.removeProperty('--portrait-live-height');
       root.style.removeProperty('--portrait-live-width');
       root.style.removeProperty('--portrait-stage-rail-height');
+      root.style.removeProperty('--portrait-stage-coverage-height');
       delete root.dataset.portraitLiveViewport;
+      delete root.dataset.portraitStageCoverage;
       delete root.dataset.portraitTransientViewport;
       delete documentElement.dataset.portraitSpike;
       delete documentElement.dataset.portraitSpikeMotion;
@@ -656,6 +685,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     let starInk: PhoneInkTransition | undefined;
     let heroIntroInk: RadialInkIntroController | undefined;
     let disposeHeroIntro: (() => void) | undefined;
+    let heroTextRevealFrame: number | undefined;
     let requestParallaxPermission: (() => void) | undefined;
     let disposeParallax: (() => void) | undefined;
     let lastHeroProgress = Number.NaN;
@@ -804,6 +834,25 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       starPainterRef.current?.setVisible(nextVisible);
     };
 
+    const playHeroTextEntrance = () => {
+      if (heroTextRevealFrame !== undefined) {
+        window.cancelAnimationFrame(heroTextRevealFrame);
+      }
+      // TextReveal is CSS-driven. Force a committed false -> true transition
+      // after Loader has released the stage, instead of relying on the late
+      // Hero visual-progress threshold that a first swipe can skip entirely.
+      setHeroTitleActive(false);
+      root.dataset.portraitHeroTextEntrance = 'queued';
+      heroTextRevealFrame = window.requestAnimationFrame(() => {
+        heroTextRevealFrame = undefined;
+        if (!active) {
+          return;
+        }
+        root.dataset.portraitHeroTextEntrance = 'playing';
+        setHeroTitleActive(true);
+      });
+    };
+
     const renderHeroEntrance = (progress: number) => {
       const sample = sampleHeroIntro(progress);
       renderHeroProgress(heroScene, sample.progress);
@@ -814,9 +863,16 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       if (sample.titleActive) {
         setHeroTitleActive(true);
       }
+      if (sample.complete) {
+        root.dataset.portraitHeroTextEntrance = 'complete';
+      }
     };
 
     const completeHeroEntrance = () => {
+      if (heroTextRevealFrame !== undefined) {
+        window.cancelAnimationFrame(heroTextRevealFrame);
+        heroTextRevealFrame = undefined;
+      }
       disposeHeroIntro?.();
       disposeHeroIntro = undefined;
       renderHeroEntrance(1);
@@ -847,12 +903,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       patternProgressRef.current = { collapse: progress, rotation: progress };
       patternRendererRef.current?.setFrameProgress(progress, progress);
       const copyProgress = range01(progress, 0, 0.78);
-      // Keep the expanded bloom visually continuous at the lower edge while
-      // it enters. Without this owned ground, the large blurred ring fades
-      // into the paper plate and reads as a dark feathered leak below Pattern.
-      const entryGroundOpacity = 1 - range01(progress, 0.3, 0.72);
-      patternScene.style.setProperty('--portrait-pattern-entry-ground-opacity', entryGroundOpacity.toFixed(4));
-      gsap.set(patternWash, { opacity: 0.36 + progress * 0.28 });
+      gsap.set(patternWash, { opacity: 0.54 + progress * 0.4 });
       gsap.set(patternCopy, { y: 44 * (1 - copyProgress), opacity: copyProgress });
     };
 
@@ -1314,7 +1365,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       motionEnabled
       && stageTrigger.progress <= 0.003
     ) {
-      setHeroTitleActive(false);
+      playHeroTextEntrance();
       root.dataset.portraitHeroEntrance = 'playing';
       renderHeroEntrance(0);
       disposeHeroIntro = startHeroIntro({
@@ -1331,6 +1382,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
 
     return () => {
       active = false;
+      if (heroTextRevealFrame !== undefined) {
+        window.cancelAnimationFrame(heroTextRevealFrame);
+      }
       disposeHeroIntro?.();
       window.cancelAnimationFrame(refreshFrame);
       window.removeEventListener('load', refresh);
@@ -1364,6 +1418,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       delete root.dataset.portraitAodMethodVisible;
       delete root.dataset.portraitStageBoundary;
       delete root.dataset.portraitHeroEntrance;
+      delete root.dataset.portraitHeroTextEntrance;
       delete root.dataset.portraitEdgeSurface;
       delete aodScene.dataset.portraitAodAlpha;
       delete aodTransition.dataset.portraitAodBackdropProgress;

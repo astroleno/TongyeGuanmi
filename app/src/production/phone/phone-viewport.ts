@@ -23,6 +23,20 @@ export function phoneStageGeometry(viewport: PhoneViewport): PhoneStageGeometry 
   };
 }
 
+/**
+ * Keep a fixed presentation surface large enough for an iOS toolbar collapse
+ * without changing the scroll rail geometry mid-gesture. A true orientation
+ * or width change resets the retained coverage to the new viewport.
+ */
+export function phoneStageCoverageHeight(
+  previousHeight: number,
+  viewportHeight: number,
+  reset = false
+): number {
+  const nextHeight = Math.max(1, Math.round(viewportHeight));
+  return reset ? nextHeight : Math.max(Math.max(1, Math.round(previousHeight)), nextHeight);
+}
+
 export function readPhoneViewport(): PhoneViewport {
   const viewport = window.visualViewport;
   return {

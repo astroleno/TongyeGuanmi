@@ -36,11 +36,16 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).toContain("'handoff-star-aod'");
   });
 
-  it('re-arms the Hero title and protects the expanded Pattern lower edge', () => {
+  it('re-arms the Hero title and retains stage coverage through toolbar changes', () => {
     expect(shellSource).toContain('const [heroTitleActive, setHeroTitleActive] = useState(() => !motionEnabled);');
     expect(shellSource).not.toContain('loaderCompletedOnMountRef');
-    expect(shellSource).toContain("'--portrait-pattern-entry-ground-opacity'");
-    expect(shellCss).toContain('.portrait-scroll-spike__scene--pattern::before');
+    expect(shellSource).toContain('const playHeroTextEntrance = () => {');
+    expect(shellSource).toContain("root.dataset.portraitHeroTextEntrance = 'playing'");
+    expect(shellSource).toContain("'--portrait-stage-coverage-height'");
+    expect(shellCss).toContain('--portrait-stage-coverage-height');
+    expect(shellCss).toMatch(/portrait-scroll-spike__stage\s*\{[^}]*bottom:\s*auto/s);
+    expect(shellCss).toContain('html[data-portrait-spike-motion="force"] .portrait-scroll-spike [data-text-reveal-item]');
+    expect(shellCss).toContain('r4-text-reveal-enter');
   });
 
   it('keeps Figure 1 and AOD packed-alpha media in the proven ownership path', () => {

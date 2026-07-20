@@ -27,7 +27,13 @@ html[data-portrait-spike="b"] .static-content {
 .portrait-scroll-spike {
   --portrait-live-height: 100dvh;
   --portrait-live-width: 100vw;
-  --portrait-stage-height: max(var(--portrait-live-height), 100lvh);
+  --portrait-stage-coverage-height: var(--portrait-live-height);
+  --portrait-stage-height: max(
+    var(--portrait-live-height),
+    var(--portrait-stage-coverage-height),
+    100lvh,
+    calc(100dvh + env(safe-area-inset-bottom, 0px))
+  );
   --portrait-stage-rail-height: 480dvh;
   --portrait-edge-surface: #07110e;
   width: 100%;
@@ -57,7 +63,10 @@ html[data-portrait-spike="b"] .static-content {
 .portrait-scroll-spike__stage {
   position: fixed;
   z-index: 10;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: 0;
   width: 100%;
   height: var(--portrait-stage-height);
   min-height: var(--portrait-stage-height);
@@ -98,28 +107,8 @@ html[data-portrait-spike="b"] .static-content {
 }
 
 .portrait-scroll-spike__scene--pattern {
-  --portrait-pattern-entry-ground-opacity: 1;
   background: #d9c08f;
   color: #211713;
-}
-
-/*
- * The canvas bloom deliberately begins above the lower safe area. Give its
- * blurred outer rings a warm, opaque continuation while it is expanded so
- * the paper plate cannot flash through as a dark feathered seam.
- */
-.portrait-scroll-spike__scene--pattern::before {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  display: block;
-  background:
-    radial-gradient(ellipse 98% 72% at 50% 28%, rgba(195, 101, 62, 0) 38%, rgba(177, 79, 48, .26) 68%, rgba(164, 67, 43, .72) 100%),
-    linear-gradient(180deg, rgba(176, 79, 49, 0) 38%, rgba(183, 88, 53, .18) 60%, rgba(175, 78, 48, .76) 100%);
-  content: '';
-  opacity: var(--portrait-pattern-entry-ground-opacity);
-  pointer-events: none;
-  transition: opacity 120ms linear;
 }
 
 .portrait-scroll-spike__scene--star {
@@ -459,8 +448,8 @@ html[data-portrait-spike="b"] .static-content {
 .portrait-scroll-spike__pattern-wash {
   z-index: 3;
   background:
-    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .08), rgba(217, 192, 143, .12) 42%, rgba(118, 54, 35, .18) 100%),
-    linear-gradient(180deg, rgba(246, 229, 188, .1), rgba(119, 57, 36, .08));
+    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
+    linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
 }
 
 .portrait-scroll-spike__pattern-bloom {
@@ -708,6 +697,33 @@ html[data-portrait-spike="b"] .site-nav-track {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /*
+   * `?v=16` is the explicit physical-device motion route. Its runtime already
+   * treats motion as forced, so the generic accessibility fallback must not
+   * silently make only Hero's CSS TextReveal static on an iPhone configured
+   * with Reduce Motion. The deliberate `portrait-spike-motion=reduce` route
+   * still keeps the fallback below.
+   */
+  html[data-portrait-spike-motion="force"] .portrait-scroll-spike [data-text-reveal-item] {
+    opacity: 0;
+    filter: blur(var(--text-reveal-blur, 0px));
+    transform: translate3d(0, var(--text-reveal-y, 0px), 0) scaleX(var(--text-reveal-scale-x, 1));
+    animation: none !important;
+  }
+
+  html[data-portrait-spike-motion="force"] .portrait-scroll-spike [data-text-reveal-active="true"] [data-text-reveal-item] {
+    animation:
+      r4-text-reveal-enter
+      var(--text-reveal-duration, 800ms)
+      cubic-bezier(.22, 1, .36, 1)
+      calc(var(--text-reveal-delay, 0ms) + var(--text-reveal-index, 0) * var(--text-reveal-stagger, 0ms))
+      both !important;
+  }
+
+  html[data-portrait-spike-motion="force"] .portrait-scroll-spike [data-text-reveal="line"][data-text-reveal-active="true"] [data-text-reveal-item] {
+    animation-timing-function: cubic-bezier(.37, 0, .63, 1) !important;
+  }
+
   html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__hero-back-motion,
   html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__hero-middle-motion,
   html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__hero-figure-motion,

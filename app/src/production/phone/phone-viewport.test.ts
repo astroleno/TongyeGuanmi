@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { PHONE_STAGE_SCROLL_VIEWPORTS, phoneStageGeometry } from './phone-viewport';
+import {
+  PHONE_STAGE_SCROLL_VIEWPORTS,
+  phoneStageCoverageHeight,
+  phoneStageGeometry
+} from './phone-viewport';
 
 describe('phone stage viewport geometry', () => {
   it('keeps rail distance deterministic from the live visual viewport', () => {
@@ -16,5 +20,11 @@ describe('phone stage viewport geometry', () => {
       orientation: 'landscape',
       railHeight: Math.round(390 * PHONE_STAGE_SCROLL_VIEWPORTS)
     });
+  });
+
+  it('retains fixed-stage coverage while the iOS browser chrome collapses', () => {
+    expect(phoneStageCoverageHeight(724, 844)).toBe(844);
+    expect(phoneStageCoverageHeight(844, 724)).toBe(844);
+    expect(phoneStageCoverageHeight(844, 390, true)).toBe(390);
   });
 });
