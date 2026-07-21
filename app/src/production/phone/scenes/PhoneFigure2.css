@@ -5,9 +5,9 @@
   width: 100%;
   height: var(--portrait-stage-height);
   min-height: var(--portrait-stage-height);
+  overflow: visible;
+  isolation: auto;
   background: transparent;
-  transform: translateZ(0);
-  backface-visibility: hidden;
 }
 
 .phone-grade-a__surfaces .r4-figure2__middle-camera {

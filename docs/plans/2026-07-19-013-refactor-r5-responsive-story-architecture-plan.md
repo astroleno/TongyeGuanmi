@@ -45,7 +45,7 @@ is the pre-extraction baseline.
 The frozen visual source is commit `95d519b` (`?v=17`), which contains the
 accepted Safari edge stabilization and the phone-only AOD alpha extension from
 timeline progress `0.48` to `0.55`. The current short verification route is
-`?v=35`; `?v=16` through `?v=34` remain aliases to the same formal phone shell,
+`?v=36`; `?v=16` through `?v=35` remain aliases to the same formal phone shell,
 not immutable historical deployments.
 
 | Unit | Status | Implemented evidence |
@@ -54,7 +54,7 @@ not immutable historical deployments.
 | Unit 1 | Complete | Canonical copy, media IDs, navigation, semantic checkpoints, and renderer-neutral lifecycle contracts remain shared. The boundary verifier rejects shared-to-presentation imports, cross-shell imports, phone-to-spike imports, new shell scene roots, media keys, asset URLs, and scene renderer imports. |
 | Unit 2 | Complete; physical fixed-stage acceptance recorded | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
 | Unit 3 | Complete; physical visual acceptance recorded | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
-| Unit 4 | v35 split-viewport candidate; physical Safari acceptance pending | The single Pattern plate and Method → Figure2 edge timing remain intact. v35 restores the current-viewport fixed host around an independent stable-lvh canvas, prevents height-only toolbar resizes from mutating stage geometry, and removes Pattern's unused compositor hint. |
+| Unit 4 | v36 compositor-topology candidate; physical Safari acceptance pending | v35 proved the host/canvas dimensions are correct. v36 leaves that geometry frozen and removes the dynamic host and nested Grade A/Figure2 clips and forced GPU layers, making the stable-lvh canvas the single outer clipping boundary. |
 | Units 5–7 | Not started | No Brand, Figure 3, Services, or later batch starts before Unit 4 receives its own physical-iPhone acceptance. |
 
 ### Unit 0–3 cutover record
@@ -566,13 +566,52 @@ Automated verification for v35:
   with 52 media files, 32 WebP, `81,507,214 B` runtime media,
   `564,018 B` phone-shell budget, and `7,448 B` total JS headroom.
 
-**Physical acceptance for `?v=35`:** with Safari's address bar fully expanded,
+**Gate result:** iOS 26.3 measured the current viewport and fixed host at
+`714px`, while `100lvh`, the stage canvas, Pattern, and Figure2 were all
+`754px`. The split geometry is therefore correct. The remaining strip is the
+host fallback exposed while WebKit expands the host's `overflow: clip` region
+before repainting the transformed child compositing layers. v35 is superseded
+by v36 without further viewport formula changes.
+
+### Unit 4 v36 compositor topology
+
+v36 changes paint ownership rather than geometry:
+
+- the dynamic-height fixed host keeps positioning and the emergency edge
+  color, but uses `overflow: visible` and no `transform`,
+  `backface-visibility`, or `isolation`;
+- the stable-lvh stage canvas retains `overflow: clip` as the one outer scene
+  boundary, without a forced transform/backface compositing layer;
+- phone scene roots paint visibly into that stable canvas and retain layout
+  containment only; `contain: paint` and the redundant scene isolation are
+  removed;
+- the portaled Grade A surface no longer clips or forces a translated backing
+  layer;
+- the phone Figure2 root overrides the shared desktop root's outer
+  `overflow: hidden` and `isolation: isolate`, and removes its extra
+  `translateZ(0)`/backface layer. Figure2's intentional internal masks and
+  animated transforms remain unchanged;
+- Pattern's single plate, the AOD alpha timing, Method → Figure2 edge timing,
+  and all viewport-height calculations remain unchanged.
+
+The structural contract rejects any reintroduction of a clip or forced GPU
+layer on the dynamic host, stage canvas, Grade A surface, or Figure2 root.
+
+Automated verification for v36:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 771 tests;
+- `pnpm -w run build` passes all module, media, release, and performance gates
+  with 52 media files, 32 WebP, `81,507,214 B` runtime media,
+  `564,028 B` phone-shell budget, and `7,438 B` total JS headroom.
+
+**Physical acceptance for `?v=36`:** with Safari's address bar fully expanded,
 make one upward swipe through Pattern, AOD, and the beginning of Figure2 until
-the bar collapses. Each scene must remain continuous at the lower edge, without
-the solid fallback strip or moving gradient. Cross AOD → Method and Method →
-Figure2 slowly in both directions to confirm the existing masks and ink contour
-remain unchanged. Visual acceptance belongs to the physical-device pass;
-Units 5–7 remain frozen until it succeeds.
+the bar collapses. The previously hidden bottom `40px` of the stable canvas
+must already be painted, with no `#d9c08f`, paper-color, or moving gradient
+strip. Cross AOD → Method and Method → Figure2 slowly in both directions to
+confirm the existing masks and ink contour remain unchanged. Visual acceptance
+belongs to the physical-device pass; Units 5–7 remain frozen until it succeeds.
 
 ## Problem Frame
 

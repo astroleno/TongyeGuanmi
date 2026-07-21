@@ -23,6 +23,7 @@ describe('portrait spike route helpers', () => {
     expect(portraitSpikeRouteForSearch('?v=33')).toBe('b');
     expect(portraitSpikeRouteForSearch('?v=34')).toBe('b');
     expect(portraitSpikeRouteForSearch('?v=35')).toBe('b');
+    expect(portraitSpikeRouteForSearch('?v=36')).toBe('b');
     expect(portraitSpikeRouteForSearch('?v=15')).toBeUndefined();
   });
 
