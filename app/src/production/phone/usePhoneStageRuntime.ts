@@ -12,6 +12,7 @@ import {
   phoneAodCompletionCheckpoint,
   phoneStageFrame
 } from './phone-stage-timeline';
+import { renderPhoneStageTransitions } from './phone-transition-stage';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -520,10 +521,11 @@ export function usePhoneStageRuntime(
             ? 'aod'
             : scene
       ));
-      setOwnership(frame.ownership.key, visible, stack);
-      heroPatternAdapter.render(frame.heroPatternProgress);
-      patternStarAdapter.render(frame.patternStarProgress);
-      starAodAdapter.render(frame.starAodProgress);
+      renderPhoneStageTransitions(frame, {
+        heroPattern: heroPatternAdapter,
+        patternStar: patternStarAdapter,
+        starAod: starAodAdapter
+      }, () => setOwnership(frame.ownership.key, visible, stack));
       if (progress >= PHONE_STAGE_STOPS.starAodEnd) {
         setAodHoldOwnership(aodProgress, aodRunState);
       }

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const PHONE_SHELL = '[data-phone-validation-mode="v22"]';
+const PHONE_SHELL = '[data-phone-validation-mode="v23"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -18,7 +18,7 @@ async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   }, progress);
 }
 
-test('v22 Route B publishes the active phone checkpoint trace in both directions', async ({
+test('v23 Route B publishes the active phone checkpoint trace in both directions', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -32,7 +32,7 @@ test('v22 Route B publishes the active phone checkpoint trace in both directions
     }
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=22', { waitUntil: 'domcontentloaded' });
+  await page.goto('/?v=23', { waitUntil: 'domcontentloaded' });
 
   const shell = page.locator(PHONE_SHELL);
   const loader = page.locator('[data-story-loader="true"]');
@@ -86,6 +86,10 @@ test('v22 Route B publishes the active phone checkpoint trace in both directions
         'data-phone-ink-progress',
         /^0\.(?!0000)\d{4}$/
       );
+      await expect(hero).toHaveCSS('visibility', 'visible');
+      await expect(
+        page.locator('.portrait-scroll-spike__scene--pattern')
+      ).toHaveAttribute('data-r4-ink-ownership', 'reveal');
     } else if (checkpoint === 'pattern-complete') {
       await expect(
         page.locator('.portrait-scroll-spike__toolbar-edge--pattern')

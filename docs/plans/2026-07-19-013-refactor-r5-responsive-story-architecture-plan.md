@@ -45,16 +45,16 @@ is the pre-extraction baseline.
 The frozen visual source is commit `95d519b` (`?v=17`), which contains the
 accepted Safari edge stabilization and the phone-only AOD alpha extension from
 timeline progress `0.48` to `0.55`. The current short verification route is
-`?v=22`; `?v=16` through `?v=21` remain aliases to the same formal phone shell,
+`?v=23`; `?v=16` through `?v=22` remain aliases to the same formal phone shell,
 not immutable historical deployments.
 
 | Unit | Status | Implemented evidence |
 | --- | --- | --- |
-| Unit 0 | Code complete; physical evidence pending | Shared Loader → Method checkpoints and exact progress stops are frozen in tests. The v22 production route publishes the complete trace through rail-owned and AOD-media-owned time; the critical E2E verifies forward and reverse traversal, the 0.55 alpha endpoint, all three ink handoffs, Pattern edge ownership, terminal AOD backdrop exit, and single scene/media instances. |
+| Unit 0 | Code complete; physical evidence pending | Shared Loader → Method checkpoints and exact progress stops are frozen in tests. The v23 production route publishes the complete trace through rail-owned and AOD-media-owned time; the critical E2E verifies forward and reverse traversal, the 0.55 alpha endpoint, all three ink handoffs, adjacent endpoint ownership, Pattern edge ownership, terminal AOD backdrop exit, and single scene/media instances. |
 | Unit 1 | Complete | Canonical copy, media IDs, navigation, semantic checkpoints, and renderer-neutral lifecycle contracts remain shared. The boundary verifier rejects shared-to-presentation imports, cross-shell imports, phone-to-spike imports, new shell scene roots, media keys, asset URLs, and scene renderer imports. |
 | Unit 2 | Code complete; physical fixed-stage evidence pending | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
 | Unit 3 | Code complete; physical visual acceptance pending | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
-| Units 4–7 | Not started | The corrected v22 adapter build still requires entity-iPhone acceptance. No Method back-half, Figure 2, Proof, Brand, Figure 3, Services, or later migration starts before that gate. |
+| Units 4–7 | Not started | The corrected v23 adapter build still requires entity-iPhone acceptance. No Method back-half, Figure 2, Proof, Brand, Figure 3, Services, or later migration starts before that gate. |
 
 ### Unit 0–3 cutover record
 
@@ -71,21 +71,28 @@ Hero/Hero → Pattern/Pattern visual readiness gates. The other adapters prepare
 behind that sequence, matching the former monolithic shell's ownership timing.
 No media asset was replaced, re-encoded, or added.
 
+The v23 repair also freezes adjacent ink ownership order: inactive transitions
+publish their terminal canvas state before scene ownership is committed, and
+only the active transition may write a shared endpoint boundary afterward.
+This prevents Pattern → Star Map at progress zero from clearing the live
+Hero → Pattern reveal boundary.
+
 The current production build reports:
 
-- `totalJsHeadroomBytes: 8,831` (required minimum: 4,096);
-- `phoneShellBudgetBytes: 480,140`;
+- `totalJsHeadroomBytes: 8,821` (required minimum: 4,096);
+- `phoneShellBudgetBytes: 480,762`;
 - `largestLazyJsRawBytes: 55,259` (cap: 65,536);
 - zero shell-owned scene roots and media keys.
 
 Validation completed for the v21 cutover and rerun successfully for v22 after
-the physical-review corrections:
+the physical-review corrections. The v23 endpoint-order repair adds a focused
+unit contract and a live Hero → Pattern receiver-ownership assertion:
 
 - `pnpm -C app typecheck`;
 - `pnpm -C app lint`;
-- `pnpm -C app test` — 126 files, 746 tests;
+- `pnpm -C app test` — 127 files, 749 tests;
 - `pnpm -C app build` — module-boundary, media, release, and performance gates pass;
-- `PLAYWRIGHT_PORT=4174 pnpm -C app exec playwright test --config playwright.release.config.ts e2e/r5-phone-story.spec.ts --project=desktop-chromium` — forward/reverse chain, Pattern edge ownership, and terminal AOD backdrop exit pass.
+- `PLAYWRIGHT_PORT=4174 pnpm -C app exec playwright test --config playwright.release.config.ts e2e/r5-phone-story.spec.ts --project=desktop-chromium` — forward/reverse chain, Hero → Pattern receiver ownership, Pattern edge ownership, and terminal AOD backdrop exit pass.
 
 The complete desktop production E2E run passes 19 of 23 checks. The four
 Reading/Figure2 input-throttle checks also fail identically on the untouched
@@ -96,7 +103,7 @@ CSS source changed in this cutover.
 
 ### Current physical review gate
 
-Unit 0–3 is **not physically accepted yet**. The v22 build must be reviewed on
+Unit 0–3 is **not physically accepted yet**. The v23 build must be reviewed on
 an actual iPhone Safari with the address bar expanded and collapsed. The review
 must confirm:
 
@@ -112,7 +119,7 @@ must confirm:
 - top navigation blur covers the complete safe-area inset;
 - orientation and lock/unlock do not remount the shell or replay Loader.
 
-**Gate:** keep Units 4–7 frozen until the user accepts this v22 physical
+**Gate:** keep Units 4–7 frozen until the user accepts this v23 physical
 checkpoint and the device/iOS/Safari evidence is recorded.
 
 ## Problem Frame
