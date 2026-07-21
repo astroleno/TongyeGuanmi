@@ -152,7 +152,6 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
 
   useLayoutEffect(() => {
     if (!host || !from || !to) return;
-    const abortController = new AbortController();
     const fromLayer = phoneLayer('figure2-animation', from);
     const toLayer = phoneLayer('figure2-proof', to);
     const transition = createFigure2DistanceExpandTransition();
@@ -167,26 +166,12 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
       prepareToken: PHONE_FIGURE2_PREPARE,
       prefersReducedMotion: reducedMotion,
       reportMilestone() {}
-    })).then(async (timeline) => {
+    })).then((timeline) => {
       if (disposed) {
         timeline.dispose();
         return;
       }
       timelineRef.current = timeline;
-      try {
-        await timeline.prepareLeg?.({
-          runId: PHONE_FIGURE2_RUN,
-          segment: 'figure2-distance-expand',
-          direction: 1,
-          legIndex: 1,
-          from: FIGURE2_INTRO_END,
-          to: 1,
-          durationMs: 1500,
-          signal: abortController.signal
-        });
-      } catch {
-        // The timeline remains usable as its canonical endpoint fallback.
-      }
       if (!disposed) {
         render(desiredProgressRef.current);
         onReady?.();
@@ -199,7 +184,6 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     });
     return () => {
       disposed = true;
-      abortController.abort();
       timelineRef.current?.dispose();
       timelineRef.current = null;
     };

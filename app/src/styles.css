@@ -1896,7 +1896,8 @@ pre {
   aspect-ratio: 1280 / 1066;
 }
 
-.r4-figure2__video {
+.r4-figure2__video,
+.r4-figure2__packed-alpha-canvas {
   grid-area: 1 / 1;
   display: block;
   width: 100%;
@@ -1906,7 +1907,8 @@ pre {
   filter: brightness(1.03) contrast(1.16) saturate(1.10) drop-shadow(0 10px 8px rgba(40, 30, 20, .22));
 }
 
-.r4-figure2__video {
+.r4-figure2__video,
+.r4-figure2__packed-alpha-canvas {
   opacity: 0;
 }
 

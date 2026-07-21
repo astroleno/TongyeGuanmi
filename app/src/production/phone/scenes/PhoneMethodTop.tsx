@@ -45,8 +45,10 @@ export const PhoneMethodTop = forwardRef<
   active,
   motionDriver,
   onReady,
+  stageHost,
   onGradeACheckpoint,
   onGradeASceneChange,
+  onGradeAEdgeScene,
   reducedMotion
 }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
@@ -82,7 +84,7 @@ export const PhoneMethodTop = forwardRef<
         setGradeARequested(true);
         observer.disconnect();
       }
-    }, { rootMargin: '220% 0px' });
+    }, { rootMargin: '400% 0px' });
     observer.observe(slot);
     return () => observer.disconnect();
   }, [active, gradeARequested]);
@@ -157,11 +159,15 @@ export const PhoneMethodTop = forwardRef<
           <Suspense fallback={null}>
             <PhoneGradeAStory
               reducedMotion={reducedMotion}
+              stageHost={stageHost}
               {...(onGradeACheckpoint
                 ? { onCheckpoint: onGradeACheckpoint }
                 : {})}
               {...(onGradeASceneChange
                 ? { onSceneChange: onGradeASceneChange }
+                : {})}
+              {...(onGradeAEdgeScene
+                ? { onEdgeScene: onGradeAEdgeScene }
                 : {})}
             />
           </Suspense>

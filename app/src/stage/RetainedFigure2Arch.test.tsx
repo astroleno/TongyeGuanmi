@@ -77,6 +77,7 @@ describe('RetainedFigure2Arch', () => {
     }));
 
     expect(markup).toContain('data-stage-retained-figure2-arch="true"');
+    expect(markup).toContain('data-figure2-arch-motion="depth"');
     expect(markup).toContain('data-visible="true"');
     expect(FIGURE2_NEAR_ARCH_SRC).toMatch(/figure2-near-arch\.webp$/);
     expect(markup).toContain('figure2-near-arch.webp');
@@ -85,6 +86,16 @@ describe('RetainedFigure2Arch', () => {
     expect(stylesheet).toMatch(/\.stage-proof-retained-arch\s*\{[^}]*--r4-figure2-near-arch-scale:\s*1\.135;/s);
     expect(stylesheet).toMatch(/\.stage-proof-retained-arch\s*\{[^}]*--r4-figure2-near-arch-blur:\s*3\.6px;/s);
     expect(stylesheet).toMatch(/\.stage\s*>\s*\.r4-figure2-proof-ink-canvas\s*\{[^}]*z-index:\s*60;/s);
+  });
+
+  it('can mark the phone arch as a fixed foreground occluder', () => {
+    const markup = renderToStaticMarkup(createElement(RetainedFigure2Arch, {
+      mounted: true,
+      visible: true,
+      motion: 'fixed'
+    }));
+
+    expect(markup).toContain('data-figure2-arch-motion="fixed"');
   });
 
   it('stays mounted while its Proof owner is temporarily hidden', () => {

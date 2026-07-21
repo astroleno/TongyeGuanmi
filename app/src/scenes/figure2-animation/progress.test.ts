@@ -103,6 +103,8 @@ class FakeVideo {
 }
 
 class FakeImage {
+  readonly dataset: Record<string, string> = {};
+  readonly style = new FakeStyle();
   decodeCalls = 0;
 
   decode(): Promise<void> {
@@ -191,6 +193,21 @@ describe('Figure2 canonical media', () => {
     renderFigure2Hold(root as unknown as HTMLElement);
     expect(root.attributes.get('data-figure2-progress')).toBe('0.0000');
     expect(root.style.values.get('--r4-figure2-video-opacity')).toBe('1');
+  });
+
+  it('does not apply the z-depth transform to a fixed foreground arch', () => {
+    const fixedArch = new FakeImage();
+    fixedArch.dataset.figure2ArchMotion = 'fixed';
+    const fixedRoot = new FakeRoot([], [], new FakeStage(fixedArch));
+    renderFigure2AnimationProgress(fixedRoot as unknown as HTMLElement, 1);
+    expect(fixedArch.style.values.has('--r4-figure2-near-arch-scale')).toBe(false);
+    expect(fixedArch.style.values.has('--r4-figure2-near-arch-blur')).toBe(false);
+
+    const depthArch = new FakeImage();
+    const depthRoot = new FakeRoot([], [], new FakeStage(depthArch));
+    renderFigure2AnimationProgress(depthRoot as unknown as HTMLElement, 1);
+    expect(depthArch.style.values.get('--r4-figure2-near-arch-scale')).toBe('1.1350');
+    expect(depthArch.style.values.get('--r4-figure2-near-arch-blur')).toBe('3.60px');
   });
 
   it('maps document scrub progress into the authored forward and reverse halves', () => {

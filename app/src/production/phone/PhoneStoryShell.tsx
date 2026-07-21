@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState
-} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PhoneCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
 import { StoryNav } from '../StoryNav';
@@ -16,11 +10,14 @@ import {
   attachPhoneLoaderVisibilityLifecycle,
   phoneLoaderCompletedInDocument
 } from './phone-loader-lifecycle';
+import { attachStoryMediaUnlock } from '../mobile-media-unlock';
 import {
   refreshPhoneScrollStage,
   usePhoneStageRuntime
 } from './usePhoneStageRuntime';
 import { usePhoneFrontHalfAdapters } from './usePhoneFrontHalfAdapters';
+import { usePhoneEdgeSurface } from './usePhoneEdgeSurface';
+import { usePhoneViewportGeometry } from './usePhoneViewportGeometry';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -29,7 +26,6 @@ import type {
 } from './types';
 import './PhoneStoryShell.css';
 
-const STAGE_SCROLL_VIEWPORTS = 4.8;
 const ZERO_METHOD_PROGRESS = () => 0;
 
 /**
@@ -44,7 +40,7 @@ function portraitSpikeMotionEnabled(): boolean {
 
 export type PhoneStoryShellProps = Readonly<{
   /** Short numbered routes remain physical-device comparison entries. */
-  validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24';
+  validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33';
 }>;
 
 /**
@@ -82,7 +78,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [adapterRevision, setAdapterRevision] = useState(0);
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
+  const stageViewportRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
+  const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
   const checkpointRef = useRef<PhoneCheckpointId>(
     loaderHidden ? 'hero-entered' : 'loader'
   );
@@ -92,6 +90,12 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const publishAdapterRevision = useCallback(() => {
     setAdapterRevision((revision) => revision + 1);
   }, []);
+  const bindStageHost = useCallback((host: HTMLDivElement | null) => {
+    if (stageRef.current === host) return;
+    stageRef.current = host;
+    if (host) setStageHost(host);
+  }, []);
+  const publishEdgeScene = usePhoneEdgeSurface(rootRef, stageViewportRef);
   const [heroAdapterRef, bindHeroAdapter] =
     usePhoneAdapterHandleRef<PhoneHeroAdapterHandle>(publishAdapterRevision);
   const [patternAdapterRef, bindPatternAdapter] =
@@ -125,113 +129,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     document.documentElement.dataset.portraitCheckpoint = checkpoint;
   }, []);
 
-  useLayoutEffect(() => {
-    const documentElement = document.documentElement;
-    const root = rootRef.current;
-    documentElement.dataset.portraitSpike = 'b';
-    documentElement.dataset.portraitSpikeMotion = motionEnabled
-      ? 'force'
-      : 'reduce';
-    delete documentElement.dataset.storyHydrated;
-    delete documentElement.dataset.portraitLoaderResume;
-    if (!root) {
-      return () => {
-        delete documentElement.dataset.portraitSpike;
-        delete documentElement.dataset.portraitSpikeMotion;
-      };
-    }
-
-    let viewportTimer: number | undefined;
-    let lastViewport = '';
-    let lastViewportWidth = 0;
-    let forceNextViewportSync = false;
-    const readViewport = () => {
-      const viewport = window.visualViewport;
-      return {
-        height: Math.max(
-          1,
-          Math.round(viewport?.height || window.innerHeight || 1)
-        ),
-        width: Math.max(
-          1,
-          Math.round(viewport?.width || window.innerWidth || 1)
-        )
-      };
-    };
-    const syncViewport = (forceHeight = false) => {
-      const { height, width } = readViewport();
-      const nextViewport = `${width}x${height}`;
-      if (nextViewport === lastViewport) {
-        delete root.dataset.portraitTransientViewport;
-        return;
-      }
-      const widthChanged = lastViewportWidth === 0
-        || Math.abs(width - lastViewportWidth) > 1;
-      if (!forceHeight && !widthChanged) {
-        root.dataset.portraitTransientViewport = nextViewport;
-        return;
-      }
-      lastViewport = nextViewport;
-      lastViewportWidth = width;
-      delete root.dataset.portraitTransientViewport;
-      root.style.setProperty('--portrait-live-height', `${height}px`);
-      root.style.setProperty('--portrait-live-width', `${width}px`);
-      root.style.setProperty('--portrait-stage-coverage-height', `${height}px`);
-      root.dataset.portraitStageCoverage = `${height}px`;
-      root.style.setProperty(
-        '--portrait-stage-scroll-distance',
-        `${Math.round(height * STAGE_SCROLL_VIEWPORTS)}px`
-      );
-      root.dataset.portraitLiveViewport = nextViewport;
-      refreshPhoneScrollStage();
-    };
-    const scheduleViewportSync = () => {
-      if (viewportTimer) window.clearTimeout(viewportTimer);
-      viewportTimer = window.setTimeout(() => {
-        const forceHeight = forceNextViewportSync;
-        forceNextViewportSync = false;
-        syncViewport(forceHeight);
-      }, 180);
-    };
-    const scheduleForcedViewportSync = () => {
-      forceNextViewportSync = true;
-      scheduleViewportSync();
-    };
-
-    syncViewport(true);
-    window.visualViewport?.addEventListener('resize', scheduleViewportSync);
-    window.addEventListener('resize', scheduleViewportSync);
-    window.addEventListener('orientationchange', scheduleForcedViewportSync);
-    document.addEventListener('fullscreenchange', scheduleForcedViewportSync);
-
-    return () => {
-      if (viewportTimer) window.clearTimeout(viewportTimer);
-      window.visualViewport?.removeEventListener('resize', scheduleViewportSync);
-      window.removeEventListener('resize', scheduleViewportSync);
-      window.removeEventListener(
-        'orientationchange',
-        scheduleForcedViewportSync
-      );
-      document.removeEventListener(
-        'fullscreenchange',
-        scheduleForcedViewportSync
-      );
-      root.style.removeProperty('--portrait-live-height');
-      root.style.removeProperty('--portrait-live-width');
-      root.style.removeProperty('--portrait-stage-scroll-distance');
-      root.style.removeProperty('--portrait-stage-coverage-height');
-      delete root.dataset.portraitLiveViewport;
-      delete root.dataset.portraitStageCoverage;
-      delete root.dataset.portraitTransientViewport;
-      delete root.dataset.portraitCheckpoint;
-      delete root.dataset.portraitCheckpointTrace;
-      delete documentElement.dataset.portraitSpike;
-      delete documentElement.dataset.portraitSpikeMotion;
-      delete documentElement.dataset.portraitCheckpoint;
-    };
-  }, [motionEnabled]);
+  usePhoneViewportGeometry(rootRef, motionEnabled);
 
   useEffect(() => attachPhoneLoaderVisibilityLifecycle(), []);
+
+  useEffect(() => attachStoryMediaUnlock(rootRef.current), []);
 
   useEffect(() => {
     const documentElement = document.documentElement;
@@ -299,7 +201,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     aodAlphaEndProgress: aodAlphaEndProgress ?? 0,
     mapAodToMethod,
     onCheckpoint: publishCheckpoint,
-    onNavigationScene: setNavigationScene
+    onNavigationScene: setNavigationScene,
+    onEdgeScene: publishEdgeScene
   });
 
   return (
@@ -326,7 +229,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         />
       )}
 
-      <PhoneStageRail railRef={stageRailRef} stageRef={stageRef}>
+      <PhoneStageRail
+        railRef={stageRailRef}
+        viewportRef={stageViewportRef}
+        stageRef={bindStageHost}
+      >
         {Hero && (
           <Hero
             ref={bindHeroAdapter}
@@ -397,8 +304,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           active={loaderHidden && modulesReady}
           reducedMotion={!motionEnabled}
           motionDriver={phoneMotionDriver}
+          stageHost={stageHost}
           onGradeACheckpoint={publishCheckpoint}
           onGradeASceneChange={setNavigationScene}
+          onGradeAEdgeScene={publishEdgeScene}
         />
       )}
       <StoryNav

@@ -37,8 +37,14 @@ export const animationWebmSources = alphaVideoSourcePairs.map(({ webm }) => webm
 export const animationHevcAlphaSources = alphaVideoSourcePairs.map(({ hevc }) => hevc);
 export const packedAlphaVideoSources = [
   'assets/figure1-rgb-alpha.mp4',
+  'assets/figure2-pair-motion-rgb-alpha.mp4',
   'assets/aod-figure-motion-rgb-alpha.mp4',
   'assets/aod-figure-motion-rgb-alpha-reverse.mp4'
+];
+
+export const portraitOnlyImageSources = [
+  'assets/figure2-pair-opening.webp',
+  'assets/figure2-phone-foreground-arch.webp'
 ];
 
 export const frozenHomepageMedia = [
@@ -145,6 +151,12 @@ export const frozenHomepageMedia = [
     sha256: '7548484ebd66a4ebe8a8f3a95647df66558dc9ac2b6e5f0d6fc8fa5dcc445b64'
   },
   {
+    source: 'assets/figure2-pair-motion-rgb-alpha.mp4',
+    category: 'portrait-packed-alpha',
+    bytes: 8180603,
+    sha256: 'd472ec0767f1d113ae8020ed232c763ba53c5821deb725660601172954bc63ef'
+  },
+  {
     source: 'assets/aod-figure-motion-rgb-alpha.mp4',
     category: 'portrait-packed-alpha',
     bytes: 1985726,
@@ -191,6 +203,18 @@ export const frozenHomepageMedia = [
     category: 'adopted-webp',
     bytes: 1185246,
     sha256: 'eba69d18ba7c5e6e742de899abd88f32a9bfc869f9728e08f19add57e4e79527'
+  },
+  {
+    source: 'assets/figure2-phone-foreground-arch.webp',
+    category: 'portrait-adopted-webp',
+    bytes: 697046,
+    sha256: 'fdf7cc96d69a0e886493c07c29958bd1be2d2ae107405295313740fc862a94b5'
+  },
+  {
+    source: 'assets/figure2-pair-opening.webp',
+    category: 'portrait-adopted-webp',
+    bytes: 137782,
+    sha256: '3875fe03a65e46003a35e9267877dd8716df83c74248be229acbe3104714e118'
   },
   {
     source: 'assets/ttg-background.webp',

@@ -13,11 +13,13 @@
 }
 
 .portrait-scroll-spike[data-portrait-edge-scene="aod"] .portrait-scroll-spike__stage-rail {
-  background-color: #ede4d2;
-  background-image: var(--portrait-aod-paper-solid-background);
-  background-position: center top;
-  background-repeat: repeat-y;
-  background-size: 100% var(--portrait-stage-height);
+  background: #ede4d2;
+}
+
+html[data-portrait-spike="b"][data-portrait-edge-scene="aod"],
+html[data-portrait-spike="b"][data-portrait-edge-scene="aod"] body,
+html[data-portrait-spike="b"][data-portrait-edge-scene="aod"] #root {
+  background: #ede4d2;
 }
 
 .portrait-scroll-spike__scene--aod {
@@ -74,9 +76,4 @@
 
 .portrait-scroll-spike__scene--aod .aod-transition__paper-solid {
   background: var(--portrait-aod-paper-solid-background);
-}
-
-.portrait-scroll-spike__toolbar-edge--aod {
-  z-index: 6;
-  background: var(--portrait-aod-bottom-mist-background);
 }

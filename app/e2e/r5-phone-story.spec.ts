@@ -1,12 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const PHONE_SHELL = '[data-phone-validation-mode="v23"]';
-const GRADE_A_SHELL = '[data-phone-validation-mode="v24"]';
+const GRADE_A_SHELL = '[data-phone-validation-mode="v33"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
     const rail = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage-rail');
-    const stage = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage');
+    const stage = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage-canvas');
     if (!rail || !stage) {
       throw new Error('Phone stage geometry is unavailable');
     }
@@ -22,10 +22,12 @@ async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
 async function scrollGradeAFigureTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
     const rail = document.querySelector<HTMLElement>('.phone-grade-a__figure-track');
-    if (!rail) throw new Error('Grade A Figure2 rail is unavailable');
+    const stage = document.querySelector<HTMLElement>('.phone-grade-a__surfaces');
+    if (!rail || !stage) throw new Error('Grade A Figure2 rail is unavailable');
     const start = rail.getBoundingClientRect().top + window.scrollY;
+    const distance = Math.max(1, rail.getBoundingClientRect().height);
     window.scrollTo({
-      top: start + rail.getBoundingClientRect().height * nextProgress,
+      top: start + distance * nextProgress,
       left: 0,
       behavior: 'auto'
     });
@@ -122,12 +124,11 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
         page.locator('.portrait-scroll-spike__scene--pattern')
       ).toHaveAttribute('data-r4-ink-ownership', 'reveal');
     } else if (checkpoint === 'pattern-complete') {
-      await expect(
-        page.locator('.portrait-scroll-spike__toolbar-edge--pattern')
-      ).toHaveCSS('mask-image', 'none');
-      await expect(
-        page.locator('.portrait-scroll-spike__toolbar-edge--pattern')
-      ).toHaveCSS('z-index', '1');
+      await expect(page.locator('.portrait-scroll-spike__stage')).toHaveCSS(
+        'background-color',
+        'rgb(217, 192, 143)'
+      );
+      await expect(page.locator('.portrait-scroll-spike__toolbar-edge')).toHaveCount(0);
     } else if (checkpoint === 'pattern-to-star-map') {
       await expect(page.locator('[data-portrait-ink="pattern-star"]')).toHaveAttribute(
         'data-r4-ink-segment',
@@ -223,7 +224,83 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
   ).toBe(false);
 });
 
-test('v24 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method with one scroll owner', async ({
+test('v33 keeps one viewport host and one stable lvh scene canvas for Safari', async ({
+  page
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
+  test.setTimeout(45_000);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?v=33&portrait-spike-motion=reduce', {
+    waitUntil: 'domcontentloaded'
+  });
+  await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
+    timeout: 10_000
+  });
+
+  const shell = page.locator(GRADE_A_SHELL);
+  const stage = page.locator('.portrait-scroll-spike__stage');
+  const canvas = page.locator('.portrait-scroll-spike__stage-canvas');
+  await expect(stage).toHaveCSS('position', 'fixed');
+  await expect(stage).toHaveCSS('overflow', 'clip');
+  await expect(stage).toHaveAttribute('data-portrait-stage-host', 'persistent');
+  await expect(canvas).toHaveCSS('position', 'absolute');
+  await expect(page.locator('[data-portrait-stage-backplate="true"]')).toHaveCount(0);
+  await expect(page.locator('.portrait-scroll-spike__toolbar-edge')).toHaveCount(0);
+
+  for (const sample of [
+    { progress: 0.30, edge: 'pattern', color: 'rgb(217, 192, 143)' },
+    { progress: 0.82, edge: 'aod', color: 'rgb(237, 228, 210)' }
+  ] as const) {
+    await scrollPhoneStageTo(page, sample.progress);
+    await expect(shell).toHaveAttribute('data-portrait-edge-scene', sample.edge);
+    await expect(stage).toHaveCSS('background-color', sample.color);
+    const edge = await page.evaluate(() => {
+      const stage = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage');
+      const canvas = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage-canvas');
+      const rail = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage-rail');
+      if (!stage || !canvas || !rail) throw new Error('fixed stage edge surface is unavailable');
+      const stageRect = stage.getBoundingClientRect();
+      const documentStyle = getComputedStyle(document.documentElement);
+      const bodyStyle = getComputedStyle(document.body);
+      const rootStyle = getComputedStyle(document.querySelector<HTMLElement>('#root')!);
+      const stageStyle = getComputedStyle(stage);
+      const railStyle = getComputedStyle(rail);
+      return {
+        viewportRatio: stageRect.height / window.innerHeight,
+        canvasToViewportRatio: canvas.getBoundingClientRect().height / window.innerHeight,
+        documentBackgroundColor: documentStyle.backgroundColor,
+        documentBackgroundImage: documentStyle.backgroundImage,
+        documentBackgroundAttachment: documentStyle.backgroundAttachment,
+        bodyBackgroundColor: bodyStyle.backgroundColor,
+        rootBackgroundColor: rootStyle.backgroundColor,
+        stageBackgroundImage: stageStyle.backgroundImage,
+        stageBackgroundSize: stageStyle.backgroundSize,
+        railBackgroundColor: railStyle.backgroundColor,
+        themeColor: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content
+      };
+    });
+    expect(edge.viewportRatio).toBeGreaterThanOrEqual(0.9);
+    expect(edge.viewportRatio).toBeLessThanOrEqual(1.05);
+    expect(edge.canvasToViewportRatio).toBeGreaterThanOrEqual(1);
+    expect(edge.documentBackgroundColor).toBe(sample.color);
+    expect(edge.bodyBackgroundColor).toBe(sample.color);
+    expect(edge.rootBackgroundColor).toBe(sample.color);
+    expect(edge.themeColor).toBe(sample.edge === 'pattern' ? '#d9c08f' : '#ede4d2');
+    if (sample.edge === 'pattern') {
+      expect(edge.documentBackgroundImage).toContain('pattern-background');
+      expect(edge.documentBackgroundAttachment).toBe('fixed');
+      expect(edge.stageBackgroundImage).toContain('pattern-background');
+      expect(edge.stageBackgroundSize).toContain('844px');
+      expect(edge.railBackgroundColor).toBe('rgba(0, 0, 0, 0)');
+    } else {
+      expect(edge.documentBackgroundImage).toBe('none');
+      expect(edge.railBackgroundColor).toBe(sample.color);
+    }
+  }
+});
+
+test('v33 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the persistent host', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -234,7 +311,7 @@ test('v24 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method with one s
     presentationRequests.push(new URL(response.url()).pathname);
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=24&portrait-spike-motion=reduce#figure2-proof-cards', {
+  await page.goto('/?v=33&portrait-spike-motion=reduce#figure2-proof-cards', {
     waitUntil: 'domcontentloaded'
   });
 
@@ -250,12 +327,60 @@ test('v24 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method with one s
     'complete'
   );
   await expect(page.locator('[data-r4-scene="figure2-animation"]')).toHaveCount(1);
+  await expect(page.locator('[data-r4-scene="figure2-animation"]')).toHaveAttribute(
+    'data-phone-figure2-alpha',
+    'verified'
+  );
+  await expect(page.locator('[data-figure2-packed-alpha-canvas]')).toHaveAttribute(
+    'data-packed-alpha-frame-ready',
+    'true'
+  );
+  await expect(page.locator('[data-r4-scene="figure2-animation"]')).toHaveAttribute(
+    'data-phone-figure2-poster-ready',
+    'true'
+  );
+  const posterBackground = await page.locator('.r4-figure2__media-stack--combined')
+    .evaluate((element) => getComputedStyle(element, '::before').backgroundImage);
+  expect(posterBackground).toContain('figure2-pair-opening');
   await expect(page.locator('[data-r4-scene="figure2-proof"]')).toHaveCount(1);
   await expect(page.locator('[data-testid="r2-stage"]')).toHaveCount(1);
-  await expect(page.locator('[data-r4-scene="figure2-proof"]')).toHaveAttribute(
-    'data-phone-proof-progress',
-    /^0\.50\d{2}$/
+  const foregroundArch = page.locator('[data-stage-retained-figure2-arch="true"]');
+  await expect(foregroundArch).toHaveCount(1);
+  await expect(foregroundArch).toHaveAttribute(
+    'src',
+    /figure2-phone-foreground-arch-[^/]+\.webp/
   );
+  await expect(foregroundArch).toHaveAttribute('data-phone-figure2-arch-visible', 'true');
+  await expect(foregroundArch).toHaveAttribute('data-figure2-arch-motion', 'fixed');
+  const ownership = await page.evaluate(() => {
+    const surfaces = document.querySelector<HTMLElement>('.phone-grade-a__surfaces');
+    const arch = document.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]');
+    const ink = document.querySelector<HTMLElement>('.r4-figure2-proof-ink-canvas');
+    const cards = document.querySelector<HTMLElement>('.r4-proof-scroll__content--cards');
+    return {
+      parentClass: surfaces?.parentElement?.className,
+      surfacePosition: surfaces ? getComputedStyle(surfaces).position : '',
+      archZ: arch ? Number(getComputedStyle(arch).zIndex) : 0,
+      inkZ: ink ? Number(getComputedStyle(ink).zIndex) : 0,
+      cardsLeft: cards?.getBoundingClientRect().left ?? 0
+    };
+  });
+  expect(ownership.parentClass).toContain('portrait-scroll-spike__stage-canvas');
+  expect(ownership.surfacePosition).toBe('absolute');
+  expect(ownership.archZ).toBeGreaterThan(ownership.inkZ);
+  expect(ownership.cardsLeft).toBeGreaterThanOrEqual(36);
+  const archFrame = await foregroundArch.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      scale: style.getPropertyValue('--phone-figure2-arch-scale').trim(),
+      blur: style.getPropertyValue('--phone-figure2-arch-blur').trim()
+    };
+  });
+  expect(archFrame.scale).toBe('1.1350');
+  expect(archFrame.blur).toBe('3.60px');
+  const proofProgress = Number(await page.locator('[data-r4-scene="figure2-proof"]')
+    .getAttribute('data-phone-proof-progress'));
+  expect(proofProgress).toBeCloseTo(0.5, 2);
   await expect(page.locator('[data-r4-scene="figure2-proof"]')).toHaveCSS(
     'overflow-y',
     'visible'
@@ -282,4 +407,40 @@ test('v24 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method with one s
       `missing Grade A phone chunk ${chunk}`
     ).toBe(true);
   }
+});
+
+test('v33 keeps Figure2 visible when Safari never produces a packed video frame', async ({
+  page
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
+  test.setTimeout(45_000);
+
+  await page.route('**/*figure2-pair-motion-rgb-alpha*.mp4', (route) => route.abort());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?v=33&portrait-spike-motion=reduce#figure2-animation', {
+    waitUntil: 'domcontentloaded'
+  });
+
+  const shell = page.locator(GRADE_A_SHELL);
+  const gradeA = page.locator('.phone-grade-a');
+  const figure2 = page.locator('[data-r4-scene="figure2-animation"]');
+  await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
+    timeout: 10_000
+  });
+  await expect(figure2).toHaveAttribute('data-phone-figure2-ready', 'true');
+  await expect(gradeA).toHaveAttribute('data-phone-grade-a-ready', 'true');
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'figure2-stage');
+  await expect(gradeA).toHaveAttribute('data-phone-grade-a-active', 'true');
+  await expect(figure2).toHaveAttribute(
+    'data-phone-figure2-alpha',
+    'poster-fallback',
+    { timeout: 6_000 }
+  );
+  await expect(page.locator('.phone-grade-a__surfaces')).toHaveCSS('visibility', 'visible');
+  const poster = await page.locator('.r4-figure2__media-stack--combined').evaluate((element) => {
+    const style = getComputedStyle(element, '::before');
+    return { backgroundImage: style.backgroundImage, opacity: style.opacity };
+  });
+  expect(poster.backgroundImage).toContain('figure2-pair-opening');
+  expect(poster.opacity).toBe('1');
 });

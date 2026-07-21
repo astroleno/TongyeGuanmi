@@ -45,7 +45,7 @@ is the pre-extraction baseline.
 The frozen visual source is commit `95d519b` (`?v=17`), which contains the
 accepted Safari edge stabilization and the phone-only AOD alpha extension from
 timeline progress `0.48` to `0.55`. The current short verification route is
-`?v=24`; `?v=16` through `?v=23` remain aliases to the same formal phone shell,
+`?v=33`; `?v=16` through `?v=32` remain aliases to the same formal phone shell,
 not immutable historical deployments.
 
 | Unit | Status | Implemented evidence |
@@ -54,13 +54,15 @@ not immutable historical deployments.
 | Unit 1 | Complete | Canonical copy, media IDs, navigation, semantic checkpoints, and renderer-neutral lifecycle contracts remain shared. The boundary verifier rejects shared-to-presentation imports, cross-shell imports, phone-to-spike imports, new shell scene roots, media keys, asset URLs, and scene renderer imports. |
 | Unit 2 | Complete; physical fixed-stage acceptance recorded | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
 | Unit 3 | Complete; physical visual acceptance recorded | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
-| Unit 4 | Candidate; physical acceptance pending | v24 migrates Method → Figure 2 → Proof into the formal phone adapter chain. Browser evidence passes forward/reverse traversal, direct Figure2/Proof entry, reduced motion, 390×667 short portrait, and 844×390 landscape with one fixed stage, one Figure2 media root, one Proof article, and one document scroll owner. |
+| Unit 4 | v33 corrected candidate; physical acceptance pending | v33 fixes the actual AOD occluder: the inactive Grade A portal remained paintable because descendants overrode its inherited `visibility`; the portal now has parent-level opacity ownership. Pattern's fixed WebKit-sampled viewport host now owns the same stable-lvh image plate as the live scene, rather than a separate solid color. |
 | Units 5–7 | Not started | No Brand, Figure 3, Services, or later batch starts before Unit 4 receives its own physical-iPhone acceptance. |
 
 ### Unit 0–3 cutover record
 
-`PhoneStoryShell.tsx` is now a 413-line coordination shell and
-`PhoneStoryShell.css` is a 167-line geometry/chrome stylesheet. Scene DOM,
+`PhoneStoryShell.tsx` is now a 322-line coordination shell and
+`PhoneStoryShell.css` is an 86-line document/chrome stylesheet. Persistent
+stage geometry, viewport sampling, and edge publication are isolated in
+`PhoneStageRail`, `usePhoneViewportGeometry`, and `usePhoneEdgeSurface`. Scene DOM,
 scene CSS, canvas/video construction, local motion, and transition fields live
 under `app/src/production/phone/scenes/` and
 `app/src/production/phone/transitions/`. The exact Route B coordinator moved to
@@ -78,10 +80,10 @@ only the active transition may write a shared endpoint boundary afterward.
 This prevents Pattern → Star Map at progress zero from clearing the live
 Hero → Pattern reveal boundary.
 
-The current v24 production build reports:
+The current v30 production build reports:
 
-- `totalJsHeadroomBytes: 8,716` (required minimum: 4,096);
-- `phoneShellBudgetBytes: 557,015`;
+- `totalJsHeadroomBytes: 7,498` (required minimum: 4,096);
+- `phoneShellBudgetBytes: 563,227`;
 - `largestLazyJsRawBytes: 55,259` (cap: 65,536);
 - zero shell-owned scene roots and media keys.
 
@@ -123,9 +125,9 @@ unrecorded. The accepted review covered:
 **Gate result:** Unit 4 is open. Units 5–7 remain frozen until the complete
 Method → Figure 2 → Proof chain passes its own physical-iPhone review.
 
-### Unit 4 browser-review candidate
+### Unit 4 physical-correction candidate
 
-The v24 route now mounts the Grade A batch only when Method approaches the
+The v24 route first mounted the Grade A batch only when Method approached the
 viewport or a Figure2/Proof hash is requested. Method remains one native
 document reading section. The batch then contributes one fixed shared stage,
 one canonical Figure2 media/camera root, one canonical three-panel Proof
@@ -138,7 +140,37 @@ Proof alias offset is derived from the available document track range, so the
 requested opening/cards/closing panel remains exact in portrait and the shorter
 landscape track.
 
-Controlled-browser evidence completed on 2026-07-21:
+The first physical v24 review was rejected: the two Figure2 people and part of
+the cold scene could be missing, Proof cards sat too far left, and Pattern/AOD
+could still reveal a second scrolling surface while Safari collapsed its
+toolbar. v25 corrects those three failures without opening Unit 5:
+
+- scenes mount first, Figure2 presents and verifies its opening video frame,
+  then the two transition adapters mount; only after all four readiness gates
+  pass may the fixed Grade A surface become active;
+- the eager Figure2 terminal-frame preparation that could invalidate the cold
+  opening-frame run is removed, video preload is `auto`, and adjacent prewarm
+  begins around Pattern rather than near the end of Method;
+- Proof content uses a 24px portrait inset before its internal text column;
+- Pattern/AOD rails are transparent, leaving the fixed root canvas as the only
+  browser-toolbar fallback; Pattern uses a stable `100lvh` cover matrix and
+  AOD's toolbar band feathers into the same solid paper root.
+
+The second physical v25 review found one additional media-path defect: on
+iPhone Safari the direct HEVC-alpha Figure2 pair showed a conspicuous light
+fringe compared with the canonical WebM. v26 does not retouch, mask, shrink, or
+reposition the pair. It keeps the single canonical Figure2 video owner, swaps
+only the phone source to a side-by-side RGB/alpha H.264 stream, and composites
+that frame through the same premultiplied-alpha WebGL path already used by the
+accepted Figure1 and AOD adapters. Desktop continues to select the untouched
+WebM/HEVC sources.
+
+The v26 packed source is deterministically rebuilt from the frozen WebM by
+`app/scripts/rebuild-figure2-packed-alpha-media.mjs`. FFmpeg 8.1 qualification
+records 156 frames at 30 fps, six keyframes with a 30-frame maximum GOP,
+alpha SSIM `0.986634`, color SSIM `0.982710`, and an exact frozen SHA-256.
+
+The v25 controlled-browser evidence completed on 2026-07-21:
 
 - 390×844 forward and reverse traversal publishes `method-to-figure2`,
   `figure2-stage`, `figure2-to-proof`, and all three Proof checkpoints in both
@@ -148,6 +180,14 @@ Controlled-browser evidence completed on 2026-07-21:
   midpoint;
 - direct Proof cards entry lands at progress `0.5001`, with exactly one
   Figure2 root, one Proof root, and one `r2-stage` host;
+- direct Figure2 entry settles the rail at `top: 0`, reports all readiness
+  gates `true`, presents the pair at video time `0`, and keeps video opacity at
+  `1` before the Grade A stage becomes active;
+- Proof cards now occupy `x=24..366` at 390px width, while their internal copy
+  begins at the intended second column;
+- Pattern and AOD publish transparent moving rails; Pattern's root background
+  resolves to stable `390×844` gradient planes plus a `1500.44×844` cover
+  image, and AOD resolves to the same `#ede4d2` root as its solid toolbar band;
 - reduced-motion direct Proof entry preserves the canonical opening and all
   copy with `overflow-y: visible` and nested `scrollTop: 0`;
 - cold 390×667 portrait keeps the complete Figure2 focal pair and all Proof
@@ -155,16 +195,323 @@ Controlled-browser evidence completed on 2026-07-21:
 - cold 844×390 landscape keeps the complete focal pair visible and positions
   Proof cards at exact progress `0.5000`.
 
-Automated verification for the v24 candidate:
+Focused v26 browser qualification at 390×844 confirms that the phone adapter
+requests the emitted packed H.264 source, decodes it at `1584×660`, composites
+to the canonical `792×660` Canvas, hides the source video, and presents only
+the verified Canvas. At forward midpoint the media and Canvas clocks both read
+`1.8053s`; after crossing the terminal leg and reversing to the midpoint both
+read `3.3886s`. The root remains `verified`, Canvas opacity is `1`, source-video
+opacity is `0`, and no console error is emitted.
+
+Automated verification for the v26 candidate:
 
 - `pnpm -C app typecheck`;
 - `pnpm -C app lint`;
-- `pnpm -C app test` — 131 files, 764 tests;
+- `pnpm -C app test` — 131 files, 766 tests;
 - `pnpm -w run build` — module-boundary, media, release, and performance gates
   pass with the headroom recorded above.
 
-**Gate result:** v24 is ready for physical-iPhone review. Unit 4 is not complete
-and Units 5–7 remain frozen until that review is accepted.
+The physical v26 review remained rejected. The packed-alpha pair fixed the
+Figure2 decoder path, but Safari toolbar collapse could still separate
+Pattern's bottom wash from a second background surface and AOD could still
+expose content below the fixed stage. The supplied portrait arch was also not
+yet part of the phone composition. Those findings are preserved rather than
+reclassifying v26 as accepted.
+
+v27 corrects the remaining review items without changing scene timing:
+
+- `PhoneStageRail` owns one fixed, inert backplate at z=9 behind the authored
+  stage at z=10. Its overscan is stable CSS geometry based on the large/small
+  viewport difference and safe area; it never follows `visualViewport` and
+  cannot oscillate against native scrolling.
+- Pattern removes paint containment only for its own scene. The accepted
+  background image and wash mirror their exact top/bottom edge pixels into the
+  same transformed stage plane, while the existing bloom Canvas renders across
+  the complete overscan with its authored `50%, 28%` visible center preserved.
+  The document/root fallback remains behind this surface rather than becoming
+  a competing visible layer.
+- AOD uses the same flat `#ede4d2` surface for its scene, root, rail fallback,
+  and backplate. Content below the stage is therefore occluded during toolbar
+  movement without extending or moving Method markup.
+- The user-supplied `Image 1 (1).png` is adopted as
+  `assets/figure2-phone-foreground-arch.webp`. The final 1512×2688 alpha WebP
+  preserves the supplied pixels and removes only the connected central black
+  aperture; it is one phone-only retained foreground surface across Figure2
+  and Proof. An image-generation redraw was rejected because it altered the
+  arch geometry.
+- Figure2 continues to use the v26 packed H.264 + premultiplied-alpha WebGL
+  Canvas. Rebuilding from the frozen WebM still produces the exact
+  `d472ec0767f1d113ae8020ed232c763ba53c5821deb725660601172954bc63ef`
+  SHA-256 and passes the recorded alpha/color SSIM gates.
+
+Controlled 390×844 verification forces the fixed stage upward by 128px to
+model a delayed Safari compositor resize. Pattern's scene now has
+`overflow: visible` and `contain: layout`; its bloom Canvas spans y=-320..908
+while the shifted stage ends at y=716, and the mirrored image/wash remain
+continuous through the exposed bottom area. The true AOD opening frame with
+sun, cloud, and figure uses the same uninterrupted paper surface under the
+same displacement. Figure2 presents only the verified 792×660 packed-alpha
+Canvas, keeps its source video hidden, and retains the new foreground arch.
+
+Automated verification for the v27 candidate:
+
+- `pnpm -C app lint`;
+- `pnpm -C app test` — 131 files, 766 tests;
+- `pnpm -w run build` — 51 media files, 31 WebP, runtime media
+  `81,369,432 B`, desktop static path `33,541,852 B`, and all module-boundary,
+  release, media, and performance gates pass;
+- focused desktop Chromium phone E2E — 3/3 pass, covering the complete v23
+  checkpoint trace, the forced Pattern/AOD compositor gap, and the v27
+  Method ↔ Figure2 ↔ Proof chain with one retained arch and one packed-alpha
+  Canvas owner.
+
+**Gate result:** v27 was sent to physical-iPhone review at `?v=27` and was
+rejected. Unit 4 remained open, no commit/push was made, and Units 5–7 stayed
+frozen.
+
+### Unit 4 v28 Safari edge and Figure2 readiness correction
+
+The physical v27 review found two blocking failures: upward Safari toolbar
+collapse still exposed a second surface below Pattern and AOD, and Figure2's
+entire 660lvh chapter could remain hidden. The previous Chromium check that
+artificially translated the stage by 128px did not model WebKit's page-edge
+color-extension selection and is retired as acceptance evidence.
+
+Official WebKit implementation evidence shows that edge-color candidates are
+sampled from fixed/sticky viewport-sized containers and rejects candidates
+larger than roughly 1.05× the viewport. The v27 oversized backplate could
+therefore be ignored while the real fixed stage still advertised a hardcoded
+dark background. v28 establishes one edge surface instead:
+
+- the oversized fixed backplate, Pattern mirror planes, and Pattern/AOD toolbar
+  edge replicas are removed;
+- the existing fixed stage remains within WebKit's viewport candidate range
+  and publishes `--portrait-edge-surface` for the active scene;
+- Pattern keeps one fixed document-root image behind its transparent rail and
+  AOD uses one flat `#ede4d2` scene/root/rail surface;
+- fixed stage height retains `100lvh` coverage, while visual-viewport height
+  changes during toolbar collapse do not move or resize the rail mid-gesture.
+
+The missing Figure2 chapter was a separate readiness deadlock. The Grade A
+surface previously waited for the first packed-video WebGL frame before it
+could become visible; an iOS decode/upload stall therefore hid both the media
+and the complete chapter. v28 keeps the packed H.264 + premultiplied-alpha
+Canvas as the preferred path but changes the gate:
+
+- every physical `touchstart` and `touchmove` directly unlocks currently
+  mounted lazy videos with passive listeners;
+- an exact transparent opening frame from the frozen WebM is immediately
+  present in the canonical media stack and independently satisfies visual
+  readiness;
+- packed-media readiness is diagnostic rather than a scene-visibility gate;
+  after three seconds without a verified frame the same stack remains visible
+  in `poster-fallback`, and a later decoded frame upgrades it to `verified`;
+- the poster is rebuilt deterministically at 792×660 with cwebp 1.6.0,
+  quality 90 and lossless alpha (`137,782 B`, SHA-256
+  `3875fe03a65e46003a35e9267877dd8716df83c74248be229acbe3104714e118`).
+
+Controlled 390×844 verification covers both paths. With normal media, the
+Figure2 checkpoint is active and visible with one verified Canvas owner. With
+the packed MP4 blocked, the same chapter remains active and complete in
+`poster-fallback`; no console warning/error is emitted and no second Figure2
+root or video owner appears.
+
+Automated verification for the v28 candidate:
+
+- `pnpm -C app typecheck`;
+- `pnpm -C app lint`;
+- `pnpm -C app test` — 131 files, 767 tests;
+- `pnpm -w run build` — 52 media files, 32 WebP, runtime media
+  `81,507,214 B`, desktop static path `33,541,852 B`, WebP total
+  `11,527,608 B`, and all module-boundary, release, media, and performance
+  gates pass;
+- deterministic Figure2 rebuild — 156 frames, six keyframes, alpha SSIM
+  `0.986634`, color SSIM `0.982710`, and unchanged packed-video SHA-256.
+
+**Gate result:** v28 is ready for physical-iPhone review at the short `?v=28`
+route. Pattern/AOD edge behavior is not accepted until that real Safari review
+passes. Figure2 has both normal and decoder-stall evidence, but Unit 4 remains
+open; no commit/push is made and Units 5–7 remain frozen.
+
+### Unit 4 v29 persistent viewport and Grade A ownership correction
+
+The physical v28 review rejected four remaining behaviors: Proof's three detail
+rows sat too far left; Figure2 → Proof z-depth ink transformed and covered the
+foreground arch; Method → Figure2 exposed Figure2 while Method copy was still
+in the viewport; and Safari toolbar collapse still revealed a mismatched lower
+surface in Pattern, AOD, and Figure2.
+
+The shared root cause of the last failure was ownership, not another missing
+`dvh` declaration. The front half used one oversized fixed stage while Grade A
+created a second fixed stage, and only the front-half runtime published the
+document edge color. v29 replaces that arrangement with:
+
+- one exact-viewport persistent host from Hero through Proof, retained in the
+  DOM and used as WebKit's single page-edge color candidate;
+- one inner `100lvh` scene canvas, so toolbar height changes reveal a stable
+  visual canvas without resizing or translating the authored composition;
+- a single edge coordinator that updates `html`, `body`, `#root`, the host,
+  and `theme-color` from the active scene, including Figure2's own `#e2dac9`
+  edge rather than AOD's paper token;
+- Pattern, AOD, and Figure2 terminal backgrounds converging inside the stable
+  canvas over `100lvh - 100svh + safe-area`, with no second fixed backplate;
+- Grade A surfaces portalled into the persistent host as an absolute layer,
+  while Method document copy stays above the host until it fully exits;
+- a new one-viewport Method → Figure2 handoff segment before the canonical
+  360lvh Figure2 timeline, so the receiver cannot enter while Method remains;
+- a fixed phone arch (`z-index: 90`) above z-depth ink (`z-index: 81`) that no
+  longer receives the shared depth scale/blur variables;
+- a 16px inward shift of the Proof cards' left boundary without moving the
+  opening or closing panels.
+
+Automated verification for the v29 candidate:
+
+- `pnpm -C app lint`;
+- `pnpm -C app test` — 131 files, 769 tests;
+- `pnpm -w run build` — 52 media files, 32 WebP, runtime media
+  `81,507,214 B`, phone shell budget `562,795 B`, total JS headroom `7,646 B`,
+  and all module-boundary, release, media, and performance gates pass;
+- browser rendering confirms one persistent host, Grade A portal ownership,
+  Method above the inactive host, Pattern/AOD/Figure2/Proof edge-token changes,
+  a zero-area Figure2 reveal at the Method boundary, fixed arch variables and
+  z-order, shifted Proof detail rows, and no console warnings/errors.
+
+**Physical result:** v29 was rejected. On the actual Safari,
+`100lvh - 100svh` produced a much taller solid terminal band than the browser
+edge that it was intended to protect: Pattern lost more of its image and AOD
+was covered across roughly half the viewport. The additional handoff viewport
+also removed Method copy before Figure2 entered, while the fixed arch inherited
+its default `3.6px` blur without the authored enlargement.
+
+### Unit 4 v30 physical-device correction
+
+v30 retains the part of v29 that solved the ownership problem—one persistent
+fixed host and one stable `100lvh` inner canvas—but removes the three incorrect
+visual/timeline assumptions:
+
+- Pattern, AOD, and Figure2 no longer paint a terminal overlay derived from
+  `100lvh - 100svh`; the authored scene once again fills the complete stable
+  canvas. Pattern additionally restores its same-image fixed document backdrop,
+  so any browser-owned edge exposure samples the scene rather than a flat band.
+- Method → Figure2 again uses the entering viewport for the ink handoff. The
+  Method document remains at z=11 above the persistent host at z=10, so Method
+  copy owns the upper viewport while Figure2 can only appear below its moving
+  document boundary; no duplicate full-screen Figure2 surface is introduced.
+- Grade A returns to 660lvh total / 360lvh Figure2 / 300lvh Proof (600/320/280
+  in compact landscape), with Figure2 deep links positioned at the canonical
+  rail start instead of one viewport later.
+- The phone arch remains above Figure2 → Proof ink and excluded from the shared
+  z-depth mutation. Its phone-owned entrance now scales from 1.025 to 1.135 and
+  resolves from 3.6px blur to 0px over the Figure2 intro, ending as a clear
+  close foreground.
+- The Proof closing sequence renders “先进现场，”“再定章法，”“陪你跑到账上有数。”
+  as three non-wrapping phone lines without changing the canonical sentence.
+
+Automated verification for v30 covers the restored handoff/rail maps,
+independent arch frame, exact closing copy, edge fallback contract, and short
+route:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 770 tests;
+- `pnpm -w run build` passes all module, media, release, and performance gates
+  with 52 media files, 32 WebP, `81,507,214 B` runtime media,
+  `563,227 B` phone-shell budget, and `7,498 B` total JS headroom.
+
+**Physical result:** v30 was rejected. The Method reading stacking context and
+its paper reservation crossed above the persistent AOD host, the document's
+rectangular background hid the Method → Figure2 ink contour, and the phone arch
+became clearer while enlarging instead of becoming and remaining blurred.
+
+### Unit 4 v31 ownership and motion correction
+
+v31 changes the ownership at the two exact boundaries instead of adding another
+viewport patch:
+
+- Method receives `z-index: 11` only after the front fixed stage releases
+  ownership. While AOD is active, the Method reading and its reserved paper sit
+  below the persistent host; only the fixed Method bridge can rise above it.
+- During Method → Figure2, the document paper becomes transparent and a fixed
+  Method paper surface is passed as the ink adapter's `from` owner. The adapter
+  now clips complementary Method and Figure2 surfaces with the same ink field,
+  so the lower boundary is the authored ink contour rather than the document
+  rectangle. Method copy remains in the real document above that surface.
+- The foreground arch begins clear at scale `1.025`, then enlarges to `1.135`
+  while blur rises from `0px` to `3.6px`. It stays fixed above the later
+  Figure2 → Proof z-depth ink and retains the enlarged blurred endpoint.
+
+Automated verification for v31 covers the conditional Method stacking owner,
+the complementary Method ink surface, the independent arch frame, and the short
+route:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 770 tests;
+- `pnpm -w run build` passes all module, media, release, and performance gates
+  with 52 media files, 32 WebP, `81,507,214 B` runtime media,
+  `563,522 B` phone-shell budget, and `7,488 B` total JS headroom.
+
+**Physical result:** v31 closed Method → Figure2 and the Figure2 foreground.
+Physical Safari still exposed the Method reading's viewport-height paper
+reservation over AOD, so AOD → Method remained open.
+
+### Unit 4 v32 AOD → Method paper-reservation correction
+
+v32 keeps the Method reservation height that prevents the five Method steps
+from entering the AOD viewport early, but makes the reservation and its parent
+reading background transparent whenever `data-portrait-stage-active="true"`.
+The AOD host is therefore the only opaque full-viewport owner during autoplay;
+the fixed Method bridge can still fade its copy above AOD. Once the stage
+releases ownership, Method restores its paper background and z=11 document
+ownership. The already accepted Method → Figure2 contour and arch motion are
+unchanged.
+
+Automated verification for v32 covers the transparent active-stage Method
+reservation and parent, the restored inactive-stage Method owner, and the short
+route:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 770 tests;
+- `pnpm -w run build` passes all module, media, release, and performance gates
+  with 52 media files, 32 WebP, `81,507,214 B` runtime media,
+  `563,532 B` phone-shell budget, and `7,478 B` total JS headroom.
+
+**Physical result:** v32 did not close AOD → Method. Its Method reservation was
+transparent, but the later Grade A portal was already mounted in the persistent
+stage; descendants with explicit visible state could still paint its opaque
+Method paper through the portal's inherited `visibility: hidden`.
+
+### Unit 4 v33 AOD ownership and Pattern edge correction
+
+v33 closes the two actual ownership gaps without changing any accepted
+timeline, ink contour, Method → Figure2 handoff, or foreground-arch motion:
+
+- inactive `.phone-grade-a__surfaces` now owns `opacity: 0`; its descendants
+  cannot override that parent composite, so the z=95 Method paper no longer
+  covers AOD. When Grade A becomes active, the same owner switches to opacity
+  one;
+- the fixed `.portrait-scroll-spike__stage` now carries Pattern's calibrated
+  image plate whenever `data-portrait-edge-scene="pattern"`. Its three
+  background layers use the stable `--portrait-stage-height`, so Safari's
+  dynamic-toolbar repaint cannot reveal a separately coloured band;
+- AOD's canonical `0.48 → 0.55` phone alpha mapping, paper/mist tracks, and
+  forward/reverse packed-alpha media remain unchanged.
+
+Browser verification at 390×844 confirms the AOD figure, sun, and cloud remain
+visible before autoplay, during forward autoplay, and after reverse completion;
+the inactive Grade A portal remains at opacity zero throughout AOD ownership.
+The Pattern edge publishes its actual image on both the document surface and
+the fixed viewport host with stable-lvh sizing.
+
+Automated verification for v33:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 770 tests;
+- `pnpm -w run build` passes all module, media, release, and performance gates
+  with 52 media files, 32 WebP, `81,507,214 B` runtime media,
+  `563,542 B` phone-shell budget, and `7,468 B` total JS headroom.
+
+**Gate result:** v33 is the next physical-iPhone candidate at `?v=33`. Pattern
+dynamic-toolbar continuity and AOD → Method remain pending physical Safari
+confirmation; Units 5–7 remain frozen until that acceptance.
 
 ## Problem Frame
 
@@ -274,9 +621,13 @@ The split must happen before the remaining scenes are migrated.
   the required 4,096-byte margin. Shell and scene chunking is therefore a
   prerequisite for bulk migration, not end-of-project cleanup.
 
-External research is intentionally omitted: the repository already contains
-the relevant Stage/Director, native-scroll spike, dynamic loader, registry,
-media, transition, and release-budget patterns.
+External research was intentionally omitted for the original architecture
+split because the repository already contained the relevant Stage/Director,
+native-scroll, loader, registry, media, transition, and release-budget
+patterns. The later v28–v29 Safari corrections additionally use WebKit's official
+[page-edge color-extension implementation](https://github.com/WebKit/WebKit/pull/49187)
+and its linked [fixed-element sampling bug](https://bugs.webkit.org/show_bug.cgi?id=297182)
+to constrain the single-surface design.
 
 ## Key Technical Decisions
 

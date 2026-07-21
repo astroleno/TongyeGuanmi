@@ -17,7 +17,7 @@ const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
 
 /** Unit 3 final boundary: the shell owns geometry, never scene presentation. */
 export const phoneShellDebt = Object.freeze({
-  maxLines: 413,
+  maxLines: 322,
   sceneImports: new Set(),
   transitionImports: new Set(),
   mediaImports: new Set(),
@@ -30,19 +30,14 @@ export const phoneShellDebt = Object.freeze({
   ]),
   sceneRoots: new Set(),
   mediaKeys: new Set(),
-  progressConstants: new Set([
-    'STAGE_SCROLL_VIEWPORTS'
-  ])
+  progressConstants: new Set()
 });
 
 export const phoneShellCssDebt = Object.freeze({
-  maxLines: 167,
+  maxLines: 78,
   assetUrls: new Set(),
   sceneRoots: new Set(),
-  ownerTokens: new Set([
-    'stage',
-    'toolbar'
-  ])
+  ownerTokens: new Set()
 });
 
 function isWithin(target, directory) {

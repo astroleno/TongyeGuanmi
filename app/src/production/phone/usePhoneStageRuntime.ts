@@ -14,6 +14,7 @@ import {
   phoneStageFrame
 } from './phone-stage-timeline';
 import { renderPhoneStageTransitions } from './phone-transition-stage';
+import type { PhoneEdgeScene } from './phone-edge-surface';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -26,11 +27,6 @@ gsap.registerPlugin(ScrollTrigger, useGSAP);
 export function refreshPhoneScrollStage(): void {
   ScrollTrigger.refresh();
 }
-
-const PORTRAIT_SURFACE_DARK = '#07110e';
-const PORTRAIT_SURFACE_PATTERN = '#d9c08f';
-const PORTRAIT_SURFACE_STAR = '#06100d';
-const PORTRAIT_SURFACE_PAPER = '#ede4d2';
 
 type PortraitStageScene = 'hero' | 'pattern' | 'star' | 'aod';
 type PortraitAodRunState = 'idle' | 'forward' | 'complete' | 'reverse';
@@ -77,6 +73,7 @@ export type PhoneStageRuntimeOptions = Readonly<{
   mapAodToMethod(progress: number): number;
   onCheckpoint(checkpoint: FrontHalfCheckpointId): void;
   onNavigationScene(scene: SceneId): void;
+  onEdgeScene(scene: PhoneEdgeScene): void;
 }>;
 
 export type PhoneStageRuntime = Readonly<{
@@ -161,16 +158,6 @@ export function usePhoneStageRuntime(
       getScrollY: () => window.scrollY,
       scrollTo: (y) => window.scrollTo({ top: y, left: 0, behavior: 'auto' })
     });
-    const documentElement = document.documentElement;
-    const themeColorMeta = document.querySelector<HTMLMetaElement>(
-      'meta[name="theme-color"]'
-    );
-    const previousDocumentSurface = documentElement.style.getPropertyValue(
-      '--portrait-document-surface'
-    );
-    const previousDocumentEdgeScene = documentElement.dataset.portraitEdgeScene;
-    const previousThemeColor = themeColorMeta?.content;
-    let currentDocumentSurface = '';
     let currentNavigationScene: SceneId = 'hero';
 
     root.dataset.portraitSpikeMotionState = motionEnabled ? 'running' : 'reduced';
@@ -179,24 +166,6 @@ export function usePhoneStageRuntime(
     root.dataset.portraitAodRun = aodRunState;
     root.dataset.portraitAodMethodVisible = 'false';
     ScrollTrigger.config({ ignoreMobileResize: true });
-
-    const setDocumentSurface = (surface: string) => {
-      if (currentDocumentSurface === surface) return;
-      currentDocumentSurface = surface;
-      documentElement.style.setProperty('--portrait-document-surface', surface);
-      root.style.setProperty('--portrait-edge-surface', surface);
-      root.dataset.portraitEdgeSurface = surface;
-      const edgeScene = surface === PORTRAIT_SURFACE_PATTERN
-        ? 'pattern'
-        : surface === PORTRAIT_SURFACE_STAR
-          ? 'star'
-          : surface === PORTRAIT_SURFACE_PAPER
-            ? 'aod'
-            : 'hero';
-      root.dataset.portraitEdgeScene = edgeScene;
-      documentElement.dataset.portraitEdgeScene = edgeScene;
-      if (themeColorMeta) themeColorMeta.content = surface;
-    };
 
     const setCurrentNavigationScene = (scene: SceneId) => {
       if (currentNavigationScene === scene) return;
@@ -215,7 +184,10 @@ export function usePhoneStageRuntime(
       }
       delete root.dataset.portraitStageBoundary;
       root.dataset.portraitStageActive = String(stageActive);
-      if (!stageActive) setCurrentNavigationScene('method-top');
+      if (!stageActive) {
+        options.onEdgeScene('method');
+        setCurrentNavigationScene('method-top');
+      }
     };
 
     const scenes: Record<PortraitStageScene, HTMLElement> = {
@@ -310,7 +282,7 @@ export function usePhoneStageRuntime(
         || (Number.isFinite(lastStageProgress)
           && lastStageProgress >= PHONE_STAGE_STOPS.starAodEnd)
       ) {
-        setDocumentSurface(PORTRAIT_SURFACE_PAPER);
+        options.onEdgeScene('aod');
         setAodHoldOwnership(progress, aodRunState);
       }
     };
@@ -463,13 +435,13 @@ export function usePhoneStageRuntime(
       root.dataset.portraitStageProgress = progress.toFixed(4);
       if (aodRunState === 'idle') options.onCheckpoint(frame.checkpoint);
       if (progress < PHONE_STAGE_STOPS.heroPatternEnd) {
-        setDocumentSurface(PORTRAIT_SURFACE_DARK);
+        options.onEdgeScene('hero');
       } else if (progress < PHONE_STAGE_STOPS.patternStarEnd) {
-        setDocumentSurface(PORTRAIT_SURFACE_PATTERN);
+        options.onEdgeScene('pattern');
       } else if (progress < PHONE_STAGE_STOPS.starAodEnd) {
-        setDocumentSurface(PORTRAIT_SURFACE_STAR);
+        options.onEdgeScene('star');
       } else {
-        setDocumentSurface(PORTRAIT_SURFACE_PAPER);
+        options.onEdgeScene('aod');
       }
       setHeroFigureActive(
         motionEnabled && progress < PHONE_STAGE_STOPS.heroPatternEnd
@@ -614,26 +586,7 @@ export function usePhoneStageRuntime(
       delete root.dataset.portraitStageBoundary;
       delete root.dataset.portraitHeroEntrance;
       delete root.dataset.portraitHeroTextEntrance;
-      delete root.dataset.portraitEdgeSurface;
-      delete root.dataset.portraitEdgeScene;
       delete aodScene.dataset.portraitAodAlpha;
-      root.style.removeProperty('--portrait-edge-surface');
-      if (previousDocumentSurface) {
-        documentElement.style.setProperty(
-          '--portrait-document-surface',
-          previousDocumentSurface
-        );
-      } else {
-        documentElement.style.removeProperty('--portrait-document-surface');
-      }
-      if (previousDocumentEdgeScene) {
-        documentElement.dataset.portraitEdgeScene = previousDocumentEdgeScene;
-      } else {
-        delete documentElement.dataset.portraitEdgeScene;
-      }
-      if (themeColorMeta && previousThemeColor) {
-        themeColorMeta.content = previousThemeColor;
-      }
       ScrollTrigger.config({ ignoreMobileResize: false });
     };
   }, {
@@ -643,6 +596,7 @@ export function usePhoneStageRuntime(
       options.aodAlphaEndProgress,
       options.enabled,
       options.mapAodToMethod,
+      options.onEdgeScene,
       options.reducedMotion
     ],
     revertOnUpdate: true

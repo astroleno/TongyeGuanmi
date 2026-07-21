@@ -28,16 +28,29 @@ export function retainedFigure2ArchState(
   };
 }
 
-export function RetainedFigure2Arch({ mounted, visible }: { mounted: boolean; visible: boolean }) {
+export function RetainedFigure2Arch({
+  mounted,
+  visible,
+  src = FIGURE2_NEAR_ARCH_SRC,
+  className = '',
+  motion = 'depth'
+}: {
+  mounted: boolean;
+  visible: boolean;
+  src?: string;
+  className?: string;
+  motion?: 'depth' | 'fixed';
+}) {
   if (!mounted) {
     return null;
   }
   return (
     <img
-      className="stage-proof-retained-arch"
+      className={`stage-proof-retained-arch ${className}`.trim()}
       data-stage-retained-figure2-arch="true"
+      data-figure2-arch-motion={motion}
       data-visible={String(visible)}
-      src={FIGURE2_NEAR_ARCH_SRC}
+      src={src}
       alt=""
       aria-hidden="true"
     />

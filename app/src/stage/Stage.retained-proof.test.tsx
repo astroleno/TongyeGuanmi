@@ -29,7 +29,8 @@ describe('Stage retained Proof surfaces', () => {
     expect(markup.match(/data-figure2-retained-ground=/g)).toHaveLength(1);
     expect(markup.match(/data-figure2-proof-ownership-surface=/g)).toHaveLength(1);
     expect(markup).toContain('data-figure2-retained-ground="true" data-visible="false"');
-    expect(markup).toContain('data-stage-retained-figure2-arch="true" data-visible="true"');
+    expect(markup).toContain('data-stage-retained-figure2-arch="true"');
+    expect(markup).toContain('data-visible="true"');
     expect(markup.indexOf('data-figure2-proof-ownership-surface="true"'))
       .toBeLessThan(markup.indexOf('data-figure2-retained-ground="true"'));
     expect(markup.indexOf('data-figure2-retained-ground="true"'))
@@ -54,6 +55,7 @@ describe('Stage retained Proof surfaces', () => {
     expect(markup.match(/data-figure2-proof-ownership-surface=/g)).toHaveLength(1);
     expect(markup.match(/data-stage-retained-figure2-arch=/g)).toHaveLength(1);
     expect(markup).toContain('data-figure2-retained-ground="true" data-visible="true"');
-    expect(markup).toContain('data-stage-retained-figure2-arch="true" data-visible="true"');
+    expect(markup).toContain('data-stage-retained-figure2-arch="true"');
+    expect(markup).toContain('data-visible="true"');
   });
 });

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { unlockStoryMedia } from './mobile-media-unlock';
+import {
+  attachStoryMediaUnlock,
+  unlockStoryMedia
+} from './mobile-media-unlock';
 
 type FakeVideo = {
   dataset: Record<string, string>;
@@ -72,5 +75,35 @@ describe('mobile media unlock', () => {
     await Promise.resolve();
 
     expect(target.pause).not.toHaveBeenCalled();
+  });
+
+  it('rescans lazy media directly on touchstart and touchmove', () => {
+    const target = video();
+    const listeners = new Map<string, EventListener>();
+    const root = {
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners.set(type, listener);
+      }),
+      removeEventListener: vi.fn(),
+      querySelectorAll: () => [target]
+    } as unknown as HTMLElement;
+
+    const detach = attachStoryMediaUnlock(root);
+    listeners.get('touchmove')?.(new Event('touchmove'));
+
+    expect(target.play).toHaveBeenCalledOnce();
+    expect(root.addEventListener).toHaveBeenCalledWith(
+      'touchstart',
+      expect.any(Function),
+      { passive: true }
+    );
+    expect(root.addEventListener).toHaveBeenCalledWith(
+      'touchmove',
+      expect.any(Function),
+      { passive: true }
+    );
+
+    detach();
+    expect(root.removeEventListener).toHaveBeenCalledTimes(2);
   });
 });

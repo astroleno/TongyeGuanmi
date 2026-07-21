@@ -9,7 +9,7 @@ const motionDriver = {
 };
 
 describe('PhonePattern Route B adapter', () => {
-  it('preserves the accepted Pattern DOM, copy, bloom, and toolbar edge', () => {
+  it('preserves the accepted Pattern DOM, copy, and bloom without a second edge plane', () => {
     const markup = renderToStaticMarkup(
       <PhonePattern
         active={false}
@@ -23,7 +23,7 @@ describe('PhonePattern Route B adapter', () => {
     );
     expect(markup).toContain('id="portrait-spike-pattern-title"');
     expect(markup).toContain('data-portrait-pattern-bloom="true"');
-    expect(markup).toContain('portrait-scroll-spike__toolbar-edge--pattern');
+    expect(markup).not.toContain('toolbar-edge');
     expect(markup).toContain('让 AI 从一场培训，变成账上的数字。');
     expect(markup).not.toContain('phone-pattern__');
   });

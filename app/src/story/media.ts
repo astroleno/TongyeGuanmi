@@ -25,11 +25,47 @@ export const frontHalfProductMedia = [
   { id: 'aod-figure-packed-reverse', owner: 'aod-animation', asset: 'aod-figure-motion-rgb-alpha-reverse.mp4', kind: 'video' }
 ] as const satisfies readonly ProductMediaSpec[];
 
+/**
+ * Grade A media that is specific to the phone presentation. The canonical
+ * Figure2 scene still owns the one media element; the phone adapter only
+ * replaces its decode/composite format so Safari never flattens HEVC alpha.
+ */
+export const phoneGradeAProductMedia = [
+  {
+    id: 'figure2-pair-poster',
+    owner: 'figure2-animation',
+    asset: 'figure2-pair-opening.webp',
+    kind: 'image'
+  },
+  {
+    id: 'figure2-foreground-arch',
+    owner: 'figure2-animation',
+    asset: 'figure2-phone-foreground-arch.webp',
+    kind: 'image'
+  },
+  {
+    id: 'figure2-pair-packed',
+    owner: 'figure2-animation',
+    asset: 'figure2-pair-motion-rgb-alpha.mp4',
+    kind: 'video'
+  }
+] as const satisfies readonly ProductMediaSpec[];
+
+export const phoneProductMedia = [
+  ...frontHalfProductMedia,
+  ...phoneGradeAProductMedia
+] as const satisfies readonly ProductMediaSpec[];
+
 export type FrontHalfProductMediaId = (typeof frontHalfProductMedia)[number]['id'];
+export type PhoneProductMediaId = (typeof phoneProductMedia)[number]['id'];
 
 const frontHalfMediaById = new Map(
   frontHalfProductMedia.map((media) => [media.id, media])
 );
+const phoneMediaById = new Map<
+  PhoneProductMediaId,
+  (typeof phoneProductMedia)[number]
+>(phoneProductMedia.map((media) => [media.id, media]));
 
 export function frontHalfProductMediaFor(id: FrontHalfProductMediaId): (typeof frontHalfProductMedia)[number] {
   const media = frontHalfMediaById.get(id);
@@ -42,6 +78,25 @@ export function assertFrontHalfMediaOwner(
   owner: SceneId
 ): (typeof frontHalfProductMedia)[number] {
   const media = frontHalfProductMediaFor(id);
+  if (media.owner !== owner) {
+    throw new Error(`${owner} cannot own ${id}; canonical owner is ${media.owner}`);
+  }
+  return media;
+}
+
+export function phoneProductMediaFor(
+  id: PhoneProductMediaId
+): (typeof phoneProductMedia)[number] {
+  const media = phoneMediaById.get(id);
+  if (!media) throw new Error(`Unknown phone media: ${id}`);
+  return media;
+}
+
+export function assertPhoneMediaOwner(
+  id: PhoneProductMediaId,
+  owner: SceneId
+): (typeof phoneProductMedia)[number] {
+  const media = phoneProductMediaFor(id);
   if (media.owner !== owner) {
     throw new Error(`${owner} cannot own ${id}; canonical owner is ${media.owner}`);
   }

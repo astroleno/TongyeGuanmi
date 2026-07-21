@@ -5,6 +5,18 @@
   color: #1e211c;
 }
 
+.portrait-scroll-spike[data-portrait-stage-active="true"] .portrait-scroll-spike__reading {
+  background: transparent;
+}
+
+.portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__reading {
+  z-index: 11;
+}
+
+.portrait-scroll-spike__reading[data-phone-method-figure2-ink-active="true"] {
+  background: transparent;
+}
+
 /*
  * The fixed Method bridge leaves normal flow while AOD owns the stage.
  * Reserve its eventual viewport-height slot so Method steps cannot sit under
@@ -15,7 +27,7 @@
   display: block;
   width: 100%;
   height: 0;
-  background: #ede4d2;
+  background: transparent;
 }
 
 .portrait-scroll-spike[data-portrait-stage-active="true"] .portrait-scroll-spike__reading::before {
@@ -139,7 +151,7 @@
   position: relative;
   width: 100%;
   min-height: 660lvh;
-  background: #ede4d2;
+  background: transparent;
 }
 
 @media (orientation: landscape) and (max-height: 500px) {

@@ -119,7 +119,10 @@ describe('figure2 proof and brand scene renderers', () => {
     }));
 
     for (const rendered of [markup, compatibilityMarkup]) {
-      expect(rendered).toContain('同野观幂做第四种：</span><br/><span>先进现场，再定章法，陪你跑到账上有数。');
+      expect(rendered).toContain('同野观幂做第四种：</span><br/>');
+      expect(rendered).toContain('r4-proof-closing__tail-line">先进现场，</span>');
+      expect(rendered).toContain('r4-proof-closing__tail-line">再定章法，</span>');
+      expect(rendered).toContain('r4-proof-closing__tail-line">陪你跑到账上有数。</span>');
     }
   });
 });

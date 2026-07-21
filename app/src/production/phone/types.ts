@@ -16,6 +16,7 @@ import type {
   PhoneCheckpointId
 } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
+import type { PhoneEdgeScene } from './phone-edge-surface';
 
 export type PhoneStageSceneId = 'hero' | 'pattern' | 'star-map' | 'aod-animation';
 export type PhoneSceneAdapterId =
@@ -73,8 +74,10 @@ export type PhonePatternAdapterProps = PhoneSceneAdapterProps & Readonly<{
 }>;
 
 export type PhoneMethodAdapterProps = PhonePatternAdapterProps & Readonly<{
+  stageHost: HTMLElement | null;
   onGradeACheckpoint?: (checkpoint: GradeACheckpointId) => void;
   onGradeASceneChange?: (scene: SceneId) => void;
+  onGradeAEdgeScene?: (scene: PhoneEdgeScene) => void;
 }>;
 
 export type PhoneSceneAdapterComponent = ForwardRefExoticComponent<

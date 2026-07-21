@@ -444,8 +444,10 @@ export function renderFigure2AnimationProgress(
   root?.style.setProperty('--r4-figure2-far-arcade-scale', farArcadeScale.toFixed(4));
   root?.style.setProperty('--r4-figure2-middle-y', `${middleY.toFixed(2)}px`);
   const retainedArch = retainedFigure2Arch(root);
-  retainedArch?.style.setProperty('--r4-figure2-near-arch-scale', nearArchScale.toFixed(4));
-  retainedArch?.style.setProperty('--r4-figure2-near-arch-blur', `${nearArchBlur.toFixed(2)}px`);
+  if (retainedArch?.dataset.figure2ArchMotion !== 'fixed') {
+    retainedArch?.style.setProperty('--r4-figure2-near-arch-scale', nearArchScale.toFixed(4));
+    retainedArch?.style.setProperty('--r4-figure2-near-arch-blur', `${nearArchBlur.toFixed(2)}px`);
+  }
   root?.style.setProperty('--r4-figure2-figure-y', `${figureY.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-figure-scale', figureScale.toFixed(4));
   root?.style.setProperty('--r4-figure2-video-opacity', '1');
@@ -557,7 +559,7 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
                   data-media-key={FIGURE2_MEDIA_KEY}
                   muted
                   playsInline
-                  preload="metadata"
+                  preload="auto"
                   aria-hidden="true"
                 >
                   <AlphaVideoSources
@@ -565,6 +567,11 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
                     hevc={FIGURE2_HEVC_ALPHA_VIDEO}
                   />
                 </video>
+                <canvas
+                  className="r4-figure2__packed-alpha-canvas"
+                  data-figure2-packed-alpha-canvas
+                  aria-hidden="true"
+                />
               </div>
               <figcaption>子问老子</figcaption>
             </figure>

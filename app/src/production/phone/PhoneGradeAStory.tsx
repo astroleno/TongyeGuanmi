@@ -5,6 +5,7 @@ import {
   useRef,
   useState
 } from 'react';
+import { createPortal } from 'react-dom';
 import type { GradeACheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
 import {
@@ -12,10 +13,12 @@ import {
   sceneFromHash
 } from '../navigation';
 import { usePhoneGradeAAdapters } from './usePhoneGradeAAdapters';
+import type { PhoneEdgeScene } from './phone-edge-surface';
 import type {
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
+import { PhoneFigure2Arch } from './scenes/PhoneFigure2Arch';
 import './PhoneGradeAStory.css';
 
 const FIGURE2_PROOF_SPLIT = 0.72;
@@ -39,6 +42,26 @@ export function phoneGradeAFigureProgress(
   return clamp(-railTop / Math.max(1, railHeight));
 }
 
+export function phoneGradeAArchFrame(
+  revealProgress: number,
+  figureProgress: number
+): Readonly<{
+  opacity: number;
+  scale: number;
+  blur: number;
+  motionProgress: number;
+}> {
+  const reveal = clamp(revealProgress);
+  const motionProgress = clamp(figureProgress / FIGURE2_PROOF_SPLIT);
+  const eased = motionProgress * motionProgress * (3 - 2 * motionProgress);
+  return {
+    opacity: reveal * 0.98,
+    scale: 1.025 + eased * 0.11,
+    blur: eased * 3.6,
+    motionProgress
+  };
+}
+
 export function phoneGradeAProofProgress(
   trackTop: number,
   trackHeight: number,
@@ -58,14 +81,18 @@ export function phoneGradeAProofPanelOffset(
 
 export type PhoneGradeAStoryProps = Readonly<{
   reducedMotion: boolean;
+  stageHost: HTMLElement | null;
   onCheckpoint?: (checkpoint: GradeACheckpointId) => void;
   onSceneChange?: (scene: SceneId) => void;
+  onEdgeScene?: (scene: PhoneEdgeScene) => void;
 }>;
 
 export function PhoneGradeAStory({
   reducedMotion,
+  stageHost,
   onCheckpoint,
-  onSceneChange
+  onSceneChange,
+  onEdgeScene
 }: PhoneGradeAStoryProps) {
   const adapters = usePhoneGradeAAdapters();
   const {
@@ -75,10 +102,15 @@ export function PhoneGradeAStory({
     Figure2Proof
   } = adapters;
   const [, setAdapterRevision] = useState(0);
+  const [figure2Ready, setFigure2Ready] = useState(false);
+  const [proofReady, setProofReady] = useState(false);
+  const [methodFigure2Ready, setMethodFigure2Ready] = useState(false);
+  const [figure2ProofReady, setFigure2ProofReady] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
   const proofTrackRef = useRef<HTMLDivElement | null>(null);
   const surfacesRef = useRef<HTMLDivElement | null>(null);
+  const methodPaperRef = useRef<HTMLDivElement | null>(null);
   const figure2Ref = useRef<PhoneSceneAdapterHandle | null>(null);
   const proofRef = useRef<PhoneSceneAdapterHandle | null>(null);
   const methodFigure2Ref = useRef<PhoneTransitionAdapterHandle | null>(null);
@@ -86,7 +118,24 @@ export function PhoneGradeAStory({
   const frameRef = useRef(0);
   const checkpointRef = useRef<GradeACheckpointId | undefined>(undefined);
   const sceneRef = useRef<SceneId>('method-top');
+  const edgeSceneRef = useRef<PhoneEdgeScene>('method');
   const deepLinkHandledRef = useRef(false);
+  const scenesReady = adapters.ready && figure2Ready && proofReady;
+  const transitionsReady = scenesReady
+    && methodFigure2Ready
+    && figure2ProofReady;
+  const runtimeReady = transitionsReady;
+
+  const markFigure2Ready = useCallback(() => setFigure2Ready(true), []);
+  const markProofReady = useCallback(() => setProofReady(true), []);
+  const markMethodFigure2Ready = useCallback(
+    () => setMethodFigure2Ready(true),
+    []
+  );
+  const markFigure2ProofReady = useCallback(
+    () => setFigure2ProofReady(true),
+    []
+  );
 
   const bindAdapter = useCallback(<Handle,>(
     target: { current: Handle | null },
@@ -129,29 +178,67 @@ export function PhoneGradeAStory({
       onSceneChange?.(scene);
     }
   }, [onCheckpoint, onSceneChange]);
+  const publishEdgeScene = useCallback((scene: PhoneEdgeScene) => {
+    if (edgeSceneRef.current === scene) return;
+    edgeSceneRef.current = scene;
+    onEdgeScene?.(scene);
+  }, [onEdgeScene]);
 
   useLayoutEffect(() => {
-    if (!adapters.ready) return;
+    if (!runtimeReady) return;
     const root = rootRef.current;
     const rail = railRef.current;
     const proofTrack = proofTrackRef.current;
     const surfaces = surfacesRef.current;
     if (!root || !rail || !proofTrack || !surfaces) return;
+    const methodReading = document.getElementById('method');
 
     const renderFrame = () => {
       frameRef.current = 0;
       const railRect = rail.getBoundingClientRect();
       const proofRect = proofTrack.getBoundingClientRect();
       const stageHeight = Math.max(1, surfaces.clientHeight || window.innerHeight);
-      const railActive = railRect.top < stageHeight && railRect.bottom > 0;
+      const railActive = railRect.top < stageHeight
+        && railRect.bottom > 0;
       const proofActive = proofRect.top <= ACTIVE_EDGE_TOLERANCE_PX
         && proofRect.bottom >= stageHeight - ACTIVE_EDGE_TOLERANCE_PX;
       const active = railActive || proofActive;
       root.dataset.phoneGradeAActive = String(active);
+      surfaces.dataset.phoneGradeAActive = String(active);
+      if (methodReading) {
+        methodReading.dataset.phoneMethodFigure2InkActive = String(railActive);
+      }
+      const retainedArch = surfaces.querySelector<HTMLElement>(
+        '[data-stage-retained-figure2-arch="true"]'
+      );
+      const setRetainedArchProgress = (
+        revealProgress: number,
+        figureProgress: number
+      ) => {
+        const frame = phoneGradeAArchFrame(revealProgress, figureProgress);
+        retainedArch?.style.setProperty(
+          '--phone-figure2-arch-opacity',
+          frame.opacity.toFixed(4)
+        );
+        retainedArch?.style.setProperty(
+          '--phone-figure2-arch-scale',
+          frame.scale.toFixed(4)
+        );
+        retainedArch?.style.setProperty(
+          '--phone-figure2-arch-blur',
+          `${frame.blur.toFixed(2)}px`
+        );
+        if (retainedArch) {
+          retainedArch.dataset.phoneFigure2ArchVisible = String(frame.opacity > 0.001);
+          retainedArch.dataset.phoneFigure2ArchProgress = frame.motionProgress.toFixed(4);
+        }
+      };
 
       if (railActive) {
         const handoff = phoneGradeAHandoffProgress(railRect.top, stageHeight);
         const figure = phoneGradeAFigureProgress(railRect.top, railRect.height);
+        publishEdgeScene('figure2');
+        setRetainedArchProgress(handoff, figure);
         methodFigure2Ref.current?.render(handoff);
         figure2ProofRef.current?.render(figure);
         proofRef.current?.update(0);
@@ -166,6 +253,8 @@ export function PhoneGradeAStory({
       }
 
       if (proofActive) {
+        publishEdgeScene('proof');
+        setRetainedArchProgress(1, 1);
         const proof = phoneGradeAProofProgress(
           proofRect.top,
           proofRect.height,
@@ -186,6 +275,8 @@ export function PhoneGradeAStory({
       }
 
       if (railRect.top >= stageHeight) {
+        publishEdgeScene('method');
+        setRetainedArchProgress(0, 0);
         methodFigure2Ref.current?.render(0);
         figure2ProofRef.current?.render(0);
         proofRef.current?.update(0);
@@ -208,11 +299,14 @@ export function PhoneGradeAStory({
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
+      if (methodReading) {
+        delete methodReading.dataset.phoneMethodFigure2InkActive;
+      }
     };
-  }, [adapters.ready, onSceneChange, publish]);
+  }, [onSceneChange, publish, publishEdgeScene, runtimeReady, stageHost]);
 
   useEffect(() => {
-    if (!adapters.ready || deepLinkHandledRef.current) return;
+    if (!runtimeReady || deepLinkHandledRef.current) return;
     const scene = sceneFromHash(window.location.hash);
     if (scene !== 'figure2-animation' && scene !== 'figure2-proof') return;
     let frame = 0;
@@ -222,28 +316,37 @@ export function PhoneGradeAStory({
         return false;
       }
       deepLinkHandledRef.current = true;
-      frame = window.requestAnimationFrame(() => {
+      let attempts = 0;
+      let settledFrames = 0;
+      const settlePosition = () => {
         const rail = railRef.current;
         const proofTrack = proofTrackRef.current;
         const surfaces = surfacesRef.current;
         if (!rail || !proofTrack || !surfaces) return;
         const stageHeight = Math.max(1, surfaces.clientHeight || window.innerHeight);
-        const base = window.scrollY;
-        if (scene === 'figure2-animation') {
-          window.scrollTo({ top: base + rail.getBoundingClientRect().top });
-          return;
+        let offset = rail.getBoundingClientRect().top;
+        if (scene !== 'figure2-animation') {
+          const panel = figure2ProofPanelFromHash(window.location.hash) ?? 'opening';
+          const panelIndex = panel === 'opening' ? 0 : panel === 'cards' ? 1 : 2;
+          const proofRangeOffset = phoneGradeAProofPanelOffset(
+            panelIndex,
+            proofTrack.getBoundingClientRect().height,
+            stageHeight
+          );
+          offset = proofTrack.getBoundingClientRect().top + proofRangeOffset;
         }
-        const panel = figure2ProofPanelFromHash(window.location.hash) ?? 'opening';
-        const panelIndex = panel === 'opening' ? 0 : panel === 'cards' ? 1 : 2;
-        const proofRangeOffset = phoneGradeAProofPanelOffset(
-          panelIndex,
-          proofTrack.getBoundingClientRect().height,
-          stageHeight
-        );
-        window.scrollTo({
-          top: base + proofTrack.getBoundingClientRect().top + proofRangeOffset
-        });
-      });
+        if (Math.abs(offset) > ACTIVE_EDGE_TOLERANCE_PX) {
+          settledFrames = 0;
+          window.scrollTo({ top: window.scrollY + offset });
+        } else {
+          settledFrames += 1;
+        }
+        attempts += 1;
+        if (attempts < 12 && settledFrames < 3) {
+          frame = window.requestAnimationFrame(settlePosition);
+        }
+      };
+      frame = window.requestAnimationFrame(settlePosition);
       return true;
     };
     if (!positionDeepLink()) {
@@ -259,56 +362,74 @@ export function PhoneGradeAStory({
       observer?.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [adapters.ready]);
+  }, [runtimeReady]);
+
+  const surfaces = (
+    <div
+      ref={surfacesRef}
+      className="phone-grade-a__surfaces"
+      data-phone-grade-a-active="false"
+      data-testid="r2-stage"
+    >
+      <div
+        ref={methodPaperRef}
+        className="phone-grade-a__method-paper"
+        data-phone-grade-a-method-paper="true"
+        aria-hidden="true"
+      />
+      {Figure2 && (
+        <Figure2
+          ref={bindFigure2}
+          active={runtimeReady}
+          reducedMotion={reducedMotion}
+          onReady={markFigure2Ready}
+        />
+      )}
+      {Proof && (
+        <Proof
+          ref={bindProof}
+          active={runtimeReady}
+          reducedMotion={reducedMotion}
+          onReady={markProofReady}
+        />
+      )}
+      <PhoneFigure2Arch />
+      {scenesReady && MethodFigure2 && (
+        <MethodFigure2
+          ref={bindMethodFigure2}
+          host={surfacesRef.current}
+          from={methodPaperRef.current}
+          to={figure2Ref.current?.root() ?? null}
+          reducedMotion={reducedMotion}
+          onReady={markMethodFigure2Ready}
+        />
+      )}
+      {scenesReady && Figure2Proof && (
+        <Figure2Proof
+          ref={bindFigure2Proof}
+          host={surfacesRef.current}
+          from={figure2Ref.current?.root() ?? null}
+          to={proofRef.current?.root() ?? null}
+          reducedMotion={reducedMotion}
+          onReady={markFigure2ProofReady}
+        />
+      )}
+    </div>
+  );
 
   return (
     <div
       ref={rootRef}
       className="phone-grade-a"
       data-phone-grade-a-active="false"
-      data-phone-grade-a-ready={String(adapters.ready)}
+      data-phone-grade-a-modules-ready={String(adapters.ready)}
+      data-phone-grade-a-scenes-ready={String(scenesReady)}
+      data-phone-grade-a-ready={String(runtimeReady)}
       data-phone-grade-a-failed={String(adapters.failed)}
     >
       <div ref={railRef} className="phone-grade-a__figure-track" aria-hidden="true" />
       <div ref={proofTrackRef} className="phone-grade-a__proof-track" aria-hidden="true" />
-      <div
-        ref={surfacesRef}
-        className="phone-grade-a__surfaces"
-        data-testid="r2-stage"
-      >
-        {Figure2 && (
-          <Figure2
-            ref={bindFigure2}
-            active={adapters.ready}
-            reducedMotion={reducedMotion}
-          />
-        )}
-        {Proof && (
-          <Proof
-            ref={bindProof}
-            active={adapters.ready}
-            reducedMotion={reducedMotion}
-          />
-        )}
-        {MethodFigure2 && (
-          <MethodFigure2
-            ref={bindMethodFigure2}
-            host={surfacesRef.current}
-            from={null}
-            to={figure2Ref.current?.root() ?? null}
-            reducedMotion={reducedMotion}
-          />
-        )}
-        {Figure2Proof && (
-          <Figure2Proof
-            ref={bindFigure2Proof}
-            host={surfacesRef.current}
-            from={figure2Ref.current?.root() ?? null}
-            to={proofRef.current?.root() ?? null}
-            reducedMotion={reducedMotion}
-          />
-        )}
-      </div>
+      {stageHost ? createPortal(surfaces, stageHost) : null}
     </div>
   );
 }

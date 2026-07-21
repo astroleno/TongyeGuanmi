@@ -138,10 +138,6 @@ export const PhonePattern = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
         className="portrait-scroll-spike__pattern-wash"
         aria-hidden="true"
       />
-      <div
-        className="portrait-scroll-spike__toolbar-edge portrait-scroll-spike__toolbar-edge--pattern"
-        aria-hidden="true"
-      />
       <div ref={copyRef} className="portrait-scroll-spike__pattern-copy">
         <p>{BELIEF_COPY[0]}</p>
         <h2 id="portrait-spike-pattern-title">{BELIEF_COPY[1]}</h2>

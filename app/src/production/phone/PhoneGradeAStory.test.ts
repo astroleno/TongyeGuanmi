@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  phoneGradeAArchFrame,
   phoneGradeAFigureProgress,
   phoneGradeAHandoffProgress,
   phoneGradeAProofPanelOffset,
@@ -21,6 +22,20 @@ describe('phone Grade A document progress', () => {
     expect(phoneGradeAFigureProgress(-3038, 3038)).toBe(1);
     expect(phoneGradeAFigureProgress(-1519, 3038)).toBe(0.5);
     expect(phoneGradeAFigureProgress(0, 3038)).toBe(0);
+  });
+
+  it('reveals the phone arch first, then enlarges and blurs it', () => {
+    expect(phoneGradeAArchFrame(0, 0)).toEqual({
+      opacity: 0,
+      scale: 1.025,
+      blur: 0,
+      motionProgress: 0
+    });
+    const final = phoneGradeAArchFrame(1, 0.72);
+    expect(final.opacity).toBeCloseTo(0.98, 4);
+    expect(final.scale).toBeCloseTo(1.135, 4);
+    expect(final.blur).toBeCloseTo(3.6, 4);
+    expect(final.motionProgress).toBe(1);
   });
 
   it('moves one Proof article across its three document-owned panels', () => {

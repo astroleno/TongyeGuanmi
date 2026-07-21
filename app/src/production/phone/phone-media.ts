@@ -1,15 +1,15 @@
 import type { SceneId } from '../../story/types';
 import {
-  assertFrontHalfMediaOwner,
-  type FrontHalfProductMediaId
+  assertPhoneMediaOwner,
+  type PhoneProductMediaId
 } from '../../story/media';
 
 /**
  * Phone-only URL resolution. The product layer owns identity and scene
  * ownership; this adapter layer owns the bundler-specific asset URL.
  */
-export function phoneMediaUrlFor(id: FrontHalfProductMediaId, owner: SceneId): string {
-  assertFrontHalfMediaOwner(id, owner);
+export function phoneMediaUrlFor(id: PhoneProductMediaId, owner: SceneId): string {
+  assertPhoneMediaOwner(id, owner);
   switch (id) {
     case 'hero-back':
       return new URL('../../../../assets/hero-back.webp', import.meta.url).href;
@@ -27,5 +27,11 @@ export function phoneMediaUrlFor(id: FrontHalfProductMediaId, owner: SceneId): s
       return new URL('../../../../assets/aod-figure-motion-rgb-alpha.mp4', import.meta.url).href;
     case 'aod-figure-packed-reverse':
       return new URL('../../../../assets/aod-figure-motion-rgb-alpha-reverse.mp4', import.meta.url).href;
+    case 'figure2-pair-packed':
+      return new URL('../../../../assets/figure2-pair-motion-rgb-alpha.mp4', import.meta.url).href;
+    case 'figure2-pair-poster':
+      return new URL('../../../../assets/figure2-pair-opening.webp', import.meta.url).href;
+    case 'figure2-foreground-arch':
+      return new URL('../../../../assets/figure2-phone-foreground-arch.webp', import.meta.url).href;
   }
 }

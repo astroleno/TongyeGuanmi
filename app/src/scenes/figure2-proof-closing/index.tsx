@@ -1,7 +1,12 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export const FIGURE2_PROOF_CLOSING_LEAD = '同野观幂做第四种：';
-export const FIGURE2_PROOF_CLOSING_TAIL = '先进现场，再定章法，陪你跑到账上有数。';
+export const FIGURE2_PROOF_CLOSING_TAIL_LINES = [
+  '先进现场，',
+  '再定章法，',
+  '陪你跑到账上有数。'
+] as const;
+export const FIGURE2_PROOF_CLOSING_TAIL = FIGURE2_PROOF_CLOSING_TAIL_LINES.join('');
 export const FIGURE2_PROOF_CLOSING_COPY = [
   `${FIGURE2_PROOF_CLOSING_LEAD}${FIGURE2_PROOF_CLOSING_TAIL}`
 ] as const;
@@ -11,7 +16,11 @@ export function Figure2ProofClosingCopy() {
     <>
       <span>{FIGURE2_PROOF_CLOSING_LEAD}</span>
       <br />
-      <span>{FIGURE2_PROOF_CLOSING_TAIL}</span>
+      <span className="r4-proof-closing__tail">
+        {FIGURE2_PROOF_CLOSING_TAIL_LINES.map((line) => (
+          <span className="r4-proof-closing__tail-line" key={line}>{line}</span>
+        ))}
+      </span>
     </>
   );
 }

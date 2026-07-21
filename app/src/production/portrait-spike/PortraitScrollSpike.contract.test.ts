@@ -10,7 +10,10 @@ const spikeSource = source('./PortraitScrollSpike.tsx');
 const shellSource = source('../phone/PhoneStoryShell.tsx');
 const shellCss = source('../phone/PhoneStoryShell.css');
 const railSource = source('../phone/PhoneStageRail.tsx');
+const railCss = source('../phone/PhoneStageRail.css');
 const runtimeSource = source('../phone/usePhoneStageRuntime.ts');
+const edgeSurfaceSource = source('../phone/phone-edge-surface.ts');
+const viewportGeometrySource = source('../phone/usePhoneViewportGeometry.ts');
 const frontHalfSource = source('../phone/usePhoneFrontHalfAdapters.ts');
 const loaderSource = source('../phone/scenes/PhoneLoader.tsx');
 const heroSource = source('../phone/scenes/PhoneHero.tsx');
@@ -30,8 +33,10 @@ const starAodSource = source('../phone/transitions/star-map-aod.tsx');
 const aodMethodSource = source('../phone/transitions/aod-method-top.ts');
 const phoneMediaSource = source('../phone/phone-media.ts');
 const gradeAStorySource = source('../phone/PhoneGradeAStory.tsx');
+const gradeAStoryCss = source('../phone/PhoneGradeAStory.css');
 const gradeAFigureSource = source('../phone/scenes/PhoneFigure2.tsx');
 const gradeAFigureCss = source('../phone/scenes/PhoneFigure2.css');
+const gradeAArchSource = source('../phone/scenes/PhoneFigure2Arch.tsx');
 const gradeAProofSource = source('../phone/scenes/PhoneFigure2Proof.tsx');
 const gradeAProofCss = source('../phone/scenes/PhoneFigure2Proof.css');
 const gradeADistanceSource = source(
@@ -69,6 +74,9 @@ describe('Route B proven front-half migration contract', () => {
   it('preserves one document scroll owner and the exact fixed-stage geometry', () => {
     expect(railSource).toContain('portrait-scroll-spike__stage-rail');
     expect(railSource).toContain('portrait-scroll-spike__stage');
+    expect(railSource).toContain('portrait-scroll-spike__stage-canvas');
+    expect(railSource).toContain('data-portrait-stage-host="persistent"');
+    expect(railSource).not.toContain('stage-backplate');
     expect(runtimeSource).toContain("id: 'portrait-spike-stage'");
     expect(runtimeSource).toContain(
       'stageRail.offsetHeight - stage.offsetHeight'
@@ -76,14 +84,23 @@ describe('Route B proven front-half migration contract', () => {
     expect(runtimeSource).toContain(
       "root.dataset.portraitStagePin = 'native-fixed-composite'"
     );
-    expect(shellCss).toMatch(
+    expect(railCss).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed/s
     );
-    expect(shellCss).toMatch(
+    expect(railCss).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*transform:\s*translate3d\(0,\s*0,\s*0\)/s
     );
-    expect(shellCss).toMatch(
+    expect(railCss).toMatch(
       /portrait-scroll-spike__stage-rail\s*\{[^}]*margin-bottom:\s*calc\(-1 \* var\(--portrait-stage-height\)\)/s
+    );
+    expect(railCss).toMatch(
+      /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*clip[^}]*background:\s*var\(--portrait-edge-surface\)/s
+    );
+    expect(railCss).toMatch(
+      /portrait-scroll-spike__stage\s*\{[^}]*inset:\s*0[^}]*height:\s*auto/s
+    );
+    expect(railCss).toMatch(
+      /portrait-scroll-spike__stage-canvas\s*\{[^}]*height:\s*var\(--portrait-stage-height\)/s
     );
     expect(shellSource).not.toContain('viewport?.pageTop');
     expect(shellSource).not.toContain(
@@ -117,7 +134,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(aodMethodSource).toContain('phoneAodMethodProgress');
   });
 
-  it('preserves Hero entrance and Safari toolbar surfaces at their owners', () => {
+  it('preserves Hero entrance and keeps one WebKit-sampled edge surface', () => {
     expect(heroSource).toContain(
       'const [titleActive, setTitleActive] = useState(reducedMotion);'
     );
@@ -126,21 +143,41 @@ describe('Route B proven front-half migration contract', () => {
       "owner.dataset.portraitHeroTextEntrance = 'playing'"
     );
     expect(runtimeSource).toContain('heroAdapter.startEntrance()');
-    expect(shellSource).toContain("'--portrait-stage-coverage-height'");
-    expect(shellCss).toContain('calc(100lvh - 100svh');
-    expect(patternSource).toContain('portrait-scroll-spike__toolbar-edge--pattern');
-    expect(aodSource).toContain('portrait-scroll-spike__toolbar-edge--aod');
-    expect(patternCss).toContain('--portrait-pattern-edge-backdrop');
-    expect(patternCss).toContain('--portrait-pattern-edge-image');
-    expect(patternCss).not.toContain('mask-image');
+    expect(viewportGeometrySource).toContain("'--portrait-stage-coverage-height'");
+    expect(shellCss).toContain('100lvh');
+    expect(shellSource).not.toContain('stage-backplate');
+    expect(patternSource).not.toContain('toolbar-edge');
+    expect(aodSource).not.toContain('toolbar-edge');
+    expect(shellCss).not.toContain('toolbar-edge');
     expect(patternCss).toMatch(
-      /toolbar-edge--pattern\s*\{[^}]*z-index:\s*1/s
+      /data-portrait-edge-scene="pattern"[^}]*stage-rail\s*\{[^}]*background:\s*transparent/s
     );
+    expect(patternCss).toMatch(
+      /data-portrait-edge-scene="pattern"[^}]*#root\s*\{[^}]*background-color:\s*#d9c08f[^}]*background-image:\s*var\(--portrait-pattern-edge-backdrop\)/s
+    );
+    expect(patternCss).toMatch(
+      /portrait-scroll-spike__stage\[data-portrait-edge-scene="pattern"\]\s*\{[^}]*background-image:\s*var\(--portrait-pattern-edge-backdrop\)[^}]*background-size:[^}]*var\(--portrait-stage-height\)/s
+    );
+    expect(patternCss).not.toContain('--portrait-browser-edge-reserve');
+    expect(patternCss).toMatch(
+      /portrait-scroll-spike__pattern-bloom\s*\{[^}]*inset:\s*0[^}]*height:\s*100%/s
+    );
+    expect(patternCss).not.toContain('stage-backplate');
+    expect(patternCss).not.toContain('::after');
+    expect(patternSource).toContain('centerForViewport: () => PATTERN_CENTER');
     expect(aodCss).toContain('--portrait-aod-bottom-mist-background');
+    expect(aodCss).not.toContain('--portrait-browser-edge-reserve');
+    expect(shellCss).not.toContain('--portrait-browser-edge-reserve');
+    expect(aodCss).toMatch(
+      /data-portrait-edge-scene="aod"[^}]*stage-rail\s*\{[^}]*background:\s*#ede4d2/s
+    );
+    expect(aodCss).toContain('html[data-portrait-spike="b"][data-portrait-edge-scene="aod"]');
+    expect(shellSource).toContain('attachStoryMediaUnlock(rootRef.current)');
     expect(shellCss).toMatch(
       /site-nav\.has-scroll-edge-blur::before\s*\{[^}]*backdrop-filter:\s*blur\(20px\)/s
     );
     expect(heroCss).toContain('r4-text-reveal-enter');
+    expect(edgeSurfaceSource).toContain("figure2: '#e2dac9'");
   });
 
   it('keeps one packed-alpha owner and the phone-only 0.48 → 0.55 mapping', () => {
@@ -172,6 +209,18 @@ describe('Route B proven front-half migration contract', () => {
     expect(methodCss).toMatch(
       /data-portrait-stage-active="true"[^}]*portrait-scroll-spike__method-bridge\s*\{[^}]*position:\s*fixed/s
     );
+    expect(methodCss).toMatch(
+      /data-portrait-stage-active="false"[^}]*portrait-scroll-spike__reading\s*\{[^}]*z-index:\s*11/s
+    );
+    expect(methodCss).toMatch(
+      /data-portrait-stage-active="true"[^}]*portrait-scroll-spike__reading\s*\{[^}]*background:\s*transparent/s
+    );
+    expect(methodCss).toMatch(
+      /portrait-scroll-spike__reading::before\s*\{[^}]*background:\s*transparent/s
+    );
+    expect(methodCss).toMatch(
+      /data-phone-method-figure2-ink-active="true"[^}]*\{[^}]*background:\s*transparent/s
+    );
   });
 
   it('keeps product media helpers presentation-local and imports no spike code', () => {
@@ -195,6 +244,11 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAStorySource.match(/data-testid="r2-stage"/g)).toHaveLength(1);
     expect(gradeAStorySource).toContain('<Figure2');
     expect(gradeAStorySource).toContain('<Proof');
+    expect(gradeAStorySource).toContain('onReady={markFigure2Ready}');
+    expect(gradeAStorySource).toContain('scenesReady && MethodFigure2');
+    expect(gradeAStorySource).toContain('data-phone-grade-a-ready={String(runtimeReady)}');
+    expect(gradeAStorySource).toContain('createPortal(surfaces, stageHost)');
+    expect(methodSource).toContain('stageHost={stageHost}');
     expect(gradeAFigureSource).toContain('figure2AnimationScene.Component');
     expect(gradeAProofSource).toContain('figure2ProofScene.Component');
     expect(shellSource).not.toContain('data-r4-scene="figure2-animation"');
@@ -219,9 +273,50 @@ describe('Route B Grade A migration contract', () => {
     );
     expect(gradeADistanceSource).toContain("videoMode: 'seek'");
     expect(gradeADistanceSource).toContain('directionRef.current');
+    expect(gradeADistanceSource).not.toContain('timeline.prepareLeg');
     expect(gradeAGroupSource).toContain("'method-bottom-figure2'");
     expect(gradeAGroupSource).toContain("'figure2-distance-expand'");
     expect(gradeAGroupSource).toContain("'figure2-proof-brand'");
+  });
+
+  it('keeps Figure2 on one canonical video owner and composites phone alpha through Canvas', () => {
+    expect(gradeAFigureSource).toContain('createPackedAlphaVideoCompositor');
+    expect(gradeAFigureSource).toContain('setPackedAlphaVideoSource');
+    expect(gradeAFigureSource).toContain(
+      "phoneMediaUrlFor(\n  'figure2-pair-packed',\n  'figure2-animation'"
+    );
+    expect(phoneMediaSource).toContain('figure2-pair-motion-rgb-alpha.mp4');
+    expect(phoneMediaSource).toContain('figure2-pair-opening.webp');
+    expect(gradeAFigureCss).toContain('data-phone-figure2-alpha="verified"');
+    expect(gradeAFigureCss).toContain('data-packed-alpha-frame-ready="true"');
+    expect(gradeAFigureCss).toContain('data-phone-figure2-alpha="probing"');
+    expect(gradeAFigureCss).toContain('data-phone-figure2-alpha="poster-fallback"');
+    expect(gradeAFigureCss).toContain('--phone-figure2-poster-image');
+    expect(gradeAFigureSource).toContain("root.dataset.phoneFigure2Ready = 'true'");
+    expect(gradeAFigureSource).not.toContain('Promise.all([');
+    expect(gradeAStorySource).toContain('<PhoneFigure2Arch />');
+    expect(gradeAStorySource).toContain('data-phone-grade-a-method-paper="true"');
+    expect(gradeAStorySource).toContain('from={methodPaperRef.current}');
+    expect(gradeAStoryCss).toMatch(
+      /phone-grade-a__method-paper\s*\{[^}]*z-index:\s*95/s
+    );
+    expect(gradeAStoryCss).toMatch(
+      /phone-grade-a__method-ink\s*\{[^}]*z-index:\s*96/s
+    );
+    expect(gradeAStoryCss).toMatch(
+      /phone-grade-a__surfaces\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0/s
+    );
+    expect(gradeAStoryCss).toMatch(
+      /data-phone-grade-a-active="true"\]\s*\{[^}]*visibility:\s*visible;[^}]*opacity:\s*1/s
+    );
+    expect(gradeAArchSource).toContain("'figure2-foreground-arch'");
+    expect(gradeAArchSource).toContain('RetainedFigure2Arch');
+    expect(gradeAArchSource).toContain('motion="fixed"');
+    expect(gradeAStorySource).toContain("publishEdgeScene('figure2')");
+    expect(gradeAFigureCss).not.toContain('--portrait-browser-edge-reserve');
+    expect(gradeAStoryCss).toContain('--phone-figure2-arch-scale');
+    expect(gradeAStoryCss).toContain('--phone-figure2-arch-blur');
+    expect(phoneMediaSource).toContain('figure2-phone-foreground-arch.webp');
   });
 
   it('settles the upstream AOD before a direct Figure2 or Proof entry', () => {

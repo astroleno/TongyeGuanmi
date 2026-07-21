@@ -34,3 +34,21 @@ export function unlockStoryMedia(
     }
   }
 }
+
+/**
+ * Re-scan mounted story media during every physical touch. Lazy phone scenes
+ * can mount after touchstart, so touchmove must retain the same direct gesture
+ * path instead of waiting for a later effect or timer.
+ */
+export function attachStoryMediaUnlock(
+  root: HTMLElement | null
+): () => void {
+  if (!root) return () => undefined;
+  const unlockMountedMedia = () => unlockStoryMedia(root);
+  root.addEventListener('touchstart', unlockMountedMedia, { passive: true });
+  root.addEventListener('touchmove', unlockMountedMedia, { passive: true });
+  return () => {
+    root.removeEventListener('touchstart', unlockMountedMedia);
+    root.removeEventListener('touchmove', unlockMountedMedia);
+  };
+}

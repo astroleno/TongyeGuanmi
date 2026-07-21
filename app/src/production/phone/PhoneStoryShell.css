@@ -25,16 +25,6 @@ html[data-portrait-spike="b"] .static-content {
 }
 
 .portrait-scroll-spike {
-  /*
-   * This band is derived only from stable viewport units. Its solid portion
-   * spans Safari's complete toolbar travel; the authored feather ends above
-   * that band and therefore cannot race the browser-owned bottom surface.
-   */
-  --portrait-toolbar-solid-height: max(
-    104px,
-    calc(100lvh - 100svh + env(safe-area-inset-bottom, 0px) + 12px)
-  );
-  --portrait-toolbar-feather-height: clamp(56px, 8svh, 76px);
   --portrait-live-height: 100dvh;
   --portrait-live-width: 100vw;
   --portrait-stage-coverage-height: var(--portrait-live-height);
@@ -60,85 +50,6 @@ html[data-portrait-spike="b"] .static-content {
 .portrait-scroll-spike[data-portrait-aod-snap="locked"] {
   overscroll-behavior-y: none;
   touch-action: none;
-}
-
-/*
- * The rail owns distance while the visual stage is a fixed compositor plane.
- * The rail itself is one flat scene-coloured surface; no JS-following copy of
- * a feather is allowed here because native scrolling can outrun main-thread
- * visualViewport updates. ScrollTrigger only reads progress.
- */
-.portrait-scroll-spike__stage-rail {
-  position: relative;
-  width: 100%;
-  height: var(--portrait-stage-rail-height);
-  margin-bottom: calc(-1 * var(--portrait-stage-height));
-  overflow: visible;
-  background: var(--portrait-edge-surface);
-}
-
-.portrait-scroll-spike__stage {
-  position: fixed;
-  z-index: 10;
-  top: 0;
-  right: 0;
-  bottom: auto;
-  left: 0;
-  width: 100%;
-  height: var(--portrait-stage-height);
-  min-height: var(--portrait-stage-height);
-  overflow: clip;
-  isolation: isolate;
-  background: #07110e;
-  transform: translate3d(0, 0, 0);
-  backface-visibility: hidden;
-}
-
-.portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__stage {
-  display: none;
-  pointer-events: none;
-}
-
-.portrait-scroll-spike[data-portrait-loader-ready="false"] .portrait-scroll-spike__stage {
-  visibility: hidden;
-  opacity: 0;
-}
-
-.portrait-scroll-spike__scene {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: clip;
-  isolation: isolate;
-  visibility: hidden;
-  pointer-events: none;
-  contain: layout paint;
-}
-
-.portrait-scroll-spike__toolbar-edge {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: calc(
-    var(--portrait-toolbar-solid-height) + var(--portrait-toolbar-feather-height) + 1px
-  );
-  pointer-events: none;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
-.portrait-scroll-spike__stage > .r4-ink-transition-canvas.portrait-scroll-spike__ink {
-  position: absolute;
-  z-index: 8;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  visibility: visible;
-  opacity: 1;
-  pointer-events: none;
 }
 
 /*

@@ -201,10 +201,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         aria-hidden="true"
       >
         <AodScene scene="aod-animation" hidden={false} />
-        <div
-          className="portrait-scroll-spike__toolbar-edge portrait-scroll-spike__toolbar-edge--aod"
-          aria-hidden="true"
-        />
       </div>
     );
   }

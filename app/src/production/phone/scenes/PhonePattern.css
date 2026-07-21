@@ -7,11 +7,6 @@ html[data-portrait-spike="b"] {
     var(--portrait-pattern-edge-image);
 }
 
-/*
- * The root canvas is the only layer Safari can expose while its own toolbar
- * moves asynchronously. Pattern therefore uses a native, viewport-fixed
- * replica here instead of a JS-following DOM mirror.
- */
 html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"],
 html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] body,
 html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] #root {
@@ -34,11 +29,24 @@ html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] #root {
 }
 
 .portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__stage-rail {
+  background: transparent;
+}
+
+/*
+ * The fixed viewport host is the layer WebKit exposes while its toolbar
+ * changes height. Give that host Pattern's actual plate, with sizing tied to
+ * the stable lvh canvas, so a compositor handoff cannot reveal a separate
+ * solid band beneath the scene.
+ */
+.portrait-scroll-spike__stage[data-portrait-edge-scene="pattern"] {
   background-color: #d9c08f;
   background-image: var(--portrait-pattern-edge-backdrop);
-  background-position: center top;
-  background-repeat: repeat-y;
-  background-size: auto var(--portrait-stage-height);
+  background-position: center top, center top, center top;
+  background-repeat: no-repeat;
+  background-size:
+    100% var(--portrait-stage-height),
+    100% var(--portrait-stage-height),
+    auto var(--portrait-stage-height);
 }
 
 .portrait-scroll-spike__scene--pattern {
@@ -76,31 +84,6 @@ html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] #root {
   pointer-events: none;
   background: var(--portrait-pattern-wash-background);
   will-change: opacity;
-}
-
-.portrait-scroll-spike__toolbar-edge--pattern {
-  /*
-   * Keep Safari's bottom-edge replica below Pattern's bloom and wash. The
-   * previous z=3 masked overlay baked in a second, lighter wash and showed up
-   * as a feather whenever the toolbar was expanded.
-   */
-  z-index: 1;
-  overflow: hidden;
-  background: transparent;
-}
-
-.portrait-scroll-spike__toolbar-edge--pattern::before {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: var(--portrait-stage-height);
-  background-color: #d9c08f;
-  background-image: var(--portrait-pattern-edge-image);
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
 }
 
 .portrait-scroll-spike__pattern-bloom {
