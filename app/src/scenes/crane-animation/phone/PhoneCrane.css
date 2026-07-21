@@ -1,0 +1,13 @@
+.phone-crane {
+  position: relative;
+  width: 100%;
+  contain: layout paint;
+}
+
+.phone-crane [data-phone-crane-media="fallback"] [data-crane-figure-video],
+.phone-crane [data-phone-crane-media="fallback"] [data-crane-figure-front-video],
+.phone-crane [data-crane-figure-video][data-phone-crane-media="fallback"],
+.phone-crane [data-crane-figure-front-video][data-phone-crane-media="fallback"] {
+  visibility: hidden;
+  opacity: 0;
+}

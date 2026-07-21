@@ -1,0 +1,16 @@
+.phone-education {
+  position: relative;
+  width: 100%;
+  touch-action: pan-y;
+  overscroll-behavior-y: auto;
+}
+
+.phone-education [data-reading-scrollport="true"] {
+  overflow: visible;
+  touch-action: pan-y;
+}
+
+.phone-education :is(a, button, input, select, textarea, [role="button"]) {
+  pointer-events: auto;
+  touch-action: manipulation;
+}

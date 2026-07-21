@@ -1,0 +1,11 @@
+.phone-ph {
+  position: relative;
+  width: 100%;
+  contain: layout paint;
+}
+
+.phone-ph [data-phone-ph-media="fallback"] [data-ph-alpha-video],
+.phone-ph [data-ph-alpha-video][data-phone-ph-media="fallback"] {
+  visibility: hidden;
+  opacity: 0;
+}

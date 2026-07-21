@@ -1,0 +1,16 @@
+.phone-contact {
+  position: relative;
+  width: 100%;
+  touch-action: pan-y;
+  overscroll-behavior-y: auto;
+}
+
+.phone-contact :is(a, button, input, select, textarea, [role="button"]) {
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.phone-contact .contact-actions :is(a, button) {
+  position: relative;
+  z-index: 2;
+}
