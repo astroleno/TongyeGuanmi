@@ -1,0 +1,55 @@
+.phone-brand {
+  --phone-brand-opacity: 1;
+  --phone-brand-y: 0px;
+  color: #e9e1cf;
+  background:
+    radial-gradient(circle at 88% 8%, rgba(168, 157, 116, .16), transparent 34%),
+    linear-gradient(154deg, #17201d 0%, #0e1515 58%, #0a1010 100%);
+  padding: max(72px, 12svh) clamp(22px, 6vw, 42px) max(64px, 10svh);
+  scroll-margin-top: 18px;
+}
+
+.phone-brand__content {
+  display: grid;
+  gap: clamp(48px, 10svh, 88px);
+  width: min(100%, 42rem);
+  margin-inline: auto;
+  opacity: var(--phone-brand-opacity);
+  transform: translate3d(0, var(--phone-brand-y), 0);
+  transition: opacity 180ms linear, transform 180ms ease-out;
+}
+
+.phone-brand__definition {
+  display: grid;
+  gap: 16px;
+}
+
+.phone-brand__definition > span {
+  color: #d0b984;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .2em;
+}
+
+.phone-brand__definition h2 {
+  max-width: 10em;
+  margin: 0;
+  font-family: var(--font-traditional, serif);
+  font-size: clamp(2rem, 9vw, 3.4rem);
+  font-weight: 500;
+  line-height: 1.08;
+}
+
+.phone-brand__definition p {
+  max-width: 34rem;
+  margin: 0;
+  color: rgba(233, 225, 207, .8);
+  font-size: 1rem;
+  line-height: 1.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-brand__content {
+    transition: none;
+  }
+}

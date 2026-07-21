@@ -1,0 +1,104 @@
+.phone-services {
+  --phone-services-opacity: 1;
+  --phone-services-y: 0px;
+  position: relative;
+  isolation: isolate;
+  color: #292919;
+  background:
+    radial-gradient(circle at 90% 6%, rgba(90, 128, 111, .16), transparent 30%),
+    radial-gradient(circle at 12% 18%, rgba(206, 166, 74, .16), transparent 28%),
+    #ede4d2;
+  padding: max(70px, 11svh) clamp(22px, 6vw, 42px) max(64px, 10svh);
+  scroll-margin-top: 18px;
+}
+
+.phone-services__hero,
+.phone-services__list {
+  width: min(100%, 42rem);
+  margin-inline: auto;
+  opacity: var(--phone-services-opacity);
+  transform: translate3d(0, var(--phone-services-y), 0);
+  transition: opacity 160ms linear, transform 160ms ease-out;
+}
+
+.phone-services__hero {
+  display: grid;
+  gap: 16px;
+  padding-bottom: clamp(44px, 9svh, 76px);
+}
+
+.phone-services__eyebrow,
+.phone-services__row > span {
+  margin: 0;
+  color: #66705b;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+.phone-services__hero h2 {
+  display: grid;
+  margin: 0;
+  font-family: var(--font-traditional, serif);
+  font-size: clamp(2.3rem, 12vw, 4rem);
+  font-weight: 500;
+  line-height: .98;
+}
+
+.phone-services__hero > p:last-child {
+  max-width: 34rem;
+  margin: 0;
+  color: #554f40;
+  font-size: 1rem;
+  line-height: 1.85;
+}
+
+.phone-services__list {
+  display: grid;
+  gap: 0;
+  margin-block: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid rgba(41, 41, 25, .18);
+}
+
+.phone-services__row {
+  display: grid;
+  grid-template-columns: minmax(2.5rem, .25fr) 1fr;
+  column-gap: 14px;
+  row-gap: 8px;
+  align-items: start;
+  padding: 28px 0;
+  border-bottom: 1px solid rgba(41, 41, 25, .18);
+}
+
+.phone-services__row h3,
+.phone-services__row p,
+.phone-services__row small {
+  grid-column: 2;
+  margin: 0;
+}
+
+.phone-services__row h3 {
+  font-family: var(--font-traditional, serif);
+  font-size: 1.45rem;
+  font-weight: 500;
+}
+
+.phone-services__row p {
+  color: #4d493d;
+  line-height: 1.75;
+}
+
+.phone-services__row small {
+  color: #6d6758;
+  font-size: .82rem;
+  line-height: 1.65;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-services__hero,
+  .phone-services__list {
+    transition: none;
+  }
+}
