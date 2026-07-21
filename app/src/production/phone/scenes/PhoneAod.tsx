@@ -74,7 +74,11 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           ? 'transparent'
           : 'opaque';
         root.dataset.portraitAodProgress = progress.toFixed(4);
-        if (Math.abs(progress - lastProgress) >= 0.004) {
+        const shouldRenderPresentation = !Number.isFinite(lastProgress)
+          || Math.abs(progress - lastProgress) >= 0.004
+          || progress === 0
+          || progress === 1;
+        if (shouldRenderPresentation) {
           lastProgress = progress;
           renderAodTransitionProgress(
             root,

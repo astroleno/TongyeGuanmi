@@ -1,8 +1,10 @@
 html[data-portrait-spike="b"] {
-  --portrait-pattern-edge-backdrop:
-    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .07), rgba(217, 192, 143, .12) 35%, rgba(35, 24, 20, .26) 100%),
-    linear-gradient(180deg, rgba(246, 229, 188, .10), rgba(31, 21, 17, .13)),
+  --portrait-pattern-edge-image:
     url("../../../../../assets/pattern-background.webp");
+  --portrait-pattern-edge-backdrop:
+    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .094), rgba(217, 192, 143, .1504) 35%, rgba(35, 24, 20, .3384) 100%),
+    linear-gradient(180deg, rgba(246, 229, 188, .1316), rgba(31, 21, 17, .1692)),
+    var(--portrait-pattern-edge-image);
 }
 
 /*
@@ -77,21 +79,14 @@ html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] #root {
 }
 
 .portrait-scroll-spike__toolbar-edge--pattern {
-  z-index: 3;
+  /*
+   * Keep Safari's bottom-edge replica below Pattern's bloom and wash. The
+   * previous z=3 masked overlay baked in a second, lighter wash and showed up
+   * as a feather whenever the toolbar was expanded.
+   */
+  z-index: 1;
   overflow: hidden;
   background: transparent;
-  mask-image: linear-gradient(
-    180deg,
-    transparent 0,
-    #000 var(--portrait-toolbar-feather-height),
-    #000 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    180deg,
-    transparent 0,
-    #000 var(--portrait-toolbar-feather-height),
-    #000 100%
-  );
 }
 
 .portrait-scroll-spike__toolbar-edge--pattern::before {
@@ -102,7 +97,7 @@ html[data-portrait-spike="b"][data-portrait-edge-scene="pattern"] #root {
   left: 0;
   height: var(--portrait-stage-height);
   background-color: #d9c08f;
-  background-image: var(--portrait-pattern-edge-backdrop);
+  background-image: var(--portrait-pattern-edge-image);
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;

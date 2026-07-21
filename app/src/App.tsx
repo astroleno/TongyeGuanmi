@@ -15,13 +15,14 @@ const DesktopStoryShell = lazy(loadDesktopStoryShell);
 const PhoneStoryShell = lazy(loadPhoneStoryShell);
 const phoneShellEnabled = import.meta.env.VITE_ENABLE_PHONE_STORY === '1';
 
-type PhoneValidationMode = 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21';
+type PhoneValidationMode = 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22';
 
 function requestedPhoneValidationMode(): PhoneValidationMode | undefined {
   if (!canUseDOM()) return undefined;
   const version = new URLSearchParams(window.location.search).get('v');
   return version === '16' || version === '17' || version === '18'
     || version === '19' || version === '20' || version === '21'
+    || version === '22'
     ? `v${version}`
     : undefined;
 }

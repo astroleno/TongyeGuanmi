@@ -74,6 +74,7 @@ describe('StoryLoader', () => {
     expect(html).toContain("validationVersion === '19'");
     expect(html).toContain("validationVersion === '20'");
     expect(html).toContain("validationVersion === '21'");
+    expect(html).toContain("validationVersion === '22'");
     expect(html).toContain("navigation?.type === 'reload'");
     expect(html).toContain('manuallyReloaded');
     const prebootPhoneRouteIndex = html.indexOf("document.documentElement.dataset.portraitSpike = 'b'");

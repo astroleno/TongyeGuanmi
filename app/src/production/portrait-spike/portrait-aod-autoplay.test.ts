@@ -82,6 +82,10 @@ describe('portrait AOD autoplay', () => {
     expect(progress.at(-1)).toBe(1);
     expect(completed).toEqual([1]);
 
+    video.currentTime = 2.499;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(progress.at(-1)).toBe(1);
+
     video.ended = false;
     video.play.mockClear();
     controller.start(-1);
@@ -103,6 +107,10 @@ describe('portrait AOD autoplay', () => {
     video.dispatchEvent(new Event('ended'));
     expect(progress.at(-1)).toBe(0);
     expect(completed).toEqual([1, -1]);
+
+    video.currentTime = 2.499;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(progress.at(-1)).toBe(0);
 
     controller.dispose();
   });

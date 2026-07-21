@@ -122,6 +122,11 @@ describe('Route B proven front-half migration contract', () => {
     expect(patternSource).toContain('portrait-scroll-spike__toolbar-edge--pattern');
     expect(aodSource).toContain('portrait-scroll-spike__toolbar-edge--aod');
     expect(patternCss).toContain('--portrait-pattern-edge-backdrop');
+    expect(patternCss).toContain('--portrait-pattern-edge-image');
+    expect(patternCss).not.toContain('mask-image');
+    expect(patternCss).toMatch(
+      /toolbar-edge--pattern\s*\{[^}]*z-index:\s*1/s
+    );
     expect(aodCss).toContain('--portrait-aod-bottom-mist-background');
     expect(shellCss).toMatch(
       /site-nav\.has-scroll-edge-blur::before\s*\{[^}]*backdrop-filter:\s*blur\(20px\)/s

@@ -244,6 +244,9 @@ export function createPhoneAodAutoplay(
   };
 
   const onFrameEvidence = () => {
+    if (!active) {
+      return;
+    }
     if (renderAndComplete()) {
       return;
     }

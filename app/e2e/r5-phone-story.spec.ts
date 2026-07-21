@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const PHONE_SHELL = '[data-phone-validation-mode="v21"]';
+const PHONE_SHELL = '[data-phone-validation-mode="v22"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -18,7 +18,7 @@ async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   }, progress);
 }
 
-test('v21 Route B publishes the active phone checkpoint trace in both directions', async ({
+test('v22 Route B publishes the active phone checkpoint trace in both directions', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -32,7 +32,7 @@ test('v21 Route B publishes the active phone checkpoint trace in both directions
     }
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=21', { waitUntil: 'domcontentloaded' });
+  await page.goto('/?v=22', { waitUntil: 'domcontentloaded' });
 
   const shell = page.locator(PHONE_SHELL);
   const loader = page.locator('[data-story-loader="true"]');
@@ -86,6 +86,13 @@ test('v21 Route B publishes the active phone checkpoint trace in both directions
         'data-phone-ink-progress',
         /^0\.(?!0000)\d{4}$/
       );
+    } else if (checkpoint === 'pattern-complete') {
+      await expect(
+        page.locator('.portrait-scroll-spike__toolbar-edge--pattern')
+      ).toHaveCSS('mask-image', 'none');
+      await expect(
+        page.locator('.portrait-scroll-spike__toolbar-edge--pattern')
+      ).toHaveCSS('z-index', '1');
     } else if (checkpoint === 'pattern-to-star-map') {
       await expect(page.locator('[data-portrait-ink="pattern-star"]')).toHaveAttribute(
         'data-r4-ink-segment',
@@ -109,6 +116,12 @@ test('v21 Route B publishes the active phone checkpoint trace in both directions
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'method-intro', {
     timeout: 10_000
   });
+  await expect(page.locator('[data-aod-transition]')).toHaveAttribute(
+    'data-portrait-aod-backdrop-progress',
+    '1.0000'
+  );
+  await expect(page.locator('.aod-transition__layer--sun')).toHaveCSS('opacity', '0');
+  await expect(page.locator('.aod-transition__layer--cloud')).toHaveCSS('opacity', '0');
 
   await scrollPhoneStageTo(page, 0.74);
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'aod-stage', {
