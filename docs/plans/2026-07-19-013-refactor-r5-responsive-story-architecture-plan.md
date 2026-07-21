@@ -50,11 +50,12 @@ not immutable historical deployments.
 
 | Unit | Status | Implemented evidence |
 | --- | --- | --- |
-| Unit 0 | Code complete; physical evidence pending | Shared Loader → Method checkpoints and exact progress stops are frozen in tests. The v23 production route publishes the complete trace through rail-owned and AOD-media-owned time; the critical E2E verifies forward and reverse traversal, the 0.55 alpha endpoint, all three ink handoffs, adjacent endpoint ownership, Pattern edge ownership, terminal AOD backdrop exit, and single scene/media instances. |
+| Unit 0 | Complete; physical acceptance recorded | Shared Loader → Method checkpoints and exact progress stops are frozen in tests. The v23 production route publishes the complete trace through rail-owned and AOD-media-owned time; the critical E2E verifies forward and reverse traversal, the 0.55 alpha endpoint, all three ink handoffs, adjacent endpoint ownership, Pattern edge ownership, terminal AOD backdrop exit, and single scene/media instances. The user confirmed the physical-phone result on 2026-07-21. |
 | Unit 1 | Complete | Canonical copy, media IDs, navigation, semantic checkpoints, and renderer-neutral lifecycle contracts remain shared. The boundary verifier rejects shared-to-presentation imports, cross-shell imports, phone-to-spike imports, new shell scene roots, media keys, asset URLs, and scene renderer imports. |
-| Unit 2 | Code complete; physical fixed-stage evidence pending | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
-| Unit 3 | Code complete; physical visual acceptance pending | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
-| Units 4–7 | Not started | The corrected v23 adapter build still requires entity-iPhone acceptance. No Method back-half, Figure 2, Proof, Brand, Figure 3, Services, or later migration starts before that gate. |
+| Unit 2 | Complete; physical fixed-stage acceptance recorded | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
+| Unit 3 | Complete; physical visual acceptance recorded | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
+| Unit 4 | In progress | Physical acceptance of v23 opened the Grade A Method → Figure 2 → Proof migration gate. |
+| Units 5–7 | Not started | No Brand, Figure 3, Services, or later batch starts before Unit 4 receives its own physical-iPhone acceptance. |
 
 ### Unit 0–3 cutover record
 
@@ -101,11 +102,11 @@ Method witness timeout), so they are recorded as pre-existing test debt rather
 than a phone-migration regression. No desktop runtime, scene, transition, or
 CSS source changed in this cutover.
 
-### Current physical review gate
+### Unit 0–3 physical review record
 
-Unit 0–3 is **not physically accepted yet**. The v23 build must be reviewed on
-an actual iPhone Safari with the address bar expanded and collapsed. The review
-must confirm:
+The user confirmed the v23 physical-phone result on 2026-07-21. The device,
+iOS version, and Safari build were not supplied, so those fields remain
+unrecorded. The accepted review covered:
 
 - Loading shows only the two accepted four-character phrases;
 - Hero title/subtitle entrance and transparent Figure 1 remain unchanged;
@@ -119,8 +120,8 @@ must confirm:
 - top navigation blur covers the complete safe-area inset;
 - orientation and lock/unlock do not remount the shell or replay Loader.
 
-**Gate:** keep Units 4–7 frozen until the user accepts this v23 physical
-checkpoint and the device/iOS/Safari evidence is recorded.
+**Gate result:** Unit 4 is open. Units 5–7 remain frozen until the complete
+Method → Figure 2 → Proof chain passes its own physical-iPhone review.
 
 ## Problem Frame
 
