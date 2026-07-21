@@ -4,6 +4,7 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
+import { sceneFromHash } from '../navigation';
 import { clearPhoneInkBoundary } from './phone-ink';
 import { createPhoneScrollSnapLock } from './phone-scroll-snap-lock';
 import {
@@ -409,6 +410,16 @@ export function usePhoneStageRuntime(
     root.addEventListener('click', onHeroClick);
 
     if (motionEnabled) aodAdapter.resetAutoplay();
+    const directEntryScene = sceneFromHash(window.location.hash);
+    if (
+      directEntryScene === 'figure2-animation'
+      || directEntryScene === 'figure2-proof'
+    ) {
+      aodRunState = 'complete';
+      root.dataset.portraitAodRun = aodRunState;
+      aodAdapter.update(1);
+      renderAodFrame(1);
+    }
 
     const renderStage = (rawProgress: number, triggerDirection = 0) => {
       const progress = Math.min(1, Math.max(0, rawProgress));

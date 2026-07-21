@@ -11,15 +11,26 @@ import type {
   ScenePresentationAdapterHandle,
   TransitionPresentationAdapterHandle
 } from '../../story/presentation';
-import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
+import type {
+  GradeACheckpointId,
+  PhoneCheckpointId
+} from '../../story/semantic-checkpoints';
+import type { SceneId } from '../../story/types';
 
 export type PhoneStageSceneId = 'hero' | 'pattern' | 'star-map' | 'aod-animation';
-export type PhoneSceneAdapterId = PhoneStageSceneId | 'method-top';
+export type PhoneSceneAdapterId =
+  | PhoneStageSceneId
+  | 'method-top'
+  | 'figure2-animation'
+  | 'figure2-proof';
 export type PhoneTransitionAdapterId =
   | 'hero-pattern'
   | 'pattern-star-map'
   | 'star-map-aod'
-  | 'aod-method-top';
+  | 'aod-method-top'
+  | 'method-bottom-figure2'
+  | 'figure2-distance-expand'
+  | 'figure2-proof-brand';
 
 export type PhoneSceneAdapterHandle = ScenePresentationAdapterHandle;
 
@@ -61,6 +72,11 @@ export type PhonePatternAdapterProps = PhoneSceneAdapterProps & Readonly<{
   motionDriver: PhoneMotionDriver;
 }>;
 
+export type PhoneMethodAdapterProps = PhonePatternAdapterProps & Readonly<{
+  onGradeACheckpoint?: (checkpoint: GradeACheckpointId) => void;
+  onGradeASceneChange?: (scene: SceneId) => void;
+}>;
+
 export type PhoneSceneAdapterComponent = ForwardRefExoticComponent<
   PhoneSceneAdapterProps & RefAttributes<PhoneSceneAdapterHandle>
 >;
@@ -74,7 +90,9 @@ export type PhonePatternAdapterComponent = ForwardRefExoticComponent<
 >;
 
 export type PhoneStarMapAdapterComponent = PhonePatternAdapterComponent;
-export type PhoneMethodAdapterComponent = PhonePatternAdapterComponent;
+export type PhoneMethodAdapterComponent = ForwardRefExoticComponent<
+  PhoneMethodAdapterProps & RefAttributes<PhoneSceneAdapterHandle>
+>;
 
 export type PhoneAodAdapterComponent = ForwardRefExoticComponent<
   PhoneSceneAdapterProps & RefAttributes<PhoneAodAdapterHandle>
@@ -125,6 +143,6 @@ export type PhoneTransitionAdapterModule = Readonly<{
 }>;
 
 export type PhoneSemanticState = Readonly<{
-  checkpoint: FrontHalfCheckpointId;
+  checkpoint: PhoneCheckpointId;
   direction: 1 | -1 | 0;
 }>;

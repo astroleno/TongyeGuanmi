@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const PHONE_SHELL = '[data-phone-validation-mode="v23"]';
+const GRADE_A_SHELL = '[data-phone-validation-mode="v24"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -11,6 +12,36 @@ async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
     }
     const start = rail.getBoundingClientRect().top + window.scrollY;
     const distance = Math.max(1, rail.offsetHeight - stage.offsetHeight);
+    window.scrollTo({ top: start + distance * nextProgress, left: 0, behavior: 'auto' });
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+    });
+  }, progress);
+}
+
+async function scrollGradeAFigureTo(page: Page, progress: number): Promise<void> {
+  await page.evaluate(async (nextProgress) => {
+    const rail = document.querySelector<HTMLElement>('.phone-grade-a__figure-track');
+    if (!rail) throw new Error('Grade A Figure2 rail is unavailable');
+    const start = rail.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({
+      top: start + rail.getBoundingClientRect().height * nextProgress,
+      left: 0,
+      behavior: 'auto'
+    });
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+    });
+  }, progress);
+}
+
+async function scrollGradeAProofTo(page: Page, progress: number): Promise<void> {
+  await page.evaluate(async (nextProgress) => {
+    const track = document.querySelector<HTMLElement>('.phone-grade-a__proof-track');
+    const stage = document.querySelector<HTMLElement>('.phone-grade-a__surfaces');
+    if (!track || !stage) throw new Error('Grade A Proof geometry is unavailable');
+    const start = track.getBoundingClientRect().top + window.scrollY;
+    const distance = Math.max(1, track.getBoundingClientRect().height - stage.clientHeight);
     window.scrollTo({ top: start + distance * nextProgress, left: 0, behavior: 'auto' });
     await new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
@@ -190,4 +221,65 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
   expect(
     presentationRequests.some((path) => path.includes('/DesktopStoryShell-'))
   ).toBe(false);
+});
+
+test('v24 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method with one scroll owner', async ({
+  page
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
+  test.setTimeout(45_000);
+
+  const presentationRequests: string[] = [];
+  page.on('response', (response) => {
+    presentationRequests.push(new URL(response.url()).pathname);
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?v=24&portrait-spike-motion=reduce#figure2-proof-cards', {
+    waitUntil: 'domcontentloaded'
+  });
+
+  const shell = page.locator(GRADE_A_SHELL);
+  const gradeA = page.locator('.phone-grade-a');
+  await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
+    timeout: 10_000
+  });
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'figure2-proof-cards');
+  await expect(gradeA).toHaveAttribute('data-phone-grade-a-ready', 'true');
+  await expect(page.locator('.portrait-scroll-spike')).toHaveAttribute(
+    'data-portrait-aod-run',
+    'complete'
+  );
+  await expect(page.locator('[data-r4-scene="figure2-animation"]')).toHaveCount(1);
+  await expect(page.locator('[data-r4-scene="figure2-proof"]')).toHaveCount(1);
+  await expect(page.locator('[data-testid="r2-stage"]')).toHaveCount(1);
+  await expect(page.locator('[data-r4-scene="figure2-proof"]')).toHaveAttribute(
+    'data-phone-proof-progress',
+    /^0\.50\d{2}$/
+  );
+  await expect(page.locator('[data-r4-scene="figure2-proof"]')).toHaveCSS(
+    'overflow-y',
+    'visible'
+  );
+
+  await scrollGradeAFigureTo(page, 0.5);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'figure2-stage');
+  await scrollGradeAFigureTo(page, 0.85);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'figure2-to-proof');
+  await scrollGradeAProofTo(page, 0.5);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'figure2-proof-cards');
+  await scrollGradeAFigureTo(page, 0.5);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'figure2-stage');
+
+  for (const chunk of [
+    'PhoneGradeAStory',
+    'PhoneFigure2',
+    'PhoneFigure2Proof',
+    'method-bottom-figure2',
+    'figure2-distance-expand'
+  ]) {
+    expect(
+      presentationRequests.some((path) => path.includes(`/${chunk}-`)),
+      `missing Grade A phone chunk ${chunk}`
+    ).toBe(true);
+  }
 });

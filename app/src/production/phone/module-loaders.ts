@@ -2,6 +2,10 @@ import {
   frontHalfPhoneSceneIds,
   frontHalfPhoneTransitionIds
 } from './adapter-groups/front-half';
+import {
+  gradeAPhoneSceneIds,
+  gradeAPhoneTransitionIds
+} from './adapter-groups/grade-a';
 import type {
   PhoneAodAdapterComponent,
   PhoneLoaderAdapterModule,
@@ -24,8 +28,16 @@ const resolvedTransitionCache = new Map<
   PhoneTransitionAdapterModule
 >();
 
-export const phoneSceneAdapterIds = frontHalfPhoneSceneIds;
-export const phoneTransitionAdapterIds = frontHalfPhoneTransitionIds;
+export const initialPhoneSceneAdapterIds = frontHalfPhoneSceneIds;
+export const initialPhoneTransitionAdapterIds = frontHalfPhoneTransitionIds;
+export const phoneSceneAdapterIds = [
+  ...frontHalfPhoneSceneIds,
+  ...gradeAPhoneSceneIds
+] as const;
+export const phoneTransitionAdapterIds = [
+  ...frontHalfPhoneTransitionIds,
+  ...gradeAPhoneTransitionIds
+] as const;
 
 function importPhoneLoaderAdapter(): Promise<PhoneLoaderAdapterModule> {
   return import('./scenes/PhoneLoader').then(({ PhoneLoader: Component }) => ({
@@ -65,6 +77,16 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
         id,
         Component: Component as unknown as PhoneMethodAdapterComponent
       }));
+    case 'figure2-animation':
+      return import('./scenes/PhoneFigure2').then(({ PhoneFigure2: Component }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
+    case 'figure2-proof':
+      return import('./scenes/PhoneFigure2Proof').then(({ PhoneFigure2Proof: Component }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
   }
 }
 
@@ -78,6 +100,18 @@ function importPhoneTransitionAdapter(id: PhoneTransitionAdapterId): Promise<Pho
       return import('./transitions/star-map-aod').then(({ PhoneStarMapAodTransition: Component }) => ({ id, Component }));
     case 'aod-method-top':
       return import('./transitions/aod-method-top').then(({ phoneAodMethodTopTransition }) => phoneAodMethodTopTransition);
+    case 'method-bottom-figure2':
+      return import('./transitions/method-bottom-figure2').then(({
+        PhoneMethodBottomFigure2Transition: Component
+      }) => ({ id, Component }));
+    case 'figure2-distance-expand':
+      return import('./transitions/figure2-distance-expand').then(({
+        PhoneFigure2DistanceExpandTransition: Component
+      }) => ({ id, Component }));
+    case 'figure2-proof-brand':
+      return import('./transitions/figure2-proof-brand').then(({
+        PhoneFigure2ProofBrandTransition: Component
+      }) => ({ id, Component }));
   }
 }
 

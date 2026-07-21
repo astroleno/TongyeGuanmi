@@ -18,12 +18,12 @@ export async function loadPhoneStoryShell() {
         loadPhoneLoaderAdapter,
         loadPhoneSceneAdapter,
         loadPhoneTransitionAdapter,
-        phoneSceneAdapterIds,
-        phoneTransitionAdapterIds
+        initialPhoneSceneAdapterIds,
+        initialPhoneTransitionAdapterIds
       }) => Promise.all([
         loadPhoneLoaderAdapter(),
-        ...phoneSceneAdapterIds.map(loadPhoneSceneAdapter),
-        ...phoneTransitionAdapterIds.map(loadPhoneTransitionAdapter)
+        ...initialPhoneSceneAdapterIds.map(loadPhoneSceneAdapter),
+        ...initialPhoneTransitionAdapterIds.map(loadPhoneTransitionAdapter)
       ]))
       .catch(() => undefined)
   ]);

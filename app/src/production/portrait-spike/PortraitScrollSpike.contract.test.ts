@@ -29,6 +29,15 @@ const patternStarSource = source('../phone/transitions/pattern-star-map.tsx');
 const starAodSource = source('../phone/transitions/star-map-aod.tsx');
 const aodMethodSource = source('../phone/transitions/aod-method-top.ts');
 const phoneMediaSource = source('../phone/phone-media.ts');
+const gradeAStorySource = source('../phone/PhoneGradeAStory.tsx');
+const gradeAFigureSource = source('../phone/scenes/PhoneFigure2.tsx');
+const gradeAFigureCss = source('../phone/scenes/PhoneFigure2.css');
+const gradeAProofSource = source('../phone/scenes/PhoneFigure2Proof.tsx');
+const gradeAProofCss = source('../phone/scenes/PhoneFigure2Proof.css');
+const gradeADistanceSource = source(
+  '../phone/transitions/figure2-distance-expand.tsx'
+);
+const gradeAGroupSource = source('../phone/adapter-groups/grade-a.ts');
 
 describe('Route B proven front-half migration contract', () => {
   it('keeps v16 thin and mounts the complete Loader → Method adapter group', () => {
@@ -178,5 +187,50 @@ describe('Route B proven front-half migration contract', () => {
     );
     expect(shellSource).not.toContain("from '../portrait-spike/");
     expect(frontHalfSource).not.toContain("from '../portrait-spike/");
+  });
+});
+
+describe('Route B Grade A migration contract', () => {
+  it('keeps one fixed stage, one Figure2 root, and one Proof article', () => {
+    expect(gradeAStorySource.match(/data-testid="r2-stage"/g)).toHaveLength(1);
+    expect(gradeAStorySource).toContain('<Figure2');
+    expect(gradeAStorySource).toContain('<Proof');
+    expect(gradeAFigureSource).toContain('figure2AnimationScene.Component');
+    expect(gradeAProofSource).toContain('figure2ProofScene.Component');
+    expect(shellSource).not.toContain('data-r4-scene="figure2-animation"');
+    expect(shellSource).not.toContain('data-r4-scene="figure2-proof"');
+  });
+
+  it('uses document progress without creating a nested Proof scroll owner', () => {
+    expect(gradeAStorySource).toContain('phoneGradeAProofProgress');
+    expect(gradeAStorySource).toContain('phoneGradeAProofPanelOffset');
+    expect(gradeAProofSource).toContain("'--phone-proof-translate-y'");
+    expect(gradeAProofCss).toMatch(
+      /r4-proof-compound\s*\{[^}]*overflow:\s*visible/s
+    );
+    expect(gradeAProofCss).toMatch(
+      /r4-proof-scroll__content\s*\{[^}]*top:\s*50%/s
+    );
+  });
+
+  it('reuses the canonical depth timeline with deterministic phone seeking', () => {
+    expect(gradeADistanceSource).toContain(
+      'createFigure2DistanceExpandTransition'
+    );
+    expect(gradeADistanceSource).toContain("videoMode: 'seek'");
+    expect(gradeADistanceSource).toContain('directionRef.current');
+    expect(gradeAGroupSource).toContain("'method-bottom-figure2'");
+    expect(gradeAGroupSource).toContain("'figure2-distance-expand'");
+    expect(gradeAGroupSource).toContain("'figure2-proof-brand'");
+  });
+
+  it('settles the upstream AOD before a direct Figure2 or Proof entry', () => {
+    expect(runtimeSource).toContain('const directEntryScene = sceneFromHash');
+    expect(runtimeSource).toContain("directEntryScene === 'figure2-animation'");
+    expect(runtimeSource).toContain("directEntryScene === 'figure2-proof'");
+    expect(runtimeSource).toContain("aodRunState = 'complete'");
+    expect(gradeAFigureCss).toMatch(
+      /orientation:\s*landscape[^}]*[\s\S]*figure--combined\s*\{[^}]*width:\s*min\(48vw,\s*400px\)/
+    );
   });
 });

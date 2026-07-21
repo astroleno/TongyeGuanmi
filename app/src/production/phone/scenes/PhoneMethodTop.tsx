@@ -1,10 +1,23 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import {
+  forwardRef,
+  lazy,
+  Suspense,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState
+} from 'react';
 import { METHOD_COPY } from '../../../story/copy';
+import { sceneFromHash } from '../../navigation';
 import type {
-  PhonePatternAdapterProps,
+  PhoneMethodAdapterProps,
   PhoneSceneAdapterHandle
 } from '../types';
 import './PhoneMethodTop.css';
+
+const PhoneGradeAStory = lazy(() => import('../PhoneGradeAStory').then((module) => ({
+  default: module.PhoneGradeAStory
+})));
 
 const METHOD_TOP_COPY = METHOD_COPY.slice(0, 8);
 const METHOD_STEPS_COPY = METHOD_COPY.slice(8, 23);
@@ -27,11 +40,20 @@ function clamp(value: number): number {
  */
 export const PhoneMethodTop = forwardRef<
   PhoneSceneAdapterHandle,
-  PhonePatternAdapterProps
->(function PhoneMethodTop({ active, motionDriver, onReady }, forwardedRef) {
+  PhoneMethodAdapterProps
+>(function PhoneMethodTop({
+  active,
+  motionDriver,
+  onReady,
+  onGradeACheckpoint,
+  onGradeASceneChange,
+  reducedMotion
+}, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
   const bridgeRef = useRef<HTMLDivElement | null>(null);
   const stepsRef = useRef<HTMLOListElement | null>(null);
+  const gradeASlotRef = useRef<HTMLDivElement | null>(null);
+  const [gradeARequested, setGradeARequested] = useState(false);
 
   useEffect(() => {
     onReady?.();
@@ -42,6 +64,28 @@ export const PhoneMethodTop = forwardRef<
     if (!active || !steps) return;
     return motionDriver.revealReadingSteps(steps);
   }, [active, motionDriver]);
+
+  useEffect(() => {
+    if (!active || gradeARequested) return;
+    const scene = sceneFromHash(window.location.hash);
+    if (scene === 'figure2-animation' || scene === 'figure2-proof') {
+      setGradeARequested(true);
+      return;
+    }
+    const slot = gradeASlotRef.current;
+    if (!slot || typeof IntersectionObserver === 'undefined') {
+      setGradeARequested(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setGradeARequested(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '220% 0px' });
+    observer.observe(slot);
+    return () => observer.disconnect();
+  }, [active, gradeARequested]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -70,39 +114,60 @@ export const PhoneMethodTop = forwardRef<
   }), [motionDriver]);
 
   return (
-    <section
-      ref={rootRef}
-      id="method"
-      className="portrait-scroll-spike__reading"
-      aria-label="同野观幂 AI 落地五步"
-    >
-      <div
-        ref={bridgeRef}
-        className="portrait-scroll-spike__reading-intro portrait-scroll-spike__method-bridge"
-      >
-        <div className="portrait-scroll-spike__method-bridge-content">
-          <span>{METHOD_TOP_COPY[0]}</span>
-          <h2 id="portrait-spike-method-title">
-            <span>{METHOD_TOP_COPY[1]}</span>
-            <span>{METHOD_TOP_COPY[2]}</span>
-          </h2>
-          <p>{METHOD_TOP_COPY[3]}</p>
-        </div>
-      </div>
-      <ol
-        ref={stepsRef}
-        className="portrait-scroll-spike__steps"
+    <>
+      <section
+        ref={rootRef}
+        id="method"
+        className="portrait-scroll-spike__reading"
         aria-label="同野观幂 AI 落地五步"
       >
-        {METHOD_STEPS.map((step) => (
-          <li key={step.index}>
-            <span>{step.index}</span>
-            <h3>{step.title}</h3>
-            <p>{step.body}</p>
-          </li>
-        ))}
-      </ol>
-    </section>
+        <div
+          ref={bridgeRef}
+          className="portrait-scroll-spike__reading-intro portrait-scroll-spike__method-bridge"
+        >
+          <div className="portrait-scroll-spike__method-bridge-content">
+            <span>{METHOD_TOP_COPY[0]}</span>
+            <h2 id="portrait-spike-method-title">
+              <span>{METHOD_TOP_COPY[1]}</span>
+              <span>{METHOD_TOP_COPY[2]}</span>
+            </h2>
+            <p>{METHOD_TOP_COPY[3]}</p>
+          </div>
+        </div>
+        <ol
+          ref={stepsRef}
+          className="portrait-scroll-spike__steps"
+          aria-label="同野观幂 AI 落地五步"
+        >
+          {METHOD_STEPS.map((step) => (
+            <li key={step.index}>
+              <span>{step.index}</span>
+              <h3>{step.title}</h3>
+              <p>{step.body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+      <div
+        ref={gradeASlotRef}
+        className="phone-grade-a-slot"
+        data-phone-grade-a-requested={String(gradeARequested)}
+      >
+        {gradeARequested && (
+          <Suspense fallback={null}>
+            <PhoneGradeAStory
+              reducedMotion={reducedMotion}
+              {...(onGradeACheckpoint
+                ? { onCheckpoint: onGradeACheckpoint }
+                : {})}
+              {...(onGradeASceneChange
+                ? { onSceneChange: onGradeASceneChange }
+                : {})}
+            />
+          </Suspense>
+        )}
+      </div>
+    </>
   );
 });
 

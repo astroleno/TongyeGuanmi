@@ -45,7 +45,7 @@ is the pre-extraction baseline.
 The frozen visual source is commit `95d519b` (`?v=17`), which contains the
 accepted Safari edge stabilization and the phone-only AOD alpha extension from
 timeline progress `0.48` to `0.55`. The current short verification route is
-`?v=23`; `?v=16` through `?v=22` remain aliases to the same formal phone shell,
+`?v=24`; `?v=16` through `?v=23` remain aliases to the same formal phone shell,
 not immutable historical deployments.
 
 | Unit | Status | Implemented evidence |
@@ -54,7 +54,7 @@ not immutable historical deployments.
 | Unit 1 | Complete | Canonical copy, media IDs, navigation, semantic checkpoints, and renderer-neutral lifecycle contracts remain shared. The boundary verifier rejects shared-to-presentation imports, cross-shell imports, phone-to-spike imports, new shell scene roots, media keys, asset URLs, and scene renderer imports. |
 | Unit 2 | Complete; physical fixed-stage acceptance recorded | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
 | Unit 3 | Complete; physical visual acceptance recorded | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
-| Unit 4 | In progress | Physical acceptance of v23 opened the Grade A Method → Figure 2 → Proof migration gate. |
+| Unit 4 | Candidate; physical acceptance pending | v24 migrates Method → Figure 2 → Proof into the formal phone adapter chain. Browser evidence passes forward/reverse traversal, direct Figure2/Proof entry, reduced motion, 390×667 short portrait, and 844×390 landscape with one fixed stage, one Figure2 media root, one Proof article, and one document scroll owner. |
 | Units 5–7 | Not started | No Brand, Figure 3, Services, or later batch starts before Unit 4 receives its own physical-iPhone acceptance. |
 
 ### Unit 0–3 cutover record
@@ -78,10 +78,10 @@ only the active transition may write a shared endpoint boundary afterward.
 This prevents Pattern → Star Map at progress zero from clearing the live
 Hero → Pattern reveal boundary.
 
-The current production build reports:
+The current v24 production build reports:
 
-- `totalJsHeadroomBytes: 8,821` (required minimum: 4,096);
-- `phoneShellBudgetBytes: 480,762`;
+- `totalJsHeadroomBytes: 8,716` (required minimum: 4,096);
+- `phoneShellBudgetBytes: 557,015`;
 - `largestLazyJsRawBytes: 55,259` (cap: 65,536);
 - zero shell-owned scene roots and media keys.
 
@@ -122,6 +122,49 @@ unrecorded. The accepted review covered:
 
 **Gate result:** Unit 4 is open. Units 5–7 remain frozen until the complete
 Method → Figure 2 → Proof chain passes its own physical-iPhone review.
+
+### Unit 4 browser-review candidate
+
+The v24 route now mounts the Grade A batch only when Method approaches the
+viewport or a Figure2/Proof hash is requested. Method remains one native
+document reading section. The batch then contributes one fixed shared stage,
+one canonical Figure2 media/camera root, one canonical three-panel Proof
+article, and the existing authored Method → Figure2 Ink and Figure2 depth/Ink
+timeline. Proof does not create a nested scrollport.
+
+Direct `#figure2-animation` and `#figure2-proof-*` entry settles the upstream
+AOD at its accepted terminal state before positioning the requested scene. The
+Proof alias offset is derived from the available document track range, so the
+requested opening/cards/closing panel remains exact in portrait and the shorter
+landscape track.
+
+Controlled-browser evidence completed on 2026-07-21:
+
+- 390×844 forward and reverse traversal publishes `method-to-figure2`,
+  `figure2-stage`, `figure2-to-proof`, and all three Proof checkpoints in both
+  directions;
+- Figure2 deterministic seeking reaches `1.8047s` forward at the midpoint,
+  `2.6s` at the terminal frame, and `3.3892s` while reversing through the same
+  midpoint;
+- direct Proof cards entry lands at progress `0.5001`, with exactly one
+  Figure2 root, one Proof root, and one `r2-stage` host;
+- reduced-motion direct Proof entry preserves the canonical opening and all
+  copy with `overflow-y: visible` and nested `scrollTop: 0`;
+- cold 390×667 portrait keeps the complete Figure2 focal pair and all Proof
+  cards inside the safe frame;
+- cold 844×390 landscape keeps the complete focal pair visible and positions
+  Proof cards at exact progress `0.5000`.
+
+Automated verification for the v24 candidate:
+
+- `pnpm -C app typecheck`;
+- `pnpm -C app lint`;
+- `pnpm -C app test` — 131 files, 764 tests;
+- `pnpm -w run build` — module-boundary, media, release, and performance gates
+  pass with the headroom recorded above.
+
+**Gate result:** v24 is ready for physical-iPhone review. Unit 4 is not complete
+and Units 5–7 remain frozen until that review is accepted.
 
 ## Problem Frame
 
@@ -658,24 +701,28 @@ contract.
 
 **Files:**
 
-- Modify: `app/src/scenes/method-top/phone/PhoneMethodTop.tsx`
-- Modify: `app/src/scenes/method-top/phone/PhoneMethodTop.css`
-- Test: `app/src/scenes/method-top/phone/PhoneMethodTop.test.tsx`
-- Create: `app/src/scenes/figure2-animation/phone/PhoneFigure2.tsx`
-- Create: `app/src/scenes/figure2-animation/phone/PhoneFigure2.css`
-- Test: `app/src/scenes/figure2-animation/phone/PhoneFigure2.test.tsx`
-- Create: `app/src/scenes/figure2-proof/phone/PhoneFigure2Proof.tsx`
-- Create: `app/src/scenes/figure2-proof/phone/PhoneFigure2Proof.css`
-- Test: `app/src/scenes/figure2-proof/phone/PhoneFigure2Proof.test.tsx`
-- Create: `app/src/transitions/method-bottom-figure2/phone.ts`
-- Test: `app/src/transitions/method-bottom-figure2/phone.test.ts`
-- Create: `app/src/transitions/figure2-distance-expand/phone.ts`
-- Test: `app/src/transitions/figure2-distance-expand/phone.test.ts`
-- Create: `app/src/transitions/figure2-proof-brand/phone.ts`
-- Test: `app/src/transitions/figure2-proof-brand/phone.test.ts`
+- Modify: `app/src/production/phone/scenes/PhoneMethodTop.tsx`
+- Modify: `app/src/production/phone/scenes/PhoneMethodTop.css`
+- Create: `app/src/production/phone/PhoneGradeAStory.tsx`
+- Create: `app/src/production/phone/PhoneGradeAStory.css`
+- Test: `app/src/production/phone/PhoneGradeAStory.test.ts`
+- Create: `app/src/production/phone/scenes/PhoneFigure2.tsx`
+- Create: `app/src/production/phone/scenes/PhoneFigure2.css`
+- Test: `app/src/production/phone/scenes/PhoneFigure2.test.tsx`
+- Create: `app/src/production/phone/scenes/PhoneFigure2Proof.tsx`
+- Create: `app/src/production/phone/scenes/PhoneFigure2Proof.css`
+- Test: `app/src/production/phone/scenes/PhoneFigure2Proof.test.tsx`
+- Create: `app/src/production/phone/transitions/method-bottom-figure2.ts`
+- Create: `app/src/production/phone/transitions/figure2-distance-expand.tsx`
+- Create: `app/src/production/phone/transitions/figure2-proof-brand.ts`
+- Test: `app/src/production/phone/transitions/grade-a-transitions.test.ts`
 - Modify: `app/src/production/phone/adapter-groups/grade-a.ts`
+- Modify: `app/src/production/module-loaders.ts`
+- Modify: `app/src/story/semantic-checkpoints.ts`
+- Modify: `app/src/scenes/figure2-animation/index.tsx`
 - Test: `app/src/transitions/figure2-proof-chain.test.ts`
-- Test: `app/e2e/r5-production.spec.ts`
+- Test: `app/src/production/portrait-spike/PortraitScrollSpike.contract.test.ts`
+- Test: `app/e2e/r5-phone-story.spec.ts`
 
 **Approach:**
 

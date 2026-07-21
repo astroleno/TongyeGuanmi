@@ -1,0 +1,38 @@
+.phone-grade-a__surfaces > .r4-figure2 {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: var(--portrait-stage-height);
+  min-height: var(--portrait-stage-height);
+  background: transparent;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.phone-grade-a__surfaces .r4-figure2__middle-camera {
+  width: max(100vw, calc(var(--portrait-stage-height) * 16 / 9));
+  height: max(var(--portrait-stage-height), calc(100vw * 9 / 16));
+}
+
+.phone-grade-a__surfaces .r4-figure2__figures {
+  bottom: max(14svh, calc(env(safe-area-inset-bottom, 0px) + 76px));
+  width: 118vw;
+  height: min(62svh, 580px);
+}
+
+.phone-grade-a__surfaces .r4-figure2__figure--combined {
+  width: min(116vw, 540px);
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .phone-grade-a__surfaces .r4-figure2__figures {
+    bottom: 5svh;
+    width: 76vw;
+    height: 76svh;
+  }
+
+  .phone-grade-a__surfaces .r4-figure2__figure--combined {
+    width: min(48vw, 400px);
+  }
+}

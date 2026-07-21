@@ -193,6 +193,24 @@ describe('Figure2 canonical media', () => {
     expect(root.style.values.get('--r4-figure2-video-opacity')).toBe('1');
   });
 
+  it('maps document scrub progress into the authored forward and reverse halves', () => {
+    const { root, video } = mediaRoot();
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.5, {
+      videoMode: 'seek',
+      mediaRun: { runId: 'phone-forward:1', direction: 1 }
+    });
+    expect(video.dataset.timelineVideoTarget).toBe('1.3000');
+    expect(video.dataset.timelineVideoDirection).toBe('1');
+
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.5, {
+      videoMode: 'seek',
+      mediaRun: { runId: 'phone-reverse:1', direction: -1 }
+    });
+    expect(video.dataset.timelineVideoTarget).toBe('3.8900');
+    expect(video.dataset.timelineVideoDirection).toBe('-1');
+    disposeFigure2Media(root as unknown as HTMLElement);
+  });
+
   it('requires a presented combined opening frame before target readiness', () => {
     expect(figure2AnimationScene.requiredHandles).toEqual([
       'stage',

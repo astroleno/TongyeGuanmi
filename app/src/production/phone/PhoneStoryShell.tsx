@@ -5,7 +5,7 @@ import {
   useRef,
   useState
 } from 'react';
-import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
+import type { PhoneCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
 import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
@@ -44,7 +44,7 @@ function portraitSpikeMotionEnabled(): boolean {
 
 export type PhoneStoryShellProps = Readonly<{
   /** Short numbered routes remain physical-device comparison entries. */
-  validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23';
+  validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24';
 }>;
 
 /**
@@ -83,10 +83,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
-  const checkpointRef = useRef<FrontHalfCheckpointId>(
+  const checkpointRef = useRef<PhoneCheckpointId>(
     loaderHidden ? 'hero-entered' : 'loader'
   );
-  const checkpointTraceRef = useRef<FrontHalfCheckpointId[]>([
+  const checkpointTraceRef = useRef<PhoneCheckpointId[]>([
     checkpointRef.current
   ]);
   const publishAdapterRevision = useCallback(() => {
@@ -109,7 +109,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [starMapAodAdapterRef, bindStarMapAodAdapter] =
     usePhoneAdapterHandleRef<PhoneTransitionAdapterHandle>(publishAdapterRevision);
 
-  const publishCheckpoint = useCallback((checkpoint: FrontHalfCheckpointId) => {
+  const publishCheckpoint = useCallback((checkpoint: PhoneCheckpointId) => {
     const root = rootRef.current;
     if (!root) return;
     if (checkpointRef.current !== checkpoint) {
@@ -391,16 +391,16 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           />
         )}
       </PhoneStageRail>
-
       {MethodTop && (
         <MethodTop
           ref={bindMethodAdapter}
           active={loaderHidden && modulesReady}
           reducedMotion={!motionEnabled}
           motionDriver={phoneMotionDriver}
+          onGradeACheckpoint={publishCheckpoint}
+          onGradeASceneChange={setNavigationScene}
         />
       )}
-
       <StoryNav
         currentScene={navigationScene}
         visible={navigationVisible}

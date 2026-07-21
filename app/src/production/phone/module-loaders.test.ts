@@ -9,6 +9,10 @@ import {
   resolvedPhoneSceneAdapter,
   resolvedPhoneTransitionAdapter
 } from './module-loaders';
+import {
+  gradeAPhoneSceneIds,
+  gradeAPhoneTransitionIds
+} from './adapter-groups/grade-a';
 
 describe('phone presentation adapter registry', () => {
   it('loads Loader as the first formal front-half presentation adapter', async () => {
@@ -40,5 +44,17 @@ describe('phone presentation adapter registry', () => {
     const second = await loadPhoneSceneAdapter('hero');
     expect(second).toBe(first);
     expect(resolvedPhoneSceneAdapter('hero')).toBe(first);
+  });
+
+  it('registers the complete Grade A chain behind its own lazy group', () => {
+    expect(gradeAPhoneSceneIds).toEqual([
+      'figure2-animation',
+      'figure2-proof'
+    ]);
+    expect(gradeAPhoneTransitionIds).toEqual([
+      'method-bottom-figure2',
+      'figure2-distance-expand',
+      'figure2-proof-brand'
+    ]);
   });
 });

@@ -134,6 +134,20 @@
   line-height: 1.75;
 }
 
+/* Reserve the complete Grade A rail before its adjacent adapter chunk lands. */
+.phone-grade-a-slot {
+  position: relative;
+  width: 100%;
+  min-height: 660lvh;
+  background: #ede4d2;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .phone-grade-a-slot {
+    min-height: 600lvh;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__reading-intro,
   html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__steps li {

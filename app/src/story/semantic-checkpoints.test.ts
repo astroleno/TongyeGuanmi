@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   FRONT_HALF_CHECKPOINT_IDS,
+  GRADE_A_CHECKPOINT_IDS,
   frontHalfCheckpoint,
   frontHalfSemanticCheckpoints
 } from './semantic-checkpoints';
@@ -33,5 +34,16 @@ describe('front-half semantic checkpoints', () => {
       media: 'aod-figure-motion'
     });
     expect(frontHalfCheckpoint('method-intro')).toMatchObject({ scene: 'method-top' });
+  });
+
+  it('names the one Method → Figure2 → Proof chain without alias scenes', () => {
+    expect(GRADE_A_CHECKPOINT_IDS).toEqual([
+      'method-to-figure2',
+      'figure2-stage',
+      'figure2-to-proof',
+      'figure2-proof-opening',
+      'figure2-proof-cards',
+      'figure2-proof-closing'
+    ]);
   });
 });

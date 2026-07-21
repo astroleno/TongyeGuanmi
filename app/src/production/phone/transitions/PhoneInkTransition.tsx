@@ -23,7 +23,7 @@ export function createPhoneInkAdapter(options: Readonly<{
     const transitionRef = useRef<PhoneInkTransition | undefined>(undefined);
     useLayoutEffect(() => {
       const canvas = canvasRef.current;
-      if (!host || !from || !to || !canvas) return;
+      if (!host || !to || !canvas) return;
       const transition = createPhoneInkTransition({
         host,
         canvas,

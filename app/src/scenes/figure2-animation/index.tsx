@@ -456,6 +456,23 @@ export function renderFigure2AnimationProgress(
   }
   if (options.videoMode === 'native' && options.mediaRun) {
     driveFigure2MediaLeg(root, clamped, options.mediaRun);
+  } else if (options.videoMode === 'seek' && options.mediaRun && root) {
+    try {
+      const manager = managerFor(root);
+      manager.activeRunId = options.mediaRun.runId;
+      manager.activeDirection = options.mediaRun.direction;
+      manager.snapshot = driveTimelineVideo(
+        manager.video,
+        mediaInput(
+          options.mediaRun,
+          mediaProgress(options.mediaRun.direction, clamped),
+          'timeline'
+        )
+      );
+      delete root.dataset.figure2StaticMediaFallback;
+    } catch {
+      root.dataset.figure2StaticMediaFallback = 'true';
+    }
   }
   return {
     progress: clamped,

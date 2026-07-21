@@ -22,6 +22,18 @@ export const FRONT_HALF_CHECKPOINT_IDS = [
 
 export type FrontHalfCheckpointId = (typeof FRONT_HALF_CHECKPOINT_IDS)[number];
 
+export const GRADE_A_CHECKPOINT_IDS = [
+  'method-to-figure2',
+  'figure2-stage',
+  'figure2-to-proof',
+  'figure2-proof-opening',
+  'figure2-proof-cards',
+  'figure2-proof-closing'
+] as const;
+
+export type GradeACheckpointId = (typeof GRADE_A_CHECKPOINT_IDS)[number];
+export type PhoneCheckpointId = FrontHalfCheckpointId | GradeACheckpointId;
+
 export type SemanticCheckpoint = Readonly<{
   id: FrontHalfCheckpointId;
   scene: SceneId;

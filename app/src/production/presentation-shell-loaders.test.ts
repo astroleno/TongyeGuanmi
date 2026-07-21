@@ -5,8 +5,8 @@ import {
 } from './presentation-shell-loaders';
 import {
   loadedPhoneAdapters,
-  phoneSceneAdapterIds,
-  phoneTransitionAdapterIds,
+  initialPhoneSceneAdapterIds,
+  initialPhoneTransitionAdapterIds,
   resolvedPhoneLoaderAdapter,
   resolvedPhoneSceneAdapter,
   resolvedPhoneTransitionAdapter
@@ -24,10 +24,10 @@ describe('presentation shell loaders', () => {
     const shell = await loadPhoneStoryShell();
     expect(shell.default).toBeTypeOf('function');
     expect(resolvedPhoneLoaderAdapter()?.id).toBe('loader');
-    for (const id of phoneSceneAdapterIds) {
+    for (const id of initialPhoneSceneAdapterIds) {
       expect(resolvedPhoneSceneAdapter(id)?.id).toBe(id);
     }
-    for (const id of phoneTransitionAdapterIds) {
+    for (const id of initialPhoneTransitionAdapterIds) {
       expect(resolvedPhoneTransitionAdapter(id)?.id).toBe(id);
     }
   });
