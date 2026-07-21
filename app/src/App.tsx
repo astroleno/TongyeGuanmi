@@ -15,7 +15,7 @@ const DesktopStoryShell = lazy(loadDesktopStoryShell);
 const PhoneStoryShell = lazy(loadPhoneStoryShell);
 const phoneShellEnabled = import.meta.env.VITE_ENABLE_PHONE_STORY === '1';
 
-type PhoneValidationMode = 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34';
+type PhoneValidationMode = 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35';
 
 function requestedPhoneValidationMode(): PhoneValidationMode | undefined {
   if (!canUseDOM()) return undefined;
@@ -26,7 +26,7 @@ function requestedPhoneValidationMode(): PhoneValidationMode | undefined {
     || version === '25' || version === '26' || version === '27'
     || version === '28' || version === '29' || version === '30'
     || version === '31' || version === '32' || version === '33'
-    || version === '34'
+    || version === '34' || version === '35'
     ? `v${version}`
     : undefined;
 }

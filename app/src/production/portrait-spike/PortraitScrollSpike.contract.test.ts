@@ -97,10 +97,13 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*clip[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*top:\s*0[^}]*bottom:\s*auto[^}]*height:\s*var\(--portrait-stage-height\)/s
+      /portrait-scroll-spike__stage\s*\{[^}]*inset:\s*0[^}]*height:\s*auto[^}]*min-height:\s*0/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage-canvas\s*\{[^}]*inset:\s*0[^}]*height:\s*100%/s
+      /portrait-scroll-spike__stage-canvas\s*\{[^}]*top:\s*0[^}]*right:\s*0[^}]*left:\s*0[^}]*height:\s*var\(--portrait-stage-height\)/s
+    );
+    expect(viewportGeometrySource).toMatch(
+      /if \(!forceHeight && !widthChanged\) \{[\s\S]*?return;\s*\}[\s\S]*?root\.style\.setProperty\(\s*'--portrait-stage-coverage-height'/s
     );
     expect(shellSource).not.toContain('viewport?.pageTop');
     expect(shellSource).not.toContain(
@@ -155,6 +158,9 @@ describe('Route B proven front-half migration contract', () => {
     expect(patternCss).not.toContain('data-portrait-edge-scene="pattern"');
     expect(patternCss).not.toContain('portrait-scroll-spike__stage[');
     expect(patternSource.match(/pattern-background/g)).toHaveLength(1);
+    expect(patternCss).not.toMatch(
+      /portrait-scroll-spike__pattern-motion\s*\{[^}]*will-change:/s
+    );
     expect(patternCss).not.toContain('--portrait-browser-edge-reserve');
     expect(patternCss).toMatch(
       /portrait-scroll-spike__pattern-bloom\s*\{[^}]*inset:\s*0[^}]*height:\s*100%/s

@@ -5,7 +5,7 @@ import {
 } from './phone-viewport';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
 
-/** Stable-width viewport sampling; height-only Safari toolbar motion is CSS-owned. */
+/** Stable-width layout sampling; height-only Safari chrome is diagnostics-only. */
 export function usePhoneViewportGeometry(
   rootRef: RefObject<HTMLElement | null>,
   motionEnabled: boolean
@@ -53,24 +53,25 @@ export function usePhoneViewportGeometry(
       root.dataset.portraitLiveViewport = nextViewport;
       const widthChanged = lastViewportWidth === 0
         || Math.abs(width - lastViewportWidth) > 1;
-      stageCoverageHeight = phoneStageCoverageHeight(
-        stageCoverageHeight || height,
-        height,
-        forceHeight || widthChanged
-      );
-      root.style.setProperty(
-        '--portrait-stage-coverage-height',
-        `${stageCoverageHeight}px`
-      );
-      root.dataset.portraitStageCoverage = `${stageCoverageHeight}px`;
       if (!forceHeight && !widthChanged) {
         if (nextViewport === lastLayoutViewport) {
           delete root.dataset.portraitTransientViewport;
         } else {
           root.dataset.portraitTransientViewport = nextViewport;
         }
+        // Safari toolbar motion must not resize the stage or refresh its clock.
         return;
       }
+      stageCoverageHeight = phoneStageCoverageHeight(
+        stageCoverageHeight || height,
+        height,
+        true
+      );
+      root.style.setProperty(
+        '--portrait-stage-coverage-height',
+        `${stageCoverageHeight}px`
+      );
+      root.dataset.portraitStageCoverage = `${stageCoverageHeight}px`;
       lastLayoutViewport = nextViewport;
       lastViewportWidth = width;
       delete root.dataset.portraitTransientViewport;

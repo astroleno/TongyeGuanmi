@@ -16,8 +16,6 @@
   display: block;
   pointer-events: none;
   user-select: none;
-  transform: none;
-  will-change: transform, opacity;
 }
 
 .portrait-scroll-spike__pattern-image {

@@ -37,7 +37,7 @@ boundary this plan is intended to prevent:
 | `app/src/production/portrait-spike/PortraitScrollSpike.css` | 706 lines | shell geometry plus four scene compositions |
 | `app/src/production/StoryApp.tsx` | 759 lines | desktop assembly, readiness, navigation, runtime, recovery |
 
-## Execution Status — 2026-07-21
+## Execution Status — 2026-07-22
 
 This section records the implemented migration state; the file-size table above
 is the pre-extraction baseline.
@@ -45,7 +45,7 @@ is the pre-extraction baseline.
 The frozen visual source is commit `95d519b` (`?v=17`), which contains the
 accepted Safari edge stabilization and the phone-only AOD alpha extension from
 timeline progress `0.48` to `0.55`. The current short verification route is
-`?v=34`; `?v=16` through `?v=33` remain aliases to the same formal phone shell,
+`?v=35`; `?v=16` through `?v=34` remain aliases to the same formal phone shell,
 not immutable historical deployments.
 
 | Unit | Status | Implemented evidence |
@@ -54,7 +54,7 @@ not immutable historical deployments.
 | Unit 1 | Complete | Canonical copy, media IDs, navigation, semantic checkpoints, and renderer-neutral lifecycle contracts remain shared. The boundary verifier rejects shared-to-presentation imports, cross-shell imports, phone-to-spike imports, new shell scene roots, media keys, asset URLs, and scene renderer imports. |
 | Unit 2 | Complete; physical fixed-stage acceptance recorded | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
 | Unit 3 | Complete; physical visual acceptance recorded | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
-| Unit 4 | v34 single-plate candidate; physical Pattern acceptance pending | AOD → Method remains closed by the parent-level Grade A opacity owner. v34 replaces Pattern's three mismatched image/wash coordinate systems with one scene-owned plate inside a stable-lvh host; document, rail, host, and theme color now publish only a solid emergency fallback. |
+| Unit 4 | v35 split-viewport candidate; physical Safari acceptance pending | The single Pattern plate and Method → Figure2 edge timing remain intact. v35 restores the current-viewport fixed host around an independent stable-lvh canvas, prevents height-only toolbar resizes from mutating stage geometry, and removes Pattern's unused compositor hint. |
 | Units 5–7 | Not started | No Brand, Figure 3, Services, or later batch starts before Unit 4 receives its own physical-iPhone acceptance. |
 
 ### Unit 0–3 cutover record
@@ -514,51 +514,65 @@ but rejected Pattern continuity. The host image was a terminal `0.94` wash while
 the live scene was still between `0.54` and `0.94`; the document carried a
 third, differently sized copy. v33 is therefore superseded by v34.
 
-### Unit 4 v34 single Pattern plate and stable viewport plane
+### Unit 4 v34 single Pattern plate and rejected host merge
 
-v34 removes the mirrored-edge strategy instead of choosing another layer to
-mirror. Pattern now has one visual plate owner:
+v34 correctly removed the mirrored Pattern backgrounds: `PhonePattern` became
+the only owner of its image, bloom, and live `0.54 → 0.94` wash, while the
+document, rail, host, and `theme-color` retained only solid emergency colors.
+It also correctly delayed the Method → Figure2 fallback color until the ink
+field crossed its `0.001` edge threshold.
 
-- `PhonePattern` owns the background image, bloom canvas, and live wash in one
-  stable scene-local wrapper. The existing `0.54 → 0.94` wash mapping remains
-  the only wash clock;
-- the persistent fixed host is `top: 0` with explicit
-  `height: var(--portrait-stage-height)` (whose floor is `100lvh`). Its canvas
-  fills that same host. Safari toolbar collapse therefore cannot enlarge an
-  outer clipping box and uncover a new strip below a shorter host;
-- `html`, `body`, `#root`, the document rail, fixed host, and `theme-color`
-  publish only the scene edge color. They do not duplicate the Pattern image,
-  gradients, or terminal wash, and no longer use `background-attachment:
-  fixed`, which WebKit records as unsupported on iOS by design;
-- height-only `visualViewport` changes update the live viewport diagnostic and
-  retained maximum stage coverage via the production
-  `phoneStageCoverageHeight()` contract, while the layout viewport and scroll
-  clock stay frozen until a real width/orientation change;
-- Method → Figure2 no longer publishes Figure2's fallback color merely because
-  its rail has entered the viewport. The ink field renders first, then the
-  fallback changes at the same `0.001` bottom-edge ownership threshold used by
-  the field itself. Reverse playback retains Figure2 until that edge has
-  actually returned to Method.
+The shared viewport change in the same revision was rejected on physical
+Safari. It merged the current-viewport fixed host and stable-lvh canvas into
+one oversized fixed compositing chain. Figure2 then exposed the host's
+`#e2dac9` fallback during toolbar collapse. In addition, height-only
+`visualViewport.resize` events wrote a new stage-coverage CSS value before the
+early return, allowing Pattern and Figure2 visual geometry to resize even
+though the scroll clock stayed frozen. The desktop assertion that host and
+canvas heights were equal encoded this regression and provided no coverage of
+the real `724 → 844` Safari toolbar path.
 
-The desktop browser check is deliberately structural: it verifies one Pattern
-image owner, no image on document/rail/host fallbacks, and equal stable host and
-canvas heights. It does **not** claim to simulate Safari toolbar compositing.
+Automated verification for v34 passed 131 files / 771 tests and all build
+gates, but the physical-iPhone result supersedes those structural checks.
 
-Automated verification for v34:
+### Unit 4 v35 split viewport geometry
+
+v35 keeps the valid v34 ownership changes and restores the two-layer viewport
+contract:
+
+- the fixed host again uses `inset: 0; height: auto; min-height: 0`, so its
+  clipping surface follows Safari's current visible viewport;
+- the child canvas independently uses `height:
+  var(--portrait-stage-height)`, whose floor remains `100lvh`, so scene
+  geometry stays on one stable maximum-height visual plane;
+- height-only toolbar resizes update diagnostic data attributes only. They
+  return before any stage-coverage CSS write or scroll-stage refresh; width or
+  orientation changes still rebuild geometry normally;
+- Pattern keeps exactly one scene-owned image/bloom/wash plate. Its unused
+  `will-change: transform, opacity` hint is removed so the full-screen wrapper
+  does not create an unnecessary Safari compositing layer;
+- the v34 Method → Figure2 ink-edge fallback timing remains unchanged.
+
+The automated contract now checks the split host/canvas geometry and verifies
+that the height-only early return precedes every stage-coverage CSS write. The
+desktop structural check no longer requires host and canvas heights to match
+and does not claim to simulate Safari toolbar compositing.
+
+Automated verification for v35:
 
 - `pnpm -C app typecheck` and `pnpm -C app lint` pass;
 - `pnpm -C app test` passes 131 files / 771 tests;
 - `pnpm -w run build` passes all module, media, release, and performance gates
   with 52 media files, 32 WebP, `81,507,214 B` runtime media,
-  `564,010 B` phone-shell budget, and `7,458 B` total JS headroom.
+  `564,018 B` phone-shell budget, and `7,448 B` total JS headroom.
 
-**Physical acceptance for `?v=34`:** start with Safari's address bar fully
-expanded, enter Pattern, then make one upward swipe until the bar fully
-collapses. The image, bloom, and wash must remain pixel-continuous at the bottom
-on every frame, with no moving dark band and no `#d9c08f` strip. Repeat once
-while reversing Pattern → Hero. Then cross Method → Figure2 slowly in both
-directions; no `#e2dac9`/`#ede4d2` strip may lead the ink contour. Units 5–7
-remain frozen until this pass.
+**Physical acceptance for `?v=35`:** with Safari's address bar fully expanded,
+make one upward swipe through Pattern, AOD, and the beginning of Figure2 until
+the bar collapses. Each scene must remain continuous at the lower edge, without
+the solid fallback strip or moving gradient. Cross AOD → Method and Method →
+Figure2 slowly in both directions to confirm the existing masks and ink contour
+remain unchanged. Visual acceptance belongs to the physical-device pass;
+Units 5–7 remain frozen until it succeeds.
 
 ## Problem Frame
 
