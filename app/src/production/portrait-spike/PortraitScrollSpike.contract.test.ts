@@ -97,10 +97,10 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*clip[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*inset:\s*0[^}]*height:\s*auto/s
+      /portrait-scroll-spike__stage\s*\{[^}]*top:\s*0[^}]*bottom:\s*auto[^}]*height:\s*var\(--portrait-stage-height\)/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage-canvas\s*\{[^}]*height:\s*var\(--portrait-stage-height\)/s
+      /portrait-scroll-spike__stage-canvas\s*\{[^}]*inset:\s*0[^}]*height:\s*100%/s
     );
     expect(shellSource).not.toContain('viewport?.pageTop');
     expect(shellSource).not.toContain(
@@ -143,21 +143,18 @@ describe('Route B proven front-half migration contract', () => {
       "owner.dataset.portraitHeroTextEntrance = 'playing'"
     );
     expect(runtimeSource).toContain('heroAdapter.startEntrance()');
+    expect(viewportGeometrySource).toContain('phoneStageCoverageHeight');
     expect(viewportGeometrySource).toContain("'--portrait-stage-coverage-height'");
     expect(shellCss).toContain('100lvh');
     expect(shellSource).not.toContain('stage-backplate');
     expect(patternSource).not.toContain('toolbar-edge');
     expect(aodSource).not.toContain('toolbar-edge');
     expect(shellCss).not.toContain('toolbar-edge');
-    expect(patternCss).toMatch(
-      /data-portrait-edge-scene="pattern"[^}]*stage-rail\s*\{[^}]*background:\s*transparent/s
-    );
-    expect(patternCss).toMatch(
-      /data-portrait-edge-scene="pattern"[^}]*#root\s*\{[^}]*background-color:\s*#d9c08f[^}]*background-image:\s*var\(--portrait-pattern-edge-backdrop\)/s
-    );
-    expect(patternCss).toMatch(
-      /portrait-scroll-spike__stage\[data-portrait-edge-scene="pattern"\]\s*\{[^}]*background-image:\s*var\(--portrait-pattern-edge-backdrop\)[^}]*background-size:[^}]*var\(--portrait-stage-height\)/s
-    );
+    expect(patternCss).not.toContain('portrait-pattern-edge-backdrop');
+    expect(patternCss).not.toContain('background-attachment');
+    expect(patternCss).not.toContain('data-portrait-edge-scene="pattern"');
+    expect(patternCss).not.toContain('portrait-scroll-spike__stage[');
+    expect(patternSource.match(/pattern-background/g)).toHaveLength(1);
     expect(patternCss).not.toContain('--portrait-browser-edge-reserve');
     expect(patternCss).toMatch(
       /portrait-scroll-spike__pattern-bloom\s*\{[^}]*inset:\s*0[^}]*height:\s*100%/s
@@ -312,7 +309,14 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAArchSource).toContain("'figure2-foreground-arch'");
     expect(gradeAArchSource).toContain('RetainedFigure2Arch');
     expect(gradeAArchSource).toContain('motion="fixed"');
-    expect(gradeAStorySource).toContain("publishEdgeScene('figure2')");
+    expect(gradeAStorySource).toContain(
+      'phoneGradeAMethodFigure2EdgeScene'
+    );
+    expect(gradeAStorySource.indexOf(
+      'methodFigure2Ref.current?.render(handoff);'
+    )).toBeLessThan(gradeAStorySource.indexOf(
+      'publishEdgeScene(edgeScene);'
+    ));
     expect(gradeAFigureCss).not.toContain('--portrait-browser-edge-reserve');
     expect(gradeAStoryCss).toContain('--phone-figure2-arch-scale');
     expect(gradeAStoryCss).toContain('--phone-figure2-arch-blur');

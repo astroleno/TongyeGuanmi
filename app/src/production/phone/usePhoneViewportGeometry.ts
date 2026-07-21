@@ -1,7 +1,9 @@
 import { useLayoutEffect, type RefObject } from 'react';
+import {
+  PHONE_STAGE_SCROLL_VIEWPORTS,
+  phoneStageCoverageHeight
+} from './phone-viewport';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
-
-const STAGE_SCROLL_VIEWPORTS = 4.8;
 
 /** Stable-width viewport sampling; height-only Safari toolbar motion is CSS-owned. */
 export function usePhoneViewportGeometry(
@@ -25,8 +27,10 @@ export function usePhoneViewportGeometry(
     }
 
     let viewportTimer: number | undefined;
-    let lastViewport = '';
+    let lastObservedViewport = '';
+    let lastLayoutViewport = '';
     let lastViewportWidth = 0;
+    let stageCoverageHeight = 0;
     let forceNextViewportSync = false;
     const readViewport = () => {
       const viewport = window.visualViewport;
@@ -44,28 +48,39 @@ export function usePhoneViewportGeometry(
     const syncViewport = (forceHeight = false) => {
       const { height, width } = readViewport();
       const nextViewport = `${width}x${height}`;
-      if (nextViewport === lastViewport) {
-        delete root.dataset.portraitTransientViewport;
-        return;
-      }
+      if (nextViewport === lastObservedViewport && !forceHeight) return;
+      lastObservedViewport = nextViewport;
+      root.dataset.portraitLiveViewport = nextViewport;
       const widthChanged = lastViewportWidth === 0
         || Math.abs(width - lastViewportWidth) > 1;
+      stageCoverageHeight = phoneStageCoverageHeight(
+        stageCoverageHeight || height,
+        height,
+        forceHeight || widthChanged
+      );
+      root.style.setProperty(
+        '--portrait-stage-coverage-height',
+        `${stageCoverageHeight}px`
+      );
+      root.dataset.portraitStageCoverage = `${stageCoverageHeight}px`;
       if (!forceHeight && !widthChanged) {
-        root.dataset.portraitTransientViewport = nextViewport;
+        if (nextViewport === lastLayoutViewport) {
+          delete root.dataset.portraitTransientViewport;
+        } else {
+          root.dataset.portraitTransientViewport = nextViewport;
+        }
         return;
       }
-      lastViewport = nextViewport;
+      lastLayoutViewport = nextViewport;
       lastViewportWidth = width;
       delete root.dataset.portraitTransientViewport;
       root.style.setProperty('--portrait-live-height', `${height}px`);
       root.style.setProperty('--portrait-live-width', `${width}px`);
-      root.style.setProperty('--portrait-stage-coverage-height', `${height}px`);
-      root.dataset.portraitStageCoverage = `${height}px`;
       root.style.setProperty(
         '--portrait-stage-scroll-distance',
-        `${Math.round(height * STAGE_SCROLL_VIEWPORTS)}px`
+        `${Math.round(height * PHONE_STAGE_SCROLL_VIEWPORTS)}px`
       );
-      root.dataset.portraitLiveViewport = nextViewport;
+      root.dataset.portraitLayoutViewport = lastLayoutViewport;
       refreshPhoneScrollStage();
     };
     const scheduleViewportSync = () => {
@@ -104,6 +119,7 @@ export function usePhoneViewportGeometry(
       root.style.removeProperty('--portrait-stage-scroll-distance');
       root.style.removeProperty('--portrait-stage-coverage-height');
       delete root.dataset.portraitLiveViewport;
+      delete root.dataset.portraitLayoutViewport;
       delete root.dataset.portraitStageCoverage;
       delete root.dataset.portraitTransientViewport;
       delete root.dataset.portraitCheckpoint;

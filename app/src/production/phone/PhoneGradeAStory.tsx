@@ -14,6 +14,7 @@ import {
 } from '../navigation';
 import { usePhoneGradeAAdapters } from './usePhoneGradeAAdapters';
 import type { PhoneEdgeScene } from './phone-edge-surface';
+import { PHONE_INK_ENDPOINT_EPSILON } from './phone-ink';
 import type {
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
@@ -33,6 +34,21 @@ export function phoneGradeAHandoffProgress(
   stageHeight: number
 ): number {
   return clamp((stageHeight - railTop) / Math.max(1, stageHeight));
+}
+
+/**
+ * The Method → Figure2 field reveals from the bottom edge. Keep the Method
+ * fallback until that same edge is actually owned by the visible ink field;
+ * on reverse, retain Figure2 until the field reaches its Method endpoint.
+ */
+export function phoneGradeAMethodFigure2EdgeScene(
+  handoffProgress: number,
+  reducedMotion = false
+): Extract<PhoneEdgeScene, 'method' | 'figure2'> {
+  if (reducedMotion) return 'figure2';
+  return clamp(handoffProgress) > PHONE_INK_ENDPOINT_EPSILON
+    ? 'figure2'
+    : 'method';
 }
 
 export function phoneGradeAFigureProgress(
@@ -179,6 +195,8 @@ export function PhoneGradeAStory({
     }
   }, [onCheckpoint, onSceneChange]);
   const publishEdgeScene = useCallback((scene: PhoneEdgeScene) => {
+    const root = rootRef.current;
+    if (root) root.dataset.phoneGradeAEdgeScene = scene;
     if (edgeSceneRef.current === scene) return;
     edgeSceneRef.current = scene;
     onEdgeScene?.(scene);
@@ -237,11 +255,15 @@ export function PhoneGradeAStory({
       if (railActive) {
         const handoff = phoneGradeAHandoffProgress(railRect.top, stageHeight);
         const figure = phoneGradeAFigureProgress(railRect.top, railRect.height);
-        publishEdgeScene('figure2');
+        const edgeScene = phoneGradeAMethodFigure2EdgeScene(
+          handoff,
+          reducedMotion
+        );
         setRetainedArchProgress(handoff, figure);
         methodFigure2Ref.current?.render(handoff);
         figure2ProofRef.current?.render(figure);
         proofRef.current?.update(0);
+        publishEdgeScene(edgeScene);
         if (handoff < 0.999) {
           publish('method-to-figure2', 'method-top');
         } else if (figure < FIGURE2_PROOF_SPLIT) {
@@ -253,7 +275,6 @@ export function PhoneGradeAStory({
       }
 
       if (proofActive) {
-        publishEdgeScene('proof');
         setRetainedArchProgress(1, 1);
         const proof = phoneGradeAProofProgress(
           proofRect.top,
@@ -264,6 +285,7 @@ export function PhoneGradeAStory({
         figure2ProofRef.current?.render(1);
         proofRef.current?.update(proof);
         proofRef.current?.enter?.();
+        publishEdgeScene('proof');
         if (proof < 0.25) {
           publish('figure2-proof-opening', 'figure2-proof');
         } else if (proof < 0.75) {
@@ -275,11 +297,11 @@ export function PhoneGradeAStory({
       }
 
       if (railRect.top >= stageHeight) {
-        publishEdgeScene('method');
         setRetainedArchProgress(0, 0);
         methodFigure2Ref.current?.render(0);
         figure2ProofRef.current?.render(0);
         proofRef.current?.update(0);
+        publishEdgeScene('method');
         if (sceneRef.current !== 'method-top') {
           sceneRef.current = 'method-top';
           onSceneChange?.('method-top');
@@ -303,7 +325,14 @@ export function PhoneGradeAStory({
         delete methodReading.dataset.phoneMethodFigure2InkActive;
       }
     };
-  }, [onSceneChange, publish, publishEdgeScene, runtimeReady, stageHost]);
+  }, [
+    onSceneChange,
+    publish,
+    publishEdgeScene,
+    reducedMotion,
+    runtimeReady,
+    stageHost
+  ]);
 
   useEffect(() => {
     if (!runtimeReady || deepLinkHandledRef.current) return;

@@ -126,18 +126,18 @@ export const PhonePattern = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
           src={PATTERN_BACKGROUND_IMAGE}
           alt=""
         />
+        <canvas
+          ref={canvasRef}
+          className="portrait-scroll-spike__pattern-bloom"
+          data-portrait-pattern-bloom
+          aria-hidden="true"
+        />
+        <div
+          ref={washRef}
+          className="portrait-scroll-spike__pattern-wash"
+          aria-hidden="true"
+        />
       </div>
-      <canvas
-        ref={canvasRef}
-        className="portrait-scroll-spike__pattern-bloom"
-        data-portrait-pattern-bloom
-        aria-hidden="true"
-      />
-      <div
-        ref={washRef}
-        className="portrait-scroll-spike__pattern-wash"
-        aria-hidden="true"
-      />
       <div ref={copyRef} className="portrait-scroll-spike__pattern-copy">
         <p>{BELIEF_COPY[0]}</p>
         <h2 id="portrait-spike-pattern-title">{BELIEF_COPY[1]}</h2>

@@ -3,6 +3,7 @@ import {
   phoneGradeAArchFrame,
   phoneGradeAFigureProgress,
   phoneGradeAHandoffProgress,
+  phoneGradeAMethodFigure2EdgeScene,
   phoneGradeAProofPanelOffset,
   phoneGradeAProofProgress
 } from './PhoneGradeAStory';
@@ -12,6 +13,14 @@ describe('phone Grade A document progress', () => {
     expect(phoneGradeAHandoffProgress(844, 844)).toBe(0);
     expect(phoneGradeAHandoffProgress(422, 844)).toBe(0.5);
     expect(phoneGradeAHandoffProgress(0, 844)).toBe(1);
+  });
+
+  it('switches the bottom fallback only when the ink field owns that edge', () => {
+    expect(phoneGradeAMethodFigure2EdgeScene(0)).toBe('method');
+    expect(phoneGradeAMethodFigure2EdgeScene(0.001)).toBe('method');
+    expect(phoneGradeAMethodFigure2EdgeScene(0.0011)).toBe('figure2');
+    expect(phoneGradeAMethodFigure2EdgeScene(1)).toBe('figure2');
+    expect(phoneGradeAMethodFigure2EdgeScene(0, true)).toBe('figure2');
   });
 
   it('maps the complete Figure2 rail bidirectionally without a blank hold', () => {

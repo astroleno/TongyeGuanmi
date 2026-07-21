@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const PHONE_SHELL = '[data-phone-validation-mode="v23"]';
-const GRADE_A_SHELL = '[data-phone-validation-mode="v33"]';
+const GRADE_A_SHELL = '[data-phone-validation-mode="v34"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -224,14 +224,14 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
   ).toBe(false);
 });
 
-test('v33 keeps one viewport host and one stable lvh scene canvas for Safari', async ({
+test('v34 keeps one Pattern plate in one stable lvh viewport host', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
   test.setTimeout(45_000);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=33&portrait-spike-motion=reduce', {
+  await page.goto('/?v=34&portrait-spike-motion=reduce', {
     waitUntil: 'domcontentloaded'
   });
   await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
@@ -259,8 +259,12 @@ test('v33 keeps one viewport host and one stable lvh scene canvas for Safari', a
       const stage = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage');
       const canvas = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage-canvas');
       const rail = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage-rail');
+      const patternScene = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--pattern');
+      const patternPlate = document.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-motion');
+      const patternImage = document.querySelector<HTMLImageElement>('.portrait-scroll-spike__pattern-image');
       if (!stage || !canvas || !rail) throw new Error('fixed stage edge surface is unavailable');
       const stageRect = stage.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
       const documentStyle = getComputedStyle(document.documentElement);
       const bodyStyle = getComputedStyle(document.body);
       const rootStyle = getComputedStyle(document.querySelector<HTMLElement>('#root')!);
@@ -268,39 +272,56 @@ test('v33 keeps one viewport host and one stable lvh scene canvas for Safari', a
       const railStyle = getComputedStyle(rail);
       return {
         viewportRatio: stageRect.height / window.innerHeight,
-        canvasToViewportRatio: canvas.getBoundingClientRect().height / window.innerHeight,
+        hostCanvasHeightDelta: Math.abs(stageRect.height - canvasRect.height),
         documentBackgroundColor: documentStyle.backgroundColor,
         documentBackgroundImage: documentStyle.backgroundImage,
         documentBackgroundAttachment: documentStyle.backgroundAttachment,
         bodyBackgroundColor: bodyStyle.backgroundColor,
+        bodyBackgroundImage: bodyStyle.backgroundImage,
         rootBackgroundColor: rootStyle.backgroundColor,
+        rootBackgroundImage: rootStyle.backgroundImage,
         stageBackgroundImage: stageStyle.backgroundImage,
-        stageBackgroundSize: stageStyle.backgroundSize,
         railBackgroundColor: railStyle.backgroundColor,
+        patternSceneBackgroundImage: patternScene
+          ? getComputedStyle(patternScene).backgroundImage
+          : '',
+        patternPlateHeight: patternPlate?.getBoundingClientRect().height ?? 0,
+        patternImageHeight: patternImage?.getBoundingClientRect().height ?? 0,
+        patternImageSource: patternImage?.currentSrc || patternImage?.src || '',
         themeColor: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content
       };
     });
-    expect(edge.viewportRatio).toBeGreaterThanOrEqual(0.9);
-    expect(edge.viewportRatio).toBeLessThanOrEqual(1.05);
-    expect(edge.canvasToViewportRatio).toBeGreaterThanOrEqual(1);
+    expect(edge.viewportRatio).toBeGreaterThanOrEqual(1);
+    expect(edge.hostCanvasHeightDelta).toBeLessThanOrEqual(0.5);
     expect(edge.documentBackgroundColor).toBe(sample.color);
     expect(edge.bodyBackgroundColor).toBe(sample.color);
     expect(edge.rootBackgroundColor).toBe(sample.color);
+    expect(edge.documentBackgroundImage).toBe('none');
+    expect(edge.bodyBackgroundImage).toBe('none');
+    expect(edge.rootBackgroundImage).toBe('none');
+    expect(edge.stageBackgroundImage).toBe('none');
+    expect(edge.documentBackgroundAttachment).toBe('scroll');
+    expect(edge.railBackgroundColor).toBe(sample.color);
     expect(edge.themeColor).toBe(sample.edge === 'pattern' ? '#d9c08f' : '#ede4d2');
     if (sample.edge === 'pattern') {
-      expect(edge.documentBackgroundImage).toContain('pattern-background');
-      expect(edge.documentBackgroundAttachment).toBe('fixed');
-      expect(edge.stageBackgroundImage).toContain('pattern-background');
-      expect(edge.stageBackgroundSize).toContain('844px');
-      expect(edge.railBackgroundColor).toBe('rgba(0, 0, 0, 0)');
-    } else {
-      expect(edge.documentBackgroundImage).toBe('none');
-      expect(edge.railBackgroundColor).toBe(sample.color);
+      expect(edge.patternSceneBackgroundImage).toBe('none');
+      expect(edge.patternPlateHeight).toBeCloseTo(844, 0);
+      expect(edge.patternImageHeight).toBeCloseTo(edge.patternPlateHeight, 0);
+      expect(edge.patternImageSource).toContain('pattern-background');
+      await expect(page.locator(
+        '.portrait-scroll-spike__pattern-motion > .portrait-scroll-spike__pattern-image'
+      )).toHaveCount(1);
+      await expect(page.locator(
+        '.portrait-scroll-spike__pattern-motion > [data-portrait-pattern-bloom]'
+      )).toHaveCount(1);
+      await expect(page.locator(
+        '.portrait-scroll-spike__pattern-motion > .portrait-scroll-spike__pattern-wash'
+      )).toHaveCount(1);
     }
   }
 });
 
-test('v33 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the persistent host', async ({
+test('v34 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the persistent host', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -311,7 +332,7 @@ test('v33 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
     presentationRequests.push(new URL(response.url()).pathname);
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=33&portrait-spike-motion=reduce#figure2-proof-cards', {
+  await page.goto('/?v=34&portrait-spike-motion=reduce#figure2-proof-cards', {
     waitUntil: 'domcontentloaded'
   });
 
@@ -409,7 +430,7 @@ test('v33 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
   }
 });
 
-test('v33 keeps Figure2 visible when Safari never produces a packed video frame', async ({
+test('v34 keeps Figure2 visible when Safari never produces a packed video frame', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -417,7 +438,7 @@ test('v33 keeps Figure2 visible when Safari never produces a packed video frame'
 
   await page.route('**/*figure2-pair-motion-rgb-alpha*.mp4', (route) => route.abort());
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=33&portrait-spike-motion=reduce#figure2-animation', {
+  await page.goto('/?v=34&portrait-spike-motion=reduce#figure2-animation', {
     waitUntil: 'domcontentloaded'
   });
 

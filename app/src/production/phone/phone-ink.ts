@@ -19,6 +19,9 @@ export type PhoneInkTransition = Readonly<{
   dispose(): void;
 }>;
 
+/** Endpoint tolerance shared by ink visibility and browser-edge ownership. */
+export const PHONE_INK_ENDPOINT_EPSILON = 0.001;
+
 /** Clear transition-owned clip/mask state before the runtime changes owners. */
 export function clearPhoneInkBoundary(element: HTMLElement): void {
   clearBoundaryGeometry(element);
@@ -95,7 +98,11 @@ export function createPhoneInkTransition(
   const applyOwnership = (progress: number) => {
     const frame = createInkFieldFrame(spec, progress, viewportFor(surface, host));
     if (options.from) {
-      if (spec.kind === 'radial' && progress > 0.001 && progress < 0.999) {
+      if (
+        spec.kind === 'radial'
+        && progress > PHONE_INK_ENDPOINT_EPSILON
+        && progress < 1 - PHONE_INK_ENDPOINT_EPSILON
+      ) {
         // A radial receiver is the upper surface. Keep the source intact
         // underneath it instead of hiding the source as soon as the circle
         // begins to grow.
@@ -128,8 +135,10 @@ export function createPhoneInkTransition(
       // The WebGL surface is an edge field, not a permanent black overlay.
       // Explicit endpoint visibility is especially important after a fast
       // touch scroll skips directly from a mid-handoff sample to its target.
-      surface.style.visibility = progress > 0.001 && progress < 0.999 ? 'visible' : 'hidden';
-      surface.style.opacity = progress > 0.001 && progress < 0.999 ? '1' : '0';
+      const fieldActive = progress > PHONE_INK_ENDPOINT_EPSILON
+        && progress < 1 - PHONE_INK_ENDPOINT_EPSILON;
+      surface.style.visibility = fieldActive ? 'visible' : 'hidden';
+      surface.style.opacity = fieldActive ? '1' : '0';
       const frame = applyOwnership(progress);
       if (rendererNeedsFrame) {
         renderer?.render(frame);
