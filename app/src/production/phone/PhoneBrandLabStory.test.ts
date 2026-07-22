@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   phoneGroup45BoundaryProgress,
+  phoneGroup45CanBeginVisualRun,
   phoneGroup45CrossedVisualEnd,
   phoneGroup45CrossedVisualStart,
   phoneGroup45DocumentFlags,
   phoneGroup45EntryFromHash,
+  phoneGroup45PhaseAfterVisualCompletion,
   phoneGroup45TrackActivity,
   phoneGroup45TrackProgress
 } from './PhoneBrandLabStory';
@@ -70,6 +72,16 @@ describe('PhoneBrandLabStory', () => {
       844,
       844
     )).toBe(true);
+  });
+
+  it('latches each media run until the opposite direction completes', () => {
+    expect(phoneGroup45CanBeginVisualRun('initial', 1)).toBe(true);
+    expect(phoneGroup45CanBeginVisualRun('forward', 1)).toBe(false);
+    expect(phoneGroup45CanBeginVisualRun('complete', 1)).toBe(false);
+    expect(phoneGroup45CanBeginVisualRun('complete', -1)).toBe(true);
+    expect(phoneGroup45CanBeginVisualRun('reverse', -1)).toBe(false);
+    expect(phoneGroup45PhaseAfterVisualCompletion(1)).toBe('complete');
+    expect(phoneGroup45PhaseAfterVisualCompletion(-1)).toBe('initial');
   });
 
 });

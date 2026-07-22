@@ -18,21 +18,23 @@
    existing Services root (never a cloned copy tree) into the viewport, then
    return it to native document flow in the handoff frame. */
 .phone-services[data-phone-figure3-services-bridge="active"] {
-  position: fixed;
+  position: relative;
   z-index: 11;
-  inset: 0;
   width: 100%;
-  height: var(--portrait-live-height, 100dvh);
-  min-block-size: 0;
-  overflow: hidden;
   opacity: var(--phone-figure3-services-bridge-opacity, 0);
+  transform: translate3d(
+    0,
+    calc(-1 * var(--portrait-stage-height, 100lvh)),
+    0
+  );
   pointer-events: none;
+  will-change: opacity, transform;
 }
 
 .phone-services[data-phone-figure3-services-bridge="active"]
   .phone-services__hero {
-  height: 100%;
-  min-block-size: 0;
+  height: var(--portrait-stage-height, 100lvh);
+  min-block-size: var(--portrait-stage-height, 100lvh);
   padding-bottom: 0;
 }
 

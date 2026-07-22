@@ -83,7 +83,10 @@
 }
 
 .phone-ttg .ttg-layer--figure {
-  --ttg-figure-layer-height: min(144svh, 1220px);
+  --ttg-figure-layer-height: min(
+    calc(var(--portrait-stage-height, 100lvh) * 1.12),
+    940px
+  );
 }
 
 /* The portrait camera keeps the cathedral mass on the right third while the

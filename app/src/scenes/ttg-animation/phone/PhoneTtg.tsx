@@ -87,11 +87,11 @@ export function phoneTtgFrame(
     progress,
     visualProgress,
     backgroundY: visualProgress === 0 ? 0 : -visualProgress * height * .11,
-    backgroundScale: 1 + visualProgress * .018,
+    backgroundScale: 1,
     middleY: visualProgress * height * .235,
-    middleScale: 1 + visualProgress * .012,
+    middleScale: 1,
     foregroundY: height * .11 + visualProgress * height * .08,
-    figureY: height * .06 + visualProgress * height * .115,
+    figureY: -height * .02 + visualProgress * height * .10,
     figureScale: .8,
     figureOpacity: mediaFailed || reducedMotion ? 0 : 1
   };

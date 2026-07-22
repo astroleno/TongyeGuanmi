@@ -46,6 +46,11 @@ type Group45VisualScene = Extract<
 
 type VisualHandoffReason = 'complete' | 'media-failure';
 type VisualRunDirection = 1 | -1;
+export type PhoneGroup45VisualRunPhase =
+  | 'initial'
+  | 'forward'
+  | 'complete'
+  | 'reverse';
 
 const GROUP45_SCENES = new Set<Group45PhoneSceneId>(group45PhoneSceneIds);
 const GROUP45_NAV_ITEMS = publicMenuItems.filter((item) => item.scene === 'services');
@@ -65,6 +70,20 @@ const GROUP45_EDGE_BY_SCENE: Readonly<Record<Group45PhoneSceneId, Group45EdgeSta
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+/** A visual cannot replay until the opposite traversal reaches its endpoint. */
+export function phoneGroup45CanBeginVisualRun(
+  phase: PhoneGroup45VisualRunPhase,
+  direction: VisualRunDirection
+): boolean {
+  return direction === 1 ? phase === 'initial' : phase === 'complete';
+}
+
+export function phoneGroup45PhaseAfterVisualCompletion(
+  direction: VisualRunDirection
+): PhoneGroup45VisualRunPhase {
+  return direction === 1 ? 'complete' : 'initial';
 }
 
 function isGroup45Scene(scene: SceneId | undefined): scene is Group45PhoneSceneId {
@@ -218,6 +237,13 @@ export function PhoneBrandLabStory({
   const visualRunTimeoutRef = useRef(0);
   const visualRunRef = useRef<Group45VisualScene | null>(null);
   const visualRunDirectionRef = useRef<VisualRunDirection>(1);
+  const visualRunPhaseRef = useRef<Record<
+    Group45VisualScene,
+    PhoneGroup45VisualRunPhase
+  >>({
+    'figure3-animation': 'initial',
+    'ttg-animation': 'initial'
+  });
   const visualSnapRef = useRef<PhoneScrollSnapLock | null>(null);
   const failedVisualsRef = useRef(new Set<Group45VisualScene>());
   const lastScrollYRef = useRef(
@@ -411,13 +437,10 @@ export function PhoneBrandLabStory({
         visualSnapRef.current?.release();
         rootRef.current?.setAttribute('data-phone-group45-snap', 'released');
         rootRef.current?.setAttribute('data-phone-group45-visual-run', 'idle');
-        const targetElement = direction === 1 ? latestReceiver : latestTrack;
-        const targetY = Math.max(
-          0,
-          window.scrollY + (targetElement?.getBoundingClientRect().top ?? 0)
-        );
-        window.scrollTo({ top: targetY, left: 0, behavior: 'auto' });
-        lastScrollYRef.current = targetY;
+        // Clear any flow-preserving visual promotion before measuring the
+        // semantic document endpoint. Measuring a promoted Services root
+        // returns its visual viewport top and used to strand the document on
+        // Figure3's marker, which then re-entered autoplay.
         if (scene === 'figure3-animation') {
           if (direction === 1) figure3ServicesRef.current?.leave?.();
           else figure3ServicesRef.current?.enter?.();
@@ -426,6 +449,13 @@ export function PhoneBrandLabStory({
         } else {
           ttgLabRef.current?.enter?.();
         }
+        const targetElement = direction === 1 ? latestReceiver : latestTrack;
+        const targetY = Math.max(
+          0,
+          window.scrollY + (targetElement?.getBoundingClientRect().top ?? 0)
+        );
+        window.scrollTo({ top: targetY, left: 0, behavior: 'auto' });
+        lastScrollYRef.current = targetY;
         setStageScene(direction === -1 ? scene : null);
         setVisualActivity((current) => ({
           figure3: {
@@ -446,6 +476,9 @@ export function PhoneBrandLabStory({
   const onMediaError = useCallback((scene: Group45PhoneSceneId) => {
     if (scene !== 'figure3-animation' && scene !== 'ttg-animation') return;
     const direction = visualRunDirectionRef.current;
+    visualRunPhaseRef.current[scene] = phoneGroup45PhaseAfterVisualCompletion(
+      direction
+    );
     failedVisualsRef.current.add(scene);
     const target = direction === 1
       ? scene === 'figure3-animation' ? 'services' : 'lab'
@@ -465,9 +498,15 @@ export function PhoneBrandLabStory({
     scene: Group45PhoneSceneId,
     direction: VisualRunDirection
   ) => {
-    if (scene === 'figure3-animation' || scene === 'ttg-animation') {
-      handoffVisual(scene, 'complete', direction);
-    }
+    if (scene !== 'figure3-animation' && scene !== 'ttg-animation') return;
+    if (
+      visualRunRef.current !== scene
+      || visualRunDirectionRef.current !== direction
+    ) return;
+    visualRunPhaseRef.current[scene] = phoneGroup45PhaseAfterVisualCompletion(
+      direction
+    );
+    handoffVisual(scene, 'complete', direction);
   }, [handoffVisual]);
 
   const onVisualProgress = useCallback((
@@ -628,15 +667,35 @@ export function PhoneBrandLabStory({
         : false;
       if (!visualRunRef.current && !reducedMotion) {
         const nextRun = forwardDirection
-          ? crossedFigure3 && !failedVisualsRef.current.has('figure3-animation')
+          ? crossedFigure3
+              && phoneGroup45CanBeginVisualRun(
+                visualRunPhaseRef.current['figure3-animation'],
+                1
+              )
+              && !failedVisualsRef.current.has('figure3-animation')
             ? 'figure3-animation'
-            : crossedTtg && !failedVisualsRef.current.has('ttg-animation')
+            : crossedTtg
+                && phoneGroup45CanBeginVisualRun(
+                  visualRunPhaseRef.current['ttg-animation'],
+                  1
+                )
+                && !failedVisualsRef.current.has('ttg-animation')
               ? 'ttg-animation'
               : null
           : reverseDirection
-            ? crossedTtgEnd && !failedVisualsRef.current.has('ttg-animation')
+            ? crossedTtgEnd
+                && phoneGroup45CanBeginVisualRun(
+                  visualRunPhaseRef.current['ttg-animation'],
+                  -1
+                )
+                && !failedVisualsRef.current.has('ttg-animation')
               ? 'ttg-animation'
-              : crossedFigure3End && !failedVisualsRef.current.has('figure3-animation')
+              : crossedFigure3End
+                  && phoneGroup45CanBeginVisualRun(
+                    visualRunPhaseRef.current['figure3-animation'],
+                    -1
+                  )
+                  && !failedVisualsRef.current.has('figure3-animation')
                 ? 'figure3-animation'
                 : null
             : null;
@@ -648,6 +707,9 @@ export function PhoneBrandLabStory({
           if (track) {
             visualRunRef.current = nextRun;
             visualRunDirectionRef.current = runDirection;
+            visualRunPhaseRef.current[nextRun] = runDirection === 1
+              ? 'forward'
+              : 'reverse';
             scrollDirectionLockUntilRef.current = window.performance.now() + 280;
             setScrollDirection(runDirection);
             setStageScene(nextRun);

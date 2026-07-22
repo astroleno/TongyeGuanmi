@@ -29,17 +29,21 @@ describe('PhoneTtg', () => {
     expect(phoneTtgFrame(0, false, false, 1000)).toMatchObject({
       progress: 0,
       backgroundY: 0,
+      backgroundScale: 1,
       middleY: 0,
+      middleScale: 1,
       foregroundY: 110,
-      figureY: 60
+      figureY: -20
     });
     expect(phoneTtgFrame(1, false, false, 1000)).toMatchObject({
       progress: 1,
       visualProgress: 1,
       backgroundY: -110,
+      backgroundScale: 1,
       middleY: 235,
+      middleScale: 1,
       foregroundY: 190,
-      figureY: 175
+      figureY: 80
     });
     expect(phoneTtgFrame(0.4, false, true, 1000)).toMatchObject({
       progress: 1,

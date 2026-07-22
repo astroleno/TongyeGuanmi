@@ -51,12 +51,20 @@
 }
 
 .phone-figure3 .figure3-transition__sticky::after {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, .10),
-    transparent 32%,
-    rgba(41, 41, 25, .055)
-  );
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, .10),
+      transparent 32%,
+      rgba(41, 41, 25, .055)
+    ),
+    linear-gradient(
+      90deg,
+      rgba(220, 220, 208, .48),
+      transparent 18%,
+      transparent 82%,
+      rgba(220, 220, 208, .54)
+    );
 }
 
 .phone-figure3 .figure3-transition__video {
