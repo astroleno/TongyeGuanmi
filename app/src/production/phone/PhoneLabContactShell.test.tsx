@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   PhoneLabContactShell,
+  phoneLabContactDirectEntryAutoplays,
   phoneLabContactEntryScene,
   phoneLabContactInitialAdapterPlan
 } from './PhoneLabContactShell';
@@ -53,6 +54,14 @@ describe('PhoneLabContactShell', () => {
     });
   });
 
+  it('autoplays direct PH and Crane entries instead of replacing enter with an endpoint update', () => {
+    expect(phoneLabContactDirectEntryAutoplays('ph-animation', false)).toBe(true);
+    expect(phoneLabContactDirectEntryAutoplays('crane-animation', false)).toBe(true);
+    expect(phoneLabContactDirectEntryAutoplays('education', false)).toBe(false);
+    expect(phoneLabContactDirectEntryAutoplays('ph-animation', true)).toBe(false);
+    expect(shellSource).toContain('!phoneLabContactDirectEntryAutoplays(entryScene, reducedMotion)');
+  });
+
   it('never exposes the Contact lazy-loader copy in the document flow', () => {
     const markup = renderToStaticMarkup(createElement(PhoneLabContactShell, {
       validationMode: 'v36'
@@ -68,7 +77,10 @@ describe('PhoneLabContactShell', () => {
     expect(shellCss).not.toContain('var(--phone-cinematic-stage-height) * 2');
     expect(shellCss).toContain('--phone-cinematic-stage-height: max(var(--portrait-live-height), 100lvh)');
     expect(shellCss).toContain('var(--portrait-stage-coverage-height)');
+    expect(shellCss).toContain('--phone-cinematic-vh');
+    expect(shellCss).toContain('--phone-lab-contact-edge-surface');
     expect(shellSource).toContain('usePhoneLabContactViewportGeometry(rootRef, motionEnabled)');
+    expect(shellSource).toContain('widthChanged || forceRetainedGeometry');
     expect(shellSource).not.toContain("from './usePhoneViewportGeometry'");
     expect(shellCss).toContain('data-phone-lab-contact-snap="locked"');
     expect(shellCss).not.toContain('phone-lab-contact-arrival-overlap');
@@ -83,6 +95,9 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('phoneLabContactOwnsNativePlayback');
     expect(shellSource).toContain('phoneLabContactCrossedAutoplayBoundary');
     expect(shellSource).toContain('PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS');
+    expect(shellSource).toContain('INTRA_CHAPTER_DISSOLVE_MS');
+    expect(shellSource).toContain('startPhEducationHandoff');
+    expect(shellSource).toContain("window.scrollTo({ top: educationTop");
     expect(shellSource).toContain('() => releaseSnap(detail.scene)');
     expect(shellSource).toContain("window.history.scrollRestoration = 'manual'");
     expect(shellSource).toContain("scene === 'education'");

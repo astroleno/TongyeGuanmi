@@ -7,6 +7,13 @@
 }
 
 .phone-ph .r4-ph-animation {
+  --phone-ph-plate-width: min(
+    704px,
+    max(
+      160vw,
+      calc(var(--phone-cinematic-stage-height, 100lvh) * .74)
+    )
+  );
   --ph-front-base-y: clamp(
     20px,
     calc(var(--phone-cinematic-stage-height, 100lvh) * .04),
@@ -29,16 +36,16 @@
  */
 .phone-ph .ph-layer--front {
   left: 61%;
-  bottom: max(7svh, calc(env(safe-area-inset-bottom, 0px) + 48px));
-  width: min(160vw, 704px);
+  bottom: 0;
+  width: var(--phone-ph-plate-width);
   opacity: 1 !important;
   mix-blend-mode: normal;
 }
 
 .phone-ph .ph-layer--figure {
   left: 61%;
-  bottom: max(7svh, calc(env(safe-area-inset-bottom, 0px) + 48px));
-  width: min(160vw, 704px);
+  bottom: 0;
+  width: var(--phone-ph-plate-width);
 }
 
 /* Do not put the desktop edge wash back over the opaque phone island. */
@@ -47,7 +54,7 @@
 }
 
 .phone-ph .ph-texture {
-  opacity: .07;
+  opacity: 0;
 }
 
 /* Figure2 topology: H.264 is decoder-only; Canvas owns moving presentation. */

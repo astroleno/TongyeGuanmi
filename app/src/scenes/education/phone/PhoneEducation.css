@@ -1,6 +1,7 @@
 .phone-education {
   position: relative;
   width: 100%;
+  min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2);
   touch-action: pan-y;
   overscroll-behavior-y: auto;
 }
@@ -30,6 +31,21 @@
   width: 100%;
   min-height: var(--phone-cinematic-stage-height, 100svh);
   margin: 0;
+}
+
+/*
+ * PH's canonical playback ends under the snap. During the desktop-authored
+ * 600ms dissolve, the one real Education tree temporarily paints in the
+ * retained phone viewport; its host keeps the two-screen document space.
+ */
+.phone-education .r4-education[data-phone-ph-education-overlay="true"] {
+  position: fixed;
+  z-index: 4;
+  inset: 0;
+  width: 100%;
+  height: auto;
+  min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2);
+  overflow: hidden;
 }
 
 .phone-education .r4-education__wide {

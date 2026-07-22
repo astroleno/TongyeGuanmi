@@ -59,9 +59,11 @@ describe('PhoneCrane', () => {
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
     expect(autoplaySource).not.toContain('nativeGate');
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
-    expect(css).toContain('* 1.45546');
-    expect(css).toContain('704px');
-    expect(css).toContain('9dvh');
+    expect(css).toContain('--phone-crane-motion-width');
+    expect(css).toContain('* .834');
+    expect(css).toContain('--phone-crane-flock-center-y: 64.2%');
+    expect(css).toContain('position: absolute');
+    expect(css).not.toContain('9dvh');
     expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(0.42);
     expect(autoplaySource).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS * (1 - elapsed)');
   });

@@ -79,5 +79,12 @@ describe('phone Lab → Contact acceptance timeline', () => {
       169,
       1
     )).toBe(false);
+    expect(phoneLabContactCrossedAutoplayBoundary(
+      1500,
+      1542,
+      1542,
+      169,
+      1
+    )).toBe(true);
   });
 });

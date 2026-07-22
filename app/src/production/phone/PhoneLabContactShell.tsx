@@ -8,6 +8,7 @@ import {
   type RefObject
 } from 'react';
 import type { SceneId } from '../../story/types';
+import { INTRA_CHAPTER_DISSOLVE_MS } from '../../story/timings';
 import { StoryNav } from '../StoryNav';
 import { attachStoryMediaUnlock } from '../mobile-media-unlock';
 import { hashForScene, publicMenuItems, sceneFromHash } from '../navigation';
@@ -58,6 +59,22 @@ type CinematicRunState = 'idle' | 'forward' | 'complete' | 'reverse';
 
 const PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS = 5000;
 const SCENE_VISIBILITY_EPSILON_PX = 1;
+const PHONE_LAB_CONTACT_PAPER_SURFACE = '#ede4d2';
+const PHONE_LAB_CONTACT_PH_EDGE_SURFACE = '#9889a5';
+
+export function phoneLabContactDirectEntryAutoplays(
+  scene: LabContactSceneId,
+  reducedMotion: boolean
+): boolean {
+  return !reducedMotion
+    && (scene === 'ph-animation' || scene === 'crane-animation');
+}
+
+function phoneLabContactEdgeSurface(scene: LabContactSceneId): string {
+  return scene === 'ph-animation'
+    ? PHONE_LAB_CONTACT_PH_EDGE_SURFACE
+    : PHONE_LAB_CONTACT_PAPER_SURFACE;
+}
 
 /**
  * The isolated Lab → Contact acceptance route has no GSAP/ScrollTrigger
@@ -77,7 +94,8 @@ function usePhoneLabContactViewportGeometry(
 
     let frame = 0;
     let coverageHeight = 0;
-    let coverageWidth = 0;
+    let retainedWidth = 0;
+    let forceRetainedGeometry = true;
     const sync = () => {
       frame = 0;
       const viewport = window.visualViewport;
@@ -85,17 +103,24 @@ function usePhoneLabContactViewportGeometry(
       const width = Math.max(1, Math.round(viewport?.width || window.innerWidth || 1));
       const offsetTop = Math.max(0, viewport?.offsetTop || 0);
       const viewportBottom = Math.max(1, Math.ceil(height + offsetTop));
-      if (!coverageWidth || Math.abs(width - coverageWidth) > 1) {
-        coverageWidth = width;
+      const widthChanged = !retainedWidth || Math.abs(width - retainedWidth) > 1;
+      if (widthChanged) {
         coverageHeight = viewportBottom;
       } else {
         coverageHeight = Math.max(coverageHeight, viewportBottom);
       }
-      root.style.setProperty('--portrait-live-height', `${height}px`);
-      root.style.setProperty('--portrait-live-width', `${width}px`);
+      // Match the accepted Safari stage: toolbar motion may grow paint
+      // coverage, but only a real width/orientation change may replace the
+      // retained layout camera.
+      if (widthChanged || forceRetainedGeometry) {
+        retainedWidth = width;
+        forceRetainedGeometry = false;
+        root.style.setProperty('--portrait-live-height', `${height}px`);
+        root.style.setProperty('--portrait-live-width', `${width}px`);
+        root.dataset.portraitLayoutViewport = `${width}x${height}`;
+      }
       root.style.setProperty('--portrait-stage-coverage-height', `${coverageHeight}px`);
       root.dataset.portraitLiveViewport = `${width}x${height}`;
-      root.dataset.portraitLayoutViewport = `${width}x${height}`;
       root.dataset.portraitStageCoverage = `${coverageHeight}px`;
       root.dataset.portraitViewportOffsetTop = `${Math.ceil(offsetTop)}px`;
       root.dataset.portraitViewportBottom = `${viewportBottom}px`;
@@ -103,23 +128,33 @@ function usePhoneLabContactViewportGeometry(
     const schedule = () => {
       if (!frame) frame = window.requestAnimationFrame(sync);
     };
+    const forceGeometry = () => {
+      forceRetainedGeometry = true;
+      retainedWidth = 0;
+      schedule();
+    };
 
     sync();
     window.visualViewport?.addEventListener('resize', schedule);
     window.visualViewport?.addEventListener('scroll', schedule);
     window.addEventListener('resize', schedule);
-    window.addEventListener('orientationchange', schedule);
-    document.addEventListener('fullscreenchange', schedule);
+    window.addEventListener('orientationchange', forceGeometry);
+    document.addEventListener('fullscreenchange', forceGeometry);
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       window.visualViewport?.removeEventListener('resize', schedule);
       window.visualViewport?.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
-      window.removeEventListener('orientationchange', schedule);
-      document.removeEventListener('fullscreenchange', schedule);
+      window.removeEventListener('orientationchange', forceGeometry);
+      document.removeEventListener('fullscreenchange', forceGeometry);
       root.style.removeProperty('--portrait-live-height');
       root.style.removeProperty('--portrait-live-width');
       root.style.removeProperty('--portrait-stage-coverage-height');
+      delete root.dataset.portraitLiveViewport;
+      delete root.dataset.portraitLayoutViewport;
+      delete root.dataset.portraitStageCoverage;
+      delete root.dataset.portraitViewportOffsetTop;
+      delete root.dataset.portraitViewportBottom;
       delete documentElement.dataset.portraitSpike;
       delete documentElement.dataset.portraitSpikeMotion;
     };
@@ -360,6 +395,11 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   const snapLockRef = useRef<PhoneLabContactSnapLock | null>(null);
   const currentNavigationScene = useRef<SceneId>(entryScene);
   const currentActiveScene = useRef<LabContactSceneId>(entryScene);
+  const previousEdgeSurfaceRef = useRef<Readonly<{
+    documentSurface: string;
+    edgeScene: string | undefined;
+    themeColor: string | undefined;
+  }> | null>(null);
   const motionEnabled = phoneMotionEnabled();
   const reducedMotion = !motionEnabled;
   const fullJourney = entryScene === 'lab';
@@ -401,6 +441,11 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   const [craneContactRef, bindCraneContact] = usePhoneAdapterHandleRef<PhoneTransitionAdapterHandle>(
     publishAdapterRevision
   );
+  const latestPhEducationRef = useRef<PhoneTransitionAdapterHandle | null>(null);
+
+  useEffect(() => {
+    latestPhEducationRef.current = phEducationRef.current;
+  }, [adapterRevision, phEducationRef]);
 
   const publishNavigationScene = useCallback((scene: SceneId) => {
     if (currentNavigationScene.current === scene) return;
@@ -423,6 +468,48 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     return () => {
       delete documentElement.dataset.phoneLabContactAcceptance;
     };
+  }, []);
+
+  useLayoutEffect(() => {
+    const documentElement = document.documentElement;
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (!previousEdgeSurfaceRef.current) {
+      previousEdgeSurfaceRef.current = {
+        documentSurface: documentElement.style.getPropertyValue(
+          '--phone-lab-contact-edge-surface'
+        ),
+        edgeScene: documentElement.dataset.phoneLabContactEdgeScene,
+        themeColor: themeColor?.content
+      };
+    }
+    const surface = phoneLabContactEdgeSurface(activeScene);
+    documentElement.style.setProperty('--phone-lab-contact-edge-surface', surface);
+    documentElement.dataset.phoneLabContactEdgeScene = activeScene;
+    rootRef.current?.style.setProperty('--phone-lab-contact-edge-surface', surface);
+    if (themeColor) themeColor.content = surface;
+  }, [activeScene]);
+
+  useEffect(() => () => {
+    const documentElement = document.documentElement;
+    const previous = previousEdgeSurfaceRef.current;
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (previous?.documentSurface) {
+      documentElement.style.setProperty(
+        '--phone-lab-contact-edge-surface',
+        previous.documentSurface
+      );
+    } else {
+      documentElement.style.removeProperty('--phone-lab-contact-edge-surface');
+    }
+    if (previous?.edgeScene) {
+      documentElement.dataset.phoneLabContactEdgeScene = previous.edgeScene;
+    } else {
+      delete documentElement.dataset.phoneLabContactEdgeScene;
+    }
+    if (themeColor && previous?.themeColor !== undefined) {
+      themeColor.content = previous.themeColor;
+    }
+    rootRef.current?.style.removeProperty('--phone-lab-contact-edge-surface');
   }, []);
 
   // A physical reload can restore the old document Y before the lazy Lab
@@ -463,6 +550,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     snapLockRef.current = snapLock;
     let lockedScene: PhoneLabContactAutoplayEventDetail['scene'] | null = null;
     let snapTimeout = 0;
+    let handoffFrame = 0;
 
     const releaseSnap = (
       scene: PhoneLabContactAutoplayEventDetail['scene']
@@ -473,6 +561,66 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       snapLock.release();
       lockedScene = null;
       delete root.dataset.phoneLabContactSnapScene;
+    };
+
+    const completePhEducationHandoff = () => {
+      const transition = latestPhEducationRef.current;
+      const education = educationSlotRef.current;
+      if (!transition || !education) {
+        releaseSnap('ph-animation');
+        return;
+      }
+      transition.render(1);
+      releaseSnap('ph-animation');
+      const educationTop = education.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: educationTop, left: 0, behavior: 'auto' });
+      transition.leave?.();
+      publishNavigationScene('education');
+      publishActiveScene('education');
+      syncSceneLifecycle(
+        lifecycleStates.current,
+        'ph-animation',
+        phRef.current,
+        false
+      );
+      syncSceneLifecycle(
+        lifecycleStates.current,
+        'education',
+        educationRef.current,
+        true
+      );
+    };
+
+    const startPhEducationHandoff = (waitingSince = performance.now()) => {
+      const transition = latestPhEducationRef.current;
+      if (!transition) {
+        if (performance.now() - waitingSince < 1000) {
+          handoffFrame = window.requestAnimationFrame(() => {
+            handoffFrame = 0;
+            startPhEducationHandoff(waitingSince);
+          });
+          return;
+        }
+        releaseSnap('ph-animation');
+        return;
+      }
+      transition.enter?.();
+      let startedAt = 0;
+      const tick: FrameRequestCallback = (now) => {
+        handoffFrame = 0;
+        if (!startedAt) startedAt = now;
+        const progress = Math.min(
+          1,
+          Math.max(0, (now - startedAt) / INTRA_CHAPTER_DISSOLVE_MS)
+        );
+        transition.render(progress);
+        if (progress >= 1) {
+          completePhEducationHandoff();
+          return;
+        }
+        handoffFrame = window.requestAnimationFrame(tick);
+      };
+      handoffFrame = window.requestAnimationFrame(tick);
     };
 
     const onAutoplay = (event: Event) => {
@@ -519,6 +667,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       cinematicRunStates.current[detail.scene] = detail.direction === 1
         ? 'complete'
         : 'idle';
+      if (detail.scene === 'ph-animation' && detail.direction === 1) {
+        startPhEducationHandoff();
+        return;
+      }
       releaseSnap(detail.scene);
     };
 
@@ -526,6 +678,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     return () => {
       root.removeEventListener(PHONE_LAB_CONTACT_AUTOPLAY_EVENT, onAutoplay);
       if (snapTimeout) window.clearTimeout(snapTimeout);
+      if (handoffFrame) window.cancelAnimationFrame(handoffFrame);
       snapLock.release();
       snapLock.dispose();
       if (snapLockRef.current === snapLock) snapLockRef.current = null;
@@ -561,7 +714,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     }[entryScene];
     if (!handle) return;
     syncSceneLifecycle(lifecycleStates.current, entryScene, handle, true);
-    handle.update(1);
+    if (!phoneLabContactDirectEntryAutoplays(entryScene, reducedMotion)) {
+      handle.update(1);
+    }
     if (entryScene === 'ph-animation' || entryScene === 'crane-animation') {
       setVisualEndpoint(handle, 1);
     }
@@ -569,7 +724,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       document.getElementById(entryScene)?.scrollIntoView({ block: 'start' });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [adapterRevision, entryScene, fullJourney]);
+  }, [adapterRevision, entryScene, fullJourney, reducedMotion]);
 
   useEffect(() => {
     if (!fullJourney) return;
@@ -690,6 +845,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
 
         publishNavigationScene(scene);
         publishActiveScene(scene);
+        if (scene === 'ph-animation') {
+          ensureScene('education');
+          ensureTransition('ph-education');
+        }
         setStageActive(stage, true);
         setVisualEndpoint(handle, 1);
         if (scene === 'ph-animation') {
@@ -899,6 +1058,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       data-phone-acceptance-route="lab-contact"
       data-phone-acceptance-motion={motionEnabled ? 'force' : 'reduce'}
       data-phone-acceptance-load={failed ? 'fallback' : 'ready'}
+      data-phone-acceptance-active-scene={activeScene}
     >
       {fullJourney ? (
         <>

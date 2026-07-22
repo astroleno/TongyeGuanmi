@@ -77,6 +77,7 @@ describe('phone native autoplay', () => {
 
   it('keeps a blocked run retryable and reports a real media error', async () => {
     const video = new FakeVideo();
+    const gestures = new EventTarget();
     video.play.mockRejectedValueOnce(new Error('blocked'));
     const failure = vi.fn();
     const controller = createPhoneNativeAutoplay(
@@ -86,6 +87,7 @@ describe('phone native autoplay', () => {
         onProgress: vi.fn(),
         onComplete: vi.fn(),
         onFailure: failure,
+        gestureTarget: gestures,
         requestFrame: () => 1,
         cancelFrame: vi.fn()
       }
@@ -96,7 +98,7 @@ describe('phone native autoplay', () => {
     await Promise.resolve();
     expect(video.dataset.phoneNativeAutoplay).toBe('blocked');
 
-    controller.retry();
+    gestures.dispatchEvent(new Event('touchmove'));
     await Promise.resolve();
     expect(video.dataset.phoneNativeAutoplay).toBe('playing');
 
@@ -104,6 +106,31 @@ describe('phone native autoplay', () => {
     expect(video.dataset.phoneNativeAutoplay).toBe('failed');
     expect(failure).toHaveBeenCalledOnce();
 
+    controller.dispose();
+  });
+
+  it('recovers when the iOS unlock promise pauses an active native run', async () => {
+    const video = new FakeVideo();
+    const controller = createPhoneNativeAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 1,
+        onProgress: vi.fn(),
+        onComplete: vi.fn(),
+        onFailure: vi.fn(),
+        requestFrame: () => 1,
+        cancelFrame: vi.fn()
+      }
+    );
+
+    controller.start();
+    await Promise.resolve();
+    video.pause();
+    await Promise.resolve();
+
+    expect(video.play).toHaveBeenCalledTimes(2);
+    expect(video.paused).toBe(false);
+    expect(video.dataset.phoneNativeAutoplay).toBe('playing');
     controller.dispose();
   });
 

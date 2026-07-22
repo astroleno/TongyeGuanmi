@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { FakeElement } from '../__fixtures__/back-half.fixture';
 import {
   applyPhonePhEducationFrame,
-  PHONE_PH_EDUCATION_ANIMATION_STOP,
   PHONE_PH_EDUCATION_DECISION,
+  PHONE_PH_EDUCATION_DISSOLVE_MS,
+  PHONE_PH_EDUCATION_PLAYBACK_MS,
   phonePhEducationFallbackFrame,
   phonePhEducationFrame
 } from './phone';
@@ -15,22 +16,23 @@ describe('Phone PH → Education transition', () => {
   it('documents the terminal-PH plus native-Education dissolve decision', () => {
     expect(PHONE_PH_EDUCATION_DECISION).toMatchObject({
       mode: 'endpoint-dissolve',
-      source: 'canonical-ph-timing'
+      source: 'canonical-intra-chapter-dissolve'
     });
+    expect(PHONE_PH_EDUCATION_PLAYBACK_MS).toBe(1520);
+    expect(PHONE_PH_EDUCATION_DISSOLVE_MS).toBe(600);
     expect(source).not.toContain('<canvas');
     expect(source).not.toMatch(/createPhoneInk/);
     expect(source).not.toContain('preparePhAnimationFrame');
     expect(source).not.toContain('parkPhonePhMedia');
     expect(source).not.toContain('renderPhonePhAnimationProgress');
+    expect(source).toContain('setEducationOverlay');
   });
 
-  it('runs PH to its terminal frame before immediately dissolving to Education', () => {
-    const atStop = phonePhEducationFrame(PHONE_PH_EDUCATION_ANIMATION_STOP);
-    const midpoint = phonePhEducationFrame(
-      (PHONE_PH_EDUCATION_ANIMATION_STOP + 1) / 2
-    );
+  it('starts at PH terminal frame and runs only the short Education dissolve', () => {
+    const atStart = phonePhEducationFrame(0);
+    const midpoint = phonePhEducationFrame(0.5);
 
-    expect(atStop).toMatchObject({
+    expect(atStart).toMatchObject({
       phProgress: 1,
       educationProgress: 0,
       phOpacity: 1,
@@ -40,6 +42,17 @@ describe('Phone PH → Education transition', () => {
     expect(midpoint.educationProgress).toBeCloseTo(0.5, 8);
     expect(midpoint.phOpacity).toBeCloseTo(0.5, 8);
     expect(midpoint.educationOpacity).toBeCloseTo(0.5, 8);
+
+    const ph = new FakeElement();
+    const education = new FakeElement();
+    ph.dataset.r4Scene = 'ph-animation';
+    education.dataset.r4Scene = 'education';
+    applyPhonePhEducationFrame(
+      ph as unknown as HTMLElement,
+      education as unknown as HTMLElement,
+      0.5
+    );
+    expect(education.style.values.get('--r4-education-opacity')).toBe('1.0000');
   });
 
   it('keeps the Education receiver in native document flow at the stable endpoint', () => {
@@ -62,9 +75,9 @@ describe('Phone PH → Education transition', () => {
   });
 
   it('returns through the same sampled frames and lands on Education after media failure', () => {
-    const forward = [0, PHONE_PH_EDUCATION_ANIMATION_STOP, 1]
+    const forward = [0, 0.5, 1]
       .map((value) => phonePhEducationFrame(value));
-    const reverse = [1, PHONE_PH_EDUCATION_ANIMATION_STOP, 0]
+    const reverse = [1, 0.5, 0]
       .map((value) => phonePhEducationFrame(value));
 
     expect(forward.map(({ progress }) => progress)).toEqual(
@@ -79,7 +92,7 @@ describe('Phone PH → Education transition', () => {
 
   it('keeps the full ordered endpoint sequence under reduced motion', () => {
     expect(phonePhEducationFrame(0.49, true)).toMatchObject({
-      phProgress: 0,
+      phProgress: 1,
       educationProgress: 0
     });
     expect(phonePhEducationFrame(0.5, true)).toMatchObject({

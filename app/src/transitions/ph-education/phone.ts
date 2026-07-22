@@ -23,10 +23,6 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function range01(value: number, start: number, end: number): number {
-  return clamp((value - start) / Math.max(0.0001, end - start));
-}
-
 function transitionProgress(rawProgress: number, reducedMotion: boolean): number {
   const progress = clamp(rawProgress);
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
@@ -49,12 +45,12 @@ function applyEndpointVisibility(element: HTMLElement | null, opacity: number): 
  */
 export const PHONE_PH_EDUCATION_DECISION = Object.freeze({
   mode: 'endpoint-dissolve',
-  source: 'canonical-ph-timing',
-  reason: 'The validated phone endpoint is PH terminal frame plus native Education.'
+  source: 'canonical-intra-chapter-dissolve',
+  reason: 'Phone PH owns native playback first, then the desktop 600ms endpoint dissolve reveals native Education.'
 } as const);
 
-export const PHONE_PH_EDUCATION_ANIMATION_STOP = PH_PLAYBACK_MS
-  / (PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS);
+export const PHONE_PH_EDUCATION_PLAYBACK_MS = PH_PLAYBACK_MS;
+export const PHONE_PH_EDUCATION_DISSOLVE_MS = INTRA_CHAPTER_DISSOLVE_MS;
 
 export type PhonePhEducationFrame = Readonly<{
   progress: number;
@@ -69,12 +65,10 @@ export function phonePhEducationFrame(
   reducedMotion = false
 ): PhonePhEducationFrame {
   const progress = transitionProgress(rawProgress, reducedMotion);
-  const phProgress = clamp(progress / PHONE_PH_EDUCATION_ANIMATION_STOP);
-  const educationProgress = range01(
-    progress,
-    PHONE_PH_EDUCATION_ANIMATION_STOP,
-    1
-  );
+  // PhonePh has already completed its canonical native-clock run. This
+  // adapter is only the short second leg from the desktop handoff.
+  const phProgress = 1;
+  const educationProgress = progress;
   return {
     progress,
     phProgress,
@@ -100,12 +94,25 @@ export function applyPhonePhEducationFrame(
   // PH is the only owner of its video/clock. This Grade B bridge merely
   // holds its canonical visual endpoint while it dissolves to native reading.
   renderPhAnimationProgress(from, frame.phProgress);
-  renderEducationProgress(to, frame.educationProgress);
+  // Desktop prepares Education's final hold before the dissolve. Keep the
+  // same target state here and let the root opacity be the only bridge clock.
+  renderEducationProgress(to, 1);
   applyEndpointVisibility(from, frame.phOpacity);
   applyEndpointVisibility(to, frame.educationOpacity);
   from?.setAttribute('data-phone-ph-education-handoff', 'source');
   to?.setAttribute('data-phone-ph-education-handoff', 'receiver');
   return frame;
+}
+
+function setEducationOverlay(to: HTMLElement | null, active: boolean): void {
+  const wrapper = to?.closest<HTMLElement>('.phone-education');
+  if (active) {
+    to?.setAttribute('data-phone-ph-education-overlay', 'true');
+    wrapper?.setAttribute('data-phone-ph-education-overlay-host', 'true');
+  } else {
+    to?.removeAttribute('data-phone-ph-education-overlay');
+    wrapper?.removeAttribute('data-phone-ph-education-overlay-host');
+  }
 }
 
 export const PhonePhEducationTransition = forwardRef<
@@ -126,15 +133,21 @@ export const PhonePhEducationTransition = forwardRef<
   useImperativeHandle(forwardedRef, () => ({
     render,
     enter() {
+      setEducationOverlay(to, true);
       render(0);
     },
     leave() {
       render(1);
+      setEducationOverlay(to, false);
     },
     reverse() {
+      setEducationOverlay(to, true);
       render(0);
+    },
+    dispose() {
+      setEducationOverlay(to, false);
     }
-  }), [render]);
+  }), [render, to]);
 
   return null;
 });

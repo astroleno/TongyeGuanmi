@@ -117,12 +117,15 @@ export function phoneLabContactCrossedAutoplayBoundary(
   phaseDistance: number,
   direction: 1 | -1
 ): boolean {
+  // Forward playback begins when the retained camera first reaches the
+  // viewport. Waiting for the 1% dissolve lane required a second swipe when
+  // physical Safari landed exactly on the chapter boundary.
   const boundaryProgress = direction === 1
-    ? PHONE_LAB_CONTACT_STOPS.handoffEnd
+    ? 0
     : PHONE_LAB_CONTACT_STOPS.sceneMotionEnd;
   const boundaryY = phaseTop
     + Math.max(1, phaseDistance) * boundaryProgress;
   return direction === 1
-    ? previousScrollY <= boundaryY && nextScrollY > boundaryY
+    ? previousScrollY < boundaryY && nextScrollY >= boundaryY
     : previousScrollY >= boundaryY && nextScrollY < boundaryY;
 }

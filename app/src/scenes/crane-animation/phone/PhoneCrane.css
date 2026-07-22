@@ -15,10 +15,37 @@
  */
 .phone-crane .r4-crane-animation {
   --crane-flock-x: 0px;
-  --crane-flock-base-y: 0svh;
+  --crane-flock-base-y: 0px;
   --crane-flock-scale: 1.06;
+  --phone-crane-motion-width: min(
+    calc(var(--phone-cinematic-stage-height, 100lvh) * .834),
+    820px
+  );
+  --phone-crane-figure-shift-y: calc(
+    var(--phone-cinematic-stage-height, 100lvh) * .09
+  );
+  /* Opening-frame feet (source y≈306/396) meet the centre roof ridge. */
+  --phone-crane-flock-center-y: 64.2%;
   height: 100%;
   min-height: 100%;
+}
+
+/*
+ * The canonical transition is a grid containing the hidden decoder and the
+ * injected Canvas. Letting the Canvas auto-place creates a second grid row,
+ * so its vertical camera changes with viewport height. Canvas owns one
+ * explicit stage coordinate instead.
+ */
+.phone-crane .r4-crane-animation .phone-crane__figure-canvas,
+.phone-crane .r4-crane-animation .phone-crane__flock-canvas {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  width: var(--phone-crane-motion-width);
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: fill;
+  opacity: 0;
 }
 
 /* AOD topology: canonical videos decode packed H.264 but never paint. */
@@ -36,29 +63,44 @@
   opacity: var(--crane-flock-opacity);
 }
 
-.phone-crane .r4-crane-animation .phone-crane__figure-canvas,
-.phone-crane .r4-crane-animation .phone-crane__flock-canvas {
-  width: min(
-    calc(var(--phone-cinematic-stage-height, var(--portrait-stage-height, 100svh)) * 1.45546),
-    704px
-  );
-  height: auto;
-  aspect-ratio: 16 / 9;
-  object-fit: fill;
-  opacity: 0;
-}
-
 .phone-crane .r4-crane-animation .phone-crane__figure-canvas {
-  transform: translate3d(0, 9dvh, 0);
+  top: 50%;
+  transform: translate3d(
+    -50%,
+    calc(-50% + var(--phone-crane-figure-shift-y)),
+    0
+  );
 }
 
 .phone-crane .r4-crane-animation .phone-crane__flock-canvas {
+  top: var(--phone-crane-flock-center-y);
   transform: translate3d(
-      var(--crane-flock-x),
-      calc(var(--crane-flock-base-y) + var(--crane-flock-y) + 9dvh),
+      calc(-50% + var(--crane-flock-x)),
+      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y)),
       0
     )
     scale(var(--crane-flock-scale));
+}
+
+/* Static plates use the same retained-height camera as both moving plates. */
+.phone-crane .r4-crane-animation .crane-layer--cloud-back {
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * .125);
+  width: calc(var(--phone-cinematic-stage-height, 100lvh) * .875);
+}
+
+.phone-crane .r4-crane-animation .crane-layer--arch {
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * .0592);
+  width: calc(var(--phone-cinematic-stage-height, 100lvh) * .9763);
+}
+
+.phone-crane .r4-crane-animation .crane-layer--cloud-front {
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * -.044);
+  width: calc(var(--phone-cinematic-stage-height, 100lvh) * 1.068);
+}
+
+.phone-crane .r4-crane-animation .crane-layer--cloud-front-second {
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * -.0011);
+  width: calc(var(--phone-cinematic-stage-height, 100lvh) * 1.033);
 }
 
 .phone-crane [data-phone-crane-figure-alpha="verified"] .phone-crane__figure-canvas[data-packed-alpha-frame-ready="true"] {

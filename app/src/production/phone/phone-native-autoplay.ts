@@ -24,6 +24,7 @@ type PhoneNativeAutoplayOptions = Readonly<{
   cancelFrame?: (frame: number) => void;
   setTimer?: (callback: () => void, timeoutMs: number) => PhoneNativeTimer;
   clearTimer?: (timer: PhoneNativeTimer) => void;
+  gestureTarget?: EventTarget;
 }>;
 
 const HAVE_CURRENT_DATA = 2;
@@ -52,6 +53,7 @@ export function createPhoneNativeAutoplay(
     ?? ((callback: () => void, timeoutMs: number) => globalThis.setTimeout(callback, timeoutMs));
   const clearTimer = options.clearTimer
     ?? ((timer: PhoneNativeTimer) => globalThis.clearTimeout(timer));
+  const gestureTarget = options.gestureTarget ?? video.ownerDocument;
   const duration = Math.max(0.001, options.durationSeconds);
   const stallTimeoutMs = Math.max(
     1,
@@ -166,6 +168,13 @@ export function createPhoneNativeAutoplay(
       () => {
         if (disposed || !active || attempt !== playAttempt) return;
         playPending = false;
+        // iOS's one-time media unlock can resolve after this run starts and
+        // immediately pause the same muted decoder. Recover that race while
+        // the native run still owns time.
+        if (video.paused) {
+          play();
+          return;
+        }
         video.dataset.phoneNativeAutoplay = 'playing';
         markFrameReady();
         schedule();
@@ -198,7 +207,12 @@ export function createPhoneNativeAutoplay(
   };
   const onPause = () => {
     cancelScheduledFrame();
-    if (active) render();
+    if (!active) return;
+    render();
+    if (!visibilityDocument?.hidden) play();
+  };
+  const onGesture = () => {
+    if (active && !visibilityDocument?.hidden) play();
   };
   const onEnded = () => complete();
   const onError = () => fail();
@@ -225,6 +239,10 @@ export function createPhoneNativeAutoplay(
   video.addEventListener('ended', onEnded);
   video.addEventListener('error', onError);
   visibilityDocument?.addEventListener('visibilitychange', onVisibilityChange);
+  gestureTarget?.addEventListener('touchstart', onGesture, { passive: true });
+  gestureTarget?.addEventListener('touchmove', onGesture, { passive: true });
+  gestureTarget?.addEventListener('pointerdown', onGesture, { passive: true });
+  gestureTarget?.addEventListener('keydown', onGesture);
 
   const stopCurrentRun = () => {
     active = false;
@@ -288,6 +306,10 @@ export function createPhoneNativeAutoplay(
       video.removeEventListener('ended', onEnded);
       video.removeEventListener('error', onError);
       visibilityDocument?.removeEventListener('visibilitychange', onVisibilityChange);
+      gestureTarget?.removeEventListener('touchstart', onGesture);
+      gestureTarget?.removeEventListener('touchmove', onGesture);
+      gestureTarget?.removeEventListener('pointerdown', onGesture);
+      gestureTarget?.removeEventListener('keydown', onGesture);
       delete video.dataset.phoneNativeAutoplay;
       delete video.dataset.phoneNativeAutoplayProgress;
       delete video.dataset.phoneNativeFrameReady;
