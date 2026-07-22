@@ -65,7 +65,7 @@ const GROUP45_EDGE_BY_SCENE: Readonly<Record<Group45PhoneSceneId, Group45EdgeSta
   'figure3-animation': { surface: '#ede4d2', themeColor: '#ede4d2' },
   services: { surface: '#ede4d2', themeColor: '#ede4d2' },
   'ttg-animation': { surface: '#080d10', themeColor: '#080d10' },
-  lab: { surface: '#e9e1ce', themeColor: '#e9e1ce' }
+  lab: { surface: '#ede4d2', themeColor: '#ede4d2' }
 };
 
 function clamp(value: number): number {

@@ -32,8 +32,9 @@ function fakeEndpoint(): HTMLElement {
 describe('Phone TTG → Lab transition', () => {
   it('records the reviewed endpoint/dissolve decision', () => {
     expect(PHONE_TTG_LAB_DECISION).toMatchObject({
-      strategy: 'desktop-timed-dissolve',
+      strategy: 'desktop-overlay-dissolve',
       camera: 'stable-ttg-terminal-frame',
+      topology: 'lab-receiver-over-retained-ttg-source',
       dissolveStart: PHONE_TTG_LAB_ANIMATION_STOP,
       forwardEndpoint: 'lab:reading-top',
       reverseEndpoint: 'ttg-animation:stable-terminal-then-reverse'
@@ -55,7 +56,7 @@ describe('Phone TTG → Lab transition', () => {
     });
     expect(phoneTtgLabFrame(1)).toEqual({
       progress: 1,
-      fromOpacity: 0,
+      fromOpacity: 1,
       toOpacity: 1
     });
     expect(phoneTtgLabFrame(0, false, false, -1)).toEqual({
@@ -63,6 +64,18 @@ describe('Phone TTG → Lab transition', () => {
       fromOpacity: 1,
       toOpacity: 0
     });
+  });
+
+  it('keeps the retained TTG figure fully presented under the Lab overlay', () => {
+    const frame = phoneTtgLabFrame(
+      (1 + PHONE_TTG_LAB_ANIMATION_STOP) / 2,
+      false,
+      false,
+      -1
+    );
+
+    expect(frame.fromOpacity).toBe(1);
+    expect(frame.toOpacity).toBeCloseTo(.5);
   });
 
   it('keeps TTG hidden while committing Lab at the shared boundary', () => {

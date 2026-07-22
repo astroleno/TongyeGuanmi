@@ -12,12 +12,13 @@ import { PHONE_TTG_LAB_ANIMATION_STOP } from '../../scenes/ttg-animation/phone/m
 import type { TransitionPresentationAdapterHandle } from '../../story/presentation';
 
 export const PHONE_TTG_LAB_DECISION = {
-  strategy: 'desktop-timed-dissolve',
+  strategy: 'desktop-overlay-dissolve',
   camera: 'stable-ttg-terminal-frame',
+  topology: 'lab-receiver-over-retained-ttg-source',
   dissolveStart: PHONE_TTG_LAB_ANIMATION_STOP,
   forwardEndpoint: 'lab:reading-top',
   reverseEndpoint: 'ttg-animation:stable-terminal-then-reverse',
-  rationale: 'Match desktop TTG → Lab: finish TTG media, then dissolve the same Lab document root over the final 600 ms. Reverse prepares TTG terminal before uncovering it.'
+  rationale: 'Match desktop TTG → Lab: the same Lab document root dissolves over a fully presented TTG terminal frame. Reverse fades only Lab away, so Safari never composites the retained figure video through a translucent scene ancestor.'
 } as const;
 
 export type PhoneTtgLabFrame = Readonly<{
@@ -44,7 +45,10 @@ export function phoneTtgLabFrame(
         (chapterProgress - PHONE_TTG_LAB_ANIMATION_STOP)
           / (1 - PHONE_TTG_LAB_ANIMATION_STOP)
       );
-  return { progress, fromOpacity: 1 - progress, toOpacity: progress };
+  // TTG is the retained source plate. Lab alone owns the dissolve opacity:
+  // fading the TTG ancestor makes Safari defer its alpha-video plane until
+  // the ancestor returns to opacity 1, which hides the figure in reverse.
+  return { progress, fromOpacity: 1, toOpacity: progress };
 }
 
 function applyEndpoint(
@@ -120,7 +124,7 @@ export const PhoneTtgLabTransition = forwardRef<
       directionRef.current
     );
     if (host) {
-      host.dataset.phoneTransition = 'ttg-lab:desktop-timed-dissolve';
+      host.dataset.phoneTransition = 'ttg-lab:desktop-overlay-dissolve';
       host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
     }
     applyEndpoint(

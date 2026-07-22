@@ -36,6 +36,10 @@ const ttgStyles = readFileSync(
   new URL('../../scenes/ttg-animation/phone/PhoneTtg.css', import.meta.url),
   'utf8'
 );
+const ttgLabTransition = readFileSync(
+  new URL('../../transitions/ttg-lab/phone.ts', import.meta.url),
+  'utf8'
+);
 const labStyles = readFileSync(
   new URL('../../scenes/lab/phone/PhoneLab.css', import.meta.url),
   'utf8'
@@ -115,8 +119,22 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
   });
 
+  it('keeps TTG fully presented while the single Lab root owns the dissolve', () => {
+    expect(ttgLabTransition).toContain("strategy: 'desktop-overlay-dissolve'");
+    expect(ttgLabTransition).toContain('fromOpacity: 1');
+    expect(ttgLabTransition).toContain(
+      'lab-receiver-over-retained-ttg-source'
+    );
+  });
+
   it('uses one continuous Lab paper across both document screens', () => {
-    expect(labStyles).toMatch(/\.phone-lab\s*\{[^}]+#e9e1ce/s);
+    expect(labStyles).toMatch(
+      /\.phone-lab\s*\{[^}]+background:\s*#ede4d2/s
+    );
+    expect(labStyles).not.toContain('radial-gradient');
+    expect(storySource).toContain(
+      "lab: { surface: '#ede4d2', themeColor: '#ede4d2' }"
+    );
     expect(labStyles.match(/background:\s*transparent/g)).toHaveLength(2);
     expect(labStyles).not.toContain('linear-gradient(180deg, #eee7d8');
     expect(labStyles).not.toContain('phone-ttg-lab-bridge');
