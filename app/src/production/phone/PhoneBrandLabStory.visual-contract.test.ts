@@ -21,6 +21,10 @@ const figure3Styles = readFileSync(
   new URL('../../scenes/figure3-animation/phone/PhoneFigure3.css', import.meta.url),
   'utf8'
 );
+const figure3Scene = readFileSync(
+  new URL('../../scenes/figure3-animation/phone/PhoneFigure3.tsx', import.meta.url),
+  'utf8'
+);
 const figure3PaperCompositor = readFileSync(
   new URL(
     '../../scenes/figure3-animation/phone/paper-compositor.ts',
@@ -76,6 +80,9 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(figure3Styles).toMatch(
       /figure3-transition__stage[^}]+background:\s*var\(--phone-figure3-paper\)/s
     );
+    expect(figure3Scene).toContain('data-phone-figure3-endpoint-ready');
+    expect(figure3Scene).toContain('prepareTimelineVideoFrame');
+    expect(figure3Scene).toContain('phoneFigure3CanStartPreparedRun');
   });
 
   it('keeps the Brand → Figure3 document paper flat beneath the authored scene', () => {

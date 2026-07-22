@@ -3,8 +3,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   PhoneFigure3,
+  phoneFigure3CanStartPreparedRun,
   phoneFigure3Frame,
   phoneFigure3MediaAction,
+  phoneFigure3RunStartEndpoint,
   releasePhoneFigure3Video
 } from './PhoneFigure3';
 
@@ -52,6 +54,17 @@ describe('PhoneFigure3', () => {
     expect(phoneFigure3MediaAction(false, true, false, false, true, 1)).toBe('hold-terminal');
     expect(phoneFigure3MediaAction(false, true, false, false, true, -1)).toBe('hold-terminal');
     expect(phoneFigure3MediaAction(false, false)).toBe('release');
+  });
+
+  it('waits for the physically presented endpoint required by each direction', () => {
+    expect(phoneFigure3RunStartEndpoint(1)).toBe(0);
+    expect(phoneFigure3RunStartEndpoint(-1)).toBe(1);
+    expect(phoneFigure3CanStartPreparedRun(1, null)).toBe(false);
+    expect(phoneFigure3CanStartPreparedRun(1, 1)).toBe(false);
+    expect(phoneFigure3CanStartPreparedRun(1, 0)).toBe(true);
+    expect(phoneFigure3CanStartPreparedRun(-1, null)).toBe(false);
+    expect(phoneFigure3CanStartPreparedRun(-1, 0)).toBe(false);
+    expect(phoneFigure3CanStartPreparedRun(-1, 1)).toBe(true);
   });
 
   it('disposes the retired video source and decoder', () => {
