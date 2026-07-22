@@ -21,8 +21,7 @@ export const frontHalfProductMedia = [
   { id: 'hero-figure-packed', owner: 'hero', asset: 'figure1-rgb-alpha.mp4', kind: 'video' },
   { id: 'pattern-background', owner: 'pattern', asset: 'pattern-background.webp', kind: 'image' },
   { id: 'star-map-source', owner: 'star-map', asset: 'back2.webp', kind: 'image' },
-  { id: 'aod-figure-packed-forward', owner: 'aod-animation', asset: 'aod-figure-motion-rgb-alpha.mp4', kind: 'video' },
-  { id: 'aod-figure-packed-reverse', owner: 'aod-animation', asset: 'aod-figure-motion-rgb-alpha-reverse.mp4', kind: 'video' }
+  { id: 'aod-figure-packed', owner: 'aod-animation', asset: 'aod-figure-motion-rgb-alpha.mp4', kind: 'video' }
 ] as const satisfies readonly ProductMediaSpec[];
 
 /**

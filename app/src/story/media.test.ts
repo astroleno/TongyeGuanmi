@@ -16,8 +16,7 @@ describe('front-half product media', () => {
       'hero-figure-packed',
       'pattern-background',
       'star-map-source',
-      'aod-figure-packed-forward',
-      'aod-figure-packed-reverse'
+      'aod-figure-packed'
     ]);
     expect(frontHalfProductMediaFor('star-map-source')).toMatchObject({
       owner: 'star-map',

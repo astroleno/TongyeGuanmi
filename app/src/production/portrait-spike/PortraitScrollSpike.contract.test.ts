@@ -96,6 +96,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*inset:\s*0[^}]*height:\s*auto[^}]*min-height:\s*0/s
     );
+    expect(railCss).not.toContain('.portrait-scroll-spike__stage::after');
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage-canvas\s*\{[^}]*top:\s*0[^}]*right:\s*0[^}]*left:\s*0[^}]*height:\s*var\(--portrait-stage-canvas-height\)[^}]*overflow:\s*clip/s
     );
@@ -112,26 +113,22 @@ describe('Route B proven front-half migration contract', () => {
       /--portrait-stage-height:\s*max\(\s*var\(--portrait-live-height\),\s*100lvh\s*\)/s
     );
     expect(shellCss).toMatch(
-      /--portrait-stage-canvas-height:\s*max\(\s*var\(--portrait-stage-height\),\s*var\(--portrait-stage-coverage-height\)\s*\)/s
+      /--portrait-stage-canvas-height:\s*var\(--portrait-stage-height\)/s
     );
-    expect(viewportGeometrySource).toContain('phoneViewportCoverageBottom');
-    expect(viewportGeometrySource).toContain('window.requestAnimationFrame');
+    expect(railCss).toContain('--portrait-readable-height: 100svh');
+    expect(railCss).toMatch(
+      /--portrait-readable-bottom-offset:\s*max\(\s*0px,\s*calc\(var\(--portrait-stage-height\) - var\(--portrait-readable-height\)\)\s*\)/s
+    );
     expect(viewportGeometrySource).toContain(
-      "window.visualViewport?.addEventListener('scroll', scheduleCoverageSync)"
-    );
-    expect(viewportGeometrySource).toMatch(
-      /phoneStageCoverageHeight\([\s\S]*?viewportBottom,[\s\S]*?reset \|\| widthChanged[\s\S]*?\)/s
+      "window.visualViewport?.addEventListener('scroll', scheduleViewportSync)"
     );
     expect(viewportGeometrySource).toMatch(
       /const syncViewport = \(forceHeight = false\) => \{[\s\S]*?if \(!forceHeight && !widthChanged\) \{[\s\S]*?return;\s*\}/s
     );
-    const syncViewportSource = viewportGeometrySource.slice(
-      viewportGeometrySource.indexOf('const syncViewport ='),
-      viewportGeometrySource.indexOf('const scheduleViewportSync =')
-    );
-    expect(syncViewportSource).not.toContain(
-      '--portrait-stage-coverage-height'
-    );
+    expect(viewportGeometrySource).not.toContain('phoneStageCoverageHeight');
+    expect(viewportGeometrySource).not.toContain('phoneViewportCoverageBottom');
+    expect(viewportGeometrySource).not.toContain('--portrait-stage-coverage-height');
+    expect(shellCss).not.toContain('--portrait-stage-coverage-height');
     expect(shellSource).not.toContain('viewport?.pageTop');
   });
 
@@ -161,7 +158,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(aodMethodSource).toContain('phoneAodMethodProgress');
   });
 
-  it('preserves Hero entrance and keeps one WebKit-sampled edge surface', () => {
+  it('preserves Hero entrance, safe copy anchors, and one edge surface', () => {
     expect(heroSource).toContain(
       'const [titleActive, setTitleActive] = useState(reducedMotion);'
     );
@@ -170,8 +167,9 @@ describe('Route B proven front-half migration contract', () => {
       "owner.dataset.portraitHeroTextEntrance = 'playing'"
     );
     expect(runtimeSource).toContain('heroAdapter.startEntrance()');
-    expect(viewportGeometrySource).toContain('phoneStageCoverageHeight');
-    expect(viewportGeometrySource).toContain("'--portrait-stage-coverage-height'");
+    for (const css of [heroCss, patternCss, starCss]) {
+      expect(css).toContain('var(--portrait-readable-bottom-offset)');
+    }
     expect(shellCss).toContain('100lvh');
     expect(shellSource).not.toContain('stage-backplate');
     expect(patternSource).not.toContain('toolbar-edge');
@@ -213,8 +211,10 @@ describe('Route B proven front-half migration contract', () => {
     expect(heroSource).toContain(
       "phoneMediaUrlFor('hero-figure-packed', 'hero')"
     );
-    expect(aodSource).toContain("'aod-figure-packed-forward'");
-    expect(aodSource).toContain("'aod-figure-packed-reverse'");
+    expect(aodSource).toContain("'aod-figure-packed'");
+    expect(aodSource).not.toContain('packed-reverse');
+    expect(aodSource).toContain('driveReverseFrame');
+    expect(aodSource).toContain('driveTimelineVideo');
     expect(aodSource).toContain('AOD_PHONE_TIMELINE_ALPHA_START');
     expect(aodSource).toContain('AOD_PHONE_TIMELINE_ALPHA_END');
     expect(aodSource).toContain('alphaEndProgress: PHONE_AOD_ALPHA_END_PROGRESS');
@@ -225,9 +225,8 @@ describe('Route B proven front-half migration contract', () => {
       'data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}'
     );
     expect(phoneMediaSource).toContain('figure1-rgb-alpha.mp4');
-    expect(phoneMediaSource).toContain(
-      'aod-figure-motion-rgb-alpha-reverse.mp4'
-    );
+    expect(phoneMediaSource).toContain('aod-figure-motion-rgb-alpha.mp4');
+    expect(phoneMediaSource).not.toContain('rgb-alpha-reverse');
   });
 
   it('keeps Star Map and Method presentation inside their adapters', () => {

@@ -55,7 +55,10 @@
   z-index: 4;
   left: max(24px, env(safe-area-inset-left));
   right: max(24px, env(safe-area-inset-right));
-  bottom: max(48px, calc(env(safe-area-inset-bottom) + 30px));
+  bottom: calc(
+    var(--portrait-readable-bottom-offset)
+    + max(48px, calc(env(safe-area-inset-bottom) + 30px))
+  );
   text-shadow: 0 1px 0 rgba(247, 232, 190, .42);
   will-change: transform, opacity;
 }

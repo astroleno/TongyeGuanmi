@@ -257,7 +257,10 @@
   position: absolute;
   z-index: 4;
   right: max(24px, env(safe-area-inset-right));
-  bottom: max(28px, env(safe-area-inset-bottom));
+  bottom: calc(
+    var(--portrait-readable-bottom-offset)
+    + max(28px, env(safe-area-inset-bottom))
+  );
   color: rgba(247, 237, 215, .68);
   font-size: 13px;
   letter-spacing: .16em;

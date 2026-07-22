@@ -27,9 +27,8 @@ html[data-portrait-spike="b"] .static-content {
 .portrait-scroll-spike {
   --portrait-live-height: 100dvh;
   --portrait-live-width: 100vw;
-  --portrait-stage-coverage-height: var(--portrait-live-height);
   --portrait-stage-height: max(var(--portrait-live-height), 100lvh);
-  --portrait-stage-canvas-height: max(var(--portrait-stage-height), var(--portrait-stage-coverage-height));
+  --portrait-stage-canvas-height: var(--portrait-stage-height);
   /* Scroll distance and sticky containment are deliberately separate. */
   --portrait-stage-scroll-distance: 480dvh;
   --portrait-stage-rail-height: calc(

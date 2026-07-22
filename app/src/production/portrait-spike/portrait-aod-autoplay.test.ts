@@ -9,19 +9,29 @@ import {
   AOD_PHONE_TIMELINE_ALPHA_END,
   AOD_PHONE_TIMELINE_ALPHA_START,
   AOD_SOURCE_ALPHA_END,
-  AOD_TIMELINE_ALPHA_END
+  AOD_TIMELINE_ALPHA_END,
+  mapAodTimelineToMediaProgress
 } from '../../scenes/aod-animation/progress';
+import { unlockStoryMedia } from '../mobile-media-unlock';
 
 class FakeVideo extends EventTarget {
   autoplay = true;
   currentTime = 0;
+  duration = 2.6;
   ended = false;
   loop = true;
   muted = false;
   paused = true;
   playbackRate = 0.5;
   playsInline = false;
+  preload = 'none';
+  readyState = 4;
+  seeking = false;
+  src = '';
   readonly dataset: Record<string, string> = {};
+  readonly load = vi.fn();
+  readonly removeAttribute = vi.fn();
+  readonly setAttribute = vi.fn();
   readonly pause = vi.fn(() => {
     this.paused = true;
     this.dispatchEvent(new Event('pause'));
@@ -36,29 +46,59 @@ class FakeVisibilityDocument extends EventTarget {
   hidden = false;
 }
 
+function createFrameHarness() {
+  let revision = 0;
+  const callbacks = new Map<number, FrameRequestCallback>();
+  return {
+    requestFrame(callback: FrameRequestCallback) {
+      const frame = ++revision;
+      callbacks.set(frame, callback);
+      return frame;
+    },
+    cancelFrame(frame: number) {
+      callbacks.delete(frame);
+    },
+    flush(timestamp: number) {
+      const entry = callbacks.entries().next().value as
+        | [number, FrameRequestCallback]
+        | undefined;
+      if (!entry) throw new Error('No AOD frame scheduled');
+      callbacks.delete(entry[0]);
+      entry[1](timestamp);
+    }
+  };
+}
+
 describe('portrait AOD autoplay', () => {
-  it('time-warps the alpha third and natively plays both directions', async () => {
+  it('plays forward natively and reverses the same short-GOP source on timeline time', async () => {
     const video = new FakeVideo();
     const visibility = new FakeVisibilityDocument();
+    const frames = createFrameHarness();
     const progress: number[] = [];
+    const reverseMediaProgress: number[] = [];
     const completed: number[] = [];
     const controller = createPortraitAodAutoplay(
       video as unknown as HTMLVideoElement,
       {
         durationSeconds: 2.5,
+        sourceUrl: '/assets/aod-packed.mp4',
+        driveReverseFrame: (value) => reverseMediaProgress.push(value),
         onProgress: (value) => progress.push(value),
         onComplete: (direction) => completed.push(direction),
         visibilityDocument: visibility as unknown as Document,
-        requestFrame: () => 1,
-        cancelFrame: vi.fn()
+        requestFrame: frames.requestFrame,
+        cancelFrame: frames.cancelFrame
       }
     );
 
     controller.start();
     await Promise.resolve();
     expect(video.play).toHaveBeenCalledOnce();
+    expect(video.load).toHaveBeenCalledOnce();
+    expect(video.src).toBe('/assets/aod-packed.mp4');
     expect(video.loop).toBe(false);
     expect(video.playbackRate).toBeLessThan(1);
+    expect(video.dataset.timelineVideoRun).toBe('phone-aod-forward:1');
 
     video.currentTime = AOD_SOURCE_ALPHA_END * 2.5;
     video.dispatchEvent(new Event('timeupdate'));
@@ -90,28 +130,64 @@ describe('portrait AOD autoplay', () => {
     video.ended = false;
     video.play.mockClear();
     controller.start(-1);
-    await Promise.resolve();
-    expect(video.play).toHaveBeenCalledOnce();
+    expect(video.play).not.toHaveBeenCalled();
+    expect(video.load).toHaveBeenCalledOnce();
     expect(progress.at(-1)).toBe(1);
     expect(video.dataset.phoneAodAutoplayDirection).toBe('reverse');
-    expect(video.playbackRate).toBeGreaterThan(1);
+    expect(video.dataset.phoneAodAutoplay).toBe('playing-reverse-timeline');
+    expect(video.playbackRate).toBe(1);
+    expect(video.dataset.timelineVideoRun).toBe('phone-aod-reverse:2');
 
-    video.currentTime = (1 - AOD_SOURCE_ALPHA_END) * 2.5;
-    video.dispatchEvent(new Event('timeupdate'));
-    expect(progress.at(-1)).toBeCloseTo(AOD_TIMELINE_ALPHA_END);
+    frames.flush(0);
+    frames.flush(1_250);
+    expect(progress.at(-1)).toBeCloseTo(0.5);
+    expect(reverseMediaProgress.at(-1)).toBeCloseTo(
+      mapAodTimelineToMediaProgress(0.5)
+    );
 
-    video.currentTime += 0.01;
-    video.dispatchEvent(new Event('timeupdate'));
-    expect(video.playbackRate).toBeLessThan(1);
-
-    video.ended = true;
-    video.dispatchEvent(new Event('ended'));
+    frames.flush(2_500);
     expect(progress.at(-1)).toBe(0);
     expect(completed).toEqual([1, -1]);
 
-    video.currentTime = 2.499;
-    video.dispatchEvent(new Event('timeupdate'));
-    expect(progress.at(-1)).toBe(0);
+    controller.dispose();
+  });
+
+  it('does not let a late gesture-prewarm callback pause the first forward run', async () => {
+    let resolvePlayback: () => void = () => undefined;
+    const playback = new Promise<void>((resolve) => {
+      resolvePlayback = resolve;
+    });
+    const video = new FakeVideo();
+    video.play.mockImplementation(() => {
+      video.paused = false;
+      video.dispatchEvent(new Event('play'));
+      return playback;
+    });
+    const controller = createPortraitAodAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 2.5,
+        sourceUrl: '/assets/aod-packed.mp4',
+        onProgress: () => undefined,
+        requestFrame: () => 1,
+        cancelFrame: vi.fn()
+      }
+    );
+    const root = {
+      querySelectorAll: () => [video]
+    } as unknown as ParentNode;
+
+    unlockStoryMedia(root);
+    controller.start();
+    const pausesBeforePrewarmSettles = video.pause.mock.calls.length;
+
+    resolvePlayback();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(video.dataset.timelineVideoRun).toBe('phone-aod-forward:1');
+    expect(video.pause).toHaveBeenCalledTimes(pausesBeforePrewarmSettles);
+    expect(video.dataset.phoneAodAutoplay).toBe('playing');
 
     controller.dispose();
   });
@@ -142,6 +218,42 @@ describe('portrait AOD autoplay', () => {
     video.currentTime = AOD_SOURCE_ALPHA_END * 2.5;
     video.dispatchEvent(new Event('timeupdate'));
     expect(progress.at(-1)).toBeCloseTo(AOD_PHONE_TIMELINE_ALPHA_END);
+
+    controller.dispose();
+  });
+
+  it('suspends reverse timeline time while the page is hidden', () => {
+    const video = new FakeVideo();
+    const visibility = new FakeVisibilityDocument();
+    const frames = createFrameHarness();
+    const progress: number[] = [];
+    const controller = createPortraitAodAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 2.5,
+        driveReverseFrame: () => undefined,
+        onProgress: (value) => progress.push(value),
+        visibilityDocument: visibility as unknown as Document,
+        requestFrame: frames.requestFrame,
+        cancelFrame: frames.cancelFrame
+      }
+    );
+
+    controller.start(-1);
+    frames.flush(1_000);
+    frames.flush(1_500);
+    expect(progress.at(-1)).toBeCloseTo(0.8);
+
+    visibility.hidden = true;
+    visibility.dispatchEvent(new Event('visibilitychange'));
+    expect(video.dataset.phoneAodAutoplay).toBe('suspended');
+
+    visibility.hidden = false;
+    visibility.dispatchEvent(new Event('visibilitychange'));
+    frames.flush(5_000);
+    expect(progress.at(-1)).toBeCloseTo(0.8);
+    frames.flush(5_500);
+    expect(progress.at(-1)).toBeCloseTo(0.6);
 
     controller.dispose();
   });

@@ -71,21 +71,30 @@ describe('StoryLoader', () => {
     expect(html).toContain('sessionStorage');
     expect(html).toContain('portraitLoaderResume');
     expect(html).toContain('hidden-at');
-    expect(html).toContain("validationVersion === '19'");
-    expect(html).toContain("validationVersion === '20'");
-    expect(html).toContain("validationVersion === '21'");
-    expect(html).toContain("validationVersion === '22'");
-    expect(html).toContain("validationVersion === '23'");
-    expect(html).toContain("validationVersion === '24'");
-    expect(html).toContain("validationVersion === '25'");
-    expect(html).toContain("validationVersion === '26'");
-    expect(html).toContain("validationVersion === '27'");
-    expect(html).toContain("validationVersion === '28'");
+    expect(html).toContain('validationNumber >= 16');
+    expect(html).toContain('validationNumber <= 40');
+    expect(html).toContain('validationNumber === 42');
+    expect(html).toContain('validationNumber === 43');
+    expect(html).toContain('validationNumber === 44');
+    expect(html).toContain('validationNumber === 45');
+    expect(html).not.toContain('validationNumber === 41');
     expect(html).toContain("navigation?.type === 'reload'");
     expect(html).toContain('manuallyReloaded');
-    const prebootPhoneRouteIndex = html.indexOf("document.documentElement.dataset.portraitSpike = 'b'");
+    expect(html).toContain("'__PHONE_STORY_PREBOOT_ENABLED__' === 'true'");
+    expect(html).toContain("window.matchMedia('(pointer: coarse)').matches");
+    expect(html).toContain("window.matchMedia('(hover: none)').matches");
+    expect(html).toContain("documentElement.dataset.portraitEdgeScene = 'hero'");
+    expect(html).toContain("documentElement.style.setProperty('--portrait-document-surface', '#07110e')");
+    const viteConfig = readFileSync(new URL('../../vite.config.ts', import.meta.url), 'utf8');
+    expect(viteConfig).toContain(
+      ".replace('__PHONE_STORY_PREBOOT_ENABLED__', String(phoneStoryPrebootEnabled))"
+    );
+    const prebootPhoneRouteIndex = html.indexOf(
+      "documentElement.dataset.portraitSpike = 'b'"
+    );
     expect(prebootPhoneRouteIndex).toBeGreaterThan(0);
     expect(prebootPhoneRouteIndex).toBeLessThan(loaderIndex);
     expect(html).toContain('html[data-portrait-spike="b"] .static-content { display: none !important; }');
+    expect(html).toContain('background: var(--portrait-document-surface, #07110e) !important;');
   });
 });

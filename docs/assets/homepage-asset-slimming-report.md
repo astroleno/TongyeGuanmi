@@ -992,3 +992,38 @@ git show "be119daba32577c5a44dc100aa3bd357cacdaa1d:$source" > "$tmpdir/$source"
   AOD 四段均正常显示；Hero packed-alpha 状态为 `verified`，合成 Canvas
   已呈现帧；没有 page error 或 console error。实体 iPhone 仍由后续真机验收
   覆盖。
+
+## 2026-07-22：v40 手机 AOD 收敛为单一 packed-alpha 文件
+
+### 范围
+
+- 2026-07-19 记录中的正反两个 AOD 文件是当时事实，保持为历史记录；
+  v40 不再把它们同时作为生产合同。
+- 手机 AOD 现在只登记 `assets/aod-figure-motion-rgb-alpha.mp4`。正向由
+  原生播放时钟驱动，反向由同一文件的 timeline seek 驱动。
+- 删除 `assets/aod-figure-motion-rgb-alpha-reverse.mp4`，不修改 Desktop
+  AOD WebM/HEVC Alpha、Figure2、Proof 或任何场景图片。
+
+### 可复现编码合同
+
+`pnpm run rebuild:media:aod-packed` 使用 FFmpeg 8.1 从冻结的
+`assets/aod-figure-motion.webm` 重建输出：H.264 High、`yuv420p`、
+3344×942、30fps、78 帧、CRF 16、最大 GOP 8 帧。脚本在原子替换前验证
+source/output bytes 与 SHA-256、codec/profile、尺寸、fps、帧数、GOP 和
+逐帧 SSIM。
+
+| Production path | Bytes | SHA-256 | Alpha SSIM | Color SSIM |
+| --- | ---: | --- | ---: | ---: |
+| `assets/aod-figure-motion-rgb-alpha.mp4` | 2,637,788 | `a97af562c62e86fa4d3be9afe9537145ddeb05b67f556934985bc2dbf9f154ec` | 0.985870 | 0.973536 |
+
+旧正反文件合计 3,971,744 bytes；单文件合同净减少 **1,333,956 bytes**。
+
+### v40 媒体清单与验证
+
+- 51 个 emitted 首页媒体：32 WebP、8 WebM、11 MP4、0 JPG、0 PNG。
+- 3 个竖屏 packed-alpha MP4：12,317,751 bytes。
+- 全部冻结首页媒体：80,173,258 bytes。
+- `pnpm run rebuild:media:aod-packed`：exact identity / GOP / SSIM PASS。
+- `pnpm -C app verify:media:deep`：PASS。
+- `pnpm -C app build`：media inventory、release build 与 performance
+  budgets 全部 PASS。

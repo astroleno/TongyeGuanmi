@@ -1,12 +1,8 @@
 import { useLayoutEffect, type RefObject } from 'react';
-import {
-  PHONE_STAGE_SCROLL_VIEWPORTS,
-  phoneStageCoverageHeight,
-  phoneViewportCoverageBottom
-} from './phone-viewport';
+import { PHONE_STAGE_SCROLL_VIEWPORTS } from './phone-viewport';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
 
-/** Stable-width layout sampling; Safari chrome may only grow paint coverage. */
+/** Freeze height-only Safari toolbar motion while retaining diagnostics. */
 export function usePhoneViewportGeometry(
   rootRef: RefObject<HTMLElement | null>,
   motionEnabled: boolean
@@ -28,14 +24,10 @@ export function usePhoneViewportGeometry(
     }
 
     let viewportTimer: number | undefined;
-    let coverageFrame: number | undefined;
     let lastObservedViewport = '';
     let lastLayoutViewport = '';
     let lastViewportWidth = 0;
-    let lastCoverageViewportWidth = 0;
-    let stageCoverageHeight = 0;
     let forceNextViewportSync = false;
-    let forceNextCoverageReset = false;
     const readViewport = () => {
       const viewport = window.visualViewport;
       const rawHeight = viewport?.height || window.innerHeight || 1;
@@ -48,44 +40,13 @@ export function usePhoneViewportGeometry(
         height: Math.max(1, Math.round(rawHeight)),
         width: Math.max(1, Math.round(rawWidth)),
         offsetTop,
-        viewportBottom: phoneViewportCoverageBottom(rawHeight, offsetTop)
+        viewportBottom: Math.max(1, Math.ceil(offsetTop + rawHeight))
       };
     };
-    const syncCoverage = (reset = false) => {
-      const { offsetTop, viewportBottom, width } = readViewport();
-      const widthChanged = lastCoverageViewportWidth === 0
-        || Math.abs(width - lastCoverageViewportWidth) > 1;
-      const nextCoverageHeight = phoneStageCoverageHeight(
-        stageCoverageHeight || viewportBottom,
-        viewportBottom,
-        reset || widthChanged
-      );
-      lastCoverageViewportWidth = width;
+    const syncViewport = (forceHeight = false) => {
+      const { height, offsetTop, viewportBottom, width } = readViewport();
       root.dataset.portraitViewportOffsetTop = `${Math.ceil(offsetTop)}px`;
       root.dataset.portraitViewportBottom = `${viewportBottom}px`;
-      if (nextCoverageHeight === stageCoverageHeight) return;
-      stageCoverageHeight = nextCoverageHeight;
-      root.style.setProperty(
-        '--portrait-stage-coverage-height',
-        `${stageCoverageHeight}px`
-      );
-      root.dataset.portraitStageCoverage = `${stageCoverageHeight}px`;
-    };
-    const scheduleCoverageSync = () => {
-      if (coverageFrame !== undefined) return;
-      coverageFrame = window.requestAnimationFrame(() => {
-        coverageFrame = undefined;
-        const reset = forceNextCoverageReset;
-        forceNextCoverageReset = false;
-        syncCoverage(reset);
-      });
-    };
-    const scheduleForcedCoverageSync = () => {
-      forceNextCoverageReset = true;
-      scheduleCoverageSync();
-    };
-    const syncViewport = (forceHeight = false) => {
-      const { height, width } = readViewport();
       const nextViewport = `${width}x${height}`;
       if (nextViewport === lastObservedViewport && !forceHeight) return;
       lastObservedViewport = nextViewport;
@@ -122,31 +83,23 @@ export function usePhoneViewportGeometry(
         syncViewport(forceHeight);
       }, 180);
     };
-    const handleViewportResize = () => {
-      scheduleCoverageSync();
-      scheduleViewportSync();
-    };
+    const handleViewportResize = () => scheduleViewportSync();
     const scheduleForcedViewportSync = () => {
-      scheduleForcedCoverageSync();
       forceNextViewportSync = true;
       scheduleViewportSync();
     };
 
-    syncCoverage(true);
     syncViewport(true);
     window.visualViewport?.addEventListener('resize', handleViewportResize);
-    window.visualViewport?.addEventListener('scroll', scheduleCoverageSync);
+    window.visualViewport?.addEventListener('scroll', scheduleViewportSync);
     window.addEventListener('resize', handleViewportResize);
     window.addEventListener('orientationchange', scheduleForcedViewportSync);
     document.addEventListener('fullscreenchange', scheduleForcedViewportSync);
 
     return () => {
       if (viewportTimer !== undefined) window.clearTimeout(viewportTimer);
-      if (coverageFrame !== undefined) {
-        window.cancelAnimationFrame(coverageFrame);
-      }
       window.visualViewport?.removeEventListener('resize', handleViewportResize);
-      window.visualViewport?.removeEventListener('scroll', scheduleCoverageSync);
+      window.visualViewport?.removeEventListener('scroll', scheduleViewportSync);
       window.removeEventListener('resize', handleViewportResize);
       window.removeEventListener(
         'orientationchange',
@@ -159,10 +112,8 @@ export function usePhoneViewportGeometry(
       root.style.removeProperty('--portrait-live-height');
       root.style.removeProperty('--portrait-live-width');
       root.style.removeProperty('--portrait-stage-scroll-distance');
-      root.style.removeProperty('--portrait-stage-coverage-height');
       delete root.dataset.portraitLiveViewport;
       delete root.dataset.portraitLayoutViewport;
-      delete root.dataset.portraitStageCoverage;
       delete root.dataset.portraitViewportOffsetTop;
       delete root.dataset.portraitViewportBottom;
       delete root.dataset.portraitTransientViewport;

@@ -45,7 +45,7 @@ is the pre-extraction baseline.
 The frozen visual source is commit `95d519b` (`?v=17`), which contains the
 accepted Safari edge stabilization and the phone-only AOD alpha extension from
 timeline progress `0.48` to `0.55`. The current short verification route is
-`?v=39`; `?v=16` through `?v=38` remain aliases to the same formal phone shell,
+`?v=40`; `?v=16` through `?v=39` remain aliases to the same formal phone shell,
 not immutable historical deployments.
 
 | Unit | Status | Implemented evidence |
@@ -54,7 +54,7 @@ not immutable historical deployments.
 | Unit 1 | Complete | Canonical copy, media IDs, navigation, semantic checkpoints, and renderer-neutral lifecycle contracts remain shared. The boundary verifier rejects shared-to-presentation imports, cross-shell imports, phone-to-spike imports, new shell scene roots, media keys, asset URLs, and scene renderer imports. |
 | Unit 2 | Complete; physical fixed-stage acceptance recorded | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
 | Unit 3 | Complete; physical visual acceptance recorded | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
-| Unit 4 | v39 AOD timing review; Safari bottom-edge root cause remains open | Physical Safari rejected the v38 short-anchor candidate and made the solid strip more visible. v39 restores the v37 viewport/edge topology and changes only the phone AOD handoff from `0.48 → 0.55` to `0.49 → 0.59`. |
+| Unit 4 | v40 single-source AOD tactile review; Safari bottom-edge root cause remains open | v39 remains the accepted viewport/timing base. v40 changes only phone AOD media ownership: one short-GOP packed-alpha file plays natively forward and is timeline-driven backward. Physical reverse-playback acceptance is pending. |
 | Units 5–7 | Not started | No Brand, Figure 3, Services, or later batch starts before Unit 4 receives its own physical-iPhone acceptance. |
 
 ### Unit 0–3 cutover record
@@ -750,6 +750,176 @@ Automated verification for v39:
 
 Physical review belongs to `?v=39`. Judge the AOD timing separately from the
 still-open Safari bottom strip; v39 is not presented as another edge fix.
+
+### Unit 4 v40 single-source AOD reverse candidate
+
+v40 preserves v39's viewport geometry, Safari edge publication, Proof/Figure2
+order, phone camera, scroll lock, and `0.49 → 0.59` AOD handoff. It changes only
+the exceptional two-file AOD reverse path:
+
+- product ownership now exposes one `aod-figure-packed` media ID and one
+  `aod-figure-motion-rgb-alpha.mp4` file;
+- forward AOD remains native `video.play()` with the established alpha time
+  warp;
+- reverse AOD keeps the same uninterrupted wall-clock run, but maps canonical
+  progress back into the same file through the shared timeline video driver;
+- the scene adapter owns decoder seeking and cleanup; the shell-zone autoplay
+  controller owns only direction, visibility suspension, and canonical time;
+- the dedicated reverse source, source swap, and post-forward reverse prefetch
+  are removed.
+
+The packed source was rebuilt reproducibly from the canonical RGBA WebM with
+FFmpeg 8.1: H.264 High, `yuv420p`, 3344×942, 30fps, 78 frames, CRF 16, and a
+maximum GOP of 8 frames. Its frozen identity is 2,637,788 bytes / SHA-256
+`a97af562c62e86fa4d3be9afe9537145ddeb05b67f556934985bc2dbf9f154ec`.
+Against the canonical source, packed alpha SSIM is `0.985870` and color SSIM is
+`0.973536`; both improve over the replaced forward encoding. Removing the
+reverse file reduces frozen media by 1,333,956 bytes overall.
+
+Automated verification for v40:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 775 tests, including focused
+  single-source, reverse-clock suspension, product ownership, and module
+  boundary contracts;
+- the reproducible AOD packed rebuild passes exact identity, codec, frame,
+  GOP, and SSIM gates;
+- `pnpm -C app verify:media:deep` passes;
+- `pnpm -C app build` passes all module, media, release, and performance gates
+  with 51 frozen media files, `565,837 B` phone-shell budget, and `7,314 B`
+  total JS headroom.
+
+Physical tactile review belongs to `?v=40`. Test AOD forward, reverse from
+Method back into AOD, and at least two repeated forward/reverse cycles. The
+acceptance signal is continuous figure motion with no blank/stale frame and no
+visible drift between the figure, sun/cloud, mist, and Method handoff. v40 does
+not claim to change the still-open Safari bottom strip.
+
+### Unit 4 v41 rejected cold Safari coverage experiment
+
+Physical testing of v40 separated the two concerns: its single-source AOD
+forward/reverse path is accepted, while the shared bottom strip is already
+visible in Hero/Pattern. The strip occurs on the first toolbar-collapse pass,
+then disappears after traversing AOD in reverse and scrolling forward again.
+That cold/warm split matches the retained coverage plane: v37 begins at the
+expanded-toolbar viewport and only grows after Safari emits its first
+`visualViewport` event, while the second pass starts with the larger paint
+plane already retained.
+
+v41 therefore changes only the common cold paint allocation:
+
+- scene layout, rail distance, cameras, timelines, edge publication, and the
+  v40 single-source AOD path remain unchanged;
+- the stage canvas preallocates `16px` below the stable `100lvh` layout plane,
+  covering the approximately `10px` first-collapse delta before any gesture;
+- the existing monotonic `offsetTop + height` measurement remains authoritative
+  when it exceeds that guard;
+- the overscan belongs only to the paint canvas. `--portrait-stage-height`
+  continues to own layout and scroll geometry, so this does not introduce a
+  second viewport clock or a per-scene feather/background plate.
+
+**Gate result:** physical Safari rejected v41. The `16px` guard did not remove
+the bottom strip. Because the stage canvas is also the percentage containing
+block for every scene root, enlarging it changed Hero/Pattern background
+geometry during scroll and introduced broader visual regressions. The guard
+and v41 route are removed. This result rules out further shared-canvas height
+or overscan changes; v40 remains the current single-source AOD candidate.
+
+### Unit 4 v42 stable visual and readable planes
+
+The v41 device result exposed a retained v37 coupling: the nominal coverage
+canvas was also every Scene root's `height: 100%` containing block. On the
+first Safari toolbar gesture, `visualViewport.offsetTop + height` enlarged that
+canvas, so Hero/Pattern backgrounds recropped and bottom-anchored Pattern copy
+moved underneath the expanded address bar. Coverage was monotonic, which is
+why the same path appeared stable only after reversing and scrolling forward a
+second time.
+
+v42 removes that coupling rather than adding another height:
+
+- the stage canvas remains exactly `--portrait-stage-height`; height-only
+  toolbar resize/scroll events update diagnostic attributes but never write a
+  paint or layout height;
+- the rejected monotonic coverage state, helpers, CSS variable, and animation
+  frame writer are removed;
+- a stable `100svh` readable plane publishes the difference from the `100lvh`
+  visual plane as `--portrait-readable-bottom-offset`;
+- Pattern copy, Star copy, and the Hero scroll cue include that offset in their
+  bottom anchors, keeping readable UI above an expanded Safari toolbar without
+  resizing or recropping scene backgrounds;
+- v40's single-source AOD playback, AOD timing, edge colors, scene transitions,
+  and Grade A chain remain unchanged.
+
+Physical review belongs to `?v=42` and must start with the address bar fully
+expanded. Verify that the first Hero → Pattern → Star pass has no background
+geometry jump, Pattern copy remains fully visible, and reversing then repeating
+the path produces identical composition. The browser-owned solid edge remains
+a separate sampling question; this candidate deliberately stops using geometry
+changes as an edge workaround.
+
+### Unit 4 v43 first-run ownership and rejected visible-edge bridge
+
+Physical review rejected v42 on two first-run paths. The shared touch media
+prewarm could resolve after AOD had claimed native playback and pause that same
+video because the AOD controller had not published a run identity. Later runs
+were already unlocked, which explains why only the first AOD stopped early.
+The controller now publishes its forward/reverse run before playback begins, so
+the late prewarm callback recognizes the new owner and cannot pause it.
+
+The remaining bottom seam was not another canvas-height failure. The scene and
+its authored wash stay on the stable `lvh` plane, but with Safari's toolbar
+expanded the visible bottom is higher than that plane's authored endpoint. A
+small host-owned gradient now bridges only the final safe-area pixels into the
+same solid edge color Safari/document fallback already uses. It follows the
+dynamic fixed host without resizing, recropping, or translating any Scene,
+Canvas, image, copy block, or transition.
+
+The cold HTML route marker had also stopped at v28, so newer validation routes
+briefly painted the default light static document before React mounted the
+phone shell. v43 is now marked synchronously and starts `html`, `body`, and the
+React root on the Hero edge color, preventing that transient paper frame from
+becoming WebKit's first cached edge sample.
+
+**Gate result:** physical Safari accepted the first-run AOD ownership repair,
+but rejected the common bottom bridge. The fixed-host pseudo-element produced
+a visible right seam and turned Figure2's authored paper into a pale gradient
+strip. This shows that a scene-independent edge feather is itself observable;
+it cannot be used as a substitute for the scene's real visual background.
+
+### Unit 4 v44 no-overlay edge candidate
+
+v44 removes the fixed host's bottom pseudo-element completely. It adds no
+replacement feather, darkening wash, solid strip, scene replica, or viewport
+height change. The stable `lvh` scene canvas and `svh` readable anchors remain
+unchanged, as do v43's AOD first-run ownership fix and synchronous cold-route
+document surface.
+
+Physical review belongs to `?v=44`. Check the right edge and Figure2 bottom
+first; neither should contain a host-owned gradient. Then cold-open with the
+address bar expanded and verify the first AOD run still reaches its endpoint.
+
+### Unit 4 v45 formal-entry preboot ownership
+
+v45 preserves v44's stable visual/readable planes and its complete removal of
+the rejected bottom pseudo-element. It adds no edge presenter, global or
+per-scene landing, feather, solid strip, viewport overscan, or dynamic canvas
+height.
+
+The change is limited to cold ownership before React mounts. At build time,
+the same `VITE_ENABLE_PHONE_STORY` release flag used by `App` is embedded into
+the synchronous index preboot. When that flag is enabled and the existing
+coarse-pointer phone geometry matches, the bare production route now publishes
+the phone marker, Hero edge scene, and `#07110e` document surface before the
+application stylesheet or React shell can expose the light static document.
+Versioned validation routes retain the same preboot through their explicit
+route contract. Tablet/touch-laptop and phone-disabled builds remain on the
+static/desktop path.
+
+Physical review belongs to `?v=45` for regression comparison. The formal-entry
+contract additionally requires a build with `VITE_ENABLE_PHONE_STORY=1` and a
+cold bare `/` navigation: the first frame must be dark, while the Safari-owned
+bottom color extension remains an acknowledged platform constraint rather
+than a DOM overlay target.
 
 ## Problem Frame
 

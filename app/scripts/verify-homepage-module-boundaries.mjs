@@ -34,7 +34,7 @@ export const phoneShellDebt = Object.freeze({
 });
 
 export const phoneShellCssDebt = Object.freeze({
-  maxLines: 75,
+  maxLines: 74,
   assetUrls: new Set(),
   sceneRoots: new Set(),
   ownerTokens: new Set()

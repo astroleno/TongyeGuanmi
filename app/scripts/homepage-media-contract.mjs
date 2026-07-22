@@ -38,8 +38,7 @@ export const animationHevcAlphaSources = alphaVideoSourcePairs.map(({ hevc }) =>
 export const packedAlphaVideoSources = [
   'assets/figure1-rgb-alpha.mp4',
   'assets/figure2-pair-motion-rgb-alpha.mp4',
-  'assets/aod-figure-motion-rgb-alpha.mp4',
-  'assets/aod-figure-motion-rgb-alpha-reverse.mp4'
+  'assets/aod-figure-motion-rgb-alpha.mp4'
 ];
 
 export const portraitOnlyImageSources = [
@@ -159,14 +158,8 @@ export const frozenHomepageMedia = [
   {
     source: 'assets/aod-figure-motion-rgb-alpha.mp4',
     category: 'portrait-packed-alpha',
-    bytes: 1985726,
-    sha256: 'ca68380f12724292c9706f31a5316d3e802bb7ac2a0ef1376b7a06f65949ce22'
-  },
-  {
-    source: 'assets/aod-figure-motion-rgb-alpha-reverse.mp4',
-    category: 'portrait-packed-alpha',
-    bytes: 1986018,
-    sha256: 'e256ab73e9e033615022a8331d365b5c618957207426e8c6ecf3d42b0d3ba63a'
+    bytes: 2637788,
+    sha256: 'a97af562c62e86fa4d3be9afe9537145ddeb05b67f556934985bc2dbf9f154ec'
   },
   {
     source: 'assets/hero-back.webp',

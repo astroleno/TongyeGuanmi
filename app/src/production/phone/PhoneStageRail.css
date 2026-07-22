@@ -22,6 +22,11 @@
 
 /* The retained layout/coverage canvas is the only outer clipping boundary. */
 .portrait-scroll-spike__stage-canvas {
+  --portrait-readable-height: 100svh;
+  --portrait-readable-bottom-offset: max(
+    0px,
+    calc(var(--portrait-stage-height) - var(--portrait-readable-height))
+  );
   position: absolute;
   top: 0;
   right: 0;

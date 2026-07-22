@@ -11,6 +11,10 @@ import {
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
 import {
+  disposeTimelineVideoDriver,
+  driveTimelineVideo
+} from '../../../media/timeline-video-driver';
+import {
   createPhoneAodAutoplay,
   phoneAodBackdropPresentation,
   phoneAodPresentation,
@@ -22,11 +26,7 @@ import type { PhoneAodAdapterHandle, PhoneSceneAdapterProps } from '../types';
 import './PhoneAod.css';
 
 const AOD_FIGURE_PACKED_ALPHA_VIDEO = phoneMediaUrlFor(
-  'aod-figure-packed-forward',
-  'aod-animation'
-);
-const AOD_FIGURE_PACKED_ALPHA_REVERSE_VIDEO = phoneMediaUrlFor(
-  'aod-figure-packed-reverse',
+  'aod-figure-packed',
   'aod-animation'
 );
 const AodScene = aodAnimationScene.Component;
@@ -38,9 +38,10 @@ function clamp(value: number): number {
 }
 
 /**
- * Owns AOD's packed-alpha compositor, reversible native playback, and every
- * AOD-local visual track. The stage runtime only decides when playback begins
- * and receives canonical progress for the Method handoff.
+ * Owns AOD's single-source packed-alpha compositor, forward native playback,
+ * reverse timeline playback, and every AOD-local visual track. The stage
+ * runtime only decides when playback begins and receives canonical progress
+ * for the Method handoff.
  */
 export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps>(
   function PhoneAod(
@@ -55,7 +56,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     >(undefined);
     const progressListenerRef = useRef(onAodProgress);
     const completeListenerRef = useRef(onAodComplete);
-    const reverseWarmupStartedRef = useRef(false);
     progressListenerRef.current = onAodProgress;
     completeListenerRef.current = onAodComplete;
 
@@ -138,18 +138,23 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       const autoplay = createPhoneAodAutoplay(video, {
         durationSeconds: AOD_FIGURE_END_SECONDS,
         alphaEndProgress: PHONE_AOD_ALPHA_END_PROGRESS,
-        forwardSourceUrl: AOD_FIGURE_PACKED_ALPHA_VIDEO,
-        reverseSourceUrl: AOD_FIGURE_PACKED_ALPHA_REVERSE_VIDEO,
+        sourceUrl: AOD_FIGURE_PACKED_ALPHA_VIDEO,
+        driveReverseFrame: (mediaProgress, runId) => {
+          driveTimelineVideo(video, {
+            runId,
+            direction: -1,
+            progress: mediaProgress,
+            durationFallbackSeconds: AOD_FIGURE_END_SECONDS,
+            startSeconds: 0,
+            endSeconds: AOD_FIGURE_END_SECONDS,
+            endEpsilonSeconds: 0,
+            mode: 'timeline',
+            allowSeekedFrameFallback: true
+          });
+        },
+        disposeReverseDriver: () => disposeTimelineVideoDriver(video),
         onProgress: render,
-        onComplete: (direction) => {
-          if (direction === 1 && !reverseWarmupStartedRef.current) {
-            reverseWarmupStartedRef.current = true;
-            void fetch(AOD_FIGURE_PACKED_ALPHA_REVERSE_VIDEO, {
-              cache: 'force-cache'
-            }).catch(() => undefined);
-          }
-          completeListenerRef.current?.(direction);
-        }
+        onComplete: (direction) => completeListenerRef.current?.(direction)
       });
       compositorRef.current = compositor;
       autoplayRef.current = autoplay;

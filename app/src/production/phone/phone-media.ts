@@ -23,10 +23,8 @@ export function phoneMediaUrlFor(id: PhoneProductMediaId, owner: SceneId): strin
       return new URL('../../../../assets/pattern-background.webp', import.meta.url).href;
     case 'star-map-source':
       return new URL('../../../../assets/back2.webp', import.meta.url).href;
-    case 'aod-figure-packed-forward':
+    case 'aod-figure-packed':
       return new URL('../../../../assets/aod-figure-motion-rgb-alpha.mp4', import.meta.url).href;
-    case 'aod-figure-packed-reverse':
-      return new URL('../../../../assets/aod-figure-motion-rgb-alpha-reverse.mp4', import.meta.url).href;
     case 'figure2-pair-packed':
       return new URL('../../../../assets/figure2-pair-motion-rgb-alpha.mp4', import.meta.url).href;
     case 'figure2-pair-poster':
