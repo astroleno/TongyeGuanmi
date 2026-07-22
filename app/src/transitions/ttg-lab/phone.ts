@@ -26,12 +26,6 @@ export type PhoneTtgLabFrame = Readonly<{
   toOpacity: number;
 }>;
 
-export function phoneTtgLabBridgeY(direction: 1 | -1): string {
-  return direction === 1
-    ? 'calc(-1 * var(--portrait-stage-height, 100lvh))'
-    : '0px';
-}
-
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
@@ -57,32 +51,13 @@ function applyEndpoint(
   element: HTMLElement | null,
   opacity: number,
   id: 'ttg-lab',
-  role: 'from' | 'to',
-  documentFlow = false,
-  direction: 1 | -1 = 1
+  documentFlow = false
 ): void {
   if (!element) return;
   if (documentFlow) {
     element.dataset.phoneDissolve = id;
     element.dataset.phoneDissolveOpacity = opacity.toFixed(4);
-    if (role === 'from') {
-      if (opacity >= .999) element.style.removeProperty('opacity');
-      else element.style.opacity = opacity.toFixed(4);
-    } else if (opacity > .001) {
-      element.dataset.phoneTtgLabBridge = 'active';
-      element.style.setProperty(
-        '--phone-ttg-lab-bridge-opacity',
-        opacity.toFixed(4)
-      );
-      element.style.setProperty(
-        '--phone-ttg-lab-bridge-y',
-        phoneTtgLabBridgeY(direction)
-      );
-    } else {
-      delete element.dataset.phoneTtgLabBridge;
-      element.style.removeProperty('--phone-ttg-lab-bridge-opacity');
-      element.style.removeProperty('--phone-ttg-lab-bridge-y');
-    }
+    element.style.opacity = opacity.toFixed(4);
     return;
   }
   const visible = opacity > 0.001;
@@ -98,10 +73,7 @@ function clearEndpoint(element: HTMLElement | null, documentFlow = false): void 
   if (documentFlow) {
     delete element.dataset.phoneDissolve;
     delete element.dataset.phoneDissolveOpacity;
-    delete element.dataset.phoneTtgLabBridge;
     element.style.removeProperty('opacity');
-    element.style.removeProperty('--phone-ttg-lab-bridge-opacity');
-    element.style.removeProperty('--phone-ttg-lab-bridge-y');
     return;
   }
   element.style.removeProperty('opacity');
@@ -120,7 +92,7 @@ export function settlePhoneTtgLabDocumentFlow(
   from: HTMLElement | null,
   to: HTMLElement | null
 ): void {
-  applyEndpoint(from, 0, 'ttg-lab', 'from', true, 1);
+  applyEndpoint(from, 0, 'ttg-lab', true);
   clearEndpoint(to, true);
 }
 
@@ -155,17 +127,13 @@ export const PhoneTtgLabTransition = forwardRef<
       from,
       frame.fromOpacity,
       'ttg-lab',
-      'from',
-      documentFlow,
-      directionRef.current
+      documentFlow
     );
     applyEndpoint(
       to,
       frame.toOpacity,
       'ttg-lab',
-      'to',
-      documentFlow,
-      directionRef.current
+      documentFlow
     );
   }, [documentFlow, from, host, reducedMotion, to]);
 

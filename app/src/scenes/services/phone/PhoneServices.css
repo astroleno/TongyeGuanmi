@@ -14,24 +14,6 @@
   scroll-margin-top: 0;
 }
 
-/* Figure3's decoder remains the only clock. During its final 20%, translate
-   the one real Services root into the viewport. No bridge-only descendant
-   sizing is allowed: the transition frame and reading endpoint are the exact
-   same layout and therefore settle without a B1 → B2 jump. */
-.phone-services[data-phone-scene="services"][data-phone-figure3-services-bridge="active"] {
-  position: relative;
-  z-index: 11;
-  width: 100%;
-  opacity: var(--phone-figure3-services-bridge-opacity, 0);
-  transform: translate3d(
-    0,
-    calc(-1 * var(--portrait-stage-height, 100lvh)),
-    0
-  );
-  pointer-events: none;
-  will-change: opacity, transform;
-}
-
 .phone-services__hero,
 .phone-services__list {
   width: min(100%, 42rem);

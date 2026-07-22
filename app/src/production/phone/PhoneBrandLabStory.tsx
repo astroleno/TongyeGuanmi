@@ -141,6 +141,11 @@ export function phoneGroup45BoundaryProgress(
   return clamp((start - targetTop) / Math.max(1, start - end));
 }
 
+/** Reduced motion commits the receiver immediately after the shared edge. */
+export function phoneGroup45ReducedReceiverProgress(targetTop: number): 0 | 1 {
+  return targetTop < 0 ? 1 : 0;
+}
+
 function sceneIndex(scene: Group45PhoneSceneId): number {
   return group45PhoneSceneIds.indexOf(scene);
 }
@@ -180,17 +185,14 @@ export function phoneGroup45CrossedVisualStart(
   return previousScrollY < triggerY && scrollY >= triggerY;
 }
 
-/** Reverse autoplay begins as soon as a following chapter crosses the marker end. */
-export function phoneGroup45CrossedVisualEnd(
+/** Reverse autoplay begins at the same semantic boundary used by forward. */
+export function phoneGroup45CrossedVisualBoundary(
   previousScrollY: number,
   scrollY: number,
-  trackTop: number,
-  trackHeight: number,
-  viewportHeight: number
+  trackTop: number
 ): boolean {
   const documentTop = scrollY + trackTop;
-  const documentEnd = documentTop + Math.min(trackHeight, viewportHeight);
-  return previousScrollY >= documentEnd - 1 && scrollY < documentEnd - 1;
+  return previousScrollY >= documentTop - 1 && scrollY < documentTop - 1;
 }
 
 function frameForTrack(element: HTMLElement | null, viewportHeight: number) {
@@ -419,70 +421,64 @@ export function PhoneBrandLabStory({
     );
     scrollDirectionLockUntilRef.current = window.performance.now() + 280;
     setScrollDirection(direction);
-    // Keep the terminal plate for one compositor frame. The second frame
-    // moves the one real document to its semantic receiver; no clone, blank
-    // paper screen, or additional full-screen scroll range is introduced.
+    // Figure3/Services and TTG/Lab share one document boundary. Commit the
+    // receiver in the next compositor frame without changing scroll position
+    // or translating the receiver between stage and document coordinates.
     visualCompletionFrameRef.current = window.requestAnimationFrame(() => {
-      visualCompletionFrameRef.current = window.requestAnimationFrame(() => {
-        visualCompletionFrameRef.current = 0;
-        const latestReceiver = direction === 1
-          ? scene === 'figure3-animation'
-            ? servicesRef.current?.root() ?? null
-            : labRef.current?.root() ?? null
-          : null;
-        const latestTrack = scene === 'figure3-animation'
-          ? figure3TrackRef.current
-          : ttgTrackRef.current;
-        if (
-          visualRunRef.current !== scene
-          || visualRunDirectionRef.current !== direction
-          || (direction === 1 ? !latestReceiver : !latestTrack)
-        ) return;
-        if (scene === 'figure3-animation') {
-          figure3Ref.current?.leave?.();
-        } else {
-          ttgRef.current?.leave?.();
+      visualCompletionFrameRef.current = 0;
+      const latestReceiver = direction === 1
+        ? scene === 'figure3-animation'
+          ? servicesRef.current?.root() ?? null
+          : labRef.current?.root() ?? null
+        : null;
+      const latestTrack = scene === 'figure3-animation'
+        ? figure3TrackRef.current
+        : ttgTrackRef.current;
+      if (
+        visualRunRef.current !== scene
+        || visualRunDirectionRef.current !== direction
+        || (direction === 1 ? !latestReceiver : !latestTrack)
+      ) return;
+      if (scene === 'figure3-animation') {
+        figure3Ref.current?.leave?.();
+        if (direction === 1) figure3ServicesRef.current?.leave?.();
+        else figure3ServicesRef.current?.enter?.();
+      } else {
+        ttgRef.current?.leave?.();
+        if (direction === 1) ttgLabRef.current?.leave?.();
+        else ttgLabRef.current?.enter?.();
+      }
+      visualRunRef.current = null;
+      visualSnapRef.current?.release();
+      const keepStage = direction === -1;
+      const root = rootRef.current;
+      root?.setAttribute('data-phone-group45-snap', 'released');
+      root?.setAttribute('data-phone-group45-visual-run', 'idle');
+      root?.setAttribute('data-phone-group45-stage-active', String(keepStage));
+      root?.setAttribute(
+        'data-phone-group45-stage-scene',
+        keepStage ? scene : 'none'
+      );
+      root?.setAttribute('data-phone-group45-active-scene', target);
+      root?.setAttribute('data-portrait-stage-active', String(keepStage));
+      lastScrollYRef.current = window.scrollY;
+      setCurrentScene(target);
+      setStageScene(keepStage ? scene : null);
+      setVisualActivity((current) => ({
+        figure3: {
+          ...current.figure3,
+          active: false,
+          prewarm: direction === -1 && scene === 'figure3-animation'
+        },
+        ttg: {
+          ...current.ttg,
+          active: false,
+          prewarm: scene === 'ttg-animation'
+            && (direction === -1 || phoneGroup45RetainsTtgTerminal(
+              visualRunPhaseRef.current['ttg-animation']
+            ))
         }
-        visualRunRef.current = null;
-        visualSnapRef.current?.release();
-        rootRef.current?.setAttribute('data-phone-group45-snap', 'released');
-        rootRef.current?.setAttribute('data-phone-group45-visual-run', 'idle');
-        // Clear any flow-preserving visual promotion before measuring the
-        // semantic document endpoint. Measuring a promoted Services root
-        // returns its visual viewport top and used to strand the document on
-        // Figure3's marker, which then re-entered autoplay.
-        if (scene === 'figure3-animation') {
-          if (direction === 1) figure3ServicesRef.current?.leave?.();
-          else figure3ServicesRef.current?.enter?.();
-        } else if (direction === 1) {
-          ttgLabRef.current?.leave?.();
-        } else {
-          ttgLabRef.current?.enter?.();
-        }
-        const targetElement = direction === 1 ? latestReceiver : latestTrack;
-        const targetY = Math.max(
-          0,
-          window.scrollY + (targetElement?.getBoundingClientRect().top ?? 0)
-        );
-        window.scrollTo({ top: targetY, left: 0, behavior: 'auto' });
-        lastScrollYRef.current = targetY;
-        setStageScene(direction === -1 ? scene : null);
-        setVisualActivity((current) => ({
-          figure3: {
-            ...current.figure3,
-            active: false,
-            prewarm: direction === -1 && scene === 'figure3-animation'
-          },
-          ttg: {
-            ...current.ttg,
-            active: false,
-            prewarm: scene === 'ttg-animation'
-              && (direction === -1 || phoneGroup45RetainsTtgTerminal(
-                visualRunPhaseRef.current['ttg-animation']
-              ))
-          }
-        }));
-      });
+      }));
     });
   }, [reducedMotion]);
 
@@ -664,22 +660,18 @@ export function PhoneBrandLabStory({
           && entryScene === 'ttg-animation'
           && ttgFrame.active)
       );
-      const crossedFigure3End = figure3Element && figure3Rect
-        ? phoneGroup45CrossedVisualEnd(
+      const crossedFigure3Boundary = figure3Element && figure3Rect
+        ? phoneGroup45CrossedVisualBoundary(
           previousScrollY,
           scrollY,
-          figure3Rect.top,
-          figure3Rect.height,
-          viewportHeight
+          figure3Rect.top
         )
         : false;
-      const crossedTtgEnd = ttgElement && ttgRect
-        ? phoneGroup45CrossedVisualEnd(
+      const crossedTtgBoundary = ttgElement && ttgRect
+        ? phoneGroup45CrossedVisualBoundary(
           previousScrollY,
           scrollY,
-          ttgRect.top,
-          ttgRect.height,
-          viewportHeight
+          ttgRect.top
         )
         : false;
       if (!visualRunRef.current && !reducedMotion) {
@@ -700,14 +692,14 @@ export function PhoneBrandLabStory({
               ? 'ttg-animation'
               : null
           : reverseDirection
-            ? crossedTtgEnd
+            ? crossedTtgBoundary
                 && phoneGroup45CanBeginVisualRun(
                   visualRunPhaseRef.current['ttg-animation'],
                   -1
                 )
                 && !failedVisualsRef.current.has('ttg-animation')
               ? 'ttg-animation'
-              : crossedFigure3End
+              : crossedFigure3Boundary
                   && phoneGroup45CanBeginVisualRun(
                     visualRunPhaseRef.current['figure3-animation'],
                     -1
@@ -738,7 +730,7 @@ export function PhoneBrandLabStory({
             root.setAttribute('data-phone-group45-stage-active', 'true');
             root.setAttribute('data-phone-group45-stage-scene', nextRun);
             const trackTop = window.scrollY + track.getBoundingClientRect().top;
-            visualSnap.lock(runDirection === 1 ? trackTop : window.scrollY);
+            visualSnap.lock(trackTop);
             armVisualRunTimeout(nextRun);
             // Match the accepted AOD coordinator: start the mounted adapter in
             // the same turn that acquires the scroll lock. React state still
@@ -768,34 +760,44 @@ export function PhoneBrandLabStory({
       }
       lastScrollYRef.current = window.scrollY;
       const heldVisual = visualRunRef.current;
+      const figure3AtInitial = visualRunPhaseRef.current['figure3-animation'] === 'initial';
+      const ttgAtInitial = visualRunPhaseRef.current['ttg-animation'] === 'initial';
+      const figure3OwnsBoundary = figure3AtInitial && (reducedMotion
+        ? brandFigure3Progress > .001
+          && phoneGroup45ReducedReceiverProgress(figure3Rect?.top ?? -1) === 0
+        : figure3Frame.active
+          || (brandFigure3Progress > .001 && (figure3Rect?.top ?? -1) >= 0));
+      const ttgOwnsBoundary = ttgAtInitial && (reducedMotion
+        ? servicesTtgProgress > .001
+          && phoneGroup45ReducedReceiverProgress(ttgRect?.top ?? -1) === 0
+        : ttgFrame.active
+          || (servicesTtgProgress > .001 && (ttgRect?.top ?? -1) >= 0));
       const activeFigure3 = {
         ...figure3Frame,
         active: heldVisual === 'figure3-animation',
         prewarm: heldVisual === 'figure3-animation'
-          || figure3Frame.prewarm
-          || figure3Frame.active
-          || (brandFigure3Progress > .001 && (figure3Rect?.top ?? -1) >= 0)
+          || (figure3AtInitial && (
+            figure3Frame.prewarm
+            || figure3OwnsBoundary
+          ))
       };
       const activeTtg = {
         ...ttgFrame,
         active: heldVisual === 'ttg-animation',
         prewarm: heldVisual === 'ttg-animation'
-          || ttgFrame.prewarm
-          || ttgFrame.active
-          || (servicesTtgProgress > .001 && (ttgRect?.top ?? -1) >= 0)
+          || (ttgAtInitial && (
+            ttgFrame.prewarm
+            || ttgOwnsBoundary
+          ))
           || phoneGroup45RetainsTtgTerminal(
             visualRunPhaseRef.current['ttg-animation']
           )
       };
-      const nextStageScene: Group45VisualScene | null = heldVisual ?? (figure3Frame.active
+      const nextStageScene: Group45VisualScene | null = heldVisual ?? (figure3OwnsBoundary
         ? 'figure3-animation'
-        : ttgFrame.active
+        : ttgOwnsBoundary
           ? 'ttg-animation'
-          : brandFigure3Progress > .001 && (figure3Rect?.top ?? -1) >= 0
-            ? 'figure3-animation'
-            : servicesTtgProgress > .001 && (ttgRect?.top ?? -1) >= 0
-              ? 'ttg-animation'
-              : null);
+          : null);
       setVisualActivity((current) => (
         current.figure3.active === activeFigure3.active
           && current.figure3.prewarm === activeFigure3.prewarm
@@ -825,21 +827,32 @@ export function PhoneBrandLabStory({
       const labElement = labRef.current?.root() ?? null;
       brandFigure3Ref.current?.render(brandFigure3Progress);
       servicesTtgRef.current?.render(servicesTtgProgress);
-      if (heldVisual !== 'ttg-animation') {
-        // Outside TTG's time-owned run Lab remains in normal document flow;
-        // never reapply the promoted bridge from ordinary page scrolling.
+      if (reducedMotion) {
+        // Reduced motion still traverses the same A/B boundary. The stable
+        // visual endpoint owns exactly the boundary pixel; crossing it commits
+        // the one reading root without starting media or adding a hold.
+        figure3ServicesRef.current?.render(
+          phoneGroup45ReducedReceiverProgress(figure3Rect?.top ?? 1)
+        );
+        ttgLabRef.current?.render(
+          phoneGroup45ReducedReceiverProgress(ttgRect?.top ?? 1)
+        );
+      } else if (
+        heldVisual !== 'ttg-animation'
+        && visualRunPhaseRef.current['ttg-animation'] === 'initial'
+      ) {
+        // Before TTG owns the boundary, keep the one real Lab root hidden
+        // underneath it. A completed forward run leaves Lab committed.
         ttgLabRef.current?.enter?.();
       }
 
-      const sceneNodes: readonly [Group45PhoneSceneId, HTMLElement | null][] = [
+      const readingSceneNodes: readonly [Group45PhoneSceneId, HTMLElement | null][] = [
         ['brand', brandElement],
-        ['figure3-animation', figure3Element],
         ['services', servicesElement],
-        ['ttg-animation', ttgElement],
         ['lab', labElement]
       ];
       const viewportMid = viewportHeight * .5;
-      const active = sceneNodes.find(([, element]) => {
+      const active = heldVisual ?? nextStageScene ?? readingSceneNodes.find(([, element]) => {
         if (!element) return false;
         const rect = element.getBoundingClientRect();
         return rect.top <= viewportMid && rect.bottom >= viewportMid;
@@ -972,7 +985,7 @@ export function PhoneBrandLabStory({
       data-phone-validation-scope="brand-lab"
       data-phone-validation-mode={validationMode}
       data-phone-group45-state="ready"
-      data-phone-group45-layout="persistent-fixed-stage"
+      data-phone-group45-layout="shared-boundary-stage"
       data-phone-proof-brand-input="stable-receiver"
       data-phone-motion={reducedMotion ? 'reduce' : 'full'}
       data-phone-group45-scroll-direction={scrollDirection}

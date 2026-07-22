@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   PHONE_TTG_LAB_DECISION,
-  phoneTtgLabBridgeY,
   phoneTtgLabFrame,
   settlePhoneTtgLabDocumentFlow
 } from './phone';
@@ -21,6 +20,7 @@ function fakeEndpoint(): HTMLElement {
         return properties.get(name) ?? '';
       },
       removeProperty(name: string) {
+        if (name === 'opacity') this.opacity = '';
         const value = properties.get(name) ?? '';
         properties.delete(name);
         return value;
@@ -65,23 +65,16 @@ describe('Phone TTG → Lab transition', () => {
     });
   });
 
-  it('anchors the same Lab root at its real viewport position on reverse', () => {
-    expect(phoneTtgLabBridgeY(1)).toContain('-1 * var(--portrait-stage-height');
-    expect(phoneTtgLabBridgeY(-1)).toBe('0px');
-  });
-
-  it('keeps TTG hidden while releasing Lab back to document flow', () => {
+  it('keeps TTG hidden while committing Lab at the shared boundary', () => {
     const from = fakeEndpoint();
     const to = fakeEndpoint();
-    to.dataset.phoneTtgLabBridge = 'active';
-    to.style.setProperty('--phone-ttg-lab-bridge-opacity', '1');
+    to.style.opacity = '1.0000';
 
     settlePhoneTtgLabDocumentFlow(from, to);
 
     expect(from.style.opacity).toBe('0.0000');
     expect(from.dataset.phoneDissolve).toBe('ttg-lab');
-    expect(to.dataset.phoneTtgLabBridge).toBeUndefined();
-    expect(to.style.getPropertyValue('--phone-ttg-lab-bridge-opacity')).toBe('');
+    expect(to.style.opacity).toBe('');
   });
 
   it('settles media failure and reduced motion without a replay hold', () => {

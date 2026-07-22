@@ -34,14 +34,13 @@ const labStyles = readFileSync(
 );
 
 describe('Phone Brand → Lab visual contracts', () => {
-  it('mounts one Services scene and preserves that same layout during handoff', () => {
+  it('mounts one Services scene at the same boundary as Figure3', () => {
     expect(storySource.match(/<Services\b/g)).toHaveLength(1);
-    expect(servicesStyles).toMatch(
-      /\.phone-services[^\n{]+data-phone-figure3-services-bridge="active"/
+    expect(storyStyles).toMatch(
+      /phone-brand-lab__visual-track[^}]+margin-block-end:\s*calc\(-1 \* var\(--portrait-stage-height\)\)/s
     );
-    expect(servicesStyles).not.toMatch(
-      /data-phone-figure3-services-bridge[^}]+phone-services__hero/s
-    );
+    expect(servicesStyles).not.toContain('phone-figure3-services-bridge');
+    expect(storySource).not.toContain('window.scrollTo({ top: targetY');
   });
 
   it('composites Figure3 into paper below one desktop treatment layer', () => {
@@ -84,5 +83,6 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(labStyles).toMatch(/\.phone-lab\s*\{[^}]+#e9e1ce/s);
     expect(labStyles.match(/background:\s*transparent/g)).toHaveLength(2);
     expect(labStyles).not.toContain('linear-gradient(180deg, #eee7d8');
+    expect(labStyles).not.toContain('phone-ttg-lab-bridge');
   });
 });

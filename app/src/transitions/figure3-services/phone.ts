@@ -18,7 +18,7 @@ export const PHONE_FIGURE3_SERVICES_DECISION = {
   receiverCopies: 1,
   forwardEndpoint: 'services:reading-top',
   reverseEndpoint: 'figure3-animation:stable-initial-frame',
-  rationale: 'The source video remains the sole clock; Services enters over its final 20%, matching the accepted AOD → Method cue.'
+  rationale: 'Figure3 and the one Services document root share a boundary; the source video remains the sole clock and Services enters over its final 20%.'
 } as const;
 
 export const PHONE_FIGURE3_SERVICES_START_PROGRESS = 0.8;
@@ -53,26 +53,13 @@ function applyEndpoint(
   element: HTMLElement | null,
   opacity: number,
   id: 'figure3-services',
-  role: 'from' | 'to',
   documentFlow = false
 ): void {
   if (!element) return;
   if (documentFlow) {
     element.dataset.phoneDissolve = id;
     element.dataset.phoneDissolveOpacity = opacity.toFixed(4);
-    if (role === 'from') {
-      if (opacity >= .999) element.style.removeProperty('opacity');
-      else element.style.opacity = opacity.toFixed(4);
-    } else if (opacity > .001) {
-      element.dataset.phoneFigure3ServicesBridge = 'active';
-      element.style.setProperty(
-        '--phone-figure3-services-bridge-opacity',
-        opacity.toFixed(4)
-      );
-    } else {
-      delete element.dataset.phoneFigure3ServicesBridge;
-      element.style.removeProperty('--phone-figure3-services-bridge-opacity');
-    }
+    element.style.opacity = opacity.toFixed(4);
     return;
   }
   const visible = opacity > 0.001;
@@ -88,9 +75,7 @@ function clearEndpoint(element: HTMLElement | null, documentFlow = false): void 
   if (documentFlow) {
     delete element.dataset.phoneDissolve;
     delete element.dataset.phoneDissolveOpacity;
-    delete element.dataset.phoneFigure3ServicesBridge;
     element.style.removeProperty('opacity');
-    element.style.removeProperty('--phone-figure3-services-bridge-opacity');
     return;
   }
   element.style.removeProperty('opacity');
@@ -131,14 +116,12 @@ export const PhoneFigure3ServicesTransition = forwardRef<
       from,
       frame.fromOpacity,
       'figure3-services',
-      'from',
       documentFlow
     );
     applyEndpoint(
       to,
       frame.toOpacity,
       'figure3-services',
-      'to',
       documentFlow
     );
   }, [documentFlow, from, host, reducedMotion, to]);

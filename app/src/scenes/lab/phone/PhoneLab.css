@@ -12,24 +12,6 @@
   scroll-margin-top: 0;
 }
 
-/* The desktop TTG → Lab handoff promotes this same document root for 600 ms.
-   Its normal-flow geometry is untouched, so the settled Lab is not a second
-   copy and reverse can uncover TTG's prepared terminal frame. */
-.phone-lab[data-phone-scene="lab"][data-phone-ttg-lab-bridge="active"] {
-  z-index: 11;
-  opacity: var(--phone-ttg-lab-bridge-opacity, 0);
-  transform: translate3d(
-    0,
-    var(
-      --phone-ttg-lab-bridge-y,
-      calc(-1 * var(--portrait-stage-height, 100lvh))
-    ),
-    0
-  );
-  pointer-events: none;
-  will-change: opacity, transform;
-}
-
 .phone-lab__screen {
   box-sizing: border-box;
   display: grid;

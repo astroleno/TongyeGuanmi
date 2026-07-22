@@ -51,6 +51,7 @@ function applyEndpoint(
   if (documentFlow) {
     element.dataset.phoneDissolve = id;
     element.dataset.phoneDissolveOpacity = opacity.toFixed(4);
+    element.style.opacity = opacity.toFixed(4);
     return;
   }
   const visible = opacity > 0.001;
@@ -66,6 +67,7 @@ function clearEndpoint(element: HTMLElement | null, documentFlow = false): void 
   if (documentFlow) {
     delete element.dataset.phoneDissolve;
     delete element.dataset.phoneDissolveOpacity;
+    element.style.removeProperty('opacity');
     return;
   }
   element.style.removeProperty('opacity');

@@ -1,7 +1,7 @@
 /*
  * Brand → Lab is one native document rail and one persistent fixed stage.
- * Reading chapters stay in normal flow; the two media chapters merely place
- * a one-screen marker on that rail and render in the shared phone canvas.
+ * Each media marker overlaps its real reading receiver at the same document
+ * boundary, so a handoff never swaps between promoted and flow coordinates.
  */
 .phone-brand-lab {
   --phone-group45-edge-surface: #ede4d2;
@@ -122,6 +122,7 @@
   box-sizing: border-box;
   height: var(--portrait-stage-height);
   min-block-size: var(--portrait-stage-height);
+  margin-block-end: calc(-1 * var(--portrait-stage-height));
   overflow: clip;
   isolation: isolate;
 }

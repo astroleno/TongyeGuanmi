@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   phoneGroup45BoundaryProgress,
   phoneGroup45CanBeginVisualRun,
-  phoneGroup45CrossedVisualEnd,
+  phoneGroup45CrossedVisualBoundary,
   phoneGroup45CrossedVisualStart,
   phoneGroup45DocumentFlags,
   phoneGroup45EntryFromHash,
   phoneGroup45PhaseAfterVisualCompletion,
+  phoneGroup45ReducedReceiverProgress,
   phoneGroup45RetainsTtgTerminal,
   phoneGroup45TrackActivity,
   phoneGroup45TrackProgress
@@ -42,6 +43,12 @@ describe('PhoneBrandLabStory', () => {
     expect(phoneGroup45BoundaryProgress(0, 1200, 800)).toBe(1);
   });
 
+  it('commits reduced-motion receivers only after the shared boundary', () => {
+    expect(phoneGroup45ReducedReceiverProgress(1)).toBe(0);
+    expect(phoneGroup45ReducedReceiverProgress(0)).toBe(0);
+    expect(phoneGroup45ReducedReceiverProgress(-1)).toBe(1);
+  });
+
   it('keeps a visual chapter out of autoplay until it owns the screen', () => {
     // Brand's next visual is allowed to prewarm in the lower viewport, but
     // its media must not run beneath Brand's native reading content.
@@ -66,13 +73,8 @@ describe('PhoneBrandLabStory', () => {
     });
     expect(phoneGroup45CrossedVisualStart(0, 900, -56)).toBe(true);
     expect(phoneGroup45CrossedVisualStart(900, 940, -96)).toBe(false);
-    expect(phoneGroup45CrossedVisualEnd(
-      1744,
-      1700,
-      -800,
-      844,
-      844
-    )).toBe(true);
+    expect(phoneGroup45CrossedVisualBoundary(900, 800, 44)).toBe(true);
+    expect(phoneGroup45CrossedVisualBoundary(800, 760, 84)).toBe(false);
   });
 
   it('latches each media run until the opposite direction completes', () => {
