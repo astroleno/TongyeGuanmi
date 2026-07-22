@@ -366,6 +366,11 @@ export function PhoneBrandLabStory({
           ? servicesRef.current?.root() ?? null
           : labRef.current?.root() ?? null;
         if (visualRunRef.current !== scene || !latestReceiver) return;
+        if (scene === 'figure3-animation') {
+          figure3Ref.current?.leave?.();
+        } else {
+          ttgRef.current?.leave?.();
+        }
         visualRunRef.current = null;
         visualSnapRef.current?.release();
         rootRef.current?.setAttribute('data-phone-group45-snap', 'released');
@@ -525,6 +530,15 @@ export function PhoneBrandLabStory({
             root.setAttribute('data-phone-group45-snap', 'locked');
             visualSnap.lock(window.scrollY + track.getBoundingClientRect().top);
             armVisualRunTimeout(nextRun);
+            // Match the accepted AOD coordinator: start the mounted adapter in
+            // the same turn that acquires the scroll lock. React state still
+            // publishes visibility, but it is no longer a gate in front of
+            // the first native video.play() call.
+            if (nextRun === 'figure3-animation') {
+              figure3Ref.current?.enter?.();
+            } else {
+              ttgRef.current?.enter?.();
+            }
           }
         }
       }
@@ -624,15 +638,32 @@ export function PhoneBrandLabStory({
     const schedule = () => {
       if (!frame) frame = window.requestAnimationFrame(render);
     };
+    const retryBlockedVisual = () => {
+      const scene = visualRunRef.current;
+      if (!scene) return;
+      const adapter = scene === 'figure3-animation'
+        ? figure3Ref.current
+        : ttgRef.current;
+      const playbackState = adapter?.root()?.getAttribute(
+        scene === 'figure3-animation'
+          ? 'data-phone-figure3-playback'
+          : 'data-phone-ttg-playback'
+      );
+      if (playbackState === 'blocked' || playbackState === 'suspended') {
+        adapter?.enter?.();
+      }
+    };
     render();
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
     window.addEventListener('orientationchange', schedule);
+    root.addEventListener('pointerdown', retryBlockedVisual, { passive: true });
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
+      root.removeEventListener('pointerdown', retryBlockedVisual);
       if (visualRunTimeoutRef.current) {
         window.clearTimeout(visualRunTimeoutRef.current);
         visualRunTimeoutRef.current = 0;

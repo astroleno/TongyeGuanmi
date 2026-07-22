@@ -68,7 +68,7 @@
   transform-origin: 0% 50%;
 }
 
-.phone-figure3 .figure3-transition__video[data-timeline-video-frame-ready="true"] {
+.phone-figure3 .figure3-transition__video[data-phone-group45-frame-ready="true"] {
   opacity: var(--figure3-video-opacity);
 }
 
