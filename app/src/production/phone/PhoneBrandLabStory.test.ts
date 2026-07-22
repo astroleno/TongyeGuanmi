@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   phoneGroup45BoundaryProgress,
+  phoneGroup45CanArmReverseGesture,
   phoneGroup45CanBeginVisualRun,
   phoneGroup45CrossedVisualBoundary,
   phoneGroup45CrossedVisualStart,
@@ -8,6 +9,7 @@ import {
   phoneGroup45EntryFromHash,
   phoneGroup45PhaseAfterVisualCompletion,
   phoneGroup45ReducedReceiverProgress,
+  phoneGroup45RetainsFigure3Terminal,
   phoneGroup45RetainsTtgTerminal,
   phoneGroup45TrackActivity,
   phoneGroup45TrackProgress
@@ -87,6 +89,16 @@ describe('PhoneBrandLabStory', () => {
     expect(phoneGroup45PhaseAfterVisualCompletion(-1)).toBe('initial');
     expect(phoneGroup45RetainsTtgTerminal('complete')).toBe(true);
     expect(phoneGroup45RetainsTtgTerminal('reverse')).toBe(false);
+    expect(phoneGroup45RetainsFigure3Terminal('complete')).toBe(true);
+    expect(phoneGroup45RetainsFigure3Terminal('complete', true)).toBe(false);
+    expect(phoneGroup45RetainsFigure3Terminal('reverse')).toBe(false);
+  });
+
+  it('accepts upward-scroll touch intent exactly on a completed visual edge', () => {
+    expect(phoneGroup45CanArmReverseGesture('complete', 844, 844)).toBe(true);
+    expect(phoneGroup45CanArmReverseGesture('complete', 875, 844)).toBe(true);
+    expect(phoneGroup45CanArmReverseGesture('complete', 877, 844)).toBe(false);
+    expect(phoneGroup45CanArmReverseGesture('forward', 844, 844)).toBe(false);
   });
 
 });

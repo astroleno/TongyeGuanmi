@@ -6,9 +6,7 @@
   min-block-size: 100svh;
   align-items: center;
   color: #292919;
-  background:
-    radial-gradient(ellipse at 50% 18%, rgba(255, 252, 244, .16), transparent 42rem),
-    linear-gradient(180deg, #f6f2e8 0%, #ece8dc 58%, #e4ddcf 100%);
+  background: #ede4d2;
   padding: max(72px, 12svh) clamp(22px, 6vw, 42px) max(64px, 10svh);
   scroll-margin-top: 0;
 }

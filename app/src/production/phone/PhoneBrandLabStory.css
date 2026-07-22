@@ -128,14 +128,9 @@
 }
 
 .phone-brand-lab__visual-track--figure3 {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, .10),
-      transparent 32%,
-      rgba(41, 41, 25, .055)
-    ),
-    #ede4d2;
+  /* The marker owns distance only. Brand and Figure3 share one flat paper
+     underneath the authored treatment rendered by the Figure3 scene itself. */
+  background: #ede4d2;
 }
 
 .phone-brand-lab__visual-track--ttg {

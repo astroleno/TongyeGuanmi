@@ -87,10 +87,6 @@
   transform-origin: 0% 50%;
 }
 
-.phone-figure3 .figure3-transition__video[data-phone-group45-frame-ready="true"] {
-  opacity: var(--figure3-video-opacity);
-}
-
 .phone-figure3__paper-canvas {
   position: absolute;
   z-index: 2;
@@ -108,12 +104,12 @@
 }
 
 /*
- * The canonical video remains the sole decoder. Once its frame has been
- * multiplied into #ede4d2 inside the canvas, hide the hardware video plane;
- * this avoids Safari ignoring cross-compositor mix-blend-mode.
+ * The canonical video remains the sole decoder but is never a visible phone
+ * layer. Safari can expose its white hardware plane for one frame between
+ * loadeddata and the first successful drawImage; the paper canvas is the only
+ * presented media surface from its first verified frame onward.
  */
-.phone-figure3[data-phone-figure3-paper-compositor="ready"]
-  .figure3-transition__video {
+.phone-figure3 .figure3-transition__video {
   opacity: 0;
 }
 

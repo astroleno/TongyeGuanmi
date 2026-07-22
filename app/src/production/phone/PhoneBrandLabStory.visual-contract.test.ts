@@ -9,6 +9,10 @@ const storyStyles = readFileSync(
   new URL('./PhoneBrandLabStory.css', import.meta.url),
   'utf8'
 );
+const brandStyles = readFileSync(
+  new URL('../../scenes/brand/phone/PhoneBrand.css', import.meta.url),
+  'utf8'
+);
 const figure3Styles = readFileSync(
   new URL('../../scenes/figure3-animation/phone/PhoneFigure3.css', import.meta.url),
   'utf8'
@@ -52,6 +56,9 @@ describe('Phone Brand → Lab visual contracts', () => {
       'data-phone-figure3-paper-compositor="ready"'
     );
     expect(figure3Styles).not.toContain('mix-blend-mode: multiply');
+    expect(figure3Styles).not.toContain(
+      'data-phone-group45-frame-ready="true"'
+    );
     expect(figure3PaperCompositor).toContain(
       "context.globalCompositeOperation = 'multiply'"
     );
@@ -60,6 +67,16 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
     expect(figure3Styles).toMatch(
       /figure3-transition__stage[^}]+background:\s*var\(--phone-figure3-paper\)/s
+    );
+  });
+
+  it('keeps the Brand → Figure3 document paper flat beneath the authored scene', () => {
+    expect(brandStyles).toMatch(
+      /\.phone-brand\s*\{[^}]+background:\s*#ede4d2/s
+    );
+    expect(brandStyles).not.toContain('radial-gradient');
+    expect(storyStyles).toMatch(
+      /phone-brand-lab__visual-track--figure3\s*\{[^}]+background:\s*#ede4d2/s
     );
   });
 

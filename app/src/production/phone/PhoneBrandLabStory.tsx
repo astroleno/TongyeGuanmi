@@ -94,6 +94,28 @@ export function phoneGroup45RetainsTtgTerminal(
   return phase === 'complete';
 }
 
+/** Keep Figure3's verified terminal canvas beside Services until TTG needs
+ * the sole media slot. This mirrors Figure2's retained adjacent endpoint and
+ * prevents Safari from rebuilding the decoder at the reverse boundary. */
+export function phoneGroup45RetainsFigure3Terminal(
+  phase: PhoneGroup45VisualRunPhase,
+  ttgPrewarming = false
+): boolean {
+  return phase === 'complete' && !ttgPrewarming;
+}
+
+/** Safari can hold native scroll exactly on a shared edge. Arm reverse from
+ * touch intent there instead of requiring an otherwise invisible -1px scroll. */
+export function phoneGroup45CanArmReverseGesture(
+  phase: PhoneGroup45VisualRunPhase,
+  scrollY: number,
+  boundaryY: number,
+  tolerance = 32
+): boolean {
+  return phase === 'complete'
+    && Math.abs(scrollY - boundaryY) <= Math.max(0, tolerance);
+}
+
 function isGroup45Scene(scene: SceneId | undefined): scene is Group45PhoneSceneId {
   return Boolean(scene && GROUP45_SCENES.has(scene as Group45PhoneSceneId));
 }
@@ -468,7 +490,10 @@ export function PhoneBrandLabStory({
         figure3: {
           ...current.figure3,
           active: false,
-          prewarm: direction === -1 && scene === 'figure3-animation'
+          prewarm: scene === 'figure3-animation'
+            && (direction === -1 || phoneGroup45RetainsFigure3Terminal(
+              visualRunPhaseRef.current['figure3-animation']
+            ))
         },
         ttg: {
           ...current.ttg,
@@ -594,6 +619,65 @@ export function PhoneBrandLabStory({
       scrollTo: (y) => window.scrollTo({ top: y, left: 0, behavior: 'auto' })
     });
     visualSnapRef.current = visualSnap;
+    const beginVisualRun = (
+      nextRun: Group45VisualScene,
+      runDirection: VisualRunDirection
+    ): boolean => {
+      if (
+        reducedMotion
+        || visualRunRef.current
+        || failedVisualsRef.current.has(nextRun)
+        || !phoneGroup45CanBeginVisualRun(
+          visualRunPhaseRef.current[nextRun],
+          runDirection
+        )
+      ) return false;
+      const track = nextRun === 'figure3-animation'
+        ? figure3TrackRef.current
+        : ttgTrackRef.current;
+      if (!track) return false;
+
+      visualRunRef.current = nextRun;
+      visualRunDirectionRef.current = runDirection;
+      visualRunPhaseRef.current[nextRun] = runDirection === 1
+        ? 'forward'
+        : 'reverse';
+      scrollDirectionLockUntilRef.current = window.performance.now() + 280;
+      setScrollDirection(runDirection);
+      setStageScene(nextRun);
+      root.setAttribute(
+        'data-phone-group45-visual-run',
+        `${nextRun}:${runDirection === 1 ? 'forward' : 'reverse'}`
+      );
+      root.setAttribute('data-phone-group45-snap', 'locked');
+      root.setAttribute('data-phone-group45-stage-active', 'true');
+      root.setAttribute('data-phone-group45-stage-scene', nextRun);
+      const trackTop = window.scrollY + track.getBoundingClientRect().top;
+      visualSnap.lock(trackTop);
+      armVisualRunTimeout(nextRun);
+
+      // Match the accepted AOD coordinator: the mounted adapter starts in the
+      // same turn as the scroll lock. Reverse touch intent uses this exact path
+      // too, so there is still only one run owner and one semantic boundary.
+      if (nextRun === 'figure3-animation') {
+        if (runDirection === 1) {
+          figure3ServicesRef.current?.enter?.();
+          figure3Ref.current?.enter?.();
+        } else {
+          figure3ServicesRef.current?.reverse?.();
+          figure3Ref.current?.reverse?.();
+        }
+      } else if (runDirection === 1) {
+        ttgLabRef.current?.enter?.();
+        ttgRef.current?.enter?.();
+      } else {
+        // Keep Lab covering the stage until TTG's terminal frame is prepared,
+        // then the adapter dissolves this same root away.
+        ttgLabRef.current?.reverse?.();
+        ttgRef.current?.reverse?.();
+      }
+      return true;
+    };
     const render = () => {
       frame = 0;
       const viewportHeight = Math.max(1, window.innerHeight);
@@ -708,55 +792,7 @@ export function PhoneBrandLabStory({
                 ? 'figure3-animation'
                 : null
             : null;
-        if (nextRun) {
-          const runDirection: VisualRunDirection = forwardDirection ? 1 : -1;
-          const track = nextRun === 'figure3-animation'
-            ? figure3Element
-            : ttgElement;
-          if (track) {
-            visualRunRef.current = nextRun;
-            visualRunDirectionRef.current = runDirection;
-            visualRunPhaseRef.current[nextRun] = runDirection === 1
-              ? 'forward'
-              : 'reverse';
-            scrollDirectionLockUntilRef.current = window.performance.now() + 280;
-            setScrollDirection(runDirection);
-            setStageScene(nextRun);
-            root.setAttribute(
-              'data-phone-group45-visual-run',
-              `${nextRun}:${runDirection === 1 ? 'forward' : 'reverse'}`
-            );
-            root.setAttribute('data-phone-group45-snap', 'locked');
-            root.setAttribute('data-phone-group45-stage-active', 'true');
-            root.setAttribute('data-phone-group45-stage-scene', nextRun);
-            const trackTop = window.scrollY + track.getBoundingClientRect().top;
-            visualSnap.lock(trackTop);
-            armVisualRunTimeout(nextRun);
-            // Match the accepted AOD coordinator: start the mounted adapter in
-            // the same turn that acquires the scroll lock. React state still
-            // publishes visibility, but it is no longer a gate in front of
-            // the first native video.play() call.
-            if (nextRun === 'figure3-animation') {
-              if (runDirection === 1) {
-                figure3ServicesRef.current?.enter?.();
-                figure3Ref.current?.enter?.();
-              } else {
-                figure3ServicesRef.current?.reverse?.();
-                figure3Ref.current?.reverse?.();
-              }
-            } else {
-              if (runDirection === 1) {
-                ttgLabRef.current?.enter?.();
-                ttgRef.current?.enter?.();
-              } else {
-                // Keep Lab covering the stage until TTG's terminal frame is
-                // prepared, then the adapter dissolves this same root away.
-                ttgLabRef.current?.reverse?.();
-                ttgRef.current?.reverse?.();
-              }
-            }
-          }
-        }
+        if (nextRun) beginVisualRun(nextRun, forwardDirection ? 1 : -1);
       }
       lastScrollYRef.current = window.scrollY;
       const heldVisual = visualRunRef.current;
@@ -772,6 +808,11 @@ export function PhoneBrandLabStory({
           && phoneGroup45ReducedReceiverProgress(ttgRect?.top ?? -1) === 0
         : ttgFrame.active
           || (servicesTtgProgress > .001 && (ttgRect?.top ?? -1) >= 0));
+      const ttgNeedsMedia = heldVisual === 'ttg-animation'
+        || (ttgAtInitial && (
+          ttgFrame.prewarm
+          || ttgOwnsBoundary
+        ));
       const activeFigure3 = {
         ...figure3Frame,
         active: heldVisual === 'figure3-animation',
@@ -780,15 +821,15 @@ export function PhoneBrandLabStory({
             figure3Frame.prewarm
             || figure3OwnsBoundary
           ))
+          || phoneGroup45RetainsFigure3Terminal(
+            visualRunPhaseRef.current['figure3-animation'],
+            ttgNeedsMedia
+          )
       };
       const activeTtg = {
         ...ttgFrame,
         active: heldVisual === 'ttg-animation',
-        prewarm: heldVisual === 'ttg-animation'
-          || (ttgAtInitial && (
-            ttgFrame.prewarm
-            || ttgOwnsBoundary
-          ))
+        prewarm: ttgNeedsMedia
           || phoneGroup45RetainsTtgTerminal(
             visualRunPhaseRef.current['ttg-animation']
           )
@@ -871,6 +912,70 @@ export function PhoneBrandLabStory({
     const schedule = () => {
       if (!frame) frame = window.requestAnimationFrame(render);
     };
+    let reverseGesture: Readonly<{
+      pointerId: number;
+      scene: Group45VisualScene;
+      startY: number;
+    }> | null = null;
+    const pointerTargetIsInteractive = (event: PointerEvent) => (
+      event.target instanceof Element
+      && Boolean(event.target.closest(
+        'a, button, input, select, textarea, [role="button"]'
+      ))
+    );
+    const onReversePointerDown = (event: PointerEvent) => {
+      reverseGesture = null;
+      if (
+        event.pointerType !== 'touch'
+        || !event.isPrimary
+        || reducedMotion
+        || visualRunRef.current
+        || pointerTargetIsInteractive(event)
+      ) return;
+      const candidates: readonly Group45VisualScene[] = [
+        'ttg-animation',
+        'figure3-animation'
+      ];
+      for (const scene of candidates) {
+        const track = scene === 'figure3-animation'
+          ? figure3TrackRef.current
+          : ttgTrackRef.current;
+        if (!track) continue;
+        const boundaryY = window.scrollY + track.getBoundingClientRect().top;
+        if (!phoneGroup45CanArmReverseGesture(
+          visualRunPhaseRef.current[scene],
+          window.scrollY,
+          boundaryY
+        )) continue;
+        reverseGesture = {
+          pointerId: event.pointerId,
+          scene,
+          startY: event.clientY
+        };
+        root.dataset.phoneGroup45ReverseGesture = `${scene}:armed`;
+        return;
+      }
+    };
+    const onReversePointerMove = (event: PointerEvent) => {
+      const gesture = reverseGesture;
+      if (
+        !gesture
+        || gesture.pointerId !== event.pointerId
+        || event.clientY - gesture.startY < 10
+      ) return;
+      reverseGesture = null;
+      if (beginVisualRun(gesture.scene, -1)) {
+        root.dataset.phoneGroup45ReverseGesture = `${gesture.scene}:started`;
+        lastScrollYRef.current = window.scrollY;
+      } else {
+        delete root.dataset.phoneGroup45ReverseGesture;
+      }
+    };
+    const clearReverseGesture = (event: PointerEvent) => {
+      if (reverseGesture?.pointerId !== event.pointerId) return;
+      reverseGesture = null;
+      delete root.dataset.phoneGroup45ReverseGesture;
+    };
     const retryBlockedVisual = () => {
       const scene = visualRunRef.current;
       if (!scene) return;
@@ -899,6 +1004,10 @@ export function PhoneBrandLabStory({
     window.addEventListener('resize', schedule);
     window.addEventListener('orientationchange', schedule);
     root.addEventListener('pointerdown', retryBlockedVisual, { passive: true });
+    root.addEventListener('pointerdown', onReversePointerDown, { passive: true });
+    root.addEventListener('pointermove', onReversePointerMove, { passive: true });
+    root.addEventListener('pointerup', clearReverseGesture, { passive: true });
+    root.addEventListener('pointercancel', clearReverseGesture, { passive: true });
     root.addEventListener('touchmove', preventHeldScroll, {
       passive: false,
       capture: true
@@ -913,6 +1022,10 @@ export function PhoneBrandLabStory({
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
       root.removeEventListener('pointerdown', retryBlockedVisual);
+      root.removeEventListener('pointerdown', onReversePointerDown);
+      root.removeEventListener('pointermove', onReversePointerMove);
+      root.removeEventListener('pointerup', clearReverseGesture);
+      root.removeEventListener('pointercancel', clearReverseGesture);
       root.removeEventListener('touchmove', preventHeldScroll, true);
       root.removeEventListener('wheel', preventHeldScroll, true);
       if (visualRunTimeoutRef.current) {
@@ -925,6 +1038,7 @@ export function PhoneBrandLabStory({
       delete root.dataset.phoneGroup45Snap;
       delete root.dataset.phoneGroup45VisualRun;
       delete root.dataset.phoneGroup45VisualProgress;
+      delete root.dataset.phoneGroup45ReverseGesture;
     };
   }, [
     adapters.ready,
