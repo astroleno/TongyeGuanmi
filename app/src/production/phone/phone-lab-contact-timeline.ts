@@ -21,9 +21,16 @@ export const PHONE_LAB_CONTACT_AUTOPLAY_EVENT = 'phone-lab-contact-autoplay';
 
 export type PhoneLabContactAutoplayEventDetail = Readonly<{
   scene: 'ph-animation' | 'crane-animation';
-  phase: 'start' | 'complete';
+  phase: 'start' | 'playing' | 'complete';
   direction: 1 | -1;
 }>;
+
+/** Snap only after the native clock has produced real playback evidence. */
+export function phoneLabContactAutoplayLocksSnap(
+  detail: PhoneLabContactAutoplayEventDetail
+): boolean {
+  return detail.phase === 'playing';
+}
 
 export function dispatchPhoneLabContactAutoplay(
   target: EventTarget | null | undefined,

@@ -255,6 +255,11 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         root.querySelector<HTMLVideoElement>('[data-ph-alpha-video]')?.pause();
         ensurePackedSurface('endpoint');
         reverseDissolveRef.current?.start();
+        dispatchPhoneLabContactAutoplay(root, {
+          scene: 'ph-animation',
+          phase: 'playing',
+          direction
+        });
       }
     }, [completeRun, ensurePackedSurface, reducedMotion, render]);
 
@@ -269,6 +274,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       renderPhHold(root);
       ensurePackedSurface(reducedMotion ? 'endpoint' : 'forward');
       const nativeAutoplay = createPhoneNativeAutoplay(video, {
+        runIdPrefix: 'phone-ph-figure',
         durationSeconds: PH_FIGURE_END_SECONDS,
         onProgress: (progress) => render(
           phonePhTimelineProgressForMediaProgress(progress),
@@ -281,6 +287,11 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         },
         onFrameReady: () => {
           root.dataset.phonePhMedia = 'decoding';
+          dispatchPhoneLabContactAutoplay(root, {
+            scene: 'ph-animation',
+            phase: 'playing',
+            direction: 1
+          });
         }
       });
       const reverseDissolve = createPhonePhReverseDissolve(

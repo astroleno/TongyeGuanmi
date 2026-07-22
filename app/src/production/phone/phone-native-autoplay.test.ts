@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { unlockStoryMedia } from '../mobile-media-unlock';
 import { createPhoneNativeAutoplay } from './phone-native-autoplay';
 
 class FakeVideo extends EventTarget {
@@ -33,6 +34,7 @@ describe('phone native autoplay', () => {
     const controller = createPhoneNativeAutoplay(
       video as unknown as HTMLVideoElement,
       {
+        runIdPrefix: 'phone-test',
         durationSeconds: 1,
         onProgress: vi.fn(),
         onComplete: vi.fn(),
@@ -58,6 +60,7 @@ describe('phone native autoplay', () => {
     const controller = createPhoneNativeAutoplay(
       video as unknown as HTMLVideoElement,
       {
+        runIdPrefix: 'phone-test',
         durationSeconds: 1,
         onProgress: vi.fn(),
         onComplete: vi.fn(),
@@ -83,6 +86,7 @@ describe('phone native autoplay', () => {
     const controller = createPhoneNativeAutoplay(
       video as unknown as HTMLVideoElement,
       {
+        runIdPrefix: 'phone-test',
         durationSeconds: 2,
         onProgress: (value) => progress.push(value),
         onComplete: complete,
@@ -97,6 +101,9 @@ describe('phone native autoplay', () => {
     await Promise.resolve();
     expect(video.play).toHaveBeenCalledOnce();
     expect(video.dataset.phoneNativeAutoplay).toBe('playing');
+    expect(video.dataset.phoneNativeFrameReady).toBeUndefined();
+    video.currentTime = 0.1;
+    video.dispatchEvent(new Event('timeupdate'));
     expect(video.dataset.phoneNativeFrameReady).toBe('true');
     expect(video.loop).toBe(false);
     expect(video.preload).toBe('auto');
@@ -129,6 +136,7 @@ describe('phone native autoplay', () => {
     const controller = createPhoneNativeAutoplay(
       video as unknown as HTMLVideoElement,
       {
+        runIdPrefix: 'phone-test',
         durationSeconds: 1,
         onProgress: vi.fn(),
         onComplete: vi.fn(),
@@ -159,6 +167,7 @@ describe('phone native autoplay', () => {
     const controller = createPhoneNativeAutoplay(
       video as unknown as HTMLVideoElement,
       {
+        runIdPrefix: 'phone-test',
         durationSeconds: 1,
         onProgress: vi.fn(),
         onComplete: vi.fn(),
@@ -179,6 +188,56 @@ describe('phone native autoplay', () => {
     controller.dispose();
   });
 
+  it('keeps a real run alive when a pending gesture prewarm resolves late', async () => {
+    const video = new FakeVideo();
+    let resolvePrewarm: () => void = () => undefined;
+    video.play
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        resolvePrewarm = resolve;
+      }))
+      .mockImplementation(async () => {
+        video.paused = false;
+        video.dispatchEvent(new Event('play'));
+      });
+
+    unlockStoryMedia({
+      querySelectorAll: () => [video]
+    } as unknown as ParentNode);
+
+    const controller = createPhoneNativeAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        runIdPrefix: 'phone-ph-figure',
+        durationSeconds: 1,
+        onProgress: vi.fn(),
+        onComplete: vi.fn(),
+        onFailure: vi.fn(),
+        requestFrame: () => 1,
+        cancelFrame: vi.fn()
+      }
+    );
+    const idleRun = video.dataset.timelineVideoRun;
+
+    controller.start();
+    await Promise.resolve();
+    const activeRun = video.dataset.timelineVideoRun;
+    const pausesAfterTakeover = video.pause.mock.calls.length;
+
+    expect(idleRun).toMatch(/^phone-ph-figure-idle:/);
+    expect(activeRun).toMatch(/^phone-ph-figure-forward:/);
+    expect(activeRun).not.toBe(idleRun);
+    expect(video.paused).toBe(false);
+
+    resolvePrewarm();
+    await Promise.resolve();
+
+    expect(video.pause).toHaveBeenCalledTimes(pausesAfterTakeover);
+    expect(video.play).toHaveBeenCalledTimes(2);
+    expect(video.paused).toBe(false);
+    expect(video.dataset.timelineVideoRun).toBe(activeRun);
+    controller.dispose();
+  });
+
   it('fails a stalled run instead of retaining the cinematic snap forever', async () => {
     vi.useFakeTimers();
     try {
@@ -187,6 +246,7 @@ describe('phone native autoplay', () => {
       const controller = createPhoneNativeAutoplay(
         video as unknown as HTMLVideoElement,
         {
+          runIdPrefix: 'phone-test',
           durationSeconds: 3,
           stallTimeoutMs: 50,
           onProgress: vi.fn(),
@@ -221,6 +281,7 @@ describe('phone native autoplay', () => {
       const controller = createPhoneNativeAutoplay(
         video as unknown as HTMLVideoElement,
         {
+          runIdPrefix: 'phone-test',
           durationSeconds: 2,
           stallTimeoutMs: 50,
           onProgress: vi.fn(),

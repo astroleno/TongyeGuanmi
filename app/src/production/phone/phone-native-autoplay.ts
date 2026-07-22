@@ -13,6 +13,7 @@ export type PhoneNativeAutoplay = Readonly<{
 }>;
 
 type PhoneNativeAutoplayOptions = Readonly<{
+  runIdPrefix: string;
   durationSeconds: number;
   stallTimeoutMs?: number;
   onProgress(progress: number): void;
@@ -66,6 +67,18 @@ export function createPhoneNativeAutoplay(
   let frame = 0;
   let stallTimer: PhoneNativeTimer | undefined;
   let lastEvidenceProgress = 0;
+  let frameReady = false;
+  let runRevision = 0;
+
+  const publishPlaybackOwnership = (phase: string) => {
+    runRevision += 1;
+    video.dataset.timelineVideoRun = `${options.runIdPrefix}-${phase}:${runRevision}`;
+  };
+
+  // Give gesture prewarming an explicit idle owner as soon as the controller
+  // exists. Every later lifecycle boundary rotates this token before it can
+  // call pause() from a stale play() promise.
+  publishPlaybackOwnership('idle');
 
   const cancelScheduledFrame = () => {
     if (!frame) return;
@@ -86,6 +99,7 @@ export function createPhoneNativeAutoplay(
     playPending = false;
     cancelScheduledFrame();
     cancelStallTimer();
+    publishPlaybackOwnership('failed');
     video.pause();
     video.dataset.phoneNativeAutoplay = 'failed';
     options.onFailure();
@@ -113,6 +127,7 @@ export function createPhoneNativeAutoplay(
     playPending = false;
     cancelScheduledFrame();
     cancelStallTimer();
+    publishPlaybackOwnership('complete');
     video.pause();
     video.dataset.phoneNativeAutoplay = 'complete';
     render(1);
@@ -128,7 +143,9 @@ export function createPhoneNativeAutoplay(
 
   const tick: FrameRequestCallback = () => {
     frame = 0;
-    if (!active || disposed || renderAndComplete()) return;
+    if (!active || disposed) return;
+    markFrameReady();
+    if (renderAndComplete()) return;
     if (!video.paused && !video.ended) {
       frame = requestFrame(tick);
     }
@@ -141,7 +158,14 @@ export function createPhoneNativeAutoplay(
   };
 
   const markFrameReady = () => {
-    if (video.readyState < HAVE_CURRENT_DATA) return;
+    if (
+      frameReady
+      || video.readyState < HAVE_CURRENT_DATA
+      || (video.currentTime <= 0 && !video.ended)
+    ) {
+      return;
+    }
+    frameReady = true;
     video.dataset.phoneNativeFrameReady = 'true';
     options.onFrameReady?.();
   };
@@ -176,7 +200,6 @@ export function createPhoneNativeAutoplay(
           return;
         }
         video.dataset.phoneNativeAutoplay = 'playing';
-        markFrameReady();
         schedule();
       },
       () => {
@@ -201,7 +224,6 @@ export function createPhoneNativeAutoplay(
   const onPlay = () => {
     if (!active || disposed) return;
     video.dataset.phoneNativeAutoplay = 'playing';
-    markFrameReady();
     armStallTimer();
     schedule();
   };
@@ -237,13 +259,16 @@ export function createPhoneNativeAutoplay(
   video.addEventListener('error', onError);
   visibilityDocument?.addEventListener('visibilitychange', onVisibilityChange);
 
-  const stopCurrentRun = () => {
+  const stopCurrentRun = (phase = 'stopped') => {
     active = false;
     playAttempt += 1;
     playPending = false;
     cancelScheduledFrame();
     cancelStallTimer();
+    publishPlaybackOwnership(phase);
     video.pause();
+    frameReady = false;
+    delete video.dataset.phoneNativeFrameReady;
   };
 
   return {
@@ -261,8 +286,11 @@ export function createPhoneNativeAutoplay(
       video.playsInline = true;
       video.preload = 'auto';
       video.setAttribute('webkit-playsinline', 'true');
+      publishPlaybackOwnership('forward');
       active = true;
       lastEvidenceProgress = 0;
+      frameReady = false;
+      delete video.dataset.phoneNativeFrameReady;
       video.dataset.phoneNativeAutoplay = 'starting';
       render(0);
       armStallTimer();
@@ -277,18 +305,19 @@ export function createPhoneNativeAutoplay(
     },
     reset() {
       if (disposed) return;
-      stopCurrentRun();
+      stopCurrentRun('resetting');
       try {
         video.currentTime = 0;
       } catch {
         // Metadata may still be pending; the source remains reusable.
       }
       video.dataset.phoneNativeAutoplay = 'idle';
+      publishPlaybackOwnership('idle');
       render(0);
     },
     dispose() {
       if (disposed) return;
-      stopCurrentRun();
+      stopCurrentRun('disposed');
       disposed = true;
       video.removeEventListener('loadeddata', onFrameEvidence);
       video.removeEventListener('canplay', onFrameEvidence);
@@ -302,6 +331,7 @@ export function createPhoneNativeAutoplay(
       delete video.dataset.phoneNativeAutoplay;
       delete video.dataset.phoneNativeAutoplayProgress;
       delete video.dataset.phoneNativeFrameReady;
+      delete video.dataset.timelineVideoRun;
     }
   };
 }

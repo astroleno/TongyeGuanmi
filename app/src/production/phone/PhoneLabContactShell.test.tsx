@@ -87,8 +87,12 @@ describe('PhoneLabContactShell', () => {
     expect(shellCss).toContain('var(--portrait-stage-coverage-height)');
     expect(shellCss).toContain('--phone-cinematic-vh');
     expect(shellCss).toContain('--phone-lab-contact-edge-surface');
-    expect(shellCss).toMatch(/\.phone-lab-contact__stage\s*\{[^}]*position: fixed/s);
+    expect(shellCss).toMatch(/\.phone-lab-contact__stage-host\s*\{[^}]*position: fixed/s);
+    expect(shellCss).toMatch(/\.phone-lab-contact__stage\s*\{[^}]*position: absolute/s);
     expect(shellCss).toMatch(/\.phone-lab-contact__stage-canvas\s*\{[^}]*overflow: clip/s);
+    expect(shellSource).toContain('data-phone-stage-host="persistent"');
+    expect(shellSource).toContain('usePhoneLabContactFixedStageRegistration');
+    expect(shellSource).toContain("fixedStageRegistered ? 'registered' : 'priming'");
     expect(shellSource).toContain('usePhoneLabContactViewportGeometry(rootRef, motionEnabled)');
     expect(shellSource).toContain('widthChanged || forceRetainedGeometry');
     expect(shellSource).not.toContain("from './usePhoneViewportGeometry'");
@@ -101,6 +105,7 @@ describe('PhoneLabContactShell', () => {
   it('uses the production gesture unlock and local cinematic snap without blocking CTA ownership', () => {
     expect(shellSource).toContain('attachStoryMediaUnlock(rootRef.current)');
     expect(shellSource).toContain('createPhoneLabContactSnapLock');
+    expect(shellSource).toContain('phoneLabContactAutoplayLocksSnap');
     expect(shellSource).toContain('PHONE_LAB_CONTACT_STOPS.sceneMotionEnd');
     expect(shellSource).toContain('phoneLabContactOwnsNativePlayback');
     expect(shellSource).toContain('phoneLabContactCrossedAutoplayBoundary');

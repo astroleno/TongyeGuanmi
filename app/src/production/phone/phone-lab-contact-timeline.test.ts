@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  phoneLabContactAutoplayLocksSnap,
   phoneLabContactCrossedAutoplayBoundary,
   phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
@@ -7,6 +8,24 @@ import {
 } from './phone-lab-contact-timeline';
 
 describe('phone Lab → Contact acceptance timeline', () => {
+  it('waits for real playback evidence before cinematic snap owns input', () => {
+    expect(phoneLabContactAutoplayLocksSnap({
+      scene: 'ph-animation',
+      phase: 'start',
+      direction: 1
+    })).toBe(false);
+    expect(phoneLabContactAutoplayLocksSnap({
+      scene: 'ph-animation',
+      phase: 'playing',
+      direction: 1
+    })).toBe(true);
+    expect(phoneLabContactAutoplayLocksSnap({
+      scene: 'crane-animation',
+      phase: 'complete',
+      direction: 1
+    })).toBe(false);
+  });
+
   it('keeps each handoff bounded to its stable endpoints without a hidden hold', () => {
     expect(phoneLabContactPhaseFrame(0)).toMatchObject({
       handoffProgress: 0,

@@ -46,7 +46,8 @@ export function createPhoneCraneForwardRun(
   root: HTMLElement,
   render: (progress: number, direction: PhoneCranePlaybackDirection) => void,
   onComplete: () => void,
-  onFailure: () => void
+  onFailure: () => void,
+  onFrameReady?: () => void
 ): PhoneCraneForwardRun | null {
   const [figure, flock] = phoneCraneVideos(root);
   if (!figure || !flock) return null;
@@ -55,12 +56,17 @@ export function createPhoneCraneForwardRun(
   let figureStarted = false;
   let lastProgress = 0;
   let failed = false;
+  let firstFrameReady = false;
 
   const markFrameReady = (video: HTMLVideoElement, owner: 'figure' | 'flock') => {
     video.dataset.phoneCraneFrameReady = 'true';
     video.dataset.timelineVideoFrameReady = 'true';
     video.dataset.phoneCraneNativePlayback = `playing-${owner}`;
     root.dataset.phoneCraneMedia = 'playing';
+    if (!firstFrameReady) {
+      firstFrameReady = true;
+      onFrameReady?.();
+    }
   };
 
   const publishProgress = (nextProgress: number) => {
@@ -79,6 +85,7 @@ export function createPhoneCraneForwardRun(
   };
 
   const figureClock: PhoneNativeAutoplay = createPhoneNativeAutoplay(figure, {
+    runIdPrefix: 'phone-crane-figure',
     durationSeconds: CRANE_VIDEO_END_SECONDS,
     onProgress: (progress) => publishProgress(
       (FIGURE_START_SECONDS + progress * CRANE_VIDEO_END_SECONDS)
@@ -96,6 +103,7 @@ export function createPhoneCraneForwardRun(
   });
 
   const flockClock: PhoneNativeAutoplay = createPhoneNativeAutoplay(flock, {
+    runIdPrefix: 'phone-crane-flock',
     durationSeconds: CRANE_VIDEO_END_SECONDS,
     onProgress: (progress) => {
       const mediaSeconds = progress * CRANE_VIDEO_END_SECONDS;
@@ -124,6 +132,7 @@ export function createPhoneCraneForwardRun(
       active = true;
       failed = false;
       figureStarted = false;
+      firstFrameReady = false;
       lastProgress = 0;
       delete flock.dataset.phoneCraneFrameReady;
       delete figure.dataset.phoneCraneFrameReady;

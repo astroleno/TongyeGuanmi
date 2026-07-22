@@ -214,6 +214,11 @@ export const PhoneCrane = forwardRef<
       forwardRunRef.current?.stop();
       ensurePackedSurfaces('endpoint');
       reverseDissolveRef.current?.start();
+      dispatchPhoneLabContactAutoplay(root, {
+        scene: 'crane-animation',
+        phase: 'playing',
+        direction
+      });
     }
   }, [completeRun, ensurePackedSurfaces, reducedMotion, render]);
 
@@ -236,6 +241,13 @@ export const PhoneCrane = forwardRef<
       () => {
         applyPhoneCraneMediaFallback(root);
         completeRun(1);
+      },
+      () => {
+        dispatchPhoneLabContactAutoplay(root, {
+          scene: 'crane-animation',
+          phase: 'playing',
+          direction: 1
+        });
       }
     );
     if (!forwardRun) {

@@ -29,6 +29,7 @@ import {
   PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
   PHONE_LAB_CONTACT_STOPS,
   type PhoneLabContactAutoplayEventDetail,
+  phoneLabContactAutoplayLocksSnap,
   phoneLabContactCrossedAutoplayBoundary,
   phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
@@ -39,6 +40,7 @@ import {
   type PhoneLabContactSnapLock
 } from './phone-lab-contact-snap-lock';
 import { usePhoneAdapterHandleRef } from './phone-adapter-binding';
+import { usePhoneLabContactFixedStageRegistration } from './usePhoneLabContactFixedStageRegistration';
 import type {
   PhoneSceneAdapterComponent,
   PhoneSceneAdapterHandle,
@@ -422,6 +424,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   const motionEnabled = phoneMotionEnabled();
   const reducedMotion = !motionEnabled;
   const fullJourney = entryScene === 'lab';
+  const fixedStageRegistered = usePhoneLabContactFixedStageRegistration(
+    fullJourney,
+    !fullJourney
+  );
   usePhoneLabContactViewportGeometry(rootRef, motionEnabled);
   const {
     scenes,
@@ -651,6 +657,12 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         return;
       }
       if (detail.phase === 'start') {
+        cinematicRunStates.current[detail.scene] = detail.direction === 1
+          ? 'forward'
+          : 'reverse';
+        return;
+      }
+      if (phoneLabContactAutoplayLocksSnap(detail)) {
         const phase = detail.scene === 'ph-animation'
           ? phPhaseRef.current
           : cranePhaseRef.current;
@@ -658,9 +670,6 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           ? phStageRef.current
           : craneStageRef.current;
         if (!phase) return;
-        cinematicRunStates.current[detail.scene] = detail.direction === 1
-          ? 'forward'
-          : 'reverse';
         if (snapTimeout) window.clearTimeout(snapTimeout);
         lockedScene = detail.scene;
         const phaseTop = phase.getBoundingClientRect().top + window.scrollY;
@@ -668,10 +677,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           1,
           phase.offsetHeight - (stage?.offsetHeight || window.innerHeight)
         );
-        // AOD's accepted snap topology collapses the otherwise invisible
-        // sticky distance while native media owns time. Forward lands at the
-        // far edge; reverse lands at the near edge. Once playback completes,
-        // the next physical gesture immediately pushes the camera away.
+        // Claim the document only after the native clock has advanced. This
+        // keeps a blocked first Safari play() from turning an intent event into
+        // a five-second input lock. Forward lands at the far edge; reverse at
+        // the near edge until the run completes.
         const phaseProgress = detail.direction === 1
           ? PHONE_LAB_CONTACT_STOPS.sceneMotionEnd
           : PHONE_LAB_CONTACT_STOPS.handoffEnd;
@@ -746,7 +755,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   }, [adapterRevision, entryScene, fullJourney, reducedMotion]);
 
   useEffect(() => {
-    if (!fullJourney) return;
+    if (!fullJourney || !fixedStageRegistered) return;
     let frame = 0;
     let settleFrame = 0;
     const schedule = () => {
@@ -868,10 +877,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           true,
           scrollDirection
         );
-        // enter()/reverse() dispatches the autoplay event synchronously. Its
-        // AOD-style lock moves the document to the stable far/near anchor;
-        // sample that corrected geometry on the next frame, not this stale
-        // pre-lock rect.
+        // enter()/reverse() claims the run synchronously. A later playback-
+        // evidence event installs the AOD-style far/near lock; resample on the
+        // next frame so the claimed run stays alive during that short gap.
         schedule();
         return true;
       };
@@ -888,6 +896,54 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           )
         )
       ) {
+        return;
+      }
+
+      const phRunActive = cinematicRunStates.current['ph-animation'] === 'forward'
+        || cinematicRunStates.current['ph-animation'] === 'reverse';
+      const craneRunActive = cinematicRunStates.current['crane-animation'] === 'forward'
+        || cinematicRunStates.current['crane-animation'] === 'reverse';
+
+      // Between threshold crossing and the first decoded frame the user can
+      // still be finishing the same swipe. Keep the claimed scene alive until
+      // its first-frame event installs the snap; otherwise the next scroll
+      // sample parks the decoder before it can ever produce that frame.
+      if (phRunActive) {
+        publishNavigationScene('ph-animation');
+        publishActiveScene('ph-animation');
+        setStageActive(phStageRef.current, true);
+        setStageExitOffset(phStageRef.current, 0);
+        setVisualEndpoint(ph, 1);
+        syncSceneLifecycle(lifecycleStates.current, 'lab', lab, false);
+        syncSceneLifecycle(lifecycleStates.current, 'education', education, false);
+        syncSceneLifecycle(
+          lifecycleStates.current,
+          'ph-animation',
+          ph,
+          true,
+          scrollDirection
+        );
+        syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
+        return;
+      }
+
+      if (craneRunActive) {
+        publishNavigationScene('crane-animation');
+        publishActiveScene('crane-animation');
+        setStageActive(craneStageRef.current, true);
+        setStageExitOffset(craneStageRef.current, 0);
+        setVisualEndpoint(crane, 1);
+        syncSceneLifecycle(lifecycleStates.current, 'ph-animation', ph, false);
+        syncSceneLifecycle(lifecycleStates.current, 'education', education, false);
+        syncSceneLifecycle(
+          lifecycleStates.current,
+          'crane-animation',
+          crane,
+          true,
+          scrollDirection
+        );
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
         return;
       }
 
@@ -1023,6 +1079,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     adapterRevision,
     ensureScene,
     ensureTransition,
+    fixedStageRegistered,
     fullJourney,
     publishActiveScene,
     publishNavigationScene,
@@ -1066,30 +1123,19 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       data-phone-acceptance-motion={motionEnabled ? 'force' : 'reduce'}
       data-phone-acceptance-load={failed ? 'fallback' : 'ready'}
       data-phone-acceptance-active-scene={activeScene}
+      data-phone-fixed-stage={fixedStageRegistered ? 'registered' : 'priming'}
     >
       {fullJourney ? (
         <>
-          <section className="phone-lab-contact__native" data-phone-acceptance-chapter="lab">
-            <SceneMount
-              adapter={scenes.lab}
-              active={activeScene === 'lab'}
-              reducedMotion={reducedMotion}
-              bind={bindLab}
-              onReady={publishAdapterRevision}
-              pendingLabel="正在加载 Lab…"
-            />
-          </section>
-
-          <section
-            ref={phPhaseRef}
-            className="phone-lab-contact__phase phone-lab-contact__phase--ph"
-            data-phone-acceptance-chapter="lab-ph-education"
+          <div
+            className="phone-lab-contact__stage-host"
+            data-phone-stage-host="persistent"
+            aria-hidden="true"
           >
             <div
               ref={phStageRef}
-              className="phone-lab-contact__stage"
+              className="phone-lab-contact__stage phone-lab-contact__stage--ph"
               data-phone-acceptance-stage-active="false"
-              aria-hidden="true"
             >
               <div className="phone-lab-contact__stage-canvas">
                 <SceneMount
@@ -1120,33 +1166,11 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
                 onReady={publishAdapterRevision}
               />
             </div>
-          </section>
 
-          <section
-            ref={educationSlotRef}
-            className="phone-lab-contact__native"
-            data-phone-acceptance-chapter="education"
-          >
-            <SceneMount
-              adapter={scenes.education}
-              active={activeScene === 'education'}
-              reducedMotion={reducedMotion}
-              bind={bindEducation}
-              onReady={publishAdapterRevision}
-              pendingLabel="正在加载留学内容…"
-            />
-          </section>
-
-          <section
-            ref={cranePhaseRef}
-            className="phone-lab-contact__phase phone-lab-contact__phase--crane"
-            data-phone-acceptance-chapter="education-crane-contact"
-          >
             <div
               ref={craneStageRef}
-              className="phone-lab-contact__stage"
+              className="phone-lab-contact__stage phone-lab-contact__stage--crane"
               data-phone-acceptance-stage-active="false"
-              aria-hidden="true"
             >
               <div className="phone-lab-contact__stage-canvas">
                 <SceneMount
@@ -1177,7 +1201,45 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
                 onReady={publishAdapterRevision}
               />
             </div>
+          </div>
+
+          <section className="phone-lab-contact__native" data-phone-acceptance-chapter="lab">
+            <SceneMount
+              adapter={scenes.lab}
+              active={activeScene === 'lab'}
+              reducedMotion={reducedMotion}
+              bind={bindLab}
+              onReady={publishAdapterRevision}
+              pendingLabel="正在加载 Lab…"
+            />
           </section>
+
+          <section
+            ref={phPhaseRef}
+            className="phone-lab-contact__phase phone-lab-contact__phase--ph"
+            data-phone-acceptance-chapter="lab-ph-education"
+          />
+
+          <section
+            ref={educationSlotRef}
+            className="phone-lab-contact__native"
+            data-phone-acceptance-chapter="education"
+          >
+            <SceneMount
+              adapter={scenes.education}
+              active={activeScene === 'education'}
+              reducedMotion={reducedMotion}
+              bind={bindEducation}
+              onReady={publishAdapterRevision}
+              pendingLabel="正在加载留学内容…"
+            />
+          </section>
+
+          <section
+            ref={cranePhaseRef}
+            className="phone-lab-contact__phase phone-lab-contact__phase--crane"
+            data-phone-acceptance-chapter="education-crane-contact"
+          />
 
           <section
             ref={contactSlotRef}

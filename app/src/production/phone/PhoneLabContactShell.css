@@ -71,12 +71,12 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
 }
 
 .phone-lab-contact__phase--ph,
-.phone-lab-contact__phase--ph .phone-lab-contact__stage-canvas {
+.phone-lab-contact__stage--ph .phone-lab-contact__stage-canvas {
   background: linear-gradient(180deg, #9889a5 0%, #63668f 100%);
 }
 
 .phone-lab-contact__phase--crane,
-.phone-lab-contact__phase--crane .phone-lab-contact__stage-canvas {
+.phone-lab-contact__stage--crane .phone-lab-contact__stage-canvas {
   background: #ede4d2;
 }
 
@@ -86,13 +86,39 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
  * programmatic snap moved their compositor while H.264 was beginning to
  * decode, which can park iOS on frame zero.
  */
-.phone-lab-contact__stage {
+.phone-lab-contact__stage-host {
   position: fixed;
-  top: var(--phone-lab-contact-stage-y, 0px);
+  top: 0;
   right: 0;
   bottom: 0;
   left: 0;
   z-index: 3;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/*
+ * Match the accepted cold-Safari topology: commit one unconstrained Lab frame,
+ * then register the same persistent host as fixed on the second animation
+ * frame. PH and Crane switch layers inside this host instead of introducing a
+ * new fixed containing block while their decoders are starting.
+ */
+.phone-lab-contact[data-phone-fixed-stage="priming"] .phone-lab-contact__stage-host {
+  position: absolute;
+  top: 0;
+  bottom: auto;
+  height: var(--phone-cinematic-stage-height);
+}
+
+.phone-lab-contact__stage {
+  position: absolute;
+  top: var(--phone-lab-contact-stage-y, 0px);
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
   height: auto;
   min-height: 0;
