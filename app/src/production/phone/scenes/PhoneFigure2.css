@@ -3,8 +3,8 @@
   z-index: 2;
   inset: 0;
   width: 100%;
-  height: var(--portrait-stage-height);
-  min-height: var(--portrait-stage-height);
+  height: 100%;
+  min-height: 100%;
   overflow: visible;
   isolation: auto;
   background: transparent;

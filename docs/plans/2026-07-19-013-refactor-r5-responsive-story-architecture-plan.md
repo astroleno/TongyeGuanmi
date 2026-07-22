@@ -45,7 +45,7 @@ is the pre-extraction baseline.
 The frozen visual source is commit `95d519b` (`?v=17`), which contains the
 accepted Safari edge stabilization and the phone-only AOD alpha extension from
 timeline progress `0.48` to `0.55`. The current short verification route is
-`?v=36`; `?v=16` through `?v=35` remain aliases to the same formal phone shell,
+`?v=37`; `?v=16` through `?v=36` remain aliases to the same formal phone shell,
 not immutable historical deployments.
 
 | Unit | Status | Implemented evidence |
@@ -54,13 +54,13 @@ not immutable historical deployments.
 | Unit 1 | Complete | Canonical copy, media IDs, navigation, semantic checkpoints, and renderer-neutral lifecycle contracts remain shared. The boundary verifier rejects shared-to-presentation imports, cross-shell imports, phone-to-spike imports, new shell scene roots, media keys, asset URLs, and scene renderer imports. |
 | Unit 2 | Complete; physical fixed-stage acceptance recorded | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
 | Unit 3 | Complete; physical visual acceptance recorded | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
-| Unit 4 | v36 compositor-topology candidate; physical Safari acceptance pending | v35 proved the host/canvas dimensions are correct. v36 leaves that geometry frozen and removes the dynamic host and nested Grade A/Figure2 clips and forced GPU layers, making the stable-lvh canvas the single outer clipping boundary. |
+| Unit 4 | v37 viewport-bottom coverage candidate; physical Safari acceptance pending | v36 removed the invalid compositor clips, but physical Safari still exposed one common scene-edge strip. v37 separates the frozen layout clock from an `offsetTop + height` paint-coverage plane that expands before the next frame. |
 | Units 5–7 | Not started | No Brand, Figure 3, Services, or later batch starts before Unit 4 receives its own physical-iPhone acceptance. |
 
 ### Unit 0–3 cutover record
 
 `PhoneStoryShell.tsx` is now a 322-line coordination shell and
-`PhoneStoryShell.css` is an 86-line document/chrome stylesheet. Persistent
+`PhoneStoryShell.css` is a 75-line document/chrome stylesheet. Persistent
 stage geometry, viewport sampling, and edge publication are isolated in
 `PhoneStageRail`, `usePhoneViewportGeometry`, and `usePhoneEdgeSurface`. Scene DOM,
 scene CSS, canvas/video construction, local motion, and transition fields live
@@ -612,6 +612,55 @@ must already be painted, with no `#d9c08f`, paper-color, or moving gradient
 strip. Cross AOD → Method and Method → Figure2 slowly in both directions to
 confirm the existing masks and ink contour remain unchanged. Visual acceptance
 belongs to the physical-device pass; Units 5–7 remain frozen until it succeeds.
+
+**Gate result:** physical iOS screenshots rejected v36. Hero/Method, Pattern,
+AOD, and Figure2 all exposed the same approximately `10 CSS px` solid strip at
+the bottom, and each strip matched that scene's published emergency edge
+surface. The common canvas was already at the `100lvh` floor, so this was not a
+second per-scene wash or asset regression. The missing coordinate was the
+visual viewport's layout-relative lower edge: `offsetTop + height`.
+
+### Unit 4 v37 split layout clock and paint coverage
+
+v37 keeps the accepted v36 compositor topology and changes only the common
+viewport coverage contract:
+
+- the layout plane remains `max(--portrait-live-height, 100lvh)` and continues
+  to own scroll distance, progress checkpoints, scene cameras, and transition
+  timing;
+- a separate canvas plane uses the greater of that stable layout height and
+  `ceil(visualViewport.offsetTop + visualViewport.height)`;
+- `visualViewport.resize` and `visualViewport.scroll` schedule coverage in the
+  next animation frame, without the layout pipeline's `180ms` debounce;
+- coverage is monotonic while width is stable. Width/orientation/fullscreen
+  changes reset it to the new coordinate space;
+- height-only toolbar events still cannot rewrite `--portrait-live-height`,
+  the rail distance, or the ScrollTrigger clock;
+- the stage runtime reads its frozen configured scroll distance instead of
+  subtracting the now-expandable canvas height from the rail;
+- the portaled Figure2 outer surface inherits the coverage canvas height, while
+  its camera and authored depth motion remain bound to the stable layout
+  height. Hero, Pattern, AOD, Method, ink fields, and their timelines are not
+  changed.
+
+The structural contract now rejects re-coupling canvas coverage to the layout
+height, verifies the visual-viewport scroll listener, and verifies that the
+layout sync contains no stage-coverage write. The viewport unit test covers
+fractional and negative offsets plus monotonic/reset behavior.
+
+Automated verification for v37:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 773 tests;
+- `pnpm -w run build` passes all module, media, release, and performance gates
+  with 52 media files, 32 WebP, `81,507,214 B` runtime media,
+  `564,993 B` phone-shell budget, and `7,428 B` total JS headroom.
+
+No desktop browser preview or Playwright visual run is claimed for this Safari
+defect. Physical acceptance belongs to `?v=37`: enter with the address bar
+expanded, make one upward swipe through Pattern, AOD, and Figure2, and confirm
+that the bottom edge remains continuous while the bar collapses. Units 5–7
+remain frozen until the user accepts that pass.
 
 ## Problem Frame
 

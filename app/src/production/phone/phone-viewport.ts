@@ -33,8 +33,28 @@ export function phoneStageCoverageHeight(
   viewportHeight: number,
   reset = false
 ): number {
-  const nextHeight = Math.max(1, Math.round(viewportHeight));
-  return reset ? nextHeight : Math.max(Math.max(1, Math.round(previousHeight)), nextHeight);
+  const nextHeight = Math.max(1, Math.ceil(viewportHeight));
+  return reset
+    ? nextHeight
+    : Math.max(Math.max(1, Math.ceil(previousHeight)), nextHeight);
+}
+
+/**
+ * Express the visible viewport's lower edge in layout-viewport coordinates.
+ * Safari can move the visual viewport down while its toolbar animates, so its
+ * height alone is not a sufficient paint-coverage measurement.
+ */
+export function phoneViewportCoverageBottom(
+  viewportHeight: number,
+  viewportOffsetTop = 0
+): number {
+  const height = Number.isFinite(viewportHeight)
+    ? Math.max(1, viewportHeight)
+    : 1;
+  const offsetTop = Number.isFinite(viewportOffsetTop)
+    ? Math.max(0, viewportOffsetTop)
+    : 0;
+  return Math.max(1, Math.ceil(offsetTop + height));
 }
 
 export function readPhoneViewport(): PhoneViewport {

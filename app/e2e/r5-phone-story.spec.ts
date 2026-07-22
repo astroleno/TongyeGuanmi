@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const PHONE_SHELL = '[data-phone-validation-mode="v23"]';
-const GRADE_A_SHELL = '[data-phone-validation-mode="v36"]';
+const GRADE_A_SHELL = '[data-phone-validation-mode="v37"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -11,7 +11,13 @@ async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
       throw new Error('Phone stage geometry is unavailable');
     }
     const start = rail.getBoundingClientRect().top + window.scrollY;
-    const distance = Math.max(1, rail.offsetHeight - stage.offsetHeight);
+    const shell = document.querySelector<HTMLElement>('.portrait-scroll-spike');
+    const configuredDistance = Number.parseFloat(
+      shell?.style.getPropertyValue('--portrait-stage-scroll-distance') ?? ''
+    );
+    const distance = Number.isFinite(configuredDistance) && configuredDistance > 0
+      ? configuredDistance
+      : Math.max(1, rail.offsetHeight - stage.offsetHeight);
     window.scrollTo({ top: start + distance * nextProgress, left: 0, behavior: 'auto' });
     await new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
@@ -224,14 +230,14 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
   ).toBe(false);
 });
 
-test('v36 keeps one Pattern plate inside the sole stable clipping canvas', async ({
+test('v37 keeps one Pattern plate inside the viewport-bottom coverage canvas', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
   test.setTimeout(45_000);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=36&portrait-spike-motion=reduce', {
+  await page.goto('/?v=37&portrait-spike-motion=reduce', {
     waitUntil: 'domcontentloaded'
   });
   await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
@@ -273,6 +279,7 @@ test('v36 keeps one Pattern plate inside the sole stable clipping canvas', async
       const rootStyle = getComputedStyle(document.querySelector<HTMLElement>('#root')!);
       const stageStyle = getComputedStyle(stage);
       const railStyle = getComputedStyle(rail);
+      const visualViewport = window.visualViewport;
       return {
         hostToViewportRatio: stageRect.height / window.innerHeight,
         canvasToViewportRatio: canvasRect.height / window.innerHeight,
@@ -291,11 +298,15 @@ test('v36 keeps one Pattern plate inside the sole stable clipping canvas', async
         patternPlateHeight: patternPlate?.getBoundingClientRect().height ?? 0,
         patternImageHeight: patternImage?.getBoundingClientRect().height ?? 0,
         patternImageSource: patternImage?.currentSrc || patternImage?.src || '',
-        themeColor: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content
+        themeColor: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content,
+        canvasBottom: canvasRect.bottom,
+        visualViewportBottom: (visualViewport?.offsetTop ?? 0)
+          + (visualViewport?.height ?? window.innerHeight)
       };
     });
     expect(edge.hostToViewportRatio).toBeCloseTo(1, 2);
     expect(edge.canvasToViewportRatio).toBeGreaterThanOrEqual(1);
+    expect(edge.canvasBottom).toBeGreaterThanOrEqual(edge.visualViewportBottom);
     expect(edge.documentBackgroundColor).toBe(sample.color);
     expect(edge.bodyBackgroundColor).toBe(sample.color);
     expect(edge.rootBackgroundColor).toBe(sample.color);
@@ -324,7 +335,7 @@ test('v36 keeps one Pattern plate inside the sole stable clipping canvas', async
   }
 });
 
-test('v36 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the persistent host', async ({
+test('v37 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the persistent host', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -335,7 +346,7 @@ test('v36 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
     presentationRequests.push(new URL(response.url()).pathname);
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=36&portrait-spike-motion=reduce#figure2-proof-cards', {
+  await page.goto('/?v=37&portrait-spike-motion=reduce#figure2-proof-cards', {
     waitUntil: 'domcontentloaded'
   });
 
@@ -443,7 +454,7 @@ test('v36 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
   }
 });
 
-test('v36 keeps Figure2 visible when Safari never produces a packed video frame', async ({
+test('v37 keeps Figure2 visible when Safari never produces a packed video frame', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -451,7 +462,7 @@ test('v36 keeps Figure2 visible when Safari never produces a packed video frame'
 
   await page.route('**/*figure2-pair-motion-rgb-alpha*.mp4', (route) => route.abort());
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=36&portrait-spike-motion=reduce#figure2-animation', {
+  await page.goto('/?v=37&portrait-spike-motion=reduce#figure2-animation', {
     waitUntil: 'domcontentloaded'
   });
 

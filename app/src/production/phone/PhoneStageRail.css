@@ -20,15 +20,15 @@
   background: var(--portrait-edge-surface);
 }
 
-/* The stable-lvh canvas is the only outer clipping boundary. */
+/* The retained layout/coverage canvas is the only outer clipping boundary. */
 .portrait-scroll-spike__stage-canvas {
   position: absolute;
   top: 0;
   right: 0;
   left: 0;
   width: 100%;
-  height: var(--portrait-stage-height);
-  min-height: var(--portrait-stage-height);
+  height: var(--portrait-stage-canvas-height);
+  min-height: var(--portrait-stage-canvas-height);
   overflow: clip;
 }
 

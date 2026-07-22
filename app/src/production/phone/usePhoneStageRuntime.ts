@@ -526,14 +526,19 @@ export function usePhoneStageRuntime(
       stageScrollEnd = self.end;
       renderStage(self.progress, self.direction);
     };
+    const readStageScrollDistance = () => {
+      const configuredDistance = Number.parseFloat(
+        root.style.getPropertyValue('--portrait-stage-scroll-distance')
+      );
+      return Number.isFinite(configuredDistance) && configuredDistance > 0
+        ? configuredDistance
+        : Math.max(1, stageRail.offsetHeight - stage.offsetHeight);
+    };
     const stageTrigger = ScrollTrigger.create({
       id: 'portrait-spike-stage',
       trigger: stageRail,
       start: 'top top',
-      end: () => `+=${Math.max(
-        1,
-        stageRail.offsetHeight - stage.offsetHeight
-      )}`,
+      end: () => `+=${readStageScrollDistance()}`,
       invalidateOnRefresh: true,
       onUpdate: updateStageFromTrigger,
       onRefresh: (self) => {
