@@ -44,9 +44,15 @@ export function phoneBrandFigure3Frame(
 function applyEndpoint(
   element: HTMLElement | null,
   opacity: number,
-  id: 'brand-figure3'
+  id: 'brand-figure3',
+  documentFlow = false
 ): void {
   if (!element) return;
+  if (documentFlow) {
+    element.dataset.phoneDissolve = id;
+    element.dataset.phoneDissolveOpacity = opacity.toFixed(4);
+    return;
+  }
   const visible = opacity > 0.001;
   element.style.opacity = opacity.toFixed(4);
   element.style.visibility = visible ? 'visible' : 'hidden';
@@ -55,8 +61,13 @@ function applyEndpoint(
   element.dataset.phoneDissolve = id;
 }
 
-function clearEndpoint(element: HTMLElement | null): void {
+function clearEndpoint(element: HTMLElement | null, documentFlow = false): void {
   if (!element) return;
+  if (documentFlow) {
+    delete element.dataset.phoneDissolve;
+    delete element.dataset.phoneDissolveOpacity;
+    return;
+  }
   element.style.removeProperty('opacity');
   element.style.removeProperty('visibility');
   element.style.removeProperty('pointer-events');
@@ -69,7 +80,7 @@ export const PhoneBrandFigure3Transition = forwardRef<
   TransitionPresentationAdapterHandle,
   Group45PhoneTransitionProps
 >(function PhoneBrandFigure3Transition(
-  { host, from, to, reducedMotion, onReady },
+  { host, from, to, reducedMotion, documentFlow = false, onReady },
   forwardedRef
 ) {
   const progressRef = useRef(0);
@@ -91,22 +102,22 @@ export const PhoneBrandFigure3Transition = forwardRef<
       host.dataset.phoneTransition = 'brand-figure3:endpoint-dissolve';
       host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
     }
-    applyEndpoint(from, frame.fromOpacity, 'brand-figure3');
-    applyEndpoint(to, frame.toOpacity, 'brand-figure3');
-  }, [from, host, reducedMotion, to]);
+    applyEndpoint(from, frame.fromOpacity, 'brand-figure3', documentFlow);
+    applyEndpoint(to, frame.toOpacity, 'brand-figure3', documentFlow);
+  }, [documentFlow, from, host, reducedMotion, to]);
 
   useLayoutEffect(() => {
     render(0);
     onReady?.();
     return () => {
-      clearEndpoint(from);
-      clearEndpoint(to);
+      clearEndpoint(from, documentFlow);
+      clearEndpoint(to, documentFlow);
       if (host?.dataset.phoneTransition?.startsWith('brand-figure3:')) {
         delete host.dataset.phoneTransition;
         delete host.dataset.phoneTransitionProgress;
       }
     };
-  }, [from, host, onReady, render, to]);
+  }, [documentFlow, from, host, onReady, render, to]);
 
   useImperativeHandle(forwardedRef, () => ({
     render,
@@ -123,10 +134,10 @@ export const PhoneBrandFigure3Transition = forwardRef<
       render(0);
     },
     dispose() {
-      clearEndpoint(from);
-      clearEndpoint(to);
+      clearEndpoint(from, documentFlow);
+      clearEndpoint(to, documentFlow);
     }
-  }), [from, render, to]);
+  }), [documentFlow, from, render, to]);
 
   return null;
 });

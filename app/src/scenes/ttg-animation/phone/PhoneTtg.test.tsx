@@ -1,7 +1,12 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { PhoneTtg, phoneTtgFrame, releasePhoneTtgVideo } from './PhoneTtg';
+import {
+  PhoneTtg,
+  phoneTtgFrame,
+  phoneTtgMediaInput,
+  releasePhoneTtgVideo
+} from './PhoneTtg';
 
 describe('PhoneTtg', () => {
   it('owns only its one optional video and retains local static layers', () => {
@@ -21,23 +26,33 @@ describe('PhoneTtg', () => {
   });
 
   it('has reversible mobile layer frames and a media-failure endpoint', () => {
-    expect(phoneTtgFrame(0)).toMatchObject({
+    expect(phoneTtgFrame(0, false, false, 1000)).toMatchObject({
       progress: 0,
       backgroundY: 0,
       middleY: 0,
-      foregroundY: 16,
-      figureY: -4
+      foregroundY: 292,
+      figureY: -85
     });
-    expect(phoneTtgFrame(1)).toMatchObject({
+    expect(phoneTtgFrame(1, false, false, 1000)).toMatchObject({
       progress: 1,
-      backgroundY: -8,
-      middleY: 12,
-      foregroundY: 30,
-      figureY: 6
+      visualProgress: 1,
+      backgroundY: -143,
+      middleY: 235,
+      foregroundY: 423,
+      figureY: 80
     });
-    expect(phoneTtgFrame(0.4, false, true)).toMatchObject({
+    expect(phoneTtgFrame(0.4, false, true, 1000)).toMatchObject({
       progress: 1,
       figureOpacity: 0
+    });
+  });
+
+  it('drives its one video through the shared timeline driver, including reverse', () => {
+    expect(phoneTtgMediaInput(.4, -1)).toMatchObject({
+      direction: -1,
+      mode: 'timeline',
+      progress: .4,
+      reducedMotion: false
     });
   });
 

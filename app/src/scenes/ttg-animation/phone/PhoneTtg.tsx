@@ -6,8 +6,14 @@ import {
   useRef,
   useState
 } from 'react';
-import { AlphaVideoSources } from '../../../media/alpha-video-sources';
+import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
+import {
+  disposeTimelineVideoDriver,
+  driveTimelineVideo,
+  type TimelineVideoDriveInput
+} from '../../../media/timeline-video-driver';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
+import { TTG_PLAYBACK_MS } from '../../../story/timings';
 import type { ScenePresentationAdapterHandle } from '../../../story/presentation';
 import {
   TTG_BG_SRC,
@@ -20,40 +26,90 @@ import {
 } from '..';
 import './PhoneTtg.css';
 
+const TTG_PHONE_RUN_ID = 'phone-ttg-scroll';
+
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+function stableProgress(value: number): number {
+  const progress = clamp(value);
+  return progress < .002 ? 0 : progress > .998 ? 1 : progress;
+}
+
+function acceleratedProgress(value: number): number {
+  const progress = stableProgress(value);
+  return clamp(.78 * progress + .22 * progress * progress);
+}
+
+function viewportHeight(): number {
+  return typeof window === 'undefined' ? 800 : Math.max(1, window.innerHeight);
+}
+
 export type PhoneTtgFrame = Readonly<{
   progress: number;
+  visualProgress: number;
   backgroundY: number;
+  backgroundScale: number;
   middleY: number;
+  middleScale: number;
   foregroundY: number;
   figureY: number;
+  figureScale: number;
   figureOpacity: number;
 }>;
 
-/** Deliberately narrow mobile camera for the individual TTG source layers. */
+/**
+ * Reuses TTG's accepted depth ratios but expresses them through a dedicated
+ * phone camera. The visual tree is never scaled from the desktop scene.
+ */
 export function phoneTtgFrame(
   rawProgress: number,
   reducedMotion = false,
-  mediaFailed = false
+  mediaFailed = false,
+  height = viewportHeight()
 ): PhoneTtgFrame {
-  const progress = mediaFailed ? 1 : reducedMotion ? 0 : clamp(rawProgress);
-  const eased = progress * progress * (3 - 2 * progress);
+  const progress = mediaFailed ? 1 : reducedMotion ? 0 : stableProgress(rawProgress);
+  const visualProgress = acceleratedProgress(progress);
   return {
     progress,
-    backgroundY: eased === 0 ? 0 : -8 * eased,
-    middleY: 12 * eased,
-    foregroundY: 16 + 14 * eased,
-    figureY: -4 + 10 * eased,
+    visualProgress,
+    backgroundY: visualProgress === 0 ? 0 : -visualProgress * height * .143,
+    backgroundScale: 1 + visualProgress * .018,
+    middleY: visualProgress * height * .235,
+    middleScale: 1 + visualProgress * .012,
+    foregroundY: height * .292 + visualProgress * height * .131,
+    figureY: -height * .085 + visualProgress * height * .165,
+    figureScale: .8,
     figureOpacity: mediaFailed || reducedMotion ? 0 : 1
   };
 }
 
-/** Release TTG's sole video owner before the scene retires. */
+/** The phone scroll controller always uses timeline mode; it never naked-seeks. */
+export function phoneTtgMediaInput(
+  rawProgress: number,
+  direction: 1 | -1,
+  reducedMotion = false
+): TimelineVideoDriveInput {
+  return {
+    runId: TTG_PHONE_RUN_ID,
+    direction,
+    progress: stableProgress(rawProgress),
+    durationFallbackSeconds: 2.5,
+    startSeconds: 0,
+    endSeconds: TTG_FIGURE_END_SECONDS,
+    timelineDurationMs: TTG_PLAYBACK_MS,
+    mode: 'timeline',
+    nativePlaybackDirection: 1,
+    reducedMotion,
+    allowSeekedFrameFallback: browserPrefersHevcAlpha()
+  };
+}
+
+/** Release the sole video owner and its driver before the scene retires. */
 export function releasePhoneTtgVideo(video: HTMLVideoElement | null): void {
   if (!video) return;
+  disposeTimelineVideoDriver(video);
   video.pause();
   video.removeAttribute('src');
   for (const source of video.querySelectorAll('source')) {
@@ -66,18 +122,17 @@ export function releasePhoneTtgVideo(video: HTMLVideoElement | null): void {
   }
 }
 
-function setVideoFrame(video: HTMLVideoElement | null, progress: number): void {
-  if (!video || video.readyState < HTMLMediaElement.HAVE_METADATA) return;
-  const time = Math.min(TTG_FIGURE_END_SECONDS, Math.max(0, progress * TTG_FIGURE_END_SECONDS));
-  if (Math.abs(video.currentTime - time) < 0.02) return;
-  try {
-    video.currentTime = time;
-  } catch {
-    // Error state is reported by the media element.
-  }
+function drivePhoneTtgVideo(
+  video: HTMLVideoElement | null,
+  progress: number,
+  direction: 1 | -1,
+  reducedMotion: boolean
+): void {
+  if (!video || reducedMotion) return;
+  driveTimelineVideo(video, phoneTtgMediaInput(progress, direction, reducedMotion));
 }
 
-/** One video owner plus static image layers for the TTG visual chapter. */
+/** One video owner plus static layers; decoder work is coalesced by the shared driver. */
 export const PhoneTtg = forwardRef<
   ScenePresentationAdapterHandle,
   Group45PhoneSceneProps
@@ -88,23 +143,33 @@ export const PhoneTtg = forwardRef<
   const rootRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const progressRef = useRef(0);
+  const directionRef = useRef<1 | -1>(1);
   const mediaFailedRef = useRef(false);
   const mediaRetiringRef = useRef(false);
   const [mediaMounted, setMediaMounted] = useState(active && !reducedMotion);
   const [mediaFailed, setMediaFailed] = useState(false);
 
   const update = useCallback((rawProgress: number) => {
-    progressRef.current = clamp(rawProgress);
+    const progress = stableProgress(rawProgress);
+    if (progress > progressRef.current + .0001) directionRef.current = 1;
+    if (progress < progressRef.current - .0001) directionRef.current = -1;
+    progressRef.current = progress;
     const root = rootRef.current;
-    const frame = phoneTtgFrame(progressRef.current, reducedMotion, mediaFailed);
+    const frame = phoneTtgFrame(progress, reducedMotion, mediaFailed);
     if (!root) return;
-    root.style.setProperty('--phone-ttg-background-y', `${frame.backgroundY.toFixed(2)}%`);
-    root.style.setProperty('--phone-ttg-middle-y', `${frame.middleY.toFixed(2)}%`);
-    root.style.setProperty('--phone-ttg-foreground-y', `${frame.foregroundY.toFixed(2)}%`);
-    root.style.setProperty('--phone-ttg-figure-y', `${frame.figureY.toFixed(2)}%`);
+    root.style.setProperty('--phone-ttg-background-y', `${frame.backgroundY.toFixed(2)}px`);
+    root.style.setProperty('--phone-ttg-background-scale', frame.backgroundScale.toFixed(4));
+    root.style.setProperty('--phone-ttg-middle-y', `${frame.middleY.toFixed(2)}px`);
+    root.style.setProperty('--phone-ttg-middle-scale', frame.middleScale.toFixed(4));
+    root.style.setProperty('--phone-ttg-foreground-y', `${frame.foregroundY.toFixed(2)}px`);
+    root.style.setProperty('--phone-ttg-figure-y', `${frame.figureY.toFixed(2)}px`);
+    root.style.setProperty('--phone-ttg-figure-scale', frame.figureScale.toFixed(4));
     root.style.setProperty('--phone-ttg-figure-opacity', frame.figureOpacity.toFixed(4));
     root.dataset.phoneTtgProgress = frame.progress.toFixed(4);
-    setVideoFrame(videoRef.current, frame.progress);
+    root.dataset.phoneTtgVisualProgress = frame.visualProgress.toFixed(4);
+    if (!mediaFailed) {
+      drivePhoneTtgVideo(videoRef.current, frame.progress, directionRef.current, reducedMotion);
+    }
   }, [mediaFailed, reducedMotion]);
 
   const releaseMedia = useCallback(() => {
@@ -161,11 +226,15 @@ export const PhoneTtg = forwardRef<
       if (!root) return;
       delete root.dataset.phoneTtgActive;
       delete root.dataset.phoneTtgProgress;
+      delete root.dataset.phoneTtgVisualProgress;
       delete root.dataset.phoneMediaState;
       root.style.removeProperty('--phone-ttg-background-y');
+      root.style.removeProperty('--phone-ttg-background-scale');
       root.style.removeProperty('--phone-ttg-middle-y');
+      root.style.removeProperty('--phone-ttg-middle-scale');
       root.style.removeProperty('--phone-ttg-foreground-y');
       root.style.removeProperty('--phone-ttg-figure-y');
+      root.style.removeProperty('--phone-ttg-figure-scale');
       root.style.removeProperty('--phone-ttg-figure-opacity');
     }
   }), [enter, leave, releaseMedia, update]);
@@ -204,6 +273,7 @@ export const PhoneTtg = forwardRef<
             className="phone-ttg__layer phone-ttg__layer--figure"
             data-media-key={TTG_MEDIA_KEY}
             data-phone-ttg-video
+            data-ttg-figure-video
             muted
             playsInline
             preload="metadata"

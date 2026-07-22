@@ -1,7 +1,12 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { PhoneFigure3, phoneFigure3Frame, releasePhoneFigure3Video } from './PhoneFigure3';
+import {
+  PhoneFigure3,
+  phoneFigure3Frame,
+  phoneFigure3MediaInput,
+  releasePhoneFigure3Video
+} from './PhoneFigure3';
 
 describe('PhoneFigure3', () => {
   it('owns one optional Figure3 video and skips it for reduced motion', () => {
@@ -32,6 +37,15 @@ describe('PhoneFigure3', () => {
     expect(phoneFigure3Frame(0.5, false, true)).toMatchObject({
       progress: 1,
       videoOpacity: 0
+    });
+  });
+
+  it('uses the shared timeline driver instead of scroll-time naked seeks', () => {
+    expect(phoneFigure3MediaInput(.6, -1)).toMatchObject({
+      direction: -1,
+      mode: 'timeline',
+      progress: .6,
+      reducedMotion: false
     });
   });
 

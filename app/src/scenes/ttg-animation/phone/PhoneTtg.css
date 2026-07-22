@@ -1,64 +1,94 @@
 .phone-ttg {
-  --phone-ttg-background-y: 0%;
-  --phone-ttg-middle-y: 0%;
-  --phone-ttg-foreground-y: 16%;
-  --phone-ttg-figure-y: -4%;
+  --phone-ttg-background-y: 0px;
+  --phone-ttg-background-scale: 1;
+  --phone-ttg-middle-y: 0px;
+  --phone-ttg-middle-scale: 1;
+  --phone-ttg-foreground-y: 0px;
+  --phone-ttg-figure-y: 0px;
+  --phone-ttg-figure-scale: .8;
   --phone-ttg-figure-opacity: 1;
   position: relative;
-  min-block-size: max(86svh, 40rem);
+  display: block;
   overflow: clip;
   isolation: isolate;
   background:
-    radial-gradient(ellipse at 50% 30%, rgba(194, 137, 69, .22), transparent 35%),
-    linear-gradient(180deg, #13201f 0%, #080d10 60%, #030405 100%);
+    radial-gradient(ellipse at 54% 38%, rgba(207, 165, 86, .15), transparent 36%),
+    radial-gradient(ellipse at 48% 54%, rgba(29, 82, 92, .18), transparent 55%),
+    linear-gradient(180deg, #101919 0%, #090e11 58%, #040506 100%);
 }
 
 .phone-ttg__field,
 .phone-ttg__layer {
   position: absolute;
-  inset: 0;
 }
 
 .phone-ttg__field {
-  overflow: hidden;
+  inset: 0;
+  overflow: clip;
+  isolation: isolate;
 }
 
 .phone-ttg__layer {
+  left: 50%;
+  top: 50%;
   display: block;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  object-fit: cover;
-  object-position: 50% 50%;
+  max-inline-size: none;
+  user-select: none;
   pointer-events: none;
+  backface-visibility: hidden;
   will-change: transform, opacity;
 }
 
 .phone-ttg__layer--background {
   z-index: 1;
-  transform: translate3d(0, var(--phone-ttg-background-y), 0) scale(1.08);
+  top: 0;
+  inline-size: max(154svh, 100vw);
+  block-size: auto;
+  transform: translate3d(-50%, var(--phone-ttg-background-y), 0)
+    scale(var(--phone-ttg-background-scale));
   transform-origin: 50% 0;
 }
 
 .phone-ttg__layer--middle {
   z-index: 2;
-  transform: translate3d(0, var(--phone-ttg-middle-y), 0) scale(1.06);
+  inline-size: max(146svh, 100vw);
+  block-size: auto;
+  transform: translate3d(-50%, calc(-50% + var(--phone-ttg-middle-y)), 0)
+    scale(var(--phone-ttg-middle-scale));
 }
 
 .phone-ttg__layer--foreground {
   z-index: 3;
-  object-position: 50% 100%;
-  transform: translate3d(0, var(--phone-ttg-foreground-y), 0) scale(1.04);
+  top: 100%;
+  inline-size: max(100vw, 68svh);
+  block-size: auto;
+  transform: translate3d(-50%, calc(-100% + var(--phone-ttg-foreground-y)), 0);
   transform-origin: 50% 100%;
 }
 
 .phone-ttg__layer--figure {
+  --phone-ttg-figure-height: min(132svh, 1080px);
   z-index: 4;
+  inline-size: calc(var(--phone-ttg-figure-height) * .5625);
+  block-size: var(--phone-ttg-figure-height);
+  opacity: 0;
   object-fit: contain;
+  object-position: center;
+  clip-path: inset(1px);
+  transform: translate3d(-50%, calc(-50% + var(--phone-ttg-figure-y)), 0)
+    scale(var(--phone-ttg-figure-scale));
+}
+
+.phone-ttg__layer--figure[data-timeline-video-frame-ready="true"] {
   opacity: var(--phone-ttg-figure-opacity);
-  transform: translate3d(0, var(--phone-ttg-figure-y), 0) scale(.9);
 }
 
 .phone-ttg[data-phone-media-state="fallback"] .phone-ttg__layer--middle {
   filter: saturate(.86) contrast(1.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-ttg__layer {
+    will-change: auto;
+  }
 }

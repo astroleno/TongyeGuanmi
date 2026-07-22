@@ -40,6 +40,12 @@ export type Group45PhoneTransitionProps = Readonly<{
   from: HTMLElement | null;
   to: HTMLElement | null;
   reducedMotion: boolean;
+  /**
+   * The focused Brand → Lab route uses one native document scroll owner.
+   * Adapters retain their semantic endpoint contract without hiding document
+   * chapters that are not physically stacked on a fixed stage.
+   */
+  documentFlow?: boolean;
   onReady?: () => void;
 }>;
 

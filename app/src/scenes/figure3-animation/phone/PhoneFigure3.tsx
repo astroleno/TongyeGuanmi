@@ -6,8 +6,14 @@ import {
   useRef,
   useState
 } from 'react';
-import { AlphaVideoSources } from '../../../media/alpha-video-sources';
+import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
+import {
+  disposeTimelineVideoDriver,
+  driveTimelineVideo,
+  type TimelineVideoDriveInput
+} from '../../../media/timeline-video-driver';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
+import { FIGURE3_SERVICES_DURATION_MS } from '../../../story/timings';
 import type { ScenePresentationAdapterHandle } from '../../../story/presentation';
 import {
   FIGURE3_END_SECONDS,
@@ -16,6 +22,8 @@ import {
   FIGURE3_VIDEO_SRC
 } from '..';
 import './PhoneFigure3.css';
+
+const FIGURE3_PHONE_RUN_ID = 'phone-figure3-scroll';
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -35,17 +43,19 @@ export function phoneFigure3Frame(
   mediaFailed = false
 ): PhoneFigure3Frame {
   const progress = mediaFailed ? 1 : reducedMotion ? 0 : clamp(rawProgress);
+  const visualProgress = .78 * progress + .22 * progress * progress;
   return {
     progress,
     videoOpacity: mediaFailed || reducedMotion ? 0 : 1,
-    videoScale: 1.015 + progress * 0.035,
-    backdropOpacity: 1 - progress * 0.18
+    videoScale: 1.015 + visualProgress * 0.035,
+    backdropOpacity: 1 - visualProgress * 0.18
   };
 }
 
 /** Release the video element before its scene retires from the phone rail. */
 export function releasePhoneFigure3Video(video: HTMLVideoElement | null): void {
   if (!video) return;
+  disposeTimelineVideoDriver(video);
   video.pause();
   video.removeAttribute('src');
   for (const source of video.querySelectorAll('source')) {
@@ -58,15 +68,25 @@ export function releasePhoneFigure3Video(video: HTMLVideoElement | null): void {
   }
 }
 
-function setVideoFrame(video: HTMLVideoElement | null, progress: number): void {
-  if (!video || video.readyState < HTMLMediaElement.HAVE_METADATA) return;
-  const time = Math.min(FIGURE3_END_SECONDS, Math.max(0, progress * FIGURE3_END_SECONDS));
-  if (Math.abs(video.currentTime - time) < 0.02) return;
-  try {
-    video.currentTime = time;
-  } catch {
-    // A decode error is handled through the media error event/fallback below.
-  }
+/** Figure3 shares the canonical coalesced driver instead of per-scroll seeks. */
+export function phoneFigure3MediaInput(
+  progress: number,
+  direction: 1 | -1,
+  reducedMotion = false
+): TimelineVideoDriveInput {
+  return {
+    runId: FIGURE3_PHONE_RUN_ID,
+    direction,
+    progress: clamp(progress),
+    durationFallbackSeconds: 2.6,
+    startSeconds: 0,
+    endSeconds: FIGURE3_END_SECONDS,
+    timelineDurationMs: FIGURE3_SERVICES_DURATION_MS,
+    mode: 'timeline',
+    nativePlaybackDirection: 1,
+    reducedMotion,
+    allowSeekedFrameFallback: browserPrefersHevcAlpha()
+  };
 }
 
 /**
@@ -84,13 +104,17 @@ export const PhoneFigure3 = forwardRef<
   const rootRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const progressRef = useRef(0);
+  const directionRef = useRef<1 | -1>(1);
   const mediaFailedRef = useRef(false);
   const mediaRetiringRef = useRef(false);
   const [mediaMounted, setMediaMounted] = useState(active && !reducedMotion);
   const [mediaFailed, setMediaFailed] = useState(false);
 
   const update = useCallback((rawProgress: number) => {
-    progressRef.current = clamp(rawProgress);
+    const progress = clamp(rawProgress);
+    if (progress > progressRef.current + .0001) directionRef.current = 1;
+    if (progress < progressRef.current - .0001) directionRef.current = -1;
+    progressRef.current = progress;
     const root = rootRef.current;
     const frame = phoneFigure3Frame(progressRef.current, reducedMotion, mediaFailed);
     if (!root) return;
@@ -98,7 +122,12 @@ export const PhoneFigure3 = forwardRef<
     root.style.setProperty('--phone-figure3-video-scale', frame.videoScale.toFixed(4));
     root.style.setProperty('--phone-figure3-backdrop-opacity', frame.backdropOpacity.toFixed(4));
     root.dataset.phoneFigure3Progress = frame.progress.toFixed(4);
-    setVideoFrame(videoRef.current, frame.progress);
+    if (!mediaFailed && !reducedMotion && videoRef.current) {
+      driveTimelineVideo(
+        videoRef.current,
+        phoneFigure3MediaInput(frame.progress, directionRef.current, reducedMotion)
+      );
+    }
   }, [mediaFailed, reducedMotion]);
 
   const releaseMedia = useCallback(() => {
@@ -180,6 +209,7 @@ export const PhoneFigure3 = forwardRef<
             className="phone-figure3__video"
             data-media-key={FIGURE3_MEDIA_KEY}
             data-phone-figure3-video
+            data-figure3-alpha-video
             muted
             playsInline
             preload="metadata"

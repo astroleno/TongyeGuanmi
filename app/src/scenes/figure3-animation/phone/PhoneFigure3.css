@@ -41,7 +41,7 @@
   max-width: none;
   object-fit: cover;
   object-position: 37% center;
-  opacity: var(--phone-figure3-video-opacity);
+  opacity: 0;
   filter: saturate(.92) contrast(1.02);
   transform: scale(var(--phone-figure3-video-scale));
   transform-origin: 37% center;
@@ -56,7 +56,15 @@
     #d9cdb6;
 }
 
+.phone-figure3__video[data-timeline-video-frame-ready="true"] {
+  opacity: var(--phone-figure3-video-opacity);
+}
+
 .phone-figure3[data-phone-media-state="ready"] .phone-figure3__fallback {
+  opacity: 1;
+}
+
+.phone-figure3__video[data-timeline-video-frame-ready="true"] + .phone-figure3__fallback {
   opacity: .16;
 }
 
