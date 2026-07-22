@@ -3,8 +3,10 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useRef
+  useRef,
+  useState
 } from 'react';
+import { createPortal } from 'react-dom';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import { craneAnimationScene } from '..';
 import type {
@@ -89,6 +91,10 @@ export const PhoneCrane = forwardRef<
   PhoneSceneAdapterProps
 >(function PhoneCrane({ onReady, reducedMotion }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const flockCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [figureCanvasHost, setFigureCanvasHost] = useState<HTMLElement | null>(null);
+  const [flockCanvasHost, setFlockCanvasHost] = useState<HTMLElement | null>(null);
   const forwardRunRef = useRef<PhoneCraneForwardRun | null>(null);
   const reverseDissolveRef = useRef<PhoneCraneReverseDissolve | null>(null);
   const packedSurfacesRef = useRef<readonly [
@@ -103,13 +109,24 @@ export const PhoneCrane = forwardRef<
     const [figure, flock] = phoneCraneVideos(root);
     const figureContainer = figure?.parentElement;
     const flockContainer = flock?.parentElement;
-    if (!root || !figure || !flock || !figureContainer || !flockContainer) return;
+    const figureCanvas = figureCanvasRef.current;
+    const flockCanvas = flockCanvasRef.current;
+    if (
+      !root
+      || !figure
+      || !flock
+      || !figureContainer
+      || !flockContainer
+      || !figureCanvas
+      || !flockCanvas
+    ) return;
     cancelPackedReleaseRef.current?.();
     cancelPackedReleaseRef.current = null;
     if (!packedSurfacesRef.current) {
       const figureSurface = createPhonePackedAlphaSurface({
         root,
         container: figureContainer,
+        canvas: figureCanvas,
         video: figure,
         packedSourceUrl: PHONE_CRANE_FIGURE_PACKED,
         endpointSeconds: PHONE_CRANE_FIGURE_ENDPOINT_SECONDS,
@@ -124,6 +141,7 @@ export const PhoneCrane = forwardRef<
       const flockSurface = createPhonePackedAlphaSurface({
         root,
         container: flockContainer,
+        canvas: flockCanvas,
         video: flock,
         packedSourceUrl: PHONE_CRANE_FLOCK_PACKED,
         endpointSeconds: PHONE_CRANE_FLOCK_ENDPOINT_SECONDS,
@@ -201,18 +219,16 @@ export const PhoneCrane = forwardRef<
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    if (!root || !figureCanvasRef.current || !flockCanvasRef.current) return;
     render(0);
     ensurePackedSurfaces(reducedMotion ? 'endpoint' : 'forward');
     const forwardRun = createPhoneCraneForwardRun(
       root,
       render,
       () => {
-        // Stay on the same packed-H.264/WebGL topology as AOD. The former
-        // canonical endpoint preparation swapped both videos back to their
-        // desktop alpha sources after native playback, which could invalidate
-        // Safari's live textures before the snap released.
-        ensurePackedSurfaces('endpoint');
+        // AOD leaves its persistent Canvas on the last decoded frame. Keep
+        // the same decoder/WebGL pair alive until the stage is fully hidden;
+        // replacing it with a newly sought endpoint can freeze physical iOS.
         render(PHONE_CRANE_STABLE_HOLD_PROGRESS, 1);
         root.dataset.phoneCraneMedia = 'stable-endpoint';
         completeRun(1);
@@ -251,7 +267,16 @@ export const PhoneCrane = forwardRef<
       delete root.dataset.phoneCraneLifecycle;
       delete root.dataset.phoneCraneAutoplay;
     };
-  }, [completeRun, ensurePackedSurfaces, onReady, reducedMotion, render, startRun]);
+  }, [
+    completeRun,
+    ensurePackedSurfaces,
+    figureCanvasHost,
+    flockCanvasHost,
+    onReady,
+    reducedMotion,
+    render,
+    startRun
+  ]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -306,21 +331,51 @@ export const PhoneCrane = forwardRef<
   }), [ensurePackedSurfaces, render, startRun]);
 
   const CraneSurface = craneAnimationScene.Component;
+  const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
+    if (name === 'stage') rootRef.current = element;
+    if (!element) return;
+    if (name === 'figure-video') {
+      const host = element.parentElement;
+      setFigureCanvasHost((current) => current === host ? current : host);
+    }
+    if (name === 'flock-video') {
+      const host = element.parentElement;
+      setFlockCanvasHost((current) => current === host ? current : host);
+    }
+  }, []);
   return (
-    <div
-      className="phone-crane"
-      data-phone-scene="crane-animation"
-      data-phone-input-owner="none"
-      aria-hidden="true"
-    >
-      <CraneSurface
-        scene={craneAnimationScene.id}
-        hidden={false}
-        registerHandle={(name, element) => {
-          if (name === 'stage') rootRef.current = element;
-        }}
-      />
-    </div>
+    <>
+      <div
+        className="phone-crane"
+        data-phone-scene="crane-animation"
+        data-phone-input-owner="none"
+        aria-hidden="true"
+      >
+        <CraneSurface
+          scene={craneAnimationScene.id}
+          hidden={false}
+          registerHandle={registerHandle}
+        />
+      </div>
+      {figureCanvasHost ? createPortal(
+        <canvas
+          ref={figureCanvasRef}
+          className="crane-figure-video phone-crane__figure-canvas"
+          data-phone-packed-alpha-canvas="crane-figure"
+          aria-hidden="true"
+        />,
+        figureCanvasHost
+      ) : null}
+      {flockCanvasHost ? createPortal(
+        <canvas
+          ref={flockCanvasRef}
+          className="crane-figure-video crane-figure-video--front phone-crane__flock-canvas"
+          data-phone-packed-alpha-canvas="crane-flock"
+          aria-hidden="true"
+        />,
+        flockCanvasHost
+      ) : null}
+    </>
   );
 });
 

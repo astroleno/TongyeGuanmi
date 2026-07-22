@@ -28,6 +28,78 @@ class FakeVisibilityDocument extends EventTarget {
 }
 
 describe('phone native autoplay', () => {
+  it('primes an inactive lazy decoder inside the physical gesture', async () => {
+    const video = new FakeVideo();
+    const gestures = new EventTarget();
+    const controller = createPhoneNativeAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 1,
+        onProgress: vi.fn(),
+        onComplete: vi.fn(),
+        onFailure: vi.fn(),
+        gestureTarget: gestures,
+        requestFrame: () => 1,
+        cancelFrame: vi.fn()
+      }
+    );
+
+    gestures.dispatchEvent(new Event('touchstart'));
+    await Promise.resolve();
+
+    expect(video.play).toHaveBeenCalledOnce();
+    expect(video.paused).toBe(true);
+    expect(video.currentTime).toBe(0);
+    expect(video.dataset.phoneNativeAutoplay).toBe('primed');
+    gestures.dispatchEvent(new Event('touchmove'));
+    expect(video.play).toHaveBeenCalledOnce();
+
+    controller.start();
+    await Promise.resolve();
+    expect(video.play).toHaveBeenCalledTimes(2);
+    expect(video.dataset.phoneNativeAutoplay).toBe('playing');
+    controller.dispose();
+  });
+
+  it('reclaims a pending gesture play if the shell unlock pauses it', async () => {
+    const video = new FakeVideo();
+    const gestures = new EventTarget();
+    let resolvePrime: (() => void) | undefined;
+    video.play.mockImplementationOnce(() => {
+      video.paused = false;
+      video.dispatchEvent(new Event('play'));
+      return new Promise<void>((resolve) => {
+        resolvePrime = resolve;
+      });
+    });
+    const controller = createPhoneNativeAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 1,
+        onProgress: vi.fn(),
+        onComplete: vi.fn(),
+        onFailure: vi.fn(),
+        gestureTarget: gestures,
+        requestFrame: () => 1,
+        cancelFrame: vi.fn()
+      }
+    );
+
+    gestures.dispatchEvent(new Event('touchmove'));
+    controller.start();
+    expect(video.play).toHaveBeenCalledOnce();
+    expect(video.pause).not.toHaveBeenCalled();
+
+    video.pause();
+    resolvePrime?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(video.play).toHaveBeenCalledTimes(2);
+    expect(video.paused).toBe(false);
+    expect(video.dataset.phoneNativeAutoplay).toBe('playing');
+    controller.dispose();
+  });
+
   it('uses native currentTime as the only forward clock and resumes after visibility', async () => {
     const video = new FakeVideo();
     const visibility = new FakeVisibilityDocument();

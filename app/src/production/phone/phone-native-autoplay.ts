@@ -62,10 +62,14 @@ export function createPhoneNativeAutoplay(
   let active = false;
   let disposed = false;
   let playPending = false;
+  let gesturePrimePending = false;
+  let gesturePrimed = false;
+  let gesturePrimeAttempt = 0;
   let playAttempt = 0;
   let frame = 0;
   let stallTimer: PhoneNativeTimer | undefined;
   let lastEvidenceProgress = 0;
+  let detachGestureListeners = () => undefined;
 
   const cancelScheduledFrame = () => {
     if (!frame) return;
@@ -87,6 +91,7 @@ export function createPhoneNativeAutoplay(
     cancelScheduledFrame();
     cancelStallTimer();
     video.pause();
+    detachGestureListeners();
     video.dataset.phoneNativeAutoplay = 'failed';
     options.onFailure();
   };
@@ -151,6 +156,7 @@ export function createPhoneNativeAutoplay(
       disposed
       || !active
       || playPending
+      || gesturePrimePending
       || visibilityDocument?.hidden
     ) {
       return;
@@ -175,6 +181,8 @@ export function createPhoneNativeAutoplay(
           play();
           return;
         }
+        gesturePrimed = true;
+        detachGestureListeners();
         video.dataset.phoneNativeAutoplay = 'playing';
         markFrameReady();
         schedule();
@@ -211,8 +219,73 @@ export function createPhoneNativeAutoplay(
     render();
     if (!visibilityDocument?.hidden) play();
   };
+  const primeFromGesture = () => {
+    if (
+      disposed
+      || active
+      || gesturePrimed
+      || gesturePrimePending
+      || visibilityDocument?.hidden
+    ) {
+      return;
+    }
+    const attempt = ++gesturePrimeAttempt;
+    gesturePrimePending = true;
+    video.autoplay = false;
+    video.loop = false;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.setAttribute('webkit-playsinline', 'true');
+    video.dataset.phoneNativeAutoplay = 'priming-from-gesture';
+    let playback: Promise<void> | undefined;
+    try {
+      playback = video.play();
+    } catch {
+      playback = Promise.reject(new Error('native gesture prime rejected'));
+    }
+    void Promise.resolve(playback).then(
+      () => {
+        if (disposed || attempt !== gesturePrimeAttempt) return;
+        gesturePrimePending = false;
+        gesturePrimed = true;
+        detachGestureListeners();
+        if (active) {
+          // The shell-wide iOS unlock listener may resolve first and pause the
+          // same media element. The successful gesture play still authorizes
+          // it, so immediately reclaim native time for the active run.
+          if (video.paused) {
+            play();
+            return;
+          }
+          video.dataset.phoneNativeAutoplay = 'playing';
+          markFrameReady();
+          armStallTimer();
+          schedule();
+          return;
+        }
+        video.pause();
+        try {
+          video.currentTime = 0;
+        } catch {
+          // A successful play is enough to authorize this media element.
+        }
+        video.dataset.phoneNativeAutoplay = 'primed';
+      },
+      () => {
+        if (disposed || attempt !== gesturePrimeAttempt) return;
+        gesturePrimePending = false;
+        video.dataset.phoneNativeAutoplay = 'prime-blocked';
+        if (active) play();
+      }
+    );
+  };
   const onGesture = () => {
-    if (active && !visibilityDocument?.hidden) play();
+    if (active && !visibilityDocument?.hidden) {
+      play();
+      return;
+    }
+    primeFromGesture();
   };
   const onEnded = () => complete();
   const onError = () => fail();
@@ -243,24 +316,36 @@ export function createPhoneNativeAutoplay(
   gestureTarget?.addEventListener('touchmove', onGesture, { passive: true });
   gestureTarget?.addEventListener('pointerdown', onGesture, { passive: true });
   gestureTarget?.addEventListener('keydown', onGesture);
+  let gestureListenersAttached = Boolean(gestureTarget);
+  detachGestureListeners = () => {
+    if (!gestureListenersAttached) return;
+    gestureListenersAttached = false;
+    gestureTarget?.removeEventListener('touchstart', onGesture);
+    gestureTarget?.removeEventListener('touchmove', onGesture);
+    gestureTarget?.removeEventListener('pointerdown', onGesture);
+    gestureTarget?.removeEventListener('keydown', onGesture);
+  };
 
-  const stopCurrentRun = () => {
+  const stopCurrentRun = (preserveGesturePrime = false) => {
     active = false;
     playAttempt += 1;
     playPending = false;
     cancelScheduledFrame();
     cancelStallTimer();
-    video.pause();
+    if (!preserveGesturePrime) video.pause();
   };
 
   return {
     start() {
       if (disposed) return;
-      stopCurrentRun();
-      try {
-        video.currentTime = 0;
-      } catch {
-        // Metadata may still be pending; loadeddata presents frame zero.
+      const inheritsGesturePrime = gesturePrimePending;
+      stopCurrentRun(inheritsGesturePrime);
+      if (!inheritsGesturePrime) {
+        try {
+          video.currentTime = 0;
+        } catch {
+          // Metadata may still be pending; loadeddata presents frame zero.
+        }
       }
       video.autoplay = false;
       video.loop = false;
@@ -273,7 +358,7 @@ export function createPhoneNativeAutoplay(
       video.dataset.phoneNativeAutoplay = 'starting';
       render(0);
       armStallTimer();
-      play();
+      if (!inheritsGesturePrime) play();
     },
     retry() {
       armStallTimer();
@@ -306,13 +391,13 @@ export function createPhoneNativeAutoplay(
       video.removeEventListener('ended', onEnded);
       video.removeEventListener('error', onError);
       visibilityDocument?.removeEventListener('visibilitychange', onVisibilityChange);
-      gestureTarget?.removeEventListener('touchstart', onGesture);
-      gestureTarget?.removeEventListener('touchmove', onGesture);
-      gestureTarget?.removeEventListener('pointerdown', onGesture);
-      gestureTarget?.removeEventListener('keydown', onGesture);
+      detachGestureListeners();
       delete video.dataset.phoneNativeAutoplay;
       delete video.dataset.phoneNativeAutoplayProgress;
       delete video.dataset.phoneNativeFrameReady;
+      gesturePrimeAttempt += 1;
+      gesturePrimePending = false;
+      gesturePrimed = false;
     }
   };
 }

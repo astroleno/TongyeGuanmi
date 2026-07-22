@@ -25,9 +25,29 @@
     var(--phone-cinematic-stage-height, 100lvh) * .09
   );
   /* Opening-frame feet (source y≈306/396) meet the centre roof ridge. */
-  --phone-crane-flock-center-y: 64.2%;
+  --phone-crane-flock-center-y: 68.1%;
   height: 100%;
   min-height: 100%;
+}
+
+/* Match af4d41d: one outer retained-height clip, no nested Safari islands. */
+.phone-crane .crane-sticky,
+.phone-crane .crane-field,
+.phone-crane .crane-layer-stack,
+.phone-crane .crane-video-transition {
+  overflow: visible;
+  isolation: auto;
+}
+
+.phone-crane .crane-video-transition--figure {
+  clip-path: none;
+  will-change: transform;
+}
+
+.phone-crane .crane-layer,
+.phone-crane .crane-figure-video {
+  contain: none;
+  backface-visibility: visible;
 }
 
 /*
@@ -46,6 +66,7 @@
   aspect-ratio: 16 / 9;
   object-fit: fill;
   opacity: 0;
+  will-change: auto;
 }
 
 /* AOD topology: canonical videos decode packed H.264 but never paint. */
@@ -53,6 +74,10 @@
 .phone-crane [data-crane-figure-front-video] {
   opacity: 0 !important;
   filter: none;
+  transform: none;
+  contain: none;
+  backface-visibility: visible;
+  will-change: auto;
 }
 
 .phone-crane__figure-canvas {

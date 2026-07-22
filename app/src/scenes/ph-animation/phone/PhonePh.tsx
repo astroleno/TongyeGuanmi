@@ -3,8 +3,10 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useRef
+  useRef,
+  useState
 } from 'react';
+import { createPortal } from 'react-dom';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import {
   parkPhMedia,
@@ -158,6 +160,8 @@ export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
 export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProps>(
   function PhonePh({ active, onReady, reducedMotion }, forwardedRef) {
     const rootRef = useRef<HTMLElement | null>(null);
+    const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const [figureCanvasHost, setFigureCanvasHost] = useState<HTMLElement | null>(null);
     const nativeAutoplayRef = useRef<PhoneNativeAutoplay | null>(null);
     const reverseDissolveRef = useRef<PhonePhReverseDissolve | null>(null);
     const packedSurfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
@@ -168,13 +172,15 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       const root = rootRef.current;
       const video = root?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
       const container = root?.querySelector<HTMLElement>('.ph-layer-stack');
-      if (!root || !video || !container) return;
+      const canvas = figureCanvasRef.current;
+      if (!root || !video || !container || !canvas) return;
       cancelPackedReleaseRef.current?.();
       cancelPackedReleaseRef.current = null;
       if (!packedSurfaceRef.current) {
         packedSurfaceRef.current = createPhonePackedAlphaSurface({
           root,
           container,
+          canvas,
           video,
           packedSourceUrl: PHONE_PH_PACKED_VIDEO,
           endpointSeconds: PH_FIGURE_END_SECONDS,
@@ -255,7 +261,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     useEffect(() => {
       const root = rootRef.current;
       const video = root?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
-      if (!root || !video) return;
+      if (!root || !video || !figureCanvasRef.current) return;
 
       // Retire the canonical cold-frame driver before native Route-B playback
       // takes ownership. This is the same one-owner boundary used by AOD.
@@ -302,7 +308,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         delete root.dataset.phonePhLifecycle;
         delete root.dataset.phonePhAutoplay;
       };
-    }, [completeRun, ensurePackedSurface, onReady, render, startRun]);
+    }, [completeRun, ensurePackedSurface, figureCanvasHost, onReady, render, startRun]);
 
     useEffect(() => {
       const root = rootRef.current;
@@ -355,22 +361,37 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     }), [ensurePackedSurface, render, startRun]);
 
     const PhSurface = phAnimationScene.Component;
+    const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
+      if (name === 'field') rootRef.current = element;
+      if (name !== 'figure-video' || !element) return;
+      const host = element.parentElement;
+      setFigureCanvasHost((current) => current === host ? current : host);
+    }, []);
 
     return (
-      <div
-        className="phone-ph"
-        data-phone-scene="ph-animation"
-        data-phone-input-owner="none"
-        aria-hidden="true"
-      >
-        <PhSurface
-          scene={phAnimationScene.id}
-          hidden={false}
-          registerHandle={(name, element) => {
-            if (name === 'field') rootRef.current = element;
-          }}
-        />
-      </div>
+      <>
+        <div
+          className="phone-ph"
+          data-phone-scene="ph-animation"
+          data-phone-input-owner="none"
+          aria-hidden="true"
+        >
+          <PhSurface
+            scene={phAnimationScene.id}
+            hidden={false}
+            registerHandle={registerHandle}
+          />
+        </div>
+        {figureCanvasHost ? createPortal(
+          <canvas
+            ref={figureCanvasRef}
+            className="ph-layer ph-layer--figure phone-ph__figure-canvas"
+            data-phone-packed-alpha-canvas="ph-figure"
+            aria-hidden="true"
+          />,
+          figureCanvasHost
+        ) : null}
+      </>
     );
   }
 );

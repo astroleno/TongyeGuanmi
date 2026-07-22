@@ -47,6 +47,9 @@ describe('PhoneCrane', () => {
   it('reuses AOD native clocks with the authored half-second media stagger', () => {
     expect(autoplaySource).toContain('createPhoneNativeAutoplay');
     expect(source).toContain('createPhonePackedAlphaSurface');
+    expect(source).toContain('createPortal');
+    expect(source).toContain('figureCanvasRef');
+    expect(source).toContain('flockCanvasRef');
     expect(source).toContain("'crane-figure-packed'");
     expect(source).toContain("'crane-flock-packed'");
     expect(source).toContain("ensurePackedSurfaces('endpoint')");
@@ -62,8 +65,9 @@ describe('PhoneCrane', () => {
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
     expect(css).toContain('--phone-crane-motion-width');
     expect(css).toContain('* .834');
-    expect(css).toContain('--phone-crane-flock-center-y: 64.2%');
+    expect(css).toContain('--phone-crane-flock-center-y: 68.1%');
     expect(css).toContain('position: absolute');
+    expect(css).toContain('clip-path: none');
     expect(css).not.toContain('9dvh');
     expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(0.42);
     expect(autoplaySource).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS * (1 - elapsed)');

@@ -49,7 +49,8 @@ describe('PhonePh', () => {
     expect(css).toContain('--phone-ph-front-width');
     expect(css).toContain('var(--phone-cinematic-stage-height, 100lvh) * .74');
     expect(css).toContain('object-position: 12% 50%');
-    expect(css).toContain('* 1.55');
+    expect(css).toContain('* 1.65');
+    expect(css).toContain('* .105');
     expect(css).toContain('* .245');
     expect(css).toContain('opacity: 1 !important');
     expect(css).toContain('.phone-ph .ph-edge-light');
@@ -62,6 +63,8 @@ describe('PhonePh', () => {
   it('reuses the AOD native-time policy and Figure2 stable-surface policy', () => {
     expect(source).toContain('createPhoneNativeAutoplay');
     expect(source).toContain('createPhonePackedAlphaSurface');
+    expect(source).toContain('createPortal');
+    expect(source).toContain('figureCanvasRef');
     expect(source).toContain("phoneMediaUrlFor('ph-figure-packed'");
     expect(source).toContain("ensurePackedSurface('endpoint')");
     expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
@@ -70,6 +73,7 @@ describe('PhonePh', () => {
     expect(source).toContain("'endpoint-dissolve'");
     expect(nativeClockSource).toContain('video.currentTime / duration');
     expect(nativeClockSource).toContain("video.addEventListener('timeupdate'");
+    expect(nativeClockSource).toContain('primeFromGesture');
     expect(source).not.toContain('driveTimelineVideo');
     expect(source).not.toContain("mode: 'timeline'");
   });

@@ -27,6 +27,8 @@ class FakeNode {
   ownerDocument!: FakeDocument;
   parentNode: FakeNode | null = null;
   className = '';
+  width = 300;
+  height = 150;
   src = '';
   alt = '';
   decoding = '';
@@ -137,6 +139,37 @@ describe('phone packed-alpha surface', () => {
     expect(video.dataset.packedAlphaSource).toBe('rgb-alpha-side-by-side');
     surface.release();
     expect(container.querySelector('canvas')).toBeNull();
+    expect(video.querySelector('source')).toBeNull();
+    surface.dispose();
+  });
+
+  it('keeps a React-owned Canvas mounted while releasing its decoder/context', () => {
+    const ownerDocument = new FakeDocument();
+    const root = ownerDocument.createElement('section');
+    const container = ownerDocument.createElement('div');
+    const video = ownerDocument.createElement('video') as FakeVideo;
+    const canvas = ownerDocument.createElement('canvas');
+    root.append(container);
+    container.append(video);
+    container.append(canvas);
+    const surface = createPhonePackedAlphaSurface({
+      root: root as unknown as HTMLElement,
+      container: container as unknown as HTMLElement,
+      canvas: canvas as unknown as HTMLCanvasElement,
+      video: video as unknown as HTMLVideoElement,
+      packedSourceUrl: '/packed.mp4',
+      endpointSeconds: 1.25,
+      statusDataset: 'phoneTestAlpha',
+      layerName: 'test',
+      canvasClassName: 'test-canvas'
+    });
+
+    surface.activate();
+    surface.release();
+
+    expect(container.querySelector('canvas')).toBe(canvas);
+    expect(canvas.width).toBe(1);
+    expect(canvas.height).toBe(1);
     expect(video.querySelector('source')).toBeNull();
     surface.dispose();
   });

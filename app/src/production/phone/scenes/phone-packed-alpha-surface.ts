@@ -15,6 +15,7 @@ export type PhonePackedAlphaSurface = Readonly<{
 type PhonePackedAlphaSurfaceOptions = Readonly<{
   root: HTMLElement;
   container: HTMLElement;
+  canvas?: HTMLCanvasElement;
   video: HTMLVideoElement;
   packedSourceUrl: string;
   endpointSeconds: number;
@@ -58,6 +59,7 @@ export function createPhonePackedAlphaSurface(
     statusDataset,
     layerName
   } = options;
+  const ownsCanvas = !options.canvas;
   let disposed = false;
   let mode: PhonePackedAlphaSurfaceMode | undefined;
   let canvas: HTMLCanvasElement | undefined;
@@ -72,14 +74,26 @@ export function createPhonePackedAlphaSurface(
     endpointSeek = undefined;
   };
 
+  const retireCanvas = () => {
+    if (!canvas) return;
+    if (ownsCanvas) {
+      canvas.remove();
+    } else {
+      // Keep the React-owned node/topology, but release its backing store once
+      // the chapter is hidden. A later activation restores the authored size.
+      canvas.width = 1;
+      canvas.height = 1;
+    }
+    canvas = undefined;
+  };
+
   const clearPresentation = () => {
     if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
     frameTimeout = undefined;
     clearEndpointSeek();
     compositor?.dispose();
     compositor = undefined;
-    canvas?.remove();
-    canvas = undefined;
+    retireCanvas();
     delete root.dataset[statusDataset];
   };
 
@@ -89,8 +103,7 @@ export function createPhonePackedAlphaSurface(
     clearEndpointSeek();
     compositor?.dispose();
     compositor = undefined;
-    canvas?.remove();
-    canvas = undefined;
+    retireCanvas();
     // Keep the decoder source alive. On physical Safari the first WebGL video
     // upload can legitimately wait for the gesture that starts native
     // playback. Releasing the source here left the later autoplay owner with
@@ -120,11 +133,11 @@ export function createPhonePackedAlphaSurface(
       release();
       mode = nextMode;
 
-      canvas = root.ownerDocument.createElement('canvas');
+      canvas = options.canvas ?? root.ownerDocument.createElement('canvas');
       canvas.className = options.canvasClassName;
       canvas.setAttribute('aria-hidden', 'true');
       canvas.dataset.phonePackedAlphaCanvas = layerName;
-      container.append(canvas);
+      if (ownsCanvas) container.append(canvas);
 
       compositor = createPackedAlphaVideoCompositor({
         video,
