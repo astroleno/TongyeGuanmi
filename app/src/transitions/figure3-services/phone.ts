@@ -14,6 +14,8 @@ export const PHONE_FIGURE3_SERVICES_DECISION = {
   strategy: 'endpoint-dissolve',
   camera: 'none',
   copyCueProgress: 0.8,
+  receiverOwner: 'services:document-root',
+  receiverCopies: 1,
   forwardEndpoint: 'services:reading-top',
   reverseEndpoint: 'figure3-animation:stable-initial-frame',
   rationale: 'The source video remains the sole clock; Services enters over its final 20%, matching the accepted AOD → Method cue.'

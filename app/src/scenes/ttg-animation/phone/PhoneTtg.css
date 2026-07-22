@@ -39,22 +39,22 @@
 }
 
 /*
- * Reuse the canonical TTG layer owner and Figure2's accepted phone-camera
- * strategy: retain authored layer ratios, replace only the viewport framing.
+ * Keep the desktop composition ratios on a stable 16:9 virtual camera. The
+ * foreground uses that same camera width rather than the narrow phone width,
+ * so the railing, floor and figure remain at their authored relative scale.
  */
 .phone-ttg > .ttg-page.r4-ttg-animation {
   --ttg-scene-width: max(
     100vw,
-    calc(var(--portrait-stage-height, 100lvh) * 16 / 9)
+    calc(var(--portrait-stage-height, 100lvh) * 1.78),
+    1180px
   );
   --ttg-bg-width: max(
     100vw,
-    calc(var(--portrait-stage-height, 100lvh) * 1.84)
+    calc(var(--portrait-stage-height, 100lvh) * 1.84),
+    1180px
   );
-  --ttg-front-width: max(
-    112vw,
-    calc(var(--portrait-stage-height, 100lvh) * .72)
-  );
+  --ttg-front-width: var(--ttg-scene-width);
   z-index: 1;
   overflow: clip;
   background: #080d10;
@@ -84,15 +84,9 @@
 
 .phone-ttg .ttg-layer--figure {
   --ttg-figure-layer-height: min(
-    calc(var(--portrait-stage-height, 100lvh) * 1.12),
-    940px
+    calc(var(--portrait-stage-height, 100lvh) * 1.44),
+    1460px
   );
-}
-
-/* The portrait camera keeps the cathedral mass on the right third while the
-   foreground rises enough to cover the lower Safari edge. */
-.phone-ttg .ttg-layer--middle {
-  left: 75%;
 }
 
 .phone-ttg video.ttg-layer--figure[data-phone-group45-frame-ready="true"] {

@@ -10,6 +10,8 @@ describe('Phone Figure3 → Services transition', () => {
       strategy: 'endpoint-dissolve',
       camera: 'none',
       copyCueProgress: 0.8,
+      receiverOwner: 'services:document-root',
+      receiverCopies: 1,
       forwardEndpoint: 'services:reading-top',
       reverseEndpoint: 'figure3-animation:stable-initial-frame'
     });

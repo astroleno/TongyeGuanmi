@@ -127,14 +127,28 @@
 }
 
 .phone-brand-lab__visual-track--figure3 {
-  background: #ede4d2;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, .10),
+      transparent 32%,
+      rgba(41, 41, 25, .055)
+    ),
+    linear-gradient(
+      90deg,
+      rgba(220, 220, 208, .48),
+      transparent 18%,
+      transparent 82%,
+      rgba(220, 220, 208, .54)
+    ),
+    #ede4d2;
 }
 
 .phone-brand-lab__visual-track--ttg {
-  background:
-    radial-gradient(ellipse at 54% 38%, rgba(207, 165, 86, .15), transparent 36%),
-    radial-gradient(ellipse at 48% 54%, rgba(29, 82, 92, .18), transparent 55%),
-    linear-gradient(180deg, #101919 0%, #090e11 58%, #040506 100%);
+  /* Like Method → Figure2, the marker owns distance only. The clipped TTG
+     receiver and ink canvas must be the only dark transition boundary; the
+     marker continues Services' terminal paper underneath that contour. */
+  background: #ede4d2;
 }
 
 .phone-brand-lab__transition-host {

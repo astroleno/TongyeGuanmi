@@ -4,15 +4,33 @@
   position: relative;
   isolation: isolate;
   color: #28291f;
-  background: #e9e1ce;
+  background:
+    radial-gradient(circle at 86% 5%, rgba(54, 109, 102, .17), transparent 16%),
+    radial-gradient(circle at 10% 4%, rgba(210, 173, 79, .16), transparent 14%),
+    #e9e1ce;
   padding: 0;
   scroll-margin-top: 0;
+}
+
+/* The desktop TTG → Lab handoff promotes this same document root for 600 ms.
+   Its normal-flow geometry is untouched, so the settled Lab is not a second
+   copy and reverse can uncover TTG's prepared terminal frame. */
+.phone-lab[data-phone-scene="lab"][data-phone-ttg-lab-bridge="active"] {
+  z-index: 11;
+  opacity: var(--phone-ttg-lab-bridge-opacity, 0);
+  transform: translate3d(
+    0,
+    calc(-1 * var(--portrait-stage-height, 100lvh)),
+    0
+  );
+  pointer-events: none;
+  will-change: opacity, transform;
 }
 
 .phone-lab__screen {
   box-sizing: border-box;
   display: grid;
-  min-block-size: 100svh;
+  min-block-size: var(--portrait-stage-height, 100lvh);
   padding: max(70px, 11svh) clamp(22px, 6vw, 42px) max(64px, 10svh);
   scroll-snap-align: start;
   scroll-snap-stop: always;
@@ -20,17 +38,12 @@
 
 .phone-lab__screen--intro {
   align-content: center;
-  background:
-    radial-gradient(circle at 86% 10%, rgba(54, 109, 102, .17), transparent 30%),
-    radial-gradient(circle at 10% 7%, rgba(210, 173, 79, .16), transparent 26%),
-    #e9e1ce;
+  background: transparent;
 }
 
 .phone-lab__screen--scenarios {
   align-content: start;
-  background:
-    radial-gradient(circle at 88% 12%, rgba(184, 147, 74, .12), transparent 32%),
-    linear-gradient(180deg, #eee7d8 0%, #e8dfcc 100%);
+  background: transparent;
 }
 
 .phone-lab__hero,

@@ -28,6 +28,12 @@ import {
   ttgAnimationScene
 } from '..';
 import './PhoneTtg.css';
+import {
+  PHONE_TTG_LAB_DISSOLVE_MS,
+  phoneTtgDissolveChapterProgress,
+  phoneTtgMediaChapterProgress,
+  phoneTtgReverseFrameProgress
+} from './motion';
 
 const TtgSurface = ttgAnimationScene.Component;
 
@@ -74,7 +80,7 @@ type PhoneTtgProps = Group45PhoneSceneProps & Readonly<{
   onComplete?: (scene: 'ttg-animation', direction: 1 | -1) => void;
 }>;
 
-/** Figure2-derived phone camera over TTG's canonical media/layer owner. */
+/** Desktop-authored TTG motion sampled inside the portrait crop. */
 export function phoneTtgFrame(
   rawProgress: number,
   reducedMotion = false,
@@ -86,12 +92,12 @@ export function phoneTtgFrame(
   return {
     progress,
     visualProgress,
-    backgroundY: visualProgress === 0 ? 0 : -visualProgress * height * .11,
-    backgroundScale: 1,
+    backgroundY: visualProgress === 0 ? 0 : -visualProgress * height * .143,
+    backgroundScale: 1 + visualProgress * .018,
     middleY: visualProgress * height * .235,
-    middleScale: 1,
-    foregroundY: height * .11 + visualProgress * height * .08,
-    figureY: -height * .02 + visualProgress * height * .10,
+    middleScale: 1 + visualProgress * .012,
+    foregroundY: height * .292 + visualProgress * height * .131,
+    figureY: -height * .085 + visualProgress * height * .165,
     figureScale: .8,
     figureOpacity: mediaFailed || reducedMotion ? 0 : 1
   };
@@ -152,7 +158,7 @@ function ttgReverseMediaInput(
   return {
     runId,
     direction: -1,
-    progress: stableProgress(progress),
+    progress: phoneTtgReverseFrameProgress(progress),
     durationFallbackSeconds: 2.5,
     startSeconds: 0,
     endSeconds: TTG_FIGURE_END_SECONDS,
@@ -164,10 +170,11 @@ function ttgReverseMediaInput(
 }
 
 /**
- * TTG keeps the accepted Figure2 camera and adopts 4c659e3's AOD ownership:
- * source-zero forward play is immediate, while reverse uses the canonical
- * timeline driver's coalesced seek path because no approved reverse source
- * exists for this media.
+ * TTG keeps one canonical media owner. Forward playback remains native; the
+ * reverse leg prepares its terminal frame before Lab uncovers TTG, then uses
+ * the shared coalesced seek driver at the source's authored 30 fps cadence.
+ * Both directions reserve the desktop-authored final 600 ms for the Lab
+ * dissolve instead of hiding that handoff inside media playback.
  */
 export const PhoneTtg = forwardRef<
   ScenePresentationAdapterHandle,
@@ -200,6 +207,7 @@ export const PhoneTtg = forwardRef<
   const completionReportedRef = useRef(false);
   const runGenerationRef = useRef(0);
   const reverseRunIdRef = useRef('phone-ttg-reverse-0');
+  const chapterTransitionFrameRef = useRef(0);
   const completionListenerRef = useRef(onComplete);
   const mediaErrorListenerRef = useRef(onMediaError);
   const progressListenerRef = useRef(onProgress);
@@ -257,6 +265,72 @@ export const PhoneTtg = forwardRef<
     }
   }, []);
 
+  const cancelChapterTransition = useCallback(() => {
+    if (!chapterTransitionFrameRef.current) return;
+    window.cancelAnimationFrame(chapterTransitionFrameRef.current);
+    chapterTransitionFrameRef.current = 0;
+  }, []);
+
+  const publishChapterProgress = useCallback((
+    progress: number,
+    playbackDirection: Group45NativeAutoplayDirection
+  ) => {
+    progressListenerRef.current?.(
+      'ttg-animation',
+      stableProgress(progress),
+      playbackDirection
+    );
+  }, []);
+
+  const runChapterDissolve = useCallback((
+    playbackDirection: Group45NativeAutoplayDirection,
+    generation: number,
+    onComplete: () => void
+  ) => {
+    cancelChapterTransition();
+    let startedAt: number | undefined;
+    const tick: FrameRequestCallback = (time) => {
+      chapterTransitionFrameRef.current = 0;
+      if (
+        mediaRetiringRef.current
+        || generation !== runGenerationRef.current
+      ) return;
+      if (startedAt === undefined) startedAt = time;
+      const progress = clamp(
+        (time - startedAt) / PHONE_TTG_LAB_DISSOLVE_MS
+      );
+      publishChapterProgress(
+        phoneTtgDissolveChapterProgress(progress, playbackDirection),
+        playbackDirection
+      );
+      rootRef.current?.setAttribute(
+        'data-phone-ttg-playback',
+        playbackDirection === 1
+          ? 'dissolving-to-lab'
+          : 'dissolving-to-ttg'
+      );
+      if (progress >= 1) {
+        onComplete();
+        return;
+      }
+      chapterTransitionFrameRef.current = window.requestAnimationFrame(tick);
+    };
+    chapterTransitionFrameRef.current = window.requestAnimationFrame(tick);
+  }, [cancelChapterTransition, publishChapterProgress]);
+
+  const reportRunCompletion = useCallback((
+    playbackDirection: Group45NativeAutoplayDirection,
+    generation: number
+  ) => {
+    if (
+      mediaRetiringRef.current
+      || generation !== runGenerationRef.current
+      || completionReportedRef.current
+    ) return;
+    completionReportedRef.current = true;
+    completionListenerRef.current?.('ttg-animation', playbackDirection);
+  }, []);
+
   const mountMedia = useCallback(() => {
     if (mediaMountedRef.current) return;
     mediaMountedRef.current = true;
@@ -266,6 +340,7 @@ export const PhoneTtg = forwardRef<
 
   const releaseMedia = useCallback(() => {
     runGenerationRef.current += 1;
+    cancelChapterTransition();
     mediaRetiringRef.current = true;
     forwardRequestedRef.current = false;
     playbackRef.current?.dispose();
@@ -275,7 +350,7 @@ export const PhoneTtg = forwardRef<
     mediaMountedRef.current = false;
     setMediaReady(false);
     setMediaMounted(false);
-  }, []);
+  }, [cancelChapterTransition]);
 
   const failMedia = useCallback(() => {
     if (mediaRetiringRef.current || mediaFailedRef.current) return;
@@ -291,9 +366,10 @@ export const PhoneTtg = forwardRef<
     if (reducedMotionRef.current || mediaFailedRef.current) return;
     activeRef.current = true;
     directionRef.current = runDirection;
-    runGenerationRef.current += 1;
+    cancelChapterTransition();
+    const generation = ++runGenerationRef.current;
     if (runDirection === -1) {
-      reverseRunIdRef.current = `phone-ttg-reverse-${runGenerationRef.current}`;
+      reverseRunIdRef.current = `phone-ttg-reverse-${generation}`;
     } else if (videoRef.current) {
       // Retire the previous reverse seek driver before native playback takes
       // sole ownership of the TTG video again.
@@ -304,10 +380,49 @@ export const PhoneTtg = forwardRef<
     mountMedia();
     const playback = playbackRef.current;
     if (!playback) return;
-    if (!playback.active) completionReportedRef.current = false;
+    completionReportedRef.current = false;
     forwardRequestedRef.current = false;
-    playback.start(runDirection);
-  }, [mountMedia]);
+    if (runDirection === 1) {
+      playback.start(1);
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) {
+      failMedia();
+      return;
+    }
+    playback.reset(1);
+    publishChapterProgress(1, -1);
+    rootRef.current?.setAttribute(
+      'data-phone-ttg-playback',
+      'preparing-reverse-terminal'
+    );
+    void prepareTimelineVideoFrame(
+      video,
+      ttgReverseMediaInput(reverseRunIdRef.current, 1)
+    ).then((result) => {
+      if (
+        result?.status !== 'ready'
+        || mediaRetiringRef.current
+        || generation !== runGenerationRef.current
+      ) return;
+      video.dataset.phoneGroup45FrameReady = 'true';
+      runChapterDissolve(-1, generation, () => {
+        if (
+          mediaRetiringRef.current
+          || generation !== runGenerationRef.current
+        ) return;
+        playback.start(-1);
+      });
+    }).catch(failMedia);
+  }, [
+    cancelChapterTransition,
+    failMedia,
+    mountMedia,
+    publishChapterProgress,
+    runChapterDissolve
+  ]);
 
   const reconcileMedia = useCallback(() => {
     const root = rootRef.current;
@@ -370,9 +485,8 @@ export const PhoneTtg = forwardRef<
         durationSeconds: TTG_FIGURE_END_SECONDS,
         onProgress: (progress, playbackDirection) => {
           renderFrame(progress, playbackDirection);
-          progressListenerRef.current?.(
-            'ttg-animation',
-            progress,
+          publishChapterProgress(
+            phoneTtgMediaChapterProgress(progress),
             playbackDirection
           );
         },
@@ -391,17 +505,10 @@ export const PhoneTtg = forwardRef<
           forwardRequestedRef.current = false;
           const endpoint = playbackDirection === 1 ? 1 : 0;
           renderFrame(endpoint, playbackDirection);
-          const reportCompletion = () => {
-            if (
-              mediaRetiringRef.current
-              || completionGeneration !== runGenerationRef.current
-              || completionReportedRef.current
-            ) return;
-            completionReportedRef.current = true;
-            completionListenerRef.current?.('ttg-animation', playbackDirection);
-          };
           if (playbackDirection === 1) {
-            reportCompletion();
+            runChapterDissolve(1, completionGeneration, () => {
+              reportRunCompletion(1, completionGeneration);
+            });
             return;
           }
           const reverseVideo = videoRef.current;
@@ -416,7 +523,7 @@ export const PhoneTtg = forwardRef<
             ttgReverseMediaInput(reverseRunIdRef.current, 0)
           ).then((result) => {
             if (result?.status !== 'ready') return;
-            reportCompletion();
+            reportRunCompletion(-1, completionGeneration);
           }).catch(failMedia);
         },
         onError: failMedia
@@ -433,9 +540,19 @@ export const PhoneTtg = forwardRef<
       const playback = playbackRef.current;
       playback?.dispose();
       if (playbackRef.current === playback) playbackRef.current = null;
+      cancelChapterTransition();
       disposeTtgMedia(root);
     };
-  }, [failMedia, mediaMounted, reconcileMedia, renderFrame]);
+  }, [
+    cancelChapterTransition,
+    failMedia,
+    mediaMounted,
+    publishChapterProgress,
+    reconcileMedia,
+    renderFrame,
+    reportRunCompletion,
+    runChapterDissolve
+  ]);
 
   useEffect(() => {
     const wasActive = activeRef.current;

@@ -8,14 +8,16 @@ import {
 import type {
   Group45PhoneTransitionProps
 } from '../../production/phone/adapter-groups/group4-5';
+import { PHONE_TTG_LAB_ANIMATION_STOP } from '../../scenes/ttg-animation/phone/motion';
 import type { TransitionPresentationAdapterHandle } from '../../story/presentation';
 
 export const PHONE_TTG_LAB_DECISION = {
-  strategy: 'endpoint-dissolve',
-  camera: 'none',
+  strategy: 'desktop-timed-dissolve',
+  camera: 'stable-ttg-terminal-frame',
+  dissolveStart: PHONE_TTG_LAB_ANIMATION_STOP,
   forwardEndpoint: 'lab:reading-top',
-  reverseEndpoint: 'ttg-animation:stable-initial-frame',
-  rationale: 'TTG retains its one local media owner; a stable dissolve removes the unvalidated phone hold from the original staged bridge.'
+  reverseEndpoint: 'ttg-animation:stable-terminal-then-reverse',
+  rationale: 'Match desktop TTG → Lab: finish TTG media, then dissolve the same Lab document root over the final 600 ms. Reverse prepares TTG terminal before uncovering it.'
 } as const;
 
 export type PhoneTtgLabFrame = Readonly<{
@@ -34,10 +36,14 @@ export function phoneTtgLabFrame(
   mediaFailed = false,
   direction: 1 | -1 = 1
 ): PhoneTtgLabFrame {
+  const chapterProgress = clamp(rawProgress);
   const progress = mediaFailed
     ? direction === 1 ? 1 : 0
-    : reducedMotion ? rawProgress <= 0 ? 0 : 1
-      : clamp(rawProgress);
+    : reducedMotion ? chapterProgress <= 0 ? 0 : 1
+      : clamp(
+        (chapterProgress - PHONE_TTG_LAB_ANIMATION_STOP)
+          / (1 - PHONE_TTG_LAB_ANIMATION_STOP)
+      );
   return { progress, fromOpacity: 1 - progress, toOpacity: progress };
 }
 
@@ -45,12 +51,26 @@ function applyEndpoint(
   element: HTMLElement | null,
   opacity: number,
   id: 'ttg-lab',
+  role: 'from' | 'to',
   documentFlow = false
 ): void {
   if (!element) return;
   if (documentFlow) {
     element.dataset.phoneDissolve = id;
     element.dataset.phoneDissolveOpacity = opacity.toFixed(4);
+    if (role === 'from') {
+      if (opacity >= .999) element.style.removeProperty('opacity');
+      else element.style.opacity = opacity.toFixed(4);
+    } else if (opacity > .001) {
+      element.dataset.phoneTtgLabBridge = 'active';
+      element.style.setProperty(
+        '--phone-ttg-lab-bridge-opacity',
+        opacity.toFixed(4)
+      );
+    } else {
+      delete element.dataset.phoneTtgLabBridge;
+      element.style.removeProperty('--phone-ttg-lab-bridge-opacity');
+    }
     return;
   }
   const visible = opacity > 0.001;
@@ -66,6 +86,9 @@ function clearEndpoint(element: HTMLElement | null, documentFlow = false): void 
   if (documentFlow) {
     delete element.dataset.phoneDissolve;
     delete element.dataset.phoneDissolveOpacity;
+    delete element.dataset.phoneTtgLabBridge;
+    element.style.removeProperty('opacity');
+    element.style.removeProperty('--phone-ttg-lab-bridge-opacity');
     return;
   }
   element.style.removeProperty('opacity');
@@ -99,11 +122,11 @@ export const PhoneTtgLabTransition = forwardRef<
       directionRef.current
     );
     if (host) {
-      host.dataset.phoneTransition = 'ttg-lab:endpoint-dissolve';
+      host.dataset.phoneTransition = 'ttg-lab:desktop-timed-dissolve';
       host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
     }
-    applyEndpoint(from, frame.fromOpacity, 'ttg-lab', documentFlow);
-    applyEndpoint(to, frame.toOpacity, 'ttg-lab', documentFlow);
+    applyEndpoint(from, frame.fromOpacity, 'ttg-lab', 'from', documentFlow);
+    applyEndpoint(to, frame.toOpacity, 'ttg-lab', 'to', documentFlow);
   }, [documentFlow, from, host, reducedMotion, to]);
 
   useLayoutEffect(() => {
@@ -128,10 +151,12 @@ export const PhoneTtgLabTransition = forwardRef<
     leave() {
       directionRef.current = 1;
       render(1);
+      clearEndpoint(from, documentFlow);
+      clearEndpoint(to, documentFlow);
     },
     reverse() {
       directionRef.current = -1;
-      render(0);
+      render(1);
     },
     dispose() {
       clearEndpoint(from, documentFlow);

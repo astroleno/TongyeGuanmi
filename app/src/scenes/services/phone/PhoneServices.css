@@ -14,10 +14,11 @@
   scroll-margin-top: 0;
 }
 
-/* Figure3's decoder remains the only clock. During its final 20%, promote the
-   existing Services root (never a cloned copy tree) into the viewport, then
-   return it to native document flow in the handoff frame. */
-.phone-services[data-phone-figure3-services-bridge="active"] {
+/* Figure3's decoder remains the only clock. During its final 20%, translate
+   the one real Services root into the viewport. No bridge-only descendant
+   sizing is allowed: the transition frame and reading endpoint are the exact
+   same layout and therefore settle without a B1 → B2 jump. */
+.phone-services[data-phone-scene="services"][data-phone-figure3-services-bridge="active"] {
   position: relative;
   z-index: 11;
   width: 100%;
@@ -29,13 +30,6 @@
   );
   pointer-events: none;
   will-change: opacity, transform;
-}
-
-.phone-services[data-phone-figure3-services-bridge="active"]
-  .phone-services__hero {
-  height: var(--portrait-stage-height, 100lvh);
-  min-block-size: var(--portrait-stage-height, 100lvh);
-  padding-bottom: 0;
 }
 
 .phone-services__hero,

@@ -3,15 +3,24 @@ import {
   PHONE_TTG_LAB_DECISION,
   phoneTtgLabFrame
 } from './phone';
+import { PHONE_TTG_LAB_ANIMATION_STOP } from '../../scenes/ttg-animation/phone/motion';
 
 describe('Phone TTG → Lab transition', () => {
   it('records the reviewed endpoint/dissolve decision', () => {
     expect(PHONE_TTG_LAB_DECISION).toMatchObject({
-      strategy: 'endpoint-dissolve',
-      camera: 'none',
+      strategy: 'desktop-timed-dissolve',
+      camera: 'stable-ttg-terminal-frame',
+      dissolveStart: PHONE_TTG_LAB_ANIMATION_STOP,
       forwardEndpoint: 'lab:reading-top',
-      reverseEndpoint: 'ttg-animation:stable-initial-frame'
+      reverseEndpoint: 'ttg-animation:stable-terminal-then-reverse'
     });
+  });
+
+  it('starts only after desktop TTG media reaches its terminal frame', () => {
+    expect(phoneTtgLabFrame(PHONE_TTG_LAB_ANIMATION_STOP).progress).toBe(0);
+    expect(phoneTtgLabFrame(
+      (1 + PHONE_TTG_LAB_ANIMATION_STOP) / 2
+    ).progress).toBeCloseTo(.5);
   });
 
   it('returns exact forward and reverse semantic endpoints', () => {

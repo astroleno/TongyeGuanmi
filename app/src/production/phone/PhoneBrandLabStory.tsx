@@ -251,7 +251,9 @@ export function PhoneBrandLabStory({
   );
   const scrollDirectionLockUntilRef = useRef(0);
   const entryIndex = sceneIndex(entryScene);
-  const edgeScene = stageScene ?? currentScene;
+  const edgeScene = stageScene === 'ttg-animation' && visualActivity.ttg.active
+    ? stageScene
+    : currentScene;
 
   useLayoutEffect(() => {
     const documentElement = document.documentElement;
@@ -527,6 +529,10 @@ export function PhoneBrandLabStory({
       // The transition adapter maps canonical Figure3 progress 0.8 → 1 to
       // Services entrance 0 → 1, exactly like the accepted AOD handoff.
       figure3ServicesRef.current?.render(progress);
+    } else {
+      // TTG publishes the desktop combined timeline: media occupies the first
+      // 2500 ms and the same Lab document root dissolves over the final 600 ms.
+      ttgLabRef.current?.render(progress);
     }
   }, []);
 
@@ -736,8 +742,15 @@ export function PhoneBrandLabStory({
                 figure3Ref.current?.reverse?.();
               }
             } else {
-              if (runDirection === 1) ttgRef.current?.enter?.();
-              else ttgRef.current?.reverse?.();
+              if (runDirection === 1) {
+                ttgLabRef.current?.enter?.();
+                ttgRef.current?.enter?.();
+              } else {
+                // Keep Lab covering the stage until TTG's terminal frame is
+                // prepared, then the adapter dissolves this same root away.
+                ttgLabRef.current?.reverse?.();
+                ttgRef.current?.reverse?.();
+              }
             }
           }
         }
@@ -798,11 +811,11 @@ export function PhoneBrandLabStory({
       const labElement = labRef.current?.root() ?? null;
       brandFigure3Ref.current?.render(brandFigure3Progress);
       servicesTtgRef.current?.render(servicesTtgProgress);
-      ttgLabRef.current?.render(phoneGroup45BoundaryProgress(
-        labElement?.getBoundingClientRect().top ?? viewportHeight,
-        labElement?.getBoundingClientRect().height ?? viewportHeight,
-        viewportHeight
-      ));
+      if (heldVisual !== 'ttg-animation') {
+        // Outside TTG's time-owned run Lab remains in normal document flow;
+        // never reapply the promoted bridge from ordinary page scrolling.
+        ttgLabRef.current?.enter?.();
+      }
 
       const sceneNodes: readonly [Group45PhoneSceneId, HTMLElement | null][] = [
         ['brand', brandElement],

@@ -1,57 +1,6 @@
 .phone-figure3 {
-  --phone-figure3-video-opacity: 1;
-  --phone-figure3-video-scale: 1.015;
-  --phone-figure3-backdrop-opacity: 1;
-  --phone-figure3-backdrop-scale: 1.06;
-  position: relative;
-  display: block;
-  min-block-size: max(80svh, 38rem);
-  overflow: visible;
-  isolation: auto;
-  background: #ede4d2;
-}
-
-.phone-figure3__fallback,
-.phone-figure3 > .figure3-transition.r4-figure3-animation {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
-
-.phone-figure3__fallback {
-  z-index: 0;
-  background: #ede4d2;
-}
-
-/*
- * Figure3 deliberately uses the canonical scene/media owner, exactly as the
- * accepted PhoneAod adapter does. Only the camera is phone-specific: the
- * authored 16:9 plate uses a left-edge portrait crop because the figure is
- * authored on that edge; no inherited desktop transform tree is scaled.
- */
-.phone-figure3 > .figure3-transition.r4-figure3-animation {
-  z-index: 1;
-  overflow: clip;
-  background: #ede4d2;
-}
-
-.phone-figure3 .figure3-transition__sticky,
-.phone-figure3 .figure3-transition__stage {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
-
-.phone-figure3 .figure3-transition__backdrop {
-  opacity: var(--phone-figure3-backdrop-opacity);
-  transform: translateZ(0) scale(var(--phone-figure3-backdrop-scale));
-  background: #ede4d2;
-}
-
-.phone-figure3 .figure3-transition__sticky::after {
-  background:
+  --phone-figure3-paper: #ede4d2;
+  --phone-figure3-paper-treatment:
     linear-gradient(
       180deg,
       rgba(255, 255, 255, .10),
@@ -65,6 +14,64 @@
       transparent 82%,
       rgba(220, 220, 208, .54)
     );
+  --phone-figure3-video-opacity: 1;
+  --phone-figure3-video-scale: 1.015;
+  --phone-figure3-backdrop-opacity: 1;
+  --phone-figure3-backdrop-scale: 1.06;
+  position: relative;
+  display: block;
+  min-block-size: max(80svh, 38rem);
+  overflow: visible;
+  isolation: auto;
+  background: var(--phone-figure3-paper);
+}
+
+.phone-figure3__fallback,
+.phone-figure3 > .figure3-transition.r4-figure3-animation {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.phone-figure3__fallback {
+  z-index: 0;
+  background:
+    var(--phone-figure3-paper-treatment),
+    var(--phone-figure3-paper);
+}
+
+/*
+ * Figure3 deliberately uses the canonical scene/media owner, exactly as the
+ * accepted PhoneAod adapter does. Only the camera is phone-specific: the
+ * authored 16:9 plate uses a left-edge portrait crop because the figure is
+ * authored on that edge; no inherited desktop transform tree is scaled.
+ */
+.phone-figure3 > .figure3-transition.r4-figure3-animation {
+  z-index: 1;
+  overflow: clip;
+  background: var(--phone-figure3-paper);
+}
+
+.phone-figure3 .figure3-transition__sticky,
+.phone-figure3 .figure3-transition__stage {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.phone-figure3 .figure3-transition__backdrop {
+  opacity: var(--phone-figure3-backdrop-opacity);
+  transform: translateZ(0) scale(var(--phone-figure3-backdrop-scale));
+  background: var(--phone-figure3-paper);
+}
+
+.phone-figure3 .figure3-transition__sticky::after {
+  /* Keep the desktop paper wash above the transparent media stage so WebKit
+     cannot flatten it behind the alpha-video compositor. */
+  z-index: 3;
+  background: var(--phone-figure3-paper-treatment);
 }
 
 .phone-figure3 .figure3-transition__video {

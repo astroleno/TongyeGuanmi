@@ -7,6 +7,12 @@ import {
   phoneTtgMediaAction,
   releasePhoneTtgVideo
 } from './PhoneTtg';
+import {
+  PHONE_TTG_LAB_ANIMATION_STOP,
+  phoneTtgDissolveChapterProgress,
+  phoneTtgMediaChapterProgress,
+  phoneTtgReverseFrameProgress
+} from './motion';
 
 describe('PhoneTtg', () => {
   it('owns only its one optional video and retains local static layers', () => {
@@ -32,23 +38,36 @@ describe('PhoneTtg', () => {
       backgroundScale: 1,
       middleY: 0,
       middleScale: 1,
-      foregroundY: 110,
-      figureY: -20
+      foregroundY: 292,
+      figureY: -85
     });
     expect(phoneTtgFrame(1, false, false, 1000)).toMatchObject({
       progress: 1,
       visualProgress: 1,
-      backgroundY: -110,
-      backgroundScale: 1,
+      backgroundY: -143,
+      backgroundScale: 1.018,
       middleY: 235,
-      middleScale: 1,
-      foregroundY: 190,
+      middleScale: 1.012,
+      foregroundY: 423,
       figureY: 80
     });
     expect(phoneTtgFrame(0.4, false, true, 1000)).toMatchObject({
       progress: 1,
       figureOpacity: 0
     });
+  });
+
+  it('keeps desktop media/dissolve timing and a 30 fps reverse seek cadence', () => {
+    expect(PHONE_TTG_LAB_ANIMATION_STOP).toBeCloseTo(2500 / 3100);
+    expect(phoneTtgMediaChapterProgress(1))
+      .toBeCloseTo(PHONE_TTG_LAB_ANIMATION_STOP);
+    expect(phoneTtgDissolveChapterProgress(0, 1))
+      .toBeCloseTo(PHONE_TTG_LAB_ANIMATION_STOP);
+    expect(phoneTtgDissolveChapterProgress(1, 1)).toBe(1);
+    expect(phoneTtgDissolveChapterProgress(0, -1)).toBe(1);
+    expect(phoneTtgDissolveChapterProgress(1, -1))
+      .toBeCloseTo(PHONE_TTG_LAB_ANIMATION_STOP);
+    expect(phoneTtgReverseFrameProgress(.5)).toBeCloseTo(37 / 74);
   });
 
   it('selects one native run or a stable endpoint from document state', () => {
