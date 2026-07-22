@@ -29,12 +29,20 @@ export type Group45PhoneTransitionId =
 
 export type Group45PhoneSceneProps = Readonly<{
   active: boolean;
+  /** Document traversal direction; visuals use it only to select endpoints. */
+  direction?: 1 | -1;
   /** Decode only the immediately upcoming visual; playback still waits for entry. */
   prewarm?: boolean;
   reducedMotion: boolean;
   onReady?: () => void;
   /** Lets the shell settle the affected bridge at its declared endpoint. */
   onMediaError?: (scene: Group45PhoneSceneId) => void;
+  /**
+   * A time-owned visual reports its authoritative terminal endpoint once.
+   * The shell may then reveal the next native-document receiver without
+   * inventing a second full-screen hold.
+   */
+  onComplete?: (scene: Group45PhoneSceneId) => void;
 }>;
 
 export type Group45PhoneTransitionProps = Readonly<{

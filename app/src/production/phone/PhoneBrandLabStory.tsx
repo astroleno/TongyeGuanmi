@@ -5,7 +5,10 @@ import {
   useRef,
   useState
 } from 'react';
-import type { ScenePresentationAdapterHandle, TransitionPresentationAdapterHandle } from '../../story/presentation';
+import type {
+  ScenePresentationAdapterHandle,
+  TransitionPresentationAdapterHandle
+} from '../../story/presentation';
 import type { SceneId } from '../../story/types';
 import { StoryNav } from '../StoryNav';
 import { hashForScene, publicMenuItems, sceneFromHash } from '../navigation';
@@ -13,6 +16,11 @@ import {
   group45PhoneSceneIds,
   type Group45PhoneSceneId
 } from './adapter-groups/group4-5';
+import {
+  createPhoneScrollSnapLock,
+  type PhoneScrollSnapLock
+} from './phone-scroll-snap-lock';
+import { PhoneStageRail } from './PhoneStageRail';
 import { usePhoneGroup45Adapters } from './usePhoneGroup45Adapters';
 import './PhoneBrandLabStory.css';
 
@@ -22,12 +30,37 @@ type PhoneBrandLabStoryProps = Readonly<{
 }>;
 
 type VisualActivity = Readonly<{
-  figure3: Readonly<{ active: boolean; prewarm: boolean }>;
-  ttg: Readonly<{ active: boolean; prewarm: boolean }>;
+  active: boolean;
+  prewarm: boolean;
 }>;
+
+type Group45EdgeState = Readonly<{
+  surface: string;
+  themeColor: string;
+}>;
+
+type Group45VisualScene = Extract<
+  Group45PhoneSceneId,
+  'figure3-animation' | 'ttg-animation'
+>;
+
+type VisualHandoffReason = 'complete' | 'media-failure';
 
 const GROUP45_SCENES = new Set<Group45PhoneSceneId>(group45PhoneSceneIds);
 const GROUP45_NAV_ITEMS = publicMenuItems.filter((item) => item.scene === 'services');
+
+/*
+ * This cut-only QA scope deliberately starts at Brand instead of replaying the
+ * still-moving Loader → Proof half. Its edge colors are local until Unit 7
+ * expands the shared phone edge-surface contract.
+ */
+const GROUP45_EDGE_BY_SCENE: Readonly<Record<Group45PhoneSceneId, Group45EdgeState>> = {
+  brand: { surface: '#ede4d2', themeColor: '#ede4d2' },
+  'figure3-animation': { surface: '#ede4d2', themeColor: '#ede4d2' },
+  services: { surface: '#ede4d2', themeColor: '#ede4d2' },
+  'ttg-animation': { surface: '#080d10', themeColor: '#080d10' },
+  lab: { surface: '#e9e1ce', themeColor: '#e9e1ce' }
+};
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -43,14 +76,33 @@ export function phoneGroup45EntryFromHash(hash: string): Group45PhoneSceneId {
   return isGroup45Scene(scene) ? scene : 'brand';
 }
 
+/** Root flags that release the desktop overflow lock for the phone document. */
+export function phoneGroup45DocumentFlags(reducedMotion: boolean): Readonly<{
+  portraitSpike: 'b';
+  portraitSpikeMotion: 'force' | 'reduce';
+}> {
+  return {
+    portraitSpike: 'b',
+    portraitSpikeMotion: reducedMotion ? 'reduce' : 'force'
+  };
+}
+
+/**
+ * The Group 4–5 visual chapters are autonomous one-screen runs. They retain a
+ * progress helper for failure endpoints and future reviewed cameras, but a
+ * single-viewport chapter must never manufacture an extra scroll/hold range.
+ */
 export function phoneGroup45TrackProgress(
   trackTop: number,
   trackHeight: number,
   viewportHeight: number
 ): number {
-  return clamp((viewportHeight - trackTop) / Math.max(1, trackHeight));
+  const pinnedDistance = trackHeight - viewportHeight;
+  if (pinnedDistance <= 1) return 0;
+  return clamp(-trackTop / pinnedDistance);
 }
 
+/** A short, bounded dissolve window around a document-flow chapter boundary. */
 export function phoneGroup45BoundaryProgress(
   targetTop: number,
   targetHeight: number,
@@ -68,15 +120,36 @@ export function phoneGroup45TrackActivity(
   trackTop: number,
   trackHeight: number,
   viewportHeight: number
-) {
+): VisualActivity & Readonly<{ progress: number }> {
   const trackBottom = trackTop + trackHeight;
+  const oneScreenTrack = trackHeight <= viewportHeight + 1;
+  const visibleHeight = Math.max(
+    0,
+    Math.min(trackBottom, viewportHeight) - Math.max(trackTop, 0)
+  );
+  const visibleRatio = visibleHeight / Math.max(1, Math.min(trackHeight, viewportHeight));
   return {
-    // Decode the next visual just before its chapter enters, but do not start
-    // its authored autoplay under the previous reading chapter.
-    prewarm: trackTop < viewportHeight * 1.2 && trackBottom > -viewportHeight * .2,
-    active: trackTop <= viewportHeight * .1 && trackBottom > viewportHeight * .1,
+    // Match the accepted AOD entry model: decode while the next visual is one
+    // viewport away, then let the runtime latch ownership once it is crossed.
+    prewarm: trackTop <= viewportHeight * 1.25
+      && trackBottom > viewportHeight * .1,
+    active: oneScreenTrack
+      ? visibleRatio >= .5
+      : trackTop <= 0 && trackBottom >= viewportHeight,
     progress: phoneGroup45TrackProgress(trackTop, trackHeight, viewportHeight)
   };
+}
+
+/** A forward swipe may jump past the exact top edge; crossing still owns it. */
+export function phoneGroup45CrossedVisualStart(
+  previousScrollY: number,
+  scrollY: number,
+  trackTop: number,
+  viewportHeight: number
+): boolean {
+  const documentTop = scrollY + trackTop;
+  const triggerY = Math.max(0, documentTop - viewportHeight * .35);
+  return previousScrollY < triggerY && scrollY >= triggerY;
 }
 
 function frameForTrack(element: HTMLElement | null, viewportHeight: number) {
@@ -86,9 +159,9 @@ function frameForTrack(element: HTMLElement | null, viewportHeight: number) {
 }
 
 /**
- * Dedicated physical-device scope. It starts at Brand's stable receiver and
- * deliberately does not mount Loader → Proof; the normal phone shell remains
- * untouched outside `?scope=brand-lab`.
+ * Dedicated physical-device cut. It has one document scroll owner and gives
+ * each visual chapter a full-viewport sticky stage; Brand/Services/Lab remain
+ * the sole accessible, native-document reading tree.
  */
 export function PhoneBrandLabStory({
   reducedMotion,
@@ -100,16 +173,21 @@ export function PhoneBrandLabStory({
   const adapters = usePhoneGroup45Adapters(entryScene);
   const [currentScene, setCurrentScene] = useState<Group45PhoneSceneId>(entryScene);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [adapterRevision, setAdapterRevision] = useState(0);
-  const [visualActivity, setVisualActivity] = useState<VisualActivity>({
+  const [, setAdapterRevision] = useState(0);
+  const [scrollDirection, setScrollDirection] = useState<1 | -1>(1);
+  const [stageScene, setStageScene] = useState<Group45VisualScene | null>(null);
+  const [visualActivity, setVisualActivity] = useState<Readonly<{
+    figure3: VisualActivity;
+    ttg: VisualActivity;
+  }>>({
     figure3: { active: false, prewarm: false },
     ttg: { active: false, prewarm: false }
   });
-  const [brandFigure3Host, setBrandFigure3Host] = useState<HTMLElement | null>(null);
-  const [figure3ServicesHost, setFigure3ServicesHost] = useState<HTMLElement | null>(null);
-  const [servicesTtgHost, setServicesTtgHost] = useState<HTMLElement | null>(null);
-  const [ttgLabHost, setTtgLabHost] = useState<HTMLElement | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
+  const stageRailRef = useRef<HTMLElement | null>(null);
+  const stageViewportRef = useRef<HTMLElement | null>(null);
+  const stageCanvasRef = useRef<HTMLDivElement | null>(null);
+  const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
   const figure3TrackRef = useRef<HTMLDivElement | null>(null);
   const ttgTrackRef = useRef<HTMLDivElement | null>(null);
   const brandRef = useRef<ScenePresentationAdapterHandle | null>(null);
@@ -122,25 +200,78 @@ export function PhoneBrandLabStory({
   const servicesTtgRef = useRef<TransitionPresentationAdapterHandle | null>(null);
   const ttgLabRef = useRef<TransitionPresentationAdapterHandle | null>(null);
   const pendingNavigationRef = useRef<Group45PhoneSceneId>(entryScene);
+  const visualCompletionFrameRef = useRef(0);
+  const visualRunTimeoutRef = useRef(0);
+  const visualRunRef = useRef<Group45VisualScene | null>(null);
+  const visualSnapRef = useRef<PhoneScrollSnapLock | null>(null);
+  const failedVisualsRef = useRef(new Set<Group45VisualScene>());
+  const lastScrollYRef = useRef(
+    typeof window === 'undefined' ? 0 : window.scrollY
+  );
+  const scrollDirectionLockUntilRef = useRef(0);
   const entryIndex = sceneIndex(entryScene);
+  const edgeScene = stageScene ?? currentScene;
 
-  // This focused route bypasses the full PhoneStoryShell geometry hook. Mark
-  // the document as a live phone route here so the server-rendered static
-  // fallback is removed from both the visible and accessible trees.
   useLayoutEffect(() => {
     const documentElement = document.documentElement;
-    documentElement.dataset.portraitSpike = 'b';
-    documentElement.dataset.portraitSpikeMotion = reducedMotion ? 'reduce' : 'force';
+    const previousSpike = documentElement.dataset.portraitSpike;
+    const previousMotion = documentElement.dataset.portraitSpikeMotion;
+    const previousHydrated = documentElement.dataset.storyHydrated;
+    const previousScope = documentElement.dataset.phoneGroup45Scope;
+    const previousSurface = documentElement.style.getPropertyValue('--portrait-document-surface');
+    const previousEdge = documentElement.dataset.phoneGroup45EdgeScene;
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const previousThemeColor = themeColor?.content;
+
+    // PhoneStoryShell's base CSS owns the document scroll container. This QA
+    // cut uses the same lightweight root flags without importing its GSAP
+    // runtime, so html/body/#root are restored from the desktop overflow lock.
+    const flags = phoneGroup45DocumentFlags(reducedMotion);
+    documentElement.dataset.portraitSpike = flags.portraitSpike;
+    documentElement.dataset.portraitSpikeMotion = flags.portraitSpikeMotion;
     documentElement.dataset.storyHydrated = 'true';
+    documentElement.dataset.phoneGroup45Scope = 'brand-lab';
+
     return () => {
-      delete documentElement.dataset.portraitSpike;
-      delete documentElement.dataset.portraitSpikeMotion;
-      delete documentElement.dataset.storyHydrated;
+      if (previousSpike) documentElement.dataset.portraitSpike = previousSpike;
+      else delete documentElement.dataset.portraitSpike;
+      if (previousMotion) documentElement.dataset.portraitSpikeMotion = previousMotion;
+      else delete documentElement.dataset.portraitSpikeMotion;
+      if (previousHydrated) documentElement.dataset.storyHydrated = previousHydrated;
+      else delete documentElement.dataset.storyHydrated;
+      if (previousScope) documentElement.dataset.phoneGroup45Scope = previousScope;
+      else delete documentElement.dataset.phoneGroup45Scope;
+      if (previousSurface) {
+        documentElement.style.setProperty('--portrait-document-surface', previousSurface);
+      } else {
+        documentElement.style.removeProperty('--portrait-document-surface');
+      }
+      if (previousEdge) documentElement.dataset.phoneGroup45EdgeScene = previousEdge;
+      else delete documentElement.dataset.phoneGroup45EdgeScene;
+      if (themeColor && previousThemeColor !== undefined) themeColor.content = previousThemeColor;
     };
   }, [reducedMotion]);
 
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const documentElement = document.documentElement;
+    const edge = GROUP45_EDGE_BY_SCENE[edgeScene];
+    root?.style.setProperty('--phone-group45-edge-surface', edge.surface);
+    root?.style.setProperty('--portrait-edge-surface', edge.surface);
+    root?.setAttribute('data-phone-group45-edge-scene', edgeScene);
+    documentElement.style.setProperty('--portrait-document-surface', edge.surface);
+    documentElement.dataset.phoneGroup45EdgeScene = edgeScene;
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (themeColor) themeColor.content = edge.themeColor;
+  }, [edgeScene]);
+
   const publishAdapter = useCallback(() => {
     setAdapterRevision((revision) => revision + 1);
+  }, []);
+  const bindStageHost = useCallback((host: HTMLDivElement | null) => {
+    if (stageCanvasRef.current === host) return;
+    stageCanvasRef.current = host;
+    setStageHost(host);
   }, []);
   const bindBrand = useCallback((handle: ScenePresentationAdapterHandle | null) => {
     if (brandRef.current === handle) return;
@@ -197,16 +328,99 @@ export function PhoneBrandLabStory({
     setEntryScene(target);
   }, []);
 
+  /**
+   * A cinematic chapter owns exactly one physical screen. Once its media has
+   * reached the authored endpoint, reveal the next native receiver on the
+   * same document rail instead of manufacturing an extra terminal hold.
+   */
+  const handoffVisual = useCallback((
+    scene: Group45VisualScene,
+    reason: VisualHandoffReason
+  ) => {
+    if (reason === 'complete' && reducedMotion) return;
+    const receiver = scene === 'figure3-animation'
+      ? servicesRef.current?.root() ?? null
+      : labRef.current?.root() ?? null;
+    const target = scene === 'figure3-animation' ? 'services' : 'lab';
+    if (visualRunRef.current !== scene || !receiver) return;
+    if (visualRunTimeoutRef.current) {
+      window.clearTimeout(visualRunTimeoutRef.current);
+      visualRunTimeoutRef.current = 0;
+    }
+    if (visualCompletionFrameRef.current) {
+      window.cancelAnimationFrame(visualCompletionFrameRef.current);
+    }
+    rootRef.current?.setAttribute(
+      'data-phone-group45-complete-handoff',
+      `${scene}-${target}:${reason}`
+    );
+    scrollDirectionLockUntilRef.current = window.performance.now() + 280;
+    setScrollDirection(1);
+    // Keep the terminal plate for one compositor frame. The second frame
+    // moves the one real document to its semantic receiver; no clone, blank
+    // paper screen, or additional full-screen scroll range is introduced.
+    visualCompletionFrameRef.current = window.requestAnimationFrame(() => {
+      visualCompletionFrameRef.current = window.requestAnimationFrame(() => {
+        visualCompletionFrameRef.current = 0;
+        const latestReceiver = scene === 'figure3-animation'
+          ? servicesRef.current?.root() ?? null
+          : labRef.current?.root() ?? null;
+        if (visualRunRef.current !== scene || !latestReceiver) return;
+        visualRunRef.current = null;
+        visualSnapRef.current?.release();
+        rootRef.current?.setAttribute('data-phone-group45-snap', 'released');
+        rootRef.current?.setAttribute('data-phone-group45-visual-run', 'idle');
+        setStageScene(null);
+        setVisualActivity((current) => ({
+          figure3: {
+            ...current.figure3,
+            active: false
+          },
+          ttg: {
+            ...current.ttg,
+            active: false
+          }
+        }));
+        window.scrollTo({
+          top: window.scrollY + latestReceiver.getBoundingClientRect().top,
+          left: 0,
+          behavior: 'auto'
+        });
+      });
+    });
+  }, [reducedMotion]);
+
   const onMediaError = useCallback((scene: Group45PhoneSceneId) => {
+    if (scene !== 'figure3-animation' && scene !== 'ttg-animation') return;
+    failedVisualsRef.current.add(scene);
     const target = scene === 'figure3-animation' ? 'services' : 'lab';
     rootRef.current?.setAttribute('data-phone-group45-media-fallback', target);
     if (scene === 'figure3-animation') {
+      figure3Ref.current?.update(1);
       figure3ServicesRef.current?.render(1);
-    }
-    if (scene === 'ttg-animation') {
+    } else {
+      ttgRef.current?.update(1);
       ttgLabRef.current?.render(1);
     }
-  }, []);
+    handoffVisual(scene, 'media-failure');
+  }, [handoffVisual]);
+
+  const onVisualComplete = useCallback((scene: Group45PhoneSceneId) => {
+    if (scene === 'figure3-animation' || scene === 'ttg-animation') {
+      handoffVisual(scene, 'complete');
+    }
+  }, [handoffVisual]);
+
+  const armVisualRunTimeout = useCallback((scene: Group45VisualScene) => {
+    if (visualRunTimeoutRef.current) {
+      window.clearTimeout(visualRunTimeoutRef.current);
+    }
+    // AOD's time-owned run must always release. Slow decode gets a generous
+    // window; a missing/blocked decoder resolves through the declared endpoint.
+    visualRunTimeoutRef.current = window.setTimeout(() => {
+      if (visualRunRef.current === scene) onMediaError(scene);
+    }, 6000);
+  }, [onMediaError]);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -225,37 +439,136 @@ export function PhoneBrandLabStory({
   useEffect(() => {
     if (!adapters.ready) return;
     const target = pendingNavigationRef.current;
+    scrollDirectionLockUntilRef.current = window.performance.now() + 280;
+    setScrollDirection(1);
     const frame = window.requestAnimationFrame(() => {
       document.getElementById(target)?.scrollIntoView({ block: 'start' });
-      pendingNavigationRef.current = target;
+      // A hash/deep-link is an explicit forward entry, not a reverse gesture
+      // inherited from the browser's restored scroll position.
+      lastScrollYRef.current = window.scrollY;
+      setScrollDirection(1);
     });
     return () => window.cancelAnimationFrame(frame);
   }, [adapters.ready, entryScene]);
 
   useLayoutEffect(() => {
     if (!adapters.ready) return;
+    const root = rootRef.current;
+    if (!root) return;
     let frame = 0;
+    const visualSnap = createPhoneScrollSnapLock({
+      root,
+      getScrollY: () => window.scrollY,
+      scrollTo: (y) => window.scrollTo({ top: y, left: 0, behavior: 'auto' })
+    });
+    visualSnapRef.current = visualSnap;
     const render = () => {
       frame = 0;
       const viewportHeight = Math.max(1, window.innerHeight);
+      const scrollY = window.scrollY;
+      const previousScrollY = lastScrollYRef.current;
+      const scrollDirectionLocked = window.performance.now()
+        < scrollDirectionLockUntilRef.current;
+      const nextScrollDirection: 1 | -1 | undefined = scrollDirectionLocked
+        ? undefined
+        : scrollY > previousScrollY + .5
+          ? 1
+          : scrollY < previousScrollY - .5
+            ? -1
+            : undefined;
+      if (nextScrollDirection) {
+        setScrollDirection((current) => (
+          current === nextScrollDirection ? current : nextScrollDirection
+        ));
+      }
       const figure3Frame = frameForTrack(figure3TrackRef.current, viewportHeight);
       const ttgFrame = frameForTrack(ttgTrackRef.current, viewportHeight);
+      const forwardDirection = nextScrollDirection === 1
+        || (!nextScrollDirection && scrollY >= previousScrollY);
+      const directVisualEntry = entryScene === 'figure3-animation'
+        || entryScene === 'ttg-animation';
+      const crossedFigure3 = figure3TrackRef.current && (
+        phoneGroup45CrossedVisualStart(
+          previousScrollY,
+          scrollY,
+          figure3TrackRef.current.getBoundingClientRect().top,
+          viewportHeight
+        )
+        || (directVisualEntry
+          && entryScene === 'figure3-animation'
+          && figure3Frame.active)
+      );
+      const crossedTtg = ttgTrackRef.current && (
+        phoneGroup45CrossedVisualStart(
+          previousScrollY,
+          scrollY,
+          ttgTrackRef.current.getBoundingClientRect().top,
+          viewportHeight
+        )
+        || (directVisualEntry
+          && entryScene === 'ttg-animation'
+          && ttgFrame.active)
+      );
+      if (!visualRunRef.current && forwardDirection && !reducedMotion) {
+        const nextRun = crossedFigure3 && !failedVisualsRef.current.has('figure3-animation')
+          ? 'figure3-animation'
+          : crossedTtg && !failedVisualsRef.current.has('ttg-animation')
+            ? 'ttg-animation'
+            : null;
+        if (nextRun) {
+          const track = nextRun === 'figure3-animation'
+            ? figure3TrackRef.current
+            : ttgTrackRef.current;
+          if (track) {
+            visualRunRef.current = nextRun;
+            root.setAttribute('data-phone-group45-visual-run', `${nextRun}:forward`);
+            root.setAttribute('data-phone-group45-snap', 'locked');
+            visualSnap.lock(window.scrollY + track.getBoundingClientRect().top);
+            armVisualRunTimeout(nextRun);
+          }
+        }
+      }
+      lastScrollYRef.current = window.scrollY;
+      const heldVisual = visualRunRef.current;
+      const activeFigure3 = {
+        ...figure3Frame,
+        active: heldVisual
+          ? heldVisual === 'figure3-animation'
+          : figure3Frame.active,
+        prewarm: heldVisual === 'figure3-animation' || figure3Frame.prewarm
+      };
+      const activeTtg = {
+        ...ttgFrame,
+        active: heldVisual ? heldVisual === 'ttg-animation' : ttgFrame.active,
+        prewarm: heldVisual === 'ttg-animation' || ttgFrame.prewarm
+      };
+      const nextStageScene: Group45VisualScene | null = heldVisual ?? (activeFigure3.active
+        ? 'figure3-animation'
+        : activeTtg.active
+          ? 'ttg-animation'
+          : null);
       setVisualActivity((current) => (
-        current.figure3.active === figure3Frame.active
-          && current.figure3.prewarm === figure3Frame.prewarm
-          && current.ttg.active === ttgFrame.active
-          && current.ttg.prewarm === ttgFrame.prewarm
+        current.figure3.active === activeFigure3.active
+          && current.figure3.prewarm === activeFigure3.prewarm
+          && current.ttg.active === activeTtg.active
+          && current.ttg.prewarm === activeTtg.prewarm
           ? current
           : {
-              figure3: { active: figure3Frame.active, prewarm: figure3Frame.prewarm },
-              ttg: { active: ttgFrame.active, prewarm: ttgFrame.prewarm }
+              figure3: {
+                active: activeFigure3.active,
+                prewarm: activeFigure3.prewarm
+              },
+              ttg: { active: activeTtg.active, prewarm: activeTtg.prewarm }
             }
       ));
+      setStageScene((current) => current === nextStageScene
+        ? current
+        : nextStageScene);
 
       brandRef.current?.update(1);
-      figure3Ref.current?.update(figure3Frame.progress);
+      figure3Ref.current?.update(activeFigure3.progress);
       servicesRef.current?.update(1);
-      ttgRef.current?.update(ttgFrame.progress);
+      ttgRef.current?.update(activeTtg.progress);
       labRef.current?.update(1);
 
       const brandElement = brandRef.current?.root() ?? null;
@@ -298,7 +611,15 @@ export function PhoneBrandLabStory({
         return rect.top <= viewportMid && rect.bottom >= viewportMid;
       })?.[0] ?? entryScene;
       setCurrentScene((current) => current === active ? current : active);
-      rootRef.current?.setAttribute('data-phone-group45-active-scene', active);
+      root.setAttribute('data-phone-group45-active-scene', active);
+      root.setAttribute(
+        'data-phone-group45-stage-active',
+        String(nextStageScene !== null)
+      );
+      root.setAttribute(
+        'data-phone-group45-stage-scene',
+        nextStageScene ?? 'none'
+      );
     };
     const schedule = () => {
       if (!frame) frame = window.requestAnimationFrame(render);
@@ -312,10 +633,31 @@ export function PhoneBrandLabStory({
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
+      if (visualRunTimeoutRef.current) {
+        window.clearTimeout(visualRunTimeoutRef.current);
+        visualRunTimeoutRef.current = 0;
+      }
+      visualRunRef.current = null;
+      visualSnap.dispose();
+      if (visualSnapRef.current === visualSnap) visualSnapRef.current = null;
+      delete root.dataset.phoneGroup45Snap;
+      delete root.dataset.phoneGroup45VisualRun;
     };
-  }, [adapterRevision, adapters.ready, entryScene]);
+  }, [
+    adapters.ready,
+    armVisualRunTimeout,
+    entryScene,
+    reducedMotion
+  ]);
 
   useEffect(() => () => {
+    if (visualCompletionFrameRef.current) {
+      window.cancelAnimationFrame(visualCompletionFrameRef.current);
+    }
+    if (visualRunTimeoutRef.current) {
+      window.clearTimeout(visualRunTimeoutRef.current);
+    }
+    visualSnapRef.current?.dispose();
     brandFigure3Ref.current?.dispose?.();
     figure3ServicesRef.current?.dispose?.();
     servicesTtgRef.current?.dispose?.();
@@ -356,64 +698,92 @@ export function PhoneBrandLabStory({
   return (
     <main
       ref={rootRef}
-      className="phone-brand-lab"
+      className="portrait-scroll-spike phone-brand-lab"
       data-phone-validation-scope="brand-lab"
       data-phone-validation-mode={validationMode}
       data-phone-group45-state="ready"
+      data-phone-group45-layout="persistent-fixed-stage"
       data-phone-proof-brand-input="stable-receiver"
       data-phone-motion={reducedMotion ? 'reduce' : 'full'}
+      data-phone-group45-scroll-direction={scrollDirection}
+      data-phone-group45-stage-active={String(stageScene !== null)}
+      data-phone-group45-stage-scene={stageScene ?? 'none'}
+      data-portrait-stage-active={String(stageScene !== null)}
+      data-portrait-loader-ready="true"
     >
+      <PhoneStageRail
+        railRef={stageRailRef}
+        viewportRef={stageViewportRef}
+        stageRef={bindStageHost}
+      >
+        {entryIndex <= sceneIndex('figure3-animation') && Figure3 && (
+          <Figure3
+            ref={bindFigure3}
+            active={visualActivity.figure3.active}
+            direction={scrollDirection}
+            prewarm={visualActivity.figure3.prewarm}
+            reducedMotion={reducedMotion}
+            onMediaError={onMediaError}
+            onComplete={onVisualComplete}
+          />
+        )}
+        {entryIndex <= sceneIndex('ttg-animation') && Ttg && (
+          <Ttg
+            ref={bindTtg}
+            active={visualActivity.ttg.active}
+            direction={scrollDirection}
+            prewarm={visualActivity.ttg.prewarm}
+            reducedMotion={reducedMotion}
+            onMediaError={onMediaError}
+            onComplete={onVisualComplete}
+          />
+        )}
+      </PhoneStageRail>
       {entryIndex <= sceneIndex('brand') && Brand && (
-        <Brand ref={bindBrand} active reducedMotion={reducedMotion} />
+        <Brand
+          ref={bindBrand}
+          active={currentScene === 'brand'}
+          reducedMotion={reducedMotion}
+        />
       )}
       {entryIndex <= sceneIndex('figure3-animation') && Figure3 && (
         <div
           id="figure3-animation"
           ref={figure3TrackRef}
           className="phone-brand-lab__visual-track phone-brand-lab__visual-track--figure3"
+          data-phone-group45-track="figure3"
           aria-hidden="true"
-        >
-          <div className="phone-brand-lab__visual-sticky">
-            <Figure3
-              ref={bindFigure3}
-              active={visualActivity.figure3.active}
-              prewarm={visualActivity.figure3.prewarm}
-              reducedMotion={reducedMotion}
-              onMediaError={onMediaError}
-            />
-          </div>
-        </div>
+        />
       )}
       {entryIndex <= sceneIndex('services') && Services && (
-        <Services ref={bindServices} active reducedMotion={reducedMotion} />
+        <Services
+          ref={bindServices}
+          active={currentScene === 'services'}
+          reducedMotion={reducedMotion}
+        />
       )}
       {entryIndex <= sceneIndex('ttg-animation') && Ttg && (
         <div
           id="ttg-animation"
           ref={ttgTrackRef}
           className="phone-brand-lab__visual-track phone-brand-lab__visual-track--ttg"
+          data-phone-group45-track="ttg"
           aria-hidden="true"
-        >
-          <div className="phone-brand-lab__visual-sticky">
-            <Ttg
-              ref={bindTtg}
-              active={visualActivity.ttg.active}
-              prewarm={visualActivity.ttg.prewarm}
-              reducedMotion={reducedMotion}
-              onMediaError={onMediaError}
-            />
-          </div>
-        </div>
+        />
       )}
       {entryIndex <= sceneIndex('lab') && Lab && (
-        <Lab ref={bindLab} active reducedMotion={reducedMotion} />
+        <Lab
+          ref={bindLab}
+          active={currentScene === 'lab'}
+          reducedMotion={reducedMotion}
+        />
       )}
 
       {entryIndex <= sceneIndex('brand') && BrandFigure3 && (
-        <div ref={setBrandFigure3Host} className="phone-brand-lab__transition-host" aria-hidden="true">
+        <div className="phone-brand-lab__transition-host" aria-hidden="true">
           <BrandFigure3
             ref={bindBrandFigure3}
-            host={brandFigure3Host}
+            host={stageHost}
             from={brandRef.current?.root() ?? null}
             to={figure3Ref.current?.root() ?? null}
             reducedMotion={reducedMotion}
@@ -422,10 +792,10 @@ export function PhoneBrandLabStory({
         </div>
       )}
       {entryIndex <= sceneIndex('figure3-animation') && Figure3Services && (
-        <div ref={setFigure3ServicesHost} className="phone-brand-lab__transition-host" aria-hidden="true">
+        <div className="phone-brand-lab__transition-host" aria-hidden="true">
           <Figure3Services
             ref={bindFigure3Services}
-            host={figure3ServicesHost}
+            host={stageHost}
             from={figure3Ref.current?.root() ?? null}
             to={servicesRef.current?.root() ?? null}
             reducedMotion={reducedMotion}
@@ -434,10 +804,10 @@ export function PhoneBrandLabStory({
         </div>
       )}
       {entryIndex <= sceneIndex('services') && ServicesTtg && (
-        <div ref={setServicesTtgHost} className="phone-brand-lab__transition-host" aria-hidden="true">
+        <div className="phone-brand-lab__transition-host" aria-hidden="true">
           <ServicesTtg
             ref={bindServicesTtg}
-            host={servicesTtgHost}
+            host={stageHost}
             from={servicesRef.current?.root() ?? null}
             to={ttgRef.current?.root() ?? null}
             reducedMotion={reducedMotion}
@@ -446,10 +816,10 @@ export function PhoneBrandLabStory({
         </div>
       )}
       {entryIndex <= sceneIndex('ttg-animation') && TtgLab && (
-        <div ref={setTtgLabHost} className="phone-brand-lab__transition-host" aria-hidden="true">
+        <div className="phone-brand-lab__transition-host" aria-hidden="true">
           <TtgLab
             ref={bindTtgLab}
-            host={ttgLabHost}
+            host={stageHost}
             from={ttgRef.current?.root() ?? null}
             to={labRef.current?.root() ?? null}
             reducedMotion={reducedMotion}

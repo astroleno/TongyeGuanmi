@@ -1,9 +1,27 @@
+/*
+ * Brand → Lab is one native document rail and one persistent fixed stage.
+ * Reading chapters stay in normal flow; the two media chapters merely place
+ * a one-screen marker on that rail and render in the shared phone canvas.
+ */
 .phone-brand-lab {
+  --phone-group45-edge-surface: #ede4d2;
+  --portrait-live-height: 100dvh;
+  --portrait-live-width: 100vw;
+  --portrait-stage-coverage-height: var(--portrait-live-height);
+  --portrait-stage-height: max(
+    var(--portrait-live-height),
+    var(--portrait-stage-coverage-height),
+    100lvh
+  );
+  /* The reusable stage rail occupies no extra document chapter here: the
+     visual markers below are the only scroll distance for Figure3 and TTG. */
+  --portrait-stage-rail-height: var(--portrait-stage-height);
+  --portrait-edge-surface: var(--phone-group45-edge-surface);
   position: relative;
-  min-block-size: 100%;
-  overflow-x: clip;
+  min-block-size: var(--portrait-live-height);
+  overflow: visible;
   color: #292919;
-  background: #ede4d2;
+  background: var(--phone-group45-edge-surface);
 }
 
 .phone-brand-lab--loading,
@@ -25,38 +43,89 @@
   line-height: 1.4;
 }
 
+/* This is the generic PhoneStageRail, configured as a zero-net-height host.
+   Do not add another sticky/fixed wrapper for either visual chapter. */
+.phone-brand-lab > .portrait-scroll-spike__stage-rail {
+  height: var(--portrait-stage-height);
+  margin-bottom: calc(-1 * var(--portrait-stage-height));
+  pointer-events: none;
+  background: transparent;
+}
+
+.phone-brand-lab > .portrait-scroll-spike__stage-rail .portrait-scroll-spike__stage {
+  pointer-events: none;
+  /* af4d41d: the dynamic Safari host must expose, not clip, the stable lvh
+     canvas. Keep this repair scoped to Unit 5 until Unit 7 syncs the shared
+     PhoneStageRail from the accepted branch. */
+  overflow: visible;
+  isolation: auto;
+  transform: none;
+  backface-visibility: visible;
+}
+
+.phone-brand-lab > .portrait-scroll-spike__stage-rail
+  .portrait-scroll-spike__stage-canvas {
+  isolation: auto;
+  transform: none;
+  backface-visibility: visible;
+}
+
+.phone-brand-lab[data-phone-group45-stage-active="false"] .portrait-scroll-spike__stage {
+  visibility: hidden;
+}
+
+.phone-brand-lab[data-phone-group45-stage-active="true"] .portrait-scroll-spike__stage {
+  visibility: visible;
+}
+
+.phone-brand-lab .portrait-scroll-spike__stage-canvas > .phone-figure3,
+.phone-brand-lab .portrait-scroll-spike__stage-canvas > .phone-ttg {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--portrait-stage-height);
+  min-block-size: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.phone-brand-lab[data-phone-group45-stage-scene="figure3-animation"]
+  .portrait-scroll-spike__stage-canvas > .phone-figure3,
+.phone-brand-lab[data-phone-group45-stage-scene="ttg-animation"]
+  .portrait-scroll-spike__stage-canvas > .phone-ttg {
+  visibility: visible;
+}
+
+.phone-brand-lab > .phone-brand,
+.phone-brand-lab > .phone-services,
+.phone-brand-lab > .phone-lab,
 .phone-brand-lab__visual-track {
   position: relative;
-  min-block-size: 132svh;
-  background: #0b1112;
+  z-index: 0;
 }
 
-.phone-brand-lab__visual-track--figure3 {
-  min-block-size: 124svh;
-  background: #ede4d2;
-}
-
-.phone-brand-lab__visual-sticky {
-  position: sticky;
-  top: 0;
-  block-size: 100svh;
+.phone-brand-lab__visual-track {
+  box-sizing: border-box;
+  min-block-size: 100svh;
   overflow: clip;
   isolation: isolate;
 }
 
-.phone-brand-lab__visual-sticky > .phone-figure3,
-.phone-brand-lab__visual-sticky > .phone-ttg {
-  block-size: 100%;
-  min-block-size: 100%;
+.phone-brand-lab__visual-track--figure3 {
+  background:
+    radial-gradient(ellipse at 22% 56%, rgba(88, 118, 108, .22), transparent 34%),
+    radial-gradient(ellipse at 78% 36%, rgba(185, 143, 89, .24), transparent 30%),
+    #ede4d2;
+}
+
+.phone-brand-lab__visual-track--ttg {
+  background:
+    radial-gradient(ellipse at 54% 38%, rgba(207, 165, 86, .15), transparent 36%),
+    radial-gradient(ellipse at 48% 54%, rgba(29, 82, 92, .18), transparent 55%),
+    linear-gradient(180deg, #101919 0%, #090e11 58%, #040506 100%);
 }
 
 .phone-brand-lab__transition-host {
   display: contents;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .phone-brand-lab__visual-track,
-  .phone-brand-lab__visual-track--figure3 {
-    min-block-size: 100svh;
-  }
 }

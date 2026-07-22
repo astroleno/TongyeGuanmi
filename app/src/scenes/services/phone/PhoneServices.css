@@ -1,7 +1,9 @@
 .phone-services {
   --phone-services-opacity: 1;
   --phone-services-y: 0px;
+  box-sizing: border-box;
   position: relative;
+  min-block-size: 100svh;
   isolation: isolate;
   color: #292919;
   background:
@@ -9,7 +11,7 @@
     radial-gradient(circle at 12% 18%, rgba(206, 166, 74, .16), transparent 28%),
     #ede4d2;
   padding: max(70px, 11svh) clamp(22px, 6vw, 42px) max(64px, 10svh);
-  scroll-margin-top: 18px;
+  scroll-margin-top: 0;
 }
 
 .phone-services__hero,
@@ -24,6 +26,8 @@
 .phone-services__hero {
   display: grid;
   gap: 16px;
+  min-block-size: min(100svh, 46rem);
+  align-content: center;
   padding-bottom: clamp(44px, 9svh, 76px);
 }
 

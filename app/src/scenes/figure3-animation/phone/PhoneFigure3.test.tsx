@@ -3,8 +3,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   PhoneFigure3,
+  phoneFigure3AutoplayInput,
   phoneFigure3Frame,
+  phoneFigure3MediaAction,
   phoneFigure3MediaInput,
+  phoneFigure3ForwardRunAction,
+  phoneFigure3OwnsNativeRun,
+  phoneFigure3StableEndpointInput,
   releasePhoneFigure3Video
 } from './PhoneFigure3';
 
@@ -40,12 +45,34 @@ describe('PhoneFigure3', () => {
     });
   });
 
-  it('uses an AOD-style native forward run and a timeline-controlled reverse', () => {
-    expect(phoneFigure3MediaInput(0, 1)).toMatchObject({
+  it('starts each autonomous forward run at source frame zero, not at document progress', () => {
+    expect(phoneFigure3AutoplayInput()).toMatchObject({
       direction: 1,
       mode: 'native-preferred',
       progress: 0,
       reducedMotion: false
+    });
+    expect(phoneFigure3MediaInput(.92, 1)).toMatchObject({
+      direction: 1,
+      mode: 'native-preferred',
+      progress: .92
+    });
+    // The adapter uses the zero-progress autoplay input above; a scroll value
+    // may still be tracked for trigger direction but is never used as start time.
+    expect(phoneFigure3AutoplayInput().progress).toBe(0);
+  });
+
+  it('holds deterministic endpoints for prewarm, reverse, and forward exit', () => {
+    expect(phoneFigure3MediaAction(false, true)).toBe('hold-initial');
+    expect(phoneFigure3MediaAction(true, true)).toBe('play-forward');
+    expect(phoneFigure3MediaAction(true, true, false, false, false, -1)).toBe('hold-initial');
+    expect(phoneFigure3MediaAction(false, true, false, false, true, 1)).toBe('hold-terminal');
+    expect(phoneFigure3MediaAction(false, true, false, false, true, -1)).toBe('hold-initial');
+    expect(phoneFigure3MediaAction(false, false)).toBe('release');
+    expect(phoneFigure3StableEndpointInput(0)).toMatchObject({
+      direction: -1,
+      mode: 'timeline',
+      progress: 0
     });
     expect(phoneFigure3MediaInput(.6, -1)).toMatchObject({
       direction: -1,
@@ -53,6 +80,15 @@ describe('PhoneFigure3', () => {
       progress: .6,
       reducedMotion: false
     });
+  });
+
+  it('coalesces repeated reconciliation and rejects stale play owners', () => {
+    expect(phoneFigure3ForwardRunAction(false, true, 'preparing')).toBe('wait');
+    expect(phoneFigure3ForwardRunAction(false, true, 'playing')).toBe('wait');
+    expect(phoneFigure3ForwardRunAction(true, false, 'stable-initial')).toBe('start');
+    expect(phoneFigure3ForwardRunAction(false, false, 'terminal')).toBe('ignore');
+    expect(phoneFigure3OwnsNativeRun(4, 4, 4)).toBe(true);
+    expect(phoneFigure3OwnsNativeRun(3, 4, 4)).toBe(false);
   });
 
   it('disposes the retired video source and decoder', () => {

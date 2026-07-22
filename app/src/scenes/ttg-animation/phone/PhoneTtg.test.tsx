@@ -3,8 +3,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   PhoneTtg,
+  phoneTtgAutoplayInput,
   phoneTtgFrame,
+  phoneTtgMediaAction,
   phoneTtgMediaInput,
+  phoneTtgForwardRunAction,
+  phoneTtgOwnsNativeRun,
+  phoneTtgStableEndpointInput,
   releasePhoneTtgVideo
 } from './PhoneTtg';
 
@@ -47,12 +52,32 @@ describe('PhoneTtg', () => {
     });
   });
 
-  it('uses the Figure2-style native forward run and a timeline-controlled reverse', () => {
-    expect(phoneTtgMediaInput(0, 1)).toMatchObject({
+  it('uses one source-zero native forward run rather than scroll-scrubbing TTG', () => {
+    expect(phoneTtgAutoplayInput()).toMatchObject({
       direction: 1,
       mode: 'native-preferred',
       progress: 0,
       reducedMotion: false
+    });
+    expect(phoneTtgMediaInput(.86, 1)).toMatchObject({
+      direction: 1,
+      mode: 'native-preferred',
+      progress: .86
+    });
+    expect(phoneTtgAutoplayInput().progress).toBe(0);
+  });
+
+  it('prewarms an initial frame, holds endpoints on reversal, and releases only outside its prewarm window', () => {
+    expect(phoneTtgMediaAction(false, true)).toBe('hold-initial');
+    expect(phoneTtgMediaAction(true, true)).toBe('play-forward');
+    expect(phoneTtgMediaAction(true, true, false, false, false, -1)).toBe('hold-initial');
+    expect(phoneTtgMediaAction(false, true, false, false, true, 1)).toBe('hold-terminal');
+    expect(phoneTtgMediaAction(false, true, false, false, true, -1)).toBe('hold-initial');
+    expect(phoneTtgMediaAction(false, false)).toBe('release');
+    expect(phoneTtgStableEndpointInput(0)).toMatchObject({
+      direction: -1,
+      mode: 'timeline',
+      progress: 0
     });
     expect(phoneTtgMediaInput(.4, -1)).toMatchObject({
       direction: -1,
@@ -60,6 +85,15 @@ describe('PhoneTtg', () => {
       progress: .4,
       reducedMotion: false
     });
+  });
+
+  it('coalesces repeated reconciliation and rejects stale play owners', () => {
+    expect(phoneTtgForwardRunAction(false, true, 'preparing')).toBe('wait');
+    expect(phoneTtgForwardRunAction(false, true, 'playing')).toBe('wait');
+    expect(phoneTtgForwardRunAction(true, false, 'stable-initial')).toBe('start');
+    expect(phoneTtgForwardRunAction(false, false, 'terminal')).toBe('ignore');
+    expect(phoneTtgOwnsNativeRun(4, 4, 4)).toBe(true);
+    expect(phoneTtgOwnsNativeRun(3, 4, 4)).toBe(false);
   });
 
   it('disposes the retired video source and decoder', () => {
