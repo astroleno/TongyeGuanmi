@@ -123,6 +123,11 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   text-align: center;
 }
 
+.phone-lab-contact__pending--silent {
+  min-height: var(--phone-cinematic-stage-height);
+  padding: 0;
+}
+
 .phone-lab-contact__direct {
   min-height: var(--phone-cinematic-stage-height);
 }

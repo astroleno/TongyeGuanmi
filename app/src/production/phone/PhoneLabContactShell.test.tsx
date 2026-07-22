@@ -53,6 +53,15 @@ describe('PhoneLabContactShell', () => {
     });
   });
 
+  it('never exposes the Contact lazy-loader copy in the document flow', () => {
+    const markup = renderToStaticMarkup(createElement(PhoneLabContactShell, {
+      validationMode: 'v36'
+    }));
+
+    expect(markup).not.toContain('正在加载联系信息');
+    expect(markup).toContain('phone-lab-contact__pending--silent');
+  });
+
   it('keeps cinematic stages in their own document blocks', () => {
     expect(shellCss).toContain('--phone-cinematic-trigger-lane');
     expect(shellCss).toContain('+ var(--phone-cinematic-trigger-lane)');
@@ -72,6 +81,7 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('createPhoneLabContactSnapLock');
     expect(shellSource).toContain('PHONE_LAB_CONTACT_STOPS.sceneMotionEnd');
     expect(shellSource).toContain('phoneLabContactOwnsNativePlayback');
+    expect(shellSource).toContain('phoneLabContactCrossedAutoplayBoundary');
     expect(shellSource).toContain('PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS');
     expect(shellSource).toContain('() => releaseSnap(detail.scene)');
     expect(shellSource).toContain("window.history.scrollRestoration = 'manual'");

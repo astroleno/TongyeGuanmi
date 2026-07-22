@@ -36,15 +36,29 @@
   opacity: var(--crane-flock-opacity);
 }
 
-.phone-crane__figure-canvas,
-.phone-crane__flock-canvas {
-  width: max(
-    100%,
-    calc(var(--phone-cinematic-stage-height, var(--portrait-stage-height, 100svh)) * 16 / 9)
+.phone-crane .r4-crane-animation .phone-crane__figure-canvas,
+.phone-crane .r4-crane-animation .phone-crane__flock-canvas {
+  width: min(
+    calc(var(--phone-cinematic-stage-height, var(--portrait-stage-height, 100svh)) * 1.45546),
+    704px
   );
   height: auto;
   aspect-ratio: 16 / 9;
+  object-fit: fill;
   opacity: 0;
+}
+
+.phone-crane .r4-crane-animation .phone-crane__figure-canvas {
+  transform: translate3d(0, 9dvh, 0);
+}
+
+.phone-crane .r4-crane-animation .phone-crane__flock-canvas {
+  transform: translate3d(
+      var(--crane-flock-x),
+      calc(var(--crane-flock-base-y) + var(--crane-flock-y) + 9dvh),
+      0
+    )
+    scale(var(--crane-flock-scale));
 }
 
 .phone-crane [data-phone-crane-figure-alpha="verified"] .phone-crane__figure-canvas[data-packed-alpha-frame-ready="true"] {

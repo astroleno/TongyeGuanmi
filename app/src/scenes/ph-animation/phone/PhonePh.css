@@ -22,38 +22,32 @@
 }
 
 /*
- * Preserve the authored desktop camera in a portrait crop. On the desktop
- * 16:9 stage the foreground and figure plates are 124vw and 122vw, or
- * 2.2044 and 2.1689 stage-heights respectively. Sizing from the stable phone
- * stage height keeps their order, scale and vertical anchor intact instead of
- * shrinking both plates into the lower half of the portrait viewport.
+ * Figure2 phone camera: keep the moving plate at or below its 704 px decoded
+ * width, then shift the whole authored group right. The left standing figure
+ * lands centre-left without scaling a half-resolution Safari surface to more
+ * than 1800 px (the source of the former soft/frozen-looking presentation).
  */
 .phone-ph .ph-layer--front {
-  left: 50%;
-  bottom: clamp(
-    -126px,
-    calc(var(--phone-cinematic-stage-height, 100lvh) * -.11),
-    -76px
-  );
-  width: max(
-    124vw,
-    calc(var(--phone-cinematic-stage-height, 100lvh) * 2.2044)
-  );
+  left: 61%;
+  bottom: max(7svh, calc(env(safe-area-inset-bottom, 0px) + 48px));
+  width: min(160vw, 704px);
   opacity: 1 !important;
   mix-blend-mode: normal;
 }
 
 .phone-ph .ph-layer--figure {
-  left: 50%;
-  bottom: clamp(
-    -104px,
-    calc(var(--phone-cinematic-stage-height, 100lvh) * -.091),
-    -56px
-  );
-  width: max(
-    122vw,
-    calc(var(--phone-cinematic-stage-height, 100lvh) * 2.1689)
-  );
+  left: 61%;
+  bottom: max(7svh, calc(env(safe-area-inset-bottom, 0px) + 48px));
+  width: min(160vw, 704px);
+}
+
+/* Do not put the desktop edge wash back over the opaque phone island. */
+.phone-ph .ph-edge-light {
+  background: none;
+}
+
+.phone-ph .ph-texture {
+  opacity: .07;
 }
 
 /* Figure2 topology: H.264 is decoder-only; Canvas owns moving presentation. */

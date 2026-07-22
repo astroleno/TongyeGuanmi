@@ -28,6 +28,7 @@ import {
   PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
   PHONE_LAB_CONTACT_STOPS,
   type PhoneLabContactAutoplayEventDetail,
+  phoneLabContactCrossedAutoplayBoundary,
   phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
   phoneLabContactScrollProgress
@@ -51,6 +52,9 @@ type LifecycleState = Readonly<{
   handle: PhoneSceneAdapterHandle;
   active: boolean;
 }>;
+
+type CinematicSceneId = 'ph-animation' | 'crane-animation';
+type CinematicRunState = 'idle' | 'forward' | 'complete' | 'reverse';
 
 const PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS = 5000;
 const SCENE_VISIBILITY_EPSILON_PX = 1;
@@ -260,7 +264,7 @@ type SceneMountProps = Readonly<{
   reducedMotion: boolean;
   bind: RefCallback<PhoneSceneAdapterHandle>;
   onReady: () => void;
-  pendingLabel: string;
+  pendingLabel?: string | undefined;
 }>;
 
 function SceneMount({
@@ -272,7 +276,14 @@ function SceneMount({
   pendingLabel
 }: SceneMountProps) {
   if (!adapter) {
-    return <p className="phone-lab-contact__pending" aria-live="polite">{pendingLabel}</p>;
+    return pendingLabel ? (
+      <p className="phone-lab-contact__pending" aria-live="polite">{pendingLabel}</p>
+    ) : (
+      <div
+        className="phone-lab-contact__pending phone-lab-contact__pending--silent"
+        aria-hidden="true"
+      />
+    );
   }
   const Component = adapter.Component as PhoneSceneAdapterComponent;
   return (
@@ -341,6 +352,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   const educationSlotRef = useRef<HTMLElement | null>(null);
   const contactSlotRef = useRef<HTMLElement | null>(null);
   const lifecycleStates = useRef(new Map<LabContactSceneId, LifecycleState>());
+  const cinematicRunStates = useRef<Record<CinematicSceneId, CinematicRunState>>({
+    'ph-animation': 'idle',
+    'crane-animation': 'idle'
+  });
   const lastScrollYRef = useRef(0);
   const snapLockRef = useRef<PhoneLabContactSnapLock | null>(null);
   const currentNavigationScene = useRef<SceneId>(entryScene);
@@ -476,6 +491,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           ? phStageRef.current
           : craneStageRef.current;
         if (!phase) return;
+        cinematicRunStates.current[detail.scene] = detail.direction === 1
+          ? 'forward'
+          : 'reverse';
         if (snapTimeout) window.clearTimeout(snapTimeout);
         lockedScene = detail.scene;
         const phaseTop = phase.getBoundingClientRect().top + window.scrollY;
@@ -498,6 +516,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         );
         return;
       }
+      cinematicRunStates.current[detail.scene] = detail.direction === 1
+        ? 'complete'
+        : 'idle';
       releaseSnap(detail.scene);
     };
 
@@ -567,7 +588,8 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           || window.innerHeight
       );
       const scrollY = window.scrollY;
-      const scrollDirection: 1 | -1 = scrollY < lastScrollYRef.current - 1
+      const previousScrollY = lastScrollYRef.current;
+      const scrollDirection: 1 | -1 = scrollY < previousScrollY - 1
         ? -1
         : 1;
       lastScrollYRef.current = scrollY;
@@ -628,10 +650,81 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       ) {
         ensureScene('crane-animation');
         ensureTransition('education-crane');
+        // Contact is the next native document owner. Prepare it while the
+        // second Education screen is still visible so no loader copy can win
+        // the first Contact frame after Crane releases its snap.
+        ensureScene('contact');
+        ensureTransition('crane-contact');
       }
       if (userHasScrolled && craneInRange && craneFrame.progress > 0.22) {
         ensureScene('contact');
         ensureTransition('crane-contact');
+      }
+
+      const startCrossedCinematic = (
+        scene: CinematicSceneId,
+        handle: PhoneSceneAdapterHandle | null,
+        phase: HTMLElement,
+        stage: HTMLElement | null
+      ): boolean => {
+        if (!handle) return false;
+        const runState = cinematicRunStates.current[scene];
+        const canStart = scrollDirection === 1
+          ? runState === 'idle'
+          : runState === 'complete';
+        if (!canStart) return false;
+        const phaseTop = phase.getBoundingClientRect().top + scrollY;
+        const phaseDistance = Math.max(
+          1,
+          phase.offsetHeight - (stage?.offsetHeight || viewportHeight)
+        );
+        if (!phoneLabContactCrossedAutoplayBoundary(
+          previousScrollY,
+          scrollY,
+          phaseTop,
+          phaseDistance,
+          scrollDirection
+        )) {
+          return false;
+        }
+
+        publishNavigationScene(scene);
+        publishActiveScene(scene);
+        setStageActive(stage, true);
+        setVisualEndpoint(handle, 1);
+        if (scene === 'ph-animation') {
+          syncSceneLifecycle(lifecycleStates.current, 'lab', lab, false);
+        } else {
+          syncSceneLifecycle(lifecycleStates.current, 'education', education, false);
+        }
+        syncSceneLifecycle(
+          lifecycleStates.current,
+          scene,
+          handle,
+          true,
+          scrollDirection
+        );
+        // enter()/reverse() dispatches the autoplay event synchronously. Its
+        // AOD-style lock moves the document to the stable far/near anchor;
+        // sample that corrected geometry on the next frame, not this stale
+        // pre-lock rect.
+        schedule();
+        return true;
+      };
+
+      if (
+        !reducedMotion
+        && (
+          startCrossedCinematic('ph-animation', ph, phPhase, phStageRef.current)
+          || startCrossedCinematic(
+            'crane-animation',
+            crane,
+            cranePhase,
+            craneStageRef.current
+          )
+        )
+      ) {
+        return;
       }
 
       if (phInRange) {
@@ -930,7 +1023,6 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
               reducedMotion={reducedMotion}
               bind={bindContact}
               onReady={publishAdapterRevision}
-              pendingLabel="正在加载联系信息…"
             />
           </section>
         </>
@@ -954,7 +1046,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
                 reducedMotion={reducedMotion}
                 bind={directBind}
                 onReady={publishAdapterRevision}
-                pendingLabel="正在加载场景…"
+                pendingLabel={entryScene === 'contact'
+                  ? undefined
+                  : '正在加载场景…'}
               />
             </div>
           </div>

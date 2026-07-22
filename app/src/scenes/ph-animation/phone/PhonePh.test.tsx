@@ -40,13 +40,15 @@ describe('PhonePh', () => {
     expect(phonePhPresentationProgress(0.75)).toBe(0.75);
   });
 
-  it('keeps native media time aligned to the canonical desktop camera', () => {
+  it('keeps native media time aligned to the Figure2 phone camera', () => {
     expect(phonePhTimelineProgressForMediaProgress(0)).toBe(0);
     expect(phonePhTimelineProgressForMediaProgress(0.445)).toBeCloseTo(0.5, 5);
     expect(phonePhTimelineProgressForMediaProgress(1)).toBeCloseTo(1, 5);
-    expect(css).toContain('var(--phone-cinematic-stage-height, 100lvh) * 2.2044');
-    expect(css).toContain('var(--phone-cinematic-stage-height, 100lvh) * 2.1689');
+    expect(css).toContain('left: 61%');
+    expect(css).toContain('width: min(160vw, 704px)');
     expect(css).toContain('opacity: 1 !important');
+    expect(css).toContain('.phone-ph .ph-edge-light');
+    expect(css).toContain('background: none');
     expect(css).not.toContain('::before');
     expect(css).not.toContain('::after');
     expect(css).not.toContain('--phone-ph-island-source');

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  phoneLabContactCrossedAutoplayBoundary,
   phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
   phoneLabContactScrollProgress
@@ -54,5 +55,29 @@ describe('phone Lab → Contact acceptance timeline', () => {
     expect(phoneLabContactScrollProgress(-200, 500, 100)).toBe(0.5);
     expect(phoneLabContactScrollProgress(-400, 500, 100)).toBe(1);
     expect(phoneLabContactScrollProgress(32, 500, 100)).toBe(0);
+  });
+
+  it('starts native playback when one physical sample skips the short snap lane', () => {
+    expect(phoneLabContactCrossedAutoplayBoundary(
+      1200,
+      1800,
+      1542,
+      169,
+      1
+    )).toBe(true);
+    expect(phoneLabContactCrossedAutoplayBoundary(
+      1800,
+      1600,
+      1542,
+      169,
+      -1
+    )).toBe(true);
+    expect(phoneLabContactCrossedAutoplayBoundary(
+      1200,
+      1400,
+      1542,
+      169,
+      1
+    )).toBe(false);
   });
 });

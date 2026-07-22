@@ -23,6 +23,7 @@ const motionSource = readFileSync(
   new URL('./PhoneCrane.motion.ts', import.meta.url),
   'utf8'
 );
+const css = readFileSync(new URL('./PhoneCrane.css', import.meta.url), 'utf8');
 
 describe('PhoneCrane', () => {
   it('keeps one canonical Crane stage with two media surfaces', () => {
@@ -57,6 +58,10 @@ describe('PhoneCrane', () => {
     expect(source).toContain("runId: 'phone-crane:stable-endpoint'");
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
     expect(autoplaySource).not.toContain('nativeGate');
+    expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
+    expect(css).toContain('* 1.45546');
+    expect(css).toContain('704px');
+    expect(css).toContain('9dvh');
     expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(0.42);
     expect(autoplaySource).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS * (1 - elapsed)');
   });

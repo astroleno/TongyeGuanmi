@@ -103,3 +103,26 @@ export function phoneLabContactScrollProgress(
   const distance = Math.max(1, elementHeight - viewportHeight);
   return clamp(-elementTop / distance);
 }
+
+/**
+ * Detect a physical gesture crossing the native-playback boundary even when
+ * one Safari scroll sample skips the whole short trigger lane. AOD starts its
+ * native clock from the timeline crossing itself; PH and Crane must do the
+ * same instead of requiring the document to land inside a 1–2 px window.
+ */
+export function phoneLabContactCrossedAutoplayBoundary(
+  previousScrollY: number,
+  nextScrollY: number,
+  phaseTop: number,
+  phaseDistance: number,
+  direction: 1 | -1
+): boolean {
+  const boundaryProgress = direction === 1
+    ? PHONE_LAB_CONTACT_STOPS.handoffEnd
+    : PHONE_LAB_CONTACT_STOPS.sceneMotionEnd;
+  const boundaryY = phaseTop
+    + Math.max(1, phaseDistance) * boundaryProgress;
+  return direction === 1
+    ? previousScrollY <= boundaryY && nextScrollY > boundaryY
+    : previousScrollY >= boundaryY && nextScrollY < boundaryY;
+}
