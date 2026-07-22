@@ -106,4 +106,71 @@ describe('phone native autoplay', () => {
 
     controller.dispose();
   });
+
+  it('fails a stalled run instead of retaining the cinematic snap forever', async () => {
+    vi.useFakeTimers();
+    try {
+      const video = new FakeVideo();
+      const failure = vi.fn();
+      const controller = createPhoneNativeAutoplay(
+        video as unknown as HTMLVideoElement,
+        {
+          durationSeconds: 3,
+          stallTimeoutMs: 50,
+          onProgress: vi.fn(),
+          onComplete: vi.fn(),
+          onFailure: failure,
+          requestFrame: () => 1,
+          cancelFrame: vi.fn()
+        }
+      );
+
+      controller.start();
+      await Promise.resolve();
+      expect(video.dataset.phoneNativeAutoplay).toBe('playing');
+
+      vi.advanceTimersByTime(49);
+      expect(failure).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+
+      expect(video.dataset.phoneNativeAutoplay).toBe('failed');
+      expect(failure).toHaveBeenCalledOnce();
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('renews the stall deadline when native currentTime advances', async () => {
+    vi.useFakeTimers();
+    try {
+      const video = new FakeVideo();
+      const failure = vi.fn();
+      const controller = createPhoneNativeAutoplay(
+        video as unknown as HTMLVideoElement,
+        {
+          durationSeconds: 2,
+          stallTimeoutMs: 50,
+          onProgress: vi.fn(),
+          onComplete: vi.fn(),
+          onFailure: failure,
+          requestFrame: () => 1,
+          cancelFrame: vi.fn()
+        }
+      );
+
+      controller.start();
+      await Promise.resolve();
+      vi.advanceTimersByTime(40);
+      video.currentTime = 0.5;
+      video.dispatchEvent(new Event('timeupdate'));
+      vi.advanceTimersByTime(40);
+      expect(failure).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(10);
+      expect(failure).toHaveBeenCalledOnce();
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

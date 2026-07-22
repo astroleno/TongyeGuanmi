@@ -10,7 +10,8 @@ import {
   applyPhonePhMediaFallback,
   parkPhonePhMedia,
   PhonePh,
-  phonePhPresentationProgress
+  phonePhPresentationProgress,
+  phonePhTimelineProgressForMediaProgress
 } from './PhonePh';
 
 const source = readFileSync(new URL('./PhonePh.tsx', import.meta.url), 'utf8');
@@ -18,6 +19,7 @@ const nativeClockSource = readFileSync(
   new URL('../../../production/phone/phone-native-autoplay.ts', import.meta.url),
   'utf8'
 );
+const css = readFileSync(new URL('./PhonePh.css', import.meta.url), 'utf8');
 
 describe('PhonePh', () => {
   it('keeps one canonical PH visual/media owner', () => {
@@ -38,7 +40,18 @@ describe('PhonePh', () => {
     expect(phonePhPresentationProgress(0.75)).toBe(0.75);
   });
 
-  it('reuses the AOD native-time policy and Figure2 stable-underlay policy', () => {
+  it('keeps native media time aligned to the canonical desktop camera', () => {
+    expect(phonePhTimelineProgressForMediaProgress(0)).toBe(0);
+    expect(phonePhTimelineProgressForMediaProgress(0.445)).toBeCloseTo(0.5, 5);
+    expect(phonePhTimelineProgressForMediaProgress(1)).toBeCloseTo(1, 5);
+    expect(css).toContain('220.44svh');
+    expect(css).toContain('216.89svh');
+    expect(css).not.toContain('::before');
+    expect(css).not.toContain('::after');
+    expect(css).not.toContain('--phone-ph-island-source');
+  });
+
+  it('reuses the AOD native-time policy and Figure2 stable-surface policy', () => {
     expect(source).toContain('createPhoneNativeAutoplay');
     expect(source).toContain('PH_FIGURE_END_SECONDS');
     expect(source).toContain('createPhonePhReverseDissolve');

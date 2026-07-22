@@ -3,14 +3,12 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useRef,
-  type CSSProperties
+  useRef
 } from 'react';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import {
   parkPhMedia,
   PH_FIGURE_END_SECONDS,
-  PH_FRONT_SRC,
   phAnimationScene,
   renderPhAnimationProgress,
   renderPhHold
@@ -105,6 +103,20 @@ export function phonePhPresentationProgress(
 ): number {
   const progress = clamp(rawProgress);
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
+}
+
+/**
+ * Native playback reports media time, while the canonical desktop renderer
+ * expects its pre-retiming timeline progress. Invert phPlaybackProgress's
+ * 0.78p + 0.22p² curve so every camera layer stays on the authored frame.
+ */
+export function phonePhTimelineProgressForMediaProgress(
+  rawMediaProgress: number
+): number {
+  const mediaProgress = clamp(rawMediaProgress);
+  return clamp(
+    (-0.78 + Math.sqrt(0.78 * 0.78 + 0.88 * mediaProgress)) / 0.44
+  );
 }
 
 /** Figure2-style stable surface: media failure cannot remove the PH camera. */
@@ -213,7 +225,10 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       renderPhHold(root);
       const nativeAutoplay = createPhoneNativeAutoplay(video, {
         durationSeconds: PH_FIGURE_END_SECONDS,
-        onProgress: (progress) => render(progress, 1),
+        onProgress: (progress) => render(
+          phonePhTimelineProgressForMediaProgress(progress),
+          1
+        ),
         onComplete: () => completeRun(1),
         onFailure: () => {
           applyPhonePhMediaFallback(root);
@@ -286,9 +301,6 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     }), [render, startRun]);
 
     const PhSurface = phAnimationScene.Component;
-    const islandMatteStyle = {
-      '--phone-ph-island-source': `url("${PH_FRONT_SRC}")`
-    } as CSSProperties;
 
     return (
       <div
@@ -296,7 +308,6 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         data-phone-scene="ph-animation"
         data-phone-input-owner="none"
         aria-hidden="true"
-        style={islandMatteStyle}
       >
         <PhSurface
           scene={phAnimationScene.id}

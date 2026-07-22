@@ -66,5 +66,7 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('createPhoneLabContactSnapLock');
     expect(shellSource).toContain('PHONE_LAB_CONTACT_STOPS.sceneMotionEnd');
     expect(shellSource).toContain('MOTION_LANE_EPSILON');
+    expect(shellSource).toContain('PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS');
+    expect(shellSource).toContain('() => releaseSnap(detail.scene)');
   });
 });

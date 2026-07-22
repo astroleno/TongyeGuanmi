@@ -53,6 +53,7 @@ type LifecycleState = Readonly<{
 // are fractional. Keep a small lane tolerance so the snap anchor cannot
 // immediately retire its own just-started adapter through rounding.
 const MOTION_LANE_EPSILON = 0.005;
+const PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS = 5000;
 
 function isLabContactScene(scene: SceneId | undefined): scene is LabContactSceneId {
   return Boolean(scene && labContactPhoneSceneAdapterIds.includes(scene as LabContactSceneId));
@@ -346,6 +347,18 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     });
     snapLockRef.current = snapLock;
     let lockedScene: PhoneLabContactAutoplayEventDetail['scene'] | null = null;
+    let snapTimeout = 0;
+
+    const releaseSnap = (
+      scene: PhoneLabContactAutoplayEventDetail['scene']
+    ) => {
+      if (lockedScene !== scene) return;
+      if (snapTimeout) window.clearTimeout(snapTimeout);
+      snapTimeout = 0;
+      snapLock.release();
+      lockedScene = null;
+      delete root.dataset.phoneLabContactSnapScene;
+    };
 
     const onAutoplay = (event: Event) => {
       const detail = (event as CustomEvent<PhoneLabContactAutoplayEventDetail>).detail;
@@ -356,11 +369,12 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         return;
       }
       if (detail.phase === 'start') {
-        lockedScene = detail.scene;
         const phase = detail.scene === 'ph-animation'
           ? phPhaseRef.current
           : cranePhaseRef.current;
         if (!phase) return;
+        if (snapTimeout) window.clearTimeout(snapTimeout);
+        lockedScene = detail.scene;
         const phaseTop = phase.getBoundingClientRect().top + window.scrollY;
         const distance = Math.max(1, phase.offsetHeight - window.innerHeight);
         const phaseProgress = detail.direction === 1
@@ -368,18 +382,19 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           : PHONE_LAB_CONTACT_STOPS.sceneMotionEnd;
         snapLock.lock(phaseTop + distance * phaseProgress);
         root.dataset.phoneLabContactSnapScene = detail.scene;
+        snapTimeout = window.setTimeout(
+          () => releaseSnap(detail.scene),
+          PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS
+        );
         return;
       }
-      if (lockedScene === detail.scene) {
-        snapLock.release();
-        lockedScene = null;
-        delete root.dataset.phoneLabContactSnapScene;
-      }
+      releaseSnap(detail.scene);
     };
 
     root.addEventListener(PHONE_LAB_CONTACT_AUTOPLAY_EVENT, onAutoplay);
     return () => {
       root.removeEventListener(PHONE_LAB_CONTACT_AUTOPLAY_EVENT, onAutoplay);
+      if (snapTimeout) window.clearTimeout(snapTimeout);
       snapLock.release();
       snapLock.dispose();
       if (snapLockRef.current === snapLock) snapLockRef.current = null;
