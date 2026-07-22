@@ -1,11 +1,15 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   PhoneLabContactShell,
   phoneLabContactEntryScene,
   phoneLabContactInitialAdapterPlan
 } from './PhoneLabContactShell';
+
+const shellSource = readFileSync(new URL('./PhoneLabContactShell.tsx', import.meta.url), 'utf8');
+const shellCss = readFileSync(new URL('./PhoneLabContactShell.css', import.meta.url), 'utf8');
 
 describe('PhoneLabContactShell', () => {
   it('cuts the validation journey at Lab without mounting the Grade A shell', () => {
@@ -47,5 +51,12 @@ describe('PhoneLabContactShell', () => {
       scenes: ['lab', 'ph-animation'],
       transitions: ['lab-ph']
     });
+  });
+
+  it('keeps cinematic stages in their own document blocks', () => {
+    expect(shellCss).toContain('min-height: 200svh');
+    expect(shellCss).not.toContain('phone-lab-contact-arrival-overlap');
+    expect(shellCss).not.toContain('margin-top: calc(-1 * var(--phone-lab-contact-stage-height))');
+    expect(shellSource).toContain('!phInRange && !craneInRange && educationTop');
   });
 });

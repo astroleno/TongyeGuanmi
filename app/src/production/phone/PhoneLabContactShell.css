@@ -25,8 +25,6 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
 
 .phone-lab-contact {
   --phone-lab-contact-stage-height: 100svh;
-  /* Arrival starts at 78% of a 420svh rail: keep its native target at y=0. */
-  --phone-lab-contact-arrival-overlap: 170svh;
   min-height: 100svh;
   color: #28291f;
   background: #e9e1ce;
@@ -41,10 +39,16 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
 
 .phone-lab-contact__phase {
   position: relative;
-  z-index: 2;
-  min-height: 420svh;
-  margin-top: calc(-1 * var(--phone-lab-contact-stage-height));
-  margin-bottom: calc(-1 * var(--phone-lab-contact-arrival-overlap));
+  z-index: 1;
+  /*
+   * A cinematic chapter owns its own document block. The former negative
+   * margins let the sticky PH/Crane surface continue over Education/Contact,
+   * so native reading and CTA sections appeared to be "taken over" by the
+   * previous scene. Keep the stages sequential: Lab → PH → Education → Crane
+   * → Contact, with no cross-chapter overlap.
+   */
+  min-height: 200svh;
+  margin: 0;
   pointer-events: none;
 }
 
@@ -116,6 +120,6 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
 
 @media (prefers-reduced-motion: reduce) {
   .phone-lab-contact__phase {
-    min-height: 180svh;
+    min-height: 120svh;
   }
 }

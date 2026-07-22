@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   FakeElement,
@@ -9,9 +10,10 @@ import {
   applyPhonePhMediaFallback,
   parkPhonePhMedia,
   PhonePh,
-  phonePhMediaInput,
   phonePhPresentationProgress
 } from './PhonePh';
+
+const source = readFileSync(new URL('./PhonePh.tsx', import.meta.url), 'utf8');
 
 describe('PhonePh', () => {
   it('keeps one canonical PH visual/media owner', () => {
@@ -32,11 +34,11 @@ describe('PhonePh', () => {
     expect(phonePhPresentationProgress(0.75)).toBe(0.75);
   });
 
-  it('keeps PH video deterministic when the phone adapter samples scroll', () => {
-    expect(phonePhMediaInput(0.35, {
-      runId: 'phone-ph:1:0',
-      direction: 1
-    }).mode).toBe('timeline');
+  it('starts the canonical media clock instead of seeking from scroll samples', () => {
+    expect(source).toContain('createPhonePhAutoplay');
+    expect(source).toContain('renderPhAnimationProgress(root, progress, { mediaRun })');
+    expect(source).not.toContain('driveTimelineVideo');
+    expect(source).not.toContain("mode: 'timeline'");
   });
 
   it('falls back to its static layers and parks media without a reload', () => {

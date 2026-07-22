@@ -6,14 +6,7 @@ import {
   useRef
 } from 'react';
 import {
-  driveTimelineVideo,
-  type TimelineVideoDriveInput
-} from '../../../media/timeline-video-driver';
-import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
-import {
-  PH_FIGURE_END_SECONDS,
   parkPhMedia,
-  phPlaybackProgress,
   phAnimationScene,
   renderPhAnimationProgress,
   renderPhHold,
@@ -27,7 +20,14 @@ import type {
 import './PhonePh.css';
 
 const PROGRESS_EPSILON = 0.0001;
-const PH_VIDEO_DURATION_FALLBACK_SECONDS = 1.533;
+
+type PhonePhPlaybackDirection = 1 | -1;
+
+type PhonePhAutoplay = Readonly<{
+  start(direction: PhonePhPlaybackDirection): void;
+  stop(): void;
+  dispose(): void;
+}>;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -39,43 +39,68 @@ function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
     : root?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]') ?? null;
 }
 
-/** Phone scroll always owns the PH frame; desktop keeps its native playback. */
-export function phonePhMediaInput(
-  rawProgress: number,
-  mediaRun: PhMediaRun
-): TimelineVideoDriveInput {
-  return {
-    runId: mediaRun.runId,
-    direction: mediaRun.direction,
-    progress: phPlaybackProgress(rawProgress),
-    durationFallbackSeconds: PH_VIDEO_DURATION_FALLBACK_SECONDS,
-    startSeconds: 0,
-    endSeconds: PH_FIGURE_END_SECONDS,
-    timelineDurationMs: PH_PLAYBACK_MS,
-    mode: 'timeline',
-    nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
-    ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
-    ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
-  };
-}
+/**
+ * PH follows the production auto-play policy: scrolling chooses an entry or
+ * reverse run, while the canonical scene owns its media clock. Hero is the
+ * only phone scene that remains a scrub interaction.
+ */
+function createPhonePhAutoplay(
+  render: (progress: number, direction: PhonePhPlaybackDirection) => void,
+  onComplete: (direction: PhonePhPlaybackDirection) => void
+): PhonePhAutoplay {
+  let active = false;
+  let disposed = false;
+  let frame = 0;
+  let startedAt = 0;
+  let direction: PhonePhPlaybackDirection = 1;
 
-/** Preserves canonical PH layers while the phone Adapter owns video seeking. */
-export function renderPhonePhAnimationProgress(
-  root: HTMLElement | null | undefined,
-  rawProgress: number,
-  mediaRun: PhMediaRun
-): void {
-  const section = rootFor(root);
-  const raw = clamp(rawProgress);
-  renderPhAnimationProgress(section, raw);
-  const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
-  const snapshot = driveTimelineVideo(video, phonePhMediaInput(raw, mediaRun));
-  section?.setAttribute('data-ph-playback-direction', String(mediaRun.direction));
-  section?.setAttribute('data-ph-playback-run', mediaRun.runId);
-  section?.setAttribute('data-ph-raw-progress', raw.toFixed(4));
-  section?.setAttribute('data-ph-playback-active', String(raw > 0.001 && raw < 0.999));
-  section?.setAttribute('data-ph-playback-fallback', String(snapshot?.nativeFallback ?? false));
+  const cancel = () => {
+    if (frame) {
+      window.cancelAnimationFrame(frame);
+      frame = 0;
+    }
+  };
+
+  const complete = () => {
+    if (!active || disposed) return;
+    active = false;
+    frame = 0;
+    render(direction === 1 ? 1 : 0, direction);
+    onComplete(direction);
+  };
+
+  const tick = (now: number) => {
+    frame = 0;
+    if (!active || disposed) return;
+    const elapsed = Math.min(1, Math.max(0, (now - startedAt) / PH_PLAYBACK_MS));
+    render(direction === 1 ? elapsed : 1 - elapsed, direction);
+    if (elapsed >= 1) {
+      complete();
+      return;
+    }
+    frame = window.requestAnimationFrame(tick);
+  };
+
+  return {
+    start(nextDirection) {
+      if (disposed || (active && direction === nextDirection)) return;
+      cancel();
+      direction = nextDirection;
+      active = true;
+      startedAt = performance.now();
+      render(direction === 1 ? 0 : 1, direction);
+      frame = window.requestAnimationFrame(tick);
+    },
+    stop() {
+      active = false;
+      cancel();
+    },
+    dispose() {
+      active = false;
+      disposed = true;
+      cancel();
+    }
+  };
 }
 
 /**
@@ -117,19 +142,25 @@ export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
 export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProps>(
   function PhonePh({ active, onReady, reducedMotion }, forwardedRef) {
     const rootRef = useRef<HTMLElement | null>(null);
+    const autoplayRef = useRef<PhonePhAutoplay | null>(null);
+    const requestedAutoplayDirectionRef = useRef<PhonePhPlaybackDirection | null>(null);
     const lastProgressRef = useRef(0);
-    const directionRef = useRef<1 | -1>(1);
+    const directionRef = useRef<PhonePhPlaybackDirection>(1);
     const runRevisionRef = useRef(0);
 
-    const render = useCallback((rawProgress: number) => {
+    const render = useCallback((
+      rawProgress: number,
+      requestedDirection?: PhonePhPlaybackDirection
+    ) => {
       const root = rootRef.current;
       const progress = phonePhPresentationProgress(rawProgress, reducedMotion);
       const previous = lastProgressRef.current;
-      if (progress > previous + PROGRESS_EPSILON && directionRef.current !== 1) {
-        directionRef.current = 1;
-        runRevisionRef.current += 1;
-      } else if (progress < previous - PROGRESS_EPSILON && directionRef.current !== -1) {
-        directionRef.current = -1;
+      const nextDirection = requestedDirection
+        ?? (progress > previous + PROGRESS_EPSILON ? 1
+          : progress < previous - PROGRESS_EPSILON ? -1
+            : directionRef.current);
+      if (directionRef.current !== nextDirection) {
+        directionRef.current = nextDirection;
         runRevisionRef.current += 1;
       }
       lastProgressRef.current = progress;
@@ -138,8 +169,9 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         direction: directionRef.current,
         reducedMotion
       };
-      renderPhonePhAnimationProgress(root, progress, mediaRun);
+      renderPhAnimationProgress(root, progress, { mediaRun });
       root?.setAttribute('data-phone-ph-progress', progress.toFixed(4));
+      root?.setAttribute('data-phone-ph-clock', requestedDirection ? 'autoplay' : 'endpoint');
     }, [reducedMotion]);
 
     useEffect(() => {
@@ -148,15 +180,36 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       const video = root.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
       const onMediaError = () => applyPhonePhMediaFallback(root);
       renderPhHold(root);
+      const autoplay = createPhonePhAutoplay(render, (direction) => {
+        requestedAutoplayDirectionRef.current = null;
+        root.dataset.phonePhAutoplay = direction === 1
+          ? 'complete-forward'
+          : 'complete-reverse';
+      });
+      autoplayRef.current = autoplay;
       root.dataset.phonePhLifecycle = 'ready';
+      const requestedDirection = requestedAutoplayDirectionRef.current;
+      if (requestedDirection !== null) {
+        if (reducedMotion) {
+          render(requestedDirection === 1 ? 1 : 0, requestedDirection);
+          root.dataset.phonePhAutoplay = requestedDirection === 1
+            ? 'complete-forward'
+            : 'complete-reverse';
+        } else {
+          autoplay.start(requestedDirection);
+        }
+      }
       video?.addEventListener('error', onMediaError);
       onReady?.();
       return () => {
         video?.removeEventListener('error', onMediaError);
+        autoplay.dispose();
+        if (autoplayRef.current === autoplay) autoplayRef.current = null;
         parkPhonePhMedia(root);
         delete root.dataset.phonePhLifecycle;
+        delete root.dataset.phonePhAutoplay;
       };
-    }, [onReady]);
+    }, [onReady, reducedMotion, render]);
 
     useEffect(() => {
       const root = rootRef.current;
@@ -166,23 +219,48 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
 
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
-      update: render,
+      update(progress) {
+        requestedAutoplayDirectionRef.current = null;
+        autoplayRef.current?.stop();
+        render(progress);
+      },
       enter() {
         const root = rootRef.current;
+        requestedAutoplayDirectionRef.current = 1;
         root?.removeAttribute('aria-hidden');
         root?.setAttribute('data-phone-ph-state', 'entered');
+        root?.setAttribute('data-phone-ph-autoplay', 'starting-forward');
+        if (reducedMotion) {
+          render(1, 1);
+          root?.setAttribute('data-phone-ph-autoplay', 'complete-forward');
+          return;
+        }
+        autoplayRef.current?.start(1);
       },
       leave() {
+        requestedAutoplayDirectionRef.current = null;
+        autoplayRef.current?.stop();
         parkPhonePhMedia(rootRef.current);
         rootRef.current?.setAttribute('data-phone-ph-state', 'parked');
       },
       reverse() {
-        rootRef.current?.setAttribute('data-phone-ph-state', 'reversing');
+        const root = rootRef.current;
+        requestedAutoplayDirectionRef.current = -1;
+        root?.setAttribute('data-phone-ph-state', 'reversing');
+        root?.setAttribute('data-phone-ph-autoplay', 'starting-reverse');
+        if (reducedMotion) {
+          render(0, -1);
+          root?.setAttribute('data-phone-ph-autoplay', 'complete-reverse');
+          return;
+        }
+        autoplayRef.current?.start(-1);
       },
       dispose() {
+        requestedAutoplayDirectionRef.current = null;
+        autoplayRef.current?.dispose();
         parkPhonePhMedia(rootRef.current);
       }
-    }), [render]);
+    }), [reducedMotion, render]);
 
     const PhSurface = phAnimationScene.Component;
     return (

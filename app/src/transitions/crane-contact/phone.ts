@@ -6,10 +6,6 @@ import {
   useRef
 } from 'react';
 import {
-  renderCraneAnimationProgress,
-  type CraneMediaRun
-} from '../../scenes/crane-animation';
-import {
   releaseContactEntrance,
   renderContactEntrance,
   renderContactHold
@@ -110,17 +106,14 @@ export function applyPhoneCraneContactFrame(
   rawProgress: number,
   options: Readonly<{
     reducedMotion?: boolean;
-    mediaRun?: CraneMediaRun;
     runId?: string;
   }> = {}
 ): PhoneCraneContactFrame {
   const frame = phoneCraneContactFrame(rawProgress, options.reducedMotion);
   const runId = options.runId ?? 'phone-crane-contact:render';
-  renderCraneAnimationProgress(
-    from,
-    frame.craneProgress,
-    options.mediaRun ? { mediaRun: options.mediaRun } : undefined
-  );
+  // Crane owns its media/player for the whole cinematic chapter. This
+  // transition only reveals the Contact endpoint at the manifest cue, so it
+  // cannot pause or retarget a live Crane video on scroll.
   renderContactEntrance(
     to,
     frame.copyCueActive ? 1 : 0,
@@ -142,28 +135,12 @@ export const PhoneCraneContactTransition = forwardRef<
   forwardedRef
 ) {
   const lastProgressRef = useRef(0);
-  const directionRef = useRef<1 | -1>(1);
-  const revisionRef = useRef(0);
 
   const render = useCallback((rawProgress: number) => {
     const progress = transitionProgress(rawProgress, reducedMotion);
-    if (progress > lastProgressRef.current + ENDPOINT_EPSILON) {
-      if (directionRef.current !== 1) revisionRef.current += 1;
-      directionRef.current = 1;
-    } else if (progress < lastProgressRef.current - ENDPOINT_EPSILON) {
-      if (directionRef.current !== -1) revisionRef.current += 1;
-      directionRef.current = -1;
-    }
     lastProgressRef.current = progress;
-    const runId = `phone-crane-contact:${directionRef.current}:${revisionRef.current}`;
-    const mediaRun: CraneMediaRun = {
-      runId,
-      direction: directionRef.current,
-      nativePlayback: false,
-      reducedMotion
-    };
+    const runId = 'phone-crane-contact:phone';
     applyPhoneCraneContactFrame(from, to, rawProgress, {
-      mediaRun,
       reducedMotion,
       runId
     });
@@ -187,8 +164,7 @@ export const PhoneCraneContactTransition = forwardRef<
     },
     dispose() {
       const endpoint = lastProgressRef.current >= 1 - ENDPOINT_EPSILON ? 1 : 0;
-      const runId = `phone-crane-contact:${directionRef.current}:${revisionRef.current}`;
-      releaseContactEntrance(to, runId, endpoint);
+      releaseContactEntrance(to, 'phone-crane-contact:phone', endpoint);
       if (endpoint === 1) renderContactHold(to);
     }
   }), [render, to]);

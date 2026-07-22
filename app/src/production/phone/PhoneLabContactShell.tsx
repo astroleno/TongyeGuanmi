@@ -408,7 +408,15 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         publishActiveScene('ph-animation');
         setStageActive(phStageRef.current, phFrame.stageActive);
         syncSceneLifecycle(lifecycleStates.current, 'lab', lab, phFrame.handoffProgress < 1);
-        syncSceneLifecycle(lifecycleStates.current, 'ph-animation', ph, phFrame.stageActive);
+        // The dissolve only presents PH's zero frame. Once it has landed,
+        // PH owns a native forward clock; never turn each scroll sample into
+        // a video seek.
+        syncSceneLifecycle(
+          lifecycleStates.current,
+          'ph-animation',
+          ph,
+          phFrame.stageActive && phFrame.handoffProgress >= 1 - 0.001
+        );
         syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
 
@@ -418,12 +426,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         } else if (phFrame.arrivalProgress > 0) {
           phEducationRef.current?.render(phFrame.arrivalProgress);
           if (!phEducationRef.current) {
-            ph?.update(1);
             setVisualEndpoint(ph, 1 - phFrame.arrivalProgress);
           }
         } else {
           setVisualEndpoint(ph, 1);
-          ph?.update(phFrame.sceneProgress);
         }
 
         if (!phFrame.stageActive) {
@@ -433,6 +439,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       } else if (phRect.bottom < viewportHeight) {
         setStageActive(phStageRef.current, false);
         setVisualEndpoint(ph, 0);
+        syncSceneLifecycle(lifecycleStates.current, 'ph-animation', ph, false);
       }
 
       if (craneInRange) {
@@ -440,7 +447,15 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         publishActiveScene('crane-animation');
         setStageActive(craneStageRef.current, craneFrame.stageActive);
         syncSceneLifecycle(lifecycleStates.current, 'education', education, craneFrame.handoffProgress < 1);
-        syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, craneFrame.stageActive);
+        // Education → Crane prepares a stable zero frame. The Crane adapter
+        // then runs its authored 3s media/presentation clock independently
+        // of document scroll.
+        syncSceneLifecycle(
+          lifecycleStates.current,
+          'crane-animation',
+          crane,
+          craneFrame.stageActive && craneFrame.handoffProgress >= 1 - 0.001
+        );
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
 
         if (craneFrame.handoffProgress < 1) {
@@ -449,12 +464,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         } else if (craneFrame.arrivalProgress > 0) {
           craneContactRef.current?.render(craneFrame.arrivalProgress);
           if (!craneContactRef.current) {
-            crane?.update(1);
             setVisualEndpoint(crane, 1 - craneFrame.arrivalProgress);
           }
         } else {
           setVisualEndpoint(crane, 1);
-          crane?.update(craneFrame.sceneProgress);
         }
 
         if (!craneFrame.stageActive) {
@@ -464,6 +477,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       } else if (craneRect.bottom < viewportHeight) {
         setStageActive(craneStageRef.current, false);
         setVisualEndpoint(crane, 0);
+        syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
       }
 
       const contactTop = contactSlot.getBoundingClientRect().top;
@@ -475,7 +489,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       } else if (!craneInRange && craneRect.top <= viewportHeight * 0.42) {
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
         publishNavigationScene('crane-animation');
-      } else if (!phInRange && educationTop <= viewportHeight * 0.42) {
+      } else if (!phInRange && !craneInRange && educationTop <= viewportHeight * 0.42) {
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
         syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
         publishNavigationScene('education');

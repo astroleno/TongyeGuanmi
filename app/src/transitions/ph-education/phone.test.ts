@@ -21,6 +21,7 @@ describe('Phone PH → Education transition', () => {
     expect(source).not.toMatch(/createPhoneInk/);
     expect(source).not.toContain('preparePhAnimationFrame');
     expect(source).not.toContain('parkPhonePhMedia');
+    expect(source).not.toContain('renderPhonePhAnimationProgress');
   });
 
   it('runs PH to its terminal frame before immediately dissolving to Education', () => {

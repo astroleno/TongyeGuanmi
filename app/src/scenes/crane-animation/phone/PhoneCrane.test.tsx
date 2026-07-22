@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   FakeElement,
@@ -9,9 +10,12 @@ import {
   applyPhoneCraneMediaFallback,
   isStaleCraneFramePreparation,
   parkPhoneCraneMedia,
+  PHONE_CRANE_STABLE_HOLD_PROGRESS,
   PhoneCrane,
   phoneCranePresentationProgress
 } from './PhoneCrane';
+
+const source = readFileSync(new URL('./PhoneCrane.tsx', import.meta.url), 'utf8');
 
 describe('PhoneCrane', () => {
   it('keeps one canonical Crane stage with two media surfaces', () => {
@@ -30,6 +34,13 @@ describe('PhoneCrane', () => {
     expect(phoneCranePresentationProgress(0.49, true)).toBe(0);
     expect(phoneCranePresentationProgress(0.5, true)).toBe(1);
     expect(phoneCranePresentationProgress(0.25)).toBe(0.25);
+  });
+
+  it('uses an adapter-owned auto clock and native forward media', () => {
+    expect(source).toContain('createPhoneCraneAutoplay');
+    expect(source).toContain('nativePlayback: directionRef.current === 1');
+    expect(source).not.toContain('nativePlayback: false');
+    expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(0.42);
   });
 
   it('does not mistake a superseded scroll seek for a media failure', () => {

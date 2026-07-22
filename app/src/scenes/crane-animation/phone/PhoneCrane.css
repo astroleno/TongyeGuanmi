@@ -4,6 +4,37 @@
   contain: layout paint;
 }
 
+/*
+ * The source plates are authored for a 16:9 desktop camera. On a portrait
+ * crop the lead crane sits just outside the centre crop and the flock starts
+ * above the viewport, which reads as an empty paper field. These phone-only
+ * values establish the approved portrait camera while retaining the canonical
+ * scene, media, and timing owner.
+ */
+.phone-crane .r4-crane-animation {
+  --crane-flock-x: 0px;
+  --crane-flock-base-y: 0svh;
+  --crane-flock-scale: 1.06;
+}
+
+.phone-crane .crane-figure-video {
+  object-position: 20% 44%;
+}
+
+.phone-crane .crane-figure-video--front {
+  object-position: 50% 38%;
+}
+
+/* Keep the paper, arch, and cloud camera in-frame until native Contact owns
+ * the next document block. The desktop exit is intentionally not reused as a
+ * portrait camera because it leaves a blank stage before the Contact CTA. */
+.phone-crane .crane-layer--cloud-back,
+.phone-crane .crane-layer--arch,
+.phone-crane .crane-layer--cloud-front,
+.phone-crane .crane-layer--cloud-front-second {
+  transform: translate3d(-50%, 0, 0) !important;
+}
+
 .phone-crane [data-phone-crane-media="fallback"] [data-crane-figure-video],
 .phone-crane [data-phone-crane-media="fallback"] [data-crane-figure-front-video],
 .phone-crane [data-crane-figure-video][data-phone-crane-media="fallback"],

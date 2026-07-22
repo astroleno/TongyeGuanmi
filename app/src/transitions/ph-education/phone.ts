@@ -2,16 +2,11 @@ import {
   forwardRef,
   useCallback,
   useEffect,
-  useImperativeHandle,
-  useRef
+  useImperativeHandle
 } from 'react';
 import {
-  renderPhAnimationProgress,
-  type PhMediaRun
+  renderPhAnimationProgress
 } from '../../scenes/ph-animation';
-import {
-  renderPhonePhAnimationProgress
-} from '../../scenes/ph-animation/phone/PhonePh';
 import { renderEducationProgress } from '../../scenes/education';
 import {
   INTRA_CHAPTER_DISSOLVE_MS,
@@ -99,15 +94,12 @@ export function applyPhonePhEducationFrame(
   rawProgress: number,
   options: Readonly<{
     reducedMotion?: boolean;
-    mediaRun?: PhMediaRun;
   }> = {}
 ): PhonePhEducationFrame {
   const frame = phonePhEducationFrame(rawProgress, options.reducedMotion);
-  if (options.mediaRun) {
-    renderPhonePhAnimationProgress(from, frame.phProgress, options.mediaRun);
-  } else {
-    renderPhAnimationProgress(from, frame.phProgress);
-  }
+  // PH is the only owner of its video/clock. This Grade B bridge merely
+  // holds its canonical visual endpoint while it dissolves to native reading.
+  renderPhAnimationProgress(from, frame.phProgress);
   renderEducationProgress(to, frame.educationProgress);
   applyEndpointVisibility(from, frame.phOpacity);
   applyEndpointVisibility(to, frame.educationOpacity);
@@ -123,26 +115,8 @@ export const PhonePhEducationTransition = forwardRef<
   { from, onReady, reducedMotion, to },
   forwardedRef
 ) {
-  const lastProgressRef = useRef(0);
-  const directionRef = useRef<1 | -1>(1);
-  const revisionRef = useRef(0);
-
   const render = useCallback((rawProgress: number) => {
-    const progress = transitionProgress(rawProgress, reducedMotion);
-    if (progress > lastProgressRef.current + ENDPOINT_EPSILON) {
-      if (directionRef.current !== 1) revisionRef.current += 1;
-      directionRef.current = 1;
-    } else if (progress < lastProgressRef.current - ENDPOINT_EPSILON) {
-      if (directionRef.current !== -1) revisionRef.current += 1;
-      directionRef.current = -1;
-    }
-    lastProgressRef.current = progress;
-    const mediaRun: PhMediaRun = {
-      runId: `phone-ph-education:${directionRef.current}:${revisionRef.current}`,
-      direction: directionRef.current,
-      reducedMotion
-    };
-    applyPhonePhEducationFrame(from, to, rawProgress, { mediaRun, reducedMotion });
+    applyPhonePhEducationFrame(from, to, rawProgress, { reducedMotion });
   }, [from, reducedMotion, to]);
 
   useEffect(() => {
