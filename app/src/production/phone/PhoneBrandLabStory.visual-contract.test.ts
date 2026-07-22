@@ -13,6 +13,13 @@ const figure3Styles = readFileSync(
   new URL('../../scenes/figure3-animation/phone/PhoneFigure3.css', import.meta.url),
   'utf8'
 );
+const figure3PaperCompositor = readFileSync(
+  new URL(
+    '../../scenes/figure3-animation/phone/paper-compositor.ts',
+    import.meta.url
+  ),
+  'utf8'
+);
 const servicesStyles = readFileSync(
   new URL('../../scenes/services/phone/PhoneServices.css', import.meta.url),
   'utf8'
@@ -37,12 +44,21 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
   });
 
-  it('keeps Figure3 paper treatment above the alpha-video compositor', () => {
+  it('composites Figure3 into paper below one desktop treatment layer', () => {
     expect(figure3Styles).toContain('--phone-figure3-paper: #ede4d2');
     expect(figure3Styles).toMatch(
-      /figure3-transition__sticky::after[^}]+z-index:\s*3/s
+      /\.phone-figure3::after[^}]+z-index:\s*3/s
     );
-    expect(figure3Styles).toContain('mix-blend-mode: multiply');
+    expect(figure3Styles).toContain(
+      'data-phone-figure3-paper-compositor="ready"'
+    );
+    expect(figure3Styles).not.toContain('mix-blend-mode: multiply');
+    expect(figure3PaperCompositor).toContain(
+      "context.globalCompositeOperation = 'multiply'"
+    );
+    expect(figure3PaperCompositor).toContain(
+      "PHONE_FIGURE3_PAPER_COLOR = '#ede4d2'"
+    );
     expect(figure3Styles).toMatch(
       /figure3-transition__stage[^}]+background:\s*var\(--phone-figure3-paper\)/s
     );

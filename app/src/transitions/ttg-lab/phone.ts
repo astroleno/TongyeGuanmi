@@ -111,6 +111,19 @@ function clearEndpoint(element: HTMLElement | null, documentFlow = false): void 
   delete element.dataset.phoneDissolve;
 }
 
+/**
+ * Lab returns to normal document flow at the forward endpoint, while TTG
+ * stays at opacity zero until the fixed stage is retired. Clearing both
+ * endpoints in the same frame briefly exposed TTG over the first Lab screen.
+ */
+export function settlePhoneTtgLabDocumentFlow(
+  from: HTMLElement | null,
+  to: HTMLElement | null
+): void {
+  applyEndpoint(from, 0, 'ttg-lab', 'from', true, 1);
+  clearEndpoint(to, true);
+}
+
 /** TTG failure lands on Lab's stable reading root, which Unit 6 can consume. */
 export const PhoneTtgLabTransition = forwardRef<
   TransitionPresentationAdapterHandle,
@@ -180,8 +193,12 @@ export const PhoneTtgLabTransition = forwardRef<
       directionRef.current = 1;
       progressRef.current = 1;
       render(1);
-      clearEndpoint(from, documentFlow);
-      clearEndpoint(to, documentFlow);
+      if (documentFlow) {
+        settlePhoneTtgLabDocumentFlow(from, to);
+      } else {
+        clearEndpoint(from);
+        clearEndpoint(to);
+      }
     },
     reverse() {
       directionRef.current = -1;

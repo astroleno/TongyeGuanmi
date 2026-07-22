@@ -26,6 +26,11 @@ import {
   figure3AnimationScene,
   renderFigure3AnimationProgress
 } from '..';
+import {
+  createPhoneFigure3PaperCompositor,
+  releasePhoneFigure3PaperCanvas,
+  type PhoneFigure3PaperCompositor
+} from './paper-compositor';
 import './PhoneFigure3.css';
 
 const Figure3Surface = figure3AnimationScene.Component;
@@ -173,7 +178,9 @@ export const PhoneFigure3 = forwardRef<
 ) {
   const rootRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const playbackRef = useRef<Group45NativeAutoplay | null>(null);
+  const paperCompositorRef = useRef<PhoneFigure3PaperCompositor | null>(null);
   const activeRef = useRef(active);
   const directionRef = useRef<1 | -1>(direction);
   const prewarmRef = useRef(prewarm);
@@ -244,9 +251,14 @@ export const PhoneFigure3 = forwardRef<
     runGenerationRef.current += 1;
     mediaRetiringRef.current = true;
     forwardRequestedRef.current = false;
+    paperCompositorRef.current?.dispose();
+    paperCompositorRef.current = null;
+    releasePhoneFigure3PaperCanvas(canvasRef.current);
     playbackRef.current?.dispose();
     playbackRef.current = null;
     releasePhoneFigure3Video(videoRef.current);
+    const root = rootRef.current;
+    if (root) delete root.dataset.phoneFigure3PaperCompositor;
     mediaMountedRef.current = false;
     setMediaReady(false);
     setMediaMounted(false);
@@ -319,6 +331,32 @@ export const PhoneFigure3 = forwardRef<
     playback.reset(endpoint);
     renderFrame(endpoint);
   }, [mountMedia, releaseMedia, renderFrame, startRun]);
+
+  useEffect(() => {
+    if (!mediaMounted) return;
+    const root = rootRef.current;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!root || !video || !canvas) return;
+    root.dataset.phoneFigure3PaperCompositor = 'preparing';
+    const compositor = createPhoneFigure3PaperCompositor({
+      video,
+      canvas,
+      onFrame: () => {
+        if (!mediaRetiringRef.current) {
+          root.dataset.phoneFigure3PaperCompositor = 'ready';
+        }
+      }
+    });
+    paperCompositorRef.current = compositor;
+    return () => {
+      compositor.dispose();
+      if (paperCompositorRef.current === compositor) {
+        paperCompositorRef.current = null;
+      }
+      delete root.dataset.phoneFigure3PaperCompositor;
+    };
+  }, [mediaMounted]);
 
   useEffect(() => {
     if (!mediaMounted) return;
@@ -450,6 +488,7 @@ export const PhoneFigure3 = forwardRef<
       root.style.removeProperty('--phone-figure3-video-scale');
       root.style.removeProperty('--phone-figure3-backdrop-opacity');
       root.style.removeProperty('--phone-figure3-backdrop-scale');
+      delete root.dataset.phoneFigure3PaperCompositor;
     }
   }), [reconcileMedia, releaseMedia, renderFrame, startRun, update]);
 
@@ -472,11 +511,19 @@ export const PhoneFigure3 = forwardRef<
     >
       <div className="phone-figure3__fallback" data-phone-media-fallback="figure3" />
       {mediaMounted && (
-        <Figure3Surface
-          scene="figure3-animation"
-          hidden={false}
-          registerHandle={registerHandle}
-        />
+        <>
+          <Figure3Surface
+            scene="figure3-animation"
+            hidden={false}
+            registerHandle={registerHandle}
+          />
+          <canvas
+            ref={canvasRef}
+            className="phone-figure3__paper-canvas"
+            data-phone-figure3-paper-canvas
+            aria-hidden="true"
+          />
+        </>
       )}
     </section>
   );

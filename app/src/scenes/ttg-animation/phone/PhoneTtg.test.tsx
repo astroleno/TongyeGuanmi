@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   PhoneTtg,
   phoneTtgFrame,
+  phoneTtgHasReusableEndpointFrame,
   phoneTtgHasReusableTerminalFrame,
   phoneTtgMediaAction,
   releasePhoneTtgVideo
@@ -95,6 +96,23 @@ describe('PhoneTtg', () => {
       seeking: false,
       dataset: { phoneGroup45FrameReady: 'true' }
     } as unknown as HTMLVideoElement)).toBe(false);
+  });
+
+  it('retains the physically presented initial frame after reverse completion', () => {
+    expect(phoneTtgHasReusableEndpointFrame({
+      currentTime: 0,
+      duration: 2.5,
+      readyState: 2,
+      seeking: false,
+      dataset: { phoneGroup45FrameReady: 'true' }
+    } as unknown as HTMLVideoElement, 0)).toBe(true);
+    expect(phoneTtgHasReusableEndpointFrame({
+      currentTime: .2,
+      duration: 2.5,
+      readyState: 2,
+      seeking: false,
+      dataset: { phoneGroup45FrameReady: 'true' }
+    } as unknown as HTMLVideoElement, 0)).toBe(false);
   });
 
   it('disposes the retired video source and decoder', () => {

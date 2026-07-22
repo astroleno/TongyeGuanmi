@@ -21,7 +21,10 @@ describe('PhoneFigure3', () => {
 
     expect(motionMarkup.match(/data-media-key="figure3-motion"/g)).toHaveLength(1);
     expect(motionMarkup.match(/<video/g)).toHaveLength(1);
+    expect(motionMarkup.match(/<canvas/g)).toHaveLength(1);
+    expect(motionMarkup).toContain('data-phone-figure3-paper-canvas');
     expect(reducedMarkup).not.toContain('<video');
+    expect(reducedMarkup).not.toContain('<canvas');
     expect(motionMarkup).toContain('data-phone-media-owner="figure3-motion"');
   });
 

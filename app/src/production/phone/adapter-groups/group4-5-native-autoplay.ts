@@ -44,6 +44,24 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+const ENDPOINT_REUSE_TOLERANCE_SECONDS = .05;
+
+/**
+ * Reassigning currentTime to an already-presented Safari frame can briefly
+ * clear its hardware video plane. Keep the physical endpoint when decoded
+ * current data already covers the requested time.
+ */
+export function group45VideoNeedsEndpointSeek(
+  currentTime: number,
+  readyState: number,
+  seeking: boolean,
+  targetTime: number
+): boolean {
+  return readyState < 2
+    || seeking
+    || Math.abs(currentTime - targetTime) > ENDPOINT_REUSE_TOLERANCE_SECONDS;
+}
+
 /**
  * Unit 5's direct-video equivalent of the accepted phone AOD controller.
  *
@@ -298,10 +316,18 @@ export function createGroup45NativeAutoplay(
       reverseProgress = 1;
       reverseElapsedMs = 0;
       reverseFrameTime = undefined;
-      try {
-        video.currentTime = direction === 1 ? 0 : duration;
-      } catch {
-        // loadeddata/canplay will retry once the endpoint can be addressed.
+      const endpointTime = direction === 1 ? 0 : duration;
+      if (group45VideoNeedsEndpointSeek(
+        video.currentTime,
+        video.readyState,
+        video.seeking,
+        endpointTime
+      )) {
+        try {
+          video.currentTime = endpointTime;
+        } catch {
+          // loadeddata/canplay will retry once the endpoint can be addressed.
+        }
       }
       video.autoplay = false;
       video.loop = false;
@@ -334,10 +360,18 @@ export function createGroup45NativeAutoplay(
       direction = endpoint === 1 ? -1 : 1;
       reverseProgress = endpoint;
       reverseElapsedMs = endpoint === 1 ? 0 : duration * 1000;
-      try {
-        video.currentTime = endpoint === 1 ? duration : 0;
-      } catch {
-        // A not-yet-loaded endpoint is still represented by canonical progress.
+      const endpointTime = endpoint === 1 ? duration : 0;
+      if (group45VideoNeedsEndpointSeek(
+        video.currentTime,
+        video.readyState,
+        video.seeking,
+        endpointTime
+      )) {
+        try {
+          video.currentTime = endpointTime;
+        } catch {
+          // A not-yet-loaded endpoint is still represented by canonical progress.
+        }
       }
       publishStatus(endpoint === 1 ? 'complete' : 'idle');
       render(endpoint);

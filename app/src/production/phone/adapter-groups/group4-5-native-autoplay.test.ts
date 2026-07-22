@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createGroup45NativeAutoplay } from './group4-5-native-autoplay';
+import {
+  createGroup45NativeAutoplay,
+  group45VideoNeedsEndpointSeek
+} from './group4-5-native-autoplay';
 
 class FakeVideo extends EventTarget {
   autoplay = true;
@@ -136,6 +139,13 @@ describe('Group 4–5 native autoplay', () => {
     controller.dispose();
   });
 
+  it('does not reseek a decoded endpoint that Safari already presented', () => {
+    expect(group45VideoNeedsEndpointSeek(2.447, 2, false, 2.467)).toBe(false);
+    expect(group45VideoNeedsEndpointSeek(0, 2, false, 0)).toBe(false);
+    expect(group45VideoNeedsEndpointSeek(2.2, 2, false, 2.467)).toBe(true);
+    expect(group45VideoNeedsEndpointSeek(2.447, 1, false, 2.467)).toBe(true);
+  });
+
   it('runs the short source backward on a decoder-safe canonical clock', () => {
     const video = new FakeVideo();
     video.readyState = 2;
@@ -170,6 +180,27 @@ describe('Group 4–5 native autoplay', () => {
     expect(completed).toHaveBeenCalledWith(-1);
     expect(controller.active).toBe(false);
 
+    controller.dispose();
+  });
+
+  it('starts reverse from a retained terminal frame without rewriting currentTime', () => {
+    const video = new FakeVideo();
+    video.readyState = 2;
+    video.currentTime = 2.46;
+    const controller = createGroup45NativeAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 2.467,
+        onProgress: vi.fn(),
+        requestFrame: () => 1,
+        cancelFrame: vi.fn()
+      }
+    );
+
+    controller.start(-1);
+
+    expect(video.currentTime).toBe(2.46);
+    expect(video.play).not.toHaveBeenCalled();
     controller.dispose();
   });
 
