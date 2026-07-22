@@ -3,6 +3,7 @@ import { canUseDOM } from './runtime/browser-guard';
 import { initialPresentationFamily, type PresentationFamily } from './production/presentation-profile';
 import {
   loadDesktopStoryShell,
+  loadPhoneLabContactShell,
   loadPhoneStoryShell
 } from './production/presentation-shell-loaders';
 import './styles.css';
@@ -13,9 +14,10 @@ const HarnessRouter = harnessEnabled
   : null;
 const DesktopStoryShell = lazy(loadDesktopStoryShell);
 const PhoneStoryShell = lazy(loadPhoneStoryShell);
+const PhoneLabContactShell = lazy(loadPhoneLabContactShell);
 const phoneShellEnabled = import.meta.env.VITE_ENABLE_PHONE_STORY === '1';
 
-type PhoneValidationMode = 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35';
+type PhoneValidationMode = 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36';
 
 function requestedPhoneValidationMode(): PhoneValidationMode | undefined {
   if (!canUseDOM()) return undefined;
@@ -26,7 +28,7 @@ function requestedPhoneValidationMode(): PhoneValidationMode | undefined {
     || version === '25' || version === '26' || version === '27'
     || version === '28' || version === '29' || version === '30'
     || version === '31' || version === '32' || version === '33'
-    || version === '34' || version === '35'
+    || version === '34' || version === '35' || version === '36'
     ? `v${version}`
     : undefined;
 }
@@ -71,7 +73,9 @@ export function App() {
   return (
     <Suspense fallback={<main className="route-loading">正在加载故事…</main>}>
       {shellFamily === 'phone'
-        ? <PhoneStoryShell {...(phoneValidationMode ? { validationMode: phoneValidationMode } : {})} />
+        ? phoneValidationMode === 'v36'
+          ? <PhoneLabContactShell validationMode="v36" />
+          : <PhoneStoryShell {...(phoneValidationMode ? { validationMode: phoneValidationMode } : {})} />
         : <DesktopStoryShell />}
     </Suspense>
   );

@@ -13,6 +13,7 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
+import '../../../production/editorial-layout.css';
 import './PhoneContact.css';
 
 /**
