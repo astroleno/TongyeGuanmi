@@ -141,6 +141,39 @@ describe('phone packed-alpha surface', () => {
     surface.dispose();
   });
 
+  it('retains the forward decoder and Canvas while Safari waits for a gesture frame', () => {
+    vi.useFakeTimers();
+    try {
+      const ownerDocument = new FakeDocument();
+      const root = ownerDocument.createElement('section');
+      const container = ownerDocument.createElement('div');
+      const video = ownerDocument.createElement('video') as FakeVideo;
+      root.append(container);
+      container.append(video);
+      const surface = createPhonePackedAlphaSurface({
+        root: root as unknown as HTMLElement,
+        container: container as unknown as HTMLElement,
+        video: video as unknown as HTMLVideoElement,
+        packedSourceUrl: '/packed.mp4',
+        endpointSeconds: 1.25,
+        statusDataset: 'phoneTestAlpha',
+        layerName: 'test',
+        canvasClassName: 'test-canvas',
+        frameTimeoutMs: 20
+      });
+
+      surface.activate('forward');
+      vi.advanceTimersByTime(20);
+
+      expect(root.dataset.phoneTestAlpha).toBe('awaiting-native-playback');
+      expect(container.querySelector('canvas')).not.toBeNull();
+      expect(video.querySelector('source')?.src).toBe('/packed.mp4');
+      surface.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('waits for the scroll transition to become invisible before releasing', () => {
     let notifyMutation: (() => void) | undefined;
     class FakeMutationObserver {

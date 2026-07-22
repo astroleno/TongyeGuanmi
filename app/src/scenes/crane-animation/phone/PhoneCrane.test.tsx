@@ -55,7 +55,8 @@ describe('PhoneCrane', () => {
     expect(autoplaySource).toContain('figureClock.start()');
     expect(motionSource).toContain('renderPhoneCranePresentation');
     expect(motionSource).toContain("'endpoint-dissolve'");
-    expect(source).toContain("runId: 'phone-crane:stable-endpoint'");
+    expect(source).toContain("ensurePackedSurfaces('endpoint')");
+    expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
     expect(autoplaySource).not.toContain('nativeGate');
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');

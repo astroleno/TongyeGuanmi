@@ -14,6 +14,10 @@
       calc(var(--phone-cinematic-stage-height, 100lvh) * .74)
     )
   );
+  --phone-ph-front-width: min(
+    1536px,
+    calc(var(--phone-cinematic-stage-height, 100lvh) * 1.55)
+  );
   --ph-front-base-y: clamp(
     20px,
     calc(var(--phone-cinematic-stage-height, 100lvh) * .04),
@@ -29,22 +33,32 @@
 }
 
 /*
- * Figure2 phone camera: keep the moving plate at or below its 704 px decoded
- * width, then shift the whole authored group right. The left standing figure
- * lands centre-left without scaling a half-resolution Safari surface to more
- * than 1800 px (the source of the former soft/frozen-looking presentation).
+ * The portrait cover must retain the authored sunrise at source x≈10%.
+ * Centre-cropping the 16:9 plate removed it entirely. Moving the plate right
+ * lets the raised island obscure the horizon at frame zero and lets native
+ * playback reveal the sun as the foreground sinks.
+ */
+.phone-ph .ph-bg {
+  object-position: 12% 50%;
+}
+
+/*
+ * Figure2 phone camera: the high-resolution static foreground may fill the
+ * portrait depth field, while the decoded people plate stays at or below
+ * 704 px. Keeping those two sizes independent removes the lower ocean gap
+ * without scaling Safari's half-width video texture into a blurry surface.
  */
 .phone-ph .ph-layer--front {
-  left: 61%;
+  left: 50%;
   bottom: 0;
-  width: var(--phone-ph-plate-width);
+  width: var(--phone-ph-front-width);
   opacity: 1 !important;
   mix-blend-mode: normal;
 }
 
 .phone-ph .ph-layer--figure {
   left: 61%;
-  bottom: 0;
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * .245);
   width: var(--phone-ph-plate-width);
 }
 

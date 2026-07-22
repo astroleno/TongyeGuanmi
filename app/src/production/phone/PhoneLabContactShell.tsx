@@ -205,6 +205,15 @@ function phoneMotionEnabled(): boolean {
 function setStageActive(stage: HTMLElement | null, active: boolean): void {
   if (!stage) return;
   stage.dataset.phoneAcceptanceStageActive = String(active);
+  if (!active) stage.style.removeProperty('--phone-lab-contact-stage-y');
+}
+
+function setStageExitOffset(stage: HTMLElement | null, offsetY: number): void {
+  if (!stage) return;
+  stage.style.setProperty(
+    '--phone-lab-contact-stage-y',
+    `${Math.min(0, offsetY).toFixed(2)}px`
+  );
 }
 
 function setVisualEndpoint(
@@ -758,8 +767,6 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       const craneRect = cranePhase.getBoundingClientRect();
       const phInRange = phRect.top <= 0 && phRect.bottom >= viewportHeight;
       const craneInRange = craneRect.top <= 0 && craneRect.bottom >= viewportHeight;
-      const phApproaching = phRect.top > 0 && phRect.top < viewportHeight;
-      const craneApproaching = craneRect.top > 0 && craneRect.top < viewportHeight;
       const phExiting = phRect.bottom > SCENE_VISIBILITY_EPSILON_PX
         && phRect.bottom < viewportHeight;
       const craneExiting = craneRect.bottom > SCENE_VISIBILITY_EPSILON_PX
@@ -780,18 +787,6 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       const education = educationRef.current;
       const crane = craneRef.current;
       const contact = contactRef.current;
-
-      // Before a cinematic block pins, show its verified opening camera in
-      // normal document position. Hiding the sticky stage here produced a
-      // full paper-coloured viewport between Education and Crane.
-      if (phApproaching) {
-        setStageActive(phStageRef.current, true);
-        setVisualEndpoint(ph, 1);
-      }
-      if (craneApproaching) {
-        setStageActive(craneStageRef.current, true);
-        setVisualEndpoint(crane, 1);
-      }
 
       if (userHasScrolled && (phInRange || phFrame.progress > 0.05)) {
         ensureScene('education');
@@ -890,6 +885,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         publishNavigationScene('ph-animation');
         publishActiveScene('ph-animation');
         setStageActive(phStageRef.current, true);
+        setStageExitOffset(phStageRef.current, 0);
         syncSceneLifecycle(lifecycleStates.current, 'lab', lab, phFrame.handoffProgress < 1);
         // The dissolve only presents PH's zero frame. Once it has landed,
         // PH owns a native forward clock; never turn each scroll sample into
@@ -915,6 +911,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         setVisualEndpoint(ph, 1);
       } else if (phExiting) {
         setStageActive(phStageRef.current, true);
+        setStageExitOffset(phStageRef.current, phRect.bottom - viewportHeight);
         setVisualEndpoint(ph, 1);
         syncSceneLifecycle(lifecycleStates.current, 'ph-animation', ph, false);
         syncSceneLifecycle(lifecycleStates.current, 'education', education, true);
@@ -935,6 +932,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         publishNavigationScene('crane-animation');
         publishActiveScene('crane-animation');
         setStageActive(craneStageRef.current, true);
+        setStageExitOffset(craneStageRef.current, 0);
         syncSceneLifecycle(lifecycleStates.current, 'education', education, craneFrame.handoffProgress < 1);
         // Education → Crane prepares a stable zero frame. The Crane adapter
         // then runs its authored 3s media/presentation clock independently
@@ -957,6 +955,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         setVisualEndpoint(crane, 1);
       } else if (craneExiting) {
         setStageActive(craneStageRef.current, true);
+        setStageExitOffset(craneStageRef.current, craneRect.bottom - viewportHeight);
         setVisualEndpoint(crane, 1);
         syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, true);

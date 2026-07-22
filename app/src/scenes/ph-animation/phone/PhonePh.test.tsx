@@ -46,8 +46,11 @@ describe('PhonePh', () => {
     expect(phonePhTimelineProgressForMediaProgress(1)).toBeCloseTo(1, 5);
     expect(css).toContain('left: 61%');
     expect(css).toContain('--phone-ph-plate-width');
+    expect(css).toContain('--phone-ph-front-width');
     expect(css).toContain('var(--phone-cinematic-stage-height, 100lvh) * .74');
-    expect(css).toContain('bottom: 0');
+    expect(css).toContain('object-position: 12% 50%');
+    expect(css).toContain('* 1.55');
+    expect(css).toContain('* .245');
     expect(css).toContain('opacity: 1 !important');
     expect(css).toContain('.phone-ph .ph-edge-light');
     expect(css).toContain('background: none');

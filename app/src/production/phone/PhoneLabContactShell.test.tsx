@@ -79,6 +79,8 @@ describe('PhoneLabContactShell', () => {
     expect(shellCss).toContain('var(--portrait-stage-coverage-height)');
     expect(shellCss).toContain('--phone-cinematic-vh');
     expect(shellCss).toContain('--phone-lab-contact-edge-surface');
+    expect(shellCss).toMatch(/\.phone-lab-contact__stage\s*\{[^}]*position: fixed/s);
+    expect(shellCss).toMatch(/\.phone-lab-contact__stage-canvas\s*\{[^}]*overflow: clip/s);
     expect(shellSource).toContain('usePhoneLabContactViewportGeometry(rootRef, motionEnabled)');
     expect(shellSource).toContain('widthChanged || forceRetainedGeometry');
     expect(shellSource).not.toContain("from './usePhoneViewportGeometry'");

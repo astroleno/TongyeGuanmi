@@ -6,7 +6,7 @@ import {
   useRef
 } from 'react';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
-import { craneAnimationScene, prepareCraneAnimationFrame } from '..';
+import { craneAnimationScene } from '..';
 import type {
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
@@ -91,7 +91,6 @@ export const PhoneCrane = forwardRef<
   const rootRef = useRef<HTMLElement | null>(null);
   const forwardRunRef = useRef<PhoneCraneForwardRun | null>(null);
   const reverseDissolveRef = useRef<PhoneCraneReverseDissolve | null>(null);
-  const endpointControllerRef = useRef<AbortController | null>(null);
   const packedSurfacesRef = useRef<readonly [
     PhonePackedAlphaSurface,
     PhonePackedAlphaSurface
@@ -190,7 +189,6 @@ export const PhoneCrane = forwardRef<
       return;
     }
     if (direction === 1) {
-      endpointControllerRef.current?.abort();
       reverseDissolveRef.current?.stop();
       ensurePackedSurfaces('forward');
       forwardRunRef.current?.start();
@@ -210,29 +208,14 @@ export const PhoneCrane = forwardRef<
       root,
       render,
       () => {
-        const controller = new AbortController();
-        endpointControllerRef.current?.abort();
-        endpointControllerRef.current = controller;
-        root.dataset.phoneCraneMedia = 'settling-endpoint';
-        void prepareCraneAnimationFrame(
-          root,
-          PHONE_CRANE_STABLE_HOLD_PROGRESS,
-          {
-            runId: 'phone-crane:stable-endpoint',
-            direction: -1,
-            reducedMotion,
-            signal: controller.signal
-          }
-        ).then(() => {
-          if (controller.signal.aborted) return;
-          render(PHONE_CRANE_STABLE_HOLD_PROGRESS, 1);
-          root.dataset.phoneCraneMedia = 'stable-endpoint';
-          completeRun(1);
-        }).catch(() => {
-          if (controller.signal.aborted) return;
-          applyPhoneCraneMediaFallback(root);
-          completeRun(1);
-        });
+        // Stay on the same packed-H.264/WebGL topology as AOD. The former
+        // canonical endpoint preparation swapped both videos back to their
+        // desktop alpha sources after native playback, which could invalidate
+        // Safari's live textures before the snap released.
+        ensurePackedSurfaces('endpoint');
+        render(PHONE_CRANE_STABLE_HOLD_PROGRESS, 1);
+        root.dataset.phoneCraneMedia = 'stable-endpoint';
+        completeRun(1);
       },
       () => {
         applyPhoneCraneMediaFallback(root);
@@ -256,7 +239,6 @@ export const PhoneCrane = forwardRef<
     onReady?.();
 
     return () => {
-      endpointControllerRef.current?.abort();
       forwardRun.dispose();
       reverseDissolve.dispose();
       cancelPackedReleaseRef.current?.();
@@ -275,7 +257,6 @@ export const PhoneCrane = forwardRef<
     root: () => rootRef.current,
     update(progress) {
       requestedDirectionRef.current = null;
-      endpointControllerRef.current?.abort();
       forwardRunRef.current?.stop();
       reverseDissolveRef.current?.stop();
       if (progress >= 0.999) {
@@ -293,7 +274,6 @@ export const PhoneCrane = forwardRef<
     },
     leave() {
       requestedDirectionRef.current = null;
-      endpointControllerRef.current?.abort();
       forwardRunRef.current?.stop();
       reverseDissolveRef.current?.stop();
       parkPhoneCraneMedia(rootRef.current);
@@ -315,7 +295,6 @@ export const PhoneCrane = forwardRef<
     },
     dispose() {
       requestedDirectionRef.current = null;
-      endpointControllerRef.current?.abort();
       forwardRunRef.current?.dispose();
       reverseDissolveRef.current?.dispose();
       cancelPackedReleaseRef.current?.();

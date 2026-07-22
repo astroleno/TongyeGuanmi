@@ -80,14 +80,22 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   background: #ede4d2;
 }
 
-/* One persistent clipping surface: mirrors the proven Safari topology. */
+/*
+ * Hero → Method's accepted Safari topology uses a dynamic fixed host around
+ * one retained-height clipping canvas. Keeping PH/Crane sticky meant the
+ * programmatic snap moved their compositor while H.264 was beginning to
+ * decode, which can park iOS on frame zero.
+ */
 .phone-lab-contact__stage {
-  position: sticky;
-  top: 0;
+  position: fixed;
+  top: var(--phone-lab-contact-stage-y, 0px);
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 3;
   width: 100%;
-  height: var(--phone-cinematic-stage-height);
-  min-height: var(--phone-cinematic-stage-height);
+  height: auto;
+  min-height: 0;
   overflow: visible;
   pointer-events: none;
 }
@@ -150,6 +158,7 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
 
 .phone-lab-contact__stage--direct {
   position: relative;
+  inset: auto;
   height: var(--phone-cinematic-stage-height);
 }
 

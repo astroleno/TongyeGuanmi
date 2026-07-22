@@ -91,8 +91,21 @@ export function createPhonePackedAlphaSurface(
     compositor = undefined;
     canvas?.remove();
     canvas = undefined;
-    releaseVideoSource(video);
+    // Keep the decoder source alive. On physical Safari the first WebGL video
+    // upload can legitimately wait for the gesture that starts native
+    // playback. Releasing the source here left the later autoplay owner with
+    // an empty video and made the snap look permanently frozen.
     root.dataset[statusDataset] = 'static-fallback';
+  };
+
+  const deferForwardProbeUntilPlayback = () => {
+    if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
+    frameTimeout = undefined;
+    if (mode !== 'forward') return;
+    // Figure2 keeps its compositor mounted while the poster is visible; AOD
+    // likewise retains one decoder/Canvas pair until its native run starts.
+    // Unit 6 must not treat a pre-gesture frame timeout as media failure.
+    root.dataset[statusDataset] = 'awaiting-native-playback';
   };
 
   const release = () => {
@@ -136,6 +149,8 @@ export function createPhonePackedAlphaSurface(
         compositorStatus === 'webgl-unavailable'
         || compositorStatus === 'setup-failed'
       ) {
+        video.dataset.phonePackedAlphaOwner = layerName;
+        setPackedAlphaVideoSource(video, options.packedSourceUrl);
         settleStaticFallback();
         return;
       }
@@ -173,7 +188,12 @@ export function createPhonePackedAlphaSurface(
         }
       }
       frameTimeout = globalThis.setTimeout(() => {
-        if (root.dataset[statusDataset] !== 'verified') settleStaticFallback();
+        if (root.dataset[statusDataset] === 'verified') return;
+        if (mode === 'forward') {
+          deferForwardProbeUntilPlayback();
+          return;
+        }
+        settleStaticFallback();
       }, options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS);
     },
     release,
