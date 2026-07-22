@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const PHONE_SHELL = '[data-phone-validation-mode="v23"]';
-const GRADE_A_SHELL = '[data-phone-validation-mode="v37"]';
+const GRADE_A_SHELL = '[data-phone-validation-mode="v39"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -78,7 +78,8 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'loader');
   await expect(loader).toBeHidden({ timeout: 10_000 });
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'hero-entered');
-  await expect(shell).toHaveAttribute('data-phone-aod-alpha-end', '0.55');
+  await expect(shell).toHaveAttribute('data-phone-aod-alpha-start', '0.49');
+  await expect(shell).toHaveAttribute('data-phone-aod-alpha-end', '0.59');
   await expect(page.locator('.portrait-scroll-spike__scene--hero')).toHaveCount(1);
   await expect(page.locator('.portrait-scroll-spike__scene--pattern')).toHaveCount(1);
   await expect(page.locator('.portrait-scroll-spike__scene--star')).toHaveCount(1);
@@ -230,14 +231,14 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
   ).toBe(false);
 });
 
-test('v37 keeps one Pattern plate inside the viewport-bottom coverage canvas', async ({
+test('v39 keeps one Pattern plate inside the viewport-bottom coverage canvas', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
   test.setTimeout(45_000);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=37&portrait-spike-motion=reduce', {
+  await page.goto('/?v=39&portrait-spike-motion=reduce', {
     waitUntil: 'domcontentloaded'
   });
   await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
@@ -335,7 +336,7 @@ test('v37 keeps one Pattern plate inside the viewport-bottom coverage canvas', a
   }
 });
 
-test('v37 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the persistent host', async ({
+test('v39 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the persistent host', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -346,7 +347,7 @@ test('v37 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
     presentationRequests.push(new URL(response.url()).pathname);
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=37&portrait-spike-motion=reduce#figure2-proof-cards', {
+  await page.goto('/?v=39&portrait-spike-motion=reduce#figure2-proof-cards', {
     waitUntil: 'domcontentloaded'
   });
 
@@ -454,7 +455,7 @@ test('v37 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
   }
 });
 
-test('v37 keeps Figure2 visible when Safari never produces a packed video frame', async ({
+test('v39 keeps Figure2 visible when Safari never produces a packed video frame', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -462,7 +463,7 @@ test('v37 keeps Figure2 visible when Safari never produces a packed video frame'
 
   await page.route('**/*figure2-pair-motion-rgb-alpha*.mp4', (route) => route.abort());
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=37&portrait-spike-motion=reduce#figure2-animation', {
+  await page.goto('/?v=39&portrait-spike-motion=reduce#figure2-animation', {
     waitUntil: 'domcontentloaded'
   });
 

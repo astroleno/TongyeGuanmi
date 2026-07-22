@@ -7,6 +7,7 @@ import {
 } from './portrait-aod-autoplay';
 import {
   AOD_PHONE_TIMELINE_ALPHA_END,
+  AOD_PHONE_TIMELINE_ALPHA_START,
   AOD_SOURCE_ALPHA_END,
   AOD_TIMELINE_ALPHA_END
 } from '../../scenes/aod-animation/progress';
@@ -122,7 +123,7 @@ describe('portrait AOD autoplay', () => {
     expect(portraitAodMethodProgress(1)).toBe(1);
   });
 
-  it('maps the first full-alpha source frame to the phone 55% timeline point', async () => {
+  it('maps the first full-alpha source frame to the phone 59% timeline point', async () => {
     const video = new FakeVideo();
     const progress: number[] = [];
     const controller = createPortraitAodAutoplay(
@@ -155,7 +156,7 @@ describe('portrait AOD autoplay', () => {
     const opaquePhase = portraitAodPresentation(0.6);
     expect(opaquePhase.figureScale).toBeGreaterThan(1.41);
     expect(opaquePhase.figureShiftYVh).toBe(9);
-    expect(opaquePhase.bottomMistOpacity).toBeGreaterThan(0.6);
+    expect(opaquePhase.bottomMistOpacity).toBeGreaterThan(0.58);
 
     expect(portraitAodPresentation(1)).toEqual({
       figureScale: 1.46,
@@ -163,8 +164,10 @@ describe('portrait AOD autoplay', () => {
       bottomMistOpacity: 0.96
     });
 
-    expect(portraitAodPresentation(AOD_TIMELINE_ALPHA_END).bottomMistOpacity).toBe(0);
-    expect(portraitAodPresentation(0.51).bottomMistOpacity).toBeGreaterThan(0);
+    expect(
+      portraitAodPresentation(AOD_PHONE_TIMELINE_ALPHA_START).bottomMistOpacity
+    ).toBe(0);
+    expect(portraitAodPresentation(0.52).bottomMistOpacity).toBeGreaterThan(0);
     expect(portraitAodPresentation(0.68).bottomMistOpacity).toBe(0.96);
   });
 

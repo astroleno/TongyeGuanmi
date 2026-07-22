@@ -136,6 +136,7 @@ export type PhoneSceneAdapterModule = Readonly<{
     | PhoneAodAdapterComponent
     | PhoneStarMapAdapterComponent
     | PhoneMethodAdapterComponent;
+  aodAlphaStartProgress?: number;
   aodAlphaEndProgress?: number;
 }>;
 

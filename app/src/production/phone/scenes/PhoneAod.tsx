@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import {
   AOD_FIGURE_END_SECONDS,
   AOD_PHONE_TIMELINE_ALPHA_END,
+  AOD_PHONE_TIMELINE_ALPHA_START,
   aodAnimationScene,
   renderAodTransitionProgress
 } from '../../../scenes/aod-animation';
@@ -30,6 +31,7 @@ const AOD_FIGURE_PACKED_ALPHA_REVERSE_VIDEO = phoneMediaUrlFor(
 );
 const AodScene = aodAnimationScene.Component;
 export const PHONE_AOD_ALPHA_END_PROGRESS = AOD_PHONE_TIMELINE_ALPHA_END;
+export const PHONE_AOD_ALPHA_START_PROGRESS = AOD_PHONE_TIMELINE_ALPHA_START;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -83,7 +85,8 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           renderAodTransitionProgress(
             root,
             progress,
-            PHONE_AOD_ALPHA_END_PROGRESS
+            PHONE_AOD_ALPHA_END_PROGRESS,
+            PHONE_AOD_ALPHA_START_PROGRESS
           );
           const presentation = phoneAodPresentation(progress);
           const backdropPresentation = phoneAodBackdropPresentation(progress);

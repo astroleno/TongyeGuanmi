@@ -27,7 +27,8 @@ export const AOD_FIRST_FULL_ALPHA_FRAME = 16;
 export const AOD_SOURCE_ALPHA_END = AOD_FIRST_FULL_ALPHA_FRAME / (AOD_ALPHA_FRAME_COUNT - 1);
 export const AOD_ALPHA_BACKGROUND_HOLD_PROGRESS = 1 / 3;
 export const AOD_TIMELINE_ALPHA_END = 0.48;
-export const AOD_PHONE_TIMELINE_ALPHA_END = 0.55;
+export const AOD_PHONE_TIMELINE_ALPHA_START = 0.49;
+export const AOD_PHONE_TIMELINE_ALPHA_END = 0.59;
 export const AOD_FIRST_FULL_ALPHA_PROGRESS = AOD_TIMELINE_ALPHA_END;
 export const AOD_BACKDROP_ALPHA_EXIT_START_PROGRESS = AOD_ALPHA_BACKGROUND_HOLD_PROGRESS;
 
@@ -65,7 +66,7 @@ export function mapAodMediaToTimelineProgress(
 
 /**
  * Native playback keeps the authored alpha portion through the selected point
- * of the reversible AOD timeline (48% by default, 55% on phone). The first
+ * of the reversible AOD timeline (48% by default, 59% on phone). The first
  * source segment slows down and the opaque segment catches up without
  * changing the total duration.
  */
@@ -109,7 +110,8 @@ function aodSection(root: HTMLElement | null | undefined): HTMLElement | null {
 export function renderAodTransitionProgress(
   root: HTMLElement | null | undefined,
   rawProgress: number,
-  rawAlphaEndProgress = AOD_TIMELINE_ALPHA_END
+  rawAlphaEndProgress = AOD_TIMELINE_ALPHA_END,
+  rawSurfaceRevealStartProgress = AOD_TIMELINE_ALPHA_END
 ): void {
   const section = aodSection(root);
   if (!section) {
@@ -118,15 +120,19 @@ export function renderAodTransitionProgress(
 
   const raw = Math.min(1, Math.max(0, rawProgress));
   const alphaEnd = alphaEndProgress(rawAlphaEndProgress);
+  const surfaceRevealStart = Math.min(
+    alphaEnd,
+    alphaEndProgress(rawSurfaceRevealStartProgress)
+  );
   const p = acceleratedProgress(raw);
   const mediaProgress = mapAodTimelineToMediaProgress(raw, alphaEnd);
   const alphaComposite = raw < alphaEnd;
   /*
-   * Extending the phone figure's decoded alpha to 55% must not retime the
-   * paper/mist handoff below it. Those authored surface tracks still begin at
-   * the original 48% boundary.
+   * The phone figure keeps decoded alpha through 59%, while its paper/mist
+   * ownership begins at the independently selected 49% boundary. Desktop
+   * keeps the canonical 48% default for both values.
    */
-  const surfaceReveal = raw >= AOD_TIMELINE_ALPHA_END;
+  const surfaceReveal = raw >= surfaceRevealStart;
   const config = HOMEPAGE_AOD_CONFIG;
   const backdropExit = smoothStep(range01(
     raw,

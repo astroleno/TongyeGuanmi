@@ -207,7 +207,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(edgeSurfaceSource).toContain("figure2: '#e2dac9'");
   });
 
-  it('keeps one packed-alpha owner and the phone-only 0.48 → 0.55 mapping', () => {
+  it('keeps one packed-alpha owner and the phone-only 0.49 → 0.59 mapping', () => {
     expect(heroSource).toContain('createPackedAlphaVideoCompositor');
     expect(aodSource).toContain('createPackedAlphaVideoCompositor');
     expect(heroSource).toContain(
@@ -215,8 +215,12 @@ describe('Route B proven front-half migration contract', () => {
     );
     expect(aodSource).toContain("'aod-figure-packed-forward'");
     expect(aodSource).toContain("'aod-figure-packed-reverse'");
+    expect(aodSource).toContain('AOD_PHONE_TIMELINE_ALPHA_START');
     expect(aodSource).toContain('AOD_PHONE_TIMELINE_ALPHA_END');
     expect(aodSource).toContain('alphaEndProgress: PHONE_AOD_ALPHA_END_PROGRESS');
+    expect(shellSource).toContain(
+      'data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}'
+    );
     expect(shellSource).toContain(
       'data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}'
     );
