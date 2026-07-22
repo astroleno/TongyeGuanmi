@@ -45,6 +45,7 @@ type Group45VisualScene = Extract<
 >;
 
 type VisualHandoffReason = 'complete' | 'media-failure';
+type VisualRunDirection = 1 | -1;
 
 const GROUP45_SCENES = new Set<Group45PhoneSceneId>(group45PhoneSceneIds);
 const GROUP45_NAV_ITEMS = publicMenuItems.filter((item) => item.scene === 'services');
@@ -105,11 +106,12 @@ export function phoneGroup45TrackProgress(
 /** A short, bounded dissolve window around a document-flow chapter boundary. */
 export function phoneGroup45BoundaryProgress(
   targetTop: number,
-  targetHeight: number,
+  _targetHeight: number,
   viewportHeight: number
 ): number {
-  const span = Math.max(1, Math.min(viewportHeight * .24, targetHeight * .35));
-  return clamp((viewportHeight - targetTop) / span);
+  const start = viewportHeight * .85;
+  const end = 0;
+  return clamp((start - targetTop) / Math.max(1, start - end));
 }
 
 function sceneIndex(scene: Group45PhoneSceneId): number {
@@ -144,12 +146,24 @@ export function phoneGroup45TrackActivity(
 export function phoneGroup45CrossedVisualStart(
   previousScrollY: number,
   scrollY: number,
+  trackTop: number
+): boolean {
+  const documentTop = scrollY + trackTop;
+  const triggerY = Math.max(0, documentTop);
+  return previousScrollY < triggerY && scrollY >= triggerY;
+}
+
+/** Reverse autoplay begins as soon as a following chapter crosses the marker end. */
+export function phoneGroup45CrossedVisualEnd(
+  previousScrollY: number,
+  scrollY: number,
   trackTop: number,
+  trackHeight: number,
   viewportHeight: number
 ): boolean {
   const documentTop = scrollY + trackTop;
-  const triggerY = Math.max(0, documentTop - viewportHeight * .35);
-  return previousScrollY < triggerY && scrollY >= triggerY;
+  const documentEnd = documentTop + Math.min(trackHeight, viewportHeight);
+  return previousScrollY >= documentEnd - 1 && scrollY < documentEnd - 1;
 }
 
 function frameForTrack(element: HTMLElement | null, viewportHeight: number) {
@@ -203,6 +217,7 @@ export function PhoneBrandLabStory({
   const visualCompletionFrameRef = useRef(0);
   const visualRunTimeoutRef = useRef(0);
   const visualRunRef = useRef<Group45VisualScene | null>(null);
+  const visualRunDirectionRef = useRef<VisualRunDirection>(1);
   const visualSnapRef = useRef<PhoneScrollSnapLock | null>(null);
   const failedVisualsRef = useRef(new Set<Group45VisualScene>());
   const lastScrollYRef = useRef(
@@ -335,14 +350,26 @@ export function PhoneBrandLabStory({
    */
   const handoffVisual = useCallback((
     scene: Group45VisualScene,
-    reason: VisualHandoffReason
+    reason: VisualHandoffReason,
+    direction: VisualRunDirection = visualRunDirectionRef.current
   ) => {
     if (reason === 'complete' && reducedMotion) return;
-    const receiver = scene === 'figure3-animation'
-      ? servicesRef.current?.root() ?? null
-      : labRef.current?.root() ?? null;
-    const target = scene === 'figure3-animation' ? 'services' : 'lab';
-    if (visualRunRef.current !== scene || !receiver) return;
+    const receiver = direction === 1
+      ? scene === 'figure3-animation'
+        ? servicesRef.current?.root() ?? null
+        : labRef.current?.root() ?? null
+      : null;
+    const track = scene === 'figure3-animation'
+      ? figure3TrackRef.current
+      : ttgTrackRef.current;
+    const target = direction === 1
+      ? scene === 'figure3-animation' ? 'services' : 'lab'
+      : scene === 'figure3-animation' ? 'brand' : 'services';
+    if (
+      visualRunRef.current !== scene
+      || visualRunDirectionRef.current !== direction
+      || (direction === 1 ? !receiver : !track)
+    ) return;
     if (visualRunTimeoutRef.current) {
       window.clearTimeout(visualRunTimeoutRef.current);
       visualRunTimeoutRef.current = 0;
@@ -352,20 +379,29 @@ export function PhoneBrandLabStory({
     }
     rootRef.current?.setAttribute(
       'data-phone-group45-complete-handoff',
-      `${scene}-${target}:${reason}`
+      `${scene}-${target}:${reason}:${direction === 1 ? 'forward' : 'reverse'}`
     );
     scrollDirectionLockUntilRef.current = window.performance.now() + 280;
-    setScrollDirection(1);
+    setScrollDirection(direction);
     // Keep the terminal plate for one compositor frame. The second frame
     // moves the one real document to its semantic receiver; no clone, blank
     // paper screen, or additional full-screen scroll range is introduced.
     visualCompletionFrameRef.current = window.requestAnimationFrame(() => {
       visualCompletionFrameRef.current = window.requestAnimationFrame(() => {
         visualCompletionFrameRef.current = 0;
-        const latestReceiver = scene === 'figure3-animation'
-          ? servicesRef.current?.root() ?? null
-          : labRef.current?.root() ?? null;
-        if (visualRunRef.current !== scene || !latestReceiver) return;
+        const latestReceiver = direction === 1
+          ? scene === 'figure3-animation'
+            ? servicesRef.current?.root() ?? null
+            : labRef.current?.root() ?? null
+          : null;
+        const latestTrack = scene === 'figure3-animation'
+          ? figure3TrackRef.current
+          : ttgTrackRef.current;
+        if (
+          visualRunRef.current !== scene
+          || visualRunDirectionRef.current !== direction
+          || (direction === 1 ? !latestReceiver : !latestTrack)
+        ) return;
         if (scene === 'figure3-animation') {
           figure3Ref.current?.leave?.();
         } else {
@@ -375,46 +411,85 @@ export function PhoneBrandLabStory({
         visualSnapRef.current?.release();
         rootRef.current?.setAttribute('data-phone-group45-snap', 'released');
         rootRef.current?.setAttribute('data-phone-group45-visual-run', 'idle');
-        setStageScene(null);
+        const targetElement = direction === 1 ? latestReceiver : latestTrack;
+        const targetY = Math.max(
+          0,
+          window.scrollY + (targetElement?.getBoundingClientRect().top ?? 0)
+        );
+        window.scrollTo({ top: targetY, left: 0, behavior: 'auto' });
+        lastScrollYRef.current = targetY;
+        if (scene === 'figure3-animation') {
+          if (direction === 1) figure3ServicesRef.current?.leave?.();
+          else figure3ServicesRef.current?.enter?.();
+        } else if (direction === 1) {
+          ttgLabRef.current?.leave?.();
+        } else {
+          ttgLabRef.current?.enter?.();
+        }
+        setStageScene(direction === -1 ? scene : null);
         setVisualActivity((current) => ({
           figure3: {
             ...current.figure3,
-            active: false
+            active: false,
+            prewarm: direction === -1 && scene === 'figure3-animation'
           },
           ttg: {
             ...current.ttg,
-            active: false
+            active: false,
+            prewarm: direction === -1 && scene === 'ttg-animation'
           }
         }));
-        window.scrollTo({
-          top: window.scrollY + latestReceiver.getBoundingClientRect().top,
-          left: 0,
-          behavior: 'auto'
-        });
       });
     });
   }, [reducedMotion]);
 
   const onMediaError = useCallback((scene: Group45PhoneSceneId) => {
     if (scene !== 'figure3-animation' && scene !== 'ttg-animation') return;
+    const direction = visualRunDirectionRef.current;
     failedVisualsRef.current.add(scene);
-    const target = scene === 'figure3-animation' ? 'services' : 'lab';
+    const target = direction === 1
+      ? scene === 'figure3-animation' ? 'services' : 'lab'
+      : scene === 'figure3-animation' ? 'brand' : 'services';
     rootRef.current?.setAttribute('data-phone-group45-media-fallback', target);
     if (scene === 'figure3-animation') {
-      figure3Ref.current?.update(1);
-      figure3ServicesRef.current?.render(1);
+      figure3Ref.current?.update(direction === 1 ? 1 : 0);
+      figure3ServicesRef.current?.render(direction === 1 ? 1 : 0);
     } else {
-      ttgRef.current?.update(1);
-      ttgLabRef.current?.render(1);
+      ttgRef.current?.update(direction === 1 ? 1 : 0);
+      ttgLabRef.current?.render(direction === 1 ? 1 : 0);
     }
-    handoffVisual(scene, 'media-failure');
+    handoffVisual(scene, 'media-failure', direction);
   }, [handoffVisual]);
 
-  const onVisualComplete = useCallback((scene: Group45PhoneSceneId) => {
+  const onVisualComplete = useCallback((
+    scene: Group45PhoneSceneId,
+    direction: VisualRunDirection
+  ) => {
     if (scene === 'figure3-animation' || scene === 'ttg-animation') {
-      handoffVisual(scene, 'complete');
+      handoffVisual(scene, 'complete', direction);
     }
   }, [handoffVisual]);
+
+  const onVisualProgress = useCallback((
+    scene: Group45PhoneSceneId,
+    progress: number,
+    direction: VisualRunDirection
+  ) => {
+    if (
+      (scene !== 'figure3-animation' && scene !== 'ttg-animation')
+      || visualRunRef.current !== scene
+      || visualRunDirectionRef.current !== direction
+    ) return;
+    rootRef.current?.setAttribute(
+      'data-phone-group45-visual-progress',
+      `${scene}:${direction}:${clamp(progress).toFixed(4)}`
+    );
+    if (scene === 'figure3-animation') {
+      // The transition adapter maps canonical Figure3 progress 0.8 → 1 to
+      // Services entrance 0 → 1, exactly like the accepted AOD handoff.
+      figure3ServicesRef.current?.render(progress);
+    }
+  }, []);
 
   const armVisualRunTimeout = useCallback((scene: Group45VisualScene) => {
     if (visualRunTimeoutRef.current) {
@@ -424,7 +499,7 @@ export function PhoneBrandLabStory({
     // window; a missing/blocked decoder resolves through the declared endpoint.
     visualRunTimeoutRef.current = window.setTimeout(() => {
       if (visualRunRef.current === scene) onMediaError(scene);
-    }, 6000);
+    }, 10000);
   }, [onMediaError]);
 
   useEffect(() => {
@@ -486,58 +561,121 @@ export function PhoneBrandLabStory({
           current === nextScrollDirection ? current : nextScrollDirection
         ));
       }
-      const figure3Frame = frameForTrack(figure3TrackRef.current, viewportHeight);
-      const ttgFrame = frameForTrack(ttgTrackRef.current, viewportHeight);
+      const figure3Element = figure3TrackRef.current;
+      const ttgElement = ttgTrackRef.current;
+      const figure3Rect = figure3Element?.getBoundingClientRect();
+      const ttgRect = ttgElement?.getBoundingClientRect();
+      const figure3Frame = frameForTrack(figure3Element, viewportHeight);
+      const ttgFrame = frameForTrack(ttgElement, viewportHeight);
+      const brandFigure3Progress = phoneGroup45BoundaryProgress(
+        figure3Rect?.top ?? viewportHeight,
+        figure3Rect?.height ?? viewportHeight,
+        viewportHeight
+      );
+      const servicesTtgProgress = phoneGroup45BoundaryProgress(
+        ttgRect?.top ?? viewportHeight,
+        ttgRect?.height ?? viewportHeight,
+        viewportHeight
+      );
       const forwardDirection = nextScrollDirection === 1
         || (!nextScrollDirection && scrollY >= previousScrollY);
+      const reverseDirection = nextScrollDirection === -1;
       const directVisualEntry = entryScene === 'figure3-animation'
         || entryScene === 'ttg-animation';
-      const crossedFigure3 = figure3TrackRef.current && (
+      const crossedFigure3 = figure3Element && figure3Rect && (
         phoneGroup45CrossedVisualStart(
           previousScrollY,
           scrollY,
-          figure3TrackRef.current.getBoundingClientRect().top,
-          viewportHeight
+          figure3Rect.top
         )
+        || (nextScrollDirection === 1
+          && figure3Frame.active
+          && figure3Rect.top <= 1)
         || (directVisualEntry
           && entryScene === 'figure3-animation'
           && figure3Frame.active)
       );
-      const crossedTtg = ttgTrackRef.current && (
+      const crossedTtg = ttgElement && ttgRect && (
         phoneGroup45CrossedVisualStart(
           previousScrollY,
           scrollY,
-          ttgTrackRef.current.getBoundingClientRect().top,
-          viewportHeight
+          ttgRect.top
         )
+        || (nextScrollDirection === 1
+          && ttgFrame.active
+          && ttgRect.top <= 1)
         || (directVisualEntry
           && entryScene === 'ttg-animation'
           && ttgFrame.active)
       );
-      if (!visualRunRef.current && forwardDirection && !reducedMotion) {
-        const nextRun = crossedFigure3 && !failedVisualsRef.current.has('figure3-animation')
-          ? 'figure3-animation'
-          : crossedTtg && !failedVisualsRef.current.has('ttg-animation')
-            ? 'ttg-animation'
+      const crossedFigure3End = figure3Element && figure3Rect
+        ? phoneGroup45CrossedVisualEnd(
+          previousScrollY,
+          scrollY,
+          figure3Rect.top,
+          figure3Rect.height,
+          viewportHeight
+        )
+        : false;
+      const crossedTtgEnd = ttgElement && ttgRect
+        ? phoneGroup45CrossedVisualEnd(
+          previousScrollY,
+          scrollY,
+          ttgRect.top,
+          ttgRect.height,
+          viewportHeight
+        )
+        : false;
+      if (!visualRunRef.current && !reducedMotion) {
+        const nextRun = forwardDirection
+          ? crossedFigure3 && !failedVisualsRef.current.has('figure3-animation')
+            ? 'figure3-animation'
+            : crossedTtg && !failedVisualsRef.current.has('ttg-animation')
+              ? 'ttg-animation'
+              : null
+          : reverseDirection
+            ? crossedTtgEnd && !failedVisualsRef.current.has('ttg-animation')
+              ? 'ttg-animation'
+              : crossedFigure3End && !failedVisualsRef.current.has('figure3-animation')
+                ? 'figure3-animation'
+                : null
             : null;
         if (nextRun) {
+          const runDirection: VisualRunDirection = forwardDirection ? 1 : -1;
           const track = nextRun === 'figure3-animation'
-            ? figure3TrackRef.current
-            : ttgTrackRef.current;
+            ? figure3Element
+            : ttgElement;
           if (track) {
             visualRunRef.current = nextRun;
-            root.setAttribute('data-phone-group45-visual-run', `${nextRun}:forward`);
+            visualRunDirectionRef.current = runDirection;
+            scrollDirectionLockUntilRef.current = window.performance.now() + 280;
+            setScrollDirection(runDirection);
+            setStageScene(nextRun);
+            root.setAttribute(
+              'data-phone-group45-visual-run',
+              `${nextRun}:${runDirection === 1 ? 'forward' : 'reverse'}`
+            );
             root.setAttribute('data-phone-group45-snap', 'locked');
-            visualSnap.lock(window.scrollY + track.getBoundingClientRect().top);
+            root.setAttribute('data-phone-group45-stage-active', 'true');
+            root.setAttribute('data-phone-group45-stage-scene', nextRun);
+            const trackTop = window.scrollY + track.getBoundingClientRect().top;
+            visualSnap.lock(runDirection === 1 ? trackTop : window.scrollY);
             armVisualRunTimeout(nextRun);
             // Match the accepted AOD coordinator: start the mounted adapter in
             // the same turn that acquires the scroll lock. React state still
             // publishes visibility, but it is no longer a gate in front of
             // the first native video.play() call.
             if (nextRun === 'figure3-animation') {
-              figure3Ref.current?.enter?.();
+              if (runDirection === 1) {
+                figure3ServicesRef.current?.enter?.();
+                figure3Ref.current?.enter?.();
+              } else {
+                figure3ServicesRef.current?.reverse?.();
+                figure3Ref.current?.reverse?.();
+              }
             } else {
-              ttgRef.current?.enter?.();
+              if (runDirection === 1) ttgRef.current?.enter?.();
+              else ttgRef.current?.reverse?.();
             }
           }
         }
@@ -546,21 +684,29 @@ export function PhoneBrandLabStory({
       const heldVisual = visualRunRef.current;
       const activeFigure3 = {
         ...figure3Frame,
-        active: heldVisual
-          ? heldVisual === 'figure3-animation'
-          : figure3Frame.active,
-        prewarm: heldVisual === 'figure3-animation' || figure3Frame.prewarm
+        active: heldVisual === 'figure3-animation',
+        prewarm: heldVisual === 'figure3-animation'
+          || figure3Frame.prewarm
+          || figure3Frame.active
+          || (brandFigure3Progress > .001 && (figure3Rect?.top ?? -1) >= 0)
       };
       const activeTtg = {
         ...ttgFrame,
-        active: heldVisual ? heldVisual === 'ttg-animation' : ttgFrame.active,
-        prewarm: heldVisual === 'ttg-animation' || ttgFrame.prewarm
+        active: heldVisual === 'ttg-animation',
+        prewarm: heldVisual === 'ttg-animation'
+          || ttgFrame.prewarm
+          || ttgFrame.active
+          || (servicesTtgProgress > .001 && (ttgRect?.top ?? -1) >= 0)
       };
-      const nextStageScene: Group45VisualScene | null = heldVisual ?? (activeFigure3.active
+      const nextStageScene: Group45VisualScene | null = heldVisual ?? (figure3Frame.active
         ? 'figure3-animation'
-        : activeTtg.active
+        : ttgFrame.active
           ? 'ttg-animation'
-          : null);
+          : brandFigure3Progress > .001 && (figure3Rect?.top ?? -1) >= 0
+            ? 'figure3-animation'
+            : servicesTtgProgress > .001 && (ttgRect?.top ?? -1) >= 0
+              ? 'ttg-animation'
+              : null);
       setVisualActivity((current) => (
         current.figure3.active === activeFigure3.active
           && current.figure3.prewarm === activeFigure3.prewarm
@@ -586,25 +732,10 @@ export function PhoneBrandLabStory({
       labRef.current?.update(1);
 
       const brandElement = brandRef.current?.root() ?? null;
-      const figure3Element = figure3TrackRef.current;
       const servicesElement = servicesRef.current?.root() ?? null;
-      const ttgElement = ttgTrackRef.current;
       const labElement = labRef.current?.root() ?? null;
-      brandFigure3Ref.current?.render(phoneGroup45BoundaryProgress(
-        figure3Element?.getBoundingClientRect().top ?? viewportHeight,
-        figure3Element?.getBoundingClientRect().height ?? viewportHeight,
-        viewportHeight
-      ));
-      figure3ServicesRef.current?.render(phoneGroup45BoundaryProgress(
-        servicesElement?.getBoundingClientRect().top ?? viewportHeight,
-        servicesElement?.getBoundingClientRect().height ?? viewportHeight,
-        viewportHeight
-      ));
-      servicesTtgRef.current?.render(phoneGroup45BoundaryProgress(
-        ttgElement?.getBoundingClientRect().top ?? viewportHeight,
-        ttgElement?.getBoundingClientRect().height ?? viewportHeight,
-        viewportHeight
-      ));
+      brandFigure3Ref.current?.render(brandFigure3Progress);
+      servicesTtgRef.current?.render(servicesTtgProgress);
       ttgLabRef.current?.render(phoneGroup45BoundaryProgress(
         labElement?.getBoundingClientRect().top ?? viewportHeight,
         labElement?.getBoundingClientRect().height ?? viewportHeight,
@@ -650,20 +781,38 @@ export function PhoneBrandLabStory({
           : 'data-phone-ttg-playback'
       );
       if (playbackState === 'blocked' || playbackState === 'suspended') {
-        adapter?.enter?.();
+        if (visualRunDirectionRef.current === 1) adapter?.enter?.();
+        else adapter?.reverse?.();
       }
+    };
+    // Register the non-passive listener before a gesture begins. If that same
+    // gesture crosses into a time-owned run, iOS can cancel its remaining
+    // momentum immediately instead of leaking one swipe into Lab.
+    const preventHeldScroll = (event: Event) => {
+      if (!visualSnap.locked) return;
+      if (event.cancelable) event.preventDefault();
     };
     render();
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
     window.addEventListener('orientationchange', schedule);
     root.addEventListener('pointerdown', retryBlockedVisual, { passive: true });
+    root.addEventListener('touchmove', preventHeldScroll, {
+      passive: false,
+      capture: true
+    });
+    root.addEventListener('wheel', preventHeldScroll, {
+      passive: false,
+      capture: true
+    });
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
       root.removeEventListener('pointerdown', retryBlockedVisual);
+      root.removeEventListener('touchmove', preventHeldScroll, true);
+      root.removeEventListener('wheel', preventHeldScroll, true);
       if (visualRunTimeoutRef.current) {
         window.clearTimeout(visualRunTimeoutRef.current);
         visualRunTimeoutRef.current = 0;
@@ -673,6 +822,7 @@ export function PhoneBrandLabStory({
       if (visualSnapRef.current === visualSnap) visualSnapRef.current = null;
       delete root.dataset.phoneGroup45Snap;
       delete root.dataset.phoneGroup45VisualRun;
+      delete root.dataset.phoneGroup45VisualProgress;
     };
   }, [
     adapters.ready,
@@ -755,6 +905,7 @@ export function PhoneBrandLabStory({
             prewarm={visualActivity.figure3.prewarm}
             reducedMotion={reducedMotion}
             onMediaError={onMediaError}
+            onProgress={onVisualProgress}
             onComplete={onVisualComplete}
           />
         )}
@@ -766,6 +917,7 @@ export function PhoneBrandLabStory({
             prewarm={visualActivity.ttg.prewarm}
             reducedMotion={reducedMotion}
             onMediaError={onMediaError}
+            onProgress={onVisualProgress}
             onComplete={onVisualComplete}
           />
         )}

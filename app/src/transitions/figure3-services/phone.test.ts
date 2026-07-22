@@ -9,6 +9,7 @@ describe('Phone Figure3 → Services transition', () => {
     expect(PHONE_FIGURE3_SERVICES_DECISION).toMatchObject({
       strategy: 'endpoint-dissolve',
       camera: 'none',
+      copyCueProgress: 0.8,
       forwardEndpoint: 'services:reading-top',
       reverseEndpoint: 'figure3-animation:stable-initial-frame'
     });
@@ -30,6 +31,14 @@ describe('Phone Figure3 → Services transition', () => {
       fromOpacity: 1,
       toOpacity: 0
     });
+  });
+
+  it('starts Services during Figure3 final 20% like AOD → Method', () => {
+    expect(phoneFigure3ServicesFrame(.8).progress).toBe(0);
+    expect(phoneFigure3ServicesFrame(.9).progress).toBeCloseTo(.5);
+    expect(phoneFigure3ServicesFrame(1).progress).toBe(1);
+    expect(phoneFigure3ServicesFrame(.9, false, false, -1).progress)
+      .toBeCloseTo(.5);
   });
 
   it('settles media failure and reduced motion without a replay hold', () => {

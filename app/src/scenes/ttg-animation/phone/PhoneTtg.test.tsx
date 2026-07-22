@@ -30,16 +30,16 @@ describe('PhoneTtg', () => {
       progress: 0,
       backgroundY: 0,
       middleY: 0,
-      foregroundY: 292,
-      figureY: -85
+      foregroundY: 110,
+      figureY: 60
     });
     expect(phoneTtgFrame(1, false, false, 1000)).toMatchObject({
       progress: 1,
       visualProgress: 1,
-      backgroundY: -143,
+      backgroundY: -110,
       middleY: 235,
-      foregroundY: 423,
-      figureY: 80
+      foregroundY: 190,
+      figureY: 175
     });
     expect(phoneTtgFrame(0.4, false, true, 1000)).toMatchObject({
       progress: 1,
@@ -50,9 +50,9 @@ describe('PhoneTtg', () => {
   it('selects one native run or a stable endpoint from document state', () => {
     expect(phoneTtgMediaAction(false, true)).toBe('hold-initial');
     expect(phoneTtgMediaAction(true, true)).toBe('play-forward');
-    expect(phoneTtgMediaAction(true, true, false, false, false, -1)).toBe('hold-initial');
+    expect(phoneTtgMediaAction(true, true, false, false, false, -1)).toBe('play-reverse');
     expect(phoneTtgMediaAction(false, true, false, false, true, 1)).toBe('hold-terminal');
-    expect(phoneTtgMediaAction(false, true, false, false, true, -1)).toBe('hold-initial');
+    expect(phoneTtgMediaAction(false, true, false, false, true, -1)).toBe('hold-terminal');
     expect(phoneTtgMediaAction(false, false)).toBe('release');
   });
 

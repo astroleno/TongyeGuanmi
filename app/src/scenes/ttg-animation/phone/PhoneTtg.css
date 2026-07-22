@@ -8,8 +8,12 @@
   --phone-ttg-figure-scale: .8;
   --phone-ttg-figure-opacity: 1;
   position: relative;
+  inset: 0;
   display: block;
-  overflow: visible;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
   isolation: auto;
   background:
     radial-gradient(ellipse at 54% 38%, rgba(207, 165, 86, .15), transparent 36%),
@@ -48,20 +52,30 @@
     calc(var(--portrait-stage-height, 100lvh) * 1.84)
   );
   --ttg-front-width: max(
-    100vw,
-    calc(var(--portrait-stage-height, 100lvh) * .68)
+    112vw,
+    calc(var(--portrait-stage-height, 100lvh) * .72)
   );
   z-index: 1;
   overflow: clip;
+  background: #080d10;
 }
 
 .phone-ttg .ttg-scroll,
 .phone-ttg .ttg-sticky,
 .phone-ttg .ttg-field,
 .phone-ttg .ttg-layer-stack {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  min-height: 0;
+  min-height: 100%;
+}
+
+.phone-ttg .ttg-sticky,
+.phone-ttg .ttg-field,
+.phone-ttg .ttg-layer-stack {
+  overflow: hidden;
+  background-color: #080d10;
 }
 
 .phone-ttg .ttg-progress {
@@ -70,6 +84,12 @@
 
 .phone-ttg .ttg-layer--figure {
   --ttg-figure-layer-height: min(144svh, 1220px);
+}
+
+/* The portrait camera keeps the cathedral mass on the right third while the
+   foreground rises enough to cover the lower Safari edge. */
+.phone-ttg .ttg-layer--middle {
+  left: 75%;
 }
 
 .phone-ttg video.ttg-layer--figure[data-phone-group45-frame-ready="true"] {

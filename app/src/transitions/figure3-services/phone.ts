@@ -13,10 +13,13 @@ import type { TransitionPresentationAdapterHandle } from '../../story/presentati
 export const PHONE_FIGURE3_SERVICES_DECISION = {
   strategy: 'endpoint-dissolve',
   camera: 'none',
+  copyCueProgress: 0.8,
   forwardEndpoint: 'services:reading-top',
   reverseEndpoint: 'figure3-animation:stable-initial-frame',
-  rationale: 'The source video already owns local playback; an unvalidated phone camera would add a second timing owner.'
+  rationale: 'The source video remains the sole clock; Services enters over its final 20%, matching the accepted AOD → Method cue.'
 } as const;
+
+export const PHONE_FIGURE3_SERVICES_START_PROGRESS = 0.8;
 
 export type PhoneFigure3ServicesFrame = Readonly<{
   progress: number;
@@ -37,7 +40,10 @@ export function phoneFigure3ServicesFrame(
   const progress = mediaFailed
     ? direction === 1 ? 1 : 0
     : reducedMotion ? rawProgress <= 0 ? 0 : 1
-      : clamp(rawProgress);
+      : clamp(
+        (clamp(rawProgress) - PHONE_FIGURE3_SERVICES_START_PROGRESS)
+          / (1 - PHONE_FIGURE3_SERVICES_START_PROGRESS)
+      );
   return { progress, fromOpacity: 1 - progress, toOpacity: progress };
 }
 
@@ -45,12 +51,26 @@ function applyEndpoint(
   element: HTMLElement | null,
   opacity: number,
   id: 'figure3-services',
+  role: 'from' | 'to',
   documentFlow = false
 ): void {
   if (!element) return;
   if (documentFlow) {
     element.dataset.phoneDissolve = id;
     element.dataset.phoneDissolveOpacity = opacity.toFixed(4);
+    if (role === 'from') {
+      if (opacity >= .999) element.style.removeProperty('opacity');
+      else element.style.opacity = opacity.toFixed(4);
+    } else if (opacity > .001) {
+      element.dataset.phoneFigure3ServicesBridge = 'active';
+      element.style.setProperty(
+        '--phone-figure3-services-bridge-opacity',
+        opacity.toFixed(4)
+      );
+    } else {
+      delete element.dataset.phoneFigure3ServicesBridge;
+      element.style.removeProperty('--phone-figure3-services-bridge-opacity');
+    }
     return;
   }
   const visible = opacity > 0.001;
@@ -66,6 +86,9 @@ function clearEndpoint(element: HTMLElement | null, documentFlow = false): void 
   if (documentFlow) {
     delete element.dataset.phoneDissolve;
     delete element.dataset.phoneDissolveOpacity;
+    delete element.dataset.phoneFigure3ServicesBridge;
+    element.style.removeProperty('opacity');
+    element.style.removeProperty('--phone-figure3-services-bridge-opacity');
     return;
   }
   element.style.removeProperty('opacity');
@@ -102,8 +125,20 @@ export const PhoneFigure3ServicesTransition = forwardRef<
       host.dataset.phoneTransition = 'figure3-services:endpoint-dissolve';
       host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
     }
-    applyEndpoint(from, frame.fromOpacity, 'figure3-services', documentFlow);
-    applyEndpoint(to, frame.toOpacity, 'figure3-services', documentFlow);
+    applyEndpoint(
+      from,
+      frame.fromOpacity,
+      'figure3-services',
+      'from',
+      documentFlow
+    );
+    applyEndpoint(
+      to,
+      frame.toOpacity,
+      'figure3-services',
+      'to',
+      documentFlow
+    );
   }, [documentFlow, from, host, reducedMotion, to]);
 
   useLayoutEffect(() => {
@@ -128,10 +163,12 @@ export const PhoneFigure3ServicesTransition = forwardRef<
     leave() {
       directionRef.current = 1;
       render(1);
+      clearEndpoint(from, documentFlow);
+      clearEndpoint(to, documentFlow);
     },
     reverse() {
       directionRef.current = -1;
-      render(0);
+      render(1);
     },
     dispose() {
       clearEndpoint(from, documentFlow);

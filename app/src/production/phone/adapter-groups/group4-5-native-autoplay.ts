@@ -7,6 +7,8 @@ export type Group45NativeAutoplayStatus =
   | 'complete'
   | 'error';
 
+export type Group45NativeAutoplayDirection = 1 | -1;
+
 type VisibilityDocument = Pick<
   Document,
   'hidden' | 'addEventListener' | 'removeEventListener'
@@ -14,11 +16,17 @@ type VisibilityDocument = Pick<
 
 export type Group45NativeAutoplayOptions = Readonly<{
   durationSeconds: number;
-  onProgress(progress: number): void;
-  onComplete?(): void;
+  onProgress(
+    progress: number,
+    direction: Group45NativeAutoplayDirection
+  ): void;
+  onComplete?(direction: Group45NativeAutoplayDirection): void;
   onError?(): void;
   onReady?(): void;
-  onStatus?(status: Group45NativeAutoplayStatus): void;
+  onStatus?(
+    status: Group45NativeAutoplayStatus,
+    direction: Group45NativeAutoplayDirection
+  ): void;
   visibilityDocument?: VisibilityDocument;
   requestFrame?: (callback: FrameRequestCallback) => number;
   cancelFrame?: (frame: number) => void;
@@ -26,7 +34,7 @@ export type Group45NativeAutoplayOptions = Readonly<{
 
 export type Group45NativeAutoplay = Readonly<{
   readonly active: boolean;
-  start(): void;
+  start(direction?: Group45NativeAutoplayDirection): void;
   retry(): void;
   reset(endpoint?: 0 | 1): void;
   dispose(): void;
@@ -39,10 +47,11 @@ function clamp(value: number): number {
 /**
  * Unit 5's direct-video equivalent of the accepted phone AOD controller.
  *
- * The decoder owns time after entry. Scroll only starts the run and remains
- * pinned by the shell. Unlike the old implementation, startup never waits on
- * a paused seek or requestVideoFrameCallback: iOS may begin decoding directly
- * from source time zero, and loaded/canplay evidence retries a blocked start.
+ * The decoder owns forward time after entry. Scroll only starts the run and
+ * remains pinned by the shell. Reverse runs publish the same canonical clock
+ * while the scene adapter's shared timeline driver coalesces decoder seeks;
+ * this controller never races that driver by writing every intermediate
+ * playhead itself.
  */
 export function createGroup45NativeAutoplay(
   video: HTMLVideoElement,
@@ -61,10 +70,17 @@ export function createGroup45NativeAutoplay(
   let playPending = false;
   let frame = 0;
   let playAttempt = 0;
+  let direction: Group45NativeAutoplayDirection = 1;
+  let reverseProgress = 1;
+  let reverseElapsedMs = 0;
+  let reverseFrameTime: number | undefined;
 
   const publishStatus = (status: Group45NativeAutoplayStatus) => {
     video.dataset.phoneGroup45Autoplay = status;
-    options.onStatus?.(status);
+    video.dataset.phoneGroup45AutoplayDirection = direction === 1
+      ? 'forward'
+      : 'reverse';
+    options.onStatus?.(status, direction);
   };
 
   const cancelScheduledFrame = () => {
@@ -83,9 +99,10 @@ export function createGroup45NativeAutoplay(
   const mediaProgress = () => clamp(video.currentTime / duration);
 
   const render = (forcedProgress?: number): number => {
-    const progress = forcedProgress ?? mediaProgress();
+    const progress = forcedProgress
+      ?? (direction === 1 ? mediaProgress() : reverseProgress);
     video.dataset.phoneGroup45AutoplayProgress = progress.toFixed(4);
-    options.onProgress(progress);
+    options.onProgress(progress, direction);
     return progress;
   };
 
@@ -98,21 +115,36 @@ export function createGroup45NativeAutoplay(
     video.pause();
     markReady();
     publishStatus('complete');
-    render(1);
-    options.onComplete?.();
+    const endpoint = direction === 1 ? 1 : 0;
+    render(endpoint);
+    options.onComplete?.(direction);
   };
 
   const renderAndComplete = () => {
     const progress = render();
-    if (video.ended || progress >= .999) {
+    const complete = direction === 1
+      ? video.ended || progress >= .999
+      : progress <= .001;
+    if (complete) {
       completeRun();
       return true;
     }
     return false;
   };
 
-  const tick: FrameRequestCallback = () => {
+  const tick: FrameRequestCallback = (time) => {
     frame = 0;
+    if (direction === -1) {
+      if (!active || disposed || visibilityDocument?.hidden) return;
+      if (reverseFrameTime === undefined) reverseFrameTime = time;
+      const elapsed = Math.max(0, time - reverseFrameTime);
+      reverseFrameTime = time;
+      reverseElapsedMs += elapsed;
+      reverseProgress = clamp(1 - reverseElapsedMs / (duration * 1000));
+      if (renderAndComplete()) return;
+      frame = requestFrame(tick);
+      return;
+    }
     if (!active || disposed || renderAndComplete()) return;
     if (!video.paused && !video.ended) {
       frame = requestFrame(tick);
@@ -129,6 +161,7 @@ export function createGroup45NativeAutoplay(
     if (
       disposed
       || !active
+      || direction !== 1
       || playPending
       || visibilityDocument?.hidden
     ) {
@@ -167,6 +200,11 @@ export function createGroup45NativeAutoplay(
   const onFrameEvidence = () => {
     markReady();
     if (!active || renderAndComplete()) return;
+    if (direction === -1) {
+      publishStatus('playing');
+      schedule();
+      return;
+    }
     if (video.paused && !visibilityDocument?.hidden) play();
     else schedule();
   };
@@ -175,15 +213,25 @@ export function createGroup45NativeAutoplay(
       video.pause();
       return;
     }
+    if (direction === -1) {
+      video.pause();
+      publishStatus('playing');
+      schedule();
+      return;
+    }
     markReady();
     publishStatus('playing');
     schedule();
   };
   const onPause = () => {
-    cancelScheduledFrame();
-    if (active) render();
+    if (direction === 1) {
+      cancelScheduledFrame();
+      if (active) render();
+    }
   };
-  const onEnded = () => completeRun();
+  const onEnded = () => {
+    if (direction === 1) completeRun();
+  };
   const onMediaError = () => {
     if (disposed) return;
     active = false;
@@ -198,11 +246,17 @@ export function createGroup45NativeAutoplay(
     if (visibilityDocument?.hidden) {
       playAttempt += 1;
       playPending = false;
+      reverseFrameTime = undefined;
+      cancelScheduledFrame();
       video.pause();
       publishStatus('suspended');
       return;
     }
-    play();
+    if (direction === 1) play();
+    else {
+      publishStatus('playing');
+      schedule();
+    }
   };
 
   video.addEventListener('loadeddata', onFrameEvidence);
@@ -219,6 +273,7 @@ export function createGroup45NativeAutoplay(
     active = false;
     playAttempt += 1;
     playPending = false;
+    reverseFrameTime = undefined;
     cancelScheduledFrame();
     video.pause();
   };
@@ -231,17 +286,22 @@ export function createGroup45NativeAutoplay(
     get active() {
       return active;
     },
-    start() {
+    start(nextDirection = 1) {
       if (disposed) return;
-      if (active) {
-        play();
+      if (active && direction === nextDirection) {
+        if (direction === 1) play();
+        else schedule();
         return;
       }
       stopCurrentRun();
+      direction = nextDirection;
+      reverseProgress = 1;
+      reverseElapsedMs = 0;
+      reverseFrameTime = undefined;
       try {
-        video.currentTime = 0;
+        video.currentTime = direction === 1 ? 0 : duration;
       } catch {
-        // A source without metadata still begins at zero when play() resolves.
+        // loadeddata/canplay will retry once the endpoint can be addressed.
       }
       video.autoplay = false;
       video.loop = false;
@@ -250,16 +310,30 @@ export function createGroup45NativeAutoplay(
       video.preload = 'auto';
       video.playbackRate = 1;
       active = true;
-      render(0);
+      render(direction === 1 ? 0 : 1);
       publishStatus('starting');
-      play();
+      if (direction === 1) {
+        play();
+      } else if (video.readyState >= 2) {
+        markReady();
+        publishStatus('playing');
+        schedule();
+      }
     },
     retry() {
-      play();
+      if (direction === 1) play();
+      else if (active && video.readyState >= 2) {
+        markReady();
+        publishStatus('playing');
+        schedule();
+      }
     },
     reset(endpoint = 0) {
       if (disposed) return;
       stopCurrentRun();
+      direction = endpoint === 1 ? -1 : 1;
+      reverseProgress = endpoint;
+      reverseElapsedMs = endpoint === 1 ? 0 : duration * 1000;
       try {
         video.currentTime = endpoint === 1 ? duration : 0;
       } catch {
@@ -282,6 +356,7 @@ export function createGroup45NativeAutoplay(
       video.removeEventListener('error', onMediaError);
       visibilityDocument?.removeEventListener('visibilitychange', onVisibilityChange);
       delete video.dataset.phoneGroup45Autoplay;
+      delete video.dataset.phoneGroup45AutoplayDirection;
       delete video.dataset.phoneGroup45AutoplayProgress;
       delete video.dataset.phoneGroup45FrameReady;
     }

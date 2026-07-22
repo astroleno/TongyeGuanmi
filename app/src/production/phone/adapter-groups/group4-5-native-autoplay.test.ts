@@ -12,6 +12,7 @@ class FakeVideo extends EventTarget {
   playsInline = false;
   preload = 'metadata';
   readyState = 0;
+  seeking = false;
   readonly dataset: Record<string, string> = {};
   readonly pause = vi.fn(() => {
     this.paused = true;
@@ -131,6 +132,43 @@ describe('Group 4–5 native autoplay', () => {
     controller.reset(1);
     expect(progress.at(-1)).toBe(1);
     expect(video.play).not.toHaveBeenCalled();
+
+    controller.dispose();
+  });
+
+  it('runs the short source backward on a decoder-safe canonical clock', () => {
+    const video = new FakeVideo();
+    video.readyState = 2;
+    const progress: Array<readonly [number, 1 | -1]> = [];
+    const completed = vi.fn();
+    const callbacks: FrameRequestCallback[] = [];
+    const controller = createGroup45NativeAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 2.5,
+        onProgress: (value, direction) => progress.push([value, direction]),
+        onComplete: completed,
+        requestFrame: (callback) => {
+          callbacks.push(callback);
+          return callbacks.length;
+        },
+        cancelFrame: vi.fn()
+      }
+    );
+
+    controller.start(-1);
+    expect(video.play).not.toHaveBeenCalled();
+    expect(video.currentTime).toBe(2.5);
+    callbacks.shift()?.(0);
+    callbacks.shift()?.(1250);
+    expect(progress.at(-1)).toEqual([.5, -1]);
+    // The scene's shared timeline driver owns intermediate reverse seeks.
+    // The clock must not race it by mutating currentTime every rAF.
+    expect(video.currentTime).toBe(2.5);
+    callbacks.shift()?.(2500);
+    expect(progress.at(-1)).toEqual([0, -1]);
+    expect(completed).toHaveBeenCalledWith(-1);
+    expect(controller.active).toBe(false);
 
     controller.dispose();
   });

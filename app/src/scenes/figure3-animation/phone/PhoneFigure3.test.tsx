@@ -28,7 +28,9 @@ describe('PhoneFigure3', () => {
   it('uses stable endpoints for media failure and reduced motion', () => {
     expect(phoneFigure3Frame(0.5)).toMatchObject({
       progress: 0.5,
-      videoOpacity: 1
+      videoOpacity: 1,
+      backdropOpacity: expect.any(Number),
+      backdropScale: expect.any(Number)
     });
     expect(phoneFigure3Frame(0.5, true)).toMatchObject({
       progress: 0,
@@ -43,9 +45,9 @@ describe('PhoneFigure3', () => {
   it('selects autonomous playback or deterministic endpoints from scroll state', () => {
     expect(phoneFigure3MediaAction(false, true)).toBe('hold-initial');
     expect(phoneFigure3MediaAction(true, true)).toBe('play-forward');
-    expect(phoneFigure3MediaAction(true, true, false, false, false, -1)).toBe('hold-initial');
+    expect(phoneFigure3MediaAction(true, true, false, false, false, -1)).toBe('play-reverse');
     expect(phoneFigure3MediaAction(false, true, false, false, true, 1)).toBe('hold-terminal');
-    expect(phoneFigure3MediaAction(false, true, false, false, true, -1)).toBe('hold-initial');
+    expect(phoneFigure3MediaAction(false, true, false, false, true, -1)).toBe('hold-terminal');
     expect(phoneFigure3MediaAction(false, false)).toBe('release');
   });
 

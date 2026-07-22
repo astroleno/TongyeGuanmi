@@ -1,16 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
   PHONE_SERVICES_TTG_DECISION,
+  PHONE_SERVICES_TTG_FIELD,
   phoneServicesTtgFrame
 } from './phone';
 
 describe('Phone Services → TTG transition', () => {
   it('records the reviewed endpoint/dissolve decision', () => {
     expect(PHONE_SERVICES_TTG_DECISION).toMatchObject({
-      strategy: 'endpoint-dissolve',
-      camera: 'none',
+      strategy: 'validated-phone-ink',
+      camera: 'star-map-aod-bottom-to-top-field',
+      fallback: 'stable-endpoint-dissolve',
       forwardEndpoint: 'ttg-animation:stable-initial-frame',
       reverseEndpoint: 'services:reading-end'
+    });
+    expect(PHONE_SERVICES_TTG_FIELD).toMatchObject({
+      kind: 'horizontal',
+      direction: 'bottom-to-top'
     });
   });
 

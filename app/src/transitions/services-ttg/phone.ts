@@ -1,4 +1,5 @@
 import {
+  createElement,
   forwardRef,
   useCallback,
   useImperativeHandle,
@@ -8,14 +9,25 @@ import {
 import type {
   Group45PhoneTransitionProps
 } from '../../production/phone/adapter-groups/group4-5';
+import {
+  createPhoneInkTransition,
+  type PhoneInkTransition
+} from '../../production/phone/phone-ink';
 import type { TransitionPresentationAdapterHandle } from '../../story/presentation';
 
+export const PHONE_SERVICES_TTG_FIELD = {
+  kind: 'horizontal',
+  direction: 'bottom-to-top',
+  seed: 'services-ttg-phone-r5'
+} as const;
+
 export const PHONE_SERVICES_TTG_DECISION = {
-  strategy: 'endpoint-dissolve',
-  camera: 'none',
+  strategy: 'validated-phone-ink',
+  camera: 'star-map-aod-bottom-to-top-field',
+  fallback: 'stable-endpoint-dissolve',
   forwardEndpoint: 'ttg-animation:stable-initial-frame',
   reverseEndpoint: 'services:reading-end',
-  rationale: 'Services is native reading content; endpoint dissolve preserves its scroll ownership and gives TTG one media owner.'
+  rationale: 'Reuse 4c659e3\'s accepted bottom-to-top phone ink field while Services remains the native document owner and TTG remains the sole visual owner.'
 } as const;
 
 export type PhoneServicesTtgFrame = Readonly<{
@@ -41,41 +53,11 @@ export function phoneServicesTtgFrame(
   return { progress, fromOpacity: 1 - progress, toOpacity: progress };
 }
 
-function applyEndpoint(
-  element: HTMLElement | null,
-  opacity: number,
-  id: 'services-ttg',
-  documentFlow = false
-): void {
-  if (!element) return;
-  if (documentFlow) {
-    element.dataset.phoneDissolve = id;
-    element.dataset.phoneDissolveOpacity = opacity.toFixed(4);
-    return;
-  }
-  const visible = opacity > 0.001;
-  element.style.opacity = opacity.toFixed(4);
-  element.style.visibility = visible ? 'visible' : 'hidden';
-  element.style.pointerEvents = visible ? 'auto' : 'none';
-  element.inert = !visible;
-  element.dataset.phoneDissolve = id;
-}
-
-function clearEndpoint(element: HTMLElement | null, documentFlow = false): void {
-  if (!element) return;
-  if (documentFlow) {
-    delete element.dataset.phoneDissolve;
-    delete element.dataset.phoneDissolveOpacity;
-    return;
-  }
-  element.style.removeProperty('opacity');
-  element.style.removeProperty('visibility');
-  element.style.removeProperty('pointer-events');
-  element.inert = false;
-  delete element.dataset.phoneDissolve;
-}
-
-/** Stable Services/TTG endpoints, intentionally without a new camera track. */
+/**
+ * Services → TTG reuses the physical-iPhone-approved Star-map → AOD field.
+ * The tall Services article is never clipped as a desktop-sized layer; the
+ * fixed TTG receiver alone owns the reveal boundary over the live document.
+ */
 export const PhoneServicesTtgTransition = forwardRef<
   TransitionPresentationAdapterHandle,
   Group45PhoneTransitionProps
@@ -83,41 +65,72 @@ export const PhoneServicesTtgTransition = forwardRef<
   { host, from, to, reducedMotion, documentFlow = false, onReady },
   forwardedRef
 ) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const transitionRef = useRef<PhoneInkTransition | null>(null);
   const progressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
+
   const render = useCallback((rawProgress: number) => {
-    const progress = clamp(rawProgress);
-    if (progress > progressRef.current + 0.0001) directionRef.current = 1;
-    if (progress < progressRef.current - 0.0001) directionRef.current = -1;
-    progressRef.current = progress;
+    const nextProgress = clamp(rawProgress);
+    if (nextProgress > progressRef.current + .0001) directionRef.current = 1;
+    if (nextProgress < progressRef.current - .0001) directionRef.current = -1;
+    progressRef.current = nextProgress;
     const mediaFailed = from?.dataset.phoneMediaState === 'fallback'
       || to?.dataset.phoneMediaState === 'fallback';
     const frame = phoneServicesTtgFrame(
-      progress,
+      nextProgress,
       reducedMotion,
       mediaFailed,
       directionRef.current
     );
+    transitionRef.current?.render(frame.progress);
     if (host) {
-      host.dataset.phoneTransition = 'services-ttg:endpoint-dissolve';
+      host.dataset.phoneTransition = 'services-ttg:validated-phone-ink';
       host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
     }
-    applyEndpoint(from, frame.fromOpacity, 'services-ttg', documentFlow);
-    applyEndpoint(to, frame.toOpacity, 'services-ttg', documentFlow);
-  }, [documentFlow, from, host, reducedMotion, to]);
+    if (from) {
+      from.dataset.phoneInkSource = 'services-ttg';
+      from.dataset.phoneInkSourceOpacity = frame.fromOpacity.toFixed(4);
+    }
+    if (to) {
+      to.dataset.phoneInkReceiver = 'services-ttg';
+      to.dataset.phoneInkReceiverOpacity = frame.toOpacity.toFixed(4);
+    }
+  }, [from, host, reducedMotion, to]);
 
   useLayoutEffect(() => {
-    render(0);
+    const canvas = canvasRef.current;
+    if (!host || !to || !canvas) return;
+    const transition = createPhoneInkTransition({
+      host,
+      canvas,
+      id: 'phone-services-ttg',
+      // A native document chapter is taller than the fixed stage. Revealing
+      // only the receiver preserves the same contour without scaling or
+      // clipping the Services accessibility tree as a visual layer.
+      from: documentFlow ? null : from,
+      to,
+      field: PHONE_SERVICES_TTG_FIELD,
+      grade: 'edge-bright'
+    });
+    transitionRef.current = transition;
+    render(reducedMotion ? 1 : 0);
     onReady?.();
     return () => {
-      clearEndpoint(from, documentFlow);
-      clearEndpoint(to, documentFlow);
-      if (host?.dataset.phoneTransition?.startsWith('services-ttg:')) {
+      transition.dispose();
+      if (transitionRef.current === transition) transitionRef.current = null;
+      if (from) {
+        delete from.dataset.phoneInkSource;
+        delete from.dataset.phoneInkSourceOpacity;
+      }
+      delete to.dataset.phoneInkReceiver;
+      delete to.dataset.phoneInkReceiverOpacity;
+      if (host.dataset.phoneTransition?.startsWith('services-ttg:')) {
         delete host.dataset.phoneTransition;
         delete host.dataset.phoneTransitionProgress;
       }
     };
-  }, [documentFlow, from, host, onReady, render, to]);
+  }, [documentFlow, from, host, onReady, reducedMotion, render, to]);
 
   useImperativeHandle(forwardedRef, () => ({
     render,
@@ -131,15 +144,20 @@ export const PhoneServicesTtgTransition = forwardRef<
     },
     reverse() {
       directionRef.current = -1;
-      render(0);
+      render(1);
     },
     dispose() {
-      clearEndpoint(from, documentFlow);
-      clearEndpoint(to, documentFlow);
+      transitionRef.current?.dispose();
+      transitionRef.current = null;
     }
-  }), [documentFlow, from, render, to]);
+  }), [render]);
 
-  return null;
+  return createElement('canvas', {
+    ref: canvasRef,
+    className: 'portrait-scroll-spike__ink phone-services-ttg__ink',
+    'data-portrait-ink': 'services-ttg',
+    'aria-hidden': 'true'
+  });
 });
 
 export default PhoneServicesTtgTransition;

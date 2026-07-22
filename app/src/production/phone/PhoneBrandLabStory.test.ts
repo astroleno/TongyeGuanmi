@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   phoneGroup45BoundaryProgress,
+  phoneGroup45CrossedVisualEnd,
   phoneGroup45CrossedVisualStart,
   phoneGroup45DocumentFlags,
   phoneGroup45EntryFromHash,
@@ -34,7 +35,8 @@ describe('PhoneBrandLabStory', () => {
     expect(phoneGroup45TrackProgress(-400, 1600, 800)).toBe(0.5);
     expect(phoneGroup45TrackProgress(-800, 1600, 800)).toBe(1);
     expect(phoneGroup45BoundaryProgress(800, 1200, 800)).toBe(0);
-    expect(phoneGroup45BoundaryProgress(608, 1200, 800)).toBe(1);
+    expect(phoneGroup45BoundaryProgress(340, 1200, 800)).toBe(.5);
+    expect(phoneGroup45BoundaryProgress(0, 1200, 800)).toBe(1);
   });
 
   it('keeps a visual chapter out of autoplay until it owns the screen', () => {
@@ -59,8 +61,15 @@ describe('PhoneBrandLabStory', () => {
       active: false,
       progress: 0
     });
-    expect(phoneGroup45CrossedVisualStart(0, 900, -56, 844)).toBe(true);
-    expect(phoneGroup45CrossedVisualStart(900, 940, -96, 844)).toBe(false);
+    expect(phoneGroup45CrossedVisualStart(0, 900, -56)).toBe(true);
+    expect(phoneGroup45CrossedVisualStart(900, 940, -96)).toBe(false);
+    expect(phoneGroup45CrossedVisualEnd(
+      1744,
+      1700,
+      -800,
+      844,
+      844
+    )).toBe(true);
   });
 
 });
