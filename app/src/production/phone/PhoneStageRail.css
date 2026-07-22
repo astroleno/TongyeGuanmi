@@ -1,4 +1,8 @@
-/* The document rail owns distance; one persistent host owns every scene edge. */
+/* The document rail owns distance; its visual host is a flow-independent sibling. */
+.portrait-scroll-spike {
+  position: relative;
+}
+
 .portrait-scroll-spike__stage-rail {
   position: relative;
   width: 100%;
@@ -21,17 +25,17 @@
 }
 
 /*
- * A cold navigation commits one non-viewport-constrained absolute layer
- * before registering the viewport-sized fixed container. This gives WebKit a
- * post-Hero edge update without changing geometry or adding a bottom overlay.
+ * v47 never exposes a viewport-sized fixed/sticky renderer to WebKit. GSAP's
+ * transform pin moves this absolute host for the full story scroll range.
  */
-.portrait-scroll-spike[data-portrait-fixed-stage="priming"] .portrait-scroll-spike__stage {
+.portrait-scroll-spike[data-portrait-stage-pin="transform"] .portrait-scroll-spike__stage {
   position: absolute;
   top: 0;
   right: 0;
-  bottom: auto;
   left: 0;
   height: var(--portrait-stage-height);
+  background: var(--portrait-edge-surface);
+  will-change: transform;
 }
 
 /* The retained layout/coverage canvas is the only outer clipping boundary. */

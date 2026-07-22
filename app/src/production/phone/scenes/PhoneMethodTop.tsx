@@ -7,6 +7,7 @@ import {
   useRef,
   useState
 } from 'react';
+import { createPortal } from 'react-dom';
 import { METHOD_COPY } from '../../../story/copy';
 import { sceneFromHash } from '../../navigation';
 import type {
@@ -30,13 +31,40 @@ const METHOD_STEPS = Array.from({ length: 5 }, (_, index) => {
   };
 });
 
+type MethodBridgeProps = Readonly<{
+  location: 'flow' | 'stage';
+}>;
+
+const MethodBridge = forwardRef<HTMLDivElement, MethodBridgeProps>(
+  function MethodBridge({ location }, ref) {
+    return (
+      <div
+        ref={ref}
+        className="portrait-scroll-spike__reading-intro portrait-scroll-spike__method-bridge"
+        data-phone-method-bridge-location={location}
+        aria-hidden={location === 'stage' ? 'true' : undefined}
+      >
+        <div className="portrait-scroll-spike__method-bridge-content">
+          <span>{METHOD_TOP_COPY[0]}</span>
+          <h2 id={location === 'flow' ? 'portrait-spike-method-title' : undefined}>
+            <span>{METHOD_TOP_COPY[1]}</span>
+            <span>{METHOD_TOP_COPY[2]}</span>
+          </h2>
+          <p>{METHOD_TOP_COPY[3]}</p>
+        </div>
+      </div>
+    );
+  }
+);
+
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
 /**
- * Owns the fixed AOD bridge and the first continuous Method reading section.
- * AOD supplies canonical progress; this adapter alone renders Method visuals.
+ * Owns the AOD bridge and the first continuous Method reading section. v47
+ * mirrors the bridge into the transform-pinned stage while retaining the flow
+ * copy for the reading handoff. AOD remains the only progress owner.
  */
 export const PhoneMethodTop = forwardRef<
   PhoneSceneAdapterHandle,
@@ -46,6 +74,7 @@ export const PhoneMethodTop = forwardRef<
   motionDriver,
   onReady,
   stageHost,
+  stagePinMode,
   onGradeACheckpoint,
   onGradeASceneChange,
   onGradeAEdgeScene,
@@ -53,6 +82,7 @@ export const PhoneMethodTop = forwardRef<
 }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
   const bridgeRef = useRef<HTMLDivElement | null>(null);
+  const stageBridgeRef = useRef<HTMLDivElement | null>(null);
   const stepsRef = useRef<HTMLOListElement | null>(null);
   const gradeASlotRef = useRef<HTMLDivElement | null>(null);
   const [gradeARequested, setGradeARequested] = useState(false);
@@ -92,8 +122,6 @@ export const PhoneMethodTop = forwardRef<
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
     update(rawProgress) {
-      const bridge = bridgeRef.current;
-      if (!bridge) return;
       const progress = clamp(rawProgress);
       const ease = progress * progress * (3 - 2 * progress);
       const visible = progress > 0.001;
@@ -102,12 +130,15 @@ export const PhoneMethodTop = forwardRef<
         owner.dataset.portraitAodMethodVisible = String(visible);
         owner.dataset.portraitMethodEntrance = progress.toFixed(4);
       }
-      motionDriver.set(bridge, {
-        autoAlpha: ease,
-        y: 30 * (1 - ease),
-        filter: `blur(${((1 - ease) * 8).toFixed(2)}px)`
-      });
-      bridge.style.display = visible ? 'flex' : 'none';
+      for (const bridge of [bridgeRef.current, stageBridgeRef.current]) {
+        if (!bridge) continue;
+        motionDriver.set(bridge, {
+          autoAlpha: ease,
+          y: 30 * (1 - ease),
+          filter: `blur(${((1 - ease) * 8).toFixed(2)}px)`
+        });
+        bridge.style.display = visible ? 'flex' : 'none';
+      }
     },
     enter() {},
     leave() {},
@@ -123,19 +154,7 @@ export const PhoneMethodTop = forwardRef<
         className="portrait-scroll-spike__reading"
         aria-label="同野观幂 AI 落地五步"
       >
-        <div
-          ref={bridgeRef}
-          className="portrait-scroll-spike__reading-intro portrait-scroll-spike__method-bridge"
-        >
-          <div className="portrait-scroll-spike__method-bridge-content">
-            <span>{METHOD_TOP_COPY[0]}</span>
-            <h2 id="portrait-spike-method-title">
-              <span>{METHOD_TOP_COPY[1]}</span>
-              <span>{METHOD_TOP_COPY[2]}</span>
-            </h2>
-            <p>{METHOD_TOP_COPY[3]}</p>
-          </div>
-        </div>
+        <MethodBridge ref={bridgeRef} location="flow" />
         <ol
           ref={stepsRef}
           className="portrait-scroll-spike__steps"
@@ -150,6 +169,12 @@ export const PhoneMethodTop = forwardRef<
           ))}
         </ol>
       </section>
+      {stagePinMode === 'transform' && stageHost
+        ? createPortal(
+            <MethodBridge ref={stageBridgeRef} location="stage" />,
+            stageHost
+          )
+        : null}
       <div
         ref={gradeASlotRef}
         className="phone-grade-a-slot"

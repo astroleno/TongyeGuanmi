@@ -16,7 +16,12 @@ export function PhoneStageRail({
   children
 }: PhoneStageRailProps) {
   return (
-    <section ref={railRef} className="portrait-scroll-spike__stage-rail">
+    <>
+      <section
+        ref={railRef}
+        className="portrait-scroll-spike__stage-rail"
+        aria-hidden="true"
+      />
       <section
         ref={viewportRef}
         className="portrait-scroll-spike__stage"
@@ -27,6 +32,6 @@ export function PhoneStageRail({
           {children}
         </div>
       </section>
-    </section>
+    </>
   );
 }

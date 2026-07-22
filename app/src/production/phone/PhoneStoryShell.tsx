@@ -17,7 +17,11 @@ import {
 } from './usePhoneStageRuntime';
 import { usePhoneFrontHalfAdapters } from './usePhoneFrontHalfAdapters';
 import { usePhoneEdgeSurface } from './usePhoneEdgeSurface';
-import { usePhoneFixedStageRegistration } from './usePhoneFixedStageRegistration';
+import {
+  phoneStageAnimation,
+  usePhoneStagePinMode,
+  type PhoneStoryShellProps
+} from './phone-stage-pin';
 import { usePhoneViewportGeometry } from './usePhoneViewportGeometry';
 import type {
   PhoneAodAdapterHandle,
@@ -27,7 +31,6 @@ import type {
 } from './types';
 import './PhoneStoryShell.css';
 const ZERO_METHOD_PROGRESS = () => 0;
-
 /**
  * The physical-device validation route keeps requested motion on by default.
  * `?portrait-spike-motion=reduce` is the explicit low-motion comparison.
@@ -37,11 +40,6 @@ function portraitSpikeMotionEnabled(): boolean {
   return new URLSearchParams(window.location.search)
     .get('portrait-spike-motion') !== 'reduce';
 }
-export type PhoneStoryShellProps = Readonly<{
-  /** Short numbered routes remain physical-device comparison entries. */
-  validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45' | 'v46';
-}>;
-
 /**
  * Production Route B phone shell. It owns only document geometry,
  * navigation, checkpoints, and adapter binding; Loader → Method visual/media
@@ -49,6 +47,7 @@ export type PhoneStoryShellProps = Readonly<{
  */
 export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const motionEnabled = portraitSpikeMotionEnabled();
+  const stagePinMode = usePhoneStagePinMode(props.validationMode);
   const [loaderHidden, setLoaderHidden] = useState(phoneLoaderCompletedInDocument);
   const frontHalf = usePhoneFrontHalfAdapters(loaderHidden, setLoaderHidden);
   const {
@@ -76,7 +75,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [navigationScene, setNavigationScene] = useState<SceneId>('hero');
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
   const [adapterRevision, setAdapterRevision] = useState(0);
-  const fixedStageRegistered = usePhoneFixedStageRegistration(loaderHidden && ready);
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
   const stageViewportRef = useRef<HTMLElement | null>(null);
@@ -181,6 +179,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const runtime = usePhoneStageRuntime({
     rootRef,
     railRef: stageRailRef,
+    viewportRef: stageViewportRef,
     stageRef,
     heroRef: heroAdapterRef,
     patternRef: patternAdapterRef,
@@ -190,8 +189,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     heroPatternRef: heroPatternAdapterRef,
     patternStarMapRef: patternStarMapAdapterRef,
     starMapAodRef: starMapAodAdapterRef,
-    enabled: fixedStageRegistered && loaderHidden
-      && ready
+    enabled: loaderHidden && ready
       && aodAlphaEndProgress !== undefined
       && !staticFallback,
     reducedMotion: !motionEnabled,
@@ -200,7 +198,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     mapAodToMethod,
     onCheckpoint: publishCheckpoint,
     onNavigationScene: setNavigationScene,
-    onEdgeScene: publishEdgeScene
+    onEdgeScene: publishEdgeScene,
+    stagePinMode
   });
 
   return (
@@ -209,9 +208,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       className="portrait-scroll-spike"
       data-portrait-spike-route="b"
       data-portrait-spike-media="figure1-packed-alpha-pattern-bloom-star-perlin-aod-packed-alpha-autoplay"
-      data-portrait-spike-animation="gsap-scrolltrigger-native-fixed-stage"
+      data-portrait-spike-animation={phoneStageAnimation(stagePinMode)}
       data-portrait-spike-motion={motionEnabled ? 'force' : 'reduce'}
-      data-portrait-fixed-stage={fixedStageRegistered ? 'registered' : 'priming'}
+      data-portrait-stage-pin={stagePinMode}
       data-portrait-loader-ready={String(loaderHidden)}
       data-phone-validation-mode={props.validationMode}
       data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}
@@ -305,6 +304,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           reducedMotion={!motionEnabled}
           motionDriver={phoneMotionDriver}
           stageHost={stageHost}
+          stagePinMode={stagePinMode}
           onGradeACheckpoint={publishCheckpoint}
           onGradeASceneChange={setNavigationScene}
           onGradeAEdgeScene={publishEdgeScene}

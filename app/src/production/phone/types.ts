@@ -19,6 +19,7 @@ import type { SceneId } from '../../story/types';
 import type { PhoneEdgeScene } from './phone-edge-surface';
 
 export type PhoneStageSceneId = 'hero' | 'pattern' | 'star-map' | 'aod-animation';
+export type PhoneStagePinMode = 'native-fixed' | 'transform';
 export type PhoneSceneAdapterId =
   | PhoneStageSceneId
   | 'method-top'
@@ -75,6 +76,7 @@ export type PhonePatternAdapterProps = PhoneSceneAdapterProps & Readonly<{
 
 export type PhoneMethodAdapterProps = PhonePatternAdapterProps & Readonly<{
   stageHost: HTMLElement | null;
+  stagePinMode: PhoneStagePinMode;
   onGradeACheckpoint?: (checkpoint: GradeACheckpointId) => void;
   onGradeASceneChange?: (scene: SceneId) => void;
   onGradeAEdgeScene?: (scene: PhoneEdgeScene) => void;

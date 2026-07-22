@@ -19,6 +19,7 @@ import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
   PhoneSceneAdapterHandle,
+  PhoneStagePinMode,
   PhoneTransitionAdapterHandle
 } from './types';
 
@@ -57,6 +58,7 @@ function requestPortraitFullscreen(root: HTMLElement): void {
 export type PhoneStageRuntimeOptions = Readonly<{
   rootRef: RefObject<HTMLElement | null>;
   railRef: RefObject<HTMLElement | null>;
+  viewportRef: RefObject<HTMLElement | null>;
   stageRef: RefObject<HTMLElement | null>;
   heroRef: RefObject<PhoneHeroAdapterHandle | null>;
   patternRef: RefObject<PhoneSceneAdapterHandle | null>;
@@ -74,6 +76,7 @@ export type PhoneStageRuntimeOptions = Readonly<{
   onCheckpoint(checkpoint: FrontHalfCheckpointId): void;
   onNavigationScene(scene: SceneId): void;
   onEdgeScene(scene: PhoneEdgeScene): void;
+  stagePinMode: PhoneStagePinMode;
 }>;
 
 export type PhoneStageRuntime = Readonly<{
@@ -107,7 +110,8 @@ export function usePhoneStageRuntime(
     if (!options.enabled) return;
     const root = options.rootRef.current;
     const stageRail = options.railRef.current;
-    const stage = options.stageRef.current;
+    const stageViewport = options.viewportRef.current;
+    const stageCanvas = options.stageRef.current;
     const heroAdapter = options.heroRef.current;
     const patternAdapter = options.patternRef.current;
     const starAdapter = options.starMapRef.current;
@@ -123,7 +127,8 @@ export function usePhoneStageRuntime(
     if (
       !root
       || !stageRail
-      || !stage
+      || !stageViewport
+      || !stageCanvas
       || !heroAdapter
       || !patternAdapter
       || !starAdapter
@@ -161,7 +166,9 @@ export function usePhoneStageRuntime(
     let currentNavigationScene: SceneId = 'hero';
 
     root.dataset.portraitSpikeMotionState = motionEnabled ? 'running' : 'reduced';
-    root.dataset.portraitStagePin = 'native-fixed-composite';
+    root.dataset.portraitStagePinState = options.stagePinMode === 'transform'
+      ? 'transform-scrolltrigger'
+      : 'native-fixed-composite';
     root.dataset.portraitStageActive = 'true';
     root.dataset.portraitAodRun = aodRunState;
     root.dataset.portraitAodMethodVisible = 'false';
@@ -532,8 +539,25 @@ export function usePhoneStageRuntime(
       );
       return Number.isFinite(configuredDistance) && configuredDistance > 0
         ? configuredDistance
-        : Math.max(1, stageRail.offsetHeight - stage.offsetHeight);
+        : Math.max(1, stageRail.offsetHeight - stageCanvas.offsetHeight);
     };
+    const stagePinTrigger = options.stagePinMode === 'transform'
+      ? ScrollTrigger.create({
+          id: 'portrait-spike-stage-transform-pin',
+          trigger: root,
+          start: 'top top',
+          end: () => `+=${Math.max(
+            1,
+            root.scrollHeight - stageViewport.offsetHeight
+          )}`,
+          pin: stageViewport,
+          pinSpacing: false,
+          pinType: 'transform',
+          anticipatePin: 1,
+          invalidateOnRefresh: true,
+          refreshPriority: 1
+        })
+      : undefined;
     const stageTrigger = ScrollTrigger.create({
       id: 'portrait-spike-stage',
       trigger: stageRail,
@@ -574,6 +598,7 @@ export function usePhoneStageRuntime(
       root.removeEventListener('pointercancel', clearReverseGesture);
       root.removeEventListener('click', onHeroClick);
       stageTrigger.kill();
+      stagePinTrigger?.kill();
       setHeroFigureActive(false);
       setPatternActive(false);
       setStarVisible(false);
@@ -581,7 +606,7 @@ export function usePhoneStageRuntime(
       aodScrollSnap.dispose();
       aodAdapter.resetAutoplay();
       delete root.dataset.portraitSpikeMotionState;
-      delete root.dataset.portraitStagePin;
+      delete root.dataset.portraitStagePinState;
       delete root.dataset.portraitStageActive;
       delete root.dataset.portraitStageOwner;
       delete root.dataset.portraitStageProgress;
@@ -602,7 +627,8 @@ export function usePhoneStageRuntime(
       options.enabled,
       options.mapAodToMethod,
       options.onEdgeScene,
-      options.reducedMotion
+      options.reducedMotion,
+      options.stagePinMode
     ],
     revertOnUpdate: true
   });

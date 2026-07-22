@@ -18,7 +18,7 @@
 }
 
 /*
- * The fixed Method bridge leaves normal flow while AOD owns the stage.
+ * The Method bridge leaves normal flow while AOD owns the stage.
  * Reserve its eventual viewport-height slot so Method steps cannot sit under
  * the Safari toolbar exclusion area and leak through the AOD surface.
  */
@@ -67,10 +67,28 @@
   will-change: transform, opacity, filter;
 }
 
-.portrait-scroll-spike[data-portrait-stage-active="true"] .portrait-scroll-spike__method-bridge {
+.portrait-scroll-spike[data-portrait-stage-pin="native-fixed"][data-portrait-stage-active="true"] .portrait-scroll-spike__method-bridge {
   position: fixed;
   z-index: 17;
   inset: 0;
+}
+
+.portrait-scroll-spike[data-portrait-stage-pin="transform"][data-portrait-stage-active="true"] .portrait-scroll-spike__reading > .portrait-scroll-spike__method-bridge {
+  position: relative;
+  visibility: hidden !important;
+}
+
+.portrait-scroll-spike[data-portrait-stage-pin="transform"] .portrait-scroll-spike__stage-canvas > .portrait-scroll-spike__method-bridge[data-phone-method-bridge-location="stage"] {
+  position: absolute;
+  z-index: 17;
+  inset: 0;
+  width: 100%;
+  min-height: var(--portrait-stage-height);
+  margin: 0;
+}
+
+.portrait-scroll-spike[data-portrait-stage-pin="transform"][data-portrait-stage-active="false"] .portrait-scroll-spike__stage-canvas > .portrait-scroll-spike__method-bridge[data-phone-method-bridge-location="stage"] {
+  display: none !important;
 }
 
 .portrait-scroll-spike[data-portrait-aod-method-visible="false"] .portrait-scroll-spike__method-bridge {
