@@ -8,7 +8,6 @@ import {
 } from '../../../transitions/__fixtures__/back-half.fixture';
 import {
   applyPhoneCraneMediaFallback,
-  isStaleCraneFramePreparation,
   parkPhoneCraneMedia,
   PHONE_CRANE_STABLE_HOLD_PROGRESS,
   PhoneCrane,
@@ -16,6 +15,14 @@ import {
 } from './PhoneCrane';
 
 const source = readFileSync(new URL('./PhoneCrane.tsx', import.meta.url), 'utf8');
+const autoplaySource = readFileSync(
+  new URL('./PhoneCrane.autoplay.ts', import.meta.url),
+  'utf8'
+);
+const motionSource = readFileSync(
+  new URL('./PhoneCrane.motion.ts', import.meta.url),
+  'utf8'
+);
 
 describe('PhoneCrane', () => {
   it('keeps one canonical Crane stage with two media surfaces', () => {
@@ -36,16 +43,16 @@ describe('PhoneCrane', () => {
     expect(phoneCranePresentationProgress(0.25)).toBe(0.25);
   });
 
-  it('uses an adapter-owned auto clock and native forward media', () => {
-    expect(source).toContain('createPhoneCraneAutoplay');
-    expect(source).toContain('nativePlayback: directionRef.current === 1');
-    expect(source).not.toContain('nativePlayback: false');
+  it('reuses AOD native clocks with the authored half-second media stagger', () => {
+    expect(autoplaySource).toContain('createPhoneNativeAutoplay');
+    expect(autoplaySource).toContain('FIGURE_START_SECONDS = 0.5');
+    expect(autoplaySource).toContain('figureClock.start()');
+    expect(motionSource).toContain('renderPhoneCranePresentation');
+    expect(motionSource).toContain("'endpoint-dissolve'");
+    expect(source).toContain("runId: 'phone-crane:stable-endpoint'");
+    expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
+    expect(autoplaySource).not.toContain('nativeGate');
     expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(0.42);
-  });
-
-  it('does not mistake a superseded scroll seek for a media failure', () => {
-    expect(isStaleCraneFramePreparation(new Error('Crane media stale'))).toBe(true);
-    expect(isStaleCraneFramePreparation(new Error('media element failed'))).toBe(false);
   });
 
   it('keeps the static Crane layers on media failure and retires both videos', () => {

@@ -30,6 +30,10 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   background: #e9e1ce;
 }
 
+.phone-lab-contact[data-phone-lab-contact-snap="locked"] {
+  overscroll-behavior-y: none;
+}
+
 .phone-lab-contact__native,
 .phone-lab-contact__direct {
   position: relative;

@@ -55,8 +55,16 @@ describe('PhoneLabContactShell', () => {
 
   it('keeps cinematic stages in their own document blocks', () => {
     expect(shellCss).toContain('min-height: 200svh');
+    expect(shellCss).toContain('data-phone-lab-contact-snap="locked"');
     expect(shellCss).not.toContain('phone-lab-contact-arrival-overlap');
     expect(shellCss).not.toContain('margin-top: calc(-1 * var(--phone-lab-contact-stage-height))');
     expect(shellSource).toContain('!phInRange && !craneInRange && educationTop');
+  });
+
+  it('uses the production gesture unlock and local cinematic snap without blocking CTA ownership', () => {
+    expect(shellSource).toContain('attachStoryMediaUnlock(rootRef.current)');
+    expect(shellSource).toContain('createPhoneLabContactSnapLock');
+    expect(shellSource).toContain('PHONE_LAB_CONTACT_STOPS.sceneMotionEnd');
+    expect(shellSource).toContain('MOTION_LANE_EPSILON');
   });
 });

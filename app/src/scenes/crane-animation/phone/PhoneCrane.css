@@ -1,7 +1,8 @@
 .phone-crane {
   position: relative;
   width: 100%;
-  contain: layout paint;
+  overflow: visible;
+  contain: layout;
 }
 
 /*
@@ -25,14 +26,12 @@
   object-position: 50% 38%;
 }
 
-/* Keep the paper, arch, and cloud camera in-frame until native Contact owns
- * the next document block. The desktop exit is intentionally not reused as a
- * portrait camera because it leaves a blank stage before the Contact CTA. */
-.phone-crane .crane-layer--cloud-back,
-.phone-crane .crane-layer--arch,
-.phone-crane .crane-layer--cloud-front,
-.phone-crane .crane-layer--cloud-front-second {
-  transform: translate3d(-50%, 0, 0) !important;
+.phone-crane .crane-figure-video[data-phone-crane-frame-ready="true"] {
+  opacity: var(--crane-video-opacity);
+}
+
+.phone-crane .crane-figure-video--front[data-phone-crane-frame-ready="true"] {
+  opacity: var(--crane-flock-opacity);
 }
 
 .phone-crane [data-phone-crane-media="fallback"] [data-crane-figure-video],

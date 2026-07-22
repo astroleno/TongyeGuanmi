@@ -1,7 +1,70 @@
 .phone-ph {
   position: relative;
   width: 100%;
-  contain: layout paint;
+  overflow: visible;
+  contain: layout;
+}
+
+/*
+ * The authored foreground plate is intentionally alpha-cut, but a single
+ * plate becomes washed through against the taller phone sky. A matched matte
+ * sits behind it only on phone so the island retains its solid paper weight
+ * without touching the desktop asset or its compositing order.
+ */
+.phone-ph .ph-layer-stack::before,
+.phone-ph .ph-layer-stack::after {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: clamp(-126px, -11dvh, -76px);
+  width: max(124vw, 1280px);
+  aspect-ratio: 16 / 9;
+  content: '';
+  pointer-events: none;
+  transform: translate3d(
+    -50%,
+    calc(var(--ph-front-base-y) + var(--ph-front-parallax-y)),
+    0
+  );
+  transform-origin: 50% 86%;
+}
+
+/* Figure2 uses a permanent opening poster beneath its decoded figure. PH uses
+ * the same stable-underlay rule: one paper matte plus the authored plate keeps
+ * the island solid even while Safari is still publishing the alpha video. */
+.phone-ph .ph-layer-stack::before {
+  background: #c9b797;
+  -webkit-mask: var(--phone-ph-island-source) 50% 50% / 100% 100% no-repeat;
+  mask: var(--phone-ph-island-source) 50% 50% / 100% 100% no-repeat;
+  filter: contrast(1.18);
+}
+
+.phone-ph .ph-layer-stack::after {
+  background: var(--phone-ph-island-source) 50% 50% / 100% 100% no-repeat;
+  filter: contrast(1.08) saturate(1.1) brightness(.95);
+}
+
+.phone-ph .ph-layer--front {
+  opacity: 1;
+  mix-blend-mode: normal;
+  filter: contrast(1.05) saturate(1.06) brightness(.98);
+}
+
+@media (max-width: 860px) {
+  .phone-ph .ph-layer-stack::before,
+  .phone-ph .ph-layer-stack::after {
+    bottom: 4px;
+    width: max(146vw, 1200px);
+  }
+}
+
+@media (max-width: 560px) {
+  .phone-ph .ph-layer-stack::before,
+  .phone-ph .ph-layer-stack::after {
+    left: 48%;
+    bottom: clamp(102px, 17dvh, 148px);
+    width: 246vw;
+  }
 }
 
 .phone-ph [data-phone-ph-media="fallback"] [data-ph-alpha-video],

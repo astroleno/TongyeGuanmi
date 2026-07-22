@@ -7,6 +7,7 @@ import {
 } from 'react';
 import type { SceneId } from '../../story/types';
 import { StoryNav } from '../StoryNav';
+import { attachStoryMediaUnlock } from '../mobile-media-unlock';
 import { hashForScene, publicMenuItems, sceneFromHash } from '../navigation';
 import {
   loadLabContactPhoneSceneAdapter
@@ -22,9 +23,16 @@ import {
   type LabContactTransitionId
 } from './lab-contact-types';
 import {
+  PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
+  PHONE_LAB_CONTACT_STOPS,
+  type PhoneLabContactAutoplayEventDetail,
   phoneLabContactPhaseFrame,
   phoneLabContactScrollProgress
 } from './phone-lab-contact-timeline';
+import {
+  createPhoneLabContactSnapLock,
+  type PhoneLabContactSnapLock
+} from './phone-lab-contact-snap-lock';
 import { usePhoneAdapterHandleRef } from './phone-adapter-binding';
 import type {
   PhoneSceneAdapterComponent,
@@ -40,6 +48,11 @@ type LifecycleState = Readonly<{
   handle: PhoneSceneAdapterHandle;
   active: boolean;
 }>;
+
+// A physical phone scroll position is integer-pixel, while the phase stops
+// are fractional. Keep a small lane tolerance so the snap anchor cannot
+// immediately retire its own just-started adapter through rounding.
+const MOTION_LANE_EPSILON = 0.005;
 
 function isLabContactScene(scene: SceneId | undefined): scene is LabContactSceneId {
   return Boolean(scene && labContactPhoneSceneAdapterIds.includes(scene as LabContactSceneId));
@@ -105,13 +118,18 @@ function syncSceneLifecycle(
   states: Map<LabContactSceneId, LifecycleState>,
   scene: LabContactSceneId,
   handle: PhoneSceneAdapterHandle | null,
-  active: boolean
+  active: boolean,
+  direction: 1 | -1 = 1
 ): void {
   if (!handle) return;
   const previous = states.get(scene);
   if (previous?.handle === handle && previous.active === active) return;
-  if (active) handle.enter?.();
-  else handle.leave?.();
+  if (active) {
+    if (direction === -1 && handle.reverse) handle.reverse();
+    else handle.enter?.();
+  } else {
+    handle.leave?.();
+  }
   states.set(scene, { handle, active });
 }
 
@@ -244,6 +262,8 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   const educationSlotRef = useRef<HTMLElement | null>(null);
   const contactSlotRef = useRef<HTMLElement | null>(null);
   const lifecycleStates = useRef(new Map<LabContactSceneId, LifecycleState>());
+  const lastScrollYRef = useRef(0);
+  const snapLockRef = useRef<PhoneLabContactSnapLock | null>(null);
   const currentNavigationScene = useRef<SceneId>(entryScene);
   const currentActiveScene = useRef<LabContactSceneId>(entryScene);
   const motionEnabled = phoneMotionEnabled();
@@ -310,6 +330,63 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     };
   }, []);
 
+  // Keep the physical iOS media-unlock path identical to the production
+  // phone shell. Lazy PH/Crane videos can otherwise miss the touch that
+  // crosses their cinematic threshold on Safari.
+  useEffect(() => attachStoryMediaUnlock(rootRef.current), []);
+
+  useEffect(() => {
+    if (!fullJourney || reducedMotion) return;
+    const root = rootRef.current;
+    if (!root) return;
+    const snapLock = createPhoneLabContactSnapLock({
+      root,
+      getScrollY: () => window.scrollY,
+      scrollTo: (y) => window.scrollTo({ top: y, left: 0, behavior: 'auto' })
+    });
+    snapLockRef.current = snapLock;
+    let lockedScene: PhoneLabContactAutoplayEventDetail['scene'] | null = null;
+
+    const onAutoplay = (event: Event) => {
+      const detail = (event as CustomEvent<PhoneLabContactAutoplayEventDetail>).detail;
+      if (
+        !detail
+        || (detail.scene !== 'ph-animation' && detail.scene !== 'crane-animation')
+      ) {
+        return;
+      }
+      if (detail.phase === 'start') {
+        lockedScene = detail.scene;
+        const phase = detail.scene === 'ph-animation'
+          ? phPhaseRef.current
+          : cranePhaseRef.current;
+        if (!phase) return;
+        const phaseTop = phase.getBoundingClientRect().top + window.scrollY;
+        const distance = Math.max(1, phase.offsetHeight - window.innerHeight);
+        const phaseProgress = detail.direction === 1
+          ? PHONE_LAB_CONTACT_STOPS.handoffEnd
+          : PHONE_LAB_CONTACT_STOPS.sceneMotionEnd;
+        snapLock.lock(phaseTop + distance * phaseProgress);
+        root.dataset.phoneLabContactSnapScene = detail.scene;
+        return;
+      }
+      if (lockedScene === detail.scene) {
+        snapLock.release();
+        lockedScene = null;
+        delete root.dataset.phoneLabContactSnapScene;
+      }
+    };
+
+    root.addEventListener(PHONE_LAB_CONTACT_AUTOPLAY_EVENT, onAutoplay);
+    return () => {
+      root.removeEventListener(PHONE_LAB_CONTACT_AUTOPLAY_EVENT, onAutoplay);
+      snapLock.release();
+      snapLock.dispose();
+      if (snapLockRef.current === snapLock) snapLockRef.current = null;
+      delete root.dataset.phoneLabContactSnapScene;
+    };
+  }, [fullJourney, reducedMotion]);
+
   useEffect(() => {
     const onHashChange = () => {
       const next = entrySceneFromHash();
@@ -359,6 +436,11 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     const render = () => {
       frame = 0;
       const viewportHeight = Math.max(1, window.innerHeight);
+      const scrollY = window.scrollY;
+      const scrollDirection: 1 | -1 = scrollY < lastScrollYRef.current - 1
+        ? -1
+        : 1;
+      lastScrollYRef.current = scrollY;
       const phPhase = phPhaseRef.current;
       const cranePhase = cranePhaseRef.current;
       const educationSlot = educationSlotRef.current;
@@ -415,7 +497,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           lifecycleStates.current,
           'ph-animation',
           ph,
-          phFrame.stageActive && phFrame.handoffProgress >= 1 - 0.001
+          phFrame.stageActive
+            && phFrame.handoffProgress >= 1 - MOTION_LANE_EPSILON
+            && phFrame.arrivalProgress <= MOTION_LANE_EPSILON,
+          scrollDirection
         );
         syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
@@ -454,7 +539,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           lifecycleStates.current,
           'crane-animation',
           crane,
-          craneFrame.stageActive && craneFrame.handoffProgress >= 1 - 0.001
+          craneFrame.stageActive
+            && craneFrame.handoffProgress >= 1 - MOTION_LANE_EPSILON
+            && craneFrame.arrivalProgress <= MOTION_LANE_EPSILON,
+          scrollDirection
         );
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
 

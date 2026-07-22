@@ -14,6 +14,10 @@ import {
 } from './PhonePh';
 
 const source = readFileSync(new URL('./PhonePh.tsx', import.meta.url), 'utf8');
+const nativeClockSource = readFileSync(
+  new URL('../../../production/phone/phone-native-autoplay.ts', import.meta.url),
+  'utf8'
+);
 
 describe('PhonePh', () => {
   it('keeps one canonical PH visual/media owner', () => {
@@ -34,9 +38,13 @@ describe('PhonePh', () => {
     expect(phonePhPresentationProgress(0.75)).toBe(0.75);
   });
 
-  it('starts the canonical media clock instead of seeking from scroll samples', () => {
-    expect(source).toContain('createPhonePhAutoplay');
-    expect(source).toContain('renderPhAnimationProgress(root, progress, { mediaRun })');
+  it('reuses the AOD native-time policy and Figure2 stable-underlay policy', () => {
+    expect(source).toContain('createPhoneNativeAutoplay');
+    expect(source).toContain('PH_FIGURE_END_SECONDS');
+    expect(source).toContain('createPhonePhReverseDissolve');
+    expect(source).toContain("'endpoint-dissolve'");
+    expect(nativeClockSource).toContain('video.currentTime / duration');
+    expect(nativeClockSource).toContain("video.addEventListener('timeupdate'");
     expect(source).not.toContain('driveTimelineVideo');
     expect(source).not.toContain("mode: 'timeline'");
   });
