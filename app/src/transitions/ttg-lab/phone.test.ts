@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PHONE_TTG_LAB_DECISION,
+  phoneTtgLabBridgeY,
   phoneTtgLabFrame
 } from './phone';
 import { PHONE_TTG_LAB_ANIMATION_STOP } from '../../scenes/ttg-animation/phone/motion';
@@ -39,6 +40,11 @@ describe('Phone TTG → Lab transition', () => {
       fromOpacity: 1,
       toOpacity: 0
     });
+  });
+
+  it('anchors the same Lab root at its real viewport position on reverse', () => {
+    expect(phoneTtgLabBridgeY(1)).toContain('-1 * var(--portrait-stage-height');
+    expect(phoneTtgLabBridgeY(-1)).toBe('0px');
   });
 
   it('settles media failure and reduced motion without a replay hold', () => {

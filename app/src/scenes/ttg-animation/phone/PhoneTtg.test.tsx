@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   PhoneTtg,
   phoneTtgFrame,
+  phoneTtgHasReusableTerminalFrame,
   phoneTtgMediaAction,
   releasePhoneTtgVideo
 } from './PhoneTtg';
@@ -77,6 +78,23 @@ describe('PhoneTtg', () => {
     expect(phoneTtgMediaAction(false, true, false, false, true, 1)).toBe('hold-terminal');
     expect(phoneTtgMediaAction(false, true, false, false, true, -1)).toBe('hold-terminal');
     expect(phoneTtgMediaAction(false, false)).toBe('release');
+  });
+
+  it('reuses the retained physical terminal frame for Lab → TTG reverse', () => {
+    expect(phoneTtgHasReusableTerminalFrame({
+      currentTime: 2.467,
+      duration: 2.5,
+      readyState: 2,
+      seeking: false,
+      dataset: { phoneGroup45FrameReady: 'true' }
+    } as unknown as HTMLVideoElement)).toBe(true);
+    expect(phoneTtgHasReusableTerminalFrame({
+      currentTime: 0,
+      duration: 2.5,
+      readyState: 2,
+      seeking: false,
+      dataset: { phoneGroup45FrameReady: 'true' }
+    } as unknown as HTMLVideoElement)).toBe(false);
   });
 
   it('disposes the retired video source and decoder', () => {

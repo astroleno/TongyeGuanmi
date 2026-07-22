@@ -26,6 +26,12 @@ export type PhoneTtgLabFrame = Readonly<{
   toOpacity: number;
 }>;
 
+export function phoneTtgLabBridgeY(direction: 1 | -1): string {
+  return direction === 1
+    ? 'calc(-1 * var(--portrait-stage-height, 100lvh))'
+    : '0px';
+}
+
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
@@ -52,7 +58,8 @@ function applyEndpoint(
   opacity: number,
   id: 'ttg-lab',
   role: 'from' | 'to',
-  documentFlow = false
+  documentFlow = false,
+  direction: 1 | -1 = 1
 ): void {
   if (!element) return;
   if (documentFlow) {
@@ -67,9 +74,14 @@ function applyEndpoint(
         '--phone-ttg-lab-bridge-opacity',
         opacity.toFixed(4)
       );
+      element.style.setProperty(
+        '--phone-ttg-lab-bridge-y',
+        phoneTtgLabBridgeY(direction)
+      );
     } else {
       delete element.dataset.phoneTtgLabBridge;
       element.style.removeProperty('--phone-ttg-lab-bridge-opacity');
+      element.style.removeProperty('--phone-ttg-lab-bridge-y');
     }
     return;
   }
@@ -89,6 +101,7 @@ function clearEndpoint(element: HTMLElement | null, documentFlow = false): void 
     delete element.dataset.phoneTtgLabBridge;
     element.style.removeProperty('opacity');
     element.style.removeProperty('--phone-ttg-lab-bridge-opacity');
+    element.style.removeProperty('--phone-ttg-lab-bridge-y');
     return;
   }
   element.style.removeProperty('opacity');
@@ -125,8 +138,22 @@ export const PhoneTtgLabTransition = forwardRef<
       host.dataset.phoneTransition = 'ttg-lab:desktop-timed-dissolve';
       host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
     }
-    applyEndpoint(from, frame.fromOpacity, 'ttg-lab', 'from', documentFlow);
-    applyEndpoint(to, frame.toOpacity, 'ttg-lab', 'to', documentFlow);
+    applyEndpoint(
+      from,
+      frame.fromOpacity,
+      'ttg-lab',
+      'from',
+      documentFlow,
+      directionRef.current
+    );
+    applyEndpoint(
+      to,
+      frame.toOpacity,
+      'ttg-lab',
+      'to',
+      documentFlow,
+      directionRef.current
+    );
   }, [documentFlow, from, host, reducedMotion, to]);
 
   useLayoutEffect(() => {
@@ -146,16 +173,19 @@ export const PhoneTtgLabTransition = forwardRef<
     render,
     enter() {
       directionRef.current = 1;
+      progressRef.current = 0;
       render(0);
     },
     leave() {
       directionRef.current = 1;
+      progressRef.current = 1;
       render(1);
       clearEndpoint(from, documentFlow);
       clearEndpoint(to, documentFlow);
     },
     reverse() {
       directionRef.current = -1;
+      progressRef.current = 1;
       render(1);
     },
     dispose() {

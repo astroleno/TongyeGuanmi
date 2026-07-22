@@ -169,6 +169,21 @@ function ttgReverseMediaInput(
   };
 }
 
+export function phoneTtgHasReusableTerminalFrame(
+  video: Pick<
+    HTMLVideoElement,
+    'currentTime' | 'duration' | 'readyState' | 'seeking' | 'dataset'
+  >
+): boolean {
+  const terminal = Number.isFinite(video.duration) && video.duration > 0
+    ? Math.min(TTG_FIGURE_END_SECONDS, video.duration)
+    : TTG_FIGURE_END_SECONDS;
+  return video.dataset.phoneGroup45FrameReady === 'true'
+    && video.readyState >= 2
+    && !video.seeking
+    && Math.abs(video.currentTime - terminal) <= .08;
+}
+
 /**
  * TTG keeps one canonical media owner. Forward playback remains native; the
  * reverse leg prepares its terminal frame before Lab uncovers TTG, then uses
@@ -392,21 +407,40 @@ export const PhoneTtg = forwardRef<
       failMedia();
       return;
     }
-    playback.reset(1);
+    const retainedTerminal = phoneTtgHasReusableTerminalFrame(video);
     publishChapterProgress(1, -1);
     rootRef.current?.setAttribute(
       'data-phone-ttg-playback',
-      'preparing-reverse-terminal'
+      retainedTerminal
+        ? 'retained-reverse-terminal'
+        : 'preparing-reverse-terminal'
     );
+    if (retainedTerminal) {
+      // Figure2 retains its presented endpoint across the following chapter.
+      // Keep that physical frame under Lab, dissolve the same Lab root away,
+      // then start reverse without remounting or re-seeking before the reveal.
+      runChapterDissolve(-1, generation, () => {
+        if (
+          mediaRetiringRef.current
+          || generation !== runGenerationRef.current
+        ) return;
+        playback.start(-1);
+      });
+      return;
+    }
+    playback.reset(1);
     void prepareTimelineVideoFrame(
       video,
       ttgReverseMediaInput(reverseRunIdRef.current, 1)
     ).then((result) => {
       if (
-        result?.status !== 'ready'
-        || mediaRetiringRef.current
+        mediaRetiringRef.current
         || generation !== runGenerationRef.current
       ) return;
+      if (result?.status !== 'ready') {
+        failMedia();
+        return;
+      }
       video.dataset.phoneGroup45FrameReady = 'true';
       runChapterDissolve(-1, generation, () => {
         if (
@@ -522,7 +556,15 @@ export const PhoneTtg = forwardRef<
             reverseVideo,
             ttgReverseMediaInput(reverseRunIdRef.current, 0)
           ).then((result) => {
-            if (result?.status !== 'ready') return;
+            if (
+              mediaRetiringRef.current
+              || completionGeneration !== runGenerationRef.current
+            ) return;
+            if (result?.status !== 'ready') {
+              failMedia();
+              return;
+            }
+            reverseVideo.dataset.phoneGroup45FrameReady = 'true';
             reportRunCompletion(-1, completionGeneration);
           }).catch(failMedia);
         },

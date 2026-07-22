@@ -86,6 +86,14 @@ export function phoneGroup45PhaseAfterVisualCompletion(
   return direction === 1 ? 'complete' : 'initial';
 }
 
+/** Figure2 keeps its adjacent terminal media parked for an immediate reverse.
+ * TTG follows that same rule until Lab hands ownership to the next unit. */
+export function phoneGroup45RetainsTtgTerminal(
+  phase: PhoneGroup45VisualRunPhase
+): boolean {
+  return phase === 'complete';
+}
+
 function isGroup45Scene(scene: SceneId | undefined): scene is Group45PhoneSceneId {
   return Boolean(scene && GROUP45_SCENES.has(scene as Group45PhoneSceneId));
 }
@@ -468,7 +476,10 @@ export function PhoneBrandLabStory({
           ttg: {
             ...current.ttg,
             active: false,
-            prewarm: direction === -1 && scene === 'ttg-animation'
+            prewarm: scene === 'ttg-animation'
+              && (direction === -1 || phoneGroup45RetainsTtgTerminal(
+                visualRunPhaseRef.current['ttg-animation']
+              ))
           }
         }));
       });
@@ -772,6 +783,9 @@ export function PhoneBrandLabStory({
           || ttgFrame.prewarm
           || ttgFrame.active
           || (servicesTtgProgress > .001 && (ttgRect?.top ?? -1) >= 0)
+          || phoneGroup45RetainsTtgTerminal(
+            visualRunPhaseRef.current['ttg-animation']
+          )
       };
       const nextStageScene: Group45VisualScene | null = heldVisual ?? (figure3Frame.active
         ? 'figure3-animation'

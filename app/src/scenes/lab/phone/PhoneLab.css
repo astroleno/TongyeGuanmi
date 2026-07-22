@@ -20,7 +20,10 @@
   opacity: var(--phone-ttg-lab-bridge-opacity, 0);
   transform: translate3d(
     0,
-    calc(-1 * var(--portrait-stage-height, 100lvh)),
+    var(
+      --phone-ttg-lab-bridge-y,
+      calc(-1 * var(--portrait-stage-height, 100lvh))
+    ),
     0
   );
   pointer-events: none;

@@ -7,6 +7,7 @@ import {
   phoneGroup45DocumentFlags,
   phoneGroup45EntryFromHash,
   phoneGroup45PhaseAfterVisualCompletion,
+  phoneGroup45RetainsTtgTerminal,
   phoneGroup45TrackActivity,
   phoneGroup45TrackProgress
 } from './PhoneBrandLabStory';
@@ -82,6 +83,8 @@ describe('PhoneBrandLabStory', () => {
     expect(phoneGroup45CanBeginVisualRun('reverse', -1)).toBe(false);
     expect(phoneGroup45PhaseAfterVisualCompletion(1)).toBe('complete');
     expect(phoneGroup45PhaseAfterVisualCompletion(-1)).toBe('initial');
+    expect(phoneGroup45RetainsTtgTerminal('complete')).toBe(true);
+    expect(phoneGroup45RetainsTtgTerminal('reverse')).toBe(false);
   });
 
 });

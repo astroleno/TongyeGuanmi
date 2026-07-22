@@ -42,7 +42,10 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(figure3Styles).toMatch(
       /figure3-transition__sticky::after[^}]+z-index:\s*3/s
     );
-    expect(figure3Styles).toContain('rgba(220, 220, 208, .54)');
+    expect(figure3Styles).toContain('mix-blend-mode: multiply');
+    expect(figure3Styles).toMatch(
+      /figure3-transition__stage[^}]+background:\s*var\(--phone-figure3-paper\)/s
+    );
   });
 
   it('lets the ink contour own the only dark Services → TTG edge', () => {
@@ -51,12 +54,14 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
   });
 
-  it('uses one desktop-proportional camera for every TTG art layer', () => {
+  it('keeps desktop TTG scale while applying the reviewed portrait crop', () => {
     expect(ttgStyles).toContain('--ttg-front-width: var(--ttg-scene-width)');
     expect(ttgStyles).toContain(
       'calc(var(--portrait-stage-height, 100lvh) * 1.44)'
     );
-    expect(ttgStyles).not.toContain('.phone-ttg .ttg-layer--middle {');
+    expect(ttgStyles).toMatch(
+      /\.phone-ttg \.ttg-layer--middle\s*\{[^}]+left:\s*175%/s
+    );
   });
 
   it('uses one continuous Lab paper across both document screens', () => {
