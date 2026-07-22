@@ -7,6 +7,8 @@
   --phone-ttg-figure-y: 0px;
   --phone-ttg-figure-scale: .8;
   --phone-ttg-figure-opacity: 1;
+  --phone-ttg-scene-width: max(100vw, 178svh, 1180px);
+  --phone-ttg-background-width: max(100vw, 208svh, 1180px);
   position: relative;
   display: block;
   overflow: clip;
@@ -42,7 +44,10 @@
 .phone-ttg__layer--background {
   z-index: 1;
   top: 0;
-  inline-size: max(154svh, 100vw);
+  /* Keep the 16:9 background beyond the bottom edge of a tall phone even
+     * after its upward parallax. The former 154svh camera left a black
+     * unowned band below the figure. */
+  inline-size: var(--phone-ttg-background-width);
   block-size: auto;
   transform: translate3d(-50%, var(--phone-ttg-background-y), 0)
     scale(var(--phone-ttg-background-scale));
@@ -51,7 +56,7 @@
 
 .phone-ttg__layer--middle {
   z-index: 2;
-  inline-size: max(146svh, 100vw);
+  inline-size: var(--phone-ttg-scene-width);
   block-size: auto;
   transform: translate3d(-50%, calc(-50% + var(--phone-ttg-middle-y)), 0)
     scale(var(--phone-ttg-middle-scale));

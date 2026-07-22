@@ -29,6 +29,8 @@ export type Group45PhoneTransitionId =
 
 export type Group45PhoneSceneProps = Readonly<{
   active: boolean;
+  /** Decode only the immediately upcoming visual; playback still waits for entry. */
+  prewarm?: boolean;
   reducedMotion: boolean;
   onReady?: () => void;
   /** Lets the shell settle the affected bridge at its declared endpoint. */

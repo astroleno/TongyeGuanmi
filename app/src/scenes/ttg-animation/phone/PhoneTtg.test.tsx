@@ -47,7 +47,13 @@ describe('PhoneTtg', () => {
     });
   });
 
-  it('drives its one video through the shared timeline driver, including reverse', () => {
+  it('uses the Figure2-style native forward run and a timeline-controlled reverse', () => {
+    expect(phoneTtgMediaInput(0, 1)).toMatchObject({
+      direction: 1,
+      mode: 'native-preferred',
+      progress: 0,
+      reducedMotion: false
+    });
     expect(phoneTtgMediaInput(.4, -1)).toMatchObject({
       direction: -1,
       mode: 'timeline',

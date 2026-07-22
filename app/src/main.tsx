@@ -8,7 +8,9 @@ const PhoneBrandLabScope = lazy(() => import('./production/phone/scenes/PhoneBra
 }) => ({ default: Component })));
 
 function phoneBrandLabScopeRequested(): boolean {
-  return new URLSearchParams(window.location.search).get('scope') === 'brand-lab';
+  const url = new URL(window.location.href);
+  const pathname = url.pathname.replace(/\/+$/, '') || '/';
+  return url.searchParams.get('scope') === 'brand-lab' || pathname === '/brand-lab';
 }
 
 assertBrowserRuntime('React mount');

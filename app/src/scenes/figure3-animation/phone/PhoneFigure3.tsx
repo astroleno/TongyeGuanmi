@@ -82,7 +82,10 @@ export function phoneFigure3MediaInput(
     startSeconds: 0,
     endSeconds: FIGURE3_END_SECONDS,
     timelineDurationMs: FIGURE3_SERVICES_DURATION_MS,
-    mode: 'timeline',
+    // Match the accepted AOD behavior: entering forward gives the decoder a
+    // normal native run. Reverse remains timeline-controlled because Figure3
+    // has no separate reverse source.
+    mode: direction === 1 ? 'native-preferred' : 'timeline',
     nativePlaybackDirection: 1,
     reducedMotion,
     allowSeekedFrameFallback: browserPrefersHevcAlpha()
@@ -98,16 +101,18 @@ export const PhoneFigure3 = forwardRef<
   ScenePresentationAdapterHandle,
   Group45PhoneSceneProps
 >(function PhoneFigure3(
-  { active, reducedMotion, onMediaError, onReady },
+  { active, prewarm = false, reducedMotion, onMediaError, onReady },
   forwardedRef
 ) {
   const rootRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const progressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
+  const forwardAutoplayPendingRef = useRef(false);
+  const hasEnteredRef = useRef(false);
   const mediaFailedRef = useRef(false);
   const mediaRetiringRef = useRef(false);
-  const [mediaMounted, setMediaMounted] = useState(active && !reducedMotion);
+  const [mediaMounted, setMediaMounted] = useState((active || prewarm) && !reducedMotion);
   const [mediaFailed, setMediaFailed] = useState(false);
 
   const update = useCallback((rawProgress: number) => {
@@ -122,16 +127,27 @@ export const PhoneFigure3 = forwardRef<
     root.style.setProperty('--phone-figure3-video-scale', frame.videoScale.toFixed(4));
     root.style.setProperty('--phone-figure3-backdrop-opacity', frame.backdropOpacity.toFixed(4));
     root.dataset.phoneFigure3Progress = frame.progress.toFixed(4);
-    if (!mediaFailed && !reducedMotion && videoRef.current) {
+    if (active && !mediaFailed && !reducedMotion && videoRef.current) {
+      const startForwardAutoplay = forwardAutoplayPendingRef.current;
       driveTimelineVideo(
         videoRef.current,
-        phoneFigure3MediaInput(frame.progress, directionRef.current, reducedMotion)
+        phoneFigure3MediaInput(
+          startForwardAutoplay ? 0 : frame.progress,
+          startForwardAutoplay ? 1 : directionRef.current,
+          reducedMotion
+        )
       );
     }
+  }, [active, mediaFailed, reducedMotion]);
+
+  const warmMedia = useCallback(() => {
+    mediaRetiringRef.current = false;
+    if (!reducedMotion && !mediaFailed) setMediaMounted(true);
   }, [mediaFailed, reducedMotion]);
 
   const releaseMedia = useCallback(() => {
     mediaRetiringRef.current = true;
+    forwardAutoplayPendingRef.current = false;
     releasePhoneFigure3Video(videoRef.current);
     setMediaMounted(false);
   }, []);
@@ -140,11 +156,19 @@ export const PhoneFigure3 = forwardRef<
     if (!root) return;
     root.dataset.phoneFigure3Active = 'true';
     mediaRetiringRef.current = false;
+    hasEnteredRef.current = true;
     if (!reducedMotion && !mediaFailed) {
-      setMediaMounted(true);
+      // Scroll may already have moved the visual rail by the time the video
+      // mounts (notably on direct #figure3 entry). Keep the first forward
+      // media input at the semantic start so the whole authored run plays.
+      forwardAutoplayPendingRef.current = directionRef.current === 1;
+      if (forwardAutoplayPendingRef.current) {
+        root.dataset.phoneFigure3Playback = 'starting-forward';
+      }
+      warmMedia();
     }
     update(progressRef.current);
-  }, [mediaFailed, reducedMotion, update]);
+  }, [mediaFailed, reducedMotion, update, warmMedia]);
   const leave = useCallback(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -155,6 +179,7 @@ export const PhoneFigure3 = forwardRef<
     const root = rootRef.current;
     if (mediaRetiringRef.current || mediaFailedRef.current) return;
     mediaFailedRef.current = true;
+    forwardAutoplayPendingRef.current = false;
     setMediaFailed(true);
     if (root) root.dataset.phoneMediaState = 'fallback';
     releaseMedia();
@@ -168,9 +193,17 @@ export const PhoneFigure3 = forwardRef<
     onReady?.();
   }, [onReady]);
   useEffect(() => {
-    if (active) enter();
-    else leave();
-  }, [active, enter, leave]);
+    if (active) {
+      enter();
+      return;
+    }
+    if (prewarm && !hasEnteredRef.current && !reducedMotion && !mediaFailed) {
+      warmMedia();
+      if (rootRef.current) rootRef.current.dataset.phoneFigure3Active = 'false';
+      return;
+    }
+    leave();
+  }, [active, enter, leave, mediaFailed, prewarm, reducedMotion, warmMedia]);
   useEffect(() => () => releasePhoneFigure3Video(videoRef.current), []);
 
   useImperativeHandle(forwardedRef, () => ({
@@ -185,6 +218,7 @@ export const PhoneFigure3 = forwardRef<
       if (!root) return;
       delete root.dataset.phoneFigure3Active;
       delete root.dataset.phoneFigure3Progress;
+      delete root.dataset.phoneFigure3Playback;
       delete root.dataset.phoneMediaState;
       root.style.removeProperty('--phone-figure3-video-opacity');
       root.style.removeProperty('--phone-figure3-video-scale');
@@ -212,8 +246,15 @@ export const PhoneFigure3 = forwardRef<
             data-figure3-alpha-video
             muted
             playsInline
-            preload="metadata"
+            preload="auto"
             onLoadedMetadata={() => update(progressRef.current)}
+            onPlay={() => {
+              forwardAutoplayPendingRef.current = false;
+              if (rootRef.current) rootRef.current.dataset.phoneFigure3Playback = 'playing-forward';
+            }}
+            onEnded={() => {
+              if (rootRef.current) rootRef.current.dataset.phoneFigure3Playback = 'complete-forward';
+            }}
             onError={failMedia}
           >
             <AlphaVideoSources

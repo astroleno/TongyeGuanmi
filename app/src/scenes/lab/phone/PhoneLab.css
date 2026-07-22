@@ -8,8 +8,23 @@
     radial-gradient(circle at 86% 10%, rgba(54, 109, 102, .17), transparent 30%),
     radial-gradient(circle at 10% 7%, rgba(210, 173, 79, .16), transparent 26%),
     #e9e1ce;
-  padding: max(70px, 11svh) clamp(22px, 6vw, 42px) max(64px, 10svh);
+  padding: 0;
   scroll-margin-top: 18px;
+}
+
+.phone-lab__screen {
+  box-sizing: border-box;
+  display: grid;
+  min-block-size: 100svh;
+  padding: max(70px, 11svh) clamp(22px, 6vw, 42px) max(64px, 10svh);
+}
+
+.phone-lab__screen--intro {
+  align-content: center;
+}
+
+.phone-lab__screen--scenarios {
+  align-content: start;
 }
 
 .phone-lab__hero,
@@ -24,7 +39,6 @@
 .phone-lab__hero {
   display: grid;
   gap: 16px;
-  padding-bottom: clamp(44px, 9svh, 76px);
 }
 
 .phone-lab__eyebrow,

@@ -96,26 +96,30 @@ export const PhoneLab = forwardRef<
       data-phone-lab-stable-input="lab-ph"
       aria-labelledby="phone-lab-title"
     >
-      <header className="phone-lab__hero">
-        <p className="phone-lab__eyebrow">{LAB_COPY[7]}</p>
-        <h2 id="phone-lab-title">
-          <span>{LAB_COPY[8]}</span>
-          <span>{LAB_COPY[9]}</span>
-        </h2>
-        <p>
-          {LAB_COPY[0]} <em>{LAB_COPY[1]}</em>{LAB_COPY[2]}
-        </p>
-        <p>{LAB_COPY[10]}</p>
-      </header>
-      <ol className="phone-lab__list" aria-label="AI 落地场景">
-        {LAB_ROW_OFFSETS.map((offset) => (
-          <li key={LAB_COPY[offset]} className="phone-lab__row">
-            <span>{LAB_COPY[offset]}</span>
-            <h3>{LAB_COPY[offset + 1]}</h3>
-            <p>{LAB_COPY[offset + 2]}</p>
-          </li>
-        ))}
-      </ol>
+      <section className="phone-lab__screen phone-lab__screen--intro">
+        <header className="phone-lab__hero">
+          <p className="phone-lab__eyebrow">{LAB_COPY[7]}</p>
+          <h2 id="phone-lab-title">
+            <span>{LAB_COPY[8]}</span>
+            <span>{LAB_COPY[9]}</span>
+          </h2>
+          <p>
+            {LAB_COPY[0]} <em>{LAB_COPY[1]}</em>{LAB_COPY[2]}
+          </p>
+          <p>{LAB_COPY[10]}</p>
+        </header>
+      </section>
+      <section className="phone-lab__screen phone-lab__screen--scenarios">
+        <ol className="phone-lab__list" aria-label="AI 落地场景">
+          {LAB_ROW_OFFSETS.map((offset) => (
+            <li key={LAB_COPY[offset]} className="phone-lab__row">
+              <span>{LAB_COPY[offset]}</span>
+              <h3>{LAB_COPY[offset + 1]}</h3>
+              <p>{LAB_COPY[offset + 2]}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
     </article>
   );
 });

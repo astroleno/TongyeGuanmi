@@ -40,7 +40,13 @@ describe('PhoneFigure3', () => {
     });
   });
 
-  it('uses the shared timeline driver instead of scroll-time naked seeks', () => {
+  it('uses an AOD-style native forward run and a timeline-controlled reverse', () => {
+    expect(phoneFigure3MediaInput(0, 1)).toMatchObject({
+      direction: 1,
+      mode: 'native-preferred',
+      progress: 0,
+      reducedMotion: false
+    });
     expect(phoneFigure3MediaInput(.6, -1)).toMatchObject({
       direction: -1,
       mode: 'timeline',

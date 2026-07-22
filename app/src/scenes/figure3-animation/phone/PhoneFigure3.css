@@ -40,11 +40,13 @@
   height: 100%;
   max-width: none;
   object-fit: cover;
-  object-position: 37% center;
+  /* The authored plate is 16:9 with the figure on its left edge. A phone
+     camera must anchor there; center/desktop positioning crops her out. */
+  object-position: 0% center;
   opacity: 0;
   filter: saturate(.92) contrast(1.02);
   transform: scale(var(--phone-figure3-video-scale));
-  transform-origin: 37% center;
+  transform-origin: 0% center;
 }
 
 .phone-figure3__fallback {

@@ -15,6 +15,8 @@ describe('PhoneLab', () => {
     expect(markup).toContain('data-phone-reading="native-document"');
     expect(markup).toContain('data-phone-lab-stable-input="lab-ph"');
     expect(markup).toContain(LAB_COPY[10]);
+    expect(markup.match(/phone-lab__screen--intro/g)).toHaveLength(1);
+    expect(markup.match(/phone-lab__screen--scenarios/g)).toHaveLength(1);
     expect(markup.match(/phone-lab__row/g)).toHaveLength(6);
     expect(markup).not.toContain('<video');
     expect(markup).not.toContain('ttg-figure-motion');

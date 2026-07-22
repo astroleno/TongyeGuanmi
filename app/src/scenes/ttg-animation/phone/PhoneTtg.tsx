@@ -85,7 +85,7 @@ export function phoneTtgFrame(
   };
 }
 
-/** The phone scroll controller always uses timeline mode; it never naked-seeks. */
+/** Forward owns native playback; reverse is coalesced by the shared timeline driver. */
 export function phoneTtgMediaInput(
   rawProgress: number,
   direction: 1 | -1,
@@ -99,7 +99,9 @@ export function phoneTtgMediaInput(
     startSeconds: 0,
     endSeconds: TTG_FIGURE_END_SECONDS,
     timelineDurationMs: TTG_PLAYBACK_MS,
-    mode: 'timeline',
+    // The forward leg owns a native decoder run, like the proven Figure2
+    // phone path. A reverse arrival resolves through the stable timeline.
+    mode: direction === 1 ? 'native-preferred' : 'timeline',
     nativePlaybackDirection: 1,
     reducedMotion,
     allowSeekedFrameFallback: browserPrefersHevcAlpha()
@@ -137,16 +139,18 @@ export const PhoneTtg = forwardRef<
   ScenePresentationAdapterHandle,
   Group45PhoneSceneProps
 >(function PhoneTtg(
-  { active, reducedMotion, onMediaError, onReady },
+  { active, prewarm = false, reducedMotion, onMediaError, onReady },
   forwardedRef
 ) {
   const rootRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const progressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
+  const forwardAutoplayPendingRef = useRef(false);
+  const hasEnteredRef = useRef(false);
   const mediaFailedRef = useRef(false);
   const mediaRetiringRef = useRef(false);
-  const [mediaMounted, setMediaMounted] = useState(active && !reducedMotion);
+  const [mediaMounted, setMediaMounted] = useState((active || prewarm) && !reducedMotion);
   const [mediaFailed, setMediaFailed] = useState(false);
 
   const update = useCallback((rawProgress: number) => {
@@ -167,13 +171,25 @@ export const PhoneTtg = forwardRef<
     root.style.setProperty('--phone-ttg-figure-opacity', frame.figureOpacity.toFixed(4));
     root.dataset.phoneTtgProgress = frame.progress.toFixed(4);
     root.dataset.phoneTtgVisualProgress = frame.visualProgress.toFixed(4);
-    if (!mediaFailed) {
-      drivePhoneTtgVideo(videoRef.current, frame.progress, directionRef.current, reducedMotion);
+    if (active && !mediaFailed) {
+      const startForwardAutoplay = forwardAutoplayPendingRef.current;
+      drivePhoneTtgVideo(
+        videoRef.current,
+        startForwardAutoplay ? 0 : frame.progress,
+        startForwardAutoplay ? 1 : directionRef.current,
+        reducedMotion
+      );
     }
+  }, [active, mediaFailed, reducedMotion]);
+
+  const warmMedia = useCallback(() => {
+    mediaRetiringRef.current = false;
+    if (!reducedMotion && !mediaFailed) setMediaMounted(true);
   }, [mediaFailed, reducedMotion]);
 
   const releaseMedia = useCallback(() => {
     mediaRetiringRef.current = true;
+    forwardAutoplayPendingRef.current = false;
     releasePhoneTtgVideo(videoRef.current);
     setMediaMounted(false);
   }, []);
@@ -182,11 +198,18 @@ export const PhoneTtg = forwardRef<
     if (!root) return;
     root.dataset.phoneTtgActive = 'true';
     mediaRetiringRef.current = false;
+    hasEnteredRef.current = true;
     if (!reducedMotion && !mediaFailed) {
-      setMediaMounted(true);
+      // Do not let direct hash navigation or a fast scroll skip the authored
+      // Figure2-style forward run before its video has mounted.
+      forwardAutoplayPendingRef.current = directionRef.current === 1;
+      if (forwardAutoplayPendingRef.current) {
+        root.dataset.phoneTtgPlayback = 'starting-forward';
+      }
+      warmMedia();
     }
     update(progressRef.current);
-  }, [mediaFailed, reducedMotion, update]);
+  }, [mediaFailed, reducedMotion, update, warmMedia]);
   const leave = useCallback(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -196,6 +219,7 @@ export const PhoneTtg = forwardRef<
   const failMedia = useCallback(() => {
     if (mediaRetiringRef.current || mediaFailedRef.current) return;
     mediaFailedRef.current = true;
+    forwardAutoplayPendingRef.current = false;
     setMediaFailed(true);
     if (rootRef.current) rootRef.current.dataset.phoneMediaState = 'fallback';
     releaseMedia();
@@ -209,9 +233,17 @@ export const PhoneTtg = forwardRef<
     onReady?.();
   }, [onReady]);
   useEffect(() => {
-    if (active) enter();
-    else leave();
-  }, [active, enter, leave]);
+    if (active) {
+      enter();
+      return;
+    }
+    if (prewarm && !hasEnteredRef.current && !reducedMotion && !mediaFailed) {
+      warmMedia();
+      if (rootRef.current) rootRef.current.dataset.phoneTtgActive = 'false';
+      return;
+    }
+    leave();
+  }, [active, enter, leave, mediaFailed, prewarm, reducedMotion, warmMedia]);
   useEffect(() => () => releasePhoneTtgVideo(videoRef.current), []);
 
   useImperativeHandle(forwardedRef, () => ({
@@ -227,6 +259,7 @@ export const PhoneTtg = forwardRef<
       delete root.dataset.phoneTtgActive;
       delete root.dataset.phoneTtgProgress;
       delete root.dataset.phoneTtgVisualProgress;
+      delete root.dataset.phoneTtgPlayback;
       delete root.dataset.phoneMediaState;
       root.style.removeProperty('--phone-ttg-background-y');
       root.style.removeProperty('--phone-ttg-background-scale');
@@ -276,8 +309,15 @@ export const PhoneTtg = forwardRef<
             data-ttg-figure-video
             muted
             playsInline
-            preload="metadata"
+            preload="auto"
             onLoadedMetadata={() => update(progressRef.current)}
+            onPlay={() => {
+              forwardAutoplayPendingRef.current = false;
+              if (rootRef.current) rootRef.current.dataset.phoneTtgPlayback = 'playing-forward';
+            }}
+            onEnded={() => {
+              if (rootRef.current) rootRef.current.dataset.phoneTtgPlayback = 'complete-forward';
+            }}
             onError={failMedia}
           >
             <AlphaVideoSources

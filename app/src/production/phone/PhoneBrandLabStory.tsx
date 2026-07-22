@@ -22,8 +22,8 @@ type PhoneBrandLabStoryProps = Readonly<{
 }>;
 
 type VisualActivity = Readonly<{
-  figure3: boolean;
-  ttg: boolean;
+  figure3: Readonly<{ active: boolean; prewarm: boolean }>;
+  ttg: Readonly<{ active: boolean; prewarm: boolean }>;
 }>;
 
 const GROUP45_SCENES = new Set<Group45PhoneSceneId>(group45PhoneSceneIds);
@@ -64,13 +64,25 @@ function sceneIndex(scene: Group45PhoneSceneId): number {
   return group45PhoneSceneIds.indexOf(scene);
 }
 
-function frameForTrack(element: HTMLElement | null, viewportHeight: number) {
-  if (!element) return { active: false, progress: 0 };
-  const rect = element.getBoundingClientRect();
+export function phoneGroup45TrackActivity(
+  trackTop: number,
+  trackHeight: number,
+  viewportHeight: number
+) {
+  const trackBottom = trackTop + trackHeight;
   return {
-    active: rect.top < viewportHeight * 1.2 && rect.bottom > -viewportHeight * .2,
-    progress: phoneGroup45TrackProgress(rect.top, rect.height, viewportHeight)
+    // Decode the next visual just before its chapter enters, but do not start
+    // its authored autoplay under the previous reading chapter.
+    prewarm: trackTop < viewportHeight * 1.2 && trackBottom > -viewportHeight * .2,
+    active: trackTop <= viewportHeight * .1 && trackBottom > viewportHeight * .1,
+    progress: phoneGroup45TrackProgress(trackTop, trackHeight, viewportHeight)
   };
+}
+
+function frameForTrack(element: HTMLElement | null, viewportHeight: number) {
+  if (!element) return { active: false, prewarm: false, progress: 0 };
+  const rect = element.getBoundingClientRect();
+  return phoneGroup45TrackActivity(rect.top, rect.height, viewportHeight);
 }
 
 /**
@@ -90,8 +102,8 @@ export function PhoneBrandLabStory({
   const [menuOpen, setMenuOpen] = useState(false);
   const [adapterRevision, setAdapterRevision] = useState(0);
   const [visualActivity, setVisualActivity] = useState<VisualActivity>({
-    figure3: false,
-    ttg: false
+    figure3: { active: false, prewarm: false },
+    ttg: { active: false, prewarm: false }
   });
   const [brandFigure3Host, setBrandFigure3Host] = useState<HTMLElement | null>(null);
   const [figure3ServicesHost, setFigure3ServicesHost] = useState<HTMLElement | null>(null);
@@ -229,9 +241,15 @@ export function PhoneBrandLabStory({
       const figure3Frame = frameForTrack(figure3TrackRef.current, viewportHeight);
       const ttgFrame = frameForTrack(ttgTrackRef.current, viewportHeight);
       setVisualActivity((current) => (
-        current.figure3 === figure3Frame.active && current.ttg === ttgFrame.active
+        current.figure3.active === figure3Frame.active
+          && current.figure3.prewarm === figure3Frame.prewarm
+          && current.ttg.active === ttgFrame.active
+          && current.ttg.prewarm === ttgFrame.prewarm
           ? current
-          : { figure3: figure3Frame.active, ttg: ttgFrame.active }
+          : {
+              figure3: { active: figure3Frame.active, prewarm: figure3Frame.prewarm },
+              ttg: { active: ttgFrame.active, prewarm: ttgFrame.prewarm }
+            }
       ));
 
       brandRef.current?.update(1);
@@ -358,7 +376,8 @@ export function PhoneBrandLabStory({
           <div className="phone-brand-lab__visual-sticky">
             <Figure3
               ref={bindFigure3}
-              active={visualActivity.figure3}
+              active={visualActivity.figure3.active}
+              prewarm={visualActivity.figure3.prewarm}
               reducedMotion={reducedMotion}
               onMediaError={onMediaError}
             />
@@ -378,7 +397,8 @@ export function PhoneBrandLabStory({
           <div className="phone-brand-lab__visual-sticky">
             <Ttg
               ref={bindTtg}
-              active={visualActivity.ttg}
+              active={visualActivity.ttg.active}
+              prewarm={visualActivity.ttg.prewarm}
               reducedMotion={reducedMotion}
               onMediaError={onMediaError}
             />
