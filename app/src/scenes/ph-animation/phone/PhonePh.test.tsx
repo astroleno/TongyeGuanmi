@@ -73,7 +73,8 @@ describe('PhonePh', () => {
     expect(source).toContain("'endpoint-dissolve'");
     expect(nativeClockSource).toContain('video.currentTime / duration');
     expect(nativeClockSource).toContain("video.addEventListener('timeupdate'");
-    expect(nativeClockSource).toContain('primeFromGesture');
+    expect(nativeClockSource).not.toContain('primeFromGesture');
+    expect(nativeClockSource).not.toContain("addEventListener('touchstart'");
     expect(source).not.toContain('driveTimelineVideo');
     expect(source).not.toContain("mode: 'timeline'");
   });

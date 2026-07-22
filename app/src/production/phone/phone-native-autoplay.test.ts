@@ -28,9 +28,8 @@ class FakeVisibilityDocument extends EventTarget {
 }
 
 describe('phone native autoplay', () => {
-  it('primes an inactive lazy decoder inside the physical gesture', async () => {
+  it('does not start an inactive lazy decoder before the scene owns playback', async () => {
     const video = new FakeVideo();
-    const gestures = new EventTarget();
     const controller = createPhoneNativeAutoplay(
       video as unknown as HTMLVideoElement,
       {
@@ -38,40 +37,24 @@ describe('phone native autoplay', () => {
         onProgress: vi.fn(),
         onComplete: vi.fn(),
         onFailure: vi.fn(),
-        gestureTarget: gestures,
         requestFrame: () => 1,
         cancelFrame: vi.fn()
       }
     );
 
-    gestures.dispatchEvent(new Event('touchstart'));
-    await Promise.resolve();
-
-    expect(video.play).toHaveBeenCalledOnce();
+    expect(video.play).not.toHaveBeenCalled();
     expect(video.paused).toBe(true);
     expect(video.currentTime).toBe(0);
-    expect(video.dataset.phoneNativeAutoplay).toBe('primed');
-    gestures.dispatchEvent(new Event('touchmove'));
-    expect(video.play).toHaveBeenCalledOnce();
 
     controller.start();
     await Promise.resolve();
-    expect(video.play).toHaveBeenCalledTimes(2);
+    expect(video.play).toHaveBeenCalledOnce();
     expect(video.dataset.phoneNativeAutoplay).toBe('playing');
     controller.dispose();
   });
 
-  it('reclaims a pending gesture play if the shell unlock pauses it', async () => {
+  it('never inherits a pending hidden-scene play promise at scene entry', async () => {
     const video = new FakeVideo();
-    const gestures = new EventTarget();
-    let resolvePrime: (() => void) | undefined;
-    video.play.mockImplementationOnce(() => {
-      video.paused = false;
-      video.dispatchEvent(new Event('play'));
-      return new Promise<void>((resolve) => {
-        resolvePrime = resolve;
-      });
-    });
     const controller = createPhoneNativeAutoplay(
       video as unknown as HTMLVideoElement,
       {
@@ -79,22 +62,14 @@ describe('phone native autoplay', () => {
         onProgress: vi.fn(),
         onComplete: vi.fn(),
         onFailure: vi.fn(),
-        gestureTarget: gestures,
         requestFrame: () => 1,
         cancelFrame: vi.fn()
       }
     );
 
-    gestures.dispatchEvent(new Event('touchmove'));
     controller.start();
     expect(video.play).toHaveBeenCalledOnce();
-    expect(video.pause).not.toHaveBeenCalled();
-
-    video.pause();
-    resolvePrime?.();
     await Promise.resolve();
-    await Promise.resolve();
-    expect(video.play).toHaveBeenCalledTimes(2);
     expect(video.paused).toBe(false);
     expect(video.dataset.phoneNativeAutoplay).toBe('playing');
     controller.dispose();
@@ -149,7 +124,6 @@ describe('phone native autoplay', () => {
 
   it('keeps a blocked run retryable and reports a real media error', async () => {
     const video = new FakeVideo();
-    const gestures = new EventTarget();
     video.play.mockRejectedValueOnce(new Error('blocked'));
     const failure = vi.fn();
     const controller = createPhoneNativeAutoplay(
@@ -159,7 +133,6 @@ describe('phone native autoplay', () => {
         onProgress: vi.fn(),
         onComplete: vi.fn(),
         onFailure: failure,
-        gestureTarget: gestures,
         requestFrame: () => 1,
         cancelFrame: vi.fn()
       }
@@ -170,7 +143,7 @@ describe('phone native autoplay', () => {
     await Promise.resolve();
     expect(video.dataset.phoneNativeAutoplay).toBe('blocked');
 
-    gestures.dispatchEvent(new Event('touchmove'));
+    controller.retry();
     await Promise.resolve();
     expect(video.dataset.phoneNativeAutoplay).toBe('playing');
 

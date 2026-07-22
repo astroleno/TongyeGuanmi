@@ -6,7 +6,8 @@ import {
   PhoneLabContactShell,
   phoneLabContactDirectEntryAutoplays,
   phoneLabContactEntryScene,
-  phoneLabContactInitialAdapterPlan
+  phoneLabContactInitialAdapterPlan,
+  phoneLabContactNavigationHref
 } from './PhoneLabContactShell';
 
 const shellSource = readFileSync(new URL('./PhoneLabContactShell.tsx', import.meta.url), 'utf8');
@@ -41,6 +42,13 @@ describe('PhoneLabContactShell', () => {
     expect(phoneLabContactEntryScene('#crane-animation')).toBe('crane-animation');
     expect(phoneLabContactEntryScene('#contact')).toBe('contact');
     expect(phoneLabContactEntryScene('#services')).toBe('lab');
+  });
+
+  it('keeps acceptance navigation URLs limited to the short v query', () => {
+    expect(phoneLabContactNavigationHref(
+      'http://192.0.2.1:5174/?v=36&portrait-spike-motion=force#lab',
+      'contact'
+    )).toBe('http://192.0.2.1:5174/?v=36#contact');
   });
 
   it('loads only Contact for direct Contact entry', () => {

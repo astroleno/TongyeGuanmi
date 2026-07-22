@@ -264,6 +264,16 @@ function acceptanceNavigationTarget(scene: SceneId): LabContactSceneId {
   return isLabContactScene(scene) ? scene : 'lab';
 }
 
+export function phoneLabContactNavigationHref(
+  currentHref: string,
+  scene: SceneId
+): string {
+  const destination = new URL(currentHref);
+  destination.search = '?v=36';
+  destination.hash = hashForScene(acceptanceNavigationTarget(scene));
+  return destination.toString();
+}
+
 function useLazyLabContactAdapters() {
   const [scenes, setScenes] = useState<Partial<Record<
     LabContactSceneId,
@@ -1031,11 +1041,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
 
   const navigate = useCallback((scene: SceneId) => {
     setNavigationMenuOpen(false);
-    const target = acceptanceNavigationTarget(scene);
-    const destination = new URL(window.location.href);
-    destination.searchParams.set('v', '36');
-    destination.hash = hashForScene(target);
-    window.location.assign(destination.toString());
+    window.location.assign(
+      phoneLabContactNavigationHref(window.location.href, scene)
+    );
   }, []);
 
   const directAdapter = scenes[entryScene];

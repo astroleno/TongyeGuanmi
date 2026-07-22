@@ -24,7 +24,6 @@ type PhoneNativeAutoplayOptions = Readonly<{
   cancelFrame?: (frame: number) => void;
   setTimer?: (callback: () => void, timeoutMs: number) => PhoneNativeTimer;
   clearTimer?: (timer: PhoneNativeTimer) => void;
-  gestureTarget?: EventTarget;
 }>;
 
 const HAVE_CURRENT_DATA = 2;
@@ -38,6 +37,8 @@ function clamp(value: number): number {
  * Unit 6's native media clock is the AOD Route-B playback policy without any
  * AOD-specific retiming. Scroll chooses the run boundary; currentTime is the
  * only forward progress clock, and media events retry a blocked lazy decode.
+ * As in AOD, this controller never calls play() before start(): an inactive,
+ * hidden Safari decoder can leave that promise pending and block the real run.
  */
 export function createPhoneNativeAutoplay(
   video: HTMLVideoElement,
@@ -53,7 +54,6 @@ export function createPhoneNativeAutoplay(
     ?? ((callback: () => void, timeoutMs: number) => globalThis.setTimeout(callback, timeoutMs));
   const clearTimer = options.clearTimer
     ?? ((timer: PhoneNativeTimer) => globalThis.clearTimeout(timer));
-  const gestureTarget = options.gestureTarget ?? video.ownerDocument;
   const duration = Math.max(0.001, options.durationSeconds);
   const stallTimeoutMs = Math.max(
     1,
@@ -62,14 +62,10 @@ export function createPhoneNativeAutoplay(
   let active = false;
   let disposed = false;
   let playPending = false;
-  let gesturePrimePending = false;
-  let gesturePrimed = false;
-  let gesturePrimeAttempt = 0;
   let playAttempt = 0;
   let frame = 0;
   let stallTimer: PhoneNativeTimer | undefined;
   let lastEvidenceProgress = 0;
-  let detachGestureListeners = () => undefined;
 
   const cancelScheduledFrame = () => {
     if (!frame) return;
@@ -91,7 +87,6 @@ export function createPhoneNativeAutoplay(
     cancelScheduledFrame();
     cancelStallTimer();
     video.pause();
-    detachGestureListeners();
     video.dataset.phoneNativeAutoplay = 'failed';
     options.onFailure();
   };
@@ -156,7 +151,6 @@ export function createPhoneNativeAutoplay(
       disposed
       || !active
       || playPending
-      || gesturePrimePending
       || visibilityDocument?.hidden
     ) {
       return;
@@ -181,8 +175,6 @@ export function createPhoneNativeAutoplay(
           play();
           return;
         }
-        gesturePrimed = true;
-        detachGestureListeners();
         video.dataset.phoneNativeAutoplay = 'playing';
         markFrameReady();
         schedule();
@@ -219,74 +211,6 @@ export function createPhoneNativeAutoplay(
     render();
     if (!visibilityDocument?.hidden) play();
   };
-  const primeFromGesture = () => {
-    if (
-      disposed
-      || active
-      || gesturePrimed
-      || gesturePrimePending
-      || visibilityDocument?.hidden
-    ) {
-      return;
-    }
-    const attempt = ++gesturePrimeAttempt;
-    gesturePrimePending = true;
-    video.autoplay = false;
-    video.loop = false;
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = 'auto';
-    video.setAttribute('webkit-playsinline', 'true');
-    video.dataset.phoneNativeAutoplay = 'priming-from-gesture';
-    let playback: Promise<void> | undefined;
-    try {
-      playback = video.play();
-    } catch {
-      playback = Promise.reject(new Error('native gesture prime rejected'));
-    }
-    void Promise.resolve(playback).then(
-      () => {
-        if (disposed || attempt !== gesturePrimeAttempt) return;
-        gesturePrimePending = false;
-        gesturePrimed = true;
-        detachGestureListeners();
-        if (active) {
-          // The shell-wide iOS unlock listener may resolve first and pause the
-          // same media element. The successful gesture play still authorizes
-          // it, so immediately reclaim native time for the active run.
-          if (video.paused) {
-            play();
-            return;
-          }
-          video.dataset.phoneNativeAutoplay = 'playing';
-          markFrameReady();
-          armStallTimer();
-          schedule();
-          return;
-        }
-        video.pause();
-        try {
-          video.currentTime = 0;
-        } catch {
-          // A successful play is enough to authorize this media element.
-        }
-        video.dataset.phoneNativeAutoplay = 'primed';
-      },
-      () => {
-        if (disposed || attempt !== gesturePrimeAttempt) return;
-        gesturePrimePending = false;
-        video.dataset.phoneNativeAutoplay = 'prime-blocked';
-        if (active) play();
-      }
-    );
-  };
-  const onGesture = () => {
-    if (active && !visibilityDocument?.hidden) {
-      play();
-      return;
-    }
-    primeFromGesture();
-  };
   const onEnded = () => complete();
   const onError = () => fail();
   const onVisibilityChange = () => {
@@ -312,40 +236,24 @@ export function createPhoneNativeAutoplay(
   video.addEventListener('ended', onEnded);
   video.addEventListener('error', onError);
   visibilityDocument?.addEventListener('visibilitychange', onVisibilityChange);
-  gestureTarget?.addEventListener('touchstart', onGesture, { passive: true });
-  gestureTarget?.addEventListener('touchmove', onGesture, { passive: true });
-  gestureTarget?.addEventListener('pointerdown', onGesture, { passive: true });
-  gestureTarget?.addEventListener('keydown', onGesture);
-  let gestureListenersAttached = Boolean(gestureTarget);
-  detachGestureListeners = () => {
-    if (!gestureListenersAttached) return;
-    gestureListenersAttached = false;
-    gestureTarget?.removeEventListener('touchstart', onGesture);
-    gestureTarget?.removeEventListener('touchmove', onGesture);
-    gestureTarget?.removeEventListener('pointerdown', onGesture);
-    gestureTarget?.removeEventListener('keydown', onGesture);
-  };
 
-  const stopCurrentRun = (preserveGesturePrime = false) => {
+  const stopCurrentRun = () => {
     active = false;
     playAttempt += 1;
     playPending = false;
     cancelScheduledFrame();
     cancelStallTimer();
-    if (!preserveGesturePrime) video.pause();
+    video.pause();
   };
 
   return {
     start() {
       if (disposed) return;
-      const inheritsGesturePrime = gesturePrimePending;
-      stopCurrentRun(inheritsGesturePrime);
-      if (!inheritsGesturePrime) {
-        try {
-          video.currentTime = 0;
-        } catch {
-          // Metadata may still be pending; loadeddata presents frame zero.
-        }
+      stopCurrentRun();
+      try {
+        video.currentTime = 0;
+      } catch {
+        // Metadata may still be pending; loadeddata presents frame zero.
       }
       video.autoplay = false;
       video.loop = false;
@@ -358,7 +266,7 @@ export function createPhoneNativeAutoplay(
       video.dataset.phoneNativeAutoplay = 'starting';
       render(0);
       armStallTimer();
-      if (!inheritsGesturePrime) play();
+      play();
     },
     retry() {
       armStallTimer();
@@ -391,13 +299,9 @@ export function createPhoneNativeAutoplay(
       video.removeEventListener('ended', onEnded);
       video.removeEventListener('error', onError);
       visibilityDocument?.removeEventListener('visibilitychange', onVisibilityChange);
-      detachGestureListeners();
       delete video.dataset.phoneNativeAutoplay;
       delete video.dataset.phoneNativeAutoplayProgress;
       delete video.dataset.phoneNativeFrameReady;
-      gesturePrimeAttempt += 1;
-      gesturePrimePending = false;
-      gesturePrimed = false;
     }
   };
 }
