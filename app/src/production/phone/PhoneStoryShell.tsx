@@ -17,6 +17,7 @@ import {
 } from './usePhoneStageRuntime';
 import { usePhoneFrontHalfAdapters } from './usePhoneFrontHalfAdapters';
 import { usePhoneEdgeSurface } from './usePhoneEdgeSurface';
+import { usePhoneFixedStageRegistration } from './usePhoneFixedStageRegistration';
 import { usePhoneViewportGeometry } from './usePhoneViewportGeometry';
 import type {
   PhoneAodAdapterHandle,
@@ -38,7 +39,7 @@ function portraitSpikeMotionEnabled(): boolean {
 }
 export type PhoneStoryShellProps = Readonly<{
   /** Short numbered routes remain physical-device comparison entries. */
-  validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45';
+  validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45' | 'v46';
 }>;
 
 /**
@@ -75,6 +76,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [navigationScene, setNavigationScene] = useState<SceneId>('hero');
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
   const [adapterRevision, setAdapterRevision] = useState(0);
+  const fixedStageRegistered = usePhoneFixedStageRegistration(loaderHidden && ready);
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
   const stageViewportRef = useRef<HTMLElement | null>(null);
@@ -83,9 +85,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const checkpointRef = useRef<PhoneCheckpointId>(
     loaderHidden ? 'hero-entered' : 'loader'
   );
-  const checkpointTraceRef = useRef<PhoneCheckpointId[]>([
-    checkpointRef.current
-  ]);
+  const checkpointTraceRef = useRef<PhoneCheckpointId[]>([checkpointRef.current]);
   const publishAdapterRevision = useCallback(() => {
     setAdapterRevision((revision) => revision + 1);
   }, []);
@@ -156,8 +156,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   }, [loaderHidden, publishCheckpoint]);
 
   const navigationVisible = loaderHidden
-    && navigationScene !== 'hero'
-    && navigationScene !== 'pattern';
+    && navigationScene !== 'hero' && navigationScene !== 'pattern';
 
   useEffect(() => {
     if (!navigationVisible) setNavigationMenuOpen(false);
@@ -191,7 +190,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     heroPatternRef: heroPatternAdapterRef,
     patternStarMapRef: patternStarMapAdapterRef,
     starMapAodRef: starMapAodAdapterRef,
-    enabled: loaderHidden
+    enabled: fixedStageRegistered && loaderHidden
       && ready
       && aodAlphaEndProgress !== undefined
       && !staticFallback,
@@ -212,6 +211,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-portrait-spike-media="figure1-packed-alpha-pattern-bloom-star-perlin-aod-packed-alpha-autoplay"
       data-portrait-spike-animation="gsap-scrolltrigger-native-fixed-stage"
       data-portrait-spike-motion={motionEnabled ? 'force' : 'reduce'}
+      data-portrait-fixed-stage={fixedStageRegistered ? 'registered' : 'priming'}
       data-portrait-loader-ready={String(loaderHidden)}
       data-phone-validation-mode={props.validationMode}
       data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}

@@ -12,6 +12,9 @@ const shellCss = source('../phone/PhoneStoryShell.css');
 const railSource = source('../phone/PhoneStageRail.tsx');
 const railCss = source('../phone/PhoneStageRail.css');
 const runtimeSource = source('../phone/usePhoneStageRuntime.ts');
+const fixedStageRegistrationSource = source(
+  '../phone/usePhoneFixedStageRegistration.ts'
+);
 const edgeSurfaceSource = source('../phone/phone-edge-surface.ts');
 const viewportGeometrySource = source('../phone/usePhoneViewportGeometry.ts');
 const frontHalfSource = source('../phone/usePhoneFrontHalfAdapters.ts');
@@ -86,6 +89,19 @@ describe('Route B proven front-half migration contract', () => {
     );
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed/s
+    );
+    expect(shellSource).toContain(
+      "data-portrait-fixed-stage={fixedStageRegistered ? 'registered' : 'priming'}"
+    );
+    expect(fixedStageRegistrationSource).toMatch(
+      /const committedPrimeFrame = window\.requestAnimationFrame\(\(\) => \{\s*registrationFrame = window\.requestAnimationFrame/s
+    );
+    expect(shellSource).toContain(
+      'usePhoneFixedStageRegistration(loaderHidden && ready)'
+    );
+    expect(shellSource).toContain('enabled: fixedStageRegistered');
+    expect(railCss).toMatch(
+      /data-portrait-fixed-stage="priming"[^}]*position:\s*absolute[^}]*bottom:\s*auto[^}]*height:\s*var\(--portrait-stage-height\)/s
     );
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage-rail\s*\{[^}]*margin-bottom:\s*calc\(-1 \* var\(--portrait-stage-height\)\)/s

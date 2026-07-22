@@ -20,6 +20,20 @@
   background: var(--portrait-edge-surface);
 }
 
+/*
+ * A cold navigation commits one non-viewport-constrained absolute layer
+ * before registering the viewport-sized fixed container. This gives WebKit a
+ * post-Hero edge update without changing geometry or adding a bottom overlay.
+ */
+.portrait-scroll-spike[data-portrait-fixed-stage="priming"] .portrait-scroll-spike__stage {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: var(--portrait-stage-height);
+}
+
 /* The retained layout/coverage canvas is the only outer clipping boundary. */
 .portrait-scroll-spike__stage-canvas {
   --portrait-readable-height: 100svh;

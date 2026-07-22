@@ -97,7 +97,7 @@ describe('phone preboot ownership', () => {
       enabled: false,
       width: 390,
       height: 844,
-      search: '?v=45'
+      search: '?v=46'
     });
 
     expect(result.dataset.portraitSpike).toBe('b');

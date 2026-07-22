@@ -921,6 +921,31 @@ cold bare `/` navigation: the first frame must be dark, while the Safari-owned
 bottom color extension remains an acknowledged platform constraint rather
 than a DOM overlay target.
 
+### Unit 4 v46 cold fixed-stage registration
+
+Physical testing of v45 isolated the remaining strip to Safari's application
+lifecycle: a new tab reproduces it, while one background/foreground cycle
+removes it immediately and subsequent reloads remain clean. WebKit freezes the
+layer tree when the application enters the background and unfreezes it on
+foreground restoration, so v46 targets fixed-container registration rather
+than viewport height or scene paint.
+
+On a cold navigation, the persistent stage now commits for one rendered frame
+as a non-viewport-constrained absolute layer with the same top, width, and
+stable-lvh height. The prime waits until Loader has exited and the initial
+Hero/Pattern visual gates are ready, so that rendered frame contains the real
+Hero edge owner. It then switches to `fixed` on the following frame. Adding
+that viewport-constrained object makes WebKit request a fresh fixed-container
+edge update. Reload, back/forward, and hash deep-link entries skip the prime:
+they are not the failing cold-navigation path, and deep links must retain
+their restored scroll geometry.
+
+The stage runtime cannot start until fixed registration completes. No Scene,
+transition, AOD timing, scroll distance, viewport variable, edge color,
+gradient, feather, pseudo-element, or media asset changes in v46. Physical
+acceptance belongs to a genuinely cold `?v=46` tab before Safari has been
+backgrounded.
+
 ## Problem Frame
 
 Plan 012 selected Route B after the native-scroll/fixed-stage vertical slice
