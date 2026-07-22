@@ -7,13 +7,14 @@ import {
 } from '../../../transitions/__fixtures__/back-half.fixture';
 import {
   applyPhoneCraneMediaFallback,
+  isStaleCraneFramePreparation,
   parkPhoneCraneMedia,
   PhoneCrane,
   phoneCranePresentationProgress
 } from './PhoneCrane';
 
 describe('PhoneCrane', () => {
-  it('keeps one canonical Crane stage and its two media owners', () => {
+  it('keeps one canonical Crane stage with two media surfaces', () => {
     const markup = renderToStaticMarkup(createElement(PhoneCrane, {
       active: true,
       reducedMotion: false
@@ -29,6 +30,11 @@ describe('PhoneCrane', () => {
     expect(phoneCranePresentationProgress(0.49, true)).toBe(0);
     expect(phoneCranePresentationProgress(0.5, true)).toBe(1);
     expect(phoneCranePresentationProgress(0.25)).toBe(0.25);
+  });
+
+  it('does not mistake a superseded scroll seek for a media failure', () => {
+    expect(isStaleCraneFramePreparation(new Error('Crane media stale'))).toBe(true);
+    expect(isStaleCraneFramePreparation(new Error('media element failed'))).toBe(false);
   });
 
   it('keeps the static Crane layers on media failure and retires both videos', () => {

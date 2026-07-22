@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { hashForScene, sceneFromHash } from '../../../production/navigation';
 import {
@@ -33,5 +34,14 @@ describe('PhoneEducation', () => {
   it('uses the shared Education hash rather than a phone-only navigation map', () => {
     expect(hashForScene('education')).toBe('#education');
     expect(sceneFromHash('#education')).toBe('education');
+  });
+
+  it('keeps the authored intro and programme as two native full-viewport acts', () => {
+    const stylesheet = readFileSync(new URL('./PhoneEducation.css', import.meta.url), 'utf8');
+
+    expect(stylesheet).toContain('min-height: 200svh');
+    expect(stylesheet).toContain('min-height: 100svh');
+    expect(stylesheet).toContain('overflow: visible');
+    expect(stylesheet).not.toContain('overflow-y: auto');
   });
 });

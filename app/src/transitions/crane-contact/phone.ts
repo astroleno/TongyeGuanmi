@@ -6,14 +6,9 @@ import {
   useRef
 } from 'react';
 import {
-  prepareCraneAnimationFrame,
   renderCraneAnimationProgress,
   type CraneMediaRun
 } from '../../scenes/crane-animation';
-import {
-  applyPhoneCraneMediaFallback,
-  parkPhoneCraneMedia
-} from '../../scenes/crane-animation/phone/PhoneCrane';
 import {
   releaseContactEntrance,
   renderContactEntrance,
@@ -149,12 +144,9 @@ export const PhoneCraneContactTransition = forwardRef<
   const lastProgressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
   const revisionRef = useRef(0);
-  const mediaFailedRef = useRef(false);
-  const parkedAtEndpointRef = useRef(false);
 
   const render = useCallback((rawProgress: number) => {
-    const requested = mediaFailedRef.current ? 1 : rawProgress;
-    const progress = transitionProgress(requested, reducedMotion);
+    const progress = transitionProgress(rawProgress, reducedMotion);
     if (progress > lastProgressRef.current + ENDPOINT_EPSILON) {
       if (directionRef.current !== 1) revisionRef.current += 1;
       directionRef.current = 1;
@@ -170,45 +162,16 @@ export const PhoneCraneContactTransition = forwardRef<
       nativePlayback: false,
       reducedMotion
     };
-    const frame = applyPhoneCraneContactFrame(from, to, requested, {
+    applyPhoneCraneContactFrame(from, to, rawProgress, {
       mediaRun,
       reducedMotion,
       runId
     });
-    if (frame.progress >= 1 - ENDPOINT_EPSILON) {
-      if (!parkedAtEndpointRef.current) {
-        parkPhoneCraneMedia(from);
-        parkedAtEndpointRef.current = true;
-      }
-    } else {
-      parkedAtEndpointRef.current = false;
-    }
   }, [from, reducedMotion, to]);
 
   useEffect(() => {
-    mediaFailedRef.current = false;
-    parkedAtEndpointRef.current = false;
-    const controller = new AbortController();
     renderContactHold(to);
     onReady?.();
-    if (from && !reducedMotion) {
-      void prepareCraneAnimationFrame(from, 0, {
-        runId: 'phone-crane-contact:prewarm',
-        direction: 1,
-        reducedMotion,
-        signal: controller.signal
-      }).catch(() => {
-        if (controller.signal.aborted) return;
-        mediaFailedRef.current = true;
-        applyPhoneCraneMediaFallback(from);
-        renderContactHold(to);
-        applyPhoneCraneContactFrame(from, to, 1, {
-          reducedMotion: true,
-          runId: 'phone-crane-contact:fallback'
-        });
-      });
-    }
-    return () => controller.abort();
   }, [from, onReady, reducedMotion, to]);
 
   useImperativeHandle(forwardedRef, () => ({
@@ -227,9 +190,8 @@ export const PhoneCraneContactTransition = forwardRef<
       const runId = `phone-crane-contact:${directionRef.current}:${revisionRef.current}`;
       releaseContactEntrance(to, runId, endpoint);
       if (endpoint === 1) renderContactHold(to);
-      parkPhoneCraneMedia(from);
     }
-  }), [from, render, to]);
+  }), [render, to]);
 
   return null;
 });

@@ -26,6 +26,8 @@ describe('Phone Lab → PH transition', () => {
     expect(source).not.toMatch(/from ['"].*PhoneLab/);
     expect(source).not.toMatch(/from ['"].*scenes\/lab/);
     expect(source).not.toContain('<canvas');
+    expect(source).not.toContain('preparePhAnimationFrame');
+    expect(source).not.toContain('parkPhonePhMedia');
   });
 
   it('accepts a lightweight stable Lab outlet fixture without Lab JSX or refs', () => {

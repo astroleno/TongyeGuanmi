@@ -9,6 +9,7 @@ import {
   applyPhonePhMediaFallback,
   parkPhonePhMedia,
   PhonePh,
+  phonePhMediaInput,
   phonePhPresentationProgress
 } from './PhonePh';
 
@@ -29,6 +30,13 @@ describe('PhonePh', () => {
     expect(phonePhPresentationProgress(0.49, true)).toBe(0);
     expect(phonePhPresentationProgress(0.5, true)).toBe(1);
     expect(phonePhPresentationProgress(0.75)).toBe(0.75);
+  });
+
+  it('keeps PH video deterministic when the phone adapter samples scroll', () => {
+    expect(phonePhMediaInput(0.35, {
+      runId: 'phone-ph:1:0',
+      direction: 1
+    }).mode).toBe('timeline');
   });
 
   it('falls back to its static layers and parks media without a reload', () => {

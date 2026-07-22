@@ -6,12 +6,20 @@ import {
   useRef
 } from 'react';
 import {
+  driveTimelineVideo,
+  type TimelineVideoDriveInput
+} from '../../../media/timeline-video-driver';
+import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
+import {
+  PH_FIGURE_END_SECONDS,
   parkPhMedia,
+  phPlaybackProgress,
   phAnimationScene,
   renderPhAnimationProgress,
   renderPhHold,
   type PhMediaRun
 } from '..';
+import { PH_PLAYBACK_MS } from '../../../story/timings';
 import type {
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
@@ -19,6 +27,7 @@ import type {
 import './PhonePh.css';
 
 const PROGRESS_EPSILON = 0.0001;
+const PH_VIDEO_DURATION_FALLBACK_SECONDS = 1.533;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -28,6 +37,45 @@ function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
   return root?.matches('[data-r4-scene="ph-animation"]')
     ? root
     : root?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]') ?? null;
+}
+
+/** Phone scroll always owns the PH frame; desktop keeps its native playback. */
+export function phonePhMediaInput(
+  rawProgress: number,
+  mediaRun: PhMediaRun
+): TimelineVideoDriveInput {
+  return {
+    runId: mediaRun.runId,
+    direction: mediaRun.direction,
+    progress: phPlaybackProgress(rawProgress),
+    durationFallbackSeconds: PH_VIDEO_DURATION_FALLBACK_SECONDS,
+    startSeconds: 0,
+    endSeconds: PH_FIGURE_END_SECONDS,
+    timelineDurationMs: PH_PLAYBACK_MS,
+    mode: 'timeline',
+    nativePlaybackDirection: 1,
+    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
+    ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
+    ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
+  };
+}
+
+/** Preserves canonical PH layers while the phone Adapter owns video seeking. */
+export function renderPhonePhAnimationProgress(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  mediaRun: PhMediaRun
+): void {
+  const section = rootFor(root);
+  const raw = clamp(rawProgress);
+  renderPhAnimationProgress(section, raw);
+  const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
+  const snapshot = driveTimelineVideo(video, phonePhMediaInput(raw, mediaRun));
+  section?.setAttribute('data-ph-playback-direction', String(mediaRun.direction));
+  section?.setAttribute('data-ph-playback-run', mediaRun.runId);
+  section?.setAttribute('data-ph-raw-progress', raw.toFixed(4));
+  section?.setAttribute('data-ph-playback-active', String(raw > 0.001 && raw < 0.999));
+  section?.setAttribute('data-ph-playback-fallback', String(snapshot?.nativeFallback ?? false));
 }
 
 /**
@@ -90,7 +138,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         direction: directionRef.current,
         reducedMotion
       };
-      renderPhAnimationProgress(root, progress, { mediaRun });
+      renderPhonePhAnimationProgress(root, progress, mediaRun);
       root?.setAttribute('data-phone-ph-progress', progress.toFixed(4));
     }, [reducedMotion]);
 

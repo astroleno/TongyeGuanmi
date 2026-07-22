@@ -23,6 +23,8 @@ describe('Phone Crane → Contact transition', () => {
     });
     expect(source).not.toContain('<canvas');
     expect(source).not.toMatch(/createPhoneInk/);
+    expect(source).not.toContain('prepareCraneAnimationFrame');
+    expect(source).not.toContain('parkPhoneCraneMedia');
   });
 
   it('starts Contact at the shared cue and reaches one stable interactive endpoint', () => {

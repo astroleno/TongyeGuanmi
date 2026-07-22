@@ -7,7 +7,7 @@ import {
 } from 'react';
 import type { SceneId } from '../../story/types';
 import { StoryNav } from '../StoryNav';
-import { hashForScene, sceneFromHash } from '../navigation';
+import { hashForScene, publicMenuItems, sceneFromHash } from '../navigation';
 import {
   loadLabContactPhoneSceneAdapter
 } from './scenes/lab-contact-loaders';
@@ -44,6 +44,15 @@ type LifecycleState = Readonly<{
 function isLabContactScene(scene: SceneId | undefined): scene is LabContactSceneId {
   return Boolean(scene && labContactPhoneSceneAdapterIds.includes(scene as LabContactSceneId));
 }
+
+/**
+ * This acceptance route begins at Lab. Keep the shared navigation contract,
+ * but do not expose Grade A / Brand destinations that this shell deliberately
+ * does not mount.
+ */
+const labContactMenuItems = publicMenuItems.filter((item) =>
+  isLabContactScene(item.scene)
+);
 
 export function phoneLabContactEntryScene(hash: string): LabContactSceneId {
   const scene = sceneFromHash(hash);
@@ -342,6 +351,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   useEffect(() => {
     if (!fullJourney) return;
     let frame = 0;
+    let settleFrame = 0;
     const schedule = () => {
       if (frame) return;
       frame = window.requestAnimationFrame(render);
@@ -399,6 +409,8 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         setStageActive(phStageRef.current, phFrame.stageActive);
         syncSceneLifecycle(lifecycleStates.current, 'lab', lab, phFrame.handoffProgress < 1);
         syncSceneLifecycle(lifecycleStates.current, 'ph-animation', ph, phFrame.stageActive);
+        syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
 
         if (phFrame.handoffProgress < 1) {
           labPhRef.current?.render(phFrame.handoffProgress);
@@ -429,6 +441,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         setStageActive(craneStageRef.current, craneFrame.stageActive);
         syncSceneLifecycle(lifecycleStates.current, 'education', education, craneFrame.handoffProgress < 1);
         syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, craneFrame.stageActive);
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
 
         if (craneFrame.handoffProgress < 1) {
           educationCraneRef.current?.render(craneFrame.handoffProgress);
@@ -460,12 +473,17 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         publishActiveScene('contact');
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, true);
       } else if (!craneInRange && craneRect.top <= viewportHeight * 0.42) {
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
         publishNavigationScene('crane-animation');
       } else if (!phInRange && educationTop <= viewportHeight * 0.42) {
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
+        syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
         publishNavigationScene('education');
         publishActiveScene('education');
         syncSceneLifecycle(lifecycleStates.current, 'education', education, true);
       } else if (!phInRange && phRect.top > viewportHeight * 0.42) {
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
+        syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
         publishNavigationScene('lab');
         publishActiveScene('lab');
         syncSceneLifecycle(lifecycleStates.current, 'lab', lab, true);
@@ -473,11 +491,17 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     };
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
-    render();
+    // Lazy adapters publish their refs after React commits. A settling frame
+    // lets a newly mounted transition finish its endpoint effect before the
+    // shell reapplies the current PH/Crane scroll frame; otherwise the stage
+    // can remain invisible until the next physical scroll event.
+    schedule();
+    settleFrame = window.requestAnimationFrame(schedule);
     return () => {
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       if (frame) window.cancelAnimationFrame(frame);
+      if (settleFrame) window.cancelAnimationFrame(settleFrame);
     };
   }, [
     adapterRevision,
@@ -486,7 +510,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     fullJourney,
     publishActiveScene,
     publishNavigationScene,
-    reducedMotion
+    reducedMotion,
+    scenes,
+    transitions
   ]);
 
   useEffect(() => () => {
@@ -683,6 +709,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         currentScene={navigationScene}
         visible
         menuOpen={navigationMenuOpen}
+        menuItems={labContactMenuItems}
         onToggleMenu={() => setNavigationMenuOpen((open) => !open)}
         onNavigate={navigate}
       />

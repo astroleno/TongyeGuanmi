@@ -46,6 +46,11 @@ export function phoneCranePresentationProgress(
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
 }
 
+/** A superseded seek is normal while scroll sampling takes ownership. */
+export function isStaleCraneFramePreparation(error: unknown): boolean {
+  return error instanceof Error && error.message === 'Crane media stale';
+}
+
 export function parkPhoneCraneMedia(root: HTMLElement | null | undefined): void {
   const section = rootFor(root);
   for (const video of craneVideos(section)) {
@@ -78,7 +83,7 @@ export function applyPhoneCraneMediaFallback(
 export const PhoneCrane = forwardRef<
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
->(function PhoneCrane({ active, onReady, reducedMotion }, forwardedRef) {
+>(function PhoneCrane({ onReady, reducedMotion }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
   const lastProgressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
@@ -124,18 +129,20 @@ export const PhoneCrane = forwardRef<
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || !active || reducedMotion) return;
+    if (!root || reducedMotion) return;
     const controller = new AbortController();
     void prepareCraneAnimationFrame(root, 0, {
       runId: 'phone-crane:adjacent-prewarm',
       direction: 1,
       reducedMotion,
       signal: controller.signal
-    }).catch(() => {
-      if (!controller.signal.aborted) applyPhoneCraneMediaFallback(root);
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted && !isStaleCraneFramePreparation(error)) {
+        applyPhoneCraneMediaFallback(root);
+      }
     });
     return () => controller.abort();
-  }, [active, reducedMotion]);
+  }, [reducedMotion]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,

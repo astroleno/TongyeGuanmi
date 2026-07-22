@@ -10,6 +10,37 @@
   touch-action: pan-y;
 }
 
+/*
+ * Education remains one native document, but its authored introduction and
+ * programme are two consecutive phone acts. The shared mobile stylesheet
+ * intentionally flattens desktop sections; restore the two full-viewport
+ * beats locally without creating an inner scroll container.
+ */
+.phone-education .r4-education {
+  height: auto;
+  min-height: 200svh;
+  overflow: visible;
+  padding: 0;
+}
+
+.phone-education .r4-education__wide,
+.phone-education .r4-education__vertical {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100svh;
+  margin: 0;
+}
+
+.phone-education .r4-education__wide {
+  align-content: center;
+  padding: max(72px, 12svh) clamp(24px, 6vw, 42px) max(48px, 8svh);
+}
+
+.phone-education .r4-education__vertical {
+  align-content: start;
+  padding: max(72px, 12svh) clamp(24px, 6vw, 42px) max(72px, 12svh);
+}
+
 .phone-education :is(a, button, input, select, textarea, [role="button"]) {
   pointer-events: auto;
   touch-action: manipulation;

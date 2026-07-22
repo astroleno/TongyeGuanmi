@@ -20,6 +20,16 @@ describe('PhoneLabContactShell', () => {
     expect(markup).not.toContain('PhoneGradeAStory');
   });
 
+  it('does not expose skipped front-half destinations in the acceptance menu', () => {
+    const markup = renderToStaticMarkup(createElement(PhoneLabContactShell, {
+      validationMode: 'v36'
+    }));
+
+    expect(markup).not.toContain('href="#method"');
+    expect(markup).not.toContain('href="#services"');
+    expect(markup).toContain('href="#contact"');
+  });
+
   it('keeps direct target hashes inside the Lab → Contact acceptance set', () => {
     expect(phoneLabContactEntryScene('#ph-animation')).toBe('ph-animation');
     expect(phoneLabContactEntryScene('#education')).toBe('education');

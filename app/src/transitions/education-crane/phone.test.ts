@@ -17,6 +17,8 @@ describe('Phone Education → Crane transition', () => {
     });
     expect(source).not.toContain('<canvas');
     expect(source).not.toMatch(/createPhoneInk/);
+    expect(source).not.toContain('prepareCraneAnimationFrame');
+    expect(source).not.toContain('parkPhoneCraneMedia');
   });
 
   it('dissolves stable Education directly to the stable Crane frame', () => {

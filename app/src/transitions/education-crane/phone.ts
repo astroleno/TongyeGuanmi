@@ -2,17 +2,11 @@ import {
   forwardRef,
   useCallback,
   useEffect,
-  useImperativeHandle,
-  useRef
+  useImperativeHandle
 } from 'react';
 import {
-  prepareCraneAnimationFrame,
   renderCraneHold
 } from '../../scenes/crane-animation';
-import {
-  applyPhoneCraneMediaFallback,
-  parkPhoneCraneMedia
-} from '../../scenes/crane-animation/phone/PhoneCrane';
 import { renderEducationHold } from '../../scenes/education';
 import type {
   PhoneTransitionAdapterHandle,
@@ -89,28 +83,13 @@ export const PhoneEducationCraneTransition = forwardRef<
   { from, onReady, reducedMotion, to },
   forwardedRef
 ) {
-  const prewarmRunRef = useRef(0);
   const render = useCallback((progress: number) => {
     applyPhoneEducationCraneFrame(from, to, progress, reducedMotion);
   }, [from, reducedMotion, to]);
 
   useEffect(() => {
-    prewarmRunRef.current += 1;
-    const run = prewarmRunRef.current;
-    const controller = new AbortController();
     renderCraneHold(to);
     onReady?.();
-    if (to && !reducedMotion) {
-      void prepareCraneAnimationFrame(to, 0, {
-        runId: `phone-education-crane:${run}`,
-        direction: 1,
-        reducedMotion,
-        signal: controller.signal
-      }).catch(() => {
-        if (!controller.signal.aborted) applyPhoneCraneMediaFallback(to);
-      });
-    }
-    return () => controller.abort();
   }, [onReady, reducedMotion, to]);
 
   useImperativeHandle(forwardedRef, () => ({
@@ -123,11 +102,8 @@ export const PhoneEducationCraneTransition = forwardRef<
     },
     reverse() {
       render(0);
-    },
-    dispose() {
-      parkPhoneCraneMedia(to);
     }
-  }), [render, to]);
+  }), [render]);
 
   return null;
 });

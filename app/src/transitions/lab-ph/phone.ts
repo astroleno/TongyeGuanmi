@@ -2,17 +2,11 @@ import {
   forwardRef,
   useCallback,
   useEffect,
-  useImperativeHandle,
-  useRef
+  useImperativeHandle
 } from 'react';
 import {
-  preparePhAnimationFrame,
   renderPhHold
 } from '../../scenes/ph-animation';
-import {
-  applyPhonePhMediaFallback,
-  parkPhonePhMedia
-} from '../../scenes/ph-animation/phone/PhonePh';
 import type {
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
@@ -94,28 +88,13 @@ export const PhoneLabPhTransition = forwardRef<
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
 >(function PhoneLabPhTransition({ from, onReady, reducedMotion, to }, forwardedRef) {
-  const runRef = useRef(0);
   const render = useCallback((progress: number) => {
     applyPhoneLabPhFrame(from, to, progress, reducedMotion);
   }, [from, reducedMotion, to]);
 
   useEffect(() => {
-    runRef.current += 1;
-    const run = runRef.current;
-    const controller = new AbortController();
     renderPhHold(to);
     onReady?.();
-    if (to) {
-      void preparePhAnimationFrame(to, 0, {
-        runId: `phone-lab-ph:${run}`,
-        direction: 1,
-        reducedMotion,
-        signal: controller.signal
-      }).catch(() => {
-        if (!controller.signal.aborted) applyPhonePhMediaFallback(to);
-      });
-    }
-    return () => controller.abort();
   }, [onReady, reducedMotion, to]);
 
   useImperativeHandle(forwardedRef, () => ({
@@ -128,11 +107,8 @@ export const PhoneLabPhTransition = forwardRef<
     },
     reverse() {
       render(0);
-    },
-    dispose() {
-      parkPhonePhMedia(to);
     }
-  }), [render, to]);
+  }), [render]);
 
   return null;
 });

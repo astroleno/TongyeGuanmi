@@ -6,13 +6,11 @@ import {
   useRef
 } from 'react';
 import {
-  preparePhAnimationFrame,
   renderPhAnimationProgress,
   type PhMediaRun
 } from '../../scenes/ph-animation';
 import {
-  applyPhonePhMediaFallback,
-  parkPhonePhMedia
+  renderPhonePhAnimationProgress
 } from '../../scenes/ph-animation/phone/PhonePh';
 import { renderEducationProgress } from '../../scenes/education';
 import {
@@ -105,11 +103,11 @@ export function applyPhonePhEducationFrame(
   }> = {}
 ): PhonePhEducationFrame {
   const frame = phonePhEducationFrame(rawProgress, options.reducedMotion);
-  renderPhAnimationProgress(
-    from,
-    frame.phProgress,
-    options.mediaRun ? { mediaRun: options.mediaRun } : undefined
-  );
+  if (options.mediaRun) {
+    renderPhonePhAnimationProgress(from, frame.phProgress, options.mediaRun);
+  } else {
+    renderPhAnimationProgress(from, frame.phProgress);
+  }
   renderEducationProgress(to, frame.educationProgress);
   applyEndpointVisibility(from, frame.phOpacity);
   applyEndpointVisibility(to, frame.educationOpacity);
@@ -128,11 +126,9 @@ export const PhonePhEducationTransition = forwardRef<
   const lastProgressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
   const revisionRef = useRef(0);
-  const mediaFailedRef = useRef(false);
 
   const render = useCallback((rawProgress: number) => {
-    const requested = mediaFailedRef.current ? 1 : rawProgress;
-    const progress = transitionProgress(requested, reducedMotion);
+    const progress = transitionProgress(rawProgress, reducedMotion);
     if (progress > lastProgressRef.current + ENDPOINT_EPSILON) {
       if (directionRef.current !== 1) revisionRef.current += 1;
       directionRef.current = 1;
@@ -146,28 +142,12 @@ export const PhonePhEducationTransition = forwardRef<
       direction: directionRef.current,
       reducedMotion
     };
-    applyPhonePhEducationFrame(from, to, requested, { mediaRun, reducedMotion });
+    applyPhonePhEducationFrame(from, to, rawProgress, { mediaRun, reducedMotion });
   }, [from, reducedMotion, to]);
 
   useEffect(() => {
-    mediaFailedRef.current = false;
-    const controller = new AbortController();
     onReady?.();
-    if (from) {
-      void preparePhAnimationFrame(from, 0, {
-        runId: 'phone-ph-education:prewarm',
-        direction: 1,
-        reducedMotion,
-        signal: controller.signal
-      }).catch(() => {
-        if (controller.signal.aborted) return;
-        mediaFailedRef.current = true;
-        applyPhonePhMediaFallback(from);
-        applyPhonePhEducationFrame(from, to, 1, { reducedMotion: true });
-      });
-    }
-    return () => controller.abort();
-  }, [from, onReady, reducedMotion, to]);
+  }, [onReady]);
 
   useImperativeHandle(forwardedRef, () => ({
     render,
@@ -179,11 +159,8 @@ export const PhonePhEducationTransition = forwardRef<
     },
     reverse() {
       render(0);
-    },
-    dispose() {
-      parkPhonePhMedia(from);
     }
-  }), [from, render]);
+  }), [render]);
 
   return null;
 });
