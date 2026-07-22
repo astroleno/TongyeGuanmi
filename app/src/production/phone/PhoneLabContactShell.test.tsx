@@ -54,7 +54,13 @@ describe('PhoneLabContactShell', () => {
   });
 
   it('keeps cinematic stages in their own document blocks', () => {
-    expect(shellCss).toContain('min-height: 200svh');
+    expect(shellCss).toContain('--phone-cinematic-trigger-lane');
+    expect(shellCss).toContain('+ var(--phone-cinematic-trigger-lane)');
+    expect(shellCss).not.toContain('var(--phone-cinematic-stage-height) * 2');
+    expect(shellCss).toContain('--phone-cinematic-stage-height: max(var(--portrait-live-height), 100lvh)');
+    expect(shellCss).toContain('var(--portrait-stage-coverage-height)');
+    expect(shellSource).toContain('usePhoneLabContactViewportGeometry(rootRef, motionEnabled)');
+    expect(shellSource).not.toContain("from './usePhoneViewportGeometry'");
     expect(shellCss).toContain('data-phone-lab-contact-snap="locked"');
     expect(shellCss).not.toContain('phone-lab-contact-arrival-overlap');
     expect(shellCss).not.toContain('margin-top: calc(-1 * var(--phone-lab-contact-stage-height))');
@@ -65,8 +71,11 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('attachStoryMediaUnlock(rootRef.current)');
     expect(shellSource).toContain('createPhoneLabContactSnapLock');
     expect(shellSource).toContain('PHONE_LAB_CONTACT_STOPS.sceneMotionEnd');
-    expect(shellSource).toContain('MOTION_LANE_EPSILON');
+    expect(shellSource).toContain('phoneLabContactOwnsNativePlayback');
     expect(shellSource).toContain('PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS');
     expect(shellSource).toContain('() => releaseSnap(detail.scene)');
+    expect(shellSource).toContain("window.history.scrollRestoration = 'manual'");
+    expect(shellSource).toContain("scene === 'education'");
+    expect(shellSource).toContain("root?.setAttribute('aria-hidden', 'true')");
   });
 });

@@ -1,8 +1,14 @@
 const EPSILON = 0.001;
+const MOTION_LANE_EPSILON = 0.005;
 
 export const PHONE_LAB_CONTACT_STOPS = Object.freeze({
-  handoffEnd: 0.16,
-  sceneMotionEnd: 0.78,
+  // Enter the native media lane as soon as the sticky camera reaches the
+  // viewport, then keep the snap at the far edge of the lane. This mirrors
+  // the accepted AOD route: one gesture chooses the scene, native time owns
+  // playback, and the next gesture can reveal the following document beat
+  // without traversing a second invisible hold.
+  handoffEnd: 0.01,
+  sceneMotionEnd: 0.99,
   endpoint: 1
 });
 
@@ -50,6 +56,24 @@ export type PhoneLabContactPhaseFrame = Readonly<{
   arrivalProgress: number;
   stageActive: boolean;
 }>;
+
+/**
+ * Keep native playback alive after the snap rounds into the tiny exit lane.
+ * Physical scroll positions are integer pixels, so a 99% anchor on a short
+ * phone rail can sample fractionally past `sceneMotionEnd`. Without the lock
+ * override the adapter receives `leave()` immediately after `enter()` and the
+ * first decoded frame appears frozen.
+ */
+export function phoneLabContactOwnsNativePlayback(
+  frame: PhoneLabContactPhaseFrame,
+  snapLocked: boolean
+): boolean {
+  const reachedMotionLane = frame.handoffProgress >= 1 - MOTION_LANE_EPSILON;
+  const remainsInMotionLane = frame.arrivalProgress <= MOTION_LANE_EPSILON;
+  return reachedMotionLane
+    && (remainsInMotionLane || snapLocked)
+    && (frame.stageActive || snapLocked);
+}
 
 /**
  * Maps a pinned cinematic chapter to stable endpoints plus a single authored

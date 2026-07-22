@@ -18,7 +18,8 @@
  */
 .phone-education .r4-education {
   height: auto;
-  min-height: 200svh;
+  min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2);
+  gap: 0;
   overflow: visible;
   padding: 0;
 }
@@ -27,7 +28,7 @@
 .phone-education .r4-education__vertical {
   box-sizing: border-box;
   width: 100%;
-  min-height: 100svh;
+  min-height: var(--phone-cinematic-stage-height, 100svh);
   margin: 0;
 }
 

@@ -1,6 +1,7 @@
 .phone-crane {
   position: relative;
   width: 100%;
+  height: 100%;
   overflow: visible;
   contain: layout;
 }
@@ -16,21 +17,41 @@
   --crane-flock-x: 0px;
   --crane-flock-base-y: 0svh;
   --crane-flock-scale: 1.06;
+  height: 100%;
+  min-height: 100%;
 }
 
-.phone-crane .crane-figure-video {
-  object-position: 20% 44%;
+/* AOD topology: canonical videos decode packed H.264 but never paint. */
+.phone-crane [data-crane-figure-video],
+.phone-crane [data-crane-figure-front-video] {
+  opacity: 0 !important;
+  filter: none;
 }
 
-.phone-crane .crane-figure-video--front {
-  object-position: 50% 38%;
-}
-
-.phone-crane .crane-figure-video[data-phone-crane-frame-ready="true"] {
+.phone-crane__figure-canvas {
   opacity: var(--crane-video-opacity);
 }
 
-.phone-crane .crane-figure-video--front[data-phone-crane-frame-ready="true"] {
+.phone-crane__flock-canvas {
+  opacity: var(--crane-flock-opacity);
+}
+
+.phone-crane__figure-canvas,
+.phone-crane__flock-canvas {
+  width: max(
+    100%,
+    calc(var(--phone-cinematic-stage-height, var(--portrait-stage-height, 100svh)) * 16 / 9)
+  );
+  height: auto;
+  aspect-ratio: 16 / 9;
+  opacity: 0;
+}
+
+.phone-crane [data-phone-crane-figure-alpha="verified"] .phone-crane__figure-canvas[data-packed-alpha-frame-ready="true"] {
+  opacity: var(--crane-video-opacity);
+}
+
+.phone-crane [data-phone-crane-flock-alpha="verified"] .phone-crane__flock-canvas[data-packed-alpha-frame-ready="true"] {
   opacity: var(--crane-flock-opacity);
 }
 

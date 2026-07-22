@@ -44,8 +44,9 @@ describe('PhonePh', () => {
     expect(phonePhTimelineProgressForMediaProgress(0)).toBe(0);
     expect(phonePhTimelineProgressForMediaProgress(0.445)).toBeCloseTo(0.5, 5);
     expect(phonePhTimelineProgressForMediaProgress(1)).toBeCloseTo(1, 5);
-    expect(css).toContain('220.44svh');
-    expect(css).toContain('216.89svh');
+    expect(css).toContain('var(--phone-cinematic-stage-height, 100lvh) * 2.2044');
+    expect(css).toContain('var(--phone-cinematic-stage-height, 100lvh) * 2.1689');
+    expect(css).toContain('opacity: 1 !important');
     expect(css).not.toContain('::before');
     expect(css).not.toContain('::after');
     expect(css).not.toContain('--phone-ph-island-source');
@@ -53,6 +54,10 @@ describe('PhonePh', () => {
 
   it('reuses the AOD native-time policy and Figure2 stable-surface policy', () => {
     expect(source).toContain('createPhoneNativeAutoplay');
+    expect(source).toContain('createPhonePackedAlphaSurface');
+    expect(source).toContain("phoneMediaUrlFor('ph-figure-packed'");
+    expect(source).toContain("ensurePackedSurface('endpoint')");
+    expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
     expect(source).toContain('PH_FIGURE_END_SECONDS');
     expect(source).toContain('createPhonePhReverseDissolve');
     expect(source).toContain("'endpoint-dissolve'");

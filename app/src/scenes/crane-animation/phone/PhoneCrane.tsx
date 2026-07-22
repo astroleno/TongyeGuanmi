@@ -12,6 +12,13 @@ import type {
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
 import { dispatchPhoneLabContactAutoplay } from '../../../production/phone/phone-lab-contact-timeline';
+import { phoneMediaUrlFor } from '../../../production/phone/phone-media';
+import {
+  createPhonePackedAlphaSurface,
+  releasePhonePackedAlphaWhenHidden,
+  type PhonePackedAlphaSurface,
+  type PhonePackedAlphaSurfaceMode
+} from '../../../production/phone/scenes/phone-packed-alpha-surface';
 import {
   createPhoneCraneForwardRun,
   createPhoneCraneReverseDissolve,
@@ -26,6 +33,17 @@ import {
   type PhoneCranePlaybackDirection
 } from './PhoneCrane.motion';
 import './PhoneCrane.css';
+
+const PHONE_CRANE_FIGURE_PACKED = phoneMediaUrlFor(
+  'crane-figure-packed',
+  'crane-animation'
+);
+const PHONE_CRANE_FLOCK_PACKED = phoneMediaUrlFor(
+  'crane-flock-packed',
+  'crane-animation'
+);
+const PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = 0.749968;
+const PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = 1.23312;
 
 export {
   PHONE_CRANE_STABLE_HOLD_PROGRESS,
@@ -74,7 +92,54 @@ export const PhoneCrane = forwardRef<
   const forwardRunRef = useRef<PhoneCraneForwardRun | null>(null);
   const reverseDissolveRef = useRef<PhoneCraneReverseDissolve | null>(null);
   const endpointControllerRef = useRef<AbortController | null>(null);
+  const packedSurfacesRef = useRef<readonly [
+    PhonePackedAlphaSurface,
+    PhonePackedAlphaSurface
+  ] | null>(null);
+  const cancelPackedReleaseRef = useRef<(() => void) | null>(null);
   const requestedDirectionRef = useRef<PhoneCranePlaybackDirection | null>(null);
+
+  const ensurePackedSurfaces = useCallback((mode: PhonePackedAlphaSurfaceMode) => {
+    const root = rootRef.current;
+    const [figure, flock] = phoneCraneVideos(root);
+    const figureContainer = figure?.parentElement;
+    const flockContainer = flock?.parentElement;
+    if (!root || !figure || !flock || !figureContainer || !flockContainer) return;
+    cancelPackedReleaseRef.current?.();
+    cancelPackedReleaseRef.current = null;
+    if (!packedSurfacesRef.current) {
+      const figureSurface = createPhonePackedAlphaSurface({
+        root,
+        container: figureContainer,
+        video: figure,
+        packedSourceUrl: PHONE_CRANE_FIGURE_PACKED,
+        endpointSeconds: PHONE_CRANE_FIGURE_ENDPOINT_SECONDS,
+        statusDataset: 'phoneCraneFigureAlpha',
+        layerName: 'crane-figure',
+        canvasClassName: 'crane-figure-video phone-crane__figure-canvas',
+        onFrame: () => {
+          figure.dataset.timelineVideoFrameReady = 'true';
+          root.dataset.phoneCraneMedia = figure.paused ? 'ready' : 'playing';
+        }
+      });
+      const flockSurface = createPhonePackedAlphaSurface({
+        root,
+        container: flockContainer,
+        video: flock,
+        packedSourceUrl: PHONE_CRANE_FLOCK_PACKED,
+        endpointSeconds: PHONE_CRANE_FLOCK_ENDPOINT_SECONDS,
+        statusDataset: 'phoneCraneFlockAlpha',
+        layerName: 'crane-flock',
+        canvasClassName: 'crane-figure-video crane-figure-video--front phone-crane__flock-canvas',
+        onFrame: () => {
+          flock.dataset.timelineVideoFrameReady = 'true';
+          root.dataset.phoneCraneMedia = flock.paused ? 'ready' : 'playing';
+        }
+      });
+      packedSurfacesRef.current = [figureSurface, flockSurface];
+    }
+    for (const surface of packedSurfacesRef.current) surface.activate(mode);
+  }, []);
 
   const render = useCallback((
     rawProgress: number,
@@ -127,17 +192,20 @@ export const PhoneCrane = forwardRef<
     if (direction === 1) {
       endpointControllerRef.current?.abort();
       reverseDissolveRef.current?.stop();
+      ensurePackedSurfaces('forward');
       forwardRunRef.current?.start();
     } else {
       forwardRunRef.current?.stop();
+      ensurePackedSurfaces('endpoint');
       reverseDissolveRef.current?.start();
     }
-  }, [completeRun, reducedMotion, render]);
+  }, [completeRun, ensurePackedSurfaces, reducedMotion, render]);
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     render(0);
+    ensurePackedSurfaces(reducedMotion ? 'endpoint' : 'forward');
     const forwardRun = createPhoneCraneForwardRun(
       root,
       render,
@@ -191,13 +259,17 @@ export const PhoneCrane = forwardRef<
       endpointControllerRef.current?.abort();
       forwardRun.dispose();
       reverseDissolve.dispose();
+      cancelPackedReleaseRef.current?.();
+      cancelPackedReleaseRef.current = null;
+      for (const surface of packedSurfacesRef.current ?? []) surface.dispose();
+      packedSurfacesRef.current = null;
       if (forwardRunRef.current === forwardRun) forwardRunRef.current = null;
       if (reverseDissolveRef.current === reverseDissolve) reverseDissolveRef.current = null;
       parkPhoneCraneMedia(root);
       delete root.dataset.phoneCraneLifecycle;
       delete root.dataset.phoneCraneAutoplay;
     };
-  }, [completeRun, onReady, reducedMotion, render, startRun]);
+  }, [completeRun, ensurePackedSurfaces, onReady, reducedMotion, render, startRun]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -206,7 +278,13 @@ export const PhoneCrane = forwardRef<
       endpointControllerRef.current?.abort();
       forwardRunRef.current?.stop();
       reverseDissolveRef.current?.stop();
-      render(progress);
+      if (progress >= 0.999) {
+        ensurePackedSurfaces('endpoint');
+        render(PHONE_CRANE_STABLE_HOLD_PROGRESS);
+      } else {
+        ensurePackedSurfaces('forward');
+        render(progress);
+      }
     },
     enter() {
       rootRef.current?.removeAttribute('aria-hidden');
@@ -220,6 +298,16 @@ export const PhoneCrane = forwardRef<
       reverseDissolveRef.current?.stop();
       parkPhoneCraneMedia(rootRef.current);
       rootRef.current?.setAttribute('data-phone-crane-state', 'parked');
+      const root = rootRef.current;
+      if (root) {
+        cancelPackedReleaseRef.current?.();
+        cancelPackedReleaseRef.current = releasePhonePackedAlphaWhenHidden(
+          root,
+          () => {
+            for (const surface of packedSurfacesRef.current ?? []) surface.release();
+          }
+        );
+      }
     },
     reverse() {
       rootRef.current?.setAttribute('data-phone-crane-state', 'reversing');
@@ -230,9 +318,13 @@ export const PhoneCrane = forwardRef<
       endpointControllerRef.current?.abort();
       forwardRunRef.current?.dispose();
       reverseDissolveRef.current?.dispose();
+      cancelPackedReleaseRef.current?.();
+      cancelPackedReleaseRef.current = null;
+      for (const surface of packedSurfacesRef.current ?? []) surface.dispose();
+      packedSurfacesRef.current = null;
       parkPhoneCraneMedia(rootRef.current);
     }
-  }), [render, startRun]);
+  }), [ensurePackedSurfaces, render, startRun]);
 
   const CraneSurface = craneAnimationScene.Component;
   return (

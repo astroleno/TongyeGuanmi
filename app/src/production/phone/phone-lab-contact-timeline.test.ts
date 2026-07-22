@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
   phoneLabContactScrollProgress
 } from './phone-lab-contact-timeline';
@@ -12,12 +13,12 @@ describe('phone Lab → Contact acceptance timeline', () => {
       arrivalProgress: 0,
       stageActive: true
     });
-    expect(phoneLabContactPhaseFrame(0.16)).toMatchObject({
+    expect(phoneLabContactPhaseFrame(0.01)).toMatchObject({
       handoffProgress: 1,
       sceneProgress: 0,
       arrivalProgress: 0
     });
-    expect(phoneLabContactPhaseFrame(0.78)).toMatchObject({
+    expect(phoneLabContactPhaseFrame(0.99)).toMatchObject({
       handoffProgress: 1,
       sceneProgress: 1,
       arrivalProgress: 0
@@ -37,6 +38,15 @@ describe('phone Lab → Contact acceptance timeline', () => {
       arrivalProgress: 1,
       stageActive: false
     });
+  });
+
+  it('does not park native media when integer snap rounding enters the exit lane', () => {
+    const roundedSnap = phoneLabContactPhaseFrame(0.995);
+
+    expect(phoneLabContactOwnsNativePlayback(roundedSnap, false)).toBe(false);
+    expect(phoneLabContactOwnsNativePlayback(roundedSnap, true)).toBe(true);
+    expect(phoneLabContactOwnsNativePlayback(phoneLabContactPhaseFrame(1), true)).toBe(true);
+    expect(phoneLabContactOwnsNativePlayback(phoneLabContactPhaseFrame(0), true)).toBe(false);
   });
 
   it("maps the sticky rail's native scroll distance in both directions", () => {

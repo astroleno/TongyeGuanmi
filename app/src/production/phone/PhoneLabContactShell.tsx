@@ -1,9 +1,11 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
-  type RefCallback
+  type RefCallback,
+  type RefObject
 } from 'react';
 import type { SceneId } from '../../story/types';
 import { StoryNav } from '../StoryNav';
@@ -26,6 +28,7 @@ import {
   PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
   PHONE_LAB_CONTACT_STOPS,
   type PhoneLabContactAutoplayEventDetail,
+  phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
   phoneLabContactScrollProgress
 } from './phone-lab-contact-timeline';
@@ -49,11 +52,75 @@ type LifecycleState = Readonly<{
   active: boolean;
 }>;
 
-// A physical phone scroll position is integer-pixel, while the phase stops
-// are fractional. Keep a small lane tolerance so the snap anchor cannot
-// immediately retire its own just-started adapter through rounding.
-const MOTION_LANE_EPSILON = 0.005;
 const PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS = 5000;
+const SCENE_VISIBILITY_EPSILON_PX = 1;
+
+/**
+ * The isolated Lab → Contact acceptance route has no GSAP/ScrollTrigger
+ * stage. Keep Safari's stable viewport coverage locally so importing this
+ * shell cannot pull the production phone stage runtime into a shared chunk.
+ */
+function usePhoneLabContactViewportGeometry(
+  rootRef: RefObject<HTMLElement | null>,
+  motionEnabled: boolean
+): void {
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const documentElement = document.documentElement;
+    documentElement.dataset.portraitSpike = 'b';
+    documentElement.dataset.portraitSpikeMotion = motionEnabled ? 'force' : 'reduce';
+    if (!root) return;
+
+    let frame = 0;
+    let coverageHeight = 0;
+    let coverageWidth = 0;
+    const sync = () => {
+      frame = 0;
+      const viewport = window.visualViewport;
+      const height = Math.max(1, Math.round(viewport?.height || window.innerHeight || 1));
+      const width = Math.max(1, Math.round(viewport?.width || window.innerWidth || 1));
+      const offsetTop = Math.max(0, viewport?.offsetTop || 0);
+      const viewportBottom = Math.max(1, Math.ceil(height + offsetTop));
+      if (!coverageWidth || Math.abs(width - coverageWidth) > 1) {
+        coverageWidth = width;
+        coverageHeight = viewportBottom;
+      } else {
+        coverageHeight = Math.max(coverageHeight, viewportBottom);
+      }
+      root.style.setProperty('--portrait-live-height', `${height}px`);
+      root.style.setProperty('--portrait-live-width', `${width}px`);
+      root.style.setProperty('--portrait-stage-coverage-height', `${coverageHeight}px`);
+      root.dataset.portraitLiveViewport = `${width}x${height}`;
+      root.dataset.portraitLayoutViewport = `${width}x${height}`;
+      root.dataset.portraitStageCoverage = `${coverageHeight}px`;
+      root.dataset.portraitViewportOffsetTop = `${Math.ceil(offsetTop)}px`;
+      root.dataset.portraitViewportBottom = `${viewportBottom}px`;
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(sync);
+    };
+
+    sync();
+    window.visualViewport?.addEventListener('resize', schedule);
+    window.visualViewport?.addEventListener('scroll', schedule);
+    window.addEventListener('resize', schedule);
+    window.addEventListener('orientationchange', schedule);
+    document.addEventListener('fullscreenchange', schedule);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.visualViewport?.removeEventListener('resize', schedule);
+      window.visualViewport?.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('orientationchange', schedule);
+      document.removeEventListener('fullscreenchange', schedule);
+      root.style.removeProperty('--portrait-live-height');
+      root.style.removeProperty('--portrait-live-width');
+      root.style.removeProperty('--portrait-stage-coverage-height');
+      delete documentElement.dataset.portraitSpike;
+      delete documentElement.dataset.portraitSpikeMotion;
+    };
+  }, [motionEnabled, rootRef]);
+}
 
 function isLabContactScene(scene: SceneId | undefined): scene is LabContactSceneId {
   return Boolean(scene && labContactPhoneSceneAdapterIds.includes(scene as LabContactSceneId));
@@ -130,6 +197,17 @@ function syncSceneLifecycle(
     else handle.enter?.();
   } else {
     handle.leave?.();
+  }
+  const root = handle.root();
+  const nativeDocumentOwner = scene === 'lab'
+    || scene === 'education'
+    || scene === 'contact';
+  if (!active) {
+    root?.setAttribute('aria-hidden', 'true');
+    if (root) root.inert = true;
+  } else if (nativeDocumentOwner) {
+    root?.removeAttribute('aria-hidden');
+    if (root) root.inert = false;
   }
   states.set(scene, { handle, active });
 }
@@ -270,6 +348,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   const motionEnabled = phoneMotionEnabled();
   const reducedMotion = !motionEnabled;
   const fullJourney = entryScene === 'lab';
+  usePhoneLabContactViewportGeometry(rootRef, motionEnabled);
   const {
     scenes,
     transitions,
@@ -331,6 +410,27 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     };
   }, []);
 
+  // A physical reload can restore the old document Y before the lazy Lab
+  // surface mounts. This cut route always starts at Lab, so retire that stale
+  // position across both the initial commit and the browser's anchor pass.
+  useEffect(() => {
+    if (!fullJourney) return;
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    let settleFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      settleFrame = window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (settleFrame) window.cancelAnimationFrame(settleFrame);
+      window.history.scrollRestoration = previousRestoration;
+    };
+  }, [fullJourney]);
+
   // Keep the physical iOS media-unlock path identical to the production
   // phone shell. Lazy PH/Crane videos can otherwise miss the touch that
   // crosses their cinematic threshold on Safari.
@@ -372,14 +472,24 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         const phase = detail.scene === 'ph-animation'
           ? phPhaseRef.current
           : cranePhaseRef.current;
+        const stage = detail.scene === 'ph-animation'
+          ? phStageRef.current
+          : craneStageRef.current;
         if (!phase) return;
         if (snapTimeout) window.clearTimeout(snapTimeout);
         lockedScene = detail.scene;
         const phaseTop = phase.getBoundingClientRect().top + window.scrollY;
-        const distance = Math.max(1, phase.offsetHeight - window.innerHeight);
+        const distance = Math.max(
+          1,
+          phase.offsetHeight - (stage?.offsetHeight || window.innerHeight)
+        );
+        // AOD's accepted snap topology collapses the otherwise invisible
+        // sticky distance while native media owns time. Forward lands at the
+        // far edge; reverse lands at the near edge. Once playback completes,
+        // the next physical gesture immediately pushes the camera away.
         const phaseProgress = detail.direction === 1
-          ? PHONE_LAB_CONTACT_STOPS.handoffEnd
-          : PHONE_LAB_CONTACT_STOPS.sceneMotionEnd;
+          ? PHONE_LAB_CONTACT_STOPS.sceneMotionEnd
+          : PHONE_LAB_CONTACT_STOPS.handoffEnd;
         snapLock.lock(phaseTop + distance * phaseProgress);
         root.dataset.phoneLabContactSnapScene = detail.scene;
         snapTimeout = window.setTimeout(
@@ -450,7 +560,12 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     };
     const render = () => {
       frame = 0;
-      const viewportHeight = Math.max(1, window.innerHeight);
+      const viewportHeight = Math.max(
+        1,
+        phStageRef.current?.offsetHeight
+          || craneStageRef.current?.offsetHeight
+          || window.innerHeight
+      );
       const scrollY = window.scrollY;
       const scrollDirection: 1 | -1 = scrollY < lastScrollYRef.current - 1
         ? -1
@@ -466,6 +581,12 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       const craneRect = cranePhase.getBoundingClientRect();
       const phInRange = phRect.top <= 0 && phRect.bottom >= viewportHeight;
       const craneInRange = craneRect.top <= 0 && craneRect.bottom >= viewportHeight;
+      const phApproaching = phRect.top > 0 && phRect.top < viewportHeight;
+      const craneApproaching = craneRect.top > 0 && craneRect.top < viewportHeight;
+      const phExiting = phRect.bottom > SCENE_VISIBILITY_EPSILON_PX
+        && phRect.bottom < viewportHeight;
+      const craneExiting = craneRect.bottom > SCENE_VISIBILITY_EPSILON_PX
+        && craneRect.bottom < viewportHeight;
       const userHasScrolled = window.scrollY > 1;
       const phFrame = phoneLabContactPhaseFrame(
         phoneLabContactScrollProgress(phRect.top, phPhase.offsetHeight, viewportHeight),
@@ -475,12 +596,25 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         phoneLabContactScrollProgress(craneRect.top, cranePhase.offsetHeight, viewportHeight),
         reducedMotion
       );
+      const snappedScene = rootRef.current?.dataset.phoneLabContactSnapScene;
 
       const lab = labRef.current;
       const ph = phRef.current;
       const education = educationRef.current;
       const crane = craneRef.current;
       const contact = contactRef.current;
+
+      // Before a cinematic block pins, show its verified opening camera in
+      // normal document position. Hiding the sticky stage here produced a
+      // full paper-coloured viewport between Education and Crane.
+      if (phApproaching) {
+        setStageActive(phStageRef.current, true);
+        setVisualEndpoint(ph, 1);
+      }
+      if (craneApproaching) {
+        setStageActive(craneStageRef.current, true);
+        setVisualEndpoint(crane, 1);
+      }
 
       if (userHasScrolled && (phInRange || phFrame.progress > 0.05)) {
         ensureScene('education');
@@ -503,7 +637,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       if (phInRange) {
         publishNavigationScene('ph-animation');
         publishActiveScene('ph-animation');
-        setStageActive(phStageRef.current, phFrame.stageActive);
+        setStageActive(phStageRef.current, true);
         syncSceneLifecycle(lifecycleStates.current, 'lab', lab, phFrame.handoffProgress < 1);
         // The dissolve only presents PH's zero frame. Once it has landed,
         // PH owns a native forward clock; never turn each scroll sample into
@@ -512,31 +646,34 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           lifecycleStates.current,
           'ph-animation',
           ph,
-          phFrame.stageActive
-            && phFrame.handoffProgress >= 1 - MOTION_LANE_EPSILON
-            && phFrame.arrivalProgress <= MOTION_LANE_EPSILON,
+          phoneLabContactOwnsNativePlayback(
+            phFrame,
+            snappedScene === 'ph-animation'
+          ),
           scrollDirection
         );
         syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
 
-        if (phFrame.handoffProgress < 1) {
-          labPhRef.current?.render(phFrame.handoffProgress);
-          if (!labPhRef.current) setVisualEndpoint(ph, phFrame.handoffProgress);
-        } else if (phFrame.arrivalProgress > 0) {
-          phEducationRef.current?.render(phFrame.arrivalProgress);
-          if (!phEducationRef.current) {
-            setVisualEndpoint(ph, 1 - phFrame.arrivalProgress);
-          }
-        } else {
-          setVisualEndpoint(ph, 1);
-        }
-
-        if (!phFrame.stageActive) {
-          setVisualEndpoint(ph, 0);
-          syncSceneLifecycle(lifecycleStates.current, 'education', education, true);
-        }
-      } else if (phRect.bottom < viewportHeight) {
+        // The source/receiver DOM nodes live in consecutive document blocks,
+        // not one overlay stack. Cross-fading them here fades PH against an
+        // off-screen Education node and exposes a blank paper viewport. Hold
+        // the verified Figure2 camera; the sticky boundary itself performs
+        // the continuous visual handoff as Education enters from below.
+        setVisualEndpoint(ph, 1);
+      } else if (phExiting) {
+        setStageActive(phStageRef.current, true);
+        setVisualEndpoint(ph, 1);
+        syncSceneLifecycle(lifecycleStates.current, 'ph-animation', ph, false);
+        syncSceneLifecycle(lifecycleStates.current, 'education', education, true);
+      } else if (phRect.bottom <= SCENE_VISIBILITY_EPSILON_PX) {
+        setStageActive(phStageRef.current, false);
+        setVisualEndpoint(ph, 0);
+        syncSceneLifecycle(lifecycleStates.current, 'ph-animation', ph, false);
+      } else if (
+        phRect.top >= viewportHeight
+        && lifecycleStates.current.get('ph-animation')?.active
+      ) {
         setStageActive(phStageRef.current, false);
         setVisualEndpoint(ph, 0);
         syncSceneLifecycle(lifecycleStates.current, 'ph-animation', ph, false);
@@ -545,7 +682,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       if (craneInRange) {
         publishNavigationScene('crane-animation');
         publishActiveScene('crane-animation');
-        setStageActive(craneStageRef.current, craneFrame.stageActive);
+        setStageActive(craneStageRef.current, true);
         syncSceneLifecycle(lifecycleStates.current, 'education', education, craneFrame.handoffProgress < 1);
         // Education → Crane prepares a stable zero frame. The Crane adapter
         // then runs its authored 3s media/presentation clock independently
@@ -554,30 +691,31 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           lifecycleStates.current,
           'crane-animation',
           crane,
-          craneFrame.stageActive
-            && craneFrame.handoffProgress >= 1 - MOTION_LANE_EPSILON
-            && craneFrame.arrivalProgress <= MOTION_LANE_EPSILON,
+          phoneLabContactOwnsNativePlayback(
+            craneFrame,
+            snappedScene === 'crane-animation'
+          ),
           scrollDirection
         );
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
 
-        if (craneFrame.handoffProgress < 1) {
-          educationCraneRef.current?.render(craneFrame.handoffProgress);
-          if (!educationCraneRef.current) setVisualEndpoint(crane, craneFrame.handoffProgress);
-        } else if (craneFrame.arrivalProgress > 0) {
-          craneContactRef.current?.render(craneFrame.arrivalProgress);
-          if (!craneContactRef.current) {
-            setVisualEndpoint(crane, 1 - craneFrame.arrivalProgress);
-          }
-        } else {
-          setVisualEndpoint(crane, 1);
-        }
-
-        if (!craneFrame.stageActive) {
-          setVisualEndpoint(crane, 0);
-          syncSceneLifecycle(lifecycleStates.current, 'contact', contact, true);
-        }
-      } else if (craneRect.bottom < viewportHeight) {
+        // As with PH → Education, keep the accepted AOD camera opaque while
+        // its sticky block exits. Contact then replaces it through native
+        // document flow, so no detached receiver or white dissolve can win.
+        setVisualEndpoint(crane, 1);
+      } else if (craneExiting) {
+        setStageActive(craneStageRef.current, true);
+        setVisualEndpoint(crane, 1);
+        syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, true);
+      } else if (craneRect.bottom <= SCENE_VISIBILITY_EPSILON_PX) {
+        setStageActive(craneStageRef.current, false);
+        setVisualEndpoint(crane, 0);
+        syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
+      } else if (
+        craneRect.top >= viewportHeight
+        && lifecycleStates.current.get('crane-animation')?.active
+      ) {
         setStageActive(craneStageRef.current, false);
         setVisualEndpoint(crane, 0);
         syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);

@@ -45,6 +45,11 @@ describe('PhoneCrane', () => {
 
   it('reuses AOD native clocks with the authored half-second media stagger', () => {
     expect(autoplaySource).toContain('createPhoneNativeAutoplay');
+    expect(source).toContain('createPhonePackedAlphaSurface');
+    expect(source).toContain("'crane-figure-packed'");
+    expect(source).toContain("'crane-flock-packed'");
+    expect(source).toContain("ensurePackedSurfaces('endpoint')");
+    expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
     expect(autoplaySource).toContain('FIGURE_START_SECONDS = 0.5');
     expect(autoplaySource).toContain('figureClock.start()');
     expect(motionSource).toContain('renderPhoneCranePresentation');
@@ -53,6 +58,7 @@ describe('PhoneCrane', () => {
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
     expect(autoplaySource).not.toContain('nativeGate');
     expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(0.42);
+    expect(autoplaySource).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS * (1 - elapsed)');
   });
 
   it('keeps the static Crane layers on media failure and retires both videos', () => {

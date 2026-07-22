@@ -39,7 +39,10 @@ export const packedAlphaVideoSources = [
   'assets/figure1-rgb-alpha.mp4',
   'assets/figure2-pair-motion-rgb-alpha.mp4',
   'assets/aod-figure-motion-rgb-alpha.mp4',
-  'assets/aod-figure-motion-rgb-alpha-reverse.mp4'
+  'assets/aod-figure-motion-rgb-alpha-reverse.mp4',
+  'assets/ph-figure-motion-rgb-alpha.mp4',
+  'assets/crane-figure-motion-rgb-alpha.mp4',
+  'assets/crane-flock-motion-rgb-alpha.mp4'
 ];
 
 export const portraitOnlyImageSources = [
@@ -167,6 +170,24 @@ export const frozenHomepageMedia = [
     category: 'portrait-packed-alpha',
     bytes: 1986018,
     sha256: 'e256ab73e9e033615022a8331d365b5c618957207426e8c6ecf3d42b0d3ba63a'
+  },
+  {
+    source: 'assets/ph-figure-motion-rgb-alpha.mp4',
+    category: 'portrait-packed-alpha',
+    bytes: 321923,
+    sha256: '39ed325feaa4afcd2c59f7479e6ad75edbe6f4f063ab2243a04afe2660c4f8e1'
+  },
+  {
+    source: 'assets/crane-figure-motion-rgb-alpha.mp4',
+    category: 'portrait-packed-alpha',
+    bytes: 663343,
+    sha256: '80e971968a290ab1b4176cc754acdd4aaf85fecf5137a85295ccd9e7152105f5'
+  },
+  {
+    source: 'assets/crane-flock-motion-rgb-alpha.mp4',
+    category: 'portrait-packed-alpha',
+    bytes: 804033,
+    sha256: 'edc52bda2e9c11a046ebf7ee91cddc74688c4da3e1c48448c4f363ad2c57e2df'
   },
   {
     source: 'assets/hero-back.webp',

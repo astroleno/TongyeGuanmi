@@ -24,8 +24,17 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
 }
 
 .phone-lab-contact {
-  --phone-lab-contact-stage-height: 100svh;
-  min-height: 100svh;
+  --portrait-live-height: 100dvh;
+  --portrait-stage-coverage-height: var(--portrait-live-height);
+  --phone-cinematic-stage-height: max(var(--portrait-live-height), 100lvh);
+  --phone-cinematic-stage-canvas-height: max(
+    var(--phone-cinematic-stage-height),
+    var(--portrait-stage-coverage-height)
+  );
+  --phone-cinematic-trigger-lane: calc(
+    var(--phone-cinematic-stage-height) * .2
+  );
+  min-height: var(--phone-cinematic-stage-height);
   color: #28291f;
   background: #e9e1ce;
 }
@@ -51,7 +60,10 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
    * previous scene. Keep the stages sequential: Lab → PH → Education → Crane
    * → Contact, with no cross-chapter overlap.
    */
-  min-height: 200svh;
+  min-height: calc(
+    var(--phone-cinematic-stage-height)
+    + var(--phone-cinematic-trigger-lane)
+  );
   margin: 0;
   pointer-events: none;
 }
@@ -62,8 +74,8 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   top: 0;
   z-index: 3;
   width: 100%;
-  height: var(--phone-lab-contact-stage-height);
-  min-height: var(--phone-lab-contact-stage-height);
+  height: var(--phone-cinematic-stage-height);
+  min-height: var(--phone-cinematic-stage-height);
   overflow: visible;
   pointer-events: none;
 }
@@ -76,8 +88,8 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   position: absolute;
   inset: 0;
   width: 100%;
-  height: var(--phone-lab-contact-stage-height);
-  min-height: var(--phone-lab-contact-stage-height);
+  height: var(--phone-cinematic-stage-canvas-height);
+  min-height: var(--phone-cinematic-stage-canvas-height);
   overflow: clip;
   contain: layout;
   background: transparent;
@@ -89,6 +101,12 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.phone-lab-contact__stage-canvas .r4-ph-animation,
+.phone-lab-contact__stage-canvas .r4-crane-animation {
+  height: 100%;
+  min-height: 100%;
 }
 
 .phone-lab-contact__pending {
@@ -106,7 +124,7 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
 }
 
 .phone-lab-contact__direct {
-  min-height: 100svh;
+  min-height: var(--phone-cinematic-stage-height);
 }
 
 .phone-lab-contact__direct--cinematic {
@@ -115,7 +133,7 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
 
 .phone-lab-contact__stage--direct {
   position: relative;
-  height: 100svh;
+  height: var(--phone-cinematic-stage-height);
 }
 
 .phone-lab-contact__stage--direct[data-phone-acceptance-stage-active="true"] {
@@ -123,7 +141,14 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .phone-lab-contact {
+    --phone-cinematic-trigger-lane: max(12px, 2svh);
+  }
+
   .phone-lab-contact__phase {
-    min-height: 120svh;
+    min-height: calc(
+      var(--phone-cinematic-stage-height)
+      + var(--phone-cinematic-trigger-lane)
+    );
   }
 }

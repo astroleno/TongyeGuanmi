@@ -39,8 +39,9 @@ describe('PhoneEducation', () => {
   it('keeps the authored intro and programme as two native full-viewport acts', () => {
     const stylesheet = readFileSync(new URL('./PhoneEducation.css', import.meta.url), 'utf8');
 
-    expect(stylesheet).toContain('min-height: 200svh');
-    expect(stylesheet).toContain('min-height: 100svh');
+    expect(stylesheet).toContain('var(--phone-cinematic-stage-height, 100svh) * 2');
+    expect(stylesheet).toContain('min-height: var(--phone-cinematic-stage-height, 100svh)');
+    expect(stylesheet).toContain('gap: 0');
     expect(stylesheet).toContain('overflow: visible');
     expect(stylesheet).not.toContain('overflow-y: auto');
   });

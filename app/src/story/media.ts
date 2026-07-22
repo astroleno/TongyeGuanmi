@@ -51,9 +51,36 @@ export const phoneGradeAProductMedia = [
   }
 ] as const satisfies readonly ProductMediaSpec[];
 
+/**
+ * Unit 6 keeps the canonical PH/Crane video elements as the sole decode
+ * owners, but replaces Safari's transparent video layer with the same
+ * deterministic packed-alpha compositor used by Figure2 and AOD.
+ */
+export const phoneUnit6ProductMedia = [
+  {
+    id: 'ph-figure-packed',
+    owner: 'ph-animation',
+    asset: 'ph-figure-motion-rgb-alpha.mp4',
+    kind: 'video'
+  },
+  {
+    id: 'crane-figure-packed',
+    owner: 'crane-animation',
+    asset: 'crane-figure-motion-rgb-alpha.mp4',
+    kind: 'video'
+  },
+  {
+    id: 'crane-flock-packed',
+    owner: 'crane-animation',
+    asset: 'crane-flock-motion-rgb-alpha.mp4',
+    kind: 'video'
+  }
+] as const satisfies readonly ProductMediaSpec[];
+
 export const phoneProductMedia = [
   ...frontHalfProductMedia,
-  ...phoneGradeAProductMedia
+  ...phoneGradeAProductMedia,
+  ...phoneUnit6ProductMedia
 ] as const satisfies readonly ProductMediaSpec[];
 
 export type FrontHalfProductMediaId = (typeof frontHalfProductMedia)[number]['id'];

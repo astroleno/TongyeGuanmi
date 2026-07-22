@@ -77,7 +77,10 @@ export function renderPhoneCranePresentation(
   const videoScale = 0.8 + 0.2 * grow;
   const clipBottom = (1 - unmask) * 42;
   const exit = smoothStep(range01(cameraProgress, 0.08, 0.78));
-  const viewportHeight = section.ownerDocument?.defaultView?.innerHeight ?? 720;
+  const viewportHeight = section.getBoundingClientRect?.().height
+    || section.clientHeight
+    || section.ownerDocument?.defaultView?.innerHeight
+    || 720;
   const downExitY = viewportHeight * 1.38 * exit;
 
   section.style.setProperty('--crane-progress', progress.toFixed(4));

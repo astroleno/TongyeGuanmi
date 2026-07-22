@@ -7,7 +7,10 @@ import {
   createPhoneNativeAutoplay,
   type PhoneNativeAutoplay
 } from '../../../production/phone/phone-native-autoplay';
-import type { PhoneCranePlaybackDirection } from './PhoneCrane.motion';
+import {
+  PHONE_CRANE_STABLE_HOLD_PROGRESS,
+  type PhoneCranePlaybackDirection
+} from './PhoneCrane.motion';
 
 const FIGURE_START_SECONDS = 0.5;
 const PHONE_CRANE_REVERSE_DISSOLVE_MS = 720;
@@ -161,7 +164,7 @@ export function createPhoneCraneReverseDissolve(
     frame = 0;
     if (!active || disposed) return;
     const elapsed = clamp((now - startedAt) / PHONE_CRANE_REVERSE_DISSOLVE_MS);
-    render(1 - elapsed, -1);
+    render(PHONE_CRANE_STABLE_HOLD_PROGRESS * (1 - elapsed), -1);
     if (elapsed >= 1) {
       active = false;
       onComplete();
@@ -175,7 +178,7 @@ export function createPhoneCraneReverseDissolve(
       cancel();
       active = true;
       startedAt = performance.now();
-      render(1, -1);
+      render(PHONE_CRANE_STABLE_HOLD_PROGRESS, -1);
       frame = window.requestAnimationFrame(tick);
     },
     stop() {
