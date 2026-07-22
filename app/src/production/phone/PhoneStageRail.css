@@ -15,27 +15,21 @@
   width: 100%;
   height: auto;
   min-height: 0;
-  overflow: clip;
-  isolation: isolate;
-  /* WebKit samples this current-viewport host for its browser edge. */
+  /* This dynamic-height host positions the stage; it must not clip its lvh child. */
+  overflow: visible;
   background: var(--portrait-edge-surface);
-  transform: translate3d(0, 0, 0);
-  backface-visibility: hidden;
 }
 
-/* The host follows Safari chrome; the visual canvas remains stable at lvh. */
+/* The retained layout/coverage canvas is the only outer clipping boundary. */
 .portrait-scroll-spike__stage-canvas {
   position: absolute;
   top: 0;
   right: 0;
   left: 0;
   width: 100%;
-  height: var(--portrait-stage-height);
-  min-height: var(--portrait-stage-height);
+  height: var(--portrait-stage-canvas-height);
+  min-height: var(--portrait-stage-canvas-height);
   overflow: clip;
-  isolation: isolate;
-  transform: translate3d(0, 0, 0);
-  backface-visibility: hidden;
 }
 
 .portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__stage-canvas > .portrait-scroll-spike__scene,
@@ -54,11 +48,10 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  overflow: clip;
-  isolation: isolate;
+  overflow: visible;
   visibility: hidden;
   pointer-events: none;
-  contain: layout paint;
+  contain: layout;
 }
 
 .portrait-scroll-spike__stage-canvas > .r4-ink-transition-canvas.portrait-scroll-spike__ink {

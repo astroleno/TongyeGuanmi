@@ -4,6 +4,7 @@ import {
   AOD_ALPHA_BACKGROUND_HOLD_PROGRESS,
   AOD_FIRST_FULL_ALPHA_PROGRESS,
   AOD_PHONE_TIMELINE_ALPHA_END,
+  AOD_PHONE_TIMELINE_ALPHA_START,
   AOD_SOURCE_ALPHA_END,
   AOD_TIMELINE_ALPHA_END,
   aodPlaybackRateForMediaProgress,
@@ -105,12 +106,13 @@ describe('AOD alpha compositing', () => {
     expect(section.style.getPropertyValue('--aod-transition-sun-opacity')).toBe('0.0000');
   });
 
-  it('extends phone alpha continuously from the old 48% cut through 55%', () => {
+  it('keeps the phone surface/alpha handoff in the 49% → 59% interval', () => {
     expect(AOD_TIMELINE_ALPHA_END).toBe(0.48);
-    expect(AOD_PHONE_TIMELINE_ALPHA_END).toBe(0.55);
+    expect(AOD_PHONE_TIMELINE_ALPHA_START).toBe(0.49);
+    expect(AOD_PHONE_TIMELINE_ALPHA_END).toBe(0.59);
     expect(
       mapAodTimelineToMediaProgress(
-        AOD_TIMELINE_ALPHA_END,
+        AOD_PHONE_TIMELINE_ALPHA_START,
         AOD_PHONE_TIMELINE_ALPHA_END
       )
     ).toBeLessThan(AOD_SOURCE_ALPHA_END);
@@ -121,7 +123,7 @@ describe('AOD alpha compositing', () => {
       )
     ).toBeCloseTo(AOD_SOURCE_ALPHA_END, 8);
 
-    for (const timelineProgress of [0, 0.2, 0.48, 0.51, 0.55, 0.8, 1]) {
+    for (const timelineProgress of [0, 0.2, 0.49, 0.54, 0.59, 0.8, 1]) {
       expect(
         mapAodMediaToTimelineProgress(
           mapAodTimelineToMediaProgress(
@@ -136,8 +138,9 @@ describe('AOD alpha compositing', () => {
     const section = new FakeAodSection();
     renderAodTransitionProgress(
       section as unknown as HTMLElement,
-      AOD_TIMELINE_ALPHA_END,
-      AOD_PHONE_TIMELINE_ALPHA_END
+      AOD_PHONE_TIMELINE_ALPHA_START,
+      AOD_PHONE_TIMELINE_ALPHA_END,
+      AOD_PHONE_TIMELINE_ALPHA_START
     );
     expect(section.dataset.aodAlphaComposite).toBe('true');
     expect(
@@ -146,7 +149,8 @@ describe('AOD alpha compositing', () => {
     renderAodTransitionProgress(
       section as unknown as HTMLElement,
       AOD_PHONE_TIMELINE_ALPHA_END,
-      AOD_PHONE_TIMELINE_ALPHA_END
+      AOD_PHONE_TIMELINE_ALPHA_END,
+      AOD_PHONE_TIMELINE_ALPHA_START
     );
     expect(section.dataset.aodAlphaComposite).toBe('false');
   });

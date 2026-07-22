@@ -1,5 +1,6 @@
 import { setPackedAlphaVideoSource } from '../../media/packed-alpha-video';
 import {
+  AOD_PHONE_TIMELINE_ALPHA_START,
   AOD_TIMELINE_ALPHA_END,
   aodPlaybackRateForMediaProgress,
   mapAodMediaToTimelineProgress
@@ -69,7 +70,8 @@ export function phoneAodPresentation(
   const progress = clamp(rawProgress);
   const coverProgress = smoothstep(progress / 0.72);
   const mistProgress = smoothstep(
-    (progress - AOD_TIMELINE_ALPHA_END) / (0.68 - AOD_TIMELINE_ALPHA_END)
+    (progress - AOD_PHONE_TIMELINE_ALPHA_START)
+      / (0.68 - AOD_PHONE_TIMELINE_ALPHA_START)
   );
 
   return {

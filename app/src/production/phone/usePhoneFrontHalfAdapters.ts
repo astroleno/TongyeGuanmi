@@ -31,6 +31,7 @@ type FrontHalfModules = Readonly<{
   Pattern: PhonePatternAdapterComponent | undefined;
   StarMap: PhoneStarMapAdapterComponent | undefined;
   Aod: PhoneAodAdapterComponent | undefined;
+  aodAlphaStartProgress: number | undefined;
   aodAlphaEndProgress: number | undefined;
   MethodTop: PhoneMethodAdapterComponent | undefined;
   HeroPatternTransition: PhoneTransitionAdapterComponent | undefined;
@@ -55,6 +56,7 @@ function resolvedFrontHalfModules(): FrontHalfModules {
     Pattern: pattern?.Component as PhonePatternAdapterComponent | undefined,
     StarMap: starMap?.Component as PhoneStarMapAdapterComponent | undefined,
     Aod: aod?.Component as PhoneAodAdapterComponent | undefined,
+    aodAlphaStartProgress: aod?.aodAlphaStartProgress,
     aodAlphaEndProgress: aod?.aodAlphaEndProgress,
     MethodTop: methodTop?.Component as PhoneMethodAdapterComponent | undefined,
     HeroPatternTransition: heroPattern?.Component,
@@ -71,6 +73,7 @@ function frontHalfModulesReady(modules: FrontHalfModules): boolean {
     && modules.Pattern
     && modules.StarMap
     && modules.Aod
+    && modules.aodAlphaStartProgress !== undefined
     && modules.aodAlphaEndProgress !== undefined
     && modules.MethodTop
     && modules.HeroPatternTransition

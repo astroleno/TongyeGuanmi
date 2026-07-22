@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const PHONE_SHELL = '[data-phone-validation-mode="v23"]';
-const GRADE_A_SHELL = '[data-phone-validation-mode="v35"]';
+const GRADE_A_SHELL = '[data-phone-validation-mode="v39"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -11,7 +11,13 @@ async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
       throw new Error('Phone stage geometry is unavailable');
     }
     const start = rail.getBoundingClientRect().top + window.scrollY;
-    const distance = Math.max(1, rail.offsetHeight - stage.offsetHeight);
+    const shell = document.querySelector<HTMLElement>('.portrait-scroll-spike');
+    const configuredDistance = Number.parseFloat(
+      shell?.style.getPropertyValue('--portrait-stage-scroll-distance') ?? ''
+    );
+    const distance = Number.isFinite(configuredDistance) && configuredDistance > 0
+      ? configuredDistance
+      : Math.max(1, rail.offsetHeight - stage.offsetHeight);
     window.scrollTo({ top: start + distance * nextProgress, left: 0, behavior: 'auto' });
     await new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
@@ -72,7 +78,8 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'loader');
   await expect(loader).toBeHidden({ timeout: 10_000 });
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'hero-entered');
-  await expect(shell).toHaveAttribute('data-phone-aod-alpha-end', '0.55');
+  await expect(shell).toHaveAttribute('data-phone-aod-alpha-start', '0.49');
+  await expect(shell).toHaveAttribute('data-phone-aod-alpha-end', '0.59');
   await expect(page.locator('.portrait-scroll-spike__scene--hero')).toHaveCount(1);
   await expect(page.locator('.portrait-scroll-spike__scene--pattern')).toHaveCount(1);
   await expect(page.locator('.portrait-scroll-spike__scene--star')).toHaveCount(1);
@@ -224,14 +231,14 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
   ).toBe(false);
 });
 
-test('v35 keeps one Pattern plate inside an independent lvh canvas', async ({
+test('v39 keeps one Pattern plate inside the viewport-bottom coverage canvas', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
   test.setTimeout(45_000);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=35&portrait-spike-motion=reduce', {
+  await page.goto('/?v=39&portrait-spike-motion=reduce', {
     waitUntil: 'domcontentloaded'
   });
   await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
@@ -242,9 +249,12 @@ test('v35 keeps one Pattern plate inside an independent lvh canvas', async ({
   const stage = page.locator('.portrait-scroll-spike__stage');
   const canvas = page.locator('.portrait-scroll-spike__stage-canvas');
   await expect(stage).toHaveCSS('position', 'fixed');
-  await expect(stage).toHaveCSS('overflow', 'clip');
+  await expect(stage).toHaveCSS('overflow', 'visible');
+  await expect(stage).toHaveCSS('transform', 'none');
   await expect(stage).toHaveAttribute('data-portrait-stage-host', 'persistent');
   await expect(canvas).toHaveCSS('position', 'absolute');
+  await expect(canvas).toHaveCSS('overflow', 'clip');
+  await expect(canvas).toHaveCSS('transform', 'none');
   await expect(page.locator('[data-portrait-stage-backplate="true"]')).toHaveCount(0);
   await expect(page.locator('.portrait-scroll-spike__toolbar-edge')).toHaveCount(0);
 
@@ -270,6 +280,7 @@ test('v35 keeps one Pattern plate inside an independent lvh canvas', async ({
       const rootStyle = getComputedStyle(document.querySelector<HTMLElement>('#root')!);
       const stageStyle = getComputedStyle(stage);
       const railStyle = getComputedStyle(rail);
+      const visualViewport = window.visualViewport;
       return {
         hostToViewportRatio: stageRect.height / window.innerHeight,
         canvasToViewportRatio: canvasRect.height / window.innerHeight,
@@ -288,11 +299,15 @@ test('v35 keeps one Pattern plate inside an independent lvh canvas', async ({
         patternPlateHeight: patternPlate?.getBoundingClientRect().height ?? 0,
         patternImageHeight: patternImage?.getBoundingClientRect().height ?? 0,
         patternImageSource: patternImage?.currentSrc || patternImage?.src || '',
-        themeColor: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content
+        themeColor: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.content,
+        canvasBottom: canvasRect.bottom,
+        visualViewportBottom: (visualViewport?.offsetTop ?? 0)
+          + (visualViewport?.height ?? window.innerHeight)
       };
     });
     expect(edge.hostToViewportRatio).toBeCloseTo(1, 2);
     expect(edge.canvasToViewportRatio).toBeGreaterThanOrEqual(1);
+    expect(edge.canvasBottom).toBeGreaterThanOrEqual(edge.visualViewportBottom);
     expect(edge.documentBackgroundColor).toBe(sample.color);
     expect(edge.bodyBackgroundColor).toBe(sample.color);
     expect(edge.rootBackgroundColor).toBe(sample.color);
@@ -321,7 +336,7 @@ test('v35 keeps one Pattern plate inside an independent lvh canvas', async ({
   }
 });
 
-test('v35 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the persistent host', async ({
+test('v39 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the persistent host', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -332,7 +347,7 @@ test('v35 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
     presentationRequests.push(new URL(response.url()).pathname);
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=35&portrait-spike-motion=reduce#figure2-proof-cards', {
+  await page.goto('/?v=39&portrait-spike-motion=reduce#figure2-proof-cards', {
     waitUntil: 'domcontentloaded'
   });
 
@@ -343,6 +358,16 @@ test('v35 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
   });
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'figure2-proof-cards');
   await expect(gradeA).toHaveAttribute('data-phone-grade-a-ready', 'true');
+  await expect(page.locator('.phone-grade-a__surfaces')).toHaveCSS('overflow', 'visible');
+  await expect(page.locator('.phone-grade-a__surfaces')).toHaveCSS('transform', 'none');
+  await expect(page.locator('[data-r4-scene="figure2-animation"]')).toHaveCSS(
+    'overflow',
+    'visible'
+  );
+  await expect(page.locator('[data-r4-scene="figure2-animation"]')).toHaveCSS(
+    'transform',
+    'none'
+  );
   await expect(page.locator('.portrait-scroll-spike')).toHaveAttribute(
     'data-portrait-aod-run',
     'complete'
@@ -430,7 +455,7 @@ test('v35 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
   }
 });
 
-test('v35 keeps Figure2 visible when Safari never produces a packed video frame', async ({
+test('v39 keeps Figure2 visible when Safari never produces a packed video frame', async ({
   page
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
@@ -438,7 +463,7 @@ test('v35 keeps Figure2 visible when Safari never produces a packed video frame'
 
   await page.route('**/*figure2-pair-motion-rgb-alpha*.mp4', (route) => route.abort());
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=35&portrait-spike-motion=reduce#figure2-animation', {
+  await page.goto('/?v=39&portrait-spike-motion=reduce#figure2-animation', {
     waitUntil: 'domcontentloaded'
   });
 

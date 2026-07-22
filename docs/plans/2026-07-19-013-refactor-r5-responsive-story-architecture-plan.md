@@ -45,7 +45,7 @@ is the pre-extraction baseline.
 The frozen visual source is commit `95d519b` (`?v=17`), which contains the
 accepted Safari edge stabilization and the phone-only AOD alpha extension from
 timeline progress `0.48` to `0.55`. The current short verification route is
-`?v=35`; `?v=16` through `?v=34` remain aliases to the same formal phone shell,
+`?v=39`; `?v=16` through `?v=38` remain aliases to the same formal phone shell,
 not immutable historical deployments.
 
 | Unit | Status | Implemented evidence |
@@ -54,13 +54,13 @@ not immutable historical deployments.
 | Unit 1 | Complete | Canonical copy, media IDs, navigation, semantic checkpoints, and renderer-neutral lifecycle contracts remain shared. The boundary verifier rejects shared-to-presentation imports, cross-shell imports, phone-to-spike imports, new shell scene roots, media keys, asset URLs, and scene renderer imports. |
 | Unit 2 | Complete; physical fixed-stage acceptance recorded | `App.tsx` freezes one selected desktop/phone family. `DesktopStoryShell` and `PhoneStoryShell` are lazy and mutually exclusive. The phone shell uses `PhoneStageRail`, the exact native fixed-stage geometry, stable visual-viewport width gating, safe-area CSS, and the complete dynamically loaded front-half adapter group. Desktop startup does not request phone presentation chunks. |
 | Unit 3 | Complete; physical visual acceptance recorded | Loader, Hero, Pattern, Star Map, AOD, and Method top each have an independent adapter. Hero → Pattern, Pattern → Star Map, Star Map → AOD, and AOD → Method each have a named transition adapter. The shell contains zero scene roots, zero media keys, zero Method content roots, and no scene renderer imports. |
-| Unit 4 | v35 split-viewport candidate; physical Safari acceptance pending | The single Pattern plate and Method → Figure2 edge timing remain intact. v35 restores the current-viewport fixed host around an independent stable-lvh canvas, prevents height-only toolbar resizes from mutating stage geometry, and removes Pattern's unused compositor hint. |
+| Unit 4 | v39 AOD timing review; Safari bottom-edge root cause remains open | Physical Safari rejected the v38 short-anchor candidate and made the solid strip more visible. v39 restores the v37 viewport/edge topology and changes only the phone AOD handoff from `0.48 → 0.55` to `0.49 → 0.59`. |
 | Units 5–7 | Not started | No Brand, Figure 3, Services, or later batch starts before Unit 4 receives its own physical-iPhone acceptance. |
 
 ### Unit 0–3 cutover record
 
 `PhoneStoryShell.tsx` is now a 322-line coordination shell and
-`PhoneStoryShell.css` is an 86-line document/chrome stylesheet. Persistent
+`PhoneStoryShell.css` is a 75-line document/chrome stylesheet. Persistent
 stage geometry, viewport sampling, and edge publication are isolated in
 `PhoneStageRail`, `usePhoneViewportGeometry`, and `usePhoneEdgeSurface`. Scene DOM,
 scene CSS, canvas/video construction, local motion, and transition fields live
@@ -566,13 +566,190 @@ Automated verification for v35:
   with 52 media files, 32 WebP, `81,507,214 B` runtime media,
   `564,018 B` phone-shell budget, and `7,448 B` total JS headroom.
 
-**Physical acceptance for `?v=35`:** with Safari's address bar fully expanded,
+**Gate result:** iOS 26.3 measured the current viewport and fixed host at
+`714px`, while `100lvh`, the stage canvas, Pattern, and Figure2 were all
+`754px`. The split geometry is therefore correct. The remaining strip is the
+host fallback exposed while WebKit expands the host's `overflow: clip` region
+before repainting the transformed child compositing layers. v35 is superseded
+by v36 without further viewport formula changes.
+
+### Unit 4 v36 compositor topology
+
+v36 changes paint ownership rather than geometry:
+
+- the dynamic-height fixed host keeps positioning and the emergency edge
+  color, but uses `overflow: visible` and no `transform`,
+  `backface-visibility`, or `isolation`;
+- the stable-lvh stage canvas retains `overflow: clip` as the one outer scene
+  boundary, without a forced transform/backface compositing layer;
+- phone scene roots paint visibly into that stable canvas and retain layout
+  containment only; `contain: paint` and the redundant scene isolation are
+  removed;
+- the portaled Grade A surface no longer clips or forces a translated backing
+  layer;
+- the phone Figure2 root overrides the shared desktop root's outer
+  `overflow: hidden` and `isolation: isolate`, and removes its extra
+  `translateZ(0)`/backface layer. Figure2's intentional internal masks and
+  animated transforms remain unchanged;
+- Pattern's single plate, the AOD alpha timing, Method → Figure2 edge timing,
+  and all viewport-height calculations remain unchanged.
+
+The structural contract rejects any reintroduction of a clip or forced GPU
+layer on the dynamic host, stage canvas, Grade A surface, or Figure2 root.
+
+Automated verification for v36:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 771 tests;
+- `pnpm -w run build` passes all module, media, release, and performance gates
+  with 52 media files, 32 WebP, `81,507,214 B` runtime media,
+  `564,028 B` phone-shell budget, and `7,438 B` total JS headroom.
+
+**Physical acceptance for `?v=36`:** with Safari's address bar fully expanded,
 make one upward swipe through Pattern, AOD, and the beginning of Figure2 until
-the bar collapses. Each scene must remain continuous at the lower edge, without
-the solid fallback strip or moving gradient. Cross AOD → Method and Method →
-Figure2 slowly in both directions to confirm the existing masks and ink contour
-remain unchanged. Visual acceptance belongs to the physical-device pass;
-Units 5–7 remain frozen until it succeeds.
+the bar collapses. The previously hidden bottom `40px` of the stable canvas
+must already be painted, with no `#d9c08f`, paper-color, or moving gradient
+strip. Cross AOD → Method and Method → Figure2 slowly in both directions to
+confirm the existing masks and ink contour remain unchanged. Visual acceptance
+belongs to the physical-device pass; Units 5–7 remain frozen until it succeeds.
+
+**Gate result:** physical iOS screenshots rejected v36. Hero/Method, Pattern,
+AOD, and Figure2 all exposed the same approximately `10 CSS px` solid strip at
+the bottom, and each strip matched that scene's published emergency edge
+surface. The common canvas was already at the `100lvh` floor, so this was not a
+second per-scene wash or asset regression. The missing coordinate was the
+visual viewport's layout-relative lower edge: `offsetTop + height`.
+
+### Unit 4 v37 split layout clock and paint coverage
+
+v37 keeps the accepted v36 compositor topology and changes only the common
+viewport coverage contract:
+
+- the layout plane remains `max(--portrait-live-height, 100lvh)` and continues
+  to own scroll distance, progress checkpoints, scene cameras, and transition
+  timing;
+- a separate canvas plane uses the greater of that stable layout height and
+  `ceil(visualViewport.offsetTop + visualViewport.height)`;
+- `visualViewport.resize` and `visualViewport.scroll` schedule coverage in the
+  next animation frame, without the layout pipeline's `180ms` debounce;
+- coverage is monotonic while width is stable. Width/orientation/fullscreen
+  changes reset it to the new coordinate space;
+- height-only toolbar events still cannot rewrite `--portrait-live-height`,
+  the rail distance, or the ScrollTrigger clock;
+- the stage runtime reads its frozen configured scroll distance instead of
+  subtracting the now-expandable canvas height from the rail;
+- the portaled Figure2 outer surface inherits the coverage canvas height, while
+  its camera and authored depth motion remain bound to the stable layout
+  height. Hero, Pattern, AOD, Method, ink fields, and their timelines are not
+  changed.
+
+The structural contract now rejects re-coupling canvas coverage to the layout
+height, verifies the visual-viewport scroll listener, and verifies that the
+layout sync contains no stage-coverage write. The viewport unit test covers
+fractional and negative offsets plus monotonic/reset behavior.
+
+Automated verification for v37:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 773 tests;
+- `pnpm -w run build` passes all module, media, release, and performance gates
+  with 52 media files, 32 WebP, `81,507,214 B` runtime media,
+  `564,993 B` phone-shell budget, and `7,428 B` total JS headroom.
+
+No desktop browser preview or Playwright visual run is claimed for this Safari
+defect. Physical acceptance belongs to `?v=37`: enter with the address bar
+expanded, make one upward swipe through Pattern, AOD, and Figure2, and confirm
+that the bottom edge remains continuous while the bar collapses. Units 5–7
+remain frozen until the user accepts that pass.
+
+**Gate result:** physical Safari rejected v37. Expanding the DOM canvas through
+`visualViewport.offsetTop + visualViewport.height` did not remove the same
+solid bottom strip in Hero, Pattern, AOD, or Figure2. The defect is therefore
+not missing DOM paint coverage.
+
+### Unit 4 v38 short fixed edge anchor
+
+v38 changes the WebKit edge-color candidate while preserving the accepted
+scene geometry and transition topology:
+
+- the persistent fixed host is a `16px`-high, full-width anchor with
+  `overflow: visible` and the active `--portrait-edge-surface` as its resolved
+  `background-color`;
+- its absolute stage canvas remains `max(--portrait-live-height, 100lvh)` and
+  continues to own every Scene, transition, video, and Canvas. The fixed
+  anchor's height does not change scroll distance, cameras, or timelines;
+- WebKit ignores a candidate background when either border-box axis is at or
+  below `10px`. At `16px`, the anchor remains sampleable, while its short
+  adjacent axis prevents the bottom-edge classifier from labeling it a
+  viewport-sized candidate. The current background color is therefore read
+  before same-container cached color;
+- the v37 `offsetTop + height` coverage plane and its visual-viewport scroll
+  listener are removed. Height-only toolbar changes remain diagnostics-only;
+- scene edge colors stay coherent with the anchor (`Star` now publishes its
+  actual `#07110e` root), while Pattern's existing wash lands subtly on its
+  published `#d9c08f` edge in the final `18px`;
+- scene edge publication no longer mutates `theme-color`. The static browser
+  chrome contract and WebKit fixed-edge sampling are independent channels.
+
+This follows the current WebKit ordering in
+[`LocalFrameView::fixedContainerEdges`](https://github.com/WebKit/WebKit/blob/3b703ea64b16c659e9aff78ab2e427b8984af0b6/Source/WebCore/page/LocalFrameView.cpp#L2396-L2700):
+viewport-sized candidates prefer an existing fixed-edge color, while an
+ordinary candidate accepts its current unique CSS background before the
+same-container cache and pixel fallback. The fallback snapshot also excludes
+replaced content in
+[`PageColorSampler::predominantColor`](https://github.com/WebKit/WebKit/blob/3b703ea64b16c659e9aff78ab2e427b8984af0b6/Source/WebCore/page/PageColorSampler.cpp#L299-L414),
+so enlarging or duplicating `<img>`, `<video>`, or `<canvas>` is not an edge
+sampling repair.
+
+Automated verification for v38:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 770 tests;
+- `pnpm -w run build` passes all module, media, release, and performance gates
+  with 52 media files, 32 WebP, `81,507,214 B` runtime media,
+  `563,775 B` phone-shell budget, and `7,418 B` total JS headroom.
+
+Physical acceptance belongs to `?v=38`. Start with Safari's address bar fully
+expanded, make one upward swipe in Hero, Pattern, AOD, and Figure2, then repeat
+after a back-navigation restoration. The bottom must remain continuous during
+toolbar collapse in both paths. This pass specifically validates that Safari
+26.3 classifies the fixed host by its own `16px` border box rather than the
+visible overflow child. Units 5–7 remain frozen until the user accepts it.
+
+**Gate result:** physical Safari rejected v38. The bottom band remained and
+became more conspicuous. The short anchor changed which solid color WebKit
+extended, but it did not change the existence or height of the browser-owned
+extension. The Pattern `18px` landing also failed to hide that distinction.
+Therefore the 16px anchor, the Pattern landing, the static-only `theme-color`,
+and the removal of v37 coverage are all reverted; they are not retained as a
+partial fix.
+
+### Unit 4 v39 AOD 0.49 → 0.59 review
+
+v39 deliberately makes no new bottom-edge claim. It restores the v37
+viewport-sized fixed host, monotonic `offsetTop + height` coverage plane,
+dynamic scene edge publication, and unmodified Pattern wash so the rejected
+v38 experiment cannot remain as a visual regression.
+
+The only new visual change is the phone AOD handoff interval:
+
+- paper/mist ownership begins at phone timeline progress `0.49`;
+- the packed-alpha figure remains alpha-composited through `0.59`;
+- native forward and reverse playback map the first full-alpha source frame to
+  `0.59` in both directions;
+- desktop keeps its canonical `0.48` mapping;
+- the shell publishes both `data-phone-aod-alpha-start="0.49"` and
+  `data-phone-aod-alpha-end="0.59"` for physical verification.
+
+Automated verification for v39:
+
+- `pnpm -C app typecheck` and `pnpm -C app lint` pass;
+- `pnpm -C app test` passes 131 files / 774 tests;
+- `pnpm -w run build` passes all module, media, release, and performance gates
+  with `565,421 B` phone-shell budget and `7,324 B` total JS headroom.
+
+Physical review belongs to `?v=39`. Judge the AOD timing separately from the
+still-open Safari bottom strip; v39 is not presented as another edge fix.
 
 ## Problem Frame
 

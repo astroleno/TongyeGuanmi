@@ -71,7 +71,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellCss).not.toContain('portrait-scroll-spike__star');
   });
 
-  it('preserves one document scroll owner and the exact fixed-stage geometry', () => {
+  it('preserves one document scroll owner and one stable stage clip boundary', () => {
     expect(railSource).toContain('portrait-scroll-spike__stage-rail');
     expect(railSource).toContain('portrait-scroll-spike__stage');
     expect(railSource).toContain('portrait-scroll-spike__stage-canvas');
@@ -79,7 +79,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(railSource).not.toContain('stage-backplate');
     expect(runtimeSource).toContain("id: 'portrait-spike-stage'");
     expect(runtimeSource).toContain(
-      'stageRail.offsetHeight - stage.offsetHeight'
+      "root.style.getPropertyValue('--portrait-stage-scroll-distance')"
     );
     expect(runtimeSource).toContain(
       "root.dataset.portraitStagePin = 'native-fixed-composite'"
@@ -88,27 +88,51 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*transform:\s*translate3d\(0,\s*0,\s*0\)/s
-    );
-    expect(railCss).toMatch(
       /portrait-scroll-spike__stage-rail\s*\{[^}]*margin-bottom:\s*calc\(-1 \* var\(--portrait-stage-height\)\)/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*clip[^}]*background:\s*var\(--portrait-edge-surface\)/s
+      /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*visible[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*inset:\s*0[^}]*height:\s*auto[^}]*min-height:\s*0/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage-canvas\s*\{[^}]*top:\s*0[^}]*right:\s*0[^}]*left:\s*0[^}]*height:\s*var\(--portrait-stage-height\)/s
+      /portrait-scroll-spike__stage-canvas\s*\{[^}]*top:\s*0[^}]*right:\s*0[^}]*left:\s*0[^}]*height:\s*var\(--portrait-stage-canvas-height\)[^}]*overflow:\s*clip/s
+    );
+    expect(railCss).toMatch(
+      /portrait-scroll-spike__scene\s*\{[^}]*overflow:\s*visible[^}]*contain:\s*layout;/s
+    );
+    expect(railCss).not.toMatch(
+      /portrait-scroll-spike__(?:stage|stage-canvas|scene)\s*\{[^}]*(?:translate3d|translateZ|backface-visibility|isolation:)/s
+    );
+    expect(railCss).not.toMatch(
+      /portrait-scroll-spike__scene\s*\{[^}]*contain:[^;}]*paint/s
+    );
+    expect(shellCss).toMatch(
+      /--portrait-stage-height:\s*max\(\s*var\(--portrait-live-height\),\s*100lvh\s*\)/s
+    );
+    expect(shellCss).toMatch(
+      /--portrait-stage-canvas-height:\s*max\(\s*var\(--portrait-stage-height\),\s*var\(--portrait-stage-coverage-height\)\s*\)/s
+    );
+    expect(viewportGeometrySource).toContain('phoneViewportCoverageBottom');
+    expect(viewportGeometrySource).toContain('window.requestAnimationFrame');
+    expect(viewportGeometrySource).toContain(
+      "window.visualViewport?.addEventListener('scroll', scheduleCoverageSync)"
     );
     expect(viewportGeometrySource).toMatch(
-      /if \(!forceHeight && !widthChanged\) \{[\s\S]*?return;\s*\}[\s\S]*?root\.style\.setProperty\(\s*'--portrait-stage-coverage-height'/s
+      /phoneStageCoverageHeight\([\s\S]*?viewportBottom,[\s\S]*?reset \|\| widthChanged[\s\S]*?\)/s
+    );
+    expect(viewportGeometrySource).toMatch(
+      /const syncViewport = \(forceHeight = false\) => \{[\s\S]*?if \(!forceHeight && !widthChanged\) \{[\s\S]*?return;\s*\}/s
+    );
+    const syncViewportSource = viewportGeometrySource.slice(
+      viewportGeometrySource.indexOf('const syncViewport ='),
+      viewportGeometrySource.indexOf('const scheduleViewportSync =')
+    );
+    expect(syncViewportSource).not.toContain(
+      '--portrait-stage-coverage-height'
     );
     expect(shellSource).not.toContain('viewport?.pageTop');
-    expect(shellSource).not.toContain(
-      "window.visualViewport?.addEventListener('scroll'"
-    );
   });
 
   it('publishes the frozen checkpoint timeline in both rail and AOD clocks', () => {
@@ -183,7 +207,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(edgeSurfaceSource).toContain("figure2: '#e2dac9'");
   });
 
-  it('keeps one packed-alpha owner and the phone-only 0.48 → 0.55 mapping', () => {
+  it('keeps one packed-alpha owner and the phone-only 0.49 → 0.59 mapping', () => {
     expect(heroSource).toContain('createPackedAlphaVideoCompositor');
     expect(aodSource).toContain('createPackedAlphaVideoCompositor');
     expect(heroSource).toContain(
@@ -191,8 +215,12 @@ describe('Route B proven front-half migration contract', () => {
     );
     expect(aodSource).toContain("'aod-figure-packed-forward'");
     expect(aodSource).toContain("'aod-figure-packed-reverse'");
+    expect(aodSource).toContain('AOD_PHONE_TIMELINE_ALPHA_START');
     expect(aodSource).toContain('AOD_PHONE_TIMELINE_ALPHA_END');
     expect(aodSource).toContain('alphaEndProgress: PHONE_AOD_ALPHA_END_PROGRESS');
+    expect(shellSource).toContain(
+      'data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}'
+    );
     expect(shellSource).toContain(
       'data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}'
     );
@@ -256,6 +284,18 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAProofSource).toContain('figure2ProofScene.Component');
     expect(shellSource).not.toContain('data-r4-scene="figure2-animation"');
     expect(shellSource).not.toContain('data-r4-scene="figure2-proof"');
+    expect(gradeAStoryCss).toMatch(
+      /phone-grade-a__surfaces\s*\{[^}]*overflow:\s*visible/s
+    );
+    expect(gradeAStoryCss).not.toMatch(
+      /phone-grade-a__surfaces\s*\{[^}]*(?:translate3d|backface-visibility|isolation:)/s
+    );
+    expect(gradeAFigureCss).toMatch(
+      /phone-grade-a__surfaces > \.r4-figure2\s*\{[^}]*overflow:\s*visible[^}]*isolation:\s*auto/s
+    );
+    expect(gradeAFigureCss).not.toMatch(
+      /phone-grade-a__surfaces > \.r4-figure2\s*\{[^}]*(?:translateZ|translate3d|backface-visibility)/s
+    );
   });
 
   it('uses document progress without creating a nested Proof scroll owner', () => {

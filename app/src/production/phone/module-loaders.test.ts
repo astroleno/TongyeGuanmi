@@ -39,6 +39,12 @@ describe('phone presentation adapter registry', () => {
     }
   });
 
+  it('publishes the reviewed phone AOD 0.49 → 0.59 interval', async () => {
+    const aod = await loadPhoneSceneAdapter('aod-animation');
+    expect(aod.aodAlphaStartProgress).toBe(0.49);
+    expect(aod.aodAlphaEndProgress).toBe(0.59);
+  });
+
   it('returns the cached Hero module for adjacent prewarm and shell handoff', async () => {
     const first = await loadPhoneSceneAdapter('hero');
     const second = await loadPhoneSceneAdapter('hero');

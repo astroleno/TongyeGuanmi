@@ -27,13 +27,11 @@
   width: 100%;
   height: 100%;
   min-height: 100%;
-  overflow: clip;
-  isolation: isolate;
+  /* The stable stage canvas owns clipping for every portaled Grade A surface. */
+  overflow: visible;
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
-  transform: translate3d(0, 0, 0);
-  backface-visibility: hidden;
 }
 
 .phone-grade-a__surfaces[data-phone-grade-a-active="true"] {

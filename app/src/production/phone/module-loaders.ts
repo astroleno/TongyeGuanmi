@@ -66,10 +66,12 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
     case 'aod-animation':
       return import('./scenes/PhoneAod').then(({
         PhoneAod: Component,
+        PHONE_AOD_ALPHA_START_PROGRESS: aodAlphaStartProgress,
         PHONE_AOD_ALPHA_END_PROGRESS: aodAlphaEndProgress
       }) => ({
         id,
         Component: Component as unknown as PhoneAodAdapterComponent,
+        aodAlphaStartProgress,
         aodAlphaEndProgress
       }));
     case 'method-top':
