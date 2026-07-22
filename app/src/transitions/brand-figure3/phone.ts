@@ -1,4 +1,5 @@
 import {
+  createElement,
   forwardRef,
   useCallback,
   useImperativeHandle,
@@ -8,14 +9,25 @@ import {
 import type {
   Group45PhoneTransitionProps
 } from '../../production/phone/adapter-groups/group4-5';
+import {
+  createPhoneInkTransition,
+  type PhoneInkTransition
+} from '../../production/phone/phone-ink';
 import type { TransitionPresentationAdapterHandle } from '../../story/presentation';
 
+export const PHONE_BRAND_FIGURE3_FIELD = {
+  kind: 'horizontal',
+  direction: 'bottom-to-top',
+  seed: 'brand-figure3'
+} as const;
+
 export const PHONE_BRAND_FIGURE3_DECISION = {
-  strategy: 'endpoint-dissolve',
-  camera: 'none',
+  strategy: 'validated-phone-ink',
+  camera: 'desktop-brand-figure3/star-map-aod-bottom-to-top-field',
+  fallback: 'stable-endpoint-dissolve',
   forwardEndpoint: 'figure3-animation:stable-initial-frame',
   reverseEndpoint: 'brand:readable-hold',
-  rationale: 'No physical-iPhone camera approval exists for this Grade B bridge; dissolve avoids a hidden media hold.'
+  rationale: 'Reuse the authored desktop Brand → Figure3 contour through the physical-iPhone-approved Star-map → AOD field renderer; the same Brand and Figure3 roots remain the complementary A/B owners.'
 } as const;
 
 export type PhoneBrandFigure3Frame = Readonly<{
@@ -41,50 +53,21 @@ export function phoneBrandFigure3Frame(
   return { progress, fromOpacity: 1 - progress, toOpacity: progress };
 }
 
-function applyEndpoint(
-  element: HTMLElement | null,
-  opacity: number,
-  id: 'brand-figure3',
-  documentFlow = false
-): void {
-  if (!element) return;
-  if (documentFlow) {
-    element.dataset.phoneDissolve = id;
-    element.dataset.phoneDissolveOpacity = opacity.toFixed(4);
-    element.style.opacity = opacity.toFixed(4);
-    return;
-  }
-  const visible = opacity > 0.001;
-  element.style.opacity = opacity.toFixed(4);
-  element.style.visibility = visible ? 'visible' : 'hidden';
-  element.style.pointerEvents = visible ? 'auto' : 'none';
-  element.inert = !visible;
-  element.dataset.phoneDissolve = id;
-}
-
-function clearEndpoint(element: HTMLElement | null, documentFlow = false): void {
-  if (!element) return;
-  if (documentFlow) {
-    delete element.dataset.phoneDissolve;
-    delete element.dataset.phoneDissolveOpacity;
-    element.style.removeProperty('opacity');
-    return;
-  }
-  element.style.removeProperty('opacity');
-  element.style.removeProperty('visibility');
-  element.style.removeProperty('pointer-events');
-  element.inert = false;
-  delete element.dataset.phoneDissolve;
-}
-
-/** Stable Brand/Figure3 endpoints with no camera pre-roll or additional hold. */
+/**
+ * The production desktop bridge and accepted Star-map → AOD phone bridge use
+ * the same bottom-to-top field. Brand and Figure3 stay mounted as the only two
+ * complementary owners; no duplicate dissolve receiver or media pre-roll is
+ * introduced around the shared document boundary.
+ */
 export const PhoneBrandFigure3Transition = forwardRef<
   TransitionPresentationAdapterHandle,
   Group45PhoneTransitionProps
 >(function PhoneBrandFigure3Transition(
-  { host, from, to, reducedMotion, documentFlow = false, onReady },
+  { host, from, to, reducedMotion, onReady },
   forwardedRef
 ) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const transitionRef = useRef<PhoneInkTransition | null>(null);
   const progressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
   const render = useCallback((rawProgress: number) => {
@@ -100,26 +83,51 @@ export const PhoneBrandFigure3Transition = forwardRef<
       mediaFailed,
       directionRef.current
     );
+    transitionRef.current?.render(frame.progress);
     if (host) {
-      host.dataset.phoneTransition = 'brand-figure3:endpoint-dissolve';
+      host.dataset.phoneTransition = 'brand-figure3:validated-phone-ink';
       host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
     }
-    applyEndpoint(from, frame.fromOpacity, 'brand-figure3', documentFlow);
-    applyEndpoint(to, frame.toOpacity, 'brand-figure3', documentFlow);
-  }, [documentFlow, from, host, reducedMotion, to]);
+    if (from) {
+      from.dataset.phoneInkSource = 'brand-figure3';
+      from.dataset.phoneInkSourceOpacity = frame.fromOpacity.toFixed(4);
+    }
+    if (to) {
+      to.dataset.phoneInkReceiver = 'brand-figure3';
+      to.dataset.phoneInkReceiverOpacity = frame.toOpacity.toFixed(4);
+    }
+  }, [from, host, reducedMotion, to]);
 
   useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!host || !from || !to || !canvas) return;
+    const transition = createPhoneInkTransition({
+      host,
+      canvas,
+      id: 'phone-brand-figure3',
+      from,
+      to,
+      field: PHONE_BRAND_FIGURE3_FIELD,
+      grade: 'edge-bright'
+    });
+    transitionRef.current = transition;
+    // Reduced motion still starts on Brand and commits Figure3 only after the
+    // shared boundary is crossed; frame mapping performs that endpoint jump.
     render(0);
     onReady?.();
     return () => {
-      clearEndpoint(from, documentFlow);
-      clearEndpoint(to, documentFlow);
+      transition.dispose();
+      if (transitionRef.current === transition) transitionRef.current = null;
+      delete from.dataset.phoneInkSource;
+      delete from.dataset.phoneInkSourceOpacity;
+      delete to.dataset.phoneInkReceiver;
+      delete to.dataset.phoneInkReceiverOpacity;
       if (host?.dataset.phoneTransition?.startsWith('brand-figure3:')) {
         delete host.dataset.phoneTransition;
         delete host.dataset.phoneTransitionProgress;
       }
     };
-  }, [documentFlow, from, host, onReady, render, to]);
+  }, [from, host, onReady, reducedMotion, render, to]);
 
   useImperativeHandle(forwardedRef, () => ({
     render,
@@ -133,15 +141,20 @@ export const PhoneBrandFigure3Transition = forwardRef<
     },
     reverse() {
       directionRef.current = -1;
-      render(0);
+      render(1);
     },
     dispose() {
-      clearEndpoint(from, documentFlow);
-      clearEndpoint(to, documentFlow);
+      transitionRef.current?.dispose();
+      transitionRef.current = null;
     }
-  }), [documentFlow, from, render, to]);
+  }), [render]);
 
-  return null;
+  return createElement('canvas', {
+    ref: canvasRef,
+    className: 'portrait-scroll-spike__ink phone-brand-figure3__ink',
+    'data-portrait-ink': 'brand-figure3',
+    'aria-hidden': 'true'
+  });
 });
 
 export default PhoneBrandFigure3Transition;

@@ -1,16 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
   PHONE_BRAND_FIGURE3_DECISION,
+  PHONE_BRAND_FIGURE3_FIELD,
   phoneBrandFigure3Frame
 } from './phone';
 
 describe('Phone Brand → Figure3 transition', () => {
-  it('records the reviewed endpoint/dissolve decision', () => {
+  it('records the reviewed desktop-parity phone ink decision', () => {
     expect(PHONE_BRAND_FIGURE3_DECISION).toMatchObject({
-      strategy: 'endpoint-dissolve',
-      camera: 'none',
+      strategy: 'validated-phone-ink',
+      camera: 'desktop-brand-figure3/star-map-aod-bottom-to-top-field',
+      fallback: 'stable-endpoint-dissolve',
       forwardEndpoint: 'figure3-animation:stable-initial-frame',
       reverseEndpoint: 'brand:readable-hold'
+    });
+    expect(PHONE_BRAND_FIGURE3_FIELD).toEqual({
+      kind: 'horizontal',
+      direction: 'bottom-to-top',
+      seed: 'brand-figure3'
     });
   });
 
@@ -35,6 +42,7 @@ describe('Phone Brand → Figure3 transition', () => {
   it('uses stable endpoints for media failure and reduced motion', () => {
     expect(phoneBrandFigure3Frame(.3, false, true, 1).progress).toBe(1);
     expect(phoneBrandFigure3Frame(.7, false, true, -1).progress).toBe(0);
+    expect(phoneBrandFigure3Frame(0, true).progress).toBe(0);
     expect(phoneBrandFigure3Frame(.3, true).progress).toBe(1);
   });
 });

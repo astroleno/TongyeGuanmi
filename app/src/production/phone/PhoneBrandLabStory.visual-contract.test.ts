@@ -13,6 +13,10 @@ const brandStyles = readFileSync(
   new URL('../../scenes/brand/phone/PhoneBrand.css', import.meta.url),
   'utf8'
 );
+const brandFigure3Transition = readFileSync(
+  new URL('../../transitions/brand-figure3/phone.ts', import.meta.url),
+  'utf8'
+);
 const figure3Styles = readFileSync(
   new URL('../../scenes/figure3-animation/phone/PhoneFigure3.css', import.meta.url),
   'utf8'
@@ -78,6 +82,21 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(storyStyles).toMatch(
       /phone-brand-lab__visual-track--figure3\s*\{[^}]+background:\s*#ede4d2/s
     );
+  });
+
+  it('uses one complementary ink boundary from Brand into Figure3', () => {
+    expect(brandFigure3Transition).toContain('createPhoneInkTransition');
+    expect(brandFigure3Transition).toContain("direction: 'bottom-to-top'");
+    expect(brandFigure3Transition).toContain("seed: 'brand-figure3'");
+    expect(brandFigure3Transition).toContain("from,\n      to,");
+    expect(brandFigure3Transition).not.toContain("strategy: 'endpoint-dissolve'");
+  });
+
+  it('owns reverse entry through native touch and boundary pre-lock paths', () => {
+    expect(storySource).toContain("addEventListener('touchstart', onReverseTouchStart");
+    expect(storySource).toContain("addEventListener('touchmove', onReverseTouchMove");
+    expect(storySource).toContain('phoneGroup45HasReverseGestureIntent');
+    expect(storySource).toContain('scrollY <= documentTop + 32');
   });
 
   it('lets the ink contour own the only dark Services → TTG edge', () => {

@@ -7,6 +7,7 @@ import {
   phoneGroup45CrossedVisualStart,
   phoneGroup45DocumentFlags,
   phoneGroup45EntryFromHash,
+  phoneGroup45HasReverseGestureIntent,
   phoneGroup45PhaseAfterVisualCompletion,
   phoneGroup45ReducedReceiverProgress,
   phoneGroup45RetainsFigure3Terminal,
@@ -77,6 +78,10 @@ describe('PhoneBrandLabStory', () => {
     expect(phoneGroup45CrossedVisualStart(900, 940, -96)).toBe(false);
     expect(phoneGroup45CrossedVisualBoundary(900, 800, 44)).toBe(true);
     expect(phoneGroup45CrossedVisualBoundary(800, 760, 84)).toBe(false);
+    // Pre-lock an upward pan inside the accepted 32px boundary window. This
+    // covers Safari settling on the edge without dispatching the final -1px.
+    expect(phoneGroup45CrossedVisualBoundary(920, 870, -26)).toBe(true);
+    expect(phoneGroup45CrossedVisualBoundary(920, 890, -46)).toBe(false);
   });
 
   it('latches each media run until the opposite direction completes', () => {
@@ -99,6 +104,9 @@ describe('PhoneBrandLabStory', () => {
     expect(phoneGroup45CanArmReverseGesture('complete', 875, 844)).toBe(true);
     expect(phoneGroup45CanArmReverseGesture('complete', 877, 844)).toBe(false);
     expect(phoneGroup45CanArmReverseGesture('forward', 844, 844)).toBe(false);
+    expect(phoneGroup45HasReverseGestureIntent(200, 210)).toBe(true);
+    expect(phoneGroup45HasReverseGestureIntent(200, 209)).toBe(false);
+    expect(phoneGroup45HasReverseGestureIntent(200, 190)).toBe(false);
   });
 
 });

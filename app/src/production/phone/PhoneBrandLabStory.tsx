@@ -116,6 +116,15 @@ export function phoneGroup45CanArmReverseGesture(
     && Math.abs(scrollY - boundaryY) <= Math.max(0, tolerance);
 }
 
+/** A downward finger drag is the native touch intent for moving back up. */
+export function phoneGroup45HasReverseGestureIntent(
+  startY: number,
+  currentY: number,
+  threshold = 10
+): boolean {
+  return currentY - startY >= Math.max(1, threshold);
+}
+
 function isGroup45Scene(scene: SceneId | undefined): scene is Group45PhoneSceneId {
   return Boolean(scene && GROUP45_SCENES.has(scene as Group45PhoneSceneId));
 }
@@ -214,7 +223,16 @@ export function phoneGroup45CrossedVisualBoundary(
   trackTop: number
 ): boolean {
   const documentTop = scrollY + trackTop;
-  return previousScrollY >= documentTop - 1 && scrollY < documentTop - 1;
+  const movingUp = scrollY < previousScrollY - .5;
+  if (!movingUp) return false;
+  const crossed = previousScrollY >= documentTop - 1
+    && scrollY < documentTop - 1;
+  // Safari may settle a native pan on the exact shared edge and never expose
+  // the otherwise-required -1px sample. Lock inside the same 32px intent
+  // window used by the touch path, before momentum can be swallowed.
+  const approaching = previousScrollY > documentTop + 1
+    && scrollY <= documentTop + 32;
+  return crossed || approaching;
 }
 
 function frameForTrack(element: HTMLElement | null, viewportHeight: number) {
@@ -912,26 +930,23 @@ export function PhoneBrandLabStory({
     const schedule = () => {
       if (!frame) frame = window.requestAnimationFrame(render);
     };
-    let reverseGesture: Readonly<{
+    let reversePointerGesture: Readonly<{
       pointerId: number;
       scene: Group45VisualScene;
       startY: number;
     }> | null = null;
-    const pointerTargetIsInteractive = (event: PointerEvent) => (
+    let reverseTouchGesture: Readonly<{
+      identifier: number;
+      scene: Group45VisualScene;
+      startY: number;
+    }> | null = null;
+    const eventTargetIsInteractive = (event: Event) => (
       event.target instanceof Element
       && Boolean(event.target.closest(
         'a, button, input, select, textarea, [role="button"]'
       ))
     );
-    const onReversePointerDown = (event: PointerEvent) => {
-      reverseGesture = null;
-      if (
-        event.pointerType !== 'touch'
-        || !event.isPrimary
-        || reducedMotion
-        || visualRunRef.current
-        || pointerTargetIsInteractive(event)
-      ) return;
+    const reverseSceneAtBoundary = (): Group45VisualScene | null => {
       const candidates: readonly Group45VisualScene[] = [
         'ttg-animation',
         'figure3-animation'
@@ -947,34 +962,106 @@ export function PhoneBrandLabStory({
           window.scrollY,
           boundaryY
         )) continue;
-        reverseGesture = {
-          pointerId: event.pointerId,
-          scene,
-          startY: event.clientY
-        };
-        root.dataset.phoneGroup45ReverseGesture = `${scene}:armed`;
-        return;
+        return scene;
       }
+      return null;
     };
-    const onReversePointerMove = (event: PointerEvent) => {
-      const gesture = reverseGesture;
-      if (
-        !gesture
-        || gesture.pointerId !== event.pointerId
-        || event.clientY - gesture.startY < 10
-      ) return;
-      reverseGesture = null;
-      if (beginVisualRun(gesture.scene, -1)) {
-        root.dataset.phoneGroup45ReverseGesture = `${gesture.scene}:started`;
+    const beginReverseGestureRun = (scene: Group45VisualScene) => {
+      reversePointerGesture = null;
+      reverseTouchGesture = null;
+      if (beginVisualRun(scene, -1)) {
+        root.dataset.phoneGroup45ReverseGesture = `${scene}:started`;
         lastScrollYRef.current = window.scrollY;
       } else {
         delete root.dataset.phoneGroup45ReverseGesture;
       }
     };
-    const clearReverseGesture = (event: PointerEvent) => {
-      if (reverseGesture?.pointerId !== event.pointerId) return;
-      reverseGesture = null;
-      delete root.dataset.phoneGroup45ReverseGesture;
+    const clearReverseGestureDatasetIfIdle = () => {
+      if (!reversePointerGesture && !reverseTouchGesture) {
+        delete root.dataset.phoneGroup45ReverseGesture;
+      }
+    };
+    const onReversePointerDown = (event: PointerEvent) => {
+      reversePointerGesture = null;
+      if (
+        event.pointerType !== 'touch'
+        || !event.isPrimary
+        || reducedMotion
+        || visualRunRef.current
+        || eventTargetIsInteractive(event)
+      ) return;
+      const scene = reverseSceneAtBoundary();
+      if (!scene) return;
+      reversePointerGesture = {
+        pointerId: event.pointerId,
+        scene,
+        startY: event.clientY
+      };
+      root.dataset.phoneGroup45ReverseGesture = `${scene}:armed`;
+    };
+    const onReversePointerMove = (event: PointerEvent) => {
+      const gesture = reversePointerGesture;
+      if (
+        !gesture
+        || gesture.pointerId !== event.pointerId
+        || !phoneGroup45HasReverseGestureIntent(
+          gesture.startY,
+          event.clientY
+        )
+      ) return;
+      beginReverseGestureRun(gesture.scene);
+    };
+    const clearReversePointerGesture = (event: PointerEvent) => {
+      if (reversePointerGesture?.pointerId !== event.pointerId) return;
+      reversePointerGesture = null;
+      clearReverseGestureDatasetIfIdle();
+    };
+    const touchWithIdentifier = (touches: TouchList, identifier: number) => {
+      for (let index = 0; index < touches.length; index += 1) {
+        const touch = touches.item(index);
+        if (touch?.identifier === identifier) return touch;
+      }
+      return null;
+    };
+    const onReverseTouchStart = (event: TouchEvent) => {
+      reverseTouchGesture = null;
+      if (
+        event.touches.length !== 1
+        || reducedMotion
+        || visualRunRef.current
+        || eventTargetIsInteractive(event)
+      ) return;
+      const scene = reverseSceneAtBoundary();
+      const touch = event.touches.item(0);
+      if (!scene || !touch) return;
+      reverseTouchGesture = {
+        identifier: touch.identifier,
+        scene,
+        startY: touch.clientY
+      };
+      root.dataset.phoneGroup45ReverseGesture = `${scene}:armed`;
+    };
+    const onReverseTouchMove = (event: TouchEvent) => {
+      const gesture = reverseTouchGesture;
+      if (!gesture) return;
+      const touch = touchWithIdentifier(event.touches, gesture.identifier);
+      if (
+        !touch
+        || !phoneGroup45HasReverseGestureIntent(
+          gesture.startY,
+          touch.clientY
+        )
+      ) return;
+      if (event.cancelable) event.preventDefault();
+      beginReverseGestureRun(gesture.scene);
+    };
+    const clearReverseTouchGesture = (event: TouchEvent) => {
+      const gesture = reverseTouchGesture;
+      if (!gesture || touchWithIdentifier(event.touches, gesture.identifier)) {
+        return;
+      }
+      reverseTouchGesture = null;
+      clearReverseGestureDatasetIfIdle();
     };
     const retryBlockedVisual = () => {
       const scene = visualRunRef.current;
@@ -1006,8 +1093,12 @@ export function PhoneBrandLabStory({
     root.addEventListener('pointerdown', retryBlockedVisual, { passive: true });
     root.addEventListener('pointerdown', onReversePointerDown, { passive: true });
     root.addEventListener('pointermove', onReversePointerMove, { passive: true });
-    root.addEventListener('pointerup', clearReverseGesture, { passive: true });
-    root.addEventListener('pointercancel', clearReverseGesture, { passive: true });
+    root.addEventListener('pointerup', clearReversePointerGesture, { passive: true });
+    root.addEventListener('pointercancel', clearReversePointerGesture, { passive: true });
+    root.addEventListener('touchstart', onReverseTouchStart, { passive: true });
+    root.addEventListener('touchmove', onReverseTouchMove, { passive: false });
+    root.addEventListener('touchend', clearReverseTouchGesture, { passive: true });
+    root.addEventListener('touchcancel', clearReverseTouchGesture, { passive: true });
     root.addEventListener('touchmove', preventHeldScroll, {
       passive: false,
       capture: true
@@ -1024,8 +1115,12 @@ export function PhoneBrandLabStory({
       root.removeEventListener('pointerdown', retryBlockedVisual);
       root.removeEventListener('pointerdown', onReversePointerDown);
       root.removeEventListener('pointermove', onReversePointerMove);
-      root.removeEventListener('pointerup', clearReverseGesture);
-      root.removeEventListener('pointercancel', clearReverseGesture);
+      root.removeEventListener('pointerup', clearReversePointerGesture);
+      root.removeEventListener('pointercancel', clearReversePointerGesture);
+      root.removeEventListener('touchstart', onReverseTouchStart);
+      root.removeEventListener('touchmove', onReverseTouchMove);
+      root.removeEventListener('touchend', clearReverseTouchGesture);
+      root.removeEventListener('touchcancel', clearReverseTouchGesture);
       root.removeEventListener('touchmove', preventHeldScroll, true);
       root.removeEventListener('wheel', preventHeldScroll, true);
       if (visualRunTimeoutRef.current) {
