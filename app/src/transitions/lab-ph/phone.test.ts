@@ -85,6 +85,19 @@ describe('Phone Lab → PH transition', () => {
     expect(forward[2]).toMatchObject({ labOpacity: 1, phOpacity: 1 });
   });
 
+  it('does not rewind a PhonePh terminal frame while reverse ink is prepared', () => {
+    const { lab, ph } = createLabExitFixture();
+    ph.dataset.phonePhProgress = '1.0000';
+
+    applyPhoneLabPhFrame(
+      lab as unknown as HTMLElement,
+      ph as unknown as HTMLElement,
+      1
+    );
+
+    expect(ph.dataset.phonePhProgress).toBe('1.0000');
+  });
+
   it('keeps the same ordered endpoints under reduced motion', () => {
     expect(phoneLabPhFrame(0.49, true)).toMatchObject({
       labOpacity: 1,

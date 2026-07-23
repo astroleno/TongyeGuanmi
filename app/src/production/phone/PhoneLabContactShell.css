@@ -41,6 +41,19 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   background: var(--phone-lab-contact-edge-surface, #ede4d2);
 }
 
+/*
+ * Unit 6 owns the Lab → PH acceptance boundary, not PhoneLab itself. Flatten
+ * the accepted Lab outlet only inside this shell so its last native pixel and
+ * the paper underneath the ink Canvas are the same #ede4d2 surface. The
+ * Unit 5 Lab implementation remains untouched for final Unit 7 integration.
+ */
+html[data-phone-lab-contact-acceptance="true"]
+  .phone-lab-contact
+  [data-phone-acceptance-chapter="lab"]
+  > .phone-lab {
+  background: #ede4d2;
+}
+
 .phone-lab-contact[data-phone-lab-contact-snap="locked"] {
   overscroll-behavior-y: none;
 }

@@ -61,7 +61,6 @@ export function createPhoneLabContactSnapLock(
   let disposed = false;
   let anchorY = 0;
   let correcting = false;
-  let inputListenersAttached = false;
 
   const correctScroll = () => {
     if (
@@ -101,22 +100,22 @@ export function createPhoneLabContactSnapLock(
 
   const onScroll: EventListener = () => correctScroll();
 
-  const attachInputListeners = () => {
-    if (disposed || inputListenersAttached) return;
-    inputTarget.addEventListener('touchmove', preventScrollInput, { passive: false });
-    inputTarget.addEventListener('wheel', preventScrollInput, { passive: false });
-    inputTarget.addEventListener('keydown', preventScrollKey);
-    inputListenersAttached = true;
-  };
-
-  const detachInputListeners = () => {
-    if (!inputListenersAttached) return;
-    inputTarget.removeEventListener('touchmove', preventScrollInput);
-    inputTarget.removeEventListener('wheel', preventScrollInput);
-    inputTarget.removeEventListener('keydown', preventScrollKey);
-    inputListenersAttached = false;
-  };
-
+  /*
+   * d208a86 registers this non-passive capture guard before a gesture begins.
+   * Adding it only after lock() is too late for the touchmove that crossed the
+   * reverse boundary: Safari has already handed that sample to native scroll.
+   * The active check keeps the permanent listener inert outside a time-owned
+   * run and the interactive-target guard preserves CTA/menu input.
+   */
+  inputTarget.addEventListener('touchmove', preventScrollInput, {
+    passive: false,
+    capture: true
+  });
+  inputTarget.addEventListener('wheel', preventScrollInput, {
+    passive: false,
+    capture: true
+  });
+  inputTarget.addEventListener('keydown', preventScrollKey);
   scrollTarget?.addEventListener('scroll', onScroll, { passive: true });
   options.root.dataset.phoneLabContactSnap = 'idle';
 
@@ -128,21 +127,21 @@ export function createPhoneLabContactSnapLock(
       if (disposed) return;
       anchorY = Math.max(0, Math.round(nextAnchorY));
       active = true;
-      attachInputListeners();
       options.root.dataset.phoneLabContactSnap = 'locked';
       options.scrollTo(anchorY);
     },
     release() {
       if (disposed || !active) return;
       active = false;
-      detachInputListeners();
       options.root.dataset.phoneLabContactSnap = 'released';
     },
     dispose() {
       if (disposed) return;
       active = false;
       disposed = true;
-      detachInputListeners();
+      inputTarget.removeEventListener('touchmove', preventScrollInput, true);
+      inputTarget.removeEventListener('wheel', preventScrollInput, true);
+      inputTarget.removeEventListener('keydown', preventScrollKey);
       scrollTarget?.removeEventListener('scroll', onScroll);
       delete options.root.dataset.phoneLabContactSnap;
     }

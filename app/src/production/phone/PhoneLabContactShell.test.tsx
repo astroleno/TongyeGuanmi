@@ -127,6 +127,9 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('phoneLabContactCanArmReverseGesture');
     expect(shellSource).toContain('phoneLabContactReverseRunAnchor');
     expect(shellSource).toContain('beginCinematicRun(scene, -1, true)');
+    expect(shellSource).toContain('scrollDirection === -1');
+    expect(shellSource).toContain('phoneLabContactReverseHandoff');
+    expect(shellCss).toContain('[data-phone-acceptance-chapter="lab"]');
     expect(shellSource).toContain('phoneLabContactInkBoundaryProgress');
     expect(shellSource).toContain('labPhRef.current.render(progress)');
     expect(shellSource).toContain('educationCraneRef.current.render(progress)');

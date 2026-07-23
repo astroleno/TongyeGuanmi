@@ -69,7 +69,12 @@ export function applyPhoneEducationCraneFrame(
 ): PhoneEducationCraneFrame {
   const frame = phoneEducationCraneFrame(rawProgress, reducedMotion);
   renderEducationHold(from);
-  renderPhoneCranePresentation(to, 0);
+  // PhoneCrane is the sole presentation owner during native/reverse time.
+  // Seed only a fresh receiver; transition reverse() must not replace its
+  // terminal frame with progress zero before prepared reverse frames exist.
+  if (!to?.dataset.phoneCraneProgress) {
+    renderPhoneCranePresentation(to, 0);
+  }
   applyEndpointVisibility(
     from,
     frame.educationOpacity,

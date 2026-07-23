@@ -840,6 +840,19 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       if (detail.scene === 'crane-animation') {
         latestCraneContactRef.current?.render(0);
       }
+      if (detail.direction === -1) {
+        // Match d208a86's completed reverse handoff: keep the opening
+        // cinematic frame in the persistent stage, but return semantic and
+        // navigation ownership to the adjacent upstream reading scene before
+        // releasing scroll. The next part of the same journey can therefore
+        // continue to Lab/Education instead of remaining labelled PH/Crane.
+        const target = detail.scene === 'ph-animation' ? 'lab' : 'education';
+        root.dataset.phoneLabContactReverseHandoff =
+          `${detail.scene}-${target}:complete`;
+        publishNavigationScene(target);
+        publishActiveScene(target);
+        lastScrollYRef.current = window.scrollY;
+      }
       releaseSnap(detail.scene);
     };
 
@@ -1183,7 +1196,15 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         })) {
           return false;
         }
-        return beginCinematicRun(scene, scrollDirection);
+        // d208a86 locks every reverse boundary in beginVisualRun(), including
+        // the scroll-crossing path. Waiting for an asynchronously prepared
+        // packed-alpha frame lets the rest of the physical Safari swipe run
+        // into Education/Lab before reverse playback can claim the stage.
+        return beginCinematicRun(
+          scene,
+          scrollDirection,
+          scrollDirection === -1
+        );
       };
 
       if (

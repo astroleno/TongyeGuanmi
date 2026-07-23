@@ -91,7 +91,12 @@ export function applyPhoneLabPhFrame(
   reducedMotion = false
 ): PhoneLabPhFrame {
   const frame = phoneLabPhFrame(rawProgress, reducedMotion);
-  renderPhonePhPresentation(to, 0, 1, reducedMotion);
+  // PhonePh owns its presentation once mounted. Seed an uninitialized
+  // receiver at the opening endpoint, but never rewind an already-presented
+  // terminal frame when reverse() merely prepares the ink boundary.
+  if (!to?.dataset.phonePhProgress) {
+    renderPhonePhPresentation(to, 0, 1, reducedMotion);
+  }
   // The source remains the one accessible tree until the contour lands. PH
   // is a cinematic surface beneath an aria-hidden stage.
   presentInkEndpoint(from, frame.progress < 1 - ENDPOINT_EPSILON);

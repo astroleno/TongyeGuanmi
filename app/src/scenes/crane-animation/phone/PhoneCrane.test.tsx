@@ -17,7 +17,10 @@ import {
 import {
   PHONE_CRANE_FIGURE_PLAYBACK_RATE,
   PHONE_CRANE_FIGURE_MEDIA_SECONDS,
-  phoneCraneTimelineProgressForFigureMediaProgress
+  PHONE_CRANE_FLOCK_MEDIA_SECONDS,
+  PHONE_CRANE_FLOCK_PLAYBACK_RATE,
+  phoneCraneTimelineProgressForFigureMediaProgress,
+  phoneCraneTimelineProgressForFlockMediaProgress
 } from './PhoneCrane.autoplay';
 
 const source = readFileSync(new URL('./PhoneCrane.tsx', import.meta.url), 'utf8');
@@ -94,8 +97,18 @@ describe('PhoneCrane', () => {
     expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(1);
     expect(PHONE_CRANE_FIGURE_MEDIA_SECONDS).toBe(2.5);
     expect(PHONE_CRANE_FIGURE_PLAYBACK_RATE).toBeCloseTo(2.467 / 2.5, 8);
+    expect(PHONE_CRANE_FLOCK_MEDIA_SECONDS).toBe(2.5);
+    expect(PHONE_CRANE_FLOCK_PLAYBACK_RATE).toBeCloseTo(2.467 / 2.5, 8);
     expect(phoneCraneTimelineProgressForFigureMediaProgress(0)).toBeCloseTo(1 / 6, 8);
     expect(phoneCraneTimelineProgressForFigureMediaProgress(1)).toBe(1);
+    expect(phoneCraneTimelineProgressForFlockMediaProgress(0)).toBe(0);
+    expect(phoneCraneTimelineProgressForFlockMediaProgress(1)).toBeCloseTo(5 / 6, 8);
+    expect(autoplaySource).toContain(
+      'flock.playbackRate = PHONE_CRANE_FLOCK_PLAYBACK_RATE'
+    );
+    expect(autoplaySource).toContain(
+      'phoneCraneTimelineProgressForFlockMediaProgress(1)'
+    );
     expect(autoplaySource).not.toContain('PHONE_CRANE_REVERSE_DISSOLVE_MS');
     expect(autoplaySource).not.toContain('endpoint-dissolve');
 

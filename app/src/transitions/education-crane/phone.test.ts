@@ -61,4 +61,20 @@ describe('Phone Education → Crane transition', () => {
       craneOpacity: 1
     });
   });
+
+  it('does not rewind a Crane terminal frame while reverse is prepared', () => {
+    const education = new FakeElement();
+    const crane = new FakeElement();
+    education.dataset.r4Scene = 'education';
+    crane.dataset.r4Scene = 'crane-animation';
+    crane.dataset.phoneCraneProgress = '1.0000';
+
+    applyPhoneEducationCraneFrame(
+      education as unknown as HTMLElement,
+      crane as unknown as HTMLElement,
+      0
+    );
+
+    expect(crane.dataset.phoneCraneProgress).toBe('1.0000');
+  });
 });

@@ -58,6 +58,14 @@ describe('phone Lab → Contact snap lock', () => {
       scrollTo
     });
 
+    const idleTouchMove = {
+      cancelable: true,
+      preventDefault: vi.fn(),
+      target: { closest: () => null }
+    } as unknown as Event;
+    input.listeners.get('touchmove')?.(idleTouchMove);
+    expect(idleTouchMove.preventDefault).not.toHaveBeenCalled();
+
     lock.lock(160);
     expect(lock.locked).toBe(true);
     expect(root.dataset.phoneLabContactSnap).toBe('locked');

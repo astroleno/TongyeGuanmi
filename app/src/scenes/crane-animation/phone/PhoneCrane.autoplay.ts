@@ -18,6 +18,7 @@ import {
 } from './PhoneCrane.motion';
 
 const FIGURE_START_SECONDS = 0.5;
+const FLOCK_END_SECONDS = 2.5;
 
 /** The desktop figure starts at 0.5s and owns the rest of the 3s timeline. */
 export const PHONE_CRANE_FIGURE_MEDIA_SECONDS = Math.max(
@@ -28,6 +29,11 @@ export const PHONE_CRANE_FIGURE_MEDIA_SECONDS = Math.max(
 export const PHONE_CRANE_FIGURE_PLAYBACK_RATE = (
   CRANE_VIDEO_END_SECONDS / PHONE_CRANE_FIGURE_MEDIA_SECONDS
 );
+/** Desktop stretches the shared 2.467s safe endpoint across the 2.5s lane. */
+export const PHONE_CRANE_FLOCK_MEDIA_SECONDS = FLOCK_END_SECONDS;
+export const PHONE_CRANE_FLOCK_PLAYBACK_RATE = (
+  CRANE_VIDEO_END_SECONDS / PHONE_CRANE_FLOCK_MEDIA_SECONDS
+);
 
 export function phoneCraneTimelineProgressForFigureMediaProgress(
   rawProgress: number
@@ -35,6 +41,16 @@ export function phoneCraneTimelineProgressForFigureMediaProgress(
   return clamp(
     (FIGURE_START_SECONDS
       + clamp(rawProgress) * PHONE_CRANE_FIGURE_MEDIA_SECONDS)
+      / CRANE_TIMELINE_DURATION_SECONDS
+  );
+}
+
+export function phoneCraneTimelineProgressForFlockMediaProgress(
+  rawProgress: number
+): number {
+  return clamp(
+    clamp(rawProgress)
+      * PHONE_CRANE_FLOCK_MEDIA_SECONDS
       / CRANE_TIMELINE_DURATION_SECONDS
   );
 }
@@ -135,12 +151,14 @@ export function createPhoneCraneForwardRun(
     runIdPrefix: 'phone-crane-flock',
     durationSeconds: CRANE_VIDEO_END_SECONDS,
     onProgress: (progress) => {
-      const mediaSeconds = progress * CRANE_VIDEO_END_SECONDS;
-      publishProgress(mediaSeconds / CRANE_TIMELINE_DURATION_SECONDS);
+      const authoredSeconds = progress * PHONE_CRANE_FLOCK_MEDIA_SECONDS;
+      publishProgress(
+        phoneCraneTimelineProgressForFlockMediaProgress(progress)
+      );
       if (
         active
         && !figureStarted
-        && mediaSeconds >= FIGURE_START_SECONDS
+        && authoredSeconds >= FIGURE_START_SECONDS
       ) {
         figureStarted = true;
         // Both muted decoders were started by the threshold-crossing gesture.
@@ -155,7 +173,12 @@ export function createPhoneCraneForwardRun(
         root.dataset.phoneCraneFigurePreroll = 'released';
       }
     },
-    onComplete: () => undefined,
+    // The safe video endpoint is 33ms shorter than the authored flock lane.
+    // Publish the lane endpoint explicitly so the retained Canvas is already
+    // fully transparent while the figure owns the final half-second.
+    onComplete: () => publishProgress(
+      phoneCraneTimelineProgressForFlockMediaProgress(1)
+    ),
     onFailure: fail,
     onFrameReady: () => markFrameReady(flock, 'flock')
   });
@@ -179,6 +202,7 @@ export function createPhoneCraneForwardRun(
       delete root.dataset.phoneCraneFigurePreroll;
       render(0, 1);
       figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE;
+      flock.playbackRate = PHONE_CRANE_FLOCK_PLAYBACK_RATE;
       figureClock.start();
       flockClock.start();
     },
