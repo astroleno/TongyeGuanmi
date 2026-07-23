@@ -483,10 +483,12 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     publishAdapterRevision
   );
   const latestPhEducationRef = useRef<PhoneTransitionAdapterHandle | null>(null);
+  const latestCraneContactRef = useRef<PhoneTransitionAdapterHandle | null>(null);
 
   useEffect(() => {
     latestPhEducationRef.current = phEducationRef.current;
-  }, [adapterRevision, phEducationRef]);
+    latestCraneContactRef.current = craneContactRef.current;
+  }, [adapterRevision, craneContactRef, phEducationRef]);
 
   const publishNavigationScene = useCallback((scene: SceneId) => {
     if (currentNavigationScene.current === scene) return;
@@ -667,6 +669,49 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       handoffFrame = window.requestAnimationFrame(tick);
     };
 
+    const completeCraneContactHandoff = (
+      waitingSince = performance.now()
+    ) => {
+      const transition = latestCraneContactRef.current;
+      const contactSlot = contactSlotRef.current;
+      if (!transition || !contactSlot) {
+        if (performance.now() - waitingSince < 1000) {
+          handoffFrame = window.requestAnimationFrame(() => {
+            handoffFrame = 0;
+            completeCraneContactHandoff(waitingSince);
+          });
+          return;
+        }
+        cinematicRunStates.current['crane-animation'] = 'complete';
+        releaseSnap('crane-animation');
+        return;
+      }
+      // Match AOD → Method: Contact has already entered over the final fifth
+      // of the snapped native clock. Commit that exact receiver to its native
+      // document slot without exposing a blank frame between owners.
+      transition.render(1);
+      releaseSnap('crane-animation');
+      const contactTop = contactSlot.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: contactTop, left: 0, behavior: 'auto' });
+      setStageActive(craneStageRef.current, false);
+      transition.leave?.();
+      publishNavigationScene('contact');
+      publishActiveScene('contact');
+      syncSceneLifecycle(
+        lifecycleStates.current,
+        'crane-animation',
+        craneRef.current,
+        false
+      );
+      syncSceneLifecycle(
+        lifecycleStates.current,
+        'contact',
+        contactRef.current,
+        true
+      );
+      cinematicRunStates.current['crane-animation'] = 'complete';
+    };
+
     const onAutoplay = (event: Event) => {
       const detail = (event as CustomEvent<PhoneLabContactAutoplayEventDetail>).detail;
       if (
@@ -679,6 +724,23 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         cinematicRunStates.current[detail.scene] = detail.direction === 1
           ? 'forward'
           : 'reverse';
+        if (detail.scene === 'crane-animation') {
+          if (detail.direction === 1) {
+            latestCraneContactRef.current?.enter?.();
+          } else {
+            latestCraneContactRef.current?.reverse?.();
+          }
+        }
+        return;
+      }
+      if (detail.phase === 'progress') {
+        if (
+          detail.scene === 'crane-animation'
+          && typeof detail.progress === 'number'
+          && Number.isFinite(detail.progress)
+        ) {
+          latestCraneContactRef.current?.render(detail.progress);
+        }
         return;
       }
       if (phoneLabContactAutoplayLocksSnap(detail)) {
@@ -716,9 +778,16 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         startPhEducationHandoff();
         return;
       }
+      if (detail.scene === 'crane-animation' && detail.direction === 1) {
+        completeCraneContactHandoff();
+        return;
+      }
       cinematicRunStates.current[detail.scene] = detail.direction === 1
         ? 'complete'
         : 'idle';
+      if (detail.scene === 'crane-animation') {
+        latestCraneContactRef.current?.render(0);
+      }
       releaseSnap(detail.scene);
     };
 

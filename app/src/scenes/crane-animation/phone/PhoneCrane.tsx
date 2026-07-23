@@ -24,6 +24,7 @@ import {
 import {
   createPhoneCraneForwardRun,
   createPhoneCraneReverseDissolve,
+  PHONE_CRANE_FIGURE_MEDIA_SECONDS,
   phoneCraneVideos,
   type PhoneCraneForwardRun,
   type PhoneCraneReverseDissolve
@@ -46,7 +47,7 @@ const PHONE_CRANE_FLOCK_PACKED = phoneMediaUrlFor(
 );
 // Retained endpoints are the terminal frames used by the desktop sequence.
 // The previous intermediate seeks visibly froze both motion layers.
-const PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS;
+const PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = PHONE_CRANE_FIGURE_MEDIA_SECONDS;
 const PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS;
 
 export {
@@ -164,11 +165,18 @@ export const PhoneCrane = forwardRef<
     rawProgress: number,
     direction: PhoneCranePlaybackDirection = 1
   ) => {
+    const progress = phoneCranePresentationProgress(rawProgress, reducedMotion);
     renderPhoneCranePresentation(
       rootRef.current,
-      phoneCranePresentationProgress(rawProgress, reducedMotion),
+      progress,
       direction
     );
+    dispatchPhoneLabContactAutoplay(rootRef.current, {
+      scene: 'crane-animation',
+      phase: 'progress',
+      direction,
+      progress
+    });
   }, [reducedMotion]);
 
   const completeRun = useCallback((direction: PhoneCranePlaybackDirection) => {

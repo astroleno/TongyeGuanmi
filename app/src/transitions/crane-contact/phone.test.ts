@@ -6,16 +6,19 @@ import {
   PHONE_CRANE_CONTACT_COPY_CUE,
   PHONE_CRANE_CONTACT_DECISION,
   phoneCraneContactFallbackFrame,
-  phoneCraneContactFrame
+  phoneCraneContactFrame,
+  settlePhoneCraneContactDocumentFlow
 } from './phone';
 
 const source = readFileSync(new URL('./phone.ts', import.meta.url), 'utf8');
+const stylesheet = readFileSync(new URL('./phone.css', import.meta.url), 'utf8');
 
 describe('Phone Crane → Contact transition', () => {
   it('uses the canonical manifest cue with an endpoint/dissolve fallback', () => {
     expect(PHONE_CRANE_CONTACT_DECISION).toMatchObject({
       mode: 'endpoint-dissolve',
-      source: 'manifest-copy-cue'
+      source: 'desktop-crane-contact-copy-cue',
+      topology: 'aod-method-style-fixed-receiver'
     });
     expect(PHONE_CRANE_CONTACT_COPY_CUE).toMatchObject({
       targetScene: 'contact',
@@ -26,6 +29,10 @@ describe('Phone Crane → Contact transition', () => {
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).not.toContain('parkPhoneCraneMedia');
     expect(source).not.toContain('renderCraneAnimationProgress');
+    expect(source).toContain('frame.contactProgress');
+    expect(stylesheet).toContain('data-phone-crane-contact-overlay-host="true"');
+    expect(stylesheet).toContain('position: fixed');
+    expect(stylesheet).toContain('min-height: var(--phone-cinematic-stage-height, 100lvh)');
   });
 
   it('starts Contact at the shared cue and reaches one stable interactive endpoint', () => {
@@ -38,8 +45,10 @@ describe('Phone Crane → Contact transition', () => {
     const dissolve = applyPhoneCraneContactFrame(
       crane as unknown as HTMLElement,
       contact as unknown as HTMLElement,
-      0.9
+      0.9,
+      { interactiveEndpoint: false }
     );
+    expect(contact.inert).toBe(true);
     const endpoint = applyPhoneCraneContactFrame(
       crane as unknown as HTMLElement,
       contact as unknown as HTMLElement,
@@ -50,8 +59,8 @@ describe('Phone Crane → Contact transition', () => {
     expect(dissolve).toMatchObject({
       copyCueActive: true,
       contactProgress: 0.5,
-      craneOpacity: 0.5,
-      contactOpacity: 0.5
+      craneOpacity: 1,
+      contactOpacity: 1
     });
     expect(endpoint).toMatchObject({
       craneOpacity: 0,
@@ -59,7 +68,25 @@ describe('Phone Crane → Contact transition', () => {
       copyCueActive: true
     });
     expect(contact.inert).toBe(false);
+    expect(contact.style.values.get('--r4-contact-opacity')).toBe('1.0000');
     expect(contact.style.values.get('--r4-contact-paper-alpha')).toBe('1.0000');
+  });
+
+  it('settles the fixed Contact receiver back into native document flow', () => {
+    const crane = new FakeElement();
+    const contact = new FakeElement();
+    crane.style.opacity = '1.0000';
+    contact.style.opacity = '1.0000';
+
+    settlePhoneCraneContactDocumentFlow(
+      crane as unknown as HTMLElement,
+      contact as unknown as HTMLElement
+    );
+
+    expect(crane.style.opacity).toBe('0.0000');
+    expect(crane.style.visibility).toBe('hidden');
+    expect(contact.style.opacity).toBe('');
+    expect(contact.inert).toBe(false);
   });
 
   it('is reversible and directs media failure to the Contact endpoint', () => {

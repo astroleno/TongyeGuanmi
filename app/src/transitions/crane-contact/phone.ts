@@ -16,6 +16,7 @@ import type {
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
 } from '../../production/phone/types';
+import './phone.css';
 
 const ENDPOINT_EPSILON = 0.001;
 
@@ -44,10 +45,13 @@ function transitionProgress(rawProgress: number, reducedMotion: boolean): number
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
 }
 
-function applyEndpointVisibility(element: HTMLElement | null, opacity: number): void {
+function applyEndpointVisibility(
+  element: HTMLElement | null,
+  opacity: number,
+  interactive = opacity >= 1 - ENDPOINT_EPSILON
+): void {
   if (!element) return;
   const visible = opacity > ENDPOINT_EPSILON;
-  const interactive = opacity >= 1 - ENDPOINT_EPSILON;
   element.style.opacity = opacity.toFixed(4);
   element.style.visibility = visible ? 'visible' : 'hidden';
   element.style.pointerEvents = interactive ? 'auto' : 'none';
@@ -61,8 +65,9 @@ function applyEndpointVisibility(element: HTMLElement | null, opacity: number): 
  */
 export const PHONE_CRANE_CONTACT_DECISION = Object.freeze({
   mode: 'endpoint-dissolve',
-  source: 'manifest-copy-cue',
-  reason: 'Contact keeps a stable accessible terminal rather than an unverified camera.'
+  source: 'desktop-crane-contact-copy-cue',
+  topology: 'aod-method-style-fixed-receiver',
+  reason: 'Crane stays snapped and opaque while Contact enters over its final authored fifth.'
 } as const);
 
 export const PHONE_CRANE_CONTACT_COPY_CUE = craneContactCopyCue();
@@ -90,10 +95,56 @@ export function phoneCraneContactFrame(
     progress,
     craneProgress: progress,
     contactProgress,
-    craneOpacity: 1 - contactProgress,
-    contactOpacity: contactProgress,
+    craneOpacity: progress >= 1 - ENDPOINT_EPSILON ? 0 : 1,
+    contactOpacity: contactProgress > ENDPOINT_EPSILON ? 1 : 0,
     copyCueActive: progress >= PHONE_CRANE_CONTACT_COPY_CUE.atProgress
   };
+}
+
+function closestElement(
+  element: HTMLElement | null,
+  selector: string
+): HTMLElement | null {
+  const candidate = element as (HTMLElement & {
+    closest?: (value: string) => Element | null;
+  }) | null;
+  return candidate?.closest?.(selector) as HTMLElement | null ?? null;
+}
+
+function setContactOverlay(to: HTMLElement | null, active: boolean): void {
+  const wrapper = closestElement(to, '.phone-contact');
+  const documentSlot = closestElement(
+    to,
+    '[data-phone-acceptance-chapter="contact"]'
+  );
+  if (active) {
+    to?.setAttribute('data-phone-crane-contact-overlay', 'true');
+    wrapper?.setAttribute('data-phone-crane-contact-overlay-host', 'true');
+    documentSlot?.setAttribute('data-phone-crane-contact-overlay-layer', 'true');
+  } else {
+    to?.removeAttribute('data-phone-crane-contact-overlay');
+    wrapper?.removeAttribute('data-phone-crane-contact-overlay-host');
+    documentSlot?.removeAttribute('data-phone-crane-contact-overlay-layer');
+  }
+}
+
+function clearEndpointVisibility(element: HTMLElement | null): void {
+  if (!element) return;
+  element.style.opacity = '';
+  element.style.visibility = '';
+  element.style.pointerEvents = '';
+  element.inert = false;
+  element.removeAttribute('aria-hidden');
+}
+
+export function settlePhoneCraneContactDocumentFlow(
+  from: HTMLElement | null,
+  to: HTMLElement | null
+): void {
+  applyEndpointVisibility(from, 0, false);
+  setContactOverlay(to, false);
+  clearEndpointVisibility(to);
+  renderContactHold(to);
 }
 
 export function phoneCraneContactFallbackFrame(): PhoneCraneContactFrame {
@@ -107,6 +158,7 @@ export function applyPhoneCraneContactFrame(
   options: Readonly<{
     reducedMotion?: boolean;
     runId?: string;
+    interactiveEndpoint?: boolean;
   }> = {}
 ): PhoneCraneContactFrame {
   const frame = phoneCraneContactFrame(rawProgress, options.reducedMotion);
@@ -116,12 +168,18 @@ export function applyPhoneCraneContactFrame(
   // cannot pause or retarget a live Crane video on scroll.
   renderContactEntrance(
     to,
-    frame.copyCueActive ? 1 : 0,
+    frame.contactProgress,
     frame.contactProgress,
     runId
   );
-  applyEndpointVisibility(from, frame.craneOpacity);
-  applyEndpointVisibility(to, frame.contactOpacity);
+  setContactOverlay(to, frame.contactProgress > ENDPOINT_EPSILON);
+  applyEndpointVisibility(from, frame.craneOpacity, false);
+  applyEndpointVisibility(
+    to,
+    frame.contactOpacity,
+    (options.interactiveEndpoint ?? true)
+      && frame.progress >= 1 - ENDPOINT_EPSILON
+  );
   from?.setAttribute('data-phone-crane-contact-handoff', 'source');
   to?.setAttribute('data-phone-crane-contact-handoff', 'receiver');
   return frame;
@@ -142,7 +200,10 @@ export const PhoneCraneContactTransition = forwardRef<
     const runId = 'phone-crane-contact:phone';
     applyPhoneCraneContactFrame(from, to, rawProgress, {
       reducedMotion,
-      runId
+      runId,
+      // The fixed AOD-style receiver is visual-only while snap owns the
+      // document. leave() commits it to native flow and restores CTA input.
+      interactiveEndpoint: false
     });
   }, [from, reducedMotion, to]);
 
@@ -158,16 +219,20 @@ export const PhoneCraneContactTransition = forwardRef<
     },
     leave() {
       render(1);
+      settlePhoneCraneContactDocumentFlow(from, to);
     },
     reverse() {
-      render(0);
+      render(1);
     },
     dispose() {
       const endpoint = lastProgressRef.current >= 1 - ENDPOINT_EPSILON ? 1 : 0;
       releaseContactEntrance(to, 'phone-crane-contact:phone', endpoint);
       if (endpoint === 1) renderContactHold(to);
+      setContactOverlay(to, false);
+      clearEndpointVisibility(from);
+      clearEndpointVisibility(to);
     }
-  }), [render, to]);
+  }), [from, render, to]);
 
   return null;
 });

@@ -8,6 +8,7 @@ import {
 } from './phone';
 
 const source = readFileSync(new URL('./phone.ts', import.meta.url), 'utf8');
+const stylesheet = readFileSync(new URL('./phone.css', import.meta.url), 'utf8');
 
 function createLabExitFixture() {
   const lab = new FakeElement();
@@ -31,6 +32,10 @@ describe('Phone Lab → PH transition', () => {
     expect(source).toContain("direction: 'bottom-to-top'");
     expect(source).toContain("grade: 'edge-bright'");
     expect(source).toContain("'data-phone-lab-ph-ink': 'bottom-to-top'");
+    expect(source).toContain("host.dataset.phoneLabPhInkSurface = 'transparent'");
+    expect(source).toContain('from: null');
+    expect(stylesheet).toContain('data-phone-lab-ph-ink-surface="transparent"');
+    expect(stylesheet).toContain('background: transparent');
     expect(source).not.toContain('preparePhAnimationFrame');
     expect(source).not.toContain('parkPhonePhMedia');
   });

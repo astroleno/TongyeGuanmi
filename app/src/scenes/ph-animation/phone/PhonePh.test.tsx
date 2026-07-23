@@ -53,7 +53,9 @@ describe('PhonePh', () => {
     expect(css).toContain('left: 61%');
     expect(css).toContain('--phone-ph-plate-width');
     expect(css).toContain('--phone-ph-front-width');
-    expect(css).toContain('* .032');
+    expect(css).toContain('* .044');
+    expect(css).toMatch(/\.ph-layer--front\s*\{[^}]*opacity: 1 !important;[^}]*filter: none;[^}]*mix-blend-mode: normal;/s);
+    expect(css).toContain('-webkit-mask-image: none');
     expect(css).toContain('var(--phone-cinematic-stage-height, 100lvh) * .74');
     expect(css).toContain('object-position: 12% 50%');
     expect(css).toContain('* 1.65');

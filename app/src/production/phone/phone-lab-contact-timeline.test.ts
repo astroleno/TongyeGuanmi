@@ -26,6 +26,12 @@ describe('phone Lab → Contact acceptance timeline', () => {
       phase: 'complete',
       direction: 1
     })).toBe(false);
+    expect(phoneLabContactAutoplayLocksSnap({
+      scene: 'crane-animation',
+      phase: 'progress',
+      direction: 1,
+      progress: 0.8
+    })).toBe(false);
   });
 
   it('keeps each handoff bounded to its stable endpoints without a hidden hold', () => {

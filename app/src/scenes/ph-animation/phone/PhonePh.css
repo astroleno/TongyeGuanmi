@@ -24,7 +24,7 @@
   );
   --ph-figure-base-y: clamp(
     0px,
-    calc(var(--phone-cinematic-stage-height, 100lvh) * .032),
+    calc(var(--phone-cinematic-stage-height, 100lvh) * .044),
     48px
   );
   height: 100%;
@@ -69,7 +69,11 @@
   bottom: 0;
   width: var(--phone-ph-front-width);
   opacity: 1 !important;
+  filter: none;
   mix-blend-mode: normal;
+  clip-path: none;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .phone-ph .ph-layer--figure {

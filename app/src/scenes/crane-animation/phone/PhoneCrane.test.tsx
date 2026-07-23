@@ -14,6 +14,10 @@ import {
   phoneCranePresentationProgress,
   renderPhoneCranePresentation
 } from './PhoneCrane';
+import {
+  PHONE_CRANE_FIGURE_MEDIA_SECONDS,
+  phoneCraneTimelineProgressForFigureMediaProgress
+} from './PhoneCrane.autoplay';
 
 const source = readFileSync(new URL('./PhoneCrane.tsx', import.meta.url), 'utf8');
 const autoplaySource = readFileSync(
@@ -62,8 +66,9 @@ describe('PhoneCrane', () => {
     expect(source).toContain("ensurePackedSurfaces('endpoint')");
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
-    expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
+    expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = PHONE_CRANE_FIGURE_MEDIA_SECONDS');
     expect(source).toContain('PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
+    expect(source).toContain("phase: 'progress'");
     expect(autoplaySource).not.toContain('nativeGate');
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
     expect(css).toContain('--phone-crane-motion-height');
@@ -77,6 +82,9 @@ describe('PhoneCrane', () => {
     expect(css).toContain('clip-path: none');
     expect(css).not.toContain('9dvh');
     expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(1);
+    expect(PHONE_CRANE_FIGURE_MEDIA_SECONDS).toBe(2.5);
+    expect(phoneCraneTimelineProgressForFigureMediaProgress(0)).toBeCloseTo(1 / 6, 8);
+    expect(phoneCraneTimelineProgressForFigureMediaProgress(1)).toBe(1);
     expect(autoplaySource).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS * (1 - elapsed)');
 
     const endpoint = new FakeElement();

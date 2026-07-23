@@ -119,11 +119,18 @@ export const PhoneLabPhTransition = forwardRef<
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!host || !from || !to || !canvas) return;
+    // Lab is a native document scene, not a sibling inside the fixed PH
+    // stage. The stage backing must therefore stay transparent until PH's
+    // own clipped root has covered the viewport.
+    host.dataset.phoneLabPhInkSurface = 'transparent';
     const ink = createPhoneInkTransition({
       host,
       canvas,
       id: 'phone-lab-ph-ink',
-      from,
+      // Unlike Star-map → AOD, Lab is taller than one viewport. Applying the
+      // viewport contour to that long document root clips away the visible
+      // Lab tail. Keep it intact underneath the PH reveal instead.
+      from: null,
       to,
       field: PHONE_LAB_PH_FIELD,
       grade: 'edge-bright'
@@ -134,6 +141,7 @@ export const PhoneLabPhTransition = forwardRef<
     return () => {
       ink.dispose();
       if (inkRef.current === ink) inkRef.current = null;
+      delete host.dataset.phoneLabPhInkSurface;
     };
   }, [from, host, onReady, reducedMotion, render, to]);
 
@@ -151,8 +159,9 @@ export const PhoneLabPhTransition = forwardRef<
     dispose() {
       inkRef.current?.dispose();
       inkRef.current = null;
+      if (host) delete host.dataset.phoneLabPhInkSurface;
     }
-  }), [render]);
+  }), [host, render]);
 
   return createElement('canvas', {
     ref: canvasRef,

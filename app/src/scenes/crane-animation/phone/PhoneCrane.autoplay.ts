@@ -15,6 +15,22 @@ import {
 const FIGURE_START_SECONDS = 0.5;
 const PHONE_CRANE_REVERSE_DISSOLVE_MS = 720;
 
+/** The desktop figure starts at 0.5s and owns the rest of the 3s timeline. */
+export const PHONE_CRANE_FIGURE_MEDIA_SECONDS = Math.max(
+  0.001,
+  CRANE_TIMELINE_DURATION_SECONDS - FIGURE_START_SECONDS
+);
+
+export function phoneCraneTimelineProgressForFigureMediaProgress(
+  rawProgress: number
+): number {
+  return clamp(
+    (FIGURE_START_SECONDS
+      + clamp(rawProgress) * PHONE_CRANE_FIGURE_MEDIA_SECONDS)
+      / CRANE_TIMELINE_DURATION_SECONDS
+  );
+}
+
 export type PhoneCraneForwardRun = Readonly<{
   start(): void;
   stop(): void;
@@ -86,10 +102,9 @@ export function createPhoneCraneForwardRun(
 
   const figureClock: PhoneNativeAutoplay = createPhoneNativeAutoplay(figure, {
     runIdPrefix: 'phone-crane-figure',
-    durationSeconds: CRANE_VIDEO_END_SECONDS,
+    durationSeconds: PHONE_CRANE_FIGURE_MEDIA_SECONDS,
     onProgress: (progress) => publishProgress(
-      (FIGURE_START_SECONDS + progress * CRANE_VIDEO_END_SECONDS)
-        / CRANE_TIMELINE_DURATION_SECONDS
+      phoneCraneTimelineProgressForFigureMediaProgress(progress)
     ),
     onComplete: () => {
       if (!active || disposed) return;

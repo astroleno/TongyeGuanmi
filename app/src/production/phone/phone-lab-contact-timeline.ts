@@ -21,8 +21,9 @@ export const PHONE_LAB_CONTACT_AUTOPLAY_EVENT = 'phone-lab-contact-autoplay';
 
 export type PhoneLabContactAutoplayEventDetail = Readonly<{
   scene: 'ph-animation' | 'crane-animation';
-  phase: 'start' | 'playing' | 'complete';
+  phase: 'start' | 'playing' | 'progress' | 'complete';
   direction: 1 | -1;
+  progress?: number;
 }>;
 
 export type PhoneLabContactCinematicRunState =

@@ -118,7 +118,11 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS');
     expect(shellSource).toContain('INTRA_CHAPTER_DISSOLVE_MS');
     expect(shellSource).toContain('startPhEducationHandoff');
+    expect(shellSource).toContain('completeCraneContactHandoff');
+    expect(shellSource).toContain("detail.phase === 'progress'");
+    expect(shellSource).toContain('latestCraneContactRef.current?.render');
     expect(shellSource).toContain("window.scrollTo({ top: educationTop");
+    expect(shellSource).toContain("window.scrollTo({ top: contactTop");
     expect(shellSource).toContain('() => releaseSnap(detail.scene)');
     expect(shellSource).toContain("window.history.scrollRestoration = 'manual'");
     expect(shellSource).toContain("scene === 'education'");
