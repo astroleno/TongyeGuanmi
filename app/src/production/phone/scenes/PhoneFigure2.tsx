@@ -14,6 +14,7 @@ import {
   disposeFigure2Media,
   ensureFigure2HoldFrame,
   figure2AnimationScene,
+  parkFigure2Media,
   renderFigure2AnimationProgress
 } from '../../../scenes/figure2-animation';
 import type {
@@ -41,6 +42,20 @@ export const PhoneFigure2 = forwardRef<
 >(function PhoneFigure2({ onReady }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
   const compositorRef = useRef<PackedAlphaVideoCompositor | undefined>(undefined);
+  const sceneActiveRef = useRef(false);
+  const setSceneActive = useCallback((active: boolean) => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (!active) {
+      compositorRef.current?.setActive(false);
+      parkFigure2Media(root);
+    }
+    sceneActiveRef.current = active;
+    root.dataset.phoneFigure2Active = String(active);
+    if (active) {
+      compositorRef.current?.setActive(true);
+    }
+  }, []);
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'stage') {
       rootRef.current = element?.closest<HTMLElement>('[data-r4-scene="figure2-animation"]') ?? null;
@@ -56,6 +71,7 @@ export const PhoneFigure2 = forwardRef<
       root.dataset.phoneFigure2Ready = 'failed';
       return;
     }
+    root.dataset.phoneFigure2Active = 'false';
     const controller = new AbortController();
     let packedFrameTimeout = 0;
     root.style.setProperty(
@@ -87,6 +103,7 @@ export const PhoneFigure2 = forwardRef<
       }
     });
     compositorRef.current = compositor;
+    compositor.setActive(sceneActiveRef.current);
 
     const compositorStatus = canvas.dataset.packedAlphaStatus;
     const packedCompositorAvailable = compositorStatus !== 'webgl-unavailable'
@@ -115,6 +132,9 @@ export const PhoneFigure2 = forwardRef<
       .then(() => {
         if (controller.signal.aborted) return;
         root.dataset.phoneFigure2MediaReady = 'true';
+        if (!sceneActiveRef.current) {
+          parkFigure2Media(root);
+        }
       })
       .catch(() => {
         if (!controller.signal.aborted) {
@@ -132,6 +152,7 @@ export const PhoneFigure2 = forwardRef<
       delete root.dataset.phoneFigure2Ready;
       delete root.dataset.phoneFigure2MediaReady;
       delete root.dataset.phoneFigure2PosterReady;
+      delete root.dataset.phoneFigure2Active;
       delete video.dataset.phoneFigure2Alpha;
       delete canvas.dataset.phoneFigure2Alpha;
     };
@@ -145,17 +166,22 @@ export const PhoneFigure2 = forwardRef<
       });
     },
     enter() {
+      setSceneActive(true);
       rootRef.current?.removeAttribute('aria-hidden');
     },
     leave() {
+      setSceneActive(false);
       rootRef.current?.setAttribute('aria-hidden', 'true');
     },
-    reverse() {},
+    reverse() {
+      setSceneActive(true);
+      rootRef.current?.removeAttribute('aria-hidden');
+    },
     dispose() {
       compositorRef.current?.dispose();
       disposeFigure2Media(rootRef.current);
     }
-  }), []);
+  }), [setSceneActive]);
 
   return (
     <Figure2Surface

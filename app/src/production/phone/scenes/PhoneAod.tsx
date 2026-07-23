@@ -159,6 +159,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       compositorRef.current = compositor;
       autoplayRef.current = autoplay;
       autoplay.reset();
+      compositor.setActive(false);
       onReady?.();
 
       return () => {
@@ -184,6 +185,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           completeListenerRef.current?.(direction);
           return;
         }
+        compositorRef.current?.setActive(true);
         autoplayRef.current?.start(direction);
       },
       resetAutoplay() {
@@ -193,8 +195,12 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           autoplayRef.current?.reset();
         }
       },
-      enter() {},
-      leave() {},
+      enter() {
+        compositorRef.current?.setActive(true);
+      },
+      leave() {
+        compositorRef.current?.setActive(false);
+      },
       reverse() {},
       dispose() {
         autoplayRef.current?.dispose();

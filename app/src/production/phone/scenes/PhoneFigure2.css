@@ -10,6 +10,10 @@
   background: transparent;
 }
 
+.phone-grade-a__surfaces > .r4-figure2[data-phone-figure2-active="false"] {
+  display: none;
+}
+
 .phone-grade-a__surfaces .r4-figure2__middle-camera {
   width: max(100vw, calc(var(--portrait-stage-height) * 16 / 9));
   height: max(var(--portrait-stage-height), calc(100vw * 9 / 16));

@@ -7,9 +7,11 @@ import {
 } from './phone-edge-surface';
 
 describe('phone edge surface contract', () => {
-  it('keeps the accepted baseline tokens unchanged', () => {
+  it('publishes the accepted terminal pixel for every Pattern route', () => {
     expect(phoneEdgeSurfaceForScene('hero')).toBe('#07110e');
-    expect(phoneEdgeSurfaceForScene('pattern')).toBe('#d9c08f');
+    expect(phoneEdgeSurfaceForScene('pattern')).toBe(
+      PHONE_PATTERN_TERMINAL_EDGE_SURFACE
+    );
     expect(phoneEdgeSurfaceForScene('figure2')).toBe('#e2dac9');
     expect(phoneEdgeSurfaceForScene('brand')).toBe('#ede4d2');
     expect(phoneEdgeSurfaceForScene('figure3')).toBe('#ede4d2');
@@ -18,12 +20,15 @@ describe('phone edge surface contract', () => {
     expect(phoneEdgeSurfaceForScene('lab')).toBe('#ede4d2');
   });
 
-  it('changes only Pattern in the v47 terminal profile', () => {
+  it('keeps the v47 profile compatible with the graduated production token', () => {
     expect(phoneEdgeSurfaceForScene(
       'pattern',
       'pattern-terminal'
     )).toBe(PHONE_PATTERN_TERMINAL_EDGE_SURFACE);
     expect(PHONE_PATTERN_TERMINAL_EDGE_SURFACE).toBe('#8f7f61');
+    expect(PHONE_EDGE_SURFACE_BY_SCENE.pattern).toBe(
+      PHONE_PATTERN_TERMINAL_EDGE_SURFACE
+    );
 
     const unaffectedScenes: readonly PhoneEdgeScene[] = [
       'hero',

@@ -147,6 +147,7 @@ export function PhoneGradeAStory({
   const proofTrackRef = useRef<HTMLDivElement | null>(null);
   const surfacesRef = useRef<HTMLDivElement | null>(null);
   const methodPaperRef = useRef<HTMLDivElement | null>(null);
+  const proofBrandSourceRef = useRef<HTMLDivElement | null>(null);
   const figure2Ref = useRef<PhoneSceneAdapterHandle | null>(null);
   const proofRef = useRef<PhoneSceneAdapterHandle | null>(null);
   const methodFigure2Ref = useRef<PhoneTransitionAdapterHandle | null>(null);
@@ -298,6 +299,7 @@ export function PhoneGradeAStory({
       };
 
       if (railActive) {
+        figure2Ref.current?.enter?.();
         const handoff = phoneGradeAHandoffProgress(railRect.top, stageHeight);
         const figure = phoneGradeAFigureProgress(railRect.top, railRect.height);
         const edgeScene = phoneGradeAMethodFigure2EdgeScene(
@@ -329,6 +331,7 @@ export function PhoneGradeAStory({
         );
         methodFigure2Ref.current?.render(1);
         figure2ProofRef.current?.render(1);
+        figure2Ref.current?.leave?.();
         proofBrandRef.current?.render(0);
         proofRef.current?.update(proof);
         proofRef.current?.enter?.();
@@ -351,6 +354,7 @@ export function PhoneGradeAStory({
         setRetainedArchProgress(1, 1);
         methodFigure2Ref.current?.render(1);
         figure2ProofRef.current?.render(1);
+        figure2Ref.current?.leave?.();
         proofRef.current?.update(1);
         proofRef.current?.enter?.();
         proofBrandRef.current?.render(handoff);
@@ -360,11 +364,13 @@ export function PhoneGradeAStory({
       }
 
       if (brandRect && brandRect.top <= ACTIVE_EDGE_TOLERANCE_PX) {
+        figure2Ref.current?.leave?.();
         proofBrandRef.current?.render(1);
         proofRef.current?.leave?.();
       }
 
       if (railRect.top >= stageHeight) {
+        figure2Ref.current?.leave?.();
         setRetainedArchProgress(0, 0);
         methodFigure2Ref.current?.render(0);
         figure2ProofRef.current?.render(0);
@@ -479,20 +485,26 @@ export function PhoneGradeAStory({
       {Figure2 && (
         <Figure2
           ref={bindFigure2}
-          active={runtimeReady}
+          active={false}
           reducedMotion={reducedMotion}
           onReady={markFigure2Ready}
         />
       )}
-      {Proof && (
-        <Proof
-          ref={bindProof}
-          active={runtimeReady}
-          reducedMotion={reducedMotion}
-          onReady={markProofReady}
-        />
-      )}
-      <PhoneFigure2Arch />
+      <div
+        ref={proofBrandSourceRef}
+        className="phone-grade-a__proof-brand-source"
+        data-phone-proof-brand-source="proof-and-arch"
+      >
+        {Proof && (
+          <Proof
+            ref={bindProof}
+            active={runtimeReady}
+            reducedMotion={reducedMotion}
+            onReady={markProofReady}
+          />
+        )}
+        <PhoneFigure2Arch />
+      </div>
       {scenesReady && MethodFigure2 && (
         <MethodFigure2
           ref={bindMethodFigure2}
@@ -517,7 +529,7 @@ export function PhoneGradeAStory({
         <ProofBrand
           ref={bindProofBrand}
           host={surfacesRef.current}
-          from={proofRef.current?.root() ?? null}
+          from={proofBrandSourceRef.current}
           to={brandRoot}
           reducedMotion={reducedMotion}
           onReady={markProofBrandReady}

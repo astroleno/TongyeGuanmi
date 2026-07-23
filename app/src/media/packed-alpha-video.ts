@@ -7,6 +7,7 @@ export type PackedAlphaFrameSize = Readonly<{
 
 export type PackedAlphaVideoCompositor = Readonly<{
   render(): boolean;
+  setActive(active: boolean): void;
   dispose(): void;
 }>;
 
@@ -159,6 +160,7 @@ export function createPackedAlphaVideoCompositor(
     canvas.dataset.packedAlphaStatus = 'webgl-unavailable';
     return {
       render: () => false,
+      setActive: () => undefined,
       dispose: () => {
         delete canvas.dataset.packedAlphaStatus;
       }
@@ -174,6 +176,7 @@ export function createPackedAlphaVideoCompositor(
     if (texture) gl.deleteTexture(texture);
     return {
       render: () => false,
+      setActive: () => undefined,
       dispose: () => {
         delete canvas.dataset.packedAlphaStatus;
       }
@@ -186,6 +189,7 @@ export function createPackedAlphaVideoCompositor(
   const texelLocation = gl.getUniformLocation(program, 'uTexelX');
   const managedVideo = video as VideoWithFrameCallbacks;
   let disposed = false;
+  let active = true;
   let frameCallback = 0;
   let animationFrame = 0;
   let renderedFrames = 0;
@@ -212,6 +216,7 @@ export function createPackedAlphaVideoCompositor(
   const render = () => {
     if (
       disposed
+      || !active
       || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
       || video.videoWidth < 2
       || video.videoHeight < 1
@@ -256,7 +261,7 @@ export function createPackedAlphaVideoCompositor(
   };
 
   const schedule = () => {
-    if (disposed || frameCallback || animationFrame) {
+    if (disposed || !active || frameCallback || animationFrame) {
       return;
     }
     if (typeof managedVideo.requestVideoFrameCallback === 'function') {
@@ -279,6 +284,7 @@ export function createPackedAlphaVideoCompositor(
   };
 
   const renderAndSchedule = () => {
+    if (!active) return;
     render();
     if (!video.paused && !video.ended) {
       schedule();
@@ -296,21 +302,52 @@ export function createPackedAlphaVideoCompositor(
   video.addEventListener('pause', renderAndSchedule);
   canvas.addEventListener('webglcontextlost', onContextLost);
   canvas.dataset.packedAlphaStatus = 'waiting';
+  canvas.dataset.packedAlphaCompositorActive = 'true';
   if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
     renderAndSchedule();
   }
 
+  const cancelScheduledFrame = () => {
+    if (frameCallback && typeof managedVideo.cancelVideoFrameCallback === 'function') {
+      managedVideo.cancelVideoFrameCallback(frameCallback);
+    }
+    frameCallback = 0;
+    window.cancelAnimationFrame(animationFrame);
+    animationFrame = 0;
+  };
+  const clearPresentedFrame = () => {
+    if (canvas.width > 0 && canvas.height > 0) {
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.flush();
+    }
+    delete canvas.dataset.packedAlphaFrameReady;
+    delete canvas.dataset.packedAlphaFrame;
+    delete canvas.dataset.packedAlphaMediaTime;
+  };
+
   return {
     render,
+    setActive(nextActive) {
+      if (disposed || active === nextActive) return;
+      active = nextActive;
+      canvas.dataset.packedAlphaCompositorActive = String(active);
+      if (!active) {
+        cancelScheduledFrame();
+        clearPresentedFrame();
+        canvas.dataset.packedAlphaStatus = 'suspended';
+        return;
+      }
+      canvas.dataset.packedAlphaStatus = 'waiting';
+      renderAndSchedule();
+    },
     dispose() {
       if (disposed) {
         return;
       }
       disposed = true;
-      if (frameCallback && typeof managedVideo.cancelVideoFrameCallback === 'function') {
-        managedVideo.cancelVideoFrameCallback(frameCallback);
-      }
-      window.cancelAnimationFrame(animationFrame);
+      cancelScheduledFrame();
+      clearPresentedFrame();
       video.removeEventListener('loadeddata', renderAndSchedule);
       video.removeEventListener('seeked', renderAndSchedule);
       video.removeEventListener('timeupdate', renderAndSchedule);
@@ -326,6 +363,7 @@ export function createPackedAlphaVideoCompositor(
       delete canvas.dataset.packedAlphaFrameReady;
       delete canvas.dataset.packedAlphaFrame;
       delete canvas.dataset.packedAlphaMediaTime;
+      delete canvas.dataset.packedAlphaCompositorActive;
     }
   };
 }

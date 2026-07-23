@@ -99,7 +99,10 @@ async function scrollBoundaryTo(
 test('v23 Route B publishes the active phone checkpoint trace in both directions', async ({
   page
 }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
+  test.skip(
+    !['desktop-chromium', 'mobile-webkit'].includes(testInfo.project.name),
+    'the formal phone route runs in Chromium and WebKit'
+  );
   test.setTimeout(45_000);
 
   const presentationRequests: string[] = [];
@@ -126,6 +129,10 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
   await expect(page.locator('#method.portrait-scroll-spike__reading')).toHaveCount(1);
   await expect(page.locator('[data-aod-figure-video]')).toHaveCount(1);
   await expect(page.locator('[data-aod-figure-canvas]')).toHaveCount(1);
+  await expect(page.locator('[data-aod-figure-canvas]')).toHaveAttribute(
+    'data-packed-alpha-compositor-active',
+    'false'
+  );
   const hero = page.locator('.portrait-scroll-spike__scene--hero');
   await expect(hero).toHaveAttribute('data-portrait-hero-title-active', 'true', {
     timeout: 5_000
@@ -172,7 +179,7 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
     } else if (checkpoint === 'pattern-complete') {
       await expect(page.locator('.portrait-scroll-spike__stage')).toHaveCSS(
         'background-color',
-        'rgb(217, 192, 143)'
+        'rgb(143, 127, 97)'
       );
       await expect(page.locator('.portrait-scroll-spike__toolbar-edge')).toHaveCount(0);
     } else if (checkpoint === 'pattern-to-star-map') {
@@ -190,6 +197,10 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
         'data-r4-ink-segment',
         'portrait-star-aod-ink'
       );
+      await expect(page.locator('[data-aod-figure-canvas]')).toHaveAttribute(
+        'data-packed-alpha-compositor-active',
+        'true'
+      );
     }
   }
 
@@ -204,11 +215,23 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
   );
   await expect(page.locator('.aod-transition__layer--sun')).toHaveCSS('opacity', '0');
   await expect(page.locator('.aod-transition__layer--cloud')).toHaveCSS('opacity', '0');
+  await expect(page.locator('[data-aod-figure-canvas]')).toHaveAttribute(
+    'data-packed-alpha-compositor-active',
+    'false'
+  );
+  await expect(page.locator('[data-aod-figure-canvas]')).not.toHaveAttribute(
+    'data-packed-alpha-frame-ready',
+    'true'
+  );
 
   await scrollPhoneStageTo(page, 0.74);
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'aod-stage', {
     timeout: 10_000
   });
+  await expect(page.locator('[data-aod-figure-canvas]')).toHaveAttribute(
+    'data-packed-alpha-compositor-active',
+    'true'
+  );
 
   const reverse = [
     [0.739, 'star-map-to-aod'],
@@ -301,7 +324,7 @@ test('v46 keeps one Pattern plate inside the stable visual canvas', async ({
   await expect(page.locator('.portrait-scroll-spike__toolbar-edge')).toHaveCount(0);
 
   for (const sample of [
-    { progress: 0.30, edge: 'pattern', color: 'rgb(217, 192, 143)' },
+    { progress: 0.30, edge: 'pattern', color: 'rgb(143, 127, 97)' },
     { progress: 0.82, edge: 'aod', color: 'rgb(237, 228, 210)' }
   ] as const) {
     await scrollPhoneStageTo(page, sample.progress);
@@ -359,7 +382,7 @@ test('v46 keeps one Pattern plate inside the stable visual canvas', async ({
     expect(edge.stageBackgroundImage).toBe('none');
     expect(edge.documentBackgroundAttachment).toBe('scroll');
     expect(edge.railBackgroundColor).toBe(sample.color);
-    expect(edge.themeColor).toBe(sample.edge === 'pattern' ? '#d9c08f' : '#ede4d2');
+    expect(edge.themeColor).toBe(sample.edge === 'pattern' ? '#8f7f61' : '#ede4d2');
     if (sample.edge === 'pattern') {
       expect(edge.patternSceneBackgroundImage).toBe('none');
       expect(edge.patternPlateHeight).toBeCloseTo(844, 0);
@@ -500,8 +523,11 @@ test('v46 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
 test('v47 Proof hands off to Brand inside the one persistent stage', async ({
   page
 }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
-  test.setTimeout(60_000);
+  test.skip(
+    !['desktop-chromium', 'mobile-webkit'].includes(testInfo.project.name),
+    'the compositor handoff runs in Chromium and WebKit'
+  );
+  test.setTimeout(90_000);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?v=47#figure2-proof-closing', {
@@ -529,6 +555,20 @@ test('v47 Proof hands off to Brand inside the one persistent stage', async ({
     'data-portrait-checkpoint',
     'figure2-proof-closing'
   );
+  const figure2 = page.locator('[data-r4-scene="figure2-animation"]');
+  const proofBrandSource = page.locator(
+    '[data-phone-proof-brand-source="proof-and-arch"]'
+  );
+  const foregroundArch = page.locator(
+    '[data-stage-retained-figure2-arch="true"]'
+  );
+  await expect(figure2).toHaveAttribute('data-phone-figure2-active', 'false');
+  await expect(figure2).toHaveCSS('display', 'none');
+  await expect(foregroundArch).toHaveCount(1);
+  await expect(foregroundArch.locator('..')).toHaveAttribute(
+    'data-phone-proof-brand-source',
+    'proof-and-arch'
+  );
   await scrollProofBrandTo(page, 0.5);
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'proof-to-brand');
   await expect(gradeA).toHaveAttribute('data-phone-grade-a-active', 'true');
@@ -542,6 +582,11 @@ test('v47 Proof hands off to Brand inside the one persistent stage', async ({
     'data-r4-ink-ownership',
     'reveal'
   );
+  await expect(proofBrandSource).toHaveAttribute(
+    'data-r4-ink-ownership',
+    'conceal'
+  );
+  await expect(figure2).toHaveCSS('display', 'none');
   await expect(page.locator('.portrait-scroll-spike__scene--hero')).toHaveCSS(
     'visibility',
     'hidden'
@@ -551,11 +596,39 @@ test('v47 Proof hands off to Brand inside the one persistent stage', async ({
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'brand-reading');
   await expect(shell).toHaveAttribute('data-portrait-edge-scene', 'brand');
   await expect(gradeA).toHaveAttribute('data-phone-grade-a-active', 'false');
+  await expect(page.locator('.phone-grade-a__surfaces')).toHaveCSS(
+    'display',
+    'none'
+  );
+  await expect(page.locator('[data-portrait-figure-canvas]')).toHaveAttribute(
+    'data-packed-alpha-compositor-active',
+    'false'
+  );
+  await expect(page.locator('[data-portrait-figure-canvas]')).not.toHaveAttribute(
+    'data-packed-alpha-frame-ready',
+    'true'
+  );
+  await expect(page.locator('[data-aod-figure-canvas]')).toHaveAttribute(
+    'data-packed-alpha-compositor-active',
+    'false'
+  );
+  await expect(page.locator('[data-aod-figure-canvas]')).not.toHaveAttribute(
+    'data-packed-alpha-frame-ready',
+    'true'
+  );
+  await expect(figure2).toHaveAttribute('data-phone-figure2-active', 'false');
   await expect(page.locator('#brand.phone-brand')).toBeVisible();
+  await expect(page.locator('#brand.phone-brand')).toHaveCSS('z-index', '11');
 
   await scrollProofBrandTo(page, 0.5);
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'proof-to-brand');
   await expect(page.locator('[data-r4-scene="figure2-proof"]')).toBeVisible();
+  await expect(figure2).toHaveCSS('display', 'none');
+
+  await scrollGradeAFigureTo(page, 0.85);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'figure2-to-proof');
+  await expect(figure2).toHaveAttribute('data-phone-figure2-active', 'true');
+  await expect(figure2).not.toHaveCSS('display', 'none');
 });
 
 test('v47 reduced motion reaches stable Lab and reverses without another stage', async ({
@@ -620,7 +693,10 @@ test('v47 reduced motion reaches stable Lab and reverses without another stage',
 test('v47 full motion runs Figure3 and TTG forward and reverse on the shared host', async ({
   page
 }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'the media route runs once');
+  test.skip(
+    !['desktop-chromium', 'mobile-webkit'].includes(testInfo.project.name),
+    'the media route runs in Chromium and WebKit'
+  );
   test.setTimeout(90_000);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -646,6 +722,12 @@ test('v47 full motion runs Figure3 and TTG forward and reverse on the shared hos
     { timeout: 15_000 }
   );
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'services-reading');
+  await expect(page.locator('#services.phone-services')).toHaveCSS('opacity', '1');
+  await expect(page.locator('#services.phone-services')).toHaveCSS('z-index', '11');
+  await expect(page.locator('[data-portrait-figure-canvas]')).toHaveAttribute(
+    'data-packed-alpha-compositor-active',
+    'false'
+  );
 
   await expect(page.locator('.phone-ttg')).toHaveCount(1, { timeout: 15_000 });
   await scrollBoundaryTo(page, '#ttg-animation');
@@ -659,6 +741,12 @@ test('v47 full motion runs Figure3 and TTG forward and reverse on the shared hos
     { timeout: 15_000 }
   );
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'lab-stable');
+  await expect(page.locator('#lab.phone-lab')).toHaveCSS('opacity', '1');
+  await expect(page.locator('#lab.phone-lab')).toHaveCSS('z-index', '11');
+  await expect(page.locator('[data-portrait-figure-canvas]')).toHaveAttribute(
+    'data-packed-alpha-compositor-active',
+    'false'
+  );
   await expect(page.locator('.portrait-scroll-spike__stage')).toHaveCount(1);
 
   await scrollBoundaryTo(page, '#ttg-animation', -2);
@@ -688,6 +776,63 @@ test('v47 full motion runs Figure3 and TTG forward and reverse on the shared hos
   await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'brand-reading');
   await expect(continuation).toHaveAttribute('data-phone-group45-stage-active', 'false');
   await expect(page.locator('.portrait-scroll-spike__stage')).toHaveCount(1);
+});
+
+test('v47 full-motion downstream deep links expose native readings without Figure1', async ({
+  page
+}, testInfo) => {
+  test.skip(
+    !['desktop-chromium', 'mobile-webkit'].includes(testInfo.project.name),
+    'the downstream compositor regression runs in Chromium and WebKit'
+  );
+  test.setTimeout(90_000);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const target of [
+    {
+      scene: 'services',
+      checkpoint: 'services-reading',
+      selector: '#services.phone-services'
+    },
+    {
+      scene: 'lab',
+      checkpoint: 'lab-stable',
+      selector: '#lab.phone-lab'
+    }
+  ] as const) {
+    await page.goto(`/?v=47&qa=downstream-reading#${target.scene}`, {
+      waitUntil: 'domcontentloaded'
+    });
+    const shell = page.locator(UNIT7_A_SHELL);
+    const reading = page.locator(target.selector);
+    await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
+      timeout: 15_000
+    });
+    await expect(shell).toHaveAttribute(
+      'data-portrait-checkpoint',
+      target.checkpoint,
+      { timeout: 20_000 }
+    );
+    await expect(reading).toBeVisible();
+    await expect(reading).toHaveCSS('opacity', '1');
+    await expect(reading).toHaveCSS('z-index', '11');
+    await expect(page.locator('[data-portrait-figure-canvas]')).toHaveAttribute(
+      'data-packed-alpha-compositor-active',
+      'false'
+    );
+    await expect(page.locator('[data-portrait-figure-canvas]')).not.toHaveAttribute(
+      'data-packed-alpha-frame-ready',
+      'true'
+    );
+    await expect(page.locator('[data-aod-figure-canvas]')).toHaveAttribute(
+      'data-packed-alpha-compositor-active',
+      'false'
+    );
+    await expect(page.locator('[data-aod-figure-canvas]')).not.toHaveAttribute(
+      'data-packed-alpha-frame-ready',
+      'true'
+    );
+  }
 });
 
 test('brand-lab QA route keeps one independent shell at the stable Lab boundary', async ({

@@ -2,9 +2,6 @@
   --portrait-pattern-wash-background:
     radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
     linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
-}
-
-.portrait-scroll-spike[data-phone-validation-mode="v47"] {
   --portrait-pattern-edge-surface: #8f7f61;
 }
 
@@ -22,7 +19,7 @@
   user-select: none;
 }
 
-.portrait-scroll-spike[data-phone-validation-mode="v47"] .portrait-scroll-spike__pattern-motion::after {
+.portrait-scroll-spike__pattern-motion::after {
   content: "";
   position: absolute;
   z-index: 4;

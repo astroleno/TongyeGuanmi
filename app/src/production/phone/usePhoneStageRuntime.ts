@@ -144,9 +144,10 @@ export function usePhoneStageRuntime(
     const motionEnabled = !options.reducedMotion;
     let active = true;
     let currentOwnership = '';
-    let heroActive = false;
-    let patternActive = false;
-    let starActive = false;
+    let heroActive: boolean | undefined;
+    let patternActive: boolean | undefined;
+    let starActive: boolean | undefined;
+    let aodActive: boolean | undefined;
     let aodRunState: PortraitAodRunState = 'idle';
     let aodProgress = 0;
     let lastStageProgress = Number.NaN;
@@ -263,6 +264,12 @@ export function usePhoneStageRuntime(
       if (nextVisible) starAdapter.enter?.();
       else starAdapter.leave?.();
     };
+    const setAodFigureActive = (nextActive: boolean) => {
+      if (aodActive === nextActive) return;
+      aodActive = nextActive;
+      if (nextActive) aodAdapter.enter?.();
+      else aodAdapter.leave?.();
+    };
 
     const renderMethodBridge = (progress: number) => {
       methodAdapter.update(progress);
@@ -300,6 +307,7 @@ export function usePhoneStageRuntime(
         + (stageScrollEnd - stageScrollStart)
           * PHONE_STAGE_STOPS.aodAutoplayStart;
       aodScrollSnap.lock(anchorY);
+      setAodFigureActive(true);
       aodAdapter.startAutoplay(1);
     };
 
@@ -312,6 +320,7 @@ export function usePhoneStageRuntime(
       ));
       setStageActive(true);
       aodScrollSnap.lock(anchorY);
+      setAodFigureActive(true);
       aodAdapter.startAutoplay(-1);
     };
 
@@ -320,6 +329,7 @@ export function usePhoneStageRuntime(
       root.dataset.portraitAodRun = aodRunState;
       options.onCheckpoint(phoneAodCompletionCheckpoint(direction));
       aodScrollSnap.release();
+      if (direction === 1) setAodFigureActive(false);
     };
     completeHandlerRef.current = completeAodRun;
 
@@ -454,6 +464,11 @@ export function usePhoneStageRuntime(
         && progress >= PHONE_STAGE_STOPS.patternStarStart - 0.015
         && progress < PHONE_STAGE_STOPS.starAodEnd + 0.015
       );
+      setAodFigureActive(
+        motionEnabled
+        && aodRunState !== 'complete'
+        && progress >= PHONE_STAGE_STOPS.starAodStart - 0.015
+      );
       heroAdapter.update(frame.heroProgress);
       patternAdapter.update(frame.patternProgress);
       starAdapter.update(frame.starProgress);
@@ -575,6 +590,7 @@ export function usePhoneStageRuntime(
       setHeroFigureActive(false);
       setPatternActive(false);
       setStarVisible(false);
+      setAodFigureActive(false);
       aodRunState = 'idle';
       aodScrollSnap.dispose();
       aodAdapter.resetAutoplay();

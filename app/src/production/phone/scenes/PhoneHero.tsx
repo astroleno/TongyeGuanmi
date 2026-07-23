@@ -233,6 +233,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
 
     useLayoutEffect(() => {
       sceneActiveRef.current = active;
+      compositorRef.current?.setActive(active && !reducedMotion);
       playbackRef.current?.setActive(active && !reducedMotion);
     }, [active, reducedMotion]);
 
@@ -265,14 +266,17 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       },
       enter() {
         sceneActiveRef.current = true;
+        compositorRef.current?.setActive(!reducedMotion);
         playbackRef.current?.setActive(!reducedMotion);
       },
       leave() {
         sceneActiveRef.current = false;
+        compositorRef.current?.setActive(false);
         playbackRef.current?.setActive(false);
       },
       reverse() {
         sceneActiveRef.current = true;
+        compositorRef.current?.setActive(!reducedMotion);
         playbackRef.current?.setActive(!reducedMotion);
       },
       startEntrance,
@@ -287,6 +291,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       dispose() {
         cancelEntrance();
         sceneActiveRef.current = false;
+        compositorRef.current?.setActive(false);
         playbackRef.current?.setActive(false);
       }
     }), [cancelEntrance, completeEntrance, motionDriver, reducedMotion, startEntrance]);

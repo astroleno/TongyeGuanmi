@@ -207,14 +207,12 @@ describe('Route B proven front-half migration contract', () => {
     expect(patternCss).not.toContain('stage-backplate');
     expect(patternCss).toContain('--portrait-pattern-edge-surface: #8f7f61');
     expect(patternCss).toMatch(
-      /data-phone-validation-mode="v47"[^}]*portrait-pattern-edge-surface:[^}]*8f7f61/s
+      /\.portrait-scroll-spike\s*\{[^}]*portrait-pattern-edge-surface:[^}]*8f7f61/s
     );
     expect(patternCss).toMatch(
-      /data-phone-validation-mode="v47"[^}]*pattern-motion::after\s*\{[^}]*height:\s*clamp\(48px,\s*6\.5svh,\s*60px\)[^}]*background:\s*linear-gradient\([^}]*var\(--portrait-pattern-edge-surface\)\s*100%/s
+      /\.portrait-scroll-spike__pattern-motion::after\s*\{[^}]*height:\s*clamp\(48px,\s*6\.5svh,\s*60px\)[^}]*background:\s*linear-gradient\([^}]*var\(--portrait-pattern-edge-surface\)\s*100%/s
     );
-    expect(patternCss).not.toMatch(
-      /data-phone-validation-mode="v46"[^}]*pattern-motion::after/s
-    );
+    expect(patternCss).not.toContain('data-phone-validation-mode="v47"');
     expect(edgeSurfaceSource).toContain(
       "PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#8f7f61'"
     );

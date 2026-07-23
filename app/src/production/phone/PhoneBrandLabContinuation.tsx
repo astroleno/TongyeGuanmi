@@ -674,8 +674,8 @@ export const PhoneBrandLabContinuation = forwardRef<
       'figure3-animation': sceneIndex(target) >= sceneIndex('services') ? 1 : 0,
       'ttg-animation': sceneIndex(target) >= sceneIndex('lab') ? 1 : 0
     };
-    setCurrentScene(entryScene);
-    setAdapterScene(entryScene);
+    setCurrentScene(target);
+    setAdapterScene(target);
   }, [entryScene, navigationTarget]);
 
   useEffect(() => {
@@ -784,6 +784,30 @@ export const PhoneBrandLabContinuation = forwardRef<
     if (!adapters.entryReady) return;
     const root = rootRef.current;
     if (!root) return;
+    const directEntryScene = navigationTarget ?? entryScene;
+    const directEntryIndex = sceneIndex(directEntryScene);
+
+    /*
+     * A downstream hash/navigation target lands on a stable document receiver;
+     * it does not replay every earlier time-owned visual. Commit the skipped
+     * dissolve endpoints before the first measured frame so Services/Lab
+     * cannot inherit the transitions' mount-time opacity: 0.
+     */
+    if (directEntryIndex >= sceneIndex('services')) {
+      visualRunPhaseRef.current['figure3-animation'] = 'complete';
+      figure3Ref.current?.update(1);
+      figure3Ref.current?.leave?.();
+      figure3ServicesRef.current?.leave?.();
+    }
+    if (directEntryIndex >= sceneIndex('lab')) {
+      visualRunPhaseRef.current['ttg-animation'] = 'complete';
+      ttgRef.current?.update(1);
+      ttgRef.current?.leave?.();
+      ttgLabRef.current?.leave?.();
+    } else if (directEntryIndex >= sceneIndex('services')) {
+      ttgLabRef.current?.enter?.();
+    }
+
     let frame = 0;
     const visualSnap = createPhoneScrollSnapLock({
       root,
@@ -936,7 +960,6 @@ export const PhoneBrandLabContinuation = forwardRef<
       }
       const forwardDirection = nextScrollDirection === 1
         || (!nextScrollDirection && scrollY >= previousScrollY);
-      const directEntryScene = navigationTarget ?? entryScene;
       const directVisualEntry = directEntryScene === 'figure3-animation'
         || directEntryScene === 'ttg-animation';
       const crossedFigure3 = figure3Element && figure3Rect && (
