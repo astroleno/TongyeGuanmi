@@ -53,7 +53,7 @@ describe('PhoneLabContactShell', () => {
   });
 
   it('publishes each scene edge instead of retaining PH blue on paper scenes', () => {
-    expect(phoneLabContactEdgeSurface('ph-animation')).toBe('#9889a5');
+    expect(phoneLabContactEdgeSurface('ph-animation')).toBe('#a594ab');
     for (const scene of ['lab', 'education', 'crane-animation', 'contact'] as const) {
       expect(phoneLabContactEdgeSurface(scene)).toBe('#ede4d2');
     }
