@@ -48,6 +48,17 @@ const PHONE_CRANE_FLOCK_PACKED = phoneMediaUrlFor(
   'crane-flock-packed',
   'crane-animation'
 );
+export const PHONE_CRANE_FLOCK_HQ_CANDIDATE_PATH =
+  '/qa-media/crane-flock-motion-rgb-alpha-hq-candidate.mp4';
+
+export function phoneCraneFlockPackedUrlFor(
+  search: string,
+  development: boolean
+): string {
+  return development && new URLSearchParams(search).get('v') === '36'
+    ? PHONE_CRANE_FLOCK_HQ_CANDIDATE_PATH
+    : PHONE_CRANE_FLOCK_PACKED;
+}
 // Retained endpoints are the terminal frames used by the desktop sequence.
 // The previous intermediate seeks visibly froze both motion layers.
 const PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS;
@@ -160,6 +171,14 @@ export const PhoneCrane = forwardRef<
       || !figureCanvas
       || !flockCanvas
     ) return;
+    const flockPackedSource = phoneCraneFlockPackedUrlFor(
+      typeof window === 'undefined' ? '' : window.location.search,
+      import.meta.env.DEV
+    );
+    root.dataset.phoneCraneFlockPackedSource =
+      flockPackedSource === PHONE_CRANE_FLOCK_HQ_CANDIDATE_PATH
+        ? 'hq-candidate-1280x720'
+        : 'baseline-704x396';
     cancelPackedReleaseRef.current?.();
     cancelPackedReleaseRef.current = null;
     if (!packedSurfacesRef.current) {
@@ -184,7 +203,7 @@ export const PhoneCrane = forwardRef<
         container: flockContainer,
         canvas: flockCanvas,
         video: flock,
-        packedSourceUrl: PHONE_CRANE_FLOCK_PACKED,
+        packedSourceUrl: flockPackedSource,
         endpointSeconds: PHONE_CRANE_FLOCK_ENDPOINT_SECONDS,
         statusDataset: 'phoneCraneFlockAlpha',
         layerName: 'crane-flock',
@@ -364,6 +383,7 @@ export const PhoneCrane = forwardRef<
       parkPhoneCraneMedia(root);
       delete root.dataset.phoneCraneLifecycle;
       delete root.dataset.phoneCraneAutoplay;
+      delete root.dataset.phoneCraneFlockPackedSource;
     };
   }, [
     completeRun,
