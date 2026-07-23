@@ -124,6 +124,10 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(ttgStyles).toMatch(
       /\.phone-ttg \.ttg-layer--middle\s*\{[^}]+left:\s*175%/s
     );
+    expect(ttgStyles).toContain('data-phone-ttg-endpoint-ready');
+    expect(ttgStyles).not.toContain(
+      'ttg-layer--figure[data-phone-group45-frame-ready="true"]'
+    );
   });
 
   it('keeps TTG fully presented while the single Lab root owns the dissolve', () => {

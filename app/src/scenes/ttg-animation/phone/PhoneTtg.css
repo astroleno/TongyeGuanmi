@@ -96,7 +96,7 @@
   left: 175%;
 }
 
-.phone-ttg video.ttg-layer--figure[data-phone-group45-frame-ready="true"] {
+.phone-ttg video.ttg-layer--figure[data-phone-ttg-endpoint-ready] {
   opacity: var(--ttg-figure-video-opacity, 1);
 }
 

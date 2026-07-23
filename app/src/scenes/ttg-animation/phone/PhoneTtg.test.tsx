@@ -87,14 +87,20 @@ describe('PhoneTtg', () => {
       duration: 2.5,
       readyState: 2,
       seeking: false,
-      dataset: { phoneGroup45FrameReady: 'true' }
+      dataset: {
+        phoneGroup45FrameReady: 'true',
+        phoneTtgEndpointReady: 'terminal'
+      }
     } as unknown as HTMLVideoElement)).toBe(true);
     expect(phoneTtgHasReusableTerminalFrame({
       currentTime: 0,
       duration: 2.5,
       readyState: 2,
       seeking: false,
-      dataset: { phoneGroup45FrameReady: 'true' }
+      dataset: {
+        phoneGroup45FrameReady: 'true',
+        phoneTtgEndpointReady: 'terminal'
+      }
     } as unknown as HTMLVideoElement)).toBe(false);
   });
 
@@ -104,10 +110,26 @@ describe('PhoneTtg', () => {
       duration: 2.5,
       readyState: 2,
       seeking: false,
-      dataset: { phoneGroup45FrameReady: 'true' }
+      dataset: {
+        phoneGroup45FrameReady: 'true',
+        phoneTtgEndpointReady: 'initial'
+      }
     } as unknown as HTMLVideoElement, 0)).toBe(true);
     expect(phoneTtgHasReusableEndpointFrame({
       currentTime: .2,
+      duration: 2.5,
+      readyState: 2,
+      seeking: false,
+      dataset: {
+        phoneGroup45FrameReady: 'true',
+        phoneTtgEndpointReady: 'initial'
+      }
+    } as unknown as HTMLVideoElement, 0)).toBe(false);
+  });
+
+  it('does not expose Safari loadeddata as a physically presented ink frame', () => {
+    expect(phoneTtgHasReusableEndpointFrame({
+      currentTime: 0,
       duration: 2.5,
       readyState: 2,
       seeking: false,
@@ -118,6 +140,7 @@ describe('PhoneTtg', () => {
   it('disposes the retired video source and decoder', () => {
     const source = { removeAttribute: vi.fn() };
     const video = {
+      dataset: { phoneTtgEndpointReady: 'terminal' },
       pause: vi.fn(),
       removeAttribute: vi.fn(),
       querySelectorAll: vi.fn(() => [source]),
@@ -127,6 +150,7 @@ describe('PhoneTtg', () => {
     releasePhoneTtgVideo(video as unknown as HTMLVideoElement);
 
     expect(video.pause).toHaveBeenCalledOnce();
+    expect(video.dataset.phoneTtgEndpointReady).toBeUndefined();
     expect(video.removeAttribute).toHaveBeenCalledWith('src');
     expect(source.removeAttribute).toHaveBeenCalledWith('src');
     expect(video.load).toHaveBeenCalledOnce();
