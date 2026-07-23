@@ -51,9 +51,10 @@ function applyEndpointVisibility(
   interactive = opacity >= 1 - ENDPOINT_EPSILON
 ): void {
   if (!element) return;
-  const visible = opacity > ENDPOINT_EPSILON;
   element.style.opacity = opacity.toFixed(4);
-  element.style.visibility = visible ? 'visible' : 'hidden';
+  // Keep both endpoint layers on one persistent compositor topology. Opacity
+  // owns visibility; interactive/inert still owns accessibility and input.
+  element.style.visibility = 'visible';
   element.style.pointerEvents = interactive ? 'auto' : 'none';
   element.inert = !interactive;
   element.setAttribute('aria-hidden', String(!interactive));
@@ -67,6 +68,7 @@ export const PHONE_CRANE_CONTACT_DECISION = Object.freeze({
   mode: 'endpoint-dissolve',
   source: 'desktop-crane-contact-copy-cue',
   topology: 'shared-boundary-contact-receiver-over-retained-crane-source',
+  endpointPolicy: 'persistent-endpoint-opacity',
   reason: 'Crane stays snapped and opaque while the one native Contact root enters over its final authored fifth at the same document edge.'
 } as const);
 
@@ -136,9 +138,11 @@ export function settlePhoneCraneContactDocumentFlow(
   from: HTMLElement | null,
   to: HTMLElement | null
 ): void {
+  // Match 35b0aee Figure3 → Services: do not clear and later recreate the
+  // Contact paper compositor when reverse arms at this shared boundary.
   applyEndpointVisibility(from, 0, false);
   setContactOverlay(to, false);
-  clearEndpointVisibility(to);
+  applyEndpointVisibility(to, 1, true);
   renderContactHold(to);
 }
 

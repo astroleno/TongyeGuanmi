@@ -18,7 +18,8 @@ describe('Phone Crane → Contact transition', () => {
     expect(PHONE_CRANE_CONTACT_DECISION).toMatchObject({
       mode: 'endpoint-dissolve',
       source: 'desktop-crane-contact-copy-cue',
-      topology: 'shared-boundary-contact-receiver-over-retained-crane-source'
+      topology: 'shared-boundary-contact-receiver-over-retained-crane-source',
+      endpointPolicy: 'persistent-endpoint-opacity'
     });
     expect(PHONE_CRANE_CONTACT_COPY_CUE).toMatchObject({
       targetScene: 'contact',
@@ -72,7 +73,7 @@ describe('Phone Crane → Contact transition', () => {
     expect(contact.style.values.get('--r4-contact-paper-alpha')).toBe('1.0000');
   });
 
-  it('settles the fixed Contact receiver back into native document flow', () => {
+  it('settles native Contact while preserving both reverse compositor endpoints', () => {
     const crane = new FakeElement();
     const contact = new FakeElement();
     crane.style.opacity = '1.0000';
@@ -84,9 +85,16 @@ describe('Phone Crane → Contact transition', () => {
     );
 
     expect(crane.style.opacity).toBe('0.0000');
-    expect(crane.style.visibility).toBe('hidden');
-    expect(contact.style.opacity).toBe('');
+    expect(crane.style.visibility).toBe('visible');
+    expect(contact.style.opacity).toBe('1.0000');
+    expect(contact.style.visibility).toBe('visible');
     expect(contact.inert).toBe(false);
+
+    settlePhoneCraneContactDocumentFlow(
+      crane as unknown as HTMLElement,
+      contact as unknown as HTMLElement
+    );
+    expect(contact.style.opacity).toBe('1.0000');
   });
 
   it('is reversible and directs media failure to the Contact endpoint', () => {

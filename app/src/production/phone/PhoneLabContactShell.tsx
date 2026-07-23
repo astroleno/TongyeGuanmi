@@ -42,6 +42,8 @@ import {
   phoneLabContactCrossedVisualStart,
   phoneLabContactInkBoundaryProgress,
   phoneLabContactPhaseAfterVisualCompletion,
+  phoneLabContactRetainsCraneTerminal,
+  phoneLabContactRetainsPhTerminal,
   phoneLabContactVisualBoundaryY,
   phoneLabContactVisualRunAnchor
 } from './phone-lab-contact-timeline';
@@ -102,10 +104,9 @@ type PreviousPhoneLabContactEdgeSurface = Readonly<{
 }>;
 
 /**
- * Unit 4/5 keep one persistent compositor at the viewport edge and a separate
- * document receiver underneath it. PH is the one Unit 6 scene whose top edge
- * is blue while its document/bottom edge must stay paper, so publish those two
- * surfaces independently instead of tinting the whole Safari document.
+ * Match d208a86's one-owner edge contract. The active scene publishes one
+ * sampled surface to the document, fixed host, local root and theme metadata
+ * in the same layout turn; no nav-only or safe-area-only owner may diverge.
  */
 function usePhoneLabContactEdgeSurface(
   rootRef: RefObject<HTMLElement | null>,
@@ -118,8 +119,7 @@ function usePhoneLabContactEdgeSurface(
     const documentElement = document.documentElement;
     const root = rootRef.current;
     const stageHost = stageHostRef.current;
-    const safeAreaSurface = phoneLabContactEdgeSurface(nextScene);
-    const documentSurface = PHONE_LAB_CONTACT_PAPER_SURFACE;
+    const surface = phoneLabContactEdgeSurface(nextScene);
     const themeColor = document.querySelector<HTMLMetaElement>(
       'meta[name="theme-color"]'
     );
@@ -128,13 +128,12 @@ function usePhoneLabContactEdgeSurface(
       && edgeSceneRef.current === nextScene
       && documentElement.dataset.portraitEdgeScene === nextScene
       && documentElement.dataset.phoneLabContactEdgeScene === nextScene
-      && documentElement.style.getPropertyValue('--portrait-document-surface') === documentSurface
-      && documentElement.style.getPropertyValue('--phone-lab-contact-edge-surface') === documentSurface
+      && documentElement.style.getPropertyValue('--portrait-document-surface') === surface
+      && documentElement.style.getPropertyValue('--phone-lab-contact-edge-surface') === surface
       && root?.dataset.portraitEdgeScene === nextScene
-      && root?.dataset.portraitEdgeSurface === documentSurface
-      && root?.style.getPropertyValue('--phone-lab-contact-safe-area-surface') === safeAreaSurface
+      && root?.dataset.portraitEdgeSurface === surface
       && (!stageHost || stageHost.dataset.portraitEdgeScene === nextScene)
-      && (!themeColor || themeColor.content === documentSurface)
+      && (!themeColor || themeColor.content === surface)
     ) {
       return;
     }
@@ -142,32 +141,26 @@ function usePhoneLabContactEdgeSurface(
     edgeSceneRef.current = nextScene;
     documentElement.style.setProperty(
       '--portrait-document-surface',
-      documentSurface
+      surface
     );
     documentElement.style.setProperty(
       '--phone-lab-contact-edge-surface',
-      documentSurface
+      surface
     );
     documentElement.dataset.portraitEdgeScene = nextScene;
     documentElement.dataset.phoneLabContactEdgeScene = nextScene;
     if (root) {
-      root.style.setProperty('--portrait-edge-surface', documentSurface);
+      root.style.setProperty('--portrait-edge-surface', surface);
       root.style.setProperty(
         '--phone-lab-contact-edge-surface',
-        documentSurface
+        surface
       );
-      root.style.setProperty(
-        '--phone-lab-contact-safe-area-surface',
-        safeAreaSurface
-      );
-      root.dataset.portraitEdgeSurface = documentSurface;
+      root.dataset.portraitEdgeSurface = surface;
       root.dataset.portraitEdgeScene = nextScene;
-      const nav = root.querySelector<HTMLElement>('.site-nav');
-      if (nav) void window.getComputedStyle(nav, '::after').backgroundColor;
+      void window.getComputedStyle(root).backgroundColor;
     }
     if (stageHost) stageHost.dataset.portraitEdgeScene = nextScene;
-    // The browser toolbar/bottom edge remains the document's paper receiver.
-    if (themeColor) themeColor.setAttribute('content', documentSurface);
+    if (themeColor) themeColor.setAttribute('content', surface);
   }, [rootRef, stageHostRef]);
 
   useLayoutEffect(() => {
@@ -175,26 +168,6 @@ function usePhoneLabContactEdgeSurface(
     const themeColor = document.querySelector<HTMLMetaElement>(
       'meta[name="theme-color"]'
     );
-    const syncTopInset = () => {
-      const root = rootRef.current;
-      if (!root) return;
-      const nav = document.querySelector<HTMLElement>('.site-nav');
-      const track = document.querySelector<HTMLElement>('.site-nav-track');
-      const navPaddingTop = nav
-        ? Number.parseFloat(window.getComputedStyle(nav).paddingTop) || 0
-        : 0;
-      const trackTop = track
-        ? Math.max(0, track.getBoundingClientRect().top)
-        : 0;
-      const viewportTop = Math.max(
-        0,
-        window.visualViewport?.offsetTop ?? 0
-      );
-      root.style.setProperty(
-        '--phone-lab-contact-measured-safe-top',
-        `${Math.ceil(Math.max(navPaddingTop, trackTop, viewportTop))}px`
-      );
-    };
     previousRef.current = {
       documentSurface: documentElement.style.getPropertyValue(
         '--portrait-document-surface'
@@ -207,24 +180,16 @@ function usePhoneLabContactEdgeSurface(
       themeColor: themeColor?.content
     };
     commit(edgeSceneRef.current, true);
-    syncTopInset();
 
     const republishCurrentSurface = () => {
       if (!document.hidden) {
-        syncTopInset();
         commit(edgeSceneRef.current, true);
       }
     };
     window.addEventListener('pageshow', republishCurrentSurface);
-    window.addEventListener('resize', syncTopInset);
-    window.addEventListener('orientationchange', syncTopInset);
-    window.visualViewport?.addEventListener('resize', syncTopInset);
     document.addEventListener('visibilitychange', republishCurrentSurface);
     return () => {
       window.removeEventListener('pageshow', republishCurrentSurface);
-      window.removeEventListener('resize', syncTopInset);
-      window.removeEventListener('orientationchange', syncTopInset);
-      window.visualViewport?.removeEventListener('resize', syncTopInset);
       document.removeEventListener(
         'visibilitychange',
         republishCurrentSurface
@@ -258,12 +223,6 @@ function usePhoneLabContactEdgeSurface(
       }
       rootRef.current?.style.removeProperty('--portrait-edge-surface');
       rootRef.current?.style.removeProperty('--phone-lab-contact-edge-surface');
-      rootRef.current?.style.removeProperty(
-        '--phone-lab-contact-safe-area-surface'
-      );
-      rootRef.current?.style.removeProperty(
-        '--phone-lab-contact-measured-safe-top'
-      );
       if (rootRef.current) {
         delete rootRef.current.dataset.portraitEdgeSurface;
         delete rootRef.current.dataset.portraitEdgeScene;
@@ -478,7 +437,30 @@ function syncSceneLifecycle(
     root?.removeAttribute('aria-hidden');
     if (root) root.inert = false;
   }
+  if (active && root) delete root.dataset.phoneLabContactEndpoint;
   states.set(scene, { handle, active, direction });
+}
+
+/**
+ * d208a86/35b0aee keep a completed visual's decoder/canvas and endpoint
+ * compositor mounted beside the following reading scene. Mark it inactive for
+ * accessibility without calling leave(), because leave() is the media-release
+ * boundary for Unit 6's packed-alpha adapters.
+ */
+function retainCinematicEndpoint(
+  states: Map<LabContactSceneId, LifecycleState>,
+  scene: CinematicSceneId,
+  handle: PhoneSceneAdapterHandle | null,
+  direction: 1 | -1
+): void {
+  if (!handle) return;
+  const root = handle.root();
+  root?.setAttribute('aria-hidden', 'true');
+  if (root) {
+    root.inert = true;
+    root.dataset.phoneLabContactEndpoint = 'retained';
+  }
+  states.set(scene, { handle, active: false, direction });
 }
 
 function acceptanceNavigationTarget(scene: SceneId): LabContactSceneId {
@@ -851,6 +833,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       if (!handle || retiredCinematics.has(scene)) return;
       handle.leave?.();
       setVisualEndpoint(handle, 0);
+      const cinematicRoot = handle.root();
+      if (cinematicRoot) {
+        cinematicRoot.dataset.phoneLabContactEndpoint = 'released';
+      }
       retiredCinematics.add(scene);
     };
 
@@ -879,11 +865,6 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       root.dataset.phoneLabContactCompleteHandoff =
         `${scene}-${target}:${reason}:${direction === 1 ? 'forward' : 'reverse'}`;
       scrollDirectionLockUntil = window.performance.now() + 280;
-      /*
-       * Publish the incoming top edge one paint before retiring the fixed
-       * cinematic owner. The document/bottom edge itself remains paper.
-       */
-      publishEdgeScene(target, true);
       completionFrame = window.requestAnimationFrame(() => {
         completionFrame = 0;
         if (
@@ -891,23 +872,53 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           || visualRunDirectionRef.current !== direction
         ) return;
         if (scene === 'ph-animation') {
-          if (direction === 1) latestPhEducationRef.current?.leave?.();
-          else latestPhEducationRef.current?.enter?.();
-          syncSceneLifecycle(
-            lifecycleStates.current,
-            'ph-animation',
-            phRef.current,
-            false
-          );
+          if (
+            direction === 1
+            && phoneLabContactRetainsPhTerminal(
+              cinematicRunStates.current['ph-animation']
+            )
+          ) {
+            latestPhEducationRef.current?.leave?.();
+            retainCinematicEndpoint(
+              lifecycleStates.current,
+              'ph-animation',
+              phRef.current,
+              direction
+            );
+          } else {
+            latestPhEducationRef.current?.enter?.();
+            syncSceneLifecycle(
+              lifecycleStates.current,
+              'ph-animation',
+              phRef.current,
+              false,
+              direction
+            );
+          }
         } else {
-          if (direction === 1) latestCraneContactRef.current?.leave?.();
-          else latestCraneContactRef.current?.enter?.();
-          syncSceneLifecycle(
-            lifecycleStates.current,
-            'crane-animation',
-            craneRef.current,
-            false
-          );
+          if (
+            direction === 1
+            && phoneLabContactRetainsCraneTerminal(
+              cinematicRunStates.current['crane-animation']
+            )
+          ) {
+            latestCraneContactRef.current?.leave?.();
+            retainCinematicEndpoint(
+              lifecycleStates.current,
+              'crane-animation',
+              craneRef.current,
+              direction
+            );
+          } else {
+            latestCraneContactRef.current?.enter?.();
+            syncSceneLifecycle(
+              lifecycleStates.current,
+              'crane-animation',
+              craneRef.current,
+              false,
+              direction
+            );
+          }
         }
         visualRunRef.current = null;
         snapLock.release();
@@ -1205,6 +1216,20 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       const ph = phRef.current;
       const crane = craneRef.current;
 
+      // Unit 5 keeps Figure3's terminal compositor beside Services only until
+      // TTG needs the sole media slot. Apply the same rule here: PH remains
+      // immediately reversible through Education, then retires before Crane
+      // begins prewarming its two packed-alpha surfaces.
+      if (
+        !phoneLabContactRetainsPhTerminal(
+          cinematicRunStates.current['ph-animation'],
+          cranePrewarming
+        )
+        && cinematicRunStates.current['ph-animation'] === 'complete'
+      ) {
+        retireCinematic('ph-animation', ph);
+      }
+
       if (
         phPrewarming
         && cinematicRunStates.current['ph-animation'] === 'initial'
@@ -1378,7 +1403,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           // WebGL surface; render() recreates it inside the reviewed approach.
           labPhRef.current?.dispose?.();
         }
-        const scene = progress >= 0.5 ? 'ph-animation' : 'lab';
+        // d208a86 lets the incoming fixed stage own the sampled edge from the
+        // first visible ink pixel, while Lab remains the native source below.
+        const scene = stageActive ? 'ph-animation' : 'lab';
         publishNavigationScene(scene);
         publishActiveScene(scene);
         lastScrollYRef.current = scrollY;
@@ -1432,7 +1459,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
             false
           );
           setNativeOwner('education');
-          const scene = progress >= 0.5 ? 'crane-animation' : 'education';
+          const scene = progress > 0.001
+            ? 'crane-animation'
+            : 'education';
           publishNavigationScene(scene);
           publishActiveScene(scene);
         } else {

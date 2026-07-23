@@ -37,9 +37,10 @@ function applyDissolveEndpoint(
   interactive: boolean
 ): void {
   if (!element) return;
-  const visible = opacity > ENDPOINT_EPSILON;
   element.style.opacity = opacity.toFixed(4);
-  element.style.visibility = visible ? 'visible' : 'hidden';
+  // 35b0aee keeps document-flow endpoints composited at opacity zero. Their
+  // accessibility and input ownership still follow the interactive flag.
+  element.style.visibility = 'visible';
   element.style.pointerEvents = interactive ? 'auto' : 'none';
   element.inert = !interactive;
   element.setAttribute('aria-hidden', String(!interactive));
@@ -53,6 +54,7 @@ export const PHONE_PH_EDUCATION_DECISION = Object.freeze({
   mode: 'endpoint-dissolve',
   source: '4b861b58-ttg-lab-overlay-dissolve',
   topology: 'education-receiver-over-retained-ph-source',
+  endpointPolicy: 'persistent-endpoint-opacity',
   reason: 'Phone PH stays fully opaque while the one native Education root dissolves over its terminal frame.'
 } as const);
 
@@ -176,8 +178,11 @@ export function settlePhonePhEducationDocumentFlow(
   from: HTMLElement | null,
   to: HTMLElement | null
 ): void {
+  // 35b0aee: keep both endpoints on the same compositor topology after the
+  // forward handoff. Reverse can then arm without rebuilding Education's
+  // paper layer or PH's hidden retained source.
   applyDissolveEndpoint(from, 0, false);
-  clearDissolveEndpoint(to);
+  applyDissolveEndpoint(to, 1, true);
 }
 
 export const PhonePhEducationTransition = forwardRef<

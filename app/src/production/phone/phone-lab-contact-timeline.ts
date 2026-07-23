@@ -53,6 +53,21 @@ export function phoneLabContactPhaseAfterVisualCompletion(
   return direction === 1 ? 'complete' : 'initial';
 }
 
+/** Mirror d208a86 Figure3 retention until Crane needs Unit 6's media slot. */
+export function phoneLabContactRetainsPhTerminal(
+  phase: PhoneLabContactCinematicRunState,
+  craneNeedsMedia = false
+): boolean {
+  return phase === 'complete' && !craneNeedsMedia;
+}
+
+/** Contact keeps Crane's verified terminal compositor ready for reverse. */
+export function phoneLabContactRetainsCraneTerminal(
+  phase: PhoneLabContactCinematicRunState
+): boolean {
+  return phase === 'complete';
+}
+
 /**
  * Both directions use the marker's one document top. The marker overlaps the
  * following Education/Contact receiver, exactly like Unit 5's visual tracks.

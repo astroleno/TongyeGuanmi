@@ -20,7 +20,8 @@ describe('Phone PH → Education transition', () => {
     expect(PHONE_PH_EDUCATION_DECISION).toMatchObject({
       mode: 'endpoint-dissolve',
       source: '4b861b58-ttg-lab-overlay-dissolve',
-      topology: 'education-receiver-over-retained-ph-source'
+      topology: 'education-receiver-over-retained-ph-source',
+      endpointPolicy: 'persistent-endpoint-opacity'
     });
     expect(PHONE_PH_EDUCATION_PLAYBACK_MS).toBe(1520);
     expect(PHONE_PH_EDUCATION_DISSOLVE_MS).toBe(600);
@@ -75,7 +76,7 @@ describe('Phone PH → Education transition', () => {
     expect(education.dataset.phonePhEducationFadeOwner).toBe('scene-root');
   });
 
-  it('commits the shared-boundary Education layer to native document flow', () => {
+  it('commits native Education while preserving both reverse compositor endpoints', () => {
     const ph = new FakeElement();
     const education = new FakeElement();
     ph.style.opacity = '1.0000';
@@ -87,9 +88,16 @@ describe('Phone PH → Education transition', () => {
     );
 
     expect(ph.style.opacity).toBe('0.0000');
-    expect(ph.style.visibility).toBe('hidden');
-    expect(education.style.opacity).toBe('');
+    expect(ph.style.visibility).toBe('visible');
+    expect(education.style.opacity).toBe('1.0000');
+    expect(education.style.visibility).toBe('visible');
     expect(education.inert).toBe(false);
+
+    settlePhonePhEducationDocumentFlow(
+      ph as unknown as HTMLElement,
+      education as unknown as HTMLElement
+    );
+    expect(education.style.opacity).toBe('1.0000');
   });
 
   it('keeps the Education receiver in native document flow at the stable endpoint', () => {

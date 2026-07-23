@@ -10,6 +10,8 @@ import {
   phoneLabContactHasReverseGestureIntent,
   phoneLabContactInkBoundaryProgress,
   phoneLabContactPhaseAfterVisualCompletion,
+  phoneLabContactRetainsCraneTerminal,
+  phoneLabContactRetainsPhTerminal,
   phoneLabContactVisualBoundaryY,
   phoneLabContactVisualRunAnchor,
   type PhoneLabContactCinematicRunState
@@ -31,6 +33,14 @@ describe('phone Lab → Contact shared-boundary timeline', () => {
     phase = phoneLabContactPhaseAfterVisualCompletion(-1);
     expect(phase).toBe('initial');
     expect(phoneLabContactCanBeginVisualRun(phase, 1)).toBe(true);
+  });
+
+  it('retains adjacent terminal compositors with the Unit 5 media-slot policy', () => {
+    expect(phoneLabContactRetainsPhTerminal('complete')).toBe(true);
+    expect(phoneLabContactRetainsPhTerminal('complete', true)).toBe(false);
+    expect(phoneLabContactRetainsPhTerminal('initial')).toBe(false);
+    expect(phoneLabContactRetainsCraneTerminal('complete')).toBe(true);
+    expect(phoneLabContactRetainsCraneTerminal('reverse')).toBe(false);
   });
 
   it('uses the one marker top for both forward and reverse ownership', () => {

@@ -66,10 +66,6 @@ html[data-phone-lab-contact-acceptance="true"] .site-nav-track {
 .phone-lab-contact {
   --portrait-live-height: 100dvh;
   --portrait-stage-coverage-height: var(--portrait-live-height);
-  --phone-lab-contact-safe-top: max(
-    env(safe-area-inset-top, 0px),
-    var(--phone-lab-contact-measured-safe-top, 0px)
-  );
   --phone-cinematic-stage-height: max(var(--portrait-live-height), 100lvh);
   --phone-cinematic-stage-canvas-height: max(
     var(--phone-cinematic-stage-height),
@@ -83,24 +79,6 @@ html[data-phone-lab-contact-acceptance="true"] .site-nav-track {
     --portrait-edge-surface,
     var(--phone-lab-contact-edge-surface, #ede4d2)
   );
-}
-
-/*
- * StoryNav already owns the accepted persistent top-edge compositor. PH adds
- * one solid strip only above its controls; the shared ::before keeps painting
- * the paper topbar and every non-PH scene has no extra strip at all.
- */
-.phone-lab-contact[data-portrait-edge-scene="ph-animation"]
-  .site-nav::after {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: var(--phone-lab-contact-safe-top);
-  pointer-events: none;
-  background: var(--phone-lab-contact-safe-area-surface, #9889a5);
 }
 
 /*

@@ -52,38 +52,29 @@ describe('PhoneLabContactShell', () => {
     )).toBe('http://192.0.2.1:5174/?v=36#contact');
   });
 
-  it('keeps the document paper while publishing PH blue only to the nav safe area', () => {
+  it('publishes one Unit 4/5 edge surface to every Safari owner', () => {
     expect(phoneLabContactEdgeSurface('ph-animation')).toBe('#9889a5');
     for (const scene of ['lab', 'education', 'crane-animation', 'contact'] as const) {
       expect(phoneLabContactEdgeSurface(scene)).toBe('#ede4d2');
     }
     expect(shellSource).toContain("'--portrait-document-surface'");
     expect(shellSource).toContain("'--portrait-edge-surface'");
-    expect(shellSource).toContain(
-      "'--phone-lab-contact-safe-area-surface'"
-    );
-    expect(shellSource).toContain(
-      "'--phone-lab-contact-measured-safe-top'"
-    );
+    expect(shellSource).not.toContain('--phone-lab-contact-safe-area-surface');
+    expect(shellSource).not.toContain('--phone-lab-contact-measured-safe-top');
     expect(shellSource).not.toContain('data-phone-top-edge-owner');
     expect(shellSource).toContain(
-      'const documentSurface = PHONE_LAB_CONTACT_PAPER_SURFACE'
+      'const surface = phoneLabContactEdgeSurface(nextScene)'
     );
     expect(shellSource).toContain(
-      "themeColor.setAttribute('content', documentSurface)"
+      "themeColor.setAttribute('content', surface)"
     );
     expect(shellSource).toContain("window.addEventListener('pageshow'");
     expect(shellSource).toContain("document.addEventListener('visibilitychange'");
     expect(shellSource).toContain(
-      "window.getComputedStyle(nav, '::after').backgroundColor"
-    );
-    expect(shellSource).toContain(
-      "document.querySelector<HTMLElement>('.site-nav-track')"
+      'window.getComputedStyle(root).backgroundColor'
     );
     expect(shellSource).toContain('publishEdgeScene(scene)');
-    expect(shellSource).toMatch(
-      /publishEdgeScene\(target, true\);\s*completionFrame = window\.requestAnimationFrame/
-    );
+    expect(shellSource).not.toContain('publishEdgeScene(target, true)');
     expect(shellSource).toContain('data-phone-stage-host="persistent"');
     expect(shellSource).toContain(
       "documentElement.dataset.phoneLabContactAcceptance = 'true'"
@@ -104,14 +95,23 @@ describe('PhoneLabContactShell', () => {
     expect(shellCss).toContain(
       'padding-left: max(14px, env(safe-area-inset-left, 0px))'
     );
-    expect(shellCss).toMatch(
-      /\.phone-lab-contact\[data-portrait-edge-scene="ph-animation"\]\s*\.site-nav::after\s*\{[^}]*position:\s*absolute;[^}]*height:\s*var\(--phone-lab-contact-safe-top\);[^}]*background:\s*var\(--phone-lab-contact-safe-area-surface, #9889a5\);/s
-    );
-    expect(shellCss).toContain(
-      'var(--phone-lab-contact-measured-safe-top, 0px)'
-    );
+    expect(shellCss).not.toContain('.site-nav::after');
+    expect(shellCss).not.toContain('--phone-lab-contact-safe-top');
     expect(shellCss).not.toContain('.phone-lab-contact__top-edge');
     expect(shellCss).not.toContain('rgba(152, 137, 165, .92)');
+  });
+
+  it('retains adjacent cinematic endpoints until the next media slot is needed', () => {
+    expect(shellSource).toContain('function retainCinematicEndpoint(');
+    expect(shellSource).toContain(
+      "root.dataset.phoneLabContactEndpoint = 'retained'"
+    );
+    expect(shellSource).toMatch(
+      /phoneLabContactRetainsPhTerminal\(\s*cinematicRunStates\.current\['ph-animation'\],\s*cranePrewarming\s*\)[\s\S]*retireCinematic\('ph-animation', ph\)/
+    );
+    expect(shellSource).toMatch(
+      /phoneLabContactRetainsCraneTerminal\([\s\S]*latestCraneContactRef\.current\?\.leave\?\.\(\);\s*retainCinematicEndpoint/
+    );
   });
 
   it('loads only Contact for direct Contact entry', () => {
