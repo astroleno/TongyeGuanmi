@@ -4,7 +4,6 @@ import { FakeElement } from '../__fixtures__/back-half.fixture';
 import {
   applyPhoneLabPhFrame,
   PHONE_LAB_PH_DECISION,
-  phoneLabPhAlignedInkProgress,
   phoneLabPhFrame
 } from './phone';
 
@@ -35,23 +34,22 @@ describe('Phone Lab → PH transition', () => {
     expect(source).toContain("'data-phone-lab-ph-ink': 'bottom-to-top'");
     expect(source).toContain("host.dataset.phoneLabPhInkSurface = 'transparent'");
     expect(source).toContain('from: null');
-    expect(source).toContain('phoneLabPhAlignedInkProgress(frame.progress)');
+    expect(source).toContain('ensureInk()?.render(frame.progress)');
+    expect(source).toContain('const progressRef = useRef(0)');
+    expect(source).toContain('const directionRef = useRef<1 | -1>(1)');
     expect(source).toContain('const releaseInk = useCallback');
     expect(source).toContain('ink.dispose()');
     expect(source).toContain('canvas.width = 1');
-    expect(source).toMatch(/leave\(\) \{\s*render\(1\);\s*releaseInk\(\);/);
+    expect(source).toMatch(
+      /leave\(\) \{\s*directionRef\.current = 1;\s*render\(1\);\s*\}/
+    );
+    expect(source).toMatch(
+      /reverse\(\) \{\s*directionRef\.current = -1;\s*render\(1\);\s*\}/
+    );
     expect(stylesheet).toContain('data-phone-lab-ph-ink-surface="transparent"');
     expect(stylesheet).toContain('background: transparent');
     expect(source).not.toContain('preparePhAnimationFrame');
     expect(source).not.toContain('parkPhonePhMedia');
-  });
-
-  it('aligns the shared field gate to the native Lab bottom edge', () => {
-    expect(phoneLabPhAlignedInkProgress(0)).toBe(0);
-    expect(phoneLabPhAlignedInkProgress(0.25)).toBeCloseTo(0.28, 8);
-    expect(phoneLabPhAlignedInkProgress(0.5)).toBeCloseTo(0.5, 8);
-    expect(phoneLabPhAlignedInkProgress(0.75)).toBeCloseTo(0.72, 8);
-    expect(phoneLabPhAlignedInkProgress(1)).toBe(1);
   });
 
   it('accepts a lightweight stable Lab outlet fixture without Lab JSX or refs', () => {

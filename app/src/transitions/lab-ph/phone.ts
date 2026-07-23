@@ -18,8 +18,6 @@ import type {
 import './phone.css';
 
 const ENDPOINT_EPSILON = 0.001;
-const INK_GATE_START = 0.06;
-const INK_GATE_END = 0.94;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -28,19 +26,6 @@ function clamp(value: number): number {
 function endpointProgress(rawProgress: number, reducedMotion: boolean): number {
   const progress = clamp(rawProgress);
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
-}
-
-/**
- * The shared field keeps a short authored pre/post roll around its ownership
- * gate. Lab's native document edge has no matching concealed sibling, so feed
- * that gate-compensated progress to the field: its mean contour then lands on
- * the actual Lab bottom at every scroll sample.
- */
-export function phoneLabPhAlignedInkProgress(rawProgress: number): number {
-  const progress = clamp(rawProgress);
-  if (progress <= ENDPOINT_EPSILON) return 0;
-  if (progress >= 1 - ENDPOINT_EPSILON) return 1;
-  return INK_GATE_START + progress * (INK_GATE_END - INK_GATE_START);
 }
 
 function presentInkEndpoint(
@@ -125,11 +110,14 @@ export const PhoneLabPhTransition = forwardRef<
 ) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const inkRef = useRef<PhoneInkTransition | null>(null);
+    const progressRef = useRef(0);
+    const directionRef = useRef<1 | -1>(1);
 
     const ensureInk = useCallback((): PhoneInkTransition | null => {
       if (inkRef.current) return inkRef.current;
       const canvas = canvasRef.current;
       if (!host || !to || !canvas) return null;
+      host.dataset.phoneLabPhInkSurface = 'transparent';
       // createPhoneInkTransition adds its shared class to an existing Canvas.
       // Normalize before each recycled run so reverse navigation cannot
       // accumulate duplicate renderer classes.
@@ -163,17 +151,29 @@ export const PhoneLabPhTransition = forwardRef<
     }, []);
 
     const render = useCallback((progress: number) => {
-      const frame = applyPhoneLabPhFrame(from, to, progress, reducedMotion);
-      const inkProgress = phoneLabPhAlignedInkProgress(frame.progress);
-      if (
-        inkProgress > ENDPOINT_EPSILON
-        && inkProgress < 1 - ENDPOINT_EPSILON
-      ) {
-        ensureInk()?.render(inkProgress);
-      } else {
-        inkRef.current?.render(inkProgress);
+      const nextProgress = clamp(progress);
+      if (nextProgress > progressRef.current + 0.0001) {
+        directionRef.current = 1;
       }
-    }, [ensureInk, from, reducedMotion, to]);
+      if (nextProgress < progressRef.current - 0.0001) {
+        directionRef.current = -1;
+      }
+      progressRef.current = nextProgress;
+      const frame = applyPhoneLabPhFrame(
+        from,
+        to,
+        nextProgress,
+        reducedMotion
+      );
+      ensureInk()?.render(frame.progress);
+      if (host) {
+        host.dataset.phoneTransition = 'lab-ph:validated-phone-ink';
+        host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+        host.dataset.phoneTransitionDirection = directionRef.current === 1
+          ? 'forward'
+          : 'reverse';
+      }
+    }, [ensureInk, from, host, reducedMotion, to]);
 
     useLayoutEffect(() => {
       const canvas = canvasRef.current;
@@ -181,13 +181,17 @@ export const PhoneLabPhTransition = forwardRef<
       // Lab is a native document scene, not a sibling inside the fixed PH
       // stage. The stage backing must therefore stay transparent until PH's
       // own clipped root has covered the viewport.
-      host.dataset.phoneLabPhInkSurface = 'transparent';
       ensureInk();
       render(reducedMotion ? 1 : 0);
       onReady?.();
       return () => {
         releaseInk();
         delete host.dataset.phoneLabPhInkSurface;
+        if (host.dataset.phoneTransition?.startsWith('lab-ph:')) {
+          delete host.dataset.phoneTransition;
+          delete host.dataset.phoneTransitionProgress;
+          delete host.dataset.phoneTransitionDirection;
+        }
       };
     }, [
       ensureInk,
@@ -203,18 +207,27 @@ export const PhoneLabPhTransition = forwardRef<
     useImperativeHandle(forwardedRef, () => ({
       render,
       enter() {
+        directionRef.current = 1;
         render(0);
       },
       leave() {
+        directionRef.current = 1;
         render(1);
-        releaseInk();
       },
       reverse() {
-        render(0);
+        directionRef.current = -1;
+        render(1);
       },
       dispose() {
         releaseInk();
-        if (host) delete host.dataset.phoneLabPhInkSurface;
+        if (host) {
+          delete host.dataset.phoneLabPhInkSurface;
+          if (host.dataset.phoneTransition?.startsWith('lab-ph:')) {
+            delete host.dataset.phoneTransition;
+            delete host.dataset.phoneTransitionProgress;
+            delete host.dataset.phoneTransitionDirection;
+          }
+        }
       }
     }), [host, releaseInk, render]);
 

@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   phoneLabContactApproachProgress,
   phoneLabContactAutoplayLocksSnap,
+  phoneLabContactCanArmReverseGesture,
   phoneLabContactCrossedAutoplayBoundary,
+  phoneLabContactHasReverseGestureIntent,
+  phoneLabContactInkBoundaryProgress,
   phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
+  phoneLabContactReverseBoundaryY,
+  phoneLabContactReverseRunAnchor,
   phoneLabContactScrollProgress,
   phoneLabContactShouldStartCinematic
 } from './phone-lab-contact-timeline';
@@ -91,6 +96,13 @@ describe('phone Lab → Contact acceptance timeline', () => {
     expect(phoneLabContactApproachProgress(-40, 932)).toBe(1);
   });
 
+  it("uses Unit 4–5's reviewed lower-85% ink ownership window", () => {
+    expect(phoneLabContactInkBoundaryProgress(932, 932)).toBe(0);
+    expect(phoneLabContactInkBoundaryProgress(792.2, 932)).toBeCloseTo(0);
+    expect(phoneLabContactInkBoundaryProgress(396.1, 932)).toBeCloseTo(0.5);
+    expect(phoneLabContactInkBoundaryProgress(0, 932)).toBe(1);
+  });
+
   it('starts native playback when one physical sample skips the short snap lane', () => {
     expect(phoneLabContactCrossedAutoplayBoundary(
       1200,
@@ -106,6 +118,20 @@ describe('phone Lab → Contact acceptance timeline', () => {
       169,
       -1
     )).toBe(true);
+    expect(phoneLabContactCrossedAutoplayBoundary(
+      1800,
+      1725,
+      1542,
+      169,
+      -1
+    )).toBe(true);
+    expect(phoneLabContactCrossedAutoplayBoundary(
+      1800,
+      1750,
+      1542,
+      169,
+      -1
+    )).toBe(false);
     expect(phoneLabContactCrossedAutoplayBoundary(
       1200,
       1400,
@@ -153,5 +179,38 @@ describe('phone Lab → Contact acceptance timeline', () => {
       phaseProgress: 1,
       phaseInRange: false
     })).toBe(false);
+  });
+
+  it('arms reverse touch intent on the exact released cinematic edge', () => {
+    const boundaryY = phoneLabContactReverseBoundaryY(1542, 169);
+    expect(boundaryY).toBeCloseTo(1709.31);
+    expect(phoneLabContactCanArmReverseGesture(
+      'complete',
+      boundaryY,
+      boundaryY
+    )).toBe(true);
+    expect(phoneLabContactCanArmReverseGesture(
+      'complete',
+      boundaryY + 31,
+      boundaryY
+    )).toBe(true);
+    expect(phoneLabContactCanArmReverseGesture(
+      'complete',
+      boundaryY + 33,
+      boundaryY
+    )).toBe(false);
+    expect(phoneLabContactCanArmReverseGesture(
+      'forward',
+      boundaryY,
+      boundaryY
+    )).toBe(false);
+    expect(phoneLabContactHasReverseGestureIntent(200, 210)).toBe(true);
+    expect(phoneLabContactHasReverseGestureIntent(200, 209)).toBe(false);
+    expect(phoneLabContactHasReverseGestureIntent(200, 190)).toBe(false);
+  });
+
+  it('never pulls an overshot reverse gesture back through its reading opener', () => {
+    expect(phoneLabContactReverseRunAnchor(1680, 1709)).toBe(1680);
+    expect(phoneLabContactReverseRunAnchor(1720, 1709)).toBe(1709);
   });
 });

@@ -33,6 +33,10 @@ export type PhoneLabContactCinematicRunState =
   | 'complete'
   | 'reverse';
 
+export type PhoneLabContactCinematicScene =
+  | 'ph-animation'
+  | 'crane-animation';
+
 /** Snap only after the native clock has produced real playback evidence. */
 export function phoneLabContactAutoplayLocksSnap(
   detail: PhoneLabContactAutoplayEventDetail
@@ -133,6 +137,65 @@ export function phoneLabContactApproachProgress(
 }
 
 /**
+ * Match d208a86's reviewed Unit 4–5 ink boundary. The native reading scene
+ * remains the document owner until the receiver enters the lower 85% of the
+ * viewport; the shared field then reaches its endpoint exactly at the fixed
+ * stage boundary.
+ */
+export function phoneLabContactInkBoundaryProgress(
+  elementTop: number,
+  viewportHeight: number
+): number {
+  const start = Math.max(1, viewportHeight) * 0.85;
+  return clamp((start - elementTop) / start);
+}
+
+/** Stable document coordinate shared by scroll crossing and touch reverse. */
+export function phoneLabContactReverseBoundaryY(
+  phaseTop: number,
+  phaseDistance: number
+): number {
+  return phaseTop
+    + Math.max(1, phaseDistance) * PHONE_LAB_CONTACT_STOPS.sceneMotionEnd;
+}
+
+/**
+ * Safari can settle exactly on the released cinematic edge without emitting
+ * the otherwise-required negative scroll delta. Arm the next touch there,
+ * using the same 32px tolerance as the accepted Unit 4–5 coordinator.
+ */
+export function phoneLabContactCanArmReverseGesture(
+  runState: PhoneLabContactCinematicRunState,
+  scrollY: number,
+  boundaryY: number,
+  tolerance = 32
+): boolean {
+  return runState === 'complete'
+    && Math.abs(scrollY - boundaryY) <= Math.max(0, tolerance);
+}
+
+/** A downward finger drag expresses the native intent to move back up. */
+export function phoneLabContactHasReverseGestureIntent(
+  startY: number,
+  currentY: number,
+  threshold = 10
+): boolean {
+  return currentY - startY >= Math.max(1, threshold);
+}
+
+/**
+ * Preserve the position Safari has already presented. Pulling an overshot
+ * gesture back down would replay the reading opener before reverse media owns
+ * the fixed stage.
+ */
+export function phoneLabContactReverseRunAnchor(
+  scrollY: number,
+  boundaryY: number
+): number {
+  return Math.min(scrollY, boundaryY);
+}
+
+/**
  * Detect a physical gesture crossing the native-playback boundary even when
  * one Safari scroll sample skips the whole short trigger lane. AOD starts its
  * native clock from the timeline crossing itself; PH and Crane must do the
@@ -153,9 +216,18 @@ export function phoneLabContactCrossedAutoplayBoundary(
     : PHONE_LAB_CONTACT_STOPS.sceneMotionEnd;
   const boundaryY = phaseTop
     + Math.max(1, phaseDistance) * boundaryProgress;
-  return direction === 1
-    ? previousScrollY < boundaryY && nextScrollY >= boundaryY
-    : previousScrollY >= boundaryY && nextScrollY < boundaryY;
+  if (direction === 1) {
+    return previousScrollY < boundaryY && nextScrollY >= boundaryY;
+  }
+  if (nextScrollY >= previousScrollY - 0.5) return false;
+  const crossed = previousScrollY >= boundaryY - 1
+    && nextScrollY < boundaryY - 1;
+  // Port d208a86's pre-lock window as well as its explicit touch path. A
+  // single upward pan that settles just above the shared edge must start the
+  // reverse run before Safari swallows its remaining momentum.
+  const approaching = previousScrollY > boundaryY + 1
+    && nextScrollY <= boundaryY + 32;
+  return crossed || approaching;
 }
 
 /** Starts a missed native run after Safari rounds across a released snap. */
