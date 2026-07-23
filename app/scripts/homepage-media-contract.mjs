@@ -43,7 +43,9 @@ export const packedAlphaVideoSources = [
 
 export const portraitOnlyImageSources = [
   'assets/figure2-pair-opening.webp',
-  'assets/figure2-phone-foreground-arch.webp'
+  'assets/figure2-phone-foreground-arch.webp',
+  'assets/figure3-initial-paper.webp',
+  'assets/figure3-terminal-paper.webp'
 ];
 
 export const frozenHomepageMedia = [
@@ -208,6 +210,18 @@ export const frozenHomepageMedia = [
     category: 'portrait-adopted-webp',
     bytes: 137782,
     sha256: '3875fe03a65e46003a35e9267877dd8716df83c74248be229acbe3104714e118'
+  },
+  {
+    source: 'assets/figure3-initial-paper.webp',
+    category: 'portrait-adopted-webp',
+    bytes: 4540,
+    sha256: '98724a85700755b30d050746dc48764541704481c16a4c6ae91bc466eb1c1bdd'
+  },
+  {
+    source: 'assets/figure3-terminal-paper.webp',
+    category: 'portrait-adopted-webp',
+    bytes: 436,
+    sha256: 'a546aa40592810cf99aa38674f201dee771e295c81fd6ee1458205f17d16fbb2'
   },
   {
     source: 'assets/ttg-background.webp',

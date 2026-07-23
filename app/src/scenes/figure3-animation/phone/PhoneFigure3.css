@@ -32,8 +32,21 @@
 }
 
 .phone-figure3__fallback {
-  z-index: 0;
-  background: var(--phone-figure3-paper);
+  z-index: 2;
+  background:
+    var(--phone-figure3-paper)
+    url("../../../../../assets/figure3-initial-paper.webp")
+    0% center / cover no-repeat;
+  transform:
+    translate3d(0, 0, 0)
+    scale(var(--phone-figure3-video-scale));
+  transform-origin: 0% 50%;
+}
+
+.phone-figure3[data-phone-figure3-fallback-endpoint="terminal"]
+  .phone-figure3__fallback {
+  background-image:
+    url("../../../../../assets/figure3-terminal-paper.webp");
 }
 
 /* One desktop-authored paper wash sits above either the direct-video fallback

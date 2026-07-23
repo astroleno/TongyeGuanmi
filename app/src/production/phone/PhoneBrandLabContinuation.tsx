@@ -218,7 +218,8 @@ function phoneGroup45ReducedReceiverProgress(
 
 /**
  * An ink receiver is revealable only after its actual first/last media frame
- * has been painted. Reduced/fallback scenes own a complete static receiver.
+ * has been painted or its canonical endpoint poster is visibly committed.
+ * Reduced/fallback scenes already own a complete static receiver.
  */
 function phoneGroup45ReceiverIsPresentable(
   scene: Group45VisualScene,

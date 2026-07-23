@@ -155,6 +155,7 @@ export function phoneFigure3CanStartPreparedRun(
 }
 
 const PHONE_FIGURE3_ENDPOINT_TOLERANCE_SECONDS = .05;
+export const PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS = 240;
 
 /**
  * A paused WebKit HEVC frame is usable once the one visible canvas has drawn
@@ -250,7 +251,7 @@ export const PhoneFigure3 = forwardRef<
   }> | null>(null);
   const endpointGenerationRef = useRef(0);
   const endpointRunSequenceRef = useRef(0);
-  const endpointPaintFrameRef = useRef(0);
+  const endpointFallbackTimerRef = useRef(0);
   const completionReportedRef = useRef(false);
   const propsReconciledRef = useRef(false);
   const runGenerationRef = useRef(0);
@@ -303,12 +304,10 @@ export const PhoneFigure3 = forwardRef<
   const clearEndpointPresentation = useCallback(() => {
     readyEndpointRef.current = null;
     const root = rootRef.current;
-    const canvas = canvasRef.current;
     if (root) {
       delete root.dataset.phoneFigure3EndpointReady;
       delete root.dataset.phoneFigure3EndpointState;
     }
-    if (canvas) delete canvas.dataset.phoneFigure3PaperEndpoint;
   }, []);
 
   const releaseMedia = useCallback(() => {
@@ -318,9 +317,9 @@ export const PhoneFigure3 = forwardRef<
     pendingRunDirectionRef.current = null;
     requestedEndpointRef.current = null;
     endpointPreparationRef.current = null;
-    if (endpointPaintFrameRef.current && typeof window !== 'undefined') {
-      window.cancelAnimationFrame(endpointPaintFrameRef.current);
-      endpointPaintFrameRef.current = 0;
+    if (endpointFallbackTimerRef.current) {
+      window.clearTimeout(endpointFallbackTimerRef.current);
+      endpointFallbackTimerRef.current = 0;
     }
     clearEndpointPresentation();
     paperCompositorRef.current?.dispose();
@@ -344,7 +343,9 @@ export const PhoneFigure3 = forwardRef<
     setMediaFailed(true);
     renderFrame(1);
     releaseMedia();
-    rootRef.current?.setAttribute('data-phone-media-state', 'fallback');
+    const root = rootRef.current;
+    root?.setAttribute('data-phone-figure3-fallback-endpoint', 'terminal');
+    root?.setAttribute('data-phone-media-state', 'fallback');
     mediaErrorListenerRef.current?.('figure3-animation');
   }, [releaseMedia, renderFrame]);
 
@@ -381,26 +382,28 @@ export const PhoneFigure3 = forwardRef<
     generation: number,
     endpoint: PhoneFigure3Endpoint,
     runId: string,
-    compositor: PhoneFigure3PaperCompositor,
+    compositor?: PhoneFigure3PaperCompositor,
     frameAlreadyPainted = false
   ): boolean => {
     let preparation = endpointPreparationRef.current;
     const video = videoRef.current;
     if (
       mediaRetiringRef.current
-      || !video
       || preparation?.generation !== generation
       || preparation.endpoint !== endpoint
       || preparation.runId !== runId
-      || !phoneFigure3EndpointIsPresented(
-        endpoint,
-        video.currentTime,
-        video.readyState,
-        video.seeking
-      )
+      || (compositor && (
+        !video
+        || !phoneFigure3EndpointIsPresented(
+          endpoint,
+          video.currentTime,
+          video.readyState,
+          video.seeking
+        )
+      ))
     ) return false;
 
-    if (!frameAlreadyPainted) {
+    if (compositor && !frameAlreadyPainted) {
       if (!compositor.paint()) return false;
       // paint() publishes presented-frame evidence synchronously. Its callback
       // may have completed this same preparation, so never commit it twice.
@@ -412,6 +415,10 @@ export const PhoneFigure3 = forwardRef<
       ) return true;
     }
 
+    if (endpointFallbackTimerRef.current) {
+      window.clearTimeout(endpointFallbackTimerRef.current);
+      endpointFallbackTimerRef.current = 0;
+    }
     const onPresented = preparation.onPresented;
     readyEndpointRef.current = endpoint;
     endpointPreparationRef.current = null;
@@ -419,9 +426,8 @@ export const PhoneFigure3 = forwardRef<
     rootRef.current?.setAttribute('data-phone-figure3-endpoint-ready', label);
     rootRef.current?.setAttribute(
       'data-phone-figure3-endpoint-state',
-      `ready-${label}`
+      `${compositor ? 'ready' : 'fallback'}-${label}`
     );
-    canvasRef.current?.setAttribute('data-phone-figure3-paper-endpoint', label);
     onPresented?.();
     startPreparedRun();
     return true;
@@ -461,9 +467,9 @@ export const PhoneFigure3 = forwardRef<
     }
 
     const generation = ++endpointGenerationRef.current;
-    if (endpointPaintFrameRef.current && typeof window !== 'undefined') {
-      window.cancelAnimationFrame(endpointPaintFrameRef.current);
-      endpointPaintFrameRef.current = 0;
+    if (endpointFallbackTimerRef.current) {
+      window.clearTimeout(endpointFallbackTimerRef.current);
+      endpointFallbackTimerRef.current = 0;
     }
     const runId = preferredRunId ?? (
       preparationDirection === -1
@@ -481,7 +487,9 @@ export const PhoneFigure3 = forwardRef<
     clearEndpointPresentation();
     const root = rootRef.current;
     if (root) {
-      root.dataset.phoneFigure3EndpointState = `preparing-${endpointLabel(endpoint)}`;
+      const label = endpointLabel(endpoint);
+      root.dataset.phoneFigure3EndpointState = `preparing-${label}`;
+      root.dataset.phoneFigure3FallbackEndpoint = label;
     }
     playback.reset(endpoint);
     renderFrame(endpoint);
@@ -491,6 +499,15 @@ export const PhoneFigure3 = forwardRef<
       runId,
       compositor
     )) return;
+
+    endpointFallbackTimerRef.current = window.setTimeout(() => {
+      endpointFallbackTimerRef.current = 0;
+      finishEndpointPresentation(
+        generation,
+        endpoint,
+        runId
+      );
+    }, PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS);
 
     void prepareTimelineVideoFrame(
       video,
@@ -503,23 +520,12 @@ export const PhoneFigure3 = forwardRef<
         || preparation.endpoint !== endpoint
         || preparation.runId !== runId
       ) return;
-      if (finishEndpointPresentation(
+      finishEndpointPresentation(
         generation,
         endpoint,
         runId,
         compositor
-      )) return;
-      if (typeof window !== 'undefined') {
-        endpointPaintFrameRef.current = window.requestAnimationFrame(() => {
-          endpointPaintFrameRef.current = 0;
-          finishEndpointPresentation(
-            generation,
-            endpoint,
-            runId,
-            compositor
-          );
-        });
-      }
+      );
     }).catch((error) => {
       // A rejected frame callback is not a failed HEVC decode. The canvas
       // compositor can still prove the endpoint through loadeddata/seeked;
@@ -554,8 +560,8 @@ export const PhoneFigure3 = forwardRef<
       completionReportedRef.current = true;
       completionListenerRef.current?.('figure3-animation', playbackDirection);
     };
-    // A logical clock endpoint is not a presented Safari frame. Prepare and
-    // paint the exact physical endpoint before the shell transfers ownership.
+    // A logical clock endpoint is not a presented Safari frame. Prefer its
+    // canvas frame, then use the exact endpoint poster before handoff can stall.
     prepareEndpoint(
       endpoint,
       -1,
@@ -621,6 +627,10 @@ export const PhoneFigure3 = forwardRef<
     );
     if (action === 'static-fallback') {
       pendingRunDirectionRef.current = null;
+      root?.setAttribute(
+        'data-phone-figure3-fallback-endpoint',
+        mediaFailedRef.current ? 'terminal' : 'initial'
+      );
       renderFrame(mediaFailedRef.current ? 1 : 0);
       releaseMedia();
       return;
@@ -831,6 +841,7 @@ export const PhoneFigure3 = forwardRef<
       delete root.dataset.phoneFigure3Playback;
       delete root.dataset.phoneFigure3EndpointReady;
       delete root.dataset.phoneFigure3EndpointState;
+      delete root.dataset.phoneFigure3FallbackEndpoint;
       delete root.dataset.phoneMediaState;
       root.style.removeProperty('--phone-figure3-video-opacity');
       root.style.removeProperty('--phone-figure3-video-scale');

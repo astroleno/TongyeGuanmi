@@ -12,10 +12,6 @@ export type PhoneEdgeScene =
   | 'ttg'
   | 'lab';
 
-export type PhoneEdgeSurfaceProfile =
-  | 'baseline'
-  | 'pattern-terminal';
-
 export const PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#8f7f61';
 
 export const PHONE_EDGE_SURFACE_BY_SCENE: Readonly<
@@ -36,11 +32,7 @@ export const PHONE_EDGE_SURFACE_BY_SCENE: Readonly<
 };
 
 export function phoneEdgeSurfaceForScene(
-  scene: PhoneEdgeScene,
-  profile: PhoneEdgeSurfaceProfile = 'baseline'
+  scene: PhoneEdgeScene
 ): string {
-  if (profile === 'pattern-terminal' && scene === 'pattern') {
-    return PHONE_PATTERN_TERMINAL_EDGE_SURFACE;
-  }
   return PHONE_EDGE_SURFACE_BY_SCENE[scene];
 }

@@ -94,7 +94,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     stageRef.current = host;
     if (host) setStageHost(host);
   }, []);
-  const publishEdgeScene = usePhoneEdgeSurface(rootRef, stageViewportRef, props.validationMode === 'v47' ? 'pattern-terminal' : 'baseline');
+  const publishEdgeScene = usePhoneEdgeSurface(rootRef, stageViewportRef);
   const [heroAdapterRef, bindHeroAdapter] =
     usePhoneAdapterHandleRef<PhoneHeroAdapterHandle>(publishAdapterRevision);
   const [patternAdapterRef, bindPatternAdapter] =

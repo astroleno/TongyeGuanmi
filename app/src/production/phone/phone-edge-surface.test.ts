@@ -20,11 +20,7 @@ describe('phone edge surface contract', () => {
     expect(phoneEdgeSurfaceForScene('lab')).toBe('#ede4d2');
   });
 
-  it('keeps the v47 profile compatible with the graduated production token', () => {
-    expect(phoneEdgeSurfaceForScene(
-      'pattern',
-      'pattern-terminal'
-    )).toBe(PHONE_PATTERN_TERMINAL_EDGE_SURFACE);
+  it('has no validation-route branch in the production edge contract', () => {
     expect(PHONE_PATTERN_TERMINAL_EDGE_SURFACE).toBe('#8f7f61');
     expect(PHONE_EDGE_SURFACE_BY_SCENE.pattern).toBe(
       PHONE_PATTERN_TERMINAL_EDGE_SURFACE
@@ -44,7 +40,7 @@ describe('phone edge surface contract', () => {
       'lab'
     ];
     for (const scene of unaffectedScenes) {
-      expect(phoneEdgeSurfaceForScene(scene, 'pattern-terminal'))
+      expect(phoneEdgeSurfaceForScene(scene))
         .toBe(PHONE_EDGE_SURFACE_BY_SCENE[scene]);
     }
   });

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   PhoneFigure3,
+  PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS,
   phoneFigure3CanStartPreparedRun,
   phoneFigure3EndpointIsPresented,
   phoneFigure3Frame,
@@ -26,9 +27,14 @@ describe('PhoneFigure3', () => {
     expect(motionMarkup.match(/<video/g)).toHaveLength(1);
     expect(motionMarkup.match(/<canvas/g)).toHaveLength(1);
     expect(motionMarkup).toContain('data-phone-figure3-paper-canvas');
+    expect(motionMarkup).toContain('data-phone-media-fallback="figure3"');
     expect(reducedMarkup).not.toContain('<video');
     expect(reducedMarkup).not.toContain('<canvas');
     expect(motionMarkup).toContain('data-phone-media-owner="figure3-motion"');
+  });
+
+  it('bounds the physical endpoint gate before the visible poster takes over', () => {
+    expect(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS).toBe(240);
   });
 
   it('uses stable endpoints for media failure and reduced motion', () => {
@@ -57,7 +63,7 @@ describe('PhoneFigure3', () => {
     expect(phoneFigure3MediaAction(false, false)).toBe('release');
   });
 
-  it('waits for the physically presented endpoint required by each direction', () => {
+  it('waits for the presentable endpoint required by each direction', () => {
     expect(phoneFigure3RunStartEndpoint(1)).toBe(0);
     expect(phoneFigure3RunStartEndpoint(-1)).toBe(1);
     expect(phoneFigure3CanStartPreparedRun(1, null)).toBe(false);

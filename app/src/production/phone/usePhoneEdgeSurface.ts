@@ -1,22 +1,20 @@
 import { useCallback, useLayoutEffect, useRef, type RefObject } from 'react';
 import {
   phoneEdgeSurfaceForScene,
-  type PhoneEdgeScene,
-  type PhoneEdgeSurfaceProfile
+  type PhoneEdgeScene
 } from './phone-edge-surface';
 
 /** One publisher owns the document, persistent host, and Safari theme edge. */
 export function usePhoneEdgeSurface(
   rootRef: RefObject<HTMLElement | null>,
-  viewportHostRef: RefObject<HTMLElement | null>,
-  profile: PhoneEdgeSurfaceProfile = 'baseline'
+  viewportHostRef: RefObject<HTMLElement | null>
 ): (scene: PhoneEdgeScene) => void {
   const edgeSceneRef = useRef<PhoneEdgeScene>('hero');
   const commit = useCallback((scene: PhoneEdgeScene, force = false) => {
     const documentElement = document.documentElement;
     const root = rootRef.current;
     const viewportHost = viewportHostRef.current;
-    const surface = phoneEdgeSurfaceForScene(scene, profile);
+    const surface = phoneEdgeSurfaceForScene(scene);
     const themeColorMeta = document.querySelector<HTMLMetaElement>(
       'meta[name="theme-color"]'
     );
@@ -39,13 +37,10 @@ export function usePhoneEdgeSurface(
       root.style.setProperty('--portrait-edge-surface', surface);
       root.dataset.portraitEdgeSurface = surface;
       root.dataset.portraitEdgeScene = scene;
-      // Force WebKit to resolve the exact computed paper before its browser
-      // chrome samples the newly rebuilt fixed compositor.
-      void window.getComputedStyle(root).backgroundColor;
     }
     if (viewportHost) viewportHost.dataset.portraitEdgeScene = scene;
-    if (themeColorMeta) themeColorMeta.setAttribute('content', surface);
-  }, [profile, rootRef, viewportHostRef]);
+    if (themeColorMeta) themeColorMeta.content = surface;
+  }, [rootRef, viewportHostRef]);
 
   useLayoutEffect(() => {
     const documentElement = document.documentElement;

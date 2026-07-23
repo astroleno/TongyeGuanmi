@@ -108,8 +108,10 @@ describe('Phone Brand → Lab visual contracts', () => {
       "document.addEventListener('visibilitychange', republishCurrentSurface)"
     );
     expect(edgePublisherSource).toContain(
-      "themeColorMeta.setAttribute('content', surface)"
+      'themeColorMeta.content = surface'
     );
+    expect(edgePublisherSource).not.toContain('window.getComputedStyle(root)');
+    expect(formalShellSource).not.toContain("'pattern-terminal'");
   });
 
   it('does not let a loaded Grade A root overwrite the active front-stage edge', () => {
@@ -207,6 +209,18 @@ describe('Phone Brand → Lab visual contracts', () => {
       /figure3-transition__stage[^}]+background:\s*var\(--phone-figure3-paper\)/s
     );
     expect(figure3Scene).toContain('data-phone-figure3-endpoint-ready');
+    expect(figure3Scene).toContain(
+      'PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS'
+    );
+    expect(figure3Scene).toContain(
+      "`${compositor ? 'ready' : 'fallback'}-${label}`"
+    );
+    expect(figure3Styles).toContain(
+      'assets/figure3-initial-paper.webp'
+    );
+    expect(figure3Styles).toContain(
+      'assets/figure3-terminal-paper.webp'
+    );
     expect(figure3Scene).toContain('prepareTimelineVideoFrame');
     expect(figure3Scene).toContain('phoneFigure3CanStartPreparedRun');
   });
