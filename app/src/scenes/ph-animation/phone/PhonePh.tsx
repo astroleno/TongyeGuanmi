@@ -35,79 +35,19 @@ import {
   renderPhonePhPresentation,
   type PhonePhPlaybackDirection
 } from './PhonePh.motion';
+import {
+  createPhonePhPresentedReverse,
+  type PhonePhPresentedReverse
+} from './PhonePh.reverse';
 import './PhonePh.css';
 
-const PHONE_PH_REVERSE_DISSOLVE_MS = 520;
 const PHONE_PH_REVERSE_READY_TIMEOUT_MS = 650;
 const PHONE_PH_PACKED_VIDEO = phoneMediaUrlFor('ph-figure-packed', 'ph-animation');
-
-type PhonePhReverseDissolve = Readonly<{
-  start(): void;
-  stop(): void;
-  dispose(): void;
-}>;
-
-function clamp(value: number): number {
-  return Math.min(1, Math.max(0, value));
-}
 
 function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
   return root?.matches('[data-r4-scene="ph-animation"]')
     ? root
     : root?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]') ?? null;
-}
-
-/**
- * PH has no approved reverse media source. Its Grade-B reverse decision is a
- * stable terminal frame dissolving to the stable opening camera; it never
- * seeks the forward source backwards on Safari.
- */
-function createPhonePhReverseDissolve(
-  render: (progress: number, direction: PhonePhPlaybackDirection) => void,
-  onComplete: () => void
-): PhonePhReverseDissolve {
-  let disposed = false;
-  let active = false;
-  let frame = 0;
-  let startedAt = 0;
-
-  const cancel = () => {
-    if (!frame) return;
-    window.cancelAnimationFrame(frame);
-    frame = 0;
-  };
-  const tick: FrameRequestCallback = (now) => {
-    frame = 0;
-    if (!active || disposed) return;
-    const elapsed = clamp((now - startedAt) / PHONE_PH_REVERSE_DISSOLVE_MS);
-    render(1 - elapsed, -1);
-    if (elapsed >= 1) {
-      active = false;
-      onComplete();
-      return;
-    }
-    frame = window.requestAnimationFrame(tick);
-  };
-
-  return {
-    start() {
-      if (disposed || active) return;
-      cancel();
-      active = true;
-      startedAt = performance.now();
-      render(1, -1);
-      frame = window.requestAnimationFrame(tick);
-    },
-    stop() {
-      active = false;
-      cancel();
-    },
-    dispose() {
-      active = false;
-      disposed = true;
-      cancel();
-    }
-  };
 }
 
 export {
@@ -151,7 +91,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const [figureCanvasHost, setFigureCanvasHost] = useState<HTMLElement | null>(null);
     const nativeAutoplayRef = useRef<PhoneNativeAutoplay | null>(null);
-    const reverseDissolveRef = useRef<PhonePhReverseDissolve | null>(null);
+    const reversePlaybackRef = useRef<PhonePhPresentedReverse | null>(null);
     const packedSurfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
     const cancelPackedReleaseRef = useRef<(() => void) | null>(null);
     const requestedDirectionRef = useRef<PhonePhPlaybackDirection | null>(null);
@@ -174,7 +114,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       clearReverseStartTimer();
       reverseStartedRef.current = true;
       root.dataset.phonePhAutoplay = 'playing-reverse';
-      reverseDissolveRef.current?.start();
+      reversePlaybackRef.current?.start();
       dispatchPhoneLabContactAutoplay(root, {
         scene: 'ph-animation',
         phase: 'playing',
@@ -274,8 +214,10 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       if (direction === 1) {
         clearReverseStartTimer();
         reverseStartedRef.current = false;
-        reverseDissolveRef.current?.stop();
+        reversePlaybackRef.current?.stop();
         ensurePackedSurface('forward');
+        const video = root.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
+        if (video) disposeTimelineVideoDriver(video);
         root.style.setProperty('--ph-video-opacity', '1');
         nativeAutoplayRef.current?.start();
       } else {
@@ -343,12 +285,17 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
           });
         }
       });
-      const reverseDissolve = createPhonePhReverseDissolve(
+      const reversePlayback = createPhonePhPresentedReverse(
+        root,
         render,
-        () => completeRun(-1)
+        () => completeRun(-1),
+        () => {
+          applyPhonePhMediaFallback(root);
+          completeRun(-1);
+        }
       );
       nativeAutoplayRef.current = nativeAutoplay;
-      reverseDissolveRef.current = reverseDissolve;
+      reversePlaybackRef.current = reversePlayback;
       root.dataset.phonePhLifecycle = 'ready';
       const requestedDirection = requestedDirectionRef.current;
       if (requestedDirection !== null) startRun(requestedDirection);
@@ -356,7 +303,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
 
       return () => {
         nativeAutoplay.dispose();
-        reverseDissolve.dispose();
+        reversePlayback?.dispose();
         clearReverseStartTimer();
         reverseStartedRef.current = false;
         cancelPackedReleaseRef.current?.();
@@ -364,7 +311,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         packedSurfaceRef.current?.dispose();
         packedSurfaceRef.current = null;
         if (nativeAutoplayRef.current === nativeAutoplay) nativeAutoplayRef.current = null;
-        if (reverseDissolveRef.current === reverseDissolve) reverseDissolveRef.current = null;
+        if (reversePlaybackRef.current === reversePlayback) reversePlaybackRef.current = null;
         parkPhonePhMedia(root);
         delete video.dataset.timelineVideoFrameReady;
         delete root.dataset.phonePhLifecycle;
@@ -393,7 +340,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         clearReverseStartTimer();
         reverseStartedRef.current = false;
         nativeAutoplayRef.current?.stop();
-        reverseDissolveRef.current?.stop();
+        reversePlaybackRef.current?.stop();
         ensurePackedSurface(progress >= 0.999 ? 'endpoint' : 'forward');
         render(progress);
       },
@@ -407,7 +354,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         clearReverseStartTimer();
         reverseStartedRef.current = false;
         nativeAutoplayRef.current?.stop();
-        reverseDissolveRef.current?.stop();
+        reversePlaybackRef.current?.stop();
         parkPhonePhMedia(rootRef.current);
         rootRef.current?.setAttribute('data-phone-ph-state', 'parked');
         const root = rootRef.current;
@@ -428,7 +375,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         clearReverseStartTimer();
         reverseStartedRef.current = false;
         nativeAutoplayRef.current?.dispose();
-        reverseDissolveRef.current?.dispose();
+        reversePlaybackRef.current?.dispose();
         cancelPackedReleaseRef.current?.();
         cancelPackedReleaseRef.current = null;
         packedSurfaceRef.current?.dispose();

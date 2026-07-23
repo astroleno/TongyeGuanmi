@@ -731,6 +731,12 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           if (detail.direction === 1) {
             latestCraneContactRef.current?.enter?.();
           } else {
+            // Crane reverse returns to the Education endpoint, not directly
+            // to PH/Lab. Forward leave() has hidden that source root, so
+            // restore the Education → Crane bridge before the presented-frame
+            // reverse begins; the fixed Crane stage remains the visual owner
+            // until its reverse clock completes.
+            educationCraneRef.current?.reverse?.();
             latestCraneContactRef.current?.reverse?.();
           }
         }

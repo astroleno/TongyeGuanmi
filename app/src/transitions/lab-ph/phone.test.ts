@@ -36,6 +36,10 @@ describe('Phone Lab → PH transition', () => {
     expect(source).toContain("host.dataset.phoneLabPhInkSurface = 'transparent'");
     expect(source).toContain('from: null');
     expect(source).toContain('phoneLabPhAlignedInkProgress(frame.progress)');
+    expect(source).toContain('const releaseInk = useCallback');
+    expect(source).toContain('ink.dispose()');
+    expect(source).toContain('canvas.width = 1');
+    expect(source).toMatch(/leave\(\) \{\s*render\(1\);\s*releaseInk\(\);/);
     expect(stylesheet).toContain('data-phone-lab-ph-ink-surface="transparent"');
     expect(stylesheet).toContain('background: transparent');
     expect(source).not.toContain('preparePhAnimationFrame');

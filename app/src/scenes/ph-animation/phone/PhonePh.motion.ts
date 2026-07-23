@@ -69,14 +69,11 @@ export function renderPhonePhPresentation(
   const frontY = phonePhForegroundParallaxY(canonical);
 
   section?.style.setProperty('--ph-front-parallax-y', `${frontY.toFixed(2)}px`);
-  section?.style.setProperty(
-    '--ph-video-opacity',
-    direction === -1 ? progress.toFixed(4) : '1'
-  );
+  section?.style.setProperty('--ph-video-opacity', '1');
   section?.setAttribute('data-phone-ph-progress', progress.toFixed(4));
   section?.setAttribute(
     'data-phone-ph-clock',
-    direction === 1 ? 'native' : 'endpoint-dissolve'
+    direction === 1 ? 'native' : 'presented-frame-reverse'
   );
 
   return { ...canonical, frontY };

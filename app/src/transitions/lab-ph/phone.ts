@@ -123,67 +123,107 @@ export const PhoneLabPhTransition = forwardRef<
   { from, host, onReady, reducedMotion, to },
   forwardedRef
 ) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const inkRef = useRef<PhoneInkTransition | null>(null);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const inkRef = useRef<PhoneInkTransition | null>(null);
 
-  const render = useCallback((progress: number) => {
-    const frame = applyPhoneLabPhFrame(from, to, progress, reducedMotion);
-    inkRef.current?.render(phoneLabPhAlignedInkProgress(frame.progress));
-  }, [from, reducedMotion, to]);
+    const ensureInk = useCallback((): PhoneInkTransition | null => {
+      if (inkRef.current) return inkRef.current;
+      const canvas = canvasRef.current;
+      if (!host || !to || !canvas) return null;
+      // createPhoneInkTransition adds its shared class to an existing Canvas.
+      // Normalize before each recycled run so reverse navigation cannot
+      // accumulate duplicate renderer classes.
+      canvas.className = 'phone-lab-ph__ink';
+      const ink = createPhoneInkTransition({
+        host,
+        canvas,
+        id: 'phone-lab-ph-ink',
+        // Unlike Star-map → AOD, Lab is taller than one viewport. Applying the
+        // viewport contour to that long document root clips away the visible
+        // Lab tail. Keep it intact underneath the PH reveal instead.
+        from: null,
+        to,
+        field: PHONE_LAB_PH_FIELD,
+        grade: 'edge-bright'
+      });
+      inkRef.current = ink;
+      return ink;
+    }, [host, to]);
 
-  useLayoutEffect(() => {
-    const canvas = canvasRef.current;
-    if (!host || !from || !to || !canvas) return;
-    // Lab is a native document scene, not a sibling inside the fixed PH
-    // stage. The stage backing must therefore stay transparent until PH's
-    // own clipped root has covered the viewport.
-    host.dataset.phoneLabPhInkSurface = 'transparent';
-    const ink = createPhoneInkTransition({
-      host,
-      canvas,
-      id: 'phone-lab-ph-ink',
-      // Unlike Star-map → AOD, Lab is taller than one viewport. Applying the
-      // viewport contour to that long document root clips away the visible
-      // Lab tail. Keep it intact underneath the PH reveal instead.
-      from: null,
-      to,
-      field: PHONE_LAB_PH_FIELD,
-      grade: 'edge-bright'
-    });
-    inkRef.current = ink;
-    render(reducedMotion ? 1 : 0);
-    onReady?.();
-    return () => {
+    const releaseInk = useCallback(() => {
+      const ink = inkRef.current;
+      if (!ink) return;
       ink.dispose();
-      if (inkRef.current === ink) inkRef.current = null;
-      delete host.dataset.phoneLabPhInkSurface;
-    };
-  }, [from, host, onReady, reducedMotion, render, to]);
-
-  useImperativeHandle(forwardedRef, () => ({
-    render,
-    enter() {
-      render(0);
-    },
-    leave() {
-      render(1);
-    },
-    reverse() {
-      render(0);
-    },
-    dispose() {
-      inkRef.current?.dispose();
       inkRef.current = null;
-      if (host) delete host.dataset.phoneLabPhInkSurface;
-    }
-  }), [host, render]);
+      const canvas = canvasRef.current;
+      if (canvas) {
+        canvas.width = 1;
+        canvas.height = 1;
+      }
+    }, []);
 
-  return createElement('canvas', {
-    ref: canvasRef,
-    className: 'phone-lab-ph__ink',
-    'data-phone-lab-ph-ink': 'bottom-to-top',
-    'aria-hidden': 'true'
-  });
+    const render = useCallback((progress: number) => {
+      const frame = applyPhoneLabPhFrame(from, to, progress, reducedMotion);
+      const inkProgress = phoneLabPhAlignedInkProgress(frame.progress);
+      if (
+        inkProgress > ENDPOINT_EPSILON
+        && inkProgress < 1 - ENDPOINT_EPSILON
+      ) {
+        ensureInk()?.render(inkProgress);
+      } else {
+        inkRef.current?.render(inkProgress);
+      }
+    }, [ensureInk, from, reducedMotion, to]);
+
+    useLayoutEffect(() => {
+      const canvas = canvasRef.current;
+      if (!host || !from || !to || !canvas) return;
+      // Lab is a native document scene, not a sibling inside the fixed PH
+      // stage. The stage backing must therefore stay transparent until PH's
+      // own clipped root has covered the viewport.
+      host.dataset.phoneLabPhInkSurface = 'transparent';
+      ensureInk();
+      render(reducedMotion ? 1 : 0);
+      onReady?.();
+      return () => {
+        releaseInk();
+        delete host.dataset.phoneLabPhInkSurface;
+      };
+    }, [
+      ensureInk,
+      from,
+      host,
+      onReady,
+      reducedMotion,
+      releaseInk,
+      render,
+      to
+    ]);
+
+    useImperativeHandle(forwardedRef, () => ({
+      render,
+      enter() {
+        render(0);
+      },
+      leave() {
+        render(1);
+        releaseInk();
+      },
+      reverse() {
+        render(0);
+      },
+      dispose() {
+        releaseInk();
+        if (host) delete host.dataset.phoneLabPhInkSurface;
+      }
+    }), [host, releaseInk, render]);
+
+    return createElement('canvas', {
+      ref: canvasRef,
+      className: 'phone-lab-ph__ink',
+      'data-phone-lab-ph-ink': 'bottom-to-top',
+      'aria-hidden': 'true'
+    });
 });
 
 export default PhoneLabPhTransition;

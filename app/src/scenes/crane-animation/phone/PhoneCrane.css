@@ -16,13 +16,18 @@
 .phone-crane .r4-crane-animation {
   --crane-flock-x: 0px;
   --crane-flock-base-y: 0px;
-  --crane-flock-scale: .9;
+  /*
+   * Keep the canonical 16:9 plate fitted to the retained height. At 0.9 the
+   * flock never reaches its authored off-screen spread and its two standing
+   * cranes fall below the centre roof ridge on tall phones.
+   */
+  --crane-flock-scale: 1;
   --phone-crane-motion-height: var(--phone-cinematic-stage-height, 100lvh);
   --phone-crane-figure-shift-y: calc(
     var(--phone-cinematic-stage-height, 100lvh) * .09
   );
-  /* Opening-frame feet (source y≈306/396) meet the centre roof ridge. */
-  --phone-crane-flock-center-y: 54.3%;
+  /* Source feet y≈306/396 meet the centre roof ridge at retained-height fit. */
+  --phone-crane-flock-center-y: 50.2%;
   height: 100%;
   min-height: 100%;
 }
@@ -117,12 +122,12 @@
 }
 
 .phone-crane .r4-crane-animation .crane-layer--cloud-front {
-  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * -.044);
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * -.024);
   width: calc(var(--phone-cinematic-stage-height, 100lvh) * 1.068);
 }
 
 .phone-crane .r4-crane-animation .crane-layer--cloud-front-second {
-  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * -.0011);
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * .021);
   width: calc(var(--phone-cinematic-stage-height, 100lvh) * 1.033);
 }
 

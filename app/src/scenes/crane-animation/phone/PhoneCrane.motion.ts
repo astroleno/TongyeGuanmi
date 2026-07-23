@@ -63,11 +63,10 @@ export function renderPhoneCranePresentation(
     FIGURE_START_SECONDS + 1.05
   ));
   const figureActive = time >= FIGURE_START_SECONDS;
-  const reverseOpacity = direction === -1 ? timelineProgress : 1;
-  const videoOpacity = (figureActive ? 1 : 0) * reverseOpacity;
+  const videoOpacity = figureActive ? 1 : 0;
   const flockOpacity = (
     1 - smoothStep(range01(time, FLOCK_END_SECONDS - 0.24, FLOCK_END_SECONDS))
-  ) * reverseOpacity;
+  );
   const figureY = 198 * (1 - grow);
   const videoScale = 0.8 + 0.2 * grow;
   const clipBottom = (1 - unmask) * 42;
@@ -93,7 +92,9 @@ export function renderPhoneCranePresentation(
   section.style.setProperty('--crane-flock-y', '0px');
   section.dataset.craneProgress = progress.toFixed(4);
   section.dataset.phoneCraneProgress = timelineProgress.toFixed(4);
-  section.dataset.phoneCraneClock = direction === 1 ? 'native' : 'endpoint-dissolve';
+  section.dataset.phoneCraneClock = direction === 1
+    ? 'native'
+    : 'presented-frame-reverse';
 
   setTransform(
     section.querySelector<HTMLElement>('.crane-layer--cloud-back'),

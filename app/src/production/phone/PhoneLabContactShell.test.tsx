@@ -87,9 +87,22 @@ describe('PhoneLabContactShell', () => {
     expect(shellCss).toContain('var(--portrait-stage-coverage-height)');
     expect(shellCss).toContain('--phone-cinematic-vh');
     expect(shellCss).toContain('--phone-lab-contact-edge-surface');
+    expect(shellCss).toMatch(
+      /\.phone-lab-contact__phase--ph,\s*\.phone-lab-contact__phase--crane\s*\{\s*background: #ede4d2;/
+    );
+    expect(shellCss).toMatch(
+      /\.phone-lab-contact__stage--ph \.phone-lab-contact__stage-canvas,\s*\.phone-lab-contact__stage--crane \.phone-lab-contact__stage-canvas\s*\{\s*background: transparent;/
+    );
     expect(shellCss).toMatch(/\.phone-lab-contact__stage-host\s*\{[^}]*position: fixed/s);
     expect(shellCss).toMatch(/\.phone-lab-contact__stage\s*\{[^}]*position: absolute/s);
     expect(shellCss).toMatch(/\.phone-lab-contact__stage-canvas\s*\{[^}]*overflow: clip/s);
+    expect(shellCss).toMatch(
+      /\.phone-lab-contact__stage-canvas\s*\{[^}]*contain: none;[^}]*isolation: auto;[^}]*transform: none;[^}]*backface-visibility: visible;/s
+    );
+    expect(shellCss).toContain(
+      '[data-phone-acceptance-stage-active="false"]'
+    );
+    expect(shellCss).toContain('visibility: hidden !important');
     expect(shellSource).toContain('data-phone-stage-host="persistent"');
     expect(shellSource).toContain('usePhoneLabContactFixedStageRegistration');
     expect(shellSource).toContain("fixedStageRegistered ? 'registered' : 'priming'");
@@ -121,6 +134,7 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('completeCraneContactHandoff');
     expect(shellSource).toContain("detail.phase === 'progress'");
     expect(shellSource).toContain('latestPhEducationRef.current?.reverse?.()');
+    expect(shellSource).toContain('educationCraneRef.current?.reverse?.()');
     expect(shellSource).toContain('latestPhEducationRef.current?.render(detail.progress)');
     expect(shellSource).toContain('latestCraneContactRef.current?.render');
     expect(shellSource).toContain('setStageActive(craneStageRef.current, false)');

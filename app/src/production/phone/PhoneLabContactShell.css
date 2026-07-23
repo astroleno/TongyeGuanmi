@@ -70,14 +70,21 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   pointer-events: none;
 }
 
+/*
+ * Match d208a86's shared-boundary stage: document markers continue the
+ * outgoing paper surface, while the fixed stage and its Canvas stay
+ * transparent. PH/Crane roots are the only owners of their scene colors.
+ * An opaque marker or stage backing otherwise becomes a false transition
+ * plate and can cover Lab/Education even when the receiver itself is faded.
+ */
 .phone-lab-contact__phase--ph,
-.phone-lab-contact__stage--ph .phone-lab-contact__stage-canvas {
-  background: linear-gradient(180deg, #9889a5 0%, #63668f 100%);
+.phone-lab-contact__phase--crane {
+  background: #ede4d2;
 }
 
-.phone-lab-contact__phase--crane,
+.phone-lab-contact__stage--ph .phone-lab-contact__stage-canvas,
 .phone-lab-contact__stage--crane .phone-lab-contact__stage-canvas {
-  background: #ede4d2;
+  background: transparent;
 }
 
 /*
@@ -97,6 +104,9 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   height: auto;
   min-height: 0;
   overflow: visible;
+  isolation: auto;
+  transform: none;
+  backface-visibility: visible;
   pointer-events: none;
 }
 
@@ -123,11 +133,28 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   height: auto;
   min-height: 0;
   overflow: visible;
+  isolation: auto;
+  transform: none;
+  backface-visibility: visible;
   pointer-events: none;
 }
 
 .phone-lab-contact__stage[data-phone-acceptance-stage-active="false"] {
   visibility: hidden;
+  opacity: 0;
+}
+
+.phone-lab-contact__stage[data-phone-acceptance-stage-active="false"]
+  *,
+.phone-lab-contact__stage[data-phone-acceptance-stage-active="false"]
+  > .r4-ink-transition-canvas {
+  visibility: hidden !important;
+  pointer-events: none;
+}
+
+.phone-lab-contact__stage[data-phone-acceptance-stage-active="true"] {
+  visibility: visible;
+  opacity: 1;
 }
 
 .phone-lab-contact__stage-canvas {
@@ -137,7 +164,10 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   height: var(--phone-cinematic-stage-canvas-height);
   min-height: var(--phone-cinematic-stage-canvas-height);
   overflow: clip;
-  contain: layout;
+  contain: none;
+  isolation: auto;
+  transform: none;
+  backface-visibility: visible;
   background: transparent;
 }
 

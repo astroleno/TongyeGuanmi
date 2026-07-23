@@ -1,19 +1,23 @@
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import {
+  CRANE_PLAYBACK_MS,
   CRANE_TIMELINE_DURATION_SECONDS,
-  CRANE_VIDEO_END_SECONDS
+  CRANE_VIDEO_END_SECONDS,
+  prepareCraneAnimationFrame
 } from '..';
 import {
   createPhoneNativeAutoplay,
   type PhoneNativeAutoplay
 } from '../../../production/phone/phone-native-autoplay';
 import {
-  PHONE_CRANE_STABLE_HOLD_PROGRESS,
+  createPhonePresentedReversePlayback,
+  type PhonePresentedReversePlayback
+} from '../../../production/phone/phone-presented-reverse-playback';
+import {
   type PhoneCranePlaybackDirection
 } from './PhoneCrane.motion';
 
 const FIGURE_START_SECONDS = 0.5;
-const PHONE_CRANE_REVERSE_DISSOLVE_MS = 720;
 
 /** The desktop figure starts at 0.5s and owns the rest of the 3s timeline. */
 export const PHONE_CRANE_FIGURE_MEDIA_SECONDS = Math.max(
@@ -41,11 +45,7 @@ export type PhoneCraneForwardRun = Readonly<{
   dispose(): void;
 }>;
 
-export type PhoneCraneReverseDissolve = Readonly<{
-  start(): void;
-  stop(): void;
-  dispose(): void;
-}>;
+export type PhoneCranePresentedReverse = PhonePresentedReversePlayback;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -76,15 +76,15 @@ export function createPhoneCraneForwardRun(
   let figureStarted = false;
   let lastProgress = 0;
   let failed = false;
-  let firstFrameReady = false;
+  let firstVisibleFrameReady = false;
 
   const markFrameReady = (video: HTMLVideoElement, owner: 'figure' | 'flock') => {
     video.dataset.phoneCraneFrameReady = 'true';
     video.dataset.timelineVideoFrameReady = 'true';
     video.dataset.phoneCraneNativePlayback = `playing-${owner}`;
     root.dataset.phoneCraneMedia = 'playing';
-    if (!firstFrameReady) {
-      firstFrameReady = true;
+    if (owner === 'flock' && !firstVisibleFrameReady) {
+      firstVisibleFrameReady = true;
       onFrameReady?.();
     }
   };
@@ -113,6 +113,10 @@ export function createPhoneCraneForwardRun(
     },
     onComplete: () => {
       if (!active || disposed) return;
+      if (!figureStarted) {
+        fail();
+        return;
+      }
       try {
         figure.currentTime = CRANE_VIDEO_END_SECONDS;
       } catch {
@@ -166,7 +170,7 @@ export function createPhoneCraneForwardRun(
       active = true;
       failed = false;
       figureStarted = false;
-      firstFrameReady = false;
+      firstVisibleFrameReady = false;
       lastProgress = 0;
       delete flock.dataset.phoneCraneFrameReady;
       delete figure.dataset.phoneCraneFrameReady;
@@ -194,49 +198,51 @@ export function createPhoneCraneForwardRun(
   };
 }
 
-/** Crane has no reverse source, so reverse uses the declared endpoint dissolve. */
-export function createPhoneCraneReverseDissolve(
+/**
+ * Port d208a86's presented-frame reverse ownership to both Crane decoders.
+ * The paper camera is published only after both matching packed-alpha frames
+ * are ready, preventing the figure from freezing at its terminal frame while
+ * Education is already being revealed.
+ */
+export function createPhoneCranePresentedReverse(
+  root: HTMLElement,
   render: (progress: number, direction: PhoneCranePlaybackDirection) => void,
-  onComplete: () => void
-): PhoneCraneReverseDissolve {
-  let disposed = false;
-  let active = false;
-  let frame = 0;
-  let startedAt = 0;
-  const cancel = () => {
-    if (!frame) return;
-    window.cancelAnimationFrame(frame);
-    frame = 0;
-  };
-  const tick: FrameRequestCallback = (now) => {
-    frame = 0;
-    if (!active || disposed) return;
-    const elapsed = clamp((now - startedAt) / PHONE_CRANE_REVERSE_DISSOLVE_MS);
-    render(PHONE_CRANE_STABLE_HOLD_PROGRESS * (1 - elapsed), -1);
-    if (elapsed >= 1) {
-      active = false;
-      onComplete();
-      return;
+  onComplete: () => void,
+  onFailure: () => void
+): PhoneCranePresentedReverse {
+  let runSequence = 0;
+  let runId = 'phone-crane-reverse-0';
+  const playback = createPhonePresentedReversePlayback({
+    durationMs: CRANE_PLAYBACK_MS,
+    prepare: async (progress) => {
+      await prepareCraneAnimationFrame(root, progress, {
+        runId,
+        direction: -1
+      });
+      return true;
+    },
+    render: (progress) => render(progress, -1),
+    onComplete,
+    onError: onFailure,
+    onStatus: (status) => {
+      root.dataset.phoneCraneReverse = status;
     }
-    frame = window.requestAnimationFrame(tick);
-  };
+  });
+
   return {
+    get active() {
+      return playback.active;
+    },
     start() {
-      if (disposed || active) return;
-      cancel();
-      active = true;
-      startedAt = performance.now();
-      render(PHONE_CRANE_STABLE_HOLD_PROGRESS, -1);
-      frame = window.requestAnimationFrame(tick);
+      runSequence += 1;
+      runId = `phone-crane-reverse-${runSequence}`;
+      playback.start();
     },
-    stop() {
-      active = false;
-      cancel();
-    },
+    retry: playback.retry,
+    stop: playback.stop,
     dispose() {
-      active = false;
-      disposed = true;
-      cancel();
+      playback.dispose();
+      delete root.dataset.phoneCraneReverse;
     }
   };
 }

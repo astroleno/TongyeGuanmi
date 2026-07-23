@@ -20,6 +20,10 @@ const motionSource = readFileSync(
   new URL('./PhonePh.motion.ts', import.meta.url),
   'utf8'
 );
+const reverseSource = readFileSync(
+  new URL('./PhonePh.reverse.ts', import.meta.url),
+  'utf8'
+);
 const nativeClockSource = readFileSync(
   new URL('../../../production/phone/phone-native-autoplay.ts', import.meta.url),
   'utf8'
@@ -81,11 +85,15 @@ describe('PhonePh', () => {
     expect(source).toContain("ensurePackedSurface('endpoint')");
     expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
     expect(source).toContain('PH_FIGURE_END_SECONDS');
-    expect(source).toContain('createPhonePhReverseDissolve');
+    expect(source).toContain('createPhonePhPresentedReverse');
     expect(source).toContain('beginPreparedReverse');
     expect(source).toContain("phase: 'progress'");
     expect(source).toContain("'preparing-reverse'");
-    expect(motionSource).toContain("'endpoint-dissolve'");
+    expect(motionSource).toContain("'presented-frame-reverse'");
+    expect(reverseSource).toContain('createPhonePresentedReversePlayback');
+    expect(reverseSource).toContain('prepareTimelineVideoFrame');
+    expect(reverseSource).toContain('phPlaybackProgress(progress)');
+    expect(reverseSource).toContain('allowSeekedFrameFallback: true');
     expect(motionSource).toContain('phonePhForegroundParallaxY');
     expect(nativeClockSource).toContain('video.currentTime / duration');
     expect(nativeClockSource).toContain("video.addEventListener('timeupdate'");
@@ -93,6 +101,8 @@ describe('PhonePh', () => {
     expect(nativeClockSource).not.toContain("addEventListener('touchstart'");
     expect(source).not.toContain('driveTimelineVideo');
     expect(source).not.toContain("mode: 'timeline'");
+    expect(reverseSource).toContain("mode: 'timeline'");
+    expect(reverseSource).not.toContain('endpoint-dissolve');
   });
 
   it('falls back to its static layers and parks media without a reload', () => {

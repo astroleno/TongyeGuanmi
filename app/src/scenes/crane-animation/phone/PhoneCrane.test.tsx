@@ -63,9 +63,11 @@ describe('PhoneCrane', () => {
     expect(autoplaySource).toContain('FIGURE_START_SECONDS = 0.5');
     expect(autoplaySource).toContain('figureClock.start()');
     expect(motionSource).toContain('renderPhoneCranePresentation');
-    expect(motionSource).toContain("'endpoint-dissolve'");
+    expect(motionSource).toContain("'presented-frame-reverse'");
     expect(source).toContain("ensurePackedSurfaces('endpoint')");
     expect(source).not.toContain('prepareCraneAnimationFrame');
+    expect(autoplaySource).toContain('prepareCraneAnimationFrame');
+    expect(autoplaySource).toContain('createPhonePresentedReversePlayback');
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
     expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
@@ -75,6 +77,8 @@ describe('PhoneCrane', () => {
     expect(autoplaySource).toContain('figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE');
     expect(autoplaySource).toContain('figure.currentTime = CRANE_VIDEO_END_SECONDS');
     expect(autoplaySource).toContain("root.dataset.phoneCraneFigurePreroll = 'released'");
+    expect(autoplaySource).toContain("owner === 'flock'");
+    expect(autoplaySource).toContain('if (!figureStarted)');
     expect(autoplaySource).not.toContain('nativeGate');
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
     expect(css).toContain('--phone-crane-motion-height');
@@ -82,8 +86,8 @@ describe('PhoneCrane', () => {
     expect(css).toContain('height: var(--phone-crane-motion-height)');
     expect(css).toContain('aspect-ratio: auto');
     expect(css).not.toContain('--phone-crane-motion-width');
-    expect(css).toContain('--phone-crane-flock-center-y: 54.3%');
-    expect(css).toContain('--crane-flock-scale: .9');
+    expect(css).toContain('--phone-crane-flock-center-y: 50.2%');
+    expect(css).toContain('--crane-flock-scale: 1');
     expect(css).toContain('position: absolute');
     expect(css).toContain('clip-path: none');
     expect(css).not.toContain('9dvh');
@@ -92,7 +96,8 @@ describe('PhoneCrane', () => {
     expect(PHONE_CRANE_FIGURE_PLAYBACK_RATE).toBeCloseTo(2.467 / 2.5, 8);
     expect(phoneCraneTimelineProgressForFigureMediaProgress(0)).toBeCloseTo(1 / 6, 8);
     expect(phoneCraneTimelineProgressForFigureMediaProgress(1)).toBe(1);
-    expect(autoplaySource).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS * (1 - elapsed)');
+    expect(autoplaySource).not.toContain('PHONE_CRANE_REVERSE_DISSOLVE_MS');
+    expect(autoplaySource).not.toContain('endpoint-dissolve');
 
     const endpoint = new FakeElement();
     const arch = new FakeElement();

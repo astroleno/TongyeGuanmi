@@ -23,10 +23,10 @@ import {
 } from '../../../production/phone/scenes/phone-packed-alpha-surface';
 import {
   createPhoneCraneForwardRun,
-  createPhoneCraneReverseDissolve,
+  createPhoneCranePresentedReverse,
   phoneCraneVideos,
   type PhoneCraneForwardRun,
-  type PhoneCraneReverseDissolve
+  type PhoneCranePresentedReverse
 } from './PhoneCrane.autoplay';
 import {
   PHONE_CRANE_STABLE_HOLD_PROGRESS,
@@ -99,7 +99,7 @@ export const PhoneCrane = forwardRef<
   const [figureCanvasHost, setFigureCanvasHost] = useState<HTMLElement | null>(null);
   const [flockCanvasHost, setFlockCanvasHost] = useState<HTMLElement | null>(null);
   const forwardRunRef = useRef<PhoneCraneForwardRun | null>(null);
-  const reverseDissolveRef = useRef<PhoneCraneReverseDissolve | null>(null);
+  const reversePlaybackRef = useRef<PhoneCranePresentedReverse | null>(null);
   const packedSurfacesRef = useRef<readonly [
     PhonePackedAlphaSurface,
     PhonePackedAlphaSurface
@@ -132,7 +132,7 @@ export const PhoneCrane = forwardRef<
     clearReverseStartTimer();
     reverseStartedRef.current = true;
     root.dataset.phoneCraneAutoplay = 'playing-reverse';
-    reverseDissolveRef.current?.start();
+    reversePlaybackRef.current?.start();
     dispatchPhoneLabContactAutoplay(root, {
       scene: 'crane-animation',
       phase: 'playing',
@@ -260,7 +260,7 @@ export const PhoneCrane = forwardRef<
     if (direction === 1) {
       clearReverseStartTimer();
       reverseStartedRef.current = false;
-      reverseDissolveRef.current?.stop();
+      reversePlaybackRef.current?.stop();
       ensurePackedSurfaces('forward');
       forwardRunRef.current?.start();
     } else {
@@ -330,12 +330,17 @@ export const PhoneCrane = forwardRef<
       onReady?.();
       return;
     }
-    const reverseDissolve = createPhoneCraneReverseDissolve(
+    const reversePlayback = createPhoneCranePresentedReverse(
+      root,
       render,
-      () => completeRun(-1)
+      () => completeRun(-1),
+      () => {
+        applyPhoneCraneMediaFallback(root);
+        completeRun(-1);
+      }
     );
     forwardRunRef.current = forwardRun;
-    reverseDissolveRef.current = reverseDissolve;
+    reversePlaybackRef.current = reversePlayback;
     root.dataset.phoneCraneLifecycle = 'ready';
     const requestedDirection = requestedDirectionRef.current;
     if (requestedDirection !== null) startRun(requestedDirection);
@@ -343,7 +348,7 @@ export const PhoneCrane = forwardRef<
 
     return () => {
       forwardRun.dispose();
-      reverseDissolve.dispose();
+      reversePlayback.dispose();
       clearReverseStartTimer();
       reverseStartedRef.current = false;
       cancelPackedReleaseRef.current?.();
@@ -351,7 +356,7 @@ export const PhoneCrane = forwardRef<
       for (const surface of packedSurfacesRef.current ?? []) surface.dispose();
       packedSurfacesRef.current = null;
       if (forwardRunRef.current === forwardRun) forwardRunRef.current = null;
-      if (reverseDissolveRef.current === reverseDissolve) reverseDissolveRef.current = null;
+      if (reversePlaybackRef.current === reversePlayback) reversePlaybackRef.current = null;
       parkPhoneCraneMedia(root);
       delete root.dataset.phoneCraneLifecycle;
       delete root.dataset.phoneCraneAutoplay;
@@ -375,7 +380,7 @@ export const PhoneCrane = forwardRef<
       clearReverseStartTimer();
       reverseStartedRef.current = false;
       forwardRunRef.current?.stop();
-      reverseDissolveRef.current?.stop();
+      reversePlaybackRef.current?.stop();
       if (progress >= 0.999) {
         ensurePackedSurfaces('endpoint');
         render(PHONE_CRANE_STABLE_HOLD_PROGRESS);
@@ -394,7 +399,7 @@ export const PhoneCrane = forwardRef<
       clearReverseStartTimer();
       reverseStartedRef.current = false;
       forwardRunRef.current?.stop();
-      reverseDissolveRef.current?.stop();
+      reversePlaybackRef.current?.stop();
       parkPhoneCraneMedia(rootRef.current);
       rootRef.current?.setAttribute('data-phone-crane-state', 'parked');
       const root = rootRef.current;
@@ -417,7 +422,7 @@ export const PhoneCrane = forwardRef<
       clearReverseStartTimer();
       reverseStartedRef.current = false;
       forwardRunRef.current?.dispose();
-      reverseDissolveRef.current?.dispose();
+      reversePlaybackRef.current?.dispose();
       cancelPackedReleaseRef.current?.();
       cancelPackedReleaseRef.current = null;
       for (const surface of packedSurfacesRef.current ?? []) surface.dispose();
