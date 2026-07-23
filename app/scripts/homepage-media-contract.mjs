@@ -186,8 +186,8 @@ export const frozenHomepageMedia = [
   {
     source: 'assets/crane-flock-motion-rgb-alpha.mp4',
     category: 'portrait-packed-alpha',
-    bytes: 804033,
-    sha256: 'edc52bda2e9c11a046ebf7ee91cddc74688c4da3e1c48448c4f363ad2c57e2df'
+    bytes: 1341930,
+    sha256: '6c82ceeb31ce814e137c880ae41650e5d24df26a202a4af8a3d8a9d60dbeff00'
   },
   {
     source: 'assets/hero-back.webp',

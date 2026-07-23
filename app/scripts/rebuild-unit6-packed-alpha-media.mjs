@@ -10,7 +10,7 @@ import { frozenHomepageMedia } from './homepage-media-contract.mjs';
 const execFileAsync = promisify(execFile);
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
-const CRF = 21;
+const DEFAULT_CRF = 21;
 const MAX_GOP_FRAMES = 30;
 const specs = [
   {
@@ -19,6 +19,7 @@ const specs = [
     width: 704,
     height: 396,
     frames: 46,
+    crf: DEFAULT_CRF,
     minAlphaSsim: 0.978,
     minColorSsim: 0.976
   },
@@ -28,17 +29,19 @@ const specs = [
     width: 704,
     height: 396,
     frames: 75,
+    crf: DEFAULT_CRF,
     minAlphaSsim: 0.956,
     minColorSsim: 0.937
   },
   {
     source: 'assets/crane-flock-motion.webm',
     output: 'assets/crane-flock-motion-rgb-alpha.mp4',
-    width: 704,
-    height: 396,
+    width: 1280,
+    height: 720,
     frames: 74,
-    minAlphaSsim: 0.937,
-    minColorSsim: 0.944
+    crf: 26,
+    minAlphaSsim: 0.948,
+    minColorSsim: 0.95
   }
 ];
 const frozenBySource = new Map(
@@ -131,7 +134,7 @@ async function rebuild(spec, workDir) {
       '-filter_complex',
       `[0:v]format=rgba,scale=${spec.width}:${spec.height}:flags=lanczos,format=rgba,split=2[color][matte];[color]format=rgb24[colorrgb];[matte]alphaextract,format=gray,format=rgb24[alphargb];[colorrgb][alphargb]hstack=inputs=2,format=yuv420p[packed]`,
       '-map', '[packed]', '-an', '-c:v', 'libx264', '-preset', 'slow',
-      '-crf', String(CRF), '-g', String(MAX_GOP_FRAMES),
+      '-crf', String(spec.crf), '-g', String(MAX_GOP_FRAMES),
       '-keyint_min', String(MAX_GOP_FRAMES), '-sc_threshold', '0',
       '-map_metadata', '-1', '-movflags', '+faststart', candidate
     ], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
@@ -154,6 +157,7 @@ async function rebuild(spec, workDir) {
     return {
       source: spec.source,
       output: spec.output,
+      crf: spec.crf,
       alphaSsim,
       colorSsim,
       ...video,
@@ -173,7 +177,7 @@ try {
   for (const spec of specs) media.push(await rebuild(spec, workDir));
   process.stdout.write(`${JSON.stringify({
     qualification: 'unit6-packed-alpha-rebuild',
-    crf: CRF,
+    defaultCrf: DEFAULT_CRF,
     maxGopFrames: MAX_GOP_FRAMES,
     media,
     pass: true

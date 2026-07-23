@@ -9,10 +9,8 @@ import {
 import {
   applyPhoneCraneMediaFallback,
   parkPhoneCraneMedia,
-  PHONE_CRANE_FLOCK_HQ_CANDIDATE_PATH,
   PHONE_CRANE_STABLE_HOLD_PROGRESS,
   PhoneCrane,
-  phoneCraneFlockPackedUrlFor,
   phoneCranePresentationProgress,
   renderPhoneCranePresentation
 } from './PhoneCrane';
@@ -58,18 +56,10 @@ describe('PhoneCrane', () => {
     expect(markup).toContain('data-phone-scene="crane-animation"');
   });
 
-  it('uses the independent HQ flock candidate only on the v36 dev route', () => {
-    expect(phoneCraneFlockPackedUrlFor('?v=36', true)).toBe(
-      PHONE_CRANE_FLOCK_HQ_CANDIDATE_PATH
-    );
-    expect(phoneCraneFlockPackedUrlFor('?v=35', true)).not.toBe(
-      PHONE_CRANE_FLOCK_HQ_CANDIDATE_PATH
-    );
-    expect(phoneCraneFlockPackedUrlFor('?v=36', false)).not.toBe(
-      PHONE_CRANE_FLOCK_HQ_CANDIDATE_PATH
-    );
-    expect(source).toContain("'hq-candidate-1280x720'");
-    expect(source).toContain("'baseline-704x396'");
+  it('uses the formal packed flock media on every route', () => {
+    expect(source).toContain('packedSourceUrl: PHONE_CRANE_FLOCK_PACKED');
+    expect(source).not.toContain('qa-media');
+    expect(source).not.toContain('phoneCraneFlockPackedUrlFor');
   });
 
   it('uses stable reduced-motion endpoints in canonical order', () => {
