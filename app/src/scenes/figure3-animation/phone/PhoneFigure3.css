@@ -1,11 +1,14 @@
 .phone-figure3 {
-  --phone-figure3-paper: #ede4d2;
+  --phone-figure3-paper: var(--portrait-reading-paper, #ede4d2);
   --phone-figure3-paper-treatment:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, .10),
-      transparent 32%,
-      rgba(41, 41, 25, .055)
+    var(
+      --portrait-reading-paper-treatment,
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, .10),
+        transparent 32%,
+        rgba(41, 41, 25, .055)
+      )
     );
   --phone-figure3-video-opacity: 1;
   --phone-figure3-video-scale: 1.015;

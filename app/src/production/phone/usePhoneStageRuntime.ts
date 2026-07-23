@@ -6,7 +6,11 @@ import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
 import { sceneFromHash } from '../navigation';
 import { clearPhoneInkBoundary } from './phone-ink';
-import { createPhoneScrollSnapLock } from './phone-scroll-snap-lock';
+import {
+  attachPhoneForwardInputGate,
+  createPhoneScrollSnapLock,
+  phoneForwardInputCrossesBoundary
+} from './phone-scroll-snap-lock';
 import {
   PHONE_STAGE_STOPS,
   phoneAodCheckpointForMethodProgress,
@@ -20,6 +24,7 @@ import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
   PhoneSceneAdapterHandle,
+  PhoneStageSceneId,
   PhoneTransitionAdapterHandle
 } from './types';
 
@@ -31,6 +36,12 @@ export function refreshPhoneScrollStage(): void {
 
 type PortraitStageScene = 'hero' | 'pattern' | 'star' | 'aod';
 type PortraitAodRunState = 'idle' | 'forward' | 'complete' | 'reverse';
+
+function portraitStageScene(scene: PhoneStageSceneId): PortraitStageScene {
+  if (scene === 'star-map') return 'star';
+  if (scene === 'aod-animation') return 'aod';
+  return scene;
+}
 
 type FullscreenElement = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -349,6 +360,35 @@ export function usePhoneStageRuntime(
         'a, button, input, select, textarea, [role="button"]'
       ))
     );
+    const aodForwardBoundary = () => {
+      const distance = stageScrollEnd - stageScrollStart;
+      return distance > 1
+        ? stageScrollStart + distance * PHONE_STAGE_STOPS.aodAutoplayStart
+        : null;
+    };
+    const disposeAodForwardGate = attachPhoneForwardInputGate({
+      target: root,
+      resolve: (startScrollY, projectedScrollY, event) => {
+        const boundary = aodForwardBoundary();
+        if (
+          boundary === null
+          || !motionEnabled
+          || pointerTargetIsInteractive(event)
+        ) return undefined;
+        if (aodRunState === 'forward' || aodRunState === 'reverse') return null;
+        if (
+          aodRunState !== 'idle'
+          || startScrollY >= boundary
+          || !phoneForwardInputCrossesBoundary(
+            startScrollY,
+            projectedScrollY,
+            boundary
+          )
+        ) return undefined;
+        return true;
+      },
+      onCross: beginAodForward
+    });
     const onHeroPointerDown = (event: PointerEvent) => {
       if (!pointerTargetIsPermissionButton(event)) {
         retryHeroFigureFromGesture();
@@ -476,20 +516,8 @@ export function usePhoneStageRuntime(
       if (!motionEnabled) {
         setOwnership(
           frame.ownership.key,
-          frame.ownership.visible.map((scene) => (
-            scene === 'star-map'
-              ? 'star'
-              : scene === 'aod-animation'
-                ? 'aod'
-                : scene
-          )),
-          frame.ownership.stack.map((scene) => (
-            scene === 'star-map'
-              ? 'star'
-              : scene === 'aod-animation'
-                ? 'aod'
-                : scene
-          ))
+          frame.ownership.visible.map(portraitStageScene),
+          frame.ownership.stack.map(portraitStageScene)
         );
         if (progress >= PHONE_STAGE_STOPS.starAodEnd) aodAdapter.update(1);
         return;
@@ -503,20 +531,8 @@ export function usePhoneStageRuntime(
         return;
       }
 
-      const visible = frame.ownership.visible.map((scene) => (
-        scene === 'star-map'
-          ? 'star'
-          : scene === 'aod-animation'
-            ? 'aod'
-            : scene
-      ));
-      const stack = frame.ownership.stack.map((scene) => (
-        scene === 'star-map'
-          ? 'star'
-          : scene === 'aod-animation'
-            ? 'aod'
-            : scene
-      ));
+      const visible = frame.ownership.visible.map(portraitStageScene);
+      const stack = frame.ownership.stack.map(portraitStageScene);
       renderPhoneStageTransitions(frame, {
         heroPattern: heroPatternAdapter,
         patternStar: patternStarAdapter,
@@ -586,6 +602,7 @@ export function usePhoneStageRuntime(
       root.removeEventListener('pointerup', clearReverseGesture);
       root.removeEventListener('pointercancel', clearReverseGesture);
       root.removeEventListener('click', onHeroClick);
+      disposeAodForwardGate();
       stageTrigger.kill();
       setHeroFigureActive(false);
       setPatternActive(false);

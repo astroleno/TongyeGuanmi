@@ -12,7 +12,7 @@ export function usePhoneEdgeSurface(
   profile: PhoneEdgeSurfaceProfile = 'baseline'
 ): (scene: PhoneEdgeScene) => void {
   const edgeSceneRef = useRef<PhoneEdgeScene>('hero');
-  const publish = useCallback((scene: PhoneEdgeScene) => {
+  const commit = useCallback((scene: PhoneEdgeScene, force = false) => {
     const documentElement = document.documentElement;
     const root = rootRef.current;
     const viewportHost = viewportHostRef.current;
@@ -21,7 +21,8 @@ export function usePhoneEdgeSurface(
       'meta[name="theme-color"]'
     );
     if (
-      edgeSceneRef.current === scene
+      !force
+      && edgeSceneRef.current === scene
       && root?.dataset.portraitEdgeScene === scene
       && root?.dataset.portraitEdgeSurface === surface
       && documentElement.dataset.portraitEdgeScene === scene
@@ -38,9 +39,12 @@ export function usePhoneEdgeSurface(
       root.style.setProperty('--portrait-edge-surface', surface);
       root.dataset.portraitEdgeSurface = surface;
       root.dataset.portraitEdgeScene = scene;
+      // Force WebKit to resolve the exact computed paper before its browser
+      // chrome samples the newly rebuilt fixed compositor.
+      void window.getComputedStyle(root).backgroundColor;
     }
     if (viewportHost) viewportHost.dataset.portraitEdgeScene = scene;
-    if (themeColorMeta) themeColorMeta.content = surface;
+    if (themeColorMeta) themeColorMeta.setAttribute('content', surface);
   }, [profile, rootRef, viewportHostRef]);
 
   useLayoutEffect(() => {
@@ -53,8 +57,20 @@ export function usePhoneEdgeSurface(
     );
     const previousDocumentEdgeScene = documentElement.dataset.portraitEdgeScene;
     const previousThemeColor = themeColorMeta?.content;
-    publish(edgeSceneRef.current);
+    commit(edgeSceneRef.current);
+    const republishCurrentSurface = () => {
+      if (!document.hidden) {
+        commit(edgeSceneRef.current, true);
+      }
+    };
+    window.addEventListener('pageshow', republishCurrentSurface);
+    document.addEventListener('visibilitychange', republishCurrentSurface);
     return () => {
+      window.removeEventListener('pageshow', republishCurrentSurface);
+      document.removeEventListener(
+        'visibilitychange',
+        republishCurrentSurface
+      );
       if (previousDocumentSurface) {
         documentElement.style.setProperty(
           '--portrait-document-surface',
@@ -72,7 +88,7 @@ export function usePhoneEdgeSurface(
         themeColorMeta.content = previousThemeColor;
       }
     };
-  }, [publish]);
+  }, [commit]);
 
-  return publish;
+  return commit;
 }

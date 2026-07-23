@@ -1,4 +1,12 @@
 .portrait-scroll-spike {
+  --portrait-reading-paper: #ede4d2;
+  --portrait-reading-paper-treatment:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, .10),
+      transparent 32%,
+      rgba(41, 41, 25, .055)
+    );
   --portrait-aod-paper-wash-background:
     radial-gradient(72% 42% at 50% 72%, rgba(247, 237, 215, .26), transparent 70%),
     radial-gradient(54% 42% at 22% 88%, rgba(120, 99, 41, .12), transparent 72%),
@@ -7,8 +15,8 @@
     linear-gradient(180deg, rgba(237, 228, 210, 0) 0%, rgba(237, 228, 210, .76) 58%, #ede4d2 100%),
     radial-gradient(78% 84% at 50% 100%, rgba(232, 213, 154, .22), transparent 72%);
   --portrait-aod-paper-solid-background:
-    radial-gradient(76% 54% at 50% 12%, rgba(247, 237, 215, .30), transparent 72%),
-    linear-gradient(180deg, rgba(237, 228, 210, .88) 0%, #ede4d2 56%, #ede4d2 100%);
+    var(--portrait-reading-paper-treatment),
+    var(--portrait-reading-paper);
   --portrait-aod-bottom-mist-height: clamp(250px, 38svh, 430px);
 }
 

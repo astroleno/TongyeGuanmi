@@ -21,6 +21,17 @@
 }
 
 /*
+ * Proof and its retained foreground stay inside the fixed stage, while Brand
+ * remains the one real document receiver below it. Expose that receiver only
+ * for the complementary ink interval; every other checkpoint keeps the stage
+ * as Safari's opaque edge owner.
+ */
+.portrait-scroll-spike[data-portrait-checkpoint="proof-to-brand"]
+  .portrait-scroll-spike__stage {
+  background: transparent;
+}
+
+/*
  * A cold navigation commits one non-viewport-constrained absolute layer
  * before registering the viewport-sized fixed container. This gives WebKit a
  * post-Hero edge update without changing geometry or adding a bottom overlay.

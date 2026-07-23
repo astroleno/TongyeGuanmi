@@ -69,7 +69,9 @@
   position: absolute;
   z-index: 95;
   inset: 0;
-  background: #ede4d2;
+  background:
+    var(--portrait-reading-paper-treatment),
+    var(--portrait-reading-paper);
   pointer-events: none;
 }
 

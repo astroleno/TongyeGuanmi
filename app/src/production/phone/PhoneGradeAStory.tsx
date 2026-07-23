@@ -249,12 +249,14 @@ export function PhoneGradeAStory({
     const surfaces = surfacesRef.current;
     if (!root || !rail || !proofTrack || !surfaces) return;
     const methodReading = document.getElementById('method');
+    const storyRoot = root.closest<HTMLElement>('main.portrait-scroll-spike');
 
     const renderFrame = () => {
       frameRef.current = 0;
       const railRect = rail.getBoundingClientRect();
       const proofRect = proofTrack.getBoundingClientRect();
       const brandRect = brandRoot?.getBoundingClientRect();
+      const methodRect = methodReading?.getBoundingClientRect();
       const stageHeight = Math.max(1, surfaces.clientHeight || window.innerHeight);
       const railActive = railRect.top < stageHeight
         && railRect.bottom > 0;
@@ -376,10 +378,15 @@ export function PhoneGradeAStory({
         figure2ProofRef.current?.render(0);
         proofBrandRef.current?.render(0);
         proofRef.current?.update(0);
-        publishEdgeScene('method');
-        if (sceneRef.current !== 'method-top') {
-          sceneRef.current = 'method-top';
-          onSceneChange?.('method-top');
+        if (
+          storyRoot?.dataset.portraitStageActive !== 'true'
+          && (methodRect?.top ?? Number.POSITIVE_INFINITY) <= stageHeight
+        ) {
+          publishEdgeScene('method');
+          if (sceneRef.current !== 'method-top') {
+            sceneRef.current = 'method-top';
+            onSceneChange?.('method-top');
+          }
         }
       }
     };

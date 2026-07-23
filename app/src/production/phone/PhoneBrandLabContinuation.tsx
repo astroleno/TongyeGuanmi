@@ -24,7 +24,9 @@ import {
 } from './adapter-groups/group4-5';
 import type { PhoneEdgeScene } from './phone-edge-surface';
 import {
+  attachPhoneForwardInputGate,
   createPhoneScrollSnapLock,
+  phoneForwardInputCrossesBoundary,
   type PhoneScrollSnapLock
 } from './phone-scroll-snap-lock';
 import { usePhoneGroup45Adapters } from './usePhoneGroup45Adapters';
@@ -73,6 +75,10 @@ export type PhoneGroup45VisualRunPhase =
   | 'complete'
   | 'reverse';
 
+const GROUP45_VISUAL_SCENES = [
+  'figure3-animation',
+  'ttg-animation'
+] as const satisfies readonly Group45VisualScene[];
 const GROUP45_SCENES = new Set<Group45PhoneSceneId>(group45PhoneSceneIds);
 
 function group45EdgeScene(scene: Group45PhoneSceneId): PhoneEdgeScene {
@@ -247,6 +253,22 @@ export function phoneGroup45CommittedBoundaryProgress(
   visualHeld: boolean
 ): number {
   return visualHeld ? 1 : clamp(rawProgress);
+}
+
+/**
+ * An ink receiver is revealable only after its actual first/last media frame
+ * has been painted. Reduced/fallback scenes own a complete static receiver.
+ */
+export function phoneGroup45ReceiverIsPresentable(
+  scene: Group45VisualScene,
+  root: HTMLElement | null
+): boolean {
+  if (!root) return false;
+  const mediaState = root.dataset.phoneMediaState;
+  if (mediaState === 'reduced' || mediaState === 'fallback') return true;
+  return scene === 'figure3-animation'
+    ? Boolean(root.dataset.phoneFigure3EndpointReady)
+    : Boolean(root.querySelector('[data-phone-ttg-endpoint-ready]'));
 }
 
 function sceneIndex(scene: Group45PhoneSceneId): number {
@@ -809,10 +831,14 @@ export const PhoneBrandLabContinuation = forwardRef<
     }
 
     let frame = 0;
+    const inputOwner = root.closest<HTMLElement>(
+      'main.portrait-scroll-spike'
+    ) ?? root;
     const visualSnap = createPhoneScrollSnapLock({
       root,
       getScrollY: () => window.scrollY,
-      scrollTo: (y) => window.scrollTo({ top: y, left: 0, behavior: 'auto' })
+      scrollTo: (y) => window.scrollTo({ top: y, left: 0, behavior: 'auto' }),
+      inputTarget: inputOwner
     });
     visualSnapRef.current = visualSnap;
     const beginVisualRun = (
@@ -1108,16 +1134,42 @@ export const PhoneBrandLabContinuation = forwardRef<
       labRef.current?.update(1);
 
       const brandElement = brandRef.current?.root() ?? null;
+      const figure3ElementRoot = figure3Ref.current?.root() ?? null;
       const servicesElement = servicesRef.current?.root() ?? null;
+      const ttgElementRoot = ttgRef.current?.root() ?? null;
       const labElement = labRef.current?.root() ?? null;
-      brandFigure3Ref.current?.render(phoneGroup45CommittedBoundaryProgress(
-        brandFigure3Progress,
-        heldVisual === 'figure3-animation'
-      ));
-      servicesTtgRef.current?.render(phoneGroup45CommittedBoundaryProgress(
-        servicesTtgProgress,
-        heldVisual === 'ttg-animation'
-      ));
+      const figure3ReceiverPresentable = phoneGroup45ReceiverIsPresentable(
+        'figure3-animation',
+        figure3ElementRoot
+      );
+      const ttgReceiverPresentable = phoneGroup45ReceiverIsPresentable(
+        'ttg-animation',
+        ttgElementRoot
+      );
+      if (
+        (!figure3ReceiverPresentable && (
+          heldVisual === 'figure3-animation' || brandFigure3Progress > 0
+        ))
+        || (!ttgReceiverPresentable && (
+          heldVisual === 'ttg-animation' || servicesTtgProgress > 0
+        ))
+      ) schedule();
+      brandFigure3Ref.current?.render(
+        figure3ReceiverPresentable
+          ? phoneGroup45CommittedBoundaryProgress(
+              brandFigure3Progress,
+              heldVisual === 'figure3-animation'
+            )
+          : 0
+      );
+      servicesTtgRef.current?.render(
+        ttgReceiverPresentable
+          ? phoneGroup45CommittedBoundaryProgress(
+              servicesTtgProgress,
+              heldVisual === 'ttg-animation'
+            )
+          : 0
+      );
       if (reducedMotion) {
         // Reduced motion still traverses the same A/B boundary. The stable
         // visual endpoint owns exactly the boundary pixel; crossing it commits
@@ -1175,11 +1227,12 @@ export const PhoneBrandLabContinuation = forwardRef<
       ))
     );
     const reverseSceneAtBoundary = (): Group45VisualScene | null => {
-      const candidates: readonly Group45VisualScene[] = [
-        'ttg-animation',
-        'figure3-animation'
-      ];
-      for (const scene of candidates) {
+      for (
+        let index = GROUP45_VISUAL_SCENES.length - 1;
+        index >= 0;
+        index -= 1
+      ) {
+        const scene = GROUP45_VISUAL_SCENES[index]!;
         const track = scene === 'figure3-animation'
           ? figure3TrackRef.current
           : ttgTrackRef.current;
@@ -1251,6 +1304,46 @@ export const PhoneBrandLabContinuation = forwardRef<
       }
       return null;
     };
+    const forwardSceneForProjectedScroll = (
+      startScrollY: number,
+      projectedScrollY: number
+    ): Group45VisualScene | null => {
+      for (const scene of GROUP45_VISUAL_SCENES) {
+        if (
+          !phoneGroup45CanBeginVisualRun(
+            visualRunPhaseRef.current[scene],
+            1
+          )
+          || failedVisualsRef.current.has(scene)
+        ) continue;
+        const track = scene === 'figure3-animation'
+          ? figure3TrackRef.current
+          : ttgTrackRef.current;
+        if (!track) continue;
+        const boundaryY = window.scrollY + track.getBoundingClientRect().top;
+        if (phoneForwardInputCrossesBoundary(
+          startScrollY,
+          projectedScrollY,
+          boundaryY
+        )) return scene;
+      }
+      return null;
+    };
+    const disposeForwardGate = attachPhoneForwardInputGate({
+      target: inputOwner,
+      resolve: (startScrollY, projectedScrollY, event) => (
+        reducedMotion
+        || eventTargetIsInteractive(event)
+          ? undefined
+          : visualRunRef.current
+            ? null
+            : forwardSceneForProjectedScroll(startScrollY, projectedScrollY)
+              ?? undefined
+      ),
+      onCross: (scene) => {
+        beginVisualRun(scene, 1);
+      }
+    });
     const onReverseTouchStart = (event: TouchEvent) => {
       reverseTouchGesture = null;
       if (
@@ -1307,13 +1400,6 @@ export const PhoneBrandLabContinuation = forwardRef<
         else adapter?.reverse?.();
       }
     };
-    // Register the non-passive listener before a gesture begins. If that same
-    // gesture crosses into a time-owned run, iOS can cancel its remaining
-    // momentum immediately instead of leaking one swipe into Lab.
-    const preventHeldScroll = (event: Event) => {
-      if (!visualSnap.locked) return;
-      if (event.cancelable) event.preventDefault();
-    };
     render();
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
@@ -1327,14 +1413,6 @@ export const PhoneBrandLabContinuation = forwardRef<
     root.addEventListener('touchmove', onReverseTouchMove, { passive: false });
     root.addEventListener('touchend', clearReverseTouchGesture, { passive: true });
     root.addEventListener('touchcancel', clearReverseTouchGesture, { passive: true });
-    root.addEventListener('touchmove', preventHeldScroll, {
-      passive: false,
-      capture: true
-    });
-    root.addEventListener('wheel', preventHeldScroll, {
-      passive: false,
-      capture: true
-    });
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       window.removeEventListener('scroll', schedule);
@@ -1349,8 +1427,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       root.removeEventListener('touchmove', onReverseTouchMove);
       root.removeEventListener('touchend', clearReverseTouchGesture);
       root.removeEventListener('touchcancel', clearReverseTouchGesture);
-      root.removeEventListener('touchmove', preventHeldScroll, true);
-      root.removeEventListener('wheel', preventHeldScroll, true);
+      disposeForwardGate();
       if (visualRunTimeoutRef.current) {
         window.clearTimeout(visualRunTimeoutRef.current);
         visualRunTimeoutRef.current = 0;

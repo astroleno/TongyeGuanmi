@@ -27,19 +27,33 @@ export type Group45AdapterPlan = Readonly<{
   transitions: readonly Group45PhoneTransitionId[];
 }>;
 
+function sceneIndex(scene: Group45PhoneSceneId): number {
+  return group45PhoneSceneIds.indexOf(scene);
+}
+
+const GROUP45_READING_SCENES = [
+  'brand',
+  'services',
+  'lab'
+] as const satisfies readonly Group45PhoneSceneId[];
+
 function unique<Type>(values: readonly Type[]): Type[] {
   return [...new Set(values)];
 }
 
 /**
- * Load the active root plus only the adjacent visual lifecycle it can enter.
- * A visual's document receiver is included because it owns that run's exit;
- * Lab deliberately has no Lab → PH plan in Unit7-A.
+ * Reading roots establish the complete native document geometry for a direct
+ * entry. Only the current chapter and its one adjacent visual lifecycle are
+ * prewarmed; Lab deliberately has no Lab → PH plan in Unit7-A.
  */
 export function group45AdapterPlanForEntry(
   entryScene: Group45PhoneSceneId,
   activeScene: Group45PhoneSceneId = entryScene
 ): Group45AdapterPlan {
+  const entryIndex = sceneIndex(entryScene);
+  const readingScenes = GROUP45_READING_SCENES.filter(
+    (scene) => sceneIndex(scene) >= entryIndex
+  );
   const next = group45NextAdapterByScene[activeScene];
   const nextVisualExit = next
     && (
@@ -50,9 +64,11 @@ export function group45AdapterPlanForEntry(
     : undefined;
   return {
     scenes: unique([
-      activeScene,
-      ...(next ? [next.scene] : []),
-      ...(nextVisualExit ? [nextVisualExit.scene] : [])
+      ...readingScenes,
+      ...(activeScene === 'figure3-animation' || activeScene === 'ttg-animation'
+        ? [activeScene]
+        : []),
+      ...(next ? [next.scene] : [])
     ]),
     transitions: unique([
       ...(next ? [next.transition] : []),
@@ -92,9 +108,10 @@ function planIsResolved(plan: Group45AdapterPlan, modules: Group45Modules): bool
 }
 
 /**
- * Group 4–5 loads only after the focused phone scope is selected. The adjacent
+ * Group 4–5 loads only after the focused phone scope is selected. The suffix
  * plan keeps direct Services/Lab links from replaying or downloading retired
- * visual media, while each visual resolves its real receiver before it runs.
+ * visual media, while a Brand entry resolves its independently split reading
+ * roots in parallel before the document route becomes scrollable.
  */
 export function usePhoneGroup45Adapters(
   entryScene: Group45PhoneSceneId,

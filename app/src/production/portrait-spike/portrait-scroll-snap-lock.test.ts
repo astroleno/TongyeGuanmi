@@ -18,7 +18,11 @@ describe('portrait AOD scroll snap lock', () => {
       scrollTarget: scroll
     });
 
-    expect(addListener).not.toHaveBeenCalledWith('touchmove', expect.any(Function), { passive: false });
+    expect(addListener).not.toHaveBeenCalledWith(
+      'touchmove',
+      expect.any(Function),
+      { passive: false }
+    );
 
     const beforeLock = new Event('wheel', { cancelable: true });
     root.dispatchEvent(beforeLock);
@@ -28,7 +32,11 @@ describe('portrait AOD scroll snap lock', () => {
     expect(lock.locked).toBe(true);
     expect(root.dataset.phoneAodSnap).toBe('locked');
     expect(scrollTo).toHaveBeenLastCalledWith(420);
-    expect(addListener).toHaveBeenCalledWith('touchmove', expect.any(Function), { passive: false });
+    expect(addListener).toHaveBeenCalledWith(
+      'touchmove',
+      expect.any(Function),
+      { passive: false }
+    );
 
     scrollY = 510;
     scroll.dispatchEvent(new Event('scroll'));
@@ -44,7 +52,10 @@ describe('portrait AOD scroll snap lock', () => {
     expect(lock.locked).toBe(false);
     expect(root.dataset.phoneAodSnap).toBe('released');
     expect(scrollTo).toHaveBeenCalledTimes(2);
-    expect(removeListener).toHaveBeenCalledWith('touchmove', expect.any(Function));
+    expect(removeListener).toHaveBeenCalledWith(
+      'touchmove',
+      expect.any(Function)
+    );
 
     const afterRelease = new Event('wheel', { cancelable: true });
     root.dispatchEvent(afterRelease);

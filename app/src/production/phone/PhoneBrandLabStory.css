@@ -72,12 +72,9 @@
   background: transparent;
 }
 
-.phone-brand-lab__stage-surfaces[data-phone-group45-stage-scene="ttg-animation"] {
-  background: #080d10;
-}
-
 .phone-brand-lab[data-phone-group45-snap="locked"] {
   overscroll-behavior: none;
+  touch-action: none;
 }
 
 .phone-brand-lab[data-phone-group45-stage-active="false"] .portrait-scroll-spike__stage {

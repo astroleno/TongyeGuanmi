@@ -21,6 +21,22 @@ const edgeSurfaceSource = readFileSync(
   new URL('./phone-edge-surface.ts', import.meta.url),
   'utf8'
 );
+const edgePublisherSource = readFileSync(
+  new URL('./usePhoneEdgeSurface.ts', import.meta.url),
+  'utf8'
+);
+const stageStyles = readFileSync(
+  new URL('./PhoneStageRail.css', import.meta.url),
+  'utf8'
+);
+const aodStyles = readFileSync(
+  new URL('./scenes/PhoneAod.css', import.meta.url),
+  'utf8'
+);
+const methodStyles = readFileSync(
+  new URL('./scenes/PhoneMethodTop.css', import.meta.url),
+  'utf8'
+);
 const storyStyles = readFileSync(
   new URL('./PhoneBrandLabStory.css', import.meta.url),
   'utf8'
@@ -76,6 +92,40 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(gradeAStorySource).toContain('<ProofBrand');
   });
 
+  it('reasserts Safari edge color after browser compositor rebuilds', () => {
+    expect(edgePublisherSource).toContain(
+      "window.addEventListener('pageshow', republishCurrentSurface)"
+    );
+    expect(edgePublisherSource).toContain(
+      "document.addEventListener('visibilitychange', republishCurrentSurface)"
+    );
+    expect(edgePublisherSource).toContain(
+      "themeColorMeta.setAttribute('content', surface)"
+    );
+  });
+
+  it('does not let a loaded Grade A root overwrite the active front-stage edge', () => {
+    expect(gradeAStorySource).toContain(
+      "storyRoot?.dataset.portraitStageActive !== 'true'"
+    );
+  });
+
+  it('exposes the real Brand receiver only during Proof ink ownership', () => {
+    expect(stageStyles).toMatch(
+      /data-portrait-checkpoint="proof-to-brand"[^}]+background:\s*transparent/s
+    );
+  });
+
+  it('shares one treated paper between Method and Figure3', () => {
+    expect(aodStyles).toContain('--portrait-reading-paper: #ede4d2');
+    expect(methodStyles).toContain(
+      'var(--portrait-reading-paper-treatment)'
+    );
+    expect(figure3Styles).toContain(
+      'var(\n      --portrait-reading-paper-treatment'
+    );
+  });
+
   it('publishes a stable Lab root and adapter boundary for Unit 6', () => {
     expect(storySource).toContain('labRoot(): HTMLElement | null');
     expect(storySource).toContain(
@@ -97,7 +147,9 @@ describe('Phone Brand → Lab visual contracts', () => {
   });
 
   it('composites Figure3 into paper below one desktop treatment layer', () => {
-    expect(figure3Styles).toContain('--phone-figure3-paper: #ede4d2');
+    expect(figure3Styles).toContain(
+      '--phone-figure3-paper: var(--portrait-reading-paper, #ede4d2)'
+    );
     expect(figure3Styles).toMatch(
       /\.phone-figure3::after[^}]+z-index:\s*3/s
     );
@@ -150,6 +202,9 @@ describe('Phone Brand → Lab visual contracts', () => {
   it('lets the ink contour own the only dark Services → TTG edge', () => {
     expect(storyStyles).toMatch(
       /phone-brand-lab__visual-track--ttg[^}]+background:\s*#ede4d2/s
+    );
+    expect(storyStyles).not.toMatch(
+      /stage-surfaces\[data-phone-group45-stage-scene="ttg-animation"\][^{]*\{[^}]+background:\s*#080d10/s
     );
   });
 

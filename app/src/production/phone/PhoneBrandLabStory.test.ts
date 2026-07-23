@@ -11,6 +11,7 @@ import {
   phoneGroup45HasReverseGestureIntent,
   phoneGroup45PhaseAfterVisualCompletion,
   phoneGroup45ReducedReceiverProgress,
+  phoneGroup45ReceiverIsPresentable,
   phoneGroup45RetainsFigure3Terminal,
   phoneGroup45RetainsTtgTerminal,
   phoneGroup45TrackActivity,
@@ -129,6 +130,36 @@ describe('PhoneBrandLabStory', () => {
     expect(phoneGroup45CommittedBoundaryProgress(.58, true)).toBe(1);
     expect(phoneGroup45CommittedBoundaryProgress(.89, true)).toBe(1);
     expect(phoneGroup45CommittedBoundaryProgress(.58, false)).toBe(.58);
+  });
+
+  it('never reveals a visual receiver before its physical endpoint exists', () => {
+    const root = (
+      dataset: Record<string, string>,
+      ttgEndpointReady = false
+    ) => ({
+      dataset,
+      querySelector: () => ttgEndpointReady ? {} : null
+    }) as unknown as HTMLElement;
+    expect(phoneGroup45ReceiverIsPresentable(
+      'figure3-animation',
+      root({ phoneMediaState: 'preparing' })
+    )).toBe(false);
+    expect(phoneGroup45ReceiverIsPresentable(
+      'figure3-animation',
+      root({ phoneFigure3EndpointReady: 'initial' })
+    )).toBe(true);
+    expect(phoneGroup45ReceiverIsPresentable(
+      'ttg-animation',
+      root({ phoneMediaState: 'preparing' })
+    )).toBe(false);
+    expect(phoneGroup45ReceiverIsPresentable(
+      'ttg-animation',
+      root({}, true)
+    )).toBe(true);
+    expect(phoneGroup45ReceiverIsPresentable(
+      'ttg-animation',
+      root({ phoneMediaState: 'fallback' })
+    )).toBe(true);
   });
 
 });

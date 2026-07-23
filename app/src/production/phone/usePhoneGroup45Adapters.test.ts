@@ -4,14 +4,14 @@ import { group45AdapterPlanForEntry } from './usePhoneGroup45Adapters';
 describe('Unit 5 phone adapter loading plan', () => {
   it('keeps reading geometry and prewarms only Brand adjacent media', () => {
     expect(group45AdapterPlanForEntry('brand')).toEqual({
-      scenes: ['brand', 'figure3-animation', 'services'],
+      scenes: ['brand', 'services', 'lab', 'figure3-animation'],
       transitions: ['brand-figure3', 'figure3-services']
     });
   });
 
   it('does not fetch or replay previous visual scenes for direct entry', () => {
     expect(group45AdapterPlanForEntry('services')).toEqual({
-      scenes: ['services', 'ttg-animation', 'lab'],
+      scenes: ['services', 'lab', 'ttg-animation'],
       transitions: ['services-ttg', 'ttg-lab']
     });
     expect(group45AdapterPlanForEntry('lab')).toEqual({
@@ -22,11 +22,11 @@ describe('Unit 5 phone adapter loading plan', () => {
 
   it('advances without adding the Unit 6 Lab to PH boundary', () => {
     expect(group45AdapterPlanForEntry('brand', 'figure3-animation')).toEqual({
-      scenes: ['figure3-animation', 'services'],
+      scenes: ['brand', 'services', 'lab', 'figure3-animation'],
       transitions: ['figure3-services']
     });
     expect(group45AdapterPlanForEntry('brand', 'lab')).toEqual({
-      scenes: ['lab'],
+      scenes: ['brand', 'services', 'lab'],
       transitions: []
     });
   });
