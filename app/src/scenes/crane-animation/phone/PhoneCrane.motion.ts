@@ -67,6 +67,7 @@ export function renderPhoneCranePresentation(
   const flockOpacity = (
     1 - smoothStep(range01(time, FLOCK_END_SECONDS - 0.24, FLOCK_END_SECONDS))
   );
+  const flockRetired = time >= FLOCK_END_SECONDS - 0.001;
   const figureY = 198 * (1 - grow);
   const videoScale = 0.8 + 0.2 * grow;
   const clipBottom = (1 - unmask) * 42;
@@ -92,9 +93,28 @@ export function renderPhoneCranePresentation(
   section.style.setProperty('--crane-flock-y', '0px');
   section.dataset.craneProgress = progress.toFixed(4);
   section.dataset.phoneCraneProgress = timelineProgress.toFixed(4);
+  section.dataset.phoneCraneFlockState = flockRetired
+    ? 'retired'
+    : 'active';
   section.dataset.phoneCraneClock = direction === 1
     ? 'native'
     : 'presented-frame-reverse';
+
+  /*
+   * The packed flock stops on its safe terminal bitmap before Figure finishes.
+   * Chromium repaints the CSS-variable opacity, but physical Safari can retain
+   * that last Canvas layer after its decoder pauses. Retire the actual painted
+   * surface at the authored 2.5s cue, then restore it as soon as reverse moves
+   * below the cue. The compositor stays allocated for reverse; only its visual
+   * participation changes.
+   */
+  const flockCanvas = section.querySelector<HTMLElement>(
+    '.phone-crane__flock-canvas'
+  );
+  if (flockCanvas) {
+    flockCanvas.style.opacity = flockRetired ? '0' : '';
+    flockCanvas.style.visibility = flockRetired ? 'hidden' : 'visible';
+  }
 
   setTransform(
     section.querySelector<HTMLElement>('.crane-layer--cloud-back'),

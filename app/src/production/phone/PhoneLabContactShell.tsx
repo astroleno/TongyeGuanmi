@@ -34,10 +34,12 @@ import {
   phoneLabContactApproachProgress,
   phoneLabContactAutoplayLocksSnap,
   phoneLabContactCanArmReverseGesture,
+  phoneLabContactCrossedReverseIntentBoundary,
   phoneLabContactInkBoundaryProgress,
   phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
   phoneLabContactReverseBoundaryY,
+  phoneLabContactReverseIntentBoundaryY,
   phoneLabContactReverseRunAnchor,
   phoneLabContactScrollProgress,
   phoneLabContactShouldStartCinematic
@@ -977,6 +979,15 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       setVisualEndpoint(handle, 1);
 
       if (direction === -1 && lockReverseIntent) {
+        // The native receiver must cover the viewport-sized correction from
+        // its document edge to the canonical media lane. Prepare that fixed
+        // overlay before scrollTo() so a released 1×1 packed Canvas is never
+        // exposed between Contact/Education and the reverse run.
+        if (scene === 'ph-animation') {
+          latestPhEducationRef.current?.reverse?.();
+        } else {
+          latestCraneContactRef.current?.reverse?.();
+        }
         const boundaryY = phoneLabContactReverseBoundaryY(
           phaseTop,
           phaseDistance
@@ -1184,7 +1195,17 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           1,
           phase.offsetHeight - (stage?.offsetHeight || viewportHeight)
         );
-        if (!phoneLabContactShouldStartCinematic({
+        const crossedReceiverEdge = scrollDirection === -1
+          && runState === 'complete'
+          && phoneLabContactCrossedReverseIntentBoundary(
+            previousScrollY,
+            scrollY,
+            phoneLabContactReverseIntentBoundaryY(
+              phaseTop,
+              phase.offsetHeight
+            )
+          );
+        if (!crossedReceiverEdge && !phoneLabContactShouldStartCinematic({
           runState,
           direction: scrollDirection,
           previousScrollY,
@@ -1411,22 +1432,11 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         const phase = scene === 'ph-animation'
           ? phPhaseRef.current
           : cranePhaseRef.current;
-        const stage = scene === 'ph-animation'
-          ? phStageRef.current
-          : craneStageRef.current;
         if (!phase) continue;
-        const viewportHeight = Math.max(
-          1,
-          stage?.offsetHeight || window.innerHeight
-        );
         const phaseTop = phase.getBoundingClientRect().top + window.scrollY;
-        const phaseDistance = Math.max(
-          1,
-          phase.offsetHeight - viewportHeight
-        );
-        const boundaryY = phoneLabContactReverseBoundaryY(
+        const boundaryY = phoneLabContactReverseIntentBoundaryY(
           phaseTop,
-          phaseDistance
+          phase.offsetHeight
         );
         if (!phoneLabContactCanArmReverseGesture(
           cinematicRunStates.current[scene],

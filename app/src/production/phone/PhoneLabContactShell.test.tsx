@@ -125,6 +125,8 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('phoneLabContactShouldStartCinematic');
     expect(shellSource).toContain('attachPhoneLabContactReverseGesture');
     expect(shellSource).toContain('phoneLabContactCanArmReverseGesture');
+    expect(shellSource).toContain('phoneLabContactCrossedReverseIntentBoundary');
+    expect(shellSource).toContain('phoneLabContactReverseIntentBoundaryY');
     expect(shellSource).toContain('phoneLabContactReverseRunAnchor');
     expect(shellSource).toContain('beginCinematicRun(scene, -1, true)');
     expect(shellSource).toContain('scrollDirection === -1');

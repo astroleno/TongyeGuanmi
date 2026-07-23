@@ -150,13 +150,44 @@ export function phoneLabContactInkBoundaryProgress(
   return clamp((start - elementTop) / start);
 }
 
-/** Stable document coordinate shared by scroll crossing and touch reverse. */
+/** Canonical media-run coordinate retained while reverse owns native time. */
 export function phoneLabContactReverseBoundaryY(
   phaseTop: number,
   phaseDistance: number
 ): number {
   return phaseTop
     + Math.max(1, phaseDistance) * PHONE_LAB_CONTACT_STOPS.sceneMotionEnd;
+}
+
+/**
+ * Reverse intent belongs to the adjacent native receiver, not to the short
+ * media lane hidden one viewport above it. Forward completion commits
+ * Education/Contact at the bottom of the cinematic phase, so the first
+ * upward gesture must be claimed at that same shared document edge.
+ */
+export function phoneLabContactReverseIntentBoundaryY(
+  phaseTop: number,
+  phaseHeight: number
+): number {
+  return phaseTop + Math.max(1, phaseHeight);
+}
+
+/**
+ * Detect the receiver leaving its committed edge. Keeping this separate from
+ * the media-run anchor prevents a completed, released Canvas from being
+ * re-exposed across the viewport-sized tail skipped by forward handoff.
+ */
+export function phoneLabContactCrossedReverseIntentBoundary(
+  previousScrollY: number,
+  nextScrollY: number,
+  boundaryY: number
+): boolean {
+  if (nextScrollY >= previousScrollY - 0.5) return false;
+  const crossed = previousScrollY >= boundaryY - 1
+    && nextScrollY < boundaryY - 1;
+  const approaching = previousScrollY > boundaryY + 1
+    && nextScrollY <= boundaryY + 32;
+  return crossed || approaching;
 }
 
 /**
@@ -184,15 +215,16 @@ export function phoneLabContactHasReverseGestureIntent(
 }
 
 /**
- * Preserve the position Safari has already presented. Pulling an overshot
- * gesture back down would replay the reading opener before reverse media owns
- * the fixed stage.
+ * Once the fixed receiver has claimed reverse intent, restore the canonical
+ * media anchor. Unlike Unit 4–5's one shared track edge, Unit 6 commits its
+ * native receiver one viewport below the media lane. Retaining an overshot
+ * physical Y here would release reverse into the wrong Education/Lab screen.
  */
 export function phoneLabContactReverseRunAnchor(
-  scrollY: number,
+  _scrollY: number,
   boundaryY: number
 ): number {
-  return Math.min(scrollY, boundaryY);
+  return Math.max(0, boundaryY);
 }
 
 /**

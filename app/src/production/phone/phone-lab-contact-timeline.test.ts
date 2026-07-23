@@ -4,11 +4,13 @@ import {
   phoneLabContactAutoplayLocksSnap,
   phoneLabContactCanArmReverseGesture,
   phoneLabContactCrossedAutoplayBoundary,
+  phoneLabContactCrossedReverseIntentBoundary,
   phoneLabContactHasReverseGestureIntent,
   phoneLabContactInkBoundaryProgress,
   phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
   phoneLabContactReverseBoundaryY,
+  phoneLabContactReverseIntentBoundaryY,
   phoneLabContactReverseRunAnchor,
   phoneLabContactScrollProgress,
   phoneLabContactShouldStartCinematic
@@ -182,8 +184,8 @@ describe('phone Lab → Contact acceptance timeline', () => {
   });
 
   it('arms reverse touch intent on the exact released cinematic edge', () => {
-    const boundaryY = phoneLabContactReverseBoundaryY(1542, 169);
-    expect(boundaryY).toBeCloseTo(1709.31);
+    const boundaryY = phoneLabContactReverseIntentBoundaryY(1542, 1118);
+    expect(boundaryY).toBe(2660);
     expect(phoneLabContactCanArmReverseGesture(
       'complete',
       boundaryY,
@@ -209,8 +211,41 @@ describe('phone Lab → Contact acceptance timeline', () => {
     expect(phoneLabContactHasReverseGestureIntent(200, 190)).toBe(false);
   });
 
-  it('never pulls an overshot reverse gesture back through its reading opener', () => {
-    expect(phoneLabContactReverseRunAnchor(1680, 1709)).toBe(1680);
+  it('claims reverse at the receiver edge before the released media spacer', () => {
+    const phaseTop = 1542;
+    const phaseHeight = 1118;
+    const phaseDistance = 186;
+    const intentBoundary = phoneLabContactReverseIntentBoundaryY(
+      phaseTop,
+      phaseHeight
+    );
+    const runAnchor = phoneLabContactReverseBoundaryY(
+      phaseTop,
+      phaseDistance
+    );
+
+    expect(intentBoundary).toBe(2660);
+    expect(runAnchor).toBeCloseTo(1726.14);
+    expect(intentBoundary - runAnchor).toBeGreaterThan(900);
+    expect(phoneLabContactCrossedReverseIntentBoundary(
+      2660,
+      2540,
+      intentBoundary
+    )).toBe(true);
+    expect(phoneLabContactCrossedReverseIntentBoundary(
+      2540,
+      2500,
+      intentBoundary
+    )).toBe(false);
+    expect(phoneLabContactCrossedReverseIntentBoundary(
+      2500,
+      2540,
+      intentBoundary
+    )).toBe(false);
+  });
+
+  it('returns every reverse run to its canonical media anchor after overshoot', () => {
+    expect(phoneLabContactReverseRunAnchor(1680, 1709)).toBe(1709);
     expect(phoneLabContactReverseRunAnchor(1720, 1709)).toBe(1709);
   });
 });

@@ -114,8 +114,10 @@ describe('PhoneCrane', () => {
 
     const endpoint = new FakeElement();
     const arch = new FakeElement();
+    const flockCanvas = new FakeElement();
     endpoint.dataset.r4Scene = 'crane-animation';
     endpoint.connect('.crane-layer--arch', arch);
+    endpoint.connect('.phone-crane__flock-canvas', flockCanvas);
     renderPhoneCranePresentation(
       endpoint as unknown as HTMLElement,
       1
@@ -123,9 +125,21 @@ describe('PhoneCrane', () => {
     expect(endpoint.style.values.get('--crane-flock-opacity')).toBe('0.0000');
     expect(endpoint.style.values.get('--crane-video-scale')).toBe('1.0000');
     expect(endpoint.dataset.phoneCraneProgress).toBe('1.0000');
+    expect(endpoint.dataset.phoneCraneFlockState).toBe('retired');
+    expect(flockCanvas.style.opacity).toBe('0');
+    expect(flockCanvas.style.visibility).toBe('hidden');
     expect(
       (arch.style as unknown as { transform: string }).transform
     ).toContain('993.60px');
+
+    renderPhoneCranePresentation(
+      endpoint as unknown as HTMLElement,
+      0.8,
+      -1
+    );
+    expect(endpoint.dataset.phoneCraneFlockState).toBe('active');
+    expect(flockCanvas.style.opacity).toBe('');
+    expect(flockCanvas.style.visibility).toBe('visible');
   });
 
   it('keeps the static Crane layers on media failure and retires both videos', () => {
