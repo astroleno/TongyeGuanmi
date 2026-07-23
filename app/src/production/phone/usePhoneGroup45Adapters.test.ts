@@ -23,7 +23,15 @@ describe('Unit 5 phone adapter loading plan', () => {
   it('advances without adding the Unit 6 Lab to PH boundary', () => {
     expect(group45AdapterPlanForEntry('brand', 'figure3-animation')).toEqual({
       scenes: ['brand', 'services', 'lab', 'figure3-animation'],
-      transitions: ['figure3-services']
+      transitions: ['brand-figure3', 'figure3-services']
+    });
+    expect(group45AdapterPlanForEntry('brand', 'services')).toEqual({
+      scenes: ['brand', 'services', 'lab', 'ttg-animation'],
+      transitions: ['services-ttg', 'ttg-lab']
+    });
+    expect(group45AdapterPlanForEntry('brand', 'ttg-animation')).toEqual({
+      scenes: ['brand', 'services', 'lab', 'ttg-animation'],
+      transitions: ['services-ttg', 'ttg-lab']
     });
     expect(group45AdapterPlanForEntry('brand', 'lab')).toEqual({
       scenes: ['brand', 'services', 'lab'],

@@ -819,10 +819,8 @@ export const PhoneBrandLabContinuation = forwardRef<
       const track = nextRun === 'figure3-animation'
         ? figure3TrackRef.current
         : ttgTrackRef.current;
-      const upstreamTransition = nextRun === 'figure3-animation'
-        ? brandFigure3Ref.current
-        : servicesTtgRef.current;
-      if (!track || (runDirection === 1 && !upstreamTransition)) return false;
+      if (!track) return false;
+      const directVisualEntry = directEntryScene === nextRun;
 
       visualRunRef.current = nextRun;
       visualSessionRef.current = session;
@@ -864,6 +862,9 @@ export const PhoneBrandLabContinuation = forwardRef<
           'data-phone-group45-visual-step',
           `${nextRun}:media`
         );
+        if (runDirection === 1 && nextRun === 'figure3-animation') {
+          setAdapterScene('services');
+        }
         session.moveTo(trackTop);
         if (nextRun === 'figure3-animation') {
           if (runDirection === 1) {
@@ -899,18 +900,33 @@ export const PhoneBrandLabContinuation = forwardRef<
         const receiver = nextRun === 'figure3-animation'
           ? figure3Ref.current?.root() ?? null
           : ttgRef.current?.root() ?? null;
-        if (!phoneGroup45ReceiverIsPresentable(nextRun, receiver)) {
+        const entryTransition = nextRun === 'figure3-animation'
+          ? brandFigure3Ref.current
+          : servicesTtgRef.current;
+        const exitTransition = nextRun === 'figure3-animation'
+          ? figure3ServicesRef.current
+          : ttgLabRef.current;
+        if (
+          !phoneGroup45ReceiverIsPresentable(nextRun, receiver)
+          || !exitTransition
+          || (!directVisualEntry && !entryTransition)
+        ) {
           visualPreparationFrameRef.current = window.requestAnimationFrame(
             startEntryInkWhenReady
           );
           return;
         }
-        upstreamTransition?.enter?.();
+        if (directVisualEntry) {
+          startMedia();
+          return;
+        }
+        if (!entryTransition) return;
+        entryTransition.enter?.();
         cancelVisualInkRef.current?.();
         cancelVisualInkRef.current = runPhoneTimedTransition(
           session,
           1,
-          (progress) => upstreamTransition?.render(progress),
+          (progress) => entryTransition.render(progress),
           () => {
             cancelVisualInkRef.current = undefined;
             startMedia();

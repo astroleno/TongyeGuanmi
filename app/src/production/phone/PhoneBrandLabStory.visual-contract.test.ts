@@ -254,6 +254,13 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(transitionCoordinatorSource).toContain(
       '&& tryProjected(previousScrollY, currentScrollY)'
     );
+    expect(storySource).toContain(
+      'const directVisualEntry = directEntryScene === nextRun'
+    );
+    expect(storySource).toContain("setAdapterScene('services')");
+    expect(storySource).toContain(
+      '(!directVisualEntry && !entryTransition)'
+    );
   });
 
   it('lets the ink contour own the only dark Services → TTG edge', () => {
