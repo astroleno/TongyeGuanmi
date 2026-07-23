@@ -153,6 +153,14 @@
   z-index: 0;
 }
 
+/* TTG remains the opaque retained plate; the real Lab document root is the
+   dissolve receiver and must therefore sit above the one fixed stage. */
+.phone-brand-lab[data-phone-group45-stage-active="true"][data-phone-group45-stage-scene="ttg-animation"]
+  > .phone-lab[data-phone-dissolve="ttg-lab"] {
+  z-index: 12;
+  pointer-events: none;
+}
+
 .phone-brand-lab__visual-track {
   box-sizing: border-box;
   height: var(--portrait-stage-height);

@@ -29,6 +29,10 @@ const stageRuntimeSource = readFileSync(
   new URL('./usePhoneStageRuntime.ts', import.meta.url),
   'utf8'
 );
+const transitionCoordinatorSource = readFileSync(
+  new URL('./phone-transition-coordinator.ts', import.meta.url),
+  'utf8'
+);
 const stageStyles = readFileSync(
   new URL('./PhoneStageRail.css', import.meta.url),
   'utf8'
@@ -125,17 +129,23 @@ describe('Phone Brand → Lab visual contracts', () => {
       /:has\([^}]+data-phone-group45-stage-active="true"[^}]+background:\s*transparent/s
     );
     expect(storySource).toContain(
-      'servicesTtgRef.current?.render(clamp(progress / .2))'
+      "visualRunStepRef.current = 'exit-ink'"
+    );
+    expect(storySource).toContain(
+      'cancelVisualInkRef.current = runPhoneTimedTransition'
     );
     expect(storySource).toContain(
       "root?.setAttribute('data-phone-group45-stage-active', 'false')"
     );
   });
 
-  it('shares one treated paper between Method and Figure3', () => {
+  it('keeps Method flat while Figure3 owns the single authored paper wash', () => {
     expect(aodStyles).toContain('--portrait-reading-paper: #ede4d2');
     expect(methodStyles).toContain(
-      'var(--portrait-reading-paper-treatment)'
+      'background: var(--portrait-reading-paper);'
+    );
+    expect(methodStyles).not.toMatch(
+      /background:\s*var\(--portrait-reading-paper-treatment\)/
     );
     expect(figure3Styles).toContain(
       'var(\n      --portrait-reading-paper-treatment'
@@ -208,11 +218,24 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(brandFigure3Transition).not.toContain("strategy: 'endpoint-dissolve'");
   });
 
-  it('owns reverse entry through native touch and boundary pre-lock paths', () => {
-    expect(storySource).toContain("addEventListener('touchstart', onReverseTouchStart");
-    expect(storySource).toContain("addEventListener('touchmove', onReverseTouchMove");
-    expect(storySource).toContain('phoneGroup45HasReverseGestureIntent');
-    expect(storySource).toContain('scrollY <= documentTop + 32');
+  it('owns both directions through one capture-phase semantic lock', () => {
+    expect(storySource).toContain('registerPhoneTransitionBoundary(inputOwner');
+    expect(storySource).toContain('trackTop - window.innerHeight');
+    expect(transitionCoordinatorSource).toContain(
+      "root.addEventListener('touchmove', (event) => {"
+    );
+    expect(transitionCoordinatorSource).toContain(
+      'const blockingListener = { passive: false, capture: true }'
+    );
+    expect(transitionCoordinatorSource).toContain(
+      'phoneTransitionCrossesBoundary('
+    );
+    expect(transitionCoordinatorSource).toContain(
+      'let matchPosition = direction === 1 ? Infinity : -Infinity;'
+    );
+    expect(transitionCoordinatorSource).toContain(
+      '? !match.canStart(direction) || begin(match, direction, matchPosition)'
+    );
   });
 
   it('lets the ink contour own the only dark Services → TTG edge', () => {

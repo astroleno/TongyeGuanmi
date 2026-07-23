@@ -1,9 +1,8 @@
 .portrait-scroll-spike__reading {
   position: relative;
   padding: 0 0 max(72px, calc(env(safe-area-inset-bottom) + 44px));
-  background:
-    var(--portrait-reading-paper-treatment),
-    var(--portrait-reading-paper);
+  /* Method starts on the same flat paper as Figure3; no extra top feather. */
+  background: var(--portrait-reading-paper);
   color: #1e211c;
 }
 

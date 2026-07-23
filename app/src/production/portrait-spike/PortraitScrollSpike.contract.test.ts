@@ -387,7 +387,7 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAStorySource.indexOf(
       'methodFigure2Ref.current?.render(handoff);'
     )).toBeLessThan(gradeAStorySource.indexOf(
-      'publishEdgeScene(edgeScene);'
+      'publishEdgeScene(phoneGradeAMethodFigure2EdgeScene('
     ));
     expect(gradeAFigureCss).not.toContain('--portrait-browser-edge-reserve');
     expect(gradeAStoryCss).toContain('--phone-figure2-arch-scale');

@@ -25,13 +25,13 @@ describe('phone Grade A document progress', () => {
     expect(phoneGradeAMethodFigure2EdgeScene(0, true)).toBe('figure2');
   });
 
-  it('maps the complete Figure2 rail bidirectionally without a blank hold', () => {
+  it('maps the shortened Figure2 scrub to the pre-ink camera endpoint', () => {
     expect(phoneGradeAFigureProgress(0, 3038)).toBe(0);
-    expect(phoneGradeAFigureProgress(-759.5, 3038)).toBe(0.25);
-    expect(phoneGradeAFigureProgress(-1519, 3038)).toBe(0.5);
-    expect(phoneGradeAFigureProgress(-2278.5, 3038)).toBe(0.75);
-    expect(phoneGradeAFigureProgress(-3038, 3038)).toBe(1);
-    expect(phoneGradeAFigureProgress(-1519, 3038)).toBe(0.5);
+    expect(phoneGradeAFigureProgress(-759.5, 3038)).toBe(0.18);
+    expect(phoneGradeAFigureProgress(-1519, 3038)).toBe(0.36);
+    expect(phoneGradeAFigureProgress(-2278.5, 3038)).toBe(0.54);
+    expect(phoneGradeAFigureProgress(-3038, 3038)).toBe(0.72);
+    expect(phoneGradeAFigureProgress(-1519, 3038)).toBe(0.36);
     expect(phoneGradeAFigureProgress(0, 3038)).toBe(0);
   });
 

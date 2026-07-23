@@ -1,0 +1,12 @@
+html[data-portrait-spike="b"] {
+  scrollbar-width: none;
+}
+
+html[data-portrait-spike="b"]::-webkit-scrollbar {
+  display: none;
+}
+
+.portrait-scroll-spike[data-phone-transition-lock="locked"] {
+  overscroll-behavior-y: none;
+  touch-action: none;
+}

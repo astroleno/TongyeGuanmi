@@ -62,6 +62,8 @@ function applyEndpoint(
     element.dataset.phoneDissolve = id;
     element.dataset.phoneDissolveOpacity = opacity.toFixed(4);
     element.style.opacity = opacity.toFixed(4);
+    element.style.pointerEvents = 'none';
+    element.inert = true;
     return;
   }
   const visible = opacity > 0.001;
@@ -78,6 +80,8 @@ function clearEndpoint(element: HTMLElement | null, documentFlow = false): void 
     delete element.dataset.phoneDissolve;
     delete element.dataset.phoneDissolveOpacity;
     element.style.removeProperty('opacity');
+    element.style.removeProperty('pointer-events');
+    element.inert = false;
     return;
   }
   element.style.removeProperty('opacity');
