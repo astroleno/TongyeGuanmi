@@ -20,7 +20,7 @@ describe('Unit 5 phone adapter loading plan', () => {
     });
   });
 
-  it('advances without adding the Unit 6 Lab to PH boundary', () => {
+  it('keeps both sides of an active visual when a newer prewarm plan wins', () => {
     expect(group45AdapterPlanForEntry('brand', 'figure3-animation')).toEqual({
       scenes: ['brand', 'services', 'lab', 'figure3-animation'],
       transitions: ['brand-figure3', 'figure3-services']
@@ -33,6 +33,9 @@ describe('Unit 5 phone adapter loading plan', () => {
       scenes: ['brand', 'services', 'lab', 'ttg-animation'],
       transitions: ['services-ttg', 'ttg-lab']
     });
+  });
+
+  it('stops at Lab without adding the Unit 6 Lab to PH boundary', () => {
     expect(group45AdapterPlanForEntry('brand', 'lab')).toEqual({
       scenes: ['brand', 'services', 'lab'],
       transitions: []

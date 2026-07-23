@@ -129,4 +129,47 @@ describe('phone transition coordinator', () => {
     expect(testWindow.scrollY).toBe(500);
     expect(root.dataset.phoneTransitionLock).toBe('locked');
   });
+
+  it('holds the semantic edge while a claimed receiver is still loading', () => {
+    const { root, testWindow } = installCoordinatorEnvironment();
+    const sessions: PhoneTransitionSession[] = [];
+    registerPhoneTransitionBoundary(root as unknown as HTMLElement, {
+      position: () => 500,
+      canStart: () => true,
+      start: (_direction, claimedSession) => {
+        sessions.push(claimedSession);
+      }
+    });
+
+    root.dispatch('wheel', {
+      target: null,
+      deltaY: 700,
+      deltaMode: 0,
+      preventDefault: () => undefined,
+      stopImmediatePropagation: () => undefined
+    });
+    const session = sessions[0]!;
+    expect(session.valid()).toBe(true);
+    expect(testWindow.scrollY).toBe(500);
+
+    testWindow.scrollY = 680;
+    let blocked = false;
+    root.dispatch('wheel', {
+      target: null,
+      deltaY: 300,
+      deltaMode: 0,
+      preventDefault: () => {
+        blocked = true;
+      },
+      stopImmediatePropagation: () => undefined
+    });
+    expect(blocked).toBe(true);
+    expect(testWindow.scrollY).toBe(500);
+    expect(root.dataset.phoneTransitionLock).toBe('locked');
+
+    session.complete(700);
+    expect(testWindow.scrollY).toBe(700);
+    expect(root.dataset.phoneTransitionLock).toBeUndefined();
+    expect(session.valid()).toBe(false);
+  });
 });
