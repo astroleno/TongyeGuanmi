@@ -4,6 +4,7 @@ import { FakeElement } from '../__fixtures__/back-half.fixture';
 import {
   applyPhonePhEducationFrame,
   applyPhonePhEducationReverseFrame,
+  PHONE_PH_EDUCATION_ANIMATION_STOP,
   PHONE_PH_EDUCATION_DECISION,
   PHONE_PH_EDUCATION_DISSOLVE_MS,
   PHONE_PH_EDUCATION_PLAYBACK_MS,
@@ -28,18 +29,28 @@ describe('Phone PH → Education transition', () => {
     expect(source).not.toContain('preparePhAnimationFrame');
     expect(source).not.toContain('parkPhonePhMedia');
     expect(source).not.toContain('renderPhonePhAnimationProgress');
-    expect(source).toContain('setEducationOverlay');
+    expect(source).toContain('setEducationDocumentLayer');
   });
 
-  it('starts at PH terminal frame and runs only the short Education dissolve', () => {
+  it('maps the canonical PH clock before the short Education dissolve', () => {
     const atStart = phonePhEducationFrame(0);
-    const midpoint = phonePhEducationFrame(0.5);
+    const atAnimationStop = phonePhEducationFrame(
+      PHONE_PH_EDUCATION_ANIMATION_STOP
+    );
+    const dissolveMidpoint = (
+      PHONE_PH_EDUCATION_ANIMATION_STOP + 1
+    ) / 2;
+    const midpoint = phonePhEducationFrame(dissolveMidpoint);
 
     expect(atStart).toMatchObject({
-      phProgress: 1,
+      phProgress: 0,
       educationProgress: 0,
       phOpacity: 1,
       educationOpacity: 0
+    });
+    expect(atAnimationStop).toMatchObject({
+      phProgress: 1,
+      educationProgress: 0
     });
     expect(midpoint.phProgress).toBe(1);
     expect(midpoint.educationProgress).toBeCloseTo(0.5, 8);
@@ -53,7 +64,7 @@ describe('Phone PH → Education transition', () => {
     applyPhonePhEducationFrame(
       ph as unknown as HTMLElement,
       education as unknown as HTMLElement,
-      0.5
+      dissolveMidpoint
     );
     expect(education.style.values.get('--r4-education-opacity')).toBe('1.0000');
     expect(ph.style.values.get('--ph-front-parallax-y')).toBe('135.00px');
@@ -64,7 +75,7 @@ describe('Phone PH → Education transition', () => {
     expect(education.dataset.phonePhEducationFadeOwner).toBe('scene-root');
   });
 
-  it('commits the fixed Education overlay back to native document flow', () => {
+  it('commits the shared-boundary Education layer to native document flow', () => {
     const ph = new FakeElement();
     const education = new FakeElement();
     ph.style.opacity = '1.0000';
@@ -123,10 +134,10 @@ describe('Phone PH → Education transition', () => {
 
     const midpoint = applyPhonePhEducationReverseFrame(
       education as unknown as HTMLElement,
-      0.5
+      (PHONE_PH_EDUCATION_ANIMATION_STOP + 1) / 2
     );
 
-    expect(midpoint.educationOpacity).toBe(0.5);
+    expect(midpoint.educationOpacity).toBeCloseTo(0.5, 8);
     expect(education.style.opacity).toBe('0.5000');
     expect(ph.style.values.get('--ph-front-parallax-y')).toBe('135.00px');
     expect(source).toContain('directionRef.current === -1');
@@ -134,7 +145,7 @@ describe('Phone PH → Education transition', () => {
 
   it('keeps the full ordered endpoint sequence under reduced motion', () => {
     expect(phonePhEducationFrame(0.49, true)).toMatchObject({
-      phProgress: 1,
+      phProgress: 0,
       educationProgress: 0
     });
     expect(phonePhEducationFrame(0.5, true)).toMatchObject({

@@ -33,9 +33,6 @@ html[data-phone-lab-contact-acceptance="true"] .static-content {
   );
   /* Every phone camera uses this retained lvh-derived unit. */
   --phone-cinematic-vh: calc(var(--phone-cinematic-stage-height) / 100);
-  --phone-cinematic-trigger-lane: calc(
-    var(--phone-cinematic-stage-height) * .2
-  );
   min-height: var(--phone-cinematic-stage-height);
   color: #28291f;
   background: var(--phone-lab-contact-edge-surface, #ede4d2);
@@ -66,20 +63,20 @@ html[data-phone-lab-contact-acceptance="true"]
 }
 
 .phone-lab-contact__phase {
+  box-sizing: border-box;
   position: relative;
   z-index: 1;
   /*
-   * A cinematic chapter owns its own document block. The former negative
-   * margins let the sticky PH/Crane surface continue over Education/Contact,
-   * so native reading and CTA sections appeared to be "taken over" by the
-   * previous scene. Keep the stages sequential: Lab → PH → Education → Crane
-   * → Contact, with no cross-chapter overlap.
+   * d208a86: the visual marker and its native receiver own the same document
+   * edge. The marker reserves one stage while its negative trailing margin
+   * gives that exact space back to Education/Contact. Completion therefore
+   * changes compositor ownership without changing scroll coordinates.
    */
-  min-height: calc(
-    var(--phone-cinematic-stage-height)
-    + var(--phone-cinematic-trigger-lane)
-  );
-  margin: 0;
+  height: var(--phone-cinematic-stage-height);
+  min-height: var(--phone-cinematic-stage-height);
+  margin: 0 0 calc(-1 * var(--phone-cinematic-stage-height));
+  overflow: clip;
+  isolation: isolate;
   pointer-events: none;
 }
 
@@ -233,17 +230,4 @@ html[data-phone-lab-contact-acceptance="true"]
 
 .phone-lab-contact__stage--direct[data-phone-acceptance-stage-active="true"] {
   visibility: visible;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .phone-lab-contact {
-    --phone-cinematic-trigger-lane: max(12px, 2svh);
-  }
-
-  .phone-lab-contact__phase {
-    min-height: calc(
-      var(--phone-cinematic-stage-height)
-      + var(--phone-cinematic-trigger-lane)
-    );
-  }
 }

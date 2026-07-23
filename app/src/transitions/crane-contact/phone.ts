@@ -66,8 +66,8 @@ function applyEndpointVisibility(
 export const PHONE_CRANE_CONTACT_DECISION = Object.freeze({
   mode: 'endpoint-dissolve',
   source: 'desktop-crane-contact-copy-cue',
-  topology: 'aod-method-style-fixed-receiver',
-  reason: 'Crane stays snapped and opaque while Contact enters over its final authored fifth.'
+  topology: 'shared-boundary-contact-receiver-over-retained-crane-source',
+  reason: 'Crane stays snapped and opaque while the one native Contact root enters over its final authored fifth at the same document edge.'
 } as const);
 
 export const PHONE_CRANE_CONTACT_COPY_CUE = craneContactCopyCue();
@@ -112,19 +112,14 @@ function closestElement(
 }
 
 function setContactOverlay(to: HTMLElement | null, active: boolean): void {
-  const wrapper = closestElement(to, '.phone-contact');
   const documentSlot = closestElement(
     to,
     '[data-phone-acceptance-chapter="contact"]'
   );
   if (active) {
-    to?.setAttribute('data-phone-crane-contact-overlay', 'true');
-    wrapper?.setAttribute('data-phone-crane-contact-overlay-host', 'true');
-    documentSlot?.setAttribute('data-phone-crane-contact-overlay-layer', 'true');
+    documentSlot?.setAttribute('data-phone-crane-contact-layer', 'true');
   } else {
-    to?.removeAttribute('data-phone-crane-contact-overlay');
-    wrapper?.removeAttribute('data-phone-crane-contact-overlay-host');
-    documentSlot?.removeAttribute('data-phone-crane-contact-overlay-layer');
+    documentSlot?.removeAttribute('data-phone-crane-contact-layer');
   }
 }
 
@@ -209,8 +204,9 @@ export const PhoneCraneContactTransition = forwardRef<
 
   useEffect(() => {
     renderContactHold(to);
+    render(0);
     onReady?.();
-  }, [from, onReady, reducedMotion, to]);
+  }, [onReady, render, to]);
 
   useImperativeHandle(forwardedRef, () => ({
     render,

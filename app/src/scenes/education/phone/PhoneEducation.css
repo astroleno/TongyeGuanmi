@@ -34,22 +34,11 @@
 }
 
 /*
- * PH's canonical playback ends under the snap. During the desktop-authored
- * 600ms dissolve, the one real Education tree temporarily paints in the
- * retained phone viewport; its host keeps the two-screen document space.
+ * The shared-boundary receiver stays in document flow. Only its stacking
+ * layer is promoted during PH's final dissolve; no fixed clone or coordinate
+ * swap is created.
  */
-.phone-education .r4-education[data-phone-ph-education-overlay="true"] {
-  position: fixed;
-  z-index: 4;
-  inset: 0;
-  width: 100%;
-  height: auto;
-  min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2);
-  overflow: hidden;
-}
-
-/* The one real Education root paints above the retained PH media stage. */
-.phone-lab-contact__native[data-phone-ph-education-overlay-layer="true"] {
+.phone-lab-contact__native[data-phone-ph-education-layer="true"] {
   z-index: 4;
 }
 

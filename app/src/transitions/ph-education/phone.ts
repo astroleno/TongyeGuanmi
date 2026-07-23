@@ -22,6 +22,10 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+function range01(value: number, start: number, end: number): number {
+  return clamp((value - start) / Math.max(0.0001, end - start));
+}
+
 function transitionProgress(rawProgress: number, reducedMotion: boolean): number {
   const progress = clamp(rawProgress);
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
@@ -54,6 +58,8 @@ export const PHONE_PH_EDUCATION_DECISION = Object.freeze({
 
 export const PHONE_PH_EDUCATION_PLAYBACK_MS = PH_PLAYBACK_MS;
 export const PHONE_PH_EDUCATION_DISSOLVE_MS = INTRA_CHAPTER_DISSOLVE_MS;
+export const PHONE_PH_EDUCATION_ANIMATION_STOP = PH_PLAYBACK_MS
+  / (PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS);
 
 export type PhonePhEducationFrame = Readonly<{
   progress: number;
@@ -68,10 +74,16 @@ export function phonePhEducationFrame(
   reducedMotion = false
 ): PhonePhEducationFrame {
   const progress = transitionProgress(rawProgress, reducedMotion);
-  // PhonePh has already completed its canonical native-clock run. This
-  // adapter is only the short second leg from the desktop handoff.
-  const phProgress = 1;
-  const educationProgress = progress;
+  const phProgress = range01(
+    progress,
+    0,
+    PHONE_PH_EDUCATION_ANIMATION_STOP
+  );
+  const educationProgress = range01(
+    progress,
+    PHONE_PH_EDUCATION_ANIMATION_STOP,
+    1
+  );
   return {
     progress,
     phProgress,
@@ -136,19 +148,17 @@ export function applyPhonePhEducationReverseFrame(
   return frame;
 }
 
-function setEducationOverlay(to: HTMLElement | null, active: boolean): void {
-  const wrapper = to?.closest<HTMLElement>('.phone-education');
-  const documentSlot = wrapper?.closest<HTMLElement>(
+function setEducationDocumentLayer(
+  to: HTMLElement | null,
+  active: boolean
+): void {
+  const documentSlot = to?.closest<HTMLElement>(
     '[data-phone-acceptance-chapter="education"]'
   );
   if (active) {
-    to?.setAttribute('data-phone-ph-education-overlay', 'true');
-    wrapper?.setAttribute('data-phone-ph-education-overlay-host', 'true');
-    documentSlot?.setAttribute('data-phone-ph-education-overlay-layer', 'true');
+    documentSlot?.setAttribute('data-phone-ph-education-layer', 'true');
   } else {
-    to?.removeAttribute('data-phone-ph-education-overlay');
-    wrapper?.removeAttribute('data-phone-ph-education-overlay-host');
-    documentSlot?.removeAttribute('data-phone-ph-education-overlay-layer');
+    documentSlot?.removeAttribute('data-phone-ph-education-layer');
   }
 }
 
@@ -161,7 +171,7 @@ function clearDissolveEndpoint(element: HTMLElement | null): void {
   element.removeAttribute('aria-hidden');
 }
 
-/** Commit the fixed receiver back to its one native document position. */
+/** Commit the receiver at the same shared document boundary as the PH marker. */
 export function settlePhonePhEducationDocumentFlow(
   from: HTMLElement | null,
   to: HTMLElement | null
@@ -187,36 +197,37 @@ export const PhonePhEducationTransition = forwardRef<
   }, [from, reducedMotion, to]);
 
   useEffect(() => {
+    render(0);
     onReady?.();
-  }, [onReady]);
+  }, [onReady, render]);
 
   useImperativeHandle(forwardedRef, () => ({
     render,
     enter() {
       directionRef.current = 1;
-      setEducationOverlay(to, true);
+      setEducationDocumentLayer(to, true);
       render(0);
     },
     leave() {
       if (directionRef.current === -1) {
         render(0);
-        setEducationOverlay(to, false);
+        setEducationDocumentLayer(to, false);
         applyDissolveEndpoint(to, 0, false);
         directionRef.current = 1;
         return;
       }
       render(1);
       settlePhonePhEducationDocumentFlow(from, to);
-      setEducationOverlay(to, false);
+      setEducationDocumentLayer(to, false);
     },
     reverse() {
       directionRef.current = -1;
-      setEducationOverlay(to, true);
+      setEducationDocumentLayer(to, true);
       render(1);
     },
     dispose() {
       directionRef.current = 1;
-      setEducationOverlay(to, false);
+      setEducationDocumentLayer(to, false);
       clearDissolveEndpoint(from);
       clearDissolveEndpoint(to);
     }

@@ -41,7 +41,7 @@ describe('Phone Lab → PH transition', () => {
     expect(source).toContain('ink.dispose()');
     expect(source).toContain('canvas.width = 1');
     expect(source).toMatch(
-      /leave\(\) \{\s*directionRef\.current = 1;\s*render\(1\);\s*\}/
+      /leave\(\) \{\s*directionRef\.current = 1;\s*render\(1\);\s*[\s\S]*?releaseInk\(\);\s*\}/
     );
     expect(source).toMatch(
       /reverse\(\) \{\s*directionRef\.current = -1;\s*render\(1\);\s*\}/

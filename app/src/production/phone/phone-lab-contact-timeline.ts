@@ -1,21 +1,9 @@
 const EPSILON = 0.001;
-const MOTION_LANE_EPSILON = 0.005;
-
-export const PHONE_LAB_CONTACT_STOPS = Object.freeze({
-  // Enter the native media lane as soon as the sticky camera reaches the
-  // viewport, then keep the snap at the far edge of the lane. This mirrors
-  // the accepted AOD route: one gesture chooses the scene, native time owns
-  // playback, and the next gesture can reveal the following document beat
-  // without traversing a second invisible hold.
-  handoffEnd: 0.01,
-  sceneMotionEnd: 0.99,
-  endpoint: 1
-});
 
 /**
- * PH and Crane own native media time after a document threshold is crossed.
- * The acceptance shell listens for these local events to keep the document
- * snapped at that threshold without extending the shared PhoneStoryShell API.
+ * PH and Crane are autonomous visual runs. The native document owns every
+ * pixel outside a run; the fixed stage owns the one shared boundary while a
+ * run is active.
  */
 export const PHONE_LAB_CONTACT_AUTOPLAY_EVENT = 'phone-lab-contact-autoplay';
 
@@ -27,22 +15,14 @@ export type PhoneLabContactAutoplayEventDetail = Readonly<{
 }>;
 
 export type PhoneLabContactCinematicRunState =
-  | 'idle'
+  | 'initial'
   | 'forward'
-  | 'handoff'
   | 'complete'
   | 'reverse';
 
 export type PhoneLabContactCinematicScene =
   | 'ph-animation'
   | 'crane-animation';
-
-/** Snap only after the native clock has produced real playback evidence. */
-export function phoneLabContactAutoplayLocksSnap(
-  detail: PhoneLabContactAutoplayEventDetail
-): boolean {
-  return detail.phase === 'playing';
-}
 
 export function dispatchPhoneLabContactAutoplay(
   target: EventTarget | null | undefined,
@@ -59,153 +39,95 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function range01(value: number, start: number, end: number): number {
-  return clamp((value - start) / Math.max(EPSILON, end - start));
-}
-
-function reducedEndpoint(value: number, reducedMotion: boolean): number {
-  const progress = clamp(value);
-  return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
-}
-
-export type PhoneLabContactPhaseFrame = Readonly<{
-  progress: number;
-  handoffProgress: number;
-  sceneProgress: number;
-  arrivalProgress: number;
-  stageActive: boolean;
-}>;
-
-/**
- * Keep native playback alive after the snap rounds into the tiny exit lane.
- * Physical scroll positions are integer pixels, so a 99% anchor on a short
- * phone rail can sample fractionally past `sceneMotionEnd`. Without the lock
- * override the adapter receives `leave()` immediately after `enter()` and the
- * first decoded frame appears frozen.
- */
-export function phoneLabContactOwnsNativePlayback(
-  frame: PhoneLabContactPhaseFrame,
-  snapLocked: boolean
+/** A visual can replay only after the opposite traversal reaches an endpoint. */
+export function phoneLabContactCanBeginVisualRun(
+  phase: PhoneLabContactCinematicRunState,
+  direction: 1 | -1
 ): boolean {
-  const reachedMotionLane = frame.handoffProgress >= 1 - MOTION_LANE_EPSILON;
-  const remainsInMotionLane = frame.arrivalProgress <= MOTION_LANE_EPSILON;
-  return reachedMotionLane
-    && (remainsInMotionLane || snapLocked)
-    && (frame.stageActive || snapLocked);
+  return direction === 1 ? phase === 'initial' : phase === 'complete';
+}
+
+export function phoneLabContactPhaseAfterVisualCompletion(
+  direction: 1 | -1
+): PhoneLabContactCinematicRunState {
+  return direction === 1 ? 'complete' : 'initial';
 }
 
 /**
- * Maps a pinned cinematic chapter to stable endpoints plus a single authored
- * scene run. The same geometry drives Lab → PH and Education → Crane.
+ * Both directions use the marker's one document top. The marker overlaps the
+ * following Education/Contact receiver, exactly like Unit 5's visual tracks.
  */
-export function phoneLabContactPhaseFrame(
-  rawProgress: number,
-  reducedMotion = false
-): PhoneLabContactPhaseFrame {
-  const progress = reducedEndpoint(rawProgress, reducedMotion);
-  const { handoffEnd, sceneMotionEnd, endpoint } = PHONE_LAB_CONTACT_STOPS;
-  return {
-    progress,
-    handoffProgress: range01(progress, 0, handoffEnd),
-    sceneProgress: range01(progress, handoffEnd, sceneMotionEnd),
-    arrivalProgress: range01(progress, sceneMotionEnd, endpoint),
-    stageActive: progress < endpoint - EPSILON
-  };
-}
-
-/** Maps an element's native document distance to its pinned-stage progress. */
-export function phoneLabContactScrollProgress(
-  elementTop: number,
-  elementHeight: number,
-  viewportHeight: number
+export function phoneLabContactVisualBoundaryY(
+  scrollY: number,
+  trackTop: number
 ): number {
-  const distance = Math.max(1, elementHeight - viewportHeight);
-  return clamp(-elementTop / distance);
+  return Math.max(0, scrollY + trackTop);
 }
 
 /**
- * Drives the real incoming document viewport, before a pinned cinematic rail
- * reaches its autoplay boundary. This is where Lab → PH and Education → Crane
- * own their endpoint dissolve; media ownership begins only at progress 1.
+ * Safari may clamp the final shared edge to the maximum document scroll with
+ * a sub-pixel remainder. Treat the sampled edge pixel as the receiver side so
+ * Contact can own the exact Crane boundary without manufacturing extra space.
  */
-export function phoneLabContactApproachProgress(
-  elementTop: number,
-  viewportHeight: number
-): number {
-  const height = Math.max(1, viewportHeight);
-  return clamp((height - elementTop) / height);
+export function phoneLabContactAtOrPastVisualBoundary(
+  scrollY: number,
+  boundaryY: number,
+  tolerance = 1
+): boolean {
+  return scrollY >= boundaryY - Math.max(0, tolerance);
 }
 
-/**
- * Match d208a86's reviewed Unit 4–5 ink boundary. The native reading scene
- * remains the document owner until the receiver enters the lower 85% of the
- * viewport; the shared field then reaches its endpoint exactly at the fixed
- * stage boundary.
- */
-export function phoneLabContactInkBoundaryProgress(
-  elementTop: number,
-  viewportHeight: number
-): number {
-  const start = Math.max(1, viewportHeight) * 0.85;
-  return clamp((start - elementTop) / start);
-}
-
-/** Canonical media-run coordinate retained while reverse owns native time. */
-export function phoneLabContactReverseBoundaryY(
-  phaseTop: number,
-  phaseDistance: number
-): number {
-  return phaseTop
-    + Math.max(1, phaseDistance) * PHONE_LAB_CONTACT_STOPS.sceneMotionEnd;
-}
-
-/**
- * Reverse intent belongs to the adjacent native receiver, not to the short
- * media lane hidden one viewport above it. Forward completion commits
- * Education/Contact at the bottom of the cinematic phase, so the first
- * upward gesture must be claimed at that same shared document edge.
- */
-export function phoneLabContactReverseIntentBoundaryY(
-  phaseTop: number,
-  phaseHeight: number
-): number {
-  return phaseTop + Math.max(1, phaseHeight);
-}
-
-/**
- * Detect the receiver leaving its committed edge. Keeping this separate from
- * the media-run anchor prevents a completed, released Canvas from being
- * re-exposed across the viewport-sized tail skipped by forward handoff.
- */
-export function phoneLabContactCrossedReverseIntentBoundary(
+/** A forward pan may jump past the exact shared edge in one Safari sample. */
+export function phoneLabContactCrossedVisualStart(
   previousScrollY: number,
-  nextScrollY: number,
-  boundaryY: number
+  scrollY: number,
+  trackTop: number
 ): boolean {
-  if (nextScrollY >= previousScrollY - 0.5) return false;
+  const boundaryY = phoneLabContactVisualBoundaryY(scrollY, trackTop);
+  return previousScrollY < boundaryY && scrollY >= boundaryY;
+}
+
+/** Reverse autoplay begins at the same semantic edge used by forward. */
+export function phoneLabContactCrossedVisualBoundary(
+  previousScrollY: number,
+  scrollY: number,
+  trackTop: number
+): boolean {
+  if (scrollY >= previousScrollY - 0.5) return false;
+  const boundaryY = phoneLabContactVisualBoundaryY(scrollY, trackTop);
   const crossed = previousScrollY >= boundaryY - 1
-    && nextScrollY < boundaryY - 1;
+    && scrollY < boundaryY - 1;
   const approaching = previousScrollY > boundaryY + 1
-    && nextScrollY <= boundaryY + 32;
+    && scrollY <= boundaryY + 32;
   return crossed || approaching;
 }
 
 /**
- * Safari can settle exactly on the released cinematic edge without emitting
- * the otherwise-required negative scroll delta. Arm the next touch there,
- * using the same 32px tolerance as the accepted Unit 4–5 coordinator.
+ * Match the accepted Unit 5/AOD coordinator: forward lands on the exact
+ * boundary; reverse retains any already-presented upward overshoot.
  */
+export function phoneLabContactVisualRunAnchor(
+  scrollY: number,
+  boundaryY: number,
+  direction: 1 | -1
+): number {
+  return direction === -1
+    ? Math.min(scrollY, boundaryY)
+    : boundaryY;
+}
+
+/** Safari can settle exactly on an edge without emitting a -1px scroll. */
 export function phoneLabContactCanArmReverseGesture(
-  runState: PhoneLabContactCinematicRunState,
+  phase: PhoneLabContactCinematicRunState,
   scrollY: number,
   boundaryY: number,
   tolerance = 32
 ): boolean {
-  return runState === 'complete'
+  return phase === 'complete'
     && Math.abs(scrollY - boundaryY) <= Math.max(0, tolerance);
 }
 
-/** A downward finger drag expresses the native intent to move back up. */
+/** A downward finger drag expresses native intent to move back up. */
 export function phoneLabContactHasReverseGestureIntent(
   startY: number,
   currentY: number,
@@ -215,83 +137,33 @@ export function phoneLabContactHasReverseGestureIntent(
 }
 
 /**
- * Once the fixed receiver has claimed reverse intent, restore the canonical
- * media anchor. Unlike Unit 4–5's one shared track edge, Unit 6 commits its
- * native receiver one viewport below the media lane. Retaining an overshot
- * physical Y here would release reverse into the wrong Education/Lab screen.
+ * Hold an upstream transition at its visual endpoint while native time owns
+ * the stage. This prevents an overshot scroll sample from revealing the
+ * previous article beneath a forward or reverse media run.
  */
-export function phoneLabContactReverseRunAnchor(
-  _scrollY: number,
-  boundaryY: number
+export function phoneLabContactCommittedBoundaryProgress(
+  rawProgress: number,
+  visualHeld: boolean
 ): number {
-  return Math.max(0, boundaryY);
+  return visualHeld ? 1 : clamp(rawProgress);
+}
+
+/** A short bounded transition as the next visual marker enters the viewport. */
+export function phoneLabContactApproachProgress(
+  elementTop: number,
+  viewportHeight: number
+): number {
+  const height = Math.max(1, viewportHeight);
+  return clamp((height - elementTop) / height);
 }
 
 /**
- * Detect a physical gesture crossing the native-playback boundary even when
- * one Safari scroll sample skips the whole short trigger lane. AOD starts its
- * native clock from the timeline crossing itself; PH and Crane must do the
- * same instead of requiring the document to land inside a 1–2 px window.
+ * Lab → PH uses Unit 4–5's reviewed lower-85% ink ownership window.
  */
-export function phoneLabContactCrossedAutoplayBoundary(
-  previousScrollY: number,
-  nextScrollY: number,
-  phaseTop: number,
-  phaseDistance: number,
-  direction: 1 | -1
-): boolean {
-  // Forward playback begins when the retained camera first reaches the
-  // viewport. Waiting for the 1% dissolve lane required a second swipe when
-  // physical Safari landed exactly on the chapter boundary.
-  const boundaryProgress = direction === 1
-    ? 0
-    : PHONE_LAB_CONTACT_STOPS.sceneMotionEnd;
-  const boundaryY = phaseTop
-    + Math.max(1, phaseDistance) * boundaryProgress;
-  if (direction === 1) {
-    return previousScrollY < boundaryY && nextScrollY >= boundaryY;
-  }
-  if (nextScrollY >= previousScrollY - 0.5) return false;
-  const crossed = previousScrollY >= boundaryY - 1
-    && nextScrollY < boundaryY - 1;
-  // Port d208a86's pre-lock window as well as its explicit touch path. A
-  // single upward pan that settles just above the shared edge must start the
-  // reverse run before Safari swallows its remaining momentum.
-  const approaching = previousScrollY > boundaryY + 1
-    && nextScrollY <= boundaryY + 32;
-  return crossed || approaching;
-}
-
-/** Starts a missed native run after Safari rounds across a released snap. */
-export function phoneLabContactShouldStartCinematic(
-  input: Readonly<{
-    runState: PhoneLabContactCinematicRunState;
-    direction: 1 | -1;
-    previousScrollY: number;
-    nextScrollY: number;
-    phaseTop: number;
-    phaseDistance: number;
-    phaseProgress: number;
-    phaseInRange: boolean;
-  }>
-): boolean {
-  const expectedState = input.direction === 1 ? 'idle' : 'complete';
-  if (input.runState !== expectedState) return false;
-  if (phoneLabContactCrossedAutoplayBoundary(
-    input.previousScrollY,
-    input.nextScrollY,
-    input.phaseTop,
-    input.phaseDistance,
-    input.direction
-  )) {
-    return true;
-  }
-  if (!input.phaseInRange) return false;
-
-  // Safari can round the released 99% snap to the lower side of the reverse
-  // boundary. The next upward sample is then already inside the lane and a
-  // strict crossing test misses it, leaving Crane's last decoded frame stuck.
-  return input.direction === 1
-    ? input.phaseProgress > EPSILON
-    : input.phaseProgress < PHONE_LAB_CONTACT_STOPS.sceneMotionEnd - EPSILON;
+export function phoneLabContactInkBoundaryProgress(
+  elementTop: number,
+  viewportHeight: number
+): number {
+  const start = Math.max(1, viewportHeight) * 0.85;
+  return clamp((start - elementTop) / Math.max(EPSILON, start));
 }

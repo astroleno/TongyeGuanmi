@@ -44,8 +44,8 @@ describe('PhoneEducation', () => {
     expect(stylesheet).toContain('gap: 0');
     expect(stylesheet).toContain('overflow: visible');
     expect(stylesheet).not.toContain('overflow-y: auto');
-    expect(stylesheet).toContain('data-phone-ph-education-overlay="true"');
-    expect(stylesheet).toContain('data-phone-ph-education-overlay-layer="true"');
-    expect(stylesheet).toContain('position: fixed');
+    expect(stylesheet).toContain('data-phone-ph-education-layer="true"');
+    expect(stylesheet).toContain('z-index: 4');
+    expect(stylesheet).not.toContain('position: fixed');
   });
 });

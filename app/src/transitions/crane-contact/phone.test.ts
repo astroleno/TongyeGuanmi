@@ -18,7 +18,7 @@ describe('Phone Crane → Contact transition', () => {
     expect(PHONE_CRANE_CONTACT_DECISION).toMatchObject({
       mode: 'endpoint-dissolve',
       source: 'desktop-crane-contact-copy-cue',
-      topology: 'aod-method-style-fixed-receiver'
+      topology: 'shared-boundary-contact-receiver-over-retained-crane-source'
     });
     expect(PHONE_CRANE_CONTACT_COPY_CUE).toMatchObject({
       targetScene: 'contact',
@@ -30,9 +30,9 @@ describe('Phone Crane → Contact transition', () => {
     expect(source).not.toContain('parkPhoneCraneMedia');
     expect(source).not.toContain('renderCraneAnimationProgress');
     expect(source).toContain('frame.contactProgress');
-    expect(stylesheet).toContain('data-phone-crane-contact-overlay-host="true"');
-    expect(stylesheet).toContain('position: fixed');
-    expect(stylesheet).toContain('min-height: var(--phone-cinematic-stage-height, 100lvh)');
+    expect(stylesheet).toContain('data-phone-crane-contact-layer="true"');
+    expect(stylesheet).toContain('z-index: 4');
+    expect(stylesheet).not.toContain('position: fixed');
   });
 
   it('starts Contact at the shared cue and reaches one stable interactive endpoint', () => {

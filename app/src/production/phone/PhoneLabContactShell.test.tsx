@@ -79,9 +79,14 @@ describe('PhoneLabContactShell', () => {
     expect(markup).toContain('phone-lab-contact__pending--silent');
   });
 
-  it('keeps cinematic stages in their own document blocks', () => {
-    expect(shellCss).toContain('--phone-cinematic-trigger-lane');
-    expect(shellCss).toContain('+ var(--phone-cinematic-trigger-lane)');
+  it('overlaps each visual marker with its native receiver at one shared boundary', () => {
+    expect(shellCss).not.toContain('--phone-cinematic-trigger-lane');
+    expect(shellCss).toContain(
+      'margin: 0 0 calc(-1 * var(--phone-cinematic-stage-height))'
+    );
+    expect(shellCss).toMatch(
+      /\.phone-lab-contact__phase\s*\{[^}]*height: var\(--phone-cinematic-stage-height\);[^}]*min-height: var\(--phone-cinematic-stage-height\);/s
+    );
     expect(shellCss).not.toContain('var(--phone-cinematic-stage-height) * 2');
     expect(shellCss).toContain('--phone-cinematic-stage-height: max(var(--portrait-live-height), 100lvh)');
     expect(shellCss).toContain('var(--portrait-stage-coverage-height)');
@@ -112,50 +117,48 @@ describe('PhoneLabContactShell', () => {
     expect(shellCss).toContain('data-phone-lab-contact-snap="locked"');
     expect(shellCss).not.toContain('phone-lab-contact-arrival-overlap');
     expect(shellCss).not.toContain('margin-top: calc(-1 * var(--phone-lab-contact-stage-height))');
-    expect(shellSource).toContain('!phInRange && !craneInRange && educationTop');
+    expect(shellSource).toContain('phoneLabContactVisualBoundaryY');
+    expect(shellSource).toContain('phoneLabContactCommittedBoundaryProgress');
   });
 
   it('uses the production gesture unlock and local cinematic snap without blocking CTA ownership', () => {
     expect(shellSource).toContain('attachStoryMediaUnlock(rootRef.current)');
     expect(shellSource).toContain('createPhoneLabContactSnapLock');
-    expect(shellSource).toContain('phoneLabContactAutoplayLocksSnap');
-    expect(shellSource).toContain('PHONE_LAB_CONTACT_STOPS.sceneMotionEnd');
-    expect(shellSource).toContain('phoneLabContactOwnsNativePlayback');
     expect(shellSource).toContain('phoneLabContactApproachProgress');
-    expect(shellSource).toContain('phoneLabContactShouldStartCinematic');
+    expect(shellSource).toContain('phoneLabContactCanBeginVisualRun');
+    expect(shellSource).toContain('phoneLabContactCrossedVisualStart');
+    expect(shellSource).toContain('phoneLabContactCrossedVisualBoundary');
     expect(shellSource).toContain('attachPhoneLabContactReverseGesture');
     expect(shellSource).toContain('phoneLabContactCanArmReverseGesture');
-    expect(shellSource).toContain('phoneLabContactCrossedReverseIntentBoundary');
-    expect(shellSource).toContain('phoneLabContactReverseIntentBoundaryY');
-    expect(shellSource).toContain('phoneLabContactReverseRunAnchor');
-    expect(shellSource).toContain('beginCinematicRun(scene, -1, true)');
-    expect(shellSource).toContain('scrollDirection === -1');
-    expect(shellSource).toContain('phoneLabContactReverseHandoff');
+    expect(shellSource).toContain('phoneLabContactVisualRunAnchor');
+    expect(shellSource).toContain('beginCinematicRun(scene, -1)');
+    expect(shellSource).toContain('visualRunRef.current');
+    expect(shellSource).toContain('phoneLabContactPhaseAfterVisualCompletion');
     expect(shellCss).toContain('[data-phone-acceptance-chapter="lab"]');
     expect(shellSource).toContain('phoneLabContactInkBoundaryProgress');
-    expect(shellSource).toContain('labPhRef.current.render(progress)');
-    expect(shellSource).toContain('educationCraneRef.current.render(progress)');
-    expect(shellSource).toContain("=== 'handoff'");
+    expect(shellSource).toContain('labPhRef.current?.render');
+    expect(shellSource).toContain('educationCraneRef.current?.render');
+    expect(shellSource).not.toContain("=== 'handoff'");
     expect(shellSource).toContain('if (!previous && !active)');
     expect(shellSource).toContain('previous.direction === direction');
-    expect(shellSource).toContain('PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS');
+    expect(shellSource).toContain('PHONE_LAB_CONTACT_RUN_TIMEOUT_MS');
     expect(shellSource).toContain('INTRA_CHAPTER_DISSOLVE_MS');
-    expect(shellSource).toContain('startPhEducationHandoff');
-    expect(shellSource).toContain('completeCraneContactHandoff');
+    expect(shellSource).toContain('runPhEducationDissolve');
+    expect(shellSource).toContain('handoffVisual');
     expect(shellSource).toContain("detail.phase === 'progress'");
     expect(shellSource).toContain('latestPhEducationRef.current?.reverse?.()');
     expect(shellSource).toContain('labPhRef.current?.reverse?.()');
-    expect(shellSource).toContain('educationCraneRef.current?.reverse?.()');
-    expect(shellSource).toContain('latestPhEducationRef.current?.render(detail.progress)');
     expect(shellSource).toContain('latestCraneContactRef.current?.render');
-    expect(shellSource).toContain('labPhRef.current?.dispose?.()');
     expect(shellSource).toContain('setStageActive(craneStageRef.current, false)');
     expect(shellSource).toContain('setStageActive(phStageRef.current, false)');
-    expect(shellSource).toContain("window.scrollTo({ top: educationTop");
-    expect(shellSource).toContain("window.scrollTo({ top: contactTop");
-    expect(shellSource).toContain('armSnapTimeout(detail.scene)');
+    expect(shellSource).not.toContain("window.scrollTo({ top: educationTop");
+    expect(shellSource).not.toContain("window.scrollTo({ top: contactTop");
+    expect(shellSource).toContain('armRunTimeout(detail.scene)');
     expect(shellSource).toContain("window.history.scrollRestoration = 'manual'");
     expect(shellSource).toContain("scene === 'education'");
     expect(shellSource).toContain("root?.setAttribute('aria-hidden', 'true')");
+    expect(shellSource).toContain('retireCinematic');
+    expect(shellSource).toContain('prepareCinematic');
+    expect(shellSource).toContain('labPhRef.current?.dispose?.()');
   });
 });

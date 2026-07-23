@@ -218,6 +218,9 @@ export const PhoneLabPhTransition = forwardRef<
       leave() {
         directionRef.current = 1;
         render(1);
+        // PH now owns native time, so the ink field has no visible work until
+        // a later reverse approach. Recreate it lazily from render()/reverse().
+        releaseInk();
       },
       reverse() {
         directionRef.current = -1;

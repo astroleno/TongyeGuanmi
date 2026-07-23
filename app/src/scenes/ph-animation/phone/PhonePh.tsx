@@ -161,7 +161,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         direction,
         reducedMotion
       );
-      if (rootRef.current && direction === -1) {
+      if (rootRef.current) {
         dispatchPhoneLabContactAutoplay(rootRef.current, {
           scene: 'ph-animation',
           phase: 'progress',
