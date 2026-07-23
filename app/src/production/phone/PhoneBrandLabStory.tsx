@@ -235,6 +235,22 @@ export function phoneGroup45CrossedVisualBoundary(
   return crossed || approaching;
 }
 
+/**
+ * Match the accepted AOD reverse coordinator: once an upward gesture has
+ * crossed a visual boundary, pin the physical position already presented by
+ * native scroll. Pulling the document back down to the boundary would replay
+ * the same reading opener before the reverse media run begins.
+ */
+export function phoneGroup45VisualRunAnchor(
+  scrollY: number,
+  boundaryY: number,
+  direction: VisualRunDirection
+): number {
+  return direction === -1
+    ? Math.min(scrollY, boundaryY)
+    : boundaryY;
+}
+
 function frameForTrack(element: HTMLElement | null, viewportHeight: number) {
   if (!element) return { active: false, prewarm: false, progress: 0 };
   const rect = element.getBoundingClientRect();
@@ -671,7 +687,11 @@ export function PhoneBrandLabStory({
       root.setAttribute('data-phone-group45-stage-active', 'true');
       root.setAttribute('data-phone-group45-stage-scene', nextRun);
       const trackTop = window.scrollY + track.getBoundingClientRect().top;
-      visualSnap.lock(trackTop);
+      visualSnap.lock(phoneGroup45VisualRunAnchor(
+        window.scrollY,
+        trackTop,
+        runDirection
+      ));
       armVisualRunTimeout(nextRun);
 
       // Match the accepted AOD coordinator: the mounted adapter starts in the

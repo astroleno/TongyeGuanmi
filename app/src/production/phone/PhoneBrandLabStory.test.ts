@@ -13,7 +13,8 @@ import {
   phoneGroup45RetainsFigure3Terminal,
   phoneGroup45RetainsTtgTerminal,
   phoneGroup45TrackActivity,
-  phoneGroup45TrackProgress
+  phoneGroup45TrackProgress,
+  phoneGroup45VisualRunAnchor
 } from './PhoneBrandLabStory';
 
 describe('PhoneBrandLabStory', () => {
@@ -107,6 +108,12 @@ describe('PhoneBrandLabStory', () => {
     expect(phoneGroup45HasReverseGestureIntent(200, 210)).toBe(true);
     expect(phoneGroup45HasReverseGestureIntent(200, 209)).toBe(false);
     expect(phoneGroup45HasReverseGestureIntent(200, 190)).toBe(false);
+  });
+
+  it('never pulls an overshot reverse gesture back through the reading opener', () => {
+    expect(phoneGroup45VisualRunAnchor(760, 844, -1)).toBe(760);
+    expect(phoneGroup45VisualRunAnchor(875, 844, -1)).toBe(844);
+    expect(phoneGroup45VisualRunAnchor(760, 844, 1)).toBe(844);
   });
 
 });
