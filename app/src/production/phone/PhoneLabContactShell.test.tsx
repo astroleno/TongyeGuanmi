@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PhoneLabContactShell,
   phoneLabContactDirectEntryAutoplays,
+  phoneLabContactEdgeSurface,
   phoneLabContactEntryScene,
   phoneLabContactInitialAdapterPlan,
   phoneLabContactNavigationHref
@@ -49,6 +50,39 @@ describe('PhoneLabContactShell', () => {
       'http://192.0.2.1:5174/?v=36&portrait-spike-motion=force#lab',
       'contact'
     )).toBe('http://192.0.2.1:5174/?v=36#contact');
+  });
+
+  it('publishes each scene edge instead of retaining PH blue on paper scenes', () => {
+    expect(phoneLabContactEdgeSurface('ph-animation')).toBe('#9889a5');
+    for (const scene of ['lab', 'education', 'crane-animation', 'contact'] as const) {
+      expect(phoneLabContactEdgeSurface(scene)).toBe('#ede4d2');
+    }
+    expect(shellSource).toContain("'--portrait-document-surface'");
+    expect(shellSource).toContain("'--portrait-edge-surface'");
+    expect(shellSource).toContain("themeColor.setAttribute('content', surface)");
+    expect(shellSource).toContain("window.addEventListener('pageshow'");
+    expect(shellSource).toContain("document.addEventListener('visibilitychange'");
+    expect(shellSource).toContain('window.getComputedStyle(root).backgroundColor');
+    expect(shellSource).toContain('data-phone-stage-host="persistent"');
+    expect(shellSource).toContain(
+      "documentElement.dataset.phoneLabContactAcceptance = 'true'"
+    );
+  });
+
+  it('extends the accepted topbar through the iOS safe-area inset', () => {
+    expect(shellCss).toMatch(
+      /\.site-nav\s*\{[^}]*min-height:\s*calc\(var\(--nav-h\) \+ env\(safe-area-inset-top, 0px\)\);[^}]*padding-top:\s*env\(safe-area-inset-top, 0px\);/s
+    );
+    expect(shellCss).toMatch(
+      /\.site-nav\.has-scroll-edge-blur::before\s*\{[^}]*display:\s*block;[^}]*height:\s*calc\(var\(--nav-h\) \+ env\(safe-area-inset-top, 0px\) \+ 32px\);/s
+    );
+    expect(shellCss).toContain('backdrop-filter: blur(20px) saturate(1.1)');
+    expect(shellCss).toContain(
+      'padding-right: max(14px, env(safe-area-inset-right, 0px))'
+    );
+    expect(shellCss).toContain(
+      'padding-left: max(14px, env(safe-area-inset-left, 0px))'
+    );
   });
 
   it('loads only Contact for direct Contact entry', () => {

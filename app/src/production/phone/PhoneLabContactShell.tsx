@@ -86,10 +86,147 @@ export function phoneLabContactDirectEntryAutoplays(
     && (scene === 'ph-animation' || scene === 'crane-animation');
 }
 
-function phoneLabContactEdgeSurface(scene: LabContactSceneId): string {
+export function phoneLabContactEdgeSurface(scene: LabContactSceneId): string {
   return scene === 'ph-animation'
     ? PHONE_LAB_CONTACT_PH_EDGE_SURFACE
     : PHONE_LAB_CONTACT_PAPER_SURFACE;
+}
+
+type PreviousPhoneLabContactEdgeSurface = Readonly<{
+  documentSurface: string;
+  localDocumentSurface: string;
+  documentEdgeScene: string | undefined;
+  localDocumentEdgeScene: string | undefined;
+  themeColor: string | undefined;
+}>;
+
+/**
+ * Match deda1bb's single Safari edge publisher inside the isolated v36 shell.
+ * The document, retained host, theme-color and active scene must commit in the
+ * same layout frame or WebKit can keep sampling PH's blue compositor after it
+ * has handed ownership back to a paper scene.
+ */
+function usePhoneLabContactEdgeSurface(
+  rootRef: RefObject<HTMLElement | null>,
+  stageHostRef: RefObject<HTMLElement | null>,
+  scene: LabContactSceneId
+): void {
+  const edgeSceneRef = useRef<LabContactSceneId>(scene);
+  const previousRef = useRef<PreviousPhoneLabContactEdgeSurface | null>(null);
+  const commit = useCallback((nextScene: LabContactSceneId, force = false) => {
+    const documentElement = document.documentElement;
+    const root = rootRef.current;
+    const stageHost = stageHostRef.current;
+    const surface = phoneLabContactEdgeSurface(nextScene);
+    const themeColor = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]'
+    );
+    if (
+      !force
+      && edgeSceneRef.current === nextScene
+      && documentElement.dataset.portraitEdgeScene === nextScene
+      && documentElement.dataset.phoneLabContactEdgeScene === nextScene
+      && documentElement.style.getPropertyValue('--portrait-document-surface') === surface
+      && documentElement.style.getPropertyValue('--phone-lab-contact-edge-surface') === surface
+      && root?.dataset.portraitEdgeScene === nextScene
+      && root?.dataset.portraitEdgeSurface === surface
+      && (!stageHost || stageHost.dataset.portraitEdgeScene === nextScene)
+      && (!themeColor || themeColor.content === surface)
+    ) {
+      return;
+    }
+
+    edgeSceneRef.current = nextScene;
+    documentElement.style.setProperty('--portrait-document-surface', surface);
+    documentElement.style.setProperty('--phone-lab-contact-edge-surface', surface);
+    documentElement.dataset.portraitEdgeScene = nextScene;
+    documentElement.dataset.phoneLabContactEdgeScene = nextScene;
+    if (root) {
+      root.style.setProperty('--portrait-edge-surface', surface);
+      root.style.setProperty('--phone-lab-contact-edge-surface', surface);
+      root.dataset.portraitEdgeSurface = surface;
+      root.dataset.portraitEdgeScene = nextScene;
+      // Commit the new solid paper before Safari samples the rebuilt fixed
+      // compositor for its status-bar and top-edge pixels.
+      void window.getComputedStyle(root).backgroundColor;
+    }
+    if (stageHost) stageHost.dataset.portraitEdgeScene = nextScene;
+    if (themeColor) themeColor.setAttribute('content', surface);
+  }, [rootRef, stageHostRef]);
+
+  useLayoutEffect(() => {
+    const documentElement = document.documentElement;
+    const themeColor = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]'
+    );
+    previousRef.current = {
+      documentSurface: documentElement.style.getPropertyValue(
+        '--portrait-document-surface'
+      ),
+      localDocumentSurface: documentElement.style.getPropertyValue(
+        '--phone-lab-contact-edge-surface'
+      ),
+      documentEdgeScene: documentElement.dataset.portraitEdgeScene,
+      localDocumentEdgeScene: documentElement.dataset.phoneLabContactEdgeScene,
+      themeColor: themeColor?.content
+    };
+    commit(edgeSceneRef.current, true);
+
+    const republishCurrentSurface = () => {
+      if (!document.hidden) commit(edgeSceneRef.current, true);
+    };
+    window.addEventListener('pageshow', republishCurrentSurface);
+    document.addEventListener('visibilitychange', republishCurrentSurface);
+    return () => {
+      window.removeEventListener('pageshow', republishCurrentSurface);
+      document.removeEventListener(
+        'visibilitychange',
+        republishCurrentSurface
+      );
+      const previous = previousRef.current;
+      const restoreProperty = (name: string, value: string | undefined) => {
+        if (value) documentElement.style.setProperty(name, value);
+        else documentElement.style.removeProperty(name);
+      };
+      restoreProperty(
+        '--portrait-document-surface',
+        previous?.documentSurface
+      );
+      restoreProperty(
+        '--phone-lab-contact-edge-surface',
+        previous?.localDocumentSurface
+      );
+      if (previous?.documentEdgeScene) {
+        documentElement.dataset.portraitEdgeScene = previous.documentEdgeScene;
+      } else {
+        delete documentElement.dataset.portraitEdgeScene;
+      }
+      if (previous?.localDocumentEdgeScene) {
+        documentElement.dataset.phoneLabContactEdgeScene =
+          previous.localDocumentEdgeScene;
+      } else {
+        delete documentElement.dataset.phoneLabContactEdgeScene;
+      }
+      if (themeColor && previous?.themeColor !== undefined) {
+        themeColor.setAttribute('content', previous.themeColor);
+      }
+      rootRef.current?.style.removeProperty('--portrait-edge-surface');
+      rootRef.current?.style.removeProperty('--phone-lab-contact-edge-surface');
+      if (rootRef.current) {
+        delete rootRef.current.dataset.portraitEdgeSurface;
+        delete rootRef.current.dataset.portraitEdgeScene;
+      }
+      if (stageHostRef.current) {
+        delete stageHostRef.current.dataset.portraitEdgeScene;
+      }
+      previousRef.current = null;
+    };
+  }, [commit, rootRef, stageHostRef]);
+
+  useLayoutEffect(() => {
+    edgeSceneRef.current = scene;
+    commit(scene);
+  }, [commit, scene]);
 }
 
 /**
@@ -429,6 +566,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   const [activeScene, setActiveScene] = useState<LabContactSceneId>(entryScene);
   const [adapterRevision, setAdapterRevision] = useState(0);
   const rootRef = useRef<HTMLElement | null>(null);
+  const stageHostRef = useRef<HTMLDivElement | null>(null);
   const phPhaseRef = useRef<HTMLElement | null>(null);
   const cranePhaseRef = useRef<HTMLElement | null>(null);
   const phStageRef = useRef<HTMLDivElement | null>(null);
@@ -450,11 +588,6 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   const snapLockRef = useRef<PhoneLabContactSnapLock | null>(null);
   const currentNavigationScene = useRef<SceneId>(entryScene);
   const currentActiveScene = useRef<LabContactSceneId>(entryScene);
-  const previousEdgeSurfaceRef = useRef<Readonly<{
-    documentSurface: string;
-    edgeScene: string | undefined;
-    themeColor: string | undefined;
-  }> | null>(null);
   const motionEnabled = phoneMotionEnabled();
   const reducedMotion = !motionEnabled;
   const fullJourney = entryScene === 'lab';
@@ -463,6 +596,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     !fullJourney
   );
   usePhoneLabContactViewportGeometry(rootRef, motionEnabled);
+  usePhoneLabContactEdgeSurface(rootRef, stageHostRef, activeScene);
   const {
     scenes,
     transitions,
@@ -520,7 +654,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     setActiveScene(scene);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const documentElement = document.documentElement;
     documentElement.dataset.phoneLabContactAcceptance = 'true';
     // v36 intentionally bypasses Loader → Proof, so retire the HTML recovery
@@ -529,48 +663,6 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     return () => {
       delete documentElement.dataset.phoneLabContactAcceptance;
     };
-  }, []);
-
-  useLayoutEffect(() => {
-    const documentElement = document.documentElement;
-    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (!previousEdgeSurfaceRef.current) {
-      previousEdgeSurfaceRef.current = {
-        documentSurface: documentElement.style.getPropertyValue(
-          '--phone-lab-contact-edge-surface'
-        ),
-        edgeScene: documentElement.dataset.phoneLabContactEdgeScene,
-        themeColor: themeColor?.content
-      };
-    }
-    const surface = phoneLabContactEdgeSurface(activeScene);
-    documentElement.style.setProperty('--phone-lab-contact-edge-surface', surface);
-    documentElement.dataset.phoneLabContactEdgeScene = activeScene;
-    rootRef.current?.style.setProperty('--phone-lab-contact-edge-surface', surface);
-    if (themeColor) themeColor.content = surface;
-  }, [activeScene]);
-
-  useEffect(() => () => {
-    const documentElement = document.documentElement;
-    const previous = previousEdgeSurfaceRef.current;
-    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (previous?.documentSurface) {
-      documentElement.style.setProperty(
-        '--phone-lab-contact-edge-surface',
-        previous.documentSurface
-      );
-    } else {
-      documentElement.style.removeProperty('--phone-lab-contact-edge-surface');
-    }
-    if (previous?.edgeScene) {
-      documentElement.dataset.phoneLabContactEdgeScene = previous.edgeScene;
-    } else {
-      delete documentElement.dataset.phoneLabContactEdgeScene;
-    }
-    if (themeColor && previous?.themeColor !== undefined) {
-      themeColor.content = previous.themeColor;
-    }
-    rootRef.current?.style.removeProperty('--phone-lab-contact-edge-surface');
   }, []);
 
   // A physical reload can restore the old document Y before the lazy Lab
@@ -1453,6 +1545,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       {fullJourney ? (
         <>
           <div
+            ref={stageHostRef}
             className="phone-lab-contact__stage-host"
             data-phone-stage-host="persistent"
             aria-hidden="true"
