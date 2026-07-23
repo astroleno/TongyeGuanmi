@@ -521,7 +521,8 @@ test('v47 Proof hands off to Brand inside the one persistent stage', async ({
   await expect(page.locator('main.portrait-scroll-spike')).toHaveCount(1);
   await expect(page.locator('#brand.phone-brand')).toHaveCount(1);
   await expect(page.locator('#services.phone-services')).toHaveCount(1);
-  await expect(page.locator('#lab.phone-lab')).toHaveCount(1);
+  await expect(page.locator('.phone-ttg')).toHaveCount(0);
+  await expect(page.locator('#lab.phone-lab')).toHaveCount(0);
 
   await scrollGradeAProofTo(page, 1);
   await expect(shell).toHaveAttribute(
