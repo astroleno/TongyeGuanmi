@@ -17,11 +17,10 @@
   --crane-flock-x: 0px;
   --crane-flock-base-y: 0px;
   /*
-   * Keep the canonical 16:9 plate fitted to the retained height. At 0.9 the
-   * flock never reaches its authored off-screen spread and its two standing
-   * cranes fall below the centre roof ridge on tall phones.
+   * Keep the canonical 16:9 plate fitted to retained height, then apply the
+   * physical-phone camera independently from its authored media motion.
    */
-  --crane-flock-scale: .65;
+  --crane-flock-scale: .57;
   --phone-crane-motion-height: var(--phone-cinematic-stage-height, 100lvh);
   --phone-crane-figure-shift-y: calc(
     var(--phone-cinematic-stage-height, 100lvh) * .09
@@ -43,6 +42,13 @@
 
 .phone-crane .crane-video-transition--figure {
   clip-path: none;
+  transform:
+    translate3d(
+      calc(var(--crane-figure-x) + var(--phone-crane-tune-figure-x, 0lvh)),
+      calc(var(--crane-figure-base-y) + var(--crane-video-y) + var(--phone-crane-tune-figure-y, 0lvh)),
+      0
+    )
+    scale(var(--crane-video-scale));
   will-change: transform;
 }
 
@@ -93,11 +99,13 @@
 
 .phone-crane .r4-crane-animation .phone-crane__figure-canvas {
   top: 50%;
-  transform: translate3d(
-    -50%,
-    calc(-50% + var(--phone-crane-figure-shift-y)),
-    0
-  );
+  transform:
+    translate3d(
+      -50%,
+      calc(-50% + var(--phone-crane-figure-shift-y)),
+      0
+    )
+    scale(var(--phone-crane-tune-figure-scale, 1));
 }
 
 .phone-crane .r4-crane-animation .phone-crane__flock-canvas {
@@ -110,8 +118,8 @@
    */
   filter: none;
   transform: translate3d(
-      calc(-50% + var(--crane-flock-x)),
-      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 5.5lvh)),
+      calc(-50% + var(--crane-flock-x) + var(--phone-crane-tune-flock-x, 0lvh)),
+      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 10.75lvh)),
       0
     )
     scale(var(--phone-crane-tune-flock-scale, var(--crane-flock-scale)));

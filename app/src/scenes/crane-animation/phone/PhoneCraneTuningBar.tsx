@@ -10,18 +10,26 @@ import './PhoneCraneTuningBar.css';
 
 type PhoneCraneTuning = Readonly<{
   flockScale: number;
+  flockX: number;
   flockY: number;
   buildingY: number;
   bottomCloudY: number;
+  figureScale: number;
+  figureX: number;
+  figureY: number;
 }>;
 
-const STORAGE_KEY = 'r5-phone-crane-tuning-v2';
+const STORAGE_KEY = 'r5-phone-crane-tuning-v3';
 
 export const DEFAULT_PHONE_CRANE_TUNING: PhoneCraneTuning = {
-  flockScale: 0.65,
-  flockY: 5.5,
-  buildingY: 1.75,
-  bottomCloudY: 2
+  flockScale: 0.57,
+  flockX: 0,
+  flockY: 10.75,
+  buildingY: 3.25,
+  bottomCloudY: 3.25,
+  figureScale: 1,
+  figureX: 0,
+  figureY: 0
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -40,6 +48,11 @@ const normaliseTuning = (
     0.5,
     1.4
   ),
+  flockX: clamp(
+    finiteOr(value.flockX, DEFAULT_PHONE_CRANE_TUNING.flockX),
+    -25,
+    25
+  ),
   flockY: clamp(
     finiteOr(value.flockY, DEFAULT_PHONE_CRANE_TUNING.flockY),
     -25,
@@ -52,6 +65,21 @@ const normaliseTuning = (
   ),
   bottomCloudY: clamp(
     finiteOr(value.bottomCloudY, DEFAULT_PHONE_CRANE_TUNING.bottomCloudY),
+    -25,
+    25
+  ),
+  figureScale: clamp(
+    finiteOr(value.figureScale, DEFAULT_PHONE_CRANE_TUNING.figureScale),
+    0.5,
+    1.5
+  ),
+  figureX: clamp(
+    finiteOr(value.figureX, DEFAULT_PHONE_CRANE_TUNING.figureX),
+    -25,
+    25
+  ),
+  figureY: clamp(
+    finiteOr(value.figureY, DEFAULT_PHONE_CRANE_TUNING.figureY),
     -25,
     25
   )
@@ -72,11 +100,15 @@ const readStoredTuning = (): PhoneCraneTuning => {
 
 export const formatPhoneCraneTuning = ({
   flockScale,
+  flockX,
   flockY,
   buildingY,
-  bottomCloudY
+  bottomCloudY,
+  figureScale,
+  figureX,
+  figureY
 }: PhoneCraneTuning) =>
-  `flockScale=${flockScale.toFixed(3)}, flockY=${flockY.toFixed(2)}vh, buildingY=${buildingY.toFixed(2)}vh, bottomCloudY=${bottomCloudY.toFixed(2)}vh`;
+  `flockScale=${flockScale.toFixed(3)}, flockX=${flockX.toFixed(2)}vh, flockY=${flockY.toFixed(2)}vh, buildingY=${buildingY.toFixed(2)}vh, bottomCloudY=${bottomCloudY.toFixed(2)}vh, figureScale=${figureScale.toFixed(3)}, figureX=${figureX.toFixed(2)}vh, figureY=${figureY.toFixed(2)}vh`;
 
 export function PhoneCraneTuningBar() {
   const panelRef = useRef<HTMLElement>(null);
@@ -100,6 +132,10 @@ export function PhoneCraneTuningBar() {
       tuning.flockScale.toFixed(3)
     );
     owner.style.setProperty(
+      '--phone-crane-tune-flock-x',
+      `${tuning.flockX.toFixed(2)}lvh`
+    );
+    owner.style.setProperty(
       '--phone-crane-tune-flock-y',
       `${tuning.flockY.toFixed(2)}lvh`
     );
@@ -110,6 +146,18 @@ export function PhoneCraneTuningBar() {
     owner.style.setProperty(
       '--phone-crane-tune-bottom-cloud-y',
       `${tuning.bottomCloudY.toFixed(2)}lvh`
+    );
+    owner.style.setProperty(
+      '--phone-crane-tune-figure-scale',
+      tuning.figureScale.toFixed(3)
+    );
+    owner.style.setProperty(
+      '--phone-crane-tune-figure-x',
+      `${tuning.figureX.toFixed(2)}lvh`
+    );
+    owner.style.setProperty(
+      '--phone-crane-tune-figure-y',
+      `${tuning.figureY.toFixed(2)}lvh`
     );
 
     try {
@@ -123,9 +171,13 @@ export function PhoneCraneTuningBar() {
     () => () => {
       const owner = ownerRef.current;
       owner?.style.removeProperty('--phone-crane-tune-flock-scale');
+      owner?.style.removeProperty('--phone-crane-tune-flock-x');
       owner?.style.removeProperty('--phone-crane-tune-flock-y');
       owner?.style.removeProperty('--phone-crane-tune-building-y');
       owner?.style.removeProperty('--phone-crane-tune-bottom-cloud-y');
+      owner?.style.removeProperty('--phone-crane-tune-figure-scale');
+      owner?.style.removeProperty('--phone-crane-tune-figure-x');
+      owner?.style.removeProperty('--phone-crane-tune-figure-y');
     },
     []
   );
@@ -193,6 +245,22 @@ export function PhoneCraneTuningBar() {
       </label>
 
       <label>
+        <span>鹤群 X</span>
+        <input
+          aria-label="鹤群 X"
+          type="range"
+          min="-25"
+          max="25"
+          step="0.25"
+          value={tuning.flockX}
+          onChange={(event) =>
+            update('flockX', event.currentTarget.valueAsNumber)
+          }
+        />
+        <output>{tuning.flockX.toFixed(2)}vh</output>
+      </label>
+
+      <label>
         <span>鹤群 Y</span>
         <input
           aria-label="鹤群 Y"
@@ -238,6 +306,54 @@ export function PhoneCraneTuningBar() {
           }
         />
         <output>{tuning.bottomCloudY.toFixed(2)}vh</output>
+      </label>
+
+      <label>
+        <span>扑翼缩放</span>
+        <input
+          aria-label="扑翼机缩放"
+          type="range"
+          min="0.5"
+          max="1.5"
+          step="0.005"
+          value={tuning.figureScale}
+          onChange={(event) =>
+            update('figureScale', event.currentTarget.valueAsNumber)
+          }
+        />
+        <output>{tuning.figureScale.toFixed(3)}</output>
+      </label>
+
+      <label>
+        <span>扑翼机 X</span>
+        <input
+          aria-label="扑翼机 X"
+          type="range"
+          min="-25"
+          max="25"
+          step="0.25"
+          value={tuning.figureX}
+          onChange={(event) =>
+            update('figureX', event.currentTarget.valueAsNumber)
+          }
+        />
+        <output>{tuning.figureX.toFixed(2)}vh</output>
+      </label>
+
+      <label>
+        <span>扑翼机 Y</span>
+        <input
+          aria-label="扑翼机 Y"
+          type="range"
+          min="-25"
+          max="25"
+          step="0.25"
+          value={tuning.figureY}
+          onChange={(event) =>
+            update('figureY', event.currentTarget.valueAsNumber)
+          }
+        />
+        <output>{tuning.figureY.toFixed(2)}vh</output>
       </label>
 
       <div className="phone-crane-tuning-bar__result">

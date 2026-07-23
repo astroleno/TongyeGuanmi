@@ -90,14 +90,18 @@ describe('PhoneCrane', () => {
     expect(css).toContain('aspect-ratio: auto');
     expect(css).not.toContain('--phone-crane-motion-width');
     expect(css).toContain('--phone-crane-flock-center-y: 50.2%');
-    expect(css).toContain('--crane-flock-scale: .65');
-    expect(css).toContain('var(--phone-crane-tune-flock-y, 5.5lvh)');
+    expect(css).toContain('--crane-flock-scale: .57');
+    expect(css).toContain('var(--phone-crane-tune-flock-x, 0lvh)');
+    expect(css).toContain('var(--phone-crane-tune-flock-y, 10.75lvh)');
+    expect(css).toContain('var(--phone-crane-tune-figure-scale, 1)');
+    expect(css).toContain('var(--phone-crane-tune-figure-x, 0lvh)');
+    expect(css).toContain('var(--phone-crane-tune-figure-y, 0lvh)');
     expect(css).toContain('filter: none');
     expect(motionSource).toContain(
-      'var(--phone-crane-tune-building-y, 1.75lvh)'
+      'var(--phone-crane-tune-building-y, 3.25lvh)'
     );
     expect(motionSource).toContain(
-      'var(--phone-crane-tune-bottom-cloud-y, 2lvh)'
+      'var(--phone-crane-tune-bottom-cloud-y, 3.25lvh)'
     );
     expect(css).toContain('position: absolute');
     expect(css).toContain('clip-path: none');

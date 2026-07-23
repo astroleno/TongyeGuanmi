@@ -5,7 +5,9 @@
   z-index: 420;
   display: grid;
   width: min(calc(100vw - 1rem), 35rem);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 4.5rem);
   padding: .65rem .75rem;
+  overflow-y: auto;
   color: #172a32;
   font: 500 .75rem/1.2 system-ui, sans-serif;
   background: rgb(246 242 228 / 94%);
@@ -14,6 +16,7 @@
   box-shadow: 0 .5rem 1.5rem rgb(0 0 0 / 16%);
   transform: translateX(-50%);
   backdrop-filter: blur(12px);
+  overscroll-behavior: contain;
   pointer-events: auto;
 }
 
