@@ -1,0 +1,131 @@
+.phone-figure3 {
+  --phone-figure3-paper: #ede4d2;
+  --phone-figure3-paper-treatment:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, .10),
+      transparent 32%,
+      rgba(41, 41, 25, .055)
+    );
+  --phone-figure3-video-opacity: 1;
+  --phone-figure3-video-scale: 1.015;
+  --phone-figure3-backdrop-opacity: 1;
+  --phone-figure3-backdrop-scale: 1.06;
+  position: relative;
+  display: block;
+  min-block-size: max(80svh, 38rem);
+  overflow: visible;
+  isolation: auto;
+  background: var(--phone-figure3-paper);
+}
+
+.phone-figure3__fallback,
+.phone-figure3 > .figure3-transition.r4-figure3-animation {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.phone-figure3__fallback {
+  z-index: 0;
+  background: var(--phone-figure3-paper);
+}
+
+/* One desktop-authored paper wash sits above either the direct-video fallback
+   or the deterministic canvas compositor. */
+.phone-figure3::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  background: var(--phone-figure3-paper-treatment);
+}
+
+/*
+ * Figure3 deliberately uses the canonical scene/media owner, exactly as the
+ * accepted PhoneAod adapter does. Only the camera is phone-specific: the
+ * authored 16:9 plate uses a left-edge portrait crop because the figure is
+ * authored on that edge; no inherited desktop transform tree is scaled.
+ */
+.phone-figure3 > .figure3-transition.r4-figure3-animation {
+  z-index: 1;
+  overflow: clip;
+  background: var(--phone-figure3-paper);
+}
+
+.phone-figure3 .figure3-transition__sticky,
+.phone-figure3 .figure3-transition__stage {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--phone-figure3-paper);
+}
+
+.phone-figure3 .figure3-transition__backdrop {
+  opacity: var(--phone-figure3-backdrop-opacity);
+  transform: translateZ(0) scale(var(--phone-figure3-backdrop-scale));
+  background: var(--phone-figure3-paper);
+}
+
+.phone-figure3 .figure3-transition__sticky::after {
+  display: none;
+}
+
+.phone-figure3 .figure3-transition__video {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: 0% center;
+  opacity: 0;
+  filter: saturate(.94) contrast(1.02) brightness(.99);
+  transform: translate3d(0, 0, 0) scale(var(--figure3-video-scale));
+  transform-origin: 0% 50%;
+}
+
+.phone-figure3__paper-canvas {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transform:
+    translate3d(0, 0, 0)
+    scale(var(--phone-figure3-video-scale));
+  transform-origin: 0% 50%;
+  will-change: opacity, transform;
+}
+
+/*
+ * The canonical video remains the sole decoder but is never a visible phone
+ * layer. Safari can expose its white hardware plane for one frame between
+ * loadeddata and the first successful drawImage; the paper canvas is the only
+ * presented media surface from its first verified frame onward.
+ */
+.phone-figure3 .figure3-transition__video {
+  opacity: 0;
+}
+
+.phone-figure3[data-phone-figure3-paper-compositor="ready"]
+  .phone-figure3__paper-canvas[data-phone-figure3-paper-frame="ready"] {
+  opacity: var(--phone-figure3-video-opacity);
+}
+
+.phone-figure3[data-phone-media-state="fallback"] .phone-figure3__fallback,
+.phone-figure3[data-phone-media-state="reduced"] .phone-figure3__fallback {
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-figure3 .figure3-transition__video,
+  .phone-figure3__paper-canvas {
+    will-change: auto;
+  }
+}

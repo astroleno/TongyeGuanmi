@@ -1,0 +1,145 @@
+/*
+ * Brand → Lab is one native document rail and one persistent fixed stage.
+ * Each media marker overlaps its real reading receiver at the same document
+ * boundary, so a handoff never swaps between promoted and flow coordinates.
+ */
+.phone-brand-lab {
+  --phone-group45-edge-surface: #ede4d2;
+  --portrait-live-height: 100dvh;
+  --portrait-live-width: 100vw;
+  --portrait-stage-coverage-height: var(--portrait-live-height);
+  --portrait-stage-height: max(
+    var(--portrait-live-height),
+    var(--portrait-stage-coverage-height),
+    100lvh
+  );
+  /* The reusable stage rail occupies no extra document chapter here: the
+     visual markers below are the only scroll distance for Figure3 and TTG. */
+  --portrait-stage-rail-height: var(--portrait-stage-height);
+  --portrait-edge-surface: var(--phone-group45-edge-surface);
+  position: relative;
+  min-block-size: var(--portrait-live-height);
+  overflow: visible;
+  color: #292919;
+  background: var(--phone-group45-edge-surface);
+}
+
+.phone-brand-lab--loading,
+.phone-brand-lab--fallback {
+  display: grid;
+  min-block-size: 100svh;
+  place-items: center;
+  padding: 32px;
+  color: #4d493d;
+  text-align: center;
+}
+
+.phone-brand-lab--loading p,
+.phone-brand-lab--fallback p {
+  max-inline-size: 22rem;
+  margin: 0;
+  font-family: var(--font-traditional, serif);
+  font-size: clamp(1.25rem, 6vw, 2rem);
+  line-height: 1.4;
+}
+
+/* This is the generic PhoneStageRail, configured as a zero-net-height host.
+   Do not add another sticky/fixed wrapper for either visual chapter. */
+.phone-brand-lab > .portrait-scroll-spike__stage-rail {
+  height: var(--portrait-stage-height);
+  margin-bottom: calc(-1 * var(--portrait-stage-height));
+  pointer-events: none;
+  background: transparent;
+}
+
+.phone-brand-lab > .portrait-scroll-spike__stage-rail .portrait-scroll-spike__stage {
+  pointer-events: none;
+  /* af4d41d: the dynamic Safari host must expose, not clip, the stable lvh
+     canvas. Keep this repair scoped to Unit 5 until Unit 7 syncs the shared
+     PhoneStageRail from the accepted branch. */
+  overflow: visible;
+  isolation: auto;
+  transform: none;
+  backface-visibility: visible;
+  background: transparent;
+}
+
+.phone-brand-lab > .portrait-scroll-spike__stage-rail
+  .portrait-scroll-spike__stage-canvas {
+  isolation: auto;
+  transform: none;
+  backface-visibility: visible;
+  background: transparent;
+}
+
+.phone-brand-lab[data-phone-group45-visual-run^="ttg-animation"]
+  > .portrait-scroll-spike__stage-rail .portrait-scroll-spike__stage,
+.phone-brand-lab[data-phone-group45-visual-run^="ttg-animation"]
+  > .portrait-scroll-spike__stage-rail .portrait-scroll-spike__stage-canvas {
+  background: #080d10;
+}
+
+.phone-brand-lab[data-phone-group45-snap="locked"] {
+  overscroll-behavior: none;
+}
+
+.phone-brand-lab[data-phone-group45-stage-active="false"] .portrait-scroll-spike__stage {
+  visibility: hidden;
+}
+
+.phone-brand-lab[data-phone-group45-stage-active="true"] .portrait-scroll-spike__stage {
+  visibility: visible;
+}
+
+.phone-brand-lab .portrait-scroll-spike__stage-canvas > .phone-figure3,
+.phone-brand-lab .portrait-scroll-spike__stage-canvas > .phone-ttg {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--portrait-stage-height);
+  min-block-size: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.phone-brand-lab[data-phone-group45-stage-scene="figure3-animation"]
+  .portrait-scroll-spike__stage-canvas > .phone-figure3,
+.phone-brand-lab[data-phone-group45-stage-scene="ttg-animation"]
+  .portrait-scroll-spike__stage-canvas > .phone-ttg {
+  visibility: visible;
+}
+
+.phone-brand-lab > .phone-brand,
+.phone-brand-lab > .phone-services,
+.phone-brand-lab > .phone-lab,
+.phone-brand-lab__visual-track {
+  position: relative;
+  z-index: 0;
+}
+
+.phone-brand-lab__visual-track {
+  box-sizing: border-box;
+  height: var(--portrait-stage-height);
+  min-block-size: var(--portrait-stage-height);
+  margin-block-end: calc(-1 * var(--portrait-stage-height));
+  overflow: clip;
+  isolation: isolate;
+}
+
+.phone-brand-lab__visual-track--figure3 {
+  /* The marker owns distance only. Brand and Figure3 share one flat paper
+     underneath the authored treatment rendered by the Figure3 scene itself. */
+  background: #ede4d2;
+}
+
+.phone-brand-lab__visual-track--ttg {
+  /* Like Method → Figure2, the marker owns distance only. The clipped TTG
+     receiver and ink canvas must be the only dark transition boundary; the
+     marker continues Services' terminal paper underneath that contour. */
+  background: #ede4d2;
+}
+
+.phone-brand-lab__transition-host {
+  display: contents;
+}

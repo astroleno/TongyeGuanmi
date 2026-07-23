@@ -1,0 +1,112 @@
+.phone-ttg {
+  --phone-ttg-background-y: 0px;
+  --phone-ttg-background-scale: 1;
+  --phone-ttg-middle-y: 0px;
+  --phone-ttg-middle-scale: 1;
+  --phone-ttg-foreground-y: 0px;
+  --phone-ttg-figure-y: 0px;
+  --phone-ttg-figure-scale: .8;
+  --phone-ttg-figure-opacity: 1;
+  position: relative;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  isolation: auto;
+  background:
+    radial-gradient(ellipse at 54% 38%, rgba(207, 165, 86, .15), transparent 36%),
+    radial-gradient(ellipse at 48% 54%, rgba(29, 82, 92, .18), transparent 55%),
+    linear-gradient(180deg, #101919 0%, #090e11 58%, #040506 100%);
+}
+
+.phone-ttg__fallback,
+.phone-ttg > .ttg-page.r4-ttg-animation {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.phone-ttg__fallback {
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 54% 38%, rgba(207, 165, 86, .15), transparent 36%),
+    radial-gradient(ellipse at 48% 54%, rgba(29, 82, 92, .18), transparent 55%),
+    linear-gradient(180deg, #101919 0%, #090e11 58%, #040506 100%);
+}
+
+/*
+ * Keep the desktop composition ratios on a stable 16:9 virtual camera. The
+ * foreground uses that same camera width rather than the narrow phone width,
+ * so the railing, floor and figure remain at their authored relative scale.
+ */
+.phone-ttg > .ttg-page.r4-ttg-animation {
+  --ttg-scene-width: max(
+    100vw,
+    calc(var(--portrait-stage-height, 100lvh) * 1.78),
+    1180px
+  );
+  --ttg-bg-width: max(
+    100vw,
+    calc(var(--portrait-stage-height, 100lvh) * 1.84),
+    1180px
+  );
+  --ttg-front-width: var(--ttg-scene-width);
+  z-index: 1;
+  overflow: clip;
+  background: #080d10;
+}
+
+.phone-ttg .ttg-scroll,
+.phone-ttg .ttg-sticky,
+.phone-ttg .ttg-field,
+.phone-ttg .ttg-layer-stack {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+
+.phone-ttg .ttg-sticky,
+.phone-ttg .ttg-field,
+.phone-ttg .ttg-layer-stack {
+  overflow: hidden;
+  background-color: #080d10;
+}
+
+.phone-ttg .ttg-progress {
+  display: none;
+}
+
+.phone-ttg .ttg-layer--figure {
+  --ttg-figure-layer-height: min(
+    calc(var(--portrait-stage-height, 100lvh) * 1.44),
+    1460px
+  );
+}
+
+/* Preserve the desktop layer scale, then move only the portrait crop. The
+   cathedral is authored in the left half of its transparent 16:9 plate; at a
+   centered portrait crop it otherwise sits completely outside the viewport. */
+.phone-ttg .ttg-layer--middle {
+  left: 175%;
+}
+
+.phone-ttg video.ttg-layer--figure[data-phone-ttg-endpoint-ready] {
+  opacity: var(--ttg-figure-video-opacity, 1);
+}
+
+.phone-ttg[data-phone-media-state="fallback"] .phone-ttg__fallback,
+.phone-ttg[data-phone-media-state="reduced"] .phone-ttg__fallback {
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-ttg .ttg-layer {
+    will-change: auto;
+  }
+}

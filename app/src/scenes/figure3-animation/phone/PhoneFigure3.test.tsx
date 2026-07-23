@@ -1,0 +1,98 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  PhoneFigure3,
+  phoneFigure3CanStartPreparedRun,
+  phoneFigure3EndpointIsPresented,
+  phoneFigure3Frame,
+  phoneFigure3MediaAction,
+  phoneFigure3RunStartEndpoint,
+  releasePhoneFigure3Video
+} from './PhoneFigure3';
+
+describe('PhoneFigure3', () => {
+  it('owns one optional Figure3 video and skips it for reduced motion', () => {
+    const motionMarkup = renderToStaticMarkup(createElement(PhoneFigure3, {
+      active: true,
+      reducedMotion: false
+    }));
+    const reducedMarkup = renderToStaticMarkup(createElement(PhoneFigure3, {
+      active: true,
+      reducedMotion: true
+    }));
+
+    expect(motionMarkup.match(/data-media-key="figure3-motion"/g)).toHaveLength(1);
+    expect(motionMarkup.match(/<video/g)).toHaveLength(1);
+    expect(motionMarkup.match(/<canvas/g)).toHaveLength(1);
+    expect(motionMarkup).toContain('data-phone-figure3-paper-canvas');
+    expect(reducedMarkup).not.toContain('<video');
+    expect(reducedMarkup).not.toContain('<canvas');
+    expect(motionMarkup).toContain('data-phone-media-owner="figure3-motion"');
+  });
+
+  it('uses stable endpoints for media failure and reduced motion', () => {
+    expect(phoneFigure3Frame(0.5)).toMatchObject({
+      progress: 0.5,
+      videoOpacity: 1,
+      backdropOpacity: expect.any(Number),
+      backdropScale: expect.any(Number)
+    });
+    expect(phoneFigure3Frame(0.5, true)).toMatchObject({
+      progress: 0,
+      videoOpacity: 0
+    });
+    expect(phoneFigure3Frame(0.5, false, true)).toMatchObject({
+      progress: 1,
+      videoOpacity: 0
+    });
+  });
+
+  it('selects autonomous playback or deterministic endpoints from scroll state', () => {
+    expect(phoneFigure3MediaAction(false, true)).toBe('hold-initial');
+    expect(phoneFigure3MediaAction(true, true)).toBe('play-forward');
+    expect(phoneFigure3MediaAction(true, true, false, false, false, -1)).toBe('play-reverse');
+    expect(phoneFigure3MediaAction(false, true, false, false, true, 1)).toBe('hold-terminal');
+    expect(phoneFigure3MediaAction(false, true, false, false, true, -1)).toBe('hold-terminal');
+    expect(phoneFigure3MediaAction(false, false)).toBe('release');
+  });
+
+  it('waits for the physically presented endpoint required by each direction', () => {
+    expect(phoneFigure3RunStartEndpoint(1)).toBe(0);
+    expect(phoneFigure3RunStartEndpoint(-1)).toBe(1);
+    expect(phoneFigure3CanStartPreparedRun(1, null)).toBe(false);
+    expect(phoneFigure3CanStartPreparedRun(1, 1)).toBe(false);
+    expect(phoneFigure3CanStartPreparedRun(1, 0)).toBe(true);
+    expect(phoneFigure3CanStartPreparedRun(-1, null)).toBe(false);
+    expect(phoneFigure3CanStartPreparedRun(-1, 0)).toBe(false);
+    expect(phoneFigure3CanStartPreparedRun(-1, 1)).toBe(true);
+  });
+
+  it('accepts a decoded Safari endpoint without waiting for a frame callback', () => {
+    expect(phoneFigure3EndpointIsPresented(0, 0, 2, false)).toBe(true);
+    expect(phoneFigure3EndpointIsPresented(0, .04, 2, false)).toBe(true);
+    expect(phoneFigure3EndpointIsPresented(0, .06, 2, false)).toBe(false);
+    expect(phoneFigure3EndpointIsPresented(1, 2.567, 2, false)).toBe(true);
+    expect(phoneFigure3EndpointIsPresented(1, 2.567, 1, false)).toBe(false);
+    expect(phoneFigure3EndpointIsPresented(1, 2.567, 2, true)).toBe(false);
+  });
+
+  it('disposes the retired video source and decoder', () => {
+    const firstSource = { removeAttribute: vi.fn() };
+    const secondSource = { removeAttribute: vi.fn() };
+    const video = {
+      pause: vi.fn(),
+      removeAttribute: vi.fn(),
+      querySelectorAll: vi.fn(() => [firstSource, secondSource]),
+      load: vi.fn()
+    };
+
+    releasePhoneFigure3Video(video as unknown as HTMLVideoElement);
+
+    expect(video.pause).toHaveBeenCalledOnce();
+    expect(video.removeAttribute).toHaveBeenCalledWith('src');
+    expect(firstSource.removeAttribute).toHaveBeenCalledWith('src');
+    expect(secondSource.removeAttribute).toHaveBeenCalledWith('src');
+    expect(video.load).toHaveBeenCalledOnce();
+  });
+});

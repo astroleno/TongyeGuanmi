@@ -1,0 +1,119 @@
+.phone-lab {
+  --phone-lab-opacity: 1;
+  --phone-lab-y: 0px;
+  position: relative;
+  isolation: isolate;
+  color: #28291f;
+  /* Brand, Figure3 and Lab are one continuous light-paper chapter. */
+  background: #ede4d2;
+  padding: 0;
+  scroll-margin-top: 0;
+}
+
+.phone-lab__screen {
+  box-sizing: border-box;
+  display: grid;
+  min-block-size: var(--portrait-stage-height, 100lvh);
+  padding: max(70px, 11svh) clamp(22px, 6vw, 42px) max(64px, 10svh);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.phone-lab__screen--intro {
+  align-content: center;
+  background: transparent;
+}
+
+.phone-lab__screen--scenarios {
+  align-content: start;
+  background: transparent;
+}
+
+.phone-lab__hero,
+.phone-lab__list {
+  width: min(100%, 42rem);
+  margin-inline: auto;
+  opacity: var(--phone-lab-opacity);
+  transform: translate3d(0, var(--phone-lab-y), 0);
+  transition: opacity 160ms linear, transform 160ms ease-out;
+}
+
+.phone-lab__hero {
+  display: grid;
+  gap: 16px;
+}
+
+.phone-lab__eyebrow,
+.phone-lab__row > span {
+  margin: 0;
+  color: #657263;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+.phone-lab__hero h2 {
+  display: grid;
+  margin: 0;
+  font-family: var(--font-traditional, serif);
+  font-size: clamp(2.2rem, 11vw, 3.8rem);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.phone-lab__hero > p {
+  max-width: 35rem;
+  margin: 0;
+  color: #4f4d40;
+  font-size: 1rem;
+  line-height: 1.85;
+}
+
+.phone-lab__hero em {
+  color: #3f7167;
+  font-family: var(--font-traditional, serif);
+  font-size: 1.16em;
+  font-style: normal;
+}
+
+.phone-lab__list {
+  display: grid;
+  margin-block: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid rgba(40, 41, 31, .18);
+}
+
+.phone-lab__row {
+  display: grid;
+  grid-template-columns: minmax(2.5rem, .25fr) 1fr;
+  column-gap: 14px;
+  row-gap: 8px;
+  align-items: start;
+  padding: 26px 0;
+  border-bottom: 1px solid rgba(40, 41, 31, .18);
+}
+
+.phone-lab__row h3,
+.phone-lab__row p {
+  grid-column: 2;
+  margin: 0;
+}
+
+.phone-lab__row h3 {
+  font-family: var(--font-traditional, serif);
+  font-size: 1.4rem;
+  font-weight: 500;
+}
+
+.phone-lab__row p {
+  color: #514f42;
+  line-height: 1.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-lab__hero,
+  .phone-lab__list {
+    transition: none;
+  }
+}
