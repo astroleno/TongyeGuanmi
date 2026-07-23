@@ -13,6 +13,7 @@ import type { TransitionPresentationAdapterHandle } from '../../story/presentati
 export const PHONE_FIGURE3_SERVICES_DECISION = {
   strategy: 'endpoint-dissolve',
   camera: 'none',
+  topology: 'persistent-endpoint-opacity',
   copyCueProgress: 0.8,
   receiverOwner: 'services:document-root',
   receiverCopies: 1,
@@ -85,6 +86,20 @@ function clearEndpoint(element: HTMLElement | null, documentFlow = false): void 
   delete element.dataset.phoneDissolve;
 }
 
+/**
+ * Keep both document-flow endpoints on the same compositor topology after the
+ * forward handoff. Removing Services' opacity layer here and recreating it
+ * when reverse arms makes Safari repaint its translucent paper gradients,
+ * which looks like the reading opener entered twice before Figure3 rewinds.
+ */
+export function settlePhoneFigure3ServicesDocumentFlow(
+  from: HTMLElement | null,
+  to: HTMLElement | null
+): void {
+  applyEndpoint(from, 0, 'figure3-services', true);
+  applyEndpoint(to, 1, 'figure3-services', true);
+}
+
 /** Figure3 media failure resolves directly to the Services reading endpoint. */
 export const PhoneFigure3ServicesTransition = forwardRef<
   TransitionPresentationAdapterHandle,
@@ -148,8 +163,12 @@ export const PhoneFigure3ServicesTransition = forwardRef<
     leave() {
       directionRef.current = 1;
       render(1);
-      clearEndpoint(from, documentFlow);
-      clearEndpoint(to, documentFlow);
+      if (documentFlow) {
+        settlePhoneFigure3ServicesDocumentFlow(from, to);
+      } else {
+        clearEndpoint(from);
+        clearEndpoint(to);
+      }
     },
     reverse() {
       directionRef.current = -1;
