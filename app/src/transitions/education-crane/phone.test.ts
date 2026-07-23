@@ -4,26 +4,49 @@ import { FakeElement } from '../__fixtures__/back-half.fixture';
 import {
   applyPhoneEducationCraneFrame,
   PHONE_EDUCATION_CRANE_DECISION,
+  PHONE_EDUCATION_CRANE_FIELD,
   phoneEducationCraneFrame
 } from './phone';
 
 const source = readFileSync(new URL('./phone.ts', import.meta.url), 'utf8');
+const stylesheet = readFileSync(new URL('./phone.css', import.meta.url), 'utf8');
 
 describe('Phone Education → Crane transition', () => {
-  it('records the stable-endpoint dissolve instead of an unverified camera', () => {
+  it('reuses Unit 5’s reviewed bottom-to-top phone ink ownership', () => {
     expect(PHONE_EDUCATION_CRANE_DECISION).toMatchObject({
-      mode: 'endpoint-dissolve',
-      source: 'canonical-endpoints'
+      mode: 'horizontal-ink',
+      source: 'services-ttg/star-map-aod-phone-field',
+      field: 'bottom-to-top',
+      grade: 'edge-bright'
     });
-    expect(source).not.toContain('<canvas');
-    expect(source).not.toMatch(/createPhoneInk/);
+    expect(PHONE_EDUCATION_CRANE_FIELD).toMatchObject({
+      kind: 'horizontal',
+      direction: 'bottom-to-top'
+    });
+    expect(source).toContain('createPhoneInkTransition');
+    expect(source).toContain('from: null');
+    expect(source).toContain("grade: 'edge-bright'");
+    expect(source).toContain(
+      "'data-phone-education-crane-ink': 'bottom-to-top'"
+    );
+    expect(source).toContain('ensureInk()?.render(frame.progress)');
+    expect(source).toContain('const releaseInk = useCallback');
+    expect(source).toContain('canvas.width = 1');
+    expect(source).toMatch(
+      /leave\(\) \{\s*directionRef\.current = 1;\s*render\(1\);[\s\S]*?releaseInk\(\);\s*\}/
+    );
+    expect(source).toMatch(
+      /reverse\(\) \{\s*directionRef\.current = -1;\s*render\(1\);\s*\}/
+    );
+    expect(stylesheet).toContain('phone-education-crane__ink');
+    expect(stylesheet).toContain(
+      'height: var(--phone-cinematic-stage-canvas-height, 100lvh)'
+    );
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).not.toContain('parkPhoneCraneMedia');
-    expect(source).toContain('renderPhoneCranePresentation');
-    expect(source).not.toContain('renderCraneHold');
   });
 
-  it('dissolves stable Education directly to the stable Crane frame', () => {
+  it('keeps both authored endpoints opaque while the contour owns visibility', () => {
     const education = new FakeElement();
     const crane = new FakeElement();
     education.dataset.r4Scene = 'education';
@@ -37,32 +60,48 @@ describe('Phone Education → Crane transition', () => {
 
     expect(midpoint).toEqual({
       progress: 0.5,
-      educationOpacity: 0.5,
-      craneOpacity: 0.5
+      educationOpacity: 1,
+      craneOpacity: 1,
+      craneProgress: 0
     });
     expect(education.dataset.phoneEducationCraneHandoff).toBe('source');
     expect(crane.dataset.phoneEducationCraneHandoff).toBe('receiver');
+    expect(education.style.opacity).toBe('1');
+    expect(crane.style.opacity).toBe('1');
     expect(education.inert).toBe(false);
     expect(crane.inert).toBe(true);
+    expect(crane.dataset.phoneCraneProgress).toBe('0.0000');
+    expect(
+      crane.style.values.get('--phone-crane-flock-motion-scale')
+    ).toBe('0.5700');
   });
 
-  it('maps forward, reverse, and reduced motion without an intermediate hold', () => {
+  it('maps forward, reverse, and reduced motion without a dissolve or hold', () => {
     expect([0, 0.5, 1].map((value) => phoneEducationCraneFrame(value))).toEqual([
-      { progress: 0, educationOpacity: 1, craneOpacity: 0 },
-      { progress: 0.5, educationOpacity: 0.5, craneOpacity: 0.5 },
-      { progress: 1, educationOpacity: 0, craneOpacity: 1 }
+      {
+        progress: 0,
+        educationOpacity: 1,
+        craneOpacity: 1,
+        craneProgress: 0
+      },
+      {
+        progress: 0.5,
+        educationOpacity: 1,
+        craneOpacity: 1,
+        craneProgress: 0
+      },
+      {
+        progress: 1,
+        educationOpacity: 1,
+        craneOpacity: 1,
+        craneProgress: 0
+      }
     ]);
-    expect(phoneEducationCraneFrame(0.49, true)).toMatchObject({
-      educationOpacity: 1,
-      craneOpacity: 0
-    });
-    expect(phoneEducationCraneFrame(0.5, true)).toMatchObject({
-      educationOpacity: 0,
-      craneOpacity: 1
-    });
+    expect(phoneEducationCraneFrame(0.49, true).progress).toBe(0);
+    expect(phoneEducationCraneFrame(0.5, true).progress).toBe(1);
   });
 
-  it('does not rewind a Crane terminal frame while reverse is prepared', () => {
+  it('does not rewind a Crane terminal frame while reverse ink is prepared', () => {
     const education = new FakeElement();
     const crane = new FakeElement();
     education.dataset.r4Scene = 'education';
@@ -72,7 +111,7 @@ describe('Phone Education → Crane transition', () => {
     applyPhoneEducationCraneFrame(
       education as unknown as HTMLElement,
       crane as unknown as HTMLElement,
-      0
+      1
     );
 
     expect(crane.dataset.phoneCraneProgress).toBe('1.0000');

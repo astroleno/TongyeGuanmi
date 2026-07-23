@@ -1,0 +1,10 @@
+.phone-lab-contact__stage--crane
+  > .r4-ink-transition-canvas.phone-education-crane__ink {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: var(--phone-cinematic-stage-canvas-height, 100lvh);
+  pointer-events: none;
+}
