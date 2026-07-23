@@ -33,9 +33,37 @@
   font-size: .8rem;
 }
 
+.phone-crane-tuning-bar__title-actions {
+  display: flex;
+  gap: .35rem;
+}
+
+.phone-crane-tuning-bar__controls {
+  display: grid;
+}
+
+.phone-crane-tuning-bar__controls[hidden] {
+  display: none;
+}
+
+.phone-crane-tuning-bar[data-collapsed='true'] {
+  right: .5rem;
+  left: auto;
+  width: auto;
+  max-height: none;
+  padding: .45rem .55rem;
+  transform: none;
+}
+
+.phone-crane-tuning-bar[data-collapsed='true']
+  .phone-crane-tuning-bar__title {
+  gap: .75rem;
+  margin-bottom: 0;
+}
+
 .phone-crane-tuning-bar label {
   display: grid;
-  grid-template-columns: 4.25rem minmax(0, 1fr) 4.5rem;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 4.5rem;
   gap: .45rem;
   align-items: center;
   min-height: 1.8rem;
@@ -87,7 +115,7 @@
   }
 
   .phone-crane-tuning-bar label {
-    grid-template-columns: 3.8rem minmax(0, 1fr) 4.15rem;
+    grid-template-columns: 5rem minmax(0, 1fr) 4.15rem;
     gap: .3rem;
   }
 }

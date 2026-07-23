@@ -19,17 +19,18 @@ type PhoneCraneTuning = Readonly<{
   figureY: number;
 }>;
 
-const STORAGE_KEY = 'r5-phone-crane-tuning-v3';
+const STORAGE_KEY = 'r5-phone-crane-tuning-v4';
+export const PHONE_CRANE_TUNING_EVENT = 'phone-crane-tuning-change';
 
 export const DEFAULT_PHONE_CRANE_TUNING: PhoneCraneTuning = {
   flockScale: 0.57,
-  flockX: 0,
+  flockX: -1,
   flockY: 10.75,
   buildingY: 3.25,
   bottomCloudY: 3.25,
-  figureScale: 1,
-  figureX: 0,
-  figureY: 0
+  figureScale: 0.5,
+  figureX: -3.75,
+  figureY: 8.75
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -70,7 +71,7 @@ const normaliseTuning = (
   ),
   figureScale: clamp(
     finiteOr(value.figureScale, DEFAULT_PHONE_CRANE_TUNING.figureScale),
-    0.5,
+    0.25,
     1.5
   ),
   figureX: clamp(
@@ -116,6 +117,7 @@ export function PhoneCraneTuningBar() {
   const summaryRef = useRef<HTMLInputElement>(null);
   const [tuning, setTuning] = useState<PhoneCraneTuning>(readStoredTuning);
   const [copied, setCopied] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const summary = useMemo(() => formatPhoneCraneTuning(tuning), [tuning]);
 
   useLayoutEffect(() => {
@@ -147,18 +149,16 @@ export function PhoneCraneTuningBar() {
       '--phone-crane-tune-bottom-cloud-y',
       `${tuning.bottomCloudY.toFixed(2)}lvh`
     );
-    owner.style.setProperty(
-      '--phone-crane-tune-figure-scale',
-      tuning.figureScale.toFixed(3)
+    const crane = owner.querySelector<HTMLElement>(
+      '[data-r4-scene="crane-animation"]'
     );
-    owner.style.setProperty(
-      '--phone-crane-tune-figure-x',
-      `${tuning.figureX.toFixed(2)}lvh`
-    );
-    owner.style.setProperty(
-      '--phone-crane-tune-figure-y',
-      `${tuning.figureY.toFixed(2)}lvh`
-    );
+    if (crane) {
+      crane.dataset.phoneCraneFigureOpeningScale =
+        tuning.figureScale.toFixed(3);
+      crane.dataset.phoneCraneFigureOpeningX = tuning.figureX.toFixed(2);
+      crane.dataset.phoneCraneFigureOpeningY = tuning.figureY.toFixed(2);
+      crane.dispatchEvent(new Event(PHONE_CRANE_TUNING_EVENT));
+    }
 
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tuning));
@@ -175,9 +175,14 @@ export function PhoneCraneTuningBar() {
       owner?.style.removeProperty('--phone-crane-tune-flock-y');
       owner?.style.removeProperty('--phone-crane-tune-building-y');
       owner?.style.removeProperty('--phone-crane-tune-bottom-cloud-y');
-      owner?.style.removeProperty('--phone-crane-tune-figure-scale');
-      owner?.style.removeProperty('--phone-crane-tune-figure-x');
-      owner?.style.removeProperty('--phone-crane-tune-figure-y');
+      const crane = owner?.querySelector<HTMLElement>(
+        '[data-r4-scene="crane-animation"]'
+      );
+      if (crane) {
+        delete crane.dataset.phoneCraneFigureOpeningScale;
+        delete crane.dataset.phoneCraneFigureOpeningX;
+        delete crane.dataset.phoneCraneFigureOpeningY;
+      }
     },
     []
   );
@@ -217,18 +222,31 @@ export function PhoneCraneTuningBar() {
       className="phone-crane-tuning-bar"
       aria-label="Crane 手机构图调参"
       data-phone-crane-tuning-bar="true"
+      data-collapsed={String(collapsed)}
     >
       <div className="phone-crane-tuning-bar__title">
         <strong>Crane 构图</strong>
-        <button
-          type="button"
-          onClick={() => setTuning(DEFAULT_PHONE_CRANE_TUNING)}
-        >
-          重置
-        </button>
+        <div className="phone-crane-tuning-bar__title-actions">
+          {!collapsed ? (
+            <button
+              type="button"
+              onClick={() => setTuning(DEFAULT_PHONE_CRANE_TUNING)}
+            >
+              重置
+            </button>
+          ) : null}
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((value) => !value)}
+          >
+            {collapsed ? '展开' : '收起'}
+          </button>
+        </div>
       </div>
 
-      <label>
+      <div className="phone-crane-tuning-bar__controls" hidden={collapsed}>
+        <label>
         <span>鹤群缩放</span>
         <input
           aria-label="鹤群缩放"
@@ -242,7 +260,7 @@ export function PhoneCraneTuningBar() {
           }
         />
         <output>{tuning.flockScale.toFixed(3)}</output>
-      </label>
+        </label>
 
       <label>
         <span>鹤群 X</span>
@@ -309,11 +327,11 @@ export function PhoneCraneTuningBar() {
       </label>
 
       <label>
-        <span>扑翼缩放</span>
+        <span>扑翼起始缩放</span>
         <input
-          aria-label="扑翼机缩放"
+          aria-label="扑翼机起始缩放"
           type="range"
-          min="0.5"
+          min="0.25"
           max="1.5"
           step="0.005"
           value={tuning.figureScale}
@@ -325,9 +343,9 @@ export function PhoneCraneTuningBar() {
       </label>
 
       <label>
-        <span>扑翼机 X</span>
+        <span>扑翼起始 X</span>
         <input
-          aria-label="扑翼机 X"
+          aria-label="扑翼机起始 X"
           type="range"
           min="-25"
           max="25"
@@ -341,9 +359,9 @@ export function PhoneCraneTuningBar() {
       </label>
 
       <label>
-        <span>扑翼机 Y</span>
+        <span>扑翼起始 Y</span>
         <input
-          aria-label="扑翼机 Y"
+          aria-label="扑翼机起始 Y"
           type="range"
           min="-25"
           max="25"
@@ -356,18 +374,19 @@ export function PhoneCraneTuningBar() {
         <output>{tuning.figureY.toFixed(2)}vh</output>
       </label>
 
-      <div className="phone-crane-tuning-bar__result">
-        <input
-          ref={summaryRef}
-          aria-label="Crane 参数"
-          type="text"
-          readOnly
-          value={summary}
-          onFocus={(event) => event.currentTarget.select()}
-        />
-        <button type="button" onClick={copySummary}>
-          {copied ? '已复制' : '复制参数'}
-        </button>
+        <div className="phone-crane-tuning-bar__result">
+          <input
+            ref={summaryRef}
+            aria-label="Crane 参数"
+            type="text"
+            readOnly
+            value={summary}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+          <button type="button" onClick={copySummary}>
+            {copied ? '已复制' : '复制参数'}
+          </button>
+        </div>
       </div>
     </aside>
   );

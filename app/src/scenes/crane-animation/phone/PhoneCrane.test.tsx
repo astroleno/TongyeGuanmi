@@ -22,6 +22,11 @@ import {
   phoneCraneTimelineProgressForFigureMediaProgress,
   phoneCraneTimelineProgressForFlockMediaProgress
 } from './PhoneCrane.autoplay';
+import {
+  PHONE_CRANE_FIGURE_OPENING_SCALE,
+  PHONE_CRANE_FIGURE_OPENING_X_VH,
+  PHONE_CRANE_FIGURE_OPENING_Y_VH
+} from './PhoneCrane.motion';
 
 const source = readFileSync(new URL('./PhoneCrane.tsx', import.meta.url), 'utf8');
 const autoplaySource = readFileSync(
@@ -91,11 +96,16 @@ describe('PhoneCrane', () => {
     expect(css).not.toContain('--phone-crane-motion-width');
     expect(css).toContain('--phone-crane-flock-center-y: 50.2%');
     expect(css).toContain('--crane-flock-scale: .57');
-    expect(css).toContain('var(--phone-crane-tune-flock-x, 0lvh)');
+    expect(css).toContain('var(--phone-crane-tune-flock-x, -1lvh)');
     expect(css).toContain('var(--phone-crane-tune-flock-y, 10.75lvh)');
-    expect(css).toContain('var(--phone-crane-tune-figure-scale, 1)');
-    expect(css).toContain('var(--phone-crane-tune-figure-x, 0lvh)');
-    expect(css).toContain('var(--phone-crane-tune-figure-y, 0lvh)');
+    expect(css).toContain('var(--phone-crane-figure-camera-x, -3.75lvh)');
+    expect(css).toContain('var(--phone-crane-figure-camera-y, 8.75lvh)');
+    expect(motionSource).toContain(
+      'figureOpeningScale + (1 - figureOpeningScale) * grow'
+    );
+    expect(PHONE_CRANE_FIGURE_OPENING_SCALE).toBe(0.5);
+    expect(PHONE_CRANE_FIGURE_OPENING_X_VH).toBe(-3.75);
+    expect(PHONE_CRANE_FIGURE_OPENING_Y_VH).toBe(8.75);
     expect(css).toContain('filter: none');
     expect(motionSource).toContain(
       'var(--phone-crane-tune-building-y, 3.25lvh)'
@@ -132,10 +142,27 @@ describe('PhoneCrane', () => {
     endpoint.connect('.phone-crane__flock-canvas', flockCanvas);
     renderPhoneCranePresentation(
       endpoint as unknown as HTMLElement,
+      0
+    );
+    expect(endpoint.style.values.get('--crane-video-scale')).toBe('0.5000');
+    expect(
+      endpoint.style.values.get('--phone-crane-figure-camera-x')
+    ).toBe('-3.75lvh');
+    expect(
+      endpoint.style.values.get('--phone-crane-figure-camera-y')
+    ).toBe('8.75lvh');
+    renderPhoneCranePresentation(
+      endpoint as unknown as HTMLElement,
       1
     );
     expect(endpoint.style.values.get('--crane-flock-opacity')).toBe('0.0000');
     expect(endpoint.style.values.get('--crane-video-scale')).toBe('1.0000');
+    expect(
+      endpoint.style.values.get('--phone-crane-figure-camera-x')
+    ).toBe('0.00lvh');
+    expect(
+      endpoint.style.values.get('--phone-crane-figure-camera-y')
+    ).toBe('0.00lvh');
     expect(endpoint.dataset.phoneCraneProgress).toBe('1.0000');
     expect(endpoint.dataset.phoneCraneFlockState).toBe('retired');
     expect(flockCanvas.style.opacity).toBe('0');

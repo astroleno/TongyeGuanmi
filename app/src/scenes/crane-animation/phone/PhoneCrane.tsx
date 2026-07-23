@@ -34,7 +34,10 @@ import {
   renderPhoneCranePresentation,
   type PhoneCranePlaybackDirection
 } from './PhoneCrane.motion';
-import { PhoneCraneTuningBar } from './PhoneCraneTuningBar';
+import {
+  PHONE_CRANE_TUNING_EVENT,
+  PhoneCraneTuningBar
+} from './PhoneCraneTuningBar';
 import './PhoneCrane.css';
 
 const PHONE_CRANE_FIGURE_PACKED = phoneMediaUrlFor(
@@ -373,6 +376,26 @@ export const PhoneCrane = forwardRef<
     render,
     startRun
   ]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const renderTunedOpeningCamera = () => {
+      const progress = Number(root.dataset.phoneCraneProgress);
+      renderPhoneCranePresentation(
+        root,
+        Number.isFinite(progress) ? progress : 0,
+        root.dataset.cranePlaybackDirection === '-1' ? -1 : 1
+      );
+    };
+    root.addEventListener(PHONE_CRANE_TUNING_EVENT, renderTunedOpeningCamera);
+    return () => {
+      root.removeEventListener(
+        PHONE_CRANE_TUNING_EVENT,
+        renderTunedOpeningCamera
+      );
+    };
+  }, [figureCanvasHost, flockCanvasHost]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,

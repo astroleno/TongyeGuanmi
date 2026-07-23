@@ -3,6 +3,9 @@ import { CRANE_TIMELINE_DURATION_SECONDS } from '..';
 const FIGURE_START_SECONDS = 0.5;
 const FIGURE_FULLSCREEN_SECONDS = FIGURE_START_SECONDS + 1;
 const FLOCK_END_SECONDS = 2.5;
+export const PHONE_CRANE_FIGURE_OPENING_SCALE = 0.5;
+export const PHONE_CRANE_FIGURE_OPENING_X_VH = -3.75;
+export const PHONE_CRANE_FIGURE_OPENING_Y_VH = 8.75;
 
 /** The complete desktop-authored endpoint used after native playback ends. */
 export const PHONE_CRANE_STABLE_HOLD_PROGRESS = 1;
@@ -11,6 +14,18 @@ export type PhoneCranePlaybackDirection = 1 | -1;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function finiteInRange(
+  value: string | undefined,
+  fallback: number,
+  min: number,
+  max: number
+): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed)
+    ? Math.min(max, Math.max(min, parsed))
+    : fallback;
 }
 
 function smoothStep(value: number): number {
@@ -69,7 +84,28 @@ export function renderPhoneCranePresentation(
   );
   const flockRetired = time >= FLOCK_END_SECONDS - 0.001;
   const figureY = 198 * (1 - grow);
-  const videoScale = 0.8 + 0.2 * grow;
+  const figureOpeningScale = finiteInRange(
+    section.dataset.phoneCraneFigureOpeningScale,
+    PHONE_CRANE_FIGURE_OPENING_SCALE,
+    0.25,
+    1.5
+  );
+  const figureOpeningX = finiteInRange(
+    section.dataset.phoneCraneFigureOpeningX,
+    PHONE_CRANE_FIGURE_OPENING_X_VH,
+    -25,
+    25
+  );
+  const figureOpeningY = finiteInRange(
+    section.dataset.phoneCraneFigureOpeningY,
+    PHONE_CRANE_FIGURE_OPENING_Y_VH,
+    -25,
+    25
+  );
+  const openingWeight = 1 - grow;
+  const videoScale = figureOpeningScale + (1 - figureOpeningScale) * grow;
+  const figureCameraX = figureOpeningX * openingWeight;
+  const figureCameraY = figureOpeningY * openingWeight;
   const clipBottom = (1 - unmask) * 42;
   // Desktop Crane sends every architectural plate below the viewport across
   // the same 0.08 → 0.78 timeline range. Holding the phone camera at 20%
@@ -84,6 +120,14 @@ export function renderPhoneCranePresentation(
 
   section.style.setProperty('--crane-progress', progress.toFixed(4));
   section.style.setProperty('--crane-video-scale', videoScale.toFixed(4));
+  section.style.setProperty(
+    '--phone-crane-figure-camera-x',
+    `${figureCameraX.toFixed(2)}lvh`
+  );
+  section.style.setProperty(
+    '--phone-crane-figure-camera-y',
+    `${figureCameraY.toFixed(2)}lvh`
+  );
   section.style.setProperty('--crane-figure-x', '0px');
   section.style.setProperty('--crane-figure-base-y', `${figureY.toFixed(1)}px`);
   section.style.setProperty('--crane-video-y', '0px');

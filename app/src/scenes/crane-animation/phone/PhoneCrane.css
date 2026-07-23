@@ -44,8 +44,8 @@
   clip-path: none;
   transform:
     translate3d(
-      calc(var(--crane-figure-x) + var(--phone-crane-tune-figure-x, 0lvh)),
-      calc(var(--crane-figure-base-y) + var(--crane-video-y) + var(--phone-crane-tune-figure-y, 0lvh)),
+      calc(var(--crane-figure-x) + var(--phone-crane-figure-camera-x, -3.75lvh)),
+      calc(var(--crane-figure-base-y) + var(--crane-video-y) + var(--phone-crane-figure-camera-y, 8.75lvh)),
       0
     )
     scale(var(--crane-video-scale));
@@ -104,8 +104,7 @@
       -50%,
       calc(-50% + var(--phone-crane-figure-shift-y)),
       0
-    )
-    scale(var(--phone-crane-tune-figure-scale, 1));
+    );
 }
 
 .phone-crane .r4-crane-animation .phone-crane__flock-canvas {
@@ -118,7 +117,7 @@
    */
   filter: none;
   transform: translate3d(
-      calc(-50% + var(--crane-flock-x) + var(--phone-crane-tune-flock-x, 0lvh)),
+      calc(-50% + var(--crane-flock-x) + var(--phone-crane-tune-flock-x, -1lvh)),
       calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 10.75lvh)),
       0
     )
