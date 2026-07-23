@@ -7,6 +7,12 @@ export type PhoneEdgeScene =
   | 'figure2'
   | 'proof';
 
+export type PhoneEdgeSurfaceProfile =
+  | 'baseline'
+  | 'pattern-terminal';
+
+export const PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#8f7f61';
+
 export const PHONE_EDGE_SURFACE_BY_SCENE: Readonly<
   Record<PhoneEdgeScene, string>
 > = {
@@ -19,6 +25,12 @@ export const PHONE_EDGE_SURFACE_BY_SCENE: Readonly<
   proof: '#ede4d2'
 };
 
-export function phoneEdgeSurfaceForScene(scene: PhoneEdgeScene): string {
+export function phoneEdgeSurfaceForScene(
+  scene: PhoneEdgeScene,
+  profile: PhoneEdgeSurfaceProfile = 'baseline'
+): string {
+  if (profile === 'pattern-terminal' && scene === 'pattern') {
+    return PHONE_PATTERN_TERMINAL_EDGE_SURFACE;
+  }
   return PHONE_EDGE_SURFACE_BY_SCENE[scene];
 }

@@ -78,6 +78,7 @@ describe('StoryLoader', () => {
     expect(html).toContain('validationNumber === 44');
     expect(html).toContain('validationNumber === 45');
     expect(html).toContain('validationNumber === 46');
+    expect(html).toContain('validationNumber === 47');
     expect(html).not.toContain('validationNumber === 41');
     expect(html).toContain("navigation?.type === 'reload'");
     expect(html).toContain('manuallyReloaded');

@@ -1,6 +1,6 @@
 export const PORTRAIT_SPIKE_QUERY = 'portrait-spike';
 export const PORTRAIT_PREVIEW_VERSION_QUERY = 'v';
-export const PORTRAIT_CURRENT_VERSION = '46';
+export const PORTRAIT_CURRENT_VERSION = '47';
 export const PORTRAIT_SUPPORTED_VERSIONS = [
   '16',
   '17',
@@ -31,6 +31,7 @@ export const PORTRAIT_SUPPORTED_VERSIONS = [
   '43',
   '44',
   '45',
+  '46',
   PORTRAIT_CURRENT_VERSION
 ] as const;
 

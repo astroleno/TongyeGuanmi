@@ -4,6 +4,10 @@
     linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
 }
 
+.portrait-scroll-spike[data-phone-validation-mode="v47"] {
+  --portrait-pattern-edge-surface: #8f7f61;
+}
+
 .portrait-scroll-spike__scene--pattern {
   background: #d9c08f;
   color: #211713;
@@ -16,6 +20,25 @@
   display: block;
   pointer-events: none;
   user-select: none;
+}
+
+.portrait-scroll-spike[data-phone-validation-mode="v47"] .portrait-scroll-spike__pattern-motion::after {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: clamp(48px, 6.5svh, 60px);
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(143, 127, 97, 0) 0%,
+    rgba(143, 127, 97, .24) 52%,
+    rgba(143, 127, 97, .72) 78%,
+    var(--portrait-pattern-edge-surface) 86%,
+    var(--portrait-pattern-edge-surface) 100%
+  );
 }
 
 .portrait-scroll-spike__pattern-image {

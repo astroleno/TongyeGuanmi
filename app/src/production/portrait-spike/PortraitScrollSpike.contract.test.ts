@@ -204,7 +204,19 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__pattern-bloom\s*\{[^}]*inset:\s*0[^}]*height:\s*100%/s
     );
     expect(patternCss).not.toContain('stage-backplate');
-    expect(patternCss).not.toContain('::after');
+    expect(patternCss).toContain('--portrait-pattern-edge-surface: #8f7f61');
+    expect(patternCss).toMatch(
+      /data-phone-validation-mode="v47"[^}]*portrait-pattern-edge-surface:[^}]*8f7f61/s
+    );
+    expect(patternCss).toMatch(
+      /data-phone-validation-mode="v47"[^}]*pattern-motion::after\s*\{[^}]*height:\s*clamp\(48px,\s*6\.5svh,\s*60px\)[^}]*background:\s*linear-gradient\([^}]*var\(--portrait-pattern-edge-surface\)\s*100%/s
+    );
+    expect(patternCss).not.toMatch(
+      /data-phone-validation-mode="v46"[^}]*pattern-motion::after/s
+    );
+    expect(edgeSurfaceSource).toContain(
+      "PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#8f7f61'"
+    );
     expect(patternSource).toContain('centerForViewport: () => PATTERN_CENTER');
     expect(aodCss).toContain('--portrait-aod-bottom-mist-background');
     expect(aodCss).not.toContain('--portrait-browser-edge-reserve');

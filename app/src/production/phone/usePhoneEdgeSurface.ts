@@ -1,32 +1,37 @@
 import { useCallback, useLayoutEffect, useRef, type RefObject } from 'react';
 import {
   phoneEdgeSurfaceForScene,
-  type PhoneEdgeScene
+  type PhoneEdgeScene,
+  type PhoneEdgeSurfaceProfile
 } from './phone-edge-surface';
 
 /** One publisher owns the document, persistent host, and Safari theme edge. */
 export function usePhoneEdgeSurface(
   rootRef: RefObject<HTMLElement | null>,
-  viewportHostRef: RefObject<HTMLElement | null>
+  viewportHostRef: RefObject<HTMLElement | null>,
+  profile: PhoneEdgeSurfaceProfile = 'baseline'
 ): (scene: PhoneEdgeScene) => void {
   const edgeSceneRef = useRef<PhoneEdgeScene>('hero');
   const publish = useCallback((scene: PhoneEdgeScene) => {
     const documentElement = document.documentElement;
     const root = rootRef.current;
     const viewportHost = viewportHostRef.current;
+    const surface = phoneEdgeSurfaceForScene(scene, profile);
+    const themeColorMeta = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]'
+    );
     if (
       edgeSceneRef.current === scene
       && root?.dataset.portraitEdgeScene === scene
+      && root?.dataset.portraitEdgeSurface === surface
       && documentElement.dataset.portraitEdgeScene === scene
+      && documentElement.style.getPropertyValue('--portrait-document-surface') === surface
       && viewportHost?.dataset.portraitEdgeScene === scene
+      && (!themeColorMeta || themeColorMeta.content === surface)
     ) {
       return;
     }
     edgeSceneRef.current = scene;
-    const surface = phoneEdgeSurfaceForScene(scene);
-    const themeColorMeta = document.querySelector<HTMLMetaElement>(
-      'meta[name="theme-color"]'
-    );
     documentElement.style.setProperty('--portrait-document-surface', surface);
     documentElement.dataset.portraitEdgeScene = scene;
     if (root) {
@@ -36,7 +41,7 @@ export function usePhoneEdgeSurface(
     }
     if (viewportHost) viewportHost.dataset.portraitEdgeScene = scene;
     if (themeColorMeta) themeColorMeta.content = surface;
-  }, [rootRef, viewportHostRef]);
+  }, [profile, rootRef, viewportHostRef]);
 
   useLayoutEffect(() => {
     const documentElement = document.documentElement;

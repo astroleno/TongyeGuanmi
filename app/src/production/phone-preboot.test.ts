@@ -93,14 +93,16 @@ describe('phone preboot ownership', () => {
   });
 
   it('keeps numbered physical-device routes independent from the release flag', () => {
-    const result = runPhonePreboot({
-      enabled: false,
-      width: 390,
-      height: 844,
-      search: '?v=46'
-    });
+    for (const version of ['46', '47']) {
+      const result = runPhonePreboot({
+        enabled: false,
+        width: 390,
+        height: 844,
+        search: `?v=${version}`
+      });
 
-    expect(result.dataset.portraitSpike).toBe('b');
-    expect(result.dataset.portraitSpikePreboot).toBe('validation');
+      expect(result.dataset.portraitSpike).toBe('b');
+      expect(result.dataset.portraitSpikePreboot).toBe('validation');
+    }
   });
 });
