@@ -101,7 +101,7 @@ describe('PhoneCrane', () => {
     expect(css).toContain('--phone-crane-flock-center-y: 50.2%');
     expect(css).toContain('--crane-flock-scale: .57');
     expect(css).toContain('var(--phone-crane-tune-flock-x, -1lvh)');
-    expect(css).toContain('var(--phone-crane-tune-flock-y, 15.5lvh)');
+    expect(css).toContain('var(--phone-crane-tune-flock-y, 10.75lvh)');
     expect(css).toContain('var(--phone-crane-figure-camera-x, -3.75lvh)');
     expect(css).toContain('var(--phone-crane-figure-camera-y, 8.75lvh)');
     expect(motionSource).toContain(
@@ -111,7 +111,7 @@ describe('PhoneCrane', () => {
     expect(PHONE_CRANE_FIGURE_OPENING_X_VH).toBe(-3.75);
     expect(PHONE_CRANE_FIGURE_OPENING_Y_VH).toBe(8.75);
     expect(PHONE_CRANE_FLOCK_TOP_ARRIVAL_SECONDS).toBe(1.5);
-    expect(PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH).toBe(-15.7);
+    expect(PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH).toBe(-10.95);
     expect(PHONE_CRANE_FLOCK_OPENING_SCALE).toBe(0.57);
     expect(PHONE_CRANE_FLOCK_ARRIVAL_SCALE).toBe(1);
     expect(css).toContain('--phone-crane-flock-motion-scale');
@@ -168,7 +168,7 @@ describe('PhoneCrane', () => {
       endpoint as unknown as HTMLElement,
       0.5
     );
-    expect(endpoint.style.values.get('--crane-flock-y')).toBe('-15.70lvh');
+    expect(endpoint.style.values.get('--crane-flock-y')).toBe('-10.95lvh');
     expect(
       endpoint.style.values.get('--phone-crane-flock-motion-scale')
     ).toBe('1.0000');

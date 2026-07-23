@@ -5,11 +5,11 @@ const FIGURE_FULLSCREEN_SECONDS = FIGURE_START_SECONDS + 1;
 const FLOCK_END_SECONDS = 2.5;
 /*
  * At packed frame 45 (≈1.5s), the flock matte reaches y=0. Growing the
- * retained-height camera from .57 to 1 places that edge 15.70lvh below the
+ * retained-height camera from .57 to 1 places that edge 10.95lvh below the
  * viewport top, so the paired translation closes the remaining distance.
  */
 export const PHONE_CRANE_FLOCK_TOP_ARRIVAL_SECONDS = 1.5;
-export const PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH = -15.7;
+export const PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH = -10.95;
 export const PHONE_CRANE_FLOCK_OPENING_SCALE = 0.57;
 export const PHONE_CRANE_FLOCK_ARRIVAL_SCALE = 1;
 export const PHONE_CRANE_FIGURE_OPENING_SCALE = 0.5;

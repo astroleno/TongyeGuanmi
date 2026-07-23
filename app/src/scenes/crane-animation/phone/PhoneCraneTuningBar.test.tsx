@@ -26,7 +26,7 @@ describe('PhoneCraneTuningBar', () => {
 
   it('formats a directly shareable parameter string', () => {
     expect(formatPhoneCraneTuning(DEFAULT_PHONE_CRANE_TUNING)).toBe(
-      'flockScale=0.570, flockX=-1.00vh, flockY=15.50vh, buildingY=3.25vh, bottomCloudY=3.25vh, figureScale=0.500, figureX=-3.75vh, figureY=8.75vh'
+      'flockScale=0.570, flockX=-1.00vh, flockY=10.75vh, buildingY=3.25vh, bottomCloudY=3.25vh, figureScale=0.500, figureX=-3.75vh, figureY=8.75vh'
     );
   });
 });

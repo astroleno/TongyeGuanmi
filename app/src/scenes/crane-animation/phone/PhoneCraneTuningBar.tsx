@@ -19,13 +19,13 @@ type PhoneCraneTuning = Readonly<{
   figureY: number;
 }>;
 
-const STORAGE_KEY = 'r5-phone-crane-tuning-v5';
+const STORAGE_KEY = 'r5-phone-crane-tuning-v6';
 export const PHONE_CRANE_TUNING_EVENT = 'phone-crane-tuning-change';
 
 export const DEFAULT_PHONE_CRANE_TUNING: PhoneCraneTuning = {
   flockScale: 0.57,
   flockX: -1,
-  flockY: 15.5,
+  flockY: 10.75,
   buildingY: 3.25,
   bottomCloudY: 3.25,
   figureScale: 0.5,
