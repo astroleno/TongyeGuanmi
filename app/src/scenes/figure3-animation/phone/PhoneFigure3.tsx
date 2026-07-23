@@ -154,6 +154,28 @@ export function phoneFigure3CanStartPreparedRun(
   return readyEndpoint === phoneFigure3RunStartEndpoint(direction);
 }
 
+const PHONE_FIGURE3_ENDPOINT_TOLERANCE_SECONDS = .05;
+
+/**
+ * A paused WebKit HEVC frame is usable once the one visible canvas has drawn
+ * it. requestVideoFrameCallback may remain pending even after that physical
+ * draw, so endpoint ownership follows decoded playhead evidence as well as the
+ * shared timeline driver's promise.
+ */
+export function phoneFigure3EndpointIsPresented(
+  endpoint: PhoneFigure3Endpoint,
+  currentTime: number,
+  readyState: number,
+  seeking: boolean
+): boolean {
+  const targetTime = endpoint === 0 ? 0 : FIGURE3_END_SECONDS;
+  return Number.isFinite(currentTime)
+    && readyState >= 2
+    && !seeking
+    && Math.abs(currentTime - targetTime)
+      <= PHONE_FIGURE3_ENDPOINT_TOLERANCE_SECONDS;
+}
+
 function endpointLabel(endpoint: PhoneFigure3Endpoint): 'initial' | 'terminal' {
   return endpoint === 0 ? 'initial' : 'terminal';
 }
@@ -224,6 +246,7 @@ export const PhoneFigure3 = forwardRef<
     direction: 1 | -1;
     generation: number;
     runId: string;
+    onPresented: (() => void) | undefined;
   }> | null>(null);
   const endpointGenerationRef = useRef(0);
   const endpointRunSequenceRef = useRef(0);
@@ -354,6 +377,56 @@ export const PhoneFigure3 = forwardRef<
     reversePlaybackRef.current?.start();
   }, [clearEndpointPresentation]);
 
+  const finishEndpointPresentation = useCallback((
+    generation: number,
+    endpoint: PhoneFigure3Endpoint,
+    runId: string,
+    compositor: PhoneFigure3PaperCompositor,
+    frameAlreadyPainted = false
+  ): boolean => {
+    let preparation = endpointPreparationRef.current;
+    const video = videoRef.current;
+    if (
+      mediaRetiringRef.current
+      || !video
+      || preparation?.generation !== generation
+      || preparation.endpoint !== endpoint
+      || preparation.runId !== runId
+      || !phoneFigure3EndpointIsPresented(
+        endpoint,
+        video.currentTime,
+        video.readyState,
+        video.seeking
+      )
+    ) return false;
+
+    if (!frameAlreadyPainted) {
+      if (!compositor.paint()) return false;
+      // paint() publishes presented-frame evidence synchronously. Its callback
+      // may have completed this same preparation, so never commit it twice.
+      preparation = endpointPreparationRef.current;
+      if (
+        preparation?.generation !== generation
+        || preparation.endpoint !== endpoint
+        || preparation.runId !== runId
+      ) return true;
+    }
+
+    const onPresented = preparation.onPresented;
+    readyEndpointRef.current = endpoint;
+    endpointPreparationRef.current = null;
+    const label = endpointLabel(endpoint);
+    rootRef.current?.setAttribute('data-phone-figure3-endpoint-ready', label);
+    rootRef.current?.setAttribute(
+      'data-phone-figure3-endpoint-state',
+      `ready-${label}`
+    );
+    canvasRef.current?.setAttribute('data-phone-figure3-paper-endpoint', label);
+    onPresented?.();
+    startPreparedRun();
+    return true;
+  }, [startPreparedRun]);
+
   const prepareEndpoint = useCallback((
     endpoint: PhoneFigure3Endpoint,
     preparationDirection: 1 | -1,
@@ -374,7 +447,18 @@ export const PhoneFigure3 = forwardRef<
     if (
       inFlight?.endpoint === endpoint
       && inFlight.direction === preparationDirection
-    ) return;
+    ) {
+      if (onPresented && inFlight.onPresented !== onPresented) {
+        endpointPreparationRef.current = { ...inFlight, onPresented };
+      }
+      finishEndpointPresentation(
+        inFlight.generation,
+        inFlight.endpoint,
+        inFlight.runId,
+        compositor
+      );
+      return;
+    }
 
     const generation = ++endpointGenerationRef.current;
     if (endpointPaintFrameRef.current && typeof window !== 'undefined') {
@@ -391,7 +475,8 @@ export const PhoneFigure3 = forwardRef<
       endpoint,
       direction: preparationDirection,
       generation,
-      runId
+      runId,
+      onPresented
     };
     clearEndpointPresentation();
     const root = rootRef.current;
@@ -400,51 +485,12 @@ export const PhoneFigure3 = forwardRef<
     }
     playback.reset(endpoint);
     renderFrame(endpoint);
-
-    const finishPresentedEndpoint = () => {
-      const preparation = endpointPreparationRef.current;
-      if (
-        mediaRetiringRef.current
-        || preparation?.generation !== generation
-        || preparation.endpoint !== endpoint
-        || preparation.runId !== runId
-      ) return;
-      if (!compositor.paint()) {
-        if (typeof window === 'undefined') {
-          failMedia();
-          return;
-        }
-        endpointPaintFrameRef.current = window.requestAnimationFrame(() => {
-          endpointPaintFrameRef.current = 0;
-          const latest = endpointPreparationRef.current;
-          if (
-            latest?.generation !== generation
-            || latest.endpoint !== endpoint
-          ) return;
-          if (!compositor.paint()) {
-            failMedia();
-            return;
-          }
-          readyEndpointRef.current = endpoint;
-          endpointPreparationRef.current = null;
-          const label = endpointLabel(endpoint);
-          rootRef.current?.setAttribute('data-phone-figure3-endpoint-ready', label);
-          rootRef.current?.setAttribute('data-phone-figure3-endpoint-state', `ready-${label}`);
-          canvasRef.current?.setAttribute('data-phone-figure3-paper-endpoint', label);
-          onPresented?.();
-          startPreparedRun();
-        });
-        return;
-      }
-      readyEndpointRef.current = endpoint;
-      endpointPreparationRef.current = null;
-      const label = endpointLabel(endpoint);
-      rootRef.current?.setAttribute('data-phone-figure3-endpoint-ready', label);
-      rootRef.current?.setAttribute('data-phone-figure3-endpoint-state', `ready-${label}`);
-      canvasRef.current?.setAttribute('data-phone-figure3-paper-endpoint', label);
-      onPresented?.();
-      startPreparedRun();
-    };
+    if (finishEndpointPresentation(
+      generation,
+      endpoint,
+      runId,
+      compositor
+    )) return;
 
     void prepareTimelineVideoFrame(
       video,
@@ -457,14 +503,41 @@ export const PhoneFigure3 = forwardRef<
         || preparation.endpoint !== endpoint
         || preparation.runId !== runId
       ) return;
-      finishPresentedEndpoint();
-    }).catch((error) => {
-      if (endpointPreparationRef.current?.generation === generation) {
-        failMedia();
+      if (finishEndpointPresentation(
+        generation,
+        endpoint,
+        runId,
+        compositor
+      )) return;
+      if (typeof window !== 'undefined') {
+        endpointPaintFrameRef.current = window.requestAnimationFrame(() => {
+          endpointPaintFrameRef.current = 0;
+          finishEndpointPresentation(
+            generation,
+            endpoint,
+            runId,
+            compositor
+          );
+        });
       }
+    }).catch((error) => {
+      // A rejected frame callback is not a failed HEVC decode. The canvas
+      // compositor can still prove the endpoint through loadeddata/seeked;
+      // genuine media errors are owned by the media element and shell timeout.
+      finishEndpointPresentation(
+        generation,
+        endpoint,
+        runId,
+        compositor
+      );
       void error;
     });
-  }, [clearEndpointPresentation, failMedia, renderFrame, startPreparedRun]);
+  }, [
+    clearEndpointPresentation,
+    finishEndpointPresentation,
+    renderFrame,
+    startPreparedRun
+  ]);
 
   const completeRun = useCallback((playbackDirection: 1 | -1) => {
     const completionGeneration = runGenerationRef.current;
@@ -585,6 +658,18 @@ export const PhoneFigure3 = forwardRef<
         if (!mediaRetiringRef.current) {
           root.dataset.phoneFigure3PaperCompositor = 'ready';
         }
+      },
+      onPresentedFrame: () => {
+        const preparation = endpointPreparationRef.current;
+        const activeCompositor = paperCompositorRef.current;
+        if (!preparation || !activeCompositor) return;
+        finishEndpointPresentation(
+          preparation.generation,
+          preparation.endpoint,
+          preparation.runId,
+          activeCompositor,
+          true
+        );
       }
     });
     paperCompositorRef.current = compositor;
@@ -595,7 +680,7 @@ export const PhoneFigure3 = forwardRef<
       }
       delete root.dataset.phoneFigure3PaperCompositor;
     };
-  }, [mediaMounted]);
+  }, [finishEndpointPresentation, mediaMounted]);
 
   useEffect(() => {
     if (!mediaMounted) return;
@@ -666,6 +751,14 @@ export const PhoneFigure3 = forwardRef<
     });
     playbackRef.current = playback;
     reversePlaybackRef.current = reversePlayback;
+    video.preload = 'auto';
+    if (video.readyState === 0) {
+      try {
+        video.load();
+      } catch {
+        // Safari may already be starting the selected source asynchronously.
+      }
+    }
     playback.reset(0);
     reconcileMedia();
     return () => {

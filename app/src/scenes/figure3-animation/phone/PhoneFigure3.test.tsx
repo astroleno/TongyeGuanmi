@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   PhoneFigure3,
   phoneFigure3CanStartPreparedRun,
+  phoneFigure3EndpointIsPresented,
   phoneFigure3Frame,
   phoneFigure3MediaAction,
   phoneFigure3RunStartEndpoint,
@@ -65,6 +66,15 @@ describe('PhoneFigure3', () => {
     expect(phoneFigure3CanStartPreparedRun(-1, null)).toBe(false);
     expect(phoneFigure3CanStartPreparedRun(-1, 0)).toBe(false);
     expect(phoneFigure3CanStartPreparedRun(-1, 1)).toBe(true);
+  });
+
+  it('accepts a decoded Safari endpoint without waiting for a frame callback', () => {
+    expect(phoneFigure3EndpointIsPresented(0, 0, 2, false)).toBe(true);
+    expect(phoneFigure3EndpointIsPresented(0, .04, 2, false)).toBe(true);
+    expect(phoneFigure3EndpointIsPresented(0, .06, 2, false)).toBe(false);
+    expect(phoneFigure3EndpointIsPresented(1, 2.567, 2, false)).toBe(true);
+    expect(phoneFigure3EndpointIsPresented(1, 2.567, 1, false)).toBe(false);
+    expect(phoneFigure3EndpointIsPresented(1, 2.567, 2, true)).toBe(false);
   });
 
   it('disposes the retired video source and decoder', () => {

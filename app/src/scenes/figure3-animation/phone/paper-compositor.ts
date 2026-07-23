@@ -26,6 +26,8 @@ type PhoneFigure3PaperCompositorOptions = Readonly<{
   canvas: HTMLCanvasElement;
   paperColor?: string;
   onFrame?: () => void;
+  /** Fires after every successful canvas draw, including paused Safari seeks. */
+  onPresentedFrame?: () => void;
 }>;
 
 /**
@@ -134,7 +136,8 @@ export function createPhoneFigure3PaperCompositor({
   video,
   canvas,
   paperColor = PHONE_FIGURE3_PAPER_COLOR,
-  onFrame
+  onFrame,
+  onPresentedFrame
 }: PhoneFigure3PaperCompositorOptions): PhoneFigure3PaperCompositor {
   const frameVideo = video as VideoWithFrameCallbacks;
   let disposed = false;
@@ -149,6 +152,7 @@ export function createPhoneFigure3PaperCompositor({
       frameReported = true;
       onFrame?.();
     }
+    if (painted) onPresentedFrame?.();
     return painted;
   };
 

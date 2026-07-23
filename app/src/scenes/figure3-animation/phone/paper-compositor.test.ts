@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   PHONE_FIGURE3_PAPER_COLOR,
+  createPhoneFigure3PaperCompositor,
   paintPhoneFigure3PaperFrame,
   phoneFigure3PaperCoverRect,
   releasePhoneFigure3PaperCanvas
@@ -69,5 +70,52 @@ describe('Figure3 phone paper compositor', () => {
     expect(canvas.width).toBe(1);
     expect(canvas.height).toBe(1);
     expect(canvas.dataset.phoneFigure3PaperFrame).toBeUndefined();
+  });
+
+  it('publishes every painted paused frame as Safari endpoint evidence', () => {
+    const context = {
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+      fillStyle: '',
+      globalCompositeOperation: 'source-over',
+      setTransform: vi.fn()
+    } as unknown as CanvasRenderingContext2D;
+    const video = {
+      addEventListener: vi.fn(),
+      cancelVideoFrameCallback: vi.fn(),
+      currentTime: 0,
+      ended: false,
+      paused: true,
+      readyState: 2,
+      removeEventListener: vi.fn(),
+      videoHeight: 720,
+      videoWidth: 1280
+    } as unknown as HTMLVideoElement;
+    const canvas = {
+      width: 0,
+      height: 0,
+      clientWidth: 390,
+      clientHeight: 844,
+      dataset: {} as DOMStringMap,
+      getBoundingClientRect: () => ({ width: 390, height: 844 }),
+      getContext: vi.fn(() => context)
+    } as unknown as HTMLCanvasElement;
+    const onFrame = vi.fn();
+    const onPresentedFrame = vi.fn();
+
+    const compositor = createPhoneFigure3PaperCompositor({
+      video,
+      canvas,
+      onFrame,
+      onPresentedFrame
+    });
+    expect(onFrame).toHaveBeenCalledOnce();
+    expect(onPresentedFrame).toHaveBeenCalledOnce();
+
+    expect(compositor.paint()).toBe(true);
+    expect(onFrame).toHaveBeenCalledOnce();
+    expect(onPresentedFrame).toHaveBeenCalledTimes(2);
+    compositor.dispose();
   });
 });
