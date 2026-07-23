@@ -724,6 +724,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         cinematicRunStates.current[detail.scene] = detail.direction === 1
           ? 'forward'
           : 'reverse';
+        if (detail.scene === 'ph-animation' && detail.direction === -1) {
+          latestPhEducationRef.current?.reverse?.();
+        }
         if (detail.scene === 'crane-animation') {
           if (detail.direction === 1) {
             latestCraneContactRef.current?.enter?.();
@@ -734,6 +737,14 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         return;
       }
       if (detail.phase === 'progress') {
+        if (
+          detail.scene === 'ph-animation'
+          && detail.direction === -1
+          && typeof detail.progress === 'number'
+          && Number.isFinite(detail.progress)
+        ) {
+          latestPhEducationRef.current?.render(detail.progress);
+        }
         if (
           detail.scene === 'crane-animation'
           && typeof detail.progress === 'number'
@@ -785,6 +796,9 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       cinematicRunStates.current[detail.scene] = detail.direction === 1
         ? 'complete'
         : 'idle';
+      if (detail.scene === 'ph-animation') {
+        latestPhEducationRef.current?.leave?.();
+      }
       if (detail.scene === 'crane-animation') {
         latestCraneContactRef.current?.render(0);
       }
@@ -1099,6 +1113,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         publishActiveScene('ph-animation');
         setStageActive(phStageRef.current, true);
         setStageExitOffset(phStageRef.current, 0);
+        setStageActive(craneStageRef.current, false);
         setVisualEndpoint(ph, 1);
         syncSceneLifecycle(lifecycleStates.current, 'lab', lab, false);
         syncSceneLifecycle(lifecycleStates.current, 'education', education, false);
@@ -1119,6 +1134,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         publishActiveScene('crane-animation');
         setStageActive(craneStageRef.current, true);
         setStageExitOffset(craneStageRef.current, 0);
+        setStageActive(phStageRef.current, false);
         setVisualEndpoint(crane, 1);
         syncSceneLifecycle(lifecycleStates.current, 'ph-animation', ph, false);
         syncSceneLifecycle(lifecycleStates.current, 'education', education, false);
@@ -1138,6 +1154,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         publishActiveScene('ph-animation');
         setStageActive(phStageRef.current, true);
         setStageExitOffset(phStageRef.current, 0);
+        setStageActive(craneStageRef.current, false);
         syncSceneLifecycle(lifecycleStates.current, 'lab', lab, phFrame.handoffProgress < 1);
         // The dissolve only presents PH's zero frame. Once it has landed,
         // PH owns a native forward clock; never turn each scroll sample into
@@ -1185,6 +1202,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         publishActiveScene('crane-animation');
         setStageActive(craneStageRef.current, true);
         setStageExitOffset(craneStageRef.current, 0);
+        setStageActive(phStageRef.current, false);
         syncSceneLifecycle(lifecycleStates.current, 'education', education, craneFrame.handoffProgress < 1);
         // Education → Crane prepares a stable zero frame. The Crane adapter
         // then runs its authored 3s media/presentation clock independently

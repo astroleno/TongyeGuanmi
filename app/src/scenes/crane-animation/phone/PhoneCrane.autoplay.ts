@@ -20,6 +20,10 @@ export const PHONE_CRANE_FIGURE_MEDIA_SECONDS = Math.max(
   0.001,
   CRANE_TIMELINE_DURATION_SECONDS - FIGURE_START_SECONDS
 );
+/** Desktop plays the safe 2.467s endpoint across the authored 2.5s lane. */
+export const PHONE_CRANE_FIGURE_PLAYBACK_RATE = (
+  CRANE_VIDEO_END_SECONDS / PHONE_CRANE_FIGURE_MEDIA_SECONDS
+);
 
 export function phoneCraneTimelineProgressForFigureMediaProgress(
   rawProgress: number
@@ -102,12 +106,18 @@ export function createPhoneCraneForwardRun(
 
   const figureClock: PhoneNativeAutoplay = createPhoneNativeAutoplay(figure, {
     runIdPrefix: 'phone-crane-figure',
-    durationSeconds: PHONE_CRANE_FIGURE_MEDIA_SECONDS,
-    onProgress: (progress) => publishProgress(
-      phoneCraneTimelineProgressForFigureMediaProgress(progress)
-    ),
+    durationSeconds: CRANE_VIDEO_END_SECONDS,
+    onProgress: (progress) => {
+      if (!figureStarted) return;
+      publishProgress(phoneCraneTimelineProgressForFigureMediaProgress(progress));
+    },
     onComplete: () => {
       if (!active || disposed) return;
+      try {
+        figure.currentTime = CRANE_VIDEO_END_SECONDS;
+      } catch {
+        // The compositor already holds the latest safe frame.
+      }
       active = false;
       flockClock.stop();
       render(1, 1);
@@ -129,7 +139,16 @@ export function createPhoneCraneForwardRun(
         && mediaSeconds >= FIGURE_START_SECONDS
       ) {
         figureStarted = true;
-        figureClock.start();
+        // Both muted decoders were started by the threshold-crossing gesture.
+        // Rewind the already-authorized figure once at its authored 0.5s cue
+        // instead of issuing a fresh delayed play() that physical Safari can
+        // reject or later pause when the flock clock ends.
+        try {
+          figure.currentTime = 0;
+        } catch {
+          // Metadata may still be pending; the native clock remains at zero.
+        }
+        root.dataset.phoneCraneFigurePreroll = 'released';
       }
     },
     onComplete: () => undefined,
@@ -153,19 +172,24 @@ export function createPhoneCraneForwardRun(
       delete figure.dataset.phoneCraneFrameReady;
       delete flock.dataset.timelineVideoFrameReady;
       delete figure.dataset.timelineVideoFrameReady;
+      delete root.dataset.phoneCraneFigurePreroll;
       render(0, 1);
+      figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE;
+      figureClock.start();
       flockClock.start();
     },
     stop() {
       active = false;
       flockClock.stop();
       figureClock.stop();
+      delete root.dataset.phoneCraneFigurePreroll;
     },
     dispose() {
       active = false;
       disposed = true;
       flockClock.dispose();
       figureClock.dispose();
+      delete root.dataset.phoneCraneFigurePreroll;
     }
   };
 }

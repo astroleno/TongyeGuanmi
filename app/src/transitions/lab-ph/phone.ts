@@ -18,6 +18,8 @@ import type {
 import './phone.css';
 
 const ENDPOINT_EPSILON = 0.001;
+const INK_GATE_START = 0.06;
+const INK_GATE_END = 0.94;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -26,6 +28,19 @@ function clamp(value: number): number {
 function endpointProgress(rawProgress: number, reducedMotion: boolean): number {
   const progress = clamp(rawProgress);
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
+}
+
+/**
+ * The shared field keeps a short authored pre/post roll around its ownership
+ * gate. Lab's native document edge has no matching concealed sibling, so feed
+ * that gate-compensated progress to the field: its mean contour then lands on
+ * the actual Lab bottom at every scroll sample.
+ */
+export function phoneLabPhAlignedInkProgress(rawProgress: number): number {
+  const progress = clamp(rawProgress);
+  if (progress <= ENDPOINT_EPSILON) return 0;
+  if (progress >= 1 - ENDPOINT_EPSILON) return 1;
+  return INK_GATE_START + progress * (INK_GATE_END - INK_GATE_START);
 }
 
 function presentInkEndpoint(
@@ -113,7 +128,7 @@ export const PhoneLabPhTransition = forwardRef<
 
   const render = useCallback((progress: number) => {
     const frame = applyPhoneLabPhFrame(from, to, progress, reducedMotion);
-    inkRef.current?.render(frame.progress);
+    inkRef.current?.render(phoneLabPhAlignedInkProgress(frame.progress));
   }, [from, reducedMotion, to]);
 
   useLayoutEffect(() => {

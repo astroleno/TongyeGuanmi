@@ -120,7 +120,11 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('startPhEducationHandoff');
     expect(shellSource).toContain('completeCraneContactHandoff');
     expect(shellSource).toContain("detail.phase === 'progress'");
+    expect(shellSource).toContain('latestPhEducationRef.current?.reverse?.()');
+    expect(shellSource).toContain('latestPhEducationRef.current?.render(detail.progress)');
     expect(shellSource).toContain('latestCraneContactRef.current?.render');
+    expect(shellSource).toContain('setStageActive(craneStageRef.current, false)');
+    expect(shellSource).toContain('setStageActive(phStageRef.current, false)');
     expect(shellSource).toContain("window.scrollTo({ top: educationTop");
     expect(shellSource).toContain("window.scrollTo({ top: contactTop");
     expect(shellSource).toContain('() => releaseSnap(detail.scene)');

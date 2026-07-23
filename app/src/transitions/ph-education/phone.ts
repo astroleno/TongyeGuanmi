@@ -2,7 +2,8 @@ import {
   forwardRef,
   useCallback,
   useEffect,
-  useImperativeHandle
+  useImperativeHandle,
+  useRef
 } from 'react';
 import { renderPhonePhPresentation } from '../../scenes/ph-animation/phone/PhonePh.motion';
 import { renderEducationProgress } from '../../scenes/education';
@@ -119,6 +120,22 @@ export function applyPhonePhEducationFrame(
   return frame;
 }
 
+/**
+ * Reverse playback is owned by PhonePh. This receiver-only sample lets the
+ * native Education page dissolve away without writing PH back to its terminal
+ * frame on every reverse animation tick.
+ */
+export function applyPhonePhEducationReverseFrame(
+  to: HTMLElement | null,
+  rawProgress: number,
+  reducedMotion = false
+): PhonePhEducationFrame {
+  const frame = phonePhEducationFrame(rawProgress, reducedMotion);
+  renderEducationProgress(to, 1);
+  applyDissolveEndpoint(to, frame.educationOpacity, false);
+  return frame;
+}
+
 function setEducationOverlay(to: HTMLElement | null, active: boolean): void {
   const wrapper = to?.closest<HTMLElement>('.phone-education');
   const documentSlot = wrapper?.closest<HTMLElement>(
@@ -160,7 +177,12 @@ export const PhonePhEducationTransition = forwardRef<
   { from, onReady, reducedMotion, to },
   forwardedRef
 ) {
+  const directionRef = useRef<1 | -1>(1);
   const render = useCallback((rawProgress: number) => {
+    if (directionRef.current === -1) {
+      applyPhonePhEducationReverseFrame(to, rawProgress, reducedMotion);
+      return;
+    }
     applyPhonePhEducationFrame(from, to, rawProgress, { reducedMotion });
   }, [from, reducedMotion, to]);
 
@@ -171,19 +193,29 @@ export const PhonePhEducationTransition = forwardRef<
   useImperativeHandle(forwardedRef, () => ({
     render,
     enter() {
+      directionRef.current = 1;
       setEducationOverlay(to, true);
       render(0);
     },
     leave() {
+      if (directionRef.current === -1) {
+        render(0);
+        setEducationOverlay(to, false);
+        applyDissolveEndpoint(to, 0, false);
+        directionRef.current = 1;
+        return;
+      }
       render(1);
       settlePhonePhEducationDocumentFlow(from, to);
       setEducationOverlay(to, false);
     },
     reverse() {
+      directionRef.current = -1;
       setEducationOverlay(to, true);
       render(1);
     },
     dispose() {
+      directionRef.current = 1;
       setEducationOverlay(to, false);
       clearDissolveEndpoint(from);
       clearDissolveEndpoint(to);

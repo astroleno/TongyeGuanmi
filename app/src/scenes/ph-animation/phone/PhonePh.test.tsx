@@ -62,11 +62,14 @@ describe('PhonePh', () => {
     expect(css).toContain('* .105');
     expect(css).toContain('* .245');
     expect(css).toContain('opacity: 1 !important');
+    expect(css).toContain('.ph-layer-stack::before');
+    expect(css).toContain('background: #d9d0b9');
+    expect(css).toContain('var(--phone-ph-island-source)');
     expect(css).toContain('.phone-ph .ph-edge-light');
     expect(css).toContain('background: none');
-    expect(css).not.toContain('::before');
     expect(css).not.toContain('::after');
-    expect(css).not.toContain('--phone-ph-island-source');
+    expect(source).toContain('PH_FRONT_SRC');
+    expect(source).toContain("'--phone-ph-island-source'");
   });
 
   it('reuses the AOD native-time policy and Figure2 stable-surface policy', () => {
@@ -79,6 +82,9 @@ describe('PhonePh', () => {
     expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
     expect(source).toContain('PH_FIGURE_END_SECONDS');
     expect(source).toContain('createPhonePhReverseDissolve');
+    expect(source).toContain('beginPreparedReverse');
+    expect(source).toContain("phase: 'progress'");
+    expect(source).toContain("'preparing-reverse'");
     expect(motionSource).toContain("'endpoint-dissolve'");
     expect(motionSource).toContain('phonePhForegroundParallaxY');
     expect(nativeClockSource).toContain('video.currentTime / duration');

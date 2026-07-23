@@ -9,6 +9,7 @@ import {
 } from './PhoneContact';
 
 const source = readFileSync(new URL('./PhoneContact.tsx', import.meta.url), 'utf8');
+const stylesheet = readFileSync(new URL('./PhoneContact.css', import.meta.url), 'utf8');
 
 describe('PhoneContact', () => {
   it('keeps one canonical terminal article with keyboard-reachable actions', () => {
@@ -35,6 +36,9 @@ describe('PhoneContact', () => {
       pointer: 'native'
     });
     expect(source).not.toMatch(/addEventListener\(/);
+    expect(stylesheet).toMatch(
+      /\.phone-contact\s*>\s*\.r4-contact\s*\{[^}]*min-height:\s*var\(--phone-cinematic-stage-height,\s*100lvh\)/s
+    );
   });
 
   it('uses the shared Contact hash without importing prior visual scenes', () => {

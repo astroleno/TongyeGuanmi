@@ -3,7 +3,6 @@ import { CRANE_TIMELINE_DURATION_SECONDS } from '..';
 const FIGURE_START_SECONDS = 0.5;
 const FIGURE_FULLSCREEN_SECONDS = FIGURE_START_SECONDS + 1;
 const FLOCK_END_SECONDS = 2.5;
-const PHONE_CRANE_CAMERA_HOLD_PROGRESS = 0.2;
 
 /** The complete desktop-authored endpoint used after native playback ends. */
 export const PHONE_CRANE_STABLE_HOLD_PROGRESS = 1;
@@ -52,10 +51,6 @@ export function renderPhoneCranePresentation(
   if (!section) return;
   const timelineProgress = clamp(rawProgress);
   const progress = acceleratedProgress(timelineProgress);
-  const cameraProgress = acceleratedProgress(Math.min(
-    timelineProgress,
-    PHONE_CRANE_CAMERA_HOLD_PROGRESS
-  ));
   const time = timelineProgress * CRANE_TIMELINE_DURATION_SECONDS;
   const grow = smoothStep(range01(
     time,
@@ -76,7 +71,11 @@ export function renderPhoneCranePresentation(
   const figureY = 198 * (1 - grow);
   const videoScale = 0.8 + 0.2 * grow;
   const clipBottom = (1 - unmask) * 42;
-  const exit = smoothStep(range01(cameraProgress, 0.08, 0.78));
+  // Desktop Crane sends every architectural plate below the viewport across
+  // the same 0.08 → 0.78 timeline range. Holding the phone camera at 20%
+  // left the roof and clouds visible beneath Contact and made the figure look
+  // as if it stopped when the flock ended.
+  const exit = smoothStep(range01(progress, 0.08, 0.78));
   const viewportHeight = section.getBoundingClientRect?.().height
     || section.clientHeight
     || section.ownerDocument?.defaultView?.innerHeight

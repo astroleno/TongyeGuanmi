@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { FakeElement } from '../__fixtures__/back-half.fixture';
 import {
   applyPhonePhEducationFrame,
+  applyPhonePhEducationReverseFrame,
   PHONE_PH_EDUCATION_DECISION,
   PHONE_PH_EDUCATION_DISSOLVE_MS,
   PHONE_PH_EDUCATION_PLAYBACK_MS,
@@ -113,6 +114,22 @@ describe('Phone PH → Education transition', () => {
       educationProgress: 1,
       educationOpacity: 1
     });
+  });
+
+  it('lets PhonePh own reverse motion while Education fades away', () => {
+    const ph = new FakeElement();
+    const education = new FakeElement();
+    ph.style.values.set('--ph-front-parallax-y', '135.00px');
+
+    const midpoint = applyPhonePhEducationReverseFrame(
+      education as unknown as HTMLElement,
+      0.5
+    );
+
+    expect(midpoint.educationOpacity).toBe(0.5);
+    expect(education.style.opacity).toBe('0.5000');
+    expect(ph.style.values.get('--ph-front-parallax-y')).toBe('135.00px');
+    expect(source).toContain('directionRef.current === -1');
   });
 
   it('keeps the full ordered endpoint sequence under reduced motion', () => {

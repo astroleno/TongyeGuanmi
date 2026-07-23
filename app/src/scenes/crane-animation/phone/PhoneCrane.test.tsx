@@ -15,6 +15,7 @@ import {
   renderPhoneCranePresentation
 } from './PhoneCrane';
 import {
+  PHONE_CRANE_FIGURE_PLAYBACK_RATE,
   PHONE_CRANE_FIGURE_MEDIA_SECONDS,
   phoneCraneTimelineProgressForFigureMediaProgress
 } from './PhoneCrane.autoplay';
@@ -66,9 +67,14 @@ describe('PhoneCrane', () => {
     expect(source).toContain("ensurePackedSurfaces('endpoint')");
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
-    expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = PHONE_CRANE_FIGURE_MEDIA_SECONDS');
+    expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
+    expect(source).toContain('beginPreparedReverse');
+    expect(source).toContain("'preparing-reverse'");
     expect(source).toContain("phase: 'progress'");
+    expect(autoplaySource).toContain('figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE');
+    expect(autoplaySource).toContain('figure.currentTime = CRANE_VIDEO_END_SECONDS');
+    expect(autoplaySource).toContain("root.dataset.phoneCraneFigurePreroll = 'released'");
     expect(autoplaySource).not.toContain('nativeGate');
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
     expect(css).toContain('--phone-crane-motion-height');
@@ -83,16 +89,25 @@ describe('PhoneCrane', () => {
     expect(css).not.toContain('9dvh');
     expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(1);
     expect(PHONE_CRANE_FIGURE_MEDIA_SECONDS).toBe(2.5);
+    expect(PHONE_CRANE_FIGURE_PLAYBACK_RATE).toBeCloseTo(2.467 / 2.5, 8);
     expect(phoneCraneTimelineProgressForFigureMediaProgress(0)).toBeCloseTo(1 / 6, 8);
     expect(phoneCraneTimelineProgressForFigureMediaProgress(1)).toBe(1);
     expect(autoplaySource).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS * (1 - elapsed)');
 
     const endpoint = new FakeElement();
+    const arch = new FakeElement();
     endpoint.dataset.r4Scene = 'crane-animation';
-    renderPhoneCranePresentation(endpoint as unknown as HTMLElement, 1);
+    endpoint.connect('.crane-layer--arch', arch);
+    renderPhoneCranePresentation(
+      endpoint as unknown as HTMLElement,
+      1
+    );
     expect(endpoint.style.values.get('--crane-flock-opacity')).toBe('0.0000');
     expect(endpoint.style.values.get('--crane-video-scale')).toBe('1.0000');
     expect(endpoint.dataset.phoneCraneProgress).toBe('1.0000');
+    expect(
+      (arch.style as unknown as { transform: string }).transform
+    ).toContain('993.60px');
   });
 
   it('keeps the static Crane layers on media failure and retires both videos', () => {

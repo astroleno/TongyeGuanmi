@@ -1,8 +1,13 @@
 .phone-contact {
   position: relative;
   width: 100%;
+  min-height: var(--phone-cinematic-stage-height, 100lvh);
   touch-action: pan-y;
   overscroll-behavior-y: auto;
+}
+
+.phone-contact > .r4-contact {
+  min-height: var(--phone-cinematic-stage-height, 100lvh);
 }
 
 .phone-contact :is(a, button, input, select, textarea, [role="button"]) {

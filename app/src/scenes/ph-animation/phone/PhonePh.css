@@ -76,6 +76,32 @@
   mask-image: none;
 }
 
+/*
+ * The canonical foreground WebP intentionally contains partially transparent
+ * paper pixels. Desktop density hides that wash; the taller portrait crop
+ * exposes it as a see-through island. Keep one authored image owner and put a
+ * phone-only solid paper matte directly beneath the same alpha silhouette.
+ */
+.phone-ph .ph-layer-stack::before {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: 0;
+  width: var(--phone-ph-front-width);
+  aspect-ratio: 16 / 9;
+  content: "";
+  pointer-events: none;
+  background: #d9d0b9;
+  transform: translate3d(
+    -50%,
+    calc(var(--ph-front-base-y) + var(--ph-front-parallax-y)),
+    0
+  );
+  transform-origin: 50% 86%;
+  -webkit-mask: var(--phone-ph-island-source) 50% 50% / 100% 100% no-repeat;
+  mask: var(--phone-ph-island-source) 50% 50% / 100% 100% no-repeat;
+}
+
 .phone-ph .ph-layer--figure {
   left: 61%;
   bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * .245);
