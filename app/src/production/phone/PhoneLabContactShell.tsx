@@ -28,12 +28,14 @@ import {
 import {
   PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
   PHONE_LAB_CONTACT_STOPS,
+  type PhoneLabContactCinematicRunState,
   type PhoneLabContactAutoplayEventDetail,
+  phoneLabContactApproachProgress,
   phoneLabContactAutoplayLocksSnap,
-  phoneLabContactCrossedAutoplayBoundary,
   phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
-  phoneLabContactScrollProgress
+  phoneLabContactScrollProgress,
+  phoneLabContactShouldStartCinematic
 } from './phone-lab-contact-timeline';
 import {
   createPhoneLabContactSnapLock,
@@ -54,10 +56,10 @@ export type { LabContactSceneId } from './lab-contact-types';
 type LifecycleState = Readonly<{
   handle: PhoneSceneAdapterHandle;
   active: boolean;
+  direction: 1 | -1;
 }>;
 
 type CinematicSceneId = 'ph-animation' | 'crane-animation';
-type CinematicRunState = 'idle' | 'forward' | 'complete' | 'reverse';
 
 const PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS = 5000;
 const SCENE_VISIBILITY_EPSILON_PX = 1;
@@ -241,7 +243,18 @@ function syncSceneLifecycle(
 ): void {
   if (!handle) return;
   const previous = states.get(scene);
-  if (previous?.handle === handle && previous.active === active) return;
+  if (
+    previous?.handle === handle
+    && previous.active === active
+    && (!active || previous.direction === direction)
+  ) return;
+  // A newly mounted cinematic adapter owns a prepared opening surface for its
+  // incoming transition. Calling leave() before its first enter() immediately
+  // releases that Canvas and leaves the handoff with only a background plate.
+  if (!previous && !active) {
+    states.set(scene, { handle, active: false, direction });
+    return;
+  }
   if (active) {
     if (direction === -1 && handle.reverse) handle.reverse();
     else handle.enter?.();
@@ -259,7 +272,7 @@ function syncSceneLifecycle(
     root?.removeAttribute('aria-hidden');
     if (root) root.inert = false;
   }
-  states.set(scene, { handle, active });
+  states.set(scene, { handle, active, direction });
 }
 
 function acceptanceNavigationTarget(scene: SceneId): LabContactSceneId {
@@ -408,7 +421,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   const educationSlotRef = useRef<HTMLElement | null>(null);
   const contactSlotRef = useRef<HTMLElement | null>(null);
   const lifecycleStates = useRef(new Map<LabContactSceneId, LifecycleState>());
-  const cinematicRunStates = useRef<Record<CinematicSceneId, CinematicRunState>>({
+  const cinematicRunStates = useRef<Record<
+    CinematicSceneId,
+    PhoneLabContactCinematicRunState
+  >>({
     'ph-animation': 'idle',
     'crane-animation': 'idle'
   });
@@ -592,6 +608,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       const transition = latestPhEducationRef.current;
       const education = educationSlotRef.current;
       if (!transition || !education) {
+        cinematicRunStates.current['ph-animation'] = 'complete';
         releaseSnap('ph-animation');
         return;
       }
@@ -614,6 +631,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         educationRef.current,
         true
       );
+      cinematicRunStates.current['ph-animation'] = 'complete';
     };
 
     const startPhEducationHandoff = (waitingSince = performance.now()) => {
@@ -626,6 +644,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           });
           return;
         }
+        cinematicRunStates.current['ph-animation'] = 'complete';
         releaseSnap('ph-animation');
         return;
       }
@@ -692,13 +711,14 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         );
         return;
       }
-      cinematicRunStates.current[detail.scene] = detail.direction === 1
-        ? 'complete'
-        : 'idle';
       if (detail.scene === 'ph-animation' && detail.direction === 1) {
+        cinematicRunStates.current['ph-animation'] = 'handoff';
         startPhEducationHandoff();
         return;
       }
+      cinematicRunStates.current[detail.scene] = detail.direction === 1
+        ? 'complete'
+        : 'idle';
       releaseSnap(detail.scene);
     };
 
@@ -786,6 +806,8 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       const craneRect = cranePhase.getBoundingClientRect();
       const phInRange = phRect.top <= 0 && phRect.bottom >= viewportHeight;
       const craneInRange = craneRect.top <= 0 && craneRect.bottom >= viewportHeight;
+      const phApproaching = phRect.top > 0 && phRect.top < viewportHeight;
+      const craneApproaching = craneRect.top > 0 && craneRect.top < viewportHeight;
       const phExiting = phRect.bottom > SCENE_VISIBILITY_EPSILON_PX
         && phRect.bottom < viewportHeight;
       const craneExiting = craneRect.bottom > SCENE_VISIBILITY_EPSILON_PX
@@ -830,11 +852,81 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         ensureTransition('crane-contact');
       }
 
+      /*
+       * Transitions own the incoming viewport; cinematic adapters own native
+       * playback only after their phase reaches the pinned boundary. Keeping
+       * those clocks disjoint prevents scroll samples from releasing a
+       * prepared Canvas or overwriting a root-level endpoint dissolve.
+       */
+      if (cinematicRunStates.current['ph-animation'] === 'handoff') {
+        publishNavigationScene('ph-animation');
+        publishActiveScene('ph-animation');
+        setStageActive(phStageRef.current, true);
+        setStageExitOffset(phStageRef.current, 0);
+        setStageActive(craneStageRef.current, false);
+        syncSceneLifecycle(lifecycleStates.current, 'lab', lab, false);
+        syncSceneLifecycle(
+          lifecycleStates.current,
+          'ph-animation',
+          ph,
+          true
+        );
+        syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
+        return;
+      }
+
+      if (phApproaching && ph) {
+        const progress = phoneLabContactApproachProgress(
+          phRect.top,
+          viewportHeight
+        );
+        publishNavigationScene(progress >= 0.5 ? 'ph-animation' : 'lab');
+        publishActiveScene(progress >= 0.5 ? 'ph-animation' : 'lab');
+        setStageActive(phStageRef.current, true);
+        setStageExitOffset(phStageRef.current, 0);
+        setStageActive(craneStageRef.current, false);
+        syncSceneLifecycle(lifecycleStates.current, 'lab', lab, true);
+        syncSceneLifecycle(lifecycleStates.current, 'education', education, false);
+        syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
+        if (labPhRef.current) {
+          labPhRef.current.render(progress);
+        } else {
+          setVisualEndpoint(ph, progress);
+        }
+        return;
+      }
+
+      if (craneApproaching && crane) {
+        const progress = phoneLabContactApproachProgress(
+          craneRect.top,
+          viewportHeight
+        );
+        publishNavigationScene(progress >= 0.5 ? 'crane-animation' : 'education');
+        publishActiveScene(progress >= 0.5 ? 'crane-animation' : 'education');
+        setStageActive(craneStageRef.current, true);
+        setStageExitOffset(craneStageRef.current, 0);
+        setStageActive(phStageRef.current, false);
+        syncSceneLifecycle(lifecycleStates.current, 'lab', lab, false);
+        syncSceneLifecycle(lifecycleStates.current, 'ph-animation', ph, false);
+        syncSceneLifecycle(lifecycleStates.current, 'education', education, true);
+        syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
+        if (educationCraneRef.current) {
+          educationCraneRef.current.render(progress);
+        } else {
+          setVisualEndpoint(crane, progress);
+        }
+        return;
+      }
+
       const startCrossedCinematic = (
         scene: CinematicSceneId,
         handle: PhoneSceneAdapterHandle | null,
         phase: HTMLElement,
-        stage: HTMLElement | null
+        stage: HTMLElement | null,
+        phaseFrame: ReturnType<typeof phoneLabContactPhaseFrame>,
+        phaseInRange: boolean
       ): boolean => {
         if (!handle) return false;
         const runState = cinematicRunStates.current[scene];
@@ -847,13 +939,16 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           1,
           phase.offsetHeight - (stage?.offsetHeight || viewportHeight)
         );
-        if (!phoneLabContactCrossedAutoplayBoundary(
+        if (!phoneLabContactShouldStartCinematic({
+          runState,
+          direction: scrollDirection,
           previousScrollY,
-          scrollY,
+          nextScrollY: scrollY,
           phaseTop,
           phaseDistance,
-          scrollDirection
-        )) {
+          phaseProgress: phaseFrame.progress,
+          phaseInRange
+        })) {
           return false;
         }
 
@@ -862,6 +957,13 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         if (scene === 'ph-animation') {
           ensureScene('education');
           ensureTransition('ph-education');
+        }
+        if (scrollDirection === 1) {
+          if (scene === 'ph-animation') {
+            labPhRef.current?.leave?.();
+          } else {
+            educationCraneRef.current?.leave?.();
+          }
         }
         setStageActive(stage, true);
         setVisualEndpoint(handle, 1);
@@ -887,12 +989,21 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       if (
         !reducedMotion
         && (
-          startCrossedCinematic('ph-animation', ph, phPhase, phStageRef.current)
+          startCrossedCinematic(
+            'ph-animation',
+            ph,
+            phPhase,
+            phStageRef.current,
+            phFrame,
+            phInRange
+          )
           || startCrossedCinematic(
             'crane-animation',
             crane,
             cranePhase,
-            craneStageRef.current
+            craneStageRef.current,
+            craneFrame,
+            craneInRange
           )
         )
       ) {
@@ -903,6 +1014,12 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
         || cinematicRunStates.current['ph-animation'] === 'reverse';
       const craneRunActive = cinematicRunStates.current['crane-animation'] === 'forward'
         || cinematicRunStates.current['crane-animation'] === 'reverse';
+      const phRunDirection = cinematicRunStates.current['ph-animation'] === 'reverse'
+        ? -1
+        : 1;
+      const craneRunDirection = cinematicRunStates.current['crane-animation'] === 'reverse'
+        ? -1
+        : 1;
 
       // Between threshold crossing and the first decoded frame the user can
       // still be finishing the same swipe. Keep the claimed scene alive until
@@ -921,7 +1038,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           'ph-animation',
           ph,
           true,
-          scrollDirection
+          phRunDirection
         );
         syncSceneLifecycle(lifecycleStates.current, 'crane-animation', crane, false);
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
@@ -941,7 +1058,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
           'crane-animation',
           crane,
           true,
-          scrollDirection
+          craneRunDirection
         );
         syncSceneLifecycle(lifecycleStates.current, 'contact', contact, false);
         return;

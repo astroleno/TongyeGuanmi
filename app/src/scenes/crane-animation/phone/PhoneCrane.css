@@ -16,16 +16,13 @@
 .phone-crane .r4-crane-animation {
   --crane-flock-x: 0px;
   --crane-flock-base-y: 0px;
-  --crane-flock-scale: 1.06;
-  --phone-crane-motion-width: min(
-    calc(var(--phone-cinematic-stage-height, 100lvh) * .834),
-    820px
-  );
+  --crane-flock-scale: .9;
+  --phone-crane-motion-height: var(--phone-cinematic-stage-height, 100lvh);
   --phone-crane-figure-shift-y: calc(
     var(--phone-cinematic-stage-height, 100lvh) * .09
   );
   /* Opening-frame feet (source y≈306/396) meet the centre roof ridge. */
-  --phone-crane-flock-center-y: 68.1%;
+  --phone-crane-flock-center-y: 54.3%;
   height: 100%;
   min-height: 100%;
 }
@@ -61,10 +58,11 @@
   position: absolute;
   z-index: 1;
   left: 50%;
-  width: var(--phone-crane-motion-width);
-  height: auto;
-  aspect-ratio: 16 / 9;
-  object-fit: fill;
+  width: calc(var(--phone-crane-motion-height) * 16 / 9);
+  height: var(--phone-crane-motion-height);
+  max-width: none;
+  aspect-ratio: auto;
+  object-fit: contain;
   opacity: 0;
   will-change: auto;
 }

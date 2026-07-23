@@ -108,7 +108,13 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('phoneLabContactAutoplayLocksSnap');
     expect(shellSource).toContain('PHONE_LAB_CONTACT_STOPS.sceneMotionEnd');
     expect(shellSource).toContain('phoneLabContactOwnsNativePlayback');
-    expect(shellSource).toContain('phoneLabContactCrossedAutoplayBoundary');
+    expect(shellSource).toContain('phoneLabContactApproachProgress');
+    expect(shellSource).toContain('phoneLabContactShouldStartCinematic');
+    expect(shellSource).toContain('labPhRef.current.render(progress)');
+    expect(shellSource).toContain('educationCraneRef.current.render(progress)');
+    expect(shellSource).toContain("=== 'handoff'");
+    expect(shellSource).toContain('if (!previous && !active)');
+    expect(shellSource).toContain('previous.direction === direction');
     expect(shellSource).toContain('PHONE_LAB_CONTACT_SNAP_TIMEOUT_MS');
     expect(shellSource).toContain('INTRA_CHAPTER_DISSOLVE_MS');
     expect(shellSource).toContain('startPhEducationHandoff');

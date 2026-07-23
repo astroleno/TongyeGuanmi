@@ -48,6 +48,10 @@ describe('Phone Lab → PH transition', () => {
     expect(ph.dataset.phoneLabPhHandoff).toBe('receiver');
     expect(lab.style.opacity).toBe('0.5000');
     expect(ph.style.opacity).toBe('0.5000');
+    expect(lab.inert).toBe(false);
+    expect(ph.inert).toBe(true);
+    expect(ph.dataset.phonePhProgress).toBe('0.0000');
+    expect(ph.style.values.get('--ph-video-opacity')).toBe('1');
   });
 
   it('is continuous forward and reverse with no hidden middle hold', () => {

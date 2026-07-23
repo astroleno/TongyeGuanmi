@@ -63,9 +63,13 @@ describe('PhoneCrane', () => {
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
     expect(autoplaySource).not.toContain('nativeGate');
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
-    expect(css).toContain('--phone-crane-motion-width');
-    expect(css).toContain('* .834');
-    expect(css).toContain('--phone-crane-flock-center-y: 68.1%');
+    expect(css).toContain('--phone-crane-motion-height');
+    expect(css).toContain('width: calc(var(--phone-crane-motion-height) * 16 / 9)');
+    expect(css).toContain('height: var(--phone-crane-motion-height)');
+    expect(css).toContain('aspect-ratio: auto');
+    expect(css).not.toContain('--phone-crane-motion-width');
+    expect(css).toContain('--phone-crane-flock-center-y: 54.3%');
+    expect(css).toContain('--crane-flock-scale: .9');
     expect(css).toContain('position: absolute');
     expect(css).toContain('clip-path: none');
     expect(css).not.toContain('9dvh');

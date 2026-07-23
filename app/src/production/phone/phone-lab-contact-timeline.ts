@@ -25,6 +25,13 @@ export type PhoneLabContactAutoplayEventDetail = Readonly<{
   direction: 1 | -1;
 }>;
 
+export type PhoneLabContactCinematicRunState =
+  | 'idle'
+  | 'forward'
+  | 'handoff'
+  | 'complete'
+  | 'reverse';
+
 /** Snap only after the native clock has produced real playback evidence. */
 export function phoneLabContactAutoplayLocksSnap(
   detail: PhoneLabContactAutoplayEventDetail
@@ -112,6 +119,19 @@ export function phoneLabContactScrollProgress(
 }
 
 /**
+ * Drives the real incoming document viewport, before a pinned cinematic rail
+ * reaches its autoplay boundary. This is where Lab → PH and Education → Crane
+ * own their endpoint dissolve; media ownership begins only at progress 1.
+ */
+export function phoneLabContactApproachProgress(
+  elementTop: number,
+  viewportHeight: number
+): number {
+  const height = Math.max(1, viewportHeight);
+  return clamp((height - elementTop) / height);
+}
+
+/**
  * Detect a physical gesture crossing the native-playback boundary even when
  * one Safari scroll sample skips the whole short trigger lane. AOD starts its
  * native clock from the timeline crossing itself; PH and Crane must do the
@@ -135,4 +155,38 @@ export function phoneLabContactCrossedAutoplayBoundary(
   return direction === 1
     ? previousScrollY < boundaryY && nextScrollY >= boundaryY
     : previousScrollY >= boundaryY && nextScrollY < boundaryY;
+}
+
+/** Starts a missed native run after Safari rounds across a released snap. */
+export function phoneLabContactShouldStartCinematic(
+  input: Readonly<{
+    runState: PhoneLabContactCinematicRunState;
+    direction: 1 | -1;
+    previousScrollY: number;
+    nextScrollY: number;
+    phaseTop: number;
+    phaseDistance: number;
+    phaseProgress: number;
+    phaseInRange: boolean;
+  }>
+): boolean {
+  const expectedState = input.direction === 1 ? 'idle' : 'complete';
+  if (input.runState !== expectedState) return false;
+  if (phoneLabContactCrossedAutoplayBoundary(
+    input.previousScrollY,
+    input.nextScrollY,
+    input.phaseTop,
+    input.phaseDistance,
+    input.direction
+  )) {
+    return true;
+  }
+  if (!input.phaseInRange) return false;
+
+  // Safari can round the released 99% snap to the lower side of the reverse
+  // boundary. The next upward sample is then already inside the lane and a
+  // strict crossing test misses it, leaving Crane's last decoded frame stuck.
+  return input.direction === 1
+    ? input.phaseProgress > EPSILON
+    : input.phaseProgress < PHONE_LAB_CONTACT_STOPS.sceneMotionEnd - EPSILON;
 }

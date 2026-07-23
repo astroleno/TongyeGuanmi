@@ -4,9 +4,7 @@ import {
   useEffect,
   useImperativeHandle
 } from 'react';
-import {
-  renderPhAnimationProgress
-} from '../../scenes/ph-animation';
+import { renderPhonePhPresentation } from '../../scenes/ph-animation/phone/PhonePh.motion';
 import { renderEducationProgress } from '../../scenes/education';
 import {
   INTRA_CHAPTER_DISSOLVE_MS,
@@ -93,14 +91,21 @@ export function applyPhonePhEducationFrame(
   const frame = phonePhEducationFrame(rawProgress, options.reducedMotion);
   // PH is the only owner of its video/clock. This Grade B bridge merely
   // holds its canonical visual endpoint while it dissolves to native reading.
-  renderPhAnimationProgress(from, frame.phProgress);
+  renderPhonePhPresentation(
+    from,
+    frame.phProgress,
+    1,
+    options.reducedMotion
+  );
   // Desktop prepares Education's final hold before the dissolve. Keep the
   // same target state here and let the root opacity be the only bridge clock.
   renderEducationProgress(to, 1);
   applyEndpointVisibility(from, frame.phOpacity);
   applyEndpointVisibility(to, frame.educationOpacity);
   from?.setAttribute('data-phone-ph-education-handoff', 'source');
+  from?.setAttribute('data-phone-ph-education-fade-owner', 'scene-root');
   to?.setAttribute('data-phone-ph-education-handoff', 'receiver');
+  to?.setAttribute('data-phone-ph-education-fade-owner', 'scene-root');
   return frame;
 }
 

@@ -4,9 +4,7 @@ import {
   useEffect,
   useImperativeHandle
 } from 'react';
-import {
-  renderCraneHold
-} from '../../scenes/crane-animation';
+import { renderPhoneCranePresentation } from '../../scenes/crane-animation/phone/PhoneCrane.motion';
 import { renderEducationHold } from '../../scenes/education';
 import type {
   PhoneTransitionAdapterHandle,
@@ -24,10 +22,13 @@ function transitionProgress(rawProgress: number, reducedMotion: boolean): number
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
 }
 
-function applyEndpointVisibility(element: HTMLElement | null, opacity: number): void {
+function applyEndpointVisibility(
+  element: HTMLElement | null,
+  opacity: number,
+  interactive = opacity >= 1 - ENDPOINT_EPSILON
+): void {
   if (!element) return;
   const visible = opacity > ENDPOINT_EPSILON;
-  const interactive = opacity >= 1 - ENDPOINT_EPSILON;
   element.style.opacity = opacity.toFixed(4);
   element.style.visibility = visible ? 'visible' : 'hidden';
   element.style.pointerEvents = interactive ? 'auto' : 'none';
@@ -68,9 +69,13 @@ export function applyPhoneEducationCraneFrame(
 ): PhoneEducationCraneFrame {
   const frame = phoneEducationCraneFrame(rawProgress, reducedMotion);
   renderEducationHold(from);
-  renderCraneHold(to);
-  applyEndpointVisibility(from, frame.educationOpacity);
-  applyEndpointVisibility(to, frame.craneOpacity);
+  renderPhoneCranePresentation(to, 0);
+  applyEndpointVisibility(
+    from,
+    frame.educationOpacity,
+    frame.educationOpacity > ENDPOINT_EPSILON
+  );
+  applyEndpointVisibility(to, frame.craneOpacity, false);
   from?.setAttribute('data-phone-education-crane-handoff', 'source');
   to?.setAttribute('data-phone-education-crane-handoff', 'receiver');
   return frame;
@@ -88,7 +93,7 @@ export const PhoneEducationCraneTransition = forwardRef<
   }, [from, reducedMotion, to]);
 
   useEffect(() => {
-    renderCraneHold(to);
+    renderPhoneCranePresentation(to, 0);
     onReady?.();
   }, [onReady, reducedMotion, to]);
 

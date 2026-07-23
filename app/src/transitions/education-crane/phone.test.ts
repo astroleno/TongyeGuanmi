@@ -19,6 +19,8 @@ describe('Phone Education → Crane transition', () => {
     expect(source).not.toMatch(/createPhoneInk/);
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).not.toContain('parkPhoneCraneMedia');
+    expect(source).toContain('renderPhoneCranePresentation');
+    expect(source).not.toContain('renderCraneHold');
   });
 
   it('dissolves stable Education directly to the stable Crane frame', () => {
@@ -40,6 +42,8 @@ describe('Phone Education → Crane transition', () => {
     });
     expect(education.dataset.phoneEducationCraneHandoff).toBe('source');
     expect(crane.dataset.phoneEducationCraneHandoff).toBe('receiver');
+    expect(education.inert).toBe(false);
+    expect(crane.inert).toBe(true);
   });
 
   it('maps forward, reverse, and reduced motion without an intermediate hold', () => {

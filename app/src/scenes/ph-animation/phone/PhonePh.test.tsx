@@ -10,11 +10,16 @@ import {
   applyPhonePhMediaFallback,
   parkPhonePhMedia,
   PhonePh,
+  phonePhForegroundParallaxY,
   phonePhPresentationProgress,
   phonePhTimelineProgressForMediaProgress
 } from './PhonePh';
 
 const source = readFileSync(new URL('./PhonePh.tsx', import.meta.url), 'utf8');
+const motionSource = readFileSync(
+  new URL('./PhonePh.motion.ts', import.meta.url),
+  'utf8'
+);
 const nativeClockSource = readFileSync(
   new URL('../../../production/phone/phone-native-autoplay.ts', import.meta.url),
   'utf8'
@@ -44,6 +49,7 @@ describe('PhonePh', () => {
     expect(phonePhTimelineProgressForMediaProgress(0)).toBe(0);
     expect(phonePhTimelineProgressForMediaProgress(0.445)).toBeCloseTo(0.5, 5);
     expect(phonePhTimelineProgressForMediaProgress(1)).toBeCloseTo(1, 5);
+    expect(phonePhForegroundParallaxY({ figureY: 135 })).toBe(135);
     expect(css).toContain('left: 61%');
     expect(css).toContain('--phone-ph-plate-width');
     expect(css).toContain('--phone-ph-front-width');
@@ -70,7 +76,8 @@ describe('PhonePh', () => {
     expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
     expect(source).toContain('PH_FIGURE_END_SECONDS');
     expect(source).toContain('createPhonePhReverseDissolve');
-    expect(source).toContain("'endpoint-dissolve'");
+    expect(motionSource).toContain("'endpoint-dissolve'");
+    expect(motionSource).toContain('phonePhForegroundParallaxY');
     expect(nativeClockSource).toContain('video.currentTime / duration');
     expect(nativeClockSource).toContain("video.addEventListener('timeupdate'");
     expect(nativeClockSource).not.toContain('primeFromGesture');

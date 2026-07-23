@@ -4,9 +4,7 @@ import {
   useEffect,
   useImperativeHandle
 } from 'react';
-import {
-  renderPhHold
-} from '../../scenes/ph-animation';
+import { renderPhonePhPresentation } from '../../scenes/ph-animation/phone/PhonePh.motion';
 import type {
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
@@ -23,10 +21,13 @@ function endpointProgress(rawProgress: number, reducedMotion: boolean): number {
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
 }
 
-function applyEndpointVisibility(element: HTMLElement | null, opacity: number): void {
+function applyEndpointVisibility(
+  element: HTMLElement | null,
+  opacity: number,
+  interactive = opacity >= 1 - ENDPOINT_EPSILON
+): void {
   if (!element) return;
   const visible = opacity > ENDPOINT_EPSILON;
-  const interactive = opacity >= 1 - ENDPOINT_EPSILON;
   element.style.opacity = opacity.toFixed(4);
   element.style.visibility = visible ? 'visible' : 'hidden';
   element.style.pointerEvents = interactive ? 'auto' : 'none';
@@ -76,9 +77,15 @@ export function applyPhoneLabPhFrame(
   reducedMotion = false
 ): PhoneLabPhFrame {
   const frame = phoneLabPhFrame(rawProgress, reducedMotion);
-  renderPhHold(to);
-  applyEndpointVisibility(from, frame.labOpacity);
-  applyEndpointVisibility(to, frame.phOpacity);
+  renderPhonePhPresentation(to, 0, 1, reducedMotion);
+  // The source remains the one accessible tree until the visual handoff has
+  // fully landed. PH is a cinematic surface beneath an aria-hidden stage.
+  applyEndpointVisibility(
+    from,
+    frame.labOpacity,
+    frame.labOpacity > ENDPOINT_EPSILON
+  );
+  applyEndpointVisibility(to, frame.phOpacity, false);
   from?.setAttribute('data-phone-lab-ph-handoff', 'source');
   to?.setAttribute('data-phone-lab-ph-handoff', 'receiver');
   return frame;
@@ -93,7 +100,7 @@ export const PhoneLabPhTransition = forwardRef<
   }, [from, reducedMotion, to]);
 
   useEffect(() => {
-    renderPhHold(to);
+    renderPhonePhPresentation(to, 0, 1, reducedMotion);
     onReady?.();
   }, [onReady, reducedMotion, to]);
 

@@ -11,9 +11,7 @@ import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver
 import {
   parkPhMedia,
   PH_FIGURE_END_SECONDS,
-  phAnimationScene,
-  renderPhAnimationProgress,
-  renderPhHold
+  phAnimationScene
 } from '..';
 import type {
   PhoneSceneAdapterHandle,
@@ -31,12 +29,15 @@ import {
   type PhonePackedAlphaSurface,
   type PhonePackedAlphaSurfaceMode
 } from '../../../production/phone/scenes/phone-packed-alpha-surface';
+import {
+  phonePhTimelineProgressForMediaProgress,
+  renderPhonePhPresentation,
+  type PhonePhPlaybackDirection
+} from './PhonePh.motion';
 import './PhonePh.css';
 
 const PHONE_PH_REVERSE_DISSOLVE_MS = 520;
 const PHONE_PH_PACKED_VIDEO = phoneMediaUrlFor('ph-figure-packed', 'ph-animation');
-
-type PhonePhPlaybackDirection = 1 | -1;
 
 type PhonePhReverseDissolve = Readonly<{
   start(): void;
@@ -107,27 +108,12 @@ function createPhonePhReverseDissolve(
   };
 }
 
-export function phonePhPresentationProgress(
-  rawProgress: number,
-  reducedMotion = false
-): number {
-  const progress = clamp(rawProgress);
-  return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
-}
-
-/**
- * Native playback reports media time, while the canonical desktop renderer
- * expects its pre-retiming timeline progress. Invert phPlaybackProgress's
- * 0.78p + 0.22p² curve so every camera layer stays on the authored frame.
- */
-export function phonePhTimelineProgressForMediaProgress(
-  rawMediaProgress: number
-): number {
-  const mediaProgress = clamp(rawMediaProgress);
-  return clamp(
-    (-0.78 + Math.sqrt(0.78 * 0.78 + 0.88 * mediaProgress)) / 0.44
-  );
-}
+export {
+  phonePhForegroundParallaxY,
+  phonePhPresentationProgress,
+  phonePhTimelineProgressForMediaProgress,
+  renderPhonePhPresentation
+} from './PhonePh.motion';
 
 /** Figure2-style stable surface: media failure cannot remove the PH camera. */
 export function applyPhonePhMediaFallback(
@@ -141,7 +127,7 @@ export function applyPhonePhMediaFallback(
   }
   section?.setAttribute('data-phone-ph-media', 'fallback');
   video?.setAttribute('data-phone-ph-media', 'fallback');
-  renderPhHold(section);
+  renderPhonePhPresentation(section, 0);
 }
 
 export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
@@ -200,15 +186,12 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       rawProgress: number,
       direction: PhonePhPlaybackDirection = 1
     ) => {
-      const root = rootRef.current;
-      const progress = phonePhPresentationProgress(rawProgress, reducedMotion);
-      renderPhAnimationProgress(root, progress);
-      root?.style.setProperty(
-        '--ph-video-opacity',
-        direction === -1 ? progress.toFixed(4) : '1'
+      renderPhonePhPresentation(
+        rootRef.current,
+        rawProgress,
+        direction,
+        reducedMotion
       );
-      root?.setAttribute('data-phone-ph-progress', progress.toFixed(4));
-      root?.setAttribute('data-phone-ph-clock', direction === 1 ? 'native' : 'endpoint-dissolve');
     }, [reducedMotion]);
 
     const completeRun = useCallback((direction: PhonePhPlaybackDirection) => {
@@ -217,6 +200,10 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       root?.setAttribute(
         'data-phone-ph-autoplay',
         direction === 1 ? 'complete-forward' : 'complete-reverse'
+      );
+      root?.setAttribute(
+        'data-phone-ph-state',
+        direction === 1 ? 'endpoint' : 'opening'
       );
       if (root) {
         dispatchPhoneLabContactAutoplay(root, {
@@ -271,7 +258,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       // Retire the canonical cold-frame driver before native Route-B playback
       // takes ownership. This is the same one-owner boundary used by AOD.
       disposeTimelineVideoDriver(video);
-      renderPhHold(root);
+      renderPhonePhPresentation(root, 0);
       ensurePackedSurface(reducedMotion ? 'endpoint' : 'forward');
       const nativeAutoplay = createPhoneNativeAutoplay(video, {
         runIdPrefix: 'phone-ph-figure',

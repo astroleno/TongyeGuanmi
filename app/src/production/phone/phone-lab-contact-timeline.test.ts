@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  phoneLabContactApproachProgress,
   phoneLabContactAutoplayLocksSnap,
   phoneLabContactCrossedAutoplayBoundary,
   phoneLabContactOwnsNativePlayback,
   phoneLabContactPhaseFrame,
-  phoneLabContactScrollProgress
+  phoneLabContactScrollProgress,
+  phoneLabContactShouldStartCinematic
 } from './phone-lab-contact-timeline';
 
 describe('phone Lab → Contact acceptance timeline', () => {
@@ -76,6 +78,13 @@ describe('phone Lab → Contact acceptance timeline', () => {
     expect(phoneLabContactScrollProgress(32, 500, 100)).toBe(0);
   });
 
+  it('gives the incoming viewport to endpoint transitions before media starts', () => {
+    expect(phoneLabContactApproachProgress(932, 932)).toBe(0);
+    expect(phoneLabContactApproachProgress(466, 932)).toBe(0.5);
+    expect(phoneLabContactApproachProgress(0, 932)).toBe(1);
+    expect(phoneLabContactApproachProgress(-40, 932)).toBe(1);
+  });
+
   it('starts native playback when one physical sample skips the short snap lane', () => {
     expect(phoneLabContactCrossedAutoplayBoundary(
       1200,
@@ -105,5 +114,38 @@ describe('phone Lab → Contact acceptance timeline', () => {
       169,
       1
     )).toBe(true);
+  });
+
+  it('recovers reverse playback when Safari rounds below the released 99% snap', () => {
+    expect(phoneLabContactShouldStartCinematic({
+      runState: 'complete',
+      direction: -1,
+      previousScrollY: 1708,
+      nextScrollY: 1706,
+      phaseTop: 1542,
+      phaseDistance: 169,
+      phaseProgress: 0.97,
+      phaseInRange: true
+    })).toBe(true);
+    expect(phoneLabContactShouldStartCinematic({
+      runState: 'handoff',
+      direction: -1,
+      previousScrollY: 1708,
+      nextScrollY: 1706,
+      phaseTop: 1542,
+      phaseDistance: 169,
+      phaseProgress: 0.97,
+      phaseInRange: true
+    })).toBe(false);
+    expect(phoneLabContactShouldStartCinematic({
+      runState: 'complete',
+      direction: -1,
+      previousScrollY: 1900,
+      nextScrollY: 1890,
+      phaseTop: 1542,
+      phaseDistance: 169,
+      phaseProgress: 1,
+      phaseInRange: false
+    })).toBe(false);
   });
 });

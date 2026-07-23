@@ -176,6 +176,10 @@ export const PhoneCrane = forwardRef<
       'data-phone-crane-autoplay',
       direction === 1 ? 'complete-forward' : 'complete-reverse'
     );
+    root?.setAttribute(
+      'data-phone-crane-state',
+      direction === 1 ? 'endpoint' : 'opening'
+    );
     if (root) {
       dispatchPhoneLabContactAutoplay(root, {
         scene: 'crane-animation',

@@ -53,6 +53,10 @@ describe('Phone PH → Education transition', () => {
       0.5
     );
     expect(education.style.values.get('--r4-education-opacity')).toBe('1.0000');
+    expect(ph.style.values.get('--ph-front-parallax-y')).toBe('135.00px');
+    expect(ph.style.values.get('--ph-video-opacity')).toBe('1');
+    expect(ph.dataset.phonePhEducationFadeOwner).toBe('scene-root');
+    expect(education.dataset.phonePhEducationFadeOwner).toBe('scene-root');
   });
 
   it('keeps the Education receiver in native document flow at the stable endpoint', () => {
