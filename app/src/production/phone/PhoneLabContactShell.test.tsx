@@ -53,7 +53,7 @@ describe('PhoneLabContactShell', () => {
   });
 
   it('publishes each scene edge instead of retaining PH blue on paper scenes', () => {
-    expect(phoneLabContactEdgeSurface('ph-animation')).toBe('#e2dac9');
+    expect(phoneLabContactEdgeSurface('ph-animation')).toBe('#a594ab');
     for (const scene of ['lab', 'education', 'crane-animation', 'contact'] as const) {
       expect(phoneLabContactEdgeSurface(scene)).toBe('#ede4d2');
     }
@@ -83,6 +83,10 @@ describe('PhoneLabContactShell', () => {
     expect(shellCss).toContain(
       'padding-left: max(14px, env(safe-area-inset-left, 0px))'
     );
+    expect(shellCss).toContain(
+      '[data-phone-lab-contact-edge-scene="ph-animation"]'
+    );
+    expect(shellCss).toContain('--phone-ph-topbar-sky: 165, 148, 171');
   });
 
   it('loads only Contact for direct Contact entry', () => {

@@ -76,8 +76,8 @@ const PHONE_LAB_CONTACT_RUN_TIMEOUT_MS = 10000;
 const PHONE_PH_EDUCATION_ANIMATION_STOP = PH_PLAYBACK_MS
   / (PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS);
 const PHONE_LAB_CONTACT_PAPER_SURFACE = '#ede4d2';
-// PH inherits the accepted Figure2 Safari edge instead of sampling its sky.
-const PHONE_LAB_CONTACT_PH_EDGE_SURFACE = '#e2dac9';
+// PH keeps the average sky color at its rendered retained-camera top edge.
+const PHONE_LAB_CONTACT_PH_EDGE_SURFACE = '#a594ab';
 
 export function phoneLabContactDirectEntryAutoplays(
   scene: LabContactSceneId,

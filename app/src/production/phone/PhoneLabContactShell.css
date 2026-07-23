@@ -58,6 +58,34 @@ html[data-phone-lab-contact-acceptance="true"]
   );
 }
 
+/*
+ * StoryNav's shared light tone is paper-coloured. PH instead owns a visible
+ * sky edge, so its nav fallback and progressive tint must use the same sky
+ * sample as the Safari document edge rather than covering it with paper.
+ */
+html[data-phone-lab-contact-acceptance="true"][data-phone-lab-contact-edge-scene="ph-animation"] {
+  --phone-ph-topbar-sky: 165, 148, 171;
+}
+
+html[data-phone-lab-contact-acceptance="true"][data-phone-lab-contact-edge-scene="ph-animation"]
+  .site-nav.has-scroll-edge-blur::before {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--phone-ph-topbar-sky), .92),
+    rgba(var(--phone-ph-topbar-sky), .42) 48%,
+    transparent
+  );
+}
+
+html[data-phone-lab-contact-acceptance="true"][data-phone-lab-contact-edge-scene="ph-animation"]
+  .scroll-edge-blur[data-tone="light"]
+  .scroll-edge-blur__tint {
+  background: linear-gradient(
+    transparent,
+    rgba(var(--phone-ph-topbar-sky), .18)
+  );
+}
+
 html[data-phone-lab-contact-acceptance="true"] .site-nav-track {
   padding-right: max(14px, env(safe-area-inset-right, 0px));
   padding-left: max(14px, env(safe-area-inset-left, 0px));
