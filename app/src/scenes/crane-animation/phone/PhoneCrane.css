@@ -118,7 +118,7 @@
   filter: none;
   transform: translate3d(
       calc(-50% + var(--crane-flock-x) + var(--phone-crane-tune-flock-x, -1lvh)),
-      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 10.75lvh)),
+      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 15.5lvh)),
       0
     )
     scale(
