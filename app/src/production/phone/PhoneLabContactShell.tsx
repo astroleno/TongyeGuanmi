@@ -76,8 +76,8 @@ const PHONE_LAB_CONTACT_RUN_TIMEOUT_MS = 10000;
 const PHONE_PH_EDUCATION_ANIMATION_STOP = PH_PLAYBACK_MS
   / (PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS);
 const PHONE_LAB_CONTACT_PAPER_SURFACE = '#ede4d2';
-// PH keeps the average sky color at its rendered retained-camera top edge.
-const PHONE_LAB_CONTACT_PH_EDGE_SURFACE = '#a594ab';
+// Preserve the PH sky edge that was physically accepted at 38ac877.
+const PHONE_LAB_CONTACT_PH_EDGE_SURFACE = '#9889a5';
 
 export function phoneLabContactDirectEntryAutoplays(
   scene: LabContactSceneId,
@@ -102,23 +102,24 @@ type PreviousPhoneLabContactEdgeSurface = Readonly<{
 }>;
 
 /**
- * Match deda1bb's single Safari edge publisher inside the isolated v36 shell.
- * The document, retained host, theme-color and active scene must commit in the
- * same layout frame or WebKit can keep sampling PH's blue compositor after it
- * has handed ownership back to a paper scene.
+ * Unit 4/5 keep one persistent compositor at the viewport edge and a separate
+ * document receiver underneath it. PH is the one Unit 6 scene whose top edge
+ * is blue while its document/bottom edge must stay paper, so publish those two
+ * surfaces independently instead of tinting the whole Safari document.
  */
 function usePhoneLabContactEdgeSurface(
   rootRef: RefObject<HTMLElement | null>,
   stageHostRef: RefObject<HTMLElement | null>,
   scene: LabContactSceneId
-): void {
+): (nextScene: LabContactSceneId, force?: boolean) => void {
   const edgeSceneRef = useRef<LabContactSceneId>(scene);
   const previousRef = useRef<PreviousPhoneLabContactEdgeSurface | null>(null);
   const commit = useCallback((nextScene: LabContactSceneId, force = false) => {
     const documentElement = document.documentElement;
     const root = rootRef.current;
     const stageHost = stageHostRef.current;
-    const surface = phoneLabContactEdgeSurface(nextScene);
+    const safeAreaSurface = phoneLabContactEdgeSurface(nextScene);
+    const documentSurface = PHONE_LAB_CONTACT_PAPER_SURFACE;
     const themeColor = document.querySelector<HTMLMetaElement>(
       'meta[name="theme-color"]'
     );
@@ -127,32 +128,46 @@ function usePhoneLabContactEdgeSurface(
       && edgeSceneRef.current === nextScene
       && documentElement.dataset.portraitEdgeScene === nextScene
       && documentElement.dataset.phoneLabContactEdgeScene === nextScene
-      && documentElement.style.getPropertyValue('--portrait-document-surface') === surface
-      && documentElement.style.getPropertyValue('--phone-lab-contact-edge-surface') === surface
+      && documentElement.style.getPropertyValue('--portrait-document-surface') === documentSurface
+      && documentElement.style.getPropertyValue('--phone-lab-contact-edge-surface') === documentSurface
       && root?.dataset.portraitEdgeScene === nextScene
-      && root?.dataset.portraitEdgeSurface === surface
+      && root?.dataset.portraitEdgeSurface === documentSurface
+      && root?.style.getPropertyValue('--phone-lab-contact-safe-area-surface') === safeAreaSurface
       && (!stageHost || stageHost.dataset.portraitEdgeScene === nextScene)
-      && (!themeColor || themeColor.content === surface)
+      && (!themeColor || themeColor.content === documentSurface)
     ) {
       return;
     }
 
     edgeSceneRef.current = nextScene;
-    documentElement.style.setProperty('--portrait-document-surface', surface);
-    documentElement.style.setProperty('--phone-lab-contact-edge-surface', surface);
+    documentElement.style.setProperty(
+      '--portrait-document-surface',
+      documentSurface
+    );
+    documentElement.style.setProperty(
+      '--phone-lab-contact-edge-surface',
+      documentSurface
+    );
     documentElement.dataset.portraitEdgeScene = nextScene;
     documentElement.dataset.phoneLabContactEdgeScene = nextScene;
     if (root) {
-      root.style.setProperty('--portrait-edge-surface', surface);
-      root.style.setProperty('--phone-lab-contact-edge-surface', surface);
-      root.dataset.portraitEdgeSurface = surface;
+      root.style.setProperty('--portrait-edge-surface', documentSurface);
+      root.style.setProperty(
+        '--phone-lab-contact-edge-surface',
+        documentSurface
+      );
+      root.style.setProperty(
+        '--phone-lab-contact-safe-area-surface',
+        safeAreaSurface
+      );
+      root.dataset.portraitEdgeSurface = documentSurface;
       root.dataset.portraitEdgeScene = nextScene;
-      // Commit the new solid paper before Safari samples the rebuilt fixed
-      // compositor for its status-bar and top-edge pixels.
-      void window.getComputedStyle(root).backgroundColor;
+      const nav = root.querySelector<HTMLElement>('.site-nav');
+      if (nav) void window.getComputedStyle(nav, '::after').backgroundColor;
     }
     if (stageHost) stageHost.dataset.portraitEdgeScene = nextScene;
-    if (themeColor) themeColor.setAttribute('content', surface);
+    // The browser toolbar/bottom edge remains the document's paper receiver.
+    if (themeColor) themeColor.setAttribute('content', documentSurface);
   }, [rootRef, stageHostRef]);
 
   useLayoutEffect(() => {
@@ -160,6 +175,26 @@ function usePhoneLabContactEdgeSurface(
     const themeColor = document.querySelector<HTMLMetaElement>(
       'meta[name="theme-color"]'
     );
+    const syncTopInset = () => {
+      const root = rootRef.current;
+      if (!root) return;
+      const nav = document.querySelector<HTMLElement>('.site-nav');
+      const track = document.querySelector<HTMLElement>('.site-nav-track');
+      const navPaddingTop = nav
+        ? Number.parseFloat(window.getComputedStyle(nav).paddingTop) || 0
+        : 0;
+      const trackTop = track
+        ? Math.max(0, track.getBoundingClientRect().top)
+        : 0;
+      const viewportTop = Math.max(
+        0,
+        window.visualViewport?.offsetTop ?? 0
+      );
+      root.style.setProperty(
+        '--phone-lab-contact-measured-safe-top',
+        `${Math.ceil(Math.max(navPaddingTop, trackTop, viewportTop))}px`
+      );
+    };
     previousRef.current = {
       documentSurface: documentElement.style.getPropertyValue(
         '--portrait-document-surface'
@@ -172,14 +207,24 @@ function usePhoneLabContactEdgeSurface(
       themeColor: themeColor?.content
     };
     commit(edgeSceneRef.current, true);
+    syncTopInset();
 
     const republishCurrentSurface = () => {
-      if (!document.hidden) commit(edgeSceneRef.current, true);
+      if (!document.hidden) {
+        syncTopInset();
+        commit(edgeSceneRef.current, true);
+      }
     };
     window.addEventListener('pageshow', republishCurrentSurface);
+    window.addEventListener('resize', syncTopInset);
+    window.addEventListener('orientationchange', syncTopInset);
+    window.visualViewport?.addEventListener('resize', syncTopInset);
     document.addEventListener('visibilitychange', republishCurrentSurface);
     return () => {
       window.removeEventListener('pageshow', republishCurrentSurface);
+      window.removeEventListener('resize', syncTopInset);
+      window.removeEventListener('orientationchange', syncTopInset);
+      window.visualViewport?.removeEventListener('resize', syncTopInset);
       document.removeEventListener(
         'visibilitychange',
         republishCurrentSurface
@@ -213,6 +258,12 @@ function usePhoneLabContactEdgeSurface(
       }
       rootRef.current?.style.removeProperty('--portrait-edge-surface');
       rootRef.current?.style.removeProperty('--phone-lab-contact-edge-surface');
+      rootRef.current?.style.removeProperty(
+        '--phone-lab-contact-safe-area-surface'
+      );
+      rootRef.current?.style.removeProperty(
+        '--phone-lab-contact-measured-safe-top'
+      );
       if (rootRef.current) {
         delete rootRef.current.dataset.portraitEdgeSurface;
         delete rootRef.current.dataset.portraitEdgeScene;
@@ -228,6 +279,8 @@ function usePhoneLabContactEdgeSurface(
     edgeSceneRef.current = scene;
     commit(scene);
   }, [commit, scene]);
+
+  return commit;
 }
 
 /**
@@ -597,7 +650,11 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     !fullJourney
   );
   usePhoneLabContactViewportGeometry(rootRef, motionEnabled);
-  usePhoneLabContactEdgeSurface(rootRef, stageHostRef, activeScene);
+  const publishEdgeScene = usePhoneLabContactEdgeSurface(
+    rootRef,
+    stageHostRef,
+    activeScene
+  );
   const {
     scenes,
     transitions,
@@ -650,10 +707,14 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
   }, []);
 
   const publishActiveScene = useCallback((scene: LabContactSceneId) => {
+    // Match Unit 4/5: publish the Safari edge in the controller call that
+    // changes compositor ownership. Waiting for the next React layout effect
+    // lets physical Safari sample the outgoing paper edge for PH.
+    publishEdgeScene(scene);
     if (currentActiveScene.current === scene) return;
     currentActiveScene.current = scene;
     setActiveScene(scene);
-  }, []);
+  }, [publishEdgeScene]);
 
   useLayoutEffect(() => {
     const documentElement = document.documentElement;
@@ -818,6 +879,11 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       root.dataset.phoneLabContactCompleteHandoff =
         `${scene}-${target}:${reason}:${direction === 1 ? 'forward' : 'reverse'}`;
       scrollDirectionLockUntil = window.performance.now() + 280;
+      /*
+       * Publish the incoming top edge one paint before retiring the fixed
+       * cinematic owner. The document/bottom edge itself remains paper.
+       */
+      publishEdgeScene(target, true);
       completionFrame = window.requestAnimationFrame(() => {
         completionFrame = 0;
         if (
@@ -1497,6 +1563,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     fixedStageRegistered,
     fullJourney,
     publishActiveScene,
+    publishEdgeScene,
     publishNavigationScene,
     reducedMotion
   ]);

@@ -58,34 +58,6 @@ html[data-phone-lab-contact-acceptance="true"]
   );
 }
 
-/*
- * StoryNav's shared light tone is paper-coloured. PH instead owns a visible
- * sky edge, so its nav fallback and progressive tint must use the same sky
- * sample as the Safari document edge rather than covering it with paper.
- */
-html[data-phone-lab-contact-acceptance="true"][data-phone-lab-contact-edge-scene="ph-animation"] {
-  --phone-ph-topbar-sky: 165, 148, 171;
-}
-
-html[data-phone-lab-contact-acceptance="true"][data-phone-lab-contact-edge-scene="ph-animation"]
-  .site-nav.has-scroll-edge-blur::before {
-  background: linear-gradient(
-    180deg,
-    rgba(var(--phone-ph-topbar-sky), .92),
-    rgba(var(--phone-ph-topbar-sky), .42) 48%,
-    transparent
-  );
-}
-
-html[data-phone-lab-contact-acceptance="true"][data-phone-lab-contact-edge-scene="ph-animation"]
-  .scroll-edge-blur[data-tone="light"]
-  .scroll-edge-blur__tint {
-  background: linear-gradient(
-    transparent,
-    rgba(var(--phone-ph-topbar-sky), .18)
-  );
-}
-
 html[data-phone-lab-contact-acceptance="true"] .site-nav-track {
   padding-right: max(14px, env(safe-area-inset-right, 0px));
   padding-left: max(14px, env(safe-area-inset-left, 0px));
@@ -94,6 +66,10 @@ html[data-phone-lab-contact-acceptance="true"] .site-nav-track {
 .phone-lab-contact {
   --portrait-live-height: 100dvh;
   --portrait-stage-coverage-height: var(--portrait-live-height);
+  --phone-lab-contact-safe-top: max(
+    env(safe-area-inset-top, 0px),
+    var(--phone-lab-contact-measured-safe-top, 0px)
+  );
   --phone-cinematic-stage-height: max(var(--portrait-live-height), 100lvh);
   --phone-cinematic-stage-canvas-height: max(
     var(--phone-cinematic-stage-height),
@@ -107,6 +83,24 @@ html[data-phone-lab-contact-acceptance="true"] .site-nav-track {
     --portrait-edge-surface,
     var(--phone-lab-contact-edge-surface, #ede4d2)
   );
+}
+
+/*
+ * StoryNav already owns the accepted persistent top-edge compositor. PH adds
+ * one solid strip only above its controls; the shared ::before keeps painting
+ * the paper topbar and every non-PH scene has no extra strip at all.
+ */
+.phone-lab-contact[data-portrait-edge-scene="ph-animation"]
+  .site-nav::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--phone-lab-contact-safe-top);
+  pointer-events: none;
+  background: var(--phone-lab-contact-safe-area-surface, #9889a5);
 }
 
 /*

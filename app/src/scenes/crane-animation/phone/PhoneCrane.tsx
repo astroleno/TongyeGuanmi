@@ -34,10 +34,6 @@ import {
   renderPhoneCranePresentation,
   type PhoneCranePlaybackDirection
 } from './PhoneCrane.motion';
-import {
-  PHONE_CRANE_TUNING_EVENT,
-  PhoneCraneTuningBar
-} from './PhoneCraneTuningBar';
 import './PhoneCrane.css';
 
 const PHONE_CRANE_FIGURE_PACKED = phoneMediaUrlFor(
@@ -377,26 +373,6 @@ export const PhoneCrane = forwardRef<
     startRun
   ]);
 
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const renderTunedOpeningCamera = () => {
-      const progress = Number(root.dataset.phoneCraneProgress);
-      renderPhoneCranePresentation(
-        root,
-        Number.isFinite(progress) ? progress : 0,
-        root.dataset.cranePlaybackDirection === '-1' ? -1 : 1
-      );
-    };
-    root.addEventListener(PHONE_CRANE_TUNING_EVENT, renderTunedOpeningCamera);
-    return () => {
-      root.removeEventListener(
-        PHONE_CRANE_TUNING_EVENT,
-        renderTunedOpeningCamera
-      );
-    };
-  }, [figureCanvasHost, flockCanvasHost]);
-
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
     update(progress) {
@@ -456,9 +432,6 @@ export const PhoneCrane = forwardRef<
   }), [clearReverseStartTimer, ensurePackedSurfaces, render, startRun]);
 
   const CraneSurface = craneAnimationScene.Component;
-  const showAcceptanceTuning =
-    typeof window !== 'undefined'
-    && new URLSearchParams(window.location.search).get('v') === '36';
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'stage') rootRef.current = element;
     if (!element) return;
@@ -502,10 +475,6 @@ export const PhoneCrane = forwardRef<
           aria-hidden="true"
         />,
         flockCanvasHost
-      ) : null}
-      {showAcceptanceTuning ? createPortal(
-        <PhoneCraneTuningBar />,
-        document.body
       ) : null}
     </>
   );
