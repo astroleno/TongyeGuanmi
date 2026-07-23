@@ -23,6 +23,8 @@ import {
   phoneCraneTimelineProgressForFlockMediaProgress
 } from './PhoneCrane.autoplay';
 import {
+  PHONE_CRANE_FLOCK_ARRIVAL_SCALE,
+  PHONE_CRANE_FLOCK_OPENING_SCALE,
   PHONE_CRANE_FLOCK_TOP_ARRIVAL_SECONDS,
   PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH,
   PHONE_CRANE_FIGURE_OPENING_SCALE,
@@ -108,8 +110,11 @@ describe('PhoneCrane', () => {
     expect(PHONE_CRANE_FIGURE_OPENING_SCALE).toBe(0.5);
     expect(PHONE_CRANE_FIGURE_OPENING_X_VH).toBe(-3.75);
     expect(PHONE_CRANE_FIGURE_OPENING_Y_VH).toBe(8.75);
-    expect(PHONE_CRANE_FLOCK_TOP_ARRIVAL_SECONDS).toBe(0.5);
-    expect(PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH).toBe(-33.25);
+    expect(PHONE_CRANE_FLOCK_TOP_ARRIVAL_SECONDS).toBe(1.5);
+    expect(PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH).toBe(-10.95);
+    expect(PHONE_CRANE_FLOCK_OPENING_SCALE).toBe(0.57);
+    expect(PHONE_CRANE_FLOCK_ARRIVAL_SCALE).toBe(1);
+    expect(css).toContain('--phone-crane-flock-motion-scale');
     expect(css).toContain('filter: none');
     expect(motionSource).toContain(
       'var(--phone-crane-tune-building-y, 3.25lvh)'
@@ -156,11 +161,17 @@ describe('PhoneCrane', () => {
       endpoint.style.values.get('--phone-crane-figure-camera-y')
     ).toBe('8.75lvh');
     expect(endpoint.style.values.get('--crane-flock-y')).toBe('0.00lvh');
+    expect(
+      endpoint.style.values.get('--phone-crane-flock-motion-scale')
+    ).toBe('0.5700');
     renderPhoneCranePresentation(
       endpoint as unknown as HTMLElement,
-      1 / 6
+      0.5
     );
-    expect(endpoint.style.values.get('--crane-flock-y')).toBe('-33.25lvh');
+    expect(endpoint.style.values.get('--crane-flock-y')).toBe('-10.95lvh');
+    expect(
+      endpoint.style.values.get('--phone-crane-flock-motion-scale')
+    ).toBe('1.0000');
     renderPhoneCranePresentation(
       endpoint as unknown as HTMLElement,
       1

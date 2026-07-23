@@ -153,6 +153,8 @@ export function PhoneCraneTuningBar() {
       '[data-r4-scene="crane-animation"]'
     );
     if (crane) {
+      crane.dataset.phoneCraneFlockOpeningScale =
+        tuning.flockScale.toFixed(3);
       crane.dataset.phoneCraneFigureOpeningScale =
         tuning.figureScale.toFixed(3);
       crane.dataset.phoneCraneFigureOpeningX = tuning.figureX.toFixed(2);
@@ -179,6 +181,7 @@ export function PhoneCraneTuningBar() {
         '[data-r4-scene="crane-animation"]'
       );
       if (crane) {
+        delete crane.dataset.phoneCraneFlockOpeningScale;
         delete crane.dataset.phoneCraneFigureOpeningScale;
         delete crane.dataset.phoneCraneFigureOpeningX;
         delete crane.dataset.phoneCraneFigureOpeningY;

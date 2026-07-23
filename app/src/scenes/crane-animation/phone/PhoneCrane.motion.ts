@@ -4,12 +4,14 @@ const FIGURE_START_SECONDS = 0.5;
 const FIGURE_FULLSCREEN_SECONDS = FIGURE_START_SECONDS + 1;
 const FLOCK_END_SECONDS = 2.5;
 /*
- * At packed frame 15 (≈0.5s), the flock matte begins at y≈6/396. With the
- * accepted .57 retained-height camera and +10.75lvh opening offset, -33.25lvh
- * places that first visible pixel at the physical viewport top.
+ * At packed frame 45 (≈1.5s), the flock matte reaches y=0. Growing the
+ * retained-height camera from .57 to 1 places that edge 10.95lvh below the
+ * viewport top, so the paired translation closes the remaining distance.
  */
-export const PHONE_CRANE_FLOCK_TOP_ARRIVAL_SECONDS = 0.5;
-export const PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH = -33.25;
+export const PHONE_CRANE_FLOCK_TOP_ARRIVAL_SECONDS = 1.5;
+export const PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH = -10.95;
+export const PHONE_CRANE_FLOCK_OPENING_SCALE = 0.57;
+export const PHONE_CRANE_FLOCK_ARRIVAL_SCALE = 1;
 export const PHONE_CRANE_FIGURE_OPENING_SCALE = 0.5;
 export const PHONE_CRANE_FIGURE_OPENING_X_VH = -3.75;
 export const PHONE_CRANE_FIGURE_OPENING_Y_VH = 8.75;
@@ -95,6 +97,16 @@ export function renderPhoneCranePresentation(
     PHONE_CRANE_FLOCK_TOP_ARRIVAL_SECONDS
   ));
   const flockY = PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH * flockRise;
+  const flockOpeningScale = finiteInRange(
+    section.dataset.phoneCraneFlockOpeningScale,
+    PHONE_CRANE_FLOCK_OPENING_SCALE,
+    0.25,
+    1.5
+  );
+  const flockScale = (
+    flockOpeningScale
+    + (PHONE_CRANE_FLOCK_ARRIVAL_SCALE - flockOpeningScale) * flockRise
+  );
   const flockRetired = time >= FLOCK_END_SECONDS - 0.001;
   const figureY = 198 * (1 - grow);
   const figureOpeningScale = finiteInRange(
@@ -148,6 +160,10 @@ export function renderPhoneCranePresentation(
   section.style.setProperty('--crane-video-clip-bottom', `${clipBottom.toFixed(2)}%`);
   section.style.setProperty('--crane-flock-opacity', flockOpacity.toFixed(4));
   section.style.setProperty('--crane-flock-y', `${flockY.toFixed(2)}lvh`);
+  section.style.setProperty(
+    '--phone-crane-flock-motion-scale',
+    flockScale.toFixed(4)
+  );
   section.dataset.craneProgress = progress.toFixed(4);
   section.dataset.phoneCraneProgress = timelineProgress.toFixed(4);
   section.dataset.phoneCraneFlockState = flockRetired
