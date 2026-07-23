@@ -121,6 +121,14 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
   });
 
+  it('keeps AOD media-owned without converting the front rail to timed ink', () => {
+    expect(stageRuntimeSource).toContain('aodSession = session');
+    expect(stageRuntimeSource).toContain('aodAdapter.startAutoplay(1)');
+    expect(stageRuntimeSource).toContain('session?.complete(direction === 1');
+    expect(stageRuntimeSource).not.toContain('FRONT_INK_BOUNDARIES');
+    expect(stageRuntimeSource).not.toContain('runPhoneTimedTransition');
+  });
+
   it('exposes real document receivers while fixed-stage ink owns the boundary', () => {
     expect(stageStyles).toMatch(
       /data-portrait-checkpoint="proof-to-brand"[^}]+background:\s*transparent/s
@@ -136,6 +144,9 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
     expect(storySource).toContain(
       "root?.setAttribute('data-phone-group45-stage-active', 'false')"
+    );
+    expect(gradeAStorySource).toContain(
+      'proofActive && activeInk?.id !== 2'
     );
   });
 
@@ -220,6 +231,7 @@ describe('Phone Brand → Lab visual contracts', () => {
 
   it('owns both directions through one capture-phase semantic lock', () => {
     expect(storySource).toContain('registerPhoneTransitionBoundary(inputOwner');
+    expect(storySource).toContain('BRAND_READING_HOLD_RATIO = 0.16');
     expect(storySource).toContain('trackTop - window.innerHeight');
     expect(transitionCoordinatorSource).toContain(
       "root.addEventListener('touchmove', (event) => {"
@@ -234,7 +246,13 @@ describe('Phone Brand → Lab visual contracts', () => {
       'let matchPosition = direction === 1 ? Infinity : -Infinity;'
     );
     expect(transitionCoordinatorSource).toContain(
-      '? !match.canStart(direction) || begin(match, direction, matchPosition)'
+      '|| !canStart'
+    );
+    expect(transitionCoordinatorSource).toContain(
+      'return match ? begin(match, direction, matchPosition) : false;'
+    );
+    expect(transitionCoordinatorSource).toContain(
+      '&& tryProjected(previousScrollY, currentScrollY)'
     );
   });
 

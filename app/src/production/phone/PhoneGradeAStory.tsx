@@ -365,7 +365,10 @@ export function PhoneGradeAStory({
         return;
       }
 
-      if (proofActive) {
+      // Proof and Brand share the exact viewport edge. While the autonomous
+      // boundary owns that edge, it must outrank Proof's terminal hold or the
+      // render would return here for all 600ms and the ink would never paint.
+      if (proofActive && activeInk?.id !== 2) {
         setRetainedArchProgress(1, 1);
         const proof = phoneGradeAProofProgress(
           proofRect.top,

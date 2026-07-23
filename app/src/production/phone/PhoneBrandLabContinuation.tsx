@@ -79,6 +79,7 @@ const GROUP45_VISUAL_SCENES = [
   'figure3-animation',
   'ttg-animation'
 ] as const satisfies readonly Group45VisualScene[];
+const BRAND_READING_HOLD_RATIO = 0.16;
 const GROUP45_SCENES = new Set<Group45PhoneSceneId>(group45PhoneSceneIds);
 
 function group45EdgeScene(scene: Group45PhoneSceneId): PhoneEdgeScene {
@@ -292,7 +293,7 @@ export const PhoneBrandLabContinuation = forwardRef<
   const adapters = usePhoneGroup45Adapters(entryScene, adapterScene);
   const [currentScene, setCurrentScene] = useState<Group45PhoneSceneId>(entryScene);
   const [continuationActive, setContinuationActive] = useState(false);
-  const [adapterRevision, setAdapterRevision] = useState(0);
+  const [, setAdapterRevision] = useState(0);
   const [scrollDirection, setScrollDirection] = useState<1 | -1>(1);
   const [stageScene, setStageScene] = useState<Group45VisualScene | null>(null);
   const [visualActivity, setVisualActivity] = useState<Readonly<{
@@ -1162,6 +1163,9 @@ export const PhoneBrandLabContinuation = forwardRef<
                 + track.getBoundingClientRect().top;
               return direction === 1
                 ? trackTop - window.innerHeight
+                  + (scene === 'figure3-animation'
+                    ? window.innerHeight * BRAND_READING_HOLD_RATIO
+                    : 0)
                 : trackTop;
             },
             canStart: (direction) => (
@@ -1224,6 +1228,11 @@ export const PhoneBrandLabContinuation = forwardRef<
       }
       cancelVisualInkRef.current?.();
       cancelVisualInkRef.current = undefined;
+      const interruptedScene = visualRunRef.current;
+      if (interruptedScene) {
+        visualRunPhaseRef.current[interruptedScene] =
+          visualRunDirectionRef.current === 1 ? 'initial' : 'complete';
+      }
       visualSessionRef.current?.abort(window.scrollY);
       visualSessionRef.current = null;
       visualRunRef.current = null;
@@ -1236,7 +1245,6 @@ export const PhoneBrandLabContinuation = forwardRef<
       delete root.dataset.phoneGroup45VisualStep;
     };
   }, [
-    adapterRevision,
     adapters.entryReady,
     armVisualRunTimeout,
     entryScene,

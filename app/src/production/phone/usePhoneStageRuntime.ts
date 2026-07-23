@@ -8,8 +8,6 @@ import { sceneFromHash } from '../navigation';
 import { clearPhoneInkBoundary } from './phone-ink';
 import {
   registerPhoneTransitionBoundary,
-  runPhoneTimedTransition,
-  type PhoneTransitionDirection,
   type PhoneTransitionSession
 } from './phone-transition-coordinator';
 import {
@@ -37,22 +35,6 @@ export function refreshPhoneScrollStage(): void {
 
 type PortraitStageScene = 'hero' | 'pattern' | 'star' | 'aod';
 type PortraitAodRunState = 'idle' | 'forward' | 'complete' | 'reverse';
-
-const FRONT_INK_BOUNDARIES = [
-  {
-    start: PHONE_STAGE_STOPS.heroMotionEnd,
-    end: PHONE_STAGE_STOPS.heroPatternEnd
-  },
-  {
-    start: PHONE_STAGE_STOPS.patternStarStart,
-    end: PHONE_STAGE_STOPS.patternStarEnd
-  },
-  {
-    start: PHONE_STAGE_STOPS.starAodStart,
-    end: PHONE_STAGE_STOPS.starAodEnd
-  }
-] as const;
-type FrontInkBoundary = typeof FRONT_INK_BOUNDARIES[number];
 
 function portraitStageScene(scene: PhoneStageSceneId): PortraitStageScene {
   if (scene === 'star-map') return 'star';
@@ -182,14 +164,8 @@ export function usePhoneStageRuntime(
     let stageScrollStart = 0;
     let stageScrollEnd = 1;
     let aodSession: PhoneTransitionSession | null = null;
-    let stageInkRun: {
-      direction: PhoneTransitionDirection;
-      start: number;
-      end: number;
-      progress: number;
-    } | null = null;
-    let cancelStageInkRun: (() => void) | undefined;
-    const completedStageInk = new Set<FrontInkBoundary>();
+    let triggerAodForward = () => false;
+    let triggerAodReverse = () => false;
     const stagePosition = (progress: number) => stageScrollStart
       + (stageScrollEnd - stageScrollStart) * progress;
     let currentNavigationScene: SceneId = 'hero';
@@ -365,7 +341,9 @@ export function usePhoneStageRuntime(
       root.dataset.portraitAodRun = aodRunState;
       root.dataset.phoneAodSnap = 'released';
       options.onCheckpoint(phoneAodCompletionCheckpoint(direction));
-      session?.complete(stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart));
+      session?.complete(direction === 1
+        ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
+        : Math.max(stageScrollStart, stageScrollEnd - 1));
       if (direction === 1) setAodFigureActive(false);
       else renderStage(stageTrigger.progress);
     };
@@ -405,17 +383,14 @@ export function usePhoneStageRuntime(
     }
 
     const renderStage = (rawProgress: number, triggerDirection = 0) => {
-      const activeInk = stageInkRun;
-      const effectiveProgress = activeInk
-        ? activeInk.start
-          + (activeInk.end - activeInk.start) * activeInk.progress
-        : rawProgress;
-      if (activeInk) triggerDirection = activeInk.direction;
-      const progress = Math.min(1, Math.max(0, effectiveProgress));
+      const progress = Math.min(1, Math.max(0, rawProgress));
       const previousStageProgress = lastStageProgress;
       const movingBackward = triggerDirection < 0
         || (Number.isFinite(previousStageProgress)
           && progress < previousStageProgress);
+      const movingForward = triggerDirection > 0
+        || (Number.isFinite(previousStageProgress)
+          && progress > previousStageProgress);
       lastStageProgress = progress;
       if (
         progress > 0.003
@@ -426,6 +401,16 @@ export function usePhoneStageRuntime(
       const frame = phoneStageFrame(progress, options.reducedMotion);
       setCurrentNavigationScene(frame.navigationScene);
 
+      if (motionEnabled && movingBackward && aodRunState === 'complete') {
+        triggerAodReverse();
+      } else if (
+        motionEnabled
+        && movingForward
+        && aodRunState === 'idle'
+        && frame.shouldStartAodAutoplay
+      ) {
+        triggerAodForward();
+      }
       if (
         motionEnabled
         && movingBackward
@@ -535,19 +520,14 @@ export function usePhoneStageRuntime(
       onLeave: () => setStageActive(false)
     });
 
-    for (const boundary of FRONT_INK_BOUNDARIES) {
-      if (stageTrigger.progress >= boundary.end - .001) {
-        completedStageInk.add(boundary);
-      }
-    }
     const transitionOwner = root.closest<HTMLElement>(
       'main.portrait-scroll-spike'
     ) ?? root;
     const aodRegistration = motionEnabled
       ? registerPhoneTransitionBoundary(transitionOwner, {
-          position: (direction) => stagePosition(
-            direction === 1 ? PHONE_STAGE_STOPS.aodAutoplayStart : 1
-          ),
+          position: (direction) => direction === 1
+            ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
+            : Math.max(stageScrollStart, stageScrollEnd - 1),
           canStart: (direction) => direction === 1
             ? aodRunState === 'idle'
             : aodRunState === 'complete',
@@ -556,47 +536,8 @@ export function usePhoneStageRuntime(
             : beginAodReverse(session)
         })
       : null;
-    const stageInkRegistrations = motionEnabled
-      ? FRONT_INK_BOUNDARIES.map((boundary) => (
-          registerPhoneTransitionBoundary(transitionOwner, {
-            position: (direction) => stagePosition(
-              direction === 1 ? boundary.start : boundary.end
-            ),
-            canStart: (direction) => (
-              !stageInkRun
-              && (direction === 1
-                ? !completedStageInk.has(boundary)
-                : completedStageInk.has(boundary))
-            ),
-            start: (direction, session) => {
-              stageInkRun = {
-                ...boundary,
-                direction,
-                progress: direction === 1 ? 0 : 1
-              };
-              cancelStageInkRun = runPhoneTimedTransition(
-                session,
-                direction,
-                (progress) => {
-                  stageInkRun!.progress = progress;
-                  renderStage(0);
-                },
-                () => {
-                  if (direction === 1) completedStageInk.add(boundary);
-                  else completedStageInk.delete(boundary);
-                  stageInkRun = null;
-                  const landingProgress = direction === 1
-                    ? boundary.end
-                    : boundary.start;
-                  session.complete(stagePosition(landingProgress));
-                  renderStage(landingProgress, direction);
-                }
-              );
-              return true;
-            }
-          })
-        ))
-      : [];
+    triggerAodForward = () => aodRegistration?.trigger(1) ?? false;
+    triggerAodReverse = () => aodRegistration?.trigger(-1) ?? false;
 
     renderStage(stageTrigger.progress);
     if (motionEnabled && stageTrigger.progress <= 0.003) {
@@ -618,13 +559,9 @@ export function usePhoneStageRuntime(
       window.removeEventListener('load', refresh);
       root.removeEventListener('pointerdown', onHeroPointerDown);
       root.removeEventListener('click', onHeroClick);
-      cancelStageInkRun?.();
       aodSession?.abort(window.scrollY);
       aodSession = null;
       aodRegistration?.dispose();
-      for (const registration of stageInkRegistrations) {
-        registration.dispose();
-      }
       stageTrigger.kill();
       setHeroFigureActive(false);
       setPatternActive(false);

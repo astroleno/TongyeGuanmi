@@ -33,7 +33,7 @@ const coordinators = new WeakMap<HTMLElement, CoordinatorRegister>();
 
 const eventTargetIsInteractive = (event: Event) => (
   (event.target as Element | null)?.closest?.(
-    'a,button,input,select,textarea'
+    'a,button,input,select,textarea,[role="button"]'
   )
 );
 
@@ -83,12 +83,14 @@ function createCoordinator(root: HTMLElement): CoordinatorRegister {
   const boundaries: PhoneTransitionBoundary[] = [];
   let active: { token: number; anchorY: number } | null = null;
   let touch: [number, number, boolean] | null = null;
-  let wheelUntil = 0;
   let token = 0;
+  let observedScrollY = window.scrollY;
+  let inputIntentUntil = 0;
 
   const scrollTo = (value: number) => {
     const y = Math.max(0, Math.round(value));
     if (active) active.anchorY = y;
+    observedScrollY = y;
     window.scrollTo(0, y);
   };
   const correctScroll = () => {
@@ -100,6 +102,8 @@ function createCoordinator(root: HTMLElement): CoordinatorRegister {
     if (active?.token !== runToken) return;
     if (anchorY !== undefined) scrollTo(anchorY);
     active = null;
+    inputIntentUntil = 0;
+    observedScrollY = window.scrollY;
     delete root.dataset.phoneTransitionLock;
   };
   const begin = (
@@ -129,17 +133,16 @@ function createCoordinator(root: HTMLElement): CoordinatorRegister {
     return true;
   };
   const tryProjected = (start: number, projected: number) => {
+    if (Math.abs(projected - start) < .5) return false;
     const direction: PhoneTransitionDirection = projected > start ? 1 : -1;
     let match: PhoneTransitionBoundary | null = null;
     let matchPosition = direction === 1 ? Infinity : -Infinity;
     for (const boundary of boundaries) {
       const position = boundary.position(direction);
+      const canStart = boundary.canStart(direction);
       if (
         position === null
-        || (!boundary.canStart(direction)
-          && (direction === 1
-            ? start >= position - 1
-            : start <= position + 1))
+        || !canStart
         || !phoneTransitionCrossesBoundary(
           start,
           projected,
@@ -153,9 +156,7 @@ function createCoordinator(root: HTMLElement): CoordinatorRegister {
       match = boundary;
       matchPosition = position;
     }
-    return match
-      ? !match.canStart(direction) || begin(match, direction, matchPosition)
-      : false;
+    return match ? begin(match, direction, matchPosition) : false;
   };
   const block = (event: Event) => {
     event.preventDefault();
@@ -183,6 +184,7 @@ function createCoordinator(root: HTMLElement): CoordinatorRegister {
       return;
     }
     if (eventTargetIsInteractive(event)) return;
+    inputIntentUntil = performance.now() + 1200;
     const projected = Math.max(0, touch[0] + touch[1] - first.clientY);
     if (!tryProjected(touch[0], projected)) return;
     touch[2] = true;
@@ -194,9 +196,7 @@ function createCoordinator(root: HTMLElement): CoordinatorRegister {
   root.addEventListener('touchend', endTouch, true);
   root.addEventListener('touchcancel', endTouch, true);
   root.addEventListener('wheel', (event) => {
-    const now = performance.now();
-    if (active || now < wheelUntil) {
-      wheelUntil = now + 180;
+    if (active) {
       block(event);
       return;
     }
@@ -207,17 +207,31 @@ function createCoordinator(root: HTMLElement): CoordinatorRegister {
       start + event.deltaY * (event.deltaMode ? 16 : 1)
     );
     if (!tryProjected(start, projected)) return;
-    wheelUntil = now + 180;
     block(event);
   }, blockingListener);
-  window.addEventListener('scroll', correctScroll);
+  window.addEventListener('scroll', () => {
+    const currentScrollY = window.scrollY;
+    if (active) {
+      correctScroll();
+      observedScrollY = active.anchorY;
+      return;
+    }
+    const previousScrollY = observedScrollY;
+    observedScrollY = currentScrollY;
+    // `touchmove` is not guaranteed to remain cancelable once Safari has
+    // promoted momentum. Reclaim an overshot semantic edge from the native
+    // scroll sample so programmatic jumps and fast flings still show the ink.
+    if (
+      performance.now() <= inputIntentUntil
+      && tryProjected(previousScrollY, currentScrollY)
+    ) observedScrollY = window.scrollY;
+  }, { passive: true });
 
   return (boundary) => {
     boundaries.push(boundary);
     return {
       trigger: (direction) => (
-        boundaries.includes(boundary)
-        && boundary.canStart(direction)
+        boundary.canStart(direction)
         && begin(boundary, direction)
       ),
       dispose: () => {
