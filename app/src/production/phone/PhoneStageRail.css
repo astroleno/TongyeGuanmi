@@ -24,9 +24,15 @@
  * Proof and its retained foreground stay inside the fixed stage, while Brand
  * remains the one real document receiver below it. Expose that receiver only
  * for the complementary ink interval; every other checkpoint keeps the stage
- * as Safari's opaque edge owner.
+ * as Safari's opaque edge owner. Group 4–5 source plates are themselves
+ * opaque, so their stage paper can open while ink exposes the real document
+ * receiver underneath.
  */
 .portrait-scroll-spike[data-portrait-checkpoint="proof-to-brand"]
+  .portrait-scroll-spike__stage,
+.portrait-scroll-spike:has(
+  .phone-brand-lab[data-phone-group45-stage-active="true"]
+)
   .portrait-scroll-spike__stage {
   background: transparent;
 }

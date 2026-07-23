@@ -330,18 +330,17 @@ export function phoneGroup45CrossedVisualBoundary(
 }
 
 /**
- * Match the accepted AOD reverse coordinator: once an upward gesture has
- * crossed a visual boundary, pin the physical position already presented by
- * native scroll. Pulling the document back down to the boundary would replay
- * the same reading opener before the reverse media run begins.
+ * Reverse owns the screen while the document lands on the upstream chapter's
+ * final full viewport. An already deeper upward swipe remains authoritative.
  */
 export function phoneGroup45VisualRunAnchor(
   scrollY: number,
   boundaryY: number,
-  direction: VisualRunDirection
+  direction: VisualRunDirection,
+  viewportHeight = 0
 ): number {
   return direction === -1
-    ? Math.min(scrollY, boundaryY)
+    ? Math.min(scrollY, boundaryY - Math.max(0, viewportHeight))
     : boundaryY;
 }
 
@@ -575,28 +574,30 @@ export const PhoneBrandLabContinuation = forwardRef<
       if (scene === 'figure3-animation') {
         figure3Ref.current?.leave?.();
         if (direction === 1) figure3ServicesRef.current?.leave?.();
-        else figure3ServicesRef.current?.enter?.();
+        else {
+          figure3ServicesRef.current?.enter?.();
+          brandFigure3Ref.current?.enter?.();
+        }
       } else {
         ttgRef.current?.leave?.();
         if (direction === 1) ttgLabRef.current?.leave?.();
-        else ttgLabRef.current?.enter?.();
+        else {
+          ttgLabRef.current?.enter?.();
+          servicesTtgRef.current?.enter?.();
+        }
       }
       visualRunRef.current = null;
       visualSnapRef.current?.release();
-      const keepStage = direction === -1;
       const root = rootRef.current;
       root?.setAttribute('data-phone-group45-snap', 'released');
       root?.setAttribute('data-phone-group45-visual-run', 'idle');
-      root?.setAttribute('data-phone-group45-stage-active', String(keepStage));
-      root?.setAttribute(
-        'data-phone-group45-stage-scene',
-        keepStage ? scene : 'none'
-      );
+      root?.setAttribute('data-phone-group45-stage-active', 'false');
+      root?.setAttribute('data-phone-group45-stage-scene', 'none');
       root?.setAttribute('data-phone-group45-active-scene', target);
-      root?.setAttribute('data-portrait-stage-active', String(keepStage));
+      root?.setAttribute('data-portrait-stage-active', 'false');
       lastScrollYRef.current = window.scrollY;
       setCurrentScene(target);
-      setStageScene(keepStage ? scene : null);
+      setStageScene(null);
       setVisualActivity((current) => ({
         figure3: {
           ...current.figure3,
@@ -672,10 +673,16 @@ export const PhoneBrandLabContinuation = forwardRef<
       // The transition adapter maps canonical Figure3 progress 0.8 → 1 to
       // Services entrance 0 → 1, exactly like the accepted AOD handoff.
       figure3ServicesRef.current?.render(progress);
+      if (direction === -1) {
+        brandFigure3Ref.current?.render(clamp(progress / .2));
+      }
     } else {
       // TTG publishes the desktop combined timeline: media occupies the first
       // 2500 ms and the same Lab document root dissolves over the final 600 ms.
       ttgLabRef.current?.render(progress);
+      if (direction === -1) {
+        servicesTtgRef.current?.render(clamp(progress / .2));
+      }
     }
   }, []);
 
@@ -885,7 +892,8 @@ export const PhoneBrandLabContinuation = forwardRef<
       visualSnap.lock(phoneGroup45VisualRunAnchor(
         window.scrollY,
         trackTop,
-        runDirection
+        runDirection,
+        window.innerHeight
       ));
       armVisualRunTimeout(nextRun);
 
@@ -1251,15 +1259,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       reversePointerGesture = null;
       reverseTouchGesture = null;
       if (beginVisualRun(scene, -1)) {
-        root.dataset.phoneGroup45ReverseGesture = `${scene}:started`;
         lastScrollYRef.current = window.scrollY;
-      } else {
-        delete root.dataset.phoneGroup45ReverseGesture;
-      }
-    };
-    const clearReverseGestureDatasetIfIdle = () => {
-      if (!reversePointerGesture && !reverseTouchGesture) {
-        delete root.dataset.phoneGroup45ReverseGesture;
       }
     };
     const onReversePointerDown = (event: PointerEvent) => {
@@ -1278,7 +1278,6 @@ export const PhoneBrandLabContinuation = forwardRef<
         scene,
         startY: event.clientY
       };
-      root.dataset.phoneGroup45ReverseGesture = `${scene}:armed`;
     };
     const onReversePointerMove = (event: PointerEvent) => {
       const gesture = reversePointerGesture;
@@ -1295,7 +1294,6 @@ export const PhoneBrandLabContinuation = forwardRef<
     const clearReversePointerGesture = (event: PointerEvent) => {
       if (reversePointerGesture?.pointerId !== event.pointerId) return;
       reversePointerGesture = null;
-      clearReverseGestureDatasetIfIdle();
     };
     const touchWithIdentifier = (touches: TouchList, identifier: number) => {
       for (let index = 0; index < touches.length; index += 1) {
@@ -1360,7 +1358,6 @@ export const PhoneBrandLabContinuation = forwardRef<
         scene,
         startY: touch.clientY
       };
-      root.dataset.phoneGroup45ReverseGesture = `${scene}:armed`;
     };
     const onReverseTouchMove = (event: TouchEvent) => {
       const gesture = reverseTouchGesture;
@@ -1382,7 +1379,6 @@ export const PhoneBrandLabContinuation = forwardRef<
         return;
       }
       reverseTouchGesture = null;
-      clearReverseGestureDatasetIfIdle();
     };
     const retryBlockedVisual = () => {
       const scene = visualRunRef.current;
@@ -1438,7 +1434,6 @@ export const PhoneBrandLabContinuation = forwardRef<
       delete root.dataset.phoneGroup45Snap;
       delete root.dataset.phoneGroup45VisualRun;
       delete root.dataset.phoneGroup45VisualProgress;
-      delete root.dataset.phoneGroup45ReverseGesture;
     };
   }, [
     adapterRevision,

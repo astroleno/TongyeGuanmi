@@ -25,6 +25,10 @@ const edgePublisherSource = readFileSync(
   new URL('./usePhoneEdgeSurface.ts', import.meta.url),
   'utf8'
 );
+const stageRuntimeSource = readFileSync(
+  new URL('./usePhoneStageRuntime.ts', import.meta.url),
+  'utf8'
+);
 const stageStyles = readFileSync(
   new URL('./PhoneStageRail.css', import.meta.url),
   'utf8'
@@ -108,11 +112,23 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(gradeAStorySource).toContain(
       "storyRoot?.dataset.portraitStageActive !== 'true'"
     );
+    expect(stageRuntimeSource).toContain(
+      'else renderStage(stageTrigger.progress)'
+    );
   });
 
-  it('exposes the real Brand receiver only during Proof ink ownership', () => {
+  it('exposes real document receivers while fixed-stage ink owns the boundary', () => {
     expect(stageStyles).toMatch(
       /data-portrait-checkpoint="proof-to-brand"[^}]+background:\s*transparent/s
+    );
+    expect(stageStyles).toMatch(
+      /:has\([^}]+data-phone-group45-stage-active="true"[^}]+background:\s*transparent/s
+    );
+    expect(storySource).toContain(
+      'servicesTtgRef.current?.render(clamp(progress / .2))'
+    );
+    expect(storySource).toContain(
+      "root?.setAttribute('data-phone-group45-stage-active', 'false')"
     );
   });
 

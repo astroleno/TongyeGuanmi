@@ -341,6 +341,7 @@ export function usePhoneStageRuntime(
       options.onCheckpoint(phoneAodCompletionCheckpoint(direction));
       aodScrollSnap.release();
       if (direction === 1) setAodFigureActive(false);
+      else renderStage(stageTrigger.progress);
     };
     completeHandlerRef.current = completeAodRun;
 

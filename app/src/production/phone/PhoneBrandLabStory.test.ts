@@ -120,10 +120,10 @@ describe('PhoneBrandLabStory', () => {
     expect(phoneGroup45HasReverseGestureIntent(200, 190)).toBe(false);
   });
 
-  it('never pulls an overshot reverse gesture back through the reading opener', () => {
-    expect(phoneGroup45VisualRunAnchor(760, 844, -1)).toBe(760);
-    expect(phoneGroup45VisualRunAnchor(875, 844, -1)).toBe(844);
-    expect(phoneGroup45VisualRunAnchor(760, 844, 1)).toBe(844);
+  it('lands reverse visuals on the complete upstream reading viewport', () => {
+    expect(phoneGroup45VisualRunAnchor(760, 844, -1, 100)).toBe(744);
+    expect(phoneGroup45VisualRunAnchor(700, 844, -1, 100)).toBe(700);
+    expect(phoneGroup45VisualRunAnchor(760, 844, 1, 100)).toBe(844);
   });
 
   it('keeps upstream ink committed until the held visual run completes', () => {
