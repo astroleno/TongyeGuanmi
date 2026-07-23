@@ -3,6 +3,7 @@ import {
   phoneGroup45BoundaryProgress,
   phoneGroup45CanArmReverseGesture,
   phoneGroup45CanBeginVisualRun,
+  phoneGroup45CommittedBoundaryProgress,
   phoneGroup45CrossedVisualBoundary,
   phoneGroup45CrossedVisualStart,
   phoneGroup45DocumentFlags,
@@ -114,6 +115,12 @@ describe('PhoneBrandLabStory', () => {
     expect(phoneGroup45VisualRunAnchor(760, 844, -1)).toBe(760);
     expect(phoneGroup45VisualRunAnchor(875, 844, -1)).toBe(844);
     expect(phoneGroup45VisualRunAnchor(760, 844, 1)).toBe(844);
+  });
+
+  it('keeps upstream ink committed until the held visual run completes', () => {
+    expect(phoneGroup45CommittedBoundaryProgress(.58, true)).toBe(1);
+    expect(phoneGroup45CommittedBoundaryProgress(.89, true)).toBe(1);
+    expect(phoneGroup45CommittedBoundaryProgress(.58, false)).toBe(.58);
   });
 
 });

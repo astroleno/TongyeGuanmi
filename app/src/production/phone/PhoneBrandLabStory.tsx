@@ -177,6 +177,19 @@ export function phoneGroup45ReducedReceiverProgress(targetTop: number): 0 | 1 {
   return targetTop < 0 ? 1 : 0;
 }
 
+/**
+ * An autonomous visual run owns the whole stage until its media endpoint is
+ * complete. Keep the upstream scroll transition committed to that visual;
+ * sampling an overshot native-scroll position here would reveal an earlier
+ * chapter (or its ink mask) while the current scene is still reversing.
+ */
+export function phoneGroup45CommittedBoundaryProgress(
+  rawProgress: number,
+  visualHeld: boolean
+): number {
+  return visualHeld ? 1 : clamp(rawProgress);
+}
+
 function sceneIndex(scene: Group45PhoneSceneId): number {
   return group45PhoneSceneIds.indexOf(scene);
 }
@@ -904,8 +917,14 @@ export function PhoneBrandLabStory({
       const brandElement = brandRef.current?.root() ?? null;
       const servicesElement = servicesRef.current?.root() ?? null;
       const labElement = labRef.current?.root() ?? null;
-      brandFigure3Ref.current?.render(brandFigure3Progress);
-      servicesTtgRef.current?.render(servicesTtgProgress);
+      brandFigure3Ref.current?.render(phoneGroup45CommittedBoundaryProgress(
+        brandFigure3Progress,
+        heldVisual === 'figure3-animation'
+      ));
+      servicesTtgRef.current?.render(phoneGroup45CommittedBoundaryProgress(
+        servicesTtgProgress,
+        heldVisual === 'ttg-animation'
+      ));
       if (reducedMotion) {
         // Reduced motion still traverses the same A/B boundary. The stable
         // visual endpoint owns exactly the boundary pixel; crossing it commits
