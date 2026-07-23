@@ -1,14 +1,21 @@
 import {
+  createElement,
   forwardRef,
   useCallback,
-  useEffect,
-  useImperativeHandle
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef
 } from 'react';
+import {
+  createPhoneInkTransition,
+  type PhoneInkTransition
+} from '../../production/phone/phone-ink';
 import { renderPhonePhPresentation } from '../../scenes/ph-animation/phone/PhonePh.motion';
 import type {
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
 } from '../../production/phone/types';
+import './phone.css';
 
 const ENDPOINT_EPSILON = 0.001;
 
@@ -21,29 +28,36 @@ function endpointProgress(rawProgress: number, reducedMotion: boolean): number {
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
 }
 
-function applyEndpointVisibility(
+function presentInkEndpoint(
   element: HTMLElement | null,
-  opacity: number,
-  interactive = opacity >= 1 - ENDPOINT_EPSILON
+  interactive: boolean
 ): void {
   if (!element) return;
-  const visible = opacity > ENDPOINT_EPSILON;
-  element.style.opacity = opacity.toFixed(4);
-  element.style.visibility = visible ? 'visible' : 'hidden';
+  // Ink owns the only visual boundary. Both authored plates stay fully
+  // opaque, otherwise the PH island becomes translucent through Lab.
+  element.style.opacity = '1';
+  element.style.visibility = 'visible';
   element.style.pointerEvents = interactive ? 'auto' : 'none';
   element.inert = !interactive;
   element.setAttribute('aria-hidden', String(!interactive));
 }
 
 /**
- * No physical-phone Lab → PH camera has been approved yet. Use the shared
- * handoff endpoints and a deterministic dissolve until Unit 7 receives the
- * final Lab integration commit.
+ * Reuse the reviewed Star-map → AOD phone ink topology. Lab supplies only its
+ * shared stable endpoint; this transition never imports PhoneLab or its refs.
  */
 export const PHONE_LAB_PH_DECISION = Object.freeze({
-  mode: 'endpoint-dissolve',
-  source: 'shared-adapter-handoff',
-  reason: 'No verified phone camera is available at the Unit 6 boundary.'
+  mode: 'horizontal-ink',
+  source: 'star-map-aod-phone-field',
+  field: 'bottom-to-top',
+  grade: 'edge-bright',
+  reason: 'Lab and the fully opaque PH opening plate share the reviewed phone ink contour.'
+} as const);
+
+const PHONE_LAB_PH_FIELD = Object.freeze({
+  kind: 'horizontal',
+  direction: 'bottom-to-top',
+  seed: 'phone-lab-ph-r5'
 } as const);
 
 export type PhoneLabPhFrame = Readonly<{
@@ -60,8 +74,8 @@ export function phoneLabPhFrame(
   const progress = endpointProgress(rawProgress, reducedMotion);
   return {
     progress,
-    labOpacity: 1 - progress,
-    phOpacity: progress,
+    labOpacity: 1,
+    phOpacity: 1,
     phProgress: 0
   };
 }
@@ -78,14 +92,10 @@ export function applyPhoneLabPhFrame(
 ): PhoneLabPhFrame {
   const frame = phoneLabPhFrame(rawProgress, reducedMotion);
   renderPhonePhPresentation(to, 0, 1, reducedMotion);
-  // The source remains the one accessible tree until the visual handoff has
-  // fully landed. PH is a cinematic surface beneath an aria-hidden stage.
-  applyEndpointVisibility(
-    from,
-    frame.labOpacity,
-    frame.labOpacity > ENDPOINT_EPSILON
-  );
-  applyEndpointVisibility(to, frame.phOpacity, false);
+  // The source remains the one accessible tree until the contour lands. PH
+  // is a cinematic surface beneath an aria-hidden stage.
+  presentInkEndpoint(from, frame.progress < 1 - ENDPOINT_EPSILON);
+  presentInkEndpoint(to, false);
   from?.setAttribute('data-phone-lab-ph-handoff', 'source');
   to?.setAttribute('data-phone-lab-ph-handoff', 'receiver');
   return frame;
@@ -94,15 +104,38 @@ export function applyPhoneLabPhFrame(
 export const PhoneLabPhTransition = forwardRef<
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
->(function PhoneLabPhTransition({ from, onReady, reducedMotion, to }, forwardedRef) {
+>(function PhoneLabPhTransition(
+  { from, host, onReady, reducedMotion, to },
+  forwardedRef
+) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const inkRef = useRef<PhoneInkTransition | null>(null);
+
   const render = useCallback((progress: number) => {
-    applyPhoneLabPhFrame(from, to, progress, reducedMotion);
+    const frame = applyPhoneLabPhFrame(from, to, progress, reducedMotion);
+    inkRef.current?.render(frame.progress);
   }, [from, reducedMotion, to]);
 
-  useEffect(() => {
-    renderPhonePhPresentation(to, 0, 1, reducedMotion);
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!host || !from || !to || !canvas) return;
+    const ink = createPhoneInkTransition({
+      host,
+      canvas,
+      id: 'phone-lab-ph-ink',
+      from,
+      to,
+      field: PHONE_LAB_PH_FIELD,
+      grade: 'edge-bright'
+    });
+    inkRef.current = ink;
+    render(reducedMotion ? 1 : 0);
     onReady?.();
-  }, [onReady, reducedMotion, to]);
+    return () => {
+      ink.dispose();
+      if (inkRef.current === ink) inkRef.current = null;
+    };
+  }, [from, host, onReady, reducedMotion, render, to]);
 
   useImperativeHandle(forwardedRef, () => ({
     render,
@@ -114,10 +147,19 @@ export const PhoneLabPhTransition = forwardRef<
     },
     reverse() {
       render(0);
+    },
+    dispose() {
+      inkRef.current?.dispose();
+      inkRef.current = null;
     }
   }), [render]);
 
-  return null;
+  return createElement('canvas', {
+    ref: canvasRef,
+    className: 'phone-lab-ph__ink',
+    'data-phone-lab-ph-ink': 'bottom-to-top',
+    'aria-hidden': 'true'
+  });
 });
 
 export default PhoneLabPhTransition;

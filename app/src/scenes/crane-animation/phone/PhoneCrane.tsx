@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
-import { craneAnimationScene } from '..';
+import { CRANE_VIDEO_END_SECONDS, craneAnimationScene } from '..';
 import type {
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
@@ -44,8 +44,10 @@ const PHONE_CRANE_FLOCK_PACKED = phoneMediaUrlFor(
   'crane-flock-packed',
   'crane-animation'
 );
-const PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = 0.749968;
-const PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = 1.23312;
+// Retained endpoints are the terminal frames used by the desktop sequence.
+// The previous intermediate seeks visibly froze both motion layers.
+const PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS;
+const PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS;
 
 export {
   PHONE_CRANE_STABLE_HOLD_PROGRESS,

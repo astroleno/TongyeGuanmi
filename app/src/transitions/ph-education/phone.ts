@@ -26,10 +26,13 @@ function transitionProgress(rawProgress: number, reducedMotion: boolean): number
   return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
 }
 
-function applyEndpointVisibility(element: HTMLElement | null, opacity: number): void {
+function applyDissolveEndpoint(
+  element: HTMLElement | null,
+  opacity: number,
+  interactive: boolean
+): void {
   if (!element) return;
   const visible = opacity > ENDPOINT_EPSILON;
-  const interactive = opacity >= 1 - ENDPOINT_EPSILON;
   element.style.opacity = opacity.toFixed(4);
   element.style.visibility = visible ? 'visible' : 'hidden';
   element.style.pointerEvents = interactive ? 'auto' : 'none';
@@ -43,8 +46,9 @@ function applyEndpointVisibility(element: HTMLElement | null, opacity: number): 
  */
 export const PHONE_PH_EDUCATION_DECISION = Object.freeze({
   mode: 'endpoint-dissolve',
-  source: 'canonical-intra-chapter-dissolve',
-  reason: 'Phone PH owns native playback first, then the desktop 600ms endpoint dissolve reveals native Education.'
+  source: '4b861b58-ttg-lab-overlay-dissolve',
+  topology: 'education-receiver-over-retained-ph-source',
+  reason: 'Phone PH stays fully opaque while the one native Education root dissolves over its terminal frame.'
 } as const);
 
 export const PHONE_PH_EDUCATION_PLAYBACK_MS = PH_PLAYBACK_MS;
@@ -71,7 +75,7 @@ export function phonePhEducationFrame(
     progress,
     phProgress,
     educationProgress,
-    phOpacity: 1 - educationProgress,
+    phOpacity: 1,
     educationOpacity: educationProgress
   };
 }
@@ -100,8 +104,14 @@ export function applyPhonePhEducationFrame(
   // Desktop prepares Education's final hold before the dissolve. Keep the
   // same target state here and let the root opacity be the only bridge clock.
   renderEducationProgress(to, 1);
-  applyEndpointVisibility(from, frame.phOpacity);
-  applyEndpointVisibility(to, frame.educationOpacity);
+  // Match 4b861b58 TTG → Lab: never alpha-fade the retained media ancestor.
+  // The receiver alone owns opacity and covers the source as one whole scene.
+  applyDissolveEndpoint(from, frame.phOpacity, false);
+  applyDissolveEndpoint(
+    to,
+    frame.educationOpacity,
+    frame.educationOpacity >= 1 - ENDPOINT_EPSILON
+  );
   from?.setAttribute('data-phone-ph-education-handoff', 'source');
   from?.setAttribute('data-phone-ph-education-fade-owner', 'scene-root');
   to?.setAttribute('data-phone-ph-education-handoff', 'receiver');
@@ -111,13 +121,36 @@ export function applyPhonePhEducationFrame(
 
 function setEducationOverlay(to: HTMLElement | null, active: boolean): void {
   const wrapper = to?.closest<HTMLElement>('.phone-education');
+  const documentSlot = wrapper?.closest<HTMLElement>(
+    '[data-phone-acceptance-chapter="education"]'
+  );
   if (active) {
     to?.setAttribute('data-phone-ph-education-overlay', 'true');
     wrapper?.setAttribute('data-phone-ph-education-overlay-host', 'true');
+    documentSlot?.setAttribute('data-phone-ph-education-overlay-layer', 'true');
   } else {
     to?.removeAttribute('data-phone-ph-education-overlay');
     wrapper?.removeAttribute('data-phone-ph-education-overlay-host');
+    documentSlot?.removeAttribute('data-phone-ph-education-overlay-layer');
   }
+}
+
+function clearDissolveEndpoint(element: HTMLElement | null): void {
+  if (!element) return;
+  element.style.opacity = '';
+  element.style.visibility = '';
+  element.style.pointerEvents = '';
+  element.inert = false;
+  element.removeAttribute('aria-hidden');
+}
+
+/** Commit the fixed receiver back to its one native document position. */
+export function settlePhonePhEducationDocumentFlow(
+  from: HTMLElement | null,
+  to: HTMLElement | null
+): void {
+  applyDissolveEndpoint(from, 0, false);
+  clearDissolveEndpoint(to);
 }
 
 export const PhonePhEducationTransition = forwardRef<
@@ -143,16 +176,19 @@ export const PhonePhEducationTransition = forwardRef<
     },
     leave() {
       render(1);
+      settlePhonePhEducationDocumentFlow(from, to);
       setEducationOverlay(to, false);
     },
     reverse() {
       setEducationOverlay(to, true);
-      render(0);
+      render(1);
     },
     dispose() {
       setEducationOverlay(to, false);
+      clearDissolveEndpoint(from);
+      clearDissolveEndpoint(to);
     }
-  }), [render, to]);
+  }), [from, render, to]);
 
   return null;
 });

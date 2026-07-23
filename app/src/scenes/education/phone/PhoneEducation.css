@@ -48,6 +48,11 @@
   overflow: hidden;
 }
 
+/* The one real Education root paints above the retained PH media stage. */
+.phone-lab-contact__native[data-phone-ph-education-overlay-layer="true"] {
+  z-index: 4;
+}
+
 .phone-education .r4-education__wide {
   align-content: center;
   padding: max(72px, 12svh) clamp(24px, 6vw, 42px) max(48px, 8svh);

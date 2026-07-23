@@ -18,14 +18,19 @@ function createLabExitFixture() {
 }
 
 describe('Phone Lab → PH transition', () => {
-  it('uses the shared endpoint handoff and a documented dissolve fallback', () => {
+  it('uses the shared Lab endpoint with the reviewed Star-map → AOD ink field', () => {
     expect(PHONE_LAB_PH_DECISION).toMatchObject({
-      mode: 'endpoint-dissolve',
-      source: 'shared-adapter-handoff'
+      mode: 'horizontal-ink',
+      source: 'star-map-aod-phone-field',
+      field: 'bottom-to-top',
+      grade: 'edge-bright'
     });
     expect(source).not.toMatch(/from ['"].*PhoneLab/);
     expect(source).not.toMatch(/from ['"].*scenes\/lab/);
-    expect(source).not.toContain('<canvas');
+    expect(source).toContain('createPhoneInkTransition');
+    expect(source).toContain("direction: 'bottom-to-top'");
+    expect(source).toContain("grade: 'edge-bright'");
+    expect(source).toContain("'data-phone-lab-ph-ink': 'bottom-to-top'");
     expect(source).not.toContain('preparePhAnimationFrame');
     expect(source).not.toContain('parkPhonePhMedia');
   });
@@ -40,14 +45,14 @@ describe('Phone Lab → PH transition', () => {
 
     expect(midpoint).toEqual({
       progress: 0.5,
-      labOpacity: 0.5,
-      phOpacity: 0.5,
+      labOpacity: 1,
+      phOpacity: 1,
       phProgress: 0
     });
     expect(lab.dataset.phoneLabPhHandoff).toBe('source');
     expect(ph.dataset.phoneLabPhHandoff).toBe('receiver');
-    expect(lab.style.opacity).toBe('0.5000');
-    expect(ph.style.opacity).toBe('0.5000');
+    expect(lab.style.opacity).toBe('1');
+    expect(ph.style.opacity).toBe('1');
     expect(lab.inert).toBe(false);
     expect(ph.inert).toBe(true);
     expect(ph.dataset.phonePhProgress).toBe('0.0000');
@@ -60,16 +65,16 @@ describe('Phone Lab → PH transition', () => {
 
     expect(forward.map(({ progress }) => progress)).toEqual([0, 0.25, 0.5, 0.75, 1]);
     expect(reverse.map(({ progress }) => progress)).toEqual([1, 0.75, 0.5, 0.25, 0]);
-    expect(forward[2]).toMatchObject({ labOpacity: 0.5, phOpacity: 0.5 });
+    expect(forward[2]).toMatchObject({ labOpacity: 1, phOpacity: 1 });
   });
 
   it('keeps the same ordered endpoints under reduced motion', () => {
     expect(phoneLabPhFrame(0.49, true)).toMatchObject({
       labOpacity: 1,
-      phOpacity: 0
+      phOpacity: 1
     });
     expect(phoneLabPhFrame(0.5, true)).toMatchObject({
-      labOpacity: 0,
+      labOpacity: 1,
       phOpacity: 1
     });
   });

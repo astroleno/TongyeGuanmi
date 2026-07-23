@@ -11,7 +11,8 @@ import {
   parkPhoneCraneMedia,
   PHONE_CRANE_STABLE_HOLD_PROGRESS,
   PhoneCrane,
-  phoneCranePresentationProgress
+  phoneCranePresentationProgress,
+  renderPhoneCranePresentation
 } from './PhoneCrane';
 
 const source = readFileSync(new URL('./PhoneCrane.tsx', import.meta.url), 'utf8');
@@ -61,6 +62,8 @@ describe('PhoneCrane', () => {
     expect(source).toContain("ensurePackedSurfaces('endpoint')");
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
+    expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
+    expect(source).toContain('PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(autoplaySource).not.toContain('nativeGate');
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
     expect(css).toContain('--phone-crane-motion-height');
@@ -73,8 +76,15 @@ describe('PhoneCrane', () => {
     expect(css).toContain('position: absolute');
     expect(css).toContain('clip-path: none');
     expect(css).not.toContain('9dvh');
-    expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(0.42);
+    expect(PHONE_CRANE_STABLE_HOLD_PROGRESS).toBe(1);
     expect(autoplaySource).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS * (1 - elapsed)');
+
+    const endpoint = new FakeElement();
+    endpoint.dataset.r4Scene = 'crane-animation';
+    renderPhoneCranePresentation(endpoint as unknown as HTMLElement, 1);
+    expect(endpoint.style.values.get('--crane-flock-opacity')).toBe('0.0000');
+    expect(endpoint.style.values.get('--crane-video-scale')).toBe('1.0000');
+    expect(endpoint.dataset.phoneCraneProgress).toBe('1.0000');
   });
 
   it('keeps the static Crane layers on media failure and retires both videos', () => {

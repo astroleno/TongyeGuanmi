@@ -24,7 +24,7 @@
   );
   --ph-figure-base-y: clamp(
     0px,
-    calc(var(--phone-cinematic-stage-height, 100lvh) * .02),
+    calc(var(--phone-cinematic-stage-height, 100lvh) * .032),
     48px
   );
   height: 100%;

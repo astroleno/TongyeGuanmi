@@ -7,7 +7,8 @@ import {
   PHONE_PH_EDUCATION_DISSOLVE_MS,
   PHONE_PH_EDUCATION_PLAYBACK_MS,
   phonePhEducationFallbackFrame,
-  phonePhEducationFrame
+  phonePhEducationFrame,
+  settlePhonePhEducationDocumentFlow
 } from './phone';
 
 const source = readFileSync(new URL('./phone.ts', import.meta.url), 'utf8');
@@ -16,7 +17,8 @@ describe('Phone PH → Education transition', () => {
   it('documents the terminal-PH plus native-Education dissolve decision', () => {
     expect(PHONE_PH_EDUCATION_DECISION).toMatchObject({
       mode: 'endpoint-dissolve',
-      source: 'canonical-intra-chapter-dissolve'
+      source: '4b861b58-ttg-lab-overlay-dissolve',
+      topology: 'education-receiver-over-retained-ph-source'
     });
     expect(PHONE_PH_EDUCATION_PLAYBACK_MS).toBe(1520);
     expect(PHONE_PH_EDUCATION_DISSOLVE_MS).toBe(600);
@@ -40,7 +42,7 @@ describe('Phone PH → Education transition', () => {
     });
     expect(midpoint.phProgress).toBe(1);
     expect(midpoint.educationProgress).toBeCloseTo(0.5, 8);
-    expect(midpoint.phOpacity).toBeCloseTo(0.5, 8);
+    expect(midpoint.phOpacity).toBe(1);
     expect(midpoint.educationOpacity).toBeCloseTo(0.5, 8);
 
     const ph = new FakeElement();
@@ -55,8 +57,27 @@ describe('Phone PH → Education transition', () => {
     expect(education.style.values.get('--r4-education-opacity')).toBe('1.0000');
     expect(ph.style.values.get('--ph-front-parallax-y')).toBe('135.00px');
     expect(ph.style.values.get('--ph-video-opacity')).toBe('1');
+    expect(ph.style.opacity).toBe('1.0000');
+    expect(education.style.opacity).toBe('0.5000');
     expect(ph.dataset.phonePhEducationFadeOwner).toBe('scene-root');
     expect(education.dataset.phonePhEducationFadeOwner).toBe('scene-root');
+  });
+
+  it('commits the fixed Education overlay back to native document flow', () => {
+    const ph = new FakeElement();
+    const education = new FakeElement();
+    ph.style.opacity = '1.0000';
+    education.style.opacity = '1.0000';
+
+    settlePhonePhEducationDocumentFlow(
+      ph as unknown as HTMLElement,
+      education as unknown as HTMLElement
+    );
+
+    expect(ph.style.opacity).toBe('0.0000');
+    expect(ph.style.visibility).toBe('hidden');
+    expect(education.style.opacity).toBe('');
+    expect(education.inert).toBe(false);
   });
 
   it('keeps the Education receiver in native document flow at the stable endpoint', () => {

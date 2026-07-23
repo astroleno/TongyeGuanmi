@@ -5,8 +5,8 @@ const FIGURE_FULLSCREEN_SECONDS = FIGURE_START_SECONDS + 1;
 const FLOCK_END_SECONDS = 2.5;
 const PHONE_CRANE_CAMERA_HOLD_PROGRESS = 0.2;
 
-/** The verified media endpoint used after native playback completes. */
-export const PHONE_CRANE_STABLE_HOLD_PROGRESS = 0.42;
+/** The complete desktop-authored endpoint used after native playback ends. */
+export const PHONE_CRANE_STABLE_HOLD_PROGRESS = 1;
 
 export type PhoneCranePlaybackDirection = 1 | -1;
 

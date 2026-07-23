@@ -53,6 +53,7 @@ describe('PhonePh', () => {
     expect(css).toContain('left: 61%');
     expect(css).toContain('--phone-ph-plate-width');
     expect(css).toContain('--phone-ph-front-width');
+    expect(css).toContain('* .032');
     expect(css).toContain('var(--phone-cinematic-stage-height, 100lvh) * .74');
     expect(css).toContain('object-position: 12% 50%');
     expect(css).toContain('* 1.65');
