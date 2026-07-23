@@ -40,6 +40,12 @@ type PhoneInkTransitionOptions = Readonly<{
   to?: HTMLElement | null;
   field: InkFieldSpec;
   grade?: InkGradePreset;
+  /**
+   * Adjacent phone transitions can share an endpoint. In that topology this
+   * transition mutates endpoint geometry only while its field is genuinely
+   * active, then releases only geometry it previously owned.
+   */
+  releaseBoundaryGeometryAtEndpoints?: boolean;
 }>;
 
 function clamp(value: number): number {
@@ -85,6 +91,7 @@ export function createPhoneInkTransition(
     removeCanvasOnDestroy: false
   });
   let lastProgress = Number.NaN;
+  let ownsBoundaryGeometry = false;
 
   const clearEndpoints = () => {
     if (options.from) {
@@ -139,14 +146,27 @@ export function createPhoneInkTransition(
         && progress < 1 - PHONE_INK_ENDPOINT_EPSILON;
       surface.style.visibility = fieldActive ? 'visible' : 'hidden';
       surface.style.opacity = fieldActive ? '1' : '0';
-      const frame = applyOwnership(progress);
+      const frame = options.releaseBoundaryGeometryAtEndpoints && !fieldActive
+        ? createInkFieldFrame(spec, progress, viewportFor(surface, host))
+        : applyOwnership(progress);
+      if (options.releaseBoundaryGeometryAtEndpoints) {
+        if (fieldActive) {
+          ownsBoundaryGeometry = true;
+        } else if (ownsBoundaryGeometry) {
+          clearEndpoints();
+          ownsBoundaryGeometry = false;
+        }
+      }
       if (rendererNeedsFrame) {
         renderer?.render(frame);
       }
     },
     dispose() {
       renderer?.destroy();
-      clearEndpoints();
+      if (!options.releaseBoundaryGeometryAtEndpoints || ownsBoundaryGeometry) {
+        clearEndpoints();
+      }
+      ownsBoundaryGeometry = false;
       surface.style.removeProperty('visibility');
       surface.style.removeProperty('opacity');
       delete surface.dataset.phoneInkRenderer;

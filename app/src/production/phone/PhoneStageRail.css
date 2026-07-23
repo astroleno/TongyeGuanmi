@@ -52,7 +52,7 @@
 }
 
 .portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__stage-canvas > .portrait-scroll-spike__scene,
-.portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__stage-canvas > .portrait-scroll-spike__ink {
+.portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__stage-canvas > .portrait-scroll-spike__ink:not([data-portrait-ink="brand-figure3"]):not([data-portrait-ink="services-ttg"]) {
   visibility: hidden !important;
   pointer-events: none;
 }

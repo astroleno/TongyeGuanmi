@@ -12,18 +12,22 @@ import type {
   TransitionPresentationAdapterHandle
 } from '../../story/presentation';
 import type {
-  GradeACheckpointId,
   PhoneCheckpointId
 } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
 import type { PhoneEdgeScene } from './phone-edge-surface';
+import type {
+  Group45PhoneSceneId,
+  Group45PhoneTransitionId
+} from './adapter-groups/group4-5';
 
 export type PhoneStageSceneId = 'hero' | 'pattern' | 'star-map' | 'aod-animation';
 export type PhoneSceneAdapterId =
   | PhoneStageSceneId
   | 'method-top'
   | 'figure2-animation'
-  | 'figure2-proof';
+  | 'figure2-proof'
+  | Group45PhoneSceneId;
 export type PhoneTransitionAdapterId =
   | 'hero-pattern'
   | 'pattern-star-map'
@@ -31,7 +35,8 @@ export type PhoneTransitionAdapterId =
   | 'aod-method-top'
   | 'method-bottom-figure2'
   | 'figure2-distance-expand'
-  | 'figure2-proof-brand';
+  | 'figure2-proof-brand'
+  | Group45PhoneTransitionId;
 
 export type PhoneSceneAdapterHandle = ScenePresentationAdapterHandle;
 
@@ -75,7 +80,7 @@ export type PhonePatternAdapterProps = PhoneSceneAdapterProps & Readonly<{
 
 export type PhoneMethodAdapterProps = PhonePatternAdapterProps & Readonly<{
   stageHost: HTMLElement | null;
-  onGradeACheckpoint?: (checkpoint: GradeACheckpointId) => void;
+  onGradeACheckpoint?: (checkpoint: PhoneCheckpointId) => void;
   onGradeASceneChange?: (scene: SceneId) => void;
   onGradeAEdgeScene?: (scene: PhoneEdgeScene) => void;
 }>;

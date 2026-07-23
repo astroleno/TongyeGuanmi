@@ -49,9 +49,17 @@ describe('PhoneBrandLabStory', () => {
   });
 
   it('commits reduced-motion receivers only after the shared boundary', () => {
-    expect(phoneGroup45ReducedReceiverProgress(1)).toBe(0);
-    expect(phoneGroup45ReducedReceiverProgress(0)).toBe(0);
-    expect(phoneGroup45ReducedReceiverProgress(-1)).toBe(1);
+    // Chromium can align a fractional document edge slightly below zero.
+    expect(phoneGroup45ReducedReceiverProgress(-.28125, 420, 0)).toBe(0);
+    expect(phoneGroup45ReducedReceiverProgress(-1.28125, 1, 0)).toBe(1);
+    // WebKit can align the same edge slightly above zero, then land just
+    // below it on the next integral scroll position.
+    expect(phoneGroup45ReducedReceiverProgress(.953125, 420, 0)).toBe(0);
+    expect(phoneGroup45ReducedReceiverProgress(-.046875, 1, 0)).toBe(1);
+    expect(phoneGroup45ReducedReceiverProgress(-.140625, -420, 1)).toBe(0);
+    expect(phoneGroup45ReducedReceiverProgress(-.609375, -420, 1)).toBe(1);
+    expect(phoneGroup45ReducedReceiverProgress(-.28125, 0, 0)).toBe(0);
+    expect(phoneGroup45ReducedReceiverProgress(-.28125, 0, 1)).toBe(1);
   });
 
   it('keeps a visual chapter out of autoplay until it owns the screen', () => {

@@ -6,7 +6,7 @@ import {
   useState
 } from 'react';
 import { createPortal } from 'react-dom';
-import type { GradeACheckpointId } from '../../story/semantic-checkpoints';
+import type { PhoneCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
 import {
   figure2ProofPanelFromHash,
@@ -19,6 +19,10 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
+import {
+  PhoneBrandLabContinuation,
+  phoneGroup45SceneFromHash
+} from './PhoneBrandLabContinuation';
 import { PhoneFigure2Arch } from './scenes/PhoneFigure2Arch';
 import './PhoneGradeAStory.css';
 
@@ -95,10 +99,23 @@ export function phoneGradeAProofPanelOffset(
   return clampedIndex * Math.max(0, trackHeight - stageHeight) / 2;
 }
 
+export function phoneGradeAProofBrandProgress(
+  brandTop: number,
+  stageHeight: number
+): number {
+  return clamp((stageHeight - brandTop) / Math.max(1, stageHeight));
+}
+
+export function phoneGradeAProofBrandEdgeScene(
+  progress: number
+): Extract<PhoneEdgeScene, 'proof' | 'brand'> {
+  return clamp(progress) > PHONE_INK_ENDPOINT_EPSILON ? 'brand' : 'proof';
+}
+
 export type PhoneGradeAStoryProps = Readonly<{
   reducedMotion: boolean;
   stageHost: HTMLElement | null;
-  onCheckpoint?: (checkpoint: GradeACheckpointId) => void;
+  onCheckpoint?: (checkpoint: PhoneCheckpointId) => void;
   onSceneChange?: (scene: SceneId) => void;
   onEdgeScene?: (scene: PhoneEdgeScene) => void;
 }>;
@@ -115,13 +132,16 @@ export function PhoneGradeAStory({
     Figure2,
     Proof,
     MethodFigure2,
-    Figure2Proof
+    Figure2Proof,
+    ProofBrand
   } = adapters;
   const [, setAdapterRevision] = useState(0);
   const [figure2Ready, setFigure2Ready] = useState(false);
   const [proofReady, setProofReady] = useState(false);
   const [methodFigure2Ready, setMethodFigure2Ready] = useState(false);
   const [figure2ProofReady, setFigure2ProofReady] = useState(false);
+  const [proofBrandReady, setProofBrandReady] = useState(false);
+  const [brandRoot, setBrandRoot] = useState<HTMLElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
   const proofTrackRef = useRef<HTMLDivElement | null>(null);
@@ -131,16 +151,21 @@ export function PhoneGradeAStory({
   const proofRef = useRef<PhoneSceneAdapterHandle | null>(null);
   const methodFigure2Ref = useRef<PhoneTransitionAdapterHandle | null>(null);
   const figure2ProofRef = useRef<PhoneTransitionAdapterHandle | null>(null);
+  const proofBrandRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const frameRef = useRef(0);
-  const checkpointRef = useRef<GradeACheckpointId | undefined>(undefined);
+  const checkpointRef = useRef<PhoneCheckpointId | undefined>(undefined);
   const sceneRef = useRef<SceneId>('method-top');
   const edgeSceneRef = useRef<PhoneEdgeScene>('method');
   const deepLinkHandledRef = useRef(false);
   const scenesReady = adapters.ready && figure2Ready && proofReady;
   const transitionsReady = scenesReady
     && methodFigure2Ready
-    && figure2ProofReady;
+    && figure2ProofReady
+    && proofBrandReady;
   const runtimeReady = transitionsReady;
+  const continuationTarget = typeof window === 'undefined'
+    ? undefined
+    : phoneGroup45SceneFromHash(window.location.hash);
 
   const markFigure2Ready = useCallback(() => setFigure2Ready(true), []);
   const markProofReady = useCallback(() => setProofReady(true), []);
@@ -150,6 +175,10 @@ export function PhoneGradeAStory({
   );
   const markFigure2ProofReady = useCallback(
     () => setFigure2ProofReady(true),
+    []
+  );
+  const markProofBrandReady = useCallback(
+    () => setProofBrandReady(true),
     []
   );
 
@@ -181,14 +210,23 @@ export function PhoneGradeAStory({
     ),
     [bindAdapter]
   );
+  const bindProofBrand = useCallback(
+    (handle: PhoneTransitionAdapterHandle | null) => (
+      bindAdapter(proofBrandRef, handle)
+    ),
+    [bindAdapter]
+  );
 
-  const publish = useCallback((checkpoint: GradeACheckpointId, scene: SceneId) => {
+  const publish = useCallback((checkpoint: PhoneCheckpointId, scene: SceneId) => {
     const root = rootRef.current;
     if (root) root.dataset.phoneGradeACheckpoint = checkpoint;
     if (checkpointRef.current !== checkpoint) {
       checkpointRef.current = checkpoint;
-      onCheckpoint?.(checkpoint);
     }
+    // The downstream continuation shares this publisher. Re-assert Grade A's
+    // current checkpoint when reverse scroll returns ownership, even when its
+    // own local checkpoint did not change while Brand was active.
+    onCheckpoint?.(checkpoint);
     if (sceneRef.current !== scene) {
       sceneRef.current = scene;
       onSceneChange?.(scene);
@@ -215,12 +253,19 @@ export function PhoneGradeAStory({
       frameRef.current = 0;
       const railRect = rail.getBoundingClientRect();
       const proofRect = proofTrack.getBoundingClientRect();
+      const brandRect = brandRoot?.getBoundingClientRect();
       const stageHeight = Math.max(1, surfaces.clientHeight || window.innerHeight);
       const railActive = railRect.top < stageHeight
         && railRect.bottom > 0;
       const proofActive = proofRect.top <= ACTIVE_EDGE_TOLERANCE_PX
         && proofRect.bottom >= stageHeight - ACTIVE_EDGE_TOLERANCE_PX;
-      const active = railActive || proofActive;
+      const proofBrandActive = Boolean(
+        brandRect
+        && brandRect.top < stageHeight - ACTIVE_EDGE_TOLERANCE_PX
+        && brandRect.top > ACTIVE_EDGE_TOLERANCE_PX
+        && brandRect.bottom > 0
+      );
+      const active = railActive || proofActive || proofBrandActive;
       root.dataset.phoneGradeAActive = String(active);
       surfaces.dataset.phoneGradeAActive = String(active);
       if (methodReading) {
@@ -262,6 +307,7 @@ export function PhoneGradeAStory({
         setRetainedArchProgress(handoff, figure);
         methodFigure2Ref.current?.render(handoff);
         figure2ProofRef.current?.render(figure);
+        proofBrandRef.current?.render(0);
         proofRef.current?.update(0);
         publishEdgeScene(edgeScene);
         if (handoff < 0.999) {
@@ -283,6 +329,7 @@ export function PhoneGradeAStory({
         );
         methodFigure2Ref.current?.render(1);
         figure2ProofRef.current?.render(1);
+        proofBrandRef.current?.render(0);
         proofRef.current?.update(proof);
         proofRef.current?.enter?.();
         publishEdgeScene('proof');
@@ -296,10 +343,32 @@ export function PhoneGradeAStory({
         return;
       }
 
+      if (proofBrandActive && brandRect) {
+        const handoff = phoneGradeAProofBrandProgress(
+          brandRect.top,
+          stageHeight
+        );
+        setRetainedArchProgress(1, 1);
+        methodFigure2Ref.current?.render(1);
+        figure2ProofRef.current?.render(1);
+        proofRef.current?.update(1);
+        proofRef.current?.enter?.();
+        proofBrandRef.current?.render(handoff);
+        publishEdgeScene(phoneGradeAProofBrandEdgeScene(handoff));
+        publish('proof-to-brand', 'brand');
+        return;
+      }
+
+      if (brandRect && brandRect.top <= ACTIVE_EDGE_TOLERANCE_PX) {
+        proofBrandRef.current?.render(1);
+        proofRef.current?.leave?.();
+      }
+
       if (railRect.top >= stageHeight) {
         setRetainedArchProgress(0, 0);
         methodFigure2Ref.current?.render(0);
         figure2ProofRef.current?.render(0);
+        proofBrandRef.current?.render(0);
         proofRef.current?.update(0);
         publishEdgeScene('method');
         if (sceneRef.current !== 'method-top') {
@@ -326,6 +395,7 @@ export function PhoneGradeAStory({
       }
     };
   }, [
+    brandRoot,
     onSceneChange,
     publish,
     publishEdgeScene,
@@ -443,6 +513,16 @@ export function PhoneGradeAStory({
           onReady={markFigure2ProofReady}
         />
       )}
+      {scenesReady && brandRoot && ProofBrand && (
+        <ProofBrand
+          ref={bindProofBrand}
+          host={surfacesRef.current}
+          from={proofRef.current?.root() ?? null}
+          to={brandRoot}
+          reducedMotion={reducedMotion}
+          onReady={markProofBrandReady}
+        />
+      )}
     </div>
   );
 
@@ -458,6 +538,17 @@ export function PhoneGradeAStory({
     >
       <div ref={railRef} className="phone-grade-a__figure-track" aria-hidden="true" />
       <div ref={proofTrackRef} className="phone-grade-a__proof-track" aria-hidden="true" />
+      <PhoneBrandLabContinuation
+        reducedMotion={reducedMotion}
+        stageHost={stageHost}
+        {...(continuationTarget
+          ? { navigationTarget: continuationTarget }
+          : {})}
+        onBrandRootChange={setBrandRoot}
+        {...(onCheckpoint ? { onCheckpoint } : {})}
+        {...(onEdgeScene ? { onEdgeScene } : {})}
+        {...(onSceneChange ? { onSceneChange } : {})}
+      />
       {stageHost ? createPortal(surfaces, stageHost) : null}
     </div>
   );

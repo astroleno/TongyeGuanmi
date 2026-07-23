@@ -6,6 +6,10 @@ import {
   gradeAPhoneSceneIds,
   gradeAPhoneTransitionIds
 } from './adapter-groups/grade-a';
+import {
+  group45PhoneSceneIds,
+  group45PhoneTransitionIds
+} from './adapter-groups/group4-5';
 import type {
   PhoneAodAdapterComponent,
   PhoneLoaderAdapterModule,
@@ -15,6 +19,7 @@ import type {
   PhoneSceneAdapterModule,
   PhoneStarMapAdapterComponent,
   PhoneTransitionAdapterId,
+  PhoneTransitionAdapterComponent,
   PhoneTransitionAdapterModule
 } from './types';
 
@@ -32,11 +37,13 @@ export const initialPhoneSceneAdapterIds = frontHalfPhoneSceneIds;
 export const initialPhoneTransitionAdapterIds = frontHalfPhoneTransitionIds;
 export const phoneSceneAdapterIds = [
   ...frontHalfPhoneSceneIds,
-  ...gradeAPhoneSceneIds
+  ...gradeAPhoneSceneIds,
+  ...group45PhoneSceneIds
 ] as const;
 export const phoneTransitionAdapterIds = [
   ...frontHalfPhoneTransitionIds,
-  ...gradeAPhoneTransitionIds
+  ...gradeAPhoneTransitionIds,
+  ...group45PhoneTransitionIds
 ] as const;
 
 function importPhoneLoaderAdapter(): Promise<PhoneLoaderAdapterModule> {
@@ -89,6 +96,41 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
         id,
         Component: Component as unknown as PhoneSceneAdapterComponent
       }));
+    case 'brand':
+      return import('../../scenes/brand/phone/PhoneBrand').then(({
+        PhoneBrand: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
+    case 'figure3-animation':
+      return import('../../scenes/figure3-animation/phone/PhoneFigure3').then(({
+        PhoneFigure3: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
+    case 'services':
+      return import('../../scenes/services/phone/PhoneServices').then(({
+        PhoneServices: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
+    case 'ttg-animation':
+      return import('../../scenes/ttg-animation/phone/PhoneTtg').then(({
+        PhoneTtg: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
+    case 'lab':
+      return import('../../scenes/lab/phone/PhoneLab').then(({
+        PhoneLab: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
   }
 }
 
@@ -114,6 +156,34 @@ function importPhoneTransitionAdapter(id: PhoneTransitionAdapterId): Promise<Pho
       return import('./transitions/figure2-proof-brand').then(({
         PhoneFigure2ProofBrandTransition: Component
       }) => ({ id, Component }));
+    case 'brand-figure3':
+      return import('../../transitions/brand-figure3/phone').then(({
+        PhoneBrandFigure3Transition: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneTransitionAdapterComponent
+      }));
+    case 'figure3-services':
+      return import('../../transitions/figure3-services/phone').then(({
+        PhoneFigure3ServicesTransition: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneTransitionAdapterComponent
+      }));
+    case 'services-ttg':
+      return import('../../transitions/services-ttg/phone').then(({
+        PhoneServicesTtgTransition: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneTransitionAdapterComponent
+      }));
+    case 'ttg-lab':
+      return import('../../transitions/ttg-lab/phone').then(({
+        PhoneTtgLabTransition: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneTransitionAdapterComponent
+      }));
   }
 }
 

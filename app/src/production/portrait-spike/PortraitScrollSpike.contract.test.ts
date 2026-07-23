@@ -12,6 +12,7 @@ const shellCss = source('../phone/PhoneStoryShell.css');
 const railSource = source('../phone/PhoneStageRail.tsx');
 const railCss = source('../phone/PhoneStageRail.css');
 const runtimeSource = source('../phone/usePhoneStageRuntime.ts');
+const stageTimelineSource = source('../phone/phone-stage-timeline.ts');
 const fixedStageRegistrationSource = source(
   '../phone/usePhoneFixedStageRegistration.ts'
 );
@@ -398,8 +399,11 @@ describe('Route B Grade A migration contract', () => {
 
   it('settles the upstream AOD before a direct Figure2 or Proof entry', () => {
     expect(runtimeSource).toContain('const directEntryScene = sceneFromHash');
-    expect(runtimeSource).toContain("directEntryScene === 'figure2-animation'");
-    expect(runtimeSource).toContain("directEntryScene === 'figure2-proof'");
+    expect(runtimeSource).toContain(
+      'phoneDirectEntryCompletesAod(directEntryScene)'
+    );
+    expect(stageTimelineSource).toContain("'figure2-animation'");
+    expect(stageTimelineSource).toContain("'figure2-proof'");
     expect(runtimeSource).toContain("aodRunState = 'complete'");
     expect(gradeAFigureCss).toMatch(
       /orientation:\s*landscape[^}]*[\s\S]*figure--combined\s*\{[^}]*width:\s*min\(48vw,\s*400px\)/

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FRONT_HALF_CHECKPOINT_IDS,
   GRADE_A_CHECKPOINT_IDS,
+  GROUP45_CHECKPOINT_IDS,
   frontHalfCheckpoint,
   frontHalfSemanticCheckpoints
 } from './semantic-checkpoints';
@@ -45,5 +46,21 @@ describe('front-half semantic checkpoints', () => {
       'figure2-proof-cards',
       'figure2-proof-closing'
     ]);
+  });
+
+  it('ends Unit7-A at stable Lab without claiming Lab to PH', () => {
+    expect(GROUP45_CHECKPOINT_IDS).toEqual([
+      'proof-to-brand',
+      'brand-reading',
+      'brand-to-figure3',
+      'figure3-stage',
+      'figure3-to-services',
+      'services-reading',
+      'services-to-ttg',
+      'ttg-stage',
+      'ttg-to-lab',
+      'lab-stable'
+    ]);
+    expect(GROUP45_CHECKPOINT_IDS).not.toContain('lab-to-ph');
   });
 });

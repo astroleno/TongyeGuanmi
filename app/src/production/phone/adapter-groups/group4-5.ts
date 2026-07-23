@@ -10,9 +10,8 @@ import type {
 /**
  * Unit 5's public adapter contract.
  *
- * This remains local to the independently loadable group until the Unit 7
- * integration owner extends the shared phone loader/type union.  It prevents
- * this batch from cloning the global loader or coupling itself to Unit 4.
+ * Scene-specific props remain grouped here, while IDs and modules are now
+ * resolved by the shared phone loader/cache used by Unit4 and Unit7-A.
  */
 export type Group45PhoneSceneId =
   | 'brand'
@@ -110,9 +109,8 @@ export type Group45PhoneAdapterRegistration = Readonly<{
 }>;
 
 /**
- * Registration data only: the shell-zone boundary verifier deliberately
- * forbids renderer imports from this file. Unit 7 turns each entry into its
- * own literal dynamic import in the shared loader, preserving split chunks.
+ * Registration data only: module-loaders.ts owns the matching literal dynamic
+ * import branches and the one shared cache.
  */
 export const group45PhoneAdapterRegistrations = [
   {
@@ -173,19 +171,11 @@ export const group45NextAdapterByScene: Readonly<Partial<Record<
 };
 
 /**
- * Unit 7 integration note:
- * - caller: `app/src/production/phone/module-loaders.ts`;
- * - extend `PhoneSceneAdapterId` and `PhoneTransitionAdapterId` with the
- *   above IDs, then add one literal `import()` branch per registration;
- * - preserve the existing `loadPhoneSceneAdapter(id)` and
- *   `loadPhoneTransitionAdapter(id)` signatures/caches rather than creating
- *   a second loader in this group;
- * - prewarm only `group45NextAdapterByScene[currentScene]`; Lab has no next
- *   entry because Lab → PH belongs to Unit 6;
- * - mount these document-flow scene roots after the Unit 4 Proof rail;
- * - bind `onMediaError` to the affected transition's stable endpoint;
- * - provide Lab's stable root to Unit 6's Lab → PH bridge.
- *
- * Keeping that edit out of this module avoids changing Unit 4 while its
- * physical-iPhone acceptance commit is still moving.
+ * Unit7-A integration contract:
+ * - module-loaders.ts is the sole loader/cache;
+ * - PhoneBrandLabContinuation mounts document roots after Proof and portals
+ *   Figure3/TTG into PhoneStoryShell's existing stage host;
+ * - group45NextAdapterByScene limits adjacent prewarm;
+ * - Lab intentionally has no next entry because Lab → PH belongs to Unit6;
+ * - the continuation exposes Lab's stable root/adapter boundary.
  */

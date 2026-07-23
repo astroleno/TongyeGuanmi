@@ -11,6 +11,7 @@ import {
   PHONE_STAGE_STOPS,
   phoneAodCheckpointForMethodProgress,
   phoneAodCompletionCheckpoint,
+  phoneDirectEntryCompletesAod,
   phoneStageFrame
 } from './phone-stage-timeline';
 import { renderPhoneStageTransitions } from './phone-transition-stage';
@@ -383,10 +384,7 @@ export function usePhoneStageRuntime(
 
     if (motionEnabled) aodAdapter.resetAutoplay();
     const directEntryScene = sceneFromHash(window.location.hash);
-    if (
-      directEntryScene === 'figure2-animation'
-      || directEntryScene === 'figure2-proof'
-    ) {
+    if (phoneDirectEntryCompletesAod(directEntryScene)) {
       aodRunState = 'complete';
       root.dataset.portraitAodRun = aodRunState;
       aodAdapter.update(1);

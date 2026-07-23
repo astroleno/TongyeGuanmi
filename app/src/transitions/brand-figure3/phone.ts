@@ -108,7 +108,8 @@ export const PhoneBrandFigure3Transition = forwardRef<
       from,
       to,
       field: PHONE_BRAND_FIGURE3_FIELD,
-      grade: 'edge-bright'
+      grade: 'edge-bright',
+      releaseBoundaryGeometryAtEndpoints: true
     });
     transitionRef.current = transition;
     // Reduced motion still starts on Brand and commits Figure3 only after the

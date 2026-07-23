@@ -13,6 +13,7 @@ import type {
   PhoneMethodAdapterProps,
   PhoneSceneAdapterHandle
 } from '../types';
+import { phoneDirectEntryCompletesAod } from '../phone-stage-timeline';
 import './PhoneMethodTop.css';
 
 const PhoneGradeAStory = lazy(() => import('../PhoneGradeAStory').then((module) => ({
@@ -70,7 +71,7 @@ export const PhoneMethodTop = forwardRef<
   useEffect(() => {
     if (!active || gradeARequested) return;
     const scene = sceneFromHash(window.location.hash);
-    if (scene === 'figure2-animation' || scene === 'figure2-proof') {
+    if (phoneDirectEntryCompletesAod(scene)) {
       setGradeARequested(true);
       return;
     }

@@ -5,7 +5,12 @@ export type PhoneEdgeScene =
   | 'aod'
   | 'method'
   | 'figure2'
-  | 'proof';
+  | 'proof'
+  | 'brand'
+  | 'figure3'
+  | 'services'
+  | 'ttg'
+  | 'lab';
 
 export type PhoneEdgeSurfaceProfile =
   | 'baseline'
@@ -22,7 +27,12 @@ export const PHONE_EDGE_SURFACE_BY_SCENE: Readonly<
   aod: '#ede4d2',
   method: '#ede4d2',
   figure2: '#e2dac9',
-  proof: '#ede4d2'
+  proof: '#ede4d2',
+  brand: '#ede4d2',
+  figure3: '#ede4d2',
+  services: '#ede4d2',
+  ttg: '#080d10',
+  lab: '#ede4d2'
 };
 
 export function phoneEdgeSurfaceForScene(

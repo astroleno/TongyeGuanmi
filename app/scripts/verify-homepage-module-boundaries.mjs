@@ -26,7 +26,16 @@ export const phoneShellDebt = Object.freeze({
     'aod-autoplay.ts::../../scenes/aod-animation/progress',
     'phone-ink.ts::../../transitions/shared/inkField',
     'phone-ink.ts::../../transitions/shared/inkOwnership',
-    'phone-ink.ts::../../transitions/shared/sceneInk'
+    'phone-ink.ts::../../transitions/shared/sceneInk',
+    'module-loaders.ts::../../scenes/brand/phone/PhoneBrand',
+    'module-loaders.ts::../../scenes/figure3-animation/phone/PhoneFigure3',
+    'module-loaders.ts::../../scenes/services/phone/PhoneServices',
+    'module-loaders.ts::../../scenes/ttg-animation/phone/PhoneTtg',
+    'module-loaders.ts::../../scenes/lab/phone/PhoneLab',
+    'module-loaders.ts::../../transitions/brand-figure3/phone',
+    'module-loaders.ts::../../transitions/figure3-services/phone',
+    'module-loaders.ts::../../transitions/services-ttg/phone',
+    'module-loaders.ts::../../transitions/ttg-lab/phone'
   ]),
   sceneRoots: new Set(),
   mediaKeys: new Set(),

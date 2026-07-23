@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const PHONE_SHELL = '[data-phone-validation-mode="v23"]';
 const GRADE_A_SHELL = '[data-phone-validation-mode="v46"]';
+const UNIT7_A_SHELL = '[data-phone-validation-mode="v47"]';
 
 async function scrollPhoneStageTo(page: Page, progress: number): Promise<void> {
   await page.evaluate(async (nextProgress) => {
@@ -55,6 +56,44 @@ async function scrollGradeAProofTo(page: Page, progress: number): Promise<void> 
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
     });
   }, progress);
+}
+
+async function scrollProofBrandTo(page: Page, progress: number): Promise<void> {
+  await page.evaluate(async (nextProgress) => {
+    const brand = document.querySelector<HTMLElement>('#brand.phone-brand');
+    const stage = document.querySelector<HTMLElement>('.phone-grade-a__surfaces');
+    if (!brand || !stage) throw new Error('Proof to Brand geometry is unavailable');
+    const brandTop = brand.getBoundingClientRect().top + window.scrollY;
+    const stageHeight = Math.max(1, stage.clientHeight || window.innerHeight);
+    window.scrollTo({
+      top: brandTop - stageHeight * (1 - nextProgress),
+      left: 0,
+      behavior: 'auto'
+    });
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+    });
+  }, progress);
+}
+
+async function scrollBoundaryTo(
+  page: Page,
+  selector: string,
+  offset = 0
+): Promise<void> {
+  await page.evaluate(async ({ targetSelector, targetOffset }) => {
+    const target = document.querySelector<HTMLElement>(targetSelector);
+    if (!target) throw new Error(`Phone boundary is unavailable: ${targetSelector}`);
+    const documentTop = target.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({
+      top: documentTop + targetOffset,
+      left: 0,
+      behavior: 'auto'
+    });
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+    });
+  }, { targetSelector: selector, targetOffset: offset });
 }
 
 test('v23 Route B publishes the active phone checkpoint trace in both directions', async ({
@@ -234,7 +273,10 @@ test('v23 Route B publishes the active phone checkpoint trace in both directions
 test('v46 keeps one Pattern plate inside the stable visual canvas', async ({
   page
 }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
+  test.skip(
+    !['desktop-chromium', 'mobile-webkit'].includes(testInfo.project.name),
+    'the Pattern regression runs in Chromium and WebKit'
+  );
   test.setTimeout(45_000);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -453,6 +495,225 @@ test('v46 Grade A direct entry traverses Proof ↔ Figure2 ↔ Method in the per
       `missing Grade A phone chunk ${chunk}`
     ).toBe(true);
   }
+});
+
+test('v47 Proof hands off to Brand inside the one persistent stage', async ({
+  page
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'the formal phone route runs once');
+  test.setTimeout(60_000);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?v=47#figure2-proof-closing', {
+    waitUntil: 'domcontentloaded'
+  });
+
+  const shell = page.locator(UNIT7_A_SHELL);
+  const gradeA = page.locator('.phone-grade-a');
+  await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
+    timeout: 10_000
+  });
+  await expect(gradeA).toHaveAttribute('data-phone-grade-a-ready', 'true', {
+    timeout: 15_000
+  });
+  await expect(page.locator('.portrait-scroll-spike__stage')).toHaveCount(1);
+  await expect(page.locator('[data-portrait-stage-host="persistent"]')).toHaveCount(1);
+  await expect(page.locator('main.portrait-scroll-spike')).toHaveCount(1);
+  await expect(page.locator('#brand.phone-brand')).toHaveCount(1);
+  await expect(page.locator('#services.phone-services')).toHaveCount(1);
+  await expect(page.locator('#lab.phone-lab')).toHaveCount(1);
+
+  await scrollGradeAProofTo(page, 1);
+  await expect(shell).toHaveAttribute(
+    'data-portrait-checkpoint',
+    'figure2-proof-closing'
+  );
+  await scrollProofBrandTo(page, 0.5);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'proof-to-brand');
+  await expect(gradeA).toHaveAttribute('data-phone-grade-a-active', 'true');
+  const proofBrandProgress = Number.parseFloat(
+    await page.locator('[data-portrait-ink="proof-brand"]').getAttribute(
+      'data-phone-ink-progress'
+    ) ?? ''
+  );
+  expect(proofBrandProgress).toBeCloseTo(.5, 2);
+  await expect(page.locator('#brand.phone-brand')).toHaveAttribute(
+    'data-r4-ink-ownership',
+    'reveal'
+  );
+  await expect(page.locator('.portrait-scroll-spike__scene--hero')).toHaveCSS(
+    'visibility',
+    'hidden'
+  );
+
+  await scrollProofBrandTo(page, 1);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'brand-reading');
+  await expect(shell).toHaveAttribute('data-portrait-edge-scene', 'brand');
+  await expect(gradeA).toHaveAttribute('data-phone-grade-a-active', 'false');
+  await expect(page.locator('#brand.phone-brand')).toBeVisible();
+
+  await scrollProofBrandTo(page, 0.5);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'proof-to-brand');
+  await expect(page.locator('[data-r4-scene="figure2-proof"]')).toBeVisible();
+});
+
+test('v47 reduced motion reaches stable Lab and reverses without another stage', async ({
+  page
+}, testInfo) => {
+  test.skip(
+    !['desktop-chromium', 'mobile-webkit'].includes(testInfo.project.name),
+    'the reduced-motion continuation runs in Chromium and WebKit'
+  );
+  test.setTimeout(60_000);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?v=47&portrait-spike-motion=reduce#brand', {
+    waitUntil: 'domcontentloaded'
+  });
+
+  const shell = page.locator(UNIT7_A_SHELL);
+  const continuation = page.locator('[data-phone-continuation="brand-lab"]');
+  await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
+    timeout: 10_000
+  });
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'brand-reading', {
+    timeout: 15_000
+  });
+  await expect(page.locator('.portrait-scroll-spike__stage')).toHaveCount(1);
+
+  await scrollBoundaryTo(page, '#figure3-animation');
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'figure3-stage');
+  await expect(continuation).toHaveAttribute(
+    'data-phone-group45-stage-scene',
+    'figure3-animation'
+  );
+  await scrollBoundaryTo(page, '#services', 1);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'services-reading');
+  await expect(continuation).toHaveAttribute('data-phone-group45-stage-active', 'false');
+
+  await expect(page.locator('.phone-ttg')).toHaveCount(1, { timeout: 15_000 });
+  await scrollBoundaryTo(page, '#ttg-animation');
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'ttg-stage');
+  await expect(shell).toHaveAttribute('data-portrait-edge-scene', 'ttg');
+  await scrollBoundaryTo(page, '#lab', 1);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'lab-stable');
+  await expect(shell).toHaveAttribute('data-portrait-edge-scene', 'lab');
+  await expect(continuation).toHaveAttribute('data-phone-group45-stage-active', 'false');
+  await expect(page.locator('#lab.phone-lab')).toHaveAttribute(
+    'data-phone-lab-stable-input',
+    'lab-ph'
+  );
+  await expect(page.locator('.phone-ttg')).toHaveCSS('visibility', 'hidden');
+
+  await scrollBoundaryTo(page, '#ttg-animation');
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'ttg-stage');
+  await scrollBoundaryTo(page, '#services', 1);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'services-reading');
+  await scrollBoundaryTo(page, '#figure3-animation');
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'figure3-stage');
+  await scrollBoundaryTo(page, '#brand');
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'brand-reading');
+  await expect(page.locator('.portrait-scroll-spike__stage')).toHaveCount(1);
+});
+
+test('v47 full motion runs Figure3 and TTG forward and reverse on the shared host', async ({
+  page
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'the media route runs once');
+  test.setTimeout(90_000);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?v=47#brand', { waitUntil: 'domcontentloaded' });
+
+  const shell = page.locator(UNIT7_A_SHELL);
+  const continuation = page.locator('[data-phone-continuation="brand-lab"]');
+  await expect(page.locator('[data-story-loader="true"]')).toBeHidden({
+    timeout: 10_000
+  });
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'brand-reading', {
+    timeout: 30_000
+  });
+
+  await scrollBoundaryTo(page, '#figure3-animation');
+  await expect(continuation).toHaveAttribute(
+    'data-phone-group45-visual-run',
+    'figure3-animation:forward'
+  );
+  await expect(continuation).toHaveAttribute(
+    'data-phone-group45-complete-handoff',
+    'figure3-animation-services:complete:forward',
+    { timeout: 15_000 }
+  );
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'services-reading');
+
+  await expect(page.locator('.phone-ttg')).toHaveCount(1, { timeout: 15_000 });
+  await scrollBoundaryTo(page, '#ttg-animation');
+  await expect(continuation).toHaveAttribute(
+    'data-phone-group45-visual-run',
+    'ttg-animation:forward'
+  );
+  await expect(continuation).toHaveAttribute(
+    'data-phone-group45-complete-handoff',
+    'ttg-animation-lab:complete:forward',
+    { timeout: 15_000 }
+  );
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'lab-stable');
+  await expect(page.locator('.portrait-scroll-spike__stage')).toHaveCount(1);
+
+  await scrollBoundaryTo(page, '#ttg-animation', -2);
+  await expect(continuation).toHaveAttribute(
+    'data-phone-group45-visual-run',
+    'ttg-animation:reverse'
+  );
+  await expect(continuation).toHaveAttribute(
+    'data-phone-group45-complete-handoff',
+    'ttg-animation-services:complete:reverse',
+    { timeout: 15_000 }
+  );
+  await scrollBoundaryTo(page, '#services', 100);
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'services-reading');
+
+  await scrollBoundaryTo(page, '#figure3-animation', -2);
+  await expect(continuation).toHaveAttribute(
+    'data-phone-group45-visual-run',
+    'figure3-animation:reverse'
+  );
+  await expect(continuation).toHaveAttribute(
+    'data-phone-group45-complete-handoff',
+    'figure3-animation-brand:complete:reverse',
+    { timeout: 15_000 }
+  );
+  await scrollBoundaryTo(page, '#brand');
+  await expect(shell).toHaveAttribute('data-portrait-checkpoint', 'brand-reading');
+  await expect(continuation).toHaveAttribute('data-phone-group45-stage-active', 'false');
+  await expect(page.locator('.portrait-scroll-spike__stage')).toHaveCount(1);
+});
+
+test('brand-lab QA route keeps one independent shell at the stable Lab boundary', async ({
+  page
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'the QA route runs once');
+  test.setTimeout(45_000);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/brand-lab?portrait-spike-motion=reduce#lab', {
+    waitUntil: 'domcontentloaded'
+  });
+
+  const qaShell = page.locator('[data-phone-validation-scope="brand-lab"]');
+  await expect(qaShell).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('main.portrait-scroll-spike')).toHaveCount(1);
+  await expect(page.locator('.portrait-scroll-spike__stage')).toHaveCount(1);
+  await expect(page.locator('[data-portrait-stage-host="persistent"]')).toHaveCount(1);
+  await expect(page.locator('[data-phone-continuation="brand-lab"]')).toHaveAttribute(
+    'data-phone-group45-state',
+    'ready'
+  );
+  await expect(page.locator('#lab.phone-lab')).toHaveAttribute(
+    'data-phone-lab-stable-input',
+    'lab-ph'
+  );
+  await expect(page.locator('.phone-grade-a')).toHaveCount(0);
 });
 
 test('v46 keeps Figure2 visible when Safari never produces a packed video frame', async ({

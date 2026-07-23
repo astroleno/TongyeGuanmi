@@ -8,12 +8,23 @@ import type {
   PhoneTransitionAdapterProps
 } from '../types';
 
+export function phoneInkAdapterProgress(
+  progress: number,
+  reducedMotion: boolean,
+  strategy: 'receiver' | 'boundary' = 'receiver'
+): number {
+  if (!reducedMotion) return progress;
+  return strategy === 'boundary' && progress <= 0 ? 0 : 1;
+}
+
 export function createPhoneInkAdapter(options: Readonly<{
   id: string;
   field: InkFieldSpec;
   grade?: InkGradePreset;
   canvasClassName?: string;
   portraitInk?: string;
+  reducedMotionStrategy?: 'receiver' | 'boundary';
+  releaseBoundaryGeometryAtEndpoints?: boolean;
 }>): PhoneTransitionAdapterComponent {
   return forwardRef<PhoneTransitionAdapterHandle, PhoneTransitionAdapterProps>(function PhoneInkTransition(
     { host, from, to, reducedMotion, onReady },
@@ -31,10 +42,17 @@ export function createPhoneInkAdapter(options: Readonly<{
         from,
         to,
         field: options.field,
-        ...(options.grade ? { grade: options.grade } : {})
+        ...(options.grade ? { grade: options.grade } : {}),
+        ...(options.releaseBoundaryGeometryAtEndpoints
+          ? { releaseBoundaryGeometryAtEndpoints: true }
+          : {})
       });
       transitionRef.current = transition;
-      transition.render(reducedMotion ? 1 : 0);
+      transition.render(phoneInkAdapterProgress(
+        0,
+        reducedMotion,
+        options.reducedMotionStrategy
+      ));
       onReady?.();
       return () => {
         transition.dispose();
@@ -42,10 +60,28 @@ export function createPhoneInkAdapter(options: Readonly<{
       };
     }, [from, host, onReady, reducedMotion, to]);
     useImperativeHandle(forwardedRef, () => ({
-      render(progress) { transitionRef.current?.render(reducedMotion ? 1 : progress); },
-      enter() { transitionRef.current?.render(reducedMotion ? 1 : 0); },
+      render(progress) {
+        transitionRef.current?.render(phoneInkAdapterProgress(
+          progress,
+          reducedMotion,
+          options.reducedMotionStrategy
+        ));
+      },
+      enter() {
+        transitionRef.current?.render(phoneInkAdapterProgress(
+          0,
+          reducedMotion,
+          options.reducedMotionStrategy
+        ));
+      },
       leave() { transitionRef.current?.render(1); },
-      reverse() { transitionRef.current?.render(reducedMotion ? 1 : 0); },
+      reverse() {
+        transitionRef.current?.render(phoneInkAdapterProgress(
+          0,
+          reducedMotion,
+          options.reducedMotionStrategy
+        ));
+      },
       dispose() {
         transitionRef.current?.dispose();
         transitionRef.current = undefined;

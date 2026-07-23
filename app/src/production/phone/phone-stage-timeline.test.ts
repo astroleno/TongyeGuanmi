@@ -5,6 +5,7 @@ import {
   frontHalfCheckpointIndex,
   phoneAodCheckpointForMethodProgress,
   phoneAodCompletionCheckpoint,
+  phoneDirectEntryCompletesAod,
   phoneStageFrame
 } from './phone-stage-timeline';
 
@@ -51,6 +52,23 @@ describe('phone stage timeline', () => {
       checkpoint: 'aod-stage',
       ownership: { visible: ['aod-animation'] }
     });
+  });
+
+  it('skips AOD autoplay for every Grade A and continuation direct entry', () => {
+    for (const scene of [
+      'figure2-animation',
+      'figure2-proof',
+      'brand',
+      'figure3-animation',
+      'services',
+      'ttg-animation',
+      'lab'
+    ] as const) {
+      expect(phoneDirectEntryCompletesAod(scene)).toBe(true);
+    }
+    expect(phoneDirectEntryCompletesAod('aod-animation')).toBe(false);
+    expect(phoneDirectEntryCompletesAod('method-top')).toBe(false);
+    expect(phoneDirectEntryCompletesAod(undefined)).toBe(false);
   });
 
   it('publishes AOD media-clock and Method checkpoints outside the scroll rail', () => {

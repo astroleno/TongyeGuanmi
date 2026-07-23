@@ -2,7 +2,23 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const storySource = readFileSync(
+  new URL('./PhoneBrandLabContinuation.tsx', import.meta.url),
+  'utf8'
+);
+const qaShellSource = readFileSync(
   new URL('./PhoneBrandLabStory.tsx', import.meta.url),
+  'utf8'
+);
+const gradeAStorySource = readFileSync(
+  new URL('./PhoneGradeAStory.tsx', import.meta.url),
+  'utf8'
+);
+const formalShellSource = readFileSync(
+  new URL('./PhoneStoryShell.tsx', import.meta.url),
+  'utf8'
+);
+const edgeSurfaceSource = readFileSync(
+  new URL('./phone-edge-surface.ts', import.meta.url),
   'utf8'
 );
 const storyStyles = readFileSync(
@@ -50,6 +66,27 @@ const labStyles = readFileSync(
 );
 
 describe('Phone Brand → Lab visual contracts', () => {
+  it('embeds continuation without creating a second formal fixed stage', () => {
+    expect(storySource).not.toContain('PhoneStageRail');
+    expect(storySource).not.toContain('<main');
+    expect(storySource).not.toContain('StoryNav');
+    expect(qaShellSource.match(/<PhoneStageRail\b/g)).toHaveLength(1);
+    expect(formalShellSource.match(/<PhoneStageRail\b/g)).toHaveLength(1);
+    expect(gradeAStorySource).toContain('<PhoneBrandLabContinuation');
+    expect(gradeAStorySource).toContain('<ProofBrand');
+  });
+
+  it('publishes a stable Lab root and adapter boundary for Unit 6', () => {
+    expect(storySource).toContain('labRoot(): HTMLElement | null');
+    expect(storySource).toContain(
+      'labAdapter(): ScenePresentationAdapterHandle | null'
+    );
+    expect(storySource).toContain('onLabBoundaryChange');
+    expect(storySource).toContain(
+      'data-phone-lab-boundary="stable-lab-ph-input"'
+    );
+  });
+
   it('mounts one Services scene at the same boundary as Figure3', () => {
     expect(storySource.match(/<Services\b/g)).toHaveLength(1);
     expect(storyStyles).toMatch(
@@ -143,9 +180,7 @@ describe('Phone Brand → Lab visual contracts', () => {
       /\.phone-lab\s*\{[^}]+background:\s*#ede4d2/s
     );
     expect(labStyles).not.toContain('radial-gradient');
-    expect(storySource).toContain(
-      "lab: { surface: '#ede4d2', themeColor: '#ede4d2' }"
-    );
+    expect(edgeSurfaceSource).toContain("lab: '#ede4d2'");
     expect(labStyles.match(/background:\s*transparent/g)).toHaveLength(2);
     expect(labStyles).not.toContain('linear-gradient(180deg, #eee7d8');
     expect(labStyles).not.toContain('phone-ttg-lab-bridge');

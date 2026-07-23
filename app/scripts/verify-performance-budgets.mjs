@@ -5,12 +5,20 @@ import path from 'node:path';
 
 const KiB = 1024;
 const MiB = 1024 * KiB;
-const totalJsHardCapBytes = 568 * KiB;
+// Unit7-A closes the formal phone journey over the already-lazy Group 4–5
+// adapters. Keep the pre-existing desktop ceiling frozen, while giving the
+// longer phone journey its own explicit ceiling instead of weakening the
+// desktop regression guard.
+const desktopJsHardCapBytes = 568 * KiB;
+const phoneJsHardCapBytes = 648 * KiB;
+const totalJsHardCapBytes = phoneJsHardCapBytes;
 const requiredTotalJsHeadroomBytes = 4 * KiB;
 const budgets = {
   initialJsRawBytes: 360 * KiB,
   initialJsGzipBytes: 112 * KiB,
   initialCssRawBytes: 75 * KiB,
+  desktopJsRawBytes: desktopJsHardCapBytes,
+  phoneJsRawBytes: phoneJsHardCapBytes,
   totalJsRawBytes: totalJsHardCapBytes,
   largestLazyJsRawBytes: 64 * KiB,
   loaderInkLazyJsRawBytes: 16 * KiB,
@@ -148,6 +156,8 @@ const actual = {
   initialJsRawBytes: initialJs.byteLength,
   initialJsGzipBytes: gzipSync(initialJs).byteLength,
   initialCssRawBytes: initialCss.byteLength,
+  desktopJsRawBytes: desktopShellBudgetBytes,
+  phoneJsRawBytes: phoneShellBudgetBytes,
   totalJsRawBytes,
   largestLazyJsRawBytes,
   loaderInkLazyJsRawBytes,
@@ -159,15 +169,23 @@ for (const [name, budget] of Object.entries(budgets)) {
   assertBudget(name, actual[name], budget);
 }
 
+const desktopJsHeadroomBytes = desktopJsHardCapBytes - actual.desktopJsRawBytes;
+const phoneJsHeadroomBytes = phoneJsHardCapBytes - actual.phoneJsRawBytes;
 const totalJsHeadroomBytes = totalJsHardCapBytes - actual.totalJsRawBytes;
+assertHeadroom('desktopJsHeadroomBytes', desktopJsHeadroomBytes, requiredTotalJsHeadroomBytes);
+assertHeadroom('phoneJsHeadroomBytes', phoneJsHeadroomBytes, requiredTotalJsHeadroomBytes);
 assertHeadroom('totalJsHeadroomBytes', totalJsHeadroomBytes, requiredTotalJsHeadroomBytes);
 
 const report = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   budgets,
   headroom: {
+    desktopJsHardCapBytes,
+    phoneJsHardCapBytes,
     totalJsHardCapBytes,
     requiredTotalJsHeadroomBytes,
+    desktopJsHeadroomBytes,
+    phoneJsHeadroomBytes,
     totalJsHeadroomBytes
   },
   actual,

@@ -4,6 +4,8 @@ import {
   phoneGradeAFigureProgress,
   phoneGradeAHandoffProgress,
   phoneGradeAMethodFigure2EdgeScene,
+  phoneGradeAProofBrandEdgeScene,
+  phoneGradeAProofBrandProgress,
   phoneGradeAProofPanelOffset,
   phoneGradeAProofProgress
 } from './PhoneGradeAStory';
@@ -59,5 +61,15 @@ describe('phone Grade A document progress', () => {
     expect(phoneGradeAProofPanelOffset(2, 2532, 844)).toBe(1688);
     expect(phoneGradeAProofPanelOffset(1, 1092, 390)).toBe(351);
     expect(phoneGradeAProofPanelOffset(2, 1092, 390)).toBe(702);
+  });
+
+  it('hands the final Proof viewport to Brand without an uncovered frame', () => {
+    expect(phoneGradeAProofBrandProgress(844, 844)).toBe(0);
+    expect(phoneGradeAProofBrandProgress(422, 844)).toBe(0.5);
+    expect(phoneGradeAProofBrandProgress(0, 844)).toBe(1);
+    expect(phoneGradeAProofBrandEdgeScene(0)).toBe('proof');
+    expect(phoneGradeAProofBrandEdgeScene(0.001)).toBe('proof');
+    expect(phoneGradeAProofBrandEdgeScene(0.0011)).toBe('brand');
+    expect(phoneGradeAProofBrandEdgeScene(1)).toBe('brand');
   });
 });

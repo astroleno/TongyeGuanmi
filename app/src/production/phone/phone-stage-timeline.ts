@@ -2,6 +2,7 @@ import {
   FRONT_HALF_CHECKPOINT_IDS,
   type FrontHalfCheckpointId
 } from '../../story/semantic-checkpoints';
+import type { SceneId } from '../../story/types';
 import type { PhoneStageSceneId } from './types';
 
 export const PHONE_STAGE_STOPS = Object.freeze({
@@ -38,6 +39,23 @@ export type PhoneStageFrame = Readonly<{
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+const PHONE_POST_METHOD_DIRECT_ENTRY_SCENES = new Set<SceneId>([
+  'figure2-animation',
+  'figure2-proof',
+  'brand',
+  'figure3-animation',
+  'services',
+  'ttg-animation',
+  'lab'
+]);
+
+/** A downstream hash starts at its requested chapter, not inside AOD autoplay. */
+export function phoneDirectEntryCompletesAod(
+  scene: SceneId | undefined
+): boolean {
+  return Boolean(scene && PHONE_POST_METHOD_DIRECT_ENTRY_SCENES.has(scene));
 }
 
 export function phoneRangeProgress(value: number, start: number, end: number): number {

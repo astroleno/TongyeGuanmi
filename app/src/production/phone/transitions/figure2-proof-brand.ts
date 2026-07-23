@@ -12,7 +12,9 @@ export const PhoneFigure2ProofBrandTransition = createPhoneInkAdapter({
   field: PHONE_PROOF_BRAND_FIELD,
   canvasClassName: 'phone-grade-a__proof-brand-ink',
   portraitInk: 'proof-brand',
-  grade: 'dark'
+  grade: 'dark',
+  reducedMotionStrategy: 'boundary',
+  releaseBoundaryGeometryAtEndpoints: true
 });
 
 export default PhoneFigure2ProofBrandTransition;
