@@ -21,7 +21,7 @@
    * flock never reaches its authored off-screen spread and its two standing
    * cranes fall below the centre roof ridge on tall phones.
    */
-  --crane-flock-scale: 1;
+  --crane-flock-scale: .65;
   --phone-crane-motion-height: var(--phone-cinematic-stage-height, 100lvh);
   --phone-crane-figure-shift-y: calc(
     var(--phone-cinematic-stage-height, 100lvh) * .09
@@ -102,9 +102,16 @@
 
 .phone-crane .r4-crane-animation .phone-crane__flock-canvas {
   top: var(--phone-crane-flock-center-y);
+  /*
+   * The desktop contrast grade on this class forces Safari to raster the
+   * already-composited phone Canvas a second time. Keep the packed frame on
+   * its direct texture path so the limited source resolution is not softened
+   * again.
+   */
+  filter: none;
   transform: translate3d(
       calc(-50% + var(--crane-flock-x)),
-      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 0lvh)),
+      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 5.5lvh)),
       0
     )
     scale(var(--phone-crane-tune-flock-scale, var(--crane-flock-scale)));

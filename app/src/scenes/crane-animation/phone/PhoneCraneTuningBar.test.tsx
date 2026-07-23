@@ -14,12 +14,13 @@ describe('PhoneCraneTuningBar', () => {
     expect(markup).toContain('aria-label="鹤群缩放"');
     expect(markup).toContain('aria-label="鹤群 Y"');
     expect(markup).toContain('aria-label="建筑 Y"');
-    expect(markup.match(/type="range"/g)).toHaveLength(3);
+    expect(markup).toContain('aria-label="底部云 Y"');
+    expect(markup.match(/type="range"/g)).toHaveLength(4);
   });
 
   it('formats a directly shareable parameter string', () => {
     expect(formatPhoneCraneTuning(DEFAULT_PHONE_CRANE_TUNING)).toBe(
-      'flockScale=1.000, flockY=0.00vh, buildingY=0.00vh'
+      'flockScale=0.650, flockY=5.50vh, buildingY=1.75vh, bottomCloudY=2.00vh'
     );
   });
 });

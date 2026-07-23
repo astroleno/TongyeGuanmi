@@ -12,25 +12,49 @@ type PhoneCraneTuning = Readonly<{
   flockScale: number;
   flockY: number;
   buildingY: number;
+  bottomCloudY: number;
 }>;
 
-const STORAGE_KEY = 'r5-phone-crane-tuning-v1';
+const STORAGE_KEY = 'r5-phone-crane-tuning-v2';
 
 export const DEFAULT_PHONE_CRANE_TUNING: PhoneCraneTuning = {
-  flockScale: 1,
-  flockY: 0,
-  buildingY: 0
+  flockScale: 0.65,
+  flockY: 5.5,
+  buildingY: 1.75,
+  bottomCloudY: 2
 };
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
+const finiteOr = (value: unknown, fallback: number) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+
 const normaliseTuning = (
   value: Partial<PhoneCraneTuning>
 ): PhoneCraneTuning => ({
-  flockScale: clamp(Number(value.flockScale) || 1, 0.7, 1.4),
-  flockY: clamp(Number(value.flockY) || 0, -25, 25),
-  buildingY: clamp(Number(value.buildingY) || 0, -25, 25)
+  flockScale: clamp(
+    finiteOr(value.flockScale, DEFAULT_PHONE_CRANE_TUNING.flockScale),
+    0.5,
+    1.4
+  ),
+  flockY: clamp(
+    finiteOr(value.flockY, DEFAULT_PHONE_CRANE_TUNING.flockY),
+    -25,
+    25
+  ),
+  buildingY: clamp(
+    finiteOr(value.buildingY, DEFAULT_PHONE_CRANE_TUNING.buildingY),
+    -25,
+    25
+  ),
+  bottomCloudY: clamp(
+    finiteOr(value.bottomCloudY, DEFAULT_PHONE_CRANE_TUNING.bottomCloudY),
+    -25,
+    25
+  )
 });
 
 const readStoredTuning = (): PhoneCraneTuning => {
@@ -49,9 +73,10 @@ const readStoredTuning = (): PhoneCraneTuning => {
 export const formatPhoneCraneTuning = ({
   flockScale,
   flockY,
-  buildingY
+  buildingY,
+  bottomCloudY
 }: PhoneCraneTuning) =>
-  `flockScale=${flockScale.toFixed(3)}, flockY=${flockY.toFixed(2)}vh, buildingY=${buildingY.toFixed(2)}vh`;
+  `flockScale=${flockScale.toFixed(3)}, flockY=${flockY.toFixed(2)}vh, buildingY=${buildingY.toFixed(2)}vh, bottomCloudY=${bottomCloudY.toFixed(2)}vh`;
 
 export function PhoneCraneTuningBar() {
   const panelRef = useRef<HTMLElement>(null);
@@ -82,6 +107,10 @@ export function PhoneCraneTuningBar() {
       '--phone-crane-tune-building-y',
       `${tuning.buildingY.toFixed(2)}lvh`
     );
+    owner.style.setProperty(
+      '--phone-crane-tune-bottom-cloud-y',
+      `${tuning.bottomCloudY.toFixed(2)}lvh`
+    );
 
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tuning));
@@ -96,6 +125,7 @@ export function PhoneCraneTuningBar() {
       owner?.style.removeProperty('--phone-crane-tune-flock-scale');
       owner?.style.removeProperty('--phone-crane-tune-flock-y');
       owner?.style.removeProperty('--phone-crane-tune-building-y');
+      owner?.style.removeProperty('--phone-crane-tune-bottom-cloud-y');
     },
     []
   );
@@ -151,7 +181,7 @@ export function PhoneCraneTuningBar() {
         <input
           aria-label="鹤群缩放"
           type="range"
-          min="0.7"
+          min="0.5"
           max="1.4"
           step="0.005"
           value={tuning.flockScale}
@@ -192,6 +222,22 @@ export function PhoneCraneTuningBar() {
           }
         />
         <output>{tuning.buildingY.toFixed(2)}vh</output>
+      </label>
+
+      <label>
+        <span>底部云 Y</span>
+        <input
+          aria-label="底部云 Y"
+          type="range"
+          min="-25"
+          max="25"
+          step="0.25"
+          value={tuning.bottomCloudY}
+          onChange={(event) =>
+            update('bottomCloudY', event.currentTarget.valueAsNumber)
+          }
+        />
+        <output>{tuning.bottomCloudY.toFixed(2)}vh</output>
       </label>
 
       <div className="phone-crane-tuning-bar__result">
