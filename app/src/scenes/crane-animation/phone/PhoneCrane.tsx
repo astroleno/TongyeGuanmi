@@ -34,6 +34,7 @@ import {
   renderPhoneCranePresentation,
   type PhoneCranePlaybackDirection
 } from './PhoneCrane.motion';
+import { PhoneCraneTuningBar } from './PhoneCraneTuningBar';
 import './PhoneCrane.css';
 
 const PHONE_CRANE_FIGURE_PACKED = phoneMediaUrlFor(
@@ -432,6 +433,9 @@ export const PhoneCrane = forwardRef<
   }), [clearReverseStartTimer, ensurePackedSurfaces, render, startRun]);
 
   const CraneSurface = craneAnimationScene.Component;
+  const showAcceptanceTuning =
+    typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('v') === '36';
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'stage') rootRef.current = element;
     if (!element) return;
@@ -475,6 +479,10 @@ export const PhoneCrane = forwardRef<
           aria-hidden="true"
         />,
         flockCanvasHost
+      ) : null}
+      {showAcceptanceTuning ? createPortal(
+        <PhoneCraneTuningBar />,
+        document.body
       ) : null}
     </>
   );

@@ -104,10 +104,10 @@
   top: var(--phone-crane-flock-center-y);
   transform: translate3d(
       calc(-50% + var(--crane-flock-x)),
-      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y)),
+      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 0lvh)),
       0
     )
-    scale(var(--crane-flock-scale));
+    scale(var(--phone-crane-tune-flock-scale, var(--crane-flock-scale)));
 }
 
 /* Static plates use the same retained-height camera as both moving plates. */

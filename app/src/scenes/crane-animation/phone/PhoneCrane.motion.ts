@@ -122,7 +122,7 @@ export function renderPhoneCranePresentation(
   );
   setTransform(
     section.querySelector<HTMLElement>('.crane-layer--arch'),
-    `translate3d(-50%, ${downExitY.toFixed(2)}px, 0)`
+    `translate3d(-50%, calc(${downExitY.toFixed(2)}px + var(--phone-crane-tune-building-y, 0lvh)), 0)`
   );
   setTransform(
     section.querySelector<HTMLElement>('.crane-layer--cloud-front-second'),

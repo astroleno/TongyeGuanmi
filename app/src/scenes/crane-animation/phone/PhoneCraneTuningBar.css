@@ -1,0 +1,90 @@
+.phone-crane-tuning-bar {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 3.75rem);
+  left: 50%;
+  z-index: 420;
+  display: grid;
+  width: min(calc(100vw - 1rem), 35rem);
+  padding: .65rem .75rem;
+  color: #172a32;
+  font: 500 .75rem/1.2 system-ui, sans-serif;
+  background: rgb(246 242 228 / 94%);
+  border: 1px solid rgb(23 42 50 / 18%);
+  border-radius: .75rem;
+  box-shadow: 0 .5rem 1.5rem rgb(0 0 0 / 16%);
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+
+.phone-crane-tuning-bar__title,
+.phone-crane-tuning-bar__result {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.phone-crane-tuning-bar__title {
+  margin-bottom: .35rem;
+  font-size: .8rem;
+}
+
+.phone-crane-tuning-bar label {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr) 4.5rem;
+  gap: .45rem;
+  align-items: center;
+  min-height: 1.8rem;
+}
+
+.phone-crane-tuning-bar input[type='range'] {
+  width: 100%;
+  margin: 0;
+  accent-color: #275b68;
+  touch-action: pan-x;
+}
+
+.phone-crane-tuning-bar output {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.phone-crane-tuning-bar button {
+  min-height: 1.7rem;
+  padding: .2rem .55rem;
+  color: inherit;
+  font: inherit;
+  background: rgb(255 255 255 / 65%);
+  border: 1px solid rgb(23 42 50 / 20%);
+  border-radius: .4rem;
+}
+
+.phone-crane-tuning-bar__result {
+  margin-top: .4rem;
+  padding-top: .45rem;
+  border-top: 1px solid rgb(23 42 50 / 14%);
+}
+
+.phone-crane-tuning-bar__result input {
+  flex: 1;
+  min-width: 0;
+  padding: .25rem .35rem;
+  color: inherit;
+  font-size: .65rem;
+  font-variant-numeric: tabular-nums;
+  background: rgb(255 255 255 / 55%);
+  border: 1px solid rgb(23 42 50 / 14%);
+  border-radius: .3rem;
+}
+
+@media (max-width: 380px) {
+  .phone-crane-tuning-bar {
+    padding-inline: .55rem;
+  }
+
+  .phone-crane-tuning-bar label {
+    grid-template-columns: 3.8rem minmax(0, 1fr) 4.15rem;
+    gap: .3rem;
+  }
+}
