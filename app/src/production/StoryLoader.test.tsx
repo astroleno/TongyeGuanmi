@@ -78,11 +78,7 @@ describe('StoryLoader', () => {
     expect(html).toContain('validationNumber === 44');
     expect(html).toContain('validationNumber === 45');
     expect(html).toContain('validationNumber === 46');
-    expect(html).toContain('validationNumber === 47');
     expect(html).not.toContain('validationNumber === 41');
-    expect(html).toMatch(
-      /data-portrait-stage-pin="transform"[^}]*position:\s*absolute[^}]*height:\s*100lvh/s
-    );
     expect(html).toContain("navigation?.type === 'reload'");
     expect(html).toContain('manuallyReloaded');
     expect(html).toContain("'__PHONE_STORY_PREBOOT_ENABLED__' === 'true'");

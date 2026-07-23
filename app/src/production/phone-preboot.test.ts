@@ -103,19 +103,4 @@ describe('phone preboot ownership', () => {
     expect(result.dataset.portraitSpike).toBe('b');
     expect(result.dataset.portraitSpikePreboot).toBe('validation');
   });
-
-  it('claims the transform-only stage topology before the v47 first paint', () => {
-    const result = runPhonePreboot({
-      enabled: false,
-      width: 390,
-      height: 844,
-      search: '?v=47'
-    });
-
-    expect(result.dataset).toMatchObject({
-      portraitSpike: 'b',
-      portraitSpikePreboot: 'validation',
-      portraitStagePin: 'transform'
-    });
-  });
 });

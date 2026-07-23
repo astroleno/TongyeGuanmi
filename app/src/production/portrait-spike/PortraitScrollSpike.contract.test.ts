@@ -12,7 +12,9 @@ const shellCss = source('../phone/PhoneStoryShell.css');
 const railSource = source('../phone/PhoneStageRail.tsx');
 const railCss = source('../phone/PhoneStageRail.css');
 const runtimeSource = source('../phone/usePhoneStageRuntime.ts');
-const stagePinSource = source('../phone/phone-stage-pin.ts');
+const fixedStageRegistrationSource = source(
+  '../phone/usePhoneFixedStageRegistration.ts'
+);
 const edgeSurfaceSource = source('../phone/phone-edge-surface.ts');
 const viewportGeometrySource = source('../phone/usePhoneViewportGeometry.ts');
 const frontHalfSource = source('../phone/usePhoneFrontHalfAdapters.ts');
@@ -82,22 +84,24 @@ describe('Route B proven front-half migration contract', () => {
     expect(runtimeSource).toContain(
       "root.style.getPropertyValue('--portrait-stage-scroll-distance')"
     );
-    expect(runtimeSource).toContain('root.dataset.portraitStagePinState');
-    expect(runtimeSource).toContain("? 'transform-scrolltrigger'");
-    expect(runtimeSource).toContain("pinType: 'transform'");
-    expect(runtimeSource).toContain('pin: stageViewport');
-    expect(runtimeSource).toContain('pinSpacing: false');
+    expect(runtimeSource).toContain(
+      "root.dataset.portraitStagePin = 'native-fixed-composite'"
+    );
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed/s
     );
     expect(shellSource).toContain(
-      'data-portrait-stage-pin={stagePinMode}'
+      "data-portrait-fixed-stage={fixedStageRegistered ? 'registered' : 'priming'}"
     );
-    expect(stagePinSource).toContain("validationMode === 'v47'");
-    expect(shellSource).not.toContain('usePhoneFixedStageRegistration');
-    expect(shellSource).not.toContain('fixedStageRegistered');
+    expect(fixedStageRegistrationSource).toMatch(
+      /const committedPrimeFrame = window\.requestAnimationFrame\(\(\) => \{\s*registrationFrame = window\.requestAnimationFrame/s
+    );
+    expect(shellSource).toContain(
+      'usePhoneFixedStageRegistration(loaderHidden && ready)'
+    );
+    expect(shellSource).toContain('enabled: fixedStageRegistered');
     expect(railCss).toMatch(
-      /data-portrait-stage-pin="transform"[^}]*position:\s*absolute[^}]*height:\s*var\(--portrait-stage-height\)[^}]*will-change:\s*transform/s
+      /data-portrait-fixed-stage="priming"[^}]*position:\s*absolute[^}]*bottom:\s*auto[^}]*height:\s*var\(--portrait-stage-height\)/s
     );
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage-rail\s*\{[^}]*margin-bottom:\s*calc\(-1 \* var\(--portrait-stage-height\)\)/s
@@ -109,7 +113,6 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__stage\s*\{[^}]*inset:\s*0[^}]*height:\s*auto[^}]*min-height:\s*0/s
     );
     expect(railCss).not.toContain('.portrait-scroll-spike__stage::after');
-    expect(railCss).not.toContain('position: sticky');
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage-canvas\s*\{[^}]*top:\s*0[^}]*right:\s*0[^}]*left:\s*0[^}]*height:\s*var\(--portrait-stage-canvas-height\)[^}]*overflow:\s*clip/s
     );
@@ -249,13 +252,8 @@ describe('Route B proven front-half migration contract', () => {
     expect(aodSource).toContain('phoneAodBackdropPresentation');
     expect(methodSource).toContain('id="method"');
     expect(methodSource).toContain('portrait-scroll-spike__method-bridge');
-    expect(methodSource).toContain('createPortal(');
-    expect(methodSource).toContain('stageBridgeRef');
     expect(methodCss).toMatch(
-      /data-portrait-stage-pin="native-fixed"[^}]*data-portrait-stage-active="true"[^}]*portrait-scroll-spike__method-bridge\s*\{[^}]*position:\s*fixed/s
-    );
-    expect(methodCss).toMatch(
-      /data-portrait-stage-pin="transform"[^}]*stage-canvas[^}]*method-bridge[^}]*position:\s*absolute/s
+      /data-portrait-stage-active="true"[^}]*portrait-scroll-spike__method-bridge\s*\{[^}]*position:\s*fixed/s
     );
     expect(methodCss).toMatch(
       /data-portrait-stage-active="false"[^}]*portrait-scroll-spike__reading\s*\{[^}]*z-index:\s*11/s
