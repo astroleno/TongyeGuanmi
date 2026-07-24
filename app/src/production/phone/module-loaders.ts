@@ -10,6 +10,10 @@ import {
   group45PhoneSceneIds,
   group45PhoneTransitionIds
 } from './adapter-groups/group4-5';
+import {
+  group67PhoneSceneIds,
+  group67PhoneTransitionIds
+} from './adapter-groups/group6-7';
 import type {
   PhoneAodAdapterComponent,
   PhoneLoaderAdapterModule,
@@ -38,12 +42,14 @@ export const initialPhoneTransitionAdapterIds = frontHalfPhoneTransitionIds;
 export const phoneSceneAdapterIds = [
   ...frontHalfPhoneSceneIds,
   ...gradeAPhoneSceneIds,
-  ...group45PhoneSceneIds
+  ...group45PhoneSceneIds,
+  ...group67PhoneSceneIds
 ] as const;
 export const phoneTransitionAdapterIds = [
   ...frontHalfPhoneTransitionIds,
   ...gradeAPhoneTransitionIds,
-  ...group45PhoneTransitionIds
+  ...group45PhoneTransitionIds,
+  ...group67PhoneTransitionIds
 ] as const;
 
 function importPhoneLoaderAdapter(): Promise<PhoneLoaderAdapterModule> {
@@ -131,6 +137,34 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
         id,
         Component: Component as unknown as PhoneSceneAdapterComponent
       }));
+    case 'ph-animation':
+      return import('./scenes/PhonePh').then(({
+        PhonePh: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
+    case 'education':
+      return import('./scenes/PhoneEducation').then(({
+        PhoneEducation: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
+    case 'crane-animation':
+      return import('./scenes/PhoneCrane').then(({
+        PhoneCrane: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
+    case 'contact':
+      return import('./scenes/PhoneContact').then(({
+        PhoneContact: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneSceneAdapterComponent
+      }));
   }
 }
 
@@ -180,6 +214,34 @@ function importPhoneTransitionAdapter(id: PhoneTransitionAdapterId): Promise<Pho
     case 'ttg-lab':
       return import('../../transitions/ttg-lab/phone').then(({
         PhoneTtgLabTransition: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneTransitionAdapterComponent
+      }));
+    case 'lab-ph':
+      return import('./transitions/lab-ph').then(({
+        PhoneLabPhTransition: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneTransitionAdapterComponent
+      }));
+    case 'ph-education':
+      return import('./transitions/ph-education').then(({
+        PhonePhEducationTransition: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneTransitionAdapterComponent
+      }));
+    case 'education-crane':
+      return import('./transitions/education-crane').then(({
+        PhoneEducationCraneTransition: Component
+      }) => ({
+        id,
+        Component: Component as unknown as PhoneTransitionAdapterComponent
+      }));
+    case 'crane-contact':
+      return import('./transitions/crane-contact').then(({
+        PhoneCraneContactTransition: Component
       }) => ({
         id,
         Component: Component as unknown as PhoneTransitionAdapterComponent

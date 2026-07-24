@@ -8,12 +8,12 @@ import {
 } from '../../../production/phone/phone-presented-reverse-playback';
 import { PH_PLAYBACK_MS } from '../../../story/timings';
 import {
-  PH_FIGURE_END_SECONDS,
-  phPlaybackProgress
-} from '..';
-import type { PhonePhPlaybackDirection } from './PhonePh.motion';
+  PHONE_PH_FIGURE_END_SECONDS,
+  phPlaybackProgress,
+  type PhonePhPlaybackDirection
+} from './PhonePh.motion';
 
-const PH_DURATION_FALLBACK_SECONDS = PH_FIGURE_END_SECONDS + 1 / 30;
+const PH_DURATION_FALLBACK_SECONDS = PHONE_PH_FIGURE_END_SECONDS + 1 / 30;
 
 export type PhonePhPresentedReverse = PhonePresentedReversePlayback;
 
@@ -27,7 +27,7 @@ function reverseFrameInput(
     progress: phPlaybackProgress(progress),
     durationFallbackSeconds: PH_DURATION_FALLBACK_SECONDS,
     startSeconds: 0,
-    endSeconds: PH_FIGURE_END_SECONDS,
+    endSeconds: PHONE_PH_FIGURE_END_SECONDS,
     timelineDurationMs: PH_PLAYBACK_MS,
     mode: 'timeline',
     nativePlaybackDirection: 1,

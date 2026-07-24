@@ -29,6 +29,10 @@ import {
   PhoneBrandLabContinuation,
   phoneGroup45SceneFromHash
 } from './PhoneBrandLabContinuation';
+import {
+  PhoneLabContactContinuation,
+  type PhoneLabBoundary
+} from './PhoneLabContactContinuation';
 import { PhoneFigure2Arch } from './scenes/PhoneFigure2Arch';
 import './PhoneGradeAStory.css';
 
@@ -154,6 +158,7 @@ export function PhoneGradeAStory({
   const [figure2ProofReady, setFigure2ProofReady] = useState(false);
   const [proofBrandReady, setProofBrandReady] = useState(false);
   const [brandRoot, setBrandRoot] = useState<HTMLElement | null>(null);
+  const [labBoundary, setLabBoundary] = useState<PhoneLabBoundary | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
   const proofTrackRef = useRef<HTMLDivElement | null>(null);
@@ -702,6 +707,16 @@ export function PhoneGradeAStory({
           ? { navigationTarget: continuationTarget }
           : {})}
         onBrandRootChange={setBrandRoot}
+        onLabBoundaryChange={setLabBoundary}
+        {...(onCheckpoint ? { onCheckpoint } : {})}
+        {...(onEdgeScene ? { onEdgeScene } : {})}
+        {...(onSceneChange ? { onSceneChange } : {})}
+      />
+      <PhoneLabContactContinuation
+        reducedMotion={reducedMotion}
+        stageHost={stageHost}
+        fromLabBoundary={true}
+        labBoundary={labBoundary}
         {...(onCheckpoint ? { onCheckpoint } : {})}
         {...(onEdgeScene ? { onEdgeScene } : {})}
         {...(onSceneChange ? { onSceneChange } : {})}

@@ -1,10 +1,9 @@
-import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import {
-  CRANE_PLAYBACK_MS,
-  CRANE_TIMELINE_DURATION_SECONDS,
-  CRANE_VIDEO_END_SECONDS,
-  prepareCraneAnimationFrame
-} from '..';
+  disposeTimelineVideoDriver,
+  prepareTimelineVideoFrame,
+  type TimelineVideoDriveInput
+} from '../../../media/timeline-video-driver';
+import { CRANE_CONTACT_DURATION_MS } from '../../../story/timings';
 import {
   createPhoneNativeAutoplay,
   type PhoneNativeAutoplay
@@ -14,10 +13,18 @@ import {
   type PhonePresentedReversePlayback
 } from '../../../production/phone/phone-presented-reverse-playback';
 import {
+  PHONE_CRANE_TIMELINE_DURATION_SECONDS,
+  PHONE_CRANE_VIDEO_END_SECONDS,
   type PhoneCranePlaybackDirection
 } from './PhoneCrane.motion';
 
+const CRANE_PLAYBACK_MS = CRANE_CONTACT_DURATION_MS;
+const CRANE_VIDEO_END_SECONDS = PHONE_CRANE_VIDEO_END_SECONDS;
+const CRANE_TIMELINE_DURATION_SECONDS =
+  PHONE_CRANE_TIMELINE_DURATION_SECONDS;
+const VIDEO_DURATION_FALLBACK = 2.5;
 const FIGURE_START_SECONDS = 0.5;
+const FIGURE_END_SECONDS = FIGURE_START_SECONDS + VIDEO_DURATION_FALLBACK;
 const FLOCK_END_SECONDS = 2.5;
 
 /** The desktop figure starts at 0.5s and owns the rest of the 3s timeline. */
@@ -65,6 +72,54 @@ export type PhoneCranePresentedReverse = PhonePresentedReversePlayback;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function range01(value: number, start: number, end: number): number {
+  return clamp((value - start) / Math.max(0.0001, end - start));
+}
+
+function reverseFrameInput(
+  runId: string,
+  progress: number
+): TimelineVideoDriveInput {
+  return {
+    runId,
+    direction: -1,
+    progress,
+    durationFallbackSeconds: VIDEO_DURATION_FALLBACK,
+    startSeconds: 0,
+    endSeconds: CRANE_VIDEO_END_SECONDS,
+    timelineDurationMs: 2500,
+    mode: 'timeline',
+    nativePlaybackDirection: 1,
+    allowSeekedFrameFallback: true
+  };
+}
+
+async function prepareCraneAnimationFrame(
+  root: HTMLElement,
+  progress: number,
+  runId: string
+): Promise<void> {
+  const [figure, flock] = phoneCraneVideos(root);
+  if (!figure || !flock) throw new Error('Crane media unavailable');
+  const time = clamp(progress) * CRANE_TIMELINE_DURATION_SECONDS;
+  const frames = await Promise.all([
+    prepareTimelineVideoFrame(
+      figure,
+      reverseFrameInput(
+        runId,
+        range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS)
+      )
+    ),
+    prepareTimelineVideoFrame(
+      flock,
+      reverseFrameInput(runId, range01(time, 0, FLOCK_END_SECONDS))
+    )
+  ]);
+  if (frames.some((frame) => frame?.status !== 'ready')) {
+    throw new Error('Crane media stale');
+  }
 }
 
 export function phoneCraneVideos(root: HTMLElement | null): readonly [
@@ -239,10 +294,7 @@ export function createPhoneCranePresentedReverse(
   const playback = createPhonePresentedReversePlayback({
     durationMs: CRANE_PLAYBACK_MS,
     prepare: async (progress) => {
-      await prepareCraneAnimationFrame(root, progress, {
-        runId,
-        direction: -1
-      });
+      await prepareCraneAnimationFrame(root, progress, runId);
       return true;
     },
     render: (progress) => render(progress, -1),

@@ -10,8 +10,7 @@ import {
   renderContactEntrance,
   renderContactHold
 } from '../../scenes/contact';
-import { storyManifest } from '../../story/manifest';
-import type { SpineSegmentNode } from '../../story/types';
+import { CRANE_CONTACT_COPY_CUE } from '../../story/crane-contact-contract';
 import type {
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
@@ -19,18 +18,6 @@ import type {
 import './phone.css';
 
 const ENDPOINT_EPSILON = 0.001;
-
-function craneContactCopyCue() {
-  const segment = storyManifest.nodes.find(
-    (node): node is SpineSegmentNode => (
-      node.kind === 'segment' && node.id === 'crane-contact'
-    )
-  );
-  if (!segment?.copyCue) {
-    throw new Error('crane-contact copy cue is required by the product manifest');
-  }
-  return segment.copyCue;
-}
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -72,7 +59,7 @@ export const PHONE_CRANE_CONTACT_DECISION = Object.freeze({
   reason: 'Crane stays snapped and opaque while the one native Contact root enters over its final authored fifth at the same document edge.'
 } as const);
 
-export const PHONE_CRANE_CONTACT_COPY_CUE = craneContactCopyCue();
+export const PHONE_CRANE_CONTACT_COPY_CUE = CRANE_CONTACT_COPY_CUE;
 
 export type PhoneCraneContactFrame = Readonly<{
   progress: number;

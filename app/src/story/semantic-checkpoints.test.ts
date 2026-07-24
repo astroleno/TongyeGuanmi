@@ -3,6 +3,7 @@ import {
   FRONT_HALF_CHECKPOINT_IDS,
   GRADE_A_CHECKPOINT_IDS,
   GROUP45_CHECKPOINT_IDS,
+  GROUP67_CHECKPOINT_IDS,
   frontHalfCheckpoint,
   frontHalfSemanticCheckpoints
 } from './semantic-checkpoints';
@@ -62,5 +63,18 @@ describe('front-half semantic checkpoints', () => {
       'lab-stable'
     ]);
     expect(GROUP45_CHECKPOINT_IDS).not.toContain('lab-to-ph');
+  });
+
+  it('extends Unit7-B from the existing Lab boundary to stable Contact', () => {
+    expect(GROUP67_CHECKPOINT_IDS).toEqual([
+      'lab-to-ph',
+      'ph-stage',
+      'ph-to-education',
+      'education-reading',
+      'education-to-crane',
+      'crane-stage',
+      'crane-to-contact',
+      'contact-stable'
+    ]);
   });
 });

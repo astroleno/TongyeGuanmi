@@ -7,9 +7,10 @@ import {
 /** One publisher owns the document, persistent host, and Safari theme edge. */
 export function usePhoneEdgeSurface(
   rootRef: RefObject<HTMLElement | null>,
-  viewportHostRef: RefObject<HTMLElement | null>
+  viewportHostRef: RefObject<HTMLElement | null>,
+  initialScene: PhoneEdgeScene = 'hero'
 ): (scene: PhoneEdgeScene) => void {
-  const edgeSceneRef = useRef<PhoneEdgeScene>('hero');
+  const edgeSceneRef = useRef<PhoneEdgeScene>(initialScene);
   const commit = useCallback((scene: PhoneEdgeScene, force = false) => {
     const documentElement = document.documentElement;
     const root = rootRef.current;

@@ -20,8 +20,15 @@ describe('presentation shell loaders', () => {
     expect(loadedPhoneAdapters()).toEqual(before);
   });
 
-  it('preloads the complete Loader → Method adapter group before publishing the phone shell', async () => {
-    const shell = await loadPhoneStoryShell();
+  it('keeps direct Contact cold instead of selecting front-half adapters', async () => {
+    const before = loadedPhoneAdapters();
+    const shell = await loadPhoneStoryShell('#contact');
+    expect(shell.default).toBeTypeOf('function');
+    expect(loadedPhoneAdapters()).toEqual(before);
+  });
+
+  it('preloads the complete Loader → Method adapter group for a front-half entry', async () => {
+    const shell = await loadPhoneStoryShell('#home');
     expect(shell.default).toBeTypeOf('function');
     expect(resolvedPhoneLoaderAdapter()?.id).toBe('loader');
     for (const id of initialPhoneSceneAdapterIds) {

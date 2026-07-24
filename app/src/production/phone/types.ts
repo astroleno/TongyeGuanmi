@@ -20,6 +20,10 @@ import type {
   Group45PhoneSceneId,
   Group45PhoneTransitionId
 } from './adapter-groups/group4-5';
+import type {
+  Group67PhoneSceneId,
+  Group67PhoneTransitionId
+} from './adapter-groups/group6-7';
 
 export type PhoneStageSceneId = 'hero' | 'pattern' | 'star-map' | 'aod-animation';
 export type PhoneSceneAdapterId =
@@ -27,7 +31,8 @@ export type PhoneSceneAdapterId =
   | 'method-top'
   | 'figure2-animation'
   | 'figure2-proof'
-  | Group45PhoneSceneId;
+  | Group45PhoneSceneId
+  | Group67PhoneSceneId;
 export type PhoneTransitionAdapterId =
   | 'hero-pattern'
   | 'pattern-star-map'
@@ -36,7 +41,8 @@ export type PhoneTransitionAdapterId =
   | 'method-bottom-figure2'
   | 'figure2-distance-expand'
   | 'figure2-proof-brand'
-  | Group45PhoneTransitionId;
+  | Group45PhoneTransitionId
+  | Group67PhoneTransitionId;
 
 export type PhoneSceneAdapterHandle = ScenePresentationAdapterHandle;
 

@@ -1,0 +1,140 @@
+.phone-lab-contact-continuation {
+  --phone-cinematic-stage-height: var(--portrait-stage-height, 100lvh);
+  --phone-cinematic-stage-canvas-height: var(
+    --portrait-stage-canvas-height,
+    var(--phone-cinematic-stage-height)
+  );
+  position: relative;
+  min-width: 0;
+  color: #28291f;
+  background: #ede4d2;
+}
+
+.phone-lab-contact-continuation__native {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  background: #ede4d2;
+}
+
+.phone-lab-contact-continuation[data-phone-group67-stage-active="false"]
+  > .phone-lab-contact-continuation__native {
+  z-index: 11;
+}
+
+.phone-lab-contact-continuation__phase {
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  height: var(--phone-cinematic-stage-height);
+  min-height: var(--phone-cinematic-stage-height);
+  margin: 0 0 calc(-1 * var(--phone-cinematic-stage-height));
+  overflow: clip;
+  isolation: isolate;
+  pointer-events: none;
+  background: #ede4d2;
+}
+
+.phone-lab-contact-continuation__native[data-phone-ph-education-layer="true"],
+.phone-lab-contact-continuation__native[data-phone-crane-contact-layer="true"] {
+  z-index: 12;
+}
+
+.phone-lab-contact-continuation__native-pending {
+  width: 100%;
+  background: #ede4d2;
+}
+
+.phone-lab-contact-continuation__native-pending--education {
+  min-height: calc(var(--phone-cinematic-stage-height) * 2);
+}
+
+.phone-lab-contact-continuation__native-pending--contact {
+  min-height: var(--phone-cinematic-stage-height);
+}
+
+.phone-group67__stage-surfaces {
+  --phone-cinematic-stage-height: var(--portrait-stage-height, 100lvh);
+  --phone-cinematic-stage-canvas-height: var(
+    --portrait-stage-canvas-height,
+    var(--phone-cinematic-stage-height)
+  );
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  visibility: hidden;
+  pointer-events: none;
+  background: transparent;
+}
+
+.phone-group67__stage-surfaces[data-phone-group67-stage-active="true"] {
+  visibility: visible;
+}
+
+.phone-group67__stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  visibility: hidden;
+  opacity: 0;
+  isolation: auto;
+  transform: none;
+  backface-visibility: visible;
+  pointer-events: none;
+}
+
+.phone-group67__stage[data-phone-group67-layer-active="true"] {
+  visibility: visible;
+  opacity: 1;
+}
+
+.phone-group67__stage-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: var(--phone-cinematic-stage-canvas-height);
+  min-height: var(--phone-cinematic-stage-canvas-height);
+  overflow: clip;
+  contain: none;
+  isolation: auto;
+  transform: none;
+  backface-visibility: visible;
+  background: transparent;
+}
+
+.phone-group67__stage-canvas > .phone-ph,
+.phone-group67__stage-canvas > .phone-crane {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.phone-group67__stage-canvas .r4-ph-animation,
+.phone-group67__stage-canvas .r4-crane-animation {
+  height: 100%;
+  min-height: 100%;
+}
+
+.phone-group67__stage-pending {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+}
+
+.portrait-scroll-spike:has(
+  .phone-lab-contact-continuation[data-phone-group67-stage-active="true"]
+) .portrait-scroll-spike__stage {
+  background: transparent;
+}
+
+.phone-grade-a:has(
+  .phone-lab-contact-continuation[data-phone-group67-stage-active="true"]
+) .phone-brand-lab[data-phone-group45-stage-active="false"] > .phone-lab {
+  z-index: 0;
+}

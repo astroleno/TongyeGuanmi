@@ -1,3 +1,5 @@
+import { phoneGroup67EntryPlanFromHash } from './phone/phone-entry-plan';
+
 /** Load only the selected presentation family. */
 export function loadDesktopStoryShell() {
   return import('./desktop/DesktopStoryShell').then(({ DesktopStoryShell }) => ({
@@ -10,22 +12,27 @@ export function loadDesktopStoryShell() {
  * These chunks remain absent from desktop startup. The shell still resolves
  * after an adapter failure so Loader can release the static document fallback.
  */
-export async function loadPhoneStoryShell() {
+export async function loadPhoneStoryShell(
+  hash = typeof window === 'undefined' ? '' : window.location.hash
+) {
+  const directGroup67Entry = phoneGroup67EntryPlanFromHash(hash);
   const [shell] = await Promise.all([
     import('./phone/PhoneStoryShell'),
-    import('./phone/module-loaders')
-      .then(({
-        loadPhoneLoaderAdapter,
-        loadPhoneSceneAdapter,
-        loadPhoneTransitionAdapter,
-        initialPhoneSceneAdapterIds,
-        initialPhoneTransitionAdapterIds
-      }) => Promise.all([
-        loadPhoneLoaderAdapter(),
-        ...initialPhoneSceneAdapterIds.map(loadPhoneSceneAdapter),
-        ...initialPhoneTransitionAdapterIds.map(loadPhoneTransitionAdapter)
-      ]))
-      .catch(() => undefined)
+    directGroup67Entry
+      ? Promise.resolve(undefined)
+      : import('./phone/module-loaders')
+        .then(({
+          loadPhoneLoaderAdapter,
+          loadPhoneSceneAdapter,
+          loadPhoneTransitionAdapter,
+          initialPhoneSceneAdapterIds,
+          initialPhoneTransitionAdapterIds
+        }) => Promise.all([
+          loadPhoneLoaderAdapter(),
+          ...initialPhoneSceneAdapterIds.map(loadPhoneSceneAdapter),
+          ...initialPhoneTransitionAdapterIds.map(loadPhoneTransitionAdapter)
+        ]))
+        .catch(() => undefined)
   ]);
   return { default: shell.PhoneStoryShell };
 }

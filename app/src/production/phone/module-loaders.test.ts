@@ -17,6 +17,10 @@ import {
   group45PhoneSceneIds,
   group45PhoneTransitionIds
 } from './adapter-groups/group4-5';
+import {
+  group67PhoneSceneIds,
+  group67PhoneTransitionIds
+} from './adapter-groups/group6-7';
 
 describe('phone presentation adapter registry', () => {
   it('loads Loader as the first formal front-half presentation adapter', async () => {
@@ -68,14 +72,12 @@ describe('phone presentation adapter registry', () => {
     ]);
   });
 
-  it('resolves Unit7-A through the same shared caches without Unit6', () => {
+  it('resolves Unit7-A and Unit7-B through the same shared caches', () => {
     expect(phoneSceneAdapterIds).toEqual(expect.arrayContaining(
-      [...group45PhoneSceneIds]
+      [...group45PhoneSceneIds, ...group67PhoneSceneIds]
     ));
     expect(phoneTransitionAdapterIds).toEqual(expect.arrayContaining(
-      [...group45PhoneTransitionIds]
+      [...group45PhoneTransitionIds, ...group67PhoneTransitionIds]
     ));
-    expect(phoneSceneAdapterIds).not.toContain('ph-animation');
-    expect(phoneTransitionAdapterIds).not.toContain('lab-ph');
   });
 });

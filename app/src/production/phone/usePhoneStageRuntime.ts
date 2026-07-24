@@ -1,6 +1,10 @@
-import { useCallback, useRef, type RefObject } from 'react';
-import { useGSAP } from '@gsap/react';
-import { gsap } from 'gsap';
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  type RefObject
+} from 'react';
+import { gsap } from 'gsap/gsap-core';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
@@ -27,7 +31,7 @@ import type {
   PhoneTransitionAdapterHandle
 } from './types';
 
-gsap.registerPlugin(ScrollTrigger, useGSAP);
+gsap.registerPlugin(ScrollTrigger);
 
 export function refreshPhoneScrollStage(): void {
   ScrollTrigger.refresh();
@@ -114,7 +118,7 @@ export function usePhoneStageRuntime(
     completeHandlerRef.current?.(direction);
   }, []);
 
-  useGSAP(() => {
+  useLayoutEffect(() => {
     if (!options.enabled) return;
     const root = options.rootRef.current;
     const stageRail = options.railRef.current;
@@ -584,18 +588,14 @@ export function usePhoneStageRuntime(
       delete aodScene.dataset.portraitAodAlpha;
       ScrollTrigger.config({ ignoreMobileResize: false });
     };
-  }, {
-    scope: options.rootRef,
-    dependencies: [
-      options.adapterRevision,
-      options.aodAlphaEndProgress,
-      options.enabled,
-      options.mapAodToMethod,
-      options.onEdgeScene,
-      options.reducedMotion
-    ],
-    revertOnUpdate: true
-  });
+  }, [
+    options.adapterRevision,
+    options.aodAlphaEndProgress,
+    options.enabled,
+    options.mapAodToMethod,
+    options.onEdgeScene,
+    options.reducedMotion
+  ]);
 
   return { onAodProgress, onAodComplete };
 }

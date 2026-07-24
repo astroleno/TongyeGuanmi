@@ -6,19 +6,17 @@ import { hashForScene } from '../navigation';
 import { PhoneStageRail } from './PhoneStageRail';
 import { usePhoneAdapterHandleRef } from './phone-adapter-binding';
 import { phoneMotionDriver } from './phone-gsap-driver';
-import {
-  attachPhoneLoaderVisibilityLifecycle,
-  phoneLoaderCompletedInDocument
-} from './phone-loader-lifecycle';
 import { attachStoryMediaUnlock } from '../mobile-media-unlock';
-import {
-  refreshPhoneScrollStage,
-  usePhoneStageRuntime
-} from './usePhoneStageRuntime';
+import { usePhoneStageRuntime } from './usePhoneStageRuntime';
 import { usePhoneFrontHalfAdapters } from './usePhoneFrontHalfAdapters';
 import { usePhoneEdgeSurface } from './usePhoneEdgeSurface';
 import { usePhoneFixedStageRegistration } from './usePhoneFixedStageRegistration';
 import { usePhoneViewportGeometry } from './usePhoneViewportGeometry';
+import { PhoneGroup67DirectEntry } from './PhoneGroup67DirectEntry';
+import {
+  usePhoneStoryEntry,
+  usePhoneStoryEntryLifecycle
+} from './usePhoneStoryEntry';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -49,8 +47,18 @@ export type PhoneStoryShellProps = Readonly<{
  */
 export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const motionEnabled = portraitSpikeMotionEnabled();
-  const [loaderHidden, setLoaderHidden] = useState(phoneLoaderCompletedInDocument);
-  const frontHalf = usePhoneFrontHalfAdapters(loaderHidden, setLoaderHidden);
+  const entry = usePhoneStoryEntry();
+  const {
+    directGroup67Entry,
+    group67EntryPlan,
+    loaderHidden,
+    setLoaderHidden
+  } = entry;
+  const frontHalf = usePhoneFrontHalfAdapters(
+    loaderHidden,
+    setLoaderHidden,
+    !directGroup67Entry
+  );
   const {
     Loader,
     Hero,
@@ -73,7 +81,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     finishLoader
   } = frontHalf;
   const mapAodToMethod = frontHalf.mapAodToMethod ?? ZERO_METHOD_PROGRESS;
-  const [navigationScene, setNavigationScene] = useState<SceneId>('hero');
+  const [navigationScene, setNavigationScene] = useState<SceneId>(entry.initialScene);
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
   const [adapterRevision, setAdapterRevision] = useState(0);
   const fixedStageRegistered = usePhoneFixedStageRegistration(loaderHidden && ready);
@@ -82,9 +90,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const stageViewportRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
   const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
-  const checkpointRef = useRef<PhoneCheckpointId>(
-    loaderHidden ? 'hero-entered' : 'loader'
-  );
+  const checkpointRef = useRef<PhoneCheckpointId>(entry.initialCheckpoint);
   const checkpointTraceRef = useRef<PhoneCheckpointId[]>([checkpointRef.current]);
   const publishAdapterRevision = useCallback(() => {
     setAdapterRevision((revision) => revision + 1);
@@ -94,7 +100,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     stageRef.current = host;
     if (host) setStageHost(host);
   }, []);
-  const publishEdgeScene = usePhoneEdgeSurface(rootRef, stageViewportRef);
+  const publishEdgeScene = usePhoneEdgeSurface(
+    rootRef, stageViewportRef, entry.initialEdgeScene
+  );
   const [heroAdapterRef, bindHeroAdapter] =
     usePhoneAdapterHandleRef<PhoneHeroAdapterHandle>(publishAdapterRevision);
   const [patternAdapterRef, bindPatternAdapter] =
@@ -130,30 +138,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
 
   usePhoneViewportGeometry(rootRef, motionEnabled);
 
-  useEffect(() => attachPhoneLoaderVisibilityLifecycle(), []);
-
   useEffect(() => attachStoryMediaUnlock(rootRef.current), []);
 
-  useEffect(() => {
-    const documentElement = document.documentElement;
-    documentElement.dataset.portraitSpikeLoader = loaderHidden
-      ? 'ready'
-      : 'active';
-    publishCheckpoint(loaderHidden ? 'hero-entered' : 'loader');
-    if (!loaderHidden) {
-      window.scrollTo(0, 0);
-      return () => {
-        delete documentElement.dataset.portraitSpikeLoader;
-      };
-    }
-    const refreshFrame = window.requestAnimationFrame(
-      refreshPhoneScrollStage
-    );
-    return () => {
-      window.cancelAnimationFrame(refreshFrame);
-      delete documentElement.dataset.portraitSpikeLoader;
-    };
-  }, [loaderHidden, publishCheckpoint]);
+  usePhoneStoryEntryLifecycle(entry, publishCheckpoint, publishEdgeScene);
 
   const navigationVisible = loaderHidden
     && navigationScene !== 'hero' && navigationScene !== 'pattern';
@@ -191,6 +178,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     patternStarMapRef: patternStarMapAdapterRef,
     starMapAodRef: starMapAodAdapterRef,
     enabled: fixedStageRegistered && loaderHidden
+      && !directGroup67Entry
       && ready
       && aodAlphaEndProgress !== undefined
       && !staticFallback,
@@ -208,7 +196,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       ref={rootRef}
       className="portrait-scroll-spike"
       data-portrait-spike-route="b"
-      data-portrait-spike-media="figure1-packed-alpha-pattern-bloom-star-perlin-aod-packed-alpha-autoplay"
+      data-portrait-spike-media={directGroup67Entry
+        ? 'group67-adjacent-packed-alpha-autoplay'
+        : 'figure1-packed-alpha-pattern-bloom-star-perlin-aod-packed-alpha-autoplay'}
       data-portrait-spike-animation="gsap-scrolltrigger-native-fixed-stage"
       data-portrait-spike-motion={motionEnabled ? 'force' : 'reduce'}
       data-portrait-fixed-stage={fixedStageRegistered ? 'registered' : 'priming'}
@@ -218,9 +208,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}
       data-portrait-checkpoint={checkpointRef.current}
       data-portrait-checkpoint-trace={checkpointTraceRef.current.join('>')}
+      data-phone-direct-entry={directGroup67Entry ? 'group67' : undefined}
+      data-phone-direct-entry-scene={group67EntryPlan?.scene}
       hidden={staticFallback}
     >
-      {!loaderHidden && Loader && (
+      {!directGroup67Entry && !loaderHidden && Loader && (
         <Loader
           mode={motionEnabled ? 'cold-hero' : 'reduced'}
           ready={ready}
@@ -234,7 +226,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         viewportRef={stageViewportRef}
         stageRef={bindStageHost}
       >
-        {Hero && (
+        {!directGroup67Entry && Hero && (
           <Hero
             ref={bindHeroAdapter}
             active={loaderHidden}
@@ -243,7 +235,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onReady={markHeroReady}
           />
         )}
-        {Pattern && (
+        {!directGroup67Entry && Pattern && (
           <Pattern
             ref={bindPatternAdapter}
             active={false}
@@ -252,7 +244,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onReady={markPatternReady}
           />
         )}
-        {StarMap && (
+        {!directGroup67Entry && StarMap && (
           <StarMap
             ref={bindStarMapAdapter}
             active={false}
@@ -260,7 +252,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             motionDriver={phoneMotionDriver}
           />
         )}
-        {Aod && (
+        {!directGroup67Entry && Aod && (
           <Aod
             ref={bindAodAdapter}
             active={false}
@@ -269,7 +261,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onAodComplete={runtime.onAodComplete}
           />
         )}
-        {HeroPatternTransition && (
+        {!directGroup67Entry && HeroPatternTransition && (
           <HeroPatternTransition
             ref={bindHeroPatternAdapter}
             host={stageRef.current}
@@ -279,7 +271,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onReady={markHeroPatternReady}
           />
         )}
-        {PatternStarMapTransition && (
+        {!directGroup67Entry && PatternStarMapTransition && (
           <PatternStarMapTransition
             ref={bindPatternStarMapAdapter}
             host={stageRef.current}
@@ -288,7 +280,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             reducedMotion={!motionEnabled}
           />
         )}
-        {StarMapAodTransition && (
+        {!directGroup67Entry && StarMapAodTransition && (
           <StarMapAodTransition
             ref={bindStarMapAodAdapter}
             host={stageRef.current}
@@ -298,7 +290,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           />
         )}
       </PhoneStageRail>
-      {MethodTop && (
+      {!directGroup67Entry && MethodTop && (
         <MethodTop
           ref={bindMethodAdapter}
           active={loaderHidden && modulesReady}
@@ -310,6 +302,14 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           onGradeAEdgeScene={publishEdgeScene}
         />
       )}
+      <PhoneGroup67DirectEntry
+        plan={group67EntryPlan}
+        reducedMotion={!motionEnabled}
+        stageHost={stageHost}
+        onCheckpoint={publishCheckpoint}
+        onEdgeScene={publishEdgeScene}
+        onSceneChange={setNavigationScene}
+      />
       <StoryNav
         currentScene={navigationScene}
         visible={navigationVisible}

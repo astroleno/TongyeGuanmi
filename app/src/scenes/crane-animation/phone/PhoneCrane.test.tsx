@@ -41,6 +41,13 @@ const motionSource = readFileSync(
   new URL('./PhoneCrane.motion.ts', import.meta.url),
   'utf8'
 );
+const cinematicRunSource = readFileSync(
+  new URL(
+    '../../../production/phone/scenes/usePhoneCinematicRun.ts',
+    import.meta.url
+  ),
+  'utf8'
+);
 const css = readFileSync(new URL('./PhoneCrane.css', import.meta.url), 'utf8');
 
 describe('PhoneCrane', () => {
@@ -90,7 +97,7 @@ describe('PhoneCrane', () => {
     expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('beginPreparedReverse');
-    expect(source).toContain("'preparing-reverse'");
+    expect(cinematicRunSource).toContain("'preparing-reverse'");
     expect(source).toContain("phase: 'progress'");
     expect(autoplaySource).toContain('figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE');
     expect(autoplaySource).toContain('figure.currentTime = CRANE_VIDEO_END_SECONDS');

@@ -47,10 +47,24 @@ export const GROUP45_CHECKPOINT_IDS = [
 ] as const;
 
 export type Group45CheckpointId = (typeof GROUP45_CHECKPOINT_IDS)[number];
+
+export const GROUP67_CHECKPOINT_IDS = [
+  'lab-to-ph',
+  'ph-stage',
+  'ph-to-education',
+  'education-reading',
+  'education-to-crane',
+  'crane-stage',
+  'crane-to-contact',
+  'contact-stable'
+] as const;
+
+export type Group67CheckpointId = (typeof GROUP67_CHECKPOINT_IDS)[number];
 export type PhoneCheckpointId =
   | FrontHalfCheckpointId
   | GradeACheckpointId
-  | Group45CheckpointId;
+  | Group45CheckpointId
+  | Group67CheckpointId;
 
 export type SemanticCheckpoint = Readonly<{
   id: FrontHalfCheckpointId;

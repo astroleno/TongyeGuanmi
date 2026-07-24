@@ -7,13 +7,8 @@ import {
   useState
 } from 'react';
 import { createPortal } from 'react-dom';
+import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
-import {
-  parkPhMedia,
-  PH_FRONT_SRC,
-  PH_FIGURE_END_SECONDS,
-  phAnimationScene
-} from '..';
 import type {
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
@@ -30,7 +25,9 @@ import {
   type PhonePackedAlphaSurface,
   type PhonePackedAlphaSurfaceMode
 } from '../../../production/phone/scenes/phone-packed-alpha-surface';
+import { usePhoneCinematicRun } from '../../../production/phone/scenes/usePhoneCinematicRun';
 import {
+  PHONE_PH_FIGURE_END_SECONDS,
   phonePhTimelineProgressForMediaProgress,
   renderPhonePhPresentation,
   type PhonePhPlaybackDirection
@@ -42,6 +39,23 @@ import {
 import './PhonePh.css';
 
 const PHONE_PH_REVERSE_READY_TIMEOUT_MS = 650;
+const PH_MEDIA_KEY = 'ph-figure-motion';
+const PH_BG_SRC = new URL(
+  '../../../../../assets/ph_background.webp',
+  import.meta.url
+).href;
+const PH_FRONT_SRC = new URL(
+  '../../../../../assets/ph_front-alpha.webp',
+  import.meta.url
+).href;
+const PH_FIGURE_VIDEO_SRC = new URL(
+  '../../../../../assets/ph-figure-motion.webm',
+  import.meta.url
+).href;
+const PH_FIGURE_HEVC_ALPHA_SRC = new URL(
+  '../../../../../assets/ph-figure-motion-hevc-alpha.mp4',
+  import.meta.url
+).href;
 const PHONE_PH_PACKED_VIDEO = phoneMediaUrlFor('ph-figure-packed', 'ph-animation');
 
 function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
@@ -74,7 +88,13 @@ export function applyPhonePhMediaFallback(
 
 export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
   const section = rootFor(root);
-  parkPhMedia(section);
+  const video = section?.querySelector<HTMLVideoElement>(
+    '[data-ph-alpha-video]'
+  );
+  if (video) {
+    disposeTimelineVideoDriver(video);
+    video.pause();
+  }
   if (section?.dataset.phonePhMedia !== 'fallback') {
     section?.setAttribute('data-phone-ph-media', 'parked');
   }
@@ -89,38 +109,15 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
   function PhonePh({ active, onReady, reducedMotion }, forwardedRef) {
     const rootRef = useRef<HTMLElement | null>(null);
     const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
-    const [figureCanvasHost, setFigureCanvasHost] = useState<HTMLElement | null>(null);
+    const [figureCanvasHost, setFigureCanvasHost] =
+      useState<HTMLElement | null>(null);
     const nativeAutoplayRef = useRef<PhoneNativeAutoplay | null>(null);
     const reversePlaybackRef = useRef<PhonePhPresentedReverse | null>(null);
     const packedSurfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
     const cancelPackedReleaseRef = useRef<(() => void) | null>(null);
-    const requestedDirectionRef = useRef<PhonePhPlaybackDirection | null>(null);
-    const reverseStartTimerRef = useRef(0);
-    const reverseStartedRef = useRef(false);
-
-    const clearReverseStartTimer = useCallback(() => {
-      if (!reverseStartTimerRef.current) return;
-      window.clearTimeout(reverseStartTimerRef.current);
-      reverseStartTimerRef.current = 0;
-    }, []);
-
-    const beginPreparedReverse = useCallback(() => {
-      const root = rootRef.current;
-      if (
-        !root
-        || requestedDirectionRef.current !== -1
-        || reverseStartedRef.current
-      ) return;
-      clearReverseStartTimer();
-      reverseStartedRef.current = true;
-      root.dataset.phonePhAutoplay = 'playing-reverse';
-      reversePlaybackRef.current?.start();
-      dispatchPhoneLabContactAutoplay(root, {
-        scene: 'ph-animation',
-        phase: 'playing',
-        direction: -1
-      });
-    }, [clearReverseStartTimer]);
+    const beginPreparedReverseRef = useRef<(force?: boolean) => void>(
+      () => undefined
+    );
 
     const ensurePackedSurface = useCallback((mode: PhonePackedAlphaSurfaceMode) => {
       const root = rootRef.current;
@@ -137,19 +134,19 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
           canvas,
           video,
           packedSourceUrl: PHONE_PH_PACKED_VIDEO,
-          endpointSeconds: PH_FIGURE_END_SECONDS,
+          endpointSeconds: PHONE_PH_FIGURE_END_SECONDS,
           statusDataset: 'phonePhAlpha',
           layerName: 'ph-figure',
           canvasClassName: 'ph-layer ph-layer--figure phone-ph__figure-canvas',
           onFrame: () => {
             video.dataset.timelineVideoFrameReady = 'true';
             root.dataset.phonePhMedia = video.paused ? 'ready' : 'playing';
-            beginPreparedReverse();
+            beginPreparedReverseRef.current?.();
           }
         });
       }
       packedSurfaceRef.current.activate(mode);
-    }, [beginPreparedReverse]);
+    }, []);
 
     const render = useCallback((
       rawProgress: number,
@@ -171,84 +168,39 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       }
     }, [reducedMotion]);
 
-    const completeRun = useCallback((direction: PhonePhPlaybackDirection) => {
+    const reverseReady = useCallback(() => {
       const root = rootRef.current;
-      clearReverseStartTimer();
-      reverseStartedRef.current = false;
-      requestedDirectionRef.current = null;
-      root?.setAttribute(
-        'data-phone-ph-autoplay',
-        direction === 1 ? 'complete-forward' : 'complete-reverse'
-      );
-      root?.setAttribute(
-        'data-phone-ph-state',
-        direction === 1 ? 'endpoint' : 'opening'
-      );
-      if (root) {
-        dispatchPhoneLabContactAutoplay(root, {
-          scene: 'ph-animation',
-          phase: 'complete',
-          direction
-        });
-      }
-    }, [clearReverseStartTimer]);
-
-    const startRun = useCallback((direction: PhonePhPlaybackDirection) => {
+      return root?.dataset.phonePhAlpha === 'verified'
+        && figureCanvasRef.current?.dataset.packedAlphaFrameReady === 'true';
+    }, []);
+    const beforeForward = useCallback(() => {
       const root = rootRef.current;
-      if (!root) return;
-      requestedDirectionRef.current = direction;
-      root.setAttribute(
-        'data-phone-ph-autoplay',
-        direction === 1 ? 'starting-forward' : 'starting-reverse'
+      const video = root?.querySelector<HTMLVideoElement>(
+        '[data-ph-alpha-video]'
       );
-      dispatchPhoneLabContactAutoplay(root, {
-        scene: 'ph-animation',
-        phase: 'start',
-        direction
-      });
-      if (reducedMotion) {
-        render(direction === 1 ? 1 : 0, direction);
-        completeRun(direction);
-        return;
-      }
-      if (direction === 1) {
-        clearReverseStartTimer();
-        reverseStartedRef.current = false;
-        reversePlaybackRef.current?.stop();
-        ensurePackedSurface('forward');
-        const video = root.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
-        if (video) disposeTimelineVideoDriver(video);
-        root.style.setProperty('--ph-video-opacity', '1');
-        nativeAutoplayRef.current?.start();
-      } else {
-        nativeAutoplayRef.current?.stop();
-        root.querySelector<HTMLVideoElement>('[data-ph-alpha-video]')?.pause();
-        clearReverseStartTimer();
-        reverseStartedRef.current = false;
-        root.dataset.phonePhAutoplay = 'preparing-reverse';
-        ensurePackedSurface('endpoint');
-        if (reverseStartedRef.current) return;
-        const canvas = figureCanvasRef.current;
-        if (
-          root.dataset.phonePhAlpha === 'verified'
-          && canvas?.dataset.packedAlphaFrameReady === 'true'
-        ) {
-          beginPreparedReverse();
-        } else {
-          reverseStartTimerRef.current = window.setTimeout(
-            beginPreparedReverse,
-            PHONE_PH_REVERSE_READY_TIMEOUT_MS
-          );
-        }
-      }
-    }, [
-      beginPreparedReverse,
-      clearReverseStartTimer,
-      completeRun,
-      ensurePackedSurface,
+      if (video) disposeTimelineVideoDriver(video);
+      root?.style.setProperty('--ph-video-opacity', '1');
+    }, []);
+    const beforeReverse = useCallback(() => {
+      const root = rootRef.current;
+      root?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]')?.pause();
+    }, []);
+    const run = usePhoneCinematicRun({
+      scene: 'ph-animation',
+      stateKey: 'ph',
+      rootRef,
+      forwardRef: nativeAutoplayRef,
+      reverseRef: reversePlaybackRef,
       reducedMotion,
-      render
-    ]);
+      terminalProgress: 1,
+      reverseTimeoutMs: PHONE_PH_REVERSE_READY_TIMEOUT_MS,
+      reverseReady,
+      activateSurface: ensurePackedSurface,
+      render,
+      beforeForward,
+      beforeReverse
+    });
+    beginPreparedReverseRef.current = run.beginPreparedReverse;
 
     useEffect(() => {
       const root = rootRef.current;
@@ -266,46 +218,41 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       ensurePackedSurface(reducedMotion ? 'endpoint' : 'forward');
       const nativeAutoplay = createPhoneNativeAutoplay(video, {
         runIdPrefix: 'phone-ph-figure',
-        durationSeconds: PH_FIGURE_END_SECONDS,
+        durationSeconds: PHONE_PH_FIGURE_END_SECONDS,
         onProgress: (progress) => render(
           phonePhTimelineProgressForMediaProgress(progress),
           1
         ),
-        onComplete: () => completeRun(1),
+        onComplete: () => run.completeRun(1),
         onFailure: () => {
           applyPhonePhMediaFallback(root);
-          completeRun(1);
+          run.completeRun(1);
         },
         onFrameReady: () => {
           root.dataset.phonePhMedia = 'decoding';
-          dispatchPhoneLabContactAutoplay(root, {
-            scene: 'ph-animation',
-            phase: 'playing',
-            direction: 1
-          });
+          run.publishPlaying();
         }
       });
       const reversePlayback = createPhonePhPresentedReverse(
         root,
         render,
-        () => completeRun(-1),
+        () => run.completeRun(-1),
         () => {
           applyPhonePhMediaFallback(root);
-          completeRun(-1);
+          run.completeRun(-1);
         }
       );
       nativeAutoplayRef.current = nativeAutoplay;
       reversePlaybackRef.current = reversePlayback;
       root.dataset.phonePhLifecycle = 'ready';
-      const requestedDirection = requestedDirectionRef.current;
-      if (requestedDirection !== null) startRun(requestedDirection);
+      const requestedDirection = run.requestedRef.current;
+      if (requestedDirection !== null) run.startRun(requestedDirection);
       onReady?.();
 
       return () => {
         nativeAutoplay.dispose();
         reversePlayback?.dispose();
-        clearReverseStartTimer();
-        reverseStartedRef.current = false;
+        run.stopRun();
         cancelPackedReleaseRef.current?.();
         cancelPackedReleaseRef.current = null;
         packedSurfaceRef.current?.dispose();
@@ -319,13 +266,11 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         root.style.removeProperty('--phone-ph-island-source');
       };
     }, [
-      clearReverseStartTimer,
-      completeRun,
       ensurePackedSurface,
       figureCanvasHost,
       onReady,
       render,
-      startRun
+      run
     ]);
 
     useEffect(() => {
@@ -336,25 +281,17 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
       update(progress) {
-        requestedDirectionRef.current = null;
-        clearReverseStartTimer();
-        reverseStartedRef.current = false;
-        nativeAutoplayRef.current?.stop();
-        reversePlaybackRef.current?.stop();
+        run.stopRun();
         ensurePackedSurface(progress >= 0.999 ? 'endpoint' : 'forward');
         render(progress);
       },
       enter() {
         rootRef.current?.removeAttribute('aria-hidden');
         rootRef.current?.setAttribute('data-phone-ph-state', 'entered');
-        startRun(1);
+        run.startRun(1);
       },
       leave() {
-        requestedDirectionRef.current = null;
-        clearReverseStartTimer();
-        reverseStartedRef.current = false;
-        nativeAutoplayRef.current?.stop();
-        reversePlaybackRef.current?.stop();
+        run.stopRun();
         parkPhonePhMedia(rootRef.current);
         rootRef.current?.setAttribute('data-phone-ph-state', 'parked');
         const root = rootRef.current;
@@ -368,29 +305,17 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       },
       reverse() {
         rootRef.current?.setAttribute('data-phone-ph-state', 'reversing');
-        startRun(-1);
+        run.startRun(-1);
       },
       dispose() {
-        requestedDirectionRef.current = null;
-        clearReverseStartTimer();
-        reverseStartedRef.current = false;
-        nativeAutoplayRef.current?.dispose();
-        reversePlaybackRef.current?.dispose();
+        run.disposeRun();
         cancelPackedReleaseRef.current?.();
         cancelPackedReleaseRef.current = null;
         packedSurfaceRef.current?.dispose();
         packedSurfaceRef.current = null;
         parkPhonePhMedia(rootRef.current);
       }
-    }), [clearReverseStartTimer, ensurePackedSurface, render, startRun]);
-
-    const PhSurface = phAnimationScene.Component;
-    const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
-      if (name === 'field') rootRef.current = element;
-      if (name !== 'figure-video' || !element) return;
-      const host = element.parentElement;
-      setFigureCanvasHost((current) => current === host ? current : host);
-    }, []);
+    }), [ensurePackedSurface, render, run]);
 
     return (
       <>
@@ -400,11 +325,52 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
           data-phone-input-owner="none"
           aria-hidden="true"
         >
-          <PhSurface
-            scene={phAnimationScene.id}
-            hidden={false}
-            registerHandle={registerHandle}
-          />
+          <article
+            ref={rootRef}
+            className="ph-page r4-ph-animation"
+            data-r4-scene="ph-animation"
+            data-ph-stage
+            aria-label="Pythagoreans Hymn visual scene"
+          >
+            <div className="ph-scroll">
+              <div className="ph-sticky">
+                <div className="ph-field">
+                  <img className="ph-bg" src={PH_BG_SRC} alt="" aria-hidden="true" />
+                  <div className="ph-paper" aria-hidden="true" />
+                  <div className="ph-sun-wash" aria-hidden="true" />
+                  <div className="ph-layer-stack" aria-hidden="true">
+                    <img
+                      className="ph-layer ph-layer--front"
+                      src={PH_FRONT_SRC}
+                      alt=""
+                    />
+                    <video
+                      ref={(element) => {
+                        const host = element?.parentElement ?? null;
+                        setFigureCanvasHost((current) => (
+                          current === host ? current : host
+                        ));
+                      }}
+                      className="ph-layer ph-layer--figure"
+                      data-ph-alpha-video
+                      data-media-key={PH_MEDIA_KEY}
+                      muted
+                      preload="auto"
+                      playsInline
+                    >
+                      <AlphaVideoSources
+                        webm={PH_FIGURE_VIDEO_SRC}
+                        hevc={PH_FIGURE_HEVC_ALPHA_SRC}
+                      />
+                    </video>
+                  </div>
+                  <div className="ph-edge-light" aria-hidden="true" />
+                  <div className="ph-texture" aria-hidden="true" />
+                  <div className="ph-progress" aria-hidden="true"><span /></div>
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
         {figureCanvasHost ? createPortal(
           <canvas

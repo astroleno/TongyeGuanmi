@@ -18,6 +18,10 @@ describe('phone edge surface contract', () => {
     expect(phoneEdgeSurfaceForScene('services')).toBe('#ede4d2');
     expect(phoneEdgeSurfaceForScene('ttg')).toBe('#080d10');
     expect(phoneEdgeSurfaceForScene('lab')).toBe('#ede4d2');
+    expect(phoneEdgeSurfaceForScene('ph')).toBe('#9889a5');
+    expect(phoneEdgeSurfaceForScene('education')).toBe('#ede4d2');
+    expect(phoneEdgeSurfaceForScene('crane')).toBe('#ede4d2');
+    expect(phoneEdgeSurfaceForScene('contact')).toBe('#ede4d2');
   });
 
   it('has no validation-route branch in the production edge contract', () => {
@@ -37,7 +41,11 @@ describe('phone edge surface contract', () => {
       'figure3',
       'services',
       'ttg',
-      'lab'
+      'lab',
+      'ph',
+      'education',
+      'crane',
+      'contact'
     ];
     for (const scene of unaffectedScenes) {
       expect(phoneEdgeSurfaceForScene(scene))

@@ -1,4 +1,10 @@
-import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef
+} from 'react';
 import type { InkFieldSpec } from '../../../transitions/shared/inkField';
 import type { InkGradePreset } from '../../../transitions/shared/sceneInk';
 import { createPhoneInkTransition, type PhoneInkTransition } from '../phone-ink';
@@ -25,6 +31,15 @@ export function createPhoneInkAdapter(options: Readonly<{
   portraitInk?: string;
   reducedMotionStrategy?: 'receiver' | 'boundary';
   releaseBoundaryGeometryAtEndpoints?: boolean;
+  maskSource?: boolean;
+  releaseOnLeave?: boolean;
+  reverseProgress?: 0 | 1;
+  renderFrame?: (
+    from: HTMLElement | null,
+    to: HTMLElement | null,
+    progress: number,
+    reducedMotion: boolean
+  ) => number;
 }>): PhoneTransitionAdapterComponent {
   return forwardRef<PhoneTransitionAdapterHandle, PhoneTransitionAdapterProps>(function PhoneInkTransition(
     { host, from, to, reducedMotion, onReady },
@@ -32,14 +47,23 @@ export function createPhoneInkAdapter(options: Readonly<{
   ) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const transitionRef = useRef<PhoneInkTransition | undefined>(undefined);
-    useLayoutEffect(() => {
+    const release = useCallback(() => {
+      transitionRef.current?.dispose();
+      transitionRef.current = undefined;
+      if (options.releaseOnLeave && canvasRef.current) {
+        canvasRef.current.width = 1;
+        canvasRef.current.height = 1;
+      }
+    }, []);
+    const ensure = useCallback(() => {
+      if (transitionRef.current) return transitionRef.current;
       const canvas = canvasRef.current;
-      if (!host || !to || !canvas) return;
+      if (!host || !to || !canvas) return undefined;
       const transition = createPhoneInkTransition({
         host,
         canvas,
         id: options.id,
-        from,
+        from: options.maskSource === false ? null : from,
         to,
         field: options.field,
         ...(options.grade ? { grade: options.grade } : {}),
@@ -48,45 +72,35 @@ export function createPhoneInkAdapter(options: Readonly<{
           : {})
       });
       transitionRef.current = transition;
-      transition.render(phoneInkAdapterProgress(
-        0,
-        reducedMotion,
-        options.reducedMotionStrategy
-      ));
+      return transition;
+    }, [from, host, to]);
+    const render = useCallback((progress: number) => {
+      const sampled = options.renderFrame
+        ? options.renderFrame(from, to, progress, reducedMotion)
+        : phoneInkAdapterProgress(
+            progress,
+            reducedMotion,
+            options.reducedMotionStrategy
+          );
+      ensure()?.render(sampled);
+    }, [ensure, from, reducedMotion, to]);
+    useLayoutEffect(() => {
+      const canvas = canvasRef.current;
+      if (!host || !to || !canvas) return;
+      render(0);
       onReady?.();
-      return () => {
-        transition.dispose();
-        if (transitionRef.current === transition) transitionRef.current = undefined;
-      };
-    }, [from, host, onReady, reducedMotion, to]);
+      return release;
+    }, [host, onReady, release, render, to]);
     useImperativeHandle(forwardedRef, () => ({
-      render(progress) {
-        transitionRef.current?.render(phoneInkAdapterProgress(
-          progress,
-          reducedMotion,
-          options.reducedMotionStrategy
-        ));
+      render,
+      enter() { render(0); },
+      leave() {
+        render(1);
+        if (options.releaseOnLeave) release();
       },
-      enter() {
-        transitionRef.current?.render(phoneInkAdapterProgress(
-          0,
-          reducedMotion,
-          options.reducedMotionStrategy
-        ));
-      },
-      leave() { transitionRef.current?.render(1); },
-      reverse() {
-        transitionRef.current?.render(phoneInkAdapterProgress(
-          0,
-          reducedMotion,
-          options.reducedMotionStrategy
-        ));
-      },
-      dispose() {
-        transitionRef.current?.dispose();
-        transitionRef.current = undefined;
-      }
-    }), [reducedMotion]);
+      reverse() { render(options.reverseProgress ?? 0); },
+      dispose: release
+    }), [release, render]);
     return (
       <canvas
         ref={canvasRef}

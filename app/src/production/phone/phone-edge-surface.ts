@@ -10,7 +10,11 @@ export type PhoneEdgeScene =
   | 'figure3'
   | 'services'
   | 'ttg'
-  | 'lab';
+  | 'lab'
+  | 'ph'
+  | 'education'
+  | 'crane'
+  | 'contact';
 
 export const PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#8f7f61';
 
@@ -28,7 +32,11 @@ export const PHONE_EDGE_SURFACE_BY_SCENE: Readonly<
   figure3: '#ede4d2',
   services: '#ede4d2',
   ttg: '#080d10',
-  lab: '#ede4d2'
+  lab: '#ede4d2',
+  ph: '#9889a5',
+  education: '#ede4d2',
+  crane: '#ede4d2',
+  contact: '#ede4d2'
 };
 
 export function phoneEdgeSurfaceForScene(

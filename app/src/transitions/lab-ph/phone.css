@@ -3,7 +3,8 @@
   background: transparent;
 }
 
-.phone-lab-contact__stage--ph > .r4-ink-transition-canvas.phone-lab-ph__ink {
+.phone-lab-contact__stage--ph > .r4-ink-transition-canvas.phone-lab-ph__ink,
+.phone-group67__stage--ph > .r4-ink-transition-canvas.phone-lab-ph__ink {
   position: absolute;
   z-index: 8;
   inset: 0;

@@ -28,6 +28,13 @@ const nativeClockSource = readFileSync(
   new URL('../../../production/phone/phone-native-autoplay.ts', import.meta.url),
   'utf8'
 );
+const cinematicRunSource = readFileSync(
+  new URL(
+    '../../../production/phone/scenes/usePhoneCinematicRun.ts',
+    import.meta.url
+  ),
+  'utf8'
+);
 const css = readFileSync(new URL('./PhonePh.css', import.meta.url), 'utf8');
 
 describe('PhonePh', () => {
@@ -82,13 +89,14 @@ describe('PhonePh', () => {
     expect(source).toContain('createPortal');
     expect(source).toContain('figureCanvasRef');
     expect(source).toContain("phoneMediaUrlFor('ph-figure-packed'");
-    expect(source).toContain("ensurePackedSurface('endpoint')");
+    expect(source).toContain('activateSurface: ensurePackedSurface');
+    expect(cinematicRunSource).toContain("options.activateSurface('endpoint')");
     expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
     expect(source).toContain('PH_FIGURE_END_SECONDS');
     expect(source).toContain('createPhonePhPresentedReverse');
     expect(source).toContain('beginPreparedReverse');
     expect(source).toContain("phase: 'progress'");
-    expect(source).toContain("'preparing-reverse'");
+    expect(cinematicRunSource).toContain("'preparing-reverse'");
     expect(motionSource).toContain("'presented-frame-reverse'");
     expect(reverseSource).toContain('createPhonePresentedReversePlayback');
     expect(reverseSource).toContain('prepareTimelineVideoFrame');

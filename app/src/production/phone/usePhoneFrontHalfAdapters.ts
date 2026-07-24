@@ -117,23 +117,28 @@ export type PhoneFrontHalfAdapterState = FrontHalfModules & Readonly<{
  */
 export function usePhoneFrontHalfAdapters(
   loaderHidden: boolean,
-  setLoaderHidden: Dispatch<SetStateAction<boolean>>
+  setLoaderHidden: Dispatch<SetStateAction<boolean>>,
+  enabled = true
 ): PhoneFrontHalfAdapterState {
-  const [modules, setModules] = useState<FrontHalfModules>(resolvedFrontHalfModules);
+  const [modules, setModules] = useState<FrontHalfModules>(
+    resolvedFrontHalfModules
+  );
   const [failed, setFailed] = useState(false);
   const [heroReady, setHeroReady] = useState(false);
   const [heroPatternReady, setHeroPatternReady] = useState(false);
   const [patternReady, setPatternReady] = useState(false);
   const [staticFallback, setStaticFallback] = useState(false);
-  const modulesReady = frontHalfModulesReady(modules);
-  const ready = modulesReady && phoneFrontHalfInitialVisualsReady(
-    heroReady,
-    heroPatternReady,
-    patternReady
+  const modulesReady = !enabled || frontHalfModulesReady(modules);
+  const ready = !enabled || (
+    modulesReady && phoneFrontHalfInitialVisualsReady(
+      heroReady,
+      heroPatternReady,
+      patternReady
+    )
   );
 
   useEffect(() => {
-    if (modulesReady) return;
+    if (!enabled || modulesReady) return;
     let current = true;
     const loads = [
       loadPhoneLoaderAdapter(),
@@ -152,16 +157,17 @@ export function usePhoneFrontHalfAdapters(
     return () => {
       current = false;
     };
-  }, [modulesReady]);
+  }, [enabled, modulesReady]);
 
   useEffect(() => {
+    if (!enabled) return;
     if (phoneFrontHalfNeedsStaticFallback(undefined, loaderHidden, failed)) {
       setStaticFallback(true);
     }
-  }, [failed, loaderHidden]);
+  }, [enabled, failed, loaderHidden]);
 
   useEffect(() => {
-    if (!staticFallback) return;
+    if (!enabled || !staticFallback) return;
     const documentElement = document.documentElement;
     document.getElementById('story-loader-static')?.remove();
     delete documentElement.dataset.portraitSpike;
@@ -170,7 +176,7 @@ export function usePhoneFrontHalfAdapters(
     return () => {
       delete documentElement.dataset.phoneStoryFallback;
     };
-  }, [staticFallback]);
+  }, [enabled, staticFallback]);
 
   const markHeroReady = useCallback(() => setHeroReady(true), []);
   const markHeroPatternReady = useCallback(() => setHeroPatternReady(true), []);

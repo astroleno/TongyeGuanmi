@@ -1,8 +1,11 @@
-import { CRANE_TIMELINE_DURATION_SECONDS } from '..';
+import { CRANE_CONTACT_DURATION_MS } from '../../../story/timings';
 
 const FIGURE_START_SECONDS = 0.5;
 const FIGURE_FULLSCREEN_SECONDS = FIGURE_START_SECONDS + 1;
 const FLOCK_END_SECONDS = 2.5;
+export const PHONE_CRANE_TIMELINE_DURATION_SECONDS =
+  CRANE_CONTACT_DURATION_MS / 1000;
+export const PHONE_CRANE_VIDEO_END_SECONDS = 2.467;
 /*
  * At packed frame 45 (≈1.5s), the flock matte reaches y=0. Growing the
  * retained-height camera from .57 to 1 places that edge 10.95lvh below the
@@ -75,7 +78,7 @@ export function renderPhoneCranePresentation(
   if (!section) return;
   const timelineProgress = clamp(rawProgress);
   const progress = acceleratedProgress(timelineProgress);
-  const time = timelineProgress * CRANE_TIMELINE_DURATION_SECONDS;
+  const time = timelineProgress * PHONE_CRANE_TIMELINE_DURATION_SECONDS;
   const grow = smoothStep(range01(
     time,
     FIGURE_START_SECONDS,

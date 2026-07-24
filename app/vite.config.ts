@@ -143,7 +143,22 @@ export default defineConfig({
     manifest: true,
     minify: 'terser',
     terserOptions: {
-      compress: { passes: 2 }
+      ecma: 2020,
+      module: true,
+      compress: {
+        ecma: 2020,
+        passes: 3,
+        unsafe_arrows: true
+      },
+      format: { ecma: 2020 },
+      mangle: {
+        properties: {
+          // These fields are private to React DOM's Fiber graph. Keeping the
+          // allow-list explicit avoids rewriting application/adapter contracts
+          // that cross lazy chunk boundaries.
+          regex: /^(?:memoizedState|flags|stateNode|sibling|alternate|lanes|updateQueue|memoizedProps|pendingProps|subtreeFlags|childLanes)$/
+        }
+      }
     },
     assetsInlineLimit: 0,
     cssCodeSplit: true,
