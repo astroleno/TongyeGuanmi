@@ -152,7 +152,9 @@ export function createPhoneCraneForwardRun(
   const markFrameReady = (video: HTMLVideoElement, owner: 'figure' | 'flock') => {
     video.dataset.phoneCraneFrameReady = 'true';
     video.dataset.timelineVideoFrameReady = 'true';
-    video.dataset.phoneCraneNativePlayback = `playing-${owner}`;
+    if (import.meta.env.DEV) {
+      video.dataset.phoneCraneNativePlayback = `playing-${owner}`;
+    }
     root.dataset.phoneCraneMedia = 'playing';
     if (owner === 'flock' && !firstVisibleFrameReady) {
       firstVisibleFrameReady = true;
@@ -225,7 +227,9 @@ export function createPhoneCraneForwardRun(
         } catch {
           // Metadata may still be pending; the native clock remains at zero.
         }
-        root.dataset.phoneCraneFigurePreroll = 'released';
+        if (import.meta.env.DEV) {
+          root.dataset.phoneCraneFigurePreroll = 'released';
+        }
       }
     },
     // The safe video endpoint is 33ms shorter than the authored flock lane.
@@ -254,7 +258,7 @@ export function createPhoneCraneForwardRun(
       delete figure.dataset.phoneCraneFrameReady;
       delete flock.dataset.timelineVideoFrameReady;
       delete figure.dataset.timelineVideoFrameReady;
-      delete root.dataset.phoneCraneFigurePreroll;
+      if (import.meta.env.DEV) delete root.dataset.phoneCraneFigurePreroll;
       render(0, 1);
       figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE;
       flock.playbackRate = PHONE_CRANE_FLOCK_PLAYBACK_RATE;
@@ -265,14 +269,14 @@ export function createPhoneCraneForwardRun(
       active = false;
       flockClock.stop();
       figureClock.stop();
-      delete root.dataset.phoneCraneFigurePreroll;
+      if (import.meta.env.DEV) delete root.dataset.phoneCraneFigurePreroll;
     },
     dispose() {
       active = false;
       disposed = true;
       flockClock.dispose();
       figureClock.dispose();
-      delete root.dataset.phoneCraneFigurePreroll;
+      if (import.meta.env.DEV) delete root.dataset.phoneCraneFigurePreroll;
     }
   };
 }
@@ -301,7 +305,7 @@ export function createPhoneCranePresentedReverse(
     onComplete,
     onError: onFailure,
     onStatus: (status) => {
-      root.dataset.phoneCraneReverse = status;
+      if (import.meta.env.DEV) root.dataset.phoneCraneReverse = status;
     }
   });
 
@@ -318,7 +322,7 @@ export function createPhoneCranePresentedReverse(
     stop: playback.stop,
     dispose() {
       playback.dispose();
-      delete root.dataset.phoneCraneReverse;
+      if (import.meta.env.DEV) delete root.dataset.phoneCraneReverse;
     }
   };
 }

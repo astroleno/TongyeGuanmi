@@ -8,6 +8,10 @@ export type PhonePackedAlphaSurfaceMode = 'forward' | 'endpoint';
 
 export type PhonePackedAlphaSurface = Readonly<{
   activate(mode?: PhonePackedAlphaSurfaceMode): void;
+  prepare(
+    mode?: PhonePackedAlphaSurfaceMode,
+    signal?: AbortSignal
+  ): Promise<void>;
   release(): void;
   dispose(): void;
 }>;
@@ -24,6 +28,13 @@ type PhonePackedAlphaSurfaceOptions = Readonly<{
   canvasClassName: string;
   frameTimeoutMs?: number;
   onFrame?: () => void;
+}>;
+
+type PhonePackedAlphaPreparation = Readonly<{
+  resolve(): void;
+  reject(error: Error | DOMException): void;
+  signal?: AbortSignal;
+  onAbort(): void;
 }>;
 
 const DEFAULT_FRAME_TIMEOUT_MS = 3000;
@@ -66,6 +77,50 @@ export function createPhonePackedAlphaSurface(
   let compositor: PackedAlphaVideoCompositor | undefined;
   let frameTimeout: ReturnType<typeof globalThis.setTimeout> | undefined;
   let endpointSeek: (() => void) | undefined;
+  let preparationPrime = 0;
+  let preparationPrimeActive = false;
+  const preparations = new Set<PhonePackedAlphaPreparation>();
+
+  const stopPreparationPrime = () => {
+    preparationPrime += 1;
+    if (!preparationPrimeActive) return;
+    preparationPrimeActive = false;
+    video.pause();
+  };
+  const primePreparationFrame = () => {
+    if (
+      disposed
+      || preparationPrimeActive
+      || preparations.size === 0
+      || root.dataset[statusDataset] === 'verified'
+      || typeof video.play !== 'function'
+    ) return;
+    const attempt = ++preparationPrime;
+    preparationPrimeActive = true;
+    let playback: Promise<void> | undefined;
+    try {
+      playback = video.play();
+    } catch {
+      playback = Promise.reject(new Error(
+        `${layerName} packed-alpha preparation play failed`
+      ));
+    }
+    void Promise.resolve(playback).catch(() => {
+        if (attempt !== preparationPrime || !preparationPrimeActive) return;
+        preparationPrimeActive = false;
+    });
+  };
+  const settlePreparations = (
+    error?: Error | DOMException
+  ) => {
+    stopPreparationPrime();
+    for (const preparation of preparations) {
+      preparation.signal?.removeEventListener('abort', preparation.onAbort);
+      if (error) preparation.reject(error);
+      else preparation.resolve();
+    }
+    preparations.clear();
+  };
 
   const clearEndpointSeek = () => {
     if (!endpointSeek) return;
@@ -109,6 +164,7 @@ export function createPhonePackedAlphaSurface(
     // playback. Releasing the source here left the later autoplay owner with
     // an empty video and made the snap look permanently frozen.
     root.dataset[statusDataset] = 'static-fallback';
+    settlePreparations(new Error(`${layerName} packed-alpha presentation failed`));
   };
 
   const deferForwardProbeUntilPlayback = () => {
@@ -119,95 +175,156 @@ export function createPhonePackedAlphaSurface(
     // likewise retains one decoder/Canvas pair until its native run starts.
     // Unit 6 must not treat a pre-gesture frame timeout as media failure.
     root.dataset[statusDataset] = 'awaiting-native-playback';
+    if (preparations.size) {
+      settlePreparations(new Error(
+        `${layerName} packed-alpha first frame was not presented`
+      ));
+    }
   };
 
   const release = () => {
+    settlePreparations(new DOMException(
+      `${layerName} packed-alpha presentation retired`,
+      'AbortError'
+    ));
     clearPresentation();
     releaseVideoSource(video);
     mode = undefined;
   };
 
-  return {
-    activate(nextMode = 'forward') {
-      if (disposed || mode === nextMode) return;
-      release();
-      mode = nextMode;
+  const activate = (nextMode: PhonePackedAlphaSurfaceMode = 'forward') => {
+    if (disposed || mode === nextMode) return;
+    release();
+    mode = nextMode;
 
-      canvas = options.canvas ?? root.ownerDocument.createElement('canvas');
-      canvas.className = options.canvasClassName;
-      canvas.setAttribute('aria-hidden', 'true');
-      canvas.dataset.phonePackedAlphaCanvas = layerName;
-      if (ownsCanvas) container.append(canvas);
+    canvas = options.canvas ?? root.ownerDocument.createElement('canvas');
+    canvas.className = options.canvasClassName;
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.dataset.phonePackedAlphaCanvas = layerName;
+    if (ownsCanvas) container.append(canvas);
 
-      compositor = createPackedAlphaVideoCompositor({
-        video,
-        canvas,
-        onFrame: () => {
-          if (video.dataset.packedAlphaSource !== 'rgb-alpha-side-by-side') return;
-          if (
-            mode === 'endpoint'
-            && Math.abs(video.currentTime - options.endpointSeconds)
-              > ENDPOINT_FRAME_TOLERANCE_SECONDS
-          ) {
-            return;
-          }
-          if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-          frameTimeout = undefined;
-          root.dataset[statusDataset] = 'verified';
-          options.onFrame?.();
-        }
-      });
-      const compositorStatus = canvas.dataset.packedAlphaStatus;
-      if (
-        compositorStatus === 'webgl-unavailable'
-        || compositorStatus === 'setup-failed'
-      ) {
-        video.dataset.phonePackedAlphaOwner = layerName;
-        setPackedAlphaVideoSource(video, options.packedSourceUrl);
-        settleStaticFallback();
-        return;
-      }
-      root.dataset[statusDataset] = 'probing';
-      video.dataset.phonePackedAlphaOwner = layerName;
-
-      if (nextMode === 'endpoint') {
-        endpointSeek = () => {
-          if (mode !== 'endpoint' || video.readyState < HAVE_METADATA) return;
-          const endpoint = Number.isFinite(video.duration) && video.duration > 0
-            ? Math.min(options.endpointSeconds, Math.max(0, video.duration - 1 / 120))
-            : options.endpointSeconds;
-          try {
-            if (Math.abs(video.currentTime - endpoint) > 0.002) {
-              video.currentTime = endpoint;
-            } else {
-              compositor?.render();
-            }
-          } catch {
-            // Metadata can race source replacement on Safari; loadeddata retries.
-          }
-        };
-        video.addEventListener('loadedmetadata', endpointSeek);
-        video.addEventListener('loadeddata', endpointSeek);
-      }
-
-      setPackedAlphaVideoSource(video, options.packedSourceUrl);
-      if (nextMode === 'endpoint') {
-        endpointSeek?.();
-      } else {
-        try {
-          video.currentTime = 0;
-        } catch {
-          // loadeddata presents frame zero after the new source is ready.
-        }
-      }
-      frameTimeout = globalThis.setTimeout(() => {
-        if (root.dataset[statusDataset] === 'verified') return;
-        if (mode === 'forward') {
-          deferForwardProbeUntilPlayback();
+    compositor = createPackedAlphaVideoCompositor({
+      video,
+      canvas,
+      onFrame: () => {
+        if (video.dataset.packedAlphaSource !== 'rgb-alpha-side-by-side') return;
+        if (
+          mode === 'endpoint'
+          && Math.abs(video.currentTime - options.endpointSeconds)
+            > ENDPOINT_FRAME_TOLERANCE_SECONDS
+        ) {
           return;
         }
-        settleStaticFallback();
-      }, options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS);
+        if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
+        frameTimeout = undefined;
+        root.dataset[statusDataset] = 'verified';
+        options.onFrame?.();
+        settlePreparations();
+      }
+    });
+    const compositorStatus = canvas.dataset.packedAlphaStatus;
+    if (
+      compositorStatus === 'webgl-unavailable'
+      || compositorStatus === 'setup-failed'
+    ) {
+      video.dataset.phonePackedAlphaOwner = layerName;
+      setPackedAlphaVideoSource(video, options.packedSourceUrl);
+      settleStaticFallback();
+      return;
+    }
+    root.dataset[statusDataset] = 'probing';
+    video.dataset.phonePackedAlphaOwner = layerName;
+
+    if (nextMode === 'endpoint') {
+      endpointSeek = () => {
+        if (mode !== 'endpoint' || video.readyState < HAVE_METADATA) return;
+        const endpoint = Number.isFinite(video.duration) && video.duration > 0
+          ? Math.min(options.endpointSeconds, Math.max(0, video.duration - 1 / 120))
+          : options.endpointSeconds;
+        try {
+          if (Math.abs(video.currentTime - endpoint) > 0.002) {
+            video.currentTime = endpoint;
+          } else {
+            compositor?.render();
+          }
+        } catch {
+          // Metadata can race source replacement on Safari; loadeddata retries.
+        }
+      };
+      video.addEventListener('loadedmetadata', endpointSeek);
+      video.addEventListener('loadeddata', endpointSeek);
+    }
+
+    setPackedAlphaVideoSource(video, options.packedSourceUrl);
+    if (nextMode === 'endpoint') {
+      endpointSeek?.();
+    } else {
+      try {
+        video.currentTime = 0;
+      } catch {
+        // loadeddata presents frame zero after the new source is ready.
+      }
+    }
+    frameTimeout = globalThis.setTimeout(() => {
+      if (root.dataset[statusDataset] === 'verified') return;
+      if (mode === 'forward') {
+        deferForwardProbeUntilPlayback();
+        return;
+      }
+      settleStaticFallback();
+    }, options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS);
+  };
+
+  return {
+    activate,
+    prepare(nextMode = 'forward', signal) {
+      if (disposed) {
+        return Promise.reject(new Error(
+          `${layerName} packed-alpha surface is disposed`
+        ));
+      }
+      if (
+        mode === nextMode
+        && (
+          root.dataset[statusDataset] === 'awaiting-native-playback'
+          || root.dataset[statusDataset] === 'static-fallback'
+        )
+      ) {
+        release();
+      }
+      activate(nextMode);
+      if (root.dataset[statusDataset] === 'verified') {
+        return Promise.resolve();
+      }
+      if (root.dataset[statusDataset] === 'static-fallback') {
+        return Promise.reject(new Error(
+          `${layerName} packed-alpha presentation failed`
+        ));
+      }
+      if (signal?.aborted) {
+        return Promise.reject(new DOMException(
+          `${layerName} packed-alpha presentation aborted`,
+          'AbortError'
+        ));
+      }
+      return new Promise<void>((resolve, reject) => {
+        const preparation: PhonePackedAlphaPreparation = {
+          resolve,
+          reject,
+          ...(signal ? { signal } : {}),
+          onAbort() {
+            preparations.delete(preparation);
+            if (preparations.size === 0) stopPreparationPrime();
+            reject(new DOMException(
+              `${layerName} packed-alpha presentation aborted`,
+              'AbortError'
+            ));
+          }
+        };
+        preparations.add(preparation);
+        signal?.addEventListener('abort', preparation.onAbort, { once: true });
+        primePreparationFrame();
+      });
     },
     release,
     dispose() {

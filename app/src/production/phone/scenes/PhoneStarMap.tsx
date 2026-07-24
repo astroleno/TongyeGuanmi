@@ -133,7 +133,9 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
       delete canvas.dataset.portraitStarCamera;
       delete canvas.dataset.portraitStarPerlinActive;
       delete canvas.dataset.portraitStarPerlinRevision;
-      delete canvas.dataset.portraitStarPerlinProgress;
+      if (import.meta.env.DEV) {
+        delete canvas.dataset.portraitStarPerlinProgress;
+      }
       if (root) delete (root as HTMLElement & { __phoneStarActive?: unknown }).__phoneStarActive;
     };
   }, [onReady, reducedMotion]);
@@ -148,7 +150,7 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
       update(rawProgress) {
         const progress = clamp(rawProgress);
         progressRef.current = progress;
-        if (canvasRef.current) {
+        if (import.meta.env.DEV && canvasRef.current) {
           canvasRef.current.dataset.portraitStarPerlinProgress = progress.toFixed(4);
         }
         const motion = rootRef.current?.querySelector<HTMLElement>(

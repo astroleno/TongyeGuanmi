@@ -28,18 +28,6 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function finiteInRange(
-  value: string | undefined,
-  fallback: number,
-  min: number,
-  max: number
-): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed)
-    ? Math.min(max, Math.max(min, parsed))
-    : fallback;
-}
-
 function smoothStep(value: number): number {
   const progress = clamp(value);
   return progress * progress * (3 - 2 * progress);
@@ -100,40 +88,18 @@ export function renderPhoneCranePresentation(
     PHONE_CRANE_FLOCK_TOP_ARRIVAL_SECONDS
   ));
   const flockY = PHONE_CRANE_FLOCK_TOP_ARRIVAL_Y_VH * flockRise;
-  const flockOpeningScale = finiteInRange(
-    section.dataset.phoneCraneFlockOpeningScale,
-    PHONE_CRANE_FLOCK_OPENING_SCALE,
-    0.25,
-    1.5
-  );
   const flockScale = (
-    flockOpeningScale
-    + (PHONE_CRANE_FLOCK_ARRIVAL_SCALE - flockOpeningScale) * flockRise
+    PHONE_CRANE_FLOCK_OPENING_SCALE
+    + (PHONE_CRANE_FLOCK_ARRIVAL_SCALE - PHONE_CRANE_FLOCK_OPENING_SCALE)
+      * flockRise
   );
   const flockRetired = time >= FLOCK_END_SECONDS - 0.001;
   const figureY = 198 * (1 - grow);
-  const figureOpeningScale = finiteInRange(
-    section.dataset.phoneCraneFigureOpeningScale,
-    PHONE_CRANE_FIGURE_OPENING_SCALE,
-    0.25,
-    1.5
-  );
-  const figureOpeningX = finiteInRange(
-    section.dataset.phoneCraneFigureOpeningX,
-    PHONE_CRANE_FIGURE_OPENING_X_VH,
-    -25,
-    25
-  );
-  const figureOpeningY = finiteInRange(
-    section.dataset.phoneCraneFigureOpeningY,
-    PHONE_CRANE_FIGURE_OPENING_Y_VH,
-    -25,
-    25
-  );
   const openingWeight = 1 - grow;
-  const videoScale = figureOpeningScale + (1 - figureOpeningScale) * grow;
-  const figureCameraX = figureOpeningX * openingWeight;
-  const figureCameraY = figureOpeningY * openingWeight;
+  const videoScale = PHONE_CRANE_FIGURE_OPENING_SCALE
+    + (1 - PHONE_CRANE_FIGURE_OPENING_SCALE) * grow;
+  const figureCameraX = PHONE_CRANE_FIGURE_OPENING_X_VH * openingWeight;
+  const figureCameraY = PHONE_CRANE_FIGURE_OPENING_Y_VH * openingWeight;
   const clipBottom = (1 - unmask) * 42;
   // Desktop Crane sends every architectural plate below the viewport across
   // the same 0.08 → 0.78 timeline range. Holding the phone camera at 20%
@@ -169,12 +135,14 @@ export function renderPhoneCranePresentation(
   );
   section.dataset.craneProgress = progress.toFixed(4);
   section.dataset.phoneCraneProgress = timelineProgress.toFixed(4);
-  section.dataset.phoneCraneFlockState = flockRetired
-    ? 'retired'
-    : 'active';
-  section.dataset.phoneCraneClock = direction === 1
-    ? 'native'
-    : 'presented-frame-reverse';
+  if (import.meta.env.DEV) {
+    section.dataset.phoneCraneFlockState = flockRetired
+      ? 'retired'
+      : 'active';
+    section.dataset.phoneCraneClock = direction === 1
+      ? 'native'
+      : 'presented-frame-reverse';
+  }
 
   /*
    * The packed flock stops on its safe terminal bitmap before Figure finishes.

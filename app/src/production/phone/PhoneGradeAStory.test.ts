@@ -8,7 +8,9 @@ import {
   phoneGradeAProofBrandEdgeScene,
   phoneGradeAProofBrandProgress,
   phoneGradeAProofPanelOffset,
-  phoneGradeAProofProgress
+  phoneGradeAProofProgress,
+  phoneGradeAReconciledBoundaryCompletion,
+  phoneGradeAShouldReplayProofBrand
 } from './PhoneGradeAStory';
 
 describe('phone Grade A document progress', () => {
@@ -48,6 +50,35 @@ describe('phone Grade A document progress', () => {
       5_886,
       null,
       null
+    )).toBe(false);
+  });
+
+  it('never converts an unplayed Proof → Brand boundary into completion', () => {
+    expect(phoneGradeAReconciledBoundaryCompletion(
+      2,
+      false,
+      5_886,
+      5_040,
+      5_884
+    )).toBe(false);
+    expect(phoneGradeAShouldReplayProofBrand(
+      false,
+      5_886,
+      5_884,
+      false
+    )).toBe(true);
+    expect(phoneGradeAShouldReplayProofBrand(
+      false,
+      5_886,
+      5_884,
+      true
+    )).toBe(false);
+    expect(phoneGradeAReconciledBoundaryCompletion(
+      2,
+      true,
+      5_039,
+      5_040,
+      5_884
     )).toBe(false);
   });
 

@@ -45,33 +45,43 @@ export function usePhoneViewportGeometry(
     };
     const syncViewport = (forceHeight = false) => {
       const { height, offsetTop, viewportBottom, width } = readViewport();
-      root.dataset.portraitViewportOffsetTop = `${Math.ceil(offsetTop)}px`;
-      root.dataset.portraitViewportBottom = `${viewportBottom}px`;
+      if (import.meta.env.DEV) {
+        root.dataset.portraitViewportOffsetTop = `${Math.ceil(offsetTop)}px`;
+        root.dataset.portraitViewportBottom = `${viewportBottom}px`;
+      }
       const nextViewport = `${width}x${height}`;
       if (nextViewport === lastObservedViewport && !forceHeight) return;
       lastObservedViewport = nextViewport;
-      root.dataset.portraitLiveViewport = nextViewport;
+      if (import.meta.env.DEV) {
+        root.dataset.portraitLiveViewport = nextViewport;
+      }
       const widthChanged = lastViewportWidth === 0
         || Math.abs(width - lastViewportWidth) > 1;
       if (!forceHeight && !widthChanged) {
-        if (nextViewport === lastLayoutViewport) {
-          delete root.dataset.portraitTransientViewport;
-        } else {
-          root.dataset.portraitTransientViewport = nextViewport;
+        if (import.meta.env.DEV) {
+          if (nextViewport === lastLayoutViewport) {
+            delete root.dataset.portraitTransientViewport;
+          } else {
+            root.dataset.portraitTransientViewport = nextViewport;
+          }
         }
         // Safari toolbar motion must not resize the stage or refresh its clock.
         return;
       }
       lastLayoutViewport = nextViewport;
       lastViewportWidth = width;
-      delete root.dataset.portraitTransientViewport;
+      if (import.meta.env.DEV) {
+        delete root.dataset.portraitTransientViewport;
+      }
       root.style.setProperty('--portrait-live-height', `${height}px`);
       root.style.setProperty('--portrait-live-width', `${width}px`);
       root.style.setProperty(
         '--portrait-stage-scroll-distance',
         `${Math.round(height * PHONE_STAGE_SCROLL_VIEWPORTS)}px`
       );
-      root.dataset.portraitLayoutViewport = lastLayoutViewport;
+      if (import.meta.env.DEV) {
+        root.dataset.portraitLayoutViewport = lastLayoutViewport;
+      }
       refreshPhoneScrollStage();
     };
     const scheduleViewportSync = () => {
@@ -112,11 +122,13 @@ export function usePhoneViewportGeometry(
       root.style.removeProperty('--portrait-live-height');
       root.style.removeProperty('--portrait-live-width');
       root.style.removeProperty('--portrait-stage-scroll-distance');
-      delete root.dataset.portraitLiveViewport;
-      delete root.dataset.portraitLayoutViewport;
-      delete root.dataset.portraitViewportOffsetTop;
-      delete root.dataset.portraitViewportBottom;
-      delete root.dataset.portraitTransientViewport;
+      if (import.meta.env.DEV) {
+        delete root.dataset.portraitLiveViewport;
+        delete root.dataset.portraitLayoutViewport;
+        delete root.dataset.portraitViewportOffsetTop;
+        delete root.dataset.portraitViewportBottom;
+        delete root.dataset.portraitTransientViewport;
+      }
       delete root.dataset.portraitCheckpoint;
       delete root.dataset.portraitCheckpointTrace;
       delete documentElement.dataset.portraitSpike;

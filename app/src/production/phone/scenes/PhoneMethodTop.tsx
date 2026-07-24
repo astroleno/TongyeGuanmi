@@ -35,6 +35,10 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+export function phoneMethodRequestsGradeAAtMount(hash: string): boolean {
+  return phoneDirectEntryCompletesAod(sceneFromHash(hash));
+}
+
 /**
  * Owns the fixed AOD bridge and the first continuous Method reading section.
  * AOD supplies canonical progress; this adapter alone renders Method visuals.
@@ -56,7 +60,10 @@ export const PhoneMethodTop = forwardRef<
   const bridgeRef = useRef<HTMLDivElement | null>(null);
   const stepsRef = useRef<HTMLOListElement | null>(null);
   const gradeASlotRef = useRef<HTMLDivElement | null>(null);
-  const [gradeARequested, setGradeARequested] = useState(false);
+  const [gradeARequested, setGradeARequested] = useState(() => (
+    typeof window !== 'undefined'
+    && phoneMethodRequestsGradeAAtMount(window.location.hash)
+  ));
 
   useEffect(() => {
     onReady?.();
@@ -70,8 +77,7 @@ export const PhoneMethodTop = forwardRef<
 
   useEffect(() => {
     if (!active || gradeARequested) return;
-    const scene = sceneFromHash(window.location.hash);
-    if (phoneDirectEntryCompletesAod(scene)) {
+    if (phoneMethodRequestsGradeAAtMount(window.location.hash)) {
       setGradeARequested(true);
       return;
     }
@@ -101,7 +107,9 @@ export const PhoneMethodTop = forwardRef<
       const owner = rootRef.current?.closest<HTMLElement>('.portrait-scroll-spike');
       if (owner) {
         owner.dataset.portraitAodMethodVisible = String(visible);
-        owner.dataset.portraitMethodEntrance = progress.toFixed(4);
+        if (import.meta.env.DEV) {
+          owner.dataset.portraitMethodEntrance = progress.toFixed(4);
+        }
       }
       motionDriver.set(bridge, {
         autoAlpha: ease,

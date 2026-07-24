@@ -65,13 +65,17 @@ export function attachPhoneHorizontalPanGuard(root: HTMLElement): () => void {
   root.addEventListener('touchmove', onTouchMove, { passive: false });
   root.addEventListener('touchend', reset, { passive: true });
   root.addEventListener('touchcancel', reset, { passive: true });
-  root.dataset.phoneHorizontalPanGuard = 'active';
+  if (import.meta.env.DEV) {
+    root.dataset.phoneHorizontalPanGuard = 'active';
+  }
 
   return () => {
     root.removeEventListener('touchstart', onTouchStart);
     root.removeEventListener('touchmove', onTouchMove);
     root.removeEventListener('touchend', reset);
     root.removeEventListener('touchcancel', reset);
-    delete root.dataset.phoneHorizontalPanGuard;
+    if (import.meta.env.DEV) {
+      delete root.dataset.phoneHorizontalPanGuard;
+    }
   };
 }

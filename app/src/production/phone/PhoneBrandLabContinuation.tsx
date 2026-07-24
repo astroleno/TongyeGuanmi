@@ -28,6 +28,7 @@ import {
   runPhoneTimedTransition,
   type PhoneTransitionSession
 } from './phone-transition-coordinator';
+import { runPhoneTargetPreparation } from './phone-target-presentation';
 import { usePhoneGroup45Adapters } from './usePhoneGroup45Adapters';
 import './PhoneBrandLabStory.css';
 
@@ -66,9 +67,14 @@ export type Group45VisualScene = Extract<
   'figure3-animation' | 'ttg-animation'
 >;
 
-type VisualHandoffReason = 'complete' | 'media-failure';
+type VisualHandoffReason = 'complete';
 type VisualRunDirection = 1 | -1;
-type VisualRunStep = 'entry-ink' | 'media' | 'exit-ink';
+type VisualRunStep =
+  | 'preparing-target'
+  | 'entry-ink'
+  | 'media'
+  | 'retryable'
+  | 'exit-ink';
 export type PhoneGroup45VisualRunPhase =
   | 'initial'
   | 'forward'
@@ -108,6 +114,24 @@ function group45CheckpointForScene(
     case 'lab':
       return 'lab-stable';
   }
+}
+
+export function phoneGroup45EntryPresentation(
+  scene: Group45PhoneSceneId
+): Readonly<{
+  checkpoint: Group45CheckpointId;
+  edgeScene: PhoneEdgeScene;
+}> {
+  return {
+    checkpoint: group45CheckpointForScene(scene),
+    edgeScene: group45EdgeScene(scene)
+  };
+}
+
+export function phoneGroup45DirectEntryCanPosition(
+  loaderState: string | undefined
+): boolean {
+  return loaderState === 'ready';
 }
 
 function clamp(value: number): number {
@@ -227,7 +251,8 @@ function phoneGroup45ReceiverIsPresentable(
 ): boolean {
   if (!root) return false;
   const mediaState = root.dataset.phoneMediaState;
-  if (mediaState === 'reduced' || mediaState === 'fallback') return true;
+  if (mediaState === 'reduced') return true;
+  if (mediaState === 'retryable-failure') return false;
   return scene === 'figure3-animation'
     ? Boolean(root.dataset.phoneFigure3EndpointReady)
     : Boolean(root.querySelector('[data-phone-ttg-endpoint-ready]'));
@@ -317,8 +342,9 @@ export const PhoneBrandLabContinuation = forwardRef<
   const servicesTtgRef = useRef<TransitionPresentationAdapterHandle | null>(null);
   const ttgLabRef = useRef<TransitionPresentationAdapterHandle | null>(null);
   const visualCompletionFrameRef = useRef(0);
-  const visualPreparationFrameRef = useRef(0);
+  const cancelTargetPreparationRef = useRef<(() => void) | null>(null);
   const visualRunTimeoutRef = useRef(0);
+  const retryVisualRunRef = useRef<(() => void) | null>(null);
   const visualRunRef = useRef<Group45VisualScene | null>(null);
   const visualRunDirectionRef = useRef<VisualRunDirection>(1);
   const visualRunPhaseRef = useRef<Record<
@@ -335,7 +361,7 @@ export const PhoneBrandLabContinuation = forwardRef<
   const visualSessionRef = useRef<PhoneTransitionSession | null>(null);
   const visualRunStepRef = useRef<VisualRunStep>('media');
   const cancelVisualInkRef = useRef<(() => void) | undefined>(undefined);
-  const failedVisualsRef = useRef(new Set<Group45VisualScene>());
+  const scheduleRenderRef = useRef<() => void>(() => undefined);
   const lastScrollYRef = useRef(
     typeof window === 'undefined' ? 0 : window.scrollY
   );
@@ -347,7 +373,9 @@ export const PhoneBrandLabContinuation = forwardRef<
 
   useLayoutEffect(() => {
     if (!continuationActive) return;
-    rootRef.current?.setAttribute('data-phone-group45-edge-scene', edgeScene);
+    if (import.meta.env.DEV) {
+      rootRef.current?.setAttribute('data-phone-group45-edge-scene', edgeScene);
+    }
     onEdgeScene?.(group45EdgeScene(edgeScene));
   }, [continuationActive, edgeScene, onEdgeScene]);
 
@@ -376,6 +404,7 @@ export const PhoneBrandLabContinuation = forwardRef<
 
   const publishAdapter = useCallback(() => {
     setAdapterRevision((revision) => revision + 1);
+    scheduleRenderRef.current();
   }, []);
   const bindBrand = useCallback((handle: ScenePresentationAdapterHandle | null) => {
     if (brandRef.current === handle) return;
@@ -457,10 +486,9 @@ export const PhoneBrandLabContinuation = forwardRef<
     if (visualCompletionFrameRef.current) {
       window.cancelAnimationFrame(visualCompletionFrameRef.current);
     }
-    if (visualPreparationFrameRef.current) {
-      window.cancelAnimationFrame(visualPreparationFrameRef.current);
-      visualPreparationFrameRef.current = 0;
-    }
+    cancelTargetPreparationRef.current?.();
+    cancelTargetPreparationRef.current = null;
+    retryVisualRunRef.current = null;
     rootRef.current?.setAttribute(
       'data-phone-group45-complete-handoff',
       `${scene}-${target}:${reason}:${direction === 1 ? 'forward' : 'reverse'}`
@@ -514,8 +542,11 @@ export const PhoneBrandLabContinuation = forwardRef<
       root?.setAttribute('data-phone-group45-visual-run', 'idle');
       root?.setAttribute('data-phone-group45-stage-active', 'false');
       root?.setAttribute('data-phone-group45-stage-scene', 'none');
-      root?.setAttribute('data-phone-group45-active-scene', target);
       root?.setAttribute('data-portrait-stage-active', 'false');
+      if (import.meta.env.DEV) {
+        root?.setAttribute('data-phone-group45-active-scene', target);
+        root?.removeAttribute('data-phone-group45-media-retry');
+      }
       lastScrollYRef.current = landingY;
       setCurrentScene(target);
       setStageScene(null);
@@ -539,6 +570,34 @@ export const PhoneBrandLabContinuation = forwardRef<
       }));
     });
   }, [onCheckpoint, reducedMotion]);
+
+  const markVisualRetryable = useCallback((
+    scene: Group45VisualScene,
+    direction: VisualRunDirection
+  ) => {
+    if (
+      visualRunRef.current !== scene
+      || visualRunDirectionRef.current !== direction
+    ) return;
+    if (visualRunTimeoutRef.current) {
+      window.clearTimeout(visualRunTimeoutRef.current);
+      visualRunTimeoutRef.current = 0;
+    }
+    cancelTargetPreparationRef.current?.();
+    cancelTargetPreparationRef.current = null;
+    visualRunStepRef.current = 'retryable';
+    const root = rootRef.current;
+    if (import.meta.env.DEV) {
+      root?.setAttribute(
+        'data-phone-group45-media-retry',
+        `${scene}:${direction === 1 ? 'forward' : 'reverse'}`
+      );
+      root?.setAttribute(
+        'data-phone-group45-visual-step',
+        `${scene}:retryable`
+      );
+    }
+  }, []);
 
   const finishVisualMedia = useCallback((
     scene: Group45VisualScene,
@@ -564,16 +623,17 @@ export const PhoneBrandLabContinuation = forwardRef<
       ? brandFigure3Ref.current
       : servicesTtgRef.current;
     if (!upstreamTransition) {
-      visualRunPhaseRef.current[scene] = 'initial';
-      handoffVisual(scene, 'media-failure', direction);
+      markVisualRetryable(scene, direction);
       return;
     }
     const trackTop = window.scrollY + track.getBoundingClientRect().top;
     visualRunStepRef.current = 'exit-ink';
-    rootRef.current?.setAttribute(
-      'data-phone-group45-visual-step',
-      `${scene}:exit-ink`
-    );
+    if (import.meta.env.DEV) {
+      rootRef.current?.setAttribute(
+        'data-phone-group45-visual-step',
+        `${scene}:exit-ink`
+      );
+    }
     session.moveTo(trackTop - window.innerHeight);
     upstreamTransition.reverse?.();
     cancelVisualInkRef.current?.();
@@ -587,27 +647,12 @@ export const PhoneBrandLabContinuation = forwardRef<
         handoffVisual(scene, reason, direction);
       }
     );
-  }, [handoffVisual]);
+  }, [handoffVisual, markVisualRetryable]);
 
   const onMediaError = useCallback((scene: Group45PhoneSceneId) => {
     if (scene !== 'figure3-animation' && scene !== 'ttg-animation') return;
-    const direction = visualRunDirectionRef.current;
-    failedVisualsRef.current.add(scene);
-    const target = direction === 1
-      ? scene === 'figure3-animation' ? 'services' : 'lab'
-      : scene === 'figure3-animation' ? 'brand' : 'services';
-    rootRef.current?.setAttribute('data-phone-group45-media-fallback', target);
-    if (scene === 'figure3-animation') {
-      figure3Ref.current?.update(direction === 1 ? 1 : 0);
-      figure3ServicesRef.current?.render(direction === 1 ? 1 : 0);
-      if (direction === 1) brandFigure3Ref.current?.render(1);
-    } else {
-      ttgRef.current?.update(direction === 1 ? 1 : 0);
-      ttgLabRef.current?.render(direction === 1 ? 1 : 0);
-      if (direction === 1) servicesTtgRef.current?.render(1);
-    }
-    finishVisualMedia(scene, direction, 'media-failure');
-  }, [finishVisualMedia]);
+    markVisualRetryable(scene, visualRunDirectionRef.current);
+  }, [markVisualRetryable]);
 
   const onVisualComplete = useCallback((
     scene: Group45PhoneSceneId,
@@ -632,10 +677,12 @@ export const PhoneBrandLabContinuation = forwardRef<
       || visualRunDirectionRef.current !== direction
       || visualRunStepRef.current !== 'media'
     ) return;
-    rootRef.current?.setAttribute(
-      'data-phone-group45-visual-progress',
-      `${scene}:${direction}:${clamp(progress).toFixed(4)}`
-    );
+    if (import.meta.env.DEV) {
+      rootRef.current?.setAttribute(
+        'data-phone-group45-visual-progress',
+        `${scene}:${direction}:${clamp(progress).toFixed(4)}`
+      );
+    }
     if (scene === 'figure3-animation') {
       // The transition adapter maps canonical Figure3 progress 0.8 → 1 to
       // Services entrance 0 → 1, exactly like the accepted AOD handoff.
@@ -651,8 +698,8 @@ export const PhoneBrandLabContinuation = forwardRef<
     if (visualRunTimeoutRef.current) {
       window.clearTimeout(visualRunTimeoutRef.current);
     }
-    // AOD's time-owned run must always release. Slow decode gets a generous
-    // window; a missing/blocked decoder resolves through the declared endpoint.
+    // A stalled decoder becomes retryable while the current scene stays held.
+    // It must never be converted into a successful downstream handoff.
     visualRunTimeoutRef.current = window.setTimeout(() => {
       if (visualRunRef.current === scene) onMediaError(scene);
     }, 10000);
@@ -699,12 +746,26 @@ export const PhoneBrandLabContinuation = forwardRef<
       lastScrollYRef.current = window.scrollY;
       setScrollDirection(1);
     };
+    const commitDirectEntry = () => {
+      const presentation = phoneGroup45EntryPresentation(target);
+      setContinuationActive(true);
+      setCurrentScene(target);
+      onEdgeScene?.(presentation.edgeScene);
+      onSceneChange?.(target);
+      onCheckpoint?.(presentation.checkpoint);
+    };
     const schedule = () => {
       if (!settled && !frame) frame = window.requestAnimationFrame(position);
     };
     const position = () => {
       frame = 0;
       if (settled) return;
+      if (!phoneGroup45DirectEntryCanPosition(
+        document.documentElement.dataset.portraitSpikeLoader
+      )) {
+        schedule();
+        return;
+      }
       const aodSnap = owner?.dataset.phoneAodSnap;
       if (aodSnap === 'locked') {
         sawAodLock = true;
@@ -735,6 +796,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       ) {
         settled = true;
         syncDirection();
+        commitDirectEntry();
         return;
       }
       // A full-motion deep link can cross AOD before its snap coordinator
@@ -749,6 +811,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       }
       settled = true;
       syncDirection();
+      commitDirectEntry();
     };
     const observer = new MutationObserver(() => {
       if (owner?.dataset.phoneAodSnap === 'locked') {
@@ -768,10 +831,16 @@ export const PhoneBrandLabContinuation = forwardRef<
       observer.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [adapters.entryReady, entryScene, navigationTarget]);
+  }, [
+    adapters.entryReady,
+    entryScene,
+    navigationTarget,
+    onCheckpoint,
+    onEdgeScene,
+    onSceneChange
+  ]);
 
   useLayoutEffect(() => {
-    if (!adapters.entryReady) return;
     const root = rootRef.current;
     if (!root) return;
     const directEntryScene = navigationTarget ?? entryScene;
@@ -811,7 +880,6 @@ export const PhoneBrandLabContinuation = forwardRef<
         reducedMotion
         || visualRunRef.current
         || !session.valid()
-        || failedVisualsRef.current.has(nextRun)
         || !phoneGroup45CanBeginVisualRun(
           visualRunPhaseRef.current[nextRun],
           runDirection
@@ -826,7 +894,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       visualRunRef.current = nextRun;
       visualSessionRef.current = session;
       visualRunDirectionRef.current = runDirection;
-      visualRunStepRef.current = runDirection === 1 ? 'entry-ink' : 'media';
+      visualRunStepRef.current = 'preparing-target';
       visualRunPhaseRef.current[nextRun] = runDirection === 1
         ? 'forward'
         : 'reverse';
@@ -844,10 +912,12 @@ export const PhoneBrandLabContinuation = forwardRef<
         'data-phone-group45-visual-run',
         `${nextRun}:${runDirection === 1 ? 'forward' : 'reverse'}`
       );
-      root.setAttribute(
-        'data-phone-group45-visual-step',
-        `${nextRun}:${visualRunStepRef.current}`
-      );
+      if (import.meta.env.DEV) {
+        root.setAttribute(
+          'data-phone-group45-visual-step',
+          `${nextRun}:${visualRunStepRef.current}`
+        );
+      }
       root.setAttribute('data-phone-group45-snap', 'locked');
       root.setAttribute('data-phone-group45-stage-active', 'true');
       root.setAttribute('data-phone-group45-stage-scene', nextRun);
@@ -859,10 +929,14 @@ export const PhoneBrandLabContinuation = forwardRef<
           || !session.valid()
         ) return;
         visualRunStepRef.current = 'media';
-        root.setAttribute(
-          'data-phone-group45-visual-step',
-          `${nextRun}:media`
-        );
+        if (import.meta.env.DEV) {
+          root.removeAttribute('data-phone-group45-media-retry');
+          root.setAttribute(
+            'data-phone-group45-visual-step',
+            `${nextRun}:media`
+          );
+        }
+        armVisualRunTimeout(nextRun);
         if (runDirection === 1 && nextRun === 'figure3-animation') {
           setAdapterScene('services');
         }
@@ -884,57 +958,141 @@ export const PhoneBrandLabContinuation = forwardRef<
         }
         schedule();
       };
-      if (runDirection === -1) {
-        armVisualRunTimeout(nextRun);
-        startMedia();
-        return true;
-      }
-      armVisualRunTimeout(nextRun);
-      const startEntryInkWhenReady = () => {
-        visualPreparationFrameRef.current = 0;
+      const restoreSourceAfterPreparationFailure = () => {
+        visualRunPhaseRef.current[nextRun] = runDirection === 1
+          ? 'initial'
+          : 'complete';
+        visualRunRef.current = null;
+        visualSessionRef.current = null;
+        visualRunStepRef.current = 'retryable';
+        retryVisualRunRef.current = null;
+        const upstream = runDirection === 1
+          ? nextRun === 'figure3-animation' ? 'brand' : 'services'
+          : nextRun === 'figure3-animation' ? 'services' : 'lab';
+        root.setAttribute('data-phone-group45-visual-run', 'idle');
+        root.setAttribute('data-phone-group45-snap', 'released');
+        root.setAttribute('data-phone-group45-stage-active', 'false');
+        root.setAttribute('data-phone-group45-stage-scene', 'none');
+        root.setAttribute('data-portrait-stage-active', 'false');
+        if (import.meta.env.DEV) {
+          root.setAttribute(
+            'data-phone-group45-media-retry',
+            `${nextRun}:prepare`
+          );
+          root.setAttribute('data-phone-group45-visual-step', 'idle');
+          root.setAttribute('data-phone-group45-active-scene', upstream);
+        }
+        setCurrentScene(upstream);
+        setStageScene(null);
+        setVisualActivity((current) => nextRun === 'figure3-animation'
+          ? {
+              ...current,
+              figure3: { active: false, prewarm: true }
+            }
+          : {
+              ...current,
+              ttg: { active: false, prewarm: true }
+            });
+        session.abort();
+        schedule();
+      };
+      const prepareAndStart = (retryingMedia: boolean) => {
         if (
           visualRunRef.current !== nextRun
           || visualRunDirectionRef.current !== runDirection
-          || visualRunStepRef.current !== 'entry-ink'
           || !session.valid()
+          || cancelTargetPreparationRef.current
         ) return;
-        const receiver = nextRun === 'figure3-animation'
-          ? figure3Ref.current?.root() ?? null
-          : ttgRef.current?.root() ?? null;
-        const entryTransition = nextRun === 'figure3-animation'
+        visualRunStepRef.current = 'preparing-target';
+        if (import.meta.env.DEV) {
+          root.setAttribute(
+            'data-phone-group45-visual-step',
+            `${nextRun}:preparing-target`
+          );
+        }
+        const receiverAdapter = () => nextRun === 'figure3-animation'
+          ? figure3Ref.current
+          : ttgRef.current;
+        const entryTransition = () => nextRun === 'figure3-animation'
           ? brandFigure3Ref.current
           : servicesTtgRef.current;
-        const exitTransition = nextRun === 'figure3-animation'
-          ? figure3ServicesRef.current
-          : ttgLabRef.current;
-        if (
-          !phoneGroup45ReceiverIsPresentable(nextRun, receiver)
-          || !exitTransition
-          || (!directVisualEntry && !entryTransition)
-        ) {
-          visualPreparationFrameRef.current = window.requestAnimationFrame(
-            startEntryInkWhenReady
-          );
-          return;
-        }
-        if (directVisualEntry) {
-          startMedia();
-          return;
-        }
-        if (!entryTransition) return;
-        entryTransition.enter?.();
-        cancelVisualInkRef.current?.();
-        cancelVisualInkRef.current = runPhoneTimedTransition(
-          session,
-          1,
-          (progress) => entryTransition.render(progress),
+        cancelTargetPreparationRef.current = runPhoneTargetPreparation(
+          () => visualRunRef.current === nextRun
+            && visualRunDirectionRef.current === runDirection
+            && visualRunStepRef.current === 'preparing-target'
+            && session.valid(),
+          () => Boolean(
+            receiverAdapter()?.root()
+            && (
+              nextRun === 'figure3-animation'
+                ? figure3ServicesRef.current
+                : ttgLabRef.current
+            )
+            && !(
+              runDirection === 1
+              && !directVisualEntry
+              && !retryingMedia
+              && !entryTransition()
+            )
+          ),
+          receiverAdapter,
+          runDirection === 1 ? 0 : 1,
+          runDirection,
+          `phone-group45-${nextRun}`,
           () => {
-            cancelVisualInkRef.current = undefined;
-            startMedia();
+            cancelTargetPreparationRef.current = null;
+            if (import.meta.env.DEV) {
+              root.removeAttribute('data-phone-group45-media-retry');
+            }
+            if (
+              runDirection === -1
+              || directVisualEntry
+              || retryingMedia
+            ) {
+              startMedia();
+              return;
+            }
+            const transition = entryTransition();
+            if (!transition) return;
+            visualRunStepRef.current = 'entry-ink';
+            if (import.meta.env.DEV) {
+              root.setAttribute(
+                'data-phone-group45-visual-step',
+                `${nextRun}:entry-ink`
+              );
+            }
+            transition.enter?.();
+            cancelVisualInkRef.current?.();
+            cancelVisualInkRef.current = runPhoneTimedTransition(
+              session,
+              1,
+              (progress) => transition.render(progress),
+              () => {
+                cancelVisualInkRef.current = undefined;
+                startMedia();
+              }
+            );
+          },
+          () => {
+            cancelTargetPreparationRef.current = null;
+            if (directVisualEntry || retryingMedia) {
+              markVisualRetryable(nextRun, runDirection);
+              return;
+            }
+            restoreSourceAfterPreparationFailure();
           }
         );
       };
-      startEntryInkWhenReady();
+      retryVisualRunRef.current = () => {
+        if (
+          visualRunRef.current !== nextRun
+          || visualRunDirectionRef.current !== runDirection
+          || visualRunStepRef.current !== 'retryable'
+          || !session.valid()
+        ) return;
+        prepareAndStart(true);
+      };
+      prepareAndStart(false);
       return true;
     };
     const render = () => {
@@ -946,7 +1104,9 @@ export const PhoneBrandLabContinuation = forwardRef<
       setContinuationActive((current) => (
         current === nextContinuationActive ? current : nextContinuationActive
       ));
-      root.dataset.phoneGroup45Active = String(nextContinuationActive);
+      if (import.meta.env.DEV) {
+        root.dataset.phoneGroup45Active = String(nextContinuationActive);
+      }
       const scrollY = window.scrollY;
       const previousScrollY = lastScrollYRef.current;
       const scrollDelta = scrollY - previousScrollY;
@@ -1154,7 +1314,9 @@ export const PhoneBrandLabContinuation = forwardRef<
         return rect.top <= viewportMid && rect.bottom >= viewportMid;
       })?.[0] ?? entryScene;
       setCurrentScene((current) => current === active ? current : active);
-      root.setAttribute('data-phone-group45-active-scene', active);
+      if (import.meta.env.DEV) {
+        root.setAttribute('data-phone-group45-active-scene', active);
+      }
       root.setAttribute(
         'data-phone-group45-stage-active',
         String(nextStageScene !== null)
@@ -1167,6 +1329,7 @@ export const PhoneBrandLabContinuation = forwardRef<
     const schedule = () => {
       if (!frame) frame = window.requestAnimationFrame(render);
     };
+    scheduleRenderRef.current = schedule;
     const visualRegistrations = reducedMotion
       ? []
       : GROUP45_VISUAL_SCENES.map((scene) => (
@@ -1187,7 +1350,6 @@ export const PhoneBrandLabContinuation = forwardRef<
             },
             canStart: (direction) => (
               !visualRunRef.current
-              && !failedVisualsRef.current.has(scene)
               && phoneGroup45CanBeginVisualRun(
                 visualRunPhaseRef.current[scene],
                 direction
@@ -1201,6 +1363,10 @@ export const PhoneBrandLabContinuation = forwardRef<
     const retryBlockedVisual = () => {
       const scene = visualRunRef.current;
       if (!scene) return;
+      if (visualRunStepRef.current === 'retryable') {
+        retryVisualRunRef.current?.();
+        return;
+      }
       const adapter = scene === 'figure3-animation'
         ? figure3Ref.current
         : ttgRef.current;
@@ -1227,22 +1393,25 @@ export const PhoneBrandLabContinuation = forwardRef<
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
     window.addEventListener('orientationchange', schedule);
+    root.addEventListener('wheel', retryBlockedVisual, { passive: true });
+    root.addEventListener('touchstart', retryBlockedVisual, { passive: true });
     root.addEventListener('pointerdown', retryBlockedVisual, { passive: true });
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       if (directEntryFrame) window.cancelAnimationFrame(directEntryFrame);
-      if (visualPreparationFrameRef.current) {
-        window.cancelAnimationFrame(visualPreparationFrameRef.current);
-        visualPreparationFrameRef.current = 0;
-      }
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
+      root.removeEventListener('wheel', retryBlockedVisual);
+      root.removeEventListener('touchstart', retryBlockedVisual);
       root.removeEventListener('pointerdown', retryBlockedVisual);
       if (visualRunTimeoutRef.current) {
         window.clearTimeout(visualRunTimeoutRef.current);
         visualRunTimeoutRef.current = 0;
       }
+      cancelTargetPreparationRef.current?.();
+      cancelTargetPreparationRef.current = null;
+      retryVisualRunRef.current = null;
       cancelVisualInkRef.current?.();
       cancelVisualInkRef.current = undefined;
       const interruptedScene = visualRunRef.current;
@@ -1258,11 +1427,15 @@ export const PhoneBrandLabContinuation = forwardRef<
       }
       delete root.dataset.phoneGroup45Snap;
       delete root.dataset.phoneGroup45VisualRun;
-      delete root.dataset.phoneGroup45VisualProgress;
-      delete root.dataset.phoneGroup45VisualStep;
+      if (import.meta.env.DEV) {
+        delete root.dataset.phoneGroup45VisualProgress;
+        delete root.dataset.phoneGroup45VisualStep;
+        delete root.dataset.phoneGroup45MediaRetry;
+      }
+      scheduleRenderRef.current = () => undefined;
     };
   }, [
-    adapters.entryReady,
+    adapters.rootReady,
     armVisualRunTimeout,
     entryScene,
     navigationTarget,
@@ -1274,9 +1447,7 @@ export const PhoneBrandLabContinuation = forwardRef<
     if (visualCompletionFrameRef.current) {
       window.cancelAnimationFrame(visualCompletionFrameRef.current);
     }
-    if (visualPreparationFrameRef.current) {
-      window.cancelAnimationFrame(visualPreparationFrameRef.current);
-    }
+    cancelTargetPreparationRef.current?.();
     if (visualRunTimeoutRef.current) {
       window.clearTimeout(visualRunTimeoutRef.current);
     }

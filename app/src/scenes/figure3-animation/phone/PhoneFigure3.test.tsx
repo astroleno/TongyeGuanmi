@@ -37,7 +37,7 @@ describe('PhoneFigure3', () => {
     expect(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS).toBe(240);
   });
 
-  it('uses stable endpoints for media failure and reduced motion', () => {
+  it('holds the last valid frame on media failure and uses reduced endpoints', () => {
     expect(phoneFigure3Frame(0.5)).toMatchObject({
       progress: 0.5,
       videoOpacity: 1,
@@ -49,7 +49,7 @@ describe('PhoneFigure3', () => {
       videoOpacity: 0
     });
     expect(phoneFigure3Frame(0.5, false, true)).toMatchObject({
-      progress: 1,
+      progress: 0.5,
       videoOpacity: 0
     });
   });

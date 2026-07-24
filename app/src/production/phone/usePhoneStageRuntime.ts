@@ -81,19 +81,12 @@ function requestPortraitFullscreen(root: HTMLElement): void {
   const target = root as FullscreenElement;
   const request = target.requestFullscreen?.bind(target)
     ?? target.webkitRequestFullscreen?.bind(target);
-  if (!request) {
-    root.dataset.portraitFullscreen = 'unavailable';
-    return;
+  if (!request) return;
+  try {
+    void Promise.resolve(request()).catch(() => undefined);
+  } catch {
+    // Older WebKit can throw synchronously when fullscreen is unavailable.
   }
-  root.dataset.portraitFullscreen = 'requesting';
-  void Promise.resolve(request()).then(
-    () => {
-      root.dataset.portraitFullscreen = 'active';
-    },
-    () => {
-      root.dataset.portraitFullscreen = 'unavailable';
-    }
-  );
 }
 
 export type PhoneStageRuntimeOptions = Readonly<{
@@ -201,8 +194,10 @@ export function usePhoneStageRuntime(
       + (stageScrollEnd - stageScrollStart) * progress;
     let currentNavigationScene: SceneId = 'hero';
 
-    root.dataset.portraitSpikeMotionState = motionEnabled ? 'running' : 'reduced';
-    root.dataset.portraitStagePin = 'native-fixed-composite';
+    if (import.meta.env.DEV) {
+      root.dataset.portraitSpikeMotionState = motionEnabled ? 'running' : 'reduced';
+      root.dataset.portraitStagePin = 'native-fixed-composite';
+    }
     root.dataset.portraitStageActive = 'true';
     root.dataset.portraitAodRun = aodRunState;
     root.dataset.phoneAodSnap = 'idle';
@@ -221,10 +216,14 @@ export function usePhoneStageRuntime(
         && (aodRunState === 'forward' || aodRunState === 'reverse')
       ) {
         root.dataset.portraitStageActive = 'true';
-        root.dataset.portraitStageBoundary = 'held-by-aod';
+        if (import.meta.env.DEV) {
+          root.dataset.portraitStageBoundary = 'held-by-aod';
+        }
         return;
       }
-      delete root.dataset.portraitStageBoundary;
+      if (import.meta.env.DEV) {
+        delete root.dataset.portraitStageBoundary;
+      }
       root.dataset.portraitStageActive = String(stageActive);
       if (!stageActive) {
         options.onEdgeScene('method');
@@ -271,7 +270,9 @@ export function usePhoneStageRuntime(
           stackIndex >= 0 ? stack.length + 1 - stackIndex : 0
         );
       }
-      if (ownershipChanged) root.dataset.portraitStageOwner = key;
+      if (import.meta.env.DEV && ownershipChanged) {
+        root.dataset.portraitStageOwner = key;
+      }
     };
 
     const setAodHoldOwnership = (progress: number, phase: string) => {
@@ -452,7 +453,9 @@ export function usePhoneStageRuntime(
         aodAdapter.resetAutoplay();
       }
 
-      root.dataset.portraitStageProgress = progress.toFixed(4);
+      if (import.meta.env.DEV) {
+        root.dataset.portraitStageProgress = progress.toFixed(4);
+      }
       if (aodRunState === 'idle') options.onCheckpoint(frame.checkpoint);
       if (progress < PHONE_STAGE_STOPS.heroPatternEnd) {
         options.onEdgeScene('hero');
@@ -600,16 +603,20 @@ export function usePhoneStageRuntime(
       setAodFigureActive(false);
       aodRunState = 'idle';
       aodAdapter.resetAutoplay();
-      delete root.dataset.portraitSpikeMotionState;
-      delete root.dataset.portraitStagePin;
+      if (import.meta.env.DEV) {
+        delete root.dataset.portraitSpikeMotionState;
+        delete root.dataset.portraitStagePin;
+        delete root.dataset.portraitStageOwner;
+        delete root.dataset.portraitStageBoundary;
+      }
       delete root.dataset.portraitStageActive;
-      delete root.dataset.portraitStageOwner;
-      delete root.dataset.portraitStageProgress;
-      delete root.dataset.portraitMethodEntrance;
+      if (import.meta.env.DEV) {
+        delete root.dataset.portraitStageProgress;
+        delete root.dataset.portraitMethodEntrance;
+      }
       delete root.dataset.portraitAodRun;
       delete root.dataset.phoneAodSnap;
       delete root.dataset.portraitAodMethodVisible;
-      delete root.dataset.portraitStageBoundary;
       delete root.dataset.portraitHeroEntrance;
       delete root.dataset.portraitHeroTextEntrance;
       delete aodScene.dataset.portraitAodAlpha;

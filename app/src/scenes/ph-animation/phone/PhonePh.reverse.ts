@@ -68,7 +68,7 @@ export function createPhonePhPresentedReverse(
     onComplete,
     onError: onFailure,
     onStatus: (status) => {
-      root.dataset.phonePhReverse = status;
+      if (import.meta.env.DEV) root.dataset.phonePhReverse = status;
     }
   });
 
@@ -85,7 +85,7 @@ export function createPhonePhPresentedReverse(
     stop: playback.stop,
     dispose() {
       playback.dispose();
-      delete root.dataset.phonePhReverse;
+      if (import.meta.env.DEV) delete root.dataset.phonePhReverse;
     }
   };
 }

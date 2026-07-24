@@ -87,8 +87,10 @@ export function renderPhonePhPresentation(
   section?.style.setProperty('--ph-front-parallax-y', `${frontY.toFixed(2)}px`);
   section?.style.setProperty('--ph-video-opacity', '1');
   section?.setAttribute('data-ph-progress', presentation.toFixed(4));
-  section?.setAttribute('data-ph-playback-active', 'false');
-  section?.setAttribute('data-ph-raw-progress', progress.toFixed(4));
+  if (import.meta.env.DEV) {
+    section?.setAttribute('data-ph-playback-active', 'false');
+    section?.setAttribute('data-ph-raw-progress', progress.toFixed(4));
+  }
   section?.setAttribute('data-phone-ph-progress', progress.toFixed(4));
   section?.setAttribute(
     'data-phone-ph-clock',

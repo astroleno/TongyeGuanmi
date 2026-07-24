@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const compositorProbe = vi.hoisted(() => ({
+  onFrame: null as (() => void) | null
+}));
+
 vi.mock('../../../media/packed-alpha-video', () => ({
-  createPackedAlphaVideoCompositor: vi.fn(({ canvas }) => {
+  createPackedAlphaVideoCompositor: vi.fn(({ canvas, onFrame }) => {
     canvas.dataset.packedAlphaStatus = 'waiting';
+    compositorProbe.onFrame = onFrame ?? null;
     return { render: () => false, dispose: vi.fn() };
   }),
   setPackedAlphaVideoSource: vi.fn((video, sourceUrl) => {
@@ -68,6 +73,7 @@ class FakeNode {
 
 class FakeVideo extends FakeNode {
   readonly pause = vi.fn();
+  readonly play = vi.fn(() => Promise.resolve());
   readonly load = vi.fn();
   readonly listeners = new Map<string, Set<() => void>>();
   currentTime = 0;
@@ -115,7 +121,10 @@ function fixture() {
 }
 
 describe('phone packed-alpha surface', () => {
-  beforeEach(() => vi.unstubAllGlobals());
+  beforeEach(() => {
+    compositorProbe.onFrame = null;
+    vi.unstubAllGlobals();
+  });
 
   it('seeks the packed Canvas owner to the stable endpoint', () => {
     const { root, container, video, surface } = fixture();
@@ -205,6 +214,75 @@ describe('phone packed-alpha surface', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('resolves preparation only after the packed frame is presented', async () => {
+    const { root, surface } = fixture();
+    let resolved = false;
+    const preparation = surface.prepare('forward').then(() => {
+      resolved = true;
+    });
+
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+    expect(root.dataset.phoneTestAlpha).toBe('probing');
+
+    compositorProbe.onFrame?.();
+
+    await expect(preparation).resolves.toBeUndefined();
+    expect(root.dataset.phoneTestAlpha).toBe('verified');
+    surface.dispose();
+  });
+
+  it('rejects preparation instead of declaring a timed-out frame complete', async () => {
+    vi.useFakeTimers();
+    try {
+      const ownerDocument = new FakeDocument();
+      const root = ownerDocument.createElement('section');
+      const container = ownerDocument.createElement('div');
+      const video = ownerDocument.createElement('video') as FakeVideo;
+      root.append(container);
+      container.append(video);
+      const surface = createPhonePackedAlphaSurface({
+        root: root as unknown as HTMLElement,
+        container: container as unknown as HTMLElement,
+        video: video as unknown as HTMLVideoElement,
+        packedSourceUrl: '/packed.mp4',
+        endpointSeconds: 1.25,
+        statusDataset: 'phoneTestAlpha',
+        layerName: 'test',
+        canvasClassName: 'test-canvas',
+        frameTimeoutMs: 20
+      });
+      const preparation = expect(
+        surface.prepare('forward')
+      ).rejects.toThrow('first frame was not presented');
+
+      await vi.advanceTimersByTimeAsync(20);
+
+      await preparation;
+      expect(root.dataset.phoneTestAlpha).toBe('awaiting-native-playback');
+      surface.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops preparation playback when its caller retires the run', async () => {
+    const { video, surface } = fixture();
+    const controller = new AbortController();
+    const preparation = expect(
+      surface.prepare('forward', controller.signal)
+    ).rejects.toMatchObject({ name: 'AbortError' });
+
+    await Promise.resolve();
+    expect(video.play).toHaveBeenCalledOnce();
+    video.pause.mockClear();
+    controller.abort();
+
+    await preparation;
+    expect(video.pause).toHaveBeenCalledOnce();
+    surface.dispose();
   });
 
   it('waits for the scroll transition to become invisible before releasing', () => {

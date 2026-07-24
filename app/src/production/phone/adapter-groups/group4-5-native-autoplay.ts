@@ -94,10 +94,12 @@ export function createGroup45NativeAutoplay(
   let reverseFrameTime: number | undefined;
 
   const publishStatus = (status: Group45NativeAutoplayStatus) => {
-    video.dataset.phoneGroup45Autoplay = status;
-    video.dataset.phoneGroup45AutoplayDirection = direction === 1
-      ? 'forward'
-      : 'reverse';
+    if (import.meta.env.DEV) {
+      video.dataset.phoneGroup45Autoplay = status;
+      video.dataset.phoneGroup45AutoplayDirection = direction === 1
+        ? 'forward'
+        : 'reverse';
+    }
     options.onStatus?.(status, direction);
   };
 
@@ -119,7 +121,9 @@ export function createGroup45NativeAutoplay(
   const render = (forcedProgress?: number): number => {
     const progress = forcedProgress
       ?? (direction === 1 ? mediaProgress() : reverseProgress);
-    video.dataset.phoneGroup45AutoplayProgress = progress.toFixed(4);
+    if (import.meta.env.DEV) {
+      video.dataset.phoneGroup45AutoplayProgress = progress.toFixed(4);
+    }
     options.onProgress(progress, direction);
     return progress;
   };
@@ -389,9 +393,11 @@ export function createGroup45NativeAutoplay(
       video.removeEventListener('ended', onEnded);
       video.removeEventListener('error', onMediaError);
       visibilityDocument?.removeEventListener('visibilitychange', onVisibilityChange);
-      delete video.dataset.phoneGroup45Autoplay;
-      delete video.dataset.phoneGroup45AutoplayDirection;
-      delete video.dataset.phoneGroup45AutoplayProgress;
+      if (import.meta.env.DEV) {
+        delete video.dataset.phoneGroup45Autoplay;
+        delete video.dataset.phoneGroup45AutoplayDirection;
+        delete video.dataset.phoneGroup45AutoplayProgress;
+      }
       delete video.dataset.phoneGroup45FrameReady;
     }
   };

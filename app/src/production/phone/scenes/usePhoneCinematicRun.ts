@@ -19,7 +19,6 @@ type Player = {
 
 export function usePhoneCinematicRun(options: Readonly<{
   scene: PhoneLabContactCinematicScene;
-  stateKey: 'ph' | 'crane';
   rootRef: RefObject<HTMLElement | null>;
   forwardRef: RefObject<Player | null>;
   reverseRef: RefObject<Player | null>;
@@ -51,20 +50,26 @@ export function usePhoneCinematicRun(options: Readonly<{
     });
   }, [options.rootRef, options.scene]);
   const completeRun = useCallback((direction: PhoneCinematicDirection) => {
-    const root = options.rootRef.current;
     clearTimer();
     reverseStartedRef.current = false;
     requestedRef.current = null;
-    root?.setAttribute(
-      `data-phone-${options.stateKey}-autoplay`,
-      direction === 1 ? 'complete-forward' : 'complete-reverse'
-    );
-    root?.setAttribute(
-      `data-phone-${options.stateKey}-state`,
-      direction === 1 ? 'endpoint' : 'opening'
-    );
     publish('complete', direction);
-  }, [clearTimer, options.rootRef, options.stateKey, publish]);
+  }, [clearTimer, publish]);
+  const failRun = useCallback((direction: PhoneCinematicDirection) => {
+    const root = options.rootRef.current;
+    clearTimer();
+    reverseStartedRef.current = false;
+    requestedRef.current = direction;
+    dispatchPhoneLabContactAutoplay(root, {
+      scene: options.scene,
+      phase: 'failed',
+      direction
+    });
+  }, [
+    clearTimer,
+    options.rootRef,
+    options.scene
+  ]);
   const beginPreparedReverse = useCallback((force = false) => {
     const root = options.rootRef.current;
     if (
@@ -75,10 +80,6 @@ export function usePhoneCinematicRun(options: Readonly<{
     ) return;
     clearTimer();
     reverseStartedRef.current = true;
-    root.setAttribute(
-      `data-phone-${options.stateKey}-autoplay`,
-      'playing-reverse'
-    );
     options.reverseRef.current?.start();
     publish('playing', -1);
   }, [
@@ -86,7 +87,6 @@ export function usePhoneCinematicRun(options: Readonly<{
     options.reverseReady,
     options.reverseRef,
     options.rootRef,
-    options.stateKey,
     publish
   ]);
   const stopRun = useCallback(() => {
@@ -100,10 +100,6 @@ export function usePhoneCinematicRun(options: Readonly<{
     const root = options.rootRef.current;
     if (!root) return;
     requestedRef.current = direction;
-    root.setAttribute(
-      `data-phone-${options.stateKey}-autoplay`,
-      direction === 1 ? 'starting-forward' : 'starting-reverse'
-    );
     publish('start', direction);
     if (options.reducedMotion) {
       options.render(direction === 1 ? options.terminalProgress : 0, direction);
@@ -122,10 +118,6 @@ export function usePhoneCinematicRun(options: Readonly<{
     options.forwardRef.current?.stop();
     clearTimer();
     reverseStartedRef.current = false;
-    root.setAttribute(
-      `data-phone-${options.stateKey}-autoplay`,
-      'preparing-reverse'
-    );
     options.beforeReverse?.();
     options.activateSurface('endpoint');
     if (options.reverseReady()) {
@@ -150,7 +142,6 @@ export function usePhoneCinematicRun(options: Readonly<{
     options.reverseRef,
     options.reverseTimeoutMs,
     options.rootRef,
-    options.stateKey,
     options.terminalProgress,
     publish
   ]);
@@ -165,6 +156,7 @@ export function usePhoneCinematicRun(options: Readonly<{
     requestedRef,
     beginPreparedReverse,
     completeRun,
+    failRun,
     publishPlaying,
     startRun,
     stopRun,
@@ -173,6 +165,7 @@ export function usePhoneCinematicRun(options: Readonly<{
     beginPreparedReverse,
     completeRun,
     disposeRun,
+    failRun,
     publishPlaying,
     startRun,
     stopRun

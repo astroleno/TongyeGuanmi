@@ -37,7 +37,9 @@ function applyServicesFrame(
   const frame = phoneServicesFrame(rawProgress, reducedMotion);
   root.style.setProperty('--phone-services-opacity', frame.opacity.toFixed(4));
   root.style.setProperty('--phone-services-y', `${frame.y.toFixed(2)}px`);
-  root.dataset.phoneServicesProgress = frame.progress.toFixed(4);
+  if (import.meta.env.DEV) {
+    root.dataset.phoneServicesProgress = frame.progress.toFixed(4);
+  }
 }
 
 /** A semantic, native-scroll Services chapter with no internal scrollport. */
@@ -52,11 +54,13 @@ export const PhoneServices = forwardRef<
   const enter = useCallback(() => {
     const root = rootRef.current;
     if (!root) return;
-    root.dataset.phoneServicesActive = 'true';
+    if (import.meta.env.DEV) root.dataset.phoneServicesActive = 'true';
     update(1);
   }, [update]);
   const leave = useCallback(() => {
-    if (rootRef.current) rootRef.current.dataset.phoneServicesActive = 'false';
+    if (import.meta.env.DEV && rootRef.current) {
+      rootRef.current.dataset.phoneServicesActive = 'false';
+    }
   }, []);
 
   useEffect(() => {
@@ -77,8 +81,8 @@ export const PhoneServices = forwardRef<
     dispose() {
       const root = rootRef.current;
       if (!root) return;
-      delete root.dataset.phoneServicesActive;
-      delete root.dataset.phoneServicesProgress;
+      if (import.meta.env.DEV) delete root.dataset.phoneServicesActive;
+      if (import.meta.env.DEV) delete root.dataset.phoneServicesProgress;
       root.style.removeProperty('--phone-services-opacity');
       root.style.removeProperty('--phone-services-y');
     }

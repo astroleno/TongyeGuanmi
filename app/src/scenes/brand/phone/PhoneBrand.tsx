@@ -40,7 +40,9 @@ function applyBrandFrame(
   const frame = phoneBrandFrame(rawProgress, reducedMotion);
   root.style.setProperty('--phone-brand-opacity', frame.opacity.toFixed(4));
   root.style.setProperty('--phone-brand-y', `${frame.y.toFixed(2)}px`);
-  root.dataset.phoneBrandProgress = frame.progress.toFixed(4);
+  if (import.meta.env.DEV) {
+    root.dataset.phoneBrandProgress = frame.progress.toFixed(4);
+  }
 }
 
 /** Native document-flow phone adapter for the canonical Brand chapter. */
@@ -56,7 +58,7 @@ export const PhoneBrand = forwardRef<
   const enter = useCallback(() => {
     const root = rootRef.current;
     if (!root) return;
-    root.dataset.phoneBrandActive = 'true';
+    if (import.meta.env.DEV) root.dataset.phoneBrandActive = 'true';
     update(1);
   }, [update]);
   const leave = useCallback(() => {
@@ -64,7 +66,7 @@ export const PhoneBrand = forwardRef<
     if (!root) return;
     // This remains document content. Do not inert or hide it from the one
     // accessible story tree merely because its visual bridge has retired.
-    root.dataset.phoneBrandActive = 'false';
+    if (import.meta.env.DEV) root.dataset.phoneBrandActive = 'false';
   }, []);
 
   useEffect(() => {
@@ -86,8 +88,8 @@ export const PhoneBrand = forwardRef<
     dispose() {
       const root = rootRef.current;
       if (!root) return;
-      delete root.dataset.phoneBrandActive;
-      delete root.dataset.phoneBrandProgress;
+      if (import.meta.env.DEV) delete root.dataset.phoneBrandActive;
+      if (import.meta.env.DEV) delete root.dataset.phoneBrandProgress;
       root.style.removeProperty('--phone-brand-opacity');
       root.style.removeProperty('--phone-brand-y');
     }

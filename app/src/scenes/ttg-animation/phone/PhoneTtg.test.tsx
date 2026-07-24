@@ -33,7 +33,7 @@ describe('PhoneTtg', () => {
     expect(reducedMarkup).not.toContain('<video');
   });
 
-  it('has reversible mobile layer frames and a media-failure endpoint', () => {
+  it('has reversible mobile layers and holds the last frame on failure', () => {
     expect(phoneTtgFrame(0, false, false, 1000)).toMatchObject({
       progress: 0,
       backgroundY: 0,
@@ -54,7 +54,7 @@ describe('PhoneTtg', () => {
       figureY: 80
     });
     expect(phoneTtgFrame(0.4, false, true, 1000)).toMatchObject({
-      progress: 1,
+      progress: 0.4,
       figureOpacity: 0
     });
   });

@@ -75,7 +75,9 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         root.dataset.portraitAodAlpha = progress < PHONE_AOD_ALPHA_END_PROGRESS
           ? 'transparent'
           : 'opaque';
-        root.dataset.portraitAodProgress = progress.toFixed(4);
+        if (import.meta.env.DEV) {
+          root.dataset.portraitAodProgress = progress.toFixed(4);
+        }
         const shouldRenderPresentation = !Number.isFinite(lastProgress)
           || Math.abs(progress - lastProgress) >= 0.004
           || progress === 0
@@ -129,7 +131,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         return () => {
           if (renderRef.current === render) renderRef.current = undefined;
           delete root.dataset.portraitAodAlpha;
-          delete root.dataset.portraitAodProgress;
+          if (import.meta.env.DEV) delete root.dataset.portraitAodProgress;
           delete transition.dataset.portraitAodBackdropProgress;
         };
       }
@@ -169,7 +171,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         if (compositorRef.current === compositor) compositorRef.current = undefined;
         if (renderRef.current === render) renderRef.current = undefined;
         delete root.dataset.portraitAodAlpha;
-        delete root.dataset.portraitAodProgress;
+        if (import.meta.env.DEV) delete root.dataset.portraitAodProgress;
         delete transition.dataset.portraitAodBackdropProgress;
       };
     }, [onReady, reducedMotion]);

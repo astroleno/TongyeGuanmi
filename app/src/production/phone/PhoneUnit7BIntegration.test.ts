@@ -19,6 +19,10 @@ const continuationSource = readFileSync(
   new URL('./PhoneLabContactContinuation.tsx', import.meta.url),
   'utf8'
 );
+const targetPreparationSource = readFileSync(
+  new URL('./phone-target-presentation.ts', import.meta.url),
+  'utf8'
+);
 const stageRailSource = readFileSync(
   new URL('./PhoneStageRail.tsx', import.meta.url),
   'utf8'
@@ -113,8 +117,9 @@ describe('formal Unit7-B phone integration', () => {
       false,
       missingContact
     )).toBe(false);
-    expect(continuationSource).toMatch(
-      /if \(!runIsReady\(run\)\)[\s\S]*requestAnimationFrame/
+    expect(continuationSource).toContain('runPhoneTargetPreparation(');
+    expect(targetPreparationSource).toMatch(
+      /if \(!ready\(\) \|\| !handle\)[\s\S]*requestAnimationFrame\(wait\)/
     );
   });
 

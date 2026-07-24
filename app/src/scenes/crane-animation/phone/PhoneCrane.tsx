@@ -15,6 +15,7 @@ import type {
 } from '../../../production/phone/types';
 import { dispatchPhoneLabContactAutoplay } from '../../../production/phone/phone-lab-contact-timeline';
 import { phoneMediaUrlFor } from '../../../production/phone/phone-media';
+import type { TargetPresentationRequest } from '../../../story/presentation';
 import {
   createPhonePackedAlphaSurface,
   releasePhonePackedAlphaWhenHidden,
@@ -151,7 +152,9 @@ export const PhoneCrane = forwardRef<
     () => undefined
   );
 
-  const ensurePackedSurfaces = useCallback((mode: PhonePackedAlphaSurfaceMode) => {
+  const ensurePackedSurfaces = useCallback((
+    mode: PhonePackedAlphaSurfaceMode
+  ): readonly [PhonePackedAlphaSurface, PhonePackedAlphaSurface] | null => {
     const root = rootRef.current;
     const [figure, flock] = phoneCraneVideos(root);
     const figureContainer = figure?.parentElement;
@@ -166,7 +169,7 @@ export const PhoneCrane = forwardRef<
       || !flockContainer
       || !figureCanvas
       || !flockCanvas
-    ) return;
+    ) return null;
     cancelPackedReleaseRef.current?.();
     cancelPackedReleaseRef.current = null;
     if (!packedSurfacesRef.current) {
@@ -205,6 +208,7 @@ export const PhoneCrane = forwardRef<
       packedSurfacesRef.current = [figureSurface, flockSurface];
     }
     for (const surface of packedSurfacesRef.current) surface.activate(mode);
+    return packedSurfacesRef.current;
   }, []);
 
   const render = useCallback((
@@ -234,7 +238,6 @@ export const PhoneCrane = forwardRef<
   }, []);
   const run = usePhoneCinematicRun({
     scene: 'crane-animation',
-    stateKey: 'crane',
     rootRef,
     forwardRef: forwardRunRef,
     reverseRef: reversePlaybackRef,
@@ -264,8 +267,8 @@ export const PhoneCrane = forwardRef<
         run.completeRun(1);
       },
       () => {
-        applyPhoneCraneMediaFallback(root);
-        run.completeRun(1);
+        root.dataset.phoneCraneMedia = 'retryable-failure';
+        run.failRun(1);
       },
       run.publishPlaying
     );
@@ -279,13 +282,13 @@ export const PhoneCrane = forwardRef<
       render,
       () => run.completeRun(-1),
       () => {
-        applyPhoneCraneMediaFallback(root);
-        run.completeRun(-1);
+        root.dataset.phoneCraneMedia = 'retryable-failure';
+        run.failRun(-1);
       }
     );
     forwardRunRef.current = forwardRun;
     reversePlaybackRef.current = reversePlayback;
-    root.dataset.phoneCraneLifecycle = 'ready';
+    if (import.meta.env.DEV) root.dataset.phoneCraneLifecycle = 'ready';
     const requestedDirection = run.requestedRef.current;
     if (requestedDirection !== null) run.startRun(requestedDirection);
     onReady?.();
@@ -301,8 +304,7 @@ export const PhoneCrane = forwardRef<
       if (forwardRunRef.current === forwardRun) forwardRunRef.current = null;
       if (reversePlaybackRef.current === reversePlayback) reversePlaybackRef.current = null;
       parkPhoneCraneMedia(root);
-      delete root.dataset.phoneCraneLifecycle;
-      delete root.dataset.phoneCraneAutoplay;
+      if (import.meta.env.DEV) delete root.dataset.phoneCraneLifecycle;
     };
   }, [
     ensurePackedSurfaces,
@@ -313,6 +315,40 @@ export const PhoneCrane = forwardRef<
     render,
     run
   ]);
+
+  const prepareTargetPresentation = useCallback(async (
+    request: TargetPresentationRequest
+  ): Promise<void> => {
+    const root = rootRef.current;
+    if (!root) throw new Error('Crane target root unavailable');
+    if (reducedMotion) {
+      render(request.progress);
+      return;
+    }
+    const mode: PhonePackedAlphaSurfaceMode =
+      request.progress >= 0.999 || request.direction === -1
+        ? 'endpoint'
+        : 'forward';
+    root.dataset.phoneCraneMedia = 'preparing-target';
+    for (const video of phoneCraneVideos(root)) {
+      video?.removeAttribute('data-phone-crane-media');
+    }
+    const surfaces = ensurePackedSurfaces(mode);
+    if (!surfaces) throw new Error('Crane packed-alpha surfaces unavailable');
+    try {
+      await Promise.all(
+        surfaces.map((surface) => surface.prepare(mode, request.signal))
+      );
+    } catch (error) {
+      root.dataset.phoneCraneMedia = 'retryable-failure';
+      throw error;
+    }
+    if (request.signal.aborted) {
+      throw new DOMException('Crane target preparation aborted', 'AbortError');
+    }
+    render(request.progress, request.direction);
+    root.dataset.phoneCraneMedia = 'ready';
+  }, [ensurePackedSurfaces, reducedMotion, render]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -328,13 +364,11 @@ export const PhoneCrane = forwardRef<
     },
     enter() {
       rootRef.current?.removeAttribute('aria-hidden');
-      rootRef.current?.setAttribute('data-phone-crane-state', 'entered');
       run.startRun(1);
     },
     leave() {
       run.stopRun();
       parkPhoneCraneMedia(rootRef.current);
-      rootRef.current?.setAttribute('data-phone-crane-state', 'parked');
       const root = rootRef.current;
       if (root) {
         cancelPackedReleaseRef.current?.();
@@ -347,9 +381,9 @@ export const PhoneCrane = forwardRef<
       }
     },
     reverse() {
-      rootRef.current?.setAttribute('data-phone-crane-state', 'reversing');
       run.startRun(-1);
     },
+    prepareTargetPresentation,
     dispose() {
       run.disposeRun();
       cancelPackedReleaseRef.current?.();
@@ -358,7 +392,7 @@ export const PhoneCrane = forwardRef<
       packedSurfacesRef.current = null;
       parkPhoneCraneMedia(rootRef.current);
     }
-  }), [ensurePackedSurfaces, render, run]);
+  }), [ensurePackedSurfaces, prepareTargetPresentation, render, run]);
 
   return (
     <>

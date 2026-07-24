@@ -13,13 +13,17 @@ import {
   type TimelineVideoDriveInput
 } from '../../../media/timeline-video-driver';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
+import { waitForPhoneTargetPresentation } from '../../../production/phone/phone-target-presentation';
 import {
   createGroup45NativeAutoplay,
   type Group45NativeAutoplay,
   type Group45NativeAutoplayDirection,
   type Group45NativeAutoplayStatus
 } from '../../../production/phone/adapter-groups/group4-5-native-autoplay';
-import type { ScenePresentationAdapterHandle } from '../../../story/presentation';
+import type {
+  ScenePresentationAdapterHandle,
+  TargetPresentationRequest
+} from '../../../story/presentation';
 import {
   FIGURE3_END_SECONDS,
   figure3AnimationScene,
@@ -77,7 +81,7 @@ export function phoneFigure3Frame(
   reducedMotion = false,
   mediaFailed = false
 ): PhoneFigure3Frame {
-  const progress = mediaFailed ? 1 : reducedMotion ? 0 : clamp(rawProgress);
+  const progress = reducedMotion ? 0 : clamp(rawProgress);
   const visualProgress = .78 * progress + .22 * progress * progress;
   const backdropSettle = smoothStep(range01(visualProgress, .06, .84));
   return {
@@ -291,7 +295,9 @@ export const PhoneFigure3 = forwardRef<
     root.style.setProperty('--phone-figure3-video-scale', frame.videoScale.toFixed(4));
     root.style.setProperty('--phone-figure3-backdrop-opacity', frame.backdropOpacity.toFixed(4));
     root.style.setProperty('--phone-figure3-backdrop-scale', frame.backdropScale.toFixed(4));
-    root.dataset.phoneFigure3Progress = frame.progress.toFixed(4);
+    if (import.meta.env.DEV) {
+      root.dataset.phoneFigure3Progress = frame.progress.toFixed(4);
+    }
   }, []);
 
   const mountMedia = useCallback(() => {
@@ -306,7 +312,6 @@ export const PhoneFigure3 = forwardRef<
     const root = rootRef.current;
     if (root) {
       delete root.dataset.phoneFigure3EndpointReady;
-      delete root.dataset.phoneFigure3EndpointState;
     }
   }, []);
 
@@ -341,13 +346,12 @@ export const PhoneFigure3 = forwardRef<
     if (mediaRetiringRef.current || mediaFailedRef.current) return;
     mediaFailedRef.current = true;
     setMediaFailed(true);
-    renderFrame(1);
     releaseMedia();
     const root = rootRef.current;
-    root?.setAttribute('data-phone-figure3-fallback-endpoint', 'terminal');
-    root?.setAttribute('data-phone-media-state', 'fallback');
+    root?.setAttribute('data-phone-figure3-fallback-endpoint', 'initial');
+    root?.setAttribute('data-phone-media-state', 'retryable-failure');
     mediaErrorListenerRef.current?.('figure3-animation');
-  }, [releaseMedia, renderFrame]);
+  }, [releaseMedia]);
 
   const startPreparedRun = useCallback(() => {
     const runDirection = pendingRunDirectionRef.current;
@@ -424,10 +428,6 @@ export const PhoneFigure3 = forwardRef<
     endpointPreparationRef.current = null;
     const label = endpointLabel(endpoint);
     rootRef.current?.setAttribute('data-phone-figure3-endpoint-ready', label);
-    rootRef.current?.setAttribute(
-      'data-phone-figure3-endpoint-state',
-      `${compositor ? 'ready' : 'fallback'}-${label}`
-    );
     onPresented?.();
     startPreparedRun();
     return true;
@@ -488,7 +488,6 @@ export const PhoneFigure3 = forwardRef<
     const root = rootRef.current;
     if (root) {
       const label = endpointLabel(endpoint);
-      root.dataset.phoneFigure3EndpointState = `preparing-${label}`;
       root.dataset.phoneFigure3FallbackEndpoint = label;
     }
     playback.reset(endpoint);
@@ -616,7 +615,9 @@ export const PhoneFigure3 = forwardRef<
 
   const reconcileMedia = useCallback(() => {
     const root = rootRef.current;
-    if (root) root.dataset.phoneFigure3Active = String(activeRef.current);
+    if (root && import.meta.env.DEV) {
+      root.dataset.phoneFigure3Active = String(activeRef.current);
+    }
     const action = phoneFigure3MediaAction(
       activeRef.current,
       prewarmRef.current,
@@ -629,9 +630,9 @@ export const PhoneFigure3 = forwardRef<
       pendingRunDirectionRef.current = null;
       root?.setAttribute(
         'data-phone-figure3-fallback-endpoint',
-        mediaFailedRef.current ? 'terminal' : 'initial'
+        'initial'
       );
-      renderFrame(mediaFailedRef.current ? 1 : 0);
+      if (!mediaFailedRef.current) renderFrame(0);
       releaseMedia();
       return;
     }
@@ -807,11 +808,49 @@ export const PhoneFigure3 = forwardRef<
   useEffect(() => () => releaseMedia(), [releaseMedia]);
 
   const update = useCallback((rawProgress: number) => {
-    rootRef.current?.setAttribute(
-      'data-phone-figure3-scroll-progress',
-      clamp(rawProgress).toFixed(4)
-    );
+    if (import.meta.env.DEV) {
+      rootRef.current?.setAttribute(
+        'data-phone-figure3-scroll-progress',
+        clamp(rawProgress).toFixed(4)
+      );
+    }
   }, []);
+
+  const prepareTargetPresentation = useCallback((
+    request: TargetPresentationRequest
+  ): Promise<void> => {
+    const root = rootRef.current;
+    if (!root) {
+      return Promise.reject(new Error('Figure3 target root unavailable'));
+    }
+    if (reducedMotionRef.current) {
+      renderFrame(request.progress);
+      return Promise.resolve();
+    }
+    if (mediaFailedRef.current) {
+      mediaFailedRef.current = false;
+      setMediaFailed(false);
+      mediaRetiringRef.current = false;
+      delete root.dataset.phoneMediaState;
+      delete root.dataset.phoneFigure3FallbackEndpoint;
+    }
+    mountMedia();
+    const endpoint: PhoneFigure3Endpoint = request.progress >= 0.999 ? 1 : 0;
+    renderFrame(endpoint);
+    prepareEndpoint(endpoint, request.direction, request.runId);
+    return waitForPhoneTargetPresentation(
+      () => {
+        if (root.dataset.phoneMediaState === 'retryable-failure') {
+          return 'retryable-failure';
+        }
+        if (root.dataset.phoneFigure3EndpointReady !== endpointLabel(endpoint)) {
+          return null;
+        }
+        return true;
+      },
+      request.signal
+    );
+  }, [mountMedia, prepareEndpoint, renderFrame]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -831,16 +870,18 @@ export const PhoneFigure3 = forwardRef<
       directionRef.current = -1;
       startRun(-1);
     },
+    prepareTargetPresentation,
     dispose() {
       releaseMedia();
       const root = rootRef.current;
       if (!root) return;
-      delete root.dataset.phoneFigure3Active;
-      delete root.dataset.phoneFigure3Progress;
-      delete root.dataset.phoneFigure3ScrollProgress;
+      if (import.meta.env.DEV) {
+        delete root.dataset.phoneFigure3Active;
+        delete root.dataset.phoneFigure3Progress;
+        delete root.dataset.phoneFigure3ScrollProgress;
+      }
       delete root.dataset.phoneFigure3Playback;
       delete root.dataset.phoneFigure3EndpointReady;
-      delete root.dataset.phoneFigure3EndpointState;
       delete root.dataset.phoneFigure3FallbackEndpoint;
       delete root.dataset.phoneMediaState;
       root.style.removeProperty('--phone-figure3-video-opacity');
@@ -849,10 +890,17 @@ export const PhoneFigure3 = forwardRef<
       root.style.removeProperty('--phone-figure3-backdrop-scale');
       delete root.dataset.phoneFigure3PaperCompositor;
     }
-  }), [reconcileMedia, releaseMedia, renderFrame, startRun, update]);
+  }), [
+    prepareTargetPresentation,
+    reconcileMedia,
+    releaseMedia,
+    renderFrame,
+    startRun,
+    update
+  ]);
 
   const mediaState = mediaFailed
-    ? 'fallback'
+    ? 'retryable-failure'
     : reducedMotion
       ? 'reduced'
       : mediaReady

@@ -14,13 +14,17 @@ import {
   type TimelineVideoDriveInput
 } from '../../../media/timeline-video-driver';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
+import { waitForPhoneTargetPresentation } from '../../../production/phone/phone-target-presentation';
 import {
   createGroup45NativeAutoplay,
   type Group45NativeAutoplay,
   type Group45NativeAutoplayDirection,
   type Group45NativeAutoplayStatus
 } from '../../../production/phone/adapter-groups/group4-5-native-autoplay';
-import type { ScenePresentationAdapterHandle } from '../../../story/presentation';
+import type {
+  ScenePresentationAdapterHandle,
+  TargetPresentationRequest
+} from '../../../story/presentation';
 import {
   TTG_FIGURE_END_SECONDS,
   disposeTtgMedia,
@@ -88,7 +92,7 @@ export function phoneTtgFrame(
   mediaFailed = false,
   height = viewportHeight()
 ): PhoneTtgFrame {
-  const progress = mediaFailed ? 1 : reducedMotion ? 0 : stableProgress(rawProgress);
+  const progress = reducedMotion ? 0 : stableProgress(rawProgress);
   const visualProgress = acceleratedProgress(progress);
   return {
     progress,
@@ -335,8 +339,10 @@ export const PhoneTtg = forwardRef<
     root.style.setProperty('--phone-ttg-figure-y', `${frame.figureY.toFixed(2)}px`);
     root.style.setProperty('--phone-ttg-figure-scale', frame.figureScale.toFixed(4));
     root.style.setProperty('--phone-ttg-figure-opacity', frame.figureOpacity.toFixed(4));
-    root.dataset.phoneTtgProgress = frame.progress.toFixed(4);
-    root.dataset.phoneTtgVisualProgress = frame.visualProgress.toFixed(4);
+    if (import.meta.env.DEV) {
+      root.dataset.phoneTtgProgress = frame.progress.toFixed(4);
+      root.dataset.phoneTtgVisualProgress = frame.visualProgress.toFixed(4);
+    }
     const video = videoRef.current;
     if (playbackDirection === -1 && video) {
       driveTimelineVideo(
@@ -441,11 +447,13 @@ export const PhoneTtg = forwardRef<
     if (mediaRetiringRef.current || mediaFailedRef.current) return;
     mediaFailedRef.current = true;
     setMediaFailed(true);
-    renderFrame(1);
     releaseMedia();
-    rootRef.current?.setAttribute('data-phone-media-state', 'fallback');
+    rootRef.current?.setAttribute(
+      'data-phone-media-state',
+      'retryable-failure'
+    );
     mediaErrorListenerRef.current?.('ttg-animation');
-  }, [releaseMedia, renderFrame]);
+  }, [releaseMedia]);
 
   const ensureInitialFrame = useCallback((video: HTMLVideoElement) => {
     if (phoneTtgHasReusableEndpointFrame(video, 0)) {
@@ -636,7 +644,9 @@ export const PhoneTtg = forwardRef<
 
   const reconcileMedia = useCallback(() => {
     const root = rootRef.current;
-    if (root) root.dataset.phoneTtgActive = String(activeRef.current);
+    if (root && import.meta.env.DEV) {
+      root.dataset.phoneTtgActive = String(activeRef.current);
+    }
     const action = phoneTtgMediaAction(
       activeRef.current,
       prewarmRef.current,
@@ -646,7 +656,7 @@ export const PhoneTtg = forwardRef<
       directionRef.current
     );
     if (action === 'static-fallback') {
-      renderFrame(mediaFailedRef.current ? 1 : 0);
+      if (!mediaFailedRef.current) renderFrame(0);
       releaseMedia();
       return;
     }
@@ -844,11 +854,72 @@ export const PhoneTtg = forwardRef<
   useEffect(() => () => releaseMedia(), [releaseMedia]);
 
   const update = useCallback((rawProgress: number) => {
-    rootRef.current?.setAttribute(
-      'data-phone-ttg-scroll-progress',
-      stableProgress(rawProgress).toFixed(4)
-    );
+    if (import.meta.env.DEV) {
+      rootRef.current?.setAttribute(
+        'data-phone-ttg-scroll-progress',
+        stableProgress(rawProgress).toFixed(4)
+      );
+    }
   }, []);
+
+  const prepareTargetPresentation = useCallback((
+    request: TargetPresentationRequest
+  ): Promise<void> => {
+    const root = rootRef.current;
+    if (!root) {
+      return Promise.reject(new Error('TTG target root unavailable'));
+    }
+    if (reducedMotionRef.current) {
+      renderFrame(request.progress);
+      return Promise.resolve();
+    }
+    if (mediaFailedRef.current) {
+      mediaFailedRef.current = false;
+      setMediaFailed(false);
+      mediaRetiringRef.current = false;
+      delete root.dataset.phoneMediaState;
+    }
+    mountMedia();
+    const endpoint = request.progress >= 0.999 ? 1 : 0;
+    let terminalRequested = false;
+    return waitForPhoneTargetPresentation(
+      () => {
+        if (root.dataset.phoneMediaState === 'retryable-failure') {
+          return 'retryable-failure';
+        }
+        const video = videoRef.current;
+        if (!video) return null;
+        const endpointReady = video.dataset.phoneTtgEndpointReady;
+        if (
+          (endpoint === 0 && endpointReady === 'initial')
+          || (endpoint === 1 && endpointReady === 'terminal')
+        ) {
+          return true;
+        }
+        if (endpoint === 0) {
+          void ensureInitialFrame(video);
+        } else if (!terminalRequested) {
+          terminalRequested = true;
+          void prepareTimelineVideoFrame(
+            video,
+            ttgEndpointMediaInput(request.runId, 1, request.direction)
+          ).then((result) => {
+            if (result?.status !== 'ready' || request.signal.aborted) return;
+            video.dataset.phoneGroup45FrameReady = 'true';
+            video.dataset.phoneTtgEndpointReady = 'terminal';
+            renderFrame(1);
+          }).catch(failMedia);
+        }
+        return null;
+      },
+      request.signal
+    );
+  }, [
+    ensureInitialFrame,
+    failMedia,
+    mountMedia,
+    renderFrame
+  ]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -869,14 +940,17 @@ export const PhoneTtg = forwardRef<
       forwardRequestedRef.current = true;
       startRun(-1);
     },
+    prepareTargetPresentation,
     dispose() {
       releaseMedia();
       const root = rootRef.current;
       if (!root) return;
-      delete root.dataset.phoneTtgActive;
-      delete root.dataset.phoneTtgProgress;
-      delete root.dataset.phoneTtgScrollProgress;
-      delete root.dataset.phoneTtgVisualProgress;
+      if (import.meta.env.DEV) {
+        delete root.dataset.phoneTtgActive;
+        delete root.dataset.phoneTtgProgress;
+        delete root.dataset.phoneTtgScrollProgress;
+        delete root.dataset.phoneTtgVisualProgress;
+      }
       delete root.dataset.phoneTtgPlayback;
       delete root.dataset.phoneMediaState;
       root.style.removeProperty('--phone-ttg-background-y');
@@ -888,10 +962,17 @@ export const PhoneTtg = forwardRef<
       root.style.removeProperty('--phone-ttg-figure-scale');
       root.style.removeProperty('--phone-ttg-figure-opacity');
     }
-  }), [reconcileMedia, releaseMedia, renderFrame, startRun, update]);
+  }), [
+    prepareTargetPresentation,
+    reconcileMedia,
+    releaseMedia,
+    renderFrame,
+    startRun,
+    update
+  ]);
 
   const mediaState = mediaFailed
-    ? 'fallback'
+    ? 'retryable-failure'
     : reducedMotion
       ? 'reduced'
       : mediaReady

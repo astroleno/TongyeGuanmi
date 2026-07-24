@@ -101,7 +101,7 @@ export function createPhoneNativeAutoplay(
     cancelStallTimer();
     publishPlaybackOwnership('failed');
     video.pause();
-    video.dataset.phoneNativeAutoplay = 'failed';
+    if (import.meta.env.DEV) video.dataset.phoneNativeAutoplay = 'failed';
     options.onFailure();
   };
 
@@ -115,7 +115,9 @@ export function createPhoneNativeAutoplay(
 
   const render = (forcedProgress?: number) => {
     const nextProgress = forcedProgress ?? progress();
-    video.dataset.phoneNativeAutoplayProgress = nextProgress.toFixed(4);
+    if (import.meta.env.DEV) {
+      video.dataset.phoneNativeAutoplayProgress = nextProgress.toFixed(4);
+    }
     options.onProgress(nextProgress);
     return nextProgress;
   };
@@ -129,7 +131,7 @@ export function createPhoneNativeAutoplay(
     cancelStallTimer();
     publishPlaybackOwnership('complete');
     video.pause();
-    video.dataset.phoneNativeAutoplay = 'complete';
+    if (import.meta.env.DEV) video.dataset.phoneNativeAutoplay = 'complete';
     render(1);
     options.onComplete();
   };
@@ -166,7 +168,7 @@ export function createPhoneNativeAutoplay(
       return;
     }
     frameReady = true;
-    video.dataset.phoneNativeFrameReady = 'true';
+    if (import.meta.env.DEV) video.dataset.phoneNativeFrameReady = 'true';
     options.onFrameReady?.();
   };
 
@@ -181,7 +183,7 @@ export function createPhoneNativeAutoplay(
     }
     const attempt = ++playAttempt;
     playPending = true;
-    video.dataset.phoneNativeAutoplay = 'starting';
+    if (import.meta.env.DEV) video.dataset.phoneNativeAutoplay = 'starting';
     let playback: Promise<void> | undefined;
     try {
       playback = video.play();
@@ -199,13 +201,13 @@ export function createPhoneNativeAutoplay(
           play();
           return;
         }
-        video.dataset.phoneNativeAutoplay = 'playing';
+        if (import.meta.env.DEV) video.dataset.phoneNativeAutoplay = 'playing';
         schedule();
       },
       () => {
         if (disposed || !active || attempt !== playAttempt) return;
         playPending = false;
-        video.dataset.phoneNativeAutoplay = 'blocked';
+        if (import.meta.env.DEV) video.dataset.phoneNativeAutoplay = 'blocked';
       }
     );
   };
@@ -223,7 +225,7 @@ export function createPhoneNativeAutoplay(
   };
   const onPlay = () => {
     if (!active || disposed) return;
-    video.dataset.phoneNativeAutoplay = 'playing';
+    if (import.meta.env.DEV) video.dataset.phoneNativeAutoplay = 'playing';
     armStallTimer();
     schedule();
   };
@@ -242,7 +244,7 @@ export function createPhoneNativeAutoplay(
       playPending = false;
       cancelStallTimer();
       video.pause();
-      video.dataset.phoneNativeAutoplay = 'suspended';
+      if (import.meta.env.DEV) video.dataset.phoneNativeAutoplay = 'suspended';
       return;
     }
     armStallTimer();
@@ -268,7 +270,7 @@ export function createPhoneNativeAutoplay(
     publishPlaybackOwnership(phase);
     video.pause();
     frameReady = false;
-    delete video.dataset.phoneNativeFrameReady;
+    if (import.meta.env.DEV) delete video.dataset.phoneNativeFrameReady;
   };
 
   return {
@@ -290,8 +292,10 @@ export function createPhoneNativeAutoplay(
       active = true;
       lastEvidenceProgress = 0;
       frameReady = false;
-      delete video.dataset.phoneNativeFrameReady;
-      video.dataset.phoneNativeAutoplay = 'starting';
+      if (import.meta.env.DEV) {
+        delete video.dataset.phoneNativeFrameReady;
+        video.dataset.phoneNativeAutoplay = 'starting';
+      }
       render(0);
       armStallTimer();
       play();
@@ -311,7 +315,7 @@ export function createPhoneNativeAutoplay(
       } catch {
         // Metadata may still be pending; the source remains reusable.
       }
-      video.dataset.phoneNativeAutoplay = 'idle';
+      if (import.meta.env.DEV) video.dataset.phoneNativeAutoplay = 'idle';
       publishPlaybackOwnership('idle');
       render(0);
     },
@@ -328,9 +332,11 @@ export function createPhoneNativeAutoplay(
       video.removeEventListener('ended', onEnded);
       video.removeEventListener('error', onError);
       visibilityDocument?.removeEventListener('visibilitychange', onVisibilityChange);
-      delete video.dataset.phoneNativeAutoplay;
-      delete video.dataset.phoneNativeAutoplayProgress;
-      delete video.dataset.phoneNativeFrameReady;
+      if (import.meta.env.DEV) {
+        delete video.dataset.phoneNativeAutoplay;
+        delete video.dataset.phoneNativeAutoplayProgress;
+        delete video.dataset.phoneNativeFrameReady;
+      }
       delete video.dataset.timelineVideoRun;
     }
   };

@@ -37,7 +37,9 @@ function applyLabFrame(
   const frame = phoneLabFrame(rawProgress, reducedMotion);
   root.style.setProperty('--phone-lab-opacity', frame.opacity.toFixed(4));
   root.style.setProperty('--phone-lab-y', `${frame.y.toFixed(2)}px`);
-  root.dataset.phoneLabProgress = frame.progress.toFixed(4);
+  if (import.meta.env.DEV) {
+    root.dataset.phoneLabProgress = frame.progress.toFixed(4);
+  }
 }
 
 /** Native document-flow Lab chapter; its root is the stable Lab → PH input. */
@@ -52,12 +54,14 @@ export const PhoneLab = forwardRef<
   const enter = useCallback(() => {
     const root = rootRef.current;
     if (!root) return;
-    root.dataset.phoneLabActive = 'true';
+    if (import.meta.env.DEV) root.dataset.phoneLabActive = 'true';
     root.dataset.phoneLabStableInput = 'lab-ph';
     update(1);
   }, [update]);
   const leave = useCallback(() => {
-    if (rootRef.current) rootRef.current.dataset.phoneLabActive = 'false';
+    if (import.meta.env.DEV && rootRef.current) {
+      rootRef.current.dataset.phoneLabActive = 'false';
+    }
   }, []);
 
   useEffect(() => {
@@ -78,8 +82,8 @@ export const PhoneLab = forwardRef<
     dispose() {
       const root = rootRef.current;
       if (!root) return;
-      delete root.dataset.phoneLabActive;
-      delete root.dataset.phoneLabProgress;
+      if (import.meta.env.DEV) delete root.dataset.phoneLabActive;
+      if (import.meta.env.DEV) delete root.dataset.phoneLabProgress;
       delete root.dataset.phoneLabStableInput;
       root.style.removeProperty('--phone-lab-opacity');
       root.style.removeProperty('--phone-lab-y');

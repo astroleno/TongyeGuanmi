@@ -79,9 +79,24 @@ export type PresentationAdapterLifecycle = {
   dispose?(): void;
 };
 
+export type TargetPresentationRequest = Readonly<{
+  progress: number;
+  direction: 1 | -1;
+  runId: string;
+  signal: AbortSignal;
+}>;
+
 export type ScenePresentationAdapterHandle = PresentationAdapterLifecycle & {
   root(): HTMLElement | null;
   update(progress: number): void;
+  /**
+   * Resolves only after the receiver owns a physically presented frame or an
+   * explicit canonical static plate. A rejected promise is retryable and must
+   * never be interpreted as permission to commit the downstream endpoint.
+   */
+  prepareTargetPresentation?(
+    request: TargetPresentationRequest
+  ): Promise<void>;
 };
 
 export type TransitionPresentationAdapterHandle = PresentationAdapterLifecycle & {

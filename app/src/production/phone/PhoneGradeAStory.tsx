@@ -18,6 +18,7 @@ import { PHONE_INK_ENDPOINT_EPSILON } from './phone-ink';
 import {
   registerPhoneTransitionBoundary,
   runPhoneTimedTransition,
+  type PhoneTransitionBoundaryRegistration,
   type PhoneTransitionDirection,
   type PhoneTransitionSession
 } from './phone-transition-coordinator';
@@ -39,7 +40,7 @@ import './PhoneGradeAStory.css';
 const FIGURE2_PROOF_SPLIT = 0.72;
 const ACTIVE_EDGE_TOLERANCE_PX = 1;
 const GRADE_A_INK_BOUNDARIES = [0, 1, 2] as const;
-type GradeAInkBoundaryId = typeof GRADE_A_INK_BOUNDARIES[number];
+export type GradeAInkBoundaryId = typeof GRADE_A_INK_BOUNDARIES[number];
 type GradeAInkRun = {
   id: GradeAInkBoundaryId;
   progress: number;
@@ -149,6 +150,34 @@ export function phoneGradeABoundaryCompletedAtScroll(
   return completed;
 }
 
+export function phoneGradeAReconciledBoundaryCompletion(
+  id: GradeAInkBoundaryId,
+  completed: boolean,
+  scrollY: number,
+  upstreamPosition: number | null,
+  downstreamPosition: number | null
+): boolean {
+  const reconciled = phoneGradeABoundaryCompletedAtScroll(
+    completed,
+    scrollY,
+    upstreamPosition,
+    downstreamPosition
+  );
+  return id === 2 && !completed && reconciled ? false : reconciled;
+}
+
+export function phoneGradeAShouldReplayProofBrand(
+  completed: boolean,
+  scrollY: number,
+  downstreamPosition: number | null,
+  directContinuation: boolean
+): boolean {
+  return !directContinuation
+    && !completed
+    && downstreamPosition !== null
+    && scrollY >= downstreamPosition - ACTIVE_EDGE_TOLERANCE_PX;
+}
+
 export type PhoneGradeAStoryProps = Readonly<{
   reducedMotion: boolean;
   stageHost: HTMLElement | null;
@@ -174,7 +203,7 @@ export function PhoneGradeAStory({
     Figure2Proof,
     ProofBrand
   } = adapters;
-  const [, setAdapterRevision] = useState(0);
+  const [adapterRevision, setAdapterRevision] = useState(0);
   const [figure2Ready, setFigure2Ready] = useState(false);
   const [proofReady, setProofReady] = useState(false);
   const [methodFigure2Ready, setMethodFigure2Ready] = useState(false);
@@ -193,6 +222,13 @@ export function PhoneGradeAStory({
   const methodFigure2Ref = useRef<PhoneTransitionAdapterHandle | null>(null);
   const figure2ProofRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const proofBrandRef = useRef<PhoneTransitionAdapterHandle | null>(null);
+  const brandRootRef = useRef<HTMLElement | null>(null);
+  const runtimeReadyRef = useRef(false);
+  const adaptersFailedRef = useRef(false);
+  const continuationTargetRef = useRef<
+    ReturnType<typeof phoneGroup45SceneFromHash>
+  >(undefined);
+  const renderGradeAFrameRef = useRef<() => void>(() => undefined);
   const frameRef = useRef(0);
   const checkpointRef = useRef<PhoneCheckpointId | undefined>(undefined);
   const sceneRef = useRef<SceneId>('method-top');
@@ -207,6 +243,10 @@ export function PhoneGradeAStory({
   const continuationTarget = typeof window === 'undefined'
     ? undefined
     : phoneGroup45SceneFromHash(window.location.hash);
+  brandRootRef.current = brandRoot;
+  runtimeReadyRef.current = runtimeReady;
+  adaptersFailedRef.current = adapters.failed;
+  continuationTargetRef.current = continuationTarget;
 
   const markFigure2Ready = useCallback(() => setFigure2Ready(true), []);
   const markProofReady = useCallback(() => setProofReady(true), []);
@@ -257,10 +297,16 @@ export function PhoneGradeAStory({
     ),
     [bindAdapter]
   );
+  const bindBrandRoot = useCallback((nextRoot: HTMLElement | null) => {
+    brandRootRef.current = nextRoot;
+    setBrandRoot(nextRoot);
+  }, []);
 
   const publish = useCallback((checkpoint: PhoneCheckpointId, scene: SceneId) => {
     const root = rootRef.current;
-    if (root) root.dataset.phoneGradeACheckpoint = checkpoint;
+    if (import.meta.env.DEV && root) {
+      root.dataset.phoneGradeACheckpoint = checkpoint;
+    }
     if (checkpointRef.current !== checkpoint) {
       checkpointRef.current = checkpoint;
     }
@@ -275,14 +321,15 @@ export function PhoneGradeAStory({
   }, [onCheckpoint, onSceneChange]);
   const publishEdgeScene = useCallback((scene: PhoneEdgeScene) => {
     const root = rootRef.current;
-    if (root) root.dataset.phoneGradeAEdgeScene = scene;
+    if (import.meta.env.DEV && root) {
+      root.dataset.phoneGradeAEdgeScene = scene;
+    }
     if (edgeSceneRef.current === scene) return;
     edgeSceneRef.current = scene;
     onEdgeScene?.(scene);
   }, [onEdgeScene]);
 
   useLayoutEffect(() => {
-    if (!runtimeReady) return;
     const root = rootRef.current;
     const rail = railRef.current;
     const proofTrack = proofTrackRef.current;
@@ -291,10 +338,19 @@ export function PhoneGradeAStory({
     const methodReading = document.getElementById('method');
     const storyRoot = root.closest<HTMLElement>('main.portrait-scroll-spike');
     const completedInk = new Set<GradeAInkBoundaryId>();
+    if (continuationTargetRef.current) completedInk.add(2);
     let inkRun: GradeAInkRun | null = null;
     let cancelInkRun: (() => void) | undefined;
+    let inkPreparationFrame = 0;
+    let activeInkSession: PhoneTransitionSession | null = null;
+    let overshootRecoveryAttempted = false;
+    let gradeAInkRegistrations: readonly PhoneTransitionBoundaryRegistration[] = [];
     const elementDocumentTop = (element: HTMLElement) => (
       window.scrollY + element.getBoundingClientRect().top
+    );
+    const brandBoundaryRoot = () => (
+      brandRootRef.current
+      ?? root.querySelector<HTMLElement>('[data-phone-continuation="brand-lab"]')
     );
     const boundaryPosition = (
       id: GradeAInkBoundaryId,
@@ -312,29 +368,50 @@ export function PhoneGradeAStory({
         return elementDocumentTop(proofTrack)
           - direction * ACTIVE_EDGE_TOLERANCE_PX * 2;
       }
-      if (!brandRoot) return null;
-      const brandTop = elementDocumentTop(brandRoot);
+      const brandBoundary = brandBoundaryRoot();
+      if (!brandBoundary) return null;
+      const brandTop = elementDocumentTop(brandBoundary);
       return direction === 1 ? brandTop - stageHeight : brandTop;
     };
 
     const renderFrame = () => {
       frameRef.current = 0;
+      if (!runtimeReadyRef.current) {
+        root.dataset.phoneGradeAActive = 'false';
+        surfaces.dataset.phoneGradeAActive = 'false';
+        return;
+      }
       const railRect = rail.getBoundingClientRect();
       const proofRect = proofTrack.getBoundingClientRect();
-      const brandRect = brandRoot?.getBoundingClientRect();
+      const brandRect = brandBoundaryRoot()?.getBoundingClientRect();
       const methodRect = methodReading?.getBoundingClientRect();
       const stageHeight = Math.max(1, surfaces.clientHeight || window.innerHeight);
       const activeInk = inkRun;
       if (!activeInk) {
         for (const id of GRADE_A_INK_BOUNDARIES) {
-          const completed = phoneGradeABoundaryCompletedAtScroll(
-            completedInk.has(id),
+          const wasCompleted = completedInk.has(id);
+          const completed = phoneGradeAReconciledBoundaryCompletion(
+            id,
+            wasCompleted,
             window.scrollY,
             boundaryPosition(id, 1),
             boundaryPosition(id, -1)
           );
           if (completed) completedInk.add(id);
           else completedInk.delete(id);
+        }
+        const brandDownstream = boundaryPosition(2, -1);
+        if (
+          phoneGradeAShouldReplayProofBrand(
+            completedInk.has(2),
+            window.scrollY,
+            brandDownstream,
+            Boolean(continuationTargetRef.current)
+          )
+          && !overshootRecoveryAttempted
+        ) {
+          overshootRecoveryAttempted = true;
+          if (gradeAInkRegistrations[2]?.trigger(1)) return;
         }
       }
       const railActive = railRect.top < stageHeight
@@ -380,7 +457,9 @@ export function PhoneGradeAStory({
         );
         if (retainedArch) {
           retainedArch.dataset.phoneFigure2ArchVisible = String(frame.opacity > 0.001);
-          retainedArch.dataset.phoneFigure2ArchProgress = frame.motionProgress.toFixed(4);
+          if (import.meta.env.DEV) {
+            retainedArch.dataset.phoneFigure2ArchProgress = frame.motionProgress.toFixed(4);
+          }
         }
       };
 
@@ -478,8 +557,14 @@ export function PhoneGradeAStory({
 
       if (brandRect && brandRect.top <= ACTIVE_EDGE_TOLERANCE_PX) {
         figure2Ref.current?.leave?.();
-        proofBrandRef.current?.render(1);
-        proofRef.current?.leave?.();
+        if (completedInk.has(2)) {
+          proofBrandRef.current?.render(1);
+          proofRef.current?.leave?.();
+        } else {
+          proofBrandRef.current?.render(0);
+          proofRef.current?.update(1);
+          proofRef.current?.enter?.();
+        }
       }
 
       if (railRect.top >= stageHeight) {
@@ -509,38 +594,64 @@ export function PhoneGradeAStory({
       session: PhoneTransitionSession
     ) => {
       if (inkRun) return false;
-      const transition = id === 0
-        ? methodFigure2Ref.current
-        : id === 1
-          ? figure2ProofRef.current
-          : proofBrandRef.current;
-      if (!transition) return false;
-      if (direction === 1) transition.enter?.();
-      else transition.reverse?.();
       inkRun = {
         id,
         progress: direction === 1 ? 0 : 1
       };
-      cancelInkRun = runPhoneTimedTransition(
-        session,
-        direction,
-        (progress) => {
-          if (inkRun?.id !== id) return;
-          inkRun.progress = progress;
-          renderFrame();
-        },
-        () => {
-          if (direction === 1) completedInk.add(id);
-          else completedInk.delete(id);
-          inkRun = null;
-          const landing = boundaryPosition(id, direction === 1 ? -1 : 1);
-          session.complete(landing ?? window.scrollY);
-          renderFrame();
+      activeInkSession = session;
+      renderFrame();
+      const startWhenAdapterReady = () => {
+        inkPreparationFrame = 0;
+        if (
+          inkRun?.id !== id
+          || activeInkSession !== session
+          || !session.valid()
+        ) return;
+        const transition = id === 0
+          ? methodFigure2Ref.current
+          : id === 1
+            ? figure2ProofRef.current
+            : proofBrandRef.current;
+        if (!transition) {
+          if (adaptersFailedRef.current) {
+            inkRun = null;
+            activeInkSession = null;
+            const source = boundaryPosition(id, direction);
+            session.abort(source ?? window.scrollY);
+            renderFrame();
+            return;
+          }
+          inkPreparationFrame = window.requestAnimationFrame(
+            startWhenAdapterReady
+          );
+          return;
         }
-      );
+        if (direction === 1) transition.enter?.();
+        else transition.reverse?.();
+        cancelInkRun = runPhoneTimedTransition(
+          session,
+          direction,
+          (progress) => {
+            if (inkRun?.id !== id) return;
+            inkRun.progress = progress;
+            renderFrame();
+          },
+          () => {
+            if (direction === 1) completedInk.add(id);
+            else completedInk.delete(id);
+            inkRun = null;
+            activeInkSession = null;
+            cancelInkRun = undefined;
+            const landing = boundaryPosition(id, direction === 1 ? -1 : 1);
+            session.complete(landing ?? window.scrollY);
+            renderFrame();
+          }
+        );
+      };
+      startWhenAdapterReady();
       return true;
     };
-    const gradeAInkRegistrations = reducedMotion
+    gradeAInkRegistrations = reducedMotion
       ? []
       : GRADE_A_INK_BOUNDARIES.map((id) => registerPhoneTransitionBoundary(
           transitionOwner,
@@ -559,6 +670,7 @@ export function PhoneGradeAStory({
     const schedule = () => {
       if (!frameRef.current) frameRef.current = window.requestAnimationFrame(renderFrame);
     };
+    renderGradeAFrameRef.current = schedule;
     renderFrame();
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
@@ -568,8 +680,15 @@ export function PhoneGradeAStory({
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
-      cancelInkRun?.();
+      if (inkPreparationFrame) {
+        window.cancelAnimationFrame(inkPreparationFrame);
+        inkPreparationFrame = 0;
+      }
+      if (cancelInkRun) cancelInkRun();
+      else activeInkSession?.abort();
+      activeInkSession = null;
       inkRun = null;
+      renderGradeAFrameRef.current = () => undefined;
       for (const registration of gradeAInkRegistrations) {
         registration.dispose();
       }
@@ -578,13 +697,20 @@ export function PhoneGradeAStory({
       }
     };
   }, [
-    brandRoot,
     onSceneChange,
     publish,
     publishEdgeScene,
     reducedMotion,
-    runtimeReady,
     stageHost
+  ]);
+
+  useLayoutEffect(() => {
+    renderGradeAFrameRef.current();
+  }, [
+    adapterRevision,
+    adapters.failed,
+    brandRoot,
+    runtimeReady
   ]);
 
   useEffect(() => {
@@ -734,7 +860,7 @@ export function PhoneGradeAStory({
         {...(continuationTarget
           ? { navigationTarget: continuationTarget }
           : {})}
-        onBrandRootChange={setBrandRoot}
+        onBrandRootChange={bindBrandRoot}
         onLabBoundaryChange={setLabBoundary}
         {...(onCheckpoint ? { onCheckpoint } : {})}
         {...(onEdgeScene ? { onEdgeScene } : {})}

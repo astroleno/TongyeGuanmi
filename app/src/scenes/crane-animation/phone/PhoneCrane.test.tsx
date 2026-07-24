@@ -78,6 +78,10 @@ describe('PhoneCrane', () => {
   it('reuses AOD native clocks with the authored half-second media stagger', () => {
     expect(autoplaySource).toContain('createPhoneNativeAutoplay');
     expect(source).toContain('createPhonePackedAlphaSurface');
+    expect(source).toContain('prepareTargetPresentation');
+    expect(source).toContain('surfaces.map((surface) => surface.prepare');
+    expect(source).toContain('run.failRun(1)');
+    expect(source).toContain('run.failRun(-1)');
     expect(source).toContain('createPortal');
     expect(source).toContain('figureCanvasRef');
     expect(source).toContain('flockCanvasRef');
@@ -97,7 +101,7 @@ describe('PhoneCrane', () => {
     expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('beginPreparedReverse');
-    expect(cinematicRunSource).toContain("'preparing-reverse'");
+    expect(cinematicRunSource).toContain('options.reverseReady()');
     expect(source).toContain("phase: 'progress'");
     expect(autoplaySource).toContain('figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE');
     expect(autoplaySource).toContain('figure.currentTime = CRANE_VIDEO_END_SECONDS');
@@ -118,7 +122,7 @@ describe('PhoneCrane', () => {
     expect(css).toContain('var(--phone-crane-figure-camera-x, -3.75lvh)');
     expect(css).toContain('var(--phone-crane-figure-camera-y, 8.75lvh)');
     expect(motionSource).toContain(
-      'figureOpeningScale + (1 - figureOpeningScale) * grow'
+      '(1 - PHONE_CRANE_FIGURE_OPENING_SCALE) * grow'
     );
     expect(PHONE_CRANE_FIGURE_OPENING_SCALE).toBe(0.5);
     expect(PHONE_CRANE_FIGURE_OPENING_X_VH).toBe(-3.75);

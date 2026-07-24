@@ -95,10 +95,10 @@ export const PhoneEducation = forwardRef<
     const root = rootRef.current;
     if (!root) return;
     renderPhoneEducationHold(root);
-    root.dataset.phoneEducationScroll = 'native';
+    if (import.meta.env.DEV) root.dataset.phoneEducationScroll = 'native';
     onReady?.();
     return () => {
-      delete root.dataset.phoneEducationScroll;
+      if (import.meta.env.DEV) delete root.dataset.phoneEducationScroll;
     };
   }, [onReady]);
 

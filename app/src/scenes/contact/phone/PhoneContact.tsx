@@ -70,10 +70,10 @@ export const PhoneContact = forwardRef<
     const root = rootRef.current;
     if (!root) return;
     renderPhoneContactHold(root);
-    root.dataset.phoneContactStable = 'true';
+    if (import.meta.env.DEV) root.dataset.phoneContactStable = 'true';
     onReady?.();
     return () => {
-      delete root.dataset.phoneContactStable;
+      if (import.meta.env.DEV) delete root.dataset.phoneContactStable;
     };
   }, [onReady]);
 

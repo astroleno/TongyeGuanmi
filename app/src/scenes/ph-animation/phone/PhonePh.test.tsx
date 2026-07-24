@@ -90,13 +90,17 @@ describe('PhonePh', () => {
     expect(source).toContain('figureCanvasRef');
     expect(source).toContain("phoneMediaUrlFor('ph-figure-packed'");
     expect(source).toContain('activateSurface: ensurePackedSurface');
+    expect(source).toContain('prepareTargetPresentation');
+    expect(source).toContain('surface.prepare(mode, request.signal)');
+    expect(source).toContain('run.failRun(1)');
+    expect(source).toContain('run.failRun(-1)');
     expect(cinematicRunSource).toContain("options.activateSurface('endpoint')");
     expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
     expect(source).toContain('PH_FIGURE_END_SECONDS');
     expect(source).toContain('createPhonePhPresentedReverse');
     expect(source).toContain('beginPreparedReverse');
     expect(source).toContain("phase: 'progress'");
-    expect(cinematicRunSource).toContain("'preparing-reverse'");
+    expect(cinematicRunSource).toContain('options.reverseReady()');
     expect(motionSource).toContain("'presented-frame-reverse'");
     expect(reverseSource).toContain('createPhonePresentedReversePlayback');
     expect(reverseSource).toContain('prepareTimelineVideoFrame');

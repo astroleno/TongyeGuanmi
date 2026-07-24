@@ -283,13 +283,17 @@ function usePhoneLabContactViewportGeometry(
         forceRetainedGeometry = false;
         root.style.setProperty('--portrait-live-height', `${height}px`);
         root.style.setProperty('--portrait-live-width', `${width}px`);
-        root.dataset.portraitLayoutViewport = `${width}x${height}`;
+        if (import.meta.env.DEV) {
+          root.dataset.portraitLayoutViewport = `${width}x${height}`;
+        }
       }
       root.style.setProperty('--portrait-stage-coverage-height', `${coverageHeight}px`);
-      root.dataset.portraitLiveViewport = `${width}x${height}`;
-      root.dataset.portraitStageCoverage = `${coverageHeight}px`;
-      root.dataset.portraitViewportOffsetTop = `${Math.ceil(offsetTop)}px`;
-      root.dataset.portraitViewportBottom = `${viewportBottom}px`;
+      if (import.meta.env.DEV) {
+        root.dataset.portraitLiveViewport = `${width}x${height}`;
+        root.dataset.portraitStageCoverage = `${coverageHeight}px`;
+        root.dataset.portraitViewportOffsetTop = `${Math.ceil(offsetTop)}px`;
+        root.dataset.portraitViewportBottom = `${viewportBottom}px`;
+      }
     };
     const schedule = () => {
       if (!frame) frame = window.requestAnimationFrame(sync);
@@ -316,11 +320,13 @@ function usePhoneLabContactViewportGeometry(
       root.style.removeProperty('--portrait-live-height');
       root.style.removeProperty('--portrait-live-width');
       root.style.removeProperty('--portrait-stage-coverage-height');
-      delete root.dataset.portraitLiveViewport;
-      delete root.dataset.portraitLayoutViewport;
-      delete root.dataset.portraitStageCoverage;
-      delete root.dataset.portraitViewportOffsetTop;
-      delete root.dataset.portraitViewportBottom;
+      if (import.meta.env.DEV) {
+        delete root.dataset.portraitLiveViewport;
+        delete root.dataset.portraitLayoutViewport;
+        delete root.dataset.portraitStageCoverage;
+        delete root.dataset.portraitViewportOffsetTop;
+        delete root.dataset.portraitViewportBottom;
+      }
       delete documentElement.dataset.portraitSpike;
       delete documentElement.dataset.portraitSpikeMotion;
     };

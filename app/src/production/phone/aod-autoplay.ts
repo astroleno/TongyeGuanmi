@@ -167,8 +167,14 @@ export function createPhoneAodAutoplay(
     if (nativeRate) {
       applyPlaybackRate();
     }
-    video.dataset.phoneAodAutoplayProgress = progress.toFixed(4);
-    video.dataset.phoneAodAutoplayDirection = direction === 1 ? 'forward' : 'reverse';
+    if (import.meta.env.DEV) {
+      video.dataset.phoneAodAutoplayProgress = progress.toFixed(4);
+    }
+    if (import.meta.env.DEV) {
+      video.dataset.phoneAodAutoplayDirection = direction === 1
+        ? 'forward'
+        : 'reverse';
+    }
     options.onProgress(progress, direction);
     return progress;
   };
@@ -183,9 +189,11 @@ export function createPhoneAodAutoplay(
     playPending = false;
     cancelScheduledFrame();
     video.pause();
-    video.dataset.phoneAodAutoplay = completedDirection === 1
-      ? 'complete-forward'
-      : 'complete-reverse';
+    if (import.meta.env.DEV) {
+      video.dataset.phoneAodAutoplay = completedDirection === 1
+        ? 'complete-forward'
+        : 'complete-reverse';
+    }
     publishPlaybackOwnership(
       completedDirection === 1 ? 'complete-forward' : 'complete-reverse'
     );
@@ -221,7 +229,9 @@ export function createPhoneAodAutoplay(
     }
     if (direction === -1) {
       if (video.readyState < 2) {
-        video.dataset.phoneAodAutoplay = 'waiting-reverse-frame';
+        if (import.meta.env.DEV) {
+          video.dataset.phoneAodAutoplay = 'waiting-reverse-frame';
+        }
         return;
       }
       reverseStartedAt ??= timestamp;
@@ -261,14 +271,14 @@ export function createPhoneAodAutoplay(
     }
     const attempt = ++playAttempt;
     playPending = true;
-    video.dataset.phoneAodAutoplay = 'starting';
+    if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'starting';
     void Promise.resolve(video.play()).then(
       () => {
         if (disposed || !active || attempt !== playAttempt) {
           return;
         }
         playPending = false;
-        video.dataset.phoneAodAutoplay = 'playing';
+        if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'playing';
         schedule();
       },
       () => {
@@ -276,7 +286,7 @@ export function createPhoneAodAutoplay(
           return;
         }
         playPending = false;
-        video.dataset.phoneAodAutoplay = 'blocked';
+        if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'blocked';
       }
     );
   };
@@ -287,7 +297,9 @@ export function createPhoneAodAutoplay(
     }
     if (direction === -1) {
       if (event.type === 'loadeddata' || event.type === 'canplay') {
-        video.dataset.phoneAodAutoplay = 'playing-reverse-timeline';
+        if (import.meta.env.DEV) {
+          video.dataset.phoneAodAutoplay = 'playing-reverse-timeline';
+        }
         renderReverseFrame(reverseProgress);
       }
       schedule();
@@ -305,7 +317,7 @@ export function createPhoneAodAutoplay(
       video.pause();
       return;
     }
-    video.dataset.phoneAodAutoplay = 'playing';
+    if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'playing';
     schedule();
   };
   const onPause = () => {
@@ -335,11 +347,13 @@ export function createPhoneAodAutoplay(
       } else {
         video.pause();
       }
-      video.dataset.phoneAodAutoplay = 'suspended';
+      if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'suspended';
       return;
     }
     if (direction === -1) {
-      video.dataset.phoneAodAutoplay = 'playing-reverse-timeline';
+      if (import.meta.env.DEV) {
+        video.dataset.phoneAodAutoplay = 'playing-reverse-timeline';
+      }
       schedule();
     } else {
       playForward();
@@ -398,9 +412,11 @@ export function createPhoneAodAutoplay(
       video.loop = false;
       video.muted = true;
       video.playsInline = true;
-      video.dataset.phoneAodAutoplay = direction === 1
-        ? 'starting-forward'
-        : 'playing-reverse-timeline';
+      if (import.meta.env.DEV) {
+        video.dataset.phoneAodAutoplay = direction === 1
+          ? 'starting-forward'
+          : 'playing-reverse-timeline';
+      }
       if (direction === 1) {
         try {
           video.currentTime = 0;
@@ -432,7 +448,7 @@ export function createPhoneAodAutoplay(
       } catch {
         // Metadata can still be pending; loadeddata will present frame zero.
       }
-      video.dataset.phoneAodAutoplay = 'idle';
+      if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'idle';
       render(0);
     },
     dispose() {
@@ -454,9 +470,11 @@ export function createPhoneAodAutoplay(
       video.removeEventListener('pause', onPause);
       video.removeEventListener('ended', onEnded);
       visibilityDocument?.removeEventListener('visibilitychange', onVisibilityChange);
-      delete video.dataset.phoneAodAutoplay;
-      delete video.dataset.phoneAodAutoplayProgress;
-      delete video.dataset.phoneAodAutoplayDirection;
+      if (import.meta.env.DEV) {
+        delete video.dataset.phoneAodAutoplay;
+        delete video.dataset.phoneAodAutoplayProgress;
+        delete video.dataset.phoneAodAutoplayDirection;
+      }
       delete video.dataset.timelineVideoRun;
     }
   };

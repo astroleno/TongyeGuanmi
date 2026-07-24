@@ -213,7 +213,7 @@ describe('Phone Brand → Lab visual contracts', () => {
       'PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS'
     );
     expect(figure3Scene).toContain(
-      "`${compositor ? 'ready' : 'fallback'}-${label}`"
+      'root.dataset.phoneFigure3FallbackEndpoint = label'
     );
     expect(figure3Styles).toContain(
       'assets/figure3-initial-paper.webp'
@@ -272,9 +272,10 @@ describe('Phone Brand → Lab visual contracts', () => {
       'const directVisualEntry = directEntryScene === nextRun'
     );
     expect(storySource).toContain("setAdapterScene('services')");
-    expect(storySource).toContain(
-      '(!directVisualEntry && !entryTransition)'
+    expect(storySource).toMatch(
+      /runDirection === 1\s+&& !directVisualEntry\s+&& !retryingMedia\s+&& !entryTransition/
     );
+    expect(storySource).toContain('runPhoneTargetPreparation');
   });
 
   it('lets the ink contour own the only dark Services → TTG edge', () => {
