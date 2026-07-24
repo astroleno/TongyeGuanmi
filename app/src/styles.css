@@ -381,6 +381,11 @@ html[data-portrait-loader-resume="skip"] .route-loading {
   visibility: hidden;
 }
 
+.story-loader--clock-fallback .story-loader__ink-clear {
+  opacity: 1;
+  visibility: visible;
+}
+
 .story-loader__ink-blur {
   display: none;
   z-index: 1;

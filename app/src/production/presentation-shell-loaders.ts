@@ -5,17 +5,12 @@ export function loadDesktopStoryShell() {
   }));
 }
 
-/**
- * Resolve the phone shell without waiting on a second lazy adapter request.
- * PhoneStoryShell owns the authored Loader synchronously; its mounted adapter
- * registry prepares Hero → Method behind that animation.
- */
+/** Resolve the lightweight Loader owner before the media-heavy phone shell. */
 export function loadPhoneStoryShell(hash?: string) {
-  // Keep the explicit hash argument for direct-entry loader callers. Entry
-  // selection now happens inside the shell instead of delaying its import.
+  // Entry selection remains inside the bootstrap and formal shell.
   void hash;
-  return import('./phone/PhoneStoryShell').then(({ PhoneStoryShell }) => ({
-    default: PhoneStoryShell
+  return import('./phone/PhoneStoryBootstrap').then(({ PhoneStoryBootstrap }) => ({
+    default: PhoneStoryBootstrap
   }));
 }
 

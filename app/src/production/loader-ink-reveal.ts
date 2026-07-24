@@ -618,7 +618,9 @@ export function createLoaderInkReveal(options: CreateLoaderInkRevealOptions): Lo
           listenersAttached = true;
           environment.addResizeListener(onResize);
           canvas.addEventListener('webglcontextlost', onContextLost);
-          startedAt ??= environment.now();
+          if (startedAt === undefined) {
+            startedAt = environment.now();
+          }
           setStatus('active');
           tick(environment.now());
         } catch {

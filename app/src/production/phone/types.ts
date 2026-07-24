@@ -136,6 +136,7 @@ export type PhoneLoaderAdapterProps = Readonly<{
   mode: StoryLoaderMode;
   ready: boolean;
   failed: boolean;
+  startedAt?: number | undefined;
   onHidden(reason: StoryLoaderExitReason): void;
 }>;
 

@@ -24,10 +24,7 @@ import type {
 } from './types';
 import './PhoneStoryShell.css';
 const ZERO_METHOD_PROGRESS = () => 0;
-/**
- * The physical-device validation route keeps requested motion on by default.
- * `?portrait-spike-motion=reduce` is the explicit low-motion comparison.
- */
+/** `?portrait-spike-motion=reduce` is the explicit low-motion comparison. */
 function portraitSpikeMotionEnabled(): boolean {
   if (typeof window === 'undefined') return true;
   return new URLSearchParams(window.location.search)
@@ -36,12 +33,11 @@ function portraitSpikeMotionEnabled(): boolean {
 export type PhoneStoryShellProps = Readonly<{
   /** Short numbered routes remain physical-device comparison entries. */
   validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45' | 'v46' | 'v47';
+  startupLoaderStartedAt?: number;
+  onStartupPrepared?: () => void;
 }>;
-/**
- * Production Route B phone shell. It owns document geometry, the authored
- * Loader, navigation, checkpoints, and adapter binding. The remaining
- * Hero → Method visual/media ownership lives in dynamically loaded adapters.
- */
+// Bootstrap owns only startup visibility; this remains the one formal shell.
+// Stage, navigation, edge, viewport, and transition ownership stay here.
 export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const motionEnabled = portraitSpikeMotionEnabled();
   const entry = usePhoneStoryEntry();
@@ -78,6 +74,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     finishLoader
   } = frontHalf;
   const LoaderComponent = Loader ?? PhoneLoader;
+  useEffect(() => {
+    if (directGroup67Entry || ready || failed) props.onStartupPrepared?.();
+  }, [directGroup67Entry, failed, props.onStartupPrepared, ready]);
   const mapAodToMethod = frontHalf.mapAodToMethod ?? ZERO_METHOD_PROGRESS;
   const [navigationScene, setNavigationScene] = usePhoneNavigationScene(entry.initialScene);
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
@@ -215,6 +214,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           mode={motionEnabled ? 'cold-hero' : 'reduced'}
           ready={ready}
           failed={failed}
+          startedAt={props.startupLoaderStartedAt}
           onHidden={finishLoader}
         />
       )}

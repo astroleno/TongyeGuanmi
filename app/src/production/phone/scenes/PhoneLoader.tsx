@@ -10,6 +10,7 @@ export function PhoneLoader({
   mode,
   ready,
   failed,
+  startedAt,
   onHidden
 }: PhoneLoaderAdapterProps) {
   return (
@@ -17,6 +18,7 @@ export function PhoneLoader({
       mode={mode}
       ready={ready}
       failed={failed}
+      startedAt={startedAt}
       onHidden={onHidden}
     />
   );

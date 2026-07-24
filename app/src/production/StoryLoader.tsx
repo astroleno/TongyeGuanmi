@@ -35,6 +35,7 @@ export type StoryLoaderProps = {
   ready: boolean;
   failed: boolean;
   release?: boolean;
+  startedAt?: number | undefined;
   onExitStart?: (reason: StoryLoaderExitReason) => void;
   onHidden?: (reason: StoryLoaderExitReason) => void;
   onStatusChange?: (status: StoryLoaderStatus) => void;
@@ -79,15 +80,21 @@ export function StoryLoader({
   ready,
   failed,
   release = true,
+  startedAt,
   onExitStart,
   onHidden,
   onStatusChange
 }: StoryLoaderProps) {
-  const [frame, setFrame] = useState<StoryLoaderFrame>(() => loaderFrameAt(0, mode));
+  const [frame, setFrame] = useState<StoryLoaderFrame>(() => loaderFrameAt(
+    startedAt === undefined ? 0 : Math.max(0, performance.now() - startedAt),
+    mode
+  ));
   const [inkStatus, setInkStatus] = useState<LoaderInkCanvasStatus>(
     mode === 'cold-hero' ? 'idle' : 'fallback'
   );
-  const [sequenceReady, setSequenceReady] = useState(mode !== 'cold-hero');
+  const [sequenceReady, setSequenceReady] = useState(
+    mode !== 'cold-hero' || startedAt !== undefined
+  );
   const [exitReason, setExitReason] = useState<StoryLoaderExitReason | undefined>(undefined);
   const [hidden, setHidden] = useState(false);
   const wordRef = useRef<HTMLDivElement | null>(null);
@@ -109,20 +116,24 @@ export function StoryLoader({
       setFrame(loaderFrameAt(0, mode));
       return;
     }
-    sequenceStartedAtRef.current = performance.now();
-    setFrame(loaderFrameAt(0, mode));
+    const sequenceStartedAt = startedAt ?? performance.now();
+    const elapsed = Math.max(0, performance.now() - sequenceStartedAt);
+    sequenceStartedAtRef.current = sequenceStartedAt;
+    setFrame(loaderFrameAt(elapsed, mode));
     if (mode !== 'cold-hero') {
       return;
     }
-    const timers = COLD_BOUNDARIES.map((boundary) => window.setTimeout(() => {
-      setFrame(loaderFrameAt(boundary, mode));
-    }, boundary));
+    const timers = COLD_BOUNDARIES
+      .filter((boundary) => boundary > elapsed)
+      .map((boundary) => window.setTimeout(() => {
+        setFrame(loaderFrameAt(boundary, mode));
+      }, boundary - elapsed));
     return () => {
       for (const timer of timers) {
         window.clearTimeout(timer);
       }
     };
-  }, [hidden, mode, sequenceReady]);
+  }, [hidden, mode, sequenceReady, startedAt]);
 
   useEffect(() => {
     if (mode !== 'cold-hero') {
@@ -143,6 +154,9 @@ export function StoryLoader({
     let current = true;
     let controller: { dispose(): void } | null = null;
     setInkStatus('idle');
+    const authoredStartedAt = startedAt === undefined
+      ? undefined
+      : sequenceStartedAtRef.current || startedAt;
     void import('./loader-ink-reveal').then(({ createLoaderInkReveal }) => {
       if (!current) return;
       const nextController = createLoaderInkReveal({
@@ -150,6 +164,9 @@ export function StoryLoader({
         host,
         phrases: LOADER_PHRASES,
         timings: STORY_LOADER_TIMINGS,
+        ...(authoredStartedAt === undefined
+          ? {}
+          : { startedAt: authoredStartedAt }),
         onStatusChange: (nextStatus) => {
           if (!current) {
             return;
@@ -172,7 +189,7 @@ export function StoryLoader({
       current = false;
       controller?.dispose();
     };
-  }, [hidden, mode]);
+  }, [hidden, mode, startedAt]);
 
   useEffect(() => {
     if (!release) {
@@ -224,10 +241,16 @@ export function StoryLoader({
     '--story-loader-reveal-ms': `${STORY_LOADER_TIMINGS.revealMs}ms`,
     '--story-loader-exit-ms': `${mode === 'reduced' ? STORY_LOADER_TIMINGS.reducedExitMs : STORY_LOADER_TIMINGS.exitMs}ms`
   }) as CSSProperties, [mode]);
+  const holdCompleted = !release && frame.sequenceComplete;
+  const clockFallbackVisible = startedAt !== undefined
+    && frame.phase === 'revealing'
+    && (inkStatus === 'idle' || inkStatus === 'waiting-font');
 
   return (
     <div
-      className="story-loader loading-screen"
+      className={`story-loader loading-screen${
+        clockFallbackVisible ? ' story-loader--clock-fallback' : ''
+      }`}
       data-story-loader="true"
       data-loader-mode={mode}
       data-loader-status={status}
@@ -235,6 +258,7 @@ export function StoryLoader({
       data-loader-phrase={frame.phraseIndex}
       data-loader-phase={frame.phase}
       data-loader-layout={mode === 'cold-hero' ? 'stacked-eight' : 'single'}
+      data-loader-release={release ? 'auto' : 'blocked'}
       aria-hidden={hidden ? 'true' : undefined}
       inert={status !== 'running' ? true : undefined}
       hidden={hidden}
@@ -246,12 +270,19 @@ export function StoryLoader({
           className="story-loader__ink-canvas"
           data-loader-ink-canvas="true"
           aria-hidden="true"
+          style={holdCompleted ? { opacity: 0, visibility: 'hidden' } : undefined}
         />
         <div key={`blur-${frame.phraseIndex}`} className="story-loader__ink-blur">
           <span>{frame.phrase}</span>
         </div>
-        <div key={`clear-${frame.phraseIndex}`} className="story-loader__ink-clear">
-          <span>{frame.phrase}</span>
+        <div
+          key={`clear-${frame.phraseIndex}`}
+          className="story-loader__ink-clear"
+          style={holdCompleted ? { opacity: 1, visibility: 'visible' } : undefined}
+        >
+          <span style={holdCompleted ? { opacity: 1, clipPath: 'inset(0)' } : undefined}>
+            {frame.phrase}
+          </span>
         </div>
       </div>
       <p className="story-loader__announcement r4-visually-hidden" role="status" aria-live="polite" aria-atomic="true">

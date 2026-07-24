@@ -10,6 +10,10 @@ const phoneShellSource = readFileSync(
   new URL('./phone/PhoneStoryShell.tsx', import.meta.url),
   'utf8'
 );
+const phoneBootstrapSource = readFileSync(
+  new URL('./phone/PhoneStoryBootstrap.tsx', import.meta.url),
+  'utf8'
+);
 
 describe('presentation shell loaders', () => {
   it('loads the desktop family without selecting the phone adapter family', async () => {
@@ -33,11 +37,29 @@ describe('presentation shell loaders', () => {
     expect(loadedPhoneAdapters()).toEqual(before);
   });
 
-  it('keeps the animated Loader synchronously owned by the phone shell', () => {
+  it('starts one lightweight Loader before the media-heavy formal shell', () => {
+    expect(phoneBootstrapSource).toContain(
+      "lazy(() => import('./PhoneStoryShell')"
+    );
+    expect(phoneBootstrapSource).toContain('<StoryLoader');
+    expect(phoneBootstrapSource).toContain('release={false}');
+    expect(phoneBootstrapSource).toContain(
+      'startupLoaderStartedAt={loaderStartedAtRef.current}'
+    );
+    expect(phoneBootstrapSource).toContain(
+      'onStartupPrepared={markShellPrepared}'
+    );
+    expect(phoneBootstrapSource).toContain('mode={loaderMode}');
+    expect(phoneBootstrapSource).toContain(
+      "get('portrait-spike-motion') === 'reduce'"
+    );
     expect(phoneShellSource).toContain(
       "import { PhoneLoader } from './scenes/PhoneLoader'"
     );
     expect(phoneShellSource).toContain('const LoaderComponent = Loader ?? PhoneLoader');
-    expect(phoneShellSource).toContain('<LoaderComponent');
+    expect(phoneShellSource).toContain('startedAt={props.startupLoaderStartedAt}');
+    expect(phoneShellSource).toContain(
+      'if (directGroup67Entry || ready || failed) props.onStartupPrepared?.()'
+    );
   });
 });

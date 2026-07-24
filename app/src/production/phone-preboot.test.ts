@@ -11,6 +11,7 @@ type PrebootInput = Readonly<{
   search?: string;
   navigationType?: 'navigate' | 'reload';
   storage?: Record<string, string>;
+  storageThrows?: boolean;
   storyClaimed?: boolean;
 }>;
 
@@ -23,6 +24,7 @@ function runPhonePreboot({
   search = '',
   navigationType = 'navigate',
   storage: initialStorage = {},
+  storageThrows = false,
   storyClaimed = false
 }: PrebootInput) {
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
@@ -70,8 +72,14 @@ function runPhonePreboot({
       navigation: { type: navigationType === 'reload' ? 1 : 0 }
     },
     sessionStorage: {
-      getItem: (key: string) => storage.get(key) ?? null,
-      removeItem: (key: string) => storage.delete(key)
+      getItem(key: string) {
+        if (storageThrows) throw new Error('storage unavailable');
+        return storage.get(key) ?? null;
+      },
+      removeItem(key: string) {
+        if (storageThrows) throw new Error('storage unavailable');
+        return storage.delete(key);
+      }
     },
     window: {
       innerHeight: height,
@@ -209,5 +217,20 @@ describe('phone preboot ownership', () => {
     expect(result.staticLoaderWasRemoved()).toBe(false);
     expect(result.dataset.portraitSpike).toBe('b');
     expect(result.dataset.phoneStoryFallback).toBeUndefined();
+  });
+
+  it('still releases preboot when Safari storage access throws', () => {
+    const result = runPhonePreboot({
+      enabled: true,
+      width: 390,
+      height: 844,
+      storageThrows: true
+    });
+
+    result.runStartupSafety();
+
+    expect(result.staticLoaderWasRemoved()).toBe(true);
+    expect(result.dataset.portraitSpike).toBeUndefined();
+    expect(result.dataset.phoneStoryFallback).toBe('startup-timeout');
   });
 });

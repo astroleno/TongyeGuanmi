@@ -104,4 +104,38 @@ describe('StoryLoader', () => {
     expect(html).toContain('html[data-portrait-spike="b"] .static-content { display: none !important; }');
     expect(html).toContain('background: var(--portrait-document-surface, #07110e) !important;');
   });
+
+  it('starts the authored clock before optional font and WebGL preparation', () => {
+    const source = readFileSync(new URL('./StoryLoader.tsx', import.meta.url), 'utf8');
+    const clockIndex = source.indexOf(
+      'const sequenceStartedAt = startedAt ?? performance.now()'
+    );
+    const inkIndex = source.indexOf("void import('./loader-ink-reveal')");
+
+    expect(clockIndex).toBeGreaterThan(0);
+    expect(inkIndex).toBeGreaterThan(clockIndex);
+    expect(source).toContain('sequenceStartedAtRef.current = sequenceStartedAt');
+    expect(source).toContain('startedAt,');
+    const markup = renderToStaticMarkup(createElement(StoryLoader, {
+      mode: 'cold-hero',
+      ready: false,
+      failed: false,
+      startedAt: performance.now() - STORY_LOADER_TIMINGS.startDelayMs
+    }));
+    expect(markup).toContain('story-loader--clock-fallback');
+  });
+
+  it('can hold the completed lockup while the formal phone shell prepares', () => {
+    const markup = renderToStaticMarkup(createElement(StoryLoader, {
+      mode: 'cold-hero',
+      ready: false,
+      failed: false,
+      release: false,
+      startedAt: performance.now() - loaderSequenceDuration('cold-hero')
+    }));
+
+    expect(markup).toContain('data-loader-release="blocked"');
+    expect(markup).toContain('style="opacity:0;visibility:hidden"');
+    expect(markup).toContain('style="opacity:1;visibility:visible"');
+  });
 });
