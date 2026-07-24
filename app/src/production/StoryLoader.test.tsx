@@ -82,7 +82,7 @@ describe('StoryLoader', () => {
     expect(html).not.toContain('validationNumber === 41');
     expect(html).toContain("navigation?.type === 'reload'");
     expect(html).toContain('manuallyReloaded');
-    expect(html.indexOf('if (completed && hiddenAt')).toBeLessThan(
+    expect(html.indexOf('manuallyReloaded\n            && completed')).toBeLessThan(
       html.indexOf('else if (manuallyReloaded)')
     );
     expect(html).toContain("'__PHONE_STORY_PREBOOT_ENABLED__' === 'true'");

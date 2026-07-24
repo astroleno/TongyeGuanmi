@@ -172,6 +172,24 @@ describe('phone preboot ownership', () => {
     expect(result.storage.has('tongye:portrait-spike:v16:hidden-at')).toBe(false);
   });
 
+  it('does not mistake a fresh navigation for lock-screen recovery', () => {
+    const result = runPhonePreboot({
+      enabled: true,
+      width: 390,
+      height: 844,
+      navigationType: 'navigate',
+      search: '?v=47',
+      storage: {
+        'tongye:portrait-spike:v16:loader-complete': 'true',
+        'tongye:portrait-spike:v16:hidden-at': String(Date.now() - 1_000),
+        'tongye:portrait-spike:v16:resume-hash': '#brand'
+      }
+    });
+
+    expect(result.dataset.portraitLoaderResume).toBeUndefined();
+    expect(result.replacedUrls).toEqual([]);
+  });
+
   it('keeps an explicit visible reload on the cold Loader path', () => {
     const result = runPhonePreboot({
       enabled: true,

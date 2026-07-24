@@ -65,7 +65,13 @@
           const navigation = performance.getEntriesByType?.('navigation')?.[0];
           const manuallyReloaded = navigation?.type === 'reload'
             || performance.navigation?.type === 1;
-          if (completed && hiddenAt > 0 && age >= 0 && age < 30 * 60 * 1000) {
+          if (
+            manuallyReloaded
+            && completed
+            && hiddenAt > 0
+            && age >= 0
+            && age < 30 * 60 * 1000
+          ) {
             const resumeHash = sessionStorage.getItem(
               'tongye:portrait-spike:v16:resume-hash'
             );
