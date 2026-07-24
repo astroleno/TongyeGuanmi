@@ -769,6 +769,42 @@ export function PhoneLabContactContinuation({
       });
     }
     return () => {
+      const interruptedRun = runRef.current;
+      if (interruptedRun?.session.valid()) {
+        const endpoint = phoneGroup67VisibleFallbackEndpoint(
+          interruptedRun.direction
+        );
+        const target = phoneGroup67RunTarget(
+          interruptedRun.scene,
+          interruptedRun.direction
+        );
+        const phase = phaseFor(interruptedRun.scene);
+        handleFor(interruptedRun.scene)?.update(endpoint);
+        outgoingFor(interruptedRun.scene)?.render(endpoint);
+        if (!interruptedRun.direct) {
+          incomingFor(interruptedRun.scene)?.render(endpoint);
+        }
+        phasesRef.current[interruptedRun.scene] =
+          phoneLabContactPhaseAfterVisualCompletion(
+            interruptedRun.direction
+          );
+        setNativeOwner(
+          target === 'lab' || target === 'education' || target === 'contact'
+            ? target
+            : null
+        );
+        root.dataset.phoneGroup67Run = 'idle';
+        root.dataset.phoneGroup67Step = 'idle';
+        runRef.current = null;
+        publishStageScene(null);
+        publishScene(target);
+        setFocus(target);
+        interruptedRun.session.abort(
+          phase
+            ? stageLandingY(phase, interruptedRun.direction)
+            : window.scrollY
+        );
+      }
       inputOwner.removeEventListener(
         PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
         onAutoplay
@@ -805,7 +841,6 @@ export function PhoneLabContactContinuation({
 
   useEffect(() => {
     if (fromLabBoundary) {
-      publishScene('lab');
       return;
     }
     if (entryScene === 'ph-animation' || entryScene === 'crane-animation') {

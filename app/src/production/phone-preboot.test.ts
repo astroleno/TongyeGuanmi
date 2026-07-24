@@ -9,6 +9,8 @@ type PrebootInput = Readonly<{
   pointerCoarse?: boolean;
   hoverNone?: boolean;
   search?: string;
+  navigationType?: 'navigate' | 'reload';
+  storage?: Record<string, string>;
 }>;
 
 function runPhonePreboot({
@@ -17,7 +19,9 @@ function runPhonePreboot({
   height,
   pointerCoarse = true,
   hoverNone = true,
-  search = ''
+  search = '',
+  navigationType = 'navigate',
+  storage: initialStorage = {}
 }: PrebootInput) {
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   const script = html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]
@@ -26,6 +30,8 @@ function runPhonePreboot({
 
   const dataset: Record<string, string> = {};
   const styles = new Map<string, string>();
+  const storage = new Map(Object.entries(initialStorage));
+  const replacedUrls: string[] = [];
   runInNewContext(script, {
     Date,
     Math,
@@ -41,14 +47,20 @@ function runPhonePreboot({
         }
       }
     },
-    location: { search },
+    history: {
+      state: null,
+      replaceState(_state: unknown, _title: string, url: string) {
+        replacedUrls.push(url);
+      }
+    },
+    location: { pathname: '/', search },
     performance: {
-      getEntriesByType: () => [{ type: 'navigate' }],
-      navigation: { type: 0 }
+      getEntriesByType: () => [{ type: navigationType }],
+      navigation: { type: navigationType === 'reload' ? 1 : 0 }
     },
     sessionStorage: {
-      getItem: () => null,
-      removeItem: () => undefined
+      getItem: (key: string) => storage.get(key) ?? null,
+      removeItem: (key: string) => storage.delete(key)
     },
     window: {
       innerHeight: height,
@@ -64,7 +76,7 @@ function runPhonePreboot({
     }
   });
 
-  return { dataset, styles };
+  return { dataset, replacedUrls, storage, styles };
 }
 
 describe('phone preboot ownership', () => {
@@ -104,5 +116,41 @@ describe('phone preboot ownership', () => {
       expect(result.dataset.portraitSpike).toBe('b');
       expect(result.dataset.portraitSpikePreboot).toBe('validation');
     }
+  });
+
+  it('lets recent lock-screen recovery outrank Safari reload diagnostics', () => {
+    const result = runPhonePreboot({
+      enabled: true,
+      width: 390,
+      height: 844,
+      navigationType: 'reload',
+      search: '?v=47',
+      storage: {
+        'tongye:portrait-spike:v16:loader-complete': 'true',
+        'tongye:portrait-spike:v16:hidden-at': String(Date.now() - 1_000),
+        'tongye:portrait-spike:v16:resume-hash': '#brand'
+      }
+    });
+
+    expect(result.dataset.portraitLoaderResume).toBe('skip');
+    expect(result.dataset.portraitResumeHash).toBe('#brand');
+    expect(result.replacedUrls).toEqual(['/?v=47#brand']);
+    expect(result.storage.has('tongye:portrait-spike:v16:hidden-at')).toBe(false);
+  });
+
+  it('keeps an explicit visible reload on the cold Loader path', () => {
+    const result = runPhonePreboot({
+      enabled: true,
+      width: 390,
+      height: 844,
+      navigationType: 'reload',
+      storage: {
+        'tongye:portrait-spike:v16:loader-complete': 'true',
+        'tongye:portrait-spike:v16:resume-hash': '#lab'
+      }
+    });
+
+    expect(result.dataset.portraitLoaderResume).toBeUndefined();
+    expect(result.replacedUrls).toEqual([]);
   });
 });

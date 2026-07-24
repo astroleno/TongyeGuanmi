@@ -31,6 +31,31 @@ import type {
   PhoneTransitionAdapterHandle
 } from './types';
 
+type PhonePrefixStyle = object;
+
+export function phoneGsapCheckPrefix(
+  property: string,
+  style?: PhonePrefixStyle
+): string {
+  const targetStyle = style ?? (
+    typeof document === 'undefined'
+      ? undefined
+      : document.createElement('div').style
+  );
+  if (!targetStyle || property in targetStyle) return property;
+
+  const capitalized = property.charAt(0).toUpperCase() + property.slice(1);
+  for (const prefix of ['Webkit', 'Moz', 'ms', 'O'] as const) {
+    const candidate = `${prefix}${capitalized}`;
+    if (candidate in targetStyle) return candidate;
+  }
+  return property;
+}
+
+const phoneGsapUtils = gsap.utils as typeof gsap.utils & {
+  checkPrefix?: (property: string) => string;
+};
+phoneGsapUtils.checkPrefix ??= phoneGsapCheckPrefix;
 gsap.registerPlugin(ScrollTrigger);
 
 export function refreshPhoneScrollStage(): void {

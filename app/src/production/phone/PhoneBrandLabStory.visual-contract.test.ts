@@ -295,6 +295,9 @@ describe('Phone Brand → Lab visual contracts', () => {
       /\.phone-ttg \.ttg-layer--middle\s*\{[^}]+left:\s*175%/s
     );
     expect(ttgStyles).toContain('data-phone-ttg-endpoint-ready');
+    expect(ttgStyles).toMatch(
+      /video\.ttg-layer--figure:not\(\[data-phone-ttg-endpoint-ready\]\)\s*\{[^}]*opacity:\s*0/s
+    );
     expect(ttgStyles).not.toContain(
       'ttg-layer--figure[data-phone-group45-frame-ready="true"]'
     );

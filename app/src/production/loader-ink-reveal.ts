@@ -136,7 +136,7 @@ const FRAGMENT_SOURCE = `
     vec4 charData = sampleCharMask(uv);
     float charPresence = smoothstep(0.002, 0.08, charData.a);
     float charIndex = floor(clamp(charData.r * uCharCount, 0.0, max(uCharCount - 0.001, 0.0)));
-    float charStart = charIndex * 0.15;
+    float charStart = charIndex * (0.45 / max(uCharCount - 1.0, 1.0));
     float localDissolve = fbm(aspectUv * 10.5 + warp * 1.2 + vec2(charIndex * 4.2, uTime * 0.035));
     float charP = clamp((p - charStart + (localDissolve - 0.5) * 0.20 * hideMode) / mix(0.52, 0.66, hideMode), 0.0, 1.0);
     float charEase = smoothstep(0.0, 1.0, charP);
@@ -373,28 +373,53 @@ function createRenderer(
     charContext.textBaseline = 'alphabetic';
     charContext.font = font;
 
-    const metrics = textContext.measureText(phrase);
-    const ascent = metrics.actualBoundingBoxAscent || fontPx * 0.72;
-    const descent = metrics.actualBoundingBoxDescent || fontPx * 0.12;
-    const baseline = height / 2 + (ascent - descent) / 2;
-    textContext.fillText(phrase, width / 2, baseline);
-
-    const chars = Array.from(phrase);
-    const fullWidth = metrics.width || chars.reduce(
-      (sum, character) => sum + textContext.measureText(character).width,
-      0
+    const lines = phrase.split(/\r?\n/);
+    const lineMetrics = lines.map((line) => textContext.measureText(line));
+    const ascent = Math.max(
+      fontPx * 0.72,
+      ...lineMetrics.map((metrics) => metrics.actualBoundingBoxAscent || 0)
     );
-    let cursorX = width / 2 - fullWidth / 2;
-    for (const [index, character] of chars.entries()) {
-      const charWidth = textContext.measureText(character).width;
-      const encoded = Math.round(((index + 0.5) / Math.max(chars.length, 1)) * 255);
-      charContext.fillStyle = `rgb(${encoded}, 0, 0)`;
-      // Character ownership must match the glyph mask exactly. Expanding this
-      // index texture made the smaller iPhone title look like a second,
-      // spatially offset copy while the desktop size largely hid the error.
-      charContext.fillText(character, cursorX, baseline);
-      cursorX += charWidth;
-    }
+    const descent = Math.max(
+      fontPx * 0.12,
+      ...lineMetrics.map((metrics) => metrics.actualBoundingBoxDescent || 0)
+    );
+    const lineHeight = Math.max(ascent + descent, fontPx * 0.98);
+    const textHeight = ascent + descent + lineHeight * (lines.length - 1);
+    const firstBaseline = (height - textHeight) / 2 + ascent;
+    lines.forEach((line, lineIndex) => {
+      textContext.fillText(
+        line,
+        width / 2,
+        firstBaseline + lineIndex * lineHeight
+      );
+    });
+
+    const columnCount = Math.max(
+      1,
+      ...lines.map((line) => Array.from(line).length)
+    );
+    lines.forEach((line, lineIndex) => {
+      const lineChars = Array.from(line);
+      const metrics = lineMetrics[lineIndex]!;
+      const fullWidth = metrics.width || lineChars.reduce(
+        (sum, character) => sum + textContext.measureText(character).width,
+        0
+      );
+      const baseline = firstBaseline + lineIndex * lineHeight;
+      let cursorX = width / 2 - fullWidth / 2;
+      for (const [columnIndex, character] of lineChars.entries()) {
+        const charWidth = textContext.measureText(character).width;
+        const encoded = Math.round(
+          ((columnIndex + 0.5) / columnCount) * 255
+        );
+        charContext.fillStyle = `rgb(${encoded}, 0, 0)`;
+        // Character ownership must match the glyph mask exactly. Expanding
+        // this index texture made the smaller iPhone title look like a second,
+        // spatially offset copy while the desktop size largely hid the error.
+        charContext.fillText(character, cursorX, baseline);
+        cursorX += charWidth;
+      }
+    });
 
     gl.bindTexture(gl.TEXTURE_2D, textTexture);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
@@ -442,7 +467,15 @@ function createRenderer(
     gl.uniform1f(uniforms.progress, sample.progress);
     gl.uniform1f(uniforms.mode, sample.conceal ? 1 : 0);
     gl.uniform1f(uniforms.time, now * 0.001);
-    gl.uniform1f(uniforms.charCount, Math.max(Array.from(sample.phrase).length, 1));
+    gl.uniform1f(
+      uniforms.charCount,
+      Math.max(
+        1,
+        ...sample.phrase
+          .split(/\r?\n/)
+          .map((line) => Array.from(line).length)
+      )
+    );
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, textTexture);
     gl.uniform1i(uniforms.textMask, 0);

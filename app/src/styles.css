@@ -342,14 +342,14 @@ html[data-portrait-loader-resume="skip"] .route-loading {
   position: relative;
   z-index: 3;
   width: min(86vw, 4.36em);
-  height: 1.12em;
+  height: 2em;
   margin-top: 17svh;
   display: grid;
   place-items: center;
   overflow: visible;
   font-family: var(--font-title);
   font-size: clamp(76px, 12vw, 176px);
-  line-height: .82;
+  line-height: .98;
   font-weight: 400;
   color: rgba(247, 237, 215, .82);
 }
@@ -407,7 +407,7 @@ html[data-portrait-loader-resume="skip"] .route-loading {
 
 .story-loader__ink-blur span,
 .story-loader__ink-clear span {
-  white-space: nowrap;
+  white-space: pre-line;
   clip-path: inset(0 0 0 0);
 }
 

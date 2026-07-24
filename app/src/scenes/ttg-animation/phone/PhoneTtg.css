@@ -96,6 +96,10 @@
   left: 175%;
 }
 
+.phone-ttg video.ttg-layer--figure:not([data-phone-ttg-endpoint-ready]) {
+  opacity: 0;
+}
+
 .phone-ttg video.ttg-layer--figure[data-phone-ttg-endpoint-ready] {
   opacity: var(--ttg-figure-video-opacity, 1);
 }

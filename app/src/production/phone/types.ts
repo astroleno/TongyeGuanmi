@@ -117,6 +117,12 @@ export type PhoneTransitionAdapterHandle = TransitionPresentationAdapterHandle;
 export type PhoneTransitionAdapterProps = Readonly<{
   host: HTMLElement | null;
   from: HTMLElement | null;
+  /**
+   * Optional second source surface concealed by the same authored contour.
+   * Method uses this for its document copy while the fixed paper plate remains
+   * the canonical transition source.
+   */
+  additionalFrom?: HTMLElement | null;
   to: HTMLElement | null;
   reducedMotion: boolean;
   onReady?: () => void;

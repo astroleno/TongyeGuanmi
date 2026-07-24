@@ -13,10 +13,8 @@ import { usePhoneEdgeSurface } from './usePhoneEdgeSurface';
 import { usePhoneFixedStageRegistration } from './usePhoneFixedStageRegistration';
 import { usePhoneViewportGeometry } from './usePhoneViewportGeometry';
 import { PhoneGroup67DirectEntry } from './PhoneGroup67DirectEntry';
-import {
-  usePhoneStoryEntry,
-  usePhoneStoryEntryLifecycle
-} from './usePhoneStoryEntry';
+import { usePhoneStoryEntry, usePhoneStoryEntryLifecycle } from './usePhoneStoryEntry';
+import { usePhoneNavigationScene } from './usePhoneNavigationScene';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -81,7 +79,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     finishLoader
   } = frontHalf;
   const mapAodToMethod = frontHalf.mapAodToMethod ?? ZERO_METHOD_PROGRESS;
-  const [navigationScene, setNavigationScene] = useState<SceneId>(entry.initialScene);
+  const [navigationScene, setNavigationScene] = usePhoneNavigationScene(entry.initialScene);
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
   const [adapterRevision, setAdapterRevision] = useState(0);
   const fixedStageRegistered = usePhoneFixedStageRegistration(loaderHidden && ready);

@@ -17,7 +17,7 @@ const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
 
 /** Unit 3 final boundary: the shell owns geometry, never scene presentation. */
 export const phoneShellDebt = Object.freeze({
-  maxLines: 322,
+  maxLines: 320,
   sceneImports: new Set(),
   transitionImports: new Set(),
   mediaImports: new Set(),

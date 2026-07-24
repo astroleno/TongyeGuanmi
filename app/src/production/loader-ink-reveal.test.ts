@@ -245,6 +245,36 @@ describe('loader Ink sequence', () => {
     expect(harness.environment.loadTitleFont).toHaveBeenCalledOnce();
   });
 
+  it('builds one eight-glyph mask across the two-line phone lockup', async () => {
+    const harness = webGlHarness();
+    harness.setNow(755);
+    const controller = createLoaderInkReveal({
+      canvas: harness.canvas,
+      environment: harness.environment,
+      host: harness.host,
+      phrases: ['同人于野\n观象知幂'],
+      startedAt: 0,
+      timings: TIMINGS
+    });
+
+    await controller.start();
+
+    expect(harness.context2d.fillText).toHaveBeenCalledTimes(10);
+    expect(harness.context2d.fillText).toHaveBeenCalledWith(
+      '同人于野',
+      expect.any(Number),
+      expect.any(Number)
+    );
+    expect(harness.context2d.fillText).toHaveBeenCalledWith(
+      '观象知幂',
+      expect.any(Number),
+      expect.any(Number)
+    );
+    expect(harness.gl.uniform1f).toHaveBeenCalledWith('uCharCount', 4);
+
+    controller.dispose();
+  });
+
   it('uses an accessible CSS fallback when WebGL is unavailable', async () => {
     const harness = webGlHarness({ webgl: false });
     const reasons: LoaderInkFallbackReason[] = [];

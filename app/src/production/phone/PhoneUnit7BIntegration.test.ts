@@ -23,6 +23,14 @@ const stageRailSource = readFileSync(
   new URL('./PhoneStageRail.tsx', import.meta.url),
   'utf8'
 );
+const methodSource = readFileSync(
+  new URL('./scenes/PhoneMethodTop.tsx', import.meta.url),
+  'utf8'
+);
+const inkAdapterSource = readFileSync(
+  new URL('./transitions/PhoneInkTransition.tsx', import.meta.url),
+  'utf8'
+);
 
 const ALL_READY: PhoneGroup67RunReadiness = {
   labBoundary: true,
@@ -68,6 +76,12 @@ describe('formal Unit7-B phone integration', () => {
     expect(continuationSource).toContain(
       'labBoundaryRef.current?.adapter'
     );
+  });
+
+  it('conceals Method document copy with the same Method → Figure2 field', () => {
+    expect(methodSource).toContain('methodCopySource={stepsRef.current}');
+    expect(gradeASource).toContain('additionalFrom={methodCopySource}');
+    expect(inkAdapterSource).toContain('additionalFrom');
   });
 
   it('claims a visual boundary before waiting for every real receiver', () => {
@@ -125,6 +139,15 @@ describe('formal Unit7-B phone integration', () => {
     );
     expect(continuationSource).toContain(
       "data-phone-group67-run=\"idle\""
+    );
+  });
+
+  it('does not republish Lab while PH or Crane owns an active run', () => {
+    expect(continuationSource).not.toMatch(
+      /if \(fromLabBoundary\) \{\s*publishScene\('lab'\)/
+    );
+    expect(continuationSource).toContain(
+      'interruptedRun.session.abort('
     );
   });
 });

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { phoneMotionDriver } from './phone-gsap-driver';
+import { phoneGsapCheckPrefix } from './usePhoneStageRuntime';
 
 const driverSource = readFileSync(
   new URL('./phone-gsap-driver.ts', import.meta.url),
@@ -23,7 +24,7 @@ function fakeTarget(): HTMLElement {
   } as unknown as HTMLElement;
 }
 
-describe('phone GSAP core driver', () => {
+describe('phone GSAP runtime and core driver', () => {
   it('preserves transform components across direct frame updates', () => {
     const target = fakeTarget();
 
@@ -49,12 +50,23 @@ describe('phone GSAP core driver', () => {
     expect(target.style.opacity).toBe('0.4');
   });
 
-  it('keeps ScrollTrigger while excluding CSSPlugin and the React GSAP wrapper', () => {
+  it('registers ScrollTrigger on the same lightweight core as the style driver', () => {
     expect(driverSource).toContain("from 'gsap/gsap-core'");
     expect(runtimeSource).toContain("from 'gsap/gsap-core'");
     expect(runtimeSource).toContain("from 'gsap/ScrollTrigger'");
+    expect(runtimeSource).toContain('gsap.registerPlugin(ScrollTrigger)');
+    expect(runtimeSource.indexOf('phoneGsapUtils.checkPrefix ??='))
+      .toBeLessThan(runtimeSource.indexOf('gsap.registerPlugin(ScrollTrigger)'));
     expect(driverSource).not.toContain("from 'gsap'");
     expect(runtimeSource).not.toContain('@gsap/react');
     expect(driverSource).toContain("gsap.quickTo(state, 'value'");
+  });
+
+  it('supplies the CSS prefix lookup ScrollTrigger expects from full GSAP', () => {
+    expect(phoneGsapCheckPrefix('transform', { transform: '' }))
+      .toBe('transform');
+    expect(phoneGsapCheckPrefix('transform', { WebkitTransform: '' }))
+      .toBe('WebkitTransform');
+    expect(phoneGsapCheckPrefix('transform', {})).toBe('transform');
   });
 });

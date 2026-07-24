@@ -128,9 +128,31 @@ export function phoneGradeAProofBrandEdgeScene(
   return clamp(progress) > PHONE_INK_ENDPOINT_EPSILON ? 'brand' : 'proof';
 }
 
+/**
+ * Programmatic deep links and WebKit restoration can move past a boundary
+ * without producing a cancelable gesture. Reconcile only at stable endpoints;
+ * while the scroll sits inside the transition corridor, preserve the current
+ * completion latch so the timed field remains the sole owner.
+ */
+export function phoneGradeABoundaryCompletedAtScroll(
+  completed: boolean,
+  scrollY: number,
+  upstreamPosition: number | null,
+  downstreamPosition: number | null,
+  tolerance = ACTIVE_EDGE_TOLERANCE_PX
+): boolean {
+  if (upstreamPosition === null || downstreamPosition === null) {
+    return completed;
+  }
+  if (scrollY >= downstreamPosition - tolerance) return true;
+  if (scrollY <= upstreamPosition + tolerance) return false;
+  return completed;
+}
+
 export type PhoneGradeAStoryProps = Readonly<{
   reducedMotion: boolean;
   stageHost: HTMLElement | null;
+  methodCopySource?: HTMLElement | null;
   onCheckpoint?: (checkpoint: PhoneCheckpointId) => void;
   onSceneChange?: (scene: SceneId) => void;
   onEdgeScene?: (scene: PhoneEdgeScene) => void;
@@ -139,6 +161,7 @@ export type PhoneGradeAStoryProps = Readonly<{
 export function PhoneGradeAStory({
   reducedMotion,
   stageHost,
+  methodCopySource = null,
   onCheckpoint,
   onSceneChange,
   onEdgeScene
@@ -270,6 +293,29 @@ export function PhoneGradeAStory({
     const completedInk = new Set<GradeAInkBoundaryId>();
     let inkRun: GradeAInkRun | null = null;
     let cancelInkRun: (() => void) | undefined;
+    const elementDocumentTop = (element: HTMLElement) => (
+      window.scrollY + element.getBoundingClientRect().top
+    );
+    const boundaryPosition = (
+      id: GradeAInkBoundaryId,
+      direction: PhoneTransitionDirection
+    ): number | null => {
+      const stageHeight = Math.max(
+        1,
+        surfaces.clientHeight || window.innerHeight
+      );
+      if (id === 0) {
+        const railTop = elementDocumentTop(rail);
+        return direction === 1 ? railTop - stageHeight : railTop;
+      }
+      if (id === 1) {
+        return elementDocumentTop(proofTrack)
+          - direction * ACTIVE_EDGE_TOLERANCE_PX * 2;
+      }
+      if (!brandRoot) return null;
+      const brandTop = elementDocumentTop(brandRoot);
+      return direction === 1 ? brandTop - stageHeight : brandTop;
+    };
 
     const renderFrame = () => {
       frameRef.current = 0;
@@ -279,6 +325,18 @@ export function PhoneGradeAStory({
       const methodRect = methodReading?.getBoundingClientRect();
       const stageHeight = Math.max(1, surfaces.clientHeight || window.innerHeight);
       const activeInk = inkRun;
+      if (!activeInk) {
+        for (const id of GRADE_A_INK_BOUNDARIES) {
+          const completed = phoneGradeABoundaryCompletedAtScroll(
+            completedInk.has(id),
+            window.scrollY,
+            boundaryPosition(id, 1),
+            boundaryPosition(id, -1)
+          );
+          if (completed) completedInk.add(id);
+          else completedInk.delete(id);
+        }
+      }
       const railActive = railRect.top < stageHeight
         && railRect.bottom > 0;
       const proofActive = proofRect.top <= ACTIVE_EDGE_TOLERANCE_PX
@@ -445,37 +503,6 @@ export function PhoneGradeAStory({
     };
 
     const transitionOwner = storyRoot ?? root;
-    const elementDocumentTop = (element: HTMLElement) => (
-      window.scrollY + element.getBoundingClientRect().top
-    );
-    const boundaryPosition = (
-      id: GradeAInkBoundaryId,
-      direction: PhoneTransitionDirection
-    ): number | null => {
-      const stageHeight = Math.max(
-        1,
-        surfaces.clientHeight || window.innerHeight
-      );
-      if (id === 0) {
-        const railTop = elementDocumentTop(rail);
-        return direction === 1 ? railTop - stageHeight : railTop;
-      }
-      if (id === 1) {
-        return elementDocumentTop(proofTrack)
-          - direction * ACTIVE_EDGE_TOLERANCE_PX * 2;
-      }
-      if (!brandRoot) return null;
-      const brandTop = elementDocumentTop(brandRoot);
-      return direction === 1 ? brandTop - stageHeight : brandTop;
-    };
-    const scrollY = window.scrollY;
-    for (const id of GRADE_A_INK_BOUNDARIES) {
-      const downstream = boundaryPosition(id, -1);
-      if (
-        downstream !== null
-        && scrollY >= downstream - ACTIVE_EDGE_TOLERANCE_PX
-      ) completedInk.add(id);
-    }
     const startInkRun = (
       id: GradeAInkBoundaryId,
       direction: PhoneTransitionDirection,
@@ -660,6 +687,7 @@ export function PhoneGradeAStory({
           ref={bindMethodFigure2}
           host={surfacesRef.current}
           from={methodPaperRef.current}
+          additionalFrom={methodCopySource}
           to={figure2Ref.current?.root() ?? null}
           reducedMotion={reducedMotion}
           onReady={markMethodFigure2Ready}

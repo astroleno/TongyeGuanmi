@@ -42,7 +42,7 @@ export function createPhoneInkAdapter(options: Readonly<{
   ) => number;
 }>): PhoneTransitionAdapterComponent {
   return forwardRef<PhoneTransitionAdapterHandle, PhoneTransitionAdapterProps>(function PhoneInkTransition(
-    { host, from, to, reducedMotion, onReady },
+    { host, from, additionalFrom, to, reducedMotion, onReady },
     forwardedRef
   ) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -64,6 +64,9 @@ export function createPhoneInkAdapter(options: Readonly<{
         canvas,
         id: options.id,
         from: options.maskSource === false ? null : from,
+        additionalFrom: options.maskSource === false
+          ? null
+          : additionalFrom ?? null,
         to,
         field: options.field,
         ...(options.grade ? { grade: options.grade } : {}),
@@ -73,7 +76,7 @@ export function createPhoneInkAdapter(options: Readonly<{
       });
       transitionRef.current = transition;
       return transition;
-    }, [from, host, to]);
+    }, [additionalFrom, from, host, to]);
     const render = useCallback((progress: number) => {
       const sampled = options.renderFrame
         ? options.renderFrame(from, to, progress, reducedMotion)

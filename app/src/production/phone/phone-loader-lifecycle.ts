@@ -9,6 +9,8 @@ const currentDocumentState: PhoneLoaderDocumentState = { completed: false };
 // lock-screen recovery does not produce a contradictory Loader/Hero state.
 export const PHONE_LOADER_COMPLETE_KEY = 'tongye:portrait-spike:v16:loader-complete';
 export const PHONE_LOADER_HIDDEN_AT_KEY = 'tongye:portrait-spike:v16:hidden-at';
+export const PHONE_LOADER_RESUME_HASH_KEY =
+  'tongye:portrait-spike:v16:resume-hash';
 
 function browserStore(): PhoneLoaderStore | undefined {
   if (typeof window === 'undefined') return undefined;
@@ -30,6 +32,18 @@ export function markPhoneLoaderCompletedInDocument(
 ): void {
   state.completed = true;
   try { store?.setItem(PHONE_LOADER_COMPLETE_KEY, 'true'); } catch { /* in-document state remains authoritative */ }
+}
+
+export function markPhoneLoaderResumeHash(
+  hash: string,
+  store: PhoneLoaderStore | undefined = browserStore()
+): void {
+  if (!/^#[a-z0-9-]+$/.test(hash)) return;
+  try {
+    store?.setItem(PHONE_LOADER_RESUME_HASH_KEY, hash);
+  } catch {
+    /* Semantic recovery remains best-effort when storage is unavailable. */
+  }
 }
 
 export function attachPhoneLoaderVisibilityLifecycle(

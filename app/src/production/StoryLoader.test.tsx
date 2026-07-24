@@ -11,19 +11,15 @@ import {
 } from './StoryLoader';
 
 describe('StoryLoader', () => {
-  it('keeps the legacy two-phrase 5.38s sequence contract', () => {
-    expect(LOADER_PHRASES).toEqual(['同人于野', '观象知幂']);
-    expect(loaderSequenceDuration('cold-hero')).toBe(5_380);
+  it('reveals the requested two-line eight-character lockup once', () => {
+    expect(LOADER_PHRASES).toEqual(['同人于野\n观象知幂']);
+    expect(loaderSequenceDuration('cold-hero')).toBe(2_700);
     expect(loaderFrameAt(0, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'waiting' });
     expect(loaderFrameAt(180, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'revealing' });
     expect(loaderFrameAt(1_330, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'holding' });
     expect(loaderFrameAt(1_550, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'concealing' });
-    expect(loaderFrameAt(2_700, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'gap' });
-    expect(loaderFrameAt(2_860, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'revealing' });
-    expect(loaderFrameAt(4_010, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'holding' });
-    expect(loaderFrameAt(4_230, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'concealing' });
-    expect(loaderFrameAt(5_380, 'cold-hero')).toMatchObject({
-      phraseIndex: 1,
+    expect(loaderFrameAt(2_700, 'cold-hero')).toMatchObject({
+      phraseIndex: 0,
       phase: 'complete',
       sequenceComplete: true
     });
@@ -55,6 +51,8 @@ describe('StoryLoader', () => {
     expect(markup).toContain('story-loader__ink-clear');
     expect(markup).toContain('data-loader-ink-canvas="true"');
     expect(markup).toContain('data-loader-ink-status="idle"');
+    expect(markup).toContain('data-loader-layout="stacked-eight"');
+    expect(markup).toContain('同人于野\n观象知幂');
     expect(markup.match(/<canvas/g)).toHaveLength(1);
     expect(markup).not.toContain('tabindex="0"');
   });
@@ -71,6 +69,8 @@ describe('StoryLoader', () => {
     expect(html).toContain('sessionStorage');
     expect(html).toContain('portraitLoaderResume');
     expect(html).toContain('hidden-at');
+    expect(html).toContain('resume-hash');
+    expect(html).toContain('history.replaceState');
     expect(html).toContain('validationNumber >= 16');
     expect(html).toContain('validationNumber <= 40');
     expect(html).toContain('validationNumber === 42');
@@ -82,6 +82,9 @@ describe('StoryLoader', () => {
     expect(html).not.toContain('validationNumber === 41');
     expect(html).toContain("navigation?.type === 'reload'");
     expect(html).toContain('manuallyReloaded');
+    expect(html.indexOf('if (completed && hiddenAt')).toBeLessThan(
+      html.indexOf('else if (manuallyReloaded)')
+    );
     expect(html).toContain("'__PHONE_STORY_PREBOOT_ENABLED__' === 'true'");
     expect(html).toContain("window.matchMedia('(pointer: coarse)').matches");
     expect(html).toContain("window.matchMedia('(hover: none)').matches");
@@ -96,6 +99,8 @@ describe('StoryLoader', () => {
     );
     expect(prebootPhoneRouteIndex).toBeGreaterThan(0);
     expect(prebootPhoneRouteIndex).toBeLessThan(loaderIndex);
+    expect(html).toContain('data-story-loader-static-cover="blank"');
+    expect(html).not.toContain('<span>同人于野</span>');
     expect(html).toContain('html[data-portrait-spike="b"] .static-content { display: none !important; }');
     expect(html).toContain('background: var(--portrait-document-surface, #07110e) !important;');
   });

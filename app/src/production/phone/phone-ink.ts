@@ -37,6 +37,8 @@ type PhoneInkTransitionOptions = Readonly<{
    * overlay rendered on an already-completed scene change.
    */
   from?: HTMLElement | null;
+  /** A document source that must follow the same conceal contour as `from`. */
+  additionalFrom?: HTMLElement | null;
   to?: HTMLElement | null;
   field: InkFieldSpec;
   grade?: InkGradePreset;
@@ -92,10 +94,15 @@ export function createPhoneInkTransition(
   });
   let lastProgress = Number.NaN;
   let ownsBoundaryGeometry = false;
+  const sourceEndpoints = [options.from, options.additionalFrom].filter(
+    (element, index, elements): element is HTMLElement => (
+      Boolean(element) && elements.indexOf(element) === index
+    )
+  );
 
   const clearEndpoints = () => {
-    if (options.from) {
-      clearBoundaryGeometry(options.from);
+    for (const source of sourceEndpoints) {
+      clearBoundaryGeometry(source);
     }
     if (options.to) {
       clearBoundaryGeometry(options.to);
@@ -104,7 +111,7 @@ export function createPhoneInkTransition(
 
   const applyOwnership = (progress: number) => {
     const frame = createInkFieldFrame(spec, progress, viewportFor(surface, host));
-    if (options.from) {
+    for (const source of sourceEndpoints) {
       if (
         spec.kind === 'radial'
         && progress > PHONE_INK_ENDPOINT_EPSILON
@@ -113,10 +120,10 @@ export function createPhoneInkTransition(
         // A radial receiver is the upper surface. Keep the source intact
         // underneath it instead of hiding the source as soon as the circle
         // begins to grow.
-        options.from.style.visibility = 'visible';
-        clearBoundaryGeometry(options.from);
+        source.style.visibility = 'visible';
+        clearBoundaryGeometry(source);
       } else {
-        applyConcealBoundary(options.from, frame);
+        applyConcealBoundary(source, frame);
       }
     }
     if (options.to) {

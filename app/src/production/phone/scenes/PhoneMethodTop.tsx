@@ -161,6 +161,7 @@ export const PhoneMethodTop = forwardRef<
             <PhoneGradeAStory
               reducedMotion={reducedMotion}
               stageHost={stageHost}
+              methodCopySource={stepsRef.current}
               {...(onGradeACheckpoint
                 ? { onCheckpoint: onGradeACheckpoint }
                 : {})}

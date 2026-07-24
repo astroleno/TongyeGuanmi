@@ -51,10 +51,24 @@
           const navigation = performance.getEntriesByType?.('navigation')?.[0];
           const manuallyReloaded = navigation?.type === 'reload'
             || performance.navigation?.type === 1;
-          if (manuallyReloaded) {
+          if (completed && hiddenAt > 0 && age >= 0 && age < 30 * 60 * 1000) {
+            const resumeHash = sessionStorage.getItem(
+              'tongye:portrait-spike:v16:resume-hash'
+            );
+            if (resumeHash && /^#[a-z0-9-]+$/.test(resumeHash)) {
+              history.replaceState(
+                history.state,
+                '',
+                `${location.pathname}${location.search}${resumeHash}`
+              );
+              documentElement.dataset.portraitResumeHash = resumeHash;
+            }
+            documentElement.dataset.portraitLoaderResume = 'skip';
             sessionStorage.removeItem('tongye:portrait-spike:v16:hidden-at');
-          } else if (completed && hiddenAt > 0 && age >= 0 && age < 30 * 60 * 1000) {
-            document.documentElement.dataset.portraitLoaderResume = 'skip';
+          } else if (manuallyReloaded) {
+            // A visible manual refresh has no recent hidden marker and still
+            // owns the cold Loader. Safari lock-screen reloads reach the
+            // recovery branch above before this navigation-type diagnostic.
             sessionStorage.removeItem('tongye:portrait-spike:v16:hidden-at');
           }
         }
@@ -81,10 +95,11 @@
       aria-live="polite"
       aria-label="正在进入同人于野，观象知幂"
     >
-      <div class="story-loader__word loader-word" aria-hidden="true">
-        <div class="story-loader__ink-blur"><span>同人于野</span></div>
-        <div class="story-loader__ink-clear"><span>同人于野</span></div>
-      </div>
+      <div
+        class="story-loader__word loader-word"
+        data-story-loader-static-cover="blank"
+        aria-hidden="true"
+      ></div>
     </div>
     <noscript><style>#story-loader-static { display: none !important; }</style></noscript>
     <div id="root"></div>

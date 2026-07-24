@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   phoneGradeAArchFrame,
+  phoneGradeABoundaryCompletedAtScroll,
   phoneGradeAFigureProgress,
   phoneGradeAHandoffProgress,
   phoneGradeAMethodFigure2EdgeScene,
@@ -15,6 +16,39 @@ describe('phone Grade A document progress', () => {
     expect(phoneGradeAHandoffProgress(844, 844)).toBe(0);
     expect(phoneGradeAHandoffProgress(422, 844)).toBe(0.5);
     expect(phoneGradeAHandoffProgress(0, 844)).toBe(1);
+  });
+
+  it('reconciles restored scroll positions only at stable ink endpoints', () => {
+    expect(phoneGradeABoundaryCompletedAtScroll(
+      false,
+      5_886,
+      5_040,
+      5_884
+    )).toBe(true);
+    expect(phoneGradeABoundaryCompletedAtScroll(
+      true,
+      5_039,
+      5_040,
+      5_884
+    )).toBe(false);
+    expect(phoneGradeABoundaryCompletedAtScroll(
+      true,
+      5_420,
+      5_040,
+      5_884
+    )).toBe(true);
+    expect(phoneGradeABoundaryCompletedAtScroll(
+      false,
+      5_420,
+      5_040,
+      5_884
+    )).toBe(false);
+    expect(phoneGradeABoundaryCompletedAtScroll(
+      false,
+      5_886,
+      null,
+      null
+    )).toBe(false);
   });
 
   it('switches the bottom fallback only when the ink field owns that edge', () => {
