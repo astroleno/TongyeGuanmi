@@ -29,3 +29,14 @@ export async function loadPhoneStoryShell() {
   ]);
   return { default: shell.PhoneStoryShell };
 }
+
+/**
+ * Dedicated physical-device acceptance entry. It does not preload any scene:
+ * the v36 shell resolves Lab → Contact adapters only as their chapter is
+ * reached, so direct #contact remains a cold terminal route.
+ */
+export function loadPhoneLabContactShell() {
+  return import('./phone/PhoneLabContactShell').then(({
+    PhoneLabContactShell
+  }) => ({ default: PhoneLabContactShell }));
+}

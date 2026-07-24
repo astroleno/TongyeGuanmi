@@ -1,0 +1,167 @@
+.phone-crane {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  contain: layout;
+}
+
+/*
+ * The source plates are authored for a 16:9 desktop camera. On a portrait
+ * crop the lead crane sits just outside the centre crop and the flock starts
+ * above the viewport, which reads as an empty paper field. These phone-only
+ * values establish the approved portrait camera while retaining the canonical
+ * scene, media, and timing owner.
+ */
+.phone-crane .r4-crane-animation {
+  --crane-flock-x: 0px;
+  --crane-flock-base-y: 0px;
+  /*
+   * Keep the canonical 16:9 plate fitted to retained height, then apply the
+   * physical-phone camera independently from its authored media motion.
+   */
+  --crane-flock-scale: .57;
+  --phone-crane-motion-height: var(--phone-cinematic-stage-height, 100lvh);
+  --phone-crane-figure-shift-y: calc(
+    var(--phone-cinematic-stage-height, 100lvh) * .09
+  );
+  /* Source feet y≈306/396 meet the centre roof ridge at retained-height fit. */
+  --phone-crane-flock-center-y: 50.2%;
+  height: 100%;
+  min-height: 100%;
+}
+
+/* Match af4d41d: one outer retained-height clip, no nested Safari islands. */
+.phone-crane .crane-sticky,
+.phone-crane .crane-field,
+.phone-crane .crane-layer-stack,
+.phone-crane .crane-video-transition {
+  overflow: visible;
+  isolation: auto;
+}
+
+.phone-crane .crane-video-transition--figure {
+  clip-path: none;
+  transform:
+    translate3d(
+      calc(var(--crane-figure-x) + var(--phone-crane-figure-camera-x, -3.75lvh)),
+      calc(var(--crane-figure-base-y) + var(--crane-video-y) + var(--phone-crane-figure-camera-y, 8.75lvh)),
+      0
+    )
+    scale(var(--crane-video-scale));
+  will-change: transform;
+}
+
+.phone-crane .crane-layer,
+.phone-crane .crane-figure-video {
+  contain: none;
+  backface-visibility: visible;
+}
+
+/*
+ * The canonical transition is a grid containing the hidden decoder and the
+ * injected Canvas. Letting the Canvas auto-place creates a second grid row,
+ * so its vertical camera changes with viewport height. Canvas owns one
+ * explicit stage coordinate instead.
+ */
+.phone-crane .r4-crane-animation .phone-crane__figure-canvas,
+.phone-crane .r4-crane-animation .phone-crane__flock-canvas {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  width: calc(var(--phone-crane-motion-height) * 16 / 9);
+  height: var(--phone-crane-motion-height);
+  max-width: none;
+  aspect-ratio: auto;
+  object-fit: contain;
+  opacity: 0;
+  will-change: auto;
+}
+
+/* AOD topology: canonical videos decode packed H.264 but never paint. */
+.phone-crane [data-crane-figure-video],
+.phone-crane [data-crane-figure-front-video] {
+  opacity: 0 !important;
+  filter: none;
+  transform: none;
+  contain: none;
+  backface-visibility: visible;
+  will-change: auto;
+}
+
+.phone-crane__figure-canvas {
+  opacity: var(--crane-video-opacity);
+}
+
+.phone-crane__flock-canvas {
+  opacity: var(--crane-flock-opacity);
+}
+
+.phone-crane .r4-crane-animation .phone-crane__figure-canvas {
+  top: 50%;
+  transform:
+    translate3d(
+      -50%,
+      calc(-50% + var(--phone-crane-figure-shift-y)),
+      0
+    );
+}
+
+.phone-crane .r4-crane-animation .phone-crane__flock-canvas {
+  top: var(--phone-crane-flock-center-y);
+  /*
+   * The desktop contrast grade on this class forces Safari to raster the
+   * already-composited phone Canvas a second time. Keep the packed frame on
+   * its direct texture path so the limited source resolution is not softened
+   * again.
+   */
+  filter: none;
+  transform: translate3d(
+      calc(-50% + var(--crane-flock-x) + var(--phone-crane-tune-flock-x, -1lvh)),
+      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 10.75lvh)),
+      0
+    )
+    scale(
+      var(
+        --phone-crane-flock-motion-scale,
+        var(--phone-crane-tune-flock-scale, var(--crane-flock-scale))
+      )
+    );
+}
+
+/* Static plates use the same retained-height camera as both moving plates. */
+.phone-crane .r4-crane-animation .crane-layer--cloud-back {
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * .125);
+  width: calc(var(--phone-cinematic-stage-height, 100lvh) * .875);
+}
+
+.phone-crane .r4-crane-animation .crane-layer--arch {
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * .0592);
+  width: calc(var(--phone-cinematic-stage-height, 100lvh) * .9763);
+}
+
+.phone-crane .r4-crane-animation .crane-layer--cloud-front {
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * -.024);
+  width: calc(var(--phone-cinematic-stage-height, 100lvh) * 1.068);
+}
+
+.phone-crane .r4-crane-animation .crane-layer--cloud-front-second {
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * .021);
+  width: calc(var(--phone-cinematic-stage-height, 100lvh) * 1.033);
+}
+
+.phone-crane [data-phone-crane-figure-alpha="verified"] .phone-crane__figure-canvas[data-packed-alpha-frame-ready="true"] {
+  opacity: var(--crane-video-opacity);
+}
+
+.phone-crane [data-phone-crane-flock-alpha="verified"] .phone-crane__flock-canvas[data-packed-alpha-frame-ready="true"] {
+  opacity: var(--crane-flock-opacity);
+}
+
+.phone-crane [data-phone-crane-media="fallback"] [data-crane-figure-video],
+.phone-crane [data-phone-crane-media="fallback"] [data-crane-figure-front-video],
+.phone-crane [data-crane-figure-video][data-phone-crane-media="fallback"],
+.phone-crane [data-crane-figure-front-video][data-phone-crane-media="fallback"] {
+  visibility: hidden;
+  opacity: 0;
+}

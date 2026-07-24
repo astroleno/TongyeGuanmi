@@ -1,0 +1,14 @@
+.phone-lab-contact__stage--ph[data-phone-lab-ph-ink-surface="transparent"]
+  > .phone-lab-contact__stage-canvas {
+  background: transparent;
+}
+
+.phone-lab-contact__stage--ph > .r4-ink-transition-canvas.phone-lab-ph__ink {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: var(--phone-cinematic-stage-canvas-height, 100lvh);
+  pointer-events: none;
+}

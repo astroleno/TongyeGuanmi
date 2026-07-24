@@ -21,7 +21,9 @@ import type {
   TransitionContext,
   TransitionModule
 } from '../../story/types';
-import { mediaPlaybackFor, requiredMilestonesFor } from '../../story/manifest';
+import {
+  FIGURE2_DISTANCE_EXPAND_SEGMENT
+} from '../../story/figure2-distance-expand-contract';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 import {
   createDepthThresholdMask,
@@ -537,8 +539,8 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
 export function createFigure2DistanceExpandTransition(options: { delayMs?: () => number } = {}): TransitionModule {
   return {
     id: 'figure2-distance-expand',
-    requiredMilestones: requiredMilestonesFor('figure2-distance-expand'),
-    mediaPlayback: mediaPlaybackFor('figure2-distance-expand') ?? [],
+    requiredMilestones: FIGURE2_DISTANCE_EXPAND_SEGMENT.requiredMilestones,
+    mediaPlayback: FIGURE2_DISTANCE_EXPAND_SEGMENT.mediaPlayback,
     reducedMotionFallback: (context) => {
       if (context.direction === -1) {
         applyLayerVisibility(context.from, holdVisibility(true));

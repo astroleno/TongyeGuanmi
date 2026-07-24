@@ -1,0 +1,144 @@
+.phone-ph {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  contain: layout;
+}
+
+.phone-ph .r4-ph-animation {
+  --phone-ph-plate-width: min(
+    704px,
+    max(
+      160vw,
+      calc(var(--phone-cinematic-stage-height, 100lvh) * .74)
+    )
+  );
+  --phone-ph-front-width: min(
+    1664px,
+    calc(var(--phone-cinematic-stage-height, 100lvh) * 1.65)
+  );
+  /* The asset keeps 10.85% transparent pixels below its last opaque row. */
+  --ph-front-base-y: calc(
+    var(--phone-cinematic-stage-height, 100lvh) * .105
+  );
+  --ph-figure-base-y: clamp(
+    0px,
+    calc(var(--phone-cinematic-stage-height, 100lvh) * .044),
+    48px
+  );
+  height: 100%;
+  min-height: 100%;
+}
+
+/*
+ * af4d41d's accepted Safari rule: the retained stage Canvas is the sole
+ * clipping boundary. Extra isolation/paint-containment around a live WebGL
+ * texture can pin physical iOS to its first uploaded frame.
+ */
+.phone-ph .ph-sticky,
+.phone-ph .ph-field,
+.phone-ph .ph-layer-stack {
+  overflow: visible;
+  isolation: auto;
+}
+
+.phone-ph .ph-layer {
+  contain: none;
+  backface-visibility: visible;
+}
+
+/*
+ * The portrait cover must retain the authored sunrise at source x≈10%.
+ * Centre-cropping the 16:9 plate removed it entirely. Moving the plate right
+ * lets the raised island obscure the horizon at frame zero and lets native
+ * playback reveal the sun as the foreground sinks.
+ */
+.phone-ph .ph-bg {
+  object-position: 12% 50%;
+}
+
+/*
+ * Figure2 phone camera: the high-resolution static foreground may fill the
+ * portrait depth field, while the decoded people plate stays at or below
+ * 704 px. Keeping those two sizes independent removes the lower ocean gap
+ * without scaling Safari's half-width video texture into a blurry surface.
+ */
+.phone-ph .ph-layer--front {
+  left: 50%;
+  bottom: 0;
+  width: var(--phone-ph-front-width);
+  opacity: 1 !important;
+  filter: none;
+  mix-blend-mode: normal;
+  clip-path: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/*
+ * The canonical foreground WebP intentionally contains partially transparent
+ * paper pixels. Desktop density hides that wash; the taller portrait crop
+ * exposes it as a see-through island. Keep one authored image owner and put a
+ * phone-only solid paper matte directly beneath the same alpha silhouette.
+ */
+.phone-ph .ph-layer-stack::before {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: 0;
+  width: var(--phone-ph-front-width);
+  aspect-ratio: 16 / 9;
+  content: "";
+  pointer-events: none;
+  background: #d9d0b9;
+  transform: translate3d(
+    -50%,
+    calc(var(--ph-front-base-y) + var(--ph-front-parallax-y)),
+    0
+  );
+  transform-origin: 50% 86%;
+  -webkit-mask: var(--phone-ph-island-source) 50% 50% / 100% 100% no-repeat;
+  mask: var(--phone-ph-island-source) 50% 50% / 100% 100% no-repeat;
+}
+
+.phone-ph .ph-layer--figure {
+  left: 61%;
+  bottom: calc(var(--phone-cinematic-stage-height, 100lvh) * .245);
+  width: var(--phone-ph-plate-width);
+}
+
+/* Do not put the desktop edge wash back over the opaque phone island. */
+.phone-ph .ph-edge-light {
+  background: none;
+}
+
+.phone-ph .ph-texture {
+  opacity: 0;
+}
+
+/* Figure2 topology: H.264 is decoder-only; Canvas owns moving presentation. */
+.phone-ph [data-ph-alpha-video] {
+  opacity: 0 !important;
+  filter: none;
+  contain: none;
+  backface-visibility: visible;
+  will-change: auto;
+}
+
+.phone-ph__figure-canvas {
+  z-index: 3;
+  opacity: 0;
+  will-change: auto;
+  filter: drop-shadow(0 17px 24px rgba(61, 45, 35, .12));
+}
+
+.phone-ph [data-phone-ph-alpha="verified"] .phone-ph__figure-canvas[data-packed-alpha-frame-ready="true"] {
+  opacity: var(--ph-video-opacity, 1);
+}
+
+.phone-ph [data-phone-ph-media="fallback"] [data-ph-alpha-video],
+.phone-ph [data-ph-alpha-video][data-phone-ph-media="fallback"] {
+  visibility: hidden;
+  opacity: 0;
+}

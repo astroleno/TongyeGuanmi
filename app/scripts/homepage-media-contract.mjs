@@ -38,7 +38,10 @@ export const animationHevcAlphaSources = alphaVideoSourcePairs.map(({ hevc }) =>
 export const packedAlphaVideoSources = [
   'assets/figure1-rgb-alpha.mp4',
   'assets/figure2-pair-motion-rgb-alpha.mp4',
-  'assets/aod-figure-motion-rgb-alpha.mp4'
+  'assets/aod-figure-motion-rgb-alpha.mp4',
+  'assets/ph-figure-motion-rgb-alpha.mp4',
+  'assets/crane-figure-motion-rgb-alpha.mp4',
+  'assets/crane-flock-motion-rgb-alpha.mp4'
 ];
 
 export const portraitOnlyImageSources = [
@@ -162,6 +165,24 @@ export const frozenHomepageMedia = [
     category: 'portrait-packed-alpha',
     bytes: 2637788,
     sha256: 'a97af562c62e86fa4d3be9afe9537145ddeb05b67f556934985bc2dbf9f154ec'
+  },
+  {
+    source: 'assets/ph-figure-motion-rgb-alpha.mp4',
+    category: 'portrait-packed-alpha',
+    bytes: 321923,
+    sha256: '39ed325feaa4afcd2c59f7479e6ad75edbe6f4f063ab2243a04afe2660c4f8e1'
+  },
+  {
+    source: 'assets/crane-figure-motion-rgb-alpha.mp4',
+    category: 'portrait-packed-alpha',
+    bytes: 663343,
+    sha256: '80e971968a290ab1b4176cc754acdd4aaf85fecf5137a85295ccd9e7152105f5'
+  },
+  {
+    source: 'assets/crane-flock-motion-rgb-alpha.mp4',
+    category: 'portrait-packed-alpha',
+    bytes: 1341930,
+    sha256: '6c82ceeb31ce814e137c880ae41650e5d24df26a202a4af8a3d8a9d60dbeff00'
   },
   {
     source: 'assets/hero-back.webp',

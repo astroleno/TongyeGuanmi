@@ -7,13 +7,14 @@ import {
 import {
   renderFigure2AnimationProgress
 } from '../../../scenes/figure2-animation';
-import { storyManifest } from '../../../story/manifest';
+import {
+  FIGURE2_DISTANCE_EXPAND_SEGMENT
+} from '../../../story/figure2-distance-expand-contract';
 import type {
   LayerHandle,
   LayerVisibilityState,
   SceneId,
   SegmentRunId,
-  SpineSegmentNode,
   StageHandle
 } from '../../../story/types';
 import {
@@ -28,15 +29,6 @@ import type {
 
 const PHONE_FIGURE2_RUN = 'phone-grade-a:1' as SegmentRunId;
 const PHONE_FIGURE2_PREPARE = 'phone-grade-a:prepare:1' as const;
-const PHONE_FIGURE2_SEGMENT = storyManifest.nodes.find(
-  (node): node is SpineSegmentNode => (
-    node.kind === 'segment' && node.id === 'figure2-distance-expand'
-  )
-);
-
-if (!PHONE_FIGURE2_SEGMENT) {
-  throw new Error('figure2-distance-expand segment missing');
-}
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -157,7 +149,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     const transition = createFigure2DistanceExpandTransition();
     let disposed = false;
     void Promise.resolve(transition.buildTimeline({
-      segment: PHONE_FIGURE2_SEGMENT,
+      segment: FIGURE2_DISTANCE_EXPAND_SEGMENT,
       stage: phoneStage([fromLayer, toLayer]),
       from: fromLayer,
       to: toLayer,
