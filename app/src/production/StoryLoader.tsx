@@ -6,7 +6,7 @@ import {
 } from './loader-ink-sequence';
 import type { LoaderInkStatus as LoaderInkCanvasStatus } from './loader-ink-reveal';
 
-export const LOADER_PHRASES = ['同人于野\n观象知幂'] as const;
+export const LOADER_PHRASES = ['同人于野', '观象知幂'] as const;
 
 export const STORY_LOADER_TIMINGS = {
   startDelayMs: 180,
@@ -41,13 +41,21 @@ export type StoryLoaderProps = {
   onStatusChange?: (status: StoryLoaderStatus) => void;
 };
 
+const PHRASE_DURATION_MS =
+  STORY_LOADER_TIMINGS.revealMs
+  + STORY_LOADER_TIMINGS.holdMs
+  + STORY_LOADER_TIMINGS.revealMs;
+
 const COLD_BOUNDARIES = [
   STORY_LOADER_TIMINGS.startDelayMs,
   STORY_LOADER_TIMINGS.startDelayMs + STORY_LOADER_TIMINGS.revealMs,
   STORY_LOADER_TIMINGS.startDelayMs + STORY_LOADER_TIMINGS.revealMs + STORY_LOADER_TIMINGS.holdMs,
-  STORY_LOADER_TIMINGS.startDelayMs
-    + STORY_LOADER_TIMINGS.revealMs * 2
-    + STORY_LOADER_TIMINGS.holdMs
+  STORY_LOADER_TIMINGS.startDelayMs + PHRASE_DURATION_MS,
+  STORY_LOADER_TIMINGS.startDelayMs + PHRASE_DURATION_MS + STORY_LOADER_TIMINGS.gapMs,
+  STORY_LOADER_TIMINGS.startDelayMs + PHRASE_DURATION_MS + STORY_LOADER_TIMINGS.gapMs + STORY_LOADER_TIMINGS.revealMs,
+  STORY_LOADER_TIMINGS.startDelayMs + PHRASE_DURATION_MS + STORY_LOADER_TIMINGS.gapMs
+    + STORY_LOADER_TIMINGS.revealMs + STORY_LOADER_TIMINGS.holdMs,
+  STORY_LOADER_TIMINGS.startDelayMs + PHRASE_DURATION_MS * 2 + STORY_LOADER_TIMINGS.gapMs
 ] as const;
 
 export function loaderSequenceDuration(mode: StoryLoaderMode): number {
@@ -257,7 +265,6 @@ export function StoryLoader({
       data-loader-ink-status={inkStatus}
       data-loader-phrase={frame.phraseIndex}
       data-loader-phase={frame.phase}
-      data-loader-layout={mode === 'cold-hero' ? 'stacked-eight' : 'single'}
       data-loader-release={release ? 'auto' : 'blocked'}
       aria-hidden={hidden ? 'true' : undefined}
       inert={status !== 'running' ? true : undefined}

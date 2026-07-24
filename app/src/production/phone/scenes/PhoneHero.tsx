@@ -214,6 +214,10 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       parallaxRef.current = parallax;
       introInkRef.current = introInk;
       introInk.prewarm();
+      // The fixed stage deliberately primes for two visible frames before its
+      // runtime registers. Prime Hero at the authored ink origin now so those
+      // frames cannot expose the completed scene before startEntrance().
+      renderEntrance(0);
       onReady?.();
 
       return () => {
@@ -229,7 +233,14 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         if (compositorRef.current === compositor) compositorRef.current = undefined;
         if (introInkRef.current === introInk) introInkRef.current = undefined;
       };
-    }, [cancelEntrance, motionDriver, onReady, reducedMotion, storyRoot]);
+    }, [
+      cancelEntrance,
+      motionDriver,
+      onReady,
+      reducedMotion,
+      renderEntrance,
+      storyRoot
+    ]);
 
     useLayoutEffect(() => {
       sceneActiveRef.current = active;

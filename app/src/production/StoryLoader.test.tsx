@@ -11,15 +11,19 @@ import {
 } from './StoryLoader';
 
 describe('StoryLoader', () => {
-  it('reveals the requested two-line eight-character lockup once', () => {
-    expect(LOADER_PHRASES).toEqual(['同人于野\n观象知幂']);
-    expect(loaderSequenceDuration('cold-hero')).toBe(2_700);
+  it('reveals two four-character phrases in sequence', () => {
+    expect(LOADER_PHRASES).toEqual(['同人于野', '观象知幂']);
+    expect(loaderSequenceDuration('cold-hero')).toBe(5_380);
     expect(loaderFrameAt(0, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'waiting' });
     expect(loaderFrameAt(180, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'revealing' });
     expect(loaderFrameAt(1_330, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'holding' });
     expect(loaderFrameAt(1_550, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'concealing' });
-    expect(loaderFrameAt(2_700, 'cold-hero')).toMatchObject({
-      phraseIndex: 0,
+    expect(loaderFrameAt(2_700, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'gap' });
+    expect(loaderFrameAt(2_860, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'revealing' });
+    expect(loaderFrameAt(4_010, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'holding' });
+    expect(loaderFrameAt(4_230, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'concealing' });
+    expect(loaderFrameAt(5_380, 'cold-hero')).toMatchObject({
+      phraseIndex: 1,
       phase: 'complete',
       sequenceComplete: true
     });
@@ -51,8 +55,9 @@ describe('StoryLoader', () => {
     expect(markup).toContain('story-loader__ink-clear');
     expect(markup).toContain('data-loader-ink-canvas="true"');
     expect(markup).toContain('data-loader-ink-status="idle"');
-    expect(markup).toContain('data-loader-layout="stacked-eight"');
-    expect(markup).toContain('同人于野\n观象知幂');
+    expect(markup).toContain('同人于野');
+    expect(markup).not.toContain('观象知幂');
+    expect(markup).not.toContain('stacked-eight');
     expect(markup.match(/<canvas/g)).toHaveLength(1);
     expect(markup).not.toContain('tabindex="0"');
   });
@@ -125,7 +130,7 @@ describe('StoryLoader', () => {
     expect(markup).toContain('story-loader--clock-fallback');
   });
 
-  it('can hold the completed lockup while the formal phone shell prepares', () => {
+  it('can hold the completed final phrase while the formal phone shell prepares', () => {
     const markup = renderToStaticMarkup(createElement(StoryLoader, {
       mode: 'cold-hero',
       ready: false,

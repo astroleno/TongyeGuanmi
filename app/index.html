@@ -37,7 +37,7 @@
         if (validationPhoneEntry || productionPhoneEntry) {
           // Hide the static document before React resolves the phone shell.
           // Without this synchronous route marker, the static brand can flash
-          // between the preload cover and the authored eight-character Loader.
+          // between the blank preload cover and the authored phrase sequence.
           const documentElement = document.documentElement;
           documentElement.dataset.portraitSpike = 'b';
           documentElement.dataset.portraitSpikePreboot = validationPhoneEntry

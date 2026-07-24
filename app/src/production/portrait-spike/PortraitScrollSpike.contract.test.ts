@@ -183,6 +183,15 @@ describe('Route B proven front-half migration contract', () => {
     expect(heroSource).toContain(
       "owner.dataset.portraitHeroTextEntrance = 'playing'"
     );
+    const heroPrewarmIndex = heroSource.indexOf('introInk.prewarm();');
+    const heroPrimeIndex = heroSource.indexOf(
+      'renderEntrance(0);',
+      heroPrewarmIndex
+    );
+    const heroReadyIndex = heroSource.indexOf('onReady?.();', heroPrimeIndex);
+    expect(heroPrewarmIndex).toBeGreaterThan(0);
+    expect(heroPrimeIndex).toBeGreaterThan(heroPrewarmIndex);
+    expect(heroReadyIndex).toBeGreaterThan(heroPrimeIndex);
     expect(runtimeSource).toContain('heroAdapter.startEntrance()');
     for (const css of [heroCss, patternCss, starCss]) {
       expect(css).toContain('var(--portrait-readable-bottom-offset)');
