@@ -11,6 +11,7 @@ type PrebootInput = Readonly<{
   search?: string;
   navigationType?: 'navigate' | 'reload';
   storage?: Record<string, string>;
+  storyClaimed?: boolean;
 }>;
 
 function runPhonePreboot({
@@ -21,7 +22,8 @@ function runPhonePreboot({
   hoverNone = true,
   search = '',
   navigationType = 'navigate',
-  storage: initialStorage = {}
+  storage: initialStorage = {},
+  storyClaimed = false
 }: PrebootInput) {
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   const script = html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]
@@ -32,6 +34,8 @@ function runPhonePreboot({
   const styles = new Map<string, string>();
   const storage = new Map(Object.entries(initialStorage));
   const replacedUrls: string[] = [];
+  const timers: Array<() => void> = [];
+  let staticLoaderRemoved = false;
   runInNewContext(script, {
     Date,
     Math,
@@ -43,9 +47,16 @@ function runPhonePreboot({
         style: {
           setProperty(name: string, value: string) {
             styles.set(name, value);
+          },
+          removeProperty(name: string) {
+            styles.delete(name);
           }
         }
-      }
+      },
+      querySelector: () => storyClaimed ? {} : null,
+      getElementById: (id: string) => id === 'story-loader-static'
+        ? { remove: () => { staticLoaderRemoved = true; } }
+        : null
     },
     history: {
       state: null,
@@ -72,11 +83,26 @@ function runPhonePreboot({
             ? pointerCoarse
             : query === '(hover: none)' && hoverNone
         };
+      },
+      setTimeout(callback: () => void) {
+        timers.push(callback);
+        return timers.length;
       }
     }
   });
 
-  return { dataset, replacedUrls, storage, styles };
+  return {
+    dataset,
+    replacedUrls,
+    storage,
+    styles,
+    runStartupSafety() {
+      for (const timer of timers) timer();
+    },
+    staticLoaderWasRemoved() {
+      return staticLoaderRemoved;
+    }
+  };
 }
 
 describe('phone preboot ownership', () => {
@@ -152,5 +178,36 @@ describe('phone preboot ownership', () => {
 
     expect(result.dataset.portraitLoaderResume).toBeUndefined();
     expect(result.replacedUrls).toEqual([]);
+  });
+
+  it('releases an unclaimed phone preboot to the scrollable static story', () => {
+    const result = runPhonePreboot({
+      enabled: true,
+      width: 390,
+      height: 844
+    });
+
+    result.runStartupSafety();
+
+    expect(result.staticLoaderWasRemoved()).toBe(true);
+    expect(result.dataset.portraitSpike).toBeUndefined();
+    expect(result.dataset.portraitSpikePreboot).toBeUndefined();
+    expect(result.dataset.phoneStoryFallback).toBe('startup-timeout');
+    expect(result.styles.has('--portrait-document-surface')).toBe(false);
+  });
+
+  it('does not release preboot after the phone story claims the document', () => {
+    const result = runPhonePreboot({
+      enabled: true,
+      width: 390,
+      height: 844,
+      storyClaimed: true
+    });
+
+    result.runStartupSafety();
+
+    expect(result.staticLoaderWasRemoved()).toBe(false);
+    expect(result.dataset.portraitSpike).toBe('b');
+    expect(result.dataset.phoneStoryFallback).toBeUndefined();
   });
 });

@@ -55,7 +55,9 @@ export function phoneGsapCheckPrefix(
 const phoneGsapUtils = gsap.utils as typeof gsap.utils & {
   checkPrefix?: (property: string) => string;
 };
-phoneGsapUtils.checkPrefix ??= phoneGsapCheckPrefix;
+if (!phoneGsapUtils.checkPrefix) {
+  phoneGsapUtils.checkPrefix = phoneGsapCheckPrefix;
+}
 gsap.registerPlugin(ScrollTrigger);
 
 export function refreshPhoneScrollStage(): void {

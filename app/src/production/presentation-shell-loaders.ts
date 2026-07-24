@@ -1,5 +1,3 @@
-import { phoneGroup67EntryPlanFromHash } from './phone/phone-entry-plan';
-
 /** Load only the selected presentation family. */
 export function loadDesktopStoryShell() {
   return import('./desktop/DesktopStoryShell').then(({ DesktopStoryShell }) => ({
@@ -8,23 +6,17 @@ export function loadDesktopStoryShell() {
 }
 
 /**
- * Resolve the thin shell as soon as its animated Loader adapter is available.
- * The mounted shell owns the remaining Loader → Method preparation, so the
- * pre-hydration cover never impersonates or blocks the authored Loader.
+ * Resolve the phone shell without waiting on a second lazy adapter request.
+ * PhoneStoryShell owns the authored Loader synchronously; its mounted adapter
+ * registry prepares Hero → Method behind that animation.
  */
-export async function loadPhoneStoryShell(
-  hash = typeof window === 'undefined' ? '' : window.location.hash
-) {
-  const directGroup67Entry = phoneGroup67EntryPlanFromHash(hash);
-  const [shell] = await Promise.all([
-    import('./phone/PhoneStoryShell'),
-    directGroup67Entry
-      ? Promise.resolve(undefined)
-      : import('./phone/module-loaders')
-        .then(({ loadPhoneLoaderAdapter }) => loadPhoneLoaderAdapter())
-        .catch(() => undefined)
-  ]);
-  return { default: shell.PhoneStoryShell };
+export function loadPhoneStoryShell(hash?: string) {
+  // Keep the explicit hash argument for direct-entry loader callers. Entry
+  // selection now happens inside the shell instead of delaying its import.
+  void hash;
+  return import('./phone/PhoneStoryShell').then(({ PhoneStoryShell }) => ({
+    default: PhoneStoryShell
+  }));
 }
 
 /**

@@ -55,8 +55,9 @@ describe('phone GSAP runtime and core driver', () => {
     expect(runtimeSource).toContain("from 'gsap/gsap-core'");
     expect(runtimeSource).toContain("from 'gsap/ScrollTrigger'");
     expect(runtimeSource).toContain('gsap.registerPlugin(ScrollTrigger)');
-    expect(runtimeSource.indexOf('phoneGsapUtils.checkPrefix ??='))
+    expect(runtimeSource.indexOf('if (!phoneGsapUtils.checkPrefix)'))
       .toBeLessThan(runtimeSource.indexOf('gsap.registerPlugin(ScrollTrigger)'));
+    expect(runtimeSource).not.toContain('phoneGsapUtils.checkPrefix ??=');
     expect(driverSource).not.toContain("from 'gsap'");
     expect(runtimeSource).not.toContain('@gsap/react');
     expect(driverSource).toContain("gsap.quickTo(state, 'value'");

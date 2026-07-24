@@ -71,6 +71,20 @@
             // recovery branch above before this navigation-type diagnostic.
             sessionStorage.removeItem('tongye:portrait-spike:v16:hidden-at');
           }
+          window.setTimeout(() => {
+            const claimed = document.querySelector(
+              '.portrait-scroll-spike, .phone-lab-contact'
+            );
+            if (claimed) return;
+            document.getElementById('story-loader-static')?.remove();
+            delete documentElement.dataset.portraitSpike;
+            delete documentElement.dataset.portraitSpikeMotion;
+            delete documentElement.dataset.portraitSpikePreboot;
+            delete documentElement.dataset.portraitSpikeLoader;
+            delete documentElement.dataset.storyHydrated;
+            documentElement.dataset.phoneStoryFallback = 'startup-timeout';
+            documentElement.style.removeProperty('--portrait-document-surface');
+          }, 8_000);
         }
       } catch {}
     </script>

@@ -320,21 +320,9 @@ html:not([data-story-hydrated="true"]) .story-app {
   background: rgba(5, 8, 7, .88);
 }
 
-.story-loader--static {
-  animation: story-loader-static-safety 0s linear 8s forwards;
-}
-
 html[data-portrait-loader-resume="skip"] #story-loader-static,
 html[data-portrait-loader-resume="skip"] .route-loading {
   display: none !important;
-}
-
-@keyframes story-loader-static-safety {
-  to {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-  }
 }
 
 .loader-word,

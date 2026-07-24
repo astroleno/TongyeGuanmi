@@ -1,6 +1,13 @@
-import { lazy, Suspense, useState } from 'react';
+import {
+  Component,
+  lazy,
+  Suspense,
+  useState,
+  type ReactNode
+} from 'react';
 import { canUseDOM } from './runtime/browser-guard';
 import { initialPresentationFamily, type PresentationFamily } from './production/presentation-profile';
+import { revealStaticPhoneStoryFallback } from './production/phone-story-fallback';
 import {
   loadDesktopStoryShell,
   loadPhoneLabContactShell,
@@ -16,6 +23,28 @@ const DesktopStoryShell = lazy(loadDesktopStoryShell);
 const PhoneStoryShell = lazy(loadPhoneStoryShell);
 const PhoneLabContactShell = lazy(loadPhoneLabContactShell);
 const phoneShellEnabled = import.meta.env.VITE_ENABLE_PHONE_STORY === '1';
+
+type PhoneStoryErrorBoundaryProps = Readonly<{ children: ReactNode }>;
+type PhoneStoryErrorBoundaryState = Readonly<{ failed: boolean }>;
+
+class PhoneStoryErrorBoundary extends Component<
+  PhoneStoryErrorBoundaryProps,
+  PhoneStoryErrorBoundaryState
+> {
+  state: PhoneStoryErrorBoundaryState = { failed: false };
+
+  static getDerivedStateFromError(): PhoneStoryErrorBoundaryState {
+    return { failed: true };
+  }
+
+  componentDidCatch(): void {
+    revealStaticPhoneStoryFallback('shell-error');
+  }
+
+  render(): ReactNode {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 type PhoneValidationMode = 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45' | 'v46' | 'v47';
 
@@ -74,13 +103,20 @@ export function App() {
   if (path !== '/' && path !== '/index.html') {
     return <NotFound />;
   }
+  if (shellFamily === 'phone') {
+    return (
+      <PhoneStoryErrorBoundary>
+        <Suspense fallback={<main className="route-loading">正在加载故事…</main>}>
+          {phoneValidationMode === 'v36'
+            ? <PhoneLabContactShell validationMode="v36" />
+            : <PhoneStoryShell {...(phoneValidationMode ? { validationMode: phoneValidationMode } : {})} />}
+        </Suspense>
+      </PhoneStoryErrorBoundary>
+    );
+  }
   return (
     <Suspense fallback={<main className="route-loading">正在加载故事…</main>}>
-      {shellFamily === 'phone'
-        ? phoneValidationMode === 'v36'
-          ? <PhoneLabContactShell validationMode="v36" />
-          : <PhoneStoryShell {...(phoneValidationMode ? { validationMode: phoneValidationMode } : {})} />
-        : <DesktopStoryShell />}
+      <DesktopStoryShell />
     </Suspense>
   );
 }

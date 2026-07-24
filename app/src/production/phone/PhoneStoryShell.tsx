@@ -15,6 +15,7 @@ import { usePhoneViewportGeometry } from './usePhoneViewportGeometry';
 import { PhoneGroup67DirectEntry } from './PhoneGroup67DirectEntry';
 import { usePhoneStoryEntry, usePhoneStoryEntryLifecycle } from './usePhoneStoryEntry';
 import { usePhoneNavigationScene } from './usePhoneNavigationScene';
+import { PhoneLoader } from './scenes/PhoneLoader';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -23,7 +24,6 @@ import type {
 } from './types';
 import './PhoneStoryShell.css';
 const ZERO_METHOD_PROGRESS = () => 0;
-
 /**
  * The physical-device validation route keeps requested motion on by default.
  * `?portrait-spike-motion=reduce` is the explicit low-motion comparison.
@@ -37,11 +37,10 @@ export type PhoneStoryShellProps = Readonly<{
   /** Short numbered routes remain physical-device comparison entries. */
   validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45' | 'v46' | 'v47';
 }>;
-
 /**
- * Production Route B phone shell. It owns only document geometry,
- * navigation, checkpoints, and adapter binding; Loader → Method visual/media
- * ownership lives in dynamically loaded Scene/Transition Adapters.
+ * Production Route B phone shell. It owns document geometry, the authored
+ * Loader, navigation, checkpoints, and adapter binding. The remaining
+ * Hero → Method visual/media ownership lives in dynamically loaded adapters.
  */
 export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const motionEnabled = portraitSpikeMotionEnabled();
@@ -78,6 +77,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     markPatternReady,
     finishLoader
   } = frontHalf;
+  const LoaderComponent = Loader ?? PhoneLoader;
   const mapAodToMethod = frontHalf.mapAodToMethod ?? ZERO_METHOD_PROGRESS;
   const [navigationScene, setNavigationScene] = usePhoneNavigationScene(entry.initialScene);
   const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
@@ -210,8 +210,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-phone-direct-entry-scene={group67EntryPlan?.scene}
       hidden={staticFallback}
     >
-      {!directGroup67Entry && !loaderHidden && Loader && (
-        <Loader
+      {!directGroup67Entry && !loaderHidden && (
+        <LoaderComponent
           mode={motionEnabled ? 'cold-hero' : 'reduced'}
           ready={ready}
           failed={failed}
