@@ -5,11 +5,7 @@ import {
 } from './presentation-shell-loaders';
 import {
   loadedPhoneAdapters,
-  initialPhoneSceneAdapterIds,
-  initialPhoneTransitionAdapterIds,
-  resolvedPhoneLoaderAdapter,
-  resolvedPhoneSceneAdapter,
-  resolvedPhoneTransitionAdapter
+  resolvedPhoneLoaderAdapter
 } from './phone/module-loaders';
 
 describe('presentation shell loaders', () => {
@@ -27,15 +23,15 @@ describe('presentation shell loaders', () => {
     expect(loadedPhoneAdapters()).toEqual(before);
   });
 
-  it('preloads the complete Loader → Method adapter group for a front-half entry', async () => {
+  it('mounts the animated Loader before selecting the remaining front-half adapters', async () => {
+    const before = loadedPhoneAdapters();
     const shell = await loadPhoneStoryShell('#home');
     expect(shell.default).toBeTypeOf('function');
     expect(resolvedPhoneLoaderAdapter()?.id).toBe('loader');
-    for (const id of initialPhoneSceneAdapterIds) {
-      expect(resolvedPhoneSceneAdapter(id)?.id).toBe(id);
-    }
-    for (const id of initialPhoneTransitionAdapterIds) {
-      expect(resolvedPhoneTransitionAdapter(id)?.id).toBe(id);
-    }
+    expect(loadedPhoneAdapters()).toEqual({
+      loader: true,
+      scenes: before.scenes,
+      transitions: before.transitions
+    });
   });
 });

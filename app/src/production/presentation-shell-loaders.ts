@@ -8,9 +8,9 @@ export function loadDesktopStoryShell() {
 }
 
 /**
- * Load the selected phone front-half adapter group beside its thin shell.
- * These chunks remain absent from desktop startup. The shell still resolves
- * after an adapter failure so Loader can release the static document fallback.
+ * Resolve the thin shell as soon as its animated Loader adapter is available.
+ * The mounted shell owns the remaining Loader → Method preparation, so the
+ * pre-hydration cover never impersonates or blocks the authored Loader.
  */
 export async function loadPhoneStoryShell(
   hash = typeof window === 'undefined' ? '' : window.location.hash
@@ -21,17 +21,7 @@ export async function loadPhoneStoryShell(
     directGroup67Entry
       ? Promise.resolve(undefined)
       : import('./phone/module-loaders')
-        .then(({
-          loadPhoneLoaderAdapter,
-          loadPhoneSceneAdapter,
-          loadPhoneTransitionAdapter,
-          initialPhoneSceneAdapterIds,
-          initialPhoneTransitionAdapterIds
-        }) => Promise.all([
-          loadPhoneLoaderAdapter(),
-          ...initialPhoneSceneAdapterIds.map(loadPhoneSceneAdapter),
-          ...initialPhoneTransitionAdapterIds.map(loadPhoneTransitionAdapter)
-        ]))
+        .then(({ loadPhoneLoaderAdapter }) => loadPhoneLoaderAdapter())
         .catch(() => undefined)
   ]);
   return { default: shell.PhoneStoryShell };
