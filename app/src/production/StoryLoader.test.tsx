@@ -99,7 +99,9 @@ describe('StoryLoader', () => {
     );
     expect(prebootPhoneRouteIndex).toBeGreaterThan(0);
     expect(prebootPhoneRouteIndex).toBeLessThan(loaderIndex);
-    expect(html).toContain('data-story-loader-static-cover="blank"');
+    expect(html).toContain('data-story-loader-static-cover="stacked-eight"');
+    expect(html).toContain('data-loader-layout="stacked-eight"');
+    expect(html).toContain('<span>同人于野<br />观象知幂</span>');
     expect(html).not.toContain('<span>同人于野</span>');
     expect(html).toContain('html[data-portrait-spike="b"] .static-content { display: none !important; }');
     expect(html).toContain('background: var(--portrait-document-surface, #07110e) !important;');
