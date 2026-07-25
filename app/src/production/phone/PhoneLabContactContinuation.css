@@ -22,6 +22,11 @@
   z-index: 11;
 }
 
+.phone-lab-contact-continuation[data-phone-group67-stage-active="true"]
+  > .phone-lab-contact-continuation__native {
+  z-index: 9;
+}
+
 .phone-lab-contact-continuation__phase {
   box-sizing: border-box;
   position: relative;
@@ -127,14 +132,8 @@
   background: transparent;
 }
 
-.portrait-scroll-spike:has(
-  .phone-lab-contact-continuation[data-phone-group67-stage-active="true"]
-) .portrait-scroll-spike__stage {
-  background: transparent;
-}
-
 .phone-grade-a:has(
   .phone-lab-contact-continuation[data-phone-group67-stage-active="true"]
 ) .phone-brand-lab[data-phone-group45-stage-active="false"] > .phone-lab {
-  z-index: 0;
+  z-index: 9;
 }

@@ -85,6 +85,15 @@
   visibility: visible;
 }
 
+.phone-brand[data-phone-proof-brand-aligned="true"] {
+  z-index: 11;
+  transform: translate3d(
+    var(--phone-proof-brand-align-x),
+    var(--phone-proof-brand-align-y),
+    0
+  );
+}
+
 .phone-brand-lab__stage-surfaces {
   position: absolute;
   z-index: 7;
@@ -151,6 +160,28 @@
   > .phone-brand-lab[data-phone-group45-stage-active="false"]
   > .phone-lab {
   z-index: 0;
+}
+
+/*
+ * The fixed edge owner sits at z=8 and the cinematic stage at z=10.
+ * Native boundary owners are placed deliberately on either side:
+ * masked Brand and dissolve receivers sit above the stage, while the
+ * unmasked Services ink source stays between the edge paper and TTG.
+ */
+.phone-brand-lab[data-phone-group45-stage-active="true"][data-phone-group45-stage-scene="figure3-animation"]
+  > .phone-brand {
+  z-index: 11;
+}
+
+.phone-brand-lab[data-phone-group45-stage-active="true"][data-phone-group45-stage-scene="figure3-animation"]
+  > .phone-services[data-phone-dissolve="figure3-services"] {
+  z-index: 12;
+  pointer-events: none;
+}
+
+.phone-brand-lab[data-phone-group45-stage-active="true"][data-phone-group45-stage-scene="ttg-animation"]
+  > .phone-services {
+  z-index: 9;
 }
 
 /* TTG remains the opaque retained plate; the real Lab document root is the

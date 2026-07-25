@@ -131,12 +131,21 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(stageRuntimeSource).not.toContain('runPhoneTimedTransition');
   });
 
-  it('exposes real document receivers while fixed-stage ink owns the boundary', () => {
+  it('keeps one opaque edge owner behind every fixed-stage boundary', () => {
     expect(stageStyles).toMatch(
-      /data-portrait-checkpoint="proof-to-brand"[^}]+background:\s*transparent/s
+      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*8[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
     expect(stageStyles).toMatch(
-      /:has\([^}]+data-phone-group45-stage-active="true"[^}]+background:\s*transparent/s
+      /portrait-scroll-spike__stage\s*\{[^}]*z-index:\s*10[^}]*background:\s*transparent/s
+    );
+    expect(stageStyles).not.toContain(
+      'data-portrait-checkpoint="proof-to-brand"'
+    );
+    expect(storyStyles).toMatch(
+      /stage-scene="figure3-animation"[^}]*>\s*\.phone-brand\s*\{[^}]*z-index:\s*11/s
+    );
+    expect(storyStyles).toMatch(
+      /stage-scene="ttg-animation"[^}]*>\s*\.phone-services\s*\{[^}]*z-index:\s*9/s
     );
     expect(storySource).toContain(
       "visualRunStepRef.current = 'exit-ink'"
@@ -147,8 +156,8 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(storySource).toContain(
       "root?.setAttribute('data-phone-group45-stage-active', 'false')"
     );
-    expect(gradeAStorySource).toContain(
-      'proofActive && activeInk?.id !== 2'
+    expect(gradeAStorySource).toMatch(
+      /proofActive\s*&&\s*Boolean\(boundaryReadyRef\.current & 2\)\s*&&\s*activeInk\?\.id !== 2/s
     );
   });
 

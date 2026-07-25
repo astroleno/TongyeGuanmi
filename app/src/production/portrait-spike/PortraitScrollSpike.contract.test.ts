@@ -108,7 +108,10 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__stage-rail\s*\{[^}]*margin-bottom:\s*calc\(-1 \* var\(--portrait-stage-height\)\)/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*visible[^}]*background:\s*var\(--portrait-edge-surface\)/s
+      /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*visible[^}]*background:\s*transparent/s
+    );
+    expect(railCss).toMatch(
+      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*8[^}]*height:\s*var\(--portrait-stage-canvas-height,\s*100lvh\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*inset:\s*0[^}]*height:\s*auto[^}]*min-height:\s*0/s
@@ -311,10 +314,23 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAStorySource).toContain('<Figure2');
     expect(gradeAStorySource).toContain('<Proof');
     expect(gradeAStorySource).toContain('onReady={markFigure2Ready}');
-    expect(gradeAStorySource).toContain('scenesReady && MethodFigure2');
-    expect(gradeAStorySource).toContain('data-phone-grade-a-ready={String(runtimeReady)}');
+    expect(gradeAStorySource).toContain(
+      'figure2Ready && methodCopySource && MethodFigure2'
+    );
+    expect(gradeAStorySource).toContain(
+      'methodCopySource && figure2Ready && methodFigure2Ready'
+    );
+    expect(gradeAStorySource).toContain(
+      'proofReady && brandRoot && proofBrandReady'
+    );
+    expect(gradeAStorySource).toContain(
+      'const runtimeReady = methodBoundaryReady && figure2ProofBoundaryReady'
+    );
     expect(gradeAStorySource).toContain('createPortal(surfaces, stageHost)');
     expect(methodSource).toContain('stageHost={stageHost}');
+    expect(methodSource).toContain('ref={setSteps}');
+    expect(methodSource).toContain('methodCopySource={steps}');
+    expect(methodSource).not.toContain('stepsRef.current');
     expect(gradeAFigureSource).toContain('figure2AnimationScene.Component');
     expect(gradeAProofSource).toContain('figure2ProofScene.Component');
     expect(shellSource).not.toContain('data-r4-scene="figure2-animation"');
@@ -351,7 +367,8 @@ describe('Route B Grade A migration contract', () => {
     );
     expect(gradeADistanceSource).toContain("videoMode: 'seek'");
     expect(gradeADistanceSource).toContain('directionRef.current');
-    expect(gradeADistanceSource).not.toContain('timeline.prepareLeg');
+    expect(gradeADistanceSource).toContain('await timeline.prepareLeg?.(leg)');
+    expect(gradeADistanceSource).toContain('timeline.commitLeg?.(leg)');
     expect(gradeAGroupSource).toContain("'method-bottom-figure2'");
     expect(gradeAGroupSource).toContain("'figure2-distance-expand'");
     expect(gradeAGroupSource).toContain("'figure2-proof-brand'");

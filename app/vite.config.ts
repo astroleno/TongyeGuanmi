@@ -147,7 +147,8 @@ export default defineConfig({
       module: true,
       compress: {
         ecma: 2020,
-        passes: 3,
+        passes: 5,
+        booleans_as_integers: true,
         unsafe_arrows: true
       },
       format: { ecma: 2020 },
