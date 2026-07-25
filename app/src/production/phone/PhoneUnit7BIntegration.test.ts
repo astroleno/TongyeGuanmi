@@ -83,7 +83,9 @@ describe('formal Unit7-B phone integration', () => {
   });
 
   it('conceals Method document copy with the same Method → Figure2 field', () => {
-    expect(methodSource).toContain('methodCopySource={stepsRef.current}');
+    expect(methodSource).toContain('ref={setSteps}');
+    expect(methodSource).toContain('methodCopySource={steps}');
+    expect(methodSource).not.toContain('stepsRef.current');
     expect(gradeASource).toContain('additionalFrom={methodCopySource}');
     expect(inkAdapterSource).toContain('additionalFrom');
   });

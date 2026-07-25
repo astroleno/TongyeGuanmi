@@ -69,7 +69,6 @@ type RunStep =
   | 'preparing'
   | 'entry-ink'
   | 'media'
-  | 'retryable'
   | 'exit-ink';
 type VisualRun = {
   scene: VisualScene;
@@ -131,6 +130,16 @@ export function phoneGroup67RunTarget(
     return direction === 1 ? 'education' : 'lab';
   }
   return direction === 1 ? 'contact' : 'education';
+}
+
+export function releasePhoneGroup67FailedSession(
+  session: PhoneTransitionSession,
+  sourceY: number,
+  cancelInk?: () => void
+): void {
+  session.moveTo(sourceY);
+  cancelInk?.();
+  if (session.valid()) session.abort(sourceY);
 }
 
 export function phoneGroup67VisibleFallbackEndpoint(
@@ -213,6 +222,7 @@ export function PhoneLabContactContinuation({
     fromLabBoundary ? 'lab' : entryScene
   );
   const [stageScene, setStageScene] = useState<VisualScene | null>(null);
+  const [prewarmScene, setPrewarmScene] = useState<VisualScene | null>(null);
   const [adapterRevision, setAdapterRevision] = useState(0);
   const adapters = usePhoneGroup67Adapters(focus);
   const rootRef = useRef<HTMLElement | null>(null);
@@ -247,7 +257,6 @@ export function PhoneLabContactContinuation({
   const cancelTargetPreparationRef = useRef<(() => void) | null>(null);
   const dissolveFrameRef = useRef(0);
   const mediaTimeoutRef = useRef(0);
-  const retryRunRef = useRef<(() => void) | null>(null);
   const cancelInkRef = useRef<(() => void) | undefined>(undefined);
   const scheduleRef = useRef<(() => void) | null>(null);
   const directTriggeredRef = useRef(false);
@@ -413,7 +422,6 @@ export function PhoneLabContactContinuation({
       clearDissolve();
       cancelTargetPreparationRef.current?.();
       cancelTargetPreparationRef.current = null;
-      retryRunRef.current = null;
       const target = phoneGroup67RunTarget(scene, direction);
       if (import.meta.env.DEV) {
         root.dataset.phoneGroup67CompleteHandoff =
@@ -447,6 +455,7 @@ export function PhoneLabContactContinuation({
       cancelInkRef.current = undefined;
       root.dataset.phoneGroup67Run = 'idle';
       if (import.meta.env.DEV) root.dataset.phoneGroup67Step = 'idle';
+      setPrewarmScene(null);
       publishStageScene(null);
       publishScene(target);
       setFocus(target);
@@ -484,24 +493,57 @@ export function PhoneLabContactContinuation({
       };
       dissolveFrameRef.current = window.requestAnimationFrame(tick);
     };
-    const markRunRetryable = (run: VisualRun, failure: string) => {
+    const abortRunToSource = (run: VisualRun) => {
       if (runRef.current !== run || !run.session.valid()) return;
       clearMediaTimeout();
       clearDissolve();
       cancelTargetPreparationRef.current?.();
       cancelTargetPreparationRef.current = null;
-      run.step = 'retryable';
+      const phase = phaseFor(run.scene);
+      const source = run.direction === 1
+        ? run.scene === 'ph-animation' ? 'lab' : 'education'
+        : run.scene === 'ph-animation' ? 'education' : 'contact';
+      const endpoint = run.direction === 1 ? 0 : 1;
+      handleFor(run.scene)?.update(endpoint);
+      outgoingFor(run.scene)?.render(endpoint);
+      if (!run.direct) incomingFor(run.scene)?.render(endpoint);
+      phasesRef.current[run.scene] = run.direction === 1
+        ? 'initial'
+        : 'complete';
+      const sourceY = phase
+        ? phoneGroup67BoundaryPosition(
+            window.scrollY + phase.getBoundingClientRect().top,
+            window.innerHeight,
+            run.direction
+          )
+        : window.scrollY;
+      const cancelInk = cancelInkRef.current;
+      cancelInkRef.current = undefined;
+      runRef.current = null;
+      root.dataset.phoneGroup67Run = 'idle';
       if (import.meta.env.DEV) {
-        root.dataset.phoneGroup67Step = `${run.scene}:retryable`;
-        root.dataset.phoneGroup67MediaRetry =
-          `${run.scene}:${run.direction === 1 ? 'forward' : 'reverse'}:${failure}`;
+        root.dataset.phoneGroup67Step = 'idle';
+        root.dataset.phoneGroup67MediaRetry = run.scene;
       }
+      setPrewarmScene(null);
+      if (run.direct) {
+        publishStageScene(run.scene);
+        publishScene(run.scene);
+        setFocus(run.scene);
+      } else {
+        setNativeOwner(source);
+        publishStageScene(null);
+        publishScene(source);
+        setFocus(source);
+      }
+      releasePhoneGroup67FailedSession(run.session, sourceY, cancelInk);
+      scheduleRef.current?.();
     };
     const armMediaTimeout = (run: VisualRun) => {
       clearMediaTimeout();
       mediaTimeoutRef.current = window.setTimeout(() => {
         if (runRef.current !== run || !run.session.valid()) return;
-        markRunRetryable(run, 'timeout');
+        abortRunToSource(run);
       }, PHONE_GROUP67_MEDIA_TIMEOUT_MS);
     };
     const startMedia = (run: VisualRun) => {
@@ -558,22 +600,21 @@ export function PhoneLabContactContinuation({
         phoneLabContactPhaseAfterVisualCompletion(run.direction);
       finishRun(run.scene, run.direction);
     };
-    const startPreparedRun = (run: VisualRun, retryingMedia: boolean) => {
+    const startPreparedRun = (run: VisualRun) => {
       if (runRef.current !== run || !run.session.valid()) return;
-      if (!retryingMedia) {
-        if (run.direction === -1) {
-          downstreamFor(run.scene)?.leave?.();
-        } else {
-          upstreamFor(run.scene)?.leave?.();
-        }
+      if (run.direction === -1) {
+        downstreamFor(run.scene)?.leave?.();
+      } else {
+        upstreamFor(run.scene)?.leave?.();
       }
+      setPrewarmScene(null);
       publishStageScene(run.scene);
       publishScene(run.scene);
       if (reducedMotion) {
         commitReducedRun(run);
         return;
       }
-      if (run.direction === -1 || run.direct || retryingMedia) {
+      if (run.direction === -1 || run.direct) {
         startMedia(run);
         return;
       }
@@ -595,28 +636,7 @@ export function PhoneLabContactContinuation({
         }
       );
     };
-    const restoreSourceAfterPreparationFailure = (run: VisualRun) => {
-      if (runRef.current !== run || !run.session.valid()) return;
-      const source = run.direction === 1
-        ? run.scene === 'ph-animation' ? 'lab' : 'education'
-        : run.scene === 'ph-animation' ? 'education' : 'contact';
-      phasesRef.current[run.scene] = run.direction === 1
-        ? 'initial'
-        : 'complete';
-      runRef.current = null;
-      retryRunRef.current = null;
-      root.dataset.phoneGroup67Run = 'idle';
-      if (import.meta.env.DEV) {
-        root.dataset.phoneGroup67Step = 'idle';
-        root.dataset.phoneGroup67MediaRetry = `${run.scene}:prepare`;
-      }
-      setNativeOwner(source);
-      publishStageScene(null);
-      publishScene(source);
-      run.session.abort();
-      scheduleRef.current?.();
-    };
-    const prepareRun = (run: VisualRun, retryingMedia: boolean) => {
+    const prepareRun = (run: VisualRun) => {
       if (
         runRef.current !== run
         || !run.session.valid()
@@ -640,19 +660,11 @@ export function PhoneLabContactContinuation({
           if (import.meta.env.DEV) {
             delete root.dataset.phoneGroup67MediaRetry;
           }
-          startPreparedRun(run, retryingMedia);
+          startPreparedRun(run);
         },
         () => {
           cancelTargetPreparationRef.current = null;
-          if (run.direct || retryingMedia) {
-            if (run.direct) {
-              publishStageScene(run.scene);
-              publishScene(run.scene);
-            }
-            markRunRetryable(run, 'prepare');
-            return;
-          }
-          restoreSourceAfterPreparationFailure(run);
+          abortRunToSource(run);
         }
       );
     };
@@ -689,15 +701,8 @@ export function PhoneLabContactContinuation({
       if (import.meta.env.DEV) {
         root.dataset.phoneGroup67Step = `${scene}:preparing`;
       }
-      retryRunRef.current = () => {
-        if (
-          runRef.current !== run
-          || run.step !== 'retryable'
-          || !run.session.valid()
-        ) return;
-        prepareRun(run, true);
-      };
-      prepareRun(run, false);
+      setPrewarmScene(scene);
+      prepareRun(run);
       return true;
     };
     const onAutoplay = (event: Event) => {
@@ -717,7 +722,7 @@ export function PhoneLabContactContinuation({
         return;
       }
       if (detail.phase === 'failed') {
-        markRunRetryable(run, 'media');
+        abortRunToSource(run);
         return;
       }
       if (
@@ -768,11 +773,6 @@ export function PhoneLabContactContinuation({
         return;
       }
       finishRun(run.scene, run.direction);
-    };
-    const retryBlockedRun = () => {
-      const run = runRef.current;
-      if (!run || run.step !== 'retryable' || !run.session.valid()) return;
-      retryRunRef.current?.();
     };
     const registrations = (
       ['ph-animation', 'crane-animation'] as const
@@ -828,9 +828,6 @@ export function PhoneLabContactContinuation({
     };
     scheduleRef.current = schedule;
     inputOwner.addEventListener(PHONE_LAB_CONTACT_AUTOPLAY_EVENT, onAutoplay);
-    inputOwner.addEventListener('wheel', retryBlockedRun, { passive: true });
-    inputOwner.addEventListener('touchstart', retryBlockedRun, { passive: true });
-    inputOwner.addEventListener('pointerdown', retryBlockedRun, { passive: true });
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
     window.addEventListener('orientationchange', schedule);
@@ -878,9 +875,6 @@ export function PhoneLabContactContinuation({
         PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
         onAutoplay
       );
-      inputOwner.removeEventListener('wheel', retryBlockedRun);
-      inputOwner.removeEventListener('touchstart', retryBlockedRun);
-      inputOwner.removeEventListener('pointerdown', retryBlockedRun);
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
@@ -889,12 +883,12 @@ export function PhoneLabContactContinuation({
       if (scrollFrame) window.cancelAnimationFrame(scrollFrame);
       cancelTargetPreparationRef.current?.();
       cancelTargetPreparationRef.current = null;
-      retryRunRef.current = null;
       clearMediaTimeout();
       clearDissolve();
       cancelInkRef.current?.();
       cancelInkRef.current = undefined;
       runRef.current = null;
+      setPrewarmScene(null);
       directTriggeredRef.current = false;
       if (scheduleRef.current === schedule) scheduleRef.current = null;
     };
@@ -948,19 +942,21 @@ export function PhoneLabContactContinuation({
   const PhEducation = adapters.transitions['ph-education'];
   const EducationCrane = adapters.transitions['education-crane'];
   const CraneContact = adapters.transitions['crane-contact'];
+  const presentedStageScene = stageScene ?? prewarmScene;
 
   const stageSurfaces = (
     <div
       className="phone-group67__stage-surfaces"
-      data-phone-group67-stage-active={String(stageScene !== null)}
-      data-phone-group67-stage-scene={stageScene ?? 'none'}
+      data-phone-group67-stage-active={String(presentedStageScene !== null)}
       aria-hidden="true"
     >
       {mountPh && (
         <div
           ref={phStageRef}
           className="phone-group67__stage phone-group67__stage--ph"
-          data-phone-group67-layer-active={String(stageScene === 'ph-animation')}
+          data-phone-group67-layer-active={String(
+            presentedStageScene === 'ph-animation'
+          )}
         >
           <div className="phone-group67__stage-canvas">
             {Ph ? (
@@ -1003,7 +999,7 @@ export function PhoneLabContactContinuation({
           ref={craneStageRef}
           className="phone-group67__stage phone-group67__stage--crane"
           data-phone-group67-layer-active={String(
-            stageScene === 'crane-animation'
+            presentedStageScene === 'crane-animation'
           )}
         >
           <div className="phone-group67__stage-canvas">
@@ -1055,9 +1051,7 @@ export function PhoneLabContactContinuation({
       data-phone-group67-entry={fromLabBoundary ? 'lab' : entryScene}
       data-phone-group67-active-scene={activeScene}
       data-phone-group67-stage-active={String(stageScene !== null)}
-      data-phone-group67-stage-scene={stageScene ?? 'none'}
       data-phone-group67-adapters-ready={String(adapters.ready)}
-      data-phone-group67-adapters-failed={String(adapters.failed)}
       data-phone-group67-run="idle"
     >
       {stageHost ? createPortal(stageSurfaces, stageHost) : null}

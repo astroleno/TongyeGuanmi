@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   phoneGroup67RunIsReady,
-  phoneGroup67RunTarget
+  phoneGroup67RunTarget,
+  releasePhoneGroup67FailedSession
 } from './PhoneLabContactContinuation';
 
 const source = readFileSync(
@@ -54,11 +55,55 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(phoneGroup67RunTarget('crane-animation', -1)).toBe('education');
   });
 
-  it('requires target presentation and keeps failures retryable', () => {
+  it('prewarms the compositor while the source remains the semantic owner', () => {
+    expect(source).toContain(
+      'const presentedStageScene = stageScene ?? prewarmScene'
+    );
+    expect(source).toContain('setPrewarmScene(scene)');
+    expect(source).toContain(
+      "active={stageScene === 'ph-animation'}"
+    );
+    expect(source).toContain(
+      "active={stageScene === 'crane-animation'}"
+    );
+  });
+
+  it('requires target presentation and releases failures back to the source', () => {
     expect(source).toContain('runPhoneTargetPreparation');
     expect(source).toContain("detail.phase === 'failed'");
-    expect(source).toContain("'retryable'");
+    expect(source).toContain('abortRunToSource(run');
+    expect(source).toContain(
+      'releasePhoneGroup67FailedSession(run.session, sourceY, cancelInk)'
+    );
+    expect(source).toContain('setPrewarmScene(null)');
+    expect(source).toContain('publishStageScene(null)');
+    expect(source).not.toContain("'retryable'");
     expect(source).not.toContain("'media-failure'");
     expect(source).not.toContain('phoneGroup67MediaFallback');
+  });
+
+  it('unlocks an injected failed session at the source boundary', () => {
+    let valid = true;
+    let locked = true;
+    let anchor = 640;
+    releasePhoneGroup67FailedSession({
+      valid: () => valid,
+      moveTo: (next) => {
+        anchor = next;
+      },
+      complete: () => {
+        valid = false;
+        locked = false;
+      },
+      abort: (next) => {
+        if (next !== undefined) anchor = next;
+        valid = false;
+        locked = false;
+      }
+    }, 320);
+
+    expect(anchor).toBe(320);
+    expect(valid).toBe(false);
+    expect(locked).toBe(false);
   });
 });
