@@ -101,6 +101,7 @@ export type ScenePresentationAdapterHandle = PresentationAdapterLifecycle & {
 
 export type TransitionPresentationAdapterHandle = PresentationAdapterLifecycle & {
   render(progress: number): void;
+  prepare?(direction: 1 | -1, signal: AbortSignal): Promise<void>;
 };
 
 export type SceneComponentProps = {

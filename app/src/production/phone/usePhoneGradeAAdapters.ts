@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   gradeAPhoneSceneIds,
   gradeAPhoneTransitionIds
@@ -48,24 +48,29 @@ function gradeAModulesReady(modules: GradeAModules): boolean {
 
 export function usePhoneGradeAAdapters() {
   const [modules, setModules] = useState<GradeAModules>(resolvedGradeAModules);
-  const [failed, setFailed] = useState(false);
+  const requestsRef = useRef<readonly Promise<unknown>[] | null>(null);
   const ready = gradeAModulesReady(modules);
 
   useEffect(() => {
-    if (ready || failed) return;
+    if (ready) return;
     let current = true;
-    void Promise.allSettled([
-      ...gradeAPhoneSceneIds.map(loadPhoneSceneAdapter),
-      ...gradeAPhoneTransitionIds.map(loadPhoneTransitionAdapter)
-    ]).then((results) => {
-      if (!current) return;
-      setModules(resolvedGradeAModules());
-      setFailed(results.some(({ status }) => status === 'rejected'));
-    });
+    const requests = requestsRef.current ?? [
+        ...gradeAPhoneSceneIds.map(loadPhoneSceneAdapter),
+        ...gradeAPhoneTransitionIds.map(loadPhoneTransitionAdapter)
+      ];
+    requestsRef.current = requests;
+    for (const request of requests) {
+      void request.then(
+        () => {
+          if (current) setModules(resolvedGradeAModules());
+        },
+        () => undefined
+      );
+    }
     return () => {
       current = false;
     };
-  }, [failed, ready]);
+  }, [ready]);
 
-  return { ...modules, ready, failed };
+  return modules;
 }

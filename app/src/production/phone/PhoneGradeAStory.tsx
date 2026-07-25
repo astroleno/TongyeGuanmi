@@ -223,8 +223,7 @@ export function PhoneGradeAStory({
   const figure2ProofRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const proofBrandRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const brandRootRef = useRef<HTMLElement | null>(null);
-  const runtimeReadyRef = useRef(false);
-  const adaptersFailedRef = useRef(false);
+  const boundaryReadyRef = useRef(0);
   const continuationTargetRef = useRef<
     ReturnType<typeof phoneGroup45SceneFromHash>
   >(undefined);
@@ -234,18 +233,22 @@ export function PhoneGradeAStory({
   const sceneRef = useRef<SceneId>('method-top');
   const edgeSceneRef = useRef<PhoneEdgeScene>('method');
   const deepLinkHandledRef = useRef(false);
-  const scenesReady = adapters.ready && figure2Ready && proofReady;
-  const transitionsReady = scenesReady
-    && methodFigure2Ready
-    && figure2ProofReady
-    && proofBrandReady;
-  const runtimeReady = transitionsReady;
+  const scenesReady = figure2Ready && proofReady;
+  const methodBoundaryReady = Boolean(
+    methodCopySource && figure2Ready && methodFigure2Ready
+  );
+  const figure2ProofBoundaryReady = scenesReady && figure2ProofReady;
+  const proofBrandBoundaryReady = Boolean(
+    proofReady && brandRoot && proofBrandReady
+  );
+  const runtimeReady = methodBoundaryReady && figure2ProofBoundaryReady;
   const continuationTarget = typeof window === 'undefined'
     ? undefined
     : phoneGroup45SceneFromHash(window.location.hash);
   brandRootRef.current = brandRoot;
-  runtimeReadyRef.current = runtimeReady;
-  adaptersFailedRef.current = adapters.failed;
+  boundaryReadyRef.current = (methodBoundaryReady ? 1 : 0)
+    | (figure2ProofBoundaryReady ? 2 : 0)
+    | (proofBrandBoundaryReady ? 4 : 0);
   continuationTargetRef.current = continuationTarget;
 
   const markFigure2Ready = useCallback(() => setFigure2Ready(true), []);
@@ -341,9 +344,10 @@ export function PhoneGradeAStory({
     if (continuationTargetRef.current) completedInk.add(2);
     let inkRun: GradeAInkRun | null = null;
     let cancelInkRun: (() => void) | undefined;
-    let inkPreparationFrame = 0;
+    let inkPreparationAbort: AbortController | undefined;
     let activeInkSession: PhoneTransitionSession | null = null;
-    let overshootRecoveryAttempted = false;
+    let readyInk = 0;
+    let overshootRecoveryAttempted = 0;
     let gradeAInkRegistrations: readonly PhoneTransitionBoundaryRegistration[] = [];
     const elementDocumentTop = (element: HTMLElement) => (
       window.scrollY + element.getBoundingClientRect().top
@@ -376,7 +380,7 @@ export function PhoneGradeAStory({
 
     const renderFrame = () => {
       frameRef.current = 0;
-      if (!runtimeReadyRef.current) {
+      if (!boundaryReadyRef.current) {
         root.dataset.phoneGradeAActive = 'false';
         surfaces.dataset.phoneGradeAActive = 'false';
         return;
@@ -389,6 +393,22 @@ export function PhoneGradeAStory({
       const activeInk = inkRun;
       if (!activeInk) {
         for (const id of GRADE_A_INK_BOUNDARIES) {
+          const boundaryBit = 1 << id;
+          if (!(boundaryReadyRef.current & boundaryBit)) continue;
+          if (!(readyInk & boundaryBit)) {
+            readyInk |= boundaryBit;
+            const downstream = boundaryPosition(id, -1);
+            if (
+              !completedInk.has(id)
+              && downstream !== null
+              && window.scrollY >= downstream - ACTIVE_EDGE_TOLERANCE_PX
+              && !(id === 2 && continuationTargetRef.current)
+            ) {
+              overshootRecoveryAttempted |= boundaryBit;
+              if (gradeAInkRegistrations[id]?.trigger(1)) return;
+            }
+            continue;
+          }
           const wasCompleted = completedInk.has(id);
           const completed = phoneGradeAReconciledBoundaryCompletion(
             id,
@@ -402,15 +422,17 @@ export function PhoneGradeAStory({
         }
         const brandDownstream = boundaryPosition(2, -1);
         if (
+          boundaryReadyRef.current & 4
+          &&
           phoneGradeAShouldReplayProofBrand(
             completedInk.has(2),
             window.scrollY,
             brandDownstream,
             Boolean(continuationTargetRef.current)
           )
-          && !overshootRecoveryAttempted
+          && !(overshootRecoveryAttempted & 4)
         ) {
-          overshootRecoveryAttempted = true;
+          overshootRecoveryAttempted |= 4;
           if (gradeAInkRegistrations[2]?.trigger(1)) return;
         }
       }
@@ -424,10 +446,13 @@ export function PhoneGradeAStory({
         && brandRect.top > ACTIVE_EDGE_TOLERANCE_PX
         && brandRect.bottom > 0
       );
-      const active = railActive
-        || proofActive
-        || proofBrandActive
-        || Boolean(activeInk);
+      const active = Boolean((
+        railActive && boundaryReadyRef.current & 1
+      ) || (
+        proofActive && boundaryReadyRef.current & 2
+      ) || (
+        proofBrandActive && boundaryReadyRef.current & 4
+      ) || activeInk);
       root.dataset.phoneGradeAActive = String(active);
       surfaces.dataset.phoneGradeAActive = String(active);
       if (methodReading) {
@@ -465,7 +490,11 @@ export function PhoneGradeAStory({
 
       const methodInk = activeInk?.id === 0;
       const figure2Ink = activeInk?.id === 1;
-      if (railActive || methodInk || figure2Ink) {
+      if (
+        (railActive && boundaryReadyRef.current & 1)
+        || methodInk
+        || figure2Ink
+      ) {
         figure2Ref.current?.enter?.();
         const handoff = methodInk
           ? activeInk.progress
@@ -480,7 +509,8 @@ export function PhoneGradeAStory({
             : phoneGradeAFigureProgress(railRect.top, railRect.height);
         setRetainedArchProgress(handoff, figure);
         methodFigure2Ref.current?.render(handoff);
-        figure2ProofRef.current?.render(figure);
+        if (figure2ProofRef.current) figure2ProofRef.current.render(figure);
+        else figure2Ref.current?.update(clamp(figure / FIGURE2_PROOF_SPLIT));
         proofBrandRef.current?.render(0);
         proofRef.current?.update(0);
         if (figure2Ink) {
@@ -510,7 +540,11 @@ export function PhoneGradeAStory({
       // Proof and Brand share the exact viewport edge. While the autonomous
       // boundary owns that edge, it must outrank Proof's terminal hold or the
       // render would return here for all 600ms and the ink would never paint.
-      if (proofActive && activeInk?.id !== 2) {
+      if (
+        proofActive
+        && Boolean(boundaryReadyRef.current & 2)
+        && activeInk?.id !== 2
+      ) {
         setRetainedArchProgress(1, 1);
         const proof = phoneGradeAProofProgress(
           proofRect.top,
@@ -536,6 +570,7 @@ export function PhoneGradeAStory({
 
       if (
         (proofBrandActive || activeInk?.id === 2)
+        && Boolean(boundaryReadyRef.current & 4)
         && brandRect
       ) {
         const handoff = activeInk?.id === 2
@@ -555,7 +590,11 @@ export function PhoneGradeAStory({
         return;
       }
 
-      if (brandRect && brandRect.top <= ACTIVE_EDGE_TOLERANCE_PX) {
+      if (
+        boundaryReadyRef.current & 4
+        && brandRect
+        && brandRect.top <= ACTIVE_EDGE_TOLERANCE_PX
+      ) {
         figure2Ref.current?.leave?.();
         if (completedInk.has(2)) {
           proofBrandRef.current?.render(1);
@@ -600,32 +639,22 @@ export function PhoneGradeAStory({
       };
       activeInkSession = session;
       renderFrame();
-      const startWhenAdapterReady = () => {
-        inkPreparationFrame = 0;
+      const abortRun = () => {
+        if (inkRun?.id !== id || activeInkSession !== session) return;
+        inkPreparationAbort?.abort();
+        inkPreparationAbort = undefined;
+        inkRun = null;
+        activeInkSession = null;
+        const source = boundaryPosition(id, direction);
+        session.abort(source ?? window.scrollY);
+        renderFrame();
+      };
+      const startTimedRun = (transition: PhoneTransitionAdapterHandle) => {
         if (
           inkRun?.id !== id
           || activeInkSession !== session
           || !session.valid()
         ) return;
-        const transition = id === 0
-          ? methodFigure2Ref.current
-          : id === 1
-            ? figure2ProofRef.current
-            : proofBrandRef.current;
-        if (!transition) {
-          if (adaptersFailedRef.current) {
-            inkRun = null;
-            activeInkSession = null;
-            const source = boundaryPosition(id, direction);
-            session.abort(source ?? window.scrollY);
-            renderFrame();
-            return;
-          }
-          inkPreparationFrame = window.requestAnimationFrame(
-            startWhenAdapterReady
-          );
-          return;
-        }
         if (direction === 1) transition.enter?.();
         else transition.reverse?.();
         cancelInkRun = runPhoneTimedTransition(
@@ -642,13 +671,32 @@ export function PhoneGradeAStory({
             inkRun = null;
             activeInkSession = null;
             cancelInkRun = undefined;
+            inkPreparationAbort = undefined;
             const landing = boundaryPosition(id, direction === 1 ? -1 : 1);
             session.complete(landing ?? window.scrollY);
             renderFrame();
           }
         );
       };
-      startWhenAdapterReady();
+      const transition = id === 0
+        ? methodFigure2Ref.current
+        : id === 1
+          ? figure2ProofRef.current
+          : proofBrandRef.current;
+      if (!transition) {
+        abortRun();
+      } else if (!transition.prepare) {
+        startTimedRun(transition);
+      } else {
+        const controller = new AbortController();
+        inkPreparationAbort = controller;
+        void transition.prepare(direction, controller.signal).then(() => {
+          if (inkPreparationAbort === controller) {
+            inkPreparationAbort = undefined;
+          }
+          startTimedRun(transition);
+        }).catch(abortRun);
+      }
       return true;
     };
     gradeAInkRegistrations = reducedMotion
@@ -659,6 +707,7 @@ export function PhoneGradeAStory({
             position: (direction) => boundaryPosition(id, direction),
             canStart: (direction) => (
               !inkRun
+              && Boolean(boundaryReadyRef.current & 1 << id)
               && (direction === 1
                 ? !completedInk.has(id)
                 : completedInk.has(id))
@@ -680,10 +729,8 @@ export function PhoneGradeAStory({
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
-      if (inkPreparationFrame) {
-        window.cancelAnimationFrame(inkPreparationFrame);
-        inkPreparationFrame = 0;
-      }
+      inkPreparationAbort?.abort();
+      inkPreparationAbort = undefined;
       if (cancelInkRun) cancelInkRun();
       else activeInkSession?.abort();
       activeInkSession = null;
@@ -708,9 +755,9 @@ export function PhoneGradeAStory({
     renderGradeAFrameRef.current();
   }, [
     adapterRevision,
-    adapters.failed,
-    brandRoot,
-    runtimeReady
+    figure2ProofBoundaryReady,
+    methodBoundaryReady,
+    proofBrandBoundaryReady
   ]);
 
   useEffect(() => {
@@ -808,7 +855,7 @@ export function PhoneGradeAStory({
         )}
         <PhoneFigure2Arch />
       </div>
-      {scenesReady && MethodFigure2 && (
+      {figure2Ready && methodCopySource && MethodFigure2 && (
         <MethodFigure2
           ref={bindMethodFigure2}
           host={surfacesRef.current}
@@ -829,7 +876,7 @@ export function PhoneGradeAStory({
           onReady={markFigure2ProofReady}
         />
       )}
-      {scenesReady && brandRoot && ProofBrand && (
+      {proofReady && brandRoot && ProofBrand && (
         <ProofBrand
           ref={bindProofBrand}
           host={surfacesRef.current}
@@ -847,10 +894,6 @@ export function PhoneGradeAStory({
       ref={rootRef}
       className="phone-grade-a"
       data-phone-grade-a-active="false"
-      data-phone-grade-a-modules-ready={String(adapters.ready)}
-      data-phone-grade-a-scenes-ready={String(scenesReady)}
-      data-phone-grade-a-ready={String(runtimeReady)}
-      data-phone-grade-a-failed={String(adapters.failed)}
     >
       <div ref={railRef} className="phone-grade-a__figure-track" aria-hidden="true" />
       <div ref={proofTrackRef} className="phone-grade-a__proof-track" aria-hidden="true" />

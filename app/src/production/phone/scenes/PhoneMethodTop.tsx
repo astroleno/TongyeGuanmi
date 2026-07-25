@@ -58,7 +58,7 @@ export const PhoneMethodTop = forwardRef<
 }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
   const bridgeRef = useRef<HTMLDivElement | null>(null);
-  const stepsRef = useRef<HTMLOListElement | null>(null);
+  const [steps, setSteps] = useState<HTMLOListElement | null>(null);
   const gradeASlotRef = useRef<HTMLDivElement | null>(null);
   const [gradeARequested, setGradeARequested] = useState(() => (
     typeof window !== 'undefined'
@@ -70,7 +70,6 @@ export const PhoneMethodTop = forwardRef<
   }, [onReady]);
 
   useEffect(() => {
-    const steps = stepsRef.current;
     if (!active || !steps) return;
     return motionDriver.revealReadingSteps(steps);
   }, [active, motionDriver]);
@@ -146,7 +145,7 @@ export const PhoneMethodTop = forwardRef<
           </div>
         </div>
         <ol
-          ref={stepsRef}
+          ref={setSteps}
           className="portrait-scroll-spike__steps"
           aria-label="同野观幂 AI 落地五步"
         >
@@ -169,7 +168,7 @@ export const PhoneMethodTop = forwardRef<
             <PhoneGradeAStory
               reducedMotion={reducedMotion}
               stageHost={stageHost}
-              methodCopySource={stepsRef.current}
+              methodCopySource={steps}
               {...(onGradeACheckpoint
                 ? { onCheckpoint: onGradeACheckpoint }
                 : {})}

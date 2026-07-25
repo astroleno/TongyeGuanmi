@@ -155,9 +155,11 @@ describe('depth threshold mask', () => {
   });
 
   it('produces complementary binary tables at every sampled direction point', () => {
-    for (const progress of [0, 0.37, 0.73, 1, 0.37]) {
+    for (const progress of [0, 0.25, 0.5, 0.75, 1, 0.25]) {
       const tables = thresholdTables(progress, 256);
       expect(tables.reveal).toEqual(thresholdTable(progress, 256));
+      expect(tables.reveal.reduce((total, value) => total + value, 0))
+        .toBe(Math.round(progress * 256));
       expect(tables.reveal.every((value) => value === 0 || value === 1)).toBe(true);
       expect(tables.conceal.every((value) => value === 0 || value === 1)).toBe(true);
       expect(tables.reveal.every((value, index) => value + (tables.conceal[index] ?? -1) === 1)).toBe(true);
@@ -200,6 +202,46 @@ describe('depth threshold mask', () => {
     expect(ground.style.getPropertyValue('mask-image')).toBe('');
     expect(depthField.style.getPropertyValue('mask-image')).toBe('');
     expect(host.children).toHaveLength(0);
+  });
+
+  it('conceals both Figure2 depth owners while revealing Proof at quarter samples', async () => {
+    const document = new FakeDocument();
+    const host = new FakeNode(document);
+    const backgroundAndMiddle = new FakeNode(document);
+    const figures = new FakeNode(document);
+    const proof = new FakeNode(document);
+    const mask = createDepthThresholdMask({
+      host: host as unknown as HTMLElement,
+      targets: [
+        {
+          element: backgroundAndMiddle as unknown as HTMLElement,
+          polarity: 'conceal'
+        },
+        {
+          element: figures as unknown as HTMLElement,
+          polarity: 'conceal'
+        },
+        {
+          element: proof as unknown as HTMLElement,
+          polarity: 'reveal'
+        }
+      ],
+      atlasSrc: '/figure2-depth-atlas.webp',
+      runId: 'figure2-proof:quarter-samples'
+    });
+    await mask?.ready;
+    mask?.commit();
+
+    for (const progress of [0.25, 0.5, 0.75]) {
+      const tables = mask?.render(progress, depthTransform);
+      expect(tables?.conceal).toEqual(
+        tables?.reveal.map((value) => 1 - value)
+      );
+      expect(backgroundAndMiddle.attributes.get('data-r4-depth-mask-values'))
+        .toBe('0,1');
+      expect(figures.attributes.get('data-r4-depth-mask-values')).toBe('0,1');
+      expect(proof.attributes.get('data-r4-depth-mask-values')).toBe('1,0');
+    }
   });
 
   it('does not attach then remove the fully visible endpoint mask during commit', async () => {

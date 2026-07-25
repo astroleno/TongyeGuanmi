@@ -34,6 +34,10 @@ export function createPhoneInkAdapter(options: Readonly<{
   maskSource?: boolean;
   releaseOnLeave?: boolean;
   reverseProgress?: 0 | 1;
+  alignReceiver?: (
+    host: HTMLElement,
+    receiver: HTMLElement
+  ) => () => void;
   renderFrame?: (
     from: HTMLElement | null,
     to: HTMLElement | null,
@@ -47,14 +51,27 @@ export function createPhoneInkAdapter(options: Readonly<{
   ) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const transitionRef = useRef<PhoneInkTransition | undefined>(undefined);
+    const receiverAlignmentRef = useRef<readonly [() => void, 0 | 1] | null>(null);
+    const releaseReceiver = useCallback(() => {
+      receiverAlignmentRef.current?.[0]();
+      receiverAlignmentRef.current = null;
+    }, []);
     const release = useCallback(() => {
       transitionRef.current?.dispose();
       transitionRef.current = undefined;
+      releaseReceiver();
       if (options.releaseOnLeave && canvasRef.current) {
         canvasRef.current.width = 1;
         canvasRef.current.height = 1;
       }
-    }, []);
+    }, [releaseReceiver]);
+    const alignReceiver = useCallback((endpoint: 0 | 1) => {
+      if (!host || !to || !options.alignReceiver) return;
+      receiverAlignmentRef.current = [
+        receiverAlignmentRef.current?.[0] ?? options.alignReceiver(host, to),
+        endpoint
+      ];
+    }, [host, to]);
     const ensure = useCallback(() => {
       if (transitionRef.current) return transitionRef.current;
       const canvas = canvasRef.current;
@@ -86,7 +103,11 @@ export function createPhoneInkAdapter(options: Readonly<{
             options.reducedMotionStrategy
           );
       ensure()?.render(sampled);
-    }, [ensure, from, reducedMotion, to]);
+      const alignment = receiverAlignmentRef.current;
+      if (alignment && Math.abs(sampled - alignment[1]) <= 0.001) {
+        releaseReceiver();
+      }
+    }, [ensure, from, reducedMotion, releaseReceiver, to]);
     useLayoutEffect(() => {
       const canvas = canvasRef.current;
       if (!host || !to || !canvas) return;
@@ -96,14 +117,21 @@ export function createPhoneInkAdapter(options: Readonly<{
     }, [host, onReady, release, render, to]);
     useImperativeHandle(forwardedRef, () => ({
       render,
-      enter() { render(0); },
+      enter() {
+        alignReceiver(1);
+        render(0);
+      },
       leave() {
         render(1);
+        releaseReceiver();
         if (options.releaseOnLeave) release();
       },
-      reverse() { render(options.reverseProgress ?? 0); },
+      reverse() {
+        alignReceiver(0);
+        render(options.reverseProgress ?? 0);
+      },
       dispose: release
-    }), [release, render]);
+    }), [alignReceiver, release, releaseReceiver, render]);
     return (
       <canvas
         ref={canvasRef}

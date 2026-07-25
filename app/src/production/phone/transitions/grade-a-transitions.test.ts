@@ -1,8 +1,89 @@
 import { describe, expect, it } from 'vitest';
 import { FIGURE2_INTRO_END } from '../../../transitions/figure2-distance-expand';
-import { PHONE_PROOF_BRAND_FIELD } from './figure2-proof-brand';
+import {
+  alignPhoneProofBrandReceiver,
+  PHONE_PROOF_BRAND_FIELD
+} from './figure2-proof-brand';
 import { PHONE_METHOD_FIGURE2_FIELD } from './method-bottom-figure2';
 import { phoneInkAdapterProgress } from './PhoneInkTransition';
+
+class FakeStyle {
+  readonly values = new Map<string, string>();
+  width = '';
+  height = '';
+
+  setProperty(name: string, value: string): void {
+    this.values.set(name, value);
+  }
+
+  getPropertyValue(name: string): string {
+    return this.values.get(name) ?? '';
+  }
+
+  removeProperty(name: string): void {
+    this.values.delete(name);
+  }
+}
+
+class FakeElement {
+  readonly attributes = new Map<string, string>();
+  readonly children: FakeElement[] = [];
+  readonly dataset: Record<string, string> = {};
+  readonly style = new FakeStyle();
+  parentElement: FakeElement | null = null;
+  textContent = '';
+
+  constructor(
+    readonly ownerDocument: FakeDocument,
+    private readonly rect = {
+      top: 0,
+      left: 0,
+      width: 0,
+      height: 0
+    }
+  ) {}
+
+  append(element: FakeElement): void {
+    element.parentElement = this;
+    this.children.push(element);
+  }
+
+  insertBefore(element: FakeElement, reference: FakeElement): void {
+    const index = this.children.indexOf(reference);
+    element.parentElement = this;
+    this.children.splice(index < 0 ? this.children.length : index, 0, element);
+  }
+
+  remove(): void {
+    if (!this.parentElement) return;
+    const index = this.parentElement.children.indexOf(this);
+    if (index >= 0) this.parentElement.children.splice(index, 1);
+    this.parentElement = null;
+  }
+
+  getBoundingClientRect() {
+    return { ...this.rect, right: 0, bottom: 0, x: 0, y: 0, toJSON() {} };
+  }
+
+  getAttribute(name: string): string | null {
+    return this.attributes.get(name) ?? null;
+  }
+
+  setAttribute(name: string, value: string): void {
+    this.attributes.set(name, value);
+  }
+
+  removeAttribute(name: string): void {
+    this.attributes.delete(name);
+    if (name === 'style') this.style.values.clear();
+  }
+}
+
+class FakeDocument {
+  createElement(): FakeElement {
+    return new FakeElement(this);
+  }
+}
 
 describe('phone Grade A transition contracts', () => {
   it('keeps both chapter boundaries on the canonical bottom-up field', () => {
@@ -25,5 +106,44 @@ describe('phone Grade A transition contracts', () => {
     expect(phoneInkAdapterProgress(0.001, true, 'boundary')).toBe(1);
     expect(phoneInkAdapterProgress(0, true, 'receiver')).toBe(1);
     expect(phoneInkAdapterProgress(0.42, false, 'boundary')).toBe(0.42);
+  });
+
+  it('aligns the one canonical Brand receiver only for the ink run', () => {
+    const document = new FakeDocument();
+    const parent = new FakeElement(document);
+    const host = new FakeElement(document, {
+      top: 14,
+      left: 0,
+      width: 390,
+      height: 844
+    });
+    const receiver = new FakeElement(document, {
+      top: 844,
+      left: 0,
+      width: 390,
+      height: 1260
+    });
+    receiver.textContent = 'Brand canonical copy';
+    receiver.setAttribute('style', 'color: #292919');
+    parent.append(receiver);
+
+    const release = alignPhoneProofBrandReceiver(
+      host as unknown as HTMLElement,
+      receiver as unknown as HTMLElement
+    );
+
+    expect(parent.children).toEqual([receiver]);
+    expect(receiver.textContent).toBe('Brand canonical copy');
+    expect(receiver.dataset.phoneProofBrandAligned).toBe('true');
+    expect(receiver.style.getPropertyValue('--phone-proof-brand-align-x')).toBe('0px');
+    expect(receiver.style.getPropertyValue('--phone-proof-brand-align-y')).toBe('-830px');
+
+    release();
+
+    expect(parent.children).toEqual([receiver]);
+    expect(receiver.dataset.phoneProofBrandAligned).toBeUndefined();
+    expect(receiver.style.getPropertyValue('--phone-proof-brand-align-x')).toBe('');
+    expect(receiver.style.getPropertyValue('--phone-proof-brand-align-y')).toBe('');
+    expect(receiver.getAttribute('style')).toBe('color: #292919');
   });
 });

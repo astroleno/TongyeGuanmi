@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useImperativeHandle,
   useLayoutEffect,
   useRef
@@ -15,6 +16,7 @@ import type {
   LayerVisibilityState,
   SceneId,
   SegmentRunId,
+  StagedLegPreparation,
   StageHandle
 } from '../../../story/types';
 import {
@@ -111,6 +113,27 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   const lastProgressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
   const runRevisionRef = useRef(0);
+  const prepare = useCallback(async (
+    direction: 1 | -1,
+    signal: AbortSignal
+  ) => {
+    const timeline = timelineRef.current;
+    if (!timeline) throw new Error();
+    const leg: StagedLegPreparation = {
+      runId: `phone-grade-a:${++runRevisionRef.current}` as SegmentRunId,
+      segment: 'figure2-distance-expand',
+      direction,
+      legIndex: 1,
+      from: direction === 1 ? FIGURE2_INTRO_END : 1,
+      to: direction === 1 ? 1 : FIGURE2_INTRO_END,
+      durationMs: FIGURE2_DISTANCE_EXPAND_SEGMENT.policy.playMs[1],
+      signal
+    };
+    await timeline.prepareLeg?.(leg);
+    if (signal.aborted) throw signal.reason;
+    timeline.commitLeg?.(leg);
+    directionRef.current = direction;
+  }, []);
 
   const render = (rawProgress: number) => {
     if (!from || !to) return;
@@ -171,7 +194,6 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     }).catch(() => {
       if (!disposed) {
         fallbackFrame(from, to, desiredProgressRef.current, reducedMotion);
-        onReady?.();
       }
     });
     return () => {
@@ -183,6 +205,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
 
   useImperativeHandle(forwardedRef, () => ({
     render,
+    prepare,
     enter() { render(0); },
     leave() { render(1); },
     reverse() { render(0); },
@@ -190,7 +213,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
       timelineRef.current?.dispose();
       timelineRef.current = null;
     }
-  }), [from, reducedMotion, to]);
+  }), [from, prepare, reducedMotion, to]);
 
   return null;
 });

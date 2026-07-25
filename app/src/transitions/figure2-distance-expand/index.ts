@@ -158,6 +158,12 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     this.playbackDirection = context.direction;
     const fromRoot = sceneRoot(context.from.element, 'figure2-animation');
     const stage = sharedStageHost(context);
+    const depthField = fromRoot?.querySelector<HTMLElement>(
+      '[data-figure2-depth-ranked-field="true"]'
+    ) ?? null;
+    const figureDepthSurface = fromRoot?.querySelector<HTMLElement>(
+      '[data-figure2-figure-depth-surface="true"]'
+    ) ?? null;
     const proofOwnershipSurface = stage?.querySelector<HTMLElement>(
       '[data-figure2-proof-ownership-surface="true"]'
     ) ?? context.to.element;
@@ -165,9 +171,17 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const terminalTransform = figure2DepthTransformForProgress(fromRoot, 1);
     this.depthMask = createDepthThresholdMask({
       host: stage,
-      targets: proofOwnershipSurface
-        ? [{ element: proofOwnershipSurface, polarity: 'reveal' as const }]
-        : [],
+      targets: [
+        ...(depthField
+          ? [{ element: depthField, polarity: 'conceal' as const }]
+          : []),
+        ...(figureDepthSurface
+          ? [{ element: figureDepthSurface, polarity: 'conceal' as const }]
+          : []),
+        ...(proofOwnershipSurface
+          ? [{ element: proofOwnershipSurface, polarity: 'reveal' as const }]
+          : [])
+      ],
       atlasSrc: FIGURE2_DEPTH_MASK_ATLAS,
       runId: context.runId,
       transform: terminalTransform
