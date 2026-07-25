@@ -31,20 +31,20 @@ export type Group67AdapterPlan = Readonly<{
   transitions: readonly Group67PhoneTransitionId[];
 }>;
 
-/**
- * One adjacency window:
- * - Lab owns only PH and Lab→PH preparation.
- * - A mounted Group6–7 scene owns itself, its next real receiver and the
- *   boundary between them.
- * - Contact is a cold terminal entry with no preceding media imports.
- */
+/** Complete composite closures; a focus change may not drop the exit leg. */
 export function group67AdapterPlanForFocus(
   focus: Group67AdapterFocus
 ): Group67AdapterPlan {
   if (focus === 'lab') {
     return {
-      scenes: ['ph-animation'],
-      transitions: ['lab-ph']
+      scenes: ['ph-animation', 'education'],
+      transitions: ['lab-ph', 'ph-education']
+    };
+  }
+  if (focus === 'education') {
+    return {
+      scenes: ['education', 'crane-animation', 'contact'],
+      transitions: ['education-crane', 'crane-contact']
     };
   }
   const next = group67NextAdapterByScene[focus];
@@ -90,7 +90,6 @@ export function usePhoneGroup67Adapters(focus: Group67AdapterFocus) {
   const [modules, setModules] = useState<Group67Modules>(
     resolvedGroup67Modules
   );
-  const [failed, setFailed] = useState(false);
   const plan = group67AdapterPlanForFocus(focus);
   const ready = planIsResolved(plan, modules);
 
@@ -98,23 +97,18 @@ export function usePhoneGroup67Adapters(focus: Group67AdapterFocus) {
     if (ready) return;
     const loadPlan = group67AdapterPlanForFocus(focus);
     let current = true;
-    setFailed(false);
     const pending = [
       ...loadPlan.scenes.map(loadPhoneSceneAdapter),
       ...loadPlan.transitions.map(loadPhoneTransitionAdapter)
-    ].map((promise) => promise.then((module) => {
-      if (current) setModules(resolvedGroup67Modules());
-      return module;
-    }));
-    void Promise.allSettled(pending).then((results) => {
+    ];
+    void Promise.allSettled(pending).then(() => {
       if (!current) return;
       setModules(resolvedGroup67Modules());
-      setFailed(results.some(({ status }) => status === 'rejected'));
     });
     return () => {
       current = false;
     };
   }, [focus, ready]);
 
-  return { ...modules, plan, ready, failed };
+  return { ...modules, ready };
 }

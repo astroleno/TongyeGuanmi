@@ -2,21 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { group67AdapterPlanForFocus } from './usePhoneGroup67Adapters';
 
 describe('Group6–7 adjacent adapter planning', () => {
-  it('prepares only PH and Lab→PH at the existing Lab boundary', () => {
+  it('prepares the complete Lab→PH→Education closure at the Lab boundary', () => {
     expect(group67AdapterPlanForFocus('lab')).toEqual({
-      scenes: ['ph-animation'],
-      transitions: ['lab-ph']
+      scenes: ['ph-animation', 'education'],
+      transitions: ['lab-ph', 'ph-education']
     });
   });
 
-  it('keeps exactly one real adjacent receiver in each active plan', () => {
+  it('keeps the complete remaining composite closure in each active plan', () => {
     expect(group67AdapterPlanForFocus('ph-animation')).toEqual({
       scenes: ['ph-animation', 'education'],
       transitions: ['ph-education']
     });
     expect(group67AdapterPlanForFocus('education')).toEqual({
-      scenes: ['education', 'crane-animation'],
-      transitions: ['education-crane']
+      scenes: ['education', 'crane-animation', 'contact'],
+      transitions: ['education-crane', 'crane-contact']
     });
     expect(group67AdapterPlanForFocus('crane-animation')).toEqual({
       scenes: ['crane-animation', 'contact'],

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  loadPhoneRunDependencyClosure,
   loadPhoneLoaderAdapter,
   loadPhoneSceneAdapter,
   loadPhoneTransitionAdapter,
@@ -21,6 +22,7 @@ import {
   group67PhoneSceneIds,
   group67PhoneTransitionIds
 } from './adapter-groups/group6-7';
+import { phoneRun } from './phone-story-runs';
 
 describe('phone presentation adapter registry', () => {
   it('loads Loader as the first formal front-half presentation adapter', async () => {
@@ -79,5 +81,20 @@ describe('phone presentation adapter registry', () => {
     expect(phoneTransitionAdapterIds).toEqual(expect.arrayContaining(
       [...group45PhoneTransitionIds, ...group67PhoneTransitionIds]
     ));
+  });
+
+  it('loads the complete Lab to Education run closure in parallel', async () => {
+    const closure = await loadPhoneRunDependencyClosure(
+      phoneRun('lab-education').dependencies
+    );
+    expect(closure.scenes.map(({ id }) => id)).toEqual([
+      'lab',
+      'ph-animation',
+      'education'
+    ]);
+    expect(closure.transitions.map(({ id }) => id)).toEqual([
+      'lab-ph',
+      'ph-education'
+    ]);
   });
 });

@@ -26,7 +26,6 @@ import type {
   PhoneTransitionAdapterComponent,
   PhoneTransitionAdapterModule
 } from './types';
-
 let loaderCache: Promise<PhoneLoaderAdapterModule> | undefined;
 let resolvedLoaderCache: PhoneLoaderAdapterModule | undefined;
 const sceneCache = new Map<PhoneSceneAdapterId, Promise<PhoneSceneAdapterModule>>();
@@ -318,4 +317,20 @@ export function loadedPhoneAdapters(): Readonly<{
     scenes: [...sceneCache.keys()],
     transitions: [...transitionCache.keys()]
   };
+}
+
+export async function loadPhoneRunDependencyClosure(
+  dependencies: Readonly<{
+    scenes: readonly PhoneSceneAdapterId[];
+    transitions: readonly PhoneTransitionAdapterId[];
+  }>
+): Promise<Readonly<{
+  scenes: readonly PhoneSceneAdapterModule[];
+  transitions: readonly PhoneTransitionAdapterModule[];
+}>> {
+  const [scenes, transitions] = await Promise.all([
+    Promise.all(dependencies.scenes.map(loadPhoneSceneAdapter)),
+    Promise.all(dependencies.transitions.map(loadPhoneTransitionAdapter))
+  ]);
+  return { scenes, transitions };
 }
