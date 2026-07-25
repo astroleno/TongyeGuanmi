@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  createPhoneIntentCoordinator,
   PHONE_INK_AUTOPLAY_MS,
   phoneTimedTransitionProgress,
-  phoneTransitionCrossesBoundary,
-  registerPhoneTransitionBoundary,
-  type PhoneTransitionSession
+  phoneTransitionCrossesBoundary
 } from './phone-transition-coordinator';
 
 type TestListener = (event: Record<string, unknown>) => void;
@@ -17,6 +16,11 @@ class TestEventTarget {
     const listeners = this.listeners.get(type) ?? [];
     listeners.push(listener);
     this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: TestListener): void {
+    const listeners = this.listeners.get(type) ?? [];
+    this.listeners.set(type, listeners.filter((candidate) => candidate !== listener));
   }
 
   dispatch(type: string, event: Record<string, unknown>): void {
@@ -59,117 +63,76 @@ describe('phone transition coordinator', () => {
     expect(phoneTimedTransitionProgress(900)).toBe(1);
   });
 
-  it('skips an unavailable boundary and claims the next runnable edge', () => {
+  it('keeps a wheel burst in one gesture epoch until its quiet rearm', () => {
     const { root, testWindow } = installCoordinatorEnvironment();
-    let unavailableStarts = 0;
-    let claimedSession: PhoneTransitionSession | null = null;
-    registerPhoneTransitionBoundary(root as unknown as HTMLElement, {
-      position: () => 400,
-      canStart: () => false,
-      start: () => {
-        unavailableStarts += 1;
-      }
-    });
-    registerPhoneTransitionBoundary(root as unknown as HTMLElement, {
-      position: () => 700,
-      canStart: () => true,
-      start: (_direction, session) => {
-        claimedSession = session;
-      }
-    });
-    let prevented = false;
-
-    root.dispatch('wheel', {
-      target: null,
-      deltaY: 900,
-      deltaMode: 0,
-      preventDefault: () => {
-        prevented = true;
+    let now = 0;
+    const intents: unknown[] = [];
+    const coordinator = createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      (intent) => {
+        intents.push(intent);
+        return true;
       },
+      {
+        now: () => now,
+        scrollY: () => testWindow.scrollY
+      }
+    );
+
+    const wheel = () => root.dispatch('wheel', {
+      target: null,
+      deltaY: 200,
+      deltaMode: 0,
+      preventDefault: () => undefined,
       stopImmediatePropagation: () => undefined
     });
 
-    expect(unavailableStarts).toBe(0);
-    expect(claimedSession).not.toBeNull();
-    expect(prevented).toBe(true);
-    expect(testWindow.scrollY).toBe(700);
-    expect(root.dataset.phoneTransitionLock).toBe('locked');
+    wheel();
+    now = 80;
+    wheel();
+    now = 260;
+    wheel();
 
-    claimedSession!.complete(720);
-    expect(testWindow.scrollY).toBe(720);
-    expect(root.dataset.phoneTransitionLock).toBeUndefined();
+    expect(intents).toMatchObject([
+      { gestureId: 1, inputEpoch: 1, source: 'wheel' },
+      { gestureId: 1, inputEpoch: 1, source: 'wheel' },
+      { gestureId: 2, inputEpoch: 2, source: 'wheel' }
+    ]);
+    coordinator.dispose();
   });
 
-  it('reclaims a Safari momentum overshoot from the last touch intent', () => {
+  it('reuses the touch gesture identity for promoted Safari momentum', () => {
     const { root, testWindow } = installCoordinatorEnvironment();
-    let starts = 0;
-    registerPhoneTransitionBoundary(root as unknown as HTMLElement, {
-      position: () => 500,
-      canStart: () => true,
-      start: () => {
-        starts += 1;
+    let now = 0;
+    const intents: unknown[] = [];
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      (intent) => {
+        intents.push(intent);
+        return false;
+      },
+      {
+        now: () => now,
+        scrollY: () => testWindow.scrollY
       }
-    });
+    );
 
     root.dispatch('touchstart', {
       touches: [{ clientY: 600 }]
     });
     root.dispatch('touchmove', {
       target: null,
-      touches: [{ clientY: 580 }],
+      touches: [{ clientY: 560 }],
       preventDefault: () => undefined,
       stopImmediatePropagation: () => undefined
     });
-    expect(starts).toBe(0);
-
-    testWindow.scrollY = 650;
+    now = 300;
+    testWindow.scrollY = 120;
     testWindow.dispatch('scroll', {});
 
-    expect(starts).toBe(1);
-    expect(testWindow.scrollY).toBe(500);
-    expect(root.dataset.phoneTransitionLock).toBe('locked');
-  });
-
-  it('holds the semantic edge while a claimed receiver is still loading', () => {
-    const { root, testWindow } = installCoordinatorEnvironment();
-    const sessions: PhoneTransitionSession[] = [];
-    registerPhoneTransitionBoundary(root as unknown as HTMLElement, {
-      position: () => 500,
-      canStart: () => true,
-      start: (_direction, claimedSession) => {
-        sessions.push(claimedSession);
-      }
-    });
-
-    root.dispatch('wheel', {
-      target: null,
-      deltaY: 700,
-      deltaMode: 0,
-      preventDefault: () => undefined,
-      stopImmediatePropagation: () => undefined
-    });
-    const session = sessions[0]!;
-    expect(session.valid()).toBe(true);
-    expect(testWindow.scrollY).toBe(500);
-
-    testWindow.scrollY = 680;
-    let blocked = false;
-    root.dispatch('wheel', {
-      target: null,
-      deltaY: 300,
-      deltaMode: 0,
-      preventDefault: () => {
-        blocked = true;
-      },
-      stopImmediatePropagation: () => undefined
-    });
-    expect(blocked).toBe(true);
-    expect(testWindow.scrollY).toBe(500);
-    expect(root.dataset.phoneTransitionLock).toBe('locked');
-
-    session.complete(700);
-    expect(testWindow.scrollY).toBe(700);
-    expect(root.dataset.phoneTransitionLock).toBeUndefined();
-    expect(session.valid()).toBe(false);
+    expect(intents).toMatchObject([
+      { gestureId: 1, inputEpoch: 1, source: 'touch' },
+      { gestureId: 1, inputEpoch: 1, source: 'momentum' }
+    ]);
   });
 });

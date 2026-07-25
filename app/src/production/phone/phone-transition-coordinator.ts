@@ -4,6 +4,27 @@ export const PHONE_INK_AUTOPLAY_MS = 600;
 
 export type PhoneTransitionDirection = 1 | -1;
 
+export type PhoneIntent = Readonly<{
+  gestureId: number;
+  inputEpoch: number;
+  direction: PhoneTransitionDirection;
+  source: 'touch' | 'wheel' | 'momentum' | 'programmatic';
+  startY: number;
+  projectedY: number;
+  occurredAt: number;
+}>;
+
+export type PhoneIntentCoordinator = Readonly<{
+  dispose(): void;
+}>;
+
+export type PhoneIntentCoordinatorOptions = Readonly<{
+  now?: () => number;
+  scrollY?: () => number;
+  wheelQuietMs?: number;
+  momentumWindowMs?: number;
+}>;
+
 export type PhoneTransitionSession = Readonly<{
   valid(): boolean;
   moveTo(anchorY: number): void;
@@ -36,6 +57,157 @@ const eventTargetIsInteractive = (event: Event) => (
     'a,button,input,select,textarea,[role="button"]'
   )
 );
+
+const PHONE_WHEEL_GESTURE_QUIET_MS = 120;
+const PHONE_TOUCH_MOMENTUM_WINDOW_MS = 1200;
+
+/**
+ * Captures physical input identity only. Boundary selection, scroll anchoring,
+ * and transition completion belong to the shell-scoped orchestrator.
+ */
+export function createPhoneIntentCoordinator(
+  root: HTMLElement,
+  onIntent: (intent: PhoneIntent) => boolean,
+  options: PhoneIntentCoordinatorOptions = {}
+): PhoneIntentCoordinator {
+  const now = options.now ?? (() => performance.now());
+  const scrollY = options.scrollY ?? (() => window.scrollY);
+  const wheelQuietMs = options.wheelQuietMs ?? PHONE_WHEEL_GESTURE_QUIET_MS;
+  const momentumWindowMs = options.momentumWindowMs
+    ?? PHONE_TOUCH_MOMENTUM_WINDOW_MS;
+  let sequence = 0;
+  let observedScrollY = scrollY();
+  let wheel: Readonly<{
+    gestureId: number;
+    inputEpoch: number;
+    lastAt: number;
+  }> | null = null;
+  let touch: Readonly<{
+    gestureId: number;
+    inputEpoch: number;
+    startY: number;
+    clientY: number;
+  }> | null = null;
+  let momentum: Readonly<{
+    gestureId: number;
+    inputEpoch: number;
+    until: number;
+  }> | null = null;
+
+  const nextIdentity = () => {
+    sequence += 1;
+    return { gestureId: sequence, inputEpoch: sequence };
+  };
+  const blockIfClaimed = (event: Event, claimed: boolean) => {
+    if (!claimed) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  const emit = (
+    identity: Readonly<{ gestureId: number; inputEpoch: number }>,
+    source: PhoneIntent['source'],
+    startY: number,
+    projectedY: number,
+    occurredAt: number
+  ) => {
+    if (Math.abs(projectedY - startY) < 0.5) return false;
+    return onIntent({
+      ...identity,
+      direction: projectedY > startY ? 1 : -1,
+      source,
+      startY,
+      projectedY,
+      occurredAt
+    });
+  };
+
+  const onTouchStart = (event: TouchEvent) => {
+    const first = event.touches[0];
+    if (event.touches.length !== 1 || !first) {
+      touch = null;
+      momentum = null;
+      return;
+    }
+    const identity = nextIdentity();
+    touch = {
+      ...identity,
+      startY: scrollY(),
+      clientY: first.clientY
+    };
+    momentum = null;
+  };
+  const onTouchMove = (event: TouchEvent) => {
+    const first = event.touches[0];
+    if (
+      !touch
+      || event.touches.length !== 1
+      || !first
+      || eventTargetIsInteractive(event)
+    ) return;
+    const occurredAt = now();
+    const projectedY = Math.max(
+      0,
+      touch.startY + touch.clientY - first.clientY
+    );
+    momentum = {
+      gestureId: touch.gestureId,
+      inputEpoch: touch.inputEpoch,
+      until: occurredAt + momentumWindowMs
+    };
+    blockIfClaimed(
+      event,
+      emit(touch, 'touch', touch.startY, projectedY, occurredAt)
+    );
+  };
+  const onTouchEnd = (event: TouchEvent) => {
+    if (!event.touches.length) touch = null;
+  };
+  const onWheel = (event: WheelEvent) => {
+    if (eventTargetIsInteractive(event)) return;
+    const occurredAt = now();
+    if (!wheel || occurredAt - wheel.lastAt > wheelQuietMs) {
+      wheel = { ...nextIdentity(), lastAt: occurredAt };
+    } else {
+      wheel = { ...wheel, lastAt: occurredAt };
+    }
+    const startY = scrollY();
+    const projectedY = Math.max(
+      0,
+      startY + event.deltaY * (event.deltaMode ? 16 : 1)
+    );
+    blockIfClaimed(
+      event,
+      emit(wheel, 'wheel', startY, projectedY, occurredAt)
+    );
+  };
+  const onScroll = () => {
+    const currentY = scrollY();
+    const previousY = observedScrollY;
+    observedScrollY = currentY;
+    const occurredAt = now();
+    if (!momentum || occurredAt > momentum.until) return;
+    emit(momentum, 'momentum', previousY, currentY, occurredAt);
+  };
+
+  const blocking = { passive: false, capture: true } as const;
+  root.addEventListener('touchstart', onTouchStart, true);
+  root.addEventListener('touchmove', onTouchMove, blocking);
+  root.addEventListener('touchend', onTouchEnd, true);
+  root.addEventListener('touchcancel', onTouchEnd, true);
+  root.addEventListener('wheel', onWheel, blocking);
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  return {
+    dispose() {
+      root.removeEventListener('touchstart', onTouchStart, true);
+      root.removeEventListener('touchmove', onTouchMove, blocking);
+      root.removeEventListener('touchend', onTouchEnd, true);
+      root.removeEventListener('touchcancel', onTouchEnd, true);
+      root.removeEventListener('wheel', onWheel, blocking);
+      window.removeEventListener('scroll', onScroll);
+    }
+  };
+}
 
 export function phoneTransitionCrossesBoundary(
   startScrollY: number,
