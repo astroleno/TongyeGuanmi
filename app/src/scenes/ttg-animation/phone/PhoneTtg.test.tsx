@@ -7,6 +7,7 @@ import {
   phoneTtgHasReusableEndpointFrame,
   phoneTtgHasReusableTerminalFrame,
   phoneTtgMediaAction,
+  markPhoneTtgPresentedEndpoint,
   releasePhoneTtgVideo
 } from './PhoneTtg';
 import {
@@ -135,6 +136,24 @@ describe('PhoneTtg', () => {
       seeking: false,
       dataset: { phoneGroup45FrameReady: 'true' }
     } as unknown as HTMLVideoElement, 0)).toBe(false);
+  });
+
+  it('marks a terminal endpoint only from presented-frame media time', () => {
+    const video = {
+      currentTime: 2.467,
+      duration: 2.5,
+      readyState: 2,
+      seeking: false,
+      dataset: {} as Record<string, string>
+    } as unknown as HTMLVideoElement;
+
+    markPhoneTtgPresentedEndpoint(video, 2.1);
+    expect(video.dataset.phoneTtgEndpointReady).toBeUndefined();
+
+    markPhoneTtgPresentedEndpoint(video, 2.467);
+    expect(video.dataset.phoneGroup45FrameReady).toBe('true');
+    expect(video.dataset.phoneTtgEndpointReady).toBe('terminal');
+    expect(phoneTtgHasReusableTerminalFrame(video)).toBe(true);
   });
 
   it('disposes the retired video source and decoder', () => {

@@ -23,6 +23,10 @@ export type Group45NativeAutoplayOptions = Readonly<{
   onComplete?(direction: Group45NativeAutoplayDirection): void;
   onError?(): void;
   onReady?(): void;
+  onPresentedFrame?(
+    mediaTime: number,
+    direction: Group45NativeAutoplayDirection
+  ): void;
   onStatus?(
     status: Group45NativeAutoplayStatus,
     direction: Group45NativeAutoplayDirection
@@ -88,6 +92,7 @@ export function createGroup45NativeAutoplay(
   let playPending = false;
   let frame = 0;
   let playAttempt = 0;
+  let videoFrame = 0;
   let direction: Group45NativeAutoplayDirection = 1;
   let reverseProgress = 1;
   let reverseElapsedMs = 0;
@@ -107,6 +112,26 @@ export function createGroup45NativeAutoplay(
     if (!frame) return;
     cancelFrame(frame);
     frame = 0;
+  };
+  const cancelPresentedFrame = () => {
+    if (!videoFrame) return;
+    video.cancelVideoFrameCallback?.(videoFrame);
+    videoFrame = 0;
+  };
+  const watchPresentedFrame = () => {
+    if (
+      videoFrame
+      || !active
+      || direction !== 1
+      || typeof video.requestVideoFrameCallback !== 'function'
+    ) return;
+    videoFrame = video.requestVideoFrameCallback((_now, metadata) => {
+      videoFrame = 0;
+      if (disposed || direction !== 1) return;
+      markReady();
+      options.onPresentedFrame?.(metadata.mediaTime, direction);
+      if (active && !video.paused && !video.ended) watchPresentedFrame();
+    });
   };
 
   const markReady = () => {
@@ -145,7 +170,7 @@ export function createGroup45NativeAutoplay(
   const renderAndComplete = () => {
     const progress = render();
     const complete = direction === 1
-      ? video.ended || progress >= .999
+      ? video.ended
       : progress <= .001;
     if (complete) {
       completeRun();
@@ -208,6 +233,7 @@ export function createGroup45NativeAutoplay(
         if (disposed || !active || attempt !== playAttempt) return;
         playPending = false;
         markReady();
+        watchPresentedFrame();
         publishStatus('playing');
         schedule();
       },
@@ -242,6 +268,7 @@ export function createGroup45NativeAutoplay(
       return;
     }
     markReady();
+    watchPresentedFrame();
     publishStatus('playing');
     schedule();
   };
@@ -297,6 +324,7 @@ export function createGroup45NativeAutoplay(
     playPending = false;
     reverseFrameTime = undefined;
     cancelScheduledFrame();
+    cancelPresentedFrame();
     video.pause();
   };
 
@@ -399,6 +427,7 @@ export function createGroup45NativeAutoplay(
         delete video.dataset.phoneGroup45AutoplayProgress;
       }
       delete video.dataset.phoneGroup45FrameReady;
+      cancelPresentedFrame();
     }
   };
 }

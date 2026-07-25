@@ -17,6 +17,22 @@ class FakeVideo extends EventTarget {
   readyState = 0;
   seeking = false;
   readonly dataset: Record<string, string> = {};
+  private nextVideoFrame = 0;
+  private readonly videoFrames = new Map<number, (
+    now: DOMHighResTimeStamp,
+    metadata: VideoFrameCallbackMetadata
+  ) => void>();
+  readonly requestVideoFrameCallback = vi.fn((callback: (
+    now: DOMHighResTimeStamp,
+    metadata: VideoFrameCallbackMetadata
+  ) => void) => {
+    const handle = ++this.nextVideoFrame;
+    this.videoFrames.set(handle, callback);
+    return handle;
+  });
+  readonly cancelVideoFrameCallback = vi.fn((handle: number) => {
+    this.videoFrames.delete(handle);
+  });
   readonly pause = vi.fn(() => {
     this.paused = true;
     this.dispatchEvent(new Event('pause'));
@@ -25,6 +41,20 @@ class FakeVideo extends EventTarget {
     this.paused = false;
     this.dispatchEvent(new Event('play'));
   });
+
+  presentFrame(mediaTime: number): void {
+    const entry = this.videoFrames.entries().next().value as
+      | [number, (
+        now: DOMHighResTimeStamp,
+        metadata: VideoFrameCallbackMetadata
+      ) => void]
+      | undefined;
+    if (!entry) return;
+    this.videoFrames.delete(entry[0]);
+    entry[1](performance.now(), {
+      mediaTime
+    } as VideoFrameCallbackMetadata);
+  }
 }
 
 class FakeVisibilityDocument extends EventTarget {
@@ -38,12 +68,14 @@ describe('Group 4–5 native autoplay', () => {
     const progress: number[] = [];
     const status: string[] = [];
     const completed = vi.fn();
+    const presented = vi.fn();
     const controller = createGroup45NativeAutoplay(
       video as unknown as HTMLVideoElement,
       {
         durationSeconds: 2.5,
         onProgress: (value) => progress.push(value),
         onStatus: (value) => status.push(value),
+        onPresentedFrame: presented,
         onComplete: completed,
         visibilityDocument: visibility as unknown as Document,
         requestFrame: () => 1,
@@ -64,6 +96,8 @@ describe('Group 4–5 native autoplay', () => {
     video.currentTime = 1.25;
     video.dispatchEvent(new Event('timeupdate'));
     expect(progress.at(-1)).toBeCloseTo(.5);
+    video.presentFrame(1.25);
+    expect(presented).toHaveBeenCalledWith(1.25, 1);
 
     visibility.hidden = true;
     visibility.dispatchEvent(new Event('visibilitychange'));
@@ -75,6 +109,9 @@ describe('Group 4–5 native autoplay', () => {
     expect(video.play).toHaveBeenCalledTimes(2);
 
     video.currentTime = 2.5;
+    video.dispatchEvent(new Event('timeupdate'));
+    expect(completed).not.toHaveBeenCalled();
+    video.presentFrame(2.5);
     video.ended = true;
     video.dispatchEvent(new Event('ended'));
     expect(progress.at(-1)).toBe(1);

@@ -11,6 +11,7 @@ import {
   disposeTimelineVideoDriver,
   driveTimelineVideo,
   prepareTimelineVideoFrame,
+  timelineVideoDriverFor,
   type TimelineVideoDriveInput
 } from '../../../media/timeline-video-driver';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
@@ -41,6 +42,7 @@ import {
 
 const TtgSurface = ttgAnimationScene.Component;
 const PHONE_TTG_INITIAL_DATA_TIMEOUT_MS = 8000;
+const PHONE_TTG_ENDPOINT_EVIDENCE_TIMEOUT_MS = 1000;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -212,6 +214,52 @@ export function phoneTtgHasReusableTerminalFrame(
   video: PhoneTtgEndpointVideo
 ): boolean {
   return phoneTtgHasReusableEndpointFrame(video, 1);
+}
+
+export function markPhoneTtgPresentedEndpoint(
+  video: HTMLVideoElement,
+  mediaTime: number
+): void {
+  const terminal = Number.isFinite(video.duration) && video.duration > 0
+    ? Math.min(TTG_FIGURE_END_SECONDS, video.duration)
+    : TTG_FIGURE_END_SECONDS;
+  if (Math.abs(mediaTime - terminal) > .08) return;
+  video.dataset.phoneGroup45FrameReady = 'true';
+  video.dataset.phoneTtgEndpointReady = 'terminal';
+}
+
+function waitForPhoneTtgEndpoint(
+  presented: () => boolean
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const startedAt = performance.now();
+    const inspect = (now: number) => {
+      if (presented()) {
+        resolve(true);
+        return;
+      }
+      if (now - startedAt >= PHONE_TTG_ENDPOINT_EVIDENCE_TIMEOUT_MS) {
+        resolve(false);
+        return;
+      }
+      window.requestAnimationFrame(inspect);
+    };
+    window.requestAnimationFrame(inspect);
+  });
+}
+
+function waitForPhoneTtgReverseEndpoint(
+  video: HTMLVideoElement,
+  runId: string
+): Promise<boolean> {
+  return waitForPhoneTtgEndpoint(() => {
+    const snapshot = timelineVideoDriverFor(video).snapshot();
+    return snapshot.runId === runId
+      && snapshot.direction === -1
+      && (snapshot.desiredProgress ?? 1) <= .001
+      && snapshot.frameReady
+      && video.currentTime <= .04;
+  });
 }
 
 function waitForPhoneTtgCurrentData(
@@ -734,47 +782,34 @@ export const PhoneTtg = forwardRef<
             );
           }
         },
+        onPresentedFrame: (mediaTime) => {
+          markPhoneTtgPresentedEndpoint(video, mediaTime);
+        },
         onComplete: (playbackDirection) => {
           const completionGeneration = runGenerationRef.current;
           hasForwardRunRef.current = playbackDirection === 1;
           forwardRequestedRef.current = false;
-          const endpoint = playbackDirection === 1 ? 1 : 0;
-          renderFrame(endpoint, playbackDirection);
           if (playbackDirection === 1) {
             const forwardVideo = videoRef.current;
             if (!forwardVideo) {
               failMedia();
               return;
             }
-            rootRef.current?.setAttribute(
-              'data-phone-ttg-playback',
-              'preparing-terminal-frame'
-            );
-            // Native time can finish between decoded frames on Safari. Pin
-            // the exact authored endpoint before Lab starts uncovering it.
-            void prepareTimelineVideoFrame(
-              forwardVideo,
-              ttgEndpointMediaInput(
-                'phone-ttg-forward-terminal-' + completionGeneration,
-                1,
-                1
-              )
-            ).then((result) => {
+            void waitForPhoneTtgEndpoint(
+              () => phoneTtgHasReusableEndpointFrame(forwardVideo, 1)
+            ).then((presented) => {
               if (
                 mediaRetiringRef.current
                 || completionGeneration !== runGenerationRef.current
               ) return;
-              if (result?.status !== 'ready') {
+              if (!presented) {
                 failMedia();
                 return;
               }
-              forwardVideo.dataset.phoneGroup45FrameReady = 'true';
-              forwardVideo.dataset.phoneTtgEndpointReady = 'terminal';
-              renderFrame(1);
               runChapterDissolve(1, completionGeneration, () => {
                 reportRunCompletion(1, completionGeneration);
               });
-            }).catch(failMedia);
+            });
             return;
           }
           const reverseVideo = videoRef.current;
@@ -782,26 +817,25 @@ export const PhoneTtg = forwardRef<
             failMedia();
             return;
           }
-          // Do not unlock the Lab boundary until the initial TTG frame is
-          // actually presented; a canonical clock endpoint is not evidence.
-          void prepareTimelineVideoFrame(
+          // The reverse driver already requested this endpoint during its real
+          // final tick. Wait for that presentation evidence without re-seeking.
+          void waitForPhoneTtgReverseEndpoint(
             reverseVideo,
-            ttgEndpointMediaInput(reverseRunIdRef.current, 0, -1)
-          ).then((result) => {
+            reverseRunIdRef.current
+          ).then((presented) => {
             if (
               mediaRetiringRef.current
               || completionGeneration !== runGenerationRef.current
             ) return;
-            if (result?.status !== 'ready') {
+            if (!presented) {
               failMedia();
               return;
             }
             reverseVideo.dataset.phoneGroup45FrameReady = 'true';
             reverseVideo.dataset.phoneTtgEndpointReady = 'initial';
             setMediaReady(true);
-            renderFrame(0);
             reportRunCompletion(-1, completionGeneration);
-          }).catch(failMedia);
+          });
         },
         onError: failMedia
       });
