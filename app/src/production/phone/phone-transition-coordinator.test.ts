@@ -130,7 +130,7 @@ describe('phone transition coordinator', () => {
     expect(preventDefault).toHaveBeenCalledOnce();
   });
 
-  it('owns unclaimed wheel displacement instead of relying on WebKit default scroll', () => {
+  it.fails('[Task 3] leaves unclaimed wheel displacement fully native', () => {
     const { root, testWindow } = installCoordinatorEnvironment();
     testWindow.scrollY = 400;
     const preventDefault = vi.fn();
@@ -143,16 +143,18 @@ describe('phone transition coordinator', () => {
       }
     );
 
+    const stopImmediatePropagation = vi.fn();
     root.dispatch('wheel', {
       target: null,
       deltaY: 250,
       deltaMode: 0,
       preventDefault,
-      stopImmediatePropagation: vi.fn()
+      stopImmediatePropagation
     });
 
-    expect(preventDefault).toHaveBeenCalledOnce();
-    expect(testWindow.scrollY).toBe(650);
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(stopImmediatePropagation).not.toHaveBeenCalled();
+    expect(testWindow.scrollY).toBe(400);
   });
 
   it('reuses the touch gesture identity for promoted Safari momentum', () => {

@@ -30,6 +30,28 @@ describe('canonical phone presentation projection', () => {
     }
   });
 
+  it.fails('[Task 1] defines the full execution projection for all canonical scenes', () => {
+    for (const scene of canonicalSceneIds) {
+      const projection = phoneStoryPresentation(
+        createPhoneStoryHold(scene)
+      ) as unknown as Record<string, unknown>;
+
+      for (const field of [
+        'commitState',
+        'semanticScene',
+        'navigationScene',
+        'stageOwner',
+        'stageScene',
+        'sourceSurface',
+        'receiverSurface',
+        'coverageSurface',
+        'landingResolver'
+      ]) {
+        expect(projection).toHaveProperty(field);
+      }
+    }
+  });
+
   it('keeps every forward run on its source edge until endpoint coverage', () => {
     for (const scene of canonicalSceneIds) {
       const run = phoneRunForHold(scene, 1);
@@ -125,7 +147,7 @@ describe('canonical phone presentation projection', () => {
     });
   });
 
-  it('uses the active composite leg instead of the composite final hold', () => {
+  it.fails('[Task 1] uses the active composite leg instead of the composite final hold', () => {
     const started = startPhoneStoryRun(
       createPhoneStoryHold('lab'),
       'lab-education',

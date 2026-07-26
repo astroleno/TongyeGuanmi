@@ -11,6 +11,15 @@ async function waitForPhoneHold(
   scene: string,
   timeout = 20_000
 ) {
+  return assertStablePhoneHold(page, scene, { timeout });
+}
+
+async function assertStablePhoneHold(
+  page: Page,
+  scene: string,
+  options: Readonly<{ strict?: boolean; timeout?: number }> = {}
+) {
+  const timeout = options.timeout ?? 20_000;
   const shell = page.locator(UNIT7_A_SHELL);
   await expect(page.locator(LIVE_STORY_LOADER)).toBeHidden({ timeout });
   await expect(shell).toHaveAttribute(
@@ -18,6 +27,28 @@ async function waitForPhoneHold(
     `hold:${scene}`,
     { timeout }
   );
+  if (!options.strict) return shell;
+  const snapshot = await shell.evaluate((root) => ({
+    authorityId: root.dataset.phoneAuthorityId ?? null,
+    revision: root.dataset.phoneRevision ?? null,
+    cursor: root.dataset.phoneCursor ?? null,
+    session: root.dataset.phoneSession ?? null,
+    input: root.dataset.phoneInputState ?? null,
+    anchor: root.dataset.phoneAnchorY ?? null,
+    projection: root.dataset.phoneProjectionState ?? null,
+    stableScene: root.dataset.phoneStableScene ?? null
+  }));
+
+  expect(snapshot).toEqual({
+    authorityId: expect.any(String),
+    revision: expect.any(String),
+    cursor: `hold:${scene}`,
+    session: null,
+    input: 'free',
+    anchor: null,
+    projection: 'stable',
+    stableScene: scene
+  });
   return shell;
 }
 

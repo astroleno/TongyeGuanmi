@@ -116,4 +116,41 @@ describe('canonical phone story sequence', () => {
     );
     expect(retryable).not.toHaveBeenCalled();
   });
+
+  for (const [scene, run, leg] of [
+    ['figure3-animation', 'brand-services', 1],
+    ['ttg-animation', 'services-lab', 1],
+    ['ph-animation', 'lab-education', 1],
+    ['crane-animation', 'education-contact', 1]
+  ] as const) {
+    it.fails(
+      `[Task 2] captures immutable execution identity for direct ${scene} entry`,
+      () => {
+        let session: PhoneOrchestratedRunSession | undefined;
+        const orchestrator = createPhoneStoryOrchestrator({
+          initialScene: scene,
+          scrollY: () => 100,
+          scrollTo: () => undefined
+        });
+
+        orchestrator.registerRunCapability(run, `direct:${run}`, {
+          position: () => 100,
+          canStart: () => true,
+          start: () => undefined,
+          startAtLeg: (_leg, activeSession) => {
+            session = activeSession;
+          }
+        });
+        orchestrator.activateDirectEntry();
+
+        expect(session).toMatchObject({
+          authorityId: expect.any(String),
+          sessionId: expect.any(String),
+          generation: expect.any(Number),
+          leg,
+          direction: 1
+        });
+      }
+    );
+  }
 });

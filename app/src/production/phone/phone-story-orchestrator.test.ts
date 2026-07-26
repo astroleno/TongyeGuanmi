@@ -56,7 +56,7 @@ describe('single phone story orchestrator', () => {
     });
   });
 
-  it('retains one unclaimed gesture until its adjacent hold and capability exist', () => {
+  it.fails('[Task 3] does not resurrect an unclaimed gesture after the source revision changes', () => {
     const start = vi.fn();
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'star-map',
@@ -73,10 +73,10 @@ describe('single phone story orchestrator', () => {
     expect(start).not.toHaveBeenCalled();
 
     orchestrator.reconcileHold('aod-animation');
-    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).not.toHaveBeenCalled();
     expect(orchestrator.cursor()).toMatchObject({
-      kind: 'transition',
-      run: 'aod-method'
+      kind: 'hold',
+      scene: 'aod-animation'
     });
   });
 
@@ -614,6 +614,25 @@ describe('single phone story orchestrator', () => {
     // the already-selected hold; it never lets the adapter select a scene.
     orchestrator.syncDiagnostics();
     expect(services).toHaveBeenCalledTimes(2);
+  });
+
+  it.fails('[Task 2] keeps stable visibility out of adapter commit callbacks', () => {
+    const commit = vi.fn();
+    const root = { dataset: {} } as HTMLElement;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'brand',
+      root,
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+
+    orchestrator.registerStableSceneAdapter('brand', 'brand', {
+      root: () => root,
+      commit
+    });
+    orchestrator.syncDiagnostics();
+
+    expect(commit).not.toHaveBeenCalled();
   });
 
   it('keeps the fixed-stage surface active through every canonical cursor', () => {
