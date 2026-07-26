@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  formalPhoneOwnershipViolations,
   phoneShellDebt,
   phoneShellCssDebt,
   phoneShellCssDebtViolations,
@@ -75,7 +76,11 @@ describe('homepage phone-shell debt ratchet', () => {
   });
 
   it('rejects shell growth even when a new line avoids the named debt patterns', () => {
-    expect(violationsFor(`${shellSource.trimEnd()}\nvoid 0;\n`)).toContain(
+    const currentLines = scanPhoneShellDebt(shellSource).lines;
+    const padding = '\nvoid 0;'.repeat(
+      phoneShellDebt.maxLines - currentLines + 1
+    );
+    expect(violationsFor(`${shellSource.trimEnd()}${padding}\n`)).toContain(
       `Unit 3 shell debt grew to ${phoneShellDebt.maxLines + 1} lines `
         + `(ratchet ${phoneShellDebt.maxLines})`
     );
@@ -116,5 +121,41 @@ describe('homepage phone-shell debt ratchet', () => {
       'phone-ink.ts',
       '../../transitions/shared/sceneInk'
     )).toEqual([]);
+  });
+
+  it('rejects split durable state and duplicate shell publishers', () => {
+    const baseline = [
+      {
+        file: 'PhoneStoryShell.tsx',
+        source: 'usePhoneEdgeSurface(root);'
+      },
+      {
+        file: 'usePhoneStoryOrchestratorRuntime.ts',
+        source: 'createPhoneIntentCoordinator(root, onIntent);'
+      },
+      {
+        file: 'PhoneGradeAStory.tsx',
+        source: 'registerCapabilities();'
+      }
+    ];
+    expect(formalPhoneOwnershipViolations(baseline)).toEqual([]);
+    expect(formalPhoneOwnershipViolations([
+      ...baseline,
+      {
+        file: 'PhoneBrandLabContinuation.tsx',
+        source: 'const visualRunPhaseRef = useRef("idle");'
+      }
+    ])).toContain(
+      'PhoneBrandLabContinuation.tsx: visualRunPhaseRef is forbidden'
+    );
+    expect(formalPhoneOwnershipViolations([
+      ...baseline,
+      {
+        file: 'PhoneLabContactContinuation.tsx',
+        source: 'usePhoneEdgeSurface(root);'
+      }
+    ])).toContain(
+      'formal phone route must have exactly one edge publisher (found 2)'
+    );
   });
 });

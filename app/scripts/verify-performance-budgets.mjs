@@ -12,7 +12,7 @@ const MiB = 1024 * KiB;
 const desktopJsHardCapBytes = 568 * KiB;
 const phoneJsHardCapBytes = 648 * KiB;
 const totalJsHardCapBytes = phoneJsHardCapBytes;
-const requiredTotalJsHeadroomBytes = 4 * KiB;
+const recommendedJsHeadroomBytes = 4 * KiB;
 const budgets = {
   initialJsRawBytes: 360 * KiB,
   initialJsGzipBytes: 112 * KiB,
@@ -38,10 +38,10 @@ function assertBudget(name, actual, budget) {
   }
 }
 
-function assertHeadroom(name, actual, required) {
-  if (actual < required) {
-    throw new Error(`${name} below required headroom: ${actual} < ${required}`);
-  }
+function headroomWarning(name, actual, recommended) {
+  return actual < recommended
+    ? `${name} below recommended headroom: ${actual} < ${recommended}`
+    : null;
 }
 
 async function filesBelow(directory) {
@@ -172,22 +172,40 @@ for (const [name, budget] of Object.entries(budgets)) {
 const desktopJsHeadroomBytes = desktopJsHardCapBytes - actual.desktopJsRawBytes;
 const phoneJsHeadroomBytes = phoneJsHardCapBytes - actual.phoneJsRawBytes;
 const totalJsHeadroomBytes = totalJsHardCapBytes - actual.totalJsRawBytes;
-assertHeadroom('desktopJsHeadroomBytes', desktopJsHeadroomBytes, requiredTotalJsHeadroomBytes);
-assertHeadroom('phoneJsHeadroomBytes', phoneJsHeadroomBytes, requiredTotalJsHeadroomBytes);
-assertHeadroom('totalJsHeadroomBytes', totalJsHeadroomBytes, requiredTotalJsHeadroomBytes);
+const warnings = [
+  headroomWarning(
+    'desktopJsHeadroomBytes',
+    desktopJsHeadroomBytes,
+    recommendedJsHeadroomBytes
+  ),
+  headroomWarning(
+    'phoneJsHeadroomBytes',
+    phoneJsHeadroomBytes,
+    recommendedJsHeadroomBytes
+  ),
+  headroomWarning(
+    'totalJsHeadroomBytes',
+    totalJsHeadroomBytes,
+    recommendedJsHeadroomBytes
+  )
+].filter(Boolean);
+for (const warning of warnings) {
+  process.stderr.write(`[performance-budget] warning: ${warning}\n`);
+}
 
 const report = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   budgets,
   headroom: {
     desktopJsHardCapBytes,
     phoneJsHardCapBytes,
     totalJsHardCapBytes,
-    requiredTotalJsHeadroomBytes,
+    recommendedJsHeadroomBytes,
     desktopJsHeadroomBytes,
     phoneJsHeadroomBytes,
     totalJsHeadroomBytes
   },
+  warnings,
   actual,
   presentationFamilies: {
     desktopJsRawBytes: desktopPresentation.bytes,

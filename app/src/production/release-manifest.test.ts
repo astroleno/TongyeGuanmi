@@ -53,6 +53,13 @@ const deepMediaVerifier = readFileSync(
   new URL('../../scripts/verify-homepage-media-deep.mjs', import.meta.url),
   'utf8'
 );
+const phoneMasterVerifier = readFileSync(
+  new URL(
+    '../../scripts/verify-phone-packed-alpha-masters.mjs',
+    import.meta.url
+  ),
+  'utf8'
+);
 const memoryRunner = readFileSync(
   new URL('../../scripts/run-r5-process-memory.mjs', import.meta.url),
   'utf8'
@@ -647,7 +654,7 @@ it('keeps GitHub Actions to a lightweight Node quality gate', () => {
   expect(nodeCiWorkflow).not.toContain('upload-artifact');
 });
 
-it('keeps deep WebM qualification local and out of GitHub workflows', () => {
+it('keeps deep media qualification local and read-only', () => {
   expect(rootPackage.scripts['verify:media']).toBe('pnpm -C app run verify:media');
   expect(rootPackage.scripts['verify:media:deep']).toBe(
     'pnpm -C app run verify:media:deep'
@@ -659,7 +666,7 @@ it('keeps deep WebM qualification local and out of GitHub workflows', () => {
     'node scripts/verify-homepage-media-inventory.mjs'
   );
   expect(appPackage.scripts['verify:media:deep']).toBe(
-    'node scripts/verify-homepage-media-deep.mjs'
+    'pnpm run verify:media:phone-masters && node scripts/verify-homepage-media-deep.mjs'
   );
   expect(staticMediaVerifier).not.toContain('ffprobe');
   expect(staticMediaVerifier).toContain('frozenHomepageMedia');
@@ -672,6 +679,9 @@ it('keeps deep WebM qualification local and out of GitHub workflows', () => {
   expect(deepMediaVerifier).toContain('alphaSsimMin: 0.9955');
   expect(deepMediaVerifier).toContain('keyframeIndexes');
   expect(deepMediaVerifier).toContain('expectedFrameStep');
+  expect(phoneMasterVerifier).toContain("mode: 'read-only'");
+  expect(phoneMasterVerifier).toContain('firstFrameRgbaSha256');
+  expect(phoneMasterVerifier).not.toMatch(/\b(?:writeFile|mkdtemp|rename)\b/);
   expect(workflowSources).not.toMatch(/\bff(?:mpeg|probe)\b/i);
   expect(workflowSources).not.toContain('verify:media:deep');
   expect(workflowSources).not.toMatch(/\bplaywright\b/i);

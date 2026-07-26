@@ -14,6 +14,15 @@ const storyDir = path.join(sourceDir, 'story');
 const sourceExtensions = new Set(['.ts', '.tsx']);
 const phoneShellPath = path.join(phoneDir, 'PhoneStoryShell.tsx');
 const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
+const formalPhoneOwnershipPaths = [
+  phoneShellPath,
+  path.join(phoneDir, 'PhoneGradeAStory.tsx'),
+  path.join(phoneDir, 'PhoneBrandLabContinuation.tsx'),
+  path.join(phoneDir, 'PhoneLabContactContinuation.tsx'),
+  path.join(phoneDir, 'PhoneGroup67DirectEntry.tsx'),
+  path.join(phoneDir, 'usePhoneStageRuntime.ts'),
+  path.join(phoneDir, 'usePhoneStoryOrchestratorRuntime.ts')
+];
 
 /** Unit 3 final boundary: the shell owns geometry, never scene presentation. */
 export const phoneShellDebt = Object.freeze({
@@ -35,7 +44,11 @@ export const phoneShellDebt = Object.freeze({
     'module-loaders.ts::../../transitions/brand-figure3/phone',
     'module-loaders.ts::../../transitions/figure3-services/phone',
     'module-loaders.ts::../../transitions/services-ttg/phone',
-    'module-loaders.ts::../../transitions/ttg-lab/phone'
+    'module-loaders.ts::../../transitions/ttg-lab/phone',
+    'module-loaders.ts::../../transitions/lab-ph/phone',
+    'module-loaders.ts::../../transitions/ph-education/phone',
+    'module-loaders.ts::../../transitions/education-crane/phone',
+    'module-loaders.ts::../../transitions/crane-contact/phone'
   ]),
   sceneRoots: new Set(),
   mediaKeys: new Set(),
@@ -208,6 +221,57 @@ export function shellZoneRendererImportViolations(
     : [`new shell-zone renderer import is forbidden (${relativeFile} -> ${specifier})`];
 }
 
+export function formalPhoneOwnershipViolations(files) {
+  const found = [];
+  const forbiddenState = [
+    'completedInk',
+    'visualRunPhaseRef',
+    'phasesRef',
+    'releaseBoundaryGeometryAtEndpoints'
+  ];
+  for (const { file, source } of files) {
+    for (const token of forbiddenState) {
+      if (source.includes(token)) found.push(`${file}: ${token} is forbidden`);
+    }
+    const shellOwner = file.endsWith('PhoneStoryShell.tsx');
+    const runtimeOwner = file.endsWith('usePhoneStoryOrchestratorRuntime.ts');
+    if (
+      !shellOwner
+      && !runtimeOwner
+      && /\bPhoneTransitionSession\b|\bwindow\.scrollTo\s*\(/.test(source)
+    ) {
+      found.push(`${file}: child-owned session or scroll landing is forbidden`);
+    }
+    if (
+      !shellOwner
+      && /\b(?:publishCheckpoint|publishScene|publishEdgeScene|onCheckpoint|onSceneChange|onEdgeScene|reportPresentation)\b/.test(source)
+    ) {
+      found.push(`${file}: child semantic publication is forbidden`);
+    }
+  }
+  const edgePublishers = files.reduce(
+    (count, { source }) => count
+      + [...source.matchAll(/\busePhoneEdgeSurface\s*\(/g)].length,
+    0
+  );
+  if (edgePublishers !== 1) {
+    found.push(
+      `formal phone route must have exactly one edge publisher (found ${edgePublishers})`
+    );
+  }
+  const intentCoordinators = files.reduce(
+    (count, { source }) => count
+      + [...source.matchAll(/\bcreatePhoneIntentCoordinator\s*\(/g)].length,
+    0
+  );
+  if (intentCoordinators !== 1) {
+    found.push(
+      `formal phone route must have exactly one intent coordinator (found ${intentCoordinators})`
+    );
+  }
+  return found;
+}
+
 const violations = [];
 
 for (const file of await filesBelow(productionDir)) {
@@ -278,6 +342,14 @@ const phoneShellCssSnapshot = scanPhoneShellCssDebt(phoneShellCssSource);
 for (const violation of phoneShellCssDebtViolations(phoneShellCssSnapshot)) {
   violations.push(`${display(phoneShellCssPath)}: ${violation}`);
 }
+
+const formalPhoneOwnershipSources = await Promise.all(
+  formalPhoneOwnershipPaths.map(async (file) => ({
+    file: display(file),
+    source: await readFile(file, 'utf8')
+  }))
+);
+violations.push(...formalPhoneOwnershipViolations(formalPhoneOwnershipSources));
 
 for (const file of await filesBelow(path.join(phoneDir, 'scenes'))) {
   const source = await readFile(file, 'utf8');

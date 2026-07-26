@@ -67,8 +67,31 @@ details:
 - transactional visual rollback with retryability reported outside the cursor;
 - gesture-epoch consumption/rearm;
 - Strict Mode-safe capability leases and run-scoped mount retention;
-- exact static-opening assets/current Crane flock identity;
+- exact existing packed-alpha master/current Crane flock identity;
 - early physical evidence, missing sequence/layer tests, and frozen build budgets.
+
+Implementation correction confirmed by the user on 2026-07-25:
+
+- Unit 7B must repair orchestration, preparation, handoff, rollback, and retry
+  ownership; the accepted PH/Crane implementations did not depend on generated
+  opening plates.
+- Do not regenerate, replace, or rewrite PH/Crane media in this work.
+- Forward packed-alpha preparation proves mounted topology only and does not
+  pre-play hidden media. Native playback begins after the entry handoff.
+- Keep the existing masters frozen and verify their file identities plus their
+  decoded composed-RGBA first-frame hashes through a read-only verifier.
+
+This correction supersedes the static-opening generation language later in the
+original plan.
+
+Budget correction confirmed by the user on 2026-07-25:
+
+- Keep the `648 KiB` phone JavaScript ceiling as a hard build gate.
+- Treat `4 KiB` of remaining headroom as a build warning, not a second hard
+  gate.
+- Optimize only real duplicated logic; do not compress lifecycle names,
+  diagnostics, or transaction state merely to satisfy the recommended
+  headroom.
 
 ## 3. Confirmed causes, hypotheses, and corresponding root contracts
 
@@ -79,7 +102,7 @@ details:
 | 3. Proof → Brand omits Brand | Confirmed stacking fault: Brand is forced to z=0 below the z=8 paper | Brand is the registered `to` endpoint and receives the controller-owned `transition-endpoint` layer role before ink starts |
 | 4. Brand flashes after Brand → Figure3 | Confirmed endpoint-release regression from `releaseBoundaryGeometryAtEndpoints` | Endpoint visibility is committed before clip/mask geometry is released; release is protected by a run-scoped geometry lease |
 | 5. Reverse jumps/corrupts later runs | Confirmed split phase plus anchor regression; not an inherent “TTG selects Proof” rule | Only the boundary adjacent to the cursor can run; one session owns phase and accepted reverse overshoot/preserve semantics |
-| 6. Crane first run shows only camera enlargement | Exact physical cause still requires run/frame evidence; the newly introduced pre-play and stale Canvas-frame race is credible | Forward preparation uses an explicit static opening plate, never pre-play; formal media progress is gated by Canvas evidence carrying the current session generation |
+| 6. Crane first run shows only camera enlargement | Exact physical cause still requires run/frame evidence; the newly introduced hidden pre-play and stale handoff race is credible | Forward preparation proves topology without hidden playback; the orchestrator starts native playback only after the ink handoff, and playback failure rolls back instead of advancing the camera-only endpoint |
 | 7. Crane reverse cannot reveal Education | Confirmed physical-coordinate fault: Education is above the locked viewport | Controller aligns the real Education document tail into the fixed transition plane for the reverse ink, without cloning it |
 | 8. Lab → PH / PH → Education intermittently blank | Confirmed dependency-closure mismatch and infinite readiness polling | Static per-run closure includes PH, Education, both transitions, and source; unresolved readiness times out and rolls back to Lab |
 | 9. Brand → Figure3 often appears not to trigger | Confirmed risk from stale phase, double ownership, and unbounded readiness; `0.16` is not a trigger window | Adjacent intent is retained for one boundary only; approach prewarm resolves the complete run closure; no boundary skipping |
@@ -280,9 +303,11 @@ The closure is the run contract. Group-local focus plans may request it, but may
 ### 7.2 Two readiness levels
 
 1. **Dependency ready:** every required module is loaded, mounted, registered, and reports its static endpoint.
-2. **Presented ready:** the target owns either:
-   - a Canvas frame tagged with the active run generation; or
-   - an explicit canonical static opening plate allowed by the scene contract.
+2. **Presentation topology ready:** the real target root, video, compositor,
+   and Canvas are mounted and registered for the active run. Forward
+   preparation must not play hidden media merely to manufacture readiness.
+   Reverse endpoint preparation may still wait for the existing timeline seek
+   to present the authored terminal frame.
 
 Approach prewarm starts before the edge. If a gesture crosses before dependency readiness:
 
@@ -385,27 +410,17 @@ Use `viewport-end` for the last readable screen of Lab and Education when they a
 
 This makes Education copy physically present inside the Crane → Education reverse ink instead of remaining two screens above the locked viewport.
 
-## 10. Current-run packed-alpha evidence
+## 10. Packed-alpha preparation and frozen-master evidence
 
 ### 10.1 Separate static preparation from playback
 
 For a forward PH/Crane entry:
 
-- resolve `prepareTargetPresentation()` from an explicit canonical RGBA
-  frame-zero opening plate;
+- resolve `prepareTargetPresentation()` after the real packed-alpha topology is
+  mounted and registered;
 - do not call `video.play()` and then `pause()` during preparation;
 - start native playback only after the entry ink completes and the user-owned transition session still matches.
-
-The frame-zero plates are derived from the current packed-alpha masters without
-changing composition or timing:
-
-- `assets/ph-figure-opening.webp`;
-- `assets/crane-figure-opening.webp`;
-- `assets/crane-flock-opening.webp`.
-
-If the derived pixels cannot be proven equivalent to packed-alpha frame zero,
-the scene cannot claim `static-opening` readiness and must wait for a
-current-generation Canvas frame instead.
+- do not create or install derived frame-zero opening assets.
 
 The current Crane flock masters are frozen for this work:
 
@@ -419,31 +434,21 @@ The current Crane flock masters are frozen for this work:
 For reverse:
 
 - prepare the terminal Canvas frame through the existing timeline/seek path;
-- require both Crane Canvas surfaces to carry the current session generation.
+- require both existing Crane Canvas surfaces to present the terminal endpoint
+  before reverse playback begins.
 
-### 10.2 Generation-tag Canvas presentation
+### 10.2 Read-only master and first-frame qualification
 
-The packed-alpha surface publishes:
+Add a read-only verifier for the existing PH figure, Crane figure, and current
+Crane flock packed RGB/alpha masters. For each source it must verify:
 
-```ts
-type PhonePresentedFrame = Readonly<{
-  ownerId: string;
-  generation: number;
-  frameRevision: number;
-  mediaTime: number;
-}>;
-```
+- frozen file byte count and SHA-256 from the production inventory;
+- the SHA-256 of the first composed RGBA frame decoded directly from the
+  side-by-side RGB/alpha master;
+- expected composed dimensions and raw byte count.
 
-The compositor stamps the Canvas with the owner/generation that caused the frame. Old preparation pixels cannot satisfy a new formal run.
-
-During forward Crane:
-
-- the camera stays at progress zero while phase is `awaiting-presented-frame`;
-- flock progress may begin only after a flock Canvas frame matches the active generation;
-- figure-driven progress after its authored 0.5s cue may begin only after the figure Canvas matches that generation;
-- timeout returns to Education instead of running a camera over a stale first frame.
-
-The same invariant applies to PH so the race cannot reappear at the preceding cinematic chapter.
+The verifier must stream decoded pixels through memory only. It may not write
+or regenerate any media asset.
 
 ## 11. Implementation tasks
 
@@ -890,12 +895,8 @@ git commit -m "refactor(r5): unify Lab through Contact phone ownership"
 
 **Files:**
 
-- Create: `app/scripts/rebuild-phone-packed-alpha-opening-plates.mjs`
-- Create: `assets/ph-figure-opening.webp`
-- Create: `assets/crane-figure-opening.webp`
-- Create: `assets/crane-flock-opening.webp`
-- Modify: `app/scripts/homepage-media-contract.mjs`
-- Modify: `app/scripts/verify-homepage-media-inventory.mjs`
+- Create: `app/scripts/verify-phone-packed-alpha-masters.mjs`
+- Modify: `app/package.json`
 - Modify: `app/src/production/phone/scenes/phone-packed-alpha-surface.ts`
 - Modify: `app/src/production/phone/scenes/phone-packed-alpha-surface.test.ts`
 - Modify: `app/src/production/phone/phone-native-autoplay.ts`
@@ -908,22 +909,15 @@ git commit -m "refactor(r5): unify Lab through Contact phone ownership"
 - Modify: `app/e2e/r5-crane-media.spec.ts`
 
 - [ ] Remove preparation-time `video.play()`/`pause()` priming.
-- [ ] Generate exact RGBA frame-zero PH/Crane opening plates from the canonical
-  packed-alpha masters and add them to inventory/hash/budget verification.
-- [ ] Add explicit `static-opening` readiness only while the matching canonical
-  plate is visibly installed.
+- [ ] Make forward preparation prove real mounted topology without starting
+  hidden playback.
 - [ ] Assert the three current Crane flock master hashes remain unchanged.
-- [ ] Stamp every compositor frame with session owner, generation, and revision.
-- [ ] Reset current-run frame readiness on every formal start.
-- [ ] Gate PH/Crane forward progress on matching Canvas evidence, not merely video `currentTime`.
-- [ ] For Crane, gate flock and figure progress independently at their authored cues.
-- [ ] Publish diagnostic evidence:
-  - active session/generation;
-  - video time;
-  - Canvas generation/revision;
-  - first current-run Canvas timestamp.
-- [ ] On current-run frame timeout, abort to the source hold; do not continue camera-only motion.
-- [ ] Keep the existing reverse timeline-frame preparation and require matching generation.
+- [ ] Verify the frozen PH/Crane packed master identities and decoded composed
+  first-frame RGBA hashes without writing files.
+- [ ] Begin PH/Crane native playback only after the entry handoff commits media
+  ownership to the cinematic scene.
+- [ ] On native playback failure, abort to the source hold; do not continue camera-only motion.
+- [ ] Keep the existing reverse terminal-frame timeline preparation.
 
 Run:
 
@@ -935,12 +929,15 @@ pnpm -C app test -- \
   src/transitions/group7-transitions.test.ts
 ```
 
-Expected: pass. A stale preparation frame must not satisfy a new PH or Crane run.
+Expected: pass. Forward preparation performs no hidden play/pause, reverse
+preparation retains the authored endpoint contract, and the frozen master plus
+first-frame hashes match.
 
 Commit:
 
 ```bash
-git add app/src/production/phone/scenes/phone-packed-alpha-surface.ts \
+git add app/scripts/verify-phone-packed-alpha-masters.mjs app/package.json \
+  app/src/production/phone/scenes/phone-packed-alpha-surface.ts \
   app/src/production/phone/scenes/phone-packed-alpha-surface.test.ts \
   app/src/production/phone/phone-native-autoplay.ts \
   app/src/production/phone/phone-native-autoplay.test.ts \
@@ -949,7 +946,7 @@ git add app/src/production/phone/scenes/phone-packed-alpha-surface.ts \
   app/src/transitions/group6-transitions.test.ts \
   app/src/transitions/group7-transitions.test.ts \
   app/e2e/r5-crane-media.spec.ts
-git commit -m "fix(r5): require current-run packed-alpha frames"
+git commit -m "fix(r5): bind packed-alpha playback to phone handoff"
 ```
 
 ### Task 10: Move AOD time ownership into the same phone authority
@@ -1145,7 +1142,7 @@ git commit -m "test(r5): accept canonical phone orchestration"
 | Geometry | run lease, stale release rejection, atomic endpoint visibility |
 | Layering | every active receiver above z=8 fallback; no Grade A-specific Brand suppression |
 | Figure2 | normalized 0→1 maps monotonically to authored 0.72→1; Proof is live receiver |
-| Media | current-run Canvas generation, PH/Crane forward, reverse prepared frame, stall rollback |
+| Media | no hidden forward priming, frozen master/first-frame hashes, PH/Crane forward, reverse prepared frame, stall rollback |
 | Sequence | two full forward/reverse loops without reload |
 | Direct entry | stable and cinematic entries initialize one cursor and one dependency closure |
 | Reduced motion | same legal cursor order and endpoint commits without media |
@@ -1191,6 +1188,7 @@ The work is complete only when all are true:
 - Brand and Lab seams have exactly one boundary owner;
 - endpoint geometry release is run-scoped and atomic;
 - edge publication has one caller;
-- current-run Canvas evidence gates PH/Crane moving presentation;
+- PH/Crane forward playback begins only after the canonical handoff, reverse
+  retains terminal-frame preparation, and frozen media/first-frame hashes pass;
 - full forward and reverse paths pass automated state gates;
 - the complete physical-iPhone journey is accepted and recorded.
