@@ -7,10 +7,8 @@ import {
 } from 'react';
 import type { StoryLoaderExitReason } from '../StoryLoader';
 import {
-  loadPhoneLoaderAdapter,
   loadPhoneSceneAdapter,
   loadPhoneTransitionAdapter,
-  resolvedPhoneLoaderAdapter,
   resolvedPhoneSceneAdapter,
   resolvedPhoneTransitionAdapter
 } from './module-loaders';
@@ -18,7 +16,6 @@ import { markPhoneLoaderCompletedInDocument } from './phone-loader-lifecycle';
 import type {
   PhoneAodAdapterComponent,
   PhoneHeroAdapterComponent,
-  PhoneLoaderAdapterComponent,
   PhoneMethodAdapterComponent,
   PhonePatternAdapterComponent,
   PhoneStarMapAdapterComponent,
@@ -26,7 +23,6 @@ import type {
 } from './types';
 
 type FrontHalfModules = Readonly<{
-  Loader: PhoneLoaderAdapterComponent | undefined;
   Hero: PhoneHeroAdapterComponent | undefined;
   Pattern: PhonePatternAdapterComponent | undefined;
   StarMap: PhoneStarMapAdapterComponent | undefined;
@@ -51,7 +47,6 @@ function resolvedFrontHalfModules(): FrontHalfModules {
   const starMapAod = resolvedPhoneTransitionAdapter('star-map-aod');
   const aodMethodTop = resolvedPhoneTransitionAdapter('aod-method-top');
   return {
-    Loader: resolvedPhoneLoaderAdapter()?.Component,
     Hero: hero?.Component as PhoneHeroAdapterComponent | undefined,
     Pattern: pattern?.Component as PhonePatternAdapterComponent | undefined,
     StarMap: starMap?.Component as PhoneStarMapAdapterComponent | undefined,
@@ -68,8 +63,7 @@ function resolvedFrontHalfModules(): FrontHalfModules {
 
 function frontHalfModulesReady(modules: FrontHalfModules): boolean {
   return Boolean(
-    modules.Loader
-    && modules.Hero
+    modules.Hero
     && modules.Pattern
     && modules.StarMap
     && modules.Aod
@@ -141,7 +135,6 @@ export function usePhoneFrontHalfAdapters(
     if (!enabled || modulesReady) return;
     let current = true;
     const loads = [
-      loadPhoneLoaderAdapter(),
       ...(['hero', 'pattern', 'star-map', 'aod-animation', 'method-top'] as const)
         .map(loadPhoneSceneAdapter),
       ...(['hero-pattern', 'pattern-star-map', 'star-map-aod', 'aod-method-top'] as const)

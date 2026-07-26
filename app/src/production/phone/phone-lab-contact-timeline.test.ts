@@ -13,7 +13,6 @@ import {
   phoneLabContactRetainsCraneTerminal,
   phoneLabContactRetainsPhTerminal,
   phoneLabContactVisualBoundaryY,
-  phoneLabContactVisualRunAnchor,
   type PhoneLabContactCinematicRunState
 } from './phone-lab-contact-timeline';
 
@@ -86,11 +85,6 @@ describe('phone Lab → Contact shared-boundary timeline', () => {
     )).toBe(false);
   });
 
-  it('pins forward to the edge and keeps reverse overshoot already presented', () => {
-    expect(phoneLabContactVisualRunAnchor(1510, 1542, 1)).toBe(1542);
-    expect(phoneLabContactVisualRunAnchor(1510, 1542, -1)).toBe(1510);
-    expect(phoneLabContactVisualRunAnchor(1560, 1542, -1)).toBe(1542);
-  });
 
   it('arms touch reverse on the same released boundary', () => {
     expect(phoneLabContactCanArmReverseGesture(

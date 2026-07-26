@@ -5,11 +5,12 @@ import {
   useLayoutEffect,
   useRef
 } from 'react';
+import { semanticBoolean } from '../../../runtime/semantic-data-attribute';
 import {
-  createPackedAlphaVideoCompositor,
-  setPackedAlphaVideoSource,
-  type PackedAlphaVideoCompositor
-} from '../../../media/packed-alpha-video';
+  createPhonePackedAlphaSurface,
+  type PhonePackedAlphaSurfaceMode,
+  type PhonePackedAlphaSurface
+} from './phone-packed-alpha-surface';
 import {
   disposeFigure2Media,
   ensureFigure2HoldFrame,
@@ -33,7 +34,7 @@ const FIGURE2_POSTER_IMAGE = phoneMediaUrlFor(
   'figure2-pair-poster',
   'figure2-animation'
 );
-const FIGURE2_PACKED_FRAME_TIMEOUT_MS = 3000;
+const FIGURE2_ENDPOINT_SECONDS = 2.6;
 
 /** Phone composition for the canonical Figure2 media/camera owner. */
 export const PhoneFigure2 = forwardRef<
@@ -41,21 +42,74 @@ export const PhoneFigure2 = forwardRef<
   PhoneSceneAdapterProps
 >(function PhoneFigure2({ onReady }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
-  const compositorRef = useRef<PackedAlphaVideoCompositor | undefined>(undefined);
+  const packedSurfaceRef = useRef<PhonePackedAlphaSurface | undefined>(undefined);
+  const mediaControllerRef = useRef<AbortController | undefined>(undefined);
   const sceneActiveRef = useRef(false);
+  const scrollProgressRef = useRef(0);
+  const scrollDirectionRef = useRef<1 | -1>(1);
+  const releasePackedSurface = useCallback(() => {
+    const root = rootRef.current;
+    mediaControllerRef.current?.abort();
+    mediaControllerRef.current = undefined;
+    packedSurfaceRef.current?.release();
+    if (root) parkFigure2Media(root);
+  }, []);
+  const ensurePackedSurface = useCallback((
+    mode: PhonePackedAlphaSurfaceMode = 'forward'
+  ) => {
+    const root = rootRef.current;
+    const video = root?.querySelector<HTMLVideoElement>(
+      '[data-figure2-combined-video]'
+    );
+    const canvas = root?.querySelector<HTMLCanvasElement>(
+      '[data-figure2-packed-alpha-canvas]'
+    );
+    const container = video?.parentElement;
+    if (!root || !video || !canvas || !container) return undefined;
+    const controller = new AbortController();
+    mediaControllerRef.current?.abort();
+    mediaControllerRef.current = controller;
+    const surface = packedSurfaceRef.current ?? createPhonePackedAlphaSurface({
+      root,
+      container,
+      canvas,
+      video,
+      packedSourceUrl: FIGURE2_PACKED_ALPHA_VIDEO,
+      endpointSeconds: FIGURE2_ENDPOINT_SECONDS,
+      statusDataset: 'phoneFigure2Alpha',
+      layerName: 'figure2-pair',
+      canvasClassName: 'r4-figure2__packed-alpha-canvas',
+      onFrame() {
+        video.dataset.phoneFigure2Alpha = 'verified';
+        canvas.dataset.phoneFigure2Alpha = 'verified';
+      }
+    });
+    packedSurfaceRef.current = surface;
+    surface.activate(mode);
+    if (root.dataset.phoneFigure2Alpha === 'awaiting-native-playback') {
+      root.dataset.phoneFigure2Alpha = 'probing';
+      video.dataset.phoneFigure2Alpha = 'probing';
+    } else if (root.dataset.phoneFigure2Alpha === 'static-fallback') {
+      root.dataset.phoneFigure2Alpha = 'poster-fallback';
+      video.dataset.phoneFigure2Alpha = 'poster-fallback';
+    }
+    void ensureFigure2HoldFrame(root, controller.signal)
+      .then(() => {
+        if (!controller.signal.aborted && !sceneActiveRef.current) {
+          parkFigure2Media(root);
+        }
+      }).catch(() => undefined);
+    return surface;
+  }, []);
   const setSceneActive = useCallback((active: boolean) => {
     const root = rootRef.current;
-    if (!root) return;
-    if (!active) {
-      compositorRef.current?.setActive(false);
-      parkFigure2Media(root);
-    }
+    if (!root || sceneActiveRef.current === active) return;
     sceneActiveRef.current = active;
-    root.dataset.phoneFigure2Active = String(active);
-    if (active) {
-      compositorRef.current?.setActive(true);
+    if (!active) {
+      releasePackedSurface();
     }
-  }, []);
+    root.dataset.phoneFigure2Active = semanticBoolean(active);
+  }, [releasePackedSurface]);
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'stage') {
       rootRef.current = element?.closest<HTMLElement>('[data-r4-scene="figure2-animation"]') ?? null;
@@ -68,101 +122,59 @@ export const PhoneFigure2 = forwardRef<
     const video = root.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
     const canvas = root.querySelector<HTMLCanvasElement>('[data-figure2-packed-alpha-canvas]');
     if (!video || !canvas) {
-      root.dataset.phoneFigure2Ready = 'failed';
+      if (import.meta.env.DEV) root.dataset.phoneFigure2Ready = 'failed';
       return;
     }
     root.dataset.phoneFigure2Active = 'false';
-    const controller = new AbortController();
-    let packedFrameTimeout = 0;
     root.style.setProperty(
       '--phone-figure2-poster-image',
       `url(${JSON.stringify(FIGURE2_POSTER_IMAGE)})`
     );
-    const poster = new Image();
-    poster.decoding = 'async';
-    poster.src = FIGURE2_POSTER_IMAGE;
-    void poster.decode().then(() => {
-      if (!controller.signal.aborted) {
-        root.dataset.phoneFigure2PosterReady = 'true';
-      }
-    }).catch(() => {
-      if (!controller.signal.aborted) {
-        root.dataset.phoneFigure2PosterReady = 'failed';
-      }
-    });
-
-    const compositor = createPackedAlphaVideoCompositor({
-      video,
-      canvas,
-      onFrame: () => {
-        if (video.dataset.packedAlphaSource !== 'rgb-alpha-side-by-side') return;
-        if (packedFrameTimeout) window.clearTimeout(packedFrameTimeout);
-        video.dataset.phoneFigure2Alpha = 'verified';
-        canvas.dataset.phoneFigure2Alpha = 'verified';
-        root.dataset.phoneFigure2Alpha = 'verified';
-      }
-    });
-    compositorRef.current = compositor;
-    compositor.setActive(sceneActiveRef.current);
-
-    const compositorStatus = canvas.dataset.packedAlphaStatus;
-    const packedCompositorAvailable = compositorStatus !== 'webgl-unavailable'
-      && compositorStatus !== 'setup-failed';
-    if (packedCompositorAvailable) {
-      root.dataset.phoneFigure2Alpha = 'probing';
-      video.dataset.phoneFigure2Alpha = 'probing';
-      setPackedAlphaVideoSource(video, FIGURE2_PACKED_ALPHA_VIDEO);
-      packedFrameTimeout = window.setTimeout(() => {
-        if (root.dataset.phoneFigure2Alpha === 'verified') return;
-        root.dataset.phoneFigure2Alpha = 'poster-fallback';
-        video.dataset.phoneFigure2Alpha = 'poster-fallback';
-      }, FIGURE2_PACKED_FRAME_TIMEOUT_MS);
-    } else {
-      root.dataset.phoneFigure2Alpha = 'canonical-fallback';
-    }
-
     /*
      * Scene/transition readiness must never depend on Safari producing a
      * decoded WebGL video frame. The transparent opening poster is the visual
      * fallback; packed video upgrades it asynchronously when decoding works.
      */
-    root.dataset.phoneFigure2Ready = 'true';
+    if (import.meta.env.DEV) root.dataset.phoneFigure2Ready = 'true';
     onReady?.();
-    void ensureFigure2HoldFrame(root, controller.signal)
-      .then(() => {
-        if (controller.signal.aborted) return;
-        root.dataset.phoneFigure2MediaReady = 'true';
-        if (!sceneActiveRef.current) {
-          parkFigure2Media(root);
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          root.dataset.phoneFigure2MediaReady = 'poster-fallback';
-        }
-      });
     return () => {
-      controller.abort();
-      if (packedFrameTimeout) window.clearTimeout(packedFrameTimeout);
-      compositor.dispose();
+      releasePackedSurface();
+      packedSurfaceRef.current?.dispose();
+      packedSurfaceRef.current = undefined;
       disposeFigure2Media(root);
-      if (compositorRef.current === compositor) compositorRef.current = undefined;
       root.style.removeProperty('--phone-figure2-poster-image');
       delete root.dataset.phoneFigure2Alpha;
-      delete root.dataset.phoneFigure2Ready;
-      delete root.dataset.phoneFigure2MediaReady;
-      delete root.dataset.phoneFigure2PosterReady;
+      if (import.meta.env.DEV) delete root.dataset.phoneFigure2Ready;
       delete root.dataset.phoneFigure2Active;
       delete video.dataset.phoneFigure2Alpha;
       delete canvas.dataset.phoneFigure2Alpha;
     };
-  }, [onReady]);
+  }, [onReady, releasePackedSurface]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
+    async prepareTargetPresentation({ progress, signal }) {
+      const mode = progress >= 0.999 ? 'endpoint' : 'forward';
+      const surface = ensurePackedSurface(mode);
+      if (!surface) {
+        throw new Error('Figure2 presentation unavailable');
+      }
+      await surface.prepare(mode, signal);
+    },
     update(progress) {
+      if (progress > scrollProgressRef.current) {
+        scrollDirectionRef.current = 1;
+      } else if (progress < scrollProgressRef.current) {
+        scrollDirectionRef.current = -1;
+      }
+      scrollProgressRef.current = progress;
+      ensurePackedSurface();
       renderFigure2AnimationProgress(rootRef.current, progress, {
-        videoMode: 'none'
+        videoMode: 'seek',
+        mediaRun: {
+          runId: 'f2',
+          direction: scrollDirectionRef.current
+        }
       });
     },
     enter() {
@@ -178,10 +190,12 @@ export const PhoneFigure2 = forwardRef<
       rootRef.current?.removeAttribute('aria-hidden');
     },
     dispose() {
-      compositorRef.current?.dispose();
+      releasePackedSurface();
+      packedSurfaceRef.current?.dispose();
+      packedSurfaceRef.current = undefined;
       disposeFigure2Media(rootRef.current);
     }
-  }), [setSceneActive]);
+  }), [ensurePackedSurface, releasePackedSurface, setSceneActive]);
 
   return (
     <Figure2Surface

@@ -18,6 +18,14 @@
   background: transparent;
 }
 
+/* Grade A owns this visual handoff. The bridge is still the `from` layer
+ * while ink progresses, then the Orchestrator's Figure2 hold removes it. */
+.portrait-scroll-spike__reading[data-phone-method-figure2-ink-active="true"]
+.portrait-scroll-spike__method-bridge {
+  opacity: calc(1 - var(--phone-method-figure2-ink-progress, 0)) !important;
+  pointer-events: none;
+}
+
 /*
  * The fixed Method bridge leaves normal flow while AOD owns the stage.
  * Reserve its eventual viewport-height slot so Method steps cannot sit under

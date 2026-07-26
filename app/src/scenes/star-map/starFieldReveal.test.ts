@@ -98,4 +98,8 @@ describe('StarFieldReveal', () => {
     expect(source).toContain('this.ctx.globalAlpha = clamp(options.sourceOpacity ?? 1, 0, 1)');
     expect(source).toContain('this.ctx.globalAlpha = 1');
   });
+
+  it('uses the portable 2d context contract for browser canvas reads', () => {
+    expect(source).not.toContain('willReadFrequently');
+  });
 });

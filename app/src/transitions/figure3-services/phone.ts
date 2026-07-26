@@ -8,7 +8,9 @@ import {
 import type {
   Group45PhoneTransitionProps
 } from '../../production/phone/adapter-groups/group4-5';
-import type { TransitionPresentationAdapterHandle } from '../../story/presentation';
+import type {
+  PhoneTransitionAdapterHandle
+} from '../../production/phone/types';
 
 export const PHONE_FIGURE3_SERVICES_DECISION = {
   strategy: 'endpoint-dissolve',
@@ -102,13 +104,14 @@ export function settlePhoneFigure3ServicesDocumentFlow(
 
 /** Figure3 media failure resolves directly to the Services reading endpoint. */
 export const PhoneFigure3ServicesTransition = forwardRef<
-  TransitionPresentationAdapterHandle,
+  PhoneTransitionAdapterHandle,
   Group45PhoneTransitionProps
 >(function PhoneFigure3ServicesTransition(
   { host, from, to, reducedMotion, documentFlow = false, onReady },
   forwardedRef
 ) {
   const progressRef = useRef(0);
+  const committedEndpointRef = useRef<0 | 1 | null>(null);
   const directionRef = useRef<1 | -1>(1);
   const render = useCallback((rawProgress: number) => {
     const progress = clamp(rawProgress);
@@ -123,7 +126,7 @@ export const PhoneFigure3ServicesTransition = forwardRef<
       mediaFailed,
       directionRef.current
     );
-    if (host) {
+    if (import.meta.env.DEV && host) {
       host.dataset.phoneTransition = 'figure3-services:endpoint-dissolve';
       host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
     }
@@ -142,12 +145,14 @@ export const PhoneFigure3ServicesTransition = forwardRef<
   }, [documentFlow, from, host, reducedMotion, to]);
 
   useLayoutEffect(() => {
-    render(0);
     onReady?.();
     return () => {
       clearEndpoint(from, documentFlow);
       clearEndpoint(to, documentFlow);
-      if (host?.dataset.phoneTransition?.startsWith('figure3-services:')) {
+      if (
+        import.meta.env.DEV
+        && host?.dataset.phoneTransition?.startsWith('figure3-services:')
+      ) {
         delete host.dataset.phoneTransition;
         delete host.dataset.phoneTransitionProgress;
       }
@@ -156,6 +161,19 @@ export const PhoneFigure3ServicesTransition = forwardRef<
 
   useImperativeHandle(forwardedRef, () => ({
     render,
+    begin() {
+      committedEndpointRef.current = null;
+    },
+    commitEndpoint(endpoint) {
+      committedEndpointRef.current = endpoint;
+      render(endpoint);
+    },
+    releaseEndpoint() {
+      if (committedEndpointRef.current === 1 && documentFlow) {
+        settlePhoneFigure3ServicesDocumentFlow(from, to);
+      }
+      committedEndpointRef.current = null;
+    },
     enter() {
       directionRef.current = 1;
       render(0);
@@ -175,6 +193,7 @@ export const PhoneFigure3ServicesTransition = forwardRef<
       render(1);
     },
     dispose() {
+      committedEndpointRef.current = null;
       clearEndpoint(from, documentFlow);
       clearEndpoint(to, documentFlow);
     }

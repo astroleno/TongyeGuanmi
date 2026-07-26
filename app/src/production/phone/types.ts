@@ -14,8 +14,6 @@ import type {
 import type {
   PhoneCheckpointId
 } from '../../story/semantic-checkpoints';
-import type { SceneId } from '../../story/types';
-import type { PhoneEdgeScene } from './phone-edge-surface';
 import type {
   Group45PhoneSceneId,
   Group45PhoneTransitionId
@@ -24,6 +22,10 @@ import type {
   Group67PhoneSceneId,
   Group67PhoneTransitionId
 } from './adapter-groups/group6-7';
+import type { PhoneAodStartResult } from './aod-autoplay';
+import type {
+  PhoneBoundaryGeometryOwner
+} from './phone-boundary-geometry';
 
 export type PhoneStageSceneId = 'hero' | 'pattern' | 'star-map' | 'aod-animation';
 export type PhoneSceneAdapterId =
@@ -64,7 +66,7 @@ export type PhoneHeroAdapterHandle = PhoneSceneAdapterHandle & {
 };
 
 export type PhoneAodAdapterHandle = PhoneSceneAdapterHandle & {
-  startAutoplay(direction: 1 | -1): void;
+  startAutoplay(direction: 1 | -1): Promise<PhoneAodStartResult>;
   resetAutoplay(): void;
 };
 
@@ -86,9 +88,6 @@ export type PhonePatternAdapterProps = PhoneSceneAdapterProps & Readonly<{
 
 export type PhoneMethodAdapterProps = PhonePatternAdapterProps & Readonly<{
   stageHost: HTMLElement | null;
-  onGradeACheckpoint?: (checkpoint: PhoneCheckpointId) => void;
-  onGradeASceneChange?: (scene: SceneId) => void;
-  onGradeAEdgeScene?: (scene: PhoneEdgeScene) => void;
 }>;
 
 export type PhoneSceneAdapterComponent = ForwardRefExoticComponent<
@@ -112,7 +111,11 @@ export type PhoneAodAdapterComponent = ForwardRefExoticComponent<
   PhoneSceneAdapterProps & RefAttributes<PhoneAodAdapterHandle>
 >;
 
-export type PhoneTransitionAdapterHandle = TransitionPresentationAdapterHandle;
+export type PhoneTransitionAdapterHandle = TransitionPresentationAdapterHandle & {
+  begin(owner: PhoneBoundaryGeometryOwner): void;
+  commitEndpoint(endpoint: 0 | 1): void;
+  releaseEndpoint(): void;
+};
 
 export type PhoneTransitionAdapterProps = Readonly<{
   host: HTMLElement | null;

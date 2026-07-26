@@ -1,11 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import {
-  phoneGroup67RunIsReady,
-  phoneGroup67RunTarget,
-  phoneGroup67VisibleFallbackEndpoint,
-  type PhoneGroup67RunReadiness
-} from './PhoneLabContactContinuation';
+import { phoneGroup67RunSource } from './phone-lab-contact-runtime';
+import { phoneRun } from './phone-story-runs';
 
 const shellSource = readFileSync(
   new URL('./PhoneStoryShell.tsx', import.meta.url),
@@ -19,12 +15,20 @@ const continuationSource = readFileSync(
   new URL('./PhoneLabContactContinuation.tsx', import.meta.url),
   'utf8'
 );
-const targetPreparationSource = readFileSync(
-  new URL('./phone-target-presentation.ts', import.meta.url),
+const compositeRunnerSource = readFileSync(
+  new URL('./phone-composite-runner.ts', import.meta.url),
+  'utf8'
+);
+const labContactRuntimeSource = readFileSync(
+  new URL('./phone-lab-contact-runtime.ts', import.meta.url),
   'utf8'
 );
 const stageRailSource = readFileSync(
   new URL('./PhoneStageRail.tsx', import.meta.url),
+  'utf8'
+);
+const stageRuntimeSource = readFileSync(
+  new URL('./usePhoneStageRuntime.ts', import.meta.url),
   'utf8'
 );
 const methodSource = readFileSync(
@@ -35,18 +39,6 @@ const inkAdapterSource = readFileSync(
   new URL('./transitions/PhoneInkTransition.tsx', import.meta.url),
   'utf8'
 );
-
-const ALL_READY: PhoneGroup67RunReadiness = {
-  labBoundary: true,
-  ph: true,
-  education: true,
-  crane: true,
-  contact: true,
-  labPh: true,
-  phEducation: true,
-  educationCrane: true,
-  craneContact: true
-};
 
 describe('formal Unit7-B phone integration', () => {
   it('embeds the continuation without nesting the Unit6 acceptance shell', () => {
@@ -91,70 +83,60 @@ describe('formal Unit7-B phone integration', () => {
   });
 
   it('claims a visual boundary before waiting for every real receiver', () => {
-    const missingEducation = { ...ALL_READY, education: false };
-    const missingLab = {
-      ...ALL_READY,
-      labBoundary: false,
-      labPh: false
-    };
-    expect(phoneGroup67RunIsReady(
-      'ph-animation',
-      false,
-      missingEducation
-    )).toBe(false);
-    expect(phoneGroup67RunIsReady(
-      'ph-animation',
-      false,
-      missingLab
-    )).toBe(false);
-    expect(phoneGroup67RunIsReady(
-      'ph-animation',
-      true,
-      missingLab
-    )).toBe(true);
-
-    const missingContact = { ...ALL_READY, contact: false };
-    expect(phoneGroup67RunIsReady(
-      'crane-animation',
-      false,
-      missingContact
-    )).toBe(false);
-    expect(continuationSource).toContain('runPhoneTargetPreparation(');
-    expect(targetPreparationSource).toMatch(
-      /if \(!ready\(\) \|\| !handle\)[\s\S]*requestAnimationFrame\(wait\)/
+    expect(phoneRun('lab-education').dependencies).toEqual({
+      scenes: ['lab', 'ph-animation', 'education'],
+      transitions: ['lab-ph', 'ph-education']
+    });
+    expect(phoneRun('education-contact').dependencies).toEqual({
+      scenes: ['education', 'crane-animation', 'contact'],
+      transitions: ['education-crane', 'crane-contact']
+    });
+    expect(compositeRunnerSource).toContain(
+      'options.capabilities.waitFor(dependencies'
+    );
+    expect(compositeRunnerSource).toContain(
+      'config.visual.prepareTargetPresentation'
     );
   });
 
-  it('commits visible media endpoints and the strict reverse target chain', () => {
-    expect(phoneGroup67VisibleFallbackEndpoint(1)).toBe(1);
-    expect(phoneGroup67VisibleFallbackEndpoint(-1)).toBe(0);
-    expect(phoneGroup67RunTarget('ph-animation', 1)).toBe('education');
-    expect(phoneGroup67RunTarget('crane-animation', 1)).toBe('contact');
-    expect(phoneGroup67RunTarget('crane-animation', -1)).toBe('education');
-    expect(phoneGroup67RunTarget('ph-animation', -1)).toBe('lab');
-    expect(continuationSource).toContain(
-      'phoneGroup67VisibleFallbackEndpoint(run.direction)'
+  it('commits authored endpoints and the strict reverse target chain', () => {
+    expect(phoneGroup67RunSource('ph-animation', 1)).toBe('lab');
+    expect(phoneGroup67RunSource('crane-animation', 1)).toBe('education');
+    expect(phoneGroup67RunSource('crane-animation', -1)).toBe('contact');
+    expect(phoneGroup67RunSource('ph-animation', -1)).toBe('education');
+    expect(compositeRunnerSource).toContain(
+      'config.media.commitEndpoint(endpoint)'
     );
+    expect(continuationSource).not.toContain('media-failure');
   });
 
   it('uses the same completion latch for reduced motion and stable Contact', () => {
-    expect(continuationSource).toMatch(
-      /if \(reducedMotion\) \{\s*commitReducedRun\(run\)/
+    expect(compositeRunnerSource).toContain(
+      'if (options.reducedMotion) settleReduced(run, config)'
     );
-    expect(continuationSource).toContain(
-      "return direction === 1 ? 'contact' : 'education'"
-    );
+    expect(labContactRuntimeSource).toContain('phoneGroup67RunSource');
     expect(continuationSource).toContain(
       "data-phone-group67-run=\"idle\""
     );
   });
 
-  it('does not republish Lab while PH or Crane owns an active run', () => {
+  it('leaves all semantic publication to the shell orchestrator', () => {
     expect(continuationSource).not.toMatch(
       /if \(fromLabBoundary\) \{\s*publishScene\('lab'\)/
     );
-    expect(continuationSource).toContain(
-      'interruptedRun.session.abort('
+    expect(compositeRunnerSource).toContain('if (active) rollback(active)');
+    expect(gradeASource).not.toContain('orchestrator.reportPresentation');
+    expect(continuationSource).not.toContain(
+      'orchestrator.reportPresentation'
     );
+    expect(stageRuntimeSource).not.toContain(
+      'orchestrator.reportPresentation'
+    );
+    expect(stageRuntimeSource).toContain(
+      'orchestrator.reconcileScrollRun'
+    );
+    expect(continuationSource).not.toContain('onCheckpoint?:');
+    expect(continuationSource).not.toContain('onEdgeScene?:');
+    expect(continuationSource).not.toContain('onSceneChange?:');
   });
 });

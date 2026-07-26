@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PhoneCheckpointId } from '../../story/semantic-checkpoints';
-import type { SceneId } from '../../story/types';
+import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 import { StoryNav } from '../StoryNav';
-import { hashForScene } from '../navigation';
 import { PhoneStageRail } from './PhoneStageRail';
 import { usePhoneAdapterHandleRef } from './phone-adapter-binding';
 import { phoneMotionDriver } from './phone-gsap-driver';
@@ -14,8 +12,20 @@ import { usePhoneFixedStageRegistration } from './usePhoneFixedStageRegistration
 import { usePhoneViewportGeometry } from './usePhoneViewportGeometry';
 import { PhoneGroup67DirectEntry } from './PhoneGroup67DirectEntry';
 import { usePhoneStoryEntry, usePhoneStoryEntryLifecycle } from './usePhoneStoryEntry';
-import { usePhoneNavigationScene } from './usePhoneNavigationScene';
-import { PhoneLoader } from './scenes/PhoneLoader';
+import { usePhoneCheckpointPublisher } from './usePhoneCheckpointPublisher';
+import {
+  usePhoneStoryNavigationRuntime
+} from './usePhoneStoryNavigationRuntime';
+import type { StoryLoaderExitReason } from '../StoryLoader';
+import {
+  PhoneStoryOrchestratorProvider
+} from './PhoneStoryOrchestratorContext';
+import {
+  usePhoneStoryOrchestratorRuntime
+} from './usePhoneStoryOrchestratorRuntime';
+import type {
+  PhonePresentationEvidence
+} from './phone-story-orchestrator';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -33,8 +43,8 @@ function portraitSpikeMotionEnabled(): boolean {
 export type PhoneStoryShellProps = Readonly<{
   /** Short numbered routes remain physical-device comparison entries. */
   validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45' | 'v46' | 'v47';
-  startupLoaderStartedAt?: number;
-  onStartupPrepared?: () => void;
+  startupLoaderExitReason?: StoryLoaderExitReason;
+  onStartupPrepared?: (failed: boolean) => void;
 }>;
 // Bootstrap owns only startup visibility; this remains the one formal shell.
 // Stage, navigation, edge, viewport, and transition ownership stay here.
@@ -42,18 +52,19 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const motionEnabled = portraitSpikeMotionEnabled();
   const entry = usePhoneStoryEntry();
   const {
-    directGroup67Entry,
-    group67EntryPlan,
+    directEntryPlan,
+    directStoryEntry,
+    directContinuationEntry,
+    continuationEntryPlan,
     loaderHidden,
     setLoaderHidden
   } = entry;
   const frontHalf = usePhoneFrontHalfAdapters(
     loaderHidden,
     setLoaderHidden,
-    !directGroup67Entry
+    !directContinuationEntry
   );
   const {
-    Loader,
     Hero,
     Pattern,
     StarMap,
@@ -73,13 +84,20 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     markPatternReady,
     finishLoader
   } = frontHalf;
-  const LoaderComponent = Loader ?? PhoneLoader;
   useEffect(() => {
-    if (directGroup67Entry || ready || failed) props.onStartupPrepared?.();
-  }, [directGroup67Entry, failed, props.onStartupPrepared, ready]);
+    if (directContinuationEntry || ready || failed) {
+      props.onStartupPrepared?.(failed);
+    }
+  }, [directContinuationEntry, failed, props.onStartupPrepared, ready]);
+  useEffect(() => {
+    if (loaderHidden || props.startupLoaderExitReason === undefined) return;
+    finishLoader(props.startupLoaderExitReason);
+  }, [finishLoader, loaderHidden, props.startupLoaderExitReason]);
   const mapAodToMethod = frontHalf.mapAodToMethod ?? ZERO_METHOD_PROGRESS;
-  const [navigationScene, setNavigationScene] = usePhoneNavigationScene(entry.initialScene);
-  const [navigationMenuOpen, setNavigationMenuOpen] = useState(false);
+  const navigation = usePhoneStoryNavigationRuntime(
+    entry.initialScene,
+    loaderHidden
+  );
   const [adapterRevision, setAdapterRevision] = useState(0);
   const fixedStageRegistered = usePhoneFixedStageRegistration(loaderHidden && ready);
   const rootRef = useRef<HTMLElement | null>(null);
@@ -87,8 +105,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const stageViewportRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
   const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
-  const checkpointRef = useRef<PhoneCheckpointId>(entry.initialCheckpoint);
-  const checkpointTraceRef = useRef<PhoneCheckpointId[]>([checkpointRef.current]);
+  const checkpoint = usePhoneCheckpointPublisher(
+    entry.initialCheckpoint,
+    rootRef
+  );
   const publishAdapterRevision = useCallback(() => {
     setAdapterRevision((revision) => revision + 1);
   }, []);
@@ -117,50 +137,26 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [starMapAodAdapterRef, bindStarMapAodAdapter] =
     usePhoneAdapterHandleRef<PhoneTransitionAdapterHandle>(publishAdapterRevision);
 
-  const publishCheckpoint = useCallback((checkpoint: PhoneCheckpointId) => {
-    const root = rootRef.current;
-    if (!root) return;
-    if (checkpointRef.current !== checkpoint) {
-      checkpointRef.current = checkpoint;
-      checkpointTraceRef.current = [
-        ...checkpointTraceRef.current.slice(-63),
-        checkpoint
-      ];
+  const publishPresentation = useCallback((
+    evidence: PhonePresentationEvidence
+  ) => {
+    if (evidence.scene) navigation.setScene(evidence.scene);
+    if (evidence.checkpoint) checkpoint.publish(evidence.checkpoint);
+    if (evidence.edge) publishEdgeScene(evidence.edge);
+  }, [checkpoint.publish, navigation.setScene, publishEdgeScene]);
+  const orchestrator = usePhoneStoryOrchestratorRuntime({
+    initialScene: entry.initialScene,
+    rootRef,
+    onPresentation: publishPresentation,
+    onRetryable: (run) => {
+      if (rootRef.current) rootRef.current.dataset.phoneRetryableRun = run;
     }
-    const trace = checkpointTraceRef.current.join('>');
-    root.dataset.portraitCheckpoint = checkpoint;
-    root.dataset.portraitCheckpointTrace = trace;
-    document.documentElement.dataset.portraitCheckpoint = checkpoint;
-  }, []);
+  });
 
   usePhoneViewportGeometry(rootRef, motionEnabled);
 
   useEffect(() => attachStoryMediaUnlock(rootRef.current), []);
-
-  usePhoneStoryEntryLifecycle(entry, publishCheckpoint, publishEdgeScene);
-
-  const navigationVisible = loaderHidden
-    && navigationScene !== 'hero' && navigationScene !== 'pattern';
-
-  useEffect(() => {
-    if (!navigationVisible) setNavigationMenuOpen(false);
-  }, [navigationVisible]);
-
-  const navigatePortraitStory = useCallback((scene: SceneId) => {
-    setNavigationMenuOpen(false);
-    if (scene === 'hero') {
-      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
-      return;
-    }
-    if (scene === 'method-top' || scene === 'method-bottom') {
-      document.getElementById('method')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      });
-      return;
-    }
-    window.location.assign(`/${hashForScene(scene)}`);
-  }, []);
+  usePhoneStoryEntryLifecycle(entry, orchestrator);
 
   const runtime = usePhoneStageRuntime({
     rootRef,
@@ -174,57 +170,49 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     heroPatternRef: heroPatternAdapterRef,
     patternStarMapRef: patternStarMapAdapterRef,
     starMapAodRef: starMapAodAdapterRef,
+    orchestrator,
     enabled: fixedStageRegistered && loaderHidden
-      && !directGroup67Entry
+      && !directStoryEntry
+      && !directContinuationEntry
       && ready
       && aodAlphaEndProgress !== undefined
       && !staticFallback,
     reducedMotion: !motionEnabled,
     adapterRevision,
     aodAlphaEndProgress: aodAlphaEndProgress ?? 0,
-    mapAodToMethod,
-    onCheckpoint: publishCheckpoint,
-    onNavigationScene: setNavigationScene,
-    onEdgeScene: publishEdgeScene
+    mapAodToMethod
   });
 
   return (
-    <main
+    <PhoneStoryOrchestratorProvider orchestrator={orchestrator}>
+      <main
       ref={rootRef}
       className="portrait-scroll-spike"
       data-portrait-spike-route="b"
-      data-portrait-spike-media={directGroup67Entry
-        ? 'group67-adjacent-packed-alpha-autoplay'
+      data-portrait-spike-media={directContinuationEntry
+        ? 'continuation-adjacent-autoplay'
         : 'figure1-packed-alpha-pattern-bloom-star-perlin-aod-packed-alpha-autoplay'}
       data-portrait-spike-animation="gsap-scrolltrigger-native-fixed-stage"
       data-portrait-spike-motion={motionEnabled ? 'force' : 'reduce'}
       data-portrait-fixed-stage={fixedStageRegistered ? 'registered' : 'priming'}
-      data-portrait-loader-ready={String(loaderHidden)}
+      data-portrait-loader-ready={semanticBoolean(loaderHidden)}
       data-phone-validation-mode={props.validationMode}
       data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}
       data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}
-      data-portrait-checkpoint={checkpointRef.current}
-      data-portrait-checkpoint-trace={checkpointTraceRef.current.join('>')}
-      data-phone-direct-entry={directGroup67Entry ? 'group67' : undefined}
-      data-phone-direct-entry-scene={group67EntryPlan?.scene}
+      data-portrait-checkpoint={checkpoint.checkpointRef.current}
+      data-portrait-checkpoint-trace={checkpoint.traceRef.current.join('>')}
+      data-phone-direct-entry={directContinuationEntry
+        ? 'continuation'
+        : directStoryEntry ? 'story' : undefined}
+      data-phone-direct-entry-scene={directEntryPlan?.scene}
       hidden={staticFallback}
     >
-      {!directGroup67Entry && !loaderHidden && (
-        <LoaderComponent
-          mode={motionEnabled ? 'cold-hero' : 'reduced'}
-          ready={ready}
-          failed={failed}
-          startedAt={props.startupLoaderStartedAt}
-          onHidden={finishLoader}
-        />
-      )}
-
       <PhoneStageRail
         railRef={stageRailRef}
         viewportRef={stageViewportRef}
         stageRef={bindStageHost}
       >
-        {!directGroup67Entry && Hero && (
+        {!directContinuationEntry && Hero && (
           <Hero
             ref={bindHeroAdapter}
             active={loaderHidden}
@@ -233,7 +221,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onReady={markHeroReady}
           />
         )}
-        {!directGroup67Entry && Pattern && (
+        {!directContinuationEntry && Pattern && (
           <Pattern
             ref={bindPatternAdapter}
             active={false}
@@ -242,7 +230,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onReady={markPatternReady}
           />
         )}
-        {!directGroup67Entry && StarMap && (
+        {!directContinuationEntry && StarMap && (
           <StarMap
             ref={bindStarMapAdapter}
             active={false}
@@ -250,7 +238,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             motionDriver={phoneMotionDriver}
           />
         )}
-        {!directGroup67Entry && Aod && (
+        {!directContinuationEntry && Aod && (
           <Aod
             ref={bindAodAdapter}
             active={false}
@@ -259,7 +247,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onAodComplete={runtime.onAodComplete}
           />
         )}
-        {!directGroup67Entry && HeroPatternTransition && (
+        {!directContinuationEntry && HeroPatternTransition && (
           <HeroPatternTransition
             ref={bindHeroPatternAdapter}
             host={stageRef.current}
@@ -269,7 +257,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onReady={markHeroPatternReady}
           />
         )}
-        {!directGroup67Entry && PatternStarMapTransition && (
+        {!directContinuationEntry && PatternStarMapTransition && (
           <PatternStarMapTransition
             ref={bindPatternStarMapAdapter}
             host={stageRef.current}
@@ -278,7 +266,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             reducedMotion={!motionEnabled}
           />
         )}
-        {!directGroup67Entry && StarMapAodTransition && (
+        {!directContinuationEntry && StarMapAodTransition && (
           <StarMapAodTransition
             ref={bindStarMapAodAdapter}
             host={stageRef.current}
@@ -288,33 +276,28 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           />
         )}
       </PhoneStageRail>
-      {!directGroup67Entry && MethodTop && (
+      {!directContinuationEntry && MethodTop && (
         <MethodTop
           ref={bindMethodAdapter}
           active={loaderHidden && modulesReady}
           reducedMotion={!motionEnabled}
           motionDriver={phoneMotionDriver}
           stageHost={stageHost}
-          onGradeACheckpoint={publishCheckpoint}
-          onGradeASceneChange={setNavigationScene}
-          onGradeAEdgeScene={publishEdgeScene}
         />
       )}
       <PhoneGroup67DirectEntry
-        plan={group67EntryPlan}
+        plan={continuationEntryPlan}
         reducedMotion={!motionEnabled}
         stageHost={stageHost}
-        onCheckpoint={publishCheckpoint}
-        onEdgeScene={publishEdgeScene}
-        onSceneChange={setNavigationScene}
       />
       <StoryNav
-        currentScene={navigationScene}
-        visible={navigationVisible}
-        menuOpen={navigationMenuOpen}
-        onToggleMenu={() => setNavigationMenuOpen((open) => !open)}
-        onNavigate={navigatePortraitStory}
+        currentScene={navigation.scene}
+        visible={navigation.visible}
+        menuOpen={navigation.menuOpen}
+        onToggleMenu={() => navigation.setMenuOpen((open) => !open)}
+        onNavigate={navigation.navigate}
       />
-    </main>
+      </main>
+    </PhoneStoryOrchestratorProvider>
   );
 }

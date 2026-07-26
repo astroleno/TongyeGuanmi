@@ -6,7 +6,7 @@ import {
   PHONE_EDUCATION_CRANE_DECISION,
   PHONE_EDUCATION_CRANE_FIELD,
   phoneEducationCraneFrame
-} from './phone';
+} from './contract';
 
 const source = readFileSync(new URL('./phone.ts', import.meta.url), 'utf8');
 const stylesheet = readFileSync(new URL('./phone.css', import.meta.url), 'utf8');
@@ -23,21 +23,12 @@ describe('Phone Education → Crane transition', () => {
       kind: 'horizontal',
       direction: 'bottom-to-top'
     });
-    expect(source).toContain('createPhoneInkTransition');
-    expect(source).toContain('from: null');
+    expect(source).toContain('createPhoneInkAdapter');
+    expect(source).toContain('maskSource: false');
     expect(source).toContain("grade: 'edge-bright'");
-    expect(source).toContain(
-      "'data-phone-education-crane-ink': 'bottom-to-top'"
-    );
-    expect(source).toContain('ensureInk()?.render(frame.progress)');
-    expect(source).toContain('const releaseInk = useCallback');
-    expect(source).toContain('canvas.width = 1');
-    expect(source).toMatch(
-      /leave\(\) \{\s*directionRef\.current = 1;\s*render\(1\);[\s\S]*?releaseInk\(\);\s*\}/
-    );
-    expect(source).toMatch(
-      /reverse\(\) \{\s*directionRef\.current = -1;\s*render\(1\);\s*\}/
-    );
+    expect(source).toContain('releaseOnLeave: true');
+    expect(source).not.toContain('reverseProgress');
+    expect(source).toContain('renderPhoneCranePresentation');
     expect(stylesheet).toContain('phone-education-crane__ink');
     expect(stylesheet).toContain(
       'height: var(--phone-cinematic-stage-canvas-height, 100lvh)'

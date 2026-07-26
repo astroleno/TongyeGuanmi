@@ -1,4 +1,9 @@
 /* The document rail owns distance; one persistent host owns every scene edge. */
+.portrait-scroll-spike {
+  /* The orchestration transaction, not browser scroll anchoring, owns landing. */
+  overflow-anchor: none;
+}
+
 .portrait-scroll-spike__stage-rail {
   position: relative;
   width: 100%;
@@ -97,4 +102,17 @@
   visibility: visible;
   opacity: 1;
   pointer-events: none;
+}
+
+/* The shell publishes one global role transaction for every native endpoint. */
+.portrait-scroll-spike [data-phone-surface-role="native-under-stage"] {
+  z-index: 9 !important;
+}
+
+.portrait-scroll-spike [data-phone-surface-role="native-stable"] {
+  z-index: 11 !important;
+}
+
+.portrait-scroll-spike [data-phone-surface-role="transition-endpoint"] {
+  z-index: 12 !important;
 }

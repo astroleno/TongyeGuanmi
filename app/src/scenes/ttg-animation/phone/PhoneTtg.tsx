@@ -15,7 +15,9 @@ import {
   type TimelineVideoDriveInput
 } from '../../../media/timeline-video-driver';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
-import { waitForPhoneTargetPresentation } from '../../../production/phone/phone-target-presentation';
+import {
+  waitForPhonePresentationEvidence
+} from '../../../production/phone/phone-transition-readiness';
 import {
   createGroup45NativeAutoplay,
   type Group45NativeAutoplay,
@@ -123,6 +125,15 @@ export function phoneTtgMediaAction(
   if (active) return direction === -1 ? 'play-reverse' : 'play-forward';
   if (!prewarm) return 'release';
   return hasForwardRun ? 'hold-terminal' : 'hold-initial';
+}
+
+export function phoneTtgHeldEndpoint(
+  action: PhoneTtgMediaAction,
+  orchestratorTarget: 0 | 1 | null
+): 0 | 1 | null {
+  if (action !== 'hold-initial' && action !== 'hold-terminal') return null;
+  if (orchestratorTarget !== null) return orchestratorTarget;
+  return action === 'hold-terminal' ? 1 : 0;
 }
 
 /** Release the sole video owner and its decoder before TTG retires. */
@@ -334,6 +345,11 @@ export const PhoneTtg = forwardRef<
   const mediaRetiringRef = useRef(false);
   const hasForwardRunRef = useRef(false);
   const forwardRequestedRef = useRef(active && direction === 1 && !reducedMotion);
+  const targetPreparationRef = useRef<Readonly<{
+    endpoint: 0 | 1;
+    direction: 1 | -1;
+    runId: string;
+  }> | null>(null);
   const completionReportedRef = useRef(false);
   const runGenerationRef = useRef(0);
   const initialFrameGenerationRef = useRef(0);
@@ -482,6 +498,7 @@ export const PhoneTtg = forwardRef<
     cancelChapterTransition();
     mediaRetiringRef.current = true;
     forwardRequestedRef.current = false;
+    targetPreparationRef.current = null;
     playbackRef.current?.dispose();
     playbackRef.current = null;
     disposeTtgMedia(rootRef.current);
@@ -589,6 +606,7 @@ export const PhoneTtg = forwardRef<
     if (reducedMotionRef.current || mediaFailedRef.current) return;
     activeRef.current = true;
     directionRef.current = runDirection;
+    targetPreparationRef.current = null;
     cancelChapterTransition();
     const generation = ++runGenerationRef.current;
     if (runDirection === -1) {
@@ -723,7 +741,12 @@ export const PhoneTtg = forwardRef<
       return;
     }
     forwardRequestedRef.current = false;
-    const endpoint = action === 'hold-terminal' ? 1 : 0;
+    const target = targetPreparationRef.current;
+    const endpoint = phoneTtgHeldEndpoint(
+      action,
+      target?.endpoint ?? null
+    );
+    if (endpoint === null) return;
     const video = videoRef.current;
     if (video && phoneTtgHasReusableEndpointFrame(video, endpoint)) {
       // The endpoint was physically presented before the shell handoff.
@@ -737,6 +760,10 @@ export const PhoneTtg = forwardRef<
       );
       return;
     }
+    // prepareTargetPresentation owns terminal seeking while the source scene
+    // remains semantically active. An inactive prewarm pass must not reset
+    // that request back to frame zero.
+    if (target?.endpoint === 1) return;
     playback.reset(endpoint);
     renderFrame(endpoint);
     if (endpoint === 0 && video) {
@@ -914,20 +941,34 @@ export const PhoneTtg = forwardRef<
       delete root.dataset.phoneMediaState;
     }
     mountMedia();
-    const endpoint = request.progress >= 0.999 ? 1 : 0;
+    const endpoint: 0 | 1 = request.progress >= 0.999 ? 1 : 0;
+    const target = {
+      endpoint,
+      direction: request.direction,
+      runId: request.runId
+    } as const;
+    targetPreparationRef.current = target;
+    if (endpoint === 1) {
+      initialFrameGenerationRef.current += 1;
+      initialFrameAbortRef.current?.abort();
+      initialFrameAbortRef.current = null;
+      initialFramePreparationRef.current = null;
+    }
     let terminalRequested = false;
-    return waitForPhoneTargetPresentation(
+    const abandon = () => {
+      if (targetPreparationRef.current !== target) return;
+      targetPreparationRef.current = null;
+      window.requestAnimationFrame(reconcileMedia);
+    };
+    request.signal.addEventListener('abort', abandon, { once: true });
+    return waitForPhonePresentationEvidence(
       () => {
         if (root.dataset.phoneMediaState === 'retryable-failure') {
           return 'retryable-failure';
         }
         const video = videoRef.current;
-        if (!video) return null;
-        const endpointReady = video.dataset.phoneTtgEndpointReady;
-        if (
-          (endpoint === 0 && endpointReady === 'initial')
-          || (endpoint === 1 && endpointReady === 'terminal')
-        ) {
+        if (!video || !playbackRef.current) return null;
+        if (phoneTtgHasReusableEndpointFrame(video, endpoint)) {
           return true;
         }
         if (endpoint === 0) {
@@ -936,22 +977,37 @@ export const PhoneTtg = forwardRef<
           terminalRequested = true;
           void prepareTimelineVideoFrame(
             video,
-            ttgEndpointMediaInput(request.runId, 1, request.direction)
+            {
+              ...ttgEndpointMediaInput(request.runId, 1, request.direction),
+              signal: request.signal
+            }
           ).then((result) => {
-            if (result?.status !== 'ready' || request.signal.aborted) return;
+            if (
+              result?.status !== 'ready'
+              || request.signal.aborted
+              || targetPreparationRef.current !== target
+            ) return;
             video.dataset.phoneGroup45FrameReady = 'true';
             video.dataset.phoneTtgEndpointReady = 'terminal';
             renderFrame(1);
-          }).catch(failMedia);
+          }).catch(() => {
+            if (
+              !request.signal.aborted
+              && targetPreparationRef.current === target
+            ) failMedia();
+          });
         }
         return null;
       },
       request.signal
-    );
+    ).finally(() => {
+      request.signal.removeEventListener('abort', abandon);
+    });
   }, [
     ensureInitialFrame,
     failMedia,
     mountMedia,
+    reconcileMedia,
     renderFrame
   ]);
 

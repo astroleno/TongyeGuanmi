@@ -1,65 +1,54 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import {
-  phoneGroup67RunIsReady,
-  phoneGroup67RunTarget,
-  releasePhoneGroup67FailedSession
-} from './PhoneLabContactContinuation';
+import { phoneGroup67RunSource } from './phone-lab-contact-runtime';
+import { phoneRun } from './phone-story-runs';
 
 const source = readFileSync(
   new URL('./PhoneLabContactContinuation.tsx', import.meta.url),
   'utf8'
 );
+const compositeRunnerSource = readFileSync(
+  new URL('./phone-composite-runner.ts', import.meta.url),
+  'utf8'
+);
 
 describe('PhoneLabContactContinuation recovery contract', () => {
-  it('waits for every scene and transition adapter required by the run', () => {
-    expect(phoneGroup67RunIsReady('ph-animation', false, {
-      labBoundary: true,
-      ph: true,
-      education: true,
-      crane: false,
-      contact: false,
-      labPh: true,
-      phEducation: true,
-      educationCrane: false,
-      craneContact: false
-    })).toBe(true);
-    expect(phoneGroup67RunIsReady('ph-animation', false, {
-      labBoundary: true,
-      ph: true,
-      education: true,
-      crane: false,
-      contact: false,
-      labPh: true,
-      phEducation: false,
-      educationCrane: false,
-      craneContact: false
-    })).toBe(false);
-    expect(phoneGroup67RunIsReady('crane-animation', false, {
-      labBoundary: false,
-      ph: false,
-      education: true,
-      crane: true,
-      contact: true,
-      labPh: false,
-      phEducation: false,
-      educationCrane: true,
-      craneContact: true
-    })).toBe(true);
+  it('waits for the canonical dependency closure of each composite run', () => {
+    expect(phoneRun('lab-education').dependencies).toEqual({
+      scenes: ['lab', 'ph-animation', 'education'],
+      transitions: ['lab-ph', 'ph-education']
+    });
+    expect(phoneRun('education-contact').dependencies).toEqual({
+      scenes: ['education', 'crane-animation', 'contact'],
+      transitions: ['education-crane', 'crane-contact']
+    });
+    expect(source).toContain('createPhoneCompositeRunner');
+    expect(compositeRunnerSource).toContain(
+      'options.capabilities.waitFor(dependencies'
+    );
+    expect(compositeRunnerSource).toContain(
+      'retention: options.capabilities.retain(dependencies)'
+    );
+    expect(compositeRunnerSource).toContain(
+      '...definition.dependencies.transitions'
+    );
   });
 
-  it('commits only the authored endpoint for a successful direction', () => {
-    expect(phoneGroup67RunTarget('ph-animation', 1)).toBe('education');
-    expect(phoneGroup67RunTarget('ph-animation', -1)).toBe('lab');
-    expect(phoneGroup67RunTarget('crane-animation', 1)).toBe('contact');
-    expect(phoneGroup67RunTarget('crane-animation', -1)).toBe('education');
+  it('keeps the actual directional source rendered until the orchestrator settles', () => {
+    expect(phoneGroup67RunSource('ph-animation', 1)).toBe('lab');
+    expect(phoneGroup67RunSource('ph-animation', -1)).toBe('education');
+    expect(phoneGroup67RunSource('crane-animation', 1)).toBe('education');
+    expect(phoneGroup67RunSource('crane-animation', -1)).toBe('contact');
+    expect(source).toContain('phoneGroup67RunSource(run.scene, run.direction)');
+    expect(source).toContain('orchestrator.registerStableSceneAdapter');
+    expect(source).not.toContain('orchestrator.subscribe');
   });
 
   it('prewarms the compositor while the source remains the semantic owner', () => {
     expect(source).toContain(
       'const presentedStageScene = stageScene ?? prewarmScene'
     );
-    expect(source).toContain('setPrewarmScene(scene)');
+    expect(source).toContain('setPrewarmScene(run.scene)');
     expect(source).toContain(
       "active={stageScene === 'ph-animation'}"
     );
@@ -68,42 +57,40 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     );
   });
 
+  it('asks the orchestrator to recommit stable roles when lazy adapters bind', () => {
+    expect(source).toContain('orchestrator.syncDiagnostics()');
+    expect(source).not.toContain('publishStableRoles(currentSceneRef.current)');
+    expect(source).not.toContain('publishStableRoles(entryScene)');
+  });
+
   it('requires target presentation and releases failures back to the source', () => {
-    expect(source).toContain('runPhoneTargetPreparation');
-    expect(source).toContain("detail.phase === 'failed'");
-    expect(source).toContain('abortRunToSource(run');
-    expect(source).toContain(
-      'releasePhoneGroup67FailedSession(run.session, sourceY, cancelInk)'
+    expect(compositeRunnerSource).toContain(
+      'const prepareTarget = config.visual.prepareTargetPresentation'
     );
+    expect(compositeRunnerSource).toContain('await prepareTarget({');
+    expect(source).toContain("detail.phase === 'failed'");
+    expect(source).toContain('runner.failMedia(run.scene)');
+    expect(compositeRunnerSource).toContain('rollback(run)');
+    expect(compositeRunnerSource).toContain('run.session.reportFailure(');
     expect(source).toContain('setPrewarmScene(null)');
-    expect(source).toContain('publishStageScene(null)');
+    expect(source).toContain('setStageScene(null)');
     expect(source).not.toContain("'retryable'");
     expect(source).not.toContain("'media-failure'");
     expect(source).not.toContain('phoneGroup67MediaFallback');
   });
 
-  it('unlocks an injected failed session at the source boundary', () => {
-    let valid = true;
-    let locked = true;
-    let anchor = 640;
-    releasePhoneGroup67FailedSession({
-      valid: () => valid,
-      moveTo: (next) => {
-        anchor = next;
-      },
-      complete: () => {
-        valid = false;
-        locked = false;
-      },
-      abort: (next) => {
-        if (next !== undefined) anchor = next;
-        valid = false;
-        locked = false;
-      }
-    }, 320);
+  it('keeps reverse document alignment leased through the commit frame', () => {
+    expect(source).toContain('acquirePhoneDocumentEndpointAlignment(');
+    expect(compositeRunnerSource).toContain('run.session.provideRelease(() => {');
+    expect(compositeRunnerSource).toContain('releaseExtra?.()');
+    expect(compositeRunnerSource).not.toContain('run.session.moveTo(');
+    expect(source).not.toContain('orchestrator.reportPresentation');
+  });
 
-    expect(anchor).toBe(320);
-    expect(valid).toBe(false);
-    expect(locked).toBe(false);
+  it('lands each document receiver at its natural document coordinate', () => {
+    expect(compositeRunnerSource).not.toContain(
+      'acquirePhoneFlowEndpointAlignment'
+    );
+    expect(source).not.toContain('data-phone-flow-endpoint');
   });
 });

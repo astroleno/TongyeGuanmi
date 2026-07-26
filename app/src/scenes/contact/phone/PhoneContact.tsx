@@ -10,8 +10,13 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
+import { renderPhoneContactHold } from './presentation';
 import '../../../production/editorial-layout.css';
 import './PhoneContact.css';
+export {
+  renderPhoneContactHold,
+  renderPhoneContactProgress
+} from './presentation';
 
 const CONTACT_COPY = [
   'START FROM THE FIELD',
@@ -20,28 +25,6 @@ const CONTACT_COPY = [
   '约一次 AI 现场诊断',
   '回到首屏'
 ] as const;
-
-export function renderPhoneContactProgress(
-  root: HTMLElement | null | undefined,
-  rawProgress: number
-): void {
-  const progress = Math.min(1, Math.max(0, rawProgress));
-  root?.style.setProperty('--r4-contact-progress', progress.toFixed(4));
-  root?.style.setProperty('--r4-contact-opacity', progress.toFixed(4));
-  root?.style.setProperty(
-    '--r4-contact-y',
-    `${((1 - progress) * 20).toFixed(2)}px`
-  );
-  root?.setAttribute('data-contact-progress', progress.toFixed(4));
-}
-
-export function renderPhoneContactHold(
-  root: HTMLElement | null | undefined
-): void {
-  renderPhoneContactProgress(root, 1);
-  root?.style.setProperty('--r4-contact-paper-alpha', '1.0000');
-  root?.style.setProperty('--r4-contact-wash-alpha', '1.0000');
-}
 
 /**
  * Contact is a terminal native document article. Its controls must remain

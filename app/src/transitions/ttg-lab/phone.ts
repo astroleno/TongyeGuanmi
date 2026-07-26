@@ -8,8 +8,10 @@ import {
 import type {
   Group45PhoneTransitionProps
 } from '../../production/phone/adapter-groups/group4-5';
+import type {
+  PhoneTransitionAdapterHandle
+} from '../../production/phone/types';
 import { PHONE_TTG_LAB_ANIMATION_STOP } from '../../scenes/ttg-animation/phone/motion';
-import type { TransitionPresentationAdapterHandle } from '../../story/presentation';
 
 export const PHONE_TTG_LAB_DECISION = {
   strategy: 'desktop-overlay-dissolve',
@@ -106,13 +108,14 @@ export function settlePhoneTtgLabDocumentFlow(
 
 /** TTG failure lands on Lab's stable reading root, which Unit 6 can consume. */
 export const PhoneTtgLabTransition = forwardRef<
-  TransitionPresentationAdapterHandle,
+  PhoneTransitionAdapterHandle,
   Group45PhoneTransitionProps
 >(function PhoneTtgLabTransition(
   { host, from, to, reducedMotion, documentFlow = false, onReady },
   forwardedRef
 ) {
   const progressRef = useRef(0);
+  const committedEndpointRef = useRef<0 | 1 | null>(null);
   const directionRef = useRef<1 | -1>(1);
   const render = useCallback((rawProgress: number) => {
     const progress = clamp(rawProgress);
@@ -127,7 +130,7 @@ export const PhoneTtgLabTransition = forwardRef<
       mediaFailed,
       directionRef.current
     );
-    if (host) {
+    if (import.meta.env.DEV && host) {
       host.dataset.phoneTransition = 'ttg-lab:desktop-overlay-dissolve';
       host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
     }
@@ -146,12 +149,14 @@ export const PhoneTtgLabTransition = forwardRef<
   }, [documentFlow, from, host, reducedMotion, to]);
 
   useLayoutEffect(() => {
-    render(0);
     onReady?.();
     return () => {
       clearEndpoint(from, documentFlow);
       clearEndpoint(to, documentFlow);
-      if (host?.dataset.phoneTransition?.startsWith('ttg-lab:')) {
+      if (
+        import.meta.env.DEV
+        && host?.dataset.phoneTransition?.startsWith('ttg-lab:')
+      ) {
         delete host.dataset.phoneTransition;
         delete host.dataset.phoneTransitionProgress;
       }
@@ -160,6 +165,19 @@ export const PhoneTtgLabTransition = forwardRef<
 
   useImperativeHandle(forwardedRef, () => ({
     render,
+    begin() {
+      committedEndpointRef.current = null;
+    },
+    commitEndpoint(endpoint) {
+      committedEndpointRef.current = endpoint;
+      render(endpoint);
+    },
+    releaseEndpoint() {
+      if (committedEndpointRef.current === 1 && documentFlow) {
+        settlePhoneTtgLabDocumentFlow(from, to);
+      }
+      committedEndpointRef.current = null;
+    },
     enter() {
       directionRef.current = 1;
       progressRef.current = 0;
@@ -182,6 +200,7 @@ export const PhoneTtgLabTransition = forwardRef<
       render(1);
     },
     dispose() {
+      committedEndpointRef.current = null;
       clearEndpoint(from, documentFlow);
       clearEndpoint(to, documentFlow);
     }

@@ -117,10 +117,8 @@ export function phoneLabContactCrossedVisualBoundary(
   return crossed || approaching;
 }
 
-/**
- * Match the accepted Unit 5/AOD coordinator: forward lands on the exact
- * boundary; reverse retains any already-presented upward overshoot.
- */
+/** Legacy standalone Unit 6 shell helper; Unit 7B landing is centralized in
+ * `resolvePhoneRunLanding` and no longer calls this function. */
 export function phoneLabContactVisualRunAnchor(
   scrollY: number,
   boundaryY: number,

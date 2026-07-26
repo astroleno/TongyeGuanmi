@@ -9,14 +9,36 @@ describe('Unit 5 phone adapter loading plan', () => {
     });
   });
 
-  it('does not fetch or replay previous visual scenes for direct entry', () => {
+  it('loads a direct visual run closure without replaying a previous visual', () => {
+    expect(group45AdapterPlanForEntry('figure3-animation')).toEqual({
+      scenes: ['services', 'lab', 'brand', 'figure3-animation'],
+      transitions: ['brand-figure3', 'figure3-services']
+    });
     expect(group45AdapterPlanForEntry('services')).toEqual({
       scenes: ['services', 'lab', 'ttg-animation'],
+      transitions: ['services-ttg', 'ttg-lab']
+    });
+    expect(group45AdapterPlanForEntry('ttg-animation')).toEqual({
+      scenes: ['lab', 'services', 'ttg-animation'],
       transitions: ['services-ttg', 'ttg-lab']
     });
     expect(group45AdapterPlanForEntry('lab')).toEqual({
       scenes: ['lab'],
       transitions: []
+    });
+  });
+
+  it('loads the complete prior run only after a stable direct entry reverses', () => {
+    expect(group45AdapterPlanForEntry(
+      'services',
+      'figure3-animation'
+    )).toEqual({
+      scenes: ['services', 'lab', 'brand', 'figure3-animation'],
+      transitions: ['brand-figure3', 'figure3-services']
+    });
+    expect(group45AdapterPlanForEntry('lab', 'ttg-animation')).toEqual({
+      scenes: ['lab', 'services', 'ttg-animation'],
+      transitions: ['services-ttg', 'ttg-lab']
     });
   });
 

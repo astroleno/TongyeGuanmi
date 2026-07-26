@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   createPhoneStoryHold,
   reducePhoneStoryCursor,
-  startPhoneStoryRun
+  startPhoneStoryRun,
+  type PhoneStoryCursor
 } from './phone-story-state';
 
 const activeRun = () => startPhoneStoryRun(
@@ -11,6 +12,22 @@ const activeRun = () => startPhoneStoryRun(
   1,
   { sessionId: 'phone-session-1', generation: 1 }
 );
+
+function readyToAnimate(
+  cursor: PhoneStoryCursor,
+  sessionId = 'phone-session-1',
+  generation = 1
+) {
+  return reducePhoneStoryCursor(
+    reducePhoneStoryCursor(cursor, {
+      type: 'PHASE',
+      phase: 'presented-frame-ready',
+      sessionId,
+      generation
+    }),
+    { type: 'PHASE', phase: 'animating', sessionId, generation }
+  );
+}
 
 describe('canonical phone story cursor', () => {
   it('stores composite identity while advancing individual forward legs', () => {
@@ -29,7 +46,7 @@ describe('canonical phone story cursor', () => {
       progress: 0
     });
 
-    const second = reducePhoneStoryCursor(first, {
+    const second = reducePhoneStoryCursor(readyToAnimate(first), {
       type: 'ADVANCE_LEG',
       sessionId: 'phone-session-1',
       generation: 1
@@ -61,7 +78,11 @@ describe('canonical phone story cursor', () => {
       progress: 1
     });
 
-    const second = reducePhoneStoryCursor(first, {
+    const second = reducePhoneStoryCursor(readyToAnimate(
+      first,
+      'phone-session-2',
+      2
+    ), {
       type: 'ADVANCE_LEG',
       sessionId: 'phone-session-2',
       generation: 2
@@ -92,12 +113,12 @@ describe('canonical phone story cursor', () => {
       type: 'PHASE',
       sessionId: 'phone-session-1',
       generation: 0,
-      phase: 'media'
+      phase: 'animating'
     })).toBe(progressed);
   });
 
   it('rolls a second-leg forward failure back to the composite source', () => {
-    const secondLeg = reducePhoneStoryCursor(activeRun(), {
+    const secondLeg = reducePhoneStoryCursor(readyToAnimate(activeRun()), {
       type: 'ADVANCE_LEG',
       sessionId: 'phone-session-1',
       generation: 1
@@ -132,15 +153,57 @@ describe('canonical phone story cursor', () => {
       generation: 1
     })).toBe(first);
 
-    const second = reducePhoneStoryCursor(first, {
+    const second = reducePhoneStoryCursor(readyToAnimate(first), {
       type: 'ADVANCE_LEG',
       sessionId: 'phone-session-1',
       generation: 1
     });
-    expect(reducePhoneStoryCursor(second, {
+    const readyToCommit = readyToAnimate(second);
+    expect(reducePhoneStoryCursor(readyToCommit, {
       type: 'COMMIT',
       sessionId: 'phone-session-1',
       generation: 1
+    })).toMatchObject({ kind: 'transition', phase: 'committing' });
+  });
+
+  it('does not publish a stable hold until commit, landing, and release complete', () => {
+    const identity = { sessionId: 'phone-session-1', generation: 1 };
+    const animating = readyToAnimate(
+      reducePhoneStoryCursor(readyToAnimate(activeRun()), {
+        type: 'ADVANCE_LEG',
+        ...identity
+      })
+    );
+    const committing = reducePhoneStoryCursor(animating, {
+      type: 'COMMIT',
+      ...identity
+    });
+    expect(committing).toMatchObject({
+      kind: 'transition',
+      phase: 'committing'
+    });
+
+    const landing = reducePhoneStoryCursor(committing, {
+      type: 'LAND',
+      ...identity
+    });
+    expect(landing).toMatchObject({
+      kind: 'transition',
+      phase: 'landing'
+    });
+
+    const releasing = reducePhoneStoryCursor(landing, {
+      type: 'RELEASE',
+      ...identity
+    });
+    expect(releasing).toMatchObject({
+      kind: 'transition',
+      phase: 'releasing'
+    });
+
+    expect(reducePhoneStoryCursor(releasing, {
+      type: 'SETTLE',
+      ...identity
     })).toEqual({
       kind: 'hold',
       scene: 'services',

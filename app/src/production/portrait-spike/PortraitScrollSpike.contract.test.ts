@@ -12,6 +12,9 @@ const shellCss = source('../phone/PhoneStoryShell.css');
 const railSource = source('../phone/PhoneStageRail.tsx');
 const railCss = source('../phone/PhoneStageRail.css');
 const runtimeSource = source('../phone/usePhoneStageRuntime.ts');
+const checkpointPublisherSource = source(
+  '../phone/usePhoneCheckpointPublisher.ts'
+);
 const stageTimelineSource = source('../phone/phone-stage-timeline.ts');
 const fixedStageRegistrationSource = source(
   '../phone/usePhoneFixedStageRegistration.ts'
@@ -19,6 +22,7 @@ const fixedStageRegistrationSource = source(
 const edgeSurfaceSource = source('../phone/phone-edge-surface.ts');
 const viewportGeometrySource = source('../phone/usePhoneViewportGeometry.ts');
 const frontHalfSource = source('../phone/usePhoneFrontHalfAdapters.ts');
+const bootstrapSource = source('../phone/PhoneStoryBootstrap.tsx');
 const loaderSource = source('../phone/scenes/PhoneLoader.tsx');
 const heroSource = source('../phone/scenes/PhoneHero.tsx');
 const heroMotionSource = source('../phone/scenes/PhoneHero.motion.ts');
@@ -39,6 +43,9 @@ const phoneMediaSource = source('../phone/phone-media.ts');
 const gradeAStorySource = source('../phone/PhoneGradeAStory.tsx');
 const gradeAStoryCss = source('../phone/PhoneGradeAStory.css');
 const gradeAFigureSource = source('../phone/scenes/PhoneFigure2.tsx');
+const packedSurfaceSource = source(
+  '../phone/scenes/phone-packed-alpha-surface.ts'
+);
 const gradeAFigureCss = source('../phone/scenes/PhoneFigure2.css');
 const gradeAArchSource = source('../phone/scenes/PhoneFigure2Arch.tsx');
 const gradeAProofSource = source('../phone/scenes/PhoneFigure2Proof.tsx');
@@ -47,12 +54,20 @@ const gradeADistanceSource = source(
   '../phone/transitions/figure2-distance-expand.tsx'
 );
 const gradeAGroupSource = source('../phone/adapter-groups/grade-a.ts');
+const phonePresentationSource = source(
+  '../phone/phone-story-presentation.ts'
+);
+const directEntryPositionSource = source(
+  '../phone/phone-direct-entry-position.ts'
+);
+const storyEntrySource = source('../phone/usePhoneStoryEntry.ts');
 
 describe('Route B proven front-half migration contract', () => {
   it('keeps v16 thin and mounts the complete Loader → Method adapter group', () => {
     expect(spikeSource).toContain('<PhoneStoryShell validationMode="v16" />');
     expect(shellSource).toContain('usePhoneFrontHalfAdapters');
-    expect(shellSource).toContain('<Loader');
+    expect(bootstrapSource).toContain('<StoryLoader');
+    expect(shellSource).not.toContain('<Loader');
     expect(shellSource).toContain('<Hero');
     expect(shellSource).toContain('<Pattern');
     expect(shellSource).toContain('<StarMap');
@@ -155,10 +170,15 @@ describe('Route B proven front-half migration contract', () => {
   it('publishes the frozen checkpoint timeline in both rail and AOD clocks', () => {
     expect(runtimeSource).toContain("from './phone-stage-timeline'");
     expect(runtimeSource).toContain('phoneStageFrame(progress');
-    expect(runtimeSource).toContain('phoneAodCheckpointForMethodProgress');
-    expect(runtimeSource).toContain('phoneAodCompletionCheckpoint');
-    expect(shellSource).toContain('root.dataset.portraitCheckpoint = checkpoint');
-    expect(shellSource).toContain(
+    expect(runtimeSource).not.toContain('phoneAodCheckpointForMethodProgress');
+    expect(runtimeSource).not.toContain('phoneAodCompletionCheckpoint');
+    expect(phonePresentationSource).toContain(
+      "cursor.segment === 'aod-method-top'"
+    );
+    expect(checkpointPublisherSource).toContain(
+      'root.dataset.portraitCheckpoint = checkpoint'
+    );
+    expect(checkpointPublisherSource).toContain(
       'root.dataset.portraitCheckpointTrace = trace'
     );
   });
@@ -351,7 +371,8 @@ describe('Route B Grade A migration contract', () => {
 
   it('uses document progress without creating a nested Proof scroll owner', () => {
     expect(gradeAStorySource).toContain('phoneGradeAProofProgress');
-    expect(gradeAStorySource).toContain('phoneGradeAProofPanelOffset');
+    expect(gradeAStorySource).not.toContain('window.scrollTo(');
+    expect(directEntryPositionSource).toContain('targetOffset(element)');
     expect(gradeAProofSource).toContain("'--phone-proof-translate-y'");
     expect(gradeAProofCss).toMatch(
       /r4-proof-compound\s*\{[^}]*overflow:\s*visible/s
@@ -365,8 +386,9 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeADistanceSource).toContain(
       'createFigure2DistanceExpandTransition'
     );
-    expect(gradeADistanceSource).toContain("videoMode: 'seek'");
-    expect(gradeADistanceSource).toContain('directionRef.current');
+    expect(gradeADistanceSource).toContain('ownsMedia: false');
+    expect(gradeADistanceSource).toContain('inkCanvas: lease.canvas');
+    expect(gradeADistanceSource).toContain('phoneFigure2ProofTimelineProgress');
     expect(gradeADistanceSource).toContain('await timeline.prepareLeg?.(leg)');
     expect(gradeADistanceSource).toContain('timeline.commitLeg?.(leg)');
     expect(gradeAGroupSource).toContain("'method-bottom-figure2'");
@@ -375,8 +397,9 @@ describe('Route B Grade A migration contract', () => {
   });
 
   it('keeps Figure2 on one canonical video owner and composites phone alpha through Canvas', () => {
-    expect(gradeAFigureSource).toContain('createPackedAlphaVideoCompositor');
-    expect(gradeAFigureSource).toContain('setPackedAlphaVideoSource');
+    expect(gradeAFigureSource).toContain('createPhonePackedAlphaSurface');
+    expect(packedSurfaceSource).toContain('createPackedAlphaVideoCompositor');
+    expect(packedSurfaceSource).toContain('setPackedAlphaVideoSource');
     expect(gradeAFigureSource).toContain(
       "phoneMediaUrlFor(\n  'figure2-pair-packed',\n  'figure2-animation'"
     );
@@ -407,14 +430,9 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAArchSource).toContain("'figure2-foreground-arch'");
     expect(gradeAArchSource).toContain('RetainedFigure2Arch');
     expect(gradeAArchSource).toContain('motion="fixed"');
-    expect(gradeAStorySource).toContain(
-      'phoneGradeAMethodFigure2EdgeScene'
+    expect(phonePresentationSource).toContain(
+      "'method-bottom-figure2': 'method-to-figure2'"
     );
-    expect(gradeAStorySource.indexOf(
-      'methodFigure2Ref.current?.render(handoff);'
-    )).toBeLessThan(gradeAStorySource.indexOf(
-      'publishEdgeScene(phoneGradeAMethodFigure2EdgeScene('
-    ));
     expect(gradeAFigureCss).not.toContain('--portrait-browser-edge-reserve');
     expect(gradeAStoryCss).toContain('--phone-figure2-arch-scale');
     expect(gradeAStoryCss).toContain('--phone-figure2-arch-blur');
@@ -422,13 +440,14 @@ describe('Route B Grade A migration contract', () => {
   });
 
   it('settles the upstream AOD before a direct Figure2 or Proof entry', () => {
-    expect(runtimeSource).toContain('const directEntryScene = sceneFromHash');
-    expect(runtimeSource).toContain(
-      'phoneDirectEntryCompletesAod(directEntryScene)'
-    );
+    expect(storyEntrySource).toContain('directStoryEntry');
+    expect(shellSource).toContain('&& !directStoryEntry');
+    expect(methodSource).toContain('phoneDirectEntryCompletesAod');
     expect(stageTimelineSource).toContain("'figure2-animation'");
     expect(stageTimelineSource).toContain("'figure2-proof'");
-    expect(runtimeSource).toContain("aodRunState = 'complete'");
+    expect(runtimeSource).not.toContain('aodCompleted');
+    expect(gradeAStorySource).toContain('id="figure2-animation"');
+    expect(gradeAStorySource).toContain('id="figure2-proof"');
     expect(gradeAFigureCss).toMatch(
       /orientation:\s*landscape[^}]*[\s\S]*figure--combined\s*\{[^}]*width:\s*min\(48vw,\s*400px\)/
     );

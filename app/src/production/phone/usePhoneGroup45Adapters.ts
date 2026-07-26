@@ -62,6 +62,12 @@ export function group45AdapterPlanForEntry(
     )
     ? group45NextAdapterByScene[next.scene]
     : undefined;
+  const activeVisualSource: Group45PhoneSceneId | undefined =
+    activeScene === 'figure3-animation'
+      ? 'brand'
+      : activeScene === 'ttg-animation'
+        ? 'services'
+        : undefined;
   const activeVisualEntry: Group45PhoneTransitionId | undefined =
     activeScene === 'figure3-animation'
     ? 'brand-figure3'
@@ -71,6 +77,7 @@ export function group45AdapterPlanForEntry(
   return {
     scenes: unique([
       ...readingScenes,
+      ...(activeVisualSource ? [activeVisualSource] : []),
       ...(activeScene === 'figure3-animation' || activeScene === 'ttg-animation'
         ? [activeScene]
         : []),

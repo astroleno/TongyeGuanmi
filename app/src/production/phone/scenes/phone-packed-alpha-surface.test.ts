@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const compositorProbe = vi.hoisted(() => ({
-  onFrame: null as (() => void) | null
+  onFrame: null as (() => void) | null,
+  canvases: [] as FakeNode[]
 }));
 
 vi.mock('../../../media/packed-alpha-video', () => ({
   createPackedAlphaVideoCompositor: vi.fn(({ canvas, onFrame }) => {
     canvas.dataset.packedAlphaStatus = 'waiting';
     compositorProbe.onFrame = onFrame ?? null;
+    compositorProbe.canvases.push(canvas);
     return { render: () => false, dispose: vi.fn() };
   }),
   setPackedAlphaVideoSource: vi.fn((video, sourceUrl) => {
@@ -16,12 +18,18 @@ vi.mock('../../../media/packed-alpha-video', () => ({
     video.dataset.packedAlphaSource = 'rgb-alpha-side-by-side';
     video.replaceChildren(source);
     video.load();
+  }),
+  renewPackedAlphaCanvas: vi.fn((canvas: FakeNode) => {
+    const renewed = canvas.cloneNode();
+    renewed.width = 1;
+    renewed.height = 1;
+    canvas.replaceWith(renewed);
+    return renewed;
   })
 }));
 
 import {
-  createPhonePackedAlphaSurface,
-  releasePhonePackedAlphaWhenHidden
+  createPhonePackedAlphaSurface
 } from './phone-packed-alpha-surface';
 
 class FakeNode {
@@ -55,6 +63,28 @@ class FakeNode {
     for (const child of this.children) child.parentNode = null;
     this.children.length = 0;
     for (const child of children) this.append(child);
+  }
+
+  cloneNode() {
+    const clone = new FakeNode();
+    clone.ownerDocument = this.ownerDocument;
+    clone.className = this.className;
+    clone.width = this.width;
+    clone.height = this.height;
+    for (const [name, value] of this.attributes) {
+      clone.attributes.set(name, value);
+    }
+    Object.assign(clone.dataset, this.dataset);
+    return clone;
+  }
+
+  replaceWith(replacement: FakeNode) {
+    if (!this.parentNode) return;
+    const index = this.parentNode.children.indexOf(this);
+    if (index < 0) return;
+    replacement.parentNode = this.parentNode;
+    this.parentNode.children[index] = replacement;
+    this.parentNode = null;
   }
 
   setAttribute(name: string, value: string) {
@@ -123,6 +153,7 @@ function fixture() {
 describe('phone packed-alpha surface', () => {
   beforeEach(() => {
     compositorProbe.onFrame = null;
+    compositorProbe.canvases.length = 0;
     vi.unstubAllGlobals();
   });
 
@@ -152,7 +183,7 @@ describe('phone packed-alpha surface', () => {
     surface.dispose();
   });
 
-  it('keeps a React-owned Canvas mounted while releasing its decoder/context', () => {
+  it('renews a React-owned Canvas after hard release before reacquiring WebGL', () => {
     const ownerDocument = new FakeDocument();
     const root = ownerDocument.createElement('section');
     const container = ownerDocument.createElement('div');
@@ -176,10 +207,14 @@ describe('phone packed-alpha surface', () => {
     surface.activate();
     surface.release();
 
-    expect(container.querySelector('canvas')).toBe(canvas);
-    expect(canvas.width).toBe(1);
-    expect(canvas.height).toBe(1);
+    const renewed = container.querySelector('canvas');
+    expect(renewed).not.toBe(canvas);
+    expect(renewed?.width).toBe(1);
+    expect(renewed?.height).toBe(1);
     expect(video.querySelector('source')).toBeNull();
+
+    surface.activate('endpoint');
+    expect(compositorProbe.canvases).toEqual([canvas, renewed]);
     surface.dispose();
   });
 
@@ -216,17 +251,24 @@ describe('phone packed-alpha surface', () => {
     }
   });
 
-  it('resolves preparation only after the packed frame is presented', async () => {
+  it('prepares forward topology without hidden playback or a frame-zero gate', async () => {
+    const { root, video, surface } = fixture();
+    await expect(surface.prepare('forward')).resolves.toBeUndefined();
+    expect(video.play).not.toHaveBeenCalled();
+    expect(root.dataset.phoneTestAlpha).toBe('awaiting-native-playback');
+    surface.dispose();
+  });
+
+  it('waits for the authored endpoint frame during reverse preparation', async () => {
     const { root, surface } = fixture();
     let resolved = false;
-    const preparation = surface.prepare('forward').then(() => {
+    const preparation = surface.prepare('endpoint').then(() => {
       resolved = true;
     });
 
     await Promise.resolve();
     expect(resolved).toBe(false);
     expect(root.dataset.phoneTestAlpha).toBe('probing');
-
     compositorProbe.onFrame?.();
 
     await expect(preparation).resolves.toBeUndefined();
@@ -234,79 +276,20 @@ describe('phone packed-alpha surface', () => {
     surface.dispose();
   });
 
-  it('rejects preparation instead of declaring a timed-out frame complete', async () => {
-    vi.useFakeTimers();
-    try {
-      const ownerDocument = new FakeDocument();
-      const root = ownerDocument.createElement('section');
-      const container = ownerDocument.createElement('div');
-      const video = ownerDocument.createElement('video') as FakeVideo;
-      root.append(container);
-      container.append(video);
-      const surface = createPhonePackedAlphaSurface({
-        root: root as unknown as HTMLElement,
-        container: container as unknown as HTMLElement,
-        video: video as unknown as HTMLVideoElement,
-        packedSourceUrl: '/packed.mp4',
-        endpointSeconds: 1.25,
-        statusDataset: 'phoneTestAlpha',
-        layerName: 'test',
-        canvasClassName: 'test-canvas',
-        frameTimeoutMs: 20
-      });
-      const preparation = expect(
-        surface.prepare('forward')
-      ).rejects.toThrow('first frame was not presented');
-
-      await vi.advanceTimersByTimeAsync(20);
-
-      await preparation;
-      expect(root.dataset.phoneTestAlpha).toBe('awaiting-native-playback');
-      surface.dispose();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('stops preparation playback when its caller retires the run', async () => {
+  it('does not start hidden playback when endpoint preparation is retired', async () => {
     const { video, surface } = fixture();
     const controller = new AbortController();
     const preparation = expect(
-      surface.prepare('forward', controller.signal)
+      surface.prepare('endpoint', controller.signal)
     ).rejects.toMatchObject({ name: 'AbortError' });
 
     await Promise.resolve();
-    expect(video.play).toHaveBeenCalledOnce();
-    video.pause.mockClear();
+    expect(video.play).not.toHaveBeenCalled();
     controller.abort();
 
     await preparation;
-    expect(video.pause).toHaveBeenCalledOnce();
+    expect(video.play).not.toHaveBeenCalled();
     surface.dispose();
   });
 
-  it('waits for the scroll transition to become invisible before releasing', () => {
-    let notifyMutation: (() => void) | undefined;
-    class FakeMutationObserver {
-      constructor(callback: () => void) {
-        notifyMutation = callback;
-      }
-      observe() {}
-      disconnect() {}
-    }
-    vi.stubGlobal('MutationObserver', FakeMutationObserver);
-    const root = new FakeNode();
-    root.style.opacity = '0.5';
-    const release = vi.fn();
-    const cancel = releasePhonePackedAlphaWhenHidden(
-      root as unknown as HTMLElement,
-      release
-    );
-
-    expect(release).not.toHaveBeenCalled();
-    root.style.opacity = '0';
-    notifyMutation?.();
-    expect(release).toHaveBeenCalledOnce();
-    cancel();
-  });
 });

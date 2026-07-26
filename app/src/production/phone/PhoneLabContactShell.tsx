@@ -8,6 +8,7 @@ import {
   type RefObject
 } from 'react';
 import type { SceneId } from '../../story/types';
+import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 import {
   INTRA_CHAPTER_DISSOLVE_MS,
   PH_PLAYBACK_MS
@@ -376,7 +377,7 @@ function phoneMotionEnabled(): boolean {
 
 function setStageActive(stage: HTMLElement | null, active: boolean): void {
   if (!stage) return;
-  stage.dataset.phoneAcceptanceStageActive = String(active);
+  stage.dataset.phoneAcceptanceStageActive = semanticBoolean(active);
   if (!active) stage.style.removeProperty('--phone-lab-contact-stage-y');
 }
 
@@ -1784,7 +1785,7 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
             className={isDirectCinematic
               ? 'phone-lab-contact__stage phone-lab-contact__stage--direct'
               : undefined}
-            data-phone-acceptance-stage-active={String(isDirectCinematic)}
+            data-phone-acceptance-stage-active={semanticBoolean(isDirectCinematic)}
             aria-hidden={isDirectCinematic ? 'true' : undefined}
           >
             <div className={isDirectCinematic

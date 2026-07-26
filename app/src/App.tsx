@@ -10,7 +10,6 @@ import { initialPresentationFamily, type PresentationFamily } from './production
 import { revealStaticPhoneStoryFallback } from './production/phone-story-fallback';
 import {
   loadDesktopStoryShell,
-  loadPhoneLabContactShell,
   loadPhoneStoryShell
 } from './production/presentation-shell-loaders';
 import './styles.css';
@@ -21,7 +20,6 @@ const HarnessRouter = harnessEnabled
   : null;
 const DesktopStoryShell = lazy(loadDesktopStoryShell);
 const PhoneStoryShell = lazy(loadPhoneStoryShell);
-const PhoneLabContactShell = lazy(loadPhoneLabContactShell);
 const phoneShellEnabled = import.meta.env.VITE_ENABLE_PHONE_STORY === '1';
 
 type PhoneStoryErrorBoundaryProps = Readonly<{ children: ReactNode }>;
@@ -107,9 +105,11 @@ export function App() {
     return (
       <PhoneStoryErrorBoundary>
         <Suspense fallback={<main className="route-loading">正在加载故事…</main>}>
-          {phoneValidationMode === 'v36'
-            ? <PhoneLabContactShell validationMode="v36" />
-            : <PhoneStoryShell {...(phoneValidationMode ? { validationMode: phoneValidationMode } : {})} />}
+          <PhoneStoryShell
+            {...(phoneValidationMode
+              ? { validationMode: phoneValidationMode }
+              : {})}
+          />
         </Suspense>
       </PhoneStoryErrorBoundary>
     );

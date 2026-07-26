@@ -1,11 +1,28 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FIGURE2_INTRO_END } from '../../../transitions/figure2-distance-expand';
 import {
   alignPhoneProofBrandReceiver,
   PHONE_PROOF_BRAND_FIELD
 } from './figure2-proof-brand';
+import {
+  phoneFigure2ProofTimelineProgress
+} from './figure2-distance-expand';
 import { PHONE_METHOD_FIGURE2_FIELD } from './method-bottom-figure2';
 import { phoneInkAdapterProgress } from './PhoneInkTransition';
+
+const inkAdapterSource = readFileSync(
+  new URL('./PhoneInkTransition.tsx', import.meta.url),
+  'utf8'
+);
+const figure2DistanceSource = readFileSync(
+  new URL('./figure2-distance-expand.tsx', import.meta.url),
+  'utf8'
+);
+const brandLabCss = readFileSync(
+  new URL('../PhoneBrandLabStory.css', import.meta.url),
+  'utf8'
+);
 
 class FakeStyle {
   readonly values = new Map<string, string>();
@@ -99,6 +116,18 @@ describe('phone Grade A transition contracts', () => {
 
   it('keeps the authored Figure2 media/depth split', () => {
     expect(FIGURE2_INTRO_END).toBe(0.72);
+    expect(phoneFigure2ProofTimelineProgress(0)).toBe(0.72);
+    expect(phoneFigure2ProofTimelineProgress(0.5)).toBe(0.86);
+    expect(phoneFigure2ProofTimelineProgress(1)).toBe(1);
+  });
+
+  it('maps canonical progress exactly once before either renderer samples it', () => {
+    expect(figure2DistanceSource).toContain(
+      'fallbackFrame(from, to, canonical, reducedMotion)'
+    );
+    expect(figure2DistanceSource).not.toContain(
+      'fallbackFrame(from, to, sampled, reducedMotion)'
+    );
   });
 
   it('keeps Proof visible until reduced-motion Brand boundary entry', () => {
@@ -106,6 +135,17 @@ describe('phone Grade A transition contracts', () => {
     expect(phoneInkAdapterProgress(0.001, true, 'boundary')).toBe(1);
     expect(phoneInkAdapterProgress(0, true, 'receiver')).toBe(1);
     expect(phoneInkAdapterProgress(0.42, false, 'boundary')).toBe(0.42);
+  });
+
+  it('aligns only the forward receiver and preserves the reverse source', () => {
+    expect(inkAdapterSource).toMatch(
+      /enter\(\) \{\s*directionRef\.current = 1;\s*alignReceiver\(1\);\s*\}/
+    );
+    expect(inkAdapterSource).toMatch(
+      /reverse\(\) \{\s*directionRef\.current = -1;\s*releaseReceiver\(\);\s*\}/
+    );
+    expect(brandLabCss).toContain('var(--phone-proof-brand-align-y)');
+    expect(brandLabCss).not.toContain('--phone-flow-endpoint-align-y');
   });
 
   it('aligns the one canonical Brand receiver only for the ink run', () => {

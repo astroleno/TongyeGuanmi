@@ -7,6 +7,7 @@ import {
   useRef,
   useState
 } from 'react';
+import { semanticBoolean } from '../../../runtime/semantic-data-attribute';
 import { METHOD_COPY } from '../../../story/copy';
 import { sceneFromHash } from '../../navigation';
 import type {
@@ -51,9 +52,6 @@ export const PhoneMethodTop = forwardRef<
   motionDriver,
   onReady,
   stageHost,
-  onGradeACheckpoint,
-  onGradeASceneChange,
-  onGradeAEdgeScene,
   reducedMotion
 }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
@@ -105,7 +103,7 @@ export const PhoneMethodTop = forwardRef<
       const visible = progress > 0.001;
       const owner = rootRef.current?.closest<HTMLElement>('.portrait-scroll-spike');
       if (owner) {
-        owner.dataset.portraitAodMethodVisible = String(visible);
+        owner.dataset.portraitAodMethodVisible = semanticBoolean(visible);
         if (import.meta.env.DEV) {
           owner.dataset.portraitMethodEntrance = progress.toFixed(4);
         }
@@ -169,15 +167,6 @@ export const PhoneMethodTop = forwardRef<
               reducedMotion={reducedMotion}
               stageHost={stageHost}
               methodCopySource={steps}
-              {...(onGradeACheckpoint
-                ? { onCheckpoint: onGradeACheckpoint }
-                : {})}
-              {...(onGradeASceneChange
-                ? { onSceneChange: onGradeASceneChange }
-                : {})}
-              {...(onGradeAEdgeScene
-                ? { onEdgeScene: onGradeAEdgeScene }
-                : {})}
             />
           </Suspense>
         )}

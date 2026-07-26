@@ -1,19 +1,51 @@
 import type {
-  Group67CheckpointId
+  Group45CheckpointId,
+  Group67CheckpointId,
+  PhoneCheckpointId
 } from '../../story/semantic-checkpoints';
-import { sceneFromHash } from '../navigation';
+import type { SceneId } from '../../story/types';
+import {
+  figure2ProofPanelFromHash,
+  sceneFromHash
+} from '../navigation';
+import {
+  group45PhoneSceneIds,
+  type Group45PhoneSceneId
+} from './adapter-groups/group4-5';
 import {
   group67PhoneSceneIds,
   type Group67PhoneSceneId
 } from './adapter-groups/group6-7';
 import type { PhoneEdgeScene } from './phone-edge-surface';
+import { phoneStablePresentation } from './phone-story-presentation';
 
 const GROUP67_SCENES = new Set<Group67PhoneSceneId>(group67PhoneSceneIds);
+const GROUP45_SCENES = new Set<Group45PhoneSceneId>(group45PhoneSceneIds);
+
+export type PhoneGroup45EntryPlan = Readonly<{
+  group: 'group45';
+  scene: Group45PhoneSceneId;
+  edgeScene: PhoneEdgeScene;
+  checkpoint: Group45CheckpointId;
+}>;
 
 export type PhoneGroup67EntryPlan = Readonly<{
+  group?: 'group67';
   scene: Group67PhoneSceneId;
   edgeScene: Group67PhoneEdgeScene;
   checkpoint: Group67CheckpointId;
+}>;
+
+export type PhoneContinuationEntryPlan =
+  | PhoneGroup45EntryPlan
+  | (PhoneGroup67EntryPlan & Readonly<{ group: 'group67' }>);
+
+export type PhoneStoryEntryPlan = Readonly<{
+  scene: SceneId;
+  edgeScene: PhoneEdgeScene;
+  checkpoint: PhoneCheckpointId;
+  continuation?: PhoneContinuationEntryPlan;
+  proofPanelIndex?: 0 | 1 | 2;
 }>;
 
 type Group67PhoneEdgeScene = Extract<
@@ -46,24 +78,13 @@ export function phoneGroup67EdgeScene(
 export function phoneGroup67EdgeScene(
   scene: 'lab' | Group67PhoneSceneId
 ): PhoneEdgeScene {
-  if (scene === 'ph-animation') return 'ph';
-  if (scene === 'crane-animation') return 'crane';
-  return scene;
+  return phoneStablePresentation(scene).edge;
 }
 
 export function phoneGroup67CheckpointForScene(
   scene: Group67PhoneSceneId
 ): Group67CheckpointId {
-  switch (scene) {
-    case 'ph-animation':
-      return 'ph-stage';
-    case 'education':
-      return 'education-reading';
-    case 'crane-animation':
-      return 'crane-stage';
-    case 'contact':
-      return 'contact-stable';
-  }
+  return phoneStablePresentation(scene).checkpoint as Group67CheckpointId;
 }
 
 export function phoneGroup67EntryPlanFromHash(
@@ -76,4 +97,77 @@ export function phoneGroup67EntryPlanFromHash(
     edgeScene: phoneGroup67EdgeScene(scene),
     checkpoint: phoneGroup67CheckpointForScene(scene)
   };
+}
+
+function phoneGroup45SceneFromHash(
+  hash: string
+): Group45PhoneSceneId | undefined {
+  const scene = sceneFromHash(hash);
+  return scene && GROUP45_SCENES.has(scene as Group45PhoneSceneId)
+    ? scene as Group45PhoneSceneId
+    : undefined;
+}
+
+export function phoneGroup45EntryPresentation(
+  scene: Group45PhoneSceneId
+): Readonly<{
+  edgeScene: PhoneEdgeScene;
+  checkpoint: Group45CheckpointId;
+}> {
+  const { edge, checkpoint } = phoneStablePresentation(scene);
+  return { edgeScene: edge, checkpoint: checkpoint as Group45CheckpointId };
+}
+
+export function phoneContinuationEntryPlanFromHash(
+  hash: string
+): PhoneContinuationEntryPlan | undefined {
+  const group45Scene = phoneGroup45SceneFromHash(hash);
+  if (group45Scene) {
+    return {
+      group: 'group45',
+      scene: group45Scene,
+      ...phoneGroup45EntryPresentation(group45Scene)
+    };
+  }
+  const group67 = phoneGroup67EntryPlanFromHash(hash);
+  return group67 ? { ...group67, group: 'group67' } : undefined;
+}
+
+const GRADE_A_DIRECT_SCENES = new Set<SceneId>([
+  'method-top',
+  'figure2-animation',
+  'figure2-proof'
+]);
+
+export function phoneStoryEntryPlanFromHash(
+  hash: string
+): PhoneStoryEntryPlan | undefined {
+  const continuation = phoneContinuationEntryPlanFromHash(hash);
+  if (continuation) return { ...continuation, continuation };
+  const scene = sceneFromHash(hash);
+  if (!scene || !GRADE_A_DIRECT_SCENES.has(scene)) return undefined;
+  const { edge, checkpoint } = phoneStablePresentation(scene);
+  const proofPanel = figure2ProofPanelFromHash(hash);
+  return {
+    scene,
+    edgeScene: edge,
+    checkpoint,
+    ...(proofPanel ? {
+      proofPanelIndex: proofPanel === 'opening' ? 0
+        : proofPanel === 'cards' ? 1 : 2
+    } : {})
+  };
+}
+
+export function phoneStoryEntryTargetId(scene: SceneId): string {
+  return scene === 'method-top' ? 'method' : scene;
+}
+
+export function phoneStoryEntryTarget(
+  scene: SceneId,
+  scope: Pick<Document, 'querySelector'> = document
+): HTMLElement | null {
+  return scope.querySelector<HTMLElement>(
+    `.portrait-scroll-spike #${phoneStoryEntryTargetId(scene)}`
+  );
 }

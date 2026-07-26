@@ -6,12 +6,15 @@ import {
   useState
 } from 'react';
 import type { SceneId } from '../../story/types';
+import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 import { StoryNav } from '../StoryNav';
-import { hashForScene, publicMenuItems } from '../navigation';
+import {
+  hashForScene,
+  publicMenuItems,
+  sceneFromHash
+} from '../navigation';
 import {
   PhoneBrandLabContinuation,
-  phoneGroup45DocumentFlags,
-  phoneGroup45EntryFromHash,
   type Group45VisualScene
 } from './PhoneBrandLabContinuation';
 import {
@@ -20,6 +23,15 @@ import {
 } from './adapter-groups/group4-5';
 import { PhoneStageRail } from './PhoneStageRail';
 import { usePhoneEdgeSurface } from './usePhoneEdgeSurface';
+import {
+  PhoneStoryOrchestratorProvider
+} from './PhoneStoryOrchestratorContext';
+import {
+  usePhoneStoryOrchestratorRuntime
+} from './usePhoneStoryOrchestratorRuntime';
+import type {
+  PhonePresentationEvidence
+} from './phone-story-orchestrator';
 import './PhoneBrandLabStory.css';
 
 export * from './PhoneBrandLabContinuation';
@@ -36,6 +48,23 @@ const GROUP45_NAV_ITEMS = publicMenuItems.filter(
 
 function isGroup45Scene(scene: SceneId): scene is Group45PhoneSceneId {
   return GROUP45_SCENES.has(scene as Group45PhoneSceneId);
+}
+
+export function phoneGroup45EntryFromHash(hash: string): Group45PhoneSceneId {
+  const scene = sceneFromHash(hash);
+  return scene && isGroup45Scene(scene) ? scene : 'brand';
+}
+
+export function phoneGroup45DocumentFlags(
+  reducedMotion: boolean
+): Readonly<{
+  portraitSpike: 'b';
+  portraitSpikeMotion: 'force' | 'reduce';
+}> {
+  return {
+    portraitSpike: 'b',
+    portraitSpikeMotion: reducedMotion ? 'reduce' : 'force'
+  };
 }
 
 /**
@@ -62,6 +91,20 @@ export function PhoneBrandLabStory({
   const stageCanvasRef = useRef<HTMLDivElement | null>(null);
   const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
   const publishEdgeScene = usePhoneEdgeSurface(rootRef, stageViewportRef);
+  const publishPresentation = useCallback((
+    evidence: PhonePresentationEvidence
+  ) => {
+    if (evidence.scene && isGroup45Scene(evidence.scene)) {
+      setCurrentScene(evidence.scene);
+    }
+    if (evidence.edge) publishEdgeScene(evidence.edge);
+  }, [publishEdgeScene]);
+  const orchestrator = usePhoneStoryOrchestratorRuntime({
+    initialScene: entryScene,
+    rootRef,
+    onPresentation: publishPresentation,
+    onRetryable: () => undefined
+  });
 
   const bindStageHost = useCallback((host: HTMLDivElement | null) => {
     if (stageCanvasRef.current === host) return;
@@ -89,7 +132,9 @@ export function PhoneBrandLabStory({
         delete documentElement.dataset.portraitSpikeMotion;
       }
       if (previousHydrated) {
-        documentElement.dataset.storyHydrated = previousHydrated;
+        documentElement.dataset.storyHydrated = semanticBoolean(
+          previousHydrated === 'true'
+        );
       } else {
         delete documentElement.dataset.storyHydrated;
       }
@@ -121,16 +166,17 @@ export function PhoneBrandLabStory({
   }, []);
 
   return (
-    <main
+    <PhoneStoryOrchestratorProvider orchestrator={orchestrator}>
+      <main
       ref={rootRef}
       className="portrait-scroll-spike phone-brand-lab phone-brand-lab--shell"
       data-phone-validation-scope="brand-lab"
       data-phone-validation-mode={validationMode}
       data-phone-group45-state="ready"
       data-phone-group45-layout="shared-boundary-stage"
-      data-phone-group45-stage-active={String(stageScene !== null)}
+      data-phone-group45-stage-active={semanticBoolean(stageScene !== null)}
       data-phone-group45-stage-scene={stageScene ?? 'none'}
-      data-portrait-stage-active={String(stageScene !== null)}
+      data-portrait-stage-active={semanticBoolean(stageScene !== null)}
       data-portrait-loader-ready="true"
     >
       <PhoneStageRail
@@ -145,8 +191,6 @@ export function PhoneBrandLabStory({
         stageHost={stageHost}
         entryScene={entryScene}
         validationMode={validationMode}
-        onEdgeScene={publishEdgeScene}
-        onSceneChange={setCurrentScene}
         onStageSceneChange={setStageScene}
       />
       <StoryNav
@@ -158,7 +202,8 @@ export function PhoneBrandLabStory({
         onToggleMenu={() => setMenuOpen((open) => !open)}
         onNavigate={navigate}
       />
-    </main>
+      </main>
+    </PhoneStoryOrchestratorProvider>
   );
 }
 

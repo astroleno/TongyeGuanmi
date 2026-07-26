@@ -57,7 +57,11 @@ export function createPhoneEndpointAdapter(options: Readonly<{
     reducedMotion: boolean
   ) => void;
   settle: (from: HTMLElement | null, to: HTMLElement | null) => void;
-  reset?: (from: HTMLElement | null, to: HTMLElement | null) => void;
+  reset?: (
+    from: HTMLElement | null,
+    to: HTMLElement | null,
+    progress: number
+  ) => void;
 }>): PhoneTransitionAdapterComponent {
   return forwardRef<PhoneTransitionAdapterHandle, PhoneTransitionAdapterProps>(
     function PhoneEndpointTransition(
@@ -65,10 +69,12 @@ export function createPhoneEndpointAdapter(options: Readonly<{
       forwardedRef
     ) {
       const directionRef = useRef<Direction>(1);
+      const progressRef = useRef(0);
       const layer = useCallback((active: boolean) => {
         setPhoneEndpointLayer(to, options.layerAttribute, active);
       }, [to]);
       const render = useCallback((progress: number) => {
+        progressRef.current = progress;
         options.renderFrame(
           from,
           to,
@@ -78,11 +84,20 @@ export function createPhoneEndpointAdapter(options: Readonly<{
         );
       }, [from, reducedMotion, to]);
       useEffect(() => {
-        render(0);
         onReady?.();
-      }, [onReady, render]);
+      }, [onReady]);
       useImperativeHandle(forwardedRef, () => ({
         render,
+        begin() {
+          layer(true);
+        },
+        commitEndpoint(endpoint) {
+          render(endpoint);
+          if (endpoint === 1) options.settle(from, to);
+        },
+        releaseEndpoint() {
+          layer(false);
+        },
         enter() {
           directionRef.current = 1;
           layer(true);
@@ -107,7 +122,7 @@ export function createPhoneEndpointAdapter(options: Readonly<{
         dispose() {
           directionRef.current = 1;
           layer(false);
-          options.reset?.(from, to);
+          options.reset?.(from, to, progressRef.current);
         }
       }), [from, layer, render, to]);
       return null;

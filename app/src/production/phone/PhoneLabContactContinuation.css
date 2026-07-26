@@ -17,6 +17,15 @@
   background: #ede4d2;
 }
 
+[data-phone-document-endpoint-aligned="true"] {
+  z-index: 12 !important;
+  transform: translate3d(
+    0,
+    var(--phone-document-endpoint-align-y, 0px),
+    0
+  );
+}
+
 .phone-lab-contact-continuation[data-phone-group67-stage-active="false"]
   > .phone-lab-contact-continuation__native {
   z-index: 11;

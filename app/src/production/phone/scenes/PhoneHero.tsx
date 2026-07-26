@@ -9,6 +9,7 @@ import {
 import { TextReveal, TextRevealItem } from '../../../components/TextReveal';
 import {
   createPackedAlphaVideoCompositor,
+  renewPackedAlphaCanvas,
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
 import {
@@ -79,6 +80,34 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     const adapterReadyRef = useRef(false);
     const lastProgressRef = useRef(Number.NaN);
     const [titleActive, setTitleActive] = useState(reducedMotion);
+    const releaseCompositor = useCallback(() => {
+      const compositor = compositorRef.current;
+      const canvas = figureCanvasRef.current;
+      if (!compositor) return;
+      compositor.dispose();
+      compositorRef.current = undefined;
+      if (canvas) figureCanvasRef.current = renewPackedAlphaCanvas(canvas);
+    }, []);
+    const ensureCompositor = useCallback(() => {
+      if (reducedMotion) return undefined;
+      if (compositorRef.current) return compositorRef.current;
+      const figureVideo = figureVideoRef.current;
+      const figureCanvas = figureCanvasRef.current;
+      const figureParallax = figureParallaxRef.current;
+      if (!figureVideo || !figureCanvas || !figureParallax) return undefined;
+      const compositor = createPackedAlphaVideoCompositor({
+        video: figureVideo,
+        canvas: figureCanvas,
+        onFrame: () => {
+          figureVideo.dataset.portraitFigureAlpha = 'verified';
+          figureParallax.dataset.portraitFigureAlpha = 'verified';
+          figureParallax.dataset.portraitFigureFrame = 'ready';
+        }
+      });
+      compositor.setActive(sceneActiveRef.current);
+      compositorRef.current = compositor;
+      return compositor;
+    }, [reducedMotion]);
     const storyRoot = useCallback(() => (
       rootRef.current?.closest<HTMLElement>('.portrait-scroll-spike') ?? rootRef.current
     ), []);
@@ -175,15 +204,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       }
 
       const owner = storyRoot() ?? root;
-      const compositor = createPackedAlphaVideoCompositor({
-        video: figureVideo,
-        canvas: figureCanvas,
-        onFrame: () => {
-          figureVideo.dataset.portraitFigureAlpha = 'verified';
-          figureParallax.dataset.portraitFigureAlpha = 'verified';
-          figureParallax.dataset.portraitFigureFrame = 'ready';
-        }
-      });
+      ensureCompositor();
       const playback = createPhoneFigurePlayback(
         figureVideo,
         HERO_FIGURE_PACKED_ALPHA_VIDEO
@@ -209,7 +230,6 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         })
       });
 
-      compositorRef.current = compositor;
       playbackRef.current = playback;
       parallaxRef.current = parallax;
       introInkRef.current = introInk;
@@ -226,11 +246,10 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         sceneActiveRef.current = false;
         parallax.dispose();
         playback.dispose();
-        compositor.dispose();
+        releaseCompositor();
         introInk.dispose();
         if (parallaxRef.current === parallax) parallaxRef.current = undefined;
         if (playbackRef.current === playback) playbackRef.current = undefined;
-        if (compositorRef.current === compositor) compositorRef.current = undefined;
         if (introInkRef.current === introInk) introInkRef.current = undefined;
       };
     }, [
@@ -238,6 +257,8 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       motionDriver,
       onReady,
       reducedMotion,
+      ensureCompositor,
+      releaseCompositor,
       renderEntrance,
       storyRoot
     ]);
@@ -277,17 +298,17 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       },
       enter() {
         sceneActiveRef.current = true;
-        compositorRef.current?.setActive(!reducedMotion);
+        ensureCompositor()?.setActive(!reducedMotion);
         playbackRef.current?.setActive(!reducedMotion);
       },
       leave() {
         sceneActiveRef.current = false;
-        compositorRef.current?.setActive(false);
+        releaseCompositor();
         playbackRef.current?.setActive(false);
       },
       reverse() {
         sceneActiveRef.current = true;
-        compositorRef.current?.setActive(!reducedMotion);
+        ensureCompositor()?.setActive(!reducedMotion);
         playbackRef.current?.setActive(!reducedMotion);
       },
       startEntrance,
@@ -302,10 +323,18 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       dispose() {
         cancelEntrance();
         sceneActiveRef.current = false;
-        compositorRef.current?.setActive(false);
+        releaseCompositor();
         playbackRef.current?.setActive(false);
       }
-    }), [cancelEntrance, completeEntrance, motionDriver, reducedMotion, startEntrance]);
+    }), [
+      cancelEntrance,
+      completeEntrance,
+      ensureCompositor,
+      motionDriver,
+      reducedMotion,
+      releaseCompositor,
+      startEntrance
+    ]);
 
     return (
       <section

@@ -5,6 +5,10 @@ const storySource = readFileSync(
   new URL('./PhoneBrandLabContinuation.tsx', import.meta.url),
   'utf8'
 );
+const compositeRunnerSource = readFileSync(
+  new URL('./phone-composite-runner.ts', import.meta.url),
+  'utf8'
+);
 const qaShellSource = readFileSync(
   new URL('./PhoneBrandLabStory.tsx', import.meta.url),
   'utf8'
@@ -115,18 +119,22 @@ describe('Phone Brand → Lab visual contracts', () => {
   });
 
   it('does not let a loaded Grade A root overwrite the active front-stage edge', () => {
-    expect(gradeAStorySource).toContain(
-      "storyRoot?.dataset.portraitStageActive !== 'true'"
-    );
+    expect(gradeAStorySource).not.toContain('publishEdgeScene(');
+    expect(gradeAStorySource).not.toContain('orchestrator.reportPresentation');
+    expect(formalShellSource).toContain('usePhoneEdgeSurface(');
     expect(stageRuntimeSource).toContain(
       'else renderStage(stageTrigger.progress)'
     );
   });
 
   it('keeps AOD media-owned without converting the front rail to timed ink', () => {
-    expect(stageRuntimeSource).toContain('aodSession = session');
-    expect(stageRuntimeSource).toContain('aodAdapter.startAutoplay(1)');
-    expect(stageRuntimeSource).toContain('session?.complete(direction === 1');
+    expect(stageRuntimeSource).toContain(
+      'aodRun = { direction, session, timeout: 0 }'
+    );
+    expect(stageRuntimeSource).toContain(
+      'aodAdapter.startAutoplay(run.direction)'
+    );
+    expect(stageRuntimeSource).toContain('session.reportAnimationComplete()');
     expect(stageRuntimeSource).not.toContain('FRONT_INK_BOUNDARIES');
     expect(stageRuntimeSource).not.toContain('runPhoneTimedTransition');
   });
@@ -138,6 +146,9 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(stageStyles).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*z-index:\s*10[^}]*background:\s*transparent/s
     );
+    expect(stageStyles).toMatch(
+      /\.portrait-scroll-spike\s*\{[^}]*overflow-anchor:\s*none/s
+    );
     expect(stageStyles).not.toContain(
       'data-portrait-checkpoint="proof-to-brand"'
     );
@@ -147,15 +158,13 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(storyStyles).toMatch(
       /stage-scene="ttg-animation"[^}]*>\s*\.phone-services\s*\{[^}]*z-index:\s*9/s
     );
-    expect(storySource).toContain(
-      "visualRunStepRef.current = 'exit-ink'"
+    expect(compositeRunnerSource).toContain(
+      "run.step = run.direction === 1 ? 'entry-ink' : 'exit-ink'"
     );
-    expect(storySource).toContain(
-      'cancelVisualInkRef.current = runPhoneTimedTransition'
-    );
-    expect(storySource).toContain(
-      "root?.setAttribute('data-phone-group45-stage-active', 'false')"
-    );
+    expect(compositeRunnerSource).toContain('run.session.animate(');
+    expect(compositeRunnerSource).not.toContain('runPhoneProgressClock(');
+    expect(compositeRunnerSource).toContain('run.session.provideRelease(');
+    expect(compositeRunnerSource).not.toContain('options.onSettled(');
     expect(gradeAStorySource).toMatch(
       /proofActive\s*&&\s*Boolean\(boundaryReadyRef\.current & 2\)\s*&&\s*activeInk\?\.id !== 2/s
     );
@@ -192,6 +201,9 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
     expect(servicesStyles).not.toContain('phone-figure3-services-bridge');
     expect(storySource).not.toContain('window.scrollTo({ top: targetY');
+    expect(compositeRunnerSource).not.toContain(
+      'acquirePhoneFlowEndpointAlignment'
+    );
   });
 
   it('composites Figure3 into paper below one desktop treatment layer', () => {
@@ -245,46 +257,41 @@ describe('Phone Brand → Lab visual contracts', () => {
   });
 
   it('uses one complementary ink boundary from Brand into Figure3', () => {
-    expect(brandFigure3Transition).toContain('createPhoneInkTransition');
+    expect(brandFigure3Transition).toContain('createPhoneInkAdapter');
     expect(brandFigure3Transition).toContain("direction: 'bottom-to-top'");
     expect(brandFigure3Transition).toContain("seed: 'brand-figure3'");
-    expect(brandFigure3Transition).toContain("from,\n      to,");
+    expect(brandFigure3Transition).not.toContain('maskSource: false');
     expect(brandFigure3Transition).not.toContain("strategy: 'endpoint-dissolve'");
   });
 
   it('owns both directions through one capture-phase semantic lock', () => {
-    expect(storySource).toContain('registerPhoneTransitionBoundary(inputOwner');
+    expect(storySource).toContain('createPhoneCompositeRunner');
+    expect(compositeRunnerSource).toContain(
+      'options.orchestrator.registerRunCapability'
+    );
+    expect(compositeRunnerSource).toContain('options.runForVisual(scene)');
     expect(storySource).toContain('BRAND_READING_HOLD_RATIO = 0.16');
-    expect(storySource).toContain('trackTop - window.innerHeight');
+    expect(storySource).not.toContain('phoneBrandLabCompositeAnchor');
+    expect(compositeRunnerSource).toContain(
+      'position: (direction) => options.position(scene, direction)'
+    );
+    expect(storySource).not.toContain('trackTop - window.innerHeight');
     expect(transitionCoordinatorSource).toContain(
-      "root.addEventListener('touchmove', (event) => {"
+      "root.addEventListener('touchmove', onTouchMove, blocking)"
     );
     expect(transitionCoordinatorSource).toContain(
-      'const blockingListener = { passive: false, capture: true }'
+      'const blocking = { passive: false, capture: true }'
     );
     expect(transitionCoordinatorSource).toContain(
       'phoneTransitionCrossesBoundary('
     );
-    expect(transitionCoordinatorSource).toContain(
-      'let matchPosition = direction === 1 ? Infinity : -Infinity;'
+    expect(compositeRunnerSource).toContain(
+      'options.capabilities.waitFor(dependencies'
     );
-    expect(transitionCoordinatorSource).toContain(
-      '|| !canStart'
+    expect(compositeRunnerSource).toContain(
+      'const prepareTarget = config.visual.prepareTargetPresentation'
     );
-    expect(transitionCoordinatorSource).toContain(
-      'return match ? begin(match, direction, matchPosition) : false;'
-    );
-    expect(transitionCoordinatorSource).toContain(
-      '&& tryProjected(previousScrollY, currentScrollY)'
-    );
-    expect(storySource).toContain(
-      'const directVisualEntry = directEntryScene === nextRun'
-    );
-    expect(storySource).toContain("setAdapterScene('services')");
-    expect(storySource).toMatch(
-      /runDirection === 1\s+&& !directVisualEntry\s+&& !retryingMedia\s+&& !entryTransition/
-    );
-    expect(storySource).toContain('runPhoneTargetPreparation');
+    expect(storySource).not.toContain('visualRunPhaseRef');
   });
 
   it('lets the ink contour own the only dark Services → TTG edge', () => {

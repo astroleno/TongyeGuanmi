@@ -1,5 +1,5 @@
-.phone-lab-contact__stage--ph[data-phone-lab-ph-ink-surface="transparent"]
-  > .phone-lab-contact__stage-canvas {
+.phone-lab-contact__stage--ph > .phone-lab-contact__stage-canvas,
+.phone-group67__stage--ph > .phone-group67__stage-canvas {
   background: transparent;
 }
 

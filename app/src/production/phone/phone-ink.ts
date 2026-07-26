@@ -13,9 +13,17 @@ import {
   applyRevealBoundary,
   clearBoundaryGeometry
 } from '../../transitions/shared/inkOwnership';
+import {
+  acquirePhoneBoundaryGeometryLease,
+  type PhoneBoundaryGeometryLease,
+  type PhoneBoundaryGeometryOwner
+} from './phone-boundary-geometry';
 
 export type PhoneInkTransition = Readonly<{
+  begin(owner: PhoneBoundaryGeometryOwner): void;
   render(progress: number): void;
+  commitEndpoint(endpoint: 0 | 1): void;
+  releaseEndpoint(): void;
   dispose(): void;
 }>;
 
@@ -42,12 +50,6 @@ type PhoneInkTransitionOptions = Readonly<{
   to?: HTMLElement | null;
   field: InkFieldSpec;
   grade?: InkGradePreset;
-  /**
-   * Adjacent phone transitions can share an endpoint. In that topology this
-   * transition mutates endpoint geometry only while its field is genuinely
-   * active, then releases only geometry it previously owned.
-   */
-  releaseBoundaryGeometryAtEndpoints?: boolean;
 }>;
 
 function clamp(value: number): number {
@@ -80,7 +82,14 @@ export function createPhoneInkTransition(
   }, options.canvas ?? undefined);
 
   if (!surface || !host) {
-    return { render: () => undefined, dispose: () => undefined };
+    const noop = () => undefined;
+    return {
+      begin: noop,
+      render: noop,
+      commitEndpoint: noop,
+      releaseEndpoint: noop,
+      dispose: noop
+    };
   }
 
   const mountedCanvas = options.canvas ? null : surface;
@@ -90,23 +99,24 @@ export function createPhoneInkTransition(
     fieldKind: spec.kind,
     grade: options.grade ?? 'dark',
     generation: `phone-story:${options.id}`,
-    removeCanvasOnDestroy: false
+    removeCanvasOnDestroy: false,
+    loseContextOnDestroy: false
   });
   let lastProgress = Number.NaN;
-  let ownsBoundaryGeometry = false;
+  let geometryLease: PhoneBoundaryGeometryLease | undefined;
   const sourceEndpoints = [options.from, options.additionalFrom].filter(
     (element, index, elements): element is HTMLElement => (
       Boolean(element) && elements.indexOf(element) === index
     )
   );
 
-  const clearEndpoints = () => {
-    for (const source of sourceEndpoints) {
-      clearBoundaryGeometry(source);
-    }
-    if (options.to) {
-      clearBoundaryGeometry(options.to);
-    }
+  const begin = (owner: PhoneBoundaryGeometryOwner) => {
+    geometryLease?.release();
+    geometryLease = acquirePhoneBoundaryGeometryLease(
+      [...sourceEndpoints, options.to],
+      owner,
+      clearBoundaryGeometry
+    );
   };
 
   const applyOwnership = (progress: number) => {
@@ -135,49 +145,57 @@ export function createPhoneInkTransition(
     return frame;
   };
 
-  surface.dataset.phoneInkRenderer = renderer ? 'active' : 'unavailable';
+  if (import.meta.env.DEV) {
+    surface.dataset.phoneInkRenderer = renderer ? 'active' : 'unavailable';
+  }
   if (renderer) {
     renderer.prewarm(createInkFieldFrame(spec, 0.003, viewportFor(surface, host)));
   }
 
-  return {
-    render(rawProgress) {
-      const progress = clamp(rawProgress);
-      const rendererNeedsFrame = Math.abs(progress - lastProgress) >= 0.0005;
-      lastProgress = progress;
+  const render = (rawProgress: number) => {
+    if (!geometryLease) {
+      begin({ sessionId: `phone-ink:${options.id}`, generation: 0 });
+    }
+    const progress = clamp(rawProgress);
+    const rendererNeedsFrame = Math.abs(progress - lastProgress) >= 0.0005;
+    lastProgress = progress;
+    if (import.meta.env.DEV) {
       surface.dataset.phoneInkProgress = progress.toFixed(4);
-      // The WebGL surface is an edge field, not a permanent black overlay.
-      // Explicit endpoint visibility is especially important after a fast
-      // touch scroll skips directly from a mid-handoff sample to its target.
-      const fieldActive = progress > PHONE_INK_ENDPOINT_EPSILON
-        && progress < 1 - PHONE_INK_ENDPOINT_EPSILON;
-      surface.style.visibility = fieldActive ? 'visible' : 'hidden';
-      surface.style.opacity = fieldActive ? '1' : '0';
-      const frame = options.releaseBoundaryGeometryAtEndpoints && !fieldActive
-        ? createInkFieldFrame(spec, progress, viewportFor(surface, host))
-        : applyOwnership(progress);
-      if (options.releaseBoundaryGeometryAtEndpoints) {
-        if (fieldActive) {
-          ownsBoundaryGeometry = true;
-        } else if (ownsBoundaryGeometry) {
-          clearEndpoints();
-          ownsBoundaryGeometry = false;
-        }
-      }
-      if (rendererNeedsFrame) {
-        renderer?.render(frame);
-      }
+    }
+    // The WebGL surface is an edge field, not a permanent black overlay.
+    // Explicit endpoint visibility is especially important after a fast
+    // touch scroll skips directly from a mid-handoff sample to its target.
+    const fieldActive = progress > PHONE_INK_ENDPOINT_EPSILON
+      && progress < 1 - PHONE_INK_ENDPOINT_EPSILON;
+    surface.style.visibility = fieldActive ? 'visible' : 'hidden';
+    surface.style.opacity = fieldActive ? '1' : '0';
+    const frame = applyOwnership(progress);
+    if (rendererNeedsFrame) {
+      renderer?.render(frame);
+    }
+  };
+
+  const releaseEndpoint = () => {
+    geometryLease?.release();
+    geometryLease = undefined;
+  };
+
+  return {
+    begin,
+    render,
+    commitEndpoint(endpoint) {
+      render(endpoint);
     },
+    releaseEndpoint,
     dispose() {
       renderer?.destroy();
-      if (!options.releaseBoundaryGeometryAtEndpoints || ownsBoundaryGeometry) {
-        clearEndpoints();
-      }
-      ownsBoundaryGeometry = false;
+      releaseEndpoint();
       surface.style.removeProperty('visibility');
       surface.style.removeProperty('opacity');
-      delete surface.dataset.phoneInkRenderer;
-      delete surface.dataset.phoneInkProgress;
+      if (import.meta.env.DEV) {
+        delete surface.dataset.phoneInkRenderer;
+        delete surface.dataset.phoneInkProgress;
+      }
       mountedCanvas?.remove();
     }
   };

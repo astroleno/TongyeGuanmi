@@ -13,7 +13,9 @@ import {
   type TimelineVideoDriveInput
 } from '../../../media/timeline-video-driver';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
-import { waitForPhoneTargetPresentation } from '../../../production/phone/phone-target-presentation';
+import {
+  waitForPhonePresentationEvidence
+} from '../../../production/phone/phone-transition-readiness';
 import {
   createGroup45NativeAutoplay,
   type Group45NativeAutoplay,
@@ -145,6 +147,15 @@ function playbackLabel(
 
 export type PhoneFigure3Endpoint = 0 | 1;
 
+export function phoneFigure3HeldEndpoint(
+  action: PhoneFigure3MediaAction,
+  orchestratorTarget: PhoneFigure3Endpoint | null
+): PhoneFigure3Endpoint | null {
+  if (action !== 'hold-initial' && action !== 'hold-terminal') return null;
+  if (orchestratorTarget !== null) return orchestratorTarget;
+  return action === 'hold-terminal' ? 1 : 0;
+}
+
 export function phoneFigure3RunStartEndpoint(
   direction: Group45NativeAutoplayDirection
 ): PhoneFigure3Endpoint {
@@ -245,6 +256,11 @@ export const PhoneFigure3 = forwardRef<
     active && !reducedMotion ? direction : null
   );
   const requestedEndpointRef = useRef<PhoneFigure3Endpoint | null>(null);
+  const targetPreparationRef = useRef<Readonly<{
+    endpoint: PhoneFigure3Endpoint;
+    direction: 1 | -1;
+    runId: string;
+  }> | null>(null);
   const readyEndpointRef = useRef<PhoneFigure3Endpoint | null>(null);
   const endpointPreparationRef = useRef<Readonly<{
     endpoint: PhoneFigure3Endpoint;
@@ -321,6 +337,7 @@ export const PhoneFigure3 = forwardRef<
     mediaRetiringRef.current = true;
     pendingRunDirectionRef.current = null;
     requestedEndpointRef.current = null;
+    targetPreparationRef.current = null;
     endpointPreparationRef.current = null;
     if (endpointFallbackTimerRef.current) {
       window.clearTimeout(endpointFallbackTimerRef.current);
@@ -367,6 +384,7 @@ export const PhoneFigure3 = forwardRef<
     ) return;
     pendingRunDirectionRef.current = null;
     requestedEndpointRef.current = null;
+    targetPreparationRef.current = null;
     endpointPreparationRef.current = null;
     clearEndpointPresentation();
     completionReportedRef.current = false;
@@ -651,8 +669,17 @@ export const PhoneFigure3 = forwardRef<
       return;
     }
     pendingRunDirectionRef.current = null;
-    const endpoint = action === 'hold-terminal' ? 1 : 0;
-    prepareEndpoint(endpoint, endpoint === 1 ? -1 : 1);
+    const target = targetPreparationRef.current;
+    const endpoint = phoneFigure3HeldEndpoint(
+      action,
+      target?.endpoint ?? null
+    );
+    if (endpoint === null) return;
+    prepareEndpoint(
+      endpoint,
+      target?.direction ?? (endpoint === 1 ? -1 : 1),
+      target?.runId
+    );
   }, [mountMedia, prepareEndpoint, releaseMedia, renderFrame, startRun]);
 
   useEffect(() => {
@@ -836,9 +863,31 @@ export const PhoneFigure3 = forwardRef<
     }
     mountMedia();
     const endpoint: PhoneFigure3Endpoint = request.progress >= 0.999 ? 1 : 0;
+    const target = {
+      endpoint,
+      direction: request.direction,
+      runId: request.runId
+    } as const;
+    targetPreparationRef.current = target;
     renderFrame(endpoint);
     prepareEndpoint(endpoint, request.direction, request.runId);
-    return waitForPhoneTargetPresentation(
+    const abandon = () => {
+      if (targetPreparationRef.current !== target) return;
+      targetPreparationRef.current = null;
+      if (endpointPreparationRef.current?.runId === request.runId) {
+        endpointGenerationRef.current += 1;
+        endpointPreparationRef.current = null;
+        requestedEndpointRef.current = null;
+        if (endpointFallbackTimerRef.current) {
+          window.clearTimeout(endpointFallbackTimerRef.current);
+          endpointFallbackTimerRef.current = 0;
+        }
+        clearEndpointPresentation();
+      }
+      window.requestAnimationFrame(reconcileMedia);
+    };
+    request.signal.addEventListener('abort', abandon, { once: true });
+    return waitForPhonePresentationEvidence(
       () => {
         if (root.dataset.phoneMediaState === 'retryable-failure') {
           return 'retryable-failure';
@@ -849,8 +898,16 @@ export const PhoneFigure3 = forwardRef<
         return true;
       },
       request.signal
-    );
-  }, [mountMedia, prepareEndpoint, renderFrame]);
+    ).finally(() => {
+      request.signal.removeEventListener('abort', abandon);
+    });
+  }, [
+    clearEndpointPresentation,
+    mountMedia,
+    prepareEndpoint,
+    reconcileMedia,
+    renderFrame
+  ]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,

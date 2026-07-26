@@ -88,17 +88,71 @@ describe('phone transition coordinator', () => {
     });
 
     wheel();
-    now = 80;
+    now = 300;
     wheel();
-    now = 260;
+    now = 1_501;
     wheel();
 
     expect(intents).toMatchObject([
-      { gestureId: 1, inputEpoch: 1, source: 'wheel' },
-      { gestureId: 1, inputEpoch: 1, source: 'wheel' },
-      { gestureId: 2, inputEpoch: 2, source: 'wheel' }
+      { inputEpoch: 1 },
+      { inputEpoch: 1 },
+      { inputEpoch: 2 }
     ]);
     coordinator.dispose();
+  });
+
+  it('preserves reverse intent at the document start', () => {
+    const { root, testWindow } = installCoordinatorEnvironment();
+    const intents: unknown[] = [];
+    const preventDefault = vi.fn();
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      (intent) => {
+        intents.push(intent);
+        return true;
+      },
+      { scrollY: () => testWindow.scrollY }
+    );
+
+    root.dispatch('wheel', {
+      target: null,
+      deltaY: -100,
+      deltaMode: 0,
+      preventDefault,
+      stopImmediatePropagation: vi.fn()
+    });
+
+    expect(intents).toMatchObject([{
+      direction: -1,
+      startY: 0,
+      projectedY: -100
+    }]);
+    expect(preventDefault).toHaveBeenCalledOnce();
+  });
+
+  it('owns unclaimed wheel displacement instead of relying on WebKit default scroll', () => {
+    const { root, testWindow } = installCoordinatorEnvironment();
+    testWindow.scrollY = 400;
+    const preventDefault = vi.fn();
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      () => false,
+      {
+        scrollY: () => testWindow.scrollY,
+        scrollTo: (y) => testWindow.scrollTo(0, y)
+      }
+    );
+
+    root.dispatch('wheel', {
+      target: null,
+      deltaY: 250,
+      deltaMode: 0,
+      preventDefault,
+      stopImmediatePropagation: vi.fn()
+    });
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(testWindow.scrollY).toBe(650);
   });
 
   it('reuses the touch gesture identity for promoted Safari momentum', () => {
@@ -131,8 +185,8 @@ describe('phone transition coordinator', () => {
     testWindow.dispatch('scroll', {});
 
     expect(intents).toMatchObject([
-      { gestureId: 1, inputEpoch: 1, source: 'touch' },
-      { gestureId: 1, inputEpoch: 1, source: 'momentum' }
+      { inputEpoch: 1 },
+      { inputEpoch: 1 }
     ]);
   });
 });

@@ -87,13 +87,16 @@ describe('PhoneCrane', () => {
     expect(source).toContain('flockCanvasRef');
     expect(source).toContain("'crane-figure-packed'");
     expect(source).toContain("'crane-flock-packed'");
-    expect(source).toContain("ensurePackedSurfaces('endpoint')");
-    expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
+    expect(source).not.toContain(
+      "ensurePackedSurfaces(reducedMotion ? 'endpoint' : 'forward')"
+    );
+    expect(source).toContain(
+      "request.progress >= 0.999 || request.direction === -1"
+    );
     expect(autoplaySource).toContain('FIGURE_START_SECONDS = 0.5');
     expect(autoplaySource).toContain('figureClock.start()');
     expect(motionSource).toContain('renderPhoneCranePresentation');
     expect(motionSource).toContain("'presented-frame-reverse'");
-    expect(source).toContain("ensurePackedSurfaces('endpoint')");
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(autoplaySource).toContain('prepareCraneAnimationFrame');
     expect(autoplaySource).toContain('createPhonePresentedReversePlayback');
@@ -108,6 +111,10 @@ describe('PhoneCrane', () => {
     expect(autoplaySource).toContain("root.dataset.phoneCraneFigurePreroll = 'released'");
     expect(autoplaySource).toContain("owner === 'flock'");
     expect(autoplaySource).toContain('if (!figureStarted)');
+    expect(source).not.toContain('CRANE_FIGURE_OPENING_SRC');
+    expect(source).not.toContain('CRANE_FLOCK_OPENING_SRC');
+    expect(source).not.toContain('phonePresentedFrameOwner');
+    expect(autoplaySource).not.toContain('presentedFrame');
     expect(autoplaySource).not.toContain('nativeGate');
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
     expect(css).toContain('--phone-crane-motion-height');

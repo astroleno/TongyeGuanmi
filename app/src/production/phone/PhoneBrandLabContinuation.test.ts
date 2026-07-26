@@ -1,12 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  phoneGroup45DirectEntryCanPosition,
   phoneGroup45EntryPresentation
-} from './PhoneBrandLabContinuation';
+} from './phone-entry-plan';
 
 const source = readFileSync(
   new URL('./PhoneBrandLabContinuation.tsx', import.meta.url),
+  'utf8'
+);
+const compositeRunnerSource = readFileSync(
+  new URL('./phone-composite-runner.ts', import.meta.url),
   'utf8'
 );
 
@@ -27,20 +30,36 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
     }
   );
 
-  it('positions only after the authored Loader has released the shell', () => {
-    expect(phoneGroup45DirectEntryCanPosition(undefined)).toBe(false);
-    expect(phoneGroup45DirectEntryCanPosition('active')).toBe(false);
-    expect(phoneGroup45DirectEntryCanPosition('ready')).toBe(true);
+  it('prepares a real receiver frame and never commits media failure', () => {
+    expect(source).toContain('createPhoneCompositeRunner');
+    expect(source).toContain('GROUP45_READINESS_TIMEOUT_MS');
+    expect(compositeRunnerSource).toContain(
+      'const prepareTarget = config.visual.prepareTargetPresentation'
+    );
+    expect(compositeRunnerSource).toContain('options.capabilities.waitFor');
+    expect(compositeRunnerSource).toContain('run.session.reportEndpoints');
+    expect(compositeRunnerSource).not.toContain('beginPhoneSurfaceRoleTransaction');
+    expect(compositeRunnerSource).toContain("'preparing-target'");
+    expect(source).not.toContain("'media-failure'");
+    expect(compositeRunnerSource).not.toContain("'media-failure'");
+    expect(source).not.toContain('failedVisualsRef');
+    expect(source).not.toContain('visualRunPhaseRef');
+    expect(source).not.toContain('registerPhoneTransitionBoundary');
+    expect(source).not.toContain('orchestrator.reportPresentation');
   });
 
-  it('prepares a real receiver frame and never commits media failure', () => {
-    expect(source).toContain('runPhoneTargetPreparation');
-    expect(source).toContain("'preparing-target'");
-    expect(source).toContain("'retryable'");
-    expect(source).not.toContain("'media-failure'");
-    expect(source).not.toContain('failedVisualsRef');
-    expect(
-      source.match(/if \(!adapters\.entryReady\) return;/g)
-    ).toHaveLength(1);
+  it('registers the composite runner after the lazy document root mounts', () => {
+    expect(source).toMatch(
+      /\}, \[\s*adapters\.rootReady,\s*capabilities,\s*orchestrator,\s*reducedMotion\s*\]\);/
+    );
+  });
+
+  it('does not overwrite a neighbouring transition surface owner', () => {
+    expect(source).toContain('orchestrator.registerStableSceneAdapter');
+    expect(source).not.toContain('orchestrator.subscribe');
+    expect(source).not.toContain(
+      "if (!activeRun && cursor.kind === 'hold')"
+    );
+    expect(source).not.toContain(': currentSceneRef.current;');
   });
 });

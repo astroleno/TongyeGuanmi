@@ -3,9 +3,9 @@ import type {
   RefAttributes
 } from 'react';
 import type {
-  ScenePresentationAdapterHandle,
-  TransitionPresentationAdapterHandle
+  ScenePresentationAdapterHandle
 } from '../../../story/presentation';
+import type { PhoneTransitionAdapterHandle } from '../types';
 
 /**
  * Unit 5's public adapter contract.
@@ -69,7 +69,7 @@ export type Group45PhoneSceneAdapterComponent = ForwardRefExoticComponent<
 >;
 
 export type Group45PhoneTransitionAdapterComponent = ForwardRefExoticComponent<
-  Group45PhoneTransitionProps & RefAttributes<TransitionPresentationAdapterHandle>
+  Group45PhoneTransitionProps & RefAttributes<PhoneTransitionAdapterHandle>
 >;
 
 export type Group45PhoneSceneAdapterModule = Readonly<{

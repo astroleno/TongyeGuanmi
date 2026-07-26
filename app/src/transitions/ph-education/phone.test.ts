@@ -11,7 +11,7 @@ import {
   phonePhEducationFallbackFrame,
   phonePhEducationFrame,
   settlePhonePhEducationDocumentFlow
-} from './phone';
+} from './contract';
 
 const source = readFileSync(new URL('./phone.ts', import.meta.url), 'utf8');
 
@@ -30,7 +30,10 @@ describe('Phone PH → Education transition', () => {
     expect(source).not.toContain('preparePhAnimationFrame');
     expect(source).not.toContain('parkPhonePhMedia');
     expect(source).not.toContain('renderPhonePhAnimationProgress');
-    expect(source).toContain('setEducationDocumentLayer');
+    expect(source).toContain('createPhoneEndpointAdapter');
+    expect(source).toContain(
+      "layerAttribute: 'data-phone-ph-education-layer'"
+    );
   });
 
   it('maps the canonical PH clock before the short Education dissolve', () => {
@@ -148,7 +151,7 @@ describe('Phone PH → Education transition', () => {
     expect(midpoint.educationOpacity).toBeCloseTo(0.5, 8);
     expect(education.style.opacity).toBe('0.5000');
     expect(ph.style.values.get('--ph-front-parallax-y')).toBe('135.00px');
-    expect(source).toContain('directionRef.current === -1');
+    expect(source).toContain('direction === -1');
   });
 
   it('keeps the full ordered endpoint sequence under reduced motion', () => {

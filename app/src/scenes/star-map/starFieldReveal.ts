@@ -243,7 +243,7 @@ export class StarFieldReveal {
       return;
     }
     this.sourceCanvas = createCanvas(this.image.naturalWidth, this.image.naturalHeight);
-    const sourceCtx = this.sourceCanvas.getContext('2d', { willReadFrequently: true });
+    const sourceCtx = this.sourceCanvas.getContext('2d');
     if (!sourceCtx) {
       return;
     }
@@ -341,7 +341,7 @@ export class StarFieldReveal {
     if (!this.noiseMaskCanvas || !this.dynamicHighlightCanvas || !this.highlightCanvas) {
       return;
     }
-    const noiseCtx = this.noiseMaskCanvas.getContext('2d', { willReadFrequently: true });
+    const noiseCtx = this.noiseMaskCanvas.getContext('2d');
     const dynamicCtx = this.dynamicHighlightCanvas.getContext('2d');
     if (!noiseCtx || !dynamicCtx) {
       return;

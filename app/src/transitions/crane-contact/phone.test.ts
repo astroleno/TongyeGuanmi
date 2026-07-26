@@ -8,7 +8,7 @@ import {
   phoneCraneContactFallbackFrame,
   phoneCraneContactFrame,
   settlePhoneCraneContactDocumentFlow
-} from './phone';
+} from './contract';
 
 const source = readFileSync(new URL('./phone.ts', import.meta.url), 'utf8');
 const stylesheet = readFileSync(new URL('./phone.css', import.meta.url), 'utf8');
@@ -30,7 +30,7 @@ describe('Phone Crane → Contact transition', () => {
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).not.toContain('parkPhoneCraneMedia');
     expect(source).not.toContain('renderCraneAnimationProgress');
-    expect(source).toContain('frame.contactProgress');
+    expect(source).toContain('CRANE_CONTACT_COPY_CUE.atProgress');
     expect(stylesheet).toContain('data-phone-crane-contact-layer="true"');
     expect(stylesheet).toContain('z-index: 4');
     expect(stylesheet).not.toContain('position: fixed');

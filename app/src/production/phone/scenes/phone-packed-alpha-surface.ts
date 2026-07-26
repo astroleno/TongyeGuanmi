@@ -1,5 +1,6 @@
 import {
   createPackedAlphaVideoCompositor,
+  renewPackedAlphaCanvas,
   setPackedAlphaVideoSource,
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
@@ -30,11 +31,11 @@ type PhonePackedAlphaSurfaceOptions = Readonly<{
   onFrame?: () => void;
 }>;
 
-type PhonePackedAlphaPreparation = Readonly<{
+type Preparation = Readonly<{
   resolve(): void;
   reject(error: Error | DOMException): void;
   signal?: AbortSignal;
-  onAbort(): void;
+  abort(): void;
 }>;
 
 const DEFAULT_FRAME_TIMEOUT_MS = 3000;
@@ -48,17 +49,17 @@ function releaseVideoSource(video: HTMLVideoElement): void {
   try {
     video.load();
   } catch {
-    // Detached test media and a retiring Safari decoder can reject load().
+    // Detached tests and a retiring Safari decoder can reject load().
   }
   delete video.dataset.packedAlphaSource;
   delete video.dataset.phonePackedAlphaOwner;
 }
 
 /**
- * Figure2/AOD's Safari compositor topology, packaged for Unit 6 layers.
- * The canonical video remains the only decoder and the injected Canvas is its
- * only moving presentation surface. Authored scene plates remain the stable
- * fallback, and decoder/Canvas ownership ends once the chapter is invisible.
+ * Keeps one decoder/Canvas pair mounted for the active scene. Forward
+ * preparation proves topology only; native playback owns the first moving
+ * frame after the orchestrator completes the entry handoff. Reverse endpoint
+ * preparation still waits for the authored terminal frame.
  */
 export function createPhonePackedAlphaSurface(
   options: PhonePackedAlphaSurfaceOptions
@@ -71,119 +72,52 @@ export function createPhonePackedAlphaSurface(
     layerName
   } = options;
   const ownsCanvas = !options.canvas;
+  const preparations = new Set<Preparation>();
   let disposed = false;
   let mode: PhonePackedAlphaSurfaceMode | undefined;
+  let externalCanvas = options.canvas;
   let canvas: HTMLCanvasElement | undefined;
   let compositor: PackedAlphaVideoCompositor | undefined;
-  let frameTimeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+  let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
   let endpointSeek: (() => void) | undefined;
-  let preparationPrime = 0;
-  let preparationPrimeActive = false;
-  const preparations = new Set<PhonePackedAlphaPreparation>();
 
-  const stopPreparationPrime = () => {
-    preparationPrime += 1;
-    if (!preparationPrimeActive) return;
-    preparationPrimeActive = false;
-    video.pause();
-  };
-  const primePreparationFrame = () => {
-    if (
-      disposed
-      || preparationPrimeActive
-      || preparations.size === 0
-      || root.dataset[statusDataset] === 'verified'
-      || typeof video.play !== 'function'
-    ) return;
-    const attempt = ++preparationPrime;
-    preparationPrimeActive = true;
-    let playback: Promise<void> | undefined;
-    try {
-      playback = video.play();
-    } catch {
-      playback = Promise.reject(new Error(
-        `${layerName} packed-alpha preparation play failed`
-      ));
-    }
-    void Promise.resolve(playback).catch(() => {
-        if (attempt !== preparationPrime || !preparationPrimeActive) return;
-        preparationPrimeActive = false;
-    });
-  };
-  const settlePreparations = (
-    error?: Error | DOMException
-  ) => {
-    stopPreparationPrime();
+  const settle = (error?: Error | DOMException) => {
     for (const preparation of preparations) {
-      preparation.signal?.removeEventListener('abort', preparation.onAbort);
+      preparation.signal?.removeEventListener('abort', preparation.abort);
       if (error) preparation.reject(error);
       else preparation.resolve();
     }
     preparations.clear();
   };
-
-  const clearEndpointSeek = () => {
+  const clearSeek = () => {
     if (!endpointSeek) return;
     video.removeEventListener('loadedmetadata', endpointSeek);
     video.removeEventListener('loadeddata', endpointSeek);
     endpointSeek = undefined;
   };
-
   const retireCanvas = () => {
     if (!canvas) return;
-    if (ownsCanvas) {
-      canvas.remove();
-    } else {
-      // Keep the React-owned node/topology, but release its backing store once
-      // the chapter is hidden. A later activation restores the authored size.
-      canvas.width = 1;
-      canvas.height = 1;
-    }
+    if (ownsCanvas) canvas.remove();
+    else externalCanvas = renewPackedAlphaCanvas(canvas);
     canvas = undefined;
   };
-
   const clearPresentation = () => {
-    if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-    frameTimeout = undefined;
-    clearEndpointSeek();
+    if (timeout !== undefined) globalThis.clearTimeout(timeout);
+    timeout = undefined;
+    clearSeek();
     compositor?.dispose();
     compositor = undefined;
     retireCanvas();
     delete root.dataset[statusDataset];
   };
-
-  const settleStaticFallback = () => {
-    if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-    frameTimeout = undefined;
-    clearEndpointSeek();
-    compositor?.dispose();
-    compositor = undefined;
-    retireCanvas();
-    // Keep the decoder source alive. On physical Safari the first WebGL video
-    // upload can legitimately wait for the gesture that starts native
-    // playback. Releasing the source here left the later autoplay owner with
-    // an empty video and made the snap look permanently frozen.
+  const failEndpoint = () => {
+    if (timeout !== undefined) globalThis.clearTimeout(timeout);
+    timeout = undefined;
     root.dataset[statusDataset] = 'static-fallback';
-    settlePreparations(new Error(`${layerName} packed-alpha presentation failed`));
+    settle(new Error(`${layerName} packed-alpha presentation failed`));
   };
-
-  const deferForwardProbeUntilPlayback = () => {
-    if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-    frameTimeout = undefined;
-    if (mode !== 'forward') return;
-    // Figure2 keeps its compositor mounted while the poster is visible; AOD
-    // likewise retains one decoder/Canvas pair until its native run starts.
-    // Unit 6 must not treat a pre-gesture frame timeout as media failure.
-    root.dataset[statusDataset] = 'awaiting-native-playback';
-    if (preparations.size) {
-      settlePreparations(new Error(
-        `${layerName} packed-alpha first frame was not presented`
-      ));
-    }
-  };
-
   const release = () => {
-    settlePreparations(new DOMException(
+    settle(new DOMException(
       `${layerName} packed-alpha presentation retired`,
       'AbortError'
     ));
@@ -191,18 +125,15 @@ export function createPhonePackedAlphaSurface(
     releaseVideoSource(video);
     mode = undefined;
   };
-
   const activate = (nextMode: PhonePackedAlphaSurfaceMode = 'forward') => {
     if (disposed || mode === nextMode) return;
     release();
     mode = nextMode;
-
-    canvas = options.canvas ?? root.ownerDocument.createElement('canvas');
+    canvas = externalCanvas ?? root.ownerDocument.createElement('canvas');
     canvas.className = options.canvasClassName;
     canvas.setAttribute('aria-hidden', 'true');
     canvas.dataset.phonePackedAlphaCanvas = layerName;
     if (ownsCanvas) container.append(canvas);
-
     compositor = createPackedAlphaVideoCompositor({
       video,
       canvas,
@@ -212,29 +143,25 @@ export function createPhonePackedAlphaSurface(
           mode === 'endpoint'
           && Math.abs(video.currentTime - options.endpointSeconds)
             > ENDPOINT_FRAME_TOLERANCE_SECONDS
-        ) {
-          return;
-        }
-        if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-        frameTimeout = undefined;
+        ) return;
+        if (timeout !== undefined) globalThis.clearTimeout(timeout);
+        timeout = undefined;
         root.dataset[statusDataset] = 'verified';
         options.onFrame?.();
-        settlePreparations();
+        settle();
       }
     });
-    const compositorStatus = canvas.dataset.packedAlphaStatus;
-    if (
-      compositorStatus === 'webgl-unavailable'
-      || compositorStatus === 'setup-failed'
-    ) {
+    const status = canvas.dataset.packedAlphaStatus;
+    if (status === 'webgl-unavailable' || status === 'setup-failed') {
       video.dataset.phonePackedAlphaOwner = layerName;
       setPackedAlphaVideoSource(video, options.packedSourceUrl);
-      settleStaticFallback();
+      failEndpoint();
       return;
     }
-    root.dataset[statusDataset] = 'probing';
+    root.dataset[statusDataset] = nextMode === 'forward'
+      ? 'awaiting-native-playback'
+      : 'probing';
     video.dataset.phonePackedAlphaOwner = layerName;
-
     if (nextMode === 'endpoint') {
       endpointSeek = () => {
         if (mode !== 'endpoint' || video.readyState < HAVE_METADATA) return;
@@ -244,35 +171,28 @@ export function createPhonePackedAlphaSurface(
         try {
           if (Math.abs(video.currentTime - endpoint) > 0.002) {
             video.currentTime = endpoint;
-          } else {
-            compositor?.render();
-          }
+          } else compositor?.render();
         } catch {
-          // Metadata can race source replacement on Safari; loadeddata retries.
+          // Metadata can race source replacement; loadeddata retries.
         }
       };
       video.addEventListener('loadedmetadata', endpointSeek);
       video.addEventListener('loadeddata', endpointSeek);
     }
-
     setPackedAlphaVideoSource(video, options.packedSourceUrl);
     if (nextMode === 'endpoint') {
       endpointSeek?.();
+      timeout = globalThis.setTimeout(
+        failEndpoint,
+        options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS
+      );
     } else {
       try {
         video.currentTime = 0;
       } catch {
-        // loadeddata presents frame zero after the new source is ready.
+        // loadeddata owns the first native playback frame.
       }
     }
-    frameTimeout = globalThis.setTimeout(() => {
-      if (root.dataset[statusDataset] === 'verified') return;
-      if (mode === 'forward') {
-        deferForwardProbeUntilPlayback();
-        return;
-      }
-      settleStaticFallback();
-    }, options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS);
   };
 
   return {
@@ -283,38 +203,31 @@ export function createPhonePackedAlphaSurface(
           `${layerName} packed-alpha surface is disposed`
         ));
       }
-      if (
-        mode === nextMode
-        && (
-          root.dataset[statusDataset] === 'awaiting-native-playback'
-          || root.dataset[statusDataset] === 'static-fallback'
-        )
-      ) {
-        release();
-      }
-      activate(nextMode);
-      if (root.dataset[statusDataset] === 'verified') {
-        return Promise.resolve();
-      }
-      if (root.dataset[statusDataset] === 'static-fallback') {
-        return Promise.reject(new Error(
-          `${layerName} packed-alpha presentation failed`
-        ));
-      }
       if (signal?.aborted) {
         return Promise.reject(new DOMException(
           `${layerName} packed-alpha presentation aborted`,
           'AbortError'
         ));
       }
+      if (
+        mode === nextMode
+        && root.dataset[statusDataset] === 'static-fallback'
+      ) release();
+      activate(nextMode);
+      if (nextMode === 'forward') return Promise.resolve();
+      if (root.dataset[statusDataset] === 'verified') return Promise.resolve();
+      if (root.dataset[statusDataset] === 'static-fallback') {
+        return Promise.reject(new Error(
+          `${layerName} packed-alpha presentation failed`
+        ));
+      }
       return new Promise<void>((resolve, reject) => {
-        const preparation: PhonePackedAlphaPreparation = {
+        const preparation: Preparation = {
           resolve,
           reject,
           ...(signal ? { signal } : {}),
-          onAbort() {
+          abort() {
             preparations.delete(preparation);
-            if (preparations.size === 0) stopPreparationPrime();
             reject(new DOMException(
               `${layerName} packed-alpha presentation aborted`,
               'AbortError'
@@ -322,8 +235,7 @@ export function createPhonePackedAlphaSurface(
           }
         };
         preparations.add(preparation);
-        signal?.addEventListener('abort', preparation.onAbort, { once: true });
-        primePreparationFrame();
+        signal?.addEventListener('abort', preparation.abort, { once: true });
       });
     },
     release,
@@ -332,30 +244,5 @@ export function createPhonePackedAlphaSurface(
       release();
       disposed = true;
     }
-  };
-}
-
-/** Release a parked compositor only after its scroll transition is invisible. */
-export function releasePhonePackedAlphaWhenHidden(
-  root: HTMLElement,
-  release: () => void
-): () => void {
-  let retired = false;
-  const retireIfHidden = () => {
-    if (retired) return;
-    const opacity = Number.parseFloat(root.style.opacity || '1');
-    if (root.style.visibility !== 'hidden' && opacity > 0.001) return;
-    retired = true;
-    observer?.disconnect();
-    release();
-  };
-  const observer = typeof MutationObserver === 'undefined'
-    ? undefined
-    : new MutationObserver(retireIfHidden);
-  observer?.observe(root, { attributes: true, attributeFilter: ['style'] });
-  retireIfHidden();
-  return () => {
-    retired = true;
-    observer?.disconnect();
   };
 }

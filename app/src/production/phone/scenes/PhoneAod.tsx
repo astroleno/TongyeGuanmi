@@ -1,4 +1,10 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef
+} from 'react';
 import {
   AOD_FIGURE_END_SECONDS,
   AOD_PHONE_TIMELINE_ALPHA_END,
@@ -8,6 +14,7 @@ import {
 } from '../../../scenes/aod-animation';
 import {
   createPackedAlphaVideoCompositor,
+  renewPackedAlphaCanvas,
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
 import {
@@ -56,6 +63,31 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     >(undefined);
     const progressListenerRef = useRef(onAodProgress);
     const completeListenerRef = useRef(onAodComplete);
+    const releaseCompositor = useCallback(() => {
+      const compositor = compositorRef.current;
+      const canvas = rootRef.current?.querySelector<HTMLCanvasElement>(
+        '[data-aod-figure-canvas]'
+      );
+      if (!compositor) return;
+      compositor.dispose();
+      compositorRef.current = undefined;
+      if (canvas) renewPackedAlphaCanvas(canvas);
+    }, []);
+    const ensureCompositor = useCallback(() => {
+      if (reducedMotion) return undefined;
+      if (compositorRef.current) return compositorRef.current;
+      const root = rootRef.current;
+      const video = root?.querySelector<HTMLVideoElement>(
+        '[data-aod-figure-video]'
+      );
+      const canvas = root?.querySelector<HTMLCanvasElement>(
+        '[data-aod-figure-canvas]'
+      );
+      if (!video || !canvas) return undefined;
+      const compositor = createPackedAlphaVideoCompositor({ video, canvas });
+      compositorRef.current = compositor;
+      return compositor;
+    }, [reducedMotion]);
     progressListenerRef.current = onAodProgress;
     completeListenerRef.current = onAodComplete;
 
@@ -136,7 +168,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         };
       }
 
-      const compositor = createPackedAlphaVideoCompositor({ video, canvas });
       const autoplay = createPhoneAodAutoplay(video, {
         durationSeconds: AOD_FIGURE_END_SECONDS,
         alphaEndProgress: PHONE_AOD_ALPHA_END_PROGRESS,
@@ -158,23 +189,20 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         onProgress: render,
         onComplete: (direction) => completeListenerRef.current?.(direction)
       });
-      compositorRef.current = compositor;
       autoplayRef.current = autoplay;
       autoplay.reset();
-      compositor.setActive(false);
       onReady?.();
 
       return () => {
         autoplay.dispose();
-        compositor.dispose();
+        releaseCompositor();
         if (autoplayRef.current === autoplay) autoplayRef.current = undefined;
-        if (compositorRef.current === compositor) compositorRef.current = undefined;
         if (renderRef.current === render) renderRef.current = undefined;
         delete root.dataset.portraitAodAlpha;
         if (import.meta.env.DEV) delete root.dataset.portraitAodProgress;
         delete transition.dataset.portraitAodBackdropProgress;
       };
-    }, [onReady, reducedMotion]);
+    }, [onReady, reducedMotion, releaseCompositor]);
 
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
@@ -185,10 +213,10 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         if (reducedMotion) {
           renderRef.current?.(direction === 1 ? 1 : 0, direction);
           completeListenerRef.current?.(direction);
-          return;
+          return Promise.resolve('playing');
         }
-        compositorRef.current?.setActive(true);
-        autoplayRef.current?.start(direction);
+        ensureCompositor()?.setActive(true);
+        return autoplayRef.current?.start(direction) ?? Promise.resolve('error');
       },
       resetAutoplay() {
         if (reducedMotion) {
@@ -198,17 +226,17 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         }
       },
       enter() {
-        compositorRef.current?.setActive(true);
+        ensureCompositor()?.setActive(true);
       },
       leave() {
-        compositorRef.current?.setActive(false);
+        releaseCompositor();
       },
       reverse() {},
       dispose() {
         autoplayRef.current?.dispose();
-        compositorRef.current?.dispose();
+        releaseCompositor();
       }
-    }), [reducedMotion]);
+    }), [ensureCompositor, reducedMotion, releaseCompositor]);
 
     return (
       <div

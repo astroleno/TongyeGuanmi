@@ -9,7 +9,15 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
+import {
+  renderPhoneEducationHold,
+  renderPhoneEducationProgress
+} from './presentation';
 import './PhoneEducation.css';
+export {
+  renderPhoneEducationHold,
+  renderPhoneEducationProgress
+} from './presentation';
 
 const EDUCATION_COPY = [
   '你为生意请的这套 AI 打法，也能用在孩子身上。',
@@ -35,34 +43,12 @@ const EDUCATION_COPY = [
   '提前练好大学要用的查资料、小组协作、课堂表达，出去不慌，也不掉队。'
 ] as const;
 
-function clamp(value: number): number {
-  return Math.min(1, Math.max(0, value));
-}
-
 const EDUCATION_ROWS = [
   [9, 10, 11],
   [12, 13, 14],
   [15, 16, 17],
   [18, 19, 20]
 ] as const;
-
-export function renderPhoneEducationProgress(
-  root: HTMLElement | null | undefined,
-  rawProgress: number
-): void {
-  const progress = clamp(rawProgress);
-  root?.style.setProperty('--r4-education-progress', progress.toFixed(4));
-  root?.style.setProperty('--r4-education-opacity', progress.toFixed(4));
-  root?.style.setProperty(
-    '--r4-education-y',
-    `${((1 - progress) * 28).toFixed(2)}px`
-  );
-  root?.setAttribute('data-education-progress', progress.toFixed(4));
-}
-
-export const renderPhoneEducationHold = (
-  root: HTMLElement | null | undefined
-) => renderPhoneEducationProgress(root, 1);
 
 /**
  * Explicitly documents that document reading owns all input over Education.
@@ -84,7 +70,7 @@ export const PhoneEducation = forwardRef<
   const rootRef = useRef<HTMLElement | null>(null);
 
   const render = useCallback((rawProgress: number) => {
-    const progress = clamp(rawProgress);
+    const progress = Math.min(1, Math.max(0, rawProgress));
     renderPhoneEducationProgress(
       rootRef.current,
       reducedMotion ? (progress < 0.5 ? 0 : 1) : progress

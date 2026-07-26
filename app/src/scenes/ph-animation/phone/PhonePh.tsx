@@ -22,7 +22,6 @@ import { phoneMediaUrlFor } from '../../../production/phone/phone-media';
 import type { TargetPresentationRequest } from '../../../story/presentation';
 import {
   createPhonePackedAlphaSurface,
-  releasePhonePackedAlphaWhenHidden,
   type PhonePackedAlphaSurface,
   type PhonePackedAlphaSurfaceMode
 } from '../../../production/phone/scenes/phone-packed-alpha-surface';
@@ -115,7 +114,6 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     const nativeAutoplayRef = useRef<PhoneNativeAutoplay | null>(null);
     const reversePlaybackRef = useRef<PhonePhPresentedReverse | null>(null);
     const packedSurfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
-    const cancelPackedReleaseRef = useRef<(() => void) | null>(null);
     const beginPreparedReverseRef = useRef<(force?: boolean) => void>(
       () => undefined
     );
@@ -128,8 +126,6 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       const container = root?.querySelector<HTMLElement>('.ph-layer-stack');
       const canvas = figureCanvasRef.current;
       if (!root || !video || !container || !canvas) return null;
-      cancelPackedReleaseRef.current?.();
-      cancelPackedReleaseRef.current = null;
       if (!packedSurfaceRef.current) {
         packedSurfaceRef.current = createPhonePackedAlphaSurface({
           root,
@@ -218,7 +214,6 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         `url("${PH_FRONT_SRC}")`
       );
       renderPhonePhPresentation(root, 0);
-      ensurePackedSurface(reducedMotion ? 'endpoint' : 'forward');
       const nativeAutoplay = createPhoneNativeAutoplay(video, {
         runIdPrefix: 'phone-ph-figure',
         durationSeconds: PHONE_PH_FIGURE_END_SECONDS,
@@ -256,8 +251,6 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         nativeAutoplay.dispose();
         reversePlayback?.dispose();
         run.stopRun();
-        cancelPackedReleaseRef.current?.();
-        cancelPackedReleaseRef.current = null;
         packedSurfaceRef.current?.dispose();
         packedSurfaceRef.current = null;
         if (nativeAutoplayRef.current === nativeAutoplay) nativeAutoplayRef.current = null;
@@ -317,7 +310,6 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       root: () => rootRef.current,
       update(progress) {
         run.stopRun();
-        ensurePackedSurface(progress >= 0.999 ? 'endpoint' : 'forward');
         render(progress);
       },
       enter() {
@@ -327,14 +319,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       leave() {
         run.stopRun();
         parkPhonePhMedia(rootRef.current);
-        const root = rootRef.current;
-        if (root) {
-          cancelPackedReleaseRef.current?.();
-          cancelPackedReleaseRef.current = releasePhonePackedAlphaWhenHidden(
-            root,
-            () => packedSurfaceRef.current?.release()
-          );
-        }
+        packedSurfaceRef.current?.release();
       },
       reverse() {
         run.startRun(-1);
@@ -342,8 +327,6 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       prepareTargetPresentation,
       dispose() {
         run.disposeRun();
-        cancelPackedReleaseRef.current?.();
-        cancelPackedReleaseRef.current = null;
         packedSurfaceRef.current?.dispose();
         packedSurfaceRef.current = null;
         parkPhonePhMedia(rootRef.current);

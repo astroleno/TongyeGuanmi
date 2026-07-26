@@ -11,15 +11,23 @@ import {
   phoneLoaderCompletedInDocument
 } from './phone-loader-lifecycle';
 import {
-  phoneGroup67EntryPlanFromHash,
-  type PhoneGroup67EntryPlan
+  phoneStoryEntryPlanFromHash,
+  phoneStoryEntryTarget,
+  type PhoneContinuationEntryPlan,
+  type PhoneStoryEntryPlan
 } from './phone-entry-plan';
+import {
+  createPhoneDirectEntryPositioner
+} from './phone-direct-entry-position';
 import type { PhoneEdgeScene } from './phone-edge-surface';
+import type { PhoneStoryOrchestrator } from './phone-story-orchestrator';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
 
 export type PhoneStoryEntryState = Readonly<{
-  group67EntryPlan: PhoneGroup67EntryPlan | undefined;
-  directGroup67Entry: boolean;
+  directEntryPlan: PhoneStoryEntryPlan | undefined;
+  continuationEntryPlan: PhoneContinuationEntryPlan | undefined;
+  directStoryEntry: boolean;
+  directContinuationEntry: boolean;
   loaderHidden: boolean;
   setLoaderHidden: Dispatch<SetStateAction<boolean>>;
   initialScene: SceneId;
@@ -28,67 +36,82 @@ export type PhoneStoryEntryState = Readonly<{
 }>;
 
 export function usePhoneStoryEntry(): PhoneStoryEntryState {
-  const [group67EntryPlan] = useState(() => (
-    phoneGroup67EntryPlanFromHash(
+  const [directEntryPlan] = useState(() => (
+    phoneStoryEntryPlanFromHash(
       typeof window === 'undefined' ? '' : window.location.hash
     )
   ));
-  const directGroup67Entry = group67EntryPlan !== undefined;
+  const continuationEntryPlan = directEntryPlan?.continuation;
+  const directStoryEntry = directEntryPlan !== undefined;
+  const directContinuationEntry = continuationEntryPlan !== undefined;
   const [loaderHidden, setLoaderHidden] = useState(
-    () => directGroup67Entry || phoneLoaderCompletedInDocument()
+    () => directStoryEntry || phoneLoaderCompletedInDocument()
   );
   return {
-    group67EntryPlan,
-    directGroup67Entry,
+    directEntryPlan,
+    continuationEntryPlan,
+    directStoryEntry,
+    directContinuationEntry,
     loaderHidden,
     setLoaderHidden,
-    initialScene: group67EntryPlan?.scene ?? 'hero',
-    initialCheckpoint: group67EntryPlan?.checkpoint
+    initialScene: directEntryPlan?.scene ?? 'hero',
+    initialCheckpoint: directEntryPlan?.checkpoint
       ?? (loaderHidden ? 'hero-entered' : 'loader'),
-    initialEdgeScene: group67EntryPlan?.edgeScene ?? 'hero'
+    initialEdgeScene: directEntryPlan?.edgeScene ?? 'hero'
   };
 }
 
 export function usePhoneStoryEntryLifecycle(
   entry: PhoneStoryEntryState,
-  publishCheckpoint: (checkpoint: PhoneCheckpointId) => void,
-  publishEdgeScene: (scene: PhoneEdgeScene) => void
+  orchestrator: PhoneStoryOrchestrator
 ): void {
   const {
-    directGroup67Entry,
-    group67EntryPlan,
+    directEntryPlan,
+    directStoryEntry,
     loaderHidden
   } = entry;
 
   useEffect(() => {
-    if (directGroup67Entry) return;
+    if (directStoryEntry) return;
     return attachPhoneLoaderVisibilityLifecycle();
-  }, [directGroup67Entry]);
+  }, [directStoryEntry]);
 
   useEffect(() => {
     const documentElement = document.documentElement;
+    let disposePositioner: (() => void) | undefined;
     documentElement.dataset.portraitSpikeLoader = loaderHidden
       ? 'ready'
       : 'active';
-    if (group67EntryPlan) {
+    if (directEntryPlan) {
       document.getElementById('story-loader-static')?.remove();
-      publishCheckpoint(group67EntryPlan.checkpoint);
-      publishEdgeScene(group67EntryPlan.edgeScene);
+      disposePositioner = createPhoneDirectEntryPositioner({
+        target: () => phoneStoryEntryTarget(directEntryPlan.scene),
+        targetOffset: (target) => directEntryPlan.proofPanelIndex === undefined
+          ? 0
+          : directEntryPlan.proofPanelIndex
+            * Math.max(0, target.getBoundingClientRect().height - window.innerHeight)
+            / 2,
+        scrollY: () => window.scrollY,
+        scrollTo: (y) => window.scrollTo(0, y),
+        requestFrame: (callback) => window.requestAnimationFrame(callback),
+        cancelFrame: (frame) => window.cancelAnimationFrame(frame),
+        onReady: () => orchestrator.activateDirectEntry()
+      }).dispose;
     } else {
-      publishCheckpoint(loaderHidden ? 'hero-entered' : 'loader');
-      if (!loaderHidden) window.scrollTo(0, 0);
+      if (loaderHidden) orchestrator.reconcileHold('hero');
+      else window.scrollTo(0, 0);
     }
     const refreshFrame = loaderHidden
       ? window.requestAnimationFrame(refreshPhoneScrollStage)
       : 0;
     return () => {
+      disposePositioner?.();
       if (refreshFrame) window.cancelAnimationFrame(refreshFrame);
       delete documentElement.dataset.portraitSpikeLoader;
     };
   }, [
-    group67EntryPlan,
+    directEntryPlan,
     loaderHidden,
-    publishCheckpoint,
-    publishEdgeScene
+    orchestrator
   ]);
 }

@@ -5,6 +5,11 @@ import type {
   PhoneTransitionAdapterId
 } from './types';
 
+export type PhoneScrollRunId =
+  | 'hero-pattern-scroll'
+  | 'pattern-star-scroll'
+  | 'star-aod-scroll';
+
 export type PhoneRunId =
   | 'aod-method'
   | 'method-figure2'
@@ -14,6 +19,8 @@ export type PhoneRunId =
   | 'services-lab'
   | 'lab-education'
   | 'education-contact';
+
+export type PhoneCursorRunId = PhoneRunId | PhoneScrollRunId;
 
 export type PhoneRunLegKind =
   | 'timed-ink'
@@ -62,7 +69,36 @@ function leg(
   };
 }
 
-export const phoneStoryRuns = [
+export const phoneScrollRuns = [
+  {
+    id: 'hero-pattern-scroll',
+    from: 'hero',
+    to: 'pattern',
+    segment: 'hero-pattern'
+  },
+  {
+    id: 'pattern-star-scroll',
+    from: 'pattern',
+    to: 'star-map',
+    segment: 'pattern-star-map'
+  },
+  {
+    id: 'star-aod-scroll',
+    from: 'star-map',
+    to: 'aod-animation',
+    segment: 'star-map-aod'
+  }
+] as const;
+
+export function phoneScrollRun(id: PhoneScrollRunId) {
+  return phoneScrollRuns[
+    id === 'hero-pattern-scroll'
+      ? 0
+      : id === 'pattern-star-scroll' ? 1 : 2
+  ];
+}
+
+export const phoneIntentRuns = [
   {
     id: 'aod-method',
     from: 'aod-animation',
@@ -165,15 +201,13 @@ export const phoneStoryRuns = [
   }
 ] as const satisfies readonly PhoneRunDefinition[];
 
-const phoneRunById = new Map(
-  phoneStoryRuns.map((run) => [run.id, run] as const)
-);
+export const phoneStoryRuns = phoneIntentRuns;
 
 export function phoneRun(
   id: PhoneRunId
 ): PhoneRunDefinition {
-  const run = phoneRunById.get(id);
-  if (!run) throw new Error(`Unknown phone run: ${id}`);
+  const run = phoneStoryRuns.find((candidate) => candidate.id === id);
+  if (!run) throw new Error(`Unknown run: ${id}`);
   return run;
 }
 
@@ -181,7 +215,7 @@ export function phoneRunForHold(
   scene: SceneId,
   direction: 1 | -1
 ): PhoneRunDefinition | undefined {
-  return phoneStoryRuns.find((run) => (
+  return phoneIntentRuns.find((run) => (
     direction === 1 ? run.from === scene : run.to === scene
   ));
 }

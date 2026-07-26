@@ -8,6 +8,10 @@ import {
 import type { InkFieldSpec } from '../../../transitions/shared/inkField';
 import type { InkGradePreset } from '../../../transitions/shared/sceneInk';
 import { createPhoneInkTransition, type PhoneInkTransition } from '../phone-ink';
+import {
+  claimPhoneInkSurface,
+  type PhoneInkSurfaceLease
+} from '../phone-ink-surface-pool';
 import type {
   PhoneTransitionAdapterComponent,
   PhoneTransitionAdapterHandle,
@@ -30,10 +34,8 @@ export function createPhoneInkAdapter(options: Readonly<{
   canvasClassName?: string;
   portraitInk?: string;
   reducedMotionStrategy?: 'receiver' | 'boundary';
-  releaseBoundaryGeometryAtEndpoints?: boolean;
   maskSource?: boolean;
   releaseOnLeave?: boolean;
-  reverseProgress?: 0 | 1;
   alignReceiver?: (
     host: HTMLElement,
     receiver: HTMLElement
@@ -42,29 +44,43 @@ export function createPhoneInkAdapter(options: Readonly<{
     from: HTMLElement | null,
     to: HTMLElement | null,
     progress: number,
-    reducedMotion: boolean
+    reducedMotion: boolean,
+    direction: 1 | -1,
+    host: HTMLElement | null
   ) => number;
 }>): PhoneTransitionAdapterComponent {
   return forwardRef<PhoneTransitionAdapterHandle, PhoneTransitionAdapterProps>(function PhoneInkTransition(
     { host, from, additionalFrom, to, reducedMotion, onReady },
     forwardedRef
   ) {
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const transitionRef = useRef<PhoneInkTransition | undefined>(undefined);
+    const progressRef = useRef(0);
+    const directionRef = useRef<1 | -1>(1);
+    const leaseRef = useRef<PhoneInkSurfaceLease | undefined>(undefined);
+    const explicitOwnershipRef = useRef(false);
     const receiverAlignmentRef = useRef<readonly [() => void, 0 | 1] | null>(null);
     const releaseReceiver = useCallback(() => {
       receiverAlignmentRef.current?.[0]();
       receiverAlignmentRef.current = null;
     }, []);
-    const release = useCallback(() => {
+    const revoke = useCallback(() => {
       transitionRef.current?.dispose();
       transitionRef.current = undefined;
+      leaseRef.current = undefined;
+      explicitOwnershipRef.current = false;
       releaseReceiver();
-      if (options.releaseOnLeave && canvasRef.current) {
-        canvasRef.current.width = 1;
-        canvasRef.current.height = 1;
-      }
     }, [releaseReceiver]);
+    const releaseEndpoint = useCallback(() => {
+      transitionRef.current?.releaseEndpoint();
+      leaseRef.current?.release();
+      leaseRef.current = undefined;
+      explicitOwnershipRef.current = false;
+      releaseReceiver();
+    }, [releaseReceiver]);
+    const release = useCallback(() => {
+      leaseRef.current?.release();
+      revoke();
+    }, [revoke]);
     const alignReceiver = useCallback((endpoint: 0 | 1) => {
       if (!host || !to || !options.alignReceiver) return;
       receiverAlignmentRef.current = [
@@ -74,11 +90,17 @@ export function createPhoneInkAdapter(options: Readonly<{
     }, [host, to]);
     const ensure = useCallback(() => {
       if (transitionRef.current) return transitionRef.current;
-      const canvas = canvasRef.current;
-      if (!host || !to || !canvas) return undefined;
+      if (!host || !to) return undefined;
+      const lease = claimPhoneInkSurface(host.ownerDocument, {
+        host,
+        className: options.canvasClassName ?? 'phone-story-shell__ink',
+        ...(options.portraitInk ? { portraitInk: options.portraitInk } : {}),
+        onRevoke: revoke
+      });
+      leaseRef.current = lease;
       const transition = createPhoneInkTransition({
         host,
-        canvas,
+        canvas: lease.canvas,
         id: options.id,
         from: options.maskSource === false ? null : from,
         additionalFrom: options.maskSource === false
@@ -86,59 +108,80 @@ export function createPhoneInkAdapter(options: Readonly<{
           : additionalFrom ?? null,
         to,
         field: options.field,
-        ...(options.grade ? { grade: options.grade } : {}),
-        ...(options.releaseBoundaryGeometryAtEndpoints
-          ? { releaseBoundaryGeometryAtEndpoints: true }
-          : {})
+        ...(options.grade ? { grade: options.grade } : {})
       });
       transitionRef.current = transition;
       return transition;
-    }, [additionalFrom, from, host, to]);
+    }, [additionalFrom, from, host, revoke, to]);
     const render = useCallback((progress: number) => {
+      if (progress > progressRef.current + 0.0001) directionRef.current = 1;
+      if (progress < progressRef.current - 0.0001) directionRef.current = -1;
+      progressRef.current = progress;
       const sampled = options.renderFrame
-        ? options.renderFrame(from, to, progress, reducedMotion)
-        : phoneInkAdapterProgress(
+        ? options.renderFrame(
+            from,
+            to,
             progress,
             reducedMotion,
-            options.reducedMotionStrategy
-          );
-      ensure()?.render(sampled);
+            directionRef.current,
+            host
+          )
+        : phoneInkAdapterProgress(
+            progress,
+          reducedMotion,
+          options.reducedMotionStrategy
+        );
+      (
+        transitionRef.current
+        ?? (
+          (sampled > 0 && sampled < 1) || explicitOwnershipRef.current
+            ? ensure()
+            : undefined
+        )
+      )?.render(sampled);
       const alignment = receiverAlignmentRef.current;
-      if (alignment && Math.abs(sampled - alignment[1]) <= 0.001) {
+      if (
+        !explicitOwnershipRef.current
+        && alignment
+        && Math.abs(sampled - alignment[1]) <= 0.001
+      ) {
         releaseReceiver();
       }
-    }, [ensure, from, reducedMotion, releaseReceiver, to]);
+    }, [ensure, from, host, reducedMotion, releaseReceiver, to]);
     useLayoutEffect(() => {
-      const canvas = canvasRef.current;
-      if (!host || !to || !canvas) return;
-      render(0);
+      if (!host || !to) return;
       onReady?.();
       return release;
-    }, [host, onReady, release, render, to]);
+    }, [host, onReady, release, to]);
     useImperativeHandle(forwardedRef, () => ({
       render,
+      begin(owner) {
+        explicitOwnershipRef.current = true;
+        ensure()?.begin(owner);
+      },
+      commitEndpoint(endpoint) {
+        ensure()?.commitEndpoint(endpoint);
+        // Endpoint alignment is only a transition-time visual aid. It must
+        // be gone before the Orchestrator measures and lands the receiver's
+        // natural document coordinate; canvas/resource release still waits
+        // until the post-hold frame.
+        if (endpoint === 1) releaseReceiver();
+      },
+      releaseEndpoint,
       enter() {
+        directionRef.current = 1;
         alignReceiver(1);
-        render(0);
       },
       leave() {
         render(1);
-        releaseReceiver();
-        if (options.releaseOnLeave) release();
+        releaseEndpoint();
       },
       reverse() {
-        alignReceiver(0);
-        render(options.reverseProgress ?? 0);
+        directionRef.current = -1;
+        releaseReceiver();
       },
       dispose: release
-    }), [alignReceiver, release, releaseReceiver, render]);
-    return (
-      <canvas
-        ref={canvasRef}
-        className={options.canvasClassName ?? 'phone-story-shell__ink'}
-        data-portrait-ink={options.portraitInk}
-        aria-hidden="true"
-      />
-    );
+    }), [alignReceiver, ensure, release, releaseEndpoint, render]);
+    return null;
   });
 }

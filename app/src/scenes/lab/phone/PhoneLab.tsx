@@ -5,7 +5,7 @@ import {
   useImperativeHandle,
   useRef
 } from 'react';
-import { LAB_COPY } from '..';
+import { LAB_COPY } from '../copy';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
 import type { ScenePresentationAdapterHandle } from '../../../story/presentation';
 import './PhoneLab.css';

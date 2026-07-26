@@ -9,7 +9,8 @@ import {
 } from 'react';
 import {
   STORY_LOADER_TIMINGS,
-  StoryLoader
+  StoryLoader,
+  type StoryLoaderExitReason
 } from '../StoryLoader';
 import { revealStaticPhoneStoryFallback } from '../phone-story-fallback';
 import { phoneGroup67EntryPlanFromHash } from './phone-entry-plan';
@@ -53,11 +54,20 @@ export function PhoneStoryBootstrap(props: PhoneStoryShellProps = {}) {
   const [needsColdLoader] = useState(coldLoaderRequired);
   const [loaderMode] = useState(startupLoaderMode);
   const [shellPrepared, setShellPrepared] = useState(false);
+  const [shellFailed, setShellFailed] = useState(false);
+  const [loaderExitReason, setLoaderExitReason] =
+    useState<StoryLoaderExitReason>();
   const [abandoned, setAbandoned] = useState(false);
   const loaderStartedAtRef = useRef(
     typeof performance === 'undefined' ? 0 : performance.now()
   );
-  const markShellPrepared = useCallback(() => setShellPrepared(true), []);
+  const markShellPrepared = useCallback((failed: boolean) => {
+    setShellFailed(failed);
+    setShellPrepared(true);
+  }, []);
+  const markLoaderHidden = useCallback((reason: StoryLoaderExitReason) => {
+    setLoaderExitReason(reason);
+  }, []);
 
   useLayoutEffect(() => {
     if (!needsColdLoader) releaseResumePreboot();
@@ -76,19 +86,21 @@ export function PhoneStoryBootstrap(props: PhoneStoryShellProps = {}) {
 
   return (
     <>
-      {needsColdLoader && !shellPrepared && (
+      {needsColdLoader && loaderExitReason === undefined && (
         <StoryLoader
           mode={loaderMode}
-          ready={false}
-          failed={false}
-          release={false}
+          ready={shellPrepared}
+          failed={shellFailed}
           startedAt={loaderStartedAtRef.current}
+          onHidden={markLoaderHidden}
         />
       )}
       <Suspense fallback={null}>
         <PhoneStoryShell
           {...props}
-          startupLoaderStartedAt={loaderStartedAtRef.current}
+          {...(loaderExitReason === undefined
+            ? {}
+            : { startupLoaderExitReason: loaderExitReason })}
           onStartupPrepared={markShellPrepared}
         />
       </Suspense>

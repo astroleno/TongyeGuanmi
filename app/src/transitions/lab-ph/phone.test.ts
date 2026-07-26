@@ -5,7 +5,7 @@ import {
   applyPhoneLabPhFrame,
   PHONE_LAB_PH_DECISION,
   phoneLabPhFrame
-} from './phone';
+} from './contract';
 
 const source = readFileSync(new URL('./phone.ts', import.meta.url), 'utf8');
 const stylesheet = readFileSync(new URL('./phone.css', import.meta.url), 'utf8');
@@ -28,25 +28,14 @@ describe('Phone Lab → PH transition', () => {
     });
     expect(source).not.toMatch(/from ['"].*PhoneLab/);
     expect(source).not.toMatch(/from ['"].*scenes\/lab/);
-    expect(source).toContain('createPhoneInkTransition');
+    expect(source).toContain('createPhoneInkAdapter');
     expect(source).toContain("direction: 'bottom-to-top'");
     expect(source).toContain("grade: 'edge-bright'");
-    expect(source).toContain("'data-phone-lab-ph-ink': 'bottom-to-top'");
-    expect(source).toContain("host.dataset.phoneLabPhInkSurface = 'transparent'");
-    expect(source).toContain('from: null');
-    expect(source).toContain('ensureInk()?.render(frame.progress)');
-    expect(source).toContain('const progressRef = useRef(0)');
-    expect(source).toContain('const directionRef = useRef<1 | -1>(1)');
-    expect(source).toContain('const releaseInk = useCallback');
-    expect(source).toContain('ink.dispose()');
-    expect(source).toContain('canvas.width = 1');
-    expect(source).toMatch(
-      /leave\(\) \{\s*directionRef\.current = 1;\s*render\(1\);\s*[\s\S]*?releaseInk\(\);\s*\}/
-    );
-    expect(source).toMatch(
-      /reverse\(\) \{\s*directionRef\.current = -1;\s*render\(1\);\s*\}/
-    );
-    expect(stylesheet).toContain('data-phone-lab-ph-ink-surface="transparent"');
+    expect(source).toContain('maskSource: false');
+    expect(source).toContain('releaseOnLeave: true');
+    expect(source).not.toContain('reverseProgress');
+    expect(source).toContain('renderPhonePhPresentation');
+    expect(stylesheet).toContain('phone-group67__stage--ph');
     expect(stylesheet).toContain('background: transparent');
     expect(source).not.toContain('preparePhAnimationFrame');
     expect(source).not.toContain('parkPhonePhMedia');

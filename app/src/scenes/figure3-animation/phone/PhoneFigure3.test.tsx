@@ -7,6 +7,7 @@ import {
   phoneFigure3CanStartPreparedRun,
   phoneFigure3EndpointIsPresented,
   phoneFigure3Frame,
+  phoneFigure3HeldEndpoint,
   phoneFigure3MediaAction,
   phoneFigure3RunStartEndpoint,
   releasePhoneFigure3Video
@@ -61,6 +62,14 @@ describe('PhoneFigure3', () => {
     expect(phoneFigure3MediaAction(false, true, false, false, true, 1)).toBe('hold-terminal');
     expect(phoneFigure3MediaAction(false, true, false, false, true, -1)).toBe('hold-terminal');
     expect(phoneFigure3MediaAction(false, false)).toBe('release');
+  });
+
+  it('keeps the orchestrator target ahead of an inactive prewarm endpoint', () => {
+    expect(phoneFigure3HeldEndpoint('hold-initial', 1)).toBe(1);
+    expect(phoneFigure3HeldEndpoint('hold-terminal', 0)).toBe(0);
+    expect(phoneFigure3HeldEndpoint('hold-initial', null)).toBe(0);
+    expect(phoneFigure3HeldEndpoint('hold-terminal', null)).toBe(1);
+    expect(phoneFigure3HeldEndpoint('play-reverse', 1)).toBeNull();
   });
 
   it('waits for the presentable endpoint required by each direction', () => {

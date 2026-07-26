@@ -1,93 +1,27 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   phoneGradeAArchFrame,
-  phoneGradeABoundaryCompletedAtScroll,
   phoneGradeAFigureProgress,
   phoneGradeAHandoffProgress,
-  phoneGradeAMethodFigure2EdgeScene,
-  phoneGradeAProofBrandEdgeScene,
   phoneGradeAProofBrandProgress,
-  phoneGradeAProofPanelOffset,
-  phoneGradeAProofProgress,
-  phoneGradeAReconciledBoundaryCompletion,
-  phoneGradeAShouldReplayProofBrand
+  phoneGradeAProofProgress
 } from './PhoneGradeAStory';
+
+const source = readFileSync(
+  new URL('./PhoneGradeAStory.tsx', import.meta.url),
+  'utf8'
+);
+const figure2Source = readFileSync(
+  new URL('./scenes/PhoneFigure2.tsx', import.meta.url),
+  'utf8'
+);
 
 describe('phone Grade A document progress', () => {
   it('uses the entering viewport only for the Method → Figure2 handoff', () => {
     expect(phoneGradeAHandoffProgress(844, 844)).toBe(0);
     expect(phoneGradeAHandoffProgress(422, 844)).toBe(0.5);
     expect(phoneGradeAHandoffProgress(0, 844)).toBe(1);
-  });
-
-  it('reconciles restored scroll positions only at stable ink endpoints', () => {
-    expect(phoneGradeABoundaryCompletedAtScroll(
-      false,
-      5_886,
-      5_040,
-      5_884
-    )).toBe(true);
-    expect(phoneGradeABoundaryCompletedAtScroll(
-      true,
-      5_039,
-      5_040,
-      5_884
-    )).toBe(false);
-    expect(phoneGradeABoundaryCompletedAtScroll(
-      true,
-      5_420,
-      5_040,
-      5_884
-    )).toBe(true);
-    expect(phoneGradeABoundaryCompletedAtScroll(
-      false,
-      5_420,
-      5_040,
-      5_884
-    )).toBe(false);
-    expect(phoneGradeABoundaryCompletedAtScroll(
-      false,
-      5_886,
-      null,
-      null
-    )).toBe(false);
-  });
-
-  it('never converts an unplayed Proof → Brand boundary into completion', () => {
-    expect(phoneGradeAReconciledBoundaryCompletion(
-      2,
-      false,
-      5_886,
-      5_040,
-      5_884
-    )).toBe(false);
-    expect(phoneGradeAShouldReplayProofBrand(
-      false,
-      5_886,
-      5_884,
-      false
-    )).toBe(true);
-    expect(phoneGradeAShouldReplayProofBrand(
-      false,
-      5_886,
-      5_884,
-      true
-    )).toBe(false);
-    expect(phoneGradeAReconciledBoundaryCompletion(
-      2,
-      true,
-      5_039,
-      5_040,
-      5_884
-    )).toBe(false);
-  });
-
-  it('switches the bottom fallback only when the ink field owns that edge', () => {
-    expect(phoneGradeAMethodFigure2EdgeScene(0)).toBe('method');
-    expect(phoneGradeAMethodFigure2EdgeScene(0.001)).toBe('method');
-    expect(phoneGradeAMethodFigure2EdgeScene(0.0011)).toBe('figure2');
-    expect(phoneGradeAMethodFigure2EdgeScene(1)).toBe('figure2');
-    expect(phoneGradeAMethodFigure2EdgeScene(0, true)).toBe('figure2');
   });
 
   it('maps the shortened Figure2 scrub to the pre-ink camera endpoint', () => {
@@ -98,6 +32,12 @@ describe('phone Grade A document progress', () => {
     expect(phoneGradeAFigureProgress(-3038, 3038)).toBe(0.72);
     expect(phoneGradeAFigureProgress(-1519, 3038)).toBe(0.36);
     expect(phoneGradeAFigureProgress(0, 3038)).toBe(0);
+  });
+
+  it('drives the canonical Figure2 media during the document-owned intro', () => {
+    expect(figure2Source).toContain("videoMode: 'seek'");
+    expect(figure2Source).toContain('mediaRun:');
+    expect(figure2Source).not.toContain("videoMode: 'none'");
   });
 
   it('reveals the phone arch first, then enlarges and blurs it', () => {
@@ -120,21 +60,31 @@ describe('phone Grade A document progress', () => {
     expect(phoneGradeAProofProgress(-1688, 2532, 844)).toBe(1);
   });
 
-  it('deep-links panels against the available track range at every aspect ratio', () => {
-    expect(phoneGradeAProofPanelOffset(0, 2532, 844)).toBe(0);
-    expect(phoneGradeAProofPanelOffset(1, 2532, 844)).toBe(844);
-    expect(phoneGradeAProofPanelOffset(2, 2532, 844)).toBe(1688);
-    expect(phoneGradeAProofPanelOffset(1, 1092, 390)).toBe(351);
-    expect(phoneGradeAProofPanelOffset(2, 1092, 390)).toBe(702);
-  });
-
   it('hands the final Proof viewport to Brand without an uncovered frame', () => {
     expect(phoneGradeAProofBrandProgress(844, 844)).toBe(0);
     expect(phoneGradeAProofBrandProgress(422, 844)).toBe(0.5);
     expect(phoneGradeAProofBrandProgress(0, 844)).toBe(1);
-    expect(phoneGradeAProofBrandEdgeScene(0)).toBe('proof');
-    expect(phoneGradeAProofBrandEdgeScene(0.001)).toBe('proof');
-    expect(phoneGradeAProofBrandEdgeScene(0.0011)).toBe('brand');
-    expect(phoneGradeAProofBrandEdgeScene(1)).toBe('brand');
+  });
+});
+
+describe('phone Grade A orchestration ownership', () => {
+  it('registers rendering capabilities through the canonical runner only', () => {
+    expect(source).toContain('createPhoneGradeARunner');
+    expect(source).not.toContain('let activeRunView');
+    expect(source).not.toContain('inkPreparationAbort');
+    expect(source).not.toContain('activeInkSession');
+    expect(source).not.toContain('startInkRun');
+    expect(source).not.toContain('registerRunCapability');
+  });
+
+  it('does not publish navigation, checkpoint, or edge state', () => {
+    expect(source).not.toContain('orchestrator.reportPresentation');
+  });
+
+  it('leaves direct-entry positioning to the shell lifecycle', () => {
+    expect(source).not.toContain('window.scrollTo(');
+    expect(source).not.toContain('MutationObserver');
+    expect(source).toContain('id="figure2-animation"');
+    expect(source).toContain('id="figure2-proof"');
   });
 });

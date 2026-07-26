@@ -1,18 +1,25 @@
 import type { SceneId, SegmentId } from '../../story/types';
 import {
   phoneRun,
+  type PhoneCursorRunId,
   type PhoneRunDefinition,
   type PhoneRunId
 } from './phone-story-runs';
 
 export type PhoneTransitionPhase =
   | 'preparing'
-  | 'entry'
-  | 'awaiting-presented-frame'
-  | 'media'
-  | 'exit'
+  | 'presented-frame-ready'
+  | 'animating'
   | 'committing'
+  | 'landing'
+  | 'releasing'
   | 'rolling-back';
+
+/** Phases adapters may report; commit and release remain controller-owned. */
+export type PhoneAdapterTransitionPhase = Extract<
+  PhoneTransitionPhase,
+  'preparing' | 'presented-frame-ready' | 'animating'
+>;
 
 export type PhoneStoryHold = Readonly<{
   kind: 'hold';
@@ -25,7 +32,7 @@ export type PhoneStoryTransition = Readonly<{
   revision: number;
   sessionId: string;
   generation: number;
-  run: PhoneRunId;
+  run: PhoneCursorRunId;
   legIndex: number;
   runSource: SceneId;
   runTarget: SceneId;
@@ -47,7 +54,7 @@ export type PhoneStorySessionIdentity = Readonly<{
 export type PhoneStoryEvent =
   | (PhoneStorySessionIdentity & Readonly<{
       type: 'PHASE';
-      phase: Exclude<PhoneTransitionPhase, 'rolling-back'>;
+      phase: PhoneAdapterTransitionPhase;
     }>)
   | (PhoneStorySessionIdentity & Readonly<{
       type: 'PROGRESS';
@@ -58,6 +65,15 @@ export type PhoneStoryEvent =
     }>)
   | (PhoneStorySessionIdentity & Readonly<{
       type: 'COMMIT';
+    }>)
+  | (PhoneStorySessionIdentity & Readonly<{
+      type: 'LAND';
+    }>)
+  | (PhoneStorySessionIdentity & Readonly<{
+      type: 'RELEASE';
+    }>)
+  | (PhoneStorySessionIdentity & Readonly<{
+      type: 'SETTLE';
     }>)
   | (PhoneStorySessionIdentity & Readonly<{
       type: 'FAIL';
@@ -116,7 +132,8 @@ export function startPhoneStoryRun(
   cursor: PhoneStoryCursor,
   runId: PhoneRunId,
   direction: 1 | -1,
-  identity: PhoneStorySessionIdentity
+  identity: PhoneStorySessionIdentity,
+  legIndex?: number
 ): PhoneStoryTransition {
   if (cursor.kind !== 'hold') {
     throw new Error('Cannot start a phone run outside a stable hold');
@@ -128,8 +145,16 @@ export function startPhoneStoryRun(
       `Phone run ${runId} cannot start from ${cursor.scene} in direction ${direction}`
     );
   }
-  const legIndex = direction === 1 ? 0 : run.legs.length - 1;
-  return transitionAtLeg(run, legIndex, direction, identity, cursor.revision);
+  const initialLegIndex = legIndex ?? (
+    direction === 1 ? 0 : run.legs.length - 1
+  );
+  return transitionAtLeg(
+    run,
+    initialLegIndex,
+    direction,
+    identity,
+    cursor.revision
+  );
 }
 
 function eventOwnsCursor(
@@ -141,7 +166,8 @@ function eventOwnsCursor(
 }
 
 function isTerminalLeg(cursor: PhoneStoryTransition): boolean {
-  const run = phoneRun(cursor.run);
+  if (cursor.run.endsWith('-scroll')) return true;
+  const run = phoneRun(cursor.run as PhoneRunId);
   return cursor.direction === 1
     ? cursor.legIndex === run.legs.length - 1
     : cursor.legIndex === 0;
@@ -168,9 +194,14 @@ export function reducePhoneStoryCursor(
   }
   if (cursor.phase === 'rolling-back') return cursor;
   if (event.type === 'PHASE') {
-    return cursor.phase === event.phase
-      ? cursor
-      : { ...cursor, phase: event.phase };
+    const legal = (
+      (cursor.phase === 'preparing' && event.phase === 'presented-frame-ready')
+      || (
+        cursor.phase === 'presented-frame-ready'
+        && event.phase === 'animating'
+      )
+    );
+    return legal ? { ...cursor, phase: event.phase } : cursor;
   }
   if (event.type === 'PROGRESS') {
     const progress = clamp(event.progress);
@@ -181,8 +212,8 @@ export function reducePhoneStoryCursor(
     return { ...cursor, progress };
   }
   if (event.type === 'ADVANCE_LEG') {
-    if (isTerminalLeg(cursor)) return cursor;
-    const run = phoneRun(cursor.run);
+    if (isTerminalLeg(cursor) || cursor.phase !== 'animating') return cursor;
+    const run = phoneRun(cursor.run as PhoneRunId);
     const legIndex = cursor.legIndex + cursor.direction;
     return transitionAtLeg(
       run,
@@ -193,7 +224,23 @@ export function reducePhoneStoryCursor(
     );
   }
   if (event.type === 'COMMIT') {
-    if (!isTerminalLeg(cursor)) return cursor;
+    if (isTerminalLeg(cursor) && cursor.phase === 'animating') {
+      return { ...cursor, phase: 'committing' };
+    }
+    return cursor;
+  }
+  if (event.type === 'LAND') {
+    return cursor.phase === 'committing'
+      ? { ...cursor, phase: 'landing' }
+      : cursor;
+  }
+  if (event.type === 'RELEASE') {
+    return cursor.phase === 'landing'
+      ? { ...cursor, phase: 'releasing' }
+      : cursor;
+  }
+  if (event.type === 'SETTLE') {
+    if (cursor.phase !== 'releasing') return cursor;
     return createPhoneStoryHold(cursor.runTarget, cursor.revision + 1);
   }
   return cursor;

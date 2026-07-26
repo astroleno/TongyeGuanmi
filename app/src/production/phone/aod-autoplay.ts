@@ -13,6 +13,8 @@ type VisibilityDocument = Pick<Document, 'hidden' | 'addEventListener' | 'remove
 
 export type PhoneAodPlaybackDirection = 1 | -1;
 
+export type PhoneAodStartResult = 'playing' | 'blocked' | 'error';
+
 export type PhoneAodPresentation = Readonly<{
   figureScale: number;
   figureShiftYVh: number;
@@ -38,7 +40,7 @@ type PhoneAodAutoplayOptions = Readonly<{
 }>;
 
 export type PhoneAodAutoplay = Readonly<{
-  start(direction?: PhoneAodPlaybackDirection): void;
+  start(direction?: PhoneAodPlaybackDirection): Promise<PhoneAodStartResult>;
   reset(): void;
   dispose(): void;
 }>;
@@ -134,6 +136,18 @@ export function createPhoneAodAutoplay(
   let reverseProgress = 1;
   let reverseAnchorProgress = 1;
   let reverseStartedAt: number | undefined;
+  let resolveStart: ((result: PhoneAodStartResult) => void) | undefined;
+
+  const beginStartResult = () => (
+    new Promise<PhoneAodStartResult>((resolve) => {
+      resolveStart = resolve;
+    })
+  );
+  const settleStart = (result: PhoneAodStartResult) => {
+    const resolve = resolveStart;
+    resolveStart = undefined;
+    resolve?.(result);
+  };
 
   const publishPlaybackOwnership = (phase: string) => {
     video.dataset.timelineVideoRun = `phone-aod-${phase}:${runRevision}`;
@@ -279,6 +293,7 @@ export function createPhoneAodAutoplay(
         }
         playPending = false;
         if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'playing';
+        settleStart('playing');
         schedule();
       },
       () => {
@@ -287,6 +302,8 @@ export function createPhoneAodAutoplay(
         }
         playPending = false;
         if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'blocked';
+        active = false;
+        settleStart('blocked');
       }
     );
   };
@@ -301,6 +318,7 @@ export function createPhoneAodAutoplay(
           video.dataset.phoneAodAutoplay = 'playing-reverse-timeline';
         }
         renderReverseFrame(reverseProgress);
+        settleStart('playing');
       }
       schedule();
       return;
@@ -332,6 +350,15 @@ export function createPhoneAodAutoplay(
     if (direction === 1) {
       completeRun();
     }
+  };
+  const onError = () => {
+    if (!active) return;
+    active = false;
+    playAttempt += 1;
+    playPending = false;
+    cancelScheduledFrame();
+    if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'failed';
+    settleStart('error');
   };
   const onVisibilityChange = () => {
     if (!active) {
@@ -367,6 +394,7 @@ export function createPhoneAodAutoplay(
   video.addEventListener('play', onPlay);
   video.addEventListener('pause', onPause);
   video.addEventListener('ended', onEnded);
+  video.addEventListener('error', onError);
   visibilityDocument?.addEventListener('visibilitychange', onVisibilityChange);
 
   const selectSource = () => {
@@ -380,6 +408,9 @@ export function createPhoneAodAutoplay(
   };
 
   const stopCurrentRun = () => {
+    if (resolveStart) {
+      settleStart('error');
+    }
     active = false;
     playAttempt += 1;
     playPending = false;
@@ -392,7 +423,7 @@ export function createPhoneAodAutoplay(
   return {
     start(nextDirection = 1) {
       if (disposed) {
-        return;
+        return Promise.resolve('error');
       }
       if (active && direction === nextDirection) {
         if (direction === -1) {
@@ -400,9 +431,10 @@ export function createPhoneAodAutoplay(
         } else {
           playForward();
         }
-        return;
+        return Promise.resolve('playing');
       }
       stopCurrentRun();
+      const result = beginStartResult();
       direction = nextDirection;
       selectSource();
       runRevision += 1;
@@ -425,14 +457,16 @@ export function createPhoneAodAutoplay(
         }
         render(0);
         playForward();
-        return;
+        return result;
       }
       video.playbackRate = 1;
       reverseProgress = 1;
       reverseAnchorProgress = 1;
       reverseStartedAt = undefined;
       renderReverseFrame(1);
+      if (video.readyState >= 2) settleStart('playing');
       schedule();
+      return result;
     },
     reset() {
       if (disposed) {
@@ -469,6 +503,7 @@ export function createPhoneAodAutoplay(
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('ended', onEnded);
+      video.removeEventListener('error', onError);
       visibilityDocument?.removeEventListener('visibilitychange', onVisibilityChange);
       if (import.meta.env.DEV) {
         delete video.dataset.phoneAodAutoplay;

@@ -13,6 +13,54 @@ export type PhoneCapabilityRetention = Readonly<{
   dispose(): void;
 }>;
 
+type PhoneFrameScheduler = Readonly<{
+  request(callback: FrameRequestCallback): number;
+  cancel(frame: number): void;
+}>;
+
+const browserFrameScheduler: PhoneFrameScheduler = {
+  request: (callback) => window.requestAnimationFrame(callback),
+  cancel: (frame) => window.cancelAnimationFrame(frame)
+};
+
+/** Wait for current-run rendered evidence; the owning run bounds this by abort. */
+export function waitForPhonePresentationEvidence(
+  probe: () => boolean | 'retryable-failure' | null,
+  signal: AbortSignal,
+  scheduler: PhoneFrameScheduler = browserFrameScheduler
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let frame = 0;
+    let settled = false;
+    const finish = (error?: Error | DOMException) => {
+      if (settled) return;
+      settled = true;
+      if (frame) scheduler.cancel(frame);
+      signal.removeEventListener('abort', onAbort);
+      if (error) reject(error);
+      else resolve();
+    };
+    const onAbort = () => finish(new DOMException(
+      'Phone presentation evidence wait aborted',
+      'AbortError'
+    ));
+    const inspect = () => {
+      frame = 0;
+      if (signal.aborted) return onAbort();
+      const result = probe();
+      if (result === 'retryable-failure') {
+        finish(new Error('Phone presentation evidence reported a retryable failure'));
+      } else if (result) {
+        finish();
+      } else {
+        frame = scheduler.request(inspect);
+      }
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    inspect();
+  });
+}
+
 export type PhoneCapabilityRegistry<
   Id extends string,
   Handle
@@ -80,14 +128,16 @@ export function createPhoneCapabilityRegistry<
     get: (id) => handles.get(id)?.handle,
     waitFor(ids, { signal, timeoutMs }) {
       return new Promise<void>((resolve, reject) => {
-        let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
         let unsubscribe: () => void = () => undefined;
         let settled = false;
         const missing = () => ids.filter((id) => !handles.has(id));
+        const timeout = globalThis.setTimeout(() => {
+          finish(new PhoneReadinessTimeoutError(missing()));
+        }, Math.max(0, timeoutMs));
         const finish = (error?: Error | DOMException) => {
           if (settled) return;
           settled = true;
-          if (timeout !== undefined) globalThis.clearTimeout(timeout);
+          globalThis.clearTimeout(timeout);
           unsubscribe();
           signal.removeEventListener('abort', onAbort);
           if (error) reject(error);
@@ -110,9 +160,6 @@ export function createPhoneCapabilityRegistry<
         unsubscribe = () => listeners.delete(inspect);
         listeners.add(inspect);
         signal.addEventListener('abort', onAbort, { once: true });
-        timeout = globalThis.setTimeout(() => {
-          finish(new PhoneReadinessTimeoutError(missing()));
-        }, Math.max(0, timeoutMs));
         inspect();
       });
     },

@@ -2,13 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { canonicalSegments } from '../../story/canonical-spine';
 import {
   phoneEntryPlan,
+  phoneIntentRuns,
   phoneRunForHold,
+  phoneScrollRuns,
   phoneStoryRuns
 } from './phone-story-runs';
 
 describe('canonical phone story runs', () => {
   it('groups only real adjacent canonical segments into the eight phone runs', () => {
-    expect(phoneStoryRuns.map(({ id, legs }) => ({
+    expect(phoneIntentRuns.map(({ id, legs }) => ({
       id,
       legs: legs.map(({ segment }) => segment)
     }))).toEqual([
@@ -46,6 +48,26 @@ describe('canonical phone story runs', () => {
         });
       }
     }
+  });
+
+  it('models every front-half handoff as a scroll-owned canonical run', () => {
+    expect(phoneScrollRuns.map(({ id, segment }) => ({
+      id,
+      segment
+    }))).toEqual([
+      {
+        id: 'hero-pattern-scroll',
+        segment: 'hero-pattern'
+      },
+      {
+        id: 'pattern-star-scroll',
+        segment: 'pattern-star-map'
+      },
+      {
+        id: 'star-aod-scroll',
+        segment: 'star-map-aod'
+      }
+    ]);
   });
 
   it('maps each stable hold and direction to at most one adjacent run', () => {

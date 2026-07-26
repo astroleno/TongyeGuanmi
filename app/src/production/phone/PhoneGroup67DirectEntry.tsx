@@ -1,10 +1,15 @@
-import { lazy, Suspense } from 'react';
-import type { PhoneCheckpointId } from '../../story/semantic-checkpoints';
-import type { SceneId } from '../../story/types';
-import type { PhoneGroup67EntryPlan } from './phone-entry-plan';
-import type { PhoneEdgeScene } from './phone-edge-surface';
+import { lazy, Suspense, useState } from 'react';
+import type {
+  PhoneContinuationEntryPlan
+} from './phone-entry-plan';
+import type { PhoneLabBoundary } from './PhoneLabContactContinuation';
 import './PhoneGroup67DirectEntry.css';
 
+const PhoneBrandLabContinuation = lazy(() => (
+  import('./PhoneBrandLabContinuation').then((module) => ({
+    default: module.PhoneBrandLabContinuation
+  }))
+));
 const PhoneLabContactContinuation = lazy(() => (
   import('./PhoneLabContactContinuation').then((module) => ({
     default: module.PhoneLabContactContinuation
@@ -12,33 +17,33 @@ const PhoneLabContactContinuation = lazy(() => (
 ));
 
 export type PhoneGroup67DirectEntryProps = Readonly<{
-  plan: PhoneGroup67EntryPlan | undefined;
+  plan: PhoneContinuationEntryPlan | undefined;
   reducedMotion: boolean;
   stageHost: HTMLElement | null;
-  onCheckpoint(checkpoint: PhoneCheckpointId): void;
-  onEdgeScene(scene: PhoneEdgeScene): void;
-  onSceneChange(scene: SceneId): void;
 }>;
 
 export function PhoneGroup67DirectEntry({
   plan,
   reducedMotion,
-  stageHost,
-  onCheckpoint,
-  onEdgeScene,
-  onSceneChange
+  stageHost
 }: PhoneGroup67DirectEntryProps) {
+  const [labBoundary, setLabBoundary] = useState<PhoneLabBoundary | null>(null);
   if (!plan) return null;
+  const group45 = plan.group === 'group45';
   return (
     <Suspense fallback={null}>
+      <PhoneBrandLabContinuation
+        reducedMotion={reducedMotion}
+        stageHost={stageHost}
+        entryScene={group45 ? plan.scene : 'lab'}
+        onLabBoundaryChange={setLabBoundary}
+      />
       <PhoneLabContactContinuation
         reducedMotion={reducedMotion}
         stageHost={stageHost}
-        entryScene={plan.scene}
-        fromLabBoundary={false}
-        onCheckpoint={onCheckpoint}
-        onEdgeScene={onEdgeScene}
-        onSceneChange={onSceneChange}
+        {...(!group45 ? { entryScene: plan.scene } : {})}
+        fromLabBoundary={true}
+        labBoundary={labBoundary}
       />
     </Suspense>
   );

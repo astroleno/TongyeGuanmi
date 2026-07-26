@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { PhoneHeroPatternTransition } from './hero-pattern';
 
 describe('PhoneHeroPatternTransition Route B adapter', () => {
-  it('owns the accepted人物中心扩散 canvas surface', () => {
+  it('claims the accepted人物中心扩散 surface from the document pool', () => {
+    const source = readFileSync(new URL('./hero-pattern.tsx', import.meta.url), 'utf8');
     const markup = renderToStaticMarkup(
       <PhoneHeroPatternTransition
         host={null}
@@ -13,8 +15,8 @@ describe('PhoneHeroPatternTransition Route B adapter', () => {
       />
     );
 
-    expect(markup).toContain('class="portrait-scroll-spike__ink"');
-    expect(markup).toContain('data-portrait-ink="hero-pattern"');
-    expect(markup).toContain('aria-hidden="true"');
+    expect(markup).toBe('');
+    expect(source).toContain("canvasClassName: 'portrait-scroll-spike__ink'");
+    expect(source).toContain("portraitInk: 'hero-pattern'");
   });
 });

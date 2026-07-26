@@ -139,27 +139,14 @@
 
 /*
  * The shared fixed stage intentionally stays mounted so Safari can keep
- * sampling the published edge surface. Once neither Unit 7 nor Grade A owns
- * a visual handoff, lift the native reading above that opaque fixed paper.
- * During Proof → Brand, Grade A still owns the fixed ink canvas, so Brand must
- * remain below it until the handoff releases.
+ * sampling the published edge surface. Once Unit 7 does not own a visual
+ * handoff, lift the native reading above that opaque fixed paper. Active
+ * boundaries receive their controller-owned semantic surface role.
  */
 .phone-brand-lab[data-phone-group45-stage-active="false"] > .phone-brand,
 .phone-brand-lab[data-phone-group45-stage-active="false"] > .phone-services,
 .phone-brand-lab[data-phone-group45-stage-active="false"] > .phone-lab {
   z-index: 11;
-}
-
-.phone-grade-a[data-phone-grade-a-active="true"]
-  > .phone-brand-lab[data-phone-group45-stage-active="false"]
-  > .phone-brand,
-.phone-grade-a[data-phone-grade-a-active="true"]
-  > .phone-brand-lab[data-phone-group45-stage-active="false"]
-  > .phone-services,
-.phone-grade-a[data-phone-grade-a-active="true"]
-  > .phone-brand-lab[data-phone-group45-stage-active="false"]
-  > .phone-lab {
-  z-index: 0;
 }
 
 /*

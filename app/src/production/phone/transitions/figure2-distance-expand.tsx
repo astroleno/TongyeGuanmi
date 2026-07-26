@@ -24,6 +24,10 @@ import {
   FIGURE2_INTRO_END,
   figure2IntroProgress
 } from '../../../transitions/figure2-distance-expand';
+import {
+  claimPhoneInkSurface,
+  type PhoneInkSurfaceLease
+} from '../phone-ink-surface-pool';
 import type {
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
@@ -34,6 +38,13 @@ const PHONE_FIGURE2_PREPARE = 'phone-grade-a:prepare:1' as const;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+export function phoneFigure2ProofTimelineProgress(
+  progress: number
+): number {
+  return FIGURE2_INTRO_END
+    + (1 - FIGURE2_INTRO_END) * clamp(progress);
 }
 
 function applyVisibility(element: HTMLElement, state: LayerVisibilityState): void {
@@ -66,16 +77,16 @@ function phoneLayer(scene: SceneId, element: HTMLElement): LayerHandle {
 }
 
 function phoneStage(layers: readonly LayerHandle[]): StageHandle {
-  const byScene = new Map(layers.map((layer) => [layer.scene, layer]));
+  const getLayer = (scene: SceneId) => layers.find((layer) => layer.scene === scene);
   return {
-    getLayer: (scene) => byScene.get(scene),
+    getLayer,
     ensureLayer(scene) {
-      const layer = byScene.get(scene);
-      if (!layer) throw new Error(`Phone Grade A layer missing: ${scene}`);
+      const layer = getLayer(scene);
+      if (!layer) throw new Error(scene);
       return layer;
     },
     releaseLayer() {},
-    snapshot: () => [...byScene.values()]
+    snapshot: () => layers
   };
 }
 
@@ -85,13 +96,15 @@ function fallbackFrame(
   progress: number,
   reducedMotion: boolean
 ): void {
-  const sampled = reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
-  const intro = figure2IntroProgress(sampled);
-  const reveal = clamp((sampled - FIGURE2_INTRO_END) / (1 - FIGURE2_INTRO_END));
-  renderFigure2AnimationProgress(from, intro, { videoMode: 'none' });
-  from.style.visibility = reveal >= 0.999 ? 'hidden' : 'visible';
-  to.style.visibility = reveal <= 0.001 ? 'hidden' : 'visible';
-  to.style.opacity = reveal.toFixed(4);
+  const canonical = reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
+  renderFigure2AnimationProgress(
+    from,
+    figure2IntroProgress(phoneFigure2ProofTimelineProgress(canonical)),
+    { videoMode: 'none' }
+  );
+  from.style.visibility = canonical >= 0.999 ? 'hidden' : 'visible';
+  to.style.visibility = canonical <= 0.001 ? 'hidden' : 'visible';
+  to.style.opacity = canonical.toFixed(4);
 }
 
 /**
@@ -109,16 +122,73 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   const timelineRef = useRef<Awaited<ReturnType<ReturnType<
     typeof createFigure2DistanceExpandTransition
   >['buildTimeline']>> | null>(null);
-  const desiredProgressRef = useRef(0);
-  const lastProgressRef = useRef(0);
-  const directionRef = useRef<1 | -1>(1);
   const runRevisionRef = useRef(0);
+  const buildRevisionRef = useRef(0);
+  const buildRef = useRef<Promise<NonNullable<
+    typeof timelineRef.current
+  >> | null>(null);
+  const leaseRef = useRef<PhoneInkSurfaceLease | undefined>(undefined);
+  const retireTimeline = useCallback(() => {
+    buildRevisionRef.current += 1;
+    timelineRef.current?.dispose();
+    timelineRef.current = null;
+    buildRef.current = null;
+    leaseRef.current = undefined;
+  }, []);
+  const releaseTimeline = useCallback(() => {
+    leaseRef.current?.release();
+    retireTimeline();
+  }, [retireTimeline]);
+  const ensureTimeline = useCallback(async (
+    direction: 1 | -1
+  ): Promise<NonNullable<typeof timelineRef.current>> => {
+    if (timelineRef.current) return timelineRef.current;
+    if (buildRef.current) return buildRef.current;
+    if (!host || !from || !to) {
+      throw new Error();
+    }
+    const fromLayer = phoneLayer('figure2-animation', from);
+    const toLayer = phoneLayer('figure2-proof', to);
+    const lease = claimPhoneInkSurface(host.ownerDocument, {
+      host,
+      className: 'r4-figure2-proof-ink-canvas',
+      onRevoke: retireTimeline
+    });
+    leaseRef.current = lease;
+    const transition = createFigure2DistanceExpandTransition({ ownsMedia: false, inkCanvas: lease.canvas });
+    const buildRevision = buildRevisionRef.current;
+    const build = Promise.resolve(transition.buildTimeline({
+      segment: FIGURE2_DISTANCE_EXPAND_SEGMENT,
+      stage: phoneStage([fromLayer, toLayer]),
+      from: fromLayer,
+      to: toLayer,
+      direction,
+      runId: PHONE_FIGURE2_RUN,
+      prepareToken: PHONE_FIGURE2_PREPARE,
+      prefersReducedMotion: reducedMotion,
+      reportMilestone() {}
+    })).then((timeline) => {
+      if (buildRevision !== buildRevisionRef.current) {
+        timeline.dispose();
+        throw new DOMException('F2 retired', 'AbortError');
+      }
+      timelineRef.current = timeline;
+      return timeline;
+    });
+    buildRef.current = build;
+    try {
+      return await build;
+    } finally {
+      if (buildRef.current === build) buildRef.current = null;
+    }
+  }, [from, host, reducedMotion, retireTimeline, to]);
   const prepare = useCallback(async (
     direction: 1 | -1,
     signal: AbortSignal
   ) => {
-    const timeline = timelineRef.current;
-    if (!timeline) throw new Error();
+    if (signal.aborted) throw signal.reason;
+    if (reducedMotion) return;
+    const timeline = await ensureTimeline(direction);
     const leg: StagedLegPreparation = {
       runId: `phone-grade-a:${++runRevisionRef.current}` as SegmentRunId,
       segment: 'figure2-distance-expand',
@@ -132,88 +202,40 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     await timeline.prepareLeg?.(leg);
     if (signal.aborted) throw signal.reason;
     timeline.commitLeg?.(leg);
-    directionRef.current = direction;
-  }, []);
+  }, [ensureTimeline, reducedMotion]);
 
   const render = (rawProgress: number) => {
     if (!from || !to) return;
     const progress = clamp(rawProgress);
-    if (progress > lastProgressRef.current + 0.0001) {
-      if (directionRef.current !== 1) runRevisionRef.current += 1;
-      directionRef.current = 1;
-    } else if (progress < lastProgressRef.current - 0.0001) {
-      if (directionRef.current !== -1) runRevisionRef.current += 1;
-      directionRef.current = -1;
-    }
-    lastProgressRef.current = progress;
-    desiredProgressRef.current = progress;
-    const sampled = reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
+    const canonical = reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
+    const sampled = phoneFigure2ProofTimelineProgress(canonical);
     const timeline = timelineRef.current;
     if (!timeline) {
-      fallbackFrame(from, to, sampled, reducedMotion);
+      fallbackFrame(from, to, canonical, reducedMotion);
       return;
     }
     timeline.progress(sampled);
-    if (!reducedMotion) {
-      renderFigure2AnimationProgress(from, figure2IntroProgress(sampled), {
-        videoMode: 'seek',
-        mediaRun: {
-          runId: `phone-figure2-${directionRef.current}:${runRevisionRef.current}`,
-          direction: directionRef.current
-        }
-      });
-    }
   };
 
   useLayoutEffect(() => {
     if (!host || !from || !to) return;
-    const fromLayer = phoneLayer('figure2-animation', from);
-    const toLayer = phoneLayer('figure2-proof', to);
-    const transition = createFigure2DistanceExpandTransition();
-    let disposed = false;
-    void Promise.resolve(transition.buildTimeline({
-      segment: FIGURE2_DISTANCE_EXPAND_SEGMENT,
-      stage: phoneStage([fromLayer, toLayer]),
-      from: fromLayer,
-      to: toLayer,
-      direction: 1,
-      runId: PHONE_FIGURE2_RUN,
-      prepareToken: PHONE_FIGURE2_PREPARE,
-      prefersReducedMotion: reducedMotion,
-      reportMilestone() {}
-    })).then((timeline) => {
-      if (disposed) {
-        timeline.dispose();
-        return;
-      }
-      timelineRef.current = timeline;
-      if (!disposed) {
-        render(desiredProgressRef.current);
-        onReady?.();
-      }
-    }).catch(() => {
-      if (!disposed) {
-        fallbackFrame(from, to, desiredProgressRef.current, reducedMotion);
-      }
-    });
-    return () => {
-      disposed = true;
-      timelineRef.current?.dispose();
-      timelineRef.current = null;
-    };
-  }, [from, host, onReady, reducedMotion, to]);
+    onReady?.();
+    return releaseTimeline;
+  }, [from, host, onReady, releaseTimeline, to]);
 
   useImperativeHandle(forwardedRef, () => ({
     render,
     prepare,
-    enter() { render(0); },
+    begin() {},
+    commitEndpoint(endpoint) { render(endpoint); },
+    releaseEndpoint() {
+      releaseTimeline();
+    },
     leave() { render(1); },
-    reverse() { render(0); },
     dispose() {
-      timelineRef.current?.dispose();
-      timelineRef.current = null;
+      releaseTimeline();
     }
-  }), [from, prepare, reducedMotion, to]);
+  }), [from, prepare, reducedMotion, releaseTimeline, to]);
 
   return null;
 });

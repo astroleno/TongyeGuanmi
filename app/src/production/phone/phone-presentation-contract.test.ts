@@ -16,6 +16,12 @@ describe('phone presentation adapter contract', () => {
 
   it('uses the shared transition lifecycle instead of declaring a second copy', () => {
     expectTypeOf<PhoneTransitionAdapterHandle>()
-      .toEqualTypeOf<TransitionPresentationAdapterHandle>();
+      .toMatchTypeOf<TransitionPresentationAdapterHandle>();
+    expectTypeOf<PhoneTransitionAdapterHandle['begin']>()
+      .toBeFunction();
+    expectTypeOf<PhoneTransitionAdapterHandle['commitEndpoint']>()
+      .toBeFunction();
+    expectTypeOf<PhoneTransitionAdapterHandle['releaseEndpoint']>()
+      .toBeFunction();
   });
 });

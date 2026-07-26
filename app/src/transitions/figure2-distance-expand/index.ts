@@ -144,10 +144,15 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   private readonly inkRenderer: InkFieldRenderer | null;
   private readonly inkGeneration: string;
   private readonly inkRendererRequired: boolean;
+  private readonly ownsInkCanvas: boolean;
   private inkRendererFailure: InkRendererFailure | null = null;
   private mediaRun: Figure2MediaPreparation | undefined;
 
-  constructor(private readonly context: TransitionContext) {
+  constructor(
+    private readonly context: TransitionContext,
+    private readonly ownsMedia = true,
+    inkCanvas?: HTMLCanvasElement
+  ) {
     const generation = `${context.runId}:${context.prepareToken}`;
     this.inkGeneration = generation;
     this.pauses = context.segment.policy.kind === 'stagedSnap'
@@ -186,16 +191,19 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       runId: context.runId,
       transform: terminalTransform
     });
+    this.ownsInkCanvas = !inkCanvas;
     this.inkCanvas = mountTransitionInkCanvas(stage, 'figure2-distance-expand', {
       renderer: 'field',
       grade: 'edge-only',
       generation,
       className: 'r4-figure2-proof-ink-canvas'
-    });
+    }, inkCanvas);
     this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.inkCanvas, {
       fieldKind: 'depth',
       grade: 'edge-only',
       generation,
+      removeCanvasOnDestroy: this.ownsInkCanvas,
+      loseContextOnDestroy: this.ownsInkCanvas,
       onInvalidated: (failure) => {
         this.inkRendererFailure = failure;
       }
@@ -203,7 +211,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     if (this.inkRendererRequired && !this.inkRenderer) {
       this.depthMask?.dispose();
       this.elevation.restore();
-      this.inkCanvas?.remove();
+      if (this.ownsInkCanvas) this.inkCanvas?.remove();
       throw this.inkRendererError();
     }
     this.assertInkRendererReady();
@@ -234,7 +242,12 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     if (isDepthLeg) {
       await this.armDepthMask();
     }
-    if (!this.context.prefersReducedMotion && isDepthLeg && leg.direction === -1) {
+    if (
+      this.ownsMedia
+      && !this.context.prefersReducedMotion
+      && isDepthLeg
+      && leg.direction === -1
+    ) {
       await prepareFigure2TerminalPair(
         sceneRoot(this.context.from.element, 'figure2-animation'),
         {
@@ -245,7 +258,11 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
           signal: leg.signal
         }
       );
-    } else if (!this.context.prefersReducedMotion && isIntroLeg) {
+    } else if (
+      this.ownsMedia
+      && !this.context.prefersReducedMotion
+      && isIntroLeg
+    ) {
       await prepareFigure2MediaLeg(
         sceneRoot(this.context.from.element, 'figure2-animation'),
         {
@@ -272,7 +289,12 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       reducedMotion: this.context.prefersReducedMotion,
       signal: leg.signal
     };
-    if (!this.context.prefersReducedMotion && isDepthLeg && leg.direction === -1) {
+    if (
+      this.ownsMedia
+      && !this.context.prefersReducedMotion
+      && isDepthLeg
+      && leg.direction === -1
+    ) {
       commitFigure2TerminalPair(
         sceneRoot(this.context.from.element, 'figure2-animation'),
         {
@@ -280,7 +302,11 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
           startPlayback: false
         }
       );
-    } else if (!this.context.prefersReducedMotion && isIntroLeg) {
+    } else if (
+      this.ownsMedia
+      && !this.context.prefersReducedMotion
+      && isIntroLeg
+    ) {
       commitFigure2MediaLeg(
         sceneRoot(this.context.from.element, 'figure2-animation'),
         {
@@ -392,7 +418,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       this.animationFrame = 0;
     }
     this.inkRenderer?.destroy();
-    this.inkCanvas?.remove();
+    if (this.ownsInkCanvas) this.inkCanvas?.remove();
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
     renderFigure2AnimationProgress(
       fromRoot,
@@ -550,7 +576,11 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   }
 }
 
-export function createFigure2DistanceExpandTransition(options: { delayMs?: () => number } = {}): TransitionModule {
+export function createFigure2DistanceExpandTransition(options: {
+  delayMs?: () => number;
+  ownsMedia?: boolean;
+  inkCanvas?: HTMLCanvasElement;
+} = {}): TransitionModule {
   return {
     id: 'figure2-distance-expand',
     requiredMilestones: FIGURE2_DISTANCE_EXPAND_SEGMENT.requiredMilestones,
@@ -584,7 +614,11 @@ export function createFigure2DistanceExpandTransition(options: { delayMs?: () =>
       if (delay > 0) {
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
-      return new Figure2DistanceExpandTimeline(context);
+      return new Figure2DistanceExpandTimeline(
+        context,
+        options.ownsMedia !== false,
+        options.inkCanvas
+      );
     }
   };
 }

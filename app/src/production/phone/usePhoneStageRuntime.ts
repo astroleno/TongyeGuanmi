@@ -6,23 +6,17 @@ import {
 } from 'react';
 import { gsap } from 'gsap/gsap-core';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
-import type { SceneId } from '../../story/types';
-import { sceneFromHash } from '../navigation';
 import { clearPhoneInkBoundary } from './phone-ink';
-import {
-  registerPhoneTransitionBoundary,
-  type PhoneTransitionSession
-} from './phone-transition-coordinator';
+import type {
+  PhoneOrchestratedRunSession,
+  PhoneStoryOrchestrator
+} from './phone-story-orchestrator';
 import {
   PHONE_STAGE_STOPS,
-  phoneAodCheckpointForMethodProgress,
-  phoneAodCompletionCheckpoint,
-  phoneDirectEntryCompletesAod,
   phoneStageFrame
 } from './phone-stage-timeline';
+import type { PhoneStoryCursor } from './phone-story-state';
 import { renderPhoneStageTransitions } from './phone-transition-stage';
-import type { PhoneEdgeScene } from './phone-edge-surface';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -65,7 +59,15 @@ export function refreshPhoneScrollStage(): void {
 }
 
 type PortraitStageScene = 'hero' | 'pattern' | 'star' | 'aod';
-type PortraitAodRunState = 'idle' | 'forward' | 'complete' | 'reverse';
+const PHONE_AOD_RUN_TIMEOUT_MS = 6000;
+
+export function phoneStageCursorOwnsAod(
+  cursor: PhoneStoryCursor
+): boolean {
+  return cursor.kind === 'hold'
+    ? cursor.scene === 'aod-animation'
+    : cursor.run === 'star-aod-scroll' || cursor.run === 'aod-method';
+}
 
 function portraitStageScene(scene: PhoneStageSceneId): PortraitStageScene {
   if (scene === 'star-map') return 'star';
@@ -101,14 +103,12 @@ export type PhoneStageRuntimeOptions = Readonly<{
   heroPatternRef: RefObject<PhoneTransitionAdapterHandle | null>;
   patternStarMapRef: RefObject<PhoneTransitionAdapterHandle | null>;
   starMapAodRef: RefObject<PhoneTransitionAdapterHandle | null>;
+  orchestrator: PhoneStoryOrchestrator;
   enabled: boolean;
   reducedMotion: boolean;
   adapterRevision: number;
   aodAlphaEndProgress: number;
   mapAodToMethod(progress: number): number;
-  onCheckpoint(checkpoint: FrontHalfCheckpointId): void;
-  onNavigationScene(scene: SceneId): void;
-  onEdgeScene(scene: PhoneEdgeScene): void;
 }>;
 
 export type PhoneStageRuntime = Readonly<{
@@ -177,59 +177,31 @@ export function usePhoneStageRuntime(
 
     const motionEnabled = !options.reducedMotion;
     let active = true;
-    let currentOwnership = '';
     let heroActive: boolean | undefined;
     let patternActive: boolean | undefined;
     let starActive: boolean | undefined;
     let aodActive: boolean | undefined;
-    let aodRunState: PortraitAodRunState = 'idle';
     let aodProgress = 0;
+    let aodRun: {
+      direction: 1 | -1;
+      session: PhoneOrchestratedRunSession;
+      timeout: number;
+    } | null = null;
     let lastStageProgress = Number.NaN;
     let stageScrollStart = 0;
     let stageScrollEnd = 1;
-    let aodSession: PhoneTransitionSession | null = null;
-    let triggerAodForward = () => false;
-    let triggerAodReverse = () => false;
+    const aodAtMethod = () => {
+      const cursor = options.orchestrator.cursor();
+      return cursor.kind === 'hold' && cursor.scene === 'method-top';
+    };
     const stagePosition = (progress: number) => stageScrollStart
       + (stageScrollEnd - stageScrollStart) * progress;
-    let currentNavigationScene: SceneId = 'hero';
 
     if (import.meta.env.DEV) {
       root.dataset.portraitSpikeMotionState = motionEnabled ? 'running' : 'reduced';
       root.dataset.portraitStagePin = 'native-fixed-composite';
     }
-    root.dataset.portraitStageActive = 'true';
-    root.dataset.portraitAodRun = aodRunState;
-    root.dataset.phoneAodSnap = 'idle';
-    root.dataset.portraitAodMethodVisible = 'false';
     ScrollTrigger.config({ ignoreMobileResize: true });
-
-    const setCurrentNavigationScene = (scene: SceneId) => {
-      if (currentNavigationScene === scene) return;
-      currentNavigationScene = scene;
-      options.onNavigationScene(scene);
-    };
-
-    const setStageActive = (stageActive: boolean) => {
-      if (
-        !stageActive
-        && (aodRunState === 'forward' || aodRunState === 'reverse')
-      ) {
-        root.dataset.portraitStageActive = 'true';
-        if (import.meta.env.DEV) {
-          root.dataset.portraitStageBoundary = 'held-by-aod';
-        }
-        return;
-      }
-      if (import.meta.env.DEV) {
-        delete root.dataset.portraitStageBoundary;
-      }
-      root.dataset.portraitStageActive = String(stageActive);
-      if (!stageActive) {
-        options.onEdgeScene('method');
-        setCurrentNavigationScene('method-top');
-      }
-    };
 
     const scenes: Record<PortraitStageScene, HTMLElement> = {
       hero: heroScene,
@@ -259,8 +231,6 @@ export function usePhoneStageRuntime(
       visible: readonly PortraitStageScene[],
       stack: readonly PortraitStageScene[]
     ) => {
-      const ownershipChanged = currentOwnership !== key;
-      currentOwnership = key;
       const visibleSet = new Set(visible);
       for (const [scene] of sceneEntries) {
         const stackIndex = stack.indexOf(scene);
@@ -270,18 +240,18 @@ export function usePhoneStageRuntime(
           stackIndex >= 0 ? stack.length + 1 - stackIndex : 0
         );
       }
-      if (import.meta.env.DEV && ownershipChanged) {
+      if (import.meta.env.DEV) {
         root.dataset.portraitStageOwner = key;
       }
     };
 
-    const setAodHoldOwnership = (progress: number, phase: string) => {
+    const setAodHoldOwnership = (progress: number) => {
       const alphaTransparent = progress < options.aodAlphaEndProgress;
       aodScene.dataset.portraitAodAlpha = alphaTransparent
         ? 'transparent'
         : 'opaque';
       setOwnership(
-        `hold-aod-${phase}-${alphaTransparent ? 'alpha' : 'opaque'}`,
+        `hold-aod-${alphaTransparent ? 'alpha' : 'opaque'}`,
         ['aod'],
         ['aod']
       );
@@ -315,76 +285,96 @@ export function usePhoneStageRuntime(
     const renderMethodBridge = (progress: number) => {
       methodAdapter.update(progress);
     };
+    const clearAodTimeout = (run: NonNullable<typeof aodRun>) => {
+      window.clearTimeout(run.timeout);
+      run.timeout = 0;
+    };
+    const rollbackAodRun = (run: NonNullable<typeof aodRun>) => {
+      if (aodRun !== run) return;
+      clearAodTimeout(run);
+      aodRun = null;
+      aodAdapter.resetAutoplay();
+      const forward = run.direction === 1;
+      const progress = forward ? 0 : 1;
+      aodProgress = progress;
+      renderMethodBridge(options.mapAodToMethod(progress));
+      run.session.reportFailure();
+      setAodFigureActive(forward);
+      if (forward) {
+        setAodHoldOwnership(progress);
+      }
+    };
+    const armAodTimeout = (run: NonNullable<typeof aodRun>) => {
+      clearAodTimeout(run);
+      run.timeout = window.setTimeout(
+        () => rollbackAodRun(run),
+        PHONE_AOD_RUN_TIMEOUT_MS
+      );
+    };
+    const startAodMedia = (run: NonNullable<typeof aodRun>) => {
+      armAodTimeout(run);
+      void aodAdapter.startAutoplay(run.direction).then(
+        (result) => {
+          if (aodRun !== run || !run.session.valid()) return;
+          if (result === 'playing') {
+            run.session.reportPresentedFrame();
+            run.session.reportAnimationStarted();
+            armAodTimeout(run);
+          }
+          else rollbackAodRun(run);
+        },
+        () => rollbackAodRun(run)
+      );
+    };
 
     const renderAodFrame = (rawProgress: number) => {
       const progress = Math.min(1, Math.max(0, rawProgress));
       aodProgress = progress;
       const methodProgress = options.mapAodToMethod(progress);
       renderMethodBridge(methodProgress);
-      if (aodRunState === 'forward' || aodRunState === 'reverse') {
-        options.onCheckpoint(
-          phoneAodCheckpointForMethodProgress(methodProgress)
-        );
-      }
+      aodRun?.session.reportProgress(progress);
+      if (aodRun) armAodTimeout(aodRun);
       if (
-        aodRunState !== 'idle'
+        aodRun
         || (Number.isFinite(lastStageProgress)
           && lastStageProgress >= PHONE_STAGE_STOPS.starAodEnd)
       ) {
-        options.onEdgeScene('aod');
-        setAodHoldOwnership(progress, aodRunState);
+        setAodHoldOwnership(progress);
       }
     };
     progressHandlerRef.current = renderAodFrame;
 
-    const beginAodForward = (session: PhoneTransitionSession) => {
-      if (aodRunState !== 'idle' || !session.valid()) return false;
-      aodSession = session;
-      renderMethodBridge(0);
-      aodRunState = 'forward';
-      root.dataset.portraitAodRun = aodRunState;
-      root.dataset.phoneAodSnap = 'locked';
-      options.onCheckpoint('aod-autoplay');
-      setStageActive(true);
+    const beginAodRun = (
+      direction: 1 | -1,
+      session: PhoneOrchestratedRunSession
+    ) => {
+      if (aodRun || !session.valid()) return false;
+      aodRun = { direction, session, timeout: 0 };
+      const run = aodRun;
+      if (direction === 1) renderMethodBridge(0);
       setAodFigureActive(true);
-      aodAdapter.startAutoplay(1);
-      return true;
-    };
-
-    const beginAodReverse = (session: PhoneTransitionSession) => {
-      if (aodRunState !== 'complete' || !session.valid()) return false;
-      aodSession = session;
-      aodRunState = 'reverse';
-      root.dataset.portraitAodRun = aodRunState;
-      root.dataset.phoneAodSnap = 'locked';
-      options.onCheckpoint(phoneAodCheckpointForMethodProgress(
-        options.mapAodToMethod(aodProgress)
-      ));
-      setStageActive(true);
-      setAodFigureActive(true);
-      aodAdapter.startAutoplay(-1);
+      startAodMedia(run);
       return true;
     };
 
     const completeAodRun = (direction: 1 | -1) => {
-      const session = aodSession;
-      aodSession = null;
-      aodRunState = direction === 1 ? 'complete' : 'idle';
-      root.dataset.portraitAodRun = aodRunState;
-      root.dataset.phoneAodSnap = 'released';
-      options.onCheckpoint(phoneAodCompletionCheckpoint(direction));
-      session?.complete(direction === 1
-        ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
-        : Math.max(stageScrollStart, stageScrollEnd - 1));
-      if (direction === 1) setAodFigureActive(false);
-      else renderStage(stageTrigger.progress);
+      const run = aodRun;
+      if (!run || run.direction !== direction) return;
+      clearAodTimeout(run);
+      const session = run.session;
+      aodRun = null;
+      session.provideRelease(() => {
+        if (direction === 1) setAodFigureActive(false);
+        else renderStage(stageTrigger.progress);
+      });
+      session.reportAnimationComplete();
     };
     completeHandlerRef.current = completeAodRun;
 
     const retryHeroFigureFromGesture = () => {
       heroAdapter.unlockFromGesture();
-      if (aodRunState === 'forward' || aodRunState === 'reverse') {
-        aodAdapter.startAutoplay(aodRunState === 'forward' ? 1 : -1);
+      if (aodRun) {
+        startAodMedia(aodRun);
       }
     };
     const pointerTargetIsPermissionButton = (event: Event) => (
@@ -406,23 +396,12 @@ export function usePhoneStageRuntime(
     root.addEventListener('click', onHeroClick);
 
     if (motionEnabled) aodAdapter.resetAutoplay();
-    const directEntryScene = sceneFromHash(window.location.hash);
-    if (phoneDirectEntryCompletesAod(directEntryScene)) {
-      aodRunState = 'complete';
-      root.dataset.portraitAodRun = aodRunState;
-      aodAdapter.update(1);
-      renderAodFrame(1);
-    }
-
     const renderStage = (rawProgress: number, triggerDirection = 0) => {
       const progress = Math.min(1, Math.max(0, rawProgress));
       const previousStageProgress = lastStageProgress;
       const movingBackward = triggerDirection < 0
         || (Number.isFinite(previousStageProgress)
           && progress < previousStageProgress);
-      const movingForward = triggerDirection > 0
-        || (Number.isFinite(previousStageProgress)
-          && progress > previousStageProgress);
       lastStageProgress = progress;
       if (
         progress > 0.003
@@ -431,22 +410,12 @@ export function usePhoneStageRuntime(
         heroAdapter.completeEntrance();
       }
       const frame = phoneStageFrame(progress, options.reducedMotion);
-      setCurrentNavigationScene(frame.navigationScene);
 
-      if (motionEnabled && movingBackward && aodRunState === 'complete') {
-        triggerAodReverse();
-      } else if (
-        motionEnabled
-        && movingForward
-        && aodRunState === 'idle'
-        && frame.shouldStartAodAutoplay
-      ) {
-        triggerAodForward();
-      }
       if (
         motionEnabled
         && movingBackward
-        && aodRunState === 'idle'
+        && !aodRun
+        && !aodAtMethod()
         && previousStageProgress >= PHONE_STAGE_STOPS.starAodEnd
         && progress < PHONE_STAGE_STOPS.starAodEnd
       ) {
@@ -456,15 +425,36 @@ export function usePhoneStageRuntime(
       if (import.meta.env.DEV) {
         root.dataset.portraitStageProgress = progress.toFixed(4);
       }
-      if (aodRunState === 'idle') options.onCheckpoint(frame.checkpoint);
-      if (progress < PHONE_STAGE_STOPS.heroPatternEnd) {
-        options.onEdgeScene('hero');
-      } else if (progress < PHONE_STAGE_STOPS.patternStarEnd) {
-        options.onEdgeScene('pattern');
-      } else if (progress < PHONE_STAGE_STOPS.starAodEnd) {
-        options.onEdgeScene('star');
-      } else {
-        options.onEdgeScene('aod');
+      if (!aodRun) {
+        const direction = movingBackward ? -1 : 1;
+        if (frame.ownership.key === 'handoff-hero-pattern') {
+          options.orchestrator.reconcileScrollRun(
+            'hero-pattern-scroll',
+            direction,
+            frame.heroPatternProgress
+          );
+        } else if (frame.ownership.key === 'handoff-pattern-star') {
+          options.orchestrator.reconcileScrollRun(
+            'pattern-star-scroll',
+            direction,
+            frame.patternStarProgress
+          );
+        } else if (frame.ownership.key === 'handoff-star-aod') {
+          options.orchestrator.reconcileScrollRun(
+            'star-aod-scroll',
+            direction,
+            frame.starAodProgress
+          );
+        } else {
+          options.orchestrator.reconcileScrollHold(frame.navigationScene);
+        }
+      }
+      if (
+        motionEnabled
+        && frame.shouldStartAodAutoplay
+        && !(previousStageProgress >= PHONE_STAGE_STOPS.aodAutoplayStart)
+      ) {
+        options.orchestrator.requestRun(1);
       }
       setHeroFigureActive(
         motionEnabled && progress < PHONE_STAGE_STOPS.heroPatternEnd
@@ -481,7 +471,8 @@ export function usePhoneStageRuntime(
       );
       setAodFigureActive(
         motionEnabled
-        && aodRunState !== 'complete'
+        && phoneStageCursorOwnsAod(options.orchestrator.cursor())
+        && !aodAtMethod()
         && progress >= PHONE_STAGE_STOPS.starAodStart - 0.015
       );
       heroAdapter.update(frame.heroProgress);
@@ -498,11 +489,11 @@ export function usePhoneStageRuntime(
         return;
       }
 
-      if (aodRunState === 'forward' || aodRunState === 'reverse') {
+      if (aodRun) {
         heroPatternAdapter.render(1);
         patternStarAdapter.render(1);
         starAodAdapter.render(1);
-        setAodHoldOwnership(aodProgress, aodRunState);
+        setAodHoldOwnership(aodProgress);
         return;
       }
 
@@ -514,7 +505,7 @@ export function usePhoneStageRuntime(
         starAod: starAodAdapter
       }, () => setOwnership(frame.ownership.key, visible, stack));
       if (progress >= PHONE_STAGE_STOPS.starAodEnd) {
-        setAodHoldOwnership(aodProgress, aodRunState);
+        setAodHoldOwnership(aodProgress);
       }
     };
 
@@ -547,31 +538,28 @@ export function usePhoneStageRuntime(
       onUpdate: updateStageFromTrigger,
       onRefresh: (self) => {
         updateStageFromTrigger(self);
-        setStageActive(self.progress < 1);
       },
-      onEnter: () => setStageActive(true),
-      onEnterBack: () => setStageActive(true),
-      onLeave: () => setStageActive(false)
+      // ScrollTrigger is a passive geometry sampler. The Orchestrator owns
+      // stage activation and must not let an old rail position hide a later
+      // committed surface.
+      onEnter: () => undefined,
+      onEnterBack: () => undefined,
+      onLeave: () => undefined
     });
 
-    const transitionOwner = root.closest<HTMLElement>(
-      'main.portrait-scroll-spike'
-    ) ?? root;
     const aodRegistration = motionEnabled
-      ? registerPhoneTransitionBoundary(transitionOwner, {
-          position: (direction) => direction === 1
-            ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
-            : Math.max(stageScrollStart, stageScrollEnd - 1),
-          canStart: (direction) => direction === 1
-            ? aodRunState === 'idle'
-            : aodRunState === 'complete',
-          start: (direction, session) => direction === 1
-            ? beginAodForward(session)
-            : beginAodReverse(session)
-        })
+      ? options.orchestrator.registerRunCapability(
+          'aod-method',
+          'phone-stage-runtime:aod-method',
+          {
+            position: (direction) => direction === 1
+              ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
+              : Math.max(stageScrollStart, stageScrollEnd - 1),
+            canStart: () => !aodRun,
+            start: beginAodRun
+          }
+        )
       : null;
-    triggerAodForward = () => aodRegistration?.trigger(1) ?? false;
-    triggerAodReverse = () => aodRegistration?.trigger(-1) ?? false;
 
     renderStage(stageTrigger.progress);
     if (motionEnabled && stageTrigger.progress <= 0.003) {
@@ -593,15 +581,17 @@ export function usePhoneStageRuntime(
       window.removeEventListener('load', refresh);
       root.removeEventListener('pointerdown', onHeroPointerDown);
       root.removeEventListener('click', onHeroClick);
-      aodSession?.abort(window.scrollY);
-      aodSession = null;
+      if (aodRun) {
+        clearAodTimeout(aodRun);
+        aodRun.session.reportFailure();
+      }
+      aodRun = null;
       aodRegistration?.dispose();
       stageTrigger.kill();
       setHeroFigureActive(false);
       setPatternActive(false);
       setStarVisible(false);
       setAodFigureActive(false);
-      aodRunState = 'idle';
       aodAdapter.resetAutoplay();
       if (import.meta.env.DEV) {
         delete root.dataset.portraitSpikeMotionState;
@@ -609,14 +599,10 @@ export function usePhoneStageRuntime(
         delete root.dataset.portraitStageOwner;
         delete root.dataset.portraitStageBoundary;
       }
-      delete root.dataset.portraitStageActive;
       if (import.meta.env.DEV) {
         delete root.dataset.portraitStageProgress;
         delete root.dataset.portraitMethodEntrance;
       }
-      delete root.dataset.portraitAodRun;
-      delete root.dataset.phoneAodSnap;
-      delete root.dataset.portraitAodMethodVisible;
       delete root.dataset.portraitHeroEntrance;
       delete root.dataset.portraitHeroTextEntrance;
       delete aodScene.dataset.portraitAodAlpha;
@@ -627,7 +613,7 @@ export function usePhoneStageRuntime(
     options.aodAlphaEndProgress,
     options.enabled,
     options.mapAodToMethod,
-    options.onEdgeScene,
+    options.orchestrator,
     options.reducedMotion
   ]);
 

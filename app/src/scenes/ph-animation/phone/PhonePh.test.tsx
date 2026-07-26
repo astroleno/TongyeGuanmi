@@ -94,8 +94,17 @@ describe('PhonePh', () => {
     expect(source).toContain('surface.prepare(mode, request.signal)');
     expect(source).toContain('run.failRun(1)');
     expect(source).toContain('run.failRun(-1)');
+    expect(source).not.toContain('phonePresentedFrameOwner');
+    expect(source).not.toContain('PH_FIGURE_OPENING_SRC');
+    expect(source).not.toContain('beginRun');
+    expect(source).not.toContain('presentedFrame');
     expect(cinematicRunSource).toContain("options.activateSurface('endpoint')");
-    expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
+    expect(source).not.toContain(
+      "ensurePackedSurface(reducedMotion ? 'endpoint' : 'forward')"
+    );
+    expect(source).toContain(
+      "request.progress >= 0.999 || request.direction === -1"
+    );
     expect(source).toContain('PH_FIGURE_END_SECONDS');
     expect(source).toContain('createPhonePhPresentedReverse');
     expect(source).toContain('beginPreparedReverse');

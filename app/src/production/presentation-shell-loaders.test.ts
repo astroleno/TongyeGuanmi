@@ -42,9 +42,15 @@ describe('presentation shell loaders', () => {
       "lazy(() => import('./PhoneStoryShell')"
     );
     expect(phoneBootstrapSource).toContain('<StoryLoader');
-    expect(phoneBootstrapSource).toContain('release={false}');
+    expect(phoneBootstrapSource.match(/<StoryLoader\s+mode=/g)).toHaveLength(1);
+    expect(phoneBootstrapSource).toContain('ready={shellPrepared}');
+    expect(phoneBootstrapSource).toContain('failed={shellFailed}');
+    expect(phoneBootstrapSource).toContain('onHidden={markLoaderHidden}');
     expect(phoneBootstrapSource).toContain(
-      'startupLoaderStartedAt={loaderStartedAtRef.current}'
+      'startedAt={loaderStartedAtRef.current}'
+    );
+    expect(phoneBootstrapSource).toContain(
+      '{ startupLoaderExitReason: loaderExitReason }'
     );
     expect(phoneBootstrapSource).toContain(
       'onStartupPrepared={markShellPrepared}'
@@ -53,13 +59,15 @@ describe('presentation shell loaders', () => {
     expect(phoneBootstrapSource).toContain(
       "get('portrait-spike-motion') === 'reduce'"
     );
+    expect(phoneShellSource).not.toContain("import { PhoneLoader }");
+    expect(phoneShellSource).not.toContain('LoaderComponent');
+    expect(phoneShellSource).not.toContain('<StoryLoader');
+    expect(phoneShellSource).not.toContain('<PhoneLoader');
     expect(phoneShellSource).toContain(
-      "import { PhoneLoader } from './scenes/PhoneLoader'"
+      'finishLoader(props.startupLoaderExitReason)'
     );
-    expect(phoneShellSource).toContain('const LoaderComponent = Loader ?? PhoneLoader');
-    expect(phoneShellSource).toContain('startedAt={props.startupLoaderStartedAt}');
     expect(phoneShellSource).toContain(
-      'if (directGroup67Entry || ready || failed) props.onStartupPrepared?.()'
+      'if (directContinuationEntry || ready || failed)'
     );
   });
 });

@@ -6,6 +6,7 @@ import {
   phoneTtgFrame,
   phoneTtgHasReusableEndpointFrame,
   phoneTtgHasReusableTerminalFrame,
+  phoneTtgHeldEndpoint,
   phoneTtgMediaAction,
   markPhoneTtgPresentedEndpoint,
   releasePhoneTtgVideo
@@ -80,6 +81,14 @@ describe('PhoneTtg', () => {
     expect(phoneTtgMediaAction(false, true, false, false, true, 1)).toBe('hold-terminal');
     expect(phoneTtgMediaAction(false, true, false, false, true, -1)).toBe('hold-terminal');
     expect(phoneTtgMediaAction(false, false)).toBe('release');
+  });
+
+  it('keeps the orchestrator target ahead of an inactive prewarm endpoint', () => {
+    expect(phoneTtgHeldEndpoint('hold-initial', 1)).toBe(1);
+    expect(phoneTtgHeldEndpoint('hold-terminal', 0)).toBe(0);
+    expect(phoneTtgHeldEndpoint('hold-initial', null)).toBe(0);
+    expect(phoneTtgHeldEndpoint('hold-terminal', null)).toBe(1);
+    expect(phoneTtgHeldEndpoint('play-reverse', 1)).toBeNull();
   });
 
   it('reuses the retained physical terminal frame for Lab → TTG reverse', () => {

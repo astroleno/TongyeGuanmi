@@ -36,8 +36,6 @@ export const PhoneFigure2ProofBrandTransition = createPhoneInkAdapter({
   portraitInk: 'proof-brand',
   grade: 'dark',
   reducedMotionStrategy: 'boundary',
-  releaseBoundaryGeometryAtEndpoints: true,
-  reverseProgress: 1,
   alignReceiver: alignPhoneProofBrandReceiver
 });
 
