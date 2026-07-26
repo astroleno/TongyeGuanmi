@@ -1,4 +1,5 @@
 import { publicMenuItems } from './navigation';
+import { semanticBoolean } from '../runtime/semantic-data-attribute';
 import type { SceneId } from '../story/types';
 import './StoryNav.css';
 
@@ -55,9 +56,9 @@ export function StoryNav({
         aria-label="主导航"
         aria-hidden={visible ? undefined : 'true'}
         inert={visible ? undefined : true}
-        data-visible={String(visible)}
+        data-visible={semanticBoolean(visible)}
         data-tone={chrome.tone}
-        data-menu-open={String(menuOpen)}
+        data-menu-open={semanticBoolean(menuOpen)}
       >
         <div className="site-nav-track">
           <a

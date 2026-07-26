@@ -1,4 +1,5 @@
 import { clearBoundaryGeometry } from './inkOwnership';
+import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 import { createInkFieldFrame, type InkFieldSpec } from './inkField';
 import {
   createInkFieldRenderer,
@@ -37,6 +38,7 @@ export function createRadialInkIntroController(
 ): RadialInkIntroController {
   let renderer: InkFieldRenderer | null = null;
   let disposed = false;
+  let settled = false;
   let latestProgress = 1;
 
   const targetReady = () => !options.targetImage || (
@@ -45,7 +47,7 @@ export function createRadialInkIntroController(
     && options.targetImage.naturalHeight > 0
   );
   const ensureRenderer = () => {
-    if (disposed || renderer || !targetReady()) {
+    if (disposed || settled || renderer || !targetReady()) {
       return renderer;
     }
     renderer = createInkFieldRenderer(options.canvas, {
@@ -105,12 +107,17 @@ export function createRadialInkIntroController(
       applySurfaceHandoff(frame.progress);
       options.canvas.setAttribute(
         'data-hero-intro-ink-active',
-        String(
+        semanticBoolean(
           frame.progress > 0.002
           && frame.progress < 0.999
           && Boolean(renderer?.isActive())
         )
       );
+      if (frame.progress >= 0.999) {
+        settled = true;
+        renderer?.destroy();
+        renderer = null;
+      }
     },
     dispose() {
       if (disposed) {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createDirectorRuntime, type StoryDebugSnapshot } from '../runtime/director.actor';
+import { semanticBoolean } from '../runtime/semantic-data-attribute';
 import { Stage } from '../stage/Stage';
 import type { LayerWindowSnapshot } from '../stage/LayerWindow';
 import { HandleRegistry } from '../story/registry';
@@ -154,7 +155,7 @@ function applyElementVisibility(element: HTMLElement | undefined, state: LayerVi
   element.style.pointerEvents = state.pointerEvents;
   element.inert = state.inert;
   element.setAttribute('aria-hidden', state.inert ? 'true' : 'false');
-  element.dataset.visible = String(state.visible && state.opacity > 0.001);
+  element.dataset.visible = semanticBoolean(state.visible && state.opacity > 0.001);
   element.dataset.interactable = String(!state.inert && state.pointerEvents === 'auto');
 }
 

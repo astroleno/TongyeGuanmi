@@ -11,6 +11,22 @@ export type PackedAlphaVideoCompositor = Readonly<{
   dispose(): void;
 }>;
 
+export function releasePackedAlphaWebGlContext(
+  gl: WebGLRenderingContext
+): void {
+  gl.getExtension('WEBGL_lose_context')?.loseContext();
+}
+
+export function renewPackedAlphaCanvas(
+  canvas: HTMLCanvasElement
+): HTMLCanvasElement {
+  const renewed = canvas.cloneNode(false) as HTMLCanvasElement;
+  renewed.width = 1;
+  renewed.height = 1;
+  canvas.replaceWith(renewed);
+  return renewed;
+}
+
 type PackedAlphaVideoOptions = Readonly<{
   video: HTMLVideoElement;
   canvas: HTMLCanvasElement;
@@ -178,6 +194,7 @@ export function createPackedAlphaVideoCompositor(
       render: () => false,
       setActive: () => undefined,
       dispose: () => {
+        releasePackedAlphaWebGlContext(gl);
         delete canvas.dataset.packedAlphaStatus;
       }
     };
@@ -359,6 +376,7 @@ export function createPackedAlphaVideoCompositor(
       gl.deleteProgram(program);
       gl.deleteShader(vertex);
       gl.deleteShader(fragment);
+      releasePackedAlphaWebGlContext(gl);
       delete canvas.dataset.packedAlphaStatus;
       delete canvas.dataset.packedAlphaFrameReady;
       delete canvas.dataset.packedAlphaFrame;

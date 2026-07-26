@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createDirectorRuntime, type StoryDebugSnapshot } from '../../runtime/director.actor';
+import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 import { Stage } from '../../stage/Stage';
 import { positionReadingAtEdge } from '../../stage/reading';
 import type { LayerWindowSnapshot } from '../../stage/LayerWindow';
@@ -270,7 +271,9 @@ export function PilotHarness({ mode }: { mode: PilotHarnessMode }) {
       element.style.pointerEvents = visibility.pointerEvents;
       element.inert = visibility.inert;
       element.setAttribute('aria-hidden', visibility.inert ? 'true' : 'false');
-      element.dataset.visible = String(visibility.visible && visibility.opacity > 0.001);
+      element.dataset.visible = semanticBoolean(
+        visibility.visible && visibility.opacity > 0.001
+      );
       element.dataset.interactable = String(!visibility.inert && visibility.pointerEvents === 'auto');
     }
     setVisibilityByScene(visibilityRef.current);

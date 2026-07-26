@@ -465,7 +465,7 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
       canvas.style.visibility = 'hidden';
       canvas.style.opacity = '0';
     },
-    destroy() {
+    destroy(loseContext = false) {
       if (destroyed) return;
       destroyed = true;
       if (depthImage) {
@@ -476,7 +476,8 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
         buffer,
         program,
         shaders: [vertexShader, fragmentShader],
-        textures
+        textures,
+        loseContext
       });
       canvas.width = 0;
       canvas.height = 0;

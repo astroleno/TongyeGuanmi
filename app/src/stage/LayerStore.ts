@@ -1,4 +1,5 @@
 import { hiddenVisibility } from '../pilot/visibility';
+import { semanticBoolean } from '../runtime/semantic-data-attribute';
 import type {
   LayerHandle,
   LayerVisibilityState,
@@ -34,7 +35,7 @@ function applyVisibilityToElement(element: HTMLElement, state: LayerVisibilitySt
   element.style.pointerEvents = state.pointerEvents;
   element.inert = state.inert;
   element.setAttribute('aria-hidden', state.inert ? 'true' : 'false');
-  element.dataset.visible = String(state.visible && state.opacity > 0.001);
+  element.dataset.visible = semanticBoolean(state.visible && state.opacity > 0.001);
   element.dataset.interactable = String(!state.inert && state.pointerEvents === 'auto');
 }
 

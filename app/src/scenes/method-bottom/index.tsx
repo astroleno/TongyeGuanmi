@@ -1,4 +1,5 @@
 import { METHOD_STEPS_COPY } from '../../story/manifest';
+import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export { METHOD_STEPS_COPY } from '../../story/manifest';
@@ -25,7 +26,10 @@ export function renderMethodBottomEntrance(
   const clamped = Math.min(1, Math.max(0, progress));
   method?.style.setProperty('--r4-method-entrance-opacity', clamped.toFixed(4));
   method?.style.setProperty('--r4-method-bottom-y', `${((1 - clamped) * 20).toFixed(2)}px`);
-  method?.setAttribute('data-method-entrance-visible', String(clamped > 0.001));
+  method?.setAttribute(
+    'data-method-entrance-visible',
+    semanticBoolean(clamped > 0.001)
+  );
 }
 
 export function renderMethodBottomHold(root: HTMLElement | null): void {

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { directorRuntime, useDirectorSnapshot } from './harness-director';
 import { normalizeInputDelta } from '../runtime/input-normalizer';
+import { semanticBoolean } from '../runtime/semantic-data-attribute';
 import type { DirectorEvent, Direction } from '../story/types';
 
 function send(event: DirectorEvent): void {
@@ -81,7 +82,11 @@ export function MachineHarness() {
     >
       <section className="harness-stage" aria-label="synthetic machine stage">
         {members.map((scene) => (
-          <div key={scene} className="synthetic-layer" data-current={scene === layerWindow.current}>
+          <div
+            key={scene}
+            className="synthetic-layer"
+            data-current={semanticBoolean(scene === layerWindow.current)}
+          >
             <span>{scene}</span>
           </div>
         ))}

@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   PACKED_ALPHA_SOURCE_TYPE,
-  packedAlphaFrameSize
+  packedAlphaFrameSize,
+  releasePackedAlphaWebGlContext
 } from './packed-alpha-video';
 
 describe('packed alpha video', () => {
@@ -19,5 +20,17 @@ describe('packed alpha video', () => {
   it('uses an iPhone-compatible opaque decoder source', () => {
     expect(PACKED_ALPHA_SOURCE_TYPE).toContain('video/mp4');
     expect(PACKED_ALPHA_SOURCE_TYPE).toContain('avc1');
+  });
+
+  it('hard-releases the compositor context when a packed surface retires', () => {
+    const loseContext = vi.fn();
+    const getExtension = vi.fn(() => ({ loseContext }));
+
+    releasePackedAlphaWebGlContext({
+      getExtension
+    } as unknown as WebGLRenderingContext);
+
+    expect(getExtension).toHaveBeenCalledWith('WEBGL_lose_context');
+    expect(loseContext).toHaveBeenCalledOnce();
   });
 });

@@ -1,4 +1,5 @@
 import { METHOD_COPY, METHOD_STEPS_COPY, METHOD_TOP_COPY } from '../../story/manifest';
+import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 
 export { METHOD_COPY, METHOD_STEPS_COPY, METHOD_TOP_COPY } from '../../story/manifest';
@@ -24,7 +25,10 @@ export function renderMethodTopEntrance(
   const method = methodRoot(root);
   const clamped = Math.min(1, Math.max(0, progress));
   method?.style.setProperty('--r4-method-entrance-opacity', clamped.toFixed(4));
-  method?.setAttribute('data-method-entrance-visible', String(clamped > 0.001));
+  method?.setAttribute(
+    'data-method-entrance-visible',
+    semanticBoolean(clamped > 0.001)
+  );
 }
 
 export function renderMethodTopHold(root: HTMLElement | null): void {
@@ -39,7 +43,7 @@ function MethodScene({ copyCueActive = false, registerHandle }: SceneComponentPr
       data-r3-scene="method-top"
       data-r4-scene="method-top"
       data-reading-scrollport="true"
-      data-copy-cue={String(copyCueActive)}
+      data-copy-cue={semanticBoolean(copyCueActive)}
     >
       <div className="homepage-scene homepage-scene--method-field-law method-handoff-anchor" aria-hidden="true" />
       <div className="r4-method__wide">

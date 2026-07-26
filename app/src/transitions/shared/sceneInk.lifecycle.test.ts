@@ -115,6 +115,19 @@ describe('shared ink renderer lifecycle', () => {
     expect(surface.dataset.r4InkGeneration).toBe('dark-run:1');
     expect(renderer?.isActive()).toBe(true);
     renderer?.destroy();
+    expect(vendor.boundaryDestroy).toHaveBeenCalledWith(true);
+  });
+
+  it('can return the fixed-stage renderer to a shared context pool', () => {
+    const { surface } = canvas();
+    const renderer = createInkFieldRenderer(surface, {
+      generation: 'phone-pool:1',
+      loseContextOnDestroy: false
+    });
+
+    renderer?.destroy();
+
+    expect(vendor.boundaryDestroy).toHaveBeenCalledWith(false);
   });
 
   it('marks and clears the shared horizontal contour lifecycle', () => {
