@@ -79,7 +79,8 @@ describe('phone stable presentation contract', () => {
         session = activeSession;
       }
     });
-    orchestrator.subscribe((cursor) => {
+    orchestrator.subscribe(() => {
+      const cursor = orchestrator.cursor();
       if (cursor.kind !== 'hold') return;
       observed.push({
         lock: root.dataset.phoneTransitionLock,
@@ -95,10 +96,8 @@ describe('phone stable presentation contract', () => {
     })).toBe(true);
     if (!session) throw new Error('Expected a claimed brand-services session');
     session.reportPresentedFrame();
-    session.reportAnimationStarted();
     session.reportEndpointCommit('receiver');
     session.reportPresentedFrame();
-    session.reportAnimationStarted();
     session.provideRelease(() => undefined);
     session.reportEndpointCommit('receiver');
     frames.shift()?.();

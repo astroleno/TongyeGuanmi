@@ -3,8 +3,62 @@ import {
   createPhoneStoryHold,
   reducePhoneStoryCursor,
   startPhoneStoryRun,
-  type PhoneStoryCursor
+  type PhoneStoryCursor,
+  type PhoneStoryLegacyCursor
 } from './phone-story-state';
+
+type SnapshotView = Readonly<{
+  authorityId: string;
+  revision: number;
+  status: 'stable' | 'scroll-run' | 'transaction';
+  scene?: string;
+  session: Readonly<{
+    sessionId: string;
+    generation: number;
+    operation: Readonly<{
+      kind: string;
+      run?: string;
+      direction?: number;
+      legIndex?: number;
+    }>;
+    phase: string;
+    progress: number;
+    anchor: Readonly<{ y: number | null }>;
+    alignment: unknown;
+  }> | null;
+  input: Readonly<{ completedEpoch: number | null }>;
+  diagnostics: Readonly<{
+    lastRollback: Readonly<{ generation: number }> | null;
+  }>;
+}>;
+
+type SnapshotApi = Readonly<{
+  createPhoneStorySnapshot(input: Readonly<{
+    authorityId: string;
+    scene: 'brand' | 'services';
+    actualY: number;
+  }>): SnapshotView;
+  reducePhoneStorySnapshot(
+    state: SnapshotView,
+    event: Readonly<Record<string, unknown>>
+  ): Readonly<{ snapshot: SnapshotView; effects: readonly unknown[] }>;
+  selectPhoneStoryCursor(snapshot: SnapshotView): PhoneStoryCursor;
+}>;
+
+async function snapshotApi(): Promise<SnapshotApi> {
+  const state = await import('./phone-story-state') as unknown as Partial<SnapshotApi>;
+  expect(state.createPhoneStorySnapshot).toBeTypeOf('function');
+  expect(state.reducePhoneStorySnapshot).toBeTypeOf('function');
+  expect(state.selectPhoneStoryCursor).toBeTypeOf('function');
+  return state as SnapshotApi;
+}
+
+const snapshotIdentity = {
+  authorityId: 'authority-a',
+  sessionId: 'snapshot-session-1',
+  generation: 7,
+  leg: 0
+} as const;
 
 const activeRun = () => startPhoneStoryRun(
   createPhoneStoryHold('brand'),
@@ -14,7 +68,7 @@ const activeRun = () => startPhoneStoryRun(
 );
 
 function readyToAnimate(
-  cursor: PhoneStoryCursor,
+  cursor: PhoneStoryLegacyCursor,
   sessionId = 'phone-session-1',
   generation = 1
 ) {
@@ -208,6 +262,229 @@ describe('canonical phone story cursor', () => {
       kind: 'hold',
       scene: 'services',
       revision: 1
+    });
+  });
+});
+
+describe('PhoneStorySnapshot reducer', () => {
+  it('keeps stable and scroll-run snapshots sessionless while a transaction has one identity and anchor', async () => {
+    const api = await snapshotApi();
+    const stable = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'brand',
+      actualY: 120
+    });
+
+    expect(stable).toMatchObject({
+      status: 'stable',
+      scene: 'brand',
+      session: null,
+      authorityId: snapshotIdentity.authorityId
+    });
+
+    const started = api.reducePhoneStorySnapshot(stable, {
+      type: 'RUN_STARTED',
+      ...snapshotIdentity,
+      run: 'brand-services',
+      direction: 1,
+      anchorY: 240,
+      inputEpoch: 9
+    }).snapshot;
+
+    expect(started).toMatchObject({
+      status: 'transaction',
+      session: {
+        sessionId: snapshotIdentity.sessionId,
+        generation: snapshotIdentity.generation,
+        operation: {
+          kind: 'run',
+          run: 'brand-services',
+          direction: 1,
+          legIndex: 0
+        },
+        phase: 'preparing',
+        progress: 0,
+        anchor: { y: 240 }
+      },
+      input: { completedEpoch: 9 }
+    });
+  });
+
+  it('accepts only the legal transaction table and settles through one stable publication', async () => {
+    const api = await snapshotApi();
+    const stable = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'brand',
+      actualY: 0
+    });
+    let current = api.reducePhoneStorySnapshot(stable, {
+      type: 'RUN_STARTED',
+      ...snapshotIdentity,
+      run: 'brand-services',
+      direction: 1,
+      anchorY: 100,
+      inputEpoch: 1
+    }).snapshot;
+
+    const illegal = api.reducePhoneStorySnapshot(current, {
+      type: 'STABLE_PRESENTATION_VERIFIED',
+      ...snapshotIdentity
+    });
+    expect(illegal.snapshot).toBe(current);
+    expect(illegal.effects).toEqual([]);
+
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'PRESENTED_FRAME',
+      ...snapshotIdentity
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LEG_COMPLETED',
+      ...snapshotIdentity
+    }).snapshot;
+    const terminalIdentity = { ...snapshotIdentity, leg: 1 } as const;
+
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'PRESENTED_FRAME',
+      ...terminalIdentity
+    }).snapshot;
+    const prematureTarget = api.reducePhoneStorySnapshot(current, {
+      type: 'TARGET_PRESENTED',
+      ...terminalIdentity
+    });
+    expect(prematureTarget.snapshot).toBe(current);
+    expect(prematureTarget.effects).toEqual([]);
+
+    for (const type of [
+      'LEG_COMPLETED',
+      'TARGET_PRESENTED',
+      'LAYOUT_RELEASED',
+      'LANDING_MEASURED',
+      'SCROLL_COMMANDED',
+      'SCROLL_CONFIRMED',
+      'STABLE_PRESENTATION_VERIFIED'
+    ]) {
+      current = api.reducePhoneStorySnapshot(current, {
+        type,
+        ...terminalIdentity,
+        ...(type === 'LANDING_MEASURED'
+          ? { targetY: 100, geometryRevision: 1 }
+          : {}),
+        ...(type === 'SCROLL_COMMANDED' ? { commandId: 3 } : {}),
+        ...(type === 'SCROLL_CONFIRMED'
+          ? { commandId: 3, actualY: 100 }
+          : {})
+      }).snapshot;
+    }
+
+    expect(current).toMatchObject({
+      status: 'stable',
+      scene: 'services',
+      session: null
+    });
+  });
+
+  it('rejects stale authority, session, generation, leg, and scroll command evidence without effects', async () => {
+    const api = await snapshotApi();
+    const stable = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'brand',
+      actualY: 0
+    });
+    const active = api.reducePhoneStorySnapshot(stable, {
+      type: 'RUN_STARTED',
+      ...snapshotIdentity,
+      run: 'brand-services',
+      direction: 1,
+      anchorY: 100,
+      inputEpoch: 1
+    }).snapshot;
+
+    for (const stale of [
+      { ...snapshotIdentity, authorityId: 'authority-old' },
+      { ...snapshotIdentity, sessionId: 'session-old' },
+      { ...snapshotIdentity, generation: 6 },
+      { ...snapshotIdentity, leg: 1 },
+      { ...snapshotIdentity, commandId: 999 }
+    ]) {
+      const result = api.reducePhoneStorySnapshot(active, {
+        type: 'PROGRESS_REPORTED',
+        ...stale,
+        progress: 0.5
+      });
+      expect(result.snapshot).toBe(active);
+      expect(result.effects).toEqual([]);
+    }
+  });
+
+  it('keeps progress monotonic across one multi-leg session and invalidates the old generation on rollback', async () => {
+    const api = await snapshotApi();
+    const stable = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'brand',
+      actualY: 0
+    });
+    let current = api.reducePhoneStorySnapshot(stable, {
+      type: 'RUN_STARTED',
+      ...snapshotIdentity,
+      run: 'brand-services',
+      direction: 1,
+      anchorY: 100,
+      inputEpoch: 1
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'PRESENTED_FRAME',
+      ...snapshotIdentity
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'PROGRESS_REPORTED',
+      ...snapshotIdentity,
+      progress: 0.7
+    }).snapshot;
+    const nonMonotonic = api.reducePhoneStorySnapshot(current, {
+      type: 'PROGRESS_REPORTED',
+      ...snapshotIdentity,
+      progress: 0.2
+    });
+    expect(nonMonotonic.snapshot).toBe(current);
+
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LEG_COMPLETED',
+      ...snapshotIdentity
+    }).snapshot;
+    expect(current.session).toMatchObject({
+      sessionId: snapshotIdentity.sessionId,
+      generation: snapshotIdentity.generation,
+      operation: { legIndex: 1 }
+    });
+    const secondLegIdentity = { ...snapshotIdentity, leg: 1 } as const;
+
+    const rolledBack = api.reducePhoneStorySnapshot(current, {
+      type: 'FAILED',
+      ...secondLegIdentity,
+      reason: 'dependency-timeout'
+    }).snapshot;
+    expect(rolledBack.session).toMatchObject({
+      generation: snapshotIdentity.generation + 1,
+      phase: 'rollback-rendering'
+    });
+    expect(api.reducePhoneStorySnapshot(rolledBack, {
+      type: 'PROGRESS_REPORTED',
+      ...snapshotIdentity,
+      progress: 1
+    }).snapshot).toBe(rolledBack);
+
+    const settled = api.reducePhoneStorySnapshot(rolledBack, {
+      type: 'ROLLBACK_COMMITTED',
+      ...secondLegIdentity,
+      generation: snapshotIdentity.generation + 1
+    }).snapshot;
+    expect(settled).toMatchObject({
+      status: 'stable',
+      scene: 'brand',
+      session: null,
+      diagnostics: {
+        lastRollback: { generation: snapshotIdentity.generation + 1 }
+      }
     });
   });
 });

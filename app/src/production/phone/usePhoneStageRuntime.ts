@@ -318,7 +318,6 @@ export function usePhoneStageRuntime(
           if (aodRun !== run || !run.session.valid()) return;
           if (result === 'playing') {
             run.session.reportPresentedFrame();
-            run.session.reportAnimationStarted();
             armAodTimeout(run);
           }
           else rollbackAodRun(run);

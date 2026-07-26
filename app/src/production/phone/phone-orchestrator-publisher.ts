@@ -1,15 +1,10 @@
 import type { SceneId } from '../../story/types';
-import {
-  phoneStoryPresentation,
-  type PhonePresentationEvidence
-} from './phone-story-presentation';
+import type { PhonePresentationEvidence } from './phone-story-presentation';
 import type { PhoneStoryCursor } from './phone-story-state';
 
 type PublisherOptions = Readonly<{
   root?: HTMLElement | (() => HTMLElement | null) | undefined;
-  onCursor?: ((cursor: PhoneStoryCursor) => void) | undefined;
   onPresentation?: ((evidence: PhonePresentationEvidence) => void) | undefined;
-  onLockChange?: ((locked: boolean) => void) | undefined;
   presentationSceneIsCurrent(scene: SceneId): boolean;
 }>;
 
@@ -28,10 +23,7 @@ export function createPhoneOrchestratorPublisher(options: PublisherOptions) {
     lastPresentation = identity;
     options.onPresentation?.(evidence);
   };
-  const cursor = (
-    next: PhoneStoryCursor,
-    publishHoldPresentation = true
-  ) => {
+  const cursor = (next: PhoneStoryCursor) => {
     const element = root();
     if (element) {
       // The fixed stage remains the document's visual owner for the complete
@@ -60,8 +52,6 @@ export function createPhoneOrchestratorPublisher(options: PublisherOptions) {
         delete element.dataset.phoneTransitionPhase;
       }
     }
-    options.onCursor?.(next);
-    if (publishHoldPresentation) presentation(phoneStoryPresentation(next));
   };
   const lock = (locked: boolean) => {
     const element = root();
@@ -69,7 +59,6 @@ export function createPhoneOrchestratorPublisher(options: PublisherOptions) {
       if (locked) element.dataset.phoneTransitionLock = 'locked';
       else delete element.dataset.phoneTransitionLock;
     }
-    options.onLockChange?.(locked);
   };
   const anchor = (anchorY?: number) => {
     const element = root();

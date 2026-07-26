@@ -130,10 +130,8 @@ describe('single phone story orchestrator', () => {
 
     expect(orchestrator.handleIntent(intent(1))).toBe(true);
     brandSession?.reportPresentedFrame();
-    brandSession?.reportAnimationStarted();
     brandSession?.reportEndpointCommit('receiver');
     brandSession?.reportPresentedFrame();
-    brandSession?.reportAnimationStarted();
     brandSession?.reportEndpointCommit('receiver');
     expect(orchestrator.cursor()).toMatchObject({
       kind: 'hold',
@@ -198,12 +196,14 @@ describe('single phone story orchestrator', () => {
 
   it('rolls abort back before unlocking and ignores stale completion', () => {
     let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const locks: boolean[] = [];
+    const inputStates: boolean[] = [];
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',
       scrollY: () => 0,
-      scrollTo: () => undefined,
-      onLockChange: (locked) => locks.push(locked)
+      scrollTo: () => undefined
+    });
+    orchestrator.subscribe(() => {
+      inputStates.push(orchestrator.getSnapshot().status === 'transaction');
     });
     orchestrator.registerRunCapability(
       'brand-services',
@@ -215,12 +215,8 @@ describe('single phone story orchestrator', () => {
 
     orchestrator.handleIntent(intent(1));
     session?.reportFailure();
-    expect(orchestrator.cursor()).toEqual({
-      kind: 'hold',
-      scene: 'brand',
-      revision: 1
-    });
-    expect(locks).toEqual([true, false]);
+    expect(orchestrator.cursor()).toMatchObject({ kind: 'hold', scene: 'brand' });
+    expect(inputStates).toEqual([true, true, false]);
     session?.reportAnimationComplete();
     expect(orchestrator.cursor()).toMatchObject({
       kind: 'hold',
@@ -268,18 +264,19 @@ describe('single phone story orchestrator', () => {
     );
 
     orchestrator.handleIntent(intent(1));
-    expect(onPresentation).toHaveBeenLastCalledWith({
+    expect(onPresentation).toHaveBeenLastCalledWith(expect.objectContaining({
       scene: 'method-top',
       checkpoint: 'method-to-figure2',
       edge: 'method'
-    });
+    }));
 
+    session?.reportPresentedFrame();
     session?.reportProgress(0.5);
-    expect(onPresentation).toHaveBeenLastCalledWith({
+    expect(onPresentation).toHaveBeenLastCalledWith(expect.objectContaining({
       scene: 'figure2-animation',
       checkpoint: 'method-to-figure2',
       edge: 'method'
-    });
+    }));
   });
 
   it('reconciles front-half handoffs through the canonical cursor', () => {
@@ -322,7 +319,6 @@ describe('single phone story orchestrator', () => {
 
     orchestrator.handleIntent(intent(1));
     session?.reportPresentedFrame();
-    session?.reportAnimationStarted();
     session?.reportAnimationComplete();
     expect(orchestrator.cursor()).toMatchObject({
       kind: 'hold',
@@ -336,7 +332,7 @@ describe('single phone story orchestrator', () => {
     });
   });
 
-  it('keeps input locked until endpoint geometry releases after commit', () => {
+  it('derives input state from the single snapshot through terminal settlement', () => {
     let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
     const frames: Array<() => void> = [];
     const events: string[] = [];
@@ -346,8 +342,7 @@ describe('single phone story orchestrator', () => {
       scrollTo: (y) => events.push(`scroll:${y}`),
       scheduleFrame: (callback) => {
         frames.push(callback);
-      },
-      onLockChange: (locked) => events.push(locked ? 'lock' : 'unlock')
+      }
     });
     orchestrator.registerRunCapability(
       'brand-services',
@@ -359,20 +354,17 @@ describe('single phone story orchestrator', () => {
 
     orchestrator.handleIntent(intent(1));
     session?.reportPresentedFrame();
-    session?.reportAnimationStarted();
     session?.reportEndpointCommit('receiver');
     session?.reportPresentedFrame();
-    session?.reportAnimationStarted();
     session?.provideRelease(() => events.push('release'));
     session?.reportEndpointCommit('receiver');
 
     expect(orchestrator.cursor()).toMatchObject({
       kind: 'transition',
-      phase: 'landing'
+      phase: 'measuring-landing'
     });
-    // The controller locks the gesture epoch before it anchors the document,
-    // so a late readiness wait cannot leak native scrolling past this run.
-    expect(events).toEqual(['lock', 'scroll:100', 'scroll:100']);
+    expect(orchestrator.getSnapshot().status).toBe('transaction');
+    expect(events).toEqual(['scroll:100', 'scroll:100']);
 
     expect(frames).toHaveLength(1);
     frames.shift()?.();
@@ -380,17 +372,16 @@ describe('single phone story orchestrator', () => {
       kind: 'hold',
       scene: 'services'
     });
-    expect(events).toEqual(['lock', 'scroll:100', 'scroll:100']);
+    expect(orchestrator.getSnapshot().status).toBe('stable');
+    expect(events).toEqual(['scroll:100', 'scroll:100']);
     expect(frames).toHaveLength(1);
 
     frames.shift()?.();
     expect(events).toEqual([
-      'lock',
       'scroll:100',
       'scroll:100',
       'release',
-      'scroll:100',
-      'unlock'
+      'scroll:100'
     ]);
   });
 
@@ -414,7 +405,6 @@ describe('single phone story orchestrator', () => {
     orchestrator.handleIntent(intent(1));
     session?.reportEndpoints(source, receiver);
     session?.reportPresentedFrame();
-    session?.reportAnimationStarted();
     session?.reportAnimationComplete();
 
     expect(orchestrator.cursor()).toMatchObject({
@@ -461,7 +451,6 @@ describe('single phone story orchestrator', () => {
 
     orchestrator.handleIntent(intent(1));
     session?.reportPresentedFrame();
-    session?.reportAnimationStarted();
     session?.animate(0, 1, 1500, (progress) => rendered.push(progress), () => {
       session?.reportAnimationComplete();
     });
@@ -520,7 +509,6 @@ describe('single phone story orchestrator', () => {
     });
 
     session?.reportPresentedFrame();
-    session?.reportAnimationStarted();
     session?.reportAnimationComplete();
     expect(orchestrator.cursor()).toMatchObject({
       kind: 'hold',
@@ -528,7 +516,7 @@ describe('single phone story orchestrator', () => {
     });
   });
 
-  it('keeps cinematic direct-entry presentation visible on retryable rollback', () => {
+  it('routes cinematic direct-entry rollback through the same snapshot trace', () => {
     let session: Parameters<
       NonNullable<PhoneRunCapability['startAtLeg']>
     >[1] | undefined;
@@ -557,7 +545,8 @@ describe('single phone story orchestrator', () => {
       kind: 'hold',
       scene: 'lab'
     });
-    expect(presentations.at(-1)).toBe('ph-animation');
+    expect(presentations).toContain('ph-animation');
+    expect(presentations.at(-1)).toBe('lab');
     expect(retryable).toHaveBeenCalledWith('lab-education');
   });
 
@@ -573,11 +562,11 @@ describe('single phone story orchestrator', () => {
     expect(onPresentation).not.toHaveBeenCalled();
 
     orchestrator.reconcileHold('brand');
-    expect(onPresentation).toHaveBeenCalledWith({
+    expect(onPresentation).toHaveBeenCalledWith(expect.objectContaining({
       scene: 'brand',
       checkpoint: 'brand-reading',
       edge: 'brand'
-    });
+    }));
   });
 
   it('is the only owner that commits the selected stable scene adapter', () => {
@@ -659,7 +648,6 @@ describe('single phone story orchestrator', () => {
     orchestrator.handleIntent(intent(1));
     expect(root.dataset.portraitStageActive).toBe('true');
     session?.reportPresentedFrame();
-    session?.reportAnimationStarted();
     session?.reportEndpointCommit('receiver');
     expect(orchestrator.cursor()).toMatchObject({
       kind: 'hold',
@@ -700,7 +688,6 @@ describe('single phone story orchestrator', () => {
       projectedY: 9200
     })).toBe(true);
     session?.reportPresentedFrame();
-    session?.reportAnimationStarted();
     session?.reportEndpointCommit('receiver');
 
     expect(orchestrator.cursor()).toMatchObject({

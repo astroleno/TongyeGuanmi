@@ -1,13 +1,13 @@
 import type { SceneId } from '../../story/types';
-import type { PhonePresentationEvidence } from './phone-story-presentation';
-import type {
-  PhoneRunDefinition,
-  PhoneRunId
-} from './phone-story-runs';
 import {
-  reducePhoneStoryCursor,
-  startPhoneStoryRun,
-  type PhoneStoryCursor
+  phoneRun,
+  type PhoneRunDefinition,
+  type PhoneRunId
+} from './phone-story-runs';
+import type {
+  PhoneExecutionIdentity,
+  PhoneStoryEvent,
+  PhoneStorySnapshot
 } from './phone-story-state';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 import { runPhoneProgressClock } from './phone-transition-coordinator';
@@ -31,20 +31,14 @@ type ManagedPhoneActiveRun = {
   sessionId: string;
   generation: number;
   run: PhoneRunId;
-  /** Input is held at this anchor until the atomic endpoint landing replaces it. */
+  /** Input is held at this anchor until the transaction reaches a stable hold. */
   anchorY: number;
   directScene?: SceneId | undefined;
 };
 
 type SessionControllerOptions = Readonly<{
-  cursor(): PhoneStoryCursor;
-  publishCursor(
-    cursor: PhoneStoryCursor,
-    publishHoldPresentation?: boolean
-  ): void;
-  publishPresentation(evidence: PhonePresentationEvidence): void;
-  publishLock(locked: boolean): void;
-  publishAnchor(anchorY?: number): void;
+  getSnapshot(): PhoneStorySnapshot;
+  dispatch(event: PhoneStoryEvent): void;
   scrollTo(y: number): void;
   /** The Orchestrator resolves a committed receiver's natural document top. */
   resolveLanding(scene: SceneId, fallbackY: number): number;
@@ -60,11 +54,17 @@ export type PhoneOrchestratedSessionController = Readonly<{
     direction: PhoneTransitionDirection,
     anchorY: number,
     legIndex?: number,
-    directScene?: SceneId
+    directScene?: SceneId,
+    inputEpoch?: number | null
   ): PhoneOrchestratedRunSession;
   dispose(): void;
 }>;
 
+/**
+ * This controller intentionally owns no cursor, lock, anchor, or presentation
+ * state. It only turns adapter callbacks and the owned progress clock into
+ * identity-bearing reducer events.
+ */
 export function createPhoneOrchestratedSessionController(
   options: SessionControllerOptions
 ): PhoneOrchestratedSessionController {
@@ -73,132 +73,141 @@ export function createPhoneOrchestratedSessionController(
   let cancelAnimation: (() => void) | undefined;
   let generation = 0;
   let sequence = 0;
-  const owns = (run: ManagedPhoneActiveRun) => {
-    const cursor = options.cursor();
-    return !options.disposed()
-      && active === run
-      && cursor.kind === 'transition'
-      && cursor.sessionId === run.sessionId
-      && cursor.generation === run.generation;
+  let scrollCommand = 0;
+
+  const snapshotIdentity = (
+    run: ManagedPhoneActiveRun
+  ): PhoneExecutionIdentity | null => {
+    const snapshot = options.getSnapshot();
+    if (options.disposed() || active !== run || snapshot.status !== 'transaction') {
+      return null;
+    }
+    const { session } = snapshot;
+    if (
+      session.sessionId !== run.sessionId
+      || session.generation !== run.generation
+      || session.operation.run !== run.run
+    ) return null;
+    return {
+      authorityId: snapshot.authorityId,
+      sessionId: session.sessionId,
+      generation: session.generation,
+      leg: session.operation.legIndex
+    };
   };
+
+  const owns = (run: ManagedPhoneActiveRun) => snapshotIdentity(run) !== null;
+
   const dispatch = (
     run: ManagedPhoneActiveRun,
-    event: Parameters<typeof reducePhoneStoryCursor>[1]
-  ) => {
-    if (!owns(run)) return;
-    options.publishCursor(reducePhoneStoryCursor(options.cursor(), event));
+    type: Exclude<PhoneStoryEvent['type'], 'RUN_STARTED' | 'HOLD_RECONCILED' | 'SCROLL_RUN_RECONCILED' | 'SCROLL_SAMPLED'>,
+    detail: Readonly<Record<string, unknown>> = {}
+  ): PhoneExecutionIdentity | null => {
+    const identity = snapshotIdentity(run);
+    if (!identity) return null;
+    options.dispatch({ ...identity, type, ...detail } as PhoneStoryEvent);
+    return identity;
   };
-  const commit = (
+
+  const schedule = (callback: () => void) => {
+    (options.scheduleFrame
+      ?? ((next) => window.requestAnimationFrame(next)))(callback);
+  };
+
+  const settleTerminal = (
     run: ManagedPhoneActiveRun,
-    anchorY?: number,
-    releaseAfterCommit?: () => void
+    releaseAfterCommit: (() => void) | undefined
   ) => {
-    if (!owns(run)) return;
-    cancelAnimation?.();
-    cancelAnimation = undefined;
-    if (surfaceRoles) return;
-    const committing = reducePhoneStoryCursor(options.cursor(), {
-      type: 'COMMIT',
-      sessionId: run.sessionId,
-      generation: run.generation
-    });
+    if (!owns(run) || surfaceRoles) return;
+    const snapshot = options.getSnapshot();
     if (
-      committing.kind !== 'transition'
-      || committing.phase !== 'committing'
-    ) return;
-    options.publishCursor(committing);
-    const landing = reducePhoneStoryCursor(committing, {
-      type: 'LAND',
-      sessionId: run.sessionId,
-      generation: run.generation
-    });
-    if (landing.kind !== 'transition' || landing.phase !== 'landing') return;
-    options.publishCursor(landing);
-    if (anchorY !== undefined) {
-      run.anchorY = anchorY;
-      options.publishAnchor(anchorY);
-      options.scrollTo(anchorY);
+      snapshot.status !== 'transaction'
+      || snapshot.session.phase !== 'verifying-target'
+    ) {
+      return;
     }
+    const target = snapshot.session.operation.direction === 1
+      ? phoneRun(run.run).to
+      : phoneRun(run.run).from;
+    const landing = options.resolveLanding(target, run.anchorY);
+    run.anchorY = landing;
+
+    if (!dispatch(run, 'TARGET_PRESENTED')) return;
+    // A selected endpoint may change document flow. Preserve the old behavior
+    // of pinning before the post-layout measurement, while the reducer keeps
+    // the transaction visibly non-stable until confirmation.
+    options.scrollTo(landing);
+    if (!dispatch(run, 'LAYOUT_RELEASED')) return;
+
     const settle = () => {
-      const releasing = reducePhoneStoryCursor(options.cursor(), {
-        type: 'RELEASE',
-        sessionId: run.sessionId,
-        generation: run.generation
-      });
-      if (releasing.kind !== 'transition' || releasing.phase !== 'releasing') {
-        return;
-      }
-      options.publishCursor(releasing);
-      const settled = reducePhoneStoryCursor(options.cursor(), {
-        type: 'SETTLE',
-        sessionId: run.sessionId,
-        generation: run.generation
-      });
-      if (settled.kind !== 'hold') return;
-      // Hold publishes the target visual owner and its landing before the
-      // source compositor is allowed to release. This keeps one stable frame
-      // between handoff and teardown.
-      options.publishCursor(settled);
+      if (!owns(run)) return;
+      if (!dispatch(run, 'LANDING_MEASURED', {
+        targetY: landing,
+        geometryRevision: 0,
+        visualViewportOffsetTop: 0
+      })) return;
+      const commandId = ++scrollCommand;
+      if (!dispatch(run, 'SCROLL_COMMANDED', { commandId })) return;
+      if (!dispatch(run, 'SCROLL_CONFIRMED', {
+        commandId,
+        actualY: landing
+      })) return;
+      if (!dispatch(run, 'STABLE_PRESENTATION_VERIFIED')) return;
+
       const releaseSource = () => {
         if (options.disposed() || active !== run) return;
         try {
           releaseAfterCommit?.();
           // Endpoint release can change document flow. Reassert the committed
-          // position after that mutation so browser scroll anchoring cannot
-          // move the newly committed receiver out of the viewport.
-          if (anchorY !== undefined) options.scrollTo(anchorY);
+          // position after that mutation so scroll anchoring cannot move it.
+          options.scrollTo(landing);
         } finally {
-          if (active !== run) return;
-          active = null;
-          options.publishAnchor();
-          options.publishLock(false);
+          if (active === run) active = null;
         }
       };
-      if (releaseAfterCommit) {
-        (options.scheduleFrame
-          ?? ((callback) => window.requestAnimationFrame(callback)))(releaseSource);
-      } else {
-        releaseSource();
+      if (releaseAfterCommit) schedule(releaseSource);
+      else if (active === run) {
+        options.scrollTo(landing);
+        active = null;
       }
     };
-    if (releaseAfterCommit) {
-      (options.scheduleFrame
-        ?? ((callback) => window.requestAnimationFrame(callback)))(settle);
-    } else {
-      settle();
-    }
+
+    if (releaseAfterCommit) schedule(settle);
+    else settle();
   };
-  const rollback = (run: ManagedPhoneActiveRun, anchorY?: number) => {
-    if (!owns(run)) return;
+
+  const rollback = (run: ManagedPhoneActiveRun) => {
+    const identity = snapshotIdentity(run);
+    if (!identity) return;
     cancelAnimation?.();
     cancelAnimation = undefined;
     surfaceRoles?.rollback();
     surfaceRoles?.release();
     surfaceRoles = undefined;
-    let cursor = reducePhoneStoryCursor(options.cursor(), {
-      type: 'FAIL',
-      sessionId: run.sessionId,
-      generation: run.generation
+    options.dispatch({
+      ...identity,
+      type: 'FAILED',
+      reason: 'capability-failed'
     });
-    options.publishCursor(cursor);
-    cursor = reducePhoneStoryCursor(cursor, {
-      type: 'ROLLBACK_COMMITTED',
-      sessionId: run.sessionId,
-      generation: run.generation
-    });
-    options.publishCursor(cursor, !run.directScene);
-    if (run.directScene) {
-      options.publishPresentation({ scene: run.directScene });
+    const snapshot = options.getSnapshot();
+    if (snapshot.status === 'transaction' && snapshot.session.phase === 'rollback-rendering') {
+      const operation = snapshot.session.operation;
+      options.dispatch({
+        authorityId: snapshot.authorityId,
+        sessionId: snapshot.session.sessionId,
+        generation: snapshot.session.generation,
+        leg: operation.legIndex,
+        type: 'ROLLBACK_COMMITTED'
+      });
     }
-    options.scrollTo(anchorY ?? run.anchorY);
-    active = null;
-    options.publishAnchor();
-    options.publishLock(false);
+    options.scrollTo(run.anchorY);
+    if (active === run) active = null;
     options.onRetryable?.(run.run);
   };
+
   return {
     active: () => active,
-    activate(definition, direction, anchorY, legIndex, directScene) {
+    activate(definition, direction, anchorY, legIndex, directScene, inputEpoch = null) {
       const run: ManagedPhoneActiveRun = {
         sessionId: `phone-session-${++sequence}`,
         generation: ++generation,
@@ -207,57 +216,33 @@ export function createPhoneOrchestratedSessionController(
         ...(directScene ? { directScene } : {})
       };
       active = run;
-      options.publishAnchor(anchorY);
-      const cursor = startPhoneStoryRun(
-        options.cursor(),
-        definition.id,
+      const snapshot = options.getSnapshot();
+      options.dispatch({
+        authorityId: snapshot.authorityId,
+        sessionId: run.sessionId,
+        generation: run.generation,
+        leg: legIndex ?? (direction === 1 ? 0 : definition.legs.length - 1),
+        type: 'RUN_STARTED',
+        run: definition.id,
         direction,
-        run,
-        legIndex
-      );
-      options.publishCursor(cursor);
-      options.publishLock(true);
+        anchorY,
+        inputEpoch,
+        ...(legIndex === undefined ? {} : { legIndex }),
+        trigger: inputEpoch === null ? 'auto' : 'input'
+      });
+      if (!owns(run)) active = null;
       let releaseAfterCommit: (() => void) | undefined;
-      const terminalLeg = () => {
-        const cursor = options.cursor();
-        return cursor.kind === 'transition'
-          && cursor.sessionId === run.sessionId
-          && cursor.generation === run.generation
-          && (direction === 1
-            ? cursor.legIndex === definition.legs.length - 1
-            : cursor.legIndex === 0);
-      };
-      const commitTerminal = () => {
-        if (!terminalLeg()) return;
-        const target = direction === 1 ? definition.to : definition.from;
-        commit(
-          run,
-          options.resolveLanding(target, run.anchorY),
-          releaseAfterCommit
-        );
-      };
+
       return {
         sessionId: run.sessionId,
         generation: run.generation,
         valid: () => owns(run),
-        reportPresentedFrame: () => dispatch(run, {
-          type: 'PHASE',
-          sessionId: run.sessionId,
-          generation: run.generation,
-          phase: 'presented-frame-ready'
-        }),
-        reportAnimationStarted: () => dispatch(run, {
-          type: 'PHASE',
-          sessionId: run.sessionId,
-          generation: run.generation,
-          phase: 'animating'
-        }),
-        reportProgress: (progress) => dispatch(run, {
-          type: 'PROGRESS',
-          sessionId: run.sessionId,
-          generation: run.generation,
-          progress
-        }),
+        reportPresentedFrame: () => {
+          dispatch(run, 'PRESENTED_FRAME');
+        },
+        reportProgress: (progress) => {
+          dispatch(run, 'PROGRESS_REPORTED', { progress });
+        },
         animate: (start, end, durationMs, render, complete) => {
           if (!owns(run)) return;
           cancelAnimation?.();
@@ -268,12 +253,7 @@ export function createPhoneOrchestratedSessionController(
             durationMs,
             (progress) => {
               if (!owns(run)) return;
-              dispatch(run, {
-                type: 'PROGRESS',
-                sessionId: run.sessionId,
-                generation: run.generation,
-                progress
-              });
+              dispatch(run, 'PROGRESS_REPORTED', { progress });
               render(progress);
             },
             () => {
@@ -302,15 +282,8 @@ export function createPhoneOrchestratedSessionController(
             surfaceRoles = undefined;
           }
           if (endpoint !== 'receiver') return;
-          if (terminalLeg()) {
-            commitTerminal();
-          } else {
-            dispatch(run, {
-              type: 'ADVANCE_LEG',
-              sessionId: run.sessionId,
-              generation: run.generation
-            });
-          }
+          if (!dispatch(run, 'LEG_COMPLETED')) return;
+          settleTerminal(run, releaseAfterCommit);
         },
         reportEndpointRelease: () => {
           if (!owns(run) || !surfaceRoles) return;
@@ -320,7 +293,13 @@ export function createPhoneOrchestratedSessionController(
         provideRelease: (release) => {
           if (owns(run)) releaseAfterCommit = release;
         },
-        reportAnimationComplete: () => commitTerminal(),
+        reportAnimationComplete: () => {
+          // Endpoint roles are authoritative evidence. A clock completion while
+          // the receiver is still an endpoint must remain animating.
+          if (surfaceRoles) return;
+          if (!dispatch(run, 'LEG_COMPLETED')) return;
+          settleTerminal(run, releaseAfterCommit);
+        },
         reportFailure: () => rollback(run)
       };
     },

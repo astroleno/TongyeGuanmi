@@ -236,7 +236,6 @@ export function createPhoneGradeARunner({
       run.session.reportPresentedFrame();
       if (run.timeout !== undefined) globalThis.clearTimeout(run.timeout);
       run.timeout = undefined;
-      run.session.reportAnimationStarted();
       if (run.direction === 1) transition.enter?.();
       else transition.reverse?.();
       if (reducedMotion) complete(run);

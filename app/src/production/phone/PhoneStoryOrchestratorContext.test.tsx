@@ -2,13 +2,23 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
   PhoneStoryOrchestratorProvider,
-  usePhoneStoryOrchestrator
+  usePhoneStoryOrchestrator,
+  usePhoneStorySelector,
+  usePhoneStorySnapshot
 } from './PhoneStoryOrchestratorContext';
 import { createPhoneStoryOrchestrator } from './phone-story-orchestrator';
 
 function CursorProbe() {
   const orchestrator = usePhoneStoryOrchestrator();
   return <span>{orchestrator.cursor().kind}</span>;
+}
+
+function SnapshotProbe() {
+  const snapshot = usePhoneStorySnapshot();
+  const inputLocked = usePhoneStorySelector((current) => (
+    current.status === 'transaction'
+  ));
+  return <span>{`${snapshot.status}:${inputLocked}`}</span>;
 }
 
 describe('PhoneStoryOrchestratorContext', () => {
@@ -23,6 +33,19 @@ describe('PhoneStoryOrchestratorContext', () => {
         <CursorProbe />
       </PhoneStoryOrchestratorProvider>
     )).toContain('<span>hold</span>');
+  });
+
+  it('exposes the same canonical snapshot to selectors', () => {
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'hero',
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+    expect(renderToStaticMarkup(
+      <PhoneStoryOrchestratorProvider orchestrator={orchestrator}>
+        <SnapshotProbe />
+      </PhoneStoryOrchestratorProvider>
+    )).toContain('<span>stable:false</span>');
   });
 
   it('rejects capability registration outside the formal shell provider', () => {

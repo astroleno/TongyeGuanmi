@@ -41,7 +41,6 @@ function session(onCommit?: () => void, onAbort?: () => void) {
     generation: 9,
     valid: () => active.value,
     reportPresentedFrame: vi.fn(),
-    reportAnimationStarted: vi.fn(),
     reportProgress: vi.fn(),
     animate: vi.fn((start, end, durationMs, render, complete) => {
       let startedAt = -1;
@@ -216,7 +215,6 @@ describe('canonical Grade A run lifecycle', () => {
     expect(adapter.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
     expect(adapter.commitEndpoint).toHaveBeenLastCalledWith(1);
     expect(activeSession.reportPresentedFrame).toHaveBeenCalledTimes(1);
-    expect(activeSession.reportAnimationStarted).toHaveBeenCalledTimes(1);
     expect(activeSession.reportProgress).toHaveBeenLastCalledWith(1);
     expect(activeSession).not.toHaveProperty('moveTo');
     expect(activeSession.provideRelease).toHaveBeenCalledWith(

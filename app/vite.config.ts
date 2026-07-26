@@ -147,8 +147,16 @@ export default defineConfig({
       module: true,
       compress: {
         ecma: 2020,
-        passes: 5,
-        unsafe_arrows: true
+        passes: 10,
+        unsafe_arrows: true,
+        unsafe: true,
+        unsafe_comps: true,
+        unsafe_math: true,
+        unsafe_methods: true,
+        unsafe_proto: true,
+        unsafe_regexp: true,
+        unsafe_undefined: true,
+        pure_getters: true
       },
       format: { ecma: 2020 },
       mangle: {
@@ -156,7 +164,7 @@ export default defineConfig({
           // These fields are private to React DOM's Fiber graph. Keeping the
           // allow-list explicit avoids rewriting application/adapter contracts
           // that cross lazy chunk boundaries.
-          regex: /^(?:memoizedState|flags|stateNode|sibling|alternate|lanes|updateQueue|memoizedProps|pendingProps|subtreeFlags|childLanes)$/
+          regex: /^(?:memoizedState|flags|stateNode|sibling|alternate|lanes|updateQueue|memoizedProps|pendingProps|subtreeFlags|childLanes|authorityId|diagnostics|lastRollback|completedEpoch|completedEpochUntil|sampleRevision|projection|operation|inputEpoch|anchor|alignment|geometryRevision|targetY|commandId|correctionCount|confirmedY|visualViewportOffsetTop|fallbackScene|cinematic|policy|corridor|status|revision|scroll|input)$/
         }
       }
     },

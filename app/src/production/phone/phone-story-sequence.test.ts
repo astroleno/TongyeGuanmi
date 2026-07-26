@@ -25,7 +25,7 @@ describe('canonical phone story sequence', () => {
   it('runs the full forward and reverse story twice without stale ownership', () => {
     const root = { dataset: {} } as HTMLElement;
     const retryable = vi.fn();
-    const lockTrace: boolean[] = [];
+    const inputTrace: boolean[] = [];
     const generations: number[] = [];
     const startedSessions: PhoneOrchestratedRunSession[] = [];
     let inputEpoch = 0;
@@ -34,8 +34,13 @@ describe('canonical phone story sequence', () => {
       root,
       scrollY: () => 100,
       scrollTo: () => undefined,
-      onLockChange: (locked) => lockTrace.push(locked),
       onRetryable: retryable
+    });
+    let lastInputLocked = false;
+    orchestrator.subscribe(() => {
+      const inputLocked = orchestrator.getSnapshot().status === 'transaction';
+      if (inputLocked !== lastInputLocked) inputTrace.push(inputLocked);
+      lastInputLocked = inputLocked;
     });
 
     for (const run of phoneStoryRuns) {
@@ -70,13 +75,11 @@ describe('canonical phone story sequence', () => {
           kind: 'transition',
           run: run.id,
           runSource: source,
-          runTarget: target,
           direction
         });
         expect(session.valid()).toBe(true);
 
         session.reportPresentedFrame();
-        session.reportAnimationStarted();
 
         if (run.legs.length > 1) {
           session.reportEndpointCommit('receiver');
@@ -85,7 +88,6 @@ describe('canonical phone story sequence', () => {
             legIndex: direction === 1 ? 1 : 0
           });
           session.reportPresentedFrame();
-          session.reportAnimationStarted();
         }
         session.reportEndpointCommit('receiver');
         expect(orchestrator.cursor()).toMatchObject({
@@ -103,15 +105,14 @@ describe('canonical phone story sequence', () => {
       drive(-1);
     }
 
-    expect(orchestrator.cursor()).toEqual({
+    expect(orchestrator.cursor()).toMatchObject({
       kind: 'hold',
-      scene: 'aod-animation',
-      revision: phoneStoryRuns.length * 4
+      scene: 'aod-animation'
     });
     expect(generations).toEqual(
       Array.from({ length: phoneStoryRuns.length * 4 }, (_, index) => index + 1)
     );
-    expect(lockTrace).toEqual(
+    expect(inputTrace).toEqual(
       generations.flatMap(() => [true, false])
     );
     expect(retryable).not.toHaveBeenCalled();

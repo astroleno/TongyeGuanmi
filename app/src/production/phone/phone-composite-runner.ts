@@ -244,7 +244,6 @@ export function createPhoneCompositeRunner<
     run.step = 'media';
     options.onRunState(run, false);
     run.session.reportPresentedFrame();
-    run.session.reportAnimationStarted();
     options.onMediaActive(run);
     if (options.startMedia) {
       options.startMedia({
@@ -268,7 +267,6 @@ export function createPhoneCompositeRunner<
     run.step = run.direction === 1 ? 'entry-ink' : 'exit-ink';
     options.onRunState(run, false);
     run.session.reportPresentedFrame();
-    run.session.reportAnimationStarted();
     if (run.direction === 1) config.entry.enter?.();
     else config.entry.reverse?.();
     const endpoint = run.direction === 1 ? 1 : 0;
@@ -334,7 +332,6 @@ export function createPhoneCompositeRunner<
       full.entry.commitEndpoint(1);
       releaseRoles(run, 'receiver');
       run.session.reportPresentedFrame();
-      run.session.reportAnimationStarted();
       run.session.reportProgress(1);
       const source = full.visual.root();
       const receiver = full.final.root();
@@ -349,7 +346,6 @@ export function createPhoneCompositeRunner<
       full.media.commitEndpoint(0);
       releaseRoles(run, 'receiver');
       run.session.reportPresentedFrame();
-      run.session.reportAnimationStarted();
       run.session.reportProgress(0);
       const source = full.visual.root();
       const receiver = full.prior.root();

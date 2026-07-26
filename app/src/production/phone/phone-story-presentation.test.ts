@@ -30,7 +30,7 @@ describe('canonical phone presentation projection', () => {
     }
   });
 
-  it.fails('[Task 1] defines the full execution projection for all canonical scenes', () => {
+  it('[Task 1] defines the full execution projection for all canonical scenes', () => {
     for (const scene of canonicalSceneIds) {
       const projection = phoneStoryPresentation(
         createPhoneStoryHold(scene)
@@ -147,7 +147,7 @@ describe('canonical phone presentation projection', () => {
     });
   });
 
-  it.fails('[Task 1] uses the active composite leg instead of the composite final hold', () => {
+  it('[Task 1] uses the active composite leg instead of the composite final hold', () => {
     const started = startPhoneStoryRun(
       createPhoneStoryHold('lab'),
       'lab-education',

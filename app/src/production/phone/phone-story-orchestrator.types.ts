@@ -6,6 +6,9 @@ import type {
 } from './phone-story-runs';
 import type {
   PhoneStoryCursor,
+  PhoneStoryEvent,
+  PhoneStoryReduction,
+  PhoneStorySnapshot,
 } from './phone-story-state';
 import type {
   PhoneIntent,
@@ -19,7 +22,6 @@ export type PhoneOrchestratedRunSession = PhoneTransitionSession & Readonly<{
   sessionId: string;
   generation: number;
   reportPresentedFrame(): void;
-  reportAnimationStarted(): void;
   reportProgress(progress: number): void;
   /** Controller-owned clock: invokes the adapter's passive render callback. */
   animate(
@@ -68,16 +70,22 @@ export type PhoneStoryOrchestratorOptions = Readonly<{
   root?: HTMLElement | (() => HTMLElement | null);
   scrollY: () => number;
   scrollTo: (y: number) => void;
-  onCursor?: (cursor: PhoneStoryCursor) => void;
   onPresentation?: (evidence: PhonePresentationEvidence) => void;
-  onLockChange?: (locked: boolean) => void;
   onRetryable?: (run: PhoneRunId) => void;
   scheduleFrame?: (callback: () => void) => void;
 }>;
 
 export type PhoneStoryOrchestrator = Readonly<{
+  /** Canonical external-store read model. */
+  getSnapshot(): PhoneStorySnapshot;
+  /**
+   * The only state mutation entrance. Browser and adapter callbacks are
+   * normalized to PhoneStoryEvent before they reach this method.
+   */
+  dispatch(event: PhoneStoryEvent): PhoneStoryReduction;
+  /** @deprecated Use getSnapshot() plus selectors instead. */
   cursor(): PhoneStoryCursor;
-  subscribe(listener: (cursor: PhoneStoryCursor) => void): PhoneCapabilityLease;
+  subscribe(listener: () => void): PhoneCapabilityLease;
   syncDiagnostics(): void;
   activateDirectEntry(): void;
   requestRun(direction: PhoneTransitionDirection): boolean;
