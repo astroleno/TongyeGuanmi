@@ -105,7 +105,10 @@ describe('PhoneCrane', () => {
     expect(source).toContain('PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('beginPreparedReverse');
     expect(cinematicRunSource).toContain('options.reverseReady()');
-    expect(source).toContain("phase: 'progress'");
+    expect(cinematicRunSource).toContain("publish('progress', direction, progress)");
+    expect(source).toContain('run.renderProgress');
+    expect(source).toContain('run.startRun(1, request?.identity ?? null)');
+    expect(source).toContain('run.startRun(-1, request?.identity ?? null)');
     expect(autoplaySource).toContain('figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE');
     expect(autoplaySource).toContain('figure.currentTime = CRANE_VIDEO_END_SECONDS');
     expect(autoplaySource).toContain("root.dataset.phoneCraneFigurePreroll = 'released'");

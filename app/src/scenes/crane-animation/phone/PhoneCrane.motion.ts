@@ -42,7 +42,7 @@ function acceleratedProgress(progress: number): number {
   return clamp(0.78 * value + 0.22 * value * value);
 }
 
-function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
+export function phoneCraneRootFor(root: HTMLElement | null | undefined): HTMLElement | null {
   return root?.matches('[data-r4-scene="crane-animation"]')
     ? root
     : root?.querySelector<HTMLElement>('[data-r4-scene="crane-animation"]') ?? null;
@@ -62,7 +62,7 @@ export function renderPhoneCranePresentation(
   rawProgress: number,
   direction: PhoneCranePlaybackDirection = 1
 ): void {
-  const section = rootFor(root);
+  const section = phoneCraneRootFor(root);
   if (!section) return;
   const timelineProgress = clamp(rawProgress);
   const progress = acceleratedProgress(timelineProgress);

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   phoneBrandLabAdapterScene,
-  phoneBrandLabCompositeFrame,
+  phoneBrandLabMediaProgress,
   phoneBrandLabRunForVisual,
-  phoneBrandLabVisualExecution
+  phoneBrandLabVisualExecution,
+  phoneBrandLabVisualProjection
 } from './phone-brand-lab-runtime';
 import {
   createPhoneStorySnapshot,
@@ -96,48 +97,42 @@ describe('canonical Brand through Lab snapshot projection', () => {
       scene: 'lab'
     });
     expect(
-      phoneBrandLabCompositeFrame(
+      phoneBrandLabMediaProgress(
         cinematic(brand),
         'figure3-animation'
-      ).entryProgress
+      )
     ).toBe(0);
     expect(
-      phoneBrandLabCompositeFrame(
+      phoneBrandLabMediaProgress(
         cinematic(services),
         'figure3-animation'
-      ).entryProgress
+      )
     ).toBe(1);
-    expect(phoneBrandLabCompositeFrame(
+    expect(phoneBrandLabMediaProgress(
       cinematic(lab),
       'ttg-animation'
-    ).entryProgress)
+    ))
       .toBe(1);
   });
 
-  it('projects entry ink and media from one forward snapshot session', () => {
+  it('projects media from one forward snapshot session', () => {
     const entry = progress(
       presented(start('brand', 'brand-services', 1)),
       .6
     );
-    expect(phoneBrandLabCompositeFrame(
+    expect(phoneBrandLabMediaProgress(
       cinematic(entry),
       'figure3-animation'
-    )).toEqual({
-      entryProgress: .6,
-      mediaProgress: 0
-    });
+    )).toBe(0);
 
     const media = progress(
       presented(completeLeg(entry)),
       .4
     );
-    expect(phoneBrandLabCompositeFrame(
+    expect(phoneBrandLabMediaProgress(
       cinematic(media),
       'figure3-animation'
-    )).toEqual({
-      entryProgress: 1,
-      mediaProgress: .4
-    });
+    )).toBe(.4);
     expect(phoneBrandLabAdapterScene(cinematic(media))).toBe('figure3-animation');
     expect(phoneBrandLabVisualExecution(
       cinematic(media),
@@ -145,29 +140,27 @@ describe('canonical Brand through Lab snapshot projection', () => {
     )).toEqual(
       identity(media)
     );
+    expect(phoneBrandLabVisualProjection(
+      cinematic(media),
+      'figure3-animation'
+    )).toEqual([identity(media), true, .4]);
   });
 
-  it('projects reverse media before reverse entry ink without a legacy cursor', () => {
+  it('projects reverse media without a legacy cursor', () => {
     const media = progress(
       presented(start('services', 'brand-services', -1)),
       .4
     );
-    expect(phoneBrandLabCompositeFrame(
+    expect(phoneBrandLabMediaProgress(
       cinematic(media),
       'figure3-animation'
-    )).toEqual({
-      entryProgress: 1,
-      mediaProgress: .4
-    });
+    )).toBe(.4);
 
     const reverseEntry = completeLeg(media);
-    expect(phoneBrandLabCompositeFrame(
+    expect(phoneBrandLabMediaProgress(
       cinematic(reverseEntry),
       'figure3-animation'
-    )).toEqual({
-      entryProgress: 1,
-      mediaProgress: 0
-    });
+    )).toBe(0);
     expect(phoneBrandLabVisualExecution(
       cinematic(reverseEntry),
       'figure3-animation'

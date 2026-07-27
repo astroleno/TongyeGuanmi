@@ -49,6 +49,19 @@ export type PhoneTransitionAdapterId =
 
 export type PhoneSceneAdapterHandle = ScenePresentationAdapterHandle;
 
+/**
+ * A narrow runtime-only view used when a cinematic executor injects its
+ * immutable identity at media start. Public scene handles remain the shared
+ * presentation lifecycle contract.
+ */
+export type PhoneCinematicSceneAdapterHandle = Omit<
+  ScenePresentationAdapterHandle,
+  'enter' | 'reverse'
+> & {
+  enter?(request?: PhoneCinematicRequest): void;
+  reverse?(request?: PhoneCinematicRequest): void;
+};
+
 export type PhoneMotionDriver = Readonly<{
   set(target: HTMLElement, vars: Readonly<Record<string, string | number>>): void;
   quickTo(

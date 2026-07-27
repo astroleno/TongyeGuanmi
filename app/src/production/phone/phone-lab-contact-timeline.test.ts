@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   phoneLabContactApproachProgress,
+  phoneLabContactAutoplayIdentity,
   phoneLabContactAtOrPastVisualBoundary,
   phoneLabContactCanArmReverseGesture,
   phoneLabContactCanBeginVisualRun,
@@ -127,5 +128,33 @@ describe('phone Lab → Contact shared-boundary timeline', () => {
     expect(phoneLabContactInkBoundaryProgress(792.2, 932)).toBeCloseTo(0);
     expect(phoneLabContactInkBoundaryProgress(396.1, 932)).toBeCloseTo(0.5);
     expect(phoneLabContactInkBoundaryProgress(0, 932)).toBe(1);
+  });
+
+  it('requires formal media evidence to carry its captured execution identity', () => {
+    expect(phoneLabContactAutoplayIdentity({
+      scene: 'ph-animation',
+      phase: 'progress',
+      direction: 1,
+      authorityId: 'phone-authority-9',
+      sessionId: 'session-4',
+      generation: 7,
+      leg: 1,
+      progress: .5
+    })).toMatchObject({
+      authorityId: 'phone-authority-9',
+      sessionId: 'session-4',
+      generation: 7,
+      leg: 1,
+      direction: 1
+    });
+    expect(phoneLabContactAutoplayIdentity({
+      scene: 'crane-animation',
+      phase: 'complete',
+      direction: -1,
+      authorityId: null,
+      sessionId: null,
+      generation: null,
+      leg: null
+    })).toBeNull();
   });
 });

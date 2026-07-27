@@ -26,11 +26,14 @@ import {
 } from './phone-story-runtime';
 import {
   phoneBrandLabAdapterScene,
-  phoneBrandLabCompositeFrame,
   phoneBrandLabRunForVisual,
-  phoneBrandLabVisualExecution,
-  phoneBrandLabVisualPrewarm
+  phoneBrandLabVisualProjection
 } from './phone-brand-lab-runtime';
+import {
+  phoneClampProgress,
+  phoneDocumentTop,
+  phoneSnapshotProjectsSurface
+} from './phone-composite-snapshot';
 import {
   createPhoneCompositeRunner,
   type PhoneCompositeRuntimeConfig
@@ -93,23 +96,6 @@ type Group45CapabilityHandle =
   | PhoneTransitionAdapterHandle;
 type VisualRuntimeConfig = PhoneCompositeRuntimeConfig;
 
-function clamp(value: number): number {
-  return Math.min(1, Math.max(0, value));
-}
-
-function documentTop(element: HTMLElement | null): number | null {
-  if (!element) return null;
-  return Math.max(0, window.scrollY + element.getBoundingClientRect().top);
-}
-
-function snapshotProjectsSurface(
-  source: string | null,
-  receiver: string,
-  id: string
-): boolean {
-  return source === id || receiver === id;
-}
-
 /**
  * Unit 5 contributes geometry, presentation capabilities, and media evidence
  * only. The route-local PhoneStory authority owns scene, stage, lock, scroll,
@@ -127,11 +113,18 @@ export const PhoneBrandLabContinuation = forwardRef<
 }, forwardedRef) {
   const orchestrator = usePhoneStoryOrchestrator();
   const storySnapshot = usePhoneStorySnapshot();
-  const cinematicSnapshot = useMemo(
-    () => selectPhoneCinematicSnapshot(storySnapshot),
-    [storySnapshot]
-  );
+  const cinematicSnapshot = selectPhoneCinematicSnapshot(storySnapshot);
   const adapterScene = phoneBrandLabAdapterScene(cinematicSnapshot);
+  const [
+    figure3Execution,
+    figure3Prewarm,
+    figure3Progress
+  ] = phoneBrandLabVisualProjection(cinematicSnapshot, 'figure3-animation');
+  const [
+    ttgExecution,
+    ttgPrewarm,
+    ttgProgress
+  ] = phoneBrandLabVisualProjection(cinematicSnapshot, 'ttg-animation');
   const adapters = usePhoneGroup45Adapters(adapterScene, adapterScene);
   const [, setAdapterRevision] = useState(0);
   const [capabilities] = useState(() => createPhoneCapabilityRegistry<
@@ -294,7 +287,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       const track = scene === 'figure3-animation'
         ? figure3TrackRef.current
         : ttgTrackRef.current;
-      const media = documentTop(track);
+      const media = phoneDocumentTop(track);
       if (media === null) return null;
       const entryOffset = scene === 'figure3-animation'
         ? Math.max(1, window.innerHeight) * BRAND_READING_HOLD_RATIO
@@ -373,7 +366,9 @@ export const PhoneBrandLabContinuation = forwardRef<
       (scene, reason, direction, [, , , , , , run]) => {
         const directNativeEntry = reason === 'direct-entry'
           && run === null;
-        if (directNativeEntry) return documentTop(rootForScene(scene as Group45PhoneSceneId));
+        if (directNativeEntry) {
+          return phoneDocumentTop(rootForScene(scene as Group45PhoneSceneId));
+        }
         if (scene === 'brand' || scene === 'figure3-animation' || scene === 'services') {
           return boundaryPosition('figure3-animation', direction);
         }
@@ -385,7 +380,7 @@ export const PhoneBrandLabContinuation = forwardRef<
     );
 
     mediaProgressRef.current = (scene, identity, progress) => {
-      runner.progressMedia(scene, identity, clamp(progress));
+      runner.progressMedia(scene, identity, phoneClampProgress(progress));
     };
     mediaCompleteRef.current = (scene, identity) => {
       runner.completeMedia(scene, identity);
@@ -407,26 +402,18 @@ export const PhoneBrandLabContinuation = forwardRef<
    * Snapshot -> adapter bridge. Geometry is sampled by the route's one
    * document runtime above; this bridge never installs a second scroll,
    * resize, or orientation listener.
-   */
+  */
   useLayoutEffect(() => {
-    const figure3Frame = phoneBrandLabCompositeFrame(
-      cinematicSnapshot,
-      'figure3-animation'
-    );
-    const ttgFrame = phoneBrandLabCompositeFrame(
-      cinematicSnapshot,
-      'ttg-animation'
-    );
     brandRef.current?.update(1);
     servicesRef.current?.update(1);
     labRef.current?.update(1);
-    if (!phoneBrandLabVisualExecution(cinematicSnapshot, 'figure3-animation')) {
-      figure3Ref.current?.update(figure3Frame.mediaProgress);
+    if (!figure3Execution) {
+      figure3Ref.current?.update(figure3Progress);
     }
-    if (!phoneBrandLabVisualExecution(cinematicSnapshot, 'ttg-animation')) {
-      ttgRef.current?.update(ttgFrame.mediaProgress);
+    if (!ttgExecution) {
+      ttgRef.current?.update(ttgProgress);
     }
-  }, [cinematicSnapshot]);
+  }, [storySnapshot]);
 
   useEffect(() => () => {
     brandFigure3Ref.current?.dispose?.();
@@ -471,14 +458,6 @@ export const PhoneBrandLabContinuation = forwardRef<
   const Figure3Services = adapters.transitions['figure3-services'];
   const ServicesTtg = adapters.transitions['services-ttg'];
   const TtgLab = adapters.transitions['ttg-lab'];
-  const figure3Execution = phoneBrandLabVisualExecution(
-    cinematicSnapshot,
-    'figure3-animation'
-  );
-  const ttgExecution = phoneBrandLabVisualExecution(
-    cinematicSnapshot,
-    'ttg-animation'
-  );
   const stageSurfaces = (
     <div className="phone-brand-lab__stage-surfaces" aria-hidden="true">
       {Figure3 && (
@@ -487,10 +466,7 @@ export const PhoneBrandLabContinuation = forwardRef<
           active={figure3Execution !== null}
           direction={figure3Execution?.direction ?? 1}
           execution={figure3Execution}
-          prewarm={phoneBrandLabVisualPrewarm(
-            cinematicSnapshot,
-            'figure3-animation'
-          )}
+          prewarm={figure3Prewarm}
           reducedMotion={reducedMotion}
           onMediaError={onMediaError}
           onProgress={onVisualProgress}
@@ -503,10 +479,7 @@ export const PhoneBrandLabContinuation = forwardRef<
           active={ttgExecution !== null}
           direction={ttgExecution?.direction ?? 1}
           execution={ttgExecution}
-          prewarm={phoneBrandLabVisualPrewarm(
-            cinematicSnapshot,
-            'ttg-animation'
-          )}
+          prewarm={ttgPrewarm}
           reducedMotion={reducedMotion}
           onMediaError={onMediaError}
           onProgress={onVisualProgress}
@@ -533,7 +506,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       {Brand && (
         <Brand
           ref={bindBrand}
-          active={snapshotProjectsSurface(
+            active={phoneSnapshotProjectsSurface(
             sourceSurface,
             receiverSurface,
             'native:brand'
@@ -551,7 +524,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       {Services && (
         <Services
           ref={bindServices}
-          active={snapshotProjectsSurface(
+            active={phoneSnapshotProjectsSurface(
             sourceSurface,
             receiverSurface,
             'native:services'
@@ -569,7 +542,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       {Lab && (
         <Lab
           ref={bindLab}
-          active={snapshotProjectsSurface(
+            active={phoneSnapshotProjectsSurface(
             sourceSurface,
             receiverSurface,
             'native:lab'

@@ -7,7 +7,6 @@ import {
   useState
 } from 'react';
 import { createPortal } from 'react-dom';
-import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 import type {
   ScenePresentationAdapterHandle
 } from '../../story/presentation';
@@ -16,7 +15,6 @@ import {
   PH_PLAYBACK_MS
 } from '../../story/timings';
 import {
-  group67PhoneSceneIds,
   type Group67PhoneSceneId,
   type Group67PhoneTransitionId
 } from './adapter-groups/group6-7';
@@ -25,6 +23,7 @@ import {
   usePhoneStorySnapshot
 } from './PhoneStoryOrchestratorContext';
 import {
+  registerPhoneRuntimeScrollCorridor,
   registerPhoneRuntimeSurface,
   selectPhoneCinematicSnapshot,
   syncPhoneRuntimeDiagnostics
@@ -34,13 +33,20 @@ import {
 } from './phone-document-endpoint-alignment';
 import {
   PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
+  phoneLabContactAutoplayIdentity,
   type PhoneLabContactAutoplayEventDetail
 } from './phone-lab-contact-timeline';
 import {
-  phoneGroup67RunSource,
+  phoneLabContactAdapterScene,
   phoneLabContactRunForVisual,
+  phoneLabContactVisualProjection,
   type PhoneLabContactVisualScene
 } from './phone-lab-contact-runtime';
+import {
+  phoneClampProgress,
+  phoneDocumentTop,
+  phoneSnapshotProjectsSurface
+} from './phone-composite-snapshot';
 import {
   createPhoneCompositeRunner,
   type PhoneCompositeRuntimeConfig
@@ -53,12 +59,12 @@ import {
 } from './phone-transition-readiness';
 import { usePhoneCapabilityBinding } from './phone-adapter-binding';
 import type {
+  PhoneCinematicSceneAdapterHandle,
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
 import {
-  usePhoneGroup67Adapters,
-  type Group67AdapterFocus
+  usePhoneGroup67Adapters
 } from './usePhoneGroup67Adapters';
 import './PhoneLabContactContinuation.css';
 
@@ -85,6 +91,13 @@ const GROUP67_VISUAL_SCENES = [
   'ph-animation',
   'crane-animation'
 ] as const satisfies readonly VisualScene[];
+const GROUP67_SCENES = [
+  'lab',
+  'ph-animation',
+  'education',
+  'crane-animation',
+  'contact'
+] as const satisfies readonly ContinuationScene[];
 const GROUP67_READINESS_TIMEOUT_MS = 10000;
 const GROUP67_ENTRY_VIEWPORT_RATIO = .85;
 const PHONE_PH_EDUCATION_ANIMATION_STOP = PH_PLAYBACK_MS
@@ -98,10 +111,6 @@ export type PhoneLabContactContinuationProps = Readonly<{
   labBoundary?: PhoneLabBoundary | null;
 }>;
 
-function clamp(value: number): number {
-  return Math.min(1, Math.max(0, value));
-}
-
 export function PhoneLabContactContinuation({
   reducedMotion,
   stageHost,
@@ -111,32 +120,22 @@ export function PhoneLabContactContinuation({
 }: PhoneLabContactContinuationProps) {
   const orchestrator = usePhoneStoryOrchestrator();
   const storySnapshot = usePhoneStorySnapshot();
-  const [
-    semanticScene,
-    ,
-    ,
-    ,
-    ,
-    ,
-    cinematicRun,
-    cinematicDirection,
-    cinematicLegIndex,
-    cinematicPhase
-  ] = selectPhoneCinematicSnapshot(storySnapshot);
+  const cinematicSnapshot = selectPhoneCinematicSnapshot(storySnapshot);
   const initialScene: ContinuationScene = entryScene
     ?? (fromLabBoundary ? 'lab' : 'ph-animation');
-  const [focus, setFocus] = useState<Group67AdapterFocus>(
+  const adapterScene = phoneLabContactAdapterScene(
+    cinematicSnapshot,
     initialScene
   );
-  const adapters = usePhoneGroup67Adapters(focus);
-  const currentScene: ContinuationScene = (
-    semanticScene === 'lab'
-    || (group67PhoneSceneIds as readonly string[]).includes(
-      semanticScene
-    )
-  ) ? semanticScene as ContinuationScene : initialScene;
-  const [stageScene, setStageScene] = useState<VisualScene | null>(null);
-  const [prewarmScene, setPrewarmScene] = useState<VisualScene | null>(null);
+  const [phExecution, phPrewarm, phProgress] = phoneLabContactVisualProjection(
+    cinematicSnapshot,
+    'ph-animation'
+  );
+  const [craneExecution, cranePrewarm, craneProgress] = phoneLabContactVisualProjection(
+    cinematicSnapshot,
+    'crane-animation'
+  );
+  const adapters = usePhoneGroup67Adapters(adapterScene);
   const [, setAdapterRevision] = useState(0);
   const [capabilities] = useState(() => createPhoneCapabilityRegistry<
     Group67CapabilityId,
@@ -159,7 +158,6 @@ export function PhoneLabContactContinuation({
   const phEducationRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const educationCraneRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const craneContactRef = useRef<PhoneTransitionAdapterHandle | null>(null);
-  const mediaEventRef = useRef<(event: Event) => void>(() => undefined);
   labBoundaryRef.current = labBoundary;
   const publishAdapter = useCallback(() => {
     setAdapterRevision((revision) => revision + 1);
@@ -212,45 +210,6 @@ export function PhoneLabContactContinuation({
     bindCapability('lab', labAdapterRef, labBoundary?.adapter ?? null);
   }, [bindCapability, labBoundary]);
 
-  useEffect(() => {
-    if (
-      currentScene !== 'lab'
-      && currentScene !== 'education'
-      && currentScene !== 'contact'
-    ) return;
-    setStageScene(null);
-    setPrewarmScene(null);
-    setFocus(currentScene);
-  }, [currentScene]);
-
-  /*
-   * The shared composite executor no longer publishes a second active-run
-   * view. Keep the existing Group 67 lazy/stage cache synchronized from the
-   * route authority until its dedicated Task 7 presentation migration lands.
-   */
-  useEffect(() => {
-    const visual: VisualScene | null = cinematicRun === 'lab-education'
-      ? 'ph-animation'
-      : cinematicRun === 'education-contact' ? 'crane-animation' : null;
-    if (!visual || cinematicDirection === null) return;
-    setFocus(phoneGroup67RunSource(visual, cinematicDirection));
-    if (
-      cinematicLegIndex === 1
-      && cinematicPhase === 'animating'
-    ) {
-      setStageScene(visual);
-      setPrewarmScene(null);
-      return;
-    }
-    setStageScene(null);
-    setPrewarmScene(visual);
-  }, [
-    cinematicDirection,
-    cinematicLegIndex,
-    cinematicPhase,
-    cinematicRun
-  ]);
-
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -288,6 +247,20 @@ export function PhoneLabContactContinuation({
         media
       };
     };
+    const rootForScene = (
+      scene: ContinuationScene
+    ): HTMLElement | null => {
+      const adapter = scene === 'lab'
+        ? labBoundaryRef.current?.adapter
+        : scene === 'ph-animation'
+          ? phRef.current
+          : scene === 'education'
+            ? educationRef.current
+            : scene === 'crane-animation'
+              ? craneRef.current
+              : contactRef.current;
+      return adapter?.root() ?? null;
+    };
 
     const boundaryPosition = (
       scene: VisualScene,
@@ -296,9 +269,9 @@ export function PhoneLabContactContinuation({
       const track = scene === 'ph-animation'
         ? phTrackRef.current
         : craneTrackRef.current;
-      if (!track) return null;
+      const media = phoneDocumentTop(track);
+      if (media === null) return null;
       const viewportHeight = Math.max(1, window.innerHeight);
-      const media = window.scrollY + track.getBoundingClientRect().top;
       const boundary = direction === 1
         ? media - viewportHeight * GROUP67_ENTRY_VIEWPORT_RATIO
         : media;
@@ -323,7 +296,7 @@ export function PhoneLabContactContinuation({
       startMedia({ scene, identity, config, animate }) {
         if (identity.direction === 1) {
           config.media.enter?.();
-          config.visual.enter?.();
+          (config.visual as PhoneCinematicSceneAdapterHandle).enter?.({ identity });
           return;
         }
         config.media.reverse?.();
@@ -332,10 +305,12 @@ export function PhoneLabContactContinuation({
             1,
             PHONE_PH_EDUCATION_ANIMATION_STOP,
             INTRA_CHAPTER_DISSOLVE_MS,
-            () => config.visual.reverse?.()
+            () => (
+              config.visual as PhoneCinematicSceneAdapterHandle
+            ).reverse?.({ identity })
           );
         } else {
-          config.visual.reverse?.();
+          (config.visual as PhoneCinematicSceneAdapterHandle).reverse?.({ identity });
         }
       },
       acquireReverseEntry(identity, config) {
@@ -346,37 +321,77 @@ export function PhoneLabContactContinuation({
       }
     });
 
-    const surfaceLeases = (
-      ['lab', 'education', 'contact'] as const
-    ).map((scene) => registerPhoneRuntimeSurface(
+    const surfaceLeases = [
+      ...(['lab', 'education', 'contact'] as const).map((scene) => (
+        registerPhoneRuntimeSurface(
+          orchestrator,
+          `native:${scene}`,
+          scene,
+          'native',
+          () => rootForScene(scene),
+          () => rootForScene(scene),
+          () => true
+        )
+      )),
+      ...([
+        ['group67:ph', 'ph-animation', phRef],
+        ['group67:crane', 'crane-animation', craneRef]
+      ] as const).map(([id, scene, ref]) => (
+        registerPhoneRuntimeSurface(
+          orchestrator,
+          id,
+          scene,
+          'fixed',
+          () => ref.current?.root() ?? null,
+          () => ref.current?.root() ?? null,
+          () => true
+        )
+      ))
+    ];
+    const corridorLease = registerPhoneRuntimeScrollCorridor(
       orchestrator,
-      `native:${scene}`,
-      scene,
-      'native',
-      () => (scene === 'lab'
-        ? labBoundaryRef.current?.adapter
-        : scene === 'education'
-          ? educationRef.current
-          : contactRef.current)?.root() ?? null,
-      () => (scene === 'lab'
-        ? labBoundaryRef.current?.adapter
-        : scene === 'education'
-          ? educationRef.current
-          : contactRef.current)?.root() ?? null,
-      () => true
-    ));
+      'group67',
+      GROUP67_SCENES,
+      (actualY, priorY) => {
+        const delta = actualY - priorY;
+        return delta > .5 ? 1 : delta < -.5 ? -1 : 0;
+      },
+      (run, direction) => {
+        if (run === 'lab-education') {
+          return boundaryPosition('ph-animation', direction);
+        }
+        if (run === 'education-contact') {
+          return boundaryPosition('crane-animation', direction);
+        }
+        return null;
+      },
+      (scene, reason, direction, [, , , , , , run]) => {
+        const directNativeEntry = reason === 'direct-entry' && run === null;
+        if (directNativeEntry) {
+          return phoneDocumentTop(rootForScene(scene as ContinuationScene));
+        }
+        if (
+          scene === 'lab'
+          || scene === 'ph-animation'
+          || scene === 'education'
+        ) return boundaryPosition('ph-animation', direction);
+        if (scene === 'crane-animation' || scene === 'contact') {
+          return boundaryPosition('crane-animation', direction);
+        }
+        return null;
+      }
+    );
 
-    mediaEventRef.current = (event: Event) => {
+    const onMediaEvent = (event: Event) => {
       const detail = (
         event as CustomEvent<PhoneLabContactAutoplayEventDetail>
       ).detail;
       const identity = detail
-        ? runner.execution(detail.scene)
+        ? phoneLabContactAutoplayIdentity(detail)
         : null;
       if (
         !detail
         || !identity
-        || identity.direction !== detail.direction
       ) return;
       if (detail.phase === 'playing') {
         runner.heartbeat(detail.scene, identity);
@@ -391,7 +406,7 @@ export function PhoneLabContactContinuation({
         && typeof detail.progress === 'number'
         && Number.isFinite(detail.progress)
       ) {
-        const progress = clamp(detail.progress);
+        const progress = phoneClampProgress(detail.progress);
         const canonical = detail.scene === 'ph-animation'
           ? progress * PHONE_PH_EDUCATION_ANIMATION_STOP
           : progress;
@@ -417,7 +432,6 @@ export function PhoneLabContactContinuation({
       runner.completeMedia(detail.scene, identity);
     };
 
-    const onMediaEvent = (event: Event) => mediaEventRef.current(event);
     inputOwner.addEventListener(PHONE_LAB_CONTACT_AUTOPLAY_EVENT, onMediaEvent);
 
     return () => {
@@ -425,11 +439,27 @@ export function PhoneLabContactContinuation({
         PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
         onMediaEvent
       );
-      mediaEventRef.current = () => undefined;
+      corridorLease.dispose();
       for (const lease of surfaceLeases) lease.dispose();
       runner.dispose();
     };
   }, [capabilities, orchestrator, reducedMotion]);
+
+  /*
+   * The route's document sampler owns geometry. This bridge only renders the
+   * one immutable snapshot into already-registered adapter handles; it never
+   * retains durable presentation truth locally.
+  */
+  useLayoutEffect(() => {
+    educationRef.current?.update(1);
+    contactRef.current?.update(1);
+    if (!phExecution) {
+      phRef.current?.update(phProgress);
+    }
+    if (!craneExecution) {
+      craneRef.current?.update(craneProgress);
+    }
+  }, [storySnapshot]);
 
   useEffect(() => () => {
     labPhRef.current?.dispose?.();
@@ -450,26 +480,22 @@ export function PhoneLabContactContinuation({
   const PhEducation = adapters.transitions['ph-education'];
   const EducationCrane = adapters.transitions['education-crane'];
   const CraneContact = adapters.transitions['crane-contact'];
-  const presentedStageScene = stageScene ?? prewarmScene;
+  const [, sourceSurface, receiverSurface] = cinematicSnapshot;
 
   const stageSurfaces = (
     <div
       className="phone-group67__stage-surfaces"
-      data-phone-group67-stage-active={semanticBoolean(presentedStageScene !== null)}
       aria-hidden="true"
     >
       <div
         ref={phStageRef}
         className="phone-group67__stage phone-group67__stage--ph"
-        data-phone-group67-layer-active={semanticBoolean(
-          presentedStageScene === 'ph-animation'
-        )}
       >
         <div className="phone-group67__stage-canvas">
           {Ph ? (
             <Ph
               ref={bindPh}
-              active={stageScene === 'ph-animation'}
+              active={phExecution !== null || phPrewarm}
               reducedMotion={reducedMotion}
             />
           ) : (
@@ -498,15 +524,12 @@ export function PhoneLabContactContinuation({
       <div
         ref={craneStageRef}
         className="phone-group67__stage phone-group67__stage--crane"
-        data-phone-group67-layer-active={semanticBoolean(
-          presentedStageScene === 'crane-animation'
-        )}
       >
         <div className="phone-group67__stage-canvas">
           {Crane ? (
             <Crane
               ref={bindCrane}
-              active={stageScene === 'crane-animation'}
+              active={craneExecution !== null || cranePrewarm}
               reducedMotion={reducedMotion}
             />
           ) : (
@@ -544,11 +567,6 @@ export function PhoneLabContactContinuation({
       ref={rootRef}
       className="phone-lab-contact-continuation"
       data-phone-continuation="lab-contact"
-      data-phone-group67-entry={initialScene}
-      data-phone-group67-active-scene={currentScene}
-      data-phone-group67-stage-active={semanticBoolean(presentedStageScene !== null)}
-      data-phone-group67-adapters-ready={String(adapters.ready)}
-      data-phone-group67-run="idle"
     >
       {stageHost ? createPortal(stageSurfaces, stageHost) : null}
       <section
@@ -566,7 +584,11 @@ export function PhoneLabContactContinuation({
         {Education ? (
           <Education
             ref={bindEducation}
-            active={currentScene === 'education'}
+            active={phoneSnapshotProjectsSurface(
+              sourceSurface,
+              receiverSurface,
+              'native:education'
+            )}
             reducedMotion={reducedMotion}
           />
         ) : (
@@ -591,7 +613,11 @@ export function PhoneLabContactContinuation({
         {Contact ? (
           <Contact
             ref={bindContact}
-            active={currentScene === 'contact'}
+            active={phoneSnapshotProjectsSurface(
+              sourceSurface,
+              receiverSurface,
+              'native:contact'
+            )}
             reducedMotion={reducedMotion}
           />
         ) : (

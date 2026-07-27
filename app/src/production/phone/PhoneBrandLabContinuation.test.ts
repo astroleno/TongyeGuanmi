@@ -90,7 +90,7 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
     expect(source).toContain("'group45',");
     expect(source).toContain("'group45:figure3'");
     expect(source).toContain("'group45:ttg'");
-    expect(source).toContain('phoneBrandLabCompositeFrame(');
+    expect(source).toContain('phoneBrandLabVisualProjection(');
     expect(source).toContain("'figure3-animation'");
     expect(compositeRunnerSource).not.toContain('type ActiveRun');
     expect(compositeRunnerSource).not.toContain('PhoneCompositeRunStep');

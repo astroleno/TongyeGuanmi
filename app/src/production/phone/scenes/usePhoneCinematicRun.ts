@@ -8,6 +8,7 @@ import {
   dispatchPhoneLabContactAutoplay,
   type PhoneLabContactCinematicScene
 } from '../phone-lab-contact-timeline';
+import type { PhoneExecutionIdentity } from '../phone-story-state';
 
 export type PhoneCinematicDirection = 1 | -1;
 
@@ -32,6 +33,7 @@ export function usePhoneCinematicRun(options: Readonly<{
   beforeReverse?: () => void;
 }>) {
   const requestedRef = useRef<PhoneCinematicDirection | null>(null);
+  const activeIdentityRef = useRef<PhoneExecutionIdentity | null>(null);
   const reverseStartedRef = useRef(false);
   const timerRef = useRef(0);
   const clearTimer = useCallback(() => {
@@ -40,36 +42,43 @@ export function usePhoneCinematicRun(options: Readonly<{
     timerRef.current = 0;
   }, []);
   const publish = useCallback((
-    phase: 'start' | 'playing' | 'complete',
-    direction: PhoneCinematicDirection
+    phase: 'playing' | 'progress' | 'complete' | 'failed',
+    direction: PhoneCinematicDirection,
+    progress?: number
   ) => {
+    const identity = activeIdentityRef.current;
     dispatchPhoneLabContactAutoplay(options.rootRef.current, {
       scene: options.scene,
       phase,
-      direction
+      direction,
+      authorityId: identity?.authorityId ?? null,
+      sessionId: identity?.sessionId ?? null,
+      generation: identity?.generation ?? null,
+      leg: identity?.leg ?? null,
+      progress
     });
   }, [options.rootRef, options.scene]);
+  const renderProgress = useCallback((
+    progress: number,
+    direction: PhoneCinematicDirection = 1
+  ) => {
+    options.render(progress, direction);
+    publish('progress', direction, progress);
+  }, [options.render, publish]);
   const completeRun = useCallback((direction: PhoneCinematicDirection) => {
     clearTimer();
     reverseStartedRef.current = false;
     requestedRef.current = null;
     publish('complete', direction);
+    activeIdentityRef.current = null;
   }, [clearTimer, publish]);
   const failRun = useCallback((direction: PhoneCinematicDirection) => {
-    const root = options.rootRef.current;
     clearTimer();
     reverseStartedRef.current = false;
     requestedRef.current = direction;
-    dispatchPhoneLabContactAutoplay(root, {
-      scene: options.scene,
-      phase: 'failed',
-      direction
-    });
-  }, [
-    clearTimer,
-    options.rootRef,
-    options.scene
-  ]);
+    publish('failed', direction);
+    activeIdentityRef.current = null;
+  }, [clearTimer, publish]);
   const beginPreparedReverse = useCallback((force = false) => {
     const root = options.rootRef.current;
     if (
@@ -91,18 +100,24 @@ export function usePhoneCinematicRun(options: Readonly<{
   ]);
   const stopRun = useCallback(() => {
     requestedRef.current = null;
+    activeIdentityRef.current = null;
     reverseStartedRef.current = false;
     clearTimer();
     options.forwardRef.current?.stop();
     options.reverseRef.current?.stop();
   }, [clearTimer, options.forwardRef, options.reverseRef]);
-  const startRun = useCallback((direction: PhoneCinematicDirection) => {
-    const root = options.rootRef.current;
-    if (!root) return;
+  const startRun = useCallback((
+    direction: PhoneCinematicDirection,
+    identity?: PhoneExecutionIdentity | null
+  ) => {
+    if (!options.rootRef.current) return;
+    if (identity !== undefined) activeIdentityRef.current = identity;
     requestedRef.current = direction;
-    publish('start', direction);
     if (options.reducedMotion) {
-      options.render(direction === 1 ? options.terminalProgress : 0, direction);
+      renderProgress(
+        direction === 1 ? options.terminalProgress : 0,
+        direction
+      );
       completeRun(direction);
       return;
     }
@@ -143,7 +158,8 @@ export function usePhoneCinematicRun(options: Readonly<{
     options.reverseTimeoutMs,
     options.rootRef,
     options.terminalProgress,
-    publish
+    publish,
+    renderProgress
   ]);
   const disposeRun = useCallback(() => {
     stopRun();
@@ -158,6 +174,7 @@ export function usePhoneCinematicRun(options: Readonly<{
     completeRun,
     failRun,
     publishPlaying,
+    renderProgress,
     startRun,
     stopRun,
     disposeRun
@@ -167,6 +184,7 @@ export function usePhoneCinematicRun(options: Readonly<{
     disposeRun,
     failRun,
     publishPlaying,
+    renderProgress,
     startRun,
     stopRun
   ]);

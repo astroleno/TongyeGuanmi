@@ -18,7 +18,7 @@ function smoothStep(value: number): number {
   return progress * progress * (3 - 2 * progress);
 }
 
-function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
+export function phonePhRootFor(root: HTMLElement | null | undefined): HTMLElement | null {
   return root?.matches('[data-r4-scene="ph-animation"]')
     ? root
     : root?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]') ?? null;
@@ -73,7 +73,7 @@ export function renderPhonePhPresentation(
   direction: PhonePhPlaybackDirection = 1,
   reducedMotion = false
 ): PhonePhRenderState {
-  const section = rootFor(root);
+  const section = phonePhRootFor(root);
   const progress = phonePhPresentationProgress(rawProgress, reducedMotion);
   const presentation = phPlaybackProgress(progress);
   const eased = smoothStep(presentation);

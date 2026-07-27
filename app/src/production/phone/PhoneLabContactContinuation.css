@@ -12,7 +12,7 @@
 
 .phone-lab-contact-continuation__native {
   position: relative;
-  z-index: 1;
+  z-index: 11;
   min-width: 0;
   background: #ede4d2;
 }
@@ -26,12 +26,8 @@
   );
 }
 
-.phone-lab-contact-continuation[data-phone-group67-stage-active="false"]
-  > .phone-lab-contact-continuation__native {
-  z-index: 11;
-}
-
-.phone-lab-contact-continuation[data-phone-group67-stage-active="true"]
+.portrait-scroll-spike[data-phone-stage-owner="group67"]
+  .phone-lab-contact-continuation
   > .phone-lab-contact-continuation__native {
   z-index: 9;
 }
@@ -84,7 +80,8 @@
   background: transparent;
 }
 
-.phone-group67__stage-surfaces[data-phone-group67-stage-active="true"] {
+.portrait-scroll-spike[data-phone-stage-owner="group67"]
+  .phone-group67__stage-surfaces {
   visibility: visible;
 }
 
@@ -95,16 +92,16 @@
   height: 100%;
   overflow: visible;
   visibility: hidden;
-  opacity: 0;
+  opacity: 1;
   isolation: auto;
   transform: none;
   backface-visibility: visible;
   pointer-events: none;
 }
 
-.phone-group67__stage[data-phone-group67-layer-active="true"] {
+.portrait-scroll-spike[data-phone-stage-owner="group67"]
+  .phone-group67__stage {
   visibility: visible;
-  opacity: 1;
 }
 
 .phone-group67__stage-canvas {
@@ -139,10 +136,4 @@
   position: absolute;
   inset: 0;
   background: transparent;
-}
-
-.phone-grade-a:has(
-  .phone-lab-contact-continuation[data-phone-group67-stage-active="true"]
-) .phone-brand-lab[data-phone-group45-stage-active="false"] > .phone-lab {
-  z-index: 9;
 }

@@ -42,22 +42,26 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(phoneGroup67RunSource('ph-animation', -1)).toBe('education');
     expect(phoneGroup67RunSource('crane-animation', 1)).toBe('education');
     expect(phoneGroup67RunSource('crane-animation', -1)).toBe('contact');
-    expect(source).toContain('phoneGroup67RunSource(visual, cinematicDirection)');
+    expect(source).toContain('phoneLabContactAdapterScene(');
     expect(source).toContain('registerPhoneRuntimeSurface(');
     expect(source).toContain('usePhoneStorySnapshot');
   });
 
   it('prewarms the compositor while the source remains the semantic owner', () => {
-    expect(source).toContain(
-      'const presentedStageScene = stageScene ?? prewarmScene'
-    );
-    expect(source).toContain('setPrewarmScene(visual)');
-    expect(source).toContain(
-      "active={stageScene === 'ph-animation'}"
-    );
-    expect(source).toContain(
-      "active={stageScene === 'crane-animation'}"
-    );
+    expect(source).toContain('phoneLabContactVisualProjection(');
+    expect(source).not.toContain('useState<Group67AdapterFocus>');
+    expect(source).not.toContain('const [stageScene');
+    expect(source).not.toContain('const [prewarmScene');
+    expect(source).not.toContain('data-phone-group67-stage-active');
+    expect(source).not.toContain('data-phone-group67-layer-active');
+    expect(source).not.toContain('data-phone-group67-active-scene');
+  });
+
+  it('registers Group67 surfaces and its document corridor through the route runtime', () => {
+    expect(source).toContain('registerPhoneRuntimeScrollCorridor(');
+    expect(source).toContain("'group67'");
+    expect(source).toContain("'group67:ph'");
+    expect(source).toContain("'group67:crane'");
   });
 
   it('asks the orchestrator to recommit stable roles when lazy adapters bind', () => {
@@ -75,11 +79,17 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(source).toContain('runner.failMedia(detail.scene, identity)');
     expect(compositeRunnerSource).toContain('rollback(resource)');
     expect(compositeRunnerSource).toContain('resource.session[13]()');
-    expect(source).toContain('setPrewarmScene(null)');
-    expect(source).toContain('setStageScene(null)');
+    expect(source).toContain('phoneLabContactVisualProjection(');
+    expect(source).not.toContain('setPrewarmScene');
+    expect(source).not.toContain('setStageScene');
     expect(source).not.toContain("'retryable'");
     expect(source).not.toContain("'media-failure'");
     expect(source).not.toContain('phoneGroup67MediaFallback');
+  });
+
+  it('rejects nullable or current-session media labels instead of relabeling stale events', () => {
+    expect(source).toContain('phoneLabContactAutoplayIdentity(detail)');
+    expect(source).not.toContain('runner.execution(detail.scene)');
   });
 
   it('keeps reverse document alignment leased through the commit frame', () => {

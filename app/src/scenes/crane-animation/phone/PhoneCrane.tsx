@@ -10,10 +10,10 @@ import { createPortal } from 'react-dom';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import type {
+  PhoneCinematicRequest,
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
-import { dispatchPhoneLabContactAutoplay } from '../../../production/phone/phone-lab-contact-timeline';
 import { phoneMediaUrlFor } from '../../../production/phone/phone-media';
 import type { TargetPresentationRequest } from '../../../story/presentation';
 import {
@@ -32,6 +32,7 @@ import {
 import {
   PHONE_CRANE_VIDEO_END_SECONDS as CRANE_VIDEO_END_SECONDS,
   PHONE_CRANE_STABLE_HOLD_PROGRESS,
+  phoneCraneRootFor,
   phoneCranePresentationProgress,
   renderPhoneCranePresentation,
   type PhoneCranePlaybackDirection
@@ -96,14 +97,8 @@ export {
   renderPhoneCranePresentation
 } from './PhoneCrane.motion';
 
-function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
-  return root?.matches('[data-r4-scene="crane-animation"]')
-    ? root
-    : root?.querySelector<HTMLElement>('[data-r4-scene="crane-animation"]') ?? null;
-}
-
 export function parkPhoneCraneMedia(root: HTMLElement | null | undefined): void {
-  const section = rootFor(root);
+  const section = phoneCraneRootFor(root);
   for (const video of phoneCraneVideos(section)) {
     if (!video) continue;
     disposeTimelineVideoDriver(video);
@@ -117,7 +112,7 @@ export function parkPhoneCraneMedia(root: HTMLElement | null | undefined): void 
 export function applyPhoneCraneMediaFallback(
   root: HTMLElement | null | undefined
 ): void {
-  const section = rootFor(root);
+  const section = phoneCraneRootFor(root);
   renderPhoneCranePresentation(section, 0);
   for (const video of phoneCraneVideos(section)) {
     if (!video) continue;
@@ -207,7 +202,7 @@ export const PhoneCrane = forwardRef<
     return packedSurfacesRef.current;
   }, []);
 
-  const render = useCallback((
+  const renderPresentation = useCallback((
     rawProgress: number,
     direction: PhoneCranePlaybackDirection = 1
   ) => {
@@ -217,12 +212,6 @@ export const PhoneCrane = forwardRef<
       progress,
       direction
     );
-    dispatchPhoneLabContactAutoplay(rootRef.current, {
-      scene: 'crane-animation',
-      phase: 'progress',
-      direction,
-      progress
-    });
   }, [reducedMotion]);
 
   const reverseReady = useCallback(() => {
@@ -242,22 +231,22 @@ export const PhoneCrane = forwardRef<
     reverseTimeoutMs: PHONE_CRANE_REVERSE_READY_TIMEOUT_MS,
     reverseReady,
     activateSurface: ensurePackedSurfaces,
-    render
+    render: renderPresentation
   });
   beginPreparedReverseRef.current = run.beginPreparedReverse;
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root || !figureCanvasRef.current || !flockCanvasRef.current) return;
-    render(0);
+    renderPresentation(0);
     const forwardRun = createPhoneCraneForwardRun(
       root,
-      render,
+      run.renderProgress,
       () => {
         // AOD leaves its persistent Canvas on the last decoded frame. Keep
         // the same decoder/WebGL pair alive until the stage is fully hidden;
         // replacing it with a newly sought endpoint can freeze physical iOS.
-        render(PHONE_CRANE_STABLE_HOLD_PROGRESS, 1);
+        run.renderProgress(PHONE_CRANE_STABLE_HOLD_PROGRESS, 1);
         root.dataset.phoneCraneMedia = 'stable-endpoint';
         run.completeRun(1);
       },
@@ -274,7 +263,7 @@ export const PhoneCrane = forwardRef<
     }
     const reversePlayback = createPhoneCranePresentedReverse(
       root,
-      render,
+      run.renderProgress,
       () => run.completeRun(-1),
       () => {
         root.dataset.phoneCraneMedia = 'retryable-failure';
@@ -305,7 +294,7 @@ export const PhoneCrane = forwardRef<
     flockCanvasHost,
     onReady,
     reducedMotion,
-    render,
+    renderPresentation,
     run
   ]);
 
@@ -315,7 +304,7 @@ export const PhoneCrane = forwardRef<
     const root = rootRef.current;
     if (!root) throw new Error('Crane target root unavailable');
     if (reducedMotion) {
-      render(request.progress);
+      renderPresentation(request.progress);
       return;
     }
     const mode: PhonePackedAlphaSurfaceMode =
@@ -339,27 +328,29 @@ export const PhoneCrane = forwardRef<
     if (request.signal.aborted) {
       throw new DOMException('Crane target preparation aborted', 'AbortError');
     }
-    render(request.progress, request.direction);
+    renderPresentation(request.progress, request.direction);
     root.dataset.phoneCraneMedia = 'ready';
-  }, [ensurePackedSurfaces, reducedMotion, render]);
+  }, [ensurePackedSurfaces, reducedMotion, renderPresentation]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
     update(progress) {
       run.stopRun();
-      render(progress >= 0.999 ? PHONE_CRANE_STABLE_HOLD_PROGRESS : progress);
+      renderPresentation(
+        progress >= 0.999 ? PHONE_CRANE_STABLE_HOLD_PROGRESS : progress
+      );
     },
-    enter() {
+    enter(request?: PhoneCinematicRequest) {
       rootRef.current?.removeAttribute('aria-hidden');
-      run.startRun(1);
+      run.startRun(1, request?.identity ?? null);
     },
     leave() {
       run.stopRun();
       parkPhoneCraneMedia(rootRef.current);
       for (const surface of packedSurfacesRef.current ?? []) surface.release();
     },
-    reverse() {
-      run.startRun(-1);
+    reverse(request?: PhoneCinematicRequest) {
+      run.startRun(-1, request?.identity ?? null);
     },
     prepareTargetPresentation,
     dispose() {
@@ -368,7 +359,7 @@ export const PhoneCrane = forwardRef<
       packedSurfacesRef.current = null;
       parkPhoneCraneMedia(rootRef.current);
     }
-  }), [ensurePackedSurfaces, prepareTargetPresentation, render, run]);
+  }), [ensurePackedSurfaces, prepareTargetPresentation, renderPresentation, run]);
 
   return (
     <>

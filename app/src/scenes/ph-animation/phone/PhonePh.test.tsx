@@ -108,7 +108,10 @@ describe('PhonePh', () => {
     expect(source).toContain('PH_FIGURE_END_SECONDS');
     expect(source).toContain('createPhonePhPresentedReverse');
     expect(source).toContain('beginPreparedReverse');
-    expect(source).toContain("phase: 'progress'");
+    expect(cinematicRunSource).toContain("publish('progress', direction, progress)");
+    expect(source).toContain('run.renderProgress');
+    expect(source).toContain('run.startRun(1, request?.identity ?? null)');
+    expect(source).toContain('run.startRun(-1, request?.identity ?? null)');
     expect(cinematicRunSource).toContain('options.reverseReady()');
     expect(motionSource).toContain("'presented-frame-reverse'");
     expect(reverseSource).toContain('createPhonePresentedReversePlayback');

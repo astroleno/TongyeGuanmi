@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import type {
+  PhoneCinematicRequest,
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
@@ -17,7 +18,6 @@ import {
   createPhoneNativeAutoplay,
   type PhoneNativeAutoplay
 } from '../../../production/phone/phone-native-autoplay';
-import { dispatchPhoneLabContactAutoplay } from '../../../production/phone/phone-lab-contact-timeline';
 import { phoneMediaUrlFor } from '../../../production/phone/phone-media';
 import type { TargetPresentationRequest } from '../../../story/presentation';
 import {
@@ -28,6 +28,7 @@ import {
 import { usePhoneCinematicRun } from '../../../production/phone/scenes/usePhoneCinematicRun';
 import {
   PHONE_PH_FIGURE_END_SECONDS,
+  phonePhRootFor,
   phonePhTimelineProgressForMediaProgress,
   renderPhonePhPresentation,
   type PhonePhPlaybackDirection
@@ -58,12 +59,6 @@ const PH_FIGURE_HEVC_ALPHA_SRC = new URL(
 ).href;
 const PHONE_PH_PACKED_VIDEO = phoneMediaUrlFor('ph-figure-packed', 'ph-animation');
 
-function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
-  return root?.matches('[data-r4-scene="ph-animation"]')
-    ? root
-    : root?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]') ?? null;
-}
-
 export {
   phonePhForegroundParallaxY,
   phonePhPresentationProgress,
@@ -75,7 +70,7 @@ export {
 export function applyPhonePhMediaFallback(
   root: HTMLElement | null | undefined
 ): void {
-  const section = rootFor(root);
+  const section = phonePhRootFor(root);
   const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
   if (video) {
     disposeTimelineVideoDriver(video);
@@ -87,7 +82,7 @@ export function applyPhonePhMediaFallback(
 }
 
 export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
-  const section = rootFor(root);
+  const section = phonePhRootFor(root);
   const video = section?.querySelector<HTMLVideoElement>(
     '[data-ph-alpha-video]'
   );
@@ -148,24 +143,16 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       return packedSurfaceRef.current;
     }, []);
 
-    const render = useCallback((
+    const renderPresentation = useCallback((
       rawProgress: number,
       direction: PhonePhPlaybackDirection = 1
     ) => {
-      const state = renderPhonePhPresentation(
+      renderPhonePhPresentation(
         rootRef.current,
         rawProgress,
         direction,
         reducedMotion
       );
-      if (rootRef.current) {
-        dispatchPhoneLabContactAutoplay(rootRef.current, {
-          scene: 'ph-animation',
-          phase: 'progress',
-          direction,
-          progress: state.progress
-        });
-      }
     }, [reducedMotion]);
 
     const reverseReady = useCallback(() => {
@@ -195,7 +182,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       reverseTimeoutMs: PHONE_PH_REVERSE_READY_TIMEOUT_MS,
       reverseReady,
       activateSurface: ensurePackedSurface,
-      render,
+      render: renderPresentation,
       beforeForward,
       beforeReverse
     });
@@ -217,7 +204,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       const nativeAutoplay = createPhoneNativeAutoplay(video, {
         runIdPrefix: 'phone-ph-figure',
         durationSeconds: PHONE_PH_FIGURE_END_SECONDS,
-        onProgress: (progress) => render(
+        onProgress: (progress) => run.renderProgress(
           phonePhTimelineProgressForMediaProgress(progress),
           1
         ),
@@ -233,7 +220,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       });
       const reversePlayback = createPhonePhPresentedReverse(
         root,
-        render,
+        run.renderProgress,
         () => run.completeRun(-1),
         () => {
           root.dataset.phonePhMedia = 'retryable-failure';
@@ -264,7 +251,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       ensurePackedSurface,
       figureCanvasHost,
       onReady,
-      render,
+      renderPresentation,
       run
     ]);
 
@@ -281,7 +268,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       const root = rootRef.current;
       if (!root) throw new Error('PH target root unavailable');
       if (reducedMotion) {
-        render(request.progress);
+        renderPresentation(request.progress);
         return;
       }
       const mode: PhonePackedAlphaSurfaceMode =
@@ -302,27 +289,27 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       if (request.signal.aborted) {
         throw new DOMException('PH target preparation aborted', 'AbortError');
       }
-      render(request.progress, request.direction);
+      renderPresentation(request.progress, request.direction);
       root.dataset.phonePhMedia = 'ready';
-    }, [ensurePackedSurface, reducedMotion, render]);
+    }, [ensurePackedSurface, reducedMotion, renderPresentation]);
 
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
       update(progress) {
         run.stopRun();
-        render(progress);
+        renderPresentation(progress);
       },
-      enter() {
+      enter(request?: PhoneCinematicRequest) {
         rootRef.current?.removeAttribute('aria-hidden');
-        run.startRun(1);
+        run.startRun(1, request?.identity ?? null);
       },
       leave() {
         run.stopRun();
         parkPhonePhMedia(rootRef.current);
         packedSurfaceRef.current?.release();
       },
-      reverse() {
-        run.startRun(-1);
+      reverse(request?: PhoneCinematicRequest) {
+        run.startRun(-1, request?.identity ?? null);
       },
       prepareTargetPresentation,
       dispose() {
@@ -331,7 +318,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         packedSurfaceRef.current = null;
         parkPhonePhMedia(rootRef.current);
       }
-    }), [ensurePackedSurface, prepareTargetPresentation, render, run]);
+    }), [ensurePackedSurface, prepareTargetPresentation, renderPresentation, run]);
 
     return (
       <>
