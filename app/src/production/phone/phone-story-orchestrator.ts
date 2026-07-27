@@ -118,6 +118,10 @@ export function createPhoneStoryOrchestrator(
   let disposed = false;
   let applyingFailure = false;
   let startedCapabilitySession: string | null = null;
+  let pendingDirectEntry: Extract<
+    PhoneStoryEvent,
+    { type: 'DIRECT_ENTRY_REQUESTED' }
+  > | null = null;
   const subscribers = new Set<() => void>();
 
   const notify = () => {
@@ -170,12 +174,23 @@ export function createPhoneStoryOrchestrator(
     const reduction = reducePhoneStorySnapshot(currentSnapshot, event);
     if (reduction.snapshot === currentSnapshot) return reduction;
     if (!applySnapshot(reduction.snapshot, true)) {
+      if (
+        event.type === 'DIRECT_ENTRY_REQUESTED'
+        && currentSnapshot.status === 'stable'
+      ) pendingDirectEntry = event;
       recoverProjectFailure();
       return { snapshot: currentSnapshot, effects: [] };
     }
+    if (event.type === 'DIRECT_ENTRY_REQUESTED') pendingDirectEntry = null;
     if (currentSnapshot.status !== 'transaction') startedCapabilitySession = null;
     afterDispatch();
     return reduction;
+  };
+  const replayPendingDirectEntry = () => {
+    const event = pendingDirectEntry;
+    if (disposed || !event || currentSnapshot.status !== 'stable') return;
+    pendingDirectEntry = null;
+    dispatch(event);
   };
   const resolveLanding = (
     scene: SceneId,
@@ -212,6 +227,7 @@ export function createPhoneStoryOrchestrator(
   const syncDiagnostics = () => {
     if (disposed) return;
     if (!applySnapshot(currentSnapshot, false)) recoverProjectFailure();
+    replayPendingDirectEntry();
   };
   const sessions = createPhoneOrchestratedSessionController({
     getSnapshot: () => currentSnapshot,
@@ -353,6 +369,7 @@ export function createPhoneStoryOrchestrator(
     registerRunCapability(run, ownerId, capability) {
       if (disposed) throw new Error('Disposed phone story');
       const registration = capabilities.register(run, ownerId, capability);
+      replayPendingDirectEntry();
       startPreparedOperation(run);
       return registration;
     },
@@ -366,12 +383,14 @@ export function createPhoneStoryOrchestrator(
     registerScrollCorridor(corridor) {
       if (disposed) throw new Error('Disposed phone story');
       const lease = scrollCorridors.register(corridor);
+      replayPendingDirectEntry();
       startPreparedOperation();
       return lease;
     },
     dispose() {
       if (disposed) return;
       disposed = true;
+      pendingDirectEntry = null;
       capabilities.clear();
       sessions.dispose();
       scrollCorridors.clear();

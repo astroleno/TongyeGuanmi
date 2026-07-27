@@ -1,11 +1,15 @@
 import { canonicalSceneIds } from '../../story/canonical-spine';
 import type { SceneId } from '../../story/types';
-import type {
-  PhoneOrchestratedRunSession,
-  PhoneStoryRuntimePort
-} from './phone-story-orchestrator';
+import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
+import {
+  registerPhoneCompositeRunCapability,
+  type PhoneCompositeSession
+} from './phone-story-runtime';
 import type { PhoneRunId } from './phone-story-runs';
-import type { PhoneStorySnapshot } from './phone-story-state';
+import type {
+  PhoneExecutionIdentity,
+  PhoneStorySnapshot
+} from './phone-story-state';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 import type { PhoneTransitionAdapterHandle } from './types';
 
@@ -80,6 +84,19 @@ type TargetPresentationRequest = Readonly<{
   signal: AbortSignal;
 }>;
 
+function identityFor(
+  session: PhoneCompositeSession,
+  direction: PhoneTransitionDirection
+): PhoneExecutionIdentity {
+  return {
+    authorityId: session[0],
+    sessionId: session[1],
+    generation: session[2],
+    leg: session[3](),
+    direction
+  };
+}
+
 function waitForBoundaryReady(
   boundary: PhoneGradeABoundaryCapability,
   signal: AbortSignal
@@ -137,9 +154,9 @@ export function createPhoneGradeARunner({
   const begin = (
     boundary: PhoneGradeABoundaryCapability,
     direction: PhoneTransitionDirection,
-    session: PhoneOrchestratedRunSession
+    session: PhoneCompositeSession
   ) => {
-    if (!session.valid()) return false;
+    if (!session[4]()) return false;
 
     const preparation = new AbortController();
     let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
@@ -156,7 +173,7 @@ export function createPhoneGradeARunner({
       if (released) return;
       released = true;
       transition?.releaseEndpoint();
-      if (transition) session.reportEndpointRelease();
+      if (transition) session[11]();
     };
     const releaseResources = () => {
       clearTimeoutResource();
@@ -171,37 +188,32 @@ export function createPhoneGradeARunner({
       const endpoint = direction === 1 ? 0 : 1;
       transition?.commitEndpoint(endpoint);
       if (transition) {
-        session.reportEndpointCommit('source');
+        session[9]('source');
         releaseEndpoint();
       }
       disposeResources.delete(cancel);
-      if (session.valid()) session.reportFailure();
+      if (session[4]()) session[13]();
     };
     const complete = () => {
-      if (terminal || !session.valid() || !transition) {
+      if (terminal || !session[4]() || !transition) {
         rollback();
         return;
       }
       terminal = true;
       clearTimeoutResource();
       const endpoint = direction === 1 ? 1 : 0;
-      session.reportProgress(endpoint);
+      session[6](endpoint);
       transition.commitEndpoint(endpoint);
-      session.provideRelease({
-        releaseGeometry() {
-          releaseEndpoint();
-        },
-        releaseResources
-      });
-      session.reportEndpointCommit('receiver');
-      session.reportTargetPresented();
+      session[12](releaseEndpoint, releaseResources);
+      session[9]('receiver');
+      session[10]();
     };
     const animate = () => {
       if (!transition) {
         rollback();
         return;
       }
-      session.animate(
+      session[7](
         direction === 1 ? 0 : 1,
         direction === 1 ? 1 : 0,
         boundary.durationMs,
@@ -212,7 +224,7 @@ export function createPhoneGradeARunner({
     const prepare = async () => {
       try {
         await waitForBoundaryReady(boundary, preparation.signal);
-        if (preparation.signal.aborted || !session.valid() || terminal) return;
+        if (preparation.signal.aborted || !session[4]() || terminal) return;
         transition = boundary.transition();
         const from = boundary.from();
         const to = boundary.to();
@@ -221,20 +233,20 @@ export function createPhoneGradeARunner({
         }
         const source = direction === 1 ? from : to;
         const receiver = direction === 1 ? to : from;
-        session.reportEndpoints(source, receiver);
-        transition.begin({ identity: session });
+        session[8](source, receiver);
+        transition.begin({ identity: identityFor(session, direction) });
         transition.commitEndpoint(direction === 1 ? 0 : 1);
         if (boundary.prepareReceiver) {
           await boundary.prepareReceiver({
             progress: direction === 1 ? 0 : 1,
             direction,
-            runId: `${session.sessionId}:${session.generation}`,
+            runId: `${session[1]}:${session[2]}`,
             signal: preparation.signal
           });
         }
         await transition.prepare?.(direction, preparation.signal);
-        if (preparation.signal.aborted || !session.valid() || terminal) return;
-        session.reportPresentedFrame();
+        if (preparation.signal.aborted || !session[4]() || terminal) return;
+        session[5]();
         clearTimeoutResource();
         if (direction === 1) transition.enter?.();
         else transition.reverse?.();
@@ -252,16 +264,16 @@ export function createPhoneGradeARunner({
   };
 
   const registrations = boundaries.map((boundary) => (
-    orchestrator.registerRunCapability(
+    registerPhoneCompositeRunCapability(
+      orchestrator,
       phoneGradeARunForBoundary(boundary.id),
       `grade-a-${boundary.id}`,
-      {
-        position: boundary.position,
-        canStart: () => true,
-        start: (direction, session) => begin(boundary, direction, session)
-      }
+      boundary.position,
+      () => true,
+      (direction, session) => begin(boundary, direction, session),
+      () => false
     )
- ));
+));
 
   return {
     dispose() {

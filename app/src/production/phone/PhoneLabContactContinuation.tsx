@@ -25,6 +25,11 @@ import {
   usePhoneStorySnapshot
 } from './PhoneStoryOrchestratorContext';
 import {
+  registerPhoneRuntimeSurface,
+  selectPhoneCinematicSnapshot,
+  syncPhoneRuntimeDiagnostics
+} from './phone-story-runtime';
+import {
   acquirePhoneDocumentEndpointAlignment
 } from './phone-document-endpoint-alignment';
 import {
@@ -38,7 +43,6 @@ import {
 } from './phone-lab-contact-runtime';
 import {
   createPhoneCompositeRunner,
-  type PhoneCompositeRunView,
   type PhoneCompositeRuntimeConfig
 } from './phone-composite-runner';
 import type {
@@ -107,6 +111,18 @@ export function PhoneLabContactContinuation({
 }: PhoneLabContactContinuationProps) {
   const orchestrator = usePhoneStoryOrchestrator();
   const storySnapshot = usePhoneStorySnapshot();
+  const [
+    semanticScene,
+    ,
+    ,
+    ,
+    ,
+    ,
+    cinematicRun,
+    cinematicDirection,
+    cinematicLegIndex,
+    cinematicPhase
+  ] = selectPhoneCinematicSnapshot(storySnapshot);
   const initialScene: ContinuationScene = entryScene
     ?? (fromLabBoundary ? 'lab' : 'ph-animation');
   const [focus, setFocus] = useState<Group67AdapterFocus>(
@@ -114,11 +130,11 @@ export function PhoneLabContactContinuation({
   );
   const adapters = usePhoneGroup67Adapters(focus);
   const currentScene: ContinuationScene = (
-    storySnapshot.projection.semanticScene === 'lab'
+    semanticScene === 'lab'
     || (group67PhoneSceneIds as readonly string[]).includes(
-      storySnapshot.projection.semanticScene
+      semanticScene
     )
-  ) ? storySnapshot.projection.semanticScene as ContinuationScene : initialScene;
+  ) ? semanticScene as ContinuationScene : initialScene;
   const [stageScene, setStageScene] = useState<VisualScene | null>(null);
   const [prewarmScene, setPrewarmScene] = useState<VisualScene | null>(null);
   const [, setAdapterRevision] = useState(0);
@@ -143,14 +159,13 @@ export function PhoneLabContactContinuation({
   const phEducationRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const educationCraneRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const craneContactRef = useRef<PhoneTransitionAdapterHandle | null>(null);
-  const activeRunRef = useRef<PhoneCompositeRunView<VisualScene> | null>(null);
   const mediaEventRef = useRef<(event: Event) => void>(() => undefined);
   labBoundaryRef.current = labBoundary;
   const publishAdapter = useCallback(() => {
     setAdapterRevision((revision) => revision + 1);
     // Lazy roots only report readiness; stable ownership is recommitted by the
     // single Orchestrator through its registered scene adapter.
-    orchestrator.syncDiagnostics();
+    syncPhoneRuntimeDiagnostics(orchestrator);
   }, [orchestrator]);
   const bindCapability = usePhoneCapabilityBinding(
     capabilities,
@@ -208,6 +223,34 @@ export function PhoneLabContactContinuation({
     setFocus(currentScene);
   }, [currentScene]);
 
+  /*
+   * The shared composite executor no longer publishes a second active-run
+   * view. Keep the existing Group 67 lazy/stage cache synchronized from the
+   * route authority until its dedicated Task 7 presentation migration lands.
+   */
+  useEffect(() => {
+    const visual: VisualScene | null = cinematicRun === 'lab-education'
+      ? 'ph-animation'
+      : cinematicRun === 'education-contact' ? 'crane-animation' : null;
+    if (!visual || cinematicDirection === null) return;
+    setFocus(phoneGroup67RunSource(visual, cinematicDirection));
+    if (
+      cinematicLegIndex === 1
+      && cinematicPhase === 'animating'
+    ) {
+      setStageScene(visual);
+      setPrewarmScene(null);
+      return;
+    }
+    setStageScene(null);
+    setPrewarmScene(visual);
+  }, [
+    cinematicDirection,
+    cinematicLegIndex,
+    cinematicPhase,
+    cinematicRun
+  ]);
+
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -246,22 +289,6 @@ export function PhoneLabContactContinuation({
       };
     };
 
-    const setRootRunState = (
-      run: PhoneCompositeRunView<VisualScene> | null,
-      retry = false
-    ) => {
-      root.dataset.phoneGroup67Run = run
-        ? `${run.scene}:${run.direction === 1 ? 'forward' : 'reverse'}`
-        : 'idle';
-      root.dataset.phoneGroup67StageActive = semanticBoolean(Boolean(run));
-      if (import.meta.env.DEV) {
-        root.dataset.phoneGroup67Step = run
-          ? `${run.scene}:${run.step}`
-          : 'idle';
-        if (run || !retry) delete root.dataset.phoneGroup67MediaRetry;
-      }
-    };
-
     const boundaryPosition = (
       scene: VisualScene,
       direction: PhoneTransitionDirection
@@ -293,32 +320,14 @@ export function PhoneLabContactContinuation({
       config: configFor,
       directConfig: directConfigFor,
       position: boundaryPosition,
-      onRunState(run, retry) {
-        activeRunRef.current = run;
-        setRootRunState(run, retry);
-        if (retry && import.meta.env.DEV) {
-          root.dataset.phoneGroup67MediaRetry = 'composite';
-        }
-      },
-      onRunBegin(run) {
-        const source = phoneGroup67RunSource(run.scene, run.direction);
-        setFocus(source);
-        setPrewarmScene(run.scene);
-      },
-      onMediaActive(run) {
-        const source = phoneGroup67RunSource(run.scene, run.direction);
-        setStageScene(run.scene);
-        setPrewarmScene(null);
-        setFocus(source);
-      },
-      startMedia({ run, config, animate }) {
-        if (run.direction === 1) {
+      startMedia({ scene, identity, config, animate }) {
+        if (identity.direction === 1) {
           config.media.enter?.();
           config.visual.enter?.();
           return;
         }
         config.media.reverse?.();
-        if (run.scene === 'ph-animation') {
+        if (scene === 'ph-animation') {
           animate(
             1,
             PHONE_PH_EDUCATION_ANIMATION_STOP,
@@ -329,52 +338,52 @@ export function PhoneLabContactContinuation({
           config.visual.reverse?.();
         }
       },
-      acquireReverseEntry(_run, config) {
+      acquireReverseEntry(identity, config) {
         const priorRoot = config.prior.root();
         return priorRoot
-          ? acquirePhoneDocumentEndpointAlignment(priorRoot, _run.session)
+          ? acquirePhoneDocumentEndpointAlignment(priorRoot, identity)
           : undefined;
       }
     });
 
     const surfaceLeases = (
       ['lab', 'education', 'contact'] as const
-    ).map((scene) => orchestrator.registerSurface({
-        id: `native:${scene}`,
-        scene,
-        kind: 'native',
-        root: () => (scene === 'lab'
-          ? labBoundaryRef.current?.adapter
-          : scene === 'education'
-            ? educationRef.current
-            : contactRef.current)?.root() ?? null,
-        coverageRoot: () => (scene === 'lab'
-          ? labBoundaryRef.current?.adapter
-          : scene === 'education'
-            ? educationRef.current
-            : contactRef.current)?.root() ?? null,
-        presented: () => true
-    }));
+    ).map((scene) => registerPhoneRuntimeSurface(
+      orchestrator,
+      `native:${scene}`,
+      scene,
+      'native',
+      () => (scene === 'lab'
+        ? labBoundaryRef.current?.adapter
+        : scene === 'education'
+          ? educationRef.current
+          : contactRef.current)?.root() ?? null,
+      () => (scene === 'lab'
+        ? labBoundaryRef.current?.adapter
+        : scene === 'education'
+          ? educationRef.current
+          : contactRef.current)?.root() ?? null,
+      () => true
+    ));
 
     mediaEventRef.current = (event: Event) => {
       const detail = (
         event as CustomEvent<PhoneLabContactAutoplayEventDetail>
       ).detail;
-      const run = activeRunRef.current;
+      const identity = detail
+        ? runner.execution(detail.scene)
+        : null;
       if (
         !detail
-        || !run
-        || run.step !== 'media'
-        || run.scene !== detail.scene
-        || run.direction !== detail.direction
-        || !run.session.valid()
+        || !identity
+        || identity.direction !== detail.direction
       ) return;
       if (detail.phase === 'playing') {
-        runner.heartbeat(run.scene, run.direction);
+        runner.heartbeat(detail.scene, identity);
         return;
       }
       if (detail.phase === 'failed') {
-        runner.failMedia(run.scene);
+        runner.failMedia(detail.scene, identity);
         return;
       }
       if (
@@ -383,10 +392,10 @@ export function PhoneLabContactContinuation({
         && Number.isFinite(detail.progress)
       ) {
         const progress = clamp(detail.progress);
-        const canonical = run.scene === 'ph-animation'
+        const canonical = detail.scene === 'ph-animation'
           ? progress * PHONE_PH_EDUCATION_ANIMATION_STOP
           : progress;
-        runner.progressMedia(run.scene, run.direction, canonical);
+        runner.progressMedia(detail.scene, identity, canonical);
         if (import.meta.env.DEV) {
           root.dataset.phoneGroup67Progress =
             `${detail.scene}:${detail.direction}:${canonical.toFixed(4)}`;
@@ -394,18 +403,18 @@ export function PhoneLabContactContinuation({
         return;
       }
       if (detail.phase !== 'complete') return;
-      if (run.direction === 1 && run.scene === 'ph-animation') {
+      if (identity.direction === 1 && detail.scene === 'ph-animation') {
         runner.animateMedia(
-          run.scene,
-          run.direction,
+          detail.scene,
+          identity,
           PHONE_PH_EDUCATION_ANIMATION_STOP,
           1,
           INTRA_CHAPTER_DISSOLVE_MS,
-          () => runner.completeMedia(run.scene, run.direction)
+          () => runner.completeMedia(detail.scene, identity)
         );
         return;
       }
-      runner.completeMedia(run.scene, run.direction);
+      runner.completeMedia(detail.scene, identity);
     };
 
     const onMediaEvent = (event: Event) => mediaEventRef.current(event);

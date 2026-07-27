@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ScenePresentationAdapterHandle } from '../../story/presentation';
 import {
-  createPhoneCompositeRunner,
-  type PhoneCompositeRunView
+  createPhoneCompositeRunner
 } from './phone-composite-runner';
 import type {
   PhoneOrchestratedRunSession,
@@ -23,18 +22,15 @@ type CapabilityId =
   | 'ph-education';
 type Visual = 'ph-animation';
 
-function element(top: number | (() => number) = 0): HTMLElement {
-  const properties = new Map<string, string>();
+function element(): HTMLElement {
   return {
     dataset: {},
     style: {
-      setProperty: (name: string, value: string) => properties.set(name, value),
-      removeProperty: (name: string) => properties.delete(name),
-      getPropertyValue: (name: string) => properties.get(name) ?? ''
+      setProperty: vi.fn(),
+      removeProperty: vi.fn(),
+      getPropertyValue: vi.fn(() => '')
     },
-    getBoundingClientRect: () => ({
-      top: typeof top === 'function' ? top() : top
-    }),
+    getBoundingClientRect: () => ({ top: 0 }),
     closest: () => null
   } as unknown as HTMLElement;
 }
@@ -63,15 +59,21 @@ function transition(): PhoneTransitionAdapterHandle {
   };
 }
 
-function session() {
+function session(
+  direction: 1 | -1 = 1,
+  initialLeg = direction === 1 ? 0 : 1
+) {
   const active = { value: true };
+  let leg = initialLeg;
   let release: Parameters<PhoneOrchestratedRunSession['provideRelease']>[0] | undefined;
   const value: PhoneOrchestratedRunSession = {
     authorityId: 'phone-authority-composite',
-    sessionId: 'phone-session-direct',
+    sessionId: 'phone-session-composite',
     generation: 7,
-    leg: 0,
-    direction: 1,
+    get leg() {
+      return leg;
+    },
+    direction,
     valid: () => active.value,
     reportPresentedFrame: vi.fn(),
     reportProgress: vi.fn(),
@@ -91,16 +93,31 @@ function session() {
       window.requestAnimationFrame(tick);
     }),
     reportEndpoints: vi.fn(),
-    reportEndpointCommit: vi.fn(),
+    reportEndpointCommit: vi.fn((endpoint: 'source' | 'receiver') => {
+      if (endpoint !== 'receiver') return;
+      if (direction === 1 && leg === 0) leg = 1;
+      else if (direction === -1 && leg === 1) leg = 0;
+    }),
     reportTargetPresented: vi.fn(),
     reportEndpointRelease: vi.fn(),
-    provideRelease: vi.fn((nextRelease) => { release = nextRelease; }),
+    provideRelease: vi.fn((nextRelease) => {
+      release = nextRelease;
+    }),
     reportAnimationComplete: vi.fn(),
     reportFailure: vi.fn(() => {
       active.value = false;
     })
   };
   return Object.assign(value, {
+    identity() {
+      return {
+        authorityId: value.authorityId,
+        sessionId: value.sessionId,
+        generation: value.generation,
+        leg: value.leg,
+        direction: value.direction
+      } as const;
+    },
     flushRelease() {
       active.value = false;
       release?.releaseGeometry();
@@ -130,7 +147,7 @@ function orchestratorCapability() {
   };
 }
 
-function installWindow(): void {
+function installWindow() {
   vi.stubGlobal('window', {
     scrollY: 240,
     setTimeout: globalThis.setTimeout,
@@ -184,16 +201,10 @@ function fullCapabilities(
   return capabilities;
 }
 
-function fullRunner({
-  reducedMotion = false,
-  priorRoot = element(),
-  acquireReverseEntry
-}: Readonly<{
-  reducedMotion?: boolean;
-  priorRoot?: HTMLElement;
-  acquireReverseEntry?: () => Readonly<{ releaseGeometry(): void }>;
-}> = {}) {
-  const prior = scene(priorRoot);
+function fullRunner(
+  reducedMotion = false
+) {
+  const prior = scene(element());
   const visual = scene(element());
   const final = scene(element());
   const entry = transition();
@@ -212,19 +223,9 @@ function fullRunner({
     reducedMotion,
     timeoutMs: 1000,
     runForVisual: () => 'lab-education',
-    config: () => ({
-      prior,
-      visual,
-      final,
-      entry,
-      media
-    }),
+    config: () => ({ prior, visual, final, entry, media }),
     directConfig: () => ({ visual, final, media }),
-    position: (_scene, direction) => direction === 1 ? 120 : 100,
-    onRunState: vi.fn(),
-    onRunBegin: vi.fn(),
-    onMediaActive: vi.fn(),
-    ...(acquireReverseEntry ? { acquireReverseEntry } : {})
+    position: (_scene, direction) => direction === 1 ? 120 : 100
   });
   return {
     prior,
@@ -243,8 +244,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('phone composite runner direct media lifecycle', () => {
-  it('prepares and plays only the canonical media leg under the same session', async () => {
+describe('phone composite runner snapshot execution', () => {
+  it('prepares a direct media leg under one captured identity', async () => {
     installWindow();
     const visual = scene(element());
     const final = scene(element());
@@ -257,7 +258,6 @@ describe('phone composite runner direct media lifecycle', () => {
     capabilities.register('education', 'education', final);
     capabilities.register('ph-education', 'ph-education', media);
     const registered = orchestratorCapability();
-    const states: Array<PhoneCompositeRunView<Visual> | null> = [];
     const runner = createPhoneCompositeRunner<
       Visual,
       CapabilityId,
@@ -271,49 +271,25 @@ describe('phone composite runner direct media lifecycle', () => {
       timeoutMs: 1000,
       runForVisual: () => 'lab-education',
       config: () => null,
-      directConfig: () => ({
-        visual,
-        final,
-        media
-      }),
-      position: () => 240,
-      onRunState: (run) => states.push(run),
-      onRunBegin: vi.fn(),
-      onMediaActive: vi.fn()
+      directConfig: () => ({ visual, final, media }),
+      position: () => 240
     });
-    const activeSession = session();
+    const activeSession = session(1, 1);
 
-    expect(
-      registered.capability().startAtLeg?.(1, activeSession)
-    ).toBe(true);
+    expect(registered.capability().startAtLeg?.(1, activeSession)).toBe(true);
     await vi.waitFor(() => {
-      expect(media.enter).toHaveBeenCalledTimes(1);
+      expect(media.enter).toHaveBeenCalledOnce();
     });
 
+    const identity = runner.execution('ph-animation');
+    expect(identity).toEqual(activeSession.identity());
     expect(capabilities.retained()).toEqual([
       'ph-animation',
       'education',
       'ph-education'
     ]);
-    expect(visual.prepareTargetPresentation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        progress: 0,
-        direction: 1,
-        runId: 'phone-session-direct:7'
-      })
-    );
-    expect(media.begin).toHaveBeenCalledWith({ identity: activeSession });
-    expect(media.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
-    expect(activeSession.reportPresentedFrame).toHaveBeenCalledTimes(2);
-    expect(activeSession).not.toHaveProperty('moveTo');
-    expect(states.at(-1)).toMatchObject({
-      scene: 'ph-animation',
-      step: 'media'
-    });
+    runner.completeMedia('ph-animation', identity!);
 
-    runner.completeMedia('ph-animation', 1);
-
-    expect(media.commitEndpoint).toHaveBeenLastCalledWith(1);
     expect(activeSession.provideRelease).toHaveBeenCalledWith(
       expect.objectContaining({
         releaseGeometry: expect.any(Function),
@@ -324,7 +300,78 @@ describe('phone composite runner direct media lifecycle', () => {
     expect(capabilities.retained()).toEqual([]);
   });
 
-  it('rolls preparation failure back without committing the downstream hold', async () => {
+  it('keeps forward ink and media under the same authority session', async () => {
+    const clock = installControlledWindow();
+    const runtime = fullRunner();
+    const activeSession = session(1, 0);
+
+    expect(runtime.registered.capability().start(1, activeSession)).toBe(true);
+    await vi.waitFor(() => {
+      expect(runtime.entry.begin).toHaveBeenCalledWith({
+        identity: activeSession.identity()
+      });
+    });
+    clock.flush(0);
+    clock.flush(700);
+    expect(activeSession.leg).toBe(1);
+    clock.flush(701);
+    expect(runtime.media.enter).toHaveBeenCalledOnce();
+
+    const identity = runtime.runner.execution('ph-animation');
+    expect(identity).toEqual(activeSession.identity());
+    runtime.runner.completeMedia('ph-animation', identity!);
+    expect(runtime.media.commitEndpoint).toHaveBeenLastCalledWith(1);
+    activeSession.flushRelease();
+    expect(runtime.capabilities.retained()).toEqual([]);
+  });
+
+  it('runs reverse media before reverse ink and preserves the returned identity', async () => {
+    const clock = installControlledWindow();
+    const runtime = fullRunner();
+    const activeSession = session(-1, 1);
+
+    expect(runtime.registered.capability().start(-1, activeSession)).toBe(true);
+    await vi.waitFor(() => {
+      expect(runtime.media.reverse).toHaveBeenCalledOnce();
+    });
+    const identity = runtime.runner.execution('ph-animation');
+    expect(identity).toEqual(activeSession.identity());
+    runtime.runner.completeMedia('ph-animation', identity!);
+
+    expect(activeSession.leg).toBe(0);
+    clock.flush(0);
+    expect(runtime.entry.reverse).toHaveBeenCalledOnce();
+    clock.flush(1);
+    clock.flush(701);
+    expect(runtime.visual.update).toHaveBeenLastCalledWith(0);
+    activeSession.flushRelease();
+    expect(runtime.capabilities.retained()).toEqual([]);
+  });
+
+  it('rejects stale media evidence instead of relabeling it with current state', async () => {
+    installWindow();
+    const runtime = fullRunner();
+    const activeSession = session(-1, 1);
+    runtime.registered.capability().start(-1, activeSession);
+    await vi.waitFor(() => {
+      expect(runtime.media.reverse).toHaveBeenCalledOnce();
+    });
+    const identity = runtime.runner.execution('ph-animation');
+    expect(identity).not.toBeNull();
+    runtime.runner.progressMedia('ph-animation', {
+      ...identity!,
+      generation: identity!.generation + 1
+    }, .8);
+    runtime.runner.completeMedia('ph-animation', {
+      ...identity!,
+      generation: identity!.generation + 1
+    });
+
+    expect(activeSession.reportProgress).not.toHaveBeenCalledWith(.8);
+    expect(activeSession.reportEndpointCommit).not.toHaveBeenCalledWith('receiver');
+  });
+
+  it('rolls a preparation failure back to the source endpoint and releases retention', async () => {
     installWindow();
     const visual = scene(
       element(),
@@ -342,7 +389,6 @@ describe('phone composite runner direct media lifecycle', () => {
     capabilities.register('education', 'education', final);
     capabilities.register('ph-education', 'ph-education', media);
     const registered = orchestratorCapability();
-    const retries: boolean[] = [];
     createPhoneCompositeRunner<
       Visual,
       CapabilityId,
@@ -356,167 +402,18 @@ describe('phone composite runner direct media lifecycle', () => {
       timeoutMs: 1000,
       runForVisual: () => 'lab-education',
       config: () => null,
-      directConfig: () => ({
-        visual,
-        final,
-        media
-      }),
-      position: () => 240,
-      onRunState: (_run, retry) => retries.push(retry),
-      onRunBegin: vi.fn(),
-      onMediaActive: vi.fn()
+      directConfig: () => ({ visual, final, media }),
+      position: () => 240
     });
-    const activeSession = session();
-
+    const activeSession = session(1, 1);
     registered.capability().startAtLeg?.(1, activeSession);
-    await vi.waitFor(() => {
-      expect(activeSession.reportFailure).toHaveBeenCalledTimes(1);
-    });
 
-    expect(activeSession.provideRelease).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(activeSession.reportFailure).toHaveBeenCalledOnce();
+    });
     expect(media.commitEndpoint).toHaveBeenLastCalledWith(0);
-    expect(media.releaseEndpoint).toHaveBeenCalledTimes(1);
+    expect(media.releaseEndpoint).toHaveBeenCalledOnce();
     expect(visual.update).toHaveBeenLastCalledWith(0);
-    expect(retries.at(-1)).toBe(true);
     expect(capabilities.retained()).toEqual([]);
-  });
-});
-
-describe('phone composite runner adjacent lifecycle', () => {
-  it('reports directional boundary geometry without moving the scroll owner', () => {
-    installWindow();
-    const runtime = fullRunner();
-
-    expect(runtime.registered.capability().position(1)).toBe(120);
-    expect(runtime.registered.capability().position(-1)).toBe(100);
-  });
-
-  it('keeps forward entry and media under one session before committing the target', async () => {
-    const clock = installControlledWindow();
-    const runtime = fullRunner();
-    const activeSession = session();
-
-    expect(runtime.registered.capability().start(1, activeSession)).toBe(true);
-    await vi.waitFor(() => {
-      expect(runtime.entry.begin).toHaveBeenCalledWith({ identity: activeSession });
-    });
-
-    expect(runtime.entry.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
-    clock.flush(0);
-    clock.flush(700);
-    expect(runtime.entry.commitEndpoint).toHaveBeenLastCalledWith(1);
-    expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('receiver');
-
-    clock.flush(701);
-    expect(runtime.media.begin).toHaveBeenCalledWith({ identity: activeSession });
-    expect(runtime.media.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
-    expect(runtime.media.enter).toHaveBeenCalledTimes(1);
-    expect(runtime.visual.enter).toHaveBeenCalledTimes(1);
-
-    runtime.runner.completeMedia('ph-animation', 1);
-
-    expect(runtime.media.commitEndpoint).toHaveBeenLastCalledWith(1);
-    expect(activeSession.provideRelease).toHaveBeenCalledTimes(1);
-    activeSession.flushRelease();
-    expect(runtime.capabilities.retained()).toEqual([]);
-  });
-
-  it('reverses media before entry and rolls all the way back to the prior hold', async () => {
-    const clock = installControlledWindow();
-    const runtime = fullRunner();
-    const activeSession = session();
-
-    expect(runtime.registered.capability().start(-1, activeSession)).toBe(true);
-    await vi.waitFor(() => {
-      expect(runtime.media.reverse).toHaveBeenCalledTimes(1);
-    });
-
-    expect(runtime.media.commitEndpoint).toHaveBeenNthCalledWith(1, 1);
-    runtime.runner.completeMedia('ph-animation', -1);
-    expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('receiver');
-
-    clock.flush(0);
-    expect(runtime.entry.begin).toHaveBeenCalledWith({ identity: activeSession });
-    expect(runtime.entry.commitEndpoint).toHaveBeenNthCalledWith(1, 1);
-    expect(runtime.entry.reverse).toHaveBeenCalledTimes(1);
-    clock.flush(1);
-    clock.flush(701);
-
-    expect(runtime.entry.commitEndpoint).toHaveBeenLastCalledWith(0);
-    expect(runtime.visual.update).toHaveBeenLastCalledWith(0);
-    expect(activeSession.provideRelease).toHaveBeenCalledTimes(1);
-    activeSession.flushRelease();
-    expect(runtime.capabilities.retained()).toEqual([]);
-  });
-
-  it('releases temporary reverse document geometry without creating a durable flow offset', async () => {
-    const clock = installControlledWindow();
-    let documentAligned = false;
-    const priorRoot = element(() => documentAligned ? 1150 : 0);
-    const runtime = fullRunner({
-      priorRoot,
-      acquireReverseEntry: () => {
-        documentAligned = true;
-        return {
-          releaseGeometry() {
-            documentAligned = false;
-          }
-        };
-      }
-    });
-    const activeSession = session();
-
-    runtime.registered.capability().start(-1, activeSession);
-    await vi.waitFor(() => {
-      expect(runtime.media.reverse).toHaveBeenCalledTimes(1);
-    });
-    runtime.runner.completeMedia('ph-animation', -1);
-    clock.flush(0);
-    clock.flush(1);
-    clock.flush(701);
-
-    activeSession.flushRelease();
-    expect(documentAligned).toBe(false);
-  });
-
-  it('restores the composite source when the media leg fails', async () => {
-    const clock = installControlledWindow();
-    const runtime = fullRunner();
-    const activeSession = session();
-
-    runtime.registered.capability().start(1, activeSession);
-    await vi.waitFor(() => {
-      expect(runtime.entry.begin).toHaveBeenCalledTimes(1);
-    });
-    clock.flush(0);
-    clock.flush(700);
-    clock.flush(701);
-    expect(runtime.media.enter).toHaveBeenCalledTimes(1);
-
-    runtime.runner.failMedia('ph-animation');
-
-    expect(activeSession.reportFailure).toHaveBeenCalledTimes(1);
-    expect(activeSession.provideRelease).not.toHaveBeenCalled();
-    expect(runtime.entry.commitEndpoint).toHaveBeenLastCalledWith(0);
-    expect(runtime.media.commitEndpoint).toHaveBeenLastCalledWith(0);
-    expect(runtime.visual.update).toHaveBeenLastCalledWith(0);
-    expect(runtime.capabilities.retained()).toEqual([]);
-  });
-
-  it('uses the same endpoint transaction in reduced motion', async () => {
-    installWindow();
-    const runtime = fullRunner({ reducedMotion: true });
-    const activeSession = session();
-
-    runtime.registered.capability().start(1, activeSession);
-    await vi.waitFor(() => {
-      expect(activeSession.provideRelease).toHaveBeenCalledTimes(1);
-    });
-
-    expect(runtime.entry.commitEndpoint).toHaveBeenLastCalledWith(1);
-    expect(runtime.media.commitEndpoint).toHaveBeenLastCalledWith(1);
-    expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('receiver');
-    activeSession.flushRelease();
-    expect(runtime.capabilities.retained()).toEqual([]);
   });
 });

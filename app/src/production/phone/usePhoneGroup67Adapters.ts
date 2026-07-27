@@ -49,8 +49,8 @@ export function group67AdapterPlanForFocus(
   }
   const next = group67NextAdapterByScene[focus];
   return {
-    scenes: next ? [focus, next.scene] : [focus],
-    transitions: next ? [next.transition] : []
+    scenes: next ? [focus, next[0]] : [focus],
+    transitions: next ? [next[1]] : []
   };
 }
 

@@ -12,18 +12,19 @@ import {
   phoneLoaderCompletedInDocument
 } from './phone-loader-lifecycle';
 import {
-  phoneStoryEntryPlanFromHash,
-  type PhoneContinuationEntryPlan,
-  type PhoneStoryEntryPlan
+  phoneContinuationGroupForScene,
+  phoneStoryEntrySceneFromHash,
+  type PhoneContinuationEntryTuple
 } from './phone-entry-plan';
 import type { PhoneEdgeScene } from './phone-edge-surface';
 import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
-import { phoneEntryPlan } from './phone-story-runs';
+import { phoneStablePresentationTuple } from './phone-story-presentation';
+import { requestPhoneRuntimeDirectEntry } from './phone-story-runtime';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
 
 export type PhoneStoryEntryState = Readonly<{
-  directEntryPlan: PhoneStoryEntryPlan | undefined;
-  continuationEntryPlan: PhoneContinuationEntryPlan | undefined;
+  entryScene: SceneId | null;
+  continuationEntry: PhoneContinuationEntryTuple | undefined;
   directStoryEntry: boolean;
   directContinuationEntry: boolean;
   loaderHidden: boolean;
@@ -34,74 +35,66 @@ export type PhoneStoryEntryState = Readonly<{
 }>;
 
 export function usePhoneStoryEntry(): PhoneStoryEntryState {
-  const [directEntryPlan] = useState(() => (
-    phoneStoryEntryPlanFromHash(
-      typeof window === 'undefined' ? '' : window.location.hash
-    )
+  const [entry] = useState(() => (
+    (() => {
+      const hash = typeof window === 'undefined' ? '' : window.location.hash;
+      const scene = phoneStoryEntrySceneFromHash(hash);
+      return [
+        scene,
+        scene ? phoneContinuationGroupForScene(scene) : null
+      ] as const;
+    })()
   ));
-  const continuationEntryPlan = directEntryPlan?.continuation;
-  const directStoryEntry = directEntryPlan !== undefined;
-  const directContinuationEntry = continuationEntryPlan !== undefined;
+  const [entryScene, continuationGroup] = entry;
+  const [entryCheckpoint, entryEdgeScene] = entryScene
+    ? phoneStablePresentationTuple(entryScene)
+    : [null, null] as const;
+  const continuationEntry: PhoneContinuationEntryTuple | undefined =
+    continuationGroup === null ? undefined
+      : [continuationGroup, entryScene!] as PhoneContinuationEntryTuple;
+  const directStoryEntry = entryScene !== null;
+  const directContinuationEntry = continuationEntry !== undefined;
   const [loaderHidden, setLoaderHidden] = useState(
     () => directStoryEntry || phoneLoaderCompletedInDocument()
   );
   return {
-    directEntryPlan,
-    continuationEntryPlan,
+    entryScene,
+    continuationEntry,
     directStoryEntry,
     directContinuationEntry,
     loaderHidden,
     setLoaderHidden,
-    initialScene: directEntryPlan?.scene ?? 'hero',
-    initialCheckpoint: directEntryPlan?.checkpoint
+    initialScene: entryScene ?? 'hero',
+    initialCheckpoint: entryCheckpoint
       ?? (loaderHidden ? 'hero-entered' : 'loader'),
-    initialEdgeScene: directEntryPlan?.edgeScene ?? 'hero'
+    initialEdgeScene: entryEdgeScene ?? 'hero'
   };
 }
 
 export function usePhoneStoryEntryLifecycle(
-  entry: PhoneStoryEntryState,
+  entryScene: SceneId | null,
+  loaderHidden: boolean,
   orchestrator: PhoneStoryRuntimePort
 ): void {
-  const {
-    directEntryPlan,
-    directStoryEntry,
-    loaderHidden
-  } = entry;
-
   // This runs before the factory's passive attach effect. Direct entry therefore
   // enters the immutable transaction state before the route can project a
   // target stable hold, while the factory remains the sole listener owner.
   useLayoutEffect(() => {
-    if (!directEntryPlan) return;
-    const snapshot = orchestrator.getSnapshot();
-    const plan = phoneEntryPlan(directEntryPlan.scene);
-    const fallbackScene = snapshot.status === 'stable'
-      ? snapshot.scene
-      : snapshot.projection.semanticScene;
-    orchestrator.dispatch({
-      type: 'DIRECT_ENTRY_REQUESTED',
-      authorityId: snapshot.authorityId,
-      target: directEntryPlan.scene,
-      source: 'initial',
-      fallbackScene,
-      cinematic: plan.kind === 'cinematic'
-        ? { run: plan.run, direction: plan.direction, legIndex: plan.legIndex }
-        : null
-    });
-  }, [directEntryPlan, orchestrator]);
+    if (!entryScene) return;
+    requestPhoneRuntimeDirectEntry(orchestrator, entryScene, 'initial');
+  }, [entryScene, orchestrator]);
 
   useEffect(() => {
-    if (directStoryEntry) return;
+    if (entryScene) return;
     return attachPhoneLoaderVisibilityLifecycle();
-  }, [directStoryEntry]);
+  }, [entryScene]);
 
   useEffect(() => {
     const documentElement = document.documentElement;
     documentElement.dataset.portraitSpikeLoader = loaderHidden
       ? 'ready'
       : 'active';
-    if (directEntryPlan) {
+    if (entryScene) {
       document.getElementById('story-loader-static')?.remove();
     } else {
       if (loaderHidden) {
@@ -124,7 +117,7 @@ export function usePhoneStoryEntryLifecycle(
       delete documentElement.dataset.portraitSpikeLoader;
     };
   }, [
-    directEntryPlan,
+    entryScene,
     loaderHidden,
     orchestrator
   ]);

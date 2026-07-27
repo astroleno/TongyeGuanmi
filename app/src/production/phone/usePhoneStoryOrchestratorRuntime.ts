@@ -7,27 +7,23 @@ import {
 import type { SceneId } from '../../story/types';
 import type { PhoneRouteScope } from './phone-route-scope';
 import {
-  createPhoneStoryRuntime,
+  createPhoneStoryRuntimeForReact,
   type PhoneStoryAuthority
 } from './phone-story-runtime';
 
 /** Thin React lifetime adapter around the single route-local runtime factory. */
-export function usePhoneStoryOrchestratorRuntime({
-  scope,
-  initialScene,
-  rootRef
-}: Readonly<{
-  scope: PhoneRouteScope;
-  initialScene: SceneId;
-  rootRef: RefObject<HTMLElement | null>;
-}>): PhoneStoryAuthority {
-  const [authority] = useState(() => createPhoneStoryRuntime({
+export function usePhoneStoryOrchestratorRuntime(
+  scope: PhoneRouteScope,
+  initialScene: SceneId,
+  rootRef: RefObject<HTMLElement | null>
+): PhoneStoryAuthority {
+  const [authority] = useState(() => createPhoneStoryRuntimeForReact(
     scope,
     initialScene,
-    root: () => rootRef.current,
-    scrollY: () => window.scrollY,
-    scrollTo: (y) => window.scrollTo(0, y)
-  }));
+    () => rootRef.current,
+    () => window.scrollY,
+    (y) => window.scrollTo(0, y)
+  ));
   const lifecycleEpoch = useRef(0);
 
   useEffect(() => {

@@ -34,8 +34,16 @@ describe('PhoneBrandLabStory', () => {
     expect(source).not.toContain('const [stageScene, setStageScene]');
     expect(source).not.toContain('usePhoneEdgeSurface');
     expect(source).not.toContain('onPresentation: publishPresentation');
-    expect(source).toContain("scope: 'brand-lab'");
+    expect(source).toContain("usePhoneStoryOrchestratorRuntime(\n    'brand-lab'");
     expect(source).toContain('usePhoneStoryNavigationRuntime(\n    authority.port');
     expect(source).not.toContain("window.addEventListener('hashchange'");
+  });
+
+  it('[Task 6] sends QA direct entry through the route authority reducer', () => {
+    expect(source).toContain('requestPhoneRuntimeDirectEntry');
+    expect(source).toContain(
+      "requestPhoneRuntimeDirectEntry(authority.port, initialScene, 'initial')"
+    );
+    expect(source).not.toContain('entryScene={initialScene}');
   });
 });

@@ -40,10 +40,10 @@ describe('Unit 5 phone adapter group', () => {
   });
 
   it('limits prewarm registration to the immediate next Unit 5 pair', () => {
-    expect(group45NextAdapterByScene.brand).toEqual({
-      scene: 'figure3-animation',
-      transition: 'brand-figure3'
-    });
+    expect(group45NextAdapterByScene.brand).toEqual([
+      'figure3-animation',
+      'brand-figure3'
+    ]);
     expect(group45NextAdapterByScene.lab).toBeUndefined();
   });
 });

@@ -11,6 +11,10 @@ const compositeRunnerSource = readFileSync(
   new URL('./phone-composite-runner.ts', import.meta.url),
   'utf8'
 );
+const runtimeSource = readFileSync(
+  new URL('./phone-story-runtime.ts', import.meta.url),
+  'utf8'
+);
 
 describe('PhoneLabContactContinuation recovery contract', () => {
   it('waits for the canonical dependency closure of each composite run', () => {
@@ -29,9 +33,8 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(compositeRunnerSource).toContain(
       'retention: options.capabilities.retain(dependencies)'
     );
-    expect(compositeRunnerSource).toContain(
-      '...definition.dependencies.transitions'
-    );
+    expect(compositeRunnerSource).toContain('phoneRuntimeRunDependencies(');
+    expect(runtimeSource).toContain('...definition.dependencies.transitions');
   });
 
   it('keeps the actual directional source rendered until the orchestrator settles', () => {
@@ -39,8 +42,8 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(phoneGroup67RunSource('ph-animation', -1)).toBe('education');
     expect(phoneGroup67RunSource('crane-animation', 1)).toBe('education');
     expect(phoneGroup67RunSource('crane-animation', -1)).toBe('contact');
-    expect(source).toContain('phoneGroup67RunSource(run.scene, run.direction)');
-    expect(source).toContain('orchestrator.registerSurface');
+    expect(source).toContain('phoneGroup67RunSource(visual, cinematicDirection)');
+    expect(source).toContain('registerPhoneRuntimeSurface(');
     expect(source).toContain('usePhoneStorySnapshot');
   });
 
@@ -48,7 +51,7 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(source).toContain(
       'const presentedStageScene = stageScene ?? prewarmScene'
     );
-    expect(source).toContain('setPrewarmScene(run.scene)');
+    expect(source).toContain('setPrewarmScene(visual)');
     expect(source).toContain(
       "active={stageScene === 'ph-animation'}"
     );
@@ -58,7 +61,7 @@ describe('PhoneLabContactContinuation recovery contract', () => {
   });
 
   it('asks the orchestrator to recommit stable roles when lazy adapters bind', () => {
-    expect(source).toContain('orchestrator.syncDiagnostics()');
+    expect(source).toContain('syncPhoneRuntimeDiagnostics(orchestrator)');
     expect(source).not.toContain('publishStableRoles(currentSceneRef.current)');
     expect(source).not.toContain('publishStableRoles(entryScene)');
   });
@@ -69,9 +72,9 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     );
     expect(compositeRunnerSource).toContain('await prepareTarget({');
     expect(source).toContain("detail.phase === 'failed'");
-    expect(source).toContain('runner.failMedia(run.scene)');
-    expect(compositeRunnerSource).toContain('rollback(run)');
-    expect(compositeRunnerSource).toContain('run.session.reportFailure(');
+    expect(source).toContain('runner.failMedia(detail.scene, identity)');
+    expect(compositeRunnerSource).toContain('rollback(resource)');
+    expect(compositeRunnerSource).toContain('resource.session[13]()');
     expect(source).toContain('setPrewarmScene(null)');
     expect(source).toContain('setStageScene(null)');
     expect(source).not.toContain("'retryable'");
@@ -81,7 +84,9 @@ describe('PhoneLabContactContinuation recovery contract', () => {
 
   it('keeps reverse document alignment leased through the commit frame', () => {
     expect(source).toContain('acquirePhoneDocumentEndpointAlignment(');
-    expect(compositeRunnerSource).toContain('run.session.provideRelease({');
+    expect(compositeRunnerSource).toContain('resource.session[12](');
+    expect(compositeRunnerSource).not.toContain('resource.session[12]({');
+    expect(runtimeSource).toContain('session.provideRelease({');
     expect(compositeRunnerSource).toContain('releaseExtra?.()');
     expect(compositeRunnerSource).not.toContain('run.session.moveTo(');
     expect(source).not.toContain('orchestrator.reportPresentation');

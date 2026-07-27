@@ -1,15 +1,80 @@
 import { describe, expect, it } from 'vitest';
 import {
-  createPhoneStoryHold,
-  reducePhoneStoryCursor,
-  startPhoneStoryRun
-} from './phone-story-cursor-test-support';
-import {
+  phoneBrandLabAdapterScene,
   phoneBrandLabCompositeFrame,
-  phoneBrandLabRunForVisual
+  phoneBrandLabRunForVisual,
+  phoneBrandLabVisualExecution
 } from './phone-brand-lab-runtime';
+import {
+  createPhoneStorySnapshot,
+  reducePhoneStorySnapshot,
+  type PhoneStorySnapshot
+} from './phone-story-state';
+import { selectPhoneCinematicSnapshot } from './phone-story-runtime';
 
-describe('canonical Brand through Lab runtime projection', () => {
+const cinematic = (snapshot: PhoneStorySnapshot) => (
+  selectPhoneCinematicSnapshot(snapshot)
+);
+
+function start(
+  scene: 'brand' | 'services',
+  run: 'brand-services' | 'services-lab',
+  direction: 1 | -1
+): PhoneStorySnapshot {
+  const snapshot = createPhoneStorySnapshot({
+    authorityId: 'phone-brand-lab-runtime',
+    scene
+  });
+  return reducePhoneStorySnapshot(snapshot, {
+    type: 'RUN_STARTED',
+    authorityId: snapshot.authorityId,
+    sessionId: 'phone-group45-session',
+    generation: 7,
+    leg: direction === 1 ? 0 : 1,
+    direction,
+    run,
+    anchorY: 0,
+    inputEpoch: 3
+  }).snapshot;
+}
+
+function identity(snapshot: PhoneStorySnapshot) {
+  if (snapshot.status !== 'transaction') throw new Error('Expected transaction');
+  return {
+    authorityId: snapshot.authorityId,
+    sessionId: snapshot.session.sessionId,
+    generation: snapshot.session.generation,
+    leg: snapshot.session.operation.legIndex,
+    direction: snapshot.session.operation.direction
+  } as const;
+}
+
+function presented(snapshot: PhoneStorySnapshot): PhoneStorySnapshot {
+  return reducePhoneStorySnapshot(snapshot, {
+    ...identity(snapshot),
+    type: 'PRESENTED_FRAME'
+  }).snapshot;
+}
+
+function progress(
+  snapshot: PhoneStorySnapshot,
+  value: number
+): PhoneStorySnapshot {
+  return reducePhoneStorySnapshot(snapshot, {
+    ...identity(snapshot),
+    type: 'PROGRESS_REPORTED',
+    progress: value
+  }).snapshot;
+}
+
+function completeLeg(snapshot: PhoneStorySnapshot): PhoneStorySnapshot {
+  return reducePhoneStorySnapshot(snapshot, {
+    ...identity(snapshot),
+    type: 'LEG_COMPLETED'
+  }).snapshot;
+}
+
+describe('canonical Brand through Lab snapshot projection', () => {
   it('maps one cinematic scene to one composite run', () => {
     expect(phoneBrandLabRunForVisual('figure3-animation')).toBe(
       'brand-services'
@@ -17,132 +82,96 @@ describe('canonical Brand through Lab runtime projection', () => {
     expect(phoneBrandLabRunForVisual('ttg-animation')).toBe('services-lab');
   });
 
-  it('derives completion from stable canonical holds', () => {
+  it('derives completion from stable canonical snapshots', () => {
+    const brand = createPhoneStorySnapshot({
+      authorityId: 'a',
+      scene: 'brand'
+    });
+    const services = createPhoneStorySnapshot({
+      authorityId: 'a',
+      scene: 'services'
+    });
+    const lab = createPhoneStorySnapshot({
+      authorityId: 'a',
+      scene: 'lab'
+    });
+    expect(
+      phoneBrandLabCompositeFrame(
+        cinematic(brand),
+        'figure3-animation'
+      ).entryProgress
+    ).toBe(0);
+    expect(
+      phoneBrandLabCompositeFrame(
+        cinematic(services),
+        'figure3-animation'
+      ).entryProgress
+    ).toBe(1);
     expect(phoneBrandLabCompositeFrame(
-      createPhoneStoryHold('brand'),
-      'figure3-animation'
-    ).entryProgress).toBe(0);
-    expect(phoneBrandLabCompositeFrame(
-      createPhoneStoryHold('services'),
-      'figure3-animation'
-    ).entryProgress).toBe(1);
-    expect(phoneBrandLabCompositeFrame(
-      createPhoneStoryHold('lab'),
+      cinematic(lab),
       'ttg-animation'
-    ).entryProgress).toBe(1);
+    ).entryProgress)
+      .toBe(1);
   });
 
-  it('keeps canonical reverse progress in the same 1 to 0 domain', () => {
-    const reverse = startPhoneStoryRun(
-      createPhoneStoryHold('services'),
-      'brand-services',
-      -1,
-      { sessionId: 'phone-session-1', generation: 1 }
+  it('projects entry ink and media from one forward snapshot session', () => {
+    const entry = progress(
+      presented(start('brand', 'brand-services', 1)),
+      .6
     );
     expect(phoneBrandLabCompositeFrame(
-      reverse,
+      cinematic(entry),
       'figure3-animation'
-    ).entryProgress).toBe(1);
-  });
-
-  it('projects entry ink and media without resetting the entry endpoint', () => {
-    const started = startPhoneStoryRun(
-      createPhoneStoryHold('brand'),
-      'brand-services',
-      1,
-      { sessionId: 'phone-session-2', generation: 2 }
-    );
-    const presented = reducePhoneStoryCursor(started, {
-      type: 'PHASE',
-      sessionId: 'phone-session-2',
-      generation: 2,
-      phase: 'presented-frame-ready'
-    });
-    const entry = reducePhoneStoryCursor(presented, {
-      type: 'PHASE',
-      sessionId: 'phone-session-2',
-      generation: 2,
-      phase: 'animating'
-    });
-    const progressedEntry = reducePhoneStoryCursor(entry, {
-      type: 'PROGRESS',
-      sessionId: 'phone-session-2',
-      generation: 2,
-      progress: .6
-    });
-    expect(phoneBrandLabCompositeFrame(
-      progressedEntry,
-      'figure3-animation'
-    )).toMatchObject({
+    )).toEqual({
       entryProgress: .6,
       mediaProgress: 0
     });
 
-    const mediaStart = reducePhoneStoryCursor(progressedEntry, {
-      type: 'ADVANCE_LEG',
-      sessionId: 'phone-session-2',
-      generation: 2
-    });
-    const media = reducePhoneStoryCursor(mediaStart, {
-      type: 'PROGRESS',
-      sessionId: 'phone-session-2',
-      generation: 2,
-      progress: .4
-    });
+    const media = progress(
+      presented(completeLeg(entry)),
+      .4
+    );
     expect(phoneBrandLabCompositeFrame(
-      media,
+      cinematic(media),
       'figure3-animation'
-    )).toMatchObject({
+    )).toEqual({
       entryProgress: 1,
       mediaProgress: .4
     });
+    expect(phoneBrandLabAdapterScene(cinematic(media))).toBe('figure3-animation');
+    expect(phoneBrandLabVisualExecution(
+      cinematic(media),
+      'figure3-animation'
+    )).toEqual(
+      identity(media)
+    );
   });
 
-  it('projects reverse media before reverse entry ink', () => {
-    const started = startPhoneStoryRun(
-      createPhoneStoryHold('services'),
-      'brand-services',
-      -1,
-      { sessionId: 'phone-session-3', generation: 3 }
+  it('projects reverse media before reverse entry ink without a legacy cursor', () => {
+    const media = progress(
+      presented(start('services', 'brand-services', -1)),
+      .4
     );
-    const presented = reducePhoneStoryCursor(started, {
-      type: 'PHASE',
-      sessionId: 'phone-session-3',
-      generation: 3,
-      phase: 'presented-frame-ready'
-    });
-    const animating = reducePhoneStoryCursor(presented, {
-      type: 'PHASE',
-      sessionId: 'phone-session-3',
-      generation: 3,
-      phase: 'animating'
-    });
-    const media = reducePhoneStoryCursor(animating, {
-      type: 'PROGRESS',
-      sessionId: 'phone-session-3',
-      generation: 3,
-      progress: .4
-    });
     expect(phoneBrandLabCompositeFrame(
-      media,
+      cinematic(media),
       'figure3-animation'
-    )).toMatchObject({
+    )).toEqual({
       entryProgress: 1,
       mediaProgress: .4
     });
 
-    const entryStart = reducePhoneStoryCursor(media, {
-      type: 'ADVANCE_LEG',
-      sessionId: 'phone-session-3',
-      generation: 3
-    });
+    const reverseEntry = completeLeg(media);
     expect(phoneBrandLabCompositeFrame(
-      entryStart,
+      cinematic(reverseEntry),
       'figure3-animation'
-    )).toMatchObject({
+    )).toEqual({
       entryProgress: 1,
       mediaProgress: 0
     });
+    expect(phoneBrandLabVisualExecution(
+      cinematic(reverseEntry),
+      'figure3-animation'
+    ))
+      .toBeNull();
   });
-
 });

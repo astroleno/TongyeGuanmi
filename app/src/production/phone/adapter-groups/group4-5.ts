@@ -5,6 +5,7 @@ import type {
 import type {
   ScenePresentationAdapterHandle
 } from '../../../story/presentation';
+import type { PhoneExecutionIdentity } from '../phone-story-state';
 import type { PhoneTransitionAdapterHandle } from '../types';
 
 /**
@@ -30,24 +31,36 @@ export type Group45PhoneSceneProps = Readonly<{
   active: boolean;
   /** Document traversal direction; time-owned visuals replay symmetrically. */
   direction?: 1 | -1;
+  /**
+   * The immutable authority identity for the currently running media leg.
+   * Visuals capture this value when they start and return it with every async
+   * callback so a retired decoder cannot report into a newer transaction.
+   */
+  execution?: PhoneExecutionIdentity | null;
   /** Decode only the immediately upcoming visual; playback still waits for entry. */
   prewarm?: boolean;
   reducedMotion: boolean;
   onReady?: () => void;
   /** Lets the shell settle the affected bridge at its declared endpoint. */
-  onMediaError?: (scene: Group45PhoneSceneId) => void;
+  onMediaError?: (
+    scene: Group45PhoneSceneId,
+    execution: PhoneExecutionIdentity
+  ) => void;
   /** Canonical media progress drives adjacent copy/transition cues. */
   onProgress?: (
     scene: Group45PhoneSceneId,
+    execution: PhoneExecutionIdentity,
     progress: number,
-    direction: 1 | -1
   ) => void;
   /**
    * A time-owned visual reports its authoritative terminal endpoint once.
    * The shell may then reveal the next native-document receiver without
    * inventing a second full-screen hold.
    */
-  onComplete?: (scene: Group45PhoneSceneId, direction: 1 | -1) => void;
+  onComplete?: (
+    scene: Group45PhoneSceneId,
+    execution: PhoneExecutionIdentity
+  ) => void;
 }>;
 
 export type Group45PhoneTransitionProps = Readonly<{
@@ -101,6 +114,11 @@ export const group45PhoneAdapterIds = [
   ...group45PhoneSceneIds,
   ...group45PhoneTransitionIds
 ] as const;
+
+export type Group45PhoneAdapterNext = readonly [
+  scene: Group45PhoneSceneId,
+  transition: Group45PhoneTransitionId
+];
 
 export type Group45PhoneAdapterRegistration = Readonly<{
   id: Group45PhoneSceneId | Group45PhoneTransitionId;
@@ -162,12 +180,12 @@ export const group45PhoneAdapterRegistrations = [
 
 export const group45NextAdapterByScene: Readonly<Partial<Record<
   Group45PhoneSceneId,
-  Readonly<{ scene: Group45PhoneSceneId; transition: Group45PhoneTransitionId }>
+  Group45PhoneAdapterNext
 >>> = {
-  brand: { scene: 'figure3-animation', transition: 'brand-figure3' },
-  'figure3-animation': { scene: 'services', transition: 'figure3-services' },
-  services: { scene: 'ttg-animation', transition: 'services-ttg' },
-  'ttg-animation': { scene: 'lab', transition: 'ttg-lab' }
+  brand: ['figure3-animation', 'brand-figure3'],
+  'figure3-animation': ['services', 'figure3-services'],
+  services: ['ttg-animation', 'services-ttg'],
+  'ttg-animation': ['lab', 'ttg-lab']
 };
 
 /**

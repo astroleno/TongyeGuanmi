@@ -31,23 +31,16 @@ export const group67PhoneAdapterIds = [
   ...group67PhoneTransitionIds
 ] as const;
 
+export type Group67PhoneAdapterNext = readonly [
+  scene: Group67PhoneSceneId,
+  transition: Group67PhoneTransitionId
+];
+
 export const group67NextAdapterByScene: Readonly<Partial<Record<
   Group67PhoneSceneId,
-  Readonly<{
-    scene: Group67PhoneSceneId;
-    transition: Group67PhoneTransitionId;
-  }>
+  Group67PhoneAdapterNext
 >>> = {
-  'ph-animation': {
-    scene: 'education',
-    transition: 'ph-education'
-  },
-  education: {
-    scene: 'crane-animation',
-    transition: 'education-crane'
-  },
-  'crane-animation': {
-    scene: 'contact',
-    transition: 'crane-contact'
-  }
+  'ph-animation': ['education', 'ph-education'],
+  education: ['crane-animation', 'education-crane'],
+  'crane-animation': ['contact', 'crane-contact']
 };

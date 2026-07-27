@@ -47,10 +47,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const motionEnabled = portraitSpikeMotionEnabled();
   const entry = usePhoneStoryEntry();
   const {
-    directEntryPlan,
+    entryScene,
     directStoryEntry,
     directContinuationEntry,
-    continuationEntryPlan,
+    continuationEntry,
     loaderHidden,
     setLoaderHidden
   } = entry;
@@ -121,11 +121,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [starMapAodAdapterRef, bindStarMapAodAdapter] =
     usePhoneAdapterHandleRef<PhoneTransitionAdapterHandle>(publishAdapterRevision);
 
-  const authority = usePhoneStoryOrchestratorRuntime({
-    scope: 'formal',
-    initialScene: entry.initialScene,
+  const authority = usePhoneStoryOrchestratorRuntime(
+    'formal',
+    entry.initialScene,
     rootRef
-  });
+  );
   const orchestrator = authority.port;
   const navigation = usePhoneStoryNavigationRuntime(orchestrator, loaderHidden);
   const activeFrontSurface = (id: 'front:hero' | 'front:pattern' | 'front:star' | 'front:aod') => (
@@ -136,7 +136,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   usePhoneViewportGeometry(rootRef, motionEnabled);
 
   useEffect(() => attachStoryMediaUnlock(rootRef.current), []);
-  usePhoneStoryEntryLifecycle(entry, orchestrator);
+  usePhoneStoryEntryLifecycle(entryScene, loaderHidden, orchestrator);
 
   const runtime = usePhoneStageRuntime({
     rootRef,
@@ -181,7 +181,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-phone-direct-entry={directContinuationEntry
         ? 'continuation'
         : directStoryEntry ? 'story' : undefined}
-      data-phone-direct-entry-scene={directEntryPlan?.scene}
+      data-phone-direct-entry-scene={entryScene ?? undefined}
       hidden={staticFallback}
     >
       <PhoneStageRail
@@ -263,7 +263,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         />
       )}
       <PhoneGroup67DirectEntry
-        plan={continuationEntryPlan}
+        plan={continuationEntry}
         reducedMotion={!motionEnabled}
         stageHost={stageHost}
       />

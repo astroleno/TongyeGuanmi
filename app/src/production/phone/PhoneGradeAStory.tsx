@@ -1,7 +1,9 @@
 import {
   useCallback,
+  lazy,
   useLayoutEffect,
   useRef,
+  Suspense,
   useState
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -25,13 +27,14 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
-import { PhoneBrandLabContinuation } from './PhoneBrandLabContinuation';
-import {
-  PhoneLabContactContinuation,
-  type PhoneLabBoundary
-} from './PhoneLabContactContinuation';
 import { PhoneFigure2Arch } from './scenes/PhoneFigure2Arch';
 import './PhoneGradeAStory.css';
+
+const PhoneStoryTailBundle = lazy(() => (
+  import('./PhoneContinuationBundle').then((module) => ({
+    default: module.PhoneStoryTailBundle
+  }))
+));
 
 const FIGURE2_PROOF_SPLIT = 0.72;
 const ACTIVE_EDGE_TOLERANCE_PX = 1;
@@ -143,7 +146,6 @@ export function PhoneGradeAStory({
   const [figure2ProofReady, setFigure2ProofReady] = useState(false);
   const [proofBrandReady, setProofBrandReady] = useState(false);
   const [brandRoot, setBrandRoot] = useState<HTMLElement | null>(null);
-  const [labBoundary, setLabBoundary] = useState<PhoneLabBoundary | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
   const proofTrackRef = useRef<HTMLDivElement | null>(null);
@@ -689,18 +691,13 @@ export function PhoneGradeAStory({
         className="phone-grade-a__proof-track"
         aria-hidden="true"
       />
-      <PhoneBrandLabContinuation
-        reducedMotion={reducedMotion}
-        stageHost={stageHost}
-        onBrandRootChange={bindBrandRoot}
-        onLabBoundaryChange={setLabBoundary}
-      />
-      <PhoneLabContactContinuation
-        reducedMotion={reducedMotion}
-        stageHost={stageHost}
-        fromLabBoundary={true}
-        labBoundary={labBoundary}
-      />
+      <Suspense fallback={null}>
+        <PhoneStoryTailBundle
+          motionReduced={reducedMotion}
+          stageHost={stageHost}
+          onBrandRootChange={bindBrandRoot}
+        />
+      </Suspense>
       {stageHost ? createPortal(surfaces, stageHost) : null}
     </div>
   );

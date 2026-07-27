@@ -405,6 +405,45 @@ describe('single phone story projector transaction', () => {
     });
   });
 
+  it('replays a cinematic direct entry after its route root becomes projectable', () => {
+    const routeRoot = Object.assign(element(), { isConnected: false });
+    let session: PhoneOrchestratedRunSession | undefined;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'ph-animation',
+      root: routeRoot,
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+    orchestrator.registerRunCapability('lab-education', 'late-root', {
+      ...capability(0, () => undefined),
+      startAtLeg: (_leg, activeSession) => {
+        session = activeSession;
+      }
+    });
+
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      target: 'ph-animation',
+      source: 'initial',
+      fallbackScene: 'lab',
+      cinematic: { run: 'lab-education', direction: 1, legIndex: 1 }
+    });
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'lab'
+    });
+
+    routeRoot.isConnected = true;
+    orchestrator.syncDiagnostics();
+
+    expect(session).toMatchObject({ leg: 1, direction: 1 });
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { operation: { run: 'lab-education', legIndex: 1 } }
+    });
+  });
+
   it('waits for a matching late capability without reviving an old stable input', () => {
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',

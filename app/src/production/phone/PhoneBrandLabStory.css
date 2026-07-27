@@ -72,19 +72,6 @@
   background: transparent;
 }
 
-.phone-brand-lab[data-phone-group45-snap="locked"] {
-  overscroll-behavior: none;
-  touch-action: none;
-}
-
-.phone-brand-lab[data-phone-group45-stage-active="false"] .portrait-scroll-spike__stage {
-  visibility: hidden;
-}
-
-.phone-brand-lab[data-phone-group45-stage-active="true"] .portrait-scroll-spike__stage {
-  visibility: visible;
-}
-
 .phone-brand[data-phone-proof-brand-aligned="true"] {
   z-index: 11;
   transform: translate3d(
@@ -96,18 +83,12 @@
 
 .phone-brand-lab__stage-surfaces {
   position: absolute;
-  z-index: 7;
   inset: 0;
   width: 100%;
   height: 100%;
   overflow: visible;
-  visibility: hidden;
   pointer-events: none;
   background: transparent;
-}
-
-.phone-brand-lab__stage-surfaces[data-phone-group45-stage-active="true"] {
-  visibility: visible;
 }
 
 .phone-brand-lab__stage-surfaces > .phone-figure3,
@@ -122,13 +103,6 @@
   pointer-events: none;
 }
 
-.phone-brand-lab__stage-surfaces[data-phone-group45-stage-scene="figure3-animation"]
-  > .phone-figure3,
-.phone-brand-lab__stage-surfaces[data-phone-group45-stage-scene="ttg-animation"]
-  > .phone-ttg {
-  visibility: visible;
-}
-
 .phone-brand-lab > .phone-brand,
 .phone-brand-lab > .phone-services,
 .phone-brand-lab > .phone-lab,
@@ -138,46 +112,11 @@
 }
 
 /*
- * The shared fixed stage intentionally stays mounted so Safari can keep
- * sampling the published edge surface. Once Unit 7 does not own a visual
- * handoff, lift the native reading above that opaque fixed paper. Active
- * boundaries receive their controller-owned semantic surface role.
+ * The route projector writes the common data-phone-surface-role contract.
+ * PhoneStageRail.css maps those roles to the fixed/current, native, retained,
+ * and transition z-order; Group 45 adds no local stage-active or stage-scene
+ * visibility authority.
  */
-.phone-brand-lab[data-phone-group45-stage-active="false"] > .phone-brand,
-.phone-brand-lab[data-phone-group45-stage-active="false"] > .phone-services,
-.phone-brand-lab[data-phone-group45-stage-active="false"] > .phone-lab {
-  z-index: 11;
-}
-
-/*
- * The fixed edge owner sits at z=8 and the cinematic stage at z=10.
- * Native boundary owners are placed deliberately on either side:
- * masked Brand and dissolve receivers sit above the stage, while the
- * unmasked Services ink source stays between the edge paper and TTG.
- */
-.phone-brand-lab[data-phone-group45-stage-active="true"][data-phone-group45-stage-scene="figure3-animation"]
-  > .phone-brand {
-  z-index: 11;
-}
-
-.phone-brand-lab[data-phone-group45-stage-active="true"][data-phone-group45-stage-scene="figure3-animation"]
-  > .phone-services[data-phone-dissolve="figure3-services"] {
-  z-index: 12;
-  pointer-events: none;
-}
-
-.phone-brand-lab[data-phone-group45-stage-active="true"][data-phone-group45-stage-scene="ttg-animation"]
-  > .phone-services {
-  z-index: 9;
-}
-
-/* TTG remains the opaque retained plate; the real Lab document root is the
-   dissolve receiver and must therefore sit above the one fixed stage. */
-.phone-brand-lab[data-phone-group45-stage-active="true"][data-phone-group45-stage-scene="ttg-animation"]
-  > .phone-lab[data-phone-dissolve="ttg-lab"] {
-  z-index: 12;
-  pointer-events: none;
-}
 
 .phone-brand-lab__visual-track {
   box-sizing: border-box;

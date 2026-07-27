@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPhoneStoryRuntime } from './phone-story-runtime';
+import {
+  createPhoneStoryRuntime,
+  phoneRuntimeRunDependencies,
+  requestPhoneRuntimeDirectEntry,
+  selectPhoneCinematicSnapshot
+} from './phone-story-runtime';
 
 function root() {
   return {
@@ -15,6 +20,70 @@ function root() {
 describe('phone story runtime factory', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('projects lazy cinematic consumers through a primitive snapshot tuple', () => {
+    const runtime = createPhoneStoryRuntime({
+      scope: 'formal',
+      initialScene: 'brand',
+      root: () => root(),
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+    expect(selectPhoneCinematicSnapshot(runtime.port.getSnapshot())).toEqual([
+      'brand',
+      null,
+      'native:brand',
+      runtime.authorityId,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]);
+
+    runtime.port.dispatch({
+      type: 'RUN_STARTED',
+      authorityId: runtime.authorityId,
+      sessionId: 'tuple-session',
+      generation: 1,
+      leg: 0,
+      run: 'brand-services',
+      direction: 1,
+      anchorY: 120,
+      inputEpoch: 2
+    });
+    expect(selectPhoneCinematicSnapshot(runtime.port.getSnapshot())).toEqual([
+      'brand',
+      'native:brand',
+      'group45:figure3',
+      runtime.authorityId,
+      'tuple-session',
+      1,
+      'brand-services',
+      1,
+      0,
+      'preparing',
+      0
+    ]);
+    runtime.dispose();
+  });
+
+  it('projects cinematic run legs and readiness through positional tuples', () => {
+    expect(phoneRuntimeRunDependencies('lab-education', 1)).toEqual([
+      'ph-animation',
+      'education',
+      'ph-education'
+    ]);
+    expect(phoneRuntimeRunDependencies('lab-education')).toEqual([
+      'lab',
+      'ph-animation',
+      'education',
+      'lab-ph',
+      'ph-education'
+    ]);
   });
 
   it('constructs side-effect free and attaches one route-local authority', () => {
@@ -141,6 +210,41 @@ describe('phone story runtime factory', () => {
           legIndex: 1,
           from: 'brand',
           to: 'services'
+        }
+      }
+    });
+    runtime.dispose();
+  });
+
+  it('builds a cinematic direct-entry event beside the runtime port', () => {
+    let receivedLeg: number | undefined;
+    const runtime = createPhoneStoryRuntime({
+      scope: 'formal',
+      initialScene: 'ph-animation',
+      root: () => root(),
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+    runtime.port.registerRunCapability('lab-education', 'runtime-bridge', {
+      position: () => 0,
+      canStart: () => true,
+      start: () => undefined,
+      startAtLeg(legIndex) {
+        receivedLeg = legIndex;
+      }
+    });
+
+    requestPhoneRuntimeDirectEntry(runtime.port, 'ph-animation', 'initial');
+
+    expect(receivedLeg).toBe(1);
+    expect(runtime.port.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        operation: {
+          run: 'lab-education',
+          legIndex: 1,
+          from: 'lab',
+          to: 'education'
         }
       }
     });

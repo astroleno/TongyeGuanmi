@@ -1,30 +1,24 @@
 import type {
   ScenePresentationAdapterHandle
 } from '../../story/presentation';
-import { phoneRun, type PhoneRunId } from './phone-story-runs';
+import type { PhoneRunId } from './phone-story-runs';
 import type {
-  PhoneOrchestratedRunSession,
   PhoneStoryRuntimePort
 } from './phone-story-orchestrator';
+import {
+  phoneRuntimeRunDependencies,
+  registerPhoneCompositeRunCapability,
+  type PhoneCompositeSession
+} from './phone-story-runtime';
+import type {
+  PhoneExecutionIdentity
+} from './phone-story-state';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 import type {
   PhoneCapabilityRegistry,
   PhoneCapabilityRetention
 } from './phone-transition-readiness';
 import type { PhoneTransitionAdapterHandle } from './types';
-
-export type PhoneCompositeRunStep =
-  | 'preparing-target'
-  | 'entry-ink'
-  | 'media'
-  | 'exit-ink';
-
-export type PhoneCompositeRunView<Visual extends string> = Readonly<{
-  scene: Visual;
-  direction: PhoneTransitionDirection;
-  session: PhoneOrchestratedRunSession;
-  step: PhoneCompositeRunStep;
-}>;
 
 export type PhoneCompositeDirectConfig = Readonly<{
   visual: ScenePresentationAdapterHandle;
@@ -37,20 +31,22 @@ export type PhoneCompositeRuntimeConfig = PhoneCompositeDirectConfig & Readonly<
   entry: PhoneTransitionAdapterHandle;
 }>;
 
-type ActiveRun<Visual extends string> = {
+type ExecutionResources<Visual extends string> = {
   scene: Visual;
   direction: PhoneTransitionDirection;
-  session: PhoneOrchestratedRunSession;
-  step: PhoneCompositeRunStep;
+  session: PhoneCompositeSession;
   direct: boolean;
   abortController: AbortController;
   retention: PhoneCapabilityRetention;
+  timeout: number;
+  releaseExtra: (() => void) | undefined;
 };
 
 type MediaStartContext<
   Visual extends string
 > = Readonly<{
-  run: PhoneCompositeRunView<Visual>;
+  scene: Visual;
+  identity: PhoneExecutionIdentity;
   config: PhoneCompositeDirectConfig;
   animate(
     start: number,
@@ -78,37 +74,52 @@ export type PhoneCompositeRunnerOptions<
     scene: Visual,
     direction: PhoneTransitionDirection
   ): number | null;
-  onRunState(run: PhoneCompositeRunView<Visual> | null, retry: boolean): void;
-  onRunBegin(run: PhoneCompositeRunView<Visual>): void;
-  onMediaActive(run: PhoneCompositeRunView<Visual>): void;
+  /**
+   * Optional media resource starter. It receives an authority identity after
+   * the immutable snapshot has entered the media leg. It must not publish
+   * presentation state; visual components may instead read that snapshot.
+   */
   startMedia?(context: MediaStartContext<Visual>): void;
   acquireReverseEntry?(
-    run: PhoneCompositeRunView<Visual>,
+    identity: PhoneExecutionIdentity,
     config: PhoneCompositeRuntimeConfig
   ): Readonly<{ releaseGeometry(): void }> | undefined;
 }>;
 
 export type PhoneCompositeRunner<Visual extends string> = Readonly<{
-  heartbeat(scene: Visual, direction: PhoneTransitionDirection): void;
+  /** Snapshot-matching media identity for legacy event bridges. */
+  execution(scene: Visual): PhoneExecutionIdentity | null;
+  heartbeat(scene: Visual, identity: PhoneExecutionIdentity): void;
   progressMedia(
     scene: Visual,
-    direction: PhoneTransitionDirection,
+    identity: PhoneExecutionIdentity,
     progress: number
   ): void;
   animateMedia(
     scene: Visual,
-    direction: PhoneTransitionDirection,
+    identity: PhoneExecutionIdentity,
     start: number,
     end: number,
     durationMs: number,
     complete: () => void
   ): void;
-  completeMedia(scene: Visual, direction: PhoneTransitionDirection): void;
-  failMedia(scene: Visual): void;
+  completeMedia(scene: Visual, identity: PhoneExecutionIdentity): void;
+  failMedia(scene: Visual, identity: PhoneExecutionIdentity): void;
   dispose(): void;
 }>;
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
+
+function identitiesMatch(
+  left: PhoneExecutionIdentity,
+  right: PhoneExecutionIdentity
+): boolean {
+  return left.authorityId === right.authorityId
+    && left.sessionId === right.sessionId
+    && left.generation === right.generation
+    && left.leg === right.leg
+    && left.direction === right.direction;
+}
 
 export function createPhoneCompositeRunner<
   Visual extends string,
@@ -123,402 +134,406 @@ export function createPhoneCompositeRunner<
 ): PhoneCompositeRunner<Visual> {
   type DirectConfig = PhoneCompositeDirectConfig;
   type FullConfig = PhoneCompositeRuntimeConfig;
-  let active: ActiveRun<Visual> | null = null;
-  let timeout = 0;
-  let releaseExtra: (() => void) | undefined;
+  let resources: ExecutionResources<Visual> | null = null;
 
-  const configFor = (run: ActiveRun<Visual>): DirectConfig | null => (
-    run.direct ? options.directConfig(run.scene) : options.config(run.scene)
+  const identityFor = (
+    resource: ExecutionResources<Visual>
+  ): PhoneExecutionIdentity => ({
+    authorityId: resource.session[0],
+    sessionId: resource.session[1],
+    generation: resource.session[2],
+    leg: resource.session[3](),
+    direction: resource.direction
+  });
+  const configFor = (
+    resource: ExecutionResources<Visual>
+  ): DirectConfig | null => (
+    resource.direct
+      ? options.directConfig(resource.scene)
+      : options.config(resource.scene)
   );
-  const clearTimer = () => {
-    window.clearTimeout(timeout);
-    timeout = 0;
-  };
-  const armTimeout = (run: ActiveRun<Visual>) => {
-    clearTimer();
-    timeout = window.setTimeout(() => rollback(run), options.timeoutMs);
+  const clearTimer = (resource: ExecutionResources<Visual>) => {
+    if (!resource.timeout) return;
+    window.clearTimeout(resource.timeout);
+    resource.timeout = 0;
   };
   const releaseRoles = (
-    run: ActiveRun<Visual>,
+    resource: ExecutionResources<Visual>,
     endpoint?: 'source' | 'receiver'
   ) => {
-    if (endpoint) run.session.reportEndpointCommit(endpoint);
-    else run.session.reportEndpointRelease();
+    if (endpoint) resource.session[9](endpoint);
+    else resource.session[11]();
   };
   const claimRoles = (
-    run: ActiveRun<Visual>,
+    resource: ExecutionResources<Visual>,
     source: HTMLElement,
     receiver: HTMLElement
   ) => {
-    releaseRoles(run);
-    run.session.reportEndpoints(source, receiver);
+    releaseRoles(resource);
+    resource.session[8](source, receiver);
   };
   const releaseGeometry = (
-    run: ActiveRun<Visual>,
+    resource: ExecutionResources<Visual>,
     config: DirectConfig
   ) => {
-    if (!run.direct) (config as FullConfig).entry.releaseEndpoint();
+    if (!resource.direct) (config as FullConfig).entry.releaseEndpoint();
     config.media.releaseEndpoint();
-    releaseRoles(run);
+    releaseRoles(resource);
   };
-  const releaseResources = (run: ActiveRun<Visual>) => {
-    clearTimer();
-    run.abortController.abort();
-    releaseExtra?.();
-    releaseExtra = undefined;
-    run.retention.dispose();
+  const releaseResources = (resource: ExecutionResources<Visual>) => {
+    clearTimer(resource);
+    resource.abortController.abort();
+    resource.releaseExtra?.();
+    resource.releaseExtra = undefined;
+    resource.retention.dispose();
+    if (resources === resource) resources = null;
   };
-  const settle = (retry: boolean) => {
-    active = null;
-    options.onRunState(null, retry);
-  };
-  const rollback = (run: ActiveRun<Visual>) => {
-    if (active !== run) return;
-    clearTimer();
-    run.abortController.abort();
-    const config = configFor(run);
-    const endpoint = run.direction === 1 ? 0 : 1;
+  const rollback = (resource: ExecutionResources<Visual>) => {
+    if (resources !== resource) return;
+    clearTimer(resource);
+    resource.abortController.abort();
+    const config = configFor(resource);
+    const endpoint = resource.direction === 1 ? 0 : 1;
     if (config) {
-      if (!run.direct) (config as FullConfig).entry.commitEndpoint(endpoint);
+      if (!resource.direct) (config as FullConfig).entry.commitEndpoint(endpoint);
       config.media.commitEndpoint(endpoint);
-      releaseRoles(run, 'source');
+      releaseRoles(resource, 'source');
       config.visual.update(endpoint);
-      releaseGeometry(run, config);
-      releaseResources(run);
+      releaseGeometry(resource, config);
     } else {
-      releaseRoles(run, 'source');
-      releaseExtra?.();
-      releaseExtra = undefined;
-      run.retention.dispose();
+      releaseRoles(resource, 'source');
     }
-    settle(true);
-    run.session.reportFailure();
+    releaseResources(resource);
+    resource.session[13]();
+  };
+  const armTimeout = (resource: ExecutionResources<Visual>) => {
+    clearTimer(resource);
+    resource.timeout = window.setTimeout(
+      () => rollback(resource),
+      options.timeoutMs
+    );
   };
   const commitTerminalEndpoint = (
-    run: ActiveRun<Visual>,
+    resource: ExecutionResources<Visual>,
     config: DirectConfig
   ) => {
-    if (active !== run || !run.session.valid()) return;
-    clearTimer();
-    active = null;
-    run.session.provideRelease({
-      releaseGeometry() {
-        releaseGeometry(run, config);
-      },
-      releaseResources() {
-        releaseResources(run);
-        options.onRunState(null, false);
-      }
-    });
-    releaseRoles(run, 'receiver');
-    run.session.reportTargetPresented();
+    if (resources !== resource || !resource.session[4]()) return;
+    clearTimer(resource);
+    resource.session[12](
+      () => releaseGeometry(resource, config),
+      () => releaseResources(resource)
+    );
+    releaseRoles(resource, 'receiver');
+    resource.session[10]();
   };
   const runAnimation = (
-    run: ActiveRun<Visual>,
+    resource: ExecutionResources<Visual>,
     transition: PhoneTransitionAdapterHandle,
     start: number,
     end: number,
     durationMs: number | undefined,
     complete: () => void
   ) => {
-    run.session.animate(
+    resource.session[7](
       start,
       end,
       durationMs,
       (progress) => {
-        if (active !== run) return;
+        if (resources !== resource) return;
         transition.render(progress);
       },
       () => {
-        if (active !== run) return;
+        if (resources !== resource) return;
         complete();
       }
     );
-    armTimeout(run);
+    armTimeout(resource);
   };
   const startMedia = (
-    run: ActiveRun<Visual>,
+    resource: ExecutionResources<Visual>,
     config: DirectConfig,
     prepared = false
   ) => {
-    if (active !== run || !run.session.valid()) return;
-    if (run.direction === 1 && !prepared) {
+    if (resources !== resource || !resource.session[4]()) return;
+    if (resource.direction === 1 && !prepared) {
       const source = config.visual.root();
       const receiver = config.final.root();
-      if (!source || !receiver) return rollback(run);
-      claimRoles(run, source, receiver);
-      config.media.begin({ identity: run.session });
+      if (!source || !receiver) return rollback(resource);
+      claimRoles(resource, source, receiver);
+      config.media.begin({ identity: identityFor(resource) });
       config.media.commitEndpoint(0);
     }
-    run.step = 'media';
-    options.onRunState(run, false);
-    run.session.reportPresentedFrame();
-    options.onMediaActive(run);
+    resource.session[5]();
     if (options.startMedia) {
       options.startMedia({
-        run,
+        scene: resource.scene,
+        identity: identityFor(resource),
         config,
         animate: (start, end, durationMs, complete) => (
-          runAnimation(run, config.media, start, end, durationMs, complete)
+          runAnimation(resource, config.media, start, end, durationMs, complete)
         )
       });
-    } else if (run.direction === 1) {
+    } else if (resource.direction === 1) {
       config.media.enter?.();
       config.visual.enter?.();
     } else {
       config.media.reverse?.();
       config.visual.reverse?.();
     }
-    armTimeout(run);
+    armTimeout(resource);
   };
-  const startEntry = (run: ActiveRun<Visual>, config: FullConfig) => {
-    if (active !== run || !run.session.valid()) return;
-    run.step = run.direction === 1 ? 'entry-ink' : 'exit-ink';
-    options.onRunState(run, false);
-    run.session.reportPresentedFrame();
-    if (run.direction === 1) config.entry.enter?.();
+  const startEntry = (
+    resource: ExecutionResources<Visual>,
+    config: FullConfig
+  ) => {
+    if (resources !== resource || !resource.session[4]()) return;
+    resource.session[5]();
+    if (resource.direction === 1) config.entry.enter?.();
     else config.entry.reverse?.();
-    const endpoint = run.direction === 1 ? 1 : 0;
+    const endpoint = resource.direction === 1 ? 1 : 0;
     runAnimation(
-      run,
+      resource,
       config.entry,
       1 - endpoint,
       endpoint,
       undefined,
       () => {
-        if (active !== run) return;
+        if (resources !== resource) return;
         config.entry.commitEndpoint(endpoint);
-        if (run.direction === -1) {
+        if (resource.direction === -1) {
           config.visual.update(0);
-          commitTerminalEndpoint(run, config);
+          commitTerminalEndpoint(resource, config);
           return;
         }
-        releaseRoles(run, 'receiver');
+        releaseRoles(resource, 'receiver');
         window.requestAnimationFrame(() => {
-          if (active !== run || !run.session.valid()) return;
+          if (resources !== resource || !resource.session[4]()) return;
           config.entry.releaseEndpoint();
-          startMedia(run, config);
+          startMedia(resource, config);
         });
       }
     );
   };
-  const finishMedia = (run: ActiveRun<Visual>, config: DirectConfig) => {
-    if (active !== run || run.step !== 'media' || !run.session.valid()) return;
-    clearTimer();
-    const endpoint = run.direction === 1 ? 1 : 0;
+  const finishMedia = (
+    resource: ExecutionResources<Visual>,
+    config: DirectConfig
+  ) => {
+    if (resources !== resource || !resource.session[4]()) return;
+    clearTimer(resource);
+    const endpoint = resource.direction === 1 ? 1 : 0;
     config.media.commitEndpoint(endpoint);
-    if (run.direct || run.direction === 1) {
+    if (resource.direct || resource.direction === 1) {
       config.visual.leave?.();
-      commitTerminalEndpoint(run, config);
+      commitTerminalEndpoint(resource, config);
       return;
     }
     const full = config as FullConfig;
-    releaseRoles(run, 'receiver');
+    releaseRoles(resource, 'receiver');
     window.requestAnimationFrame(() => {
-      if (active !== run || !run.session.valid()) return;
+      if (resources !== resource || !resource.session[4]()) return;
       full.media.releaseEndpoint();
       const source = full.visual.root();
       const receiver = full.prior.root();
-      if (!source || !receiver) return rollback(run);
-      const extra = options.acquireReverseEntry?.(run, full);
-      if (extra) releaseExtra = () => extra.releaseGeometry();
-      claimRoles(run, source, receiver);
-      full.entry.begin({ identity: run.session });
+      if (!source || !receiver) return rollback(resource);
+      const extra = options.acquireReverseEntry?.(identityFor(resource), full);
+      if (extra) resource.releaseExtra = () => extra.releaseGeometry();
+      claimRoles(resource, source, receiver);
+      full.entry.begin({ identity: identityFor(resource) });
       full.entry.commitEndpoint(1);
-      startEntry(run, full);
+      startEntry(resource, full);
     });
   };
-  const settleReduced = (run: ActiveRun<Visual>, config: DirectConfig) => {
-    if (run.direct) {
+  const settleReduced = (
+    resource: ExecutionResources<Visual>,
+    config: DirectConfig
+  ) => {
+    if (resource.direct) {
       config.media.commitEndpoint(1);
       config.visual.update(1);
       config.visual.leave?.();
-      commitTerminalEndpoint(run, config);
+      commitTerminalEndpoint(resource, config);
       return;
     }
     const full = config as FullConfig;
-    if (run.direction === 1) {
+    if (resource.direction === 1) {
       full.entry.commitEndpoint(1);
-      releaseRoles(run, 'receiver');
-      run.session.reportPresentedFrame();
-      run.session.reportProgress(1);
+      releaseRoles(resource, 'receiver');
+      resource.session[5]();
+      resource.session[6](1);
       const source = full.visual.root();
       const receiver = full.final.root();
-      if (!source || !receiver) return rollback(run);
-      claimRoles(run, source, receiver);
-      full.media.begin({ identity: run.session });
+      if (!source || !receiver) return rollback(resource);
+      claimRoles(resource, source, receiver);
+      full.media.begin({ identity: identityFor(resource) });
       full.media.commitEndpoint(1);
       full.visual.update(1);
       full.visual.leave?.();
-      commitTerminalEndpoint(run, full);
+      commitTerminalEndpoint(resource, full);
     } else {
       full.media.commitEndpoint(0);
-      releaseRoles(run, 'receiver');
-      run.session.reportPresentedFrame();
-      run.session.reportProgress(0);
+      releaseRoles(resource, 'receiver');
+      resource.session[5]();
+      resource.session[6](0);
       const source = full.visual.root();
       const receiver = full.prior.root();
-      if (!source || !receiver) return rollback(run);
-      const extra = options.acquireReverseEntry?.(run, full);
-      if (extra) releaseExtra = () => extra.releaseGeometry();
-      claimRoles(run, source, receiver);
-      full.entry.begin({ identity: run.session });
+      if (!source || !receiver) return rollback(resource);
+      const extra = options.acquireReverseEntry?.(identityFor(resource), full);
+      if (extra) resource.releaseExtra = () => extra.releaseGeometry();
+      claimRoles(resource, source, receiver);
+      full.entry.begin({ identity: identityFor(resource) });
       full.entry.commitEndpoint(0);
       full.visual.update(0);
-      commitTerminalEndpoint(run, full);
+      commitTerminalEndpoint(resource, full);
     }
   };
   const prepare = async (
-    run: ActiveRun<Visual>,
+    resource: ExecutionResources<Visual>,
     dependencies: readonly CapabilityId[]
   ) => {
     try {
       await options.capabilities.waitFor(dependencies, {
-        signal: run.abortController.signal,
+        signal: resource.abortController.signal,
         timeoutMs: options.timeoutMs
       });
-      if (active !== run || !run.session.valid()) return;
-      const config = configFor(run);
-      if (!config) return rollback(run);
+      if (resources !== resource || !resource.session[4]()) return;
+      const config = configFor(resource);
+      if (!config) return rollback(resource);
       const full = config as FullConfig;
       const source = (
-        run.direct ? config.visual : run.direction === 1 ? full.prior : full.final
+        resource.direct
+          ? config.visual
+          : resource.direction === 1 ? full.prior : full.final
       ).root();
-      const receiver = (run.direct ? config.final : config.visual).root();
-      if (!source || !receiver) return rollback(run);
-      claimRoles(run, source, receiver);
-      const transition = run.direct || run.direction === -1
+      const receiver = (resource.direct ? config.final : config.visual).root();
+      if (!source || !receiver) return rollback(resource);
+      claimRoles(resource, source, receiver);
+      const transition = resource.direct || resource.direction === -1
         ? config.media
         : full.entry;
-      transition.begin({ identity: run.session });
-      transition.commitEndpoint(run.direction === 1 ? 0 : 1);
+      transition.begin({ identity: identityFor(resource) });
+      transition.commitEndpoint(resource.direction === 1 ? 0 : 1);
       const prepareTarget = config.visual.prepareTargetPresentation;
-      if (!prepareTarget) return rollback(run);
+      if (!prepareTarget) return rollback(resource);
       await prepareTarget({
-        progress: run.direction === 1 ? 0 : 1,
-        direction: run.direction,
-        runId: `${run.session.sessionId}:${run.session.generation}`,
-        signal: run.abortController.signal
+        progress: resource.direction === 1 ? 0 : 1,
+        direction: resource.direction,
+        runId: `${resource.session[1]}:${resource.session[2]}`,
+        signal: resource.abortController.signal
       });
       if (
-        run.abortController.signal.aborted
-        || active !== run
-        || !run.session.valid()
+        resource.abortController.signal.aborted
+        || resources !== resource
+        || !resource.session[4]()
       ) return;
-      run.session.reportPresentedFrame();
-      clearTimer();
-      if (options.reducedMotion) settleReduced(run, config);
-      else if (!run.direct && run.direction === 1) startEntry(run, full);
-      else startMedia(run, config, true);
+      resource.session[5]();
+      clearTimer(resource);
+      if (options.reducedMotion) settleReduced(resource, config);
+      else if (!resource.direct && resource.direction === 1) startEntry(resource, full);
+      else startMedia(resource, config, true);
     } catch {
-      rollback(run);
+      rollback(resource);
     }
-  };
-  const dependenciesFor = (
-    scene: Visual,
-    directLegIndex?: number
-  ): readonly CapabilityId[] => {
-    const definition = phoneRun(options.runForVisual(scene));
-    const leg = directLegIndex === undefined
-      ? undefined
-      : definition.legs[directLegIndex];
-    return (leg
-      ? [leg.from, leg.to, leg.segment]
-      : [
-          ...definition.dependencies.scenes,
-          ...definition.dependencies.transitions
-        ]) as CapabilityId[];
   };
   const begin = (
     scene: Visual,
     direction: PhoneTransitionDirection,
-    session: PhoneOrchestratedRunSession,
+    session: PhoneCompositeSession,
     directLegIndex?: number
   ) => {
-    if (active || !session.valid()) return false;
-    const definition = phoneRun(options.runForVisual(scene));
-    const directLeg = directLegIndex === undefined
-      ? undefined
-      : definition.legs[directLegIndex];
-    if (directLegIndex !== undefined && directLeg?.from !== scene) return false;
-    const dependencies = dependenciesFor(scene, directLegIndex);
-    const run: ActiveRun<Visual> = {
+    if (resources || !session[4]()) return false;
+    const dependencies = phoneRuntimeRunDependencies(
+      options.runForVisual(scene),
+      directLegIndex
+    ) as readonly CapabilityId[];
+    if (directLegIndex !== undefined && (dependencies[0] as string) !== scene) {
+      return false;
+    }
+    const resource: ExecutionResources<Visual> = {
       scene,
       direction,
       session,
-      step: 'preparing-target',
       direct: directLegIndex !== undefined,
       abortController: new AbortController(),
-      retention: options.capabilities.retain(dependencies)
+      retention: options.capabilities.retain(dependencies),
+      timeout: 0,
+      releaseExtra: undefined
     };
-    active = run;
-    options.onRunBegin(run);
-    options.onRunState(run, false);
-    armTimeout(run);
-    void prepare(run, dependencies);
+    resources = resource;
+    armTimeout(resource);
+    void prepare(resource, dependencies);
     return true;
   };
-
-  const registrations = options.visualScenes.map((scene) => (
-    options.orchestrator.registerRunCapability(
-      options.runForVisual(scene),
-      `${options.ownerId}:${scene}`,
-      {
-        position: (direction) => options.position(scene, direction),
-        canStart: () => !active,
-        start: (direction, session) => begin(scene, direction, session),
-        startAtLeg: (legIndex, session) => begin(scene, 1, session, legIndex)
-      }
-    )
-  ));
-  const activeMedia = (
+  const mediaIdentity = (
+    scene: Visual
+  ): PhoneExecutionIdentity | null => {
+    const resource = resources;
+    if (
+      !resource
+      || resource.scene !== scene
+      || !resource.session[4]()
+      || resource.session[3]() !== 1
+    ) return null;
+    return identityFor(resource);
+  };
+  const resourcesForMedia = (
     scene: Visual,
-    direction: PhoneTransitionDirection
-  ) => {
-    const run = active;
-    return run
-      && run.scene === scene
-      && run.direction === direction
-      && run.step === 'media'
-      && run.session.valid()
-      ? run
+    identity: PhoneExecutionIdentity
+  ): ExecutionResources<Visual> | null => {
+    const resource = resources;
+    const current = mediaIdentity(scene);
+    return resource && current && identitiesMatch(current, identity)
+      ? resource
       : null;
   };
 
+  const registrations = options.visualScenes.map((scene) => (
+    registerPhoneCompositeRunCapability(
+      options.orchestrator,
+      options.runForVisual(scene),
+      `${options.ownerId}:${scene}`,
+      (direction) => options.position(scene, direction),
+      () => resources === null,
+      (direction, session) => begin(scene, direction, session),
+      (legIndex, session) => begin(scene, 1, session, legIndex)
+    )
+  ));
+
   return {
-    heartbeat(scene, direction) {
-      const run = activeMedia(scene, direction);
-      if (run) armTimeout(run);
+    execution: mediaIdentity,
+    heartbeat(scene, identity) {
+      const resource = resourcesForMedia(scene, identity);
+      if (resource) armTimeout(resource);
     },
-    progressMedia(scene, direction, progress) {
-      const run = activeMedia(scene, direction);
-      if (!run) return;
-      const config = configFor(run);
-      if (!config) return rollback(run);
+    progressMedia(scene, identity, progress) {
+      const resource = resourcesForMedia(scene, identity);
+      if (!resource) return;
+      const config = configFor(resource);
+      if (!config) return rollback(resource);
       const sampled = clamp(progress);
-      run.session.reportProgress(sampled);
+      resource.session[6](sampled);
       config.media.render(sampled);
     },
-    animateMedia(scene, direction, start, end, durationMs, complete) {
-      const run = activeMedia(scene, direction);
-      if (!run) return;
-      const config = configFor(run);
-      if (!config) return rollback(run);
-      runAnimation(run, config.media, start, end, durationMs, complete);
+    animateMedia(scene, identity, start, end, durationMs, complete) {
+      const resource = resourcesForMedia(scene, identity);
+      if (!resource) return;
+      const config = configFor(resource);
+      if (!config) return rollback(resource);
+      runAnimation(resource, config.media, start, end, durationMs, complete);
     },
-    completeMedia(scene, direction) {
-      const run = activeMedia(scene, direction);
-      if (!run) return;
-      const config = configFor(run);
-      if (config) finishMedia(run, config);
-      else rollback(run);
+    completeMedia(scene, identity) {
+      const resource = resourcesForMedia(scene, identity);
+      if (!resource) return;
+      const config = configFor(resource);
+      if (config) finishMedia(resource, config);
+      else rollback(resource);
     },
-    failMedia(scene) {
-      if (active?.scene === scene) rollback(active);
+    failMedia(scene, identity) {
+      const resource = resourcesForMedia(scene, identity);
+      if (resource) rollback(resource);
     },
     dispose() {
       for (const registration of registrations) registration.dispose();
-      if (active) rollback(active);
+      if (resources) rollback(resources);
     }
   };
 }

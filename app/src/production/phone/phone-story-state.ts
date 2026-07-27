@@ -8,8 +8,8 @@ import {
   type PhoneScrollRunId
 } from './phone-story-runs';
 import {
-  phoneStableProjection,
-  phoneStoryPresentation,
+  phoneStableProjectionTuple,
+  phoneStoryPresentationTuple,
   type PhonePresentationProjection
 } from './phone-story-presentation';
 import type { PhoneIntentDisposition } from './phone-transition-coordinator';
@@ -160,6 +160,65 @@ export type PhoneStorySnapshot =
   | PhoneStableSnapshot
   | PhoneScrollRunSnapshot
   | PhoneTransactionSnapshot;
+
+function phoneStableProjection(
+  scene: SceneId,
+  commitState: 'candidate' | 'stable' = 'stable'
+): PhonePresentationProjection {
+  const [
+    checkpoint,
+    edge,
+    stageOwner,
+    stageScene,
+    surface,
+    landingResolver
+  ] = phoneStableProjectionTuple(scene);
+  return {
+    scene,
+    checkpoint,
+    edge,
+    commitState,
+    semanticScene: scene,
+    navigationScene: scene,
+    stageOwner,
+    stageScene,
+    sourceSurface: null,
+    receiverSurface: surface,
+    coverageSurface: surface,
+    landingResolver
+  };
+}
+
+function phoneStoryPresentation(
+  cursor: PhoneStoryCursor
+): PhonePresentationProjection {
+  const [
+    scene,
+    checkpoint,
+    edge,
+    stageOwner,
+    stageScene,
+    sourceSurface,
+    receiverSurface,
+    landingResolver
+  ] = phoneStoryPresentationTuple(cursor);
+  return {
+    scene,
+    checkpoint,
+    edge,
+    commitState: cursor.kind === 'hold' ? 'stable' : 'transition',
+    semanticScene: scene,
+    navigationScene: scene,
+    stageOwner,
+    stageScene,
+    sourceSurface,
+    receiverSurface,
+    coverageSurface: cursor.kind === 'hold'
+      ? receiverSurface
+      : cursor.direction === 1 ? sourceSurface! : receiverSurface,
+    landingResolver
+  };
+}
 
 export type PhoneExecutionIdentity = Readonly<{
   authorityId: string;

@@ -1,7 +1,9 @@
 import {
   useCallback,
+  lazy,
   useLayoutEffect,
   useRef,
+  Suspense,
   useState
 } from 'react';
 import type { SceneId } from '../../story/types';
@@ -11,7 +13,6 @@ import {
   publicMenuItems,
   sceneFromHash
 } from '../navigation';
-import { PhoneBrandLabContinuation } from './PhoneBrandLabContinuation';
 import {
   group45PhoneSceneIds,
   type Group45PhoneSceneId
@@ -26,9 +27,14 @@ import {
 import {
   usePhoneStoryNavigationRuntime
 } from './usePhoneStoryNavigationRuntime';
+import { requestPhoneRuntimeDirectEntry } from './phone-story-runtime';
 import './PhoneBrandLabStory.css';
 
-export * from './PhoneBrandLabContinuation';
+const PhoneBrandLabBundle = lazy(() => (
+  import('./PhoneContinuationBundle').then((module) => ({
+    default: module.PhoneBrandLabBundle
+  }))
+));
 
 export type PhoneBrandLabStoryProps = Readonly<{
   reducedMotion: boolean;
@@ -78,16 +84,25 @@ export function PhoneBrandLabStory({
   const stageViewportRef = useRef<HTMLElement | null>(null);
   const stageCanvasRef = useRef<HTMLDivElement | null>(null);
   const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
-  const authority = usePhoneStoryOrchestratorRuntime({
-    scope: 'brand-lab',
+  const authority = usePhoneStoryOrchestratorRuntime(
+    'brand-lab',
     initialScene,
     rootRef
-  });
+  );
   const navigation = usePhoneStoryNavigationRuntime(
     authority.port,
     true,
     phoneGroup45EntryFromHash
   );
+
+  /*
+   * QA starts through the same authority event as a formal direct entry. The
+   * continuation receives only the resulting snapshot; it is never handed an
+   * entry-scene presentation override.
+   */
+  useLayoutEffect(() => {
+    requestPhoneRuntimeDirectEntry(authority.port, initialScene, 'initial');
+  }, [authority.port, initialScene]);
 
   const bindStageHost = useCallback((host: HTMLDivElement | null) => {
     if (stageCanvasRef.current === host) return;
@@ -143,12 +158,13 @@ export function PhoneBrandLabStory({
         >
           {null}
         </PhoneStageRail>
-        <PhoneBrandLabContinuation
-          reducedMotion={reducedMotion}
-          stageHost={stageHost}
-          entryScene={initialScene}
-          validationMode={validationMode}
-        />
+        <Suspense fallback={null}>
+          <PhoneBrandLabBundle
+            motionReduced={reducedMotion}
+            stageHost={stageHost}
+            validationMode={validationMode}
+          />
+        </Suspense>
         <StoryNav
           currentScene={navigation.scene}
           visible

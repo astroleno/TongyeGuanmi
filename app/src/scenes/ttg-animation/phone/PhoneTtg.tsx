@@ -15,6 +15,9 @@ import {
   type TimelineVideoDriveInput
 } from '../../../media/timeline-video-driver';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
+import type {
+  PhoneExecutionIdentity
+} from '../../../production/phone/phone-story-state';
 import {
   waitForPhonePresentationEvidence
 } from '../../../production/phone/phone-transition-readiness';
@@ -85,9 +88,18 @@ export type PhoneTtgMediaAction =
   | 'hold-initial'
   | 'hold-terminal';
 
-type PhoneTtgProps = Group45PhoneSceneProps & Readonly<{
-  onComplete?: (scene: 'ttg-animation', direction: 1 | -1) => void;
-}>;
+type PhoneTtgProps = Group45PhoneSceneProps;
+
+function sameExecution(
+  left: PhoneExecutionIdentity | null,
+  right: PhoneExecutionIdentity | null
+): boolean {
+  return left?.authorityId === right?.authorityId
+    && left?.sessionId === right?.sessionId
+    && left?.generation === right?.generation
+    && left?.leg === right?.leg
+    && left?.direction === right?.direction;
+}
 
 /** Desktop-authored TTG motion sampled inside the portrait crop. */
 export function phoneTtgFrame(
@@ -324,6 +336,7 @@ export const PhoneTtg = forwardRef<
   {
     active,
     direction = 1,
+    execution = null,
     prewarm = false,
     reducedMotion,
     onComplete,
@@ -338,13 +351,17 @@ export const PhoneTtg = forwardRef<
   const playbackRef = useRef<Group45NativeAutoplay | null>(null);
   const activeRef = useRef(active);
   const directionRef = useRef<1 | -1>(direction);
+  const executionRef = useRef<PhoneExecutionIdentity | null>(execution);
+  const runIdentityRef = useRef<PhoneExecutionIdentity | null>(execution);
   const prewarmRef = useRef(prewarm);
   const reducedMotionRef = useRef(reducedMotion);
   const mediaMountedRef = useRef((active || prewarm) && !reducedMotion);
   const mediaFailedRef = useRef(false);
   const mediaRetiringRef = useRef(false);
   const hasForwardRunRef = useRef(false);
-  const forwardRequestedRef = useRef(active && direction === 1 && !reducedMotion);
+  const forwardRequestedRef = useRef(
+    Boolean(execution && execution.direction === 1 && !reducedMotion)
+  );
   const targetPreparationRef = useRef<Readonly<{
     endpoint: 0 | 1;
     direction: 1 | -1;
@@ -426,10 +443,12 @@ export const PhoneTtg = forwardRef<
     progress: number,
     playbackDirection: Group45NativeAutoplayDirection
   ) => {
+    const identity = runIdentityRef.current;
+    if (identity?.direction !== playbackDirection) return;
     progressListenerRef.current?.(
       'ttg-animation',
-      stableProgress(progress),
-      playbackDirection
+      identity,
+      stableProgress(progress)
     );
   }, []);
 
@@ -473,13 +492,16 @@ export const PhoneTtg = forwardRef<
     playbackDirection: Group45NativeAutoplayDirection,
     generation: number
   ) => {
+    const identity = runIdentityRef.current;
     if (
       mediaRetiringRef.current
       || generation !== runGenerationRef.current
       || completionReportedRef.current
+      || !identity
+      || identity.direction !== playbackDirection
     ) return;
     completionReportedRef.current = true;
-    completionListenerRef.current?.('ttg-animation', playbackDirection);
+    completionListenerRef.current?.('ttg-animation', identity);
   }, []);
 
   const mountMedia = useCallback(() => {
@@ -499,6 +521,7 @@ export const PhoneTtg = forwardRef<
     mediaRetiringRef.current = true;
     forwardRequestedRef.current = false;
     targetPreparationRef.current = null;
+    runIdentityRef.current = null;
     playbackRef.current?.dispose();
     playbackRef.current = null;
     disposeTtgMedia(rootRef.current);
@@ -510,6 +533,7 @@ export const PhoneTtg = forwardRef<
 
   const failMedia = useCallback(() => {
     if (mediaRetiringRef.current || mediaFailedRef.current) return;
+    const identity = runIdentityRef.current;
     mediaFailedRef.current = true;
     setMediaFailed(true);
     releaseMedia();
@@ -517,7 +541,7 @@ export const PhoneTtg = forwardRef<
       'data-phone-media-state',
       'retryable-failure'
     );
-    mediaErrorListenerRef.current?.('ttg-animation');
+    if (identity) mediaErrorListenerRef.current?.('ttg-animation', identity);
   }, [releaseMedia]);
 
   const ensureInitialFrame = useCallback((video: HTMLVideoElement) => {
@@ -602,13 +626,22 @@ export const PhoneTtg = forwardRef<
     return preparation;
   }, [failMedia, renderFrame]);
 
-  const startRun = useCallback((runDirection: 1 | -1) => {
-    if (reducedMotionRef.current || mediaFailedRef.current) return;
+  const startRun = useCallback((
+    runDirection: 1 | -1,
+    identity: PhoneExecutionIdentity | null = executionRef.current
+  ) => {
+    if (
+      !identity
+      || identity.direction !== runDirection
+      || reducedMotionRef.current
+      || mediaFailedRef.current
+    ) return;
     activeRef.current = true;
     directionRef.current = runDirection;
     targetPreparationRef.current = null;
     cancelChapterTransition();
     const generation = ++runGenerationRef.current;
+    runIdentityRef.current = identity;
     if (runDirection === -1) {
       reverseRunIdRef.current = `phone-ttg-reverse-${generation}`;
     }
@@ -894,19 +927,20 @@ export const PhoneTtg = forwardRef<
   ]);
 
   useEffect(() => {
-    const wasActive = activeRef.current;
-    const previousDirection = directionRef.current;
-    activeRef.current = active;
-    directionRef.current = direction;
+    const previousExecution = executionRef.current;
+    executionRef.current = execution;
+    activeRef.current = execution !== null;
+    directionRef.current = execution?.direction ?? direction;
     prewarmRef.current = prewarm;
     reducedMotionRef.current = reducedMotion;
-    if (active && (!wasActive || previousDirection !== direction)) {
+    if (execution && !sameExecution(previousExecution, execution)) {
       forwardRequestedRef.current = true;
-    } else if (!active) {
+    } else if (!execution) {
       forwardRequestedRef.current = false;
+      runIdentityRef.current = null;
     }
     reconcileMedia();
-  }, [active, direction, prewarm, reconcileMedia, reducedMotion]);
+  }, [direction, execution, prewarm, reconcileMedia, reducedMotion]);
 
   useEffect(() => {
     onReady?.();

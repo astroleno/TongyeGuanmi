@@ -9,6 +9,10 @@ const compositeRunnerSource = readFileSync(
   new URL('./phone-composite-runner.ts', import.meta.url),
   'utf8'
 );
+const continuationBundleSource = readFileSync(
+  new URL('./PhoneContinuationBundle.tsx', import.meta.url),
+  'utf8'
+);
 const qaShellSource = readFileSync(
   new URL('./PhoneBrandLabStory.tsx', import.meta.url),
   'utf8'
@@ -104,8 +108,21 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(storySource).not.toContain('StoryNav');
     expect(qaShellSource.match(/<PhoneStageRail\b/g)).toHaveLength(1);
     expect(formalShellSource.match(/<PhoneStageRail\b/g)).toHaveLength(1);
-    expect(gradeAStorySource).toContain('<PhoneBrandLabContinuation');
+    expect(gradeAStorySource).toContain('<PhoneStoryTailBundle');
     expect(gradeAStorySource).toContain('<ProofBrand');
+  });
+
+  it('passes direct continuation identity through a positional lazy boundary', () => {
+    expect(continuationBundleSource).toContain('plan[0]');
+    expect(continuationBundleSource).toContain('plan[1]');
+    expect(continuationBundleSource).not.toContain('plan.group');
+    expect(continuationBundleSource).not.toContain('plan.scene');
+    expect(storyRuntimeSource).not.toContain('phoneRuntimeRunLeg');
+    expect(storyRuntimeSource).not.toContain(
+      'provideRelease: (lease: PhoneReleaseLease)'
+    );
+    expect(compositeRunnerSource).not.toContain('resource.session[12]({');
+    expect(compositeRunnerSource).not.toContain('const dependenciesFor');
   });
 
   it('reasserts Safari edge color after browser compositor rebuilds', () => {
@@ -126,7 +143,9 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(gradeAStorySource).not.toContain('publishEdgeScene(');
     expect(gradeAStorySource).not.toContain('orchestrator.reportPresentation');
     expect(formalShellSource).not.toContain('usePhoneEdgeSurface(');
-    expect(formalShellSource).toContain("scope: 'formal'");
+    expect(formalShellSource).toContain(
+      "usePhoneStoryOrchestratorRuntime(\n    'formal',"
+    );
     expect(stageRuntimeSource).toContain(
       "if (snapshot.projection.stageOwner !== 'front') return null"
     );
@@ -143,6 +162,10 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(stageRuntimeSource).toContain('session.reportPresentedFrame()');
     expect(stageRuntimeSource).toContain("type: 'PROGRESS_REPORTED'");
     expect(stageRuntimeSource).toContain("type: 'LEG_COMPLETED'");
+    expect(stageRuntimeSource).toContain("'aod:method'");
+    expect(stageRuntimeSource).not.toContain(
+      "'phone-stage-runtime:aod-method'"
+    );
     expect(stageRuntimeSource).not.toContain('aodRun');
     expect(stageRuntimeSource).not.toContain('FRONT_INK_BOUNDARIES');
     expect(stageRuntimeSource).not.toContain('runPhoneTimedTransition');
@@ -161,18 +184,16 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(stageStyles).not.toContain(
       'data-portrait-checkpoint="proof-to-brand"'
     );
-    expect(storyStyles).toMatch(
-      /stage-scene="figure3-animation"[^}]*>\s*\.phone-brand\s*\{[^}]*z-index:\s*11/s
+    expect(storyStyles).not.toContain('data-phone-group45-stage-active');
+    expect(storyStyles).not.toContain('data-phone-group45-stage-scene');
+    expect(stageStyles).toContain(
+      '[data-phone-surface-role="transition-receiver"]'
     );
-    expect(storyStyles).toMatch(
-      /stage-scene="ttg-animation"[^}]*>\s*\.phone-services\s*\{[^}]*z-index:\s*9/s
-    );
-    expect(compositeRunnerSource).toContain(
-      "run.step = run.direction === 1 ? 'entry-ink' : 'exit-ink'"
-    );
-    expect(compositeRunnerSource).toContain('run.session.animate(');
+    expect(compositeRunnerSource).toContain('resource.session[7](');
+    expect(compositeRunnerSource).not.toContain('PhoneCompositeRunStep');
+    expect(compositeRunnerSource).not.toContain('run.step');
     expect(compositeRunnerSource).not.toContain('runPhoneProgressClock(');
-    expect(compositeRunnerSource).toContain('run.session.provideRelease(');
+    expect(compositeRunnerSource).toContain('resource.session[12](');
     expect(compositeRunnerSource).not.toContain('options.onSettled(');
     expect(gradeAStorySource).toContain('usePhoneStorySnapshot');
     expect(gradeAStorySource).toContain("id: 'method-grade-a'");
@@ -279,13 +300,15 @@ describe('Phone Brand → Lab visual contracts', () => {
   it('owns both directions through one capture-phase semantic lock', () => {
     expect(storySource).toContain('createPhoneCompositeRunner');
     expect(compositeRunnerSource).toContain(
-      'options.orchestrator.registerRunCapability'
+      'registerPhoneCompositeRunCapability('
     );
+    expect(compositeRunnerSource).toContain('phoneRuntimeRunDependencies');
+    expect(compositeRunnerSource).not.toContain('phoneRuntimeRunLeg');
     expect(compositeRunnerSource).toContain('options.runForVisual(scene)');
-    expect(storySource).toContain('BRAND_READING_HOLD_RATIO = 0.16');
+    expect(storySource).toContain('BRAND_READING_HOLD_RATIO = .16');
     expect(storySource).not.toContain('phoneBrandLabCompositeAnchor');
     expect(compositeRunnerSource).toContain(
-      'position: (direction) => options.position(scene, direction)'
+      '(direction) => options.position(scene, direction)'
     );
     expect(storySource).not.toContain('trackTop - window.innerHeight');
     expect(transitionCoordinatorSource).toContain(

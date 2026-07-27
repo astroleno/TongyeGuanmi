@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   phoneContinuationEntryPlanFromHash,
+  phoneContinuationGroupForScene,
   phoneGroup67EntryPlanFromHash,
   phoneGroup67SceneFromHash,
   phoneStoryEntryPlanFromHash,
+  phoneStoryEntrySceneFromHash,
+  phoneStoryProofPanelIndexFromHash,
   phoneStoryEntryTarget,
   phoneStoryEntryTargetId
 } from './phone-entry-plan';
@@ -78,6 +81,14 @@ describe('formal Group6–7 phone direct-entry plan', () => {
       .toMatchObject({ scene: 'figure2-proof', proofPanelIndex: 1 });
     expect(phoneStoryEntryPlanFromHash('#figure2-proof-closing'))
       .toMatchObject({ scene: 'figure2-proof', proofPanelIndex: 2 });
+  });
+
+  it('projects direct entries through primitive cross-chunk selectors', () => {
+    expect(phoneStoryEntrySceneFromHash('#brand')).toBe('brand');
+    expect(phoneContinuationGroupForScene('brand')).toBe('group45');
+    expect(phoneStoryEntrySceneFromHash('#figure2-proof-cards'))
+      .toBe('figure2-proof');
+    expect(phoneStoryProofPanelIndexFromHash('#figure2-proof-cards')).toBe(1);
   });
 
   it('maps canonical scenes to their real document target ids', () => {

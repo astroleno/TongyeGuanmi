@@ -425,7 +425,7 @@ export function usePhoneStageRuntime(
     });
     const aodRegistration = options.orchestrator.registerRunCapability(
       'aod-method',
-      'phone-stage-runtime:aod-method',
+      'aod:method',
       {
         position(direction) {
           return direction === 1

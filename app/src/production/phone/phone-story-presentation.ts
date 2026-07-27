@@ -45,6 +45,27 @@ export type PhonePresentationEvidence = Readonly<
   Partial<PhonePresentationProjection>
 >;
 
+/** Primitive transport for the shared presentation module's lazy consumers. */
+export type PhoneStableProjectionTuple = readonly [
+  checkpoint: PhoneCheckpointId,
+  edge: PhoneEdgeScene,
+  stageOwner: PhoneStageOwner,
+  stageScene: SceneId | null,
+  surface: PhoneSurfaceId,
+  landingResolver: PhoneLandingResolverId
+];
+
+export type PhoneStoryPresentationTuple = readonly [
+  scene: SceneId,
+  checkpoint: PhoneCheckpointId,
+  edge: PhoneEdgeScene,
+  stageOwner: PhoneStageOwner,
+  stageScene: SceneId | null,
+  sourceSurface: PhoneSurfaceId | null,
+  receiverSurface: PhoneSurfaceId,
+  landingResolver: PhoneLandingResolverId
+];
+
 type StablePresentation = readonly [PhoneCheckpointId, PhoneEdgeScene];
 type CanonicalPhoneScene = (typeof canonicalSceneIds)[number];
 
@@ -143,51 +164,131 @@ function projectionDetails(scene: SceneId): Readonly<{
 export function phoneStablePresentation(
   scene: SceneId
 ): Required<Pick<PhonePresentationProjection, 'scene' | 'checkpoint' | 'edge'>> {
-  const { checkpoint, edge } = projectionDetails(scene);
+  const [checkpoint, edge] = phoneStablePresentationTuple(scene);
   return { scene, checkpoint, edge };
+}
+
+/** Primitive bridge for independently minified direct-entry modules. */
+export function phoneStablePresentationTuple(
+  scene: SceneId
+): StablePresentation {
+  return stablePresentation[scene];
+}
+
+export function phoneStableProjectionTuple(
+  scene: SceneId
+): PhoneStableProjectionTuple {
+  const details = projectionDetails(scene);
+  return [
+    details.checkpoint,
+    details.edge,
+    details.stageOwner,
+    details.stageScene,
+    details.surface,
+    details.landingResolver
+  ];
 }
 
 export function phoneStableProjection(
   scene: SceneId,
   commitState: Extract<PhonePresentationCommitState, 'candidate' | 'stable'> = 'stable'
 ): PhonePresentationProjection {
-  const details = projectionDetails(scene);
+  const [
+    checkpoint,
+    edge,
+    stageOwner,
+    stageScene,
+    surface,
+    landingResolver
+  ] = phoneStableProjectionTuple(scene);
   return {
     scene,
-    checkpoint: details.checkpoint,
-    edge: details.edge,
+    checkpoint,
+    edge,
     commitState,
     semanticScene: scene,
     navigationScene: scene,
-    stageOwner: details.stageOwner,
-    stageScene: details.stageScene,
+    stageOwner,
+    stageScene,
     sourceSurface: null,
-    receiverSurface: details.surface,
-    coverageSurface: details.surface,
-    landingResolver: details.landingResolver
+    receiverSurface: surface,
+    coverageSurface: surface,
+    landingResolver
   };
+}
+
+export function phoneStoryPresentationTuple(
+  cursor: PhoneStoryCursor
+): PhoneStoryPresentationTuple {
+  if (cursor.kind === 'hold') {
+    const [
+      checkpoint,
+      edge,
+      stageOwner,
+      stageScene,
+      surface,
+      landingResolver
+    ] = phoneStableProjectionTuple(cursor.scene);
+    return [
+      cursor.scene,
+      checkpoint,
+      edge,
+      stageOwner,
+      stageScene,
+      null,
+      surface,
+      landingResolver
+    ];
+  }
+  const scene = cursor.progress > 0.001 ? cursor.to : cursor.from;
+  const edgeScene = cursor.direction === 1
+    ? cursor.progress === 1 ? cursor.to : cursor.from
+    : cursor.progress === 0 ? cursor.from : cursor.to;
+  const [, , stageOwner, stageScene, , landingResolver] =
+    phoneStableProjectionTuple(scene);
+  const source = projectionDetails(cursor.from).surface;
+  const receiver = projectionDetails(cursor.to).surface;
+  return [
+    scene,
+    cursor.segment === 'aod-method-top' && cursor.progress <= 0.001
+      ? 'aod-autoplay'
+      : segmentCheckpoint[cursor.segment],
+    projectionDetails(edgeScene).edge,
+    stageOwner,
+    stageScene,
+    source,
+    receiver,
+    landingResolver
+  ];
 }
 
 export function phoneStoryPresentation(
   cursor: PhoneStoryCursor
 ): PhonePresentationProjection {
-  if (cursor.kind === 'hold') return phoneStableProjection(cursor.scene);
-  const scene = cursor.progress > 0.001 ? cursor.to : cursor.from;
-  const edgeScene = cursor.direction === 1
-    ? cursor.progress === 1 ? cursor.to : cursor.from
-    : cursor.progress === 0 ? cursor.from : cursor.to;
-  const visible = phoneStableProjection(scene, 'candidate');
-  const source = projectionDetails(cursor.from).surface;
-  const receiver = projectionDetails(cursor.to).surface;
+  const [
+    scene,
+    checkpoint,
+    edge,
+    stageOwner,
+    stageScene,
+    sourceSurface,
+    receiverSurface,
+    landingResolver
+  ] = phoneStoryPresentationTuple(cursor);
   return {
-    ...visible,
-    checkpoint: cursor.segment === 'aod-method-top' && cursor.progress <= 0.001
-      ? 'aod-autoplay'
-      : segmentCheckpoint[cursor.segment],
-    edge: projectionDetails(edgeScene).edge,
-    commitState: 'transition',
-    sourceSurface: source,
-    receiverSurface: receiver,
-    coverageSurface: cursor.direction === 1 ? source : receiver
+    scene,
+    checkpoint,
+    edge,
+    commitState: cursor.kind === 'hold' ? 'stable' : 'transition',
+    semanticScene: scene,
+    navigationScene: scene,
+    stageOwner,
+    stageScene,
+    sourceSurface,
+    receiverSurface,
+    coverageSurface: cursor.kind === 'hold'
+      ? receiverSurface
+      : cursor.direction === 1 ? sourceSurface! : receiverSurface,
+    landingResolver
   };
 }

@@ -13,6 +13,9 @@ import {
   type TimelineVideoDriveInput
 } from '../../../media/timeline-video-driver';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
+import type {
+  PhoneExecutionIdentity
+} from '../../../production/phone/phone-story-state';
 import {
   waitForPhonePresentationEvidence
 } from '../../../production/phone/phone-transition-readiness';
@@ -48,6 +51,17 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+function sameExecution(
+  left: PhoneExecutionIdentity | null,
+  right: PhoneExecutionIdentity | null
+): boolean {
+  return left?.authorityId === right?.authorityId
+    && left?.sessionId === right?.sessionId
+    && left?.generation === right?.generation
+    && left?.leg === right?.leg
+    && left?.direction === right?.direction;
+}
+
 export type PhoneFigure3Frame = Readonly<{
   progress: number;
   videoOpacity: number;
@@ -64,9 +78,7 @@ export type PhoneFigure3MediaAction =
   | 'hold-initial'
   | 'hold-terminal';
 
-type PhoneFigure3Props = Group45PhoneSceneProps & Readonly<{
-  onComplete?: (scene: 'figure3-animation', direction: 1 | -1) => void;
-}>;
+type PhoneFigure3Props = Group45PhoneSceneProps;
 
 function smoothStep(value: number): number {
   const progress = clamp(value);
@@ -229,6 +241,7 @@ export const PhoneFigure3 = forwardRef<
   {
     active,
     direction = 1,
+    execution = null,
     prewarm = false,
     reducedMotion,
     onComplete,
@@ -246,6 +259,8 @@ export const PhoneFigure3 = forwardRef<
   const paperCompositorRef = useRef<PhoneFigure3PaperCompositor | null>(null);
   const activeRef = useRef(active);
   const directionRef = useRef<1 | -1>(direction);
+  const executionRef = useRef<PhoneExecutionIdentity | null>(execution);
+  const runIdentityRef = useRef<PhoneExecutionIdentity | null>(execution);
   const prewarmRef = useRef(prewarm);
   const reducedMotionRef = useRef(reducedMotion);
   const mediaMountedRef = useRef((active || prewarm) && !reducedMotion);
@@ -253,7 +268,7 @@ export const PhoneFigure3 = forwardRef<
   const mediaRetiringRef = useRef(false);
   const hasForwardRunRef = useRef(false);
   const pendingRunDirectionRef = useRef<1 | -1 | null>(
-    active && !reducedMotion ? direction : null
+    execution && !reducedMotion ? execution.direction : null
   );
   const requestedEndpointRef = useRef<PhoneFigure3Endpoint | null>(null);
   const targetPreparationRef = useRef<Readonly<{
@@ -339,6 +354,7 @@ export const PhoneFigure3 = forwardRef<
     requestedEndpointRef.current = null;
     targetPreparationRef.current = null;
     endpointPreparationRef.current = null;
+    runIdentityRef.current = null;
     if (endpointFallbackTimerRef.current) {
       window.clearTimeout(endpointFallbackTimerRef.current);
       endpointFallbackTimerRef.current = 0;
@@ -361,13 +377,16 @@ export const PhoneFigure3 = forwardRef<
 
   const failMedia = useCallback(() => {
     if (mediaRetiringRef.current || mediaFailedRef.current) return;
+    const identity = runIdentityRef.current;
     mediaFailedRef.current = true;
     setMediaFailed(true);
     releaseMedia();
     const root = rootRef.current;
     root?.setAttribute('data-phone-figure3-fallback-endpoint', 'initial');
     root?.setAttribute('data-phone-media-state', 'retryable-failure');
-    mediaErrorListenerRef.current?.('figure3-animation');
+    if (identity) {
+      mediaErrorListenerRef.current?.('figure3-animation', identity);
+    }
   }, [releaseMedia]);
 
   const startPreparedRun = useCallback(() => {
@@ -563,6 +582,8 @@ export const PhoneFigure3 = forwardRef<
   ]);
 
   const completeRun = useCallback((playbackDirection: 1 | -1) => {
+    const identity = runIdentityRef.current;
+    if (!identity || identity.direction !== playbackDirection) return;
     const completionGeneration = runGenerationRef.current;
     hasForwardRunRef.current = playbackDirection === 1;
     pendingRunDirectionRef.current = null;
@@ -575,7 +596,7 @@ export const PhoneFigure3 = forwardRef<
         || completionReportedRef.current
       ) return;
       completionReportedRef.current = true;
-      completionListenerRef.current?.('figure3-animation', playbackDirection);
+      completionListenerRef.current?.('figure3-animation', identity);
     };
     // A logical clock endpoint is not a presented Safari frame. Prefer its
     // canvas frame, then use the exact endpoint poster before handoff can stall.
@@ -588,8 +609,16 @@ export const PhoneFigure3 = forwardRef<
   }, [prepareEndpoint, renderFrame]);
   completeRunRef.current = completeRun;
 
-  const startRun = useCallback((runDirection: 1 | -1) => {
-    if (reducedMotionRef.current || mediaFailedRef.current) return;
+  const startRun = useCallback((
+    runDirection: 1 | -1,
+    identity: PhoneExecutionIdentity | null = executionRef.current
+  ) => {
+    if (
+      !identity
+      || identity.direction !== runDirection
+      || reducedMotionRef.current
+      || mediaFailedRef.current
+    ) return;
     const playback = playbackRef.current;
     const reversePlayback = reversePlaybackRef.current;
     if (
@@ -597,6 +626,7 @@ export const PhoneFigure3 = forwardRef<
       && activeRef.current
       && directionRef.current === -1
       && reversePlayback?.active
+      && sameExecution(runIdentityRef.current, identity)
     ) {
       reversePlayback.retry();
       return;
@@ -605,6 +635,7 @@ export const PhoneFigure3 = forwardRef<
       activeRef.current
       && directionRef.current === runDirection
       && playback?.active
+      && sameExecution(runIdentityRef.current, identity)
     ) {
       playback.retry();
       return;
@@ -619,6 +650,7 @@ export const PhoneFigure3 = forwardRef<
     if (!alreadyPending) {
       runGenerationRef.current += 1;
       completionReportedRef.current = false;
+      runIdentityRef.current = identity;
     }
     activeRef.current = true;
     directionRef.current = runDirection;
@@ -730,11 +762,14 @@ export const PhoneFigure3 = forwardRef<
       durationSeconds: FIGURE3_END_SECONDS,
       onProgress: (progress, playbackDirection) => {
         renderFrame(progress);
-        progressListenerRef.current?.(
-          'figure3-animation',
-          progress,
-          playbackDirection
-        );
+        const identity = runIdentityRef.current;
+        if (identity && identity.direction === playbackDirection) {
+          progressListenerRef.current?.(
+            'figure3-animation',
+            identity,
+            progress
+          );
+        }
       },
       onReady: () => setMediaReady(true),
       onStatus: (status, playbackDirection) => {
@@ -769,7 +804,14 @@ export const PhoneFigure3 = forwardRef<
       },
       render: (progress) => {
         renderFrame(progress);
-        progressListenerRef.current?.('figure3-animation', progress, -1);
+        const identity = runIdentityRef.current;
+        if (identity?.direction === -1) {
+          progressListenerRef.current?.(
+            'figure3-animation',
+            identity,
+            progress
+          );
+        }
       },
       onStatus: (status) => {
         if (rootRef.current) {
@@ -810,23 +852,34 @@ export const PhoneFigure3 = forwardRef<
   }, [failMedia, mediaMounted, prepareEndpoint, reconcileMedia, renderFrame]);
 
   useEffect(() => {
-    const wasActive = activeRef.current;
-    const previousDirection = directionRef.current;
+    const previousExecution = executionRef.current;
     const firstReconcile = !propsReconciledRef.current;
     propsReconciledRef.current = true;
-    activeRef.current = active;
-    directionRef.current = direction;
+    executionRef.current = execution;
+    activeRef.current = execution !== null;
+    directionRef.current = execution?.direction ?? direction;
     prewarmRef.current = prewarm;
     reducedMotionRef.current = reducedMotion;
-    if (active && (firstReconcile || !wasActive || previousDirection !== direction)) {
-      startRun(direction);
+    if (
+      execution
+      && (firstReconcile || !sameExecution(previousExecution, execution))
+    ) {
+      startRun(execution.direction, execution);
       return;
     }
-    if (!active) {
+    if (!execution) {
       pendingRunDirectionRef.current = null;
+      runIdentityRef.current = null;
     }
     reconcileMedia();
-  }, [active, direction, prewarm, reconcileMedia, reducedMotion, startRun]);
+  }, [
+    direction,
+    execution,
+    prewarm,
+    reconcileMedia,
+    reducedMotion,
+    startRun
+  ]);
 
   useEffect(() => {
     onReady?.();

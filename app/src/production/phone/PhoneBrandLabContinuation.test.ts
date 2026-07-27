@@ -12,6 +12,14 @@ const compositeRunnerSource = readFileSync(
   new URL('./phone-composite-runner.ts', import.meta.url),
   'utf8'
 );
+const figure3Source = readFileSync(
+  new URL('../../scenes/figure3-animation/phone/PhoneFigure3.tsx', import.meta.url),
+  'utf8'
+);
+const ttgSource = readFileSync(
+  new URL('../../scenes/ttg-animation/phone/PhoneTtg.tsx', import.meta.url),
+  'utf8'
+);
 
 describe('PhoneBrandLabContinuation direct entry presentation', () => {
   it.each([
@@ -37,9 +45,13 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
       'const prepareTarget = config.visual.prepareTargetPresentation'
     );
     expect(compositeRunnerSource).toContain('options.capabilities.waitFor');
-    expect(compositeRunnerSource).toContain('run.session.reportEndpoints');
+    expect(compositeRunnerSource).toContain(
+      'resource.session[8]'
+    );
     expect(compositeRunnerSource).not.toContain('beginPhoneSurfaceRoleTransaction');
-    expect(compositeRunnerSource).toContain("'preparing-target'");
+    expect(compositeRunnerSource).toContain('PhoneExecutionIdentity');
+    expect(compositeRunnerSource).toContain('identitiesMatch');
+    expect(compositeRunnerSource).not.toContain('PhoneCompositeRunStep');
     expect(source).not.toContain("'media-failure'");
     expect(compositeRunnerSource).not.toContain("'media-failure'");
     expect(source).not.toContain('failedVisualsRef');
@@ -55,12 +67,52 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
   });
 
   it('does not overwrite a neighbouring transition surface owner', () => {
-    expect(source).toContain('orchestrator.registerSurface');
+    expect(source).toContain('registerPhoneRuntimeSurface(');
     expect(source).toContain('usePhoneStorySnapshot');
     expect(source).not.toContain(
       "if (!activeRun && cursor.kind === 'hold')"
     );
     expect(source).not.toContain(': currentSceneRef.current;');
     expect(source).not.toContain('commit: () =>');
+  });
+
+  it('[Task 6] projects Group 45 execution from one authority snapshot', () => {
+    expect(source).not.toContain('const [adapterScene, setAdapterScene]');
+    expect(source).not.toContain('const [scrollDirection, setScrollDirection]');
+    expect(source).not.toContain('const [stageScene, setStageScene]');
+    expect(source).not.toContain('const [visualActivity, setVisualActivity]');
+    expect(source).not.toContain('activeRunRef');
+    expect(source).not.toContain('orchestrator.cursor()');
+    expect(source).not.toContain("window.addEventListener('scroll'");
+    expect(source).not.toContain('data-phone-group45-stage-active');
+    expect(source).not.toContain('data-phone-group45-stage-scene');
+    expect(source).not.toContain('data-phone-group45-snap');
+    expect(source).toContain("'group45',");
+    expect(source).toContain("'group45:figure3'");
+    expect(source).toContain("'group45:ttg'");
+    expect(source).toContain('phoneBrandLabCompositeFrame(');
+    expect(source).toContain("'figure3-animation'");
+    expect(compositeRunnerSource).not.toContain('type ActiveRun');
+    expect(compositeRunnerSource).not.toContain('PhoneCompositeRunStep');
+    expect(compositeRunnerSource).not.toContain('onRunState');
+    expect(compositeRunnerSource).not.toContain('onRunBegin');
+    expect(compositeRunnerSource).not.toContain('onMediaActive');
+    expect(compositeRunnerSource).not.toContain('run.step');
+  });
+
+  it('[Task 6] gives Figure3 and TTG a start-captured authority identity', () => {
+    expect(source).toContain('execution={figure3Execution}');
+    expect(source).toContain('execution={ttgExecution}');
+    expect(figure3Source).toContain('runIdentityRef.current = identity;');
+    expect(figure3Source).toContain(
+      "completionListenerRef.current?.('figure3-animation', identity);"
+    );
+    expect(ttgSource).toContain('runIdentityRef.current = identity;');
+    expect(ttgSource).toContain(
+      "completionListenerRef.current?.('ttg-animation', identity);"
+    );
+    expect(ttgSource).toContain(
+      "mediaErrorListenerRef.current?.('ttg-animation', identity);"
+    );
   });
 });

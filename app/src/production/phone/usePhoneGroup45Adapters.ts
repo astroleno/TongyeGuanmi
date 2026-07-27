@@ -55,12 +55,14 @@ export function group45AdapterPlanForEntry(
     (scene) => sceneIndex(scene) >= entryIndex
   );
   const next = group45NextAdapterByScene[activeScene];
+  const nextScene = next?.[0];
+  const nextTransition = next?.[1];
   const nextVisualExit = next
     && (
-      next.scene === 'figure3-animation'
-      || next.scene === 'ttg-animation'
+      nextScene === 'figure3-animation'
+      || nextScene === 'ttg-animation'
     )
-    ? group45NextAdapterByScene[next.scene]
+    ? group45NextAdapterByScene[nextScene]
     : undefined;
   const activeVisualSource: Group45PhoneSceneId | undefined =
     activeScene === 'figure3-animation'
@@ -81,12 +83,12 @@ export function group45AdapterPlanForEntry(
       ...(activeScene === 'figure3-animation' || activeScene === 'ttg-animation'
         ? [activeScene]
         : []),
-      ...(next ? [next.scene] : [])
+      ...(nextScene ? [nextScene] : [])
     ]),
     transitions: unique([
       ...(activeVisualEntry ? [activeVisualEntry] : []),
-      ...(next ? [next.transition] : []),
-      ...(nextVisualExit ? [nextVisualExit.transition] : [])
+      ...(nextTransition ? [nextTransition] : []),
+      ...(nextVisualExit ? [nextVisualExit[1]] : [])
     ])
   };
 }
