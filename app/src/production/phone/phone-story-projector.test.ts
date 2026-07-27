@@ -56,6 +56,7 @@ describe('phone story projector', () => {
       portraitCheckpoint: 'brand-reading',
       portraitEdgeScene: 'brand'
     });
+    expect(root.dataset.portraitStageActive).toBeUndefined();
   });
 
   it('does not let a late old disposal clear the new root or document lease', () => {

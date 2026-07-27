@@ -1,5 +1,7 @@
 /* The document rail owns distance; one persistent host owns every scene edge. */
 .portrait-scroll-spike {
+  --portrait-live-height: 100svh;
+  --portrait-live-height: 100dvh;
   /* The orchestration transaction, not browser scroll anchoring, owns landing. */
   overflow-anchor: none;
 }
@@ -17,9 +19,6 @@
   position: fixed;
   z-index: 10;
   inset: 0;
-  width: 100%;
-  height: auto;
-  min-height: 0;
   /* This dynamic-height host positions the stage; it must not clip its lvh child. */
   overflow: visible;
   background: transparent;
@@ -31,9 +30,6 @@
   position: fixed;
   z-index: 8;
   inset: 0;
-  width: 100%;
-  height: var(--portrait-stage-canvas-height, 100lvh);
-  min-height: var(--portrait-stage-canvas-height, 100lvh);
   background: var(--portrait-edge-surface);
   pointer-events: none;
 }
@@ -55,6 +51,7 @@
 /* The retained layout/coverage canvas is the only outer clipping boundary. */
 .portrait-scroll-spike__stage-canvas {
   --portrait-readable-height: 100svh;
+  --portrait-readable-height: 100dvh;
   --portrait-readable-bottom-offset: max(
     0px,
     calc(var(--portrait-stage-height) - var(--portrait-readable-height))
@@ -67,12 +64,6 @@
   height: var(--portrait-stage-canvas-height);
   min-height: var(--portrait-stage-canvas-height);
   overflow: clip;
-}
-
-.portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__stage-canvas > .portrait-scroll-spike__scene,
-.portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__stage-canvas > .portrait-scroll-spike__ink:not([data-portrait-ink="brand-figure3"]):not([data-portrait-ink="services-ttg"]) {
-  visibility: hidden !important;
-  pointer-events: none;
 }
 
 .portrait-scroll-spike[data-portrait-loader-ready="false"] .portrait-scroll-spike__stage,
@@ -104,8 +95,7 @@
   pointer-events: none;
 }
 
-/* The shell publishes one global role transaction for every native endpoint. */
-.portrait-scroll-spike [data-phone-surface-role="native-under-stage"],
+/* The projector publishes the only surface role transaction. */
 .portrait-scroll-spike [data-phone-surface-role="retained-under-stage"],
 .portrait-scroll-spike [data-phone-surface-role="retired"] {
   z-index: 9 !important;
@@ -115,13 +105,11 @@
   z-index: 10 !important;
 }
 
-.portrait-scroll-spike [data-phone-surface-role="native-stable"],
 .portrait-scroll-spike [data-phone-surface-role="stable"],
 .portrait-scroll-spike [data-phone-surface-role="candidate-stable"] {
   z-index: 11 !important;
 }
 
-.portrait-scroll-spike [data-phone-surface-role="transition-endpoint"],
 .portrait-scroll-spike [data-phone-surface-role="transition-source"],
 .portrait-scroll-spike [data-phone-surface-role="transition-receiver"] {
   z-index: 12 !important;

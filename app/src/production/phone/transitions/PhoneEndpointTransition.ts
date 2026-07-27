@@ -13,18 +13,6 @@ import type {
 
 type Direction = 1 | -1;
 
-export function setPhoneEndpointLayer(
-  element: HTMLElement | null,
-  attribute: string,
-  active: boolean
-): void {
-  const slot = element?.closest<HTMLElement>(
-    '[data-phone-acceptance-chapter]'
-  );
-  if (active) slot?.setAttribute(attribute, 'true');
-  else slot?.removeAttribute(attribute);
-}
-
 export function presentPhoneEndpoint(
   element: HTMLElement | null,
   opacity: number,
@@ -48,7 +36,6 @@ export function clearPhoneEndpoint(element: HTMLElement | null): void {
 }
 
 export function createPhoneEndpointAdapter(options: Readonly<{
-  layerAttribute: string;
   renderFrame: (
     from: HTMLElement | null,
     to: HTMLElement | null,
@@ -70,9 +57,6 @@ export function createPhoneEndpointAdapter(options: Readonly<{
     ) {
       const directionRef = useRef<Direction>(1);
       const progressRef = useRef(0);
-      const layer = useCallback((active: boolean) => {
-        setPhoneEndpointLayer(to, options.layerAttribute, active);
-      }, [to]);
       const render = useCallback((progress: number) => {
         progressRef.current = progress;
         options.renderFrame(
@@ -88,43 +72,34 @@ export function createPhoneEndpointAdapter(options: Readonly<{
       }, [onReady]);
       useImperativeHandle(forwardedRef, () => ({
         render,
-        begin() {
-          layer(true);
-        },
+        begin() {},
         commitEndpoint(endpoint) {
           render(endpoint);
           if (endpoint === 1) options.settle(from, to);
         },
-        releaseEndpoint() {
-          layer(false);
-        },
+        releaseEndpoint() {},
         enter() {
           directionRef.current = 1;
-          layer(true);
           render(0);
         },
         leave() {
           if (directionRef.current === -1) {
             render(0);
-            layer(false);
             directionRef.current = 1;
             return;
           }
           render(1);
           options.settle(from, to);
-          layer(false);
         },
         reverse() {
           directionRef.current = -1;
-          layer(true);
           render(1);
         },
         dispose() {
           directionRef.current = 1;
-          layer(false);
           options.reset?.(from, to, progressRef.current);
         }
-      }), [from, layer, render, to]);
+      }), [from, render, to]);
       return null;
     }
   );

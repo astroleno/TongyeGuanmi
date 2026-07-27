@@ -31,9 +31,7 @@ describe('Phone PH → Education transition', () => {
     expect(source).not.toContain('parkPhonePhMedia');
     expect(source).not.toContain('renderPhonePhAnimationProgress');
     expect(source).toContain('createPhoneEndpointAdapter');
-    expect(source).toContain(
-      "layerAttribute: 'data-phone-ph-education-layer'"
-    );
+    expect(source).not.toContain('layerAttribute');
   });
 
   it('maps the canonical PH clock before the short Education dissolve', () => {

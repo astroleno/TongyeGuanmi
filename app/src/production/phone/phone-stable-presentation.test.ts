@@ -35,6 +35,7 @@ function assertStablePhoneHold(root: HTMLElement, scene: SceneId): void {
   expect(root.dataset.phoneStableScene).toBe(scene);
   expect(root.dataset.phoneInputState).toBe('free');
   expect(root.dataset.phoneProjectionState).toBe('stable');
+  expect(root.dataset.portraitStageActive).toBeUndefined();
 }
 
 describe('phone stable presentation contract', () => {

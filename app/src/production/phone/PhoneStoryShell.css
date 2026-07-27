@@ -25,7 +25,6 @@ html[data-portrait-spike="b"] .static-content {
 }
 
 .portrait-scroll-spike {
-  --portrait-live-height: 100dvh;
   --portrait-live-width: 100vw;
   --portrait-stage-height: max(var(--portrait-live-height), 100lvh);
   --portrait-stage-canvas-height: var(--portrait-stage-height);

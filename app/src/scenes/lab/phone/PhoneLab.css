@@ -3,6 +3,8 @@
   --phone-lab-y: 0px;
   position: relative;
   isolation: isolate;
+  min-block-size: 100svh;
+  min-block-size: 100dvh;
   color: #28291f;
   /* Brand, Figure3 and Lab are one continuous light-paper chapter. */
   background: #ede4d2;
@@ -13,7 +15,8 @@
 .phone-lab__screen {
   box-sizing: border-box;
   display: grid;
-  min-block-size: var(--portrait-stage-height, 100lvh);
+  min-block-size: 100svh;
+  min-block-size: var(--portrait-stage-height, 100dvh);
   padding: max(70px, 11svh) clamp(22px, 6vw, 42px) max(64px, 10svh);
   scroll-snap-align: start;
   scroll-snap-stop: always;

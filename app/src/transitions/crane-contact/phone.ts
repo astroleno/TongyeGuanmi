@@ -9,7 +9,6 @@ import {
   renderPhoneContactHold
 } from '../../scenes/contact/phone/presentation';
 import { CRANE_CONTACT_COPY_CUE } from '../../story/crane-contact-contract';
-import './phone.css';
 
 const owner = 'phone-crane-contact:phone';
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
@@ -24,7 +23,6 @@ function settle(
 }
 
 export const PhoneCraneContactTransition = createPhoneEndpointAdapter({
-  layerAttribute: 'data-phone-crane-contact-layer',
   renderFrame(from, to, rawProgress, _direction, reducedMotion) {
     const progress = reducedMotion ? (rawProgress < 0.5 ? 0 : 1) : rawProgress;
     const contact = clamp(

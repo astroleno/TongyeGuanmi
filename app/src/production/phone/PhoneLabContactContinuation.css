@@ -1,5 +1,10 @@
 .phone-lab-contact-continuation {
-  --phone-cinematic-stage-height: var(--portrait-stage-height, 100lvh);
+  --phone-native-viewport-height: 100svh;
+  --phone-native-viewport-height: 100dvh;
+  --phone-cinematic-stage-height: var(
+    --portrait-stage-height,
+    var(--phone-native-viewport-height)
+  );
   --phone-cinematic-stage-canvas-height: var(
     --portrait-stage-canvas-height,
     var(--phone-cinematic-stage-height)
@@ -12,13 +17,13 @@
 
 .phone-lab-contact-continuation__native {
   position: relative;
-  z-index: 11;
+  min-block-size: 100svh;
+  min-block-size: 100dvh;
   min-width: 0;
   background: #ede4d2;
 }
 
 [data-phone-document-endpoint-aligned="true"] {
-  z-index: 12 !important;
   transform: translate3d(
     0,
     var(--phone-document-endpoint-align-y, 0px),
@@ -26,16 +31,9 @@
   );
 }
 
-.portrait-scroll-spike[data-phone-stage-owner="group67"]
-  .phone-lab-contact-continuation
-  > .phone-lab-contact-continuation__native {
-  z-index: 9;
-}
-
 .phone-lab-contact-continuation__phase {
   box-sizing: border-box;
   position: relative;
-  z-index: 1;
   height: var(--phone-cinematic-stage-height);
   min-height: var(--phone-cinematic-stage-height);
   margin: 0 0 calc(-1 * var(--phone-cinematic-stage-height));
@@ -43,11 +41,6 @@
   isolation: isolate;
   pointer-events: none;
   background: #ede4d2;
-}
-
-.phone-lab-contact-continuation__native[data-phone-ph-education-layer="true"],
-.phone-lab-contact-continuation__native[data-phone-crane-contact-layer="true"] {
-  z-index: 12;
 }
 
 .phone-lab-contact-continuation__native-pending {
@@ -64,16 +57,16 @@
 }
 
 .phone-group67__stage-surfaces {
-  --phone-cinematic-stage-height: var(--portrait-stage-height, 100lvh);
+  --phone-cinematic-stage-height: var(
+    --portrait-stage-height,
+    var(--phone-native-viewport-height)
+  );
   --phone-cinematic-stage-canvas-height: var(
     --portrait-stage-canvas-height,
     var(--phone-cinematic-stage-height)
   );
   position: absolute;
-  z-index: 7;
   inset: 0;
-  width: 100%;
-  height: 100%;
   overflow: visible;
   visibility: hidden;
   pointer-events: none;
@@ -88,8 +81,6 @@
 .phone-group67__stage {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
   overflow: visible;
   visibility: hidden;
   opacity: 1;

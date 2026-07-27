@@ -16,7 +16,8 @@
   --phone-figure3-backdrop-scale: 1.06;
   position: relative;
   display: block;
-  min-block-size: max(80svh, 38rem);
+  min-block-size: max(100svh, 38rem);
+  min-block-size: max(100dvh, 38rem);
   overflow: visible;
   isolation: auto;
   background: var(--phone-figure3-paper);

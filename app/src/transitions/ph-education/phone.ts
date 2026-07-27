@@ -32,7 +32,6 @@ function settle(
 }
 
 export const PhonePhEducationTransition = createPhoneEndpointAdapter({
-  layerAttribute: 'data-phone-ph-education-layer',
   renderFrame(from, to, rawProgress, direction, reducedMotion) {
     const progress = reducedMotion ? (rawProgress < 0.5 ? 0 : 1) : rawProgress;
     if (direction === -1) {

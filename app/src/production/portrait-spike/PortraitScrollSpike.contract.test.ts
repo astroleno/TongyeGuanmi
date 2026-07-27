@@ -124,10 +124,13 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*visible[^}]*background:\s*transparent/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*8[^}]*height:\s*var\(--portrait-stage-canvas-height,\s*100lvh\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
+      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*8[^}]*inset:\s*0[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*inset:\s*0[^}]*height:\s*auto[^}]*min-height:\s*0/s
+      /portrait-scroll-spike__stage\s*\{[^}]*inset:\s*0[^}]*overflow:\s*visible/s
+    );
+    expect(railCss).not.toMatch(
+      /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed[^}]*(?:width|height|min-height):/s
     );
     expect(railCss).not.toContain('.portrait-scroll-spike__stage::after');
     expect(railCss).toMatch(
@@ -293,14 +296,15 @@ describe('Route B proven front-half migration contract', () => {
     expect(aodSource).toContain('phoneAodBackdropPresentation');
     expect(methodSource).toContain('id="method"');
     expect(methodSource).toContain('portrait-scroll-spike__method-bridge');
+    expect(methodCss).toContain('data-phone-stage-owner="front"');
+    expect(methodCss).toContain('data-phone-stage-owner="grade-a"');
+    expect(methodCss).not.toContain('data-portrait-stage-active');
+    expect(methodCss).not.toContain('data-portrait-aod-method-visible');
     expect(methodCss).toMatch(
-      /data-portrait-stage-active="true"[^}]*portrait-scroll-spike__method-bridge\s*\{[^}]*position:\s*fixed/s
+      /portrait-scroll-spike__method-bridge\s*\{[^}]*position:\s*fixed/s
     );
     expect(methodCss).toMatch(
-      /data-portrait-stage-active="false"[^}]*portrait-scroll-spike__reading\s*\{[^}]*z-index:\s*11/s
-    );
-    expect(methodCss).toMatch(
-      /data-portrait-stage-active="true"[^}]*portrait-scroll-spike__reading\s*\{[^}]*background:\s*transparent/s
+      /portrait-scroll-spike__reading\s*\{[^}]*background:\s*transparent/s
     );
     expect(methodCss).toMatch(
       /portrait-scroll-spike__reading::before\s*\{[^}]*background:\s*transparent/s

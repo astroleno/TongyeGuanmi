@@ -97,9 +97,7 @@ const rootDataKeys = [
   'portraitCheckpoint',
   'portraitCheckpointTrace',
   'portraitEdgeScene',
-  'portraitEdgeSurface',
-  'portraitStageActive',
-  'portraitAodMethodVisible'
+  'portraitEdgeSurface'
 ] as const;
 
 function data(
@@ -296,11 +294,6 @@ export function createPhoneStoryProjector({
         data(routeRoot, 'portraitCheckpointTrace', plan.checkpointTrace.join('>'));
         data(routeRoot, 'portraitEdgeScene', projection.edge);
         data(routeRoot, 'portraitEdgeSurface', edgeSurface);
-        data(routeRoot, 'portraitStageActive', projection.stageOwner === 'native'
-          ? 'false'
-          : 'true');
-        data(routeRoot, 'portraitAodMethodVisible', snapshot.status === 'stable'
-          && snapshot.scene === 'method-top' ? 'true' : 'false');
         routeRoot.style?.setProperty('--portrait-edge-surface', edgeSurface);
         const stageViewport = routeRoot.querySelector?.(
           '.portrait-scroll-spike__stage-viewport'

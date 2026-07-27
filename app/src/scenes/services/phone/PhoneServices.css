@@ -4,6 +4,7 @@
   box-sizing: border-box;
   position: relative;
   min-block-size: 100svh;
+  min-block-size: 100dvh;
   isolation: isolate;
   color: #292919;
   background:

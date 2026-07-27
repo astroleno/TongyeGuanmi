@@ -1,7 +1,0 @@
-/*
- * Crane and Contact share one document edge. Contact stays in its native
- * slot and is promoted only while the Crane-owned clock reveals it.
- */
-.phone-lab-contact__native[data-phone-crane-contact-layer="true"] {
-  z-index: 4;
-}

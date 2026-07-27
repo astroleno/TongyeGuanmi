@@ -6,12 +6,11 @@
   color: #1e211c;
 }
 
-.portrait-scroll-spike[data-portrait-stage-active="true"] .portrait-scroll-spike__reading {
+.portrait-scroll-spike[data-phone-stage-owner="front"] .portrait-scroll-spike__reading,
+.portrait-scroll-spike[data-phone-stage-owner="grade-a"] .portrait-scroll-spike__reading,
+.portrait-scroll-spike[data-phone-stage-owner="group45"] .portrait-scroll-spike__reading,
+.portrait-scroll-spike[data-phone-stage-owner="group67"] .portrait-scroll-spike__reading {
   background: transparent;
-}
-
-.portrait-scroll-spike[data-portrait-stage-active="false"] .portrait-scroll-spike__reading {
-  z-index: 11;
 }
 
 .portrait-scroll-spike__reading[data-phone-surface-role="transition-source"] {
@@ -39,7 +38,10 @@
   background: transparent;
 }
 
-.portrait-scroll-spike[data-portrait-stage-active="true"] .portrait-scroll-spike__reading::before {
+.portrait-scroll-spike[data-phone-stage-owner="front"] .portrait-scroll-spike__reading::before,
+.portrait-scroll-spike[data-phone-stage-owner="grade-a"] .portrait-scroll-spike__reading::before,
+.portrait-scroll-spike[data-phone-stage-owner="group45"] .portrait-scroll-spike__reading::before,
+.portrait-scroll-spike[data-phone-stage-owner="group67"] .portrait-scroll-spike__reading::before {
   height: var(--portrait-stage-height);
 }
 
@@ -76,16 +78,13 @@
   will-change: transform, opacity, filter;
 }
 
-.portrait-scroll-spike[data-portrait-stage-active="true"] .portrait-scroll-spike__method-bridge {
+.portrait-scroll-spike[data-phone-stage-owner="front"] .portrait-scroll-spike__method-bridge,
+.portrait-scroll-spike[data-phone-stage-owner="grade-a"] .portrait-scroll-spike__method-bridge,
+.portrait-scroll-spike[data-phone-stage-owner="group45"] .portrait-scroll-spike__method-bridge,
+.portrait-scroll-spike[data-phone-stage-owner="group67"] .portrait-scroll-spike__method-bridge {
   position: fixed;
-  z-index: 17;
+  z-index: 12;
   inset: 0;
-}
-
-.portrait-scroll-spike[data-portrait-aod-method-visible="false"] .portrait-scroll-spike__method-bridge {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
 }
 
 /* The projector's receiver role keeps the Method entrance mountable while

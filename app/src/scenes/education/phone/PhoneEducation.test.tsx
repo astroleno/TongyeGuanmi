@@ -39,13 +39,15 @@ describe('PhoneEducation', () => {
   it('keeps the authored intro and programme as two native full-viewport acts', () => {
     const stylesheet = readFileSync(new URL('./PhoneEducation.css', import.meta.url), 'utf8');
 
-    expect(stylesheet).toContain('var(--phone-cinematic-stage-height, 100svh) * 2');
-    expect(stylesheet).toContain('min-height: var(--phone-cinematic-stage-height, 100svh)');
+    expect(stylesheet).toContain('min-block-size: 200svh');
+    expect(stylesheet).toContain('min-block-size: 200dvh');
+    expect(stylesheet).toContain('min-block-size: 100svh');
+    expect(stylesheet).toContain('min-block-size: 100dvh');
     expect(stylesheet).toContain('gap: 0');
     expect(stylesheet).toContain('overflow: visible');
     expect(stylesheet).not.toContain('overflow-y: auto');
-    expect(stylesheet).toContain('data-phone-ph-education-layer="true"');
-    expect(stylesheet).toContain('z-index: 4');
+    expect(stylesheet).not.toContain('data-phone-ph-education-layer');
+    expect(stylesheet).not.toContain('z-index: 4');
     expect(stylesheet).not.toContain('position: fixed');
   });
 });

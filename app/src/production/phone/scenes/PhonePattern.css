@@ -1,7 +1,6 @@
 .portrait-scroll-spike {
   --portrait-pattern-wash-background:
-    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
-    linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
+    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%);
 }
 
 .portrait-scroll-spike__scene--pattern {
@@ -16,6 +15,7 @@
   display: block;
   pointer-events: none;
   user-select: none;
+  background: #d9c08f;
 }
 
 .portrait-scroll-spike__pattern-image {
