@@ -120,12 +120,17 @@ describe('phone stable presentation contract', () => {
     expect(observed).toEqual([{ lock: undefined, anchor: undefined }]);
   });
 
-  it.fails('[Task 5] makes Figure2 hold progress follow the shared document sample', () => {
+  it('[Task 5] makes Figure2 hold progress follow the shared document sample', () => {
     expect(gradeASource).not.toContain(
       'let runView: PhoneGradeARunView | null = null;'
     );
     expect(gradeASource).not.toContain(
       "window.addEventListener('scroll', schedule, { passive: true });"
     );
+    expect(gradeASource).toContain('usePhoneStorySnapshot');
+    expect(gradeASource).toContain(
+      "snapshot.scroll.corridor === 'method-grade-a'"
+    );
+    expect(gradeASource).not.toContain('stableGradeAHold');
   });
 });

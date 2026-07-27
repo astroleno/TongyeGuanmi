@@ -203,7 +203,10 @@ export function createPhoneStoryOrchestrator(
       reason,
       currentY: options.scrollY(),
       boundaryY: snapshot.session.anchor.y ?? fallbackY,
-      ...(corridorLanding === null ? {} : { compositeY: corridorLanding })
+      ...(corridorLanding === null ? {} : {
+        targetY: corridorLanding,
+        compositeY: corridorLanding
+      })
     });
   };
   const syncDiagnostics = () => {

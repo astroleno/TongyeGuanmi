@@ -14,13 +14,13 @@
   z-index: 11;
 }
 
-.portrait-scroll-spike__reading[data-phone-method-figure2-ink-active="true"] {
+.portrait-scroll-spike__reading[data-phone-surface-role="transition-source"] {
   background: transparent;
 }
 
 /* Grade A owns this visual handoff. The bridge is still the `from` layer
  * while ink progresses, then the Orchestrator's Figure2 hold removes it. */
-.portrait-scroll-spike__reading[data-phone-method-figure2-ink-active="true"]
+.portrait-scroll-spike__reading[data-phone-surface-role="transition-source"]
 .portrait-scroll-spike__method-bridge {
   opacity: calc(1 - var(--phone-method-figure2-ink-progress, 0)) !important;
   pointer-events: none;
@@ -86,6 +86,14 @@
   display: none !important;
   opacity: 0 !important;
   visibility: hidden !important;
+}
+
+/* The projector's receiver role keeps the Method entrance mountable while
+ * AOD owns the previous stage. Progress still controls its own opacity. */
+.portrait-scroll-spike__reading[data-phone-surface-role="transition-receiver"]
+.portrait-scroll-spike__method-bridge {
+  display: flex !important;
+  visibility: visible !important;
 }
 
 .portrait-scroll-spike__method-bridge-content > span {

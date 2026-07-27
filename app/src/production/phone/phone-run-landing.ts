@@ -8,6 +8,8 @@ export type PhoneRunLandingRequest = Readonly<{
   reason: PhoneLandingReason;
   currentY: number;
   boundaryY: number;
+  /** Final target marker measured by the selected corridor. */
+  targetY?: number | undefined;
   compositeY?: number | undefined;
 }>;
 
@@ -24,13 +26,16 @@ export function resolvePhoneRunLanding({
   direction,
   currentY,
   boundaryY,
+  targetY,
   compositeY
 }: PhoneRunLandingRequest): number {
   switch (policy) {
     case 'aod-semantic-edge':
       return Math.max(0, boundaryY);
     case 'authored-boundary':
-      return Math.max(0, direction === 1 ? boundaryY : Math.min(currentY, boundaryY));
+      return Math.max(0, targetY ?? (
+        direction === 1 ? boundaryY : Math.min(currentY, boundaryY)
+      ));
     case 'preserve-composite':
       return Math.max(0, compositeY ?? currentY);
     default:

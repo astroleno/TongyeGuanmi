@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
   type RefObject
 } from 'react';
@@ -27,10 +28,22 @@ export function usePhoneStoryOrchestratorRuntime({
     scrollY: () => window.scrollY,
     scrollTo: (y) => window.scrollTo(0, y)
   }));
+  const lifecycleEpoch = useRef(0);
 
   useEffect(() => {
+    const epoch = ++lifecycleEpoch.current;
     authority.attach();
-    return authority.dispose;
+    return () => {
+      /*
+       * React development StrictMode probes effects by cleanup/recreate in
+       * one turn. Defer terminal disposal to a microtask so the recreated
+       * route lifetime retains its route-local authority, while a real
+       * unmount still disposes before a later browser task can use it.
+       */
+      void Promise.resolve().then(() => {
+        if (lifecycleEpoch.current === epoch) authority.dispose();
+      });
+    };
   }, [authority]);
 
   return authority;

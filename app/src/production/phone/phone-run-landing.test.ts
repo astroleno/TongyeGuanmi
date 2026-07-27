@@ -28,4 +28,15 @@ describe('orchestrator-owned phone run landing', () => {
       compositeY
     })).toBe(expected);
   });
+
+  it('commits an authored reverse run at its registered target marker', () => {
+    expect(resolvePhoneRunLanding({
+      policy: 'authored-boundary',
+      direction: -1,
+      reason: 'reverse',
+      currentY: 5_619,
+      boundaryY: 5_619,
+      targetY: 4_051
+    } as Parameters<typeof resolvePhoneRunLanding>[0])).toBe(4_051);
+  });
 });

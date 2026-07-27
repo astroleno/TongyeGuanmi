@@ -1,14 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  createPhoneStoryHold,
-  startPhoneStoryRun
-} from './phone-story-cursor-test-support';
-import {
   createPhoneGradeARunner,
   phoneGradeABoundaryProgress,
   phoneGradeARunForBoundary,
-  type PhoneGradeABoundaryCapability,
-  type PhoneGradeARunView
+  type PhoneGradeABoundaryCapability
 } from './phone-grade-a-runtime';
 import type {
   PhoneOrchestratedRunSession,
@@ -16,6 +11,11 @@ import type {
   PhoneStoryOrchestrator
 } from './phone-story-orchestrator';
 import type { PhoneRunId } from './phone-story-runs';
+import {
+  createPhoneStorySnapshot,
+  reducePhoneStorySnapshot,
+  type PhoneStorySnapshot
+} from './phone-story-state';
 import type { PhoneTransitionAdapterHandle } from './types';
 
 function element(): HTMLElement {
@@ -137,6 +137,31 @@ function boundary(
   };
 }
 
+function snapshot(scene: 'method-top' | 'figure2-animation' | 'figure2-proof' | 'brand') {
+  return createPhoneStorySnapshot({
+    authorityId: 'phone-authority-grade-a',
+    scene
+  });
+}
+
+function runSnapshot(
+  scene: 'method-top' | 'figure2-animation' | 'figure2-proof' | 'brand',
+  run: PhoneRunId,
+  direction: 1 | -1
+): PhoneStorySnapshot {
+  return reducePhoneStorySnapshot(snapshot(scene), {
+    type: 'RUN_STARTED',
+    authorityId: 'phone-authority-grade-a',
+    sessionId: `phone-session-${run}`,
+    generation: 1,
+    leg: 0,
+    direction,
+    run,
+    anchorY: 0,
+    inputEpoch: 1
+  }).snapshot;
+}
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -150,10 +175,10 @@ describe('canonical Grade A runtime projection', () => {
   });
 
   it('derives stable endpoints from the canonical hold without completion latches', () => {
-    const method = createPhoneStoryHold('method-top');
-    const figure2 = createPhoneStoryHold('figure2-animation');
-    const proof = createPhoneStoryHold('figure2-proof');
-    const brand = createPhoneStoryHold('brand');
+    const method = snapshot('method-top');
+    const figure2 = snapshot('figure2-animation');
+    const proof = snapshot('figure2-proof');
+    const brand = snapshot('brand');
 
     expect([0, 1, 2].map((id) => (
       phoneGradeABoundaryProgress(method, id as 0 | 1 | 2)
@@ -170,23 +195,13 @@ describe('canonical Grade A runtime projection', () => {
   });
 
   it('uses canonical forward progress unchanged during a timed run', () => {
-    const cursor = startPhoneStoryRun(
-      createPhoneStoryHold('figure2-animation'),
-      'figure2-proof',
-      1,
-      { sessionId: 'phone-session-1', generation: 1 }
-    );
-    expect(phoneGradeABoundaryProgress(cursor, 1)).toBe(0);
+    const run = runSnapshot('figure2-animation', 'figure2-proof', 1);
+    expect(phoneGradeABoundaryProgress(run, 1)).toBe(0);
   });
 
   it('uses canonical reverse progress unchanged during a timed run', () => {
-    const cursor = startPhoneStoryRun(
-      createPhoneStoryHold('figure2-proof'),
-      'figure2-proof',
-      -1,
-      { sessionId: 'phone-session-2', generation: 2 }
-    );
-    expect(phoneGradeABoundaryProgress(cursor, 1)).toBe(1);
+    const run = runSnapshot('figure2-proof', 'figure2-proof', -1);
+    expect(phoneGradeABoundaryProgress(run, 1)).toBe(1);
   });
 });
 
@@ -196,17 +211,12 @@ describe('canonical Grade A run lifecycle', () => {
     const to = element();
     const adapter = transition();
     const registered = orchestratorCapabilities();
-    const views: Array<PhoneGradeARunView | null> = [];
     const lifecycle: string[] = [];
     createPhoneGradeARunner({
       orchestrator: registered.orchestrator,
       boundaries: [boundary(2, adapter, from, to)],
       reducedMotion: true,
-      timeoutMs: 1000,
-      onRunView: (view) => {
-        views.push(view);
-        lifecycle.push(view ? 'active' : 'settled');
-      }
+      timeoutMs: 1000
     });
     const activeSession = session(() => lifecycle.push('commit'));
 
@@ -233,11 +243,9 @@ describe('canonical Grade A run lifecycle', () => {
     );
     expect(activeSession.reportEndpoints).toHaveBeenCalledWith(from, to);
     expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('receiver');
-    expect(views[0]).toEqual({ id: 2, progress: 0 });
     activeSession.flushRelease();
     expect(activeSession.reportEndpointRelease).toHaveBeenCalledTimes(1);
-    expect(views.at(-1)).toBeNull();
-    expect(lifecycle.slice(-2)).toEqual(['commit', 'settled']);
+    expect(lifecycle).toEqual(['commit']);
   });
 
   it('latches the first crossing and resumes when the boundary becomes ready', async () => {
@@ -259,8 +267,7 @@ describe('canonical Grade A run lifecycle', () => {
       orchestrator: registered.orchestrator,
       boundaries: [delayedBoundary],
       reducedMotion: true,
-      timeoutMs: 1000,
-      onRunView: vi.fn()
+      timeoutMs: 1000
     });
     const activeSession = session();
 
@@ -292,8 +299,7 @@ describe('canonical Grade A run lifecycle', () => {
       orchestrator: registered.orchestrator,
       boundaries: [{ ...boundary(1, adapter, from, to), durationMs: 1500 }],
       reducedMotion: false,
-      timeoutMs: 4000,
-      onRunView: vi.fn()
+      timeoutMs: 4000
     });
     const activeSession = session();
 
@@ -324,8 +330,7 @@ describe('canonical Grade A run lifecycle', () => {
       orchestrator: registered.orchestrator,
       boundaries: [{ ...capability, position }],
       reducedMotion: true,
-      timeoutMs: 1000,
-      onRunView: vi.fn()
+      timeoutMs: 1000
     });
     const activeSession = session();
 
@@ -357,8 +362,7 @@ describe('canonical Grade A run lifecycle', () => {
         prepareReceiver
       }],
       reducedMotion: true,
-      timeoutMs: 1000,
-      onRunView: vi.fn()
+      timeoutMs: 1000
     });
     const activeSession = session();
 
@@ -402,18 +406,13 @@ describe('canonical Grade A run lifecycle', () => {
       throw new Error('preparation failed');
     }));
     const registered = orchestratorCapabilities();
-    const lifecycle: string[] = [];
     createPhoneGradeARunner({
       orchestrator: registered.orchestrator,
       boundaries: [boundary(0, adapter, from, to)],
       reducedMotion: false,
-      timeoutMs: 1000,
-      onRunView: (view) => lifecycle.push(view ? 'active' : 'settled')
+      timeoutMs: 1000
     });
-    const activeSession = session(
-      undefined,
-      () => lifecycle.push('abort')
-    );
+    const activeSession = session();
 
     registered.capabilities.get('method-figure2')?.start(-1, activeSession);
     await vi.waitFor(() => {
@@ -426,6 +425,5 @@ describe('canonical Grade A run lifecycle', () => {
     expect(activeSession.reportEndpoints).toHaveBeenCalledWith(to, from);
     expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('source');
     expect(activeSession.reportEndpointRelease).toHaveBeenCalledTimes(1);
-    expect(lifecycle.slice(-2)).toEqual(['abort', 'settled']);
   });
 });

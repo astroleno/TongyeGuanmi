@@ -21,7 +21,7 @@ const Figure2ProofSurface = figure2ProofScene.Component;
 export const PhoneFigure2Proof = forwardRef<
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
->(function PhoneFigure2Proof({ onReady }, forwardedRef) {
+>(function PhoneFigure2Proof({ active, onReady }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'copy') rootRef.current = element;
@@ -31,6 +31,15 @@ export const PhoneFigure2Proof = forwardRef<
     renderFigure2ProofHold(rootRef.current);
     onReady?.();
   }, [onReady]);
+
+  /* Active is accessibility/resource state; surface roles own presentation. */
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.inert = !active;
+    if (active) root.removeAttribute('aria-hidden');
+    else root.setAttribute('aria-hidden', 'true');
+  }, [active]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -45,17 +54,8 @@ export const PhoneFigure2Proof = forwardRef<
       );
       root?.setAttribute('data-phone-proof-progress', progress.toFixed(4));
     },
-    enter() {
-      const root = rootRef.current;
-      if (!root) return;
-      root.inert = false;
-      root.removeAttribute('aria-hidden');
-    },
-    leave() {
-      const root = rootRef.current;
-      if (!root) return;
-      root.inert = true;
-    },
+    enter() {},
+    leave() {},
     reverse() {},
     dispose() {}
   }), []);

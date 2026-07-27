@@ -1,12 +1,11 @@
 import { canonicalSceneIds } from '../../story/canonical-spine';
 import type { SceneId } from '../../story/types';
-import type { TargetPresentationRequest } from '../../story/presentation';
 import type {
   PhoneOrchestratedRunSession,
   PhoneStoryRuntimePort
 } from './phone-story-orchestrator';
 import type { PhoneRunId } from './phone-story-runs';
-import type { PhoneStoryCursor } from './phone-story-state';
+import type { PhoneStorySnapshot } from './phone-story-state';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 import type { PhoneTransitionAdapterHandle } from './types';
 
@@ -34,18 +33,22 @@ export function phoneGradeARunForBoundary(
   return gradeARuns[boundary];
 }
 
+/**
+ * Grade A has no independent completed/run view. Terminal endpoints and an
+ * in-flight ink frame are projections of the authority's one snapshot.
+ */
 export function phoneGradeABoundaryProgress(
-  cursor: PhoneStoryCursor,
+  snapshot: PhoneStorySnapshot,
   boundary: PhoneGradeABoundaryId
 ): number {
   const run = phoneGradeARunForBoundary(boundary);
-  if (cursor.kind === 'transition' && cursor.run === run) {
-    return cursor.progress;
+  if (
+    snapshot.status === 'transaction'
+    && snapshot.session.operation.run === run
+  ) {
+    return snapshot.session.progress;
   }
-  const stableScene = cursor.kind === 'hold'
-    ? cursor.scene
-    : cursor.runSource;
-  return sceneIndex(stableScene)
+  return sceneIndex(snapshot.projection.semanticScene)
       >= (gradeATargetSceneIndex[boundary] ?? Number.POSITIVE_INFINITY)
     ? 1
     : 0;
@@ -66,24 +69,16 @@ export type PhoneGradeABoundaryCapability = Readonly<{
   ): Promise<void>;
 }>;
 
-export type PhoneGradeARunView = Readonly<{
-  id: PhoneGradeABoundaryId;
-  progress: number;
-}>;
-
 export type PhoneGradeARunner = Readonly<{
   dispose(): void;
 }>;
 
-type ActiveGradeARun = {
-  boundary: PhoneGradeABoundaryCapability;
-  direction: PhoneTransitionDirection;
-  session: PhoneOrchestratedRunSession;
-  transition?: PhoneTransitionAdapterHandle;
-  preparation: AbortController;
-  timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+type TargetPresentationRequest = Readonly<{
   progress: number;
-};
+  direction: PhoneTransitionDirection;
+  runId: string;
+  signal: AbortSignal;
+}>;
 
 function waitForBoundaryReady(
   boundary: PhoneGradeABoundaryCapability,
@@ -121,153 +116,138 @@ function waitForBoundaryReady(
   });
 }
 
+/**
+ * Registers Grade A's adapter effects with the shared session controller.
+ * The controller owns phases, progress, and the active session; this module
+ * retains only abortable adapter resources until their session releases them.
+ */
 export function createPhoneGradeARunner({
   orchestrator,
   boundaries,
   reducedMotion,
-  timeoutMs,
-  onRunView
+  timeoutMs
 }: Readonly<{
   orchestrator: PhoneStoryRuntimePort;
   boundaries: readonly PhoneGradeABoundaryCapability[];
   reducedMotion: boolean;
   timeoutMs: number;
-  onRunView(view: PhoneGradeARunView | null): void;
 }>): PhoneGradeARunner {
-  let active: ActiveGradeARun | null = null;
+  const disposeResources = new Set<() => void>();
 
-  const publish = (run: ActiveGradeARun | null) => {
-    onRunView(run ? { id: run.boundary.id, progress: run.progress } : null);
-  };
-  const clear = (run: ActiveGradeARun) => {
-    if (run.timeout !== undefined) globalThis.clearTimeout(run.timeout);
-    run.timeout = undefined;
-  };
-  const release = (run: ActiveGradeARun) => {
-    run.transition?.releaseEndpoint();
-    delete run.transition;
-    run.session.reportEndpointRelease();
-  };
-  const rollback = (run: ActiveGradeARun) => {
-    if (active !== run) return;
-    clear(run);
-    run.preparation.abort();
-    const endpoint = run.direction === 1 ? 0 : 1;
-    run.progress = endpoint;
-    run.transition?.commitEndpoint(endpoint);
-    run.session.reportEndpointCommit('source');
-    release(run);
-    active = null;
-    run.session.reportFailure();
-    publish(null);
-  };
-  const complete = (run: ActiveGradeARun) => {
-    if (active !== run || !run.session.valid()) return;
-    const transition = run.transition;
-    if (!transition) return rollback(run);
-    clear(run);
-    const endpoint = run.direction === 1 ? 1 : 0;
-    run.progress = endpoint;
-    run.session.reportProgress(endpoint);
-    transition.commitEndpoint(endpoint);
-    active = null;
-    run.session.provideRelease({
-      releaseGeometry() {
-        release(run);
-      },
-      releaseResources() {
-        publish(null);
-      }
-    });
-    run.session.reportEndpointCommit('receiver');
-    run.session.reportTargetPresented();
-  };
-  const animate = (run: ActiveGradeARun) => {
-    const transition = run.transition;
-    if (!transition) return rollback(run);
-    run.session.animate(
-      run.direction === 1 ? 0 : 1,
-      run.direction === 1 ? 1 : 0,
-      run.boundary.durationMs,
-      (progress) => {
-        if (active !== run) return;
-        run.progress = progress;
-        transition.render(progress);
-        publish(run);
-      },
-      () => complete(run)
-    );
-  };
-  const prepare = async (run: ActiveGradeARun) => {
-    try {
-      await waitForBoundaryReady(
-        run.boundary,
-        run.preparation.signal
-      );
-      if (
-        active !== run
-        || run.preparation.signal.aborted
-        || !run.session.valid()
-      ) return;
-      const transition = run.boundary.transition();
-      const from = run.boundary.from();
-      const to = run.boundary.to();
-      if (!transition || !from || !to) {
-        throw new Error('Phone Grade A boundary became unready');
-      }
-      const source = run.direction === 1 ? from : to;
-      const receiver = run.direction === 1 ? to : from;
-      run.transition = transition;
-      run.session.reportEndpoints(source, receiver);
-      transition.begin({ identity: run.session });
-      transition.commitEndpoint(run.progress as 0 | 1);
-      if (run.boundary.prepareReceiver) {
-        await run.boundary.prepareReceiver({
-          progress: run.direction === 1 ? 0 : 1,
-          direction: run.direction,
-          runId: `${run.session.sessionId}:${run.session.generation}`,
-          signal: run.preparation.signal
-        });
-      }
-      await transition.prepare?.(
-        run.direction,
-        run.preparation.signal
-      );
-      if (
-        active !== run
-        || run.preparation.signal.aborted
-        || !run.session.valid()
-      ) return;
-      run.session.reportPresentedFrame();
-      if (run.timeout !== undefined) globalThis.clearTimeout(run.timeout);
-      run.timeout = undefined;
-      if (run.direction === 1) transition.enter?.();
-      else transition.reverse?.();
-      if (reducedMotion) complete(run);
-      else animate(run);
-    } catch {
-      rollback(run);
-    }
-  };
   const begin = (
     boundary: PhoneGradeABoundaryCapability,
     direction: PhoneTransitionDirection,
     session: PhoneOrchestratedRunSession
   ) => {
-    if (active || !session.valid()) return false;
+    if (!session.valid()) return false;
+
     const preparation = new AbortController();
-    const run: ActiveGradeARun = {
-      boundary,
-      direction,
-      session,
-      preparation,
-      timeout: undefined,
-      progress: direction === 1 ? 0 : 1
+    let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+    let transition: PhoneTransitionAdapterHandle | null = null;
+    let terminal = false;
+    let released = false;
+
+    const clearTimeoutResource = () => {
+      if (timeout === undefined) return;
+      globalThis.clearTimeout(timeout);
+      timeout = undefined;
     };
-    active = run;
-    publish(run);
-    run.timeout = globalThis.setTimeout(() => rollback(run), timeoutMs);
-    void prepare(run);
+    const releaseEndpoint = () => {
+      if (released) return;
+      released = true;
+      transition?.releaseEndpoint();
+      if (transition) session.reportEndpointRelease();
+    };
+    const releaseResources = () => {
+      clearTimeoutResource();
+      preparation.abort();
+      disposeResources.delete(cancel);
+    };
+    const rollback = () => {
+      if (terminal) return;
+      terminal = true;
+      clearTimeoutResource();
+      preparation.abort();
+      const endpoint = direction === 1 ? 0 : 1;
+      transition?.commitEndpoint(endpoint);
+      if (transition) {
+        session.reportEndpointCommit('source');
+        releaseEndpoint();
+      }
+      disposeResources.delete(cancel);
+      if (session.valid()) session.reportFailure();
+    };
+    const complete = () => {
+      if (terminal || !session.valid() || !transition) {
+        rollback();
+        return;
+      }
+      terminal = true;
+      clearTimeoutResource();
+      const endpoint = direction === 1 ? 1 : 0;
+      session.reportProgress(endpoint);
+      transition.commitEndpoint(endpoint);
+      session.provideRelease({
+        releaseGeometry() {
+          releaseEndpoint();
+        },
+        releaseResources
+      });
+      session.reportEndpointCommit('receiver');
+      session.reportTargetPresented();
+    };
+    const animate = () => {
+      if (!transition) {
+        rollback();
+        return;
+      }
+      session.animate(
+        direction === 1 ? 0 : 1,
+        direction === 1 ? 1 : 0,
+        boundary.durationMs,
+        (progress) => transition?.render(progress),
+        complete
+      );
+    };
+    const prepare = async () => {
+      try {
+        await waitForBoundaryReady(boundary, preparation.signal);
+        if (preparation.signal.aborted || !session.valid() || terminal) return;
+        transition = boundary.transition();
+        const from = boundary.from();
+        const to = boundary.to();
+        if (!transition || !from || !to) {
+          throw new Error('Phone Grade A boundary became unready');
+        }
+        const source = direction === 1 ? from : to;
+        const receiver = direction === 1 ? to : from;
+        session.reportEndpoints(source, receiver);
+        transition.begin({ identity: session });
+        transition.commitEndpoint(direction === 1 ? 0 : 1);
+        if (boundary.prepareReceiver) {
+          await boundary.prepareReceiver({
+            progress: direction === 1 ? 0 : 1,
+            direction,
+            runId: `${session.sessionId}:${session.generation}`,
+            signal: preparation.signal
+          });
+        }
+        await transition.prepare?.(direction, preparation.signal);
+        if (preparation.signal.aborted || !session.valid() || terminal) return;
+        session.reportPresentedFrame();
+        clearTimeoutResource();
+        if (direction === 1) transition.enter?.();
+        else transition.reverse?.();
+        if (reducedMotion) complete();
+        else animate();
+      } catch {
+        rollback();
+      }
+    };
+    const cancel = () => rollback();
+    disposeResources.add(cancel);
+    timeout = globalThis.setTimeout(rollback, timeoutMs);
+    void prepare();
     return true;
   };
 
@@ -277,16 +257,16 @@ export function createPhoneGradeARunner({
       `grade-a-${boundary.id}`,
       {
         position: boundary.position,
-        canStart: () => !active,
+        canStart: () => true,
         start: (direction, session) => begin(boundary, direction, session)
       }
     )
-  ));
+ ));
 
   return {
     dispose() {
       for (const registration of registrations) registration.dispose();
-      if (active) rollback(active);
+      for (const dispose of [...disposeResources]) dispose();
     }
   };
 }

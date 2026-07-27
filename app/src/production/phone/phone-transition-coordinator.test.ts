@@ -64,7 +64,12 @@ describe('phone transition coordinator', () => {
     expect(phoneTransitionCrossesBoundary(400, 798, 800, 1)).toBe(false);
     expect(phoneTransitionCrossesBoundary(800, 900, 800, 1)).toBe(true);
     expect(phoneTransitionCrossesBoundary(800, 600, 800, -1)).toBe(true);
-    expect(phoneTransitionCrossesBoundary(760, 600, 800, -1)).toBe(false);
+    expect(phoneTransitionCrossesBoundary(840, 810, 800, -1)).toBe(false);
+  });
+
+  it('claims the next input after native momentum already crossed an authored edge', () => {
+    expect(phoneTransitionCrossesBoundary(842, 962, 800, 1)).toBe(true);
+    expect(phoneTransitionCrossesBoundary(758, 638, 800, -1)).toBe(true);
   });
 
   it('uses one mirrored 600ms easing curve for every ink boundary', () => {

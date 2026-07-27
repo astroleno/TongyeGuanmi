@@ -7,7 +7,6 @@ import {
   useRef,
   useState
 } from 'react';
-import { semanticBoolean } from '../../../runtime/semantic-data-attribute';
 import { METHOD_COPY } from '../../../story/copy';
 import { sceneFromHash } from '../../navigation';
 import type {
@@ -37,7 +36,12 @@ function clamp(value: number): number {
 }
 
 export function phoneMethodRequestsGradeAAtMount(hash: string): boolean {
-  return phoneDirectEntryCompletesAod(sceneFromHash(hash));
+  const scene = sceneFromHash(hash);
+  /*
+   * A direct Method entry must register its authored Grade A corridor before
+   * the authority can measure and publish the native Method landing.
+   */
+  return scene === 'method-top' || phoneDirectEntryCompletesAod(scene);
 }
 
 /**
@@ -73,7 +77,7 @@ export const PhoneMethodTop = forwardRef<
   }, [active, motionDriver]);
 
   useEffect(() => {
-    if (!active || gradeARequested) return;
+    if (gradeARequested) return;
     if (phoneMethodRequestsGradeAAtMount(window.location.hash)) {
       setGradeARequested(true);
       return;
@@ -91,7 +95,7 @@ export const PhoneMethodTop = forwardRef<
     }, { rootMargin: '400% 0px' });
     observer.observe(slot);
     return () => observer.disconnect();
-  }, [active, gradeARequested]);
+  }, [gradeARequested]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -101,13 +105,6 @@ export const PhoneMethodTop = forwardRef<
       const progress = clamp(rawProgress);
       const ease = progress * progress * (3 - 2 * progress);
       const visible = progress > 0.001;
-      const owner = rootRef.current?.closest<HTMLElement>('.portrait-scroll-spike');
-      if (owner) {
-        owner.dataset.portraitAodMethodVisible = semanticBoolean(visible);
-        if (import.meta.env.DEV) {
-          owner.dataset.portraitMethodEntrance = progress.toFixed(4);
-        }
-      }
       motionDriver.set(bridge, {
         autoAlpha: ease,
         y: 30 * (1 - ease),

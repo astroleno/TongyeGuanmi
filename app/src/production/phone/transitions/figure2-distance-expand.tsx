@@ -13,7 +13,6 @@ import {
 } from '../../../story/figure2-distance-expand-contract';
 import type {
   LayerHandle,
-  LayerVisibilityState,
   SceneId,
   SegmentRunId,
   StagedLegPreparation,
@@ -47,14 +46,8 @@ export function phoneFigure2ProofTimelineProgress(
     + (1 - FIGURE2_INTRO_END) * clamp(progress);
 }
 
-function applyVisibility(element: HTMLElement, state: LayerVisibilityState): void {
-  element.style.visibility = state.visible ? 'visible' : 'hidden';
-  element.style.opacity = String(state.opacity);
-  element.style.pointerEvents = state.pointerEvents;
-  element.inert = state.inert;
-}
-
 function phoneLayer(scene: SceneId, element: HTMLElement): LayerHandle {
+  void element;
   const layer: LayerHandle = {
     scene,
     role: 'current',
@@ -68,11 +61,9 @@ function phoneLayer(scene: SceneId, element: HTMLElement): LayerHandle {
     },
     setVisibility(state) {
       layer.visibility = state;
-      applyVisibility(element, state);
     },
     dispose() {}
   };
-  applyVisibility(element, layer.visibility);
   return layer;
 }
 
@@ -96,15 +87,13 @@ function fallbackFrame(
   progress: number,
   reducedMotion: boolean
 ): void {
+  void to;
   const canonical = reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
   renderFigure2AnimationProgress(
     from,
     figure2IntroProgress(phoneFigure2ProofTimelineProgress(canonical)),
     { videoMode: 'none' }
   );
-  from.style.visibility = canonical >= 0.999 ? 'hidden' : 'visible';
-  to.style.visibility = canonical <= 0.001 ? 'hidden' : 'visible';
-  to.style.opacity = canonical.toFixed(4);
 }
 
 /**

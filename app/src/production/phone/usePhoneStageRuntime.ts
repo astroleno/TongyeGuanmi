@@ -387,6 +387,14 @@ export function usePhoneStageRuntime(
       }),
       options.orchestrator.registerSurface({
         id: FRONT_AOD_SURFACE, scene: 'aod-animation', kind: 'fixed', root: () => aodAdapter.root()
+      }),
+      options.orchestrator.registerSurface({
+        id: 'native:method',
+        scene: 'method-top',
+        kind: 'native',
+        root: () => methodAdapter.root(),
+        coverageRoot: () => methodAdapter.root(),
+        presented: () => true
       })
     ];
     const corridorLease = options.orchestrator.registerScrollCorridor({

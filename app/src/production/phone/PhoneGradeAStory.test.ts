@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import * as gradeAStory from './PhoneGradeAStory';
 import {
   phoneGradeAArchFrame,
   phoneGradeAFigureProgress,
@@ -7,6 +8,13 @@ import {
   phoneGradeAProofBrandProgress,
   phoneGradeAProofProgress
 } from './PhoneGradeAStory';
+
+const gradeALanding = gradeAStory as typeof gradeAStory & Readonly<{
+  phoneGradeAFigure2LandingBoundary(
+    reason: 'forward' | 'reverse' | 'rollback' | 'direct-entry',
+    direction: 1 | -1
+  ): 0 | 1;
+}>;
 
 const source = readFileSync(
   new URL('./PhoneGradeAStory.tsx', import.meta.url),
@@ -65,6 +73,14 @@ describe('phone Grade A document progress', () => {
     expect(phoneGradeAProofBrandProgress(422, 844)).toBe(0.5);
     expect(phoneGradeAProofBrandProgress(0, 844)).toBe(1);
   });
+
+  it('keeps the completed Figure2 endpoint when Proof settles in reverse', () => {
+    const boundary = gradeALanding.phoneGradeAFigure2LandingBoundary;
+    expect(boundary?.('forward', 1)).toBe(0);
+    expect(boundary?.('reverse', -1)).toBe(1);
+    expect(boundary?.('rollback', 1)).toBe(1);
+    expect(boundary?.('rollback', -1)).toBe(0);
+  });
 });
 
 describe('phone Grade A orchestration ownership', () => {
@@ -86,5 +102,15 @@ describe('phone Grade A orchestration ownership', () => {
     expect(source).not.toContain('MutationObserver');
     expect(source).toContain('id="figure2-animation"');
     expect(source).toContain('id="figure2-proof"');
+  });
+
+  it('derives Grade A render state from the shared snapshot without a local scroll owner', () => {
+    expect(source).toContain('usePhoneStorySnapshot');
+    expect(source).not.toContain('PhoneGradeARunView');
+    expect(source).not.toContain('orchestrator.cursor()');
+    expect(source).not.toContain("addEventListener('scroll'");
+    expect(source).not.toContain("addEventListener('resize'");
+    expect(source).not.toContain("addEventListener('orientationchange'");
+    expect(source).not.toContain('data-phone-grade-a-active');
   });
 });

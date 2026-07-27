@@ -5,7 +5,6 @@ import {
   useLayoutEffect,
   useRef
 } from 'react';
-import { semanticBoolean } from '../../../runtime/semantic-data-attribute';
 import {
   createPhonePackedAlphaSurface,
   type PhonePackedAlphaSurfaceMode,
@@ -40,7 +39,7 @@ const FIGURE2_ENDPOINT_SECONDS = 2.6;
 export const PhoneFigure2 = forwardRef<
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
->(function PhoneFigure2({ onReady }, forwardedRef) {
+>(function PhoneFigure2({ active, onReady }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
   const packedSurfaceRef = useRef<PhonePackedAlphaSurface | undefined>(undefined);
   const mediaControllerRef = useRef<AbortController | undefined>(undefined);
@@ -108,7 +107,6 @@ export const PhoneFigure2 = forwardRef<
     if (!active) {
       releasePackedSurface();
     }
-    root.dataset.phoneFigure2Active = semanticBoolean(active);
   }, [releasePackedSurface]);
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'stage') {
@@ -125,7 +123,6 @@ export const PhoneFigure2 = forwardRef<
       if (import.meta.env.DEV) root.dataset.phoneFigure2Ready = 'failed';
       return;
     }
-    root.dataset.phoneFigure2Active = 'false';
     root.style.setProperty(
       '--phone-figure2-poster-image',
       `url(${JSON.stringify(FIGURE2_POSTER_IMAGE)})`
@@ -145,11 +142,22 @@ export const PhoneFigure2 = forwardRef<
       root.style.removeProperty('--phone-figure2-poster-image');
       delete root.dataset.phoneFigure2Alpha;
       if (import.meta.env.DEV) delete root.dataset.phoneFigure2Ready;
-      delete root.dataset.phoneFigure2Active;
       delete video.dataset.phoneFigure2Alpha;
       delete canvas.dataset.phoneFigure2Alpha;
     };
   }, [onReady, releasePackedSurface]);
+
+  /*
+   * Active is a decoder / packed-alpha resource lease only. The authority
+   * projector owns the root role, visibility, z-index, and endpoint coverage.
+   */
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    setSceneActive(active);
+    if (!root) return;
+    if (active) root.removeAttribute('aria-hidden');
+    else root.setAttribute('aria-hidden', 'true');
+  }, [active, setSceneActive]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,

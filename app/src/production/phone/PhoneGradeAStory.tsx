@@ -11,15 +11,15 @@ import {
 } from '../../story/figure2-distance-expand-contract';
 import { usePhoneGradeAAdapters } from './usePhoneGradeAAdapters';
 import {
-  createPhoneGradeARunner,
-  phoneGradeABoundaryProgress,
-  type PhoneGradeARunView
+  createPhoneGradeARunner
 } from './phone-grade-a-runtime';
 import type {
   PhoneTransitionDirection
 } from './phone-transition-coordinator';
+import type { PhoneLandingReason } from './phone-scroll-corridor-registry';
 import {
-  usePhoneStoryOrchestrator
+  usePhoneStoryOrchestrator,
+  usePhoneStorySnapshot
 } from './PhoneStoryOrchestratorContext';
 import type {
   PhoneSceneAdapterHandle,
@@ -55,6 +55,21 @@ export function phoneGradeAFigureProgress(
   railHeight: number
 ): number {
   return clamp(-railTop / Math.max(1, railHeight)) * FIGURE2_PROOF_SPLIT;
+}
+
+/**
+ * Figure2 has distinct entry and completed endpoint markers. A reverse from
+ * Proof (and a forward rollback from that handoff) must retain the completed
+ * Figure2 endpoint so the first stable snapshot does not jump back to zero.
+ */
+export function phoneGradeAFigure2LandingBoundary(
+  reason: PhoneLandingReason,
+  direction: PhoneTransitionDirection
+): 0 | 1 {
+  return (reason === 'reverse' && direction === -1)
+    || (reason === 'rollback' && direction === 1)
+    ? 1
+    : 0;
 }
 
 export function phoneGradeAArchFrame(
@@ -98,12 +113,21 @@ export type PhoneGradeAStoryProps = Readonly<{
   methodCopySource?: HTMLElement | null;
 }>;
 
+function surfaceIsProjected(
+  sourceSurface: string | null,
+  receiverSurface: string,
+  id: string
+): boolean {
+  return sourceSurface === id || receiverSurface === id;
+}
+
 export function PhoneGradeAStory({
   reducedMotion,
   stageHost,
   methodCopySource = null
 }: PhoneGradeAStoryProps) {
   const orchestrator = usePhoneStoryOrchestrator();
+  const snapshot = usePhoneStorySnapshot();
   const adapters = usePhoneGradeAAdapters();
   const {
     Figure2,
@@ -134,8 +158,6 @@ export function PhoneGradeAStory({
   const brandRootRef = useRef<HTMLElement | null>(null);
   const boundaryReadyRef = useRef(0);
   const boundaryReadyListenersRef = useRef(new Set<() => void>());
-  const renderGradeAFrameRef = useRef<() => void>(() => undefined);
-  const frameRef = useRef(0);
   const scenesReady = figure2Ready && proofReady;
   const methodBoundaryReady = Boolean(
     methodCopySource && figure2Ready && methodFigure2Ready
@@ -144,7 +166,6 @@ export function PhoneGradeAStory({
   const proofBrandBoundaryReady = Boolean(
     proofReady && brandRoot && proofBrandReady
   );
-  const runtimeReady = methodBoundaryReady && figure2ProofBoundaryReady;
   brandRootRef.current = brandRoot;
   boundaryReadyRef.current = (methodBoundaryReady ? 1 : 0)
     | (figure2ProofBoundaryReady ? 2 : 0)
@@ -164,7 +185,6 @@ export function PhoneGradeAStory({
     () => setProofBrandReady(true),
     []
   );
-
   const bindAdapter = useCallback(<Handle,>(
     target: { current: Handle | null },
     handle: Handle | null
@@ -208,14 +228,17 @@ export function PhoneGradeAStory({
     return () => boundaryReadyListenersRef.current.delete(listener);
   }, []);
 
+  /*
+   * Grade A supplies authored geometry and adapter capabilities only. The
+   * document sampler chooses this corridor from the current authority
+   * snapshot; no component-owned scroll handler can publish a scene or frame.
+   */
   useLayoutEffect(() => {
     const root = rootRef.current;
     const rail = railRef.current;
     const proofTrack = proofTrackRef.current;
     const surfaces = surfacesRef.current;
     if (!root || !rail || !proofTrack || !surfaces) return;
-    const methodReading = document.getElementById('method');
-    let runView: PhoneGradeARunView | null = null;
     const elementDocumentTop = (element: HTMLElement) => (
       window.scrollY + element.getBoundingClientRect().top
     );
@@ -223,17 +246,18 @@ export function PhoneGradeAStory({
       brandRootRef.current
       ?? root.querySelector<HTMLElement>('[data-phone-continuation="brand-lab"]')
     );
+    const stageHeight = (fallback: number) => Math.max(
+      1,
+      surfaces.clientHeight || fallback || window.innerHeight
+    );
     const boundaryPosition = (
       id: GradeAInkBoundaryId,
       direction: PhoneTransitionDirection
     ): number | null => {
-      const stageHeight = Math.max(
-        1,
-        surfaces.clientHeight || window.innerHeight
-      );
+      const height = stageHeight(window.innerHeight);
       if (id === 0) {
         const railTop = elementDocumentTop(rail);
-        return direction === 1 ? railTop - stageHeight : railTop;
+        return direction === 1 ? railTop - height : railTop;
       }
       if (id === 1) {
         return elementDocumentTop(proofTrack)
@@ -242,244 +266,97 @@ export function PhoneGradeAStory({
       const brandBoundary = brandBoundaryRoot();
       if (!brandBoundary) return null;
       const brandTop = elementDocumentTop(brandBoundary);
-      return direction === 1 ? brandTop - stageHeight : brandTop;
+      return direction === 1 ? brandTop - height : brandTop;
     };
-
-    const renderFrame = () => {
-      frameRef.current = 0;
-      if (!boundaryReadyRef.current) {
-        root.dataset.phoneGradeAActive = 'false';
-        surfaces.dataset.phoneGradeAActive = 'false';
-        return;
-      }
-      const railRect = rail.getBoundingClientRect();
-      const proofRect = proofTrack.getBoundingClientRect();
-      const brandRect = brandBoundaryRoot()?.getBoundingClientRect();
-      const stageHeight = Math.max(1, surfaces.clientHeight || window.innerHeight);
-      const activeInk = runView;
-      const railActive = railRect.top < stageHeight
-        && railRect.bottom > 0;
-      const proofActive = proofRect.top <= ACTIVE_EDGE_TOLERANCE_PX
-        && proofRect.bottom >= stageHeight - ACTIVE_EDGE_TOLERANCE_PX;
-      const proofBrandActive = Boolean(
-        brandRect
-        && brandRect.top < stageHeight - ACTIVE_EDGE_TOLERANCE_PX
-        && brandRect.top > ACTIVE_EDGE_TOLERANCE_PX
-        && brandRect.bottom > 0
-      );
-      const cursor = orchestrator.cursor();
-      const stableGradeAHold = cursor.kind === 'hold'
-        && (
-          cursor.scene === 'method-top'
-          || cursor.scene === 'figure2-animation'
-          || cursor.scene === 'figure2-proof'
-          || cursor.scene === 'brand'
-        )
-        ? cursor.scene
-        : null;
-      const active = Boolean((
-        railActive && boundaryReadyRef.current & 1
-      ) || (
-        proofActive && boundaryReadyRef.current & 2
-      ) || (
-        proofBrandActive && boundaryReadyRef.current & 4
-      ) || activeInk
-        || stableGradeAHold === 'figure2-animation'
-        || stableGradeAHold === 'figure2-proof');
-      root.dataset.phoneGradeAActive = semanticBoolean(active);
-      surfaces.dataset.phoneGradeAActive = semanticBoolean(active);
-      if (methodReading) {
-        const methodInk = activeInk?.id === 0;
-        const methodInkProgress = stableGradeAHold
-          ? stableGradeAHold === 'method-top' ? 0 : 1
-          : methodInk
-            ? activeInk.progress
-            : 0;
-        methodReading.dataset.phoneMethodFigure2InkActive = semanticBoolean(
-          stableGradeAHold !== 'method-top'
-          && (Boolean(stableGradeAHold) || railActive || methodInk)
-        );
-        methodReading.style.setProperty(
-          '--phone-method-figure2-ink-progress',
-          clamp(methodInkProgress).toFixed(4)
-        );
-      }
-      const retainedArch = surfaces.querySelector<HTMLElement>(
-        '[data-stage-retained-figure2-arch="true"]'
-      );
-      const setRetainedArchProgress = (
-        revealProgress: number,
-        figureProgress: number
-      ) => {
-        const frame = phoneGradeAArchFrame(revealProgress, figureProgress);
-        retainedArch?.style.setProperty(
-          '--phone-figure2-arch-opacity',
-          frame.opacity.toFixed(4)
-        );
-        retainedArch?.style.setProperty(
-          '--phone-figure2-arch-scale',
-          frame.scale.toFixed(4)
-        );
-        retainedArch?.style.setProperty(
-          '--phone-figure2-arch-blur',
-          `${frame.blur.toFixed(2)}px`
-        );
-        if (retainedArch) {
-          retainedArch.dataset.phoneFigure2ArchVisible = semanticBoolean(
-            frame.opacity > 0.001
+    const surfaceLeases = [
+      orchestrator.registerSurface({
+        id: 'grade-a:figure2',
+        scene: 'figure2-animation',
+        kind: 'fixed',
+        root: () => figure2Ref.current?.root() ?? null,
+        coverageRoot: () => figure2Ref.current?.root() ?? null,
+        presented: () => true
+      }),
+      orchestrator.registerSurface({
+        id: 'grade-a:proof',
+        scene: 'figure2-proof',
+        kind: 'fixed',
+        root: () => proofRef.current?.root() ?? null,
+        coverageRoot: () => proofRef.current?.root() ?? null,
+        presented: () => true
+      })
+    ];
+    const corridorLease = orchestrator.registerScrollCorridor({
+      id: 'method-grade-a',
+      scenes: ['method-top', 'figure2-animation', 'figure2-proof'],
+      sample(viewport) {
+        const current = orchestrator.getSnapshot();
+        const delta = viewport.actualY - current.scroll.actualY;
+        const direction = delta > .5 ? 1 : delta < -.5 ? -1 : 0;
+        if (current.status === 'transaction') {
+          return { actualY: viewport.actualY, direction };
+        }
+        const height = stageHeight(viewport.viewportHeight);
+        const semanticScene = current.projection.semanticScene;
+        if (semanticScene === 'method-top') {
+          return {
+            actualY: viewport.actualY,
+            scene: 'method-top',
+            progress: phoneGradeAHandoffProgress(
+              rail.getBoundingClientRect().top,
+              height
+            ),
+            direction
+          };
+        }
+        if (semanticScene === 'figure2-animation') {
+          return {
+            actualY: viewport.actualY,
+            scene: 'figure2-animation',
+            progress: phoneGradeAFigureProgress(
+              rail.getBoundingClientRect().top,
+              rail.getBoundingClientRect().height
+            ),
+            direction
+          };
+        }
+        if (semanticScene === 'figure2-proof') {
+          return {
+            actualY: viewport.actualY,
+            scene: 'figure2-proof',
+            progress: phoneGradeAProofProgress(
+              proofTrack.getBoundingClientRect().top,
+              proofTrack.getBoundingClientRect().height,
+              height
+            ),
+            direction
+          };
+        }
+        return { actualY: viewport.actualY, direction };
+      },
+      boundary(run, direction) {
+        if (run === 'method-figure2') return boundaryPosition(0, direction);
+        if (run === 'figure2-proof') return boundaryPosition(1, direction);
+        if (run === 'proof-brand') return boundaryPosition(2, direction);
+        return null;
+      },
+      landing(scene, reason, direction) {
+        if (scene === 'method-top') {
+          const method = document.getElementById('method');
+          return method ? elementDocumentTop(method) : null;
+        }
+        if (scene === 'figure2-animation') {
+          return boundaryPosition(
+            phoneGradeAFigure2LandingBoundary(reason, direction),
+            direction
           );
-          if (import.meta.env.DEV) {
-            retainedArch.dataset.phoneFigure2ArchProgress = frame.motionProgress.toFixed(4);
-          }
         }
-      };
-
-      const methodInk = activeInk?.id === 0;
-      const figure2Ink = activeInk?.id === 1;
-      // Once the Orchestrator has published a stable hold, sampled document
-      // geometry is observational only. It must not replay an old rail branch
-      // and hide the committed receiver after the atomic handoff.
-      if (stableGradeAHold) {
-        if (stableGradeAHold === 'method-top') {
-          figure2Ref.current?.leave?.();
-          setRetainedArchProgress(0, 0);
-          methodFigure2Ref.current?.render(0);
-          figure2ProofRef.current?.render(0);
-          proofBrandRef.current?.render(0);
-          proofRef.current?.update(0);
-          proofRef.current?.leave?.();
-          return;
+        if (scene === 'figure2-proof') {
+          return boundaryPosition(1, direction);
         }
-        if (stableGradeAHold === 'figure2-animation') {
-          figure2Ref.current?.enter?.();
-          setRetainedArchProgress(1, 0);
-          methodFigure2Ref.current?.render(1);
-          figure2ProofRef.current?.render(0);
-          proofBrandRef.current?.render(0);
-          proofRef.current?.update(0);
-          proofRef.current?.leave?.();
-          return;
-        }
-        if (stableGradeAHold === 'figure2-proof') {
-          figure2Ref.current?.leave?.();
-          setRetainedArchProgress(1, 1);
-          methodFigure2Ref.current?.render(1);
-          figure2ProofRef.current?.render(1);
-          proofBrandRef.current?.render(0);
-          proofRef.current?.update(1);
-          proofRef.current?.enter?.();
-          return;
-        }
-        figure2Ref.current?.leave?.();
-        setRetainedArchProgress(1, 1);
-        methodFigure2Ref.current?.render(1);
-        figure2ProofRef.current?.render(1);
-        proofBrandRef.current?.render(1);
-        proofRef.current?.leave?.();
-        return;
+        return null;
       }
-      if (
-        (railActive && boundaryReadyRef.current & 1)
-        || methodInk
-        || figure2Ink
-      ) {
-        figure2Ref.current?.enter?.();
-        const handoff = methodInk
-          ? activeInk.progress
-          : figure2Ink ? 1 : reducedMotion
-          ? phoneGradeAHandoffProgress(railRect.top, stageHeight)
-          : phoneGradeABoundaryProgress(orchestrator.cursor(), 0);
-        const figure = methodInk
-          ? 0
-          : figure2Ink
-            ? FIGURE2_PROOF_SPLIT
-              + (1 - FIGURE2_PROOF_SPLIT) * activeInk.progress
-            : phoneGradeAFigureProgress(railRect.top, railRect.height);
-        setRetainedArchProgress(handoff, figure);
-        methodFigure2Ref.current?.render(handoff);
-        if (figure2Ink) {
-          figure2ProofRef.current?.render(activeInk.progress);
-        } else {
-          figure2Ref.current?.update(clamp(figure / FIGURE2_PROOF_SPLIT));
-        }
-        proofBrandRef.current?.render(0);
-        proofRef.current?.update(0);
-        if (figure2Ink) {
-          proofRef.current?.enter?.();
-          return;
-        }
-        return;
-      }
-
-      // Proof and Brand share the exact viewport edge. While the autonomous
-      // boundary owns that edge, it must outrank Proof's terminal hold or the
-      // render would return here for all 600ms and the ink would never paint.
-      if (
-        proofActive
-        && Boolean(boundaryReadyRef.current & 2)
-        && activeInk?.id !== 2
-      ) {
-        setRetainedArchProgress(1, 1);
-        const proof = phoneGradeAProofProgress(
-          proofRect.top,
-          proofRect.height,
-          stageHeight
-        );
-        methodFigure2Ref.current?.render(1);
-        figure2ProofRef.current?.render(1);
-        figure2Ref.current?.leave?.();
-        proofBrandRef.current?.render(0);
-        proofRef.current?.update(proof);
-        proofRef.current?.enter?.();
-        return;
-      }
-
-      if (
-        (proofBrandActive || activeInk?.id === 2)
-        && Boolean(boundaryReadyRef.current & 4)
-        && brandRect
-      ) {
-        const handoff = activeInk?.id === 2
-          ? activeInk.progress
-          : reducedMotion
-          ? phoneGradeAProofBrandProgress(brandRect.top, stageHeight)
-          : phoneGradeABoundaryProgress(orchestrator.cursor(), 2);
-        setRetainedArchProgress(1, 1);
-        methodFigure2Ref.current?.render(1);
-        figure2ProofRef.current?.render(1);
-        figure2Ref.current?.leave?.();
-        proofRef.current?.update(1);
-        proofRef.current?.enter?.();
-        proofBrandRef.current?.render(handoff);
-        return;
-      }
-
-      if (
-        boundaryReadyRef.current & 4
-        && brandRect
-        && brandRect.top <= ACTIVE_EDGE_TOLERANCE_PX
-      ) {
-        figure2Ref.current?.leave?.();
-        if (phoneGradeABoundaryProgress(orchestrator.cursor(), 2) >= 1) {
-          proofBrandRef.current?.render(1);
-          proofRef.current?.leave?.();
-        } else {
-          proofBrandRef.current?.render(0);
-          proofRef.current?.update(1);
-          proofRef.current?.enter?.();
-        }
-      }
-
-      if (railRect.top >= stageHeight) {
-        figure2Ref.current?.leave?.();
-        setRetainedArchProgress(0, 0);
-        methodFigure2Ref.current?.render(0);
-        figure2ProofRef.current?.render(0);
-        proofBrandRef.current?.render(0);
-        proofRef.current?.update(0);
-      }
-    };
-
+    });
     const runner = createPhoneGradeARunner({
       orchestrator,
       boundaries: GRADE_A_INK_BOUNDARIES.map((id) => ({
@@ -509,7 +386,7 @@ export function PhoneGradeAStory({
           }
         } : {}),
         from: () => id === 0
-          ? methodCopySource
+          ? document.getElementById('method')
           : id === 1
             ? figure2Ref.current?.root() ?? null
             : proofBrandSourceRef.current,
@@ -518,57 +395,221 @@ export function PhoneGradeAStory({
           : id === 1 ? proofRef.current?.root() ?? null : brandBoundaryRoot()
       })),
       reducedMotion,
-      timeoutMs: GRADE_A_PREPARE_TIMEOUT_MS,
-      onRunView(next) {
-        runView = next;
-        renderFrame();
-      }
+      timeoutMs: GRADE_A_PREPARE_TIMEOUT_MS
     });
-
-    const schedule = () => {
-      if (!frameRef.current) frameRef.current = window.requestAnimationFrame(renderFrame);
-    };
-    renderGradeAFrameRef.current = schedule;
-    renderFrame();
-    window.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule);
-    window.addEventListener('orientationchange', schedule);
     return () => {
-      if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
-      window.removeEventListener('scroll', schedule);
-      window.removeEventListener('resize', schedule);
-      window.removeEventListener('orientationchange', schedule);
+      for (const lease of surfaceLeases) lease.dispose();
+      corridorLease.dispose();
       runner.dispose();
-      runView = null;
-      renderGradeAFrameRef.current = () => undefined;
-      if (methodReading) {
-        delete methodReading.dataset.phoneMethodFigure2InkActive;
-        methodReading.style.removeProperty('--phone-method-figure2-ink-progress');
-      }
+      const method = document.getElementById('method');
+      method?.style.removeProperty('--phone-method-figure2-ink-progress');
     };
   }, [
     methodCopySource,
     orchestrator,
     reducedMotion,
-    subscribeBoundaryReady,
-    stageHost
+    stageHost,
+    subscribeBoundaryReady
   ]);
 
+  /*
+   * Adapter refs and lazy receivers are capabilities rather than presentation
+   * state. Their arrival only resumes the authority-owned session and asks
+   * the projector to reapply the current snapshot's role plan.
+   */
   useLayoutEffect(() => {
     for (const listener of boundaryReadyListenersRef.current) listener();
-    renderGradeAFrameRef.current();
+    orchestrator.syncDiagnostics();
   }, [
     adapterRevision,
     figure2ProofBoundaryReady,
     methodBoundaryReady,
+    orchestrator,
     proofBrandBoundaryReady
   ]);
 
+  /*
+   * Snapshot -> adapter rendering bridge. Geometry contributes only to the
+   * current corridor sample above; stable and transaction frames always read
+   * the same immutable authority snapshot.
+   */
+  useLayoutEffect(() => {
+    const surfaces = surfacesRef.current;
+    const method = document.getElementById('method');
+    if (!surfaces) return;
+    const retainedArch = surfaces.querySelector<HTMLElement>(
+      '[data-stage-retained-figure2-arch="true"]'
+    );
+    const methodPaper = methodPaperRef.current;
+    const setRetainedArchProgress = (
+      revealProgress: number,
+      figureProgress: number
+    ) => {
+      const frame = phoneGradeAArchFrame(revealProgress, figureProgress);
+      retainedArch?.style.setProperty(
+        '--phone-figure2-arch-opacity',
+        frame.opacity.toFixed(4)
+      );
+      retainedArch?.style.setProperty(
+        '--phone-figure2-arch-scale',
+        frame.scale.toFixed(4)
+      );
+      retainedArch?.style.setProperty(
+        '--phone-figure2-arch-blur',
+        frame.blur.toFixed(2) + 'px'
+      );
+      if (retainedArch) {
+        retainedArch.dataset.phoneFigure2ArchVisible = semanticBoolean(
+          frame.opacity > 0.001
+        );
+        if (import.meta.env.DEV) {
+          retainedArch.dataset.phoneFigure2ArchProgress =
+            frame.motionProgress.toFixed(4);
+        }
+      }
+    };
+    const setMethodInkProgress = (progress: number) => {
+      method?.style.setProperty(
+        '--phone-method-figure2-ink-progress',
+        clamp(progress).toFixed(4)
+      );
+    };
+    const renderStableMethod = () => {
+      methodPaper?.style.setProperty('visibility', 'hidden');
+      setMethodInkProgress(0);
+      figure2Ref.current?.leave?.();
+      proofRef.current?.leave?.();
+      methodFigure2Ref.current?.render(0);
+      figure2ProofRef.current?.render(0);
+      proofBrandRef.current?.render(0);
+      proofRef.current?.update(0);
+      setRetainedArchProgress(0, 0);
+    };
+    const renderStableFigure2 = () => {
+      const figureProgress = snapshot.scroll.corridor === 'method-grade-a'
+        ? snapshot.scroll.progress
+        : 0;
+      methodPaper?.style.setProperty('visibility', 'hidden');
+      setMethodInkProgress(1);
+      figure2Ref.current?.enter?.();
+      figure2Ref.current?.update(
+        clamp(figureProgress / FIGURE2_PROOF_SPLIT)
+      );
+      proofRef.current?.leave?.();
+      methodFigure2Ref.current?.render(1);
+      figure2ProofRef.current?.render(0);
+      proofBrandRef.current?.render(0);
+      proofRef.current?.update(0);
+      setRetainedArchProgress(1, figureProgress);
+    };
+    const renderStableProof = () => {
+      const proofProgress = snapshot.scroll.corridor === 'method-grade-a'
+        ? snapshot.scroll.progress
+        : 0;
+      methodPaper?.style.setProperty('visibility', 'hidden');
+      setMethodInkProgress(1);
+      figure2Ref.current?.leave?.();
+      methodFigure2Ref.current?.render(1);
+      figure2ProofRef.current?.render(1);
+      proofBrandRef.current?.render(0);
+      proofRef.current?.update(proofProgress);
+      proofRef.current?.enter?.();
+      setRetainedArchProgress(1, 1);
+    };
+    const renderStableBrand = () => {
+      methodPaper?.style.setProperty('visibility', 'hidden');
+      setMethodInkProgress(1);
+      figure2Ref.current?.leave?.();
+      proofRef.current?.leave?.();
+      methodFigure2Ref.current?.render(1);
+      figure2ProofRef.current?.render(1);
+      proofBrandRef.current?.render(1);
+      proofRef.current?.update(1);
+      setRetainedArchProgress(1, 1);
+    };
+
+    if (snapshot.status === 'transaction') {
+      const { operation, phase } = snapshot.session;
+      const sourceProgress = operation.direction === 1 ? 0 : 1;
+      const progress = phase.startsWith('rollback-')
+        ? sourceProgress
+        : snapshot.session.progress;
+      switch (operation.run) {
+        case 'method-figure2':
+          setMethodInkProgress(progress);
+          figure2Ref.current?.enter?.();
+          figure2Ref.current?.update(0);
+          proofRef.current?.leave?.();
+          methodFigure2Ref.current?.render(progress);
+          figure2ProofRef.current?.render(0);
+          proofBrandRef.current?.render(0);
+          proofRef.current?.update(0);
+          setRetainedArchProgress(progress, 0);
+          return;
+        case 'figure2-proof':
+          methodPaper?.style.setProperty('visibility', 'hidden');
+          setMethodInkProgress(1);
+          figure2Ref.current?.enter?.();
+          figure2Ref.current?.update(1);
+          proofRef.current?.enter?.();
+          methodFigure2Ref.current?.render(1);
+          figure2ProofRef.current?.render(progress);
+          proofBrandRef.current?.render(0);
+          proofRef.current?.update(progress);
+          setRetainedArchProgress(
+            1,
+            FIGURE2_PROOF_SPLIT
+              + (1 - FIGURE2_PROOF_SPLIT) * progress
+          );
+          return;
+        case 'proof-brand':
+          methodPaper?.style.setProperty('visibility', 'hidden');
+          setMethodInkProgress(1);
+          figure2Ref.current?.leave?.();
+          proofRef.current?.enter?.();
+          methodFigure2Ref.current?.render(1);
+          figure2ProofRef.current?.render(1);
+          proofBrandRef.current?.render(progress);
+          proofRef.current?.update(1);
+          setRetainedArchProgress(1, 1);
+          return;
+        default:
+          return;
+      }
+    }
+
+    switch (snapshot.projection.semanticScene) {
+      case 'method-top':
+        renderStableMethod();
+        return;
+      case 'figure2-animation':
+        renderStableFigure2();
+        return;
+      case 'figure2-proof':
+        renderStableProof();
+        return;
+      case 'brand':
+        renderStableBrand();
+        return;
+      default:
+        return;
+    }
+  }, [adapterRevision, snapshot]);
+
+  const figure2Active = surfaceIsProjected(
+    snapshot.projection.sourceSurface,
+    snapshot.projection.receiverSurface,
+    'grade-a:figure2'
+  );
+  const proofActive = surfaceIsProjected(
+    snapshot.projection.sourceSurface,
+    snapshot.projection.receiverSurface,
+    'grade-a:proof'
+  );
   const surfaces = (
     <div
       ref={surfacesRef}
       className="phone-grade-a__surfaces"
-      data-phone-grade-a-active="false"
       data-testid="r2-stage"
     >
       <div
@@ -580,7 +621,7 @@ export function PhoneGradeAStory({
       {Figure2 && (
         <Figure2
           ref={bindFigure2}
-          active={false}
+          active={figure2Active}
           reducedMotion={reducedMotion}
           onReady={markFigure2Ready}
         />
@@ -593,7 +634,7 @@ export function PhoneGradeAStory({
         {Proof && (
           <Proof
             ref={bindProof}
-            active={runtimeReady}
+            active={proofActive}
             reducedMotion={reducedMotion}
             onReady={markProofReady}
           />
@@ -635,11 +676,7 @@ export function PhoneGradeAStory({
   );
 
   return (
-    <div
-      ref={rootRef}
-      className="phone-grade-a"
-      data-phone-grade-a-active="false"
-    >
+    <div ref={rootRef} className="phone-grade-a">
       <div
         id="figure2-animation"
         ref={railRef}

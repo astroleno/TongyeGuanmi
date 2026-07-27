@@ -240,9 +240,18 @@ export function phoneTransitionCrossesBoundary(
   boundaryY: number,
   direction: PhoneTransitionDirection
 ): boolean {
-  return direction === 1
+  const crossed = direction === 1
     ? startScrollY <= boundaryY + 1 && projectedScrollY >= boundaryY - 1
     : startScrollY >= boundaryY - 1 && projectedScrollY <= boundaryY + 1;
+  if (crossed) return true;
+
+  // Browser wheel/touch momentum may move the document farther than its
+  // originating event's delta. The following same-direction input must still
+  // claim a boundary that native momentum has already crossed; otherwise a
+  // stable source surface can remain active beyond its authored marker.
+  return direction === 1
+    ? startScrollY >= boundaryY - 1 && projectedScrollY > startScrollY + .5
+    : startScrollY <= boundaryY + 1 && projectedScrollY < startScrollY - .5;
 }
 
 export function phoneTimedTransitionProgress(

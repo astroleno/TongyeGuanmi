@@ -2,10 +2,7 @@
   --phone-proof-translate-y: 0px;
   position: absolute;
   z-index: 1;
-  top: 0;
-  right: 0;
-  left: 0;
-  width: 100%;
+  inset: 0;
   height: calc(
     var(--portrait-stage-height)
     + var(--portrait-stage-height)
@@ -15,6 +12,7 @@
   overflow: visible;
   overscroll-behavior: auto;
   background: #ede4d2;
+  visibility: hidden;
   transform: translate3d(0, var(--phone-proof-translate-y), 0);
   will-change: transform;
 }

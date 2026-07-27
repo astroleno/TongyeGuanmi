@@ -3,6 +3,7 @@ import { phoneMethodRequestsGradeAAtMount } from './PhoneMethodTop';
 
 describe('PhoneMethodTop direct entry', () => {
   it.each([
+    '#method',
     '#figure2-animation',
     '#figure2-proof-opening',
     '#brand',
@@ -16,7 +17,6 @@ describe('PhoneMethodTop direct entry', () => {
 
   it.each([
     '#home',
-    '#method',
     '#aod-animation',
     '#crane-animation',
     '#contact'

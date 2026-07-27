@@ -293,6 +293,60 @@ describe('single phone story projector transaction', () => {
     });
   });
 
+  it('aligns an authored Grade A reverse settle to the Method target marker', () => {
+    const root = element();
+    const frames: Array<() => void> = [];
+    const commands: number[] = [];
+    let actualY = 5_042;
+    let session: PhoneOrchestratedRunSession | undefined;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'figure2-animation',
+      root,
+      scrollY: () => actualY,
+      scrollTo: (nextY) => {
+        commands.push(nextY);
+        actualY = nextY;
+      },
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+    orchestrator.registerRunCapability('method-figure2', 'test', capability(5_886, (
+      _direction,
+      activeSession
+    ) => {
+      session = activeSession;
+    }));
+    orchestrator.registerScrollCorridor({
+      id: 'method-grade-a',
+      scenes: ['method-top', 'figure2-animation'],
+      sample: () => null,
+      boundary: () => 5_886,
+      landing: (scene) => scene === 'method-top' ? 4_051 : 5_042
+    });
+
+    expect(orchestrator.resolveIntent({
+      inputEpoch: 1,
+      direction: -1,
+      startY: actualY,
+      projectedY: actualY - 100
+    })).toBe('claim-boundary');
+    session?.reportPresentedFrame();
+    session?.provideRelease({
+      releaseGeometry: () => undefined,
+      releaseResources: () => undefined
+    });
+    session?.reportEndpointCommit('receiver');
+    session?.reportTargetPresented();
+    frames.shift()?.();
+    frames.shift()?.();
+
+    expect(commands).toEqual([4_051]);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'method-top',
+      scroll: { actualY: 4_051 }
+    });
+  });
+
   it('does not publish a next snapshot when a connected root disconnects during preflight', () => {
     const root = Object.assign(element(), { isConnected: true });
     const orchestrator = createPhoneStoryOrchestrator({

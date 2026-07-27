@@ -174,9 +174,12 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(compositeRunnerSource).not.toContain('runPhoneProgressClock(');
     expect(compositeRunnerSource).toContain('run.session.provideRelease(');
     expect(compositeRunnerSource).not.toContain('options.onSettled(');
-    expect(gradeAStorySource).toMatch(
-      /proofActive\s*&&\s*Boolean\(boundaryReadyRef\.current & 2\)\s*&&\s*activeInk\?\.id !== 2/s
+    expect(gradeAStorySource).toContain('usePhoneStorySnapshot');
+    expect(gradeAStorySource).toContain("id: 'method-grade-a'");
+    expect(gradeAStorySource).toContain(
+      "snapshot.status === 'transaction'"
     );
+    expect(gradeAStorySource).not.toContain('activeInk?.id');
   });
 
   it('keeps Method flat while Figure3 owns the single authored paper wash', () => {
