@@ -5,6 +5,7 @@ import {
   createPhoneStoryOrchestrator,
   type PhoneOrchestratedRunSession
 } from './phone-story-orchestrator';
+import { assertStablePhonePresentation } from './phone-stable-presentation';
 
 const normalStableHolds = [
   'hero',
@@ -38,7 +39,7 @@ function assertStablePhoneHold(root: HTMLElement, scene: SceneId): void {
 
 describe('phone stable presentation contract', () => {
   for (const scene of normalStableHolds) {
-    it.fails(
+    it(
       `[Task 2] publishes one complete stable hold for ${scene}`,
       () => {
         const root = { dataset: {} } as HTMLElement;
@@ -52,13 +53,15 @@ describe('phone stable presentation contract', () => {
         orchestrator.syncDiagnostics();
 
         assertStablePhoneHold(root, scene);
+        assertStablePhonePresentation(orchestrator.getSnapshot());
       }
     );
   }
 
-  it.fails('[Task 2] never notifies an observable hold while its session lock or anchor remains', () => {
+  it('[Task 2] never notifies an observable hold while its session lock or anchor remains', () => {
     const root = { dataset: {} } as HTMLElement;
     const frames: Array<() => void> = [];
+    let actualY = 0;
     const observed: Array<Readonly<{
       lock: string | undefined;
       anchor: string | undefined;
@@ -67,8 +70,8 @@ describe('phone stable presentation contract', () => {
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',
       root,
-      scrollY: () => 0,
-      scrollTo: () => undefined,
+      scrollY: () => actualY,
+      scrollTo: (nextY) => { actualY = nextY; },
       scheduleFrame: (callback) => frames.push(callback)
     });
 
@@ -98,11 +101,16 @@ describe('phone stable presentation contract', () => {
     session.reportPresentedFrame();
     session.reportEndpointCommit('receiver');
     session.reportPresentedFrame();
-    session.provideRelease(() => undefined);
+    session.provideRelease({
+      releaseGeometry: () => undefined,
+      releaseResources: () => undefined
+    });
     session.reportEndpointCommit('receiver');
+    session.reportTargetPresented();
+    frames.shift()?.();
     frames.shift()?.();
 
-    expect(observed).toEqual([]);
+    expect(observed).toEqual([{ lock: undefined, anchor: undefined }]);
   });
 
   it.fails('[Task 5] makes Figure2 hold progress follow the shared document sample', () => {

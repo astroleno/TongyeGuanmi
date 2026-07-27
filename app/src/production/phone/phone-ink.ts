@@ -15,12 +15,12 @@ import {
 } from '../../transitions/shared/inkOwnership';
 import {
   acquirePhoneBoundaryGeometryLease,
-  type PhoneBoundaryGeometryLease,
-  type PhoneBoundaryGeometryOwner
+  type PhoneBoundaryGeometryLease
 } from './phone-boundary-geometry';
+import type { PhoneCinematicRequest } from './types';
 
 export type PhoneInkTransition = Readonly<{
-  begin(owner: PhoneBoundaryGeometryOwner): void;
+  begin(request: PhoneCinematicRequest): void;
   render(progress: number): void;
   commitEndpoint(endpoint: 0 | 1): void;
   releaseEndpoint(): void;
@@ -110,11 +110,11 @@ export function createPhoneInkTransition(
     )
   );
 
-  const begin = (owner: PhoneBoundaryGeometryOwner) => {
-    geometryLease?.release();
+  const begin = (request: PhoneCinematicRequest) => {
+    geometryLease?.releaseGeometry();
     geometryLease = acquirePhoneBoundaryGeometryLease(
       [...sourceEndpoints, options.to],
-      owner,
+      request.geometryOwner ?? request.identity,
       clearBoundaryGeometry
     );
   };
@@ -154,7 +154,15 @@ export function createPhoneInkTransition(
 
   const render = (rawProgress: number) => {
     if (!geometryLease) {
-      begin({ sessionId: `phone-ink:${options.id}`, generation: 0 });
+      begin({
+        identity: {
+          authorityId: `phone-ink:${options.id}`,
+          sessionId: `phone-ink:${options.id}`,
+          generation: 0,
+          leg: 0,
+          direction: 1
+        }
+      });
     }
     const progress = clamp(rawProgress);
     const rendererNeedsFrame = Math.abs(progress - lastProgress) >= 0.0005;
@@ -176,7 +184,7 @@ export function createPhoneInkTransition(
   };
 
   const releaseEndpoint = () => {
-    geometryLease?.release();
+    geometryLease?.releaseGeometry();
     geometryLease = undefined;
   };
 

@@ -10,16 +10,17 @@ import {
 import {
   createPhoneStorySnapshot,
   reducePhoneStorySnapshot,
-  selectPhoneInputLocked,
   selectPhoneStoryCursor,
+  type PhoneExecutionIdentity,
   type PhoneStoryEvent,
   type PhoneStoryReduction,
   type PhoneStorySnapshot
 } from './phone-story-state';
-import { createPhoneOrchestratorPublisher } from './phone-orchestrator-publisher';
 import {
-  createPhoneOrchestratedSessionController,
-  type PhoneActiveRun
+  createPhoneStoryProjector
+} from './phone-story-projector';
+import {
+  createPhoneOrchestratedSessionController
 } from './phone-orchestrated-session';
 import {
   phoneTransitionCrossesBoundary,
@@ -29,7 +30,6 @@ import { createPhoneRunCapabilityRegistry } from './phone-run-capability-registr
 import { resolvePhoneRunLanding } from './phone-run-landing';
 import type {
   PhoneRunCapability,
-  PhoneStableSceneAdapter,
   PhoneStoryOrchestrator,
   PhoneStoryOrchestratorOptions
 } from './phone-story-orchestrator.types';
@@ -38,17 +38,46 @@ export type { PhonePresentationEvidence } from './phone-story-presentation';
 export type {
   PhoneCapabilityLease,
   PhoneOrchestratedRunSession,
+  PhoneReleaseLease,
   PhoneRunCapability,
-  PhoneStableSceneAdapter,
   PhoneStoryOrchestrator,
-  PhoneStoryOrchestratorOptions
+  PhoneStoryOrchestratorOptions,
+  PhoneStoryRuntimePort
 } from './phone-story-orchestrator.types';
+export type { PhoneSurfaceRegistration } from './phone-story-projector';
 
 let authoritySequence = 0;
 
+function projectFailureEvent(snapshot: PhoneStorySnapshot): PhoneStoryEvent | null {
+  if (snapshot.status !== 'transaction') return null;
+  const { session } = snapshot;
+  const identity: PhoneExecutionIdentity = {
+    authorityId: snapshot.authorityId,
+    sessionId: session.sessionId,
+    generation: session.generation,
+    leg: session.operation.legIndex,
+    direction: session.operation.direction
+  };
+  return { ...identity, type: 'FAILED', reason: 'projector-failed' };
+}
+
+/**
+ * Internal execution engine. Route components construct it only through
+ * createPhoneStoryRuntime(); this export remains for focused reducer tests
+ * until the Task 9 compatibility removal.
+ */
 export function createPhoneStoryOrchestrator(
   options: PhoneStoryOrchestratorOptions
 ): PhoneStoryOrchestrator {
+  const authorityId = options.authorityId ?? `phone-authority-${++authoritySequence}`;
+  const routeRoot = () => typeof options.root === 'function'
+    ? options.root()
+    : options.root ?? null;
+  const projector = options.projector ?? createPhoneStoryProjector({
+    authorityId,
+    scope: 'formal',
+    root: routeRoot
+  });
   const capabilities = createPhoneRunCapabilityRegistry();
   let consumedInputEpoch = 0;
   const entryPlan = phoneEntryPlan(options.initialScene);
@@ -56,7 +85,7 @@ export function createPhoneStoryOrchestrator(
     entryPlan.kind === 'cinematic' ? entryPlan : null;
   let directEntryActivated = pendingDirectEntry === null;
   let currentSnapshot: PhoneStorySnapshot = createPhoneStorySnapshot({
-    authorityId: `phone-authority-${++authoritySequence}`,
+    authorityId,
     scene: entryPlan.kind === 'cinematic'
       ? phoneRun(entryPlan.run).from
       : entryPlan.scene,
@@ -64,81 +93,77 @@ export function createPhoneStoryOrchestrator(
   });
   let pendingIntent: PhoneIntent | null = null;
   let disposed = false;
+  let applyingFailure = false;
   const subscribers = new Set<() => void>();
-  const stableSceneAdapters = new Map<SceneId, PhoneStableSceneAdapter>();
 
-  const resolveLanding = (scene: SceneId, fallbackY: number) => {
-    const root = stableSceneAdapters.get(scene)?.root() as HTMLElement | null;
-    return root
-      ? Math.max(0, options.scrollY() + root.getBoundingClientRect().top)
-      : fallbackY;
+  const notify = () => {
+    for (const subscriber of subscribers) subscriber();
   };
-  const commitStableScene = (scene: SceneId) => {
-    for (const [registeredScene, adapter] of stableSceneAdapters) {
-      const root = adapter.root();
-      if (!root) continue;
-      root.dataset.phoneSurfaceRole = registeredScene === scene
-        ? 'native-stable'
-        : 'native-under-stage';
-      delete root.dataset.phoneBoundarySession;
-      delete root.dataset.phoneBoundaryGeneration;
-      delete root.dataset.phoneBoundaryEndpoint;
+  const applySnapshot = (
+    next: PhoneStorySnapshot,
+    notifySubscribers: boolean
+  ): boolean => {
+    const plan = projector.preflight(next);
+    if (!plan) return false;
+    try {
+      // Project first. Subscribers cannot observe a snapshot whose root roles,
+      // edge, checkpoint, lock, or anchor have not been synchronously applied.
+      projector.apply(plan);
+      currentSnapshot = next;
+      if (notifySubscribers) notify();
+      return true;
+    } catch {
+      projector.reapplyCurrent();
+      return false;
     }
-    stableSceneAdapters.get(scene)?.commit();
   };
-  let getActiveRun = (): PhoneActiveRun | null => null;
-  const presentationSceneIsCurrent = (scene: SceneId) => {
-    const cursor = selectPhoneStoryCursor(currentSnapshot);
-    if (
-      pendingDirectEntry?.scene === scene
-      || getActiveRun()?.directScene === scene
-    ) return true;
-    return cursor.kind === 'hold'
-      ? cursor.scene === scene
-      : cursor.from === scene || cursor.to === scene;
-  };
-  const publisher = createPhoneOrchestratorPublisher({
-    root: options.root,
-    onPresentation: options.onPresentation,
-    presentationSceneIsCurrent
-  });
-  const publishSnapshot = (publishPresentation = true, notify = true) => {
-    const cursor = selectPhoneStoryCursor(currentSnapshot);
-    if (currentSnapshot.status === 'stable') {
-      commitStableScene(currentSnapshot.scene);
-    }
-    publisher.cursor(cursor);
-    if (publishPresentation) publisher.presentation(currentSnapshot.projection);
-    publisher.lock(selectPhoneInputLocked(currentSnapshot));
-    publisher.anchor(
-      currentSnapshot.status === 'transaction'
-        ? currentSnapshot.session.anchor.y ?? undefined
-        : undefined
-    );
-    if (notify) {
-      for (const subscriber of subscribers) subscriber();
-    }
+  const recoverProjectFailure = () => {
+    if (applyingFailure) return;
+    const failure = projectFailureEvent(currentSnapshot);
+    if (!failure) return;
+    const recovery = reducePhoneStorySnapshot(currentSnapshot, failure).snapshot;
+    if (recovery === currentSnapshot) return;
+    applyingFailure = true;
+    applySnapshot(recovery, true);
+    applyingFailure = false;
   };
   const dispatch = (event: PhoneStoryEvent): PhoneStoryReduction => {
     if (disposed) return { snapshot: currentSnapshot, effects: [] };
     const reduction = reducePhoneStorySnapshot(currentSnapshot, event);
     if (reduction.snapshot === currentSnapshot) return reduction;
-    currentSnapshot = reduction.snapshot;
-    publishSnapshot();
+    if (!applySnapshot(reduction.snapshot, true)) {
+      recoverProjectFailure();
+      return { snapshot: currentSnapshot, effects: [] };
+    }
     return reduction;
+  };
+  const resolveLanding = (scene: SceneId, fallbackY: number) => {
+    const root = projector.rootForScene(scene);
+    return root
+      ? Math.max(0, options.scrollY() + root.getBoundingClientRect().top)
+      : fallbackY;
+  };
+  const syncDiagnostics = () => {
+    if (disposed) return;
+    if (!applySnapshot(currentSnapshot, false)) recoverProjectFailure();
   };
   const sessions = createPhoneOrchestratedSessionController({
     getSnapshot: () => currentSnapshot,
-    dispatch: (event) => {
-      dispatch(event);
-    },
+    dispatch,
+    scrollY: options.scrollY,
     scrollTo: options.scrollTo,
     resolveLanding,
-    onRetryable: options.onRetryable,
+    registerEndpoints(endpoints) {
+      projector.registerTransitionEndpoints(endpoints);
+      syncDiagnostics();
+    },
+    clearEndpoints() {
+      projector.clearTransitionEndpoints();
+      syncDiagnostics();
+    },
     scheduleFrame: options.scheduleFrame,
     disposed: () => disposed
   });
-  getActiveRun = sessions.active;
 
   const cursor = () => selectPhoneStoryCursor(currentSnapshot);
   const scrollMayReconcile = () => {
@@ -167,8 +192,6 @@ export function createPhoneStoryOrchestrator(
       inputEpoch
     );
     if (!session.valid()) return false;
-    // Claim the boundary before changing document position. The active
-    // transaction now carries the anchor and native scrolling cannot pass it.
     options.scrollTo(position);
     try {
       if (capability.start(direction, session) === false) {
@@ -267,17 +290,9 @@ export function createPhoneStoryOrchestrator(
     cursor,
     subscribe(listener) {
       subscribers.add(listener);
-      return {
-        dispose() {
-          subscribers.delete(listener);
-        }
-      };
+      return { dispose: () => subscribers.delete(listener) };
     },
-    syncDiagnostics() {
-      // Diagnostics intentionally replays the existing immutable snapshot.
-      // It does not manufacture a cursor or invoke a state setter.
-      publishSnapshot(false, false);
-    },
+    syncDiagnostics,
     activateDirectEntry() {
       if (disposed) return;
       directEntryActivated = true;
@@ -328,7 +343,7 @@ export function createPhoneStoryOrchestrator(
         scene,
         actualY: options.scrollY()
       });
-      if (currentSnapshot === before) publishSnapshot();
+      if (currentSnapshot === before) syncDiagnostics();
       startPendingIntent();
     },
     reconcileScrollHold(scene) {
@@ -359,19 +374,11 @@ export function createPhoneStoryOrchestrator(
       startPendingIntent();
       return registration;
     },
-    registerStableSceneAdapter(scene, _ownerId, adapter) {
+    registerSurface(registration) {
       if (disposed) throw new Error('Disposed phone story');
-      stableSceneAdapters.set(scene, adapter);
-      if (currentSnapshot.status === 'stable' && currentSnapshot.scene === scene) {
-        commitStableScene(scene);
-      }
-      return {
-        dispose() {
-          if (stableSceneAdapters.get(scene) === adapter) {
-            stableSceneAdapters.delete(scene);
-          }
-        }
-      };
+      const lease = projector.registerSurface(registration);
+      syncDiagnostics();
+      return lease;
     },
     dispose() {
       if (disposed) return;
@@ -380,9 +387,7 @@ export function createPhoneStoryOrchestrator(
       sessions.dispose();
       pendingIntent = null;
       subscribers.clear();
-      stableSceneAdapters.clear();
-      publisher.anchor();
-      publisher.lock(false);
+      projector.dispose();
     }
   };
 }

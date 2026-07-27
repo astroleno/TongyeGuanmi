@@ -16,11 +16,13 @@ import {
   PH_PLAYBACK_MS
 } from '../../story/timings';
 import {
+  group67PhoneSceneIds,
   type Group67PhoneSceneId,
   type Group67PhoneTransitionId
 } from './adapter-groups/group6-7';
 import {
-  usePhoneStoryOrchestrator
+  usePhoneStoryOrchestrator,
+  usePhoneStorySnapshot
 } from './PhoneStoryOrchestratorContext';
 import {
   acquirePhoneDocumentEndpointAlignment
@@ -90,7 +92,6 @@ export type PhoneLabContactContinuationProps = Readonly<{
   entryScene?: Group67PhoneSceneId;
   fromLabBoundary?: boolean;
   labBoundary?: PhoneLabBoundary | null;
-  onStageSceneChange?: (scene: VisualScene | null) => void;
 }>;
 
 function clamp(value: number): number {
@@ -102,19 +103,22 @@ export function PhoneLabContactContinuation({
   stageHost,
   entryScene,
   fromLabBoundary = false,
-  labBoundary = null,
-  onStageSceneChange
+  labBoundary = null
 }: PhoneLabContactContinuationProps) {
   const orchestrator = usePhoneStoryOrchestrator();
+  const storySnapshot = usePhoneStorySnapshot();
   const initialScene: ContinuationScene = entryScene
     ?? (fromLabBoundary ? 'lab' : 'ph-animation');
   const [focus, setFocus] = useState<Group67AdapterFocus>(
     initialScene
   );
   const adapters = usePhoneGroup67Adapters(focus);
-  const [currentScene, setCurrentScene] = useState<ContinuationScene>(
-    initialScene
-  );
+  const currentScene: ContinuationScene = (
+    storySnapshot.projection.semanticScene === 'lab'
+    || (group67PhoneSceneIds as readonly string[]).includes(
+      storySnapshot.projection.semanticScene
+    )
+  ) ? storySnapshot.projection.semanticScene as ContinuationScene : initialScene;
   const [stageScene, setStageScene] = useState<VisualScene | null>(null);
   const [prewarmScene, setPrewarmScene] = useState<VisualScene | null>(null);
   const [, setAdapterRevision] = useState(0);
@@ -194,8 +198,15 @@ export function PhoneLabContactContinuation({
   }, [bindCapability, labBoundary]);
 
   useEffect(() => {
-    onStageSceneChange?.(stageScene);
-  }, [onStageSceneChange, stageScene]);
+    if (
+      currentScene !== 'lab'
+      && currentScene !== 'education'
+      && currentScene !== 'contact'
+    ) return;
+    setStageScene(null);
+    setPrewarmScene(null);
+    setFocus(currentScene);
+  }, [currentScene]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -251,39 +262,6 @@ export function PhoneLabContactContinuation({
       }
     };
 
-    const setNativeOwner = (
-      scene: Extract<ContinuationScene, 'lab' | 'education' | 'contact'>
-    ) => {
-      const lab = labBoundaryRef.current?.adapter;
-      if (scene === 'lab') {
-        lab?.update(1);
-        lab?.enter?.();
-      }
-      else lab?.leave?.();
-      if (scene === 'education') {
-        educationRef.current?.update(1);
-        educationRef.current?.enter?.();
-      }
-      else educationRef.current?.leave?.();
-      if (scene === 'contact') {
-        contactRef.current?.update(1);
-        contactRef.current?.enter?.();
-      }
-      else contactRef.current?.leave?.();
-    };
-
-    const settleVisibleState = (
-      scene: Extract<ContinuationScene, 'lab' | 'education' | 'contact'>
-    ) => {
-      setCurrentScene(scene);
-      setStageScene(null);
-      setPrewarmScene(null);
-      setFocus(scene);
-      setNativeOwner(scene);
-      phRef.current?.leave?.();
-      craneRef.current?.leave?.();
-    };
-
     const boundaryPosition = (
       scene: VisualScene,
       direction: PhoneTransitionDirection
@@ -325,14 +303,13 @@ export function PhoneLabContactContinuation({
       onRunBegin(run) {
         const source = phoneGroup67RunSource(run.scene, run.direction);
         setFocus(source);
-        setCurrentScene(source);
         setPrewarmScene(run.scene);
       },
       onMediaActive(run) {
         const source = phoneGroup67RunSource(run.scene, run.direction);
         setStageScene(run.scene);
         setPrewarmScene(null);
-        setCurrentScene(source);
+        setFocus(source);
       },
       startMedia({ run, config, animate }) {
         if (run.direction === 1) {
@@ -360,20 +337,24 @@ export function PhoneLabContactContinuation({
       }
     });
 
-    const stableLeases = (
+    const surfaceLeases = (
       ['lab', 'education', 'contact'] as const
-    ).map((scene) => orchestrator.registerStableSceneAdapter(
-      scene,
-      `phone-lab-contact:stable:${scene}`,
-      {
+    ).map((scene) => orchestrator.registerSurface({
+        id: `native:${scene}`,
+        scene,
+        kind: 'native',
         root: () => (scene === 'lab'
           ? labBoundaryRef.current?.adapter
           : scene === 'education'
             ? educationRef.current
             : contactRef.current)?.root() ?? null,
-        commit: () => settleVisibleState(scene)
-      }
-    ));
+        coverageRoot: () => (scene === 'lab'
+          ? labBoundaryRef.current?.adapter
+          : scene === 'education'
+            ? educationRef.current
+            : contactRef.current)?.root() ?? null,
+        presented: () => true
+    }));
 
     mediaEventRef.current = (event: Event) => {
       const detail = (
@@ -436,7 +417,7 @@ export function PhoneLabContactContinuation({
         onMediaEvent
       );
       mediaEventRef.current = () => undefined;
-      for (const lease of stableLeases) lease.dispose();
+      for (const lease of surfaceLeases) lease.dispose();
       runner.dispose();
     };
   }, [capabilities, orchestrator, reducedMotion]);

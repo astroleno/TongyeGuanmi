@@ -17,10 +17,10 @@ describe('phone boundary geometry leases', () => {
       clear
     );
 
-    stale.release();
+    stale.releaseGeometry();
     expect(cleared).toEqual([]);
 
-    current.release();
+    current.releaseGeometry();
     expect(cleared).toEqual([endpoint]);
   });
 
@@ -36,8 +36,8 @@ describe('phone boundary geometry leases', () => {
 
     expect(lease.owns(source)).toBe(true);
     expect(lease.owns(receiver)).toBe(true);
-    lease.release();
-    lease.release();
+    lease.releaseGeometry();
+    lease.releaseGeometry();
 
     expect(cleared).toEqual([source, receiver]);
     expect(lease.owns(source)).toBe(false);

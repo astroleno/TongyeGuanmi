@@ -2,15 +2,14 @@ import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { assertBrowserRuntime } from './runtime/browser-guard';
+import { phoneRouteScopeForPathname } from './production/phone/phone-route-scope';
 
 const PhoneBrandLabScope = lazy(() => import('./production/phone/scenes/PhoneBrandLabScope').then(({
   PhoneBrandLabScope: Component
 }) => ({ default: Component })));
 
 function phoneBrandLabScopeRequested(): boolean {
-  const url = new URL(window.location.href);
-  const pathname = url.pathname.replace(/\/+$/, '') || '/';
-  return url.searchParams.get('scope') === 'brand-lab' || pathname === '/brand-lab';
+  return phoneRouteScopeForPathname(window.location.pathname) === 'brand-lab';
 }
 
 assertBrowserRuntime('React mount');

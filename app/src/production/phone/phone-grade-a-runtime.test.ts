@@ -35,10 +35,13 @@ function transition(
 
 function session(onCommit?: () => void, onAbort?: () => void) {
   const active = { value: true };
-  let release: (() => void) | undefined;
+  let release: Parameters<PhoneOrchestratedRunSession['provideRelease']>[0] | undefined;
   const value: PhoneOrchestratedRunSession = {
+    authorityId: 'phone-authority-grade-a',
     sessionId: 'phone-session-grade-a',
     generation: 9,
+    leg: 0,
+    direction: 1,
     valid: () => active.value,
     reportPresentedFrame: vi.fn(),
     reportProgress: vi.fn(),
@@ -59,6 +62,7 @@ function session(onCommit?: () => void, onAbort?: () => void) {
     }),
     reportEndpoints: vi.fn(),
     reportEndpointCommit: vi.fn(),
+    reportTargetPresented: vi.fn(),
     reportEndpointRelease: vi.fn(),
     provideRelease: vi.fn((nextRelease) => { release = nextRelease; }),
     reportAnimationComplete: vi.fn(),
@@ -71,7 +75,8 @@ function session(onCommit?: () => void, onAbort?: () => void) {
     flushRelease() {
       onCommit?.();
       active.value = false;
-      release?.();
+      release?.releaseGeometry();
+      release?.releaseResources();
     }
   });
 }
@@ -209,7 +214,7 @@ describe('canonical Grade A run lifecycle', () => {
       expect(activeSession.provideRelease).toHaveBeenCalledTimes(1);
     });
 
-    expect(adapter.begin).toHaveBeenCalledWith(activeSession);
+    expect(adapter.begin).toHaveBeenCalledWith({ identity: activeSession });
     expect(adapter.prepare).toHaveBeenCalledWith(1, expect.any(AbortSignal));
     expect(adapter.enter).toHaveBeenCalledTimes(1);
     expect(adapter.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
@@ -218,7 +223,10 @@ describe('canonical Grade A run lifecycle', () => {
     expect(activeSession.reportProgress).toHaveBeenLastCalledWith(1);
     expect(activeSession).not.toHaveProperty('moveTo');
     expect(activeSession.provideRelease).toHaveBeenCalledWith(
-      expect.any(Function)
+      expect.objectContaining({
+        releaseGeometry: expect.any(Function),
+        releaseResources: expect.any(Function)
+      })
     );
     expect(activeSession.reportEndpoints).toHaveBeenCalledWith(from, to);
     expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('receiver');
@@ -267,7 +275,7 @@ describe('canonical Grade A run lifecycle', () => {
     await vi.waitFor(() => {
       expect(activeSession.provideRelease).toHaveBeenCalledTimes(1);
     });
-    expect(adapter.begin).toHaveBeenCalledWith(activeSession);
+    expect(adapter.begin).toHaveBeenCalledWith({ identity: activeSession });
     expect(adapter.prepare).toHaveBeenCalledWith(1, expect.any(AbortSignal));
   });
 
@@ -325,7 +333,10 @@ describe('canonical Grade A run lifecycle', () => {
 
     expect(position).not.toHaveBeenCalled();
     expect(activeSession.provideRelease).toHaveBeenCalledWith(
-      expect.any(Function)
+      expect.objectContaining({
+        releaseGeometry: expect.any(Function),
+        releaseResources: expect.any(Function)
+      })
     );
   });
 
@@ -370,7 +381,10 @@ describe('canonical Grade A run lifecycle', () => {
     expect(adapter.commitEndpoint).toHaveBeenLastCalledWith(0);
     expect(activeSession.reportProgress).toHaveBeenLastCalledWith(0);
     expect(activeSession.provideRelease).toHaveBeenCalledWith(
-      expect.any(Function)
+      expect.objectContaining({
+        releaseGeometry: expect.any(Function),
+        releaseResources: expect.any(Function)
+      })
     );
     expect(activeSession.reportEndpoints).toHaveBeenCalledWith(to, from);
     expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('receiver');

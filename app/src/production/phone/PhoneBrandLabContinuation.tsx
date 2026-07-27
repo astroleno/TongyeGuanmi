@@ -12,11 +12,13 @@ import { createPortal } from 'react-dom';
 import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 import type { ScenePresentationAdapterHandle } from '../../story/presentation';
 import {
+  group45PhoneSceneIds,
   type Group45PhoneSceneId,
   type Group45PhoneTransitionId
 } from './adapter-groups/group4-5';
 import {
-  usePhoneStoryOrchestrator
+  usePhoneStoryOrchestrator,
+  usePhoneStorySnapshot
 } from './PhoneStoryOrchestratorContext';
 import {
   phoneBrandLabCompositeFrame,
@@ -56,7 +58,6 @@ export type PhoneBrandLabContinuationProps = Readonly<{
       adapter: ScenePresentationAdapterHandle;
     }> | null
   ) => void;
-  onStageSceneChange?: (scene: Group45VisualScene | null) => void;
 }>;
 
 type VisualActivity = Readonly<{
@@ -83,10 +84,6 @@ type Group45CapabilityHandle =
   | ScenePresentationAdapterHandle
   | PhoneTransitionAdapterHandle;
 
-type Group45StableScene = Extract<
-  Group45PhoneSceneId,
-  'brand' | 'services' | 'lab'
->;
 type VisualRuntimeConfig = PhoneCompositeRuntimeConfig;
 
 function clamp(value: number): number {
@@ -138,13 +135,17 @@ export const PhoneBrandLabContinuation = forwardRef<
   entryScene = 'brand',
   validationMode,
   onBrandRootChange,
-  onLabBoundaryChange,
-  onStageSceneChange
+  onLabBoundaryChange
 }, forwardedRef) {
   const orchestrator = usePhoneStoryOrchestrator();
+  const storySnapshot = usePhoneStorySnapshot();
   const [adapterScene, setAdapterScene] = useState(entryScene);
   const adapters = usePhoneGroup45Adapters(entryScene, adapterScene);
-  const [currentScene, setCurrentScene] = useState(entryScene);
+  const currentScene: Group45PhoneSceneId = (
+    group45PhoneSceneIds as readonly string[]
+  ).includes(storySnapshot.projection.semanticScene)
+    ? storySnapshot.projection.semanticScene as Group45PhoneSceneId
+    : entryScene;
   const [, setAdapterRevision] = useState(0);
   const [scrollDirection, setScrollDirection] = useState<1 | -1>(1);
   const [stageScene, setStageScene] = useState<Group45VisualScene | null>(null);
@@ -273,8 +274,15 @@ export const PhoneBrandLabContinuation = forwardRef<
   }, [entryScene]);
 
   useEffect(() => {
-    onStageSceneChange?.(stageScene);
-  }, [onStageSceneChange, stageScene]);
+    if (currentScene !== 'brand' && currentScene !== 'services' && currentScene !== 'lab') {
+      return;
+    }
+    setStageScene(null);
+    setVisualActivity({
+      figure3: { active: false, prewarm: currentScene === 'services' },
+      ttg: { active: false, prewarm: currentScene === 'lab' }
+    });
+  }, [currentScene]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -333,17 +341,6 @@ export const PhoneBrandLabContinuation = forwardRef<
           if (!retry) delete root.dataset.phoneGroup45MediaRetry;
         }
       }
-    };
-
-    const settleVisibleState = (scene: Group45StableScene) => {
-      setCurrentScene(scene);
-      setStageScene(null);
-      setVisualActivity({
-        figure3: { active: false, prewarm: scene === 'services' },
-        ttg: { active: false, prewarm: scene === 'lab' }
-      });
-      setRootRunState(null);
-      scheduleRenderRef.current();
     };
 
     const boundaryPosition = (
@@ -414,20 +411,24 @@ export const PhoneBrandLabContinuation = forwardRef<
       }
     });
 
-    const stableLeases = (
+    const surfaceLeases = (
       ['brand', 'services', 'lab'] as const
-    ).map((scene) => orchestrator.registerStableSceneAdapter(
-      scene,
-      `phone-brand-lab:stable:${scene}`,
-      {
+    ).map((scene) => orchestrator.registerSurface({
+        id: `native:${scene}`,
+        scene,
+        kind: 'native',
         root: () => (scene === 'brand'
           ? brandRef.current
           : scene === 'services'
             ? servicesRef.current
             : labRef.current)?.root() ?? null,
-        commit: () => settleVisibleState(scene)
-      }
-    ));
+        coverageRoot: () => (scene === 'brand'
+          ? brandRef.current
+          : scene === 'services'
+            ? servicesRef.current
+            : labRef.current)?.root() ?? null,
+        presented: () => true
+    }));
 
     mediaProgressRef.current = (scene, progress, direction) => {
       if (!GROUP45_VISUAL_SCENES.includes(scene as Group45VisualScene)) return;
@@ -536,7 +537,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       mediaCompleteRef.current = () => undefined;
       mediaErrorRef.current = () => undefined;
       scheduleRenderRef.current = () => undefined;
-      for (const lease of stableLeases) lease.dispose();
+      for (const lease of surfaceLeases) lease.dispose();
       runner.dispose();
     };
   }, [adapters.rootReady, capabilities, orchestrator, reducedMotion]);

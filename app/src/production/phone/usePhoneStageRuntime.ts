@@ -9,7 +9,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { clearPhoneInkBoundary } from './phone-ink';
 import type {
   PhoneOrchestratedRunSession,
-  PhoneStoryOrchestrator
+  PhoneStoryRuntimePort
 } from './phone-story-orchestrator';
 import {
   PHONE_STAGE_STOPS,
@@ -103,7 +103,7 @@ export type PhoneStageRuntimeOptions = Readonly<{
   heroPatternRef: RefObject<PhoneTransitionAdapterHandle | null>;
   patternStarMapRef: RefObject<PhoneTransitionAdapterHandle | null>;
   starMapAodRef: RefObject<PhoneTransitionAdapterHandle | null>;
-  orchestrator: PhoneStoryOrchestrator;
+  orchestrator: PhoneStoryRuntimePort;
   enabled: boolean;
   reducedMotion: boolean;
   adapterRevision: number;
@@ -362,11 +362,17 @@ export function usePhoneStageRuntime(
       clearAodTimeout(run);
       const session = run.session;
       aodRun = null;
-      session.provideRelease(() => {
-        if (direction === 1) setAodFigureActive(false);
-        else renderStage(stageTrigger.progress);
+      session.provideRelease({
+        releaseGeometry() {
+          if (direction === 1) setAodFigureActive(false);
+          else renderStage(stageTrigger.progress);
+        },
+        releaseResources() {
+          // AOD owns no additional detached decoder or timer at this point.
+        }
       });
       session.reportAnimationComplete();
+      session.reportTargetPresented();
     };
     completeHandlerRef.current = completeAodRun;
 

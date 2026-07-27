@@ -44,7 +44,7 @@ describe('phone native document endpoint alignment', () => {
       '--phone-document-endpoint-align-y'
     )).toBe('31.500px');
 
-    lease.release();
+    lease.releaseGeometry();
     expect(element.dataset.phoneDocumentEndpointAligned).toBeUndefined();
     expect(element.style.getPropertyValue(
       '--phone-document-endpoint-align-y'
@@ -64,9 +64,9 @@ describe('phone native document endpoint alignment', () => {
       844
     );
 
-    stale.release();
+    stale.releaseGeometry();
     expect(element.dataset.phoneBoundarySession).toBe('session-2');
-    current.release();
+    current.releaseGeometry();
     expect(element.dataset.phoneBoundarySession).toBeUndefined();
   });
 });

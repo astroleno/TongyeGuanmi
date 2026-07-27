@@ -6,7 +6,7 @@ import {
   usePhoneStorySelector,
   usePhoneStorySnapshot
 } from './PhoneStoryOrchestratorContext';
-import { createPhoneStoryOrchestrator } from './phone-story-orchestrator';
+import { createPhoneStoryRuntime } from './phone-story-runtime';
 
 function CursorProbe() {
   const orchestrator = usePhoneStoryOrchestrator();
@@ -22,27 +22,31 @@ function SnapshotProbe() {
 }
 
 describe('PhoneStoryOrchestratorContext', () => {
-  it('publishes one stable shell-owned orchestrator instance', () => {
-    const orchestrator = createPhoneStoryOrchestrator({
+  it('publishes one stable shell-owned runtime port without lifecycle methods', () => {
+    const authority = createPhoneStoryRuntime({
+      scope: 'formal',
       initialScene: 'hero',
+      root: () => null,
       scrollY: () => 0,
       scrollTo: () => undefined
     });
     expect(renderToStaticMarkup(
-      <PhoneStoryOrchestratorProvider orchestrator={orchestrator}>
+      <PhoneStoryOrchestratorProvider authority={authority}>
         <CursorProbe />
       </PhoneStoryOrchestratorProvider>
     )).toContain('<span>hold</span>');
   });
 
   it('exposes the same canonical snapshot to selectors', () => {
-    const orchestrator = createPhoneStoryOrchestrator({
+    const authority = createPhoneStoryRuntime({
+      scope: 'formal',
       initialScene: 'hero',
+      root: () => null,
       scrollY: () => 0,
       scrollTo: () => undefined
     });
     expect(renderToStaticMarkup(
-      <PhoneStoryOrchestratorProvider orchestrator={orchestrator}>
+      <PhoneStoryOrchestratorProvider authority={authority}>
         <SnapshotProbe />
       </PhoneStoryOrchestratorProvider>
     )).toContain('<span>stable:false</span>');

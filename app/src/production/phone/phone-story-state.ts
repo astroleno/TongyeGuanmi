@@ -198,6 +198,7 @@ export type PhoneExecutionIdentity = Readonly<{
   sessionId: string;
   generation: number;
   leg: number;
+  direction: 1 | -1;
 }>;
 
 type PhoneSnapshotIdentityEvent = PhoneExecutionIdentity & Readonly<{
@@ -212,7 +213,12 @@ type PhoneSnapshotIdentityEvent = PhoneExecutionIdentity & Readonly<{
     | 'SCROLL_CONFIRMED'
     | 'STABLE_PRESENTATION_VERIFIED'
     | 'FAILED'
-    | 'ROLLBACK_COMMITTED';
+    | 'ROLLBACK_RENDERED'
+    | 'ROLLBACK_LAYOUT_RELEASED'
+    | 'ROLLBACK_LANDING_MEASURED'
+    | 'ROLLBACK_SCROLL_COMMANDED'
+    | 'ROLLBACK_SCROLL_CONFIRMED'
+    | 'ROLLBACK_STABLE_PRESENTATION_VERIFIED';
   progress?: number;
   reason?: PhoneFailureReason;
   targetY?: number;
@@ -240,6 +246,12 @@ export type PhoneStoryEvent =
       actualY?: number;
     }>
   | Readonly<{
+      type: 'NAVIGATE_REQUESTED';
+      authorityId: string;
+      scene: SceneId;
+      source: 'hash' | 'menu' | 'history';
+    }>
+  | Readonly<{
       type: 'SCROLL_RUN_RECONCILED';
       authorityId: string;
       run: PhoneScrollRunId;
@@ -265,6 +277,7 @@ export type PhoneStoryReduction = Readonly<{
 }>;
 
 const noEffects: readonly PhoneStoryEffect[] = [];
+export const PHONE_SCROLL_ALIGNMENT_TOLERANCE_PX = 1;
 
 export function createPhoneStorySnapshot({
   authorityId,
@@ -341,10 +354,20 @@ function transactionCursor(snapshot: PhoneTransactionSnapshot): PhoneStoryTransi
 function projectionForTransaction(
   snapshot: PhoneTransactionSnapshot
 ): PhonePresentationProjection {
+  const { phase, operation } = snapshot.session;
+  if (
+    phase === 'releasing-layout'
+    || phase === 'measuring-landing'
+    || phase === 'aligning-scroll'
+    || phase === 'verifying-stable'
+  ) {
+    return phoneStableProjection(operationTarget(operation), 'candidate');
+  }
+  if (phase.startsWith('rollback-')) {
+    return phoneStableProjection(operationSource(operation), 'candidate');
+  }
   const projection = phoneStoryPresentation(transactionCursor(snapshot));
-  return snapshot.session.phase === 'verifying-stable'
-    ? { ...projection, commitState: 'candidate' }
-    : projection;
+  return projection;
 }
 
 function scrollRunCursor(snapshot: PhoneScrollRunSnapshot): PhoneStoryTransition {
@@ -412,6 +435,27 @@ function nextTransaction(
   return { ...candidate, projection: projectionForTransaction(candidate) };
 }
 
+function nextRollback(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession,
+  reason: PhoneFailureReason
+): PhoneTransactionSnapshot {
+  return nextTransaction({
+    ...snapshot,
+    diagnostics: {
+      lastRollback: {
+        run: session.operation.run,
+        reason,
+        generation: session.generation + 1
+      }
+    }
+  }, {
+    ...session,
+    generation: session.generation + 1,
+    phase: 'rollback-rendering'
+  });
+}
+
 function eventOwnsTransaction(
   snapshot: PhoneStorySnapshot,
   event: PhoneSnapshotIdentityEvent
@@ -420,7 +464,8 @@ function eventOwnsTransaction(
   return snapshot.authorityId === event.authorityId
     && snapshot.session.sessionId === event.sessionId
     && snapshot.session.generation === event.generation
-    && snapshot.session.operation.legIndex === event.leg;
+    && snapshot.session.operation.legIndex === event.leg
+    && snapshot.session.operation.direction === event.direction;
 }
 
 function operationTarget(operation: PhoneStoryRunOperation): SceneId {
@@ -438,6 +483,118 @@ function isTerminalLeg(operation: PhoneStoryRunOperation): boolean {
   return operation.direction === 1
     ? operation.legIndex === run.legs.length - 1
     : operation.legIndex === 0;
+}
+
+type PhoneAlignmentPhases = readonly [
+  measuring: PhoneTransactionPhase,
+  aligning: PhoneTransactionPhase,
+  verifying: PhoneTransactionPhase
+];
+
+const forwardAlignmentPhases: PhoneAlignmentPhases = [
+  'measuring-landing',
+  'aligning-scroll',
+  'verifying-stable'
+];
+
+const rollbackAlignmentPhases: PhoneAlignmentPhases = [
+  'rollback-measuring-landing',
+  'rollback-aligning-scroll',
+  'rollback-verifying-stable'
+];
+
+function reduceLandingMeasured(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession,
+  event: PhoneSnapshotIdentityEvent,
+  [measuring, aligning]: PhoneAlignmentPhases
+): PhoneStoryReduction {
+  if (
+    session.phase !== measuring
+    || event.targetY === undefined
+    || event.geometryRevision === undefined
+  ) return reduced(snapshot);
+  return reduced(nextTransaction(snapshot, {
+    ...session,
+    phase: aligning,
+    alignment: {
+      geometryRevision: event.geometryRevision,
+      targetY: event.targetY,
+      commandId: 0,
+      correctionCount: 0,
+      confirmedY: null,
+      visualViewportOffsetTop: event.visualViewportOffsetTop ?? 0
+    }
+  }));
+}
+
+function reduceScrollCommanded(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession,
+  event: PhoneSnapshotIdentityEvent,
+  [, aligning]: PhoneAlignmentPhases
+): PhoneStoryReduction {
+  if (
+    session.phase !== aligning
+    || !session.alignment
+    || event.commandId === undefined
+  ) return reduced(snapshot);
+  return reduced(nextTransaction(snapshot, {
+    ...session,
+    alignment: { ...session.alignment, commandId: event.commandId }
+  }));
+}
+
+function reduceScrollConfirmed(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession,
+  event: PhoneSnapshotIdentityEvent,
+  [, aligning, verifying]: PhoneAlignmentPhases,
+  rollback: boolean
+): PhoneStoryReduction {
+  if (
+    session.phase !== aligning
+    || !session.alignment
+    || event.commandId !== session.alignment.commandId
+    || event.actualY === undefined
+  ) return reduced(snapshot);
+  if (
+    Math.abs(event.actualY - session.alignment.targetY)
+    > PHONE_SCROLL_ALIGNMENT_TOLERANCE_PX
+  ) {
+    if (session.alignment.correctionCount === 1) {
+      return rollback
+        ? reduced(snapshot)
+        : reduced(nextRollback(snapshot, session, 'scroll-confirmation-failed'));
+    }
+    return reduced(nextTransaction({
+      ...snapshot,
+      scroll: { ...snapshot.scroll, actualY: event.actualY }
+    }, {
+      ...session,
+      alignment: {
+        ...session.alignment,
+        correctionCount: 1,
+        confirmedY: null
+      }
+    }));
+  }
+  return reduced(nextTransaction(snapshot, {
+    ...session,
+    phase: verifying,
+    alignment: { ...session.alignment, confirmedY: event.actualY }
+  }));
+}
+
+function reduceStablePresentationVerified(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession,
+  [, , verifying]: PhoneAlignmentPhases,
+  scene: SceneId
+): PhoneStoryReduction {
+  if (session.phase !== verifying) return reduced(snapshot);
+  const actualY = session.alignment?.confirmedY ?? snapshot.scroll.actualY;
+  return reduced(nextStable(snapshot, scene, actualY));
 }
 
 function reduced(snapshot: PhoneStorySnapshot): PhoneStoryReduction {
@@ -480,7 +637,7 @@ function startedRun(
   const provisional: PhoneTransactionSnapshot = {
     authorityId: snapshot.authorityId,
     revision: snapshot.revision + 1,
-    diagnostics: snapshot.diagnostics,
+    diagnostics: { lastRollback: null },
     scroll: {
       ...snapshot.scroll,
       actualY: event.anchorY,
@@ -526,6 +683,11 @@ export function reducePhoneStorySnapshot(
         });
     }
     return reduced(nextStable(snapshot, event.scene, event.actualY));
+  }
+
+  if (event.type === 'NAVIGATE_REQUESTED') {
+    if (snapshot.status === 'transaction') return reduced(snapshot);
+    return reduced(nextStable(snapshot, event.scene));
   }
 
   if (event.type === 'SCROLL_RUN_RECONCILED') {
@@ -622,74 +784,50 @@ export function reducePhoneStorySnapshot(
         ? reduced(snapshot)
         : reduced(nextTransaction(snapshot, { ...session, phase: 'measuring-landing' }));
     case 'LANDING_MEASURED':
-      if (
-        session.phase !== 'measuring-landing'
-        || event.targetY === undefined
-        || event.geometryRevision === undefined
-      ) return reduced(snapshot);
-      return reduced(nextTransaction(snapshot, {
-        ...session,
-        phase: 'aligning-scroll',
-        alignment: {
-          geometryRevision: event.geometryRevision,
-          targetY: event.targetY,
-          commandId: 0,
-          correctionCount: 0,
-          confirmedY: null,
-          visualViewportOffsetTop: event.visualViewportOffsetTop ?? 0
-        }
-      }));
+      return reduceLandingMeasured(snapshot, session, event, forwardAlignmentPhases);
     case 'SCROLL_COMMANDED':
-      if (session.phase !== 'aligning-scroll' || !session.alignment || event.commandId === undefined) {
-        return reduced(snapshot);
-      }
-      return reduced(nextTransaction(snapshot, {
-        ...session,
-        alignment: { ...session.alignment, commandId: event.commandId }
-      }));
+      return reduceScrollCommanded(snapshot, session, event, forwardAlignmentPhases);
     case 'SCROLL_CONFIRMED':
-      if (
-        session.phase !== 'aligning-scroll'
-        || !session.alignment
-        || event.commandId !== session.alignment.commandId
-        || event.actualY === undefined
-      ) return reduced(snapshot);
-      return reduced(nextTransaction(snapshot, {
-        ...session,
-        phase: 'verifying-stable',
-        alignment: { ...session.alignment, confirmedY: event.actualY }
-      }));
-    case 'STABLE_PRESENTATION_VERIFIED': {
-      if (session.phase !== 'verifying-stable') return reduced(snapshot);
-      const actualY = session.alignment?.confirmedY ?? snapshot.scroll.actualY;
-      return reduced(nextStable(snapshot, operationTarget(operation), actualY));
-    }
+      return reduceScrollConfirmed(snapshot, session, event, forwardAlignmentPhases, false);
+    case 'STABLE_PRESENTATION_VERIFIED':
+      return reduceStablePresentationVerified(
+        snapshot,
+        session,
+        forwardAlignmentPhases,
+        operationTarget(operation)
+      );
     case 'FAILED': {
       if (session.phase.startsWith('rollback-')) return reduced(snapshot);
       const reason = event.reason ?? 'capability-failed';
-      return reduced(nextTransaction({
-        ...snapshot,
-        diagnostics: {
-          lastRollback: {
-            run: operation.run,
-            reason,
-            generation: session.generation + 1
-          }
-        }
-      }, {
-        ...session,
-        generation: session.generation + 1,
-        phase: 'rollback-rendering'
-      }));
+      return reduced(nextRollback(snapshot, session, reason));
     }
-    case 'ROLLBACK_COMMITTED':
+    case 'ROLLBACK_RENDERED':
       return session.phase !== 'rollback-rendering'
         ? reduced(snapshot)
-        : reduced(nextStable(
-          snapshot,
-          operationSource(operation),
-          session.anchor.y ?? snapshot.scroll.actualY
-        ));
+        : reduced(nextTransaction(snapshot, {
+          ...session,
+          phase: 'rollback-releasing-layout'
+        }));
+    case 'ROLLBACK_LAYOUT_RELEASED':
+      return session.phase !== 'rollback-releasing-layout'
+        ? reduced(snapshot)
+        : reduced(nextTransaction(snapshot, {
+          ...session,
+          phase: 'rollback-measuring-landing'
+        }));
+    case 'ROLLBACK_LANDING_MEASURED':
+      return reduceLandingMeasured(snapshot, session, event, rollbackAlignmentPhases);
+    case 'ROLLBACK_SCROLL_COMMANDED':
+      return reduceScrollCommanded(snapshot, session, event, rollbackAlignmentPhases);
+    case 'ROLLBACK_SCROLL_CONFIRMED':
+      return reduceScrollConfirmed(snapshot, session, event, rollbackAlignmentPhases, true);
+    case 'ROLLBACK_STABLE_PRESENTATION_VERIFIED':
+      return reduceStablePresentationVerified(
+        snapshot,
+        session,
+        rollbackAlignmentPhases,
+        operationSource(operation)
+      );
     default:
       return reduced(snapshot);
   }

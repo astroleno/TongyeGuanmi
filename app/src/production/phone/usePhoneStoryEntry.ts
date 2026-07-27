@@ -20,7 +20,7 @@ import {
   createPhoneDirectEntryPositioner
 } from './phone-direct-entry-position';
 import type { PhoneEdgeScene } from './phone-edge-surface';
-import type { PhoneStoryOrchestrator } from './phone-story-orchestrator';
+import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
 
 export type PhoneStoryEntryState = Readonly<{
@@ -63,7 +63,7 @@ export function usePhoneStoryEntry(): PhoneStoryEntryState {
 
 export function usePhoneStoryEntryLifecycle(
   entry: PhoneStoryEntryState,
-  orchestrator: PhoneStoryOrchestrator
+  orchestrator: PhoneStoryRuntimePort
 ): void {
   const {
     directEntryPlan,

@@ -25,8 +25,12 @@ const edgeSurfaceSource = readFileSync(
   new URL('./phone-edge-surface.ts', import.meta.url),
   'utf8'
 );
-const edgePublisherSource = readFileSync(
-  new URL('./usePhoneEdgeSurface.ts', import.meta.url),
+const storyRuntimeSource = readFileSync(
+  new URL('./phone-story-runtime.ts', import.meta.url),
+  'utf8'
+);
+const storyProjectorSource = readFileSync(
+  new URL('./phone-story-projector.ts', import.meta.url),
   'utf8'
 );
 const stageRuntimeSource = readFileSync(
@@ -105,23 +109,24 @@ describe('Phone Brand → Lab visual contracts', () => {
   });
 
   it('reasserts Safari edge color after browser compositor rebuilds', () => {
-    expect(edgePublisherSource).toContain(
-      "window.addEventListener('pageshow', republishCurrentSurface)"
+    expect(storyRuntimeSource).toContain(
+      "addEventListener('pageshow', reapplyCurrentProjection)"
     );
-    expect(edgePublisherSource).toContain(
-      "document.addEventListener('visibilitychange', republishCurrentSurface)"
+    expect(storyRuntimeSource).toContain(
+      "addEventListener('visibilitychange', reapplyCurrentProjection)"
     );
-    expect(edgePublisherSource).toContain(
-      'themeColorMeta.content = surface'
+    expect(storyProjectorSource).toContain(
+      'if (theme) theme.content = edgeSurface'
     );
-    expect(edgePublisherSource).not.toContain('window.getComputedStyle(root)');
+    expect(storyProjectorSource).not.toContain('window.getComputedStyle(root)');
     expect(formalShellSource).not.toContain("'pattern-terminal'");
   });
 
   it('does not let a loaded Grade A root overwrite the active front-stage edge', () => {
     expect(gradeAStorySource).not.toContain('publishEdgeScene(');
     expect(gradeAStorySource).not.toContain('orchestrator.reportPresentation');
-    expect(formalShellSource).toContain('usePhoneEdgeSurface(');
+    expect(formalShellSource).not.toContain('usePhoneEdgeSurface(');
+    expect(formalShellSource).toContain("scope: 'formal'");
     expect(stageRuntimeSource).toContain(
       'else renderStage(stageTrigger.progress)'
     );

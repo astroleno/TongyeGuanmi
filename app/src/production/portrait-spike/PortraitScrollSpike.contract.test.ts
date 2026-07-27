@@ -12,9 +12,7 @@ const shellCss = source('../phone/PhoneStoryShell.css');
 const railSource = source('../phone/PhoneStageRail.tsx');
 const railCss = source('../phone/PhoneStageRail.css');
 const runtimeSource = source('../phone/usePhoneStageRuntime.ts');
-const checkpointPublisherSource = source(
-  '../phone/usePhoneCheckpointPublisher.ts'
-);
+const storyProjectorSource = source('../phone/phone-story-projector.ts');
 const stageTimelineSource = source('../phone/phone-stage-timeline.ts');
 const fixedStageRegistrationSource = source(
   '../phone/usePhoneFixedStageRegistration.ts'
@@ -175,11 +173,11 @@ describe('Route B proven front-half migration contract', () => {
     expect(phonePresentationSource).toContain(
       "cursor.segment === 'aod-method-top'"
     );
-    expect(checkpointPublisherSource).toContain(
-      'root.dataset.portraitCheckpoint = checkpoint'
+    expect(storyProjectorSource).toContain(
+      "data(routeRoot, 'portraitCheckpoint', projection.checkpoint)"
     );
-    expect(checkpointPublisherSource).toContain(
-      'root.dataset.portraitCheckpointTrace = trace'
+    expect(storyProjectorSource).toContain(
+      "data(routeRoot, 'portraitCheckpointTrace', plan.checkpointTrace.join('>'))"
     );
   });
 

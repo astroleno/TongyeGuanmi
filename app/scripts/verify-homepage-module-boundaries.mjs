@@ -14,6 +14,8 @@ const storyDir = path.join(sourceDir, 'story');
 const sourceExtensions = new Set(['.ts', '.tsx']);
 const phoneShellPath = path.join(phoneDir, 'PhoneStoryShell.tsx');
 const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
+const phoneProjectorPath = path.join(phoneDir, 'phone-story-projector.ts');
+const phoneRuntimePath = path.join(phoneDir, 'phone-story-runtime.ts');
 const formalPhoneOwnershipPaths = [
   phoneShellPath,
   path.join(phoneDir, 'PhoneGradeAStory.tsx'),
@@ -21,7 +23,8 @@ const formalPhoneOwnershipPaths = [
   path.join(phoneDir, 'PhoneLabContactContinuation.tsx'),
   path.join(phoneDir, 'PhoneGroup67DirectEntry.tsx'),
   path.join(phoneDir, 'usePhoneStageRuntime.ts'),
-  path.join(phoneDir, 'usePhoneStoryOrchestratorRuntime.ts')
+  path.join(phoneDir, 'usePhoneStoryOrchestratorRuntime.ts'),
+  phoneRuntimePath
 ];
 
 /** Unit 3 final boundary: the shell owns geometry, never scene presentation. */
@@ -248,16 +251,9 @@ export function formalPhoneOwnershipViolations(files) {
     ) {
       found.push(`${file}: child semantic publication is forbidden`);
     }
-  }
-  const edgePublishers = files.reduce(
-    (count, { source }) => count
-      + [...source.matchAll(/\busePhoneEdgeSurface\s*\(/g)].length,
-    0
-  );
-  if (edgePublishers !== 1) {
-    found.push(
-      `formal phone route must have exactly one edge publisher (found ${edgePublishers})`
-    );
+    if (/\b(?:usePhoneEdgeSurface|usePhoneCheckpointPublisher|createPhoneOrchestratorPublisher|onPresentation|onRetryable)\b/.test(source)) {
+      found.push(`${file}: callback or React edge/checkpoint publisher is forbidden`);
+    }
   }
   const intentCoordinators = files.reduce(
     (count, { source }) => count
@@ -350,6 +346,24 @@ const formalPhoneOwnershipSources = await Promise.all(
   }))
 );
 violations.push(...formalPhoneOwnershipViolations(formalPhoneOwnershipSources));
+
+const projectorSource = await readFile(phoneProjectorPath, 'utf8');
+for (const token of [
+  'phoneCursor',
+  'phoneRevision',
+  'phoneSurfaceRole',
+  'portraitCheckpointTrace',
+  'phoneEdgeSurfaceForScene',
+  'theme-color'
+]) {
+  if (!projectorSource.includes(token)) {
+    violations.push(`${display(phoneProjectorPath)}: projector must own ${token}`);
+  }
+}
+const runtimeSource = await readFile(phoneRuntimePath, 'utf8');
+if (!runtimeSource.includes('createPhoneStoryRuntime')) {
+  violations.push(`${display(phoneRuntimePath)}: route-local runtime factory is missing`);
+}
 
 for (const file of await filesBelow(path.join(phoneDir, 'scenes'))) {
   const source = await readFile(file, 'utf8');

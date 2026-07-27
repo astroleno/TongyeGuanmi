@@ -127,7 +127,7 @@ describe('homepage phone-shell debt ratchet', () => {
     const baseline = [
       {
         file: 'PhoneStoryShell.tsx',
-        source: 'usePhoneEdgeSurface(root);'
+        source: 'const authority = usePhoneStoryOrchestratorRuntime(root);'
       },
       {
         file: 'usePhoneStoryOrchestratorRuntime.ts',
@@ -152,10 +152,8 @@ describe('homepage phone-shell debt ratchet', () => {
       ...baseline,
       {
         file: 'PhoneLabContactContinuation.tsx',
-        source: 'usePhoneEdgeSurface(root);'
+        source: 'usePhoneCheckpointPublisher(root);'
       }
-    ])).toContain(
-      'formal phone route must have exactly one edge publisher (found 2)'
-    );
+    ])).toContain('PhoneLabContactContinuation.tsx: callback or React edge/checkpoint publisher is forbidden');
   });
 });

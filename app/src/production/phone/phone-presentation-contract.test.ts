@@ -4,9 +4,11 @@ import type {
   TransitionPresentationAdapterHandle
 } from '../../story/presentation';
 import type {
+  PhoneCinematicRequest,
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
+import type { PhoneExecutionIdentity } from './phone-story-state';
 
 describe('phone presentation adapter contract', () => {
   it('uses the shared scene lifecycle instead of declaring a second copy', () => {
@@ -23,5 +25,9 @@ describe('phone presentation adapter contract', () => {
       .toBeFunction();
     expectTypeOf<PhoneTransitionAdapterHandle['releaseEndpoint']>()
       .toBeFunction();
+    expectTypeOf<Parameters<PhoneTransitionAdapterHandle['begin']>[0]>()
+      .toEqualTypeOf<PhoneCinematicRequest>();
+    expectTypeOf<PhoneCinematicRequest['identity']>()
+      .toEqualTypeOf<PhoneExecutionIdentity>();
   });
 });

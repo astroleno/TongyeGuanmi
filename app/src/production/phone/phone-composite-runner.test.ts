@@ -65,10 +65,13 @@ function transition(): PhoneTransitionAdapterHandle {
 
 function session() {
   const active = { value: true };
-  let release: (() => void) | undefined;
+  let release: Parameters<PhoneOrchestratedRunSession['provideRelease']>[0] | undefined;
   const value: PhoneOrchestratedRunSession = {
+    authorityId: 'phone-authority-composite',
     sessionId: 'phone-session-direct',
     generation: 7,
+    leg: 0,
+    direction: 1,
     valid: () => active.value,
     reportPresentedFrame: vi.fn(),
     reportProgress: vi.fn(),
@@ -89,6 +92,7 @@ function session() {
     }),
     reportEndpoints: vi.fn(),
     reportEndpointCommit: vi.fn(),
+    reportTargetPresented: vi.fn(),
     reportEndpointRelease: vi.fn(),
     provideRelease: vi.fn((nextRelease) => { release = nextRelease; }),
     reportAnimationComplete: vi.fn(),
@@ -99,7 +103,8 @@ function session() {
   return Object.assign(value, {
     flushRelease() {
       active.value = false;
-      release?.();
+      release?.releaseGeometry();
+      release?.releaseResources();
     }
   });
 }
@@ -186,7 +191,7 @@ function fullRunner({
 }: Readonly<{
   reducedMotion?: boolean;
   priorRoot?: HTMLElement;
-  acquireReverseEntry?: () => Readonly<{ release(): void }>;
+  acquireReverseEntry?: () => Readonly<{ releaseGeometry(): void }>;
 }> = {}) {
   const prior = scene(priorRoot);
   const visual = scene(element());
@@ -297,7 +302,7 @@ describe('phone composite runner direct media lifecycle', () => {
         runId: 'phone-session-direct:7'
       })
     );
-    expect(media.begin).toHaveBeenCalledWith(activeSession);
+    expect(media.begin).toHaveBeenCalledWith({ identity: activeSession });
     expect(media.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
     expect(activeSession.reportPresentedFrame).toHaveBeenCalledTimes(2);
     expect(activeSession).not.toHaveProperty('moveTo');
@@ -310,7 +315,10 @@ describe('phone composite runner direct media lifecycle', () => {
 
     expect(media.commitEndpoint).toHaveBeenLastCalledWith(1);
     expect(activeSession.provideRelease).toHaveBeenCalledWith(
-      expect.any(Function)
+      expect.objectContaining({
+        releaseGeometry: expect.any(Function),
+        releaseResources: expect.any(Function)
+      })
     );
     activeSession.flushRelease();
     expect(capabilities.retained()).toEqual([]);
@@ -390,7 +398,7 @@ describe('phone composite runner adjacent lifecycle', () => {
 
     expect(runtime.registered.capability().start(1, activeSession)).toBe(true);
     await vi.waitFor(() => {
-      expect(runtime.entry.begin).toHaveBeenCalledWith(activeSession);
+      expect(runtime.entry.begin).toHaveBeenCalledWith({ identity: activeSession });
     });
 
     expect(runtime.entry.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
@@ -400,7 +408,7 @@ describe('phone composite runner adjacent lifecycle', () => {
     expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('receiver');
 
     clock.flush(701);
-    expect(runtime.media.begin).toHaveBeenCalledWith(activeSession);
+    expect(runtime.media.begin).toHaveBeenCalledWith({ identity: activeSession });
     expect(runtime.media.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
     expect(runtime.media.enter).toHaveBeenCalledTimes(1);
     expect(runtime.visual.enter).toHaveBeenCalledTimes(1);
@@ -428,7 +436,7 @@ describe('phone composite runner adjacent lifecycle', () => {
     expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('receiver');
 
     clock.flush(0);
-    expect(runtime.entry.begin).toHaveBeenCalledWith(activeSession);
+    expect(runtime.entry.begin).toHaveBeenCalledWith({ identity: activeSession });
     expect(runtime.entry.commitEndpoint).toHaveBeenNthCalledWith(1, 1);
     expect(runtime.entry.reverse).toHaveBeenCalledTimes(1);
     clock.flush(1);
@@ -450,7 +458,7 @@ describe('phone composite runner adjacent lifecycle', () => {
       acquireReverseEntry: () => {
         documentAligned = true;
         return {
-          release() {
+          releaseGeometry() {
             documentAligned = false;
           }
         };

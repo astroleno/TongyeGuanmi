@@ -161,10 +161,10 @@ export default defineConfig({
       format: { ecma: 2020 },
       mangle: {
         properties: {
-          // These fields are private to React DOM's Fiber graph. Keeping the
-          // allow-list explicit avoids rewriting application/adapter contracts
-          // that cross lazy chunk boundaries.
-          regex: /^(?:memoizedState|flags|stateNode|sibling|alternate|lanes|updateQueue|memoizedProps|pendingProps|subtreeFlags|childLanes|authorityId|diagnostics|lastRollback|completedEpoch|completedEpochUntil|sampleRevision|projection|operation|inputEpoch|anchor|alignment|geometryRevision|targetY|commandId|correctionCount|confirmedY|visualViewportOffsetTop|fallbackScene|cinematic|policy|corridor|status|revision|scroll|input)$/
+          // These fields are private to React Fiber or to the internally
+          // compiled phone snapshot graph. Keeping the allow-list explicit
+          // leaves DOM and externally observable adapter contracts untouched.
+          regex: /^(?:memoizedState|flags|stateNode|sibling|alternate|lanes|updateQueue|memoizedProps|pendingProps|subtreeFlags|childLanes|authorityId|diagnostics|lastRollback|completedEpoch|completedEpochUntil|sampleRevision|projection|operation|inputEpoch|anchor|alignment|geometryRevision|targetY|commandId|correctionCount|confirmedY|visualViewportOffsetTop|fallbackScene|cinematic|policy|corridor|status|revision|scroll|input|sessionId|generation|legIndex|direction|phase|progress|actualY|run|scene|from|to|segment|runSource|runTarget|trigger|anchorY|commitState|checkpoint|edge|stageOwner|stageScene|sourceSurface|receiverSurface)$/
         }
       }
     },

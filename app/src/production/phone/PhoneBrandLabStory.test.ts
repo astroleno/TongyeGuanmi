@@ -28,11 +28,13 @@ describe('PhoneBrandLabStory', () => {
     });
   });
 
-  it.fails('[Task 2/6] does not retain an independent QA presentation lifecycle', () => {
+  it('[Task 2] does not retain an independent QA presentation lifecycle', () => {
     expect(source).not.toContain('const [entryScene, setEntryScene]');
     expect(source).not.toContain('const [currentScene, setCurrentScene]');
     expect(source).not.toContain('const [stageScene, setStageScene]');
     expect(source).not.toContain('usePhoneEdgeSurface');
     expect(source).not.toContain('onPresentation: publishPresentation');
+    expect(source).toContain("scope: 'brand-lab'");
+    expect(source).toContain('usePhoneStoryNavigationRuntime(authority.port, true)');
   });
 });

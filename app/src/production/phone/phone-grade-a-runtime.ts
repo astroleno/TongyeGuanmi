@@ -3,7 +3,7 @@ import type { SceneId } from '../../story/types';
 import type { TargetPresentationRequest } from '../../story/presentation';
 import type {
   PhoneOrchestratedRunSession,
-  PhoneStoryOrchestrator
+  PhoneStoryRuntimePort
 } from './phone-story-orchestrator';
 import type { PhoneRunId } from './phone-story-runs';
 import type { PhoneStoryCursor } from './phone-story-state';
@@ -128,7 +128,7 @@ export function createPhoneGradeARunner({
   timeoutMs,
   onRunView
 }: Readonly<{
-  orchestrator: PhoneStoryOrchestrator;
+  orchestrator: PhoneStoryRuntimePort;
   boundaries: readonly PhoneGradeABoundaryCapability[];
   reducedMotion: boolean;
   timeoutMs: number;
@@ -171,11 +171,16 @@ export function createPhoneGradeARunner({
     run.session.reportProgress(endpoint);
     transition.commitEndpoint(endpoint);
     active = null;
-    run.session.provideRelease(() => {
-      release(run);
-      publish(null);
+    run.session.provideRelease({
+      releaseGeometry() {
+        release(run);
+      },
+      releaseResources() {
+        publish(null);
+      }
     });
     run.session.reportEndpointCommit('receiver');
+    run.session.reportTargetPresented();
   };
   const animate = (run: ActiveGradeARun) => {
     const transition = run.transition;
@@ -214,7 +219,7 @@ export function createPhoneGradeARunner({
       const receiver = run.direction === 1 ? to : from;
       run.transition = transition;
       run.session.reportEndpoints(source, receiver);
-      transition.begin(run.session);
+      transition.begin({ identity: run.session });
       transition.commitEndpoint(run.progress as 0 | 1);
       if (run.boundary.prepareReceiver) {
         await run.boundary.prepareReceiver({

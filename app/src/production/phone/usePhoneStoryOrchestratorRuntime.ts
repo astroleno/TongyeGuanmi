@@ -4,44 +4,34 @@ import {
   type RefObject
 } from 'react';
 import type { SceneId } from '../../story/types';
+import type { PhoneRouteScope } from './phone-route-scope';
 import {
-  createPhoneStoryOrchestrator,
-  type PhonePresentationEvidence,
-  type PhoneStoryOrchestrator
-} from './phone-story-orchestrator';
-import {
-  createPhoneIntentCoordinator
-} from './phone-transition-coordinator';
+  createPhoneStoryRuntime,
+  type PhoneStoryAuthority
+} from './phone-story-runtime';
 
+/** Thin React lifetime adapter around the single route-local runtime factory. */
 export function usePhoneStoryOrchestratorRuntime({
+  scope,
   initialScene,
-  rootRef,
-  onPresentation,
-  onRetryable
+  rootRef
 }: Readonly<{
+  scope: PhoneRouteScope;
   initialScene: SceneId;
   rootRef: RefObject<HTMLElement | null>;
-  onPresentation(evidence: PhonePresentationEvidence): void;
-  onRetryable(run: string): void;
-}>): PhoneStoryOrchestrator {
-  const [orchestrator] = useState(() => createPhoneStoryOrchestrator({
+}>): PhoneStoryAuthority {
+  const [authority] = useState(() => createPhoneStoryRuntime({
+    scope,
     initialScene,
     root: () => rootRef.current,
     scrollY: () => window.scrollY,
-    scrollTo: (y) => window.scrollTo(0, y),
-    onPresentation,
-    onRetryable
+    scrollTo: (y) => window.scrollTo(0, y)
   }));
 
   useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    orchestrator.syncDiagnostics();
-    return createPhoneIntentCoordinator(
-      root,
-      (intent) => orchestrator.handleIntent(intent)
-    ).dispose;
-  }, [orchestrator, rootRef]);
+    authority.attach();
+    return authority.dispose;
+  }, [authority]);
 
-  return orchestrator;
+  return authority;
 }

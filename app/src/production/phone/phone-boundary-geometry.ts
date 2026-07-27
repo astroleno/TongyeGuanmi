@@ -5,7 +5,7 @@ export type PhoneBoundaryGeometryOwner = Readonly<{
 
 export type PhoneBoundaryGeometryLease = PhoneBoundaryGeometryOwner & Readonly<{
   owns(element: HTMLElement): boolean;
-  release(): void;
+  releaseGeometry(): void;
 }>;
 
 type GeometryToken = object;
@@ -28,7 +28,7 @@ export function acquirePhoneBoundaryGeometryLease(
   return {
     ...owner,
     owns: (element) => active && geometryOwner.get(element) === token,
-    release() {
+    releaseGeometry() {
       if (!active) return;
       active = false;
       for (const element of elements) {

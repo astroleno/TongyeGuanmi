@@ -1,43 +1,47 @@
 import {
   useCallback,
   useEffect,
-  useState
+  useState,
+  useSyncExternalStore
 } from 'react';
 import type { SceneId } from '../../story/types';
 import { hashForScene } from '../navigation';
-import { usePhoneNavigationScene } from './usePhoneNavigationScene';
+import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
 
+/** Navigation has only menu UI state; its canonical scene is a snapshot selector. */
 export function usePhoneStoryNavigationRuntime(
-  initialScene: SceneId,
+  port: PhoneStoryRuntimePort,
   loaderHidden: boolean
 ) {
-  const [scene, setScene] = usePhoneNavigationScene(initialScene);
+  const snapshot = useSyncExternalStore(
+    (notify) => {
+      const lease = port.subscribe(notify);
+      return () => lease.dispose();
+    },
+    port.getSnapshot,
+    port.getSnapshot
+  );
+  const scene = snapshot.projection.navigationScene;
   const [menuOpen, setMenuOpen] = useState(false);
   const visible = loaderHidden && scene !== 'hero' && scene !== 'pattern';
   useEffect(() => {
     if (!visible) setMenuOpen(false);
   }, [visible]);
-  const navigate = useCallback((target: SceneId) => {
+  const navigate = useCallback((target: SceneId, source: 'hash' | 'menu' | 'history' = 'menu') => {
     setMenuOpen(false);
-    if (target === 'hero') {
-      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
-      return;
+    if (source === 'menu') {
+      window.history.pushState(
+        null,
+        '',
+        `${window.location.pathname}${window.location.search}${hashForScene(target)}`
+      );
     }
-    if (target === 'method-top' || target === 'method-bottom') {
-      document.getElementById('method')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      });
-      return;
-    }
-    window.location.assign(`/${hashForScene(target)}`);
-  }, []);
-  return {
-    scene,
-    setScene,
-    visible,
-    menuOpen,
-    setMenuOpen,
-    navigate
-  };
+    port.dispatch({
+      type: 'NAVIGATE_REQUESTED',
+      authorityId: port.getSnapshot().authorityId,
+      scene: target,
+      source
+    });
+  }, [port]);
+  return { snapshot, scene, visible, menuOpen, setMenuOpen, navigate };
 }

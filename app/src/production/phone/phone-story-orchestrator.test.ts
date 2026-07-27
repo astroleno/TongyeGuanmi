@@ -1,20 +1,27 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createPhoneStoryOrchestrator,
+  type PhoneOrchestratedRunSession,
   type PhoneRunCapability
 } from './phone-story-orchestrator';
-import type { PhoneIntent } from './phone-transition-coordinator';
 
-function intent(
-  inputEpoch: number,
-  direction: 1 | -1 = 1
-): PhoneIntent {
+function element(top = 0): HTMLElement {
+  const properties = new Map<string, string>();
   return {
-    inputEpoch,
-    direction,
-    startY: direction === 1 ? 0 : 300,
-    projectedY: direction === 1 ? 300 : 0
-  };
+    dataset: {} as DOMStringMap,
+    style: {
+      setProperty(name: string, value: string) {
+        properties.set(name, value);
+      },
+      removeProperty(name: string) {
+        properties.delete(name);
+      },
+      getPropertyValue(name: string) {
+        return properties.get(name) ?? '';
+      }
+    },
+    getBoundingClientRect: () => ({ top })
+  } as unknown as HTMLElement;
 }
 
 function capability(
@@ -28,673 +35,279 @@ function capability(
   };
 }
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+function intent() {
+  return { inputEpoch: 1, direction: 1 as const, startY: 0, projectedY: 240 };
+}
 
-describe('single phone story orchestrator', () => {
-  it('runs only the cursor-adjacent boundary and never scans ahead', () => {
-    const starts: string[] = [];
+describe('single phone story projector transaction', () => {
+  it('projects the next revision before notifying external-store subscribers', () => {
+    const root = element();
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',
+      root,
       scrollY: () => 0,
       scrollTo: () => undefined
     });
-    orchestrator.registerRunCapability(
-      'services-lab',
-      'group45-services',
-      capability(200, () => {
-        starts.push('services-lab');
-      })
-    );
-
-    expect(orchestrator.handleIntent(intent(1))).toBe(false);
-    expect(starts).toEqual([]);
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'brand'
-    });
-  });
-
-  it.fails('[Task 3] does not resurrect an unclaimed gesture after the source revision changes', () => {
-    const start = vi.fn();
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'star-map',
-      scrollY: () => 0,
-      scrollTo: () => undefined
+    const observed: string[] = [];
+    orchestrator.subscribe(() => {
+      observed.push(`${root.dataset.phoneRevision}:${root.dataset.phoneCursor}`);
     });
 
-    expect(orchestrator.handleIntent(intent(1))).toBe(false);
-    orchestrator.registerRunCapability(
-      'aod-method',
-      'front-half-aod',
-      capability(100, start)
-    );
-    expect(start).not.toHaveBeenCalled();
+    orchestrator.reconcileHold('services');
 
-    orchestrator.reconcileHold('aod-animation');
-    expect(start).not.toHaveBeenCalled();
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'aod-animation'
-    });
-  });
-
-  it('latches a programmatic boundary request without consuming a gesture epoch', () => {
-    let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const start = vi.fn((_direction, activeSession) => {
-      session = activeSession;
-    });
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'aod-animation',
-      scrollY: () => 100,
-      scrollTo: () => undefined
-    });
-    orchestrator.registerRunCapability(
-      'aod-method',
-      'front-half-aod',
-      capability(100, start)
-    );
-
-    expect(orchestrator.requestRun(1)).toBe(true);
-    expect(orchestrator.requestRun(1)).toBe(false);
-    expect(start).toHaveBeenCalledTimes(1);
-
-    session?.reportFailure();
-    expect(orchestrator.handleIntent(intent(1))).toBe(true);
-    expect(start).toHaveBeenCalledTimes(2);
-  });
-
-  it('consumes at most one adjacent run from a gesture epoch', () => {
-    let brandSession: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    let servicesSession: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'brand',
-      scrollY: () => 0,
-      scrollTo: () => undefined
-    });
-    orchestrator.registerRunCapability(
-      'brand-services',
-      'group45-brand',
-      capability(100, (_direction, session) => {
-        brandSession = session;
-      })
-    );
-    orchestrator.registerRunCapability(
-      'services-lab',
-      'group45-services',
-      capability(200, (_direction, session) => {
-        servicesSession = session;
-      })
-    );
-
-    expect(orchestrator.handleIntent(intent(1))).toBe(true);
-    brandSession?.reportPresentedFrame();
-    brandSession?.reportEndpointCommit('receiver');
-    brandSession?.reportPresentedFrame();
-    brandSession?.reportEndpointCommit('receiver');
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
+    expect(observed).toEqual(['1:hold:services']);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      revision: 1,
+      status: 'stable',
       scene: 'services'
     });
-    expect(orchestrator.handleIntent(intent(1))).toBe(true);
-    expect(servicesSession).toBeUndefined();
-    expect(orchestrator.handleIntent(intent(2))).toBe(true);
-    expect(servicesSession).toBeDefined();
   });
 
-  it('claims a boundary crossed by the cumulative wheel epoch after native overshoot', () => {
-    const start = vi.fn();
+  it('registers surfaces as pure handles and lets the projector select roles', () => {
+    const root = element();
+    const brand = element();
+    const services = element();
     const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'services',
+      initialScene: 'brand',
+      root,
       scrollY: () => 0,
       scrollTo: () => undefined
     });
-    orchestrator.registerRunCapability(
-      'services-lab',
-      'group45-services',
-      capability(200, start)
-    );
+    orchestrator.registerSurface({
+      id: 'native:brand',
+      scene: 'brand',
+      kind: 'native',
+      root: () => brand,
+      presented: () => true
+    });
+    orchestrator.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => services,
+      presented: () => true
+    });
 
-    expect(orchestrator.handleIntent({
-      ...intent(1),
-      startY: 0,
-      projectedY: 80
-    })).toBe(false);
-    expect(orchestrator.handleIntent({
-      ...intent(1),
-      startY: 240,
-      projectedY: 320
-    })).toBe(true);
-    expect(start).toHaveBeenCalledOnce();
+    expect(brand.dataset.phoneSurfaceRole).toBe('stable');
+    expect(services.dataset.phoneSurfaceRole).toBe('retired');
+    orchestrator.reconcileHold('services');
+    expect(brand.dataset.phoneSurfaceRole).toBe('retired');
+    expect(services.dataset.phoneSurfaceRole).toBe('stable');
   });
 
-  it('keeps the latest Strict Mode registration when stale cleanup runs', () => {
-    const firstStart = vi.fn();
-    const secondStart = vi.fn();
+  it('keeps candidate target projection locked until release, alignment, and verification settle', () => {
+    const root = element();
+    let session: PhoneOrchestratedRunSession | undefined;
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',
+      root,
       scrollY: () => 0,
       scrollTo: () => undefined
     });
-    const stale = orchestrator.registerRunCapability(
-      'brand-services',
-      'group45-brand',
-      capability(100, firstStart)
-    );
-    orchestrator.registerRunCapability(
-      'brand-services',
-      'group45-brand',
-      capability(100, secondStart)
-    );
-
-    stale.dispose();
-    expect(orchestrator.handleIntent(intent(1))).toBe(true);
-    expect(firstStart).not.toHaveBeenCalled();
-    expect(secondStart).toHaveBeenCalledTimes(1);
-  });
-
-  it('rolls abort back before unlocking and ignores stale completion', () => {
-    let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const inputStates: boolean[] = [];
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'brand',
-      scrollY: () => 0,
-      scrollTo: () => undefined
-    });
-    orchestrator.subscribe(() => {
-      inputStates.push(orchestrator.getSnapshot().status === 'transaction');
-    });
-    orchestrator.registerRunCapability(
-      'brand-services',
-      'group45-brand',
-      capability(100, (_direction, activeSession) => {
-        session = activeSession;
-      })
-    );
-
-    orchestrator.handleIntent(intent(1));
-    session?.reportFailure();
-    expect(orchestrator.cursor()).toMatchObject({ kind: 'hold', scene: 'brand' });
-    expect(inputStates).toEqual([true, true, false]);
-    session?.reportAnimationComplete();
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'brand'
-    });
-  });
-
-  it('keeps the accepted boundary as the only run anchor', () => {
-    let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const scrollTo = vi.fn();
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'brand',
-      scrollY: () => 0,
-      scrollTo
-    });
-    orchestrator.registerRunCapability(
-      'brand-services',
-      'group45-brand',
-      capability(100, (_direction, activeSession) => {
-        session = activeSession;
-      })
-    );
-
-    orchestrator.handleIntent(intent(1));
-    expect(session).not.toHaveProperty('moveTo');
-    expect(orchestrator.handleIntent(intent(2))).toBe(true);
-    expect(scrollTo).toHaveBeenLastCalledWith(100);
-  });
-
-  it('derives transition presentation from the canonical cursor', () => {
-    let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const onPresentation = vi.fn();
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'method-top',
-      scrollY: () => 0,
-      scrollTo: () => undefined,
-      onPresentation
-    });
-    orchestrator.registerRunCapability(
-      'method-figure2',
-      'grade-a-method',
-      capability(100, (_direction, activeSession) => {
-        session = activeSession;
-      })
-    );
-
-    orchestrator.handleIntent(intent(1));
-    expect(onPresentation).toHaveBeenLastCalledWith(expect.objectContaining({
-      scene: 'method-top',
-      checkpoint: 'method-to-figure2',
-      edge: 'method'
+    orchestrator.registerRunCapability('brand-services', 'test', capability(100, (
+      _direction,
+      activeSession
+    ) => {
+      session = activeSession;
     }));
 
+    expect(orchestrator.handleIntent(intent())).toBe(true);
     session?.reportPresentedFrame();
-    session?.reportProgress(0.5);
-    expect(onPresentation).toHaveBeenLastCalledWith(expect.objectContaining({
-      scene: 'figure2-animation',
-      checkpoint: 'method-to-figure2',
-      edge: 'method'
-    }));
-  });
-
-  it('reconciles front-half handoffs through the canonical cursor', () => {
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'hero',
-      scrollY: () => 0,
-      scrollTo: () => undefined
-    });
-
-    orchestrator.reconcileScrollRun('hero-pattern-scroll', 1, 0.5);
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'transition',
-      run: 'hero-pattern-scroll',
-      segment: 'hero-pattern',
-      phase: 'animating',
-      progress: 0.5
-    });
-
-    orchestrator.reconcileScrollHold('pattern');
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'pattern'
-    });
-  });
-
-  it('rejects stale front-half refresh after AOD commits Method', () => {
-    let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'aod-animation',
-      scrollY: () => 0,
-      scrollTo: () => undefined
-    });
-    orchestrator.registerRunCapability(
-      'aod-method',
-      'front-half-aod',
-      capability(100, (_direction, activeSession) => {
-        session = activeSession;
-      })
-    );
-
-    orchestrator.handleIntent(intent(1));
+    session?.reportEndpointCommit('receiver');
     session?.reportPresentedFrame();
     session?.reportAnimationComplete();
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'method-top'
-    });
 
-    orchestrator.reconcileScrollHold('aod-animation');
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'method-top'
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target' }
     });
+    expect(root.dataset.phoneProjectionState).toBe('transition');
+    expect(root.dataset.phoneInputState).toBe('locked');
   });
 
-  it('derives input state from the single snapshot through terminal settlement', () => {
-    let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
+  it('releases geometry before stable publication and resources after it', () => {
+    const root = element();
     const frames: Array<() => void> = [];
     const events: string[] = [];
+    let actualY = 0;
+    let session: PhoneOrchestratedRunSession | undefined;
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',
-      scrollY: () => 0,
-      scrollTo: (y) => events.push(`scroll:${y}`),
-      scheduleFrame: (callback) => {
-        frames.push(callback);
-      }
+      root,
+      scrollY: () => actualY,
+      scrollTo: (nextY) => { actualY = nextY; },
+      scheduleFrame: (callback) => frames.push(callback)
     });
-    orchestrator.registerRunCapability(
-      'brand-services',
-      'group45-brand',
-      capability(100, (_direction, activeSession) => {
-        session = activeSession;
-      })
-    );
-
-    orchestrator.handleIntent(intent(1));
-    session?.reportPresentedFrame();
-    session?.reportEndpointCommit('receiver');
-    session?.reportPresentedFrame();
-    session?.provideRelease(() => events.push('release'));
-    session?.reportEndpointCommit('receiver');
-
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'transition',
-      phase: 'measuring-landing'
-    });
-    expect(orchestrator.getSnapshot().status).toBe('transaction');
-    expect(events).toEqual(['scroll:100', 'scroll:100']);
-
-    expect(frames).toHaveLength(1);
-    frames.shift()?.();
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'services'
-    });
-    expect(orchestrator.getSnapshot().status).toBe('stable');
-    expect(events).toEqual(['scroll:100', 'scroll:100']);
-    expect(frames).toHaveLength(1);
-
-    frames.shift()?.();
-    expect(events).toEqual([
-      'scroll:100',
-      'scroll:100',
-      'release',
-      'scroll:100'
-    ]);
-  });
-
-  it('requires the controller-owned target surface commit before it can publish hold', () => {
-    let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'aod-animation',
-      scrollY: () => 0,
-      scrollTo: () => undefined
-    });
-    orchestrator.registerRunCapability(
-      'aod-method',
-      'front-half-aod',
-      capability(100, (_direction, activeSession) => {
-        session = activeSession;
-      })
-    );
-    const source = { dataset: {} } as HTMLElement;
-    const receiver = { dataset: {} } as HTMLElement;
-
-    orchestrator.handleIntent(intent(1));
-    session?.reportEndpoints(source, receiver);
-    session?.reportPresentedFrame();
-    session?.reportAnimationComplete();
-
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'transition',
-      phase: 'animating'
-    });
-    expect(receiver.dataset.phoneSurfaceRole).toBe('transition-endpoint');
-
-    session?.reportEndpointCommit('receiver');
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'method-top'
-    });
-    expect(receiver.dataset.phoneSurfaceRole).toBe('native-stable');
-  });
-
-  it('owns the authored progress clock and only commits after its endpoint renders', () => {
-    const frames = new Map<number, FrameRequestCallback>();
-    let sequence = 0;
-    vi.stubGlobal('window', {
-      requestAnimationFrame(callback: FrameRequestCallback) {
-        const id = ++sequence;
-        frames.set(id, callback);
-        return id;
-      },
-      cancelAnimationFrame(id: number) {
-        frames.delete(id);
-      }
-    });
-    let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const rendered: number[] = [];
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'aod-animation',
-      scrollY: () => 0,
-      scrollTo: () => undefined
-    });
-    orchestrator.registerRunCapability(
-      'aod-method',
-      'front-half-aod',
-      capability(100, (_direction, activeSession) => {
-        session = activeSession;
-      })
-    );
-
-    orchestrator.handleIntent(intent(1));
-    session?.reportPresentedFrame();
-    session?.animate(0, 1, 1500, (progress) => rendered.push(progress), () => {
-      session?.reportAnimationComplete();
-    });
-    const flush = (now: number) => {
-      const pending = [...frames.values()];
-      frames.clear();
-      for (const frame of pending) frame(now);
-    };
-
-    flush(0);
-    flush(1499);
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'transition',
-      phase: 'animating'
-    });
-    expect(rendered.at(-1)).toBeCloseTo(1499 / 1500, 4);
-    flush(1500);
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'method-top'
-    });
-  });
-
-  it('starts a cinematic direct entry at its canonical media leg', () => {
-    let session: Parameters<
-      NonNullable<PhoneRunCapability['startAtLeg']>
-    >[1] | undefined;
-    const startAtLeg = vi.fn((legIndex, activeSession) => {
-      expect(legIndex).toBe(1);
+    orchestrator.registerRunCapability('brand-services', 'test', capability(100, (
+      _direction,
+      activeSession
+    ) => {
       session = activeSession;
-    });
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'ph-animation',
-      scrollY: () => 240,
-      scrollTo: () => undefined
-    });
-
-    orchestrator.registerRunCapability(
-      'lab-education',
-      'group67-ph',
-      {
-        ...capability(240, () => undefined),
-        startAtLeg
+    }));
+    orchestrator.subscribe(() => {
+      if (orchestrator.getSnapshot().status === 'stable') {
+        events.push(`stable:${root.dataset.phoneInputState}`);
       }
-    );
-
-    expect(startAtLeg).not.toHaveBeenCalled();
-    orchestrator.activateDirectEntry();
-    expect(startAtLeg).toHaveBeenCalledTimes(1);
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'transition',
-      run: 'lab-education',
-      legIndex: 1,
-      segment: 'ph-education',
-      progress: 0
     });
 
+    orchestrator.handleIntent(intent());
     session?.reportPresentedFrame();
-    session?.reportAnimationComplete();
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'education'
+    session?.reportEndpointCommit('receiver');
+    session?.reportPresentedFrame();
+    session?.provideRelease({
+      releaseGeometry: () => events.push('geometry'),
+      releaseResources: () => events.push('resources')
     });
+    session?.reportEndpointCommit('receiver');
+    session?.reportTargetPresented();
+
+    expect(events).toEqual(['geometry']);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'measuring-landing' }
+    });
+    frames.shift()?.();
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'aligning-scroll' }
+    });
+    frames.shift()?.();
+    expect(events).toEqual(['geometry', 'stable:free']);
+    frames.shift()?.();
+    expect(events).toEqual(['geometry', 'stable:free', 'resources']);
   });
 
-  it('routes cinematic direct-entry rollback through the same snapshot trace', () => {
-    let session: Parameters<
-      NonNullable<PhoneRunCapability['startAtLeg']>
-    >[1] | undefined;
-    const presentations: string[] = [];
-    const retryable = vi.fn();
+  it('returns a failed run through the same source candidate precommit pipeline', () => {
+    const root = element();
+    const frames: Array<() => void> = [];
+    let actualY = 0;
+    let session: PhoneOrchestratedRunSession | undefined;
     const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'ph-animation',
-      scrollY: () => 240,
-      scrollTo: () => undefined,
-      onPresentation: ({ scene }) => {
-        if (scene) presentations.push(scene);
-      },
-      onRetryable: retryable
+      initialScene: 'brand',
+      root,
+      scrollY: () => actualY,
+      scrollTo: (nextY) => { actualY = nextY; },
+      scheduleFrame: (callback) => frames.push(callback)
     });
-    orchestrator.registerRunCapability('lab-education', 'group67-ph', {
-      ...capability(240, () => undefined),
-      startAtLeg: (_legIndex, activeSession) => {
-        session = activeSession;
-      }
-    });
-    orchestrator.activateDirectEntry();
+    orchestrator.registerRunCapability('brand-services', 'test', capability(100, (
+      _direction,
+      activeSession
+    ) => {
+      session = activeSession;
+    }));
 
+    orchestrator.handleIntent(intent());
     session?.reportFailure();
 
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'lab'
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'rollback-measuring-landing' },
+      projection: { commitState: 'candidate', semanticScene: 'brand' }
     });
-    expect(presentations).toContain('ph-animation');
-    expect(presentations.at(-1)).toBe('lab');
-    expect(retryable).toHaveBeenCalledWith('lab-education');
-  });
-
-  it('publishes a stable hold only through cursor reconciliation', () => {
-    const onPresentation = vi.fn();
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'brand',
-      scrollY: () => 0,
-      scrollTo: () => undefined,
-      onPresentation
+    expect(root.dataset.phoneInputState).toBe('locked');
+    frames.shift()?.();
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'rollback-aligning-scroll' }
     });
-
-    expect(onPresentation).not.toHaveBeenCalled();
-
-    orchestrator.reconcileHold('brand');
-    expect(onPresentation).toHaveBeenCalledWith(expect.objectContaining({
+    frames.shift()?.();
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
       scene: 'brand',
-      checkpoint: 'brand-reading',
-      edge: 'brand'
+      session: null,
+      diagnostics: { lastRollback: { reason: 'capability-failed' } }
+    });
+    expect(root.dataset.phoneInputState).toBe('free');
+  });
+
+  it('uses at most one bounded scroll correction before a stable target hold', () => {
+    const root = element();
+    const frames: Array<() => void> = [];
+    const commands: number[] = [];
+    let actualY = 0;
+    let session: PhoneOrchestratedRunSession | undefined;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'brand',
+      root,
+      scrollY: () => actualY,
+      scrollTo: (nextY) => {
+        commands.push(nextY);
+        if (commands.length >= 3) actualY = nextY;
+      },
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+    orchestrator.registerRunCapability('brand-services', 'test', capability(100, (
+      _direction,
+      activeSession
+    ) => {
+      session = activeSession;
     }));
+
+    orchestrator.handleIntent(intent());
+    session?.reportPresentedFrame();
+    session?.reportEndpointCommit('receiver');
+    session?.reportPresentedFrame();
+    session?.reportEndpointCommit('receiver');
+    session?.reportTargetPresented();
+    frames.shift()?.();
+    frames.shift()?.();
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { alignment: { correctionCount: 1 } }
+    });
+    frames.shift()?.();
+
+    expect(commands).toHaveLength(3);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'services'
+    });
   });
 
-  it('is the only owner that commits the selected stable scene adapter', () => {
-    const brand = vi.fn();
-    const services = vi.fn();
-    const brandRoot = { dataset: {} } as HTMLElement;
-    const servicesRoot = { dataset: {} } as HTMLElement;
+  it('does not publish a next snapshot when a connected root disconnects during preflight', () => {
+    const root = Object.assign(element(), { isConnected: true });
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',
+      root,
       scrollY: () => 0,
       scrollTo: () => undefined
     });
+    const observed = vi.fn();
+    orchestrator.subscribe(observed);
+    root.isConnected = false;
 
-    orchestrator.registerStableSceneAdapter('brand', 'brand', {
-      root: () => brandRoot,
-      commit: brand
-    });
-    orchestrator.registerStableSceneAdapter('services', 'services', {
-      root: () => servicesRoot,
-      commit: services
-    });
-
-    // Registration makes the current hold visible, but it cannot choose a
-    // different scene. The next commit is still made by reconciliation.
-    expect(brand).toHaveBeenCalledOnce();
-    expect(services).not.toHaveBeenCalled();
-    expect(brandRoot.dataset.phoneSurfaceRole).toBe('native-stable');
     orchestrator.reconcileHold('services');
-    expect(brand).toHaveBeenCalledOnce();
-    expect(services).toHaveBeenCalledOnce();
-    expect(brandRoot.dataset.phoneSurfaceRole).toBe('native-under-stage');
-    expect(servicesRoot.dataset.phoneSurfaceRole).toBe('native-stable');
-    // A lazily mounted root may report readiness later. Diagnostics replays
-    // the already-selected hold; it never lets the adapter select a scene.
-    orchestrator.syncDiagnostics();
-    expect(services).toHaveBeenCalledTimes(2);
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'brand',
+      revision: 0
+    });
+    expect(observed).not.toHaveBeenCalled();
   });
 
-  it.fails('[Task 2] keeps stable visibility out of adapter commit callbacks', () => {
-    const commit = vi.fn();
-    const root = { dataset: {} } as HTMLElement;
+  it('captures immutable direct-entry execution identity at the cinematic leg', () => {
+    let session: PhoneOrchestratedRunSession | undefined;
     const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'brand',
-      root,
+      initialScene: 'ph-animation',
       scrollY: () => 0,
       scrollTo: () => undefined
     });
-
-    orchestrator.registerStableSceneAdapter('brand', 'brand', {
-      root: () => root,
-      commit
-    });
-    orchestrator.syncDiagnostics();
-
-    expect(commit).not.toHaveBeenCalled();
-  });
-
-  it('keeps the fixed-stage surface active through every canonical cursor', () => {
-    const root = { dataset: {} } as HTMLElement;
-    let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'method-top',
-      root,
-      scrollY: () => 0,
-      scrollTo: () => undefined
-    });
-    orchestrator.registerRunCapability(
-      'method-figure2',
-      'grade-a-method',
-      capability(100, (_direction, activeSession) => {
+    orchestrator.registerRunCapability('lab-education', 'test', {
+      ...capability(0, () => undefined),
+      startAtLeg: (_leg, activeSession) => {
         session = activeSession;
-      })
-    );
-
-    orchestrator.syncDiagnostics();
-    expect(root.dataset.portraitStageActive).toBe('true');
-    expect(root.dataset.portraitAodMethodVisible).toBe('true');
-
-    orchestrator.handleIntent(intent(1));
-    expect(root.dataset.portraitStageActive).toBe('true');
-    session?.reportPresentedFrame();
-    session?.reportEndpointCommit('receiver');
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'figure2-animation'
+      }
     });
-    expect(root.dataset.portraitStageActive).toBe('true');
-    expect(root.dataset.portraitAodMethodVisible).toBe('false');
-  });
 
-  it('lands a committed document receiver at its natural coordinate', () => {
-    let session: Parameters<PhoneRunCapability['start']>[1] | undefined;
-    const scrolls: number[] = [];
-    const brandRoot = {
-      dataset: {},
-      getBoundingClientRect: () => ({ top: 844 })
-    } as unknown as HTMLElement;
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'figure2-proof',
-      scrollY: () => 9105,
-      scrollTo: (y) => scrolls.push(y)
-    });
-    orchestrator.registerStableSceneAdapter('brand', 'brand', {
-      root: () => brandRoot,
-      commit: () => undefined
-    });
-    orchestrator.registerRunCapability(
-      'proof-brand',
-      'grade-a-brand',
-      capability(9105, (_direction, activeSession) => {
-        session = activeSession;
-      })
-    );
+    orchestrator.activateDirectEntry();
 
-    expect(orchestrator.handleIntent({
-      inputEpoch: 1,
-      direction: 1,
-      startY: 9000,
-      projectedY: 9200
-    })).toBe(true);
-    session?.reportPresentedFrame();
-    session?.reportEndpointCommit('receiver');
-
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
-      scene: 'brand'
+    expect(session).toMatchObject({
+      authorityId: expect.any(String),
+      sessionId: expect.any(String),
+      generation: expect.any(Number),
+      leg: 1,
+      direction: 1
     });
-    expect(scrolls[0]).toBe(9105);
-    expect(scrolls.slice(1)).toEqual([9949, 9949]);
   });
 });

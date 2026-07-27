@@ -40,8 +40,8 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(phoneGroup67RunSource('crane-animation', 1)).toBe('education');
     expect(phoneGroup67RunSource('crane-animation', -1)).toBe('contact');
     expect(source).toContain('phoneGroup67RunSource(run.scene, run.direction)');
-    expect(source).toContain('orchestrator.registerStableSceneAdapter');
-    expect(source).not.toContain('orchestrator.subscribe');
+    expect(source).toContain('orchestrator.registerSurface');
+    expect(source).toContain('usePhoneStorySnapshot');
   });
 
   it('prewarms the compositor while the source remains the semantic owner', () => {
@@ -81,7 +81,7 @@ describe('PhoneLabContactContinuation recovery contract', () => {
 
   it('keeps reverse document alignment leased through the commit frame', () => {
     expect(source).toContain('acquirePhoneDocumentEndpointAlignment(');
-    expect(compositeRunnerSource).toContain('run.session.provideRelease(() => {');
+    expect(compositeRunnerSource).toContain('run.session.provideRelease({');
     expect(compositeRunnerSource).toContain('releaseExtra?.()');
     expect(compositeRunnerSource).not.toContain('run.session.moveTo(');
     expect(source).not.toContain('orchestrator.reportPresentation');

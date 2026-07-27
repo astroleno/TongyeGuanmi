@@ -55,11 +55,12 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
   });
 
   it('does not overwrite a neighbouring transition surface owner', () => {
-    expect(source).toContain('orchestrator.registerStableSceneAdapter');
-    expect(source).not.toContain('orchestrator.subscribe');
+    expect(source).toContain('orchestrator.registerSurface');
+    expect(source).toContain('usePhoneStorySnapshot');
     expect(source).not.toContain(
       "if (!activeRun && cursor.kind === 'hold')"
     );
     expect(source).not.toContain(': currentSceneRef.current;');
+    expect(source).not.toContain('commit: () =>');
   });
 });

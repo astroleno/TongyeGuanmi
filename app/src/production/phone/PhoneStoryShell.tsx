@@ -7,12 +7,10 @@ import { phoneMotionDriver } from './phone-gsap-driver';
 import { attachStoryMediaUnlock } from '../mobile-media-unlock';
 import { usePhoneStageRuntime } from './usePhoneStageRuntime';
 import { usePhoneFrontHalfAdapters } from './usePhoneFrontHalfAdapters';
-import { usePhoneEdgeSurface } from './usePhoneEdgeSurface';
 import { usePhoneFixedStageRegistration } from './usePhoneFixedStageRegistration';
 import { usePhoneViewportGeometry } from './usePhoneViewportGeometry';
 import { PhoneGroup67DirectEntry } from './PhoneGroup67DirectEntry';
 import { usePhoneStoryEntry, usePhoneStoryEntryLifecycle } from './usePhoneStoryEntry';
-import { usePhoneCheckpointPublisher } from './usePhoneCheckpointPublisher';
 import {
   usePhoneStoryNavigationRuntime
 } from './usePhoneStoryNavigationRuntime';
@@ -23,9 +21,6 @@ import {
 import {
   usePhoneStoryOrchestratorRuntime
 } from './usePhoneStoryOrchestratorRuntime';
-import type {
-  PhonePresentationEvidence
-} from './phone-story-orchestrator';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -94,10 +89,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     finishLoader(props.startupLoaderExitReason);
   }, [finishLoader, loaderHidden, props.startupLoaderExitReason]);
   const mapAodToMethod = frontHalf.mapAodToMethod ?? ZERO_METHOD_PROGRESS;
-  const navigation = usePhoneStoryNavigationRuntime(
-    entry.initialScene,
-    loaderHidden
-  );
   const [adapterRevision, setAdapterRevision] = useState(0);
   const fixedStageRegistered = usePhoneFixedStageRegistration(loaderHidden && ready);
   const rootRef = useRef<HTMLElement | null>(null);
@@ -105,10 +96,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const stageViewportRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
   const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
-  const checkpoint = usePhoneCheckpointPublisher(
-    entry.initialCheckpoint,
-    rootRef
-  );
   const publishAdapterRevision = useCallback(() => {
     setAdapterRevision((revision) => revision + 1);
   }, []);
@@ -117,9 +104,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     stageRef.current = host;
     if (host) setStageHost(host);
   }, []);
-  const publishEdgeScene = usePhoneEdgeSurface(
-    rootRef, stageViewportRef, entry.initialEdgeScene
-  );
   const [heroAdapterRef, bindHeroAdapter] =
     usePhoneAdapterHandleRef<PhoneHeroAdapterHandle>(publishAdapterRevision);
   const [patternAdapterRef, bindPatternAdapter] =
@@ -137,21 +121,13 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [starMapAodAdapterRef, bindStarMapAodAdapter] =
     usePhoneAdapterHandleRef<PhoneTransitionAdapterHandle>(publishAdapterRevision);
 
-  const publishPresentation = useCallback((
-    evidence: PhonePresentationEvidence
-  ) => {
-    if (evidence.scene) navigation.setScene(evidence.scene);
-    if (evidence.checkpoint) checkpoint.publish(evidence.checkpoint);
-    if (evidence.edge) publishEdgeScene(evidence.edge);
-  }, [checkpoint.publish, navigation.setScene, publishEdgeScene]);
-  const orchestrator = usePhoneStoryOrchestratorRuntime({
+  const authority = usePhoneStoryOrchestratorRuntime({
+    scope: 'formal',
     initialScene: entry.initialScene,
-    rootRef,
-    onPresentation: publishPresentation,
-    onRetryable: (run) => {
-      if (rootRef.current) rootRef.current.dataset.phoneRetryableRun = run;
-    }
+    rootRef
   });
+  const orchestrator = authority.port;
+  const navigation = usePhoneStoryNavigationRuntime(orchestrator, loaderHidden);
 
   usePhoneViewportGeometry(rootRef, motionEnabled);
 
@@ -184,7 +160,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   });
 
   return (
-    <PhoneStoryOrchestratorProvider orchestrator={orchestrator}>
+    <PhoneStoryOrchestratorProvider authority={authority}>
       <main
       ref={rootRef}
       className="portrait-scroll-spike"
@@ -199,8 +175,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-phone-validation-mode={props.validationMode}
       data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}
       data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}
-      data-portrait-checkpoint={checkpoint.checkpointRef.current}
-      data-portrait-checkpoint-trace={checkpoint.traceRef.current.join('>')}
       data-phone-direct-entry={directContinuationEntry
         ? 'continuation'
         : directStoryEntry ? 'story' : undefined}

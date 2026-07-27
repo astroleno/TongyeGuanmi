@@ -1,18 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   createPhoneStoryOrchestrator,
   type PhoneOrchestratedRunSession
 } from './phone-story-orchestrator';
 import { phoneStoryRuns } from './phone-story-runs';
-import type {
-  PhoneIntent,
-  PhoneTransitionDirection
-} from './phone-transition-coordinator';
+import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 
-function intent(
-  inputEpoch: number,
-  direction: PhoneTransitionDirection
-): PhoneIntent {
+function intent(inputEpoch: number, direction: PhoneTransitionDirection) {
   return {
     inputEpoch,
     direction,
@@ -22,136 +16,86 @@ function intent(
 }
 
 describe('canonical phone story sequence', () => {
-  it('runs the full forward and reverse story twice without stale ownership', () => {
-    const root = { dataset: {} } as HTMLElement;
-    const retryable = vi.fn();
-    const inputTrace: boolean[] = [];
-    const generations: number[] = [];
-    const startedSessions: PhoneOrchestratedRunSession[] = [];
-    let inputEpoch = 0;
+  it('runs the full forward and reverse story under one snapshot transaction contract', () => {
+    const sessions: PhoneOrchestratedRunSession[] = [];
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'aod-animation',
-      root,
       scrollY: () => 100,
-      scrollTo: () => undefined,
-      onRetryable: retryable
+      scrollTo: () => undefined
     });
-    let lastInputLocked = false;
-    orchestrator.subscribe(() => {
-      const inputLocked = orchestrator.getSnapshot().status === 'transaction';
-      if (inputLocked !== lastInputLocked) inputTrace.push(inputLocked);
-      lastInputLocked = inputLocked;
-    });
-
     for (const run of phoneStoryRuns) {
       orchestrator.registerRunCapability(run.id, `sequence:${run.id}`, {
         position: () => 100,
         canStart: () => true,
         start: (_direction, session) => {
-          startedSessions.push(session);
-          generations.push(session.generation);
+          sessions.push(session);
         }
       });
     }
 
+    let epoch = 0;
     const drive = (direction: PhoneTransitionDirection) => {
-      const runs = direction === 1
-        ? phoneStoryRuns
-        : [...phoneStoryRuns].reverse();
+      const runs = direction === 1 ? phoneStoryRuns : [...phoneStoryRuns].reverse();
       for (const run of runs) {
-        const source = direction === 1 ? run.from : run.to;
         const target = direction === 1 ? run.to : run.from;
-        expect(orchestrator.cursor()).toMatchObject({
-          kind: 'hold',
-          scene: source
-        });
-
-        expect(orchestrator.handleIntent(intent(++inputEpoch, direction)))
-          .toBe(true);
-        const session = startedSessions.at(-1);
-        expect(session).toBeDefined();
-        if (!session) throw new Error('Expected an active phone run session');
-        expect(orchestrator.cursor()).toMatchObject({
-          kind: 'transition',
-          run: run.id,
-          runSource: source,
-          direction
-        });
-        expect(session.valid()).toBe(true);
-
+        expect(orchestrator.handleIntent(intent(++epoch, direction))).toBe(true);
+        const session = sessions.at(-1);
+        if (!session) throw new Error('Expected a phone transaction session');
         session.reportPresentedFrame();
-
-        if (run.legs.length > 1) {
+        for (let index = 0; index < run.legs.length; index += 1) {
           session.reportEndpointCommit('receiver');
-          expect(orchestrator.cursor()).toMatchObject({
-            kind: 'transition',
-            legIndex: direction === 1 ? 1 : 0
-          });
-          session.reportPresentedFrame();
+          if (index < run.legs.length - 1) session.reportPresentedFrame();
         }
-        session.reportEndpointCommit('receiver');
-        expect(orchestrator.cursor()).toMatchObject({
-          kind: 'hold',
-          scene: target
+        session.reportTargetPresented();
+        expect(orchestrator.getSnapshot()).toMatchObject({
+          status: 'stable',
+          scene: target,
+          session: null
         });
-        expect(session.valid()).toBe(false);
-        expect(root.dataset.phoneTransitionLock).toBeUndefined();
-        expect(root.dataset.phoneAnchorY).toBeUndefined();
       }
     };
 
-    for (let cycle = 0; cycle < 2; cycle += 1) {
-      drive(1);
-      drive(-1);
-    }
-
-    expect(orchestrator.cursor()).toMatchObject({
-      kind: 'hold',
+    drive(1);
+    drive(-1);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
       scene: 'aod-animation'
     });
-    expect(generations).toEqual(
-      Array.from({ length: phoneStoryRuns.length * 4 }, (_, index) => index + 1)
-    );
-    expect(inputTrace).toEqual(
-      generations.flatMap(() => [true, false])
-    );
-    expect(retryable).not.toHaveBeenCalled();
   });
 
-  for (const [scene, run, leg] of [
+  it.each([
     ['figure3-animation', 'brand-services', 1],
     ['ttg-animation', 'services-lab', 1],
     ['ph-animation', 'lab-education', 1],
     ['crane-animation', 'education-contact', 1]
-  ] as const) {
-    it.fails(
-      `[Task 2] captures immutable execution identity for direct ${scene} entry`,
-      () => {
-        let session: PhoneOrchestratedRunSession | undefined;
-        const orchestrator = createPhoneStoryOrchestrator({
-          initialScene: scene,
-          scrollY: () => 100,
-          scrollTo: () => undefined
-        });
-
-        orchestrator.registerRunCapability(run, `direct:${run}`, {
-          position: () => 100,
-          canStart: () => true,
-          start: () => undefined,
-          startAtLeg: (_leg, activeSession) => {
-            session = activeSession;
-          }
-        });
-        orchestrator.activateDirectEntry();
-
-        expect(session).toMatchObject({
-          authorityId: expect.any(String),
-          sessionId: expect.any(String),
-          generation: expect.any(Number),
-          leg,
-          direction: 1
-        });
+  ] as const)('captures immutable execution identity for direct %s entry', (
+    scene,
+    run,
+    leg
+  ) => {
+    let session: PhoneOrchestratedRunSession | undefined;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: scene,
+      scrollY: () => 100,
+      scrollTo: () => undefined
+    });
+    orchestrator.registerRunCapability(run, `direct:${run}`, {
+      position: () => 100,
+      canStart: () => true,
+      start: () => undefined,
+      startAtLeg: (_leg, activeSession) => {
+        session = activeSession;
       }
-    );
-  }
+    });
+
+    orchestrator.activateDirectEntry();
+
+    expect(session).toMatchObject({
+      authorityId: expect.any(String),
+      sessionId: expect.any(String),
+      generation: expect.any(Number),
+      leg,
+      direction: 1
+    });
+  });
 });

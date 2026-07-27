@@ -3,7 +3,7 @@ import type {
 } from './phone-boundary-geometry';
 
 export type PhoneDocumentEndpointAlignmentLease = Readonly<{
-  release(): void;
+  releaseGeometry(): void;
 }>;
 
 type AlignmentSnapshot = Readonly<{
@@ -52,7 +52,7 @@ export function acquirePhoneDocumentEndpointAlignment(
   style.setProperty(documentTranslate, `${delta.toFixed(3)}px`);
 
   return {
-    release() {
+    releaseGeometry() {
       if (documentState.get(element) !== state) return;
       documentState.delete(element);
       const { before } = state;

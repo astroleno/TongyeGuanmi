@@ -26,6 +26,7 @@ import type { PhoneAodStartResult } from './aod-autoplay';
 import type {
   PhoneBoundaryGeometryOwner
 } from './phone-boundary-geometry';
+import type { PhoneExecutionIdentity } from './phone-story-state';
 
 export type PhoneStageSceneId = 'hero' | 'pattern' | 'star-map' | 'aod-animation';
 export type PhoneSceneAdapterId =
@@ -112,10 +113,16 @@ export type PhoneAodAdapterComponent = ForwardRefExoticComponent<
 >;
 
 export type PhoneTransitionAdapterHandle = TransitionPresentationAdapterHandle & {
-  begin(owner: PhoneBoundaryGeometryOwner): void;
+  begin(request: PhoneCinematicRequest): void;
   commitEndpoint(endpoint: 0 | 1): void;
   releaseEndpoint(): void;
 };
+
+/** Immutable execution identity captured at cinematic adapter start. */
+export type PhoneCinematicRequest = Readonly<{
+  identity: PhoneExecutionIdentity;
+  geometryOwner?: PhoneBoundaryGeometryOwner;
+}>;
 
 export type PhoneTransitionAdapterProps = Readonly<{
   host: HTMLElement | null;

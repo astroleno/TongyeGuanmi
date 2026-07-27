@@ -4,32 +4,33 @@ import {
   useSyncExternalStore,
   type ReactNode
 } from 'react';
-import type { PhoneStoryOrchestrator } from './phone-story-orchestrator';
+import type { PhoneStoryAuthority } from './phone-story-runtime';
+import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
 import type { PhoneStorySnapshot } from './phone-story-state';
 
 const PhoneStoryOrchestratorContext =
-  createContext<PhoneStoryOrchestrator | null>(null);
+  createContext<PhoneStoryRuntimePort | null>(null);
 
 export function PhoneStoryOrchestratorProvider({
-  orchestrator,
+  authority,
   children
 }: Readonly<{
-  orchestrator: PhoneStoryOrchestrator;
+  authority: PhoneStoryAuthority;
   children: ReactNode;
 }>) {
   return (
-    <PhoneStoryOrchestratorContext.Provider value={orchestrator}>
+    <PhoneStoryOrchestratorContext.Provider value={authority.port}>
       {children}
     </PhoneStoryOrchestratorContext.Provider>
   );
 }
 
-export function usePhoneStoryOrchestrator(): PhoneStoryOrchestrator {
-  const orchestrator = useContext(PhoneStoryOrchestratorContext);
-  if (!orchestrator) {
+export function usePhoneStoryOrchestrator(): PhoneStoryRuntimePort {
+  const port = useContext(PhoneStoryOrchestratorContext);
+  if (!port) {
     throw new Error('Phone story orchestrator is unavailable');
   }
-  return orchestrator;
+  return port;
 }
 
 /**
@@ -38,14 +39,14 @@ export function usePhoneStoryOrchestrator(): PhoneStoryOrchestrator {
  * publish an alternative scene, lock, or cursor state.
  */
 export function usePhoneStorySnapshot(): PhoneStorySnapshot {
-  const orchestrator = usePhoneStoryOrchestrator();
+  const port = usePhoneStoryOrchestrator();
   return useSyncExternalStore(
     (notify) => {
-      const lease = orchestrator.subscribe(notify);
+      const lease = port.subscribe(notify);
       return () => lease.dispose();
     },
-    orchestrator.getSnapshot,
-    orchestrator.getSnapshot
+    port.getSnapshot,
+    port.getSnapshot
   );
 }
 

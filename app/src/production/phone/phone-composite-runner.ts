@@ -4,7 +4,7 @@ import type {
 import { phoneRun, type PhoneRunId } from './phone-story-runs';
 import type {
   PhoneOrchestratedRunSession,
-  PhoneStoryOrchestrator
+  PhoneStoryRuntimePort
 } from './phone-story-orchestrator';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 import type {
@@ -67,7 +67,7 @@ export type PhoneCompositeRunnerOptions<
 > = Readonly<{
   ownerId: string;
   visualScenes: readonly Visual[];
-  orchestrator: PhoneStoryOrchestrator;
+  orchestrator: PhoneStoryRuntimePort;
   capabilities: PhoneCapabilityRegistry<CapabilityId, CapabilityHandle>;
   reducedMotion: boolean;
   timeoutMs: number;
@@ -85,7 +85,7 @@ export type PhoneCompositeRunnerOptions<
   acquireReverseEntry?(
     run: PhoneCompositeRunView<Visual>,
     config: PhoneCompositeRuntimeConfig
-  ): Readonly<{ release(): void }> | undefined;
+  ): Readonly<{ releaseGeometry(): void }> | undefined;
 }>;
 
 export type PhoneCompositeRunner<Visual extends string> = Readonly<{
@@ -153,15 +153,17 @@ export function createPhoneCompositeRunner<
     releaseRoles(run);
     run.session.reportEndpoints(source, receiver);
   };
-  const releaseRun = (
+  const releaseGeometry = (
     run: ActiveRun<Visual>,
     config: DirectConfig
   ) => {
-    clearTimer();
-    run.abortController.abort();
     if (!run.direct) (config as FullConfig).entry.releaseEndpoint();
     config.media.releaseEndpoint();
     releaseRoles(run);
+  };
+  const releaseResources = (run: ActiveRun<Visual>) => {
+    clearTimer();
+    run.abortController.abort();
     releaseExtra?.();
     releaseExtra = undefined;
     run.retention.dispose();
@@ -181,7 +183,8 @@ export function createPhoneCompositeRunner<
       config.media.commitEndpoint(endpoint);
       releaseRoles(run, 'source');
       config.visual.update(endpoint);
-      releaseRun(run, config);
+      releaseGeometry(run, config);
+      releaseResources(run);
     } else {
       releaseRoles(run, 'source');
       releaseExtra?.();
@@ -198,11 +201,17 @@ export function createPhoneCompositeRunner<
     if (active !== run || !run.session.valid()) return;
     clearTimer();
     active = null;
-    run.session.provideRelease(() => {
-      releaseRun(run, config);
-      options.onRunState(null, false);
+    run.session.provideRelease({
+      releaseGeometry() {
+        releaseGeometry(run, config);
+      },
+      releaseResources() {
+        releaseResources(run);
+        options.onRunState(null, false);
+      }
     });
     releaseRoles(run, 'receiver');
+    run.session.reportTargetPresented();
   };
   const runAnimation = (
     run: ActiveRun<Visual>,
@@ -238,7 +247,7 @@ export function createPhoneCompositeRunner<
       const receiver = config.final.root();
       if (!source || !receiver) return rollback(run);
       claimRoles(run, source, receiver);
-      config.media.begin(run.session);
+      config.media.begin({ identity: run.session });
       config.media.commitEndpoint(0);
     }
     run.step = 'media';
@@ -312,9 +321,9 @@ export function createPhoneCompositeRunner<
       const receiver = full.prior.root();
       if (!source || !receiver) return rollback(run);
       const extra = options.acquireReverseEntry?.(run, full);
-      if (extra) releaseExtra = () => extra.release();
+      if (extra) releaseExtra = () => extra.releaseGeometry();
       claimRoles(run, source, receiver);
-      full.entry.begin(run.session);
+      full.entry.begin({ identity: run.session });
       full.entry.commitEndpoint(1);
       startEntry(run, full);
     });
@@ -337,7 +346,7 @@ export function createPhoneCompositeRunner<
       const receiver = full.final.root();
       if (!source || !receiver) return rollback(run);
       claimRoles(run, source, receiver);
-      full.media.begin(run.session);
+      full.media.begin({ identity: run.session });
       full.media.commitEndpoint(1);
       full.visual.update(1);
       full.visual.leave?.();
@@ -351,9 +360,9 @@ export function createPhoneCompositeRunner<
       const receiver = full.prior.root();
       if (!source || !receiver) return rollback(run);
       const extra = options.acquireReverseEntry?.(run, full);
-      if (extra) releaseExtra = () => extra.release();
+      if (extra) releaseExtra = () => extra.releaseGeometry();
       claimRoles(run, source, receiver);
-      full.entry.begin(run.session);
+      full.entry.begin({ identity: run.session });
       full.entry.commitEndpoint(0);
       full.visual.update(0);
       commitTerminalEndpoint(run, full);
@@ -381,7 +390,7 @@ export function createPhoneCompositeRunner<
       const transition = run.direct || run.direction === -1
         ? config.media
         : full.entry;
-      transition.begin(run.session);
+      transition.begin({ identity: run.session });
       transition.commitEndpoint(run.direction === 1 ? 0 : 1);
       const prepareTarget = config.visual.prepareTargetPresentation;
       if (!prepareTarget) return rollback(run);

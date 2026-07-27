@@ -105,14 +105,24 @@
 }
 
 /* The shell publishes one global role transaction for every native endpoint. */
-.portrait-scroll-spike [data-phone-surface-role="native-under-stage"] {
+.portrait-scroll-spike [data-phone-surface-role="native-under-stage"],
+.portrait-scroll-spike [data-phone-surface-role="retained-under-stage"],
+.portrait-scroll-spike [data-phone-surface-role="retired"] {
   z-index: 9 !important;
 }
 
-.portrait-scroll-spike [data-phone-surface-role="native-stable"] {
+.portrait-scroll-spike [data-phone-surface-role="fixed-current"] {
+  z-index: 10 !important;
+}
+
+.portrait-scroll-spike [data-phone-surface-role="native-stable"],
+.portrait-scroll-spike [data-phone-surface-role="stable"],
+.portrait-scroll-spike [data-phone-surface-role="candidate-stable"] {
   z-index: 11 !important;
 }
 
-.portrait-scroll-spike [data-phone-surface-role="transition-endpoint"] {
+.portrait-scroll-spike [data-phone-surface-role="transition-endpoint"],
+.portrait-scroll-spike [data-phone-surface-role="transition-source"],
+.portrait-scroll-spike [data-phone-surface-role="transition-receiver"] {
   z-index: 12 !important;
 }
